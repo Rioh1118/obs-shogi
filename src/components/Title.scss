@@ -1,0 +1,20 @@
+@use "../index.scss" as index;
+
+.title {
+  text-align: center;
+  font-size: 12.8rem;
+  padding: 5rem;
+  &__obs {
+    display: inline-block;
+    margin-right: 8rem;
+    font-family: "Orbitron";
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  &__shogi {
+    display: inline-block;
+    font-family: "Zen Kaku Gothic Antique", sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+}

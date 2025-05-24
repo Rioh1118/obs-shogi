@@ -1,0 +1,44 @@
+@use "../index.scss" as index;
+
+.container {
+  height: 100vh;
+  width: 100vw;
+  background-color: index.$color-primary-dark;
+  color: index.$color-text-light-1;
+}
+
+.guide--text {
+  font-size: 3.3rem;
+  text-align: center;
+}
+
+.guide__btn--big {
+  display: block;
+  border: none;
+  border-radius: 1rem;
+  margin: 10rem auto;
+  font-family: inherit;
+  font-weight: 200;
+  font-size: 4rem;
+  cursor: pointer;
+
+  background-color: index.$color-secondary-light;
+  width: 47.7rem;
+  height: 14.8rem;
+  transition: all 0.2s;
+
+  &:hover {
+    transform: translateY(-0.3rem);
+    border: 0.4rem solid index.$color-secondary-dark;
+    box-shadow: 0 0.2rem 0.6rem rgba(index.$color-text-dark-1, 0.2);
+  }
+  &:active {
+    box-shadow: 0 0.1rem 0.3rem rgba(index.$color-text-dark-1, 0.2);
+    transform: translateY(0);
+  }
+
+  & .folder-icon {
+    display: inline-block;
+    margin-right: 1.5rem;
+  }
+}

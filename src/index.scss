@@ -1,0 +1,30 @@
+$color-primary-light: #3f4e4f;
+$color-primary-dark: #2c3639;
+
+$color-secondary-light: #dcd7c9;
+$color-secondary-dark: #a27b5c;
+
+$color-text-light-1: #f5f5f5;
+
+$color-text-dark-1: #0e1110;
+
+$default-font-size: 1.6rem;
+
+*,
+*::after,
+*::before {
+  margin: 0;
+  padding: 0;
+  box-sizing: inherit;
+}
+
+html {
+  font-size: 62.5%; // 1rem = 10px
+}
+
+body {
+  font-family: "Noto Sans JP", "sans-serif";
+  font-weight: 400;
+
+  box-sizing: border-box;
+}
