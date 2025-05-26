@@ -1,0 +1,14 @@
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100vw;
+
+  position: relative;
+
+  .sidebar__btn--toggle {
+    position: fixed;
+    top: 0;
+    left: 5rem;
+    z-index: 1000;
+  }
+}

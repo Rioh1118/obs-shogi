@@ -1,0 +1,11 @@
+@use "../index.scss" as index;
+
+.sidebar {
+  width: index.$sidebar-width;
+  height: 100vh;
+  // position: fixed;
+  // left: 0;
+  // top: 2rem;
+  background: index.$color-primary-black;
+  color: index.$color-white;
+}

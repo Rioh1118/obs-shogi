@@ -1,0 +1,17 @@
+@use "../index.scss" as index;
+
+.chevron {
+  display: inline-block;
+  font-size: 1.8rem;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15 ease;
+  color: index.$color-text-light-1;
+  margin-right: 0.5rem;
+  &--expanded {
+    transform: translateY(10%) rotate(90deg);
+  }
+  &--colapsed {
+    transform: rotate(0);
+  }
+}

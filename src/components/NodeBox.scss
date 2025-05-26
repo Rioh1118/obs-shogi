@@ -1,0 +1,11 @@
+@use "../index.scss" as index;
+
+.node-box {
+  padding: 0;
+  color: index.$color-white;
+  font-size: 1.4rem;
+
+  &:hover {
+    background-color: rgba(index.$color-white, 0.15);
+  }
+}
