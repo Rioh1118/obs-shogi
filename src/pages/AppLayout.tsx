@@ -18,7 +18,7 @@ const AppLayout = () => {
         {isSidebarOpen ? "x" : "☰"}
       </IconButton>
       <Sidebar isOpen={isSidebarOpen} />
-      <main>
+      <main className="app-layout__main-container">
         <h1>App Layout</h1>
         {error && <p style={{ color: "red" }}>❌ {error}</p>}
         {!error && (

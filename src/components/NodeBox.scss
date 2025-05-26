@@ -8,4 +8,8 @@
   &:hover {
     background-color: rgba(index.$color-white, 0.15);
   }
+
+  &__selected {
+    background-color: rgba(index.$color-text-light-1, 0.1);
+  }
 }

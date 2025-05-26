@@ -3,8 +3,6 @@ export type FileTreeNode = {
   name: string;
   path: string;
   isDir: boolean;
-  isOpen: boolean;
-  isRoot?: boolean;
   children?: FileTreeNode[];
   meta?: {
     fileType?: "kif" | "ki2" | "other";

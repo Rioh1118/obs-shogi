@@ -3,6 +3,7 @@ import { useState } from "react";
 import NodeBox from "./NodeBox";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import TreeNode from "./TreeNode";
+import "./RootNode.scss";
 
 function RootNode({ node }: { node: FileTreeNode }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -18,7 +19,9 @@ function RootNode({ node }: { node: FileTreeNode }) {
       </NodeBox>
       {!isOpen || !node.children?.length
         ? null
-        : node.children?.map((child) => <TreeNode node={child} level={1} />)}
+        : node.children?.map((child) => (
+            <TreeNode key={child.id} node={child} level={1} />
+          ))}
     </>
   );
 }
