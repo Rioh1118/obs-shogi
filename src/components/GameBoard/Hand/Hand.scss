@@ -1,0 +1,87 @@
+.hand-container {
+  width: 20rem;
+  height: 22rem;
+  background-image: url("/src/assets/hand.png");
+  background-size: cover;
+  position: relative;
+
+  .hand-pieces {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly; // 4段を均等配置
+  }
+
+  .hand-row {
+    display: flex;
+    flex-wrap: nowrap; // 折り返し禁止で強制1行
+    align-items: center;
+    min-height: 4rem;
+    max-height: 5rem;
+
+    // justifyContentとgapはJSで動的設定
+  }
+
+  .hand-piece {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0; // サイズ維持
+
+    // widthとheightはJSで動的設定
+
+    .piece {
+      width: 100%;
+      height: 100%;
+
+      // 既存のpiece設定を継承
+      &__king .piece-image {
+        width: 95%;
+        height: 95%;
+      }
+      &__bishop .piece-image,
+      &__horse .piece-image,
+      &__rook .piece-image,
+      &__dragon .piece-image {
+        width: 90%;
+        height: 100%;
+      }
+      &__pawn .piece-image,
+      &__prom-pawn .piece-image {
+        width: 75%;
+        height: 100%;
+      }
+      &__silver .piece-image,
+      &__prom-silver .piece-image {
+        width: 90%;
+        height: 95%;
+      }
+      &__gold .piece-image {
+        width: 87%;
+        height: 95%;
+      }
+      &__knight .piece-image,
+      &__lance .piece-image,
+      &__prom-knight .piece-image,
+      &__prom-lance .piece-image {
+        width: 82%;
+        height: 95%;
+      }
+    }
+
+    &:hover {
+      transform: scale(1.05);
+      z-index: 10;
+
+      .piece {
+        filter: brightness(1.1);
+      }
+    }
+  }
+}

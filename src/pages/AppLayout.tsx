@@ -2,6 +2,11 @@ import { useAppConfig } from "../contexts/AppConfigContext";
 import { useState } from "react";
 import Sidebar from "../components/Sidebar";
 import IconButton from "../components/IconButton";
+import GameBoard from "../components/GameBoard/GameBoard";
+import Board from "../components/GameBoard/Board/Board";
+import Hand from "../components/GameBoard/Hand/Hand";
+import { GameControls } from "../components/GameBoard";
+
 import "./AppLayout.scss";
 
 const AppLayout = () => {
@@ -19,6 +24,12 @@ const AppLayout = () => {
       </IconButton>
       <Sidebar isOpen={isSidebarOpen} />
       <main className="app-layout__main-container">
+        <GameBoard>
+          <Hand isPlayer={true} />
+          <Board />
+          <Hand isPlayer={false} />
+        </GameBoard>
+        <GameControls />
         <h1>App Layout</h1>
         {error && <p style={{ color: "red" }}>❌ {error}</p>}
         {!error && (

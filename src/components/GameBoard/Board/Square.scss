@@ -1,0 +1,7 @@
+@use "../../../index.scss" as index;
+
+.square {
+  &:hover {
+    background-color: rgba(index.$color-secondary-light, 0.5);
+  }
+}

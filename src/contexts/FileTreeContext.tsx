@@ -17,11 +17,18 @@ import {
   renameFile,
   readFile,
 } from "../commands/file_system";
+import { convertToJkf } from "../utils/kifConverter";
+import { getKifuFormat, isKifuFile } from "../utils/fileUtils";
+import type { KifuFormat, JKFFormat } from "@/types/kifu";
 
 type FileTreeState = {
   fileTree: FileTreeNode | null;
   selectedNode: FileTreeNode | null;
-  fileContent: string | null;
+  // 棋譜データのみ保持
+  jkfData: JKFFormat | null;
+  kifuFormat: KifuFormat | null;
+  // 非棋譜ファイルの場合のみrawテキストを保持
+  rawContent: string | null;
   expandedNodes: Set<string>;
   isLoading: boolean;
   error: string | null;
@@ -31,7 +38,8 @@ type FileTreeAction =
   | { type: "loading" }
   | { type: "tree_loaded"; payload: FileTreeNode }
   | { type: "node_selected"; payload: FileTreeNode | null }
-  | { type: "file_content_loaded"; payload: string }
+  | { type: "kifu_loaded"; payload: { jkfData: JKFFormat; format: KifuFormat } }
+  | { type: "raw_content_loaded"; payload: string }
   | { type: "file_content_cleared" }
   | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
@@ -41,7 +49,9 @@ type FileTreeAction =
 const initialState: FileTreeState = {
   fileTree: null,
   selectedNode: null,
-  fileContent: null,
+  jkfData: null,
+  kifuFormat: null,
+  rawContent: null,
   expandedNodes: new Set<string>(),
   isLoading: false,
   error: null,
@@ -66,19 +76,33 @@ function fileTreeReducer(
       return {
         ...state,
         selectedNode: action.payload,
-        fileContent: null,
+        rawContent: null,
       };
-    case "file_content_loaded":
+    case "kifu_loaded":
       return {
         ...state,
-        fileContent: action.payload,
+        jkfData: action.payload.jkfData,
+        kifuFormat: action.payload.format,
+        rawContent: null,
+        isLoading: false,
+        error: null,
+      };
+
+    case "raw_content_loaded":
+      return {
+        ...state,
+        rawContent: action.payload,
+        jkfData: null,
+        kifuFormat: null,
         isLoading: false,
         error: null,
       };
     case "file_content_cleared":
       return {
         ...state,
-        fileContent: null,
+        jkfData: null,
+        kifuFormat: null,
+        rawContent: null,
       };
     case "node_expanded":
       return {
@@ -116,6 +140,8 @@ type FileTreeContextType = FileTreeState & {
   isNodeExpanded: (nodeId: string) => boolean;
   renameSelected: (newPath: string) => Promise<void>;
   refreshTree: () => Promise<void>;
+  isKifuSelected: () => boolean;
+  getSelectedKifuData: () => JKFFormat | null;
 };
 
 const FileTreeContext = createContext<FileTreeContextType | undefined>(
@@ -156,7 +182,26 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "loading" });
     try {
       const content = await readFile(filePath);
-      dispatch({ type: "file_content_loaded", payload: content });
+      const format = getKifuFormat(filePath);
+
+      // 棋譜ファイルの場合はJKFに変換
+      if (isKifuFile(filePath)) {
+        try {
+          const jkfData = await convertToJkf(content, format);
+          dispatch({
+            type: "kifu_loaded",
+            payload: { jkfData, format },
+          });
+        } catch (jkfError) {
+          console.error("JKF変換に失敗しました:", jkfError);
+          dispatch({
+            type: "error",
+            payload: `棋譜の解析に失敗しました: ${jkfError}`,
+          });
+        }
+      } else {
+        dispatch({ type: "raw_content_loaded", payload: content });
+      }
     } catch (err) {
       dispatch({
         type: "error",
@@ -264,6 +309,14 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     await loadFileTree();
   }, [loadFileTree]);
 
+  const isKifuSelected = useCallback(() => {
+    return state.jkfData !== null && state.kifuFormat !== null;
+  }, [state.jkfData, state.kifuFormat]);
+
+  const getSelectedKifuData = useCallback(() => {
+    return state.jkfData;
+  }, [state.jkfData]);
+
   return (
     <FileTreeContext.Provider
       value={{
@@ -279,6 +332,8 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         isNodeExpanded,
         renameSelected,
         refreshTree,
+        isKifuSelected,
+        getSelectedKifuData,
       }}
     >
       {children}

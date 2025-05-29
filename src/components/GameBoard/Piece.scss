@@ -1,0 +1,74 @@
+.piece {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+
+  .piece-image {
+    object-fit: contain;
+    pointer-events: none;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
+  &__king .piece-image {
+    width: 95%;
+    height: 95%;
+  }
+
+  &__bishop .piece-image,
+  &__horse .piece-image,
+  &__rook .piece-image,
+  &__dragon .piece-image {
+    width: 90%;
+    height: 100%;
+  }
+
+  &__pawn .piece-image,
+  &__prom-pawn .piece-image {
+    width: 75%;
+    height: 100%;
+  }
+
+  &__silver .piece-image,
+  &__prom-silver .piece-image {
+    width: 90%;
+    height: 95%;
+  }
+
+  &__gold .piece-image {
+    width: 87%;
+    height: 95%;
+  }
+
+  &__knight .piece-image,
+  &__lance .piece-image,
+  &__prom-knight .piece-image,
+  &__prom-lance .piece-image {
+    width: 82%;
+    height: 95%;
+  }
+
+  // ホバー効果
+  &:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    filter: brightness(1.1);
+  }
+
+  // ドラッグ中
+  &.dragging {
+    transform: scale(1.1);
+    z-index: 100;
+    opacity: 0.8;
+  }
+
+  // 選択中
+  &.selected {
+    filter: drop-shadow(0 0 4px rgba(255, 215, 0, 0.8));
+  }
+}

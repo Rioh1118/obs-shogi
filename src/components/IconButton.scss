@@ -1,4 +1,145 @@
 .btn__icon {
   font-family: inherit;
-  font-size: 2rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.4rem;
+  transition: all 0.2s ease;
+  user-select: none;
+
+  // サイズバリエーション
+  &--small {
+    font-size: 1.2rem;
+    padding: 0.4rem;
+    min-width: 2.4rem;
+    min-height: 2.4rem;
+  }
+
+  &--medium {
+    font-size: 1.6rem;
+    padding: 0.8rem;
+    min-width: 3.2rem;
+    min-height: 3.2rem;
+  }
+
+  &--large {
+    font-size: 2rem;
+    padding: 1.2rem;
+    min-width: 4.4rem;
+    min-height: 4.4rem;
+  }
+
+  &--custom {
+    // カスタムサイズの場合は親から指定
+    font-size: inherit;
+    padding: inherit;
+    min-width: inherit;
+    min-height: inherit;
+  }
+
+  // バリアントスタイル
+  &--primary {
+    color: var(--color-text-primary, #212529);
+    background-color: var(--color-bg-primary, #ffffff);
+    border: 1px solid var(--color-border, #dee2e6);
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-bg-hover, #e9ecef);
+      border-color: var(--color-border-hover, #adb5bd);
+    }
+
+    &:active:not(:disabled) {
+      background-color: var(--color-bg-active, #dee2e6);
+      transform: translateY(1px);
+    }
+  }
+
+  &--secondary {
+    color: var(--color-text-secondary, #6c757d);
+    background-color: var(--color-bg-secondary, #f8f9fa);
+    border: 1px solid var(--color-border-light, #e9ecef);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary, #212529);
+      background-color: var(--color-bg-hover, #e9ecef);
+    }
+  }
+
+  &--ghost {
+    color: var(--color-text-primary, #212529);
+    background-color: transparent;
+    border: 1px solid transparent;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-bg-hover, #f8f9fa);
+      border-color: var(--color-border-light, #e9ecef);
+    }
+  }
+
+  &--danger {
+    color: var(--color-danger, #dc3545);
+    background-color: var(--color-bg-primary, #ffffff);
+    border: 1px solid var(--color-danger-light, #f5c6cb);
+
+    &:hover:not(:disabled) {
+      color: #ffffff;
+      background-color: var(--color-danger, #dc3545);
+      border-color: var(--color-danger, #dc3545);
+    }
+  }
+
+  // 無効状態
+  &--disabled,
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  // フォーカス状態
+  &:focus {
+    outline: 2px solid var(--color-focus, #0d6efd);
+    outline-offset: 2px;
+  }
+
+  // アクティブ状態のアニメーション
+  &:active:not(:disabled) {
+    transition: transform 0.1s ease;
+  }
+}
+
+// ダークモード対応
+@media (prefers-color-scheme: dark) {
+  .btn__icon {
+    &--primary {
+      color: var(--color-text-primary-dark, #f8f9fa);
+      background-color: var(--color-bg-primary-dark, #495057);
+      border-color: var(--color-border-dark, #6c757d);
+
+      &:hover:not(:disabled) {
+        background-color: var(--color-bg-hover-dark, #6c757d);
+      }
+
+      &:active:not(:disabled) {
+        background-color: var(--color-bg-active-dark, #5a6268);
+      }
+    }
+
+    &--secondary {
+      color: var(--color-text-secondary-dark, #adb5bd);
+      background-color: var(--color-bg-secondary-dark, #343a40);
+      border-color: var(--color-border-dark, #495057);
+    }
+
+    &--ghost {
+      color: var(--color-text-primary-dark, #f8f9fa);
+
+      &:hover:not(:disabled) {
+        background-color: var(--color-bg-hover-dark, #495057);
+      }
+    }
+  }
 }

@@ -1,0 +1,29 @@
+.game-board {
+  width: 83.1rem;
+  height: 48.5rem;
+  display: grid;
+  padding: 0;
+  margin: 2rem auto;
+
+  .opponent-hand {
+    grid-column: 1;
+    grid-row: 1;
+    width: 17.8rem;
+    height: 19.7rem;
+  }
+
+  .board-container {
+    grid-column: 3;
+    grid-row: 1/4;
+    width: 43.9rem;
+    height: 48.5rem;
+    align-self: center;
+  }
+
+  .player-hand {
+    grid-column: 5;
+    grid-row: 3;
+    width: 17.8rem;
+    height: 19.7rem;
+  }
+}
