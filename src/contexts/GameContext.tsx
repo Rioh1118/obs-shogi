@@ -45,7 +45,7 @@ type GameAction =
 
 const initialState: GameState = {
   originalJKF: null,
-  currentMoveIndex: -1,
+  currentMoveIndex: 0,
   shogiGame: null,
   selectedPosition: null,
   legalMoves: [],
@@ -59,12 +59,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "loading":
       return { ...state, isLoading: true, error: null };
-
     case "initialize_from_jkf":
       return {
         ...state,
         originalJKF: action.payload,
-        currentMoveIndex: -1,
+        currentMoveIndex: 0,
         selectedPosition: null,
         legalMoves: [],
         lastMove: null,
@@ -72,7 +71,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         isLoading: false,
         error: null,
       };
-
     case "go_to_move":
       return {
         ...state,
@@ -80,14 +78,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         lastMove: action.payload.lastMove,
         selectedPosition: null,
         legalMoves: [],
+        isLoading: false,
       };
-
     case "update_shogi_game":
       return {
         ...state,
         shogiGame: action.payload,
       };
-
     case "select_square":
       return {
         ...state,
@@ -96,7 +93,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ? state.shogiGame.getMovesFrom(action.payload.x, action.payload.y)
           : [],
       };
-
     case "select_hand":
       return {
         ...state,
@@ -105,27 +101,23 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ? state.shogiGame.getDropsBy(action.payload.color)
           : [],
       };
-
     case "clear_selection":
       return {
         ...state,
         selectedPosition: null,
         legalMoves: [],
       };
-
     case "set_mode":
       return {
         ...state,
         mode: action.payload,
       };
-
     case "error":
       return {
         ...state,
         isLoading: false,
         error: action.payload,
       };
-
     default:
       return state;
   }
@@ -186,12 +178,28 @@ function GameProvider({ children }: { children: ReactNode }) {
       "UM",
       "RY",
     ];
-
     if (validKinds.includes(jkfPiece as Kind)) {
       return jkfPiece as Kind;
     }
-
     throw new Error(`不正な駒種類: ${jkfPiece}`);
+  }, []);
+
+  // JKFから実際の手数を計算（moves[0]と特殊手を除外）
+  const getActualMoveCount = useCallback((jkf: JKFFormat): number => {
+    if (!jkf.moves || jkf.moves.length <= 1) return 0;
+
+    let count = 0;
+    // moves[0]は初期局面用なのでスキップ、moves[1]から開始
+    for (let i = 1; i < jkf.moves.length; i++) {
+      const moveData = jkf.moves[i];
+      if (moveData.move) {
+        count++;
+      } else if (moveData.special) {
+        // 特殊手（投了、中断など）は手数に含めない
+        break;
+      }
+    }
+    return count;
   }, []);
 
   // 指定手数まで進める
@@ -199,14 +207,16 @@ function GameProvider({ children }: { children: ReactNode }) {
     (jkf: JKFFormat, targetIndex: number) => {
       const newShogi = initializeShogiFromJKF(jkf);
       let lastMove: IMove | null = null;
-      // targetIndexまで手を進める
-      for (let i = 0; i <= targetIndex && i < jkf.moves.length; i++) {
+
+      // moves[1]からtargetIndex手目まで適用
+      // moves[0]は初期局面用なのでスキップ
+      for (let i = 1; i <= targetIndex && i < jkf.moves.length; i++) {
         const moveData = jkf.moves[i];
+
         if (moveData.move) {
           const { from, to, piece, promote, color } = moveData.move;
           try {
             const shogiKind = convertToShogiKind(piece);
-
             if (from) {
               // 駒移動
               newShogi.move(from.x, from.y, to!.x, to!.y, promote || false);
@@ -214,7 +224,6 @@ function GameProvider({ children }: { children: ReactNode }) {
               // 駒打ち
               newShogi.drop(to!.x, to!.y, shogiKind, color);
             }
-
             lastMove = {
               from: from ? { x: from.x, y: from.y } : undefined,
               to: { x: to!.x, y: to!.y },
@@ -225,6 +234,10 @@ function GameProvider({ children }: { children: ReactNode }) {
             console.error(`手の適用に失敗: ${i}手目`, err);
             throw err;
           }
+        } else if (moveData.special) {
+          // 特殊手（投了、中断など）は局面を変更せずに終了
+          console.log(`特殊手を検出: ${moveData.special} at move ${i}`);
+          break;
         }
       }
 
@@ -240,7 +253,7 @@ function GameProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "loading" });
         const shogi = initializeShogiFromJKF(jkfData);
         dispatch({ type: "initialize_from_jkf", payload: jkfData });
-        dispatch({ type: "update_shogi_game", payload: shogi }); // 修正
+        dispatch({ type: "update_shogi_game", payload: shogi });
       } catch (error) {
         dispatch({
           type: "error",
@@ -270,23 +283,14 @@ function GameProvider({ children }: { children: ReactNode }) {
   const goToMove = useCallback(
     (index: number) => {
       if (!state.originalJKF) return;
-
       try {
-        if (index === -1) {
-          const shogi = initializeShogiFromJKF(state.originalJKF);
-          dispatch({ type: "update_shogi_game", payload: shogi });
-          dispatch({
-            type: "go_to_move",
-            payload: { index: -1, lastMove: null },
-          });
-        } else {
-          const { shogi, lastMove } = applyShogiMovesToIndex(
-            state.originalJKF,
-            index,
-          );
-          dispatch({ type: "update_shogi_game", payload: shogi });
-          dispatch({ type: "go_to_move", payload: { index, lastMove } });
-        }
+        // index手目まで進める
+        const { shogi, lastMove } = applyShogiMovesToIndex(
+          state.originalJKF,
+          index,
+        );
+        dispatch({ type: "update_shogi_game", payload: shogi });
+        dispatch({ type: "go_to_move", payload: { index, lastMove } });
       } catch (error) {
         dispatch({
           type: "error",
@@ -294,25 +298,29 @@ function GameProvider({ children }: { children: ReactNode }) {
         });
       }
     },
-    [state.originalJKF, applyShogiMovesToIndex, initializeShogiFromJKF],
+    [state.originalJKF, applyShogiMovesToIndex],
   );
 
   const nextMove = useCallback(() => {
     if (!state.originalJKF) return;
-    const nextIndex = Math.min(
-      state.currentMoveIndex + 1,
-      state.originalJKF.moves.length - 1,
-    );
+
+    const actualMoveCount = getActualMoveCount(state.originalJKF);
+    if (state.currentMoveIndex >= actualMoveCount) {
+      console.log("nextMove: already at final move, ignoring");
+      return;
+    }
+
+    const nextIndex = state.currentMoveIndex + 1;
     goToMove(nextIndex);
-  }, [state.currentMoveIndex, state.originalJKF, goToMove]);
+  }, [state.currentMoveIndex, state.originalJKF, goToMove, getActualMoveCount]);
 
   const prevMove = useCallback(() => {
-    const prevIndex = Math.max(state.currentMoveIndex - 1, -1);
+    const prevIndex = Math.max(state.currentMoveIndex - 1, 0);
     goToMove(prevIndex);
   }, [state.currentMoveIndex, goToMove]);
 
   const resetToInitial = useCallback(() => {
-    goToMove(-1);
+    goToMove(0);
   }, [goToMove]);
 
   const selectSquare = useCallback((x: number, y: number) => {
@@ -341,19 +349,21 @@ function GameProvider({ children }: { children: ReactNode }) {
 
   // 棋譜再生用メソッド
   const goToStart = useCallback(() => {
-    goToMove(-1);
+    goToMove(0);
   }, [goToMove]);
 
   const goToEnd = useCallback(() => {
     if (!state.originalJKF) return;
-    const lastIndex = state.originalJKF.moves.length - 1;
-    goToMove(lastIndex);
-  }, [state.originalJKF, goToMove]);
+    const actualMoveCount = getActualMoveCount(state.originalJKF);
+    goToMove(actualMoveCount);
+  }, [state.originalJKF, goToMove, getActualMoveCount]);
 
-  // プロパティ
-  const totalMoves = state.originalJKF?.moves.length || 0;
-  const canGoBack = state.currentMoveIndex > -1;
-  const canGoForward = state.currentMoveIndex < totalMoves - 1;
+  // プロパティ（実際の手数のみを対象とする）
+  const totalMoves = state.originalJKF
+    ? getActualMoveCount(state.originalJKF)
+    : 0;
+  const canGoBack = state.currentMoveIndex > 0;
+  const canGoForward = state.currentMoveIndex < totalMoves;
 
   return (
     <GameContext.Provider

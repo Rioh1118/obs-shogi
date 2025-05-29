@@ -24,12 +24,14 @@ const AppLayout = () => {
       </IconButton>
       <Sidebar isOpen={isSidebarOpen} />
       <main className="app-layout__main-container">
-        <GameBoard>
-          <Hand isPlayer={true} />
-          <Board />
-          <Hand isPlayer={false} />
-        </GameBoard>
-        <GameControls />
+        <section className="main-container__game">
+          <GameBoard>
+            <Hand isPlayer={true} />
+            <Board />
+            <Hand isPlayer={false} />
+          </GameBoard>
+          <GameControls />
+        </section>
         <h1>App Layout</h1>
         {error && <p style={{ color: "red" }}>❌ {error}</p>}
         {!error && (

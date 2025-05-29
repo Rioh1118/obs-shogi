@@ -1,5 +1,6 @@
 import { useGame } from "../../contexts//GameContext";
-import IconButton from "../IconButton";
+import ControlButton from "./ControlButton";
+import "./GameControls.scss";
 
 function GameControls() {
   const { goToStart, prevMove, nextMove, goToEnd, canGoBack, canGoForward } =
@@ -7,48 +8,37 @@ function GameControls() {
 
   return (
     <div className="game-controls">
-      <IconButton
+      <ControlButton
         handleClick={goToStart}
         disabled={!canGoBack}
-        title="初期局面へ"
-        ariaLabel="初期局面へ移動"
-        variant="primary"
-        size="medium"
+        title="最初に戻る"
       >
-        ⏮
-      </IconButton>
-      <IconButton
+        |&lt;
+      </ControlButton>
+
+      <ControlButton
         handleClick={prevMove}
         disabled={!canGoBack}
-        title="前の手へ"
-        ariaLabel="前の手へ移動"
-        variant="primary"
-        size="medium"
+        title="前の手"
       >
-        ◀
-      </IconButton>
+        &lt;
+      </ControlButton>
 
-      <IconButton
+      <ControlButton
         handleClick={nextMove}
         disabled={!canGoForward}
-        title="次の手へ"
-        ariaLabel="次の手へ移動"
-        variant="primary"
-        size="medium"
+        title="次の手"
       >
-        ▶
-      </IconButton>
+        &gt;
+      </ControlButton>
 
-      <IconButton
+      <ControlButton
         handleClick={goToEnd}
         disabled={!canGoForward}
-        title="最終局面へ"
-        ariaLabel="最終局面へ移動"
-        variant="primary"
-        size="medium"
+        title="最後に進む"
       >
-        ⏭
-      </IconButton>
+        &gt;|
+      </ControlButton>
     </div>
   );
 }

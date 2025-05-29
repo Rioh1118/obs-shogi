@@ -2,6 +2,7 @@
 
 .square {
   &:hover {
-    background-color: rgba(index.$color-secondary-light, 0.5);
+    background-color: rgba(160, 130, 100, 0.3);
+    outline: 0.4px solid rgba(80, 60, 40, 0.4);
   }
 }

@@ -1,30 +1,22 @@
 .game-controls {
   display: flex;
-  gap: 0.8rem;
-  padding: 1.2rem;
-  background-color: var(--color-bg-primary, #ffffff);
-  border: 1px solid var(--color-border, #dee2e6);
-  border-radius: 0.8rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  gap: 0;
+  margin: 0 auto;
 
-  .btn__icon {
-    flex: 1;
-    min-width: 4.8rem;
-    font-size: 1.8rem;
-
-    &:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
+  .control-button {
+    &:not(:first-child) {
+      border-left: none;
     }
 
-    &:not(:disabled):hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    &:first-child {
+      border-top-left-radius: 4px;
+      border-bottom-left-radius: 4px;
     }
 
-    &:not(:disabled):active {
-      transform: translateY(0);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    &:last-child {
+      border-top-right-radius: 4px;
+      border-bottom-right-radius: 4px;
     }
   }
 }

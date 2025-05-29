@@ -76,8 +76,11 @@
     }
 
     &:hover {
-      transform: scale(1.05);
+      transform: scale(1.04);
       z-index: 10;
+      transition:
+        transform 0.1s ease,
+        filter 0.1s ease;
 
       .piece {
         filter: brightness(1.1);
