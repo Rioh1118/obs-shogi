@@ -3,7 +3,17 @@
 .sidebar {
   width: index.$sidebar-width;
   min-height: 100vh;
-  background: index.$color-primary-black;
+  // background: index.$color-primary-black;
+  background-image:
+    linear-gradient(to bottom, #1c2325 0%, #1a1f21 100%),
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 2px,
+      transparent 4px
+    );
+  background-blend-mode: overlay;
   color: index.$color-white;
   box-shadow: 0 0 0.5rem rgba(0, 0, 0, 0.3);
   border-right: 1px solid rgba(255, 255, 255, 0.05);

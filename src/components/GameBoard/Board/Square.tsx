@@ -22,7 +22,7 @@ function Square({
 }: SquareProps) {
   return (
     <div
-      className={`square ${isHighlighted ? "highlighted" : ""} ${isLastMove ? "last-move" : ""}`}
+      className={`square ${isHighlighted ? "square__highlighted" : ""} ${isLastMove ? "square__last-move" : ""}`}
       data-x={x}
       data-y={y}
       data-index={index}

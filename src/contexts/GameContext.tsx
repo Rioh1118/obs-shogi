@@ -344,7 +344,7 @@ function GameProvider({ children }: { children: ReactNode }) {
   }, [state.shogiGame]);
 
   const getCurrentTurn = useCallback(() => {
-    return state.shogiGame?.turn || null;
+    return state.shogiGame?.turn ?? null;
   }, [state.shogiGame]);
 
   // 棋譜再生用メソッド

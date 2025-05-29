@@ -4,6 +4,8 @@
   background-image: url("/src/assets/hand.png");
   background-size: cover;
   position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 0.3rem;
 
   .hand-pieces {
     position: absolute;
@@ -33,6 +35,12 @@
     cursor: pointer;
     position: relative;
     flex-shrink: 0; // サイズ維持
+
+    // ユーザー選択を無効化
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 
     // widthとheightはJSで動的設定
 

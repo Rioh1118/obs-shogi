@@ -3,7 +3,15 @@
   height: 48.5rem;
   background-image: url(/src/assets/board.png);
   background-size: cover;
-  border-radius: 1px;
+  border-radius: 0.2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+
+  -webkit-user-drag: none;
+  -khml-user-drag: none;
 }
 
 .position {

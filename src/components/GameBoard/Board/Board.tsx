@@ -7,9 +7,18 @@ import PieceFactory from "../PieceFactory";
 import { Piece } from "shogi.js";
 
 function Board() {
-  const { getCurrentBoard, selectSquare, legalMoves, lastMove } = useGame();
+  const {
+    getCurrentBoard,
+    getCurrentTurn,
+    selectSquare,
+    selectedPosition,
+    clearSelection,
+    legalMoves,
+    lastMove,
+  } = useGame();
 
   const board = getCurrentBoard();
+  const currentTurn = getCurrentTurn();
 
   if (!board) {
     return <div className="board-loading">盤面を読み込み中...</div>;
@@ -21,10 +30,54 @@ function Board() {
 
   const isLastMove = (x: number, y: number) => {
     if (!lastMove) return false;
-    return (
-      (lastMove.to.x === x && lastMove.to.y === y) ||
-      (lastMove.from?.x === x && lastMove.from?.y === y)
-    );
+    return lastMove.to.x === x && lastMove.to.y === y;
+  };
+
+  const handleSquareClick = (x: number, y: number, piece: Piece) => {
+    if (selectedPosition?.type === "hand") {
+      const isLegalDrop = legalMoves.some(
+        (move) => move.to.x === x && move.to.y === y,
+      );
+
+      if (isLegalDrop) {
+        // TODO: 実際に駒を打つ処理 (後で実装)
+        clearSelection();
+      } else {
+        clearSelection();
+      }
+      return;
+    }
+
+    if (selectedPosition?.type === "square") {
+      // 同じマスをクリックした場合選択解除
+      if (selectedPosition.x === x && selectedPosition.y === y) {
+        clearSelection();
+        return;
+      }
+
+      const isLegalMove = legalMoves.some(
+        (move) => move.to.x === x && move.to.y === y,
+      );
+
+      if (isLegalMove) {
+        // TODO: 実際に駒を動かす処理 (後で実装)
+        clearSelection();
+      } else {
+        if (piece && piece.color === currentTurn) {
+          selectSquare(x, y);
+        } else {
+          clearSelection();
+        }
+      }
+      return;
+    }
+    // 駒がある場合
+    if (piece && piece.color === currentTurn) {
+      selectSquare(x, y);
+    } else {
+      // 空のマスをクリックした場合は選択解除
+      clearSelection();
+    }
   };
 
   const squares = Array.from(
@@ -42,7 +95,7 @@ function Board() {
           index={index}
           isHighlighted={isSquareHighlighted(x, y)}
           isLastMove={isLastMove(x, y)}
-          onClick={() => selectSquare(x, y)}
+          onClick={() => handleSquareClick(x, y, piece)}
         >
           {piece && (
             <PieceFactory

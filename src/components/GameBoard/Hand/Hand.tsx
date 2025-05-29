@@ -9,31 +9,62 @@ interface HandProps {
 }
 
 function Hand({ isPlayer }: HandProps) {
-  const { getCurrentHands, selectHand } = useGame();
+  const {
+    getCurrentHands,
+    getCurrentTurn,
+    selectHand,
+    selectedPosition,
+    clearSelection,
+  } = useGame();
   const hands = getCurrentHands();
-
+  const currentTurn = getCurrentTurn();
   const color = isPlayer ? Color.Black : Color.White;
   const handPieces = hands?.[color] || [];
-
   const { arrangedPieces, layoutConfig } = useHandLayout(handPieces);
 
+  const isCurrentTurn = color === currentTurn;
+
+  const isSelectedPiece = (pieceKind: string) => {
+    return (
+      selectedPosition?.type === "hand" &&
+      selectedPosition.color === color &&
+      selectedPosition.kind === pieceKind
+    );
+  };
+
+  const handlePieceClick = (pieceKind: string) => {
+    if (!isCurrentTurn) {
+      clearSelection();
+      return;
+    }
+
+    if (isSelectedPiece(pieceKind)) {
+      clearSelection();
+      return;
+    }
+
+    selectHand(color, pieceKind as Kind);
+  };
+
   const renderPiecesInRow = (pieces: string[], rowConfig: RowConfig) => {
-    return pieces.map((pieceKind, index) => (
-      <div
-        key={`${pieceKind}-${index}`}
-        className="hand-piece"
-        style={{
-          width: `${rowConfig.pieceSize}rem`,
-          height: `${rowConfig.pieceSize * 1.1}rem`,
-        }}
-      >
-        <PieceFactory
-          jkfKind={pieceKind}
-          color={color}
-          onClick={() => selectHand(color, pieceKind as Kind)}
-        />
-      </div>
-    ));
+    return pieces.map((pieceKind, index) => {
+      return (
+        <div
+          key={`${pieceKind}-${index}`}
+          className="hand-piece"
+          style={{
+            width: `${rowConfig.pieceSize}rem`,
+            height: `${rowConfig.pieceSize * 1.1}rem`,
+          }}
+        >
+          <PieceFactory
+            jkfKind={pieceKind}
+            color={color}
+            onClick={() => handlePieceClick(pieceKind)}
+          />
+        </div>
+      );
+    });
   };
 
   return (
