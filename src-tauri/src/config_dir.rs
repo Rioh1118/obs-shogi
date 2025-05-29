@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::fs;
 use tauri::{AppHandle, Manager};
 
 #[derive(Serialize, Deserialize, Default)]
