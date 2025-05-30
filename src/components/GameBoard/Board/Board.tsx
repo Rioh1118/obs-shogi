@@ -15,6 +15,7 @@ function Board() {
     clearSelection,
     legalMoves,
     lastMove,
+    makeMove,
   } = useGame();
 
   const board = getCurrentBoard();
@@ -33,7 +34,7 @@ function Board() {
     return lastMove.to.x === x && lastMove.to.y === y;
   };
 
-  const handleSquareClick = (x: number, y: number, piece: Piece) => {
+  const handleSquareClick = async (x: number, y: number, piece: Piece) => {
     if (selectedPosition?.type === "hand") {
       const isLegalDrop = legalMoves.some(
         (move) => move.to.x === x && move.to.y === y,
@@ -41,6 +42,7 @@ function Board() {
 
       if (isLegalDrop) {
         // TODO: 実際に駒を打つ処理 (後で実装)
+        await makeMove({ x, y });
         clearSelection();
       } else {
         clearSelection();
@@ -61,6 +63,7 @@ function Board() {
 
       if (isLegalMove) {
         // TODO: 実際に駒を動かす処理 (後で実装)
+        await makeMove({ x, y });
         clearSelection();
       } else {
         if (piece && piece.color === currentTurn) {

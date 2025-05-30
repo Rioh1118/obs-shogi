@@ -8,25 +8,11 @@
 
   // 選択されていることが分かるように
   &__highlighted {
-    background-color: rgba(140, 170, 140, 0.3);
-    outline: 1px solid rgba(100, 130, 100, 0.5);
+    background-color: rgba(100, 130, 100, 0.12);
+    outline: none;
 
     cursor: pointer;
-
-    animation: fadePulse 1.8s ease-in-out 3;
-
     z-index: 1;
-    @keyframes fadePulse {
-      0% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0.7;
-      }
-      100% {
-        opacity: 1;
-      }
-    }
   }
 
   // 最後の手が分かるように
