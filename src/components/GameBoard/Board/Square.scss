@@ -2,28 +2,29 @@
 
 .square {
   &:hover {
-    background-color: rgba(160, 130, 100, 0.3);
-    outline: 0.4px solid rgba(80, 60, 40, 0.4);
+    background-color: rgba(80, 170, 200, 0.25);
+    outline: 0.4px solid rgba(60, 130, 180, 0.4);
   }
 
   // 選択されていることが分かるように
   &__highlighted {
-    background-color: rgba(120, 160, 120, 0.25);
-    outline: 1px solid rgba(100, 130, 100, 0.4);
+    background-color: rgba(140, 170, 140, 0.3);
+    outline: 1px solid rgba(100, 130, 100, 0.5);
+
     cursor: pointer;
 
-    animation: fadePulse 1.2s ease-in-out infinite;
+    animation: fadePulse 1.8s ease-in-out 3;
 
     z-index: 1;
     @keyframes fadePulse {
       0% {
-        opacity: 0.9;
+        opacity: 1;
       }
       50% {
-        opacity: 0.5;
+        opacity: 0.7;
       }
       100% {
-        opacity: 0.9;
+        opacity: 1;
       }
     }
   }

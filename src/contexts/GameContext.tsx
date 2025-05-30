@@ -6,6 +6,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { LegalMoveGenerator } from "../types/LegalMoveGenerator";
 import { Shogi } from "shogi.js";
 import type { JKFFormat } from "@/types/kifu";
 import { useFileTree } from "./FileTreeContext";
@@ -90,17 +91,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ...state,
         selectedPosition: { type: "square", ...action.payload },
         legalMoves: state.shogiGame
-          ? state.shogiGame.getMovesFrom(action.payload.x, action.payload.y)
+          ? LegalMoveGenerator.getLegalMovesFrom(
+              state.shogiGame,
+              action.payload.x,
+              action.payload.y,
+            )
           : [],
       };
-    case "select_hand":
+    case "select_hand": {
       return {
         ...state,
         selectedPosition: { type: "hand", ...action.payload },
         legalMoves: state.shogiGame
-          ? state.shogiGame.getDropsBy(action.payload.color)
+          ? LegalMoveGenerator.getLegalDropsByKind(
+              state.shogiGame,
+              action.payload.color,
+              action.payload.kind,
+            )
           : [],
       };
+    }
     case "clear_selection":
       return {
         ...state,
