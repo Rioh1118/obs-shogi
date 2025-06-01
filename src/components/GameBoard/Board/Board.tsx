@@ -7,19 +7,13 @@ import PieceFactory from "../PieceFactory";
 import { Piece } from "shogi.js";
 
 function Board() {
-  const {
-    getCurrentBoard,
-    getCurrentTurn,
-    selectSquare,
-    selectedPosition,
-    clearSelection,
-    legalMoves,
-    lastMove,
-    makeMove,
-  } = useGame();
+  const { state, operations, getCurrentTurn, getLegalMoves } = useGame();
 
-  const board = getCurrentBoard();
+  const board = state.shogiGame?.board;
   const currentTurn = getCurrentTurn();
+  const selectedPosition = state.selectedPosition;
+  const legalMoves = getLegalMoves();
+  const lastMove = state.lastMove;
 
   if (!board) {
     return <div className="board-loading">盤面を読み込み中...</div>;
@@ -39,13 +33,16 @@ function Board() {
       const isLegalDrop = legalMoves.some(
         (move) => move.to.x === x && move.to.y === y,
       );
-
       if (isLegalDrop) {
-        // TODO: 実際に駒を打つ処理 (後で実装)
-        await makeMove({ x, y });
-        clearSelection();
+        const dropMove = legalMoves.find(
+          (move) => move.to.x === x && move.to.y === y,
+        );
+        if (dropMove) {
+          operations.makeMove(dropMove);
+        }
+        operations.clearSelection();
       } else {
-        clearSelection();
+        operations.clearSelection();
       }
       return;
     }
@@ -53,7 +50,7 @@ function Board() {
     if (selectedPosition?.type === "square") {
       // 同じマスをクリックした場合選択解除
       if (selectedPosition.x === x && selectedPosition.y === y) {
-        clearSelection();
+        operations.clearSelection();
         return;
       }
 
@@ -62,24 +59,28 @@ function Board() {
       );
 
       if (isLegalMove) {
-        // TODO: 実際に駒を動かす処理 (後で実装)
-        await makeMove({ x, y });
-        clearSelection();
+        const move = legalMoves.find(
+          (move) => move.to.x === x && move.to.y === y,
+        );
+        if (move) {
+          operations.makeMove(move);
+        }
+        operations.clearSelection();
       } else {
         if (piece && piece.color === currentTurn) {
-          selectSquare(x, y);
+          operations.selectSquare({ x, y });
         } else {
-          clearSelection();
+          operations.clearSelection();
         }
       }
       return;
     }
     // 駒がある場合
     if (piece && piece.color === currentTurn) {
-      selectSquare(x, y);
+      operations.selectSquare({ x, y });
     } else {
       // 空のマスをクリックした場合は選択解除
-      clearSelection();
+      operations.clearSelection();
     }
   };
 

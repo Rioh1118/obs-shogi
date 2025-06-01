@@ -1,355 +1,977 @@
 import {
   createContext,
-  useReducer,
-  useEffect,
   useContext,
+  useReducer,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
-import { Color, type Kind, type Piece } from "shogi.js";
-import { LegalMoveGenerator } from "../services/LegalMoveGenerator";
-import { GameEngine } from "../services/GameEngine";
-import type { JKFFormat } from "../types/kifu";
+import { GameStateManager } from "../services/GameStateManager";
 import { useFileTree } from "./FileTreeContext";
-import { type GameState, type GameAction } from "../types/game";
+import type {
+  GameState,
+  GameAction,
+  GameOperations,
+  JKFBranchPath,
+} from "../types/game";
+import { Color, type Kind, type IMove } from "shogi.js";
+import type { IJSONKifuFormat as JKFFormat } from "json-kifu-format/dist/src/Formats";
 import { MoveService } from "../services/MoveService";
 
+// 初期状態
 const initialState: GameState = {
   originalJKF: null,
   currentMoveIndex: 0,
+  currentBranchPath: { mainMoveIndex: 0, forkHistory: [] },
   shogiGame: null,
   selectedPosition: null,
   legalMoves: [],
   lastMove: null,
   mode: "replay",
+  progress: {
+    currentJKFIndex: 0,
+    actualMoveCount: 0,
+    currentBranchPath: { mainMoveIndex: 0, forkHistory: [] },
+    totalMovesInBranch: 0,
+    isAtBranchEnd: true,
+  },
+  branchNavigation: {
+    currentPath: { mainMoveIndex: 0, forkHistory: [] },
+    availableBranches: [],
+    branchDepth: 0,
+  },
   isLoading: false,
   error: null,
 };
 
+// Reducer
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "loading":
-      return { ...state, isLoading: true, error: null };
-    case "initialize_from_jkf":
       return {
         ...state,
-        originalJKF: action.payload,
-        currentMoveIndex: 0,
-        selectedPosition: null,
-        legalMoves: [],
-        lastMove: null,
-        mode: "replay",
-        isLoading: false,
+        isLoading: true,
         error: null,
       };
-    case "go_to_move":
-      return {
-        ...state,
-        currentMoveIndex: action.payload.index,
-        lastMove: action.payload.lastMove,
-        selectedPosition: null,
-        legalMoves: [],
-        isLoading: false,
-      };
-    case "select_square":
-      return {
-        ...state,
-        selectedPosition: { type: "square", ...action.payload },
-        legalMoves: state.shogiGame
-          ? LegalMoveGenerator.getLegalMovesFrom(
-              state.shogiGame,
-              action.payload.x,
-              action.payload.y,
-            )
-          : [],
-      };
-    case "select_hand":
-      return {
-        ...state,
-        selectedPosition: { type: "hand", ...action.payload },
-        legalMoves: state.shogiGame
-          ? LegalMoveGenerator.getLegalDropsByKind(
-              state.shogiGame,
-              action.payload.color,
-              action.payload.kind,
-            )
-          : [],
-      };
-    case "clear_selection":
-      return {
-        ...state,
-        selectedPosition: null,
-        legalMoves: [],
-      };
-    case "update_shogi_game":
-      return {
-        ...state,
-        shogiGame: action.payload,
-      };
-    case "apply_move":
-      return {
-        ...state,
-        originalJKF: action.payload.newJkf,
-        currentMoveIndex: state.currentMoveIndex + 1,
-        selectedPosition: null,
-        legalMoves: [],
-        lastMove: action.payload.move,
-      };
 
-    case "set_mode":
-      return {
-        ...state,
-        mode: action.payload,
-      };
     case "error":
       return {
         ...state,
         isLoading: false,
         error: action.payload,
       };
+
+    case "clear_error":
+      return {
+        ...state,
+        error: null,
+      };
+
+    case "initialize_from_jkf":
+      return {
+        ...state,
+        originalJKF: action.payload,
+        currentMoveIndex: 0,
+        shogiGame: action.payload ? state.shogiGame : null,
+        currentBranchPath: { mainMoveIndex: 0, forkHistory: [] },
+        selectedPosition: null,
+        legalMoves: [],
+        lastMove: null,
+        progress: {
+          currentJKFIndex: 0,
+          actualMoveCount: 0,
+          currentBranchPath: { mainMoveIndex: 0, forkHistory: [] },
+          totalMovesInBranch: 0,
+          isAtBranchEnd: true,
+        },
+        branchNavigation: {
+          currentPath: { mainMoveIndex: 0, forkHistory: [] },
+          availableBranches: [],
+          branchDepth: 0,
+        },
+        isLoading: false,
+        error: null,
+      };
+
+    case "update_shogi_game":
+      return {
+        ...state,
+        shogiGame: action.payload,
+        isLoading: false,
+      };
+
+    case "go_to_jkf_index":
+      return {
+        ...state,
+        currentMoveIndex: action.payload.jkfIndex,
+        currentBranchPath: action.payload.branchPath,
+        lastMove: action.payload.lastMove,
+        progress: action.payload.progress,
+        branchNavigation: action.payload.branchNavigation,
+        selectedPosition: null,
+        legalMoves: [],
+        isLoading: false,
+      };
+
+    case "select_square":
+      return {
+        ...state,
+        selectedPosition: {
+          type: "square",
+          x: action.payload.x,
+          y: action.payload.y,
+        },
+      };
+
+    case "select_hand":
+      return {
+        ...state,
+        selectedPosition: {
+          type: "hand",
+          color: action.payload.color,
+          kind: action.payload.kind,
+        },
+      };
+
+    case "clear_selection":
+      return {
+        ...state,
+        selectedPosition: null,
+        legalMoves: [],
+      };
+
+    case "update_legal_moves":
+      return {
+        ...state,
+        legalMoves: action.payload,
+      };
+
+    case "apply_move":
+      return {
+        ...state,
+        originalJKF: action.payload.newJkf,
+        currentBranchPath: action.payload.newBranchPath,
+        lastMove: action.payload.move,
+        progress: action.payload.progress,
+        branchNavigation: action.payload.branchNavigation,
+        selectedPosition: null,
+        legalMoves: [],
+        isLoading: false,
+      };
+
+    case "add_comment":
+      return {
+        ...state,
+        originalJKF: action.payload.newJkf,
+        currentMoveIndex: action.payload.jkfIndex,
+        isLoading: false,
+      };
+
+    case "add_special":
+      return {
+        ...state,
+        originalJKF: action.payload.newJkf,
+        currentMoveIndex: action.payload.jkfIndex,
+        isLoading: false,
+      };
+
+    case "switch_to_branch":
+      return {
+        ...state,
+        currentBranchPath: action.payload.branchPath,
+        currentMoveIndex: action.payload.jkfIndex,
+        progress: action.payload.progress,
+        branchNavigation: action.payload.branchNavigation,
+        selectedPosition: null,
+        legalMoves: [],
+        isLoading: false,
+      };
+
+    case "create_branch":
+      return {
+        ...state,
+        originalJKF: action.payload.newJkf,
+        currentBranchPath: action.payload.newBranchPath,
+        lastMove: action.payload.move,
+        selectedPosition: null,
+        legalMoves: [],
+        isLoading: false,
+      };
+    // case "delete_branch":
+    //   return {
+    //     ...state,
+    //     originalJKF: action.payload.newJkf,
+    //     currentBranchPath: action.payload.newBranchPath,
+    //     currentMoveIndex: action.payload.jkfIndex,
+    //     progress: action.payload.progress,
+    //     branchNavigation: action.payload.branchNavigation,
+    //     selectedPosition: null,
+    //     legalMoves: [],
+    //     isLoading: false,
+    //   };
+    case "set_mode":
+      return {
+        ...state,
+        mode: action.payload,
+        selectedPosition: null,
+        legalMoves: [],
+      };
+
     default:
       return state;
   }
 }
 
-type GameContextType = GameState & {
-  initializeFromJKF: (jkf: JKFFormat) => void;
-  goToMove: (index: number) => void;
-  nextMove: () => void;
-  prevMove: () => void;
-  resetToInitial: () => void;
-  selectSquare: (x: number, y: number) => void;
-  selectHand: (color: Color, kind: Kind) => void;
-  clearSelection: () => void;
-  getCurrentBoard: () => Piece[][] | null;
-  getCurrentHands: () => Piece[][] | null;
+interface GameContextType {
+  state: GameState;
+  operations: GameOperations;
+
+  isGameLoaded: () => boolean;
   getCurrentTurn: () => Color | null;
-  makeMove: (targetSquare: { x: number; y: number }) => Promise<void>;
-  // 棋譜再生用メソッド
-  goToStart: () => void;
-  goToEnd: () => void;
-  totalMoves: number;
-  canGoBack: boolean;
-  canGoForward: boolean;
-};
+  hasNextMove: () => boolean;
+  hasPreviousMove: () => boolean;
+  getLegalMoves: () => IMove[];
+  isInCheck: (color?: Color) => boolean;
+  canMakeMove: (move: IMove) => boolean;
+}
 
-const GameContext = createContext<GameContextType | undefined>(undefined);
+// Context
+const GameContext = createContext<GameContextType | null>(null);
 
-function GameProvider({ children }: { children: ReactNode }) {
+// Provider
+interface GameProviderProps {
+  children: ReactNode;
+}
+
+export function GameProvider({ children }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const { jkfData, selectedNode } = useFileTree();
-  const currentFilePath = selectedNode?.path;
+  const { jkfData, selectedNode, isKifuSelected } = useFileTree();
 
-  useEffect(() => {
-    if (jkfData) {
-      try {
-        dispatch({ type: "loading" });
-        const shogi = GameEngine.initializeFromJKF(jkfData);
-        dispatch({ type: "initialize_from_jkf", payload: jkfData });
-        dispatch({ type: "update_shogi_game", payload: shogi });
-      } catch (error) {
-        dispatch({
-          type: "error",
-          payload: `棋譜の初期化に失敗しました: ${error}`,
-        });
-      }
-    }
-  }, [jkfData]);
-  const initializeFromJKF = useCallback((jkf: JKFFormat) => {
+  const withSyncErrorHandling = useCallback((operation: () => void) => {
     try {
       dispatch({ type: "loading" });
-      const shogi = GameEngine.initializeFromJKF(jkf);
-      dispatch({ type: "initialize_from_jkf", payload: jkf });
-      dispatch({ type: "update_shogi_game", payload: shogi });
+      operation();
     } catch (error) {
       dispatch({
         type: "error",
-        payload: `棋譜の初期化に失敗しました: ${error}`,
+        payload:
+          error instanceof Error ? error.message : "不明なエラーが発生しました",
       });
     }
   }, []);
 
-  // 指し手を適用する関数
-  const makeMove = useCallback(
-    async (targetSquare: { x: number; y: number }) => {
-      if (!state.selectedPosition || !state.shogiGame || !state.originalJKF) {
-        console.log("makeMove: 必要な状態が不足しています");
-        return;
-      }
-
-      const targetMove = state.legalMoves.find(
-        (move) => move.to.x === targetSquare.x && move.to.y === targetSquare.y,
-      );
-
-      if (!targetMove) {
-        console.log("makeMove: 合法手ではありません", targetSquare);
-        return;
-      }
-
-      if (!targetMove) {
-        console.log("makeMove: 合法手ではありません", targetSquare);
-        return;
-      }
-
+  // ヘルパー関数：非同期処理用エラーハンドリング
+  const withAsyncErrorHandling = useCallback(
+    async (operation: () => Promise<void>) => {
       try {
-        // 現在の局面をコピーして新しい手を適用
-        const { shogi: currentShogi } = GameEngine.applyShogiMovesToIndex(
-          state.originalJKF,
-          state.currentMoveIndex,
-        );
+        dispatch({ type: "loading" });
+        await operation();
+      } catch (error) {
+        dispatch({
+          type: "error",
+          payload:
+            error instanceof Error
+              ? error.message
+              : "不明なエラーが発生しました",
+        });
+      }
+    },
+    [],
+  );
 
-        // 新しい手を適用
-        await MoveService.executeMoveOnShogi(
-          currentShogi,
-          state.selectedPosition,
-          targetMove,
-          targetSquare,
-        );
-
-        const newJkf = MoveService.addMoveToJKF(
-          state.originalJKF,
-          targetMove,
-          state.shogiGame.turn,
-        );
-
-        if (currentFilePath && !selectedNode?.isDir) {
-          await MoveService.saveToFile(newJkf, currentFilePath);
+  // JKFからゲームを初期化する内部関数
+  const loadGameFromJKF = useCallback(
+    (jkf: JKFFormat) => {
+      withSyncErrorHandling(() => {
+        if (!jkf) {
+          throw new Error("JKFデータが無効です");
         }
 
-        // 状態を更新
-        dispatch({
-          type: "apply_move",
-          payload: {
-            move: targetMove,
-            newJkf,
-          },
-        });
-        dispatch({ type: "update_shogi_game", payload: currentShogi });
-      } catch (error) {
-        console.error("指し手の適用に失敗:", error);
-        dispatch({
-          type: "error",
-          payload: `指し手の適用に失敗しました: ${error}`,
-        });
-      }
+        dispatch({ type: "initialize_from_jkf", payload: jkf });
+
+        // 初期状態を構築
+        const gameState = GameStateManager.goToStart(jkf);
+        if (gameState.success && gameState.shogiGame) {
+          dispatch({ type: "update_shogi_game", payload: gameState.shogiGame });
+          dispatch({
+            type: "go_to_jkf_index",
+            payload: {
+              jkfIndex: 0,
+              branchPath: { mainMoveIndex: 0, forkHistory: [] },
+              lastMove: null,
+              progress: gameState.progress!,
+              branchNavigation: gameState.branchNavigation!,
+            },
+          });
+        } else {
+          throw new Error(gameState.error || "ゲームの初期化に失敗しました");
+        }
+      });
     },
-    [
-      state.selectedPosition,
-      state.shogiGame,
-      state.originalJKF,
-      state.legalMoves,
-      state.currentMoveIndex,
-      currentFilePath,
-      selectedNode?.isDir,
-    ],
+    [withSyncErrorHandling],
   );
 
-  const goToMove = useCallback(
+  // FileTreeContextからJKFデータが変更された時の自動ロード
+  useEffect(() => {
+    if (isKifuSelected() && jkfData) {
+      loadGameFromJKF(jkfData);
+    } else {
+      // 棋譜ファイル以外が選択された場合はゲーム状態をクリア
+      dispatch({ type: "initialize_from_jkf", payload: null });
+    }
+  }, [jkfData, selectedNode, isKifuSelected, loadGameFromJKF]);
+
+  // ヘルパー関数：同期処理用エラーハンドリング
+
+  // 基本操作
+  const loadGame = useCallback(
+    (jkf: JKFFormat) => {
+      loadGameFromJKF(jkf);
+    },
+    [loadGameFromJKF],
+  );
+
+  // JKFナビゲーション
+  const goToJKFIndex = useCallback(
     (index: number) => {
       if (!state.originalJKF) return;
-      try {
-        // index手目まで進める
-        const { shogi, lastMove } = GameEngine.applyShogiMovesToIndex(
-          state.originalJKF,
+
+      withSyncErrorHandling(() => {
+        const result = GameStateManager.goToIndex(
+          state.originalJKF!,
           index,
+          state.currentBranchPath,
         );
-        dispatch({ type: "update_shogi_game", payload: shogi });
-        dispatch({ type: "go_to_move", payload: { index, lastMove } });
-      } catch (error) {
-        dispatch({
-          type: "error",
-          payload: `手の移動に失敗しました: ${error}`,
-        });
-      }
+
+        if (result.success && result.shogiGame) {
+          dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+          dispatch({
+            type: "go_to_jkf_index",
+            payload: {
+              jkfIndex: index,
+              branchPath: state.currentBranchPath,
+              lastMove: result.lastMove || null,
+              progress: result.progress!,
+              branchNavigation: result.branchNavigation!,
+            },
+          });
+        } else {
+          throw new Error(result.error || "インデックスへの移動に失敗しました");
+        }
+      });
     },
-    [state.originalJKF],
+    [state.originalJKF, state.currentBranchPath, withSyncErrorHandling],
   );
 
-  const nextMove = useCallback(() => {
+  const goToJKFIndexWithBranch = useCallback(
+    (index: number, branchPath: JKFBranchPath) => {
+      if (!state.originalJKF) return;
+
+      withSyncErrorHandling(() => {
+        const result = GameStateManager.goToIndex(
+          state.originalJKF!,
+          index,
+          branchPath,
+        );
+
+        if (result.success && result.shogiGame) {
+          dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+          dispatch({
+            type: "go_to_jkf_index",
+            payload: {
+              jkfIndex: index,
+              branchPath,
+              lastMove: result.lastMove || null,
+              progress: result.progress!,
+              branchNavigation: result.branchNavigation!,
+            },
+          });
+        } else {
+          throw new Error(result.error || "分岐への移動に失敗しました");
+        }
+      });
+    },
+    [state.originalJKF, withSyncErrorHandling],
+  );
+
+  const nextElement = useCallback(() => {
+    console.log("nextElement called", {
+      hasJKF: !!state.originalJKF,
+      currentIndex: state.currentMoveIndex,
+      branchPath: state.currentBranchPath,
+    });
+
+    if (!state.originalJKF) return;
+    console.log("JKF moves:", state.originalJKF.moves);
+    console.log(
+      "Next move data:",
+      state.originalJKF.moves[state.currentMoveIndex + 1],
+    );
+
+    withSyncErrorHandling(() => {
+      const result = GameStateManager.goToNext(
+        state.originalJKF!,
+        state.currentMoveIndex,
+        state.currentBranchPath,
+      );
+
+      if (result.success && result.shogiGame) {
+        console.log("Dispatching updates...");
+        dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+        dispatch({
+          type: "go_to_jkf_index",
+          payload: {
+            jkfIndex: state.currentMoveIndex + 1,
+            branchPath: state.currentBranchPath,
+            lastMove: result.lastMove || null,
+            progress: result.progress!,
+            branchNavigation: result.branchNavigation!,
+          },
+        });
+      } else {
+        // 次の手がない場合はエラーにしない
+        if (result.error?.includes("次の手がありません")) {
+          return;
+        }
+        throw new Error(result.error || "次の要素への移動に失敗しました");
+      }
+    });
+  }, [
+    state.originalJKF,
+    state.currentMoveIndex,
+    state.currentBranchPath,
+    withSyncErrorHandling,
+  ]);
+
+  const previousElement = useCallback(() => {
     if (!state.originalJKF) return;
 
-    const actualMoveCount = GameEngine.getActualMoveCount(state.originalJKF);
-    if (state.currentMoveIndex >= actualMoveCount) {
-      console.log("nextMove: already at final move, ignoring");
-      return;
-    }
+    withSyncErrorHandling(() => {
+      const result = GameStateManager.goToPrevious(
+        state.originalJKF!,
+        state.currentMoveIndex,
+        state.currentBranchPath,
+      );
 
-    const nextIndex = state.currentMoveIndex + 1;
-    goToMove(nextIndex);
-  }, [state.currentMoveIndex, state.originalJKF, goToMove]);
+      if (state.currentMoveIndex === 1) {
+        goToStart();
+      }
 
-  const prevMove = useCallback(() => {
-    const prevIndex = Math.max(state.currentMoveIndex - 1, 0);
-    goToMove(prevIndex);
-  }, [state.currentMoveIndex, goToMove]);
+      if (result.success && result.shogiGame) {
+        dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+        dispatch({
+          type: "go_to_jkf_index",
+          payload: {
+            jkfIndex: state.currentMoveIndex - 1,
+            branchPath: state.currentBranchPath,
+            lastMove: result.lastMove || null,
+            progress: result.progress!,
+            branchNavigation: result.branchNavigation!,
+          },
+        });
+      } else {
+        // 前の手がない場合はエラーにしない
+        if (result.error?.includes("前の手がありません")) {
+          return;
+        }
+        throw new Error(`${result.error} 前の要素への移動に失敗しました`);
+        // throw new Error(result.error || "前の要素への移動に失敗しました");
+      }
+    });
+  }, [
+    state.originalJKF,
+    state.currentMoveIndex,
+    state.currentBranchPath,
+    withSyncErrorHandling,
+  ]);
 
-  const resetToInitial = useCallback(() => {
-    goToMove(0);
-  }, [goToMove]);
+  const goToStart = useCallback(() => {
+    if (!state.originalJKF) return;
 
-  const selectSquare = useCallback((x: number, y: number) => {
-    dispatch({ type: "select_square", payload: { x, y } });
-  }, []);
+    withSyncErrorHandling(() => {
+      const result = GameStateManager.goToStart(state.originalJKF!);
 
-  const selectHand = useCallback((color: Color, kind: Kind) => {
-    dispatch({ type: "select_hand", payload: { color, kind } });
-  }, []);
+      if (result.success && result.shogiGame) {
+        dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+        dispatch({
+          type: "go_to_jkf_index",
+          payload: {
+            jkfIndex: 0,
+            branchPath: { mainMoveIndex: 0, forkHistory: [] },
+            lastMove: null,
+            progress: result.progress!,
+            branchNavigation: result.branchNavigation!,
+          },
+        });
+      } else {
+        throw new Error(result.error || "開始局面への移動に失敗しました");
+      }
+    });
+  }, [state.originalJKF, withSyncErrorHandling]);
+
+  const goToEnd = useCallback(() => {
+    if (!state.originalJKF) return;
+
+    withSyncErrorHandling(() => {
+      const result = GameStateManager.goToEnd(
+        state.originalJKF!,
+        state.currentBranchPath,
+      );
+
+      if (result.success && result.shogiGame) {
+        dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+        dispatch({
+          type: "go_to_jkf_index",
+          payload: {
+            jkfIndex: result.progress!.currentJKFIndex,
+            branchPath: state.currentBranchPath,
+            lastMove: result.lastMove || null,
+            progress: result.progress!,
+            branchNavigation: result.branchNavigation!,
+          },
+        });
+      } else {
+        throw new Error(result.error || "最終手への移動に失敗しました");
+      }
+    });
+  }, [state.originalJKF, state.currentBranchPath, withSyncErrorHandling]);
+
+  // 手の操作（nextMove, previousMoveは nextElement, previousElement と同じ）
+  const nextMove = nextElement;
+  const previousMove = previousElement;
+
+  // 選択操作
+  const selectSquare = useCallback(
+    (position: { x: number; y: number }) => {
+      if (!state.shogiGame) return;
+
+      withSyncErrorHandling(() => {
+        // 既に同じマスが選択されている場合は選択解除
+        if (
+          state.selectedPosition?.type === "square" &&
+          state.selectedPosition.x === position.x &&
+          state.selectedPosition.y === position.y
+        ) {
+          dispatch({ type: "clear_selection" });
+          return;
+        }
+
+        dispatch({ type: "select_square", payload: position });
+
+        // 合法手を計算
+        const result = GameStateManager.calculateLegalMoves(state.shogiGame!, {
+          type: "square",
+          x: position.x,
+          y: position.y,
+        });
+        if (result.success) {
+          dispatch({ type: "update_legal_moves", payload: result.legalMoves });
+        }
+      });
+    },
+    [state.shogiGame, state.selectedPosition, withSyncErrorHandling],
+  );
+
+  const selectHand = useCallback(
+    (color: Color, kind: Kind) => {
+      if (!state.shogiGame) return;
+
+      withSyncErrorHandling(() => {
+        // 既に同じ持ち駒が選択されている場合は選択解除
+        if (
+          state.selectedPosition?.type === "hand" &&
+          state.selectedPosition.color === color &&
+          state.selectedPosition.kind === kind
+        ) {
+          dispatch({ type: "clear_selection" });
+          return;
+        }
+
+        dispatch({ type: "select_hand", payload: { color, kind } });
+
+        // 持ち駒の合法手を計算
+        const result = GameStateManager.calculateLegalMoves(state.shogiGame!, {
+          type: "hand",
+          color,
+          kind,
+        });
+        dispatch({ type: "update_legal_moves", payload: result.legalMoves });
+      });
+    },
+    [state.shogiGame, state.selectedPosition, withSyncErrorHandling],
+  );
 
   const clearSelection = useCallback(() => {
     dispatch({ type: "clear_selection" });
   }, []);
 
+  // 手の実行
+  const makeMove = useCallback(
+    (move: IMove) => {
+      if (!state.originalJKF || !state.shogiGame || !state.selectedPosition)
+        return;
+
+      withAsyncErrorHandling(async () => {
+        const validation = GameStateManager.validateMove(
+          state.shogiGame!,
+          move,
+        );
+        if (!validation.success || !validation.isLegal) {
+          throw new Error(validation.error || "不正な手です");
+        }
+
+        const result = GameStateManager.executeMove(
+          state.originalJKF!,
+          state.shogiGame!,
+          state.selectedPosition!,
+          move.to,
+          state.currentMoveIndex,
+          state.currentBranchPath,
+        );
+
+        if (result.success && result.gameState?.success) {
+          dispatch({
+            type: "update_shogi_game",
+            payload: result.gameState.shogiGame!,
+          });
+          dispatch({
+            type: "apply_move",
+            payload: {
+              newJkf: result.newJKF!,
+              newBranchPath: result.newBranchPath!,
+              move,
+              progress: result.gameState.progress!,
+              branchNavigation: result.gameState.branchNavigation!,
+            },
+          });
+
+          dispatch({ type: "clear_selection" });
+
+          // ファイルが選択されている場合は保存
+          if (selectedNode && !selectedNode.isDir) {
+            try {
+              await MoveService.saveToFile(result.newJKF!, selectedNode.path);
+            } catch (saveError) {
+              console.warn("ファイル保存に失敗しました:", saveError);
+              // 保存エラーは警告のみで、ゲーム状態は更新済みなのでそのまま続行
+            }
+          }
+        } else {
+          throw new Error(result.error || "手の実行に失敗しました");
+        }
+      });
+    },
+    [
+      state.originalJKF,
+      state.shogiGame,
+      state.currentMoveIndex,
+      state.currentBranchPath,
+      state.selectedPosition,
+      selectedNode,
+      withAsyncErrorHandling,
+    ],
+  );
+
+  // コメント・特殊情報の追加
+  const addComment = useCallback(
+    (comment: string) => {
+      if (!state.originalJKF) return;
+
+      withAsyncErrorHandling(async () => {
+        const result = GameStateManager.addComment(
+          state.originalJKF!,
+          comment,
+          state.currentMoveIndex,
+          state.currentBranchPath,
+        );
+
+        if (result.success) {
+          dispatch({
+            type: "add_comment",
+            payload: {
+              newJkf: result.newJkf!,
+              jkfIndex: state.currentMoveIndex,
+              comment,
+            },
+          });
+
+          // ファイル保存
+          if (selectedNode && !selectedNode.isDir) {
+            try {
+              await MoveService.saveToFile(result.newJkf!, selectedNode.path);
+            } catch (saveError) {
+              console.warn("ファイル保存に失敗しました:", saveError);
+            }
+          }
+        } else {
+          throw new Error(result.error || "コメントの追加に失敗しました");
+        }
+      });
+    },
+    [
+      state.originalJKF,
+      state.currentMoveIndex,
+      state.currentBranchPath,
+      selectedNode,
+      withAsyncErrorHandling,
+    ],
+  );
+
+  const addSpecial = useCallback(
+    (special: string) => {
+      if (!state.originalJKF) return;
+
+      withAsyncErrorHandling(async () => {
+        const result = GameStateManager.addSpecial(
+          state.originalJKF!,
+          special,
+          state.currentMoveIndex,
+          state.currentBranchPath,
+        );
+
+        if (result.success) {
+          dispatch({
+            type: "add_special",
+            payload: {
+              newJkf: result.newJkf!,
+              jkfIndex: state.currentMoveIndex,
+              special,
+            },
+          });
+
+          // ファイル保存
+          if (selectedNode && !selectedNode.isDir) {
+            try {
+              await MoveService.saveToFile(result.newJkf!, selectedNode.path);
+            } catch (saveError) {
+              console.warn("ファイル保存に失敗しました:", saveError);
+            }
+          }
+        } else {
+          throw new Error(result.error || "特殊情報の追加に失敗しました");
+        }
+      });
+    },
+    [
+      state.originalJKF,
+      state.currentMoveIndex,
+      state.currentBranchPath,
+      selectedNode,
+      withAsyncErrorHandling,
+    ],
+  );
+
+  // 分岐操作
+  const switchToBranch = useCallback(
+    (branchPath: JKFBranchPath) => {
+      if (!state.originalJKF) return;
+
+      withSyncErrorHandling(() => {
+        const result = GameStateManager.switchToBranch(
+          state.originalJKF!,
+          branchPath,
+        );
+
+        if (result.success && result.shogiGame) {
+          dispatch({ type: "update_shogi_game", payload: result.shogiGame });
+          dispatch({
+            type: "switch_to_branch",
+            payload: {
+              branchPath,
+              jkfIndex: result.progress!.currentJKFIndex,
+              progress: result.progress!,
+              branchNavigation: result.branchNavigation!,
+            },
+          });
+        } else {
+          throw new Error(result.error || "分岐の切り替えに失敗しました");
+        }
+      });
+    },
+    [state.originalJKF, withSyncErrorHandling],
+  );
+
+  const createBranch = useCallback(
+    (move: IMove) => {
+      if (!state.originalJKF || !state.shogiGame) return;
+
+      withAsyncErrorHandling(async () => {
+        const result = GameStateManager.executeMove(
+          state.originalJKF!,
+          state.shogiGame!,
+          state.selectedPosition!,
+          move.to,
+          state.currentMoveIndex,
+          state.currentBranchPath,
+        );
+
+        if (result.success && result.gameState?.success) {
+          dispatch({
+            type: "update_shogi_game",
+            payload: result.gameState.shogiGame!,
+          });
+          dispatch({
+            type: "create_branch",
+            payload: {
+              newJkf: result.newJKF!,
+              newBranchPath: result.newBranchPath!,
+              move: result.move!,
+              parentMoveIndex: state.currentMoveIndex,
+            },
+          });
+
+          dispatch({ type: "clear_selection" });
+
+          // ファイル保存
+          if (selectedNode && !selectedNode.isDir) {
+            try {
+              await MoveService.saveToFile(result.newJKF!, selectedNode.path);
+            } catch (saveError) {
+              console.warn("ファイル保存に失敗しました:", saveError);
+            }
+          }
+        } else {
+          throw new Error(result.error || "分岐の作成に失敗しました");
+        }
+      });
+    },
+    [
+      state.originalJKF,
+      state.shogiGame,
+      state.selectedPosition,
+      state.currentMoveIndex,
+      state.currentBranchPath,
+      selectedNode,
+      withAsyncErrorHandling,
+    ],
+  );
+
+  // 分岐削除の実装
+  const deleteBranch = useCallback(() => {
+    // TODO: 分岐削除機能実装
+    console.warn("deleteBranch 未実装");
+    throw new Error("分岐削除機能は未実装です");
+  }, []);
+
+  // モード切り替え
+  const setMode = useCallback((mode: "replay" | "analysis") => {
+    dispatch({ type: "set_mode", payload: mode });
+  }, []);
+
+  // エラークリア
+  const clearError = useCallback(() => {
+    dispatch({ type: "clear_error" });
+  }, []);
+
+  // 便利な状態取得関数
+  const isGameLoaded = useCallback(() => {
+    return state.originalJKF !== null && state.shogiGame !== null;
+  }, [state.originalJKF, state.shogiGame]);
+
   const getCurrentTurn = useCallback(() => {
-    return state.shogiGame?.turn ?? null;
+    return state.shogiGame?.turn || Color.Black;
   }, [state.shogiGame]);
 
-  const getCurrentBoard = useCallback(() => {
-    return state.shogiGame?.board || null;
-  }, [state.shogiGame]);
+  const hasNextMove = useCallback(() => {
+    if (!state.originalJKF || !state.originalJKF.moves) return false;
 
-  const getCurrentHands = useCallback(() => {
-    return state.shogiGame?.hands || null;
-  }, [state.shogiGame]);
+    const moves = state.originalJKF.moves;
+    const nextIndex = state.currentMoveIndex + 1;
 
-  // 棋譜再生用メソッド
-  const goToStart = useCallback(() => {
-    goToMove(0);
-  }, [goToMove]);
+    // 配列の範囲内かチェック
+    if (nextIndex >= moves.length) return false;
 
-  const goToEnd = useCallback(() => {
-    if (!state.originalJKF) return;
-    const actualMoveCount = GameEngine.getActualMoveCount(state.originalJKF);
-    goToMove(actualMoveCount);
-  }, [state.originalJKF, goToMove]);
+    // 次の要素が実際の手かチェック
+    const nextElement = moves[nextIndex];
+    return (
+      nextElement &&
+      typeof nextElement === "object" &&
+      "move" in nextElement &&
+      nextElement.move
+    );
+  }, [state.originalJKF, state.currentMoveIndex]);
 
-  // プロパティ（実際の手数のみを対象とする）
-  const totalMoves = state.originalJKF
-    ? GameEngine.getActualMoveCount(state.originalJKF)
-    : 0;
-  const canGoBack = state.currentMoveIndex > 0;
-  const canGoForward = state.currentMoveIndex < totalMoves;
+  const hasPreviousMove = useCallback(() => {
+    if (!state.originalJKF) return false;
+
+    return state.currentMoveIndex > 0;
+  }, [state.originalJKF, state.currentMoveIndex]);
+
+  const getLegalMoves = useCallback(() => {
+    return state.legalMoves;
+  }, [state.legalMoves]);
+
+  const isInCheck = useCallback(
+    (color?: Color) => {
+      if (!state.shogiGame) return false;
+      const targetColor = color || state.shogiGame.turn;
+      return state.shogiGame.isCheck(targetColor);
+    },
+    [state.shogiGame],
+  );
+
+  const canMakeMove = useCallback(
+    (move: IMove) => {
+      if (!state.shogiGame) return false;
+      const validation = GameStateManager.validateMove(state.shogiGame, move);
+      return validation.success && validation.isLegal;
+    },
+    [state.shogiGame],
+  );
+
+  // Operations オブジェクト
+  const operations: GameOperations = {
+    // 基本操作
+    loadGame,
+
+    // JKFナビゲーション
+    goToJKFIndex,
+    goToJKFIndexWithBranch,
+    nextElement,
+    previousElement,
+    goToStart,
+    goToEnd,
+
+    // 手の操作
+    nextMove,
+    previousMove,
+
+    // 選択操作
+    selectSquare,
+    selectHand,
+    clearSelection,
+
+    // 手の実行
+    makeMove,
+
+    // コメント・特殊情報
+    addComment,
+    addSpecial,
+
+    // 分岐操作
+    switchToBranch,
+    createBranch,
+    deleteBranch,
+
+    // モード切り替え
+    setMode,
+
+    // エラー処理
+    clearError,
+  };
 
   return (
     <GameContext.Provider
       value={{
-        ...state,
-        initializeFromJKF,
-        goToMove,
-        nextMove,
-        prevMove,
-        resetToInitial,
-        goToStart,
-        goToEnd,
-        selectSquare,
-        selectHand,
-        makeMove,
-        clearSelection,
-        getCurrentBoard,
-        getCurrentHands,
+        state,
+        operations,
+        isGameLoaded,
+        hasNextMove,
         getCurrentTurn,
-        totalMoves,
-        canGoBack,
-        canGoForward,
+        hasPreviousMove,
+        getLegalMoves,
+        isInCheck,
+        canMakeMove,
       }}
     >
       {children}
@@ -357,12 +979,11 @@ function GameProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function useGame() {
+// Hook
+export function useGame() {
   const context = useContext(GameContext);
   if (!context) {
-    throw new Error("useGame must be used within GameProvider");
+    throw new Error("useGame must be used within a GameProvider");
   }
   return context;
 }
-
-export { GameProvider, useGame };

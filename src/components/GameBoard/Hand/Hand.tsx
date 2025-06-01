@@ -9,15 +9,11 @@ interface HandProps {
 }
 
 function Hand({ isPlayer }: HandProps) {
-  const {
-    getCurrentHands,
-    getCurrentTurn,
-    selectHand,
-    selectedPosition,
-    clearSelection,
-  } = useGame();
-  const hands = getCurrentHands();
+  const { state, operations, getCurrentTurn } = useGame();
+  const hands = state.shogiGame?.hands;
   const currentTurn = getCurrentTurn();
+  const selectedPosition = state.selectedPosition;
+
   const color = isPlayer ? Color.Black : Color.White;
   const handPieces = hands?.[color] || [];
   const { arrangedPieces, layoutConfig } = useHandLayout(handPieces);
@@ -34,16 +30,16 @@ function Hand({ isPlayer }: HandProps) {
 
   const handlePieceClick = (pieceKind: string) => {
     if (!isCurrentTurn) {
-      clearSelection();
+      operations.clearSelection();
       return;
     }
 
     if (isSelectedPiece(pieceKind)) {
-      clearSelection();
+      operations.clearSelection();
       return;
     }
 
-    selectHand(color, pieceKind as Kind);
+    operations.selectHand(color, pieceKind as Kind);
   };
 
   const renderPiecesInRow = (pieces: string[], rowConfig: RowConfig) => {

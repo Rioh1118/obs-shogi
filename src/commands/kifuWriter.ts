@@ -70,7 +70,7 @@ export class KifuWriter {
 
     return {
       filePath: response.file_path!,
-      normalizedJkf: response.normalized_jkf!,
+      normalized_jkf: response.normalized_jkf!,
     };
   }
 
