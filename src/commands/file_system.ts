@@ -1,8 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { FileTreeNode } from "@/types/file-tree";
+import type { FileTreeNode } from "@/types";
+import type { RustFileTreeNode } from "@/types/rust-types";
+import { RustFileTreeAdapter } from "@/adapter/fileTreeAdapter";
 
 export async function getFileTree(rootDir: string): Promise<FileTreeNode> {
-  return await invoke("get_file_tree", { rootDir });
+  const rustNode: RustFileTreeNode = await invoke("get_file_tree", { rootDir });
+  return RustFileTreeAdapter.fromRust(rustNode);
 }
 
 export async function createFile(

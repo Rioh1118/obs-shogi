@@ -1,6 +1,8 @@
-import type { PlayerColor } from "../constants/shogi";
+export type {
+  Shogi,
+  ISettingType as ShogiSetting,
+  IMove as ShogiMove,
+} from "shogi.js";
 
-export interface PieceProps {
-  color: PlayerColor;
-  onClick?: () => void;
-}
+export type { Color, Kind } from "shogi.js";
+export { Piece } from "shogi.js";
