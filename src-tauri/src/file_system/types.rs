@@ -9,14 +9,10 @@ pub struct FileTreeNode {
     pub is_dir: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub children: Option<Vec<FileTreeNode>>,
+    #[serde(rename = "lastModified", skip_serializing_if = "Option::is_none")]
+    pub last_modified: Option<i64>, // Unix timestamp
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub meta: Option<FileMeta>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FileMeta {
-    #[serde(rename = "fileType", skip_serializing_if = "Option::is_none")]
-    pub file_type: Option<String>,
-    #[serde(rename = "iconType", skip_serializing_if = "Option::is_none")]
-    pub icon_type: Option<String>,
+    pub size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extension: Option<String>,
 }

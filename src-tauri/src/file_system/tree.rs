@@ -2,12 +2,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::command;
 
-use super::types::{FileMeta, FileTreeNode};
-use super::utils::{generate_id, get_file_type, get_icon_type};
+use super::types::FileTreeNode;
+use super::utils::{generate_id, get_file_extension, is_kifu_file};
 
-fn build_file_tree_recursive(path: &Path, root_path: &Path) -> Result<FileTreeNode, String> {
+fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, String> {
     let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
     let is_dir = metadata.is_dir();
+
     let name = path
         .file_name()
         .unwrap_or_default()
@@ -16,24 +17,23 @@ fn build_file_tree_recursive(path: &Path, root_path: &Path) -> Result<FileTreeNo
 
     let absolute_path = path.to_string_lossy().to_string();
 
-    let file_type = if is_dir {
-        "folder".to_string()
-    } else {
-        get_file_type(path)
-    };
-
-    let icon_type = get_icon_type(is_dir, &file_type);
-
     let mut node = FileTreeNode {
         id: generate_id(),
         name,
         path: absolute_path,
         is_dir,
         children: None,
-        meta: Some(FileMeta {
-            file_type: if is_dir { None } else { Some(file_type) },
-            icon_type: Some(icon_type),
-        }),
+        last_modified: metadata
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_secs() as i64),
+        size: if is_dir { None } else { Some(metadata.len()) },
+        extension: if is_dir {
+            None
+        } else {
+            get_file_extension(path)
+        },
     };
 
     if is_dir {
@@ -44,9 +44,12 @@ fn build_file_tree_recursive(path: &Path, root_path: &Path) -> Result<FileTreeNo
             let entry = entry.map_err(|e| e.to_string())?;
             let child_path = entry.path();
 
-            match build_file_tree_recursive(&child_path, root_path) {
-                Ok(child_node) => children.push(child_node),
-                Err(_) => continue,
+            // ディレクトリまたは棋譜ファイルのみを含める
+            if child_path.is_dir() || is_kifu_file(&child_path) {
+                match build_file_tree_recursive(&child_path) {
+                    Ok(child_node) => children.push(child_node),
+                    Err(_) => continue, // エラーは無視して続行
+                }
             }
         }
 
@@ -58,9 +61,10 @@ fn build_file_tree_recursive(path: &Path, root_path: &Path) -> Result<FileTreeNo
         });
 
         if !children.is_empty() {
-            node.children = Some(children)
+            node.children = Some(children);
         }
     }
+
     Ok(node)
 }
 
@@ -84,6 +88,5 @@ pub fn get_file_tree(root_dir: String) -> Result<FileTreeNode, String> {
 
     // 絶対パスに正規化
     let canonical_path = root_path.canonicalize().map_err(|e| e.to_string())?;
-
-    build_file_tree_recursive(&canonical_path, &canonical_path)
+    build_file_tree_recursive(&canonical_path)
 }

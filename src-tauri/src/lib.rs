@@ -4,8 +4,7 @@ pub mod kifu;
 
 pub use config_dir::{load_config, save_config};
 pub use file_system::{
-    create_directory, create_file, delete_directory, delete_file, get_file_tree, read_file,
-    rename_file, write_file,
+    create_directory, delete_directory, delete_file, get_file_tree, read_file, save_kifu_file,
 };
 pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
 
@@ -16,13 +15,11 @@ pub fn run() {
             load_config,
             save_config,
             get_file_tree,
-            create_file,
+            save_kifu_file,
             create_directory,
             delete_file,
             delete_directory,
-            rename_file,
             read_file,
-            write_file,
             write_kifu_to_file,
             convert_jkf_to_format,
             normalize_jkf
