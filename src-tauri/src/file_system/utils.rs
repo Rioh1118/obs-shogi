@@ -22,5 +22,5 @@ pub fn is_hidden_file(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
         .map(|name| name.starts_with('.'))
-        .unwrap(false)
+        .unwrap_or(false)
 }
