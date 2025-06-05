@@ -1,27 +1,21 @@
-import type { JKFState, ShogiMove } from "@/types";
-
-import type { SelectedPosition } from "@/types/state";
+import type { Color, Kind, Shogi, ShogiMove } from "@/types";
 
 export interface MoveValidator {
   // 基本的な合法性チェック
-  isLegalMove(state: JKFState, move: ShogiMove): boolean;
+  isLegalMove(shogi: Shogi, move: ShogiMove): boolean;
 
+  getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[];
   // 合法手生成
-  getLegalMovesFrom(state: JKFState, x: number, y: number): ShogiMove[];
-
-  // 選択位置からの合法手計算
-  calculateLegalMovesForPosition(
-    state: JKFState,
-    position: SelectedPosition,
-  ): ShogiMove[];
+  getLegalMovesFrom(shogi: Shogi, x: number, y: number): ShogiMove[];
+  getLegalDropsByKind(shogi: Shogi, color: Color, kind: Kind): ShogiMove[];
 
   // 成り判定
-  canPromote(state: JKFState, move: ShogiMove): boolean;
-  mustPromote(state: JKFState, move: ShogiMove): boolean;
+  canPromote(shogi: Shogi, move: ShogiMove): boolean;
+  mustPromote(shogi: Shogi, move: ShogiMove): boolean;
 
   // UI用：成り選択肢付き合法手
   getLegalMovesWithPromotionOptions(
-    state: JKFState,
+    shogi: Shogi,
     x: number,
     y: number,
   ): Array<{

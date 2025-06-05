@@ -8,3 +8,4 @@ export * from "./GameStateReader";
 export * from "./KifuLoader";
 export * from "./KifuWriter";
 export * from "./MoveValidator";
+export * from "./jkf";

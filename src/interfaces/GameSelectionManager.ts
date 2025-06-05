@@ -8,5 +8,5 @@ export interface GameSelectionManager {
   clearSelection(): void;
 
   getSelectedPosition(): SelectedPosition | null;
-  updaateLegalMoves(moves: ShogiMove[]): void;
+  updateLegalMoves(moves: ShogiMove[]): void;
 }

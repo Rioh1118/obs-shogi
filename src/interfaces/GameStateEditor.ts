@@ -1,22 +1,22 @@
-import type { AsyncResult, JKFBranchPath, JKFData, ShogiMove } from "@/types";
+import type { Result, JKFBranchPath, JKFData, ShogiMove } from "@/types";
 import type { GameState } from "@/types/state";
 
 export interface GameStateEditor {
   // ゲーム初期化
-  loadGame(jkf: JKFData): AsyncResult<GameState, string>;
+  loadGame(jkf: JKFData): Result<GameState, string>;
 
   // 手の実行
-  makeMove(move: ShogiMove, promote?: boolean): AsyncResult<GameState, string>;
+  makeMove(move: ShogiMove, promote?: boolean): Result<GameState, string>;
 
   // コメント・特殊情報
   addComment(
     comment: string,
     moveIndex: number,
     branchPath: JKFBranchPath,
-  ): AsyncResult<GameState, string>;
+  ): Result<GameState, string>;
   addSpecial(
     special: string,
     moveIndex: number,
     branchPath: JKFBranchPath,
-  ): AsyncResult<GameState, string>;
+  ): Result<GameState, string>;
 }

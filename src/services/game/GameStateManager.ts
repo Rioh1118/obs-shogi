@@ -7,7 +7,6 @@ import type {
 } from "@/types/state";
 import type {
   JKFData,
-  JKFState,
   Shogi,
   ShogiMove,
   JKFBranchPath,
@@ -20,10 +19,10 @@ import {
   isAtBranchEnd,
   getNextValidIndex,
   getPreviousValidIndex,
-  canNavigateToIndex,
-  isValidBranchPath,
   getAvailableBranches,
   getBranchDepth,
+  canNavigateToIndex,
+  isValidBranchPath,
 } from "@/utils/branch";
 
 export class GameStateManager implements GameStateReader, GameStateNavigator {
@@ -55,10 +54,24 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
   private isLoading: boolean = false;
   private error: string | null = null;
 
+  constructor() {
+    this.updateBranchNavigation();
+  }
+
   // GameStateReader Impl
-  getCurrentState(): JKFState | null {
-    // TODO: shogiGameからJKFStateを生成
-    return null;
+  getCurrentState(): GameState {
+    return {
+      originalJKF: this.originalJKF,
+      shogiGame: this.shogiGame,
+      selectedPosition: this.selectedPosition,
+      legalMoves: this.legalMoves,
+      lastMove: this.lastMove,
+      mode: this.mode,
+      progress: this.progress,
+      branchNavigation: this.branchNavigation,
+      isLoading: this.isLoading,
+      error: this.error,
+    };
   }
 
   getCurrentMoveIndex(): number {
@@ -74,8 +87,7 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
   }
 
   getCurrentTurn(): Color | null {
-    // TODO: shogiGameから現在の手番を取得
-    return null;
+    return this.shogiGame?.turn ?? null;
   }
 
   isGameLoaded(): boolean {
@@ -115,9 +127,9 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
     }
 
     this.progress.currentJKFIndex = nextIndex;
-    this.updateBranchNavigationo();
+    this.updateBranchNavigation();
 
-    return Ok(undefined);
+    return Ok(this.getCurrentState());
   }
 
   previousElement(): Result<GameState, string> {
@@ -137,12 +149,23 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
     this.progress.currentJKFIndex = previousIndex;
     this.updateBranchNavigation();
 
-    return Ok(undefined);
+    return Ok(this.getCurrentState());
   }
 
   // 内部メソッド: ブランチナビゲーション情報を更新
   private updateBranchNavigation(): void {
-    if (!this.originalJKF) return;
+    if (!this.originalJKF) {
+      this.branchNavigation = {
+        currentPath: this.progress.currentBranchPath,
+        availableBranches: [],
+        branchDepth: 0,
+      };
+
+      this.progress.totalMovesInBranch = 0;
+      this.progress.isAtBranchEnd = false;
+      this.progress.actualMoveCount = 0;
+      return;
+    }
 
     this.branchNavigation = {
       currentPath: this.progress.currentBranchPath,
@@ -165,80 +188,85 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
     );
   }
 
-  goToStart(): Result<void, string> {
+  goToStart(): Result<GameState, string> {
     if (!this.isGameLoaded()) {
       return Err("Game not loaded");
     }
 
-    // TODO: 開始局面に戻る処理
     this.progress.currentJKFIndex = 0;
+    this.updateBranchNavigation();
 
-    return Ok(undefined);
+    return Ok(this.getCurrentState());
   }
 
-  goToEnd(): Result<void, string> {
+  goToEnd(): Result<GameState, string> {
     if (!this.isGameLoaded()) {
       return Err("Game not loaded");
     }
 
-    // TODO: 最終局面に進む処理
-    this.progress.currentJKFIndex = this.progress.totalMovesInBranch;
-    this.progress.isAtBranchEnd = true;
+    const totalMoves = getTotalMovesInBranch(
+      this.originalJKF!,
+      this.progress.currentBranchPath,
+    );
 
-    return Ok(undefined);
+    if (totalMoves === 0) {
+      return Err("No moves in current branch");
+    }
+    this.progress.currentJKFIndex = totalMoves - 1;
+    this.updateBranchNavigation();
+
+    return Ok(this.getCurrentState());
   }
 
-  goToJKFIndex(index: number): Result<void, string> {
+  goToJKFIndex(index: number): Result<GameState, string> {
     if (!this.isGameLoaded()) {
       return Err("Game not loaded");
     }
 
-    if (index < 0 || index > this.progress.totalMovesInBranch) {
+    if (
+      !canNavigateToIndex(
+        this.originalJKF!,
+        this.progress.currentBranchPath,
+        index,
+      )
+    ) {
       return Err("Invalid index");
     }
 
-    // TODO: 指定インデックスに移動する処理
     this.progress.currentJKFIndex = index;
+    this.updateBranchNavigation();
 
-    return Ok(undefined);
+    return Ok(this.getCurrentState());
   }
 
   goToJKFIndexWithBranch(
     index: number,
     branchPath: JKFBranchPath,
-  ): Result<void, string> {
+  ): Result<GameState, string> {
     if (!this.isGameLoaded()) {
       return Err("Game not loaded");
     }
 
-    // TODO: 分岐を考慮した移動処理
+    if (!isValidBranchPath(this.originalJKF!, branchPath)) {
+      return Err("Invalid branch path");
+    }
+
+    if (!canNavigateToIndex(this.originalJKF!, branchPath, index)) {
+      return Err("Invalid index for branch");
+    }
+
     this.progress.currentJKFIndex = index;
     this.progress.currentBranchPath = branchPath;
+    this.updateBranchNavigation();
 
-    return Ok(undefined);
-  }
-
-  // React用：現在の状態を取得
-  getCurrentGameState(): GameState {
-    return {
-      originalJKF: this.originalJKF,
-      shogiGame: this.shogiGame,
-      selectedPosition: this.selectedPosition,
-      legalMoves: this.legalMoves,
-      lastMove: this.lastMove,
-      mode: this.mode,
-      progress: this.progress,
-      branchNavigation: this.branchNavigation,
-      isLoading: this.isLoading,
-      error: this.error,
-    };
+    return Ok(this.getCurrentState());
   }
 
   // 内部状態更新用メソッド（他のクラスから使用）
   setJKFData(jkf: JKFData): void {
     this.originalJKF = jkf;
+    this.updateBranchNavigation();
   }
-
   setShogiGame(shogi: Shogi): void {
     this.shogiGame = shogi;
   }
@@ -250,9 +278,18 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
   setLegalMoves(moves: ShogiMove[]): void {
     this.legalMoves = moves;
   }
-
   setLastMove(move: ShogiMove | null): void {
     this.lastMove = move;
+  }
+
+  // 既存のsetterメソッドに追加
+  setProgress(progress: GameProgress): void {
+    this.progress = progress;
+    this.updateBranchNavigation();
+  }
+
+  setBranchNavigation(branchNavigation: BranchNavigationInfo): void {
+    this.branchNavigation = branchNavigation;
   }
 
   setMode(mode: GameMode): void {
@@ -265,5 +302,34 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
 
   setLoading(loading: boolean): void {
     this.isLoading = loading;
+  }
+
+  // 初期化用の便利メソッド
+  initializeFromJKF(
+    jkf: JKFData,
+    shogiGame: Shogi,
+    initialBranchPath: JKFBranchPath,
+  ): void {
+    this.originalJKF = jkf;
+    this.shogiGame = shogiGame;
+    this.selectedPosition = null;
+    this.legalMoves = [];
+    this.lastMove = null;
+    this.mode = "analysis";
+
+    // progressを初期化
+    this.progress = {
+      currentJKFIndex: 0,
+      actualMoveCount: 0,
+      currentBranchPath: initialBranchPath,
+      totalMovesInBranch: getTotalMovesInBranch(jkf, initialBranchPath),
+      isAtBranchEnd: isAtBranchEnd(jkf, initialBranchPath, 0),
+    };
+
+    this.isLoading = false;
+    this.error = null;
+
+    // branchNavigationを更新
+    this.updateBranchNavigation();
   }
 }

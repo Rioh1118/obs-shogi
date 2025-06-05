@@ -6,7 +6,7 @@ export interface GameStateNavigator {
   nextElement(): Result<GameState, string>;
   previousElement(): Result<GameState, string>;
   goToStart(): Result<GameState, string>;
-  gotoEnd(): Result<GameState, string>;
+  goToEnd(): Result<GameState, string>;
 
   goToJKFIndex(index: number): Result<GameState, string>;
   goToJKFIndexWithBranch(

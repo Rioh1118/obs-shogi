@@ -14,7 +14,7 @@ export const filterLegalMoves = (
       const isInCheck = tempShogi.isCheck(tempShogi.turn);
 
       return !isInCheck;
-    } catch (_) {
+    } catch {
       return false;
     }
   });
@@ -42,7 +42,7 @@ export const filterLegalDrops = (
       const isInCheck = tempShogi.isCheck(tempShogi.turn);
 
       return !isInCheck;
-    } catch (_) {
+    } catch {
       // エラーが発生した場合は不正な打ち手（2歩など）
       return false;
     }
