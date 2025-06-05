@@ -1,6 +1,10 @@
 import type { Kind, JKFMove, ShogiMove, JKFMoveMove } from "@/types";
 import type { GameState } from "@/types/state";
-import type { ITimeFormat } from "json-kifu-format/dist/src/Formats";
+import type {
+  IMoveFormat,
+  IMoveMoveFormat,
+  ITimeFormat,
+} from "json-kifu-format/dist/src/Formats";
 
 export interface MoveConvertOptions {
   promote?: boolean; // 成りフラグ

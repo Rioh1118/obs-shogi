@@ -5,8 +5,8 @@ export function indexToCoords(index: number): { x: number; y: number } {
   const row = Math.floor(index / 9);
   const col = index % 9;
 
-  const x = 9 - col;
-  const y = row + 1;
+  const x = row + 1;
+  const y = 9 - col;
 
   return { x, y };
 }

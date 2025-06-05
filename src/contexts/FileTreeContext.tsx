@@ -215,6 +215,12 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     }
   }, [state.selectedNode]);
 
+  useEffect(() => {
+    if (state.selectedNode && !state.selectedNode.isDirectory) {
+      loadSelectedKifu();
+    }
+  }, [state.selectedNode, loadSelectedKifu]);
+
   const createNewFile = useCallback(
     async (parentPath: string, options: KifuCreationOptions) => {
       try {
@@ -349,16 +355,9 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     [state.expandedNodes],
   );
 
-  const selectNode = useCallback(
-    (node: FileTreeNode | null) => {
-      dispatch({ type: "node_selected", payload: node });
-
-      if (node && !node.isDirectory) {
-        loadSelectedKifu();
-      }
-    },
-    [loadSelectedKifu],
-  );
+  const selectNode = useCallback((node: FileTreeNode | null) => {
+    dispatch({ type: "node_selected", payload: node });
+  }, []);
 
   const isNodeExpanded = useCallback(
     (nodeId: string) => {

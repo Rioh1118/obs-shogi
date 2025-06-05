@@ -23,6 +23,7 @@ import {
   getBranchDepth,
   canNavigateToIndex,
   isValidBranchPath,
+  getJKFMoveAtIndex,
 } from "@/utils/branch";
 
 export class GameStateManager implements GameStateReader, GameStateNavigator {
@@ -124,6 +125,40 @@ export class GameStateManager implements GameStateReader, GameStateNavigator {
 
     if (nextIndex === null) {
       return Err("Cannot move to next");
+    }
+
+    const jkfMove = getJKFMoveAtIndex(
+      this.originalJKF!,
+      this.progress.currentBranchPath,
+      nextIndex,
+    );
+
+    if (!jkfMove || !jkfMove.move) {
+      return Err("Invalid JKF move");
+    }
+    const moveData = jkfMove.move;
+
+    try {
+      if (moveData.from) {
+        // 通常の移動
+        this.shogiGame!.move(
+          moveData.from.x,
+          moveData.from.y,
+          moveData.to!.x,
+          moveData.to!.y,
+          moveData.promote || false,
+        );
+      } else {
+        // 駒打ち
+        this.shogiGame!.drop(
+          moveData.to!.x,
+          moveData.to!.y,
+          moveData.piece,
+          moveData.color,
+        );
+      }
+    } catch (error) {
+      return Err(`Failed to apply move: ${error}`);
     }
 
     this.progress.currentJKFIndex = nextIndex;

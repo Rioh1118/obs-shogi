@@ -23,6 +23,23 @@ export function getCurrentBranchMoves(
   return currentMoves;
 }
 
+export function getJKFMoveAtIndex(
+  jkf: JKFData,
+  branchPath: JKFBranchPath,
+  index: number,
+): JKFMove | null {
+  if (index <= 0) return null; // 初期局面
+
+  const currentBranchMoves = getCurrentBranchMoves(jkf, branchPath);
+  const moveIndex = index - 1;
+
+  if (moveIndex < 0 || moveIndex >= currentBranchMoves.length) {
+    return null;
+  }
+
+  return currentBranchMoves[moveIndex];
+}
+
 export function getTotalMovesInBranch(
   jkf: JKFData,
   branchPath: JKFBranchPath,
