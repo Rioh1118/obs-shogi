@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import FolderSelect from "./pages/FolderSelect";
 import AppLayout from "./pages/AppLayout";
-import FileTree from "./components/FileTree";
+import FileTree from "@/components/FileTree/FileTree";
 import { AppConfigProvider } from "./contexts/AppConfigContext";
 import { FileTreeProvider } from "./contexts/FileTreeContext";
 import { GameProvider } from "./contexts/GameContext";

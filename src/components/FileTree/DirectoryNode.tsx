@@ -1,13 +1,12 @@
-import type { FileTreeNode } from "@/types/file-tree";
+import type { FileTreeNode } from "@/types";
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
-import { useFileTree } from "../contexts/FileTreeContext";
+import { useFileTree } from "@/contexts/FileTreeContext";
 import TreeNode from "./TreeNode";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 
 function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
   const { toggleNode, isNodeExpanded } = useFileTree();
-
   const isOpen = isNodeExpanded(node.id);
 
   function handleClick() {
@@ -18,10 +17,7 @@ function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
     <>
       <NodeBox level={level} handleClick={handleClick}>
         <DirectoryToggleIcon isExpanded={isOpen} />
-        <FileIcon
-          isOpen={isOpen}
-          type={!node.meta?.iconType ? "document" : node.meta.iconType}
-        />
+        <FileIcon isOpen={isOpen} type={node.displayInfo.iconType} />
         <span>{node.name}</span>
       </NodeBox>
       {!isOpen || !node.children?.length

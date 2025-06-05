@@ -5,6 +5,7 @@ import {
   useCallback,
   useMemo,
   type ReactNode,
+  useEffect,
 } from "react";
 import { GameService } from "@/services/game/GameService";
 import type {
@@ -24,6 +25,7 @@ import type {
   BranchNavigationInfo,
 } from "@/types";
 import type { KifuWriter } from "@/interfaces";
+import { useFileTree } from "./FileTreeContext";
 
 export type GameContextState = GameState;
 
@@ -360,11 +362,13 @@ export function GameProvider({
 }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
+  const { jkfData, selectedNode } = useFileTree();
+
   // ゲーム読み込み・初期化
   const loadGame = useCallback(
     async (jkf: JKFData) => {
       await withAsyncErrorHandling(dispatch, async () => {
-        const result = await gameService.editor.loadGame(jkf);
+        const result = gameService.editor.loadGame(jkf);
         if (!result.success) {
           throw new Error(result.error);
         }
@@ -382,6 +386,18 @@ export function GameProvider({
     },
     [gameService],
   );
+
+  useEffect(() => {
+    if (jkfData && selectedNode && !selectedNode.isDirectory) {
+      loadGame(jkfData);
+    }
+  }, [
+    jkfData,
+    selectedNode?.id,
+    selectedNode?.isDirectory,
+    loadGame,
+    selectedNode,
+  ]);
 
   // ナビゲーション: goToIndex
   const goToIndex = useCallback(

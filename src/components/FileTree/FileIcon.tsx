@@ -12,7 +12,7 @@ export default function FileIcon({ type, isOpen }: FileIconProps) {
         return isOpen ? "📂" : "📁";
       case "kif-file":
         return "☗";
-      case "document":
+      default:
         return "📄";
     }
   }

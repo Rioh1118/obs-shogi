@@ -54,6 +54,8 @@ export class GameEditor implements GameStateEditor {
 
       // 3. Shogiインスタンスを初期状態で作成
       const shogiGame = new Shogi(shogiSetting);
+      console.log("Created Shogi instance:", shogiGame);
+      console.log("Board after creation:", shogiGame.board);
       const initialBranchPath = createBranchPath(0);
 
       // 4. GameStateManagerを初期化

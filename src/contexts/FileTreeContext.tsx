@@ -1,34 +1,26 @@
 import {
-  createContext,
-  useReducer,
-  useEffect,
-  useContext,
-  useCallback,
-} from "react";
-import type { ReactNode } from "react";
-import type { FileTreeNode } from "@/types/file-tree";
-import { useAppConfig } from "./AppConfigContext";
+  type JKFData,
+  type FileTreeNode,
+  type KifuCreationOptions,
+  type KifuFormat,
+} from "@/types";
 import {
-  getFileTree,
-  createFile,
-  createDirectory,
-  deleteFile,
-  deleteDirectory,
-  renameFile,
-  readFile,
-} from "../commands/file_system";
-import { convertToJkf } from "../utils/kifConverter";
-import { getKifuFormat, isKifuFile } from "../utils/fileUtils";
-import type { KifuFormat, JKFFormat } from "@/types/kifu";
+  useCallback,
+  useReducer,
+  type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+} from "react";
+import { useAppConfig } from "./AppConfigContext";
+import { KifuArchivistFactory } from "@/services/file/KifuArchivist";
+import { KifuParserFactory } from "@/services/file/KifuParser";
 
 type FileTreeState = {
   fileTree: FileTreeNode | null;
   selectedNode: FileTreeNode | null;
-  // 棋譜データのみ保持
-  jkfData: JKFFormat | null;
+  jkfData: JKFData | null;
   kifuFormat: KifuFormat | null;
-  // 非棋譜ファイルの場合のみrawテキストを保持
-  rawContent: string | null;
   expandedNodes: Set<string>;
   isLoading: boolean;
   error: string | null;
@@ -38,9 +30,7 @@ type FileTreeAction =
   | { type: "loading" }
   | { type: "tree_loaded"; payload: FileTreeNode }
   | { type: "node_selected"; payload: FileTreeNode | null }
-  | { type: "kifu_loaded"; payload: { jkfData: JKFFormat; format: KifuFormat } }
-  | { type: "raw_content_loaded"; payload: string }
-  | { type: "file_content_cleared" }
+  | { type: "kifu_loaded"; payload: { jkfData: JKFData; format: KifuFormat } }
   | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
   | { type: "node_collapsed"; payload: string }
@@ -51,7 +41,6 @@ const initialState: FileTreeState = {
   selectedNode: null,
   jkfData: null,
   kifuFormat: null,
-  rawContent: null,
   expandedNodes: new Set<string>(),
   isLoading: false,
   error: null,
@@ -64,6 +53,7 @@ function fileTreeReducer(
   switch (action.type) {
     case "loading":
       return { ...state, isLoading: true, error: null };
+
     case "tree_loaded":
     case "tree_updated":
       return {
@@ -72,43 +62,31 @@ function fileTreeReducer(
         isLoading: false,
         error: null,
       };
+
     case "node_selected":
       return {
         ...state,
         selectedNode: action.payload,
-        rawContent: null,
+        // ノード選択時にファイル内容もクリア
+        jkfData: null,
+        kifuFormat: null,
       };
+
     case "kifu_loaded":
       return {
         ...state,
         jkfData: action.payload.jkfData,
         kifuFormat: action.payload.format,
-        rawContent: null,
         isLoading: false,
         error: null,
       };
 
-    case "raw_content_loaded":
-      return {
-        ...state,
-        rawContent: action.payload,
-        jkfData: null,
-        kifuFormat: null,
-        isLoading: false,
-        error: null,
-      };
-    case "file_content_cleared":
-      return {
-        ...state,
-        jkfData: null,
-        kifuFormat: null,
-        rawContent: null,
-      };
     case "node_expanded":
       return {
         ...state,
         expandedNodes: new Set([...state.expandedNodes, action.payload]),
       };
+
     case "node_collapsed": {
       const newExpandedNodes = new Set(state.expandedNodes);
       newExpandedNodes.delete(action.payload);
@@ -117,23 +95,33 @@ function fileTreeReducer(
         expandedNodes: newExpandedNodes,
       };
     }
+
     case "error":
       return {
         ...state,
         isLoading: false,
         error: action.payload,
       };
+
     default:
-      throw new Error("Unknown actioin type");
+      throw new Error("Unknown action type");
   }
 }
 
 type FileTreeContextType = FileTreeState & {
   loadFileTree: () => Promise<void>;
   selectNode: (node: FileTreeNode | null) => void;
-  loadFileContent: (filePath: string) => Promise<void>;
-  createNewFile: (filePath: string, content?: string) => Promise<void>;
-  createNewDirectory: (dirPath: string) => Promise<void>;
+  loadSelectedKifu: () => Promise<void>;
+
+  // 棋譜ファイル作成 - KifuCreationOptionsで型安全に
+  createNewFile: (
+    parentPath: string,
+    options: KifuCreationOptions,
+  ) => Promise<void>;
+
+  // ディレクトリ作成 - シンプルに
+  createNewDirectory: (parentPath: string, dirname: string) => Promise<void>;
+
   deleteSelectedFile: () => Promise<void>;
   deleteSelectedDirectory: () => Promise<void>;
   toggleNode: (nodeId: string) => void;
@@ -141,7 +129,7 @@ type FileTreeContextType = FileTreeState & {
   renameSelected: (newPath: string) => Promise<void>;
   refreshTree: () => Promise<void>;
   isKifuSelected: () => boolean;
-  getSelectedKifuData: () => JKFFormat | null;
+  getSelectedKifuData: () => JKFData | null;
 };
 
 const FileTreeContext = createContext<FileTreeContextType | undefined>(
@@ -154,12 +142,20 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
 
   const loadFileTree = useCallback(async () => {
     if (!config?.root_dir) return;
-
     dispatch({ type: "loading" });
 
     try {
-      const tree = await getFileTree(config.root_dir);
-      dispatch({ type: "tree_loaded", payload: tree });
+      const fileManager = KifuArchivistFactory.getInstance();
+      const result = await fileManager.getKifuFileTree(config.root_dir);
+
+      if (result.success) {
+        dispatch({ type: "tree_loaded", payload: result.data });
+      } else {
+        dispatch({
+          type: "error",
+          payload: `ファイルツリーの読み込みに失敗しました: ${result.error}`,
+        });
+      }
     } catch (err) {
       dispatch({
         type: "error",
@@ -174,47 +170,65 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     }
   }, [config?.root_dir, loadFileTree]);
 
-  const selectNode = useCallback((node: FileTreeNode | null) => {
-    dispatch({ type: "node_selected", payload: node });
-  }, []);
+  const loadSelectedKifu = useCallback(async () => {
+    if (!state.selectedNode) {
+      dispatch({ type: "error", payload: "ファイルが選択されていません" });
+      return;
+    }
 
-  const loadFileContent = useCallback(async (filePath: string) => {
     dispatch({ type: "loading" });
-    try {
-      const content = await readFile(filePath);
-      const format = getKifuFormat(filePath);
 
-      // 棋譜ファイルの場合はJKFに変換
-      if (isKifuFile(filePath)) {
-        try {
-          const jkfData = await convertToJkf(content, format);
-          dispatch({
-            type: "kifu_loaded",
-            payload: { jkfData, format },
-          });
-        } catch (jkfError) {
-          console.error("JKF変換に失敗しました:", jkfError);
-          dispatch({
-            type: "error",
-            payload: `棋譜の解析に失敗しました: ${jkfError}`,
-          });
-        }
-      } else {
-        dispatch({ type: "raw_content_loaded", payload: content });
+    try {
+      const fileManager = KifuArchivistFactory.getInstance();
+      const kifuParser = KifuParserFactory.getInstance();
+
+      const readResult = await fileManager.readKifuFile(state.selectedNode);
+      if (!readResult.success) {
+        dispatch({ type: "error", payload: readResult.error });
+        return;
       }
+
+      const kifuFormat = state.selectedNode.kifuInfo?.format;
+      if (!kifuFormat) {
+        dispatch({ type: "error", payload: "棋譜フォーマットが不明です" });
+        return;
+      }
+
+      const parseResult = await kifuParser.parseKifuContent(
+        readResult.data,
+        kifuFormat,
+      );
+      if (!parseResult.success) {
+        dispatch({ type: "error", payload: parseResult.error });
+        return;
+      }
+
+      dispatch({
+        type: "kifu_loaded",
+        payload: { jkfData: parseResult.data, format: kifuFormat },
+      });
     } catch (err) {
       dispatch({
         type: "error",
-        payload: `ファイル内容の読み込みに失敗しました: ${err}`,
+        payload: `棋譜の読み込みに失敗しました: ${err}`,
       });
     }
-  }, []);
+  }, [state.selectedNode]);
 
   const createNewFile = useCallback(
-    async (filePath: string, content: string = "") => {
+    async (parentPath: string, options: KifuCreationOptions) => {
       try {
-        await createFile(filePath, content);
-        await loadFileTree();
+        const fileManager = KifuArchivistFactory.getInstance();
+        const result = await fileManager.createKifuFile(parentPath, options);
+
+        if (result.success) {
+          await loadFileTree(); // ツリーを更新
+        } else {
+          dispatch({
+            type: "error",
+            payload: `ファイルの作成に失敗しました: ${result.error}`,
+          });
+        }
       } catch (err) {
         dispatch({
           type: "error",
@@ -226,10 +240,19 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
   );
 
   const createNewDirectory = useCallback(
-    async (dirPath: string) => {
+    async (parentPath: string, dirname: string) => {
       try {
-        await createDirectory(dirPath);
-        await loadFileTree();
+        const fileManager = KifuArchivistFactory.getInstance();
+        const result = await fileManager.createDirectory(parentPath, dirname);
+
+        if (result.success) {
+          await loadFileTree(); // ツリーを更新
+        } else {
+          dispatch({
+            type: "error",
+            payload: `ディレクトリの作成に失敗しました: ${result.error}`,
+          });
+        }
       } catch (err) {
         dispatch({
           type: "error",
@@ -239,14 +262,22 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     },
     [loadFileTree],
   );
-
   const deleteSelectedFile = useCallback(async () => {
-    if (!state.selectedNode || state.selectedNode.isDir) return;
+    if (!state.selectedNode || state.selectedNode.isDirectory) return;
 
     try {
-      await deleteFile(state.selectedNode.path);
-      dispatch({ type: "node_selected", payload: null });
-      await loadFileTree();
+      const fileManager = KifuArchivistFactory.getInstance();
+      const result = await fileManager.deleteKifuFile(state.selectedNode.path);
+
+      if (result.success) {
+        dispatch({ type: "node_selected", payload: null }); // 選択解除
+        await loadFileTree(); // ツリーを更新
+      } else {
+        dispatch({
+          type: "error",
+          payload: `ファイルの削除に失敗しました: ${result.error}`,
+        });
+      }
     } catch (err) {
       dispatch({
         type: "error",
@@ -256,12 +287,21 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
   }, [state.selectedNode, loadFileTree]);
 
   const deleteSelectedDirectory = useCallback(async () => {
-    if (!state.selectedNode || !state.selectedNode.isDir) return;
+    if (!state.selectedNode || !state.selectedNode.isDirectory) return;
 
     try {
-      await deleteDirectory(state.selectedNode.path);
-      dispatch({ type: "node_selected", payload: null });
-      await loadFileTree();
+      const fileManager = KifuArchivistFactory.getInstance();
+      const result = await fileManager.deleteDirectory(state.selectedNode.path);
+
+      if (result.success) {
+        dispatch({ type: "node_selected", payload: null }); // 選択解除
+        await loadFileTree(); // ツリーを更新
+      } else {
+        dispatch({
+          type: "error",
+          payload: `ディレクトリの削除に失敗しました: ${result.error}`,
+        });
+      }
     } catch (err) {
       dispatch({
         type: "error",
@@ -269,6 +309,34 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
       });
     }
   }, [state.selectedNode, loadFileTree]);
+  const renameSelected = useCallback(
+    async (newPath: string) => {
+      if (!state.selectedNode) return;
+
+      try {
+        const fileManager = KifuArchivistFactory.getInstance();
+        const result = await fileManager.renameFile(
+          state.selectedNode.path,
+          newPath,
+        );
+
+        if (result.success) {
+          await loadFileTree(); // ツリーを更新
+        } else {
+          dispatch({
+            type: "error",
+            payload: `リネームに失敗しました: ${result.error}`,
+          });
+        }
+      } catch (err) {
+        dispatch({
+          type: "error",
+          payload: `リネームに失敗しました: ${err}`,
+        });
+      }
+    },
+    [state.selectedNode, loadFileTree],
+  );
 
   const toggleNode = useCallback(
     (nodeId: string) => {
@@ -281,28 +349,22 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     [state.expandedNodes],
   );
 
+  const selectNode = useCallback(
+    (node: FileTreeNode | null) => {
+      dispatch({ type: "node_selected", payload: node });
+
+      if (node && !node.isDirectory) {
+        loadSelectedKifu();
+      }
+    },
+    [loadSelectedKifu],
+  );
+
   const isNodeExpanded = useCallback(
     (nodeId: string) => {
       return state.expandedNodes.has(nodeId);
     },
     [state.expandedNodes],
-  );
-
-  const renameSelected = useCallback(
-    async (newPath: string) => {
-      if (!state.selectedNode) return;
-
-      try {
-        await renameFile(state.selectedNode.path, newPath);
-        await loadFileTree();
-      } catch (err) {
-        dispatch({
-          type: "error",
-          payload: `リネームに失敗しました: ${err}`,
-        });
-      }
-    },
-    [state.selectedNode, loadFileTree],
   );
 
   const refreshTree = useCallback(async () => {
@@ -323,7 +385,7 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         ...state,
         loadFileTree,
         selectNode,
-        loadFileContent,
+        loadSelectedKifu,
         createNewFile,
         createNewDirectory,
         deleteSelectedFile,

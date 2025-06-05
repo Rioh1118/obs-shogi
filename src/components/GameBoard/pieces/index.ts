@@ -1,4 +1,10 @@
-export type { PieceProps } from "@/types/shogi";
+import type { Color } from "shogi.js";
+
+export interface PieceProps {
+  color: Color;
+  onClick?: () => void;
+}
+
 export { default as Pawn } from "./Pawn";
 export { default as Lance } from "./Lance";
 export { default as Knight } from "./Knight";

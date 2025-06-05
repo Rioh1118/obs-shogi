@@ -1,7 +1,7 @@
 import RootNode from "./RootNode";
-import Spinner from "./Spinner";
+import Spinner from "../Spinner";
 import "./FileTree.scss";
-import { useFileTree } from "../contexts/FileTreeContext";
+import { useFileTree } from "@/contexts/FileTreeContext";
 
 function FileTree() {
   const { fileTree, isLoading, error, loadFileTree } = useFileTree();

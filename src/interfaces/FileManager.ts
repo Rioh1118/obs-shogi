@@ -1,4 +1,4 @@
-import type { AsyncResult, FileTreeNode } from "@/types";
+import type { AsyncResult, FileTreeNode, KifuCreationOptions } from "@/types";
 
 export interface FileManager {
   // kifファイルのみ(ディレクトリは含む)をフィルタして取得
@@ -7,12 +7,10 @@ export interface FileManager {
   // kifファイルのみ読み込み
   readKifuFile(node: FileTreeNode): AsyncResult<string, string>;
 
-  // kifファイルとして保存
-  saveKifuFile(
+  createKifuFile(
     parentPath: string,
-    fileName: string,
-    content: string,
-  ): AsyncResult<string, string>; // 作成されたファイルパスを返す
+    options: KifuCreationOptions,
+  ): AsyncResult<string, string>; // 作成あれたファイルのパスを返す
 
   //ディレクトリ作成
   createDirectory(
@@ -27,8 +25,5 @@ export interface FileManager {
   deleteDirectory(dirPath: string): AsyncResult<void, string>;
 
   // リネーム(移動)
-  renameDirectory(oldPath: string, newPath: string): AsyncResult<void, string>;
-
-  // ファイル存在確認
-  exists(path: string): AsyncResult<boolean, string>;
+  renameFile(oldPath: string, newPath: string): AsyncResult<void, string>;
 }

@@ -6,7 +6,7 @@ export interface FileSystemNode {
   name: string;
   path: string;
   isDirectory: boolean;
-  children?: FileSystemNode[];
+  children?: FileTreeNode[];
   lastModified?: Date;
   size?: number;
 }

@@ -9,9 +9,9 @@ interface HandProps {
 }
 
 function Hand({ isPlayer }: HandProps) {
-  const { state, operations, getCurrentTurn } = useGame();
+  const { state, operations, helpers } = useGame();
   const hands = state.shogiGame?.hands;
-  const currentTurn = getCurrentTurn();
+  const currentTurn = helpers.getCurrentTurn();
   const selectedPosition = state.selectedPosition;
 
   const color = isPlayer ? Color.Black : Color.White;

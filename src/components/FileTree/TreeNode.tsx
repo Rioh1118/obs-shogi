@@ -5,7 +5,7 @@ import FileNode from "./FileNode";
 function TreeNode({ node, level }: { node: FileTreeNode; level: number }) {
   return (
     <>
-      {node.isDir ? (
+      {node.isDirectory ? (
         <DirectoryNode node={node} level={level} />
       ) : (
         <FileNode node={node} level={level} />

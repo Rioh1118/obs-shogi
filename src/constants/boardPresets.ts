@@ -15,7 +15,6 @@ const HIRATE_STATE: JKFState = {
   color: 0, // 先手番
   board: [
     [
-      {},
       { color: 1, kind: "KY" },
       { color: 1, kind: "KE" },
       { color: 1, kind: "GI" },
@@ -36,10 +35,8 @@ const HIRATE_STATE: JKFState = {
       {},
       { color: 1, kind: "KA" },
       {},
-      {},
     ],
     [
-      {},
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
@@ -50,11 +47,10 @@ const HIRATE_STATE: JKFState = {
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
     ],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
     [
-      {},
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
@@ -75,10 +71,8 @@ const HIRATE_STATE: JKFState = {
       {},
       { color: 0, kind: "HI" },
       {},
-      {},
     ],
     [
-      {},
       { color: 0, kind: "KY" },
       { color: 0, kind: "KE" },
       { color: 0, kind: "GI" },
@@ -99,7 +93,6 @@ const KY_STATE: JKFState = {
   board: [
     [
       {},
-      {},
       { color: 1, kind: "KE" },
       { color: 1, kind: "GI" },
       { color: 1, kind: "KI" },
@@ -119,10 +112,8 @@ const KY_STATE: JKFState = {
       {},
       { color: 1, kind: "KA" },
       {},
-      {},
     ],
     [
-      {},
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
@@ -133,11 +124,10 @@ const KY_STATE: JKFState = {
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
     ],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
     [
-      {},
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
@@ -158,10 +148,8 @@ const KY_STATE: JKFState = {
       {},
       { color: 0, kind: "HI" },
       {},
-      {},
     ],
     [
-      {},
       { color: 0, kind: "KY" },
       { color: 0, kind: "KE" },
       { color: 0, kind: "GI" },
@@ -181,7 +169,6 @@ const KY_R_STATE: JKFState = {
   color: 0,
   board: [
     [
-      {},
       { color: 1, kind: "KY" },
       { color: 1, kind: "KE" },
       { color: 1, kind: "GI" },
@@ -202,10 +189,8 @@ const KY_R_STATE: JKFState = {
       {},
       { color: 1, kind: "KA" },
       {},
-      {},
     ],
     [
-      {},
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
@@ -216,11 +201,10 @@ const KY_R_STATE: JKFState = {
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
     ],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
     [
-      {},
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
@@ -241,10 +225,8 @@ const KY_R_STATE: JKFState = {
       {},
       { color: 0, kind: "HI" },
       {},
-      {},
     ],
     [
-      {},
       { color: 0, kind: "KY" },
       { color: 0, kind: "KE" },
       { color: 0, kind: "GI" },
@@ -264,7 +246,6 @@ const KA_STATE: JKFState = {
   color: 0,
   board: [
     [
-      {},
       { color: 1, kind: "KY" },
       { color: 1, kind: "KE" },
       { color: 1, kind: "GI" },
@@ -275,9 +256,8 @@ const KA_STATE: JKFState = {
       { color: 1, kind: "KE" },
       { color: 1, kind: "KY" },
     ],
-    [{}, { color: 1, kind: "HI" }, {}, {}, {}, {}, {}, {}, {}, {}], // 角なし
+    [{}, { color: 1, kind: "HI" }, {}, {}, {}, {}, {}, {}, {}], // 角なし
     [
-      {},
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
@@ -288,11 +268,10 @@ const KA_STATE: JKFState = {
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
     ],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
     [
-      {},
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
@@ -313,10 +292,8 @@ const KA_STATE: JKFState = {
       {},
       { color: 0, kind: "HI" },
       {},
-      {},
     ],
     [
-      {},
       { color: 0, kind: "KY" },
       { color: 0, kind: "KE" },
       { color: 0, kind: "GI" },
@@ -336,7 +313,6 @@ const HI_STATE: JKFState = {
   color: 0,
   board: [
     [
-      {},
       { color: 1, kind: "KY" },
       { color: 1, kind: "KE" },
       { color: 1, kind: "GI" },
@@ -347,9 +323,8 @@ const HI_STATE: JKFState = {
       { color: 1, kind: "KE" },
       { color: 1, kind: "KY" },
     ],
-    [{}, {}, {}, {}, {}, {}, {}, { color: 1, kind: "KA" }, {}, {}], // 飛車なし
+    [{}, {}, {}, {}, {}, {}, {}, { color: 1, kind: "KA" }, {}], // 飛車なし
     [
-      {},
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
@@ -360,11 +335,10 @@ const HI_STATE: JKFState = {
       { color: 1, kind: "FU" },
       { color: 1, kind: "FU" },
     ],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
-    [{}, {}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+    [{}, {}, {}, {}, {}, {}, {}, {}, {}],
     [
-      {},
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
       { color: 0, kind: "FU" },
@@ -385,10 +359,8 @@ const HI_STATE: JKFState = {
       {},
       { color: 0, kind: "HI" },
       {},
-      {},
     ],
     [
-      {},
       { color: 0, kind: "KY" },
       { color: 0, kind: "KE" },
       { color: 0, kind: "GI" },

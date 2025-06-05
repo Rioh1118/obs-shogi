@@ -1,12 +1,12 @@
-import { useGame } from "../../contexts//GameContext";
+import { useGame } from "../../contexts/GameContext";
 import ControlButton from "./ControlButton";
 import "./GameControls.scss";
 
 function GameControls() {
-  const { operations, hasNextMove, hasPreviousMove } = useGame();
+  const { operations, helpers } = useGame();
 
-  const canGoBack = hasPreviousMove();
-  const canGoForward = hasNextMove();
+  const canGoBack = helpers.hasPreviousMove();
+  const canGoForward = helpers.hasNextMove();
 
   return (
     <div className="game-controls">

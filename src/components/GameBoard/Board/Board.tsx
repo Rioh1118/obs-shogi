@@ -1,18 +1,17 @@
 import Square from "./Square";
-import { useGame } from "../../../contexts/GameContext";
-import { indexToCoords } from "../../../utils/boardUtils";
-import { BOARD_SIZE } from "../../../constants/shogi";
+import { useGame } from "@/contexts/GameContext";
+import { indexToCoords } from "@/utils/boardUtils";
+import { BOARD_SIZE } from "@/constants/shogi";
 import "./Board.scss";
 import PieceFactory from "../PieceFactory";
 import { Piece } from "shogi.js";
 
 function Board() {
-  const { state, operations, getCurrentTurn, getLegalMoves } = useGame();
-
+  const { state, operations, helpers } = useGame();
   const board = state.shogiGame?.board;
-  const currentTurn = getCurrentTurn();
+  const currentTurn = helpers.getCurrentTurn();
   const selectedPosition = state.selectedPosition;
-  const legalMoves = getLegalMoves();
+  const legalMoves = helpers.getLegalMoves();
   const lastMove = state.lastMove;
 
   if (!board) {
@@ -28,7 +27,11 @@ function Board() {
     return lastMove.to.x === x && lastMove.to.y === y;
   };
 
-  const handleSquareClick = async (x: number, y: number, piece: Piece) => {
+  const handleSquareClick = async (
+    x: number,
+    y: number,
+    piece: Piece | null | undefined,
+  ) => {
     if (selectedPosition?.type === "hand") {
       const isLegalDrop = legalMoves.some(
         (move) => move.to.x === x && move.to.y === y,
@@ -68,7 +71,7 @@ function Board() {
         operations.clearSelection();
       } else {
         if (piece && piece.color === currentTurn) {
-          operations.selectSquare({ x, y });
+          operations.selectSquare(x, y);
         } else {
           operations.clearSelection();
         }
@@ -77,7 +80,7 @@ function Board() {
     }
     // 駒がある場合
     if (piece && piece.color === currentTurn) {
-      operations.selectSquare({ x, y });
+      operations.selectSquare(x, y);
     } else {
       // 空のマスをクリックした場合は選択解除
       operations.clearSelection();
@@ -88,8 +91,7 @@ function Board() {
     { length: BOARD_SIZE.TOTAL_SQUARES },
     (_, index) => {
       const { x, y } = indexToCoords(index);
-
-      const piece = board[x - 1]?.[y - 1];
+      const piece = state.shogiGame?.get(x, y);
 
       return (
         <Square
