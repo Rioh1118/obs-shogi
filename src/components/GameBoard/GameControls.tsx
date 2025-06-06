@@ -1,17 +1,24 @@
-import { useGame } from "../../contexts/GameContext";
+import { useGame } from "@/contexts/GameContext";
 import ControlButton from "./ControlButton";
 import "./GameControls.scss";
 
 function GameControls() {
-  const { operations, helpers } = useGame();
+  const {
+    goToStart,
+    previousMove,
+    nextMove,
+    goToEnd,
+    canGoBackward,
+    canGoForward,
+  } = useGame();
 
-  const canGoBack = helpers.hasPreviousMove();
-  const canGoForward = helpers.hasNextMove();
+  const canGoBack = canGoBackward();
+  const canGoNext = canGoForward();
 
   return (
     <div className="game-controls">
       <ControlButton
-        handleClick={operations.goToStart}
+        handleClick={goToStart}
         disabled={!canGoBack}
         title="最初に戻る"
       >
@@ -19,7 +26,7 @@ function GameControls() {
       </ControlButton>
 
       <ControlButton
-        handleClick={operations.previousMove}
+        handleClick={previousMove}
         disabled={!canGoBack}
         title="前の手"
       >
@@ -27,15 +34,15 @@ function GameControls() {
       </ControlButton>
 
       <ControlButton
-        handleClick={operations.nextMove}
-        disabled={!canGoForward}
+        handleClick={nextMove}
+        disabled={!canGoNext}
         title="次の手"
       >
         &gt;
       </ControlButton>
 
       <ControlButton
-        handleClick={operations.goToEnd}
+        handleClick={goToEnd}
         disabled={!canGoForward}
         title="最後に進む"
       >

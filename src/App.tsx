@@ -7,15 +7,13 @@ import { FileTreeProvider } from "./contexts/FileTreeContext";
 import { GameProvider } from "./contexts/GameContext";
 import { useMemo } from "react";
 import { KifuWriterFactory } from "./services/file/KifuWriterImpl";
-import { GameServiceFactory } from "./services/game/GameServiceFactory";
 
 function App() {
-  const gameService = useMemo(() => GameServiceFactory.createGameService(), []);
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
   return (
     <AppConfigProvider>
       <FileTreeProvider>
-        <GameProvider gameService={gameService} kifuWriter={kifuWriter}>
+        <GameProvider kifuWriter={kifuWriter}>
           <BrowserRouter>
             <Routes>
               <Route index element={<FolderSelect />} />

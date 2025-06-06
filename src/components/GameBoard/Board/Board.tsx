@@ -5,16 +5,17 @@ import { BOARD_SIZE } from "@/constants/shogi";
 import "./Board.scss";
 import PieceFactory from "../PieceFactory";
 import { Piece } from "shogi.js";
+import type { ShogiMove } from "@/types";
 
 function Board() {
-  const { state, operations, helpers } = useGame();
-  const board = state.shogiGame?.board;
-  const currentTurn = helpers.getCurrentTurn();
+  const { state, helpers, selectSquare, clearSelection } = useGame();
+
+  const shogi = state.jkfPlayer?.shogi;
   const selectedPosition = state.selectedPosition;
-  const legalMoves = helpers.getLegalMoves();
+  const legalMoves = state.legalMoves;
   const lastMove = state.lastMove;
 
-  if (!board) {
+  if (!shogi) {
     return <div className="board-loading">盤面を読み込み中...</div>;
   }
 
@@ -27,71 +28,65 @@ function Board() {
     return lastMove.to.x === x && lastMove.to.y === y;
   };
 
-  const handleSquareClick = async (
-    x: number,
-    y: number,
-    piece: Piece | null | undefined,
-  ) => {
-    if (selectedPosition?.type === "hand") {
-      const isLegalDrop = legalMoves.some(
-        (move) => move.to.x === x && move.to.y === y,
-      );
-      if (isLegalDrop) {
-        const dropMove = legalMoves.find(
-          (move) => move.to.x === x && move.to.y === y,
-        );
-        if (dropMove) {
-          operations.makeMove(dropMove);
-        }
-        operations.clearSelection();
-      } else {
-        operations.clearSelection();
-      }
-      return;
-    }
+  const handleSquareClick = (x: number, y: number) => {
+    if (!state.jkfPlayer) return;
 
+    // 駒が選択されていて、別のマスがクリックされた場合の移動処理
     if (selectedPosition?.type === "square") {
-      // 同じマスをクリックした場合選択解除
+      // 同じマスをクリックした場合は選択解除
       if (selectedPosition.x === x && selectedPosition.y === y) {
-        operations.clearSelection();
+        clearSelection();
         return;
       }
 
-      const isLegalMove = legalMoves.some(
+      // 合法手かどうかチェック
+      const targetMove = legalMoves.find(
         (move) => move.to.x === x && move.to.y === y,
       );
 
-      if (isLegalMove) {
-        const move = legalMoves.find(
-          (move) => move.to.x === x && move.to.y === y,
-        );
-        if (move) {
-          operations.makeMove(move);
+      if (targetMove) {
+        // 移動元の駒情報を取得
+        const fromPiece = shogi.get(selectedPosition.x, selectedPosition.y);
+        if (!fromPiece) return;
+
+        // ShogiMove形式に変換
+        const shogiMove: ShogiMove = {
+          from: { x: selectedPosition.x, y: selectedPosition.y },
+          to: { x, y },
+          kind: fromPiece.kind,
+          color: fromPiece.color,
+        };
+
+        // 成り判定
+        const canPromote = helpers.canPromoteMove(state.jkfPlayer, shogiMove);
+        const mustPromote = helpers.mustPromoteMove(state.jkfPlayer, shogiMove);
+
+        let promote = false;
+
+        if (mustPromote) {
+          // 強制成り
+          promote = true;
+        } else if (canPromote) {
+          // 成るかどうかユーザーに選択させる
+          const shouldPromote = window.confirm(
+            `${fromPiece.kind}を成りますか？\n成る場合は「OK」、成らない場合は「キャンセル」を押してください。`,
+          );
+          promote = shouldPromote;
         }
-        operations.clearSelection();
-      } else {
-        if (piece && piece.color === currentTurn) {
-          operations.selectSquare(x, y);
-        } else {
-          operations.clearSelection();
-        }
+
+        // selectSquareを成りフラグ付きで呼び出し
+        selectSquare(x, y, promote);
+        return;
       }
-      return;
     }
-    // 駒がある場合
-    if (piece && piece.color === currentTurn) {
-      operations.selectSquare(x, y);
-    } else {
-      // 空のマスをクリックした場合は選択解除
-      operations.clearSelection();
-    }
+    selectSquare(x, y);
   };
 
   const squares = Array.from(
     { length: BOARD_SIZE.TOTAL_SQUARES },
     (_, index) => {
       const { x, y } = indexToCoords(index);
-      const piece = state.shogiGame?.get(x, y);
+      const piece = shogi.get(x, y);
 
       return (
         <Square
@@ -101,7 +96,7 @@ function Board() {
           index={index}
           isHighlighted={isSquareHighlighted(x, y)}
           isLastMove={isLastMove(x, y)}
-          onClick={() => handleSquareClick(x, y, piece)}
+          onClick={() => handleSquareClick(x, y)}
         >
           {piece && (
             <PieceFactory

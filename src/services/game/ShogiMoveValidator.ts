@@ -8,7 +8,7 @@ import {
   getAllPossibleMoves,
 } from "@/utils/moveValidation";
 
-export class MoveValidatorImpl implements MoveValidator {
+export class ShogiMoveValidator implements MoveValidator {
   /**
    * 基本的な合法手チェック
    */
