@@ -6,7 +6,7 @@ import "./Board.scss";
 import PieceFactory from "../PieceFactory";
 import { Piece } from "shogi.js";
 import type { Color, ShogiMove } from "@/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
 
 function Board() {
@@ -22,8 +22,30 @@ function Board() {
     y: number;
     jkfKind: string;
     color: Color;
+    moveCount: number;
     resolve: (promote: boolean) => void;
   } | null>(null);
+
+  // 局面変化を監視してダイアログを自動で閉じる
+  useEffect(() => {
+    if (promotionState && shogi) {
+      const currentMoveCount = state.jkfPlayer?.tesuu || 0;
+
+      // 手数が変わった = 他の操作で局面が変化した
+      if (currentMoveCount !== promotionState.moveCount) {
+        console.log("局面が変化したため成り選択をキャンセル");
+        setPromotionState(null);
+        clearSelection();
+      }
+    }
+  }, [promotionState, state.jkfPlayer?.tesuu, shogi, clearSelection]);
+
+  // 選択位置の変化を監視
+  useEffect(() => {
+    if (promotionState) {
+      return;
+    }
+  }, [promotionState, selectedPosition]);
 
   if (!shogi) {
     return <div className="board-loading">盤面を読み込み中...</div>;
@@ -40,6 +62,10 @@ function Board() {
 
   const handleSquareClick = async (x: number, y: number) => {
     if (!state.jkfPlayer) return;
+
+    if (promotionState) {
+      return;
+    }
 
     // 駒が選択されていて、別のマスがクリックされた場合の移動処理
     if (selectedPosition?.type === "square") {
@@ -83,6 +109,7 @@ function Board() {
               y,
               jkfKind: fromPiece.kind,
               color: fromPiece.color,
+              moveCount: state.jkfPlayer?.tesuu || 0,
               resolve,
             });
           });

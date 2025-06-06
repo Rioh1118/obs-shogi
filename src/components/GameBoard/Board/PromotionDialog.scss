@@ -4,17 +4,17 @@
   position: absolute;
   &__black {
     top: 100%;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, -30%);
   }
   &__white {
     bottom: 100%;
-    transform: translate(-50%, 0);
+    transform: translate(-50%, 30%);
   }
 
   left: 50%;
   transform: translateX(-50%);
-  width: 180%;
-  height: 180%;
+  width: 190%;
+  height: 160%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -22,15 +22,15 @@
   overflow: hidden;
   box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.25);
   z-index: 20;
-  &__text {
-    font-size: 1.1rem;
-    padding: 0.2rem;
-    width: 100%;
-    text-align: center;
-    background-color: index.$color-primary-black;
-    color: index.$color-text-light-1;
-    letter-spacing: 0.05rem;
-  }
+  // &__text {
+  //   font-size: 1.1rem;
+  //   padding: 0.2rem;
+  //   width: 100%;
+  //   text-align: center;
+  //   background-color: index.$color-primary-black;
+  //   color: index.$color-text-light-1;
+  //   letter-spacing: 0.05rem;
+  // }
   &__piece {
     display: flex; // 横並びにする
     // padding: 0;
