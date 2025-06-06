@@ -1,4 +1,4 @@
-import { useGame } from "../../../contexts/GameContext";
+import { useGame } from "@/contexts/GameContext";
 import { Color, type Kind } from "shogi.js";
 import PieceFactory from "../PieceFactory";
 import { useHandLayout, type RowConfig } from "./useHandLayout";
@@ -16,7 +16,9 @@ function Hand({ isPlayer }: HandProps) {
 
   const color = isPlayer ? Color.Black : Color.White;
   const handPieces = hands?.[color] || [];
-  const { arrangedPieces, layoutConfig } = useHandLayout(handPieces);
+
+  const handPiecesArray = Array.from(handPieces || []);
+  const { arrangedPieces, layoutConfig } = useHandLayout(handPiecesArray);
   const isCurrentTurn = color === currentTurn;
 
   const isSelectedPiece = (pieceKind: string) => {
