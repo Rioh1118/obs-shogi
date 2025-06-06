@@ -43,7 +43,7 @@ function GameControls() {
 
       <ControlButton
         handleClick={goToEnd}
-        disabled={!canGoForward}
+        disabled={!canGoNext}
         title="最後に進む"
       >
         &gt;|
