@@ -5,7 +5,9 @@ import { BOARD_SIZE } from "@/constants/shogi";
 import "./Board.scss";
 import PieceFactory from "../PieceFactory";
 import { Piece } from "shogi.js";
-import type { ShogiMove } from "@/types";
+import type { Color, ShogiMove } from "@/types";
+import { useState } from "react";
+import PromotionDialog from "./PromotionDialog";
 
 function Board() {
   const { state, helpers, selectSquare, clearSelection } = useGame();
@@ -14,6 +16,14 @@ function Board() {
   const selectedPosition = state.selectedPosition;
   const legalMoves = state.legalMoves;
   const lastMove = state.lastMove;
+
+  const [promotionState, setPromotionState] = useState<{
+    x: number;
+    y: number;
+    jkfKind: string;
+    color: Color;
+    resolve: (promote: boolean) => void;
+  } | null>(null);
 
   if (!shogi) {
     return <div className="board-loading">盤面を読み込み中...</div>;
@@ -28,7 +38,7 @@ function Board() {
     return lastMove.to.x === x && lastMove.to.y === y;
   };
 
-  const handleSquareClick = (x: number, y: number) => {
+  const handleSquareClick = async (x: number, y: number) => {
     if (!state.jkfPlayer) return;
 
     // 駒が選択されていて、別のマスがクリックされた場合の移動処理
@@ -67,11 +77,15 @@ function Board() {
           // 強制成り
           promote = true;
         } else if (canPromote) {
-          // 成るかどうかユーザーに選択させる
-          const shouldPromote = window.confirm(
-            `${fromPiece.kind}を成りますか？\n成る場合は「OK」、成らない場合は「キャンセル」を押してください。`,
-          );
-          promote = shouldPromote;
+          promote = await new Promise((resolve) => {
+            setPromotionState({
+              x,
+              y,
+              jkfKind: fromPiece.kind,
+              color: fromPiece.color,
+              resolve,
+            });
+          });
         }
 
         // selectSquareを成りフラグ付きで呼び出し
@@ -87,6 +101,10 @@ function Board() {
     (_, index) => {
       const { x, y } = indexToCoords(index);
       const piece = shogi.get(x, y);
+      const isPromotionSquare =
+        promotionState !== null &&
+        promotionState.x === x &&
+        promotionState.y === y;
 
       return (
         <Square
@@ -106,6 +124,16 @@ function Board() {
               onClick={() =>
                 console.log(`Piece clicked: ${piece.kind} at ${x}${y}`)
               }
+            />
+          )}
+          {isPromotionSquare && (
+            <PromotionDialog
+              jkfKind={promotionState.jkfKind}
+              color={promotionState.color}
+              setPromote={(promote) => {
+                promotionState.resolve(promote);
+                setTimeout(() => setPromotionState(null), 0);
+              }}
             />
           )}
         </Square>

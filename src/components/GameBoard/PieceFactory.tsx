@@ -15,7 +15,7 @@ import {
   PromSilver,
   Horse,
   Dragon,
-} from "./pieces/index";
+} from "./pieces";
 
 interface PieceFactoryProps extends PieceProps {
   jkfKind: string;

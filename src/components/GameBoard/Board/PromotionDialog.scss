@@ -1,0 +1,69 @@
+@use "@/index.scss" as index;
+
+.promotion-choice {
+  position: absolute;
+  &__black {
+    top: 100%;
+    transform: translate(-50%, 0);
+  }
+  &__white {
+    bottom: 100%;
+    transform: translate(-50%, 0);
+  }
+
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180%;
+  height: 180%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.25);
+  z-index: 20;
+  &__text {
+    font-size: 1.1rem;
+    padding: 0.2rem;
+    width: 100%;
+    text-align: center;
+    background-color: index.$color-primary-black;
+    color: index.$color-text-light-1;
+    letter-spacing: 0.05rem;
+  }
+  &__piece {
+    display: flex; // 横並びにする
+    // padding: 0;
+    width: 100%;
+    height: 100%;
+    // background-image: url("/src/assets/board.png");
+    // background-size: cover;
+    background-color: rgba(220, 220, 220, 0.15);
+    backdrop-filter: blur(2px);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    // justify-content: center;
+    &--promote {
+      background-color: rgba(180, 220, 255, 0.15);
+    }
+    &--promote,
+    &--not-promote {
+      flex: 1; // 同じ幅で分割
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      border-radius: 0.2rem;
+      transition: background-color 0.2s ease;
+      border-right: 1px solid rgba(0, 0, 0, 0.05);
+
+      &:hover {
+        background-color: rgba(160, 130, 100, 0.25);
+        filter: brightness(1.1);
+      }
+      > * {
+        transform-origin: center;
+      }
+    }
+  }
+}
