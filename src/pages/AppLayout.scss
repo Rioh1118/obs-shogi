@@ -11,9 +11,11 @@
 
   .sidebar__btn--toggle {
     position: fixed;
-    top: 0;
-    left: 5rem;
+    top: 1.6rem;
+    left: 1.6rem;
     z-index: 1000;
+    color: index.$color-text-light-1;
+    background-color: index.$color-primary-dark;
   }
 
   &__main-container {

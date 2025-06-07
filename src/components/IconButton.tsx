@@ -2,7 +2,15 @@ import type { ReactNode, ButtonHTMLAttributes } from "react";
 import "./IconButton.scss";
 
 type IconButtonSize = "small" | "medium" | "large" | "custom";
-type IconButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type IconButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "danger"
+  | "obs-primary"
+  | "obs-ghost"
+  | "sidebar-toggle"
+  | "obs-danger";
 
 interface IconButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> {
@@ -21,7 +29,7 @@ function IconButton({
   handleClick,
   className = "",
   size = "medium",
-  variant = "primary",
+  variant = "obs-primary",
   disabled = false,
   title,
   ariaLabel,

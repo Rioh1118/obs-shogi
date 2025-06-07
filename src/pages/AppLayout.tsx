@@ -5,6 +5,7 @@ import GameBoard from "../components/GameBoard/GameBoard";
 import Board from "../components/GameBoard/Board/Board";
 import Hand from "../components/GameBoard/Hand/Hand";
 import { GameControls } from "../components/GameBoard";
+import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 
 import "./AppLayout.scss";
 
@@ -17,8 +18,18 @@ const AppLayout = () => {
 
   return (
     <div className="app-layout">
-      <IconButton handleClick={toggleSidebar} className="sidebar__btn--toggle">
-        {isSidebarOpen ? "x" : "☰"}
+      <IconButton
+        handleClick={toggleSidebar}
+        className="sidebar__btn--toggle"
+        size="medium"
+        variant="sidebar-toggle"
+      >
+        {/* {isSidebarOpen ? "x" : "☰"} */}
+        {isSidebarOpen ? (
+          <PanelLeftClose size={20} />
+        ) : (
+          <PanelLeftOpen size={20} />
+        )}
       </IconButton>
       <Sidebar isOpen={isSidebarOpen} />
       <main className="app-layout__main-container">

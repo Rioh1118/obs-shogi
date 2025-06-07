@@ -1,3 +1,5 @@
+@use "@/index.scss" as index;
+
 .btn__icon {
   font-family: inherit;
   border: none;
@@ -19,15 +21,15 @@
   }
 
   &--medium {
-    font-size: 1.6rem;
-    padding: 0.8rem;
+    font-size: 2rem;
+    padding: 0.3rem;
     min-width: 3.2rem;
     min-height: 3.2rem;
   }
 
   &--large {
-    font-size: 2rem;
-    padding: 1.2rem;
+    font-size: 2.5rem;
+    padding: 0.7rem;
     min-width: 4.4rem;
     min-height: 4.4rem;
   }
@@ -79,6 +81,49 @@
     }
   }
 
+  &--obs-primary {
+    color: index.$color-text-light-1;
+    background-color: index.$color-secondary-dark;
+    border: none;
+
+    &:hover:not(:disabled) {
+      background-color: index.$color-secondary-dark-2;
+    }
+
+    &:active:not(:disabled) {
+      background-color: darken(index.$color-secondary-dark-2, 5%);
+      transform: translateY(1px);
+    }
+  }
+
+  &--obs-ghost {
+    color: index.$color-text-light-1;
+    background-color: transparent;
+    border: 1px solid transparent;
+
+    &:hover:not(:disabled) {
+      background-color: index.$color-primary-dark;
+    }
+
+    &:active:not(:disabled) {
+      background-color: index.$color-primary-black;
+    }
+  }
+
+  &--obs-danger {
+    color: index.$color-secondary-dark;
+    background-color: transparent;
+    border: 1px solid index.$color-secondary-dark;
+
+    &:hover:not(:disabled) {
+      color: index.$color-white;
+      background-color: index.$color-secondary-dark;
+    }
+
+    &:active:not(:disabled) {
+      background-color: index.$color-secondary-dark-2;
+    }
+  }
   &--danger {
     color: var(--color-danger, #dc3545);
     background-color: var(--color-bg-primary, #ffffff);
@@ -88,6 +133,20 @@
       color: #ffffff;
       background-color: var(--color-danger, #dc3545);
       border-color: var(--color-danger, #dc3545);
+    }
+  }
+  &--sidebar-toggle {
+    color: index.$color-text-light-1;
+    background-color: transparent;
+    border: 1px solid transparent;
+
+    &:hover:not(:disabled) {
+      background-color: index.$color-primary-dark; // #2C3639
+    }
+
+    &:active:not(:disabled) {
+      background-color: index.$color-primary-black; // #1C2325
+      transform: translateY(1px);
     }
   }
 
