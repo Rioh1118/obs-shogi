@@ -1,4 +1,5 @@
 import "./FileIcon.scss";
+import { Folder, FolderOpen, FileText, File } from "lucide-react";
 
 interface FileIconProps {
   type: "folder" | "document" | "kif-file";
@@ -6,17 +7,27 @@ interface FileIconProps {
 }
 
 export default function FileIcon({ type, isOpen }: FileIconProps) {
+  // function getIcon() {
+  //   switch (type) {
+  //     case "folder":
+  //       return isOpen ? "📂" : "📁";
+  //     case "kif-file":
+  //       return "☗";
+  //     default:
+  //       return "📄";
+  //   }
+  // }
+
   function getIcon() {
     switch (type) {
       case "folder":
-        return isOpen ? "📂" : "📁";
+        return isOpen ? <FolderOpen size={14} /> : <Folder size={14} />;
       case "kif-file":
         return "☗";
       default:
-        return "📄";
+        return <File size={14} />;
     }
   }
-
   return (
     <span className="file-icon" role="img" aria-hidden="true">
       {getIcon()}

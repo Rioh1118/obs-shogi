@@ -1,4 +1,11 @@
+@use "@/index.scss" as index;
+
 .file-icon {
   display: inline-block;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
   margin: 0.2rem;
+  margin-right: 0.55rem;
+  color: index.$color-text-light-1;
 }
