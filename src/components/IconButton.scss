@@ -1,5 +1,35 @@
 @use "@/index.scss" as index;
+@use "sass:color";
 
+// --------------------
+// Mixin
+// --------------------
+@mixin btn-size($font-size, $padding, $min-size) {
+  font-size: $font-size;
+  padding: $padding;
+  min-width: $min-size;
+  min-height: $min-size;
+}
+
+@mixin btn-hover($bg, $border: null) {
+  &:hover:not(:disabled) {
+    background-color: $bg;
+    @if $border != null {
+      border-color: $border;
+    }
+  }
+}
+
+@mixin btn-active($bg) {
+  &:active:not(:disabled) {
+    background-color: $bg;
+    transform: translateY(1px);
+  }
+}
+
+// --------------------
+// Base Button
+// --------------------
 .btn__icon {
   font-family: inherit;
   border: none;
@@ -12,53 +42,40 @@
   transition: all 0.2s ease;
   user-select: none;
 
-  // サイズバリエーション
+  // サイズ
   &--small {
-    font-size: 1.2rem;
-    padding: 0.4rem;
-    min-width: 2.4rem;
-    min-height: 2.4rem;
+    @include btn-size(1.2rem, 0.4rem, 2.4rem);
   }
 
   &--medium {
-    font-size: 2rem;
-    padding: 0.3rem;
-    min-width: 3.2rem;
-    min-height: 3.2rem;
+    @include btn-size(2rem, 0.3rem, 3.2rem);
   }
 
   &--large {
-    font-size: 2.5rem;
-    padding: 0.7rem;
-    min-width: 4.4rem;
-    min-height: 4.4rem;
+    @include btn-size(2.5rem, 0.7rem, 4.4rem);
   }
 
   &--custom {
-    // カスタムサイズの場合は親から指定
     font-size: inherit;
     padding: inherit;
     min-width: inherit;
     min-height: inherit;
   }
 
-  // バリアントスタイル
+  // バリアント: primary
   &--primary {
     color: var(--color-text-primary, #212529);
     background-color: var(--color-bg-primary, #ffffff);
     border: 1px solid var(--color-border, #dee2e6);
 
-    &:hover:not(:disabled) {
-      background-color: var(--color-bg-hover, #e9ecef);
-      border-color: var(--color-border-hover, #adb5bd);
-    }
-
-    &:active:not(:disabled) {
-      background-color: var(--color-bg-active, #dee2e6);
-      transform: translateY(1px);
-    }
+    @include btn-hover(
+      var(--color-bg-hover, #e9ecef),
+      var(--color-border-hover, #adb5bd)
+    );
+    @include btn-active(var(--color-bg-active, #dee2e6));
   }
 
+  // secondary
   &--secondary {
     color: var(--color-text-secondary, #6c757d);
     background-color: var(--color-bg-secondary, #f8f9fa);
@@ -70,30 +87,41 @@
     }
   }
 
+  // ghost
   &--ghost {
     color: var(--color-text-primary, #212529);
     background-color: transparent;
     border: 1px solid transparent;
 
+    @include btn-hover(
+      var(--color-bg-hover, #f8f9fa),
+      var(--color-border-light, #e9ecef)
+    );
+  }
+
+  // danger
+  &--danger {
+    color: var(--color-danger, #dc3545);
+    background-color: var(--color-bg-primary, #ffffff);
+    border: 1px solid var(--color-danger-light, #f5c6cb);
+
     &:hover:not(:disabled) {
-      background-color: var(--color-bg-hover, #f8f9fa);
-      border-color: var(--color-border-light, #e9ecef);
+      color: #ffffff;
+      background-color: var(--color-danger, #dc3545);
+      border-color: var(--color-danger, #dc3545);
     }
   }
 
+  // OBS variants
   &--obs-primary {
     color: index.$color-text-light-1;
     background-color: index.$color-secondary-dark;
     border: none;
 
-    &:hover:not(:disabled) {
-      background-color: index.$color-secondary-dark-2;
-    }
-
-    &:active:not(:disabled) {
-      background-color: darken(index.$color-secondary-dark-2, 5%);
-      transform: translateY(1px);
-    }
+    @include btn-hover(index.$color-secondary-dark-2);
+    @include btn-active(
+      color.adjust(index.$color-secondary-dark-2, $lightness: -5%)
+    );
   }
 
   &--obs-ghost {
@@ -101,13 +129,8 @@
     background-color: transparent;
     border: 1px solid transparent;
 
-    &:hover:not(:disabled) {
-      background-color: index.$color-primary-dark;
-    }
-
-    &:active:not(:disabled) {
-      background-color: index.$color-primary-black;
-    }
+    @include btn-hover(index.$color-primary-dark);
+    @include btn-active(index.$color-primary-black);
   }
 
   &--obs-danger {
@@ -124,30 +147,14 @@
       background-color: index.$color-secondary-dark-2;
     }
   }
-  &--danger {
-    color: var(--color-danger, #dc3545);
-    background-color: var(--color-bg-primary, #ffffff);
-    border: 1px solid var(--color-danger-light, #f5c6cb);
 
-    &:hover:not(:disabled) {
-      color: #ffffff;
-      background-color: var(--color-danger, #dc3545);
-      border-color: var(--color-danger, #dc3545);
-    }
-  }
   &--sidebar-toggle {
     color: index.$color-text-light-1;
     background-color: transparent;
     border: 1px solid transparent;
 
-    &:hover:not(:disabled) {
-      background-color: index.$color-primary-dark; // #2C3639
-    }
-
-    &:active:not(:disabled) {
-      background-color: index.$color-primary-black; // #1C2325
-      transform: translateY(1px);
-    }
+    @include btn-hover(index.$color-primary-dark);
+    @include btn-active(index.$color-primary-black);
   }
 
   // 無効状態
@@ -164,13 +171,15 @@
     outline-offset: 2px;
   }
 
-  // アクティブ状態のアニメーション
+  // アクティブ状態アニメーション
   &:active:not(:disabled) {
     transition: transform 0.1s ease;
   }
 }
 
-// ダークモード対応
+// --------------------
+// Dark Mode
+// --------------------
 @media (prefers-color-scheme: dark) {
   .btn__icon {
     &--primary {
@@ -178,13 +187,8 @@
       background-color: var(--color-bg-primary-dark, #495057);
       border-color: var(--color-border-dark, #6c757d);
 
-      &:hover:not(:disabled) {
-        background-color: var(--color-bg-hover-dark, #6c757d);
-      }
-
-      &:active:not(:disabled) {
-        background-color: var(--color-bg-active-dark, #5a6268);
-      }
+      @include btn-hover(var(--color-bg-hover-dark, #6c757d));
+      @include btn-active(var(--color-bg-active-dark, #5a6268));
     }
 
     &--secondary {
@@ -196,9 +200,7 @@
     &--ghost {
       color: var(--color-text-primary-dark, #f8f9fa);
 
-      &:hover:not(:disabled) {
-        background-color: var(--color-bg-hover-dark, #495057);
-      }
+      @include btn-hover(var(--color-bg-hover-dark, #495057));
     }
   }
 }

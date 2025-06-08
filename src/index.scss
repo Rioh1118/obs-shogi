@@ -17,6 +17,7 @@ $default-font-size: 1.6rem;
 
 // layout
 $sidebar-width: 23%;
+$titlebar-height: 2.6rem;
 
 *,
 *::after,
@@ -35,4 +36,13 @@ body {
   font-weight: 400;
 
   box-sizing: border-box;
+}
+
+* {
+  scrollbar-width: none; // Firefox
+  -ms-overflow-style: none; // IE and Edge
+
+  &::-webkit-scrollbar {
+    display: none; // Chrome, Safari, Opera
+  }
 }

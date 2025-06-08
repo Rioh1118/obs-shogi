@@ -1,0 +1,56 @@
+@use "@/index.scss" as index;
+
+$titlebar-button-size: 1.2rem;
+
+.titlebar {
+  height: index.$titlebar-height;
+  background: rgba(index.$color-primary-black, 0.86);
+  backdrop-filter: blur(0.1rem);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1.2rem;
+  user-select: none;
+  flex-shrink: 0;
+  z-index: 9999; // 最前面に表示
+  box-shadow: 0 0.1rem 0.4rem rgba(0, 0, 0, 0.2);
+  border-radius: 0.2rem;
+
+  &__buttons {
+    display: flex;
+    gap: 0.6rem;
+
+    button {
+      width: 1.2rem;
+      height: 1.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      padding: 0;
+      border: none;
+      background: #555;
+      cursor: pointer;
+      padding: 0.14rem;
+
+      svg {
+        stroke: rgba(index.$color-primary-black, 0.7);
+        width: $titlebar-button-size;
+        height: $titlebar-button-size;
+      }
+
+      &.close {
+        background-color: #ff5f57;
+      }
+      &.minimize {
+        background-color: #ffbd2e;
+      }
+      &.maximize {
+        background-color: #28c840;
+      }
+
+      &:hover {
+        filter: brightness(1.2);
+      }
+    }
+  }
+}

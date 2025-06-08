@@ -22,6 +22,7 @@ type FileTreeState = {
   jkfData: JKFData | null;
   kifuFormat: KifuFormat | null;
   expandedNodes: Set<string>;
+  showCreateFileModal: boolean;
   isLoading: boolean;
   error: string | null;
 };
@@ -34,6 +35,7 @@ type FileTreeAction =
   | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
   | { type: "node_collapsed"; payload: string }
+  | { type: "toggle_create_file_modal" }
   | { type: "error"; payload: string };
 
 const initialState: FileTreeState = {
@@ -42,6 +44,7 @@ const initialState: FileTreeState = {
   jkfData: null,
   kifuFormat: null,
   expandedNodes: new Set<string>(),
+  showCreateFileModal: false,
   isLoading: false,
   error: null,
 };
@@ -96,6 +99,12 @@ function fileTreeReducer(
       };
     }
 
+    case "toggle_create_file_modal":
+      return {
+        ...state,
+        showCreateFileModal: !state.showCreateFileModal,
+      };
+
     case "error":
       return {
         ...state,
@@ -130,6 +139,7 @@ type FileTreeContextType = FileTreeState & {
   refreshTree: () => Promise<void>;
   isKifuSelected: () => boolean;
   getSelectedKifuData: () => JKFData | null;
+  toggleCreateFileModal: () => void;
 };
 
 const FileTreeContext = createContext<FileTreeContextType | undefined>(
@@ -378,6 +388,10 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     return state.jkfData;
   }, [state.jkfData]);
 
+  const toggleCreateFileModal = useCallback(() => {
+    dispatch({ type: "toggle_create_file_modal" });
+  }, []);
+
   return (
     <FileTreeContext.Provider
       value={{
@@ -395,6 +409,7 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         refreshTree,
         isKifuSelected,
         getSelectedKifuData,
+        toggleCreateFileModal,
       }}
     >
       {children}

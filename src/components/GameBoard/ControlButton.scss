@@ -1,15 +1,17 @@
-@use "../../index.scss" as index;
+@use "@/index.scss" as index;
 
 .control-button {
   box-sizing: inherit;
   border: 0.1rem solid index.$color-secondary-dark-2;
   width: 25%;
-  height: 3.8rem;
-  background-color: #cfc8b5;
+  height: 3.6rem;
+  background-color: rgba(#cfc8b5, 0.8);
+  backdrop-filter: blur(0.4rem);
+  -webkit-backdrop-filter: blur(4px);
   margin-top: 0.6rem;
 
   font-family: sans-serif;
-  font-size: 2.2rem;
+  font-size: 2.1rem;
   color: index.$color-text-dark-2;
 
   display: flex;
@@ -28,7 +30,10 @@
   }
 
   &:active {
-    transform: scale(0.98);
+    transform: scale(0.993) translateY(0.05rem);
+    border-left-color: rgba(index.$color-secondary-dark-2, 0.8);
+    border-right-color: rgba(index.$color-secondary-dark-2, 0.8);
+    box-shadow: inseet 0 0.1rem 0.3rem rgba(0, 0, 0, 0.2);
   }
 
   &:disabled {

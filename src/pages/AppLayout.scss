@@ -11,7 +11,7 @@
 
   .sidebar__btn--toggle {
     position: fixed;
-    top: 1.6rem;
+    top: calc(0.7rem + #{index.$titlebar-height});
     left: 1.6rem;
     z-index: 1000;
     color: index.$color-text-light-1;

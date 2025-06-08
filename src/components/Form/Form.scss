@@ -1,0 +1,217 @@
+@use "@/index.scss" as index;
+
+.form {
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 3rem;
+  gap: 1.5rem;
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+
+    &--horizontal {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+      gap: 2rem;
+
+      .form__field {
+        flex: 1;
+        display: inline-flex;
+        flex-direction: column;
+      }
+    }
+    &--buttons {
+      display: flex;
+      flex-direction: row;
+      gap: 1rem;
+      justify-content: flex-end;
+      margin-top: 2rem;
+    }
+  }
+
+  &__input,
+  &__textarea,
+  &__select {
+    font-size: 1.5rem;
+    font-weight: 400;
+    font-family: inherit;
+    color: index.$color-primary-dark;
+    padding: 1.2rem 1.6rem;
+    background-color: rgba(index.$color-secondary-light, 0.5);
+    border: none;
+    border-bottom: 0.2rem solid transparent;
+    border-radius: 0.4rem;
+    transition: all 0.2s ease;
+
+    &:focus {
+      outline: none;
+      background-color: rgba(255, 255, 255, 0.65);
+      border-color: index.$color-secondary-dark-2;
+      box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.08);
+    }
+
+    &::placeholder {
+      color: #888;
+    }
+  }
+
+  &__select {
+    cursor: pointer;
+
+    option {
+      background-color: index.$color-white;
+      color: index.$color-primary-dark;
+    }
+  }
+
+  &__textarea {
+    resize: vertical;
+    min-height: 8rem;
+  }
+
+  &__label {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: index.$color-primary-dark;
+    margin-left: 0;
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s;
+    display: block;
+  }
+
+  &__subheading {
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: index.$color-primary-dark;
+    margin-bottom: 1rem;
+  }
+
+  &__radio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 1rem;
+  }
+
+  &__radio-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  &__radio-input {
+    display: none;
+  }
+
+  &__radio-label {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.4rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: index.$color-primary-dark;
+    cursor: pointer;
+    user-select: none;
+    padding: 0.5rem;
+    border-radius: 0.4rem;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: rgba(index.$color-secondary-light, 0.3);
+    }
+  }
+
+  &__radio-button {
+    flex-shrink: 0;
+    height: 2rem;
+    width: 2rem;
+    border-radius: 50%;
+    border: 0.3rem solid index.$color-secondary-dark-2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s ease;
+
+    &::after {
+      content: "";
+      height: 1rem;
+      width: 1rem;
+      border-radius: 50%;
+      background-color: index.$color-secondary-dark-2;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+  }
+
+  &__radio-input:checked + .form__radio-label .form__radio-button::after {
+    opacity: 1;
+
+    .from__radio-button {
+      border-color: index.$color-secondary-dark;
+    }
+
+    &::after {
+      opacity: 1;
+      background-color: index.$color-secondary-dark;
+    }
+  }
+
+  &__btn {
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    border: none;
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    &--primary {
+      background-color: index.$color-secondary-dark;
+      color: index.$color-white;
+
+      &:hover:not(:disabled) {
+        background-color: index.$color-secondary-dark-2;
+        box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.15);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0.1rem);
+        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+      }
+    }
+
+    &--ghost {
+      background-color: transparent;
+      border: 0.2rem solid index.$color-secondary-dark;
+      color: index.$color-secondary-dark;
+      &:hover:not(:disabled) {
+        background-color: rgba(index.$color-secondary-dark, 0.1);
+      }
+      &:active:not(:disabled) {
+        background-color: rgba(index.$color-secondary-dark, 0.2);
+        transform: translateY(0.1rem);
+      }
+    }
+  }
+
+  &__heading-secondary {
+    font-size: 2.2rem;
+    font-weight: 500;
+    color: index.$color-primary-dark;
+    line-height: 1.4;
+    letter-spacing: 0.05rem;
+    margin-bottom: 1.5rem;
+    text-transform: none;
+
+    padding-left: 1rem;
+
+    text-shadow: 0 0.1rem 0.1rem rgba(index.$color-text-dark-1, 0.03);
+  }
+}

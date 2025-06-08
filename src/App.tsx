@@ -7,25 +7,32 @@ import { FileTreeProvider } from "./contexts/FileTreeContext";
 import { GameProvider } from "./contexts/GameContext";
 import { useMemo } from "react";
 import { KifuWriterFactory } from "./services/file/KifuWriterImpl";
+import TitleBar from "./components/TitleBar";
+import "./App.scss";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
   return (
-    <AppConfigProvider>
-      <FileTreeProvider>
-        <GameProvider kifuWriter={kifuWriter}>
-          <BrowserRouter>
-            <Routes>
-              <Route index element={<FolderSelect />} />
-              <Route path="/app" element={<AppLayout />}>
-                <Route index element={<Navigate replace to="filetree" />} />
-                <Route path="filetree" element={<FileTree />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </GameProvider>
-      </FileTreeProvider>
-    </AppConfigProvider>
+    <div className="app-root">
+      <AppConfigProvider>
+        <FileTreeProvider>
+          <GameProvider kifuWriter={kifuWriter}>
+            <TitleBar />
+            <div className="app-content">
+              <BrowserRouter>
+                <Routes>
+                  <Route index element={<FolderSelect />} />
+                  <Route path="/app" element={<AppLayout />}>
+                    <Route index element={<Navigate replace to="filetree" />} />
+                    <Route path="filetree" element={<FileTree />} />
+                  </Route>
+                </Routes>
+              </BrowserRouter>
+            </div>
+          </GameProvider>
+        </FileTreeProvider>
+      </AppConfigProvider>
+    </div>
   );
 }
 

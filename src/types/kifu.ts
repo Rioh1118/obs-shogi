@@ -10,9 +10,9 @@ export interface KifuCreationOptions {
     black?: string;
     white?: string;
     date?: string;
-    event?: string;
-    site?: string;
-    timeControl?: string;
+
+    tags?: string[];
+    note?: string;
   };
   initialPosition: {
     preset: InitialPresetString;

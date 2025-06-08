@@ -1,0 +1,31 @@
+@use "@/index.scss" as index;
+
+.modal {
+  user-select: none;
+
+  &__overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(index.$color-primary-black, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1500;
+  }
+  &__card {
+    background-color: rgba(index.$color-secondary-light, 0.85);
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.25);
+    min-width: 50%;
+    min-height: 50%;
+    max-width: 85%;
+    max-height: 90%;
+    overflow-y: auto;
+
+    // display: flex;
+    // flex-direction: column;
+    // gap: 1.6rem;
+  }
+}

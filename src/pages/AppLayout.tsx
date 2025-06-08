@@ -8,9 +8,13 @@ import { GameControls } from "../components/GameBoard";
 import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 
 import "./AppLayout.scss";
+import Modal from "@/components/Modal";
+import { useFileTree } from "@/contexts/FileTreeContext";
+import FileCreateForm from "@/components/FileTree/FileCreateForm";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { showCreateFileModal, toggleCreateFileModal } = useFileTree();
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -24,13 +28,18 @@ const AppLayout = () => {
         size="medium"
         variant="sidebar-toggle"
       >
-        {/* {isSidebarOpen ? "x" : "☰"} */}
         {isSidebarOpen ? (
           <PanelLeftClose size={20} />
         ) : (
           <PanelLeftOpen size={20} />
         )}
       </IconButton>
+      {showCreateFileModal && (
+        <Modal onToggle={toggleCreateFileModal}>
+          <FileCreateForm toggleModal={toggleCreateFileModal} dirPath="" />
+        </Modal>
+      )}
+      <button onClick={toggleCreateFileModal}>ata</button>
       <Sidebar isOpen={isSidebarOpen} />
       <main className="app-layout__main-container">
         <section className="main-container__game">
