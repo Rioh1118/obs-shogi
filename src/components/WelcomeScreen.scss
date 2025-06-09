@@ -1,0 +1,93 @@
+@use "@/index.scss" as index;
+
+.welcome-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 60vh;
+  background: index.$color-primary-dark;
+
+  &__content {
+    text-align: center;
+    max-width: 500px;
+    padding: 2rem;
+  }
+
+  &__message {
+    margin-top: 3rem;
+  }
+
+  &__icon {
+    margin-bottom: 1.5rem;
+    color: index.$color-text-light-1;
+    opacity: 0.7;
+
+    svg {
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+    }
+  }
+
+  &__title {
+    font-size: 2.4rem;
+    font-weight: 600;
+    color: index.$color-white;
+    margin-bottom: 1rem;
+    letter-spacing: 0.05em;
+  }
+
+  &__description {
+    font-size: 1.6rem;
+    color: index.$color-text-light-1;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    opacity: 0.8;
+  }
+
+  &__formats {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  &__format-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1.2rem;
+    background: rgba(index.$color-white, 0.05);
+    border: 1px solid rgba(index.$color-white, 0.1);
+    border-radius: 0.6rem;
+    color: index.$color-text-light-1;
+    font-size: 1.4rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(index.$color-white, 0.1);
+      border-color: rgba(index.$color-white, 0.2);
+      transform: translateY(-1px);
+    }
+
+    svg {
+      opacity: 0.7;
+    }
+  }
+}
+
+.welcome-screen__content {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -4,16 +4,39 @@ import NodeBox from "./NodeBox";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import TreeNode from "./TreeNode";
 import "./RootNode.scss";
+import TreeNodeActions from "./TreeNodeActions";
 
 function RootNode({ node }: { node: FileTreeNode }) {
   const [isOpen, setIsOpen] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleMouseEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+  };
   function handleClick() {
     setIsOpen(!isOpen);
   }
 
   return (
     <>
-      <NodeBox level={0} handleClick={handleClick}>
+      <NodeBox
+        level={0}
+        handleClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        action={
+          isHovered ? (
+            <TreeNodeActions
+              nodePath={node.path}
+              isDirectory={node.isDirectory}
+            />
+          ) : undefined
+        }
+      >
         <DirectoryToggleIcon isExpanded={isOpen} />
         <span className="file-tree__rootdir--name">{node.name}</span>
       </NodeBox>
