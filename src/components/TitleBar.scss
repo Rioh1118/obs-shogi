@@ -14,7 +14,6 @@ $titlebar-button-size: 1.2rem;
   flex-shrink: 0;
   z-index: 9999; // 最前面に表示
   box-shadow: 0 0.1rem 0.4rem rgba(0, 0, 0, 0.2);
-  border-radius: 0.2rem;
 
   &__buttons {
     display: flex;
