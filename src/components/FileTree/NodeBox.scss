@@ -12,4 +12,33 @@
   &__selected {
     background-color: rgba(index.$color-text-light-1, 0.1);
   }
+
+  &__content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 2.4rem; // 最小高さを確保
+  }
+
+  &__main {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1; // 残り空間を占有
+  }
+
+  &__actions {
+    display: flex;
+    margin-right: 1.5rem;
+    align-items: center;
+    gap: 0.2rem;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  &:hover &__actions {
+    opacity: 1;
+  }
 }

@@ -36,7 +36,7 @@ function FileCreateForm({
     setIsLoading(true);
     try {
       await createNewFile(dirPath, {
-        fileName: fileName.trim(),
+        fileName: `${fileName.trim()}.${format}`,
         format,
         gameInfo: {
           black: blackPlayer.trim() || undefined,

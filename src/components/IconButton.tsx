@@ -15,7 +15,9 @@ type IconButtonVariant =
 interface IconButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> {
   children: ReactNode;
-  handleClick?: () => void;
+  handleClick?:
+    | (() => void)
+    | ((e: React.MouseEvent<HTMLButtonElement>) => void);
   className?: string;
   size?: IconButtonSize;
   variant?: IconButtonVariant;
@@ -35,9 +37,13 @@ function IconButton({
   ariaLabel,
   ...buttonProps
 }: IconButtonProps) {
-  const handleButtonClick = () => {
+  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!disabled && handleClick) {
-      handleClick();
+      if (handleClick.length > 0) {
+        (handleClick as (e: React.MouseEvent<HTMLButtonElement>) => void)(e);
+      } else {
+        (handleClick as () => void)();
+      }
     }
   };
 

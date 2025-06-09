@@ -21,7 +21,7 @@ function TitleBar() {
           <Minus size={12} strokeWidth={3} />
         </button>
         <button className="maximize" onClick={handleMaximize}>
-          <Maximize2 size={12} stroke-width={3} />
+          <Maximize2 size={12} strokeWidth={3} />
         </button>
       </div>
     </div>

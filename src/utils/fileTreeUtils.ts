@@ -9,7 +9,7 @@ export function createInitialJKFData(options: KifuCreationOptions): JKFData {
   if (options.gameInfo.date) header["開始日時"] = options.gameInfo.date;
   if (options.gameInfo.note) header["note"] = options.gameInfo.note;
   if (options.gameInfo.tags && options.gameInfo.tags.length > 0) {
-    header["tags"] = options.gameInfo.tags.join(", ");
+    header["tags"] = options.gameInfo.tags.join(",");
   }
 
   // 基本的なJKFData構造
@@ -18,7 +18,7 @@ export function createInitialJKFData(options: KifuCreationOptions): JKFData {
     initial: {
       preset: options.initialPosition.preset,
     },
-    moves: [],
+    moves: [{}],
   };
 
   // "OTHER"の場合のみdataを設定

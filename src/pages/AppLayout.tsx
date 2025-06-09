@@ -9,15 +9,22 @@ import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 
 import "./AppLayout.scss";
 import Modal from "@/components/Modal";
-import { useFileTree } from "@/contexts/FileTreeContext";
 import FileCreateForm from "@/components/FileTree/FileCreateForm";
+import { useSearchParams } from "react-router";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { showCreateFileModal, toggleCreateFileModal } = useFileTree();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const action = searchParams.get("action");
+  const targetDir = searchParams.get("dir");
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const closeModal = () => {
+    setSearchParams({});
   };
 
   return (
@@ -34,12 +41,11 @@ const AppLayout = () => {
           <PanelLeftOpen size={20} />
         )}
       </IconButton>
-      {showCreateFileModal && (
-        <Modal onToggle={toggleCreateFileModal}>
-          <FileCreateForm toggleModal={toggleCreateFileModal} dirPath="" />
+      {action === "create-file" && (
+        <Modal onToggle={closeModal}>
+          <FileCreateForm toggleModal={closeModal} dirPath={targetDir || ""} />
         </Modal>
       )}
-      <button onClick={toggleCreateFileModal}>ata</button>
       <Sidebar isOpen={isSidebarOpen} />
       <main className="app-layout__main-container">
         <section className="main-container__game">
