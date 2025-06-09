@@ -1,5 +1,11 @@
 import { useGame } from "@/contexts/GameContext";
 import ControlButton from "./ControlButton";
+import {
+  ChevronFirst,
+  ChevronLeft,
+  ChevronRight,
+  ChevronLast,
+} from "lucide-react";
 import "./GameControls.scss";
 
 function GameControls() {
@@ -22,7 +28,7 @@ function GameControls() {
         disabled={!canGoBack}
         title="最初に戻る"
       >
-        |&lt;
+        <ChevronFirst size={25} />
       </ControlButton>
 
       <ControlButton
@@ -30,7 +36,7 @@ function GameControls() {
         disabled={!canGoBack}
         title="前の手"
       >
-        &lt;
+        <ChevronLeft size={25} />
       </ControlButton>
 
       <ControlButton
@@ -38,7 +44,7 @@ function GameControls() {
         disabled={!canGoNext}
         title="次の手"
       >
-        &gt;
+        <ChevronRight size={25} />
       </ControlButton>
 
       <ControlButton
@@ -46,7 +52,7 @@ function GameControls() {
         disabled={!canGoNext}
         title="最後に進む"
       >
-        &gt;|
+        <ChevronLast size={25} />
       </ControlButton>
     </div>
   );
