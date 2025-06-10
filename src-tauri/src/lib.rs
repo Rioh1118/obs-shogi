@@ -1,4 +1,5 @@
 pub mod config_dir;
+pub mod engine;
 pub mod file_system;
 pub mod kifu;
 
