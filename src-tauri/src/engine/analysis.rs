@@ -1,349 +1,433 @@
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
-use tokio::sync::{broadcast, mpsc, RwLock};
+use std::time::Duration;
+use thiserror::Error;
+use tokio::sync::{mpsc, Mutex};
+use usi::{
+    EngineCommand, GuiCommand, IdParams, InfoParams, OptionKind, OptionParams, ScoreKind,
+    ThinkParams, UsiEngineHandler,
+};
 
-use super::error::{EngineError, EngineResult};
-use super::types::*;
+use crate::engine::types::*;
 
-/// 解析制御コマンド
+pub struct UsiAnalysisEngine {
+    handler: UsiEngineHandler,
+    result_sender: Option<mpsc::UnboundedSender<AnalysisResult>>,
+    is_analyzing: Arc<Mutex<bool>>,
+}
+
+#[derive(Error, Debug)]
+pub enum EngineError {
+    #[error("Engine Startup failed:{0}")]
+    StartupFailed(String),
+    #[error("Communication failed: {0}")]
+    CommunicationFailed(String),
+    #[error("Analysis failed: {0}")]
+    AnalysisFailed(String),
+}
+
+#[derive(Error, Debug)]
+pub enum HookError {
+    #[error("Channel send error")]
+    ChannelSendError,
+    #[error("Analysis processing error: {0}")]
+    ProcessingError(String),
+}
+
 #[derive(Debug, Clone)]
-pub enum AnalysisCommand {
-    Start {
-        position: String,
-        options: AnalysisOptions,
-    },
-    Stop,
-    Pause,
-    Resume,
-    UpdateOptions(AnalysisOptions),
+enum EngineResponse {
+    Id(IdParams),
+    Option(OptionParams),
+    UsiOk,
 }
 
-/// 解析状態
-#[derive(Debug, Clone, PartialEq)]
-pub enum AnalysisState {
-    Idle,
-    Analyzing {
-        position: String,
-        start_time: SystemTime,
-        options: AnalysisOptions,
-    },
-    Paused,
-    Error {
-        message: String,
-    },
-}
+impl UsiAnalysisEngine {
+    /// エンジンを起動し初期化
+    pub async fn new(engine_path: &str, work_dir: &str) -> Result<Self, EngineError> {
+        let handler = UsiEngineHandler::spawn(engine_path, work_dir)
+            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
 
-/// 解析オプション
-#[derive(Debug, Clone, PartialEq)]
-pub struct AnalysisOptions {
-    pub depth: Option<u32>,
-    pub time: Option<Duration>,
-    pub nodes: Option<u64>,
-    pub multi_pv: Option<u32>,
-    pub hash_size: Option<u32>,
-}
+        let mut engine = Self {
+            handler,
+            result_sender: None,
+            is_analyzing: Arc::new(Mutex::new(false)),
+        };
+        engine.initialize().await?;
 
-impl Default for AnalysisOptions {
-    fn default() -> Self {
-        Self {
-            depth: None,
-            time: None,
-            nodes: None,
-            multi_pv: Some(1),
-            hash_size: None,
-        }
-    }
-}
-
-/// 解析イベント
-#[derive(Debug, Clone)]
-pub enum AnalysisEvent {
-    Started {
-        position: String,
-        options: AnalysisOptions,
-    },
-    Update {
-        result: AnalysisResult,
-    },
-    Completed {
-        final_result: AnalysisResult,
-        best_move: Option<String>,
-    },
-    Stopped,
-    Error {
-        message: String,
-    },
-}
-
-// EngineManagerの仮実装
-pub struct MockEngineManager;
-
-impl MockEngineManager {
-    pub async fn set_position(&self, _position: &str) -> EngineResult<()> {
-        Ok(())
+        Ok(engine)
     }
 
-    pub async fn start_thinking(&self) -> EngineResult<()> {
-        Ok(())
-    }
+    /// エンジンを起動し、オプション情報も取得
+    pub async fn new_with_options(
+        engine_path: &str,
+        work_dir: &str,
+    ) -> Result<(Self, EngineInfo), EngineError> {
+        let handler = UsiEngineHandler::spawn(engine_path, work_dir)
+            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
 
-    pub async fn stop_thinking(&self) -> EngineResult<()> {
-        Ok(())
-    }
-
-    pub async fn set_option(&self, _name: &str, _value: &str) -> EngineResult<()> {
-        Ok(())
-    }
-
-    pub fn subscribe_events(&self) -> broadcast::Receiver<EngineEvent> {
-        let (_tx, rx) = broadcast::channel(100);
-        rx
-    }
-}
-
-/// 解析マネージャー
-pub struct AnalysisManager {
-    command_tx: mpsc::Sender<AnalysisCommand>,
-    event_tx: broadcast::Sender<AnalysisEvent>,
-    #[allow(dead_code)]
-    engine_manager: Arc<MockEngineManager>,
-    state: Arc<RwLock<AnalysisState>>,
-}
-
-impl AnalysisManager {
-    pub fn new(engine_manager: Arc<MockEngineManager>) -> EngineResult<Self> {
-        let (command_tx, command_rx) = mpsc::channel(100);
-        let (event_tx, _) = broadcast::channel(1000);
-        let state = Arc::new(RwLock::new(AnalysisState::Idle));
-
-        let manager = Self {
-            command_tx,
-            event_tx,
-            engine_manager: engine_manager.clone(),
-            state: state.clone(),
+        let mut engine = Self {
+            handler,
+            result_sender: None,
+            is_analyzing: Arc::new(Mutex::new(false)),
         };
 
-        let mut worker = AnalysisWorker {
-            command_rx,
-            event_tx: manager.event_tx.clone(),
-            engine_manager,
-            state,
-        };
+        let engine_info = engine.collect_engine_info().await?;
 
-        tokio::spawn(async move {
-            if let Err(e) = worker.run().await {
-                eprintln!("Analysis worker error: {}", e);
+        engine.complete_initialization().await?;
+        Ok((engine, engine_info))
+    }
+
+    /// USI初期化プロセス
+    async fn initialize(&mut self) -> Result<(), EngineError> {
+        // 1. USIコマンド送信
+        self.handler
+            .send_command(&GuiCommand::Usi)
+            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
+
+        // 2. エンジン情報取得(id name, id author, option, usiok)
+        let _info = self
+            .handler
+            .get_info()
+            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
+
+        // 3. エンジンの準備完了を待つ
+        self.handler
+            .prepare()
+            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// エンジン情報とオプションを収集
+    async fn collect_engine_info(&mut self) -> Result<EngineInfo, EngineError> {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+
+        // listenでエンジンからの応答を監視
+        let tx_clone = tx.clone();
+        let listen_result = self.handler.listen(move |output| -> Result<(), HookError> {
+            if let Some(cmd) = output.response() {
+                match cmd {
+                    EngineCommand::Id(id_params) => {
+                        tx_clone
+                            .send(EngineResponse::Id(id_params.clone()))
+                            .map_err(|_| HookError::ChannelSendError)?;
+                    }
+                    EngineCommand::Option(option_params) => {
+                        tx_clone
+                            .send(EngineResponse::Option(option_params.clone()))
+                            .map_err(|_| HookError::ChannelSendError)?;
+                    }
+                    EngineCommand::UsiOk => {
+                        tx_clone
+                            .send(EngineResponse::UsiOk)
+                            .map_err(|_| HookError::ChannelSendError)?;
+
+                        return Err(HookError::ProcessingError(
+                            "collection complete".to_string(),
+                        ));
+                    }
+                    _ => {}
+                }
             }
+            Ok(())
         });
 
-        Ok(manager)
-    }
+        // USIコマンドを送信
+        self.handler
+            .send_command(&GuiCommand::Usi)
+            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
 
-    pub async fn start_analysis(
-        &self,
-        position: &str,
-        options: AnalysisOptions,
-    ) -> EngineResult<()> {
-        let command = AnalysisCommand::Start {
-            position: position.to_string(),
-            options,
-        };
+        // 応答を収集
+        let mut name = String::new();
+        let mut author = String::new();
+        let mut options = Vec::new();
 
-        self.command_tx
-            .send(command)
-            .await
-            .map_err(|_| EngineError::Channel)?;
-
-        Ok(())
-    }
-
-    pub async fn stop_analysis(&self) -> EngineResult<()> {
-        self.command_tx
-            .send(AnalysisCommand::Stop)
-            .await
-            .map_err(|_| EngineError::Channel)?;
-
-        Ok(())
-    }
-
-    pub async fn pause_analysis(&self) -> EngineResult<()> {
-        self.command_tx
-            .send(AnalysisCommand::Pause)
-            .await
-            .map_err(|_| EngineError::Channel)?;
-
-        Ok(())
-    }
-
-    pub async fn resume_analysis(&self) -> EngineResult<()> {
-        self.command_tx
-            .send(AnalysisCommand::Resume)
-            .await
-            .map_err(|_| EngineError::Channel)?;
-
-        Ok(())
-    }
-
-    pub async fn get_state(&self) -> AnalysisState {
-        self.state.read().await.clone()
-    }
-
-    pub fn subscribe_events(&self) -> broadcast::Receiver<AnalysisEvent> {
-        self.event_tx.subscribe()
-    }
-}
-
-struct AnalysisWorker {
-    command_rx: mpsc::Receiver<AnalysisCommand>,
-    event_tx: broadcast::Sender<AnalysisEvent>,
-    engine_manager: Arc<MockEngineManager>,
-    state: Arc<RwLock<AnalysisState>>,
-}
-
-impl AnalysisWorker {
-    async fn run(&mut self) -> EngineResult<()> {
-        let mut engine_events = self.engine_manager.subscribe_events();
+        // タイムアウト付きで応答を待つ
+        let timeout = Duration::from_secs(10);
+        let start_time = std::time::Instant::now();
 
         loop {
-            tokio::select! {
-                Some(command) = self.command_rx.recv() => {
-                    if let Err(e) = self.handle_command(command).await {
-                        self.emit_error(format!("Command error: {}", e)).await;
+            if start_time.elapsed() > timeout {
+                return Err(EngineError::StartupFailed(
+                    "Timeout waiting for engine response".to_string(),
+                ));
+            }
+
+            match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
+                Ok(Some(response)) => {
+                    match response {
+                        EngineResponse::Id(id_params) => match id_params {
+                            IdParams::Name(n) => name = n,
+                            IdParams::Author(a) => author = a,
+                        },
+                        EngineResponse::Option(option_params) => {
+                            let engine_option = Self::convert_option_params(&option_params);
+                            options.push(engine_option);
+                        }
+                        EngineResponse::UsiOk => {
+                            // 収集完了
+                            break;
+                        }
                     }
                 }
-
-                Ok(engine_event) = engine_events.recv() => {
-                    if let Err(e) = self.handle_engine_event(engine_event).await {
-                        self.emit_error(format!("Engine event error: {}", e)).await;
-                    }
+                Ok(None) => {
+                    return Err(EngineError::CommunicationFailed(
+                        "Channel closed".to_string(),
+                    ));
                 }
-
-                else => break,
+                Err(_) => {
+                    // タイムアウト - 続行
+                    continue;
+                }
             }
         }
+
+        // listenを停止
+        if let Err(e) = listen_result {
+            // 正常終了（Collection complete）以外はエラー
+            if !e.to_string().contains("Collection complete") {
+                return Err(EngineError::AnalysisFailed(e.to_string()));
+            }
+        }
+
+        Ok(EngineInfo {
+            name,
+            author,
+            options,
+        })
+    }
+    /// 初期化を完了する
+    async fn complete_initialization(&mut self) -> Result<(), EngineError> {
+        // エンジンの準備完了を待つ
+        self.handler
+            .prepare()
+            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
 
         Ok(())
     }
 
-    async fn handle_command(&mut self, command: AnalysisCommand) -> EngineResult<()> {
-        match command {
-            AnalysisCommand::Start { position, options } => {
-                self.start_analysis(&position, options).await?;
-            }
-            AnalysisCommand::Stop => {
-                self.stop_analysis().await?;
-            }
-            AnalysisCommand::Pause => {
-                self.pause_analysis().await?;
-            }
-            AnalysisCommand::Resume => {
-                self.resume_analysis().await?;
-            }
-            AnalysisCommand::UpdateOptions(options) => {
-                self.update_options(options).await?;
-            }
+    /// OptionParamsをEngineOptionに変換
+    fn convert_option_params(params: &OptionParams) -> EngineOption {
+        let option_type = match &params.value {
+            OptionKind::Check { default } => EngineOptionType::Check { default: *default },
+            OptionKind::Spin { default, min, max } => EngineOptionType::Spin {
+                default: *default,
+                min: *min,
+                max: *max,
+            },
+            OptionKind::Combo { default, vars } => EngineOptionType::Combo {
+                default: default.clone(),
+                vars: vars.clone(),
+            },
+            OptionKind::Button { default } => EngineOptionType::Button {
+                default: default.clone(),
+            },
+            OptionKind::String { default } => EngineOptionType::String {
+                default: default.clone(),
+            },
+            OptionKind::Filename { default } => EngineOptionType::Filename {
+                default: default.clone(),
+            },
+        };
+
+        let default_value = match &params.value {
+            OptionKind::Check { default } => default.map(|b| b.to_string()),
+            OptionKind::Spin { default, .. } => default.map(|i| i.to_string()),
+            OptionKind::Combo { default, .. } => default.clone(),
+            OptionKind::Button { default } => default.clone(),
+            OptionKind::String { default } => default.clone(),
+            OptionKind::Filename { default } => default.clone(),
+        };
+
+        EngineOption {
+            name: params.name.clone(),
+            option_type,
+            default_value,
+            current_value: None,
+        }
+    }
+
+    /// エンジン設定を適用
+    pub async fn apply_settings(&mut self, settings: &EngineSettings) -> Result<(), EngineError> {
+        for (name, value) in &settings.options {
+            self.handler
+                .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
+                .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
         }
         Ok(())
     }
 
-    async fn start_analysis(
+    /// エンジンの準備完了を確認
+    pub async fn ensure_ready(&mut self) -> Result<(), EngineError> {
+        self.handler
+            .send_command(&GuiCommand::IsReady)
+            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
+
+        // readyokの応答を待つ場合は、必要に応じて実装
+        Ok(())
+    }
+
+    /// 無制限解析開始
+    pub async fn start_infinite_analysis(
         &mut self,
         position: &str,
-        options: AnalysisOptions,
-    ) -> EngineResult<()> {
-        let current_state = self.state.read().await.clone();
-        if matches!(current_state, AnalysisState::Analyzing { .. }) {
-            self.engine_manager.stop_thinking().await?;
+        result_sender: mpsc::UnboundedSender<AnalysisResult>,
+    ) -> Result<(), EngineError> {
+        // すでに解析中なら停止
+        if *self.is_analyzing.lock().await {
+            self.stop_analysis().await?;
         }
 
-        self.engine_manager.set_position(position).await?;
-        self.apply_analysis_options(&options).await?;
-        self.engine_manager.start_thinking().await?;
+        self.result_sender = Some(result_sender);
+        *self.is_analyzing.lock().await = true;
 
-        let new_state = AnalysisState::Analyzing {
-            position: position.to_string(),
-            start_time: SystemTime::now(),
-            options: options.clone(),
-        };
-        *self.state.write().await = new_state;
+        // 1. 局面設定
+        self.handler
+            .send_command(&GuiCommand::Position(position.to_string()))
+            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
 
-        let event = AnalysisEvent::Started {
-            position: position.to_string(),
-            options,
-        };
-        let _ = self.event_tx.send(event);
+        // 2. 無制限解析開始
+        self.handler
+            .send_command(&GuiCommand::Go(ThinkParams::new().infinite()))
+            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
+
+        // 3. 解析監視開始
+        self.start_monitoring().await?;
 
         Ok(())
     }
 
-    async fn stop_analysis(&mut self) -> EngineResult<()> {
-        self.engine_manager.stop_thinking().await?;
-        *self.state.write().await = AnalysisState::Idle;
-        let _ = self.event_tx.send(AnalysisEvent::Stopped);
-        Ok(())
-    }
-
-    async fn pause_analysis(&mut self) -> EngineResult<()> {
-        let current_state = self.state.read().await.clone();
-        if matches!(current_state, AnalysisState::Analyzing { .. }) {
-            self.engine_manager.stop_thinking().await?;
-            *self.state.write().await = AnalysisState::Paused;
+    /// 解析停止
+    pub async fn stop_analysis(&mut self) -> Result<(), EngineError> {
+        if *self.is_analyzing.lock().await {
+            self.handler
+                .send_command(&GuiCommand::Stop)
+                .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
+            *self.is_analyzing.lock().await = false;
         }
         Ok(())
     }
 
-    async fn resume_analysis(&mut self) -> EngineResult<()> {
-        let current_state = self.state.read().await.clone();
-        if matches!(current_state, AnalysisState::Paused) {
-            self.engine_manager.start_thinking().await?;
-        }
+    /// エンジンからの情報監視
+    async fn start_monitoring(&mut self) -> Result<(), EngineError> {
+        let is_analyzing = Arc::clone(&self.is_analyzing);
+        let result_sender = self.result_sender.clone();
+
+        self.handler
+            .listen(move |output| -> Result<(), HookError> {
+                if let Some(cmd) = output.response() {
+                    match cmd {
+                        EngineCommand::Info(info_list) => {
+                            let analysis_result = Self::parse_info_to_analysis(info_list.to_vec());
+                            if let Some(sender) = &result_sender {
+                                sender
+                                    .send(analysis_result)
+                                    .map_err(|_| HookError::ChannelSendError)?;
+                            }
+                        }
+                        EngineCommand::BestMove(_) => {
+                            // infinite解析が終了（stopによる）
+                            let is_analyzing_clone = Arc::clone(&is_analyzing);
+                            tokio::spawn(async move {
+                                *is_analyzing_clone.lock().await = false;
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(())
+            })
+            .map_err(|e| EngineError::AnalysisFailed(e.to_string()))?;
+
         Ok(())
     }
 
-    async fn update_options(&mut self, options: AnalysisOptions) -> EngineResult<()> {
-        self.apply_analysis_options(&options).await?;
-        Ok(())
-    }
+    /// InfoParamsをAnalysisResultに変換
+    fn parse_info_to_analysis(info_list: Vec<InfoParams>) -> AnalysisResult {
+        let mut result = AnalysisResult::default();
+        let mut current_multipv: Option<i32> = None;
 
-    async fn apply_analysis_options(&self, options: &AnalysisOptions) -> EngineResult<()> {
-        if let Some(hash_size) = options.hash_size {
-            self.engine_manager
-                .set_option("Hash", &hash_size.to_string())
-                .await?;
-        }
-        Ok(())
-    }
+        for info in info_list {
+            match info {
+                InfoParams::Score(value, kind) => {
+                    let eval_kind = match kind {
+                        ScoreKind::CpExact | ScoreKind::CpLowerbound | ScoreKind::CpUpperbound => {
+                            EvaluationKind::Centipawn
+                        }
+                        ScoreKind::MateExact
+                        | ScoreKind::MateLowerbound
+                        | ScoreKind::MateUpperbound => match value {
+                            0 => EvaluationKind::MateUnknown(true),
+                            _ => EvaluationKind::MateInMoves(value),
+                        },
+                        ScoreKind::MateSignOnly => EvaluationKind::MateUnknown(value >= 0),
+                    };
+                    result.evaluation = Some(Evaluation {
+                        value,
+                        kind: eval_kind,
+                    });
+                }
 
-    async fn handle_engine_event(&mut self, event: EngineEvent) -> EngineResult<()> {
-        match event {
-            EngineEvent::AnalysisUpdate { result } => {
-                let analysis_event = AnalysisEvent::Update { result };
-                let _ = self.event_tx.send(analysis_event);
+                InfoParams::Pv(moves) => {
+                    let pv = PrincipalVariation {
+                        line_number: current_multipv,
+                        moves,
+                        evaluation: result.evaluation.clone(),
+                    };
+                    result.principal_variations.push(pv);
+                    current_multipv = None; // リセット
+                }
+
+                InfoParams::MultiPv(line) => {
+                    current_multipv = Some(line);
+                }
+
+                InfoParams::Depth(depth, seldepth) => {
+                    result.depth_info = Some(DepthInfo {
+                        depth,
+                        selective_depth: seldepth,
+                    });
+                }
+
+                InfoParams::Nodes(nodes) => {
+                    if result.search_stats.is_none() {
+                        result.search_stats = Some(SearchStats::default());
+                    }
+                    if let Some(stats) = &mut result.search_stats {
+                        stats.nodes = Some(nodes);
+                    }
+                }
+
+                InfoParams::Nps(nps) => {
+                    if result.search_stats.is_none() {
+                        result.search_stats = Some(SearchStats::default());
+                    }
+                    if let Some(stats) = &mut result.search_stats {
+                        stats.nps = Some(nps);
+                    }
+                }
+
+                InfoParams::HashFull(hash_full) => {
+                    if result.search_stats.is_none() {
+                        result.search_stats = Some(SearchStats::default());
+                    }
+                    if let Some(stats) = &mut result.search_stats {
+                        stats.hash_full = Some(hash_full);
+                    }
+                }
+
+                InfoParams::Time(duration) => {
+                    if result.search_stats.is_none() {
+                        result.search_stats = Some(SearchStats::default());
+                    }
+                    if let Some(stats) = &mut result.search_stats {
+                        stats.time_elapsed = Some(duration);
+                    }
+                }
+
+                _ => {} // その他のInfoは無視
             }
-            EngineEvent::BestMove {
-                best_move,
-                ponder: _,
-            } => {
-                let final_result = AnalysisResult::empty();
-                let analysis_event = AnalysisEvent::Completed {
-                    final_result,
-                    best_move: Some(best_move),
-                };
-                let _ = self.event_tx.send(analysis_event);
-                *self.state.write().await = AnalysisState::Idle;
-            }
-            EngineEvent::Error { message } => {
-                self.emit_error(message).await;
-            }
-            _ => {}
         }
-        Ok(())
-    }
 
-    async fn emit_error(&mut self, message: String) {
-        *self.state.write().await = AnalysisState::Error {
-            message: message.clone(),
-        };
-        let _ = self.event_tx.send(AnalysisEvent::Error { message });
+        result
     }
 }
