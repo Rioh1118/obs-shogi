@@ -41,101 +41,140 @@ enum EngineResponse {
 }
 
 impl UsiAnalysisEngine {
-    /// エンジンを起動し初期化
-    pub async fn new(engine_path: &str, work_dir: &str) -> Result<Self, EngineError> {
-        let handler = UsiEngineHandler::spawn(engine_path, work_dir)
-            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
-
-        let mut engine = Self {
-            handler,
-            result_sender: None,
-            is_analyzing: Arc::new(Mutex::new(false)),
-        };
-        engine.initialize().await?;
-
-        Ok(engine)
-    }
-
     /// エンジンを起動し、オプション情報も取得
     pub async fn new_with_options(
         engine_path: &str,
         work_dir: &str,
     ) -> Result<(Self, EngineInfo), EngineError> {
+        println!("🏗️  [ENGINE] new_with_options called");
+        println!("   engine_path: {}", engine_path);
+        println!("   work_dir: {}", work_dir);
+
         let handler = UsiEngineHandler::spawn(engine_path, work_dir)
             .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
-
+        println!("✅ [ENGINE] UsiEngineHandler spawned successfully");
         let mut engine = Self {
             handler,
             result_sender: None,
             is_analyzing: Arc::new(Mutex::new(false)),
         };
 
-        let engine_info = engine.collect_engine_info().await?;
+        println!("📋 [ENGINE] Collecting engine info...");
 
-        engine.complete_initialization().await?;
+        let engine_info = engine.get_basic_info().await?;
+
+        // prepare()でエンジン準備
+        engine
+            .handler
+            .prepare()
+            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
+
         Ok((engine, engine_info))
     }
 
-    /// USI初期化プロセス
-    async fn initialize(&mut self) -> Result<(), EngineError> {
-        // 1. USIコマンド送信
-        self.handler
-            .send_command(&GuiCommand::Usi)
-            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
-
-        // 2. エンジン情報取得(id name, id author, option, usiok)
-        let _info = self
+    /// 基本情報取得
+    async fn get_basic_info(&mut self) -> Result<EngineInfo, EngineError> {
+        let info = self
             .handler
             .get_info()
             .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
 
-        // 3. エンジンの準備完了を待つ
-        self.handler
-            .prepare()
-            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
+        let engine_options: Vec<EngineOption> = info
+            .options()
+            .iter()
+            .map(|(name, value)| EngineOption {
+                name: name.clone(),
+                option_type: EngineOptionType::String {
+                    default: Some(value.clone()),
+                },
+                default_value: Some(value.clone()),
+                current_value: None,
+            })
+            .collect();
 
-        Ok(())
+        Ok(EngineInfo {
+            name: info.name().to_string(),
+            author: "Unknown".to_string(),
+            options: engine_options,
+        })
     }
 
-    /// エンジン情報とオプションを収集
+    // エンジン情報とオプションを収集
     async fn collect_engine_info(&mut self) -> Result<EngineInfo, EngineError> {
+        println!("📊 [ENGINE] collect_engine_info started");
         let (tx, mut rx) = mpsc::unbounded_channel();
+
+        println!("📡 [ENGINE] Channel created for info collection");
 
         // listenでエンジンからの応答を監視
         let tx_clone = tx.clone();
+        println!("👂 [ENGINE] Starting listen for engine responses...");
+        println!("🔍 [ENGINE] About to call handler.listen()...");
+
         let listen_result = self.handler.listen(move |output| -> Result<(), HookError> {
+            println!("📨 [ENGINE] Listen callback triggered");
             if let Some(cmd) = output.response() {
+                println!(
+                    "📋 [ENGINE] Processing command in listen callback: {:?}",
+                    cmd
+                );
                 match cmd {
                     EngineCommand::Id(id_params) => {
+                        println!("🆔 [ENGINE] Received ID: {:?}", id_params);
                         tx_clone
                             .send(EngineResponse::Id(id_params.clone()))
                             .map_err(|_| HookError::ChannelSendError)?;
                     }
                     EngineCommand::Option(option_params) => {
+                        println!("⚙️  [ENGINE] Received Option: {}", option_params.name);
                         tx_clone
                             .send(EngineResponse::Option(option_params.clone()))
                             .map_err(|_| HookError::ChannelSendError)?;
                     }
                     EngineCommand::UsiOk => {
+                        println!("✅ [ENGINE] Received UsiOk");
                         tx_clone
                             .send(EngineResponse::UsiOk)
                             .map_err(|_| HookError::ChannelSendError)?;
-
+                        println!("🏁 [ENGINE] Collection complete, stopping listen");
                         return Err(HookError::ProcessingError(
                             "collection complete".to_string(),
                         ));
                     }
-                    _ => {}
+                    _ => {
+                        println!("🔍 [ENGINE] Received other command: {:?}", cmd);
+                    }
                 }
+            } else {
+                println!("📭 [ENGINE] Received output without response");
             }
             Ok(())
         });
+
+        // listenの結果を即座にチェック
+        println!("🔍 [ENGINE] Checking listen result...");
+        if let Err(e) = &listen_result {
+            println!("❌ [ENGINE] Listen setup failed immediately: {}", e);
+            println!("❌ [ENGINE] Listen error details: {:?}", e);
+
+            // "already started listening" エラーの特定
+            if e.to_string().contains("already started listening") {
+                println!("🔥 [ENGINE] DETECTED: 'already started listening' error!");
+                println!("🔍 [ENGINE] This means handler.listen() was called on a handler that's already listening");
+            }
+
+            return Err(EngineError::StartupFailed(format!("Listen failed: {}", e)));
+        }
+        println!("✅ [ENGINE] Listen setup successful");
+
+        // USIコマンドを送信
+        println!("📤 [ENGINE] Sending USI command...");
 
         // USIコマンドを送信
         self.handler
             .send_command(&GuiCommand::Usi)
             .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
-
+        println!("✅ [ENGINE] USI command sent");
         // 応答を収集
         let mut name = String::new();
         let mut author = String::new();
@@ -145,8 +184,12 @@ impl UsiAnalysisEngine {
         let timeout = Duration::from_secs(10);
         let start_time = std::time::Instant::now();
 
+        println!("⏳ [ENGINE] Waiting for engine responses (timeout: 10s)...");
+
         loop {
             if start_time.elapsed() > timeout {
+                println!("⏰ [ENGINE] Timeout reached!");
+
                 return Err(EngineError::StartupFailed(
                     "Timeout waiting for engine response".to_string(),
                 ));
@@ -154,6 +197,7 @@ impl UsiAnalysisEngine {
 
             match tokio::time::timeout(Duration::from_millis(100), rx.recv()).await {
                 Ok(Some(response)) => {
+                    println!("📨 [ENGINE] Processing response: {:?}", response);
                     match response {
                         EngineResponse::Id(id_params) => match id_params {
                             IdParams::Name(n) => name = n,
@@ -182,6 +226,8 @@ impl UsiAnalysisEngine {
         }
 
         // listenを停止
+        println!("🛑 [ENGINE] Checking final listen result...");
+        // listenを停止
         if let Err(e) = listen_result {
             // 正常終了（Collection complete）以外はエラー
             if !e.to_string().contains("Collection complete") {
@@ -189,22 +235,18 @@ impl UsiAnalysisEngine {
             }
         }
 
+        println!("📋 [ENGINE] Final results:");
+        println!("   Name: {}", name);
+        println!("   Author: {}", author);
+        println!("   Options: {} items", options.len());
+
         Ok(EngineInfo {
             name,
             author,
             options,
         })
     }
-    /// 初期化を完了する
-    async fn complete_initialization(&mut self) -> Result<(), EngineError> {
-        // エンジンの準備完了を待つ
-        self.handler
-            .prepare()
-            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
-
-        Ok(())
-    }
-
+    //
     /// OptionParamsをEngineOptionに変換
     fn convert_option_params(params: &OptionParams) -> EngineOption {
         let option_type = match &params.value {
@@ -272,6 +314,9 @@ impl UsiAnalysisEngine {
         position: &str,
         result_sender: mpsc::UnboundedSender<AnalysisResult>,
     ) -> Result<(), EngineError> {
+        println!("🎯 [ENGINE] start_infinite_analysis called");
+        println!("   position: {}", position);
+
         // すでに解析中なら停止
         if *self.is_analyzing.lock().await {
             self.stop_analysis().await?;
@@ -280,19 +325,21 @@ impl UsiAnalysisEngine {
         self.result_sender = Some(result_sender);
         *self.is_analyzing.lock().await = true;
 
+        println!("📋 [ENGINE] Setting position...");
+
         // 1. 局面設定
         self.handler
             .send_command(&GuiCommand::Position(position.to_string()))
             .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
-
         // 2. 無制限解析開始
         self.handler
             .send_command(&GuiCommand::Go(ThinkParams::new().infinite()))
             .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
-
         // 3. 解析監視開始
+        println!("👂 [ENGINE] Starting monitoring...");
         self.start_monitoring().await?;
 
+        println!("🎉 [ENGINE] start_infinite_analysis completed successfully");
         Ok(())
     }
 
@@ -309,36 +356,62 @@ impl UsiAnalysisEngine {
 
     /// エンジンからの情報監視
     async fn start_monitoring(&mut self) -> Result<(), EngineError> {
+        println!("👂 [ENGINE] start_monitoring called");
         let is_analyzing = Arc::clone(&self.is_analyzing);
         let result_sender = self.result_sender.clone();
 
-        self.handler
-            .listen(move |output| -> Result<(), HookError> {
-                if let Some(cmd) = output.response() {
-                    match cmd {
-                        EngineCommand::Info(info_list) => {
-                            let analysis_result = Self::parse_info_to_analysis(info_list.to_vec());
-                            if let Some(sender) = &result_sender {
-                                sender
-                                    .send(analysis_result)
-                                    .map_err(|_| HookError::ChannelSendError)?;
-                            }
+        match self.handler.listen(move |output| -> Result<(), HookError> {
+            println!("📨 [ENGINE] Listen callback triggered");
+            println!("📋 [ENGINE] output debug: {:?}", output);
+            if let Some(cmd) = output.response() {
+                println!("📋 [ENGINE] Processing command: {:?}", cmd);
+                match cmd {
+                    EngineCommand::Info(info_list) => {
+                        println!("📊 [ENGINE] Received Info with {} params", info_list.len());
+                        let analysis_result = Self::parse_info_to_analysis(info_list.to_vec());
+                        println!(
+                            "📈 [ENGINE] Parsed analysis result: depth={:?}, eval={:?}",
+                            analysis_result.depth_info, analysis_result.evaluation
+                        );
+                        if let Some(sender) = &result_sender {
+                            sender
+                                .send(analysis_result)
+                                .map_err(|_| HookError::ChannelSendError)?;
                         }
-                        EngineCommand::BestMove(_) => {
-                            // infinite解析が終了（stopによる）
-                            let is_analyzing_clone = Arc::clone(&is_analyzing);
-                            tokio::spawn(async move {
-                                *is_analyzing_clone.lock().await = false;
-                            });
-                        }
-                        _ => {}
+                    }
+                    EngineCommand::BestMove(_) => {
+                        // infinite解析が終了（stopによる）
+                        let is_analyzing_clone = Arc::clone(&is_analyzing);
+                        tokio::spawn(async move {
+                            *is_analyzing_clone.lock().await = false;
+                        });
+                    }
+                    _ => {
+                        println!("🔍 [ENGINE] Received other command: {:?}", cmd);
                     }
                 }
+            } else {
+                println!("📭 [ENGINE] Received output without response");
+                // response()がNoneの場合の詳細情報
+                println!("🔍 [ENGINE] Raw output: {:?}", output);
+            }
+            Ok(())
+        }) {
+            Ok(()) => {
+                println!("✅ [ENGINE] Monitoring started successfully");
                 Ok(())
-            })
-            .map_err(|e| EngineError::AnalysisFailed(e.to_string()))?;
-
-        Ok(())
+            }
+            Err(e) => {
+                // "already started listening"の場合は警告だけ出して続行
+                if e.to_string().contains("already started listening") {
+                    println!("⚠️ [ENGINE] Listen already active (this is OK)");
+                    Ok(())
+                } else {
+                    println!("❌ [ENGINE] Listen failed: {}", e);
+                    Err(EngineError::AnalysisFailed(e.to_string()))
+                }
+            }
+        }
     }
 
     /// InfoParamsをAnalysisResultに変換
@@ -429,5 +502,48 @@ impl UsiAnalysisEngine {
         }
 
         result
+    }
+
+    /// エンジンを完全にシャットダウン
+    pub async fn shutdown(&mut self) -> Result<(), EngineError> {
+        println!("🛑 [ENGINE] Shutting down engine...");
+
+        // 1. 解析停止
+        if *self.is_analyzing.lock().await {
+            println!("🔄 [ENGINE] Stopping analysis before shutdown...");
+            let _ = self.stop_analysis().await; // エラーは無視
+
+            // 解析停止の完了を少し待つ
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+
+        // 2. result_senderをクリア（これが重要！）
+        self.result_sender = None;
+        println!("💾 [ENGINE] Result sender cleared");
+
+        // 3. 解析フラグをリセット
+        *self.is_analyzing.lock().await = false;
+        println!("🔄 [ENGINE] Analysis flag reset");
+
+        // 4. Quitコマンドを送信してエンジンプロセスを終了
+        println!("💌 [ENGINE] Sending quit command...");
+        match self.handler.send_command(&GuiCommand::Quit) {
+            Ok(()) => {
+                println!("✅ [ENGINE] Quit command sent successfully");
+            }
+            Err(e) => {
+                println!(
+                    "⚠️  [ENGINE] Quit command failed (engine may already be dead): {}",
+                    e
+                );
+                // エンジンがすでに死んでいる場合はエラーにしない
+            }
+        }
+
+        // 5. プロセス終了を待つ
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        println!("✅ [ENGINE] Engine shutdown completed");
+        Ok(())
     }
 }

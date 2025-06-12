@@ -1,9 +1,8 @@
 use serde::Serialize;
-use std::sync::Arc;
 use tauri::State;
 use tokio::sync::{mpsc, Mutex};
 
-use crate::engine::analysis::{EngineError, UsiAnalysisEngine};
+use crate::engine::analysis::UsiAnalysisEngine;
 use crate::engine::types::{AnalysisResult, EngineInfo, EngineSettings};
 
 // シンプルなエンジン管理用の状態
@@ -41,18 +40,33 @@ pub async fn initialize_engine_with_options(
     work_dir: String,
     engine_state: State<'_, EngineState>,
 ) -> Result<InitializeEngineResponse, String> {
+    println!("🚀 [TAURI] initialize_engine_with_options called");
+    println!("   engine_path: {}", engine_path);
+    println!("   work_dir: {}", work_dir);
     // 既存のエンジンがあれば停止
     {
         let mut engine_opt = engine_state.engine.lock().await;
+        println!("🔍 [TAURI] Checking existing engine...");
         if let Some(mut engine) = engine_opt.take() {
+            println!("⚠️  [TAURI] Found existing engine, stopping analysis...");
             let _ = engine.stop_analysis().await; // エラーは無視
+            println!("✅ [TAURI] Existing engine stopped");
         }
     }
 
+    println!("🔧 [TAURI] Creating new engine...");
     // 新しいエンジンを初期化
     let (engine, engine_info) = UsiAnalysisEngine::new_with_options(&engine_path, &work_dir)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            println!("❌ [TAURI] Engine creation failed: {}", e);
+            e.to_string()
+        })?;
+
+    println!("✅ [TAURI] Engine created successfully");
+    println!("   Engine name: {}", engine_info.name);
+    println!("   Engine author: {}", engine_info.author);
+    println!("   Options count: {}", engine_info.options.len());
 
     // エンジンを保存
     {
@@ -60,6 +74,7 @@ pub async fn initialize_engine_with_options(
         *engine_opt = Some(engine);
     }
 
+    println!("🎉 [TAURI] initialize_engine_with_options completed successfully");
     Ok(InitializeEngineResponse {
         engine_info,
         success: true,
@@ -98,26 +113,42 @@ pub async fn start_infinite_analysis(
     position: String,
     engine_state: State<'_, EngineState>,
 ) -> Result<(), String> {
+    println!("🎯 [TAURI] start_infinite_analysis called");
+    println!("   position: {}", position);
+
     let mut engine_opt = engine_state.engine.lock().await;
+    println!("🔍 [TAURI] Engine lock acquired");
 
     if let Some(engine) = engine_opt.as_mut() {
+        println!("✅ [TAURI] Engine found, proceeding with analysis");
         // 解析結果用のチャンネルを作成
+        println!("📡 [TAURI] Creating analysis result channel...");
         let (tx, rx) = mpsc::unbounded_channel();
+        println!("✅ [TAURI] Channel created successfully");
 
         // チャンネルを保存（フロントエンドで結果を受信するため）
         {
+            println!("💾 [TAURI] Storing receiver in engine state...");
             let mut receiver_opt = engine_state.analysis_receiver.lock().await;
             *receiver_opt = Some(rx);
+            println!("✅ [TAURI] Receiver stored successfully");
         }
 
         // 解析開始
-        engine
-            .start_infinite_analysis(&position, tx)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        Ok(())
+        println!("🚀 [TAURI] Starting infinite analysis...");
+        match engine.start_infinite_analysis(&position, tx).await {
+            Ok(()) => {
+                println!("🎉 [TAURI] Analysis started successfully");
+                Ok(())
+            }
+            Err(e) => {
+                println!("❌ [TAURI] Analysis start failed: {}", e);
+                println!("❌ [TAURI] Error details: {:?}", e);
+                Err(e.to_string())
+            }
+        }
     } else {
+        println!("❌ [TAURI] Engine not initialized");
         Err("Engine not initialized".to_string())
     }
 }
@@ -201,11 +232,26 @@ pub async fn get_all_pending_analysis_results(
 
 #[tauri::command]
 pub async fn shutdown_engine(engine_state: State<'_, EngineState>) -> Result<(), String> {
-    // 解析停止
+    println!("🛑 [TAURI] shutdown_engine called");
+
+    // エンジンのシャットダウン
     {
         let mut engine_opt = engine_state.engine.lock().await;
         if let Some(mut engine) = engine_opt.take() {
-            let _ = engine.stop_analysis().await; // エラーは無視
+            println!("🔄 [TAURI] Calling engine shutdown...");
+
+            // 重要：UsiAnalysisEngineのshutdownメソッドを呼び出す
+            match engine.shutdown().await {
+                Ok(()) => {
+                    println!("✅ [TAURI] Engine shutdown successful");
+                }
+                Err(e) => {
+                    println!("⚠️  [TAURI] Engine shutdown error: {}", e);
+                    // エラーでも続行（エンジンプロセスが既に死んでいる場合など）
+                }
+            }
+        } else {
+            println!("ℹ️  [TAURI] No engine to shutdown");
         }
     }
 
@@ -213,8 +259,10 @@ pub async fn shutdown_engine(engine_state: State<'_, EngineState>) -> Result<(),
     {
         let mut receiver_opt = engine_state.analysis_receiver.lock().await;
         *receiver_opt = None;
+        println!("📡 [TAURI] Analysis receiver cleared");
     }
 
+    println!("✅ [TAURI] shutdown_engine completed");
     Ok(())
 }
 

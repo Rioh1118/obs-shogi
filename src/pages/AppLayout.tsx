@@ -13,6 +13,7 @@ import FileCreateForm from "@/components/FileTree/FileCreateForm";
 import { useSearchParams } from "react-router";
 import { useGame } from "@/contexts/GameContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
+import EnginePane from "@/components/EnginePane";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -63,6 +64,7 @@ const AppLayout = () => {
             <GameControls />
           </section>
         )}
+        <EnginePane />
       </main>
     </div>
   );

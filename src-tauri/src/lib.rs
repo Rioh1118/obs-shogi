@@ -7,7 +7,7 @@ pub use config_dir::{load_config, save_config};
 pub use engine::{
     apply_engine_settings, get_all_pending_analysis_results, get_analysis_status,
     get_engine_ready_status, get_latest_analysis_result, initialize_engine_with_options,
-    send_raw_command, shutdown_engine, start_infinite_analysis, stop_analysis,
+    send_raw_command, shutdown_engine, start_infinite_analysis, stop_analysis, EngineState,
 };
 pub use file_system::{
     create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree, read_file,
@@ -18,6 +18,7 @@ pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(EngineState::new())
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
