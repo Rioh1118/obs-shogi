@@ -1,5 +1,5 @@
-pub mod analysis;
-pub mod command;
+pub mod analyzer; // 解析処理
+pub mod bridge;
+pub mod manager; // エンジン管理
+pub mod protocol; // USIプロトコル // Tauriコマンドブリッジ
 pub mod types;
-
-pub use command::*;
