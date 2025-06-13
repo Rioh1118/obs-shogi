@@ -35,6 +35,14 @@ export interface EngineSettings {
   options: Record<string, string>;
 }
 
+export interface AnalysisConfig {
+  time_limit?: { secs: number; nanos: number };
+  depth_limit?: number;
+  node_limit?: number;
+  mate_search: boolean;
+  multi_pv?: number;
+}
+
 export interface AnalysisResult {
   evaluation?: Evaluation;
   principal_variations: PrincipalVariation[];
@@ -70,40 +78,44 @@ export interface SearchStats {
   time_elapsed?: { secs: number; nanos: number };
 }
 
-// ===== リクエスト・レスポンス型 =====
-export interface InitializeEngineResponse {
-  engine_info: EngineInfo;
-  success: boolean;
-}
-
 export interface AnalysisStatus {
   is_analyzing: boolean;
-  message?: string;
+  session_id?: string;
+  elapsed_time?: { secs: number; nanos: number };
+  config?: AnalysisConfig;
+  analysis_count: number;
 }
 
 // ===== エンジン初期化・設定関連 =====
 
 /**
- * エンジンを初期化してオプション情報を取得
+ * エンジンを初期化
  */
 export async function initializeEngine(
   enginePath?: string,
   workDir?: string,
-): Promise<InitializeEngineResponse> {
-  return await invoke("initialize_engine_with_options", {
+): Promise<void> {
+  return await invoke("initialize_engine", {
     enginePath: enginePath || ENGINE_CONSTANTS.ENGINE_PATH,
-    workDir: workDir || ENGINE_CONSTANTS.WORK_DIR,
+    workingDir: workDir || ENGINE_CONSTANTS.WORK_DIR,
   });
 }
 
 /**
  * YaneuraOuエンジンを推奨設定で初期化
  */
-export async function initializeYaneuraOuEngine(): Promise<InitializeEngineResponse> {
+export async function initializeYaneuraOuEngine(): Promise<void> {
   return await initializeEngine(
     ENGINE_CONSTANTS.ENGINE_PATH,
     ENGINE_CONSTANTS.WORK_DIR,
   );
+}
+
+/**
+ * エンジン情報を取得
+ */
+export async function getEngineInfo(): Promise<EngineInfo | null> {
+  return await invoke("get_engine_info");
 }
 
 /**
@@ -113,6 +125,13 @@ export async function applyEngineSettings(
   settings: EngineSettings,
 ): Promise<void> {
   return await invoke("apply_engine_settings", { settings });
+}
+
+/**
+ * エンジン設定を取得
+ */
+export async function getEngineSettings(): Promise<EngineSettings> {
+  return await invoke("get_engine_settings");
 }
 
 /**
@@ -153,11 +172,30 @@ export async function applyCustomSettings(
   return await applyEngineSettings(settings);
 }
 
+// ===== 局面設定 =====
+
 /**
- * エンジンの準備状態を確認
+ * 局面を設定
  */
-export async function getEngineReadyStatus(): Promise<boolean> {
-  return await invoke("get_engine_ready_status");
+export async function setPosition(position: string): Promise<void> {
+  return await invoke("set_position", { position });
+}
+
+/**
+ * 初期局面から指定した手順で局面を設定
+ */
+export async function setPositionFromMoves(moves: string[]): Promise<void> {
+  const position =
+    moves.length > 0 ? `startpos moves ${moves.join(" ")}` : "startpos";
+  return await setPosition(position);
+}
+
+/**
+ * SFEN形式の局面を設定
+ */
+export async function setPositionFromSfen(sfen: string): Promise<void> {
+  const position = `sfen ${sfen}`;
+  return await setPosition(position);
 }
 
 // ===== 解析関連 =====
@@ -165,57 +203,54 @@ export async function getEngineReadyStatus(): Promise<boolean> {
 /**
  * 無制限解析を開始
  */
-export async function startInfiniteAnalysis(position: string): Promise<void> {
-  return await invoke("start_infinite_analysis", { position });
+export async function startInfiniteAnalysis(): Promise<string> {
+  return await invoke("start_infinite_analysis");
 }
 
 /**
- * 初期局面から指定した手順での解析を開始
+ * 時間制限解析を実行
  */
-export async function startAnalysisFromMoves(moves: string[]): Promise<void> {
-  const position =
-    moves.length > 0 ? `startpos moves ${moves.join(" ")}` : "startpos";
-  return await startInfiniteAnalysis(position);
+export async function analyzeWithTime(
+  timeSeconds: number,
+): Promise<AnalysisResult> {
+  return await invoke("analyze_with_time", { timeSeconds });
 }
 
 /**
- * SFEN形式の局面から解析を開始
+ * 深度制限解析を実行
  */
-export async function startAnalysisFromSfen(sfen: string): Promise<void> {
-  const position = `sfen ${sfen}`;
-  return await startInfiniteAnalysis(position);
+export async function analyzeWithDepth(depth: number): Promise<AnalysisResult> {
+  return await invoke("analyze_with_depth", { depth });
 }
 
 /**
  * 解析を停止
  */
-export async function stopAnalysis(): Promise<void> {
-  return await invoke("stop_analysis");
+export async function stopAnalysis(sessionId?: string): Promise<void> {
+  return await invoke("stop_analysis", { sessionId });
 }
 
 /**
  * 解析状態を取得
  */
-export async function getAnalysisStatus(): Promise<AnalysisStatus> {
+export async function getAnalysisStatus(): Promise<AnalysisStatus[]> {
   return await invoke("get_analysis_status");
 }
 
-// ===== 解析結果取得 =====
-
 /**
- * 最新の解析結果を取得（1つ）
+ * 解析結果を取得（セッション指定）
  */
-export async function getLatestAnalysisResult(): Promise<AnalysisResult | null> {
-  return await invoke("get_latest_analysis_result");
+export async function getAnalysisResult(
+  sessionId: string,
+): Promise<AnalysisResult | null> {
+  return await invoke("get_analysis_result", { sessionId });
 }
 
 /**
- * 溜まっている全ての解析結果を取得
+ * 最後の解析結果を取得
  */
-export async function getAllPendingAnalysisResults(): Promise<
-  AnalysisResult[]
-> {
-  return await invoke("get_all_pending_analysis_results");
+export async function getLastResult(): Promise<AnalysisResult | null> {
+  return await invoke("get_last_result");
 }
 
 // ===== エンジン管理 =====
@@ -225,6 +260,46 @@ export async function getAllPendingAnalysisResults(): Promise<
  */
 export async function shutdownEngine(): Promise<void> {
   return await invoke("shutdown_engine");
+}
+
+// ===== 高レベル操作関数 =====
+
+/**
+ * 初期局面から指定した手順での解析を開始
+ */
+export async function startAnalysisFromMoves(moves: string[]): Promise<string> {
+  await setPositionFromMoves(moves);
+  return await startInfiniteAnalysis();
+}
+
+/**
+ * SFEN形式の局面から解析を開始
+ */
+export async function startAnalysisFromSfen(sfen: string): Promise<string> {
+  await setPositionFromSfen(sfen);
+  return await startInfiniteAnalysis();
+}
+
+/**
+ * 指定時間での解析（局面設定込み）
+ */
+export async function analyzePositionWithTime(
+  moves: string[],
+  timeSeconds: number,
+): Promise<AnalysisResult> {
+  await setPositionFromMoves(moves);
+  return await analyzeWithTime(timeSeconds);
+}
+
+/**
+ * 指定深度での解析（局面設定込み）
+ */
+export async function analyzePositionWithDepth(
+  moves: string[],
+  depth: number,
+): Promise<AnalysisResult> {
+  await setPositionFromMoves(moves);
+  return await analyzeWithDepth(depth);
 }
 
 // ===== ユーティリティ関数 =====
@@ -261,6 +336,35 @@ export function formatPrincipalVariation(pv: PrincipalVariation): string {
 }
 
 /**
+ * 解析設定を人間が読みやすい形式に変換
+ */
+export function formatAnalysisConfig(config: AnalysisConfig): string {
+  const parts: string[] = [];
+
+  if (config.time_limit) {
+    const seconds =
+      config.time_limit.secs + config.time_limit.nanos / 1_000_000_000;
+    parts.push(`時間制限: ${seconds}秒`);
+  }
+
+  if (config.depth_limit) {
+    parts.push(`深度制限: ${config.depth_limit}手`);
+  }
+
+  if (config.node_limit) {
+    parts.push(`ノード制限: ${config.node_limit.toLocaleString()}`);
+  }
+
+  if (config.multi_pv && config.multi_pv > 1) {
+    parts.push(`候補手数: ${config.multi_pv}`);
+  }
+
+  parts.push(`詰み探索: ${config.mate_search ? "有効" : "無効"}`);
+
+  return parts.join(", ");
+}
+
+/**
  * 解析結果のサマリーを作成
  */
 export function createAnalysisSummary(result: AnalysisResult): string {
@@ -292,94 +396,298 @@ export function createAnalysisSummary(result: AnalysisResult): string {
   return lines.join("\n");
 }
 
+/**
+ * 解析状態のサマリーを作成
+ */
+export function createAnalysisStatusSummary(status: AnalysisStatus): string {
+  const lines: string[] = [];
+
+  lines.push(`状態: ${status.is_analyzing ? "解析中" : "停止中"}`);
+
+  if (status.session_id) {
+    lines.push(`セッションID: ${status.session_id}`);
+  }
+
+  if (status.elapsed_time) {
+    const seconds =
+      status.elapsed_time.secs + status.elapsed_time.nanos / 1_000_000_000;
+    lines.push(`経過時間: ${seconds.toFixed(1)}秒`);
+  }
+
+  lines.push(`解析回数: ${status.analysis_count}`);
+
+  if (status.config) {
+    lines.push(`設定: ${formatAnalysisConfig(status.config)}`);
+  }
+
+  return lines.join("\n");
+}
+
+// ===== ポーリング機能 =====
+
+/**
+ * 解析結果を定期的にポーリング
+ */
+export async function pollAnalysisResult(
+  sessionId: string,
+  onResult: (result: AnalysisResult) => void,
+  intervalMs: number = 500,
+  timeoutMs?: number,
+): Promise<() => void> {
+  let isPolling = true;
+  const startTime = Date.now();
+
+  const poll = async () => {
+    while (isPolling) {
+      try {
+        // タイムアウトチェック
+        if (timeoutMs && Date.now() - startTime > timeoutMs) {
+          console.log("Polling timeout reached");
+          break;
+        }
+
+        const result = await getAnalysisResult(sessionId);
+        if (result) {
+          onResult(result);
+        }
+
+        // 解析状態をチェック
+        const statuses = await getAnalysisStatus();
+        const currentStatus = statuses.find((s) => s.session_id === sessionId);
+        if (!currentStatus || !currentStatus.is_analyzing) {
+          console.log("Analysis completed or session not found");
+          break;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      } catch (error) {
+        console.error("Polling error:", error);
+        break;
+      }
+    }
+  };
+
+  // 非同期でポーリング開始
+  poll();
+
+  // ポーリング停止関数を返す
+  return () => {
+    isPolling = false;
+  };
+}
+
+/**
+ * 無制限解析を開始してリアルタイムで結果を受信
+ */
+export async function startInfiniteAnalysisWithPolling(
+  moves: string[],
+  onResult: (result: AnalysisResult) => void,
+  intervalMs: number = 500,
+): Promise<{
+  sessionId: string;
+  stopPolling: () => void;
+  stopAnalysis: () => Promise<void>;
+}> {
+  const sessionId = await startAnalysisFromMoves(moves);
+  const stopPolling = await pollAnalysisResult(sessionId, onResult, intervalMs);
+
+  return {
+    sessionId,
+    stopPolling,
+    stopAnalysis: async () => {
+      stopPolling();
+      await stopAnalysis(sessionId);
+    },
+  };
+}
+
+// ===== バッチ解析機能 =====
+
+/**
+ * 複数の局面を順次解析
+ */
+export async function batchAnalyze(
+  positions: { moves: string[]; name?: string }[],
+  analysisConfig: { timeSeconds?: number; depth?: number } = {},
+  onProgress?: (current: number, total: number, result: AnalysisResult) => void,
+): Promise<{ position: string; name?: string; result: AnalysisResult }[]> {
+  const results: { position: string; name?: string; result: AnalysisResult }[] =
+    [];
+
+  for (let i = 0; i < positions.length; i++) {
+    const position = positions[i];
+
+    try {
+      let result: AnalysisResult;
+
+      if (analysisConfig.timeSeconds) {
+        result = await analyzePositionWithTime(
+          position.moves,
+          analysisConfig.timeSeconds,
+        );
+      } else if (analysisConfig.depth) {
+        result = await analyzePositionWithDepth(
+          position.moves,
+          analysisConfig.depth,
+        );
+      } else {
+        // デフォルトは3秒解析
+        result = await analyzePositionWithTime(position.moves, 3);
+      }
+
+      const resultEntry = {
+        position: position.moves.join(" "),
+        name: position.name,
+        result,
+      };
+
+      results.push(resultEntry);
+
+      if (onProgress) {
+        onProgress(i + 1, positions.length, result);
+      }
+
+      console.log(
+        `Analyzed ${i + 1}/${positions.length}: ${position.name || position.moves.join(" ")}`,
+      );
+    } catch (error) {
+      console.error(`Failed to analyze position ${i + 1}:`, error);
+    }
+  }
+
+  return results;
+}
+
+// ===== エラーハンドリング =====
+
+/**
+ * エンジンコマンドを安全に実行
+ */
+export async function safeEngineCommand<T>(
+  command: () => Promise<T>,
+  errorMessage: string = "Engine command failed",
+): Promise<T | null> {
+  try {
+    return await command();
+  } catch (error) {
+    console.error(`${errorMessage}:`, error);
+    return null;
+  }
+}
+
+/**
+ * エンジンの状態をチェック
+ */
+export async function checkEngineStatus(): Promise<{
+  isInitialized: boolean;
+  engineInfo: EngineInfo | null;
+  currentSettings: EngineSettings | null;
+  analysisStatus: AnalysisStatus[];
+}> {
+  const engineInfo = await safeEngineCommand(
+    getEngineInfo,
+    "Failed to get engine info",
+  );
+  const currentSettings = await safeEngineCommand(
+    getEngineSettings,
+    "Failed to get engine settings",
+  );
+  const analysisStatus =
+    (await safeEngineCommand(
+      getAnalysisStatus,
+      "Failed to get analysis status",
+    )) || [];
+
+  return {
+    isInitialized: engineInfo !== null,
+    engineInfo,
+    currentSettings,
+    analysisStatus,
+  };
+}
+
 // ===== エンジンセットアップのヘルパー関数 =====
 
 /**
  * エンジンを完全にセットアップ（初期化 + 推奨設定適用）
  */
-export async function setupYaneuraOuEngine(): Promise<InitializeEngineResponse> {
+export async function setupYaneuraOuEngine(): Promise<EngineInfo | null> {
   try {
     // 1. エンジン初期化
-    const initResult = await initializeYaneuraOuEngine();
-    console.log("Engine initialized:", initResult.engine_info.name);
+    await initializeYaneuraOuEngine();
+    console.log("Engine initialized");
 
-    // 2. 推奨設定適用
+    // 2. エンジン情報取得
+    const engineInfo = await getEngineInfo();
+    if (engineInfo) {
+      console.log("Engine info:", engineInfo.name);
+    }
+
+    // 3. 推奨設定適用
     await applyYaneuraOuRecommendedSettings();
     console.log("Recommended settings applied");
 
-    // 3. 準備状態確認
-    const isReady = await getEngineReadyStatus();
-    console.log("Engine ready:", isReady);
-
-    return initResult;
+    return engineInfo;
   } catch (error) {
     console.error("Failed to setup engine:", error);
     throw error;
   }
 }
 
-/**
- * 簡単な解析テスト
- */
-export async function testAnalysis(): Promise<void> {
-  try {
-    // 初期局面から数手進めた局面で解析
-    const testMoves = ["7g7f", "3c3d", "2g2f"];
-
-    console.log("Starting analysis test...");
-    await startAnalysisFromMoves(testMoves);
-
-    // 3秒待って結果を取得
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const results = await getAllPendingAnalysisResults();
-    console.log("Analysis results:", results.length);
-
-    if (results.length > 0) {
-      const latest = results[results.length - 1];
-      console.log("Latest analysis:");
-      console.log(createAnalysisSummary(latest));
-    }
-
-    await stopAnalysis();
-    console.log("Analysis test completed");
-  } catch (error) {
-    console.error("Analysis test failed:", error);
-    throw error;
-  }
-}
-
 // ===== デフォルトエクスポート =====
 export default {
-  // 初期化
+  // 初期化・情報取得
   initializeEngine,
   initializeYaneuraOuEngine,
+  getEngineInfo,
   setupYaneuraOuEngine,
 
   // 設定
   applyEngineSettings,
+  getEngineSettings,
   applyYaneuraOuRecommendedSettings,
   applyCustomSettings,
 
+  // 局面設定
+  setPosition,
+  setPositionFromMoves,
+  setPositionFromSfen,
+
   // 解析
   startInfiniteAnalysis,
-  startAnalysisFromMoves,
-  startAnalysisFromSfen,
+  analyzeWithTime,
+  analyzeWithDepth,
   stopAnalysis,
-  getAnalysisStatus,
 
   // 結果取得
-  getLatestAnalysisResult,
-  getAllPendingAnalysisResults,
+  getAnalysisResult,
+  getLastResult,
+  getAnalysisStatus,
 
-  // 管理
+  // 高レベル操作
+  startAnalysisFromMoves,
+  startAnalysisFromSfen,
+  analyzePositionWithTime,
+  analyzePositionWithDepth,
+
+  // ポーリング・リアルタイム
+  pollAnalysisResult,
+  startInfiniteAnalysisWithPolling,
+
+  // バッチ処理
+  batchAnalyze,
+
+  // エンジン管理
   shutdownEngine,
+  checkEngineStatus,
 
   // ユーティリティ
   formatEvaluation,
   formatPrincipalVariation,
+  formatAnalysisConfig,
   createAnalysisSummary,
-  testAnalysis,
+  createAnalysisStatusSummary,
+  safeEngineCommand,
 
   // 定数
   ENGINE_CONSTANTS,
