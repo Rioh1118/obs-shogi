@@ -3,7 +3,7 @@ export const ENGINE_CONSTANTS = {
     "/Users/riohatta/test_shogi_engine/li/YaneuraOu_NNUE_halfKP1024X2_8_32-V830Git_APPLEM1",
   WORK_DIR: "/Users/riohatta/test_shogi_engine/li",
   EVAL_DIR: "/Users/riohatta/test_shogi_engine/li/eval",
-  BOOK_DIR: "/Users/riohatta/test_shogi_engine/li/book/",
+  BOOK_DIR: "/Users/riohatta/test_shogi_engine/li/book",
 } as const;
 
 export const DEFAULT_SETTINGS = {

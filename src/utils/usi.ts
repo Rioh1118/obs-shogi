@@ -26,7 +26,6 @@ export function moveToUsi(move: IMoveMoveFormat): string {
   const from = placeToUsi(move.from);
   const to = placeToUsi(move.to!);
   const promote = move.promote ? "+" : "";
-
   return `${from}${to}${promote}`;
 }
 
@@ -76,7 +75,6 @@ export function generateUsiPosition(jkfPlayer: JKFPlayer): string {
 // 現在の手番を取得
 export function getCurrentTurnFromJkf(jkfPlayer: JKFPlayer): Color {
   if (!jkfPlayer.kifu) return 0;
-
   // 手数が奇数なら先手(0)、偶数なら後手(1)
   const moveCount = jkfPlayer.tesuu;
   return ((moveCount % 2) * 1) as Color;
@@ -91,4 +89,66 @@ export function debugJkfState(jkfPlayer: JKFPlayer) {
     position: generateUsiPosition(jkfPlayer),
     currentMove: jkfPlayer.kifu?.moves[jkfPlayer.tesuu]?.move,
   });
+}
+
+/**
+ * JKFから指し手の配列を抽出（既存のmoveToUsi関数を使用）
+ */
+export function extractMovesFromJkf(jkfPlayer: JKFPlayer): string[] {
+  if (!jkfPlayer.kifu || !jkfPlayer.kifu.moves) {
+    return [];
+  }
+
+  const moves: string[] = [];
+  // 現在の手番まで処理
+  const currentTurn = jkfPlayer.tesuu;
+
+  for (let i = 1; i <= currentTurn && i < jkfPlayer.kifu.moves.length; i++) {
+    const moveFormat = jkfPlayer.kifu.moves[i];
+
+    if (moveFormat && moveFormat.move) {
+      try {
+        // 既存のmoveToUsi関数を使用
+        const usiMove = moveToUsi(moveFormat.move);
+        moves.push(usiMove);
+      } catch (error) {
+        console.warn(`Failed to convert move ${i}:`, moveFormat.move, error);
+        // エラーの場合はその手まででストップ
+        break;
+      }
+    }
+  }
+
+  console.log(
+    `📝 [USI] Extracted ${moves.length} moves from JKF (turn ${currentTurn}):`,
+    moves,
+  );
+  return moves;
+}
+
+/**
+ * 指し手配列が有効かチェック
+ */
+export function validateMoves(moves: string[]): boolean {
+  // 基本的なUSI指し手のパターンチェック
+  const usiMovePattern = /^([1-9][a-i]){2}\+?$|^[A-Z]\*[1-9][a-i]$/;
+
+  return moves.every((move) => {
+    const isValid = usiMovePattern.test(move);
+    if (!isValid) {
+      console.warn(`Invalid USI move format: ${move}`);
+    }
+    return isValid;
+  });
+}
+
+/**
+ * 指し手配列を表示用文字列に変換
+ */
+export function formatMovesForDisplay(moves: string[]): string {
+  if (moves.length === 0) {
+    return "初期局面";
+  }
+
+  return `${moves.length}手目まで: ${moves.slice(-3).join(" ")}${moves.length > 3 ? "..." : ""}`;
 }

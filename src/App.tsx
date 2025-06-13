@@ -9,6 +9,9 @@ import { useMemo } from "react";
 import { KifuWriterFactory } from "./services/file/KifuWriterImpl";
 import TitleBar from "./components/TitleBar";
 import "./App.scss";
+import EngineProvider from "./contexts/EngineContext";
+import { AnalysisProvider } from "./contexts/AnalysisContext";
+import { PositionProvider } from "./contexts/PositionContext";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
@@ -22,7 +25,18 @@ function App() {
               <BrowserRouter>
                 <Routes>
                   <Route index element={<FolderSelect />} />
-                  <Route path="/app" element={<AppLayout />}>
+                  <Route
+                    path="/app"
+                    element={
+                      <EngineProvider>
+                        <PositionProvider>
+                          <AnalysisProvider>
+                            <AppLayout />
+                          </AnalysisProvider>
+                        </PositionProvider>
+                      </EngineProvider>
+                    }
+                  >
                     <Route index element={<Navigate replace to="filetree" />} />
                     <Route path="filetree" element={<FileTree />} />
                   </Route>
