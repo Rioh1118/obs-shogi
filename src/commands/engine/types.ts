@@ -36,10 +36,21 @@ export interface AnalysisConfig {
 
 // ===== 解析結果関連 =====
 export interface AnalysisResult {
-  evaluation?: Evaluation;
-  principal_variations: PrincipalVariation[];
-  depth_info?: DepthInfo;
-  search_stats?: SearchStats;
+  best_move?: BestMove | null;
+  evaluation?: number | null;
+  depth?: number | null;
+  nodes?: number | null;
+  time_ms?: number | null;
+  pv?: string[] | null;
+  candidate_moves: BestMove[];
+  mate_sequence?: string[] | null;
+}
+
+export interface BestMove {
+  move_str: string;
+  ponder?: string;
+  evaluation?: number;
+  depth: number;
 }
 
 export interface Evaluation {

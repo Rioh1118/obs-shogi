@@ -225,17 +225,26 @@ impl EngineBridge {
         if let Some(session) = sessions.get_mut(&session_id) {
             if let Some(ref mut receiver) = session.result_receiver {
                 match receiver.try_recv() {
-                    Ok(result) => Ok(Some(result)),
-                    Err(mpsc::error::TryRecvError::Empty) => Ok(None),
+                    Ok(result) => {
+                        println!("[BRIDGE] Retrieved result for session: {}", session_id);
+                        Ok(Some(result))
+                    }
+                    Err(mpsc::error::TryRecvError::Empty) => {
+                        println!("[BRIDGE] No result available for session: {}", session_id);
+                        Ok(None)
+                    }
                     Err(mpsc::error::TryRecvError::Disconnected) => {
+                        println!("[BRIDGE] Channel Disconnected for session: {}", session_id);
                         session.is_active = false;
                         Ok(None)
                     }
                 }
             } else {
+                println!("[BRIDGE] No receiver for session: {}", session_id);
                 Ok(None)
             }
         } else {
+            println!("[BRIDGE] Session not found: {}", session_id);
             Err("Session not found".to_string())
         }
     }
@@ -376,16 +385,6 @@ impl Default for EngineBridge {
     fn default() -> Self {
         Self::new()
     }
-}
-
-// グローバルなブリッジインスタンス
-static ENGINE_BRIDGE: tokio::sync::OnceCell<Arc<EngineBridge>> = tokio::sync::OnceCell::const_new();
-
-async fn get_bridge() -> Arc<EngineBridge> {
-    ENGINE_BRIDGE
-        .get_or_init(|| async { Arc::new(EngineBridge::new()) })
-        .await
-        .clone()
 }
 
 // === Tauriコマンド定義 ===

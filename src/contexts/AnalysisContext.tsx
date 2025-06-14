@@ -71,11 +71,12 @@ function analysisReducer(
       };
     case "update_result": {
       // ✅ ブロックスコープで変数宣言
-      const result = action.payload;
-      const currentDepth = result.depth_info?.depth || 0; // ✅ depth_info から取得
-      const bestMove = result.principal_variations?.[0]?.moves[0] || null;
-      const evaluation = result.evaluation?.value || null;
-      const principalVariation = result.principal_variations?.[0]?.moves || [];
+      const result = action.payload as AnalysisResult;
+
+      const currentDepth = result.depth || 0;
+      const bestMove = result.best_move?.move_str || result.pv?.[0] || null;
+      const evaluation = result.evaluation || null;
+      const principalVariation = result.pv || [];
 
       return {
         ...state,

@@ -15,20 +15,46 @@ function AnalysisPane() {
     const latestResult =
       state.analysisResults[state.analysisResults.length - 1];
 
-    const convertedPVs =
-      latestResult?.principal_variations?.map((pv) =>
-        convertSfenSequence(pv.moves),
+    if (!latestResult) {
+      return {
+        bestMoveSequence: [],
+        candidateSequences: [],
+        evaluation: null,
+        searchStats: null,
+        candidateEvaluations: [],
+      };
+    }
+
+    const bestMoveSequence = latestResult.pv
+      ? convertSfenSequence(latestResult.pv)
+      : [];
+
+    const candidateSequences =
+      latestResult.candidate_moves?.map((candidate) =>
+        convertSfenSequence([candidate.move_str]),
       ) || [];
 
+    const candidateEvaluations =
+      latestResult.candidate_moves?.map((candidate) => candidate.evaluation) ||
+      [];
+
+    console.log("🎯 [ANALYSIS_PANE] Processed data:", {
+      bestMoveCount: bestMoveSequence.length,
+      candidateCount: candidateSequences.length,
+      evaluation: latestResult.evaluation,
+      depth: latestResult.depth,
+    });
+
     return {
-      bestMoveSequence: convertedPVs[0] || [],
-      candidateSequences: convertedPVs.slice(1),
-      evaluation: latestResult?.evaluation?.value || null,
-      searchStats: latestResult?.search_stats,
-      candidateEvaluations:
-        latestResult?.principal_variations
-          ?.slice(1)
-          .map((pv) => pv.evaluation?.value) || [],
+      bestMoveSequence,
+      candidateSequences,
+      evaluation: latestResult.evaluation || null,
+      searchStats: {
+        depth: latestResult.depth,
+        nodes: latestResult.nodes,
+        time_ms: latestResult.time_ms,
+      },
+      candidateEvaluations,
     };
   }, [state.analysisResults]);
 
