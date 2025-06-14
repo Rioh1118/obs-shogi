@@ -1,0 +1,7 @@
+@use "@/index.scss" as index;
+
+.analysis-pane {
+  width: 67.2rem;
+  height: 26.5rem;
+  background-color: index.$color-primary-dark;
+}

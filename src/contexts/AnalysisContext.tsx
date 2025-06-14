@@ -5,15 +5,18 @@ import React, {
   useCallback,
   useMemo,
   useRef,
+  useEffect,
 } from "react";
 import { useEngine } from "./EngineContext";
-import {
-  startAnalysisFromSfen,
-  pollAnalysisResult,
-} from "@/commands/engine/advanced";
+import { startAnalysisFromSfen } from "@/commands/engine/advanced";
 import { stopAnalysis } from "@/commands/engine";
 import type { AnalysisResult } from "@/commands/engine/types";
 import { usePosition } from "./PositionContext";
+import {
+  setupAnalysisEventListeners,
+  type AnalysisEventListeners,
+} from "@/commands/engine";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 
 interface AnalysisState {
   isAnalyzing: boolean;
@@ -70,9 +73,9 @@ function analysisReducer(
       // ✅ ブロックスコープで変数宣言
       const result = action.payload;
       const currentDepth = result.depth_info?.depth || 0; // ✅ depth_info から取得
-      const bestMove = result.principal_variations[0]?.moves[0] || null;
+      const bestMove = result.principal_variations?.[0]?.moves[0] || null;
       const evaluation = result.evaluation?.value || null;
-      const principalVariation = result.principal_variations[0]?.moves || [];
+      const principalVariation = result.principal_variations?.[0]?.moves || [];
 
       return {
         ...state,
@@ -124,8 +127,47 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
   const { state: engineState } = useEngine();
   const { currentSfen, isPositionSynced, syncPosition } = usePosition();
 
-  // ポーリング停止用ref
-  const stopPollingRef = useRef<(() => void) | null>(null);
+  const unlistenRef = useRef<UnlistenFn | null>(null);
+
+  useEffect(() => {
+    const setupListeners = async () => {
+      if (unlistenRef.current) {
+        unlistenRef.current();
+      }
+
+      const listeners: AnalysisEventListeners = {
+        onUpdate: (result: AnalysisResult) => {
+          console.log("[ANALYSIS] Real-time result:", result);
+          dispatch({ type: "update_result", payload: result });
+        },
+        onComplete: (sessionId: string, result: AnalysisResult) => {
+          console.log("[ANALYSIS] Analysis complete:", sessionId, result);
+          dispatch({ type: "update_result", payload: result });
+          dispatch({ type: "stop_analysis" });
+        },
+        onError: (error: string) => {
+          console.log("[ANALYSIS] Engine error:", error);
+          dispatch({ type: "set_error", payload: error });
+        },
+      };
+
+      try {
+        const unlisten = await setupAnalysisEventListeners(listeners);
+        unlistenRef.current = unlisten;
+        console.log("[ANALYSIS] Event listeners setup complete");
+      } catch (error) {
+        console.error("[ANALYSIS] Failed to setup listeners:", error);
+      }
+    };
+    setupListeners();
+
+    return () => {
+      if (unlistenRef.current) {
+        unlistenRef.current();
+        unlistenRef.current = null;
+      }
+    };
+  }, []);
 
   // ✅ 指定SFENで解析開始
   const startInfiniteAnalysis = useCallback(async () => {
@@ -147,14 +189,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }
 
     try {
-      // 現在の解析を停止
-      if (stopPollingRef.current) {
-        stopPollingRef.current();
-        stopPollingRef.current = null;
-      }
-
       console.log("🔍 [ANALYSIS] Starting analysis for SFEN:", currentSfen);
-
       // 解析開始
       const sessionId = await startAnalysisFromSfen(currentSfen);
 
@@ -162,18 +197,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         type: "start_analysis",
         payload: { sessionId, position: currentSfen },
       });
-
-      // ポーリング開始
-      const stopPolling = await pollAnalysisResult(
-        sessionId,
-        (result: AnalysisResult) => {
-          console.log("📊 [ANALYSIS] Result:", result);
-          dispatch({ type: "update_result", payload: result });
-        },
-        1000, // 1秒間隔
-      );
-
-      stopPollingRef.current = stopPolling;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Analysis failed";
@@ -199,12 +222,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     try {
       console.log("⏹️ [ANALYSIS] Stopping analysis:", state.sessionId);
 
-      // ポーリング停止
-      if (stopPollingRef.current) {
-        stopPollingRef.current();
-        stopPollingRef.current = null;
-      }
-
       // エンジンの解析停止
       await stopAnalysis(state.sessionId);
 
@@ -219,26 +236,11 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
   // ✅ 結果クリア
   const clearResults = useCallback(() => {
     dispatch({ type: "clear_results" });
-
-    // ポーリング停止
-    if (stopPollingRef.current) {
-      stopPollingRef.current();
-      stopPollingRef.current = null;
-    }
   }, []);
 
   // ✅ エラークリア
   const clearError = useCallback(() => {
     dispatch({ type: "clear_error" });
-  }, []);
-
-  // ✅ クリーンアップ
-  React.useEffect(() => {
-    return () => {
-      if (stopPollingRef.current) {
-        stopPollingRef.current();
-      }
-    };
   }, []);
 
   const value = useMemo(

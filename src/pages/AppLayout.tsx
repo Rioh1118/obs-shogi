@@ -17,6 +17,7 @@ import WelcomeScreen from "@/components/WelcomeScreen";
 import AnalysisControls from "@/components/Engine/AnalysisControls";
 import Spinner from "@/components/Spinner";
 import ShogiButton from "@/components/ShogiButton";
+import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -95,15 +96,22 @@ const AppLayout = () => {
         {!state.jkfPlayer?.shogi ? (
           <WelcomeScreen />
         ) : (
-          <section className="main-container__game">
-            <GameBoard>
-              <Hand isPlayer={true} />
-              <Board />
-              <Hand isPlayer={false} />
-            </GameBoard>
-            <GameControls />
-            <AnalysisControls />
-          </section>
+          <>
+            <section className="main-container__game">
+              <GameBoard>
+                <Hand isPlayer={true} />
+                <Board />
+                <Hand isPlayer={false} />
+              </GameBoard>
+              <GameControls />
+              <div className="app-layout__analysis-controls">
+                <AnalysisControls />
+              </div>
+            </section>
+            <section className="app-layout__footer-container">
+              <AnalysisPane />
+            </section>
+          </>
         )}
       </main>
     </div>

@@ -1,0 +1,54 @@
+@use "@/index.scss" as index;
+
+.move-sequence {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  color: index.$color-text-primary;
+  font-size: 1.2rem;
+  line-height: 1.4;
+
+  &__primary {
+    font-weight: 500;
+    font-size: 1.2rem;
+  }
+
+  &__candidate {
+    font-weight: 400;
+    font-size: 1.3rem;
+    opacity: 0.95;
+  }
+
+  &__icon {
+    display: inline-block;
+    width: 0.85rem;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin-right: 0.3rem;
+    flex-shrink: 0;
+    color: index.$color-text-primary;
+    &--black {
+      background-image: url("/src/assets/sente_icon.svg");
+    }
+    &--white {
+      background-image: url("/src/assets/gote_icon.svg");
+    }
+  }
+
+  &__evaluation {
+    margin-left: auto;
+    font-weight: 500;
+    color: index.$color-text-primary;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  &__move {
+    display: inline-block;
+    &:not(:last-child) {
+      margin-right: 0.8rem;
+    }
+  }
+}

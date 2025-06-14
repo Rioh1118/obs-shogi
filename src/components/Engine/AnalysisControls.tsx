@@ -8,7 +8,7 @@ import "./AnalysisControls.scss";
 const AnalysisControls: React.FC<{
   size?: "small" | "medium" | "large";
   showPositionInfo?: boolean;
-}> = ({ showPositionInfo = false }) => {
+}> = () => {
   const {
     state: analysisState,
     startInfiniteAnalysis,
@@ -45,11 +45,12 @@ const AnalysisControls: React.FC<{
 
   return (
     <div className="analysis-controls">
-      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <div className="analysis-controls__buttons">
         <ShogiButton
           onClick={handleStart}
           disabled={!canStartAnalysis()}
           variant="primary"
+          size="large"
         >
           {analysisState.isAnalyzing ? "解析中..." : "解析開始"}
         </ShogiButton>
@@ -58,15 +59,10 @@ const AnalysisControls: React.FC<{
           onClick={handleStop}
           disabled={!analysisState.isAnalyzing}
           variant="danger"
+          size="large"
         >
           解析停止
         </ShogiButton>
-
-        {showPositionInfo && currentSfen && (
-          <span className="position-info">
-            SFEN: {currentSfen.substring(0, 30)}...
-          </span>
-        )}
       </div>
 
       {(analysisState.error || syncError || engineState.error) && (

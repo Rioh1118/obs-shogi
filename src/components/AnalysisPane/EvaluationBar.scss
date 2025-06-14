@@ -1,0 +1,28 @@
+@use "@/index.scss" as index;
+
+.evaluation-bar {
+  display: flex;
+  width: 17rem;
+  height: 1.2rem;
+  border: 1px solid rgba(index.$color-text-primary, 0.4);
+  overflow: hidden;
+
+  &__center-line {
+    width: 1px;
+    height: 100%;
+    background-color: rgba(index.$color-text-primary, 0.4);
+  }
+
+  &__side {
+    height: 100%;
+    transition: width 0.4s ease;
+
+    &--black {
+      background: linear-gradient(to right, #444, #666);
+    }
+
+    &--white {
+      background: linear-gradient(to left, #eee, #fff);
+    }
+  }
+}

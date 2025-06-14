@@ -10,7 +10,7 @@ export const DEFAULT_SETTINGS = {
   YANEURAOU_RECOMMENDED: {
     USI_Hash: "1024",
     Threads: "4",
-    MultiPV: "1",
+    MultiPV: "5",
     NetworkDelay: "120",
     NetworkDelay2: "1120",
     MinimumThinkingTime: "2000",
