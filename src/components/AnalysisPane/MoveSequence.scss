@@ -11,18 +11,19 @@
 
   &__primary {
     font-weight: 500;
-    font-size: 1.2rem;
+    font-size: 1.3rem;
   }
 
   &__candidate {
     font-weight: 400;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     opacity: 0.95;
   }
 
   &__icon {
     display: inline-block;
     width: 0.85rem;
+    aspect-ratio: 1/1;
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
@@ -30,10 +31,10 @@
     flex-shrink: 0;
     color: index.$color-text-primary;
     &--black {
-      background-image: url("/src/assets/sente_icon.svg");
+      background-image: url("../../assets/sente_icon.svg");
     }
     &--white {
-      background-image: url("/src/assets/gote_icon.svg");
+      background-image: url("../../assets/gote_icon.svg");
     }
   }
 

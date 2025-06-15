@@ -90,7 +90,6 @@ export {
   setupYaneuraOuEngine,
   quickAnalysis,
   deepAnalysis,
-  comparePositions,
 } from "./advanced";
 
 // ===== デフォルトエクスポート（後方互換性のため） =====

@@ -22,7 +22,7 @@ function MoveSequence({
         <>
           <span
             key={index}
-            className={`move-sequence__icon--${moveData.isBlack ? "black" : "white"}`}
+            className={`move-sequence__icon move-sequence__icon--${moveData.isBlack ? "black" : "white"}`}
           ></span>
           <span key={index} className="move-sequence__move">
             {moveData.move}

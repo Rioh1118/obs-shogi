@@ -227,21 +227,3 @@ export async function deepAnalysis(
 ): Promise<AnalysisResult> {
   return await analyzePositionWithDepth(moves, depth);
 }
-
-export async function comparePositions(
-  positions: { moves: string[]; name: string }[],
-  analysisTimeSeconds: number = 10,
-): Promise<{ name: string; evaluation: string; bestMove: string }[]> {
-  const results = await batchAnalyze(positions, {
-    timeSeconds: analysisTimeSeconds,
-  });
-
-  return results.map((result) => ({
-    name: result.name || result.position,
-    evaluation: result.result.evaluation
-      ? (result.result.evaluation.value > 0 ? "+" : "") +
-        result.result.evaluation.value.toString()
-      : "不明",
-    bestMove: result.result.principal_variations[0]?.moves[0] || "なし",
-  }));
-}
