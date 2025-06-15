@@ -54,6 +54,7 @@ impl EngineAnalyzer {
         }
 
         protocol.send_command(&GuiCommand::IsReady).await?;
+        protocol.send_command(&GuiCommand::UsiNewGame).await?;
         Ok(())
     }
 
