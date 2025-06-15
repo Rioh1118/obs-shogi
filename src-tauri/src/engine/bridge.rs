@@ -89,6 +89,7 @@ impl EngineBridge {
             position
         );
         println!("🎯 [BRIDGE] Position length: {}", position.len());
+
         self.analyzer
             .set_position(&position)
             .await

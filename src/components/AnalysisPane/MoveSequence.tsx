@@ -21,10 +21,10 @@ function MoveSequence({
       {displayMoves.map((moveData, index) => (
         <>
           <span
-            key={index}
+            key={`${index}-icon`}
             className={`move-sequence__icon move-sequence__icon--${moveData.isBlack ? "black" : "white"}`}
           ></span>
-          <span key={index} className="move-sequence__move">
+          <span key={`${index}-move`} className="move-sequence__move">
             {moveData.move}
           </span>
         </>

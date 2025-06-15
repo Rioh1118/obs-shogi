@@ -78,7 +78,7 @@ export async function setPositionFromMoves(moves: string[]): Promise<void> {
 }
 
 export async function setPositionFromSfen(sfen: string): Promise<void> {
-  const position = `sfen ${sfen}`;
+  const position = `${sfen}`;
   return await setPosition(position);
 }
 
