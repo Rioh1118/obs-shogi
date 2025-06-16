@@ -16,27 +16,6 @@ pub enum EvaluationKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrincipalVariation {
-    pub line_number: Option<i32>, // Multi PV番号
-    pub moves: Vec<String>,
-    pub evaluation: Option<Evaluation>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DepthInfo {
-    pub depth: i32,
-    pub selective_depth: Option<i32>,
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct SearchStats {
-    pub nodes: Option<i32>,
-    pub nps: Option<i32>,
-    pub hash_full: Option<i32>,
-    pub time_elapsed: Option<Duration>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineInfo {
     pub name: String,
     pub author: String,
@@ -191,12 +170,6 @@ impl From<std::time::Duration> for Duration {
     }
 }
 
-impl Into<std::time::Duration> for Duration {
-    fn into(self) -> std::time::Duration {
-        std::time::Duration::new(self.secs, self.nanos)
-    }
-}
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
     pub best_move: Option<BestMove>,
@@ -205,6 +178,20 @@ pub struct AnalysisResult {
     pub nodes: Option<u64>,
     pub time_ms: Option<u64>,
     pub pv: Option<Vec<String>>,
-    pub candidate_moves: Vec<BestMove>,
     pub mate_sequence: Option<Vec<String>>,
+
+    // MutiPV対応フィールド
+    pub multi_pv_candidates: Vec<MultiPvCandidate>,
+    pub is_multi_pv_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MultiPvCandidate {
+    pub rank: u32,
+    pub first_move: String,
+    pub evaluation: Option<i32>,
+    pub mate_moves: Option<i32>,
+    pub pv_line: Vec<String>,
+    pub depth: Option<u32>,
+    pub nodes: Option<u64>,
 }

@@ -435,33 +435,126 @@ impl EngineAnalyzer {
 
     /// InfoParams処理
     fn process_info_params(info_params: &[InfoParams], result: &mut AnalysisResult) {
+        let mut current_rank = 1u32;
+
         for info in info_params {
             match info {
+                InfoParams::MultiPv(rank) => {
+                    current_rank = *rank as u32;
+                    result.is_multi_pv_enabled = true;
+                    println!("[ANALYZER] MultiPV rank: {}", current_rank);
+                }
                 InfoParams::Depth(depth, _) => {
                     result.depth = Some(*depth as u32);
+                    if let Some(candidate) = result
+                        .multi_pv_candidates
+                        .iter_mut()
+                        .find(|c| c.rank == current_rank)
+                    {
+                        candidate.depth = Some(*depth as u32);
+                    }
                 }
                 InfoParams::Score(value, kind) => match kind {
                     ScoreKind::CpExact | ScoreKind::CpLowerbound | ScoreKind::CpUpperbound => {
-                        result.evaluation = Some(*value);
+                        if current_rank == 1 {
+                            result.evaluation = Some(*value);
+                        }
+
+                        Self::set_candidate_evaluation(result, current_rank, Some(*value), None);
                     }
                     ScoreKind::MateExact
                     | ScoreKind::MateLowerbound
                     | ScoreKind::MateUpperbound
                     | ScoreKind::MateSignOnly => {
-                        result.mate_sequence = Some(vec![format!("mate in {}", value)]);
+                        if current_rank == 1 {
+                            result.mate_sequence = Some(vec![format!("mate in {}", value)]);
+                        }
+                        Self::set_candidate_evaluation(result, current_rank, None, Some(*value));
                     }
                 },
                 InfoParams::Nodes(nodes) => {
                     result.nodes = Some(*nodes as u64);
+                    if let Some(candidate) = result
+                        .multi_pv_candidates
+                        .iter_mut()
+                        .find(|c| c.rank == current_rank)
+                    {
+                        candidate.nodes = Some(*nodes as u64);
+                    }
                 }
                 InfoParams::Time(time) => {
                     result.time_ms = Some(time.as_millis() as u64);
                 }
                 InfoParams::Pv(moves) => {
-                    result.pv = Some(moves.clone());
+                    if current_rank == 1 {
+                        result.pv = Some(moves.clone());
+                    }
+
+                    if let Some(first_move) = moves.first() {
+                        Self::set_candidate_pv(
+                            result,
+                            current_rank,
+                            first_move.clone(),
+                            moves.clone(),
+                        );
+                    }
                 }
                 _ => {}
             }
+        }
+        result.multi_pv_candidates.sort_by_key(|c| c.rank);
+    }
+
+    fn set_candidate_evaluation(
+        result: &mut AnalysisResult,
+        rank: u32,
+        evaluation: Option<i32>,
+        mate_moves: Option<i32>,
+    ) {
+        if let Some(candidate) = result
+            .multi_pv_candidates
+            .iter_mut()
+            .find(|c| c.rank == rank)
+        {
+            if let Some(eval) = evaluation {
+                candidate.evaluation = Some(eval);
+            }
+            if let Some(mate) = mate_moves {
+                candidate.mate_moves = Some(mate);
+            }
+        }
+    }
+
+    fn set_candidate_pv(
+        result: &mut AnalysisResult,
+        rank: u32,
+        first_move: String,
+        pv_line: Vec<String>,
+    ) {
+        if let Some(candidate) = result
+            .multi_pv_candidates
+            .iter_mut()
+            .find(|c| c.rank == rank)
+        {
+            candidate.first_move = first_move;
+            candidate.pv_line = pv_line;
+        } else {
+            let new_candidate = MultiPvCandidate {
+                rank,
+                first_move,
+                evaluation: None,
+                mate_moves: None,
+                pv_line,
+                depth: result.depth,
+                nodes: result.nodes,
+            };
+
+            result.multi_pv_candidates.push(new_candidate);
+            println!(
+                "[ANALYZER] Added new MultiPV candidaate: rank={}, move={}",
+                rank,
+                result.multi_pv_candidates.last().unwrap().first_move
+            );
         }
     }
 
