@@ -1,4 +1,5 @@
 import { formatEvaluation, type ConvertedMove } from "@/utils/sfenConverter";
+import React from "react";
 import "./MoveSequence.scss";
 
 interface MoveSequenceProps {
@@ -18,22 +19,16 @@ function MoveSequence({
 
   return (
     <p className={`move-sequence move-sequence__${variant}`}>
-      {displayMoves.map((moveData, index) => (
-        <>
-          <span
-            key={`${index}-icon`}
-            className={`move-sequence__icon move-sequence__icon--${moveData.isBlack ? "black" : "white"}`}
-          ></span>
-          <span key={`${index}-move`} className="move-sequence__move">
-            {moveData.move}
-          </span>
-        </>
-      ))}
       {evaluation !== undefined && evaluation !== null && (
         <span className="move-sequence__evaluation">
           {formatEvaluation(evaluation)}
         </span>
       )}
+      {displayMoves.map((moveData, index) => (
+        <React.Fragment key={`${index}`}>
+          <span className="move-sequence__move">{moveData.move}</span>
+        </React.Fragment>
+      ))}
     </p>
   );
 }

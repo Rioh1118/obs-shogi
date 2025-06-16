@@ -438,11 +438,18 @@ impl EngineAnalyzer {
         let mut current_rank = 1u32;
 
         for info in info_params {
+            if let InfoParams::MultiPv(rank) = info {
+                current_rank = *rank as u32;
+                result.is_multi_pv_enabled = true;
+                println!("[ANALYZER] MultiPV rank: {}", current_rank);
+                break;
+            }
+        }
+
+        for info in info_params {
             match info {
-                InfoParams::MultiPv(rank) => {
-                    current_rank = *rank as u32;
-                    result.is_multi_pv_enabled = true;
-                    println!("[ANALYZER] MultiPV rank: {}", current_rank);
+                InfoParams::MultiPv(_) => {
+                    continue;
                 }
                 InfoParams::Depth(depth, _) => {
                     result.depth = Some(*depth as u32);
@@ -522,6 +529,10 @@ impl EngineAnalyzer {
             if let Some(mate) = mate_moves {
                 candidate.mate_moves = Some(mate);
             }
+            println!(
+                "[ANALYZER] Updated existing candidate rank {}: eval={:?}, mate={:?}",
+                rank, evaluation, mate_moves
+            );
         }
     }
 

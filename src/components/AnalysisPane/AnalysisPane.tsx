@@ -2,17 +2,21 @@ import { useAnalysis } from "@/contexts/AnalysisContext";
 import { convertSfenSequence } from "@/utils/sfenConverter";
 import type { ConvertedMove } from "@/utils/sfenConverter";
 import { useMemo, useState } from "react";
-import AnalysisHeader from "./AnalysisPaneHeader";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
 import { useGame } from "@/contexts/GameContext";
 import { convertMultiPvToSenteView } from "@/utils/usi";
+import AnalysisPaneHeader from "./AnalysisPaneHeader";
+import "./AnalysisPane.scss";
+import { usePosition } from "@/contexts/PositionContext";
+import StatsSection from "./StatsSection";
 
 function AnalysisPane() {
   const { state } = useAnalysis();
   const [showDetailedStats, setShowDetailedStats] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const { getCurrentTurn } = useGame();
+  const { currentSfen } = usePosition();
 
   const displayData = useMemo(() => {
     const latestResult =
@@ -45,24 +49,30 @@ function AnalysisPane() {
         latestResult.multi_pv_candidates,
         currentTurn,
       );
+
       const topCandidate =
         convertedCandidates.find((c) => c.rank === 1) || convertedCandidates[0];
 
       // 最善手列を取得（1位候補のPV）
       if (topCandidate && topCandidate.pv_line.length > 0) {
-        bestMoveSequence = convertSfenSequence(topCandidate.pv_line);
+        bestMoveSequence = convertSfenSequence(
+          currentSfen,
+          topCandidate.pv_line,
+        );
         evaluation = topCandidate.evaluation || null;
       }
 
-      // 全候補を処理
-      candidateSequences = convertedCandidates.map((candidate) =>
+      // 2位以下の候補のみをCandidateSectionに渡す
+      const otherCandidate = convertedCandidates.filter((c) => c.rank > 1);
+      candidateSequences = otherCandidate.map((candidate) =>
         convertSfenSequence(
+          currentSfen,
           candidate.pv_line.length > 0
             ? candidate.pv_line
             : [candidate.first_move],
         ),
       );
-      candidateEvaluations = convertedCandidates.map(
+      candidateEvaluations = otherCandidate.map(
         (candidate) => candidate.evaluation || null,
       );
 
@@ -75,19 +85,12 @@ function AnalysisPane() {
     } else {
       // **従来のSingle PV処理**
       bestMoveSequence = latestResult.pv
-        ? convertSfenSequence(latestResult.pv)
+        ? convertSfenSequence(currentSfen, latestResult.pv)
         : [];
       evaluation = latestResult.evaluation || null;
 
-      // Single PVの場合、最善手のみを候補として表示
-      if (latestResult.best_move?.move_str) {
-        candidateSequences = [
-          convertSfenSequence([latestResult.best_move.move_str]),
-        ];
-        candidateEvaluations = [
-          latestResult.best_move.evaluation || evaluation,
-        ];
-      }
+      candidateSequences = [];
+      candidateEvaluations = [];
 
       console.log("🎯 [ANALYSIS_PANE] Single PV mode:", {
         bestMove: latestResult.best_move?.move_str,
@@ -108,25 +111,23 @@ function AnalysisPane() {
       candidateEvaluations,
       isMultiPvMode: latestResult.is_multi_pv_enabled,
       candidateCount: latestResult.is_multi_pv_enabled
-        ? latestResult.multi_pv_candidates.length
-        : latestResult.best_move
-          ? 1
-          : 0,
+        ? latestResult.multi_pv_candidates.length - 1
+        : 0,
     };
-  }, [state.analysisResults, getCurrentTurn]);
+  }, [state.analysisResults, getCurrentTurn, currentSfen]);
 
   return (
     <div className="analysis-pane">
+      <AnalysisPaneHeader />
       <BestMoveSection
         bestMove={displayData.bestMoveSequence}
         evaluation={displayData.evaluation}
       />
       <CandidatesSection
         candidateSequences={displayData.candidateSequences}
-        candidateEvaluations={displayData?.candidateEvaluations.map((el) =>
-          el !== undefined ? el : null,
-        )}
+        candidateEvaluations={displayData?.candidateEvaluations}
       />
+      <StatsSection searchStats={displayData.searchStats} />
     </div>
   );
 }

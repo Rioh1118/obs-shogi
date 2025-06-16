@@ -4,4 +4,13 @@
   width: 67.2rem;
   height: 26.5rem;
   background-color: index.$color-primary-dark;
+  margin-left: 0.3rem;
+
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.12),
+    0 1px 2px rgba(0, 0, 0, 0.24),
+    0 0 0 1px rgba(245, 245, 245, 0.05);
+
+  border: 1px solid rgba(245, 245, 245, 0.06);
+  transition: box-shadow 0.3s ease;
 }

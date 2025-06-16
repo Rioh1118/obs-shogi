@@ -4,6 +4,7 @@ import {
 } from "@/utils/sfenConverter";
 import MoveSequence from "./MoveSequence";
 import EvaluationBar from "./EvaluationBar";
+import "./BestMoveSection.scss";
 
 interface BestMoveSectionProps {
   bestMove: ConvertedMove[] | null;
@@ -13,15 +14,15 @@ interface BestMoveSectionProps {
 function BestMoveSection({ bestMove, evaluation }: BestMoveSectionProps) {
   return (
     <section className="best-move-section">
+      <EvaluationBar percentage={evaluationToPercentage(evaluation)} />
       {bestMove ? (
         <MoveSequence
           moves={bestMove}
           variant="primary"
-          maxMoves={15}
+          maxMoves={9}
           evaluation={evaluation}
         />
       ) : null}
-      <EvaluationBar percentage={evaluationToPercentage(evaluation)} />
     </section>
   );
 }

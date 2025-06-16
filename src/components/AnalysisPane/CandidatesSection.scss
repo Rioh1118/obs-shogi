@@ -1,10 +1,10 @@
 @use "@/index.scss" as index;
 
-.condidates-section {
+.candidates-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 1.2rem;
+  padding: 0.6rem 2rem;
 
   &__empty {
     color: index.$color-text-light-1;

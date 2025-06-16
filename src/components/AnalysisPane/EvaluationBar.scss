@@ -2,10 +2,14 @@
 
 .evaluation-bar {
   display: flex;
-  width: 70%;
-  height: 1.2rem;
+  width: 85%;
+  height: 1.5rem;
   border: 1px solid rgba(index.$color-text-primary, 0.4);
   overflow: hidden;
+  margin-top: 0.7rem;
+  margin-bottom: 0.3rem;
+  margin-left: 2.8rem;
+  margin-right: auto;
 
   &__center-line {
     width: 1px;

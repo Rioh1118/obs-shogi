@@ -21,6 +21,7 @@
     "react-router": "^7.6.0",
     "sass": "^1.89.0",
     "shogi.js": "^5.4.1",
+    "tsshogi": "^1.9.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

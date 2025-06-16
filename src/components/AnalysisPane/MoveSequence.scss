@@ -1,23 +1,21 @@
 @use "@/index.scss" as index;
 
 .move-sequence {
+  padding: 0.2rem 3rem;
   display: flex;
-  align-items: center;
-  gap: 0;
-  margin: 0;
-  color: index.$color-text-primary;
   font-size: 1.2rem;
+  align-items: center;
+  color: index.$color-text-primary;
   line-height: 1.4;
 
   &__primary {
     font-weight: 500;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
 
   &__candidate {
     font-weight: 400;
     font-size: 1.2rem;
-    opacity: 0.95;
   }
 
   &__icon {
@@ -39,17 +37,18 @@
   }
 
   &__evaluation {
-    margin-left: auto;
+    margin-right: 2rem;
     font-weight: 500;
     color: index.$color-text-primary;
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     flex-shrink: 0;
   }
 
   &__move {
     display: inline-block;
-    &:not(:last-child) {
-      margin-right: 0.8rem;
+    margin-right: 0.4rem;
+    &:last-child {
+      margin-right: 0rem;
     }
   }
 }

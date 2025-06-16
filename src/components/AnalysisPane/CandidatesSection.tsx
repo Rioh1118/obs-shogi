@@ -21,7 +21,7 @@ function CandidatesSection({
           key={`candidate-${index}`}
           moves={moves}
           variant="candidate"
-          maxMoves={10}
+          maxMoves={9}
           evaluation={candidateEvaluations[index]}
         />
       ))}
