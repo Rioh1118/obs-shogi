@@ -10,7 +10,7 @@ import React, {
 import { useEngine } from "./EngineContext";
 import { startAnalysisFromSfen } from "@/commands/engine/advanced";
 import { stopAnalysis } from "@/commands/engine";
-import type { AnalysisResult } from "@/commands/engine/types";
+import type { AnalysisResult, MultiPvCandidate } from "@/commands/engine/types";
 import { usePosition } from "./PositionContext";
 import {
   setupAnalysisEventListeners,
@@ -27,6 +27,8 @@ interface AnalysisState {
   bestMove: string | null;
   evaluation: number | null;
   principalVariation: string[];
+  isMultiPvEnabled: boolean;
+  multiPvCandidates: MultiPvCandidate[];
   error: string | null;
 }
 
@@ -47,6 +49,8 @@ const initialState: AnalysisState = {
   bestMove: null,
   evaluation: null,
   principalVariation: [],
+  isMultiPvEnabled: false,
+  multiPvCandidates: [],
   error: null,
 };
 
@@ -70,13 +74,38 @@ function analysisReducer(
         sessionId: null,
       };
     case "update_result": {
-      // ✅ ブロックスコープで変数宣言
       const result = action.payload as AnalysisResult;
 
       const currentDepth = result.depth || 0;
-      const bestMove = result.best_move?.move_str || result.pv?.[0] || null;
       const evaluation = result.evaluation || null;
-      const principalVariation = result.pv || [];
+
+      let bestMove: string | null = null;
+      let principalVariation: string[] = [];
+
+      if (result.is_multi_pv_enabled && result.multi_pv_candidates.length > 0) {
+        const topCandidate =
+          result.multi_pv_candidates.find((c) => c.rank === 1) ||
+          result.multi_pv_candidates[0];
+
+        bestMove = topCandidate.first_move;
+        principalVariation = topCandidate.pv_line;
+
+        console.log(
+          `[ANALYSIS] MultiPV update: ${result.multi_pv_candidates.length} candidates`,
+        );
+        result.multi_pv_candidates.forEach((candidate) => {
+          console.log(
+            ` ${candidate.rank}: ${candidate.first_move} (評価値: ${candidate.evaluation})`,
+          );
+        });
+      } else {
+        bestMove = result.best_move?.move_str || result.pv?.[0] || null;
+        principalVariation = result.pv || [];
+
+        console.log(
+          `[ANALYSIS] Single PV update: ${bestMove} (評価値: ${evaluation})`,
+        );
+      }
 
       return {
         ...state,
@@ -85,6 +114,9 @@ function analysisReducer(
         bestMove,
         evaluation,
         principalVariation,
+
+        isMultiPvEnabled: result.is_multi_pv_enabled,
+        multiPvCandidates: result.multi_pv_candidates || [],
       };
     }
     case "set_error":
@@ -113,6 +145,9 @@ interface AnalysisContextType {
   stopAnalysis: () => Promise<void>;
   clearResults: () => void;
   clearError: () => void;
+
+  getTopCandidate: () => MultiPvCandidate | null;
+  getAllCandidates: () => MultiPvCandidate[];
 }
 
 const AnalysisContext = createContext<AnalysisContextType | null>(null);
@@ -129,6 +164,8 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
   const { currentSfen, isPositionSynced, syncPosition } = usePosition();
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
+
+  const lastAnalyzedSfenRef = useRef<string | null>(null);
 
   useEffect(() => {
     const setupListeners = async () => {
@@ -169,6 +206,84 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const handlePositionChangesDuringAnalysis = async () => {
+      // 解析中でない場合は何もしない
+      if (!state.isAnalyzing) {
+        return;
+      }
+
+      // SFENがない場合は何もしない
+      if (!currentSfen) {
+        console.log(
+          "🔍 [ANALYSIS] No SFEN available, ignoring position change",
+        );
+        return;
+      }
+
+      // エンジンの準備ができていない場合は何もしない
+      if (!engineState.isReady) {
+        console.log("🔍 [ANALYSIS] Engine not ready, ignoring position change");
+        return;
+      }
+
+      // 前回と同じSFENの場合は何もしない
+      if (lastAnalyzedSfenRef.current === currentSfen) {
+        return;
+      }
+
+      try {
+        console.log(
+          "🔄 [ANALYSIS] Position changed during analysis, restarting...",
+        );
+        console.log("   Previous SFEN:", lastAnalyzedSfenRef.current);
+        console.log("   New SFEN:", currentSfen);
+
+        // 現在の解析を停止
+        if (state.sessionId) {
+          console.log("⏹️ [ANALYSIS] Stopping current analysis");
+          await stopAnalysis(state.sessionId);
+        }
+
+        // ✅ PositionContextの syncPosition を使用
+        console.log("🔄 [ANALYSIS] Syncing new position via PositionContext");
+        await syncPosition();
+
+        // 解析結果をクリア（新しい位置なので前の解析結果は無効）
+        dispatch({ type: "clear_results" });
+
+        // 新しい位置で解析を再開
+        console.log("🔍 [ANALYSIS] Starting analysis with new position");
+        const sessionId = await startAnalysisFromSfen(currentSfen);
+        dispatch({
+          type: "start_analysis",
+          payload: { sessionId, position: currentSfen },
+        });
+
+        // 最後に解析したSFENを更新
+        lastAnalyzedSfenRef.current = currentSfen;
+
+        console.log("✅ [ANALYSIS] Analysis restarted successfully");
+      } catch (error) {
+        console.error("❌ [ANALYSIS] Failed to restart analysis:", error);
+        dispatch({
+          type: "set_error",
+          payload: `Failed to restart analysis: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        dispatch({ type: "stop_analysis" });
+        lastAnalyzedSfenRef.current = null;
+      }
+    };
+
+    handlePositionChangesDuringAnalysis();
+  }, [
+    currentSfen,
+    state.isAnalyzing,
+    state.sessionId,
+    engineState.isReady,
+    syncPosition,
+  ]);
 
   // ✅ 指定SFENで解析開始
   const startInfiniteAnalysis = useCallback(async () => {
@@ -244,6 +359,20 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     dispatch({ type: "clear_error" });
   }, []);
 
+  const getTopCandidate = useCallback((): MultiPvCandidate | null => {
+    if (!state.isMultiPvEnabled || state.multiPvCandidates.length === 0) {
+      return null;
+    }
+    return (
+      state.multiPvCandidates.find((c) => c.rank === 1) ||
+      state.multiPvCandidates[0]
+    );
+  }, [state.isMultiPvEnabled, state.multiPvCandidates]);
+
+  const getAllCandidates = useCallback((): MultiPvCandidate[] => {
+    return state.multiPvCandidates;
+  }, [state.multiPvCandidates]);
+
   const value = useMemo(
     () => ({
       state,
@@ -251,8 +380,18 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       stopAnalysis: stopAnalysisFunc,
       clearResults,
       clearError,
+      getTopCandidate,
+      getAllCandidates,
     }),
-    [state, startInfiniteAnalysis, stopAnalysisFunc, clearResults, clearError],
+    [
+      state,
+      startInfiniteAnalysis,
+      stopAnalysisFunc,
+      clearResults,
+      clearError,
+      getTopCandidate,
+      getAllCandidates,
+    ],
   );
 
   return (

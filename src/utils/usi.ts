@@ -1,9 +1,10 @@
+import type { MultiPvCandidate } from "@/commands/engine/types";
 import { JKFPlayer } from "json-kifu-format";
 import type {
   IMoveMoveFormat,
   IPlaceFormat,
 } from "json-kifu-format/dist/src/Formats";
-import type { Color } from "shogi.js";
+import { Color } from "shogi.js";
 
 // JKFの座標をUSI形式に変換
 export function placeToUsi(place: IPlaceFormat): string {
@@ -151,4 +152,33 @@ export function formatMovesForDisplay(moves: string[]): string {
   }
 
   return `${moves.length}手目まで: ${moves.slice(-3).join(" ")}${moves.length > 3 ? "..." : ""}`;
+}
+
+export function convertToSenteEvaluation(
+  engineEvaluation: number,
+  currentTurn: Color | null,
+): number {
+  if (currentTurn === null) {
+    console.warn("[ANALISIS] Current turn is null, using raw evaluation");
+    return engineEvaluation;
+  }
+
+  return currentTurn === Color.Black ? engineEvaluation : -engineEvaluation;
+}
+
+export function convertMultiPvToSenteView(
+  candidates: MultiPvCandidate[],
+  currentTurn: Color | null,
+): MultiPvCandidate[] {
+  if (currentTurn === null) {
+    return candidates;
+  }
+
+  return candidates.map((candidate) => ({
+    ...candidate,
+    evaluation:
+      candidate.evaluation !== null && candidate.evaluation !== undefined
+        ? convertToSenteEvaluation(candidate.evaluation, currentTurn)
+        : null,
+  }));
 }

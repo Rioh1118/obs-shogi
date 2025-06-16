@@ -12,8 +12,6 @@ import {
   startInfiniteAnalysis,
   analyzeWithTime,
   analyzeWithDepth,
-  stopAnalysis,
-  getAnalysisResult,
   initializeYaneuraOuEngine,
   getEngineInfo,
   applyYaneuraOuRecommendedSettings,
@@ -62,69 +60,6 @@ export async function analyzePositionWithDepth(
 
   await setPositionFromMoves(moves);
   return await analyzeWithDepth(depth);
-}
-
-// ===== ポーリング機能 =====
-export async function pollAnalysisResult(
-  sessionId: string,
-  onResult: (result: AnalysisResult) => void,
-  intervalMs: number = DEFAULT_SETTINGS.POLLING_INTERVAL,
-  timeoutMs?: number,
-): Promise<() => void> {
-  let isPolling = true;
-  const startTime = Date.now();
-
-  const poll = async () => {
-    while (isPolling) {
-      try {
-        // タイムアウトチェック
-        if (timeoutMs && Date.now() - startTime > timeoutMs) {
-          console.log("Polling timeout reached");
-          break;
-        }
-
-        const result = await getAnalysisResult(sessionId);
-        if (result) {
-          onResult(result);
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-      } catch (error) {
-        console.error("Polling error:", error);
-        break;
-      }
-    }
-  };
-
-  // 非同期でポーリング開始
-  poll();
-
-  // ポーリング停止関数を返す
-  return () => {
-    isPolling = false;
-  };
-}
-
-export async function startInfiniteAnalysisWithPolling(
-  moves: string[],
-  onResult: (result: AnalysisResult) => void,
-  intervalMs: number = DEFAULT_SETTINGS.POLLING_INTERVAL,
-): Promise<{
-  sessionId: string;
-  stopPolling: () => void;
-  stopAnalysis: () => Promise<void>;
-}> {
-  const sessionId = await startAnalysisFromMoves(moves);
-  const stopPolling = await pollAnalysisResult(sessionId, onResult, intervalMs);
-
-  return {
-    sessionId,
-    stopPolling,
-    stopAnalysis: async () => {
-      stopPolling();
-      await stopAnalysis(sessionId);
-    },
-  };
 }
 
 // ===== バッチ解析機能 =====

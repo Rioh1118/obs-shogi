@@ -42,8 +42,20 @@ export interface AnalysisResult {
   nodes?: number | null;
   time_ms?: number | null;
   pv?: string[] | null;
-  candidate_moves: BestMove[];
   mate_sequence?: string[] | null;
+
+  multi_pv_candidates: MultiPvCandidate[];
+  is_multi_pv_enabled: boolean;
+}
+
+export interface MultiPvCandidate {
+  rank: number;
+  first_move: string;
+  evaluation?: number | null;
+  mate_moves?: number | null;
+  pv_line: string[];
+  depth?: number | null;
+  nodes?: number | null;
 }
 
 export interface BestMove {
@@ -51,34 +63,6 @@ export interface BestMove {
   ponder?: string;
   evaluation?: number;
   depth: number;
-}
-
-export interface Evaluation {
-  value: number;
-  kind: EvaluationKind;
-}
-
-export type EvaluationKind =
-  | "Centipawn"
-  | { MateInMoves: number }
-  | { MateUnknown: boolean };
-
-export interface PrincipalVariation {
-  line_number?: number;
-  moves: string[];
-  evaluation?: Evaluation;
-}
-
-export interface DepthInfo {
-  depth: number;
-  selective_depth?: number;
-}
-
-export interface SearchStats {
-  nodes?: number;
-  nps?: number;
-  hash_full?: number;
-  time_elapsed?: { secs: number; nanos: number };
 }
 
 export interface AnalysisStatus {
