@@ -14,10 +14,11 @@ import { useSearchParams } from "react-router";
 import { useGame } from "@/contexts/GameContext";
 import { useEngine } from "@/contexts/EngineContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
-import AnalysisControls from "@/components/Engine/AnalysisControls";
+// import AnalysisControls from "@/components/Engine/AnalysisControls";
 import Spinner from "@/components/Spinner";
 import ShogiButton from "@/components/ShogiButton";
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
+import EngineLoading from "@/components/EngineLoading";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -53,7 +54,7 @@ const AppLayout = () => {
   if (engineState.isInitializing) {
     return (
       <div className="app-layout">
-        <Spinner />
+        <EngineLoading />
       </div>
     );
   }
@@ -105,7 +106,7 @@ const AppLayout = () => {
               </GameBoard>
               <GameControls />
               <div className="app-layout__analysis-controls">
-                <AnalysisControls />
+                {/* <AnalysisControls /> */}
               </div>
             </section>
             <section className="app-layout__footer-container">
