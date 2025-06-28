@@ -1,0 +1,67 @@
+@use "@/index.scss" as index;
+
+.loading {
+  &__container {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: index.$color-primary-light;
+    color: index.$color-white;
+    font-family: "Orbitron";
+  }
+
+  &__text {
+    font-size: 7rem;
+    font-weight: bold;
+    margin: 0;
+  }
+
+  &__text--wave,
+  &__text--dots {
+    display: inline-block;
+
+    span {
+      display: inline-block;
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+  }
+
+  &__text--wave {
+    span {
+      @for $i from 1 through 14 {
+        &:nth-child(#{$i}) {
+          animation-delay: #{($i - 1) * 0.1}s;
+        }
+      }
+    }
+  }
+
+  &__text--dots {
+    span {
+      &:nth-child(1) {
+        animation-delay: 1.4s;
+      }
+
+      &:nth-child(2) {
+        animation-delay: 1.6s;
+      }
+
+      &:nth-child(3) {
+        animation-delay: 1.8s;
+      }
+    }
+  }
+}
+
+@keyframes bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-8px);
+  }
+}
