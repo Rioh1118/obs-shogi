@@ -1,5 +1,5 @@
 import "./FileIcon.scss";
-import { Folder, FolderOpen, FileText, File } from "lucide-react";
+import { Folder, FolderOpen, File } from "lucide-react";
 
 interface FileIconProps {
   type: "folder" | "document" | "kif-file";

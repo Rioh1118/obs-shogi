@@ -67,50 +67,54 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(branchReducer, initialBranchState);
   const { state: gameState } = useGame();
 
-  // 利用可能な分岐情報を更新
+  // 利用可能な分岐情報を更新（軽量版）
   const updateAvailableBranches = useCallback(() => {
-    if (!gameState.jkfPlayer) {
-      dispatch({ type: "update_available_branches", payload: [] });
-      return;
-    }
+    // パフォーマンス問題のため一時的に無効化
+    dispatch({ type: "update_available_branches", payload: [] });
+    return;
 
-    try {
-      const jkfPlayer = gameState.jkfPlayer;
-      const branches: BranchInfo[] = [];
+    // if (!gameState.jkfPlayer) {
+    //   dispatch({ type: "update_available_branches", payload: [] });
+    //   return;
+    // }
 
-      // 現在のフォーク構造を解析
-      const forks = jkfPlayer.forks;
+    // try {
+    //   const jkfPlayer = gameState.jkfPlayer;
+    //   const branches: BranchInfo[] = [];
 
-      forks.forEach((fork) => {
-        if (fork.moves.length > 1) {
-          // 分岐が存在する場合
-          fork.moves.slice(1).forEach((move, moveIndex) => {
-            if (move.move) {
-              const branchInfo: BranchInfo = {
-                id: `${fork.te}-${moveIndex}`,
-                startTesuu: fork.te,
-                forkPointers: [{ te: fork.te + 1, forkIndex: moveIndex }],
-                firstMove: move.move,
-                depth: 1,
-                length: 1, // TODO: 分岐の長さを計算
-              };
-              branches.push(branchInfo);
-            }
-          });
-        }
-      });
+    //   // 現在のフォーク構造から効率的に分岐を取得
+    //   const forks = jkfPlayer.forks;
 
-      dispatch({ type: "update_available_branches", payload: branches });
-    } catch (error) {
-      dispatch({
-        type: "set_error",
-        payload:
-          error instanceof Error
-            ? error.message
-            : "分岐情報の更新に失敗しました",
-      });
-    }
-  }, [gameState.jkfPlayer]);
+    //   forks.forEach((fork) => {
+    //     if (fork.te >= 0 && fork.moves.length > 1) {
+    //       // 分岐が存在する場合（メイン線以外の手）
+    //       fork.moves.slice(1).forEach((move, moveIndex) => {
+    //         if (move.move) {
+    //           const branchInfo: BranchInfo = {
+    //             id: `${fork.te}-${moveIndex}`,
+    //             startTesuu: fork.te,
+    //             forkPointers: [{ te: fork.te + 1, forkIndex: moveIndex }],
+    //             firstMove: move.move,
+    //             depth: 1,
+    //             length: 1,
+    //           };
+    //           branches.push(branchInfo);
+    //         }
+    //       });
+    //     }
+    //   });
+
+    //   dispatch({ type: "update_available_branches", payload: branches });
+    // } catch (error) {
+    //   dispatch({
+    //     type: "set_error",
+    //     payload:
+    //       error instanceof Error
+    //         ? error.message
+    //         : "分岐情報の更新に失敗しました",
+    //   });
+    // }
+  }, []);
 
   // 分岐に切り替え
   const switchToBranch = useCallback(
@@ -127,9 +131,14 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "set_loading", payload: true });
         dispatch({ type: "clear_error" });
 
-        // JKFPlayerのgoto機能を使用して分岐に移動
-        const currentTesuu = gameState.jkfPlayer.tesuu;
-        gameState.jkfPlayer.goto(currentTesuu, forkPointers);
+        // JKFPlayerのforkAndForward機能を使用して分岐に移動
+        if (forkPointers.length > 0) {
+          const forkPointer = forkPointers[0];
+          // 分岐の開始手数に移動
+          gameState.jkfPlayer.goto(forkPointer.te - 1);
+          // 分岐に進む
+          gameState.jkfPlayer.forkAndForward(forkPointer.forkIndex);
+        }
 
         dispatch({ type: "set_branch_path", payload: forkPointers });
       } catch (error) {
@@ -218,10 +227,12 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "clear_error" });
   }, []);
 
-  // GameContextの変更を監視して分岐情報を更新
-  useMemo(() => {
-    updateAvailableBranches();
-  }, [gameState.jkfPlayer, updateAvailableBranches]);
+  // GameContextの変更を監視して分岐情報を更新（初回のみ）
+  // useMemo(() => {
+  //   if (gameState.jkfPlayer) {
+  //     updateAvailableBranches();
+  //   }
+  // }, [gameState.jkfPlayer]);
 
   const contextValue: BranchContextType = {
     state,

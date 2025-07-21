@@ -1,0 +1,186 @@
+@use "@/index" as index;
+
+.board-preview {
+  --board-size: 300px;
+  --square-size: calc(var(--board-size) / 9);
+  --piece-size: calc(var(--square-size) * 0.8);
+  
+  width: var(--board-size);
+  height: var(--board-size);
+  position: relative;
+  user-select: none;
+  
+  &__container {
+    width: 100%;
+    height: 100%;
+    background-image: url(/src/assets/board.png);
+    background-size: cover;
+    border-radius: calc(var(--board-size) * 0.02);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+  }
+
+  &__grid {
+    position: absolute;
+    top: calc(var(--board-size) * 0.04);
+    left: calc(var(--board-size) * 0.04);
+    width: calc(var(--board-size) * 0.92);
+    height: calc(var(--board-size) * 0.92);
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    border: 1px solid #000;
+  }
+
+  &__square {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+    transition: background-color 0.15s ease;
+    
+    &:nth-child(9n) {
+      border-right: none;
+    }
+    
+    &:nth-child(n+73) {
+      border-bottom: none;
+    }
+    
+    &--interactive {
+      cursor: pointer;
+      
+      &:hover {
+        background-color: rgba(index.$color-secondary-dark, 0.1);
+      }
+    }
+    
+    &--selected {
+      background-color: rgba(index.$color-secondary-dark, 0.3) !important;
+    }
+    
+    &--last-move {
+      background-color: rgba(255, 255, 0, 0.3);
+    }
+    
+    &--legal {
+      background-color: rgba(0, 255, 0, 0.2);
+      
+      &::after {
+        content: '';
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background-color: rgba(0, 255, 0, 0.6);
+        border-radius: 50%;
+        pointer-events: none;
+      }
+    }
+  }
+
+  &__piece {
+    width: var(--piece-size);
+    height: var(--piece-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    
+    // 駒の画像サイズを調整
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  &__coordinate {
+    position: absolute;
+    font-size: calc(var(--square-size) * 0.2);
+    font-weight: 600;
+    color: rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    
+    &--vertical {
+      right: 2px;
+      bottom: 2px;
+    }
+    
+    &--horizontal {
+      left: 2px;
+      top: 2px;
+    }
+  }
+
+  // 手駒エリア
+  &__hands {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  &__hand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    
+    &--white {
+      flex-direction: row;
+    }
+    
+    &--black {
+      flex-direction: row-reverse;
+    }
+  }
+
+  &__hand-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    min-width: 3rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  &__hand-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  &__hand-piece {
+    width: calc(var(--piece-size) * 0.7);
+    height: calc(var(--piece-size) * 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    // ピースファクトリーのスタイルを調整
+    > * {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__hand-empty {
+    font-size: 0.625rem;
+    color: var(--text-tertiary);
+    font-style: italic;
+  }
+}
+
+// サイズ別の調整
+.board-preview[data-size="small"] {
+  .board-preview__coordinate {
+    font-size: 10px;
+  }
+}
+
+.board-preview[data-size="large"] {
+  .board-preview__coordinate {
+    font-size: 14px;
+  }
+}

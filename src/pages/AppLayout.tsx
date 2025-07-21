@@ -10,12 +10,13 @@ import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import "./AppLayout.scss";
 import Modal from "@/components/Modal";
 import FileCreateForm from "@/components/FileTree/FileCreateForm";
+import PositionNavigationModal from "@/components/Modal/PositionNavigationModal";
 import { useSearchParams } from "react-router";
 import { useGame } from "@/contexts/GameContext";
 import { useEngine } from "@/contexts/EngineContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
 // import AnalysisControls from "@/components/Engine/AnalysisControls";
-import Spinner from "@/components/Spinner";
+
 import ShogiButton from "@/components/ShogiButton";
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
 import EngineLoading from "@/components/EngineLoading";
@@ -92,6 +93,7 @@ const AppLayout = () => {
           <FileCreateForm toggleModal={closeModal} dirPath={targetDir || ""} />
         </Modal>
       )}
+      <PositionNavigationModal />
       <Sidebar isOpen={isSidebarOpen} />
       <main className="app-layout__main-container">
         {!state.jkfPlayer?.shogi ? (

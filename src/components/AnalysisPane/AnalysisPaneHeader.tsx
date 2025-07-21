@@ -1,12 +1,14 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { usePosition } from "@/contexts/PositionContext";
 import { useEffect, useState, useRef } from "react";
-import { Settings, Play, Square } from "lucide-react";
+import { Settings, Play, Square, Navigation } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
+import { useURLParams } from "@/hooks/useURLParams";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { currentSfen } = usePosition();
+  const { openModal } = useURLParams();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -81,6 +83,11 @@ function AnalysisPaneHeader() {
     }
   };
 
+  // 局面ナビゲーションハンドラー
+  const handlePositionNavigation = () => {
+    openModal('navigation');
+  };
+
   return (
     <header className="analysis-header">
       <div className="analysis-header__status">
@@ -98,6 +105,15 @@ function AnalysisPaneHeader() {
       </div>
 
       <div className="analysis-header__actions">
+        <button
+          className="analysis-header__button analysis-header__button--navigation"
+          onClick={handlePositionNavigation}
+          disabled={!currentSfen}
+          title="局面ナビゲーション"
+        >
+          <Navigation className="analysis-header__icon" />
+        </button>
+
         <button
           className="analysis-header__button analysis-header__button--toggle"
           onClick={handleToggleAnalysis}

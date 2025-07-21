@@ -11,7 +11,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1500;
+    z-index: 9999;
   }
   &__card {
     background-color: rgba(index.$color-secondary-light, 0.85);

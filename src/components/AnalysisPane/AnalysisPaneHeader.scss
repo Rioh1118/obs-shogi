@@ -88,6 +88,13 @@
       cursor: not-allowed;
       transform: none;
     }
+
+    &--navigation {
+      &:hover:not(:disabled) {
+        background-color: rgba(162, 123, 92, 0.2);
+        color: index.$color-secondary-dark;
+      }
+    }
   }
 
   &__icon {
