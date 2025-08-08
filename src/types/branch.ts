@@ -74,11 +74,13 @@ export interface BranchContextType {
   createNewBranch: (move: IMoveMoveFormat) => Promise<string>; // 新たなノードIDを返す
   // 現在ノードの情報を取得
   getCurrentNode: () => PositionNode | null;
+  getChildrenNodes: (nodeId: string) => PositionNode[];
   getAvailableMovesFromCurrent: () => Array<{
     nodeId: string;
     move: IMoveMoveFormat;
   }>;
   getCurrentPath: () => PositionNode[];
+  getNode: (nodeId: string) => PositionNode | null;
 
   // パス操作
   getPathToNode: (nodeId: string) => string[];
