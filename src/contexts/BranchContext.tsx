@@ -70,6 +70,13 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     [syncWithJKFPlayer],
   );
 
+  const getNode = useCallback(
+    (nodeId: string): PositionNode | null => {
+      return state.nodes.get(nodeId) || null;
+    },
+    [state.nodes],
+  );
+
   // 手数から位置へ移動
   const goToPositionAtTesuu = useCallback(
     (tesuu: number, preferMainLine: boolean = true) => {
@@ -249,6 +256,18 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     return state.nodes.get(state.currentPosition.nodeId) || null;
   }, [state.nodes, state.currentPosition.nodeId]);
 
+  const getChildrenNodes = useCallback(
+    (nodeId: string): PositionNode[] => {
+      const node = state.nodes.get(nodeId);
+      if (!node) return [];
+
+      return node.childrenIds
+        .map((id) => state.nodes.get(id))
+        .filter((n): n is PositionNode => n !== undefined);
+    },
+    [state.nodes],
+  );
+
   // 現在の位置から利用可能な手を取得
   const getAvailableMovesFromCurrent = useCallback(() => {
     return state.availableMovesFromCurrent.map(({ nodeId, move }) => ({
@@ -314,6 +333,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       selectBranch,
       createNewBranch,
       getCurrentNode,
+      getChildrenNodes,
       getAvailableMovesFromCurrent,
       getCurrentPath,
       getPathToNode,
@@ -329,6 +349,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       selectBranch,
       createNewBranch,
       getCurrentNode,
+      getChildrenNodes,
       getAvailableMovesFromCurrent,
       getCurrentPath,
       getPathToNode,

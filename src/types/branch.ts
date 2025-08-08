@@ -1,6 +1,7 @@
 // 分岐ナビゲーション関連の型定義
 
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import type { Piece } from "shogi.js";
 
 // === ノード(局面ベースの設計)===
 export interface PositionNode {
@@ -346,4 +347,15 @@ export function createPositionNode(
     tesuu,
     isMainLine,
   };
+}
+
+export interface PreviewData {
+  board: Piece[][];
+  hands: {
+    0: string[];
+    1: string[];
+  };
+  tesuu: number;
+  turn: 0 | 1;
+  nodeId: string;
 }
