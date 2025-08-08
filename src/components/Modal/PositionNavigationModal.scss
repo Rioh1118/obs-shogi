@@ -115,20 +115,20 @@
   &__branch-selector {
     flex: 1;
     overflow-y: auto;
-    
+
     &::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     &::-webkit-scrollbar-track {
       background: rgba(index.$color-primary-light, 0.2);
       border-radius: 3px;
     }
-    
+
     &::-webkit-scrollbar-thumb {
       background: rgba(index.$color-secondary-dark, 0.6);
       border-radius: 3px;
-      
+
       &:hover {
         background: rgba(index.$color-secondary-dark, 0.8);
       }
@@ -146,7 +146,7 @@
     font-size: 14px;
     color: rgba(index.$color-text-light-1, 0.8);
     font-family: "JetBrains Mono", "Roboto Mono", monospace;
-    
+
     span {
       padding: 4px 8px;
       background: rgba(index.$color-primary-light, 0.3);
@@ -184,7 +184,7 @@
     max-width: 120px;
     overflow: hidden;
     text-overflow: ellipsis;
-    
+
     &--current {
       background: index.$color-secondary-dark;
       color: index.$color-text-light-1;
@@ -215,25 +215,25 @@
     padding: 16px 20px;
     cursor: pointer;
     transition: all 0.15s ease;
-    
+
     &:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       border-color: rgba(index.$color-secondary-dark, 0.3);
     }
-    
+
     &--selected {
       background: index.$color-secondary-dark;
       color: index.$color-text-light-1;
       border-color: index.$color-secondary-dark;
       box-shadow: 0 4px 12px rgba(index.$color-secondary-dark, 0.3);
-      
+
       .branch-selector__move-number,
       .branch-selector__sequence-text,
       .branch-selector__sequence-icon {
         color: index.$color-text-light-1;
       }
-      
+
       .branch-selector__move-text {
         background: rgba(index.$color-white, 0.2);
         color: index.$color-text-light-1;
@@ -272,7 +272,11 @@
     font-size: 16px;
     font-weight: 700;
     color: index.$color-secondary-dark;
-    background: linear-gradient(135deg, rgba(index.$color-secondary-dark, 0.15), rgba(index.$color-secondary-dark, 0.08));
+    background: linear-gradient(
+      135deg,
+      rgba(index.$color-secondary-dark, 0.15),
+      rgba(index.$color-secondary-dark, 0.08)
+    );
     padding: 6px 12px;
     border-radius: 6px;
     font-family: "Noto Sans JP", sans-serif;
@@ -303,12 +307,12 @@
     padding: 32px 20px;
     text-align: center;
     color: rgba(index.$color-text-light-1, 0.6);
-    
+
     p {
       margin: 0 0 8px 0;
       font-size: 14px;
       line-height: 1.5;
-      
+
       &:last-child {
         margin-bottom: 0;
         font-size: 12px;
@@ -323,7 +327,7 @@
 @media (max-height: 800px) {
   .position-navigation-modal {
     height: 600px;
-    
+
     &__board-preview {
       height: 140px;
     }

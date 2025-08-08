@@ -3,8 +3,8 @@ import {
   useContext,
   useReducer,
   useCallback,
-  useMemo,
   type ReactNode,
+  useMemo,
 } from "react";
 import type {
   BranchContextState,
@@ -16,22 +16,23 @@ import type {
 import { initialBranchState } from "@/types/branch";
 import { useGame } from "./GameContext";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import { applyMoveWithBranch } from "@/services/game/applyMoveWithBranchAware";
 
 function branchReducer(
   state: BranchContextState,
   action: BranchAction,
 ): BranchContextState {
   switch (action.type) {
-    case "set_branch_path":
-      return {
-        ...state,
-        currentBranchPath: action.payload,
-      };
-
-    case "update_available_branches":
+    case "set_available_branches":
       return {
         ...state,
         availableBranches: action.payload,
+      };
+
+    case "set_current_branch_path":
+      return {
+        ...state,
+        currentBranchPath: action.payload,
       };
 
     case "set_loading":
@@ -69,52 +70,38 @@ export function BranchProvider({ children }: { children: ReactNode }) {
 
   // 利用可能な分岐情報を更新（軽量版）
   const updateAvailableBranches = useCallback(() => {
-    // パフォーマンス問題のため一時的に無効化
-    dispatch({ type: "update_available_branches", payload: [] });
-    return;
+    if (!gameState.jkfPlayer) {
+      dispatch({ type: "set_available_branches", payload: [] });
+      return;
+    }
 
-    // if (!gameState.jkfPlayer) {
-    //   dispatch({ type: "update_available_branches", payload: [] });
-    //   return;
-    // }
-
-    // try {
-    //   const jkfPlayer = gameState.jkfPlayer;
-    //   const branches: BranchInfo[] = [];
-
-    //   // 現在のフォーク構造から効率的に分岐を取得
-    //   const forks = jkfPlayer.forks;
-
-    //   forks.forEach((fork) => {
-    //     if (fork.te >= 0 && fork.moves.length > 1) {
-    //       // 分岐が存在する場合（メイン線以外の手）
-    //       fork.moves.slice(1).forEach((move, moveIndex) => {
-    //         if (move.move) {
-    //           const branchInfo: BranchInfo = {
-    //             id: `${fork.te}-${moveIndex}`,
-    //             startTesuu: fork.te,
-    //             forkPointers: [{ te: fork.te + 1, forkIndex: moveIndex }],
-    //             firstMove: move.move,
-    //             depth: 1,
-    //             length: 1,
-    //           };
-    //           branches.push(branchInfo);
-    //         }
-    //       });
-    //     }
-    //   });
-
-    //   dispatch({ type: "update_available_branches", payload: branches });
-    // } catch (error) {
-    //   dispatch({
-    //     type: "set_error",
-    //     payload:
-    //       error instanceof Error
-    //         ? error.message
-    //         : "分岐情報の更新に失敗しました",
-    //   });
-    // }
-  }, []);
+    try {
+      const forks = gameState.jkfPlayer.forks;
+      const branches: BranchInfo[] = [];
+      forks.forEach((fork) => {
+        if (fork.te >= 0 && fork.moves.length > 1) {
+          fork.moves.slice(1).forEach((mv, idx) => {
+            if (mv.move) {
+              const pointer: ForkPointer = {
+                te: fork.te + 1,
+                forkIndex: idx,
+              };
+              branches.push({
+                id: `${fork.te}-${idx}`,
+                startTesuu: fork.te,
+                forkPointers: [pointer],
+                firstMove: mv.move,
+              });
+            }
+          });
+        }
+        dispatch({ type: "set_available_branches", payload: branches });
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      dispatch({ type: "set_error", payload: message });
+    }
+  }, [gameState.jkfPlayer]);
 
   // 分岐に切り替え
   const switchToBranch = useCallback(
@@ -130,24 +117,21 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       try {
         dispatch({ type: "set_loading", payload: true });
         dispatch({ type: "clear_error" });
-
         // JKFPlayerのforkAndForward機能を使用して分岐に移動
         if (forkPointers.length > 0) {
-          const forkPointer = forkPointers[0];
+          const { te, forkIndex } = forkPointers[0];
           // 分岐の開始手数に移動
-          gameState.jkfPlayer.goto(forkPointer.te - 1);
+          gameState.jkfPlayer.goto(te - 1);
           // 分岐に進む
-          gameState.jkfPlayer.forkAndForward(forkPointer.forkIndex);
+          gameState.jkfPlayer.forkAndForward(forkIndex);
         }
 
-        dispatch({ type: "set_branch_path", payload: forkPointers });
+        dispatch({ type: "set_current_branch_path", payload: forkPointers });
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         dispatch({
           type: "set_error",
-          payload:
-            error instanceof Error
-              ? error.message
-              : "分岐の切り替えに失敗しました",
+          payload: message,
         });
       } finally {
         dispatch({ type: "set_loading", payload: false });
@@ -172,23 +156,26 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "clear_error" });
 
         // JKFPlayerのinputMove機能を使用
-        const result = gameState.jkfPlayer.inputMove(move);
+        // const result = gameState.jkfPlayer.inputMove(move);
+        const { createdNew } = applyMoveWithBranch(gameState.jkfPlayer, move);
+        const result = createdNew;
 
         if (result) {
           // 分岐情報を更新
           updateAvailableBranches();
-
-          // 現在の分岐パスを更新
-          const currentForkPointers = gameState.jkfPlayer.getForkPointers();
-          dispatch({ type: "set_branch_path", payload: currentForkPointers });
+          const newPath = gameState.jkfPlayer.getForkPointers();
+          dispatch({
+            type: "set_current_branch_path",
+            payload: newPath,
+          });
         }
 
         return result;
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         dispatch({
           type: "set_error",
-          payload:
-            error instanceof Error ? error.message : "分岐の作成に失敗しました",
+          payload: message,
         });
         return false;
       } finally {
@@ -199,18 +186,16 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   );
 
   // 現在の分岐パスを取得
-  const getCurrentBranchPath = useCallback((): ForkPointer[] => {
-    if (!gameState.jkfPlayer) return [];
-    return gameState.jkfPlayer.getForkPointers();
-  }, [gameState.jkfPlayer]);
+  const getCurrentBranchPath = useCallback(
+    (): ForkPointer[] =>
+      gameState.jkfPlayer ? gameState.jkfPlayer.getForkPointers() : [],
+    [gameState.jkfPlayer],
+  );
 
   // 指定手数での利用可能な分岐を取得
   const getAvailableBranchesAtTesuu = useCallback(
-    (tesuu: number): BranchInfo[] => {
-      return state.availableBranches.filter(
-        (branch) => branch.startTesuu === tesuu,
-      );
-    },
+    (tesuu: number): BranchInfo[] =>
+      state.availableBranches.filter((b) => b.startTesuu === tesuu),
     [state.availableBranches],
   );
 
@@ -227,31 +212,35 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "clear_error" });
   }, []);
 
-  // GameContextの変更を監視して分岐情報を更新（初回のみ）
-  // useMemo(() => {
-  //   if (gameState.jkfPlayer) {
-  //     updateAvailableBranches();
-  //   }
-  // }, [gameState.jkfPlayer]);
-
-  const contextValue: BranchContextType = {
-    state,
-    switchToBranch,
-    createBranchFromMove,
-    getCurrentBranchPath,
-    getAvailableBranchesAtTesuu,
-    hasAvailableBranches,
-    clearError,
-  };
+  const value = useMemo<BranchContextType>(
+    () => ({
+      state,
+      updateAvailableBranches,
+      switchToBranch,
+      createBranchFromMove,
+      getCurrentBranchPath,
+      getAvailableBranchesAtTesuu,
+      hasAvailableBranches,
+      clearError,
+    }),
+    [
+      state,
+      updateAvailableBranches,
+      switchToBranch,
+      createBranchFromMove,
+      getCurrentBranchPath,
+      getAvailableBranchesAtTesuu,
+      hasAvailableBranches,
+      clearError,
+    ],
+  );
 
   return (
-    <BranchContext.Provider value={contextValue}>
-      {children}
-    </BranchContext.Provider>
+    <BranchContext.Provider value={value}>{children}</BranchContext.Provider>
   );
 }
 
-export function useBranch() {
+export function useBranch(): BranchContextType {
   const context = useContext(BranchContext);
   if (!context) {
     throw new Error("useBranch must be used within a BranchProvider");

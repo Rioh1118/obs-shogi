@@ -1,90 +1,58 @@
 // 分岐ナビゲーション関連の型定義
 
-export interface BranchMove {
-  move: any; // JKF move object
-  tesuu: number;
-  description?: string;
-}
-
-export interface Branch {
-  id: string;
-  startTesuu: number;
-  length: number;
-  moves: BranchMove[];
-  firstMove: any; // JKF move object
-  forkIndex: number;
-  forkPointers: Array<{
-    forkIndex: number;
-    moveIndex: number;
-  }>;
-}
-
-export interface PreviewState {
-  tesuu: number;
-  branchIndex: number; // 0 = メイン線, 1+ = 分岐
-  branchSteps: number; // 分岐内での手数
-}
-
-export interface NavigationState {
-  currentTesuu: number;
-  selectedBranchIndex: number;
-  preview: PreviewState;
-}
-
-export interface BranchCalculationResult {
-  branches: Branch[];
-  hasMore: boolean;
-  error?: string;
-}
-
-export interface BranchNavigationResult {
-  success: boolean;
-  newState?: NavigationState;
-  error?: string;
-}
-
-export interface PreviewData {
-  board: any[][]; // Piece[][]
-  hands: { [key: number]: string[] };
-  turn: any; // Color
-  tesuu: number;
-}
+import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 // BranchContext用の型定義
 export interface ForkPointer {
+  te: number;
   forkIndex: number;
-  moveIndex: number;
 }
 
 export interface BranchInfo {
   id: string;
   startTesuu: number;
   forkPointers: ForkPointer[];
-  moves: any[];
+  firstMove: IMoveMoveFormat;
 }
 
 export interface BranchContextState {
-  branches: BranchInfo[];
-  currentBranch: BranchInfo | null;
+  // 分岐候補一覧
+  availableBranches: BranchInfo[];
+  // 現在の分岐パス
+  currentBranchPath: ForkPointer[];
   isLoading: boolean;
   error: string | null;
 }
 
-export interface BranchAction {
-  type: string;
-  payload?: any;
-}
-
 export interface BranchContextType {
   state: BranchContextState;
-  dispatch: (action: BranchAction) => void;
+  // 分岐候補を再取得したい時
+  updateAvailableBranches: () => void;
+  // 分岐パスを切り替える
+  switchToBranch: (forkPointers: ForkPointer[]) => Promise<void>;
+  // 新しい手から分岐を作成
+  createBranchFromMove: (move: IMoveMoveFormat) => Promise<boolean>;
+  // 現在の分岐パスを取得
+  getCurrentBranchPath: () => ForkPointer[];
+  // 指定手数の分岐候補を取得
   getAvailableBranchesAtTesuu: (tesuu: number) => BranchInfo[];
-  switchToBranch: (branchId: string) => boolean;
+  // 指定手数で分岐があるか
+  hasAvailableBranches: (tesuu: number) => boolean;
+  // エラークリア
+  clearError: () => void;
 }
 
+export type BranchAction =
+  | { type: "set_available_branches"; payload: BranchInfo[] }
+  | { type: "set_current_branch_path"; payload: ForkPointer[] }
+  | { type: "set_loading"; payload: boolean }
+  | { type: "set_error"; payload: string }
+  | { type: "clear_error" }
+  | { type: "reset_state" };
+
 export const initialBranchState: BranchContextState = {
-  branches: [],
-  currentBranch: null,
+  availableBranches: [],
+  currentBranchPath: [],
   isLoading: false,
   error: null,
 };

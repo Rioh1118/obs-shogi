@@ -60,15 +60,14 @@ impl UsiProtocol {
         self.listeners.write().await.remove(name);
     }
 
-    /// リスニング開始（内部用）- 高頻度呼び出し対応
+    /// リスニング開始(内部用)
     async fn start_listening(&self) -> Result<(), EngineError> {
         let listeners = Arc::clone(&self.listeners);
         let runtime_handler = self.runtime_handle.clone();
 
         let mut handler_guard = self.handler.lock().await;
         let result = handler_guard.listen(move |output| -> Result<(), UsiError> {
-            // 高頻度呼び出し対応：最小限の処理でクロージャーを抜ける
-            // ❗ ポイント：クロージャー内でクローンしてからtokio::spawnに渡す
+            //  ポイント：クロージャー内でクローンしてからtokio::spawnに渡す
             if let Some(cmd) = output.response() {
                 let cmd_owned = cmd.clone(); // ここでクローン
                 let listeners = Arc::clone(&listeners);

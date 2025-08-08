@@ -23,6 +23,7 @@ import { ShogiMoveValidator } from "@/services/game/ShogiMoveValidator";
 import { fromIMove, toIMoveMoveFormat } from "@/adapter/moveConverter";
 import { useFileTree } from "./FileTreeContext";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import { applyMoveWithBranch } from "@/services/game/applyMoveWithBranchAware";
 
 function gameReducer(
   state: GameContextState,
@@ -344,7 +345,9 @@ export function GameProvider({
         const jkfMove = toIMoveMoveFormat(move);
 
         // JKFPlayerで手を追加
-        state.jkfPlayer.inputMove(jkfMove);
+        // state.jkfPlayer.inputMove(jkfMove);
+        const result = applyMoveWithBranch(state.jkfPlayer, jkfMove);
+        console.log("[applyMoveWithBranch]", result);
 
         // 状態を更新
         dispatch({ type: "update_jkf_player" });

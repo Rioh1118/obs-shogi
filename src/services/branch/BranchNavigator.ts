@@ -1,213 +1,151 @@
-import type { NavigationState, PreviewState, Branch, BranchNavigationResult } from '@/types/branch';
+// src/services/branch/BranchNavigator.ts
+import type { JKFPlayer } from "json-kifu-format";
+import type {
+  Branch,
+  NavigationState,
+  BranchNavigationResult,
+} from "@/types/branchNav";
 
 export class BranchNavigator {
-  /**
-   * 前の手に移動
-   */
-  static movePrevious(currentState: NavigationState, branches: Branch[]): BranchNavigationResult {
-    const { preview } = currentState;
+  static movePrevious(
+    state: NavigationState,
+    viewBranches: Branch[],
+  ): BranchNavigationResult {
+    const { preview, activeBranch } = state;
 
-    if (preview.branchIndex > 0) {
-      // 分岐内での移動
+    if (preview.branchIndex > 0 && activeBranch) {
       if (preview.branchSteps > 0) {
-        // 分岐内で戻る
-        return {
-          success: true,
-          newState: {
-            ...currentState,
-            preview: {
-              ...preview,
-              tesuu: preview.tesuu - 1,
-              branchSteps: preview.branchSteps - 1
-            }
-          }
-        };
-      } else {
-        // 分岐から抜ける
-        const branch = branches[preview.branchIndex - 1];
-        return {
-          success: true,
-          newState: {
-            ...currentState,
-            preview: {
-              tesuu: branch.startTesuu,
-              branchIndex: 0,
-              branchSteps: 0
-            }
-          }
-        };
-      }
-    } else {
-      // メイン線での移動
-      const newTesuu = Math.max(0, preview.tesuu - 1);
-      return {
-        success: true,
-        newState: {
-          ...currentState,
+        return ok({
+          ...state,
           preview: {
-            tesuu: newTesuu,
-            branchIndex: 0,
-            branchSteps: 0
-          }
-        }
-      };
-    }
-  }
-
-  /**
-   * 次の手に移動、または分岐に入る
-   */
-  static moveNext(
-    currentState: NavigationState, 
-    branches: Branch[], 
-    maxTesuu: number
-  ): BranchNavigationResult {
-    const { preview, selectedBranchIndex } = currentState;
-
-    if (preview.branchIndex > 0) {
-      // 分岐内での移動
-      const branch = branches[preview.branchIndex - 1];
-      const maxSteps = branch.length - 1;
-
-      if (preview.branchSteps < maxSteps) {
-        return {
-          success: true,
-          newState: {
-            ...currentState,
-            preview: {
-              ...preview,
-              tesuu: preview.tesuu + 1,
-              branchSteps: preview.branchSteps + 1
-            }
-          }
-        };
-      } else {
-        return {
-          success: false,
-          error: '分岐の終端に到達しました'
-        };
+            ...preview,
+            tesuu: preview.tesuu - 1,
+            branchSteps: preview.branchSteps - 1,
+          },
+        });
       }
-    } else if (selectedBranchIndex > 0 && branches[selectedBranchIndex - 1]) {
-      // 分岐に入る
-      const branch = branches[selectedBranchIndex - 1];
-      console.log(`🔄 分岐${selectedBranchIndex}に入る:`, {
-        branchId: branch.id,
-        startTesuu: branch.startTesuu,
-        length: branch.length,
-        firstMove: branch.firstMove
+      // 分岐から本筋へ戻る
+      return ok({
+        ...state,
+        activeBranch: null,
+        preview: {
+          tesuu: activeBranch.startTesuu,
+          branchIndex: 0,
+          branchSteps: 0,
+        },
       });
-      
-      return {
-        success: true,
-        newState: {
-          ...currentState,
-          selectedBranchIndex: 0, // 選択をリセット
-          preview: {
-            tesuu: branch.startTesuu + 1,
-            branchIndex: selectedBranchIndex,
-            branchSteps: 0
-          }
-        }
-      };
-    } else {
-      // メイン線での移動
-      const newTesuu = Math.min(maxTesuu, preview.tesuu + 1);
-      return {
-        success: true,
-        newState: {
-          ...currentState,
-          preview: {
-            tesuu: newTesuu,
-            branchIndex: 0,
-            branchSteps: 0
-          }
-        }
-      };
     }
+
+    // 本筋で戻る
+    return ok({
+      ...state,
+      preview: {
+        tesuu: Math.max(0, preview.tesuu - 1),
+        branchIndex: 0,
+        branchSteps: 0,
+      },
+    });
   }
 
-  /**
-   * 分岐選択を変更
-   */
-  static selectBranch(
-    currentState: NavigationState, 
-    direction: 'up' | 'down', 
-    branchCount: number
+  static moveNext(
+    state: NavigationState,
+    viewBranches: Branch[],
+    maxTesuu: number,
   ): BranchNavigationResult {
-    // 分岐プレビュー中は選択変更不可
-    if (currentState.preview.branchIndex > 0) {
-      return {
-        success: false,
-        error: '分岐プレビュー中は選択変更できません'
-      };
-    }
+    const { preview, selectedBranchIndex, activeBranch } = state;
 
-    const current = currentState.selectedBranchIndex;
-    let newIndex: number;
-
-    if (direction === 'down') {
-      newIndex = Math.min(branchCount, current + 1);
-    } else {
-      newIndex = Math.max(0, current - 1);
-    }
-
-    return {
-      success: true,
-      newState: {
-        ...currentState,
-        selectedBranchIndex: newIndex
+    // 分岐内：分岐手順を進める
+    if (preview.branchIndex > 0 && activeBranch) {
+      if (preview.branchSteps < activeBranch.length - 1) {
+        return ok({
+          ...state,
+          preview: {
+            ...preview,
+            tesuu: preview.tesuu + 1,
+            branchSteps: preview.branchSteps + 1,
+          },
+        });
       }
-    };
+      return fail("分岐の終端です");
+    }
+
+    // 分岐へ入る（本筋/分岐問わず）
+    if (selectedBranchIndex > 0) {
+      const br = viewBranches[selectedBranchIndex - 1];
+      if (!br) return fail("選択された分岐が見つかりません");
+      return ok({
+        ...state,
+        selectedBranchIndex: 0,
+        preview: {
+          tesuu: br.startTesuu + 1,
+          branchIndex: selectedBranchIndex,
+          branchSteps: 0,
+        },
+        activeBranch: br,
+      });
+    }
+
+    // 本筋で進む
+    return ok({
+      ...state,
+      preview: {
+        tesuu: Math.min(maxTesuu, preview.tesuu + 1),
+        branchIndex: 0,
+        branchSteps: 0,
+      },
+    });
   }
 
-  /**
-   * 局面を確定（実際のゲーム状態に反映）
-   */
+  static selectBranch(
+    state: NavigationState,
+    direction: "up" | "down",
+    count: number,
+  ): BranchNavigationResult {
+    const cur = state.selectedBranchIndex;
+    const next =
+      direction === "down" ? Math.min(count, cur + 1) : Math.max(0, cur - 1);
+    return ok({ ...state, selectedBranchIndex: next });
+  }
+
   static confirmNavigation(
-    currentState: NavigationState, 
-    branches: Branch[],
-    jkfPlayer: any
+    state: NavigationState,
+    viewBranches: Branch[],
+    jkf: JKFPlayer,
   ): BranchNavigationResult {
     try {
-      const { preview } = currentState;
+      const { preview, activeBranch } = state;
 
       if (preview.branchIndex === 0) {
-        // メイン線への移動
-        jkfPlayer.goto(preview.tesuu);
+        // 本筋
+        jkf.goto(preview.tesuu);
       } else {
-        // 分岐への移動
-        const branch = branches[preview.branchIndex - 1];
-        
-        // 分岐開始点まで移動
-        jkfPlayer.goto(branch.startTesuu);
-        
-        // 分岐の手順を進行
-        for (let step = 0; step < preview.branchSteps; step++) {
-          const moved = jkfPlayer.forward();
-          if (!moved) {
-            throw new Error(`分岐内移動失敗: step=${step + 1}`);
-          }
+        const br = activeBranch || viewBranches[preview.branchIndex - 1];
+        if (!br) throw new Error("activeBranch not found");
+
+        jkf.goto(br.startTesuu);
+        jkf.forkAndForward(br.forkPointers.forkIndex);
+
+        for (let i = 0; i < preview.branchSteps; i++) {
+          if (!jkf.forward()) break;
         }
       }
 
-      return {
-        success: true,
-        newState: {
-          currentTesuu: jkfPlayer.tesuu,
-          selectedBranchIndex: 0,
-          preview: {
-            tesuu: jkfPlayer.tesuu,
-            branchIndex: 0,
-            branchSteps: 0
-          }
-        }
-      };
-
-    } catch (error) {
-      return {
-        success: false,
-        error: String(error)
-      };
+      const t = jkf.tesuu;
+      return ok({
+        currentTesuu: t,
+        selectedBranchIndex: 0,
+        preview: { tesuu: t, branchIndex: 0, branchSteps: 0 },
+        activeBranch: null,
+      });
+    } catch (e) {
+      return fail(String(e));
     }
   }
+}
+
+function ok(newState: NavigationState): BranchNavigationResult {
+  return { success: true, newState };
+}
+function fail(error: string): BranchNavigationResult {
+  return { success: false, error };
 }
