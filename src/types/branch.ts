@@ -327,8 +327,9 @@ export function branchReducer(
   }
 }
 
-export function generateNodeId(): string {
-  return `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+function generateNodeId(): string {
+  const rand = Math.random().toString(36).slice(2, 11); // 9 chars
+  return `node_${Date.now()}_${rand}`;
 }
 
 export function createPositionNode(

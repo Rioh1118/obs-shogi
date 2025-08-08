@@ -6,61 +6,15 @@ import {
   type ReactNode,
   useMemo,
 } from "react";
-import type {
-  BranchContextState,
-  BranchAction,
-  BranchContextType,
-  BranchInfo,
-  ForkPointer,
+import type { BranchContextType, PositionNode } from "@/types/branch";
+import {
+  initialBranchState,
+  branchReducer,
+  createPositionNode,
 } from "@/types/branch";
-import { initialBranchState } from "@/types/branch";
+import { formatMove, isSameMove } from "@/utils/shogi-format";
 import { useGame } from "./GameContext";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
-import { applyMoveWithBranch } from "@/services/game/applyMoveWithBranchAware";
-
-function branchReducer(
-  state: BranchContextState,
-  action: BranchAction,
-): BranchContextState {
-  switch (action.type) {
-    case "set_available_branches":
-      return {
-        ...state,
-        availableBranches: action.payload,
-      };
-
-    case "set_current_branch_path":
-      return {
-        ...state,
-        currentBranchPath: action.payload,
-      };
-
-    case "set_loading":
-      return {
-        ...state,
-        isLoading: action.payload,
-      };
-
-    case "set_error":
-      return {
-        ...state,
-        error: action.payload,
-        isLoading: false,
-      };
-
-    case "clear_error":
-      return {
-        ...state,
-        error: null,
-      };
-
-    case "reset_state":
-      return initialBranchState;
-
-    default:
-      return state;
-  }
-}
 
 const BranchContext = createContext<BranchContextType | null>(null);
 
@@ -68,169 +22,317 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(branchReducer, initialBranchState);
   const { state: gameState } = useGame();
 
-  // 利用可能な分岐情報を更新（軽量版）
-  const updateAvailableBranches = useCallback(() => {
-    if (!gameState.jkfPlayer) {
-      dispatch({ type: "set_available_branches", payload: [] });
-      return;
-    }
+  // JKFPlayerと内部ノード構造を同期
+  const syncWithJKFPlayer = useCallback(
+    (nodeId: string) => {
+      if (!gameState.jkfPlayer || !state.nodes.has(nodeId)) return;
 
-    try {
-      const forks = gameState.jkfPlayer.forks;
-      const branches: BranchInfo[] = [];
-      forks.forEach((fork) => {
-        if (fork.te >= 0 && fork.moves.length > 1) {
-          fork.moves.slice(1).forEach((mv, idx) => {
-            if (mv.move) {
-              const pointer: ForkPointer = {
-                te: fork.te + 1,
-                forkIndex: idx,
-              };
-              branches.push({
-                id: `${fork.te}-${idx}`,
-                startTesuu: fork.te,
-                forkPointers: [pointer],
-                firstMove: mv.move,
-              });
-            }
-          });
+      const pathToNode: PositionNode[] = [];
+      let current = state.nodes.get(nodeId);
+
+      // ルートまでのパスを構築
+      while (current) {
+        pathToNode.unshift(current);
+        current = current.parentId
+          ? state.nodes.get(current.parentId)
+          : undefined;
+      }
+
+      // JKFPlayerを初期局面に戻す
+      gameState.jkfPlayer.goto(0);
+
+      // パスに沿って移動
+      pathToNode.forEach((node, index) => {
+        if (index === 0) return; // ルートをスキップ
+        const parent = state.nodes.get(node.parentId!);
+        if (!parent) return;
+
+        const childIndex = parent.childrenIds.indexOf(node.id);
+
+        if (childIndex === 0 && parent.childrenIds.length > 0) {
+          // 本線(最初の子)
+          gameState.jkfPlayer.forward();
+        } else if (childIndex > 0) {
+          // 分岐
+          gameState.jkfPlayer?.forkAndForward(childIndex - 1);
         }
-        dispatch({ type: "set_available_branches", payload: branches });
       });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      dispatch({ type: "set_error", payload: message });
-    }
-  }, [gameState.jkfPlayer]);
+    },
+    [gameState.jkfPlayer, state.nodes],
+  );
 
-  // 分岐に切り替え
-  const switchToBranch = useCallback(
-    async (forkPointers: ForkPointer[]) => {
-      if (!gameState.jkfPlayer) {
-        dispatch({
-          type: "set_error",
-          payload: "ゲームが読み込まれていません",
-        });
+  // ノードへ移動
+  const goToNode = useCallback(
+    (nodeId: string) => {
+      dispatch({ type: "move_to_node", payload: nodeId });
+      syncWithJKFPlayer(nodeId);
+    },
+    [syncWithJKFPlayer],
+  );
+
+  // 手数から位置へ移動
+  const goToPositionAtTesuu = useCallback(
+    (tesuu: number, preferMainLine: boolean = true) => {
+      if (preferMainLine) {
+        // 本線をたどって指定手数のノードを探す
+        let current = state.nodes.get(state.rootNodeId);
+
+        while (current && current.tesuu < tesuu) {
+          // 本線の子を探す
+          const mainChild = current.childrenIds
+            .map((id) => state.nodes.get(id))
+            .find((node) => node?.isMainLine);
+
+          if (!mainChild) break;
+          current = mainChild;
+        }
+
+        if (current && current.tesuu === tesuu) {
+          goToNode(current.id);
+        }
+      } else {
+        // 現在のパスで指定手数のノードを探す
+        const targetNode = state.currentPosition.pathFromRoot
+          .map((id) => state.nodes.get(id))
+          .find((node) => node?.tesuu === tesuu);
+
+        if (targetNode) {
+          goToNode(targetNode.id);
+        }
+      }
+    },
+    [
+      state.nodes,
+      state.rootNodeId,
+      state.currentPosition.pathFromRoot,
+      goToNode,
+    ],
+  );
+
+  // 次の手へ
+  const nextMove = useCallback(() => {
+    const currentNode = state.nodes.get(state.currentPosition.nodeId);
+    if (!currentNode || currentNode.childrenIds.length === 0) return;
+
+    // 最初の子(本線)へ移動
+    const nextNodeId = currentNode.childrenIds[0];
+    goToNode(nextNodeId);
+  }, [state.nodes, state.currentPosition.nodeId, goToNode]);
+
+  // 前の手へ
+  const previousMove = useCallback(() => {
+    const currentNode = state.nodes.get(state.currentPosition.nodeId);
+    if (!currentNode || !currentNode.parentId) return;
+
+    goToNode(currentNode.parentId);
+  }, [state.nodes, state.currentPosition.nodeId, goToNode]);
+
+  // 分岐を選択
+  const selectBranch = useCallback(
+    (childNodeId: string) => {
+      const childNode = state.nodes.get(childNodeId);
+      if (!childNode) return;
+
+      // 現在のノードの子であることを確認
+      const currentNode = state.nodes.get(state.currentPosition.nodeId);
+      if (!currentNode || !currentNode.childrenIds.includes(childNodeId)) {
         return;
       }
 
-      try {
-        dispatch({ type: "set_loading", payload: true });
-        dispatch({ type: "clear_error" });
-        // JKFPlayerのforkAndForward機能を使用して分岐に移動
-        if (forkPointers.length > 0) {
-          const { te, forkIndex } = forkPointers[0];
-          // 分岐の開始手数に移動
-          gameState.jkfPlayer.goto(te - 1);
-          // 分岐に進む
-          gameState.jkfPlayer.forkAndForward(forkIndex);
-        }
-
-        dispatch({ type: "set_current_branch_path", payload: forkPointers });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        dispatch({
-          type: "set_error",
-          payload: message,
-        });
-      } finally {
-        dispatch({ type: "set_loading", payload: false });
-      }
+      goToNode(childNodeId);
     },
-    [gameState.jkfPlayer],
+    [state.nodes, state.currentPosition.nodeId, goToNode],
   );
 
-  // 新しい手から分岐を作成
-  const createBranchFromMove = useCallback(
-    async (move: IMoveMoveFormat): Promise<boolean> => {
+  // 現在のノードから利用可能な手を更新
+  const updateAvailableMovesFromCurrent = useCallback(() => {
+    const currentNode = state.nodes.get(state.currentPosition.nodeId);
+    if (!currentNode) {
+      dispatch({ type: "set_available_moves", payload: [] });
+      return;
+    }
+
+    const moves = currentNode.childrenIds
+      .map((id) => state.nodes.get(id))
+      .filter((node): node is PositionNode => node !== undefined)
+      .map((node) => ({
+        nodeId: node.id,
+        move: node.move!,
+        isMainLine: node.isMainLine,
+        preview: formatMove(node.move), // TODO: formatMove 手を文字列化する関数
+      }));
+
+    dispatch({ type: "set_available_moves", payload: moves });
+  }, [state.nodes, state.currentPosition.nodeId]);
+
+  // 新しい分岐を作成
+  const createNewBranch = useCallback(
+    async (move: IMoveMoveFormat): Promise<string> => {
       if (!gameState.jkfPlayer) {
         dispatch({
           type: "set_error",
           payload: "ゲームが読み込まれていません",
         });
-        return false;
+        return "";
       }
-
       try {
         dispatch({ type: "set_loading", payload: true });
-        dispatch({ type: "clear_error" });
 
-        // JKFPlayerのinputMove機能を使用
-        // const result = gameState.jkfPlayer.inputMove(move);
-        const { createdNew } = applyMoveWithBranch(gameState.jkfPlayer, move);
-        const result = createdNew;
-
-        if (result) {
-          // 分岐情報を更新
-          updateAvailableBranches();
-          const newPath = gameState.jkfPlayer.getForkPointers();
-          dispatch({
-            type: "set_current_branch_path",
-            payload: newPath,
-          });
+        const currentNode = state.nodes.get(state.currentPosition.nodeId);
+        if (!currentNode) {
+          throw new Error("現在のノードが見つかりません");
         }
 
-        return result;
+        // 既存の手と同じかチェック
+        const existingChild = currentNode.childrenIds
+          .map((id) => state.nodes.get(id))
+          .find((node) => {
+            return node?.move && isSameMove(node.move, move);
+          });
+
+        if (existingChild) {
+          // 既存の手がある場合はそこへ移動
+          goToNode(existingChild.id);
+          return existingChild.id;
+        }
+
+        // 新しいノードを作成
+        const isMainLine = currentNode.childrenIds.length === 0;
+        const newNode = createPositionNode(
+          move,
+          currentNode.id,
+          currentNode.tesuu + 1,
+          isMainLine,
+        );
+
+        // ノードを追加
+        dispatch({ type: "add_node", payload: newNode });
+        dispatch({
+          type: "add_child_to_node",
+          payload: {
+            parentId: currentNode.id,
+            childId: newNode.id,
+          },
+        });
+
+        // JKFPlayerに手を入力
+        gameState.jkfPlayer.inputMove(move);
+
+        // 新しいノードへ移動
+        goToNode(newNode.id);
+
+        // 利用可能な手を更新
+        updateAvailableMovesFromCurrent();
+
+        return newNode.id;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        dispatch({
-          type: "set_error",
-          payload: message,
-        });
-        return false;
+        dispatch({ type: "set_error", payload: message });
+        return "";
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({
+          type: "set_loading",
+          payload: false,
+        });
       }
     },
-    [gameState.jkfPlayer, updateAvailableBranches],
+    [
+      gameState.jkfPlayer,
+      state.nodes,
+      state.currentPosition.nodeId,
+      goToNode,
+      updateAvailableMovesFromCurrent,
+    ],
   );
 
-  // 現在の分岐パスを取得
-  const getCurrentBranchPath = useCallback(
-    (): ForkPointer[] =>
-      gameState.jkfPlayer ? gameState.jkfPlayer.getForkPointers() : [],
-    [gameState.jkfPlayer],
-  );
+  const getCurrentNode = useCallback((): PositionNode | null => {
+    return state.nodes.get(state.currentPosition.nodeId) || null;
+  }, [state.nodes, state.currentPosition.nodeId]);
 
-  // 指定手数での利用可能な分岐を取得
-  const getAvailableBranchesAtTesuu = useCallback(
-    (tesuu: number): BranchInfo[] =>
-      state.availableBranches.filter((b) => b.startTesuu === tesuu),
-    [state.availableBranches],
-  );
+  // 現在の位置から利用可能な手を取得
+  const getAvailableMovesFromCurrent = useCallback(() => {
+    return state.availableMovesFromCurrent.map(({ nodeId, move }) => ({
+      nodeId,
+      move,
+    }));
+  }, [state.availableMovesFromCurrent]);
 
-  // 指定手数で分岐があるかチェック
-  const hasAvailableBranches = useCallback(
-    (tesuu: number): boolean => {
-      return getAvailableBranchesAtTesuu(tesuu).length > 0;
+  // 現在のパスを取得
+  const getCurrentPath = useCallback((): PositionNode[] => {
+    return state.currentPosition.pathFromRoot
+      .map((id) => state.nodes.get(id))
+      .filter((node): node is PositionNode => node !== undefined);
+  }, [state.currentPosition.pathFromRoot, state.nodes]);
+
+  // 指定ノードへのパスを取得
+  const getPathToNode = useCallback(
+    (nodeId: string): string[] => {
+      const path: string[] = [];
+      let current = state.nodes.get(nodeId);
+
+      while (current) {
+        path.unshift(current.id);
+        current = current.parentId
+          ? state.nodes.get(current.parentId)
+          : undefined;
+      }
+
+      return path;
     },
-    [getAvailableBranchesAtTesuu],
+    [state.nodes],
+  );
+
+  // あるノードが別のノードの祖先かチェック
+  const isAncestor = useCallback(
+    (nodeId: string, ofNodeId: string): boolean => {
+      let current = state.nodes.get(ofNodeId);
+
+      while (current) {
+        if (current.id === nodeId) return true;
+        current = current.parentId
+          ? state.nodes.get(current.parentId)
+          : undefined;
+      }
+
+      return false;
+    },
+    [state.nodes],
   );
 
   // エラーをクリア
   const clearError = useCallback(() => {
-    dispatch({ type: "clear_error" });
+    dispatch({ type: "set_error", payload: null });
   }, []);
 
   const value = useMemo<BranchContextType>(
     () => ({
       state,
-      updateAvailableBranches,
-      switchToBranch,
-      createBranchFromMove,
-      getCurrentBranchPath,
-      getAvailableBranchesAtTesuu,
-      hasAvailableBranches,
+      goToNode,
+      goToPositionAtTesuu,
+      nextMove,
+      previousMove,
+      selectBranch,
+      createNewBranch,
+      getCurrentNode,
+      getAvailableMovesFromCurrent,
+      getCurrentPath,
+      getPathToNode,
+      isAncestor,
       clearError,
     }),
     [
       state,
-      updateAvailableBranches,
-      switchToBranch,
-      createBranchFromMove,
-      getCurrentBranchPath,
-      getAvailableBranchesAtTesuu,
-      hasAvailableBranches,
+      goToNode,
+      goToPositionAtTesuu,
+      nextMove,
+      previousMove,
+      selectBranch,
+      createNewBranch,
+      getCurrentNode,
+      getAvailableMovesFromCurrent,
+      getCurrentPath,
+      getPathToNode,
+      isAncestor,
       clearError,
     ],
   );
