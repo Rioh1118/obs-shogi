@@ -1,7 +1,7 @@
 import React from "react";
 import BoardPreview from "../GameBoard/Board/BoardPreview";
 import { Color } from "shogi.js";
-import type { PreviewData } from "@/types/branchNav";
+import type { PreviewData } from "@/types";
 
 type Props = {
   previewData: PreviewData | null;

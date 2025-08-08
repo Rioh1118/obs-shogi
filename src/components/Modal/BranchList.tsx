@@ -1,20 +1,19 @@
 import React, { useRef, useEffect } from "react";
-import type { Branch, NavigationState, ForkPointer } from "@/types/branchNav";
-import { trace } from "./debug";
+import type { PositionNode } from "@/types";
+import type { NavigationState } from "./PositionNavigationModal";
+import { formatMove } from "@/utils/shogi-format";
 
 type Props = {
-  branches: Branch[];
-  selectedFork: number; // 0 = 本筋, 1~ = forks
-  activePath: ForkPointer[];
+  branches: PositionNode[];
+  selectedIndex: number;
   setNavigationState: React.Dispatch<React.SetStateAction<NavigationState>>;
 };
 
-const BranchList: React.FC<Props> = ({
+export default function BranchList({
   branches,
-  selectedFork,
-  activePath,
+  selectedIndex,
   setNavigationState,
-}) => {
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   // スクロール
@@ -24,8 +23,8 @@ const BranchList: React.FC<Props> = ({
         ".branch-selector__card",
       );
       if (!cards) return;
-      if (selectedFork < cards.length) {
-        cards[selectedFork].scrollIntoView({
+      if (selectedIndex < cards.length) {
+        cards[selectedIndex].scrollIntoView({
           behavior: "smooth",
           block: "nearest",
           inline: "nearest",
@@ -33,93 +32,83 @@ const BranchList: React.FC<Props> = ({
       }
     }, 80);
     return () => clearTimeout(id);
-  }, [selectedFork]);
+  }, [selectedIndex]);
 
-  useEffect(() => {
-    trace("BRANCH_LIST: props", {
-      selectedFork,
-      activePath,
-      branchIds: branches.map((b) => b.id),
-    });
-  }, [selectedFork, activePath, branches]);
-
-  const buildCardClass = (isMain: boolean, idx: number) => {
+  const buildCardClass = (idx: number) => {
     const base = "branch-selector__card";
     const selected =
-      selectedFork === idx ? "branch-selector__card--selected" : "";
-
-    let active = "";
-    if (isMain) {
-      if (activePath.length === 0) active = "branch-selector__card--active";
-    } else {
-      const br = branches[idx - 1];
-      if (br && isPathEqual(activePath, br.path)) {
-        active = "branch-selector__card--active";
-      }
-    }
-    return [base, selected, active].filter(Boolean).join(" ");
+      selectedIndex === idx ? "branch-selector__card--selected" : "";
+    return [base, selected].filter(Boolean).join(" ");
   };
 
+  if (branches.length === 0) {
+    return (
+      <div className="branch-selector" ref={ref}>
+        <div className="branch-selector__empty">
+          <p>この局面には次の手がありません</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 本譜と分岐を分ける
+  const mainLine = branches.find((b) => b.isMainLine) || branches[0];
+  const variations = branches.filter((b) => b.id !== mainLine.id);
+
   return (
-    <div className="branch-selector" ref={ref}>
-      {/* 本譜 */}
+    <div className="branch-selector">
+      {/* 本譜*/}
       <div
-        className={buildCardClass(true, 0)}
-        onClick={() => setNavigationState((s) => ({ ...s, selectedFork: 0 }))}
+        className={buildCardClass(0)}
+        onClick={() =>
+          setNavigationState((s) => ({ ...s, selectedBranchIndex: 0 }))
+        }
       >
         <div className="branch-selector__header">
           <span className="branch-selector__move">本譜</span>
-          <span className="branch-selector__evaluation">メイン線の手順</span>
+          <span className="branch-selector__evaluation">
+            {mainLine.move ? formatMove(mainLine.move) : "次の手"}
+          </span>
         </div>
-        <div className="branch-selector__sequence">→ 棋譜の本線を進む</div>
+        <div className="branch-selector__sequence">
+          <span className="branch-selector__sequence-icon">→</span>
+          <span className="branch-selector__sequence-text">
+            {mainLine.tesuu}手目
+          </span>
+        </div>
       </div>
-
-      {/* 分岐群 */}
-      {branches.length ? (
-        branches.map((branch, i) => {
-          const idx = i + 1;
-          return (
-            <div
-              key={branch.id}
-              className={buildCardClass(false, idx)}
-              onClick={() =>
-                setNavigationState((s) => ({ ...s, selectedFork: idx }))
-              }
-            >
-              <div className="branch-selector__header">
-                <span className="branch-selector__move">
-                  <span className="branch-selector__move-number">
-                    変化{idx}
-                  </span>
+      {/*分岐群*/}
+      {variations.map((branch, i) => {
+        const idx = i + 1;
+        return (
+          <div
+            key={branch.id}
+            className={buildCardClass(idx)}
+            onClick={() =>
+              setNavigationState((s) => ({ ...s, selectedBranchIndex: idx }))
+            }
+          >
+            <div className="branch-selector__header">
+              <span className="branch-selector__move">
+                <span className="branch-selector__move-number">変化{idx}</span>
+              </span>
+              <span className="branch-selector__evaluation">
+                <span className="branch-selector__move-text">
+                  {branch.move
+                    ? formatMove(branch.move)
+                    : `${branch.tesuu}手目`}
                 </span>
-                <span className="branch-selector__evaluation">
-                  <span className="branch-selector__move-text">
-                    {branch.description ?? String(branch.firstMove)}
-                  </span>
-                </span>
-              </div>
-              <div className="branch-selector__sequence">
-                <span className="branch-selector__sequence-icon">→</span>
-                <span className="branch-selector__sequence-text">
-                  {branch.startTesuu + 1}手目から {branch.length}手の変化
-                </span>
-              </div>
+              </span>
             </div>
-          );
-        })
-      ) : (
-        <div className="branch-selector__empty">
-          <p>この局面には分岐がありません</p>
-          <p>[j/k] キーで分岐を選択できます</p>
-        </div>
-      )}
+            <div className="branch-selector__sequence">
+              <span className="branch-selector__sequence-icon">→</span>
+              <span className="branch-selector__sequence-text">
+                {branch.tesuu}手目 {branch.comment ? `(${branch.comment})` : ""}
+              </span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
-};
-
-function isPathEqual(a: ForkPointer[], b: ForkPointer[]) {
-  if (a.length !== b.length) return false;
-  return a.every((v, i) => v.te === b[i].te && v.forkIndex === b[i].forkIndex);
 }
-
-export default BranchList;
