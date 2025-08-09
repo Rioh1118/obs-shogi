@@ -97,35 +97,35 @@ function PositionNavigationModal() {
       })),
     );
     // どこでもOK（ロード時など）
-    const kifu = gameState.jkfPlayer?.kifu;
-    console.log(kifu);
   }, [isOpen, navigationState.previewNodeId, availableBranches]);
 
+  const kifu = gameState.jkfPlayer?.kifu;
+  console.log(kifu);
   // ====================================
 
   // Navigation handlers
+  //
+
+  // 0=本譜, 1..=変化Nに対して、そのままoptions[idx]を使用
+  const options = useMemo(() => {
+    const raw = getChildrenNodes(navigationState.previewNodeId);
+    const main = raw.find((n) => n.isMainLine);
+    const vars = raw.filter((n) => !n.isMainLine);
+    return main ? [main, ...vars] : raw;
+  }, [navigationState.previewNodeId, getChildrenNodes]);
 
   const handleNext = useCallback(() => {
-    if (availableBranches.length === 0) return;
+    if (options.length === 0) return;
+    const idx = navigationState.selectedBranchIndex;
+    const target = options[idx];
+    if (!target) return;
 
-    if (navigationState.selectedBranchIndex === 0) {
-      // 本譜へ一手進む
-      setNavigationState((prev) => ({
-        ...prev,
-        previewNodeId: availableBranches[0].id,
-        selectedBranchIndex: 0,
-      }));
-    } else {
-      const branch = availableBranches[navigationState.selectedBranchIndex - 1];
-      if (branch) {
-        setNavigationState((prev) => ({
-          ...prev,
-          previewNodeId: branch.id,
-          selectedBranchIndex: 0,
-        }));
-      }
-    }
-  }, [navigationState.selectedBranchIndex, availableBranches]);
+    setNavigationState((prev) => ({
+      ...prev,
+      previewNodeId: target.id,
+      selectedBranchIndex: 0,
+    }));
+  }, [navigationState.selectedBranchIndex, options]);
 
   const handlePrevious = useCallback(() => {
     const node = getNode(navigationState.previewNodeId);
@@ -144,11 +144,11 @@ function PositionNavigationModal() {
         ...prev,
         selectedBranchIndex: Math.max(
           0,
-          Math.min(availableBranches.length, prev.selectedBranchIndex + delta),
+          Math.min(options.length - 1, prev.selectedBranchIndex + delta),
         ),
       }));
     },
-    [availableBranches.length],
+    [options.length],
   );
 
   const handleConfirm = useCallback(() => {
@@ -225,7 +225,7 @@ function PositionNavigationModal() {
           />
 
           <BranchList
-            branches={availableBranches}
+            branches={options}
             selectedIndex={navigationState.selectedBranchIndex}
             setNavigationState={setNavigationState}
           />
