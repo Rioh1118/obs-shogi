@@ -1,9 +1,9 @@
-import type { JKFPlayer } from "json-kifu-format";
+import { JKFPlayer } from "json-kifu-format";
 import type { PositionNode, PreviewData } from "@/types/branch";
 import { Color, Piece } from "shogi.js";
 
 export class BranchPreviewService {
-  constructor(private readonly jkf: JKFPlayer) {}
+  constructor(private readonly base: JKFPlayer) {}
 
   /**
    * 指定ノードのプレビューデータを作成
@@ -13,22 +13,24 @@ export class BranchPreviewService {
     node: PositionNode,
     pathToNode: PositionNode[],
   ): PreviewData | null {
-    if (!this.jkf) return null;
+    if (!this.base) return null;
+
+    const jkf = new JKFPlayer(this.base.kifu);
 
     // 現在の状態をバックアップ
     const backup = {
-      tesuu: this.jkf.tesuu,
-      forks: this.jkf.getForkPointers(),
+      tesuu: jkf.tesuu,
+      forks: jkf.getForkPointers(),
     };
 
     try {
       // パスに沿って移動
-      this.moveAlongPath(pathToNode);
+      this.moveAlongPath(jkf, pathToNode);
 
       // プレビューデータ
-      const board = this.extractBoard();
-      const hands = this.extractHands();
-      const turn = this.jkf.shogi.turn as 0 | 1;
+      const board = this.extractBoard(jkf);
+      const hands = this.extractHands(jkf);
+      const turn = jkf.shogi.turn as 0 | 1;
 
       return {
         board,
@@ -38,15 +40,15 @@ export class BranchPreviewService {
         nodeId: node.id,
       };
     } finally {
-      this.jkf.goto(backup.tesuu, backup.forks);
+      jkf.goto(backup.tesuu, backup.forks);
     }
   }
 
   /**
    * ノードパスに沿ってJKFPlayerを移動
    */
-  private moveAlongPath(path: PositionNode[]): void {
-    this.jkf.goto(0);
+  private moveAlongPath(j: JKFPlayer, path: PositionNode[]): void {
+    j.goto(0);
 
     for (let i = 1; i < path.length; i++) {
       const node = path[i];
@@ -54,9 +56,9 @@ export class BranchPreviewService {
       const childIndex = parent.childrenIds.indexOf(node.id);
 
       if (childIndex === 0) {
-        this.jkf.forward();
+        j.forward();
       } else if (childIndex > 0) {
-        this.jkf.forkAndForward(childIndex - 1);
+        j.forkAndForward(childIndex - 1);
       }
     }
   }
@@ -64,10 +66,10 @@ export class BranchPreviewService {
   /**
    * 盤面情報を抽出 - Piece[][]型を返す
    */
-  private extractBoard(): Piece[][] {
+  private extractBoard(j: JKFPlayer): Piece[][] {
     const board: Piece[][] = Array.from({ length: 9 }, () => Array<Piece>(9));
 
-    const shogiInstance = this.jkf.shogi;
+    const shogiInstance = j.shogi;
 
     for (let x = 1; x <= 9; x++) {
       for (let y = 1; y <= 9; y++) {
@@ -84,9 +86,9 @@ export class BranchPreviewService {
   /**
    * 持ち駒情報を抽出
    */
-  private extractHands(): { 0: string[]; 1: string[] } {
+  private extractHands(j: JKFPlayer): { 0: string[]; 1: string[] } {
     const result: { 0: string[]; 1: string[] } = { 0: [], 1: [] };
-    const shogiInstance = this.jkf.shogi;
+    const shogiInstance = j.shogi;
     const hands = shogiInstance.hands;
 
     if (hands[Color.Black]) {
