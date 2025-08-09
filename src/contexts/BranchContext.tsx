@@ -5,6 +5,7 @@ import {
   useCallback,
   type ReactNode,
   useMemo,
+  useEffect,
 } from "react";
 import type { BranchContextType, PositionNode } from "@/types/branch";
 import {
@@ -15,12 +16,42 @@ import {
 import { formatMove, isSameMove } from "@/utils/shogi-format";
 import { useGame } from "./GameContext";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import { buildBranchTreeFromJKF } from "@/utils/buildBranchTreeFromJKF";
+import { findNodeIdForCurrentJKF } from "@/utils/findCurrentNodeId";
+import { logTreeSnapshot } from "@/utils/debugTree";
 
 const BranchContext = createContext<BranchContextType | null>(null);
+
+function kifuShapeSignature(kifu: any): string {
+  const walk = (line: any[], pos: number, acc: string[]) => {
+    const next = line[pos + 1];
+    const forks = (next?.forks ?? []).map((fk: any) =>
+      Array.isArray(fk) ? fk.length : (fk?.moves ?? []).length,
+    );
+    acc.push(`p${pos}->n${next ? 1 : 0}/f${forks.length}(${forks.join(",")})`);
+
+    // 本譜を深掘り
+    if (next) walk(line, pos + 1, acc);
+
+    // 分岐を深掘り
+    for (const fk of next?.forks ?? []) {
+      const moves = Array.isArray(fk) ? fk : (fk?.moves ?? []);
+      if (moves.length) walk(moves, 0, acc);
+    }
+  };
+  const acc: string[] = [];
+  walk(kifu.moves ?? [], 0, acc);
+  return acc.join("|");
+}
 
 export function BranchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(branchReducer, initialBranchState);
   const { state: gameState } = useGame();
+
+  const shape = useMemo(() => {
+    const k = gameState.jkfPlayer?.kifu;
+    return k ? kifuShapeSignature(k) : "";
+  }, [gameState.jkfPlayer?.kifu]);
 
   // JKFPlayerと内部ノード構造を同期
   const syncWithJKFPlayer = useCallback(
@@ -166,7 +197,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         nodeId: node.id,
         move: node.move!,
         isMainLine: node.isMainLine,
-        preview: formatMove(node.move), // TODO: formatMove 手を文字列化する関数
+        preview: formatMove(node.move),
       }));
 
     dispatch({ type: "set_available_moves", payload: moves });
@@ -322,6 +353,54 @@ export function BranchProvider({ children }: { children: ReactNode }) {
   const clearError = useCallback(() => {
     dispatch({ type: "set_error", payload: null });
   }, []);
+
+  useEffect(() => {
+    const jkf = gameState.jkfPlayer;
+    if (!jkf) {
+      dispatch({ type: "reset_to_initial" });
+      return;
+    }
+
+    const { nodes, rootNodeId } = buildBranchTreeFromJKF(jkf.kifu);
+    const currentNodeId = findNodeIdForCurrentJKF(nodes, rootNodeId, jkf);
+
+    // LOG:
+    // ====================================
+    logTreeSnapshot(nodes, rootNodeId, { maxDepth: 2 });
+    const path: string[] = [];
+    let cur = nodes.get(currentNodeId);
+    while (cur) {
+      path.unshift(cur.id);
+      cur = cur.parentId ? nodes.get(cur.parentId) : undefined;
+    }
+    console.log("[BranchTree] currentNodeId:", currentNodeId, "path:", path);
+    // ====================================
+
+    dispatch({
+      type: "load_tree",
+      payload: { nodes, rootNodeId, currentNodeId },
+    });
+  }, [gameState.jkfPlayer, shape]);
+
+  useEffect(() => {
+    const current = state.nodes.get(state.currentPosition.nodeId);
+    if (!current) {
+      dispatch({ type: "set_available_moves", payload: [] });
+      return;
+    }
+
+    const moves = current.childrenIds
+      .map((id) => state.nodes.get(id))
+      .filter((n): n is PositionNode => !!n)
+      .map((n) => ({
+        nodeId: n.id,
+        move: n.move!, // ここは move がある前提なら !
+        isMainLine: n.isMainLine,
+        preview: formatMove(n.move!), // import { formatMove } ...
+      }));
+
+    dispatch({ type: "set_available_moves", payload: moves });
+  }, [state.currentPosition.nodeId, state.nodes]);
 
   const value = useMemo<BranchContextType>(
     () => ({
