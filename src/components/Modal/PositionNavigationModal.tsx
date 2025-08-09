@@ -28,7 +28,7 @@ function PositionNavigationModal() {
   // BranchPreviewServiceの初期化
   const previewService = useMemo(() => {
     if (!gameState.jkfPlayer) return null;
-    return new BranchPreviewService(gameState.jkfPlayer);
+    return new BranchPreviewService(new JKFPlayer(gameState.jkfPlayer.kifu));
   }, [gameState.jkfPlayer]);
 
   // ------ Navigation state ------
@@ -80,23 +80,48 @@ function PositionNavigationModal() {
   // Get available branches
   const availableBranches = getChildrenNodes(navigationState.previewNodeId);
 
-  // Navigation handlers
-  const handleNext = useCallback(() => {
-    if (navigationState.selectedBranchIndex > 0) {
-      // Enter selectedBranch
-      const branch = availableBranches[navigationState.selectedBranchIndex - 1];
+  // log
+  // ====================================
+  useEffect(() => {
+    if (!isOpen) return;
+    console.log(
+      "[Nav] previewNodeId=",
+      navigationState.previewNodeId,
+      "children=",
+      availableBranches.map((b, i) => ({
+        i,
+        id: b.id,
+        isMainLine: b.isMainLine,
+        tesuu: b.tesuu,
+        move: b.move,
+      })),
+    );
+    // どこでもOK（ロード時など）
+    const kifu = gameState.jkfPlayer?.kifu;
+    console.log(kifu);
+  }, [isOpen, navigationState.previewNodeId, availableBranches]);
 
+  // ====================================
+
+  // Navigation handlers
+
+  const handleNext = useCallback(() => {
+    if (availableBranches.length === 0) return;
+
+    if (navigationState.selectedBranchIndex === 0) {
+      // 本譜へ一手進む
+      setNavigationState((prev) => ({
+        ...prev,
+        previewNodeId: availableBranches[0].id,
+        selectedBranchIndex: 0,
+      }));
+    } else {
+      const branch = availableBranches[navigationState.selectedBranchIndex - 1];
       if (branch) {
         setNavigationState((prev) => ({
           ...prev,
           previewNodeId: branch.id,
           selectedBranchIndex: 0,
-        }));
-      } else if (availableBranches.length > 0) {
-        // Move forward in main line
-        setNavigationState((prev) => ({
-          ...prev,
-          previewNodeId: availableBranches[0].id,
         }));
       }
     }
