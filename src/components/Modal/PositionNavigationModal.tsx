@@ -10,6 +10,7 @@ import "./PositionNavigationModal.scss";
 import type { PositionNode, PreviewData } from "@/types";
 import { useGame } from "@/contexts/GameContext";
 import { BranchPreviewService } from "@/services/branch/BranchPreviewService";
+import { logDetailedTreeStructure, logTreeSummary } from "@/utils/debugTree";
 
 export interface NavigationState {
   currentNodeId: string;
@@ -20,8 +21,14 @@ export interface NavigationState {
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "navigation";
-  const { goToNode, getCurrentNode, getNode, getChildrenNodes, getPathToNode } =
-    useBranch();
+  const {
+    state: branchState,
+    goToNode,
+    getCurrentNode,
+    getNode,
+    getChildrenNodes,
+    getPathToNode,
+  } = useBranch();
 
   const { state: gameState } = useGame();
 
@@ -98,7 +105,45 @@ function PositionNavigationModal() {
     );
     // どこでもOK（ロード時など）
   }, [isOpen, navigationState.previewNodeId, availableBranches]);
+  const logCurrentTreeState = useCallback(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.group("📋 PositionNavigationModal - ツリー状態");
 
+      // 簡潔サマリー
+      logTreeSummary(
+        branchState.nodes,
+        branchState.rootNodeId,
+        branchState.currentPosition.nodeId,
+      );
+
+      // 詳細ツリー構造（深度3まで）
+      logDetailedTreeStructure(
+        branchState.nodes,
+        branchState.rootNodeId,
+        branchState.currentPosition.nodeId,
+        {
+          maxDepth: 5,
+          showMoveDetails: true,
+          showFullNodeIds: false,
+        },
+      );
+
+      // 現在の利用可能な手
+      console.log("🎯 現在位置の利用可能な手:");
+      branchState.availableMovesFromCurrent.forEach((move, index) => {
+        console.log(
+          `  ${index}: ${move.preview} [${move.nodeId.slice(-6)}] ${move.isMainLine ? "🏠" : "🌿"}`,
+        );
+      });
+
+      console.groupEnd();
+    }
+  }, [branchState]);
+
+  // モーダルが開いた時とツリーが更新された時にログ出力
+  useEffect(() => {
+    logCurrentTreeState();
+  }, [branchState.nodes.size, branchState.currentPosition.nodeId]);
   const kifu = gameState.jkfPlayer?.kifu;
   console.log(kifu);
   // ====================================
