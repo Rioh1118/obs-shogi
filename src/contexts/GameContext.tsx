@@ -350,7 +350,10 @@ export function GameProvider({
         console.log("[applyMoveWithBranch]", result);
 
         // 状態を更新
-        dispatch({ type: "update_jkf_player" });
+        dispatch({
+          type: "set_jkf_player",
+          payload: state.jkfPlayer,
+        });
         dispatch({ type: "clear_selection" });
 
         // lastMoveを更新
