@@ -82,7 +82,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
 
         if (childIndex === 0 && parent.childrenIds.length > 0) {
           // 本線(最初の子)
-          gameState.jkfPlayer.forward();
+          gameState?.jkfPlayer?.forward();
         } else if (childIndex > 0) {
           // 分岐
           gameState.jkfPlayer?.forkAndForward(childIndex - 1);
