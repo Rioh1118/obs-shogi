@@ -43,15 +43,17 @@ export function applyMoveWithBranch(
   }
 
   // 2. 次の位置のforksをチェック
-  const forks = getForksAtCurrentPosition(jkf, curTesuu + 1);
+  const nextMoveWithForks = jkf.currentStream[curTesuu + 1];
 
-  if (forks && forks.length > 0) {
+  if (nextMoveWithForks?.forks) {
     // forksの各分岐をチェック
-    for (let i = 0; i < forks.length; i++) {
-      const forkMove = forks[i];
-      if (forkMove?.move && eqMove(forkMove.move, move)) {
+    for (let i = 0; i < nextMoveWithForks.forks.length; i++) {
+      const fork = nextMoveWithForks.forks[i];
+      // 分岐の最初の手を取得
+      const forkFirstMove = fork[0];
+      if (forkFirstMove?.move && eqMove(forkFirstMove.move, move)) {
         // この分岐に切り替えて進む
-        selectForkAndForward(jkf, curTesuu, i);
+        jkf.forkAndForward(i);
         return {
           usedExisting: true,
           createdNew: false,
@@ -85,48 +87,6 @@ function getNextMove(jkf: JKFPlayer, tesuu: number): IMoveFormat | undefined {
   }
 
   return currentStream[tesuu + 1];
-}
-
-/**
- * 現在位置でのforks配列を取得
- */
-function getForksAtCurrentPosition(
-  jkf: JKFPlayer,
-  tesuu: number,
-): IMoveFormat[] | undefined {
-  // 現在のストリームから該当手数の手を取得
-  const currentMoveData = jkf.currentStream[tesuu];
-
-  if (!currentMoveData) return undefined;
-
-  // その手にforksがあれば返す
-  if (currentMoveData.forks) {
-    // forks配列の各分岐の初手を返す
-    return currentMoveData.forks.map((fork) => fork[0]).filter(Boolean);
-  }
-
-  // 本譜での分岐を探す場合
-  const mainMove = jkf.kifu.moves[tesuu];
-  if (mainMove?.forks) {
-    return mainMove.forks.map((fork) => fork[0]).filter(Boolean);
-  }
-
-  return undefined;
-}
-
-/**
- * 指定した分岐に切り替えて1手進む
- */
-function selectForkAndForward(
-  jkf: JKFPlayer,
-  tesuu: number,
-  forkIndex: number,
-): void {
-  // 該当手数に移動
-  jkf.goto(tesuu);
-
-  // forkAndForwardは1-indexxedなので調整が必要
-  jkf.forkAndForward(forkIndex + 1);
 }
 
 /**
