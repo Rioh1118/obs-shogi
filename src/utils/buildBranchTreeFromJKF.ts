@@ -77,7 +77,7 @@ export function buildBranchTreeFromJKF(kifu: JKFData) {
     tesuu: number,
     isMainLine: boolean,
     comment?: string,
-  ): stirng => {
+  ): string => {
     const parent = nodes.get(parentId)!;
 
     // 既存の同一手があれば流用
