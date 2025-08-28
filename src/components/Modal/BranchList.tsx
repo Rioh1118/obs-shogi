@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import type { PositionNode } from "@/types";
 import type { NavigationState } from "./PositionNavigationModal";
 import { formatMove } from "@/utils/shogi-format";
+import "./BranchList.scss";
 
 type Props = {
   branches: PositionNode[];
