@@ -35,6 +35,7 @@ function PositionNavigationModal() {
   // BranchPreviewServiceの初期化
   const previewService = useMemo(() => {
     if (!gameState.jkfPlayer) return null;
+    console.log(gameState.jkfPlayer.kifu);
     return new BranchPreviewService(new JKFPlayer(gameState.jkfPlayer.kifu));
   }, [gameState.jkfPlayer]);
 
@@ -45,7 +46,92 @@ function PositionNavigationModal() {
     selectedBranchIndex: 0,
   });
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
 
+    console.group("🔍 [Modal Debug] 現在位置とブランチ分析");
+
+    // 1. JKFPlayerの現在状態
+    console.log("📍 JKFPlayer 状態:", {
+      tesuu: gameState.jkfPlayer?.tesuu,
+      currentMove: gameState.jkfPlayer?.getMove(),
+      forkPointers: gameState.jkfPlayer?.getForkPointers?.(),
+      maxTesuu: gameState.jkfPlayer?.getMaxTesuu(),
+    });
+
+    // 2. BranchContextの状態
+    console.log("🌳 BranchContext 状態:", {
+      currentNodeId: branchState.currentNodeId,
+      availableMovesCount: branchState.availableMovesFromCurrent.length,
+      availableMoves: branchState.availableMovesFromCurrent.map((move) => ({
+        preview: move.preview,
+        isMainLine: move.isMainLine,
+        nodeId: move.nodeId.slice(-6),
+      })),
+    });
+
+    // 3. 現在ノードの詳細
+    const currentNode = getCurrentNode();
+    console.log(
+      "📌 現在ノード詳細:",
+      currentNode
+        ? {
+            id: currentNode.id.slice(-6),
+            tesuu: currentNode.tesuu,
+            move: currentNode.move,
+            isMainLine: currentNode.isMainLine,
+            childrenCount: currentNode.childrenIds.length,
+            childrenIds: currentNode.childrenIds.map((id) => id.slice(-6)),
+          }
+        : null,
+    );
+
+    // 4. 子ノードの詳細
+    const children = currentNode ? getChildrenNodes(currentNode.id) : [];
+    console.log(
+      "👶 子ノード一覧:",
+      children.map((child) => ({
+        id: child.id.slice(-6),
+        tesuu: child.tesuu,
+        move: child.move,
+        isMainLine: child.isMainLine,
+      })),
+    );
+
+    // 5. JKFの該当箇所確認
+    const jkfMove =
+      gameState.jkfPlayer?.kifu?.moves?.[gameState.jkfPlayer.tesuu + 1];
+    console.log("📋 JKF 次の手データ:", {
+      currentTesuu: gameState.jkfPlayer?.tesuu,
+      nextMoveData: jkfMove,
+      nextMove: jkfMove?.move,
+      nextForks: jkfMove?.forks?.map((fork, i) => ({
+        index: i,
+        firstMove: Array.isArray(fork) ? fork[0]?.move : fork?.moves?.[0]?.move,
+        length: Array.isArray(fork) ? fork.length : fork?.moves?.length,
+      })),
+    });
+
+    // 6. 97→96の手が含まれているかチェック
+    const target96Move = jkfMove?.forks?.find((fork) => {
+      const firstMove = Array.isArray(fork)
+        ? fork[0]?.move
+        : fork?.moves?.[0]?.move;
+      return (
+        firstMove?.from?.x === 9 &&
+        firstMove?.from?.y === 7 &&
+        firstMove?.to?.x === 9 &&
+        firstMove?.to?.y === 6
+      );
+    });
+
+    console.log("🎯 97→96手の存在確認:", {
+      found: !!target96Move,
+      moveData: target96Move,
+    });
+
+    console.groupEnd();
+  }, [isOpen, branchState.currentNodeId, gameState.jkfPlayer?.tesuu]);
   // previewDataの生成
   useEffect(() => {
     if (!previewService) {

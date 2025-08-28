@@ -9,10 +9,24 @@ type JKFMoveNode = {
 };
 
 function normalizeForkMoves(next?: JKFMoveNode): JKFMoveNode[][] {
-  const fks = next?.forks ?? [];
-  return fks
-    .map((fk: any) => (Array.isArray(fk) ? fk : (fk?.moves ?? [])))
-    .filter((arr: any) => Array.isArray(arr) && arr.length > 0);
+  if (!next?.forks) return [];
+
+  return next.forks
+    .map((fork) => {
+      if (Array.isArray(fork)) {
+        return fork;
+      }
+      if (
+        fork &&
+        typeof fork === "object" &&
+        "moves" in fork &&
+        Array.isArray(fork.moves)
+      ) {
+        return fork.moves;
+      }
+      return [];
+    })
+    .filter((arr) => Array.isArray(arr) && arr.length > 0);
 }
 
 export function buildBranchTreeFromJKF(kifu: JKFData) {

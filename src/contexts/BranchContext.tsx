@@ -74,7 +74,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       pathFromRoot,
       availableMovesFromCurrent,
     };
-  }, [gameState.jkfPlayer]);
+  }, [gameState?.jkfPlayer?.kifu, gameState?.jkfPlayer]);
 
   // JKFPlayerと内部ノード構造を同期
   const syncWithJKFPlayerToNode = useCallback(
