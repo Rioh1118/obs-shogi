@@ -17,7 +17,7 @@ const BranchContext = createContext<BranchContextType | null>(null);
 export function BranchProvider({ children }: { children: ReactNode }) {
   const { state: gameState } = useGame();
 
-  const branchData = useMemo(() => {
+  const calculateBranchData = () => {
     if (!gameState.jkfPlayer) {
       return {
         nodes: new Map<string, PositionNode>(),
@@ -77,8 +77,9 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       pathFromRoot,
       availableMovesFromCurrent,
     };
-  }, [gameState?.jkfPlayer?.kifu, gameState?.jkfPlayer]);
+  };
 
+  const branchData = calculateBranchData();
   // JKFPlayerと内部ノード構造を同期
   const syncWithJKFPlayerToNode = useCallback(
     (nodeId: string) => {
