@@ -4,29 +4,12 @@ import { isSameMove } from "./shogi-format";
 
 type JKFMoveNode = {
   move?: IMoveMoveFormat;
-  forks?: Array<{ moves: JKFMoveNode[] }>;
+  forks?: JKFMoveNode[][];
   comments?: string[];
 };
 
 function normalizeForkMoves(next?: JKFMoveNode): JKFMoveNode[][] {
-  if (!next?.forks) return [];
-
-  return next.forks
-    .map((fork) => {
-      if (Array.isArray(fork)) {
-        return fork;
-      }
-      if (
-        fork &&
-        typeof fork === "object" &&
-        "moves" in fork &&
-        Array.isArray(fork.moves)
-      ) {
-        return fork.moves;
-      }
-      return [];
-    })
-    .filter((arr) => Array.isArray(arr) && arr.length > 0);
+  return next?.forks ?? [];
 }
 
 export function buildBranchTreeFromJKF(kifu: JKFData) {
@@ -44,6 +27,7 @@ export function buildBranchTreeFromJKF(kifu: JKFData) {
     comment: "初期局面",
   });
 
+  // 子ノードを追加
   const appendChildId = (
     parent: PositionNode,
     childId: string,
@@ -70,6 +54,7 @@ export function buildBranchTreeFromJKF(kifu: JKFData) {
     }
   };
 
+  // あるmoveの子ノードが存在するか
   const findExistingChild = (
     parentId: string,
     mv: IMoveMoveFormat,
@@ -119,7 +104,7 @@ export function buildBranchTreeFromJKF(kifu: JKFData) {
     return node.id;
   };
 
-  const line = (kifu.moves as unknown as JKFMoveNode[]) ?? [];
+  const line = (kifu.moves as JKFMoveNode[]) ?? [];
 
   const expand = (
     line: JKFMoveNode[],
@@ -146,11 +131,6 @@ export function buildBranchTreeFromJKF(kifu: JKFData) {
     for (const forkLine of forkLines) {
       const first = forkLine[0];
       if (!first?.move) continue;
-
-      // 本譜と同一手ならスキップ
-      if (next.move && isSameMove(next.move, first.move)) {
-        continue;
-      }
 
       const cmt =
         Array.isArray(first.comments) && first.comments.length > 0

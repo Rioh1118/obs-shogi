@@ -34,9 +34,11 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     }
 
     // ツリー構築
+    console.log(gameState.jkfPlayer.kifu);
     const { nodes, rootNodeId } = buildBranchTreeFromJKF(
       gameState.jkfPlayer.kifu,
     );
+    console.log(nodes);
 
     // 現在位置計算
     const currentNodeId = findNodeIdForCurrentJKF(
@@ -44,6 +46,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       rootNodeId,
       gameState.jkfPlayer,
     );
+    console.log(currentNodeId);
 
     // パス計算
     const pathFromRoot: string[] = [];
