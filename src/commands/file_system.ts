@@ -43,3 +43,34 @@ export async function saveKifuFile(
     content,
   });
 }
+
+// mv / rename
+
+export async function renameKifuFile(
+  filePath: string,
+  newFileName: string,
+): Promise<string> {
+  return await invoke("rename_kifu_file", { filePath, newFileName });
+}
+
+export async function mvKifuFile(
+  filePath: string,
+  destDir: string,
+  newFileName?: string,
+): Promise<string> {
+  return await invoke("mv_kifu_file", { filePath, destDir, newFileName });
+}
+
+export async function renameDirectory(
+  dirPath: string,
+  newDirName: string,
+): Promise<string> {
+  return await invoke("rename_directory", { dirPath, newDirName });
+}
+export async function mvDirectory(
+  dirPath: string,
+  destParentDir: string,
+  newDirName?: string,
+): Promise<string> {
+  return await invoke("mv_directory", { dirPath, destParentDir, newDirName });
+}
