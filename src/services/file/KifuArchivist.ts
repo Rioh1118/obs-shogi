@@ -7,7 +7,10 @@ import {
   createDirectory,
   deleteFile,
   deleteDirectory,
-  saveKifuFile,
+  renameKifuFile,
+  mvKifuFile,
+  renameDirectory,
+  mvDirectory,
 } from "@/commands/file_system";
 import { createInitialJKFData } from "@/utils/fileTreeUtils";
 
@@ -99,24 +102,62 @@ export class KifuArchivist implements FileManager {
     }
   }
 
-  async renameFile(
-    oldPath: string,
-    newPath: string,
-  ): AsyncResult<void, string> {
+  // rename / move
+
+  async renameKifuFile(
+    filePath: string,
+    newFileName: string,
+  ): AsyncResult<string, string> {
     try {
-      // ファイルのリネームのみ対応
-      // 1. 元ファイルの内容を読み込み
-      const content = await readFile(oldPath);
+      const newPath = await renameKifuFile(filePath, newFileName);
+      return { success: true, data: newPath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 
-      // 2. 新しい場所に保存
-      const parentDir = newPath.substring(0, newPath.lastIndexOf("/"));
-      const fileName = newPath.substring(newPath.lastIndexOf("/") + 1);
-      await saveKifuFile(parentDir, fileName, content);
+  async mvKifuFile(
+    filePath: string,
+    destDir: string,
+    newFileName?: string,
+  ): AsyncResult<string, string> {
+    try {
+      const newPath = await mvKifuFile(filePath, destDir, newFileName);
+      return { success: true, data: newPath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 
-      // 3. 元ファイルを削除
-      await deleteFile(oldPath);
+  async renameDirectory(
+    dirPath: string,
+    newDirName: string,
+  ): AsyncResult<string, string> {
+    try {
+      const newPath = await renameDirectory(dirPath, newDirName);
+      return { success: true, data: newPath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 
-      return { success: true, data: undefined };
+  async mvDirectory(
+    dirPath: string,
+    destParentDir: string,
+    newDirName?: string,
+  ): AsyncResult<string, string> {
+    try {
+      const newPath = await mvDirectory(dirPath, destParentDir, newDirName);
+      return { success: true, data: newPath };
     } catch (error) {
       return {
         success: false,
