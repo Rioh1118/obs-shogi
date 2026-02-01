@@ -43,7 +43,7 @@ function RootNode({ node }: { node: FileTreeNode }) {
       {!isOpen || !node.children?.length
         ? null
         : node.children?.map((child) => (
-            <TreeNode key={child.id} node={child} level={1} />
+            <TreeNode key={child.path} node={child} level={1} />
           ))}
     </>
   );

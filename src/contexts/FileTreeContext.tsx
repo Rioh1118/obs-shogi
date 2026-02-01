@@ -3,6 +3,7 @@ import {
   type FileTreeNode,
   type KifuCreationOptions,
   type KifuFormat,
+  type MenuState,
 } from "@/types";
 import {
   useCallback,
@@ -23,6 +24,7 @@ type FileTreeState = {
   kifuFormat: KifuFormat | null;
   expandedNodes: Set<string>;
   isLoading: boolean;
+  menu: MenuState;
   error: string | null;
 };
 
@@ -34,6 +36,8 @@ type FileTreeAction =
   | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
   | { type: "node_collapsed"; payload: string }
+  | { type: "menu_opened"; payload: MenuState }
+  | { type: "menu_closed" }
   | { type: "error"; payload: string };
 
 const initialState: FileTreeState = {
@@ -43,6 +47,7 @@ const initialState: FileTreeState = {
   kifuFormat: null,
   expandedNodes: new Set<string>(),
   isLoading: false,
+  menu: null,
   error: null,
 };
 
@@ -96,6 +101,15 @@ function fileTreeReducer(
       };
     }
 
+    case "menu_opened":
+      return {
+        ...state,
+        menu: action.payload,
+      };
+
+    case "menu_closed":
+      return { ...state, menu: null };
+
     case "error":
       return {
         ...state,
@@ -122,8 +136,8 @@ type FileTreeContextType = FileTreeState & {
   // ディレクトリ作成 - シンプルに
   createNewDirectory: (parentPath: string, dirname: string) => Promise<void>;
 
-  toggleNode: (nodeId: string) => void;
-  isNodeExpanded: (nodeId: string) => boolean;
+  toggleNode: (nodePath: string) => void;
+  isNodeExpanded: (nodePath: string) => boolean;
 
   deleteNode: (node: FileTreeNode) => Promise<void>;
   renameNode: (node: FileTreeNode, newName: string) => Promise<void>;
@@ -135,6 +149,9 @@ type FileTreeContextType = FileTreeState & {
   refreshTree: () => Promise<void>;
   isKifuSelected: () => boolean;
   getSelectedKifuData: () => JKFData | null;
+
+  openContextMenu: (node: FileTreeNode, x: number, y: number) => void;
+  closeContextMenu: () => void;
 };
 
 const FileTreeContext = createContext<FileTreeContextType | undefined>(
@@ -144,6 +161,17 @@ const FileTreeContext = createContext<FileTreeContextType | undefined>(
 function FileTreeProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(fileTreeReducer, initialState);
   const { config } = useAppConfig();
+
+  const openContextMenu = useCallback(
+    (node: FileTreeNode, x: number, y: number) => {
+      dispatch({ type: "menu_opened", payload: { node, x, y } });
+    },
+    [],
+  );
+
+  const closeContextMenu = useCallback(() => {
+    dispatch({ type: "menu_closed" });
+  }, []);
 
   const loadFileTree = useCallback(async () => {
     if (!config?.root_dir) return;
@@ -275,11 +303,11 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleNode = useCallback(
-    (nodeId: string) => {
-      if (state.expandedNodes.has(nodeId)) {
-        dispatch({ type: "node_collapsed", payload: nodeId });
+    (nodePath: string) => {
+      if (state.expandedNodes.has(nodePath)) {
+        dispatch({ type: "node_collapsed", payload: nodePath });
       } else {
-        dispatch({ type: "node_expanded", payload: nodeId });
+        dispatch({ type: "node_expanded", payload: nodePath });
       }
     },
     [state.expandedNodes],
@@ -290,8 +318,8 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isNodeExpanded = useCallback(
-    (nodeId: string) => {
-      return state.expandedNodes.has(nodeId);
+    (nodePath: string) => {
+      return state.expandedNodes.has(nodePath);
     },
     [state.expandedNodes],
   );
@@ -416,6 +444,8 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         refreshTree,
         isKifuSelected,
         getSelectedKifuData,
+        openContextMenu,
+        closeContextMenu,
       }}
     >
       {children}

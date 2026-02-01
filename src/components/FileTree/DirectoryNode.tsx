@@ -8,9 +8,9 @@ import { useState } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 
 function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
-  const { toggleNode, isNodeExpanded } = useFileTree();
+  const { toggleNode, isNodeExpanded, openContextMenu } = useFileTree();
   const [isHovered, setIsHovered] = useState(false);
-  const isOpen = isNodeExpanded(node.id);
+  const isOpen = isNodeExpanded(node.path);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -21,8 +21,14 @@ function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
   };
 
   function handleClick() {
-    toggleNode(node.id);
+    toggleNode(node.path);
   }
+
+  const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu(node, e.clientX, e.clientY);
+  };
 
   return (
     <>
@@ -31,6 +37,7 @@ function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
         handleClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onContextMenu={onContextMenu}
         action={
           isHovered ? (
             <TreeNodeActions
