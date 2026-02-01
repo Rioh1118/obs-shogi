@@ -24,6 +24,26 @@ export interface FileManager {
   // ディレクトリ削除
   deleteDirectory(dirPath: string): AsyncResult<void, string>;
 
-  // リネーム(移動)
-  renameFile(oldPath: string, newPath: string): AsyncResult<void, string>;
+  // rename/move
+  renameKifuFile(
+    filePath: string,
+    newFileName: string,
+  ): AsyncResult<string, string>;
+
+  mvKifuFile(
+    filePath: string,
+    destDir: string,
+    newFileName?: string,
+  ): AsyncResult<string, string>;
+
+  renameDirectory(
+    dirPath: string,
+    newDirName: string,
+  ): AsyncResult<string, string>;
+
+  mvDirectory(
+    dirPath: string,
+    destParentDir: string,
+    newDirName?: string,
+  ): AsyncResult<string, string>;
 }
