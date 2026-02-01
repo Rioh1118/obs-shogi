@@ -122,11 +122,16 @@ type FileTreeContextType = FileTreeState & {
   // ディレクトリ作成 - シンプルに
   createNewDirectory: (parentPath: string, dirname: string) => Promise<void>;
 
-  deleteSelectedFile: () => Promise<void>;
-  deleteSelectedDirectory: () => Promise<void>;
   toggleNode: (nodeId: string) => void;
   isNodeExpanded: (nodeId: string) => boolean;
-  renameSelected: (newPath: string) => Promise<void>;
+
+  deleteNode: (node: FileTreeNode) => Promise<void>;
+  renameNode: (node: FileTreeNode, newName: string) => Promise<void>;
+  moveNode: (
+    node: FileTreeNode,
+    destDir: string,
+    newName?: string,
+  ) => Promise<void>;
   refreshTree: () => Promise<void>;
   isKifuSelected: () => boolean;
   getSelectedKifuData: () => JKFData | null;
@@ -268,81 +273,6 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     },
     [loadFileTree],
   );
-  const deleteSelectedFile = useCallback(async () => {
-    if (!state.selectedNode || state.selectedNode.isDirectory) return;
-
-    try {
-      const fileManager = KifuArchivistFactory.getInstance();
-      const result = await fileManager.deleteKifuFile(state.selectedNode.path);
-
-      if (result.success) {
-        dispatch({ type: "node_selected", payload: null }); // 選択解除
-        await loadFileTree(); // ツリーを更新
-      } else {
-        dispatch({
-          type: "error",
-          payload: `ファイルの削除に失敗しました: ${result.error}`,
-        });
-      }
-    } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `ファイルの削除に失敗しました: ${err}`,
-      });
-    }
-  }, [state.selectedNode, loadFileTree]);
-
-  const deleteSelectedDirectory = useCallback(async () => {
-    if (!state.selectedNode || !state.selectedNode.isDirectory) return;
-
-    try {
-      const fileManager = KifuArchivistFactory.getInstance();
-      const result = await fileManager.deleteDirectory(state.selectedNode.path);
-
-      if (result.success) {
-        dispatch({ type: "node_selected", payload: null }); // 選択解除
-        await loadFileTree(); // ツリーを更新
-      } else {
-        dispatch({
-          type: "error",
-          payload: `ディレクトリの削除に失敗しました: ${result.error}`,
-        });
-      }
-    } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `ディレクトリの削除に失敗しました: ${err}`,
-      });
-    }
-  }, [state.selectedNode, loadFileTree]);
-  const renameSelected = useCallback(
-    async (newPath: string) => {
-      if (!state.selectedNode) return;
-
-      try {
-        const fileManager = KifuArchivistFactory.getInstance();
-        const result = await fileManager.renameFile(
-          state.selectedNode.path,
-          newPath,
-        );
-
-        if (result.success) {
-          await loadFileTree(); // ツリーを更新
-        } else {
-          dispatch({
-            type: "error",
-            payload: `リネームに失敗しました: ${result.error}`,
-          });
-        }
-      } catch (err) {
-        dispatch({
-          type: "error",
-          payload: `リネームに失敗しました: ${err}`,
-        });
-      }
-    },
-    [state.selectedNode, loadFileTree],
-  );
 
   const toggleNode = useCallback(
     (nodeId: string) => {
@@ -366,6 +296,97 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     [state.expandedNodes],
   );
 
+  const deleteNode = useCallback(
+    async (node: FileTreeNode) => {
+      try {
+        const fileManager = KifuArchivistFactory.getInstance();
+
+        const result = node.isDirectory
+          ? await fileManager.deleteDirectory(node.path)
+          : await fileManager.deleteKifuFile(node.path);
+
+        if (result.success) {
+          if (state.selectedNode?.id === node.id) {
+            dispatch({ type: "node_selected", payload: null });
+          }
+          await loadFileTree();
+        } else {
+          dispatch({
+            type: "error",
+            payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}の削除に失敗しました: ${result.error}`,
+          });
+        }
+      } catch (err) {
+        dispatch({
+          type: "error",
+          payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}の削除に失敗しました: ${err}`,
+        });
+      }
+    },
+    [loadFileTree, state.selectedNode],
+  );
+
+  const renameNode = useCallback(
+    async (node: FileTreeNode, newName: string) => {
+      try {
+        const fileManager = KifuArchivistFactory.getInstance();
+
+        const result = node.isDirectory
+          ? await fileManager.renameDirectory(node.path, newName)
+          : await fileManager.renameKifuFile(node.path, newName);
+
+        if (result.success) {
+          if (state.selectedNode?.id === node.id) {
+            dispatch({ type: "node_selected", payload: null });
+          }
+
+          await loadFileTree();
+        } else {
+          dispatch({
+            type: "error",
+            payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}のリネームに失敗しました:${result.error}`,
+          });
+        }
+      } catch (err) {
+        dispatch({
+          type: "error",
+          payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}のリネームに失敗しました: ${err}`,
+        });
+      }
+    },
+    [loadFileTree, state.selectedNode],
+  );
+
+  const moveNode = useCallback(
+    async (node: FileTreeNode, destDir: string, newName?: string) => {
+      try {
+        const fileManager = KifuArchivistFactory.getInstance();
+
+        const result = node.isDirectory
+          ? await fileManager.mvDirectory(node.path, destDir, newName)
+          : await fileManager.mvKifuFile(node.path, destDir, newName);
+
+        if (result.success) {
+          if (state.selectedNode?.id === node.id) {
+            dispatch({ type: "node_selected", payload: null });
+          }
+          await loadFileTree();
+        } else {
+          dispatch({
+            type: "error",
+            payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}の移動に失敗しました: ${result.error}`,
+          });
+        }
+      } catch (err) {
+        dispatch({
+          type: "error",
+          payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}の移動に失敗しました: ${err}`,
+        });
+      }
+    },
+    [loadFileTree, state.selectedNode],
+  );
+
   const refreshTree = useCallback(async () => {
     await loadFileTree();
   }, [loadFileTree]);
@@ -387,11 +408,11 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         loadSelectedKifu,
         createNewFile,
         createNewDirectory,
-        deleteSelectedFile,
-        deleteSelectedDirectory,
         toggleNode,
         isNodeExpanded,
-        renameSelected,
+        deleteNode,
+        renameNode,
+        moveNode,
         refreshTree,
         isKifuSelected,
         getSelectedKifuData,
