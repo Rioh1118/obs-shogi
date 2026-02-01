@@ -32,3 +32,12 @@ export type FileTreeNode = FileSystemNode & {
   displayInfo: FileTreeDisplayInfo;
   kifuInfo?: KifuFileInfo; // ファイルの場合は必須、ディレクトリの場合はundefined
 };
+
+export type MenuState = { node: FileTreeNode; x: number; y: number } | null;
+export type ContextMenuItem = {
+  id?: string;
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onClick: () => void | Promise<void>;
+};
