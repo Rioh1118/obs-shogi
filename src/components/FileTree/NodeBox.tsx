@@ -9,6 +9,7 @@ type NodeBoxProps = {
   handleClick?: () => void;
   onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
   onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
+  onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
 };
 
 function NodeBox({
@@ -19,6 +20,7 @@ function NodeBox({
   handleClick,
   onMouseEnter,
   onMouseLeave,
+  onContextMenu,
 }: NodeBoxProps) {
   return (
     <div
@@ -30,6 +32,7 @@ function NodeBox({
       onClick={handleClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onContextMenu={onContextMenu}
     >
       <div className="node-box__content">
         <div className="node-box__main">{children}</div>

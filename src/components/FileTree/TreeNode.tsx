@@ -6,9 +6,9 @@ function TreeNode({ node, level }: { node: FileTreeNode; level: number }) {
   return (
     <>
       {node.isDirectory ? (
-        <DirectoryNode node={node} level={level} />
+        <DirectoryNode key={node.path} node={node} level={level} />
       ) : (
-        <FileNode node={node} level={level} />
+        <FileNode key={node.path} node={node} level={level} />
       )}
     </>
   );

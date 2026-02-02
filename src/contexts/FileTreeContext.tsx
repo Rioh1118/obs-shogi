@@ -25,6 +25,8 @@ type FileTreeState = {
   expandedNodes: Set<string>;
   isLoading: boolean;
   menu: MenuState;
+  renamingNodeId: string | null;
+  creatingDirParentPath: string | null;
   error: string | null;
 };
 
@@ -38,6 +40,10 @@ type FileTreeAction =
   | { type: "node_collapsed"; payload: string }
   | { type: "menu_opened"; payload: MenuState }
   | { type: "menu_closed" }
+  | { type: "rename_started"; payload: string }
+  | { type: "rename_ended" }
+  | { type: "create_dir_started"; payload: string }
+  | { type: "create_dir_ended" }
   | { type: "error"; payload: string };
 
 const initialState: FileTreeState = {
@@ -48,6 +54,8 @@ const initialState: FileTreeState = {
   expandedNodes: new Set<string>(),
   isLoading: false,
   menu: null,
+  renamingNodeId: null,
+  creatingDirParentPath: null,
   error: null,
 };
 
@@ -110,6 +118,18 @@ function fileTreeReducer(
     case "menu_closed":
       return { ...state, menu: null };
 
+    case "rename_started":
+      return { ...state, renamingNodeId: action.payload };
+
+    case "rename_ended":
+      return { ...state, renamingNodeId: null };
+
+    case "create_dir_started":
+      return { ...state, creatingDirParentPath: action.payload };
+
+    case "create_dir_ended":
+      return { ...state, creatingDirParentPath: null };
+
     case "error":
       return {
         ...state,
@@ -152,6 +172,10 @@ type FileTreeContextType = FileTreeState & {
 
   openContextMenu: (node: FileTreeNode, x: number, y: number) => void;
   closeContextMenu: () => void;
+  startInlineRename: (node: FileTreeNode) => void;
+  cancelInlineRename: () => void;
+  startCreateDirectory: (parentPath: string) => void;
+  cancelCreateDirectory: () => void;
 };
 
 const FileTreeContext = createContext<FileTreeContextType | undefined>(
@@ -415,6 +439,32 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     [loadFileTree, state.selectedNode],
   );
 
+  const startInlineRename = useCallback((node: FileTreeNode) => {
+    dispatch({ type: "menu_closed" });
+    dispatch({ type: "rename_started", payload: node.id });
+  }, []);
+
+  const cancelInlineRename = useCallback(() => {
+    dispatch({ type: "rename_ended" });
+  }, []);
+
+  const startCreateDirectory = useCallback(
+    (parentPath: string) => {
+      if (!state.expandedNodes.has(parentPath)) {
+        dispatch({ type: "node_expanded", payload: parentPath });
+      }
+      dispatch({ type: "create_dir_started", payload: parentPath });
+      dispatch({ type: "menu_closed" });
+    },
+    [state.expandedNodes],
+  );
+
+  const cancelCreateDirectory = useCallback(() => {
+    dispatch({
+      type: "create_dir_ended",
+    });
+  }, []);
+
   const refreshTree = useCallback(async () => {
     await loadFileTree();
   }, [loadFileTree]);
@@ -441,11 +491,15 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         deleteNode,
         renameNode,
         moveNode,
+        startInlineRename,
+        cancelInlineRename,
         refreshTree,
         isKifuSelected,
         getSelectedKifuData,
         openContextMenu,
         closeContextMenu,
+        startCreateDirectory,
+        cancelCreateDirectory,
       }}
     >
       {children}

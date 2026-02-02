@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router";
 import { FilePlus2, FolderPlus } from "lucide-react";
 import IconButton from "../IconButton";
+import { useFileTree } from "@/contexts/FileTreeContext";
 
 interface TreeNodeActionsProps {
   nodePath: string;
@@ -14,6 +15,7 @@ const getParentPath = (path: string) => {
 
 function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
   const navigate = useNavigate();
+  const { startCreateDirectory } = useFileTree();
 
   const handleCreateFile = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -26,9 +28,7 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
   const handleCreateDirectory = (e: React.MouseEvent) => {
     e.stopPropagation();
     const targetDir = isDirectory ? nodePath : getParentPath(nodePath);
-    navigate(`?action=create-directory&dir=${targetDir}`, {
-      replace: true,
-    });
+    startCreateDirectory(targetDir);
   };
 
   return (

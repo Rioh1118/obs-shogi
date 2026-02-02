@@ -6,11 +6,27 @@ import TreeNode from "./TreeNode";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import { useState } from "react";
 import TreeNodeActions from "./TreeNodeActions";
+import InlineNameEditor from "./InlineNameEditor";
 
 function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
-  const { toggleNode, isNodeExpanded, openContextMenu } = useFileTree();
+  const {
+    toggleNode,
+    isNodeExpanded,
+    openContextMenu,
+    creatingDirParentPath,
+    cancelCreateDirectory,
+    renamingNodeId,
+    renameNode,
+    cancelInlineRename,
+    createNewDirectory,
+  } = useFileTree();
+
   const [isHovered, setIsHovered] = useState(false);
   const isOpen = isNodeExpanded(node.path);
+  const isRenaming = renamingNodeId === node.id;
+
+  const showCreateRow =
+    isOpen && creatingDirParentPath === node.path && !isRenaming;
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -21,6 +37,7 @@ function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
   };
 
   function handleClick() {
+    if (isRenaming) return;
     toggleNode(node.path);
   }
 
@@ -28,6 +45,18 @@ function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
     e.preventDefault();
     e.stopPropagation();
     openContextMenu(node, e.clientX, e.clientY);
+  };
+
+  const handleCommit = async (nextName: string) => {
+    cancelInlineRename();
+    await renameNode(node, nextName);
+  };
+
+  const handleCommitCreate = async (name: string) => {
+    const next = name.trim();
+    cancelCreateDirectory();
+    if (!next) return;
+    await createNewDirectory(node.path, next);
   };
 
   return (
@@ -49,13 +78,39 @@ function DirectoryNode({ level, node }: { level: number; node: FileTreeNode }) {
       >
         <DirectoryToggleIcon isExpanded={isOpen} />
         <FileIcon isOpen={isOpen} type={node.displayInfo.iconType} />
-        <span>{node.name}</span>
+        {isRenaming ? (
+          <InlineNameEditor
+            isEditting={isRenaming}
+            initialName={node.name}
+            selectMode="all"
+            onCancel={cancelInlineRename}
+            onCommit={handleCommit}
+          />
+        ) : (
+          <span>{node.name}</span>
+        )}
       </NodeBox>
-      {!isOpen || !node.children?.length
-        ? null
-        : node.children?.map((child) => (
-            <TreeNode key={child.id} level={level + 1} node={child} />
-          ))}
+      {!isOpen ? null : (
+        <>
+          {showCreateRow && (
+            <NodeBox level={level + 1} handleClick={() => {}}>
+              <FileIcon type="folder" />
+              <InlineNameEditor
+                isEditting={showCreateRow}
+                initialName=""
+                selectMode="all"
+                onCancel={cancelCreateDirectory}
+                onCommit={handleCommitCreate}
+              />
+            </NodeBox>
+          )}
+          {!node.children?.length
+            ? null
+            : node.children.map((child) => (
+                <TreeNode key={child.id} level={level + 1} node={child} />
+              ))}
+        </>
+      )}
     </>
   );
 }
