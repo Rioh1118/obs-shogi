@@ -6,6 +6,7 @@ import {
   useReducer,
   useMemo,
   useCallback,
+  useRef,
 } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import type {
@@ -14,6 +15,8 @@ import type {
   JKFPlayerHelpers,
   StandardMoveFormat,
   GameContextType,
+  ForkPointer,
+  TesuuPointer,
 } from "@/types";
 import type { GameMode, JKFData, Kind, ShogiMove } from "@/types";
 import { initialGameState } from "@/types";
@@ -24,6 +27,91 @@ import { fromIMove, toIMoveMoveFormat } from "@/adapter/moveConverter";
 import { useFileTree } from "./FileTreeContext";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { applyMoveWithBranch } from "@/services/game/applyMoveWithBranchAware";
+import { type KifuCursor } from "@/types";
+
+function lastMovePlayer(jkf: JKFPlayer): ShogiMove | null {
+  if (jkf.tesuu === 0) return null;
+
+  const mv = jkf.getMove();
+  if (!mv || !mv.to) return null;
+
+  return {
+    from: mv.from,
+    to: mv.to,
+    kind: mv.piece,
+    color: mv.color,
+  };
+}
+
+function computeLeafTesuu(jkf: JKFPlayer, cursor: KifuCursor | null): number {
+  const sim = new JKFPlayer(jkf.kifu);
+
+  if (cursor) {
+    sim.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+  } else {
+    sim.goto(jkf.tesuu);
+  }
+
+  const plannedMap = new Map<number, number>();
+  for (const p of cursor?.forkPointers ?? []) {
+    plannedMap.set(p.te, p.forkIndex);
+  }
+
+  let limit = 10000;
+  while (limit-- > 0) {
+    const nextTe = sim.tesuu + 1;
+
+    const forkIndex = plannedMap.get(nextTe);
+    if (forkIndex !== undefined) {
+      const ok = sim.forkAndForward(forkIndex);
+      if (ok) continue; // planned どおり分岐に入れた
+      // planned が無効なら本線へフォールバック
+    }
+
+    const ok = sim.forward();
+    if (!ok) break; // これ以上進めない = 葉
+  }
+
+  if (limit <= 0) throw new Error("leaf tesuu overflows");
+  return sim.tesuu;
+}
+
+function appliedForkPointers(
+  cursor: KifuCursor | null,
+  tesuu: number,
+): ForkPointer[] {
+  const map = new Map<number, ForkPointer>();
+  for (const p of cursor?.forkPointers ?? []) {
+    if (p.te <= tesuu) map.set(p.te, p);
+  }
+  return [...map.values()].sort((a, b) => a.te - b.te);
+}
+
+function applyCursorToPlayer(jkf: JKFPlayer, cursor: KifuCursor | null) {
+  if (!cursor) return;
+  jkf.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+}
+
+function mergeForkPointers(
+  applied: ForkPointer[],
+  prevAll: ForkPointer[] | undefined,
+  tesuu: number,
+): ForkPointer[] {
+  const future = (prevAll ?? []).filter((p) => p.te > tesuu);
+
+  const map = new Map<number, ForkPointer>();
+  for (const p of future) map.set(p.te, p);
+  for (const p of applied) map.set(p.te, p);
+
+  return [...map.values()].sort((a, b) => a.te - b.te);
+}
+
+/**
+ * JKFPlayerの変更後に必ず呼ぶ「同期処理」。
+ * - cursor/lastMove 更新
+ * - selection クリア
+ * - 再描画トリガ（set_jkf_player or update）
+ */
 
 function gameReducer(
   state: GameContextState,
@@ -70,6 +158,12 @@ function gameReducer(
       return {
         ...state,
         mode: action.payload,
+      };
+
+    case "set_cursor":
+      return {
+        ...state,
+        cursor: action.payload,
       };
 
     // ローディング・エラー
@@ -120,6 +214,7 @@ export function GameProvider({
   kifuWriter: KifuWriter;
 }) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
+  const cursorRef = useRef<KifuCursor | null>(null);
   const {
     selectedNode,
     jkfData: fileTreeJkfData,
@@ -127,27 +222,109 @@ export function GameProvider({
     isKifuSelected,
   } = useFileTree();
 
-  // 1. loadGame - JKFデータから棋譜を読み込む
-  const loadGame = useCallback(async (jkf: JKFData) => {
+  const leafTesuu = useMemo(() => {
+    if (!state.jkfPlayer) return 0;
     try {
-      dispatch({ type: "clear_error" });
-      dispatch({ type: "set_loading", payload: true });
-
-      const jkfPlayer = new JKFPlayer(jkf);
-      dispatch({ type: "set_jkf_player", payload: jkfPlayer });
-
-      // 初期状態の設定
-      dispatch({ type: "clear_selection" });
-      dispatch({ type: "set_last_move", payload: null });
-    } catch (error) {
-      dispatch({
-        type: "set_error",
-        payload: error instanceof Error ? error.message : "Failed to load game",
-      });
-    } finally {
-      dispatch({ type: "set_loading", payload: false });
+      return computeLeafTesuu(state.jkfPlayer, state.cursor);
+    } catch {
+      // フェイルセーフ（ここに落ちるのは基本レア）
+      return state.jkfPlayer.getMaxTesuu();
     }
-  }, []);
+  }, [state.jkfPlayer, state.cursor]);
+
+  const commitFromPlayer = useCallback(
+    (jkf: JKFPlayer, prevCursor: KifuCursor | null) => {
+      const tesuu = jkf.tesuu;
+      const applied = (jkf.getForkPointers?.(tesuu) ?? []) as ForkPointer[];
+
+      const forkPointers = mergeForkPointers(
+        applied,
+        prevCursor?.forkPointers,
+        tesuu,
+      );
+
+      const cursor: KifuCursor = {
+        tesuu,
+        forkPointers,
+        tesuuPointer: jkf.getTesuuPointer(tesuu) as TesuuPointer,
+      };
+
+      cursorRef.current = cursor;
+
+      const lastMove = lastMovePlayer(jkf);
+
+      dispatch({
+        type: "partial_update",
+        payload: {
+          cursor,
+          lastMove,
+          selectedPosition: null,
+          legalMoves: [],
+          jkfPlayer: jkf,
+        },
+      });
+    },
+    [dispatch],
+  );
+
+  const mutatePlayer = useCallback(
+    (fn: (jkf: JKFPlayer) => boolean | void, errorMessage: string) => {
+      const jkf = state.jkfPlayer;
+      if (!jkf) return;
+      const prevCursor = cursorRef.current;
+
+      try {
+        dispatch({ type: "clear_error" });
+
+        applyCursorToPlayer(jkf, prevCursor);
+
+        const before = jkf.getTesuuPointer();
+        const result = fn(jkf);
+
+        if (result === false) return;
+        const after = jkf.getTesuuPointer();
+        if (before === after) return;
+
+        commitFromPlayer(jkf, prevCursor);
+      } catch (e) {
+        dispatch({
+          type: "set_error",
+          payload: e instanceof Error ? e.message : errorMessage,
+        });
+      }
+    },
+    [state.jkfPlayer, commitFromPlayer],
+  );
+
+  // 1. loadGame - JKFデータから棋譜を読み込む
+  const loadGame = useCallback(
+    async (jkf: JKFData) => {
+      try {
+        dispatch({ type: "clear_error" });
+        dispatch({ type: "set_loading", payload: true });
+
+        cursorRef.current = null;
+
+        const jkfPlayer = new JKFPlayer(jkf);
+
+        // 同期
+        commitFromPlayer(jkfPlayer, null);
+      } catch (error) {
+        dispatch({
+          type: "set_error",
+          payload:
+            error instanceof Error ? error.message : "Failed to load game",
+        });
+      } finally {
+        dispatch({ type: "set_loading", payload: false });
+      }
+    },
+    [commitFromPlayer],
+  );
+
+  useEffect(() => {
+    cursorRef.current = state.cursor ?? null;
+  }, [state.cursor]);
 
   useEffect(() => {
     const syncWithFileTree = async () => {
@@ -165,219 +342,130 @@ export function GameProvider({
           });
         }
       } else {
+        cursorRef.current = null;
         // 棋譜が選択されていない場合はリセット
-        dispatch({ type: "set_jkf_player", payload: null });
-        dispatch({ type: "clear_selection" });
+        dispatch({
+          type: "partial_update",
+          payload: {
+            jkfPlayer: null,
+            cursor: null,
+            lastMove: null,
+            selectedPosition: null,
+            legalMoves: [],
+          },
+        });
       }
     };
 
     syncWithFileTree();
   }, [fileTreeJkfData, isKifuSelected, loadGame]); // fileTreeJkfDataの変更を監視
-  // 2. goToIndex - 指定した手数に移動
+  // goToIndex - 指定した手数に移動
   const goToIndex = useCallback(
     (index: number) => {
-      if (!state.jkfPlayer) return;
-
-      try {
-        // index: 0=初期局面, 1=1手目2=2手目...
-        state.jkfPlayer.goto(index);
-        dispatch({ type: "update_jkf_player" });
-        dispatch({ type: "clear_selection" });
-
-        if (index > 0) {
-          // lastMoveの更新（現在の手を取得）
-          const currentMove = state.jkfPlayer.getMove();
-          if (currentMove) {
-            const lastMove: ShogiMove = {
-              from: currentMove.from,
-              to: currentMove.to!,
-              kind: currentMove.piece,
-              color: currentMove.color,
-            };
-            dispatch({ type: "set_last_move", payload: lastMove });
-          } else {
-            dispatch({ type: "set_last_move", payload: null });
-          }
-        } else {
-          dispatch({ type: "set_last_move", payload: null });
+      mutatePlayer((jkf) => {
+        const cursor = cursorRef.current;
+        if (!cursor) {
+          jkf.goto(index);
+          return;
         }
-      } catch (error) {
-        dispatch({
-          type: "set_error",
-          payload:
-            error instanceof Error ? error.message : "Failed to go to index",
-        });
-      }
+        jkf.goto(index, appliedForkPointers(cursor, index));
+      }, "Failed to go to index");
     },
-    [state.jkfPlayer],
+    [mutatePlayer],
   );
 
-  // 3. nextMove - 次の手に進む
+  // nextMove - 次の手に進む
   const nextMove = useCallback(() => {
-    if (!state.jkfPlayer) return;
+    mutatePlayer((jkf) => {
+      const cursor = cursorRef.current;
+      const nextTe = jkf.tesuu + 1;
 
-    try {
-      const canForward = state.jkfPlayer.tesuu < state.jkfPlayer.getMaxTesuu();
-      if (canForward) {
-        state.jkfPlayer.forward();
-        dispatch({ type: "update_jkf_player" });
-        dispatch({ type: "clear_selection" });
-
-        // lastMoveの更新
-        const currentMove = state.jkfPlayer.getMove();
-        if (currentMove) {
-          const lastMove: ShogiMove = {
-            from: currentMove.from,
-            to: currentMove.to!,
-            kind: currentMove.piece,
-            color: currentMove.color,
-          };
-          dispatch({ type: "set_last_move", payload: lastMove });
-        }
+      const planned = cursor?.forkPointers?.find((p) => p.te === nextTe);
+      if (planned) {
+        const ok = jkf.forkAndForward(planned.forkIndex);
+        if (ok) return true;
       }
-    } catch (error) {
-      dispatch({
-        type: "set_error",
-        payload:
-          error instanceof Error ? error.message : "Failed to move forward",
-      });
-    }
-  }, [state.jkfPlayer]);
-  // 4. previousMove - 前の手に戻る
+      return jkf.forward();
+    }, "Failed to move forward");
+  }, [mutatePlayer]);
+
+  // previousMove - 前の手に戻る
   const previousMove = useCallback(() => {
-    if (!state.jkfPlayer) return;
+    mutatePlayer((jkf) => {
+      if (jkf.tesuu <= 0) return false;
+      return jkf.backward();
+    }, "Failed to move backward");
+  }, [mutatePlayer]);
 
-    try {
-      const canBackward = state.jkfPlayer.tesuu > 0;
-      if (canBackward) {
-        state.jkfPlayer.backward();
-        dispatch({ type: "update_jkf_player" });
-        dispatch({ type: "clear_selection" });
-
-        // 戻った後の手を取得
-        if (state.jkfPlayer.tesuu > 0) {
-          const currentMove = state.jkfPlayer.getMove();
-          if (currentMove) {
-            const lastMove: ShogiMove = {
-              from: currentMove.from,
-              to: currentMove.to!,
-              kind: currentMove.piece,
-              color: currentMove.color,
-            };
-            dispatch({ type: "set_last_move", payload: lastMove });
-          }
-        } else {
-          // 初期局面に戻った場合
-          dispatch({ type: "set_last_move", payload: null });
-        }
-      }
-    } catch (error) {
-      dispatch({
-        type: "set_error",
-        payload:
-          error instanceof Error ? error.message : "Failed to move backward",
-      });
-    }
-  }, [state.jkfPlayer]);
-
-  // 5. goToStart - 初期局面に移動
+  //  goToStart - 初期局面に移動
   const goToStart = useCallback(() => {
-    if (!state.jkfPlayer) return;
+    mutatePlayer((jkf) => {
+      jkf.goto(0);
+    }, "Failed to go to start");
+  }, [mutatePlayer]);
 
-    try {
-      state.jkfPlayer.goto(0); // tesuu = 0 = 初期局面
-      dispatch({ type: "update_jkf_player" });
-      dispatch({ type: "clear_selection" });
-      dispatch({ type: "set_last_move", payload: null }); // 初期局面なので手なし
-    } catch (error) {
-      dispatch({
-        type: "set_error",
-        payload:
-          error instanceof Error ? error.message : "Failed to go to start",
-      });
-    }
-  }, [state.jkfPlayer]);
-
-  // 6. goToEnd - 最終局面に移動
+  // goToEnd - 最終局面に移動
   const goToEnd = useCallback(() => {
-    if (!state.jkfPlayer) return;
-
-    try {
-      const maxTesuu = state.jkfPlayer.getMaxTesuu();
-      state.jkfPlayer.goto(maxTesuu);
-      dispatch({ type: "update_jkf_player" });
-      dispatch({ type: "clear_selection" });
-
-      // 最終手を取得
-      if (maxTesuu > 0) {
-        const currentMove = state.jkfPlayer.getMove();
-        if (currentMove) {
-          const lastMove: ShogiMove = {
-            from: currentMove.from,
-            to: currentMove.to!,
-            kind: currentMove.piece,
-            color: currentMove.color,
-          };
-          dispatch({ type: "set_last_move", payload: lastMove });
-        }
-      } else {
-        // 手がない場合（空の棋譜）
-        dispatch({ type: "set_last_move", payload: null });
+    mutatePlayer((jkf) => {
+      const cursor = cursorRef.current;
+      const plannedMap = new Map<number, number>();
+      for (const p of cursor?.forkPointers ?? []) {
+        plannedMap.set(p.te, p.forkIndex);
       }
-    } catch (error) {
-      dispatch({
-        type: "set_error",
-        payload: error instanceof Error ? error.message : "Failed to go to end",
-      });
-    }
-  }, [state.jkfPlayer]);
+
+      const startTesuu = jkf.tesuu;
+      let limit = 10000;
+
+      while (limit-- > 0) {
+        const nextTe = jkf.tesuu + 1;
+
+        const forkIndex = plannedMap.get(nextTe);
+        if (forkIndex !== undefined) {
+          const ok = jkf.forkAndForward(forkIndex);
+          if (ok) continue;
+        }
+
+        const ok = jkf.forward();
+        if (!ok) break;
+      }
+
+      if (limit <= 0) throw new Error("goToEnd overflows");
+      if (jkf.tesuu === startTesuu) return false;
+    }, "Failed to go to end");
+  }, [mutatePlayer]);
 
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
 
   const makeMove = useCallback(
     async (move: StandardMoveFormat) => {
       if (!state.jkfPlayer) return;
+
+      const prevCursor = cursorRef.current;
+
       try {
         dispatch({ type: "set_loading", payload: true });
         dispatch({ type: "clear_error" });
 
-        // StandardMoveFormat → IMoveMoveFormat に変換
+        applyCursorToPlayer(state.jkfPlayer, prevCursor);
         const jkfMove = toIMoveMoveFormat(move);
 
-        // JKFPlayerで手を追加
-        // state.jkfPlayer.inputMove(jkfMove);
-        const result = applyMoveWithBranch(state.jkfPlayer, jkfMove);
-        console.log("[applyMoveWithBranch]", result);
+        // 分岐aware適用
+        applyMoveWithBranch(state.jkfPlayer, jkfMove);
 
-        // 状態を更新
-        dispatch({
-          type: "set_jkf_player",
-          payload: state.jkfPlayer,
-        });
-        dispatch({ type: "clear_selection" });
+        // 同期
+        commitFromPlayer(state.jkfPlayer, prevCursor);
 
-        // lastMoveを更新
-        const lastMove: ShogiMove = {
-          from: move.from,
-          to: move.to,
-          kind: move.piece,
-        };
-        dispatch({ type: "set_last_move", payload: lastMove });
-
-        // kifuWriterで保存（非同期）
         if (
           kifuWriter &&
           selectedNode &&
           !selectedNode.isDirectory &&
           fileTreeKifuFormat
         ) {
-          const filePath = selectedNode.path;
-          const format = fileTreeKifuFormat;
           try {
             await kifuWriter.writeToFile(
               state.jkfPlayer.kifu,
-              filePath,
-              format,
+              selectedNode.path,
+              fileTreeKifuFormat,
             );
           } catch (writeError) {
             console.warn("Failed to save kifu file:", writeError);
@@ -393,8 +481,15 @@ export function GameProvider({
         dispatch({ type: "set_loading", payload: false });
       }
     },
-    [fileTreeKifuFormat, selectedNode, state.jkfPlayer, kifuWriter],
+    [
+      state.jkfPlayer,
+      commitFromPlayer,
+      kifuWriter,
+      selectedNode,
+      fileTreeKifuFormat,
+    ],
   );
+
   const selectSquare = useCallback(
     async (x: number, y: number, promote?: boolean) => {
       if (!state.jkfPlayer) return;
@@ -584,45 +679,32 @@ export function GameProvider({
   // 13. isAtStart - 初期局面にいるかどうか
   const isAtStart = useCallback((): boolean => {
     if (!state.jkfPlayer) return true;
-
-    try {
-      return state.jkfPlayer.tesuu === 0;
-    } catch {
-      return true;
-    }
-  }, [state.jkfPlayer]);
+    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
+    return tesuu === 0;
+  }, [state.jkfPlayer, state.cursor?.tesuu]);
 
   // 14. isAtEnd - 最終局面にいるかどうか
   const isAtEnd = useCallback((): boolean => {
     if (!state.jkfPlayer) return true;
 
-    try {
-      return state.jkfPlayer.tesuu >= state.jkfPlayer.getMaxTesuu();
-    } catch {
-      return true;
-    }
-  }, [state.jkfPlayer]);
+    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
+    return tesuu >= leafTesuu;
+  }, [state.jkfPlayer, state.cursor?.tesuu, leafTesuu]);
 
   // 15. canGoForward - 次に進めるかどうか
   const canGoForward = useCallback((): boolean => {
     if (!state.jkfPlayer) return false;
+    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
+    return tesuu < leafTesuu;
+  }, [state.jkfPlayer, state.cursor?.tesuu, leafTesuu]);
 
-    try {
-      return state.jkfPlayer.tesuu < state.jkfPlayer.getMaxTesuu();
-    } catch {
-      return false;
-    }
-  }, [state.jkfPlayer]);
   // 16. canGoBackward - 前に戻れるかどうか
   const canGoBackward = useCallback((): boolean => {
     if (!state.jkfPlayer) return false;
 
-    try {
-      return state.jkfPlayer.tesuu > 0;
-    } catch {
-      return false;
-    }
-  }, [state.jkfPlayer]);
+    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
+    return tesuu > 0;
+  }, [state.jkfPlayer, state.cursor?.tesuu]);
 
   // 17. getCurrentTurn - 現在の手番を取得
   const getCurrentTurn = useCallback((): Color => {
@@ -664,12 +746,8 @@ export function GameProvider({
   const getTotalMoves = useCallback((): number => {
     if (!state.jkfPlayer) return 0;
 
-    try {
-      return state.jkfPlayer.getMaxTesuu();
-    } catch {
-      return 0;
-    }
-  }, [state.jkfPlayer]);
+    return leafTesuu;
+  }, [state.jkfPlayer, leafTesuu]);
   //
   // 22. hasSelection - 選択状態があるかどうか
   const hasSelection = useCallback((): boolean => {
