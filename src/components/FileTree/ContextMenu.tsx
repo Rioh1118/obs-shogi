@@ -1,5 +1,6 @@
 import { type ContextMenuItem } from "@/types";
 import { useEffect, useRef } from "react";
+import "./ContextMenu.scss";
 
 type ContextMenuProps = {
   x: number;
