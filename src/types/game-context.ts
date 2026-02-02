@@ -5,13 +5,24 @@ import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { GameMode, SelectedPosition } from "@/types/state";
 import type { KifuWriter } from "@/interfaces";
 import type { StandardMoveFormat } from "@/types";
+import type { KifuCursor } from "./kifu-cursor";
 
 // Reducer用のState型（シンプル化）
 export interface GameContextState {
   // JKFPlayer（棋譜・盤面状態を全て管理）
   jkfPlayer: JKFPlayer | null;
+  /**
+   * 公式カーソル(現局面を一意に表す)
+   * - UIの再描画・デバッグ・他Providerへの同期の基準になる
+   * - jkfPlayerの状態変化後に必ず同期される想定
+   */
+  cursor: KifuCursor | null;
+
   selectedPosition: SelectedPosition | null;
   legalMoves: ShogiMove[];
+  /**
+   * lastMove:現在局面の一つ前の手である
+   */
   lastMove: ShogiMove | null;
   mode: GameMode;
   isLoading: boolean;
@@ -23,6 +34,7 @@ export type GameAction =
   // JKFPlayer管理
   | { type: "set_jkf_player"; payload: JKFPlayer | null }
   | { type: "update_jkf_player" } // 再レンダリング tricker
+  | { type: "set_cursor"; payload: KifuCursor | null }
   // 選択状態
   | {
       type: "set_selection";
@@ -65,6 +77,8 @@ export interface GameContextType {
   previousMove: () => void;
   goToStart: () => void;
   goToEnd: () => void;
+
+  // 入力・選択
   selectSquare: (x: number, y: number, promote?: boolean) => void;
   selectHand: (color: Color, kind: Kind) => void;
   clearSelection: () => void;
@@ -98,6 +112,7 @@ export interface GameProviderProps {
 // 初期状态
 export const initialGameState: GameContextState = {
   jkfPlayer: null,
+  cursor: null,
   selectedPosition: null,
   legalMoves: [],
   lastMove: null,

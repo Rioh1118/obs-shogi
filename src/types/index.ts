@@ -7,3 +7,4 @@ export * from "./file-tree";
 export * from "./game-context";
 export * from "./move";
 export * from "./branch";
+export * from "./kifu-cursor";
