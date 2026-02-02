@@ -1,0 +1,63 @@
+@use "@/index.scss" as index;
+
+.inline-name-editor__input,
+.file-name__input {
+  height: 2.2rem;
+  max-width: 100%;
+
+  padding: 0 0.7rem;
+  border-radius: 0.5rem;
+
+  background-color: rgba(index.$color-white, 0.08);
+  border: 1px solid rgba(index.$color-white, 0.16);
+
+  color: index.$color-text-light-1;
+  font-size: 1.4rem;
+  line-height: 1;
+  caret-color: index.$color-secondary-dark;
+  outline: none;
+
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    background-color: rgba(index.$color-white, 0.1);
+  }
+
+  &:focus,
+  &:focus-visible {
+    border-color: rgba(index.$color-secondary-dark, 0.88);
+    box-shadow: 0 0 0 2px rgba(index.$color-secondary-dark, 0.24);
+    background-color: rgba(index.$color-white, 0.1);
+  }
+
+  &::selection {
+    background: rgba(index.$color-secondary-dark, 0.42);
+    color: index.$color-text-light-1;
+  }
+
+  // placeholder (for create directory row initialName="":)
+  &::placeholder {
+    color: rgba(index.$color-text-light-1, 0.5);
+  }
+}
+
+.node-box--editing {
+  background-color: rgba(index.$color-secondary-dark, 0.08);
+
+  // left indicator like VSCode
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.2rem;
+    bottom: 0.2rem;
+    width: 2px;
+    border-radius: 1px;
+    background: rgba(index.$color-secondary-dark, 0.9);
+  }
+}

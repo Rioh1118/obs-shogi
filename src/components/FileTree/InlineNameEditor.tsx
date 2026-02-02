@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./InlineNameEditor.scss";
 
 type InlineRenameProps = {
   isEditting: boolean;
