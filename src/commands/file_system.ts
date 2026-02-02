@@ -16,8 +16,11 @@ export async function createKifuFile(
   return await invoke("create_kifu_file", { parentDir, fileName, jkfData });
 }
 
-export async function createDirectory(dirPath: string): Promise<string> {
-  return await invoke("create_directory", { dirPath });
+export async function createDirectory(
+  parentDir: string,
+  dirName: string,
+): Promise<string> {
+  return await invoke("create_directory", { parentDir, dirName });
 }
 
 export async function deleteFile(filePath: string): Promise<void> {

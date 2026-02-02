@@ -65,10 +65,10 @@ export class KifuArchivist implements FileManager {
 
   async createDirectory(
     parentPath: string,
-    dirname: string,
+    dirName: string,
   ): AsyncResult<string, string> {
     try {
-      const dirPath = await createDirectory(`${parentPath}/${dirname}`);
+      const dirPath = await createDirectory(parentPath, dirName);
       return { success: true, data: dirPath };
     } catch (error) {
       return {
