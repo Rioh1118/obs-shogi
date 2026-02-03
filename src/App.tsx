@@ -12,7 +12,6 @@ import "./App.scss";
 import EngineProvider from "./contexts/EngineContext";
 import { AnalysisProvider } from "./contexts/AnalysisContext";
 import { PositionProvider } from "./contexts/PositionContext";
-import { BranchProvider } from "./contexts/BranchContext";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
@@ -31,11 +30,9 @@ function App() {
                     element={
                       <EngineProvider>
                         <PositionProvider>
-                          <BranchProvider>
-                            <AnalysisProvider>
-                              <AppLayout />
-                            </AnalysisProvider>
-                          </BranchProvider>
+                          <AnalysisProvider>
+                            <AppLayout />
+                          </AnalysisProvider>
                         </PositionProvider>
                       </EngineProvider>
                     }

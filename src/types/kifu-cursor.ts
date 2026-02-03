@@ -20,6 +20,7 @@ export type TesuuPointer = string & { readonly __brand: "TesuuPointer" };
  * アプリ側で保持する「公式カーソル」
  * 現在局面を一意に表現し、UIの再描画やデバッグに使う。
  */
+
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
   tesuu: number;
