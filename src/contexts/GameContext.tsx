@@ -787,6 +787,29 @@ export function GameProvider({
     }
   }, [state.jkfPlayer]);
 
+  /**
+   * 渡されたカーソルを採用
+   * */
+  const applyCursor = useCallback(
+    (cursor: KifuCursor) => {
+      const jkf = state.jkfPlayer;
+      if (!jkf) return;
+      try {
+        dispatch({ type: "clear_error" });
+
+        jkf.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+
+        commitFromPlayer(jkf, cursor);
+      } catch (e) {
+        dispatch({
+          type: "set_error",
+          payload: e instanceof Error ? e.message : "Failed to apply cursor",
+        });
+      }
+    },
+    [state.jkfPlayer, commitFromPlayer],
+  );
+
   // ヘルパー関数を実装
   const helpers: JKFPlayerHelpers = {
     isLegalMove: (jkfPlayer: JKFPlayer, move: ShogiMove): boolean => {
@@ -841,6 +864,7 @@ export function GameProvider({
     hasSelection,
     getCurrentMove,
     getCurrentComments,
+    applyCursor,
   };
 
   return (

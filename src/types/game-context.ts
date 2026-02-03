@@ -101,6 +101,7 @@ export interface GameContextType {
   getCurrentComments: () => string[];
   canGoForward: () => boolean;
   canGoBackward: () => boolean;
+  applyCursor: (cursor: KifuCursor) => void;
 }
 
 // Provider props
