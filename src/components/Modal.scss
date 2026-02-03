@@ -41,16 +41,13 @@
   /* ========== theme: dark ========== */
   &--dark {
     .modal__overlay {
-      // overlay は少し濃くしても良い（好み）
       background-color: rgba(index.$color-primary-black, 0.6);
     }
 
     .modal__card {
-      // 指定どおり: primary-black (#1c2325) を 0.85 ぐらい
-      background-color: rgba(index.$color-primary-black, 0.85);
+      background-color: rgba(index.$color-primary-black, 0.95);
       color: index.$color-text-light-1;
 
-      // ちょい雰囲気出すなら（不要なら消してOK）
       border: 1px solid rgba(index.$color-white, 0.08);
       box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.45);
     }
