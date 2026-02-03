@@ -10,7 +10,7 @@ import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import "./AppLayout.scss";
 import Modal from "@/components/Modal";
 import FileCreateForm from "@/components/FileTree/FileCreateForm";
-import PositionNavigationModal from "@/components/Modal/PositionNavigationModal";
+import PositionNavigationModal from "@/components/NavigationModal/PositionNavigationModal";
 import { useSearchParams } from "react-router";
 import { useGame } from "@/contexts/GameContext";
 import { useEngine } from "@/contexts/EngineContext";

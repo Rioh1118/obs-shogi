@@ -2,11 +2,11 @@ import type { NavigationState } from "./PositionNavigationModal";
 import type { PreviewData } from "@/types";
 
 type Props = {
-  navigationState: NavigationState;
   previewData: PreviewData | null;
+  selectedBranchIndex: number;
 };
 
-export default function InfoBar({ navigationState, previewData }: Props) {
+export default function InfoBar({ previewData, selectedBranchIndex }: Props) {
   const tesuu = previewData?.tesuu ?? 0;
   const turn = previewData?.turn === 0 ? "先手" : "後手";
 
@@ -16,9 +16,7 @@ export default function InfoBar({ navigationState, previewData }: Props) {
       <span>手番: {turn}</span>
       <span>
         選択:{" "}
-        {navigationState.selectedBranchIndex === 0
-          ? "本譜"
-          : `変化${navigationState.selectedBranchIndex}`}
+        {selectedBranchIndex === 0 ? "本譜" : `変化${selectedBranchIndex}`}
       </span>
     </div>
   );

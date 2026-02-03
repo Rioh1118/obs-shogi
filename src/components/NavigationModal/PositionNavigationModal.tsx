@@ -1,123 +1,94 @@
 import Modal from "../Modal";
 import { useURLParams } from "@/hooks/useURLParams";
-import { useBranch } from "@/contexts/BranchContext";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "./PreviewPane";
 import InfoBar from "./InfoBar";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
-import type { PositionNode, PreviewData } from "@/types";
+import {
+  type NavigationState,
+  type BranchOption,
+  type KifuCursor,
+  type TesuuPointer,
+} from "@/types";
 import { useGame } from "@/contexts/GameContext";
-import { BranchPreviewService } from "@/services/branch/BranchPreviewService";
-
-export interface NavigationState {
-  currentNodeId: string;
-  previewNodeId: string;
-  selectedBranchIndex: number;
-}
+import { appliedForkPointers } from "@/utils/kifuCursor";
+import { buildNextOptions, buildPreviewData } from "@/utils/buildPreviewData";
+import { removeForkPointer, upsertForkPointer } from "@/utils/kifuPlan";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "navigation";
-  const { goToNode, getCurrentNode, getNode, getChildrenNodes, getPathToNode } =
-    useBranch();
 
-  const { state: gameState } = useGame();
+  const { state: gameState, applyCursor } = useGame();
 
-  // BranchPreviewServiceの初期化
-  const previewService = useMemo(() => {
-    if (!gameState.jkfPlayer) return null;
-    console.log(gameState.jkfPlayer.kifu);
-    return new BranchPreviewService(new JKFPlayer(gameState.jkfPlayer.kifu));
-  }, [gameState.jkfPlayer]);
-
-  // ------ Navigation state ------
-  const [navigationState, setNavigationState] = useState<NavigationState>({
-    currentNodeId: "",
-    previewNodeId: "",
+  const [nav, setNav] = useState<NavigationState>({
+    PreviewCursor: { tesuu: 0, forkPointers: [] },
     selectedBranchIndex: 0,
   });
-  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-  //
-  // previewDataの生成
+
   useEffect(() => {
-    if (!previewService) {
-      setPreviewData(null);
+    // 棋譜が切り替わったら、前棋譜の nav を捨てる
+    if (!gameState.jkfPlayer) {
+      setNav({
+        PreviewCursor: { tesuu: 0, forkPointers: [] },
+        selectedBranchIndex: 0,
+      });
       return;
     }
 
-    const previewNode = getNode(navigationState.previewNodeId);
-    if (!previewNode) {
-      setPreviewData(null);
-      return;
-    }
+    const cur = gameState.cursor;
+    setNav({
+      PreviewCursor: {
+        tesuu: cur?.tesuu ?? 0,
+        forkPointers: cur?.forkPointers ?? [],
+      },
+      selectedBranchIndex: 0,
+    });
+  }, [gameState.jkfPlayer, gameState.cursor]);
 
-    // ノードへのパスを取得
-    const pathIds = getPathToNode(previewNode.id);
-    const pathNodes = pathIds
-      .map((id) => getNode(id))
-      .filter((node): node is PositionNode => node !== undefined);
-
-    // プレビューデータを生成
-    const preview = previewService.generateNodePreview(previewNode, pathNodes);
-    setPreviewData(preview);
-  }, [navigationState.previewNodeId, previewService, getPathToNode, getNode]);
-
-  // Initialize modal
   useEffect(() => {
     if (!isOpen) return;
 
-    const currentNode = getCurrentNode();
-    if (!currentNode) return;
-
-    setNavigationState({
-      currentNodeId: currentNode.id,
-      previewNodeId: currentNode.id,
+    const cur = gameState.cursor;
+    setNav({
+      PreviewCursor: {
+        tesuu: cur?.tesuu ?? 0,
+        forkPointers: cur?.forkPointers ?? [],
+      },
       selectedBranchIndex: 0,
     });
-  }, [isOpen, getCurrentNode]);
+  }, [isOpen, gameState.cursor]);
 
-  // ====================================
-
-  // Navigation handlers
-  //
-
-  // 0=本譜, 1..=変化Nに対して、そのままoptions[idx]を使用
-  const options = useMemo(() => {
-    const raw = getChildrenNodes(navigationState.previewNodeId);
-    const main = raw.find((n) => n.isMainLine);
-    const vars = raw.filter((n) => !n.isMainLine);
-    return main ? [main, ...vars] : raw;
-  }, [navigationState.previewNodeId, getChildrenNodes]);
-
-  const handleNext = useCallback(() => {
-    if (options.length === 0) return;
-    const idx = navigationState.selectedBranchIndex;
-    const target = options[idx];
-    if (!target) return;
-
-    setNavigationState((prev) => ({
-      ...prev,
-      previewNodeId: target.id,
-      selectedBranchIndex: 0,
-    }));
-  }, [navigationState.selectedBranchIndex, options]);
-
-  const handlePrevious = useCallback(() => {
-    const node = getNode(navigationState.previewNodeId);
-    if (node?.parentId) {
-      setNavigationState((prev) => ({
-        ...prev,
-        previewNodeId: node.parentId!,
-        selectedBranchIndex: 0,
-      }));
+  const { previewData, options } = useMemo(() => {
+    if (!isOpen || !gameState.jkfPlayer) {
+      return { previewData: null, options: [] as BranchOption[] };
     }
-  }, [navigationState.previewNodeId, getNode]);
+
+    const sim = new JKFPlayer(gameState.jkfPlayer.kifu);
+    sim.goto(
+      nav.PreviewCursor.tesuu,
+      appliedForkPointers(
+        {
+          ...nav.PreviewCursor,
+          tesuuPointer: "0,[]" as TesuuPointer, // TODO: これは参照されない変数
+        },
+        nav.PreviewCursor.tesuu,
+      ),
+    );
+
+    const opts = buildNextOptions(sim);
+
+    const nodeId = sim.getTesuuPointer(nav.PreviewCursor.tesuu);
+    const pd = buildPreviewData(sim, nodeId);
+
+    return { previewData: pd, options: opts };
+  }, [isOpen, gameState.jkfPlayer, nav.PreviewCursor]);
 
   const handleSelectBranch = useCallback(
     (delta: number) => {
-      setNavigationState((prev) => ({
+      setNav((prev) => ({
         ...prev,
         selectedBranchIndex: Math.max(
           0,
@@ -128,16 +99,75 @@ function PositionNavigationModal() {
     [options.length],
   );
 
+  const handleNext = useCallback(() => {
+    if (options.length === 0) return;
+
+    setNav((prev) => {
+      const nextTe = prev.PreviewCursor.tesuu + 1;
+      const sel = options[prev.selectedBranchIndex];
+      if (!sel) return prev;
+
+      let fps = prev.PreviewCursor.forkPointers;
+
+      if (sel.isMainLine) {
+        fps = removeForkPointer(fps, nextTe);
+      } else {
+        if (typeof sel.forkIndex === "number") {
+          fps = upsertForkPointer(fps, nextTe, sel.forkIndex);
+        }
+      }
+      return {
+        PreviewCursor: { tesuu: nextTe, forkPointers: fps },
+        selectedBranchIndex: 0,
+      };
+    });
+  }, [options]);
+
+  const handlePrevious = useCallback(() => {
+    setNav((prev) => {
+      if (prev.PreviewCursor.tesuu <= 0) return prev;
+      return {
+        PreviewCursor: {
+          ...prev.PreviewCursor,
+          tesuu: prev.PreviewCursor.tesuu - 1,
+        },
+        selectedBranchIndex: 0,
+      };
+    });
+  }, []);
+
   const handleConfirm = useCallback(() => {
-    goToNode(navigationState.previewNodeId);
+    if (!gameState.jkfPlayer) return;
+
+    const sim = new JKFPlayer(gameState.jkfPlayer.kifu);
+    sim.goto(
+      nav.PreviewCursor.tesuu,
+      appliedForkPointers(
+        {
+          ...nav.PreviewCursor,
+          tesuuPointer: "0,[]" as TesuuPointer,
+        },
+        nav.PreviewCursor.tesuu,
+      ),
+    );
+
+    const cursor: KifuCursor = {
+      tesuu: nav.PreviewCursor.tesuu,
+      forkPointers: nav.PreviewCursor.forkPointers,
+      tesuuPointer: sim.getTesuuPointer(
+        nav.PreviewCursor.tesuu,
+      ) as TesuuPointer,
+    };
+
+    applyCursor(cursor);
     closeModal();
-  }, [navigationState.previewNodeId, goToNode, closeModal]);
+  }, [applyCursor, closeModal, gameState.jkfPlayer, nav.PreviewCursor]);
 
   // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
 
       switch (e.key) {
@@ -166,8 +196,8 @@ function PositionNavigationModal() {
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     isOpen,
     handleNext,
@@ -197,14 +227,16 @@ function PositionNavigationModal() {
         <div className="position-navigation-modal__content">
           <PreviewPane previewData={previewData} toKan={toKan} />
           <InfoBar
-            navigationState={navigationState}
             previewData={previewData}
+            selectedBranchIndex={nav.selectedBranchIndex}
           />
 
           <BranchList
             branches={options}
-            selectedIndex={navigationState.selectedBranchIndex}
-            setNavigationState={setNavigationState}
+            selectedIndex={nav.selectedBranchIndex}
+            onSelectIndex={(idx) =>
+              setNav((s) => ({ ...s, selectedBranchIndex: idx }))
+            }
           />
         </div>
 

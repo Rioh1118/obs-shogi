@@ -1,19 +1,18 @@
-import React, { useRef, useEffect, useLayoutEffect } from "react";
-import type { PositionNode } from "@/types";
-import type { NavigationState } from "./PositionNavigationModal";
+import { useRef, useEffect, useLayoutEffect } from "react";
 import { formatMove } from "@/utils/shogi-format";
 import "./BranchList.scss";
+import type { BranchOption } from "@/types";
 
 type Props = {
-  branches: PositionNode[];
+  branches: BranchOption[];
   selectedIndex: number;
-  setNavigationState: React.Dispatch<React.SetStateAction<NavigationState>>;
+  onSelectIndex: (idx: number) => void;
 };
 
 export default function BranchList({
   branches,
   selectedIndex,
-  setNavigationState,
+  onSelectIndex,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -116,8 +115,8 @@ export default function BranchList({
   }
 
   // 本譜と分岐を分ける
-  const mainLine = branches.find((b) => b.isMainLine) || branches[0];
-  const variations = branches.filter((b) => b.id !== mainLine.id);
+  const mainLine = branches[0];
+  const variations = branches.slice(1);
 
   return (
     <div className="branch-selector" ref={containerRef}>
@@ -125,9 +124,7 @@ export default function BranchList({
       <div
         ref={setCardRef(0)}
         className={buildCardClass(0)}
-        onClick={() =>
-          setNavigationState((s) => ({ ...s, selectedBranchIndex: 0 }))
-        }
+        onClick={() => onSelectIndex(0)}
       >
         <div className="branch-selector__header">
           <span className="branch-selector__move">本譜</span>
@@ -150,9 +147,7 @@ export default function BranchList({
             key={branch.id}
             ref={setCardRef(idx)}
             className={buildCardClass(idx)}
-            onClick={() =>
-              setNavigationState((s) => ({ ...s, selectedBranchIndex: idx }))
-            }
+            onClick={() => onSelectIndex(idx)}
           >
             <div className="branch-selector__header">
               <span className="branch-selector__move">
@@ -169,7 +164,7 @@ export default function BranchList({
             <div className="branch-selector__sequence">
               <span className="branch-selector__sequence-icon">→</span>
               <span className="branch-selector__sequence-text">
-                {branch.tesuu}手目 {branch.comment ? `(${branch.comment})` : ""}
+                {branch.tesuu}手目
               </span>
             </div>
           </div>
