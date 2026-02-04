@@ -63,3 +63,9 @@ export async function chooseAiRoot(
   await saveConfig({ ...config, ai_root: aiRoot });
   return aiRoot;
 }
+
+export async function setRootDir(root_dir: string): Promise<void> {
+  const config = await loadConfig();
+  const next = ensureNonEmpty("ルートディレクトリ", root_dir);
+  await saveConfig({ ...config, root_dir: next });
+}
