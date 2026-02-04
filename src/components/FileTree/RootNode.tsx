@@ -8,10 +8,33 @@ import TreeNodeActions from "./TreeNodeActions";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
+import { useAppConfig } from "@/contexts/AppConfigContext";
+
+function computeRenamedPathKeepingParent(
+  oldPath: string,
+  nextName: string,
+): string {
+  const p = oldPath.replace(/[/\\]+$/, "");
+  const lastSlash = p.lastIndexOf("/");
+  const lastBack = p.lastIndexOf("\\");
+  const idx = Math.max(lastSlash, lastBack);
+  const sep: "/" | "\\" = lastBack > lastSlash ? "\\" : "/";
+  const parent = idx >= 0 ? p.slice(0, idx) : "";
+  return parent ? `${parent}${sep}${nextName}` : nextName;
+}
+
+function validateBasename(name: string): string {
+  const next = name.trim();
+  if (!next) throw new Error("空の名前にはできません");
+  if (/[/\\]/.test(next)) throw new Error("名前に / や \\ は使えません");
+  return next;
+}
 
 function RootNode({ node }: { node: FileTreeNode }) {
   const [isOpen, setIsOpen] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
+
+  const { setRootDir } = useAppConfig();
 
   const {
     openContextMenu,
@@ -34,9 +57,26 @@ function RootNode({ node }: { node: FileTreeNode }) {
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  const handleCommitRename = async (nextName: string) => {
+  const handleCommitRename = async (nextNameRaw: string) => {
     cancelInlineRename();
-    await renameNode(node, nextName);
+    let nextName: string;
+    try {
+      nextName = validateBasename(nextNameRaw);
+    } catch (e) {
+      console.error(e);
+      return;
+    }
+
+    if (nextName === node.name) return;
+
+    const oldPath = node.path;
+    const nextPath = computeRenamedPathKeepingParent(oldPath, nextName);
+    try {
+      await renameNode(node, nextName);
+      await setRootDir(nextPath);
+    } catch (err) {
+      console.error("ルートディレクトリリネームに失敗しました:", err);
+    }
   };
 
   const handleCommitCreate = async (name: string) => {

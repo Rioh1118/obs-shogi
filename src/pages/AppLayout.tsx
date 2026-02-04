@@ -15,7 +15,6 @@ import { useSearchParams } from "react-router";
 import { useGame } from "@/contexts/GameContext";
 import { useEngine } from "@/contexts/EngineContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
-// import AnalysisControls from "@/components/Engine/AnalysisControls";
 
 import ShogiButton from "@/components/ShogiButton";
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";

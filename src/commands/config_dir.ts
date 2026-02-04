@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AppConfig } from "@/types/config";
 
+export type ChooseOpts = { force?: boolean };
+
 export async function loadConfig(): Promise<AppConfig> {
   return invoke<AppConfig>("load_config");
 }
@@ -10,21 +12,60 @@ export async function saveConfig(config: AppConfig): Promise<void> {
   await invoke("save_config", { config });
 }
 
-export async function initRootDir(): Promise<string | null> {
-  const config = await loadConfig();
-  let rootDir = config.root_dir;
+async function pickDirectory(title: string): Promise<string | null> {
+  const selected = await open({
+    directory: true,
+    multiple: false,
+    title,
+  });
+  if (!selected) return null;
+  const dir = Array.isArray(selected) ? selected[0] : selected;
+  return dir ?? null;
+}
 
-  if (!rootDir) {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: "ルートディレクトリを選択してください",
-    });
-
-    if (!selected) throw new Error("ルートディレクトリが選択されませんでした");
-    rootDir = Array.isArray(selected) ? selected[0] : selected;
-    await saveConfig({ root_dir: rootDir });
+function ensureNonEmpty(label: string, value: string | null): string {
+  if (!value || value.trim().length === 0) {
+    throw new Error(`不正な${label}です`);
   }
+  return value;
+}
 
+export async function chooseRootDir(
+  opts: ChooseOpts = {},
+): Promise<string | null> {
+  const { force = false } = opts;
+  const config = await loadConfig();
+
+  if (!force && config.root_dir) return config.root_dir;
+
+  const picked = await pickDirectory("ルートディレクトリを選択してください");
+  if (!picked) return null;
+
+  const rootDir = ensureNonEmpty("ルートディレクトリ", picked);
+  await saveConfig({ ...config, root_dir: rootDir });
   return rootDir;
+}
+
+export async function chooseAiRoot(
+  opts: ChooseOpts = {},
+): Promise<string | null> {
+  const { force = false } = opts;
+  const config = await loadConfig();
+
+  if (!force && config.ai_root) return config.ai_root;
+
+  const picked = await pickDirectory(
+    "AIのルートディレクトリを選択してください",
+  );
+  if (!picked) return null;
+
+  const aiRoot = ensureNonEmpty("AI_ROOT", picked);
+  await saveConfig({ ...config, ai_root: aiRoot });
+  return aiRoot;
+}
+
+export async function setRootDir(root_dir: string): Promise<void> {
+  const config = await loadConfig();
+  const next = ensureNonEmpty("ルートディレクトリ", root_dir);
+  await saveConfig({ ...config, root_dir: next });
 }

@@ -6,7 +6,6 @@
   &__overlay {
     position: fixed;
     inset: 0;
-    background-color: rgba(index.$color-primary-black, 0.5);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -14,7 +13,6 @@
     z-index: 9999;
   }
   &__card {
-    background-color: rgba(index.$color-secondary-light, 0.85);
     padding: 2rem;
     border-radius: 1rem;
     box-shadow: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.25);
@@ -27,5 +25,31 @@
     // display: flex;
     // flex-direction: column;
     // gap: 1.6rem;
+  }
+
+  &--light {
+    .modal__overlay {
+      background-color: rgba(index.$color-primary-black, 0.5);
+    }
+
+    .modal__card {
+      background-color: rgba(index.$color-secondary-light, 0.85);
+      color: index.$color-text-dark-1;
+    }
+  }
+
+  /* ========== theme: dark ========== */
+  &--dark {
+    .modal__overlay {
+      background-color: rgba(index.$color-primary-black, 0.6);
+    }
+
+    .modal__card {
+      background-color: rgba(index.$color-primary-black, 0.95);
+      color: index.$color-text-light-1;
+
+      border: 1px solid rgba(index.$color-white, 0.08);
+      box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.45);
+    }
   }
 }

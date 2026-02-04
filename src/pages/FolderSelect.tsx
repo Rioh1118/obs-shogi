@@ -6,22 +6,18 @@ import { useAppConfig } from "../contexts/AppConfigContext";
 
 function FolderSelect() {
   const navigate = useNavigate();
-  const { config, initRootDir } = useAppConfig();
+  const { config, chooseRootDir } = useAppConfig();
   // 初回マウント時にチェック
   useEffect(() => {
     if (config?.root_dir) {
       navigate("/app", { replace: true });
     }
-  }, [config, navigate]);
+  }, [config?.root_dir, navigate]);
 
   async function handleClick() {
-    try {
-      const rootDir = await initRootDir();
-      if (rootDir) {
-        navigate("/app", { replace: true });
-      }
-    } catch (err) {
-      console.error("ディレクトリ選択に失敗しました:", err);
+    const rootDir = await chooseRootDir({ force: true });
+    if (rootDir) {
+      navigate("/app", { replace: true });
     }
   }
   return (

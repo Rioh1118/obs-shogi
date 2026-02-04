@@ -4,7 +4,10 @@ import type { AppConfig } from "@/types/config";
 import {
   loadConfig,
   saveConfig,
-  initRootDir as initRootDirCommand,
+  type ChooseOpts,
+  chooseRootDir as chooseRootDirCommand,
+  chooseAiRoot as chooseAiRootCommand,
+  setRootDir as setRootDirCommand,
 } from "../commands/config_dir";
 
 type ConfigState = {
@@ -41,7 +44,9 @@ function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
 
 type AppConfigContextType = ConfigState & {
   updateConfig: (config: AppConfig) => Promise<void>;
-  initRootDir: () => Promise<string | null>;
+  chooseRootDir: (opts?: ChooseOpts) => Promise<string | null>;
+  chooseAiRoot: (opts?: ChooseOpts) => Promise<string | null>;
+  setRootDir: (root_dir: string) => Promise<void>;
 };
 
 const AppConfigContext = createContext<AppConfigContextType | undefined>(
@@ -80,10 +85,10 @@ function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function initRootDir() {
+  async function chooseRootDir(opts: ChooseOpts = {}) {
     dispatch({ type: "loading" });
     try {
-      const rootDir = await initRootDirCommand();
+      const rootDir = await chooseRootDirCommand(opts);
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
       return rootDir;
@@ -96,8 +101,46 @@ function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function chooseAiRoot(opts: ChooseOpts = {}) {
+    dispatch({ type: "loading" });
+    try {
+      const aiRoot = await chooseAiRootCommand(opts);
+      const updated = await loadConfig();
+      dispatch({ type: "updated", payload: updated });
+      return aiRoot;
+    } catch (err) {
+      dispatch({
+        type: "error",
+        payload: `AI_ROOTの選択に失敗しました: ${String(err)}`,
+      });
+      return null;
+    }
+  }
+
+  async function setRootDir(rootDir: string) {
+    dispatch({ type: "loading" });
+    try {
+      await setRootDirCommand(rootDir);
+      const updated = await loadConfig();
+      dispatch({ type: "updated", payload: updated });
+    } catch (err) {
+      dispatch({
+        type: "error",
+        payload: `ルートディレクトリの更新に失敗しました: ${String(err)}`,
+      });
+    }
+  }
+
   return (
-    <AppConfigContext.Provider value={{ ...state, updateConfig, initRootDir }}>
+    <AppConfigContext.Provider
+      value={{
+        ...state,
+        updateConfig,
+        chooseRootDir,
+        chooseAiRoot,
+        setRootDir,
+      }}
+    >
       {children}
     </AppConfigContext.Provider>
   );
