@@ -1,7 +1,7 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { convertSfenSequence } from "@/utils/sfenConverter";
 import type { ConvertedMove } from "@/utils/sfenConverter";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
 import { useGame } from "@/contexts/GameContext";
@@ -13,8 +13,7 @@ import StatsSection from "./StatsSection";
 
 function AnalysisPane() {
   const { state } = useAnalysis();
-  const [showDetailedStats, setShowDetailedStats] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+
   const { getCurrentTurn } = useGame();
   const { currentSfen } = usePosition();
 
