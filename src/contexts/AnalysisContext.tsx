@@ -160,7 +160,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
   children,
 }) => {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
-  const { state: engineState } = useEngine();
+  const { state: engineState, isReady } = useEngine();
   const { currentSfen, isPositionSynced, syncPosition } = usePosition();
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
@@ -223,7 +223,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       }
 
       // エンジンの準備ができていない場合は何もしない
-      if (!engineState.isReady) {
+      if (!engineState) {
         console.log("🔍 [ANALYSIS] Engine not ready, ignoring position change");
         return;
       }
@@ -281,13 +281,13 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     currentSfen,
     state.isAnalyzing,
     state.sessionId,
-    engineState.isReady,
+    engineState,
     syncPosition,
   ]);
 
   // ✅ 指定SFENで解析開始
   const startInfiniteAnalysis = useCallback(async () => {
-    if (!engineState.isReady) {
+    if (!isReady) {
       throw new Error("Engine not ready");
     }
 
@@ -320,13 +320,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       dispatch({ type: "set_error", payload: errorMessage });
       throw error;
     }
-  }, [
-    engineState.isReady,
-    state.isAnalyzing,
-    currentSfen,
-    isPositionSynced,
-    syncPosition,
-  ]);
+  }, [isReady, state.isAnalyzing, currentSfen, isPositionSynced, syncPosition]);
 
   // ✅ 解析停止
   const stopAnalysisFunc = useCallback(async () => {

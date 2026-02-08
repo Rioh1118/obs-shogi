@@ -6,18 +6,17 @@ export const ENGINE_CONSTANTS = {
   BOOK_DIR: "/Users/riohatta/test_shogi_engine/li/book",
 } as const;
 
-export const DEFAULT_SETTINGS = {
-  YANEURAOU_RECOMMENDED: {
-    USI_Hash: "1024",
-    Threads: "4",
-    MultiPV: "5",
-    NetworkDelay: "120",
-    NetworkDelay2: "1120",
-    MinimumThinkingTime: "2000",
-    SlowMover: "100",
-    BookFile: "user_book1.db",
-    EvalDir: "eval",
-  },
+export const DEFAULT_OPTIONS: Record<string, string> = {
+  USI_Hash: "1024",
+  Threads: "4",
+  MultiPV: "5",
+  NetworkDelay: "120",
+  NetworkDelay2: "1120",
+  MinimumThinkingTime: "2000",
+  SlowMover: "100",
+};
+
+export const ANALYSIS_SETTING = {
   POLLING_INTERVAL: 500,
   DEFAULT_ANALYSIS_TIME: 3,
 } as const;

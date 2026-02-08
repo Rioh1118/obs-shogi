@@ -16,20 +16,18 @@ export type {
 } from "./types";
 
 // ===== 定数のエクスポート =====
-export { ENGINE_CONSTANTS, DEFAULT_SETTINGS, EVENT_NAMES } from "./constants";
+export { ENGINE_CONSTANTS, DEFAULT_OPTIONS, EVENT_NAMES } from "./constants";
 
 // ===== 基本コマンドのエクスポート =====
 export {
   // エンジン管理
   initializeEngine,
-  initializeYaneuraOuEngine,
   shutdownEngine,
   getEngineInfo,
 
   // エンジン設定
   applyEngineSettings,
   getEngineSettings,
-  applyYaneuraOuRecommendedSettings,
   applyCustomSettings,
 
   // 局面設定
@@ -80,7 +78,6 @@ export {
   analyzePositionWithTime,
   analyzePositionWithDepth,
   batchAnalyze,
-  setupYaneuraOuEngine,
   quickAnalysis,
   deepAnalysis,
 } from "./advanced";
@@ -90,7 +87,7 @@ import * as core from "./core";
 import * as utils from "./utils";
 import * as advanced from "./advanced";
 import * as events from "./events";
-import { ENGINE_CONSTANTS, DEFAULT_SETTINGS } from "./constants";
+import { ENGINE_CONSTANTS, DEFAULT_OPTIONS } from "./constants";
 
 export default {
   // 基本機能
@@ -107,5 +104,5 @@ export default {
 
   // 定数
   ENGINE_CONSTANTS,
-  DEFAULT_SETTINGS,
+  DEFAULT_OPTIONS,
 };

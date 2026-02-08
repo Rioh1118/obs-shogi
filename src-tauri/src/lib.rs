@@ -1,9 +1,11 @@
+pub mod ai_library;
 pub mod config_dir;
 pub mod engine;
 pub mod file_system;
 pub mod kifu;
 
 use crate::engine::bridge::AppState;
+pub use ai_library::{check_engine_setup, ensure_engines_dir, scan_ai_root};
 pub use config_dir::{load_config, save_config};
 pub use engine::bridge::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
@@ -21,6 +23,7 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             load_config,
@@ -34,6 +37,9 @@ pub fn run() {
             read_file,
             write_kifu_to_file,
             mv_directory,
+            check_engine_setup,
+            ensure_engines_dir,
+            scan_ai_root,
             mv_kifu_file,
             rename_directory,
             rename_kifu_file,

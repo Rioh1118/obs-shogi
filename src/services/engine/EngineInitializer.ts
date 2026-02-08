@@ -1,74 +1,49 @@
-import { setupYaneuraOuEngine, shutdownEngine } from "@/commands/engine";
+import { shutdownEngine } from "@/commands/engine";
+import { setupYaneuraOuEngine } from "@/commands/engine/setup";
 import type { EngineInfo } from "@/commands/engine/types";
 
+export type ResolvedEngineSetup = {
+  enginePath: string;
+  workDir: string;
+  evalDir: string;
+  bookDir: string;
+  bookFile: string;
+  options: Record<string, string>;
+};
+
 export interface EngineInitializer {
-  initialize(): Promise<EngineInfo>;
+  initialize(resolved: ResolvedEngineSetup): Promise<EngineInfo>;
   shutdown(): Promise<void>;
-  isInitialized(): boolean;
 }
 
 class YaneuraOuInitializer implements EngineInitializer {
-  private _engineInfo: EngineInfo | null = null;
-  private _isInitialized = false;
+  private inFlight: Promise<EngineInfo> | null = null;
 
-  async initialize(): Promise<EngineInfo> {
-    if (this._isInitialized && this._engineInfo) {
-      console.log("✅ [INITIALIZER] Engine already initialized");
-      return this._engineInfo;
-    }
+  async initialize(resolved: ResolvedEngineSetup): Promise<EngineInfo> {
+    if (this.inFlight) return this.inFlight;
 
-    console.log("🚀 [INITIALIZER] Starting engine initialization...");
+    this.inFlight = (async () => {
+      const info = await setupYaneuraOuEngine({
+        enginePath: resolved.enginePath,
+        workDir: resolved.workDir,
+        evalDir: resolved.evalDir,
+        bookDir: resolved.bookDir,
+        bookFile: resolved.bookFile,
+        options: resolved.options,
+      });
+      return info;
+    })();
 
     try {
-      const engineInfo = await setupYaneuraOuEngine();
-      if (!engineInfo) {
-        throw new Error("Failed to get engine info");
-      }
-
-      this._engineInfo = engineInfo;
-      this._isInitialized = true;
-
-      console.log(
-        "✅ [INITIALIZER] Engine initialized successfully:",
-        engineInfo.name,
-      );
-      return engineInfo;
-    } catch (error) {
-      this._isInitialized = false;
-      this._engineInfo = null;
-      console.error("❌ [INITIALIZER] Engine initialization failed:", error);
-      throw error;
+      return await this.inFlight;
+    } finally {
+      this.inFlight = null;
     }
   }
 
   async shutdown(): Promise<void> {
-    if (!this._isInitialized) {
-      console.log("⚠️ [INITIALIZER] Engine not initialized, skipping shutdown");
-      return;
-    }
-
-    console.log("🔌 [INITIALIZER] Shutting down engine...");
-
-    try {
-      await shutdownEngine();
-      this._isInitialized = false;
-      this._engineInfo = null;
-      console.log("✅ [INITIALIZER] Engine shutdown completed");
-    } catch (error) {
-      console.error("❌ [INITIALIZER] Engine shutdown failed:", error);
-      // シャットダウンエラーでも状態はリセット
-      this._isInitialized = false;
-      this._engineInfo = null;
-      throw error;
-    }
-  }
-
-  isInitialized(): boolean {
-    return this._isInitialized;
-  }
-
-  getEngineInfo(): EngineInfo | null {
-    return this._engineInfo;
+    this.inFlight = null;
+    await shutdownEngine();
   }
 }
 

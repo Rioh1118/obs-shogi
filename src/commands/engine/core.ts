@@ -5,24 +5,16 @@ import type {
   AnalysisResult,
   AnalysisStatus,
 } from "./types";
-import { ENGINE_CONSTANTS, DEFAULT_SETTINGS } from "./constants";
 
 // ===== エンジン初期化・管理 =====
 export async function initializeEngine(
-  enginePath?: string,
-  workDir?: string,
+  enginePath: string,
+  workDir: string,
 ): Promise<void> {
   return await invoke("initialize_engine", {
-    enginePath: enginePath || ENGINE_CONSTANTS.ENGINE_PATH,
-    workingDir: workDir || ENGINE_CONSTANTS.WORK_DIR,
+    enginePath,
+    workingDir: workDir,
   });
-}
-
-export async function initializeYaneuraOuEngine(): Promise<void> {
-  return await initializeEngine(
-    ENGINE_CONSTANTS.ENGINE_PATH,
-    ENGINE_CONSTANTS.WORK_DIR,
-  );
 }
 
 export async function shutdownEngine(): Promise<void> {
@@ -42,13 +34,6 @@ export async function applyEngineSettings(
 
 export async function getEngineSettings(): Promise<EngineSettings> {
   return await invoke("get_engine_settings");
-}
-
-export async function applyYaneuraOuRecommendedSettings(): Promise<void> {
-  const settings: EngineSettings = {
-    options: DEFAULT_SETTINGS.YANEURAOU_RECOMMENDED,
-  };
-  return await applyEngineSettings(settings);
 }
 
 export async function applyCustomSettings(

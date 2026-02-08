@@ -10,7 +10,6 @@ function AnalysisPaneHeader() {
   const { currentSfen } = usePosition();
   const { openModal } = useURLParams();
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [showSettings, setShowSettings] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const lastSfenRef = useRef<string | null>(null);
@@ -85,7 +84,11 @@ function AnalysisPaneHeader() {
 
   // 局面ナビゲーションハンドラー
   const handlePositionNavigation = () => {
-    openModal('navigation');
+    openModal("navigation");
+  };
+
+  const handleOpenSettings = () => {
+    openModal("settings", { tab: "general" });
   };
 
   return (
@@ -129,20 +132,12 @@ function AnalysisPaneHeader() {
 
         <button
           className="analysis-header__button analysis-header__button--settings"
-          onClick={() => setShowSettings(!showSettings)}
+          onClick={handleOpenSettings}
           title="設定"
         >
           <Settings className="analysis-header__icon" />
         </button>
       </div>
-
-      {showSettings && (
-        <div className="analysis-header__settings">
-          <div className="analysis-header__settings-content">
-            <p>設定パネル（実装予定）</p>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

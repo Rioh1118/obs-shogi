@@ -3,18 +3,14 @@ import type {
   BatchAnalysisPosition,
   BatchAnalysisConfig,
   BatchAnalysisResult,
-  EngineInfo,
 } from "./types";
-import { DEFAULT_SETTINGS } from "./constants";
+import { ANALYSIS_SETTING } from "./constants";
 import {
   setPositionFromMoves,
   setPositionFromSfen,
   startInfiniteAnalysis,
   analyzeWithTime,
   analyzeWithDepth,
-  initializeYaneuraOuEngine,
-  getEngineInfo,
-  applyYaneuraOuRecommendedSettings,
 } from "./core";
 import { validateMoves } from "./utils";
 
@@ -95,7 +91,7 @@ export async function batchAnalyze(
         // デフォルトは3秒解析
         result = await analyzePositionWithTime(
           position.moves,
-          DEFAULT_SETTINGS.DEFAULT_ANALYSIS_TIME,
+          ANALYSIS_SETTING.DEFAULT_ANALYSIS_TIME,
         );
       }
 
@@ -122,30 +118,6 @@ export async function batchAnalyze(
   }
 
   return results;
-}
-
-// ===== エンジンセットアップ =====
-export async function setupYaneuraOuEngine(): Promise<EngineInfo | null> {
-  try {
-    // 1. エンジン初期化
-    await initializeYaneuraOuEngine();
-    console.log("Engine initialized");
-
-    // 2. エンジン情報取得
-    const engineInfo = await getEngineInfo();
-    if (engineInfo) {
-      console.log("Engine info:", engineInfo.name);
-    }
-
-    // 3. 推奨設定適用
-    await applyYaneuraOuRecommendedSettings();
-    console.log("Recommended settings applied");
-
-    return engineInfo;
-  } catch (error) {
-    console.error("Failed to setup engine:", error);
-    throw error;
-  }
 }
 
 // ===== 便利な解析メソッド =====

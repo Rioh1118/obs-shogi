@@ -37,8 +37,13 @@ function App() {
                       </EngineProvider>
                     }
                   >
-                    <Route index element={<Navigate replace to="filetree" />} />
-                    <Route path="filetree" element={<FileTree />} />
+                    <Route
+                      index
+                      element={<Navigate replace to="panel/filetree" />}
+                    />
+                    <Route path="panel">
+                      <Route path="filetree" element={<FileTree />} />
+                    </Route>
                   </Route>
                 </Routes>
               </BrowserRouter>

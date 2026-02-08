@@ -15,7 +15,7 @@ const AnalysisControls: React.FC<{
     stopAnalysis,
   } = useAnalysis();
   const { currentSfen, isPositionSynced, syncError } = usePosition();
-  const { state: engineState } = useEngine();
+  const { state: engineState, isReady } = useEngine();
 
   const handleStart = async () => {
     try {
@@ -35,7 +35,7 @@ const AnalysisControls: React.FC<{
 
   const canStartAnalysis = () => {
     return (
-      engineState.isReady &&
+      isReady &&
       !engineState.isInitializing &&
       !analysisState.isAnalyzing &&
       isPositionSynced &&

@@ -8,67 +8,52 @@ import { GameControls } from "../components/GameBoard";
 import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
 
 import "./AppLayout.scss";
-import Modal from "@/components/Modal";
-import FileCreateForm from "@/components/FileTree/FileCreateForm";
 import PositionNavigationModal from "@/components/NavigationModal/PositionNavigationModal";
-import { useSearchParams } from "react-router";
 import { useGame } from "@/contexts/GameContext";
 import { useEngine } from "@/contexts/EngineContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
 
-import ShogiButton from "@/components/ShogiButton";
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
 import EngineLoading from "@/components/EngineLoading";
+import SettingsModal from "@/components/SettingsModal/SettingsModal";
+import CreateFileModal from "@/components/CreateFileModal";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { state } = useGame();
+  const { state: gameState } = useGame();
 
-  const { state: engineState, initialize, shutdown, clearError } = useEngine();
+  const {
+    state: engineState,
+    validation,
+    setupOk,
+    resolvedPaths,
+  } = useEngine();
 
   useEffect(() => {
-    console.log("🎮 [APP_LAYOUT] Component mounted, initializing engine...");
-    initialize().catch(console.error);
+    console.log("[AppLayout render]", {
+      phase: engineState.phase,
+      validation: validation.status,
+      setupOk,
+      hasResolved: !!resolvedPaths,
+    });
 
-    return () => {
-      console.log(
-        "🎮 [APP_LAYOUT] Component unmounting, shutting down engine...",
-      );
-      shutdown().catch(console.error);
-    };
-  }, [initialize, shutdown]);
+    if (engineState.phase === "error") {
+      console.error("[Engine error]", engineState.error);
+    }
+  }, [
+    engineState.phase,
+    engineState.error,
+    validation.status,
+    setupOk,
+    resolvedPaths,
+  ]);
 
-  const action = searchParams.get("action");
-  const targetDir = searchParams.get("dir");
+  const toggleSidebar = () => setIsSidebarOpen((v) => !v);
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  const closeModal = () => {
-    setSearchParams({});
-  };
-
-  // ✅ エンジン初期化中の表示
-  if (engineState.isInitializing) {
+  if (engineState.phase === "initializing") {
     return (
       <div className="app-layout">
         <EngineLoading />
-      </div>
-    );
-  }
-
-  if (engineState.error) {
-    return (
-      <div className="app-layout">
-        <div className="app-layout__error">
-          <p>❌ エンジンエラー: {engineState.error}</p>
-          <div className="error-actions">
-            <ShogiButton onClick={clearError}>エラーをクリア</ShogiButton>
-            <ShogiButton onClick={() => initialize()}>再初期化</ShogiButton>
-          </div>
-        </div>
       </div>
     );
   }
@@ -87,15 +72,14 @@ const AppLayout = () => {
           <PanelLeftOpen size={20} />
         )}
       </IconButton>
-      {action === "create-file" && (
-        <Modal onToggle={closeModal}>
-          <FileCreateForm toggleModal={closeModal} dirPath={targetDir || ""} />
-        </Modal>
-      )}
+
+      <CreateFileModal />
       <PositionNavigationModal />
+      <SettingsModal />
       <Sidebar isOpen={isSidebarOpen} />
+
       <main className="app-layout__main-container">
-        {!state.jkfPlayer?.shogi ? (
+        {!gameState.jkfPlayer?.shogi ? (
           <WelcomeScreen />
         ) : (
           <>
@@ -106,10 +90,9 @@ const AppLayout = () => {
                 <Hand isPlayer={false} />
               </GameBoard>
               <GameControls />
-              <div className="app-layout__analysis-controls">
-                {/* <AnalysisControls /> */}
-              </div>
+              <div className="app-layout__analysis-controls">{/* ... */}</div>
             </section>
+
             <section className="app-layout__footer-container">
               <AnalysisPane />
             </section>
