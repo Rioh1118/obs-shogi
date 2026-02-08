@@ -36,7 +36,6 @@ const AnalysisControls: React.FC<{
   const canStartAnalysis = () => {
     return (
       isReady &&
-      !engineState.isInitializing &&
       !analysisState.isAnalyzing &&
       isPositionSynced &&
       currentSfen !== null
