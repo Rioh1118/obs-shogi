@@ -1,0 +1,44 @@
+.settings {
+  .sbadge {
+    font-size: 1.05rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+
+    border: 1px solid var(--ctl-border);
+    background: rgba(0, 0, 0, 0.18);
+    opacity: 0.9;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sbadge--pill {
+    padding: 4px 10px;
+    font-size: 1.1rem;
+  }
+
+  .sbadge--muted {
+    opacity: 0.7;
+  }
+
+  .sbadge--danger {
+    border-color: var(--intent-danger-border);
+    background: var(--intent-danger-bg);
+  }
+
+  .sbadge--warn {
+    border-color: var(--intent-warn-border);
+    background: var(--intent-warn-bg);
+  }
+
+  .sbadge--accent {
+    border-color: var(--intent-accent-border);
+    background: var(--intent-accent-bg);
+  }
+
+  /* light だと badge の黒背景が浮くならここだけ調整 */
+  .modal--light & .sbadge {
+    background: rgba(255, 255, 255, 0.45);
+  }
+}

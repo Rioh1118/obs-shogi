@@ -1,30 +1,25 @@
 @use "@/index" as index;
 
 .position-navigation-modal {
-  width: 989px;
-  height: 721px;
+  width: 100%;
+  height: 100%;
   background: index.$color-primary-dark;
-  border-radius: 12px;
+  border-radius: 1.2rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   font-family: "Inter", "Noto Sans JP", sans-serif;
 
-  &__header {
-    padding: 24px 32px 16px;
-    border-bottom: 2px solid rgba(index.$color-primary-light, 0.3);
-  }
-
   &__title {
-    font-size: 18px;
-    font-weight: 600;
+    font-size: 1.8rem;
+    font-weight: 650;
     color: index.$color-text-light-1;
-    margin: 0 0 8px 0;
+    margin: 0;
     letter-spacing: 0.025em;
   }
 
   &__subtitle {
-    font-size: 14px;
+    font-size: 1.4rem;
     color: rgba(index.$color-text-light-1, 0.7);
     margin: 0;
     font-weight: 400;
@@ -32,103 +27,29 @@
 
   &__content {
     flex: 1;
+    min-height: 0;
     padding: 24px 32px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
     overflow: hidden;
   }
 
-  &__preview-container {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-  }
+  &__grid {
+    height: 100%;
+    min-height: 0;
 
-  &__board-preview {
-    flex-shrink: 0;
-    background: rgba(index.$color-white, 0.95);
-    border: 2px solid index.$color-primary-light;
-    border-radius: 8px;
-    padding: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.3rem;
-    color: index.$color-text-dark-1;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  }
+    display: grid;
+    grid-template-columns: minmax(420px, 1.25fr) minmax(340px, 0.85fr);
+    gap: 16px;
+    &-left {
+      min-height: 0;
+      overflow: hidden;
+      display: grid;
+      place-items: start;
+    }
 
-  &__hands {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px;
-    background: rgba(index.$color-secondary-light, 0.05);
-    border: 1px solid rgba(index.$color-primary-light, 0.3);
-    border-radius: 6px;
-  }
-
-  &__hand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  &__hand-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: index.$color-text-light-1;
-    min-width: 50px;
-  }
-
-  &__hand-pieces {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  &__hand-piece {
-    background: rgba(index.$color-white, 0.9);
-    color: index.$color-text-dark-1;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 3px;
-    border: 1px solid rgba(index.$color-primary-light, 0.3);
-  }
-
-  &__hand-empty {
-    color: rgba(index.$color-text-light-1, 0.6);
-    font-style: italic;
-    font-size: 12px;
-  }
-
-  &__move-sequence {
-    background: rgba(index.$color-secondary-light, 0.1);
-    border-left: 3px solid index.$color-secondary-dark;
-    border-radius: 6px;
-    padding: 16px 20px;
-  }
-
-  &__footer {
-    padding: 16px 32px 24px;
-    border-top: 1px solid rgba(index.$color-primary-light, 0.2);
-  }
-
-  &__shortcuts {
-    display: flex;
-    gap: 24px;
-    font-size: 14px;
-    color: rgba(index.$color-text-light-1, 0.8);
-    font-family: "JetBrains Mono", "Roboto Mono", monospace;
-
-    span {
-      padding: 4px 8px;
-      background: rgba(index.$color-primary-light, 0.3);
-      border-radius: 4px;
-      border: 1px solid rgba(index.$color-primary-light, 0.5);
+    &-right {
+      min-height: 0;
+      overflow: hidden;
+      display: grid;
     }
   }
 }

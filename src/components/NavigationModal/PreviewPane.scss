@@ -1,0 +1,77 @@
+@use "@/index" as index;
+
+.position-navigation-modal {
+  &__preview-container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  &__board-preview {
+    flex-shrink: 0;
+    background: rgba(index.$color-white, 0.95);
+    border: 2px solid index.$color-primary-light;
+    border-radius: 8px;
+    padding: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    color: index.$color-text-dark-1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  &__hands {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+    background: rgba(index.$color-secondary-light, 0.05);
+    border: 1px solid rgba(index.$color-primary-light, 0.3);
+    border-radius: 6px;
+    min-width: 0;
+  }
+
+  &__hand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__hand-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: index.$color-text-light-1;
+    min-width: 50px;
+  }
+
+  &__hand-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &__hand-piece {
+    background: rgba(index.$color-white, 0.9);
+    color: index.$color-text-dark-1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid rgba(index.$color-primary-light, 0.3);
+  }
+
+  &__hand-empty {
+    color: rgba(index.$color-text-light-1, 0.6);
+    font-style: italic;
+    font-size: 12px;
+  }
+
+  &__move-sequence {
+    background: rgba(index.$color-secondary-light, 0.1);
+    border-left: 3px solid index.$color-secondary-dark;
+    border-radius: 6px;
+    padding: 16px 20px;
+  }
+}

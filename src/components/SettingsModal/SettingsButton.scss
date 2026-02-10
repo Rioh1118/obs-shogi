@@ -1,0 +1,74 @@
+.settings {
+  .sbtn {
+    border: 1px solid var(--ctl-border);
+    background: var(--ctl-bg);
+    color: inherit;
+
+    border-radius: var(--ctl-radius);
+    padding: 8px 10px;
+    cursor: pointer;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    transition:
+      background 120ms ease,
+      transform 120ms ease,
+      border-color 120ms ease;
+
+    &:hover {
+      background: var(--ctl-hover);
+    }
+    &:active {
+      transform: translateY(1px);
+    }
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--s-focus);
+      outline-offset: 2px;
+    }
+  }
+
+  .sbtn--sm {
+    padding: 6px 8px;
+    font-size: 1.15rem;
+  }
+
+  .sbtn--md {
+    padding: 8px 10px;
+    font-size: 1.2rem;
+  }
+
+  .sbtn--ghost {
+    background: transparent;
+    border-color: transparent;
+
+    &:hover {
+      background: var(--tab-hover-bg);
+      border-color: var(--tab-hover-border);
+    }
+  }
+
+  .sbtn--primary {
+    border-color: var(--intent-accent-border);
+    background: var(--intent-accent-bg);
+
+    &:hover {
+      background: color-mix(in srgb, var(--intent-accent-bg) 100%, white 8%);
+    }
+  }
+
+  .sbtn--danger {
+    border-color: var(--intent-danger-border);
+    background: var(--intent-danger-bg);
+
+    &:hover {
+      background: color-mix(in srgb, var(--intent-danger-bg) 100%, white 6%);
+    }
+  }
+}

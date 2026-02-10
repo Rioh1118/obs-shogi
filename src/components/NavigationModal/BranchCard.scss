@@ -1,0 +1,109 @@
+@use "@/index.scss" as index;
+
+.branch-selector {
+  &__card {
+    background: index.$color-white;
+    border: 2px solid rgba(index.$color-primary-light, 0.2);
+    border-radius: 8px;
+    padding: 16px 20px;
+    cursor: pointer;
+
+    scroll-snap-align: center;
+    scroll-margin: 1.2rem;
+
+    view-timeline-name: var(--card-timeline, --default-card-timeline);
+    view-timeline-axis: block;
+
+    transition:
+      transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 0.15s ease,
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      border-color: rgba(index.$color-secondary-dark, 0.3);
+    }
+
+    &--selected {
+      background: index.$color-secondary-dark;
+      color: index.$color-text-light-1;
+      border-color: index.$color-secondary-dark;
+      box-shadow: 0 4px 12px rgba(index.$color-secondary-dark, 0.3);
+
+      .branch-selector__move-number,
+      .branch-selector__sequence-text,
+      .branch-selector__sequence-icon {
+        color: index.$color-text-light-1;
+      }
+
+      .branch-selector__move-text {
+        background: rgba(index.$color-white, 0.2);
+        color: index.$color-text-light-1;
+        border-color: rgba(index.$color-white, 0.3);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+    }
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  &__move {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__move-number {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(index.$color-text-dark-1, 0.7);
+    font-family: "Inter", sans-serif;
+  }
+
+  &__evaluation {
+    display: flex;
+    align-items: center;
+  }
+
+  &__move-text {
+    font-size: 16px;
+    font-weight: 700;
+    color: index.$color-secondary-dark;
+    background: linear-gradient(
+      135deg,
+      rgba(index.$color-secondary-dark, 0.15),
+      rgba(index.$color-secondary-dark, 0.08)
+    );
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family: "Noto Sans JP", sans-serif;
+    border: 1px solid rgba(index.$color-secondary-dark, 0.2);
+    box-shadow: 0 2px 4px rgba(index.$color-secondary-dark, 0.1);
+  }
+
+  &__sequence {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  &__sequence-icon {
+    color: rgba(index.$color-secondary-dark, 0.6);
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  &__sequence-text {
+    color: rgba(index.$color-text-dark-1, 0.75);
+    font-family: "Inter", sans-serif;
+  }
+}

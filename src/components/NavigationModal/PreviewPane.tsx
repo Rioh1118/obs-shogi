@@ -1,14 +1,34 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import BoardPreview from "../GameBoard/Board/BoardPreview";
 import { Color } from "shogi.js";
 import type { PreviewData } from "@/types";
+import "./PreviewPane.scss";
 
 type Props = {
   previewData: PreviewData | null;
   toKan: (k: string) => string;
 };
+const clamp = (v: number, min: number, max: number) =>
+  Math.max(min, Math.min(max, v));
 
 const PreviewPane: React.FC<Props> = ({ previewData, toKan }) => {
+  const boardWrapRef = useRef<HTMLDivElement>(null);
+  const [boardSize, setBoardSize] = useState(320);
+
+  useEffect(() => {
+    const el = boardWrapRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect?.width ?? 0;
+      const next = clamp(Math.floor(w - 24 * 10), 240, 520);
+      setBoardSize(next);
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   if (!previewData) {
     return (
       <div className="position-navigation-modal__preview-container">
@@ -28,11 +48,14 @@ const PreviewPane: React.FC<Props> = ({ previewData, toKan }) => {
 
   return (
     <div className="position-navigation-modal__preview-container">
-      <div className="position-navigation-modal__board-preview">
+      <div
+        className="position-navigation-modal__board-preview"
+        ref={boardWrapRef}
+      >
         <BoardPreview
           pieces={previewData.board}
           hands={hands}
-          size={160}
+          size={boardSize}
           showCoordinates={false}
           showLastMove={false}
           showHands={false}

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useLayoutEffect } from "react";
-import { formatMove } from "@/utils/shogi-format";
 import "./BranchList.scss";
 import type { BranchOption } from "@/types";
+import BranchCard from "./BranchCard";
 
 type Props = {
   branches: BranchOption[];
@@ -97,13 +97,6 @@ export default function BranchList({
     return () => observer.disconnect();
   }, [branches.length]);
 
-  const buildCardClass = (idx: number) => {
-    const base = "branch-selector__card";
-    const selected =
-      selectedIndex === idx ? "branch-selector__card--selected" : "";
-    return [base, selected].filter(Boolean).join(" ");
-  };
-
   if (branches.length === 0) {
     return (
       <div className="branch-selector" ref={containerRef}>
@@ -114,62 +107,18 @@ export default function BranchList({
     );
   }
 
-  // 本譜と分岐を分ける
-  const mainLine = branches[0];
-  const variations = branches.slice(1);
-
   return (
     <div className="branch-selector" ref={containerRef}>
-      {/* 本譜*/}
-      <div
-        ref={setCardRef(0)}
-        className={buildCardClass(0)}
-        onClick={() => onSelectIndex(0)}
-      >
-        <div className="branch-selector__header">
-          <span className="branch-selector__move">本譜</span>
-          <span className="branch-selector__evaluation">
-            {mainLine.move ? formatMove(mainLine.move) : "次の手"}
-          </span>
-        </div>
-        <div className="branch-selector__sequence">
-          <span className="branch-selector__sequence-icon">→</span>
-          <span className="branch-selector__sequence-text">
-            {mainLine.tesuu}手目
-          </span>
-        </div>
-      </div>
-      {/*分岐群*/}
-      {variations.map((branch, i) => {
-        const idx = i + 1;
-        return (
-          <div
-            key={branch.id}
-            ref={setCardRef(idx)}
-            className={buildCardClass(idx)}
-            onClick={() => onSelectIndex(idx)}
-          >
-            <div className="branch-selector__header">
-              <span className="branch-selector__move">
-                <span className="branch-selector__move-number">変化{idx}</span>
-              </span>
-              <span className="branch-selector__evaluation">
-                <span className="branch-selector__move-text">
-                  {branch.move
-                    ? formatMove(branch.move)
-                    : `${branch.tesuu}手目`}
-                </span>
-              </span>
-            </div>
-            <div className="branch-selector__sequence">
-              <span className="branch-selector__sequence-icon">→</span>
-              <span className="branch-selector__sequence-text">
-                {branch.tesuu}手目
-              </span>
-            </div>
-          </div>
-        );
-      })}
+      {branches.map((branch, idx) => (
+        <BranchCard
+          key={branch.id}
+          ref={setCardRef(idx)}
+          branch={branch}
+          index={idx}
+          selected={selectedIndex === idx}
+          onClick={() => onSelectIndex(idx)}
+        />
+      ))}
     </div>
   );
 }

@@ -16,7 +16,7 @@ export type {
 } from "./types";
 
 // ===== 定数のエクスポート =====
-export { ENGINE_CONSTANTS, DEFAULT_OPTIONS, EVENT_NAMES } from "./constants";
+export { DEFAULT_OPTIONS, EVENT_NAMES } from "./constants";
 
 // ===== 基本コマンドのエクスポート =====
 export {
@@ -87,7 +87,7 @@ import * as core from "./core";
 import * as utils from "./utils";
 import * as advanced from "./advanced";
 import * as events from "./events";
-import { ENGINE_CONSTANTS, DEFAULT_OPTIONS } from "./constants";
+import { DEFAULT_OPTIONS } from "./constants";
 
 export default {
   // 基本機能
@@ -103,6 +103,5 @@ export default {
   ...events,
 
   // 定数
-  ENGINE_CONSTANTS,
   DEFAULT_OPTIONS,
 };

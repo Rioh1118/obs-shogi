@@ -1,0 +1,23 @@
+@use "@/index" as index;
+
+.position-navigation-modal {
+  &__footer {
+    padding: 16px 32px 24px;
+    border-top: 1px solid rgba(index.$color-primary-light, 0.2);
+  }
+
+  &__shortcuts {
+    display: flex;
+    gap: 24px;
+    font-size: 14px;
+    color: rgba(index.$color-text-light-1, 0.8);
+    font-family: "JetBrains Mono", "Roboto Mono", monospace;
+
+    span {
+      padding: 4px 8px;
+      background: rgba(index.$color-primary-light, 0.3);
+      border-radius: 4px;
+      border: 1px solid rgba(index.$color-primary-light, 0.5);
+    }
+  }
+}

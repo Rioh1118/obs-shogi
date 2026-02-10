@@ -1,0 +1,20 @@
+@use "@/index" as index;
+
+.position-navigation-modal {
+  &__chip {
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.88);
+
+    padding: 6px 10px;
+    border-radius: 999px;
+
+    background: rgba(index.$color-primary-light, 0.25);
+    border: 1px solid rgba(index.$color-primary-light, 0.35);
+    white-space: nowrap;
+
+    &--accent {
+      background: rgba(index.$color-secondary-dark, 0.22);
+      border-color: rgba(index.$color-secondary-dark, 0.45);
+    }
+  }
+}

@@ -3,7 +3,6 @@ import { useURLParams } from "@/hooks/useURLParams";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "./PreviewPane";
-import InfoBar from "./InfoBar";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
 import {
@@ -16,6 +15,8 @@ import { useGame } from "@/contexts/GameContext";
 import { appliedForkPointers } from "@/utils/kifuCursor";
 import { buildNextOptions, buildPreviewData } from "@/utils/buildPreviewData";
 import { removeForkPointer, upsertForkPointer } from "@/utils/kifuPlan";
+import PositionNavigationHeader from "./PositionNavigationHeader";
+import PositionNavigationFooter from "./PositionNavigationFooter";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
@@ -215,39 +216,27 @@ function PositionNavigationModal() {
   return (
     <Modal onToggle={closeModal}>
       <div className="position-navigation-modal">
-        <div className="position-navigation-modal__header">
-          <h2 className="position-navigation-modal__title">
-            局面ナビゲーション
-          </h2>
-          <p className="position-navigation-modal__subtitle">
-            nvim風操作で高速ナビゲーション
-          </p>
-        </div>
-
+        <PositionNavigationHeader
+          previewData={previewData}
+          selectedBranchIndex={nav.selectedBranchIndex}
+        />
         <div className="position-navigation-modal__content">
-          <PreviewPane previewData={previewData} toKan={toKan} />
-          <InfoBar
-            previewData={previewData}
-            selectedBranchIndex={nav.selectedBranchIndex}
-          />
-
-          <BranchList
-            branches={options}
-            selectedIndex={nav.selectedBranchIndex}
-            onSelectIndex={(idx) =>
-              setNav((s) => ({ ...s, selectedBranchIndex: idx }))
-            }
-          />
-        </div>
-
-        <div className="position-navigation-modal__footer">
-          <div className="position-navigation-modal__shortcuts">
-            <span>[h/l] 手順移動/分岐移動</span>
-            <span>[j/k] 分岐選択</span>
-            <span>[Enter] 確定</span>
-            <span>[Esc] キャンセル</span>
+          <div className="position-navigation-modal__grid">
+            <div className="position-navigation-modal__grid-left">
+              <PreviewPane previewData={previewData} toKan={toKan} />
+            </div>
+            <div className="position-navigation-modal__grid-right">
+              <BranchList
+                branches={options}
+                selectedIndex={nav.selectedBranchIndex}
+                onSelectIndex={(idx) =>
+                  setNav((s) => ({ ...s, selectedBranchIndex: idx }))
+                }
+              />
+            </div>
           </div>
         </div>
+        <PositionNavigationFooter />
       </div>
     </Modal>
   );

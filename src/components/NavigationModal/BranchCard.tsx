@@ -1,45 +1,56 @@
-// src/components/PositionNavigationModal/BranchCard.tsx
-import React from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Branch } from "@/types/branchNav";
+import type { BranchOption } from "@/types";
+import { formatMove } from "@/utils/shogi-format";
+import { memo } from "react";
+import "./BranchCard.scss";
 
 type Props = {
-  branch: Branch;
-  cardIndex: number;
-  className: string;
-  disabled: boolean;
+  branch: BranchOption;
+  index: number;
+  selected: boolean;
   onClick: () => void;
+  ref?: React.Ref<HTMLDivElement>;
 };
 
-const BranchCard: React.FC<Props> = ({
-  branch,
-  cardIndex,
-  className,
-  disabled,
-  onClick,
-}) => {
+function BranchCard({ branch, index, selected, onClick, ref }: Props) {
+  const base = "branch-selector__card";
+  const selectedClass = selected ? "branch-selector__card--selected" : "";
+  const className = [base, selectedClass].filter(Boolean).join("  ");
+
+  const isMain = index === 0;
+  const headerLeft = isMain ? (
+    <span className="branch-selector__move">本譜</span>
+  ) : (
+    <span className="branch-selector__move">
+      <span className="branch-selector__move-number">変化{index}</span>
+    </span>
+  );
+  const headerRight = isMain ? (
+    <span className="branch-selector__evaluation">
+      {branch.move ? formatMove(branch.move) : "次の手"}
+    </span>
+  ) : (
+    <span className="branch-selector__evaluation">
+      <span className="branch-selector__move-text">
+        {branch.move ? formatMove(branch.move) : `${branch.tesuu}手目`}
+      </span>
+    </span>
+  );
+
   return (
-    <div className={className} onClick={disabled ? undefined : onClick}>
+    <div ref={ref} className={className} onClick={onClick}>
       <div className="branch-selector__header">
-        <span className="branch-selector__move">
-          <span className="branch-selector__move-number">変化{cardIndex}</span>
-        </span>
-        <span className="branch-selector__evaluation">
-          <span className="branch-selector__move-text">
-            {branch.moves[0]?.description ||
-              JKFPlayer.moveToReadableKifu({ move: branch.firstMove }) ||
-              String(branch.firstMove)}
-          </span>
-        </span>
+        {headerLeft}
+        {headerRight}
       </div>
+
       <div className="branch-selector__sequence">
         <span className="branch-selector__sequence-icon">→</span>
         <span className="branch-selector__sequence-text">
-          {branch.startTesuu + 1}手目から {branch.length}手の変化
+          {branch.tesuu}手目
         </span>
       </div>
     </div>
   );
-};
+}
 
-export default BranchCard;
+export default memo(BranchCard);
