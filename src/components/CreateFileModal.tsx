@@ -9,7 +9,12 @@ function CreateFileModal() {
   if (!isOpen) return null;
 
   return (
-    <Modal onToggle={() => closeModal()}>
+    <Modal
+      onClose={() => closeModal()}
+      theme="light"
+      variant="dialog"
+      size="md"
+    >
       <FileCreateForm
         toggleModal={() => closeModal()}
         dirPath={params.dir || ""}

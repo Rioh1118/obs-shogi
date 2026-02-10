@@ -214,13 +214,21 @@ function PositionNavigationModal() {
   if (!isOpen) return null;
 
   return (
-    <Modal onToggle={closeModal}>
+    <Modal
+      onClose={closeModal}
+      theme="light"
+      variant="workspace"
+      size="xl"
+      chrome="none"
+      padding="none"
+      scroll="none"
+    >
       <div className="position-navigation-modal">
         <PositionNavigationHeader
           previewData={previewData}
           selectedBranchIndex={nav.selectedBranchIndex}
         />
-        <div className="position-navigation-modal__content">
+        <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">
             <div className="position-navigation-modal__grid-left">
               <PreviewPane previewData={previewData} toKan={toKan} />
@@ -235,7 +243,7 @@ function PositionNavigationModal() {
               />
             </div>
           </div>
-        </div>
+        </main>
         <PositionNavigationFooter />
       </div>
     </Modal>

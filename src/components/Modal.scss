@@ -6,21 +6,107 @@
   &__overlay {
     position: fixed;
     inset: 0;
-    backdrop-filter: blur(4px);
+    z-index: 9999;
+
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
-  }
-  &__card {
+
     padding: 2rem;
+    backdrop-filter: blur(4px);
+
+    overscroll-behavior: contain;
+  }
+
+  &__card {
+    position: relative;
+    user-select: text;
+
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+
     border-radius: 1rem;
-    box-shadow: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.25);
-    min-width: 50%;
-    min-height: 50%;
-    max-width: 85%;
-    max-height: 90%;
-    overflow-y: auto;
+    outline: none;
+
+    overflow: hidden;
+
+    &--scroll-card {
+      overflow: auto;
+      overscroll-behavior: contain;
+
+      scrollbar-width: thin;
+      &::-webkit-scrollbar {
+        display: block;
+        width: 8px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: rgba(index.$color-secondary-dark, 0.6);
+        border-radius: 8px;
+      }
+      &::-webkit-scrollbar-track {
+        background: rgba(index.$color-primary-light, 0.2);
+        border-radius: 8px;
+      }
+    }
+
+    &--scroll-content {
+      overflow: hidden;
+    }
+
+    &--scroll-none {
+      overflow: hidden;
+    }
+  }
+
+  &__close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+
+    display: grid;
+    place-items: center;
+
+    cursor: pointer;
+    border: 1px solid rgba(index.$color-white, 0.12);
+
+    background: rgba(index.$color-primary-black, 0.25);
+    color: index.$color-text-light-1;
+
+    transition:
+      transform 120ms ease,
+      background-color 120ms ease;
+    &:hover {
+      background: rgba(index.$color-primary-black, 0.35);
+      transform: translateY(-1px);
+    }
+    &:active {
+      transform: translateY(0px) scale(0.98);
+    }
+  }
+
+  &__body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+
+    scrollbar-width: thin;
+    &::-webkit-scrollbar {
+      display: block;
+      width: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(index.$color-secondary-dark, 0.6);
+      border-radius: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: rgba(index.$color-primary-light, 0.2);
+      border-radius: 8px;
+    }
   }
 
   &--light {
@@ -29,8 +115,16 @@
     }
 
     .modal__card {
-      background-color: rgba(index.$color-secondary-light, 0.85);
+      background-color: rgba(index.$color-secondary-light, 0.92);
       color: index.$color-text-dark-1;
+      border: 1px solid rgba(index.$color-primary-light, 0.18);
+      box-shadow: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.25);
+    }
+
+    .modal__close {
+      background: rgba(index.$color-white, 0.7);
+      color: index.$color-text-dark-1;
+      border-color: rgba(index.$color-primary-light, 0.2);
     }
   }
 
@@ -46,6 +140,84 @@
 
       border: 1px solid rgba(index.$color-white, 0.08);
       box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.45);
+    }
+  }
+
+  &--pad-none {
+    .modal__card--scroll-card {
+      padding: 0;
+    }
+    .modal__body {
+      padding: 0;
+    }
+  }
+  &--pad-sm {
+    .modal__card--scroll-card {
+      padding: 12px;
+    }
+    .modal__body {
+      padding: 12px;
+    }
+  }
+  &--pad-md {
+    .modal__card--scroll-card {
+      padding: 20px;
+    }
+    .modal__body {
+      padding: 20px;
+    }
+  }
+
+  // ---------- sizes ----------
+  &--size-sm .modal__card {
+    width: min(520px, 92vw);
+    max-height: 80vh;
+  }
+  &--size-md .modal__card {
+    width: min(720px, 92vw);
+    max-height: 88vh;
+  }
+  &--size-lg .modal__card {
+    width: min(900px, 92vw);
+    max-height: 88vh;
+  }
+
+  &--chrome-none {
+    .modal__card {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+  }
+
+  &--dialog.modal--size-xl .modal__card {
+    width: min(1100px, 92vw);
+    max-height: 88vh;
+  }
+  &--workspace.modal--size-xl .modal__card {
+    width: min(1100px, 92vw);
+    height: min(760px, 88vh);
+  }
+
+  &--size-full .modal__card {
+    width: 96vw;
+    height: 92vh;
+    border-radius: 14px;
+  }
+
+  @media (max-width: 640px), (max-height: 720px) {
+    &--size-lg .modal__card,
+    &--size-md .modal__card {
+      width: 96vw;
+      height: 92vh;
+      max-height: none;
+      border-radius: 14px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &__close {
+      transition: none;
     }
   }
 }

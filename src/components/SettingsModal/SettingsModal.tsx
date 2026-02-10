@@ -9,7 +9,13 @@ export default function SettingsModal() {
   if (!isOpen) return null;
 
   return (
-    <Modal onToggle={() => closeModal()} theme="dark">
+    <Modal
+      onClose={() => closeModal()}
+      theme="dark"
+      size="xl"
+      padding="none"
+      variant="dialog"
+    >
       <SettingsPanel />
     </Modal>
   );
