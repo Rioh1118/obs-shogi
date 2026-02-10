@@ -1,0 +1,59 @@
+@use "@/index" as index;
+
+.position-navigation-modal {
+  &__hand {
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  &__hand-label {
+    font-size: 13px;
+    font-weight: 650;
+    color: rgba(index.$color-text-light-1, 0.9);
+    line-height: 1.6;
+  }
+
+  &__hand-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__hand-piece {
+    background: rgba(index.$color-white, 0.92);
+    color: index.$color-text-dark-1;
+    font-size: 12px;
+    font-weight: 650;
+    padding: 3px 7px;
+    border-radius: 6px;
+    border: 1px solid rgba(index.$color-primary-light, 0.3);
+  }
+
+  &__hand-chip {
+    display: inline-flex;
+    align-items: center;
+
+    padding: 6px 10px;
+    border-radius: 999px;
+
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+
+    background: rgba(index.$color-primary-black, 0.25);
+    border: 1px solid rgba(index.$color-primary-light, 0.35);
+    color: rgba(index.$color-text-light-1, 0.92);
+
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__hand-empty {
+    color: rgba(index.$color-text-light-1, 0.6);
+    font-style: italic;
+    font-size: 12px;
+    line-height: 1.8;
+  }
+}

@@ -17,30 +17,20 @@ function BranchCard({ branch, index, selected, onClick, ref }: Props) {
   const className = [base, selectedClass].filter(Boolean).join("  ");
 
   const isMain = index === 0;
-  const headerLeft = isMain ? (
-    <span className="branch-selector__move">本譜</span>
-  ) : (
-    <span className="branch-selector__move">
-      <span className="branch-selector__move-number">変化{index}</span>
-    </span>
-  );
-  const headerRight = isMain ? (
-    <span className="branch-selector__evaluation">
-      {branch.move ? formatMove(branch.move) : "次の手"}
-    </span>
-  ) : (
-    <span className="branch-selector__evaluation">
-      <span className="branch-selector__move-text">
-        {branch.move ? formatMove(branch.move) : `${branch.tesuu}手目`}
-      </span>
-    </span>
-  );
+  const leftLabel = isMain ? "本譜" : `変化${index}`;
+  const rightText = branch.move
+    ? formatMove(branch.move)
+    : isMain
+      ? "次の手"
+      : `${branch.tesuu}手目`;
 
   return (
     <div ref={ref} className={className} onClick={onClick}>
       <div className="branch-selector__header">
-        {headerLeft}
-        {headerRight}
+        <span className="branch-selector__label">{leftLabel}</span>
+        <span className="branch-selector__evaluation">
+          <span className="branch-selector__move-pill">{rightText}</span>
+        </span>
       </div>
 
       <div className="branch-selector__sequence">

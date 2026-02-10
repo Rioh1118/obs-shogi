@@ -10,25 +10,17 @@
   overflow: hidden;
   font-family: "Inter", "Noto Sans JP", sans-serif;
 
-  &__title {
-    font-size: 1.8rem;
-    font-weight: 650;
-    color: index.$color-text-light-1;
-    margin: 0;
-    letter-spacing: 0.025em;
-  }
+  container-type: inline-size;
+  --pad-x: clamp(16px, 2.6cqw, 32px);
+  --pad-y: clamp(14px, 2cqw, 24px);
+  --gap: clamp(12px, 1.6cqw, 18px);
 
-  &__subtitle {
-    font-size: 1.4rem;
-    color: rgba(index.$color-text-light-1, 0.7);
-    margin: 0;
-    font-weight: 400;
-  }
+  --right-col: clamp(300px, 34cqw, 420px);
 
   &__content {
     flex: 1;
     min-height: 0;
-    padding: 24px 32px;
+    padding: var(--pad-y) var(--pad-x);
     overflow: hidden;
   }
 
@@ -37,15 +29,9 @@
     min-height: 0;
 
     display: grid;
-    grid-template-columns: minmax(420px, 1.25fr) minmax(340px, 0.85fr);
-    gap: 16px;
-    &-left {
-      min-height: 0;
-      overflow: hidden;
-      display: grid;
-      place-items: start;
-    }
-
+    grid-template-columns: minmax(0, 1fr) minmax(28rem, var(--right-col));
+    gap: var(--gap);
+    &-left,
     &-right {
       min-height: 0;
       overflow: hidden;
@@ -54,59 +40,21 @@
   }
 }
 
-// モーダル専用の手順表示
-.modal-move-sequence {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  line-height: 1.6;
-
-  &__item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+@container (max-width: 920px) {
+  .position-navigation-modal__grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
-  &__move {
-    font-size: 14px;
-    font-weight: 500;
-    color: index.$color-text-light-1;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: "Noto Sans JP", sans-serif;
-    border: 1px solid rgba(index.$color-primary-light, 0.3);
-    background: rgba(index.$color-primary-light, 0.1);
-    transition: all 0.15s ease;
-    white-space: nowrap;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-
-    &--current {
-      background: index.$color-secondary-dark;
-      color: index.$color-text-light-1;
-      font-weight: 700;
-      box-shadow: 0 3px 8px rgba(index.$color-secondary-dark, 0.4);
-      border-color: index.$color-secondary-dark;
-      transform: scale(1.05);
-      max-width: 140px;
-    }
-  }
-
-  &__arrow {
-    color: rgba(index.$color-text-light-1, 0.5);
-    flex-shrink: 0;
+  .position-navigation-modal__grid-right {
+    max-height: min(34vh, 360px);
   }
 }
 
-// レスポンシブ対応
 @media (max-height: 800px) {
   .position-navigation-modal {
-    height: 600px;
-
-    &__board-preview {
-      height: 140px;
-    }
+    --pad-x: 14px;
+    --pad-y: 12px;
+    --gap: 12px;
   }
 }

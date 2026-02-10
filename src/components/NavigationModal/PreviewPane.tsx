@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import BoardPreview from "../GameBoard/Board/BoardPreview";
 import { Color } from "shogi.js";
 import type { PreviewData } from "@/types";
 import "./PreviewPane.scss";
+import HandRow from "./HandRow";
 
 type Props = {
   previewData: PreviewData | null;
@@ -11,7 +12,7 @@ type Props = {
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
 
-const PreviewPane: React.FC<Props> = ({ previewData, toKan }) => {
+function PreviewPane({ previewData, toKan }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(320);
 
@@ -20,8 +21,19 @@ const PreviewPane: React.FC<Props> = ({ previewData, toKan }) => {
     if (!el) return;
 
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect?.width ?? 0;
-      const next = clamp(Math.floor(w - 24 * 10), 240, 520);
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+
+      const style = getComputedStyle(el);
+      const padX =
+        parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const padY =
+        parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const usable = Math.floor(
+        Math.min(rect.width - padX, rect.height - padY),
+      );
+
+      const next = clamp(usable, 240, 820);
       setBoardSize(next);
     });
 
@@ -69,30 +81,6 @@ const PreviewPane: React.FC<Props> = ({ previewData, toKan }) => {
       </div>
     </div>
   );
-};
-
-const HandRow: React.FC<{
-  label: string;
-  kinds: string[];
-  toKan: (k: string) => string;
-}> = ({ label, kinds, toKan }) => (
-  <div className="position-navigation-modal__hand">
-    <div className="position-navigation-modal__hand-label">{label}</div>
-    <div className="position-navigation-modal__hand-pieces">
-      {kinds.length > 0 ? (
-        kinds.map((kind, i) => (
-          <span
-            key={`${label}-${kind}-${i}`}
-            className="position-navigation-modal__hand-piece"
-          >
-            {toKan(kind)}
-          </span>
-        ))
-      ) : (
-        <span className="position-navigation-modal__hand-empty">なし</span>
-      )}
-    </div>
-  </div>
-);
+}
 
 export default PreviewPane;

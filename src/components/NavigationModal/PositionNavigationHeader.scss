@@ -1,6 +1,21 @@
 @use "@/index" as index;
 
 .position-navigation-modal {
+  &__title {
+    font-size: 1.8rem;
+    font-weight: 650;
+    color: index.$color-text-light-1;
+    margin: 0;
+    letter-spacing: 0.025em;
+  }
+
+  &__subtitle {
+    font-size: 1.4rem;
+    color: rgba(index.$color-text-light-1, 0.7);
+    margin: 0;
+    font-weight: 400;
+  }
+
   &__header {
     padding: 18px 22px 14px;
     border-bottom: 2px solid rgba(index.$color-primary-light, 0.3);
