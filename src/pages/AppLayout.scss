@@ -1,53 +1,108 @@
 @use "../index.scss" as index;
 
 .app-layout {
-  display: flex;
-  min-height: 100vh;
-  width: 100vw;
+  --header-h: 5.6rem;
+  --sidebar-w: clamp(26rem, 20vw, 36rem);
+  --dock-h: clamp(22rem, 28vh, 42rem);
+  --stroke: rgba(255, 255, 255, 0.06);
+  --card: rgba(255, 255, 255, 0.04);
+  --card-strong: rgba(255, 255, 255, 0.06);
+
+  height: 100%;
+  width: 100%;
   position: relative;
   overflow: hidden;
 
-  position: relative;
+  display: grid;
+  grid-template-rows: var(--header-h) 1fr;
 
-  .sidebar__btn--toggle {
-    position: fixed;
-    top: calc(0.7rem + #{index.$titlebar-height});
-    left: 1.6rem;
-    z-index: 1000;
-    color: index.$color-text-light-1;
-    background-color: index.$color-primary-dark;
+  background-color: index.$color-primary-light;
+  color: index.$color-text-light-1;
+
+  &--loading {
+    display: grid;
+    place-items: center;
   }
 
-  &__analysis-controls {
-    position: absolute;
-    top: calc(0.2rem + #{index.$titlebar-height});
-    right: 9%;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    z-index: 50;
+  &__body {
+    min-height: 0;
+    min-width: 0;
 
-    background-color: rgba(255, 255, 255, 0.02);
-    padding: 0.8rem;
-    border-radius: 0.8rem;
-    box-shadow: 0 0 8pxx rgba(0, 0, 0, 0.2);
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
   }
 
-  &__main-container {
-    flex-grow: 1;
-    color: index.$color-text-light-1;
-    background-color: index.$color-primary-light;
+  &--sidebar-closed {
+    --sidebar-w: 0px;
+  }
+  &__sidebar-slot {
+    min-height: 0;
+    overflow: hidden;
+    border-right: 1px solid var(--stroke);
+    transition: width 180ms ease;
+  }
 
-    & .main-container__game {
-      padding: 0;
-      margin: 0 auto;
-      width: 85rem;
-      height: 50rem;
+  &__main {
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  &__empty {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    padding: 1.6rem;
+  }
+}
+
+.workspace {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+
+  display: grid;
+  grid-template-rows: 1fr var(--dock-h);
+  gap: 1.2rem;
+  padding: 1.2rem;
+
+  &__board {
+    min-height: 0;
+    display: grid;
+    place-items: center;
+
+    &-surface {
+      width: min(1200px, 100%);
+      min-width: 0;
+
+      display: grid;
+
+      padding: 1.2rem;
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      border-radius: 1.4rem;
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.24),
+        0 10px 24px rgba(0, 0, 0, 0.18);
     }
   }
 
-  &__footer-container {
-    margin-top: 5.7em;
-    width: 100%;
+  &__controls {
+    display: flex;
+    justify-content: center;
   }
+
+  &__analysis {
+    min-height: 0;
+    overflow: hidden;
+
+    background: var(--card-strong);
+    border: 1px solid var(--stroke);
+    border-radius: 1.4rem;
+  }
+}
+
+.workspace__analysis > .analysis-pane {
+  height: 100%;
+  overflow: auto;
 }

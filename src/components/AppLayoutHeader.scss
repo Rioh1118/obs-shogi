@@ -1,0 +1,85 @@
+@use "@/index.scss" as index;
+
+.app-header {
+  --header-h: 5.6rem;
+
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem;
+  padding: 0 1.2rem;
+  background-color: index.$color-primary-dark;
+  border-bottom: 1px solid var(--stroke);
+
+  &__left,
+  &__center,
+  &__right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  &__brand {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+  }
+
+  &__appname {
+    font-size: 1.6rem;
+    letter-spacing: 0.02em;
+  }
+
+  &__subtitle {
+    font-size: 1.2rem;
+    opacity: 0.75;
+  }
+
+  &__context {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  &__context-label {
+    font-size: 1.3rem;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__sidebar-toggle {
+    background-color: index.$color-primary-black;
+    color: index.$color-text-light-1;
+  }
+
+  &__icon-btn {
+    height: 3.6rem;
+    width: 3.6rem;
+    border-radius: 1rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(245, 245, 245, 0.92);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(162, 123, 92, 0.85); /* secondary-darkっぽい */
+      outline-offset: 2px;
+    }
+  }
+}

@@ -53,24 +53,27 @@ function FileTree() {
 
   return (
     <div className="file-tree">
-      {isLoading ? (
-        <Spinner />
-      ) : !fileTree ? (
-        <div className="empty">
-          <p>ファイルツリーがありません</p>
-          <p>設定でルートディレクトリを選択してください</p>
-        </div>
-      ) : (
-        <RootNode key={"root"} node={fileTree} />
-      )}
-      {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={items}
-          onClose={closeContextMenu}
-        />
-      )}
+      <header className="file-tree__header"></header>
+      <div className="file-tree__scroll">
+        {isLoading ? (
+          <Spinner />
+        ) : !fileTree ? (
+          <div className="empty">
+            <p>ファイルツリーがありません</p>
+            <p>設定でルートディレクトリを選択してください</p>
+          </div>
+        ) : (
+          <RootNode key={"root"} node={fileTree} />
+        )}
+        {menu && (
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={items}
+            onClose={closeContextMenu}
+          />
+        )}
+      </div>
     </div>
   );
 }

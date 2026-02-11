@@ -1,6 +1,7 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import "./Modal.scss";
 import { X } from "lucide-react";
+import { createPortal } from "react-dom";
 
 type ModalTheme = "light" | "dark";
 type ModalVariant = "dialog" | "workspace";
@@ -66,15 +67,9 @@ function Modal({
     return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [closeOnEsc, onClose]);
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
+  const root = document.getElementById("modal-root") ?? document.body;
 
-  return (
+  return createPortal(
     <div className={className}>
       <div
         className="modal__overlay"
@@ -104,7 +99,8 @@ function Modal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    root,
   );
 }
 
