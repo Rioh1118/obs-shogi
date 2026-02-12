@@ -1,5 +1,6 @@
 use super::analyzer::EngineAnalyzer;
 use super::types::*;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,7 +35,14 @@ struct AnalysisSession {
     session_id: String,
     session_type: SessionType,
     result_receiver: Option<mpsc::UnboundedReceiver<AnalysisResult>>,
+    last_result: Option<AnalysisResult>,
     is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AnalysisUpdate {
+    session_id: String,
+    result: AnalysisResult,
 }
 
 #[derive(Debug, Clone)]
@@ -72,6 +80,15 @@ impl EngineBridge {
             .map_err(|e| format!("Engine initialization failed: {:?}", e))
     }
 
+    async fn ensure_no_active_session(&self) -> Result<(), String> {
+        let sessions = self.active_sessions.read().await;
+        let has_active = sessions.values().any(|s| s.is_active);
+        if has_active {
+            return Err("Analysis already running".to_string());
+        }
+        Ok(())
+    }
+
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
         println!("[BRIDGE] shutdown_engine_impl called");
 
@@ -100,6 +117,8 @@ impl EngineBridge {
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
+        self.ensure_no_active_session().await?;
+
         println!("🚀 [BRIDGE] start_infinite_analysis_impl called");
         // セッション数チェック
         let current_sessions = self.active_sessions.read().await;
@@ -119,74 +138,64 @@ impl EngineBridge {
 
         println!("✅ [BRIDGE] Analyzer returned result receiver");
         let session_id = self.create_session(SessionType::Infinite, result_rx).await;
-
-        println!("✅ [BRIDGE] Session registered: {}", session_id);
-
         self.start_result_forwarding(&session_id).await;
         Ok(session_id)
     }
 
     async fn start_result_forwarding(&self, session_id: &str) {
-        let app_handle = {
-            let handle_guard = self.app_handle.read().await;
-            handle_guard.clone()
-        };
+        let sessions_clone = Arc::clone(&self.active_sessions);
+        let app_handle_clone = Arc::clone(&self.app_handle);
+        let session_id_clone = session_id.to_string();
 
-        if let Some(handle) = app_handle {
-            let sessions_clone = Arc::clone(&self.active_sessions);
-            let session_id_clone = session_id.to_string();
-
-            tokio::spawn(async move {
-                Self::forward_results_to_ui(handle, sessions_clone, session_id_clone).await;
-            });
-        } else {
-            println!("⚠️ [BRIDGE] AppHandle not available for result forwarding");
-        }
+        tokio::spawn(async move {
+            Self::forward_results_to_ui(app_handle_clone, sessions_clone, session_id_clone).await;
+        });
     }
 
     /// UI向け結果転送処理
     async fn forward_results_to_ui(
-        app_handle: tauri::AppHandle,
+        app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
         sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
         session_id: String,
     ) {
-        println!(
-            "🎯 [BRIDGE] Starting result forwarding for session: {}",
-            session_id
-        );
-
         let result_receiver = {
             let mut sessions_guard = sessions.write().await;
             if let Some(session) = sessions_guard.get_mut(&session_id) {
                 session.result_receiver.take()
             } else {
-                println!("❌ [BRIDGE] Session not found: {}", session_id);
                 return;
             }
         };
 
-        if let Some(mut receiver) = result_receiver {
-            let mut result_count = 0;
+        let Some(mut receiver) = result_receiver else { return; };
 
-            while let Some(result) = receiver.recv().await {
-                result_count += 1;
-                println!(
-                    "📤 [BRIDGE] Forwarding result #{} to UI for session: {}",
-                    result_count, session_id
-                );
-
-                // UIにイベント送信
-                if let Err(e) = app_handle.emit("analysis-update", &result) {
-                    println!("❌ [BRIDGE] Failed to emit analysis update: {:?}", e);
+        while let Some(result) = receiver.recv().await {
+            // 1) sessionに last_result を保存（pull用）
+            {
+                let mut sessions_guard = sessions.write().await;
+                if let Some(session) = sessions_guard.get_mut(&session_id) {
+                    session.last_result = Some(result.clone());
                 } else {
-                    println!("✅ [BRIDGE] Analysis update emitted successfully");
+                    // セッションが消されたなら終了
+                    break;
                 }
             }
 
-            println!(
-                "🏁 [BRIDGE] Result forwarding completed for session: {} (total: {})",
-                session_id, result_count
-            );
+            // 2) push（UIイベント）: session_id を付ける
+            if let Some(handle) = app_handle.read().await.clone() {
+                let payload = AnalysisUpdate {
+                    session_id: session_id.clone(),
+                    result,
+                };
+                let _ = handle.emit("analysis-update", payload);
+            }
+        }
+
+        {
+            let mut sessions_guard = sessions.write().await;
+            if let Some(session) = sessions_guard.get_mut(&session_id) {
+                session.is_active = false;
+            }
         }
     }
 
@@ -221,32 +230,10 @@ impl EngineBridge {
         &self,
         session_id: String,
     ) -> Result<Option<AnalysisResult>, String> {
-        let mut sessions = self.active_sessions.write().await;
-
-        if let Some(session) = sessions.get_mut(&session_id) {
-            if let Some(ref mut receiver) = session.result_receiver {
-                match receiver.try_recv() {
-                    Ok(result) => {
-                        println!("[BRIDGE] Retrieved result for session: {}", session_id);
-                        Ok(Some(result))
-                    }
-                    Err(mpsc::error::TryRecvError::Empty) => {
-                        println!("[BRIDGE] No result available for session: {}", session_id);
-                        Ok(None)
-                    }
-                    Err(mpsc::error::TryRecvError::Disconnected) => {
-                        println!("[BRIDGE] Channel Disconnected for session: {}", session_id);
-                        session.is_active = false;
-                        Ok(None)
-                    }
-                }
-            } else {
-                println!("[BRIDGE] No receiver for session: {}", session_id);
-                Ok(None)
-            }
-        } else {
-            println!("[BRIDGE] Session not found: {}", session_id);
-            Err("Session not found".to_string())
+        let sessions = self.active_sessions.read().await;
+        match sessions.get(&session_id) {
+            Some(session) => Ok(session.last_result.clone()),
+            None => Err("Session not found".to_string()),
         }
     }
 
@@ -274,19 +261,19 @@ impl EngineBridge {
     }
 
     pub async fn get_analysis_status_impl(&self) -> Result<Vec<AnalysisStatus>, String> {
+        let analysis_count = self.analyzer.get_analysis_stats().await;
         let sessions = self.active_sessions.read().await;
-        let mut statuses = Vec::new();
 
-        for (id, session) in sessions.iter() {
-            let status = AnalysisStatus {
+        let statuses = sessions
+            .iter()
+            .map(|(id, session)| AnalysisStatus {
                 is_analyzing: session.is_active,
                 session_id: Some(id.clone()),
                 elapsed_time: None,
                 config: None,
-                analysis_count: self.analyzer.get_analysis_stats().await,
-            };
-            statuses.push(status);
-        }
+                analysis_count,
+            })
+            .collect();
 
         Ok(statuses)
     }
@@ -335,6 +322,7 @@ impl EngineBridge {
             session_id: session_id.clone(),
             session_type,
             result_receiver: Some(result_receiver),
+            last_result: None,
             is_active: true,
         };
 
@@ -353,11 +341,11 @@ impl EngineBridge {
 
         if let Some(mut session) = sessions.remove(session_id) {
             session.is_active = false;
-            self.analyzer
-                .stop_analysis()
-                .await
-                .map_err(|e| format!("Failed to stop analysis: {:?}", e))?;
         }
+        self.analyzer
+            .stop_analysis()
+            .await
+            .map_err(|e| format!("Failed to stop analysis: {:?}", e))?;
         println!("✅ [BRIDGE] Session stopped: {}", session_id);
         Ok(())
     }
@@ -365,12 +353,14 @@ impl EngineBridge {
     async fn stop_all_sessions(&self) -> Result<(), String> {
         println!("🛑 [BRIDGE] stop_all_sessions called");
 
-        let mut sessions = self.active_sessions.write().await;
+        {
+            let mut sessions = self.active_sessions.write().await;
 
-        for (_, session) in sessions.iter_mut() {
-            session.is_active = false;
+            for (_, session) in sessions.iter_mut() {
+                session.is_active = false;
+            }
+            sessions.clear();
         }
-        sessions.clear();
 
         self.analyzer
             .stop_analysis()

@@ -1,4 +1,8 @@
-import type { MultiPvCandidate } from "@/commands/engine/types";
+import type {
+  AnalysisCandidate,
+  Evaluation,
+  EvaluationKind,
+} from "@/commands/engine/types";
 import { JKFPlayer } from "json-kifu-format";
 import type {
   IMoveMoveFormat,
@@ -154,31 +158,52 @@ export function formatMovesForDisplay(moves: string[]): string {
   return `${moves.length}手目まで: ${moves.slice(-3).join(" ")}${moves.length > 3 ? "..." : ""}`;
 }
 
-export function convertToSenteEvaluation(
-  engineEvaluation: number,
+export function convertEvaluationToSenteView(
+  evaluation: Evaluation | null | undefined,
   currentTurn: Color | null,
-): number {
-  if (currentTurn === null) {
-    console.warn("[ANALISIS] Current turn is null, using raw evaluation");
-    return engineEvaluation;
+): Evaluation | null {
+  if (!evaluation) return null;
+  if (currentTurn === null) return evaluation;
+
+  // 先手番ならそのまま、後手番なら符号反転
+  const shouldFlip = currentTurn !== Color.Black;
+  if (!shouldFlip) return evaluation;
+
+  const kind = evaluation.kind as EvaluationKind;
+
+  if (kind === "Centipawn") {
+    return { ...evaluation, value: -evaluation.value };
   }
 
-  return currentTurn === Color.Black ? engineEvaluation : -engineEvaluation;
+  if (typeof kind === "object" && kind) {
+    if ("MateInMoves" in kind) {
+      return {
+        ...evaluation,
+        value: -evaluation.value,
+        kind: { MateInMoves: -kind.MateInMoves },
+      };
+    }
+    if ("MateUnknown" in kind) {
+      return {
+        ...evaluation,
+        value: -evaluation.value,
+        kind: { MateUnknown: !kind.MateUnknown }, // '+' <-> '-' を反転
+      };
+    }
+  }
+
+  return { ...evaluation, value: -evaluation.value };
 }
 
-export function convertMultiPvToSenteView(
-  candidates: MultiPvCandidate[],
+export function convertCandidateToSenteView(
+  candidate: AnalysisCandidate,
   currentTurn: Color | null,
-): MultiPvCandidate[] {
-  if (currentTurn === null) {
-    return candidates;
-  }
-
-  return candidates.map((candidate) => ({
+): AnalysisCandidate {
+  return {
     ...candidate,
-    evaluation:
-      candidate.evaluation !== null && candidate.evaluation !== undefined
-        ? convertToSenteEvaluation(candidate.evaluation, currentTurn)
-        : null,
-  }));
+    evaluation: convertEvaluationToSenteView(
+      candidate.evaluation ?? null,
+      currentTurn,
+    ),
+  };
 }

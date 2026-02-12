@@ -1,3 +1,8 @@
+export interface Duration {
+  secs: number;
+  nanos: number;
+}
+
 // ===== エンジン情報関連 =====
 export interface EngineInfo {
   name: string;
@@ -34,43 +39,43 @@ export interface AnalysisConfig {
   multi_pv?: number;
 }
 
-// ===== 解析結果関連 =====
-export interface AnalysisResult {
-  best_move?: BestMove | null;
-  evaluation?: number | null;
+export interface AnalysisStatus {
+  is_analyzing: boolean;
+  session_id?: string | null;
+  elapsed_time?: Duration | null;
+  config?: AnalysisConfig | null;
+  analysis_count: number;
+}
+
+export type EvaluationKind =
+  | "Centipawn"
+  | { MateInMoves: number }
+  | { MateUnknown: boolean };
+
+export interface Evaluation {
+  value: number;
+  kind: EvaluationKind;
+}
+
+export interface AnalysisCandidate {
+  rank: number;
+  first_move?: string | null;
+  pv_line: string[];
+  evaluation?: Evaluation | null;
   depth?: number | null;
   nodes?: number | null;
   time_ms?: number | null;
-  pv?: string[] | null;
+}
+
+// ===== 解析結果関連 =====
+export interface AnalysisResult {
+  candidates: AnalysisCandidate[];
   mate_sequence?: string[] | null;
-
-  multi_pv_candidates: MultiPvCandidate[];
-  is_multi_pv_enabled: boolean;
 }
 
-export interface MultiPvCandidate {
-  rank: number;
-  first_move: string;
-  evaluation?: number | null;
-  mate_moves?: number | null;
-  pv_line: string[];
-  depth?: number | null;
-  nodes?: number | null;
-}
-
-export interface BestMove {
-  move_str: string;
-  ponder?: string;
-  evaluation?: number;
-  depth: number;
-}
-
-export interface AnalysisStatus {
-  is_analyzing: boolean;
-  session_id?: string;
-  elapsed_time?: { secs: number; nanos: number };
-  config?: AnalysisConfig;
-  analysis_count: number;
+export interface AnalysisResult {
+  candidates: AnalysisCandidate[];
+  mate_sequence?: string[] | null;
 }
 
 // ===== イベント関連 =====

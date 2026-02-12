@@ -5,10 +5,11 @@ import {
 import MoveSequence from "./MoveSequence";
 import EvaluationBar from "./EvaluationBar";
 import "./BestMoveSection.scss";
+import type { Evaluation } from "@/commands/engine/types";
 
 interface BestMoveSectionProps {
   bestMove: ConvertedMove[] | null;
-  evaluation: number | null;
+  evaluation: Evaluation | null;
 }
 
 function BestMoveSection({ bestMove, evaluation }: BestMoveSectionProps) {

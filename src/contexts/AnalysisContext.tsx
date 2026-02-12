@@ -18,20 +18,19 @@ import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
 } from "@/commands/engine";
 
-import type { AnalysisResult, MultiPvCandidate } from "@/commands/engine/types";
+import type {
+  AnalysisCandidate,
+  AnalysisResult,
+} from "@/commands/engine/types";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { pickTopCandidate, sortByRank } from "@/utils/analysis";
 
 interface AnalysisState {
   isAnalyzing: boolean;
   sessionId: string | null;
   currentPosition: string | null; // SFEN
   analysisResults: AnalysisResult[];
-  currentDepth: number;
-  bestMove: string | null;
-  evaluation: number | null;
-  principalVariation: string[];
-  isMultiPvEnabled: boolean;
-  multiPvCandidates: MultiPvCandidate[];
+  candidates: AnalysisCandidate[];
   error: string | null;
 }
 
@@ -48,12 +47,7 @@ const initialState: AnalysisState = {
   sessionId: null,
   currentPosition: null,
   analysisResults: [],
-  currentDepth: 0,
-  bestMove: null,
-  evaluation: null,
-  principalVariation: [],
-  isMultiPvEnabled: false,
-  multiPvCandidates: [],
+  candidates: [],
   error: null,
 };
 
@@ -79,35 +73,13 @@ function analysisReducer(
       };
 
     case "update_result": {
-      const result = action.payload as AnalysisResult;
-
-      const currentDepth = result.depth || 0;
-      const evaluation = result.evaluation || null;
-
-      let bestMove: string | null = null;
-      let principalVariation: string[] = [];
-
-      if (result.is_multi_pv_enabled && result.multi_pv_candidates.length > 0) {
-        const topCandidate =
-          result.multi_pv_candidates.find((c) => c.rank === 1) ||
-          result.multi_pv_candidates[0];
-
-        bestMove = topCandidate.first_move;
-        principalVariation = topCandidate.pv_line;
-      } else {
-        bestMove = result.best_move?.move_str || result.pv?.[0] || null;
-        principalVariation = result.pv || [];
-      }
+      const result = action.payload;
+      const candidates = sortByRank(result.candidates ?? []);
 
       return {
         ...state,
         analysisResults: [...state.analysisResults.slice(-9), result],
-        currentDepth,
-        bestMove,
-        evaluation,
-        principalVariation,
-        isMultiPvEnabled: result.is_multi_pv_enabled,
-        multiPvCandidates: result.multi_pv_candidates || [],
+        candidates,
       };
     }
 
@@ -121,12 +93,7 @@ function analysisReducer(
       return {
         ...state,
         analysisResults: [],
-        currentDepth: 0,
-        bestMove: null,
-        evaluation: null,
-        principalVariation: [],
-        isMultiPvEnabled: false,
-        multiPvCandidates: [],
+        candidates: [],
         error: null,
       };
 
@@ -140,12 +107,11 @@ interface AnalysisContextType {
 
   startInfiniteAnalysis: () => Promise<void>;
   stopAnalysis: () => Promise<void>;
-
   clearResults: () => void;
   clearError: () => void;
 
-  getTopCandidate: () => MultiPvCandidate | null;
-  getAllCandidates: () => MultiPvCandidate[];
+  getTopCandidate: () => AnalysisCandidate | null;
+  getAllCandidates: () => AnalysisCandidate[];
 }
 
 const AnalysisContext = createContext<AnalysisContextType | null>(null);
@@ -161,20 +127,14 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
   const { isReady } = useEngine();
 
-  // PositionContext 側で setPosition を直列化・dedupe している前提
-  // ★ syncedSfen を「エンジンに反映済みSFEN」として使う
   const { currentSfen, syncedSfen, isPositionSynced, syncPosition } =
     usePosition();
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
-  // 最後に「解析を開始した（start_analysis した）」局面
   const lastAnalyzedSfenRef = useRef<string | null>(null);
-
-  // stop/start の同時実行防止
   const restartInFlightRef = useRef<Promise<void> | null>(null);
 
-  // === trailing-only restart (100ms) ===
   const RESTART_DEBOUNCE_MS = 100;
   const desiredSfenRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
@@ -188,7 +148,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }
   };
 
-  // async 内で stale 参照になりがちなので ref に逃がす
   const analyzingRef = useRef(state.isAnalyzing);
   const sessionIdRef = useRef(state.sessionId);
 
@@ -226,7 +185,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       }
     };
 
-    setup().catch(() => {});
+    setup().catch((e) => {
+      console.error("[ANALYSIS] Failed to setup listeners:", e);
+    });
 
     return () => {
       if (unlistenRef.current) {
@@ -236,22 +197,17 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     };
   }, []);
 
-  // restart 実体（refに入れて循環依存を避ける）
   const runRestartRef = useRef<(seq: number) => void>(() => {});
   runRestartRef.current = (seq: number) => {
-    // 古い要求は無視
     if (restartSeqRef.current !== seq) return;
-
     if (!analyzingRef.current) return;
     if (!isReady) return;
 
     const want = desiredSfenRef.current;
     if (!want) return;
 
-    // すでにこの局面で解析しているなら何もしない
     if (lastAnalyzedSfenRef.current === want) return;
 
-    // synced が追いついてないなら 1 frame 後に再試行（trailingは維持）
     if (syncedSfen !== want) {
       clearDebounceTimer();
       debounceTimerRef.current = window.setTimeout(() => {
@@ -260,7 +216,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       return;
     }
 
-    // stop/start 多重防止：実行中なら「終わったらもう一回」フラグだけ立てる
     if (restartInFlightRef.current) {
       pendingAfterRef.current = true;
       return;
@@ -273,7 +228,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
           await stopAnalysis(sid);
         }
 
-        // UI上、空にしたくないならここを消して stale 表示にするのがオススメ
         dispatch({ type: "clear_results" });
 
         const newSessionId = await startInfiniteAnalysisCore();
@@ -296,11 +250,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       } finally {
         restartInFlightRef.current = null;
 
-        // 実行中にさらに局面が変わっていたら、最新に追従してもう一回
         if (pendingAfterRef.current) {
           pendingAfterRef.current = false;
 
-          // 最新seqで再試行（もし synced 待ちなら runRestartRef が待つ）
           const latestSeq = restartSeqRef.current;
           clearDebounceTimer();
           debounceTimerRef.current = window.setTimeout(() => {
@@ -311,18 +263,14 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     })();
   };
 
-  // ✅ 解析中に局面が変わったら：restartを “50ms trailing-only” でスケジュール
   useEffect(() => {
     if (!state.isAnalyzing) return;
     if (!isReady) return;
     if (!currentSfen) return;
-
-    // 同じ局面なら何もしない
     if (lastAnalyzedSfenRef.current === currentSfen) return;
 
     desiredSfenRef.current = currentSfen;
 
-    // trailing-only: タイマーをリセットして最後の変更だけ拾う
     clearDebounceTimer();
     const seq = ++restartSeqRef.current;
 
@@ -331,12 +279,10 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }, RESTART_DEBOUNCE_MS);
 
     return () => {
-      // StrictMode 対策で cleanup でタイマーを殺す
       clearDebounceTimer();
     };
   }, [currentSfen, state.isAnalyzing, isReady]);
 
-  // ✅ syncedSfen が追いついた瞬間に「待ってたrestart」を早めに実行したい場合（体感改善）
   useEffect(() => {
     if (!state.isAnalyzing) return;
     if (!isReady) return;
@@ -347,7 +293,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     if (syncedSfen !== want) return;
     if (lastAnalyzedSfenRef.current === want) return;
 
-    // すでにdebounce待ちなら放置、なければ即時に近い形で起動
     if (!debounceTimerRef.current && !restartInFlightRef.current) {
       const seq = restartSeqRef.current;
       debounceTimerRef.current = window.setTimeout(() => {
@@ -356,19 +301,15 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }
   }, [syncedSfen, state.isAnalyzing, isReady]);
 
-  // ✅ start（ボタン）
   const startInfiniteAnalysis = useCallback(async () => {
     if (!isReady) throw new Error("Engine not ready");
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
 
-    // 開始時点で未同期なら同期を促す（PositionContext側が直列化してくれる前提）
     if (!isPositionSynced || syncedSfen !== currentSfen) {
       await syncPosition();
     }
 
-    // 「同期されたらstart」したいので、軽く待つ（最大300ms）
-    // ※ ここを消しても動くが、レースで一瞬ズレるのが嫌なら入れておく
     const waitStart = Date.now();
     while (Date.now() - waitStart < 300) {
       if (syncedSfen === currentSfen) break;
@@ -393,9 +334,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     syncPosition,
   ]);
 
-  // ✅ stop（ボタン）
   const stopAnalysisFunc = useCallback(async () => {
-    // これ以上 restart が走らないように止める
     desiredSfenRef.current = null;
     pendingAfterRef.current = false;
     restartSeqRef.current++;
@@ -421,19 +360,13 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     dispatch({ type: "clear_error" });
   }, []);
 
-  const getTopCandidate = useCallback((): MultiPvCandidate | null => {
-    if (!state.isMultiPvEnabled || state.multiPvCandidates.length === 0) {
-      return null;
-    }
-    return (
-      state.multiPvCandidates.find((c) => c.rank === 1) ||
-      state.multiPvCandidates[0]
-    );
-  }, [state.isMultiPvEnabled, state.multiPvCandidates]);
+  const getTopCandidate = useCallback((): AnalysisCandidate | null => {
+    return pickTopCandidate(state.candidates);
+  }, [state.candidates]);
 
-  const getAllCandidates = useCallback((): MultiPvCandidate[] => {
-    return state.multiPvCandidates;
-  }, [state.multiPvCandidates]);
+  const getAllCandidates = useCallback((): AnalysisCandidate[] => {
+    return state.candidates;
+  }, [state.candidates]);
 
   const value = useMemo<AnalysisContextType>(
     () => ({

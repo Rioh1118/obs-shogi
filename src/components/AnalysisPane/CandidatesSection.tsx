@@ -1,10 +1,11 @@
 import { type ConvertedMove } from "@/utils/sfenConverter";
 import "./CandidatesSection.scss";
 import MoveSequence from "./MoveSequence";
+import type { Evaluation } from "@/commands/engine/types";
 
 interface CandidatesSectionProps {
   candidateSequences: ConvertedMove[][];
-  candidateEvaluations: (number | null)[];
+  candidateEvaluations: (Evaluation | null)[];
   maxCandidates?: number;
 }
 

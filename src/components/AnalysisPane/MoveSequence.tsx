@@ -1,12 +1,13 @@
 import { formatEvaluation, type ConvertedMove } from "@/utils/sfenConverter";
 import React from "react";
 import "./MoveSequence.scss";
+import type { Evaluation } from "@/commands/engine/types";
 
 interface MoveSequenceProps {
   moves: ConvertedMove[];
   variant: "primary" | "candidate";
   maxMoves?: number;
-  evaluation?: number | null;
+  evaluation?: Evaluation | null;
 }
 
 function MoveSequence({

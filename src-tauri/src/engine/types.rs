@@ -3,19 +3,6 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Evaluation {
-    pub value: i32,
-    pub kind: EvaluationKind,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EvaluationKind {
-    Centipawn,
-    MateInMoves(i32),
-    MateUnknown(bool),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineInfo {
     pub name: String,
     pub author: String,
@@ -142,14 +129,6 @@ pub struct AnalysisConfig {
 
 // 最善手情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BestMove {
-    pub move_str: String,
-    pub ponder: Option<String>,
-    pub evaluation: Option<i32>,
-    pub depth: u32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeEngineResponse {
     pub engine_info: EngineInfo,
     pub success: bool,
@@ -170,28 +149,55 @@ impl From<std::time::Duration> for Duration {
     }
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct AnalysisResult {
-    pub best_move: Option<BestMove>,
-    pub evaluation: Option<i32>,
-    pub depth: Option<u32>,
-    pub nodes: Option<u64>,
-    pub time_ms: Option<u64>,
-    pub pv: Option<Vec<String>>,
-    pub mate_sequence: Option<Vec<String>>,
-
-    // MutiPV対応フィールド
-    pub multi_pv_candidates: Vec<MultiPvCandidate>,
-    pub is_multi_pv_enabled: bool,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Evaluation {
+    pub value: i32,
+    pub kind: EvaluationKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MultiPvCandidate {
+pub enum EvaluationKind {
+    /// score cp <value>
+    Centipawn,
+
+    /// score mate <n> / mate lowerbound/upperbound の数値が取れるケース
+    /// value は engine が返した整数をそのまま入れる（符号含む）
+    MateInMoves(i32),
+
+    /// score mate + / score mate - のように距離が不明なケース
+    /// true = '+', false = '-'
+    MateUnknown(bool),
+}
+
+/// 解析結果
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct AnalysisResult {
+    pub candidates: Vec<AnalysisCandidate>,
+
+    /// go mate を使った時に engine が checkmate コマンドで返す詰み手順
+    /// score mate とは別物
+    pub mate_sequence: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalysisCandidate {
     pub rank: u32,
-    pub first_move: String,
-    pub evaluation: Option<i32>,
-    pub mate_moves: Option<i32>,
+
+    /// PVの先頭（あれば便利）: pv_line[0]
+    pub first_move: Option<String>,
+
+    /// PV全体（USI move文字列の配列）
     pub pv_line: Vec<String>,
+
+    /// cp/mate を統一表現
+    pub evaluation: Option<Evaluation>,
+
+    /// depth/seldepth 等を入れたいなら拡張しやすい形
     pub depth: Option<u32>,
+
+    /// nodes は rankごとに異なる場合もあるが、まずは入れておく
     pub nodes: Option<u64>,
+
+    /// time は info time を受けるたび更新される
+    pub time_ms: Option<u64>,
 }

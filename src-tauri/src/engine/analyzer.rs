@@ -1,9 +1,13 @@
+use crate::engine::utils::{
+    extract_rank, get_depth_of_rank, get_or_create_candidate, map_score_to_evaluation,
+};
+
 use super::manager::EngineManager;
 use super::types::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
-use usi::{BestMoveParams, EngineCommand, GuiCommand, InfoParams, ScoreKind, ThinkParams};
+use usi::{EngineCommand, GuiCommand, InfoParams, ThinkParams};
 
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
 #[derive(Default)]
@@ -145,12 +149,18 @@ impl EngineAnalyzer {
         let state_clone = Arc::clone(&self.state);
         let listener_id_clone = listener_id.clone();
 
+        let protocol_for_task = protocol.clone();
+        let listener_id_for_task = listener_id.clone();
+
         tokio::spawn(async move {
             println!(
                 "🧵 [ANALYZER] Starting process_analysis_stream task for listener: {}",
                 listener_id_clone
             );
             Self::process_analysis_stream(raw_rx, result_tx, state_clone).await;
+            let _ = protocol_for_task
+                .remove_listener(&listener_id_for_task)
+                .await;
             println!(
                 "🏁 [ANALYZER] process_analysis_stream task finished for listener: {}",
                 listener_id_clone
@@ -326,9 +336,21 @@ impl EngineAnalyzer {
                         println!("✅ [ANALYZER] Sent analysis result update");
                     }
                 }
-                EngineCommand::BestMove(best_move_params) => {
-                    Self::process_best_move(&best_move_params, &mut current_result);
+                EngineCommand::Checkmate(checkmate_params) => {
+                    println!(
+                        "📊 [ANALYZER] Processing checkmate params: {:?}",
+                        checkmate_params
+                    );
+                    Self::process_checkmate(&checkmate_params, &mut current_result);
 
+                    if let Err(e) = result_tx.send(current_result.clone()) {
+                        println!("❌ [ANALYZER] Failed to send final result: {:?}", e);
+                    } else {
+                        println!("✅ [ANALYZER] Sent final analysis result");
+                    }
+                }
+
+                EngineCommand::BestMove(_) => {
                     // 最終結果を送信して終了
                     if let Err(e) = result_tx.send(current_result.clone()) {
                         println!("❌ [ANALYZER] Failed to send final result: {:?}", e);
@@ -372,8 +394,10 @@ impl EngineAnalyzer {
                     EngineCommand::Info(info_params) => {
                         Self::process_info_params(&info_params, &mut result);
                     }
-                    EngineCommand::BestMove(best_move_params) => {
-                        Self::process_best_move(&best_move_params, &mut result);
+                    EngineCommand::Checkmate(checkmate_params) => {
+                        Self::process_checkmate(&checkmate_params, &mut result);
+                    }
+                    EngineCommand::BestMove(_) => {
                         return Ok(result);
                     }
                     _ => {}
@@ -408,14 +432,16 @@ impl EngineAnalyzer {
                             Self::process_info_params(&info_params, &mut result);
 
                             // 目標深度に達したら停止
-                            if let Some(depth) = result.depth {
+                            if let Some(depth) = get_depth_of_rank(&result, 1) {
                                 if depth >= target_depth {
                                     self.stop_analysis().await?;
                                 }
                             }
                         }
-                        EngineCommand::BestMove(best_move_params) => {
-                            Self::process_best_move(&best_move_params, &mut result);
+                        EngineCommand::Checkmate(checkmate_params) => {
+                            Self::process_checkmate(&checkmate_params, &mut result);
+                        }
+                        EngineCommand::BestMove(_) => {
                             return Ok(result);
                         }
                         _ => {}
@@ -435,167 +461,54 @@ impl EngineAnalyzer {
 
     /// InfoParams処理
     fn process_info_params(info_params: &[InfoParams], result: &mut AnalysisResult) {
-        let mut current_rank = 1u32;
-
-        for info in info_params {
-            if let InfoParams::MultiPv(rank) = info {
-                current_rank = *rank as u32;
-                result.is_multi_pv_enabled = true;
-                println!("[ANALYZER] MultiPV rank: {}", current_rank);
-                break;
-            }
-        }
+        let rank = extract_rank(info_params);
 
         for info in info_params {
             match info {
-                InfoParams::MultiPv(_) => {
-                    continue;
+                InfoParams::MultiPv(_) => {}
+                InfoParams::Depth(depth, _seldepth) => {
+                    let c = get_or_create_candidate(result, rank);
+                    c.depth = Some(*depth as u32);
                 }
-                InfoParams::Depth(depth, _) => {
-                    result.depth = Some(*depth as u32);
-                    if let Some(candidate) = result
-                        .multi_pv_candidates
-                        .iter_mut()
-                        .find(|c| c.rank == current_rank)
-                    {
-                        candidate.depth = Some(*depth as u32);
-                    }
-                }
-                InfoParams::Score(value, kind) => match kind {
-                    ScoreKind::CpExact | ScoreKind::CpLowerbound | ScoreKind::CpUpperbound => {
-                        if current_rank == 1 {
-                            result.evaluation = Some(*value);
-                        }
-
-                        Self::set_candidate_evaluation(result, current_rank, Some(*value), None);
-                    }
-                    ScoreKind::MateExact
-                    | ScoreKind::MateLowerbound
-                    | ScoreKind::MateUpperbound
-                    | ScoreKind::MateSignOnly => {
-                        if current_rank == 1 {
-                            result.mate_sequence = Some(vec![format!("mate in {}", value)]);
-                        }
-                        Self::set_candidate_evaluation(result, current_rank, None, Some(*value));
-                    }
-                },
                 InfoParams::Nodes(nodes) => {
-                    result.nodes = Some(*nodes as u64);
-                    if let Some(candidate) = result
-                        .multi_pv_candidates
-                        .iter_mut()
-                        .find(|c| c.rank == current_rank)
-                    {
-                        candidate.nodes = Some(*nodes as u64);
-                    }
+                    let c = get_or_create_candidate(result, rank);
+                    c.nodes = Some(*nodes as u64);
                 }
                 InfoParams::Time(time) => {
-                    result.time_ms = Some(time.as_millis() as u64);
+                    let c = get_or_create_candidate(result, rank);
+                    c.time_ms = Some(time.as_millis() as u64);
                 }
                 InfoParams::Pv(moves) => {
-                    if current_rank == 1 {
-                        result.pv = Some(moves.clone());
-                    }
-
-                    if let Some(first_move) = moves.first() {
-                        Self::set_candidate_pv(
-                            result,
-                            current_rank,
-                            first_move.clone(),
-                            moves.clone(),
-                        );
-                    }
+                    let c = get_or_create_candidate(result, rank);
+                    c.pv_line = moves.clone();
+                    c.first_move = moves.first().cloned();
+                }
+                InfoParams::Score(value, kind) => {
+                    let eval = map_score_to_evaluation(*value, kind);
+                    let c = get_or_create_candidate(result, rank);
+                    c.evaluation = Some(eval);
                 }
                 _ => {}
             }
         }
-        result.multi_pv_candidates.sort_by_key(|c| c.rank);
+        result.candidates.sort_by_key(|c| c.rank);
     }
 
-    fn set_candidate_evaluation(
-        result: &mut AnalysisResult,
-        rank: u32,
-        evaluation: Option<i32>,
-        mate_moves: Option<i32>,
-    ) {
-        if let Some(candidate) = result
-            .multi_pv_candidates
-            .iter_mut()
-            .find(|c| c.rank == rank)
-        {
-            if let Some(eval) = evaluation {
-                candidate.evaluation = Some(eval);
-            }
-            if let Some(mate) = mate_moves {
-                candidate.mate_moves = Some(mate);
-            }
-            println!(
-                "[ANALYZER] Updated existing candidate rank {}: eval={:?}, mate={:?}",
-                rank, evaluation, mate_moves
-            );
-        }
-    }
+    fn process_checkmate(params: &usi::CheckmateParams, result: &mut AnalysisResult) {
+        use usi::CheckmateParams;
 
-    fn set_candidate_pv(
-        result: &mut AnalysisResult,
-        rank: u32,
-        first_move: String,
-        pv_line: Vec<String>,
-    ) {
-        if let Some(candidate) = result
-            .multi_pv_candidates
-            .iter_mut()
-            .find(|c| c.rank == rank)
-        {
-            candidate.first_move = first_move;
-            candidate.pv_line = pv_line;
-        } else {
-            let new_candidate = MultiPvCandidate {
-                rank,
-                first_move,
-                evaluation: None,
-                mate_moves: None,
-                pv_line,
-                depth: result.depth,
-                nodes: result.nodes,
-            };
-
-            result.multi_pv_candidates.push(new_candidate);
-            println!(
-                "[ANALYZER] Added new MultiPV candidaate: rank={}, move={}",
-                rank,
-                result.multi_pv_candidates.last().unwrap().first_move
-            );
-        }
-    }
-
-    /// BestMove処理
-    fn process_best_move(best_move_params: &BestMoveParams, result: &mut AnalysisResult) {
-        match best_move_params {
-            BestMoveParams::MakeMove(best_move_str, ponder) => {
-                result.best_move = Some(BestMove {
-                    move_str: best_move_str.clone(),
-                    ponder: ponder.clone(),
-                    evaluation: result.evaluation,
-                    depth: result.depth.unwrap_or(0),
-                });
+        match params {
+            CheckmateParams::Mate(moves) => {
+                result.mate_sequence = Some(moves.clone());
             }
-
-            BestMoveParams::Resign => {
-                result.best_move = Some(BestMove {
-                    move_str: "resign".to_string(),
-                    ponder: None,
-                    evaluation: Some(-9999),
-                    depth: result.depth.unwrap_or(0),
-                });
+            CheckmateParams::NoMate => {
+                // 「詰み探索したが詰み無し」を表す
+                result.mate_sequence = Some(Vec::new());
             }
-            BestMoveParams::Win => {
-                result.best_move = Some(BestMove {
-                    move_str: "win".to_string(),
-                    ponder: None,
-                    evaluation: Some(9999),
-                    depth: result.depth.unwrap_or(0),
-                });
+            CheckmateParams::NotImplemented | CheckmateParams::Timeout => {
+                // 最低限、結果としては「手順なし」にしておく
+                // ここは将来、別フィールドに拡張しても良い
+                result.mate_sequence = Some(Vec::new());
             }
         }
     }
