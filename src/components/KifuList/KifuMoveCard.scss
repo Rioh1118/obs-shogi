@@ -1,0 +1,132 @@
+@use "@/index.scss" as index;
+
+/* ===== row ===== */
+
+.kifu-row {
+  position: relative;
+  height: 4.2rem;
+  border-radius: 1rem;
+
+  padding: 0 0.85rem;
+  display: grid;
+  grid-template-columns: 3.2rem 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+
+  color: rgba(index.$color-text-light-1, 0.92);
+  user-select: none;
+  cursor: pointer;
+  background: transparent;
+
+  transition:
+    background-color 140ms ease,
+    transform 90ms ease,
+    box-shadow 140ms ease;
+
+  &:hover {
+    background: rgba(index.$color-white, 0.045);
+  }
+
+  &:active {
+    transform: translateY(1px);
+    background: rgba(index.$color-primary-black, 0.26);
+    box-shadow: index.$shadow-press;
+  }
+
+  &--active {
+    background: rgba(index.$color-white, 0.055);
+
+    &::before {
+      content: "";
+      position: absolute;
+      left: 0.38rem;
+      top: 0.75rem;
+      bottom: 0.75rem;
+      width: 2px;
+      border-radius: 999px;
+      background: rgba(index.$color-secondary-dark, 0.95);
+      box-shadow: 0 0 18px rgba(index.$color-secondary-dark, 0.28);
+    }
+  }
+
+  &--busy {
+    opacity: 0.82;
+  }
+}
+
+.kifu-row__num {
+  text-align: right;
+  font-size: 1.12rem;
+  opacity: 0.55;
+  padding-right: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.kifu-row__side {
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(index.$color-white, 0.16);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+
+  &--sente {
+    background: rgba(index.$color-secondary-dark, 0.62);
+    border-color: rgba(index.$color-secondary-dark, 0.62);
+  }
+  &--gote {
+    background: rgba(index.$color-white, 0.05);
+    border-color: rgba(index.$color-white, 0.22);
+  }
+  &--none {
+    opacity: 0;
+  }
+}
+
+.kifu-row__move {
+  min-width: 4.6em;
+  font-size: 1.45rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.kifu-row__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kifu-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  height: 2.2rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+
+  border: 1px solid rgba(index.$color-white, 0.08);
+  background: rgba(index.$color-primary-black, 0.2);
+  color: rgba(index.$color-secondary-light, 0.86);
+
+  font-size: 1.03rem;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kifu-badge--btn {
+  appearance: none;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(index.$color-white, 0.045);
+  }
+  &:active {
+    background: rgba(index.$color-primary-black, 0.28);
+  }
+}

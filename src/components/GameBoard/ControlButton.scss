@@ -2,46 +2,63 @@
 
 .control-button {
   box-sizing: inherit;
-  border: 0.1rem solid index.$color-secondary-dark-2;
+  flex: 1;
+  border: 0;
   width: 25%;
-  height: 3.6rem;
-  background-color: rgba(#cfc8b5, 0.8);
-  backdrop-filter: blur(0.4rem);
-  -webkit-backdrop-filter: blur(4px);
-  margin-top: 0.6rem;
+  height: 4.4rem;
+  background: transparent;
 
   font-family: sans-serif;
   font-size: 2.1rem;
-  color: index.$color-text-dark-2;
+  color: rgba(index.$color-text-light-1, 0.92);
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
 
-  cursor: pointer;
-  transition: all 0.2s ease;
   user-select: none;
+  cursor: pointer;
+
+  transition:
+    background-color 140ms ease,
+    transform 80ms ease,
+    box-shadow 80ms ease,
+    color 140ms ease;
+
+  &:not(:last-child) {
+    border-right: 1px solid index.$stroke-weak;
+  }
 
   &:hover {
-    background-color: index.$color-secondary-dark-2;
-    color: #f9f6ef;
-    border-color: index.$color-secondary-dark-2;
-    cursor: pointer;
+    background: rgba(index.$color-white, 0.06);
   }
 
   &:active {
-    transform: scale(0.993) translateY(0.05rem);
-    border-left-color: rgba(index.$color-secondary-dark-2, 0.8);
-    border-right-color: rgba(index.$color-secondary-dark-2, 0.8);
-    box-shadow: inseet 0 0.1rem 0.3rem rgba(0, 0, 0, 0.2);
+    transform: scale(0.993) translateY(0.1rem);
+    background: rgba(index.$color-primary-black, 0.22);
+    box-shadow: index.$shadow-press;
+    color: rgba(index.$color-secondary-light, 0.95);
+  }
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
   }
 
   &:disabled {
-    background-color: #c0b8aa;
-    color: #6e6e6e;
-    border-color: #999;
-    backdrop-filter: blur(2px);
     cursor: default;
-    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+
+    color: rgba(index.$color-text-light-1, 0.38);
+    background: rgba(index.$color-primary-black, 0.16);
+    opacity: 1;
+
+    &:hover {
+      background: rgba(index.$color-primary-black, 0.16);
+    }
+    &:active {
+      transform: none;
+      box-shadow: none;
+    }
   }
 }

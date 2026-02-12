@@ -16,6 +16,7 @@ import EngineLoading from "@/components/EngineLoading";
 import SettingsModal from "@/components/SettingsModal/SettingsModal";
 import CreateFileModal from "@/components/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
+import KifuStreamList from "@/components/KifuList/KifuStreamList";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -59,21 +60,28 @@ const AppLayout = () => {
             </div>
           ) : (
             <div className="workspace">
-              <section className="workspace__board">
-                <div className="workspace__board-surface">
-                  <GameBoard>
-                    <Hand isPlayer={true} />
-                    <Board />
-                    <Hand isPlayer={false} />
-                  </GameBoard>
-                  <div className="workspace__controls">
-                    <GameControls />
+              <section className="workspace__top">
+                <div className="workspace__board">
+                  <div className="workspace__board-surface">
+                    <GameBoard>
+                      <Hand isPlayer={true} />
+                      <Board />
+                      <Hand isPlayer={false} />
+                    </GameBoard>
+                    <div className="workspace__controls">
+                      <GameControls />
+                    </div>
                   </div>
                 </div>
+                <aside className="workspace__kifu">
+                  <KifuStreamList />
+                </aside>
               </section>
 
               <section className="workspace__analysis">
-                <AnalysisPane />
+                <div className="workspace__analysis-surface">
+                  <AnalysisPane />
+                </div>
               </section>
             </div>
           )}

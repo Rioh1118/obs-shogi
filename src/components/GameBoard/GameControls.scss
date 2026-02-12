@@ -1,22 +1,15 @@
+@use "@/index.scss" as index;
+
 .game-controls {
   display: flex;
-  width: 100%;
-  gap: 0;
+  width: clamp(44rem, 70%, 72rem);
   margin: 0 auto;
 
-  .control-button {
-    &:not(:first-child) {
-      border-left: none;
-    }
+  display: flex;
+  overflow: hidden;
+  border-radius: 1.2rem;
 
-    &:first-child {
-      border-top-left-radius: 4px;
-      border-bottom-left-radius: 4px;
-    }
-
-    &:last-child {
-      border-top-right-radius: 4px;
-      border-bottom-right-radius: 4px;
-    }
-  }
+  background: rgba(index.$color-primary-black, 0.28);
+  border: 1px solid index.$stroke-weak;
+  box-shadow: index.$shadow-1;
 }
