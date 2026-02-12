@@ -60,9 +60,9 @@ const AppLayout = () => {
             </div>
           ) : (
             <div className="workspace">
-              <section className="workspace__top">
-                <div className="workspace__board">
-                  <div className="workspace__board-surface">
+              <div className="workspace__surface">
+                <section className="workspace__main">
+                  <div className="workspace__boardPane">
                     <GameBoard>
                       <Hand isPlayer={true} />
                       <Board />
@@ -72,17 +72,15 @@ const AppLayout = () => {
                       <GameControls />
                     </div>
                   </div>
-                </div>
-                <aside className="workspace__kifu">
-                  <KifuStreamList />
-                </aside>
-              </section>
+                  <aside className="workspace__kifuPane">
+                    <KifuStreamList />
+                  </aside>
+                </section>
 
-              <section className="workspace__analysis">
-                <div className="workspace__analysis-surface">
+                <section className="workspace__dock">
                   <AnalysisPane />
-                </div>
-              </section>
+                </section>
+              </div>
             </div>
           )}
         </main>
