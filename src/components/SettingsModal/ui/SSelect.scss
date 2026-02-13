@@ -1,0 +1,65 @@
+.sui-select {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.sui-select__control {
+  width: 100%;
+  min-width: 0;
+
+  appearance: none;
+
+  border-radius: var(--ctl-radius, 10px);
+  border: 1px solid var(--ctl-border, rgba(255, 255, 255, 0.12));
+  background: var(--s-surface-2, rgba(0, 0, 0, 0.18));
+  color: inherit;
+
+  font: inherit;
+  font-size: 1.3rem;
+
+  padding-right: 32px;
+
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--s-focus, rgba(220, 215, 201, 0.55));
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.sui-select[data-size="sm"] .sui-select__control {
+  height: 32px;
+  padding-left: 10px;
+}
+
+.sui-select[data-size="md"] .sui-select__control {
+  height: 36px;
+  padding-left: 10px;
+}
+
+.sui-select[data-size="lg"] .sui-select__control {
+  height: 40px;
+  padding-left: 12px;
+}
+
+.sui-select__chev {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-52%);
+  pointer-events: none;
+  opacity: 0.75;
+  font-size: 1.2rem;
+}
+
+.sui-select[data-invalid="true"] .sui-select__control {
+  border-color: var(--intent-danger-border, rgba(255, 90, 90, 0.32));
+}

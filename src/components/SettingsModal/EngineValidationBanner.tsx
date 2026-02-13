@@ -1,4 +1,6 @@
+import "./EngineValidationBanner.scss";
 import type { EngineValidation } from "@/types/ai_validation";
+import { SButton, SSection } from "@/components/SettingsModal/ui";
 
 type Props = {
   aiLibraryDir: string | null;
@@ -17,45 +19,61 @@ export default function EngineValidationBanner({
 }: Props) {
   if (validation.status === "ok") return null;
 
-  const issues = validation.issues ?? [];
   const isChecking = validation.status === "checking";
+  const issues = validation.issues ?? [];
 
   return (
-    <div style={{ border: "1px solid #333", borderRadius: 8, padding: 12 }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-        <strong style={{ color: "tomato" }}>⚠️ 起動できません</strong>
-        {isChecking && <span style={{ opacity: 0.7 }}>(チェック中...)</span>}
-      </div>
+    <div className="st-evb">
+      <SSection
+        tone="danger"
+        title={
+          <span className="st-evb__title">
+            ⚠️ 起動できません{" "}
+            {isChecking && (
+              <span className="st-evb__checking">(チェック中...)</span>
+            )}
+          </span>
+        }
+        description="設定またはファイルが不足しています。以下を確認してください。"
+        actions={
+          <div className="st-evb__actions">
+            <SButton variant="subtle" onClick={onGoEngine}>
+              エンジン選択へ
+            </SButton>
+            <SButton variant="subtle" onClick={onGoProfile}>
+              プロファイル選択へ
+            </SButton>
+            <SButton variant="primary" onClick={onGoGeneral}>
+              {aiLibraryDir ? "ai_root確認へ" : "ai_root設定へ"}
+            </SButton>
+          </div>
+        }
+      >
+        {issues.length > 0 ? (
+          <ul className="st-evb__list">
+            {issues.map((it, i) => (
+              <li key={i} className="st-evb__item">
+                <div className="st-evb__line">
+                  <code className="st-evb__code">{it.code}</code>
+                  <span className="st-evb__msg">{it.message}</span>
+                </div>
+                {it.path && (
+                  <div className="st-evb__path">
+                    <code>{it.path}</code>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="st-evb__empty">詳細情報を取得できませんでした。</div>
+        )}
 
-      <p style={{ margin: "8px 0 0", opacity: 0.9 }}>
-        設定またはファイルが不足しています。以下を確認してください：
-      </p>
-
-      <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-        {issues.map((it, i) => (
-          <li key={i}>
-            <code>{it.code}</code>: {it.message}
-            {it.path ? (
-              <div style={{ opacity: 0.7, fontSize: 12 }}>
-                <code>{it.path}</code>
-              </div>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-
-      <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <button onClick={onGoEngine}>エンジン選択へ</button>
-        <button onClick={onGoProfile}>プロファイル選択へ</button>
-        <button onClick={onGoGeneral}>
-          {aiLibraryDir ? "ai_root確認へ" : "ai_root設定へ"}
-        </button>
-      </div>
-
-      <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12 }}>
-        ※ “候補一覧” は UI の補助です。最終的な起動可否は EngineContext の
-        validation が決めます。
-      </div>
+        <div className="st-evb__note">
+          ※ “候補一覧” は UI の補助です。最終的な起動可否は EngineContext の{" "}
+          <code>validation</code> が決めます。
+        </div>
+      </SSection>
     </div>
   );
 }

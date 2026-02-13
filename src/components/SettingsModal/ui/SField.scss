@@ -1,0 +1,49 @@
+.sui-field {
+  display: grid;
+  gap: 6px;
+}
+
+.sui-field__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sui-field__label {
+  font-size: 1.25rem;
+  font-weight: 750;
+  letter-spacing: 0.15px;
+}
+
+.sui-field__right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sui-field__desc {
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+}
+
+.sui-field__control {
+  min-width: 0;
+}
+
+.sui-field__hint {
+  font-size: 1.1rem;
+  line-height: 1.35;
+  color: var(--s-text-dim, rgba(255, 255, 255, 0.58));
+}
+
+.sui-field__error {
+  font-size: 1.1rem;
+  line-height: 1.35;
+  color: rgba(255, 120, 120, 0.95);
+}
+
+.sui-field[data-disabled="true"] {
+  opacity: 0.75;
+}

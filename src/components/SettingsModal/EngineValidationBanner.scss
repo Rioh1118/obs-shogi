@@ -1,0 +1,73 @@
+.st-evb {
+  display: grid;
+  gap: 8px;
+}
+
+.st-evb__title {
+  font-weight: 900;
+  letter-spacing: 0.1px;
+  color: rgba(255, 140, 140, 0.95);
+}
+
+.st-evb__checking {
+  font-weight: 700;
+  opacity: 0.8;
+  margin-left: 6px;
+}
+
+.st-evb__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st-evb__list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.st-evb__item {
+  display: grid;
+  gap: 4px;
+}
+
+.st-evb__line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st-evb__code {
+  font-size: 1.1rem;
+  opacity: 0.95;
+}
+
+.st-evb__msg {
+  font-size: 1.2rem;
+  opacity: 0.92;
+}
+
+.st-evb__path {
+  font-size: 1.1rem;
+  opacity: 0.7;
+}
+
+.st-evb__empty {
+  font-size: 1.2rem;
+  opacity: 0.8;
+}
+
+.st-evb__note {
+  margin-top: 6px;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--s-text-dim, rgba(255, 255, 255, 0.58));
+
+  code {
+    color: inherit;
+    opacity: 0.95;
+  }
+}

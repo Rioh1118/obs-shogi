@@ -1,5 +1,12 @@
+import "./ProfileTab.scss";
 import { useMemo } from "react";
 import type { ProfileCandidate } from "@/commands/ai_library";
+import {
+  SButton,
+  SField,
+  SInput,
+  SSection,
+} from "@/components/SettingsModal/ui";
 
 type Props = {
   profiles: ProfileCandidate[];
@@ -21,142 +28,134 @@ export default function ProfileTab({
     return profiles.find((p) => p.name === selected) ?? null;
   }, [profiles, selected]);
 
+  const hasProfiles = profiles.length > 0;
+
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div>
-        <h3 style={{ margin: 0 }}>AIプロファイル</h3>
-        <p style={{ margin: "6px 0 0", opacity: 0.8 }}>
-          ai_root 直下の <code>li</code> / <code>hao</code>{" "}
-          のようなディレクトリを選びます。
-        </p>
-      </div>
-
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <span style={{ opacity: 0.8 }}>選択中:</span>
-        <code>{selected ?? "(未選択)"}</code>
-        <button onClick={() => onSelect(null)} disabled={!selected}>
-          解除
-        </button>
-      </div>
-
-      {selectedProfile && (
-        <div style={{ border: "1px solid #333", borderRadius: 8, padding: 12 }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <div>
-              <div style={{ opacity: 0.7, fontSize: 12 }}>パス</div>
-              <code>{selectedProfile.path}</code>
+    <div className="st-profile">
+      <SSection
+        title="AIプロファイル"
+        description={
+          <>
+            ai_root 直下の <code>li</code> / <code>hao</code> のような
+            ディレクトリを選びます。
+          </>
+        }
+        actions={
+          <div className="st-profile__topActions">
+            <span className="st-profile__selected">
+              選択中: <code>{selected ?? "(未選択)"}</code>
+            </span>
+            <SButton
+              variant="ghost"
+              onClick={() => onSelect(null)}
+              disabled={!selected}
+            >
+              解除
+            </SButton>
+          </div>
+        }
+      >
+        {selectedProfile && (
+          <div className="st-profile__card">
+            <div className="st-profile__cardRow">
+              <div className="st-profile__metaLabel">パス</div>
+              <code className="st-profile__code">{selectedProfile.path}</code>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ opacity: selectedProfile.has_eval_dir ? 1 : 0.4 }}>
+            <div className="st-profile__checks">
+              <span data-ok={selectedProfile.has_eval_dir ? "1" : "0"}>
                 eval/ {selectedProfile.has_eval_dir ? "✓" : "×"}
               </span>
-              <span style={{ opacity: selectedProfile.has_nn_bin ? 1 : 0.4 }}>
+              <span data-ok={selectedProfile.has_nn_bin ? "1" : "0"}>
                 nn.bin {selectedProfile.has_nn_bin ? "✓" : "×"}
               </span>
-              <span style={{ opacity: selectedProfile.has_book_dir ? 1 : 0.4 }}>
+              <span data-ok={selectedProfile.has_book_dir ? "1" : "0"}>
                 book/ {selectedProfile.has_book_dir ? "✓" : "×"}
               </span>
             </div>
 
             {selectedProfile.book_db_files?.length > 0 && (
-              <div style={{ marginTop: 6 }}>
-                <div style={{ opacity: 0.7, fontSize: 12 }}>
-                  book/ 内の .db 候補（参考）
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    marginTop: 6,
-                  }}
-                >
+              <div className="st-profile__chips">
+                <div className="st-profile__metaLabel">book/ 内の .db 候補</div>
+                <div className="st-profile__chipRow">
                   {selectedProfile.book_db_files.map((f) => (
-                    <button
+                    <SButton
                       key={f}
+                      size="sm"
+                      variant="ghost"
                       onClick={() => onSetBookFile(f)}
-                      style={{ padding: "4px 8px", fontSize: 12 }}
                     >
                       {f}
-                    </button>
+                    </SButton>
                   ))}
                 </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {profiles.length === 0 ? (
-        <div style={{ opacity: 0.8 }}>
-          候補が見つかりません（ai_root 直下に profile
-          ディレクトリがありません）。
-        </div>
-      ) : (
-        <div style={{ border: "1px solid #333", borderRadius: 8 }}>
-          {profiles.map((p) => {
-            const isSelected = p.name === selected;
-            return (
-              <button
-                key={p.name}
-                onClick={() => onSelect(p.name)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "10px 12px",
-                  border: "none",
-                  background: isSelected ? "rgba(255,255,255,0.08)" : "none",
-                  cursor: "pointer",
-                  display: "grid",
-                  gap: 4,
-                }}
-              >
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <strong>{p.name}</strong>
-                  <span style={{ opacity: 0.7, fontSize: 12 }}>
-                    {p.has_nn_bin ? "nn.bin ✓" : "nn.bin ×"}
-                  </span>
-                </div>
-                <div style={{ opacity: 0.65, fontSize: 12 }}>
-                  <code>{p.path}</code>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+        {!hasProfiles ? (
+          <div className="st-profile__empty">
+            候補が見つかりません（ai_root 直下に profile
+            ディレクトリがありません）。
+          </div>
+        ) : (
+          <div className="st-profile__list" role="list">
+            {profiles.map((p) => {
+              const isSelected = p.name === selected;
+              return (
+                <button
+                  key={p.name}
+                  type="button"
+                  className="st-profile__item"
+                  role="listitem"
+                  data-selected={isSelected ? "true" : "false"}
+                  onClick={() => onSelect(p.name)}
+                >
+                  <div className="st-profile__itemTop">
+                    <strong className="st-profile__itemName">{p.name}</strong>
+                    <span className="st-profile__itemBadge">
+                      {p.has_nn_bin ? "nn.bin ✓" : "nn.bin ×"}
+                    </span>
+                  </div>
+                  <div className="st-profile__itemPath">
+                    <code>{p.path}</code>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </SSection>
 
-      <div style={{ borderTop: "1px solid #333", paddingTop: 12 }}>
-        <h4 style={{ margin: 0 }}>定跡パス（必須運用）</h4>
-        <p style={{ margin: "6px 0 0", opacity: 0.8 }}>
-          既定は <code>book/user_book1.db</code>。必要なら変更できます。
-        </p>
-
-        <div style={{ display: "grid", gap: 8, marginTop: 10, maxWidth: 420 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ opacity: 0.8 }}>book ディレクトリ名</span>
-            <input
-              defaultValue={"book"}
-              onBlur={(e) => onSetBookDir(e.target.value.trim() || "book")}
+      <SSection
+        title="定跡パス（必須運用）"
+        description={
+          <>
+            既定は <code>book/user_book1.db</code>。必要なら変更できます。
+          </>
+        }
+      >
+        <div className="st-profile__bookGrid">
+          <SField label="book ディレクトリ名" hint="既定: book">
+            <SInput
+              defaultValue="book"
               placeholder="book"
-              style={{ padding: 8 }}
+              onBlur={(e) => onSetBookDir(e.target.value.trim() || "book")}
             />
-          </label>
+          </SField>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ opacity: 0.8 }}>book ファイル名</span>
-            <input
-              defaultValue={"user_book1.db"}
+          <SField label="book ファイル名" hint="既定: user_book1.db">
+            <SInput
+              defaultValue="user_book1.db"
+              placeholder="user_book1.db"
               onBlur={(e) =>
                 onSetBookFile(e.target.value.trim() || "user_book1.db")
               }
-              placeholder="user_book1.db"
-              style={{ padding: 8 }}
             />
-          </label>
+          </SField>
         </div>
-      </div>
+      </SSection>
     </div>
   );
 }

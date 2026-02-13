@@ -10,11 +10,11 @@ export default function SettingsModal() {
 
   return (
     <Modal
-      onClose={() => closeModal()}
+      onClose={closeModal}
       theme="dark"
       size="xl"
       padding="none"
-      variant="dialog"
+      variant="workspace"
     >
       <SettingsPanel />
     </Modal>

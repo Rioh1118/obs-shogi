@@ -1,0 +1,18 @@
+.st-general {
+  display: grid;
+  gap: 12px;
+}
+
+.st-general__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st-general__tree {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+}

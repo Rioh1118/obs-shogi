@@ -1,3 +1,11 @@
+import "./GeneralTab.scss";
+import {
+  SButton,
+  SField,
+  SInput,
+  SSection,
+} from "@/components/SettingsModal/ui";
+
 type Props = {
   aiRoot: string | null;
   loading: boolean;
@@ -11,30 +19,58 @@ export default function GeneralTab(props: Props) {
   const { aiRoot, loading, error, onRefresh, onChooseAiRoot, onClearAiRoot } =
     props;
 
+  const hasAiRoot = !!aiRoot;
+
   return (
-    <div style={{ display: "grid", gap: 10 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <div style={{ flex: 1 }}>
-          <div>ai_root（AIライブラリ）:</div>
-          <div style={{ opacity: 0.8 }}>{aiRoot ?? "(未設定)"}</div>
-        </div>
+    <div className="st-general">
+      <SSection
+        title="ai_root（AIライブラリ）"
+        description="エンジン/プロファイル/解析は ai_root の中身を参照します。"
+        actions={
+          <div className="st-general__actions">
+            <SButton
+              variant="primary"
+              disabled={loading}
+              onClick={() => onChooseAiRoot()}
+            >
+              フォルダを選択
+            </SButton>
+            <SButton
+              variant="ghost"
+              disabled={loading || !hasAiRoot}
+              onClick={() => onClearAiRoot()}
+            >
+              解除
+            </SButton>
+            <SButton
+              variant="subtle"
+              disabled={loading}
+              onClick={() => onRefresh()}
+            >
+              再読込
+            </SButton>
+          </div>
+        }
+      >
+        <SField
+          label="現在の ai_root"
+          hint={
+            !hasAiRoot
+              ? "未設定です。まずフォルダを選択してください。"
+              : undefined
+          }
+          error={error || undefined}
+        >
+          {/* readOnlyで表示だけ統一 */}
+          <SInput value={aiRoot ?? ""} readOnly placeholder="(未設定)" />
+        </SField>
+      </SSection>
 
-        <button disabled={loading} onClick={onChooseAiRoot}>
-          フォルダを選択
-        </button>
-        <button disabled={loading || !aiRoot} onClick={onClearAiRoot}>
-          解除
-        </button>
-        <button disabled={loading} onClick={onRefresh}>
-          再読込
-        </button>
-      </div>
-
-      {error && <p style={{ color: "tomato", margin: 0 }}>{error}</p>}
-
-      <div style={{ opacity: 0.75, fontSize: 12 }}>
-        期待する構成:
-        <pre style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>
+      <SSection
+        title="期待する構成"
+        description="ai_root 配下のディレクトリ構成の目安です。"
+      >
+        <pre className="st-general__tree">
           {`ai_root/
   engines/
     <engine files...>
@@ -42,7 +78,7 @@ export default function GeneralTab(props: Props) {
     eval/nn.bin
     book/<some>.db`}
         </pre>
-      </div>
+      </SSection>
     </div>
   );
 }

@@ -1,0 +1,58 @@
+@use "@/index.scss" as index;
+
+.sui-section {
+  border-radius: 12px;
+  border: 1px solid var(--s-border, rgba(255, 255, 255, 0.08));
+  background: var(--s-surface-1, rgba(0, 0, 0, 0.12));
+  overflow: hidden;
+}
+
+.sui-section__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--s-border, rgba(255, 255, 255, 0.08));
+  background: var(--s-surface-0, rgba(0, 0, 0, 0.18));
+}
+
+.sui-section__titles {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sui-section__title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.15px;
+}
+
+.sui-section__desc {
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+}
+
+.sui-section__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sui-section__body {
+  padding: 12px 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.sui-section[data-tone="danger"] {
+  border-color: var(--intent-danger-border, rgba(255, 90, 90, 0.32));
+}
+
+.sui-section[data-tone="warn"] {
+  border-color: var(--intent-warn-border, rgba(255, 180, 90, 0.35));
+}

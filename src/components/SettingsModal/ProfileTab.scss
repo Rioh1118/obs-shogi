@@ -1,0 +1,140 @@
+.st-profile {
+  display: grid;
+  gap: 12px;
+}
+
+.st-profile__topActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.st-profile__selected {
+  font-size: 1.15rem;
+  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+
+  code {
+    color: inherit;
+    opacity: 0.95;
+  }
+}
+
+/* 選択中プロファイルの要約カード */
+.st-profile__card {
+  border: 1px solid var(--s-border, rgba(255, 255, 255, 0.08));
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.st-profile__cardRow {
+  display: grid;
+  gap: 4px;
+}
+
+.st-profile__metaLabel {
+  font-size: 1.1rem;
+  color: var(--s-text-dim, rgba(255, 255, 255, 0.58));
+}
+
+.st-profile__code {
+  font-size: 1.15rem;
+  opacity: 0.95;
+}
+
+.st-profile__checks {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 1.15rem;
+
+  span[data-ok="0"] {
+    opacity: 0.45;
+  }
+}
+
+.st-profile__chips {
+  display: grid;
+  gap: 6px;
+}
+
+.st-profile__chipRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.st-profile__empty {
+  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+  font-size: 1.2rem;
+}
+
+/* リスト（後でSListItemへ昇格しやすい形） */
+.st-profile__list {
+  border: 1px solid var(--s-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.st-profile__item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+
+  cursor: pointer;
+  transition: background-color 160ms ease;
+
+  &:hover {
+    background: var(--tab-hover-bg, rgba(255, 255, 255, 0.06));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--s-focus, rgba(220, 215, 201, 0.55));
+    outline-offset: -2px;
+  }
+
+  &[data-selected="true"] {
+    background: var(--tab-active-bg, rgba(255, 255, 255, 0.1));
+  }
+}
+
+.st-profile__itemTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.st-profile__itemName {
+  font-size: 1.3rem;
+  letter-spacing: 0.1px;
+}
+
+.st-profile__itemBadge {
+  font-size: 1.1rem;
+  opacity: 0.75;
+}
+
+.st-profile__itemPath {
+  font-size: 1.15rem;
+  opacity: 0.75;
+}
+
+.st-profile__bookGrid {
+  display: grid;
+  gap: 12px;
+
+  @media (min-width: 860px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
