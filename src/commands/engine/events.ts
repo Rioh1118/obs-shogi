@@ -2,13 +2,16 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { AnalysisResult } from "./types";
 import { EVENT_NAMES } from "./constants";
 
+type AnalysisUpdate = { sessionId: string; result: AnalysisResult };
 // ===== リアルタイムイベントリスナー =====
 export async function listenToAnalysisUpdates(
   callback: (result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
-  return await listen<AnalysisResult>(EVENT_NAMES.ANALYSIS_UPDATE, (event) => {
+  return await listen<AnalysisUpdate>(EVENT_NAMES.ANALYSIS_UPDATE, (event) => {
     console.log("Analysis update received:", event.payload);
-    callback(event.payload);
+    const p: AnalysisUpdate = event.payload;
+    const result: AnalysisResult = p.result;
+    callback(result);
   });
 }
 

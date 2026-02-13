@@ -1,7 +1,7 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { convertSfenSequence } from "@/utils/sfenConverter";
 import type { ConvertedMove } from "@/utils/sfenConverter";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
 import { useGame } from "@/contexts/GameContext";
@@ -19,6 +19,25 @@ function AnalysisPane() {
   const { getCurrentTurn } = useGame();
   const { currentSfen } = usePosition();
 
+  useEffect(() => {
+    const top = state.candidates?.[0];
+    console.log("[AnalysisPane] state changed", {
+      isAnalyzing: state.isAnalyzing,
+      sessionId: state.sessionId,
+      currentPosition: state.currentPosition,
+      candidatesLen: state.candidates?.length ?? 0,
+      topRank: top?.rank,
+      topMove: top?.first_move,
+      topEval: top?.evaluation,
+      sfenLen: currentSfen?.length ?? 0,
+    });
+  }, [
+    state.isAnalyzing,
+    state.sessionId,
+    state.currentPosition,
+    state.candidates, // これが変わるかが重要
+    currentSfen,
+  ]);
   const displayData = useMemo(() => {
     const currentTurn = getCurrentTurn();
     const senteCandidates: AnalysisCandidate[] = state.candidates.map((c) =>
