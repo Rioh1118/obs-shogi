@@ -1,7 +1,7 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { convertSfenSequence } from "@/utils/sfenConverter";
 import type { ConvertedMove } from "@/utils/sfenConverter";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
 import { useGame } from "@/contexts/GameContext";
@@ -12,35 +12,57 @@ import { usePosition } from "@/contexts/PositionContext";
 import StatsSection from "./StatsSection";
 import type { AnalysisCandidate, Evaluation } from "@/commands/engine/types";
 import { pickTopCandidate } from "@/utils/analysis";
+import { useFileTree } from "@/contexts/FileTreeContext";
+
+type PaneSnapshot = {
+  candidates: AnalysisCandidate[];
+  savedAt: number;
+};
 
 function AnalysisPane() {
   const { state } = useAnalysis();
 
-  const { getCurrentTurn } = useGame();
+  const { getCurrentTurn, state: gameState } = useGame();
   const { currentSfen } = usePosition();
+  const { selectedNode } = useFileTree();
+  // ===== cache key =====
+  const fileKey = selectedNode?.id ?? null;
+  const posKey = gameState.cursor?.tesuuPointer ?? null;
+  const cacheKey = fileKey && posKey ? `${fileKey}:${posKey}` : null;
+
+  // ===== cache storage (UI responsibility) =====
+  const cacheRef = useRef<Map<string, PaneSnapshot>>(new Map());
+  const lastFileKeyRef = useRef<string | null>(null);
+
+  // ファイルが変わったら全破棄
+  useEffect(() => {
+    if (fileKey !== lastFileKeyRef.current) {
+      cacheRef.current.clear();
+      lastFileKeyRef.current = fileKey;
+    }
+  }, [fileKey]);
 
   useEffect(() => {
-    const top = state.candidates?.[0];
-    console.log("[AnalysisPane] state changed", {
-      isAnalyzing: state.isAnalyzing,
-      sessionId: state.sessionId,
-      currentPosition: state.currentPosition,
-      candidatesLen: state.candidates?.length ?? 0,
-      topRank: top?.rank,
-      topMove: top?.first_move,
-      topEval: top?.evaluation,
-      sfenLen: currentSfen?.length ?? 0,
+    if (!cacheKey) return;
+    if (!currentSfen) return;
+    if (!state.candidates || state.candidates.length === 0) return;
+    if (state.currentPosition && state.currentPosition !== currentSfen) return;
+
+    cacheRef.current.set(cacheKey, {
+      candidates: state.candidates,
+      savedAt: Date.now(),
     });
-  }, [
-    state.isAnalyzing,
-    state.sessionId,
-    state.currentPosition,
-    state.candidates, // これが変わるかが重要
-    currentSfen,
-  ]);
+  }, [cacheKey, currentSfen, state.candidates, state.currentPosition]);
+
+  const visibleCandidates: AnalysisCandidate[] = useMemo(() => {
+    if (state.isAnalyzing) return state.candidates ?? [];
+    if (!cacheKey) return [];
+    return cacheRef.current.get(cacheKey)?.candidates ?? [];
+  }, [state.isAnalyzing, state.candidates, cacheKey]);
+
   const displayData = useMemo(() => {
     const currentTurn = getCurrentTurn();
-    const senteCandidates: AnalysisCandidate[] = state.candidates.map((c) =>
+    const senteCandidates: AnalysisCandidate[] = visibleCandidates.map((c) =>
       convertCandidateToSenteView(c, currentTurn),
     );
     const top = pickTopCandidate(senteCandidates);
@@ -83,7 +105,7 @@ function AnalysisPane() {
       searchStats,
       candidateCount: others.length,
     };
-  }, [currentSfen, getCurrentTurn, state.candidates]);
+  }, [currentSfen, getCurrentTurn, visibleCandidates]);
 
   return (
     <div className="analysis-pane">
