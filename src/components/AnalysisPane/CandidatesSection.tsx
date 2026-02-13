@@ -12,7 +12,7 @@ interface CandidatesSectionProps {
 function CandidatesSection({
   candidateSequences,
   candidateEvaluations,
-  maxCandidates = 4, // FIXME: これMULTIPVの設定と同期させないと
+  maxCandidates = 7, // FIXME: これMULTIPVの設定と同期させないと
 }: CandidatesSectionProps) {
   const displayCandidates = candidateSequences.slice(0, maxCandidates);
   return (
@@ -22,7 +22,6 @@ function CandidatesSection({
           key={`candidate-${index}`}
           moves={moves}
           variant="candidate"
-          maxMoves={13}
           evaluation={candidateEvaluations[index]}
         />
       ))}

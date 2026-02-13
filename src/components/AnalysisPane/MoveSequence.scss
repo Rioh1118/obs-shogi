@@ -1,47 +1,40 @@
 @use "@/index.scss" as index;
 
 .move-sequence {
-  padding: 0.2rem 3rem;
-  display: flex;
-  font-size: 1.2rem;
-  align-items: center;
-  color: index.$color-text-primary;
-  line-height: 1.4;
+  display: grid;
+  grid-template-columns: minmax(6.5ch, max-content) 1fr;
+  align-items: baseline;
+  column-gap: 0.3rem;
 
+  padding: 0.25rem 1.6rem;
+  color: index.$color-text-primary;
+  line-height: 1.35;
+
+  white-space: nowrap;
+  overflow: hidden;
+
+  font-size: 1.22rem;
   &__primary {
-    font-weight: 500;
-    font-size: 1.2rem;
+    font-weight: 560;
   }
 
   &__candidate {
-    font-weight: 400;
-    font-size: 1.2rem;
+    font-weight: 440;
   }
 
-  &__icon {
-    display: inline-block;
-    width: 0.85rem;
-    aspect-ratio: 1/1;
-    background-size: cover;
-    background-repeat: no-repeat;
-    background-position: center;
-    margin-right: 0.3rem;
-    flex-shrink: 0;
-    color: index.$color-text-primary;
-    &--black {
-      background-image: url("../../assets/sente_icon.svg");
-    }
-    &--white {
-      background-image: url("../../assets/gote_icon.svg");
-    }
+  &__pv {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__evaluation {
-    margin-right: 2rem;
-    font-weight: 500;
-    color: index.$color-text-primary;
+    font-weight: 520;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-size: 1.3rem;
-    flex-shrink: 0;
   }
 
   &__move {

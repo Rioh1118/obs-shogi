@@ -1,20 +1,34 @@
 @use "@/index.scss" as index;
 
 .stats-section {
-  height: 3.1rem;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 1.2rem;
-  padding-left: 4.5rem;
-  padding-top: 0.7rem;
-  background-color: index.$color-primary-black;
+  position: sticky;
+
+  height: 3.2rem;
+  padding: 0 var(--pane-px);
+
+  background: index.$color-primary-black;
+  border-top: 1px solid rgba(index.$color-white, 0.06);
+
   color: index.$color-text-primary;
   font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+
   &__item {
     display: flex;
     align-items: flex-start;
     margin-left: 0.9rem;
-    // gap: 0.4rem;
-    // flex: 1;
+  }
+
+  &__label {
+    opacity: 0.75;
+  }
+
+  &__value {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.98;
   }
 }

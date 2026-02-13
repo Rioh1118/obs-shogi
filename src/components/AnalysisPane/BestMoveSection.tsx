@@ -20,7 +20,6 @@ function BestMoveSection({ bestMove, evaluation }: BestMoveSectionProps) {
         <MoveSequence
           moves={bestMove}
           variant="primary"
-          maxMoves={13}
           evaluation={evaluation}
         />
       ) : null}

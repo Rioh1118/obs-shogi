@@ -108,18 +108,24 @@ function AnalysisPane() {
   }, [currentSfen, getCurrentTurn, visibleCandidates]);
 
   return (
-    <div className="analysis-pane">
-      <AnalysisPaneHeader />
-      <BestMoveSection
-        bestMove={displayData.bestMoveSequence}
-        evaluation={displayData.evaluation}
-      />
-      <CandidatesSection
-        candidateSequences={displayData.candidateSequences}
-        candidateEvaluations={displayData?.candidateEvaluations}
-      />
-      <StatsSection searchStats={displayData.searchStats} />
-    </div>
+    <section className="analysis-pane">
+      <div className="analysis-pane__surface">
+        <AnalysisPaneHeader />
+        <main className="analysis-pane__body">
+          <BestMoveSection
+            bestMove={displayData.bestMoveSequence}
+            evaluation={displayData.evaluation}
+          />
+          <CandidatesSection
+            candidateSequences={displayData.candidateSequences}
+            candidateEvaluations={displayData?.candidateEvaluations}
+          />
+        </main>
+        <footer className="analysis-pane__footer">
+          <StatsSection searchStats={displayData.searchStats} />
+        </footer>
+      </div>
+    </section>
   );
 }
 

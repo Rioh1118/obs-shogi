@@ -1,7 +1,14 @@
+@use "@/index.scss" as index;
+
 .best-move-section {
-  width: 100%;
-  background-color: #455254;
-  margin: 0;
-  padding: 0.5rem 2rem;
-  padding-top: 0.2rem;
+  padding: 0.35rem var(--pane-px) 0.15rem;
+  background-color: rgba(index.$color-white, 0.03);
+  border-bottom: 1px solid rgba(index.$color-white, 0.06);
+}
+
+.best-move-section .evaluation-bar {
+  width: 46%;
+  height: 0.9rem;
+  margin: 0.25rem 0 0.35rem 0;
+  border: 1px solid rgba(index.$color-text-primary, 0.35);
 }
