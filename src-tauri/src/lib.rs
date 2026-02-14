@@ -3,6 +3,7 @@ pub mod config_dir;
 pub mod engine;
 pub mod file_system;
 pub mod kifu;
+pub mod search;
 
 use crate::engine::bridge::AppState;
 pub use ai_library::{check_engine_setup, ensure_engines_dir, scan_ai_root};
@@ -20,8 +21,14 @@ pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
 use std::sync::Arc;
 use tauri::Manager;
 
+use search::api::{open_project, search_position, SearchState};
+use search::index_store::IndexStore;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let store = Arc::new(IndexStore::new());
+    let search_state = SearchState::new(store);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
@@ -58,8 +65,12 @@ pub fn run() {
             get_engine_settings,
             get_analysis_status,
             get_engine_info,
+            open_project,
+            search_position
         ])
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .manage(search_state)
         .setup(|app| {
             let app_handle = app.handle().clone();
             let state = app.state::<AppState>();
@@ -67,6 +78,12 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async move {
                 bridge.set_app_handle(app_handle).await;
+            });
+
+            let handle = app.handle().clone();
+            let query = app.state::<SearchState>().query.clone();
+            tauri::async_runtime::spawn(async move {
+                query.set_app_handle(handle).await;
             });
 
             if cfg!(debug_assertions) {
