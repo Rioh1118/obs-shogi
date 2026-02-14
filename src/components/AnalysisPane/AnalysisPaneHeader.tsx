@@ -1,7 +1,7 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { usePosition } from "@/contexts/PositionContext";
 import { useEffect, useState, useRef } from "react";
-import { Settings, Play, Square, Navigation } from "lucide-react";
+import { Settings, Play, Square, Navigation, Search } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/hooks/useURLParams";
 
@@ -91,6 +91,10 @@ function AnalysisPaneHeader() {
     openModal("settings", { tab: "general" });
   };
 
+  const handlePositionSearch = () => {
+    openModal("position-search");
+  };
+
   return (
     <header className="analysis-header">
       <div className="analysis-header__status">
@@ -115,6 +119,14 @@ function AnalysisPaneHeader() {
           title="局面ナビゲーション"
         >
           <Navigation className="analysis-header__icon" />
+        </button>
+        <button
+          className="analysis-header__button analysis-header__button--possearch"
+          onClick={handlePositionSearch}
+          disabled={!currentSfen}
+          title="局面検索"
+        >
+          <Search className="analysis-header__icon" />
         </button>
 
         <button

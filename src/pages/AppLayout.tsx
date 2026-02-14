@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import GameBoard from "../components/GameBoard/GameBoard";
 import Board from "../components/GameBoard/Board/Board";
@@ -17,6 +17,8 @@ import SettingsModal from "@/components/SettingsModal/SettingsModal";
 import CreateFileModal from "@/components/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";
+import { usePositionSearch } from "@/contexts/PositionSearchContext";
+import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -26,6 +28,11 @@ const AppLayout = () => {
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameState.jkfPlayer?.shogi;
+  const { openProject } = usePositionSearch();
+
+  useEffect(() => {
+    openProject();
+  }, [openProject]);
 
   if (engineState.phase === "initializing") {
     return (
@@ -42,6 +49,7 @@ const AppLayout = () => {
       <CreateFileModal />
       <PositionNavigationModal />
       <SettingsModal />
+      <PositionSearchModal />
 
       <AppLayoutHeader
         toggleSidebar={toggleSidebar}

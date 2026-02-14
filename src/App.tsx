@@ -12,6 +12,7 @@ import "./App.scss";
 import EngineProvider from "./contexts/EngineContext";
 import { AnalysisProvider } from "./contexts/AnalysisContext";
 import { PositionProvider } from "./contexts/PositionContext";
+import { PositionSearchProvider } from "./contexts/PositionSearchContext";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
@@ -30,9 +31,11 @@ function App() {
                     element={
                       <EngineProvider>
                         <PositionProvider>
-                          <AnalysisProvider>
-                            <AppLayout />
-                          </AnalysisProvider>
+                          <PositionSearchProvider>
+                            <AnalysisProvider>
+                              <AppLayout />
+                            </AnalysisProvider>
+                          </PositionSearchProvider>
                         </PositionProvider>
                       </EngineProvider>
                     }

@@ -1,7 +1,12 @@
 import { useSearchParams, useNavigate } from "react-router";
 import { useCallback, useMemo } from "react";
 
-export type ModalType = "navigation" | "analysis" | "settings" | "create-file";
+export type ModalType =
+  | "navigation"
+  | "analysis"
+  | "settings"
+  | "create-file"
+  | "position-search";
 
 export interface URLParams {
   modal?: ModalType;
