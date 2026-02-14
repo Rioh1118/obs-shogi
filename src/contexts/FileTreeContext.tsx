@@ -176,6 +176,8 @@ type FileTreeContextType = FileTreeState & {
   cancelInlineRename: () => void;
   startCreateDirectory: (parentPath: string) => void;
   cancelCreateDirectory: () => void;
+
+  selectNodeByAbsPath: (absPath: string) => void;
 };
 
 const FileTreeContext = createContext<FileTreeContextType | undefined>(
@@ -477,6 +479,35 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
     return state.jkfData;
   }, [state.jkfData]);
 
+  const findNodeByAbsPath = useCallback(
+    (absPath: string): FileTreeNode | null => {
+      const root = state.fileTree;
+      if (!root) return null;
+
+      const walk = (n: FileTreeNode): FileTreeNode | null => {
+        if (!n.isDirectory && n.path === absPath) return n;
+
+        const children = n.children ?? [];
+        for (const ch of children) {
+          const r = walk(ch);
+          if (r) return r;
+        }
+        return null;
+      };
+
+      return walk(root);
+    },
+    [state.fileTree],
+  );
+
+  const selectNodeByAbsPath = useCallback(
+    (absPath: string) => {
+      const node = findNodeByAbsPath(absPath);
+      dispatch({ type: "node_selected", payload: node });
+    },
+    [findNodeByAbsPath],
+  );
+
   return (
     <FileTreeContext.Provider
       value={{
@@ -500,6 +531,7 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         closeContextMenu,
         startCreateDirectory,
         cancelCreateDirectory,
+        selectNodeByAbsPath,
       }}
     >
       {children}

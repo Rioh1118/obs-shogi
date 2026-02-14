@@ -25,6 +25,7 @@ export interface GameContextState {
    */
   lastMove: ShogiMove | null;
   mode: GameMode;
+  loadedAbsPath: string | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -70,7 +71,7 @@ export interface GameContextType {
   state: GameContextState;
   helpers: JKFPlayerHelpers;
   // 基本操作
-  loadGame: (jkf: JKFData) => Promise<void>;
+  loadGame: (jkf: JKFData, absPath: string | null) => Promise<void>;
   // ナビゲーション（JKFPlayerに委譲）
   goToIndex: (index: number) => void;
   nextMove: () => void;
@@ -118,6 +119,7 @@ export const initialGameState: GameContextState = {
   legalMoves: [],
   lastMove: null,
   mode: "replay",
+  loadedAbsPath: null,
   isLoading: false,
   error: null,
 };

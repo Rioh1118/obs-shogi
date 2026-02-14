@@ -241,9 +241,20 @@ export function GameProvider({
 
   // 1. loadGame - JKFデータから棋譜を読み込む
   const loadGame = useCallback(
-    async (jkf: JKFData) => {
+    async (jkf: JKFData, absPath: string | null) => {
       try {
         dispatch({ type: "clear_error" });
+        dispatch({
+          type: "partial_update",
+          payload: {
+            jkfPlayer: null,
+            cursor: null,
+            lastMove: null,
+            selectedPosition: null,
+            legalMoves: [],
+            loadedAbsPath: absPath,
+          },
+        });
         dispatch({ type: "set_loading", payload: true });
 
         cursorRef.current = null;
@@ -274,7 +285,11 @@ export function GameProvider({
       // 棋譜が選択されていて、JKFデータがある場合
       if (isKifuSelected() && fileTreeJkfData) {
         try {
-          await loadGame(fileTreeJkfData);
+          const absPath =
+            selectedNode && !selectedNode.isDirectory
+              ? selectedNode.path
+              : null;
+          await loadGame(fileTreeJkfData, absPath);
         } catch (error) {
           dispatch({
             type: "set_error",
@@ -295,13 +310,14 @@ export function GameProvider({
             lastMove: null,
             selectedPosition: null,
             legalMoves: [],
+            loadedAbsPath: null,
           },
         });
       }
     };
 
     syncWithFileTree();
-  }, [fileTreeJkfData, isKifuSelected, loadGame]); // fileTreeJkfDataの変更を監視
+  }, [fileTreeJkfData, isKifuSelected, selectedNode, loadGame]); // fileTreeJkfDataの変更を監視
   // goToIndex - 指定した手数に移動
   const goToIndex = useCallback(
     (index: number) => {

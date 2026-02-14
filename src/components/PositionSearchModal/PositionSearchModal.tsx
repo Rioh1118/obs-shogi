@@ -8,6 +8,7 @@ import { Search, CornerDownLeft, Loader2 } from "lucide-react";
 import type { PositionHit } from "@/commands/search/types";
 import "./PositionSeachModal.scss";
 import Modal from "../Modal";
+import { usePositionHitNavigation } from "@/hooks/usePositionHitNavigation";
 
 function formatHitLabel(hit: PositionHit) {
   const { occ, cursor } = hit;
@@ -15,7 +16,7 @@ function formatHitLabel(hit: PositionHit) {
 }
 
 export default function PositionSearchModal() {
-  const { params, closeModal, navigateToPosition } = useURLParams();
+  const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "position-search";
 
   const { currentSfen } = usePosition();
@@ -29,6 +30,8 @@ export default function PositionSearchModal() {
     resolveHitAbsPath,
   } = usePositionSearch();
 
+  const { navigateToHit } = usePositionHitNavigation();
+
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -39,12 +42,10 @@ export default function PositionSearchModal() {
   const isDone = !!session?.isDone && !isSearching;
   const error = session?.error ?? null;
 
-  // 開いた瞬間に「現在局面で検索」を実行する
   useEffect(() => {
     if (!isOpen) return;
 
     setActiveIndex(0);
-
     // 以前の検索結果を消す（セッション丸ごと）
     clearSearch();
 
@@ -67,8 +68,10 @@ export default function PositionSearchModal() {
   const activeHit = hits[activeIndex];
 
   const accept = (hit: PositionHit) => {
-    // 今は tesuu だけで移動
-    navigateToPosition(hit.cursor.tesuu);
+    const absPath = resolveHitAbsPath(hit);
+    if (!absPath) return;
+
+    navigateToHit(absPath, hit.cursor);
     closeModal();
   };
 
