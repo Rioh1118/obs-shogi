@@ -42,6 +42,12 @@ export interface Occurrence {
   node_id: NodeId;
 }
 
+// Rust: pub struct FilePathEntry { file_id: u32, abs_path: String }
+export interface FilePathEntry {
+  file_id: FileId;
+  abs_path: string;
+}
+
 // Rust: pub struct CursorLite { tesuu: u32, fork_pointers: Vec<ForkPointer> }
 export interface CursorLite {
   tesuu: number;
@@ -88,6 +94,7 @@ export interface SearchBeginPayload {
 export interface SearchChunkPayload {
   request_id: RequestId;
   chunk: PositionHit[];
+  files: FilePathEntry[];
 }
 
 // Rust: pub struct SearchEndPayload { request_id }

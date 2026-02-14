@@ -54,10 +54,14 @@ type SearchSession = {
   endedAt: number | null;
 };
 
+type FilePathById = Record<number, string>;
+
 type SearchState = {
   // index
   index: IndexUiState;
   warns: IndexWarnPayload[];
+
+  filePathById: FilePathById;
 
   // open project
   isOpeningProject: boolean;
@@ -99,6 +103,7 @@ const initialState: SearchState = {
     currentPath: null,
   },
   warns: [],
+  filePathById: {},
 
   isOpeningProject: false,
   lastOpenedRootDir: null,
@@ -129,6 +134,26 @@ function ensureSession(
   };
 }
 
+function mergeFiles(
+  base: Record<number, string>,
+  files: { file_id: number; abs_path: string }[],
+): Record<number, string> {
+  if (!files.length) return base;
+
+  let changed = false;
+  const next = { ...base };
+
+  for (const f of files) {
+    const prev = next[f.file_id];
+    if (prev !== f.abs_path) {
+      next[f.file_id] = f.abs_path;
+      changed = true;
+    }
+  }
+
+  return changed ? next : base;
+}
+
 function reducer(state: SearchState, action: Action): SearchState {
   switch (action.type) {
     // ===== index events =====
@@ -153,8 +178,6 @@ function reducer(state: SearchState, action: Action): SearchState {
         index: {
           ...state.index,
           currentPath: p.current_path,
-          // progress は state payload と整合しないこともあるので、
-          // done_files は UI で必要なら別に持たせてもいい
         },
       };
     }
@@ -177,6 +200,10 @@ function reducer(state: SearchState, action: Action): SearchState {
         lastOpenedRootDir: action.payload.rootDir,
         openError: null,
         lastOpenResult: null,
+        filePathById: {},
+        isSearching: false,
+        currentRequestId: null,
+        sessions: {},
       };
 
     case "open_ok":
@@ -222,9 +249,11 @@ function reducer(state: SearchState, action: Action): SearchState {
       const p = action.payload;
       const sessions = ensureSession(state.sessions, p.request_id);
       const s = sessions[p.request_id]!;
+
       return {
         ...state,
         currentRequestId: state.currentRequestId ?? p.request_id,
+        filePathById: mergeFiles(state.filePathById, p.files),
         sessions: {
           ...sessions,
           [p.request_id]: {
@@ -319,6 +348,9 @@ type PositionSearchContextType = {
   // helpers
   getCurrentSession: () => SearchSession | null;
   getHits: () => PositionHit[];
+  getAbsPathByFileId: (fileId: number) => string | null;
+  resolveHitAbsPath: (hit: PositionHit) => string | null;
+
   clearWarns: () => void;
   clearSearch: (requestId?: RequestId) => void;
 };
@@ -442,6 +474,16 @@ export const PositionSearchProvider: React.FC<{ children: ReactNode }> = ({
     return s?.hits ?? [];
   }, [state.currentRequestId, state.sessions]);
 
+  const getAbsPathByFileId = useCallback(
+    (fileId: number): string | null => state.filePathById[fileId] ?? null,
+    [state.filePathById],
+  );
+  const resolveHitAbsPath = useCallback(
+    (hit: PositionHit): string | null =>
+      state.filePathById[hit.occ.file_id] ?? null,
+    [state.filePathById],
+  );
+
   const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
   const clearSearch = useCallback(
     (requestId?: RequestId) =>
@@ -457,6 +499,8 @@ export const PositionSearchProvider: React.FC<{ children: ReactNode }> = ({
       searchCurrentPositionBestEffort,
       getCurrentSession,
       getHits,
+      getAbsPathByFileId,
+      resolveHitAbsPath,
       clearWarns,
       clearSearch,
     }),
@@ -467,6 +511,8 @@ export const PositionSearchProvider: React.FC<{ children: ReactNode }> = ({
       searchCurrentPositionBestEffort,
       getCurrentSession,
       getHits,
+      getAbsPathByFileId,
+      resolveHitAbsPath,
       clearWarns,
       clearSearch,
     ],

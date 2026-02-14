@@ -22,6 +22,12 @@ pub struct FileEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilePathEntry {
+    pub file_id: FileId,
+    pub abs_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IndexState {
     Empty,
     Building,
@@ -90,6 +96,7 @@ pub struct SearchBeginPayload {
 pub struct SearchChunkPayload {
     pub request_id: RequestId,
     pub chunk: Vec<PositionHit>,
+    pub files: Vec<FilePathEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

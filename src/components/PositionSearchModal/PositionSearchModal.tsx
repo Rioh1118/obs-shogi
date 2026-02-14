@@ -11,7 +11,7 @@ import Modal from "../Modal";
 
 function formatHitLabel(hit: PositionHit) {
   const { occ, cursor } = hit;
-  return `#${occ.file_id}:${occ.gen}@${occ.node_id}  tesuu=${cursor.tesuu}`;
+  return `#${occ.file_id}:${occ.gen}@${occ.node_id}  tesuu=${cursor.tesuu} cursor=${cursor.fork_pointers.length}`;
 }
 
 export default function PositionSearchModal() {
@@ -26,6 +26,7 @@ export default function PositionSearchModal() {
     clearSearch,
     getCurrentSession,
     getHits,
+    resolveHitAbsPath,
   } = usePositionSearch();
 
   const [activeIndex, setActiveIndex] = useState(0);
@@ -175,8 +176,7 @@ export default function PositionSearchModal() {
                     {formatHitLabel(hit)}
                   </div>
                   <div className="pos-search__itemSub">
-                    file_id={hit.occ.file_id} gen={hit.occ.gen} node=
-                    {hit.occ.node_id}
+                    {resolveHitAbsPath(hit) ?? "path unknown"}
                   </div>
                 </button>
               );

@@ -1,10 +1,15 @@
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
+
+use crate::search::types::FileId;
 
 use super::{
     index_store::{IndexState as StoreIndexState, IndexStore},
@@ -58,12 +63,40 @@ impl QueryService {
             Ok(key) => {
                 let hits = self.store.search_by_key(key);
 
+                let snap = self.store.snapshot();
+                let ft = snap.file_table.clone();
+
                 for chunk in hits.chunks(chunk_size) {
+                    let chunk_vec = chunk.to_vec();
+
+                    let mut map: HashMap<FileId, String> = HashMap::new();
+                    for h in &chunk_vec {
+                        let fid = h.occ.file_id;
+                        if map.contains_key(&fid) {
+                            continue;
+                        }
+                        if let Some(e) = ft.get(fid) {
+                            map.insert(fid, e.path.clone());
+                        } else {
+                            // 通常ここには来ない想定（aliveなら file_table に居るはず）
+                            map.insert(fid, String::new());
+                        }
+                    }
+
+                    let files = map
+                        .into_iter()
+                        .map(|(file_id, abs_path)| super::types::FilePathEntry {
+                            file_id,
+                            abs_path,
+                        })
+                        .collect::<Vec<_>>();
+
                     let _ = handle.emit(
                         EVT_SEARCH_CHUNK,
                         SearchChunkPayload {
                             request_id,
                             chunk: chunk.to_vec(),
+                            files,
                         },
                     );
                 }
