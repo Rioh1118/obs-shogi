@@ -1,0 +1,14 @@
+@use "@/index.scss" as index;
+
+.pos-search__footer {
+  margin-top: auto;
+  padding: 1.2rem 1.5rem;
+}
+
+.pos-search__hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.2rem;
+  color: rgba(index.$color-text-light-1, 0.75);
+}

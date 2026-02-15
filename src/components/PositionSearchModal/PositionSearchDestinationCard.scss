@@ -1,0 +1,86 @@
+@use "@/index.scss" as index;
+
+.pos-search-dest {
+  border-top: 1px solid index.$stroke-weak;
+  padding-top: 10px;
+  margin-top: 6px;
+  display: grid;
+  gap: 8px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  &__title {
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.7);
+  }
+
+  // バッジは“静かに”
+  &__badge {
+    font-size: 1.1rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(index.$color-white, 0.12);
+    color: rgba(index.$color-text-light-1, 0.78);
+    background: rgba(index.$color-primary-light, 0.06);
+  }
+
+  // 切替だけ、ほんの少しだけ温度を上げる（出しすぎない）
+  &__badge.is-switch {
+    border-color: rgba(index.$color-secondary-dark, 0.3);
+    background: rgba(index.$color-secondary-dark, 0.1);
+    color: rgba(index.$color-text-primary, 0.95);
+  }
+
+  &__badge.is-same {
+    border-color: rgba(index.$color-white, 0.1);
+  }
+
+  &__path {
+    font-size: 1.2rem;
+    color: index.$color-text-primary;
+    word-break: break-all;
+    user-select: text;
+  }
+
+  &__meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__chip {
+    font-size: 1.1rem;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid index.$stroke-weak;
+    background: rgba(index.$color-primary-light, 0.06);
+    color: rgba(index.$color-text-light-1, 0.78);
+  }
+
+  &__current {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.65);
+  }
+
+  &__currentLabel {
+    color: rgba(index.$color-text-light-1, 0.55);
+  }
+
+  &__currentPath {
+    word-break: break-all;
+    user-select: text;
+  }
+
+  &__empty {
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.6);
+  }
+}

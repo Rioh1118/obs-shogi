@@ -1,25 +1,32 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useURLParams } from "@/hooks/useURLParams";
 import { usePosition } from "@/contexts/PositionContext";
 import { usePositionSearch } from "@/contexts/PositionSearchContext";
-import { Search, CornerDownLeft, Loader2 } from "lucide-react";
-
 import type { PositionHit } from "@/commands/search/types";
-import "./PositionSeachModal.scss";
+
 import Modal from "../Modal";
 import { usePositionHitNavigation } from "@/hooks/usePositionHitNavigation";
 
-function formatHitLabel(hit: PositionHit) {
-  const { occ, cursor } = hit;
-  return `#${occ.file_id}:${occ.gen}@${occ.node_id}  tesuu=${cursor.tesuu} cursor=${cursor.fork_pointers.length}`;
-}
+import PositionSearchModalHeader from "./PositionSearchModalHeader";
+import PositionSearchHitList from "./PositionSearchHitList";
+import PositionSearchModalFooter from "./PositionSearchModalFooter";
+
+import "./PositionSeachModal.scss";
+import { useGame } from "@/contexts/GameContext";
+import { JKFPlayer } from "json-kifu-format";
+import type { Kind } from "shogi.js";
+import { buildPreviewData } from "@/utils/buildPreviewData";
+import PreviewPane from "../NavigationModal/PreviewPane";
+import PositionSearchStatusBar from "./PositionSearchStatusBar";
+import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "position-search";
 
   const { currentSfen } = usePosition();
+  const { state: gameState } = useGame();
 
   const {
     state,
@@ -33,7 +40,8 @@ export default function PositionSearchModal() {
   const { navigateToHit } = usePositionHitNavigation();
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const listRef = useRef<HTMLDivElement | null>(null);
+
+  const rootRef = useRef<HTMLElement | null>(null);
 
   const session = getCurrentSession();
   const hits = getHits();
@@ -42,23 +50,42 @@ export default function PositionSearchModal() {
   const isDone = !!session?.isDone && !isSearching;
   const error = session?.error ?? null;
 
+  const statusText = useMemo(() => {
+    if (isSearching) return "検索中…";
+    if (error) return "エラー";
+    if (isDone) return "完了";
+    return "待機中";
+  }, [isSearching, error, isDone]);
+
+  const toKan = useMemo(
+    () => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k,
+    [],
+  );
+
+  const previewData = useMemo(() => {
+    const jkf = gameState.jkfPlayer;
+    if (!isOpen || !jkf) return null;
+
+    const nodeId = jkf.getTesuuPointer(jkf.tesuu);
+    return buildPreviewData(jkf, nodeId);
+  }, [isOpen, gameState.jkfPlayer]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     setActiveIndex(0);
-    // 以前の検索結果を消す（セッション丸ごと）
     clearSearch();
 
-    // currentSfen が無いなら何もしない（UI側で disable してる想定）
     if (!currentSfen) return;
 
-    // 自動検索
+    // キー操作を確実に受ける（tabIndex=-1 の要素を focus）
+    queueMicrotask(() => rootRef.current?.focus());
+
     searchCurrentPositionBestEffort(5000).catch((e) => {
       console.error("[PositionSearchModal] auto search failed:", e);
     });
   }, [isOpen, currentSfen, clearSearch, searchCurrentPositionBestEffort]);
 
-  // hits増減でactiveIndexがはみ出さないように
   useEffect(() => {
     if (!isOpen) return;
     if (activeIndex < hits.length) return;
@@ -70,12 +97,12 @@ export default function PositionSearchModal() {
   const accept = (hit: PositionHit) => {
     const absPath = resolveHitAbsPath(hit);
     if (!absPath) return;
-
     navigateToHit(absPath, hit.cursor);
     closeModal();
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // ※ Modal側でもEscを見てるが、ここで扱うのはOK（挙動を統一しやすい）
     if (e.key === "Escape") {
       e.preventDefault();
       closeModal();
@@ -103,97 +130,69 @@ export default function PositionSearchModal() {
 
   if (!isOpen) return null;
 
+  const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
+
   return (
     <Modal
       onClose={closeModal}
       theme="dark"
-      variant="dialog"
-      size="lg"
+      variant="workspace"
+      size="xl"
       chrome="card"
-      padding="md"
-      scroll="content"
+      padding="none"
+      scroll="none"
       closeOnEsc
       closeOnOverlay
-      showCloseButton
+      showCloseButton={false}
     >
-      <div className="pos-search" onKeyDown={onKeyDown} tabIndex={-1}>
-        <header className="pos-search__header">
-          <div className="pos-search__title">
-            <Search size={16} />
-            <span>局面検索</span>
+      <section
+        ref={(el) => {
+          rootRef.current = el;
+        }}
+        className="pos-search"
+        onKeyDown={onKeyDown}
+        tabIndex={-1}
+        aria-label="局面検索"
+      >
+        <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
+
+        <main className="pos-search__main">
+          <div className="pos-search__grid">
+            <section className="pos-search__left" aria-label="検索状態">
+              <PositionSearchStatusBar
+                hitsCount={hits.length}
+                statusText={statusText}
+                stale={!!session?.stale}
+                error={error}
+              />
+
+              <PositionSearchHitList
+                hits={hits}
+                activeIndex={activeIndex}
+                onActiveIndexChange={setActiveIndex}
+                onAccept={accept}
+                isSearching={isSearching}
+                error={error}
+                resolveAbsPath={resolveHitAbsPath}
+              />
+            </section>
+            <aside className="pos-search__right" aria-label="局面プレビュー">
+              <div className="pos-search__paneTitle">現在の局面</div>
+
+              <PreviewPane previewData={previewData} toKan={toKan} />
+
+              <PositionSearchDestinationCard
+                currentAbsPath={gameState.loadedAbsPath ?? null}
+                destAbsPath={destAbsPath}
+                tesuu={activeHit?.cursor.tesuu ?? null}
+                forks={activeHit?.cursor.fork_pointers.length ?? null}
+              />
+            </aside>
           </div>
+        </main>
 
-          <div className="pos-search__right">
-            {isSearching && (
-              <span className="pos-search__spinner" title="検索中">
-                <Loader2 size={16} className="pos-search__spinIcon" />
-              </span>
-            )}
-          </div>
-        </header>
-
-        <div className="pos-search__meta">
-          <span>hits: {hits.length}</span>
-          <span>
-            {isSearching
-              ? "searching"
-              : error
-                ? "error"
-                : isDone
-                  ? "done"
-                  : "idle"}
-          </span>
-          {session?.stale && <span className="pos-search__stale">stale</span>}
-          {error && <span className="pos-search__error">{error}</span>}
-        </div>
-
-        <div className="pos-search__query">
-          <div className="pos-search__queryLabel">query</div>
-          <div className="pos-search__queryValue">
-            {currentSfen ?? "(no sfen)"}
-          </div>
-        </div>
-
-        <div className="pos-search__list" ref={listRef}>
-          {hits.length === 0 ? (
-            <div className="pos-search__empty">
-              {isSearching
-                ? "検索結果を受信中…"
-                : error
-                  ? "検索に失敗しました"
-                  : "結果がありません"}
-            </div>
-          ) : (
-            hits.map((hit, idx) => {
-              const isActive = idx === activeIndex;
-              return (
-                <button
-                  key={`${hit.occ.file_id}-${hit.occ.gen}-${hit.occ.node_id}-${idx}`}
-                  type="button"
-                  className={`pos-search__item ${isActive ? "is-active" : ""}`}
-                  onMouseEnter={() => setActiveIndex(idx)}
-                  onClick={() => accept(hit)}
-                  disabled={isSearching}
-                >
-                  <div className="pos-search__itemMain">
-                    {formatHitLabel(hit)}
-                  </div>
-                  <div className="pos-search__itemSub">
-                    {resolveHitAbsPath(hit) ?? "path unknown"}
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <footer className="pos-search__footer">
-          <div className="pos-search__hint">
-            <CornerDownLeft size={14} />
-            <span>Enter: 移動 / j,k: 選択 / Esc: 閉じる</span>
-          </div>
-        </footer>
-      </div>
+        <PositionSearchModalFooter />
+      </section>
     </Modal>
   );
 }

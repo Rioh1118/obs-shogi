@@ -1,0 +1,18 @@
+@use "@/index.scss" as index;
+
+.pos-search-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 1.2rem;
+  color: rgba(index.$color-text-light-1, 0.72);
+
+  &__item--warn {
+    color: rgba(index.$color-secondary-dark, 0.95);
+  }
+
+  &__item--error {
+    color: rgba(#ff6b6b, 0.95);
+  }
+}

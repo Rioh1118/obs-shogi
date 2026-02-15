@@ -1,0 +1,36 @@
+@use "@/index.scss" as index;
+
+.pos-search__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid index.$stroke-weak;
+}
+
+.pos-search__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.4rem;
+  color: index.$color-text-light-1;
+}
+
+.pos-search__spinner {
+  display: inline-grid;
+  place-items: center;
+}
+
+.pos-search__spinIcon {
+  animation: posSearchSpin 900ms linear infinite;
+}
+
+@keyframes posSearchSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

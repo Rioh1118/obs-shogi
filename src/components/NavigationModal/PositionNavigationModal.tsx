@@ -10,6 +10,7 @@ import {
   type BranchOption,
   type KifuCursor,
   type TesuuPointer,
+  type Kind,
 } from "@/types";
 import { useGame } from "@/contexts/GameContext";
 import { appliedForkPointers } from "@/utils/kifuCursor";
@@ -208,7 +209,7 @@ function PositionNavigationModal() {
     closeModal,
   ]);
 
-  const toKan = (k: string) => JKFPlayer.kindToKan(k as any) ?? k;
+  const toKan = (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k;
 
   // ---- render ----
   if (!isOpen) return null;
