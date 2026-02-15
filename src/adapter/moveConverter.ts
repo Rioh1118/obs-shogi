@@ -25,8 +25,7 @@ export function toIMoveMoveFormat(
     from: standardMove.from,
     to: standardMove.to,
     piece: standardMove.piece,
-    promote: standardMove.promote,
     color: standardMove.color,
-    // capture, relative, same等はRust側で正規化される
+    ...(standardMove.promote === true ? { promote: true } : {}),
   };
 }
