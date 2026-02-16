@@ -2,6 +2,7 @@ import { forwardRef, memo, useCallback, useId, useMemo } from "react";
 import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
 import "./KifuForkMenu.scss";
+import type { ForkPointer } from "@/types";
 
 export type RowModel = {
   te: number;
@@ -15,6 +16,7 @@ export type RowModel = {
   selectedForkIndex: number | null;
 
   isActive: boolean;
+  branchForkPointers: ForkPointer[];
 };
 
 type Props = {
@@ -29,6 +31,18 @@ type Props = {
   onToggleForkMenu: (te: number, anchorEl: HTMLButtonElement) => void;
   onSelectFork: (te: number, forkIndex: number | null) => void;
   onRequestCloseForkMenu: () => void;
+  onSwapBranch: (
+    te: number,
+    branchForkPointers: ForkPointer[],
+    branchIndex: number,
+    dir: "up" | "down",
+  ) => void;
+
+  onDeleteBranch: (
+    te: number,
+    branchForkPointers: ForkPointer[],
+    branchIndex: number,
+  ) => void;
 };
 
 function sideLabel(side: RowModel["side"]) {
@@ -49,6 +63,8 @@ const KifuMoveCard = memo(
       onToggleForkMenu,
       onSelectFork,
       onRequestCloseForkMenu,
+      onSwapBranch,
+      onDeleteBranch,
     },
     ref,
   ) {
@@ -168,6 +184,13 @@ const KifuMoveCard = memo(
             onSelect={onSelect}
             onClose={onRequestCloseForkMenu}
             menuRef={forkMenuRef}
+            branchForkPointers={row.branchForkPointers}
+            onSwap={(branchIndex, dir) => {
+              onSwapBranch(row.te, row.branchForkPointers, branchIndex, dir);
+            }}
+            onDelete={(branchIndex) => {
+              onDeleteBranch(row.te, row.branchForkPointers, branchIndex);
+            }}
           />
         ) : null}
       </div>

@@ -1,3 +1,4 @@
+import type { ForkPointer } from "@/types";
 import {
   memo,
   useCallback,
@@ -7,6 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import KifuForkActions from "./KifuForkActions";
 
 type Props = {
   te: number;
@@ -15,15 +17,20 @@ type Props = {
   selectedForkIndex: number | null;
   busy: boolean;
 
+  branchForkPointers: ForkPointer[];
+
   anchorEl: HTMLButtonElement; // ⎇ボタン
   onSelect: (forkIndex: number | null) => void;
   onClose: () => void;
+  onSwap: (branchIndex: number, dir: "up" | "down") => void;
+  onDelete: (branchIndex: number) => void;
 
   menuRef?: React.RefObject<HTMLDivElement | null>;
 };
 
 type Opt = {
   forkIndex: number | null;
+  branchIndex: number;
   tag: string;
   move: string;
   selected: boolean;
@@ -43,6 +50,8 @@ const KifuForkMenu = memo(function KifuForkMenu({
   anchorEl,
   onSelect,
   onClose,
+  onSwap,
+  onDelete,
   menuRef,
 }: Props) {
   const normalized = useMemo(
@@ -54,12 +63,14 @@ const KifuForkMenu = memo(function KifuForkMenu({
     return [
       {
         forkIndex: null,
+        branchIndex: 0,
         tag: "本譜",
         move: mainText || "(手がありません)",
         selected: normalized == null,
       },
       ...forkTexts.map((t, i) => ({
         forkIndex: i,
+        branchIndex: i + 1,
         tag: `変化${i + 1}`,
         move: t || "(手がありません)",
         selected: normalized === i,
@@ -151,32 +162,59 @@ const KifuForkMenu = memo(function KifuForkMenu({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      {options.map((opt) => (
-        <button
-          key={opt.forkIndex == null ? "main" : `fork-${opt.forkIndex}`}
-          type="button"
-          className="kifu-forkmenu__item"
-          role="menuitemradio"
-          aria-checked={opt.selected}
-          aria-disabled={busy}
-          data-selected={opt.selected ? "1" : "0"}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            if (busy) return;
-            onSelect(opt.forkIndex);
-            onClose();
-          }}
-        >
-          <span className="kifu-forkmenu__tag">{opt.tag}</span>
-          <span className="kifu-forkmenu__move" title={opt.move}>
-            {opt.move}
-          </span>
-          <span className="kifu-forkmenu__check">
-            {opt.selected ? "✓" : ""}
-          </span>
-        </button>
-      ))}
+      {options.map((opt, idx) => {
+        const canUp = idx > 0;
+        const canDown = idx < options.length - 1;
+        return (
+          <div
+            key={opt.forkIndex == null ? "main" : `fork-${opt.forkIndex}`}
+            className="kifu-forkmenu__row"
+            role="none"
+          >
+            <button
+              type="button"
+              className="kifu-forkmenu__item"
+              role="menuitemradio"
+              aria-checked={opt.selected}
+              aria-disabled={busy}
+              data-selected={opt.selected ? "1" : "0"}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (busy) return;
+                onSelect(opt.forkIndex);
+                onClose();
+              }}
+            >
+              <span className="kifu-forkmenu__tag">{opt.tag}</span>
+              <span className="kifu-forkmenu__move" title={opt.move}>
+                {opt.move}
+              </span>
+              <span className="kifu-forkmenu__check">
+                {opt.selected ? "✓" : ""}
+              </span>
+            </button>
+
+            <KifuForkActions
+              busy={busy}
+              canUp={canUp}
+              canDown={canDown}
+              onUp={() => {
+                onSwap(opt.branchIndex, "up");
+                onClose();
+              }}
+              onDown={() => {
+                onSwap(opt.branchIndex, "down");
+                onClose();
+              }}
+              onDelete={() => {
+                onDelete(opt.branchIndex);
+                onClose();
+              }}
+            />
+          </div>
+        );
+      })}
     </div>,
     document.body,
   );

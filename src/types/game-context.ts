@@ -6,6 +6,7 @@ import type { GameMode, SelectedPosition } from "@/types/state";
 import type { KifuWriter } from "@/interfaces";
 import type { StandardMoveFormat } from "@/types";
 import type { KifuCursor } from "./kifu-cursor";
+import type { DeleteQuery, SwapQuery } from "./branch";
 
 // Reducer用のState型（シンプル化）
 export interface GameContextState {
@@ -21,7 +22,7 @@ export interface GameContextState {
   selectedPosition: SelectedPosition | null;
   legalMoves: ShogiMove[];
   /**
-   * lastMove:現在局面の一つ前の手である
+   * lastMove:現在局面の一つ前の手である TODO: derivedStateにすべき
    */
   lastMove: ShogiMove | null;
   mode: GameMode;
@@ -84,6 +85,8 @@ export interface GameContextType {
   selectHand: (color: Color, kind: Kind) => void;
   clearSelection: () => void;
   makeMove: (move: StandardMoveFormat) => Promise<void>;
+  swapBranches: (q: SwapQuery) => Promise<void>;
+  deleteBranch: (q: DeleteQuery) => Promise<void>;
   // addComment: (comment: string) => Promise<void>; // 書き込み
   // モード・エラー管理
   setMode: (mode: GameMode) => void;
@@ -129,3 +132,10 @@ export type GameReducer = (
   state: GameContextState,
   action: GameAction,
 ) => GameContextState;
+
+export type MutateOptions = { forceCommit?: boolean };
+
+export type MutateResult =
+  | void
+  | boolean
+  | { cursorForCommit?: KifuCursor | null; playerForCommit?: JKFPlayer };

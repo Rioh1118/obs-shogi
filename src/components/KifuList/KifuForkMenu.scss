@@ -212,3 +212,18 @@
   color: rgba(index.$color-secondary-dark, 0.95);
   text-shadow: 0 0 12px rgba(index.$color-secondary-dark, 0.22);
 }
+
+.kifu-forkmenu__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+/* ホバー・フォーカス時に右のアクションを表示 */
+.kifu-forkmenu__row:hover .kifu-forkactions,
+.kifu-forkmenu__row:focus-within .kifu-forkactions {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}

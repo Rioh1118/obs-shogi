@@ -1,0 +1,48 @@
+@use "@/index.scss" as index;
+
+.kifu-forkactions {
+  display: flex;
+  gap: 0.4rem;
+
+  // デフォルトは「見えない + クリック不可」
+  opacity: 0;
+  transform: translateX(4px);
+  pointer-events: none;
+
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.kifu-forkactions__btn {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 0.6rem;
+
+  border: 1px solid index.$stroke;
+  background: index.$color-primary-dark;
+  color: index.$color-text-light-1;
+
+  box-shadow: index.$shadow-press;
+  cursor: pointer;
+
+  display: grid;
+  place-items: center;
+
+  &:hover:not(:disabled) {
+    border-color: index.$stroke-strong;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+}
+
+.kifu-forkactions__btn--danger {
+  border-color: rgba(index.$color-secondary-dark, 0.55);
+}

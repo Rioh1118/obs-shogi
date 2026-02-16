@@ -17,9 +17,11 @@ import type {
   GameContextType,
   ForkPointer,
   TesuuPointer,
+  MutateResult,
+  MutateOptions,
 } from "@/types";
 import type { GameMode, JKFData, Kind, ShogiMove } from "@/types";
-import { initialGameState } from "@/types";
+import { initialGameState, ROOT_CURSOR } from "@/types";
 import { Color } from "shogi.js";
 import type { KifuWriter } from "@/interfaces";
 import { ShogiMoveValidator } from "@/services/game/ShogiMoveValidator";
@@ -34,6 +36,8 @@ import {
   mergeForkPointers,
 } from "@/utils/kifuCursor";
 import { computeLeafTesuu } from "@/utils/jkfNavigation";
+import { deleteBranchInKifu, swapBranchesInKifu } from "@/utils/branch";
+import type { DeleteQuery, SwapQuery } from "@/types/branch";
 
 function lastMovePlayer(jkf: JKFPlayer): ShogiMove | null {
   if (jkf.tesuu === 0) return null;
@@ -175,6 +179,30 @@ export function GameProvider({
     }
   }, [state.jkfPlayer, state.cursor]);
 
+  const saveKifuIfPossible = useCallback(
+    async (jkfToSave: JKFData) => {
+      if (
+        !kifuWriter ||
+        !selectedNode ||
+        selectedNode.isDirectory ||
+        !fileTreeKifuFormat
+      ) {
+        return;
+      }
+
+      try {
+        await kifuWriter.writeToFile(
+          jkfToSave,
+          selectedNode.path,
+          fileTreeKifuFormat,
+        );
+      } catch (e) {
+        console.warn("Failed to save kifu file:", e);
+      }
+    },
+    [kifuWriter, selectedNode, fileTreeKifuFormat],
+  );
+
   const commitFromPlayer = useCallback(
     (jkf: JKFPlayer, prevCursor: KifuCursor | null) => {
       const tesuu = jkf.tesuu;
@@ -211,7 +239,14 @@ export function GameProvider({
   );
 
   const mutatePlayer = useCallback(
-    (fn: (jkf: JKFPlayer) => boolean | void, errorMessage: string) => {
+    (
+      fn: (
+        jkf: JKFPlayer,
+        prevCursor: KifuCursor | null,
+      ) => MutateResult | void,
+      errorMessage: string,
+      opt?: MutateOptions,
+    ) => {
       const jkf = state.jkfPlayer;
       if (!jkf) return;
       const prevCursor = cursorRef.current;
@@ -221,14 +256,30 @@ export function GameProvider({
 
         applyCursorToPlayer(jkf, prevCursor);
 
-        const before = jkf.getTesuuPointer();
-        const result = fn(jkf);
+        const beforePtr = jkf.getTesuuPointer();
+        const result = fn(jkf, prevCursor);
 
         if (result === false) return;
-        const after = jkf.getTesuuPointer();
-        if (before === after) return;
 
-        commitFromPlayer(jkf, prevCursor);
+        const cursorForCommit =
+          typeof result === "object" && result && "cursorForCommit" in result
+            ? (result.cursorForCommit ?? prevCursor)
+            : prevCursor;
+
+        const playerForCommit =
+          typeof result === "object" && result && "playerForCommit" in result
+            ? (result.playerForCommit ?? jkf)
+            : jkf;
+
+        const afterPtr = playerForCommit.getTesuuPointer();
+        if (
+          !opt?.forceCommit &&
+          playerForCommit === jkf &&
+          beforePtr === afterPtr
+        ) {
+          return;
+        }
+        commitFromPlayer(playerForCommit, cursorForCommit);
       } catch (e) {
         dispatch({
           type: "set_error",
@@ -447,6 +498,64 @@ export function GameProvider({
       selectedNode,
       fileTreeKifuFormat,
     ],
+  );
+
+  const swapBranches = useCallback(
+    async (q: SwapQuery) => {
+      let kifuToSave: JKFData | null = null;
+      let didChange = false;
+      mutatePlayer(
+        (jkf, prevCursor) => {
+          const res = swapBranchesInKifu(jkf.kifu as JKFData, q, prevCursor);
+          if (!res.changed) return false;
+
+          const next = res.nextCursor ?? prevCursor ?? ROOT_CURSOR;
+
+          const rebuilt = new JKFPlayer(jkf.kifu as JKFData);
+          rebuilt.goto(next.tesuu, appliedForkPointers(next, next.tesuu));
+
+          didChange = true;
+          kifuToSave = jkf.kifu as JKFData;
+
+          return { cursorForCommit: next, playerForCommit: rebuilt };
+        },
+        "Failed to swap branches",
+        { forceCommit: true },
+      );
+      if (didChange && kifuToSave) {
+        await saveKifuIfPossible(kifuToSave);
+      }
+    },
+    [mutatePlayer, saveKifuIfPossible],
+  );
+
+  const deleteBranch = useCallback(
+    async (q: DeleteQuery) => {
+      let kifuToSave: JKFData | null = null;
+      let didChange = false;
+
+      mutatePlayer(
+        (jkf, prevCursor) => {
+          const res = deleteBranchInKifu(jkf.kifu as JKFData, q, prevCursor);
+          if (!res.changed) return false;
+
+          const next = res.nextCursor ?? prevCursor ?? ROOT_CURSOR;
+          const rebuilt = new JKFPlayer(jkf.kifu as JKFData);
+          rebuilt.goto(next.tesuu, appliedForkPointers(next, next.tesuu));
+
+          didChange = true;
+          kifuToSave = jkf.kifu as JKFData;
+
+          return { cursorForCommit: next, playerForCommit: rebuilt };
+        },
+        "Failed to delete branch",
+        { forceCommit: true },
+      );
+      if (didChange && kifuToSave) {
+        await saveKifuIfPossible(kifuToSave);
+      }
+    },
+    [mutatePlayer, saveKifuIfPossible],
   );
 
   const selectSquare = useCallback(
@@ -810,6 +919,8 @@ export function GameProvider({
     selectHand,
     clearSelection,
     makeMove,
+    swapBranches,
+    deleteBranch,
     setMode,
     clearError,
     isGameLoaded,

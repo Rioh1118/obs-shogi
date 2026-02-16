@@ -4,6 +4,7 @@ import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
+import type { DeleteQuery, SwapQuery } from "@/types/branch";
 
 function cloneJKF<T>(kifu: T): T {
   const sc = (globalThis as any).structuredClone as ((x: T) => T) | undefined;
@@ -32,6 +33,7 @@ function buildStreamRowsFromCursor(
     forkCount: 0,
     selectedForkIndex: null,
     isActive: currentTesuu === 0,
+    branchForkPointers: [],
   });
 
   let safety = 100000;
@@ -73,6 +75,9 @@ function buildStreamRowsFromCursor(
 
     const text = jkf.getReadableKifu?.() ?? "";
 
+    const branchForkPointers = (cursor?.forkPointers ?? []).filter(
+      (p) => p.te < te,
+    );
     rows.push({
       te,
       side,
@@ -83,6 +88,7 @@ function buildStreamRowsFromCursor(
       forkCount: forkTexts.length,
       selectedForkIndex: plannedForkIndex,
       isActive: te === currentTesuu,
+      branchForkPointers,
     });
   }
 
@@ -151,7 +157,14 @@ function scrollToRowSafeZone(
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
 
 export default function KifuStreamList() {
-  const { state, goToIndex, getTotalMoves, applyCursor } = useGame();
+  const {
+    state,
+    goToIndex,
+    getTotalMoves,
+    applyCursor,
+    deleteBranch,
+    swapBranches,
+  } = useGame();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRowRef = useRef<HTMLDivElement | null>(null);
@@ -177,6 +190,46 @@ export default function KifuStreamList() {
       requestAnimationFrame(() => anchor?.focus());
     }
   }, []);
+
+  const onSwapBranch = useCallback(
+    async (
+      te: number,
+      branchForkPointers: ForkPointer[],
+      branchIndex: number,
+      dir: "up" | "down",
+    ) => {
+      const a = branchIndex;
+      const b = dir === "up" ? branchIndex - 1 : branchIndex + 1;
+
+      // 念のためガード（UI側でも canUp/canDown してるが二重で）
+      if (b < 0) return;
+
+      const q: SwapQuery = {
+        te,
+        forkPointers: branchForkPointers, // 規約: p.te < te
+        a,
+        b,
+      };
+      await swapBranches(q);
+    },
+    [swapBranches],
+  );
+
+  const onDeleteBranch = useCallback(
+    async (
+      te: number,
+      branchForkPointers: ForkPointer[],
+      branchIndex: number,
+    ) => {
+      const q: DeleteQuery = {
+        te,
+        forkPointers: branchForkPointers,
+        target: branchIndex,
+      };
+      await deleteBranch(q);
+    },
+    [deleteBranch],
+  );
 
   // outside click / ESC
   useEffect(() => {
@@ -304,6 +357,8 @@ export default function KifuStreamList() {
               onToggleForkMenu={onToggleForkMenu}
               onSelectFork={onSelectFork}
               onRequestCloseForkMenu={() => closeForkMenu(true)}
+              onSwapBranch={onSwapBranch}
+              onDeleteBranch={onDeleteBranch}
             />
           );
         })}
