@@ -25,6 +25,9 @@ export default function PositionSearchHitList({
   resolveAbsPath,
 }: Props) {
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const activeRowIdRef = useRef<string | null>(null);
+
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
 
@@ -32,10 +35,9 @@ export default function PositionSearchHitList({
   const currentAbs = gameState.loadedAbsPath ?? null;
 
   const rows = useMemo(() => {
-    return hits.map((hit, idx) => {
+    const base = hits.map((hit, idx) => {
       const abs = resolveAbsPath(hit);
       const rel = abs ? toRelPath(abs, rootDir) : "path unknown";
-
       const isSame = abs && currentAbs ? abs === currentAbs : false;
 
       return {
@@ -49,6 +51,14 @@ export default function PositionSearchHitList({
         id: `pos-search-opt-${hit.occ.file_id}-${hit.occ.gen}-${hit.occ.node_id}-${idx}`,
       };
     });
+    const same = base.filter((r) => r.isSameFile);
+    const other = base.filter((r) => !r.isSameFile);
+
+    const reordered = [...same, ...other];
+    return reordered.map((r, idx) => ({
+      ...r,
+      idx,
+    }));
   }, [hits, resolveAbsPath, rootDir, currentAbs]);
 
   const activeId = rows[activeIndex]?.id;
