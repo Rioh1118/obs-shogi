@@ -5,12 +5,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import type { DeleteQuery, SwapQuery } from "@/types/branch";
+import KifuMoveActions from "./KifuMoveActions";
+
+type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 
 function cloneJKF<T>(kifu: T): T {
   const sc = (globalThis as any).structuredClone as ((x: T) => T) | undefined;
   if (typeof sc === "function") return sc(kifu);
   return JSON.parse(JSON.stringify(kifu)) as T;
 }
+const branchIndexFromRow = (r: RowModel): number => {
+  return r.selectedForkIndex == null ? 0 : r.selectedForkIndex + 1;
+};
 
 function buildStreamRowsFromCursor(
   jkf: JKFPlayer,
@@ -173,6 +179,11 @@ export default function KifuStreamList() {
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
+  const toggleMoveMenu = useCallback((te: number, anchorRect: DOMRect) => {
+    setOpenMoveMenu((prev) => (prev?.te === te ? null : { te, anchorRect }));
+  }, []);
+  const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
   const rows = useMemo(() => {
     if (!state.jkfPlayer) return [];
@@ -230,6 +241,22 @@ export default function KifuStreamList() {
     },
     [deleteBranch],
   );
+
+  useEffect(() => {
+    if (!openMoveMenu) return;
+
+    const onDocPointerDown = (e: PointerEvent) => {
+      const path = e.composedPath();
+      const menuEl = moveMenuRef.current;
+
+      if (menuEl && path.includes(menuEl)) return;
+
+      setOpenMoveMenu(null);
+    };
+
+    document.addEventListener("pointerdown", onDocPointerDown);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown);
+  }, [openMoveMenu]);
 
   // outside click / ESC
   useEffect(() => {
@@ -336,9 +363,27 @@ export default function KifuStreamList() {
     <div className="kifu">
       <div className="kifu__status">
         <span className="kifu__statusText">
-          {currentTesuu}/{totalMoves}
+          手数 {currentTesuu}/{totalMoves}
         </span>
       </div>
+      <KifuMoveActions
+        open={!!openMoveMenu}
+        busy={state.isLoading}
+        te={openMoveMenu?.te ?? 0}
+        anchorRect={openMoveMenu?.anchorRect ?? null}
+        onClose={() => setOpenMoveMenu(null)}
+        onDeleteFromHere={(te) => {
+          if (te <= 0) return;
+
+          const r = rows.find((x) => x.te === te);
+          if (!r) return;
+
+          const branchIndex = branchIndexFromRow(r);
+          onDeleteBranch(te, r.branchForkPointers, branchIndex);
+
+          setOpenMoveMenu(null);
+        }}
+      />
 
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {
@@ -356,6 +401,7 @@ export default function KifuStreamList() {
               onClickRow={onClickRow}
               onToggleForkMenu={onToggleForkMenu}
               onSelectFork={onSelectFork}
+              onRequestOpenMoveMenu={(te, rect) => toggleMoveMenu(te, rect)}
               onRequestCloseForkMenu={() => closeForkMenu(true)}
               onSwapBranch={onSwapBranch}
               onDeleteBranch={onDeleteBranch}

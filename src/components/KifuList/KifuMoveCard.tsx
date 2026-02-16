@@ -26,6 +26,7 @@ type Props = {
   isForkMenuOpen: boolean;
   openForkAnchorEl: HTMLButtonElement | null;
   forkMenuRef: React.RefObject<HTMLDivElement | null>;
+  onRequestOpenMoveMenu: (te: number, anchorRect: DOMRect) => void;
 
   onClickRow: (te: number) => void;
   onToggleForkMenu: (te: number, anchorEl: HTMLButtonElement) => void;
@@ -63,6 +64,7 @@ const KifuMoveCard = memo(
       onToggleForkMenu,
       onSelectFork,
       onRequestCloseForkMenu,
+      onRequestOpenMoveMenu,
       onSwapBranch,
       onDeleteBranch,
     },
@@ -123,23 +125,18 @@ const KifuMoveCard = memo(
         className={rowClass}
         onClick={() => !busy && onClickRow(row.te)}
         onKeyDown={onRowKeyDown}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (busy) return;
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          onRequestOpenMoveMenu(row.te, r);
+        }}
         tabIndex={-1}
         ref={ref}
         title={row.te === 0 ? "開始局面へ" : `${row.te}手目へ`}
       >
         <div className="kifu-row__num">{row.te === 0 ? "" : row.te}</div>
-
-        <div
-          className={[
-            "kifu-row__side",
-            row.side === "sente" ? "kifu-row__side--sente" : "",
-            row.side === "gote" ? "kifu-row__side--gote" : "",
-            row.side === "none" ? "kifu-row__side--none" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          aria-hidden="true"
-        />
 
         <div className="kifu-row__move" aria-label={ariaLabel}>
           {row.text}
