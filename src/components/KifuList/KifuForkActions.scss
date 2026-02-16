@@ -1,48 +1,121 @@
 @use "@/index.scss" as index;
 
-.kifu-forkactions {
-  display: flex;
-  gap: 0.4rem;
+.kifu-forkactions-pop {
+  position: fixed;
+  z-index: 100001;
 
-  // デフォルトは「見えない + クリック不可」
-  opacity: 0;
-  transform: translateX(4px);
-  pointer-events: none;
+  min-width: 12.8rem;
+  padding: 0.45rem;
+  border-radius: 1.1rem;
 
-  transition:
-    opacity 120ms ease,
-    transform 120ms ease;
+  background: linear-gradient(
+    180deg,
+    rgba(index.$color-primary-black, 0.86),
+    rgba(index.$color-primary-black, 0.72)
+  );
+  border: 1px solid rgba(index.$color-white, 0.1);
+
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+
+  box-shadow:
+    0 18px 56px rgba(0, 0, 0, 0.55),
+    0 8px 18px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(index.$color-white, 0.04) inset;
+
+  transform-origin: left center;
+  animation: kifu-actions-in 120ms ease both;
+
+  &[data-placement="left"] {
+    transform-origin: right center;
+  }
 }
 
-.kifu-forkactions__btn {
-  width: 2.8rem;
-  height: 2.8rem;
-  border-radius: 0.6rem;
+@keyframes kifu-actions-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
-  border: 1px solid index.$stroke;
-  background: index.$color-primary-dark;
-  color: index.$color-text-light-1;
-
-  box-shadow: index.$shadow-press;
-  cursor: pointer;
-
+.kifu-forkactions-pop__item {
+  width: 100%;
   display: grid;
-  place-items: center;
+  grid-template-columns: 1.8rem 1fr;
+  gap: 0.55rem;
+  align-items: center;
+
+  padding: 0.62rem 0.72rem;
+  border-radius: 0.9rem;
+
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(index.$color-text-light-1, 0.94);
+  text-align: left;
+
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 90ms ease,
+    filter 140ms ease;
 
   &:hover:not(:disabled) {
-    border-color: index.$stroke-strong;
+    background: rgba(index.$color-white, 0.05);
+    border-color: rgba(index.$color-white, 0.08);
+    filter: saturate(1.05);
+    transform: translateY(-1px);
   }
 
   &:active:not(:disabled) {
-    transform: translateY(1px);
+    transform: translateY(0);
+    background: rgba(index.$color-primary-black, 0.3);
+    box-shadow: index.$shadow-press;
   }
 
   &:disabled {
-    opacity: 0.45;
+    opacity: 0.52;
     cursor: default;
+    transform: none;
+    box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(index.$color-secondary-dark, 0.7);
+    outline-offset: 2px;
   }
 }
 
-.kifu-forkactions__btn--danger {
-  border-color: rgba(index.$color-secondary-dark, 0.55);
+.kifu-forkactions-pop__icon {
+  opacity: 0.92;
+}
+
+.kifu-forkactions-pop__label {
+  font-size: 1.06rem;
+  font-weight: 680;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.kifu-forkactions-pop__divider {
+  height: 1px;
+  margin: 0.35rem 0.25rem;
+  background: rgba(index.$color-white, 0.08);
+}
+
+.kifu-forkactions-pop__item--danger {
+  border-color: rgba(215, 96, 96, 0.18);
+  color: rgba(235, 160, 160, 0.96);
+
+  &:hover:not(:disabled) {
+    background: rgba(215, 96, 96, 0.12);
+    border-color: rgba(215, 96, 96, 0.24);
+  }
 }

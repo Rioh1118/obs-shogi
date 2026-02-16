@@ -8,20 +8,23 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
+import "./KifuForkMenu.scss";
 
 type Props = {
   te: number;
-  mainText: string; // 本譜の表示
+  mainText: string;
   forkTexts: string[];
   selectedForkIndex: number | null;
   busy: boolean;
 
   branchForkPointers: ForkPointer[];
 
-  anchorEl: HTMLButtonElement; // ⎇ボタン
+  anchorEl: HTMLButtonElement;
   onSelect: (forkIndex: number | null) => void;
   onClose: () => void;
+
   onSwap: (branchIndex: number, dir: "up" | "down") => void;
   onDelete: (branchIndex: number) => void;
 
@@ -40,6 +43,13 @@ function normalizeSelected(selected: number | null, n: number): number | null {
   if (selected == null) return null;
   return selected >= 0 && selected < n ? selected : null;
 }
+
+type ActionsState = {
+  branchIndex: number;
+  canUp: boolean;
+  canDown: boolean;
+  anchorRect: DOMRect;
+};
 
 const KifuForkMenu = memo(function KifuForkMenu({
   te,
@@ -82,6 +92,9 @@ const KifuForkMenu = memo(function KifuForkMenu({
   const selfRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
+  // actions popover
+  const [actions, setActions] = useState<ActionsState | null>(null);
+
   const setBothRef = useCallback(
     (el: HTMLDivElement | null) => {
       selfRef.current = el;
@@ -98,17 +111,14 @@ const KifuForkMenu = memo(function KifuForkMenu({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    // 先に実サイズを使って clamp
     const mw = menu.offsetWidth;
     const mh = menu.offsetHeight;
 
     const margin = 8;
 
-    // 右揃え気味（⎇ボタンの右端に合わせる）
     let left = a.right - mw;
     left = Math.max(margin, Math.min(vw - mw - margin, left));
 
-    // 下に出す。入らなければ上に反転
     const spaceBelow = vh - a.bottom;
     const spaceAbove = a.top;
 
@@ -118,7 +128,6 @@ const KifuForkMenu = memo(function KifuForkMenu({
     } else if (spaceAbove >= mh + margin) {
       top = a.top - mh - 6;
     } else {
-      // どっちも厳しいなら、とりあえず画面内に押し込む
       top = Math.max(margin, Math.min(vh - mh - margin, a.bottom + 6));
     }
 
@@ -126,7 +135,6 @@ const KifuForkMenu = memo(function KifuForkMenu({
   };
 
   useLayoutEffect(() => {
-    // マウント直後と、内容変化時に測る
     updatePosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorEl, options.length]);
@@ -135,7 +143,6 @@ const KifuForkMenu = memo(function KifuForkMenu({
     if (!pos) return;
 
     const onResize = () => updatePosition();
-    // capture=true でスクロール（親スクロール含む）も拾う
     window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onResize, true);
 
@@ -146,10 +153,24 @@ const KifuForkMenu = memo(function KifuForkMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos]);
 
-  // pos がまだなら一旦画面外（チラつき防止）
   const style: React.CSSProperties = pos
     ? { top: pos.top, left: pos.left }
     : { top: -9999, left: -9999 };
+
+  const openActionsForRow = (
+    rowEl: HTMLElement,
+    canUp: boolean,
+    canDown: boolean,
+    branchIndex: number,
+  ) => {
+    const r = rowEl.getBoundingClientRect();
+
+    setActions((prev) => {
+      if (prev && prev.branchIndex === branchIndex) return null;
+
+      return { branchIndex, canUp, canDown, anchorRect: r };
+    });
+  };
 
   return createPortal(
     <div
@@ -158,18 +179,29 @@ const KifuForkMenu = memo(function KifuForkMenu({
       style={style}
       role="menu"
       aria-label={`${te}手目の分岐`}
-      // 外側クリック判定に吸われないように
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onScroll={() => {
+        // スクロール時は追従させずに閉じる（ズレ事故を防ぐ）
+        if (actions) setActions(null);
+      }}
     >
       {options.map((opt, idx) => {
         const canUp = idx > 0;
         const canDown = idx < options.length - 1;
+
         return (
           <div
             key={opt.forkIndex == null ? "main" : `fork-${opt.forkIndex}`}
             className="kifu-forkmenu__row"
             role="none"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (busy) return;
+              const rowEl = e.currentTarget as HTMLElement;
+              openActionsForRow(rowEl, canUp, canDown, opt.branchIndex);
+            }}
           >
             <button
               type="button"
@@ -179,9 +211,13 @@ const KifuForkMenu = memo(function KifuForkMenu({
               aria-disabled={busy}
               data-selected={opt.selected ? "1" : "0"}
               onPointerDown={(e) => {
+                // ✅ 左クリックだけ選択（右クリックは context menu 用）
+                if (e.button !== 0) return;
                 e.stopPropagation();
                 e.preventDefault();
                 if (busy) return;
+
+                setActions(null);
                 onSelect(opt.forkIndex);
                 onClose();
               }}
@@ -195,26 +231,51 @@ const KifuForkMenu = memo(function KifuForkMenu({
               </span>
             </button>
 
-            <KifuForkActions
-              busy={busy}
-              canUp={canUp}
-              canDown={canDown}
-              onUp={() => {
-                onSwap(opt.branchIndex, "up");
-                onClose();
+            <button
+              type="button"
+              className="kifu-forkmenu__more"
+              aria-label="分岐の操作"
+              disabled={busy}
+              onPointerDown={(e) => {
+                // 左ボタンだけで開く（右クリックは contextmenu）
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                e.preventDefault();
+                if (busy) return;
+
+                const rowEl = (e.currentTarget as HTMLElement).closest(
+                  ".kifu-forkmenu__row",
+                ) as HTMLElement | null;
+                if (!rowEl) return;
+                openActionsForRow(rowEl, canUp, canDown, opt.branchIndex);
               }}
-              onDown={() => {
-                onSwap(opt.branchIndex, "down");
-                onClose();
-              }}
-              onDelete={() => {
-                onDelete(opt.branchIndex);
-                onClose();
-              }}
-            />
+            >
+              <MoreHorizontal size={16} />
+            </button>
           </div>
         );
       })}
+
+      <KifuForkActions
+        open={!!actions}
+        busy={busy}
+        canUp={!!actions?.canUp}
+        canDown={!!actions?.canDown}
+        anchorRect={actions?.anchorRect ?? null}
+        onClose={() => setActions(null)}
+        onUp={() => {
+          if (!actions) return;
+          onSwap(actions.branchIndex, "up");
+        }}
+        onDown={() => {
+          if (!actions) return;
+          onSwap(actions.branchIndex, "down");
+        }}
+        onDelete={() => {
+          if (!actions) return;
+          onDelete(actions.branchIndex);
+        }}
+      />
     </div>,
     document.body,
   );

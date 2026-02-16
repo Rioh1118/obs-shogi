@@ -7,8 +7,8 @@
   z-index: 100000;
 
   width: fit-content;
-  min-width: 18.6rem; /* “本譜 + 5文字 + ✓” が詰まる下限 */
-  max-width: min(26rem, 84vw); /* 横長の天井。kifuの箱感を壊さない */
+  min-width: 18.6rem;
+  max-width: min(26rem, 84vw);
 
   padding: 0;
   border-radius: 1.2rem;
@@ -35,35 +35,6 @@
   overflow: auto;
   overscroll-behavior: contain;
 
-  &::before,
-  &::after {
-    content: "";
-    position: sticky;
-    left: 0;
-    right: 0;
-    height: 2px;
-    pointer-events: none;
-    z-index: 2;
-    display: block;
-  }
-  &::before {
-    top: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(index.$color-primary-black, 0.75),
-      transparent
-    );
-  }
-  &::after {
-    bottom: 0;
-    background: linear-gradient(
-      to top,
-      rgba(index.$color-primary-black, 0.78),
-      transparent
-    );
-  }
-
-  /* scrollbar（globalで消してても、ここだけ出す） */
   scrollbar-width: thin;
   scrollbar-color: rgba(index.$color-secondary-dark, 0.42) transparent;
 
@@ -79,6 +50,15 @@
   &::-webkit-scrollbar-track {
     background: transparent;
   }
+}
+
+/* row: item + more button */
+.kifu-forkmenu__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.2rem 0.2rem;
 }
 
 /* item */
@@ -162,7 +142,6 @@
   }
 }
 
-/* tag */
 .kifu-forkmenu__tag {
   justify-self: start;
 
@@ -184,11 +163,9 @@
     0 8px 16px rgba(0, 0, 0, 0.22);
 }
 
-/* move */
 .kifu-forkmenu__move {
   min-width: 0;
 
-  /* ✅ 5文字前提ならこれで十分締まる */
   font-size: 1.12rem;
   font-weight: 600;
   opacity: 0.94;
@@ -213,17 +190,51 @@
   text-shadow: 0 0 12px rgba(index.$color-secondary-dark, 0.22);
 }
 
-.kifu-forkmenu__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.6rem;
-  align-items: center;
-}
+/* more (lucide) button */
+.kifu-forkmenu__more {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 0.85rem;
 
-/* ホバー・フォーカス時に右のアクションを表示 */
-.kifu-forkmenu__row:hover .kifu-forkactions,
-.kifu-forkmenu__row:focus-within .kifu-forkactions {
-  opacity: 1;
-  transform: translateX(0);
-  pointer-events: auto;
+  display: grid;
+  place-items: center;
+
+  appearance: none;
+  border: 1px solid rgba(index.$color-white, 0.08);
+  background: rgba(index.$color-primary-black, 0.22);
+  color: rgba(index.$color-secondary-light, 0.84);
+
+  cursor: pointer;
+
+  opacity: 0.36;
+  transition:
+    opacity 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 90ms ease;
+
+  .kifu-forkmenu__row:hover &,
+  .kifu-forkmenu__row:focus-within & {
+    opacity: 1;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(index.$color-white, 0.045);
+    border-color: rgba(index.$color-white, 0.12);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+    background: rgba(index.$color-primary-black, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(index.$color-secondary-dark, 0.7);
+    outline-offset: 2px;
+  }
 }
