@@ -2,6 +2,7 @@ import { Command, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import IconButton from "./IconButton";
 import { useURLParams } from "@/hooks/useURLParams";
 import "./AppLayoutHeader.scss";
+import { useFileTree } from "@/contexts/FileTreeContext";
 
 type Props = {
   toggleSidebar: () => void;
@@ -11,6 +12,40 @@ type Props = {
 
 function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
   const { openModal } = useURLParams();
+  const { jkfData } = useFileTree();
+
+  const header = jkfData?.header ?? {};
+  const sente = header["先手"]?.trim();
+  const gote = header["後手"]?.trim();
+  const isPlayersShown = hasFile && Boolean(sente || gote);
+
+  const titleText = !hasFile
+    ? "ファイル未選択"
+    : !isPlayersShown
+      ? "棋譜表示中"
+      : `先手 ${sente || "（不明）"} / 後手 ${gote || "（不明）"}`;
+
+  const contextNode = !hasFile ? (
+    "ファイル未選択"
+  ) : !isPlayersShown ? (
+    "棋譜表示中"
+  ) : (
+    <span className="app-header__players">
+      <span className="app-header__player">
+        <span className="app-header__piece app-header__piece--sente">☗</span>
+        <span className="app-header__player-name">{sente || "先手"}</span>
+      </span>
+
+      <span className="app-header__vs" aria-hidden="true">
+        {/* 将棋っぽい “間” を作るための中点 */}・
+      </span>
+
+      <span className="app-header__player">
+        <span className="app-header__piece app-header__piece--gote">☖</span>
+        <span className="app-header__player-name">{gote || "後手"}</span>
+      </span>
+    </span>
+  );
 
   return (
     <header className="app-header">
@@ -35,8 +70,14 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
       </div>
       <div className="app-header__center">
         <div className="app-header__context">
-          <span className="app-header__context-label">
-            {hasFile ? "棋譜表示中" : "ファイル未選択"}
+          <span
+            className={[
+              "app-header__context-label",
+              isPlayersShown ? "app-header__context-label--players" : "",
+            ].join(" ")}
+            title={titleText}
+          >
+            {contextNode}
           </span>
         </div>
       </div>

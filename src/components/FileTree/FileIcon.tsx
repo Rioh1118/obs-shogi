@@ -7,17 +7,6 @@ interface FileIconProps {
 }
 
 export default function FileIcon({ type, isOpen }: FileIconProps) {
-  // function getIcon() {
-  //   switch (type) {
-  //     case "folder":
-  //       return isOpen ? "📂" : "📁";
-  //     case "kif-file":
-  //       return "☗";
-  //     default:
-  //       return "📄";
-  //   }
-  // }
-
   function getIcon() {
     switch (type) {
       case "folder":

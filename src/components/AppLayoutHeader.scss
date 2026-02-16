@@ -82,4 +82,62 @@
       outline-offset: 2px;
     }
   }
+
+  &__context-label--players {
+    font-size: 1.35rem;
+    letter-spacing: 0.01em;
+    opacity: 0.98;
+
+    // players を中で flex するので、ここは overflow を効かせる
+    display: block;
+    min-width: 0;
+  }
+  &__players {
+    display: inline-flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  &__player {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  &__player-name {
+    min-width: 0;
+    max-width: clamp(8rem, 20vw, 18rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.95;
+  }
+
+  &__vs {
+    opacity: 0.45;
+    transform: translateY(-0.02em);
+    user-select: none;
+  }
+
+  &__piece {
+    // “駒っぽい”密度と高さ
+    font-size: 1.55rem;
+    line-height: 1;
+    display: inline-grid;
+    place-items: center;
+    width: 1.3em;
+    height: 1.3em;
+    opacity: 0.95;
+    user-select: none;
+  }
+
+  &__piece--sente {
+    color: rgba(245, 245, 245, 0.92);
+  }
+
+  &__piece--gote {
+    color: rgba(245, 245, 245, 0.92);
+  }
 }
