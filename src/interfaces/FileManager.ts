@@ -12,6 +12,12 @@ export interface FileManager {
     options: KifuCreationOptions,
   ): AsyncResult<string, string>; // 作成あれたファイルのパスを返す
 
+  importKifuFile(
+    parentPath: string,
+    fileName: string,
+    rawContent: string,
+  ): AsyncResult<string, string>;
+
   //ディレクトリ作成
   createDirectory(
     parentPath: string,

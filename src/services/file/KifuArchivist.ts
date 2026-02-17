@@ -11,8 +11,10 @@ import {
   mvKifuFile,
   renameDirectory,
   mvDirectory,
+  importKifuFile,
 } from "@/commands/file_system";
 import { createInitialJKFData } from "@/utils/fileTreeUtils";
+import { parseKifuStringToJKF } from "@/utils/kifuParseUtils";
 
 /**
  * 棋譜ファイルの管理を専門とするアーキビスト
@@ -54,6 +56,23 @@ export class KifuArchivist implements FileManager {
         options.fileName,
         jkfData,
       );
+      return { success: true, data: filePath };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async importKifuFile(
+    parentPath: string,
+    fileName: string,
+    rawContent: string,
+  ): AsyncResult<string, string> {
+    try {
+      const { jkf } = parseKifuStringToJKF(rawContent);
+      const filePath = await importKifuFile(parentPath, fileName, jkf);
       return { success: true, data: filePath };
     } catch (error) {
       return {

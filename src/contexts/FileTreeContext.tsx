@@ -4,6 +4,7 @@ import {
   type KifuCreationOptions,
   type KifuFormat,
   type MenuState,
+  type AsyncResult,
 } from "@/types";
 import {
   useCallback,
@@ -153,6 +154,12 @@ type FileTreeContextType = FileTreeState & {
     options: KifuCreationOptions,
   ) => Promise<void>;
 
+  importKifuFile: (
+    parentPath: string,
+    fileName: string,
+    rawContent: string,
+  ) => Promise<AsyncResult<string, string>>;
+
   // ディレクトリ作成 - シンプルに
   createNewDirectory: (parentPath: string, dirname: string) => Promise<void>;
 
@@ -299,6 +306,31 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
           type: "error",
           payload: `ファイルの作成に失敗しました: ${err}`,
         });
+      }
+    },
+    [loadFileTree],
+  );
+
+  const importKifuFile = useCallback(
+    async (parentPath: string, fileName: string, rawContent: string) => {
+      try {
+        const fileManager = KifuArchivistFactory.getInstance();
+        const result = await fileManager.importKifuFile(
+          parentPath,
+          fileName,
+          rawContent.trim(),
+        );
+
+        if (result.success) {
+          await loadFileTree(); // ツリーを更新
+        }
+
+        return result;
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
     },
     [loadFileTree],
@@ -516,6 +548,7 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         selectNode,
         loadSelectedKifu,
         createNewFile,
+        importKifuFile,
         createNewDirectory,
         toggleNode,
         isNodeExpanded,

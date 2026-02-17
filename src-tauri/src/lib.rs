@@ -14,8 +14,9 @@ pub use engine::bridge::{
     set_position, shutdown_engine, start_infinite_analysis, stop_analysis,
 };
 pub use file_system::{
-    create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree, mv_directory,
-    mv_kifu_file, read_file, rename_directory, rename_kifu_file, save_kifu_file,
+    create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree,
+    import_kifu_file, mv_directory, mv_kifu_file, read_file, rename_directory, rename_kifu_file,
+    save_kifu_file,
 };
 pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
 use std::sync::Arc;
@@ -41,6 +42,7 @@ pub fn run() {
             create_directory,
             delete_file,
             delete_directory,
+            import_kifu_file,
             read_file,
             write_kifu_to_file,
             mv_directory,
