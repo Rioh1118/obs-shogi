@@ -1,6 +1,5 @@
 import type { FileTreeNode } from "@/types";
 import NodeBox from "./NodeBox";
-import { CSS } from "@dnd-kit/utilities";
 import FileIcon from "./FileIcon";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import TreeNode from "./TreeNode";
@@ -9,6 +8,7 @@ import { useState } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, type DragData, type DropData } from "@/utils/kifuDragDrop";
 
 function DirectoryNode({

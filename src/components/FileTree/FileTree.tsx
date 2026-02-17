@@ -4,7 +4,7 @@ import "./FileTree.scss";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import ContextMenu from "./ContextMenu";
 import { useAppConfig } from "@/contexts/AppConfigContext";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   buildNodeMap,
   DROP_ID,
@@ -22,6 +22,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import ScrollDropZone from "./ScrollDropZone";
 
@@ -59,27 +60,42 @@ function FileTree() {
     }),
   );
 
+  const [activePath, setActivePath] = useState<string | null>(null);
+  const activeNode = activePath ? (nodeMap.get(activePath) ?? null) : null;
+
+  const onDragStart = (e: DragStartEvent) => {
+    setActivePath(String(e.active.id));
+  };
+
+  const onDragCancel = () => {
+    setActivePath(null);
+  };
+
   const onDragEnd = async (e: DragEndEvent) => {
-    const srcPath = String(e.active.id);
+    try {
+      const srcPath = String(e.active.id);
 
-    const overData = e.over?.data.current as DropData | undefined;
-    const destDir = overData?.destDir ?? fileTree?.path;
-    if (!destDir) return;
+      const overData = e.over?.data.current as DropData | undefined;
+      const destDir = overData?.destDir ?? fileTree?.path;
+      if (!destDir) return;
 
-    const node = nodeMap.get(srcPath);
-    if (!node) return;
+      const node = nodeMap.get(srcPath);
+      if (!node) return;
 
-    const srcNorm = normPath(node.path);
-    const destNorm = normPath(destDir);
+      const srcNorm = normPath(node.path);
+      const destNorm = normPath(destDir);
 
-    if (node.isDirectory && srcNorm === destNorm) return;
+      if (node.isDirectory && srcNorm === destNorm) return;
 
-    const currentParent = parentDir(node.path);
-    if (normPath(currentParent) === destNorm) return;
+      const currentParent = parentDir(node.path);
+      if (normPath(currentParent) === destNorm) return;
 
-    if (node.isDirectory && isDescendantDir(node.path, destDir)) return;
+      if (node.isDirectory && isDescendantDir(node.path, destDir)) return;
 
-    await moveNode(node, destDir);
+      await moveNode(node, destDir);
+    } finally {
+      setActivePath(null);
+    }
   };
 
   const isRoot = !!(
@@ -115,10 +131,12 @@ function FileTree() {
   }
 
   return (
-    <div className="file-tree">
+    <div className={`file-tree ${activePath ? "file-tree--dragging" : ""}`}>
       <DndContext
         sensors={sensors}
         collisionDetection={collisionDetection}
+        onDragStart={onDragStart}
+        onDragCancel={onDragCancel}
         onDragEnd={onDragEnd}
       >
         <ScrollDropZone rootPath={fileTree?.path ?? null}>

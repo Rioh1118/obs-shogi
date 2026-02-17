@@ -2,8 +2,13 @@
 
 .node-box {
   padding: 0;
-  color: index.$color-white;
+  color: index.$color-text-primary;
   font-size: 1.4rem;
+  border-radius: 0.6rem;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease,
+    outline-color 120ms ease;
 
   &:hover {
     background-color: rgba(index.$color-white, 0.15);
@@ -11,6 +16,25 @@
 
   &__selected {
     background-color: rgba(index.$color-text-light-1, 0.1);
+  }
+
+  &__droppable-over {
+    background-color: rgba(index.$color-secondary-dark, 0.16);
+    outline: 1px solid rgba(index.$color-secondary-dark, 0.34);
+    outline-offset: -1px;
+
+    box-shadow: 0 0 0 1px rgba(index.$color-secondary-dark, 0.12);
+  }
+
+  &__dragging {
+    background-color: rgba(index.$color-white, 0.08);
+    outline: 1px solid index.$stroke;
+    outline-offset: -1px;
+
+    box-shadow:
+      0 8px 22px rgba(0, 0, 0, 0.35),
+      0 0 0 1px rgba(index.$color-white, 0.06);
+    transform: scale(1.01);
   }
 
   &__content {
@@ -24,7 +48,7 @@
   &__main {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.03rem;
     flex: 1;
     min-width: 0;
 

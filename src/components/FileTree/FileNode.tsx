@@ -72,10 +72,9 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       handleClick={handleClick}
       isSelected={isSelected}
       onContextMenu={onContextMenu}
-      className={isOver ? "node-box__droppable-over" : ""}
+      className={`${isOver ? "node-box__droppable-over" : ""} ${isDragging ? "node-box--drag-source" : ""}`}
       style={{
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.5 : undefined,
       }}
       {...attributes}
       {...listeners}
