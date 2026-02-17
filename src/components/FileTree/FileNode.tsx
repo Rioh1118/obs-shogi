@@ -3,6 +3,9 @@ import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import InlineNameEditor from "./InlineNameEditor";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { DROP_ID, parentDir, type DropData } from "@/utils/kifuDragDrop";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
@@ -17,8 +20,34 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const isSelected = selectedNode?.id === node.id;
   const isRenaming = renamingNodeId === node.id;
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: node.path,
+    data: { kind: "tree-node", path: node.path, isDirectory: false },
+    disabled: isRenaming,
+  });
+
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: DROP_ID.file(node.path),
+    data: {
+      kind: "drop",
+      destDir: parentDir(node.path),
+      via: "file",
+    } satisfies DropData,
+  });
+
+  const setNodeRef = (el: HTMLDivElement | null) => {
+    setDragRef(el);
+    setDropRef(el);
+  };
+
   const handleClick = () => {
-    if (isRenaming) return;
+    if (isRenaming || isDragging) return;
     if (!node.isDirectory) {
       selectNode(node);
       loadSelectedKifu();
@@ -38,10 +67,18 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
 
   return (
     <NodeBox
+      ref={setNodeRef}
       level={level}
       handleClick={handleClick}
       isSelected={isSelected}
       onContextMenu={onContextMenu}
+      className={isOver ? "node-box__droppable-over" : ""}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.5 : undefined,
+      }}
+      {...attributes}
+      {...listeners}
     >
       <FileIcon type={node.displayInfo.iconType} />
       {isRenaming ? (

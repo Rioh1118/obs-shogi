@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 import "./NodeBox.scss";
 
 type NodeBoxProps = {
@@ -10,29 +10,36 @@ type NodeBoxProps = {
   onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
   onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
   onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
-};
+} & ComponentPropsWithRef<"div">;
 
 function NodeBox({
   level,
   children,
   action,
   isSelected,
+  className,
+  style,
   handleClick,
   onMouseEnter,
   onMouseLeave,
   onContextMenu,
+  ref,
+  ...rest
 }: NodeBoxProps) {
   return (
     <div
-      className={`node-box ${isSelected ? "node-box__selected" : ""}`}
+      ref={ref}
+      className={`node-box ${isSelected ? "node-box__selected" : ""} ${className ?? ""}`}
       style={{
         paddingLeft: `${2 + level * 1.3}rem`,
         cursor: "pointer",
+        ...style,
       }}
       onClick={handleClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onContextMenu={onContextMenu}
+      {...rest}
     >
       <div className="node-box__content">
         <div className="node-box__main">{children}</div>

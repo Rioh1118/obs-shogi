@@ -9,6 +9,8 @@ import { useFileTree } from "@/contexts/FileTreeContext";
 import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
 import { useAppConfig } from "@/contexts/AppConfigContext";
+import { useDroppable } from "@dnd-kit/core";
+import { DROP_ID, type DropData } from "@/utils/kifuDragDrop";
 
 function computeRenamedPathKeepingParent(
   oldPath: string,
@@ -30,7 +32,13 @@ function validateBasename(name: string): string {
   return next;
 }
 
-function RootNode({ node }: { node: FileTreeNode }) {
+function RootNode({
+  node,
+  externalHoverDir,
+}: {
+  node: FileTreeNode;
+  externalHoverDir?: string | null;
+}) {
   const [isOpen, setIsOpen] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -98,10 +106,20 @@ function RootNode({ node }: { node: FileTreeNode }) {
     setIsOpen(!isOpen);
   };
 
+  const { setNodeRef, isOver } = useDroppable({
+    id: DROP_ID.root(node.path),
+    data: { kind: "drop", destDir: node.path, via: "root" } satisfies DropData,
+  });
+
+  const isExternalOver = externalHoverDir && externalHoverDir === node.path;
+
   return (
     <>
       <NodeBox
+        ref={setNodeRef}
         level={0}
+        data-drop-dir={node.path}
+        className={isOver || isExternalOver ? "node-box__droppable-over" : ""}
         handleClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
