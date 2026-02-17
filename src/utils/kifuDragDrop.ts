@@ -13,7 +13,11 @@ export type DropData =
   | { kind: "drop"; destDir: string }
   | { kind: "drop"; destDir: string; via: "file" | "dir" | "root" | "blank" };
 
-type DragData = { kind: "tree-node"; path: string; isDirectory: boolean };
+export type DragData = {
+  kind: "tree-node";
+  path: string;
+  isDirectory: boolean;
+};
 
 export function getExt(p: string) {
   const m = p.toLowerCase().match(/\.[^./\\]+$/);
