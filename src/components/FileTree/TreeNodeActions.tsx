@@ -2,16 +2,12 @@ import { FilePlus2, FolderPlus } from "lucide-react";
 import IconButton from "../IconButton";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import { useURLParams } from "@/hooks/useURLParams";
+import { getParentPath } from "@/utils/path";
 
 interface TreeNodeActionsProps {
   nodePath: string;
   isDirectory: boolean;
 }
-
-const getParentPath = (path: string) => {
-  const parts = path.split("/");
-  return parts.slice(0, -1).join("/") || "/";
-};
 
 function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
   const { startCreateDirectory } = useFileTree();

@@ -1,4 +1,5 @@
 import type { FileTreeNode } from "@/types";
+import { dirname, extname, relative, normalize } from "pathe";
 
 export const ALLOWED = new Set([".kif", ".ki2", ".csa", ".jkf"]);
 
@@ -20,8 +21,7 @@ export type DragData = {
 };
 
 export function getExt(p: string) {
-  const m = p.toLowerCase().match(/\.[^./\\]+$/);
-  return m?.[0] ?? "";
+  return extname(p).toLowerCase();
 }
 
 export function findDropDirAt(x: number, y: number): string | null {
@@ -31,20 +31,28 @@ export function findDropDirAt(x: number, y: number): string | null {
 }
 
 export function normPath(p: string) {
-  return p.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalize(p);
 }
 
 export function parentDir(p: string) {
-  const s = p.replace(/[/\\]+$/, "");
-  const i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
-  return i >= 0 ? s.slice(0, i) : "";
+  const d = dirname(normPath(p));
+  return d === "." ? "" : d;
 }
 
 export function isDescendantDir(srcDir: string, destDir: string) {
-  // destDir が srcDir 配下なら true
-  const a = normPath(srcDir) + "/";
-  const b = normPath(destDir) + "/";
-  return b.startsWith(a);
+  const from = normalize(srcDir);
+  const to = normalize(destDir);
+
+  if (from === to) return true;
+
+  const rel = relative(from, to);
+
+  return (
+    rel !== "" &&
+    !rel.startsWith("..") &&
+    !rel.startsWith("/") &&
+    !/^[a-zA-Z]:/.test(rel)
+  );
 }
 
 export function buildNodeMap(root: FileTreeNode | null) {

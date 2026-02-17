@@ -61,7 +61,6 @@ function FileTree() {
   );
 
   const [activePath, setActivePath] = useState<string | null>(null);
-  const activeNode = activePath ? (nodeMap.get(activePath) ?? null) : null;
 
   const onDragStart = (e: DragStartEvent) => {
     setActivePath(String(e.active.id));

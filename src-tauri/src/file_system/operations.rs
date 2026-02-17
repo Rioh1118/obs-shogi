@@ -3,9 +3,38 @@ use shogi_kifu_converter::{
     converter::{ToCsa, ToKi2, ToKif},
     jkf::JsonKifuFormat,
 };
-use std::fs;
 use std::path::PathBuf;
 use tauri::command;
+
+use encoding_rs::SHIFT_JIS;
+use std::{fs, path::Path};
+
+fn read_text_portable(path: &Path) -> Result<String, String> {
+    let bytes = fs::read(path).map_err(|e| e.to_string())?;
+    let bytes = strip_utf8_bom(&bytes);
+
+    // 1) UTF-8
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        return Ok(s.to_string());
+    }
+
+    // 2) Shift_JIS
+    {
+        let (cow, _, _had_errors) = SHIFT_JIS.decode(bytes);
+        Ok(cow.into_owned())
+    }
+
+    // Ok(String::from_utf8_lossy(bytes).into_owned())
+}
+
+fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
+    const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+    if bytes.starts_with(&BOM) {
+        &bytes[3..]
+    } else {
+        bytes
+    }
+}
 
 #[command]
 pub fn read_file(file_path: String) -> Result<String, String> {
@@ -27,7 +56,7 @@ pub fn read_file(file_path: String) -> Result<String, String> {
         return Err(format!("棋譜ファイルではありません: {}", path.display()));
     }
 
-    fs::read_to_string(path).map_err(|e| e.to_string())
+    read_text_portable(&path)
 }
 
 #[command]

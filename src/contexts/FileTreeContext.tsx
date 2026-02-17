@@ -158,7 +158,7 @@ type FileTreeContextType = FileTreeState & {
     parentPath: string,
     fileName: string,
     rawContent: string,
-  ) => Promise<AsyncResult<string, string>>;
+  ) => AsyncResult<string, string>;
 
   // ディレクトリ作成 - シンプルに
   createNewDirectory: (parentPath: string, dirname: string) => Promise<void>;
@@ -312,7 +312,11 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
   );
 
   const importKifuFile = useCallback(
-    async (parentPath: string, fileName: string, rawContent: string) => {
+    async (
+      parentPath: string,
+      fileName: string,
+      rawContent: string,
+    ): AsyncResult<string, string> => {
       try {
         const fileManager = KifuArchivistFactory.getInstance();
         const result = await fileManager.importKifuFile(
@@ -322,7 +326,7 @@ function FileTreeProvider({ children }: { children: ReactNode }) {
         );
 
         if (result.success) {
-          await loadFileTree(); // ツリーを更新
+          await loadFileTree();
         }
 
         return result;
