@@ -8,11 +8,9 @@ import { GameControls } from "../components/GameBoard";
 import "./AppLayout.scss";
 import PositionNavigationModal from "@/components/NavigationModal/PositionNavigationModal";
 import { useGame } from "@/contexts/GameContext";
-import { useEngine } from "@/contexts/EngineContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
 
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
-import EngineLoading from "@/components/EngineLoading";
 import SettingsModal from "@/components/SettingsModal/SettingsModal";
 import CreateFileModal from "@/components/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
@@ -24,8 +22,6 @@ const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { state: gameState } = useGame();
 
-  const { state: engineState } = useEngine();
-
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameState.jkfPlayer?.shogi;
   const { openProject } = usePositionSearch();
@@ -33,14 +29,6 @@ const AppLayout = () => {
   useEffect(() => {
     openProject();
   }, [openProject]);
-
-  if (engineState.phase === "initializing") {
-    return (
-      <div className="app-layout">
-        <EngineLoading />
-      </div>
-    );
-  }
 
   return (
     <div

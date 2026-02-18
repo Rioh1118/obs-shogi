@@ -1,19 +1,10 @@
-export type EngineConfig = {
-  aiRoot: string | null; // ApConfigからくる
-  selectedAiName: string | null; // hao/li
-  selectedEngineRel: string | null; // 例: "YaneuraOu_..._APPLEM1" (ai_root/engines配下)
+export type EnginePhase = "idle" | "initializing" | "ready" | "error";
 
-  evalDirName: string; // default: "eval"
-  bookDirName: string; // default: "book"
-  bookFileName: string; // default: "user_book"
-
-  // USI setoption(解析向け)
-  options: Record<string, string>;
+export type EngineRuntimeConfig = {
+  enginePath: string;
+  workDir: string;
+  evalDir: string;
+  bookDir: string | null;
+  bookFile: string | null;
+  options: Record<string, string>; // USI setoptions
 };
-
-export type EnginePhase =
-  | "unconfigured"
-  | "configured"
-  | "initializing"
-  | "ready"
-  | "error";

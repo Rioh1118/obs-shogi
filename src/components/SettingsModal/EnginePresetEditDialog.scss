@@ -1,0 +1,294 @@
+@use "@/index.scss" as index;
+
+.presetDialog {
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
+  height: min(78vh, 760px);
+
+  .presetDialog__header {
+    padding: 18px 18px 14px 18px;
+    border-bottom: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+  }
+
+  .presetDialog__titles {
+    min-width: 0;
+  }
+
+  .presetDialog__title {
+    color: index.$color-text-light-1;
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .presetDialog__subtitle {
+    margin-top: 6px;
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+
+  .presetDialog__body {
+    padding: 16px 18px 18px 18px;
+    overflow: auto;
+    min-height: 0;
+
+    overscroll-behavior: contain;
+
+    scrollbar-width: thin;
+    &::-webkit-scrollbar {
+      display: block;
+      width: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(index.$color-secondary-dark, 0.6);
+      border-radius: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: rgba(index.$color-primary-light, 0.2);
+      border-radius: 8px;
+    }
+  }
+
+  .presetDialog__footer {
+    padding: 14px 18px;
+    border-top: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .presetDialog__footerHint {
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.2rem;
+  }
+
+  .presetDialog__footerRight {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .presetDialog__stack {
+    display: grid;
+    gap: 14px;
+  }
+
+  .presetDialog__grid2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+
+    @media (max-width: 820px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .presetDialog__grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+
+    @media (max-width: 920px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .presetDialog__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .presetDialog__check {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+
+    input {
+      width: 16px;
+      height: 16px;
+      accent-color: index.$color-secondary-dark;
+    }
+
+    .presetDialog__checkLabel {
+      color: rgba(index.$color-text-light-1, 0.9);
+      font-size: 1.35rem;
+      user-select: none;
+    }
+  }
+
+  /* ========== block (important options) ========== */
+  .presetDialog__block {
+    border: 1px solid rgba(index.$color-white, 0.07);
+    background: rgba(index.$color-primary-black, 0.22);
+    border-radius: 16px;
+    padding: 14px 14px;
+  }
+
+  .presetDialog__blockHead {
+    margin-bottom: 10px;
+  }
+
+  .presetDialog__blockTitle {
+    color: index.$color-text-light-1;
+    font-size: 1.45rem;
+    font-weight: 800;
+  }
+
+  .presetDialog__blockSub {
+    margin-top: 4px;
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.2rem;
+    line-height: 1.4;
+  }
+
+  /* ========== MultiPV segmented ========== */
+  .presetDialog__segRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .presetDialog__seg {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    flex: 1;
+  }
+
+  .presetDialog__segBtn {
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+    color: rgba(index.$color-text-light-1, 0.92);
+
+    padding: 10px 10px;
+    cursor: pointer;
+
+    font-weight: 800;
+    font-size: 1.35rem;
+
+    transition:
+      transform 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      border-color: rgba(index.$color-secondary-dark, 0.45);
+      background: rgba(index.$color-primary-black, 0.35);
+    }
+
+    &:active {
+      transform: translateY(0px) scale(0.99);
+    }
+
+    &.is-active {
+      border-color: rgba(index.$color-secondary-dark, 0.7);
+      background: rgba(index.$color-secondary-dark, 0.18);
+    }
+  }
+
+  .presetDialog__segRight {
+    white-space: nowrap;
+  }
+
+  .presetDialog__stepper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .presetDialog__stepperInput {
+    width: 90px;
+    text-align: center;
+    font-weight: 800;
+  }
+
+  .presetDialog__stepperHint {
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.15rem;
+  }
+
+  .presetDialog__hintWarn {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+
+    border: 1px solid rgba(index.$color-secondary-dark, 0.5);
+    background: rgba(index.$color-secondary-dark, 0.14);
+    color: rgba(index.$color-text-light-1, 0.88);
+
+    font-size: 1.2rem;
+    line-height: 1.45;
+  }
+
+  .presetDialog__inline {
+    margin-top: 12px;
+  }
+
+  /* ========== details (match options) ========== */
+  .presetDialog__details {
+    margin-top: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.18);
+    overflow: hidden;
+  }
+
+  .presetDialog__summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 14px;
+    color: rgba(index.$color-text-light-1, 0.9);
+    font-size: 1.35rem;
+    font-weight: 800;
+
+    border-bottom: 1px solid rgba(index.$color-white, 0.06);
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
+
+  .presetDialog__details[open] .presetDialog__summary {
+    background: rgba(index.$color-primary-black, 0.22);
+  }
+
+  .presetDialog__detailsBody {
+    padding: 14px 14px 12px 14px;
+  }
+
+  .presetDialog__hintMuted {
+    margin-top: 10px;
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.2rem;
+    line-height: 1.45;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .presetDialog__segBtn {
+      transition: none;
+    }
+  }
+}

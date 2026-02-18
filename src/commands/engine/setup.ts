@@ -5,8 +5,8 @@ export type SetupEngineArgs = {
   enginePath: string;
   workDir: string;
   evalDir: string;
-  bookDir: string;
-  bookFile: string;
+  bookDir: string | null;
+  bookFile: string | null;
   options: Record<string, string>;
 };
 
@@ -21,8 +21,8 @@ export async function setupYaneuraOuEngine(
     options: {
       ...config.options,
       EvalDir: config.evalDir,
-      BookDir: config.bookDir,
-      BookFile: config.bookFile,
+      ...(config.bookDir ? { BookDir: config.bookDir } : {}),
+      ...(config.bookFile ? { BookFile: config.bookFile } : {}),
     },
   };
   await applyEngineSettings(settings);

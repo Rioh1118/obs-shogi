@@ -1,95 +1,204 @@
-.st-engine {
-  display: grid;
-  gap: 12px;
-}
+@use "@/index.scss" as index;
 
-.st-engine__topActions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.st-engine__selected {
-  font-size: 1.15rem;
-  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
-
-  code {
-    color: inherit;
-    opacity: 0.95;
-  }
-}
-
-.st-engine__empty {
-  font-size: 1.2rem;
-  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
-}
-
-.st-engine__list {
-  border: 1px solid var(--s-border, rgba(255, 255, 255, 0.08));
-  border-radius: 12px;
-  overflow: hidden;
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.st-engine__item {
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: transparent;
-  color: inherit;
-
-  padding: 10px 12px;
-  display: grid;
-  gap: 6px;
-
-  cursor: pointer;
-  transition: background-color 160ms ease;
-
-  &:hover {
-    background: var(--tab-hover-bg, rgba(255, 255, 255, 0.06));
+.engineTab {
+  .engineTab__actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
   }
 
-  &:focus-visible {
-    outline: 2px solid var(--s-focus, rgba(220, 215, 201, 0.55));
-    outline-offset: -2px;
+  .engineTab__error {
+    border: 1px solid rgba(index.$color-secondary-dark, 0.5);
+    background: rgba(index.$color-primary-black, 0.35);
+    color: index.$color-text-light-1;
+    padding: 12px 14px;
+    border-radius: 12px;
+    margin-bottom: 14px;
   }
 
-  &[data-selected="true"] {
-    background: var(--tab-active-bg, rgba(255, 255, 255, 0.1));
+  .engineTab__loading {
+    color: rgba(index.$color-text-light-1, 0.85);
+    padding: 10px 2px;
   }
-}
 
-.st-engine__itemTop {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
+  .engineTab__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
 
-.st-engine__itemName {
-  font-size: 1.3rem;
-  letter-spacing: 0.1px;
-}
+    @media (max-width: 900px) {
+      grid-template-columns: 1fr;
+    }
+  }
 
-.st-engine__itemKind {
-  font-size: 1.1rem;
-  opacity: 0.75;
-}
+  .engineTab__card {
+    cursor: pointer;
+    user-select: none;
 
-.st-engine__itemPath {
-  font-size: 1.15rem;
-  opacity: 0.75;
-}
+    border-radius: 16px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.35);
+    box-shadow: 0 0.8rem 2.2rem rgba(0, 0, 0, 0.22);
 
-.st-engine__note {
-  margin-top: 6px;
-  font-size: 1.1rem;
-  line-height: 1.4;
-  color: var(--s-text-dim, rgba(255, 255, 255, 0.58));
+    transition:
+      transform 120ms ease,
+      border-color 120ms ease,
+      background-color 120ms ease;
 
-  code {
-    color: inherit;
-    opacity: 0.95;
+    &:hover {
+      transform: translateY(-1px);
+      border-color: rgba(index.$color-secondary-dark, 0.45);
+      background: rgba(index.$color-primary-black, 0.42);
+    }
+
+    &:active {
+      transform: translateY(0px) scale(0.995);
+    }
+
+    &.is-selected {
+      border-color: rgba(index.$color-secondary-dark, 0.75);
+      box-shadow: 0 0.8rem 2.8rem rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .engineTab__cardHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 14px 14px 10px 14px;
+    border-bottom: 1px solid rgba(index.$color-white, 0.06);
+  }
+
+  .engineTab__cardTitleRow {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .engineTab__cardTitle {
+    font-size: 1.6rem;
+    color: index.$color-text-light-1;
+    font-weight: 700;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .engineTab__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .engineTab__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    font-size: 1.2rem;
+    padding: 4px 8px;
+    border-radius: 999px;
+
+    border: 1px solid rgba(index.$color-white, 0.1);
+    color: rgba(index.$color-text-light-1, 0.95);
+    background: rgba(index.$color-primary-black, 0.35);
+
+    &--active {
+      border-color: rgba(index.$color-secondary-dark, 0.45);
+      background: rgba(index.$color-secondary-dark, 0.2);
+    }
+    &--ok {
+      border-color: rgba(index.$color-white, 0.12);
+      background: rgba(index.$color-primary-light, 0.18);
+    }
+    &--warn {
+      border-color: rgba(index.$color-secondary-dark, 0.6);
+      background: rgba(index.$color-secondary-dark, 0.18);
+    }
+  }
+
+  .engineTab__cardActions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .engineTab__cardBody {
+    padding: 12px 14px 14px 14px;
+  }
+
+  .engineTab__row {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 10px;
+    padding: 6px 0;
+  }
+
+  .engineTab__k {
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.3rem;
+  }
+
+  .engineTab__v {
+    color: rgba(index.$color-text-light-1, 0.92);
+    font-size: 1.35rem;
+    min-width: 0;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .engineTab__muted {
+    color: rgba(index.$color-text-light-1, 0.55);
+  }
+
+  .engineTab__divider {
+    height: 1px;
+    background: rgba(index.$color-white, 0.06);
+    margin: 10px 0;
+  }
+
+  .engineTab__miniGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+
+    @media (max-width: 520px) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .engineTab__mini {
+    border: 1px solid rgba(index.$color-white, 0.06);
+    border-radius: 12px;
+    padding: 10px 10px;
+    background: rgba(index.$color-primary-black, 0.25);
+  }
+
+  .engineTab__miniK {
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.15rem;
+    margin-bottom: 4px;
+  }
+
+  .engineTab__miniV {
+    color: rgba(index.$color-text-light-1, 0.95);
+    font-size: 1.45rem;
+    font-weight: 700;
+
+    &.is-warn {
+      color: rgba(index.$color-secondary-light, 0.95);
+    }
+  }
+
+  .engineTab__note {
+    margin-top: 10px;
+    color: rgba(index.$color-text-light-1, 0.72);
+    font-size: 1.2rem;
+    line-height: 1.45;
   }
 }

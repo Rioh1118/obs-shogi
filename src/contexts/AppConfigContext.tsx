@@ -9,6 +9,7 @@ import {
   chooseAiRoot as chooseAiRootCommand,
   setRootDir as setRootDirCommand,
 } from "../commands/config_dir";
+import type { PresetId } from "@/types/enginePresets";
 
 type ConfigState = {
   config: AppConfig | null;
@@ -47,6 +48,7 @@ type AppConfigContextType = ConfigState & {
   chooseRootDir: (opts?: ChooseOpts) => Promise<string | null>;
   chooseAiRoot: (opts?: ChooseOpts) => Promise<string | null>;
   setRootDir: (root_dir: string) => Promise<void>;
+  setLastPresetId: (presetId: PresetId | null) => Promise<void>;
 };
 
 const AppConfigContext = createContext<AppConfigContextType | undefined>(
@@ -131,6 +133,26 @@ function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function setLastPresetId(presetId: PresetId | null) {
+    dispatch({ type: "loading" });
+    try {
+      const base = state.config ?? (await loadConfig());
+
+      const next: AppConfig = {
+        ...base,
+        last_preset_id: presetId,
+      };
+
+      await saveConfig(next);
+      dispatch({ type: "updated", payload: next });
+    } catch (err) {
+      dispatch({
+        type: "error",
+        payload: `last_preset_id の保存に失敗しました: ${String(err)}`,
+      });
+    }
+  }
+
   return (
     <AppConfigContext.Provider
       value={{
@@ -139,6 +161,7 @@ function AppConfigProvider({ children }: { children: ReactNode }) {
         chooseRootDir,
         chooseAiRoot,
         setRootDir,
+        setLastPresetId,
       }}
     >
       {children}

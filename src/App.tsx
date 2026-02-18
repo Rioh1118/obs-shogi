@@ -13,6 +13,7 @@ import EngineProvider from "./contexts/EngineContext";
 import { AnalysisProvider } from "./contexts/AnalysisContext";
 import { PositionProvider } from "./contexts/PositionContext";
 import { PositionSearchProvider } from "./contexts/PositionSearchContext";
+import { EnginePresetsProvider } from "./contexts/EnginePresetsContext";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
@@ -29,15 +30,17 @@ function App() {
                   <Route
                     path="/app"
                     element={
-                      <EngineProvider>
-                        <PositionProvider>
-                          <PositionSearchProvider>
-                            <AnalysisProvider>
-                              <AppLayout />
-                            </AnalysisProvider>
-                          </PositionSearchProvider>
-                        </PositionProvider>
-                      </EngineProvider>
+                      <EnginePresetsProvider>
+                        <EngineProvider>
+                          <PositionProvider>
+                            <PositionSearchProvider>
+                              <AnalysisProvider>
+                                <AppLayout />
+                              </AnalysisProvider>
+                            </PositionSearchProvider>
+                          </PositionProvider>
+                        </EngineProvider>
+                      </EnginePresetsProvider>
                     }
                   >
                     <Route
