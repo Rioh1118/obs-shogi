@@ -127,10 +127,10 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
   const { isReady } = useEngine();
 
-  const { currentSfen, syncedSfen, isPositionSynced, syncPosition } =
-    usePosition();
+  const { currentSfen, syncedSfen, syncPosition } = usePosition();
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
+  const syncedSfenRef = useRef<string | null>(syncedSfen);
 
   const lastAnalyzedSfenRef = useRef<string | null>(null);
   const restartInFlightRef = useRef<Promise<void> | null>(null);
@@ -140,6 +140,19 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
   const debounceTimerRef = useRef<number | null>(null);
   const restartSeqRef = useRef(0);
   const pendingAfterRef = useRef(false);
+
+  useEffect(() => {
+    syncedSfenRef.current = syncedSfen;
+  }, [syncedSfen]);
+
+  const waitUntil = async (cond: () => boolean, timeoutMs = 1500) => {
+    const start = Date.now();
+    while (!cond()) {
+      if (Date.now() - start > timeoutMs) return false;
+      await new Promise((r) => setTimeout(r, 16));
+    }
+    return true;
+  };
 
   const clearDebounceTimer = () => {
     if (debounceTimerRef.current) {
@@ -306,15 +319,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
 
-    if (!isPositionSynced || syncedSfen !== currentSfen) {
-      await syncPosition();
-    }
+    await syncPosition();
 
-    const waitStart = Date.now();
-    while (Date.now() - waitStart < 300) {
-      if (syncedSfen === currentSfen) break;
-      await new Promise((r) => setTimeout(r, 16));
-    }
+    await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
 
     const sessionId = await startInfiniteAnalysisCore();
 
@@ -325,14 +332,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
-  }, [
-    isReady,
-    state.isAnalyzing,
-    currentSfen,
-    isPositionSynced,
-    syncedSfen,
-    syncPosition,
-  ]);
+  }, [isReady, state.isAnalyzing, currentSfen, syncPosition]);
 
   const stopAnalysisFunc = useCallback(async () => {
     desiredSfenRef.current = null;

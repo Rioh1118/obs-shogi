@@ -18,7 +18,16 @@ export function convertSfenSequence(
 
   const record = Record.newByUSI(usiString);
   if (record instanceof Error) {
-    console.warn("[SFEN_CONVERTER] No moves in record");
+    if (record instanceof Error) {
+      console.warn("[SFEN_CONVERTER] parse failed", {
+        err: String(record),
+        sfen: JSON.stringify(sfen),
+        moves: sfenMoves.map((m) => JSON.stringify(m)),
+        usi: JSON.stringify(usiString),
+      });
+      return [];
+    }
+
     return [];
   }
 

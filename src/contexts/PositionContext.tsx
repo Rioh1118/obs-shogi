@@ -9,6 +9,7 @@ import React, {
 import { useGame } from "./GameContext";
 import { useEngine } from "./EngineContext";
 import { setPositionFromSfen } from "@/commands/engine/core";
+import { useEnginePresets } from "./EnginePresetsContext";
 
 interface PositionContextType {
   currentSfen: string | null;
@@ -28,6 +29,13 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const { state: gameState } = useGame();
   const { isReady } = useEngine();
+  const { state: presetsState } = useEnginePresets();
+  const engineKey = presetsState.selectedPresetId ?? "no-engine";
+
+  const [syncedEngineKey, setSyncedEngineKey] = React.useState<string | null>(
+    null,
+  );
+  const lastEngineKeyRef = useRef<string | null>(engineKey);
 
   const [syncedSfen, setSyncedSfen] = React.useState<string | null>(null);
   const [isPositionSynced, setIsPositionSynced] = React.useState(false);
@@ -83,7 +91,7 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     // すでに送れてるなら何もしない
-    if (syncedSfen === sfen) {
+    if (syncedSfen === sfen && syncedEngineKey === engineKey) {
       setIsPositionSynced(true);
       return;
     }
@@ -106,6 +114,7 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
           await setPositionFromSfen(target);
 
           setSyncedSfen(target);
+          setSyncedEngineKey(engineKey);
           setIsPositionSynced(true);
         } catch (e) {
           // 万一NotInitializedなら ready待ちへ戻す
@@ -127,9 +136,19 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     return inFlightRef.current;
-  }, [getCurrentSfen, isReady, syncedSfen]);
+  }, [getCurrentSfen, isReady, syncedSfen, syncedEngineKey, engineKey]);
 
-  // ✅ 自動同期：cursor変化で追従
+  useEffect(() => {
+    if (lastEngineKeyRef.current === engineKey) return;
+
+    lastEngineKeyRef.current = engineKey;
+
+    setSyncedSfen(null);
+    setSyncedEngineKey(engineKey);
+    setIsPositionSynced(false);
+  }, [engineKey]);
+
+  //  自動同期：cursor変化で追従
   useEffect(() => {
     if (!gameState.jkfPlayer) {
       setIsPositionSynced(false);

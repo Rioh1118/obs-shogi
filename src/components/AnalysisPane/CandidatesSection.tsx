@@ -12,7 +12,7 @@ interface CandidatesSectionProps {
 function CandidatesSection({
   candidateSequences,
   candidateEvaluations,
-  maxCandidates = 7, // FIXME: これMULTIPVの設定と同期させないと
+  maxCandidates = 7,
 }: CandidatesSectionProps) {
   const displayCandidates = candidateSequences.slice(0, maxCandidates);
   return (

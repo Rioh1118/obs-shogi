@@ -13,6 +13,7 @@ import StatsSection from "./StatsSection";
 import type { AnalysisCandidate, Evaluation } from "@/commands/engine/types";
 import { pickTopCandidate } from "@/utils/analysis";
 import { useFileTree } from "@/contexts/FileTreeContext";
+import { useEnginePresets } from "@/contexts/EnginePresetsContext";
 
 type PaneSnapshot = {
   candidates: AnalysisCandidate[];
@@ -25,10 +26,13 @@ function AnalysisPane() {
   const { getCurrentTurn, state: gameState } = useGame();
   const { currentSfen } = usePosition();
   const { selectedNode } = useFileTree();
+  const { state: presetsState } = useEnginePresets();
   // ===== cache key =====
+  const engineKey = presetsState.selectedPresetId ?? "no-engine";
   const fileKey = selectedNode?.id ?? null;
   const posKey = gameState.cursor?.tesuuPointer ?? null;
-  const cacheKey = fileKey && posKey ? `${fileKey}:${posKey}` : null;
+  const cacheKey =
+    fileKey && posKey ? `${engineKey}${fileKey}:${posKey}` : null;
 
   // ===== cache storage (UI responsibility) =====
   const cacheRef = useRef<Map<string, PaneSnapshot>>(new Map());
