@@ -4,16 +4,23 @@ use crate::engine::utils::{
 
 use super::manager::EngineManager;
 use super::types::*;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use usi::{EngineCommand, GuiCommand, InfoParams, ThinkParams};
 
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
-#[derive(Default)]
 pub struct EngineAnalyzer {
     manager: Arc<Mutex<EngineManager>>,
     state: Arc<RwLock<AnalyzerState>>,
+    infinite_stop_requested: Arc<Mutex<Option<Arc<AtomicBool>>>>,
+}
+
+impl Default for EngineAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -23,12 +30,18 @@ struct AnalyzerState {
     analysis_count: u64,
 }
 
+enum StreamMode {
+    Infinite(Arc<AtomicBool>),
+    Finite,
+}
+
 impl EngineAnalyzer {
     pub fn new() -> Self {
         let manager = Arc::new(Mutex::new(EngineManager::new()));
         Self {
             manager,
             state: Arc::new(RwLock::new(AnalyzerState::default())),
+            infinite_stop_requested: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -97,6 +110,8 @@ impl EngineAnalyzer {
         &self,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
         println!("[ANALYZER] start_infinite_analysis called");
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
 
         let manager_guard = self.manager.lock().await;
         if !manager_guard.is_initialized().await {
@@ -157,7 +172,13 @@ impl EngineAnalyzer {
                 "🧵 [ANALYZER] Starting process_analysis_stream task for listener: {}",
                 listener_id_clone
             );
-            Self::process_analysis_stream(raw_rx, result_tx, state_clone).await;
+            Self::process_analysis_stream(
+                raw_rx,
+                result_tx,
+                state_clone,
+                StreamMode::Infinite(stop_flag),
+            )
+            .await;
             let _ = protocol_for_task
                 .remove_listener(&listener_id_for_task)
                 .await;
@@ -285,6 +306,10 @@ impl EngineAnalyzer {
         let protocol = manager_guard.protocol()?;
         drop(manager_guard);
 
+        if let Some(flag) = self.infinite_stop_requested.lock().await.as_ref() {
+            flag.store(true, Ordering::SeqCst);
+        }
+
         protocol.send_command(&GuiCommand::Stop).await?;
         Ok(())
     }
@@ -311,6 +336,7 @@ impl EngineAnalyzer {
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
         result_tx: mpsc::UnboundedSender<AnalysisResult>,
         state: Arc<RwLock<AnalyzerState>>,
+        mode: StreamMode,
     ) {
         println!("🔄 [ANALYZER] process_analysis_stream started, waiting for engine commands...");
 
@@ -351,21 +377,23 @@ impl EngineAnalyzer {
                 }
 
                 EngineCommand::BestMove(_) => {
-                    // 最終結果を送信して終了
-                    if let Err(e) = result_tx.send(current_result.clone()) {
-                        println!("❌ [ANALYZER] Failed to send final result: {:?}", e);
-                    } else {
-                        println!("✅ [ANALYZER] Sent final analysis result");
+                    match &mode {
+                        StreamMode::Finite => {
+                            let _ = result_tx.send(current_result.clone());
+                            // state 更新など…
+                            break;
+                        }
+                        StreamMode::Infinite(stop_flag) => {
+                            // ★ここが重要：stop してないのに bestmove が来たら無視
+                            if !stop_flag.load(Ordering::SeqCst) {
+                                println!("⚠️ [ANALYZER] BestMove received without Stop request; ignoring as stale");
+                                continue;
+                            }
+                            let _ = result_tx.send(current_result.clone());
+                            // state 更新など…
+                            break;
+                        }
                     }
-
-                    // 状態更新
-                    {
-                        let mut state_guard = state.write().await;
-                        state_guard.last_result = Some(current_result);
-                        state_guard.analysis_count += 1;
-                    }
-                    println!("🏁 [ANALYZER] Analysis completed, breaking loop");
-                    break;
                 }
                 _ => {
                     println!("🔍 [ANALYZER] Ignoring command: {:?}", cmd);
@@ -519,6 +547,7 @@ impl Clone for EngineAnalyzer {
         Self {
             manager: Arc::clone(&self.manager),
             state: Arc::clone(&self.state),
+            infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
         }
     }
 }
