@@ -56,9 +56,7 @@ impl EngineManager {
         // プロトコル層作成
         let protocol = Arc::new(UsiProtocol::new(handler));
 
-        // 準備
-        protocol.prepare().await?;
-        println!("✅ [MANAGER] Engine prepared");
+        println!("✅ [MANAGER] Protocol created (listening will start on first listener)");
 
         // エンジン情報取得
         let engine_info = protocol.get_engine_info().await?;
@@ -131,6 +129,8 @@ impl EngineManager {
                     listener_count
                 );
             }
+
+            protocol.kill_engine().await;
         }
 
         // プロトコル層を削除

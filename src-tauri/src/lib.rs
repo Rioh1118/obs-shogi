@@ -1,18 +1,20 @@
 pub mod ai_library;
 pub mod config_dir;
 pub mod engine;
+pub mod engine_presets;
 pub mod file_system;
 pub mod kifu;
 pub mod search;
 
 use crate::engine::bridge::AppState;
-pub use ai_library::{check_engine_setup, ensure_engines_dir, scan_ai_root};
+pub use ai_library::{ensure_engines_dir, scan_ai_root};
 pub use config_dir::{load_config, save_config};
 pub use engine::bridge::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
     get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
     set_position, shutdown_engine, start_infinite_analysis, stop_analysis,
 };
+pub use engine_presets::{load_presets, save_presets};
 pub use file_system::{
     create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree,
     import_kifu_file, mv_directory, mv_kifu_file, read_file, rename_directory, rename_kifu_file,
@@ -42,11 +44,12 @@ pub fn run() {
             create_directory,
             delete_file,
             delete_directory,
+            load_presets,
+            save_presets,
             import_kifu_file,
             read_file,
             write_kifu_to_file,
             mv_directory,
-            check_engine_setup,
             ensure_engines_dir,
             scan_ai_root,
             mv_kifu_file,

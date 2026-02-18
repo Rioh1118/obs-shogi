@@ -34,7 +34,6 @@ pub struct EngineBridge {
 struct AnalysisSession {
     session_id: String,
     session_type: SessionType,
-    result_receiver: Option<mpsc::UnboundedReceiver<AnalysisResult>>,
     last_result: Option<AnalysisResult>,
     is_active: bool,
 }
@@ -137,18 +136,28 @@ impl EngineBridge {
             .map_err(|e| format!("Failed to start infinite analysis: {:?}", e))?;
 
         println!("✅ [BRIDGE] Analyzer returned result receiver");
-        let session_id = self.create_session(SessionType::Infinite, result_rx).await;
-        self.start_result_forwarding(&session_id).await;
+        let session_id = self.create_session(SessionType::Infinite).await;
+        self.start_result_forwarding(&session_id, result_rx).await;
         Ok(session_id)
     }
 
-    async fn start_result_forwarding(&self, session_id: &str) {
+    async fn start_result_forwarding(
+        &self,
+        session_id: &str,
+        receiver: mpsc::UnboundedReceiver<AnalysisResult>,
+    ) {
         let sessions_clone = Arc::clone(&self.active_sessions);
         let app_handle_clone = Arc::clone(&self.app_handle);
         let session_id_clone = session_id.to_string();
 
         tokio::spawn(async move {
-            Self::forward_results_to_ui(app_handle_clone, sessions_clone, session_id_clone).await;
+            Self::forward_results_to_ui(
+                app_handle_clone,
+                sessions_clone,
+                session_id_clone,
+                receiver,
+            )
+            .await;
         });
     }
 
@@ -157,40 +166,40 @@ impl EngineBridge {
         app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
         sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
         session_id: String,
+        mut receiver: mpsc::UnboundedReceiver<AnalysisResult>,
     ) {
-        let result_receiver = {
-            let mut sessions_guard = sessions.write().await;
-            if let Some(session) = sessions_guard.get_mut(&session_id) {
-                session.result_receiver.take()
-            } else {
-                return;
-            }
-        };
-
-        let Some(mut receiver) = result_receiver else { return; };
+        // session が消えたら emit/保存をやめるためのフラグ
+        let mut session_exists = true;
 
         while let Some(result) = receiver.recv().await {
-            // 1) sessionに last_result を保存（pull用）
-            {
+            // session がまだあるなら last_result を保存 & active なら emit
+            let mut emit = false;
+
+            if session_exists {
                 let mut sessions_guard = sessions.write().await;
                 if let Some(session) = sessions_guard.get_mut(&session_id) {
                     session.last_result = Some(result.clone());
+                    emit = session.is_active;
                 } else {
-                    // セッションが消されたなら終了
-                    break;
+                    // session が消えた：ここからは “黙って drain” だけする
+                    session_exists = false;
                 }
             }
 
-            // 2) push（UIイベント）: session_id を付ける
-            if let Some(handle) = app_handle.read().await.clone() {
-                let payload = AnalysisUpdate {
-                    session_id: session_id.clone(),
-                    result,
-                };
-                let _ = handle.emit("analysis-update", payload);
+            // emit は session が存在して active の時だけ
+            if emit {
+                if let Some(handle) = app_handle.read().await.clone() {
+                    let payload = AnalysisUpdate {
+                        session_id: session_id.clone(),
+                        result,
+                    };
+                    let _ = handle.emit("analysis-update", payload);
+                }
             }
+            // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
+        // receiver が閉じた（analyzer 側が終了）ので最後に状態だけ落とす
         {
             let mut sessions_guard = sessions.write().await;
             if let Some(session) = sessions_guard.get_mut(&session_id) {
@@ -300,11 +309,7 @@ impl EngineBridge {
 
     // ===  session === //
 
-    async fn create_session(
-        &self,
-        session_type: SessionType,
-        result_receiver: mpsc::UnboundedReceiver<AnalysisResult>,
-    ) -> String {
+    async fn create_session(&self, session_type: SessionType) -> String {
         let session_id = format!(
             "{}_{}",
             match session_type {
@@ -321,7 +326,6 @@ impl EngineBridge {
         let session = AnalysisSession {
             session_id: session_id.clone(),
             session_type,
-            result_receiver: Some(result_receiver),
             last_result: None,
             is_active: true,
         };

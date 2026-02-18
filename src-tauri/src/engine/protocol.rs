@@ -1,3 +1,7 @@
+use std::collections::VecDeque;
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
+
 use crate::engine::types::*;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -12,6 +16,26 @@ pub struct UsiProtocol {
     listen_active: Arc<Mutex<bool>>,
 
     runtime_handle: tokio::runtime::Handle,
+    init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+    init_cancel: Arc<Mutex<Option<CancellationToken>>>,
+    generation: Arc<tokio::sync::RwLock<u64>>,
+    pending_after_ready: Arc<Mutex<HashMap<u64, VecDeque<GuiCommand>>>>,
+}
+
+impl Clone for UsiProtocol {
+    fn clone(&self) -> Self {
+        Self {
+            handler: Arc::clone(&self.handler),
+            state: Arc::clone(&self.state),
+            listeners: Arc::clone(&self.listeners),
+            listen_active: Arc::clone(&self.listen_active),
+            runtime_handle: self.runtime_handle.clone(),
+            init_task: Arc::clone(&self.init_task),
+            init_cancel: Arc::clone(&self.init_cancel),
+            generation: Arc::clone(&self.generation),
+            pending_after_ready: Arc::clone(&self.pending_after_ready),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +43,20 @@ struct ProtocolState {
     is_ready: bool,
     engine_info: Option<EngineInfo>,
     last_command: Option<String>,
+}
+
+fn now_nanos() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+}
+
+fn requires_ready(cmd: &GuiCommand) -> bool {
+    matches!(
+        cmd,
+        GuiCommand::UsiNewGame | GuiCommand::Go(_) | GuiCommand::Position(_)
+    )
 }
 
 impl UsiProtocol {
@@ -33,6 +71,10 @@ impl UsiProtocol {
             listeners: Arc::new(RwLock::new(HashMap::new())),
             listen_active: Arc::new(Mutex::new(false)),
             runtime_handle: tokio::runtime::Handle::current(),
+            init_task: Arc::new(Mutex::new(None)),
+            init_cancel: Arc::new(Mutex::new(None)),
+            generation: Arc::new(tokio::sync::RwLock::new(0)),
+            pending_after_ready: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -45,11 +87,24 @@ impl UsiProtocol {
         // リスナー追加
         self.listeners.write().await.insert(name.clone(), sender);
 
-        // リスニング開始チェック（1回だけ）
-        let mut listen_active = self.listen_active.lock().await;
-        if !*listen_active {
-            self.start_listening().await?;
-            *listen_active = true;
+        // await をまたがないように「必要かどうか」だけ決める
+        let need_start = {
+            let mut g = self.listen_active.lock().await;
+            if *g {
+                false
+            } else {
+                *g = true;
+                true
+            }
+        };
+
+        if need_start {
+            if let Err(e) = self.start_listening().await {
+                // start_listening が失敗したらフラグを戻す
+                let mut g = self.listen_active.lock().await;
+                *g = false;
+                return Err(e);
+            }
         }
 
         Ok(())
@@ -127,7 +182,21 @@ impl UsiProtocol {
         // コマンド履歴更新
         self.state.write().await.last_command = Some(format!("{:?}", command));
 
-        // スレッドセーフな送信
+        if matches!(command, GuiCommand::IsReady) {
+            self.start_ready_watch_and_send().await?;
+            return Ok(());
+        }
+
+        // ready 前で ready 必須のコマンドなら enqueue
+        let is_ready = self.state.read().await.is_ready;
+        if !is_ready && requires_ready(command) {
+            let gen = *self.generation.read().await;
+            let mut map = self.pending_after_ready.lock().await;
+            map.entry(gen).or_default().push_back(command.clone());
+            return Ok(());
+        }
+
+        // 通常送信
         let mut handler = self.handler.lock().await;
         handler
             .send_command(command)
@@ -136,16 +205,86 @@ impl UsiProtocol {
         Ok(())
     }
 
-    /// エンジン準備
-    pub async fn prepare(&self) -> Result<(), EngineError> {
-        let mut handler = self.handler.lock().await;
-        handler
-            .prepare()
-            .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
+    async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
+        self.abort_init().await;
 
-        drop(handler);
+        let gen = {
+            let mut g = self.generation.write().await;
+            *g += 1;
+            *g
+        };
 
-        self.state.write().await.is_ready = true;
+        self.state.write().await.is_ready = false;
+
+        let cancel = CancellationToken::new();
+        *self.init_cancel.lock().await = Some(cancel.clone());
+
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let listener_name = format!("ready_wait_{}_{}", gen, now_nanos());
+        self.register_listener(listener_name.clone(), tx).await?;
+
+        {
+            let mut handler = self.handler.lock().await;
+            handler
+                .send_command(&GuiCommand::IsReady)
+                .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
+        }
+
+        // 非ブロッキングに readyok 待ち
+        let protocol = Arc::new(self.clone());
+        let handle = tokio::spawn(async move {
+            let mut ready = false;
+
+            loop {
+                tokio::select! {
+                    _ = cancel.cancelled() => {
+                        // キャンセルされた
+                        break;
+                    }
+                    msg = rx.recv() => {
+                        match msg {
+                            Some(EngineCommand::ReadyOk) => { ready = true; break; }
+                            Some(_) => {}
+                            None => { break; }
+                        }
+                    }
+                }
+            }
+
+            protocol.remove_listener(&listener_name).await;
+
+            // 世代が変わっていたら何もしない
+            if *protocol.generation.read().await != gen {
+                return;
+            }
+
+            if ready {
+                protocol.state.write().await.is_ready = true;
+                println!("✅ [PROTOCOL] readyok received (gen={})", gen);
+
+                let mut map = protocol.pending_after_ready.lock().await;
+                let mut q = map.remove(&gen).unwrap_or_default();
+                drop(map);
+
+                while let Some(cmd) = q.pop_front() {
+                    let mut h = protocol.handler.lock().await;
+                    if let Err(e) = h.send_command(&cmd) {
+                        println!("❌ [PROTOCOL] flush failed {:?}: {}", cmd, e);
+                        break;
+                    }
+                }
+            } else {
+                println!(
+                    "⚠️ [PROTOCOL] ready wait ended without readyok (gen={})",
+                    gen
+                );
+
+                let mut map = protocol.pending_after_ready.lock().await;
+                map.remove(&gen);
+            }
+        });
+
+        *self.init_task.lock().await = Some(handle);
         Ok(())
     }
 
@@ -172,7 +311,6 @@ impl UsiProtocol {
         );
 
         self.register_listener(listener_name.clone(), tx).await?;
-
         // USIコマンド送信
         self.send_command(&GuiCommand::Usi).await?;
 
@@ -181,28 +319,15 @@ impl UsiProtocol {
         let mut author = String::new();
         let mut options = Vec::new();
 
-        let timeout = std::time::Duration::from_secs(10);
-        let start_time = std::time::Instant::now();
-
-        while start_time.elapsed() < timeout {
-            match tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await {
-                Ok(Some(cmd)) => {
-                    match cmd {
-                        EngineCommand::Id(IdParams::Name(n)) => name = n,
-                        EngineCommand::Id(IdParams::Author(a)) => author = a,
-                        EngineCommand::Option(option_params) => {
-                            options.push(convert_option_params(&option_params));
-                        }
-                        EngineCommand::UsiOk => break,
-                        _ => {} // 他のコマンドは無視（高頻度でくる可能性）
-                    }
+        while let Some(cmd) = rx.recv().await {
+            match cmd {
+                EngineCommand::Id(IdParams::Name(n)) => name = n,
+                EngineCommand::Id(IdParams::Author(a)) => author = a,
+                EngineCommand::Option(option_params) => {
+                    options.push(convert_option_params(&option_params));
                 }
-                Ok(None) => {
-                    return Err(EngineError::CommunicationFailed(
-                        "Channel closed".to_string(),
-                    ));
-                }
-                Err(_) => continue, // タイムアウト - 続行
+                EngineCommand::UsiOk => break,
+                _ => {} // 他のコマンドは無視（高頻度でくる可能性）
             }
         }
 
@@ -210,7 +335,9 @@ impl UsiProtocol {
         self.remove_listener(&listener_name).await;
 
         if name.is_empty() {
-            name = "Unknown Engine".to_string();
+            return Err(EngineError::CommunicationFailed(
+                "did not receive id name before usiok (or channel closed)".to_string(),
+            ));
         }
 
         let engine_info = EngineInfo {
@@ -268,6 +395,36 @@ impl UsiProtocol {
     /// 現在のリスナー数取得（デバッグ用）
     pub async fn listener_count(&self) -> usize {
         self.listeners.read().await.len()
+    }
+
+    async fn abort_init(&self) {
+        // cancel token
+        if let Some(tok) = self.init_cancel.lock().await.take() {
+            tok.cancel();
+        }
+        // join handle
+        if let Some(h) = self.init_task.lock().await.take() {
+            h.abort();
+        }
+
+        self.pending_after_ready.lock().await.clear();
+    }
+
+    pub async fn quit(&self) {
+        // quit は失敗しても良い（ログだけ）
+        let _ = self.send_command(&GuiCommand::Quit).await;
+    }
+
+    pub async fn kill_engine(&self) {
+        // ready watch等を止める
+        self.abort_init().await;
+
+        // listenerも掃除したければここで全部clearしても良い
+        // self.listeners.write().await.clear();
+
+        // プロセスを殺す
+        let mut h = self.handler.lock().await;
+        let _ = h.kill(); // 失敗はログ程度で
     }
 }
 

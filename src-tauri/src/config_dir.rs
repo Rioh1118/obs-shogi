@@ -11,6 +11,7 @@ const CONFIG_FILE: &str = "app.json";
 pub struct AppConfig {
     pub root_dir: Option<String>,
     pub ai_root: Option<String>,
+    pub last_preset_id: Option<String>,
 }
 
 fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
