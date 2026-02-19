@@ -13,4 +13,3 @@ pub mod segment;
 pub mod sfen_position;
 pub mod traverse;
 pub mod types;
-pub mod zobrist;

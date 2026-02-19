@@ -45,7 +45,7 @@ export default function SRadioGroup({
       data-invalid={invalid ? "true" : "false"}
       style={
         layout === "grid"
-          ? ({ ["--cols" as any]: String(columns) } as React.CSSProperties)
+          ? ({ ["--cols"]: String(columns) } as React.CSSProperties)
           : undefined
       }
       role="radiogroup"

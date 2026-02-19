@@ -1,0 +1,108 @@
+@use "@/index.scss" as index;
+
+.presetDialog {
+  .presetDialog__block {
+    border: 1px solid rgba(index.$color-white, 0.07);
+    background: rgba(index.$color-primary-black, 0.22);
+    border-radius: 16px;
+    padding: 14px 14px;
+  }
+
+  .presetDialog__blockHead {
+    margin-bottom: 10px;
+  }
+
+  .presetDialog__blockTitle {
+    color: index.$color-text-light-1;
+    font-size: 1.45rem;
+    font-weight: 800;
+  }
+
+  .presetDialog__blockSub {
+    margin-top: 4px;
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.2rem;
+    line-height: 1.4;
+  }
+
+  /* ========== MultiPV segmented ========== */
+  .presetDialog__segRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .presetDialog__seg {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    flex: 1;
+  }
+
+  .presetDialog__segBtn {
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+    color: rgba(index.$color-text-light-1, 0.92);
+
+    padding: 10px 10px;
+    cursor: pointer;
+
+    font-weight: 800;
+    font-size: 1.35rem;
+
+    transition:
+      transform 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      border-color: rgba(index.$color-secondary-dark, 0.45);
+      background: rgba(index.$color-primary-black, 0.35);
+    }
+
+    &:active {
+      transform: translateY(0px) scale(0.99);
+    }
+
+    &.is-active {
+      border-color: rgba(index.$color-secondary-dark, 0.7);
+      background: rgba(index.$color-secondary-dark, 0.18);
+    }
+  }
+
+  .presetDialog__segRight {
+    white-space: nowrap;
+  }
+
+  .presetDialog__stepper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .presetDialog__stepperInput {
+    width: 90px;
+    text-align: center;
+    font-weight: 800;
+  }
+
+  .presetDialog__stepperHint {
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.15rem;
+  }
+
+  .presetDialog__inline {
+    margin-top: 12px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .presetDialog__segBtn {
+      transition: none;
+    }
+  }
+}

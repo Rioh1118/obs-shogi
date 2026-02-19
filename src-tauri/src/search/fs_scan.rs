@@ -111,7 +111,9 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Vec<FileRe
         let path = entry.path();
 
         // ★対象拡張子以外は即スキップ（メタ取得なし）
-        let Some(kind) = KifuKind::from_path(path) else { continue; };
+        let Some(kind) = KifuKind::from_path(path) else {
+            continue;
+        };
 
         // メタ取得
         let meta = match fs::metadata(path) {

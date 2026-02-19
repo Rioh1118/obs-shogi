@@ -1,0 +1,25 @@
+@use "@/index.scss" as index;
+
+.presetDialog {
+  .presetDialog__footer {
+    padding: 14px 18px;
+    border-top: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .presetDialog__footerHint {
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.2rem;
+  }
+
+  .presetDialog__footerRight {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+}

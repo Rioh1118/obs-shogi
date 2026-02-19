@@ -148,7 +148,9 @@ impl ProjectManager {
         // プロジェクト情報を “cloneして” 取り出す（ロックを await に跨がない）
         let (root, prev_scan, mut path_to_id, mut next_file_id) = {
             let g = self.inner.lock().await;
-            let Some(root) = g.root_dir.clone() else { return; };
+            let Some(root) = g.root_dir.clone() else {
+                return;
+            };
             (root, g.scan.clone(), g.path_to_id.clone(), g.next_file_id)
         };
 

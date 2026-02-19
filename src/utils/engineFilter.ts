@@ -1,5 +1,7 @@
 // Dialogで使うだけなので、Presetには保存しない前提の util。
 
+import type { EngineCandidate } from "@/commands/ai_library";
+
 export type EvalTypeId = string;
 
 export const AI_NAME_TO_EVAL: Record<string, EvalTypeId> = {
@@ -63,10 +65,10 @@ export type EngineLike = { entry: string; path: string };
  * aiLabel（=水匠10等）が選ばれていれば、それに対応する EvalTypeId で絞る。
  * 未選択 or 未定義なら絞らず返す（=利便性だけ、強制しない）
  */
-export function filterEnginesByAiLabel<T extends EngineLike>(
-  engines: T[],
+export function filterEnginesByAiLabel(
+  engines: EngineCandidate[],
   aiLabel: string | null | undefined,
-): { filtered: T[]; evalType: EvalTypeId | null } {
+): { filtered: EngineCandidate[]; evalType: EvalTypeId | null } {
   const evalType = evalTypeOfAiLabel(aiLabel);
   if (!evalType) return { filtered: engines, evalType: null };
 

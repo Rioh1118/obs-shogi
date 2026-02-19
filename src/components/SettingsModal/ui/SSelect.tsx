@@ -34,7 +34,7 @@ const SSelect = forwardRef<HTMLSelectElement, Props>(function SSelect(
       <select
         ref={ref}
         className="sui-select__control"
-        value={v as any}
+        value={v}
         aria-invalid={invalid || undefined}
         {...rest}
       >

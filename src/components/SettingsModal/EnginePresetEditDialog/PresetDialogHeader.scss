@@ -1,0 +1,30 @@
+@use "@/index.scss" as index;
+
+.presetDialog {
+  .presetDialog__header {
+    padding: 18px 18px 14px 18px;
+    border-bottom: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.25);
+  }
+
+  .presetDialog__titles {
+    min-width: 0;
+  }
+
+  .presetDialog__title {
+    color: index.$color-text-light-1;
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .presetDialog__subtitle {
+    margin-top: 6px;
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+}

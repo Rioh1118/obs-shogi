@@ -1,5 +1,5 @@
 import { useGame } from "@/contexts/GameContext";
-import type { ForkPointer, KifuCursor, TesuuPointer } from "@/types";
+import type { ForkPointer, JKFData, KifuCursor, TesuuPointer } from "@/types";
 import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
@@ -9,10 +9,12 @@ import KifuMoveActions from "./KifuMoveActions";
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 
-function cloneJKF<T>(kifu: T): T {
-  const sc = (globalThis as any).structuredClone as ((x: T) => T) | undefined;
+function cloneJKF(kifu: JKFData): JKFData {
+  const sc = globalThis.structuredClone as
+    | ((x: JKFData) => JKFData)
+    | undefined;
   if (typeof sc === "function") return sc(kifu);
-  return JSON.parse(JSON.stringify(kifu)) as T;
+  return JSON.parse(JSON.stringify(kifu)) as JKFData;
 }
 const branchIndexFromRow = (r: RowModel): number => {
   return r.selectedForkIndex == null ? 0 : r.selectedForkIndex + 1;

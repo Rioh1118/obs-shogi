@@ -17,7 +17,7 @@ import SSection from "./ui/SSection";
 import { useEnginePresets } from "@/contexts/EnginePresetsContext";
 import { DEFAULT_OPTIONS } from "@/commands/engine";
 import { isPresetConfigured, type PresetId } from "@/types/enginePresets";
-import EnginePresetEditDialog from "./EnginePresetEditDialog";
+import EnginePresetEditDialogPanel from "./EnginePresetEditDialog/EnginePresetEditDialogPanel";
 
 const cx = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");
@@ -309,7 +309,7 @@ export default function EngineTab() {
       </SSection>
 
       {editingId && (
-        <EnginePresetEditDialog
+        <EnginePresetEditDialogPanel
           presetId={editingId}
           open={true}
           onClose={() => setEditingId(null)}
