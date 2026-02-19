@@ -17,13 +17,11 @@
   flex-direction: column;
   gap: 8px;
 
-  /* 追従スクロールのための余白指定はしない（scroll-padding も無し） */
   padding: 0;
 
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 
-  /* iOS の慣性が欲しければ */
   -webkit-overflow-scrolling: touch;
 }
 
@@ -43,7 +41,6 @@
   color: index.$color-text-light-1;
   cursor: pointer;
 
-  /* scroll-margin を使わない（追従スクロールに余白依存させない） */
   scroll-margin: 0;
 
   transition:
@@ -63,7 +60,6 @@
     transform: none;
   }
 
-  /* 端でも欠けないように “内側” にフォーカスを描く */
   &:focus-visible {
     outline: none;
     box-shadow:
