@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "obs-shogi",
   "version": "0.1.0",
-  "identifier": "com.Rioh1118/obs-shogi",
+  "identifier": "com.Rioh1118/obsShogi",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
