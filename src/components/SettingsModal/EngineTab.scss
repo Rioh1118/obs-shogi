@@ -1,18 +1,43 @@
 @use "@/index.scss" as index;
 
+// ---- local tokens (no CSS vars) ----
+$radius-lg: 16px;
+$radius-md: 14px;
+$radius-sm: 12px;
+
+$border: rgba(index.$color-white, 0.08);
+$border-weak: rgba(index.$color-white, 0.06);
+$border-strong: rgba(index.$color-white, 0.12);
+
+$surface-card: rgba(index.$color-primary-black, 0.34);
+$surface-card-hover: rgba(index.$color-primary-black, 0.42);
+$surface-chip: rgba(index.$color-primary-black, 0.3);
+$surface-mini: rgba(index.$color-primary-black, 0.25);
+
+$text: rgba(index.$color-text-light-1, 0.92);
+$text-muted: rgba(index.$color-text-light-1, 0.7);
+$text-faint: rgba(index.$color-text-light-1, 0.55);
+
+$accent: index.$color-secondary-dark;
+$focus: index.$focus-ring;
+
+$danger: #e35b5b;
+$warn: #f0b429;
+
 .engineTab {
   .engineTab__actions {
     display: flex;
     gap: 10px;
     align-items: center;
+    flex-wrap: wrap; // 右上が狭い時に崩れない
   }
 
   .engineTab__error {
-    border: 1px solid rgba(index.$color-secondary-dark, 0.5);
-    background: rgba(index.$color-primary-black, 0.35);
-    color: index.$color-text-light-1;
+    border: 1px solid rgba($danger, 0.55);
+    background: rgba($danger, 0.1);
+    color: $text;
     padding: 12px 14px;
-    border-radius: 12px;
+    border-radius: $radius-md;
     margin-bottom: 14px;
   }
 
@@ -34,30 +59,62 @@
   .engineTab__card {
     cursor: pointer;
     user-select: none;
+    min-width: 0;
 
-    border-radius: 16px;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.35);
+    border-radius: $radius-lg;
+    border: 1px solid $border;
+    background:
+      radial-gradient(
+        700px 380px at 20% 0%,
+        rgba(index.$color-primary-light, 0.16),
+        transparent 58%
+      ),
+      radial-gradient(
+        700px 380px at 120% 40%,
+        rgba($accent, 0.12),
+        transparent 62%
+      ),
+      $surface-card;
+
     box-shadow: 0 0.8rem 2.2rem rgba(0, 0, 0, 0.22);
 
     transition:
-      transform 120ms ease,
-      border-color 120ms ease,
-      background-color 120ms ease;
+      transform 140ms ease,
+      border-color 140ms ease,
+      background-color 140ms ease,
+      box-shadow 140ms ease;
 
     &:hover {
       transform: translateY(-1px);
-      border-color: rgba(index.$color-secondary-dark, 0.45);
-      background: rgba(index.$color-primary-black, 0.42);
+      border-color: rgba($accent, 0.4);
+      background:
+        radial-gradient(
+          700px 380px at 20% 0%,
+          rgba(index.$color-primary-light, 0.18),
+          transparent 58%
+        ),
+        radial-gradient(
+          700px 380px at 120% 40%,
+          rgba($accent, 0.14),
+          transparent 62%
+        ),
+        $surface-card-hover;
     }
 
     &:active {
       transform: translateY(0px) scale(0.995);
     }
 
+    &:focus-visible {
+      outline: 2px solid $focus;
+      outline-offset: 2px;
+    }
+
     &.is-selected {
-      border-color: rgba(index.$color-secondary-dark, 0.75);
-      box-shadow: 0 0.8rem 2.8rem rgba(0, 0, 0, 0.3);
+      border-color: rgba($accent, 0.7);
+      box-shadow:
+        0 0.8rem 2.8rem rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba($accent, 0.22);
     }
   }
 
@@ -68,7 +125,13 @@
     gap: 10px;
 
     padding: 14px 14px 10px 14px;
-    border-bottom: 1px solid rgba(index.$color-white, 0.06);
+    border-bottom: 1px solid $border-weak;
+
+    background: linear-gradient(
+      180deg,
+      rgba(index.$color-primary-black, 0.36),
+      rgba(index.$color-primary-black, 0.18)
+    );
   }
 
   .engineTab__cardTitleRow {
@@ -79,7 +142,8 @@
   .engineTab__cardTitle {
     font-size: 1.6rem;
     color: index.$color-text-light-1;
-    font-weight: 700;
+    font-weight: 800;
+    letter-spacing: 0.15px;
 
     white-space: nowrap;
     overflow: hidden;
@@ -96,34 +160,43 @@
   .engineTab__badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
 
-    font-size: 1.2rem;
-    padding: 4px 8px;
+    font-size: 1.15rem;
+    padding: 4px 10px;
     border-radius: 999px;
 
-    border: 1px solid rgba(index.$color-white, 0.1);
-    color: rgba(index.$color-text-light-1, 0.95);
-    background: rgba(index.$color-primary-black, 0.35);
+    border: 1px solid $border-strong;
+    color: rgba(index.$color-text-light-1, 0.92);
+    background: $surface-chip;
+
+    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
+
+    svg {
+      flex: 0 0 auto;
+    }
 
     &--active {
-      border-color: rgba(index.$color-secondary-dark, 0.45);
-      background: rgba(index.$color-secondary-dark, 0.2);
+      border-color: rgba($accent, 0.55);
+      background: rgba($accent, 0.18);
     }
+
     &--ok {
-      border-color: rgba(index.$color-white, 0.12);
-      background: rgba(index.$color-primary-light, 0.18);
+      border-color: rgba(index.$color-white, 0.1);
+      background: rgba(index.$color-primary-light, 0.16);
     }
+
     &--warn {
-      border-color: rgba(index.$color-secondary-dark, 0.6);
-      background: rgba(index.$color-secondary-dark, 0.18);
+      border-color: rgba($warn, 0.55);
+      background: rgba($warn, 0.14);
     }
   }
 
   .engineTab__cardActions {
-    display: flex;
+    display: inline-flex;
     gap: 8px;
     align-items: center;
+    flex-shrink: 0;
   }
 
   .engineTab__cardBody {
@@ -138,12 +211,12 @@
   }
 
   .engineTab__k {
-    color: rgba(index.$color-text-light-1, 0.7);
+    color: $text-muted;
     font-size: 1.3rem;
   }
 
   .engineTab__v {
-    color: rgba(index.$color-text-light-1, 0.92);
+    color: $text;
     font-size: 1.35rem;
     min-width: 0;
 
@@ -153,12 +226,12 @@
   }
 
   .engineTab__muted {
-    color: rgba(index.$color-text-light-1, 0.55);
+    color: $text-faint;
   }
 
   .engineTab__divider {
     height: 1px;
-    background: rgba(index.$color-white, 0.06);
+    background: $border-weak;
     margin: 10px 0;
   }
 
@@ -173,10 +246,19 @@
   }
 
   .engineTab__mini {
-    border: 1px solid rgba(index.$color-white, 0.06);
-    border-radius: 12px;
+    border: 1px solid $border-weak;
+    border-radius: $radius-sm;
     padding: 10px 10px;
-    background: rgba(index.$color-primary-black, 0.25);
+
+    background:
+      radial-gradient(
+        420px 220px at 10% 0%,
+        rgba(index.$color-primary-light, 0.12),
+        transparent 62%
+      ),
+      $surface-mini;
+
+    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
   }
 
   .engineTab__miniK {
@@ -188,7 +270,8 @@
   .engineTab__miniV {
     color: rgba(index.$color-text-light-1, 0.95);
     font-size: 1.45rem;
-    font-weight: 700;
+    font-weight: 800;
+    letter-spacing: 0.1px;
 
     &.is-warn {
       color: rgba(index.$color-secondary-light, 0.95);

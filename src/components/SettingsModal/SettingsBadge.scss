@@ -1,16 +1,30 @@
+@use "@/index.scss" as index;
+
+$border: rgba(index.$color-white, 0.1);
+$text: rgba(index.$color-text-light-1, 0.86);
+
+$danger: #e35b5b;
+$warn: #f0b429;
+$accent: index.$color-secondary-dark;
+
 .settings {
   .sbadge {
     font-size: 1.05rem;
     padding: 2px 8px;
     border-radius: 999px;
 
-    border: 1px solid var(--ctl-border);
-    background: rgba(0, 0, 0, 0.18);
-    opacity: 0.9;
+    border: 1px solid $border;
+    background: rgba(index.$color-primary-black, 0.28);
+    color: $text;
 
     display: inline-flex;
     align-items: center;
     gap: 6px;
+
+    // ほんのり “ガラス” っぽい面質
+    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.06);
+
+    opacity: 0.92;
   }
 
   .sbadge--pill {
@@ -19,26 +33,34 @@
   }
 
   .sbadge--muted {
-    opacity: 0.7;
+    opacity: 0.72;
+    border-color: rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.18);
   }
 
   .sbadge--danger {
-    border-color: var(--intent-danger-border);
-    background: var(--intent-danger-bg);
+    border-color: rgba($danger, 0.55);
+    background: rgba($danger, 0.16);
+    color: rgba(index.$color-text-light-1, 0.92);
   }
 
   .sbadge--warn {
-    border-color: var(--intent-warn-border);
-    background: var(--intent-warn-bg);
+    border-color: rgba($warn, 0.55);
+    background: rgba($warn, 0.14);
+    color: rgba(index.$color-text-light-1, 0.92);
   }
 
   .sbadge--accent {
-    border-color: var(--intent-accent-border);
-    background: var(--intent-accent-bg);
+    border-color: rgba($accent, 0.6);
+    background: rgba($accent, 0.18);
+    color: rgba(index.$color-text-light-1, 0.92);
   }
 
-  /* light だと badge の黒背景が浮くならここだけ調整 */
+  // light theme で使うなら（必要になったら）
   .modal--light & .sbadge {
-    background: rgba(255, 255, 255, 0.45);
+    background: rgba(index.$color-white, 0.55);
+    color: index.$color-text-dark-1;
+    border-color: rgba(index.$color-primary-light, 0.18);
+    box-shadow: none;
   }
 }

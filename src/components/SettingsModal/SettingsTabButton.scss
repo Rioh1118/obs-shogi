@@ -1,3 +1,20 @@
+@use "@/index.scss" as index;
+
+$border: rgba(index.$color-white, 0.08);
+$border-weak: rgba(index.$color-white, 0.06);
+
+$hover-bg: rgba(index.$color-primary-light, 0.14);
+$hover-border: rgba(index.$color-white, 0.1);
+
+$active-bg: rgba(index.$color-primary-light, 0.18);
+$active-border: rgba(index.$color-secondary-dark, 0.42);
+
+$text-strong: rgba(index.$color-text-light-1, 0.92);
+$text-muted: rgba(index.$color-text-light-1, 0.68);
+
+$accent: index.$color-secondary-dark;
+$focus: index.$focus-ring;
+
 .settings {
   .stab {
     width: 100%;
@@ -6,37 +23,64 @@
     border: 1px solid transparent;
     background: transparent;
     color: inherit;
-    border-radius: 12px;
 
-    padding: 10px 10px;
+    border-radius: 14px;
+    padding: 12px 12px;
     cursor: pointer;
 
     display: grid;
     gap: 6px;
 
+    // “ボタン感”を控えめに、でも上質に
+    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
+
     transition:
-      background 120ms ease,
-      border-color 120ms ease,
-      transform 120ms ease;
+      background 140ms ease,
+      border-color 140ms ease,
+      transform 120ms ease,
+      box-shadow 140ms ease;
+
+    position: relative;
 
     &:hover {
-      background: var(--tab-hover-bg);
-      border-color: var(--tab-hover-border);
+      background: $hover-bg;
+      border-color: $hover-border;
     }
 
     &:active {
       transform: translateY(1px);
+      box-shadow: index.$shadow-press;
     }
 
     &:focus-visible {
-      outline: 2px solid var(--s-focus);
+      outline: 2px solid $focus;
       outline-offset: 2px;
     }
   }
 
   .stab--active {
-    background: var(--tab-active-bg);
-    border-color: var(--tab-active-border);
+    background: $active-bg;
+    border-color: $active-border;
+
+    // アクティブの “Warp縦ライン”
+    &::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      border-radius: 99px;
+      background: linear-gradient(
+        180deg,
+        rgba($accent, 0.95),
+        rgba($accent, 0.35)
+      );
+      box-shadow: 0 0 0 1px rgba(index.$color-white, 0.05);
+    }
+
+    // ライン分だけ内側を気持ち右に
+    padding-left: 16px;
   }
 
   .stab__row {
@@ -44,23 +88,35 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
+    min-width: 0;
   }
 
   .stab__label {
-    font-weight: 700;
-    letter-spacing: 0.15px;
-    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    font-size: 1.3rem;
+    color: $text-strong;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .stab__desc {
     font-size: 1.1rem;
-    opacity: 0.7;
-    line-height: 1.3;
+    color: $text-muted;
+    line-height: 1.35;
+
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .stab__right {
     display: flex;
     gap: 6px;
     align-items: center;
+    flex-shrink: 0;
   }
 }

@@ -332,10 +332,10 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       const next = [...state.presets, p];
       dispatch({ type: "set_presets", payload: next });
       await persist(next);
-      await selectPreset(p.id);
+      // await selectPreset(p.id);
       return p;
     },
-    [persist, selectPreset, state.presets],
+    [persist, state.presets],
   );
 
   const duplicatePreset = useCallback(

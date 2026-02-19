@@ -68,8 +68,7 @@ export default function EngineTab() {
   }, [selectedId]);
 
   const onAdd = async () => {
-    const p = await createPreset({ label: "新規プリセット" });
-    setEditingId(p.id);
+    await createPreset({ label: "新規プリセット" });
   };
 
   const onDup = async (id: PresetId) => {
