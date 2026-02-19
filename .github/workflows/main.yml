@@ -1,0 +1,45 @@
+name: tauri-windows-ci
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Install frontend deps
+        run: npm ci
+
+      # tauri.conf.json の build.beforeBuildCommand が "npm run build" なので
+      # この tauri build がフロントエンド build も実行します。:contentReference[oaicite:1]{index=1}
+      - name: Tauri build (no bundle)
+        run: npm run tauri build -- --no-bundle --verbose
+        env:
+          CI: "true"
+
+      - name: Upload exe (if produced)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-output
+          path: |
+            src-tauri/target/release/*.exe
+            src-tauri/target/release/*.pdb
+            src-tauri/target/release/deps/**
