@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "obs-shogi",
+  "productName": "ObsShogi",
   "version": "0.1.0",
   "identifier": "com.Rioh1118.obs-shogi",
   "build": {
