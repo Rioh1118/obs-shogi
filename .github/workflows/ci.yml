@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Quality (lint/test/fmt/clippy)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Frontend lint (if present)
+        run: npm run lint --if-present
+
+      - name: Frontend test (if present)
+        run: npm test --if-present
+
+      - name: Install Rust stable (fmt, clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache (src-tauri)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Rust fmt
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Rust clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+  build-desktop:
+    name: Build (Windows/macOS)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: "--no-bundle --verbose"
+          # macOS: Apple Silicon
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin --no-bundle --verbose"
+          # macOS: Intel
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin --no-bundle --verbose"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache (src-tauri)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Build (tauri-action, no bundle)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          CI: "true"
+        with:
+          args: ${{ matrix.args }}
+
+          uploadPlainBinary: true
+
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: "obs-shogi-[platform]-[arch]-[bundle]"
+
+          uploadUpdaterJson: false

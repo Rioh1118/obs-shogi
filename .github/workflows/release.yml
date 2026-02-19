@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    name: Build & upload bundles
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: macos-latest
+            args: "--target aarch64-apple-darwin"
+          - platform: macos-latest
+            args: "--target x86_64-apple-darwin"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache (src-tauri)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Build and create GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI: "true"
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "obs-shogi ${{ github.ref_name }}"
+          releaseBody: "See the assets to download and install this version."
+          releaseDraft: true
+          prerelease: false
+
+          args: ${{ matrix.args }}
+
+          #  成果物の命名（例: obs-shogi-v0.1.0-windows-x86_64.msi）
+          # 変数一覧: [name] [version] [platform] [arch] [ext] [setup] など
+          releaseAssetNamePattern: "[name]-v[version]-[platform]-[arch][setup][ext]"
+
+          uploadUpdaterJson: false
