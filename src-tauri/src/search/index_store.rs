@@ -121,6 +121,33 @@ impl IndexStore {
         *guard = new_snap;
     }
 
+    pub fn insert_many_file_segments(
+        &self,
+        items: Vec<(FileEntry, [Vec<(PositionKey, PositionHit)>; 256])>,
+    ) {
+        let mut guard = self.snap.write().unwrap();
+        let old = guard.clone();
+
+        let mut ft = (*old.file_table).clone();
+        let mut buckets = old.buckets.clone();
+
+        for (file_entry, entries_by_bucket) in items {
+            ft.upsert(file_entry);
+            for (b, v) in entries_by_bucket.into_iter().enumerate() {
+                if v.is_empty() {
+                    continue;
+                }
+                buckets[b].push(Arc::new(Segment::new_sorted(v)));
+            }
+        }
+
+        *guard = Arc::new(IndexSnapshot {
+            state: old.state,
+            file_table: Arc::new(ft),
+            buckets,
+        });
+    }
+
     /// ファイル削除（tombstone化）: 既存Segmentは残し、検索時のgenチェックで落とす
     pub fn tombstone_file(&self, file_id: FileId) {
         let mut guard = self.snap.write().unwrap();

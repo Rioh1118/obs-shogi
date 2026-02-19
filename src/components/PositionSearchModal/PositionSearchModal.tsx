@@ -50,6 +50,14 @@ export default function PositionSearchModal() {
   const isDone = !!session?.isDone && !isSearching;
   const error = session?.error ?? null;
 
+  const indexState = state.index.state;
+  const indexStale = indexState === "Building" || indexState === "Updating";
+
+  const lastIndexedRef = useRef<number>(0);
+  const retryTimerRef = useRef<number | null>(null);
+
+  const didFinalRefreshRef = useRef(false);
+
   const statusText = useMemo(() => {
     if (isSearching) return "検索中…";
     if (error) return "エラー";
@@ -70,29 +78,114 @@ export default function PositionSearchModal() {
     return buildPreviewData(jkf, nodeId);
   }, [isOpen, gameState.jkfPlayer]);
 
+  const lastNonEmptyHitsRef = useRef<{
+    sfen: string | null;
+    hits: PositionHit[];
+  }>({ sfen: null, hits: [] });
+
+  const lastSfenRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
+    if (!currentSfen) return;
+    if (hits.length > 0) {
+      lastNonEmptyHitsRef.current = { sfen: currentSfen, hits };
+    }
+  }, [isOpen, currentSfen, hits]);
 
-    setActiveIndex(0);
-    clearSearch();
+  const displayHits = useMemo(() => {
+    // 今回のrequestがまだ空でも、検索中orstale中は前回の結果を見せる
+    if (hits.length > 0) return hits;
 
+    const prev = lastNonEmptyHitsRef.current;
+    const canReuse =
+      prev.sfen === currentSfen && (isSearching || !!session?.stale);
+
+    return canReuse ? prev.hits : hits;
+  }, [hits, currentSfen, isSearching, session?.stale]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     if (!currentSfen) return;
 
-    // キー操作を確実に受ける（tabIndex=-1 の要素を focus）
-    queueMicrotask(() => rootRef.current?.focus());
+    // 初回 or SFENが変わったときだけクリアして新規検索
+    if (lastSfenRef.current !== currentSfen) {
+      lastSfenRef.current = currentSfen;
+      setActiveIndex(0);
+      clearSearch();
 
-    searchCurrentPositionBestEffort(5000).catch((e) => {
-      console.error("[PositionSearchModal] auto search failed:", e);
-    });
+      queueMicrotask(() => rootRef.current?.focus());
+
+      searchCurrentPositionBestEffort(5000).catch((e) => {
+        console.error("[PositionSearchModal] auto search failed:", e);
+      });
+    }
   }, [isOpen, currentSfen, clearSearch, searchCurrentPositionBestEffort]);
 
   useEffect(() => {
     if (!isOpen) return;
-    if (activeIndex < hits.length) return;
-    setActiveIndex(Math.max(0, hits.length - 1));
-  }, [isOpen, activeIndex, hits.length]);
+    if (!currentSfen) return;
+    if (!indexStale) return;
+    if (isSearching) return;
 
-  const activeHit = hits[activeIndex];
+    // indexedFiles が進んだときだけ再検索（無駄撃ち防止）
+    const indexed = state.index.indexedFiles;
+    if (indexed <= lastIndexedRef.current) return;
+    lastIndexedRef.current = indexed;
+
+    if (retryTimerRef.current != null) {
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+
+    retryTimerRef.current = window.setTimeout(() => {
+      searchCurrentPositionBestEffort(5000).catch((e) => {
+        console.error(
+          "[PositionSearchModal] progress-triggered search failed:",
+          e,
+        );
+      });
+    }, 250);
+
+    return () => {
+      if (retryTimerRef.current != null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, [
+    isOpen,
+    currentSfen,
+    indexStale,
+    isSearching,
+    state.index.indexedFiles,
+    searchCurrentPositionBestEffort,
+  ]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!currentSfen) return;
+
+    const isReady = state.index.state === "Ready";
+    if (!isReady) {
+      didFinalRefreshRef.current = false;
+      return;
+    }
+    if (didFinalRefreshRef.current) return;
+
+    didFinalRefreshRef.current = true;
+    searchCurrentPositionBestEffort(5000).catch((e) => {
+      console.error("[PositionSearchModal] final refresh failed:", e);
+    });
+  }, [isOpen, currentSfen, state.index.state, searchCurrentPositionBestEffort]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (activeIndex < displayHits.length) return;
+    setActiveIndex(Math.max(0, displayHits.length - 1));
+  }, [isOpen, activeIndex, displayHits.length]);
+
+  const activeHit = displayHits[activeIndex];
 
   const accept = (hit: PositionHit) => {
     const absPath = resolveHitAbsPath(hit);
@@ -160,14 +253,17 @@ export default function PositionSearchModal() {
           <div className="pos-search__grid">
             <section className="pos-search__left" aria-label="検索状態">
               <PositionSearchStatusBar
-                hitsCount={hits.length}
+                hitsCount={displayHits.length}
                 statusText={statusText}
-                stale={!!session?.stale}
+                stale={
+                  state.index.state === "Building" ||
+                  state.index.state === "Updating"
+                }
                 error={error}
               />
 
               <PositionSearchHitList
-                hits={hits}
+                hits={displayHits}
                 activeIndex={activeIndex}
                 onActiveIndexChange={setActiveIndex}
                 onAccept={accept}

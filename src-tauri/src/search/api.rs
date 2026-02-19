@@ -6,21 +6,21 @@ use std::{
 };
 
 use tauri::{AppHandle, Emitter, State};
-use tokio::task;
+use tokio::{sync::Semaphore, task::JoinSet};
 
 use crate::search::{
     fs_scan::snapshot_from_records,
+    position_key::PositionKey,
     project_manager::ProjectManager,
     query_service::QueryService,
-    types::{SearchPositionInput, SearchPositionOutput},
+    types::{PositionHit, SearchPositionInput, SearchPositionOutput},
 };
 
 use super::{
     fs_scan::{scan_kifu_files, ScanOptions},
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
-    index_store::IndexStore,
+    index_store::{IndexState as StoreIndexState, IndexStore},
     kifu_reader::read_to_jkf,
-    segment::Segment,
     types::{
         FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
         OpenProjectInput, OpenProjectOutput, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -115,95 +115,140 @@ async fn build_full_index_task(
     mut records: Vec<super::fs_scan::FileRecord>,
     total_files: u32,
 ) {
+    type BucketEntries = [Vec<(PositionKey, PositionHit)>; 256];
+    type BuildItem = (FileId, u32, String, BucketEntries, Vec<String>, bool);
     // 決定性のためパスでソートして FileId を安定化
     records.sort_by(|a, b| a.path.cmp(&b.path));
 
-    // Step2で使う：scan snapshot（path_keyは snapshot_from_records の実装に従う）
+    // scan snapshot
     let scan = snapshot_from_records(&root_dir, records.clone());
 
-    let mut file_table = super::file_table::FileTable::default();
-    let mut buckets: [Vec<Arc<Segment>>; 256] = std::array::from_fn(|_| Vec::new());
+    // let mut file_table = super::file_table::FileTable::default();
+    // let mut buckets: [Vec<Arc<Segment>>; 256] = std::array::from_fn(|_| Vec::new());
 
-    // Step2で使う：path_key -> file_id
+    // path_key -> file_id
     let mut path_to_id: HashMap<String, FileId> = HashMap::with_capacity(records.len());
-
-    let mut indexed_ok: u32 = 0;
-    let mut last_progress_emit = Instant::now();
-
-    for (i, rec) in records.into_iter().enumerate() {
+    for (i, rec) in records.iter().enumerate() {
         let file_id: FileId = (i as u32) + 1;
+        let path_key = rec.path.to_string_lossy().to_string();
+        path_to_id.insert(path_key, file_id);
+    }
+
+    // 並列数（CPUに合わせて 2..8 程度に制限）
+    let conc = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(2, 8);
+
+    let sem = Arc::new(Semaphore::new(conc));
+    let mut join: JoinSet<BuildItem> = JoinSet::new();
+
+    store.set_state(StoreIndexState::Building);
+
+    // ---- 設定：コミット頻度 ----
+    const COMMIT_BATCH: usize = 64; // まずは 32〜128 で調整
+    const EMIT_INTERVAL: Duration = Duration::from_millis(100);
+
+    // batch: insert_many_file_segments 用
+    let mut batch: Vec<(FileEntry, BucketEntries)> = Vec::with_capacity(COMMIT_BATCH);
+
+    let mut done_files: u32 = 0;
+    let mut indexed_ok: u32 = 0;
+    let mut last_emit = Instant::now();
+
+    // タスク投入（file_id/gen はここで確定）
+    for (i, rec) in records.into_iter().enumerate() {
+        let permit = sem.clone().acquire_owned().await.unwrap();
+
+        let _app2 = app.clone();
+        let rec2 = rec.clone();
+        let file_id: FileId = (i as u32) + 1;
+        let gen: u32 = 1;
         let path_str = rec.path.to_string_lossy().to_string();
 
-        let path_key = path_str.clone();
-        path_to_id.insert(path_key, file_id);
+        join.spawn(async move {
+            let _permit = permit;
+
+            let res = tokio::task::spawn_blocking(
+                move || -> Result<(BucketEntries, Vec<String>), String> {
+                    let jkf = read_to_jkf(&rec2).map_err(|e| e.to_string())?;
+                    let built = build_index_for_jkf(file_id, gen, &jkf, BuildPolicy::Loose)
+                        .map_err(|e| e.to_string())?;
+                    let by_bucket: BucketEntries = bucketize_entries(built.entries);
+                    let warns = built
+                        .warns
+                        .into_iter()
+                        .map(|w| format!("{:?}: {}", w.cursor, w.message))
+                        .collect::<Vec<_>>();
+                    Ok((by_bucket, warns))
+                },
+            )
+            .await;
+
+            let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
+
+            // ここは BuildItem を返す（Resultにしない）
+            let out: BuildItem = match res {
+                Ok(Ok((by_bucket, warns))) => (file_id, gen, path_str, by_bucket, warns, true),
+                Ok(Err(e)) => (file_id, gen, path_str, empty, vec![e], false),
+                Err(e) => (
+                    file_id,
+                    gen,
+                    path_str,
+                    empty,
+                    vec![format!("spawn_blocking join error: {e}")],
+                    false,
+                ),
+            };
+
+            out
+        });
+    }
+
+    // 完了したものから回収→batchに積む→一定数でコミット
+    while let Some(r) = join.join_next().await {
+        let (file_id, gen, path_str, by_bucket, warns, ok) = match r {
+            Ok(v) => v,
+            Err(_join_err) => {
+                done_files += 1;
+                continue;
+            }
+        };
+
+        done_files += 1;
+        if ok {
+            indexed_ok += 1;
+        }
+
+        for w in warns {
+            let _ = app.emit(
+                EVT_INDEX_WARN,
+                IndexWarnPayload {
+                    path: path_str.clone(),
+                    message: w,
+                },
+            );
+        }
 
         let file_entry = FileEntry {
             file_id,
             path: path_str.clone(),
             deleted: false,
-            gen: 1,
+            gen,
         };
-        file_table.upsert(file_entry.clone());
 
-        // 重い部分は spawn_blocking
-        let rec_clone = rec.clone();
-        let res = task::spawn_blocking(move || -> Result<_, String> {
-            let jkf = read_to_jkf(&rec_clone).map_err(|e| e.to_string())?;
-            let built = build_index_for_jkf(file_id, 1, &jkf, BuildPolicy::Loose)
-                .map_err(|e| e.to_string())?;
-            let by_bucket = bucketize_entries(built.entries);
-            Ok((by_bucket, built.warns))
-        })
-        .await;
+        batch.push((file_entry, by_bucket));
 
-        match res {
-            Ok(Ok((entries_by_bucket, warns))) => {
-                for w in warns {
-                    let _ = app.emit(
-                        EVT_INDEX_WARN,
-                        IndexWarnPayload {
-                            path: path_str.clone(),
-                            message: format!("{:?}: {}", w.cursor, w.message),
-                        },
-                    );
-                }
-
-                for (b, v) in entries_by_bucket.into_iter().enumerate() {
-                    if v.is_empty() {
-                        continue;
-                    }
-                    buckets[b].push(Arc::new(Segment::new_sorted(v)));
-                }
-
-                indexed_ok += 1;
-            }
-            Ok(Err(e)) => {
-                let _ = app.emit(
-                    EVT_INDEX_WARN,
-                    IndexWarnPayload {
-                        path: path_str.clone(),
-                        message: e,
-                    },
-                );
-            }
-            Err(join_err) => {
-                let _ = app.emit(
-                    EVT_INDEX_WARN,
-                    IndexWarnPayload {
-                        path: path_str.clone(),
-                        message: format!("spawn_blocking join error: {join_err}"),
-                    },
-                );
-            }
+        if batch.len() >= COMMIT_BATCH {
+            store.insert_many_file_segments(std::mem::take(&mut batch));
         }
 
-        // progress emit（最短100ms）
-        if last_progress_emit.elapsed() >= Duration::from_millis(100) {
+        if last_emit.elapsed() >= EMIT_INTERVAL {
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {
                     current_path: path_str.clone(),
-                    done_files: (i as u32) + 1,
+                    done_files,
                     total_files,
                 },
             );
@@ -216,11 +261,17 @@ async fn build_full_index_task(
                     total_files,
                 },
             );
-            last_progress_emit = Instant::now();
+            last_emit = Instant::now();
         }
     }
 
-    store.commit_full_build(file_table, buckets);
+    // 残りをコミット
+    if !batch.is_empty() {
+        store.insert_many_file_segments(batch);
+    }
+
+    // Readyへ
+    store.set_state(StoreIndexState::Ready);
 
     let _ = app.emit(
         EVT_INDEX_STATE,
@@ -232,6 +283,7 @@ async fn build_full_index_task(
         },
     );
 
+    // ProjectManager セットアップ（今まで通り）
     let next_file_id = (total_files as FileId).wrapping_add(1).max(1);
 
     project
