@@ -28,10 +28,13 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Show tauri version
+        run: npx tauri --version
+
       # tauri.conf.json の build.beforeBuildCommand が "npm run build" なので
-      # この tauri build がフロントエンド build も実行します。:contentReference[oaicite:1]{index=1}
+      # この tauri build がフロントエンド build も実行します。
       - name: Tauri build (no bundle)
-        run: npm run tauri build -- --no-bundle --verbose
+        run: npx tauri build --no-bundle --verbose
         env:
           CI: "true"
 
