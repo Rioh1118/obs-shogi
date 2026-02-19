@@ -1,16 +1,30 @@
 @use "@/index.scss" as index;
 
 .pos-search__results {
+  flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .pos-search__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 0;
-  overflow: auto;
-  padding-right: 2px; // スクロール余白
+
+  /* 追従スクロールのための余白指定はしない（scroll-padding も無し） */
+  padding: 0;
+
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+
+  /* iOS の慣性が欲しければ */
+  -webkit-overflow-scrolling: touch;
 }
 
 .pos-search__empty {
@@ -29,10 +43,14 @@
   color: index.$color-text-light-1;
   cursor: pointer;
 
+  /* scroll-margin を使わない（追従スクロールに余白依存させない） */
+  scroll-margin: 0;
+
   transition:
     transform 120ms ease,
     background-color 120ms ease,
-    border-color 120ms ease;
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 
   &:hover {
     background: rgba(index.$color-primary-light, 0.1);
@@ -43,6 +61,14 @@
     opacity: 0.6;
     cursor: default;
     transform: none;
+  }
+
+  /* 端でも欠けないように “内側” にフォーカスを描く */
+  &:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgba(index.$color-secondary-dark, 0.55) inset,
+      index.$shadow-press;
   }
 }
 

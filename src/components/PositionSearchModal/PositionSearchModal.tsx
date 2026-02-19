@@ -20,6 +20,7 @@ import { buildPreviewData } from "@/utils/buildPreviewData";
 import PreviewPane from "../NavigationModal/PreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
+import { hitKey, orderPositionHits } from "@/utils/orderPositionHits";
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
@@ -104,6 +105,14 @@ export default function PositionSearchModal() {
     return canReuse ? prev.hits : hits;
   }, [hits, currentSfen, isSearching, session?.stale]);
 
+  const orderedHits = useMemo(() => {
+    return orderPositionHits(
+      displayHits,
+      resolveHitAbsPath,
+      gameState.loadedAbsPath ?? null,
+    );
+  }, [displayHits, resolveHitAbsPath, gameState.loadedAbsPath]);
+
   useEffect(() => {
     if (!isOpen) return;
     if (!currentSfen) return;
@@ -179,13 +188,26 @@ export default function PositionSearchModal() {
     });
   }, [isOpen, currentSfen, state.index.state, searchCurrentPositionBestEffort]);
 
+  const activeHit = orderedHits[activeIndex];
+  const activeKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeKeyRef.current = activeHit ? hitKey(activeHit) : null;
+  }, [activeHit]);
+
   useEffect(() => {
     if (!isOpen) return;
-    if (activeIndex < displayHits.length) return;
-    setActiveIndex(Math.max(0, displayHits.length - 1));
-  }, [isOpen, activeIndex, displayHits.length]);
+    const n = orderedHits.length;
+    if (activeIndex < n) return;
+    setActiveIndex(Math.max(0, n - 1));
+  }, [isOpen, activeIndex, orderedHits.length]);
 
-  const activeHit = displayHits[activeIndex];
+  useEffect(() => {
+    const k = activeKeyRef.current;
+    if (!k) return;
+    const next = orderedHits.findIndex((h) => hitKey(h) === k);
+    if (next >= 0 && next !== activeIndex) setActiveIndex(next);
+  }, [orderedHits, activeIndex]);
 
   const accept = (hit: PositionHit) => {
     const absPath = resolveHitAbsPath(hit);
@@ -195,7 +217,6 @@ export default function PositionSearchModal() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    // ※ Modal側でもEscを見てるが、ここで扱うのはOK（挙動を統一しやすい）
     if (e.key === "Escape") {
       e.preventDefault();
       closeModal();
@@ -211,7 +232,9 @@ export default function PositionSearchModal() {
 
     if (e.key === "ArrowDown" || e.key === "j") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, Math.max(0, hits.length - 1)));
+      setActiveIndex((i) =>
+        Math.min(i + 1, Math.max(0, orderedHits.length - 1)),
+      );
       return;
     }
     if (e.key === "ArrowUp" || e.key === "k") {
@@ -247,9 +270,14 @@ export default function PositionSearchModal() {
         tabIndex={-1}
         aria-label="局面検索"
       >
-        <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
+        <header className="pos-search__header">
+          <PositionSearchModalHeader
+            isSearching={isSearching}
+            title="局面検索"
+          />
+        </header>
 
-        <main className="pos-search__main">
+        <main className="pos-search__main" aria-label="検索とプレビュー">
           <div className="pos-search__grid">
             <section className="pos-search__left" aria-label="検索状態">
               <PositionSearchStatusBar
@@ -263,7 +291,7 @@ export default function PositionSearchModal() {
               />
 
               <PositionSearchHitList
-                hits={displayHits}
+                hits={orderedHits}
                 activeIndex={activeIndex}
                 onActiveIndexChange={setActiveIndex}
                 onAccept={accept}
@@ -274,9 +302,7 @@ export default function PositionSearchModal() {
             </section>
             <aside className="pos-search__right" aria-label="局面プレビュー">
               <div className="pos-search__paneTitle">現在の局面</div>
-
               <PreviewPane previewData={previewData} toKan={toKan} />
-
               <PositionSearchDestinationCard
                 currentAbsPath={gameState.loadedAbsPath ?? null}
                 destAbsPath={destAbsPath}
@@ -287,7 +313,9 @@ export default function PositionSearchModal() {
           </div>
         </main>
 
-        <PositionSearchModalFooter />
+        <footer className="pos-search__footer">
+          <PositionSearchModalFooter />
+        </footer>
       </section>
     </Modal>
   );

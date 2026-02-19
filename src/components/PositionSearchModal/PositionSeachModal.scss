@@ -10,11 +10,16 @@
     display: flex;
     min-height: 0;
     flex: 1;
+
+    overflow: hidden;
+    padding: 1.5rem;
   }
 
   &__grid {
     flex: 1;
     min-height: 0;
+    height: 100%;
+
     display: grid;
     grid-template-columns: 1fr 420px;
     gap: 14px;
@@ -26,22 +31,21 @@
     border: 1px solid index.$stroke;
     border-radius: 12px;
     background: rgba(index.$color-primary-light, 0.06);
+
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    backdrop-filter: blur(8px);
   }
 
   &__left {
-    display: flex;
-    flex-direction: column;
     padding: 12px;
     gap: 10px;
-    min-height: 0;
   }
 
   &__right {
-    display: flex;
-    flex-direction: column;
     padding: 12px;
     gap: 10px;
-    min-height: 0;
   }
 
   &__paneTitle {
