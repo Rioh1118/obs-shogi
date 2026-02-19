@@ -1,8 +1,6 @@
 import type {
   Evaluation,
-  PrincipalVariation,
   AnalysisConfig,
-  AnalysisResult,
   AnalysisStatus,
   EngineStatus,
 } from "./types";
@@ -25,13 +23,6 @@ export function formatEvaluation(evaluation: Evaluation): string {
       }
       return "?";
   }
-}
-
-export function formatPrincipalVariation(pv: PrincipalVariation): string {
-  const moves = pv.moves.join(" ");
-  const eval_str = pv.evaluation ? ` (${formatEvaluation(pv.evaluation)})` : "";
-  const line_str = pv.line_number ? `[${pv.line_number}] ` : "";
-  return `${line_str}${moves}${eval_str}`;
 }
 
 export function formatAnalysisConfig(config: AnalysisConfig): string {
@@ -57,35 +48,6 @@ export function formatAnalysisConfig(config: AnalysisConfig): string {
 
   parts.push(`詰み探索: ${config.mate_search ? "有効" : "無効"}`);
   return parts.join(", ");
-}
-
-export function createAnalysisSummary(result: AnalysisResult): string {
-  const lines: string[] = [];
-
-  if (result.depth_info) {
-    lines.push(`深度: ${result.depth_info.depth}`);
-  }
-
-  if (result.search_stats?.nodes) {
-    lines.push(`ノード数: ${result.search_stats.nodes.toLocaleString()}`);
-  }
-
-  if (result.search_stats?.nps) {
-    lines.push(`NPS: ${result.search_stats.nps.toLocaleString()}`);
-  }
-
-  if (result.evaluation) {
-    lines.push(`評価値: ${formatEvaluation(result.evaluation)}`);
-  }
-
-  if (result.principal_variations.length > 0) {
-    lines.push("主要変化:");
-    result.principal_variations.forEach((pv) => {
-      lines.push(`  ${formatPrincipalVariation(pv)}`);
-    });
-  }
-
-  return lines.join("\n");
 }
 
 export function createAnalysisStatusSummary(status: AnalysisStatus): string {

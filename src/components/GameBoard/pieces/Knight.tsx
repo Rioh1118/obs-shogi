@@ -1,5 +1,5 @@
+import type { PieceProps } from ".";
 import { PIECE_IMAGES, PLAYER_COLORS } from "../../../constants/shogi";
-import type { PieceProps } from "@/types/shogi";
 import "../Piece.scss";
 
 function Knight({ color, onClick }: PieceProps) {

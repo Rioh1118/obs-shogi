@@ -60,10 +60,8 @@ export {
 // ===== ユーティリティのエクスポート =====
 export {
   formatEvaluation,
-  formatPrincipalVariation,
   formatAnalysisConfig,
   createAnalysisSummary,
-  createAnalysisStatusSummary,
   safeEngineCommand,
   checkEngineStatus,
   validateMoves,

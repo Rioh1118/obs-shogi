@@ -39,7 +39,8 @@ export class RustFileTreeAdapter {
    */
   private static getIconType(
     isDir: boolean,
-    extension?: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _extension?: string,
   ): "folder" | "kif-file" {
     if (isDir) return "folder";
     return "kif-file";
