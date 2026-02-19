@@ -43,6 +43,105 @@ pub enum BuildError {
     },
 }
 
+#[derive(Debug)]
+struct IndexBuilder {
+    file_id: FileId,
+    gen: Gen,
+    policy: BuildPolicy,
+    next_node_id: NodeId,
+    entries: Vec<(PositionKey, PositionHit)>,
+    warns: Vec<BuildWarn>,
+}
+
+impl IndexBuilder {
+    fn new(file_id: FileId, gen: Gen, policy: BuildPolicy) -> Self {
+        Self {
+            file_id,
+            gen,
+            policy,
+            next_node_id: 0,
+            entries: Vec::new(),
+            warns: Vec::new(),
+        }
+    }
+
+    fn finish(self) -> FileIndexBuild {
+        FileIndexBuild {
+            entries: self.entries,
+            warns: self.warns,
+        }
+    }
+
+    #[inline]
+    fn push_entry(&mut self, cursor: CursorLite, pos: &PartialPosition) {
+        let key = key_from_partial_position(pos);
+
+        let node_id = self.next_node_id;
+        self.next_node_id = self.next_node_id.wrapping_add(1);
+
+        let occ = Occurrence {
+            file_id: self.file_id,
+            gen: self.gen,
+            node_id,
+        };
+
+        self.entries.push((key, PositionHit { occ, cursor }));
+    }
+
+    fn walk_sequence(
+        &mut self,
+        seq: &[MoveFormat],
+        start_tesuu: u32,
+        mut pos: PartialPosition,
+        fork_path: Vec<ForkPointer>,
+    ) -> Result<(), BuildError> {
+        for (offset, node) in seq.iter().enumerate() {
+            let tesuu = start_tesuu + offset as u32;
+            let parent_pos = pos.clone();
+
+            // 1) forks
+            if let Some(forks) = &node.forks {
+                for (i, fork_line) in forks.iter().enumerate() {
+                    if fork_line.is_empty() {
+                        continue;
+                    }
+                    let mut fork_path2 = fork_path.clone();
+                    push_or_replace_fork(&mut fork_path2, tesuu, i as u32);
+
+                    self.walk_sequence(fork_line, tesuu, parent_pos.clone(), fork_path2)?;
+                }
+            }
+
+            // 2) mainline
+            let cursor = CursorLite {
+                tesuu,
+                fork_pointers: fork_path.clone(),
+            };
+            let action = node_action(node);
+
+            match apply_node_action(&mut pos, action) {
+                Ok(status) => {
+                    self.push_entry(cursor, &pos);
+                    if status == ApplyStatus::Terminal {
+                        break;
+                    }
+                }
+                Err(e) => match self.policy {
+                    BuildPolicy::Strict => return Err(BuildError::Apply { cursor, source: e }),
+                    BuildPolicy::Loose => {
+                        self.warns.push(BuildWarn {
+                            cursor,
+                            message: e.to_string(),
+                        });
+                        break;
+                    }
+                },
+            }
+        }
+        Ok(())
+    }
+}
+
 /// 1つのJKFを全分岐込みで列挙して、局面キーと出現箇所を集める
 ///
 /// - root( tesuu=0 ) も必ず入れる（開始局面）
@@ -53,144 +152,20 @@ pub fn build_index_for_jkf(
     jkf: &JsonKifuFormat,
     policy: BuildPolicy,
 ) -> Result<FileIndexBuild, BuildError> {
-    let mut entries = Vec::new();
-    let mut warns = Vec::new();
-    let mut next_node_id: NodeId = 0;
-
     // 初期局面
     let init_pos = initial_partial_position(jkf)?;
 
+    let mut b = IndexBuilder::new(file_id, gen, policy);
+
     // root
-    push_entry(
-        file_id,
-        gen,
-        &mut next_node_id,
-        &mut entries,
-        CursorLite::root(),
-        &init_pos,
-    );
+    b.push_entry(CursorLite::root(), &init_pos);
 
     // mainline: moves[0]はrootダミーなので、moves[1..]を tesuu=1 から処理
     if jkf.moves.len() > 1 {
-        walk_sequence(
-            file_id,
-            gen,
-            &jkf.moves[1..],
-            1,        // start_tesuu
-            init_pos, // parent at tesuu=0
-            vec![],   // fork_path (mainlineは空)
-            policy,
-            &mut next_node_id,
-            &mut entries,
-            &mut warns,
-        )?;
+        b.walk_sequence(&jkf.moves[1..], 1, init_pos, vec![])?;
     }
 
-    Ok(FileIndexBuild { entries, warns })
-}
-
-/// ある系列（mainline / fork line）を先頭から順に処理する。
-///
-/// seq[0] は tesuu=start_tesuu のノードとして扱う。
-fn walk_sequence(
-    file_id: FileId,
-    gen: Gen,
-    seq: &[MoveFormat],
-    start_tesuu: u32,
-    mut pos: PartialPosition,
-    fork_path: Vec<ForkPointer>,
-    policy: BuildPolicy,
-    next_node_id: &mut NodeId,
-    entries: &mut Vec<(PositionKey, PositionHit)>,
-    warns: &mut Vec<BuildWarn>,
-) -> Result<(), BuildError> {
-    for (offset, node) in seq.iter().enumerate() {
-        let tesuu = start_tesuu + offset as u32;
-
-        // この手を指す前の親局面（forksは必ずここから開始する）
-        let parent_pos = pos.clone();
-
-        // 1) forks を先に探索（mainline適用が失敗してもforkは救える）
-        if let Some(forks) = &node.forks {
-            for (i, fork_line) in forks.iter().enumerate() {
-                if fork_line.is_empty() {
-                    continue;
-                }
-                let mut fork_path2 = fork_path.clone();
-                push_or_replace_fork(&mut fork_path2, tesuu, i as u32);
-
-                walk_sequence(
-                    file_id,
-                    gen,
-                    fork_line,
-                    tesuu,              // fork line の先頭は同じ tesuu
-                    parent_pos.clone(), // 親局面から開始
-                    fork_path2,
-                    policy,
-                    next_node_id,
-                    entries,
-                    warns,
-                )?;
-            }
-        }
-
-        // 2) 自分（mainline/この系列）の手を適用して前進
-        let cursor = CursorLite {
-            tesuu,
-            fork_pointers: fork_path.clone(),
-        };
-        let action = node_action(node);
-
-        match apply_node_action(&mut pos, action) {
-            Ok(status) => {
-                // 到達局面をインデックス化（Noop/SpecialでもOK）
-                push_entry(file_id, gen, next_node_id, entries, cursor, &pos);
-
-                // special ならこの系列は終端扱い
-                if status == ApplyStatus::Terminal {
-                    break;
-                }
-            }
-            Err(e) => match policy {
-                BuildPolicy::Strict => {
-                    return Err(BuildError::Apply { cursor, source: e });
-                }
-                BuildPolicy::Loose => {
-                    warns.push(BuildWarn {
-                        cursor,
-                        message: e.to_string(),
-                    });
-                    // この系列はここで打ち切り（posが進められないので）
-                    break;
-                }
-            },
-        }
-    }
-
-    Ok(())
-}
-
-#[inline]
-fn push_entry(
-    file_id: FileId,
-    gen: Gen,
-    next_node_id: &mut NodeId,
-    entries: &mut Vec<(PositionKey, PositionHit)>,
-    cursor: CursorLite,
-    pos: &PartialPosition,
-) {
-    let key = key_from_partial_position(pos);
-
-    let node_id = *next_node_id;
-    *next_node_id = next_node_id.wrapping_add(1);
-
-    let occ = Occurrence {
-        file_id,
-        gen,
-        node_id,
-    };
-
-    entries.push((key, PositionHit { occ, cursor }));
+    Ok(b.finish())
 }
 
 #[inline]

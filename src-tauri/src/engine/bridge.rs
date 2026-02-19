@@ -32,8 +32,6 @@ pub struct EngineBridge {
 
 #[derive(Debug)]
 struct AnalysisSession {
-    session_id: String,
-    session_type: SessionType,
     last_result: Option<AnalysisResult>,
     is_active: bool,
 }
@@ -47,7 +45,9 @@ struct AnalysisUpdate {
 #[derive(Debug, Clone)]
 enum SessionType {
     Infinite,
+    #[allow(dead_code)]
     Timed(Duration),
+    #[allow(dead_code)]
     Depth(u32),
 }
 
@@ -324,8 +324,6 @@ impl EngineBridge {
         );
 
         let session = AnalysisSession {
-            session_id: session_id.clone(),
-            session_type,
             last_result: None,
             is_active: true,
         };

@@ -7,6 +7,9 @@ use super::{
     types::{FileEntry, FileId, PositionHit},
 };
 
+pub type BucketEntries = [Vec<(PositionKey, PositionHit)>; 256];
+pub type FileBucketEntries = (FileEntry, BucketEntries);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexState {
     Empty,
@@ -121,10 +124,7 @@ impl IndexStore {
         *guard = new_snap;
     }
 
-    pub fn insert_many_file_segments(
-        &self,
-        items: Vec<(FileEntry, [Vec<(PositionKey, PositionHit)>; 256])>,
-    ) {
+    pub fn insert_many_file_segments(&self, items: Vec<FileBucketEntries>) {
         let mut guard = self.snap.write().unwrap();
         let old = guard.clone();
 

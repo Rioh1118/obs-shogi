@@ -7,6 +7,9 @@ use thiserror::Error;
 
 use crate::search::fs_scan::{FileRecord, KifuKind};
 
+pub type ReadOk = Vec<(FileRecord, Jkf)>;
+pub type ReadErr = Vec<(FileRecord, KifuReadError)>;
+
 // shogi-kifu-converter
 use shogi_kifu_converter::parser::{
     parse_csa_file, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file, parse_kif_str,
@@ -45,9 +48,7 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
 }
 
 /// 走査結果(FileRecord)をまとめて JKF に読み取る
-pub fn read_many_to_jkf(
-    records: &[FileRecord],
-) -> (Vec<(FileRecord, Jkf)>, Vec<(FileRecord, KifuReadError)>) {
+pub fn read_many_to_jkf(records: &[FileRecord]) -> (ReadOk, ReadErr) {
     let mut ok = Vec::new();
     let mut ng = Vec::new();
 
@@ -73,7 +74,7 @@ fn parse_kif_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 
     // 2) ダメなら “自前で bytes -> text” をやって parse_kif_str を総当たり
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, |s| parse_kif_str(s))
+    try_parse_text_with_fallback(path, &bytes, parse_kif_str)
 }
 
 fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
@@ -84,7 +85,7 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 
     // 2) フォールバック
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, |s| parse_ki2_str(s))
+    try_parse_text_with_fallback(path, &bytes, parse_ki2_str)
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {

@@ -32,6 +32,7 @@ struct AnalyzerState {
 
 enum StreamMode {
     Infinite(Arc<AtomicBool>),
+    #[allow(dead_code)]
     Finite,
 }
 
@@ -335,7 +336,7 @@ impl EngineAnalyzer {
     async fn process_analysis_stream(
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
         result_tx: mpsc::UnboundedSender<AnalysisResult>,
-        state: Arc<RwLock<AnalyzerState>>,
+        #[allow(unused_variables)] state: Arc<RwLock<AnalyzerState>>,
         mode: StreamMode,
     ) {
         println!("🔄 [ANALYZER] process_analysis_stream started, waiting for engine commands...");

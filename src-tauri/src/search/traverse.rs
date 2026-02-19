@@ -70,9 +70,8 @@ where
         return;
     }
 
-    for t in 1..moves.len() {
+    for (t, node) in moves.iter().enumerate().skip(1) {
         let tesuu = t as u32;
-        let node = &moves[t];
 
         let cursor = CursorLite {
             tesuu,
