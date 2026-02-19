@@ -64,14 +64,14 @@ impl ZobristTable {
 
         for c in 0..2 {
             side[c] = next128(&mut seed);
-            for pk in 0..14 {
-                for sq in 0..81 {
-                    board[c][pk][sq] = next128(&mut seed);
+            for pk_row in board[c].iter_mut() {
+                for cell in pk_row.iter_mut() {
+                    *cell = next128(&mut seed);
                 }
             }
-            for hk in 0..7 {
-                for n in 0..HAND_MAX {
-                    hand[c][hk][n] = next128(&mut seed);
+            for hk_row in hand[c].iter_mut() {
+                for cell in hk_row.iter_mut() {
+                    *cell = next128(&mut seed);
                 }
             }
         }
