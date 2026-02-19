@@ -1,7 +1,5 @@
 import "./GeneralTab.scss";
 
-type Props = {};
-
-export default function GeneralTab(props: Props) {
+export default function GeneralTab() {
   return <div className="st-general">general</div>;
 }

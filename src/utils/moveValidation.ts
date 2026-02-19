@@ -95,12 +95,12 @@ export function canDropFu(
   return true;
 }
 
-export function canDropKe(x: number, y: number, color: ColorType): boolean {
+export function canDropKe(_x: number, y: number, color: ColorType): boolean {
   const prohibitedRows = color === Color.Black ? [1, 2] : [8, 9];
   return !prohibitedRows.includes(y);
 }
 
-export function canDropKy(x: number, y: number, color: ColorType): boolean {
+export function canDropKy(_x: number, y: number, color: ColorType): boolean {
   const prohibitedRow = color === Color.Black ? 1 : 9;
   return y !== prohibitedRow;
 }
@@ -216,7 +216,8 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
     }
 
     return false;
-  } catch (_) {
+  } catch (e) {
+    console.log(e);
     return true; // エラーの場合は安全側に倒して打ち歩詰めとする
   }
 }

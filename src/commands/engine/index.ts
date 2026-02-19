@@ -61,7 +61,6 @@ export {
 export {
   formatEvaluation,
   formatAnalysisConfig,
-  createAnalysisSummary,
   safeEngineCommand,
   checkEngineStatus,
   validateMoves,
