@@ -59,11 +59,11 @@ const AppLayout = () => {
               <div className="workspace__surface">
                 <section className="workspace__main">
                   <div className="workspace__boardPane">
-                    <GameBoard>
-                      <Hand isPlayer={true} />
-                      <Board />
-                      <Hand isPlayer={false} />
-                    </GameBoard>
+                    <GameBoard
+                      topLeft={<Hand isSente={false} />}
+                      center={<Board />}
+                      bottomRight={<Hand isSente={true} />}
+                    />
                     <div className="workspace__controls">
                       <GameControls />
                     </div>

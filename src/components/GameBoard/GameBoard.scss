@@ -1,29 +1,64 @@
+@use "./Board/shogiBoardGeometry.scss" as geo;
+@use "./Board/handGeometry.scss" as hand;
+
+$gap: 1.8rem;
+
 .game-board {
-  width: 83.1rem;
-  height: 48.5rem;
+  width: 100%;
+  height: 100%;
+
   display: grid;
-  padding: 0;
-  margin: 0 auto;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+}
 
-  .opponent-hand {
-    grid-column: 1;
-    grid-row: 1;
-    width: 17.8rem;
-    height: 19.7rem;
-  }
+.game-board__cluster {
+  width: min(
+    100%,
+    calc(hand.$hand-w + #{$gap} + geo.$board-max-w + #{$gap} + hand.$hand-w)
+  );
 
-  .board-container {
-    grid-column: 3;
-    grid-row: 1/4;
-    width: 43.9rem;
-    height: 48.5rem;
-    align-self: center;
-  }
+  display: grid;
 
-  .player-hand {
-    grid-column: 5;
-    grid-row: 3;
-    width: 17.8rem;
-    height: 19.7rem;
-  }
+  grid-template-columns: hand.$hand-w $gap minmax(0, 1fr) $gap hand.$hand-w;
+  grid-template-rows: auto;
+
+  align-items: stretch;
+  min-width: 0;
+}
+
+.game-board__board {
+  grid-column: 3;
+  grid-row: 1;
+
+  min-width: 0;
+  width: 100%;
+
+  display: grid;
+  place-items: start center;
+}
+
+/* 左上の手：盤の上に揃える */
+.game-board__hand--topLeft {
+  grid-column: 1;
+  grid-row: 1;
+
+  width: hand.$hand-w;
+  height: hand.$hand-h;
+
+  justify-self: start;
+  align-self: start;
+}
+
+/* 右下の手：盤の下に揃える */
+.game-board__hand--bottomRight {
+  grid-column: 5;
+  grid-row: 1;
+
+  width: hand.$hand-w;
+  height: hand.$hand-h;
+
+  justify-self: end;
+  align-self: end;
 }

@@ -1,24 +1,30 @@
+@use "./shogiBoardGeometry" as geo;
+
 .board-container {
-  width: 43.9rem;
-  height: 48.5rem;
+  width: 100%;
+  max-width: geo.$board-max-w;
+  height: auto;
+  aspect-ratio: #{geo.board-aspect()};
+
+  position: relative;
+
   background-image: url(/src/assets/board.png);
-  background-size: cover;
+
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+
   border-radius: 0.2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   user-select: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-
-  -webkit-user-drag: none;
-  -khml-user-drag: none;
 }
 
 .position {
-  width: 40.4rem;
-  height: 44.6rem;
-  border: 2px solid #000;
-  margin: 1.95rem 1.75rem;
+  position: absolute;
+
+  inset: #{geo.inset-y-pct()} #{geo.inset-x-pct()};
+
+  border: geo.$position-border solid #000;
 
   &__grid {
     width: 100%;
@@ -30,13 +36,12 @@
 }
 
 .square {
-  border-right: 1px solid #000;
-  border-bottom: 1px solid #000;
+  border-right: geo.$square-line solid #000;
+  border-bottom: geo.$square-line solid #000;
 
   &:nth-child(9n) {
     border-right: none;
   }
-
   &:nth-child(n + 73) {
     border-bottom: none;
   }

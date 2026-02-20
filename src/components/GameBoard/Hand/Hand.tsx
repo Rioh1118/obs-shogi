@@ -5,16 +5,16 @@ import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
 
 interface HandProps {
-  isPlayer: boolean;
+  isSente: boolean;
 }
 
-function Hand({ isPlayer }: HandProps) {
+function Hand({ isSente }: HandProps) {
   const { state, selectHand, clearSelection, getCurrentTurn } = useGame();
   const hands = state.jkfPlayer?.shogi.hands;
   const currentTurn = getCurrentTurn();
   const selectedPosition = state.selectedPosition;
 
-  const color = isPlayer ? Color.Black : Color.White;
+  const color = isSente ? Color.Black : Color.White;
   const handPieces = hands?.[color] || [];
 
   const handPiecesArray = Array.from(handPieces || []);
@@ -66,10 +66,10 @@ function Hand({ isPlayer }: HandProps) {
 
   return (
     <div
-      className={`hand-container ${isPlayer ? "player-hand" : "opponent-hand"}`}
+      className={`hand-container ${isSente ? "player-hand" : "opponent-hand"}`}
     >
       <div className="hand-pieces">
-        {(isPlayer
+        {(isSente
           ? ["row1", "row2", "row3", "row4"]
           : ["row4", "row3", "row2", "row1"]
         ).map((rowKey) => {

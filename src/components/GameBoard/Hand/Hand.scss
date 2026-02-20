@@ -1,6 +1,8 @@
+@use "../Board/handGeometry.scss" as hand;
+
 .hand-container {
-  width: 20rem;
-  height: 22rem;
+  width: hand.$hand-w;
+  height: hand.$hand-h;
   background-image: url("/src/assets/hand.png");
   background-size: cover;
   position: relative;
