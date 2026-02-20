@@ -29,8 +29,10 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const { state: gameState } = useGame();
   const { isReady } = useEngine();
-  const { state: presetsState } = useEnginePresets();
-  const engineKey = presetsState.selectedPresetId ?? "no-engine";
+  const { state: presetsState, selectedPresetVersion } = useEnginePresets();
+  const engineKey = presetsState.selectedPresetId
+    ? `${presetsState.selectedPresetId}@${selectedPresetVersion}`
+    : "no-engine";
 
   const [syncedEngineKey, setSyncedEngineKey] = React.useState<string | null>(
     null,
