@@ -173,6 +173,7 @@ type EnginePresetsContextType = {
   selectedPreset: EnginePreset | null;
   runtimeConfig: EngineRuntimeConfig | null;
   analysisDefaults: AnalysisDefaults | null;
+  selectedPresetVersion: number;
 
   // IO
   reload: () => Promise<void>;
@@ -199,10 +200,27 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const initializedRef = useRef(false);
   const aiRoot = config?.ai_root ?? null;
 
+  const presetVersionRef = useRef<Map<PresetId, number>>(new Map());
+  const [versionEpoch, bumpVersionEpoch] = useReducer((x) => x + 1, 0);
+
+  const touchPreset = useCallback((id: PresetId | null) => {
+    if (!id) return;
+    const m = presetVersionRef.current;
+    m.set(id, (m.get(id) ?? 0) + 1);
+    bumpVersionEpoch();
+  }, []);
+
   const selectedPreset = useMemo(() => {
     if (!state.selectedPresetId) return null;
     return state.presets.find((p) => p.id === state.selectedPresetId) ?? null;
   }, [state.presets, state.selectedPresetId]);
+
+  const selectedPresetVersion = useMemo(() => {
+    void versionEpoch;
+    const id = state.selectedPresetId;
+    if (!id) return 0;
+    return presetVersionRef.current.get(id) ?? 0;
+  }, [state.selectedPresetId, versionEpoch]);
 
   const persist = useCallback(async (presets: EnginePreset[]) => {
     try {
@@ -310,13 +328,14 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         payload: { presets, selectedPresetId: nextSelected },
       });
       await setLastPresetId(nextSelected);
+      touchPreset(nextSelected);
     } catch (e) {
       dispatch({
         type: "error",
         payload: `presets の再読み込みに失敗しました: ${String(e)}`,
       });
     }
-  }, [state.selectedPresetId, setLastPresetId]);
+  }, [state.selectedPresetId, setLastPresetId, touchPreset]);
 
   const selectPreset = useCallback(
     async (id: PresetId | null) => {
@@ -332,10 +351,10 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       const next = [...state.presets, p];
       dispatch({ type: "set_presets", payload: next });
       await persist(next);
-      // await selectPreset(p.id);
+      touchPreset(p.id);
       return p;
     },
-    [persist, state.presets],
+    [persist, state.presets, touchPreset],
   );
 
   const duplicatePreset = useCallback(
@@ -365,8 +384,9 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       );
       dispatch({ type: "set_presets", payload: next });
       await persist(next);
+      touchPreset(id);
     },
-    [persist, state.presets],
+    [persist, state.presets, touchPreset],
   );
 
   const mergeOptions = useCallback(
@@ -400,6 +420,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       selectedPreset,
       runtimeConfig,
       analysisDefaults,
+      selectedPresetVersion,
       reload,
       selectPreset,
       createPreset,
@@ -420,6 +441,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       updatePreset,
       mergeOptions,
       deletePreset,
+      selectedPresetVersion,
     ],
   );
 
