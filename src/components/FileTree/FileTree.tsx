@@ -43,7 +43,6 @@ function FileTree() {
     isLoading,
     menu,
     error,
-    loadFileTree,
     deleteNode,
     moveNode,
     closeContextMenu,
@@ -119,14 +118,8 @@ function FileTree() {
     : [];
 
   if (error) {
-    return (
-      <div className="file-tree">
-        <div className="error">
-          <p>エラー: {error}</p>
-          <button onClick={loadFileTree}>再読み込み</button>
-        </div>
-      </div>
-    );
+    console.error("再読み込み", error);
+    return;
   }
 
   return (

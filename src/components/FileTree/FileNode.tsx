@@ -11,7 +11,6 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
     selectedNode,
     selectNode,
-    loadSelectedKifu,
     openContextMenu,
     renamingNodeId,
     renameNode,
@@ -50,7 +49,6 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     if (isRenaming || isDragging) return;
     if (!node.isDirectory) {
       selectNode(node);
-      loadSelectedKifu();
     }
   };
 
