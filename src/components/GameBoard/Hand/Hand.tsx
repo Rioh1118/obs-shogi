@@ -68,6 +68,17 @@ function Hand({ isSente }: HandProps) {
     selectHand(color, pieceKind as Kind);
   };
 
+  const handleHandAreaPointerDown = (e: React.PointerEvent) => {
+    if (!state.selectedPosition) return;
+
+    const el = e.target as HTMLElement | null;
+    if (!el) return;
+
+    if (el.closest('[data-hand-piece="true"]')) return;
+
+    clearSelection();
+  };
+
   const renderPiecesInRow = (
     pieces: string[],
     rowConfig: RowConfig,
@@ -88,6 +99,7 @@ function Hand({ isSente }: HandProps) {
         <div
           key={`${pieceKind}-${nth}`}
           className={`hand-piece ${isSelectedUI ? "hand-piece--selected" : ""}`}
+          data-hand-piece="true"
           style={{
             width: `${rowConfig.pieceSize}em`,
             height: `${rowConfig.pieceSize * 1.1}em`,
@@ -109,6 +121,7 @@ function Hand({ isSente }: HandProps) {
     <div
       className={`hand-container ${isSente ? "player-hand" : "opponent-hand"}`}
       data-hand-area="true"
+      onPointerDown={handleHandAreaPointerDown}
     >
       <div className="hand-pieces">
         {(isSente
