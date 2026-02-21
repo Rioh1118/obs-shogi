@@ -47,7 +47,11 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
 
   const handleClick = () => {
     if (isRenaming || isDragging) return;
-    if (!node.isDirectory) {
+    if (node.isDirectory) return;
+
+    if (isSelected) {
+      selectNode(null);
+    } else {
       selectNode(node);
     }
   };
