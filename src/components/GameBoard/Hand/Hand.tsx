@@ -50,8 +50,8 @@ function Hand({ isSente }: HandProps) {
           key={`${pieceKind}-${index}`}
           className="hand-piece"
           style={{
-            width: `${rowConfig.pieceSize}rem`,
-            height: `${rowConfig.pieceSize * 1.1}rem`,
+            width: `${rowConfig.pieceSize}em`,
+            height: `${rowConfig.pieceSize * 1.1}em`,
           }}
         >
           <PieceFactory
@@ -81,7 +81,7 @@ function Hand({ isSente }: HandProps) {
               key={rowKey}
               className={`hand-row hand-${rowKey}`}
               style={{
-                gap: `${rowConfig.gap}rem`,
+                gap: `${rowConfig.gap}em`,
                 justifyContent: "center",
               }}
             >
