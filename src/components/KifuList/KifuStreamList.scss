@@ -17,6 +17,8 @@
   border-radius: 1.4rem;
   box-shadow: index.$shadow-1;
   backdrop-filter: blur(10px);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .kifu__status {
