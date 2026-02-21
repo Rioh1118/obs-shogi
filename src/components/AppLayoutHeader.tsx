@@ -16,27 +16,17 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
 
   const info = useHeaderCenterInfo(hasFile);
 
-  const playersNode = !hasFile ? (
-    <span className="app-header__muted">ファイル未選択</span>
-  ) : !info.isPlayersShown ? (
+  const metaNode = !hasFile ? null : !info.isPlayersShown ? (
     <span className="app-header__muted">棋譜表示中</span>
   ) : (
-    <span className="app-header__players">
-      <span className="app-header__player">
-        <span className="app-header__piece app-header__piece--sente">☗</span>
-        <span className="app-header__player-name">
-          {info.senteName ?? "先手"}
-        </span>
-      </span>
-      <span className="app-header__vs" aria-hidden="true">
+    <span className="app-header__meta" aria-label="対局者">
+      <span className="app-header__piece app-header__piece--sente">☗</span>
+      <span className="app-header__meta-name">{info.senteName ?? "先手"}</span>
+      <span className="app-header__meta-sep" aria-hidden="true">
         ・
       </span>
-      <span className="app-header__player">
-        <span className="app-header__piece app-header__piece--gote">☖</span>
-        <span className="app-header__player-name">
-          {info.goteName ?? "後手"}
-        </span>
-      </span>
+      <span className="app-header__piece app-header__piece--gote">☖</span>
+      <span className="app-header__meta-name">{info.goteName ?? "後手"}</span>
     </span>
   );
 
@@ -75,8 +65,11 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
                 <span className="app-header__badge">{info.tesuuText}</span>
               </span>
             )}
+            {metaNode && (
+              <span className="app-header__divider" aria-hidden="true" />
+            )}
+            {metaNode}
           </div>
-          <div className="app-header__subline">{playersNode}</div>
         </div>
       </div>
       <div className="app-header__right">
