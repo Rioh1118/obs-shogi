@@ -21,6 +21,11 @@
     min-width: 0;
   }
 
+  &__center {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
   &__brand {
     display: flex;
     align-items: center;
@@ -42,6 +47,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    padding: 0.55rem 0.9rem;
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   &__docline {
@@ -49,6 +58,8 @@
     display: flex;
     align-items: center;
     gap: 0.8rem;
+    width: 100%;
+    flex-wrap: nowrap;
   }
 
   &__filename {
@@ -58,6 +69,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1 1 auto;
   }
 
   &__badges {
@@ -77,14 +89,38 @@
     white-space: nowrap;
   }
 
-  &__badge--turn {
-    letter-spacing: 0.01em;
+  &__divider {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 1.6rem;
+    background: rgba(255, 255, 255, 0.14);
+    opacity: 0.7;
   }
 
-  &__subline {
+  &__meta {
     min-width: 0;
-    display: flex;
-    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* 右側（対局者）から省略 */
+    opacity: 0.9;
+  }
+
+  &__meta-name {
+    display: inline-block;
+    max-width: clamp(6rem, 14vw, 12rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+
+  &__meta-sep {
+    opacity: 0.45;
+    margin: 0 0.55rem;
+    user-select: none;
+  }
+
+  &__badge--turn {
+    letter-spacing: 0.01em;
   }
 
   &__muted {
