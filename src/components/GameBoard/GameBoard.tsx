@@ -29,7 +29,7 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
 
         <div className="game-board__hand game-board__hand--bottomRight">
           <div className="game-board__handHeader">
-            <HandHeader side="sente" name={senteName} align="end" />
+            <HandHeader side="sente" name={senteName} align="start" />
           </div>
           <div className="game-board__handArea">{bottomRight}</div>
         </div>
