@@ -23,6 +23,7 @@ function Square({
   return (
     <div
       className={`square ${isHighlighted ? "square__highlighted" : ""} ${isLastMove ? "square__last-move" : ""}`}
+      data-board-square="true"
       data-x={x}
       data-y={y}
       data-index={index}
