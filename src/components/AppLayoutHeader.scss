@@ -23,8 +23,8 @@
 
   &__brand {
     display: flex;
-    flex-direction: column;
-    line-height: 1.1;
+    align-items: center;
+    line-height: 1;
   }
 
   &__appname {
@@ -40,8 +40,59 @@
   &__context {
     min-width: 0;
     display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  &__docline {
+    min-width: 0;
+    display: flex;
     align-items: center;
     gap: 0.8rem;
+  }
+
+  &__filename {
+    min-width: 0;
+    font-size: 1.35rem;
+    opacity: 0.95;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__badges {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  &__badge {
+    font-size: 1.05rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    opacity: 0.95;
+    white-space: nowrap;
+  }
+
+  &__badge--turn {
+    letter-spacing: 0.01em;
+  }
+
+  &__subline {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  &__muted {
+    opacity: 0.75;
+    font-size: 1.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__context-label {
