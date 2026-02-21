@@ -37,6 +37,8 @@ const AppLayout = () => {
 
     // boardのsquare内クリックは除外
     if (el.closest('[data-board-square="true"]')) return;
+    if (el.closest('[data-board-square="true"]')) return;
+    if (el.closest('[data-hand-area="true"]')) return;
 
     clearSelection();
   };

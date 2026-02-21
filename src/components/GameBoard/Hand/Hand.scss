@@ -49,7 +49,16 @@
     -moz-user-select: none;
     -ms-user-select: none;
 
-    // widthとheightはJSで動的設定
+    &.hand-piece--selected {
+      transform: translateY(-1px) scale(1.35);
+      z-index: 12;
+      filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
+      &:hover {
+        transform: translateY(-1px) scale(1.35);
+        z-index: 12;
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
+      }
+    }
 
     .piece {
       width: 100%;
