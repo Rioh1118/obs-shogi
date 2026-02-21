@@ -25,7 +25,7 @@ type ConfigAction =
 
 const initialState: ConfigState = {
   config: null,
-  isLoading: false,
+  isLoading: true,
   error: null,
 };
 
@@ -60,7 +60,6 @@ function AppConfigProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function load() {
-      dispatch({ type: "loading" });
       try {
         const config = await loadConfig();
         dispatch({ type: "loaded", payload: config });

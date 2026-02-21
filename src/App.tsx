@@ -1,5 +1,4 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
-import FolderSelect from "./pages/FolderSelect";
 import AppLayout from "./pages/AppLayout";
 import FileTree from "@/components/FileTree/FileTree";
 import { AppConfigProvider } from "./contexts/AppConfigContext";
@@ -14,6 +13,7 @@ import { AnalysisProvider } from "./contexts/AnalysisContext";
 import { PositionProvider } from "./contexts/PositionContext";
 import { PositionSearchProvider } from "./contexts/PositionSearchContext";
 import { EnginePresetsProvider } from "./contexts/EnginePresetsContext";
+import AppLoading from "./pages/AppLoading";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
@@ -26,7 +26,7 @@ function App() {
             <div className="app-content">
               <BrowserRouter>
                 <Routes>
-                  <Route index element={<FolderSelect />} />
+                  <Route index element={<AppLoading />} />
                   <Route
                     path="/app"
                     element={
