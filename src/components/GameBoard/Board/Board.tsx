@@ -60,6 +60,11 @@ function Board() {
     return lastMove.to.x === x && lastMove.to.y === y;
   };
 
+  const isSelectedSquare = (x: number, y: number) =>
+    selectedPosition?.type === "square" &&
+    selectedPosition.x === x &&
+    selectedPosition.y === y;
+
   const handleSquareClick = async (x: number, y: number) => {
     if (!state.jkfPlayer) return;
 
@@ -139,6 +144,7 @@ function Board() {
           x={x}
           y={y}
           index={index}
+          isSelected={isSelectedSquare(x, y)}
           isHighlighted={isSquareHighlighted(x, y)}
           isLastMove={isLastMove(x, y)}
           onClick={() => handleSquareClick(x, y)}
