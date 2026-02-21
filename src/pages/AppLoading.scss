@@ -4,54 +4,73 @@
   &__container {
     height: 100vh;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
     background-color: index.$color-primary-light;
     color: index.$color-white;
-    font-family: "Orbitron";
+    font-family: "Orbitron", "Noto Sans JP", sans-serif;
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.6rem;
+  }
+
+  &__icon {
+    width: 8.8rem; // 15remは主張強めなのでミニマル寄せ
+    height: auto;
+    opacity: 0.92;
+    filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.22));
+    animation: iconBreath 2.8s ease-in-out infinite;
   }
 
   &__text {
-    font-size: 7rem;
-    font-weight: bold;
     margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 2rem; // 7remは強すぎるので抑える
+    letter-spacing: 0.12em;
+    font-weight: 600;
+    opacity: 0.92;
   }
 
-  &__text--wave,
-  &__text--dots {
-    display: inline-block;
+  &__label {
+    transform: translateY(0.02em);
+  }
+
+  &__dots {
+    display: inline-flex;
 
     span {
       display: inline-block;
       animation: bounce 1.4s infinite ease-in-out;
+      will-change: transform;
+    }
+
+    span:nth-child(1) {
+      animation-delay: 0s;
+    }
+    span:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+    span:nth-child(3) {
+      animation-delay: 0.3s;
     }
   }
 
-  &__text--wave {
-    span {
-      @for $i from 1 through 14 {
-        &:nth-child(#{$i}) {
-          animation-delay: #{($i - 1) * 0.1}s;
-        }
-      }
-    }
-  }
-
-  &__text--dots {
-    span {
-      &:nth-child(1) {
-        animation-delay: 1.4s;
-      }
-
-      &:nth-child(2) {
-        animation-delay: 1.6s;
-      }
-
-      &:nth-child(3) {
-        animation-delay: 1.8s;
-      }
-    }
+  &__srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+    padding: 0;
   }
 }
 
@@ -62,6 +81,23 @@
     transform: translateY(0);
   }
   30% {
-    transform: translateY(-8px);
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes iconBreath {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading__icon,
+  .loading__dots span {
+    animation: none !important;
   }
 }
