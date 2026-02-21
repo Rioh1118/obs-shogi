@@ -1,0 +1,77 @@
+@use "@/index.scss" as index;
+
+.hand-header {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+
+  padding: 0.3rem 0.6rem;
+  border-radius: 1.1rem;
+  background: rgba(28, 35, 37, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+
+  .hand-header__name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.hand-header--start {
+  justify-items: start;
+  text-align: left;
+}
+
+.hand-header--end {
+  justify-items: end;
+  text-align: right;
+}
+
+.hand-header__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+
+  background: rgba(index.$color-secondary-light, 0.08);
+  border: 1px solid rgba(index.$color-secondary-light, 0.18);
+
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+}
+
+.hand-header__symbol {
+  font-family:
+    "Noto Sans Symbols2", "Segoe UI Symbol", "Apple Symbols", "Noto Sans JP",
+    sans-serif;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: rgba(index.$color-secondary-light, 0.95);
+}
+
+.hand-header__role {
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  color: rgba(index.$color-secondary-light, 0.92);
+}
+
+.hand-header__name {
+  font-size: 1.05rem;
+  line-height: 1.1;
+  font-weight: 520;
+  color: rgba(index.$color-secondary-light, 0.96);
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  max-width: 100%;
+}
+
+.hand-header__name--empty {
+  opacity: 0.55;
+  letter-spacing: 0.08em;
+}

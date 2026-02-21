@@ -1,8 +1,9 @@
-@use "./Board/handGeometry.scss" as hand;
 @use "./Board/GameBoardLayoutGeometry.scss" as layout;
 @use "./Board/shogiBoardGeometry.scss" as geo;
 
 $gap: 1.8rem;
+$hand-header-h: 4rem;
+$hand-gap: 2rem;
 
 .game-board {
   width: 100%;
@@ -39,14 +40,13 @@ $gap: 1.8rem;
   }
 
   &__hand {
-    grid-column: auto;
     min-width: 0;
     width: 100%;
 
-    aspect-ratio: #{layout.$hand-aspect};
-    height: auto;
+    display: flex;
+    flex-direction: column;
+    row-gap: $hand-gap;
 
-    container-type: inline-size;
     &--topLeft {
       grid-column: 1;
       justify-self: start;
@@ -55,9 +55,28 @@ $gap: 1.8rem;
 
     &--bottomRight {
       grid-column: 3;
-
       justify-self: end;
       align-self: end;
     }
+  }
+
+  &__handArea {
+    width: 100%;
+    aspect-ratio: #{layout.$hand-aspect};
+    height: auto;
+
+    container-type: inline-size;
+
+    min-width: 0;
+    min-height: 0;
+
+    overflow: hidden;
+  }
+
+  &__handHeader {
+    min-width: 0;
+    height: $hand-header-h;
+    display: flex;
+    align-items: center;
   }
 }
