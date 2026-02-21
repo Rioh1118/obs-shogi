@@ -8,12 +8,15 @@ export type ModalType =
   | "create-file"
   | "position-search";
 
+export type PovType = "sente" | "gote";
+
 export interface URLParams {
   modal?: ModalType;
   tesuu?: number;
   branch?: string;
   dir?: string;
   tab?: string;
+  pov?: PovType;
 }
 
 type UpdateOptions = { replace?: boolean };
@@ -24,6 +27,10 @@ export function useURLParams() {
 
   // 現在のURLパラメータを取得
   const params: URLParams = useMemo(() => {
+    const povRaw = searchParams.get("pov");
+    const pov =
+      povRaw === "gote" || povRaw === "sente" ? (povRaw as PovType) : undefined;
+
     return {
       tesuu: searchParams.get("tesuu")
         ? Number(searchParams.get("tesuu"))
@@ -32,6 +39,7 @@ export function useURLParams() {
       modal: (searchParams.get("modal") as URLParams["modal"]) || undefined,
       dir: searchParams.get("dir") || undefined,
       tab: searchParams.get("tab") || undefined,
+      pov,
     };
   }, [searchParams]);
 

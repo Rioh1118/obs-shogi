@@ -17,10 +17,13 @@ import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";
 import { usePositionSearch } from "@/contexts/PositionSearchContext";
 import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
+import { useURLParams } from "@/hooks/useURLParams";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { state: gameState } = useGame();
+  const { params } = useURLParams();
+  const rotate = params.pov === "gote";
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameState.jkfPlayer?.shogi;
@@ -63,6 +66,7 @@ const AppLayout = () => {
                       topLeft={<Hand isSente={false} />}
                       center={<Board />}
                       bottomRight={<Hand isSente={true} />}
+                      rotate={rotate}
                     />
                     <div className="workspace__controls">
                       <GameControls />

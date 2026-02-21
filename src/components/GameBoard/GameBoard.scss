@@ -39,6 +39,12 @@ $hand-gap: 0.8rem;
     place-items: start center;
   }
 
+  &--rotated {
+    .game-board__cluster {
+      transform: rotate(180deg);
+    }
+  }
+
   &__hand {
     min-width: 0;
     width: 100%;
