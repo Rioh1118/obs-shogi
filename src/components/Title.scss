@@ -1,20 +1,47 @@
 @use "../index.scss" as index;
 
 .title {
-  text-align: center;
-  font-size: 12.8rem;
-  padding: 5rem;
+  /* デフォルトは現状維持（指定なし＝今まで通り） */
+  font-size: var(--title-size, 12.8rem);
+  padding: var(--title-pad, 5rem);
+  text-align: var(--title-align, center);
+
   &__obs {
     display: inline-block;
-    margin-right: 8rem;
+    margin-right: var(--title-gap, 8rem);
     font-family: "Orbitron";
     font-weight: 700;
     text-transform: uppercase;
   }
+
   &__shogi {
     display: inline-block;
     font-family: "Zen Kaku Gothic Antique", sans-serif;
     font-weight: 700;
     text-transform: uppercase;
+  }
+
+  &--header {
+    --title-size: 2rem;
+    --title-pad: 0;
+    --title-align: left;
+    --title-gap: 0.8rem;
+
+    display: inline-flex;
+    align-items: baseline;
+    line-height: 1;
+    letter-spacing: 0.02em;
+
+    .title__obs {
+      opacity: 0.92;
+    }
+
+    .title__shogi {
+      opacity: 1;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: index.$color-secondary-light;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+    }
   }
 }

@@ -23,8 +23,8 @@
 
   &__brand {
     display: flex;
-    flex-direction: column;
-    line-height: 1.1;
+    align-items: center;
+    line-height: 1;
   }
 
   &__appname {

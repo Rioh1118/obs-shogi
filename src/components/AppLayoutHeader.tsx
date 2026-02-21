@@ -3,6 +3,7 @@ import IconButton from "./IconButton";
 import { useURLParams } from "@/hooks/useURLParams";
 import "./AppLayoutHeader.scss";
 import { useFileTree } from "@/contexts/FileTreeContext";
+import Title from "./Title";
 
 type Props = {
   toggleSidebar: () => void;
@@ -65,8 +66,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
         </IconButton>
       </div>
       <div className="app-header__brand">
-        <div className="app-header__appname">OBS SHOGI</div>
-        <div className="app-header__subtitle">研究・定跡管理</div>
+        <Title as="div" variant="header" />
       </div>
       <div className="app-header__center">
         <div className="app-header__context">
