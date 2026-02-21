@@ -17,14 +17,31 @@ import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";
 import { usePositionSearch } from "@/contexts/PositionSearchContext";
 import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
+import { useURLParams } from "@/hooks/useURLParams";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { state: gameState } = useGame();
+  const { state: gameState, clearSelection } = useGame();
+  const { params } = useURLParams();
+  const rotate = params.pov === "gote";
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameState.jkfPlayer?.shogi;
   const { openProject } = usePositionSearch();
+
+  const onPointerDownCapture = (e: React.PointerEvent) => {
+    if (!gameState.selectedPosition) return;
+
+    const el = e.target as HTMLElement | null;
+    if (!el) return;
+
+    // boardのsquare内クリックは除外
+    if (el.closest('[data-board-square="true"]')) return;
+    if (el.closest('[data-board-square="true"]')) return;
+    if (el.closest('[data-hand-area="true"]')) return;
+
+    clearSelection();
+  };
 
   useEffect(() => {
     openProject();
@@ -33,6 +50,7 @@ const AppLayout = () => {
   return (
     <div
       className={`app-layout ${isSidebarOpen ? "" : "app-layout--sidebar-closed"}`}
+      onPointerDownCapture={onPointerDownCapture}
     >
       <CreateFileModal />
       <PositionNavigationModal />
@@ -59,11 +77,12 @@ const AppLayout = () => {
               <div className="workspace__surface">
                 <section className="workspace__main">
                   <div className="workspace__boardPane">
-                    <GameBoard>
-                      <Hand isPlayer={true} />
-                      <Board />
-                      <Hand isPlayer={false} />
-                    </GameBoard>
+                    <GameBoard
+                      topLeft={<Hand isSente={false} />}
+                      center={<Board />}
+                      bottomRight={<Hand isSente={true} />}
+                      rotate={rotate}
+                    />
                     <div className="workspace__controls">
                       <GameControls />
                     </div>

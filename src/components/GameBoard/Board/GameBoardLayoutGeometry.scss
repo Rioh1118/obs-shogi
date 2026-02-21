@@ -1,0 +1,18 @@
+@use "sass:math";
+
+@use "./shogiBoardGeometry.scss" as geo;
+@use "./handGeometry.scss" as hand;
+
+// 例：派生値
+$gap: 1.8rem;
+
+$cluster-w: hand.$hand-w + $gap + geo.$board-w + $gap + hand.$hand-w;
+$cluster-h: geo.$board-h;
+
+$cluster-aspect: math.div($cluster-w, $cluster-h);
+$cluster-max-w: geo.$board-max-w * math.div($cluster-w, geo.$board-w);
+
+$board-fr: math.div(geo.$board-w, hand.$hand-w);
+$gap-frac-of-cluster: math.div($gap, $cluster-w);
+
+$hand-aspect: math.div(hand.$hand-w, hand.$hand-h);

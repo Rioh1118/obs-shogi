@@ -1,18 +1,26 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { usePosition } from "@/contexts/PositionContext";
 import { useEffect, useState, useRef } from "react";
-import { Settings, Play, Square, Navigation, Search } from "lucide-react";
+import {
+  Settings,
+  Play,
+  Square,
+  Navigation,
+  Search,
+  RotateCw,
+} from "lucide-react";
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/hooks/useURLParams";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { currentSfen } = usePosition();
-  const { openModal } = useURLParams();
+  const { openModal, params, updateParams } = useURLParams();
   const [elapsedTime, setElapsedTime] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const lastSfenRef = useRef<string | null>(null);
+  const isGotePov = params.pov === "gote";
 
   // タイマー管理
   useEffect(() => {
@@ -81,6 +89,9 @@ function AnalysisPaneHeader() {
       console.error("Failed to toggle analysis:", error);
     }
   };
+  const handleTogglePov = () => {
+    updateParams({ pov: isGotePov ? undefined : "gote" }, { replace: true });
+  };
 
   // 局面ナビゲーションハンドラー
   const handlePositionNavigation = () => {
@@ -112,6 +123,14 @@ function AnalysisPaneHeader() {
       </div>
 
       <div className="analysis-header__actions">
+        <button
+          className="analysis-header__button analysis-header__button--rotate"
+          onClick={handleTogglePov}
+          title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
+          aria-pressed={isGotePov}
+        >
+          <RotateCw className="analysis-header__icon" />
+        </button>
         <button
           className="analysis-header__button analysis-header__button--navigation"
           onClick={handlePositionNavigation}

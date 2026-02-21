@@ -1,0 +1,33 @@
+@use "sass:math";
+
+$board-w: 43.9rem;
+$board-h: 48.5rem;
+$board-max-w: 70rem;
+
+$inset-x: 1.75rem;
+$inset-y: 1.95rem;
+
+$position-border: 2px;
+$square-line: 1px;
+
+@function pct($len, $base) {
+  @return math.div($len, $base) * 100%;
+}
+
+@function board-aspect() {
+  // w/h（0.905...）
+  @return math.div($board-w, $board-h);
+}
+
+@function board-inv-aspect() {
+  // h/w（1.104...）
+  @return math.div($board-h, $board-w);
+}
+
+@function inset-x-pct() {
+  @return pct($inset-x, $board-w);
+}
+
+@function inset-y-pct() {
+  @return pct($inset-y, $board-h);
+}

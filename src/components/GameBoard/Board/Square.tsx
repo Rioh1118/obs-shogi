@@ -8,6 +8,7 @@ interface SquareProps {
   children?: ReactNode;
   isHighlighted?: boolean;
   isLastMove?: boolean;
+  isSelected?: boolean;
   onClick?: () => void;
 }
 
@@ -16,13 +17,15 @@ function Square({
   y,
   index,
   children,
+  isSelected = false,
   isHighlighted = false,
   isLastMove = false,
   onClick,
 }: SquareProps) {
   return (
     <div
-      className={`square ${isHighlighted ? "square__highlighted" : ""} ${isLastMove ? "square__last-move" : ""}`}
+      className={`square ${isHighlighted ? "square__highlighted" : ""} ${isLastMove ? "square__last-move" : ""} ${isSelected ? "square--selected" : ""}`}
+      data-board-square="true"
       data-x={x}
       data-y={y}
       data-index={index}

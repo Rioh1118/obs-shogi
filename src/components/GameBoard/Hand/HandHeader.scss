@@ -1,0 +1,63 @@
+@use "@/index.scss" as index;
+
+.hand-header {
+  width: 100%;
+  min-width: 0;
+
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.hand-header--counterRotate {
+  transform: rotate(180deg);
+  transform-origin: center;
+}
+
+.hand-header--start {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.hand-header--end {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.hand-header__symbol {
+  flex: 0 0 auto;
+
+  font-family:
+    "Noto Sans Symbols2", "Segoe UI Symbol", "Apple Symbols", "Noto Sans JP",
+    sans-serif;
+
+  font-size: 1.8rem;
+  line-height: 1;
+
+  color: rgba(index.$color-secondary-light, 0.92);
+  transform: translateY(0.06em);
+}
+
+.hand-header__name {
+  min-width: 0;
+  max-width: 100%;
+
+  font-size: 1.2rem;
+  line-height: 1.15;
+  font-weight: 500;
+
+  color: rgba(index.$color-secondary-light, 0.96);
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hand-header__name--empty {
+  opacity: 0.55;
+  letter-spacing: 0.06em;
+}
