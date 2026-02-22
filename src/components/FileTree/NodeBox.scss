@@ -51,13 +51,14 @@
     gap: 0.03rem;
     flex: 1;
     min-width: 0;
+  }
 
-    span {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+  .file-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__actions {
@@ -72,5 +73,37 @@
 
   &:hover &__actions {
     opacity: 1;
+  }
+}
+
+.filetree-tooltip {
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.65rem;
+  background: rgba(0, 0, 0, 0.28);
+  background: color-mix(in srgb, #1b2123 88%, transparent);
+  border: 1px solid rgba(index.$color-white, 0.08);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(index.$color-white, 0.03);
+
+  color: rgba(index.$color-text-primary, 0.92);
+  font-size: 1.13rem;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+
+  max-width: min(56rem, calc(100vw - 2.4rem));
+  white-space: normal;
+  overflow-wrap: anywhere;
+
+  backdrop-filter: blur(6px) saturate(105%);
+
+  opacity: 0;
+  transform: translateY(-2px);
+  &:popover-open {
+    opacity: 0.96;
+    transform: translateY(0);
+    transition:
+      opacity 100ms ease,
+      transform 100ms ease;
   }
 }
