@@ -152,6 +152,12 @@ function FileTree() {
           )}
         </ScrollDropZone>
       </DndContext>
+      <div
+        id="filetree-tooltip"
+        popover="manual"
+        className="filetree-tooltip"
+        role="tooltip"
+      />
     </div>
   );
 }

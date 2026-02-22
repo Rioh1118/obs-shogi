@@ -6,6 +6,7 @@ import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/utils/kifuDragDrop";
+import { useRef } from "react";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
@@ -18,6 +19,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   } = useFileTree();
   const isSelected = selectedNode?.id === node.id;
   const isRenaming = renamingNodeId === node.id;
+  const nameRef = useRef<HTMLSpanElement | null>(null);
 
   const {
     attributes,
@@ -43,6 +45,40 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const setNodeRef = (el: HTMLDivElement | null) => {
     setDragRef(el);
     setDropRef(el);
+  };
+
+  const showNativeTooltip = () => {
+    const el = nameRef.current;
+    if (!el) return;
+
+    const isOverflowing = el.scrollWidth > el.clientWidth + 1;
+    if (!isOverflowing) return;
+
+    const pop = document.getElementById("filetree-tooltip") as
+      | (HTMLElement & {
+          showPopover?: () => void;
+          hidePopover?: () => void;
+        })
+      | null;
+    if (!pop?.showPopover) return;
+
+    pop.textContent = node.name;
+
+    const r = el.getBoundingClientRect();
+    const margin = 10;
+    const left = Math.min(r.left, window.innerWidth - 320);
+    const top = r.bottom + margin;
+
+    pop.style.position = "fixed";
+    pop.style.left = `${Math.max(8, left)}px`;
+    pop.style.top = `${Math.max(8, top)}px`;
+
+    pop.showPopover();
+  };
+
+  const hideNativeTooltip = () => {
+    const pop = document.getElementById("filetree-tooltip");
+    pop?.hidePopover?.();
   };
 
   const handleClick = () => {
@@ -91,7 +127,19 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
           onCommit={handleCommit}
         />
       ) : (
-        <span className="file-name">{node.name}</span>
+        <span
+          ref={nameRef}
+          onPointerEnter={() => {
+            if (isDragging) return;
+            showNativeTooltip();
+          }}
+          onPointerLeave={hideNativeTooltip}
+          onFocus={showNativeTooltip}
+          onBlur={hideNativeTooltip}
+          className="file-name"
+        >
+          {node.name}
+        </span>
       )}
     </NodeBox>
   );
