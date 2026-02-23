@@ -9,7 +9,7 @@ import { PositionProvider } from "../contexts/PositionContext";
 import { PositionSearchProvider } from "../contexts/PositionSearchContext";
 import { EnginePresetsProvider } from "../contexts/EnginePresetsContext";
 import AppLoading from "../pages/AppLoading";
-import AppProviders from "./providers/AppProviders";
+import { AppProviders } from "./providers/AppProviders";
 
 function App() {
   return (
