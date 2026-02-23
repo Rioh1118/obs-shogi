@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useURLParams } from "@/hooks/useURLParams";
 
-import Modal from "../Modal";
+import Modal from "../../shared/ui/Modal";
 import { usePositionHitNavigation } from "@/hooks/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";

@@ -12,8 +12,10 @@ type IconButtonVariant =
   | "sidebar-toggle"
   | "obs-danger";
 
-interface IconButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> {
+interface IconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onClick"
+> {
   children: ReactNode;
   handleClick?:
     | (() => void)

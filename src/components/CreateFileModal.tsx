@@ -1,4 +1,4 @@
-import Modal from "@/components/Modal";
+import Modal from "@/shared/ui/Modal";
 import FileCreateForm from "@/components/FileTree/FileCreateForm";
 import { useURLParams } from "@/hooks/useURLParams";
 import { useMemo, useState } from "react";

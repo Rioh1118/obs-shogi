@@ -1,5 +1,4 @@
 import RootNode from "./RootNode";
-import Spinner from "../Spinner";
 import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
 import { useAppConfig } from "@/entities/app-config";
@@ -25,6 +24,7 @@ import {
 } from "@dnd-kit/core";
 import ScrollDropZone from "./ScrollDropZone";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import Spinner from "@/shared/ui/Spinner";
 
 const collisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);

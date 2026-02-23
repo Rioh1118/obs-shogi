@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import "./EnginePresetEditDialogPanel.scss";
 
-import Modal from "@/components/Modal";
+import Modal from "@/shared/ui/Modal";
 
 import {
   scanAiRoot,

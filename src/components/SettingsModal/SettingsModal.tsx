@@ -1,4 +1,4 @@
-import Modal from "@/components/Modal";
+import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/hooks/useURLParams";
 import SettingsPanel from "./SettingsPanel";
 
