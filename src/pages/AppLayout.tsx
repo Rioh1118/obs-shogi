@@ -11,7 +11,7 @@ import WelcomeScreen from "@/components/WelcomeScreen";
 
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
 import SettingsModal from "@/features/settings/ui/SettingsModal";
-import CreateFileModal from "@/components/CreateFileModal";
+import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";
 import PositionSearchModal from "@/features/position-search/ui/PositionSearchModal";

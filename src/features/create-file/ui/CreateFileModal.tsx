@@ -1,8 +1,8 @@
 import Modal from "@/shared/ui/Modal";
-import FileCreateForm from "@/components/FileTree/FileCreateForm";
+import FileCreateForm from "@/features/create-file/ui/FileCreateForm";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useMemo, useState } from "react";
-import KifuImportForm from "./FileTree/KifuImportForm";
+import KifuImportForm from "./KifuImportForm";
 import "./CreateFileModal.scss";
 
 type TabKey = "create" | "import";
