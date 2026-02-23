@@ -1,5 +1,12 @@
-import type { SRadioOption } from "../ui/SRadioGroup";
-import { SButton, SField, SInput, SRadioGroup, SSection, SSelect } from "../ui";
+import type { SRadioOption } from "../../kit/SRadioGroup";
+import {
+  SButton,
+  SField,
+  SInput,
+  SRadioGroup,
+  SSection,
+  SSelect,
+} from "../../kit";
 import {
   cx,
   HASH_CHOICES,
@@ -7,12 +14,12 @@ import {
   MULTIPV_MIN,
   parseIntSafe,
   QUICK_MULTIPV,
-} from "@/utils/enginePresetDialog";
+} from "@/features/settings/lib/presetDialog";
 
 import "./ImportantOptionsSection.scss";
-import type { HashMode, ThreadsMode } from "@/utils/engineSettings";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
+import type { HashMode, ThreadsMode } from "@/features/settings/model/types";
 
 export default function ImportantOptionsSection(props: {
   draft: EnginePreset;

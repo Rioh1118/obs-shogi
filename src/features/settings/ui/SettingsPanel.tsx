@@ -1,17 +1,11 @@
 import { useURLParams } from "@/hooks/useURLParams";
 
-import GeneralTab from "./GeneralTab";
-import EngineTab from "./EngineTab";
+import GeneralTab from "./tabs/GeneralTab";
+import EngineTab from "./tabs/EngineTab";
 
 import "./SettingsPanel.scss";
 import SettingsTabButton from "./SettingsTabButton";
-
-const TABS = [
-  { key: "general", label: "環境", desc: "ai_root/vaultなど" },
-  { key: "engine", label: "エンジン管理", desc: "解析プリセットを編集" },
-] as const;
-
-type TabKey = (typeof TABS)[number]["key"];
+import { TABS, type TabKey } from "@/features/settings";
 
 function SettingsPanel() {
   const { params, updateParams } = useURLParams();

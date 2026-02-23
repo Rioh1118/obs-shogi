@@ -10,7 +10,6 @@ import {
   type EngineCandidate,
 } from "@/commands/ai_library";
 
-import { listAiLabels, filterEnginesByAiLabel } from "@/utils/engineFilter";
 import {
   basename,
   clampInt,
@@ -20,14 +19,12 @@ import {
   MULTIPV_MIN,
   parseIntSafe,
   QUICK_MULTIPV_SET,
-} from "@/utils/enginePresetDialog";
-import PresetDialogHeader from "./PresetDialogHeader";
-import BasicSection from "./BasicSection";
-import EngineFilesSection from "./EngineFilesSection";
-import ImportantOptionsSection from "./ImportantOptionsSection";
-import AnalysisDefaultsSection from "./AnalysisDefaultsSection";
+} from "@/features/settings/lib/presetDialog";
+import BasicSection from "./sections/BasicSection";
+import EngineFilesSection from "./sections/EngineFilesSection";
+import ImportantOptionsSection from "./sections/ImportantOptionsSection";
+import AnalysisDefaultsSection from "./sections/AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
-import type { ThreadsMode } from "@/utils/engineSettings";
 import { useAppConfig } from "@/entities/app-config";
 import type {
   EnginePreset,
@@ -35,6 +32,9 @@ import type {
 } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
+import { filterEnginesByAiLabel, listAiLabels } from "../../lib/engineFilter";
+import type { ThreadsMode } from "../../model/types";
+import PresetDialogHeader from "./PresetDialogHeader";
 
 type Props = {
   presetId: PresetId;

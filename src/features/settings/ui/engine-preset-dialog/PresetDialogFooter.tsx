@@ -1,4 +1,4 @@
-import { SButton } from "../ui";
+import { SButton } from "../kit";
 import "./PresetDialogFooter.scss";
 
 export default function PresetDialogFooter({

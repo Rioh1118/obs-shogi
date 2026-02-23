@@ -10,7 +10,7 @@ import PositionNavigationModal from "@/components/NavigationModal/PositionNaviga
 import WelcomeScreen from "@/components/WelcomeScreen";
 
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
-import SettingsModal from "@/components/SettingsModal/SettingsModal";
+import SettingsModal from "@/features/settings/ui/SettingsModal";
 import CreateFileModal from "@/components/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";

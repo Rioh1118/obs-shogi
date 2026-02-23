@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import SettingsBadge, { type SettingsBadgeTone } from "./SettingsBadge";
+import SettingsBadge, { type SettingsBadgeTone } from "./kit/SettingsBadge";
 import "./SettingsTabButton.scss";
 
 type TabBadge = {

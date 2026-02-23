@@ -11,10 +11,10 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
-import SButton from "./ui/SButton";
-import SSection from "./ui/SSection";
+import SButton from "../kit/SButton";
+import SSection from "../kit/SSection";
 
-import EnginePresetEditDialogPanel from "./EnginePresetEditDialog/EnginePresetEditDialogPanel";
+import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import {
   isPresetConfigured,

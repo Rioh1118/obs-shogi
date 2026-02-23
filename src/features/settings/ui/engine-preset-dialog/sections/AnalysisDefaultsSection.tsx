@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { SField, SInput, SSection } from "../ui";
-import { parseIntSafe } from "@/utils/enginePresetDialog";
+import { SField, SInput, SSection } from "../../kit";
+import { parseIntSafe } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
 export default function AnalysisDefaultsSection(props: {
