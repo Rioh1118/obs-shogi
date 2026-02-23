@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import BoardPreview from "../../../components/GameBoard/Board/BoardPreview";
+import BoardPreview from "./BoardPreview";
 import { Color } from "shogi.js";
 import "./PositionPreviewPane.scss";
 import HandRow from "./HandRow";

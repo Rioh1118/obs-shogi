@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import GameBoard from "../components/GameBoard/GameBoard";
-import Board from "../components/GameBoard/Board/Board";
-import Hand from "../components/GameBoard/Hand/Hand";
-import { GameControls } from "../components/GameBoard";
+import GameBoard from "../widgets/game-board/ui/GameBoard";
+import Board from "../widgets/game-board/ui/Board";
+import Hand from "../widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
 import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
@@ -18,6 +17,7 @@ import PositionSearchModal from "@/features/position-search/ui/PositionSearchMod
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { usePositionSearch } from "@/entities/search";
+import GameControls from "@/widgets/game-board/ui/GameControls";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
