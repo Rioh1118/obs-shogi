@@ -14,10 +14,10 @@ import SettingsModal from "@/components/SettingsModal/SettingsModal";
 import CreateFileModal from "@/components/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";
-import { usePositionSearch } from "@/contexts/PositionSearchContext";
 import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
 import { useURLParams } from "@/hooks/useURLParams";
 import { useGame } from "@/entities/game";
+import { usePositionSearch } from "@/entities/search";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

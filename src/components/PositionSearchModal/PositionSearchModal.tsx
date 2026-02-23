@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useURLParams } from "@/hooks/useURLParams";
-import { usePositionSearch } from "@/contexts/PositionSearchContext";
-import type { PositionHit } from "@/commands/search/types";
 
 import Modal from "../Modal";
 import { usePositionHitNavigation } from "@/hooks/usePositionHitNavigation";
@@ -22,6 +20,7 @@ import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey, orderPositionHits } from "@/utils/orderPositionHits";
 import { useGame } from "@/entities/game";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import { usePositionSearch, type PositionHit } from "@/entities/search";
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();

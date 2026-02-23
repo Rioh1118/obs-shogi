@@ -4,7 +4,6 @@ import FileTree from "@/components/FileTree/FileTree";
 import TitleBar from "../components/TitleBar";
 import "./App.scss";
 import { AnalysisProvider } from "../contexts/AnalysisContext";
-import { PositionSearchProvider } from "../contexts/PositionSearchContext";
 import AppLoading from "../pages/AppLoading";
 import { AppProviders } from "./providers/AppProviders";
 
@@ -20,11 +19,9 @@ function App() {
               <Route
                 path="/app"
                 element={
-                  <PositionSearchProvider>
-                    <AnalysisProvider>
-                      <AppLayout />
-                    </AnalysisProvider>
-                  </PositionSearchProvider>
+                  <AnalysisProvider>
+                    <AppLayout />
+                  </AnalysisProvider>
                 }
               >
                 <Route

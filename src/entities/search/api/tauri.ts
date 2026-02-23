@@ -1,31 +1,30 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+//
+// ===== プロジェクト操作 =====
 
+import { invoke } from "@tauri-apps/api/core";
 import type {
   OpenProjectOutput,
   SearchPositionInput,
   SearchPositionOutput,
-  IndexStatePayload,
-  IndexProgressPayload,
-  IndexWarnPayload,
-  SearchBeginPayload,
-  SearchChunkPayload,
-  SearchEndPayload,
-  SearchErrorPayload,
-  RequestId,
-} from "./types";
-
+} from "./contract";
 import {
-  EVT_INDEX_STATE,
   EVT_INDEX_PROGRESS,
+  EVT_INDEX_STATE,
   EVT_INDEX_WARN,
   EVT_SEARCH_BEGIN,
   EVT_SEARCH_CHUNK,
   EVT_SEARCH_END,
   EVT_SEARCH_ERROR,
-} from "./types";
-
-// ===== プロジェクト操作 =====
+  type IndexProgressPayload,
+  type IndexStatePayload,
+  type IndexWarnPayload,
+  type SearchBeginPayload,
+  type SearchChunkPayload,
+  type SearchEndPayload,
+  type SearchErrorPayload,
+} from "./events";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { RequestId } from "./ids";
 
 /**
  * ルートディレクトリ配下をスキャンしてインデックス構築を開始する。
