@@ -1,5 +1,5 @@
 // utils/branch.ts
-import type { JKFData, ForkPointer, KifuCursor } from "@/types";
+import type { ForkPointer, KifuCursor } from "@/types";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { normalizeForkPointers } from "@/types/kifu-cursor";
 import type {
@@ -10,6 +10,7 @@ import type {
   BranchEditResult,
 } from "@/types/branch";
 import { buildTesuuPointer } from "@/types/branch";
+import type { JKFData } from "@/entities/kifu";
 
 /** 安全に深いコピー（ブラウザ前提なら structuredClone でOK） */
 function clone<T>(x: T): T {

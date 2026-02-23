@@ -13,7 +13,7 @@ import PositionSearchHitList from "./PositionSearchHitList";
 import PositionSearchModalFooter from "./PositionSearchModalFooter";
 
 import "./PositionSeachModal.scss";
-import { useGame } from "@/contexts/GameContext";
+
 import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
 import { buildPreviewData } from "@/utils/buildPreviewData";
@@ -21,6 +21,7 @@ import PreviewPane from "../NavigationModal/PreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey, orderPositionHits } from "@/utils/orderPositionHits";
+import { useGame } from "@/entities/game";
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();

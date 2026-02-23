@@ -1,5 +1,4 @@
 import Square from "./Square";
-import { useGame } from "@/contexts/GameContext";
 import { indexToCoords } from "@/utils/boardUtils";
 import { BOARD_SIZE } from "@/constants/shogi";
 import "./Board.scss";
@@ -8,6 +7,7 @@ import { Piece } from "shogi.js";
 import type { Color, ShogiMove } from "@/types";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
+import { useGame } from "@/entities/game";
 
 function Board() {
   const { state, helpers, selectSquare, clearSelection } = useGame();

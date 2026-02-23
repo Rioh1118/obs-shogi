@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { useGame } from "@/contexts/GameContext";
 import { Color } from "shogi.js";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useGame } from "@/entities/game";
 
 function basename(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean);

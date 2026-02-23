@@ -4,7 +4,6 @@ import type { ConvertedMove } from "@/utils/sfenConverter";
 import { useEffect, useMemo, useRef } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
-import { useGame } from "@/contexts/GameContext";
 import { convertCandidateToSenteView } from "@/utils/usi";
 import AnalysisPaneHeader from "./AnalysisPaneHeader";
 import "./AnalysisPane.scss";
@@ -14,6 +13,7 @@ import type { AnalysisCandidate, Evaluation } from "@/commands/engine/types";
 import { pickTopCandidate } from "@/utils/analysis";
 import { useEnginePresets } from "@/contexts/EnginePresetsContext";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useGame } from "@/entities/game";
 
 type PaneSnapshot = {
   candidates: AnalysisCandidate[];

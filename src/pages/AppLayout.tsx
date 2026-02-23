@@ -7,7 +7,6 @@ import { GameControls } from "../components/GameBoard";
 
 import "./AppLayout.scss";
 import PositionNavigationModal from "@/components/NavigationModal/PositionNavigationModal";
-import { useGame } from "@/contexts/GameContext";
 import WelcomeScreen from "@/components/WelcomeScreen";
 
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
@@ -18,6 +17,7 @@ import KifuStreamList from "@/components/KifuList/KifuStreamList";
 import { usePositionSearch } from "@/contexts/PositionSearchContext";
 import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
 import { useURLParams } from "@/hooks/useURLParams";
+import { useGame } from "@/entities/game";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

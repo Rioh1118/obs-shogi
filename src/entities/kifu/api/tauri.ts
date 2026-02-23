@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { JKFData, KifuFormat } from "@/types";
+import type { JKFData } from "../model/jkf";
+import type { KifuFormat } from "../model/kifu";
 
 interface WriteKifuRequest {
   jkf: JKFData;

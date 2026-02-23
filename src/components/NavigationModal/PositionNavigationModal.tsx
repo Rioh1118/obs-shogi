@@ -12,12 +12,12 @@ import {
   type TesuuPointer,
   type Kind,
 } from "@/types";
-import { useGame } from "@/contexts/GameContext";
 import { appliedForkPointers } from "@/utils/kifuCursor";
 import { buildNextOptions, buildPreviewData } from "@/utils/buildPreviewData";
 import { removeForkPointer, upsertForkPointer } from "@/utils/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
+import { useGame } from "@/entities/game";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();

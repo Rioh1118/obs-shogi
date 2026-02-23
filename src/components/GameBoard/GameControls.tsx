@@ -1,4 +1,3 @@
-import { useGame } from "@/contexts/GameContext";
 import ControlButton from "./ControlButton";
 import {
   ChevronFirst,
@@ -7,6 +6,7 @@ import {
   ChevronLast,
 } from "lucide-react";
 import "./GameControls.scss";
+import { useGame } from "@/entities/game";
 
 function GameControls() {
   const {
