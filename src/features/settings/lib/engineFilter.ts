@@ -1,6 +1,6 @@
 // Dialogで使うだけなので、Presetには保存しない前提の util。
 
-import type { EngineCandidate } from "@/commands/ai_library";
+import type { EngineCandidate } from "@/entities/engine/api/aiLibrary";
 
 export type EvalTypeId = string;
 

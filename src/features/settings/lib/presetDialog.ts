@@ -1,4 +1,7 @@
-import type { FileCandidate, ProfileCandidate } from "@/commands/ai_library";
+import type {
+  FileCandidate,
+  ProfileCandidate,
+} from "@/entities/engine/api/aiLibrary";
 
 export const cx = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");

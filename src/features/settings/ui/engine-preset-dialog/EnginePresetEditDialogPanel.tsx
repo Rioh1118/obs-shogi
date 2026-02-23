@@ -4,13 +4,6 @@ import "./EnginePresetEditDialogPanel.scss";
 import Modal from "@/shared/ui/Modal";
 
 import {
-  scanAiRoot,
-  ensureEnginesDir,
-  type AiRootIndex,
-  type EngineCandidate,
-} from "@/commands/ai_library";
-
-import {
   basename,
   clampInt,
   cleanText,
@@ -35,6 +28,12 @@ import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOpti
 import { filterEnginesByAiLabel, listAiLabels } from "../../lib/engineFilter";
 import type { ThreadsMode } from "../../model/types";
 import PresetDialogHeader from "./PresetDialogHeader";
+import {
+  ensureEnginesDir,
+  scanAiRoot,
+  type AiRootIndex,
+  type EngineCandidate,
+} from "@/entities/engine/api/aiLibrary";
 
 type Props = {
   presetId: PresetId;
