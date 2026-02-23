@@ -1,7 +1,6 @@
 import { useEffect, useReducer } from "react";
 import type { ReactNode } from "react";
 import type { AppConfig, AppConfigContextType } from "./types";
-import type { PresetId } from "@/types/enginePresets";
 
 import { AppConfigContext } from "./context";
 import { configReducer, initialState } from "./reducer";
@@ -11,6 +10,7 @@ import {
   chooseRootDir as chooseRootDirApi,
   setRootDir as setRootDirApi,
 } from "../api/directories";
+import type { PresetId } from "@/entities/engine-presets/model/types";
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(configReducer, initialState);

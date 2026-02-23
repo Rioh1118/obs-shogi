@@ -1,4 +1,4 @@
-import type { PresetId } from "@/types/enginePresets";
+import type { PresetId } from "@/entities/engine-presets/model/types";
 
 export type AppConfig = {
   root_dir: string | null;

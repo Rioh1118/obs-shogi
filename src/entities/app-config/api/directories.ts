@@ -1,6 +1,6 @@
-import type { ChooseOpts } from "@/commands/config_dir";
 import { open } from "@tauri-apps/plugin-dialog";
 import { loadConfig, saveConfig } from "./config";
+import type { ChooseOpts } from "../model/types";
 
 async function pickDirectory(title: string): Promise<string | null> {
   const selected = await open({
