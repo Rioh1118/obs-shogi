@@ -3,8 +3,8 @@ import type {
   IMoveMoveFormat,
   IMoveFormat,
 } from "json-kifu-format/dist/src/Formats";
-import { eqMove } from "@/utils/eqMove";
-import type { ForkPointer } from "@/types/kifu-cursor";
+import type { ForkPointer } from "../model/cursor";
+import { eqMove } from "./eqMove";
 
 export type ApplyMoveResult = {
   /** 既存の手（本譜 or 既存分岐）を使ったか */

@@ -1,16 +1,18 @@
-// utils/branch.ts
-import type { ForkPointer, KifuCursor } from "@/types";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
-import { normalizeForkPointers } from "@/types/kifu-cursor";
-import type {
-  BranchIndex,
-  BranchPointRef,
-  SwapQuery,
-  DeleteQuery,
-  BranchEditResult,
-} from "@/types/branch";
-import { buildTesuuPointer } from "@/types/branch";
 import type { JKFData } from "@/entities/kifu";
+import {
+  buildTesuuPointer,
+  type BranchEditResult,
+  type BranchIndex,
+  type BranchPointRef,
+  type DeleteQuery,
+  type SwapQuery,
+} from "../model/branch";
+import {
+  normalizeForkPointers,
+  type ForkPointer,
+  type KifuCursor,
+} from "../model/cursor";
 
 /** 安全に深いコピー（ブラウザ前提なら structuredClone でOK） */
 function clone<T>(x: T): T {

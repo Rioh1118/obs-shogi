@@ -1,4 +1,5 @@
-import type { Color, Kind, Shogi, ShogiMove } from "@/types";
+import type { Color, Kind, Shogi } from "shogi.js";
+import type { ShogiMove } from "./types";
 
 export interface MoveValidator {
   // 基本的な合法性チェック

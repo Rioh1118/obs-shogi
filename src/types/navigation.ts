@@ -1,5 +1,5 @@
+import type { ForkPointer } from "@/entities/kifu/model/cursor";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
-import type { ForkPointer } from "./kifu-cursor";
 import type { Piece } from "shogi.js";
 
 export type PreviewCursorDraft = {

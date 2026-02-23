@@ -1,12 +1,13 @@
-import type { ShogiMove, Shogi, Kind, Color } from "@/types";
-import type { MoveValidator } from "@/interfaces";
 import {
   wouldBeInCheckAfterMove,
   canDropPieceAt,
   canPromote,
   mustPromote,
   getAllPossibleMoves,
-} from "@/utils/moveValidation";
+} from "./moveValidation";
+import type { MoveValidator } from "../model/moveValidator";
+import type { Color, Kind, Shogi } from "shogi.js";
+import type { ShogiMove } from "../model/types";
 
 export class ShogiMoveValidator implements MoveValidator {
   /**

@@ -1,10 +1,10 @@
-import type { Color as ColorType, ShogiMove, Kind } from "@/types";
-import { Color, Shogi } from "shogi.js";
+import { Color, Shogi, type Kind } from "shogi.js";
+import type { ShogiMove } from "../model/types";
 
 /**
  * 王手判定
  */
-export function isInCheck(shogi: Shogi, color: ColorType): boolean {
+export function isInCheck(shogi: Shogi, color: Color): boolean {
   return shogi.isCheck(color);
 }
 
@@ -51,7 +51,7 @@ export function wouldBeInCheckAfterMove(
 export function hasFuInColumn(
   shogi: Shogi,
   column: number,
-  color: ColorType,
+  color: Color,
 ): boolean {
   for (let y = 1; y <= 9; y++) {
     const piece = shogi.get(column, y);
@@ -69,7 +69,7 @@ export function canDropFu(
   shogi: Shogi,
   x: number,
   y: number,
-  color: ColorType,
+  color: Color,
 ): boolean {
   // 二歩チェック
   if (hasFuInColumn(shogi, x, color)) {
@@ -95,12 +95,12 @@ export function canDropFu(
   return true;
 }
 
-export function canDropKe(_x: number, y: number, color: ColorType): boolean {
+export function canDropKe(_x: number, y: number, color: Color): boolean {
   const prohibitedRows = color === Color.Black ? [1, 2] : [8, 9];
   return !prohibitedRows.includes(y);
 }
 
-export function canDropKy(_x: number, y: number, color: ColorType): boolean {
+export function canDropKy(_x: number, y: number, color: Color): boolean {
   const prohibitedRow = color === Color.Black ? 1 : 9;
   return y !== prohibitedRow;
 }
@@ -113,7 +113,7 @@ export function canDropPieceAt(
   kind: Kind,
   x: number,
   y: number,
-  color: ColorType,
+  color: Color,
 ): boolean {
   switch (kind) {
     case "FU":
@@ -226,10 +226,7 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
  * 指定した色の全ての可能な手を取得
  * 王手放置チェックは含む
  */
-export function getAllPossibleMoves(
-  shogi: Shogi,
-  color: ColorType,
-): ShogiMove[] {
+export function getAllPossibleMoves(shogi: Shogi, color: Color): ShogiMove[] {
   const moves: ShogiMove[] = [];
 
   // 盤上の駒からの移動手

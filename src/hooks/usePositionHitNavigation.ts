@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import type { CursorLite } from "@/commands/search/types";
-import { cursorFromLite } from "@/utils/kifuCursor";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
+import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 
 type PendingNav = {
   absPath: string;

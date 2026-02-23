@@ -1,6 +1,6 @@
 import { JKFPlayer } from "json-kifu-format";
-import type { KifuCursor } from "@/types";
-import { appliedForkPointers } from "./kifuCursor";
+import type { KifuCursor } from "../model/cursor";
+import { appliedForkPointers } from "./cursorRuntime";
 
 export function computeLeafTesuu(
   jkf: JKFPlayer,

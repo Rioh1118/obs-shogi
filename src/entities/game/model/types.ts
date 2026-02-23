@@ -5,9 +5,11 @@ import type { Color, Kind } from "shogi.js";
 
 import type { JKFData } from "@/entities/kifu";
 import type { AsyncResult } from "@/shared/lib/result";
-import type { DeleteQuery, SwapQuery } from "@/types/branch";
-import type { KifuCursor } from "@/types/kifu-cursor";
-import type { ShogiMove } from "@/types/shogi";
+import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
+
+import type { IMove as ShogiMove } from "shogi.js";
+export type { IMove as ShogiMove } from "shogi.js";
 
 export type SelectedPosition =
   | { type: "square"; x: number; y: number }

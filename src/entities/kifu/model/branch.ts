@@ -1,4 +1,4 @@
-import type { ForkPointer, KifuCursor, TesuuPointer } from "./kifu-cursor";
+import type { ForkPointer, KifuCursor, TesuuPointer } from "./cursor";
 
 /**
  * 0=main, 1.. = forks[branchIndex-1]

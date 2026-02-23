@@ -17,25 +17,26 @@ import {
 import { GameContext } from "./context";
 
 import type { JKFData } from "@/entities/kifu";
-import type { DeleteQuery, SwapQuery } from "@/types/branch";
-import type {
-  ForkPointer,
-  KifuCursor,
-  TesuuPointer,
-} from "@/types/kifu-cursor";
-import { ROOT_CURSOR } from "@/types/kifu-cursor";
-
-import { ShogiMoveValidator } from "@/services/game/ShogiMoveValidator";
-import { fromIMove, toIMoveMoveFormat } from "@/adapter/moveConverter";
-import { applyMoveWithBranch } from "@/services/game/applyMoveWithBranchAware";
-
+import {
+  ROOT_CURSOR,
+  type ForkPointer,
+  type KifuCursor,
+  type TesuuPointer,
+} from "@/entities/kifu/model/cursor";
+import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
+import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import {
   appliedForkPointers,
   applyCursorToPlayer,
   mergeForkPointers,
-} from "@/utils/kifuCursor";
-import { computeLeafTesuu } from "@/utils/jkfNavigation";
-import { deleteBranchInKifu, swapBranchesInKifu } from "@/utils/branch";
+} from "@/entities/kifu/lib/cursorRuntime";
+import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
+import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
+import {
+  deleteBranchInKifu,
+  swapBranchesInKifu,
+} from "@/entities/kifu/lib/branchEdit";
+import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
 
 /** 現局面の一つ前の手を ShogiMove に変換 */
 function lastMovePlayer(jkf: JKFPlayer) {
