@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import Form from "../Form/Form";
-import FormField from "../Form/FormField";
-import TextInput from "../Form/TextInput";
-import Select from "../Form/Select";
-import Textarea from "../Form/Textarea";
-import ButtonGroup from "../Form/ButtonGroup";
-import Button from "../Form/Button";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { parseKifuStringToJKF, type KifuFormat } from "@/entities/kifu";
+import Form from "@/shared/ui/Form/Form";
+import FormField from "@/shared/ui/Form/FormField";
+import Textarea from "@/shared/ui/Form/Textarea";
+import TextInput from "@/shared/ui/Form/TextInput";
+import Select from "@/shared/ui/Form/Select";
+import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
+import Button from "@/shared/ui/Form/Button";
 
 function stripKnownExt(name: string) {
   return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");

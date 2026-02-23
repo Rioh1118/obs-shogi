@@ -1,15 +1,15 @@
 import { useState } from "react";
-import Form from "../Form/Form";
 import Spinner from "../Spinner";
-import FormField from "../Form/FormField";
-import TextInput from "../Form/TextInput";
-import Select from "../Form/Select";
-import Textarea from "../Form/Textarea";
-import ButtonGroup from "../Form/ButtonGroup";
-import Button from "../Form/Button";
-import { TagsInput } from "../Form/TagsInput";
 import type { InitialPresetString, KifuFormat } from "@/entities/kifu";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import Form from "@/shared/ui/Form/Form";
+import FormField from "@/shared/ui/Form/FormField";
+import TextInput from "@/shared/ui/Form/TextInput";
+import Select from "@/shared/ui/Form/Select";
+import { TagsInput } from "@/shared/ui/Form/TagsInput";
+import Textarea from "@/shared/ui/Form/Textarea";
+import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
+import Button from "@/shared/ui/Form/Button";
 
 function FileCreateForm({
   toggleModal,
