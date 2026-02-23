@@ -1,4 +1,3 @@
-import { useAnalysis } from "@/contexts/AnalysisContext";
 import { convertSfenSequence } from "@/utils/sfenConverter";
 import type { ConvertedMove } from "@/utils/sfenConverter";
 import { useEffect, useMemo, useRef } from "react";
@@ -8,7 +7,6 @@ import { convertCandidateToSenteView } from "@/utils/usi";
 import AnalysisPaneHeader from "./AnalysisPaneHeader";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";
-import { pickTopCandidate } from "@/utils/analysis";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
@@ -17,6 +15,7 @@ import type {
   AnalysisCandidate,
   Evaluation,
 } from "@/entities/engine/api/rust-types";
+import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
 
 type PaneSnapshot = {
   candidates: AnalysisCandidate[];

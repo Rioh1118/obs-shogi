@@ -6,6 +6,7 @@ import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider"
 import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
 import { PositionSyncProvider } from "./bridges/position-sync";
 import { PositionSearchProvider } from "@/entities/search";
+import { AnalysisBridge } from "./bridges/AnalysisBridge";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -15,7 +16,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <EnginePresetsProvider>
             <EngineRuntimeBridge>
               <PositionSyncProvider>
-                <PositionSearchProvider>{children}</PositionSearchProvider>
+                <PositionSearchProvider>
+                  <AnalysisBridge>{children}</AnalysisBridge>
+                </PositionSearchProvider>
               </PositionSyncProvider>
             </EngineRuntimeBridge>
           </EnginePresetsProvider>

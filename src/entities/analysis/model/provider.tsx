@@ -1,147 +1,60 @@
-import React, {
-  createContext,
-  useContext,
-  useReducer,
-  useCallback,
-  useMemo,
-  useRef,
-  useEffect,
-} from "react";
-
 import {
-  setupAnalysisEventListeners,
-  type AnalysisEventListeners,
-} from "@/commands/engine";
-
-import type { UnlistenFn } from "@tauri-apps/api/event";
-import { pickTopCandidate, sortByRank } from "@/utils/analysis";
-import { useEngine, type AnalysisResult } from "@/entities/engine";
-import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  type ReactNode,
+} from "react";
+import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
-  stopAnalysis,
+  stopAnalysis as stopAnalysisCore,
 } from "@/entities/engine/api/tauri";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import { analysisReducer, initialState } from "./reducer";
+import { useEngine, type AnalysisResult } from "@/entities/engine";
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
+import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+import { pickTopCandidate } from "../lib/candidates";
+import { AnalysisContext } from "./context";
 
-interface AnalysisState {
-  isAnalyzing: boolean;
-  sessionId: string | null;
-  currentPosition: string | null; // SFEN
-  analysisResults: AnalysisResult[];
-  candidates: AnalysisCandidate[];
-  error: string | null;
+interface Props {
+  children: ReactNode;
+  positionSync: PositionSyncAdapter;
 }
 
-type AnalysisAction =
-  | { type: "start_analysis"; payload: { sessionId: string; position: string } }
-  | { type: "stop_analysis" }
-  | { type: "update_result"; payload: AnalysisResult }
-  | { type: "set_error"; payload: string }
-  | { type: "clear_error" }
-  | { type: "clear_results" };
-
-const initialState: AnalysisState = {
-  isAnalyzing: false,
-  sessionId: null,
-  currentPosition: null,
-  analysisResults: [],
-  candidates: [],
-  error: null,
-};
-
-function analysisReducer(
-  state: AnalysisState,
-  action: AnalysisAction,
-): AnalysisState {
-  switch (action.type) {
-    case "start_analysis":
-      return {
-        ...state,
-        isAnalyzing: true,
-        sessionId: action.payload.sessionId,
-        currentPosition: action.payload.position,
-        error: null,
-      };
-
-    case "stop_analysis":
-      return {
-        ...state,
-        isAnalyzing: false,
-        sessionId: null,
-      };
-
-    case "update_result": {
-      const result = action.payload;
-      const candidates = sortByRank(result.candidates ?? []);
-
-      return {
-        ...state,
-        analysisResults: [...state.analysisResults.slice(-9), result],
-        candidates,
-      };
-    }
-
-    case "set_error":
-      return { ...state, error: action.payload, isAnalyzing: false };
-
-    case "clear_error":
-      return { ...state, error: null };
-
-    case "clear_results":
-      return {
-        ...state,
-        analysisResults: [],
-        candidates: [],
-        error: null,
-      };
-
-    default:
-      return state;
-  }
-}
-
-interface AnalysisContextType {
-  state: AnalysisState;
-
-  startInfiniteAnalysis: () => Promise<void>;
-  stopAnalysis: () => Promise<void>;
-  clearResults: () => void;
-  clearError: () => void;
-
-  getTopCandidate: () => AnalysisCandidate | null;
-  getAllCandidates: () => AnalysisCandidate[];
-}
-
-const AnalysisContext = createContext<AnalysisContextType | null>(null);
-
-interface AnalysisProviderProps {
-  children: React.ReactNode;
-}
-
-export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
-  children,
-}) => {
+export function AnalysisProvider({ children, positionSync }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
   const { isReady } = useEngine();
 
-  const { currentSfen, syncedSfen, syncPosition } = usePositionSync();
+  const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
+
   const syncedSfenRef = useRef<string | null>(syncedSfen);
+  const analyzingRef = useRef(state.isAnalyzing);
+  const sessionIdRef = useRef(state.sessionId);
+
+  useEffect(() => {
+    syncedSfenRef.current = syncedSfen;
+  }, [syncedSfen]);
+
+  useEffect(() => {
+    analyzingRef.current = state.isAnalyzing;
+    sessionIdRef.current = state.sessionId;
+  }, [state.isAnalyzing, state.sessionId]);
 
   const lastAnalyzedSfenRef = useRef<string | null>(null);
   const restartInFlightRef = useRef<Promise<void> | null>(null);
 
-  const RESTART_DEBOUNCE_MS = 100;
   const desiredSfenRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const restartSeqRef = useRef(0);
   const pendingAfterRef = useRef(false);
 
-  useEffect(() => {
-    syncedSfenRef.current = syncedSfen;
-  }, [syncedSfen]);
+  const RESTART_DEBOUNCE_MS = 100;
 
   const waitUntil = async (cond: () => boolean, timeoutMs = 1500) => {
     const start = Date.now();
@@ -159,14 +72,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }
   };
 
-  const analyzingRef = useRef(state.isAnalyzing);
-  const sessionIdRef = useRef(state.sessionId);
-
-  useEffect(() => {
-    analyzingRef.current = state.isAnalyzing;
-    sessionIdRef.current = state.sessionId;
-  }, [state.isAnalyzing, state.sessionId]);
-
   // === Event listeners ===
   useEffect(() => {
     const setup = async () => {
@@ -175,21 +80,19 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         unlistenRef.current = null;
       }
 
-      const listeners: AnalysisEventListeners = {
-        onUpdate: (result: AnalysisResult) => {
-          dispatch({ type: "update_result", payload: result });
-        },
-        onComplete: (_sessionId: string, result: AnalysisResult) => {
-          dispatch({ type: "update_result", payload: result });
-          dispatch({ type: "stop_analysis" });
-        },
-        onError: (error: string) => {
-          dispatch({ type: "set_error", payload: error });
-        },
-      };
-
       try {
-        const unlisten = await setupAnalysisEventListeners(listeners);
+        const unlisten = await setupAnalysisEventListeners({
+          onUpdate: (result: AnalysisResult) => {
+            dispatch({ type: "update_result", payload: result });
+          },
+          onComplete: (_sessionId: string, result: AnalysisResult) => {
+            dispatch({ type: "update_result", payload: result });
+            dispatch({ type: "stop_analysis" });
+          },
+          onError: (error: string) => {
+            dispatch({ type: "set_error", payload: error });
+          },
+        });
         unlistenRef.current = unlisten;
       } catch (e) {
         console.error("[ANALYSIS] Failed to setup listeners:", e);
@@ -216,7 +119,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
     const want = desiredSfenRef.current;
     if (!want) return;
-
     if (lastAnalyzedSfenRef.current === want) return;
 
     if (syncedSfen !== want) {
@@ -236,7 +138,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       try {
         const sid = sessionIdRef.current;
         if (sid) {
-          await stopAnalysis(sid);
+          await stopAnalysisCore(sid);
         }
 
         dispatch({ type: "clear_results" });
@@ -263,7 +165,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
         if (pendingAfterRef.current) {
           pendingAfterRef.current = false;
-
           const latestSeq = restartSeqRef.current;
           clearDebounceTimer();
           debounceTimerRef.current = window.setTimeout(() => {
@@ -332,7 +233,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     desiredSfenRef.current = currentSfen;
   }, [isReady, state.isAnalyzing, currentSfen, syncPosition]);
 
-  const stopAnalysisFunc = useCallback(async () => {
+  const stopAnalysis = useCallback(async () => {
     desiredSfenRef.current = null;
     pendingAfterRef.current = false;
     restartSeqRef.current++;
@@ -344,7 +245,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }
 
     try {
-      await stopAnalysis(state.sessionId);
+      await stopAnalysisCore(state.sessionId);
     } finally {
       dispatch({ type: "stop_analysis" });
     }
@@ -370,7 +271,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     () => ({
       state,
       startInfiniteAnalysis,
-      stopAnalysis: stopAnalysisFunc,
+      stopAnalysis,
       clearResults,
       clearError,
       getTopCandidate,
@@ -379,7 +280,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     [
       state,
       startInfiniteAnalysis,
-      stopAnalysisFunc,
+      stopAnalysis,
       clearResults,
       clearError,
       getTopCandidate,
@@ -392,12 +293,4 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
       {children}
     </AnalysisContext.Provider>
   );
-};
-
-export const useAnalysis = () => {
-  const context = useContext(AnalysisContext);
-  if (!context) {
-    throw new Error("useAnalysis must be used within AnalysisProvider");
-  }
-  return context;
-};
+}

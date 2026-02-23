@@ -3,7 +3,6 @@ import AppLayout from "../pages/AppLayout";
 import FileTree from "@/components/FileTree/FileTree";
 import TitleBar from "../components/TitleBar";
 import "./App.scss";
-import { AnalysisProvider } from "../contexts/AnalysisContext";
 import AppLoading from "../pages/AppLoading";
 import { AppProviders } from "./providers/AppProviders";
 
@@ -16,14 +15,7 @@ function App() {
           <BrowserRouter>
             <Routes>
               <Route index element={<AppLoading />} />
-              <Route
-                path="/app"
-                element={
-                  <AnalysisProvider>
-                    <AppLayout />
-                  </AnalysisProvider>
-                }
-              >
+              <Route path="/app" element={<AppLayout />}>
                 <Route
                   index
                   element={<Navigate replace to="panel/filetree" />}

@@ -2,7 +2,7 @@ import type {
   AnalysisCandidate,
   Evaluation,
   EvaluationKind,
-} from "@/commands/engine/types";
+} from "@/entities/engine/api/rust-types";
 import { JKFPlayer } from "json-kifu-format";
 import type {
   IMoveMoveFormat,

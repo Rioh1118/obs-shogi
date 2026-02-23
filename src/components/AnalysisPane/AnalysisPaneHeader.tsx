@@ -1,4 +1,3 @@
-import { useAnalysis } from "@/contexts/AnalysisContext";
 import { useEffect, useState, useRef } from "react";
 import {
   Settings,
@@ -11,6 +10,7 @@ import {
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/hooks/useURLParams";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import { useAnalysis } from "@/entities/analysis";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();

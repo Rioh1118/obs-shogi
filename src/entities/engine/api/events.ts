@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AnalysisResult } from "./types";
-import { EVENT_NAMES } from "./constants";
+import type { AnalysisResult } from "@/entities/engine";
+import { EVENT_NAMES } from "./eventNames";
 
 type AnalysisUpdate = { sessionId: string; result: AnalysisResult };
 // ===== リアルタイムイベントリスナー =====

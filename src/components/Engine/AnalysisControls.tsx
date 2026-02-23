@@ -1,9 +1,9 @@
 import React from "react";
-import { useAnalysis } from "@/contexts/AnalysisContext";
 import ShogiButton from "@/components/ShogiButton";
 import "./AnalysisControls.scss";
 import { useEngine } from "@/entities/engine";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import { useAnalysis } from "@/entities/analysis";
 
 const AnalysisControls: React.FC<{
   size?: "small" | "medium" | "large";
