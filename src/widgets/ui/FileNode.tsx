@@ -3,7 +3,7 @@ import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { DROP_ID, parentDir, type DropData } from "@/utils/kifuDragDrop";
+import { DROP_ID, parentDir, type DropData } from "@/widgets/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";

@@ -7,7 +7,7 @@ import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { DROP_ID, type DragData, type DropData } from "@/utils/kifuDragDrop";
+import { DROP_ID, type DragData, type DropData } from "@/widgets/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 

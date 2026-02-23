@@ -10,7 +10,7 @@ import {
   normPath,
   parentDir,
   type DropData,
-} from "@/utils/kifuDragDrop";
+} from "@/widgets/lib/dnd";
 import {
   closestCenter,
   DndContext,

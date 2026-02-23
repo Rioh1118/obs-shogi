@@ -8,7 +8,7 @@ import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
 import { useAppConfig } from "@/entities/app-config";
 import { useDroppable } from "@dnd-kit/core";
-import { DROP_ID, type DropData } from "@/utils/kifuDragDrop";
+import { DROP_ID, type DropData } from "@/widgets/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 

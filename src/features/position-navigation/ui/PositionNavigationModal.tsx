@@ -9,7 +9,10 @@ import {
   buildNextOptions,
   buildPreviewData,
 } from "@/entities/position/lib/buildPreviewData";
-import { removeForkPointer, upsertForkPointer } from "@/utils/kifuPlan";
+import {
+  removeForkPointer,
+  upsertForkPointer,
+} from "@/features/position-navigation/lib/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";

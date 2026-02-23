@@ -1,4 +1,4 @@
-import { DROP_ID, type DropData } from "@/utils/kifuDragDrop";
+import { DROP_ID, type DropData } from "@/widgets/lib/dnd";
 import { useDroppable } from "@dnd-kit/core";
 
 function ScrollDropZone({
