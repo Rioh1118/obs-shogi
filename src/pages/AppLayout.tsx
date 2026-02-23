@@ -14,8 +14,8 @@ import SettingsModal from "@/features/settings/ui/SettingsModal";
 import CreateFileModal from "@/components/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
 import KifuStreamList from "@/components/KifuList/KifuStreamList";
-import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
-import { useURLParams } from "@/hooks/useURLParams";
+import PositionSearchModal from "@/features/position-search/ui/PositionSearchModal";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { usePositionSearch } from "@/entities/search";
 

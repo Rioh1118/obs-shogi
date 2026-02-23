@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 
-import Modal from "../../shared/ui/Modal";
-import { usePositionHitNavigation } from "@/hooks/usePositionHitNavigation";
+import Modal from "../../../shared/ui/Modal";
+import { usePositionHitNavigation } from "@/features/position-search/lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -14,10 +14,13 @@ import "./PositionSeachModal.scss";
 import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
 import { buildPreviewData } from "@/utils/buildPreviewData";
-import PreviewPane from "../NavigationModal/PreviewPane";
+import PreviewPane from "../../../components/NavigationModal/PreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
-import { hitKey, orderPositionHits } from "@/utils/orderPositionHits";
+import {
+  hitKey,
+  orderPositionHits,
+} from "@/features/position-search/lib/orderPositionHits";
 import { useGame } from "@/entities/game";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { usePositionSearch, type PositionHit } from "@/entities/search";

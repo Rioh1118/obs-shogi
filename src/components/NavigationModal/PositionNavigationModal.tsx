@@ -1,5 +1,5 @@
 import Modal from "../../shared/ui/Modal";
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "./PreviewPane";

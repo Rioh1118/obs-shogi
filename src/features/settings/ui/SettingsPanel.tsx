@@ -1,4 +1,4 @@
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import GeneralTab from "./tabs/GeneralTab";
 import EngineTab from "./tabs/EngineTab";

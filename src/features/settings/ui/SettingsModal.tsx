@@ -1,5 +1,5 @@
 import Modal from "@/shared/ui/Modal";
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import SettingsPanel from "./SettingsPanel";
 
 export default function SettingsModal() {

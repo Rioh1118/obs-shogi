@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppConfig } from "@/entities/app-config";
 import "./PositionSearchHitList.scss";
-import { toRelPath } from "@/utils/path";
+import { toRelPath } from "@/shared/lib/path";
 import { useGame } from "@/entities/game";
 import type { PositionHit } from "@/entities/search";
 

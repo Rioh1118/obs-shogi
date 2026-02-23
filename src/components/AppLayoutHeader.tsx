@@ -1,6 +1,6 @@
 import { PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import IconButton from "../shared/ui/IconButton";
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import "./AppLayoutHeader.scss";
 import Title from "./Title";
 import { useHeaderCenterInfo } from "@/hooks/useHeaderCenterInfo";

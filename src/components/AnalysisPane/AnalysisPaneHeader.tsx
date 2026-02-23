@@ -8,7 +8,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { useAnalysis } from "@/entities/analysis";
 

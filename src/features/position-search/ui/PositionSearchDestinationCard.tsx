@@ -1,7 +1,7 @@
 import "./PositionSearchDestinationCard.scss";
 import { useMemo } from "react";
 import { useAppConfig } from "@/entities/app-config";
-import { toRelPath } from "@/utils/path";
+import { toRelPath } from "@/shared/lib/path";
 
 type Props = {
   currentAbsPath: string | null;

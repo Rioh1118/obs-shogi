@@ -1,6 +1,6 @@
 import Modal from "@/shared/ui/Modal";
 import FileCreateForm from "@/components/FileTree/FileCreateForm";
-import { useURLParams } from "@/hooks/useURLParams";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useMemo, useState } from "react";
 import KifuImportForm from "./FileTree/KifuImportForm";
 import "./CreateFileModal.scss";
