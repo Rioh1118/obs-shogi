@@ -12,9 +12,9 @@ import { engineInitializer } from "@/services/engine/EngineInitializer";
 import type { EngineInfo } from "@/commands/engine/types";
 import type { EnginePhase, EngineRuntimeConfig } from "@/types/engine";
 
-import { useEnginePresets } from "./EnginePresetsContext";
 import { equalRuntime } from "@/utils/engineEqualConfig";
-import type { PresetId } from "@/types/enginePresets";
+import type { PresetId } from "@/entities/engine-presets/model/types";
+import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 
 type EngineState = {
   phase: EnginePhase;

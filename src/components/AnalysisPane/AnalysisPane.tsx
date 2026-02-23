@@ -11,9 +11,9 @@ import { usePosition } from "@/contexts/PositionContext";
 import StatsSection from "./StatsSection";
 import type { AnalysisCandidate, Evaluation } from "@/commands/engine/types";
 import { pickTopCandidate } from "@/utils/analysis";
-import { useEnginePresets } from "@/contexts/EnginePresetsContext";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
+import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 
 type PaneSnapshot = {
   candidates: AnalysisCandidate[];

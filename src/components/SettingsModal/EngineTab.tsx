@@ -14,10 +14,13 @@ import {
 import SButton from "./ui/SButton";
 import SSection from "./ui/SSection";
 
-import { useEnginePresets } from "@/contexts/EnginePresetsContext";
-import { DEFAULT_OPTIONS } from "@/commands/engine";
-import { isPresetConfigured, type PresetId } from "@/types/enginePresets";
 import EnginePresetEditDialogPanel from "./EnginePresetEditDialog/EnginePresetEditDialogPanel";
+import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import {
+  isPresetConfigured,
+  type PresetId,
+} from "@/entities/engine-presets/model/types";
+import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 
 const cx = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");
@@ -128,17 +131,17 @@ export default function EngineTab() {
               const multiPv = optionNum(
                 p.options,
                 "MultiPV",
-                DEFAULT_OPTIONS.MultiPV,
+                DEFAULT_USI_OPTIONS.MultiPV,
               );
               const threads = optionNum(
                 p.options,
                 "Threads",
-                DEFAULT_OPTIONS.Threads,
+                DEFAULT_USI_OPTIONS.Threads,
               );
               const hash = optionNum(
                 p.options,
                 "USI_Hash",
-                DEFAULT_OPTIONS.USI_Hash,
+                DEFAULT_USI_OPTIONS.USI_Hash,
               );
 
               const multiPvWarn = multiPv >= 2; // 研究用途ではOKだが注意

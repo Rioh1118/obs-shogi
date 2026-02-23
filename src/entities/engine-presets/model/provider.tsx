@@ -1,192 +1,33 @@
 import {
-  createContext,
-  useContext,
+  useCallback,
   useEffect,
   useMemo,
   useReducer,
   useRef,
-  useCallback,
+  type ReactNode,
 } from "react";
-import type { ReactNode } from "react";
-
+import { reducer } from "./reducer";
 import {
-  type PresetId,
-  type EnginePreset,
-  type PresetsFile,
-  type UsiOptionMap,
-  type AnalysisDefaults,
+  initialState,
   isPresetConfigured,
-} from "@/types/enginePresets";
-import { loadPresets, savePresets } from "@/commands/enginePresets";
-
-import { DEFAULT_OPTIONS } from "@/commands/engine";
-import type { EngineRuntimeConfig } from "@/types/engine";
-import { derivePaths } from "@/utils/enginePresets";
+  type AnalysisDefaults,
+  type EnginePreset,
+  type EnginePresetsContextType,
+  type PresetId,
+  type UsiOptionMap,
+} from "./types";
 import { useAppConfig } from "@/entities/app-config";
-
-type AsyncStatus = "idle" | "loading" | "ok" | "error";
-
-type EnginePresetsState = {
-  status: AsyncStatus;
-  error: string | null;
-
-  presets: EnginePreset[];
-  selectedPresetId: PresetId | null;
-};
-
-type EnginePresetsAction =
-  | { type: "loading" }
-  | {
-      type: "loaded";
-      payload: { presets: EnginePreset[]; selectedPresetId: PresetId | null };
-    }
-  | { type: "error"; payload: string }
-  | { type: "set_presets"; payload: EnginePreset[] }
-  | { type: "set_selected"; payload: PresetId | null };
-
-const initialState: EnginePresetsState = {
-  status: "idle",
-  error: null,
-  presets: [],
-  selectedPresetId: null,
-};
-
-function reducer(
-  state: EnginePresetsState,
-  action: EnginePresetsAction,
-): EnginePresetsState {
-  switch (action.type) {
-    case "loading":
-      return { ...state, status: "loading", error: null };
-    case "loaded":
-      return {
-        status: "ok",
-        error: null,
-        presets: action.payload.presets,
-        selectedPresetId: action.payload.selectedPresetId,
-      };
-    case "error":
-      return { ...state, status: "error", error: action.payload };
-    case "set_presets":
-      return { ...state, presets: action.payload };
-    case "set_selected":
-      return { ...state, selectedPresetId: action.payload };
-    default:
-      return state;
-  }
-}
-
-function genPresetId(): PresetId {
-  return crypto.randomUUID();
-}
-
-function clonePreset<T>(v: T): T {
-  if (typeof structuredClone === "function") return structuredClone(v);
-  return JSON.parse(JSON.stringify(v));
-}
-
-function createDefaultPreset(
-  partial: Partial<EnginePreset> = {},
-): EnginePreset {
-  const id = partial.id ?? genPresetId();
-  const base: EnginePreset = {
-    id,
-    label: "",
-
-    aiName: "",
-    enginePath: "",
-    evalFilePath: "",
-    bookEnabled: false,
-    bookFilePath: null,
-    options: { ...DEFAULT_OPTIONS },
-    analysis: undefined,
-  };
-
-  const merged: EnginePreset = {
-    ...base,
-    ...partial,
-    options: {
-      ...base.options,
-      ...(partial.options ?? {}),
-    },
-    analysis: partial.analysis ? { ...partial.analysis } : base.analysis,
-  };
-  if (!merged.bookEnabled) merged.bookFilePath = null;
-
-  return merged;
-}
-
-function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
-  const p = createDefaultPreset(raw);
-
-  p.label = (p.label ?? "").trim() || "";
-  p.aiName = (p.aiName ?? "").trim();
-  p.enginePath = (p.enginePath ?? "").trim();
-  p.evalFilePath = (p.evalFilePath ?? "").trim();
-
-  // book
-  p.bookEnabled = Boolean(p.bookEnabled);
-  if (!p.bookEnabled) {
-    p.bookFilePath = null;
-  } else {
-    const bp = (p.bookFilePath ?? "").trim();
-    p.bookFilePath = bp.length > 0 ? bp : null;
-  }
-
-  const nextOptions: UsiOptionMap = {};
-  for (const [k, v] of Object.entries(p.options ?? {})) {
-    const vv = String(v ?? "").trim();
-    if (!vv) continue;
-    nextOptions[k] = vv;
-  }
-  p.options = { ...DEFAULT_OPTIONS, ...nextOptions };
-
-  if (p.analysis) {
-    const a = { ...p.analysis };
-    if (a.timeSeconds != null && a.timeSeconds <= 0) delete a.timeSeconds;
-    if (a.depth != null && a.depth <= 0) delete a.depth;
-    if (a.nodes != null && a.nodes <= 0) delete a.nodes;
-    p.analysis = a;
-  }
-
-  return p;
-}
-
-function normalizeLoadedFile(file: PresetsFile | null): EnginePreset[] {
-  const presets = file?.presets ?? [];
-  const normalized = presets.map((p) => normalizeOnePreset(p));
-
-  // id 重複の保険（もし壊れてたら再採番）
-  const seen = new Set<string>();
-  for (let i = 0; i < normalized.length; i++) {
-    const id = normalized[i].id;
-    if (!id || seen.has(id)) normalized[i].id = genPresetId();
-    seen.add(normalized[i].id);
-  }
-
-  return normalized;
-}
-
-type EnginePresetsContextType = {
-  state: EnginePresetsState;
-  // derived
-  selectedPreset: EnginePreset | null;
-  runtimeConfig: EngineRuntimeConfig | null;
-  analysisDefaults: AnalysisDefaults | null;
-  selectedPresetVersion: number;
-
-  // IO
-  reload: () => Promise<void>;
-  // operations
-  selectPreset: (id: PresetId | null) => Promise<void>;
-  createPreset: (partial?: Partial<EnginePreset>) => Promise<EnginePreset>;
-  duplicatePreset: (id: PresetId) => Promise<EnginePreset | null>;
-  updatePreset: (id: PresetId, patch: Partial<EnginePreset>) => Promise<void>;
-  mergeOptions: (id: PresetId, partial: UsiOptionMap) => Promise<void>;
-  deletePreset: (id: PresetId) => Promise<void>;
-};
-
-const PresetsContext = createContext<EnginePresetsContextType | null>(null);
+import { loadPresets, savePresets } from "../api/presets";
+import type { EngineRuntimeConfig } from "@/types/engine";
+import {
+  clonePreset,
+  createDefaultPreset,
+  genPresetId,
+  normalizeLoadedFile,
+  normalizeOnePreset,
+} from "../lib/normalize";
+import { EnginePresetsContext } from "./context";
+import { derivePaths } from "../lib/derivePath";
 
 export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -446,12 +287,8 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <PresetsContext.Provider value={value}>{children}</PresetsContext.Provider>
+    <EnginePresetsContext.Provider value={value}>
+      {children}
+    </EnginePresetsContext.Provider>
   );
-}
-
-export function useEnginePresets() {
-  const ctx = useContext(PresetsContext);
-  if (!ctx) throw new Error("usePresets must be used within PresetsProvider");
-  return ctx;
 }

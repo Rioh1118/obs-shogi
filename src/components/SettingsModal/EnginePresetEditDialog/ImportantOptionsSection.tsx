@@ -1,5 +1,3 @@
-import type { EnginePreset } from "@/types/enginePresets";
-import { DEFAULT_OPTIONS } from "@/commands/engine";
 import type { SRadioOption } from "../ui/SRadioGroup";
 import { SButton, SField, SInput, SRadioGroup, SSection, SSelect } from "../ui";
 import {
@@ -13,6 +11,8 @@ import {
 
 import "./ImportantOptionsSection.scss";
 import type { HashMode, ThreadsMode } from "@/utils/engineSettings";
+import type { EnginePreset } from "@/entities/engine-presets/model/types";
+import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 
 export default function ImportantOptionsSection(props: {
   draft: EnginePreset;
@@ -244,7 +244,7 @@ export default function ImportantOptionsSection(props: {
               <SInput
                 type="number"
                 value={
-                  draft.options.NetworkDelay ?? DEFAULT_OPTIONS.NetworkDelay
+                  draft.options.NetworkDelay ?? DEFAULT_USI_OPTIONS.NetworkDelay
                 }
                 onChange={(e) =>
                   setOpt(
@@ -259,7 +259,8 @@ export default function ImportantOptionsSection(props: {
               <SInput
                 type="number"
                 value={
-                  draft.options.NetworkDelay2 ?? DEFAULT_OPTIONS.NetworkDelay2
+                  draft.options.NetworkDelay2 ??
+                  DEFAULT_USI_OPTIONS.NetworkDelay2
                 }
                 onChange={(e) =>
                   setOpt(
@@ -278,7 +279,7 @@ export default function ImportantOptionsSection(props: {
                 type="number"
                 value={
                   draft.options.MinimumThinkingTime ??
-                  DEFAULT_OPTIONS.MinimumThinkingTime
+                  DEFAULT_USI_OPTIONS.MinimumThinkingTime
                 }
                 onChange={(e) =>
                   setOpt(
@@ -292,7 +293,7 @@ export default function ImportantOptionsSection(props: {
             <SField label="SlowMover" description="秒読み配分（対局向け）">
               <SInput
                 type="number"
-                value={draft.options.SlowMover ?? DEFAULT_OPTIONS.SlowMover}
+                value={draft.options.SlowMover ?? DEFAULT_USI_OPTIONS.SlowMover}
                 onChange={(e) =>
                   setOpt("SlowMover", String(parseIntSafe(e.target.value, 0)))
                 }

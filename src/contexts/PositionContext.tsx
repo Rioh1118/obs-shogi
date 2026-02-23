@@ -8,8 +8,8 @@ import React, {
 } from "react";
 import { useEngine } from "./EngineContext";
 import { setPositionFromSfen } from "@/commands/engine/core";
-import { useEnginePresets } from "./EnginePresetsContext";
 import { useGame } from "@/entities/game";
+import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 
 interface PositionContextType {
   currentSfen: string | null;

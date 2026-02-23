@@ -1,6 +1,6 @@
-import type { EnginePreset } from "@/types/enginePresets";
-import { getParentPath } from "./path";
 import { join } from "pathe";
+import type { EnginePreset } from "../model/types";
+import { getParentPath } from "@/utils/path";
 
 type DerivedPaths = {
   engineDir: string;

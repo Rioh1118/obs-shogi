@@ -2,9 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import "./EnginePresetEditDialogPanel.scss";
 
 import Modal from "@/components/Modal";
-import { DEFAULT_OPTIONS } from "@/commands/engine";
-import { useEnginePresets } from "@/contexts/EnginePresetsContext";
-import type { EnginePreset, PresetId } from "@/types/enginePresets";
 
 import {
   scanAiRoot,
@@ -32,6 +29,12 @@ import AnalysisDefaultsSection from "./AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
 import type { ThreadsMode } from "@/utils/engineSettings";
 import { useAppConfig } from "@/entities/app-config";
+import type {
+  EnginePreset,
+  PresetId,
+} from "@/entities/engine-presets/model/types";
+import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 
 type Props = {
   presetId: PresetId;
@@ -148,7 +151,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const [hashMode, setHashMode] = useState<"auto" | "manual">("auto");
   const [hashManual, setHashManual] = useState(
-    parseIntSafe(DEFAULT_OPTIONS.USI_Hash, 1024),
+    parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024),
   );
 
   // preset → draft 初期化
@@ -163,7 +166,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const mpv = clampInt(
       parseIntSafe(
         d.options?.MultiPV,
-        parseIntSafe(DEFAULT_OPTIONS.MultiPV, 1),
+        parseIntSafe(DEFAULT_USI_OPTIONS.MultiPV, 1),
       ),
       MULTIPV_MIN,
       MULTIPV_MAX,
@@ -174,7 +177,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const t = clampInt(
       parseIntSafe(
         d.options?.Threads,
-        parseIntSafe(DEFAULT_OPTIONS.Threads, recommendedThreads),
+        parseIntSafe(DEFAULT_USI_OPTIONS.Threads, recommendedThreads),
       ),
       1,
       cores,
@@ -185,14 +188,16 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const h = clampInt(
       parseIntSafe(
         d.options?.USI_Hash,
-        parseIntSafe(DEFAULT_OPTIONS.USI_Hash, 1024),
+        parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024),
       ),
       128,
       65536,
     );
     setHashManual(h);
     setHashMode(
-      h === parseIntSafe(DEFAULT_OPTIONS.USI_Hash, 1024) ? "auto" : "manual",
+      h === parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024)
+        ? "auto"
+        : "manual",
     );
   }, [open, preset, cores, recommendedThreads]);
 
@@ -366,7 +371,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     (mode: "auto" | "manual") => {
       setHashMode(mode);
       if (mode === "auto") {
-        const v = parseIntSafe(DEFAULT_OPTIONS.USI_Hash, 1024);
+        const v = parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024);
         setHashManual(v);
         setOpt("USI_Hash", String(v));
       } else {
@@ -407,7 +412,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       {
         value: "auto",
         label: "自動（推奨）",
-        description: `デフォルト ${DEFAULT_OPTIONS.USI_Hash}MB を使用`,
+        description: `デフォルト ${DEFAULT_USI_OPTIONS.USI_Hash}MB を使用`,
       },
       {
         value: "manual",
@@ -501,7 +506,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         : String(clampInt(threadsManual, 1, cores));
     options.USI_Hash =
       hashMode === "auto"
-        ? String(parseIntSafe(DEFAULT_OPTIONS.USI_Hash, 1024))
+        ? String(parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024))
         : String(clampInt(hashManual, 128, 65536));
 
     const patch: Partial<EnginePreset> = {
@@ -511,7 +516,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       evalFilePath,
       bookEnabled,
       bookFilePath,
-      options: { ...DEFAULT_OPTIONS, ...options },
+      options: { ...DEFAULT_USI_OPTIONS, ...options },
       analysis,
     };
 

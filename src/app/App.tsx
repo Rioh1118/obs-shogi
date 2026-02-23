@@ -7,9 +7,9 @@ import EngineProvider from "../contexts/EngineContext";
 import { AnalysisProvider } from "../contexts/AnalysisContext";
 import { PositionProvider } from "../contexts/PositionContext";
 import { PositionSearchProvider } from "../contexts/PositionSearchContext";
-import { EnginePresetsProvider } from "../contexts/EnginePresetsContext";
 import AppLoading from "../pages/AppLoading";
 import { AppProviders } from "./providers/AppProviders";
+import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
 
 function App() {
   return (
