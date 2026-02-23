@@ -1,9 +1,9 @@
 import React from "react";
-import { useEngine } from "@/contexts/EngineContext";
 import { useAnalysis } from "@/contexts/AnalysisContext";
 import { usePosition } from "@/contexts/PositionContext";
 import ShogiButton from "@/components/ShogiButton";
 import "./AnalysisControls.scss";
+import { useEngine } from "@/entities/engine";
 
 const AnalysisControls: React.FC<{
   size?: "small" | "medium" | "large";

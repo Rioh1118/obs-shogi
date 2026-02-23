@@ -3,7 +3,6 @@ export interface Duration {
   nanos: number;
 }
 
-// ===== エンジン情報関連 =====
 export interface EngineInfo {
   name: string;
   author: string;
@@ -30,9 +29,8 @@ export interface EngineSettings {
   options: Record<string, string>;
 }
 
-// ===== 解析設定関連 =====
 export interface AnalysisConfig {
-  time_limit?: { secs: number; nanos: number };
+  time_limit?: Duration;
   depth_limit?: number;
   node_limit?: number;
   mate_search: boolean;
@@ -67,18 +65,11 @@ export interface AnalysisCandidate {
   time_ms?: number | null;
 }
 
-// ===== 解析結果関連 =====
 export interface AnalysisResult {
   candidates: AnalysisCandidate[];
   mate_sequence?: string[] | null;
 }
 
-export interface AnalysisResult {
-  candidates: AnalysisCandidate[];
-  mate_sequence?: string[] | null;
-}
-
-// ===== イベント関連 =====
 export interface AnalysisUpdateEvent {
   sessionId: string;
   result: AnalysisResult;
@@ -91,7 +82,6 @@ export interface AnalysisCompleteEvent {
   totalTime: number;
 }
 
-// ===== バッチ処理関連 =====
 export interface BatchAnalysisPosition {
   moves: string[];
   name?: string;
@@ -108,7 +98,6 @@ export interface BatchAnalysisResult {
   result: AnalysisResult;
 }
 
-// ===== エンジン状態関連 =====
 export interface EngineStatus {
   isInitialized: boolean;
   engineInfo: EngineInfo | null;

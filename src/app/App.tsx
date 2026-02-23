@@ -3,13 +3,11 @@ import AppLayout from "../pages/AppLayout";
 import FileTree from "@/components/FileTree/FileTree";
 import TitleBar from "../components/TitleBar";
 import "./App.scss";
-import EngineProvider from "../contexts/EngineContext";
 import { AnalysisProvider } from "../contexts/AnalysisContext";
 import { PositionProvider } from "../contexts/PositionContext";
 import { PositionSearchProvider } from "../contexts/PositionSearchContext";
 import AppLoading from "../pages/AppLoading";
 import { AppProviders } from "./providers/AppProviders";
-import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
 
 function App() {
   return (
@@ -23,17 +21,13 @@ function App() {
               <Route
                 path="/app"
                 element={
-                  <EnginePresetsProvider>
-                    <EngineProvider>
-                      <PositionProvider>
-                        <PositionSearchProvider>
-                          <AnalysisProvider>
-                            <AppLayout />
-                          </AnalysisProvider>
-                        </PositionSearchProvider>
-                      </PositionProvider>
-                    </EngineProvider>
-                  </EnginePresetsProvider>
+                  <PositionProvider>
+                    <PositionSearchProvider>
+                      <AnalysisProvider>
+                        <AppLayout />
+                      </AnalysisProvider>
+                    </PositionSearchProvider>
+                  </PositionProvider>
                 }
               >
                 <Route

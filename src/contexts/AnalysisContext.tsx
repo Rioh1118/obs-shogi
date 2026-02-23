@@ -8,22 +8,21 @@ import React, {
   useEffect,
 } from "react";
 
-import { useEngine } from "./EngineContext";
 import { usePosition } from "./PositionContext";
 
 import {
   setupAnalysisEventListeners,
   type AnalysisEventListeners,
-  stopAnalysis,
-  startInfiniteAnalysis as startInfiniteAnalysisCore,
 } from "@/commands/engine";
 
-import type {
-  AnalysisCandidate,
-  AnalysisResult,
-} from "@/commands/engine/types";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { pickTopCandidate, sortByRank } from "@/utils/analysis";
+import { useEngine, type AnalysisResult } from "@/entities/engine";
+import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+import {
+  startInfiniteAnalysis as startInfiniteAnalysisCore,
+  stopAnalysis,
+} from "@/entities/engine/api/tauri";
 
 interface AnalysisState {
   isAnalyzing: boolean;

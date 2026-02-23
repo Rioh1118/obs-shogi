@@ -6,10 +6,10 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { useEngine } from "./EngineContext";
-import { setPositionFromSfen } from "@/commands/engine/core";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { useEngine } from "@/entities/engine";
+import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 
 interface PositionContextType {
   currentSfen: string | null;

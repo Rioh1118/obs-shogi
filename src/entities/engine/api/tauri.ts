@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  EngineInfo,
-  EngineSettings,
   AnalysisResult,
   AnalysisStatus,
-} from "./types";
+  EngineInfo,
+  EngineSettings,
+} from "./rust-types";
 
 // ===== エンジン初期化・管理 =====
 export async function initializeEngine(

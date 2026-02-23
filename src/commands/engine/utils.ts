@@ -1,10 +1,14 @@
 import type {
-  Evaluation,
   AnalysisConfig,
   AnalysisStatus,
   EngineStatus,
-} from "./types";
-import { getEngineInfo, getEngineSettings, getAnalysisStatus } from "./core";
+  Evaluation,
+} from "@/entities/engine/api/rust-types";
+import {
+  getAnalysisStatus,
+  getEngineInfo,
+  getEngineSettings,
+} from "@/entities/engine/api/tauri";
 
 // ===== フォーマット関数 =====
 export function formatEvaluation(evaluation: Evaluation): string {

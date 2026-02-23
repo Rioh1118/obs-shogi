@@ -1,4 +1,4 @@
-import type { EngineRuntimeConfig } from "@/types/engine";
+import type { EngineRuntimeConfig } from "../model/types";
 
 export function shallowEqualOptions(
   a: Record<string, string>,
