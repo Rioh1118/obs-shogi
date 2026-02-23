@@ -1,6 +1,5 @@
-// utils/kifuParseUtils.ts
-import type { IJSONKifuFormat } from "json-kifu-format/dist/src/Formats";
-import type { KifuFormat } from "@/types";
+import type { JKFData } from "@/entities/kifu/model/jkf";
+import type { KifuFormat } from "@/entities/kifu/model/kifu";
 
 import {
   detectRecordFormat,
@@ -13,8 +12,8 @@ import {
 } from "tsshogi";
 
 export class KifuParseError extends Error {
-  readonly cause?: unknown;
-  constructor(message: string, cause?: unknown) {
+  readonly cause?: Error | string;
+  constructor(message: string, cause?: Error | string) {
     super(message);
     this.name = "KifuParseError";
     this.cause = cause;
@@ -23,38 +22,54 @@ export class KifuParseError extends Error {
 
 export type ParsedKifu = {
   detectedFormat: KifuFormat;
-  jkf: IJSONKifuFormat;
+  jkf: JKFData;
 };
 
 function stripBom(s: string): string {
   return s.replace(/^\uFEFF/, "");
 }
 
-function toIJsonKifuFormat(jkf: unknown): IJSONKifuFormat {
-  // tsshogiのJKFと json-kifu-format の IJSONKifuFormat は構造がほぼ同じなのでキャストでOK
-  return jkf as unknown as IJSONKifuFormat;
+export function parseKifuContentToJKF(
+  raw: string,
+  format: KifuFormat,
+): JKFData {
+  const text = stripBom(raw).trim();
+  if (!text) throw new KifuParseError("空の棋譜です。");
+
+  const rec =
+    format === "csa"
+      ? importCSA(text)
+      : format === "ki2"
+        ? importKI2(text)
+        : format === "kif"
+          ? importKIF(text)
+          : importJKFString(text);
+
+  if (rec instanceof Error) {
+    throw new KifuParseError(`棋譜(${format})の解析に失敗しました。`, rec);
+  }
+  return exportJKF(rec) as JKFData;
 }
 
 export function parseKifuStringToJKF(raw: string): ParsedKifu {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
 
-  // 1) JSON(JKF)っぽいなら、まず tsshogi の importJKFString を使う（= JSON parse + 検証）
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
-    if (rec instanceof Error) {
+    if (rec instanceof Error)
       throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
-    }
-    const jkf = exportJKF(rec);
-    return { detectedFormat: "jkf", jkf: toIJsonKifuFormat(jkf) };
+    return { detectedFormat: "jkf", jkf: exportJKF(rec) as JKFData };
   }
 
-  // 2) 非JSONは detect して import
   let fmt: RecordFormatType;
   try {
     fmt = detectRecordFormat(text);
   } catch (e) {
-    throw new KifuParseError("棋譜形式の判定に失敗しました。", e);
+    throw new KifuParseError(
+      "棋譜形式の判定に失敗しました。",
+      e instanceof Error ? e.message : String(e),
+    );
   }
 
   const rec =
@@ -64,18 +79,11 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
         ? importKI2(text)
         : fmt === RecordFormatType.KIF
           ? importKIF(text)
-          : // tsshogi が JKF と判定する可能性もあるので一応
-            fmt === RecordFormatType.JKF
-            ? importJKFString(text)
-            : new Error(`未対応形式: ${String(fmt)}`);
+          : importJKFString(text);
 
-  if (rec instanceof Error) {
+  if (rec instanceof Error)
     throw new KifuParseError("棋譜の解析に失敗しました。", rec);
-  }
 
-  const jkf = exportJKF(rec);
-
-  // detectedFormat を KifuFormat に寄せる
   const detectedFormat: KifuFormat =
     fmt === RecordFormatType.CSA
       ? "csa"
@@ -85,5 +93,5 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? "kif"
           : "jkf";
 
-  return { detectedFormat, jkf: toIJsonKifuFormat(jkf) };
+  return { detectedFormat, jkf: exportJKF(rec) as JKFData };
 }

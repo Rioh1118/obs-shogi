@@ -1,8 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import AppLayout from "../pages/AppLayout";
 import FileTree from "@/components/FileTree/FileTree";
-import { AppConfigProvider } from "@/entities/app-config/model/provider";
-import { FileTreeProvider } from "../contexts/FileTreeContext";
 import { GameProvider } from "../contexts/GameContext";
 import { useMemo } from "react";
 import { KifuWriterFactory } from "../services/file/KifuWriterImpl";
@@ -14,49 +12,48 @@ import { PositionProvider } from "../contexts/PositionContext";
 import { PositionSearchProvider } from "../contexts/PositionSearchContext";
 import { EnginePresetsProvider } from "../contexts/EnginePresetsContext";
 import AppLoading from "../pages/AppLoading";
+import AppProviders from "./providers/AppProviders";
 
 function App() {
   const kifuWriter = useMemo(() => KifuWriterFactory.createInstance(), []);
   return (
     <div className="app-root">
-      <AppConfigProvider>
-        <FileTreeProvider>
-          <GameProvider kifuWriter={kifuWriter}>
-            <TitleBar />
-            <div className="app-content">
-              <BrowserRouter>
-                <Routes>
-                  <Route index element={<AppLoading />} />
+      <AppProviders>
+        <GameProvider kifuWriter={kifuWriter}>
+          <TitleBar />
+          <div className="app-content">
+            <BrowserRouter>
+              <Routes>
+                <Route index element={<AppLoading />} />
+                <Route
+                  path="/app"
+                  element={
+                    <EnginePresetsProvider>
+                      <EngineProvider>
+                        <PositionProvider>
+                          <PositionSearchProvider>
+                            <AnalysisProvider>
+                              <AppLayout />
+                            </AnalysisProvider>
+                          </PositionSearchProvider>
+                        </PositionProvider>
+                      </EngineProvider>
+                    </EnginePresetsProvider>
+                  }
+                >
                   <Route
-                    path="/app"
-                    element={
-                      <EnginePresetsProvider>
-                        <EngineProvider>
-                          <PositionProvider>
-                            <PositionSearchProvider>
-                              <AnalysisProvider>
-                                <AppLayout />
-                              </AnalysisProvider>
-                            </PositionSearchProvider>
-                          </PositionProvider>
-                        </EngineProvider>
-                      </EnginePresetsProvider>
-                    }
-                  >
-                    <Route
-                      index
-                      element={<Navigate replace to="panel/filetree" />}
-                    />
-                    <Route path="panel">
-                      <Route path="filetree" element={<FileTree />} />
-                    </Route>
+                    index
+                    element={<Navigate replace to="panel/filetree" />}
+                  />
+                  <Route path="panel">
+                    <Route path="filetree" element={<FileTree />} />
                   </Route>
-                </Routes>
-              </BrowserRouter>
-            </div>
-          </GameProvider>
-        </FileTreeProvider>
-      </AppConfigProvider>
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </div>
+        </GameProvider>
+      </AppProviders>
     </div>
   );
 }

@@ -1,7 +1,9 @@
+import type { JKFData } from "@/entities/kifu";
+import type { RustFileTreeNode } from "./rust-types";
+import { RustFileTreeAdapter } from "./adapter";
+import type { FileTreeNode } from "../model/types";
+
 import { invoke } from "@tauri-apps/api/core";
-import type { FileTreeNode, JKFData } from "@/types";
-import type { RustFileTreeNode } from "@/types/rust-types";
-import { RustFileTreeAdapter } from "@/adapter/fileTreeAdapter";
 
 export async function getFileTree(rootDir: string): Promise<FileTreeNode> {
   const rustNode: RustFileTreeNode = await invoke("get_file_tree", { rootDir });

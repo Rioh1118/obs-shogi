@@ -4,7 +4,7 @@ export interface RustFileTreeNode {
   path: string;
   isDir: boolean;
   children?: RustFileTreeNode[];
-  lastModified?: number; // Unix timestamp
+  lastModified?: number; // unix timestamp(sec)
   size?: number;
   extension?: string;
 }

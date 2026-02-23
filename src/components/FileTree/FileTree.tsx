@@ -1,7 +1,6 @@
 import RootNode from "./RootNode";
 import Spinner from "../Spinner";
 import "./FileTree.scss";
-import { useFileTree } from "@/contexts/FileTreeContext";
 import ContextMenu from "./ContextMenu";
 import { useAppConfig } from "@/entities/app-config";
 import { useMemo, useState } from "react";
@@ -25,6 +24,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import ScrollDropZone from "./ScrollDropZone";
+import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
 const collisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);

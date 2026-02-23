@@ -10,10 +10,10 @@ export interface KifuCreationOptions {
     black?: string;
     white?: string;
     date?: string;
-
     tags?: string[];
     note?: string;
   };
+
   initialPosition: {
     preset: InitialPresetString;
     data?: JKFState;

@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import type { KifuFormat } from "@/types";
-import { useFileTree } from "@/contexts/FileTreeContext";
-import { parseKifuStringToJKF } from "@/utils/kifuParseUtils";
 import Form from "../Form/Form";
 import FormField from "../Form/FormField";
 import TextInput from "../Form/TextInput";
@@ -9,6 +6,8 @@ import Select from "../Form/Select";
 import Textarea from "../Form/Textarea";
 import ButtonGroup from "../Form/ButtonGroup";
 import Button from "../Form/Button";
+import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { parseKifuStringToJKF, type KifuFormat } from "@/entities/kifu";
 
 function stripKnownExt(name: string) {
   return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");

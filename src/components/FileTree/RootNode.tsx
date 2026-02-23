@@ -1,16 +1,16 @@
-import type { FileTreeNode } from "@/types/file-tree";
 import { useState } from "react";
 import NodeBox from "./NodeBox";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import TreeNode from "./TreeNode";
 import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
-import { useFileTree } from "@/contexts/FileTreeContext";
 import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
 import { useAppConfig } from "@/entities/app-config";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/utils/kifuDragDrop";
+import type { FileTreeNode } from "@/entities/file-tree/model/types";
+import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
 function computeRenamedPathKeepingParent(
   oldPath: string,

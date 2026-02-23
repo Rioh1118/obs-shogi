@@ -20,13 +20,12 @@ import type {
   MutateResult,
   MutateOptions,
 } from "@/types";
-import type { GameMode, JKFData, Kind, ShogiMove } from "@/types";
+import type { GameMode, Kind, ShogiMove } from "@/types";
 import { initialGameState, ROOT_CURSOR } from "@/types";
 import { Color } from "shogi.js";
 import type { KifuWriter } from "@/interfaces";
 import { ShogiMoveValidator } from "@/services/game/ShogiMoveValidator";
 import { fromIMove, toIMoveMoveFormat } from "@/adapter/moveConverter";
-import { useFileTree } from "./FileTreeContext";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { applyMoveWithBranch } from "@/services/game/applyMoveWithBranchAware";
 import { type KifuCursor } from "@/types";
@@ -38,6 +37,8 @@ import {
 import { computeLeafTesuu } from "@/utils/jkfNavigation";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/utils/branch";
 import type { DeleteQuery, SwapQuery } from "@/types/branch";
+import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import type { JKFData } from "@/entities/kifu";
 
 function lastMovePlayer(jkf: JKFPlayer): ShogiMove | null {
   if (jkf.tesuu === 0) return null;

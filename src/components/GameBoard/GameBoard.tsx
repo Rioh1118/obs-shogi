@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import "./GameBoard.scss";
 import HandHeader from "./Hand/HandHeader";
-import { useFileTree } from "@/contexts/FileTreeContext";
+import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
 type Props = {
   topLeft: ReactNode;

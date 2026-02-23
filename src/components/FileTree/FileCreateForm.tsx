@@ -1,6 +1,4 @@
 import { useState } from "react";
-import type { KifuFormat, InitialPresetString } from "@/types";
-import { useFileTree } from "@/contexts/FileTreeContext";
 import Form from "../Form/Form";
 import Spinner from "../Spinner";
 import FormField from "../Form/FormField";
@@ -10,6 +8,8 @@ import Textarea from "../Form/Textarea";
 import ButtonGroup from "../Form/ButtonGroup";
 import Button from "../Form/Button";
 import { TagsInput } from "../Form/TagsInput";
+import type { InitialPresetString, KifuFormat } from "@/entities/kifu";
+import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
 function FileCreateForm({
   toggleModal,

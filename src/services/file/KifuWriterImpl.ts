@@ -1,7 +1,7 @@
-import { Ok, Err, type AsyncResult } from "@/types";
 import type { KifuWriter as IKifuWriter } from "@/interfaces";
-import type { JKFData, KifuFormat } from "@/types";
 import { writeKifuToFile } from "@/commands/kifuWriter";
+import type { JKFData, KifuFormat } from "@/entities/kifu";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 
 export class KifuWriterImpl implements IKifuWriter {
   /**
