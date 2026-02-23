@@ -6,12 +6,12 @@ import Hand from "../widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
 import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
-import WelcomeScreen from "@/components/WelcomeScreen";
+import WelcomeScreen from "@/pages/WelcomeScreen";
 
 import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import SettingsModal from "@/features/settings/ui/SettingsModal";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
-import AppLayoutHeader from "@/components/AppLayoutHeader";
+import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import PositionSearchModal from "@/features/position-search/ui/PositionSearchModal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";

@@ -1,5 +1,5 @@
 import "./FolderSelect.scss";
-import Title from "../components/Title";
+import Title from "../shared/ui/Title";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";

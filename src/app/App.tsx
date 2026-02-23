@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import AppLayout from "../pages/AppLayout";
 import FileTree from "@/widgets/file-tree/ui/FileTree";
-import TitleBar from "../components/TitleBar";
+import TitleBar from "../shared/ui/TitleBar";
 import "./App.scss";
 import AppLoading from "../pages/AppLoading";
 import { AppProviders } from "./providers/AppProviders";

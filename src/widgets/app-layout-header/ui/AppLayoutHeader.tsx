@@ -1,9 +1,9 @@
 import { PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
-import IconButton from "../shared/ui/IconButton";
+import IconButton from "../../../shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import "./AppLayoutHeader.scss";
-import Title from "./Title";
-import { useHeaderCenterInfo } from "@/hooks/useHeaderCenterInfo";
+import Title from "../../../shared/ui/Title";
+import { useHeaderCenterInfo } from "@/widgets/app-layout-header/lib/useHeaderCenterInfo";
 
 type Props = {
   toggleSidebar: () => void;
