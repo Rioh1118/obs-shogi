@@ -9,7 +9,6 @@ import React, {
 } from "react";
 import type { ReactNode } from "react";
 
-import { useAppConfig } from "./AppConfigContext";
 import { usePosition } from "./PositionContext";
 
 import {
@@ -35,6 +34,7 @@ import type {
   RequestId,
   PositionHit,
 } from "@/commands/search/types";
+import { useAppConfig } from "@/entities/app-config/model/useAppConfig";
 
 type IndexUiState = {
   state: IndexStatePayload["state"] | "Empty";

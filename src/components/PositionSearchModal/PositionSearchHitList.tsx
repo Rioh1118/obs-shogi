@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PositionHit } from "@/commands/search/types";
-import { useAppConfig } from "@/contexts/AppConfigContext";
+import { useAppConfig } from "@/entities/app-config";
 import { useGame } from "@/contexts/GameContext";
 import "./PositionSearchHitList.scss";
 import { toRelPath } from "@/utils/path";

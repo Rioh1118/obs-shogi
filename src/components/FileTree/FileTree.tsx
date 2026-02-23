@@ -3,7 +3,7 @@ import Spinner from "../Spinner";
 import "./FileTree.scss";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import ContextMenu from "./ContextMenu";
-import { useAppConfig } from "@/contexts/AppConfigContext";
+import { useAppConfig } from "@/entities/app-config";
 import { useMemo, useState } from "react";
 import {
   buildNodeMap,

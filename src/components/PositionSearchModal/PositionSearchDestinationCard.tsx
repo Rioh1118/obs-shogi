@@ -1,6 +1,6 @@
 import "./PositionSearchDestinationCard.scss";
 import { useMemo } from "react";
-import { useAppConfig } from "@/contexts/AppConfigContext";
+import { useAppConfig } from "@/entities/app-config";
 import { toRelPath } from "@/utils/path";
 
 type Props = {

@@ -4,7 +4,6 @@ import "./EnginePresetEditDialogPanel.scss";
 import Modal from "@/components/Modal";
 import { DEFAULT_OPTIONS } from "@/commands/engine";
 import { useEnginePresets } from "@/contexts/EnginePresetsContext";
-import { useAppConfig } from "@/contexts/AppConfigContext";
 import type { EnginePreset, PresetId } from "@/types/enginePresets";
 
 import {
@@ -32,6 +31,7 @@ import ImportantOptionsSection from "./ImportantOptionsSection";
 import AnalysisDefaultsSection from "./AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
 import type { ThreadsMode } from "@/utils/engineSettings";
+import { useAppConfig } from "@/entities/app-config";
 
 type Props = {
   presetId: PresetId;

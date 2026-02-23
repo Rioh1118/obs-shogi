@@ -14,9 +14,9 @@ import {
   useContext,
   useEffect,
 } from "react";
-import { useAppConfig } from "./AppConfigContext";
 import { KifuArchivistFactory } from "@/services/file/KifuArchivist";
 import { KifuParserFactory } from "@/services/file/KifuParser";
+import { useAppConfig } from "@/entities/app-config";
 
 type FileTreeState = {
   fileTree: FileTreeNode | null;

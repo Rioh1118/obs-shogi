@@ -2,7 +2,7 @@ import "./FolderSelect.scss";
 import Title from "../components/Title";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useAppConfig } from "../contexts/AppConfigContext";
+import { useAppConfig } from "@/entities/app-config";
 
 function FolderSelect() {
   const navigate = useNavigate();

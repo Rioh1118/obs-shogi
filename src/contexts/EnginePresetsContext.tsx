@@ -19,10 +19,10 @@ import {
 } from "@/types/enginePresets";
 import { loadPresets, savePresets } from "@/commands/enginePresets";
 
-import { useAppConfig } from "@/contexts/AppConfigContext";
 import { DEFAULT_OPTIONS } from "@/commands/engine";
 import type { EngineRuntimeConfig } from "@/types/engine";
 import { derivePaths } from "@/utils/enginePresets";
+import { useAppConfig } from "@/entities/app-config";
 
 type AsyncStatus = "idle" | "loading" | "ok" | "error";
 

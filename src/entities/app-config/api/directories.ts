@@ -1,16 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { ChooseOpts } from "@/commands/config_dir";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AppConfig } from "@/types/config";
-
-export type ChooseOpts = { force?: boolean };
-
-export async function loadConfig(): Promise<AppConfig> {
-  return invoke<AppConfig>("load_config");
-}
-
-export async function saveConfig(config: AppConfig): Promise<void> {
-  await invoke("save_config", { config });
-}
+import { loadConfig, saveConfig } from "./config";
 
 async function pickDirectory(title: string): Promise<string | null> {
   const selected = await open({

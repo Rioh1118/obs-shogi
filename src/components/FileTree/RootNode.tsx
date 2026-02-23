@@ -8,7 +8,7 @@ import TreeNodeActions from "./TreeNodeActions";
 import { useFileTree } from "@/contexts/FileTreeContext";
 import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
-import { useAppConfig } from "@/contexts/AppConfigContext";
+import { useAppConfig } from "@/entities/app-config";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/utils/kifuDragDrop";
 
