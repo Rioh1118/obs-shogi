@@ -13,8 +13,8 @@ import "./PositionSeachModal.scss";
 
 import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
-import { buildPreviewData } from "@/utils/buildPreviewData";
-import PreviewPane from "../../../components/NavigationModal/PreviewPane";
+import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
+import PreviewPane from "../../../entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import {

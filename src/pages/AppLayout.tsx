@@ -6,7 +6,7 @@ import Hand from "../components/GameBoard/Hand/Hand";
 import { GameControls } from "../components/GameBoard";
 
 import "./AppLayout.scss";
-import PositionNavigationModal from "@/components/NavigationModal/PositionNavigationModal";
+import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
 import WelcomeScreen from "@/components/WelcomeScreen";
 
 import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";

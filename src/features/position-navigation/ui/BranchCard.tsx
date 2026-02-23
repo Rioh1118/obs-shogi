@@ -1,7 +1,7 @@
-import type { BranchOption } from "@/types";
 import { formatMove } from "@/utils/shogi-format";
 import { memo } from "react";
 import "./BranchCard.scss";
+import type { BranchOption } from "@/features/position-navigation/model/types";
 
 type Props = {
   branch: BranchOption;

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import BoardPreview from "../GameBoard/Board/BoardPreview";
+import BoardPreview from "../../../components/GameBoard/Board/BoardPreview";
 import { Color } from "shogi.js";
-import type { PreviewData } from "@/types";
-import "./PreviewPane.scss";
+import "./PositionPreviewPane.scss";
 import HandRow from "./HandRow";
+import type { PreviewData } from "@/entities/position/model/preview";
 
 type Props = {
   previewData: PreviewData | null;

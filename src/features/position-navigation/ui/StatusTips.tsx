@@ -1,4 +1,4 @@
-import type { PreviewData } from "@/types";
+import type { PreviewData } from "@/entities/position/model/preview";
 import "./StatusTips.scss";
 
 type Props = {

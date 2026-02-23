@@ -6,8 +6,8 @@ import {
   useCallback,
 } from "react";
 import "./BranchList.scss";
-import type { BranchOption } from "@/types";
 import BranchCard from "./BranchCard";
+import type { BranchOption } from "@/features/position-navigation/model/types";
 
 type Props = {
   branches: BranchOption[];

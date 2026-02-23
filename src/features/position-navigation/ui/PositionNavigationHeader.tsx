@@ -1,6 +1,6 @@
-import type { PreviewData } from "@/types";
 import StatusTips from "./StatusTips";
 import "./PositionNavigationHeader.scss";
+import type { PreviewData } from "@/entities/position/model/preview";
 
 type Props = {
   previewData: PreviewData | null;

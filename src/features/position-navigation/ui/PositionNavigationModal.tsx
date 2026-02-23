@@ -1,19 +1,25 @@
-import Modal from "../../shared/ui/Modal";
+import Modal from "../../../shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
-import PreviewPane from "./PreviewPane";
+import PreviewPane from "../../../entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
-import { buildNextOptions, buildPreviewData } from "@/utils/buildPreviewData";
+import {
+  buildNextOptions,
+  buildPreviewData,
+} from "@/entities/position/lib/buildPreviewData";
 import { removeForkPointer, upsertForkPointer } from "@/utils/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
 import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
-import type { BranchOption, NavigationState } from "@/types";
 import type { Kind } from "shogi.js";
+import type {
+  BranchOption,
+  NavigationState,
+} from "@/features/position-navigation/model/types";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
