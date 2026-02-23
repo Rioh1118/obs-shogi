@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Sidebar from "../components/Sidebar";
+import Sidebar from "../widgets/sidebar/Sidebar";
 import GameBoard from "../widgets/game-board/ui/GameBoard";
 import Board from "../widgets/game-board/ui/Board";
 import Hand from "../widgets/game-board/ui/Hand";
@@ -12,7 +12,7 @@ import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import SettingsModal from "@/features/settings/ui/SettingsModal";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";
-import KifuStreamList from "@/components/KifuList/KifuStreamList";
+import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import PositionSearchModal from "@/features/position-search/ui/PositionSearchModal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
