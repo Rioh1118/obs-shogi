@@ -1,0 +1,114 @@
+@use "sass:math";
+@use "./handGeometry.scss" as hand;
+
+@function hand-w-unit() {
+  // 20rem -> 20（unitless）
+  @return math.div(hand.$hand-w, 1rem);
+}
+
+.hand-container {
+  width: 100%;
+  height: 100%;
+
+  font-size: calc(100cqw / #{hand-w-unit()});
+  background-image: url("/src/assets/hand.png");
+  background-size: 100% 100%;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  border-radius: 0.3rem;
+
+  .hand-pieces {
+    position: absolute;
+    inset: 0.5em;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly; // 4段を均等配置
+  }
+
+  .hand-row {
+    display: flex;
+    flex-wrap: nowrap; // 折り返し禁止で強制1行
+    align-items: center;
+    min-height: 4em;
+    max-height: 5em;
+
+    // justifyContentとgapはJSで動的設定
+  }
+
+  .hand-piece {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0; // サイズ維持
+
+    // ユーザー選択を無効化
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+
+    &.hand-piece--selected {
+      transform: translateY(-1px) scale(1.35);
+      z-index: 12;
+      filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
+      &:hover {
+        transform: translateY(-1px) scale(1.35);
+        z-index: 12;
+        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
+      }
+    }
+
+    .piece {
+      width: 100%;
+      height: 100%;
+
+      // 既存のpiece設定を継承
+      &__king .piece-image {
+        width: 95%;
+        height: 95%;
+      }
+      &__bishop .piece-image,
+      &__horse .piece-image,
+      &__rook .piece-image,
+      &__dragon .piece-image {
+        width: 90%;
+        height: 100%;
+      }
+      &__pawn .piece-image,
+      &__prom-pawn .piece-image {
+        width: 75%;
+        height: 100%;
+      }
+      &__silver .piece-image,
+      &__prom-silver .piece-image {
+        width: 90%;
+        height: 95%;
+      }
+      &__gold .piece-image {
+        width: 87%;
+        height: 95%;
+      }
+      &__knight .piece-image,
+      &__lance .piece-image,
+      &__prom-knight .piece-image,
+      &__prom-lance .piece-image {
+        width: 82%;
+        height: 95%;
+      }
+    }
+
+    &:hover {
+      transform: scale(1.04);
+      z-index: 10;
+      transition:
+        transform 0.1s ease,
+        filter 0.1s ease;
+
+      .piece {
+        filter: brightness(1.1);
+      }
+    }
+  }
+}

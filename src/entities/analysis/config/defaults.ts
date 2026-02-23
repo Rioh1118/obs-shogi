@@ -1,0 +1,4 @@
+export const ANALYSIS_SETTING = {
+  POLLING_INTERVAL: 500,
+  DEFAULT_ANALYSIS_TIME: 3,
+} as const;

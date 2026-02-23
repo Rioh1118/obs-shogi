@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
-import Sidebar from "../components/Sidebar";
-import GameBoard from "../components/GameBoard/GameBoard";
-import Board from "../components/GameBoard/Board/Board";
-import Hand from "../components/GameBoard/Hand/Hand";
-import { GameControls } from "../components/GameBoard";
+import Sidebar from "../widgets/sidebar/Sidebar";
+import GameBoard from "../widgets/game-board/ui/GameBoard";
+import Board from "../widgets/game-board/ui/Board";
+import Hand from "../widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
-import PositionNavigationModal from "@/components/NavigationModal/PositionNavigationModal";
-import { useGame } from "@/contexts/GameContext";
-import WelcomeScreen from "@/components/WelcomeScreen";
+import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
+import WelcomeScreen from "@/pages/WelcomeScreen";
 
-import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
-import SettingsModal from "@/components/SettingsModal/SettingsModal";
-import CreateFileModal from "@/components/CreateFileModal";
-import AppLayoutHeader from "@/components/AppLayoutHeader";
-import KifuStreamList from "@/components/KifuList/KifuStreamList";
-import { usePositionSearch } from "@/contexts/PositionSearchContext";
-import PositionSearchModal from "@/components/PositionSearchModal/PositionSearchModal";
-import { useURLParams } from "@/hooks/useURLParams";
+import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
+import SettingsModal from "@/features/settings/ui/SettingsModal";
+import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
+import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
+import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
+import PositionSearchModal from "@/features/position-search/ui/PositionSearchModal";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { useGame } from "@/entities/game";
+import { usePositionSearch } from "@/entities/search";
+import GameControls from "@/widgets/game-board/ui/GameControls";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

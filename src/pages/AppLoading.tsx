@@ -1,8 +1,8 @@
-import { useAppConfig } from "@/contexts/AppConfigContext";
 import "./AppLoading.scss";
 import Icon from "@/assets/icon.svg";
 import FolderSelect from "./FolderSelect";
 import { Navigate } from "react-router";
+import { useAppConfig } from "@/entities/app-config";
 
 function AppLoading() {
   const { config, isLoading, error } = useAppConfig();
