@@ -8,7 +8,7 @@ import "./AppLayout.scss";
 import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
 import WelcomeScreen from "@/components/WelcomeScreen";
 
-import AnalysisPane from "@/components/AnalysisPane/AnalysisPane";
+import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import SettingsModal from "@/features/settings/ui/SettingsModal";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import AppLayoutHeader from "@/components/AppLayoutHeader";

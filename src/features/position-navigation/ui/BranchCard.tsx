@@ -1,4 +1,4 @@
-import { formatMove } from "@/utils/shogi-format";
+import { formatMove } from "@/features/position-navigation/lib/shogi-format";
 import { memo } from "react";
 import "./BranchCard.scss";
 import type { BranchOption } from "@/features/position-navigation/model/types";

@@ -1,7 +1,7 @@
 import {
   evaluationToPercentage,
   type ConvertedMove,
-} from "@/utils/sfenConverter";
+} from "@/widgets/analysis-pane/lib/sfenConverter";
 import MoveSequence from "./MoveSequence";
 import EvaluationBar from "./EvaluationBar";
 import "./BestMoveSection.scss";

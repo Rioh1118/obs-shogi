@@ -1,9 +1,9 @@
-import { convertSfenSequence } from "@/utils/sfenConverter";
-import type { ConvertedMove } from "@/utils/sfenConverter";
+import { convertSfenSequence } from "@/widgets/analysis-pane/lib/sfenConverter";
+import type { ConvertedMove } from "@/widgets/analysis-pane/lib/sfenConverter";
 import { useEffect, useMemo, useRef } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
-import { convertCandidateToSenteView } from "@/utils/usi";
+import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
 import AnalysisPaneHeader from "./AnalysisPaneHeader";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";

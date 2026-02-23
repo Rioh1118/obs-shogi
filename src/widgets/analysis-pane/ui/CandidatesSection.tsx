@@ -1,4 +1,4 @@
-import { type ConvertedMove } from "@/utils/sfenConverter";
+import { type ConvertedMove } from "@/widgets/analysis-pane/lib/sfenConverter";
 import "./CandidatesSection.scss";
 import MoveSequence from "./MoveSequence";
 import type { Evaluation } from "@/entities/engine/api/rust-types";

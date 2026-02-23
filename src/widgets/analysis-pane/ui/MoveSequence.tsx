@@ -1,4 +1,7 @@
-import { formatEvaluation, type ConvertedMove } from "@/utils/sfenConverter";
+import {
+  formatEvaluation,
+  type ConvertedMove,
+} from "@/widgets/analysis-pane/lib/sfenConverter";
 import "./MoveSequence.scss";
 import type { Evaluation } from "@/entities/engine/api/rust-types";
 
