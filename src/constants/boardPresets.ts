@@ -1,4 +1,4 @@
-import type { JKFState, InitialPresetString, JKFHand } from "@/types";
+import type { InitialPresetString, JKFHand, JKFState } from "@/entities/kifu";
 
 const EMPTY_HANDS: JKFHand = {
   FU: 0,

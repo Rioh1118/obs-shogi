@@ -1,4 +1,4 @@
-import type { FileTreeNode } from "@/types/file-tree";
+import type { FileTreeNode } from "@/entities/file-tree";
 import DirectoryNode from "./DirectoryNode";
 import FileNode from "./FileNode";
 

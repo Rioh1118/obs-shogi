@@ -1,6 +1,13 @@
-import { type ContextMenuItem } from "@/types";
 import { useEffect, useRef } from "react";
 import "./ContextMenu.scss";
+
+type ContextMenuItem = {
+  id?: string;
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  onClick: () => void | Promise<void>;
+};
 
 type ContextMenuProps = {
   x: number;

@@ -2,7 +2,7 @@ import { forwardRef, memo, useCallback, useId, useMemo } from "react";
 import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
 import "./KifuForkMenu.scss";
-import type { ForkPointer } from "@/types";
+import type { ForkPointer } from "@/entities/kifu/model/cursor";
 
 export type RowModel = {
   te: number;

@@ -1,12 +1,12 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 
-import type { EnginePreset } from "@/types/enginePresets";
 import type { ProfileCandidate } from "@/commands/ai_library";
 import { SButton, SField, SInput, SSection, SSelect } from "../ui";
 import {
   pickDefaultBookDb,
   pickDefaultEvalFile,
 } from "@/utils/enginePresetDialog";
+import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
 export default function BasicSection(props: {
   draft: EnginePreset;

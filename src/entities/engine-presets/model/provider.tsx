@@ -18,7 +18,6 @@ import {
 } from "./types";
 import { useAppConfig } from "@/entities/app-config";
 import { loadPresets, savePresets } from "../api/presets";
-import type { EngineRuntimeConfig } from "@/types/engine";
 import {
   clonePreset,
   createDefaultPreset,
@@ -28,6 +27,7 @@ import {
 } from "../lib/normalize";
 import { EnginePresetsContext } from "./context";
 import { derivePaths } from "../lib/derivePath";
+import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
 
 export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);

@@ -1,4 +1,3 @@
-import type { ForkPointer } from "@/types";
 import {
   memo,
   useCallback,
@@ -11,6 +10,7 @@ import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
 import "./KifuForkMenu.scss";
+import type { ForkPointer } from "@/entities/kifu/model/cursor";
 
 type Props = {
   te: number;

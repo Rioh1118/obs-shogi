@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PositionHit } from "@/commands/search/types";
 import { useAppConfig } from "@/entities/app-config";
 import "./PositionSearchHitList.scss";
 import { toRelPath } from "@/utils/path";
 import { useGame } from "@/entities/game";
+import type { PositionHit } from "@/entities/search";
 
 type Props = {
   hits: PositionHit[];

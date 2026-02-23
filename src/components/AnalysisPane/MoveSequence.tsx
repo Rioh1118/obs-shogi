@@ -1,6 +1,6 @@
 import { formatEvaluation, type ConvertedMove } from "@/utils/sfenConverter";
 import "./MoveSequence.scss";
-import type { Evaluation } from "@/commands/engine/types";
+import type { Evaluation } from "@/entities/engine/api/rust-types";
 
 interface MoveSequenceProps {
   moves: ConvertedMove[];

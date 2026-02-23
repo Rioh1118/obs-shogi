@@ -1,5 +1,5 @@
-import type { CursorLite } from "@/commands/search/types";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
+import type { CursorLite } from "../api/ids";
 
 export function cursorFromLite(c: CursorLite): KifuCursor {
   const forkPointers = c.fork_pointers.map((p) => ({

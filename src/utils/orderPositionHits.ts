@@ -1,4 +1,4 @@
-import type { PositionHit } from "@/commands/search/types";
+import type { PositionHit } from "@/entities/search";
 
 export const hitKey = (h: PositionHit) =>
   `${h.occ.file_id}:${h.occ.gen}:${h.occ.node_id}:${h.cursor.tesuu}:${h.cursor.fork_pointers.join(",")}`;

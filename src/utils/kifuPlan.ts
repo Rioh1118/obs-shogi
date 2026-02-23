@@ -1,4 +1,4 @@
-import type { ForkPointer } from "@/types";
+import type { ForkPointer } from "@/entities/kifu/model/cursor";
 
 /** 未来計画を更新（te に forkIndex を上書き） */
 export function upsertForkPointer(

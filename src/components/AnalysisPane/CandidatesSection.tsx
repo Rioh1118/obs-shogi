@@ -1,7 +1,7 @@
 import { type ConvertedMove } from "@/utils/sfenConverter";
 import "./CandidatesSection.scss";
 import MoveSequence from "./MoveSequence";
-import type { Evaluation } from "@/commands/engine/types";
+import type { Evaluation } from "@/entities/engine/api/rust-types";
 
 interface CandidatesSectionProps {
   candidateSequences: ConvertedMove[][];

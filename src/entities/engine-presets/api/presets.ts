@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { PresetsFile } from "@/types/enginePresets";
+import type { PresetsFile } from "../model/types";
 
 export async function loadPresets(): Promise<PresetsFile> {
   return invoke<PresetsFile>("load_presets");

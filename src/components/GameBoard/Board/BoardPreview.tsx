@@ -3,8 +3,8 @@ import { Piece, Color } from "shogi.js";
 import { indexToCoords } from "@/utils/boardUtils";
 import { BOARD_SIZE } from "@/constants/shogi";
 import PieceFactory from "../PieceFactory";
-import type { ShogiMove } from "@/types";
 import "./BoardPreview.scss";
+import type { ShogiMove } from "@/entities/game";
 
 export interface BoardPreviewProps {
   // 盤面データ

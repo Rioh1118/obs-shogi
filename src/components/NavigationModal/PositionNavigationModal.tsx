@@ -5,7 +5,6 @@ import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "./PreviewPane";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
-import { type NavigationState, type BranchOption, type Kind } from "@/types";
 import { buildNextOptions, buildPreviewData } from "@/utils/buildPreviewData";
 import { removeForkPointer, upsertForkPointer } from "@/utils/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
@@ -13,6 +12,8 @@ import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
 import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
+import type { BranchOption, NavigationState } from "@/types";
+import type { Kind } from "shogi.js";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();

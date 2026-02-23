@@ -1,12 +1,16 @@
-import type { ForkPointer, KifuCursor, TesuuPointer } from "@/types";
 import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
-import type { DeleteQuery, SwapQuery } from "@/types/branch";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
 import type { JKFData } from "@/entities/kifu";
+import type {
+  ForkPointer,
+  KifuCursor,
+  TesuuPointer,
+} from "@/entities/kifu/model/cursor";
+import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 

@@ -3,11 +3,10 @@ import { indexToCoords } from "@/utils/boardUtils";
 import { BOARD_SIZE } from "@/constants/shogi";
 import "./Board.scss";
 import PieceFactory from "../PieceFactory";
-import { Piece } from "shogi.js";
-import type { Color, ShogiMove } from "@/types";
+import { Color, Piece } from "shogi.js";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
-import { useGame } from "@/entities/game";
+import { useGame, type ShogiMove } from "@/entities/game";
 
 function Board() {
   const { state, helpers, selectSquare, clearSelection } = useGame();

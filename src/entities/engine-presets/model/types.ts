@@ -1,4 +1,4 @@
-import type { EngineRuntimeConfig } from "@/types/engine";
+import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
 
 export type PresetId = string;
 export type UsiOptionMap = Record<string, string>;

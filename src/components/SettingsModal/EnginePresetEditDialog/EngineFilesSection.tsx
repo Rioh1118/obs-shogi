@@ -1,6 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import type { EnginePreset } from "@/types/enginePresets";
 import type { AiRootIndex, ProfileCandidate } from "@/commands/ai_library";
 import { SButton, SField, SInput, SSection, SSelect } from "../ui";
 import {
@@ -8,6 +7,7 @@ import {
   cleanText,
   pickDefaultBookDb,
 } from "@/utils/enginePresetDialog";
+import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
 export default function EngineFilesSection(props: {
   draft: EnginePreset;

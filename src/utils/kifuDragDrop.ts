@@ -1,4 +1,4 @@
-import type { FileTreeNode } from "@/types";
+import type { FileTreeNode } from "@/entities/file-tree";
 import { dirname, extname, relative, normalize } from "pathe";
 
 export const ALLOWED = new Set([".kif", ".ki2", ".csa", ".jkf"]);
