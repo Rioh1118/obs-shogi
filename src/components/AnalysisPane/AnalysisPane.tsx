@@ -7,13 +7,16 @@ import CandidatesSection from "./CandidatesSection";
 import { convertCandidateToSenteView } from "@/utils/usi";
 import AnalysisPaneHeader from "./AnalysisPaneHeader";
 import "./AnalysisPane.scss";
-import { usePosition } from "@/contexts/PositionContext";
 import StatsSection from "./StatsSection";
-import type { AnalysisCandidate, Evaluation } from "@/commands/engine/types";
 import { pickTopCandidate } from "@/utils/analysis";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import type {
+  AnalysisCandidate,
+  Evaluation,
+} from "@/entities/engine/api/rust-types";
 
 type PaneSnapshot = {
   candidates: AnalysisCandidate[];
@@ -24,7 +27,7 @@ function AnalysisPane() {
   const { state } = useAnalysis();
 
   const { getCurrentTurn, state: gameState } = useGame();
-  const { currentSfen } = usePosition();
+  const { currentSfen } = usePositionSync();
   const { selectedNode } = useFileTree();
   const { state: presetsState } = useEnginePresets();
   // ===== cache key =====

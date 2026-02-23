@@ -1,32 +1,16 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useCallback,
-  useRef,
-  useMemo,
-} from "react";
-import { useGame } from "@/entities/game";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { useEngine } from "@/entities/engine";
+import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { useGame } from "@/entities/game";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PositionSyncContext } from "./context";
 import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 
-interface PositionContextType {
-  currentSfen: string | null;
-
-  syncedSfen: string | null;
-
-  syncPosition: () => Promise<void>;
-
-  isPositionSynced: boolean;
-  syncError: string | null;
-}
-
-const PositionContext = createContext<PositionContextType | null>(null);
-
-export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
+export function PositionSyncProvider({
   children,
-}) => {
+}: {
+  children: React.ReactNode;
+}) {
   const { state: gameState } = useGame();
   const { isReady } = useEngine();
   const { state: presetsState, selectedPresetVersion } = useEnginePresets();
@@ -34,14 +18,12 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
     ? `${presetsState.selectedPresetId}@${selectedPresetVersion}`
     : "no-engine";
 
-  const [syncedEngineKey, setSyncedEngineKey] = React.useState<string | null>(
-    null,
-  );
+  const [syncedEngineKey, setSyncedEngineKey] = useState<string | null>(null);
   const lastEngineKeyRef = useRef<string | null>(engineKey);
 
-  const [syncedSfen, setSyncedSfen] = React.useState<string | null>(null);
-  const [isPositionSynced, setIsPositionSynced] = React.useState(false);
-  const [syncError, setSyncError] = React.useState<string | null>(null);
+  const [syncedSfen, setSyncedSfen] = useState<string | null>(null);
+  const [isPositionSynced, setIsPositionSynced] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // --- 多重呼び出し対策の中核 ---
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -60,6 +42,7 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
   // ✅ GameContextから現在のSFENを取得
   // jkfPlayerが同一参照でも中身が変わるので「毎回計算」でOK
   const getCurrentSfen = useCallback((): string | null => {
+    void gameState.cursor;
     try {
       if (!gameState.jkfPlayer?.shogi) return null;
 
@@ -188,16 +171,8 @@ export const PositionProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   return (
-    <PositionContext.Provider value={value}>
+    <PositionSyncContext.Provider value={value}>
       {children}
-    </PositionContext.Provider>
+    </PositionSyncContext.Provider>
   );
-};
-
-export const usePosition = () => {
-  const context = useContext(PositionContext);
-  if (!context) {
-    throw new Error("usePosition must be used within PositionProvider");
-  }
-  return context;
-};
+}

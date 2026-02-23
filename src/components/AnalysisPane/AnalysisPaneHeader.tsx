@@ -1,5 +1,4 @@
 import { useAnalysis } from "@/contexts/AnalysisContext";
-import { usePosition } from "@/contexts/PositionContext";
 import { useEffect, useState, useRef } from "react";
 import {
   Settings,
@@ -11,10 +10,11 @@ import {
 } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/hooks/useURLParams";
+import { usePositionSync } from "@/app/providers/bridges/position-sync";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
-  const { currentSfen } = usePosition();
+  const { currentSfen } = usePositionSync();
   const { openModal, params, updateParams } = useURLParams();
   const [elapsedTime, setElapsedTime] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);

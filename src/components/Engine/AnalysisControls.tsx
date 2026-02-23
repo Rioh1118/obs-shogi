@@ -1,9 +1,9 @@
 import React from "react";
 import { useAnalysis } from "@/contexts/AnalysisContext";
-import { usePosition } from "@/contexts/PositionContext";
 import ShogiButton from "@/components/ShogiButton";
 import "./AnalysisControls.scss";
 import { useEngine } from "@/entities/engine";
+import { usePositionSync } from "@/app/providers/bridges/position-sync";
 
 const AnalysisControls: React.FC<{
   size?: "small" | "medium" | "large";
@@ -14,7 +14,7 @@ const AnalysisControls: React.FC<{
     startInfiniteAnalysis,
     stopAnalysis,
   } = useAnalysis();
-  const { currentSfen, isPositionSynced, syncError } = usePosition();
+  const { currentSfen, isPositionSynced, syncError } = usePositionSync();
   const { state: engineState, isReady } = useEngine();
 
   const handleStart = async () => {

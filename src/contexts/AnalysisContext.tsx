@@ -8,8 +8,6 @@ import React, {
   useEffect,
 } from "react";
 
-import { usePosition } from "./PositionContext";
-
 import {
   setupAnalysisEventListeners,
   type AnalysisEventListeners,
@@ -23,6 +21,7 @@ import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   stopAnalysis,
 } from "@/entities/engine/api/tauri";
+import { usePositionSync } from "@/app/providers/bridges/position-sync";
 
 interface AnalysisState {
   isAnalyzing: boolean;
@@ -126,7 +125,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
   const { isReady } = useEngine();
 
-  const { currentSfen, syncedSfen, syncPosition } = usePosition();
+  const { currentSfen, syncedSfen, syncPosition } = usePositionSync();
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
   const syncedSfenRef = useRef<string | null>(syncedSfen);

@@ -4,6 +4,7 @@ import { FileTreeRootGate } from "./gates/FileTreeRootGate";
 import { GamePersistenceGate } from "./gates/GamePersistenceGate";
 import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
 import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
+import { PositionSyncProvider } from "./bridges/position-sync";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -11,7 +12,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <FileTreeRootGate>
         <GamePersistenceGate>
           <EnginePresetsProvider>
-            <EngineRuntimeBridge>{children}</EngineRuntimeBridge>
+            <EngineRuntimeBridge>
+              <PositionSyncProvider>{children}</PositionSyncProvider>
+            </EngineRuntimeBridge>
           </EnginePresetsProvider>
         </GamePersistenceGate>
       </FileTreeRootGate>

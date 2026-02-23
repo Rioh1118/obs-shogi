@@ -9,8 +9,6 @@ import React, {
 } from "react";
 import type { ReactNode } from "react";
 
-import { usePosition } from "./PositionContext";
-
 import {
   openProject as openProjectCommand,
   searchPosition as searchPositionCommand,
@@ -35,6 +33,7 @@ import type {
   PositionHit,
 } from "@/commands/search/types";
 import { useAppConfig } from "@/entities/app-config/model/useAppConfig";
+import { usePositionSync } from "@/app/providers/bridges/position-sync";
 
 type IndexUiState = {
   state: IndexStatePayload["state"] | "Empty";
@@ -365,7 +364,7 @@ export const PositionSearchProvider: React.FC<{ children: ReactNode }> = ({
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const { config } = useAppConfig();
-  const { currentSfen } = usePosition();
+  const { currentSfen } = usePositionSync();
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
