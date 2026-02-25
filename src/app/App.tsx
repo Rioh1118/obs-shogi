@@ -1,33 +1,16 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
-import AppLayout from "../pages/AppLayout";
-import FileTree from "@/widgets/file-tree/ui/FileTree";
-import TitleBar from "../shared/ui/TitleBar";
+import { BrowserRouter } from "react-router";
 import "./App.scss";
-import AppLoading from "../pages/AppLoading";
-import { AppProviders } from "./providers/AppProviders";
+import { BootstrapProviders } from "./providers/BootstrapProviders";
+import AppRouter from "./routing/AppRouter";
 
 function App() {
   return (
     <div className="app-root">
-      <AppProviders>
-        <TitleBar />
-        <div className="app-content">
-          <BrowserRouter>
-            <Routes>
-              <Route index element={<AppLoading />} />
-              <Route path="/app" element={<AppLayout />}>
-                <Route
-                  index
-                  element={<Navigate replace to="panel/filetree" />}
-                />
-                <Route path="panel">
-                  <Route path="filetree" element={<FileTree />} />
-                </Route>
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </div>
-      </AppProviders>
+      <BootstrapProviders>
+        <BrowserRouter>
+          <AppRouter />
+        </BrowserRouter>
+      </BootstrapProviders>
     </div>
   );
 }
