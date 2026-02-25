@@ -26,6 +26,8 @@ export function toIMoveMoveFormat(
     to: standardMove.to,
     piece: standardMove.piece,
     color: standardMove.color,
-    ...(standardMove.promote === true ? { promote: true } : { promote: false }),
+    ...(standardMove.promote !== undefined
+      ? { promote: standardMove.promote }
+      : {}),
   };
 }
