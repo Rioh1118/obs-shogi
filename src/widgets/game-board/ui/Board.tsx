@@ -101,7 +101,7 @@ function Board() {
         const canPromote = helpers.canPromoteMove(state.jkfPlayer, shogiMove);
         const mustPromote = helpers.mustPromoteMove(state.jkfPlayer, shogiMove);
 
-        let promote = false;
+        let promote: boolean | undefined = undefined;
 
         if (mustPromote) {
           // 強制成り
