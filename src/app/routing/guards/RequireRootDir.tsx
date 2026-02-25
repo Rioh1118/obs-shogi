@@ -7,11 +7,10 @@ export function RequireRootDir({ children }: { children: ReactNode }) {
   const { config, isLoading, error } = useAppConfig();
 
   // config ロードが終わってないなら何もマウントしない
-  if (isLoading) return <BootSplash />;
+  if (isLoading && !config) return <BootSplash />;
 
   // config 読み込みエラーなら / に戻す
   if (error) return <Navigate to="/" replace />;
-
   // root_dir が無いなら / に戻す
   if (!config?.root_dir) return <Navigate to="/" replace />;
 
