@@ -68,7 +68,11 @@ function AnalysisPane() {
     return cacheRef.current.get(cacheKey)?.candidates ?? [];
   }, [state.isAnalyzing, state.candidates, cacheKey]);
 
+  const pvBaseSfen = state.isAnalyzing ? state.currentPosition : currentSfen;
+
   const displayData = useMemo(() => {
+    const canConvert = !!pvBaseSfen && !!visibleCandidates.length;
+
     const senteCandidates: AnalysisCandidate[] = visibleCandidates.map((c) =>
       convertCandidateToSenteView(c, currentTurn),
     );
@@ -77,18 +81,21 @@ function AnalysisPane() {
       ? senteCandidates.filter((c) => c.rank !== top.rank)
       : senteCandidates;
 
-    const bestMoveSequence: ConvertedMove[] = top?.pv_line?.length
-      ? convertSfenSequence(currentSfen, top.pv_line)
-      : top?.first_move
-        ? convertSfenSequence(currentSfen, [top.first_move])
-        : [];
+    const bestMoveSequence: ConvertedMove[] =
+      canConvert && top?.pv_line?.length
+        ? convertSfenSequence(pvBaseSfen!, top.pv_line)
+        : top?.first_move
+          ? convertSfenSequence(pvBaseSfen!, [top.first_move])
+          : [];
 
-    const candidateSequences: ConvertedMove[][] = others.map((c) =>
-      convertSfenSequence(
-        currentSfen,
-        c.pv_line?.length ? c.pv_line : c.first_move ? [c.first_move] : [],
-      ),
-    );
+    const candidateSequences: ConvertedMove[][] = canConvert
+      ? others.map((c) =>
+          convertSfenSequence(
+            pvBaseSfen!,
+            c.pv_line?.length ? c.pv_line : c.first_move ? [c.first_move] : [],
+          ),
+        )
+      : [];
 
     const evaluation: Evaluation | null = top?.evaluation ?? null;
 
@@ -112,7 +119,7 @@ function AnalysisPane() {
       searchStats,
       candidateCount: others.length,
     };
-  }, [currentSfen, currentTurn, visibleCandidates]);
+  }, [pvBaseSfen, currentTurn, visibleCandidates]);
 
   return (
     <section className="analysis-pane">
