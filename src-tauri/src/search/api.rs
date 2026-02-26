@@ -10,10 +10,11 @@ use tokio::{sync::Semaphore, task::JoinSet};
 
 use crate::search::{
     fs_scan::snapshot_from_records,
+    node_table::NodeTable,
     position_key::PositionKey,
     project_manager::ProjectManager,
     query_service::QueryService,
-    types::{PositionHit, SearchPositionInput, SearchPositionOutput},
+    types::{Occurrence, SearchPositionInput, SearchPositionOutput},
 };
 
 use super::{
@@ -62,27 +63,118 @@ pub async fn search_position(
     state: State<'_, SearchState>,
     input: SearchPositionInput,
 ) -> Result<SearchPositionOutput, String> {
+    eprintln!("[cmd] search_position invoked");
     Ok(state.query.search_position_impl(input).await)
 }
 
 #[tauri::command]
 pub async fn open_project(
     app: AppHandle,
-    state: State<'_, super::api::SearchState>,
+    state: State<'_, crate::search::api::SearchState>,
     input: OpenProjectInput,
 ) -> Result<OpenProjectOutput, String> {
     let store = state.store.clone();
+    let project = state.project.clone();
+
     let root_dir = PathBuf::from(input.root_dir);
 
-    // 1) まず Building へ
+    eprintln!("[open_project] BEGIN root_dir={}", root_dir.display());
+
+    // 0) Restoring state (UIに「復元中」を見せる)
+    store.start_restoring();
+    let _ = app.emit(
+        EVT_INDEX_STATE,
+        IndexStatePayload {
+            state: IndexState::Restoring,
+            dirty_count: 0,
+            indexed_files: 0,
+            total_files: 0,
+        },
+    );
+
+    // 1) try restore (cache)
+    match crate::search::index_cache::try_restore(&app, &root_dir) {
+        Ok(mut restored) => {
+            // 念のため（decode側でroot_dirを入れてるなら不要だが安全）
+            restored.scan.root_dir = root_dir.clone();
+
+            let total_files = restored.scan.by_path.len() as u32;
+
+            eprintln!(
+                "[open_project] RESTORE OK total_files={} next_file_id={}",
+                total_files, restored.next_file_id
+            );
+
+            // restore直後は Ready として install する（検索がすぐ動く）
+            store.install_restored(
+                StoreIndexState::Ready,
+                restored.file_table,
+                restored.node_tables,
+                restored.buckets,
+            );
+
+            // ProjectManager にも復元状態を入れる（watcher/run_rescan_diff_applyが必要）
+            project
+                .install_after_full_build(
+                    root_dir.clone(),
+                    restored.scan,
+                    restored.path_to_id,
+                    restored.next_file_id,
+                )
+                .await;
+
+            // UIへ Ready を通知（モーダルを後から開いても final refresh が走る）
+            let _ = app.emit(
+                EVT_INDEX_STATE,
+                IndexStatePayload {
+                    state: IndexState::Ready,
+                    dirty_count: 0,
+                    indexed_files: total_files, // 325とか
+                    total_files,
+                },
+            );
+
+            // watcher 起動（失敗してもopen自体は成功扱いにして良い）
+            if let Err(e) = project
+                .clone()
+                .start_watcher_and_debounce(app.clone(), store.clone(), Duration::from_millis(800))
+                .await
+            {
+                eprintln!("[open_project] watcher start FAILED: {e}");
+            } else {
+                eprintln!("[open_project] watcher started");
+            }
+
+            // 裏で差分反映（必要なら Updating→Ready が飛ぶ）
+            // dirty=0 なら何もせず return するが、すでに Ready を emit 済みなので問題なし
+            let pm = project.clone();
+            let st = store.clone();
+            let app2 = app.clone();
+            tauri::async_runtime::spawn(async move {
+                eprintln!("[open_project] spawn run_rescan_diff_apply");
+                pm.run_rescan_diff_apply(app2, st).await;
+                eprintln!("[open_project] run_rescan_diff_apply done");
+            });
+
+            eprintln!("[open_project] END (restore path) total_files={total_files}");
+            return Ok(OpenProjectOutput { total_files });
+        }
+        Err(e) => {
+            eprintln!("[open_project] RESTORE FAILED: {e} -> fallback full build");
+        }
+    }
+
+    // 2) restore 失敗 → full build
     store.start_full_build();
 
-    // 2) スキャン
     let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
-
     let total_files = records.len() as u32;
 
-    // state emit（Building）
+    eprintln!(
+        "[open_project] FULL BUILD start total_files={}",
+        total_files
+    );
+
     let _ = app.emit(
         EVT_INDEX_STATE,
         IndexStatePayload {
@@ -92,9 +184,7 @@ pub async fn open_project(
             total_files,
         },
     );
-    let project = state.project.clone();
 
-    // 3) バックグラウンドで構築開始
     tauri::async_runtime::spawn(build_full_index_task(
         app,
         store,
@@ -104,6 +194,7 @@ pub async fn open_project(
         total_files,
     ));
 
+    eprintln!("[open_project] END (full build path) total_files={total_files}");
     Ok(OpenProjectOutput { total_files })
 }
 
@@ -115,18 +206,20 @@ async fn build_full_index_task(
     mut records: Vec<super::fs_scan::FileRecord>,
     total_files: u32,
 ) {
-    type BucketEntries = [Vec<(PositionKey, PositionHit)>; 256];
-    type BuildItem = (FileId, u32, String, BucketEntries, Vec<String>, bool);
-    // 決定性のためパスでソートして FileId を安定化
-    records.sort_by(|a, b| a.path.cmp(&b.path));
+    type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
+    type BuildItem = (
+        FileId,
+        u32,
+        String,
+        BucketEntries,
+        Arc<NodeTable>,
+        Vec<String>,
+        bool,
+    );
 
-    // scan snapshot
+    records.sort_by(|a, b| a.path.cmp(&b.path));
     let scan = snapshot_from_records(&root_dir, records.clone());
 
-    // let mut file_table = super::file_table::FileTable::default();
-    // let mut buckets: [Vec<Arc<Segment>>; 256] = std::array::from_fn(|_| Vec::new());
-
-    // path_key -> file_id
     let mut path_to_id: HashMap<String, FileId> = HashMap::with_capacity(records.len());
     for (i, rec) in records.iter().enumerate() {
         let file_id: FileId = (i as u32) + 1;
@@ -134,7 +227,6 @@ async fn build_full_index_task(
         path_to_id.insert(path_key, file_id);
     }
 
-    // 並列数（CPUに合わせて 2..8 程度に制限）
     let conc = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
@@ -145,22 +237,19 @@ async fn build_full_index_task(
 
     store.set_state(StoreIndexState::Building);
 
-    // ---- 設定：コミット頻度 ----
-    const COMMIT_BATCH: usize = 64; // まずは 32〜128 で調整
+    const COMMIT_BATCH: usize = 64;
     const EMIT_INTERVAL: Duration = Duration::from_millis(100);
 
-    // batch: insert_many_file_segments 用
-    let mut batch: Vec<(FileEntry, BucketEntries)> = Vec::with_capacity(COMMIT_BATCH);
+    let mut batch: Vec<(FileEntry, Arc<NodeTable>, BucketEntries)> =
+        Vec::with_capacity(COMMIT_BATCH);
 
     let mut done_files: u32 = 0;
     let mut indexed_ok: u32 = 0;
     let mut last_emit = Instant::now();
 
-    // タスク投入（file_id/gen はここで確定）
     for (i, rec) in records.into_iter().enumerate() {
         let permit = sem.clone().acquire_owned().await.unwrap();
 
-        let _app2 = app.clone();
         let rec2 = rec.clone();
         let file_id: FileId = (i as u32) + 1;
         let gen: u32 = 1;
@@ -170,32 +259,38 @@ async fn build_full_index_task(
             let _permit = permit;
 
             let res = tokio::task::spawn_blocking(
-                move || -> Result<(BucketEntries, Vec<String>), String> {
+                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
                     let jkf = read_to_jkf(&rec2).map_err(|e| e.to_string())?;
                     let built = build_index_for_jkf(file_id, gen, &jkf, BuildPolicy::Loose)
                         .map_err(|e| e.to_string())?;
+
                     let by_bucket: BucketEntries = bucketize_entries(built.entries);
+
                     let warns = built
                         .warns
                         .into_iter()
                         .map(|w| format!("{:?}: {}", w.cursor, w.message))
                         .collect::<Vec<_>>();
-                    Ok((by_bucket, warns))
+
+                    Ok((by_bucket, built.node_table, warns))
                 },
             )
             .await;
 
             let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
+            let empty_nt = Arc::new(NodeTable::empty());
 
-            // ここは BuildItem を返す（Resultにしない）
             let out: BuildItem = match res {
-                Ok(Ok((by_bucket, warns))) => (file_id, gen, path_str, by_bucket, warns, true),
-                Ok(Err(e)) => (file_id, gen, path_str, empty, vec![e], false),
+                Ok(Ok((by_bucket, node_table, warns))) => {
+                    (file_id, gen, path_str, by_bucket, node_table, warns, true)
+                }
+                Ok(Err(e)) => (file_id, gen, path_str, empty, empty_nt, vec![e], false),
                 Err(e) => (
                     file_id,
                     gen,
                     path_str,
                     empty,
+                    empty_nt,
                     vec![format!("spawn_blocking join error: {e}")],
                     false,
                 ),
@@ -205,9 +300,8 @@ async fn build_full_index_task(
         });
     }
 
-    // 完了したものから回収→batchに積む→一定数でコミット
     while let Some(r) = join.join_next().await {
-        let (file_id, gen, path_str, by_bucket, warns, ok) = match r {
+        let (file_id, gen, path_str, by_bucket, node_table, warns, ok) = match r {
             Ok(v) => v,
             Err(_join_err) => {
                 done_files += 1;
@@ -237,7 +331,7 @@ async fn build_full_index_task(
             gen,
         };
 
-        batch.push((file_entry, by_bucket));
+        batch.push((file_entry, node_table, by_bucket));
 
         if batch.len() >= COMMIT_BATCH {
             store.insert_many_file_segments(std::mem::take(&mut batch));
@@ -265,12 +359,10 @@ async fn build_full_index_task(
         }
     }
 
-    // 残りをコミット
     if !batch.is_empty() {
         store.insert_many_file_segments(batch);
     }
 
-    // Readyへ
     store.set_state(StoreIndexState::Ready);
 
     let _ = app.emit(
@@ -283,8 +375,27 @@ async fn build_full_index_task(
         },
     );
 
-    // ProjectManager セットアップ（今まで通り）
     let next_file_id = (total_files as FileId).wrapping_add(1).max(1);
+
+    {
+        let snap = store.snapshot(); // Arc<IndexSnapshot>
+        let scan2 = scan.clone(); // ScanSnapshot (clone ok)
+        let path_to_id2 = path_to_id.clone(); // HashMap clone
+        let root2 = root_dir.clone();
+        let app2 = app.clone();
+        let next2 = next_file_id;
+
+        tauri::async_runtime::spawn_blocking(move || {
+            let _ = crate::search::index_cache::save_checkpoint(
+                &app2,
+                &root2,
+                &snap,
+                &scan2,
+                &path_to_id2,
+                next2,
+            );
+        });
+    }
 
     project
         .install_after_full_build(root_dir.clone(), scan, path_to_id, next_file_id)

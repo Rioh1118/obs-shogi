@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use thiserror::Error;
 
 use shogi_core::PartialPosition;
@@ -5,10 +7,11 @@ use shogi_kifu_converter::jkf::{JsonKifuFormat, MoveFormat};
 
 use super::{
     initial_position::{initial_partial_position, InitialPosError},
+    node_table::{NodeTable, NodeTableBuilder},
     position_apply::{apply_node_action, ApplyError, ApplyStatus},
     position_key::{key_from_partial_position, PositionKey},
     traverse::NodeAction,
-    types::{CursorLite, FileId, ForkPointer, Gen, NodeId, Occurrence, PositionHit},
+    types::{CursorLite, FileId, ForkPointer, Gen, NodeId, Occurrence},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +29,8 @@ pub struct BuildWarn {
 #[derive(Debug)]
 pub struct FileIndexBuild {
     /// (PositionKey, PositionHit)
-    pub entries: Vec<(PositionKey, PositionHit)>,
+    pub entries: Vec<(PositionKey, Occurrence)>,
+    pub node_table: Arc<NodeTable>,
     pub warns: Vec<BuildWarn>,
 }
 
@@ -48,8 +52,8 @@ struct IndexBuilder {
     file_id: FileId,
     gen: Gen,
     policy: BuildPolicy,
-    next_node_id: NodeId,
-    entries: Vec<(PositionKey, PositionHit)>,
+    node_table: NodeTableBuilder,
+    entries: Vec<(PositionKey, Occurrence)>,
     warns: Vec<BuildWarn>,
 }
 
@@ -59,7 +63,7 @@ impl IndexBuilder {
             file_id,
             gen,
             policy,
-            next_node_id: 0,
+            node_table: NodeTableBuilder::new(),
             entries: Vec::new(),
             warns: Vec::new(),
         }
@@ -68,16 +72,16 @@ impl IndexBuilder {
     fn finish(self) -> FileIndexBuild {
         FileIndexBuild {
             entries: self.entries,
+            node_table: Arc::new(self.node_table.finish()),
             warns: self.warns,
         }
     }
 
     #[inline]
-    fn push_entry(&mut self, cursor: CursorLite, pos: &PartialPosition) {
+    fn push_entry(&mut self, tesuu: u32, fork_path: &[ForkPointer], pos: &PartialPosition) {
         let key = key_from_partial_position(pos);
 
-        let node_id = self.next_node_id;
-        self.next_node_id = self.next_node_id.wrapping_add(1);
+        let node_id: NodeId = self.node_table.push_node(tesuu, fork_path);
 
         let occ = Occurrence {
             file_id: self.file_id,
@@ -85,7 +89,7 @@ impl IndexBuilder {
             node_id,
         };
 
-        self.entries.push((key, PositionHit { occ, cursor }));
+        self.entries.push((key, occ));
     }
 
     fn walk_sequence(
@@ -99,7 +103,7 @@ impl IndexBuilder {
             let tesuu = start_tesuu + offset as u32;
             let parent_pos = pos.clone();
 
-            // 1) forks
+            // forks
             if let Some(forks) = &node.forks {
                 for (i, fork_line) in forks.iter().enumerate() {
                     if fork_line.is_empty() {
@@ -112,25 +116,30 @@ impl IndexBuilder {
                 }
             }
 
-            // 2) mainline
-            let cursor = CursorLite {
-                tesuu,
-                fork_pointers: fork_path.clone(),
-            };
+            // mainline
             let action = node_action(node);
 
             match apply_node_action(&mut pos, action) {
                 Ok(status) => {
-                    self.push_entry(cursor, &pos);
+                    self.push_entry(tesuu, &fork_path, &pos);
                     if status == ApplyStatus::Terminal {
                         break;
                     }
                 }
                 Err(e) => match self.policy {
-                    BuildPolicy::Strict => return Err(BuildError::Apply { cursor, source: e }),
+                    BuildPolicy::Strict => {
+                        let cursor = CursorLite {
+                            tesuu,
+                            fork_pointers: fork_path.clone(),
+                        };
+                        return Err(BuildError::Apply { cursor, source: e });
+                    }
                     BuildPolicy::Loose => {
                         self.warns.push(BuildWarn {
-                            cursor,
+                            cursor: CursorLite {
+                                tesuu,
+                                fork_pointers: fork_path.clone(),
+                            },
                             message: e.to_string(),
                         });
                         break;
@@ -152,15 +161,13 @@ pub fn build_index_for_jkf(
     jkf: &JsonKifuFormat,
     policy: BuildPolicy,
 ) -> Result<FileIndexBuild, BuildError> {
-    // 初期局面
     let init_pos = initial_partial_position(jkf)?;
 
     let mut b = IndexBuilder::new(file_id, gen, policy);
 
     // root
-    b.push_entry(CursorLite::root(), &init_pos);
+    b.push_entry(0, &[], &init_pos);
 
-    // mainline: moves[0]はrootダミーなので、moves[1..]を tesuu=1 から処理
     if jkf.moves.len() > 1 {
         b.walk_sequence(&jkf.moves[1..], 1, init_pos, vec![])?;
     }
@@ -191,16 +198,18 @@ fn push_or_replace_fork(fps: &mut Vec<ForkPointer>, te: u32, fork_index: u32) {
 
 /// この段階でbucket分割したい場合
 pub fn bucketize_entries(
-    entries: Vec<(PositionKey, PositionHit)>,
-) -> [Vec<(PositionKey, PositionHit)>; 256] {
-    let mut buckets: [Vec<(PositionKey, PositionHit)>; 256] = std::array::from_fn(|_| Vec::new());
+    entries: Vec<(PositionKey, Occurrence)>,
+) -> [Vec<(PositionKey, Occurrence)>; 256] {
+    let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] = std::array::from_fn(|_| Vec::new());
 
     for e in entries {
         buckets[e.0.bucket() as usize].push(e);
     }
 
     for b in &mut buckets {
-        b.sort_by(|(k1, _), (k2, _)| (k1.z0, k1.z1).cmp(&(k2.z0, k2.z1)));
+        b.sort_by(|(k1, o1), (k2, o2)| {
+            (k1.z0, k1.z1, o1.file_id, o1.node_id).cmp(&(k2.z0, k2.z1, o2.file_id, o2.node_id))
+        });
     }
 
     buckets

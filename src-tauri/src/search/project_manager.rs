@@ -17,9 +17,10 @@ use crate::search::{
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{IndexState as StoreIndexState, IndexStore},
     kifu_reader::read_to_jkf,
+    node_table::NodeTable,
     types::{
-        FileEntry, FileId, IndexState, IndexStatePayload, IndexWarnPayload, EVT_INDEX_STATE,
-        EVT_INDEX_WARN,
+        FileEntry, FileId, IndexState, IndexStatePayload, IndexWarnPayload, Occurrence,
+        EVT_INDEX_STATE, EVT_INDEX_WARN,
     },
 };
 
@@ -144,7 +145,7 @@ impl ProjectManager {
     }
 
     /// Step2本体：scan -> diff -> apply
-    async fn run_rescan_diff_apply(&self, app: AppHandle, store: Arc<IndexStore>) {
+    pub async fn run_rescan_diff_apply(&self, app: AppHandle, store: Arc<IndexStore>) {
         // プロジェクト情報を “cloneして” 取り出す（ロックを await に跨がない）
         let (root, prev_scan, mut path_to_id, mut next_file_id) = {
             let g = self.inner.lock().await;
@@ -259,32 +260,34 @@ impl ProjectManager {
         file_id: FileId,
         gen: u32,
     ) {
-        let path_str = rec.path.to_string_lossy().to_string();
+        type BucketEntries = [Vec<(crate::search::position_key::PositionKey, Occurrence)>; 256];
 
+        let path_str = rec.path.to_string_lossy().to_string();
         let rec_cloned = rec.clone();
-        let built =
-            task::spawn_blocking(move || -> Result<([Vec<_>; 256], Vec<String>), String> {
+
+        let built = task::spawn_blocking(
+            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
                 let jkf = read_to_jkf(&rec_cloned).map_err(|e| e.to_string())?;
                 let b = build_index_for_jkf(file_id, gen, &jkf, BuildPolicy::Loose)
                     .map_err(|e| e.to_string())?;
-                let by_bucket = bucketize_entries(b.entries);
+
+                let by_bucket: BucketEntries = bucketize_entries(b.entries);
+
                 let warns = b
                     .warns
                     .into_iter()
                     .map(|w| format!("{:?}: {}", w.cursor, w.message))
                     .collect::<Vec<_>>();
-                Ok((by_bucket, warns))
-            })
-            .await;
 
-        let (by_bucket, warns) = match built {
+                Ok((by_bucket, b.node_table, warns))
+            },
+        )
+        .await;
+
+        let (by_bucket, node_table, warns) = match built {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
-                // パース/ビルド失敗：genだけ進めて「自然死」させる（エントリは追加しない）
-                let empty: [Vec<(
-                    crate::search::position_key::PositionKey,
-                    crate::search::types::PositionHit,
-                )>; 256] = std::array::from_fn(|_| Vec::new());
+                let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
 
                 store.insert_file_segments(
                     FileEntry {
@@ -293,6 +296,7 @@ impl ProjectManager {
                         deleted: false,
                         gen,
                     },
+                    Arc::new(NodeTable::empty()),
                     empty,
                 );
 
@@ -334,6 +338,7 @@ impl ProjectManager {
                 deleted: false,
                 gen,
             },
+            node_table,
             by_bucket,
         );
     }

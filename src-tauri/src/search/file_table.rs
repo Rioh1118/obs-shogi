@@ -37,4 +37,8 @@ impl FileTable {
     pub fn is_empty(&self) -> bool {
         self.by_id.is_empty()
     }
+
+    pub fn iter_all(&self) -> impl Iterator<Item = (FileId, &FileEntry)> {
+        self.by_id.iter().map(|(k, v)| (*k, v))
+    }
 }

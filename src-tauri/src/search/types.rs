@@ -30,6 +30,7 @@ pub struct FilePathEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IndexState {
     Empty,
+    Restoring,
     Building,
     Ready,
     Updating,

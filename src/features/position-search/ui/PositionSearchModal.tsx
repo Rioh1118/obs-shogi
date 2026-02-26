@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "../../../shared/ui/Modal";
@@ -35,10 +34,10 @@ export default function PositionSearchModal() {
   const {
     state,
     searchCurrentPositionBestEffort,
-    clearSearch,
     getCurrentSession,
     getHits,
     resolveHitAbsPath,
+    // openProject, // 必要なら使う
   } = usePositionSearch();
 
   const { navigateToHit } = usePositionHitNavigation();
@@ -55,12 +54,12 @@ export default function PositionSearchModal() {
   const error = session?.error ?? null;
 
   const indexState = state.index.state;
-  const indexStale = indexState === "Building" || indexState === "Updating";
+  const indexStale =
+    indexState === "Restoring" ||
+    indexState === "Building" ||
+    indexState === "Updating";
 
-  const lastIndexedRef = useRef<number>(0);
-  const retryTimerRef = useRef<number | null>(null);
-
-  const didFinalRefreshRef = useRef(false);
+  const resultStale = indexStale || !!session?.stale;
 
   const statusText = useMemo(() => {
     if (isSearching) return "検索中…";
@@ -82,12 +81,13 @@ export default function PositionSearchModal() {
     return buildPreviewData(jkf, nodeId);
   }, [isOpen, gameState.jkfPlayer]);
 
+  // -------------------------
+  // 検索結果の“見せ方”補助
+  // -------------------------
   const lastNonEmptyHitsRef = useRef<{
     sfen: string | null;
     hits: PositionHit[];
   }>({ sfen: null, hits: [] });
-
-  const lastSfenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -98,15 +98,13 @@ export default function PositionSearchModal() {
   }, [isOpen, currentSfen, hits]);
 
   const displayHits = useMemo(() => {
-    // 今回のrequestがまだ空でも、検索中orstale中は前回の結果を見せる
     if (hits.length > 0) return hits;
 
     const prev = lastNonEmptyHitsRef.current;
-    const canReuse =
-      prev.sfen === currentSfen && (isSearching || !!session?.stale);
+    const canReuse = prev.sfen === currentSfen && (isSearching || resultStale);
 
     return canReuse ? prev.hits : hits;
-  }, [hits, currentSfen, isSearching, session?.stale]);
+  }, [hits, currentSfen, isSearching, resultStale]);
 
   const orderedHits = useMemo(() => {
     return orderPositionHits(
@@ -116,81 +114,45 @@ export default function PositionSearchModal() {
     );
   }, [displayHits, resolveHitAbsPath, gameState.loadedAbsPath]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!currentSfen) return;
+  // -------------------------
+  // 検索トリガ：モーダルを開いた瞬間だけ
+  // -------------------------
+  const prevOpenRef = useRef(false);
 
-    // 初回 or SFENが変わったときだけクリアして新規検索
-    if (lastSfenRef.current !== currentSfen) {
-      lastSfenRef.current = currentSfen;
-      setActiveIndex(0);
-      clearSearch();
-
-      queueMicrotask(() => rootRef.current?.focus());
-
-      searchCurrentPositionBestEffort(5000).catch((e) => {
-        console.error("[PositionSearchModal] auto search failed:", e);
-      });
-    }
-  }, [isOpen, currentSfen, clearSearch, searchCurrentPositionBestEffort]);
+  // 「前回投げたSFEN」と同じならスキップ（=開き直しでも不要なら投げない）
+  // ※「閉じたらリセットしたい」なら close時に null に戻す（下でやってる）
+  const lastQueriedSfenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
-    if (!currentSfen) return;
-    if (!indexStale) return;
-    if (isSearching) return;
+    const wasOpen = prevOpenRef.current;
+    prevOpenRef.current = isOpen;
 
-    // indexedFiles が進んだときだけ再検索（無駄撃ち防止）
-    const indexed = state.index.indexedFiles;
-    if (indexed <= lastIndexedRef.current) return;
-    lastIndexedRef.current = indexed;
-
-    if (retryTimerRef.current != null) {
-      window.clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = null;
-    }
-
-    retryTimerRef.current = window.setTimeout(() => {
-      searchCurrentPositionBestEffort(5000).catch((e) => {
-        console.error(
-          "[PositionSearchModal] progress-triggered search failed:",
-          e,
-        );
-      });
-    }, 250);
-
-    return () => {
-      if (retryTimerRef.current != null) {
-        window.clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
-    };
-  }, [
-    isOpen,
-    currentSfen,
-    indexStale,
-    isSearching,
-    state.index.indexedFiles,
-    searchCurrentPositionBestEffort,
-  ]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!currentSfen) return;
-
-    const isReady = state.index.state === "Ready";
-    if (!isReady) {
-      didFinalRefreshRef.current = false;
+    // close時の後始末
+    if (!isOpen) {
+      // ここを消せば「アプリ起動中は同一SFENならずっとスキップ」になる
+      lastQueriedSfenRef.current = null;
       return;
     }
-    if (didFinalRefreshRef.current) return;
 
-    didFinalRefreshRef.current = true;
+    // open瞬間のみ
+    if (wasOpen) return;
+
+    if (!currentSfen) return;
+
+    // 同一SFENなら投げない
+    if (lastQueriedSfenRef.current === currentSfen) return;
+
+    lastQueriedSfenRef.current = currentSfen;
+
+    // BestEffortで投げる（結果はイベントで届く）
     searchCurrentPositionBestEffort(5000).catch((e) => {
-      console.error("[PositionSearchModal] final refresh failed:", e);
+      console.error("[PositionSearchModal] open-triggered search failed:", e);
     });
-  }, [isOpen, currentSfen, state.index.state, searchCurrentPositionBestEffort]);
+  }, [isOpen, currentSfen, searchCurrentPositionBestEffort]);
 
+  // -------------------------
+  // 選択中hitの保持/整合
+  // -------------------------
   const activeHit = orderedHits[activeIndex];
   const activeKeyRef = useRef<string | null>(null);
 
@@ -286,10 +248,7 @@ export default function PositionSearchModal() {
               <PositionSearchStatusBar
                 hitsCount={displayHits.length}
                 statusText={statusText}
-                stale={
-                  state.index.state === "Building" ||
-                  state.index.state === "Updating"
-                }
+                stale={resultStale}
                 error={error}
               />
 
@@ -303,6 +262,7 @@ export default function PositionSearchModal() {
                 resolveAbsPath={resolveHitAbsPath}
               />
             </section>
+
             <aside className="pos-search__right" aria-label="局面プレビュー">
               <div className="pos-search__paneTitle">現在の局面</div>
               <PreviewPane previewData={previewData} toKan={toKan} />

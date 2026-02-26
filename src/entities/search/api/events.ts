@@ -1,7 +1,12 @@
 import type { FilePathEntry, PositionHit, RequestId } from "./ids";
 
 // Rust: pub enum IndexState { Empty, Building, Ready, Updating }
-export type IndexState = "Empty" | "Building" | "Ready" | "Updating";
+export type IndexState =
+  | "Empty"
+  | "Restoring"
+  | "Building"
+  | "Ready"
+  | "Updating";
 
 // Rust: pub struct IndexStatePayload { state, dirty_count, indexed_files, total_files }
 export interface IndexStatePayload {
