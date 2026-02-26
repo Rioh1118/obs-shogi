@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import {
   useCallback,
   useEffect,
@@ -42,14 +43,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const RESULT_FLUSH_MS = 80;
 
-  const clearFlushTimer = () => {
+  const clearFlushTimer = useCallback(() => {
     if (flushTimerRef.current != null) {
       window.clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const flushLatest = () => {
+  const flushLatest = useCallback(() => {
     // 解析中じゃないならUI更新しない（stop直後の無駄更新防止）
     if (!analyzingRef.current) return;
 
@@ -57,15 +58,27 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!r) return;
 
     dispatch({ type: "update_result", payload: r });
-  };
+  }, []);
 
-  const scheduleFlush = () => {
+  const scheduleFlush = useCallback(() => {
     if (flushTimerRef.current != null) return;
     flushTimerRef.current = window.setTimeout(() => {
       flushTimerRef.current = null;
       flushLatest();
     }, RESULT_FLUSH_MS);
-  };
+  }, [flushLatest, RESULT_FLUSH_MS]);
+
+  const safeUnlisten = useCallback(() => {
+    const fn = unlistenRef.current;
+    unlistenRef.current = null;
+    if (!fn) return;
+
+    try {
+      fn();
+    } catch (e) {
+      console.debug("[ANALYSIS] unlisten failed (ignored)", e);
+    }
+  }, []);
 
   useEffect(() => {
     syncedSfenRef.current = syncedSfen;
@@ -104,11 +117,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   // === Event listeners ===
   useEffect(() => {
+    let alive = true;
+
     const setup = async () => {
-      if (unlistenRef.current) {
-        unlistenRef.current();
-        unlistenRef.current = null;
-      }
+      safeUnlisten();
+
+      if (!isTauri()) return;
 
       try {
         const unlisten = await setupAnalysisEventListeners({
@@ -126,24 +140,25 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             dispatch({ type: "set_error", payload: error });
           },
         });
+
+        if (!alive) {
+          unlisten();
+          return;
+        }
         unlistenRef.current = unlisten;
       } catch (e) {
         console.error("[ANALYSIS] Failed to setup listeners:", e);
       }
     };
 
-    setup().catch((e) => {
-      console.error("[ANALYSIS] Failed to setup listeners:", e);
-    });
+    setup();
 
     return () => {
+      alive = false;
       clearFlushTimer();
-      if (unlistenRef.current) {
-        unlistenRef.current();
-        unlistenRef.current = null;
-      }
+      safeUnlisten();
     };
-  }, [scheduleFlush]);
+  }, [safeUnlisten, scheduleFlush, clearFlushTimer, flushLatest]);
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
   runRestartRef.current = (seq: number) => {
@@ -177,7 +192,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         clearFlushTimer();
         latestResultRef.current = null;
-        dispatch({ type: "clear_results" });
 
         dispatch({ type: "clear_results" });
 
@@ -291,7 +305,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       clearFlushTimer();
       latestResultRef.current = null;
     }
-  }, [state.isAnalyzing, state.sessionId]);
+  }, [clearFlushTimer, state.isAnalyzing, state.sessionId]);
 
   const clearResults = useCallback(() => {
     dispatch({ type: "clear_results" });

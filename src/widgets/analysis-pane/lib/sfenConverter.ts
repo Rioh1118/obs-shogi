@@ -9,6 +9,25 @@ export interface ConvertedMove {
   isBlack: boolean; // 先手かどうか
 }
 
+const normalizeToken = (x: string) => {
+  const t = x.trim();
+
+  // JSON文字列っぽいなら JSON.parse で安全に剥がす（\" なども戻る）
+  if (
+    (t.startsWith('"') && t.endsWith('"')) ||
+    (t.startsWith("'") && t.endsWith("'"))
+  ) {
+    try {
+      // "abc" -> abc
+      return JSON.parse(t);
+    } catch {
+      // JSON.parseできない場合の保険
+      return t.slice(1, -1);
+    }
+  }
+  return t;
+};
+
 // SFEN手順配列を日本語データ配列に変換
 export function convertSfenSequence(
   sfen: string | null,
@@ -17,20 +36,22 @@ export function convertSfenSequence(
   if (!sfen) {
     return [];
   }
-  const usiString = `position sfen ${sfen} moves ${sfenMoves.join(" ")}`;
+  const sfenNorm = normalizeToken(sfen);
+  const movesNorm = sfenMoves.map(normalizeToken).filter(Boolean);
+
+  const usiString =
+    movesNorm.length > 0
+      ? `position sfen ${sfenNorm} moves ${movesNorm.join(" ")}`
+      : `position sfen ${sfenNorm}`;
 
   const record = Record.newByUSI(usiString);
   if (record instanceof Error) {
-    if (record instanceof Error) {
-      console.warn("[SFEN_CONVERTER] parse failed", {
-        err: String(record),
-        sfen: JSON.stringify(sfen),
-        moves: sfenMoves.map((m) => JSON.stringify(m)),
-        usi: JSON.stringify(usiString),
-      });
-      return [];
-    }
-
+    console.warn("[SFEN_CONVERTER] parse failed", {
+      err: String(record),
+      sfen: JSON.stringify(sfen),
+      moves: sfenMoves.map((m) => JSON.stringify(m)),
+      usi: JSON.stringify(usiString),
+    });
     return [];
   }
 
