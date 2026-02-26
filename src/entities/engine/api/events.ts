@@ -8,7 +8,6 @@ export async function listenToAnalysisUpdates(
   callback: (result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
   return await listen<AnalysisUpdate>(EVENT_NAMES.ANALYSIS_UPDATE, (event) => {
-    console.log("Analysis update received:", event.payload);
     const p: AnalysisUpdate = event.payload;
     const result: AnalysisResult = p.result;
     callback(result);
@@ -21,7 +20,6 @@ export async function listenToAnalysisComplete(
   return await listen<{ sessionId: string; result: AnalysisResult }>(
     EVENT_NAMES.ANALYSIS_COMPLETE,
     (event) => {
-      console.log("Analysis complete:", event.payload);
       callback(event.payload.sessionId, event.payload.result);
     },
   );
@@ -31,7 +29,6 @@ export async function listenToEngineErrors(
   callback: (error: string) => void,
 ): Promise<UnlistenFn> {
   return await listen<string>(EVENT_NAMES.ENGINE_ERROR, (event) => {
-    console.error("Engine error:", event.payload);
     callback(event.payload);
   });
 }

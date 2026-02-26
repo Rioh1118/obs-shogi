@@ -37,6 +37,36 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const analyzingRef = useRef(state.isAnalyzing);
   const sessionIdRef = useRef(state.sessionId);
 
+  const latestResultRef = useRef<AnalysisResult | null>(null);
+  const flushTimerRef = useRef<number | null>(null);
+
+  const RESULT_FLUSH_MS = 80;
+
+  const clearFlushTimer = () => {
+    if (flushTimerRef.current != null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  };
+
+  const flushLatest = () => {
+    // 解析中じゃないならUI更新しない（stop直後の無駄更新防止）
+    if (!analyzingRef.current) return;
+
+    const r = latestResultRef.current;
+    if (!r) return;
+
+    dispatch({ type: "update_result", payload: r });
+  };
+
+  const scheduleFlush = () => {
+    if (flushTimerRef.current != null) return;
+    flushTimerRef.current = window.setTimeout(() => {
+      flushTimerRef.current = null;
+      flushLatest();
+    }, RESULT_FLUSH_MS);
+  };
+
   useEffect(() => {
     syncedSfenRef.current = syncedSfen;
   }, [syncedSfen]);
@@ -83,10 +113,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       try {
         const unlisten = await setupAnalysisEventListeners({
           onUpdate: (result: AnalysisResult) => {
-            dispatch({ type: "update_result", payload: result });
+            latestResultRef.current = result;
+            scheduleFlush();
           },
           onComplete: (_sessionId: string, result: AnalysisResult) => {
-            dispatch({ type: "update_result", payload: result });
+            latestResultRef.current = result;
+            clearFlushTimer();
+            flushLatest();
             dispatch({ type: "stop_analysis" });
           },
           onError: (error: string) => {
@@ -104,12 +137,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     });
 
     return () => {
+      clearFlushTimer();
       if (unlistenRef.current) {
         unlistenRef.current();
         unlistenRef.current = null;
       }
     };
-  }, []);
+  }, [scheduleFlush]);
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
   runRestartRef.current = (seq: number) => {
@@ -141,8 +175,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           await stopAnalysisCore(sid);
         }
 
+        clearFlushTimer();
+        latestResultRef.current = null;
         dispatch({ type: "clear_results" });
 
+        dispatch({ type: "clear_results" });
+
+        clearFlushTimer();
+        latestResultRef.current = null;
         const newSessionId = await startInfiniteAnalysisCore();
 
         dispatch({
@@ -248,6 +288,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       await stopAnalysisCore(state.sessionId);
     } finally {
       dispatch({ type: "stop_analysis" });
+      clearFlushTimer();
+      latestResultRef.current = null;
     }
   }, [state.isAnalyzing, state.sessionId]);
 

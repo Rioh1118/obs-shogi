@@ -25,7 +25,6 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
   // lifecycle
   const initialize = useCallback(async (): Promise<boolean> => {
-    console.log("initialize");
     if (!desiredRuntime) return false;
     if (state.phase === "initializing") return false;
 
@@ -88,9 +87,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
         state.phase === "initializing" ||
         state.phase === "error"
       ) {
-        shutdown().catch(() => {
-          console.log("設定null stop");
-        });
+        shutdown().catch(() => {});
       }
       return;
     }

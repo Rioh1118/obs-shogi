@@ -40,6 +40,8 @@ function AnalysisPane() {
   const cacheRef = useRef<Map<string, PaneSnapshot>>(new Map());
   const lastFileKeyRef = useRef<string | null>(null);
 
+  const currentTurn = getCurrentTurn();
+
   // ファイルが変わったら全破棄
   useEffect(() => {
     if (fileKey !== lastFileKeyRef.current) {
@@ -67,7 +69,6 @@ function AnalysisPane() {
   }, [state.isAnalyzing, state.candidates, cacheKey]);
 
   const displayData = useMemo(() => {
-    const currentTurn = getCurrentTurn();
     const senteCandidates: AnalysisCandidate[] = visibleCandidates.map((c) =>
       convertCandidateToSenteView(c, currentTurn),
     );
@@ -111,7 +112,7 @@ function AnalysisPane() {
       searchStats,
       candidateCount: others.length,
     };
-  }, [currentSfen, getCurrentTurn, visibleCandidates]);
+  }, [currentSfen, currentTurn, visibleCandidates]);
 
   return (
     <section className="analysis-pane">
