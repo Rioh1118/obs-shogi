@@ -7,10 +7,17 @@ import SettingsTabButton from "./SettingsTabButton";
 import { TABS, type TabKey } from "@/features/settings";
 import WorkspaceTab from "./tabs/WorkspaceTab";
 import AiLibraryTab from "./tabs/AiLibraryTab";
+import { useMemo } from "react";
+
+function isTabKey(v: unknown, keys: readonly TabKey[]): v is TabKey {
+  return typeof v === "string" && (keys as readonly string[]).includes(v);
+}
 
 function SettingsPanel() {
   const { params, updateParams } = useURLParams();
-  const tab = (params.tab as TabKey) ?? "general";
+  const tabKeys = useMemo(() => TABS.map((t) => t.key), []);
+
+  const tab: TabKey = isTabKey(params.tab, tabKeys) ? params.tab : "workspace";
 
   const goTab = (t: TabKey) => updateParams({ tab: t }, { replace: true });
 
@@ -31,9 +38,9 @@ function SettingsPanel() {
             {TABS.map((t) => {
               const isActive = tab === t.key;
 
-              const showLock = t.key !== "general";
+              const showLock = t.key !== "workspace";
 
-              const showDangerBadge = t.key !== "general";
+              const showDangerBadge = t.key !== "workspace";
 
               const badges = [
                 ...(showLock
