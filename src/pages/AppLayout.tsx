@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "../widgets/sidebar/Sidebar";
 import GameBoard from "../widgets/game-board/ui/GameBoard";
 import Board from "../widgets/game-board/ui/Board";
@@ -18,12 +18,24 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { usePositionSearch } from "@/entities/search";
 import GameControls from "@/widgets/game-board/ui/GameControls";
+import { useFileTree } from "@/entities/file-tree";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { state: gameState, clearSelection } = useGame();
-  const { params } = useURLParams();
+  const { params, updateParams } = useURLParams();
   const rotate = params.pov === "gote";
+
+  const { selectedNode } = useFileTree();
+
+  const prevIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = selectedNode?.id ?? null;
+    if (prevIdRef.current === id) return;
+    prevIdRef.current = id;
+
+    updateParams({ pov: undefined }, { replace: true });
+  }, [selectedNode, updateParams]);
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameState.jkfPlayer?.shogi;
