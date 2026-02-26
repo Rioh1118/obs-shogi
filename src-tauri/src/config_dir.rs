@@ -14,7 +14,7 @@ pub struct AppConfig {
 fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
         .path()
-        .config_dir()
+        .app_config_dir()
         .map_err(|e| e.to_string())?
         .join(CONFIG_FILE))
 }

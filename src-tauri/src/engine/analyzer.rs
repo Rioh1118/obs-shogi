@@ -1,5 +1,5 @@
 use crate::engine::utils::{
-    extract_rank, get_depth_of_rank, get_or_create_candidate, map_score_to_evaluation,
+    extract_rank, get_depth_of_rank, get_or_create_candidate, map_score_to_evaluation, LogThrottle,
 };
 
 use super::manager::EngineManager;
@@ -9,6 +9,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use usi::{EngineCommand, GuiCommand, InfoParams, ThinkParams};
+
+const LOGT: &str = "obs_shogi::engine::analyzer";
 
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
 pub struct EngineAnalyzer {
@@ -110,10 +112,12 @@ impl EngineAnalyzer {
     pub async fn start_infinite_analysis(
         &self,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
-        println!("[ANALYZER] start_infinite_analysis called");
+        log::debug!(target: LOGT, "analysis.infinite.start: requested");
+
         let stop_flag = Arc::new(AtomicBool::new(false));
         *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
 
+        // initialized check
         let manager_guard = self.manager.lock().await;
         if !manager_guard.is_initialized().await {
             return Err(EngineError::NotInitialized(
@@ -124,10 +128,8 @@ impl EngineAnalyzer {
         let protocol = manager_guard.protocol()?;
         drop(manager_guard);
 
-        // 結果チャンネル作成
+        // channel
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-
-        // エンジンコマンド受信チャンネル
         let (raw_tx, raw_rx) = mpsc::unbounded_channel();
 
         let listener_id = format!(
@@ -138,40 +140,54 @@ impl EngineAnalyzer {
                 .as_nanos()
         );
 
-        println!("🎧 [ANALYZER] Registering listener: {}", listener_id);
+        log::debug!(
+            target: LOGT,
+            "analysis.infinite: register_listener id={}",
+            listener_id
+        );
 
-        protocol
+        if let Err(e) = protocol
             .register_listener(listener_id.clone(), raw_tx)
-            .await?;
+            .await
+        {
+            log::error!(
+                target: LOGT,
+                "analysis.infinite: register_listener failed: {:?}",
+                e
+            );
+            return Err(e);
+        }
 
-        // 無限解析開始
+        log::debug!(target: LOGT, "analysis.infinite: send_command go=infinite");
         let go_command = GuiCommand::Go(ThinkParams::new().infinite());
-        println!("🚀 [ANALYZER] Sending Go command: {:?}", go_command);
 
-        match protocol.send_command(&go_command).await {
-            Ok(_) => {
-                println!("✅ [ANALYZER] Go command sent successfully");
-            }
-            Err(e) => {
-                println!("❌ [ANALYZER] Failed to send Go command: {:?}", e);
-                return Err(e);
-            }
+        if let Err(e) = protocol.send_command(&go_command).await {
+            log::error!(
+                target: LOGT,
+                "analysis.infinite: send_command failed: {:?}",
+                e
+            );
+            let _ = protocol.remove_listener(&listener_id).await;
+            return Err(e);
         }
 
         // 結果処理タスク開始前にログ
-        println!("🧵 [ANALYZER] About to spawn process_analysis_stream task");
+        log::info!(
+            target: LOGT,
+            "analysis.infinite.started listener_id={}",
+            listener_id
+        );
 
         // 結果処理タスク
         let state_clone = Arc::clone(&self.state);
-        let listener_id_clone = listener_id.clone();
-
         let protocol_for_task = protocol.clone();
         let listener_id_for_task = listener_id.clone();
 
         tokio::spawn(async move {
-            println!(
-                "🧵 [ANALYZER] Starting process_analysis_stream task for listener: {}",
-                listener_id_clone
+            log::debug!(
+                target: LOGT,
+                "analysis.infinite.stream: start listener_id={}",
+                listener_id_for_task
             );
             Self::process_analysis_stream(
                 raw_rx,
@@ -180,12 +196,14 @@ impl EngineAnalyzer {
                 StreamMode::Infinite(stop_flag),
             )
             .await;
-            let _ = protocol_for_task
+
+            protocol_for_task
                 .remove_listener(&listener_id_for_task)
                 .await;
-            println!(
-                "🏁 [ANALYZER] process_analysis_stream task finished for listener: {}",
-                listener_id_clone
+            log::debug!(
+                target: LOGT,
+                "analysis.infinite.stream: end listener_id={}",
+                listener_id_for_task
             );
         });
 
@@ -339,73 +357,64 @@ impl EngineAnalyzer {
         #[allow(unused_variables)] state: Arc<RwLock<AnalyzerState>>,
         mode: StreamMode,
     ) {
-        println!("🔄 [ANALYZER] process_analysis_stream started, waiting for engine commands...");
+        log::debug!(target: LOGT, "stream: start");
 
         let mut current_result = AnalysisResult::default();
-        let mut command_count = 0;
+        let mut processed: u64 = 0;
+
+        let mut stale_bestmove_warn = LogThrottle::new(Duration::from_secs(5));
 
         while let Some(cmd) = raw_rx.recv().await {
-            command_count += 1;
-            println!(
-                "📨 [ANALYZER] Received engine command #{}: {:?}",
-                command_count, cmd
-            );
+            processed += 1;
 
             match cmd {
                 EngineCommand::Info(info_params) => {
-                    println!("📊 [ANALYZER] Processing Info params: {:?}", info_params);
                     Self::process_info_params(&info_params, &mut current_result);
                     // 更新された結果を送信
-                    if let Err(e) = result_tx.send(current_result.clone()) {
-                        println!("❌ [ANALYZER] Failed to send result: {:?}", e);
+                    if result_tx.send(current_result.clone()).is_err() {
+                        log::debug!(target: LOGT, "stream: result channel closed");
                         break;
-                    } else {
-                        println!("✅ [ANALYZER] Sent analysis result update");
                     }
                 }
                 EngineCommand::Checkmate(checkmate_params) => {
-                    println!(
-                        "📊 [ANALYZER] Processing checkmate params: {:?}",
-                        checkmate_params
-                    );
                     Self::process_checkmate(&checkmate_params, &mut current_result);
 
-                    if let Err(e) = result_tx.send(current_result.clone()) {
-                        println!("❌ [ANALYZER] Failed to send final result: {:?}", e);
-                    } else {
-                        println!("✅ [ANALYZER] Sent final analysis result");
-                    }
+                    log::info!(target: LOGT, "stream: checkmate received");
+                    let _ = result_tx.send(current_result.clone());
                 }
 
                 EngineCommand::BestMove(_) => {
                     match &mode {
                         StreamMode::Finite => {
                             let _ = result_tx.send(current_result.clone());
-                            // state 更新など…
                             break;
                         }
                         StreamMode::Infinite(stop_flag) => {
-                            // ★ここが重要：stop してないのに bestmove が来たら無視
+                            // stop してないのに bestmove が来たらstaleの可能性
                             if !stop_flag.load(Ordering::SeqCst) {
-                                println!("⚠️ [ANALYZER] BestMove received without Stop request; ignoring as stale");
+                                if stale_bestmove_warn.allow() {
+                                    log::warn!(
+                                        target: LOGT,
+                                        "stream: bestmove received without stop request; ignoring (stale?)"
+                                    );
+                                }
                                 continue;
                             }
                             let _ = result_tx.send(current_result.clone());
-                            // state 更新など…
                             break;
                         }
                     }
                 }
-                _ => {
-                    println!("🔍 [ANALYZER] Ignoring command: {:?}", cmd);
-                }
+                _ => {}
             }
         }
+        {
+            let mut st = state.write().await;
+            st.last_result = Some(current_result);
+            st.analysis_count = st.analysis_count.wrapping_add(1).max(1);
+        }
 
-        println!(
-            "📊 [ANALYZER] process_analysis_stream finished. Total commands processed: {}",
-            command_count
-        );
+        log::debug!(target: LOGT, "stream: end processed={}", processed);
     }
 
     /// 単一結果収集

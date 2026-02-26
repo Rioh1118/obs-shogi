@@ -1,3 +1,5 @@
+use crate::engine::utils::LogThrottle;
+
 use super::analyzer::EngineAnalyzer;
 use super::types::*;
 use serde::Serialize;
@@ -7,6 +9,8 @@ use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
 
 use tauri::Emitter;
+
+const LOGT: &str = "obs_shogi::engine::bridge";
 
 // グローバルブリッジの代わりにTauri Stateを使用
 #[derive(Default)]
@@ -71,12 +75,22 @@ impl EngineBridge {
         engine_path: String,
         working_dir: Option<String>,
     ) -> Result<(), String> {
-        println!("🚀 [BRIDGE] initialize_engine_impl called");
+        log::info!(target: LOGT, "initialize_engine: start");
 
-        self.analyzer
+        match self
+            .analyzer
             .initialize_engine(engine_path, working_dir)
             .await
-            .map_err(|e| format!("Engine initialization failed: {:?}", e))
+        {
+            Ok(_) => {
+                log::info!(target: LOGT, "initialize_engine: ok");
+                Ok(())
+            }
+            Err(e) => {
+                log::error!(target: LOGT, "initialize_engine: failed: {:?}", e);
+                Err(format!("Engine initialization failed: {:?}", e))
+            }
+        }
     }
 
     async fn ensure_no_active_session(&self) -> Result<(), String> {
@@ -89,54 +103,58 @@ impl EngineBridge {
     }
 
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
-        println!("[BRIDGE] shutdown_engine_impl called");
+        log::info!(target: LOGT, "shutdown_engine: start");
 
         self.stop_all_sessions().await?;
 
-        self.analyzer
-            .shutdown()
-            .await
-            .map_err(|e| format!("Engine shutdown failed: {:?}", e))
+        match self.analyzer.shutdown().await {
+            Ok(_) => {
+                log::info!(target: LOGT, "shutdown_engine: ok");
+                Ok(())
+            }
+            Err(e) => {
+                log::error!(target: LOGT, "shutdown_engine: failed: {:?}", e);
+                Err(format!("Engine shutdown failed: {:?}", e))
+            }
+        }
     }
 
     pub async fn set_position_impl(&self, position: String) -> Result<(), String> {
-        println!(
-            "🎯 [BRIDGE] set_position_impl called with position: {}",
-            position
-        );
-        println!("🎯 [BRIDGE] Position length: {}", position.len());
+        log::debug!(target: LOGT, "set_position: len={}", position.len());
 
-        self.analyzer
-            .set_position(&position)
-            .await
-            .map_err(|e| format!("Position setting failed: {:?}", e))?;
+        self.analyzer.set_position(&position).await.map_err(|e| {
+            log::warn!(target: LOGT, "set_position: failed: {:?}", e);
+            format!("Position setting failed: {:?}", e)
+        })?;
 
-        println!("✅ [BRIDGE] Position set successfully");
+        log::debug!(target: LOGT, "set_position: ok");
         Ok(())
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
-        self.ensure_no_active_session().await?;
+        if let Err(e) = self.ensure_no_active_session().await {
+            log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
+            return Err(e);
+        }
 
-        println!("🚀 [BRIDGE] start_infinite_analysis_impl called");
-        // セッション数チェック
-        let current_sessions = self.active_sessions.read().await;
-        println!(
-            "📊 [BRIDGE] Current active sessions: {}",
-            current_sessions.len()
-        );
-        drop(current_sessions);
+        log::debug!(target: LOGT, "start_infinite_analysis: requested");
 
-        println!("🔄 [BRIDGE] Starting infinite analysis via analyzer...");
+        let result_rx = self.analyzer.start_infinite_analysis().await.map_err(|e| {
+            log::error!(
+                target: LOGT,
+                "start_infinite_analysis: analyzer failed: {:?}",
+                e
+            );
+            format!("Failed to start infinite analysis: {:?}", e)
+        })?;
 
-        let result_rx = self
-            .analyzer
-            .start_infinite_analysis()
-            .await
-            .map_err(|e| format!("Failed to start infinite analysis: {:?}", e))?;
-
-        println!("✅ [BRIDGE] Analyzer returned result receiver");
         let session_id = self.create_session(SessionType::Infinite).await;
+        log::info!(
+            target: LOGT,
+            "start_infinite_analysis: ok session_id={}",
+            session_id
+        );
+
         self.start_result_forwarding(&session_id, result_rx).await;
         Ok(session_id)
     }
@@ -171,6 +189,11 @@ impl EngineBridge {
         // session が消えたら emit/保存をやめるためのフラグ
         let mut session_exists = true;
 
+        // emit失敗は5秒に1回だけwarn
+        let mut emit_warn = LogThrottle::new(Duration::from_secs(5));
+        // session消失も1回だけdebug
+        let mut session_missing_logged = false;
+
         while let Some(result) = receiver.recv().await {
             // session がまだあるなら last_result を保存 & active なら emit
             let mut emit = false;
@@ -181,8 +204,15 @@ impl EngineBridge {
                     session.last_result = Some(result.clone());
                     emit = session.is_active;
                 } else {
-                    // session が消えた：ここからは “黙って drain” だけする
                     session_exists = false;
+                    if !session_missing_logged {
+                        log::debug!(
+                            target: LOGT,
+                            "forward_results: session disappeared; draining only session_id={}",
+                            session_id
+                        );
+                        session_missing_logged = true;
+                    }
                 }
             }
 
@@ -193,7 +223,16 @@ impl EngineBridge {
                         session_id: session_id.clone(),
                         result,
                     };
-                    let _ = handle.emit("analysis-update", payload);
+                    if let Err(e) = handle.emit("analysis-update", payload) {
+                        if emit_warn.allow() {
+                            log::warn!(
+                                target: LOGT,
+                                "forward_results: emit failed session_id={} err={}",
+                                session_id,
+                                e
+                            );
+                        }
+                    }
                 }
             }
             // session が消えた後は、receiver を drop せずに drain 継続する
@@ -206,6 +245,11 @@ impl EngineBridge {
                 session.is_active = false;
             }
         }
+        log::debug!(
+            target: LOGT,
+            "forward_results: ended session_id={}",
+            session_id
+        );
     }
 
     pub async fn analyze_with_time_impl(
@@ -251,17 +295,24 @@ impl EngineBridge {
     }
 
     pub async fn apply_engine_settings_impl(&self, settings: EngineSettings) -> Result<(), String> {
-        println!("⚙️ [BRIDGE] apply_engine_settings_impl called");
+        log::info!(
+            target: LOGT,
+            "apply_engine_settings: start options={}",
+            settings.options.len()
+        );
 
         self.analyzer
             .apply_settings(settings.clone())
             .await
-            .map_err(|e| format!("Failed to apply settings: {:?}", e))?;
+            .map_err(|e| {
+                log::error!(target: LOGT, "apply_engine_settings: failed: {:?}", e);
+                format!("Failed to apply settings: {:?}", e)
+            })?;
 
         // 設定を保存
         *self.settings.write().await = settings;
 
-        println!("✅ [BRIDGE] Settings applied successfully");
+        log::info!(target: LOGT, "apply_engine_settings: ok");
         Ok(())
     }
 
@@ -288,21 +339,14 @@ impl EngineBridge {
     }
 
     pub async fn get_engine_info_impl(&self) -> Result<Option<EngineInfo>, String> {
-        println!("ℹ️ [BRIDGE] get_engine_info_impl called");
+        log::debug!(target: LOGT, "get_engine_info");
 
         match self.analyzer.get_engine_info().await {
-            Ok(info) => {
-                println!("✅ [BRIDGE] Engine info retrieved successfully");
-                Ok(Some(info))
-            }
-            Err(EngineError::NotInitialized(_)) => {
-                println!("⚠️ [BRIDGE] Engine not initialized");
-                Ok(None)
-            }
+            Ok(info) => Ok(Some(info)),
+            Err(EngineError::NotInitialized(_)) => Ok(None),
             Err(e) => {
-                let error_msg = format!("Failed to get engine info: {:?}", e);
-                println!("❌ [BRIDGE] {}", error_msg);
-                Err(error_msg)
+                log::warn!(target: LOGT, "get_engine_info: failed: {:?}", e);
+                Err(format!("Failed to get engine info: {:?}", e))
             }
         }
     }
@@ -337,23 +381,30 @@ impl EngineBridge {
     }
 
     async fn stop_session(&self, session_id: &str) -> Result<(), String> {
-        println!("🛑 [BRIDGE] stop_session called for: {}", session_id);
+        log::info!(
+            target: LOGT,
+            "stop_session: start session_id={}",
+            session_id
+        );
 
-        let mut sessions = self.active_sessions.write().await;
-
-        if let Some(mut session) = sessions.remove(session_id) {
-            session.is_active = false;
+        {
+            let mut sessions = self.active_sessions.write().await;
+            if let Some(mut session) = sessions.remove(session_id) {
+                session.is_active = false;
+            }
         }
-        self.analyzer
-            .stop_analysis()
-            .await
-            .map_err(|e| format!("Failed to stop analysis: {:?}", e))?;
-        println!("✅ [BRIDGE] Session stopped: {}", session_id);
+
+        self.analyzer.stop_analysis().await.map_err(|e| {
+            log::error!(target: LOGT, "stop_session: analyzer stop failed: {:?}", e);
+            format!("Failed to stop analysis: {:?}", e)
+        })?;
+
+        log::info!(target: LOGT, "stop_session: ok session_id={}", session_id);
         Ok(())
     }
 
     async fn stop_all_sessions(&self) -> Result<(), String> {
-        println!("🛑 [BRIDGE] stop_all_sessions called");
+        log::info!(target: LOGT, "stop_all_sessions: start");
 
         {
             let mut sessions = self.active_sessions.write().await;
@@ -364,12 +415,16 @@ impl EngineBridge {
             sessions.clear();
         }
 
-        self.analyzer
-            .stop_analysis()
-            .await
-            .map_err(|e| format!("Failed to stop all analysis: {:?}", e))?;
+        self.analyzer.stop_analysis().await.map_err(|e| {
+            log::error!(
+                target: LOGT,
+                "stop_all_sessions: analyzer stop failed: {:?}",
+                e
+            );
+            format!("Failed to stop all analysis: {:?}", e)
+        })?;
 
-        println!("✅ [BRIDGE] All sessions stopped");
+        log::info!(target: LOGT, "stop_all_sessions: ok");
         Ok(())
     }
 }

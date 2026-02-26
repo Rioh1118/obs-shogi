@@ -9,7 +9,7 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tokio::sync::RwLock;
 
-use crate::search::types::FileId;
+use crate::search::types::{CursorLite, FileId, PositionHit};
 
 use super::{
     index_store::{IndexState as StoreIndexState, IndexStore},
@@ -43,6 +43,12 @@ impl QueryService {
 
     pub async fn search_position_impl(&self, input: SearchPositionInput) -> SearchPositionOutput {
         let request_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
+        log::debug!(
+            "[query] search rid={} handle_present={} state={:?}",
+            request_id,
+            self.app_handle.read().await.is_some(),
+            self.store.snapshot().state
+        );
 
         let handle = self.app_handle.read().await.clone();
         let Some(handle) = handle else {
@@ -50,27 +56,53 @@ impl QueryService {
             return SearchPositionOutput { request_id };
         };
 
-        let stale = {
-            let snap = self.store.snapshot();
-            snap.state != StoreIndexState::Ready
-        };
+        let snap = self.store.snapshot();
 
+        let stale = snap.state != StoreIndexState::Ready;
         let _ = handle.emit(EVT_SEARCH_BEGIN, SearchBeginPayload { request_id, stale });
 
         let chunk_size = (input.chunk_size.clamp(1, 10_000)) as usize;
 
+        log::trace!("[query] sfen={}", input.sfen);
         match position_key_from_sfen(&input.sfen) {
             Ok(key) => {
-                let hits = self.store.search_by_key(key);
+                let bucket = key.bucket() as usize;
+                log::trace!(
+                    "[query] key z0={:016x} z1={:016x} bucket={} segs={}",
+                    key.z0,
+                    key.z1,
+                    bucket,
+                    snap.buckets[bucket].len()
+                );
 
-                let snap = self.store.snapshot();
+                let occs = snap.search_occurrences_by_key(key);
+                log::debug!("[query] occs_len={}", occs.len());
+
+                // 念のため：そのbucket全体の件数も
+                let bucket_total: usize = snap.buckets[bucket].iter().map(|seg| seg.len()).sum();
+                log::trace!(
+                    "[query] rid={} bucket_total_entries={}",
+                    request_id,
+                    bucket_total
+                );
+
                 let ft = snap.file_table.clone();
+                let nts = snap.node_tables.clone();
 
-                for chunk in hits.chunks(chunk_size) {
-                    let chunk_vec = chunk.to_vec();
+                for chunk in occs.chunks(chunk_size) {
+                    let mut hits: Vec<PositionHit> = Vec::with_capacity(chunk.len());
+
+                    for occ in chunk {
+                        let cursor = nts
+                            .get(occ.file_id)
+                            .and_then(|nt| nt.cursor_lite(occ.node_id))
+                            .unwrap_or_else(CursorLite::root);
+
+                        hits.push(PositionHit { occ: *occ, cursor });
+                    }
 
                     let mut map: HashMap<FileId, String> = HashMap::new();
-                    for h in &chunk_vec {
+                    for h in &hits {
                         let fid = h.occ.file_id;
                         if map.contains_key(&fid) {
                             continue;
@@ -78,7 +110,6 @@ impl QueryService {
                         if let Some(e) = ft.get(fid) {
                             map.insert(fid, e.path.clone());
                         } else {
-                            // 通常ここには来ない想定（aliveなら file_table に居るはず）
                             map.insert(fid, String::new());
                         }
                     }
@@ -95,7 +126,7 @@ impl QueryService {
                         EVT_SEARCH_CHUNK,
                         SearchChunkPayload {
                             request_id,
-                            chunk: chunk.to_vec(),
+                            chunk: hits,
                             files,
                         },
                     );

@@ -33,6 +33,15 @@ pub fn run() {
     let search_state = SearchState::new(store);
 
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .max_file_size(200_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .level(log::LevelFilter::Info)
+                .level_for("obs_shogi::engine", log::LevelFilter::Debug)
+                .filter(|m| !m.target().starts_with("tao::"))
+                .build(),
+        )
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
@@ -74,7 +83,6 @@ pub fn run() {
             search_position
         ])
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .manage(search_state)
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -91,13 +99,6 @@ pub fn run() {
                 query.set_app_handle(handle).await;
             });
 
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
             Ok(())
         })
         .run(tauri::generate_context!())
