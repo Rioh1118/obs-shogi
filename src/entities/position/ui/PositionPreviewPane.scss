@@ -10,7 +10,7 @@
     min-height: 0;
 
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(240px, 1fr) auto;
     gap: 20px;
     min-width: 0;
   }
@@ -46,5 +46,4 @@
     border-radius: 8px;
     min-width: 0;
   }
-
 }

@@ -6,7 +6,6 @@ import { usePositionHitNavigation } from "@/features/position-search/lib/usePosi
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
-import PositionSearchModalFooter from "./PositionSearchModalFooter";
 
 import "./PositionSeachModal.scss";
 
@@ -275,10 +274,6 @@ export default function PositionSearchModal() {
             </aside>
           </div>
         </main>
-
-        <footer className="pos-search__footer">
-          <PositionSearchModalFooter />
-        </footer>
       </section>
     </Modal>
   );
