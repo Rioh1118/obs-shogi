@@ -1,0 +1,267 @@
+@use "@/index.scss" as index;
+
+.wsTab {
+  display: grid;
+  gap: 12px;
+}
+
+.wsTab__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wsTab__spin {
+  animation: ws-spin 900ms linear infinite;
+}
+@keyframes ws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wsTab__error {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(#ff5a5a, 0.34);
+  background: rgba(#ff5a5a, 0.12);
+  color: rgba(index.$color-text-light-1, 0.92);
+}
+
+.wsTab__statusTop {
+  display: grid;
+  gap: 10px;
+}
+
+.wsTab__miniGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+
+  @media (max-width: 860px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wsTab__mini {
+  border: 1px solid rgba(index.$color-white, 0.07);
+  background: rgba(index.$color-primary-black, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
+}
+
+.wsTab__miniK {
+  font-size: 1.1rem;
+  color: rgba(index.$color-text-light-1, 0.68);
+}
+
+.wsTab__miniV {
+  margin-top: 2px;
+  font-size: 1.4rem;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+
+  &.is-warn {
+    color: rgba(#f0b429, 0.95);
+  }
+}
+
+.wsTab__progress {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(index.$color-white, 0.07);
+  background: rgba(index.$color-primary-black, 0.14);
+}
+
+.wsTab__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(index.$color-white, 0.06);
+  overflow: hidden;
+}
+
+.wsTab__barFill {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(index.$color-secondary-dark, 0.85);
+}
+
+.wsTab__progressMeta {
+  display: grid;
+  gap: 6px;
+}
+
+.wsTab__progressLeft {
+  font-size: 1.15rem;
+  color: rgba(index.$color-text-light-1, 0.78);
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.wsTab__pct {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(index.$color-white, 0.08);
+  background: rgba(index.$color-primary-black, 0.2);
+  color: rgba(index.$color-text-light-1, 0.86);
+  font-size: 1.05rem;
+}
+
+.wsTab__progressPath {
+  font-size: 1.1rem;
+  color: rgba(index.$color-text-light-1, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wsTab__warnBox {
+  border: 1px solid rgba(#f0b429, 0.28);
+  background: rgba(#f0b429, 0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.wsTab__warnHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.wsTab__warnTitle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: rgba(index.$color-text-light-1, 0.92);
+}
+
+.wsTab__warnList {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.wsTab__warnItem {
+  border: 1px solid rgba(index.$color-white, 0.06);
+  background: rgba(index.$color-primary-black, 0.18);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.wsTab__warnMsg {
+  font-size: 1.15rem;
+  color: rgba(index.$color-text-light-1, 0.9);
+}
+
+.wsTab__warnPath {
+  margin-top: 2px;
+  font-size: 1.05rem;
+  color: rgba(index.$color-text-light-1, 0.65);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wsTab__warnMore {
+  margin-top: 8px;
+  font-size: 1.1rem;
+  color: rgba(index.$color-text-light-1, 0.7);
+}
+
+.wsTab__pathBox {
+  border: 1px solid rgba(index.$color-white, 0.07);
+  background: rgba(index.$color-primary-black, 0.16);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.wsTab__pathLabel {
+  font-size: 1.05rem;
+  color: rgba(index.$color-text-light-1, 0.68);
+}
+
+.wsTab__pathValue {
+  margin-top: 4px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: rgba(index.$color-text-light-1, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wsTab__danger {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: rgba(index.$color-text-light-1, 0.78);
+}
+
+.wsTab__dangerText {
+  font-size: 1.15rem;
+  line-height: 1.45;
+}
+
+.wsTab__dangerActions {
+  margin-top: 10px;
+}
+
+.wsTab__confirm {
+  margin-top: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(#ff5a5a, 0.28);
+  background: rgba(#ff5a5a, 0.08);
+  padding: 10px 12px;
+}
+
+.wsTab__confirmTitle {
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.wsTab__confirmDesc {
+  margin-top: 6px;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: rgba(index.$color-text-light-1, 0.8);
+}
+
+.wsTab__confirmInput {
+  margin-top: 10px;
+  width: 100%;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid rgba(index.$color-white, 0.1);
+  background: rgba(index.$color-primary-black, 0.24);
+  color: rgba(index.$color-text-light-1, 0.92);
+  padding: 0 12px;
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
+  }
+}
+
+.wsTab__confirmButtons {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wsTab__backupHint {
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: rgba(index.$color-text-light-1, 0.78);
+}

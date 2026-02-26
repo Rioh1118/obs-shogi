@@ -33,6 +33,7 @@ pub fn run() {
     let search_state = SearchState::new(store);
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .max_file_size(200_000)
@@ -83,6 +84,7 @@ pub fn run() {
             search_position
         ])
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(search_state)
         .setup(|app| {
             let app_handle = app.handle().clone();
