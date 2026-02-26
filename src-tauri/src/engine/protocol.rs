@@ -2,12 +2,13 @@ use std::collections::VecDeque;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::engine::types::*;
+use crate::engine::{types::*, utils::cmd_summary};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use usi::{EngineCommand, Error as UsiError, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
+const LOGT: &str = "obs_shogi::engine::protocol";
 /// USI プロトコル処理層
 pub struct UsiProtocol {
     handler: Arc<Mutex<UsiEngineHandler>>,
@@ -117,6 +118,8 @@ impl UsiProtocol {
 
     /// リスニング開始(内部用)
     async fn start_listening(&self) -> Result<(), EngineError> {
+        log::debug!(target: LOGT, "start_listening: begin");
+
         let listeners = Arc::clone(&self.listeners);
         let runtime_handler = self.runtime_handle.clone();
 
@@ -139,8 +142,10 @@ impl UsiProtocol {
 
         result.map_err(|e| {
             if e.to_string().contains("already started listening") {
+                log::debug!(target: LOGT, "start_listening: already listening");
                 EngineError::AlreadyListening(e.to_string())
             } else {
+                log::error!(target: LOGT, "start_listening: failed: {}", e);
                 EngineError::CommunicationFailed(e.to_string())
             }
         })
@@ -180,7 +185,7 @@ impl UsiProtocol {
     /// コマンド送信（スレッドセーフ）
     pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
         // コマンド履歴更新
-        self.state.write().await.last_command = Some(format!("{:?}", command));
+        self.state.write().await.last_command = Some(cmd_summary(command));
 
         if matches!(command, GuiCommand::IsReady) {
             self.start_ready_watch_and_send().await?;
@@ -192,7 +197,15 @@ impl UsiProtocol {
         if !is_ready && requires_ready(command) {
             let gen = *self.generation.read().await;
             let mut map = self.pending_after_ready.lock().await;
-            map.entry(gen).or_default().push_back(command.clone());
+            let q = map.entry(gen).or_default();
+            q.push_back(command.clone());
+            log::debug!(
+                target: LOGT,
+                "send_command: queued cmd={} gen={} qlen={}",
+                cmd_summary(command),
+                gen,
+                q.len()
+            );
             return Ok(());
         }
 
@@ -253,14 +266,13 @@ impl UsiProtocol {
 
             protocol.remove_listener(&listener_name).await;
 
-            // 世代が変わっていたら何もしない
             if *protocol.generation.read().await != gen {
                 return;
             }
 
             if ready {
                 protocol.state.write().await.is_ready = true;
-                println!("✅ [PROTOCOL] readyok received (gen={})", gen);
+                log::info!(target: LOGT, "ready: ok gen={}", gen);
 
                 let mut map = protocol.pending_after_ready.lock().await;
                 let mut q = map.remove(&gen).unwrap_or_default();
@@ -269,16 +281,17 @@ impl UsiProtocol {
                 while let Some(cmd) = q.pop_front() {
                     let mut h = protocol.handler.lock().await;
                     if let Err(e) = h.send_command(&cmd) {
-                        println!("❌ [PROTOCOL] flush failed {:?}: {}", cmd, e);
+                        log::warn!(
+                            target: LOGT,
+                            "ready: flush failed cmd={} err={}",
+                            cmd_summary(&cmd),
+                            e
+                        );
                         break;
                     }
                 }
             } else {
-                println!(
-                    "⚠️ [PROTOCOL] ready wait ended without readyok (gen={})",
-                    gen
-                );
-
+                log::warn!(target: LOGT, "ready: ended without readyok gen={}", gen);
                 let mut map = protocol.pending_after_ready.lock().await;
                 map.remove(&gen);
             }
@@ -411,20 +424,17 @@ impl UsiProtocol {
     }
 
     pub async fn quit(&self) {
-        // quit は失敗しても良い（ログだけ）
+        log::debug!(target: LOGT, "quit: sending");
         let _ = self.send_command(&GuiCommand::Quit).await;
     }
 
     pub async fn kill_engine(&self) {
-        // ready watch等を止める
+        log::info!(target: LOGT, "kill_engine: start");
         self.abort_init().await;
 
-        // listenerも掃除したければここで全部clearしても良い
-        // self.listeners.write().await.clear();
-
-        // プロセスを殺す
         let mut h = self.handler.lock().await;
-        let _ = h.kill(); // 失敗はログ程度で
+        let _ = h.kill();
+        log::info!(target: LOGT, "kill_engine: done");
     }
 }
 

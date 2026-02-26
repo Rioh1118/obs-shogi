@@ -43,7 +43,7 @@ impl QueryService {
 
     pub async fn search_position_impl(&self, input: SearchPositionInput) -> SearchPositionOutput {
         let request_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
-        eprintln!(
+        log::debug!(
             "[query] search rid={} handle_present={} state={:?}",
             request_id,
             self.app_handle.read().await.is_some(),
@@ -63,11 +63,11 @@ impl QueryService {
 
         let chunk_size = (input.chunk_size.clamp(1, 10_000)) as usize;
 
-        eprintln!("[query] sfen={}", input.sfen);
+        log::trace!("[query] sfen={}", input.sfen);
         match position_key_from_sfen(&input.sfen) {
             Ok(key) => {
                 let bucket = key.bucket() as usize;
-                eprintln!(
+                log::trace!(
                     "[query] key z0={:016x} z1={:016x} bucket={} segs={}",
                     key.z0,
                     key.z1,
@@ -76,12 +76,15 @@ impl QueryService {
                 );
 
                 let occs = snap.search_occurrences_by_key(key);
-                eprintln!("[query] occs_len={}", occs.len());
+                log::debug!("[query] occs_len={}", occs.len());
 
                 // 念のため：そのbucket全体の件数も
                 let bucket_total: usize = snap.buckets[bucket].iter().map(|seg| seg.len()).sum();
-                eprintln!("[query] bucket_total_entries={}", bucket_total);
-                let occs = snap.search_occurrences_by_key(key);
+                log::trace!(
+                    "[query] rid={} bucket_total_entries={}",
+                    request_id,
+                    bucket_total
+                );
 
                 let ft = snap.file_table.clone();
                 let nts = snap.node_tables.clone();

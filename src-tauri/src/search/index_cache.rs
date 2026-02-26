@@ -22,7 +22,7 @@ use super::{
 
 macro_rules! trace {
     ($($t:tt)*) => {
-        eprintln!("[index_cache] {}", format_args!($($t)*));
+        log::debug!("[index_cache] {}", format_args!($($t)*));
     };
 }
 
@@ -544,7 +544,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let total_bucket_entries: usize = buckets.iter().map(|v| v.len()).sum();
     let nt_some: usize = nts.by_id_iter().filter(|x| x.is_some()).count();
 
-    eprintln!(
+    log::info!(
     "[index_cache] restored stats: file_table_len={} node_tables_some={} scan_paths={} path_to_id_len={} next_file_id={} bucket_entries_total={}",
     ft.len(),
     nt_some,

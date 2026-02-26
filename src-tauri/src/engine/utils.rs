@@ -1,4 +1,5 @@
-use usi::{InfoParams, ScoreKind};
+use std::time::{Duration, Instant};
+use usi::{GuiCommand, InfoParams, ScoreKind};
 
 use crate::engine::types::{AnalysisCandidate, AnalysisResult, Evaluation, EvaluationKind};
 
@@ -61,5 +62,53 @@ pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
                 kind: EvaluationKind::MateUnknown(plus),
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LogThrottle {
+    interval: Duration,
+    last: Instant,
+}
+
+impl LogThrottle {
+    pub fn new(interval: Duration) -> Self {
+        Self {
+            interval,
+            last: Instant::now() - interval,
+        }
+    }
+
+    #[inline]
+    pub fn allow(&mut self) -> bool {
+        if self.last.elapsed() >= self.interval {
+            self.last = Instant::now();
+            true
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn reset(&mut self) {
+        self.last = Instant::now();
+    }
+
+    #[inline]
+    pub fn set_interval(&mut self, interval: Duration) {
+        self.interval = interval;
+    }
+}
+
+pub fn cmd_summary(cmd: &GuiCommand) -> String {
+    match cmd {
+        GuiCommand::Position(_) => "Position(<redacted>)".to_string(),
+        GuiCommand::Go(_) => "Go(...)".to_string(),
+        GuiCommand::SetOption(name, _v) => format!("SetOption({})", name),
+        GuiCommand::Usi => "Usi".to_string(),
+        GuiCommand::IsReady => "IsReady".to_string(),
+        GuiCommand::UsiNewGame => "UsiNewGame".to_string(),
+        GuiCommand::Quit => "Quit".to_string(),
+        other => format!("{other:?}"), // それ以外はDebugでOK
     }
 }

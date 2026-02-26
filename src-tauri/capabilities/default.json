@@ -16,6 +16,8 @@
     "dialog:allow-save",
     "fs:default",
     "fs:default",
-    "fs:default"
+    "fs:default",
+    "log:default",
+    "log:default"
   ]
 }

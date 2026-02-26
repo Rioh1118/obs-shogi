@@ -63,7 +63,7 @@ pub async fn search_position(
     state: State<'_, SearchState>,
     input: SearchPositionInput,
 ) -> Result<SearchPositionOutput, String> {
-    eprintln!("[cmd] search_position invoked");
+    log::debug!("[cmd] search_position invoked");
     Ok(state.query.search_position_impl(input).await)
 }
 
@@ -78,7 +78,7 @@ pub async fn open_project(
 
     let root_dir = PathBuf::from(input.root_dir);
 
-    eprintln!("[open_project] BEGIN root_dir={}", root_dir.display());
+    log::info!("[open_project] BEGIN root_dir={}", root_dir.display());
 
     // 0) Restoring state (UIに「復元中」を見せる)
     store.start_restoring();
@@ -100,9 +100,10 @@ pub async fn open_project(
 
             let total_files = restored.scan.by_path.len() as u32;
 
-            eprintln!(
+            log::info!(
                 "[open_project] RESTORE OK total_files={} next_file_id={}",
-                total_files, restored.next_file_id
+                total_files,
+                restored.next_file_id
             );
 
             // restore直後は Ready として install する（検索がすぐ動く）
@@ -140,9 +141,9 @@ pub async fn open_project(
                 .start_watcher_and_debounce(app.clone(), store.clone(), Duration::from_millis(800))
                 .await
             {
-                eprintln!("[open_project] watcher start FAILED: {e}");
+                log::warn!("[open_project] watcher start FAILED: {e}");
             } else {
-                eprintln!("[open_project] watcher started");
+                log::info!("[open_project] watcher started");
             }
 
             // 裏で差分反映（必要なら Updating→Ready が飛ぶ）
@@ -151,16 +152,16 @@ pub async fn open_project(
             let st = store.clone();
             let app2 = app.clone();
             tauri::async_runtime::spawn(async move {
-                eprintln!("[open_project] spawn run_rescan_diff_apply");
+                log::debug!("[open_project] spawn run_rescan_diff_apply");
                 pm.run_rescan_diff_apply(app2, st).await;
-                eprintln!("[open_project] run_rescan_diff_apply done");
+                log::debug!("[open_project] run_rescan_diff_apply done");
             });
 
-            eprintln!("[open_project] END (restore path) total_files={total_files}");
+            log::info!("[open_project] END (restore path) total_files={total_files}");
             return Ok(OpenProjectOutput { total_files });
         }
         Err(e) => {
-            eprintln!("[open_project] RESTORE FAILED: {e} -> fallback full build");
+            log::warn!("[open_project] RESTORE FAILED: {e} -> fallback full build");
         }
     }
 
@@ -170,7 +171,7 @@ pub async fn open_project(
     let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
     let total_files = records.len() as u32;
 
-    eprintln!(
+    log::info!(
         "[open_project] FULL BUILD start total_files={}",
         total_files
     );
@@ -194,7 +195,7 @@ pub async fn open_project(
         total_files,
     ));
 
-    eprintln!("[open_project] END (full build path) total_files={total_files}");
+    log::info!("[open_project] END (full build path) total_files={total_files}");
     Ok(OpenProjectOutput { total_files })
 }
 

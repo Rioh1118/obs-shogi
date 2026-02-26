@@ -5,6 +5,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use usi::UsiEngineHandler;
 
+const LOGT: &str = "obs_shogi::engine::manager";
+
 /// エンジンライフサイクル管理層
 pub struct EngineManager {
     protocol: Option<Arc<UsiProtocol>>,
@@ -38,29 +40,38 @@ impl EngineManager {
         engine_path: String,
         work_dir: String,
     ) -> Result<InitializeEngineResponse, EngineError> {
-        println!("🚀 [MANAGER] Initializing engine");
-        println!("   engine_path: {}", engine_path);
-        println!("   work_dir: {}", work_dir);
+        log::info!(target: LOGT, "initialize: start");
+        log::debug!(
+            target: LOGT,
+            "initialize: engine_path='{}' work_dir='{}'",
+            engine_path,
+            work_dir
+        );
 
-        // 既存のエンジンがある場合は停止
         if self.is_initialized().await {
+            log::debug!(
+                target: LOGT,
+                "initialize: already initialized -> shutdown first"
+            );
             self.shutdown().await?;
         }
 
         // ハンドラー作成
-        let handler = UsiEngineHandler::spawn(&engine_path, &work_dir)
-            .map_err(|e| EngineError::StartupFailed(format!("Failed to spawn engine: {}", e)))?;
+        let handler = UsiEngineHandler::spawn(&engine_path, &work_dir).map_err(|e| {
+            log::error!(target: LOGT, "initialize: spawn failed: {}", e);
+            EngineError::StartupFailed(format!("Failed to spawn engine: {}", e))
+        })?;
 
-        println!("✅ [MANAGER] Handler created");
+        log::debug!(target: LOGT, "initialize: handler created");
 
         // プロトコル層作成
         let protocol = Arc::new(UsiProtocol::new(handler));
 
-        println!("✅ [MANAGER] Protocol created (listening will start on first listener)");
+        log::debug!(target: LOGT, "initialize: protocol created");
 
         // エンジン情報取得
         let engine_info = protocol.get_engine_info().await?;
-        println!("✅ [MANAGER] Engine info collected: {}", engine_info.name);
+        log::info!(target: LOGT, "initialize: ok name='{}'", engine_info.name);
 
         // 状態更新
         {
@@ -80,7 +91,7 @@ impl EngineManager {
 
     /// エンジン再起動
     pub async fn restart(&mut self) -> Result<InitializeEngineResponse, EngineError> {
-        let (engine_path, work_dir) = {
+        let (engine_path, work_dir, next_count) = {
             let state = self.state.read().await;
             if !state.is_initialized {
                 return Err(EngineError::NotInitialized(
@@ -97,19 +108,16 @@ impl EngineManager {
                 .as_ref()
                 .ok_or_else(|| EngineError::NotInitialized("Work dir not set".to_string()))?;
 
-            (path.clone(), dir.clone())
+            (path.clone(), dir.clone(), state.restart_count + 1)
         };
 
         // 再起動回数更新
         {
             let mut state = self.state.write().await;
-            state.restart_count += 1;
+            state.restart_count = next_count;
         }
 
-        println!("🔄 [MANAGER] Restarting engine (restart #{:?})", {
-            let state = self.state.read().await;
-            state.restart_count
-        });
+        log::info!(target: LOGT, "restart: start count={}", next_count);
 
         // 停止して再初期化
         self.shutdown().await?;
@@ -118,14 +126,15 @@ impl EngineManager {
 
     /// エンジン停止
     pub async fn shutdown(&mut self) -> Result<(), EngineError> {
-        if let Some(protocol) = &self.protocol {
-            println!("🛑 [MANAGER] Shutting down engine");
+        log::info!(target: LOGT, "shutdown: start");
 
+        if let Some(protocol) = &self.protocol {
             // アクティブなリスナー数をログ出力
             let listener_count = protocol.listener_count().await;
             if listener_count > 0 {
-                println!(
-                    "⚠️  [MANAGER] {} active listeners will be disconnected",
+                log::warn!(
+                    target: LOGT,
+                    "shutdown: {} active listeners will be disconnected",
                     listener_count
                 );
             }
@@ -142,7 +151,7 @@ impl EngineManager {
             state.is_initialized = false;
         }
 
-        println!("✅ [MANAGER] Engine shutdown complete");
+        log::info!(target: LOGT, "shutdown: ok");
         Ok(())
     }
 
