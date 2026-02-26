@@ -150,6 +150,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
   }
 
   &__main {
+    container-type: inline-size;
     min-height: 0;
     overflow: auto;
     padding: 14px 16px 18px;

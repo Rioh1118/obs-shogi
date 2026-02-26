@@ -19,6 +19,7 @@ export type IndexUiState = {
   dirtyCount: number;
   indexedFiles: number;
   totalFiles: number;
+  doneFiles: number;
   currentPath: string | null;
 };
 

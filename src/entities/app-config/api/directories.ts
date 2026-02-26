@@ -1,17 +1,6 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import { loadConfig, saveConfig } from "./config";
 import type { ChooseOpts } from "../model/types";
-
-async function pickDirectory(title: string): Promise<string | null> {
-  const selected = await open({
-    directory: true,
-    multiple: false,
-    title,
-  });
-  if (!selected) return null;
-  const dir = Array.isArray(selected) ? selected[0] : selected;
-  return dir ?? null;
-}
+import { pickDirectory } from "@/shared/api/picker/pickDirectory";
 
 function ensureNonEmpty(label: string, value: string | null): string {
   if (!value || value.trim().length === 0) {

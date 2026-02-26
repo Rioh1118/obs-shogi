@@ -1,0 +1,310 @@
+@use "@/index.scss" as index;
+
+.aiLibraryTab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  &__col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  @media (max-width: 980px) {
+    &__grid {
+      grid-template-columns: minmax(520px, 1fr) minmax(360px, 0.9fr);
+      align-items: start;
+    }
+  }
+
+  &__badge {
+    font-size: 1.2rem;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(index.$color-white, 0.12);
+    background: rgba(index.$color-primary-dark, 0.35);
+    color: index.$color-text-primary;
+    user-select: none;
+
+    &[data-tone="ok"] {
+      border-color: rgba(index.$color-secondary-dark, 0.5);
+      background: rgba(index.$color-secondary-dark, 0.18);
+    }
+    &[data-tone="warn"] {
+      border-color: rgba(255, 180, 80, 0.35);
+      background: rgba(255, 180, 80, 0.12);
+    }
+    &[data-tone="danger"] {
+      border-color: rgba(255, 90, 90, 0.35);
+      background: rgba(255, 90, 90, 0.12);
+    }
+    &[data-tone="muted"] {
+      opacity: 0.85;
+    }
+  }
+
+  &__fieldActions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__rowActions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  &__error {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 90, 90, 0.25);
+    background: rgba(255, 90, 90, 0.08);
+    color: index.$color-text-light-1;
+    font-size: 1.3rem;
+  }
+
+  &__muted {
+    color: rgba(index.$color-text-light-1, 0.75);
+    font-size: 1.35rem;
+  }
+
+  &__divider {
+    height: 1px;
+    background: rgba(index.$color-white, 0.08);
+    margin: 10px 0;
+  }
+
+  &__result {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__resultRow {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
+    align-items: baseline;
+    min-width: 0;
+  }
+
+  &__k {
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.25rem;
+  }
+
+  &__v {
+    font-size: 1.35rem;
+    color: index.$color-text-light-1;
+    min-width: 0;
+    word-break: break-all;
+  }
+
+  &__warn {
+    color: rgba(255, 190, 110, 0.95);
+  }
+
+  &__subRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding-left: 2px;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(index.$color-secondary-dark, 0.85);
+    opacity: 0.75;
+  }
+
+  &__subText {
+    font-size: 1.3rem;
+    color: rgba(index.$color-text-light-1, 0.85);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+
+  &__pack {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-dark, 0.22);
+  }
+
+  &__packName {
+    font-size: 1.35rem;
+    color: index.$color-text-light-1;
+  }
+
+  &__packMeta {
+    display: flex;
+    gap: 10px;
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.75);
+
+    span[data-ok="true"] {
+      color: rgba(index.$color-secondary-light, 0.9);
+    }
+  }
+
+  /* ====== Guide ====== */
+
+  &__guide {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &__step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-dark, 0.18);
+  }
+
+  &__stepIcon {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(index.$color-white, 0.1);
+    background: rgba(index.$color-primary-black, 0.25);
+    color: rgba(index.$color-text-light-1, 0.85);
+    flex: 0 0 auto;
+  }
+
+  &__stepBody {
+    min-width: 0;
+  }
+
+  &__stepTitle {
+    font-size: 1.35rem;
+    color: index.$color-text-light-1;
+    line-height: 1.35;
+  }
+
+  &__stepDesc {
+    margin-top: 2px;
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.72);
+    line-height: 1.45;
+  }
+
+  &__step[data-state="done"] {
+    border-color: rgba(index.$color-secondary-dark, 0.35);
+    background: rgba(index.$color-secondary-dark, 0.12);
+
+    .aiLibraryTab__stepIcon {
+      border-color: rgba(index.$color-secondary-dark, 0.55);
+      color: rgba(index.$color-secondary-light, 0.95);
+    }
+  }
+
+  &__step[data-state="warn"] {
+    border-color: rgba(255, 180, 80, 0.25);
+    background: rgba(255, 180, 80, 0.08);
+
+    .aiLibraryTab__stepIcon {
+      border-color: rgba(255, 180, 80, 0.35);
+      color: rgba(255, 190, 110, 0.95);
+    }
+  }
+
+  &__guideActions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &__tree {
+    margin: 0;
+    padding: 12px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.45);
+    color: rgba(index.$color-secondary-light, 0.95);
+    font-size: 1.2rem;
+    line-height: 1.6;
+    white-space: pre;
+    overflow: auto;
+
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+  }
+
+  &__note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-dark, 0.14);
+    color: rgba(index.$color-text-light-1, 0.82);
+    font-size: 1.25rem;
+  }
+
+  &__warnings {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 180, 80, 0.25);
+    background: rgba(255, 180, 80, 0.08);
+  }
+
+  &__warningsTitle {
+    display: flex;
+    align-items: center;
+    font-size: 1.3rem;
+    color: rgba(255, 190, 110, 0.95);
+    margin-bottom: 6px;
+  }
+
+  &__warningItem {
+    font-size: 1.25rem;
+    color: rgba(index.$color-text-light-1, 0.85);
+    line-height: 1.45;
+  }
+
+  &__tips {
+    margin: 0;
+    padding-left: 1.2em;
+    color: rgba(index.$color-text-light-1, 0.82);
+    font-size: 1.3rem;
+
+    li {
+      margin: 6px 0;
+    }
+  }
+}

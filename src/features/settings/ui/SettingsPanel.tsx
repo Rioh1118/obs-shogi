@@ -1,11 +1,12 @@
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
-import GeneralTab from "./tabs/GeneralTab";
 import EngineTab from "./tabs/EngineTab";
 
 import "./SettingsPanel.scss";
 import SettingsTabButton from "./SettingsTabButton";
 import { TABS, type TabKey } from "@/features/settings";
+import WorkspaceTab from "./tabs/WorkspaceTab";
+import AiLibraryTab from "./tabs/AiLibraryTab";
 
 function SettingsPanel() {
   const { params, updateParams } = useURLParams();
@@ -58,10 +59,9 @@ function SettingsPanel() {
 
         <main className="settings__main">
           <section className="settings__content">
-            {tab === "general" && <GeneralTab />}
-
+            {tab === "workspace" && <WorkspaceTab />}
+            {tab === "aiLibrary" && <AiLibraryTab />}
             {tab === "engine" && <EngineTab />}
-            {/* {tab === "options" && <OptionsTab />} */}
           </section>
         </main>
       </div>

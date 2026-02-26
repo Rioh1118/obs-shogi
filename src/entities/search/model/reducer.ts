@@ -13,6 +13,7 @@ export const initialState: SearchState = {
     dirtyCount: 0,
     indexedFiles: 0,
     totalFiles: 0,
+    doneFiles: 0,
     currentPath: null,
   },
   warns: [],
@@ -77,6 +78,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
           dirtyCount: p.dirty_count,
           indexedFiles: p.indexed_files,
           totalFiles: p.total_files,
+          doneFiles: Math.min(state.index.doneFiles, p.total_files),
         },
       };
     }
@@ -88,6 +90,10 @@ export function reducer(state: SearchState, action: Action): SearchState {
         index: {
           ...state.index,
           currentPath: p.current_path,
+
+          doneFiles: p.done_files,
+          totalFiles:
+            state.index.totalFiles > 0 ? state.index.totalFiles : p.total_files,
         },
       };
     }
