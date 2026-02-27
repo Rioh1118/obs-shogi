@@ -46,27 +46,24 @@
   &__right {
     padding: 12px;
     gap: 10px;
+    .pos-search__preview {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .pos-search__aux {
+      flex: 0 1 auto;
+      min-height: 0;
+      overflow: hidden;
+
+      display: grid;
+      gap: 10px;
+    }
   }
 
   &__paneTitle {
     font-size: 1.2rem;
     color: rgba(index.$color-text-light-1, 0.7);
-  }
-
-  &__meta {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    font-size: 1.2rem;
-    color: rgba(index.$color-text-light-1, 0.75);
-  }
-
-  &__metaItem--warn {
-    color: rgba(index.$color-secondary-dark, 0.95);
-  }
-
-  &__metaItem--error {
-    color: rgba(#ff6b6b, 0.95);
   }
 }

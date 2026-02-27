@@ -1,0 +1,32 @@
+@use "@/index.scss" as index;
+
+.pos-search-cont {
+  border: 1px solid index.$stroke;
+  border-radius: 12px;
+  background: rgba(index.$color-primary-light, 0.04);
+  padding: 10px;
+
+  &__head {
+    font-size: 1.15rem;
+    color: rgba(index.$color-text-light-1, 0.7);
+    margin-bottom: 6px;
+  }
+
+  &__body {
+    display: flex;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    &.is-muted {
+      color: rgba(index.$color-text-light-1, 0.55);
+    }
+  }
+
+  &__mv {
+    font-size: 1.25rem;
+    color: rgba(index.$color-text-light-1, 0.9);
+  }
+}

@@ -6,15 +6,11 @@ import { toRelPath } from "@/shared/lib/path";
 type Props = {
   currentAbsPath: string | null;
   destAbsPath: string | null;
-  tesuu: number | null;
-  forks: number | null;
 };
 
 export default function PositionSearchDestinationCard({
   currentAbsPath,
   destAbsPath,
-  tesuu,
-  forks,
 }: Props) {
   const { config } = useAppConfig();
   const rootDir = config?.root_dir ?? null;
@@ -57,15 +53,6 @@ export default function PositionSearchDestinationCard({
       ) : (
         <>
           <div className="pos-search-dest__path">{destRel}</div>
-
-          <div className="pos-search-dest__meta">
-            {tesuu != null && (
-              <span className="pos-search-dest__chip">手数 {tesuu}</span>
-            )}
-            {forks != null && (
-              <span className="pos-search-dest__chip">分岐 {forks}</span>
-            )}
-          </div>
 
           <div className="pos-search-dest__current">
             <span className="pos-search-dest__currentLabel">現在:</span>

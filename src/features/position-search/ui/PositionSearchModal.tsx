@@ -7,7 +7,7 @@ import { usePositionHitNavigation } from "@/features/position-search/lib/usePosi
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
 
-import "./PositionSeachModal.scss";
+import "./PositionSearchModal.scss";
 
 import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
@@ -22,6 +22,7 @@ import {
 import { useGame } from "@/entities/game";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
+import PositionSearchContinuation from "./PositionSearchContinuation";
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
@@ -264,13 +265,22 @@ export default function PositionSearchModal() {
 
             <aside className="pos-search__right" aria-label="局面プレビュー">
               <div className="pos-search__paneTitle">現在の局面</div>
-              <PreviewPane previewData={previewData} toKan={toKan} />
-              <PositionSearchDestinationCard
-                currentAbsPath={gameState.loadedAbsPath ?? null}
-                destAbsPath={destAbsPath}
-                tesuu={activeHit?.cursor.tesuu ?? null}
-                forks={activeHit?.cursor.fork_pointers.length ?? null}
-              />
+              <div className="pos-search__preview">
+                <PreviewPane previewData={previewData} toKan={toKan} />
+              </div>
+
+              <div className="pos-search__aux">
+                <PositionSearchContinuation
+                  activeHit={activeHit ?? null}
+                  resolveAbsPath={resolveHitAbsPath}
+                  ply={5}
+                />
+
+                <PositionSearchDestinationCard
+                  currentAbsPath={gameState.loadedAbsPath ?? null}
+                  destAbsPath={destAbsPath}
+                />
+              </div>
             </aside>
           </div>
         </main>
