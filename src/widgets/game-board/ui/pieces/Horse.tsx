@@ -1,9 +1,7 @@
 import type { PieceProps } from ".";
-import {
-  PIECE_IMAGES,
-  PLAYER_COLORS,
-} from "../../../../entities/position/model/shogi";
+import { PLAYER_COLORS } from "@/entities/position/model/shogi";
 import "../Piece.scss";
+import { PIECE_IMAGES } from "@/entities/position/model/pieceImages";
 
 function Horse({ color, onClick }: PieceProps) {
   const imagePath = PIECE_IMAGES[color].HORSE;

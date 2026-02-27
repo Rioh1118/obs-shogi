@@ -1,7 +1,4 @@
-import {
-  PIECE_TYPES,
-  convertJkfPiece,
-} from "../../../entities/position/model/shogi";
+import { PIECE_TYPES, convertJkfPiece } from "@/entities/position/model/shogi";
 import {
   type PieceProps,
   Pawn,

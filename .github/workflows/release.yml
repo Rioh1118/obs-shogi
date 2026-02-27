@@ -78,7 +78,8 @@ jobs:
       - name: Build and create GitHub Release (upload installers)
         uses: tauri-apps/tauri-action@v0.6.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "obs-shogi ${{ github.ref_name }}"

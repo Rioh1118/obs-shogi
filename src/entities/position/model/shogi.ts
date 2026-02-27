@@ -55,43 +55,6 @@ export const PLAYER_COLORS = {
   GOTE: 1 as const,
 } as const;
 
-export const PIECE_IMAGES = {
-  // 先手（黒）
-  [PLAYER_COLORS.SENTE]: {
-    [PIECE_TYPES.PAWN]: "/src/assets/pieces/black_pawn.png",
-    [PIECE_TYPES.LANCE]: "/src/assets/pieces/black_lance.png",
-    [PIECE_TYPES.KNIGHT]: "/src/assets/pieces/black_knight.png",
-    [PIECE_TYPES.SILVER]: "/src/assets/pieces/black_silver.png",
-    [PIECE_TYPES.GOLD]: "/src/assets/pieces/black_gold.png",
-    [PIECE_TYPES.BISHOP]: "/src/assets/pieces/black_bishop.png",
-    [PIECE_TYPES.ROOK]: "/src/assets/pieces/black_rook.png",
-    [PIECE_TYPES.KING]: "/src/assets/pieces/black_king.png",
-    [PIECE_TYPES.PROM_PAWN]: "/src/assets/pieces/black_prom_pawn.png",
-    [PIECE_TYPES.PROM_LANCE]: "/src/assets/pieces/black_prom_lance.png",
-    [PIECE_TYPES.PROM_KNIGHT]: "/src/assets/pieces/black_prom_knight.png",
-    [PIECE_TYPES.PROM_SILVER]: "/src/assets/pieces/black_prom_silver.png",
-    [PIECE_TYPES.HORSE]: "/src/assets/pieces/black_horse.png",
-    [PIECE_TYPES.DRAGON]: "/src/assets/pieces/black_dragon.png",
-  },
-  // 後手（白）
-  [PLAYER_COLORS.GOTE]: {
-    [PIECE_TYPES.PAWN]: "/src/assets/pieces/white_pawn.png",
-    [PIECE_TYPES.LANCE]: "/src/assets/pieces/white_lance.png",
-    [PIECE_TYPES.KNIGHT]: "/src/assets/pieces/white_knight.png",
-    [PIECE_TYPES.SILVER]: "/src/assets/pieces/white_silver.png",
-    [PIECE_TYPES.GOLD]: "/src/assets/pieces/white_gold.png",
-    [PIECE_TYPES.BISHOP]: "/src/assets/pieces/white_bishop.png",
-    [PIECE_TYPES.ROOK]: "/src/assets/pieces/white_rook.png",
-    [PIECE_TYPES.KING]: "/src/assets/pieces/white_king2.png", // 玉
-    [PIECE_TYPES.PROM_PAWN]: "/src/assets/pieces/white_prom_pawn.png",
-    [PIECE_TYPES.PROM_LANCE]: "/src/assets/pieces/white_prom_lance.png",
-    [PIECE_TYPES.PROM_KNIGHT]: "/src/assets/pieces/white_prom_knight.png",
-    [PIECE_TYPES.PROM_SILVER]: "/src/assets/pieces/white_prom_silver.png",
-    [PIECE_TYPES.HORSE]: "/src/assets/pieces/white_horse.png",
-    [PIECE_TYPES.DRAGON]: "/src/assets/pieces/white_dragon.png",
-  },
-} as const;
-
 // 盤面サイズ
 export const BOARD_SIZE = {
   WIDTH: 9,
