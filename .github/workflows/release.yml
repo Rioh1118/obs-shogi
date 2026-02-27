@@ -26,9 +26,47 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag && github.event.inputs.tag || github.ref_name }}
+  RELEASE_DRAFT: ${{ github.event.inputs.draft && github.event.inputs.draft || 'true' }}
+  RELEASE_PRERELEASE: ${{ github.event.inputs.prerelease && github.event.inputs.prerelease || 'false' }}
+
 jobs:
+  create_release:
+    name: Create or fetch GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.rel.outputs.release_id }}
+    steps:
+      - id: rel
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.RELEASE_TAG;
+            const draft = (process.env.RELEASE_DRAFT === 'true');
+            const prerelease = (process.env.RELEASE_PRERELEASE === 'true');
+
+            try {
+              const r = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.setOutput('release_id', r.data.id.toString());
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              const r = await github.rest.repos.createRelease({
+                owner, repo,
+                tag_name: tag,
+                name: `obs-shogi ${tag}`,
+                body: "See the assets to download and install this version.",
+                draft,
+                prerelease
+              });
+              core.setOutput('release_id', r.data.id.toString());
+            }
+
   publish:
     name: Build & upload bundles (${{ matrix.platform }} ${{ matrix.args }})
+    needs: create_release
     strategy:
       fail-fast: false
       matrix:
@@ -75,17 +113,13 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Build and create GitHub Release (upload installers)
+      - name: Build and upload (macOS ad-hoc / no notarization)
         uses: tauri-apps/tauri-action@v0.6.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
-
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "obs-shogi ${{ github.ref_name }}"
-          releaseBody: "See the assets to download and install this version."
-          releaseDraft: true
-          prerelease: false
+          releaseId: ${{ needs.create_release.outputs.release_id }}
+          tagName: ${{ env.RELEASE_TAG }}
           args: ${{ matrix.args }}
           releaseAssetNamePattern: "[name]-v[version]-[platform]-[arch][setup][ext]"
           uploadUpdaterJson: false
