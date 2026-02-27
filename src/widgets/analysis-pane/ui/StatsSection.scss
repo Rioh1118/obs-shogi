@@ -9,8 +9,9 @@
   height: 3.2rem;
   padding: 0 var(--pane-px);
 
-  background: index.$color-primary-black;
+  background: rgba(index.$color-primary-black, 0.55);
   border-top: 1px solid rgba(index.$color-white, 0.06);
+  box-shadow: 0 -1px 0 rgba(index.$color-white, 0.04) inset;
 
   color: index.$color-text-primary;
   font-size: 1.1rem;
