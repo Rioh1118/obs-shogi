@@ -6,24 +6,14 @@ import { toRelPath } from "@/shared/lib/path";
 type Props = {
   currentAbsPath: string | null;
   destAbsPath: string | null;
-  tesuu: number | null;
-  forks: number | null;
 };
 
 export default function PositionSearchDestinationCard({
   currentAbsPath,
   destAbsPath,
-  tesuu,
-  forks,
 }: Props) {
   const { config } = useAppConfig();
   const rootDir = config?.root_dir ?? null;
-
-  const mode: "none" | "same" | "switch" = useMemo(() => {
-    if (!destAbsPath) return "none";
-    if (currentAbsPath && destAbsPath === currentAbsPath) return "same";
-    return "switch";
-  }, [destAbsPath, currentAbsPath]);
 
   const currentRel = useMemo(() => {
     if (!currentAbsPath) return null;
@@ -35,39 +25,23 @@ export default function PositionSearchDestinationCard({
     return toRelPath(destAbsPath, rootDir);
   }, [destAbsPath, rootDir]);
 
-  return (
-    <div className="pos-search-dest">
-      <div className="pos-search-dest__head">
-        <div className="pos-search-dest__title">移動先</div>
+  const hasDest = !!destRel;
 
-        {mode !== "none" && (
-          <span
-            className={[
-              "pos-search-dest__badge",
-              mode === "switch" ? "is-switch" : "is-same",
-            ].join(" ")}
-          >
-            {mode === "switch" ? "切替" : "同一"}
-          </span>
-        )}
+  return (
+    <div className="pos-search-dest" aria-label="選択中の棋譜">
+      <div className="pos-search-dest__head">
+        <div className="pos-search-dest__title">選択中</div>
       </div>
 
-      {mode === "none" ? (
-        <div className="pos-search-dest__empty">候補がありません</div>
+      {!hasDest ? (
+        <div className="pos-search-dest__empty">未選択</div>
       ) : (
         <>
-          <div className="pos-search-dest__path">{destRel}</div>
-
-          <div className="pos-search-dest__meta">
-            {tesuu != null && (
-              <span className="pos-search-dest__chip">手数 {tesuu}</span>
-            )}
-            {forks != null && (
-              <span className="pos-search-dest__chip">分岐 {forks}</span>
-            )}
+          <div className="pos-search-dest__path" title={destRel}>
+            {destRel}
           </div>
 
-          <div className="pos-search-dest__current">
+          <div className="pos-search-dest__current" title={currentRel ?? ""}>
             <span className="pos-search-dest__currentLabel">現在:</span>
             <span className="pos-search-dest__currentPath">
               {currentRel ?? "—"}

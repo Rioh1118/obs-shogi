@@ -233,7 +233,6 @@ export default function AiLibraryTab() {
 
         {/* 右：ガイド（分離済み） */}
         <SetupGuide
-          aiRoot={localAiRoot}
           canOperate={canOperate}
           enginesDirOk={enginesDirOk}
           enginesCount={enginesCount}

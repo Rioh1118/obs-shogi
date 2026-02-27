@@ -42,7 +42,6 @@ function StepItem({
 }
 
 type Props = {
-  aiRoot: string;
   canOperate: boolean;
   enginesDirOk: boolean;
   enginesCount: number;
@@ -52,7 +51,6 @@ type Props = {
 };
 
 export default function SetupGuide({
-  aiRoot,
   canOperate,
   enginesDirOk,
   enginesCount,
@@ -60,11 +58,7 @@ export default function SetupGuide({
   scanReady,
   warnings,
 }: Props) {
-  const helpTree = treeTemplate(
-    aiRoot.trim()
-      ? `AIルート（${aiRoot.replace(/\\/g, "/")}）`
-      : "AIルート（ai_root）",
-  );
+  const helpTree = treeTemplate(`Users/TaroYamada/test_shogi_engine/`);
 
   const stepPick: "todo" | "done" = canOperate ? "done" : "todo";
   const stepLayout: "todo" | "done" | "warn" = !canOperate
