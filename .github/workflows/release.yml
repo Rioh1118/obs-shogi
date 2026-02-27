@@ -1,37 +1,66 @@
 name: Release
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0). If empty, uses github.ref_name."
+        required: false
+        default: ""
+      draft:
+        description: "Create as draft release"
+        required: false
+        default: "true"
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish:
-    name: Build & upload bundles
+    name: Build & upload bundles (${{ matrix.platform }} ${{ matrix.args }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
-            args: ""
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
           - platform: macos-latest
             args: "--target x86_64-apple-darwin"
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
 
     runs-on: ${{ matrix.platform }}
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Node (LTS)
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -46,22 +75,16 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Build and create GitHub Release
-        uses: tauri-apps/tauri-action@v0
+      - name: Build and create GitHub Release (upload installers)
+        uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CI: "true"
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "obs-shogi ${{ github.ref_name }}"
           releaseBody: "See the assets to download and install this version."
           releaseDraft: true
           prerelease: false
-
           args: ${{ matrix.args }}
-
-          #  成果物の命名（例: obs-shogi-v0.1.0-windows-x86_64.msi）
-          # 変数一覧: [name] [version] [platform] [arch] [ext] [setup] など
           releaseAssetNamePattern: "[name]-v[version]-[platform]-[arch][setup][ext]"
-
           uploadUpdaterJson: false
