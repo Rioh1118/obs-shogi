@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "../../../shared/ui/Modal";
@@ -37,7 +37,6 @@ export default function PositionSearchModal() {
     getCurrentSession,
     getHits,
     resolveHitAbsPath,
-    // openProject, // 必要なら使う
   } = usePositionSearch();
 
   const { navigateToHit } = usePositionHitNavigation();
@@ -119,40 +118,30 @@ export default function PositionSearchModal() {
   // -------------------------
   const prevOpenRef = useRef(false);
 
-  // 「前回投げたSFEN」と同じならスキップ（=開き直しでも不要なら投げない）
-  // ※「閉じたらリセットしたい」なら close時に null に戻す（下でやってる）
   const lastQueriedSfenRef = useRef<string | null>(null);
 
   useEffect(() => {
     const wasOpen = prevOpenRef.current;
     prevOpenRef.current = isOpen;
 
-    // close時の後始末
     if (!isOpen) {
-      // ここを消せば「アプリ起動中は同一SFENならずっとスキップ」になる
       lastQueriedSfenRef.current = null;
       return;
     }
 
-    // open瞬間のみ
     if (wasOpen) return;
 
     if (!currentSfen) return;
 
-    // 同一SFENなら投げない
     if (lastQueriedSfenRef.current === currentSfen) return;
 
     lastQueriedSfenRef.current = currentSfen;
 
-    // BestEffortで投げる（結果はイベントで届く）
     searchCurrentPositionBestEffort(5000).catch((e) => {
       console.error("[PositionSearchModal] open-triggered search failed:", e);
     });
   }, [isOpen, currentSfen, searchCurrentPositionBestEffort]);
 
-  // -------------------------
-  // 選択中hitの保持/整合
-  // -------------------------
   const activeHit = orderedHits[activeIndex];
   const activeKeyRef = useRef<string | null>(null);
 
@@ -208,6 +197,14 @@ export default function PositionSearchModal() {
       return;
     }
   };
+
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const el = rootRef.current;
+    if (!el) return;
+
+    el.focus({ preventScroll: true });
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

@@ -87,7 +87,7 @@ export default function PositionSearchHitList({
           rowComponent={VirtualHitRow}
           rowProps={rowProps}
           followIndex={activeIndex}
-          followAlign="smart"
+          followAlign="auto"
           followBehavior="instant"
           overscanCount={8}
         />
