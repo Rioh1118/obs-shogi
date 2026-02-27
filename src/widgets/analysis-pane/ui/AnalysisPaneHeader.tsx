@@ -110,9 +110,9 @@ function AnalysisPaneHeader() {
     <header className="analysis-header">
       <div className="analysis-header__status">
         <div className="analysis-header__indicator">
-          <div
+          <span
             className={`analysis-header__dot ${state.isAnalyzing ? "analysis-header__dot--analyzing" : "analysis-header__dot--idle"}`}
-          ></div>
+          ></span>
           <span className="analysis-header__status-text">
             {state.isAnalyzing ? "解析中" : "停止中"}
           </span>
@@ -122,52 +122,58 @@ function AnalysisPaneHeader() {
         </div>
       </div>
 
-      <div className="analysis-header__actions">
-        <button
-          className="analysis-header__button analysis-header__button--rotate"
-          onClick={handleTogglePov}
-          title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
-          aria-pressed={isGotePov}
+      <div className="analysis-header__right">
+        <nav
+          className="analysis-header__group"
+          role="toolbar"
+          aria-label="解析ツール"
         >
-          <RotateCw className="analysis-header__icon" />
-        </button>
-        <button
-          className="analysis-header__button analysis-header__button--navigation"
-          onClick={handlePositionNavigation}
-          disabled={!currentSfen}
-          title="局面ナビゲーション"
-        >
-          <Navigation className="analysis-header__icon" />
-        </button>
-        <button
-          className="analysis-header__button analysis-header__button--possearch"
-          onClick={handlePositionSearch}
-          disabled={!currentSfen}
-          title="局面検索"
-        >
-          <Search className="analysis-header__icon" />
-        </button>
+          <button
+            className="analysis-header__iconBtn"
+            onClick={handleTogglePov}
+            title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
+            aria-pressed={isGotePov}
+          >
+            <RotateCw className="analysis-header__icon" />
+          </button>
+          <button
+            className="analysis-header__iconBtn"
+            onClick={handlePositionNavigation}
+            disabled={!currentSfen}
+            title="局面ナビゲーション"
+          >
+            <Navigation className="analysis-header__icon" />
+          </button>
+          <button
+            className="analysis-header__iconBtn"
+            onClick={handlePositionSearch}
+            disabled={!currentSfen}
+            title="局面検索"
+          >
+            <Search className="analysis-header__icon" />
+          </button>
 
-        <button
-          className="analysis-header__button analysis-header__button--toggle"
-          onClick={handleToggleAnalysis}
-          disabled={!state.isAnalyzing && !currentSfen}
-          title={state.isAnalyzing ? "解析停止" : "解析開始"}
-        >
-          {state.isAnalyzing ? (
-            <Square className="analysis-header__icon" />
-          ) : (
-            <Play className="analysis-header__icon" />
-          )}
-        </button>
+          <button
+            className="analysis-header__iconBtn"
+            onClick={handleToggleAnalysis}
+            disabled={!state.isAnalyzing && !currentSfen}
+            title={state.isAnalyzing ? "解析停止" : "解析開始"}
+          >
+            {state.isAnalyzing ? (
+              <Square className="analysis-header__icon" />
+            ) : (
+              <Play className="analysis-header__icon" />
+            )}
+          </button>
 
-        <button
-          className="analysis-header__button analysis-header__button--settings"
-          onClick={handleOpenSettings}
-          title="設定"
-        >
-          <Settings className="analysis-header__icon" />
-        </button>
+          <button
+            className="analysis-header__iconBtn"
+            onClick={handleOpenSettings}
+            title="設定"
+          >
+            <Settings className="analysis-header__icon" />
+          </button>
+        </nav>
       </div>
     </header>
   );
