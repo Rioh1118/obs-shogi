@@ -1,0 +1,99 @@
+@use "@/index.scss" as index;
+
+.pos-hit {
+  width: 100%;
+  text-align: left;
+
+  border: 1px solid rgba(index.$color-white, 0.08);
+  border-radius: 12px;
+  background: rgba(index.$color-primary-light, 0.06);
+
+  padding: 10px 10px;
+  cursor: pointer;
+
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+
+  &:hover {
+    background: rgba(index.$color-primary-light, 0.1);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px rgba(index.$color-secondary-dark, 0.55) inset,
+      index.$shadow-press;
+  }
+
+  &--active {
+    border-color: rgba(index.$color-secondary-dark, 0.45);
+    background: rgba(index.$color-secondary-dark, 0.12);
+    box-shadow: index.$shadow-press;
+  }
+
+  &:disabled,
+  &--disabled {
+    cursor: default;
+    opacity: 0.75;
+    transform: none;
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  &__file {
+    font-size: 1.3rem;
+    color: rgba(index.$color-text-light-1, 0.92);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__path {
+    margin-top: 2px;
+    font-size: 1.15rem;
+    color: rgba(index.$color-text-light-1, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    margin-top: 6px;
+    display: flex;
+    gap: 8px;
+  }
+
+  &__chip {
+    font-size: 1.1rem;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    color: rgba(index.$color-text-light-1, 0.75);
+  }
+
+  &__badge {
+    font-size: 1.05rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(index.$color-white, 0.1);
+    color: rgba(index.$color-text-light-1, 0.72);
+    &.is-switch {
+      border-color: rgba(index.$color-secondary-dark, 0.3);
+      background: rgba(index.$color-secondary-dark, 0.1);
+      color: rgba(index.$color-text-primary, 0.95);
+    }
+
+    &.is-same {
+      border-color: rgba(index.$color-secondary-dark, 0.35);
+    }
+  }
+}
