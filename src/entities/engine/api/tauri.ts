@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AnalysisResult,
+  AnalysisConfig,
   AnalysisStatus,
   EngineInfo,
   EngineSettings,
@@ -70,6 +71,12 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
 // ===== 解析実行 =====
 export async function startInfiniteAnalysis(): Promise<string> {
   return await invoke("start_infinite_analysis");
+}
+
+export async function startAnalysisWithConfig(
+  config: AnalysisConfig,
+): Promise<string> {
+  return await invoke("start_analysis_with_config", { config });
 }
 
 export async function analyzeWithTime(

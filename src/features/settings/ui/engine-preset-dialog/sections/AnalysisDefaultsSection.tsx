@@ -12,8 +12,8 @@ export default function AnalysisDefaultsSection(props: {
 
   return (
     <SSection
-      title="解析デフォルト（フロント保持）"
-      description="バックエンド非対応でもUI側で保持します"
+      title="解析デフォルト（USI探索設定）"
+      description="プリセットに応じてバックエンドから go / go mate の条件に反映されます"
     >
       <div className="presetDialog__grid3">
         <SField label="Time (sec)" description="優先: 時間">
@@ -90,7 +90,7 @@ export default function AnalysisDefaultsSection(props: {
             }}
           />
           <span className="presetDialog__checkLabel">
-            詰み探索（フロント保持）
+            詰み探索（go mate）
           </span>
         </label>
       </div>

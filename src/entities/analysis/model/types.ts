@@ -26,6 +26,13 @@ export type PositionSyncAdapter = {
   syncPosition: () => Promise<void>;
 };
 
+export type AnalysisDefaultsInput = {
+  timeSeconds?: number;
+  depth?: number;
+  nodes?: number;
+  mateSearch?: boolean;
+} | null;
+
 export interface AnalysisContextType {
   state: AnalysisState;
 

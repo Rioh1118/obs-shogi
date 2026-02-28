@@ -7,9 +7,13 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type { AnalysisContextType, PositionSyncAdapter } from "./types";
+import type {
+  AnalysisContextType,
+  AnalysisDefaultsInput,
+  PositionSyncAdapter,
+} from "./types";
 import {
-  startInfiniteAnalysis as startInfiniteAnalysisCore,
+  startAnalysisWithConfig,
   stopAnalysis as stopAnalysisCore,
 } from "@/entities/engine/api/tauri";
 import { analysisReducer, initialState } from "./reducer";
@@ -23,14 +27,47 @@ import { AnalysisContext } from "./context";
 interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
+  analysisDefaults: AnalysisDefaultsInput;
 }
 
-export function AnalysisProvider({ children, positionSync }: Props) {
+export function AnalysisProvider({
+  children,
+  positionSync,
+  analysisDefaults,
+}: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
   const { isReady } = useEngine();
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
+
+  const analysisConfig = useMemo(() => {
+    const timeSeconds =
+      analysisDefaults?.timeSeconds != null && analysisDefaults.timeSeconds > 0
+        ? analysisDefaults.timeSeconds
+        : undefined;
+    const depth =
+      analysisDefaults?.depth != null && analysisDefaults.depth > 0
+        ? analysisDefaults.depth
+        : undefined;
+    const nodes =
+      analysisDefaults?.nodes != null && analysisDefaults.nodes > 0
+        ? analysisDefaults.nodes
+        : undefined;
+
+    return {
+      mate_search: Boolean(analysisDefaults?.mateSearch),
+      time_limit:
+        timeSeconds != null
+          ? {
+              secs: Math.floor(timeSeconds),
+              nanos: 0,
+            }
+          : undefined,
+      depth_limit: depth,
+      node_limit: nodes,
+    };
+  }, [analysisDefaults]);
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
@@ -197,7 +234,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         clearFlushTimer();
         latestResultRef.current = null;
-        const newSessionId = await startInfiniteAnalysisCore();
+        const newSessionId = await startAnalysisWithConfig(analysisConfig);
 
         dispatch({
           type: "start_analysis",
@@ -276,7 +313,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
 
-    const sessionId = await startInfiniteAnalysisCore();
+    const sessionId = await startAnalysisWithConfig(analysisConfig);
 
     dispatch({
       type: "start_analysis",
@@ -285,7 +322,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
-  }, [isReady, state.isAnalyzing, currentSfen, syncPosition]);
+  }, [analysisConfig, isReady, state.isAnalyzing, currentSfen, syncPosition]);
+
+  useEffect(() => {
+    if (!state.isAnalyzing) return;
+    if (!currentSfen) return;
+
+    lastAnalyzedSfenRef.current = null;
+    desiredSfenRef.current = currentSfen;
+
+    const seq = ++restartSeqRef.current;
+    clearDebounceTimer();
+    debounceTimerRef.current = window.setTimeout(() => {
+      runRestartRef.current(seq);
+    }, 0);
+  }, [analysisConfig, currentSfen, state.isAnalyzing]);
 
   const stopAnalysis = useCallback(async () => {
     desiredSfenRef.current = null;
