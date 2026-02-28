@@ -41,11 +41,6 @@ fn write_kifu_file_internal<P: AsRef<Path>>(
     file_path: P,
     format: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    jkf.normalize().map_err(|e| {
-        log::warn!("正規化エラー:{}", e);
-        format!("正規化エラー: {:?}", e)
-    })?;
-
     let content = match format.to_lowercase().as_str() {
         "kif" => jkf.to_kif_owned(),
         "ki2" => jkf.to_ki2_owned(),
