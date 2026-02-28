@@ -32,7 +32,7 @@ export function applyMoveWithBranch(
 
   // 1) 本線合流
   const nextMove = getNextMove(jkf, curTesuu);
-  if (nextMove?.move && eqMove(nextMove.move, move)) {
+  if (nextMove?.move && canMergeMove(jkf, nextMove.move, move)) {
     jkf.forward();
     return buildResult(jkf, true, false);
   }
@@ -43,7 +43,7 @@ export function applyMoveWithBranch(
     for (let i = 0; i < nextMoveWithForks.forks.length; i++) {
       const forkLine = nextMoveWithForks.forks[i];
       const forkFirst = forkLine?.[0];
-      if (forkFirst?.move && eqMove(forkFirst.move, move)) {
+      if (forkFirst?.move && canMergeMove(jkf, forkFirst.move, move)) {
         jkf.forkAndForward(i);
         return buildResult(jkf, true, false);
       }
@@ -53,6 +53,28 @@ export function applyMoveWithBranch(
   // 3) 新規追加
   jkf.inputMove(move);
   return buildResult(jkf, false, true);
+}
+
+function canMergeMove(
+  jkf: JKFPlayer,
+  existing: IMoveMoveFormat,
+  incoming: IMoveMoveFormat,
+): boolean {
+  if (!eqMove(existing, incoming)) return false;
+
+  // "from なし" 同士は「駒打ち」と「移動元省略の指し手」が衝突することがある。
+  // 入力手(駒打ち)の着手先へ同種駒を盤上から動かせるなら、誤合流を避けるため
+  // 既存手への合流を行わず、新規分岐として追加する。
+  if (!existing.from && !incoming.from && isAmbiguousDropLikeMove(jkf, incoming)) {
+    return false;
+  }
+
+  return true;
+}
+
+function isAmbiguousDropLikeMove(jkf: JKFPlayer, move: IMoveMoveFormat): boolean {
+  if (move.from || !move.to) return false;
+  return jkf.shogi.getMovesTo(move.to.x, move.to.y, move.piece, move.color).length > 0;
 }
 
 function buildResult(
