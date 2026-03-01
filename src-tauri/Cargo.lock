@@ -4860,8 +4860,6 @@ dependencies = [
 [[package]]
 name = "usi"
 version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93685632b629629aebcd0851fc19c92e244c69fe23279ccc3997673f1440216e"
 dependencies = [
  "itertools",
  "thiserror 1.0.69",

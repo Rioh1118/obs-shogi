@@ -378,7 +378,7 @@ impl EngineAnalyzer {
         result_tx: mpsc::UnboundedSender<AnalysisResult>,
         #[allow(unused_variables)] state: Arc<RwLock<AnalyzerState>>,
         mode: StreamMode,
-        _protocol: super::protocol::UsiProtocol,
+        _protocol: Arc<super::protocol::UsiProtocol>,
     ) {
         log::debug!(target: LOGT, "stream: start");
 
@@ -583,7 +583,7 @@ impl EngineAnalyzer {
 
     fn build_go_params(config: &AnalysisConfig) -> ThinkParams {
         if config.mate_search {
-            return match config.time_limit {
+            return match config.time_limit.as_ref() {
                 Some(limit) => ThinkParams::new().mate(MateParam::Timeout(
                     std::time::Duration::new(limit.secs, limit.nanos),
                 )),
@@ -593,7 +593,7 @@ impl EngineAnalyzer {
 
         let mut params = ThinkParams::new();
 
-        if let Some(limit) = config.time_limit {
+        if let Some(limit) = config.time_limit.as_ref() {
             let limit_dur = Duration::new(limit.secs, limit.nanos);
             if limit_dur > Duration::ZERO {
                 params = params.movetime(limit_dur);
@@ -621,7 +621,10 @@ impl EngineAnalyzer {
 
     fn is_naturally_finite(config: &AnalysisConfig) -> bool {
         config.mate_search
-            || config.time_limit.is_some_and(|t| t.secs > 0 || t.nanos > 0)
+            || config
+                .time_limit
+                .as_ref()
+                .is_some_and(|t| t.secs > 0 || t.nanos > 0)
             || config.depth_limit.is_some_and(|d| d > 0)
             || config.node_limit.is_some_and(|n| n > 0)
     }
