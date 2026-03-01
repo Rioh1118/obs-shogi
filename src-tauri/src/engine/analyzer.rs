@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, InfoParams, ThinkParams};
+use usi::{EngineCommand, GuiCommand, InfoParams, MateParam, ThinkParams};
 
 const LOGT: &str = "obs_shogi::engine::analyzer";
 
@@ -33,7 +33,10 @@ struct AnalyzerState {
 }
 
 enum StreamMode {
-    Infinite(Arc<AtomicBool>),
+    Streaming {
+        manual_stop_requested: Arc<AtomicBool>,
+        allow_natural_bestmove: bool,
+    },
     #[allow(dead_code)]
     Finite,
 }
@@ -112,6 +115,20 @@ impl EngineAnalyzer {
     pub async fn start_infinite_analysis(
         &self,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
+        self.start_analysis(AnalysisConfig {
+            time_limit: None,
+            depth_limit: None,
+            node_limit: None,
+            mate_search: false,
+            multi_pv: None,
+        })
+        .await
+    }
+
+    pub async fn start_analysis(
+        &self,
+        config: AnalysisConfig,
+    ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
         log::debug!(target: LOGT, "analysis.infinite.start: requested");
 
         let stop_flag = Arc::new(AtomicBool::new(false));
@@ -158,8 +175,9 @@ impl EngineAnalyzer {
             return Err(e);
         }
 
-        log::debug!(target: LOGT, "analysis.infinite: send_command go=infinite");
-        let go_command = GuiCommand::Go(ThinkParams::new().infinite());
+        let go_params = Self::build_go_params(&config);
+        let allow_natural_bestmove = Self::is_naturally_finite(&config);
+        let go_command = GuiCommand::Go(go_params);
 
         if let Err(e) = protocol.send_command(&go_command).await {
             log::error!(
@@ -193,7 +211,11 @@ impl EngineAnalyzer {
                 raw_rx,
                 result_tx,
                 state_clone,
-                StreamMode::Infinite(stop_flag),
+                StreamMode::Streaming {
+                    manual_stop_requested: stop_flag,
+                    allow_natural_bestmove,
+                },
+                protocol_for_task.clone(),
             )
             .await;
 
@@ -356,6 +378,7 @@ impl EngineAnalyzer {
         result_tx: mpsc::UnboundedSender<AnalysisResult>,
         #[allow(unused_variables)] state: Arc<RwLock<AnalyzerState>>,
         mode: StreamMode,
+        _protocol: Arc<super::protocol::UsiProtocol>,
     ) {
         log::debug!(target: LOGT, "stream: start");
 
@@ -389,7 +412,14 @@ impl EngineAnalyzer {
                             let _ = result_tx.send(current_result.clone());
                             break;
                         }
-                        StreamMode::Infinite(stop_flag) => {
+                        StreamMode::Streaming {
+                            manual_stop_requested: stop_flag,
+                            allow_natural_bestmove,
+                        } => {
+                            if *allow_natural_bestmove {
+                                let _ = result_tx.send(current_result.clone());
+                                break;
+                            }
                             // stop してないのに bestmove が来たらstaleの可能性
                             if !stop_flag.load(Ordering::SeqCst) {
                                 if stale_bestmove_warn.allow() {
@@ -549,6 +579,54 @@ impl EngineAnalyzer {
                 result.mate_sequence = Some(Vec::new());
             }
         }
+    }
+
+    fn build_go_params(config: &AnalysisConfig) -> ThinkParams {
+        if config.mate_search {
+            return match config.time_limit.as_ref() {
+                Some(limit) => ThinkParams::new().mate(MateParam::Timeout(
+                    std::time::Duration::new(limit.secs, limit.nanos),
+                )),
+                None => ThinkParams::new().mate(MateParam::Infinite),
+            };
+        }
+
+        let mut params = ThinkParams::new();
+
+        if let Some(limit) = config.time_limit.as_ref() {
+            let limit_dur = Duration::new(limit.secs, limit.nanos);
+            if limit_dur > Duration::ZERO {
+                params = params.movetime(limit_dur);
+            }
+        }
+
+        if let Some(depth_limit) = config.depth_limit {
+            if depth_limit > 0 {
+                params = params.depth(depth_limit);
+            }
+        }
+
+        if let Some(node_limit) = config.node_limit {
+            if node_limit > 0 {
+                params = params.nodes(node_limit);
+            }
+        }
+
+        if Self::is_naturally_finite(config) {
+            params
+        } else {
+            params.infinite()
+        }
+    }
+
+    fn is_naturally_finite(config: &AnalysisConfig) -> bool {
+        config.mate_search
+            || config
+                .time_limit
+                .as_ref()
+                .is_some_and(|t| t.secs > 0 || t.nanos > 0)
+            || config.depth_limit.is_some_and(|d| d > 0)
+            || config.node_limit.is_some_and(|n| n > 0)
     }
 }
 

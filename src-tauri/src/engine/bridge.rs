@@ -132,6 +132,20 @@ impl EngineBridge {
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
+        self.start_analysis_with_config_impl(AnalysisConfig {
+            time_limit: None,
+            depth_limit: None,
+            node_limit: None,
+            mate_search: false,
+            multi_pv: None,
+        })
+        .await
+    }
+
+    pub async fn start_analysis_with_config_impl(
+        &self,
+        config: AnalysisConfig,
+    ) -> Result<String, String> {
         if let Err(e) = self.ensure_no_active_session().await {
             log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
             return Err(e);
@@ -139,7 +153,7 @@ impl EngineBridge {
 
         log::debug!(target: LOGT, "start_infinite_analysis: requested");
 
-        let result_rx = self.analyzer.start_infinite_analysis().await.map_err(|e| {
+        let result_rx = self.analyzer.start_analysis(config).await.map_err(|e| {
             log::error!(
                 target: LOGT,
                 "start_infinite_analysis: analyzer failed: {:?}",
@@ -465,6 +479,14 @@ pub async fn set_position(
 #[tauri::command]
 pub async fn start_infinite_analysis(state: tauri::State<'_, AppState>) -> Result<String, String> {
     state.bridge.start_infinite_analysis_impl().await
+}
+
+#[tauri::command]
+pub async fn start_analysis_with_config(
+    state: tauri::State<'_, AppState>,
+    config: AnalysisConfig,
+) -> Result<String, String> {
+    state.bridge.start_analysis_with_config_impl(config).await
 }
 
 #[tauri::command]

@@ -1,0 +1,20 @@
+[package]
+name = "usi"
+version = "0.6.2"
+authors = ["nozaq"]
+description = "A library to handle type-safe communication with USI-compatible shogi engines."
+keywords = ["shogi", "usi", "sfen"]
+categories = ["game-engines"]
+repository = "https://github.com/nozaq/usi-rs"
+documentation = "http://nozaq.github.io/usi-rs"
+readme = "README.md"
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+itertools = "0.10"
+thiserror = "1.0"
+
+[badges]
+travis-ci = { repository = "nozaq/usi-rs" }
+appveyor = { repository = "nozaq/usi-rs" }
