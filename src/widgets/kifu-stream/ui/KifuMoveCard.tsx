@@ -3,6 +3,7 @@ import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
 import "./KifuForkMenu.scss";
 import type { ForkPointer } from "@/entities/kifu/model/cursor";
+import type { MarkEntry } from "@/entities/marks";
 
 export type RowModel = {
   te: number;
@@ -17,6 +18,7 @@ export type RowModel = {
 
   isActive: boolean;
   branchForkPointers: ForkPointer[];
+  tesuuPointer: string;
 };
 
 type Props = {
@@ -44,6 +46,8 @@ type Props = {
     branchForkPointers: ForkPointer[],
     branchIndex: number,
   ) => void;
+
+  mark?: MarkEntry | null;
 };
 
 function sideLabel(side: RowModel["side"]) {
@@ -67,6 +71,7 @@ const KifuMoveCard = memo(
       onRequestOpenMoveMenu,
       onSwapBranch,
       onDeleteBranch,
+      mark,
     },
     ref,
   ) {
@@ -143,6 +148,16 @@ const KifuMoveCard = memo(
         </div>
 
         <div className="kifu-row__badges" onClick={(e) => e.stopPropagation()}>
+          {mark && mark.level > 0 ? (
+            <span className="kifu-badge kifu-badge--mark" title={`重要度 L${mark.level}`}>
+              L{mark.level}
+            </span>
+          ) : null}
+          {mark && mark.tags.includes("詰み") ? (
+            <span className="kifu-badge kifu-badge--mark" title="詰み">
+              詰
+            </span>
+          ) : null}
           {hasFork ? (
             <button
               id={toggleId}

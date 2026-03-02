@@ -6,7 +6,8 @@ export type ModalType =
   | "analysis"
   | "settings"
   | "create-file"
-  | "position-search";
+  | "position-search"
+  | "second-brain";
 
 export type PovType = "sente" | "gote";
 

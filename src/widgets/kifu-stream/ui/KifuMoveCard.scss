@@ -110,3 +110,13 @@
     background: rgba(index.$color-primary-black, 0.28);
   }
 }
+
+.kifu-badge--mark {
+  height: 2.0rem;
+  padding: 0 0.55rem;
+  font-size: 1.0rem;
+  background: rgba(index.$color-secondary-dark, 0.18);
+  border-color: rgba(index.$color-secondary-dark, 0.35);
+  color: rgba(index.$color-secondary-dark, 0.95);
+  letter-spacing: 0.01em;
+}

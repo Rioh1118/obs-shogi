@@ -110,3 +110,88 @@
     border-color: rgba(215, 96, 96, 0.24);
   }
 }
+
+.kifu-moveactions-pop__separator {
+  height: 1px;
+  margin: 0.35rem 0.3rem;
+  background: rgba(index.$color-white, 0.08);
+}
+
+.kifu-moveactions-mark {
+  padding: 0.45rem 0.55rem 0.2rem;
+}
+
+.kifu-moveactions-mark__label {
+  font-size: 1.0rem;
+  opacity: 0.55;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.02em;
+}
+
+.kifu-moveactions-mark__levels {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.kifu-moveactions-mark__level-btn {
+  appearance: none;
+  border: 1px solid rgba(index.$color-white, 0.1);
+  background: rgba(index.$color-primary-black, 0.25);
+  color: rgba(index.$color-text-light-1, 0.7);
+  border-radius: 0.6rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 1.0rem;
+  cursor: pointer;
+  transition: background-color 100ms ease, border-color 100ms ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(index.$color-white, 0.07);
+    border-color: rgba(index.$color-white, 0.18);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &--active {
+    background: rgba(index.$color-secondary-dark, 0.22);
+    border-color: rgba(index.$color-secondary-dark, 0.5);
+    color: rgba(index.$color-secondary-dark, 1.0);
+  }
+}
+
+.kifu-moveactions-mark__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.3rem;
+}
+
+.kifu-moveactions-mark__tag-btn {
+  appearance: none;
+  border: 1px solid rgba(index.$color-white, 0.1);
+  background: rgba(index.$color-primary-black, 0.25);
+  color: rgba(index.$color-text-light-1, 0.7);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 1.0rem;
+  cursor: pointer;
+  transition: background-color 100ms ease, border-color 100ms ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(index.$color-white, 0.07);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &--active {
+    background: rgba(index.$color-secondary-dark, 0.22);
+    border-color: rgba(index.$color-secondary-dark, 0.5);
+    color: rgba(index.$color-secondary-dark, 1.0);
+  }
+}

@@ -13,6 +13,9 @@ import {
   buildCursorWithForkSelection,
 } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
+import { useMarks } from "@/entities/marks";
+import type { MarkLevel, MarkTag } from "@/entities/marks";
+import { v4 as uuidv4 } from "uuid";
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 
@@ -27,6 +30,13 @@ export default function KifuStreamList() {
     deleteBranch,
     swapBranches,
   } = useGame();
+
+  const { getFileMarks, upsertMark, deleteMark } = useMarks();
+  const absPath = state.loadedAbsPath ?? null;
+  const fileMarks = useMemo(
+    () => (absPath ? getFileMarks(absPath) : {}),
+    [absPath, getFileMarks],
+  );
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRowRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +106,68 @@ export default function KifuStreamList() {
       await deleteBranch(q);
     },
     [deleteBranch],
+  );
+
+  const onSetLevel = useCallback(
+    (te: number, tesuuPointer: string, level: MarkLevel) => {
+      if (!absPath) return;
+      const existing = fileMarks[tesuuPointer];
+      if (!existing && level === 0) return; // no-op
+
+      if (!existing && level !== 0) {
+        // 新規作成
+        const row = rows.find((r) => r.te === te);
+        upsertMark(absPath, tesuuPointer, {
+          id: uuidv4(),
+          tesuu: te,
+          moveText: row?.text ?? "",
+          level,
+          tags: [],
+          note: "",
+        });
+      } else if (existing) {
+        if (level === 0 && existing.tags.length === 0 && !existing.note) {
+          // level=0 かつタグもnoteもなければ削除
+          deleteMark(absPath, tesuuPointer);
+        } else {
+          upsertMark(absPath, tesuuPointer, {
+            ...existing,
+            level,
+          });
+        }
+      }
+    },
+    [absPath, fileMarks, rows, upsertMark, deleteMark],
+  );
+
+  const onToggleTag = useCallback(
+    (te: number, tesuuPointer: string, tag: MarkTag) => {
+      if (!absPath) return;
+      const existing = fileMarks[tesuuPointer];
+      const hasTag = existing?.tags.includes(tag) ?? false;
+      const newTags = hasTag
+        ? (existing?.tags ?? []).filter((t) => t !== tag)
+        : [...(existing?.tags ?? []), tag];
+
+      if (!existing) {
+        const row = rows.find((r) => r.te === te);
+        upsertMark(absPath, tesuuPointer, {
+          id: uuidv4(),
+          tesuu: te,
+          moveText: row?.text ?? "",
+          level: 0,
+          tags: newTags,
+          note: "",
+        });
+      } else {
+        if (newTags.length === 0 && existing.level === 0 && !existing.note) {
+          deleteMark(absPath, tesuuPointer);
+        } else {
+          upsertMark(absPath, tesuuPointer, { ...existing, tags: newTags });
+        }
+      }
+    },
+    [absPath, fileMarks, rows, upsertMark, deleteMark],
   );
 
   useEffect(() => {
@@ -207,6 +279,10 @@ export default function KifuStreamList() {
     [state.cursor, applyCursor, goToIndex, closeForkMenu],
   );
 
+  const openMoveMenuRow = openMoveMenu
+    ? rows.find((r) => r.te === openMoveMenu.te)
+    : null;
+
   if (!state.jkfPlayer) {
     return (
       <div className="kifu">
@@ -226,8 +302,16 @@ export default function KifuStreamList() {
         open={!!openMoveMenu}
         busy={state.isLoading}
         te={openMoveMenu?.te ?? 0}
+        tesuuPointer={openMoveMenuRow?.tesuuPointer ?? ""}
+        mark={
+          openMoveMenuRow
+            ? (fileMarks[openMoveMenuRow.tesuuPointer] ?? null)
+            : null
+        }
         anchorRect={openMoveMenu?.anchorRect ?? null}
         onClose={() => setOpenMoveMenu(null)}
+        onSetLevel={onSetLevel}
+        onToggleTag={onToggleTag}
         onDeleteFromHere={(te) => {
           if (te <= 0) return;
 
@@ -261,6 +345,7 @@ export default function KifuStreamList() {
               onRequestCloseForkMenu={() => closeForkMenu(true)}
               onSwapBranch={onSwapBranch}
               onDeleteBranch={onDeleteBranch}
+              mark={fileMarks[r.tesuuPointer] ?? null}
             />
           );
         })}

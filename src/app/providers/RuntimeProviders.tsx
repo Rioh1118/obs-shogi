@@ -6,6 +6,7 @@ import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
 import { PositionSyncProvider } from "./bridges/position-sync";
 import { PositionSearchProvider } from "@/entities/search";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
+import { MarksProvider } from "@/entities/marks";
 
 export function RuntimeProviders({ children }: { children: ReactNode }) {
   return (
@@ -15,7 +16,9 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
           <EngineRuntimeBridge>
             <PositionSyncProvider>
               <PositionSearchProvider>
-                <AnalysisBridge>{children}</AnalysisBridge>
+                <AnalysisBridge>
+                  <MarksProvider>{children}</MarksProvider>
+                </AnalysisBridge>
               </PositionSearchProvider>
             </PositionSyncProvider>
           </EngineRuntimeBridge>

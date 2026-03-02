@@ -4,6 +4,7 @@ pub mod engine;
 pub mod engine_presets;
 pub mod file_system;
 pub mod kifu;
+pub mod marks;
 pub mod search;
 
 use crate::engine::bridge::AppState;
@@ -15,6 +16,7 @@ pub use engine::bridge::{
     set_position, shutdown_engine, start_infinite_analysis, stop_analysis,
 };
 pub use engine_presets::{load_presets, save_presets};
+pub use marks::{load_marks, save_marks};
 pub use file_system::{
     create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree,
     import_kifu_file, mv_directory, mv_kifu_file, read_file, rename_directory, rename_kifu_file,
@@ -81,7 +83,9 @@ pub fn run() {
             get_analysis_status,
             get_engine_info,
             open_project,
-            search_position
+            search_position,
+            load_marks,
+            save_marks
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

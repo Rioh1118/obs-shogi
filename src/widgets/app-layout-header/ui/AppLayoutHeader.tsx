@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
+import { BookOpen, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import IconButton from "../../../shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import "./AppLayoutHeader.scss";
@@ -73,6 +73,16 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
         </div>
       </div>
       <div className="app-header__right">
+        <button
+          type="button"
+          className="app-header__icon-btn"
+          title="第二の脳"
+          aria-label="第二の脳"
+          disabled={!hasFile}
+          onClick={() => hasFile && openModal("second-brain")}
+        >
+          <BookOpen size={18} />
+        </button>
         <button
           type="button"
           className="app-header__icon-btn"

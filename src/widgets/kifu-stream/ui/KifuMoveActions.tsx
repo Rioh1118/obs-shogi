@@ -3,6 +3,8 @@ import { memo, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import "./KifuMoveActions.scss";
+import type { MarkEntry, MarkLevel, MarkTag } from "@/entities/marks";
+import { MARK_TAGS } from "@/entities/marks";
 
 type Props = {
   open: boolean;
@@ -10,20 +12,30 @@ type Props = {
   anchorRect: DOMRect | null;
 
   te: number;
+  tesuuPointer: string;
+  mark?: MarkEntry | null;
   onClose: () => void;
   onDeleteFromHere: (te: number) => void;
+  onSetLevel: (te: number, tesuuPointer: string, level: MarkLevel) => void;
+  onToggleTag: (te: number, tesuuPointer: string, tag: MarkTag) => void;
 };
 
 const clamp = (v: number, min: number, max: number) =>
   Math.max(min, Math.min(max, v));
+
+const LEVELS: MarkLevel[] = [0, 1, 2, 3, 4];
 
 const KifuMoveActions = memo(function KifuMoveActions({
   open,
   busy,
   anchorRect,
   te,
+  tesuuPointer,
+  mark,
   onClose,
   onDeleteFromHere,
+  onSetLevel,
+  onToggleTag,
 }: Props) {
   const selfRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{
@@ -91,6 +103,8 @@ const KifuMoveActions = memo(function KifuMoveActions({
     ? { top: pos.top, left: pos.left }
     : { top: -9999, left: -9999 };
 
+  const currentLevel = mark?.level ?? 0;
+
   return createPortal(
     <div
       ref={selfRef}
@@ -102,6 +116,46 @@ const KifuMoveActions = memo(function KifuMoveActions({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
+      {te !== 0 && (
+        <div className="kifu-moveactions-mark">
+          <div className="kifu-moveactions-mark__label">重要度</div>
+          <div className="kifu-moveactions-mark__levels">
+            {LEVELS.map((lv) => (
+              <button
+                key={lv}
+                type="button"
+                className={`kifu-moveactions-mark__level-btn${currentLevel === lv ? " kifu-moveactions-mark__level-btn--active" : ""}`}
+                disabled={busy}
+                onClick={() => {
+                  onSetLevel(te, tesuuPointer, lv);
+                }}
+                title={lv === 0 ? "なし" : `L${lv}`}
+              >
+                {lv === 0 ? "−" : `L${lv}`}
+              </button>
+            ))}
+          </div>
+          <div className="kifu-moveactions-mark__tags">
+            {MARK_TAGS.map((tag) => {
+              const active = mark?.tags.includes(tag) ?? false;
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`kifu-moveactions-mark__tag-btn${active ? " kifu-moveactions-mark__tag-btn--active" : ""}`}
+                  disabled={busy}
+                  onClick={() => {
+                    onToggleTag(te, tesuuPointer, tag);
+                  }}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+          <div className="kifu-moveactions-pop__separator" />
+        </div>
+      )}
       <button
         type="button"
         className="kifu-moveactions-pop__item kifu-moveactions-pop__item--danger"

@@ -1,4 +1,5 @@
-import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import { buildTesuuPointer } from "@/entities/kifu/model/branch";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
 
@@ -24,6 +25,7 @@ export function buildStreamRowsFromCursor(
     selectedForkIndex: null,
     isActive: currentTesuu === 0,
     branchForkPointers: [],
+    tesuuPointer: buildTesuuPointer(0, []),
   });
 
   let safety = 100000;
@@ -68,6 +70,14 @@ export function buildStreamRowsFromCursor(
     const branchForkPointers = (cursor?.forkPointers ?? []).filter(
       (p) => p.te < te,
     );
+
+    // tesuuPointer: この行を一意に識別するポインタ
+    const rowFps: ForkPointer[] =
+      plannedForkIndex != null
+        ? [...branchForkPointers, { te, forkIndex: plannedForkIndex }]
+        : [...branchForkPointers];
+    const tesuuPointer = buildTesuuPointer(te, rowFps);
+
     rows.push({
       te,
       side,
@@ -79,6 +89,7 @@ export function buildStreamRowsFromCursor(
       selectedForkIndex: plannedForkIndex,
       isActive: te === currentTesuu,
       branchForkPointers,
+      tesuuPointer,
     });
   }
 
