@@ -1,6 +1,7 @@
 import type { JKFData } from "@/entities/kifu";
 import type { KifuCreationOptions, KifuFormat } from "@/entities/kifu";
 import type { AsyncResult } from "@/shared/lib/result";
+import type { FsError } from "../api/error";
 
 export interface FileSystemNode {
   id: string;
@@ -36,6 +37,51 @@ export type FileTreeNode = FileSystemNode & {
 
 export type MenuState = { node: FileTreeNode; x: number; y: number } | null;
 
+export type FileConflictRequest =
+  | {
+      kind: "create_file";
+      parentPath: string;
+      options: KifuCreationOptions;
+    }
+  | {
+      kind: "import_file";
+      parentPath: string;
+      fileName: string;
+      rawContent: string;
+    }
+  | {
+      kind: "create_directory";
+      parentPath: string;
+      dirName: string;
+    }
+  | {
+      kind: "rename_file";
+      path: string;
+      newName: string;
+    }
+  | {
+      kind: "rename_directory";
+      path: string;
+      newName: string;
+    }
+  | {
+      kind: "move_file";
+      path: string;
+      destDir: string;
+      newName?: string;
+    }
+  | {
+      kind: "move_directory";
+      path: string;
+      destDir: string;
+      newName?: string;
+    };
+
+export type FileConflictState = {
+  request: FileConflictRequest;
+  error: FsError;
+};
+
 export type FileTreeState = {
   fileTree: FileTreeNode | null;
   // ツリー上の選択
@@ -51,6 +97,7 @@ export type FileTreeState = {
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
   error: string | null;
+  conflict: FileConflictState | null;
 };
 
 export type FileTreeAction =
@@ -85,7 +132,10 @@ export type FileTreeAction =
         format?: KifuFormat | null;
       };
     }
-  | { type: "error"; payload: string };
+  | { type: "error"; payload: FsError }
+  | { type: "error_cleared" }
+  | { type: "conflict_opend"; payload: FileConflictState }
+  | { type: "conflict_closed" };
 
 export const initialState: FileTreeState = {
   fileTree: null,
@@ -99,37 +149,47 @@ export const initialState: FileTreeState = {
   renamingNodeId: null,
   creatingDirParentPath: null,
   error: null,
+  conflict: null,
 };
 
 export type FileTreeContextType = FileTreeState & {
-  loadFileTree: () => Promise<void>;
+  loadFileTree: () => AsyncResult<void, FsError>;
   selectNode: (node: FileTreeNode | null) => void;
-  openKifuNode: (node: FileTreeNode) => Promise<void>;
+  openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
   closeActiveKifu: () => void;
 
   createNewFile: (
     parentPath: string,
     options: KifuCreationOptions,
-  ) => Promise<void>;
+  ) => AsyncResult<void, FsError>;
+
   importKifuFile: (
     parentPath: string,
     fileName: string,
     rawContent: string,
-  ) => AsyncResult<string, string>;
-  createNewDirectory: (parentPath: string, dirname: string) => Promise<void>;
+  ) => AsyncResult<void, FsError>;
+
+  createNewDirectory: (
+    parentPath: string,
+    dirname: string,
+  ) => AsyncResult<void, FsError>;
 
   toggleNode: (nodePath: string) => void;
   isNodeExpanded: (nodePath: string) => boolean;
 
-  deleteNode: (node: FileTreeNode) => Promise<void>;
-  renameNode: (node: FileTreeNode, newName: string) => Promise<void>;
+  deleteNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
+  renameNode: (
+    node: FileTreeNode,
+    newName: string,
+  ) => AsyncResult<void, FsError>;
+
   moveNode: (
     node: FileTreeNode,
     destDir: string,
     newName?: string,
-  ) => Promise<void>;
+  ) => AsyncResult<void, FsError>;
 
-  refreshTree: () => Promise<void>;
+  refreshTree: () => AsyncResult<void, FsError>;
   isKifuSelected: () => boolean;
   getSelectedKifuData: () => JKFData | null;
 
@@ -139,6 +199,9 @@ export type FileTreeContextType = FileTreeState & {
   cancelInlineRename: () => void;
   startCreateDirectory: (parentPath: string) => void;
   cancelCreateDirectory: () => void;
+
+  clearError: () => void;
+  closeConflict: () => void;
 
   selectNodeByAbsPath: (absPath: string) => void;
 };

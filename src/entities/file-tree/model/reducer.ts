@@ -100,6 +100,25 @@ export function reducer(
     case "error":
       return { ...state, isLoading: false, error: action.payload };
 
+    case "error_cleared":
+      return {
+        ...state,
+        error: null,
+      };
+
+    case "conflict_opend":
+      return {
+        ...state,
+        isLoading: false,
+        conflict: action.payload,
+      };
+
+    case "conflict_closed":
+      return {
+        ...state,
+        conflict: null,
+      };
+
     default:
       throw new Error("Unknown action type");
   }
