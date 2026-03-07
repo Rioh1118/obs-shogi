@@ -21,8 +21,6 @@ export function reducer(
       return {
         ...state,
         selectedNode: action.payload,
-        jkfData: null,
-        kifuFormat: null,
       };
 
     case "kifu_opened":

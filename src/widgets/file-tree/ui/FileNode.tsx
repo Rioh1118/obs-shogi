@@ -10,6 +10,8 @@ import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
+    openKifuNode,
+    activeKifuPath,
     selectedNode,
     selectNode,
     openContextMenu,
@@ -18,6 +20,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     cancelInlineRename,
   } = useFileTree();
   const isSelected = selectedNode?.id === node.id;
+  const isActive = activeKifuPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 
@@ -85,10 +88,10 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     if (isRenaming || isDragging) return;
     if (node.isDirectory) return;
 
-    if (isSelected) {
-      selectNode(null);
-    } else {
-      selectNode(node);
+    selectNode(node);
+
+    if (!isActive) {
+      void openKifuNode(node);
     }
   };
 

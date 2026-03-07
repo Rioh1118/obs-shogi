@@ -3,21 +3,19 @@ import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
 
 export function GameFileTreeBridge() {
-  const { selectedNode, jkfData, isKifuSelected } = useFileTree();
+  const { activeKifuPath, jkfData, kifuFormat } = useFileTree();
   const { loadGame, resetGame } = useGame();
 
   useEffect(() => {
     const run = async () => {
-      if (isKifuSelected() && jkfData) {
-        const absPath =
-          selectedNode && !selectedNode.isDirectory ? selectedNode.path : null;
-        await loadGame(jkfData, absPath);
+      if (activeKifuPath && jkfData && kifuFormat) {
+        await loadGame(jkfData, activeKifuPath);
       } else {
         resetGame();
       }
     };
     void run();
-  }, [selectedNode, jkfData, isKifuSelected, loadGame, resetGame]);
+  }, [activeKifuPath, jkfData, kifuFormat, loadGame, resetGame]);
 
   return null;
 }
