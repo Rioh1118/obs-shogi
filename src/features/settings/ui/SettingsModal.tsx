@@ -15,6 +15,7 @@ export default function SettingsModal() {
       size="xl"
       padding="none"
       variant="workspace"
+      scroll="none"
     >
       <SettingsPanel />
     </Modal>
