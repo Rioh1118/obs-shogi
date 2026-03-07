@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useReducer, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  type ReactNode,
+} from "react";
 
 import type { FileTreeNode } from "./types";
 import { FileTreeContext } from "./context";
@@ -10,6 +16,14 @@ import {
   parseKifuContentToJKF,
   type KifuCreationOptions,
 } from "@/entities/kifu";
+import {
+  findNodeChain,
+  isSameOrDescendantPath,
+  joinPath,
+  remapSubtreePath,
+  replaceBasename,
+  scrollNodeIntoView,
+} from "../lib/path";
 
 type Props = {
   rootDir: string | null;
@@ -18,7 +32,27 @@ type Props = {
 
 export function FileTreeProvider({ rootDir, children }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const pendingRevealPathRef = useRef<string | null>(null);
+  const pendingSelectedPathRef = useRef<string | null>(null);
 
+  const revealNodeInCurrentTree = useCallback(
+    (absPath: string) => {
+      const root = state.fileTree;
+      if (!root) return;
+
+      const chain = findNodeChain(root, absPath);
+      if (!chain) return;
+      const expandPaths = chain
+        .slice(0, -1)
+        .filter((n) => n.isDirectory)
+        .map((n) => n.path);
+
+      dispatch({ type: "nodes_expanded", payload: expandPaths });
+
+      scrollNodeIntoView(absPath);
+    },
+    [state.fileTree],
+  );
   const loadFileTree = useCallback(async () => {
     if (!rootDir) return;
     dispatch({ type: "loading" });
@@ -37,6 +71,27 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   useEffect(() => {
     if (rootDir) void loadFileTree();
   }, [rootDir, loadFileTree]);
+
+  useEffect(() => {
+    if (!state.fileTree) return;
+
+    const nextSelectedPath = pendingSelectedPathRef.current;
+    if (nextSelectedPath) {
+      pendingSelectedPathRef.current = null;
+
+      const chain = findNodeChain(state.fileTree, nextSelectedPath);
+      dispatch({
+        type: "selected_node_reconciled",
+        payload: chain ? chain[chain.length - 1] : null,
+      });
+    }
+
+    const targetPath = pendingRevealPathRef.current;
+    if (targetPath) {
+      pendingRevealPathRef.current = null;
+      revealNodeInCurrentTree(targetPath);
+    }
+  }, [state.fileTree, revealNodeInCurrentTree]);
 
   const selectNode = useCallback((node: FileTreeNode | null) => {
     dispatch({ type: "node_selected", payload: node });
@@ -91,6 +146,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         });
         return;
       }
+
+      const createdPath = joinPath(parentPath, options.fileName);
+      pendingRevealPathRef.current = createdPath;
       await loadFileTree();
     },
     [loadFileTree],
@@ -99,7 +157,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const importKifuFile = useCallback(
     async (parentPath: string, fileName: string, rawContent: string) => {
       const res = await api.importKifu(parentPath, fileName, rawContent.trim());
-      if (res.success) await loadFileTree();
+      if (res.success) {
+        pendingRevealPathRef.current = joinPath(parentPath, fileName);
+        await loadFileTree();
+      }
       return res;
     },
     [loadFileTree],
@@ -115,6 +176,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         });
         return;
       }
+      pendingRevealPathRef.current = joinPath(parentPath, dirname);
       await loadFileTree();
     },
     [loadFileTree],
@@ -152,7 +214,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return;
       }
 
-      if (state.selectedNode?.id === node.id) {
+      if (isSameOrDescendantPath(state.selectedNode?.path, node.path)) {
+        pendingSelectedPathRef.current = null;
         dispatch({ type: "node_selected", payload: null });
       }
       await loadFileTree();
@@ -174,9 +237,16 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return;
       }
 
-      if (state.selectedNode?.id === node.id) {
-        dispatch({ type: "node_selected", payload: null });
+      const renamedPath = replaceBasename(node.path, newName);
+      const nextSelectedPath = remapSubtreePath(
+        state.selectedNode?.path,
+        node.path,
+        renamedPath,
+      );
+      if (nextSelectedPath) {
+        pendingSelectedPathRef.current = nextSelectedPath;
       }
+      pendingRevealPathRef.current = renamedPath;
       await loadFileTree();
     },
     [loadFileTree, state.selectedNode],
@@ -196,9 +266,19 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return;
       }
 
-      if (state.selectedNode?.id === node.id) {
-        dispatch({ type: "node_selected", payload: null });
+      const movedPath = joinPath(destDir, newName ?? node.name);
+
+      const nextSelectedPath = remapSubtreePath(
+        state.selectedNode?.path,
+        node.path,
+        movedPath,
+      );
+
+      if (nextSelectedPath) {
+        pendingSelectedPathRef.current = nextSelectedPath;
       }
+
+      pendingRevealPathRef.current = movedPath;
       await loadFileTree();
     },
     [loadFileTree, state.selectedNode],
@@ -250,25 +330,11 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const getSelectedKifuData = useCallback(() => state.jkfData, [state.jkfData]);
 
   const selectNodeByAbsPath = useCallback(
+    // NOTE: 現状はselectではなくreveal/focusのみを行う
     (absPath: string) => {
-      const root = state.fileTree;
-      if (!root) {
-        dispatch({ type: "node_selected", payload: null });
-        return;
-      }
-
-      const walk = (n: FileTreeNode): FileTreeNode | null => {
-        if (!n.isDirectory && n.path === absPath) return n;
-        for (const ch of n.children ?? []) {
-          const r = walk(ch);
-          if (r) return r;
-        }
-        return null;
-      };
-
-      dispatch({ type: "node_selected", payload: walk(root) });
+      revealNodeInCurrentTree(absPath);
     },
-    [state.fileTree],
+    [revealNodeInCurrentTree],
   );
 
   return (

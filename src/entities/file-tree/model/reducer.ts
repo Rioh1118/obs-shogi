@@ -64,6 +64,17 @@ export function reducer(
     case "create_dir_ended":
       return { ...state, creatingDirParentPath: null };
 
+    case "nodes_expanded":
+      return {
+        ...state,
+        expandedNodes: new Set([...state.expandedNodes, ...action.payload]),
+      };
+    case "selected_node_reconciled":
+      return {
+        ...state,
+        selectedNode: action.payload,
+      };
+
     case "error":
       return { ...state, isLoading: false, error: action.payload };
 

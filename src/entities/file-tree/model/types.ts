@@ -64,6 +64,8 @@ export type FileTreeAction =
   | { type: "rename_ended" }
   | { type: "create_dir_started"; payload: string }
   | { type: "create_dir_ended" }
+  | { type: "nodes_expanded"; payload: string[] }
+  | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
   | { type: "error"; payload: string };
 
 export const initialState: FileTreeState = {
