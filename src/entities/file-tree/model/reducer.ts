@@ -106,16 +106,22 @@ export function reducer(
         error: null,
       };
 
-    case "conflict_opend":
+    case "conflict_opened":
       return {
         ...state,
         isLoading: false,
+        menu: null,
+        renamingNodeId: null,
+        creatingDirParentPath: null,
         conflict: action.payload,
       };
 
     case "conflict_closed":
       return {
         ...state,
+        menu: null,
+        renamingNodeId: null,
+        creatingDirParentPath: null,
         conflict: null,
       };
 

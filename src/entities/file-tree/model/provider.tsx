@@ -61,7 +61,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const pushConflict = useCallback(
     (request: FileConflictRequest, error: FsError) => {
       dispatch({
-        type: "conflict_opend",
+        type: "conflict_opened",
         payload: { request, error },
       });
     },
@@ -164,6 +164,17 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const selectNode = useCallback((node: FileTreeNode | null) => {
     dispatch({ type: "node_selected", payload: node });
   }, []);
+
+  const findNodeByPath = useCallback(
+    (absPath: string): FileTreeNode | null => {
+      const root = state.fileTree;
+      if (!root) return null;
+
+      const chain = findNodeChain(root, absPath);
+      return chain ? chain[chain.length - 1] : null;
+    },
+    [state.fileTree],
+  );
 
   const openKifuNode = useCallback(
     async (node: FileTreeNode): AsyncResult<void, FsError> => {
@@ -455,6 +466,112 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const getSelectedKifuData = useCallback(() => state.jkfData, [state.jkfData]);
 
+  const resolveConflictByRename = useCallback(
+    async (nextName: string): AsyncResult<void, FsError> => {
+      const conflict = state.conflict;
+      if (!conflict) return Ok(undefined);
+
+      const trimmed = nextName.trim();
+      if (!trimmed) {
+        const error = makeFsError("invalid_name", "名前を入力してください");
+        pushError(error);
+        return Err(error);
+      }
+
+      const req = conflict.request;
+
+      switch (req.kind) {
+        case "create_file": {
+          const result = await createNewFile(req.parentPath, {
+            ...req.options,
+            fileName: trimmed,
+          });
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "import_file": {
+          const result = await importKifuFile(
+            req.parentPath,
+            trimmed,
+            req.rawContent,
+          );
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "create_directory": {
+          const result = await createNewDirectory(req.parentPath, trimmed);
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "rename_file":
+        case "rename_directory": {
+          const node = findNodeByPath(req.path);
+          if (!node) {
+            const error = makeFsError(
+              "not_found",
+              "変更対象の項目が見つかりません",
+              req.path,
+            );
+            dispatch({ type: "conflict_closed" });
+            pushError(error);
+            return Err(error);
+          }
+
+          const result = await renameNode(node, trimmed);
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "move_file":
+        case "move_directory": {
+          const node = findNodeByPath(req.path);
+          if (!node) {
+            const error = makeFsError(
+              "not_found",
+              "移動対象の項目が見つかりません",
+              req.path,
+            );
+            dispatch({ type: "conflict_closed" });
+            pushError(error);
+            return Err(error);
+          }
+
+          const result = await moveNode(node, req.destDir, trimmed);
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+      }
+    },
+    [
+      state.conflict,
+      pushError,
+      createNewFile,
+      importKifuFile,
+      createNewDirectory,
+      renameNode,
+      moveNode,
+      findNodeByPath,
+    ],
+  );
+
   const selectNodeByAbsPath = useCallback(
     // NOTE: 現状はselectではなくreveal/focusのみを行う
     (absPath: string) => {
@@ -497,6 +614,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         startCreateDirectory,
         cancelCreateDirectory,
         selectNodeByAbsPath,
+        resolveConflictByRename,
         clearError,
         closeConflict,
       }}

@@ -96,7 +96,7 @@ export type FileTreeState = {
   menu: MenuState;
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
-  error: string | null;
+  error: FsError | null;
   conflict: FileConflictState | null;
 };
 
@@ -134,7 +134,7 @@ export type FileTreeAction =
     }
   | { type: "error"; payload: FsError }
   | { type: "error_cleared" }
-  | { type: "conflict_opend"; payload: FileConflictState }
+  | { type: "conflict_opened"; payload: FileConflictState }
   | { type: "conflict_closed" };
 
 export const initialState: FileTreeState = {
@@ -202,6 +202,7 @@ export type FileTreeContextType = FileTreeState & {
 
   clearError: () => void;
   closeConflict: () => void;
+  resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
 
   selectNodeByAbsPath: (absPath: string) => void;
 };
