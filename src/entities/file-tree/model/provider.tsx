@@ -86,23 +86,25 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       });
     }
 
+    if (state.activeKifuPath) {
+      const activeChain = findNodeChain(state.fileTree, state.activeKifuPath);
+      if (!activeChain) {
+        dispatch({ type: "kifu_closed" });
+      }
+    }
+
     const targetPath = pendingRevealPathRef.current;
     if (targetPath) {
       pendingRevealPathRef.current = null;
       revealNodeInCurrentTree(targetPath);
     }
-  }, [state.fileTree, revealNodeInCurrentTree]);
+  }, [state.fileTree, revealNodeInCurrentTree, state.activeKifuPath]);
 
   const selectNode = useCallback((node: FileTreeNode | null) => {
     dispatch({ type: "node_selected", payload: node });
   }, []);
 
-  const loadSelectedKifu = useCallback(async () => {
-    const node = state.selectedNode;
-    if (!node) {
-      dispatch({ type: "error", payload: "ファイルが選択されていません" });
-      return;
-    }
+  const openKifuNode = useCallback(async (node: FileTreeNode) => {
     if (node.isDirectory) return;
 
     const fmt = node.kifuInfo?.format;
@@ -112,7 +114,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     }
 
     dispatch({ type: "loading" });
-
     const readRes = await api.readKifu(node);
     if (!readRes.success) {
       dispatch({ type: "error", payload: readRes.error });
@@ -121,20 +122,25 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
     try {
       const jkfData = parseKifuContentToJKF(readRes.data, fmt);
-      dispatch({ type: "kifu_loaded", payload: { jkfData, format: fmt } });
+      dispatch({
+        type: "kifu_opened",
+        payload: {
+          path: node.path,
+          jkfData,
+          format: fmt,
+        },
+      });
     } catch (e) {
       dispatch({
         type: "error",
         payload: e instanceof Error ? e.message : String(e),
       });
     }
-  }, [state.selectedNode]);
+  }, []);
 
-  useEffect(() => {
-    if (state.selectedNode && !state.selectedNode.isDirectory) {
-      void loadSelectedKifu();
-    }
-  }, [state.selectedNode, loadSelectedKifu]);
+  const closeActiveKifu = useCallback(() => {
+    dispatch({ type: "kifu_closed" });
+  }, []);
 
   const createNewFile = useCallback(
     async (parentPath: string, options: KifuCreationOptions) => {
@@ -218,9 +224,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         pendingSelectedPathRef.current = null;
         dispatch({ type: "node_selected", payload: null });
       }
+
+      if (isSameOrDescendantPath(state.activeKifuPath, node.path)) {
+        dispatch({ type: "kifu_closed" });
+      }
       await loadFileTree();
     },
-    [loadFileTree, state.selectedNode],
+    [loadFileTree, state.selectedNode, state.activeKifuPath],
   );
 
   const renameNode = useCallback(
@@ -245,11 +255,26 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       );
       if (nextSelectedPath) {
         pendingSelectedPathRef.current = nextSelectedPath;
+      } else if (state.selectedNode?.path === node.path) {
+        pendingSelectedPathRef.current = null;
       }
+      const nextActiveKifuPath = remapSubtreePath(
+        state.activeKifuPath,
+        node.path,
+        renamedPath,
+      );
+
+      if (nextActiveKifuPath !== state.activeKifuPath) {
+        dispatch({
+          type: "active_kifu_reconciled",
+          payload: { path: nextActiveKifuPath },
+        });
+      }
+
       pendingRevealPathRef.current = renamedPath;
       await loadFileTree();
     },
-    [loadFileTree, state.selectedNode],
+    [loadFileTree, state.activeKifuPath, state.selectedNode],
   );
 
   const moveNode = useCallback(
@@ -278,10 +303,22 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         pendingSelectedPathRef.current = nextSelectedPath;
       }
 
+      const nextActiveKifuPath = remapSubtreePath(
+        state.activeKifuPath,
+        node.path,
+        movedPath,
+      );
+      if (nextActiveKifuPath !== state.activeKifuPath) {
+        dispatch({
+          type: "active_kifu_reconciled",
+          payload: { path: nextActiveKifuPath },
+        });
+      }
+
       pendingRevealPathRef.current = movedPath;
       await loadFileTree();
     },
-    [loadFileTree, state.selectedNode],
+    [loadFileTree, state.selectedNode, state.activeKifuPath],
   );
 
   const openContextMenu = useCallback(
@@ -343,7 +380,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         ...state,
         loadFileTree,
         selectNode,
-        loadSelectedKifu,
+        openKifuNode,
+        closeActiveKifu,
         createNewFile,
         importKifuFile,
         createNewDirectory,

@@ -25,13 +25,22 @@ export function reducer(
         kifuFormat: null,
       };
 
-    case "kifu_loaded":
+    case "kifu_opened":
       return {
         ...state,
+        activeKifuPath: action.payload.path,
         jkfData: action.payload.jkfData,
         kifuFormat: action.payload.format,
         isLoading: false,
         error: null,
+      };
+
+    case "kifu_closed":
+      return {
+        ...state,
+        activeKifuPath: null,
+        jkfData: null,
+        kifuFormat: null,
       };
 
     case "node_expanded":
@@ -69,10 +78,25 @@ export function reducer(
         ...state,
         expandedNodes: new Set([...state.expandedNodes, ...action.payload]),
       };
+
     case "selected_node_reconciled":
       return {
         ...state,
         selectedNode: action.payload,
+      };
+
+    case "active_kifu_reconciled":
+      return {
+        ...state,
+        activeKifuPath: action.payload.path,
+        jkfData:
+          action.payload.path === null
+            ? null
+            : (action.payload.jkfData ?? state.jkfData),
+        kifuFormat:
+          action.payload.path === null
+            ? null
+            : (action.payload.format ?? state.kifuFormat),
       };
 
     case "error":

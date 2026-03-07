@@ -38,7 +38,10 @@ export type MenuState = { node: FileTreeNode; x: number; y: number } | null;
 
 export type FileTreeState = {
   fileTree: FileTreeNode | null;
+  // ツリー上の選択
   selectedNode: FileTreeNode | null;
+  // 現在開いている棋譜
+  activeKifuPath: string | null;
   jkfData: JKFData | null;
   kifuFormat: KifuFormat | null;
 
@@ -54,7 +57,15 @@ export type FileTreeAction =
   | { type: "loading" }
   | { type: "tree_loaded"; payload: FileTreeNode }
   | { type: "node_selected"; payload: FileTreeNode | null }
-  | { type: "kifu_loaded"; payload: { jkfData: JKFData; format: KifuFormat } }
+  | {
+      type: "kifu_opened";
+      payload: {
+        path: string;
+        jkfData: JKFData;
+        format: KifuFormat;
+      };
+    }
+  | { type: "kifu_closed" }
   | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
   | { type: "node_collapsed"; payload: string }
@@ -66,11 +77,20 @@ export type FileTreeAction =
   | { type: "create_dir_ended" }
   | { type: "nodes_expanded"; payload: string[] }
   | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
+  | {
+      type: "active_kifu_reconciled";
+      payload: {
+        path: string | null;
+        jkfData?: JKFData | null;
+        format?: KifuFormat | null;
+      };
+    }
   | { type: "error"; payload: string };
 
 export const initialState: FileTreeState = {
   fileTree: null,
   selectedNode: null,
+  activeKifuPath: null,
   jkfData: null,
   kifuFormat: null,
   expandedNodes: new Set<string>(),
@@ -84,7 +104,8 @@ export const initialState: FileTreeState = {
 export type FileTreeContextType = FileTreeState & {
   loadFileTree: () => Promise<void>;
   selectNode: (node: FileTreeNode | null) => void;
-  loadSelectedKifu: () => Promise<void>;
+  openKifuNode: (node: FileTreeNode) => Promise<void>;
+  closeActiveKifu: () => void;
 
   createNewFile: (
     parentPath: string,
