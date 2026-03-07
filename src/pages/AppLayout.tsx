@@ -19,6 +19,7 @@ import { useGame } from "@/entities/game";
 import { usePositionSearch } from "@/entities/search";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useFileTree } from "@/entities/file-tree";
+import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -26,7 +27,8 @@ const AppLayout = () => {
   const { params, updateParams } = useURLParams();
   const rotate = params.pov === "gote";
 
-  const { selectedNode } = useFileTree();
+  const { selectedNode, conflict, closeConflict, resolveConflictByRename } =
+    useFileTree();
 
   const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -68,6 +70,11 @@ const AppLayout = () => {
       <PositionNavigationModal />
       <SettingsModal />
       <PositionSearchModal />
+      <FileConflictDialog
+        conflict={conflict}
+        onCancel={closeConflict}
+        onSubmitRename={resolveConflictByRename}
+      />
 
       <AppLayoutHeader
         toggleSidebar={toggleSidebar}

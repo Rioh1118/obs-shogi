@@ -66,7 +66,6 @@ function RootNode({
   };
 
   const handleCommitRename = async (nextNameRaw: string) => {
-    cancelInlineRename();
     let nextName: string;
     try {
       nextName = validateBasename(nextNameRaw);
@@ -75,12 +74,21 @@ function RootNode({
       return;
     }
 
-    if (nextName === node.name) return;
+    if (nextName === node.name) {
+      cancelInlineRename();
+      return;
+    }
 
-    const oldPath = node.path;
-    const nextPath = computeRenamedPathKeepingParent(oldPath, nextName);
+    const nextPath = computeRenamedPathKeepingParent(node.path, nextName);
+    const res = await renameNode(node, nextName);
+
+    if (!res.success) {
+      return;
+    }
+
+    cancelInlineRename();
+
     try {
-      await renameNode(node, nextName);
       await setRootDir(nextPath);
     } catch (err) {
       console.error("ルートディレクトリリネームに失敗しました:", err);
@@ -89,9 +97,14 @@ function RootNode({
 
   const handleCommitCreate = async (name: string) => {
     const next = name.trim();
-    cancelCreateDirectory();
     if (!next) return;
-    await createNewDirectory(node.path, next);
+
+    const res = await createNewDirectory(node.path, next);
+    if (!res.success) {
+      return;
+    }
+
+    cancelCreateDirectory();
   };
 
   const handleMouseEnter = () => {
@@ -146,6 +159,7 @@ function RootNode({
           <span className="file-tree__rootdir--name">{node.name}</span>
         )}
       </NodeBox>
+
       {!isOpen ? null : (
         <>
           {showCreateRow && (
@@ -160,9 +174,10 @@ function RootNode({
               />
             </NodeBox>
           )}
+
           {!node.children?.length
             ? null
-            : node.children?.map((child) => (
+            : node.children.map((child) => (
                 <TreeNode key={child.path} node={child} level={1} />
               ))}
         </>

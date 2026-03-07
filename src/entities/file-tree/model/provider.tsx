@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useReducer, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  type ReactNode,
+} from "react";
 
-import type { FileTreeNode } from "./types";
+import type { FileConflictRequest, FileTreeNode } from "./types";
 import { FileTreeContext } from "./context";
 import { reducer } from "./reducer";
 import { initialState } from "./types";
@@ -10,6 +16,14 @@ import {
   parseKifuContentToJKF,
   type KifuCreationOptions,
 } from "@/entities/kifu";
+import {
+  findNodeChain,
+  isSameOrDescendantPath,
+  remapSubtreePath,
+  scrollNodeIntoView,
+} from "../lib/path";
+import { makeFsError, type FsError } from "../api/error";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 
 type Props = {
   rootDir: string | null;
@@ -18,106 +32,273 @@ type Props = {
 
 export function FileTreeProvider({ rootDir, children }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const pendingRevealPathRef = useRef<string | null>(null);
+  const pendingSelectedPathRef = useRef<string | null>(null);
 
-  const loadFileTree = useCallback(async () => {
-    if (!rootDir) return;
+  const revealNodeInCurrentTree = useCallback(
+    (absPath: string) => {
+      const root = state.fileTree;
+      if (!root) return;
+
+      const chain = findNodeChain(root, absPath);
+      if (!chain) return;
+      const expandPaths = chain
+        .slice(0, -1)
+        .filter((n) => n.isDirectory)
+        .map((n) => n.path);
+
+      dispatch({ type: "nodes_expanded", payload: expandPaths });
+
+      scrollNodeIntoView(absPath);
+    },
+    [state.fileTree],
+  );
+
+  const pushError = useCallback((error: FsError) => {
+    dispatch({ type: "error", payload: error });
+  }, []);
+
+  const pushConflict = useCallback(
+    (request: FileConflictRequest, error: FsError) => {
+      dispatch({
+        type: "conflict_opened",
+        payload: { request, error },
+      });
+    },
+    [],
+  );
+
+  const handleFailure = useCallback(
+    (error: FsError, request?: FileConflictRequest) => {
+      if (error.code === "already_exists" && request) {
+        pushConflict(request, error);
+      } else {
+        pushError(error);
+      }
+      return Err(error);
+    },
+    [pushConflict, pushError],
+  );
+
+  const reconcilePathMutation = useCallback(
+    (oldPath: string, nextPath: string) => {
+      const nextSelectedPath = remapSubtreePath(
+        state.selectedNode?.path,
+        oldPath,
+        nextPath,
+      );
+
+      if (nextSelectedPath) {
+        pendingSelectedPathRef.current = nextSelectedPath;
+      } else if (state.selectedNode?.path === oldPath) {
+        pendingSelectedPathRef.current = null;
+      }
+
+      const nextActiveKifuPath = remapSubtreePath(
+        state.activeKifuPath,
+        oldPath,
+        nextPath,
+      );
+
+      if (nextActiveKifuPath !== state.activeKifuPath) {
+        dispatch({
+          type: "active_kifu_reconciled",
+          payload: { path: nextActiveKifuPath },
+        });
+      }
+
+      pendingRevealPathRef.current = nextPath;
+    },
+    [state.selectedNode, state.activeKifuPath],
+  );
+
+  const loadFileTree = useCallback(async (): AsyncResult<void, FsError> => {
+    if (!rootDir) {
+      return Ok(undefined);
+    }
     dispatch({ type: "loading" });
 
     const res = await api.fetchTree(rootDir);
-    if (res.success) {
-      dispatch({ type: "tree_loaded", payload: res.data });
-    } else {
-      dispatch({
-        type: "error",
-        payload: `ファイルツリーの読み込みに失敗しました: ${res.error}`,
-      });
+
+    if (!res.success) {
+      dispatch({ type: "error", payload: res.error });
+      return Err(res.error);
     }
+
+    dispatch({ type: "tree_loaded", payload: res.data });
+    return Ok(undefined);
   }, [rootDir]);
 
   useEffect(() => {
     if (rootDir) void loadFileTree();
   }, [rootDir, loadFileTree]);
 
+  useEffect(() => {
+    if (!state.fileTree) return;
+
+    const nextSelectedPath = pendingSelectedPathRef.current;
+    if (nextSelectedPath) {
+      pendingSelectedPathRef.current = null;
+
+      const chain = findNodeChain(state.fileTree, nextSelectedPath);
+      dispatch({
+        type: "selected_node_reconciled",
+        payload: chain ? chain[chain.length - 1] : null,
+      });
+    }
+
+    if (state.activeKifuPath) {
+      const activeChain = findNodeChain(state.fileTree, state.activeKifuPath);
+      if (!activeChain) {
+        dispatch({ type: "kifu_closed" });
+      }
+    }
+
+    const targetPath = pendingRevealPathRef.current;
+    if (targetPath) {
+      pendingRevealPathRef.current = null;
+      revealNodeInCurrentTree(targetPath);
+    }
+  }, [state.fileTree, revealNodeInCurrentTree, state.activeKifuPath]);
+
   const selectNode = useCallback((node: FileTreeNode | null) => {
     dispatch({ type: "node_selected", payload: node });
   }, []);
 
-  const loadSelectedKifu = useCallback(async () => {
-    const node = state.selectedNode;
-    if (!node) {
-      dispatch({ type: "error", payload: "ファイルが選択されていません" });
-      return;
-    }
-    if (node.isDirectory) return;
+  const findNodeByPath = useCallback(
+    (absPath: string): FileTreeNode | null => {
+      const root = state.fileTree;
+      if (!root) return null;
 
-    const fmt = node.kifuInfo?.format;
-    if (!fmt) {
-      dispatch({ type: "error", payload: "棋譜フォーマットが不明です" });
-      return;
-    }
+      const chain = findNodeChain(root, absPath);
+      return chain ? chain[chain.length - 1] : null;
+    },
+    [state.fileTree],
+  );
 
-    dispatch({ type: "loading" });
+  const openKifuNode = useCallback(
+    async (node: FileTreeNode): AsyncResult<void, FsError> => {
+      if (node.isDirectory) return Ok(undefined);
 
-    const readRes = await api.readKifu(node);
-    if (!readRes.success) {
-      dispatch({ type: "error", payload: readRes.error });
-      return;
-    }
+      const fmt = node.kifuInfo?.format;
+      if (!fmt) {
+        const error = makeFsError(
+          "invalid_type",
+          "棋譜フォーマットが不明です",
+          node.path,
+        );
+        pushError(error);
+        return Err(error);
+      }
 
-    try {
-      const jkfData = parseKifuContentToJKF(readRes.data, fmt);
-      dispatch({ type: "kifu_loaded", payload: { jkfData, format: fmt } });
-    } catch (e) {
-      dispatch({
-        type: "error",
-        payload: e instanceof Error ? e.message : String(e),
-      });
-    }
-  }, [state.selectedNode]);
+      dispatch({ type: "loading" });
 
-  useEffect(() => {
-    if (state.selectedNode && !state.selectedNode.isDirectory) {
-      void loadSelectedKifu();
-    }
-  }, [state.selectedNode, loadSelectedKifu]);
+      const readRes = await api.readKifu(node);
+      if (!readRes.success) {
+        pushError(readRes.error);
+        return Err(readRes.error);
+      }
+
+      try {
+        const jkfData = parseKifuContentToJKF(readRes.data, fmt);
+        dispatch({
+          type: "kifu_opened",
+          payload: {
+            path: node.path,
+            jkfData,
+            format: fmt,
+          },
+        });
+        return Ok(undefined);
+      } catch (e) {
+        const error = makeFsError(
+          "invalid_type",
+          e instanceof Error ? e.message : String(e),
+          node.path,
+        );
+        pushError(error);
+        return Err(error);
+      }
+    },
+    [pushError],
+  );
+
+  const closeActiveKifu = useCallback(() => {
+    dispatch({ type: "kifu_closed" });
+  }, []);
 
   const createNewFile = useCallback(
-    async (parentPath: string, options: KifuCreationOptions) => {
+    async (
+      parentPath: string,
+      options: KifuCreationOptions,
+    ): AsyncResult<void, FsError> => {
       const res = await api.createKifu(parentPath, options);
+
       if (!res.success) {
-        dispatch({
-          type: "error",
-          payload: `ファイルの作成に失敗しました: ${res.error}`,
+        return handleFailure(res.error, {
+          kind: "create_file",
+          parentPath,
+          options,
         });
-        return;
       }
-      await loadFileTree();
+
+      pendingRevealPathRef.current = res.data;
+
+      const reload = await loadFileTree();
+      if (!reload.success) return reload;
+
+      return Ok(undefined);
     },
-    [loadFileTree],
+    [handleFailure, loadFileTree],
   );
 
   const importKifuFile = useCallback(
-    async (parentPath: string, fileName: string, rawContent: string) => {
-      const res = await api.importKifu(parentPath, fileName, rawContent.trim());
-      if (res.success) await loadFileTree();
-      return res;
+    async (
+      parentPath: string,
+      fileName: string,
+      rawContent: string,
+    ): AsyncResult<void, FsError> => {
+      const trimmed = rawContent.trim();
+      const res = await api.importKifu(parentPath, fileName, trimmed);
+
+      if (!res.success) {
+        return handleFailure(res.error, {
+          kind: "import_file",
+          parentPath,
+          fileName,
+          rawContent: trimmed,
+        });
+      }
+
+      pendingRevealPathRef.current = res.data;
+
+      const reload = await loadFileTree();
+      if (!reload.success) return reload;
+
+      return Ok(undefined);
     },
-    [loadFileTree],
+    [loadFileTree, handleFailure],
   );
 
   const createNewDirectory = useCallback(
-    async (parentPath: string, dirname: string) => {
+    async (parentPath: string, dirname: string): AsyncResult<void, FsError> => {
       const res = await api.createDir(parentPath, dirname);
+
       if (!res.success) {
-        dispatch({
-          type: "error",
-          payload: `ディレクトリの作成に失敗しました: ${res.error}`,
+        return handleFailure(res.error, {
+          kind: "create_directory",
+          parentPath,
+          dirName: dirname,
         });
-        return;
       }
-      await loadFileTree();
+      pendingRevealPathRef.current = res.data;
+
+      const reload = await loadFileTree();
+      if (!reload.success) return reload;
+
+      return Ok(undefined);
     },
-    [loadFileTree],
+    [handleFailure, loadFileTree],
   );
 
   const toggleNode = useCallback(
@@ -139,25 +320,31 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const deleteNode = useCallback(
-    async (node: FileTreeNode) => {
+    async (node: FileTreeNode): AsyncResult<void, FsError> => {
       const res = node.isDirectory
         ? await api.removeDir(node.path)
         : await api.removeFile(node.path);
 
       if (!res.success) {
-        dispatch({
-          type: "error",
-          payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}の削除に失敗しました: ${res.error}`,
-        });
-        return;
+        pushError(res.error);
+        return Err(res.error);
       }
 
-      if (state.selectedNode?.id === node.id) {
+      if (isSameOrDescendantPath(state.selectedNode?.path, node.path)) {
+        pendingSelectedPathRef.current = null;
         dispatch({ type: "node_selected", payload: null });
       }
-      await loadFileTree();
+
+      if (isSameOrDescendantPath(state.activeKifuPath, node.path)) {
+        dispatch({ type: "kifu_closed" });
+      }
+
+      const reload = await loadFileTree();
+      if (!reload.success) return reload;
+
+      return Ok(undefined);
     },
-    [loadFileTree, state.selectedNode],
+    [loadFileTree, pushError, state.selectedNode, state.activeKifuPath],
   );
 
   const renameNode = useCallback(
@@ -167,41 +354,71 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.renameFile(node.path, newName);
 
       if (!res.success) {
-        dispatch({
-          type: "error",
-          payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}のリネームに失敗しました: ${res.error}`,
-        });
-        return;
+        return handleFailure(
+          res.error,
+          node.isDirectory
+            ? {
+                kind: "rename_directory",
+                path: node.path,
+                newName,
+              }
+            : {
+                kind: "rename_file",
+                path: node.path,
+                newName,
+              },
+        );
       }
 
-      if (state.selectedNode?.id === node.id) {
-        dispatch({ type: "node_selected", payload: null });
-      }
-      await loadFileTree();
+      const nextPath = res.data;
+      reconcilePathMutation(node.path, nextPath);
+
+      const reload = await loadFileTree();
+      if (!reload.success) return reload;
+
+      return Ok(undefined);
     },
-    [loadFileTree, state.selectedNode],
+    [handleFailure, loadFileTree, reconcilePathMutation],
   );
 
   const moveNode = useCallback(
-    async (node: FileTreeNode, destDir: string, newName?: string) => {
+    async (
+      node: FileTreeNode,
+      destDir: string,
+      newName?: string,
+    ): AsyncResult<void, FsError> => {
       const res = node.isDirectory
         ? await api.moveDir(node.path, destDir, newName)
         : await api.moveFile(node.path, destDir, newName);
 
       if (!res.success) {
-        dispatch({
-          type: "error",
-          payload: `${node.isDirectory ? "ディレクトリ" : "ファイル"}の移動に失敗しました: ${res.error}`,
-        });
-        return;
+        return handleFailure(
+          res.error,
+          node.isDirectory
+            ? {
+                kind: "move_directory",
+                path: node.path,
+                destDir,
+                newName,
+              }
+            : {
+                kind: "move_file",
+                path: node.path,
+                destDir,
+                newName,
+              },
+        );
       }
 
-      if (state.selectedNode?.id === node.id) {
-        dispatch({ type: "node_selected", payload: null });
-      }
-      await loadFileTree();
+      const nextPath = res.data;
+      reconcilePathMutation(node.path, nextPath);
+
+      const reload = await loadFileTree();
+      if (!reload.success) return reload;
+
+      return Ok(undefined);
     },
-    [loadFileTree, state.selectedNode],
+    [handleFailure, reconcilePathMutation, loadFileTree],
   );
 
   const openContextMenu = useCallback(
@@ -239,8 +456,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "create_dir_ended" });
   }, []);
 
-  const refreshTree = useCallback(async () => {
-    await loadFileTree();
+  const refreshTree = useCallback(async (): AsyncResult<void, FsError> => {
+    return await loadFileTree();
   }, [loadFileTree]);
 
   const isKifuSelected = useCallback(() => {
@@ -249,27 +466,127 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const getSelectedKifuData = useCallback(() => state.jkfData, [state.jkfData]);
 
-  const selectNodeByAbsPath = useCallback(
-    (absPath: string) => {
-      const root = state.fileTree;
-      if (!root) {
-        dispatch({ type: "node_selected", payload: null });
-        return;
+  const resolveConflictByRename = useCallback(
+    async (nextName: string): AsyncResult<void, FsError> => {
+      const conflict = state.conflict;
+      if (!conflict) return Ok(undefined);
+
+      const trimmed = nextName.trim();
+      if (!trimmed) {
+        const error = makeFsError("invalid_name", "名前を入力してください");
+        pushError(error);
+        return Err(error);
       }
 
-      const walk = (n: FileTreeNode): FileTreeNode | null => {
-        if (!n.isDirectory && n.path === absPath) return n;
-        for (const ch of n.children ?? []) {
-          const r = walk(ch);
-          if (r) return r;
-        }
-        return null;
-      };
+      const req = conflict.request;
 
-      dispatch({ type: "node_selected", payload: walk(root) });
+      switch (req.kind) {
+        case "create_file": {
+          const result = await createNewFile(req.parentPath, {
+            ...req.options,
+            fileName: trimmed,
+          });
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "import_file": {
+          const result = await importKifuFile(
+            req.parentPath,
+            trimmed,
+            req.rawContent,
+          );
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "create_directory": {
+          const result = await createNewDirectory(req.parentPath, trimmed);
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "rename_file":
+        case "rename_directory": {
+          const node = findNodeByPath(req.path);
+          if (!node) {
+            const error = makeFsError(
+              "not_found",
+              "変更対象の項目が見つかりません",
+              req.path,
+            );
+            dispatch({ type: "conflict_closed" });
+            pushError(error);
+            return Err(error);
+          }
+
+          const result = await renameNode(node, trimmed);
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+
+        case "move_file":
+        case "move_directory": {
+          const node = findNodeByPath(req.path);
+          if (!node) {
+            const error = makeFsError(
+              "not_found",
+              "移動対象の項目が見つかりません",
+              req.path,
+            );
+            dispatch({ type: "conflict_closed" });
+            pushError(error);
+            return Err(error);
+          }
+
+          const result = await moveNode(node, req.destDir, trimmed);
+
+          if (result.success) {
+            dispatch({ type: "conflict_closed" });
+          }
+          return result;
+        }
+      }
     },
-    [state.fileTree],
+    [
+      state.conflict,
+      pushError,
+      createNewFile,
+      importKifuFile,
+      createNewDirectory,
+      renameNode,
+      moveNode,
+      findNodeByPath,
+    ],
   );
+
+  const selectNodeByAbsPath = useCallback(
+    // NOTE: 現状はselectではなくreveal/focusのみを行う
+    (absPath: string) => {
+      revealNodeInCurrentTree(absPath);
+    },
+    [revealNodeInCurrentTree],
+  );
+
+  const clearError = useCallback(() => {
+    dispatch({ type: "error_cleared" });
+  }, []);
+
+  const closeConflict = useCallback(() => {
+    dispatch({ type: "conflict_closed" });
+  }, []);
 
   return (
     <FileTreeContext.Provider
@@ -277,7 +594,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         ...state,
         loadFileTree,
         selectNode,
-        loadSelectedKifu,
+        openKifuNode,
+        closeActiveKifu,
         createNewFile,
         importKifuFile,
         createNewDirectory,
@@ -296,6 +614,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         startCreateDirectory,
         cancelCreateDirectory,
         selectNodeByAbsPath,
+        resolveConflictByRename,
+        clearError,
+        closeConflict,
       }}
     >
       {children}
