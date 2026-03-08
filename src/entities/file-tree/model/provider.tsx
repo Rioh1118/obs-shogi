@@ -578,20 +578,17 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const selectNodeByAbsPath = useCallback(
-    (absPath: string) => {
+    (absPath: string): boolean => {
       const node = findNodeByPath(absPath);
       if (!node) {
-        pushError(
-          makeFsError("not_found", "対象の項目が見つかりません", absPath),
-        );
-        return;
+        return false;
       }
 
       revealNodeInCurrentTree(absPath);
       dispatch({ type: "node_selected", payload: node });
 
       if (node.isDirectory) {
-        return;
+        return true;
       }
 
       const isAlreadyActive =
@@ -599,16 +596,15 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         state.jkfData !== null &&
         state.kifuFormat === node.kifuInfo?.format;
 
-      if (isAlreadyActive) {
-        return;
+      if (!isAlreadyActive) {
+        void openKifuNode(node);
       }
 
-      void openKifuNode(node);
+      return true;
     },
     [
       findNodeByPath,
       openKifuNode,
-      pushError,
       revealNodeInCurrentTree,
       state.activeKifuPath,
       state.jkfData,

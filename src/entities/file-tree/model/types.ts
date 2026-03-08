@@ -205,5 +205,5 @@ export type FileTreeContextType = FileTreeState & {
   resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
 
   revealNodeByAbsPath: (absPath: string) => void;
-  selectNodeByAbsPath: (absPath: string) => void;
+  selectNodeByAbsPath: (absPath: string) => boolean;
 };
