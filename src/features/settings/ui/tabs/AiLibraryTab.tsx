@@ -199,7 +199,7 @@ export default function AiLibraryTab() {
   }, [canOperate, scan.status, warnings.length]);
 
   const onPick = useCallback(async () => {
-    const picked = await chooseAiRoot?.();
+    const picked = await chooseAiRoot?.({ force: true });
     if (!picked) return;
 
     setLocalAiRoot(picked);
