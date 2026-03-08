@@ -6,19 +6,16 @@ import { GameFileTreeBridge } from "../bridges/GameFileTreeBridge";
 import { useFileTree } from "@/entities/file-tree";
 
 export function GamePersistenceGate({ children }: { children: ReactNode }) {
-  const { selectedNode, kifuFormat } = useFileTree();
+  const { activeKifuPath, kifuFormat } = useFileTree();
 
   const persistence = useMemo<GamePersistence | undefined>(() => {
-    if (!selectedNode || selectedNode.isDirectory) return undefined;
+    if (!activeKifuPath) return undefined;
     if (!kifuFormat) return undefined;
 
-    const path = selectedNode.path;
-    const format = kifuFormat;
-
     return {
-      save: (jkf: JKFData) => saveKifuToFile(jkf, path, format),
+      save: (jkf: JKFData) => saveKifuToFile(jkf, activeKifuPath, kifuFormat),
     };
-  }, [selectedNode, kifuFormat]);
+  }, [activeKifuPath, kifuFormat]);
 
   return (
     <GameProvider persistence={persistence}>

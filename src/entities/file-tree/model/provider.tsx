@@ -570,12 +570,50 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     ],
   );
 
-  const selectNodeByAbsPath = useCallback(
-    // NOTE: 現状はselectではなくreveal/focusのみを行う
+  const revealNodeByAbsPath = useCallback(
     (absPath: string) => {
       revealNodeInCurrentTree(absPath);
     },
     [revealNodeInCurrentTree],
+  );
+
+  const selectNodeByAbsPath = useCallback(
+    (absPath: string) => {
+      const node = findNodeByPath(absPath);
+      if (!node) {
+        pushError(
+          makeFsError("not_found", "対象の項目が見つかりません", absPath),
+        );
+        return;
+      }
+
+      revealNodeInCurrentTree(absPath);
+      dispatch({ type: "node_selected", payload: node });
+
+      if (node.isDirectory) {
+        return;
+      }
+
+      const isAlreadyActive =
+        state.activeKifuPath === node.path &&
+        state.jkfData !== null &&
+        state.kifuFormat === node.kifuInfo?.format;
+
+      if (isAlreadyActive) {
+        return;
+      }
+
+      void openKifuNode(node);
+    },
+    [
+      findNodeByPath,
+      openKifuNode,
+      pushError,
+      revealNodeInCurrentTree,
+      state.activeKifuPath,
+      state.jkfData,
+      state.kifuFormat,
+    ],
   );
 
   const clearError = useCallback(() => {
@@ -611,6 +649,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         cancelInlineRename,
         startCreateDirectory,
         cancelCreateDirectory,
+        revealNodeByAbsPath,
         selectNodeByAbsPath,
         resolveConflictByRename,
         clearError,
