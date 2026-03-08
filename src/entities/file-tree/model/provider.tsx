@@ -24,6 +24,7 @@ import {
 } from "../lib/path";
 import { makeFsError, type FsError } from "../api/error";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
+import { useAppConfig } from "@/entities/app-config";
 
 type Props = {
   rootDir: string | null;
@@ -32,6 +33,7 @@ type Props = {
 
 export function FileTreeProvider({ rootDir, children }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const { setRootDir } = useAppConfig();
   const pendingRevealPathRef = useRef<string | null>(null);
   const pendingSelectedPathRef = useRef<string | null>(null);
 
@@ -371,12 +373,18 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const nextPath = res.data;
       reconcilePathMutation(node.path, nextPath);
 
+      const isRootRename = node.isDirectory && rootDir === node.path;
+      if (isRootRename) {
+        setRootDir(nextPath);
+        return Ok(undefined);
+      }
+
       const reload = await loadFileTree();
       if (!reload.success) return reload;
 
       return Ok(undefined);
     },
-    [handleFailure, loadFileTree, reconcilePathMutation],
+    [handleFailure, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
   );
 
   const moveNode = useCallback(

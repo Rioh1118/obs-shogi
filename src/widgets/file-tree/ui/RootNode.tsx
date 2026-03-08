@@ -6,24 +6,10 @@ import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
-import { useAppConfig } from "@/entities/app-config";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-
-function computeRenamedPathKeepingParent(
-  oldPath: string,
-  nextName: string,
-): string {
-  const p = oldPath.replace(/[/\\]+$/, "");
-  const lastSlash = p.lastIndexOf("/");
-  const lastBack = p.lastIndexOf("\\");
-  const idx = Math.max(lastSlash, lastBack);
-  const sep: "/" | "\\" = lastBack > lastSlash ? "\\" : "/";
-  const parent = idx >= 0 ? p.slice(0, idx) : "";
-  return parent ? `${parent}${sep}${nextName}` : nextName;
-}
 
 function validateBasename(name: string): string {
   const next = name.trim();
@@ -41,8 +27,6 @@ function RootNode({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
-
-  const { setRootDir } = useAppConfig();
 
   const {
     openContextMenu,
@@ -79,7 +63,6 @@ function RootNode({
       return;
     }
 
-    const nextPath = computeRenamedPathKeepingParent(node.path, nextName);
     const res = await renameNode(node, nextName);
 
     if (!res.success) {
@@ -87,12 +70,6 @@ function RootNode({
     }
 
     cancelInlineRename();
-
-    try {
-      await setRootDir(nextPath);
-    } catch (err) {
-      console.error("ルートディレクトリリネームに失敗しました:", err);
-    }
   };
 
   const handleCommitCreate = async (name: string) => {
