@@ -126,20 +126,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
     align-content: start;
     gap: 10px;
 
-    // 任意：スクロールバー（モーダル内で見やすい）
-    scrollbar-width: thin;
-    &::-webkit-scrollbar {
-      display: block;
-      width: 8px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.55);
-      border-radius: 999px;
-    }
-    &::-webkit-scrollbar-track {
-      background: rgba(index.$color-primary-light, 0.18);
-      border-radius: 999px;
-    }
+    scrollbar-width: none;
   }
 
   &__navGroup {
@@ -167,19 +154,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
         transparent 60%
       );
 
-    scrollbar-width: thin;
-    &::-webkit-scrollbar {
-      display: block;
-      width: 8px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.55);
-      border-radius: 999px;
-    }
-    &::-webkit-scrollbar-track {
-      background: rgba(index.$color-primary-light, 0.18);
-      border-radius: 999px;
-    }
+    scrollbar-width: none;
   }
 
   &__content {

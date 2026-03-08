@@ -89,8 +89,10 @@ function DirectoryNode({
   };
 
   const handleCommit = async (nextName: string) => {
-    cancelInlineRename();
-    await renameNode(node, nextName);
+    const res = await renameNode(node, nextName);
+    if (res.success) {
+      cancelInlineRename();
+    }
   };
 
   const handleCommitCreate = async (name: string) => {

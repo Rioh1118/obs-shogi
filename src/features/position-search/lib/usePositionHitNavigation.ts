@@ -39,8 +39,11 @@ export function usePositionHitNavigation() {
         return;
       }
 
-      // 別ファイルなら FileTree を切り替える（ロード完了は useEffect で待つ）
-      selectNodeByAbsPath(absPath);
+      const ok = selectNodeByAbsPath(absPath);
+      if (!ok) {
+        pendingRef.current = null;
+        return;
+      }
     },
     [applyCursor, gameState.jkfPlayer, selectNodeByAbsPath, selectedNode],
   );

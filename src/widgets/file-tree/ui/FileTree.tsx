@@ -111,7 +111,9 @@ function FileTree() {
               {
                 label: "Delete",
                 danger: true,
-                onClick: () => deleteNode(menu.node),
+                onClick: async () => {
+                  await deleteNode(menu.node);
+                },
               },
             ]),
       ]
