@@ -82,25 +82,23 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const reconcilePathMutation = useCallback(
     (oldPath: string, nextPath: string) => {
-      const nextSelectedPath = remapSubtreePath(
-        state.selectedNode?.path,
-        oldPath,
-        nextPath,
-      );
-
-      if (nextSelectedPath) {
-        pendingSelectedPathRef.current = nextSelectedPath;
-      } else if (state.selectedNode?.path === oldPath) {
-        pendingSelectedPathRef.current = null;
+      const selectedPath = state.selectedNode?.path ?? null;
+      if (isSameOrDescendantPath(selectedPath, oldPath)) {
+        pendingSelectedPathRef.current = remapSubtreePath(
+          selectedPath,
+          oldPath,
+          nextPath,
+        );
       }
 
-      const nextActiveKifuPath = remapSubtreePath(
-        state.activeKifuPath,
-        oldPath,
-        nextPath,
-      );
+      const activePath = state.activeKifuPath;
+      if (isSameOrDescendantPath(activePath, oldPath)) {
+        const nextActiveKifuPath = remapSubtreePath(
+          activePath,
+          oldPath,
+          nextPath,
+        );
 
-      if (nextActiveKifuPath !== state.activeKifuPath) {
         dispatch({
           type: "active_kifu_reconciled",
           payload: { path: nextActiveKifuPath },
@@ -109,7 +107,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = nextPath;
     },
-    [state.selectedNode, state.activeKifuPath],
+    [state.selectedNode?.path, state.activeKifuPath],
   );
 
   const loadFileTree = useCallback(async (): AsyncResult<void, FsError> => {
