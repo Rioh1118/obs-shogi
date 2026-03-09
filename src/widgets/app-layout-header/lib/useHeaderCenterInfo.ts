@@ -31,7 +31,7 @@ export type HeaderCenterInfo = {
 
 export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
   const { selectedNode, jkfData } = useFileTree();
-  const { state, getTotalMoves } = useGame();
+  const { state, derived, getTotalMoves } = useGame();
 
   return useMemo(() => {
     const selectedFilePath =
@@ -54,18 +54,18 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
     const isPlayersShown = hasFile && Boolean(senteName || goteName);
 
     // バッジ（手番・手数）
-    const loaded = hasFile && !!state.jkfPlayer;
+    const loaded = hasFile && !!derived.player;
 
     let turn = Color.Black;
     let tesuu = 0;
 
-    if (loaded && state.jkfPlayer) {
+    if (loaded && derived.player) {
       try {
-        turn = state.jkfPlayer.shogi.turn;
+        turn = derived.player.shogi.turn;
       } catch {
         turn = Color.Black;
       }
-      tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu ?? 0;
+      tesuu = state.cursor?.tesuu ?? derived.player.tesuu ?? 0;
     }
 
     const total = loaded ? getTotalMoves() : 0;
@@ -104,7 +104,7 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
     hasFile,
     selectedNode,
     jkfData,
-    state.jkfPlayer,
+    derived.player,
     state.cursor,
     getTotalMoves,
   ]);

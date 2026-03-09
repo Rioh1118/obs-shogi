@@ -9,17 +9,10 @@ import "./GameControls.scss";
 import { useGame } from "@/entities/game";
 
 function GameControls() {
-  const {
-    goToStart,
-    previousMove,
-    nextMove,
-    goToEnd,
-    canGoBackward,
-    canGoForward,
-  } = useGame();
+  const { derived, goToStart, previousMove, nextMove, goToEnd } = useGame();
 
-  const canGoBack = canGoBackward();
-  const canGoNext = canGoForward();
+  const canGoBack = derived.canGoBackward;
+  const canGoNext = derived.canGoForward;
 
   return (
     <div className="game-controls">

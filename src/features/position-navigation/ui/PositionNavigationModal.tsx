@@ -28,7 +28,7 @@ function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "navigation";
 
-  const { state: gameState, applyCursor } = useGame();
+  const { state: gameState, derived: gameDerived, applyCursor } = useGame();
 
   const [nav, setNav] = useState<NavigationState>({
     PreviewCursor: { tesuu: 0, forkPointers: [] },
@@ -37,7 +37,7 @@ function PositionNavigationModal() {
 
   useEffect(() => {
     // 棋譜が切り替わったら、前棋譜の nav を捨てる
-    if (!gameState.jkfPlayer) {
+    if (!gameDerived.player) {
       setNav({
         PreviewCursor: { tesuu: 0, forkPointers: [] },
         selectedBranchIndex: 0,
@@ -53,7 +53,7 @@ function PositionNavigationModal() {
       },
       selectedBranchIndex: 0,
     });
-  }, [gameState.jkfPlayer, gameState.cursor]);
+  }, [gameDerived.player, gameState.cursor]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -69,11 +69,11 @@ function PositionNavigationModal() {
   }, [isOpen, gameState.cursor]);
 
   const { previewData, options } = useMemo(() => {
-    if (!isOpen || !gameState.jkfPlayer) {
+    if (!isOpen || !gameDerived.player) {
       return { previewData: null, options: [] as BranchOption[] };
     }
 
-    const sim = new JKFPlayer(gameState.jkfPlayer.kifu);
+    const sim = new JKFPlayer(gameDerived.player.kifu);
     sim.goto(
       nav.PreviewCursor.tesuu,
       appliedForkPointers(
@@ -91,7 +91,7 @@ function PositionNavigationModal() {
     const pd = buildPreviewData(sim, nodeId);
 
     return { previewData: pd, options: opts };
-  }, [isOpen, gameState.jkfPlayer, nav.PreviewCursor]);
+  }, [isOpen, gameDerived.player, nav.PreviewCursor]);
 
   const handleSelectBranch = useCallback(
     (delta: number) => {
@@ -144,9 +144,9 @@ function PositionNavigationModal() {
   }, []);
 
   const handleConfirm = useCallback(() => {
-    if (!gameState.jkfPlayer) return;
+    if (!gameDerived.player) return;
 
-    const sim = new JKFPlayer(gameState.jkfPlayer.kifu);
+    const sim = new JKFPlayer(gameDerived.player.kifu);
     sim.goto(
       nav.PreviewCursor.tesuu,
       appliedForkPointers(
@@ -168,7 +168,7 @@ function PositionNavigationModal() {
 
     applyCursor(cursor);
     closeModal();
-  }, [applyCursor, closeModal, gameState.jkfPlayer, nav.PreviewCursor]);
+  }, [applyCursor, closeModal, gameDerived.player, nav.PreviewCursor]);
 
   // Keyboard navigation
   useEffect(() => {

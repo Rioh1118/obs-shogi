@@ -10,8 +10,9 @@ interface HandProps {
 }
 
 function Hand({ isSente }: HandProps) {
-  const { state, selectHand, clearSelection, getCurrentTurn } = useGame();
-  const hands = state.jkfPlayer?.shogi.hands;
+  const { state, derived, selectHand, clearSelection, getCurrentTurn } =
+    useGame();
+  const hands = derived.player?.shogi.hands;
   const currentTurn = getCurrentTurn();
   const selectedPosition = state.selectedPosition;
 

@@ -23,7 +23,7 @@ import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { state: gameState, clearSelection } = useGame();
+  const { state: gameState, derived: gameDerived, clearSelection } = useGame();
   const { params, updateParams } = useURLParams();
   const rotate = params.pov === "gote";
 
@@ -40,7 +40,7 @@ const AppLayout = () => {
   }, [selectedNode, updateParams]);
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
-  const hasFile = !!gameState.jkfPlayer?.shogi;
+  const hasFile = !!gameDerived.player?.shogi;
   const { openProject } = usePositionSearch();
 
   const onPointerDownCapture = (e: React.PointerEvent) => {

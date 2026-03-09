@@ -19,7 +19,7 @@ type PendingNav = {
  */
 export function usePositionHitNavigation() {
   const { selectedNode, selectNodeByAbsPath } = useFileTree();
-  const { state: gameState, applyCursor } = useGame();
+  const { state: gameState, derived: gameDerived, applyCursor } = useGame();
 
   const pendingRef = useRef<PendingNav | null>(null);
 
@@ -32,7 +32,7 @@ export function usePositionHitNavigation() {
         selectedNode &&
         !selectedNode.isDirectory &&
         selectedNode.path === absPath &&
-        gameState.jkfPlayer
+        gameDerived.player
       ) {
         applyCursor(cursorFromLite(cursor));
         pendingRef.current = null;
@@ -45,7 +45,7 @@ export function usePositionHitNavigation() {
         return;
       }
     },
-    [applyCursor, gameState.jkfPlayer, selectNodeByAbsPath, selectedNode],
+    [applyCursor, gameDerived.player, selectNodeByAbsPath, selectedNode],
   );
 
   // ファイル切替 → 読み込み完了（jkfPlayer が立つ）を待ってから applyCursor
@@ -56,7 +56,7 @@ export function usePositionHitNavigation() {
     if (!selectedNode || selectedNode.isDirectory) return;
     if (selectedNode.path !== p.absPath) return;
     if (gameState.isLoading) return;
-    if (!gameState.jkfPlayer) return;
+    if (!gameDerived.player) return;
     if (gameState.loadedAbsPath !== p.absPath) return;
 
     applyCursor(cursorFromLite(p.cursor));
@@ -64,7 +64,7 @@ export function usePositionHitNavigation() {
   }, [
     applyCursor,
     gameState.isLoading,
-    gameState.jkfPlayer,
+    gameDerived.player,
     gameState.loadedAbsPath,
     selectedNode,
   ]);
