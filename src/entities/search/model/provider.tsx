@@ -42,7 +42,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
-  // open 多重対策
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
   // --- event listeners ---

@@ -40,19 +40,15 @@ export function PositionSyncProvider({
   };
 
   const getCurrentSfen = useCallback((): string | null => {
-    void gameState.cursor;
     try {
       if (!gameView.player?.shogi) return null;
 
-      const sfen = gameView.player.shogi.toSFENString(
-        gameView.player.tesuu || 1,
-      );
-      return sfen;
+      return gameView.player.shogi.toSFENString(gameView.player.tesuu || 1);
     } catch (error) {
       console.error("❌ [POSITION] Error getting SFEN:", error);
       return null;
     }
-  }, [gameView.player, gameState.cursor]);
+  }, [gameView.player]);
 
   const syncPosition = useCallback(async (): Promise<void> => {
     setSyncError(null);
@@ -133,7 +129,7 @@ export function PositionSyncProvider({
 
   //  自動同期：cursor変化で追従
   useEffect(() => {
-    if (!gameView.player) {
+    if (!gameState.cursor) {
       setIsPositionSynced(false);
       setSyncedSfen(null);
       pendingBeforeReadyRef.current = null;
@@ -141,7 +137,7 @@ export function PositionSyncProvider({
       return;
     }
     syncPosition().catch(() => {});
-  }, [gameState.cursor, gameView.player, syncPosition]);
+  }, [engineKey, gameState.cursor, syncPosition]);
 
   useEffect(() => {
     if (!isReady) return;
