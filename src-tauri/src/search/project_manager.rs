@@ -19,8 +19,8 @@ use crate::search::{
     kifu_reader::read_to_jkf,
     node_table::NodeTable,
     types::{
-        FileEntry, FileId, IndexState, IndexStatePayload, IndexWarnPayload, Occurrence,
-        EVT_INDEX_STATE, EVT_INDEX_WARN,
+        FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
+        Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
     },
 };
 
@@ -194,11 +194,22 @@ impl ProjectManager {
             },
         );
 
+        let mut done_dirty: u32 = 0;
+
         // removed → tombstone
         for path_key in &diff.removed {
             if let Some(file_id) = path_to_id.remove(path_key) {
                 store.tombstone_file(file_id);
             }
+            done_dirty += 1;
+            let _ = app.emit(
+                EVT_INDEX_PROGRESS,
+                IndexProgressPayload {
+                    current_path: path_key.clone(),
+                    done_files: done_dirty,
+                    total_files: dirty_count,
+                },
+            );
         }
 
         // modified → 同じfile_idでgen++して再インデックス
@@ -221,6 +232,16 @@ impl ProjectManager {
 
             self.reindex_one_file(&app, &store, rec, file_id, new_gen)
                 .await;
+
+            done_dirty += 1;
+            let _ = app.emit(
+                EVT_INDEX_PROGRESS,
+                IndexProgressPayload {
+                    current_path: rec.path.to_string_lossy().to_string(),
+                    done_files: done_dirty,
+                    total_files: dirty_count,
+                },
+            );
         }
 
         // added → 新規file_id, gen=1
@@ -231,6 +252,16 @@ impl ProjectManager {
             path_to_id.insert(path_key.clone(), file_id);
 
             self.reindex_one_file(&app, &store, rec, file_id, 1).await;
+
+            done_dirty += 1;
+            let _ = app.emit(
+                EVT_INDEX_PROGRESS,
+                IndexProgressPayload {
+                    current_path: rec.path.to_string_lossy().to_string(),
+                    done_files: done_dirty,
+                    total_files: dirty_count,
+                },
+            );
         }
 
         // Updating → Ready
