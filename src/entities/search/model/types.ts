@@ -1,4 +1,5 @@
 import type {
+  Consistency,
   OpenProjectOutput,
   SearchPositionInput,
   SearchPositionOutput,
@@ -25,6 +26,8 @@ export type IndexUiState = {
 
 export type SearchSession = {
   requestId: RequestId;
+  querySfen: string | null;
+  consistency: Consistency | null;
   stale: boolean;
   isDone: boolean;
   error: string | null;
@@ -69,6 +72,14 @@ export type Action =
   // search events
   | { type: "search_begin"; payload: SearchBeginPayload }
   | { type: "search_chunk"; payload: SearchChunkPayload }
+  | {
+      type: "search_requested";
+      payload: {
+        requestId: RequestId;
+        sfen: string;
+        consistency: Consistency;
+      };
+    }
   | { type: "search_end"; payload: SearchEndPayload }
   | { type: "search_error"; payload: SearchErrorPayload }
   | { type: "clear_search"; payload?: { requestId?: RequestId } };
@@ -78,14 +89,21 @@ export type PositionSearchContextType = {
 
   // actions
   openProject: (rootDir?: string) => Promise<OpenProjectOutput>;
-  searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
-  searchCurrentPositionBestEffort: (
-    chunkSize?: number,
-  ) => Promise<SearchPositionOutput>;
 
-  // helpers
-  getCurrentSession: () => SearchSession | null;
-  getHits: () => PositionHit[];
+  searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
+
+  searchCurrentPositionBestEffort: (opts?: {
+    chunkSize?: number;
+    consistency?: Consistency;
+  }) => Promise<SearchPositionOutput>;
+
+  getSessionByRequestId: (
+    requestId: RequestId | null | undefined,
+  ) => SearchSession | null;
+  getHitsByRequestId: (
+    requestId: RequestId | null | undefined,
+  ) => PositionHit[];
+  isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
   getAbsPathByFileId: (fileId: number) => string | null;
   resolveHitAbsPath: (hit: PositionHit) => string | null;
 

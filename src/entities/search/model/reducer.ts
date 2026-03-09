@@ -38,6 +38,8 @@ function ensureSession(
     ...sessions,
     [requestId]: {
       requestId,
+      querySfen: null,
+      consistency: null,
       stale: false,
       isDone: false,
       error: null,
@@ -173,6 +175,24 @@ export function reducer(state: SearchState, action: Action): SearchState {
           [p.request_id]: {
             ...s,
             hits: [...s.hits, ...p.chunk],
+          },
+        },
+      };
+    }
+
+    case "search_requested": {
+      const { requestId, sfen, consistency } = action.payload;
+      const sessions = ensureSession(state.sessions, requestId);
+      const s = sessions[requestId]!;
+      return {
+        ...state,
+        sessions: {
+          ...sessions,
+          [requestId]: {
+            ...s,
+            requestId,
+            querySfen: sfen,
+            consistency,
           },
         },
       };
