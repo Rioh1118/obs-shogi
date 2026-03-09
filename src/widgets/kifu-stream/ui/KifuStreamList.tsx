@@ -21,6 +21,7 @@ type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
 export default function KifuStreamList() {
   const {
     state,
+    view,
     goToIndex,
     getTotalMoves,
     applyCursor,
@@ -41,13 +42,21 @@ export default function KifuStreamList() {
   }, []);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const rows = useMemo(() => {
-    if (!state.jkfPlayer) return [];
-    const viewer = new JKFPlayer(cloneJKF(state.jkfPlayer.kifu));
-    return buildStreamRowsFromCursor(viewer, state.cursor);
-  }, [state.jkfPlayer, state.cursor]);
+  const plannedCursor = useMemo(() => {
+    if (!state.cursor) return null;
+    return {
+      ...state.cursor,
+      forkPointers: state.branchPlan,
+    };
+  }, [state.cursor, state.branchPlan]);
 
-  const totalMoves = state.jkfPlayer ? getTotalMoves() : 0;
+  const rows = useMemo(() => {
+    if (!view.player) return [];
+    const viewer = new JKFPlayer(cloneJKF(view.player.kifu));
+    return buildStreamRowsFromCursor(viewer, plannedCursor);
+  }, [view.player, plannedCursor]);
+
+  const totalMoves = view.player ? getTotalMoves() : 0;
   const currentTesuu = state.cursor?.tesuu ?? 0;
 
   const closeForkMenu = useCallback((focusAnchor: boolean) => {
@@ -187,6 +196,8 @@ export default function KifuStreamList() {
 
   const onSelectFork = useCallback(
     (te: number, forkIndex: number | null) => {
+      if (!plannedCursor) return;
+
       const currentIdx =
         state.cursor?.forkPointers?.find((p) => p.te === te)?.forkIndex ?? null;
 
@@ -197,17 +208,17 @@ export default function KifuStreamList() {
       }
 
       const nextCursor = buildCursorWithForkSelection(
-        state.cursor,
+        plannedCursor,
         te,
         forkIndex,
       );
       closeForkMenu(true);
       applyCursor(nextCursor);
     },
-    [state.cursor, applyCursor, goToIndex, closeForkMenu],
+    [state.cursor, plannedCursor, applyCursor, goToIndex, closeForkMenu],
   );
 
-  if (!state.jkfPlayer) {
+  if (!view.player) {
     return (
       <div className="kifu">
         <div className="kifu__empty">棋譜ファイルを選択してください</div>

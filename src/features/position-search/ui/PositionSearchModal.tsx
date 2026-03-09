@@ -29,7 +29,7 @@ export default function PositionSearchModal() {
   const isOpen = params.modal === "position-search";
 
   const { currentSfen } = usePositionSync();
-  const { state: gameState } = useGame();
+  const { state: gameState, view: gameView } = useGame();
 
   const {
     state,
@@ -73,12 +73,12 @@ export default function PositionSearchModal() {
   );
 
   const previewData = useMemo(() => {
-    const jkf = gameState.jkfPlayer;
+    const jkf = gameView.player;
     if (!isOpen || !jkf) return null;
 
     const nodeId = jkf.getTesuuPointer(jkf.tesuu);
     return buildPreviewData(jkf, nodeId);
-  }, [isOpen, gameState.jkfPlayer]);
+  }, [isOpen, gameView.player]);
 
   // -------------------------
   // 検索結果の“見せ方”補助

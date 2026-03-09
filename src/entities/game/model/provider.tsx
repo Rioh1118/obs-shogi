@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useMemo, useReducer } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color, type Kind } from "shogi.js";
@@ -7,11 +7,10 @@ import { gameReducer } from "./reducer";
 import {
   initialGameState,
   type GameContextType,
-  type GameMode,
   type GameProviderProps,
+  type GameView,
   type JKFPlayerHelpers,
-  type MutateOptions,
-  type MutateResult,
+  type ShogiMove,
   type StandardMoveFormat,
 } from "./types";
 import { GameContext } from "./context";
@@ -19,17 +18,12 @@ import { GameContext } from "./context";
 import type { JKFData } from "@/entities/kifu";
 import {
   ROOT_CURSOR,
+  normalizeForkPointers,
   type ForkPointer,
   type KifuCursor,
-  type TesuuPointer,
 } from "@/entities/kifu/model/cursor";
 import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
 import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
-import {
-  appliedForkPointers,
-  applyCursorToPlayer,
-  mergeForkPointers,
-} from "@/entities/kifu/lib/cursorRuntime";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import {
@@ -37,34 +31,21 @@ import {
   swapBranchesInKifu,
 } from "@/entities/kifu/lib/branchEdit";
 import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
-
-/** 現局面の一つ前の手を ShogiMove に変換 */
-function lastMovePlayer(jkf: JKFPlayer) {
-  if (jkf.tesuu === 0) return null;
-  const mv = jkf.getMove();
-  if (!mv || !mv.to) return null;
-  return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
-}
+import { buildPlayer, cloneJkf } from "../lib/jkf";
+import {
+  cursorFromPlayer,
+  lastMovePlayer,
+  mergeBranchPlan,
+  sameForkPointers,
+} from "../lib/cursor";
 
 export function GameProvider({ children, persistence }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
-  const cursorRef = useRef<KifuCursor | null>(null);
-
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
-
-  const leafTesuu = useMemo(() => {
-    if (!state.jkfPlayer) return 0;
-    try {
-      return computeLeafTesuu(state.jkfPlayer, state.cursor);
-    } catch {
-      return state.jkfPlayer.getMaxTesuu();
-    }
-  }, [state.jkfPlayer, state.cursor]);
 
   const persistIfPossible = useCallback(
     async (jkfToSave: JKFData) => {
       if (!persistence) return;
-
       const res = await persistence.save(jkfToSave);
       if (!res.success) {
         dispatch({ type: "set_error", payload: res.error });
@@ -73,328 +54,393 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [persistence],
   );
 
-  const commitFromPlayer = useCallback(
-    (jkf: JKFPlayer, prevCursor: KifuCursor | null) => {
-      const tesuu = jkf.tesuu;
-      const applied = (jkf.getForkPointers?.(tesuu) ?? []) as ForkPointer[];
-
-      const forkPointers = mergeForkPointers(
-        applied,
-        prevCursor?.forkPointers,
-        tesuu,
-      );
-
-      const cursor: KifuCursor = {
-        tesuu,
-        forkPointers,
-        tesuuPointer: jkf.getTesuuPointer(tesuu) as TesuuPointer,
+  const view = useMemo<GameView>(() => {
+    if (!state.jkf) {
+      return {
+        player: null,
+        legalMoves: [],
+        lastMove: null,
+        currentMove: undefined,
+        currentComments: [],
+        currentTurn: Color.Black,
+        totalMoves: 0,
       };
+    }
 
-      cursorRef.current = cursor;
+    try {
+      const player = buildPlayer(state.jkf, state.cursor);
 
-      dispatch({
-        type: "partial_update",
-        payload: {
-          cursor,
-          lastMove: lastMovePlayer(jkf),
-          selectedPosition: null,
-          legalMoves: [],
-          jkfPlayer: jkf,
-        },
-      });
-    },
-    [],
-  );
+      const plannedCursor = state.cursor
+        ? {
+            ...state.cursor,
+            forkPointers: state.branchPlan,
+          }
+        : null;
 
-  const mutatePlayer = useCallback(
+      let totalMoves = 0;
+      try {
+        totalMoves = computeLeafTesuu(player, plannedCursor);
+      } catch {
+        totalMoves = player.getMaxTesuu();
+      }
+
+      let currentMove: IMoveMoveFormat | undefined;
+      try {
+        currentMove = player.tesuu === 0 ? undefined : player.getMove();
+      } catch {
+        currentMove = undefined;
+      }
+
+      let currentComments: string[] = [];
+      try {
+        const comments = player.getComments();
+        currentComments = Array.isArray(comments) ? comments : [];
+      } catch {
+        currentComments = [];
+      }
+
+      let currentTurn = Color.Black;
+      try {
+        currentTurn = player.shogi.turn;
+      } catch {
+        currentTurn = Color.Black;
+      }
+
+      let legalMoves: ShogiMove[] = [];
+      try {
+        const sel = state.selectedPosition;
+        if (sel) {
+          if (sel.type === "square") {
+            legalMoves = moveValidator.getLegalMovesFrom(
+              player.shogi,
+              sel.x,
+              sel.y,
+            );
+          } else {
+            legalMoves = moveValidator.getLegalDropsByKind(
+              player.shogi,
+              sel.color,
+              sel.kind,
+            );
+          }
+        }
+      } catch {
+        legalMoves = [];
+      }
+
+      return {
+        player,
+        legalMoves,
+        lastMove: lastMovePlayer(player),
+        currentMove,
+        currentComments,
+        currentTurn,
+        totalMoves,
+      };
+    } catch {
+      return {
+        player: null,
+        legalMoves: [],
+        lastMove: null,
+        currentMove: undefined,
+        currentComments: [],
+        currentTurn: Color.Black,
+        totalMoves: 0,
+      };
+    }
+  }, [
+    state.jkf,
+    state.cursor,
+    state.branchPlan,
+    state.selectedPosition,
+    moveValidator,
+  ]);
+
+  const navigate = useCallback(
     (
-      fn: (jkf: JKFPlayer, prevCursor: KifuCursor | null) => MutateResult,
+      run: (player: JKFPlayer, branchPlan: ForkPointer[]) => boolean | void,
       errorMessage: string,
-      opt?: MutateOptions,
     ) => {
-      const jkf = state.jkfPlayer;
-      if (!jkf) return;
-
-      const prevCursor = cursorRef.current;
+      if (!state.jkf) return;
 
       try {
         dispatch({ type: "clear_error" });
 
-        applyCursorToPlayer(jkf, prevCursor);
+        const player = buildPlayer(state.jkf, state.cursor);
+        const beforePointer =
+          state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
 
-        const beforePtr = jkf.getTesuuPointer();
-        const result = fn(jkf, prevCursor);
-
+        const result = run(player, state.branchPlan);
         if (result === false) return;
 
-        const cursorForCommit =
-          typeof result === "object" && result && "cursorForCommit" in result
-            ? (result.cursorForCommit ?? prevCursor)
-            : prevCursor;
-
-        const playerForCommit =
-          typeof result === "object" && result && "playerForCommit" in result
-            ? (result.playerForCommit ?? jkf)
-            : jkf;
-
-        const afterPtr = playerForCommit.getTesuuPointer();
+        const nextCursor = cursorFromPlayer(player);
+        const nextBranchPlan = mergeBranchPlan(nextCursor, state.branchPlan);
 
         if (
-          !opt?.forceCommit &&
-          playerForCommit === jkf &&
-          beforePtr === afterPtr
+          nextCursor.tesuuPointer === beforePointer &&
+          sameForkPointers(nextBranchPlan, state.branchPlan)
         ) {
           return;
         }
 
-        commitFromPlayer(playerForCommit, cursorForCommit);
+        dispatch({
+          type: "navigated",
+          payload: {
+            cursor: nextCursor,
+            branchPlan: nextBranchPlan,
+          },
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : errorMessage;
         dispatch({ type: "set_error", payload: msg });
       }
     },
-    [state.jkfPlayer, commitFromPlayer],
+    [state.jkf, state.cursor, state.branchPlan],
   );
 
-  const loadGame = useCallback(
-    async (jkf: JKFData, absPath: string | null) => {
+  const edit = useCallback(
+    async (
+      run: (player: JKFPlayer, nextJkf: JKFData) => boolean | void,
+      errorMessage: string,
+      opt?: { forceCommit?: boolean },
+    ) => {
+      if (!state.jkf) return;
+
       try {
+        dispatch({ type: "set_loading", payload: true });
         dispatch({ type: "clear_error" });
+
+        const nextJkf = cloneJkf(state.jkf);
+        const player = buildPlayer(nextJkf, state.cursor);
+        const beforePointer =
+          state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+
+        const result = run(player, nextJkf);
+        if (result === false) return;
+
+        const nextCursor = cursorFromPlayer(player);
+        if (!opt?.forceCommit && nextCursor.tesuuPointer === beforePointer) {
+          return;
+        }
+
         dispatch({
-          type: "partial_update",
+          type: "jkf_replaced",
           payload: {
-            jkfPlayer: null,
-            cursor: null,
-            lastMove: null,
-            selectedPosition: null,
-            legalMoves: [],
-            loadedAbsPath: absPath,
+            jkf: nextJkf,
+            cursor: nextCursor,
+            branchPlan: [...nextCursor.forkPointers],
           },
         });
-        dispatch({ type: "set_loading", payload: true });
 
-        cursorRef.current = null;
-
-        const jkfPlayer = new JKFPlayer(jkf);
-        commitFromPlayer(jkfPlayer, null);
+        await persistIfPossible(nextJkf);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to load game";
+        const msg = e instanceof Error ? e.message : errorMessage;
         dispatch({ type: "set_error", payload: msg });
       } finally {
         dispatch({ type: "set_loading", payload: false });
       }
     },
-    [commitFromPlayer],
+    [state.jkf, state.cursor, persistIfPossible],
   );
 
-  const resetGame = useCallback(() => {
-    cursorRef.current = null;
-    dispatch({
-      type: "partial_update",
-      payload: {
-        jkfPlayer: null,
-        cursor: null,
-        lastMove: null,
-        selectedPosition: null,
-        legalMoves: [],
-        loadedAbsPath: null,
-        isLoading: false,
-        error: null,
-      },
-    });
+  const loadGame = useCallback(async (jkf: JKFData, absPath: string | null) => {
+    try {
+      dispatch({ type: "clear_error" });
+      dispatch({ type: "set_loading", payload: true });
+
+      const nextJkf = cloneJkf(jkf);
+      const player = new JKFPlayer(nextJkf);
+      const cursor = cursorFromPlayer(player);
+
+      dispatch({
+        type: "game_loaded",
+        payload: { jkf: nextJkf, absPath, cursor },
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load game";
+      dispatch({ type: "set_error", payload: msg });
+    } finally {
+      dispatch({ type: "set_loading", payload: false });
+    }
   }, []);
 
-  useEffect(() => {
-    cursorRef.current = state.cursor ?? null;
-  }, [state.cursor]);
+  const resetGame = useCallback(() => {
+    dispatch({ type: "reset_state" });
+  }, []);
 
   const goToIndex = useCallback(
     (index: number) => {
-      mutatePlayer((jkf) => {
-        const cursor = cursorRef.current;
-        if (!cursor) {
-          jkf.goto(index);
-          return;
-        }
-        jkf.goto(index, appliedForkPointers(cursor, index));
+      navigate((player, branchPlan) => {
+        player.goto(index, normalizeForkPointers(branchPlan, index));
       }, "Failed to go to index");
     },
-    [mutatePlayer],
+    [navigate],
   );
 
   const nextMove = useCallback(() => {
-    mutatePlayer((jkf) => {
-      const cursor = cursorRef.current;
-      const nextTe = jkf.tesuu + 1;
+    navigate((player, branchPlan) => {
+      const nextTe = player.tesuu + 1;
+      const planned = branchPlan.find((p) => p.te === nextTe);
 
-      const planned = cursor?.forkPointers?.find((p) => p.te === nextTe);
-      if (planned) {
-        const ok = jkf.forkAndForward(planned.forkIndex);
-        if (ok) return true;
+      if (planned && player.forkAndForward(planned.forkIndex)) {
+        return true;
       }
-      return jkf.forward();
+
+      return player.forward();
     }, "Failed to move forward");
-  }, [mutatePlayer]);
+  }, [navigate]);
 
   const previousMove = useCallback(() => {
-    mutatePlayer((jkf) => {
-      if (jkf.tesuu <= 0) return false;
-      return jkf.backward();
+    navigate((player) => {
+      if (player.tesuu <= 0) return false;
+      return player.backward();
     }, "Failed to move backward");
-  }, [mutatePlayer]);
+  }, [navigate]);
 
   const goToStart = useCallback(() => {
-    mutatePlayer((jkf) => {
-      jkf.goto(0);
+    navigate((player) => {
+      player.goto(0);
     }, "Failed to go to start");
-  }, [mutatePlayer]);
+  }, [navigate]);
 
   const goToEnd = useCallback(() => {
-    mutatePlayer((jkf) => {
-      const cursor = cursorRef.current;
+    navigate((player, branchPlan) => {
       const plannedMap = new Map<number, number>();
-      for (const p of cursor?.forkPointers ?? [])
+      for (const p of branchPlan) {
         plannedMap.set(p.te, p.forkIndex);
+      }
 
-      const startTesuu = jkf.tesuu;
+      const startTesuu = player.tesuu;
       let limit = 10000;
 
       while (limit-- > 0) {
-        const nextTe = jkf.tesuu + 1;
+        const nextTe = player.tesuu + 1;
 
         const forkIndex = plannedMap.get(nextTe);
-        if (forkIndex !== undefined) {
-          const ok = jkf.forkAndForward(forkIndex);
-          if (ok) continue;
+        if (forkIndex !== undefined && player.forkAndForward(forkIndex)) {
+          continue;
         }
 
-        const ok = jkf.forward();
+        const ok = player.forward();
         if (!ok) break;
       }
 
       if (limit <= 0) throw new Error("goToEnd overflows");
-      if (jkf.tesuu === startTesuu) return false;
+      if (player.tesuu === startTesuu) return false;
     }, "Failed to go to end");
-  }, [mutatePlayer]);
+  }, [navigate]);
 
   const makeMove = useCallback(
     async (move: StandardMoveFormat) => {
-      if (!state.jkfPlayer) return;
+      await edit((player) => {
+        applyMoveWithBranch(player, toIMoveMoveFormat(move));
+      }, "Failed to make move");
+    },
+    [edit],
+  );
 
-      const prevCursor = cursorRef.current;
+  const swapBranches = useCallback(
+    async (q: SwapQuery) => {
+      if (!state.jkf) return;
 
       try {
         dispatch({ type: "set_loading", payload: true });
         dispatch({ type: "clear_error" });
 
-        applyCursorToPlayer(state.jkfPlayer, prevCursor);
-        const jkfMove = toIMoveMoveFormat(move);
+        const nextJkf = cloneJkf(state.jkf);
+        const res = swapBranchesInKifu(nextJkf, q, state.cursor);
 
-        applyMoveWithBranch(state.jkfPlayer, jkfMove);
-        commitFromPlayer(state.jkfPlayer, prevCursor);
+        if (!res.changed) return;
 
-        await persistIfPossible(state.jkfPlayer.kifu as JKFData);
+        const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
+        const rebuilt = buildPlayer(nextJkf, baseCursor);
+        const nextCursor = cursorFromPlayer(rebuilt);
+
+        dispatch({
+          type: "jkf_replaced",
+          payload: {
+            jkf: nextJkf,
+            cursor: nextCursor,
+            branchPlan: [...nextCursor.forkPointers],
+          },
+        });
+
+        await persistIfPossible(nextJkf);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to make move";
+        const msg = e instanceof Error ? e.message : "Failed to swap branches";
         dispatch({ type: "set_error", payload: msg });
       } finally {
         dispatch({ type: "set_loading", payload: false });
       }
     },
-    [state.jkfPlayer, commitFromPlayer, persistIfPossible],
-  );
-
-  const swapBranches = useCallback(
-    async (q: SwapQuery) => {
-      let kifuToSave: JKFData | null = null;
-      let didChange = false;
-
-      mutatePlayer(
-        (jkf, prevCursor) => {
-          const res = swapBranchesInKifu(jkf.kifu as JKFData, q, prevCursor);
-          if (!res.changed) return false;
-
-          const next = res.nextCursor ?? prevCursor ?? ROOT_CURSOR;
-
-          const rebuilt = new JKFPlayer(jkf.kifu as JKFData);
-          rebuilt.goto(next.tesuu, appliedForkPointers(next, next.tesuu));
-
-          didChange = true;
-          kifuToSave = jkf.kifu as JKFData;
-
-          return { cursorForCommit: next, playerForCommit: rebuilt };
-        },
-        "Failed to swap branches",
-        { forceCommit: true },
-      );
-
-      if (didChange && kifuToSave) await persistIfPossible(kifuToSave);
-    },
-    [mutatePlayer, persistIfPossible],
+    [state.jkf, state.cursor, persistIfPossible],
   );
 
   const deleteBranch = useCallback(
     async (q: DeleteQuery) => {
-      let kifuToSave: JKFData | null = null;
-      let didChange = false;
+      if (!state.jkf) return;
 
-      mutatePlayer(
-        (jkf, prevCursor) => {
-          const res = deleteBranchInKifu(jkf.kifu as JKFData, q, prevCursor);
-          if (!res.changed) return false;
+      try {
+        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "clear_error" });
 
-          const next = res.nextCursor ?? prevCursor ?? ROOT_CURSOR;
+        const nextJkf = cloneJkf(state.jkf);
+        const res = deleteBranchInKifu(nextJkf, q, state.cursor);
 
-          const rebuilt = new JKFPlayer(jkf.kifu as JKFData);
-          rebuilt.goto(next.tesuu, appliedForkPointers(next, next.tesuu));
+        if (!res.changed) return;
 
-          didChange = true;
-          kifuToSave = jkf.kifu as JKFData;
+        const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
+        const rebuilt = buildPlayer(nextJkf, baseCursor);
+        const nextCursor = cursorFromPlayer(rebuilt);
 
-          return { cursorForCommit: next, playerForCommit: rebuilt };
-        },
-        "Failed to delete branch",
-        { forceCommit: true },
-      );
+        dispatch({
+          type: "jkf_replaced",
+          payload: {
+            jkf: nextJkf,
+            cursor: nextCursor,
+            branchPlan: [...nextCursor.forkPointers],
+          },
+        });
 
-      if (didChange && kifuToSave) await persistIfPossible(kifuToSave);
+        await persistIfPossible(nextJkf);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to delete branch";
+        dispatch({ type: "set_error", payload: msg });
+      } finally {
+        dispatch({ type: "set_loading", payload: false });
+      }
     },
-    [mutatePlayer, persistIfPossible],
+    [state.jkf, state.cursor, persistIfPossible],
   );
 
   const selectSquare = useCallback(
     async (x: number, y: number, promote?: boolean) => {
-      if (!state.jkfPlayer) return;
+      const player = view.player;
+      if (!player) return;
 
       try {
-        const shogi = state.jkfPlayer.shogi;
+        const shogi = player.shogi;
         const piece = shogi.get(x, y);
         const currentTurn = shogi.turn;
 
-        // === 持ち駒選択中（駒打ち） ===
         if (state.selectedPosition?.type === "hand") {
-          const isLegalDrop = state.legalMoves.some(
+          const dropMove = view.legalMoves.find(
             (m) => m.to.x === x && m.to.y === y,
           );
 
-          if (isLegalDrop) {
-            const dropMove = state.legalMoves.find(
-              (m) => m.to.x === x && m.to.y === y,
+          if (dropMove) {
+            const standardMove = fromIMove(
+              dropMove,
+              state.selectedPosition.kind,
+              state.selectedPosition.color,
             );
-            if (dropMove) {
-              const standardMove = fromIMove(
-                dropMove,
-                state.selectedPosition.kind,
-                state.selectedPosition.color,
-              );
-              await makeMove(standardMove);
-            }
+            await makeMove(standardMove);
+          } else {
+            dispatch({ type: "clear_selection" });
           }
-          dispatch({ type: "clear_selection" });
           return;
         }
 
-        // === 盤上駒選択中（移動） ===
         if (state.selectedPosition?.type === "square") {
           if (
             state.selectedPosition.x === x &&
@@ -404,42 +450,31 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             return;
           }
 
-          const isLegalMove = state.legalMoves.some(
+          const move = view.legalMoves.find(
             (m) => m.to.x === x && m.to.y === y,
           );
 
-          if (isLegalMove) {
-            const move = state.legalMoves.find(
-              (m) => m.to.x === x && m.to.y === y,
+          if (move) {
+            const fromPiece = shogi.get(
+              state.selectedPosition.x,
+              state.selectedPosition.y,
             );
-            if (move) {
-              const fromPiece = shogi.get(
-                state.selectedPosition.x,
-                state.selectedPosition.y,
+            if (fromPiece) {
+              const standardMove = fromIMove(
+                move,
+                fromPiece.kind,
+                fromPiece.color,
+                promote,
               );
-              if (fromPiece) {
-                const standardMove = fromIMove(
-                  move,
-                  fromPiece.kind,
-                  fromPiece.color,
-                  promote,
-                );
-                await makeMove(standardMove);
-              }
+              await makeMove(standardMove);
             }
-            dispatch({ type: "clear_selection" });
             return;
           }
 
-          // 合法手でない → 新しい駒選択 or クリア
           if (piece && piece.color === currentTurn) {
-            const legalMoves = moveValidator.getLegalMovesFrom(shogi, x, y);
             dispatch({
               type: "set_selection",
-              payload: {
-                selectedPosition: { type: "square", x, y },
-                legalMoves,
-              },
+              payload: { type: "square", x, y },
             });
           } else {
             dispatch({ type: "clear_selection" });
@@ -447,12 +482,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return;
         }
 
-        // === 何も選択していない（新規選択） ===
         if (piece && piece.color === currentTurn) {
-          const legalMoves = moveValidator.getLegalMovesFrom(shogi, x, y);
           dispatch({
             type: "set_selection",
-            payload: { selectedPosition: { type: "square", x, y }, legalMoves },
+            payload: { type: "square", x, y },
           });
         } else {
           dispatch({ type: "clear_selection" });
@@ -462,33 +495,27 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
       }
     },
-    [
-      state.jkfPlayer,
-      state.selectedPosition,
-      state.legalMoves,
-      moveValidator,
-      makeMove,
-    ],
+    [view.player, view.legalMoves, state.selectedPosition, makeMove],
   );
 
   const selectHand = useCallback(
     (color: Color, kind: Kind) => {
-      if (!state.jkfPlayer) return;
+      const player = view.player;
+      if (!player) return;
 
       try {
-        const shogi = state.jkfPlayer.shogi;
-        const currentTurn = shogi.turn;
-
+        const currentTurn = player.shogi.turn;
         if (color !== currentTurn) {
           dispatch({ type: "clear_selection" });
           return;
         }
 
         const legalMoves = moveValidator.getLegalDropsByKind(
-          shogi,
+          player.shogi,
           color,
           kind,
         );
+
         if (legalMoves.length === 0) {
           dispatch({ type: "clear_selection" });
           return;
@@ -496,122 +523,93 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         dispatch({
           type: "set_selection",
-          payload: {
-            selectedPosition: { type: "hand", color, kind },
-            legalMoves,
-          },
+          payload: { type: "hand", color, kind },
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to select hand";
         dispatch({ type: "set_error", payload: msg });
       }
     },
-    [moveValidator, state.jkfPlayer],
+    [view.player, moveValidator],
   );
 
   const clearSelection = useCallback(() => {
     dispatch({ type: "clear_selection" });
   }, []);
 
-  const setMode = useCallback((mode: GameMode) => {
-    dispatch({ type: "set_mode", payload: mode });
-    dispatch({ type: "clear_selection" });
-  }, []);
-
-  const isAtStart = useCallback(() => {
-    if (!state.jkfPlayer) return true;
-    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
-    return tesuu === 0;
-  }, [state.jkfPlayer, state.cursor?.tesuu]);
-
-  const isAtEnd = useCallback(() => {
-    if (!state.jkfPlayer) return true;
-    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
-    return tesuu >= leafTesuu;
-  }, [state.jkfPlayer, state.cursor?.tesuu, leafTesuu]);
-
-  const canGoForward = useCallback(() => {
-    if (!state.jkfPlayer) return false;
-    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
-    return tesuu < leafTesuu;
-  }, [state.jkfPlayer, state.cursor?.tesuu, leafTesuu]);
-
-  const canGoBackward = useCallback(() => {
-    if (!state.jkfPlayer) return false;
-    const tesuu = state.cursor?.tesuu ?? state.jkfPlayer.tesuu;
-    return tesuu > 0;
-  }, [state.jkfPlayer, state.cursor?.tesuu]);
-
-  const getCurrentTurn = useCallback(() => {
-    if (!state.jkfPlayer) return Color.Black;
-    try {
-      return state.jkfPlayer.shogi.turn;
-    } catch {
-      return Color.Black;
-    }
-  }, [state.jkfPlayer]);
-
-  const getCurrentMoveIndex = useCallback(() => {
-    if (!state.jkfPlayer) return 0;
-    try {
-      return state.jkfPlayer.tesuu;
-    } catch {
-      return 0;
-    }
-  }, [state.jkfPlayer]);
-
   const clearError = useCallback(() => {
     dispatch({ type: "clear_error" });
   }, []);
 
-  const isGameLoaded = useCallback(() => {
-    return state.jkfPlayer !== null;
-  }, [state.jkfPlayer]);
+  const isGameLoaded = useCallback(() => state.jkf !== null, [state.jkf]);
 
-  const getTotalMoves = useCallback(() => {
-    if (!state.jkfPlayer) return 0;
-    return leafTesuu;
-  }, [state.jkfPlayer, leafTesuu]);
+  const isAtStart = useCallback(() => {
+    return (state.cursor?.tesuu ?? 0) === 0;
+  }, [state.cursor]);
+
+  const isAtEnd = useCallback(() => {
+    return (state.cursor?.tesuu ?? 0) >= view.totalMoves;
+  }, [state.cursor, view.totalMoves]);
+
+  const canGoForward = useCallback(() => {
+    return (state.cursor?.tesuu ?? 0) < view.totalMoves;
+  }, [state.cursor, view.totalMoves]);
+
+  const canGoBackward = useCallback(() => {
+    return (state.cursor?.tesuu ?? 0) > 0;
+  }, [state.cursor]);
+
+  const getCurrentTurn = useCallback(
+    () => view.currentTurn,
+    [view.currentTurn],
+  );
+
+  const getCurrentMoveIndex = useCallback(() => {
+    return state.cursor?.tesuu ?? 0;
+  }, [state.cursor]);
+
+  const getTotalMoves = useCallback(() => view.totalMoves, [view.totalMoves]);
 
   const hasSelection = useCallback(() => {
     return state.selectedPosition !== null;
   }, [state.selectedPosition]);
 
-  const getCurrentMove = useCallback((): IMoveMoveFormat | undefined => {
-    if (!state.jkfPlayer) return undefined;
-    try {
-      if (state.jkfPlayer.tesuu === 0) return undefined;
-      return state.jkfPlayer.getMove();
-    } catch {
-      return undefined;
-    }
-  }, [state.jkfPlayer]);
+  const getCurrentMove = useCallback(() => {
+    return view.currentMove;
+  }, [view.currentMove]);
 
   const getCurrentComments = useCallback(() => {
-    if (!state.jkfPlayer) return [];
-    try {
-      const comments = state.jkfPlayer.getComments();
-      return Array.isArray(comments) ? comments : [];
-    } catch {
-      return [];
-    }
-  }, [state.jkfPlayer]);
+    return view.currentComments;
+  }, [view.currentComments]);
 
   const applyCursor = useCallback(
     (cursor: KifuCursor) => {
-      const jkf = state.jkfPlayer;
-      if (!jkf) return;
+      if (!state.jkf) return;
 
       try {
         dispatch({ type: "clear_error" });
-        jkf.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
-        commitFromPlayer(jkf, cursor);
+
+        const nextPlayer = buildPlayer(state.jkf, cursor);
+        const nextCursor = cursorFromPlayer(nextPlayer);
+        const nextBranchPlan = mergeBranchPlan(
+          nextCursor,
+          state.branchPlan,
+          cursor.forkPointers,
+        );
+
+        dispatch({
+          type: "navigated",
+          payload: {
+            cursor: nextCursor,
+            branchPlan: nextBranchPlan,
+          },
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to apply cursor";
         dispatch({ type: "set_error", payload: msg });
       }
     },
-    [state.jkfPlayer, commitFromPlayer],
+    [state.jkf, state.branchPlan],
   );
 
   const helpers: JKFPlayerHelpers = {
@@ -640,6 +638,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const contextValue: GameContextType = {
     state,
+    view,
     helpers,
     loadGame,
     resetGame,
@@ -654,7 +653,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     makeMove,
     swapBranches,
     deleteBranch,
-    setMode,
     clearError,
     isGameLoaded,
     isAtStart,
