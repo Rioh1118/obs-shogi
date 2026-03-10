@@ -2,11 +2,18 @@
 
 .live-md {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   min-height: 14rem;
 }
 
 .live-md__shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid index.$stroke;
   border-radius: 1.6rem;
@@ -21,6 +28,7 @@
 }
 
 .live-md__editor {
+  flex: 1;
   min-height: 14rem;
   padding: 1.2rem 1.4rem;
   outline: none;

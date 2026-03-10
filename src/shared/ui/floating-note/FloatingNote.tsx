@@ -12,6 +12,19 @@ type AnchoredPos = {
   placement: Placement;
 };
 
+type Geometry = { top: number; left: number; width: number; height: number };
+
+type InteractionType =
+  | "drag"
+  | "resize-n"
+  | "resize-s"
+  | "resize-e"
+  | "resize-w"
+  | "resize-ne"
+  | "resize-nw"
+  | "resize-se"
+  | "resize-sw";
+
 export type FloatingNoteProps = {
   open: boolean;
   anchorEl: HTMLElement | null;
@@ -37,7 +50,6 @@ function computeAnchoredPos(
   const margin = 8;
   const gap = 8;
 
-  // Clamp width to viewport
   const w = Math.min(width, vw - margin * 2);
   const left = clamp(rect.left, margin, Math.max(margin, vw - w - margin));
 
@@ -62,6 +74,10 @@ function computeAnchoredPos(
   };
 }
 
+const RESIZE_DIRS = [
+  "n", "s", "e", "w", "ne", "nw", "se", "sw",
+] as const;
+
 export default function FloatingNote({
   open,
   anchorEl,
@@ -74,13 +90,11 @@ export default function FloatingNote({
 }: FloatingNoteProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [anchoredPos, setAnchoredPos] = useState<AnchoredPos | null>(null);
-
-  const [dragPos, setDragPos] = useState<{ top: number; left: number } | null>(
-    null,
-  );
-  const isDraggingRef = useRef(false);
-  const dragStartRef = useRef({ mx: 0, my: 0, pt: 0, pl: 0 });
+  const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  const activeRef = useRef<InteractionType | null>(null);
+  const startRef = useRef({ mx: 0, my: 0, pt: 0, pl: 0, pw: 0, ph: 0 });
 
   useLayoutEffect(() => {
     if (!open || !anchorEl) return;
@@ -96,12 +110,12 @@ export default function FloatingNote({
 
   useEffect(() => {
     if (open) {
-      setDragPos(null);
+      setGeometry(null);
       setIsDragging(false);
     }
   }, [open, anchorEl]);
 
-  // Escape only — no outside-click close
+  // Escape only
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -115,21 +129,52 @@ export default function FloatingNote({
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      if (!isDraggingRef.current) return;
-      const { mx, my, pt, pl } = dragStartRef.current;
-      const panel = panelRef.current;
+      const type = activeRef.current;
+      if (!type) return;
+      const { mx, my, pt, pl, pw, ph } = startRef.current;
+      const dx = e.clientX - mx;
+      const dy = e.clientY - my;
+      const m = 4;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const pw = panel?.offsetWidth ?? width;
-      const ph = panel?.offsetHeight ?? 300;
-      const m = 4;
-      setDragPos({
-        top: clamp(pt + e.clientY - my, m, vh - ph - m),
-        left: clamp(pl + e.clientX - mx, m, vw - pw - m),
-      });
+      const minW = 280;
+      const minH = 180;
+
+      if (type === "drag") {
+        setGeometry((g) => ({
+          top: clamp(pt + dy, m, vh - ph - m),
+          left: clamp(pl + dx, m, vw - pw - m),
+          width: g?.width ?? pw,
+          height: g?.height ?? ph,
+        }));
+        return;
+      }
+
+      let newTop = pt;
+      let newLeft = pl;
+      let newWidth = pw;
+      let newHeight = ph;
+
+      if (type.includes("e")) {
+        newWidth = clamp(pw + dx, minW, vw - pl - m);
+      }
+      if (type.includes("w")) {
+        newLeft = clamp(pl + dx, m, pl + pw - minW);
+        newWidth = pl + pw - newLeft;
+      }
+      if (type.includes("s")) {
+        newHeight = clamp(ph + dy, minH, vh - pt - m);
+      }
+      if (type.includes("n")) {
+        newTop = clamp(pt + dy, m, pt + ph - minH);
+        newHeight = pt + ph - newTop;
+      }
+
+      setGeometry({ top: newTop, left: newLeft, width: newWidth, height: newHeight });
     };
+
     const onUp = () => {
-      isDraggingRef.current = false;
+      activeRef.current = null;
       setIsDragging(false);
     };
     window.addEventListener("pointermove", onMove);
@@ -138,21 +183,26 @@ export default function FloatingNote({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [width]);
+  }, []);
 
-  const onHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+  const startInteraction = (
+    e: React.PointerEvent,
+    type: InteractionType,
+  ) => {
     if (e.button !== 0) return;
     const panel = panelRef.current;
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
-    isDraggingRef.current = true;
-    setIsDragging(true);
-    dragStartRef.current = {
+    activeRef.current = type;
+    startRef.current = {
       mx: e.clientX,
       my: e.clientY,
       pt: rect.top,
       pl: rect.left,
+      pw: rect.width,
+      ph: rect.height,
     };
+    if (type === "drag") setIsDragging(true);
     e.preventDefault();
   };
 
@@ -167,34 +217,33 @@ export default function FloatingNote({
       .join(" ");
   }, [anchoredPos?.placement, isDragging, className]);
 
-  const effectiveWidth = Math.min(
-    width,
-    typeof window !== "undefined" ? window.innerWidth - 16 : width,
-  );
-
   const style = useMemo(() => {
-    if (dragPos) {
-      const vh = window.innerHeight;
+    if (geometry) {
       return {
-        width: effectiveWidth,
-        top: dragPos.top,
-        left: dragPos.left,
+        top: geometry.top,
+        left: geometry.left,
+        width: geometry.width,
+        height: geometry.height,
         bottom: undefined,
-        maxHeight: Math.max(140, vh - dragPos.top - 8),
+        maxHeight: undefined,
       };
     }
-    if (!anchoredPos) return { width: effectiveWidth };
+    const w = Math.min(
+      width,
+      typeof window !== "undefined" ? window.innerWidth - 16 : width,
+    );
+    if (!anchoredPos) return { width: w };
     return {
-      width: effectiveWidth,
+      width: w,
       top: anchoredPos.top,
       left: anchoredPos.left,
       bottom: anchoredPos.bottom,
       maxHeight: anchoredPos.maxHeight,
     };
-  }, [dragPos, anchoredPos, effectiveWidth]);
+  }, [geometry, anchoredPos, width]);
 
   if (!open || !anchorEl || typeof document === "undefined") return null;
-  if (!anchoredPos && !dragPos) return null;
+  if (!anchoredPos && !geometry) return null;
 
   return createPortal(
     <div
@@ -206,9 +255,10 @@ export default function FloatingNote({
     >
       <div
         className="floating-note__header"
-        onPointerDown={onHeaderPointerDown}
+        onPointerDown={(e) => startInteraction(e, "drag")}
       >
         <div className="floating-note__title">{title}</div>
+        <div className="floating-note__drag-grip" aria-hidden="true" />
         <div className="floating-note__header-right">
           {headerRight}
           <button
@@ -223,6 +273,17 @@ export default function FloatingNote({
         </div>
       </div>
       <div className="floating-note__body">{children}</div>
+
+      {RESIZE_DIRS.map((dir) => (
+        <div
+          key={dir}
+          className={`floating-note__resize floating-note__resize--${dir}`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            startInteraction(e, `resize-${dir}` as InteractionType);
+          }}
+        />
+      ))}
     </div>,
     document.body,
   );

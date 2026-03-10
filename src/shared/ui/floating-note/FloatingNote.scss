@@ -24,6 +24,7 @@
 }
 
 .floating-note__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -33,12 +34,30 @@
   padding: 0.4rem 0.4rem 0.4rem 1.2rem;
 
   border-bottom: 1px solid index.$stroke-weak;
-  cursor: grab;
+  cursor: default;
   user-select: none;
 }
 
+// Centered drag grip — fades in on header hover
+.floating-note__drag-grip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.4rem;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(index.$color-text-primary, 0);
+  pointer-events: none;
+  transition: background 150ms ease;
+}
+
+.floating-note__header:hover .floating-note__drag-grip {
+  background: rgba(index.$color-text-primary, 0.18);
+}
+
 .floating-note--dragging .floating-note__header {
-  cursor: grabbing;
+  cursor: move;
 }
 
 .floating-note__title {
@@ -79,9 +98,87 @@
 .floating-note__body {
   flex: 1;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: 1.2rem;
 }
+
+// ── Resize handles — invisible interaction strips ──────────────────────────
+
+.floating-note__resize {
+  position: absolute;
+  z-index: 10;
+}
+
+// Edges
+.floating-note__resize--n {
+  top: 0;
+  left: 2rem;
+  right: 2rem;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.floating-note__resize--s {
+  bottom: 0;
+  left: 2rem;
+  right: 2rem;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.floating-note__resize--e {
+  right: 0;
+  top: 2rem;
+  bottom: 2rem;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.floating-note__resize--w {
+  left: 0;
+  top: 2rem;
+  bottom: 2rem;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+// Corners — higher z-index to win over edge handles
+.floating-note__resize--ne,
+.floating-note__resize--nw,
+.floating-note__resize--se,
+.floating-note__resize--sw {
+  z-index: 11;
+  width: 2rem;
+  height: 2rem;
+}
+
+.floating-note__resize--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.floating-note__resize--nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.floating-note__resize--se {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+
+.floating-note__resize--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 
 .floating-note--bottom {
   transform-origin: top left;
