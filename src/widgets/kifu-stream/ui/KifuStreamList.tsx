@@ -126,7 +126,7 @@ export default function KifuStreamList() {
       const cursor = buildCursorWithForkSelection(
         plannedCursor,
         row.te,
-        branchIndexFromRow(row),
+        row.selectedForkIndex,
       );
 
       setOpenFork(null);
@@ -296,7 +296,7 @@ export default function KifuStreamList() {
             buildCursorWithForkSelection(
               plannedCursor ?? state.cursor!,
               r.te,
-              branchIndexFromRow(r),
+              r.selectedForkIndex,
             ).tesuuPointer;
 
           return (
