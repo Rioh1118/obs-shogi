@@ -19,8 +19,13 @@ export type TesuuPointer = string & { readonly __brand: "TesuuPointer" };
 /**
  * アプリ側で保持する「公式カーソル」
  * 現在局面を一意に表現し、UIの再描画やデバッグに使う。
+ *
+ * 注意:
+ * - forkPointers は「現在局面までの分岐履歴」だけでなく、
+ *   将来 forward するときに使う分岐計画も含みうる。
+ * - 実際に current position を player に適用するときは
+ *   appliedForkPointers(cursor, cursor.tesuu) を使う。
  */
-
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
   tesuu: number;

@@ -1,0 +1,55 @@
+@use "@/index.scss" as index;
+
+.kifu-comment-note__root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.kifu-comment-note__titlebar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.kifu-comment-note__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2rem;
+  padding: 0 0.72rem;
+  border-radius: 999px;
+
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.kifu-comment-note__pill--label {
+  background: rgba(index.$color-white, 0.05);
+  color: rgba(index.$color-text-light-1, 0.86);
+
+  svg {
+    flex-shrink: 0;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+}
+
+.kifu-comment-note__pill--meta {
+  background: rgba(index.$color-white, 0.035);
+  color: rgba(index.$color-text-primary, 0.74);
+}
+
+.kifu-comment-note__status {
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.65rem;
+  font-size: 1.08rem;
+  color: rgba(index.$color-text-primary, 0.28);
+  pointer-events: none;
+}

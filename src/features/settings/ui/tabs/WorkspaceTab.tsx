@@ -67,15 +67,18 @@ export default function WorkspaceTab() {
 
   const badge = useMemo(() => badgeForIndexState(idx.state), [idx.state]);
 
+  const progressTotal =
+    idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
+
   const showProgress =
     (idx.state === "Restoring" ||
       idx.state === "Building" ||
       idx.state === "Updating") &&
-    idx.totalFiles > 0;
+    progressTotal > 0;
 
   const pct = useMemo(
-    () => percent(idx.doneFiles, idx.totalFiles),
-    [idx.doneFiles, idx.totalFiles],
+    () => percent(idx.doneFiles, progressTotal),
+    [idx.doneFiles, progressTotal],
   );
 
   // root_dir 変更の儀式
@@ -153,7 +156,7 @@ export default function WorkspaceTab() {
             <div className="wsTab__progressMeta">
               <div className="wsTab__progressLeft">
                 {idx.doneFiles.toLocaleString()} /{" "}
-                {idx.totalFiles.toLocaleString()} files
+                {progressTotal.toLocaleString()} files
                 <span className="wsTab__pct">{pct}%</span>
               </div>
 

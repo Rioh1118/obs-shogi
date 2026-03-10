@@ -2,7 +2,6 @@ import {
   openProject as openProjectApi,
   listenSearchEvents,
   searchPosition as searchPositionApi,
-  searchPositionBestEffort,
 } from "../api/tauri";
 import {
   useCallback,
@@ -17,6 +16,7 @@ import { useAppConfig } from "@/entities/app-config";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  Consistency,
   OpenProjectOutput,
   SearchPositionInput,
   SearchPositionOutput,
@@ -42,7 +42,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
-  // open 多重対策
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
   // --- event listeners ---
@@ -120,37 +119,67 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
-      // ここでは invoke 結果を返すだけ。begin/chunk/end はイベントで state に積まれる。
-      return await searchPositionApi(input);
+      const out = await searchPositionApi(input);
+
+      dispatch({
+        type: "search_requested",
+        payload: {
+          requestId: out.request_id,
+          sfen: input.sfen,
+          consistency: input.consistency,
+        },
+      });
+
+      return out;
     },
     [],
   );
 
   const searchCurrentPositionBestEffort = useCallback(
-    async (chunkSize: number = 5000): Promise<SearchPositionOutput> => {
+    async (opts?: {
+      chunkSize?: number;
+      consistency?: Consistency;
+    }): Promise<SearchPositionOutput> => {
       if (!currentSfen) throw new Error("No current SFEN");
-      return await searchPositionBestEffort(currentSfen, chunkSize);
+      return await searchPosition({
+        sfen: currentSfen,
+        consistency: opts?.consistency ?? "BestEffort",
+        chunk_size: opts?.chunkSize ?? 5000,
+      });
     },
-    [currentSfen],
+    [currentSfen, searchPosition],
   );
 
-  // --- helpers ---
-  const getCurrentSession = useCallback((): SearchSession | null => {
-    if (!state.currentRequestId) return null;
-    return state.sessions[state.currentRequestId] ?? null;
-  }, [state.currentRequestId, state.sessions]);
+  const getSessionByRequestId = useCallback(
+    (requestId: RequestId | null | undefined): SearchSession | null => {
+      if (requestId == null) return null;
+      return state.sessions[requestId] ?? null;
+    },
+    [state.sessions],
+  );
 
-  const getHits = useCallback((): PositionHit[] => {
-    const s = state.currentRequestId
-      ? state.sessions[state.currentRequestId]
-      : null;
-    return s?.hits ?? [];
-  }, [state.currentRequestId, state.sessions]);
+  const getHitsByRequestId = useCallback(
+    (requestId: RequestId | null | undefined): PositionHit[] => {
+      if (requestId == null) return [];
+      return state.sessions[requestId]?.hits ?? [];
+    },
+    [state.sessions],
+  );
+
+  const isSearchingRequest = useCallback(
+    (requestId: RequestId | null | undefined): boolean => {
+      if (requestId == null) return false;
+      const s = state.sessions[requestId];
+      return !!s && !s.isDone;
+    },
+    [state.sessions],
+  );
 
   const getAbsPathByFileId = useCallback(
     (fileId: number): string | null => state.filePathById[fileId] ?? null,
     [state.filePathById],
   );
+
   const resolveHitAbsPath = useCallback(
     (hit: PositionHit): string | null =>
       state.filePathById[hit.occ.file_id] ?? null,
@@ -170,8 +199,9 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
       openProject,
       searchPosition,
       searchCurrentPositionBestEffort,
-      getCurrentSession,
-      getHits,
+      getSessionByRequestId,
+      getHitsByRequestId,
+      isSearchingRequest,
       getAbsPathByFileId,
       resolveHitAbsPath,
       clearWarns,
@@ -182,8 +212,9 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
       openProject,
       searchPosition,
       searchCurrentPositionBestEffort,
-      getCurrentSession,
-      getHits,
+      getSessionByRequestId,
+      getHitsByRequestId,
+      isSearchingRequest,
       getAbsPathByFileId,
       resolveHitAbsPath,
       clearWarns,

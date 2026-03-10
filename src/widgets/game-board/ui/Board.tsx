@@ -9,12 +9,12 @@ import PromotionDialog from "./PromotionDialog";
 import { useGame, type ShogiMove } from "@/entities/game";
 
 function Board() {
-  const { state, helpers, selectSquare, clearSelection } = useGame();
+  const { state, view, helpers, selectSquare, clearSelection } = useGame();
 
-  const shogi = state.jkfPlayer?.shogi;
+  const shogi = view.player?.shogi;
   const selectedPosition = state.selectedPosition;
-  const legalMoves = state.legalMoves;
-  const lastMove = state.lastMove;
+  const legalMoves = view.legalMoves;
+  const lastMove = view.lastMove;
 
   const [promotionState, setPromotionState] = useState<{
     x: number;
@@ -28,7 +28,7 @@ function Board() {
   // 局面変化を監視してダイアログを自動で閉じる
   useEffect(() => {
     if (promotionState && shogi) {
-      const currentMoveCount = state.jkfPlayer?.tesuu || 0;
+      const currentMoveCount = view.player?.tesuu || 0;
 
       // 手数が変わった = 他の操作で局面が変化した
       if (currentMoveCount !== promotionState.moveCount) {
@@ -37,7 +37,7 @@ function Board() {
         clearSelection();
       }
     }
-  }, [promotionState, state.jkfPlayer?.tesuu, shogi, clearSelection]);
+  }, [promotionState, view.player?.tesuu, shogi, clearSelection]);
 
   // 選択位置の変化を監視
   useEffect(() => {
@@ -65,7 +65,7 @@ function Board() {
     selectedPosition.y === y;
 
   const handleSquareClick = async (x: number, y: number) => {
-    if (!state.jkfPlayer) return;
+    if (!view.player) return;
 
     if (promotionState) {
       return;
@@ -98,8 +98,8 @@ function Board() {
         };
 
         // 成り判定
-        const canPromote = helpers.canPromoteMove(state.jkfPlayer, shogiMove);
-        const mustPromote = helpers.mustPromoteMove(state.jkfPlayer, shogiMove);
+        const canPromote = helpers.canPromoteMove(view.player, shogiMove);
+        const mustPromote = helpers.mustPromoteMove(view.player, shogiMove);
 
         let promote: boolean | undefined = undefined;
 
@@ -113,7 +113,7 @@ function Board() {
               y,
               jkfKind: fromPiece.kind,
               color: fromPiece.color,
-              moveCount: state.jkfPlayer?.tesuu || 0,
+              moveCount: view.player?.tesuu || 0,
               resolve,
             });
           });
