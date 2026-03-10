@@ -2,7 +2,7 @@
 
 .live-md {
   position: relative;
-  min-height: 30rem;
+  min-height: 14rem;
 }
 
 .live-md__shell {
@@ -21,8 +21,8 @@
 }
 
 .live-md__editor {
-  min-height: 30rem;
-  padding: 1.6rem 1.7rem;
+  min-height: 14rem;
+  padding: 1.2rem 1.4rem;
   outline: none;
   color: index.$color-text-light-1;
   font-size: 1.45rem;
@@ -40,7 +40,7 @@
 .live-md__placeholder {
   pointer-events: none;
   position: absolute;
-  inset: 1.6rem 1.7rem auto 1.7rem;
+  inset: 1.2rem 1.4rem auto 1.4rem;
   color: rgba(index.$color-text-primary, 0.4);
   font-size: 1.45rem;
   line-height: 1.9;

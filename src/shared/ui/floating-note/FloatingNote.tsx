@@ -27,24 +27,29 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function computeAnchoredPos(anchorEl: HTMLElement, width: number): AnchoredPos {
+function computeAnchoredPos(
+  anchorEl: HTMLElement,
+  width: number,
+): AnchoredPos {
   const rect = anchorEl.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const margin = 8;
   const gap = 8;
 
-  const left = clamp(rect.left, margin, Math.max(margin, vw - width - margin));
+  // Clamp width to viewport
+  const w = Math.min(width, vw - margin * 2);
+  const left = clamp(rect.left, margin, Math.max(margin, vw - w - margin));
 
   const spaceBelow = vh - rect.bottom - gap - margin;
   const spaceAbove = rect.top - gap - margin;
-  const placeBelow = spaceBelow >= 220 || spaceBelow >= spaceAbove;
+  const placeBelow = spaceBelow >= 180 || spaceBelow >= spaceAbove;
 
   if (placeBelow) {
     return {
       left,
       top: rect.bottom + gap,
-      maxHeight: Math.max(160, spaceBelow),
+      maxHeight: Math.max(140, spaceBelow),
       placement: "bottom",
     };
   }
@@ -52,7 +57,7 @@ function computeAnchoredPos(anchorEl: HTMLElement, width: number): AnchoredPos {
   return {
     left,
     bottom: vh - rect.top + gap,
-    maxHeight: Math.max(160, spaceAbove),
+    maxHeight: Math.max(140, spaceAbove),
     placement: "top",
   };
 }
@@ -63,14 +68,13 @@ export default function FloatingNote({
   onClose,
   title,
   headerRight,
-  width = 420,
+  width = 400,
   className,
   children,
 }: FloatingNoteProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [anchoredPos, setAnchoredPos] = useState<AnchoredPos | null>(null);
 
-  // Drag: absolute position override (top/left, set once drag starts)
   const [dragPos, setDragPos] = useState<{ top: number; left: number } | null>(
     null,
   );
@@ -78,7 +82,6 @@ export default function FloatingNote({
   const dragStartRef = useRef({ mx: 0, my: 0, pt: 0, pl: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
-  // Recompute anchor position
   useLayoutEffect(() => {
     if (!open || !anchorEl) return;
     const update = () => setAnchoredPos(computeAnchoredPos(anchorEl, width));
@@ -91,7 +94,6 @@ export default function FloatingNote({
     };
   }, [open, anchorEl, width]);
 
-  // Reset drag when reopened
   useEffect(() => {
     if (open) {
       setDragPos(null);
@@ -99,29 +101,18 @@ export default function FloatingNote({
     }
   }, [open, anchorEl]);
 
-  // Outside click / Escape
+  // Escape only — no outside-click close
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const path = e.composedPath();
-      if (panelRef.current && path.includes(panelRef.current)) return;
-      if (anchorEl && path.includes(anchorEl)) return;
-      onClose();
-    };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
       onClose();
     };
-    document.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, anchorEl, onClose]);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
 
-  // Global pointer events for drag
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       if (!isDraggingRef.current) return;
@@ -130,7 +121,7 @@ export default function FloatingNote({
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const pw = panel?.offsetWidth ?? width;
-      const ph = panel?.offsetHeight ?? 320;
+      const ph = panel?.offsetHeight ?? 300;
       const m = 4;
       setDragPos({
         top: clamp(pt + e.clientY - my, m, vh - ph - m),
@@ -176,42 +167,60 @@ export default function FloatingNote({
       .join(" ");
   }, [anchoredPos?.placement, isDragging, className]);
 
+  const effectiveWidth = Math.min(
+    width,
+    typeof window !== "undefined" ? window.innerWidth - 16 : width,
+  );
+
   const style = useMemo(() => {
     if (dragPos) {
       const vh = window.innerHeight;
-      const ph = panelRef.current?.offsetHeight ?? 320;
       return {
-        width,
+        width: effectiveWidth,
         top: dragPos.top,
         left: dragPos.left,
         bottom: undefined,
-        maxHeight: Math.max(160, vh - dragPos.top - 8),
-        minHeight: Math.min(ph, 160),
+        maxHeight: Math.max(140, vh - dragPos.top - 8),
       };
     }
-    if (!anchoredPos) return { width };
+    if (!anchoredPos) return { width: effectiveWidth };
     return {
-      width,
+      width: effectiveWidth,
       top: anchoredPos.top,
       left: anchoredPos.left,
       bottom: anchoredPos.bottom,
       maxHeight: anchoredPos.maxHeight,
     };
-  }, [dragPos, anchoredPos, width]);
+  }, [dragPos, anchoredPos, effectiveWidth]);
 
   if (!open || !anchorEl || typeof document === "undefined") return null;
   if (!anchoredPos && !dragPos) return null;
 
   return createPortal(
-    <div ref={panelRef} className={panelClassName} style={style} role="dialog" aria-modal="false">
+    <div
+      ref={panelRef}
+      className={panelClassName}
+      style={style}
+      role="dialog"
+      aria-modal="false"
+    >
       <div
         className="floating-note__header"
         onPointerDown={onHeaderPointerDown}
       >
         <div className="floating-note__title">{title}</div>
-        {headerRight != null && (
-          <div className="floating-note__header-right">{headerRight}</div>
-        )}
+        <div className="floating-note__header-right">
+          {headerRight}
+          <button
+            type="button"
+            className="floating-note__close"
+            onClick={onClose}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label="閉じる"
+          >
+            ×
+          </button>
+        </div>
       </div>
       <div className="floating-note__body">{children}</div>
     </div>,

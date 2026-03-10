@@ -122,7 +122,7 @@ export default function KifuCommentNote({
       onClose={() => void handleRequestClose()}
       title={title}
       headerRight={headerRight}
-      width={480}
+      width={400}
       className="kifu-comment-note"
     >
       <div className="kifu-comment-note__root">
