@@ -70,7 +70,7 @@ export default function KifuCommentNote({
   }, [cursor, dirty, handleSave, isSaving, onClose]);
 
   const title = cursor ? `コメント · ${cursor.tesuu}手目` : "コメント";
-  const editorKey = `${cursorToStableKey(cursor)}::${sourceText}`;
+  const editorKey = cursorToStableKey(cursor);
 
   return (
     <FloatingNote

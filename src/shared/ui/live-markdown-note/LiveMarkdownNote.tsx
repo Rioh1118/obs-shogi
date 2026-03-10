@@ -34,7 +34,7 @@ function Placeholder({ text }: { text: string }) {
 
 export default function LiveMarkdownNote({
   initialMarkdown = "",
-  placeholder = "# 方針\n- 狙い\n- 候補手\n\n考察を書く...",
+  placeholder = "",
   autoFocus = true,
   className,
   onMarkdownChange,
