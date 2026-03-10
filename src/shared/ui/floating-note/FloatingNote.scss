@@ -1,0 +1,55 @@
+@use "@/index.scss" as index;
+
+.floating-note {
+  position: fixed;
+  z-index: 1200;
+  overflow: hidden;
+
+  border: 1px solid index.$stroke;
+  border-radius: 1.8rem;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(index.$color-primary-light, 0.96),
+      rgba(index.$color-primary-black, 0.985)
+    ),
+    rgba(index.$color-primary-black, 0.98);
+  backdrop-filter: blur(18px);
+
+  box-shadow: index.$shadow-1;
+  color: index.$color-text-primary;
+}
+
+.floating-note__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  min-height: 4.6rem;
+  padding: 1.2rem 1.4rem 1rem;
+
+  border-bottom: 1px solid index.$stroke-weak;
+}
+
+.floating-note__title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: index.$color-text-light-1;
+}
+
+.floating-note__body {
+  min-height: 0;
+  max-height: inherit;
+  overflow: auto;
+  padding: 1.2rem;
+}
+
+.floating-note--bottom {
+  transform-origin: top left;
+}
+
+.floating-note--top {
+  transform-origin: bottom left;
+}

@@ -1,0 +1,117 @@
+@use "@/index.scss" as index;
+
+.live-md {
+  position: relative;
+  min-height: 30rem;
+}
+
+.live-md__shell {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid index.$stroke;
+  border-radius: 1.6rem;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(index.$color-primary-dark, 0.92),
+      rgba(index.$color-primary-black, 0.98)
+    ),
+    index.$color-primary-black;
+  box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.04);
+}
+
+.live-md__editor {
+  min-height: 30rem;
+  padding: 1.6rem 1.7rem;
+  outline: none;
+  color: index.$color-text-light-1;
+  font-size: 1.45rem;
+  line-height: 1.9;
+  caret-color: index.$color-secondary-dark;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.live-md__editor:focus {
+  box-shadow: inset 0 0 0 1px rgba(index.$color-secondary-dark, 0.26);
+  border-radius: 1.6rem;
+}
+
+.live-md__placeholder {
+  pointer-events: none;
+  position: absolute;
+  inset: 1.6rem 1.7rem auto 1.7rem;
+  color: rgba(index.$color-text-primary, 0.4);
+  font-size: 1.45rem;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.live-md__paragraph {
+  margin: 0 0 0.9rem;
+}
+
+.live-md__paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.live-md__h1,
+.live-md__h2,
+.live-md__h3 {
+  margin: 1.6rem 0 0.8rem;
+  font-weight: 800;
+  color: index.$color-white;
+  letter-spacing: 0.01em;
+}
+
+.live-md__h1 {
+  font-size: 2rem;
+}
+
+.live-md__h2 {
+  font-size: 1.75rem;
+}
+
+.live-md__h3 {
+  font-size: 1.55rem;
+}
+
+.live-md__quote {
+  margin: 1.2rem 0;
+  padding: 0.2rem 0 0.2rem 1.2rem;
+  border-left: 3px solid rgba(index.$color-secondary-dark, 0.9);
+  color: rgba(index.$color-text-primary, 0.9);
+}
+
+.live-md__ul,
+.live-md__ol {
+  margin: 0.8rem 0 1rem 1.8rem;
+  padding: 0;
+}
+
+.live-md__li {
+  margin: 0.35rem 0;
+}
+
+.live-md__liNested {
+  list-style-type: circle;
+}
+
+.live-md__textBold {
+  font-weight: 800;
+  color: index.$color-white;
+}
+
+.live-md__textCode {
+  display: inline-block;
+  margin: 0 0.1rem;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid rgba(index.$color-white, 0.08);
+  border-radius: 0.8rem;
+  background: rgba(index.$color-white, 0.05);
+  box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.03);
+  font-family:
+    "SF Mono", "JetBrains Mono", "Menlo", "Monaco", "Noto Sans JP", monospace;
+  font-size: 0.92em;
+  color: index.$color-secondary-light;
+}

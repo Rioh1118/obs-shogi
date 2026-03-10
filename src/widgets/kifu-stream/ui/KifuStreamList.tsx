@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import type { ForkPointer } from "@/entities/kifu/model/cursor";
+import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
-import KifuMoveCard from "./KifuMoveCard";
+import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { cloneJKF } from "../lib/cloneJKF";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
 import {
@@ -13,10 +13,14 @@ import {
   buildCursorWithForkSelection,
 } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
+import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
-
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
+type OpenCommentNote = {
+  cursor: KifuCursor;
+  anchorEl: HTMLButtonElement;
+};
 
 export default function KifuStreamList() {
   const {
@@ -34,12 +38,12 @@ export default function KifuStreamList() {
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
+  const [openComment, setOpenComment] = useState<OpenCommentNote | null>(null);
+
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
+
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
-  const toggleMoveMenu = useCallback((te: number, anchorRect: DOMRect) => {
-    setOpenMoveMenu((prev) => (prev?.te === te ? null : { te, anchorRect }));
-  }, []);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
   const plannedCursor = useMemo(() => {
@@ -59,12 +63,22 @@ export default function KifuStreamList() {
   const totalMoves = view.player ? getTotalMoves() : 0;
   const currentTesuu = state.cursor?.tesuu ?? 0;
 
+  const closeCommentNote = useCallback(() => {
+    setOpenComment(null);
+  }, []);
+
   const closeForkMenu = useCallback((focusAnchor: boolean) => {
     const anchor = lastAnchorRef.current;
     setOpenFork(null);
     if (focusAnchor) {
       requestAnimationFrame(() => anchor?.focus());
     }
+  }, []);
+
+  const toggleMoveMenu = useCallback((te: number, anchorRect: DOMRect) => {
+    setOpenFork(null);
+    setOpenComment(null);
+    setOpenMoveMenu((prev) => (prev?.te === te ? null : { te, anchorRect }));
   }, []);
 
   const onSwapBranch = useCallback(
@@ -76,13 +90,11 @@ export default function KifuStreamList() {
     ) => {
       const a = branchIndex;
       const b = dir === "up" ? branchIndex - 1 : branchIndex + 1;
-
-      // 念のためガード（UI側でも canUp/canDown してるが二重で）
       if (b < 0) return;
 
       const q: SwapQuery = {
         te,
-        forkPointers: branchForkPointers, // 規約: p.te < te
+        forkPointers: branchForkPointers,
         a,
         b,
       };
@@ -107,15 +119,30 @@ export default function KifuStreamList() {
     [deleteBranch],
   );
 
+  const onOpenComment = useCallback(
+    (row: RowModel, anchorEl: HTMLButtonElement) => {
+      if (!plannedCursor) return;
+
+      const cursor = buildCursorWithForkSelection(
+        plannedCursor,
+        row.te,
+        branchIndexFromRow(row),
+      );
+
+      setOpenFork(null);
+      setOpenMoveMenu(null);
+      setOpenComment({ cursor, anchorEl });
+    },
+    [plannedCursor],
+  );
+
   useEffect(() => {
     if (!openMoveMenu) return;
 
     const onDocPointerDown = (e: PointerEvent) => {
       const path = e.composedPath();
       const menuEl = moveMenuRef.current;
-
       if (menuEl && path.includes(menuEl)) return;
-
       setOpenMoveMenu(null);
     };
 
@@ -123,7 +150,6 @@ export default function KifuStreamList() {
     return () => document.removeEventListener("pointerdown", onDocPointerDown);
   }, [openMoveMenu]);
 
-  // outside click / ESC
   useEffect(() => {
     if (!openFork) return;
 
@@ -154,7 +180,6 @@ export default function KifuStreamList() {
     };
   }, [openFork, closeForkMenu]);
 
-  // active row scroll follow
   useEffect(() => {
     const scroller = listRef.current;
     const rowEl = activeRowRef.current;
@@ -172,12 +197,14 @@ export default function KifuStreamList() {
       : dt < 120
         ? "auto"
         : "smooth";
+
     scrollToRowSafeZone(scroller, rowEl, behavior);
   }, [state.cursor?.tesuuPointer]);
 
   const onClickRow = useCallback(
     (te: number) => {
       closeForkMenu(false);
+      setOpenMoveMenu(null);
       goToIndex(te);
     },
     [goToIndex, closeForkMenu],
@@ -186,6 +213,8 @@ export default function KifuStreamList() {
   const onToggleForkMenu = useCallback(
     (te: number, anchorEl: HTMLButtonElement) => {
       lastAnchorRef.current = anchorEl;
+      setOpenComment(null);
+      setOpenMoveMenu(null);
       setOpenFork((prev) => {
         if (prev?.te === te) return null;
         return { te, anchorEl };
@@ -233,6 +262,7 @@ export default function KifuStreamList() {
           手数 {currentTesuu}/{totalMoves}
         </span>
       </div>
+
       <KifuMoveActions
         open={!!openMoveMenu}
         busy={state.isLoading}
@@ -246,15 +276,28 @@ export default function KifuStreamList() {
           if (!r) return;
 
           const branchIndex = branchIndexFromRow(r);
-          onDeleteBranch(te, r.branchForkPointers, branchIndex);
-
+          void onDeleteBranch(te, r.branchForkPointers, branchIndex);
           setOpenMoveMenu(null);
         }}
       />
 
+      <KifuCommentNote
+        open={!!openComment}
+        cursor={openComment?.cursor ?? null}
+        anchorEl={openComment?.anchorEl ?? null}
+        onClose={closeCommentNote}
+      />
+
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {
-          const isOpen = openFork?.te === r.te;
+          const isForkOpen = openFork?.te === r.te;
+          const isCommentOpen =
+            openComment?.cursor.tesuuPointer ===
+            buildCursorWithForkSelection(
+              plannedCursor ?? state.cursor!,
+              r.te,
+              branchIndexFromRow(r),
+            ).tesuuPointer;
 
           return (
             <KifuMoveCard
@@ -262,14 +305,16 @@ export default function KifuStreamList() {
               ref={r.isActive ? activeRowRef : undefined}
               row={r}
               busy={state.isLoading}
-              isForkMenuOpen={isOpen}
-              openForkAnchorEl={isOpen ? openFork?.anchorEl : null}
+              isForkMenuOpen={isForkOpen}
+              isCommentOpen={isCommentOpen}
+              openForkAnchorEl={isForkOpen ? openFork?.anchorEl : null}
               forkMenuRef={forkMenuRef}
               onClickRow={onClickRow}
               onToggleForkMenu={onToggleForkMenu}
               onSelectFork={onSelectFork}
               onRequestOpenMoveMenu={(te, rect) => toggleMoveMenu(te, rect)}
               onRequestCloseForkMenu={() => closeForkMenu(true)}
+              onOpenComment={onOpenComment}
               onSwapBranch={onSwapBranch}
               onDeleteBranch={onDeleteBranch}
             />

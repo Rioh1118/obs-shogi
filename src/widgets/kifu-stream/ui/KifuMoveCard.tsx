@@ -1,4 +1,5 @@
 import { forwardRef, memo, useCallback, useId, useMemo } from "react";
+import { GitBranch, MessageSquare } from "lucide-react";
 import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
 import "./KifuForkMenu.scss";
@@ -24,6 +25,7 @@ type Props = {
   busy: boolean;
 
   isForkMenuOpen: boolean;
+  isCommentOpen: boolean;
   openForkAnchorEl: HTMLButtonElement | null;
   forkMenuRef: React.RefObject<HTMLDivElement | null>;
   onRequestOpenMoveMenu: (te: number, anchorRect: DOMRect) => void;
@@ -32,6 +34,8 @@ type Props = {
   onToggleForkMenu: (te: number, anchorEl: HTMLButtonElement) => void;
   onSelectFork: (te: number, forkIndex: number | null) => void;
   onRequestCloseForkMenu: () => void;
+  onOpenComment: (row: RowModel, anchorEl: HTMLButtonElement) => void;
+
   onSwapBranch: (
     te: number,
     branchForkPointers: ForkPointer[],
@@ -58,6 +62,7 @@ const KifuMoveCard = memo(
       row,
       busy,
       isForkMenuOpen,
+      isCommentOpen,
       openForkAnchorEl,
       forkMenuRef,
       onClickRow,
@@ -65,6 +70,7 @@ const KifuMoveCard = memo(
       onSelectFork,
       onRequestCloseForkMenu,
       onRequestOpenMoveMenu,
+      onOpenComment,
       onSwapBranch,
       onDeleteBranch,
     },
@@ -106,6 +112,15 @@ const KifuMoveCard = memo(
       [busy, onToggleForkMenu, row.te],
     );
 
+    const onClickComment = useCallback(
+      (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
+        if (busy) return;
+        onOpenComment(row, e.currentTarget);
+      },
+      [busy, onOpenComment, row],
+    );
+
     const onSelect = useCallback(
       (forkIndex: number | null) => {
         if (busy) return;
@@ -118,6 +133,9 @@ const KifuMoveCard = memo(
       row.te === 0
         ? "開始局面"
         : `${row.te}手目、${sideLabel(row.side)}、${row.text}`;
+
+    const commentTitle =
+      row.commentCount > 0 ? "コメントを開く" : "コメントを追加";
 
     return (
       <div
@@ -147,7 +165,13 @@ const KifuMoveCard = memo(
             <button
               id={toggleId}
               type="button"
-              className="kifu-badge kifu-badge--btn"
+              className={[
+                "kifu-badge",
+                "kifu-badge--btn",
+                isForkMenuOpen ? "kifu-badge--active" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
               onClick={onClickForkToggle}
               disabled={busy}
               aria-haspopup="menu"
@@ -155,21 +179,38 @@ const KifuMoveCard = memo(
               aria-controls={isForkMenuOpen ? menuId : undefined}
               title="分岐を選択"
             >
-              ⎇ {row.forkCount}
-              {row.selectedForkIndex != null
-                ? `:${row.selectedForkIndex + 1}`
-                : ""}
+              <GitBranch className="kifu-badge__icon" size={14} />
+              <span className="kifu-badge__count">{row.forkCount}</span>
+              {row.selectedForkIndex != null ? (
+                <span className="kifu-badge__sub">
+                  {row.selectedForkIndex + 1}
+                </span>
+              ) : null}
             </button>
           ) : null}
 
-          {row.commentCount > 0 ? (
-            <span className="kifu-badge" title="コメント">
-              💬 {row.commentCount}
-            </span>
-          ) : null}
+          <button
+            type="button"
+            className={[
+              "kifu-badge",
+              "kifu-badge--btn",
+              "kifu-badge--comment",
+              isCommentOpen ? "kifu-badge--active" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onClick={onClickComment}
+            disabled={busy}
+            aria-pressed={isCommentOpen}
+            title={commentTitle}
+          >
+            <MessageSquare className="kifu-badge__icon" size={14} />
+            {row.commentCount > 0 ? (
+              <span className="kifu-badge__count">{row.commentCount}</span>
+            ) : null}
+          </button>
         </div>
 
-        {/* ✅ Portal menu */}
         {hasFork && isForkMenuOpen && openForkAnchorEl ? (
           <KifuForkMenu
             te={row.te}
