@@ -38,6 +38,10 @@ import {
   mergeBranchPlan,
   sameForkPointers,
 } from "../lib/cursor";
+import {
+  setCommentsByCursorInJkf,
+  getCommentsByCursor as getCommentsByCursorFromJkf,
+} from "@/entities/kifu/lib/comment";
 
 export function GameProvider({ children, persistence }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
@@ -413,6 +417,52 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [state.jkf, state.cursor, persistIfPossible],
   );
 
+  const getCommentsByCursor = useCallback(
+    (cursor: KifuCursor | null) => {
+      if (!state.jkf) return [];
+
+      try {
+        return getCommentsByCursorFromJkf(state.jkf, cursor);
+      } catch {
+        return [];
+      }
+    },
+    [state.jkf],
+  );
+
+  const setCommentsByCursor = useCallback(
+    async (cursor: KifuCursor, comments: string[]) => {
+      if (!state.jkf) return;
+
+      await edit(
+        (_player, nextJkf) => {
+          const result = setCommentsByCursorInJkf(nextJkf, cursor, comments);
+
+          if (!result.ok) {
+            throw new Error("Failed to resolve comment target");
+          }
+
+          if (!result.changed) {
+            return false;
+          }
+
+          return true;
+        },
+        "Failed to update comments",
+        { forceCommit: true },
+      );
+    },
+    [state.jkf, edit],
+  );
+
+  const setCurrentComments = useCallback(
+    async (comments: string[]) => {
+      if (!state.cursor) return;
+      await setCommentsByCursor(state.cursor, comments);
+    },
+    [state.cursor, setCommentsByCursor],
+  );
+
   const selectSquare = useCallback(
     async (x: number, y: number, promote?: boolean) => {
       const player = view.player;
@@ -653,6 +703,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     makeMove,
     swapBranches,
     deleteBranch,
+    getCommentsByCursor,
+    setCommentsByCursor,
+    setCurrentComments,
     clearError,
     isGameLoaded,
     isAtStart,
