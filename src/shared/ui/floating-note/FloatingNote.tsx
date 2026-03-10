@@ -29,7 +29,7 @@ export type FloatingNoteProps = {
   open: boolean;
   anchorEl: HTMLElement | null;
   onClose: () => void;
-  title?: string;
+  title?: React.ReactNode;
   headerRight?: React.ReactNode;
   width?: number;
   className?: string;
@@ -40,10 +40,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function computeAnchoredPos(
-  anchorEl: HTMLElement,
-  width: number,
-): AnchoredPos {
+function computeAnchoredPos(anchorEl: HTMLElement, width: number): AnchoredPos {
   const rect = anchorEl.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -74,10 +71,6 @@ function computeAnchoredPos(
   };
 }
 
-const RESIZE_DIRS = [
-  "n", "s", "e", "w", "ne", "nw", "se", "sw",
-] as const;
-
 export default function FloatingNote({
   open,
   anchorEl,
@@ -98,10 +91,13 @@ export default function FloatingNote({
 
   useLayoutEffect(() => {
     if (!open || !anchorEl) return;
+
     const update = () => setAnchoredPos(computeAnchoredPos(anchorEl, width));
     update();
+
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
+
     return () => {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
@@ -115,14 +111,15 @@ export default function FloatingNote({
     }
   }, [open, anchorEl]);
 
-  // Escape only
   useEffect(() => {
     if (!open) return;
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
       onClose();
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
@@ -131,6 +128,7 @@ export default function FloatingNote({
     const onMove = (e: PointerEvent) => {
       const type = activeRef.current;
       if (!type) return;
+
       const { mx, my, pt, pl, pw, ph } = startRef.current;
       const dx = e.clientX - mx;
       const dy = e.clientY - my;
@@ -170,28 +168,34 @@ export default function FloatingNote({
         newHeight = pt + ph - newTop;
       }
 
-      setGeometry({ top: newTop, left: newLeft, width: newWidth, height: newHeight });
+      setGeometry({
+        top: newTop,
+        left: newLeft,
+        width: newWidth,
+        height: newHeight,
+      });
     };
 
     const onUp = () => {
       activeRef.current = null;
       setIsDragging(false);
     };
+
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
   }, []);
 
-  const startInteraction = (
-    e: React.PointerEvent,
-    type: InteractionType,
-  ) => {
+  const startInteraction = (e: React.PointerEvent, type: InteractionType) => {
     if (e.button !== 0) return;
+
     const panel = panelRef.current;
     if (!panel) return;
+
     const rect = panel.getBoundingClientRect();
     activeRef.current = type;
     startRef.current = {
@@ -202,6 +206,7 @@ export default function FloatingNote({
       pw: rect.width,
       ph: rect.height,
     };
+
     if (type === "drag") setIsDragging(true);
     e.preventDefault();
   };
@@ -228,11 +233,14 @@ export default function FloatingNote({
         maxHeight: undefined,
       };
     }
+
     const w = Math.min(
       width,
       typeof window !== "undefined" ? window.innerWidth - 16 : width,
     );
+
     if (!anchoredPos) return { width: w };
+
     return {
       width: w,
       top: anchoredPos.top,
@@ -253,13 +261,45 @@ export default function FloatingNote({
       role="dialog"
       aria-modal="false"
     >
-      <div
-        className="floating-note__header"
-        onPointerDown={(e) => startInteraction(e, "drag")}
-      >
+      <div className="floating-note__top-band" aria-hidden="true">
+        <div
+          className="floating-note__resize floating-note__resize--nw"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            startInteraction(e, "resize-nw");
+          }}
+        />
+        <div
+          className="floating-note__resize floating-note__resize--n"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            startInteraction(e, "resize-n");
+          }}
+        />
+        <div
+          className="floating-note__resize floating-note__resize--ne"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            startInteraction(e, "resize-ne");
+          }}
+        />
+      </div>
+
+      <div className="floating-note__header">
         <div className="floating-note__title">{title}</div>
-        <div className="floating-note__drag-grip" aria-hidden="true" />
-        <div className="floating-note__header-right">
+
+        <div
+          className="floating-note__drag-area"
+          onPointerDown={(e) => startInteraction(e, "drag")}
+          aria-label="ドラッグして移動"
+        >
+          <div className="floating-note__drag-grip" aria-hidden="true" />
+        </div>
+
+        <div
+          className="floating-note__header-right"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           {headerRight}
           <button
             type="button"
@@ -272,18 +312,44 @@ export default function FloatingNote({
           </button>
         </div>
       </div>
+
       <div className="floating-note__body">{children}</div>
 
-      {RESIZE_DIRS.map((dir) => (
-        <div
-          key={dir}
-          className={`floating-note__resize floating-note__resize--${dir}`}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            startInteraction(e, `resize-${dir}` as InteractionType);
-          }}
-        />
-      ))}
+      <div
+        className="floating-note__resize floating-note__resize--e"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          startInteraction(e, "resize-e");
+        }}
+      />
+      <div
+        className="floating-note__resize floating-note__resize--w"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          startInteraction(e, "resize-w");
+        }}
+      />
+      <div
+        className="floating-note__resize floating-note__resize--s"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          startInteraction(e, "resize-s");
+        }}
+      />
+      <div
+        className="floating-note__resize floating-note__resize--se"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          startInteraction(e, "resize-se");
+        }}
+      />
+      <div
+        className="floating-note__resize floating-note__resize--sw"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          startInteraction(e, "resize-sw");
+        }}
+      />
     </div>,
     document.body,
   );

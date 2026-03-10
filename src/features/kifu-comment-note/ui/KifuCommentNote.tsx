@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MessageSquareText } from "lucide-react";
 import { useGame } from "@/entities/game";
 import type { KifuCursor } from "@/entities/kifu/model/cursor";
 import { editorTextToLines, linesToEditorText } from "../lib/commentText";
@@ -39,7 +40,6 @@ export default function KifuCommentNote({
     return linesToEditorText(getCommentsByCursor(cursor));
   }, [cursor, getCommentsByCursor]);
 
-  // Reset editor when cursor changes or note opens
   useEffect(() => {
     if (!open) return;
     setDraft(sourceText);
@@ -48,7 +48,6 @@ export default function KifuCommentNote({
 
   const dirty = draft !== baseText;
 
-  // Stable refs for auto-save closure
   const stateRef = useRef({ cursor, draft, isSaving });
   useEffect(() => {
     stateRef.current = { cursor, draft, isSaving };
@@ -57,6 +56,7 @@ export default function KifuCommentNote({
   const doSave = useCallback(async () => {
     const { cursor, draft, isSaving } = stateRef.current;
     if (!cursor || isSaving) return;
+
     setIsSaving(true);
     try {
       await setCommentsByCursor(cursor, editorTextToLines(draft));
@@ -68,7 +68,6 @@ export default function KifuCommentNote({
     }
   }, [setCommentsByCursor]);
 
-  // Auto-save: 900ms debounce after last edit
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!dirty) {
@@ -78,6 +77,7 @@ export default function KifuCommentNote({
       }
       return;
     }
+
     autoSaveTimerRef.current = setTimeout(() => void doSave(), 900);
     return () => {
       if (autoSaveTimerRef.current) {
@@ -87,31 +87,35 @@ export default function KifuCommentNote({
     };
   }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Flush on close
   const handleRequestClose = useCallback(async () => {
     if (isSaving) return;
+
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
+
     if (dirty && cursor) await doSave();
     onClose();
   }, [cursor, dirty, doSave, isSaving, onClose]);
 
   const editorKey = cursorToStableKey(cursor);
 
-  const title = cursor
+  const moveLabel = cursor
     ? cursor.tesuu === 0
-      ? "コメント · 開始"
-      : `コメント · ${cursor.tesuu}手目`
+      ? "開始"
+      : `${cursor.tesuu}手`
     : "コメント";
 
-  const headerRight = (
-    <div className="kifu-comment-note__hints">
-      <span title="見出し: # スペース">#</span>
-      <span title="リスト: - スペース">–</span>
-      <span title="引用: &gt; スペース">&gt;</span>
-      <span title="閉じる" className="kifu-comment-note__hint-close">⌘↵</span>
+  const title = (
+    <div className="kifu-comment-note__titlebar">
+      <span className="kifu-comment-note__pill kifu-comment-note__pill--label">
+        <MessageSquareText size={12} strokeWidth={2.1} />
+        <span>comment</span>
+      </span>
+      <span className="kifu-comment-note__pill kifu-comment-note__pill--meta">
+        {moveLabel}
+      </span>
     </div>
   );
 
@@ -121,7 +125,6 @@ export default function KifuCommentNote({
       anchorEl={anchorEl}
       onClose={() => void handleRequestClose()}
       title={title}
-      headerRight={headerRight}
       width={400}
       className="kifu-comment-note"
     >
@@ -129,6 +132,7 @@ export default function KifuCommentNote({
         <LiveMarkdownNote
           key={editorKey}
           initialMarkdown={sourceText}
+          placeholder="コメントを書く…  # 見出し / - リスト / > 引用"
           onMarkdownChange={setDraft}
           onSubmitShortcut={() => void handleRequestClose()}
         />
