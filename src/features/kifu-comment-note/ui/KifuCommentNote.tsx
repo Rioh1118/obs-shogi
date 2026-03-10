@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGame } from "@/entities/game";
 import type { KifuCursor } from "@/entities/kifu/model/cursor";
 import { editorTextToLines, linesToEditorText } from "../lib/commentText";
@@ -18,7 +18,6 @@ function cursorToStableKey(cursor: KifuCursor | null) {
   const path = (cursor.forkPointers ?? [])
     .map((p) => `${p.te}:${p.forkIndex}`)
     .join("|");
-
   return `${cursor.tesuu}__${path}`;
 }
 
@@ -28,17 +27,19 @@ export default function KifuCommentNote({
   anchorEl,
   onClose,
 }: Props) {
-  const { state, getCommentsByCursor, setCommentsByCursor } = useGame();
+  const { getCommentsByCursor, setCommentsByCursor } = useGame();
 
   const [draft, setDraft] = useState("");
   const [baseText, setBaseText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   const sourceText = useMemo(() => {
     if (!cursor) return "";
     return linesToEditorText(getCommentsByCursor(cursor));
   }, [cursor, getCommentsByCursor]);
 
+  // Reset editor when cursor changes or note opens
   useEffect(() => {
     if (!open) return;
     setDraft(sourceText);
@@ -47,108 +48,95 @@ export default function KifuCommentNote({
 
   const dirty = draft !== baseText;
 
-  const handleSave = useCallback(async () => {
-    if (!cursor || isSaving) return;
+  // Stable refs for auto-save closure
+  const stateRef = useRef({ cursor, draft, isSaving });
+  useEffect(() => {
+    stateRef.current = { cursor, draft, isSaving };
+  });
 
+  const doSave = useCallback(async () => {
+    const { cursor, draft, isSaving } = stateRef.current;
+    if (!cursor || isSaving) return;
+    setIsSaving(true);
     try {
-      setIsSaving(true);
       await setCommentsByCursor(cursor, editorTextToLines(draft));
       setBaseText(draft);
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1200);
     } finally {
       setIsSaving(false);
     }
-  }, [cursor, draft, isSaving, setCommentsByCursor]);
+  }, [setCommentsByCursor]);
 
+  // Auto-save: 900ms debounce after last edit
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!dirty) {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+      return;
+    }
+    autoSaveTimerRef.current = setTimeout(() => void doSave(), 900);
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Flush on close
   const handleRequestClose = useCallback(async () => {
     if (isSaving) return;
-
-    if (dirty && cursor) {
-      await handleSave();
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
     }
-
+    if (dirty && cursor) await doSave();
     onClose();
-  }, [cursor, dirty, handleSave, isSaving, onClose]);
+  }, [cursor, dirty, doSave, isSaving, onClose]);
 
-  const title = cursor ? `コメント · ${cursor.tesuu}手目` : "コメント";
   const editorKey = cursorToStableKey(cursor);
+
+  const title = cursor
+    ? cursor.tesuu === 0
+      ? "コメント · 開始"
+      : `コメント · ${cursor.tesuu}手目`
+    : "コメント";
+
+  const headerRight = (
+    <div className="kifu-comment-note__hints">
+      <span title="見出し: # スペース">#</span>
+      <span title="リスト: - スペース">–</span>
+      <span title="引用: &gt; スペース">&gt;</span>
+      <span title="閉じる" className="kifu-comment-note__hint-close">⌘↵</span>
+    </div>
+  );
 
   return (
     <FloatingNote
       open={open}
       anchorEl={anchorEl}
-      onClose={() => {
-        void handleRequestClose();
-      }}
+      onClose={() => void handleRequestClose()}
       title={title}
-      width={520}
+      headerRight={headerRight}
+      width={480}
       className="kifu-comment-note"
     >
       <div className="kifu-comment-note__root">
-        <div className="kifu-comment-note__tips">
-          <span className="kifu-comment-note__tip">
-            <kbd>#</kbd>
-            <span>Space</span>
-            <em>見出し</em>
-          </span>
-          <span className="kifu-comment-note__tip">
-            <kbd>-</kbd>
-            <span>Space</span>
-            <em>箇条書き</em>
-          </span>
-          <span className="kifu-comment-note__tip">
-            <kbd>&gt;</kbd>
-            <span>Space</span>
-            <em>引用</em>
-          </span>
-          <span className="kifu-comment-note__tip">
-            <kbd>⌘/Ctrl</kbd>
-            <span>Enter</span>
-            <em>保存</em>
-          </span>
-        </div>
-
         <LiveMarkdownNote
           key={editorKey}
           initialMarkdown={sourceText}
           onMarkdownChange={setDraft}
-          onSubmitShortcut={() => {
-            void handleSave();
-          }}
+          onSubmitShortcut={() => void handleRequestClose()}
         />
-
-        <div className="kifu-comment-note__footer">
+        {(isSaving || savedFlash) && (
           <div className="kifu-comment-note__status">
-            {state.isLoading || isSaving
-              ? "保存中..."
-              : dirty
-                ? "未保存の変更あり"
-                : "保存済み"}
+            {isSaving ? "保存中" : "保存済み"}
           </div>
-
-          <div className="kifu-comment-note__actions">
-            <button
-              type="button"
-              className="kifu-comment-note__btn kifu-comment-note__btn--ghost"
-              onClick={() => {
-                void handleRequestClose();
-              }}
-              disabled={isSaving}
-            >
-              閉じる
-            </button>
-
-            <button
-              type="button"
-              className="kifu-comment-note__btn kifu-comment-note__btn--primary"
-              onClick={() => {
-                void handleSave();
-              }}
-              disabled={isSaving || !cursor}
-            >
-              保存
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </FloatingNote>
   );
