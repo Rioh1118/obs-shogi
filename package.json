@@ -21,6 +21,8 @@
     "@tauri-apps/plugin-dialog": "^2.2.2",
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-opener": "^2.5.3",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "context": "^3.0.33",
     "json-kifu-format": "^5.4.1",
     "lexical": "^0.41.0",

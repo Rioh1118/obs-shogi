@@ -25,6 +25,7 @@
     }
   },
   "bundle": {
+    "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
     "icon": [
@@ -37,6 +38,17 @@
     "macOS": {
       "signingIdentity": "-",
       "hardenedRuntime": false
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI1NUREQzYwMEQ1Nzk4NUIKUldSYm1GY05ZTnhkSlpoM1VmS2JMTUhiK0ZSQjlCNHBwdEk1Z1R2MDBVOC9GUnlSWXJ3ZXFWaWkK",
+      "endpoints": [
+        "https://github.com/Rioh1118/obs-shogi/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

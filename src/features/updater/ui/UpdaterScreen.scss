@@ -1,0 +1,196 @@
+@use "@/index.scss" as index;
+
+// Anchors to bottom-right — non-blocking
+.updater-overlay {
+  position: fixed;
+  z-index: 9000;
+  bottom: 2.4rem;
+  right: 2.4rem;
+  pointer-events: none;
+}
+
+.updater-card {
+  pointer-events: all;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  width: 30rem;
+
+  border: 1px solid rgba(index.$color-white, 0.08);
+  border-radius: 1.6rem;
+
+  background: linear-gradient(
+    160deg,
+    rgba(index.$color-primary-light, 0.97),
+    rgba(index.$color-primary-black, 0.99)
+  );
+  backdrop-filter: blur(24px);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(index.$color-white, 0.05) inset;
+
+  color: index.$color-text-primary;
+
+  animation: updater-slide-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes updater-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Header
+.updater-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem 1.1rem 0.9rem 1.2rem;
+  border-bottom: 1px solid rgba(index.$color-white, 0.05);
+}
+
+.updater-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  flex-shrink: 0;
+  border-radius: 0.9rem;
+  background: rgba(index.$color-secondary-dark, 0.15);
+  color: index.$color-secondary-dark;
+}
+
+.updater-card__heading {
+  flex: 1;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: index.$color-text-light-1;
+}
+
+.updater-card__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(index.$color-text-primary, 0.4);
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.updater-card__dismiss:hover {
+  background: rgba(index.$color-white, 0.07);
+  color: index.$color-text-primary;
+}
+
+// Body
+.updater-card__body {
+  padding: 1rem 1.2rem 0.6rem;
+}
+
+.updater-card__version {
+  font-size: 1.25rem;
+  color: rgba(index.$color-text-primary, 0.72);
+  line-height: 1.5;
+}
+
+.updater-card__version-tag {
+  font-weight: 600;
+  color: index.$color-secondary-dark;
+  font-feature-settings: "tnum";
+}
+
+.updater-card__note {
+  font-size: 1.25rem;
+  color: rgba(index.$color-text-primary, 0.65);
+}
+
+.updater-card__error {
+  font-size: 1.2rem;
+  color: rgba(255, 100, 80, 0.85);
+  word-break: break-all;
+}
+
+// Progress
+.updater-card__progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.updater-card__progress-bar {
+  flex: 1;
+  height: 3px;
+  border-radius: 9999px;
+  background: rgba(index.$color-white, 0.08);
+  overflow: hidden;
+}
+
+.updater-card__progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: index.$color-secondary-dark;
+  transition: width 80ms linear;
+}
+
+.updater-card__progress-label {
+  font-size: 1.1rem;
+  font-feature-settings: "tnum";
+  color: rgba(index.$color-text-primary, 0.5);
+  min-width: 3.2rem;
+  text-align: right;
+}
+
+// Actions
+.updater-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.7rem 1.1rem 1.1rem;
+}
+
+.updater-card__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.8rem;
+  padding: 0 1.1rem;
+  border: none;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
+}
+
+.updater-card__btn--primary {
+  background: index.$color-secondary-dark;
+  color: index.$color-white;
+}
+
+.updater-card__btn--primary:hover {
+  opacity: 0.88;
+}
+
+.updater-card__btn--secondary {
+  background: rgba(index.$color-white, 0.06);
+  color: rgba(index.$color-text-primary, 0.7);
+}
+
+.updater-card__btn--secondary:hover {
+  background: rgba(index.$color-white, 0.1);
+  color: index.$color-text-primary;
+}
