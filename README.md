@@ -6,8 +6,15 @@
 
 ![overview](./docs/images/sample_overall.png)
 
-**将棋の研究・棋譜管理に特化したGUIアプリ（Tauri）**  
-対局機能は付けず、棋譜の整理／横断／検索／局面検索と、USI対応エンジンによる検討にフォーカスします。
+**定跡・序盤研究に特化した将棋GUIアプリ**  
+局面検索、棋譜ツリー管理、USIエンジンによる検討に対応。
+
+> [!IMPORTANT]
+> **最新版のダウンロードはこちら**  
+> → [Releases からダウンロード](https://github.com/Rioh1118/obs-shogi/releases/latest)
+
+> [!NOTE]
+> 現在は **Beta版** です。動作改善や機能追加を継続中です。
 
 - 対応OS: Windows / macOS / Linux
 - 配布: Releases
