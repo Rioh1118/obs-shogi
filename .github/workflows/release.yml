@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"   # pre-release: v1.0.0-beta.1
+      - "v[0-9]+.[0-9]+.[0-9]+-*" # pre-release: v1.0.0-beta.1
   workflow_dispatch:
     inputs:
       tag:
@@ -139,18 +139,28 @@ jobs:
         shell: bash
         run: echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> $GITHUB_ENV
 
+      - name: Stamp version into tauri.conf.json and Cargo.toml
+        shell: bash
+        run: |
+          jq --arg v "$RELEASE_VERSION" '.version = $v' src-tauri/tauri.conf.json > _tmp.json
+          mv _tmp.json src-tauri/tauri.conf.json
+          python3 -c "
+          import re, pathlib
+          p = pathlib.Path('src-tauri/Cargo.toml')
+          p.write_text(re.sub(r'^version = \"[^\"]+\"', 'version = \"$RELEASE_VERSION\"', p.read_text(), count=1, flags=re.M))
+          "
+
       - name: Build, sign & upload
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Updater signing key (stored in repo Secrets)
-          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          releaseId:   ${{ needs.create-release.outputs.release_id }}
-          tagName:     ${{ env.RELEASE_TAG }}
-          appVersion:  ${{ env.RELEASE_VERSION }}
-          args:        ${{ matrix.tauri_args }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: ${{ env.RELEASE_TAG }}
+          args: ${{ matrix.tauri_args }}
 
           # Generates and uploads latest.json so the updater endpoint resolves
           includeUpdaterJson: true
