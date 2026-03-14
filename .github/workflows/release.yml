@@ -148,10 +148,10 @@ jobs:
           args:        ${{ matrix.tauri_args }}
 
           # Generates and uploads latest.json so the updater endpoint resolves
-          uploadUpdaterJson: true
+          includeUpdaterJson: true
 
           # Human-readable asset names:
           # ObsShogi-v0.2.0-darwin-aarch64.dmg
           # ObsShogi-v0.2.0-windows-x86_64-setup.exe
           # ObsShogi-v0.2.0-linux-x86_64.AppImage
-          releaseAssetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
+          assetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
