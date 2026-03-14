@@ -2,6 +2,7 @@ import { BrowserRouter } from "react-router";
 import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";
 import AppRouter from "./routing/AppRouter";
+import UpdaterScreen from "@/features/updater/ui/UpdaterScreen";
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
           <AppRouter />
         </BrowserRouter>
       </BootstrapProviders>
+      <UpdaterScreen />
     </div>
   );
 }
