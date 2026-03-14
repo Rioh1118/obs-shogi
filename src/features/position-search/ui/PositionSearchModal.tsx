@@ -29,28 +29,32 @@ export default function PositionSearchModal() {
   const isOpen = params.modal === "position-search";
 
   const { currentSfen } = usePositionSync();
-  const { state: gameState } = useGame();
+  const { state: gameState, view: gameView } = useGame();
 
   const {
     state,
     searchCurrentPositionBestEffort,
-    getCurrentSession,
-    getHits,
+    getSessionByRequestId,
+    getHitsByRequestId,
+    isSearchingRequest,
     resolveHitAbsPath,
   } = usePositionSearch();
 
   const { navigateToHit } = usePositionHitNavigation();
 
   const [activeIndex, setActiveIndex] = useState(0);
+  const [requestId, setRequestId] = useState<number | null>(null);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [isLaunching, setIsLaunching] = useState(false);
 
   const rootRef = useRef<HTMLElement | null>(null);
 
-  const session = getCurrentSession();
-  const hits = getHits();
+  const session = getSessionByRequestId(requestId);
+  const hits = getHitsByRequestId(requestId);
 
-  const isSearching = state.isSearching;
+  const isSearching = isLaunching || isSearchingRequest(requestId);
   const isDone = !!session?.isDone && !isSearching;
-  const error = session?.error ?? null;
+  const error = launchError ?? session?.error ?? null;
 
   const indexState = state.index.state;
   const indexStale =
@@ -73,51 +77,25 @@ export default function PositionSearchModal() {
   );
 
   const previewData = useMemo(() => {
-    const jkf = gameState.jkfPlayer;
+    const jkf = gameView.player;
     if (!isOpen || !jkf) return null;
 
     const nodeId = jkf.getTesuuPointer(jkf.tesuu);
     return buildPreviewData(jkf, nodeId);
-  }, [isOpen, gameState.jkfPlayer]);
-
-  // -------------------------
-  // 検索結果の“見せ方”補助
-  // -------------------------
-  const lastNonEmptyHitsRef = useRef<{
-    sfen: string | null;
-    hits: PositionHit[];
-  }>({ sfen: null, hits: [] });
-
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!currentSfen) return;
-    if (hits.length > 0) {
-      lastNonEmptyHitsRef.current = { sfen: currentSfen, hits };
-    }
-  }, [isOpen, currentSfen, hits]);
-
-  const displayHits = useMemo(() => {
-    if (hits.length > 0) return hits;
-
-    const prev = lastNonEmptyHitsRef.current;
-    const canReuse = prev.sfen === currentSfen && (isSearching || resultStale);
-
-    return canReuse ? prev.hits : hits;
-  }, [hits, currentSfen, isSearching, resultStale]);
+  }, [isOpen, gameView.player]);
 
   const orderedHits = useMemo(() => {
     return orderPositionHits(
-      displayHits,
+      hits,
       resolveHitAbsPath,
       gameState.loadedAbsPath ?? null,
     );
-  }, [displayHits, resolveHitAbsPath, gameState.loadedAbsPath]);
+  }, [hits, resolveHitAbsPath, gameState.loadedAbsPath]);
 
   // -------------------------
   // 検索トリガ：モーダルを開いた瞬間だけ
   // -------------------------
   const prevOpenRef = useRef(false);
-
   const lastQueriedSfenRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -126,20 +104,34 @@ export default function PositionSearchModal() {
 
     if (!isOpen) {
       lastQueriedSfenRef.current = null;
+      setRequestId(null);
+      setLaunchError(null);
+      setIsLaunching(false);
+      setActiveIndex(0);
       return;
     }
 
     if (wasOpen) return;
-
     if (!currentSfen) return;
-
     if (lastQueriedSfenRef.current === currentSfen) return;
 
     lastQueriedSfenRef.current = currentSfen;
+    setRequestId(null);
+    setLaunchError(null);
+    setIsLaunching(true);
+    setActiveIndex(0);
 
-    searchCurrentPositionBestEffort(5000).catch((e) => {
-      console.error("[PositionSearchModal] open-triggered search failed:", e);
-    });
+    searchCurrentPositionBestEffort({ chunkSize: 5000 })
+      .then((out) => {
+        setRequestId(out.request_id);
+      })
+      .catch((e) => {
+        console.error("[PositionSearchModal] open-triggered search failed:", e);
+        setLaunchError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        setIsLaunching(false);
+      });
   }, [isOpen, currentSfen, searchCurrentPositionBestEffort]);
 
   const activeHit = orderedHits[activeIndex];
@@ -191,6 +183,7 @@ export default function PositionSearchModal() {
       );
       return;
     }
+
     if (e.key === "ArrowUp" || e.key === "k") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
@@ -243,7 +236,7 @@ export default function PositionSearchModal() {
           <div className="pos-search__grid">
             <section className="pos-search__left" aria-label="検索状態">
               <PositionSearchStatusBar
-                hitsCount={displayHits.length}
+                hitsCount={hits.length}
                 statusText={statusText}
                 stale={resultStale}
                 error={error}

@@ -1,0 +1,20 @@
+import {
+  BOLD_STAR,
+  BOLD_UNDERSCORE,
+  HEADING,
+  INLINE_CODE,
+  ORDERED_LIST,
+  QUOTE,
+  UNORDERED_LIST,
+  type Transformer,
+} from "@lexical/markdown";
+
+export const LIVE_MARKDOWN_TRANSFORMERS: Transformer[] = [
+  HEADING,
+  QUOTE,
+  UNORDERED_LIST,
+  ORDERED_LIST,
+  BOLD_STAR,
+  BOLD_UNDERSCORE,
+  INLINE_CODE,
+];

@@ -1,8 +1,6 @@
+import { PIECE_IMAGES } from "@/entities/position/model/pieceImages";
 import type { PieceProps } from ".";
-import {
-  PIECE_IMAGES,
-  PLAYER_COLORS,
-} from "../../../../entities/position/model/shogi";
+import { PLAYER_COLORS } from "@/entities/position/model/shogi";
 import "../Piece.scss";
 
 function Silver({ color, onClick }: PieceProps) {

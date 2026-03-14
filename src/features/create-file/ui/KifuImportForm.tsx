@@ -24,11 +24,10 @@ function KifuImportForm({
 
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
-
   const [rawContent, setRawContent] = useState("");
 
   const [parseOk, setParseOk] = useState<boolean | null>(null);
-  const [parseError, setParseError] = useState<string>("");
+  const [parseError, setParseError] = useState("");
 
   const fullFileName = useMemo(() => {
     const base = stripKnownExt(fileName.trim());
@@ -36,7 +35,6 @@ function KifuImportForm({
     return `${base}.${format}`;
   }, [fileName, format]);
 
-  // 初回表示でテキストエリアにフォーカス（貼り付け即開始できる）
   useEffect(() => {
     requestAnimationFrame(() => {
       const el = document.getElementById(
@@ -46,7 +44,6 @@ function KifuImportForm({
     });
   }, []);
 
-  // 入力が変わったら軽くパース検証（ローカルエラーとして表示）
   useEffect(() => {
     const text = rawContent.trim();
     if (!text) {
@@ -72,18 +69,12 @@ function KifuImportForm({
     const text = rawContent.trim();
 
     if (!name || !text) return;
-    if (parseOk === false) return;
+    if (parseOk !== true) return;
 
     const result = await importKifuFile(dirPath, name, text);
-
     if (result.success) {
       toggleModal();
-      return;
     }
-
-    // import側の失敗もここで局所表示
-    setParseOk(false);
-    setParseError(result.error || "インポートに失敗しました。");
   };
 
   const formatOptions = [

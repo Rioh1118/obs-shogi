@@ -26,6 +26,7 @@ function FileCreateForm({
   const [note, setNote] = useState("");
   const [preset, setPreset] = useState<InitialPresetString>("HIRATE");
   const [isLoading, setIsLoading] = useState(false);
+
   const { createNewFile } = useFileTree();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,26 +35,23 @@ function FileCreateForm({
     if (!fileName.trim()) return;
 
     setIsLoading(true);
-    try {
-      await createNewFile(dirPath, {
-        fileName: `${fileName.trim()}.${format}`,
-        format,
-        gameInfo: {
-          black: blackPlayer.trim() || undefined,
-          white: whitePlayer.trim() || undefined,
-          tags: tags.length > 0 ? tags : undefined,
-          note: note.trim() ? note : undefined,
-        },
-        initialPosition: {
-          preset: preset,
-        },
-      });
+    const result = await createNewFile(dirPath, {
+      fileName: `${fileName.trim()}.${format}`,
+      format,
+      gameInfo: {
+        black: blackPlayer.trim() || undefined,
+        white: whitePlayer.trim() || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+        note: note.trim() ? note : undefined,
+      },
+      initialPosition: {
+        preset,
+      },
+    });
+    setIsLoading(false);
 
+    if (result.success) {
       toggleModal();
-    } catch (err) {
-      console.error("ファイル作成エラー:", err);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -78,7 +76,6 @@ function FileCreateForm({
     { value: "6", label: "六枚落ち" },
     { value: "8", label: "八枚落ち" },
     { value: "10", label: "十枚落ち" },
-    // { value: "OTHER", label: "カスタム" },
   ];
 
   if (isLoading) {
@@ -90,6 +87,7 @@ function FileCreateForm({
       <FormField>
         <h2 className="form__heading-secondary">新しい棋譜ファイルを作成</h2>
       </FormField>
+
       <FormField horizontal>
         <TextInput
           label="ファイル名"
@@ -125,6 +123,7 @@ function FileCreateForm({
           onChange={(e) => setWhitePlayer(e.target.value)}
         />
       </FormField>
+
       <FormField>
         <Select
           label="手合割"
@@ -134,9 +133,11 @@ function FileCreateForm({
           onChange={(value) => setPreset(value as InitialPresetString)}
         />
       </FormField>
+
       <FormField>
         <TagsInput label="タグ" id="tags" tags={tags} onChange={setTags} />
       </FormField>
+
       <FormField>
         <Textarea
           label="備考・メモ"
@@ -146,6 +147,7 @@ function FileCreateForm({
           onChange={(e) => setNote(e.target.value)}
         />
       </FormField>
+
       <ButtonGroup>
         <Button type="submit" variant="primary" disabled={!fileName.trim()}>
           作成

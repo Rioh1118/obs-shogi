@@ -1,37 +1,104 @@
 name: Release
 
 on:
-  workflow_dispatch:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0). If empty, uses github.ref_name."
+        required: false
+        default: ""
+      draft:
+        description: "Create as draft release"
+        required: false
+        default: "true"
+      prerelease:
+        description: "Mark as prerelease"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag && github.event.inputs.tag || github.ref_name }}
+  RELEASE_DRAFT: ${{ github.event.inputs.draft && github.event.inputs.draft || 'true' }}
+  RELEASE_PRERELEASE: ${{ github.event.inputs.prerelease && github.event.inputs.prerelease || 'false' }}
+
 jobs:
+  create_release:
+    name: Create or fetch GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.rel.outputs.release_id }}
+    steps:
+      - id: rel
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.RELEASE_TAG;
+            const draft = (process.env.RELEASE_DRAFT === 'true');
+            const prerelease = (process.env.RELEASE_PRERELEASE === 'true');
+
+            try {
+              const r = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+              core.setOutput('release_id', r.data.id.toString());
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              const r = await github.rest.repos.createRelease({
+                owner, repo,
+                tag_name: tag,
+                name: `obs-shogi ${tag}`,
+                body: "See the assets to download and install this version.",
+                draft,
+                prerelease
+              });
+              core.setOutput('release_id', r.data.id.toString());
+            }
+
   publish:
-    name: Build & upload bundles
+    name: Build & upload bundles (${{ matrix.platform }} ${{ matrix.args }})
+    needs: create_release
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: windows-latest
-            args: ""
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
           - platform: macos-latest
             args: "--target x86_64-apple-darwin"
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
 
     runs-on: ${{ matrix.platform }}
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Setup Node (LTS)
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -46,22 +113,13 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Build and create GitHub Release
-        uses: tauri-apps/tauri-action@v0
+      - name: Build and upload (macOS ad-hoc / no notarization)
+        uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CI: "true"
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "obs-shogi ${{ github.ref_name }}"
-          releaseBody: "See the assets to download and install this version."
-          releaseDraft: true
-          prerelease: false
-
+          releaseId: ${{ needs.create_release.outputs.release_id }}
+          tagName: ${{ env.RELEASE_TAG }}
           args: ${{ matrix.args }}
-
-          #  成果物の命名（例: obs-shogi-v0.1.0-windows-x86_64.msi）
-          # 変数一覧: [name] [version] [platform] [arch] [ext] [setup] など
           releaseAssetNamePattern: "[name]-v[version]-[platform]-[arch][setup][ext]"
-
           uploadUpdaterJson: false

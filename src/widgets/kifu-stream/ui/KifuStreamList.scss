@@ -51,17 +51,14 @@
   overflow: auto;
   padding: 0.55rem;
 
-  overscroll-behavior: contain;
-  scroll-padding-top: 2rem;
-  scroll-padding-bottom: 2rem;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: auto;
 
-  scrollbar-width: thin;
-  scrollbar-color: rgba(index.$color-secondary-dark, 0.55) transparent;
+  -ms-ooverflow-style: none;
+  scrollbar-width: none;
 
   &::-webkit-scrollbar {
-    display: block;
-    width: 8px;
+    height: 0;
+    width: 0;
   }
   &::-webkit-scrollbar-thumb {
     background: rgba(index.$color-secondary-dark, 0.35);

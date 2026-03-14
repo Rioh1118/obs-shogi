@@ -11,7 +11,7 @@ export function PositionSyncProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { state: gameState } = useGame();
+  const { state: gameState, view: gameView } = useGame();
   const { isReady } = useEngine();
   const { state: presetsState, selectedPresetVersion } = useEnginePresets();
   const engineKey = presetsState.selectedPresetId
@@ -39,22 +39,16 @@ export function PositionSyncProvider({
     );
   };
 
-  // ✅ GameContextから現在のSFENを取得
-  // jkfPlayerが同一参照でも中身が変わるので「毎回計算」でOK
   const getCurrentSfen = useCallback((): string | null => {
-    void gameState.cursor;
     try {
-      if (!gameState.jkfPlayer?.shogi) return null;
+      if (!gameView.player?.shogi) return null;
 
-      const sfen = gameState.jkfPlayer.shogi.toSFENString(
-        gameState.jkfPlayer.tesuu || 1,
-      );
-      return sfen;
+      return gameView.player.shogi.toSFENString(gameView.player.tesuu || 1);
     } catch (error) {
       console.error("❌ [POSITION] Error getting SFEN:", error);
       return null;
     }
-  }, [gameState.jkfPlayer, gameState.cursor]);
+  }, [gameView.player]);
 
   const syncPosition = useCallback(async (): Promise<void> => {
     setSyncError(null);
@@ -135,7 +129,7 @@ export function PositionSyncProvider({
 
   //  自動同期：cursor変化で追従
   useEffect(() => {
-    if (!gameState.jkfPlayer) {
+    if (!gameState.cursor) {
       setIsPositionSynced(false);
       setSyncedSfen(null);
       pendingBeforeReadyRef.current = null;
@@ -143,9 +137,8 @@ export function PositionSyncProvider({
       return;
     }
     syncPosition().catch(() => {});
-  }, [gameState.cursor, gameState.jkfPlayer, syncPosition]);
+  }, [engineKey, gameState.cursor, syncPosition]);
 
-  // ✅ readyになった瞬間、ready前に溜めたSFENがあればキューに入れて送る
   useEffect(() => {
     if (!isReady) return;
     const pending = pendingBeforeReadyRef.current;

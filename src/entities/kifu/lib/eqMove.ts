@@ -4,7 +4,7 @@ import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
  * Minimalな一致
  *
  * - to(x,y) は一致必須
- * - 両方が指し手(fromあり)ならfrom(x,y)とpromoteおw一致
+ * - 両方が指し手(fromあり)ならfrom(x,y)とpromote一致
  * - それ以外はpieceを一致
  */
 export function eqMoveMinimal(
@@ -17,18 +17,20 @@ export function eqMoveMinimal(
   // to は常に一致条件
   if (a.to.x !== b.to.x || a.to.y !== b.to.y) return false;
 
-  const isMove = !!a.from || !!b.from;
+  const aIsMove = !!a.from;
+  const bIsMove = !!b.from;
 
-  // 両方 from がある（指し手）
-  if (isMove) {
-    if (a.from && b.from) {
-      if (a.from.x !== b.from.x || a.from.y !== b.from.y) return false;
-    }
+  if (aIsMove !== bIsMove) return false;
+
+  if (aIsMove) {
+    if (!a.from || !b.from) return false;
+    if (a.from.x !== b.from.x || a.from.y !== b.from.y) return false;
+
     const ap = a.promote === true;
     const bp = b.promote === true;
     return ap === bp;
   }
-  // 打ち（または片方がfrom無し）: piece で一致
+
   return a.piece === b.piece;
 }
 

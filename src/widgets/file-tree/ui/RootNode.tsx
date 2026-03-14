@@ -6,24 +6,10 @@ import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
-import { useAppConfig } from "@/entities/app-config";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-
-function computeRenamedPathKeepingParent(
-  oldPath: string,
-  nextName: string,
-): string {
-  const p = oldPath.replace(/[/\\]+$/, "");
-  const lastSlash = p.lastIndexOf("/");
-  const lastBack = p.lastIndexOf("\\");
-  const idx = Math.max(lastSlash, lastBack);
-  const sep: "/" | "\\" = lastBack > lastSlash ? "\\" : "/";
-  const parent = idx >= 0 ? p.slice(0, idx) : "";
-  return parent ? `${parent}${sep}${nextName}` : nextName;
-}
 
 function validateBasename(name: string): string {
   const next = name.trim();
@@ -41,8 +27,6 @@ function RootNode({
 }) {
   const [isOpen, setIsOpen] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
-
-  const { setRootDir } = useAppConfig();
 
   const {
     openContextMenu,
@@ -66,7 +50,6 @@ function RootNode({
   };
 
   const handleCommitRename = async (nextNameRaw: string) => {
-    cancelInlineRename();
     let nextName: string;
     try {
       nextName = validateBasename(nextNameRaw);
@@ -75,23 +58,30 @@ function RootNode({
       return;
     }
 
-    if (nextName === node.name) return;
-
-    const oldPath = node.path;
-    const nextPath = computeRenamedPathKeepingParent(oldPath, nextName);
-    try {
-      await renameNode(node, nextName);
-      await setRootDir(nextPath);
-    } catch (err) {
-      console.error("ルートディレクトリリネームに失敗しました:", err);
+    if (nextName === node.name) {
+      cancelInlineRename();
+      return;
     }
+
+    const res = await renameNode(node, nextName);
+
+    if (!res.success) {
+      return;
+    }
+
+    cancelInlineRename();
   };
 
   const handleCommitCreate = async (name: string) => {
     const next = name.trim();
-    cancelCreateDirectory();
     if (!next) return;
-    await createNewDirectory(node.path, next);
+
+    const res = await createNewDirectory(node.path, next);
+    if (!res.success) {
+      return;
+    }
+
+    cancelCreateDirectory();
   };
 
   const handleMouseEnter = () => {
@@ -146,6 +136,7 @@ function RootNode({
           <span className="file-tree__rootdir--name">{node.name}</span>
         )}
       </NodeBox>
+
       {!isOpen ? null : (
         <>
           {showCreateRow && (
@@ -160,9 +151,10 @@ function RootNode({
               />
             </NodeBox>
           )}
+
           {!node.children?.length
             ? null
-            : node.children?.map((child) => (
+            : node.children.map((child) => (
                 <TreeNode key={child.path} node={child} level={1} />
               ))}
         </>
