@@ -5,7 +5,7 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*"   # pre-release: v1.0.0-beta.1
+      - "v[0-9]+.[0-9]+.[0-9]+-*" # pre-release: v1.0.0-beta.1
   workflow_dispatch:
     inputs:
       tag:
@@ -144,13 +144,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Updater signing key (stored in repo Secrets)
-          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          releaseId:   ${{ needs.create-release.outputs.release_id }}
-          tagName:     ${{ env.RELEASE_TAG }}
-          appVersion:  ${{ env.RELEASE_VERSION }}
-          args:        ${{ matrix.tauri_args }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: ${{ env.RELEASE_TAG }}
+          appVersion: ${{ env.RELEASE_VERSION }}
+          args: ${{ matrix.tauri_args }}
 
           # Generates and uploads latest.json so the updater endpoint resolves
           includeUpdaterJson: true
