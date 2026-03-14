@@ -135,6 +135,21 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Derive version from tag (strip leading "v")
+        shell: bash
+        run: echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> $GITHUB_ENV
+
+      - name: Stamp version into tauri.conf.json and Cargo.toml
+        shell: bash
+        run: |
+          jq --arg v "$RELEASE_VERSION" '.version = $v' src-tauri/tauri.conf.json > _tmp.json
+          mv _tmp.json src-tauri/tauri.conf.json
+          python3 -c "
+          import re, pathlib
+          p = pathlib.Path('src-tauri/Cargo.toml')
+          p.write_text(re.sub(r'^version = \"[^\"]+\"', 'version = \"$RELEASE_VERSION\"', p.read_text(), count=1, flags=re.M))
+          "
+
       - name: Build, sign & upload
         uses: tauri-apps/tauri-action@v0
         env:
