@@ -135,6 +135,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Derive version from tag (strip leading "v")
+        shell: bash
+        run: echo "RELEASE_VERSION=${RELEASE_TAG#v}" >> $GITHUB_ENV
+
       - name: Build, sign & upload
         uses: tauri-apps/tauri-action@v0
         env:
@@ -145,6 +149,7 @@ jobs:
         with:
           releaseId:   ${{ needs.create-release.outputs.release_id }}
           tagName:     ${{ env.RELEASE_TAG }}
+          appVersion:  ${{ env.RELEASE_VERSION }}
           args:        ${{ matrix.tauri_args }}
 
           # Generates and uploads latest.json so the updater endpoint resolves
