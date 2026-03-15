@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./AiLibraryTab.scss";
 
-import { FolderOpen, Copy, Sparkles } from "lucide-react";
+import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
 import { SButton, SField, SInput, SSection } from "../kit";
 import { useAppConfig } from "@/entities/app-config";
@@ -15,9 +15,10 @@ import {
   type ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
 
+import { createDir } from "@/entities/file-tree/api/service";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { copyText } from "@/shared/api/clipboard/copyText";
-import SetupGuide from "../ai-library-tab/SetupGuide";
+import SetupGuide, { type SetupGuideProfile } from "../ai-library-tab/SetupGuide";
 
 function normalizePath(p: string) {
   return (p ?? "").replace(/\\/g, "/");
@@ -50,7 +51,7 @@ export default function AiLibraryTab() {
 
   const canOperate = localAiRoot.trim().length > 0;
 
-  const scanNow = async (root: string) => {
+  const scanNow = useCallback(async (root: string) => {
     const r = root.trim();
     if (!r) return;
     setScan({ status: "loading" });
@@ -63,14 +64,14 @@ export default function AiLibraryTab() {
         error: e instanceof Error ? e.message : String(e),
       });
     }
-  };
+  }, []);
 
-  const refresh = async () => scanNow(localAiRoot);
+  const refresh = useCallback(async () => scanNow(localAiRoot), [localAiRoot, scanNow]);
 
   useEffect(() => {
     if (didInitRef.current) return;
     didInitRef.current = true;
-    if (localAiRoot.trim()) refresh();
+    if (localAiRoot.trim()) void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -79,22 +80,16 @@ export default function AiLibraryTab() {
   const warnings = useMemo(() => {
     if (!data) return [] as string[];
     const ws: string[] = [];
-
     if (!data.engines_dir.exists || !isDir(data.engines_dir.kind)) {
       ws.push("engines/ が見つかりません。『engines/ を作成』で生成できます。");
     }
     if ((data.engines?.length ?? 0) === 0) {
-      ws.push(
-        "エンジン実行ファイルが未検出です。engines/ 配下に置いてください。",
-      );
+      ws.push("エンジン実行ファイルが未検出です。engines/ 配下に置いてください。");
     }
-
     for (const p of data.profiles ?? []) {
       const { okEval, okBook } = profileHealth(p);
       if (!okEval)
-        ws.push(
-          `「${p.name}」: eval が未検出です（<AI名>/eval に nn.bin 等）。`,
-        );
+        ws.push(`「${p.name}」: eval が未検出です（<AI名>/eval に nn.bin 等）。`);
       if (!okBook)
         ws.push(`「${p.name}」: book が未検出です（<AI名>/book に .db）。`);
     }
@@ -102,14 +97,28 @@ export default function AiLibraryTab() {
   }, [data]);
 
   const enginesCount = data?.engines?.length ?? 0;
-  const profilesCount = data?.profiles?.length ?? 0;
+  const engineNames = useMemo(
+    () => data?.engines?.map((e) => e.entry) ?? [],
+    [data],
+  );
+
+  const guideProfiles = useMemo<SetupGuideProfile[]>(
+    () =>
+      data?.profiles.map((p) => ({
+        name: p.name,
+        path: p.path,
+        hasEvalDir: p.has_eval_dir,
+        hasBookDir: p.has_book_dir,
+        evalCount: p.eval_files.length,
+        bookCount: p.book_db_files.length,
+      })) ?? [],
+    [data],
+  );
 
   const badge = useMemo(() => {
     if (!canOperate) return { tone: "warn" as const, text: "未設定" };
-    if (scan.status === "loading")
-      return { tone: "muted" as const, text: "診断中…" };
-    if (scan.status === "error")
-      return { tone: "danger" as const, text: "エラー" };
+    if (scan.status === "loading") return { tone: "muted" as const, text: "診断中…" };
+    if (scan.status === "error") return { tone: "danger" as const, text: "エラー" };
     if (scan.status === "ready")
       return warnings.length > 0
         ? { tone: "warn" as const, text: "注意あり" }
@@ -117,14 +126,14 @@ export default function AiLibraryTab() {
     return { tone: "muted" as const, text: "—" };
   }, [canOperate, scan.status, warnings.length]);
 
-  const onPick = async () => {
+  const onPick = useCallback(async () => {
     const picked = await chooseAiRoot({ force: true });
     if (!picked) return;
     setLocalAiRoot(picked);
     await scanNow(picked);
-  };
+  }, [scanNow]);
 
-  const onEnsureEngines = async () => {
+  const onEnsureEngines = useCallback(async () => {
     const root = localAiRoot.trim();
     if (!root) return;
     setScan({ status: "loading" });
@@ -132,20 +141,57 @@ export default function AiLibraryTab() {
       await ensureEnginesDir(root);
       await scanNow(root);
     } catch (e) {
-      setScan({
-        status: "error",
-        error: e instanceof Error ? e.message : String(e),
-      });
+      setScan({ status: "error", error: e instanceof Error ? e.message : String(e) });
     }
-  };
+  }, [localAiRoot, scanNow]);
 
-  const enginesDirPath =
-    data?.engines_dir?.path ||
-    (localAiRoot ? `${normalizePath(localAiRoot)}/engines` : "");
+  const onOpenAiRoot = useCallback(() => {
+    if (localAiRoot.trim()) void revealInFileManager(localAiRoot);
+  }, [localAiRoot]);
 
-  const enginesDirOk = !!(
-    data?.engines_dir?.exists && isDir(data.engines_dir.kind)
+  const enginesDirPath = useMemo(
+    () =>
+      data?.engines_dir?.path ||
+      (localAiRoot ? `${normalizePath(localAiRoot)}/engines` : ""),
+    [data?.engines_dir?.path, localAiRoot],
   );
+
+  const onOpenEnginesDir = useCallback(() => {
+    if (enginesDirPath.trim()) void revealInFileManager(enginesDirPath);
+  }, [enginesDirPath]);
+
+  const enginesDirOk = !!(data?.engines_dir?.exists && isDir(data.engines_dir.kind));
+
+  const onCreateAiFolder = useCallback(
+    async (aiName: string) => {
+      const root = localAiRoot.trim();
+      const name = aiName.trim();
+      if (!root || !name) return;
+      setScan({ status: "loading" });
+      try {
+        const profileRes = await createDir(root, name);
+        if (!profileRes.success) throw new Error(String(profileRes.error));
+        const profilePath = profileRes.data;
+        await createDir(profilePath, "eval");
+        await createDir(profilePath, "book");
+        await scanNow(root);
+      } catch (e) {
+        setScan({ status: "error", error: e instanceof Error ? e.message : String(e) });
+      }
+    },
+    [localAiRoot, scanNow],
+  );
+
+  const scanStatus = useMemo((): "idle" | "loading" | "ok" | "error" => {
+    switch (scan.status) {
+      case "idle": return "idle";
+      case "loading": return "loading";
+      case "ready": return "ok";
+      case "error": return "error";
+    }
+  }, [scan.status]);
+
+  const scanError = scan.status === "error" ? scan.error : null;
 
   return (
     <div className="aiLibraryTab">
@@ -169,17 +215,15 @@ export default function AiLibraryTab() {
                     <FolderOpen size={16} style={{ marginRight: 6 }} />
                     選択…
                   </SButton>
-
                   <SButton
                     variant="ghost"
                     size="sm"
-                    onClick={() => revealInFileManager(localAiRoot)}
+                    onClick={onOpenAiRoot}
                     disabled={!canOperate}
                     title="Finder/Explorer で開く"
                   >
                     開く
                   </SButton>
-
                   <SButton
                     variant="ghost"
                     size="sm"
@@ -211,11 +255,10 @@ export default function AiLibraryTab() {
                   engines/ を作成
                 </SButton>
               )}
-
               <SButton
                 variant="ghost"
                 size="sm"
-                onClick={() => revealInFileManager(enginesDirPath)}
+                onClick={onOpenEnginesDir}
                 disabled={!canOperate}
                 title="engines/ を開く"
               >
@@ -231,14 +274,23 @@ export default function AiLibraryTab() {
           </SSection>
         </div>
 
-        {/* 右：ガイド（分離済み） */}
         <SetupGuide
-          canOperate={canOperate}
-          enginesDirOk={enginesDirOk}
+          aiRootPath={localAiRoot || null}
+          scanStatus={scanStatus}
+          scanError={scanError}
+          enginesDirExists={enginesDirOk}
+          enginesDirPath={enginesDirPath}
           enginesCount={enginesCount}
-          profilesCount={profilesCount}
-          scanReady={scan.status === "ready"}
+          engineNames={engineNames}
+          profiles={guideProfiles}
           warnings={warnings}
+          isScanning={scan.status === "loading"}
+          onSelectRoot={onPick}
+          onRescan={() => void refresh()}
+          onCreateEnginesDir={onEnsureEngines}
+          onOpenAiRoot={onOpenAiRoot}
+          onOpenEnginesDir={onOpenEnginesDir}
+          onCreateAiFolder={onCreateAiFolder}
         />
       </div>
     </div>

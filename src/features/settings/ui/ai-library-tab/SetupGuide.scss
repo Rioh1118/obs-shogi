@@ -1,0 +1,405 @@
+@use "@/index.scss" as index;
+
+.setupGuide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  // ── Hero ──────────────────────────────────────────────────────────────
+
+  &__hero {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: center;
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(index.$color-white, 0.08);
+    background: rgba(index.$color-primary-black, 0.22);
+    transition: border-color 0.2s, background 0.2s;
+
+    &[data-tone="todo"] {
+      border-color: rgba(index.$color-primary-light, 0.22);
+      background: rgba(index.$color-primary-dark, 0.32);
+    }
+    &[data-tone="warn"] {
+      border-color: rgba(255, 180, 80, 0.3);
+      background: rgba(255, 180, 80, 0.06);
+    }
+    &[data-tone="ok"] {
+      border-color: rgba(index.$color-secondary-dark, 0.3);
+      background: rgba(index.$color-secondary-dark, 0.08);
+    }
+
+    @media (max-width: 820px) {
+      grid-template-columns: auto 1fr;
+      .setupGuide__heroActions {
+        grid-column: 1 / -1;
+      }
+    }
+  }
+
+  &__heroIcon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: rgba(index.$color-primary-black, 0.3);
+    color: rgba(index.$color-text-light-1, 0.85);
+    flex: 0 0 auto;
+  }
+
+  &__heroBody {
+    min-width: 0;
+  }
+
+  &__heroTag {
+    display: inline-block;
+    font-size: 1.1rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(index.$color-primary-light, 0.18);
+    color: rgba(index.$color-text-light-1, 0.7);
+    margin-bottom: 5px;
+    letter-spacing: 0.02em;
+  }
+
+  &__heroTitle {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: index.$color-text-light-1;
+    line-height: 1.35;
+  }
+
+  &__heroDesc {
+    margin-top: 4px;
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.68);
+    line-height: 1.55;
+  }
+
+  &__heroActions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 0 0 auto;
+  }
+
+  // ── Status grid ───────────────────────────────────────────────────────
+
+  &__statusGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  &__statusCard {
+    padding: 12px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.07);
+    background: rgba(index.$color-primary-black, 0.16);
+
+    &[data-state="ok"] {
+      border-color: rgba(index.$color-secondary-dark, 0.22);
+      background: rgba(index.$color-secondary-dark, 0.06);
+    }
+    &[data-state="warn"] {
+      border-color: rgba(255, 180, 80, 0.22);
+      background: rgba(255, 180, 80, 0.05);
+    }
+  }
+
+  &__statusCardTop {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(index.$color-text-light-1, 0.55);
+  }
+
+  &__statusCardLabel {
+    font-size: 1.15rem;
+  }
+
+  &__statusCardValue {
+    margin-top: 6px;
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: index.$color-text-light-1;
+    line-height: 1.2;
+  }
+
+  &__statusCardHint {
+    margin-top: 3px;
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.5);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // ── Structure overview ────────────────────────────────────────────────
+}
+
+// ── FolderConcept ────────────────────────────────────────────────────────
+
+.folderConcept {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__roles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+
+    @media (max-width: 700px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__roleCard {
+    position: relative;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(index.$color-white, 0.07);
+    background: rgba(index.$color-primary-black, 0.22);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  &__rolePill {
+    position: absolute;
+    top: 7px;
+    right: 8px;
+    font-size: 1.0rem;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(index.$color-white, 0.07);
+    color: rgba(index.$color-text-light-1, 0.45);
+  }
+
+  &__roleLabel {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: rgba(index.$color-secondary-light, 0.8);
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
+      monospace;
+  }
+
+  &__roleRole {
+    font-size: 1.2rem;
+    color: index.$color-text-light-1;
+    line-height: 1.35;
+  }
+
+  &__roleExample {
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.42);
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
+      monospace;
+  }
+
+  &__exampleWrap {
+    position: relative;
+  }
+
+  &__exampleTag {
+    display: inline-block;
+    font-size: 1.05rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(index.$color-primary-dark, 0.5);
+    border: 1px solid rgba(index.$color-white, 0.07);
+    color: rgba(index.$color-text-light-1, 0.45);
+    margin-bottom: 6px;
+  }
+
+  &__example {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(index.$color-white, 0.06);
+    background: rgba(index.$color-primary-black, 0.28);
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
+      monospace;
+    font-size: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  &__exLine {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 1px 0;
+    line-height: 1.6;
+    color: rgba(index.$color-text-light-1, 0.75);
+
+    &[data-dim="true"] {
+      color: rgba(index.$color-text-light-1, 0.35);
+    }
+  }
+
+  &__exText {
+    flex: 0 0 auto;
+    white-space: pre;
+  }
+
+  &__exNote {
+    font-size: 1.05rem;
+    color: rgba(index.$color-text-light-1, 0.35);
+    white-space: nowrap;
+  }
+}
+
+.structureOverview {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(index.$color-white, 0.06);
+  background: rgba(index.$color-primary-black, 0.28);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
+    monospace;
+  font-size: 1.18rem;
+
+  &__node {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 2px 0;
+    line-height: 1.6;
+    color: rgba(index.$color-text-light-1, 0.45);
+    transition: color 0.1s;
+
+    &[data-state="ok"] {
+      color: rgba(index.$color-secondary-light, 0.82);
+    }
+    &[data-state="missing"] {
+      color: rgba(255, 160, 70, 0.85);
+    }
+    &[data-state="empty"] {
+      color: rgba(index.$color-text-light-1, 0.4);
+    }
+    &[data-state="placeholder"] {
+      color: rgba(index.$color-text-light-1, 0.3);
+      font-style: italic;
+    }
+  }
+
+  &__connector {
+    flex: 0 0 auto;
+    color: rgba(index.$color-text-light-1, 0.2);
+  }
+
+  &__label {
+    flex: 0 0 auto;
+  }
+
+  &__note {
+    font-size: 1.05rem;
+    color: rgba(index.$color-text-light-1, 0.38);
+    white-space: nowrap;
+  }
+}
+
+.setupGuide {
+  // ── Profiles ──────────────────────────────────────────────────────────
+
+  &__profileList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__profileItem {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(index.$color-white, 0.07);
+    background: rgba(index.$color-primary-black, 0.16);
+  }
+
+  &__profileHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  &__profileName {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: index.$color-text-light-1;
+  }
+
+  &__profileBadges {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  &__profilePath {
+    margin-top: 5px;
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.48);
+    word-break: break-all;
+    line-height: 1.4;
+  }
+
+  &__emptyProfiles {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px dashed rgba(index.$color-white, 0.1);
+    color: rgba(index.$color-text-light-1, 0.55);
+    font-size: 1.2rem;
+    line-height: 1.55;
+  }
+
+  // ── AI create form ────────────────────────────────────────────────────
+
+  &__createRow {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+
+  &__createInputWrap {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  // ── Warnings ──────────────────────────────────────────────────────────
+
+  &__warnings {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 180, 80, 0.25);
+    background: rgba(255, 180, 80, 0.06);
+  }
+
+  &__warningsTitle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: rgba(255, 190, 110, 0.9);
+    margin-bottom: 6px;
+  }
+
+  &__warningItem {
+    font-size: 1.18rem;
+    color: rgba(index.$color-text-light-1, 0.8);
+    line-height: 1.5;
+  }
+}
