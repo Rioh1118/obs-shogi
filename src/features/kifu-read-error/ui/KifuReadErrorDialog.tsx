@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Copy, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Copy, X } from "lucide-react";
 import Modal from "@/shared/ui/Modal";
 import type { FsError } from "@/entities/file-tree/api/error";
 import "./KifuReadErrorDialog.scss";
 
 type Props = {
   error: FsError | null;
-  onRetry: () => void;
   onDismiss: () => void;
 };
 
@@ -20,7 +19,7 @@ function buildClipboardText(error: FsError): string {
   return lines.join("\n");
 }
 
-export function KifuReadErrorDialog({ error, onRetry, onDismiss }: Props) {
+export function KifuReadErrorDialog({ error, onDismiss }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -39,11 +38,6 @@ export function KifuReadErrorDialog({ error, onRetry, onDismiss }: Props) {
     } catch {
       // clipboard unavailable
     }
-  };
-
-  const handleRetry = () => {
-    onDismiss();
-    onRetry();
   };
 
   return (
@@ -116,18 +110,10 @@ export function KifuReadErrorDialog({ error, onRetry, onDismiss }: Props) {
           <div className="kifu-read-error__actionsRight">
             <button
               type="button"
-              className="kifu-read-error__btn kifu-read-error__btn--ghost"
+              className="kifu-read-error__btn kifu-read-error__btn--primary"
               onClick={onDismiss}
             >
               閉じる
-            </button>
-            <button
-              type="button"
-              className="kifu-read-error__btn kifu-read-error__btn--primary"
-              onClick={handleRetry}
-            >
-              <RefreshCw size={13} />
-              再試行
             </button>
           </div>
         </div>

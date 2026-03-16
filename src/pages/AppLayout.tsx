@@ -36,7 +36,6 @@ const AppLayout = () => {
     closeConflict,
     resolveConflictByRename,
     clearKifuError,
-    openKifuNode,
   } = useFileTree();
 
   const prevIdRef = useRef<string | null>(null);
@@ -87,9 +86,6 @@ const AppLayout = () => {
       <KifuReadErrorDialog
         error={kifuError}
         onDismiss={clearKifuError}
-        onRetry={() => {
-          if (selectedNode) void openKifuNode(selectedNode);
-        }}
       />
 
       <AppLayoutHeader
