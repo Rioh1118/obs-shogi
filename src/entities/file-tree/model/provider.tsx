@@ -38,6 +38,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const pendingSelectedPathRef = useRef<string | null>(null);
   const selectedNodeRef = useRef(state.selectedNode);
   selectedNodeRef.current = state.selectedNode;
+  const kifuOpenGenerationRef = useRef(0);
 
   const revealNodeInCurrentTree = useCallback(
     (absPath: string) => {
@@ -194,9 +195,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
 
       const prevSelectedNode = selectedNodeRef.current;
+      const myGeneration = ++kifuOpenGenerationRef.current;
 
       const restoreSelection = () => {
-        dispatch({ type: "node_selected", payload: prevSelectedNode });
+        // このリクエストが最新でなければ、より新しい操作の選択状態を上書きしない
+        if (kifuOpenGenerationRef.current === myGeneration) {
+          dispatch({ type: "node_selected", payload: prevSelectedNode });
+        }
       };
 
       dispatch({ type: "kifu_loading" });
