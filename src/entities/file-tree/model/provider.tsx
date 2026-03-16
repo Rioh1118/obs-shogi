@@ -36,6 +36,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const { setRootDir } = useAppConfig();
   const pendingRevealPathRef = useRef<string | null>(null);
   const pendingSelectedPathRef = useRef<string | null>(null);
+  const selectedNodeRef = useRef(state.selectedNode);
+  selectedNodeRef.current = state.selectedNode;
 
   const revealNodeInCurrentTree = useCallback(
     (absPath: string) => {
@@ -191,10 +193,17 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Err(error);
       }
 
+      const prevSelectedNode = selectedNodeRef.current;
+
+      const restoreSelection = () => {
+        dispatch({ type: "node_selected", payload: prevSelectedNode });
+      };
+
       dispatch({ type: "kifu_loading" });
 
       const readRes = await api.readKifu(node);
       if (!readRes.success) {
+        restoreSelection();
         dispatch({ type: "kifu_error", payload: readRes.error });
         return Err(readRes.error);
       }
@@ -211,6 +220,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         });
         return Ok(undefined);
       } catch (e) {
+        restoreSelection();
         const rawMsg = e instanceof Error ? e.message : String(e);
         const cause =
           e instanceof Error && e.stack ? e.stack : rawMsg;
