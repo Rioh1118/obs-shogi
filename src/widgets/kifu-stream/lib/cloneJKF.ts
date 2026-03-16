@@ -1,14 +1,5 @@
-import type { JKFData, JKFMove } from "@/entities/kifu";
-
-function sanitizeMoves(moves: JKFMove[]): JKFMove[] {
-  return moves.map((m) => {
-    if (!m.forks) return m;
-    const cleanForks = m.forks
-      .filter((fork) => fork.length > 0 && fork[0] != null)
-      .map((fork) => sanitizeMoves(fork));
-    return { ...m, forks: cleanForks.length > 0 ? cleanForks : undefined };
-  });
-}
+import type { JKFData } from "@/entities/kifu";
+import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
 
 export function cloneJKF(kifu: JKFData): JKFData {
   const sc = globalThis.structuredClone as
@@ -18,5 +9,7 @@ export function cloneJKF(kifu: JKFData): JKFData {
     typeof sc === "function"
       ? sc(kifu)
       : (JSON.parse(JSON.stringify(kifu)) as JKFData);
-  return { ...cloned, moves: sanitizeMoves(cloned.moves) };
+  // データは parseKifuContentToJKF 時点で sanitize 済み。
+  // ここでも適用することで、テスト等で未 sanitize データが渡された場合の安全網とする。
+  return sanitizeJkf(cloned);
 }

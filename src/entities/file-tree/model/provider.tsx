@@ -16,6 +16,7 @@ import {
   parseKifuContentToJKF,
   type KifuCreationOptions,
 } from "@/entities/kifu";
+import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
 import {
   findNodeChain,
   isSameOrDescendantPath,
@@ -219,7 +220,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
 
       try {
-        const jkfData = parseKifuContentToJKF(readRes.data, fmt);
+        const jkfData = sanitizeJkf(parseKifuContentToJKF(readRes.data, fmt));
         dispatch({
           type: "kifu_opened",
           payload: {
