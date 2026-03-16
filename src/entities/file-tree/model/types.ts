@@ -93,15 +93,18 @@ export type FileTreeState = {
 
   expandedNodes: Set<string>;
   isLoading: boolean;
+  isKifuLoading: boolean;
   menu: MenuState;
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
   error: FsError | null;
+  kifuError: FsError | null;
   conflict: FileConflictState | null;
 };
 
 export type FileTreeAction =
   | { type: "loading" }
+  | { type: "kifu_loading" }
   | { type: "tree_loaded"; payload: FileTreeNode }
   | { type: "node_selected"; payload: FileTreeNode | null }
   | {
@@ -134,6 +137,8 @@ export type FileTreeAction =
     }
   | { type: "error"; payload: FsError }
   | { type: "error_cleared" }
+  | { type: "kifu_error"; payload: FsError }
+  | { type: "kifu_error_cleared" }
   | { type: "conflict_opened"; payload: FileConflictState }
   | { type: "conflict_closed" };
 
@@ -145,10 +150,12 @@ export const initialState: FileTreeState = {
   kifuFormat: null,
   expandedNodes: new Set<string>(),
   isLoading: false,
+  isKifuLoading: false,
   menu: null,
   renamingNodeId: null,
   creatingDirParentPath: null,
   error: null,
+  kifuError: null,
   conflict: null,
 };
 
@@ -201,6 +208,7 @@ export type FileTreeContextType = FileTreeState & {
   cancelCreateDirectory: () => void;
 
   clearError: () => void;
+  clearKifuError: () => void;
   closeConflict: () => void;
   resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
 

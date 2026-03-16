@@ -1,0 +1,229 @@
+@use "@/index.scss" as index;
+
+.kifu-read-error {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+
+  // ── Header ──────────────────────────────────────────────────────────────
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2rem;
+    min-width: 0;
+  }
+
+  &__iconWrap {
+    flex: 0 0 auto;
+    width: 3.8rem;
+    height: 3.8rem;
+    border-radius: 1.2rem;
+    display: grid;
+    place-items: center;
+    background:
+      linear-gradient(
+        180deg,
+        rgba(index.$color-white, 0.5),
+        rgba(index.$color-white, 0.18)
+      ),
+      rgba(255, 140, 60, 0.12);
+    color: rgba(220, 100, 30, 0.9);
+    border: 1px solid rgba(255, 140, 60, 0.18);
+    box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.08);
+  }
+
+  &__headingBlock {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  &__title {
+    font-size: 1.85rem;
+    line-height: 1.28;
+    font-weight: 700;
+    color: index.$color-text-dark-1;
+    letter-spacing: 0.01em;
+  }
+
+  &__file {
+    font-size: 1.18rem;
+    color: rgba(index.$color-text-dark-2, 0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  }
+
+  &__closeBtn {
+    flex: 0 0 auto;
+    width: 2.8rem;
+    height: 2.8rem;
+    display: grid;
+    place-items: center;
+    border: none;
+    background: transparent;
+    border-radius: 0.8rem;
+    color: rgba(index.$color-text-dark-2, 0.55);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+
+    &:hover {
+      background: rgba(index.$color-primary-light, 0.08);
+      color: rgba(index.$color-text-dark-2, 0.85);
+    }
+  }
+
+  // ── Reason box (Layer 2) ────────────────────────────────────────────────
+
+  &__reasonBox {
+    border-radius: 1.2rem;
+    border: 1px solid rgba(255, 140, 60, 0.18);
+    background:
+      linear-gradient(
+        180deg,
+        rgba(index.$color-white, 0.5),
+        rgba(index.$color-white, 0.24)
+      ),
+      rgba(255, 200, 120, 0.12);
+    padding: 1.2rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  &__reason {
+    font-size: 1.32rem;
+    line-height: 1.65;
+    color: index.$color-text-dark-1;
+    font-weight: 500;
+  }
+
+  &__path {
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-dark-2, 0.6);
+    word-break: break-all;
+    line-height: 1.5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+  }
+
+  // ── Technical detail (Layer 3) ──────────────────────────────────────────
+
+  &__detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  &__detailToggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+    background: transparent;
+    font-size: 1.15rem;
+    color: rgba(index.$color-text-dark-2, 0.65);
+    cursor: pointer;
+    padding: 0.2rem 0;
+    transition: color 120ms ease;
+
+    &:hover {
+      color: rgba(index.$color-text-dark-2, 0.9);
+    }
+  }
+
+  &__detailBody {
+    background: rgba(index.$color-primary-light, 0.04);
+    border: 1px solid rgba(index.$color-primary-light, 0.1);
+    border-radius: 0.9rem;
+    padding: 1rem 1.2rem;
+    font-size: 1.08rem;
+    line-height: 1.65;
+    color: rgba(index.$color-text-dark-2, 0.8);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 16rem;
+    overflow-y: auto;
+  }
+
+  // ── Actions ─────────────────────────────────────────────────────────────
+
+  &__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+
+  &__actionsLeft,
+  &__actionsRight {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 9rem;
+    height: 3.6rem;
+    padding: 0 1.2rem;
+    border-radius: 1rem;
+    border: 1px solid transparent;
+    font-size: 1.28rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition:
+      transform 120ms ease,
+      box-shadow 120ms ease,
+      background-color 120ms ease,
+      border-color 120ms ease,
+      opacity 120ms ease;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0) scale(0.985);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(index.$color-secondary-dark, 0.22);
+    }
+
+    &:disabled {
+      opacity: 0.46;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    &--ghost {
+      background: transparent;
+      border-color: rgba(index.$color-primary-light, 0.14);
+      color: rgba(index.$color-text-dark-2, 0.85);
+    }
+
+    &--primary {
+      background: linear-gradient(
+        180deg,
+        rgba(index.$color-primary-light, 0.96),
+        rgba(index.$color-primary-dark, 0.96)
+      );
+      color: index.$color-text-light-1;
+      box-shadow: 0 0.5rem 1.2rem rgba(44, 54, 57, 0.18);
+    }
+  }
+}

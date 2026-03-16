@@ -15,6 +15,7 @@ export type FsError = {
   message: string;
   path?: string;
   existingPath?: string;
+  cause?: string;
 };
 
 export function asFsError(error: unknown): FsError {

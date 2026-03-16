@@ -20,6 +20,8 @@ import { usePositionSearch } from "@/entities/search";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useFileTree } from "@/entities/file-tree";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
+import { KifuReadErrorDialog } from "@/features/kifu-read-error";
+import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -27,8 +29,15 @@ const AppLayout = () => {
   const { params, updateParams } = useURLParams();
   const rotate = params.pov === "gote";
 
-  const { selectedNode, conflict, closeConflict, resolveConflictByRename } =
-    useFileTree();
+  const {
+    selectedNode,
+    conflict,
+    kifuError,
+    closeConflict,
+    resolveConflictByRename,
+    clearKifuError,
+    openKifuNode,
+  } = useFileTree();
 
   const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -75,6 +84,13 @@ const AppLayout = () => {
         onCancel={closeConflict}
         onSubmitRename={resolveConflictByRename}
       />
+      <KifuReadErrorDialog
+        error={kifuError}
+        onDismiss={clearKifuError}
+        onRetry={() => {
+          if (selectedNode) void openKifuNode(selectedNode);
+        }}
+      />
 
       <AppLayoutHeader
         toggleSidebar={toggleSidebar}
@@ -107,7 +123,9 @@ const AppLayout = () => {
                     </div>
                   </div>
                   <aside className="workspace__kifuPane">
-                    <KifuStreamList />
+                    <AppErrorBoundary>
+                      <KifuStreamList />
+                    </AppErrorBoundary>
                   </aside>
                 </section>
 
