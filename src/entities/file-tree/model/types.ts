@@ -93,7 +93,6 @@ export type FileTreeState = {
 
   expandedNodes: Set<string>;
   isLoading: boolean;
-  isKifuLoading: boolean;
   menu: MenuState;
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
@@ -150,7 +149,6 @@ export const initialState: FileTreeState = {
   kifuFormat: null,
   expandedNodes: new Set<string>(),
   isLoading: false,
-  isKifuLoading: false,
   menu: null,
   renamingNodeId: null,
   creatingDirParentPath: null,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, Copy, X } from "lucide-react";
 import Modal from "@/shared/ui/Modal";
 import type { FsError } from "@/entities/file-tree/api/error";
@@ -23,11 +23,20 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // 3: エラーが切り替わったら詳細を閉じてコピー状態をリセット
+  useEffect(() => {
+    if (error) {
+      setDetailOpen(false);
+      setCopied(false);
+    }
+  }, [error]);
+
   if (!error) return null;
 
   const hasDetail = !!error.cause;
+  // 1: Windows の \ にも対応
   const fileName = error.path
-    ? error.path.split("/").pop() ?? error.path
+    ? (error.path.split(/[/\\]/).pop() ?? error.path)
     : null;
 
   const handleCopy = async () => {

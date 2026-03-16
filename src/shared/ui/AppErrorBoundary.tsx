@@ -19,6 +19,11 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
+  // 5: エラーをコンソールに記録
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("[AppErrorBoundary] Uncaught error:", error, info.componentStack);
+  }
+
   reset = () => {
     this.setState({ error: null });
   };
@@ -29,15 +34,33 @@ export class AppErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }
+      // 4: インラインスタイルで最低限のフォールバック表示を保証
       return (
-        <div className="app-error-boundary">
-          <p className="app-error-boundary__message">
-            表示中にエラーが発生しました。
-          </p>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "1.2rem",
+            padding: "2.4rem",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: "1.3rem",
+          }}
+        >
+          <p>表示中にエラーが発生しました。</p>
           <button
-            className="app-error-boundary__reset"
-            onClick={this.reset}
             type="button"
+            onClick={this.reset}
+            style={{
+              padding: "0.6rem 1.4rem",
+              borderRadius: "0.8rem",
+              border: "1px solid rgba(255,255,255,0.2)",
+              background: "rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.8)",
+              fontSize: "1.2rem",
+              cursor: "pointer",
+            }}
           >
             再表示
           </button>

@@ -221,9 +221,14 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Ok(undefined);
       } catch (e) {
         restoreSelection();
-        const rawMsg = e instanceof Error ? e.message : String(e);
+        // 6: cause には元の例外メッセージのみ。スタックはノイズが多いため除外
+        const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
         const cause =
-          e instanceof Error && e.stack ? e.stack : rawMsg;
+          e instanceof Error
+            ? rawCause instanceof Error
+              ? `${e.message}\n原因: ${rawCause.message}`
+              : e.message
+            : String(e);
         const error: FsError = {
           code: "invalid_type",
           message: "棋譜の解析に失敗しました。",
