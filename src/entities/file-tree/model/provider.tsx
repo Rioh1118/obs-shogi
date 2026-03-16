@@ -198,8 +198,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const myGeneration = ++kifuOpenGenerationRef.current;
 
       const restoreSelection = () => {
-        // このリクエストが最新でなければ、より新しい操作の選択状態を上書きしない
-        if (kifuOpenGenerationRef.current === myGeneration) {
+        // 1) このリクエストより新しい openKifuNode が始まっていたらスキップ
+        // 2) openKifuNode 以外の操作（ツリー再読み込み・deleteNode 等）で
+        //    selectedNode が既に別のノードに変わっていてもスキップ
+        if (
+          kifuOpenGenerationRef.current === myGeneration &&
+          selectedNodeRef.current?.path === node.path
+        ) {
           dispatch({ type: "node_selected", payload: prevSelectedNode });
         }
       };
