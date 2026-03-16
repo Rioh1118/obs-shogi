@@ -8,6 +8,9 @@ export function reducer(
     case "loading":
       return { ...state, isLoading: true, error: null };
 
+    case "kifu_loading":
+      return { ...state, kifuError: null };
+
     case "tree_loaded":
     case "tree_updated":
       return {
@@ -30,6 +33,7 @@ export function reducer(
         jkfData: action.payload.jkfData,
         kifuFormat: action.payload.format,
         isLoading: false,
+        kifuError: null,
         error: null,
       };
 
@@ -101,10 +105,13 @@ export function reducer(
       return { ...state, isLoading: false, error: action.payload };
 
     case "error_cleared":
-      return {
-        ...state,
-        error: null,
-      };
+      return { ...state, error: null };
+
+    case "kifu_error":
+      return { ...state, kifuError: action.payload };
+
+    case "kifu_error_cleared":
+      return { ...state, kifuError: null };
 
     case "conflict_opened":
       return {

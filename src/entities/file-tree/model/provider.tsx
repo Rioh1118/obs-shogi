@@ -16,6 +16,7 @@ import {
   parseKifuContentToJKF,
   type KifuCreationOptions,
 } from "@/entities/kifu";
+import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
 import {
   findNodeChain,
   isSameOrDescendantPath,
@@ -36,6 +37,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const { setRootDir } = useAppConfig();
   const pendingRevealPathRef = useRef<string | null>(null);
   const pendingSelectedPathRef = useRef<string | null>(null);
+  const selectedNodeRef = useRef(state.selectedNode);
+  selectedNodeRef.current = state.selectedNode;
+  const kifuOpenGenerationRef = useRef(0);
 
   const revealNodeInCurrentTree = useCallback(
     (absPath: string) => {
@@ -187,20 +191,36 @@ export function FileTreeProvider({ rootDir, children }: Props) {
           "棋譜フォーマットが不明です",
           node.path,
         );
-        pushError(error);
+        dispatch({ type: "kifu_error", payload: error });
         return Err(error);
       }
 
-      dispatch({ type: "loading" });
+      const prevSelectedNode = selectedNodeRef.current;
+      const myGeneration = ++kifuOpenGenerationRef.current;
+
+      const restoreSelection = () => {
+        // 1) このリクエストより新しい openKifuNode が始まっていたらスキップ
+        // 2) openKifuNode 以外の操作（ツリー再読み込み・deleteNode 等）で
+        //    selectedNode が既に別のノードに変わっていてもスキップ
+        if (
+          kifuOpenGenerationRef.current === myGeneration &&
+          selectedNodeRef.current?.path === node.path
+        ) {
+          dispatch({ type: "node_selected", payload: prevSelectedNode });
+        }
+      };
+
+      dispatch({ type: "kifu_loading" });
 
       const readRes = await api.readKifu(node);
       if (!readRes.success) {
-        pushError(readRes.error);
+        restoreSelection();
+        dispatch({ type: "kifu_error", payload: readRes.error });
         return Err(readRes.error);
       }
 
       try {
-        const jkfData = parseKifuContentToJKF(readRes.data, fmt);
+        const jkfData = sanitizeJkf(parseKifuContentToJKF(readRes.data, fmt));
         dispatch({
           type: "kifu_opened",
           payload: {
@@ -211,16 +231,26 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         });
         return Ok(undefined);
       } catch (e) {
-        const error = makeFsError(
-          "invalid_type",
-          e instanceof Error ? e.message : String(e),
-          node.path,
-        );
-        pushError(error);
+        restoreSelection();
+        // 6: cause には元の例外メッセージのみ。スタックはノイズが多いため除外
+        const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
+        const cause =
+          e instanceof Error
+            ? rawCause instanceof Error
+              ? `${e.message}\n原因: ${rawCause.message}`
+              : e.message
+            : String(e);
+        const error: FsError = {
+          code: "invalid_type",
+          message: "棋譜の解析に失敗しました。",
+          path: node.path,
+          cause,
+        };
+        dispatch({ type: "kifu_error", payload: error });
         return Err(error);
       }
     },
-    [pushError],
+    [],
   );
 
   const closeActiveKifu = useCallback(() => {
@@ -624,6 +654,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "error_cleared" });
   }, []);
 
+  const clearKifuError = useCallback(() => {
+    dispatch({ type: "kifu_error_cleared" });
+  }, []);
+
   const closeConflict = useCallback(() => {
     dispatch({ type: "conflict_closed" });
   }, []);
@@ -657,6 +691,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         selectNodeByAbsPath,
         resolveConflictByRename,
         clearError,
+        clearKifuError,
         closeConflict,
       }}
     >
