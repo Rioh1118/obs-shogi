@@ -3,7 +3,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 use shogi_core::PartialPosition;
-use shogi_kifu_converter::jkf::{JsonKifuFormat, MoveFormat};
+use shogi_kifu_converter_obsshogi::jkf::{JsonKifuFormat, MoveFormat};
 
 use super::{
     initial_position::{initial_partial_position, InitialPosError},

@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use shogi_core::{Color as CoreColor, Hand as CoreHand, PartialPosition, Piece, PieceKind, Square};
-use shogi_kifu_converter::jkf::{
+use shogi_kifu_converter_obsshogi::jkf::{
     Color as JkfColor, Hand as JkfHand, Initial, JsonKifuFormat, Kind as JkfKind,
     Piece as JkfPiece, Preset, StateFormat,
 };
