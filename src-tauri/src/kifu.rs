@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use shogi_kifu_converter::{
+use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
     jkf::JsonKifuFormat,
 };

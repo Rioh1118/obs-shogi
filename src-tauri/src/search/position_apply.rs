@@ -1,7 +1,9 @@
 use thiserror::Error;
 
 use shogi_core::{Color as CoreColor, Move as CoreMove, PartialPosition, Piece, PieceKind, Square};
-use shogi_kifu_converter::jkf::{Color as JkfColor, Kind as JkfKind, MoveMoveFormat, PlaceFormat};
+use shogi_kifu_converter_obsshogi::jkf::{
+    Color as JkfColor, Kind as JkfKind, MoveMoveFormat, PlaceFormat,
+};
 
 use super::traverse::NodeAction;
 

@@ -1,4 +1,4 @@
-use shogi_kifu_converter::jkf::{MoveMoveFormat, MoveSpecial};
+use shogi_kifu_converter_obsshogi::jkf::{MoveMoveFormat, MoveSpecial};
 
 use super::types::{CursorLite, ForkPointer};
 

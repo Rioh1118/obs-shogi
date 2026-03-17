@@ -5,7 +5,7 @@ use crate::file_system::{
 use std::io::Write;
 
 use super::utils::{get_file_extension, is_kifu_file};
-use shogi_kifu_converter::{
+use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
     jkf::JsonKifuFormat,
 };

@@ -11,13 +11,13 @@ pub type ReadOk = Vec<(FileRecord, Jkf)>;
 pub type ReadErr = Vec<(FileRecord, KifuReadError)>;
 
 // shogi-kifu-converter
-use shogi_kifu_converter::parser::{
+use shogi_kifu_converter_obsshogi::parser::{
     parse_csa_file, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file, parse_kif_str,
 };
 
 use encoding_rs::{EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE};
 
-pub type Jkf = shogi_kifu_converter::jkf::JsonKifuFormat;
+pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
 #[derive(Debug, Error)]
 pub enum KifuReadError {
@@ -108,7 +108,7 @@ fn try_parse_text_with_fallback<F>(
     mut parse: F,
 ) -> Result<Jkf, KifuReadError>
 where
-    F: FnMut(&str) -> Result<Jkf, shogi_kifu_converter::error::ParseError>,
+    F: FnMut(&str) -> Result<Jkf, shogi_kifu_converter_obsshogi::error::ParseError>,
 {
     let mut errs: Vec<String> = Vec::new();
 
