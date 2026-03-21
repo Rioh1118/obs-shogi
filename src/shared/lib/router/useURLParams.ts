@@ -6,7 +6,9 @@ export type ModalType =
   | "analysis"
   | "settings"
   | "create-file"
-  | "position-search";
+  | "position-search"
+  | "study-position-save"
+  | "study-positions";
 
 export type PovType = "sente" | "gote";
 
@@ -17,6 +19,8 @@ export interface URLParams {
   dir?: string;
   tab?: string;
   pov?: PovType;
+  /** 局面検索・課題局面登録に渡す検索対象SFEN（省略時は現在局面） */
+  sfen?: string;
 }
 
 type UpdateOptions = { replace?: boolean };
@@ -40,6 +44,7 @@ export function useURLParams() {
       dir: searchParams.get("dir") || undefined,
       tab: searchParams.get("tab") || undefined,
       pov,
+      sfen: searchParams.get("sfen") || undefined,
     };
   }, [searchParams]);
 
@@ -88,7 +93,7 @@ export function useURLParams() {
 
   // モーダルを閉じる
   const closeModal = useCallback(() => {
-    updateParams({ modal: undefined, dir: undefined, tab: undefined });
+    updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined });
   }, [updateParams]);
 
   // 局面移動
