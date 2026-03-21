@@ -66,6 +66,9 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     positionsRef.current = state.positions;
   }, [state.positions]);
 
+  // load() が飛んでいる間に mutation が起きた場合、古い load 結果を破棄するための版数
+  const mutationVersion = useRef(0);
+
   const persistPositions = useCallback(async (positions: StudyPosition[]) => {
     dispatch({ type: "save_start" });
     try {
@@ -80,15 +83,22 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async () => {
     dispatch({ type: "load_start" });
+    const versionAtStart = mutationVersion.current;
 
     try {
       const out = await loadStudyPositions();
       const normalized = out.positions.map(normalizeStoredPosition);
 
-      dispatch({
-        type: "load_success",
-        payload: { positions: normalized },
-      });
+      // ロード中に mutation があれば結果を捨てて既存 state を保持する
+      if (mutationVersion.current === versionAtStart) {
+        dispatch({
+          type: "load_success",
+          payload: { positions: normalized },
+        });
+      } else {
+        // isLoading だけ解除する（positions は上書きしない）
+        dispatch({ type: "load_success_noop" });
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       dispatch({ type: "load_error", payload: { message } });
@@ -156,6 +166,7 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
       const prevPositions = positionsRef.current;
       const nextPositions = [position, ...prevPositions];
 
+      mutationVersion.current += 1;
       dispatch({ type: "add_position", payload: { position } });
       positionsRef.current = nextPositions;
 
@@ -204,6 +215,7 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         p.id === next.id ? next : p,
       );
 
+      mutationVersion.current += 1;
       dispatch({ type: "update_position", payload: { position: next } });
       positionsRef.current = nextPositions;
 
@@ -230,6 +242,7 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
       const nextPositions = prevPositions.filter((p) => p.id !== id);
 
+      mutationVersion.current += 1;
       dispatch({ type: "delete_position", payload: { id } });
       positionsRef.current = nextPositions;
 
