@@ -15,7 +15,6 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
 import Button from "@/shared/ui/Form/Button";
-import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 
 import StudyPositionStateSegment from "./StudyPositionStateSegment";
 
@@ -134,22 +133,34 @@ export default function StudyPositionSaveModal() {
     }
   }, [existing, isSaving, deletePosition, closeModal]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleSave();
+      }
+    },
+    [handleSave],
+  );
+
   if (!isOpen) return null;
+
+  const saveLabel = isSaving ? "保存中..." : isEdit ? "保存する" : "登録する";
 
   return (
     <Modal
       onClose={closeModal}
       theme="dark"
-      variant="dialog"
-      size="lg"
+      variant="workspace"
+      size="xl"
       chrome="card"
       padding="none"
       scroll="none"
       closeOnEsc
       closeOnOverlay
-      showCloseButton={false}
+      showCloseButton
     >
-      <div className="sp-save">
+      <div className="sp-save" onKeyDown={handleKeyDown}>
         <header className="sp-save__header">
           <h2 className="sp-save__title">
             {isEdit ? "課題局面を編集" : "課題局面に登録"}
@@ -229,37 +240,31 @@ export default function StudyPositionSaveModal() {
         </div>
 
         <footer className="sp-save__footer">
-          {isEdit ? (
-            <>
-              <div className="sp-save__footerLeft">
+          <div className="sp-save__footerLeft">
+            {isEdit && (
+              <span className="sp-save__deleteWrap">
                 <Button
                   variant="ghost"
                   onClick={handleDelete}
                   disabled={isSaving}
-                  className="sp-save__deleteBtn"
                 >
                   {"削除"}
                 </Button>
-              </div>
-              <ButtonGroup align="right">
-                <Button variant="ghost" onClick={closeModal} disabled={isSaving}>
-                  {"キャンセル"}
-                </Button>
-                <Button variant="primary" onClick={handleSave} disabled={isSaving}>
-                  {"保存"}
-                </Button>
-              </ButtonGroup>
-            </>
-          ) : (
-            <ButtonGroup align="right">
-              <Button variant="ghost" onClick={closeModal} disabled={isSaving}>
-                {"キャンセル"}
-              </Button>
-              <Button variant="primary" onClick={handleSave} disabled={!sfen || isSaving}>
-                {"登録"}
-              </Button>
-            </ButtonGroup>
-          )}
+              </span>
+            )}
+          </div>
+          <div className="sp-save__footerRight">
+            <Button variant="ghost" onClick={closeModal} disabled={isSaving}>
+              {"キャンセル"}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              disabled={!sfen || isSaving}
+            >
+              {saveLabel}
+            </Button>
+          </div>
         </footer>
       </div>
     </Modal>
