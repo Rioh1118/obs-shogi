@@ -257,7 +257,7 @@ export default function StudyPositionSaveModal() {
             )}
           </div>
           <div className="sp-save__footerRight">
-            <Button variant="ghost" onClick={closeModal} disabled={isSaving}>
+            <Button variant="ghost" onClick={() => closeModal()} disabled={isSaving}>
               {"キャンセル"}
             </Button>
             <Button

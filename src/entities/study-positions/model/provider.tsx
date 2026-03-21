@@ -69,6 +69,10 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
   // load() が飛んでいる間に mutation が起きた場合、古い load 結果を破棄するための版数
   const mutationVersion = useRef(0);
 
+  // CRUD 操作が positionsRef を読む前にロード完了を保証するゲート
+  // エラー時も必ず resolve させることで mutation がブロックされるのを防ぐ
+  const loadPromise = useRef<Promise<void>>(Promise.resolve());
+
   const persistPositions = useCallback(async (positions: StudyPosition[]) => {
     dispatch({ type: "save_start" });
     try {
@@ -85,12 +89,22 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "load_start" });
     const versionAtStart = mutationVersion.current;
 
+    // ゲート用 Promise をセット（エラーでも必ず resolve して mutation をブロックしない）
+    let settle!: () => void;
+    loadPromise.current = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+
     try {
       const out = await loadStudyPositions();
       const normalized = out.positions.map(normalizeStoredPosition);
 
       // ロード中に mutation があれば結果を捨てて既存 state を保持する
       if (mutationVersion.current === versionAtStart) {
+        // settle() より前に ref を更新しておく。
+        // useEffect による同期は render 後なので、settle() 直後に mutation が
+        // positionsRef を読んでも最新データが見えるようにする必要がある。
+        positionsRef.current = normalized;
         dispatch({
           type: "load_success",
           payload: { positions: normalized },
@@ -103,6 +117,8 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
       const message = e instanceof Error ? e.message : String(e);
       dispatch({ type: "load_error", payload: { message } });
       throw e;
+    } finally {
+      settle();
     }
   }, []);
 
@@ -141,6 +157,9 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const addPosition = useCallback(
     async (input: CreateStudyPositionInput): Promise<StudyPosition> => {
+      // ロード完了前に呼ばれた場合、既存データが positionsRef に揃うまで待つ
+      await loadPromise.current;
+
       const inputKey = requirePositionKey(input.sfen);
 
       const duplicated = positionsRef.current.find(
@@ -187,6 +206,8 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const updatePosition = useCallback(
     async (input: UpdateStudyPositionInput): Promise<StudyPosition> => {
+      await loadPromise.current;
+
       const current = positionsRef.current.find((p) => p.id === input.id);
       if (!current) {
         throw new Error("Study position not found");
@@ -236,6 +257,8 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const deletePosition = useCallback(
     async (id: string): Promise<void> => {
+      await loadPromise.current;
+
       const prevPositions = positionsRef.current;
       const exists = prevPositions.some((p) => p.id === id);
       if (!exists) return;

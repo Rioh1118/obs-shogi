@@ -169,7 +169,8 @@ export default function PositionSearchModal() {
     const absPath = resolveHitAbsPath(hit);
     if (!absPath) return;
     navigateToHit(absPath, hit.cursor);
-    closeModal();
+    // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
+    closeModal({ skipReturn: true });
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {

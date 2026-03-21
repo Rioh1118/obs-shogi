@@ -231,7 +231,7 @@ export default function SfenKifuCreateModal() {
                 >
                   作成
                 </Button>
-                <Button type="button" variant="ghost" onClick={closeModal}>
+                <Button type="button" variant="ghost" onClick={() => closeModal()}>
                   キャンセル
                 </Button>
               </ButtonGroup>

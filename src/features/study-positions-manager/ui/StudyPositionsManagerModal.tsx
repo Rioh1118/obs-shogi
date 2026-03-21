@@ -283,8 +283,10 @@ export default function StudyPositionsManagerModal() {
   }, []);
 
   // --- reset on close ---
+  // チャイルドモーダルを開いた場合（returnTo=study-positions が URL にある）は
+  // 一時的に非表示になっているだけなので state を保持する
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen && params.returnTo !== "study-positions") {
       setQuery("");
       setStateFilter(null);
       setTagFilter([]);
@@ -293,7 +295,7 @@ export default function StudyPositionsManagerModal() {
       setShowTagPanel(false);
       setShowSortMenu(false);
     }
-  }, [isOpen]);
+  }, [isOpen, params.returnTo]);
 
   // --- focus on open ---
   useLayoutEffect(() => {

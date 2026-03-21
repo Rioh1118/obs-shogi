@@ -95,15 +95,19 @@ export function useURLParams() {
     [updateParams],
   );
 
-  // モーダルを閉じる（returnTo があれば戻り先モーダルを開く）
-  const closeModal = useCallback(() => {
-    const returnTo = searchParams.get("returnTo") as ModalType | null;
-    if (returnTo) {
-      updateParams({ modal: returnTo, sfen: undefined, returnTo: undefined, dir: undefined, tab: undefined });
-    } else {
-      updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined, returnTo: undefined });
-    }
-  }, [searchParams, updateParams]);
+  // モーダルを閉じる
+  // skipReturn=true にすると returnTo を無視して完全にクリアする（確定操作など）
+  const closeModal = useCallback(
+    ({ skipReturn = false }: { skipReturn?: boolean } = {}) => {
+      const returnTo = searchParams.get("returnTo") as ModalType | null;
+      if (!skipReturn && returnTo) {
+        updateParams({ modal: returnTo, sfen: undefined, returnTo: undefined, dir: undefined, tab: undefined });
+      } else {
+        updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined, returnTo: undefined });
+      }
+    },
+    [searchParams, updateParams],
+  );
 
   // 局面移動
   const navigateToPosition = useCallback(
