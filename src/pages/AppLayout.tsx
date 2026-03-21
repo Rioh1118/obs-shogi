@@ -15,6 +15,7 @@ import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import PositionSearchModal from "@/features/position-search/ui/PositionSearchModal";
 import StudyPositionSaveModal from "@/features/study-position-save/ui/StudyPositionSaveModal";
+import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/StudyPositionsManagerModal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { usePositionSearch } from "@/entities/search";
@@ -80,6 +81,7 @@ const AppLayout = () => {
       <SettingsModal />
       <PositionSearchModal />
       <StudyPositionSaveModal />
+      <StudyPositionsManagerModal />
       <FileConflictDialog
         conflict={conflict}
         onCancel={closeConflict}

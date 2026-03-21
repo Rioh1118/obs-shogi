@@ -1,0 +1,55 @@
+@use "@/index.scss" as index;
+
+.active-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(index.$color-secondary-dark, 0.2);
+    border: 1px solid rgba(index.$color-secondary-dark, 0.3);
+    color: index.$color-text-light-1;
+    font-size: 1.15rem;
+  }
+
+  &__text {
+    white-space: nowrap;
+  }
+
+  &__remove {
+    display: grid;
+    place-items: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.6);
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(index.$color-white, 0.1);
+      color: index.$color-text-light-1;
+    }
+  }
+
+  &__clearAll {
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.45);
+    font-size: 1.1rem;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+
+    &:hover {
+      color: rgba(index.$color-text-light-1, 0.7);
+    }
+  }
+}

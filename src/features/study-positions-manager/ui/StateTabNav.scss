@@ -1,0 +1,55 @@
+@use "@/index.scss" as index;
+
+.state-tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+
+  &__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-radius: 0.6rem;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.6);
+    font-size: 1.25rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color 100ms ease,
+      color 100ms ease,
+      border-color 100ms ease;
+
+    &:hover:not(&--active) {
+      background: rgba(index.$color-white, 0.04);
+      color: rgba(index.$color-text-light-1, 0.8);
+    }
+
+    &--active {
+      background: rgba(index.$color-secondary-dark, 0.2);
+      border-color: rgba(index.$color-secondary-dark, 0.35);
+      color: index.$color-text-light-1;
+      font-weight: 600;
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 1px;
+    }
+  }
+
+  &__count {
+    font-size: 1.1rem;
+    font-weight: 400;
+    opacity: 0.55;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__tab--active &__count {
+    opacity: 0.75;
+  }
+}
