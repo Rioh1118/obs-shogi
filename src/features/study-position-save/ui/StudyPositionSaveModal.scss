@@ -179,24 +179,25 @@
     font-size: 1.4rem;
   }
 
-  &__deleteLink {
-    border: none;
+  &__deleteBtn {
+    min-height: 4rem;
+    padding: 0 1.4rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(#e57373, 0.4);
     background: transparent;
-    color: rgba(index.$color-text-light-1, 0.28);
-    font-size: 1.15rem;
+    color: rgba(#e57373, 0.7);
+    font-size: 1.25rem;
     font-family: inherit;
     cursor: pointer;
-    padding: 0.3rem 0;
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-    text-decoration-color: transparent;
     transition:
-      color 120ms ease,
-      text-decoration-color 120ms ease;
+      background-color 100ms ease,
+      border-color 100ms ease,
+      color 100ms ease;
 
     &:hover:not(:disabled) {
-      color: rgba(#e57373, 0.7);
-      text-decoration-color: rgba(#e57373, 0.4);
+      background: rgba(#e57373, 0.1);
+      border-color: rgba(#e57373, 0.6);
+      color: #e57373;
     }
 
     &:disabled {

@@ -248,11 +248,11 @@ export default function StudyPositionSaveModal() {
             {isEdit && (
               <button
                 type="button"
-                className="sp-save__deleteLink"
+                className="sp-save__deleteBtn"
                 onClick={() => setConfirmDelete(true)}
                 disabled={isSaving}
               >
-                {"この局面を削除"}
+                {"削除"}
               </button>
             )}
           </div>

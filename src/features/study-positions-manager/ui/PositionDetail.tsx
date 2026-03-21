@@ -108,22 +108,23 @@ export default function PositionDetail({
       </div>
 
       <div className="sp-detail__actions">
-        <Button variant="primary" onClick={() => onSearch(position.sfen)}>
-          {"局面検索"}
-        </Button>
-        <Button variant="ghost" onClick={() => onEdit(position.sfen)}>
-          {"編集"}
-        </Button>
-      </div>
-
-      <div className="sp-detail__dangerZone">
-        <button
-          type="button"
-          className="sp-detail__deleteLink"
-          onClick={() => setConfirmDelete(true)}
-        >
-          {"この局面を削除"}
-        </button>
+        <div className="sp-detail__actionsLeft">
+          <button
+            type="button"
+            className="sp-detail__deleteBtn"
+            onClick={() => setConfirmDelete(true)}
+          >
+            {"削除"}
+          </button>
+        </div>
+        <div className="sp-detail__actionsRight">
+          <Button variant="ghost" onClick={() => onEdit(position.sfen)}>
+            {"編集"}
+          </Button>
+          <Button variant="primary" onClick={() => onSearch(position.sfen)}>
+            {"局面検索"}
+          </Button>
+        </div>
       </div>
 
       {confirmDelete && (

@@ -89,7 +89,7 @@
     word-break: break-word;
   }
 
-  // --- main actions (search + edit) ---
+  // --- actions bar ---
   &__actions {
     flex-shrink: 0;
     display: flex;
@@ -100,37 +100,38 @@
     border-top: 1px solid index.$stroke-weak;
   }
 
+  &__actionsLeft,
+  &__actionsRight {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
   .form__btn {
     min-height: 3.4rem;
     font-size: 1.25rem;
   }
 
-  // --- danger zone: delete text link ---
-  &__dangerZone {
-    flex-shrink: 0;
-    display: flex;
-    justify-content: flex-end;
-    padding-top: 0.2rem;
-  }
-
-  &__deleteLink {
-    border: none;
+  // --- delete button (left side, danger outline) ---
+  &__deleteBtn {
+    min-height: 3.4rem;
+    padding: 0 1.2rem;
+    border-radius: 0.6rem;
+    border: 1px solid rgba(#e57373, 0.4);
     background: transparent;
-    color: rgba(index.$color-text-light-1, 0.25);
-    font-size: 1.05rem;
+    color: rgba(#e57373, 0.7);
+    font-size: 1.15rem;
     font-family: inherit;
     cursor: pointer;
-    padding: 0.2rem 0;
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-    text-decoration-color: transparent;
     transition:
-      color 120ms ease,
-      text-decoration-color 120ms ease;
+      background-color 100ms ease,
+      border-color 100ms ease,
+      color 100ms ease;
 
     &:hover {
-      color: rgba(#e57373, 0.7);
-      text-decoration-color: rgba(#e57373, 0.4);
+      background: rgba(#e57373, 0.1);
+      border-color: rgba(#e57373, 0.6);
+      color: #e57373;
     }
   }
 }
