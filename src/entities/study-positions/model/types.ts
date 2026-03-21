@@ -14,3 +14,20 @@ export type StudyPosition = {
 export type StudyPositionsFile = {
   positions: StudyPosition[];
 };
+
+export type CreateStudyPositionInput = {
+  sfen: string;
+  label: string;
+  description: string;
+  state: StudyPositionState;
+  tags: string[];
+};
+
+export type UpdateStudyPositionInput = {
+  id: string;
+  sfen?: string;
+  label?: string;
+  description?: string;
+  state?: StudyPositionState;
+  tags?: string[];
+};
