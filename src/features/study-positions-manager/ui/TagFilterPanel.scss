@@ -1,0 +1,120 @@
+@use "@/index.scss" as index;
+
+.tag-panel {
+  background: rgba(index.$color-primary-black, 0.95);
+  border: 1px solid index.$stroke-strong;
+  border-radius: 0.8rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  max-height: 28rem;
+  overflow-y: auto;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: rgba(index.$color-text-light-1, 0.8);
+  }
+
+  &__close {
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 0.4rem;
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.5);
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(index.$color-white, 0.06);
+      color: index.$color-text-light-1;
+    }
+  }
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 0.5rem;
+    background: rgba(index.$color-white, 0.06);
+    border: 1px solid index.$stroke;
+  }
+
+  &__searchIcon {
+    color: rgba(index.$color-text-light-1, 0.35);
+    flex-shrink: 0;
+  }
+
+  &__input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: index.$color-text-light-1;
+    font-size: 1.2rem;
+    font-family: inherit;
+    outline: none;
+
+    &::placeholder {
+      color: rgba(index.$color-text-light-1, 0.3);
+    }
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  &__sectionLabel {
+    font-size: 1.05rem;
+    color: rgba(index.$color-text-light-1, 0.4);
+    font-weight: 500;
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  &__chip {
+    padding: 0.35rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid index.$stroke;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.65);
+    font-size: 1.15rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+      background-color 80ms ease,
+      border-color 80ms ease;
+
+    &:hover:not(&--selected) {
+      background: rgba(index.$color-white, 0.05);
+    }
+
+    &--selected {
+      background: rgba(index.$color-secondary-dark, 0.25);
+      border-color: rgba(index.$color-secondary-dark, 0.4);
+      color: index.$color-text-light-1;
+    }
+  }
+
+  &__empty {
+    font-size: 1.15rem;
+    color: rgba(index.$color-text-light-1, 0.35);
+    text-align: center;
+    padding: 1rem 0;
+  }
+}

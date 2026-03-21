@@ -6,7 +6,10 @@ export type ModalType =
   | "analysis"
   | "settings"
   | "create-file"
-  | "position-search";
+  | "position-search"
+  | "study-position-save"
+  | "study-positions"
+  | "sfen-kifu-create";
 
 export type PovType = "sente" | "gote";
 
@@ -17,6 +20,10 @@ export interface URLParams {
   dir?: string;
   tab?: string;
   pov?: PovType;
+  /** 局面検索・課題局面登録に渡す検索対象SFEN（省略時は現在局面） */
+  sfen?: string;
+  /** モーダルを閉じたとき戻る先のモーダル */
+  returnTo?: ModalType;
 }
 
 type UpdateOptions = { replace?: boolean };
@@ -40,6 +47,8 @@ export function useURLParams() {
       dir: searchParams.get("dir") || undefined,
       tab: searchParams.get("tab") || undefined,
       pov,
+      sfen: searchParams.get("sfen") || undefined,
+      returnTo: (searchParams.get("returnTo") as ModalType) || undefined,
     };
   }, [searchParams]);
 
@@ -87,9 +96,18 @@ export function useURLParams() {
   );
 
   // モーダルを閉じる
-  const closeModal = useCallback(() => {
-    updateParams({ modal: undefined, dir: undefined, tab: undefined });
-  }, [updateParams]);
+  // skipReturn=true にすると returnTo を無視して完全にクリアする（確定操作など）
+  const closeModal = useCallback(
+    ({ skipReturn = false }: { skipReturn?: boolean } = {}) => {
+      const returnTo = searchParams.get("returnTo") as ModalType | null;
+      if (!skipReturn && returnTo) {
+        updateParams({ modal: returnTo, sfen: undefined, returnTo: undefined, dir: undefined, tab: undefined });
+      } else {
+        updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined, returnTo: undefined });
+      }
+    },
+    [searchParams, updateParams],
+  );
 
   // 局面移動
   const navigateToPosition = useCallback(

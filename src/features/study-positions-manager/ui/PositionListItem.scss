@@ -1,0 +1,88 @@
+@use "@/index.scss" as index;
+
+.sp-list-item {
+  padding: 0.9rem 1rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  transition: background-color 80ms ease;
+  user-select: none;
+
+  &:hover:not(&--selected) {
+    background: rgba(index.$color-white, 0.03);
+  }
+
+  &--selected {
+    background: rgba(index.$color-secondary-dark, 0.18);
+  }
+
+  &__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.8rem;
+    margin-bottom: 0.3rem;
+  }
+
+  &__label {
+    font-size: 1.35rem;
+    font-weight: 500;
+    color: index.$color-text-light-1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__date {
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.4);
+    white-space: nowrap;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bottom {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.5);
+    overflow: hidden;
+  }
+
+  &__state {
+    font-weight: 600;
+    white-space: nowrap;
+
+    &--inbox {
+      color: rgba(index.$color-text-light-1, 0.45);
+    }
+    &--active {
+      color: #64b5f6;
+    }
+    &--reference {
+      color: #ffd54f;
+    }
+    &--done {
+      color: #81c784;
+    }
+  }
+
+  &__tag {
+    white-space: nowrap;
+    color: rgba(index.$color-text-light-1, 0.45);
+  }
+
+  &__tagMore {
+    white-space: nowrap;
+    color: rgba(index.$color-text-light-1, 0.35);
+    font-size: 1rem;
+  }
+
+  &__meta {
+    white-space: nowrap;
+    color: rgba(index.$color-text-light-1, 0.3);
+    margin-left: auto;
+  }
+}

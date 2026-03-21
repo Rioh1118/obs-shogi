@@ -1,5 +1,6 @@
 use std::{
     fs,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
 };
 
@@ -36,13 +37,37 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     match kind {
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
-        KifuKind::Csa => parse_csa_file(path).map_err(|e| KifuReadError::ParseFailed {
+        KifuKind::Csa => safe_parse_csa(path),
+        KifuKind::Jkf => safe_parse_jkf(path),
+    }
+}
+
+/// CSA パーサーのパニックを捕捉してエラーに変換する
+fn safe_parse_csa(path: &Path) -> Result<Jkf, KifuReadError> {
+    match catch_unwind(AssertUnwindSafe(|| parse_csa_file(path))) {
+        Ok(Ok(jkf)) => Ok(jkf),
+        Ok(Err(e)) => Err(KifuReadError::ParseFailed {
             path: path.to_path_buf(),
             message: format!("{e:?}"),
         }),
-        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| KifuReadError::ParseFailed {
+        Err(_) => Err(KifuReadError::ParseFailed {
+            path: path.to_path_buf(),
+            message: "parser panicked (likely unsupported format)".to_string(),
+        }),
+    }
+}
+
+/// JKF パーサーのパニックを捕捉してエラーに変換する
+fn safe_parse_jkf(path: &Path) -> Result<Jkf, KifuReadError> {
+    match catch_unwind(AssertUnwindSafe(|| parse_jkf_file(path))) {
+        Ok(Ok(jkf)) => Ok(jkf),
+        Ok(Err(e)) => Err(KifuReadError::ParseFailed {
             path: path.to_path_buf(),
             message: format!("{e:?}"),
+        }),
+        Err(_) => Err(KifuReadError::ParseFailed {
+            path: path.to_path_buf(),
+            message: "parser panicked (likely unsupported format)".to_string(),
         }),
     }
 }
@@ -68,24 +93,45 @@ pub fn read_many_to_jkf(records: &[FileRecord]) -> (ReadOk, ReadErr) {
 
 fn parse_kif_portable(path: &Path) -> Result<Jkf, KifuReadError> {
     // 1) まずライブラリ標準（拡張子ベースのデコード）を試す
-    if let Ok(jkf) = parse_kif_file(path) {
-        return Ok(jkf);
+    //    外部クレートのパーサーはカスタム初期局面でパニックする場合がある
+    match catch_unwind(AssertUnwindSafe(|| parse_kif_file(path))) {
+        Ok(Ok(jkf)) => return Ok(jkf),
+        Ok(Err(_)) => {}
+        Err(_) => {
+            // パーサーがパニックした場合はフォールバックへ
+        }
     }
 
-    // 2) ダメなら “自前で bytes -> text” をやって parse_kif_str を総当たり
+    // 2) ダメなら "自前で bytes -> text" をやって parse_kif_str を総当たり
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, parse_kif_str)
+    try_parse_text_with_fallback(path, &bytes, |s| {
+        match catch_unwind(AssertUnwindSafe(|| parse_kif_str(s))) {
+            Ok(result) => result,
+            Err(_) => Err(shogi_kifu_converter_obsshogi::error::ParseError::Kif(
+                "parser panicked".to_string(),
+            )),
+        }
+    })
 }
 
 fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
     // 1) まずライブラリ標準
-    if let Ok(jkf) = parse_ki2_file(path) {
-        return Ok(jkf);
+    match catch_unwind(AssertUnwindSafe(|| parse_ki2_file(path))) {
+        Ok(Ok(jkf)) => return Ok(jkf),
+        Ok(Err(_)) => {}
+        Err(_) => {}
     }
 
     // 2) フォールバック
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, parse_ki2_str)
+    try_parse_text_with_fallback(path, &bytes, |s| {
+        match catch_unwind(AssertUnwindSafe(|| parse_ki2_str(s))) {
+            Ok(result) => result,
+            Err(_) => Err(shogi_kifu_converter_obsshogi::error::ParseError::Ki2(
+                "parser panicked".to_string(),
+            )),
+        }
+    })
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {

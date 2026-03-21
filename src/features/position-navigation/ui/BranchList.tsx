@@ -137,13 +137,11 @@ export default function BranchList({
     container.addEventListener("pointerdown", markUserScrolling, {
       passive: true,
     });
-    container.addEventListener("scroll", markUserScrolling, { passive: true });
 
     return () => {
       container.removeEventListener("wheel", markUserScrolling);
       container.removeEventListener("touchstart", markUserScrolling);
       container.removeEventListener("pointerdown", markUserScrolling);
-      container.removeEventListener("scroll", markUserScrolling);
       if (scrollTimeoutRef.current)
         window.clearTimeout(scrollTimeoutRef.current);
       cancelScrollAnim();

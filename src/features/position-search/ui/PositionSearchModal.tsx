@@ -12,6 +12,7 @@ import "./PositionSearchModal.scss";
 import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
+import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "../../../entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
@@ -33,6 +34,7 @@ export default function PositionSearchModal() {
 
   const {
     state,
+    searchPosition,
     searchCurrentPositionBestEffort,
     getSessionByRequestId,
     getHitsByRequestId,
@@ -77,12 +79,19 @@ export default function PositionSearchModal() {
   );
 
   const previewData = useMemo(() => {
-    const jkf = gameView.player;
-    if (!isOpen || !jkf) return null;
+    if (!isOpen) return null;
 
+    // params.sfen がある場合は SFEN から直接構築
+    if (params.sfen) {
+      return buildPreviewDataFromSfen(params.sfen);
+    }
+
+    // 通常: 現在の棋譜の局面から構築
+    const jkf = gameView.player;
+    if (!jkf) return null;
     const nodeId = jkf.getTesuuPointer(jkf.tesuu);
     return buildPreviewData(jkf, nodeId);
-  }, [isOpen, gameView.player]);
+  }, [isOpen, params.sfen, gameView.player]);
 
   const orderedHits = useMemo(() => {
     return orderPositionHits(
@@ -93,17 +102,15 @@ export default function PositionSearchModal() {
   }, [hits, resolveHitAbsPath, gameState.loadedAbsPath]);
 
   // -------------------------
-  // 検索トリガ：モーダルを開いた瞬間だけ
+  // 検索トリガ：queryKey（検索対象SFEN）が変わったら再検索
+  // params.sfen があればそのSFENで検索、なければ現在局面で検索
   // -------------------------
-  const prevOpenRef = useRef(false);
-  const lastQueriedSfenRef = useRef<string | null>(null);
+  const queryKey = params.sfen ?? currentSfen ?? null;
+  const lastQueryKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const wasOpen = prevOpenRef.current;
-    prevOpenRef.current = isOpen;
-
     if (!isOpen) {
-      lastQueriedSfenRef.current = null;
+      lastQueryKeyRef.current = null;
       setRequestId(null);
       setLaunchError(null);
       setIsLaunching(false);
@@ -111,28 +118,31 @@ export default function PositionSearchModal() {
       return;
     }
 
-    if (wasOpen) return;
-    if (!currentSfen) return;
-    if (lastQueriedSfenRef.current === currentSfen) return;
+    if (!queryKey) return;
+    if (lastQueryKeyRef.current === queryKey) return;
 
-    lastQueriedSfenRef.current = currentSfen;
+    lastQueryKeyRef.current = queryKey;
     setRequestId(null);
     setLaunchError(null);
     setIsLaunching(true);
     setActiveIndex(0);
 
-    searchCurrentPositionBestEffort({ chunkSize: 5000 })
+    const doSearch = params.sfen
+      ? searchPosition({ sfen: params.sfen, consistency: "BestEffort", chunk_size: 5000 })
+      : searchCurrentPositionBestEffort({ chunkSize: 5000 });
+
+    doSearch
       .then((out) => {
         setRequestId(out.request_id);
       })
       .catch((e) => {
-        console.error("[PositionSearchModal] open-triggered search failed:", e);
+        console.error("[PositionSearchModal] search failed:", e);
         setLaunchError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
         setIsLaunching(false);
       });
-  }, [isOpen, currentSfen, searchCurrentPositionBestEffort]);
+  }, [isOpen, queryKey, params.sfen, searchPosition, searchCurrentPositionBestEffort]);
 
   const activeHit = orderedHits[activeIndex];
   const activeKeyRef = useRef<string | null>(null);
@@ -159,7 +169,8 @@ export default function PositionSearchModal() {
     const absPath = resolveHitAbsPath(hit);
     if (!absPath) return;
     navigateToHit(absPath, hit.cursor);
-    closeModal();
+    // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
+    closeModal({ skipReturn: true });
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -254,7 +265,9 @@ export default function PositionSearchModal() {
             </section>
 
             <aside className="pos-search__right" aria-label="局面プレビュー">
-              <div className="pos-search__paneTitle">現在の局面</div>
+              <div className="pos-search__paneTitle">
+                {params.sfen ? "検索対象の局面" : "現在の局面"}
+              </div>
               <div className="pos-search__preview">
                 <PreviewPane previewData={previewData} toKan={toKan} />
               </div>

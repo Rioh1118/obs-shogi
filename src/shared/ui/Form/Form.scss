@@ -214,4 +214,86 @@
 
     text-shadow: 0 0.1rem 0.1rem rgba(index.$color-text-dark-1, 0.03);
   }
+
+  /* ========== theme: dark ========== */
+  &--dark {
+    .form__input,
+    .form__textarea,
+    .form__select {
+      color: index.$color-text-light-1;
+      background-color: rgba(index.$color-white, 0.08);
+      border-bottom-color: transparent;
+
+      &:focus {
+        background-color: rgba(index.$color-white, 0.12);
+        border-color: index.$color-secondary-dark;
+        box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
+      }
+
+      &::placeholder {
+        color: rgba(index.$color-text-light-1, 0.35);
+      }
+    }
+
+    .form__select option {
+      background-color: index.$color-primary-black;
+      color: index.$color-text-light-1;
+    }
+
+    .form__label {
+      color: rgba(index.$color-text-light-1, 0.7);
+    }
+
+    .form__subheading {
+      color: index.$color-text-light-1;
+    }
+
+    .form__heading-secondary {
+      color: index.$color-text-light-1;
+      text-shadow: none;
+    }
+
+    .form__radio-label {
+      color: rgba(index.$color-text-light-1, 0.85);
+
+      &:hover {
+        background-color: rgba(index.$color-white, 0.06);
+      }
+    }
+
+    .form__radio-button {
+      border-color: rgba(index.$color-secondary-dark, 0.6);
+
+      &::after {
+        background-color: index.$color-secondary-dark;
+      }
+    }
+
+    .form__btn {
+      &--primary {
+        background-color: index.$color-secondary-dark;
+        color: index.$color-white;
+
+        &:hover:not(:disabled) {
+          background-color: index.$color-secondary-dark-2;
+          box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.3);
+        }
+      }
+
+      &--ghost {
+        border-color: rgba(index.$color-secondary-dark, 0.5);
+        color: rgba(index.$color-text-light-1, 0.7);
+
+        &:hover:not(:disabled) {
+          background-color: rgba(index.$color-white, 0.06);
+          border-color: index.$color-secondary-dark;
+          color: index.$color-text-light-1;
+        }
+
+        &:active:not(:disabled) {
+          background-color: rgba(index.$color-white, 0.1);
+        }
+      }
+    }
+  }
 }

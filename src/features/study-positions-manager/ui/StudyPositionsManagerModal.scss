@@ -1,0 +1,286 @@
+@use "@/index.scss" as index;
+
+.sp-manager {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: index.$color-text-light-1;
+  outline: none;
+
+  &__header {
+    flex-shrink: 0;
+    padding: 1.6rem 2rem 1rem;
+    border-bottom: 1px solid index.$stroke-weak;
+  }
+
+  &__title {
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  &__body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: clamp(32rem, 38%, 36rem) minmax(0, 1fr);
+    gap: 0;
+    overflow: hidden;
+  }
+
+  // ===== LEFT =====
+  &__left {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 1.2rem;
+    gap: 0.8rem;
+    border-right: 1px solid index.$stroke-weak;
+  }
+
+  &__stateTabs {
+    flex-shrink: 0;
+  }
+
+  &__divider {
+    flex-shrink: 0;
+    height: 1px;
+    background: index.$stroke-weak;
+    margin: 0.2rem 0;
+  }
+
+  // --- search row ---
+  &__searchRow {
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  &__searchBox {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 0.5rem;
+    background: rgba(index.$color-white, 0.05);
+    border: 1px solid index.$stroke;
+    transition: border-color 100ms ease;
+
+    &:focus-within {
+      border-color: index.$color-secondary-dark;
+    }
+  }
+
+  &__searchIcon {
+    color: rgba(index.$color-text-light-1, 0.35);
+    flex-shrink: 0;
+  }
+
+  &__searchInput {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: index.$color-text-light-1;
+    font-size: 1.25rem;
+    font-family: inherit;
+    outline: none;
+    min-width: 0;
+
+    &::placeholder {
+      color: rgba(index.$color-text-light-1, 0.3);
+    }
+  }
+
+  &__searchClear {
+    display: grid;
+    place-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.4);
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(index.$color-white, 0.08);
+      color: index.$color-text-light-1;
+    }
+  }
+
+  &__filterBtn {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    position: relative;
+    width: 3.2rem;
+    height: 3.2rem;
+    border-radius: 0.5rem;
+    border: 1px solid index.$stroke;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.5);
+    cursor: pointer;
+    transition: border-color 100ms ease;
+
+    &:hover {
+      border-color: rgba(index.$color-white, 0.2);
+      color: rgba(index.$color-text-light-1, 0.8);
+    }
+
+    &--active {
+      border-color: rgba(index.$color-secondary-dark, 0.5);
+      color: index.$color-secondary-dark;
+    }
+  }
+
+  &__filterBadge {
+    position: absolute;
+    top: -0.3rem;
+    right: -0.3rem;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: index.$color-secondary-dark;
+    color: index.$color-white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    display: grid;
+    place-items: center;
+    line-height: 1;
+  }
+
+  // --- sort ---
+  &__sortRow {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+  }
+
+  &__sortBtn {
+    position: relative;
+  }
+
+  &__sortTrigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.5);
+    font-size: 1.15rem;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.4rem;
+
+    &:hover {
+      color: rgba(index.$color-text-light-1, 0.75);
+      background: rgba(index.$color-white, 0.04);
+    }
+  }
+
+  &__sortMenu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 0.3rem;
+    z-index: 10;
+    background: index.$color-primary-black;
+    border: 1px solid index.$stroke-strong;
+    border-radius: 0.6rem;
+    padding: 0.3rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 12rem;
+  }
+
+  &__sortOption {
+    padding: 0.5rem 0.8rem;
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.15rem;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 0.4rem;
+
+    &:hover {
+      background: rgba(index.$color-white, 0.05);
+    }
+
+    &--active {
+      color: index.$color-text-light-1;
+      font-weight: 600;
+    }
+  }
+
+  &__count {
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.4);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // --- list ---
+  &__list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+
+    scrollbar-width: thin;
+    &::-webkit-scrollbar {
+      display: block;
+      width: 4px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(index.$color-white, 0.12);
+      border-radius: 4px;
+    }
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 3rem 1rem;
+    font-size: 1.25rem;
+    color: rgba(index.$color-text-light-1, 0.35);
+    text-align: center;
+  }
+
+  &__emptyHint {
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.25);
+  }
+
+  &__emptyClear {
+    border: 1px solid index.$stroke;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.5);
+    font-size: 1.15rem;
+    font-family: inherit;
+    padding: 0.4rem 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+
+    &:hover {
+      border-color: rgba(index.$color-white, 0.2);
+      color: rgba(index.$color-text-light-1, 0.7);
+    }
+  }
+
+  // ===== RIGHT =====
+  &__right {
+    min-height: 0;
+    overflow: hidden;
+  }
+}

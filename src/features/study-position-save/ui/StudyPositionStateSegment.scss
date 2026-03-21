@@ -1,0 +1,49 @@
+@use "@/index.scss" as index;
+
+.sp-state-seg {
+  display: flex;
+  gap: 0;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  border: 1px solid index.$stroke-strong;
+
+  @media (max-width: 720px) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  &__item {
+    flex: 1;
+    padding: 0.7rem 0;
+    font-size: 1.3rem;
+    font-weight: 500;
+    font-family: inherit;
+    color: rgba(index.$color-text-light-1, 0.7);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+    user-select: none;
+
+    &:not(:last-child) {
+      border-right: 1px solid index.$stroke-strong;
+    }
+
+    &:hover:not(:disabled):not(&--active) {
+      background: rgba(index.$color-white, 0.05);
+    }
+
+    &--active {
+      background: rgba(index.$color-secondary-dark, 0.35);
+      color: index.$color-text-light-1;
+      font-weight: 600;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+}

@@ -9,6 +9,7 @@ pub use operations::{
     create_directory, create_kifu_file, delete_directory, delete_file, import_kifu_file, read_file,
     save_kifu_file,
 };
+pub(crate) use operations::{is_initial_gote, patch_gote_start};
 
 pub use mv::{mv_directory, mv_kifu_file, rename_directory, rename_kifu_file};
 

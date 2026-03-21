@@ -44,9 +44,7 @@ function FileCreateForm({
         tags: tags.length > 0 ? tags : undefined,
         note: note.trim() ? note : undefined,
       },
-      initialPosition: {
-        preset,
-      },
+      initialPosition: { preset },
     });
     setIsLoading(false);
 
@@ -85,7 +83,9 @@ function FileCreateForm({
   return (
     <Form handleSubmit={handleSubmit}>
       <FormField>
-        <h2 className="form__heading-secondary">新しい棋譜ファイルを作成</h2>
+        <h2 className="form__heading-secondary">
+          {"新しい棋譜ファイルを作成"}
+        </h2>
       </FormField>
 
       <FormField horizontal>

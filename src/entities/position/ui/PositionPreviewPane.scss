@@ -10,7 +10,7 @@
     min-height: 0;
 
     display: grid;
-    grid-template-rows: minmax(240px, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     gap: 20px;
     min-width: 0;
   }
@@ -33,8 +33,7 @@
   }
 
   &__hands {
-    max-height: min(22vh, 220px);
-    overflow: auto;
+    overflow: visible;
 
     display: grid;
     grid-template-columns: 1fr 1fr;

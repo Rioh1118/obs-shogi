@@ -127,6 +127,10 @@
       outline: 2px solid index.$focus-ring;
       outline-offset: 2px;
     }
+
+    &--active {
+      color: index.$color-secondary-dark;
+    }
   }
 
   &__icon {

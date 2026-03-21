@@ -48,36 +48,38 @@ function Select({
       <label htmlFor={id} className="form__label">
         {label}
       </label>
-      <input type="hidden" name={id} value={value} />
-      <button
-        type="button"
-        className="form__select-button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        id={id}
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-      >
-        <span>{selectedLabel}</span>
-        <ChevronDown className="form__select-icon" size={18} />
-      </button>
-      {isOpen && (
-        <ul className="form__select-menu" role="listbox">
-          {options.map((option) => (
-            <li
-              key={option.value}
-              className={`form__select-option${option.value === value ? " is-selected" : ""}`}
-              role="option"
-              aria-selected={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-            >
-              {option.label}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="form__select-wrap">
+        <input type="hidden" name={id} value={value} />
+        <button
+          type="button"
+          className="form__select-button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          id={id}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+        >
+          <span>{selectedLabel}</span>
+          <ChevronDown className="form__select-icon" size={18} />
+        </button>
+        {isOpen && (
+          <ul className="form__select-menu" role="listbox">
+            {options.map((option) => (
+              <li
+                key={option.value}
+                className={`form__select-option${option.value === value ? " is-selected" : ""}`}
+                role="option"
+                aria-selected={option.value === value}
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+              >
+                {option.label}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

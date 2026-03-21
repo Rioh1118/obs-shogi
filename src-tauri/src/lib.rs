@@ -5,8 +5,9 @@ pub mod engine_presets;
 pub mod file_system;
 pub mod kifu;
 pub mod search;
+pub mod study_positions;
 
-use crate::engine::bridge::AppState;
+pub use crate::engine::bridge::AppState;
 pub use ai_library::{ensure_engines_dir, scan_ai_root};
 pub use config_dir::{load_config, save_config};
 pub use engine::bridge::{
@@ -21,11 +22,12 @@ pub use file_system::{
     save_kifu_file,
 };
 pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
+pub use search::api::{open_project, search_position, SearchState};
+pub use search::index_store::IndexStore;
+pub use study_positions::{load_study_positions, save_study_positions};
+
 use std::sync::Arc;
 use tauri::Manager;
-
-use search::api::{open_project, search_position, SearchState};
-use search::index_store::IndexStore;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -83,7 +85,9 @@ pub fn run() {
             get_analysis_status,
             get_engine_info,
             open_project,
-            search_position
+            search_position,
+            load_study_positions,
+            save_study_positions,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

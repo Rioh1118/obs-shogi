@@ -6,16 +6,20 @@ import {
   Navigation,
   Search,
   RotateCw,
+  Bookmark,
 } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { useAnalysis } from "@/entities/analysis";
+import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { currentSfen } = usePositionSync();
   const { openModal, params, updateParams } = useURLParams();
+  const { findBySfen } = useStudyPositions();
+  const isBookmarked = !!findBySfen(currentSfen);
   const [elapsedTime, setElapsedTime] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -106,6 +110,10 @@ function AnalysisPaneHeader() {
     openModal("position-search");
   };
 
+  const handleBookmark = () => {
+    openModal("study-position-save");
+  };
+
   return (
     <header className="analysis-header">
       <div className="analysis-header__status">
@@ -164,6 +172,18 @@ function AnalysisPaneHeader() {
             ) : (
               <Play className="analysis-header__icon" />
             )}
+          </button>
+
+          <button
+            className={`analysis-header__iconBtn ${isBookmarked ? "analysis-header__iconBtn--active" : ""}`}
+            onClick={handleBookmark}
+            disabled={!currentSfen}
+            title={isBookmarked ? "課題局面を編集" : "課題局面に登録"}
+          >
+            <Bookmark
+              className="analysis-header__icon"
+              fill={isBookmarked ? "currentColor" : "none"}
+            />
           </button>
 
           <button
