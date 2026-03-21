@@ -82,7 +82,7 @@ pub fn read_file(file_path: String) -> Result<String, FsError> {
 }
 
 /// 初期局面が後手番（preset: OTHER, color: White）かどうか判定する
-fn is_initial_gote(jkf: &JsonKifuFormat) -> bool {
+pub(crate) fn is_initial_gote(jkf: &JsonKifuFormat) -> bool {
     if let Some(initial) = &jkf.initial {
         if initial.preset == Preset::PresetOther {
             if let Some(data) = &initial.data {
@@ -97,7 +97,7 @@ fn is_initial_gote(jkf: &JsonKifuFormat) -> bool {
 /// converter crate が後手番情報を出力しないための補正。
 /// 「手数----指手---------」行の直前に挿入する（KIF）。
 /// KI2 の場合は末尾の盤面出力の後に追加する。
-fn patch_gote_start(mut content: String, is_gote: bool) -> String {
+pub(crate) fn patch_gote_start(mut content: String, is_gote: bool) -> String {
     if !is_gote {
         return content;
     }
