@@ -262,7 +262,7 @@ export default function StudyPositionsManagerModal() {
 
   const handleCreateKifu = useCallback(
     (sfen: string) => {
-      openModal("create-file", { sfen, returnTo: "study-positions" });
+      openModal("sfen-kifu-create", { sfen, returnTo: "study-positions" });
     },
     [openModal],
   );

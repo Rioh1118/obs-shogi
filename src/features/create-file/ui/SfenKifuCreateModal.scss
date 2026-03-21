@@ -1,0 +1,40 @@
+@use "@/index.scss" as index;
+
+.sfen-kifu-create {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+
+  &__preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1.6rem 2rem 1rem;
+    background-color: rgba(index.$color-secondary-light, 0.2);
+    border-bottom: 1px solid rgba(index.$color-secondary-dark, 0.1);
+  }
+
+  &__turnBadge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 1.2rem;
+    border-radius: 0.4rem;
+    background-color: rgba(index.$color-secondary-dark, 0.12);
+    color: index.$color-primary-dark;
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  &__error {
+    padding: 1rem 1.4rem;
+    border-radius: 0.4rem;
+    background-color: rgba(#e57373, 0.12);
+    border: 1px solid rgba(#e57373, 0.35);
+    color: #c62828;
+    font-size: 1.3rem;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+}

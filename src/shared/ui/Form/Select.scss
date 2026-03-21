@@ -1,8 +1,12 @@
 @use "@/index.scss" as index;
 
+.form__select-wrap {
+  position: relative;
+}
+
 .form__select-button {
   width: 100%;
-  text-align: center;
+  text-align: left;
   padding: 1.2rem 1.6rem;
   padding-right: 3rem;
   font-size: 1.5rem;

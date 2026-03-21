@@ -8,7 +8,8 @@ export type ModalType =
   | "create-file"
   | "position-search"
   | "study-position-save"
-  | "study-positions";
+  | "study-positions"
+  | "sfen-kifu-create";
 
 export type PovType = "sente" | "gote";
 
