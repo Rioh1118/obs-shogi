@@ -10,7 +10,6 @@ export type StudyPositionsContextType = {
   state: StudyPositionsState;
 
   load: () => Promise<void>;
-  reload: () => Promise<void>;
 
   addPosition: (input: CreateStudyPositionInput) => Promise<StudyPosition>;
   updatePosition: (input: UpdateStudyPositionInput) => Promise<StudyPosition>;

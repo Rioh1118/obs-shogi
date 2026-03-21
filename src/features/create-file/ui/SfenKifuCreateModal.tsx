@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
 
@@ -84,11 +84,25 @@ export default function SfenKifuCreateModal() {
 
   // fileTree が変わったら selectedDir を同期
   const rootPath = fileTree?.path ?? "";
+  const rootPathRef = useRef(rootPath);
+  rootPathRef.current = rootPath;
   const [prevRoot, setPrevRoot] = useState(rootPath);
   if (rootPath !== prevRoot) {
     setPrevRoot(rootPath);
     setSelectedDir(rootPath);
   }
+
+  // 開くたびにフォームをリセットする（常駐レンダリングで状態が残るため）
+  // selectedDir は rootPathRef 経由で最新の rootPath を参照する
+  useEffect(() => {
+    if (!isOpen) return;
+    setFileName("");
+    setFormat("kif");
+    setBlackPlayer("");
+    setWhitePlayer("");
+    setSelectedDir(rootPathRef.current);
+    setErrorMsg(null);
+  }, [isOpen]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {

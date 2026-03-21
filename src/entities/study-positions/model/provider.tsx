@@ -62,12 +62,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const positionsRef = useRef<StudyPosition[]>([]);
-  useEffect(() => {
-    positionsRef.current = state.positions;
-  }, [state.positions]);
-
-  // load() が飛んでいる間に mutation が起きた場合、古い load 結果を破棄するための版数
-  const mutationVersion = useRef(0);
 
   // CRUD 操作が positionsRef を読む前にロード完了を保証するゲート
   // エラー時も必ず resolve させることで mutation がブロックされるのを防ぐ
@@ -87,7 +81,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const load = useCallback(async () => {
     dispatch({ type: "load_start" });
-    const versionAtStart = mutationVersion.current;
 
     // ゲート用 Promise をセット（エラーでも必ず resolve して mutation をブロックしない）
     let settle!: () => void;
@@ -99,20 +92,14 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
       const out = await loadStudyPositions();
       const normalized = out.positions.map(normalizeStoredPosition);
 
-      // ロード中に mutation があれば結果を捨てて既存 state を保持する
-      if (mutationVersion.current === versionAtStart) {
-        // settle() より前に ref を更新しておく。
-        // useEffect による同期は render 後なので、settle() 直後に mutation が
-        // positionsRef を読んでも最新データが見えるようにする必要がある。
-        positionsRef.current = normalized;
-        dispatch({
-          type: "load_success",
-          payload: { positions: normalized },
-        });
-      } else {
-        // isLoading だけ解除する（positions は上書きしない）
-        dispatch({ type: "load_success_noop" });
-      }
+      // settle() より前に ref を更新する。
+      // useEffect による state→ref 同期は render 後なので、
+      // settle() 直後に mutation が positionsRef を読んでも最新データが見えるようにする。
+      positionsRef.current = normalized;
+      dispatch({
+        type: "load_success",
+        payload: { positions: normalized },
+      });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       dispatch({ type: "load_error", payload: { message } });
@@ -121,10 +108,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
       settle();
     }
   }, []);
-
-  const reload = useCallback(async () => {
-    await load();
-  }, [load]);
 
   useEffect(() => {
     load().catch((e) => {
@@ -185,7 +168,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
       const prevPositions = positionsRef.current;
       const nextPositions = [position, ...prevPositions];
 
-      mutationVersion.current += 1;
       dispatch({ type: "add_position", payload: { position } });
       positionsRef.current = nextPositions;
 
@@ -236,7 +218,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         p.id === next.id ? next : p,
       );
 
-      mutationVersion.current += 1;
       dispatch({ type: "update_position", payload: { position: next } });
       positionsRef.current = nextPositions;
 
@@ -265,7 +246,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
       const nextPositions = prevPositions.filter((p) => p.id !== id);
 
-      mutationVersion.current += 1;
       dispatch({ type: "delete_position", payload: { id } });
       positionsRef.current = nextPositions;
 
@@ -295,7 +275,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     () => ({
       state,
       load,
-      reload,
       addPosition,
       updatePosition,
       deletePosition,
@@ -307,7 +286,6 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     [
       state,
       load,
-      reload,
       addPosition,
       updatePosition,
       deletePosition,

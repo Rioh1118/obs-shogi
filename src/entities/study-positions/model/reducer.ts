@@ -14,7 +14,6 @@ export type StudyPositionsState = {
 export type Action =
   | { type: "load_start" }
   | { type: "load_success"; payload: { positions: StudyPosition[] } }
-  | { type: "load_success_noop" }
   | { type: "load_error"; payload: { message: string } }
   | { type: "save_start" }
   | { type: "save_success" }
@@ -71,13 +70,6 @@ export function reducer(
         error: null,
       };
     }
-
-    case "load_success_noop":
-      return {
-        ...state,
-        isLoading: false,
-        isLoaded: true,
-      };
 
     case "load_error":
       return {

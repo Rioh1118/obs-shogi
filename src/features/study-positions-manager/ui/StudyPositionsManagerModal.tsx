@@ -208,6 +208,9 @@ export default function StudyPositionsManagerModal() {
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement;
 
+      // 入力欄ではキャレット移動・IME 候補操作を優先する
+      if (isInInput) return;
+
       if (e.key === "ArrowDown") {
         e.preventDefault();
         moveSelection(1);
@@ -218,8 +221,6 @@ export default function StudyPositionsManagerModal() {
         moveSelection(-1);
         return;
       }
-
-      if (isInInput) return;
 
       if (e.key === "j") {
         e.preventDefault();
