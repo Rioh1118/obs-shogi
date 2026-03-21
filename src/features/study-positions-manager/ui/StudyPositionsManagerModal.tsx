@@ -258,12 +258,12 @@ export default function StudyPositionsManagerModal() {
       }
       if (e.key === "s" && selectedPosition) {
         e.preventDefault();
-        openModal("position-search", { sfen: selectedPosition.sfen });
+        openModal("position-search", { sfen: selectedPosition.sfen, returnTo: "study-positions" });
         return;
       }
       if (e.key === "e" && selectedPosition) {
         e.preventDefault();
-        openModal("study-position-save", { sfen: selectedPosition.sfen });
+        openModal("study-position-save", { sfen: selectedPosition.sfen, returnTo: "study-positions" });
         return;
       }
     },
@@ -273,14 +273,14 @@ export default function StudyPositionsManagerModal() {
   // --- actions ---
   const handleSearch = useCallback(
     (sfen: string) => {
-      openModal("position-search", { sfen });
+      openModal("position-search", { sfen, returnTo: "study-positions" });
     },
     [openModal],
   );
 
   const handleEdit = useCallback(
     (sfen: string) => {
-      openModal("study-position-save", { sfen });
+      openModal("study-position-save", { sfen, returnTo: "study-positions" });
     },
     [openModal],
   );

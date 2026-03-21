@@ -21,6 +21,8 @@ export interface URLParams {
   pov?: PovType;
   /** 局面検索・課題局面登録に渡す検索対象SFEN（省略時は現在局面） */
   sfen?: string;
+  /** モーダルを閉じたとき戻る先のモーダル */
+  returnTo?: ModalType;
 }
 
 type UpdateOptions = { replace?: boolean };
@@ -45,6 +47,7 @@ export function useURLParams() {
       tab: searchParams.get("tab") || undefined,
       pov,
       sfen: searchParams.get("sfen") || undefined,
+      returnTo: (searchParams.get("returnTo") as ModalType) || undefined,
     };
   }, [searchParams]);
 
@@ -91,10 +94,15 @@ export function useURLParams() {
     [updateParams],
   );
 
-  // モーダルを閉じる
+  // モーダルを閉じる（returnTo があれば戻り先モーダルを開く）
   const closeModal = useCallback(() => {
-    updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined });
-  }, [updateParams]);
+    const returnTo = searchParams.get("returnTo") as ModalType | null;
+    if (returnTo) {
+      updateParams({ modal: returnTo, sfen: undefined, returnTo: undefined, dir: undefined, tab: undefined });
+    } else {
+      updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined, returnTo: undefined });
+    }
+  }, [searchParams, updateParams]);
 
   // 局面移動
   const navigateToPosition = useCallback(
