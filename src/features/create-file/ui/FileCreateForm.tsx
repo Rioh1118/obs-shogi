@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { InitialPresetString, KifuFormat } from "@/entities/kifu";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import type { FileTreeNode } from "@/entities/file-tree/model/types";
+import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";
@@ -10,13 +12,33 @@ import Textarea from "@/shared/ui/Form/Textarea";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Form/Button";
 import Spinner from "@/shared/ui/Spinner";
+import "./FileCreateForm.scss";
+
+/** ツリーからディレクトリ一覧をフラットに収集する */
+function collectDirs(node: FileTreeNode, rootPath: string): { value: string; label: string }[] {
+  const dirs: { value: string; label: string }[] = [];
+
+  function walk(n: FileTreeNode) {
+    if (!n.isDirectory) return;
+    const label = n.path === rootPath ? "/" : n.path.slice(rootPath.length);
+    dirs.push({ value: n.path, label });
+    for (const child of n.children ?? []) {
+      walk(child);
+    }
+  }
+
+  walk(node);
+  return dirs;
+}
 
 function FileCreateForm({
   toggleModal,
   dirPath,
+  initialSfen,
 }: {
   toggleModal: () => void;
   dirPath: string;
+  initialSfen?: string;
 }) {
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
@@ -26,16 +48,39 @@ function FileCreateForm({
   const [note, setNote] = useState("");
   const [preset, setPreset] = useState<InitialPresetString>("HIRATE");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [selectedDir, setSelectedDir] = useState(dirPath);
 
-  const { createNewFile } = useFileTree();
+  const { createNewFile, fileTree } = useFileTree();
+
+  const sfenInitial = useMemo(
+    () => (initialSfen ? sfenToJkfInitial(initialSfen) : null),
+    [initialSfen],
+  );
+
+  const dirOptions = useMemo(() => {
+    if (!fileTree) return [];
+    return collectDirs(fileTree, fileTree.path);
+  }, [fileTree]);
+
+  const handleDirChange = useCallback((value: string) => {
+    setSelectedDir(value);
+    setErrorMsg(null);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!fileName.trim()) return;
 
+    if (!selectedDir) {
+      setErrorMsg("保存先フォルダが選択されていません");
+      return;
+    }
+
+    setErrorMsg(null);
     setIsLoading(true);
-    const result = await createNewFile(dirPath, {
+    const result = await createNewFile(selectedDir, {
       fileName: `${fileName.trim()}.${format}`,
       format,
       gameInfo: {
@@ -44,14 +89,14 @@ function FileCreateForm({
         tags: tags.length > 0 ? tags : undefined,
         note: note.trim() ? note : undefined,
       },
-      initialPosition: {
-        preset,
-      },
+      initialPosition: sfenInitial ?? { preset },
     });
     setIsLoading(false);
 
     if (result.success) {
       toggleModal();
+    } else {
+      setErrorMsg(result.error.message ?? "ファイルの作成に失敗しました");
     }
   };
 
@@ -85,7 +130,25 @@ function FileCreateForm({
   return (
     <Form handleSubmit={handleSubmit}>
       <FormField>
-        <h2 className="form__heading-secondary">新しい棋譜ファイルを作成</h2>
+        <h2 className="form__heading-secondary">
+          {sfenInitial ? "課題局面から棋譜を作成" : "新しい棋譜ファイルを作成"}
+        </h2>
+      </FormField>
+
+      {errorMsg && (
+        <FormField>
+          <div className="file-create-form__error">{errorMsg}</div>
+        </FormField>
+      )}
+
+      <FormField>
+        <Select
+          label="保存先フォルダ"
+          id="saveDir"
+          options={dirOptions}
+          value={selectedDir}
+          onChange={handleDirChange}
+        />
       </FormField>
 
       <FormField horizontal>
@@ -124,15 +187,24 @@ function FileCreateForm({
         />
       </FormField>
 
-      <FormField>
-        <Select
-          label="手合割"
-          id="preset"
-          options={presetOptions}
-          value={preset}
-          onChange={(value) => setPreset(value as InitialPresetString)}
-        />
-      </FormField>
+      {sfenInitial ? (
+        <FormField>
+          <div className="file-create-form__sfenInfo">
+            <span className="file-create-form__sfenBadge">{"初期局面"}</span>
+            <span className="file-create-form__sfenText">{"課題局面の SFEN から設定済み"}</span>
+          </div>
+        </FormField>
+      ) : (
+        <FormField>
+          <Select
+            label="手合割"
+            id="preset"
+            options={presetOptions}
+            value={preset}
+            onChange={(value) => setPreset(value as InitialPresetString)}
+          />
+        </FormField>
+      )}
 
       <FormField>
         <TagsInput label="タグ" id="tags" tags={tags} onChange={setTags} />
@@ -149,7 +221,7 @@ function FileCreateForm({
       </FormField>
 
       <ButtonGroup>
-        <Button type="submit" variant="primary" disabled={!fileName.trim()}>
+        <Button type="submit" variant="primary" disabled={!fileName.trim() || !selectedDir}>
           作成
         </Button>
         <Button type="button" variant="ghost" onClick={toggleModal}>

@@ -160,17 +160,6 @@ function AnalysisPaneHeader() {
           >
             <Search className="analysis-header__icon" />
           </button>
-          <button
-            className={`analysis-header__iconBtn ${isBookmarked ? "analysis-header__iconBtn--active" : ""}`}
-            onClick={handleBookmark}
-            disabled={!currentSfen}
-            title={isBookmarked ? "課題局面を編集" : "課題局面に登録"}
-          >
-            <Bookmark
-              className="analysis-header__icon"
-              fill={isBookmarked ? "currentColor" : "none"}
-            />
-          </button>
 
           <button
             className="analysis-header__iconBtn"
@@ -183,6 +172,18 @@ function AnalysisPaneHeader() {
             ) : (
               <Play className="analysis-header__icon" />
             )}
+          </button>
+
+          <button
+            className={`analysis-header__iconBtn ${isBookmarked ? "analysis-header__iconBtn--active" : ""}`}
+            onClick={handleBookmark}
+            disabled={!currentSfen}
+            title={isBookmarked ? "課題局面を編集" : "課題局面に登録"}
+          >
+            <Bookmark
+              className="analysis-header__icon"
+              fill={isBookmarked ? "currentColor" : "none"}
+            />
           </button>
 
           <button

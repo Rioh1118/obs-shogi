@@ -21,6 +21,7 @@ interface Props {
   position: StudyPosition | null;
   onSearch: (sfen: string) => void;
   onEdit: (sfen: string) => void;
+  onCreateKifu: (sfen: string) => void;
   onDelete: (id: string) => Promise<void>;
 }
 
@@ -28,6 +29,7 @@ export default function PositionDetail({
   position,
   onSearch,
   onEdit,
+  onCreateKifu,
   onDelete,
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -120,6 +122,9 @@ export default function PositionDetail({
         <div className="sp-detail__actionsRight">
           <Button variant="ghost" onClick={() => onEdit(position.sfen)}>
             {"編集"}
+          </Button>
+          <Button variant="ghost" onClick={() => onCreateKifu(position.sfen)}>
+            {"棋譜作成"}
           </Button>
           <Button variant="primary" onClick={() => onSearch(position.sfen)}>
             {"局面検索"}

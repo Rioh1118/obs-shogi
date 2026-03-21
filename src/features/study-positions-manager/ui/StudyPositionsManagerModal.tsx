@@ -260,6 +260,13 @@ export default function StudyPositionsManagerModal() {
     [openModal],
   );
 
+  const handleCreateKifu = useCallback(
+    (sfen: string) => {
+      openModal("create-file", { sfen, returnTo: "study-positions" });
+    },
+    [openModal],
+  );
+
   // --- tag toggle ---
   const toggleTag = useCallback((tag: string) => {
     setTagFilter((prev) =>
@@ -500,6 +507,7 @@ export default function StudyPositionsManagerModal() {
               position={selectedPosition}
               onSearch={handleSearch}
               onEdit={handleEdit}
+              onCreateKifu={handleCreateKifu}
               onDelete={deletePosition}
             />
           </div>
