@@ -1,6 +1,7 @@
 @use "@/index.scss" as index;
 
 .sp-save {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -178,12 +179,29 @@
     font-size: 1.4rem;
   }
 
-  &__deleteWrap .form__btn {
-    color: #e57373;
-    border-color: #e57373;
+  &__deleteLink {
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.28);
+    font-size: 1.15rem;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0.3rem 0;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-color: transparent;
+    transition:
+      color 120ms ease,
+      text-decoration-color 120ms ease;
 
     &:hover:not(:disabled) {
-      background-color: rgba(#e57373, 0.12);
+      color: rgba(#e57373, 0.7);
+      text-decoration-color: rgba(#e57373, 0.4);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
     }
   }
 

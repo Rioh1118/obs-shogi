@@ -5,6 +5,8 @@ import type { Kind } from "shogi.js";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import Button from "@/shared/ui/Form/Button";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
+import { formatDate } from "@/shared/lib/date";
 import type { StudyPosition } from "@/entities/study-positions/model/types";
 import "./PositionDetail.scss";
 
@@ -76,7 +78,7 @@ export default function PositionDetail({
     );
   }
 
-  const updatedAt = formatDate(position.updatedAt);
+  const displayLabel = position.label || "（タイトルなし）";
 
   return (
     <div className="sp-detail">
@@ -85,9 +87,7 @@ export default function PositionDetail({
       </div>
 
       <div className="sp-detail__meta">
-        <h3 className="sp-detail__label">
-          {position.label || "（タイトルなし）"}
-        </h3>
+        <h3 className="sp-detail__label">{displayLabel}</h3>
         <div className="sp-detail__metaRow">
           <span className={`sp-detail__state sp-detail__state--${position.state}`}>
             {STATE_LABELS[position.state] ?? position.state}
@@ -100,7 +100,7 @@ export default function PositionDetail({
         </div>
         <div className="sp-detail__metaSub">
           {turnLabel && <span>{turnLabel}</span>}
-          <span>{updatedAt} 更新</span>
+          <span>{formatDate(position.updatedAt)} 更新</span>
         </div>
         {position.description && (
           <div className="sp-detail__memo">{position.description}</div>
@@ -108,49 +108,33 @@ export default function PositionDetail({
       </div>
 
       <div className="sp-detail__actions">
-        {confirmDelete ? (
-          <div className="sp-detail__confirmRow">
-            <span className="sp-detail__confirmText">
-              {"本当に削除しますか？"}
-            </span>
-            <Button
-              variant="ghost"
-              onClick={() => setConfirmDelete(false)}
-              disabled={isDeleting}
-            >
-              {"キャンセル"}
-            </Button>
-            <Button variant="ghost" onClick={handleDelete} disabled={isDeleting}>
-              {"削除する"}
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="sp-detail__actionsLeft">
-              <Button variant="primary" onClick={() => onSearch(position.sfen)}>
-                {"局面検索"}
-              </Button>
-            </div>
-            <div className="sp-detail__actionsRight">
-              <Button variant="ghost" onClick={() => onEdit(position.sfen)}>
-                {"編集"}
-              </Button>
-              <Button variant="ghost" onClick={() => setConfirmDelete(true)}>
-                {"削除"}
-              </Button>
-            </div>
-          </>
-        )}
+        <Button variant="primary" onClick={() => onSearch(position.sfen)}>
+          {"局面検索"}
+        </Button>
+        <Button variant="ghost" onClick={() => onEdit(position.sfen)}>
+          {"編集"}
+        </Button>
       </div>
+
+      <div className="sp-detail__dangerZone">
+        <button
+          type="button"
+          className="sp-detail__deleteLink"
+          onClick={() => setConfirmDelete(true)}
+        >
+          {"この局面を削除"}
+        </button>
+      </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`「${displayLabel}」を削除しますか？`}
+          subtitle="この操作は取り消せません"
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+          isLoading={isDeleting}
+        />
+      )}
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  } catch {
-    return "";
-  }
 }

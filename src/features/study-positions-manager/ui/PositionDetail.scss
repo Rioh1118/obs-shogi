@@ -1,6 +1,7 @@
 @use "@/index.scss" as index;
 
 .sp-detail {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -25,6 +26,7 @@
     overflow: hidden;
   }
 
+  // --- meta ---
   &__meta {
     flex-shrink: 0;
     display: flex;
@@ -87,6 +89,7 @@
     word-break: break-word;
   }
 
+  // --- main actions (search + edit) ---
   &__actions {
     flex-shrink: 0;
     display: flex;
@@ -97,37 +100,37 @@
     border-top: 1px solid index.$stroke-weak;
   }
 
-  &__actionsLeft,
-  &__actionsRight {
-    display: flex;
-    gap: 0.6rem;
-  }
-
-  &__confirmRow {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    width: 100%;
-  }
-
-  &__confirmText {
-    font-size: 1.25rem;
-    color: #e57373;
-    flex: 1;
-  }
-
-  &__confirmRow .form__btn--ghost {
-    color: #e57373;
-    border-color: #e57373;
-
-    &:hover:not(:disabled) {
-      background-color: rgba(#e57373, 0.12);
-    }
-  }
-
-  // dark theme button overrides
   .form__btn {
     min-height: 3.4rem;
     font-size: 1.25rem;
+  }
+
+  // --- danger zone: delete text link ---
+  &__dangerZone {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 0.2rem;
+  }
+
+  &__deleteLink {
+    border: none;
+    background: transparent;
+    color: rgba(index.$color-text-light-1, 0.25);
+    font-size: 1.05rem;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0.2rem 0;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-color: transparent;
+    transition:
+      color 120ms ease,
+      text-decoration-color 120ms ease;
+
+    &:hover {
+      color: rgba(#e57373, 0.7);
+      text-decoration-color: rgba(#e57373, 0.4);
+    }
   }
 }

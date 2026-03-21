@@ -15,8 +15,8 @@ import type {
   StudyPosition,
   StudyPositionState,
 } from "@/entities/study-positions/model/types";
-import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 
+import { useTurnInfoCache } from "../lib/useTurnInfoCache";
 import StateTabNav from "./StateTabNav";
 import ActiveFilterChips from "./ActiveFilterChips";
 import TagFilterPanel from "./TagFilterPanel";
@@ -166,32 +166,7 @@ export default function StudyPositionsManagerModal() {
   }, [displayPositions, selectedId]);
 
   // --- preview data for list items ---
-  const previewCache = useRef(new Map<string, { turn: number }>());
-  const getTurnInfo = useCallback(
-    (sfen: string): { turnLabel: string | null; tesuu: number } => {
-      if (previewCache.current.has(sfen)) {
-        const cached = previewCache.current.get(sfen)!;
-        const tokens = sfen.trim().split(/\s+/);
-        const tesuu = tokens.length >= 4 ? parseInt(tokens[3], 10) || 0 : 0;
-        return {
-          turnLabel: cached.turn === 0 ? "先手" : "後手",
-          tesuu,
-        };
-      }
-      const pd = buildPreviewDataFromSfen(sfen);
-      if (pd) {
-        previewCache.current.set(sfen, { turn: pd.turn });
-        const tokens = sfen.trim().split(/\s+/);
-        const tesuu = tokens.length >= 4 ? parseInt(tokens[3], 10) || 0 : 0;
-        return {
-          turnLabel: pd.turn === 0 ? "先手" : "後手",
-          tesuu,
-        };
-      }
-      return { turnLabel: null, tesuu: 0 };
-    },
-    [],
-  );
+  const getTurnInfo = useTurnInfoCache();
 
   // --- scroll to selected ---
   useLayoutEffect(() => {

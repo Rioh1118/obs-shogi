@@ -1,0 +1,46 @@
+@use "@/index.scss" as index;
+
+.confirm-dialog-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: inherit;
+}
+
+.confirm-dialog {
+  background: index.$color-primary-black;
+  border: 1px solid index.$stroke-strong;
+  border-radius: 0.8rem;
+  padding: 2rem 2.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 32rem;
+  width: 90%;
+
+  &__title {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: index.$color-text-light-1;
+    word-break: break-word;
+  }
+
+  &__sub {
+    font-size: 1.15rem;
+    color: rgba(index.$color-text-light-1, 0.4);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin-top: 1rem;
+  }
+
+  &__danger-label {
+    color: #e57373;
+  }
+}

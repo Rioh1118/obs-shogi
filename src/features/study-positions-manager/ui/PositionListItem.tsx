@@ -1,5 +1,6 @@
 import { forwardRef } from "react";
 import type { StudyPosition } from "@/entities/study-positions/model/types";
+import { formatShortDate } from "@/shared/lib/date";
 import "./PositionListItem.scss";
 
 const STATE_LABELS: Record<string, { label: string; cls: string }> = {
@@ -60,14 +61,5 @@ const PositionListItem = forwardRef<HTMLDivElement, Props>(
     );
   },
 );
-
-function formatShortDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return `${d.getMonth() + 1}/${d.getDate()}`;
-  } catch {
-    return "";
-  }
-}
 
 export default PositionListItem;

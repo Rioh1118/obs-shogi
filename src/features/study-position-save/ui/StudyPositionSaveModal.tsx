@@ -15,6 +15,7 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
 import Button from "@/shared/ui/Form/Button";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { getBaseName } from "@/shared/lib/path";
 
 import StudyPositionStateSegment from "./StudyPositionStateSegment";
@@ -30,6 +31,8 @@ export default function StudyPositionSaveModal() {
 
   const { findBySfen, addPosition, updatePosition, deletePosition } =
     useStudyPositions();
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const sfen = params.sfen ?? currentSfen;
   const existing = useMemo(
@@ -48,6 +51,7 @@ export default function StudyPositionSaveModal() {
   // reset form when modal opens or existing changes
   useEffect(() => {
     if (!isOpen) return;
+    setConfirmDelete(false);
     if (existing) {
       setLabel(existing.label);
       setSpState(existing.state);
@@ -242,15 +246,14 @@ export default function StudyPositionSaveModal() {
         <footer className="sp-save__footer">
           <div className="sp-save__footerLeft">
             {isEdit && (
-              <span className="sp-save__deleteWrap">
-                <Button
-                  variant="ghost"
-                  onClick={handleDelete}
-                  disabled={isSaving}
-                >
-                  {"削除"}
-                </Button>
-              </span>
+              <button
+                type="button"
+                className="sp-save__deleteLink"
+                onClick={() => setConfirmDelete(true)}
+                disabled={isSaving}
+              >
+                {"この局面を削除"}
+              </button>
             )}
           </div>
           <div className="sp-save__footerRight">
@@ -266,6 +269,16 @@ export default function StudyPositionSaveModal() {
             </Button>
           </div>
         </footer>
+
+        {confirmDelete && existing && (
+          <ConfirmDialog
+            title={`「${existing.label || "（タイトルなし）"}」を削除しますか？`}
+            subtitle="この操作は取り消せません"
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmDelete(false)}
+            isLoading={isSaving}
+          />
+        )}
       </div>
     </Modal>
   );
