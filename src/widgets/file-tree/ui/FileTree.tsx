@@ -2,7 +2,7 @@ import RootNode from "./RootNode";
 import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
 import { useAppConfig } from "@/entities/app-config";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   buildNodeMap,
   DROP_ID,
@@ -25,6 +25,8 @@ import {
 import ScrollDropZone from "./ScrollDropZone";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import Spinner from "@/shared/ui/Spinner";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
+import type { FileTreeNode } from "@/entities/file-tree/model/types";
 
 const collisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);
@@ -60,6 +62,19 @@ function FileTree() {
   );
 
   const [activePath, setActivePath] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<FileTreeNode | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteNode(pendingDelete);
+    } finally {
+      setIsDeleting(false);
+      setPendingDelete(null);
+    }
+  }, [pendingDelete, deleteNode]);
 
   const onDragStart = (e: DragStartEvent) => {
     setActivePath(String(e.active.id));
@@ -111,8 +126,8 @@ function FileTree() {
               {
                 label: "Delete",
                 danger: true,
-                onClick: async () => {
-                  await deleteNode(menu.node);
+                onClick: () => {
+                  setPendingDelete(menu.node);
                 },
               },
             ]),
@@ -154,6 +169,23 @@ function FileTree() {
           )}
         </ScrollDropZone>
       </DndContext>
+      {pendingDelete && (
+        <ConfirmDialog
+          title={
+            pendingDelete.isDirectory
+              ? `「${pendingDelete.name}」フォルダを削除しますか？`
+              : `「${pendingDelete.name}」を削除しますか？`
+          }
+          subtitle={
+            pendingDelete.isDirectory
+              ? "フォルダ内のファイルもすべて完全に削除されます。この操作は取り消せません。"
+              : "ファイルは完全に削除されます。この操作は取り消せません。"
+          }
+          isLoading={isDeleting}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
       <div
         id="filetree-tooltip"
         popover="manual"
