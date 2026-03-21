@@ -1,0 +1,161 @@
+@use "@/index.scss" as index;
+
+.sp-save {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: index.$color-text-light-1;
+
+  &__header {
+    padding: 2rem 2.4rem 1.2rem;
+    border-bottom: 1px solid index.$stroke-weak;
+  }
+
+  &__title {
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: index.$color-text-light-1;
+  }
+
+  &__subtitle {
+    margin-top: 0.3rem;
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.5);
+  }
+
+  &__body {
+    display: grid;
+    grid-template-columns: 23rem 1fr;
+    gap: 2rem;
+    padding: 1.6rem 2.4rem;
+    min-height: 0;
+  }
+
+  &__left {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  &__preview {
+    // constrain preview pane size
+    max-height: 26rem;
+    overflow: hidden;
+  }
+
+  &__context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    font-size: 1.2rem;
+    color: rgba(index.$color-text-light-1, 0.6);
+  }
+
+  &__contextItem {
+    white-space: nowrap;
+
+    &--file {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 20rem;
+    }
+  }
+
+  &__right {
+    display: flex;
+    flex-direction: column;
+    gap: 1.4rem;
+    min-width: 0;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  &__label {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: index.$color-text-light-1;
+    margin-bottom: 0.3rem;
+  }
+
+  // dark theme overrides for form controls
+  .form__label {
+    color: index.$color-text-light-1;
+  }
+
+  .form__input,
+  .form__textarea {
+    background-color: rgba(index.$color-white, 0.06);
+    color: index.$color-text-light-1;
+    border-bottom-color: index.$stroke-strong;
+
+    &:focus {
+      background-color: rgba(index.$color-white, 0.1);
+      border-color: index.$color-secondary-dark;
+    }
+
+    &::placeholder {
+      color: rgba(index.$color-text-light-1, 0.35);
+    }
+  }
+
+  // tags input dark theme
+  .tags-input-wrapper {
+    .tags-input__label {
+      color: index.$color-text-light-1;
+    }
+
+    .tags-input__help {
+      color: rgba(index.$color-text-light-1, 0.4);
+    }
+  }
+
+  .tags-input {
+    background-color: rgba(index.$color-white, 0.06);
+    border-color: index.$stroke-strong;
+
+    &--focused {
+      border-color: index.$color-secondary-dark;
+      background-color: rgba(index.$color-white, 0.1);
+    }
+  }
+
+  .tags-input__input {
+    color: index.$color-text-light-1;
+
+    &::placeholder {
+      color: rgba(index.$color-text-light-1, 0.35);
+    }
+  }
+
+  .tag {
+    background-color: rgba(index.$color-secondary-dark, 0.3);
+    color: index.$color-text-light-1;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.2rem 2.4rem;
+    border-top: 1px solid index.$stroke-weak;
+    gap: 1rem;
+  }
+
+  &__footerLeft {
+    flex-shrink: 0;
+  }
+
+  &__deleteBtn {
+    color: #e57373 !important;
+    border-color: #e57373 !important;
+
+    &:hover:not(:disabled) {
+      background-color: rgba(#e57373, 0.12) !important;
+    }
+  }
+}
