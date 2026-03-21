@@ -1,4 +1,4 @@
-import { dirname } from "pathe";
+import { basename, dirname } from "pathe";
 
 const norm = (p: string) => p.replace("\\", "/");
 
@@ -12,4 +12,8 @@ export function toRelPath(absPath: string, rootDir: string | null): string {
 
 export function getParentPath(path: string) {
   return dirname(path);
+}
+
+export function getBaseName(path: string) {
+  return basename(path);
 }

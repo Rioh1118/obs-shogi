@@ -15,6 +15,7 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
 import Button from "@/shared/ui/Form/Button";
+import { getBaseName } from "@/shared/lib/path";
 
 import StudyPositionStateSegment from "./StudyPositionStateSegment";
 
@@ -30,7 +31,7 @@ export default function StudyPositionSaveModal() {
   const { findBySfen, addPosition, updatePosition, deletePosition } =
     useStudyPositions();
 
-  const sfen = currentSfen;
+  const sfen = params.sfen ?? currentSfen;
   const existing = useMemo(
     () => (isOpen ? findBySfen(sfen) : null),
     [isOpen, findBySfen, sfen],
@@ -76,8 +77,7 @@ export default function StudyPositionSaveModal() {
   const fileName = useMemo(() => {
     const absPath = gameState.loadedAbsPath;
     if (!absPath) return null;
-    const parts = absPath.split("/");
-    return parts[parts.length - 1] ?? null;
+    return getBaseName(absPath);
   }, [gameState.loadedAbsPath]);
 
   const handleSave = useCallback(async () => {
