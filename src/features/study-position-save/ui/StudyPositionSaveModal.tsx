@@ -47,11 +47,13 @@ export default function StudyPositionSaveModal() {
   const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // reset form when modal opens or existing changes
   useEffect(() => {
     if (!isOpen) return;
     setConfirmDelete(false);
+    setErrorMsg(null);
     if (existing) {
       setLabel(existing.label);
       setSpState(existing.state);
@@ -91,6 +93,7 @@ export default function StudyPositionSaveModal() {
   const handleSave = useCallback(async () => {
     if (!sfen || isSaving) return;
     setIsSaving(true);
+    setErrorMsg(null);
     try {
       if (existing) {
         await updatePosition({
@@ -112,6 +115,7 @@ export default function StudyPositionSaveModal() {
       closeModal();
     } catch (e) {
       console.error("[StudyPositionSaveModal] save failed:", e);
+      setErrorMsg(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
       setIsSaving(false);
     }
@@ -131,11 +135,13 @@ export default function StudyPositionSaveModal() {
   const handleDelete = useCallback(async () => {
     if (!existing || isSaving) return;
     setIsSaving(true);
+    setErrorMsg(null);
     try {
       await deletePosition(existing.id);
       closeModal();
     } catch (e) {
       console.error("[StudyPositionSaveModal] delete failed:", e);
+      setErrorMsg(e instanceof Error ? e.message : "削除に失敗しました");
     } finally {
       setIsSaving(false);
     }
@@ -248,6 +254,10 @@ export default function StudyPositionSaveModal() {
             </div>
           </div>
         </div>
+
+        {errorMsg && (
+          <div className="sp-save__error">{errorMsg}</div>
+        )}
 
         <footer className="sp-save__footer">
           <div className="sp-save__footerLeft">

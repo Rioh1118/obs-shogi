@@ -197,8 +197,11 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
       const next: StudyPosition = normalizeStoredPosition({
         ...current,
-        ...input,
         sfen: input.sfen != null ? input.sfen : current.sfen,
+        label: input.label != null ? input.label : current.label,
+        description: input.description != null ? input.description : current.description,
+        state: input.state != null ? input.state : current.state,
+        tags: input.tags != null ? input.tags : current.tags,
         updatedAt: createNowIso(),
       });
 
