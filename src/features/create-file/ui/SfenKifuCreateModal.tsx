@@ -162,7 +162,7 @@ export default function SfenKifuCreateModal() {
               )}
             </div>
 
-            <Form handleSubmit={handleSubmit}>
+            <Form handleSubmit={handleSubmit} theme="dark">
               <FormField>
                 <h2 className="form__heading-secondary">
                   {"課題局面から棋譜を作成"}
