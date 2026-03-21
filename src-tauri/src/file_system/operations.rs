@@ -7,7 +7,7 @@ use std::io::Write;
 use super::utils::{get_file_extension, is_kifu_file};
 use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
-    jkf::JsonKifuFormat,
+    jkf::{Color, JsonKifuFormat, Preset},
 };
 use std::{fs::OpenOptions, path::PathBuf};
 use tauri::command;
@@ -81,6 +81,67 @@ pub fn read_file(file_path: String) -> Result<String, FsError> {
     read_text_portable(&path)
 }
 
+/// 初期局面が後手番（preset: OTHER, color: White）かどうか判定する
+fn is_initial_gote(jkf: &JsonKifuFormat) -> bool {
+    if let Some(initial) = &jkf.initial {
+        if initial.preset == Preset::PresetOther {
+            if let Some(data) = &initial.data {
+                return data.color == Color::White;
+            }
+        }
+    }
+    false
+}
+
+/// KIF/KI2 形式の出力に「後手番」行を挿入する。
+/// converter crate が後手番情報を出力しないための補正。
+/// 「手数----指手---------」行の直前に挿入する（KIF）。
+/// KI2 の場合は末尾の盤面出力の後に追加する。
+fn patch_gote_start(mut content: String, is_gote: bool) -> String {
+    if !is_gote {
+        return content;
+    }
+    // KIF 形式: 「手数----指手---------消費時間--」の直前に挿入
+    if let Some(pos) = content.find("手数----指手---------") {
+        content.insert_str(pos, "後手番\n");
+    } else {
+        // KI2 形式など: 盤面出力の後、指し手の前に追加
+        // 「+---------------------------+」の最後の出現の次の行末の後に挿入
+        if let Some(pos) = content.rfind("+---------------------------+") {
+            if let Some(newline) = content[pos..].find('\n') {
+                let insert_at = pos + newline + 1;
+                // 持駒行をスキップ（「先手の持駒：...」行の後）
+                if let Some(teban_pos) = content[insert_at..].find('\n') {
+                    content.insert_str(insert_at + teban_pos + 1, "後手番\n");
+                } else {
+                    content.push_str("後手番\n");
+                }
+            }
+        } else {
+            // フォールバック: 先頭に追加
+            content.insert_str(0, "後手番\n");
+        }
+    }
+    content
+}
+
+/// JKF データをファイル拡張子に応じた形式に変換する
+fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
+    let is_gote = is_initial_gote(jkf_data);
+
+    match get_file_extension(file_path).as_deref() {
+        Some("kif") => Ok(patch_gote_start(jkf_data.to_kif_owned(), is_gote)),
+        Some("ki2") => Ok(patch_gote_start(jkf_data.to_ki2_owned(), is_gote)),
+        Some("csa") => Ok(jkf_data.to_csa_owned()),
+        Some("jkf") => serde_json::to_string_pretty(jkf_data)
+            .map_err(|e| FsError::new(FsErrorCode::InvalidType, e.to_string())),
+        _ => Err(
+            FsError::new(FsErrorCode::InvalidExtension, "未対応の形式です")
+                .with_path(file_path.to_string_lossy().to_string()),
+        ),
+    }
+}
+
 #[command]
 pub fn create_kifu_file(
     parent_dir: String,
@@ -114,19 +175,7 @@ pub fn create_kifu_file(
         .map_err(|e| FsError::new(FsErrorCode::InvalidType, format!("正規化エラー: {:?}", e)))?;
 
     // ファイル拡張子に応じて適切な形式に変換
-    let content = match get_file_extension(&file_path).as_deref() {
-        Some("kif") => jkf_data.to_kif_owned(),
-        Some("ki2") => jkf_data.to_ki2_owned(),
-        Some("csa") => jkf_data.to_csa_owned(),
-        Some("jkf") => serde_json::to_string_pretty(&jkf_data)
-            .map_err(|e| FsError::new(FsErrorCode::InvalidType, e.to_string()))?,
-        _ => {
-            return Err(
-                FsError::new(FsErrorCode::InvalidExtension, "未対応の形式です")
-                    .with_path(file_path.to_string_lossy().to_string()),
-            )
-        }
-    };
+    let content = convert_jkf_to_format(&jkf_data, &file_path)?;
 
     // ファイル保存
     write_new_file(&file_path, &content)?;
@@ -163,19 +212,7 @@ pub fn import_kifu_file(
     }
 
     // ファイル拡張子に応じて適切な形式に変換
-    let content = match get_file_extension(&file_path).as_deref() {
-        Some("kif") => jkf_data.to_kif_owned(),
-        Some("ki2") => jkf_data.to_ki2_owned(),
-        Some("csa") => jkf_data.to_csa_owned(),
-        Some("jkf") => serde_json::to_string_pretty(&jkf_data)
-            .map_err(|e| FsError::new(FsErrorCode::InvalidType, e.to_string()))?,
-        _ => {
-            return Err(
-                FsError::new(FsErrorCode::InvalidExtension, "未対応の形式です")
-                    .with_path(file_path.to_string_lossy().to_string()),
-            )
-        }
-    };
+    let content = convert_jkf_to_format(&jkf_data, &file_path)?;
 
     // ファイル保存
     write_new_file(&file_path, &content)?;
