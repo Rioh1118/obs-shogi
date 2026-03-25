@@ -89,9 +89,7 @@ export default function AnalysisDefaultsSection(props: {
               });
             }}
           />
-          <span className="presetDialog__checkLabel">
-            詰み探索（フロント保持）
-          </span>
+          <span className="presetDialog__checkLabel">詰み探索（フロント保持）</span>
         </label>
       </div>
     </SSection>

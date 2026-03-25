@@ -5,9 +5,5 @@ import { FileTreeProvider } from "@/entities/file-tree";
 export function FileTreeRootGate({ children }: { children: ReactNode }) {
   const { config } = useAppConfig();
 
-  return (
-    <FileTreeProvider rootDir={config?.root_dir ?? null}>
-      {children}
-    </FileTreeProvider>
-  );
+  return <FileTreeProvider rootDir={config?.root_dir ?? null}>{children}</FileTreeProvider>;
 }

@@ -72,7 +72,7 @@ export default function AiLibraryTab() {
     if (didInitRef.current) return;
     didInitRef.current = true;
     if (localAiRoot.trim()) void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const data = scan.status === "ready" ? scan.data : null;
@@ -88,19 +88,14 @@ export default function AiLibraryTab() {
     }
     for (const p of data.profiles ?? []) {
       const { okEval, okBook } = profileHealth(p);
-      if (!okEval)
-        ws.push(`「${p.name}」: eval が未検出です（<AI名>/eval に nn.bin 等）。`);
-      if (!okBook)
-        ws.push(`「${p.name}」: book が未検出です（<AI名>/book に .db）。`);
+      if (!okEval) ws.push(`「${p.name}」: eval が未検出です（<AI名>/eval に nn.bin 等）。`);
+      if (!okBook) ws.push(`「${p.name}」: book が未検出です（<AI名>/book に .db）。`);
     }
     return ws;
   }, [data]);
 
   const enginesCount = data?.engines?.length ?? 0;
-  const engineNames = useMemo(
-    () => data?.engines?.map((e) => e.entry) ?? [],
-    [data],
-  );
+  const engineNames = useMemo(() => data?.engines?.map((e) => e.entry) ?? [], [data]);
 
   const guideProfiles = useMemo<SetupGuideProfile[]>(
     () =>
@@ -150,9 +145,7 @@ export default function AiLibraryTab() {
   }, [localAiRoot]);
 
   const enginesDirPath = useMemo(
-    () =>
-      data?.engines_dir?.path ||
-      (localAiRoot ? `${normalizePath(localAiRoot)}/engines` : ""),
+    () => data?.engines_dir?.path || (localAiRoot ? `${normalizePath(localAiRoot)}/engines` : ""),
     [data?.engines_dir?.path, localAiRoot],
   );
 
@@ -184,10 +177,14 @@ export default function AiLibraryTab() {
 
   const scanStatus = useMemo((): "idle" | "loading" | "ok" | "error" => {
     switch (scan.status) {
-      case "idle": return "idle";
-      case "loading": return "loading";
-      case "ready": return "ok";
-      case "error": return "error";
+      case "idle":
+        return "idle";
+      case "loading":
+        return "loading";
+      case "ready":
+        return "ok";
+      case "error":
+        return "error";
     }
   }, [scan.status]);
 

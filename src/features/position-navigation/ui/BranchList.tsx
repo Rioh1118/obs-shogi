@@ -1,10 +1,4 @@
-import {
-  useRef,
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
-} from "react";
+import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react";
 import "./BranchList.scss";
 import BranchCard from "./BranchCard";
 import type { BranchOption } from "@/features/position-navigation/model/types";
@@ -15,14 +9,9 @@ type Props = {
   onSelectIndex: (idx: number) => void;
 };
 
-const clamp = (v: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, v));
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-export default function BranchList({
-  branches,
-  selectedIndex,
-  onSelectIndex,
-}: Props) {
+export default function BranchList({ branches, selectedIndex, onSelectIndex }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const isUserScrollingRef = useRef(false);
@@ -102,15 +91,10 @@ export default function BranchList({
     const safeTop = viewH * 0.22;
     const safeBottom = viewH * 0.78;
 
-    const shouldScroll =
-      cardTopInView < safeTop || cardBottomInView > safeBottom;
+    const shouldScroll = cardTopInView < safeTop || cardBottomInView > safeBottom;
 
     if (shouldScroll) {
-      const target = clamp(
-        y - viewH / 2 + h / 2,
-        0,
-        container.scrollHeight - viewH,
-      );
+      const target = clamp(y - viewH / 2 + h / 2, 0, container.scrollHeight - viewH);
       springScrollTo(target);
     }
   }, [selectedIndex, branches.length, springScrollTo]);
@@ -123,8 +107,7 @@ export default function BranchList({
       isUserScrollingRef.current = true;
       cancelScrollAnim();
 
-      if (scrollTimeoutRef.current)
-        window.clearTimeout(scrollTimeoutRef.current);
+      if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = window.setTimeout(() => {
         isUserScrollingRef.current = false;
       }, 140); // ← 1msは短すぎ。人間の操作は“余韻”がある
@@ -142,8 +125,7 @@ export default function BranchList({
       container.removeEventListener("wheel", markUserScrolling);
       container.removeEventListener("touchstart", markUserScrolling);
       container.removeEventListener("pointerdown", markUserScrolling);
-      if (scrollTimeoutRef.current)
-        window.clearTimeout(scrollTimeoutRef.current);
+      if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
       cancelScrollAnim();
     };
   }, [cancelScrollAnim]);
@@ -156,10 +138,7 @@ export default function BranchList({
       (entries) => {
         entries.forEach((entry) => {
           const card = entry.target as HTMLElement;
-          card.setAttribute(
-            "data-in-view",
-            entry.isIntersecting ? "true" : "false",
-          );
+          card.setAttribute("data-in-view", entry.isIntersecting ? "true" : "false");
         });
       },
       {

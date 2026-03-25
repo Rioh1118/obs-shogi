@@ -35,9 +35,7 @@ function BranchCard({ branch, index, selected, onClick, ref }: Props) {
 
       <div className="branch-selector__sequence">
         <span className="branch-selector__sequence-icon">→</span>
-        <span className="branch-selector__sequence-text">
-          {branch.tesuu}手目
-        </span>
+        <span className="branch-selector__sequence-text">{branch.tesuu}手目</span>
       </div>
     </div>
   );

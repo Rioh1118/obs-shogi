@@ -6,15 +6,11 @@ import "./UpdaterScreen.scss";
 export default function UpdaterScreen() {
   const { status, downloadAndInstall, restart, dismiss } = useUpdater();
 
-  if (
-    status.phase === "idle" ||
-    status.phase === "checking"
-  ) {
+  if (status.phase === "idle" || status.phase === "checking") {
     return null;
   }
 
-  const version =
-    status.phase === "available" ? status.update.version : null;
+  const version = status.phase === "available" ? status.update.version : null;
 
   return createPortal(
     <div className="updater-overlay" role="dialog" aria-modal="true" aria-label="アップデート">
@@ -28,10 +24,10 @@ export default function UpdaterScreen() {
             {status.phase === "error"
               ? "更新に失敗しました"
               : status.phase === "ready"
-              ? "更新の準備ができました"
-              : status.phase === "downloading"
-              ? "ダウンロード中…"
-              : "新しいバージョンが利用可能"}
+                ? "更新の準備ができました"
+                : status.phase === "downloading"
+                  ? "ダウンロード中…"
+                  : "新しいバージョンが利用可能"}
           </div>
           {(status.phase === "available" || status.phase === "error") && (
             <button
@@ -49,7 +45,8 @@ export default function UpdaterScreen() {
         <div className="updater-card__body">
           {status.phase === "available" && version && (
             <p className="updater-card__version">
-              バージョン <span className="updater-card__version-tag">v{version}</span> が公開されています
+              バージョン <span className="updater-card__version-tag">v{version}</span>{" "}
+              が公開されています
             </p>
           )}
 
@@ -61,21 +58,15 @@ export default function UpdaterScreen() {
                   style={{ width: `${status.progress}%` }}
                 />
               </div>
-              <span className="updater-card__progress-label">
-                {status.progress}%
-              </span>
+              <span className="updater-card__progress-label">{status.progress}%</span>
             </div>
           )}
 
           {status.phase === "ready" && (
-            <p className="updater-card__note">
-              再起動してアップデートを適用します
-            </p>
+            <p className="updater-card__note">再起動してアップデートを適用します</p>
           )}
 
-          {status.phase === "error" && (
-            <p className="updater-card__error">{status.message}</p>
-          )}
+          {status.phase === "error" && <p className="updater-card__error">{status.message}</p>}
         </div>
 
         {/* Actions */}

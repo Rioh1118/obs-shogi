@@ -51,11 +51,7 @@
   &__error {
     padding: 1rem 1.3rem;
     border-radius: 0.8rem;
-    background: linear-gradient(
-      180deg,
-      rgba(#c96a6a, 0.14) 0%,
-      rgba(#9f4d4d, 0.14) 100%
-    );
+    background: linear-gradient(180deg, rgba(#c96a6a, 0.14) 0%, rgba(#9f4d4d, 0.14) 100%);
     border: 1px solid rgba(#e39a9a, 0.26);
     color: #ffd6d6;
     font-size: 1.3rem;

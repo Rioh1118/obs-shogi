@@ -6,11 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PositionSyncContext } from "./context";
 import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 
-export function PositionSyncProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function PositionSyncProvider({ children }: { children: React.ReactNode }) {
   const { state: gameState, view: gameView } = useGame();
   const { isReady } = useEngine();
   const { state: presetsState, selectedPresetVersion } = useEnginePresets();
@@ -34,9 +30,7 @@ export function PositionSyncProvider({
 
   const isNotInitializedError = (e: unknown) => {
     const msg = e instanceof Error ? e.message : String(e);
-    return (
-      msg.includes("NotInitialized") || msg.includes("Engine not initialized")
-    );
+    return msg.includes("NotInitialized") || msg.includes("Engine not initialized");
   };
 
   const getCurrentSfen = useCallback((): string | null => {
@@ -163,9 +157,5 @@ export function PositionSyncProvider({
     [currentSfen, syncedSfen, syncPosition, isPositionSynced, syncError],
   );
 
-  return (
-    <PositionSyncContext.Provider value={value}>
-      {children}
-    </PositionSyncContext.Provider>
-  );
+  return <PositionSyncContext.Provider value={value}>{children}</PositionSyncContext.Provider>;
 }

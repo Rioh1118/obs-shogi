@@ -111,16 +111,11 @@ function BoardPreview({
           <div className="board-preview__hand-label">☗後手</div>
           <div className="board-preview__hand-pieces">
             {whiteHand.map((kind, index) => (
-              <div
-                key={`white-${kind}-${index}`}
-                className="board-preview__hand-piece"
-              >
+              <div key={`white-${kind}-${index}`} className="board-preview__hand-piece">
                 <PieceFactory jkfKind={kind} color={Color.White} />
               </div>
             ))}
-            {whiteHand.length === 0 && (
-              <div className="board-preview__hand-empty">なし</div>
-            )}
+            {whiteHand.length === 0 && <div className="board-preview__hand-empty">なし</div>}
           </div>
         </div>
 
@@ -128,16 +123,11 @@ function BoardPreview({
           <div className="board-preview__hand-label">☖先手</div>
           <div className="board-preview__hand-pieces">
             {blackHand.map((kind, index) => (
-              <div
-                key={`black-${kind}-${index}`}
-                className="board-preview__hand-piece"
-              >
+              <div key={`black-${kind}-${index}`} className="board-preview__hand-piece">
                 <PieceFactory jkfKind={kind} color={Color.Black} />
               </div>
             ))}
-            {blackHand.length === 0 && (
-              <div className="board-preview__hand-empty">なし</div>
-            )}
+            {blackHand.length === 0 && <div className="board-preview__hand-empty">なし</div>}
           </div>
         </div>
       </div>
@@ -168,11 +158,7 @@ function BoardPreview({
               .join(" ");
 
             return (
-              <div
-                key={index}
-                className={squareClasses}
-                onClick={() => handleSquareClick(index)}
-              >
+              <div key={index} className={squareClasses} onClick={() => handleSquareClick(index)}>
                 {piece && (
                   <div className="board-preview__piece">
                     <PieceFactory

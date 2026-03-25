@@ -1,10 +1,7 @@
 import type { GameAction, GameContextState } from "./types";
 import { initialGameState } from "./types";
 
-export function gameReducer(
-  state: GameContextState,
-  action: GameAction,
-): GameContextState {
+export function gameReducer(state: GameContextState, action: GameAction): GameContextState {
   switch (action.type) {
     case "game_loaded":
       return {

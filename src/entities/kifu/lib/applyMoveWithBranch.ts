@@ -1,8 +1,5 @@
 import { JKFPlayer } from "json-kifu-format";
-import type {
-  IMoveMoveFormat,
-  IMoveFormat,
-} from "json-kifu-format/dist/src/Formats";
+import type { IMoveMoveFormat, IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { ForkPointer } from "../model/cursor";
 import { eqMove } from "./eqMove";
 
@@ -24,10 +21,7 @@ export type ApplyMoveResult = {
  * 2. 同じ手が forks[1..] にあれば forkAndForward()
  * 3. 無ければ inputMove() で新規分岐を作成
  */
-export function applyMoveWithBranch(
-  jkf: JKFPlayer,
-  move: IMoveMoveFormat,
-): ApplyMoveResult {
+export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): ApplyMoveResult {
   const curTesuu = jkf.tesuu;
 
   // 1) 本線合流
@@ -55,11 +49,7 @@ export function applyMoveWithBranch(
   return buildResult(jkf, false, true);
 }
 
-function buildResult(
-  jkf: JKFPlayer,
-  usedExisting: boolean,
-  createdNew: boolean,
-): ApplyMoveResult {
+function buildResult(jkf: JKFPlayer, usedExisting: boolean, createdNew: boolean): ApplyMoveResult {
   const fps = (jkf.getForkPointers?.() ?? []) as ForkPointer[];
   return {
     usedExisting,

@@ -13,13 +13,7 @@ function stripKnownExt(name: string) {
   return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");
 }
 
-function KifuImportForm({
-  toggleModal,
-  dirPath,
-}: {
-  toggleModal: () => void;
-  dirPath: string;
-}) {
+function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dirPath: string }) {
   const { importKifuFile } = useFileTree();
 
   const [fileName, setFileName] = useState("");
@@ -37,9 +31,7 @@ function KifuImportForm({
 
   useEffect(() => {
     requestAnimationFrame(() => {
-      const el = document.getElementById(
-        "rawKifu",
-      ) as HTMLTextAreaElement | null;
+      const el = document.getElementById("rawKifu") as HTMLTextAreaElement | null;
       el?.focus();
     });
   }, []);
@@ -112,9 +104,7 @@ function KifuImportForm({
             解析: 失敗しました
             <details style={{ marginTop: "0.6rem" }}>
               <summary style={{ cursor: "pointer" }}>詳細</summary>
-              <pre style={{ whiteSpace: "pre-wrap", fontSize: "1.2rem" }}>
-                {parseError}
-              </pre>
+              <pre style={{ whiteSpace: "pre-wrap", fontSize: "1.2rem" }}>{parseError}</pre>
             </details>
           </div>
         )}

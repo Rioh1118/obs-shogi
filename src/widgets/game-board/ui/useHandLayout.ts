@@ -45,10 +45,7 @@ function organizeHandPieces(pieces: Piece[]): HandPiece[] {
 }
 
 // スカスカ度合いを考慮したサイズ設定
-function getLayoutConfig(
-  totalPieces: number,
-  maxPiecesInAnyRow: number,
-): LayoutConfig {
+function getLayoutConfig(totalPieces: number, maxPiecesInAnyRow: number): LayoutConfig {
   const idealDensity = totalPieces / 4;
   const actualDensity = maxPiecesInAnyRow;
   const sparseness = idealDensity / Math.max(actualDensity, 1);
@@ -112,15 +109,9 @@ function arrangeHandPieces(
 
   if (totalPieces <= maxPiecesPerRow) {
     // 1段に収まる場合は適切な段に配置
-    const hasHighRank = organizedPieces.some((p) =>
-      ["HI", "KA"].includes(p.kind),
-    );
-    const hasMidRank = organizedPieces.some((p) =>
-      ["KI", "GI"].includes(p.kind),
-    );
-    const hasLowRank = organizedPieces.some((p) =>
-      ["KY", "KE"].includes(p.kind),
-    );
+    const hasHighRank = organizedPieces.some((p) => ["HI", "KA"].includes(p.kind));
+    const hasMidRank = organizedPieces.some((p) => ["KI", "GI"].includes(p.kind));
+    const hasLowRank = organizedPieces.some((p) => ["KY", "KE"].includes(p.kind));
 
     if (hasHighRank) {
       result.row1 = allPieces;
@@ -141,10 +132,7 @@ function arrangeHandPieces(
     let currentRowCount = 0;
 
     allPieces.forEach((piece) => {
-      if (
-        currentRowCount >= targetDistribution &&
-        currentRowIndex < rows.length - 1
-      ) {
+      if (currentRowCount >= targetDistribution && currentRowIndex < rows.length - 1) {
         currentRowIndex++;
         currentRowCount = 0;
       }
@@ -158,10 +146,7 @@ function arrangeHandPieces(
 }
 
 // 各行の駒数をチェックして動的にサイズ調整
-function getDynamicRowConfig(
-  pieces: string[],
-  layoutConfig: LayoutConfig,
-): RowConfig {
+function getDynamicRowConfig(pieces: string[], layoutConfig: LayoutConfig): RowConfig {
   const pieceCount = pieces.length;
 
   if (pieceCount === 0) {
@@ -186,10 +171,7 @@ function getDynamicRowConfig(
   } else {
     const scaleFactor = maxWidth / requiredWidth;
     const minPieceSize = 2.8;
-    const adjustedPieceSize = Math.max(
-      layoutConfig.pieceSize * scaleFactor,
-      minPieceSize,
-    );
+    const adjustedPieceSize = Math.max(layoutConfig.pieceSize * scaleFactor, minPieceSize);
 
     return {
       pieceSize: adjustedPieceSize,
@@ -201,10 +183,7 @@ function getDynamicRowConfig(
 export function useHandLayout(handPieces: Piece[]) {
   return useMemo(() => {
     const organizedPieces = organizeHandPieces(handPieces);
-    const totalPieces = organizedPieces.reduce(
-      (sum, piece) => sum + piece.count,
-      0,
-    );
+    const totalPieces = organizedPieces.reduce((sum, piece) => sum + piece.count, 0);
 
     // 仮配置して最大行の駒数を計算
     const tempLayoutConfig = getLayoutConfig(totalPieces, 10);
@@ -222,8 +201,7 @@ export function useHandLayout(handPieces: Piece[]) {
 
     const extendedLayoutConfig: ExtendedLayoutConfig = {
       ...layoutConfig,
-      getRowConfig: (pieces: string[]) =>
-        getDynamicRowConfig(pieces, layoutConfig),
+      getRowConfig: (pieces: string[]) => getDynamicRowConfig(pieces, layoutConfig),
     };
 
     return {

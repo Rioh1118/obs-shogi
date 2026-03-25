@@ -43,12 +43,8 @@ function SettingsPanel() {
               const showDangerBadge = t.key !== "workspace";
 
               const badges = [
-                ...(showLock
-                  ? [{ tone: "muted" as const, children: "要設定" }]
-                  : []),
-                ...(showDangerBadge
-                  ? [{ tone: "danger" as const, children: "注意" }]
-                  : []),
+                ...(showLock ? [{ tone: "muted" as const, children: "要設定" }] : []),
+                ...(showDangerBadge ? [{ tone: "danger" as const, children: "注意" }] : []),
               ];
               return (
                 <SettingsTabButton

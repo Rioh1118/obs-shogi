@@ -6,10 +6,7 @@ export const initialState: ConfigState = {
   error: null,
 };
 
-export function configReducer(
-  state: ConfigState,
-  action: ConfigAction,
-): ConfigState {
+export function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
   switch (action.type) {
     case "loading":
       return { ...state, isLoading: true, error: null };

@@ -6,10 +6,7 @@ import "./FileConflictDialog.scss";
 
 function dirname(path: string): string {
   const normalized = path.replace(/[\\/]+$/, "");
-  const idx = Math.max(
-    normalized.lastIndexOf("/"),
-    normalized.lastIndexOf("\\"),
-  );
+  const idx = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
   return idx >= 0 ? normalized.slice(0, idx) : "";
 }
 
@@ -78,9 +75,7 @@ function ConflictMeta({ conflict }: { conflict: FileConflictState }) {
 
         <div className="file-conflict__field">
           <div className="file-conflict__label">種別</div>
-          <div className="file-conflict__value">
-            {kind === "file" ? "ファイル" : "フォルダ"}
-          </div>
+          <div className="file-conflict__value">{kind === "file" ? "ファイル" : "フォルダ"}</div>
         </div>
 
         <div className="file-conflict__field file-conflict__field--full">
@@ -105,9 +100,7 @@ function ConflictMeta({ conflict }: { conflict: FileConflictState }) {
         {existing && (
           <div className="file-conflict__field file-conflict__field--full">
             <div className="file-conflict__label">既に存在する項目</div>
-            <div className="file-conflict__path file-conflict__path--conflict">
-              {existing}
-            </div>
+            <div className="file-conflict__path file-conflict__path--conflict">{existing}</div>
           </div>
         )}
       </div>

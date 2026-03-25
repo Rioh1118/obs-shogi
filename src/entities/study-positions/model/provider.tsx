@@ -1,21 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { loadStudyPositions, saveStudyPositions } from "../api/studyPositions";
 import { sfenToPositionKey } from "../lib/sfenToPositionKey";
 import { StudyPositionsContext } from "./context";
 import type { StudyPositionsContextType } from "./context";
 import { initialState, reducer } from "./reducer";
-import type {
-  CreateStudyPositionInput,
-  StudyPosition,
-  UpdateStudyPositionInput,
-} from "./types";
+import type { CreateStudyPositionInput, StudyPosition, UpdateStudyPositionInput } from "./types";
 
 function normalizeTags(tags: string[]): string[] {
   const seen = new Set<string>();
@@ -115,28 +104,19 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     });
   }, [load]);
 
-  const getById = useCallback(
-    (id: string | null | undefined): StudyPosition | null => {
-      if (!id) return null;
-      return positionsRef.current.find((p) => p.id === id) ?? null;
-    },
-    [],
-  );
+  const getById = useCallback((id: string | null | undefined): StudyPosition | null => {
+    if (!id) return null;
+    return positionsRef.current.find((p) => p.id === id) ?? null;
+  }, []);
 
-  const findBySfen = useCallback(
-    (sfen: string | null | undefined): StudyPosition | null => {
-      if (!sfen) return null;
+  const findBySfen = useCallback((sfen: string | null | undefined): StudyPosition | null => {
+    if (!sfen) return null;
 
-      const key = sfenToPositionKey(sfen);
-      if (!key) return null;
+    const key = sfenToPositionKey(sfen);
+    if (!key) return null;
 
-      return (
-        positionsRef.current.find((p) => sfenToPositionKey(p.sfen) === key) ??
-        null
-      );
-    },
-    [],
-  );
+    return positionsRef.current.find((p) => sfenToPositionKey(p.sfen) === key) ?? null;
+  }, []);
 
   const addPosition = useCallback(
     async (input: CreateStudyPositionInput): Promise<StudyPosition> => {
@@ -145,9 +125,7 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
       const inputKey = requirePositionKey(input.sfen);
 
-      const duplicated = positionsRef.current.find(
-        (p) => sfenToPositionKey(p.sfen) === inputKey,
-      );
+      const duplicated = positionsRef.current.find((p) => sfenToPositionKey(p.sfen) === inputKey);
       if (duplicated) {
         throw new Error("Study position already exists for this position");
       }
@@ -211,15 +189,11 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         (p) => p.id !== input.id && sfenToPositionKey(p.sfen) === nextKey,
       );
       if (duplicated) {
-        throw new Error(
-          "Another study position already exists for this position",
-        );
+        throw new Error("Another study position already exists for this position");
       }
 
       const prevPositions = positionsRef.current;
-      const nextPositions = prevPositions.map((p) =>
-        p.id === next.id ? next : p,
-      );
+      const nextPositions = prevPositions.map((p) => (p.id === next.id ? next : p));
 
       dispatch({ type: "update_position", payload: { position: next } });
       positionsRef.current = nextPositions;
@@ -299,9 +273,5 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return (
-    <StudyPositionsContext.Provider value={value}>
-      {children}
-    </StudyPositionsContext.Provider>
-  );
+  return <StudyPositionsContext.Provider value={value}>{children}</StudyPositionsContext.Provider>;
 }

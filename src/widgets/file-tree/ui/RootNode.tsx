@@ -40,8 +40,7 @@ function RootNode({
 
   const isRenaming = renamingNodeId === node.id;
 
-  const showCreateRow =
-    isOpen && creatingDirParentPath === node.path && !isRenaming;
+  const showCreateRow = isOpen && creatingDirParentPath === node.path && !isRenaming;
 
   const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
@@ -116,10 +115,7 @@ function RootNode({
         onContextMenu={onContextMenu}
         action={
           isHovered ? (
-            <TreeNodeActions
-              nodePath={node.path}
-              isDirectory={node.isDirectory}
-            />
+            <TreeNodeActions nodePath={node.path} isDirectory={node.isDirectory} />
           ) : undefined
         }
       >
@@ -154,9 +150,7 @@ function RootNode({
 
           {!node.children?.length
             ? null
-            : node.children.map((child) => (
-                <TreeNode key={child.path} node={child} level={1} />
-              ))}
+            : node.children.map((child) => <TreeNode key={child.path} node={child} level={1} />)}
         </>
       )}
     </>

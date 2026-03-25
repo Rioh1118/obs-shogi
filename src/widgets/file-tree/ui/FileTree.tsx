@@ -111,11 +111,7 @@ function FileTree() {
     }
   };
 
-  const isRoot = !!(
-    menu &&
-    config?.root_dir &&
-    menu.node.path === config.root_dir
-  );
+  const isRoot = !!(menu && config?.root_dir && menu.node.path === config.root_dir);
 
   const items = menu
     ? [
@@ -159,14 +155,7 @@ function FileTree() {
           ) : (
             <RootNode key={"root"} node={fileTree} />
           )}
-          {menu && (
-            <ContextMenu
-              x={menu.x}
-              y={menu.y}
-              items={items}
-              onClose={closeContextMenu}
-            />
-          )}
+          {menu && <ContextMenu x={menu.x} y={menu.y} items={items} onClose={closeContextMenu} />}
         </ScrollDropZone>
       </DndContext>
       {pendingDelete && (
@@ -186,12 +175,7 @@ function FileTree() {
           onCancel={() => setPendingDelete(null)}
         />
       )}
-      <div
-        id="filetree-tooltip"
-        popover="manual"
-        className="filetree-tooltip"
-        role="tooltip"
-      />
+      <div id="filetree-tooltip" popover="manual" className="filetree-tooltip" role="tooltip" />
     </div>
   );
 }

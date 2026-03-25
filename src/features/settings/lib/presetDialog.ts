@@ -1,10 +1,6 @@
-import type {
-  FileCandidate,
-  ProfileCandidate,
-} from "@/entities/engine/api/aiLibrary";
+import type { FileCandidate, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 
-export const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+export const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 export function deepClone<T>(v: T): T {
   if (typeof structuredClone === "function") return structuredClone(v);
@@ -38,17 +34,13 @@ export const MULTIPV_MAX = 8;
 
 export const HASH_CHOICES = [256, 512, 1024, 2048, 4096, 8192, 16384] as const;
 
-export function pickDefaultEvalFile(
-  profile: ProfileCandidate | null,
-): FileCandidate | null {
+export function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {
   const xs = profile?.eval_files ?? [];
   if (xs.length === 0) return null;
   return xs.find((f) => f.entry === "nn.bin") ?? xs[0];
 }
 
-export function pickDefaultBookDb(
-  profile: ProfileCandidate | null,
-): FileCandidate | null {
+export function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandidate | null {
   const xs = profile?.book_db_files ?? [];
   if (xs.length === 0) return null;
   return xs[0];

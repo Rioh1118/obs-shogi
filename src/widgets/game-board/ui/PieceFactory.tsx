@@ -22,12 +22,7 @@ interface PieceFactoryProps extends PieceProps {
   isPromoted?: boolean;
 }
 
-function PieceFactory({
-  jkfKind,
-  color,
-  isPromoted = false,
-  onClick,
-}: PieceFactoryProps) {
+function PieceFactory({ jkfKind, color, isPromoted = false, onClick }: PieceFactoryProps) {
   const pieceType = convertJkfPiece(jkfKind, isPromoted);
 
   const commonProps: PieceProps = { color, onClick };

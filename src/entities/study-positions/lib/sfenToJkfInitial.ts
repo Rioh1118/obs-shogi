@@ -17,9 +17,7 @@ function toRawKind(kind: Kind): RawKind {
  * SFEN 文字列から JKF の initial.data (IStateFormat) を生成する。
  * shogi.js で盤面を復元し、board / hands / color を JKF 形式に変換する。
  */
-export function sfenToJkfInitial(
-  sfen: string,
-): { preset: "OTHER"; data: JKFState } | null {
+export function sfenToJkfInitial(sfen: string): { preset: "OTHER"; data: JKFState } | null {
   try {
     const shogi = new Shogi();
     shogi.initializeFromSFENString(sfen);
@@ -53,7 +51,7 @@ export function sfenToJkfInitial(
       }
     }
 
-    const color = (shogi.turn as number) as 0 | 1;
+    const color = shogi.turn as number as 0 | 1;
 
     return {
       preset: "OTHER",

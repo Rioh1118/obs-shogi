@@ -8,8 +8,7 @@ export function cursorFromLite(c: CursorLite): KifuCursor {
   }));
 
   // JKFPlayerの文字列形式に寄せる（例: "7,[{"te":3,"forkIndex":0}]")
-  const tesuuPointer =
-    `${c.tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
+  const tesuuPointer = `${c.tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
 
   return {
     tesuu: c.tesuu,

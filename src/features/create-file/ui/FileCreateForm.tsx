@@ -11,13 +11,7 @@ import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Form/Button";
 import Spinner from "@/shared/ui/Spinner";
 
-function FileCreateForm({
-  toggleModal,
-  dirPath,
-}: {
-  toggleModal: () => void;
-  dirPath: string;
-}) {
+function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dirPath: string }) {
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
   const [blackPlayer, setBlackPlayer] = useState("");
@@ -83,9 +77,7 @@ function FileCreateForm({
   return (
     <Form handleSubmit={handleSubmit}>
       <FormField>
-        <h2 className="form__heading-secondary">
-          {"新しい棋譜ファイルを作成"}
-        </h2>
+        <h2 className="form__heading-secondary">{"新しい棋譜ファイルを作成"}</h2>
       </FormField>
 
       <FormField horizontal>

@@ -1,16 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import type {
-  AnalysisResult,
-  AnalysisStatus,
-  EngineInfo,
-  EngineSettings,
-} from "./rust-types";
+import type { AnalysisResult, AnalysisStatus, EngineInfo, EngineSettings } from "./rust-types";
 
 // ===== エンジン初期化・管理 =====
-export async function initializeEngine(
-  enginePath: string,
-  workDir: string,
-): Promise<void> {
+export async function initializeEngine(enginePath: string, workDir: string): Promise<void> {
   return await invoke("initialize_engine", {
     enginePath,
     workingDir: workDir,
@@ -26,9 +18,7 @@ export async function getEngineInfo(): Promise<EngineInfo | null> {
 }
 
 // ===== エンジン設定 =====
-export async function applyEngineSettings(
-  settings: EngineSettings,
-): Promise<void> {
+export async function applyEngineSettings(settings: EngineSettings): Promise<void> {
   return await invoke("apply_engine_settings", { settings });
 }
 
@@ -57,8 +47,7 @@ export async function setPosition(position: string): Promise<void> {
 }
 
 export async function setPositionFromMoves(moves: string[]): Promise<void> {
-  const position =
-    moves.length > 0 ? `startpos moves ${moves.join(" ")}` : "startpos";
+  const position = moves.length > 0 ? `startpos moves ${moves.join(" ")}` : "startpos";
   return await setPosition(position);
 }
 
@@ -72,9 +61,7 @@ export async function startInfiniteAnalysis(): Promise<string> {
   return await invoke("start_infinite_analysis");
 }
 
-export async function analyzeWithTime(
-  timeSeconds: number,
-): Promise<AnalysisResult> {
+export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResult> {
   return await invoke("analyze_with_time", { timeSeconds });
 }
 
@@ -87,9 +74,7 @@ export async function stopAnalysis(sessionId?: string): Promise<void> {
 }
 
 // ===== 結果取得 =====
-export async function getAnalysisResult(
-  sessionId: string,
-): Promise<AnalysisResult | null> {
+export async function getAnalysisResult(sessionId: string): Promise<AnalysisResult | null> {
   return await invoke("get_analysis_result", { sessionId });
 }
 

@@ -25,9 +25,7 @@ export async function listenToAnalysisComplete(
   );
 }
 
-export async function listenToEngineErrors(
-  callback: (error: string) => void,
-): Promise<UnlistenFn> {
+export async function listenToEngineErrors(callback: (error: string) => void): Promise<UnlistenFn> {
   return await listen<string>(EVENT_NAMES.ENGINE_ERROR, (event) => {
     callback(event.payload);
   });

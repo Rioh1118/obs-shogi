@@ -40,11 +40,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
           variant="sidebar-toggle"
           title={isSidebarOpen ? "サイドバーを閉じる" : "サイドバーを開く"}
         >
-          {isSidebarOpen ? (
-            <PanelLeftClose size={20} />
-          ) : (
-            <PanelLeftOpen size={20} />
-          )}
+          {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
         </IconButton>
       </div>
       <div className="app-header__brand">
@@ -65,9 +61,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
                 <span className="app-header__badge">{info.tesuuText}</span>
               </span>
             )}
-            {metaNode && (
-              <span className="app-header__divider" aria-hidden="true" />
-            )}
+            {metaNode && <span className="app-header__divider" aria-hidden="true" />}
             {metaNode}
           </div>
         </div>

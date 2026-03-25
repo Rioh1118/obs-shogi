@@ -1,14 +1,8 @@
 import type { EngineInfo, EngineSettings } from "../api/rust-types";
-import {
-  applyEngineSettings,
-  getEngineInfo,
-  initializeEngine,
-} from "../api/tauri";
+import { applyEngineSettings, getEngineInfo, initializeEngine } from "../api/tauri";
 import type { EngineRuntimeConfig } from "../model/types";
 
-export async function setupYaneuraOuEngine(
-  config: EngineRuntimeConfig,
-): Promise<EngineInfo> {
+export async function setupYaneuraOuEngine(config: EngineRuntimeConfig): Promise<EngineInfo> {
   // 起動
   await initializeEngine(config.enginePath, config.workDir);
 

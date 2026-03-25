@@ -6,10 +6,7 @@ type Props = {
   isSearching: boolean;
 };
 
-export default function PositionSearchModalHeader({
-  title,
-  isSearching,
-}: Props) {
+export default function PositionSearchModalHeader({ title, isSearching }: Props) {
   return (
     <header className="pos-search__header">
       <div className="pos-search__title">
@@ -19,11 +16,7 @@ export default function PositionSearchModalHeader({
 
       <div className="pos-search__headerRight" aria-label="状態">
         {isSearching && (
-          <span
-            className="pos-search__spinner"
-            title="検索中"
-            aria-live="polite"
-          >
+          <span className="pos-search__spinner" title="検索中" aria-live="polite">
             <Loader2 size={16} className="pos-search__spinIcon" />
           </span>
         )}

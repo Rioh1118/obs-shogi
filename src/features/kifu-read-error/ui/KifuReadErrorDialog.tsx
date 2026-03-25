@@ -10,10 +10,7 @@ type Props = {
 };
 
 function buildClipboardText(error: FsError): string {
-  const lines: string[] = [
-    `[棋譜読み込みエラー]`,
-    `メッセージ: ${error.message}`,
-  ];
+  const lines: string[] = [`[棋譜読み込みエラー]`, `メッセージ: ${error.message}`];
   if (error.path) lines.push(`ファイル: ${error.path}`);
   if (error.cause) lines.push(`\n詳細:\n${error.cause}`);
   return lines.join("\n");
@@ -35,9 +32,7 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
 
   const hasDetail = !!error.cause;
   // 1: Windows の \ にも対応
-  const fileName = error.path
-    ? (error.path.split(/[/\\]/).pop() ?? error.path)
-    : null;
+  const fileName = error.path ? (error.path.split(/[/\\]/).pop() ?? error.path) : null;
 
   const handleCopy = async () => {
     try {
@@ -66,9 +61,7 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
           </div>
           <div className="kifu-read-error__headingBlock">
             <h2 className="kifu-read-error__title">棋譜を開けませんでした</h2>
-            {fileName && (
-              <p className="kifu-read-error__file">{fileName}</p>
-            )}
+            {fileName && <p className="kifu-read-error__file">{fileName}</p>}
           </div>
           <button
             type="button"
@@ -83,9 +76,7 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
         {/* Layer 2: actionable reason */}
         <div className="kifu-read-error__reasonBox">
           <p className="kifu-read-error__reason">{error.message}</p>
-          {error.path && (
-            <p className="kifu-read-error__path">{error.path}</p>
-          )}
+          {error.path && <p className="kifu-read-error__path">{error.path}</p>}
         </div>
 
         {/* Layer 3: technical detail (collapsible) */}
@@ -99,9 +90,7 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
               {detailOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
               技術的な詳細
             </button>
-            {detailOpen && (
-              <pre className="kifu-read-error__detailBody">{error.cause}</pre>
-            )}
+            {detailOpen && <pre className="kifu-read-error__detailBody">{error.cause}</pre>}
           </div>
         )}
 

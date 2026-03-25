@@ -16,21 +16,12 @@ interface SelectProps {
   placeholder?: string;
 }
 
-function Select({
-  label,
-  id,
-  options,
-  value,
-  onChange,
-  placeholder,
-}: SelectProps) {
+function Select({ label, id, options, value, onChange, placeholder }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const selectedLabel =
-    options.find((o) => o.value === value)?.label ||
-    placeholder ||
-    "選択してください";
+    options.find((o) => o.value === value)?.label || placeholder || "選択してください";
 
   // 外部クリックで閉じる
   useEffect(() => {

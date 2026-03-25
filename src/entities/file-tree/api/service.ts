@@ -7,9 +7,7 @@ import * as fs from "./fileSystem";
 import { createInitialJKFData, parseKifuStringToJKF } from "@/entities/kifu";
 import type { FsError } from "./error";
 
-export async function fetchTree(
-  rootPath: string,
-): AsyncResult<FileTreeNode, FsError> {
+export async function fetchTree(rootPath: string): AsyncResult<FileTreeNode, FsError> {
   try {
     const tree = await fs.getFileTree(rootPath);
     return { success: true, data: tree };
@@ -18,9 +16,7 @@ export async function fetchTree(
   }
 }
 
-export async function readKifu(
-  node: FileTreeNode,
-): AsyncResult<string, FsError> {
+export async function readKifu(node: FileTreeNode): AsyncResult<string, FsError> {
   try {
     const content = await fs.readFile(node.path);
     return { success: true, data: content };
@@ -56,10 +52,7 @@ export async function importKifu(
   }
 }
 
-export async function createDir(
-  parentPath: string,
-  dirName: string,
-): AsyncResult<string, FsError> {
+export async function createDir(parentPath: string, dirName: string): AsyncResult<string, FsError> {
   try {
     const path = await fs.createDirectory(parentPath, dirName);
     return { success: true, data: path };
@@ -86,10 +79,7 @@ export async function removeDir(path: string): AsyncResult<void, FsError> {
   }
 }
 
-export async function renameFile(
-  path: string,
-  newName: string,
-): AsyncResult<string, FsError> {
+export async function renameFile(path: string, newName: string): AsyncResult<string, FsError> {
   try {
     const next = await fs.renameKifuFile(path, newName);
     return { success: true, data: next };
@@ -111,10 +101,7 @@ export async function moveFile(
   }
 }
 
-export async function renameDir(
-  path: string,
-  newName: string,
-): AsyncResult<string, FsError> {
+export async function renameDir(path: string, newName: string): AsyncResult<string, FsError> {
   try {
     const next = await fs.renameDirectory(path, newName);
     return { success: true, data: next };

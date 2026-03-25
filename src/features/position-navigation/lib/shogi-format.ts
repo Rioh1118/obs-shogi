@@ -1,7 +1,4 @@
-import type {
-  IMoveMoveFormat,
-  IPlaceFormat,
-} from "json-kifu-format/dist/src/Formats";
+import type { IMoveMoveFormat, IPlaceFormat } from "json-kifu-format/dist/src/Formats";
 import type { Kind } from "shogi.js";
 
 /**

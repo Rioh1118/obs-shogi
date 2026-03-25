@@ -15,9 +15,7 @@ function percent(done: number, total: number) {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
 
-function badgeForIndexState(
-  s: "Empty" | "Restoring" | "Building" | "Ready" | "Updating",
-) {
+function badgeForIndexState(s: "Empty" | "Restoring" | "Building" | "Ready" | "Updating") {
   switch (s) {
     case "Ready":
       return {
@@ -67,19 +65,13 @@ export default function WorkspaceTab() {
 
   const badge = useMemo(() => badgeForIndexState(idx.state), [idx.state]);
 
-  const progressTotal =
-    idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
+  const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
   const showProgress =
-    (idx.state === "Restoring" ||
-      idx.state === "Building" ||
-      idx.state === "Updating") &&
+    (idx.state === "Restoring" || idx.state === "Building" || idx.state === "Updating") &&
     progressTotal > 0;
 
-  const pct = useMemo(
-    () => percent(idx.doneFiles, progressTotal),
-    [idx.doneFiles, progressTotal],
-  );
+  const pct = useMemo(() => percent(idx.doneFiles, progressTotal), [idx.doneFiles, progressTotal]);
 
   // root_dir 変更の儀式
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -126,23 +118,17 @@ export default function WorkspaceTab() {
           <div className="wsTab__miniGrid">
             <div className="wsTab__mini">
               <div className="wsTab__miniK">対象ファイル</div>
-              <div className="wsTab__miniV">
-                {idx.totalFiles.toLocaleString()}
-              </div>
+              <div className="wsTab__miniV">{idx.totalFiles.toLocaleString()}</div>
             </div>
 
             <div className="wsTab__mini">
               <div className="wsTab__miniK">未同期</div>
-              <div className="wsTab__miniV">
-                {idx.dirtyCount.toLocaleString()}
-              </div>
+              <div className="wsTab__miniV">{idx.dirtyCount.toLocaleString()}</div>
             </div>
 
             <div className="wsTab__mini">
               <div className="wsTab__miniK">警告</div>
-              <div className="wsTab__miniV">
-                {warns.length.toLocaleString()}
-              </div>
+              <div className="wsTab__miniV">{warns.length.toLocaleString()}</div>
             </div>
           </div>
         </div>
@@ -155,8 +141,7 @@ export default function WorkspaceTab() {
 
             <div className="wsTab__progressMeta">
               <div className="wsTab__progressLeft">
-                {idx.doneFiles.toLocaleString()} /{" "}
-                {progressTotal.toLocaleString()} files
+                {idx.doneFiles.toLocaleString()} / {progressTotal.toLocaleString()} files
                 <span className="wsTab__pct">{pct}%</span>
               </div>
 
@@ -195,12 +180,7 @@ export default function WorkspaceTab() {
         description="棋譜・ノート・タグなどのデータを保存する“Vault”です。通常は変更しません。"
         actions={
           <div className="wsTab__actions">
-            <SButton
-              variant="ghost"
-              size="sm"
-              onClick={onCopyPath}
-              disabled={isLoading}
-            >
+            <SButton variant="ghost" size="sm" onClick={onCopyPath} disabled={isLoading}>
               <Copy size={16} />
               コピー
             </SButton>
@@ -222,11 +202,7 @@ export default function WorkspaceTab() {
         </div>
 
         <div className="wsTab__dangerActions">
-          <SButton
-            variant="danger"
-            size="sm"
-            onClick={() => setConfirmOpen(true)}
-          >
+          <SButton variant="danger" size="sm" onClick={() => setConfirmOpen(true)}>
             ワークスペースを変更…
           </SButton>
         </div>
@@ -247,11 +223,7 @@ export default function WorkspaceTab() {
             />
 
             <div className="wsTab__confirmButtons">
-              <SButton
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmOpen(false)}
-              >
+              <SButton variant="ghost" size="sm" onClick={() => setConfirmOpen(false)}>
                 キャンセル
               </SButton>
               <SButton
