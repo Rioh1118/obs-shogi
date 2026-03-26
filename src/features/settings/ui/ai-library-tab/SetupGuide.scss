@@ -16,7 +16,9 @@
     border-radius: 16px;
     border: 1px solid rgba(index.$color-white, 0.08);
     background: rgba(index.$color-primary-black, 0.22);
-    transition: border-color 0.2s, background 0.2s;
+    transition:
+      border-color 0.2s,
+      background 0.2s;
 
     &[data-tone="todo"] {
       border-color: rgba(index.$color-primary-light, 0.22);
@@ -174,7 +176,7 @@
     position: absolute;
     top: 7px;
     right: 8px;
-    font-size: 1.0rem;
+    font-size: 1rem;
     padding: 1px 6px;
     border-radius: 999px;
     background: rgba(index.$color-white, 0.07);
@@ -185,9 +187,7 @@
     font-size: 1.2rem;
     font-weight: 600;
     color: rgba(index.$color-secondary-light, 0.8);
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
-      monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
 
   &__roleRole {
@@ -199,9 +199,7 @@
   &__roleExample {
     font-size: 1.1rem;
     color: rgba(index.$color-text-light-1, 0.42);
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
-      monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
 
   &__exampleWrap {
@@ -224,9 +222,7 @@
     border-radius: 10px;
     border: 1px solid rgba(index.$color-white, 0.06);
     background: rgba(index.$color-primary-black, 0.28);
-    font-family:
-      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
-      monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
     font-size: 1.15rem;
     display: flex;
     flex-direction: column;
@@ -266,9 +262,7 @@
   border-radius: 10px;
   border: 1px solid rgba(index.$color-white, 0.06);
   background: rgba(index.$color-primary-black, 0.28);
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   font-size: 1.18rem;
 
   &__node {

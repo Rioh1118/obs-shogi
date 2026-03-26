@@ -24,11 +24,7 @@
     display: grid;
     place-items: center;
     background:
-      linear-gradient(
-        180deg,
-        rgba(index.$color-white, 0.5),
-        rgba(index.$color-white, 0.18)
-      ),
+      linear-gradient(180deg, rgba(index.$color-white, 0.5), rgba(index.$color-white, 0.18)),
       rgba(255, 140, 60, 0.12);
     color: rgba(220, 100, 30, 0.9);
     border: 1px solid rgba(255, 140, 60, 0.18);
@@ -71,7 +67,9 @@
     border-radius: 0.8rem;
     color: rgba(index.$color-text-dark-2, 0.55);
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
 
     &:hover {
       background: rgba(index.$color-primary-light, 0.08);
@@ -85,11 +83,7 @@
     border-radius: 1.2rem;
     border: 1px solid rgba(255, 140, 60, 0.18);
     background:
-      linear-gradient(
-        180deg,
-        rgba(index.$color-white, 0.5),
-        rgba(index.$color-white, 0.24)
-      ),
+      linear-gradient(180deg, rgba(index.$color-white, 0.5), rgba(index.$color-white, 0.24)),
       rgba(255, 200, 120, 0.12);
     padding: 1.2rem 1.4rem;
     display: flex;

@@ -18,11 +18,7 @@ $warn: #f0b429;
   border-radius: $radius;
   border: 1px solid $border;
   background:
-    radial-gradient(
-      900px 520px at 20% 0%,
-      rgba(index.$color-primary-light, 0.14),
-      transparent 58%
-    ),
+    radial-gradient(900px 520px at 20% 0%, rgba(index.$color-primary-light, 0.14), transparent 58%),
     $surface-1;
 
   overflow: hidden;

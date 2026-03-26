@@ -82,11 +82,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   useEffect(() => {
     // 設定が無い → 起動中なら止める
     if (!desiredRuntime) {
-      if (
-        state.phase === "ready" ||
-        state.phase === "initializing" ||
-        state.phase === "error"
-      ) {
+      if (state.phase === "ready" || state.phase === "initializing" || state.phase === "error") {
         shutdown().catch(() => {});
       }
       return;
@@ -114,14 +110,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
         restart().catch(() => {});
       }
     }
-  }, [
-    desiredRuntime,
-    state.phase,
-    state.activeRuntime,
-    initialize,
-    shutdown,
-    restart,
-  ]);
+  }, [desiredRuntime, state.phase, state.activeRuntime, initialize, shutdown, restart]);
 
   const value = useMemo<EngineContextType>(
     () => ({
@@ -135,7 +124,5 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     [state, isReady, initialize, shutdown, restart, clearError],
   );
 
-  return (
-    <EngineContext.Provider value={value}>{children}</EngineContext.Provider>
-  );
+  return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
 }

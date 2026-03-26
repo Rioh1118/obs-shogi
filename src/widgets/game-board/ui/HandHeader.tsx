@@ -14,10 +14,7 @@ type Props = HandHeaderMeta & {
   boardRotated?: boolean;
   placement: HandPlacement;
 };
-const SIDE_UI: Record<
-  HandSide,
-  { label: string; symbol: { top: string; bottom: string } }
-> = {
+const SIDE_UI: Record<HandSide, { label: string; symbol: { top: string; bottom: string } }> = {
   sente: { label: "先手", symbol: { bottom: "☗", top: "⛊" } },
   gote: { label: "後手", symbol: { bottom: "☖", top: "⛉" } },
 };
@@ -52,12 +49,7 @@ export default function HandHeader({
         {symbol}
       </span>
 
-      <div
-        className={
-          "hand-header__name" + (raw ? "" : " hand-header__name--empty")
-        }
-        title={raw}
-      >
+      <div className={"hand-header__name" + (raw ? "" : " hand-header__name--empty")} title={raw}>
         {displayName}
       </div>
     </div>

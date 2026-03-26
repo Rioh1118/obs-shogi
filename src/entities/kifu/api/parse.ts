@@ -29,10 +29,7 @@ function stripBom(s: string): string {
   return s.replace(/^\uFEFF/, "");
 }
 
-export function parseKifuContentToJKF(
-  raw: string,
-  format: KifuFormat,
-): JKFData {
+export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
 
@@ -57,8 +54,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
 
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
-    if (rec instanceof Error)
-      throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
+    if (rec instanceof Error) throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
     return { detectedFormat: "jkf", jkf: exportJKF(rec) as JKFData };
   }
 
@@ -81,8 +77,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? importKIF(text)
           : importJKFString(text);
 
-  if (rec instanceof Error)
-    throw new KifuParseError("棋譜の解析に失敗しました。", rec);
+  if (rec instanceof Error) throw new KifuParseError("棋譜の解析に失敗しました。", rec);
 
   const detectedFormat: KifuFormat =
     fmt === RecordFormatType.CSA

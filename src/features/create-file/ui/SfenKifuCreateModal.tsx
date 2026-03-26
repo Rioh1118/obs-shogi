@@ -22,10 +22,7 @@ import Spinner from "@/shared/ui/Spinner";
 import "./SfenKifuCreateModal.scss";
 
 /** ツリーからディレクトリ一覧をフラットに収集する */
-function collectDirs(
-  node: FileTreeNode,
-  rootPath: string,
-): { value: string; label: string }[] {
+function collectDirs(node: FileTreeNode, rootPath: string): { value: string; label: string }[] {
   const dirs: { value: string; label: string }[] = [];
 
   function walk(n: FileTreeNode) {
@@ -56,26 +53,13 @@ export default function SfenKifuCreateModal() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const sfenInitial = useMemo(
-    () => (sfen ? sfenToJkfInitial(sfen) : null),
-    [sfen],
-  );
+  const sfenInitial = useMemo(() => (sfen ? sfenToJkfInitial(sfen) : null), [sfen]);
 
-  const previewData = useMemo(
-    () => (sfen ? buildPreviewDataFromSfen(sfen) : null),
-    [sfen],
-  );
+  const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
 
-  const toKan = useMemo(
-    () => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k,
-    [],
-  );
+  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
-  const turnLabel = previewData
-    ? previewData.turn === 0
-      ? "先手番"
-      : "後手番"
-    : null;
+  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
 
   const dirOptions = useMemo(() => {
     if (!fileTree) return [];
@@ -155,13 +139,7 @@ export default function SfenKifuCreateModal() {
   if (!isOpen || !sfen) return null;
 
   return (
-    <Modal
-      onClose={closeModal}
-      theme="dark"
-      variant="dialog"
-      size="md"
-      scroll="card"
-    >
+    <Modal onClose={closeModal} theme="dark" variant="dialog" size="md" scroll="none">
       <div className="sfen-kifu-create">
         {isLoading ? (
           <Spinner />
@@ -169,18 +147,12 @@ export default function SfenKifuCreateModal() {
           <>
             <div className="sfen-kifu-create__preview">
               <PreviewPane previewData={previewData} toKan={toKan} />
-              {turnLabel && (
-                <div className="sfen-kifu-create__turnBadge">
-                  {turnLabel}
-                </div>
-              )}
+              {turnLabel && <div className="sfen-kifu-create__turnBadge">{turnLabel}</div>}
             </div>
 
             <Form handleSubmit={handleSubmit} theme="dark">
               <FormField>
-                <h2 className="form__heading-secondary">
-                  {"課題局面から棋譜を作成"}
-                </h2>
+                <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
               </FormField>
 
               {errorMsg && (
@@ -238,11 +210,7 @@ export default function SfenKifuCreateModal() {
               </FormField>
 
               <ButtonGroup>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={!fileName.trim() || !selectedDir}
-                >
+                <Button type="submit" variant="primary" disabled={!fileName.trim() || !selectedDir}>
                   作成
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => closeModal()}>

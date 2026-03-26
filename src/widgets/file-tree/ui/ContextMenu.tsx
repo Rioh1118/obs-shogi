@@ -17,13 +17,7 @@ type ContextMenuProps = {
   minWidth?: number;
 };
 
-function ContextMenu({
-  x,
-  y,
-  items,
-  onClose,
-  minWidth = 180,
-}: ContextMenuProps) {
+function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -86,10 +80,9 @@ function ContextMenu({
         <button
           key={item.id ?? `${item.label}-${index}`}
           type="button"
-          className={[
-            "context-menu__item",
-            item.danger ? "context-menu__item--danger" : "",
-          ].join(" ")}
+          className={["context-menu__item", item.danger ? "context-menu__item--danger" : ""].join(
+            " ",
+          )}
           role="menuitem"
           disabled={item.disabled}
           onClick={() => handleItemClick(item)}

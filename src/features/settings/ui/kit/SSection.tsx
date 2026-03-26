@@ -11,8 +11,7 @@ type Props = {
   tone?: "default" | "danger" | "warn";
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 export default function SSection({
   title,
@@ -28,9 +27,7 @@ export default function SSection({
         <header className="sui-section__head">
           <div className="sui-section__titles">
             {title && <div className="sui-section__title">{title}</div>}
-            {description && (
-              <div className="sui-section__desc">{description}</div>
-            )}
+            {description && <div className="sui-section__desc">{description}</div>}
           </div>
           {actions && <div className="sui-section__actions">{actions}</div>}
         </header>

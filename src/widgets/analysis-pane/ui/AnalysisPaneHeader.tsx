@@ -1,13 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import {
-  Settings,
-  Play,
-  Square,
-  Navigation,
-  Search,
-  RotateCw,
-  Bookmark,
-} from "lucide-react";
+import { Settings, Play, Square, Navigation, Search, RotateCw, Bookmark } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
@@ -36,9 +28,7 @@ function AnalysisPaneHeader() {
 
       intervalRef.current = setInterval(() => {
         if (startTimeRef.current) {
-          const elapsed = Math.floor(
-            (Date.now() - startTimeRef.current) / 1000,
-          );
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
           setElapsedTime(elapsed);
         }
       }, 1000);
@@ -124,18 +114,12 @@ function AnalysisPaneHeader() {
           <span className="analysis-header__status-text">
             {state.isAnalyzing ? "解析中" : "停止中"}
           </span>
-          <span className="analysis-header__timer">
-            {formatTime(elapsedTime)}
-          </span>
+          <span className="analysis-header__timer">{formatTime(elapsedTime)}</span>
         </div>
       </div>
 
       <div className="analysis-header__right">
-        <nav
-          className="analysis-header__group"
-          role="toolbar"
-          aria-label="解析ツール"
-        >
+        <nav className="analysis-header__group" role="toolbar" aria-label="解析ツール">
           <button
             className="analysis-header__iconBtn"
             onClick={handleTogglePov}
@@ -186,11 +170,7 @@ function AnalysisPaneHeader() {
             />
           </button>
 
-          <button
-            className="analysis-header__iconBtn"
-            onClick={handleOpenSettings}
-            title="設定"
-          >
+          <button className="analysis-header__iconBtn" onClick={handleOpenSettings} title="設定">
             <Settings className="analysis-header__icon" />
           </button>
         </nav>

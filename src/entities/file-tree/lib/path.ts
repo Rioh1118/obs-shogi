@@ -4,8 +4,7 @@ export function joinPath(parentPath: string, name: string): string {
   const trimmed = parentPath.replace(/[\\/]+$/, "");
   if (!trimmed) return name;
 
-  const sep: "/" | "\\" =
-    trimmed.includes("\\") && !trimmed.includes("/") ? "\\" : "/";
+  const sep: "/" | "\\" = trimmed.includes("\\") && !trimmed.includes("/") ? "\\" : "/";
 
   return `${trimmed}${sep}${name}`;
 }
@@ -31,12 +30,9 @@ export function scrollNodeIntoView(path: string) {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       const escaped =
-        window.CSS?.escape?.(path) ??
-        path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        window.CSS?.escape?.(path) ?? path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-      const el = document.querySelector<HTMLElement>(
-        `[data-node-path="${escaped}"]`,
-      );
+      const el = document.querySelector<HTMLElement>(`[data-node-path="${escaped}"]`);
 
       el?.scrollIntoView({ block: "nearest" });
     });
@@ -56,11 +52,7 @@ export function isSameOrDescendantPath(
   const target = trimTrailingSeparators(targetPath);
   const base = trimTrailingSeparators(basePath);
 
-  return (
-    target === base ||
-    target.startsWith(`${base}/`) ||
-    target.startsWith(`${base}\\`)
-  );
+  return target === base || target.startsWith(`${base}/`) || target.startsWith(`${base}\\`);
 }
 
 export function remapSubtreePath(

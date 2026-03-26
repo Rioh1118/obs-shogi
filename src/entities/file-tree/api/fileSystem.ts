@@ -6,10 +6,7 @@ import type { FileTreeNode } from "../model/types";
 import { invoke } from "@tauri-apps/api/core";
 import type { FsError } from "./error";
 
-async function invokeFs<T>(
-  command: string,
-  args?: Record<string, unknown>,
-): Promise<T> {
+async function invokeFs<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   try {
     return await invoke<T>(command, args);
   } catch (error) {
@@ -48,10 +45,7 @@ export async function importKifuFile(
   });
 }
 
-export async function createDirectory(
-  parentDir: string,
-  dirName: string,
-): Promise<string> {
+export async function createDirectory(parentDir: string, dirName: string): Promise<string> {
   return await invokeFs<string>("create_directory", { parentDir, dirName });
 }
 
@@ -81,10 +75,7 @@ export async function saveKifuFile(
 
 // mv / rename
 
-export async function renameKifuFile(
-  filePath: string,
-  newFileName: string,
-): Promise<string> {
+export async function renameKifuFile(filePath: string, newFileName: string): Promise<string> {
   return await invokeFs<string>("rename_kifu_file", { filePath, newFileName });
 }
 
@@ -100,10 +91,7 @@ export async function mvKifuFile(
   });
 }
 
-export async function renameDirectory(
-  dirPath: string,
-  newDirName: string,
-): Promise<string> {
+export async function renameDirectory(dirPath: string, newDirName: string): Promise<string> {
   return await invokeFs<string>("rename_directory", { dirPath, newDirName });
 }
 export async function mvDirectory(

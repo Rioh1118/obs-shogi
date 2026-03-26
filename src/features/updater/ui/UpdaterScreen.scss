@@ -87,7 +87,9 @@
   background: transparent;
   color: rgba(index.$color-text-primary, 0.4);
   cursor: pointer;
-  transition: background 100ms ease, color 100ms ease;
+  transition:
+    background 100ms ease,
+    color 100ms ease;
 }
 
 .updater-card__dismiss:hover {
@@ -173,7 +175,10 @@
   font-size: 1.2rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease, opacity 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
 }
 
 .updater-card__btn--primary {

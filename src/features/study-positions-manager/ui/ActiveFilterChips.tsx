@@ -7,11 +7,7 @@ interface Props {
   onClearAll: () => void;
 }
 
-export default function ActiveFilterChips({
-  tags,
-  onRemoveTag,
-  onClearAll,
-}: Props) {
+export default function ActiveFilterChips({ tags, onRemoveTag, onClearAll }: Props) {
   if (tags.length === 0) return null;
 
   return (
@@ -29,11 +25,7 @@ export default function ActiveFilterChips({
           </button>
         </span>
       ))}
-      <button
-        type="button"
-        className="active-chips__clearAll"
-        onClick={onClearAll}
-      >
+      <button type="button" className="active-chips__clearAll" onClick={onClearAll}>
         {"クリア"}
       </button>
     </div>

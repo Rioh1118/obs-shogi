@@ -10,10 +10,7 @@ interface FormProps extends React.FormHTMLAttributes<HTMLFormElement> {
 }
 
 function Form({ children, handleSubmit, theme = "light", ...props }: FormProps) {
-  const className = useMemo(
-    () => ["form", `form--${theme}`].join(" "),
-    [theme],
-  );
+  const className = useMemo(() => ["form", `form--${theme}`].join(" "), [theme]);
 
   return (
     <form className={className} onSubmit={handleSubmit} {...props}>

@@ -7,10 +7,7 @@ import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
  * - 両方が指し手(fromあり)ならfrom(x,y)とpromote一致
  * - それ以外はpieceを一致
  */
-export function eqMoveMinimal(
-  a?: Partial<IMoveMoveFormat>,
-  b?: Partial<IMoveMoveFormat>,
-): boolean {
+export function eqMoveMinimal(a?: Partial<IMoveMoveFormat>, b?: Partial<IMoveMoveFormat>): boolean {
   if (!a || !b) return false;
   if (!a.to || !b.to) return false;
 
@@ -40,10 +37,8 @@ export function eqMoveMinimal(
 export function eqMoveFull(a?: IMoveMoveFormat, b?: IMoveMoveFormat): boolean {
   if (!a || !b) return false;
 
-  const sameSquare = (
-    p?: { x: number; y: number },
-    q?: { x: number; y: number },
-  ) => (!p && !q) || (p && q && p.x === q.x && p.y === q.y);
+  const sameSquare = (p?: { x: number; y: number }, q?: { x: number; y: number }) =>
+    (!p && !q) || (p && q && p.x === q.x && p.y === q.y);
 
   if (a.color !== b.color) return false;
   if (a.piece !== b.piece) return false;

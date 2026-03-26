@@ -3,14 +3,7 @@ import {
   listenSearchEvents,
   searchPosition as searchPositionApi,
 } from "../api/tauri";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { initialState, reducer } from "./reducer";
 import { useAppConfig } from "@/entities/app-config";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
@@ -54,21 +47,15 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
 
       try {
         const unlisten = await listenSearchEvents({
-          onIndexState: (p: IndexStatePayload) =>
-            dispatch({ type: "index_state", payload: p }),
+          onIndexState: (p: IndexStatePayload) => dispatch({ type: "index_state", payload: p }),
           onIndexProgress: (p: IndexProgressPayload) =>
             dispatch({ type: "index_progress", payload: p }),
-          onIndexWarn: (p: IndexWarnPayload) =>
-            dispatch({ type: "index_warn", payload: p }),
+          onIndexWarn: (p: IndexWarnPayload) => dispatch({ type: "index_warn", payload: p }),
 
-          onSearchBegin: (p: SearchBeginPayload) =>
-            dispatch({ type: "search_begin", payload: p }),
-          onSearchChunk: (p: SearchChunkPayload) =>
-            dispatch({ type: "search_chunk", payload: p }),
-          onSearchEnd: (p: SearchEndPayload) =>
-            dispatch({ type: "search_end", payload: p }),
-          onSearchError: (p: SearchErrorPayload) =>
-            dispatch({ type: "search_error", payload: p }),
+          onSearchBegin: (p: SearchBeginPayload) => dispatch({ type: "search_begin", payload: p }),
+          onSearchChunk: (p: SearchChunkPayload) => dispatch({ type: "search_chunk", payload: p }),
+          onSearchEnd: (p: SearchEndPayload) => dispatch({ type: "search_end", payload: p }),
+          onSearchError: (p: SearchErrorPayload) => dispatch({ type: "search_error", payload: p }),
         });
 
         unlistenRef.current = unlisten;
@@ -181,15 +168,13 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   );
 
   const resolveHitAbsPath = useCallback(
-    (hit: PositionHit): string | null =>
-      state.filePathById[hit.occ.file_id] ?? null,
+    (hit: PositionHit): string | null => state.filePathById[hit.occ.file_id] ?? null,
     [state.filePathById],
   );
 
   const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
   const clearSearch = useCallback(
-    (requestId?: RequestId) =>
-      dispatch({ type: "clear_search", payload: { requestId } }),
+    (requestId?: RequestId) => dispatch({ type: "clear_search", payload: { requestId } }),
     [],
   );
 
@@ -222,9 +207,5 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return (
-    <PositionSearchContext.Provider value={value}>
-      {children}
-    </PositionSearchContext.Provider>
-  );
+  return <PositionSearchContext.Provider value={value}>{children}</PositionSearchContext.Provider>;
 }

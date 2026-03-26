@@ -163,10 +163,7 @@ export type FileTreeContextType = FileTreeState & {
   openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
   closeActiveKifu: () => void;
 
-  createNewFile: (
-    parentPath: string,
-    options: KifuCreationOptions,
-  ) => AsyncResult<void, FsError>;
+  createNewFile: (parentPath: string, options: KifuCreationOptions) => AsyncResult<void, FsError>;
 
   importKifuFile: (
     parentPath: string,
@@ -174,25 +171,15 @@ export type FileTreeContextType = FileTreeState & {
     rawContent: string,
   ) => AsyncResult<void, FsError>;
 
-  createNewDirectory: (
-    parentPath: string,
-    dirname: string,
-  ) => AsyncResult<void, FsError>;
+  createNewDirectory: (parentPath: string, dirname: string) => AsyncResult<void, FsError>;
 
   toggleNode: (nodePath: string) => void;
   isNodeExpanded: (nodePath: string) => boolean;
 
   deleteNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
-  renameNode: (
-    node: FileTreeNode,
-    newName: string,
-  ) => AsyncResult<void, FsError>;
+  renameNode: (node: FileTreeNode, newName: string) => AsyncResult<void, FsError>;
 
-  moveNode: (
-    node: FileTreeNode,
-    destDir: string,
-    newName?: string,
-  ) => AsyncResult<void, FsError>;
+  moveNode: (node: FileTreeNode, destDir: string, newName?: string) => AsyncResult<void, FsError>;
 
   refreshTree: () => AsyncResult<void, FsError>;
   isKifuSelected: () => boolean;

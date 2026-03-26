@@ -9,8 +9,7 @@ type Props = {
   previewData: PreviewData | null;
   toKan: (k: string) => string;
 };
-const clamp = (v: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, v));
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 function PreviewPane({ previewData, toKan }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
@@ -25,13 +24,9 @@ function PreviewPane({ previewData, toKan }: Props) {
       if (!rect) return;
 
       const style = getComputedStyle(el);
-      const padX =
-        parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-      const padY =
-        parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const usable = Math.floor(
-        Math.min(rect.width - padX, rect.height - padY),
-      );
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const usable = Math.floor(Math.min(rect.width - padX, rect.height - padY));
 
       const next = clamp(usable, 240, 820);
       setBoardSize(next);
@@ -60,10 +55,7 @@ function PreviewPane({ previewData, toKan }: Props) {
 
   return (
     <div className="position-navigation-modal__preview-container">
-      <div
-        className="position-navigation-modal__board-preview"
-        ref={boardWrapRef}
-      >
+      <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
         <BoardPreview
           pieces={previewData.board}
           hands={hands}

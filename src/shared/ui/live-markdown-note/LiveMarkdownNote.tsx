@@ -1,10 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListItemNode, ListNode } from "@lexical/list";
-import {
-  $convertFromMarkdownString,
-  $convertToMarkdownString,
-} from "@lexical/markdown";
+import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { ContentEditable } from "@lexical/react/LexicalContentEditable";
@@ -60,12 +57,7 @@ export default function LiveMarkdownNote({
       nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode],
       editorState: () => {
         if (!initialMarkdown.trim()) return;
-        $convertFromMarkdownString(
-          initialMarkdown,
-          LIVE_MARKDOWN_TRANSFORMERS,
-          undefined,
-          true,
-        );
+        $convertFromMarkdownString(initialMarkdown, LIVE_MARKDOWN_TRANSFORMERS, undefined, true);
       },
     }),
     [initialMarkdown],

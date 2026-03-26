@@ -11,9 +11,7 @@ export class RustFileTreeAdapter {
       isDirectory: r.isDir,
       children: r.children?.map((c) => this.fromRust(c)),
       lastModified:
-        typeof r.lastModified === "number"
-          ? new Date(r.lastModified * 1000)
-          : undefined,
+        typeof r.lastModified === "number" ? new Date(r.lastModified * 1000) : undefined,
       size: r.size,
       displayInfo: {
         iconType: r.isDir ? "folder" : "kif-file",

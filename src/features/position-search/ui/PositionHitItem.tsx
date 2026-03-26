@@ -57,12 +57,7 @@ function PositionHitItemBase({
           {fileName}
         </div>
 
-        <span
-          className={[
-            "pos-hit__badge",
-            isSameFile ? "is-same" : "is-switch",
-          ].join(" ")}
-        >
+        <span className={["pos-hit__badge", isSameFile ? "is-same" : "is-switch"].join(" ")}>
           {isSameFile ? "同一" : "切替"}
         </span>
       </div>

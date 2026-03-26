@@ -11,12 +11,7 @@ type Props = {
   className?: string;
 };
 
-function SettingsBadge({
-  children,
-  tone = "muted",
-  shape = "badge",
-  className,
-}: Props) {
+function SettingsBadge({ children, tone = "muted", shape = "badge", className }: Props) {
   const cls = ["sbadge", `sbadge--${tone}`, `sbadge--${shape}`, className]
     .filter(Boolean)
     .join(" ");

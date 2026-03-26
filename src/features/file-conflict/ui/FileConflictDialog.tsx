@@ -14,11 +14,7 @@ function getSelectionEnd(name: string): number {
   return dot > 0 ? dot : name.length;
 }
 
-function FileConflictDialog({
-  conflict,
-  onCancel,
-  onSubmitRename,
-}: FileConflictDialogProps) {
+function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflictDialogProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,10 +40,7 @@ function FileConflictDialog({
   const trimmed = draftName.trim();
 
   const canSubmit =
-    copy.canRename &&
-    !isSubmitting &&
-    trimmed.length > 0 &&
-    trimmed !== requestedName;
+    copy.canRename && !isSubmitting && trimmed.length > 0 && trimmed !== requestedName;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -92,10 +85,7 @@ function FileConflictDialog({
 
         {copy.canRename && (
           <section className="file-conflict__editor">
-            <label
-              className="file-conflict__editorLabel"
-              htmlFor="file-conflict-name"
-            >
+            <label className="file-conflict__editorLabel" htmlFor="file-conflict-name">
               新しい名前
             </label>
 
@@ -110,9 +100,7 @@ function FileConflictDialog({
               disabled={isSubmitting}
             />
 
-            <p className="file-conflict__hint">
-              同じ場所で重複しない名前を入力してください。
-            </p>
+            <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
           </section>
         )}
 

@@ -9,20 +9,11 @@ type Props = {
   onCreateEnginesDir: () => void;
 };
 
-export function Step2CreateEngines({
-  state,
-  isScanning,
-  onCreateEnginesDir,
-}: Props) {
+export function Step2CreateEngines({ state, isScanning, onCreateEnginesDir }: Props) {
   return (
-    <StepShell
-      state={state}
-      title="engines/ フォルダを作成"
-      summary="engines/ 検出済み"
-    >
+    <StepShell state={state} title="engines/ フォルダを作成" summary="engines/ 検出済み">
       <div className="aiLibraryTab__stepDesc">
-        エンジン実行ファイルをまとめる <code>engines/</code>{" "}
-        フォルダをボタンひとつで作成します。
+        エンジン実行ファイルをまとめる <code>engines/</code> フォルダをボタンひとつで作成します。
       </div>
 
       <StepTree>
@@ -31,12 +22,7 @@ export function Step2CreateEngines({
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <SButton
-          variant="subtle"
-          size="sm"
-          onClick={onCreateEnginesDir}
-          disabled={isScanning}
-        >
+        <SButton variant="subtle" size="sm" onClick={onCreateEnginesDir} disabled={isScanning}>
           <Sparkles size={14} style={{ marginRight: 6 }} />
           engines/ を作成
         </SButton>

@@ -8,11 +8,7 @@ import {
   type DeleteQuery,
   type SwapQuery,
 } from "../model/branch";
-import {
-  normalizeForkPointers,
-  type ForkPointer,
-  type KifuCursor,
-} from "../model/cursor";
+import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
 
 /** 安全に深いコピー（ブラウザ前提なら structuredClone でOK） */
 function clone<T>(x: T): T {
@@ -27,11 +23,7 @@ function normalizeRef<T extends BranchPointRef>(ref: T): T {
 }
 
 /** te より前の stream が同じか（forkPointers の prefix 同一判定） */
-function sameStreamPrefix(
-  a: ForkPointer[],
-  b: ForkPointer[],
-  te: number,
-): boolean {
+function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boolean {
   const mapA = new Map<number, number>();
   for (const p of a) if (p.te < te) mapA.set(p.te, p.forkIndex);
 
@@ -43,10 +35,7 @@ function sameStreamPrefix(
   return true;
 }
 
-function getChosenBranchIndex(
-  forkPointers: ForkPointer[],
-  te: number,
-): BranchIndex {
+function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {
   const p = forkPointers.find((x) => x.te === te);
   return p ? ((p.forkIndex + 1) as BranchIndex) : 0;
 }
@@ -68,25 +57,17 @@ function setBranchIndex(
 type LineRef = { line: IMoveFormat[]; startTe: number };
 type BranchPointHandle = LineRef & { index: number; move: IMoveFormat };
 
-function resolveLine(
-  kifu: JKFData,
-  forkPointers: ForkPointer[],
-  uptoTe: number,
-): LineRef {
+function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: number): LineRef {
   let line = kifu.moves as IMoveFormat[];
   let startTe = 0;
 
-  const fps = normalizeForkPointers(forkPointers, uptoTe - 1).filter(
-    (p) => p.te < uptoTe,
-  );
+  const fps = normalizeForkPointers(forkPointers, uptoTe - 1).filter((p) => p.te < uptoTe);
 
   for (const p of fps) {
     const idx = p.te - startTe;
     const mv = line[idx];
     if (!mv || !mv.forks || !mv.forks[p.forkIndex]) {
-      throw new Error(
-        `resolveLine failed at te=${p.te} forkIndex=${p.forkIndex}`,
-      );
+      throw new Error(`resolveLine failed at te=${p.te} forkIndex=${p.forkIndex}`);
     }
     line = mv.forks[p.forkIndex];
     startTe = p.te;
@@ -95,10 +76,7 @@ function resolveLine(
   return { line, startTe };
 }
 
-function resolveBranchPoint(
-  kifu: JKFData,
-  ref0: BranchPointRef,
-): BranchPointHandle {
+function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHandle {
   const ref = normalizeRef(ref0);
   const { line, startTe } = resolveLine(kifu, ref.forkPointers, ref.te);
   const index = ref.te - startTe;
@@ -271,12 +249,7 @@ export function swapBranchesInKifu(
   const h = resolveBranchPoint(kifu, q);
   const candidates = readCandidates(h);
 
-  if (
-    q.a < 0 ||
-    q.b < 0 ||
-    q.a >= candidates.length ||
-    q.b >= candidates.length
-  ) {
+  if (q.a < 0 || q.b < 0 || q.a >= candidates.length || q.b >= candidates.length) {
     throw new Error("swap indices out of range");
   }
   if (q.a === q.b) return { changed: false, nextCursor: cursor };
@@ -332,12 +305,7 @@ export function deleteBranchInKifu(
     if (cursor.tesuu >= q.te) {
       return {
         changed: true,
-        nextCursor: relocateCursorOnDelete(
-          cursor,
-          q,
-          q.target,
-          candidatesAfter,
-        ),
+        nextCursor: relocateCursorOnDelete(cursor, q, q.target, candidatesAfter),
       };
     }
 
@@ -355,11 +323,7 @@ export function deleteBranchInKifu(
   }
 
   // それ以外は pointer の詰めだけ
-  const fps = patchForkPointersForDeleteNonReloc(
-    cursor.forkPointers,
-    q.te,
-    q.target,
-  );
+  const fps = patchForkPointersForDeleteNonReloc(cursor.forkPointers, q.te, q.target);
   const nextFps = normalizeForkPointers(fps);
   const next: KifuCursor = {
     tesuu: cursor.tesuu,

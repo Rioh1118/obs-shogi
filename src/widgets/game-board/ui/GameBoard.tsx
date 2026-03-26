@@ -10,12 +10,7 @@ type Props = {
   rotate?: boolean;
 };
 
-export default function GameBoard({
-  topLeft,
-  center,
-  bottomRight,
-  rotate = false,
-}: Props) {
+export default function GameBoard({ topLeft, center, bottomRight, rotate = false }: Props) {
   const { jkfData } = useFileTree();
   const header = jkfData?.header ?? {};
   const senteName = header["先手"]?.trim();

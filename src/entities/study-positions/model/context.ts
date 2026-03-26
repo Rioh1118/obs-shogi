@@ -1,9 +1,5 @@
 import { createContext } from "react";
-import type {
-  CreateStudyPositionInput,
-  StudyPosition,
-  UpdateStudyPositionInput,
-} from "./types";
+import type { CreateStudyPositionInput, StudyPosition, UpdateStudyPositionInput } from "./types";
 import type { StudyPositionsState } from "./reducer";
 
 export type StudyPositionsContextType = {
@@ -22,5 +18,4 @@ export type StudyPositionsContextType = {
   clearError: () => void;
 };
 
-export const StudyPositionsContext =
-  createContext<StudyPositionsContextType | null>(null);
+export const StudyPositionsContext = createContext<StudyPositionsContextType | null>(null);

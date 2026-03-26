@@ -1,16 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 
 import { SButton, SField, SInput, SSection, SSelect } from "../../kit";
-import {
-  basename,
-  cleanText,
-  pickDefaultBookDb,
-} from "@/features/settings/lib/presetDialog";
+import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
-import type {
-  AiRootIndex,
-  ProfileCandidate,
-} from "@/entities/engine/api/aiLibrary";
+import type { AiRootIndex, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 
 export default function EngineFilesSection(props: {
   draft: EnginePreset;
@@ -160,11 +153,7 @@ export default function EngineFilesSection(props: {
                     : "eval/ にファイルがありません"
                   : "このプロファイルには eval/ がありません"
             }
-            disabled={
-              !currentProfile ||
-              !currentProfile.has_eval_dir ||
-              evalFilesCount === 0
-            }
+            disabled={!currentProfile || !currentProfile.has_eval_dir || evalFilesCount === 0}
             invalid={!!errors.evalFilePath}
           />
           {!!draft.evalFilePath && (
@@ -193,9 +182,7 @@ export default function EngineFilesSection(props: {
                   if (on) {
                     // ONにした瞬間、空ならデフォルト
                     const prof =
-                      profiles.find(
-                        (p) => p.name === cleanText(next.aiName ?? ""),
-                      ) ?? null;
+                      profiles.find((p) => p.name === cleanText(next.aiName ?? "")) ?? null;
 
                     if (!next.bookFilePath) {
                       const def = pickDefaultBookDb(prof);
@@ -235,11 +222,7 @@ export default function EngineFilesSection(props: {
                       : "book/ に .db がありません"
                     : "このプロファイルには book/ がありません"
               }
-              disabled={
-                !currentProfile ||
-                !currentProfile.has_book_dir ||
-                bookDbsCount === 0
-              }
+              disabled={!currentProfile || !currentProfile.has_book_dir || bookDbsCount === 0}
               invalid={!!errors.bookFilePath}
             />
             {!!draft.bookFilePath && (
@@ -251,26 +234,20 @@ export default function EngineFilesSection(props: {
         )}
 
         <details className="presetDialog__details">
-          <summary className="presetDialog__summary">
-            高度な設定（手動パス編集）
-          </summary>
+          <summary className="presetDialog__summary">高度な設定（手動パス編集）</summary>
           <div className="presetDialog__detailsBody">
             <div className="presetDialog__stack">
               <SField label="エンジンパス（手動）">
                 <SInput
                   value={draft.enginePath}
-                  onChange={(e) =>
-                    setDraft({ ...draft, enginePath: e.target.value })
-                  }
+                  onChange={(e) => setDraft({ ...draft, enginePath: e.target.value })}
                   placeholder="/path/to/YaneuraOu*"
                 />
               </SField>
               <SField label="評価関数ファイル（手動）">
                 <SInput
                   value={draft.evalFilePath}
-                  onChange={(e) =>
-                    setDraft({ ...draft, evalFilePath: e.target.value })
-                  }
+                  onChange={(e) => setDraft({ ...draft, evalFilePath: e.target.value })}
                   placeholder="/path/to/eval/nn.bin"
                 />
               </SField>
@@ -278,9 +255,7 @@ export default function EngineFilesSection(props: {
                 <SField label="定跡ファイル（手動）">
                   <SInput
                     value={draft.bookFilePath ?? ""}
-                    onChange={(e) =>
-                      setDraft({ ...draft, bookFilePath: e.target.value })
-                    }
+                    onChange={(e) => setDraft({ ...draft, bookFilePath: e.target.value })}
                     placeholder="/path/to/book/*.db"
                   />
                 </SField>

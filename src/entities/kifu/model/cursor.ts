@@ -53,14 +53,9 @@ export const ROOT_CURSOR: KifuCursor = {
  * - 同一teが重複する場合は最後のものを採用
  * - tesuu が指定されている場合、te <= tesuu のみ残す
  */
-export function normalizeForkPointers(
-  forkPointers: ForkPointer[],
-  tesuu?: number,
-): ForkPointer[] {
+export function normalizeForkPointers(forkPointers: ForkPointer[], tesuu?: number): ForkPointer[] {
   const filtered =
-    typeof tesuu === "number"
-      ? forkPointers.filter((fp) => fp.te <= tesuu)
-      : [...forkPointers];
+    typeof tesuu === "number" ? forkPointers.filter((fp) => fp.te <= tesuu) : [...forkPointers];
 
   // te昇順、同一teは後勝ち（reduceで最後を残す）
   const sorted = [...filtered].sort((a, b) => a.te - b.te);

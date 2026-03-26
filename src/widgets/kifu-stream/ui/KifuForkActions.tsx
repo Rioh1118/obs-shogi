@@ -19,8 +19,7 @@ type Props = {
   onDelete: () => void;
 };
 
-const clamp = (v: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, v));
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 const KifuForkActions = memo(function KifuForkActions({
   open,
@@ -77,14 +76,8 @@ const KifuForkActions = memo(function KifuForkActions({
     if (!open || !anchorRect) return;
     // 初回は測定が必要なので rAF で1拍置く
     requestAnimationFrame(updatePosition);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    open,
-    anchorRect?.top,
-    anchorRect?.left,
-    anchorRect?.width,
-    anchorRect?.height,
-  ]);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anchorRect?.top, anchorRect?.left, anchorRect?.width, anchorRect?.height]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -95,7 +88,7 @@ const KifuForkActions = memo(function KifuForkActions({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open || !anchorRect) return null;

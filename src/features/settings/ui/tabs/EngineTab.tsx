@@ -1,29 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import "./EngineTab.scss";
 
-import {
-  Plus,
-  Pencil,
-  Copy,
-  Trash2,
-  RefreshCcw,
-  CheckCircle2,
-  AlertTriangle,
-} from "lucide-react";
+import { Plus, Pencil, Copy, Trash2, RefreshCcw, CheckCircle2, AlertTriangle } from "lucide-react";
 
 import SButton from "../kit/SButton";
 import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import {
-  isPresetConfigured,
-  type PresetId,
-} from "@/entities/engine-presets/model/types";
+import { isPresetConfigured, type PresetId } from "@/entities/engine-presets/model/types";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 function basename(p: string) {
   const s = (p ?? "").replace(/\\/g, "/");
@@ -31,25 +19,15 @@ function basename(p: string) {
   return last || (p ?? "");
 }
 
-function optionNum(
-  options: Record<string, string> | undefined,
-  key: string,
-  fallback: string,
-) {
+function optionNum(options: Record<string, string> | undefined, key: string, fallback: string) {
   const raw = options?.[key] ?? fallback;
   const n = Number.parseInt(String(raw), 10);
   return Number.isFinite(n) ? n : Number.parseInt(fallback, 10);
 }
 
 export default function EngineTab() {
-  const {
-    state,
-    reload,
-    selectPreset,
-    createPreset,
-    duplicatePreset,
-    deletePreset,
-  } = useEnginePresets();
+  const { state, reload, selectPreset, createPreset, duplicatePreset, deletePreset } =
+    useEnginePresets();
 
   const [editingId, setEditingId] = useState<PresetId | null>(null);
 
@@ -128,21 +106,9 @@ export default function EngineTab() {
               const configured = isPresetConfigured(p);
               const isSelected = p.id === selectedId;
 
-              const multiPv = optionNum(
-                p.options,
-                "MultiPV",
-                DEFAULT_USI_OPTIONS.MultiPV,
-              );
-              const threads = optionNum(
-                p.options,
-                "Threads",
-                DEFAULT_USI_OPTIONS.Threads,
-              );
-              const hash = optionNum(
-                p.options,
-                "USI_Hash",
-                DEFAULT_USI_OPTIONS.USI_Hash,
-              );
+              const multiPv = optionNum(p.options, "MultiPV", DEFAULT_USI_OPTIONS.MultiPV);
+              const threads = optionNum(p.options, "Threads", DEFAULT_USI_OPTIONS.Threads);
+              const hash = optionNum(p.options, "USI_Hash", DEFAULT_USI_OPTIONS.USI_Hash);
 
               const multiPvWarn = multiPv >= 2; // 研究用途ではOKだが注意
               const title = p.label?.trim() || "（無名プリセット）";
@@ -169,35 +135,24 @@ export default function EngineTab() {
 
                       <div className="engineTab__badges">
                         {isSelected && (
-                          <span className="engineTab__badge engineTab__badge--active">
-                            適用中
-                          </span>
+                          <span className="engineTab__badge engineTab__badge--active">適用中</span>
                         )}
                         {!configured && (
                           <span className="engineTab__badge engineTab__badge--warn">
-                            <AlertTriangle
-                              size={14}
-                              style={{ marginRight: 4 }}
-                            />
+                            <AlertTriangle size={14} style={{ marginRight: 4 }} />
                             要設定
                           </span>
                         )}
                         {configured && (
                           <span className="engineTab__badge engineTab__badge--ok">
-                            <CheckCircle2
-                              size={14}
-                              style={{ marginRight: 4 }}
-                            />
+                            <CheckCircle2 size={14} style={{ marginRight: 4 }} />
                             設定済み
                           </span>
                         )}
                       </div>
                     </div>
 
-                    <div
-                      className="engineTab__cardActions"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="engineTab__cardActions" onClick={(e) => e.stopPropagation()}>
                       <SButton
                         variant="ghost"
                         size="sm"
@@ -235,9 +190,7 @@ export default function EngineTab() {
                     <div className="engineTab__row">
                       <div className="engineTab__k">AI名</div>
                       <div className="engineTab__v">
-                        {p.aiName?.trim() || (
-                          <span className="engineTab__muted">未設定</span>
-                        )}
+                        {p.aiName?.trim() || <span className="engineTab__muted">未設定</span>}
                       </div>
                     </div>
 
@@ -254,10 +207,7 @@ export default function EngineTab() {
 
                     <div className="engineTab__row">
                       <div className="engineTab__k">評価関数</div>
-                      <div
-                        className="engineTab__v"
-                        title={p.evalFilePath || ""}
-                      >
+                      <div className="engineTab__v" title={p.evalFilePath || ""}>
                         {p.evalFilePath ? (
                           basename(p.evalFilePath)
                         ) : (
@@ -271,12 +221,7 @@ export default function EngineTab() {
                     <div className="engineTab__miniGrid">
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">MultiPV</div>
-                        <div
-                          className={cx(
-                            "engineTab__miniV",
-                            multiPvWarn && "is-warn",
-                          )}
-                        >
+                        <div className={cx("engineTab__miniV", multiPvWarn && "is-warn")}>
                           {multiPv}
                         </div>
                       </div>
@@ -290,16 +235,13 @@ export default function EngineTab() {
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Book</div>
-                        <div className="engineTab__miniV">
-                          {p.bookEnabled ? "ON" : "OFF"}
-                        </div>
+                        <div className="engineTab__miniV">{p.bookEnabled ? "ON" : "OFF"}</div>
                       </div>
                     </div>
 
                     {multiPvWarn && (
                       <div className="engineTab__note">
-                        MultiPV を増やすと
-                        1手あたりの読みが浅くなります（研究向けの “幅 vs 深さ”
+                        MultiPV を増やすと 1手あたりの読みが浅くなります（研究向けの “幅 vs 深さ”
                         トレードオフ）。
                       </div>
                     )}

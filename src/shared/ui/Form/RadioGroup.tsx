@@ -26,9 +26,7 @@ function RadioGroup({
   return (
     <>
       <h3 className="form__subheading">{title}</h3>
-      <div
-        className={gridLayout ? "form__radio-grid" : "form__radio-container"}
-      >
+      <div className={gridLayout ? "form__radio-grid" : "form__radio-container"}>
         {options.map((option) => (
           <div key={option.value} className="form__radio-group">
             <input
@@ -40,10 +38,7 @@ function RadioGroup({
               checked={value === option.value}
               onChange={handleChange}
             />
-            <label
-              htmlFor={`${name}-${option.value}`}
-              className="form__radio-label"
-            >
+            <label htmlFor={`${name}-${option.value}`} className="form__radio-label">
               <span className="form__radio-button"></span>
               {option.label}
             </label>

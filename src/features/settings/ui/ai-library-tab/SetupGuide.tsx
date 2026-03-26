@@ -149,11 +149,7 @@ export default function SetupGuide({
   const scanReady = scanStatus === "ok";
 
   const step1: StepState = canOperate ? "done" : "active";
-  const step2: StepState = !canOperate
-    ? "locked"
-    : enginesDirExists
-      ? "done"
-      : "active";
+  const step2: StepState = !canOperate ? "locked" : enginesDirExists ? "done" : "active";
   const step3: StepState = !enginesDirExists
     ? "locked"
     : enginesCount > 0
@@ -170,9 +166,7 @@ export default function SetupGuide({
         : "locked";
 
   const shortRoot =
-    aiRootPath && aiRootPath.length > 32
-      ? "…" + aiRootPath.slice(-31)
-      : (aiRootPath ?? "");
+    aiRootPath && aiRootPath.length > 32 ? "…" + aiRootPath.slice(-31) : (aiRootPath ?? "");
 
   // ── next action (hero) ─────────────────────────────────────────────────
 
@@ -242,9 +236,7 @@ export default function SetupGuide({
         onPrimary: () => aiNameRef.current?.focus(),
       };
     }
-    const missingEval = profiles.find(
-      (p) => !p.hasEvalDir || p.evalCount === 0,
-    );
+    const missingEval = profiles.find((p) => !p.hasEvalDir || p.evalCount === 0);
     if (missingEval) {
       return {
         tone: "warn",
@@ -302,11 +294,7 @@ export default function SetupGuide({
             </SButton>
           )}
           {nextAction.secondaryLabel && nextAction.onSecondary && (
-            <SButton
-              variant="ghost"
-              size="sm"
-              onClick={nextAction.onSecondary}
-            >
+            <SButton variant="ghost" size="sm" onClick={nextAction.onSecondary}>
               {nextAction.secondaryLabel}
             </SButton>
           )}
@@ -350,10 +338,7 @@ export default function SetupGuide({
       </div>
 
       {/* What we're building — roles + concrete example */}
-      <SSection
-        title="フォルダ構成"
-        description="この構造でファイルを置くと自動検出されます。"
-      >
+      <SSection title="フォルダ構成" description="この構造でファイルを置くと自動検出されます。">
         <FolderConcept />
       </SSection>
 
@@ -370,11 +355,7 @@ export default function SetupGuide({
       {/* Wizard steps with contextual trees */}
       <SSection title="セットアップ手順" description="手順ごとに操作できます。">
         <div className="aiLibraryTab__steps">
-          <Step1SelectRoot
-            state={step1}
-            aiRoot={aiRootPath ?? ""}
-            onSelect={onSelectRoot}
-          />
+          <Step1SelectRoot state={step1} aiRoot={aiRootPath ?? ""} onSelect={onSelectRoot} />
           <Step2CreateEngines
             state={step2}
             isScanning={isScanning}

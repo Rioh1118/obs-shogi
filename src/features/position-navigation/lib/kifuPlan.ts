@@ -13,10 +13,7 @@ export function upsertForkPointer(
 }
 
 /** “本譜を選ぶ” = その te の forkPointer を削除 */
-export function removeForkPointer(
-  fps: ForkPointer[],
-  te: number,
-): ForkPointer[] {
+export function removeForkPointer(fps: ForkPointer[], te: number): ForkPointer[] {
   return fps.filter((p) => p.te !== te);
 }
 
@@ -29,9 +26,7 @@ export function getPlannedForkIndex(
 }
 
 /** 任意：Map化（leaf探索や goToEnd で使うなら便利） */
-export function buildPlannedMap(
-  fps: ForkPointer[] | undefined,
-): Map<number, number> {
+export function buildPlannedMap(fps: ForkPointer[] | undefined): Map<number, number> {
   const map = new Map<number, number>();
   for (const p of fps ?? []) map.set(p.te, p.forkIndex);
   return map;

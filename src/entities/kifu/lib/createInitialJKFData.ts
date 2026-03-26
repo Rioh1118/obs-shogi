@@ -19,10 +19,7 @@ export function createInitialJKFData(options: KifuCreationOptions): JKFData {
     moves: [{}],
   };
 
-  if (
-    options.initialPosition.preset === "OTHER" &&
-    options.initialPosition.data
-  ) {
+  if (options.initialPosition.preset === "OTHER" && options.initialPosition.data) {
     jkfData.initial!.data = options.initialPosition.data;
   }
 

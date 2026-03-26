@@ -34,11 +34,7 @@ type ExampleLineProps = {
 
 function ExampleLine({ text, note, indent = 0, dim = false }: ExampleLineProps) {
   return (
-    <div
-      className="folderConcept__exLine"
-      data-dim={dim}
-      style={{ paddingLeft: indent * 16 }}
-    >
+    <div className="folderConcept__exLine" data-dim={dim} style={{ paddingLeft: indent * 16 }}>
       <span className="folderConcept__exText">{text}</span>
       {note && <span className="folderConcept__exNote">{note}</span>}
     </div>
@@ -50,22 +46,9 @@ export function FolderConcept() {
     <div className="folderConcept">
       {/* 役割カード */}
       <div className="folderConcept__roles">
-        <RoleCard
-          label="engines/"
-          role="エンジン実行ファイル"
-          example="YaneuraOu-xxx"
-        />
-        <RoleCard
-          label="＜AI名＞/eval/"
-          role="評価関数"
-          example="nn.bin"
-        />
-        <RoleCard
-          label="＜AI名＞/book/"
-          role="定跡ファイル"
-          example="standard.db"
-          optional
-        />
+        <RoleCard label="engines/" role="エンジン実行ファイル" example="YaneuraOu-xxx" />
+        <RoleCard label="＜AI名＞/eval/" role="評価関数" example="nn.bin" />
+        <RoleCard label="＜AI名＞/book/" role="定跡ファイル" example="standard.db" optional />
       </div>
 
       {/* 完成形の例 */}

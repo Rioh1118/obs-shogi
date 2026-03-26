@@ -24,8 +24,7 @@ type Props = {
   className?: string;
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 export default function SRadioGroup({
   name,
@@ -44,9 +43,7 @@ export default function SRadioGroup({
       data-layout={layout}
       data-invalid={invalid ? "true" : "false"}
       style={
-        layout === "grid"
-          ? ({ ["--cols"]: String(columns) } as React.CSSProperties)
-          : undefined
+        layout === "grid" ? ({ ["--cols"]: String(columns) } as React.CSSProperties) : undefined
       }
       role="radiogroup"
       aria-invalid={invalid || undefined}
@@ -76,9 +73,7 @@ export default function SRadioGroup({
                 <span className="sui-radio__dot" aria-hidden="true" />
                 <span className="sui-radio__label">{o.label}</span>
               </span>
-              {o.description && (
-                <span className="sui-radio__desc">{o.description}</span>
-              )}
+              {o.description && <span className="sui-radio__desc">{o.description}</span>}
             </span>
           </label>
         );

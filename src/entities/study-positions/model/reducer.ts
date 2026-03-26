@@ -47,10 +47,7 @@ function selectAfterReplace(
   return positions[0]!.id;
 }
 
-export function reducer(
-  state: StudyPositionsState,
-  action: Action,
-): StudyPositionsState {
+export function reducer(state: StudyPositionsState, action: Action): StudyPositionsState {
   switch (action.type) {
     case "load_start":
       return {
@@ -120,14 +117,10 @@ export function reducer(
     }
 
     case "delete_position": {
-      const nextPositions = state.positions.filter(
-        (p) => p.id !== action.payload.id,
-      );
+      const nextPositions = state.positions.filter((p) => p.id !== action.payload.id);
 
       const selectedId =
-        state.selectedId === action.payload.id
-          ? (nextPositions[0]?.id ?? null)
-          : state.selectedId;
+        state.selectedId === action.payload.id ? (nextPositions[0]?.id ?? null) : state.selectedId;
 
       return {
         ...state,

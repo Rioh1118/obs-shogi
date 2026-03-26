@@ -22,12 +22,7 @@ function Title<T extends ElementType = "h1">({
   const Comp = (as ?? "h1") as ElementType;
 
   return (
-    <Comp
-      className={["title", `title--${variant}`, className]
-        .filter(Boolean)
-        .join(" ")}
-      {...rest}
-    >
+    <Comp className={["title", `title--${variant}`, className].filter(Boolean).join(" ")} {...rest}>
       <span className="title__obs">{obsText}</span>
       <span className="title__shogi">{shogiText}</span>
     </Comp>

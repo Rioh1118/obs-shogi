@@ -7,12 +7,7 @@ type Props = {
   error: string | null;
 };
 
-export default function PositionSearchStatusBar({
-  hitsCount,
-  statusText,
-  stale,
-  error,
-}: Props) {
+export default function PositionSearchStatusBar({ hitsCount, statusText, stale, error }: Props) {
   return (
     <section className="pos-search-status" aria-label="検索状態">
       <span className="pos-search-status__item">一致: {hitsCount}</span>
@@ -25,9 +20,7 @@ export default function PositionSearchStatusBar({
       )}
 
       {error && (
-        <span className="pos-search-status__item pos-search-status__item--error">
-          {error}
-        </span>
+        <span className="pos-search-status__item pos-search-status__item--error">{error}</span>
       )}
     </section>
   );

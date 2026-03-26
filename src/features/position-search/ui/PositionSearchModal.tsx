@@ -16,10 +16,7 @@ import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDa
 import PreviewPane from "../../../entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
-import {
-  hitKey,
-  orderPositionHits,
-} from "@/features/position-search/lib/orderPositionHits";
+import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderPositionHits";
 import { useGame } from "@/entities/game";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
@@ -60,9 +57,7 @@ export default function PositionSearchModal() {
 
   const indexState = state.index.state;
   const indexStale =
-    indexState === "Restoring" ||
-    indexState === "Building" ||
-    indexState === "Updating";
+    indexState === "Restoring" || indexState === "Building" || indexState === "Updating";
 
   const resultStale = indexStale || !!session?.stale;
 
@@ -73,10 +68,7 @@ export default function PositionSearchModal() {
     return "待機中";
   }, [isSearching, error, isDone]);
 
-  const toKan = useMemo(
-    () => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k,
-    [],
-  );
+  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const previewData = useMemo(() => {
     if (!isOpen) return null;
@@ -94,11 +86,7 @@ export default function PositionSearchModal() {
   }, [isOpen, params.sfen, gameView.player]);
 
   const orderedHits = useMemo(() => {
-    return orderPositionHits(
-      hits,
-      resolveHitAbsPath,
-      gameState.loadedAbsPath ?? null,
-    );
+    return orderPositionHits(hits, resolveHitAbsPath, gameState.loadedAbsPath ?? null);
   }, [hits, resolveHitAbsPath, gameState.loadedAbsPath]);
 
   // -------------------------
@@ -189,9 +177,7 @@ export default function PositionSearchModal() {
 
     if (e.key === "ArrowDown" || e.key === "j") {
       e.preventDefault();
-      setActiveIndex((i) =>
-        Math.min(i + 1, Math.max(0, orderedHits.length - 1)),
-      );
+      setActiveIndex((i) => Math.min(i + 1, Math.max(0, orderedHits.length - 1)));
       return;
     }
 
@@ -237,10 +223,7 @@ export default function PositionSearchModal() {
         aria-label="局面検索"
       >
         <header className="pos-search__header">
-          <PositionSearchModalHeader
-            isSearching={isSearching}
-            title="局面検索"
-          />
+          <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
         </header>
 
         <main className="pos-search__main" aria-label="検索とプレビュー">

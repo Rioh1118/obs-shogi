@@ -19,10 +19,7 @@ import ImportantOptionsSection from "./sections/ImportantOptionsSection";
 import AnalysisDefaultsSection from "./sections/AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
 import { useAppConfig } from "@/entities/app-config";
-import type {
-  EnginePreset,
-  PresetId,
-} from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 import { filterEnginesByAiLabel, listAiLabels } from "../../lib/engineFilter";
@@ -61,9 +58,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   // ---- scan state ----
   const [index, setIndex] = useState<AiRootIndex | null>(null);
-  const [indexStatus, setIndexStatus] = useState<
-    "idle" | "loading" | "ok" | "error"
-  >("idle");
+  const [indexStatus, setIndexStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [indexError, setIndexError] = useState<string | null>(null);
   const [scanNonce, setScanNonce] = useState(0);
 
@@ -113,10 +108,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   // "YaneuraOu*" のみ表示したいなら、ここで最小限フィルタ（parse不要）
   const engines = useMemo(
-    () =>
-      enginesAll.filter((e: EngineCandidate) =>
-        String(e.entry ?? "").startsWith("YaneuraOu_"),
-      ),
+    () => enginesAll.filter((e: EngineCandidate) => String(e.entry ?? "").startsWith("YaneuraOu_")),
     [enginesAll],
   );
 
@@ -136,10 +128,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     return clampInt(c, 1, 128);
   }, []);
 
-  const recommendedThreads = useMemo(
-    () => clampInt(Math.min(cores, 8), 1, cores),
-    [cores],
-  );
+  const recommendedThreads = useMemo(() => clampInt(Math.min(cores, 8), 1, cores), [cores]);
 
   // ---- MultiPV/Threads/Hash UI state ----
   const [multiPv, setMultiPv] = useState(1);
@@ -149,9 +138,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const [threadsManual, setThreadsManual] = useState(recommendedThreads);
 
   const [hashMode, setHashMode] = useState<"auto" | "manual">("auto");
-  const [hashManual, setHashManual] = useState(
-    parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024),
-  );
+  const [hashManual, setHashManual] = useState(parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024));
 
   // preset → draft 初期化
   useEffect(() => {
@@ -163,10 +150,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     setErrors({});
 
     const mpv = clampInt(
-      parseIntSafe(
-        d.options?.MultiPV,
-        parseIntSafe(DEFAULT_USI_OPTIONS.MultiPV, 1),
-      ),
+      parseIntSafe(d.options?.MultiPV, parseIntSafe(DEFAULT_USI_OPTIONS.MultiPV, 1)),
       MULTIPV_MIN,
       MULTIPV_MAX,
     );
@@ -185,19 +169,12 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     setThreadsMode(t === recommendedThreads ? "auto" : "manual");
 
     const h = clampInt(
-      parseIntSafe(
-        d.options?.USI_Hash,
-        parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024),
-      ),
+      parseIntSafe(d.options?.USI_Hash, parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024)),
       128,
       65536,
     );
     setHashManual(h);
-    setHashMode(
-      h === parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024)
-        ? "auto"
-        : "manual",
-    );
+    setHashMode(h === parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024) ? "auto" : "manual");
   }, [open, preset, cores, recommendedThreads]);
 
   const currentProfile = useMemo(() => {
@@ -213,10 +190,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     return [...nn, ...rest];
   }, [currentProfile]);
 
-  const bookDbs = useMemo(
-    () => currentProfile?.book_db_files ?? [],
-    [currentProfile],
-  );
+  const bookDbs = useMemo(() => currentProfile?.book_db_files ?? [], [currentProfile]);
 
   // ---- engine filter ----
   const engineFilterOptions = useMemo(() => {
@@ -300,8 +274,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         if (p) next.aiName = p.name;
       }
 
-      const prof =
-        profiles.find((p) => p.name === cleanText(next.aiName)) ?? null;
+      const prof = profiles.find((p) => p.name === cleanText(next.aiName)) ?? null;
 
       // engine empty -> pick first from filtered (or all)
       if (!cleanText(next.enginePath)) {
@@ -331,7 +304,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const setOpt = useCallback((key: string, value: string) => {
     setDraft((cur) => {
       if (!cur) return cur;
-      return { ...cur, options: { ...(cur.options ?? {}), [key]: value } };
+      return { ...cur, options: { ...cur.options, [key]: value } };
     });
   }, []);
 
@@ -447,15 +420,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     if (!label) nextErrors.label = "名前は必須です";
     if (!aiName) nextErrors.aiName = "AI名（プロファイル）を選択してください";
     if (!enginePath) nextErrors.enginePath = "エンジンを選択してください";
-    if (!evalFilePath)
-      nextErrors.evalFilePath = "評価関数ファイルを選択してください";
+    if (!evalFilePath) nextErrors.evalFilePath = "評価関数ファイルを選択してください";
 
     const bookEnabled = Boolean(draft.bookEnabled);
-    const bookFilePath = bookEnabled
-      ? cleanText(draft.bookFilePath ?? "") || null
-      : null;
-    if (bookEnabled && !bookFilePath)
-      nextErrors.bookFilePath = "定跡ファイルを選択してください";
+    const bookFilePath = bookEnabled ? cleanText(draft.bookFilePath ?? "") || null : null;
+    if (bookEnabled && !bookFilePath) nextErrors.bookFilePath = "定跡ファイルを選択してください";
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -465,15 +434,9 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     // analysis: <=0 は落とす（軽く）
     const a = draft.analysis ?? { mateSearch: false };
     const timeSeconds =
-      a.timeSeconds != null
-        ? clampInt(parseIntSafe(a.timeSeconds, 0), 0, 3600)
-        : undefined;
-    const depth =
-      a.depth != null ? clampInt(parseIntSafe(a.depth, 0), 0, 999) : undefined;
-    const nodes =
-      a.nodes != null
-        ? clampInt(parseIntSafe(a.nodes, 0), 0, 999_999_999)
-        : undefined;
+      a.timeSeconds != null ? clampInt(parseIntSafe(a.timeSeconds, 0), 0, 3600) : undefined;
+    const depth = a.depth != null ? clampInt(parseIntSafe(a.depth, 0), 0, 999) : undefined;
+    const nodes = a.nodes != null ? clampInt(parseIntSafe(a.nodes, 0), 0, 999_999_999) : undefined;
 
     const analysis =
       (timeSeconds && timeSeconds > 0) ||
@@ -481,8 +444,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       (nodes && nodes > 0) ||
       a.mateSearch
         ? {
-            timeSeconds:
-              timeSeconds && timeSeconds > 0 ? timeSeconds : undefined,
+            timeSeconds: timeSeconds && timeSeconds > 0 ? timeSeconds : undefined,
             depth: depth && depth > 0 ? depth : undefined,
             nodes: nodes && nodes > 0 ? nodes : undefined,
             mateSearch: Boolean(a.mateSearch),

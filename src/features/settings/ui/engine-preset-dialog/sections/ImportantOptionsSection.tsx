@@ -1,12 +1,5 @@
 import type { SRadioOption } from "../../kit/SRadioGroup";
-import {
-  SButton,
-  SField,
-  SInput,
-  SRadioGroup,
-  SSection,
-  SSelect,
-} from "../../kit";
+import { SButton, SField, SInput, SRadioGroup, SSection, SSelect } from "../../kit";
 import {
   cx,
   HASH_CHOICES,
@@ -81,19 +74,12 @@ export default function ImportantOptionsSection(props: {
           </div>
 
           <div className="presetDialog__segRow">
-            <div
-              className="presetDialog__seg"
-              role="tablist"
-              aria-label="MultiPV presets"
-            >
+            <div className="presetDialog__seg" role="tablist" aria-label="MultiPV presets">
               {QUICK_MULTIPV.map((n) => (
                 <button
                   key={n}
                   type="button"
-                  className={cx(
-                    "presetDialog__segBtn",
-                    multiPv === n && "is-active",
-                  )}
+                  className={cx("presetDialog__segBtn", multiPv === n && "is-active")}
                   onClick={() => onChangeMultiPv(n)}
                 >
                   {n}
@@ -129,9 +115,7 @@ export default function ImportantOptionsSection(props: {
                 min={MULTIPV_MIN}
                 max={MULTIPV_MAX}
                 value={multiPv}
-                onChange={(e) =>
-                  onChangeMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))
-                }
+                onChange={(e) => onChangeMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))}
               />
 
               <SButton
@@ -151,8 +135,8 @@ export default function ImportantOptionsSection(props: {
 
           {multiPv >= 2 && (
             <div className="presetDialog__hintWarn">
-              注意: MultiPV を 2以上にすると棋力が低下し得ます（研究用途では “幅
-              vs 深さ” の調整として有用）。
+              注意: MultiPV を 2以上にすると棋力が低下し得ます（研究用途では “幅 vs 深さ”
+              の調整として有用）。
             </div>
           )}
         </div>
@@ -176,15 +160,10 @@ export default function ImportantOptionsSection(props: {
 
           {threadsMode === "manual" && (
             <div className="presetDialog__inline">
-              <SField
-                label="手動 Threads"
-                description={`最大: 論理コア数 ${cores}`}
-              >
+              <SField label="手動 Threads" description={`最大: 論理コア数 ${cores}`}>
                 <SSelect
                   value={String(threadsManual)}
-                  onChange={(e) =>
-                    onThreadsManualChange(parseIntSafe(e.target.value, 1))
-                  }
+                  onChange={(e) => onThreadsManualChange(parseIntSafe(e.target.value, 1))}
                   options={threadChoices.map((n) => ({
                     value: String(n),
                     label: String(n),
@@ -198,9 +177,7 @@ export default function ImportantOptionsSection(props: {
         {/* Hash */}
         <div className="presetDialog__block">
           <div className="presetDialog__blockHead">
-            <div className="presetDialog__blockTitle">
-              解析メモリ（USI_Hash）
-            </div>
+            <div className="presetDialog__blockTitle">解析メモリ（USI_Hash）</div>
             <div className="presetDialog__blockSub">
               置換表サイズ（MB）。長時間思考で効くことがあります。
             </div>
@@ -226,9 +203,7 @@ export default function ImportantOptionsSection(props: {
               >
                 <SSelect
                   value={String(hashManual)}
-                  onChange={(e) =>
-                    onHashManualChange(parseIntSafe(e.target.value, 1024))
-                  }
+                  onChange={(e) => onHashManualChange(parseIntSafe(e.target.value, 1024))}
                   options={HASH_CHOICES.map((n) => ({
                     value: String(n),
                     label: `${n} MB`,
@@ -244,55 +219,28 @@ export default function ImportantOptionsSection(props: {
         <summary className="presetDialog__summary">対局向け（非推奨）</summary>
         <div className="presetDialog__detailsBody">
           <div className="presetDialog__grid2">
-            <SField
-              label="NetworkDelay"
-              description="通信遅延の想定（対局向け）"
-            >
+            <SField label="NetworkDelay" description="通信遅延の想定（対局向け）">
               <SInput
                 type="number"
-                value={
-                  draft.options.NetworkDelay ?? DEFAULT_USI_OPTIONS.NetworkDelay
-                }
-                onChange={(e) =>
-                  setOpt(
-                    "NetworkDelay",
-                    String(parseIntSafe(e.target.value, 0)),
-                  )
-                }
+                value={draft.options.NetworkDelay ?? DEFAULT_USI_OPTIONS.NetworkDelay}
+                onChange={(e) => setOpt("NetworkDelay", String(parseIntSafe(e.target.value, 0)))}
               />
             </SField>
 
             <SField label="NetworkDelay2" description="通信遅延2（対局向け）">
               <SInput
                 type="number"
-                value={
-                  draft.options.NetworkDelay2 ??
-                  DEFAULT_USI_OPTIONS.NetworkDelay2
-                }
-                onChange={(e) =>
-                  setOpt(
-                    "NetworkDelay2",
-                    String(parseIntSafe(e.target.value, 0)),
-                  )
-                }
+                value={draft.options.NetworkDelay2 ?? DEFAULT_USI_OPTIONS.NetworkDelay2}
+                onChange={(e) => setOpt("NetworkDelay2", String(parseIntSafe(e.target.value, 0)))}
               />
             </SField>
 
-            <SField
-              label="MinimumThinkingTime"
-              description="最小思考時間（対局向け）"
-            >
+            <SField label="MinimumThinkingTime" description="最小思考時間（対局向け）">
               <SInput
                 type="number"
-                value={
-                  draft.options.MinimumThinkingTime ??
-                  DEFAULT_USI_OPTIONS.MinimumThinkingTime
-                }
+                value={draft.options.MinimumThinkingTime ?? DEFAULT_USI_OPTIONS.MinimumThinkingTime}
                 onChange={(e) =>
-                  setOpt(
-                    "MinimumThinkingTime",
-                    String(parseIntSafe(e.target.value, 0)),
-                  )
+                  setOpt("MinimumThinkingTime", String(parseIntSafe(e.target.value, 0)))
                 }
               />
             </SField>
@@ -301,9 +249,7 @@ export default function ImportantOptionsSection(props: {
               <SInput
                 type="number"
                 value={draft.options.SlowMover ?? DEFAULT_USI_OPTIONS.SlowMover}
-                onChange={(e) =>
-                  setOpt("SlowMover", String(parseIntSafe(e.target.value, 0)))
-                }
+                onChange={(e) => setOpt("SlowMover", String(parseIntSafe(e.target.value, 0)))}
               />
             </SField>
           </div>

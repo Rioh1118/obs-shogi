@@ -17,11 +17,7 @@ function BestMoveSection({ bestMove, evaluation }: BestMoveSectionProps) {
     <section className="best-move-section">
       <EvaluationBar percentage={evaluationToPercentage(evaluation)} />
       {bestMove ? (
-        <MoveSequence
-          moves={bestMove}
-          variant="primary"
-          evaluation={evaluation}
-        />
+        <MoveSequence moves={bestMove} variant="primary" evaluation={evaluation} />
       ) : null}
     </section>
   );
