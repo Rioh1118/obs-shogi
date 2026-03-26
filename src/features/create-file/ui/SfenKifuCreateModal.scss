@@ -5,6 +5,12 @@
   flex-direction: column;
   gap: 0;
   color: index.$color-text-light-1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
   background: linear-gradient(
     180deg,
     rgba(index.$color-primary-dark, 0.96) 0%,

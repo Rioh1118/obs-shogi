@@ -139,7 +139,7 @@ export default function SfenKifuCreateModal() {
   if (!isOpen || !sfen) return null;
 
   return (
-    <Modal onClose={closeModal} theme="dark" variant="dialog" size="md" scroll="card">
+    <Modal onClose={closeModal} theme="dark" variant="dialog" size="md" scroll="none">
       <div className="sfen-kifu-create">
         {isLoading ? (
           <Spinner />
