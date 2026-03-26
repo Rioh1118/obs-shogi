@@ -28,9 +28,7 @@ export function listAiLabels(): string[] {
   return Object.keys(AI_NAME_TO_EVAL).sort((a, b) => a.localeCompare(b));
 }
 
-export function evalTypeOfAiLabel(
-  aiLabel: string | null | undefined,
-): EvalTypeId | null {
+export function evalTypeOfAiLabel(aiLabel: string | null | undefined): EvalTypeId | null {
   const key = (aiLabel ?? "").trim();
   if (!key) return null;
   return AI_NAME_TO_EVAL[key] ?? null;
@@ -72,9 +70,7 @@ export function filterEnginesByAiLabel(
   const evalType = evalTypeOfAiLabel(aiLabel);
   if (!evalType) return { filtered: engines, evalType: null };
 
-  const filtered = engines.filter(
-    (e) => parseEvalTypeFromEngineEntry(e.entry) === evalType,
-  );
+  const filtered = engines.filter((e) => parseEvalTypeFromEngineEntry(e.entry) === evalType);
   return { filtered, evalType };
 }
 

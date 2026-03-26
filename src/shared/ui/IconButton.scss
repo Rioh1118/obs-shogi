@@ -68,10 +68,7 @@
     background-color: var(--color-bg-primary, #ffffff);
     border: 1px solid var(--color-border, #dee2e6);
 
-    @include btn-hover(
-      var(--color-bg-hover, #e9ecef),
-      var(--color-border-hover, #adb5bd)
-    );
+    @include btn-hover(var(--color-bg-hover, #e9ecef), var(--color-border-hover, #adb5bd));
     @include btn-active(var(--color-bg-active, #dee2e6));
   }
 
@@ -93,10 +90,7 @@
     background-color: transparent;
     border: 1px solid transparent;
 
-    @include btn-hover(
-      var(--color-bg-hover, #f8f9fa),
-      var(--color-border-light, #e9ecef)
-    );
+    @include btn-hover(var(--color-bg-hover, #f8f9fa), var(--color-border-light, #e9ecef));
   }
 
   // danger
@@ -119,9 +113,7 @@
     border: none;
 
     @include btn-hover(index.$color-secondary-dark-2);
-    @include btn-active(
-      color.adjust(index.$color-secondary-dark-2, $lightness: -5%)
-    );
+    @include btn-active(color.adjust(index.$color-secondary-dark-2, $lightness: -5%));
   }
 
   &--obs-ghost {

@@ -14,11 +14,7 @@ interface Props {
   disabled?: boolean;
 }
 
-export default function StudyPositionStateSegment({
-  value,
-  onChange,
-  disabled = false,
-}: Props) {
+export default function StudyPositionStateSegment({ value, onChange, disabled = false }: Props) {
   return (
     <div className="sp-state-seg" role="radiogroup" aria-label="研究状態">
       {STATE_OPTIONS.map((opt) => (

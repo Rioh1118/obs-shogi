@@ -13,12 +13,7 @@ function PromSilver({ color, onClick }: PieceProps) {
       data-piece="prom-silver"
       data-color={color}
     >
-      <img
-        src={imagePath}
-        alt="成銀"
-        className="piece-image"
-        draggable={false}
-      />
+      <img src={imagePath} alt="成銀" className="piece-image" draggable={false} />
     </div>
   );
 }

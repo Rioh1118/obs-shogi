@@ -9,9 +9,7 @@ function ensureNonEmpty(label: string, value: string | null): string {
   return value;
 }
 
-export async function chooseRootDir(
-  opts: ChooseOpts = {},
-): Promise<string | null> {
+export async function chooseRootDir(opts: ChooseOpts = {}): Promise<string | null> {
   const { force = false } = opts;
   const config = await loadConfig();
 
@@ -25,17 +23,13 @@ export async function chooseRootDir(
   return rootDir;
 }
 
-export async function chooseAiRoot(
-  opts: ChooseOpts = {},
-): Promise<string | null> {
+export async function chooseAiRoot(opts: ChooseOpts = {}): Promise<string | null> {
   const { force = false } = opts;
   const config = await loadConfig();
 
   if (!force && config.ai_root) return config.ai_root;
 
-  const picked = await pickDirectory(
-    "AIのルートディレクトリを選択してください",
-  );
+  const picked = await pickDirectory("AIのルートディレクトリを選択してください");
   if (!picked) return null;
 
   const aiRoot = ensureNonEmpty("AI_ROOT", picked);

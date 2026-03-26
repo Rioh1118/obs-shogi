@@ -37,10 +37,7 @@ export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
   return forkIndex + 1;
 }
 
-export function buildTesuuPointer(
-  tesuu: number,
-  forkPointers: ForkPointer[],
-): TesuuPointer {
+export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
   // JKFPlayer の "N,[{te,forkIndex}]" と揃える
   return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
 }

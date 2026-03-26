@@ -8,10 +8,7 @@ type Props = {
   destAbsPath: string | null;
 };
 
-export default function PositionSearchDestinationCard({
-  currentAbsPath,
-  destAbsPath,
-}: Props) {
+export default function PositionSearchDestinationCard({ currentAbsPath, destAbsPath }: Props) {
   const { config } = useAppConfig();
   const rootDir = config?.root_dir ?? null;
 
@@ -43,9 +40,7 @@ export default function PositionSearchDestinationCard({
 
           <div className="pos-search-dest__current" title={currentRel ?? ""}>
             <span className="pos-search-dest__currentLabel">現在:</span>
-            <span className="pos-search-dest__currentPath">
-              {currentRel ?? "—"}
-            </span>
+            <span className="pos-search-dest__currentPath">{currentRel ?? "—"}</span>
           </div>
         </>
       )}

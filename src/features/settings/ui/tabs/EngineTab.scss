@@ -69,12 +69,7 @@ $warn: #f0b429;
         rgba(index.$color-primary-light, 0.16),
         transparent 58%
       ),
-      radial-gradient(
-        700px 380px at 120% 40%,
-        rgba($accent, 0.12),
-        transparent 62%
-      ),
-      $surface-card;
+      radial-gradient(700px 380px at 120% 40%, rgba($accent, 0.12), transparent 62%), $surface-card;
 
     box-shadow: 0 0.8rem 2.2rem rgba(0, 0, 0, 0.22);
 
@@ -93,11 +88,7 @@ $warn: #f0b429;
           rgba(index.$color-primary-light, 0.18),
           transparent 58%
         ),
-        radial-gradient(
-          700px 380px at 120% 40%,
-          rgba($accent, 0.14),
-          transparent 62%
-        ),
+        radial-gradient(700px 380px at 120% 40%, rgba($accent, 0.14), transparent 62%),
         $surface-card-hover;
     }
 

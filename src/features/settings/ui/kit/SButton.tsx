@@ -11,8 +11,7 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
   isLoading?: boolean;
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 export default function SButton({
   children,

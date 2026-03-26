@@ -1,11 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
@@ -136,7 +129,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
 
   useLayoutEffect(() => {
     updatePosition();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorEl, options.length]);
 
   useLayoutEffect(() => {
@@ -150,7 +143,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [pos]);
 
   const style: React.CSSProperties = pos
@@ -226,9 +219,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
               <span className="kifu-forkmenu__move" title={opt.move}>
                 {opt.move}
               </span>
-              <span className="kifu-forkmenu__check">
-                {opt.selected ? "✓" : ""}
-              </span>
+              <span className="kifu-forkmenu__check">{opt.selected ? "✓" : ""}</span>
             </button>
 
             <button

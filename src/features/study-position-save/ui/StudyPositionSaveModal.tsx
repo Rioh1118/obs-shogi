@@ -29,16 +29,12 @@ export default function StudyPositionSaveModal() {
   const { currentSfen } = usePositionSync();
   const { state: gameState, getCurrentMoveIndex } = useGame();
 
-  const { findBySfen, addPosition, updatePosition, deletePosition } =
-    useStudyPositions();
+  const { findBySfen, addPosition, updatePosition, deletePosition } = useStudyPositions();
 
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const sfen = params.sfen ?? currentSfen;
-  const existing = useMemo(
-    () => (isOpen ? findBySfen(sfen) : null),
-    [isOpen, findBySfen, sfen],
-  );
+  const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
   const isEdit = !!existing;
 
   // --- form state ---
@@ -67,10 +63,7 @@ export default function StudyPositionSaveModal() {
     }
   }, [isOpen, existing]);
 
-  const toKan = useMemo(
-    () => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k,
-    [],
-  );
+  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
@@ -176,14 +169,8 @@ export default function StudyPositionSaveModal() {
     >
       <div className="sp-save" onKeyDown={handleKeyDown}>
         <header className="sp-save__header">
-          <h2 className="sp-save__title">
-            {isEdit ? "課題局面を編集" : "課題局面に登録"}
-          </h2>
-          {isEdit && (
-            <p className="sp-save__subtitle">
-              {"この局面はすでに登録されています"}
-            </p>
-          )}
+          <h2 className="sp-save__title">{isEdit ? "課題局面を編集" : "課題局面に登録"}</h2>
+          {isEdit && <p className="sp-save__subtitle">{"この局面はすでに登録されています"}</p>}
         </header>
 
         <div className="sp-save__body">
@@ -192,18 +179,10 @@ export default function StudyPositionSaveModal() {
               <PreviewPane previewData={previewData} toKan={toKan} />
             </div>
             <div className="sp-save__context">
-              {turnLabel && (
-                <span className="sp-save__contextItem">{turnLabel}</span>
-              )}
-              {tesuu !== null && (
-                <span className="sp-save__contextItem">
-                  {`${tesuu}手目`}
-                </span>
-              )}
+              {turnLabel && <span className="sp-save__contextItem">{turnLabel}</span>}
+              {tesuu !== null && <span className="sp-save__contextItem">{`${tesuu}手目`}</span>}
               {fileName && (
-                <span className="sp-save__contextItem sp-save__contextItem--file">
-                  {fileName}
-                </span>
+                <span className="sp-save__contextItem sp-save__contextItem--file">{fileName}</span>
               )}
             </div>
           </aside>
@@ -255,9 +234,7 @@ export default function StudyPositionSaveModal() {
           </div>
         </div>
 
-        {errorMsg && (
-          <div className="sp-save__error">{errorMsg}</div>
-        )}
+        {errorMsg && <div className="sp-save__error">{errorMsg}</div>}
 
         <footer className="sp-save__footer">
           <div className="sp-save__footerLeft">
@@ -276,11 +253,7 @@ export default function StudyPositionSaveModal() {
             <Button variant="ghost" onClick={() => closeModal()} disabled={isSaving}>
               {"キャンセル"}
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              disabled={!sfen || isSaving}
-            >
+            <Button variant="primary" onClick={handleSave} disabled={!sfen || isSaving}>
               {saveLabel}
             </Button>
           </div>

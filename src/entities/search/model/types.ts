@@ -97,12 +97,8 @@ export type PositionSearchContextType = {
     consistency?: Consistency;
   }) => Promise<SearchPositionOutput>;
 
-  getSessionByRequestId: (
-    requestId: RequestId | null | undefined,
-  ) => SearchSession | null;
-  getHitsByRequestId: (
-    requestId: RequestId | null | undefined,
-  ) => PositionHit[];
+  getSessionByRequestId: (requestId: RequestId | null | undefined) => SearchSession | null;
+  getHitsByRequestId: (requestId: RequestId | null | undefined) => PositionHit[];
   isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
   getAbsPathByFileId: (fileId: number) => string | null;
   resolveHitAbsPath: (hit: PositionHit) => string | null;

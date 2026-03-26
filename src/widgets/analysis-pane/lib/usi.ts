@@ -48,9 +48,6 @@ export function convertCandidateToSenteView(
 ): AnalysisCandidate {
   return {
     ...candidate,
-    evaluation: convertEvaluationToSenteView(
-      candidate.evaluation ?? null,
-      currentTurn,
-    ),
+    evaluation: convertEvaluationToSenteView(candidate.evaluation ?? null, currentTurn),
   };
 }

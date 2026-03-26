@@ -83,20 +83,11 @@ function Modal({
           onClick={(e) => e.stopPropagation()}
         >
           {showCloseButton && (
-            <button
-              type="button"
-              className="modal__close"
-              aria-label="閉じる"
-              onClick={onClose}
-            >
+            <button type="button" className="modal__close" aria-label="閉じる" onClick={onClose}>
               <X size={18} />
             </button>
           )}
-          {scroll === "content" ? (
-            <div className="modal__body">{children}</div>
-          ) : (
-            children
-          )}
+          {scroll === "content" ? <div className="modal__body">{children}</div> : children}
         </div>
       </div>
     </div>,

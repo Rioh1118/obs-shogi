@@ -60,9 +60,7 @@ function Board() {
   };
 
   const isSelectedSquare = (x: number, y: number) =>
-    selectedPosition?.type === "square" &&
-    selectedPosition.x === x &&
-    selectedPosition.y === y;
+    selectedPosition?.type === "square" && selectedPosition.x === x && selectedPosition.y === y;
 
   const handleSquareClick = async (x: number, y: number) => {
     if (!view.player) return;
@@ -80,9 +78,7 @@ function Board() {
       }
 
       // 合法手かどうかチェック
-      const targetMove = legalMoves.find(
-        (move) => move.to.x === x && move.to.y === y,
-      );
+      const targetMove = legalMoves.find((move) => move.to.x === x && move.to.y === y);
 
       if (targetMove) {
         // 移動元の駒情報を取得
@@ -127,51 +123,44 @@ function Board() {
     selectSquare(x, y);
   };
 
-  const squares = Array.from(
-    { length: BOARD_SIZE.TOTAL_SQUARES },
-    (_, index) => {
-      const { x, y } = indexToCoords(index);
-      const piece = shogi.get(x, y);
-      const isPromotionSquare =
-        promotionState !== null &&
-        promotionState.x === x &&
-        promotionState.y === y;
+  const squares = Array.from({ length: BOARD_SIZE.TOTAL_SQUARES }, (_, index) => {
+    const { x, y } = indexToCoords(index);
+    const piece = shogi.get(x, y);
+    const isPromotionSquare =
+      promotionState !== null && promotionState.x === x && promotionState.y === y;
 
-      return (
-        <Square
-          key={index}
-          x={x}
-          y={y}
-          index={index}
-          isSelected={isSelectedSquare(x, y)}
-          isHighlighted={isSquareHighlighted(x, y)}
-          isLastMove={isLastMove(x, y)}
-          onClick={() => handleSquareClick(x, y)}
-        >
-          {piece && (
-            <PieceFactory
-              jkfKind={piece.kind}
-              color={piece.color}
-              isPromoted={Piece.isPromoted(piece.kind)}
-              onClick={() =>
-                console.log(`Piece clicked: ${piece.kind} at ${x}${y}`)
-              }
-            />
-          )}
-          {isPromotionSquare && (
-            <PromotionDialog
-              jkfKind={promotionState.jkfKind}
-              color={promotionState.color}
-              setPromote={(promote) => {
-                promotionState.resolve(promote);
-                setTimeout(() => setPromotionState(null), 0);
-              }}
-            />
-          )}
-        </Square>
-      );
-    },
-  );
+    return (
+      <Square
+        key={index}
+        x={x}
+        y={y}
+        index={index}
+        isSelected={isSelectedSquare(x, y)}
+        isHighlighted={isSquareHighlighted(x, y)}
+        isLastMove={isLastMove(x, y)}
+        onClick={() => handleSquareClick(x, y)}
+      >
+        {piece && (
+          <PieceFactory
+            jkfKind={piece.kind}
+            color={piece.color}
+            isPromoted={Piece.isPromoted(piece.kind)}
+            onClick={() => console.log(`Piece clicked: ${piece.kind} at ${x}${y}`)}
+          />
+        )}
+        {isPromotionSquare && (
+          <PromotionDialog
+            jkfKind={promotionState.jkfKind}
+            color={promotionState.color}
+            setPromote={(promote) => {
+              promotionState.resolve(promote);
+              setTimeout(() => setPromotionState(null), 0);
+            }}
+          />
+        )}
+      </Square>
+    );
+  });
 
   return (
     <div className="board-container">

@@ -35,7 +35,5 @@ export function mergeBranchPlan(
 
 export function sameForkPointers(a: ForkPointer[], b: ForkPointer[]) {
   if (a.length !== b.length) return false;
-  return a.every(
-    (x, i) => x.te === b[i]?.te && x.forkIndex === b[i]?.forkIndex,
-  );
+  return a.every((x, i) => x.te === b[i]?.te && x.forkIndex === b[i]?.forkIndex);
 }

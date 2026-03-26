@@ -34,8 +34,7 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
   const { state, view, getTotalMoves } = useGame();
 
   return useMemo(() => {
-    const selectedFilePath =
-      selectedNode && !selectedNode.isDirectory ? selectedNode.path : null;
+    const selectedFilePath = selectedNode && !selectedNode.isDirectory ? selectedNode.path : null;
 
     const fileLabel = !hasFile
       ? "ファイル未選択"
@@ -100,12 +99,5 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
       totalText,
       tooltip,
     };
-  }, [
-    hasFile,
-    selectedNode,
-    jkfData,
-    view.player,
-    state.cursor,
-    getTotalMoves,
-  ]);
+  }, [hasFile, selectedNode, jkfData, view.player, state.cursor, getTotalMoves]);
 }

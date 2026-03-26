@@ -1,10 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 
 import { SButton, SField, SInput, SSection, SSelect } from "../../kit";
-import {
-  pickDefaultBookDb,
-  pickDefaultEvalFile,
-} from "@/features/settings/lib/presetDialog";
+import { pickDefaultBookDb, pickDefaultEvalFile } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 
@@ -41,10 +38,7 @@ export default function BasicSection(props: {
 
   const profileOptions = useMemo(() => {
     return profiles.map((p) => {
-      const tag = [
-        p.has_eval_dir ? null : "evalなし",
-        p.has_book_dir ? null : "bookなし",
-      ]
+      const tag = [p.has_eval_dir ? null : "evalなし", p.has_book_dir ? null : "bookなし"]
         .filter(Boolean)
         .join(" / ");
 
@@ -59,11 +53,7 @@ export default function BasicSection(props: {
   return (
     <SSection title="基本" description="表示名とAI_ROOT / プロファイル選択">
       <div className="presetDialog__grid2">
-        <SField
-          label="プリセット名"
-          htmlFor="preset-label"
-          error={errors.label}
-        >
+        <SField label="プリセット名" htmlFor="preset-label" error={errors.label}>
           <SInput
             id="preset-label"
             value={draft.label}
@@ -75,11 +65,7 @@ export default function BasicSection(props: {
 
         <SField
           label="AI_ROOT"
-          description={
-            aiRoot
-              ? `現在: ${aiRoot}`
-              : "未設定です。AI_ROOT を選択してください。"
-          }
+          description={aiRoot ? `現在: ${aiRoot}` : "未設定です。AI_ROOT を選択してください。"}
         >
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <SButton variant="ghost" size="sm" onClick={() => chooseAiRoot?.()}>
@@ -98,11 +84,7 @@ export default function BasicSection(props: {
           </div>
 
           {indexStatus === "error" && indexError && (
-            <div
-              className="engineTab__error"
-              role="alert"
-              style={{ marginTop: 10 }}
-            >
+            <div className="engineTab__error" role="alert" style={{ marginTop: 10 }}>
               {indexError}
             </div>
           )}

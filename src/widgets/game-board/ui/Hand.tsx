@@ -27,8 +27,7 @@ function Hand({ isSente }: HandProps) {
     nth: number;
   } | null>(null);
 
-  const isThisHandSelected =
-    selectedPosition?.type === "hand" && selectedPosition.color === color;
+  const isThisHandSelected = selectedPosition?.type === "hand" && selectedPosition.color === color;
 
   const isSelectedThisPiece = (pieceKind: string, nth: number) => {
     return (
@@ -79,11 +78,7 @@ function Hand({ isSente }: HandProps) {
     clearSelection();
   };
 
-  const renderPiecesInRow = (
-    pieces: string[],
-    rowConfig: RowConfig,
-    occ: Map<string, number>,
-  ) => {
+  const renderPiecesInRow = (pieces: string[], rowConfig: RowConfig, occ: Map<string, number>) => {
     return pieces.map((pieceKind) => {
       const nth = occ.get(pieceKind) ?? 0;
       occ.set(pieceKind, nth + 1);
@@ -124,26 +119,25 @@ function Hand({ isSente }: HandProps) {
       onPointerDown={handleHandAreaPointerDown}
     >
       <div className="hand-pieces">
-        {(isSente
-          ? ["row1", "row2", "row3", "row4"]
-          : ["row4", "row3", "row2", "row1"]
-        ).map((rowKey) => {
-          const pieces = arrangedPieces[rowKey as keyof typeof arrangedPieces];
-          const rowConfig = layoutConfig.getRowConfig(pieces);
+        {(isSente ? ["row1", "row2", "row3", "row4"] : ["row4", "row3", "row2", "row1"]).map(
+          (rowKey) => {
+            const pieces = arrangedPieces[rowKey as keyof typeof arrangedPieces];
+            const rowConfig = layoutConfig.getRowConfig(pieces);
 
-          return (
-            <div
-              key={rowKey}
-              className={`hand-row hand-${rowKey}`}
-              style={{
-                gap: `${rowConfig.gap}em`,
-                justifyContent: "center",
-              }}
-            >
-              {renderPiecesInRow(pieces, rowConfig, occ)}
-            </div>
-          );
-        })}
+            return (
+              <div
+                key={rowKey}
+                className={`hand-row hand-${rowKey}`}
+                style={{
+                  gap: `${rowConfig.gap}em`,
+                  justifyContent: "center",
+                }}
+              >
+                {renderPiecesInRow(pieces, rowConfig, occ)}
+              </div>
+            );
+          },
+        )}
       </div>
     </div>
   );

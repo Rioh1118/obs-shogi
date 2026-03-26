@@ -1,9 +1,6 @@
 import type { EngineRuntimeConfig } from "../model/types";
 
-export function shallowEqualOptions(
-  a: Record<string, string>,
-  b: Record<string, string>,
-) {
+export function shallowEqualOptions(a: Record<string, string>, b: Record<string, string>) {
   const ak = Object.keys(a);
   const bk = Object.keys(b);
   if (ak.length !== bk.length) return false;

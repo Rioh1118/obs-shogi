@@ -1,9 +1,6 @@
 import type { FileTreeAction, FileTreeState } from "./types";
 
-export function reducer(
-  state: FileTreeState,
-  action: FileTreeAction,
-): FileTreeState {
+export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeState {
   switch (action.type) {
     case "loading":
       return { ...state, isLoading: true, error: null };
@@ -91,14 +88,9 @@ export function reducer(
       return {
         ...state,
         activeKifuPath: action.payload.path,
-        jkfData:
-          action.payload.path === null
-            ? null
-            : (action.payload.jkfData ?? state.jkfData),
+        jkfData: action.payload.path === null ? null : (action.payload.jkfData ?? state.jkfData),
         kifuFormat:
-          action.payload.path === null
-            ? null
-            : (action.payload.format ?? state.kifuFormat),
+          action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
       };
 
     case "error":

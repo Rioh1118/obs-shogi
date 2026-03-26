@@ -45,10 +45,7 @@ export interface AnalysisStatus {
   analysis_count: number;
 }
 
-export type EvaluationKind =
-  | "Centipawn"
-  | { MateInMoves: number }
-  | { MateUnknown: boolean };
+export type EvaluationKind = "Centipawn" | { MateInMoves: number } | { MateUnknown: boolean };
 
 export interface Evaluation {
   value: number;

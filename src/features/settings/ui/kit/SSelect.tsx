@@ -14,16 +14,14 @@ type Props = Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> & {
   size?: "sm" | "md" | "lg";
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 const SSelect = forwardRef<HTMLSelectElement, Props>(function SSelect(
   { className, options, placeholder, invalid, size = "md", value, ...rest },
   ref,
 ) {
   const v = value ?? "";
-  const hasPlaceholder =
-    typeof placeholder === "string" && placeholder.length > 0;
+  const hasPlaceholder = typeof placeholder === "string" && placeholder.length > 0;
 
   return (
     <div

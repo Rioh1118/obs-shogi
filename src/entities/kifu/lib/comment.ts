@@ -1,8 +1,5 @@
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
-import {
-  normalizeForkPointers,
-  type KifuCursor,
-} from "@/entities/kifu/model/cursor";
+import { normalizeForkPointers, type KifuCursor } from "@/entities/kifu/model/cursor";
 
 function shallowEqualStringArray(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
@@ -37,10 +34,7 @@ export function normalizeCommentLines(comments: string[]): string[] {
  * cursor.forkPointers には future plan が含まれうるので、
  * 現在 tesuu 以下だけを適用する。
  */
-export function getMoveByCursor(
-  jkf: JKFData,
-  cursor: KifuCursor | null,
-): JKFMove | null {
+export function getMoveByCursor(jkf: JKFData, cursor: KifuCursor | null): JKFMove | null {
   if (!cursor) return null;
 
   let stream: JKFMove[] = jkf.moves;
@@ -63,10 +57,7 @@ export function getMoveByCursor(
   return stream[localIndex] ?? null;
 }
 
-export function getCommentsByCursor(
-  jkf: JKFData,
-  cursor: KifuCursor | null,
-): string[] {
+export function getCommentsByCursor(jkf: JKFData, cursor: KifuCursor | null): string[] {
   const move = getMoveByCursor(jkf, cursor);
   if (!move?.comments) return [];
   return normalizeCommentLines(move.comments);

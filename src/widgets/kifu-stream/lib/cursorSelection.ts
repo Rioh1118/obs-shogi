@@ -1,8 +1,4 @@
-import type {
-  ForkPointer,
-  KifuCursor,
-  TesuuPointer,
-} from "@/entities/kifu/model/cursor";
+import type { ForkPointer, KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
 import type { RowModel } from "../ui/KifuMoveCard";
 
 export const branchIndexFromRow = (r: RowModel): number => {
@@ -21,12 +17,10 @@ export function buildCursorWithForkSelection(
   };
 
   const prefix = (prev.forkPointers ?? []).filter((p) => p.te < te);
-  const forkPointers: ForkPointer[] =
-    forkIndex == null ? prefix : [...prefix, { te, forkIndex }];
+  const forkPointers: ForkPointer[] = forkIndex == null ? prefix : [...prefix, { te, forkIndex }];
 
   const tesuu = te;
-  const tesuuPointer =
-    `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
+  const tesuuPointer = `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
 
   return { tesuu, forkPointers, tesuuPointer };
 }

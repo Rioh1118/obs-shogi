@@ -146,10 +146,7 @@ export interface GameContextType {
   deleteBranch: (q: DeleteQuery) => Promise<void>;
 
   getCommentsByCursor: (cursor: KifuCursor | null) => string[];
-  setCommentsByCursor: (
-    cursor: KifuCursor,
-    comments: string[],
-  ) => Promise<void>;
+  setCommentsByCursor: (cursor: KifuCursor, comments: string[]) => Promise<void>;
   setCurrentComments: (comments: string[]) => Promise<void>;
 
   clearError: () => void;

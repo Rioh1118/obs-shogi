@@ -13,12 +13,7 @@ function PromLance({ color, onClick }: PieceProps) {
       data-piece="prom-lance"
       data-color={color}
     >
-      <img
-        src={imagePath}
-        alt="成香"
-        className="piece-image"
-        draggable={false}
-      />
+      <img src={imagePath} alt="成香" className="piece-image" draggable={false} />
     </div>
   );
 }

@@ -10,10 +10,7 @@ export const initialState: AnalysisState = {
   error: null,
 };
 
-export function analysisReducer(
-  state: AnalysisState,
-  action: AnalysisAction,
-): AnalysisState {
+export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
     case "start_analysis":
       return {

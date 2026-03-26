@@ -12,10 +12,7 @@ export function indexToCoords(index: number): { x: number; y: number } {
 }
 
 // 座標からインデックスに変換（1-indexed）
-export function coordsToArrayIndex(
-  x: number,
-  y: number,
-): { row: number; col: number } {
+export function coordsToArrayIndex(x: number, y: number): { row: number; col: number } {
   return { row: y - 1, col: 9 - x };
 }
 
@@ -32,9 +29,7 @@ export function arrayIndexToCoords(index: number): { x: number; y: number } {
 }
 
 // 将棋の座標表記（9一、8二など）から数値座標に変換
-export function shogiNotationToCoords(
-  notation: string,
-): { x: number; y: number } | null {
+export function shogiNotationToCoords(notation: string): { x: number; y: number } | null {
   if (notation.length !== 2) return null;
 
   const xChar = notation[0];
@@ -81,20 +76,14 @@ export function coordsToShogiNotation(x: number, y: number): string | null {
 }
 
 // 2つの座標間の距離を計算
-export function getDistance(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): number {
+export function getDistance(from: { x: number; y: number }, to: { x: number; y: number }): number {
   const dx = Math.abs(to.x - from.x);
   const dy = Math.abs(to.y - from.y);
   return Math.sqrt(dx * dx + dy * dy);
 }
 
 // 2つの座標が同じかチェック
-export function isSameCoords(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-): boolean {
+export function isSameCoords(a: { x: number; y: number }, b: { x: number; y: number }): boolean {
   return a.x === b.x && a.y === b.y;
 }
 
@@ -113,10 +102,7 @@ export function isInRange(
 }
 
 // 盤面を180度回転した座標を取得（相手視点）
-export function getFlippedCoords(
-  x: number,
-  y: number,
-): { x: number; y: number } {
+export function getFlippedCoords(x: number, y: number): { x: number; y: number } {
   return {
     x: BOARD_SIZE.WIDTH + 1 - x,
     y: BOARD_SIZE.HEIGHT + 1 - y,

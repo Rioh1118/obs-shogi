@@ -150,9 +150,7 @@ export function TagsInput({
               onKeyDown={handleKeyDown}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
-              placeholder={
-                tags.length >= maxTags ? "最大タグ数に達しました" : placeholder
-              }
+              placeholder={tags.length >= maxTags ? "最大タグ数に達しました" : placeholder}
               disabled={disabled || tags.length >= maxTags}
             />
 

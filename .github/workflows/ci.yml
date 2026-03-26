@@ -120,10 +120,3 @@ jobs:
           CI: "true"
         with:
           args: ${{ matrix.args }}
-
-          uploadPlainBinary: true
-
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: "obs-shogi-[platform]-[arch]-[bundle]"
-
-          uploadUpdaterJson: false

@@ -1,7 +1,4 @@
-import type {
-  Evaluation,
-  EvaluationKind,
-} from "@/entities/engine/api/rust-types";
+import type { Evaluation, EvaluationKind } from "@/entities/engine/api/rust-types";
 import { Color, Record } from "tsshogi";
 // 変換後の指し手データ型
 export interface ConvertedMove {
@@ -10,10 +7,7 @@ export interface ConvertedMove {
 }
 
 // SFEN手順配列を日本語データ配列に変換
-export function convertSfenSequence(
-  sfen: string | null,
-  sfenMoves: string[],
-): ConvertedMove[] {
+export function convertSfenSequence(sfen: string | null, sfenMoves: string[]): ConvertedMove[] {
   if (!sfen) {
     return [];
   }

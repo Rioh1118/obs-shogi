@@ -16,26 +16,14 @@ export class ShogiMoveValidator implements MoveValidator {
   isLegalMove(shogi: Shogi, move: ShogiMove): boolean {
     try {
       if (move.from) {
-        const legalMoves = this.getLegalMovesFrom(
-          shogi,
-          move.from.x,
-          move.from.y,
-        );
-        return legalMoves.some(
-          (legal) => legal.to.x === move.to.x && legal.to.y === move.to.y,
-        );
+        const legalMoves = this.getLegalMovesFrom(shogi, move.from.x, move.from.y);
+        return legalMoves.some((legal) => legal.to.x === move.to.x && legal.to.y === move.to.y);
       } else {
         if (!move.color || !move.kind) return false;
 
-        const legalDrops = this.getLegalDropsByKind(
-          shogi,
-          move.color,
-          move.kind,
-        );
+        const legalDrops = this.getLegalDropsByKind(shogi, move.color, move.kind);
 
-        return legalDrops.some(
-          (legal) => legal.to.x === move.to.x && legal.to.y === move.to.y,
-        );
+        return legalDrops.some((legal) => legal.to.x === move.to.x && legal.to.y === move.to.y);
       }
     } catch {
       return false;
@@ -77,9 +65,7 @@ export class ShogiMoveValidator implements MoveValidator {
     // 指定駒種でフィルタ + 制約チェック + 王手放置チェック
     return allDrops
       .filter((move) => move.kind === kind)
-      .filter((move) =>
-        canDropPieceAt(shogi, kind, move.to.x, move.to.y, color),
-      )
+      .filter((move) => canDropPieceAt(shogi, kind, move.to.x, move.to.y, color))
       .filter((move) => !wouldBeInCheckAfterMove(shogi, move));
   }
 

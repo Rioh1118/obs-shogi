@@ -20,19 +20,9 @@ function CreateFileModal() {
   if (!isOpen) return null;
 
   return (
-    <Modal
-      onClose={() => closeModal()}
-      theme="light"
-      variant="dialog"
-      size="md"
-      scroll="card"
-    >
+    <Modal onClose={() => closeModal()} theme="light" variant="dialog" size="md" scroll="card">
       <div className="create-file-modal">
-        <div
-          className="create-file-modal__tabs"
-          role="tablist"
-          aria-label="ファイル作成"
-        >
+        <div className="create-file-modal__tabs" role="tablist" aria-label="ファイル作成">
           <button
             type="button"
             role="tab"
@@ -55,15 +45,9 @@ function CreateFileModal() {
 
         <div className="create-file-modal__body">
           {tab === "create" ? (
-            <FileCreateForm
-              toggleModal={() => closeModal()}
-              dirPath={params.dir || ""}
-            />
+            <FileCreateForm toggleModal={() => closeModal()} dirPath={params.dir || ""} />
           ) : (
-            <KifuImportForm
-              toggleModal={() => closeModal()}
-              dirPath={params.dir || ""}
-            />
+            <KifuImportForm toggleModal={() => closeModal()} dirPath={params.dir || ""} />
           )}
         </div>
       </div>

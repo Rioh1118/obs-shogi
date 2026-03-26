@@ -7,11 +7,7 @@ import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  DROP_ID,
-  type DragData,
-  type DropData,
-} from "@/widgets/file-tree/lib/dnd";
+import { DROP_ID, type DragData, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
@@ -66,8 +62,7 @@ function DirectoryNode({
     setDropRef(el);
   };
 
-  const showCreateRow =
-    isOpen && creatingDirParentPath === node.path && !isRenaming;
+  const showCreateRow = isOpen && creatingDirParentPath === node.path && !isRenaming;
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -123,10 +118,7 @@ function DirectoryNode({
         {...listeners}
         action={
           isHovered ? (
-            <TreeNodeActions
-              nodePath={node.path}
-              isDirectory={node.isDirectory}
-            />
+            <TreeNodeActions nodePath={node.path} isDirectory={node.isDirectory} />
           ) : undefined
         }
       >

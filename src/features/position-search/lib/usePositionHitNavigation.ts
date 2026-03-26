@@ -61,13 +61,7 @@ export function usePositionHitNavigation() {
 
     applyCursor(cursorFromLite(p.cursor));
     pendingRef.current = null;
-  }, [
-    applyCursor,
-    gameState.isLoading,
-    gameView.player,
-    gameState.loadedAbsPath,
-    selectedNode,
-  ]);
+  }, [applyCursor, gameState.isLoading, gameView.player, gameState.loadedAbsPath, selectedNode]);
 
   return { navigateToHit };
 }

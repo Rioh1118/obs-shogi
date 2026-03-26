@@ -30,10 +30,7 @@ function HandRow({ label, kinds, toKan }: Props) {
             const n = counts.get(kind) ?? 0;
             const text = n >= 2 ? `${toKan(kind)}×${n}` : `${toKan(kind)}`;
             return (
-              <span
-                key={`${label}-${kind}`}
-                className="position-navigation-modal__hand-chip"
-              >
+              <span key={`${label}-${kind}`} className="position-navigation-modal__hand-chip">
                 {text}
               </span>
             );

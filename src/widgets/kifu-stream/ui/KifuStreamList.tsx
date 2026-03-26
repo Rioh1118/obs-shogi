@@ -8,10 +8,7 @@ import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { cloneJKF } from "../lib/cloneJKF";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
-import {
-  branchIndexFromRow,
-  buildCursorWithForkSelection,
-} from "../lib/cursorSelection";
+import { branchIndexFromRow, buildCursorWithForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
 
@@ -23,15 +20,8 @@ type OpenCommentNote = {
 };
 
 export default function KifuStreamList() {
-  const {
-    state,
-    view,
-    goToIndex,
-    getTotalMoves,
-    applyCursor,
-    deleteBranch,
-    swapBranches,
-  } = useGame();
+  const { state, view, goToIndex, getTotalMoves, applyCursor, deleteBranch, swapBranches } =
+    useGame();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeRowRef = useRef<HTMLDivElement | null>(null);
@@ -104,11 +94,7 @@ export default function KifuStreamList() {
   );
 
   const onDeleteBranch = useCallback(
-    async (
-      te: number,
-      branchForkPointers: ForkPointer[],
-      branchIndex: number,
-    ) => {
+    async (te: number, branchForkPointers: ForkPointer[], branchIndex: number) => {
       const q: DeleteQuery = {
         te,
         forkPointers: branchForkPointers,
@@ -123,11 +109,7 @@ export default function KifuStreamList() {
     (row: RowModel, anchorEl: HTMLButtonElement) => {
       if (!plannedCursor) return;
 
-      const cursor = buildCursorWithForkSelection(
-        plannedCursor,
-        row.te,
-        row.selectedForkIndex,
-      );
+      const cursor = buildCursorWithForkSelection(plannedCursor, row.te, row.selectedForkIndex);
 
       setOpenFork(null);
       setOpenMoveMenu(null);
@@ -185,18 +167,13 @@ export default function KifuStreamList() {
     const rowEl = activeRowRef.current;
     if (!scroller || !rowEl) return;
 
-    const reduced =
-      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
 
     const now = performance.now();
     const dt = now - lastScrollAtRef.current;
     lastScrollAtRef.current = now;
 
-    const behavior: ScrollBehavior = reduced
-      ? "auto"
-      : dt < 120
-        ? "auto"
-        : "smooth";
+    const behavior: ScrollBehavior = reduced ? "auto" : dt < 120 ? "auto" : "smooth";
 
     scrollToRowSafeZone(scroller, rowEl, behavior);
   }, [state.cursor?.tesuuPointer]);
@@ -210,25 +187,21 @@ export default function KifuStreamList() {
     [goToIndex, closeForkMenu],
   );
 
-  const onToggleForkMenu = useCallback(
-    (te: number, anchorEl: HTMLButtonElement) => {
-      lastAnchorRef.current = anchorEl;
-      setOpenComment(null);
-      setOpenMoveMenu(null);
-      setOpenFork((prev) => {
-        if (prev?.te === te) return null;
-        return { te, anchorEl };
-      });
-    },
-    [],
-  );
+  const onToggleForkMenu = useCallback((te: number, anchorEl: HTMLButtonElement) => {
+    lastAnchorRef.current = anchorEl;
+    setOpenComment(null);
+    setOpenMoveMenu(null);
+    setOpenFork((prev) => {
+      if (prev?.te === te) return null;
+      return { te, anchorEl };
+    });
+  }, []);
 
   const onSelectFork = useCallback(
     (te: number, forkIndex: number | null) => {
       if (!plannedCursor) return;
 
-      const currentIdx =
-        state.cursor?.forkPointers?.find((p) => p.te === te)?.forkIndex ?? null;
+      const currentIdx = state.cursor?.forkPointers?.find((p) => p.te === te)?.forkIndex ?? null;
 
       if (currentIdx === forkIndex) {
         closeForkMenu(true);
@@ -236,11 +209,7 @@ export default function KifuStreamList() {
         return;
       }
 
-      const nextCursor = buildCursorWithForkSelection(
-        plannedCursor,
-        te,
-        forkIndex,
-      );
+      const nextCursor = buildCursorWithForkSelection(plannedCursor, te, forkIndex);
       closeForkMenu(true);
       applyCursor(nextCursor);
     },
@@ -293,11 +262,8 @@ export default function KifuStreamList() {
           const isForkOpen = openFork?.te === r.te;
           const isCommentOpen =
             openComment?.cursor.tesuuPointer ===
-            buildCursorWithForkSelection(
-              plannedCursor ?? state.cursor!,
-              r.te,
-              r.selectedForkIndex,
-            ).tesuuPointer;
+            buildCursorWithForkSelection(plannedCursor ?? state.cursor!, r.te, r.selectedForkIndex)
+              .tesuuPointer;
 
           return (
             <KifuMoveCard

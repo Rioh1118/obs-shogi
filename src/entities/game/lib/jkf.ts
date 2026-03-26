@@ -10,10 +10,7 @@ export function cloneJkf(jkf: JKFData): JKFData {
   return JSON.parse(JSON.stringify(jkf)) as JKFData;
 }
 
-export function buildPlayer(
-  jkf: JKFData,
-  cursor: KifuCursor | null,
-): JKFPlayer {
+export function buildPlayer(jkf: JKFData, cursor: KifuCursor | null): JKFPlayer {
   const player = new JKFPlayer(jkf);
   applyCursorToPlayer(player, cursor);
   return player;

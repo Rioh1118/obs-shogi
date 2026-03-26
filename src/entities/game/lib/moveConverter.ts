@@ -18,16 +18,12 @@ export function fromIMove(
 }
 
 // StandardMoveFormat から IMoveMoveFormat への変換
-export function toIMoveMoveFormat(
-  standardMove: StandardMoveFormat,
-): IMoveMoveFormat {
+export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFormat {
   return {
     from: standardMove.from,
     to: standardMove.to,
     piece: standardMove.piece,
     color: standardMove.color,
-    ...(standardMove.promote !== undefined
-      ? { promote: standardMove.promote }
-      : {}),
+    ...(standardMove.promote !== undefined ? { promote: standardMove.promote } : {}),
   };
 }

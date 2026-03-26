@@ -23,9 +23,7 @@ function FolderSelect() {
   return (
     <div className="container">
       <Title />
-      <p className="guide--text">
-        あなたの定跡を整理するノートアプリへようこそ
-      </p>
+      <p className="guide--text">あなたの定跡を整理するノートアプリへようこそ</p>
       <button onClick={handleClick} className="guide__btn--big">
         <span className="folder-icon">📁</span>フォルダを選択
       </button>

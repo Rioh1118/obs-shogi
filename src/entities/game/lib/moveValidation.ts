@@ -12,10 +12,7 @@ export function isInCheck(shogi: Shogi, color: Color): boolean {
  * 特定の手が王手放置になるかチェック
  * SFENを使った状態保存・復元アプローチ
  */
-export function wouldBeInCheckAfterMove(
-  shogi: Shogi,
-  move: ShogiMove,
-): boolean {
+export function wouldBeInCheckAfterMove(shogi: Shogi, move: ShogiMove): boolean {
   try {
     // 現在の局面をSFENで保存
     const currentSfen = shogi.toSFENString();
@@ -33,11 +30,7 @@ export function wouldBeInCheckAfterMove(
     // 手を指した側の色を判定
     const movingColor =
       move.color ||
-      (move.from
-        ? testShogi.turn === Color.Black
-          ? Color.White
-          : Color.Black
-        : move.color!);
+      (move.from ? (testShogi.turn === Color.Black ? Color.White : Color.Black) : move.color!);
 
     return testShogi.isCheck(movingColor);
   } catch {
@@ -48,11 +41,7 @@ export function wouldBeInCheckAfterMove(
 /**
  * (二歩チェック): 指定した列に指定した色の歩があるかチェック
  */
-export function hasFuInColumn(
-  shogi: Shogi,
-  column: number,
-  color: Color,
-): boolean {
+export function hasFuInColumn(shogi: Shogi, column: number, color: Color): boolean {
   for (let y = 1; y <= 9; y++) {
     const piece = shogi.get(column, y);
     if (piece && piece.color === color && piece.kind === "FU") {
@@ -65,12 +54,7 @@ export function hasFuInColumn(
 /**
  * 歩の駒打ち制約チェック(二歩禁止、1段目禁止)
  */
-export function canDropFu(
-  shogi: Shogi,
-  x: number,
-  y: number,
-  color: Color,
-): boolean {
+export function canDropFu(shogi: Shogi, x: number, y: number, color: Color): boolean {
   // 二歩チェック
   if (hasFuInColumn(shogi, x, color)) {
     return false;
@@ -199,8 +183,7 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
     testShogi.drop(move.to.x, move.to.y, move.kind, move.color!);
 
     // 相手の色を取得
-    const opponentColor =
-      move.color === Color.Black ? Color.White : Color.Black;
+    const opponentColor = move.color === Color.Black ? Color.White : Color.Black;
 
     // 相手が王手されているかチェック
     if (!testShogi.isCheck(opponentColor)) {
@@ -235,9 +218,7 @@ export function getAllPossibleMoves(shogi: Shogi, color: Color): ShogiMove[] {
       const piece = shogi.get(x, y);
       if (piece && piece.color === color) {
         const basicMoves = shogi.getMovesFrom(x, y);
-        const legalMoves = basicMoves.filter(
-          (move) => !wouldBeInCheckAfterMove(shogi, move),
-        );
+        const legalMoves = basicMoves.filter((move) => !wouldBeInCheckAfterMove(shogi, move));
         moves.push(...legalMoves);
       }
     }
@@ -260,9 +241,7 @@ export function getAllPossibleMoves(shogi: Shogi, color: Color): ShogiMove[] {
       const allDrops = shogi.getDropsBy(color);
       const kindDrops = allDrops
         .filter((move) => move.kind === kind)
-        .filter((move) =>
-          canDropPieceAt(shogi, kind, move.to.x, move.to.y, color),
-        )
+        .filter((move) => canDropPieceAt(shogi, kind, move.to.x, move.to.y, color))
         .filter((move) => !wouldBeInCheckAfterMove(shogi, move));
       moves.push(...kindDrops);
     }

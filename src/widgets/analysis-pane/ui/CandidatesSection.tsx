@@ -25,9 +25,7 @@ function CandidatesSection({
           evaluation={candidateEvaluations[index]}
         />
       ))}
-      {candidateSequences.length === 0 && (
-        <p className="candidates-section__empty">候補手なし</p>
-      )}
+      {candidateSequences.length === 0 && <p className="candidates-section__empty">候補手なし</p>}
     </section>
   );
 }

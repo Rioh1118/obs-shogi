@@ -26,18 +26,10 @@ import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
 import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
-import {
-  deleteBranchInKifu,
-  swapBranchesInKifu,
-} from "@/entities/kifu/lib/branchEdit";
+import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
 import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
 import { buildPlayer, cloneJkf } from "../lib/jkf";
-import {
-  cursorFromPlayer,
-  lastMovePlayer,
-  mergeBranchPlan,
-  sameForkPointers,
-} from "../lib/cursor";
+import { cursorFromPlayer, lastMovePlayer, mergeBranchPlan, sameForkPointers } from "../lib/cursor";
 import {
   setCommentsByCursorInJkf,
   getCommentsByCursor as getCommentsByCursorFromJkf,
@@ -115,17 +107,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         const sel = state.selectedPosition;
         if (sel) {
           if (sel.type === "square") {
-            legalMoves = moveValidator.getLegalMovesFrom(
-              player.shogi,
-              sel.x,
-              sel.y,
-            );
+            legalMoves = moveValidator.getLegalMovesFrom(player.shogi, sel.x, sel.y);
           } else {
-            legalMoves = moveValidator.getLegalDropsByKind(
-              player.shogi,
-              sel.color,
-              sel.kind,
-            );
+            legalMoves = moveValidator.getLegalDropsByKind(player.shogi, sel.color, sel.kind);
           }
         }
       } catch {
@@ -152,13 +136,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         totalMoves: 0,
       };
     }
-  }, [
-    state.jkf,
-    state.cursor,
-    state.branchPlan,
-    state.selectedPosition,
-    moveValidator,
-  ]);
+  }, [state.jkf, state.cursor, state.branchPlan, state.selectedPosition, moveValidator]);
 
   const navigate = useCallback(
     (
@@ -171,8 +149,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "clear_error" });
 
         const player = buildPlayer(state.jkf, state.cursor);
-        const beforePointer =
-          state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+        const beforePointer = state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
 
         const result = run(player, state.branchPlan);
         if (result === false) return;
@@ -216,8 +193,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         const nextJkf = cloneJkf(state.jkf);
         const player = buildPlayer(nextJkf, state.cursor);
-        const beforePointer =
-          state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+        const beforePointer = state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
 
         const result = run(player, nextJkf);
         if (result === false) return;
@@ -474,9 +450,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         const currentTurn = shogi.turn;
 
         if (state.selectedPosition?.type === "hand") {
-          const dropMove = view.legalMoves.find(
-            (m) => m.to.x === x && m.to.y === y,
-          );
+          const dropMove = view.legalMoves.find((m) => m.to.x === x && m.to.y === y);
 
           if (dropMove) {
             const standardMove = fromIMove(
@@ -492,30 +466,17 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         }
 
         if (state.selectedPosition?.type === "square") {
-          if (
-            state.selectedPosition.x === x &&
-            state.selectedPosition.y === y
-          ) {
+          if (state.selectedPosition.x === x && state.selectedPosition.y === y) {
             dispatch({ type: "clear_selection" });
             return;
           }
 
-          const move = view.legalMoves.find(
-            (m) => m.to.x === x && m.to.y === y,
-          );
+          const move = view.legalMoves.find((m) => m.to.x === x && m.to.y === y);
 
           if (move) {
-            const fromPiece = shogi.get(
-              state.selectedPosition.x,
-              state.selectedPosition.y,
-            );
+            const fromPiece = shogi.get(state.selectedPosition.x, state.selectedPosition.y);
             if (fromPiece) {
-              const standardMove = fromIMove(
-                move,
-                fromPiece.kind,
-                fromPiece.color,
-                promote,
-              );
+              const standardMove = fromIMove(move, fromPiece.kind, fromPiece.color, promote);
               await makeMove(standardMove);
             }
             return;
@@ -560,11 +521,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return;
         }
 
-        const legalMoves = moveValidator.getLegalDropsByKind(
-          player.shogi,
-          color,
-          kind,
-        );
+        const legalMoves = moveValidator.getLegalDropsByKind(player.shogi, color, kind);
 
         if (legalMoves.length === 0) {
           dispatch({ type: "clear_selection" });
@@ -609,10 +566,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     return (state.cursor?.tesuu ?? 0) > 0;
   }, [state.cursor]);
 
-  const getCurrentTurn = useCallback(
-    () => view.currentTurn,
-    [view.currentTurn],
-  );
+  const getCurrentTurn = useCallback(() => view.currentTurn, [view.currentTurn]);
 
   const getCurrentMoveIndex = useCallback(() => {
     return state.cursor?.tesuu ?? 0;
@@ -641,11 +595,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         const nextPlayer = buildPlayer(state.jkf, cursor);
         const nextCursor = cursorFromPlayer(nextPlayer);
-        const nextBranchPlan = mergeBranchPlan(
-          nextCursor,
-          state.branchPlan,
-          cursor.forkPointers,
-        );
+        const nextBranchPlan = mergeBranchPlan(nextCursor, state.branchPlan, cursor.forkPointers);
 
         dispatch({
           type: "navigated",
@@ -721,7 +671,5 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     applyCursor,
   };
 
-  return (
-    <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>
-  );
+  return <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>;
 }

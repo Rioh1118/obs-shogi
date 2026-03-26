@@ -22,14 +22,9 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <div className="confirm-dialog-overlay" onClick={onCancel}>
-      <div
-        className="confirm-dialog"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
         <p className="confirm-dialog__title">{title}</p>
-        {subtitle && (
-          <p className="confirm-dialog__sub">{subtitle}</p>
-        )}
+        {subtitle && <p className="confirm-dialog__sub">{subtitle}</p>}
         <div className="confirm-dialog__actions">
           <Button variant="ghost" onClick={onCancel} disabled={isLoading}>
             {cancelLabel}

@@ -1,12 +1,5 @@
 import { isTauri } from "@tauri-apps/api/core";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
@@ -208,9 +201,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       } catch (e) {
         dispatch({
           type: "set_error",
-          payload: `Failed to restart analysis: ${
-            e instanceof Error ? e.message : String(e)
-          }`,
+          payload: `Failed to restart analysis: ${e instanceof Error ? e.message : String(e)}`,
         });
         dispatch({ type: "stop_analysis" });
         lastAnalyzedSfenRef.current = null;
@@ -344,9 +335,5 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     ],
   );
 
-  return (
-    <AnalysisContext.Provider value={value}>
-      {children}
-    </AnalysisContext.Provider>
-  );
+  return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>;
 }

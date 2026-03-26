@@ -43,11 +43,7 @@ type Props = {
     dir: "up" | "down",
   ) => void;
 
-  onDeleteBranch: (
-    te: number,
-    branchForkPointers: ForkPointer[],
-    branchIndex: number,
-  ) => void;
+  onDeleteBranch: (te: number, branchForkPointers: ForkPointer[], branchIndex: number) => void;
 };
 
 function sideLabel(side: RowModel["side"]) {
@@ -130,12 +126,9 @@ const KifuMoveCard = memo(
     );
 
     const ariaLabel =
-      row.te === 0
-        ? "開始局面"
-        : `${row.te}手目、${sideLabel(row.side)}、${row.text}`;
+      row.te === 0 ? "開始局面" : `${row.te}手目、${sideLabel(row.side)}、${row.text}`;
 
-    const commentTitle =
-      row.commentCount > 0 ? "コメントを開く" : "コメントを追加";
+    const commentTitle = row.commentCount > 0 ? "コメントを開く" : "コメントを追加";
 
     return (
       <div
@@ -182,9 +175,7 @@ const KifuMoveCard = memo(
               <GitBranch className="kifu-badge__icon" size={14} />
               <span className="kifu-badge__count">{row.forkCount}</span>
               {row.selectedForkIndex != null ? (
-                <span className="kifu-badge__sub">
-                  {row.selectedForkIndex + 1}
-                </span>
+                <span className="kifu-badge__sub">{row.selectedForkIndex + 1}</span>
               ) : null}
             </button>
           ) : null}

@@ -2,10 +2,7 @@ import type { KifuCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
 
-export function buildStreamRowsFromCursor(
-  jkf: JKFPlayer,
-  cursor: KifuCursor | null,
-): RowModel[] {
+export function buildStreamRowsFromCursor(jkf: JKFPlayer, cursor: KifuCursor | null): RowModel[] {
   const planned = new Map<number, number>();
   for (const p of cursor?.forkPointers ?? []) planned.set(p.te, p.forkIndex);
 
@@ -55,19 +52,11 @@ export function buildStreamRowsFromCursor(
     const mv = mf?.move;
 
     const side =
-      mv?.color === 0
-        ? "sente"
-        : mv?.color === 1
-          ? "gote"
-          : te % 2 === 1
-            ? "sente"
-            : "gote";
+      mv?.color === 0 ? "sente" : mv?.color === 1 ? "gote" : te % 2 === 1 ? "sente" : "gote";
 
     const text = jkf.getReadableKifu?.() ?? "";
 
-    const branchForkPointers = (cursor?.forkPointers ?? []).filter(
-      (p) => p.te < te,
-    );
+    const branchForkPointers = (cursor?.forkPointers ?? []).filter((p) => p.te < te);
     rows.push({
       te,
       side,

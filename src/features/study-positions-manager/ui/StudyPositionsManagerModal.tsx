@@ -1,20 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
-import type {
-  StudyPosition,
-  StudyPositionState,
-} from "@/entities/study-positions/model/types";
+import type { StudyPosition, StudyPositionState } from "@/entities/study-positions/model/types";
 
 import { useTurnInfoCache } from "../lib/useTurnInfoCache";
 import StateTabNav from "./StateTabNav";
@@ -109,17 +99,13 @@ export default function StudyPositionsManagerModal() {
   // --- filter pipeline ---
   // 1. State filter
   const stateFiltered = useMemo(
-    () =>
-      stateFilter === null
-        ? positions
-        : positions.filter((p) => p.state === stateFilter),
+    () => (stateFilter === null ? positions : positions.filter((p) => p.state === stateFilter)),
     [positions, stateFilter],
   );
 
   // 2. Text search
   const textFiltered = useMemo(
-    () =>
-      query ? stateFiltered.filter((p) => matchesQuery(p, query)) : stateFiltered,
+    () => (query ? stateFiltered.filter((p) => matchesQuery(p, query)) : stateFiltered),
     [stateFiltered, query],
   );
 
@@ -134,16 +120,11 @@ export default function StudyPositionsManagerModal() {
   // 4. Tag filter (AND)
   const tagFiltered = useMemo(() => {
     if (tagFilter.length === 0) return textFiltered;
-    return textFiltered.filter((p) =>
-      tagFilter.every((t) => p.tags.includes(t)),
-    );
+    return textFiltered.filter((p) => tagFilter.every((t) => p.tags.includes(t)));
   }, [textFiltered, tagFilter]);
 
   // 5. Sort
-  const displayPositions = useMemo(
-    () => sortPositions(tagFiltered, sort),
-    [tagFiltered, sort],
-  );
+  const displayPositions = useMemo(() => sortPositions(tagFiltered, sort), [tagFiltered, sort]);
 
   // --- selection ---
   const selectedIndex = useMemo(() => {
@@ -205,8 +186,7 @@ export default function StudyPositionsManagerModal() {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const isInInput =
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement;
+        e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
       // 入力欄ではキャレット移動・IME 候補操作を優先する
       if (isInInput) return;
@@ -239,7 +219,10 @@ export default function StudyPositionsManagerModal() {
       }
       if (e.key === "e" && selectedPosition) {
         e.preventDefault();
-        openModal("study-position-save", { sfen: selectedPosition.sfen, returnTo: "study-positions" });
+        openModal("study-position-save", {
+          sfen: selectedPosition.sfen,
+          returnTo: "study-positions",
+        });
         return;
       }
     },
@@ -270,9 +253,7 @@ export default function StudyPositionsManagerModal() {
 
   // --- tag toggle ---
   const toggleTag = useCallback((tag: string) => {
-    setTagFilter((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
+    setTagFilter((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }, []);
 
   const removeTag = useCallback((tag: string) => {
@@ -306,8 +287,7 @@ export default function StudyPositionsManagerModal() {
 
   if (!isOpen) return null;
 
-  const sortLabel =
-    SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "更新日↓";
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "更新日↓";
 
   const isEmpty = positions.length === 0;
   const isFilterEmpty = !isEmpty && displayPositions.length === 0;
@@ -393,19 +373,13 @@ export default function StudyPositionsManagerModal() {
               >
                 <SlidersHorizontal size={14} />
                 {tagFilter.length > 0 && (
-                  <span className="sp-manager__filterBadge">
-                    {tagFilter.length}
-                  </span>
+                  <span className="sp-manager__filterBadge">{tagFilter.length}</span>
                 )}
               </button>
             </div>
 
             {/* Active tag chips */}
-            <ActiveFilterChips
-              tags={tagFilter}
-              onRemoveTag={removeTag}
-              onClearAll={clearTags}
-            />
+            <ActiveFilterChips tags={tagFilter} onRemoveTag={removeTag} onClearAll={clearTags} />
 
             {/* Tag filter panel */}
             {showTagPanel && (
@@ -449,8 +423,7 @@ export default function StudyPositionsManagerModal() {
               </div>
               <span className="sp-manager__count">
                 {displayPositions.length}件
-                {(query || tagFilter.length > 0) &&
-                  ` / ${stateFiltered.length}件中`}
+                {(query || tagFilter.length > 0) && ` / ${stateFiltered.length}件中`}
               </span>
             </div>
 
@@ -464,9 +437,7 @@ export default function StudyPositionsManagerModal() {
               {isEmpty && (
                 <div className="sp-manager__empty">
                   <p>{"課題局面がまだ登録されていません"}</p>
-                  <p className="sp-manager__emptyHint">
-                    {"★ ボタンで登録できます"}
-                  </p>
+                  <p className="sp-manager__emptyHint">{"★ ボタンで登録できます"}</p>
                 </div>
               )}
               {isFilterEmpty && (

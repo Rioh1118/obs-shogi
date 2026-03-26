@@ -35,13 +35,10 @@ export function useURLParams() {
   // 現在のURLパラメータを取得
   const params: URLParams = useMemo(() => {
     const povRaw = searchParams.get("pov");
-    const pov =
-      povRaw === "gote" || povRaw === "sente" ? (povRaw as PovType) : undefined;
+    const pov = povRaw === "gote" || povRaw === "sente" ? (povRaw as PovType) : undefined;
 
     return {
-      tesuu: searchParams.get("tesuu")
-        ? Number(searchParams.get("tesuu"))
-        : undefined,
+      tesuu: searchParams.get("tesuu") ? Number(searchParams.get("tesuu")) : undefined,
       branch: searchParams.get("branch") || undefined,
       modal: (searchParams.get("modal") as URLParams["modal"]) || undefined,
       dir: searchParams.get("dir") || undefined,
@@ -54,10 +51,7 @@ export function useURLParams() {
 
   // URLパラメータを更新
   const updateParams = useCallback(
-    (
-      newParams: Partial<URLParams>,
-      opts: UpdateOptions = { replace: true },
-    ) => {
+    (newParams: Partial<URLParams>, opts: UpdateOptions = { replace: true }) => {
       const currentParams = new URLSearchParams(searchParams);
 
       // 新しいパラメータを設定
@@ -79,11 +73,7 @@ export function useURLParams() {
 
   // モーダルを開く
   const openModal = useCallback(
-    (
-      modalType: URLParams["modal"],
-      extra?: Partial<URLParams>,
-      opts?: UpdateOptions,
-    ) => {
+    (modalType: URLParams["modal"], extra?: Partial<URLParams>, opts?: UpdateOptions) => {
       updateParams(
         {
           ...extra,
@@ -101,9 +91,21 @@ export function useURLParams() {
     ({ skipReturn = false }: { skipReturn?: boolean } = {}) => {
       const returnTo = searchParams.get("returnTo") as ModalType | null;
       if (!skipReturn && returnTo) {
-        updateParams({ modal: returnTo, sfen: undefined, returnTo: undefined, dir: undefined, tab: undefined });
+        updateParams({
+          modal: returnTo,
+          sfen: undefined,
+          returnTo: undefined,
+          dir: undefined,
+          tab: undefined,
+        });
       } else {
-        updateParams({ modal: undefined, dir: undefined, tab: undefined, sfen: undefined, returnTo: undefined });
+        updateParams({
+          modal: undefined,
+          dir: undefined,
+          tab: undefined,
+          sfen: undefined,
+          returnTo: undefined,
+        });
       }
     },
     [searchParams, updateParams],

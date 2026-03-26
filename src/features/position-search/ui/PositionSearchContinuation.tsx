@@ -57,11 +57,7 @@ async function loadJkfData(absPath: string): Promise<JKFData> {
   return parseKifuStringToJKF(text).jkf as JKFData;
 }
 
-export default function PositionSearchContinuation({
-  activeHit,
-  resolveAbsPath,
-  ply = 3,
-}: Props) {
+export default function PositionSearchContinuation({ activeHit, resolveAbsPath, ply = 3 }: Props) {
   const [moves, setMoves] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -73,9 +69,7 @@ export default function PositionSearchContinuation({
     const abs = resolveAbsPath(activeHit);
     if (!abs) return null;
 
-    const fp = activeHit.cursor.fork_pointers
-      .map((p) => `${p.te}-${p.fork_index}`)
-      .join(",");
+    const fp = activeHit.cursor.fork_pointers.map((p) => `${p.te}-${p.fork_index}`).join(",");
     return `${abs}::${activeHit.cursor.tesuu}::${fp}`;
   }, [activeHit, resolveAbsPath]);
 

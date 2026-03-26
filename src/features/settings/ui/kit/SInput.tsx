@@ -6,8 +6,7 @@ type Props = InputHTMLAttributes<HTMLInputElement> & {
   size?: "sm" | "md" | "lg";
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 const SInput = forwardRef<HTMLInputElement, Props>(function SInput(
   { className, invalid, size = "md", ...rest },

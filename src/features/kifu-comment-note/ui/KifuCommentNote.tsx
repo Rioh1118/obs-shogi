@@ -16,18 +16,11 @@ type Props = {
 
 function cursorToStableKey(cursor: KifuCursor | null) {
   if (!cursor) return "no-cursor";
-  const path = (cursor.forkPointers ?? [])
-    .map((p) => `${p.te}:${p.forkIndex}`)
-    .join("|");
+  const path = (cursor.forkPointers ?? []).map((p) => `${p.te}:${p.forkIndex}`).join("|");
   return `${cursor.tesuu}__${path}`;
 }
 
-export default function KifuCommentNote({
-  open,
-  cursor,
-  anchorEl,
-  onClose,
-}: Props) {
+export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Props) {
   const { getCommentsByCursor, setCommentsByCursor } = useGame();
 
   const [draft, setDraft] = useState("");
@@ -85,7 +78,7 @@ export default function KifuCommentNote({
         autoSaveTimerRef.current = null;
       }
     };
-  }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [draft]); // oxlint-disable-line react-hooks/exhaustive-deps
 
   const handleRequestClose = useCallback(async () => {
     if (isSaving) return;
@@ -101,11 +94,7 @@ export default function KifuCommentNote({
 
   const editorKey = cursorToStableKey(cursor);
 
-  const moveLabel = cursor
-    ? cursor.tesuu === 0
-      ? "開始"
-      : `${cursor.tesuu}手`
-    : "コメント";
+  const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
 
   const title = (
     <div className="kifu-comment-note__titlebar">
@@ -113,9 +102,7 @@ export default function KifuCommentNote({
         <MessageSquareText size={12} strokeWidth={2.1} />
         <span>comment</span>
       </span>
-      <span className="kifu-comment-note__pill kifu-comment-note__pill--meta">
-        {moveLabel}
-      </span>
+      <span className="kifu-comment-note__pill kifu-comment-note__pill--meta">{moveLabel}</span>
     </div>
   );
 
@@ -137,9 +124,7 @@ export default function KifuCommentNote({
           onSubmitShortcut={() => void handleRequestClose()}
         />
         {(isSaving || savedFlash) && (
-          <div className="kifu-comment-note__status">
-            {isSaving ? "保存中" : "保存済み"}
-          </div>
+          <div className="kifu-comment-note__status">{isSaving ? "保存中" : "保存済み"}</div>
         )}
       </div>
     </FloatingNote>

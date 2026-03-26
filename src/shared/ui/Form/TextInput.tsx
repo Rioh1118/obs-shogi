@@ -1,5 +1,4 @@
-interface TextInputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
+interface TextInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: string;
   type?: "text" | "date" | "email";
 }

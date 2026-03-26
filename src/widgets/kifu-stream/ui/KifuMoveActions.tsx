@@ -14,8 +14,7 @@ type Props = {
   onDeleteFromHere: (te: number) => void;
 };
 
-const clamp = (v: number, min: number, max: number) =>
-  Math.max(min, Math.min(max, v));
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 const KifuMoveActions = memo(function KifuMoveActions({
   open,
@@ -64,14 +63,8 @@ const KifuMoveActions = memo(function KifuMoveActions({
   useLayoutEffect(() => {
     if (!open || !anchorRect) return;
     requestAnimationFrame(updatePosition);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    open,
-    anchorRect?.top,
-    anchorRect?.left,
-    anchorRect?.width,
-    anchorRect?.height,
-  ]);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, anchorRect?.top, anchorRect?.left, anchorRect?.width, anchorRect?.height]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -82,7 +75,7 @@ const KifuMoveActions = memo(function KifuMoveActions({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   if (!open || !anchorRect) return null;

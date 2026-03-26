@@ -2,11 +2,7 @@
 // ===== プロジェクト操作 =====
 
 import { invoke } from "@tauri-apps/api/core";
-import type {
-  OpenProjectOutput,
-  SearchPositionInput,
-  SearchPositionOutput,
-} from "./contract";
+import type { OpenProjectOutput, SearchPositionInput, SearchPositionOutput } from "./contract";
 import {
   EVT_INDEX_PROGRESS,
   EVT_INDEX_STATE,
@@ -42,9 +38,7 @@ export async function openProject(rootDir: string): Promise<OpenProjectOutput> {
 /**
  * 局面検索を開始（結果はイベントで chunk として届く）
  */
-export async function searchPosition(
-  input: SearchPositionInput,
-): Promise<SearchPositionOutput> {
+export async function searchPosition(input: SearchPositionInput): Promise<SearchPositionOutput> {
   return await invoke<SearchPositionOutput>("search_position", { input });
 }
 
@@ -81,16 +75,12 @@ export interface SearchEventHandlers {
  * search モジュールのイベントをまとめて購読し、unlisten関数を返す。
  * Reactなら useEffect で呼んで、cleanupで unlistenAll() を呼ぶ運用が安全。
  */
-export async function listenSearchEvents(
-  handlers: SearchEventHandlers,
-): Promise<UnlistenFn> {
+export async function listenSearchEvents(handlers: SearchEventHandlers): Promise<UnlistenFn> {
   const unlisteners: UnlistenFn[] = [];
 
   if (handlers.onIndexState) {
     unlisteners.push(
-      await listen<IndexStatePayload>(EVT_INDEX_STATE, (e) =>
-        handlers.onIndexState?.(e.payload),
-      ),
+      await listen<IndexStatePayload>(EVT_INDEX_STATE, (e) => handlers.onIndexState?.(e.payload)),
     );
   }
 
@@ -104,9 +94,7 @@ export async function listenSearchEvents(
 
   if (handlers.onIndexWarn) {
     unlisteners.push(
-      await listen<IndexWarnPayload>(EVT_INDEX_WARN, (e) =>
-        handlers.onIndexWarn?.(e.payload),
-      ),
+      await listen<IndexWarnPayload>(EVT_INDEX_WARN, (e) => handlers.onIndexWarn?.(e.payload)),
     );
   }
 
@@ -128,9 +116,7 @@ export async function listenSearchEvents(
 
   if (handlers.onSearchEnd) {
     unlisteners.push(
-      await listen<SearchEndPayload>(EVT_SEARCH_END, (e) =>
-        handlers.onSearchEnd?.(e.payload),
-      ),
+      await listen<SearchEndPayload>(EVT_SEARCH_END, (e) => handlers.onSearchEnd?.(e.payload)),
     );
   }
 

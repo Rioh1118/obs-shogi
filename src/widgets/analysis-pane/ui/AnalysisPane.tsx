@@ -11,10 +11,7 @@ import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { usePositionSync } from "@/app/providers/bridges/position-sync";
-import type {
-  AnalysisCandidate,
-  Evaluation,
-} from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate, Evaluation } from "@/entities/engine/api/rust-types";
 import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
 
 type PaneSnapshot = {
@@ -33,8 +30,7 @@ function AnalysisPane() {
   const engineKey = presetsState.selectedPresetId ?? "no-engine";
   const fileKey = selectedNode?.id ?? null;
   const posKey = gameState.cursor?.tesuuPointer ?? null;
-  const cacheKey =
-    fileKey && posKey ? `${engineKey}${fileKey}:${posKey}` : null;
+  const cacheKey = fileKey && posKey ? `${engineKey}${fileKey}:${posKey}` : null;
 
   // ===== cache storage (UI responsibility) =====
   const cacheRef = useRef<Map<string, PaneSnapshot>>(new Map());
@@ -77,9 +73,7 @@ function AnalysisPane() {
       convertCandidateToSenteView(c, currentTurn),
     );
     const top = pickTopCandidate(senteCandidates);
-    const others = top
-      ? senteCandidates.filter((c) => c.rank !== top.rank)
-      : senteCandidates;
+    const others = top ? senteCandidates.filter((c) => c.rank !== top.rank) : senteCandidates;
 
     const bestMoveSequence: ConvertedMove[] =
       canConvert && top?.pv_line?.length
@@ -99,9 +93,7 @@ function AnalysisPane() {
 
     const evaluation: Evaluation | null = top?.evaluation ?? null;
 
-    const candidateEvaluations: (Evaluation | null)[] = others.map(
-      (c) => c.evaluation ?? null,
-    );
+    const candidateEvaluations: (Evaluation | null)[] = others.map((c) => c.evaluation ?? null);
 
     const searchStats = top
       ? {

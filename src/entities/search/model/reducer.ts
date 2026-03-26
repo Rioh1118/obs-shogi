@@ -1,11 +1,5 @@
 import type { RequestId } from "../api/ids";
-import type {
-  Action,
-  FilePathById,
-  MergeFilesInput,
-  SearchSession,
-  SearchState,
-} from "./types";
+import type { Action, FilePathById, MergeFilesInput, SearchSession, SearchState } from "./types";
 
 export const initialState: SearchState = {
   index: {
@@ -94,8 +88,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
           currentPath: p.current_path,
 
           doneFiles: p.done_files,
-          totalFiles:
-            state.index.totalFiles > 0 ? state.index.totalFiles : p.total_files,
+          totalFiles: state.index.totalFiles > 0 ? state.index.totalFiles : p.total_files,
         },
       };
     }
@@ -253,8 +246,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
       const next = { ...state.sessions };
       delete next[rid];
 
-      const currentRequestId =
-        state.currentRequestId === rid ? null : state.currentRequestId;
+      const currentRequestId = state.currentRequestId === rid ? null : state.currentRequestId;
 
       return {
         ...state,

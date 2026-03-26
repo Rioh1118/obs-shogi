@@ -35,21 +35,14 @@ export default function PositionDetail({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const toKan = useMemo(
-    () => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k,
-    [],
-  );
+  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const previewData = useMemo(() => {
     if (!position) return null;
     return buildPreviewDataFromSfen(position.sfen);
   }, [position]);
 
-  const turnLabel = previewData
-    ? previewData.turn === 0
-      ? "先手番"
-      : "後手番"
-    : null;
+  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
 
   const handleDelete = useCallback(async () => {
     if (!position || isDeleting) return;
@@ -104,9 +97,7 @@ export default function PositionDetail({
           {turnLabel && <span>{turnLabel}</span>}
           <span>{formatDate(position.updatedAt)} 更新</span>
         </div>
-        {position.description && (
-          <div className="sp-detail__memo">{position.description}</div>
-        )}
+        {position.description && <div className="sp-detail__memo">{position.description}</div>}
       </div>
 
       <div className="sp-detail__actions">

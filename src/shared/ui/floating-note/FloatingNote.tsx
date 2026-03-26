@@ -234,10 +234,7 @@ export default function FloatingNote({
       };
     }
 
-    const w = Math.min(
-      width,
-      typeof window !== "undefined" ? window.innerWidth - 16 : width,
-    );
+    const w = Math.min(width, typeof window !== "undefined" ? window.innerWidth - 16 : width);
 
     if (!anchoredPos) return { width: w };
 
@@ -254,13 +251,7 @@ export default function FloatingNote({
   if (!anchoredPos && !geometry) return null;
 
   return createPortal(
-    <div
-      ref={panelRef}
-      className={panelClassName}
-      style={style}
-      role="dialog"
-      aria-modal="false"
-    >
+    <div ref={panelRef} className={panelClassName} style={style} role="dialog" aria-modal="false">
       <div className="floating-note__top-band" aria-hidden="true">
         <div
           className="floating-note__resize floating-note__resize--nw"
@@ -296,10 +287,7 @@ export default function FloatingNote({
           <div className="floating-note__drag-grip" aria-hidden="true" />
         </div>
 
-        <div
-          className="floating-note__header-right"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
+        <div className="floating-note__header-right" onPointerDown={(e) => e.stopPropagation()}>
           {headerRight}
           <button
             type="button"

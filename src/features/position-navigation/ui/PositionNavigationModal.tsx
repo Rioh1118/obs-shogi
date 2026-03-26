@@ -5,24 +5,15 @@ import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "../../../entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
-import {
-  buildNextOptions,
-  buildPreviewData,
-} from "@/entities/position/lib/buildPreviewData";
-import {
-  removeForkPointer,
-  upsertForkPointer,
-} from "@/features/position-navigation/lib/kifuPlan";
+import { buildNextOptions, buildPreviewData } from "@/entities/position/lib/buildPreviewData";
+import { removeForkPointer, upsertForkPointer } from "@/features/position-navigation/lib/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
 import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
 import type { Kind } from "shogi.js";
-import type {
-  BranchOption,
-  NavigationState,
-} from "@/features/position-navigation/model/types";
+import type { BranchOption, NavigationState } from "@/features/position-navigation/model/types";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
@@ -161,9 +152,7 @@ function PositionNavigationModal() {
     const cursor: KifuCursor = {
       tesuu: nav.PreviewCursor.tesuu,
       forkPointers: nav.PreviewCursor.forkPointers,
-      tesuuPointer: sim.getTesuuPointer(
-        nav.PreviewCursor.tesuu,
-      ) as TesuuPointer,
+      tesuuPointer: sim.getTesuuPointer(nav.PreviewCursor.tesuu) as TesuuPointer,
     };
 
     applyCursor(cursor);
@@ -205,14 +194,7 @@ function PositionNavigationModal() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [
-    isOpen,
-    handleNext,
-    handlePrevious,
-    handleSelectBranch,
-    handleConfirm,
-    closeModal,
-  ]);
+  }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm, closeModal]);
 
   const toKan = (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k;
 
@@ -243,9 +225,7 @@ function PositionNavigationModal() {
               <BranchList
                 branches={options}
                 selectedIndex={nav.selectedBranchIndex}
-                onSelectIndex={(idx) =>
-                  setNav((s) => ({ ...s, selectedBranchIndex: idx }))
-                }
+                onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedBranchIndex: idx }))}
               />
             </div>
           </div>

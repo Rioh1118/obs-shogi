@@ -15,11 +15,7 @@ function TreeNode({ label, note, state, indent = 0, isLast = false }: TreeNodePr
   const padding = indent === 0 ? 0 : (indent - 1) * 18 + (indent > 0 ? 4 : 0);
 
   return (
-    <div
-      className="structureOverview__node"
-      data-state={state}
-      style={{ paddingLeft: padding }}
-    >
+    <div className="structureOverview__node" data-state={state} style={{ paddingLeft: padding }}>
       <span className="structureOverview__connector">{connector}</span>
       <span className="structureOverview__label">{label}</span>
       {note && <span className="structureOverview__note">{note}</span>}
@@ -34,14 +30,9 @@ type Props = {
   profiles: SetupGuideProfile[];
 };
 
-export function StructureOverview({
-  aiRootPath,
-  enginesDirExists,
-  engineNames,
-  profiles,
-}: Props) {
+export function StructureOverview({ aiRootPath, enginesDirExists, engineNames, profiles }: Props) {
   const rootLabel = aiRootPath
-    ? aiRootPath.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "ai_root"
+    ? (aiRootPath.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "ai_root")
     : "ai_root";
 
   return (
@@ -76,12 +67,7 @@ export function StructureOverview({
             />
           ))
         ) : (
-          <TreeNode
-            label="（実行ファイルを置いてください）"
-            state="missing"
-            indent={2}
-            isLast
-          />
+          <TreeNode label="（実行ファイルを置いてください）" state="missing" indent={2} isLast />
         ))}
 
       {/* AI profiles */}

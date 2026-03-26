@@ -13,12 +13,7 @@ function Knight({ color, onClick }: PieceProps) {
       date-piece="knight"
       data-color={color}
     >
-      <img
-        src={imagePath}
-        alt="桂馬"
-        className="piece-image"
-        draggable={false}
-      />
+      <img src={imagePath} alt="桂馬" className="piece-image" draggable={false} />
     </div>
   );
 }

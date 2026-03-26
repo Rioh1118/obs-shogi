@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import { reducer } from "./reducer";
 import {
   initialState,
@@ -32,11 +25,7 @@ import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
 export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const {
-    config,
-    isLoading: appConfigLoading,
-    setLastPresetId,
-  } = useAppConfig();
+  const { config, isLoading: appConfigLoading, setLastPresetId } = useAppConfig();
 
   const initializedRef = useRef(false);
   const aiRoot = config?.ai_root ?? null;
@@ -146,13 +135,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         });
       }
     })();
-  }, [
-    appConfigLoading,
-    chooseInitialSelectedId,
-    config?.last_preset_id,
-    persist,
-    setLastPresetId,
-  ]);
+  }, [appConfigLoading, chooseInitialSelectedId, config?.last_preset_id, persist, setLastPresetId]);
 
   const reload = useCallback(async () => {
     dispatch({ type: "loading" });
@@ -220,9 +203,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
 
   const updatePreset = useCallback(
     async (id: PresetId, patch: Partial<EnginePreset>) => {
-      const next = state.presets.map((p) =>
-        p.id === id ? { ...p, ...patch } : p,
-      );
+      const next = state.presets.map((p) => (p.id === id ? { ...p, ...patch } : p));
       dispatch({ type: "set_presets", payload: next });
       await persist(next);
       touchPreset(id);
@@ -286,9 +267,5 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return (
-    <EnginePresetsContext.Provider value={value}>
-      {children}
-    </EnginePresetsContext.Provider>
-  );
+  return <EnginePresetsContext.Provider value={value}>{children}</EnginePresetsContext.Provider>;
 }

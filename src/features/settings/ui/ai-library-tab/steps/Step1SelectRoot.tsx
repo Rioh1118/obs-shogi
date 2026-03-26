@@ -13,11 +13,7 @@ export function Step1SelectRoot({ state, aiRoot, onSelect }: Props) {
   const shortRoot = aiRoot.length > 32 ? "…" + aiRoot.slice(-31) : aiRoot;
 
   return (
-    <StepShell
-      state={state}
-      title="AIルートフォルダを選ぶ"
-      summary={shortRoot}
-    >
+    <StepShell state={state} title="AIルートフォルダを選ぶ" summary={shortRoot}>
       <div className="aiLibraryTab__stepDesc">
         エンジン・評価関数・定跡をすべてまとめる専用フォルダを1つ選びます。
         既存フォルダでも新規フォルダでも構いません。

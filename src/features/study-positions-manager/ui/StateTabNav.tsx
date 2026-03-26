@@ -16,12 +16,7 @@ interface Props {
   totalCount: number;
 }
 
-export default function StateTabNav({
-  value,
-  onChange,
-  counts,
-  totalCount,
-}: Props) {
+export default function StateTabNav({ value, onChange, counts, totalCount }: Props) {
   return (
     <nav className="state-tab-nav" role="tablist" aria-label="研究状態">
       {TABS.map((tab) => {

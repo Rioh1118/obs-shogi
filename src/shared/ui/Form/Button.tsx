@@ -5,18 +5,9 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
-function Button({
-  variant = "primary",
-  children,
-  disabled,
-  ...props
-}: ButtonProps) {
+function Button({ variant = "primary", children, disabled, ...props }: ButtonProps) {
   return (
-    <button
-      className={`form__btn form__btn--${variant}`}
-      disabled={disabled}
-      {...props}
-    >
+    <button className={`form__btn form__btn--${variant}`} disabled={disabled} {...props}>
       {children}
     </button>
   );

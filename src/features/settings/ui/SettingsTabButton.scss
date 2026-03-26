@@ -71,11 +71,7 @@ $focus: index.$focus-ring;
       bottom: 10px;
       width: 3px;
       border-radius: 99px;
-      background: linear-gradient(
-        180deg,
-        rgba($accent, 0.95),
-        rgba($accent, 0.35)
-      );
+      background: linear-gradient(180deg, rgba($accent, 0.95), rgba($accent, 0.35));
       box-shadow: 0 0 0 1px rgba(index.$color-white, 0.05);
     }
 

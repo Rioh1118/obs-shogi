@@ -11,9 +11,7 @@ export default function PresetDialogFooter({
   return (
     <footer className="presetDialog__footer">
       <div className="presetDialog__footerLeft">
-        <div className="presetDialog__footerHint">
-          ※ 編集中は保存されません。保存で確定します。
-        </div>
+        <div className="presetDialog__footerHint">※ 編集中は保存されません。保存で確定します。</div>
       </div>
 
       <div className="presetDialog__footerRight">

@@ -47,12 +47,7 @@ export function isDescendantDir(srcDir: string, destDir: string) {
 
   const rel = relative(from, to);
 
-  return (
-    rel !== "" &&
-    !rel.startsWith("..") &&
-    !rel.startsWith("/") &&
-    !/^[a-zA-Z]:/.test(rel)
-  );
+  return rel !== "" && !rel.startsWith("..") && !rel.startsWith("/") && !/^[a-zA-Z]:/.test(rel);
 }
 
 export function buildNodeMap(root: FileTreeNode | null) {

@@ -126,9 +126,5 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     setLastPresetId,
   };
 
-  return (
-    <AppConfigContext.Provider value={value}>
-      {children}
-    </AppConfigContext.Provider>
-  );
+  return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;
 }

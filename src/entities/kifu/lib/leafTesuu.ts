@@ -2,10 +2,7 @@ import { JKFPlayer } from "json-kifu-format";
 import type { KifuCursor } from "../model/cursor";
 import { appliedForkPointers } from "./cursorRuntime";
 
-export function computeLeafTesuu(
-  jkf: JKFPlayer,
-  cursor: KifuCursor | null,
-): number {
+export function computeLeafTesuu(jkf: JKFPlayer, cursor: KifuCursor | null): number {
   const sim = new JKFPlayer(jkf.kifu);
 
   if (cursor) {

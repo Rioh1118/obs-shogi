@@ -28,20 +28,10 @@ function PromotionDialog({
     >
       {/* <p className="promotion-choice__text">成りますか?</p> */}
       <div className="promotion-choice__piece">
-        <div
-          className="promotion-choice__piece--promote"
-          onClick={() => setPromote(true)}
-        >
-          <PieceFactory
-            jkfKind={promotionMap[jkfKind]}
-            color={color}
-            isPromoted={true}
-          />
+        <div className="promotion-choice__piece--promote" onClick={() => setPromote(true)}>
+          <PieceFactory jkfKind={promotionMap[jkfKind]} color={color} isPromoted={true} />
         </div>
-        <div
-          className="promotion-choice__piece--not-promote"
-          onClick={() => setPromote(false)}
-        >
+        <div className="promotion-choice__piece--not-promote" onClick={() => setPromote(false)}>
           <PieceFactory jkfKind={jkfKind} color={color} isPromoted={false} />
         </div>
       </div>

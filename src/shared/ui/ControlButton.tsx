@@ -8,19 +8,9 @@ interface ControlButtonProps {
   title?: string; // ツールチップ用
 }
 
-function ControlButton({
-  children,
-  handleClick,
-  disabled = false,
-  title,
-}: ControlButtonProps) {
+function ControlButton({ children, handleClick, disabled = false, title }: ControlButtonProps) {
   return (
-    <button
-      className="control-button"
-      onClick={handleClick}
-      disabled={disabled}
-      title={title}
-    >
+    <button className="control-button" onClick={handleClick} disabled={disabled} title={title}>
       {children}
     </button>
   );

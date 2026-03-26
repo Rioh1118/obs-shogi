@@ -80,13 +80,9 @@ export const createPiece = (color: PlayerColor, kind: string): Piece => ({
 });
 
 // JKF形式から内部形式への変換（型安全に）
-export function convertJkfPiece(
-  jkfKind: string,
-  isPromoted: boolean = false,
-): PieceType | string {
+export function convertJkfPiece(jkfKind: string, isPromoted: boolean = false): PieceType | string {
   // まず直接マッピングを試す（成り駒のkindが直接来る場合）
-  const directType =
-    JKF_TO_PIECE_TYPE[jkfKind as keyof typeof JKF_TO_PIECE_TYPE];
+  const directType = JKF_TO_PIECE_TYPE[jkfKind as keyof typeof JKF_TO_PIECE_TYPE];
   if (directType) {
     return directType;
   }
@@ -104,10 +100,5 @@ export function convertJkfPiece(
 
 // 型ガード関数
 export function isPiece(data: PieceData): data is Piece {
-  return (
-    data !== null &&
-    typeof data === "object" &&
-    "color" in data &&
-    "kind" in data
-  );
+  return data !== null && typeof data === "object" && "color" in data && "kind" in data;
 }

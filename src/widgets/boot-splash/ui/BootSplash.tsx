@@ -3,11 +3,7 @@ import Icon from "@/assets/icon.svg";
 
 function BootSplash() {
   return (
-    <div
-      className="loading loading__container"
-      role="status"
-      aria-live="polite"
-    >
+    <div className="loading loading__container" role="status" aria-live="polite">
       <div className="loading__content">
         <img className="loading__icon" src={Icon} alt="ObsShogi" />
 

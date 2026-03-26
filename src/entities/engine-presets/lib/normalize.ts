@@ -1,10 +1,5 @@
 import { DEFAULT_USI_OPTIONS } from "../model/defaultOptions";
-import type {
-  EnginePreset,
-  PresetId,
-  PresetsFile,
-  UsiOptionMap,
-} from "../model/types";
+import type { EnginePreset, PresetId, PresetsFile, UsiOptionMap } from "../model/types";
 
 export function genPresetId(): PresetId {
   return crypto.randomUUID();
@@ -15,9 +10,7 @@ export function clonePreset<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
 }
 
-export function createDefaultPreset(
-  partial: Partial<EnginePreset> = {},
-): EnginePreset {
+export function createDefaultPreset(partial: Partial<EnginePreset> = {}): EnginePreset {
   const id = partial.id ?? genPresetId();
   const base: EnginePreset = {
     id,
@@ -37,7 +30,7 @@ export function createDefaultPreset(
     ...partial,
     options: {
       ...base.options,
-      ...(partial.options ?? {}),
+      ...partial.options,
     },
     analysis: partial.analysis ? { ...partial.analysis } : base.analysis,
   };

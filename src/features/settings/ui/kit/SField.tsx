@@ -17,8 +17,7 @@ type Props = {
   children: ReactNode;
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) =>
-  xs.filter(Boolean).join(" ");
+const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 export default function SField({
   label,

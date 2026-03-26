@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code (machine-specific settings only; agents/ and skills/ are tracked)
+.claude/settings.local.json
+
+# Debug logs
+.debug/
