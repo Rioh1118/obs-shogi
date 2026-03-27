@@ -4,6 +4,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import "./AppLayoutHeader.scss";
 import Title from "../../../shared/ui/Title";
 import { useHeaderCenterInfo } from "@/widgets/app-layout-header/lib/useHeaderCenterInfo";
+import { FileSearch } from "lucide-react";
 
 type Props = {
   toggleSidebar: () => void;
@@ -67,6 +68,15 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
         </div>
       </div>
       <div className="app-header__right">
+        {/*ファイル検索ボタン*/}
+        <button
+          type="button"
+          className="app-header__icon-btn"
+          title="ファイル検索"
+          aria-label="ファイル検索"
+        >
+          <FileSearch size={18} />
+        </button>
         <button
           type="button"
           className="app-header__icon-btn"
