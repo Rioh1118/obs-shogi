@@ -8,10 +8,18 @@ import PositionSearchModal from "@/features/position-search/ui/PositionSearchMod
 import SettingsModal from "@/features/settings/ui/SettingsModal";
 import StudyPositionSaveModal from "@/features/study-position-save/ui/StudyPositionSaveModal";
 import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/StudyPositionsManagerModal";
+import FileSearchModal from "@/widgets/file-search/FileSearchModal";
 
 export default function AppModalLayer() {
-  const { conflict, kifuError, closeConflict, resolveConflictByRename, clearKifuError } =
-    useFileTree();
+  const {
+    conflict,
+    kifuError,
+    closeConflict,
+    resolveConflictByRename,
+    clearKifuError,
+    files,
+    openFile,
+  } = useFileTree();
 
   return (
     <>
@@ -22,6 +30,13 @@ export default function AppModalLayer() {
       <PositionSearchModal />
       <StudyPositionSaveModal />
       <StudyPositionsManagerModal />
+      <FileSearchModal
+        files={files ?? []}
+        onClose={() => {}}
+        onSelect={(file) => {
+          openFile?.(file);
+        }}
+      />
       <FileConflictDialog
         conflict={conflict}
         onCancel={closeConflict}

@@ -74,6 +74,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
           className="app-header__icon-btn"
           title="ファイル検索"
           aria-label="ファイル検索"
+          onClick={() => openModal("file-search")}
         >
           <FileSearch size={18} />
         </button>
