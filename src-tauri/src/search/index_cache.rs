@@ -296,36 +296,35 @@ fn compact_bucket(
     }
 
     let mut heap = BinaryHeap::<HeapItem>::new();
-    let mut slices: Vec<&[(PositionKey, Occurrence)]> = Vec::with_capacity(segs.len());
 
     for (si, seg) in segs.iter().enumerate() {
-        let s = seg.entries();
-        slices.push(s);
-        if let Some((k, occ)) = s.first() {
-            heap.push(HeapItem {
-                key: *k,
-                occ: *occ,
-                seg: si,
-                idx: 0,
-            });
+        if seg.is_empty() {
+            continue;
         }
+        let key = seg.key_at(0);
+        let occ = seg.occ_at(0);
+        heap.push(HeapItem {
+            key,
+            occ,
+            seg: si,
+            idx: 0,
+        });
     }
 
-    // ざっくり容量予約（正確には無理なので控えめ）
     let mut out: Vec<(PositionKey, Occurrence)> = Vec::new();
 
     while let Some(item) = heap.pop() {
-        // alive のみ残す
-        if ft.is_occ_alive(item.occ.file_id, item.occ.gen) {
+        if ft.is_occ_alive(item.occ.file_id, item.occ.r#gen) {
             out.push((item.key, item.occ));
         }
 
         let next_i = item.idx + 1;
-        let s = slices[item.seg];
-        if next_i < s.len() {
-            let (k, occ) = s[next_i];
+        let seg = &segs[item.seg];
+        if next_i < seg.len() {
+            let key = seg.key_at(next_i);
+            let occ = seg.occ_at(next_i);
             heap.push(HeapItem {
-                key: k,
+                key,
                 occ,
                 seg: item.seg,
                 idx: next_i,
@@ -333,7 +332,6 @@ fn compact_bucket(
         }
     }
 
-    // out は heap から key 順で出てくるのでソート済み
     let _ = bucket_idx;
     out
 }
@@ -354,12 +352,12 @@ fn encode_all(
     w.extend_from_slice(&rh);
 
     // file_table
-    let mut entries: Vec<FileEntry> = ctx.ft.iter_all().map(|(_, e)| e.clone()).collect();
+    let mut entries: Vec<FileEntry> = ctx.ft.iter_all().map(|(_, e)| e).collect();
     entries.sort_by_key(|e| e.file_id);
     write_u32(w, entries.len() as u32);
     for e in &entries {
         write_u32(w, e.file_id);
-        write_u32(w, e.gen);
+        write_u32(w, e.r#gen);
         write_u8(w, if e.deleted { 1 } else { 0 });
         write_string(w, &e.path);
     }
@@ -414,7 +412,7 @@ fn encode_all(
             write_u64(w, k.z0);
             write_u64(w, k.z1);
             write_u32(w, occ.file_id);
-            write_u32(w, occ.gen);
+            write_u32(w, occ.r#gen);
             write_u32(w, occ.node_id);
         }
     }
@@ -448,12 +446,12 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let mut ft = FileTable::default();
     for _ in 0..ft_len {
         let file_id = r.read_u32()?;
-        let gen = r.read_u32()?;
+        let gen_val = r.read_u32()?;
         let deleted = r.read_u8()? != 0;
         let path = r.read_string()?;
         ft.upsert(FileEntry {
             file_id,
-            gen,
+            r#gen: gen_val,
             deleted,
             path,
         });
@@ -528,13 +526,13 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             let z0 = r.read_u64()?;
             let z1 = r.read_u64()?;
             let file_id = r.read_u32()?;
-            let gen = r.read_u32()?;
+            let gen_val = r.read_u32()?;
             let node_id = r.read_u32()?;
             v.push((
                 PositionKey { z0, z1 },
                 Occurrence {
                     file_id,
-                    gen,
+                    r#gen: gen_val,
                     node_id,
                 },
             ));

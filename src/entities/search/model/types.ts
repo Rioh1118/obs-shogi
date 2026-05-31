@@ -24,6 +24,11 @@ export type IndexUiState = {
   currentPath: string | null;
 };
 
+/**
+ * セッション。chunks に到着したチャンクを配列のまま保持し、reducer は
+ * `[...hits, ...chunk]` の O(n²) を回避する (C-M1)。フラット化は provider 側で
+ * 償却 O(n) のキャッシュにして返す。
+ */
 export type SearchSession = {
   requestId: RequestId;
   querySfen: string | null;
@@ -31,7 +36,7 @@ export type SearchSession = {
   stale: boolean;
   isDone: boolean;
   error: string | null;
-  hits: PositionHit[];
+  chunks: PositionHit[][];
   startedAt: number;
   endedAt: number | null;
 };
@@ -39,37 +44,29 @@ export type SearchSession = {
 export type FilePathById = Record<number, string>;
 
 export type SearchState = {
-  // index
   index: IndexUiState;
   warns: IndexWarnPayload[];
 
   filePathById: FilePathById;
 
-  // open project
   isOpeningProject: boolean;
   lastOpenedRootDir: string | null;
   lastOpenResult: OpenProjectOutput | null;
   openError: string | null;
 
-  // search
   isSearching: boolean;
   currentRequestId: RequestId | null;
-  sessions: Record<number, SearchSession>; // requestId -> session
+  sessions: Record<number, SearchSession>;
 };
 
 export type Action =
-  // index events
   | { type: "index_state"; payload: IndexStatePayload }
   | { type: "index_progress"; payload: IndexProgressPayload }
   | { type: "index_warn"; payload: IndexWarnPayload }
   | { type: "clear_warns" }
-
-  // open project lifecycle
   | { type: "open_start"; payload: { rootDir: string } }
   | { type: "open_ok"; payload: { rootDir: string; out: OpenProjectOutput } }
   | { type: "open_error"; payload: { message: string } }
-
-  // search events
   | { type: "search_begin"; payload: SearchBeginPayload }
   | { type: "search_chunk"; payload: SearchChunkPayload }
   | {
@@ -82,12 +79,11 @@ export type Action =
     }
   | { type: "search_end"; payload: SearchEndPayload }
   | { type: "search_error"; payload: SearchErrorPayload }
-  | { type: "clear_search"; payload?: { requestId?: RequestId } };
+  | { type: "clear_search"; payload: { requestId: RequestId } };
 
 export type PositionSearchContextType = {
   state: SearchState;
 
-  // actions
   openProject: (rootDir?: string) => Promise<OpenProjectOutput>;
 
   searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
@@ -97,6 +93,8 @@ export type PositionSearchContextType = {
     consistency?: Consistency;
   }) => Promise<SearchPositionOutput>;
 
+  cancelSearch: (requestId: RequestId) => Promise<void>;
+
   getSessionByRequestId: (requestId: RequestId | null | undefined) => SearchSession | null;
   getHitsByRequestId: (requestId: RequestId | null | undefined) => PositionHit[];
   isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
@@ -104,7 +102,7 @@ export type PositionSearchContextType = {
   resolveHitAbsPath: (hit: PositionHit) => string | null;
 
   clearWarns: () => void;
-  clearSearch: (requestId?: RequestId) => void;
+  clearSearch: (requestId: RequestId) => void;
 };
 
 export type MergeFilesInput = FilePathEntry[];

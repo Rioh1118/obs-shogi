@@ -15,14 +15,17 @@ use crate::search::{
         ScanSnapshot,
     },
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
-    index_store::{IndexState as StoreIndexState, IndexStore},
+    index_store::{FileBucketEntries, IndexState as StoreIndexState, IndexStore},
     kifu_reader::read_to_jkf,
     node_table::NodeTable,
+    position_key::PositionKey,
     types::{
         FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
         Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
     },
 };
+
+type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -196,7 +199,7 @@ impl ProjectManager {
 
         let mut done_dirty: u32 = 0;
 
-        // removed → tombstone
+        // removed → tombstone (cheap, fire immediately)
         for path_key in &diff.removed {
             if let Some(file_id) = path_to_id.remove(path_key) {
                 store.tombstone_file(file_id);
@@ -212,59 +215,85 @@ impl ProjectManager {
             );
         }
 
-        // modified → 同じfile_idでgen++して再インデックス
+        // modified + added → 並列ビルドして 1 回の insert_many にまとめる (A-M1)
+        struct PendingBuild {
+            rec: FileRecord,
+            file_id: FileId,
+            new_gen: u32,
+        }
+        let mut pending: Vec<PendingBuild> = Vec::new();
+
         for rec in &diff.modified {
             let path_key = crate::search::fs_scan::path_key(&rec.path);
             let file_id = match path_to_id.get(&path_key).copied() {
                 Some(id) => id,
                 None => {
-                    // マップに無いなら added 相当として扱う
                     let id = next_file_id;
                     next_file_id = next_file_id.wrapping_add(1);
                     path_to_id.insert(path_key.clone(), id);
                     id
                 }
             };
-
-            let old_gen = snap.file_table.get(file_id).map(|e| e.gen).unwrap_or(0);
-
+            let old_gen = snap.file_table.get(file_id).map(|e| e.r#gen).unwrap_or(0);
             let new_gen = old_gen.wrapping_add(1).max(1);
-
-            self.reindex_one_file(&app, &store, rec, file_id, new_gen)
-                .await;
-
-            done_dirty += 1;
-            let _ = app.emit(
-                EVT_INDEX_PROGRESS,
-                IndexProgressPayload {
-                    current_path: rec.path.to_string_lossy().to_string(),
-                    done_files: done_dirty,
-                    total_files: dirty_count,
-                },
-            );
+            pending.push(PendingBuild {
+                rec: rec.clone(),
+                file_id,
+                new_gen,
+            });
         }
 
-        // added → 新規file_id, gen=1
         for rec in &diff.added {
             let path_key = crate::search::fs_scan::path_key(&rec.path);
             let file_id = next_file_id;
             next_file_id = next_file_id.wrapping_add(1);
             path_to_id.insert(path_key.clone(), file_id);
+            pending.push(PendingBuild {
+                rec: rec.clone(),
+                file_id,
+                new_gen: 1,
+            });
+        }
 
-            self.reindex_one_file(&app, &store, rec, file_id, 1).await;
-
+        let mut batch: Vec<FileBucketEntries> = Vec::with_capacity(pending.len());
+        for pb in pending {
+            let path_str = pb.rec.path.to_string_lossy().to_string();
+            match self
+                .build_one_file(&app, &pb.rec, pb.file_id, pb.new_gen)
+                .await
+            {
+                Some(item) => batch.push(item),
+                None => {
+                    // build error: still record a tombstone-ish entry so file_table
+                    // gets updated and stale segments from the old gen are excluded.
+                    let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
+                    batch.push((
+                        FileEntry {
+                            file_id: pb.file_id,
+                            path: path_str.clone(),
+                            deleted: false,
+                            r#gen: pb.new_gen,
+                        },
+                        Arc::new(NodeTable::empty()),
+                        empty,
+                    ));
+                }
+            }
             done_dirty += 1;
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {
-                    current_path: rec.path.to_string_lossy().to_string(),
+                    current_path: path_str,
                     done_files: done_dirty,
                     total_files: dirty_count,
                 },
             );
         }
 
-        // Updating → Ready
+        if !batch.is_empty() {
+            store.insert_many_file_segments(batch);
+        }
+
         store.set_state(StoreIndexState::Ready);
         let _ = app.emit(
             EVT_INDEX_STATE,
@@ -283,33 +312,30 @@ impl ProjectManager {
         g.next_file_id = next_file_id;
     }
 
-    async fn reindex_one_file(
+    /// 1 ファイル分の build を spawn_blocking で行い、 store に直接書き込まずに
+    /// FileBucketEntries を返す。 run_rescan_diff_apply 側で batch 化して
+    /// insert_many_file_segments を 1 回呼ぶ用 (A-M1)。
+    async fn build_one_file(
         &self,
         app: &AppHandle,
-        store: &Arc<IndexStore>,
         rec: &FileRecord,
         file_id: FileId,
-        gen: u32,
-    ) {
-        type BucketEntries = [Vec<(crate::search::position_key::PositionKey, Occurrence)>; 256];
-
+        new_gen: u32,
+    ) -> Option<FileBucketEntries> {
         let path_str = rec.path.to_string_lossy().to_string();
         let rec_cloned = rec.clone();
 
         let built = task::spawn_blocking(
             move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
                 let jkf = read_to_jkf(&rec_cloned).map_err(|e| e.to_string())?;
-                let b = build_index_for_jkf(file_id, gen, &jkf, BuildPolicy::Loose)
+                let b = build_index_for_jkf(file_id, new_gen, &jkf, BuildPolicy::Loose)
                     .map_err(|e| e.to_string())?;
-
                 let by_bucket: BucketEntries = bucketize_entries(b.entries);
-
                 let warns = b
                     .warns
                     .into_iter()
                     .map(|w| format!("{:?}: {}", w.cursor, w.message))
                     .collect::<Vec<_>>();
-
                 Ok((by_bucket, b.node_table, warns))
             },
         )
@@ -318,19 +344,6 @@ impl ProjectManager {
         let (by_bucket, node_table, warns) = match built {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
-                let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
-
-                store.insert_file_segments(
-                    FileEntry {
-                        file_id,
-                        path: path_str.clone(),
-                        deleted: false,
-                        gen,
-                    },
-                    Arc::new(NodeTable::empty()),
-                    empty,
-                );
-
                 let _ = app.emit(
                     EVT_INDEX_WARN,
                     IndexWarnPayload {
@@ -338,7 +351,7 @@ impl ProjectManager {
                         message: e,
                     },
                 );
-                return;
+                return None;
             }
             Err(e) => {
                 let _ = app.emit(
@@ -348,7 +361,7 @@ impl ProjectManager {
                         message: format!("spawn_blocking join error: {e}"),
                     },
                 );
-                return;
+                return None;
             }
         };
 
@@ -362,15 +375,15 @@ impl ProjectManager {
             );
         }
 
-        store.insert_file_segments(
+        Some((
             FileEntry {
                 file_id,
                 path: path_str,
                 deleted: false,
-                gen,
+                r#gen: new_gen,
             },
             node_table,
             by_bucket,
-        );
+        ))
     }
 }

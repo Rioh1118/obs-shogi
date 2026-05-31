@@ -33,6 +33,7 @@ export default function PositionSearchModal() {
     state,
     searchPosition,
     searchCurrentPositionBestEffort,
+    cancelSearch,
     getSessionByRequestId,
     getHitsByRequestId,
     isSearchingRequest,
@@ -96,8 +97,17 @@ export default function PositionSearchModal() {
   const queryKey = params.sfen ?? currentSfen ?? null;
   const lastQueryKeyRef = useRef<string | null>(null);
 
+  // 進行中の rid を ref で追跡し、 queryKey が変わったタイミングや unmount で
+  // cancelSearch を投げる (C-H2)。 setRequestId とは別経路にして、 invoke の
+  // 解決前に乱発される再検索でも確実に直前の rid をキャンセルできるようにする。
+  const inFlightRidRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!isOpen) {
+      if (inFlightRidRef.current != null) {
+        void cancelSearch(inFlightRidRef.current);
+        inFlightRidRef.current = null;
+      }
       lastQueryKeyRef.current = null;
       setRequestId(null);
       setLaunchError(null);
@@ -109,6 +119,12 @@ export default function PositionSearchModal() {
     if (!queryKey) return;
     if (lastQueryKeyRef.current === queryKey) return;
 
+    // queryKey が変わった: 前の rid があれば取り下げる
+    if (inFlightRidRef.current != null) {
+      void cancelSearch(inFlightRidRef.current);
+      inFlightRidRef.current = null;
+    }
+
     lastQueryKeyRef.current = queryKey;
     setRequestId(null);
     setLaunchError(null);
@@ -116,21 +132,40 @@ export default function PositionSearchModal() {
     setActiveIndex(0);
 
     const doSearch = params.sfen
-      ? searchPosition({ sfen: params.sfen, consistency: "BestEffort", chunk_size: 5000 })
-      : searchCurrentPositionBestEffort({ chunkSize: 5000 });
+      ? searchPosition({ sfen: params.sfen, consistency: "BestEffort", chunkSize: 300 })
+      : searchCurrentPositionBestEffort({ chunkSize: 300 });
 
     doSearch
       .then((out) => {
-        setRequestId(out.request_id);
+        inFlightRidRef.current = out.requestId;
+        setRequestId(out.requestId);
       })
       .catch((e) => {
+        // eslint-disable-next-line no-console
         console.error("[PositionSearchModal] search failed:", e);
         setLaunchError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
         setIsLaunching(false);
       });
-  }, [isOpen, queryKey, params.sfen, searchPosition, searchCurrentPositionBestEffort]);
+  }, [
+    isOpen,
+    queryKey,
+    params.sfen,
+    searchPosition,
+    searchCurrentPositionBestEffort,
+    cancelSearch,
+  ]);
+
+  // unmount 時にも進行中検索を取り下げる
+  useEffect(() => {
+    return () => {
+      if (inFlightRidRef.current != null) {
+        void cancelSearch(inFlightRidRef.current);
+        inFlightRidRef.current = null;
+      }
+    };
+  }, [cancelSearch]);
 
   const activeHit = orderedHits[activeIndex];
   const activeKeyRef = useRef<string | null>(null);

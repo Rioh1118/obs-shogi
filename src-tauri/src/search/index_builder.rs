@@ -196,7 +196,10 @@ fn push_or_replace_fork(fps: &mut Vec<ForkPointer>, te: u32, fork_index: u32) {
     fps.sort_by_key(|p| p.te);
 }
 
-/// この段階でbucket分割したい場合
+/// 1 ファイル分の entries を bucket に振り分け、`(z0, z1)` で stable sort する。
+///
+/// 同一ファイル内では `file_id` は一定、`node_id` も push 順 = 既にソート済みなので
+/// tie-break は不要 (stable sort で挿入順が保たれる)。
 pub fn bucketize_entries(
     entries: Vec<(PositionKey, Occurrence)>,
 ) -> [Vec<(PositionKey, Occurrence)>; 256] {
@@ -207,9 +210,7 @@ pub fn bucketize_entries(
     }
 
     for b in &mut buckets {
-        b.sort_by(|(k1, o1), (k2, o2)| {
-            (k1.z0, k1.z1, o1.file_id, o1.node_id).cmp(&(k2.z0, k2.z1, o2.file_id, o2.node_id))
-        });
+        b.sort_by_key(|(k, _)| (k.z0, k.z1));
     }
 
     buckets
