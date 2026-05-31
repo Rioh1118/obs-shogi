@@ -90,7 +90,6 @@ pub fn run() {
             save_study_positions,
         ])
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_opener::init())
         .manage(search_state)
         .setup(|app| {
             let app_handle = app.handle().clone();

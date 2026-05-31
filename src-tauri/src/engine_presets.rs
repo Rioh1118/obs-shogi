@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
+use crate::file_system::utils::atomic_write;
+
 const PRESETS_FILE: &str = "engine_presets.json";
 
 #[derive(Serialize, Deserialize, Default)]
@@ -79,7 +81,6 @@ pub fn save_presets(app: AppHandle, file: PresetsFile) -> Result<(), String> {
     }
 
     let path = presets_path(&app)?;
-    fs::create_dir_all(path.parent().unwrap()).map_err(|e| e.to_string())?;
     let data = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
-    fs::write(path, data).map_err(|e| e.to_string())
+    atomic_write(&path, data.as_bytes()).map_err(|e| e.to_string())
 }

@@ -12,6 +12,17 @@ use usi::{EngineCommand, GuiCommand, InfoParams, ThinkParams};
 
 const LOGT: &str = "obs_shogi::engine::analyzer";
 
+fn now_nanos() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos()
+}
+
+fn contains_usi_breaking_char(s: &str) -> bool {
+    s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+}
+
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
 pub struct EngineAnalyzer {
     manager: Arc<Mutex<EngineManager>>,
@@ -69,6 +80,12 @@ impl EngineAnalyzer {
         let protocol = manager.protocol()?;
 
         for (name, value) in &settings.options {
+            // USI プロトコルは行指向なので、name/value への改行注入を拒否する
+            if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
+                return Err(EngineError::CommunicationFailed(
+                    "setoption name/value contains forbidden control character".to_string(),
+                ));
+            }
             let cmd = GuiCommand::SetOption(name.clone(), Some(value.clone()));
             protocol.send_command(&cmd).await?;
         }
@@ -90,6 +107,13 @@ impl EngineAnalyzer {
 
     /// 局面を設定
     pub async fn set_position(&self, position: &str) -> Result<(), EngineError> {
+        // USI プロトコルは行指向なので、position 文字列への改行注入を拒否する
+        if contains_usi_breaking_char(position) {
+            return Err(EngineError::CommunicationFailed(
+                "position string contains forbidden control character".to_string(),
+            ));
+        }
+
         let manager_guard = self.manager.lock().await;
         if !manager_guard.is_initialized().await {
             return Err(EngineError::NotInitialized(
@@ -226,13 +250,7 @@ impl EngineAnalyzer {
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
-        let listener_id = format!(
-            "timed_analysis_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
+        let listener_id = format!("timed_analysis_{}", now_nanos());
 
         protocol
             .register_listener(listener_id.clone(), raw_tx)
@@ -276,13 +294,7 @@ impl EngineAnalyzer {
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
-        let listener_id = format!(
-            "depth_analysis_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
+        let listener_id = format!("depth_analysis_{}", now_nanos());
 
         protocol
             .register_listener(listener_id.clone(), raw_tx)
@@ -411,7 +423,7 @@ impl EngineAnalyzer {
         {
             let mut st = state.write().await;
             st.last_result = Some(current_result);
-            st.analysis_count = st.analysis_count.wrapping_add(1).max(1);
+            st.analysis_count = st.analysis_count.wrapping_add(1);
         }
 
         log::debug!(target: LOGT, "stream: end processed={}", processed);

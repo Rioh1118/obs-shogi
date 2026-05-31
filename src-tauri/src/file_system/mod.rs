@@ -3,7 +3,7 @@ mod mv;
 mod operations;
 mod tree;
 mod types;
-mod utils;
+pub(crate) mod utils;
 
 pub use operations::{
     create_directory, create_kifu_file, delete_directory, delete_file, import_kifu_file, read_file,

@@ -77,6 +77,15 @@ impl EngineBridge {
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
 
+        // engine_path は絶対パスかつ既存ファイルであることを要求する。
+        // 攻撃者が /bin/sh などの任意バイナリを起動させる経路を塞ぐ最低限のガード。
+        let resolved = std::fs::canonicalize(&engine_path)
+            .map_err(|e| format!("engine_path is not a valid existing path: {e}"))?;
+        if !resolved.is_file() {
+            return Err("engine_path must point to an existing file".to_string());
+        }
+        let engine_path = resolved.to_string_lossy().to_string();
+
         match self
             .analyzer
             .initialize_engine(engine_path, working_dir)
@@ -354,18 +363,16 @@ impl EngineBridge {
     // ===  session === //
 
     async fn create_session(&self, session_type: SessionType) -> String {
-        let session_id = format!(
-            "{}_{}",
-            match session_type {
-                SessionType::Infinite => "infinite",
-                SessionType::Timed(_) => "timed",
-                SessionType::Depth(_) => "depth",
-            },
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
+        let prefix = match session_type {
+            SessionType::Infinite => "infinite",
+            SessionType::Timed(_) => "timed",
+            SessionType::Depth(_) => "depth",
+        };
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let session_id = format!("{}_{}", prefix, nanos);
 
         let session = AnalysisSession {
             last_result: None,
