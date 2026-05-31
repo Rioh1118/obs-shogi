@@ -1,11 +1,17 @@
 @use "@/index.scss" as index;
 
+// Local warning palette — keep tones derived from the project base palette
+$warn-fg: #b25a18;
+$warn-border: rgba($warn-fg, 0.22);
+$warn-bg-top: rgba(index.$color-white, 0.55);
+$warn-bg-bottom: rgba(index.$color-secondary-light, 0.6);
+
 .kifu-read-error {
   width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.6rem;
+  gap: 1.4rem;
 
   // ── Header ──────────────────────────────────────────────────────────────
 
@@ -18,17 +24,15 @@
 
   &__iconWrap {
     flex: 0 0 auto;
-    width: 3.8rem;
-    height: 3.8rem;
-    border-radius: 1.2rem;
+    width: 3.4rem;
+    height: 3.4rem;
+    border-radius: 0.8rem;
     display: grid;
     place-items: center;
-    background:
-      linear-gradient(180deg, rgba(index.$color-white, 0.5), rgba(index.$color-white, 0.18)),
-      rgba(255, 140, 60, 0.12);
-    color: rgba(220, 100, 30, 0.9);
-    border: 1px solid rgba(255, 140, 60, 0.18);
-    box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.08);
+    background: linear-gradient(180deg, $warn-bg-top, $warn-bg-bottom);
+    color: $warn-fg;
+    border: 1px solid $warn-border;
+    box-shadow: index.$shadow-1;
   }
 
   &__headingBlock {
@@ -40,15 +44,15 @@
   }
 
   &__title {
-    font-size: 1.85rem;
-    line-height: 1.28;
+    font-size: 1.6rem;
+    line-height: 1.3;
     font-weight: 700;
     color: index.$color-text-dark-1;
     letter-spacing: 0.01em;
   }
 
   &__file {
-    font-size: 1.18rem;
+    font-size: 1.15rem;
     color: rgba(index.$color-text-dark-2, 0.7);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -62,38 +66,43 @@
     height: 2.8rem;
     display: grid;
     place-items: center;
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
-    border-radius: 0.8rem;
+    border-radius: 0.6rem;
     color: rgba(index.$color-text-dark-2, 0.55);
     cursor: pointer;
     transition:
       background-color 120ms ease,
-      color 120ms ease;
+      color 120ms ease,
+      border-color 120ms ease,
+      box-shadow 120ms ease;
 
     &:hover {
       background: rgba(index.$color-primary-light, 0.08);
       color: rgba(index.$color-text-dark-2, 0.85);
+    }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(index.$color-secondary-dark, 0.22);
     }
   }
 
   // ── Reason box (Layer 2) ────────────────────────────────────────────────
 
   &__reasonBox {
-    border-radius: 1.2rem;
-    border: 1px solid rgba(255, 140, 60, 0.18);
-    background:
-      linear-gradient(180deg, rgba(index.$color-white, 0.5), rgba(index.$color-white, 0.24)),
-      rgba(255, 200, 120, 0.12);
-    padding: 1.2rem 1.4rem;
+    border-radius: 0.8rem;
+    border: 1px solid $warn-border;
+    background: linear-gradient(180deg, $warn-bg-top, $warn-bg-bottom);
+    padding: 1.1rem 1.3rem;
     display: flex;
     flex-direction: column;
-    gap: 0.55rem;
+    gap: 0.5rem;
   }
 
   &__reason {
-    font-size: 1.32rem;
-    line-height: 1.65;
+    font-size: 1.3rem;
+    line-height: 1.6;
     color: index.$color-text-dark-1;
     font-weight: 500;
   }
@@ -111,7 +120,7 @@
   &__detail {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.5rem;
   }
 
   &__detailToggle {
@@ -123,20 +132,28 @@
     font-size: 1.15rem;
     color: rgba(index.$color-text-dark-2, 0.65);
     cursor: pointer;
-    padding: 0.2rem 0;
-    transition: color 120ms ease;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.4rem;
+    transition:
+      color 120ms ease,
+      box-shadow 120ms ease;
 
     &:hover {
       color: rgba(index.$color-text-dark-2, 0.9);
     }
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(index.$color-secondary-dark, 0.22);
+    }
   }
 
   &__detailBody {
-    background: rgba(index.$color-primary-light, 0.04);
-    border: 1px solid rgba(index.$color-primary-light, 0.1);
-    border-radius: 0.9rem;
+    background: rgba(index.$color-primary-light, 0.06);
+    border: 1px solid rgba(index.$color-primary-light, 0.12);
+    border-radius: 0.6rem;
     padding: 1rem 1.2rem;
-    font-size: 1.08rem;
+    font-size: 1.1rem;
     line-height: 1.65;
     color: rgba(index.$color-text-dark-2, 0.8);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
@@ -155,12 +172,13 @@
     align-items: center;
     gap: 0.8rem;
     flex-wrap: wrap;
+    margin-top: 0.4rem;
   }
 
   &__actionsLeft,
   &__actionsRight {
     display: flex;
-    gap: 0.8rem;
+    gap: 0.6rem;
     align-items: center;
     flex-wrap: wrap;
   }
@@ -169,20 +187,21 @@
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    min-width: 9rem;
-    height: 3.6rem;
+    min-width: 8.4rem;
+    height: 3.2rem;
     padding: 0 1.2rem;
-    border-radius: 1rem;
+    border-radius: 0.6rem;
     border: 1px solid transparent;
-    font-size: 1.28rem;
+    font-size: 1.25rem;
     font-weight: 600;
     letter-spacing: 0.01em;
     cursor: pointer;
     transition:
-      transform 120ms ease,
-      box-shadow 120ms ease,
       background-color 120ms ease,
       border-color 120ms ease,
+      color 120ms ease,
+      transform 120ms ease,
+      box-shadow 120ms ease,
       opacity 120ms ease;
 
     &:hover:not(:disabled) {
@@ -206,8 +225,12 @@
 
     &--ghost {
       background: transparent;
-      border-color: rgba(index.$color-primary-light, 0.14);
+      border-color: rgba(index.$color-primary-light, 0.2);
       color: rgba(index.$color-text-dark-2, 0.85);
+
+      &:hover:not(:disabled) {
+        background: rgba(index.$color-primary-light, 0.06);
+      }
     }
 
     &--primary {
@@ -218,6 +241,23 @@
       );
       color: index.$color-text-light-1;
       box-shadow: 0 0.5rem 1.2rem rgba(44, 54, 57, 0.18);
+
+      &:hover:not(:disabled) {
+        box-shadow: 0 0.6rem 1.4rem rgba(44, 54, 57, 0.24);
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &__btn,
+    &__closeBtn,
+    &__detailToggle {
+      transition: none;
+    }
+
+    &__btn:hover:not(:disabled),
+    &__btn:active:not(:disabled) {
+      transform: none;
     }
   }
 }
