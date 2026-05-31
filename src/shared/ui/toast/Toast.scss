@@ -1,0 +1,78 @@
+.toast-container {
+  position: fixed;
+  right: 1.6rem;
+  bottom: 1.6rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  pointer-events: none;
+  max-width: min(36rem, calc(100vw - 3.2rem));
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 1rem 1.2rem;
+  border-radius: 0.8rem;
+  background: rgba(20, 22, 28, 0.96);
+  color: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.32);
+  font-size: 1.3rem;
+  line-height: 1.5;
+  animation: toast-in 0.18s ease-out;
+
+  &--info {
+    border-left: 3px solid #4aa8ff;
+  }
+  &--success {
+    border-left: 3px solid #4ade80;
+  }
+  &--warn {
+    border-left: 3px solid #f59e0b;
+  }
+  &--error {
+    border-left: 3px solid #ef4444;
+  }
+
+  &__message {
+    flex: 1;
+    word-break: break-word;
+  }
+
+  &__close {
+    flex-shrink: 0;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.4rem;
+    border-radius: 0.4rem;
+
+    &:hover {
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba(74, 168, 255, 0.6);
+      outline-offset: 1px;
+    }
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

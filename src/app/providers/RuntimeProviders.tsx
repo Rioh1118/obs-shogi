@@ -7,23 +7,26 @@ import { PositionSyncProvider } from "./bridges/position-sync";
 import { PositionSearchProvider } from "@/entities/search";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
 import { StudyPositionsProvider } from "@/entities/study-positions/model/provider";
+import { ToastProvider } from "@/shared/ui/toast";
 
 export function RuntimeProviders({ children }: { children: ReactNode }) {
   return (
-    <FileTreeRootGate>
-      <GamePersistenceGate>
-        <StudyPositionsProvider>
-          <EnginePresetsProvider>
-            <EngineRuntimeBridge>
-              <PositionSyncProvider>
-                <PositionSearchProvider>
-                  <AnalysisBridge>{children}</AnalysisBridge>
-                </PositionSearchProvider>
-              </PositionSyncProvider>
-            </EngineRuntimeBridge>
-          </EnginePresetsProvider>
-        </StudyPositionsProvider>
-      </GamePersistenceGate>
-    </FileTreeRootGate>
+    <ToastProvider>
+      <FileTreeRootGate>
+        <GamePersistenceGate>
+          <StudyPositionsProvider>
+            <EnginePresetsProvider>
+              <EngineRuntimeBridge>
+                <PositionSyncProvider>
+                  <PositionSearchProvider>
+                    <AnalysisBridge>{children}</AnalysisBridge>
+                  </PositionSearchProvider>
+                </PositionSyncProvider>
+              </EngineRuntimeBridge>
+            </EnginePresetsProvider>
+          </StudyPositionsProvider>
+        </GamePersistenceGate>
+      </FileTreeRootGate>
+    </ToastProvider>
   );
 }

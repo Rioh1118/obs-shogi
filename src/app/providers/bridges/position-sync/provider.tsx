@@ -5,14 +5,31 @@ import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PositionSyncContext } from "./context";
 import { setPositionFromSfen } from "@/entities/engine/api/tauri";
+import { useToast } from "@/shared/ui/toast";
+
+const SYNC_FAIL_TOAST_THRESHOLD = 3;
 
 export function PositionSyncProvider({ children }: { children: React.ReactNode }) {
   const { state: gameState, view: gameView } = useGame();
   const { isReady } = useEngine();
   const { state: presetsState, selectedPresetVersion } = useEnginePresets();
+  const toast = useToast();
   const engineKey = presetsState.selectedPresetId
     ? `${presetsState.selectedPresetId}@${selectedPresetVersion}`
     : "no-engine";
+
+  const failCountRef = useRef(0);
+  const onSyncFail = useCallback(
+    (e: unknown) => {
+      failCountRef.current += 1;
+      console.warn("[position-sync] failed:", e);
+      if (failCountRef.current >= SYNC_FAIL_TOAST_THRESHOLD) {
+        toast.warn("局面の同期に繰り返し失敗しています");
+        failCountRef.current = 0;
+      }
+    },
+    [toast],
+  );
 
   const [syncedEngineKey, setSyncedEngineKey] = useState<string | null>(null);
   const lastEngineKeyRef = useRef<string | null>(engineKey);
@@ -39,7 +56,7 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
 
       return gameView.player.shogi.toSFENString(gameView.player.tesuu || 1);
     } catch (error) {
-      console.error("❌ [POSITION] Error getting SFEN:", error);
+      console.error("[position-sync] Error getting SFEN:", error);
       return null;
     }
   }, [gameView.player]);
@@ -89,6 +106,7 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
           setSyncedSfen(target);
           setSyncedEngineKey(engineKey);
           setIsPositionSynced(true);
+          failCountRef.current = 0;
         } catch (e) {
           // 万一NotInitializedなら ready待ちへ戻す
           if (isNotInitializedError(e)) {
@@ -130,8 +148,8 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
       queuedSfenRef.current = null;
       return;
     }
-    syncPosition().catch(() => {});
-  }, [engineKey, gameState.cursor, syncPosition]);
+    syncPosition().catch(onSyncFail);
+  }, [engineKey, gameState.cursor, syncPosition, onSyncFail]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -141,8 +159,8 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
     pendingBeforeReadyRef.current = null;
     // 最新としてキューに積む
     queuedSfenRef.current = pending;
-    syncPosition().catch(() => {});
-  }, [isReady, syncPosition]);
+    syncPosition().catch(onSyncFail);
+  }, [isReady, syncPosition, onSyncFail]);
 
   const currentSfen = getCurrentSfen();
 

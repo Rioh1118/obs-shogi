@@ -34,6 +34,7 @@ export type FloatingNoteProps = {
   width?: number;
   className?: string;
   children: React.ReactNode;
+  ariaLabel?: string;
 };
 
 function clamp(v: number, lo: number, hi: number) {
@@ -80,6 +81,7 @@ export default function FloatingNote({
   width = 400,
   className,
   children,
+  ariaLabel = "ノート",
 }: FloatingNoteProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [anchoredPos, setAnchoredPos] = useState<AnchoredPos | null>(null);
@@ -251,7 +253,14 @@ export default function FloatingNote({
   if (!anchoredPos && !geometry) return null;
 
   return createPortal(
-    <div ref={panelRef} className={panelClassName} style={style} role="dialog" aria-modal="false">
+    <div
+      ref={panelRef}
+      className={panelClassName}
+      style={style}
+      role="dialog"
+      aria-modal="false"
+      aria-label={ariaLabel}
+    >
       <div className="floating-note__top-band" aria-hidden="true">
         <div
           className="floating-note__resize floating-note__resize--nw"

@@ -4,6 +4,7 @@ import type { EngineContextType, EngineRuntimeConfig } from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
 import { EngineContext } from "./context";
+import { useToast } from "@/shared/ui/toast";
 
 type Props = {
   children: React.ReactNode;
@@ -12,6 +13,7 @@ type Props = {
 
 export function EngineProvider({ children, desiredRuntime }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const toast = useToast();
 
   const seqRef = useRef(0);
   const lastTriedRef = useRef<EngineRuntimeConfig | null>(null);
@@ -83,7 +85,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     // 設定が無い → 起動中なら止める
     if (!desiredRuntime) {
       if (state.phase === "ready" || state.phase === "initializing" || state.phase === "error") {
-        shutdown().catch(() => {});
+        shutdown().catch((e) => {
+          console.warn("[engine] shutdown failed:", e);
+          toast.warn("エンジンの停止に失敗しました");
+        });
       }
       return;
     }
@@ -92,13 +97,21 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     if (state.phase === "error") {
       const last = lastTriedRef.current;
       const sameRuntime = last ? equalRuntime(desiredRuntime, last) : false;
-      if (!sameRuntime) initialize().catch(() => {});
+      if (!sameRuntime) {
+        initialize().catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          toast.error(`エンジンの初期化に失敗しました: ${msg}`);
+        });
+      }
       return;
     }
 
     // idle → 起動
     if (state.phase === "idle") {
-      initialize().catch(() => {});
+      initialize().catch((e) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        toast.error(`エンジンの初期化に失敗しました: ${msg}`);
+      });
       return;
     }
 
@@ -107,10 +120,13 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       const runtimeChanged = !equalRuntime(desiredRuntime, state.activeRuntime);
 
       if (runtimeChanged) {
-        restart().catch(() => {});
+        restart().catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          toast.error(`エンジンの再起動に失敗しました: ${msg}`);
+        });
       }
     }
-  }, [desiredRuntime, state.phase, state.activeRuntime, initialize, shutdown, restart]);
+  }, [desiredRuntime, state.phase, state.activeRuntime, initialize, shutdown, restart, toast]);
 
   const value = useMemo<EngineContextType>(
     () => ({
