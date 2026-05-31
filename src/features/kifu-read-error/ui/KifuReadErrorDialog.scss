@@ -1,11 +1,9 @@
 @use "@/index.scss" as index;
 
-// Local warning palette — solid, tactile tones derived from the base palette
-$warn-fg: #b25a18;
-$warn-fg-strong: #8a4413;
-$warn-bg: #fbe7d5;
-$warn-bg-deep: #f5d2b2;
-$warn-border: rgba($warn-fg, 0.32);
+// Solid warning palette derived from the project base palette
+$warn-fg: #a04a14;
+$warn-bg: #f6e0c8;
+$warn-rule: rgba($warn-fg, 0.45);
 
 .kifu-read-error {
   width: 100%;
@@ -19,20 +17,13 @@ $warn-border: rgba($warn-fg, 0.32);
   &__header {
     display: flex;
     align-items: center;
-    gap: 1.1rem;
+    gap: 0.9rem;
     min-width: 0;
   }
 
-  &__iconWrap {
+  &__icon {
     flex: 0 0 auto;
-    width: 3.2rem;
-    height: 3.2rem;
-    border-radius: 0.8rem;
-    display: grid;
-    place-items: center;
-    background: $warn-bg-deep;
-    color: $warn-fg-strong;
-    border: 1px solid $warn-border;
+    color: $warn-fg;
   }
 
   &__headingBlock {
@@ -40,11 +31,11 @@ $warn-border: rgba($warn-fg, 0.32);
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.2rem;
   }
 
   &__title {
-    font-size: 1.55rem;
+    font-size: 1.5rem;
     line-height: 1.3;
     font-weight: 700;
     color: index.$color-text-dark-1;
@@ -52,24 +43,22 @@ $warn-border: rgba($warn-fg, 0.32);
   }
 
   &__file {
-    font-size: 1.15rem;
-    color: rgba(index.$color-text-dark-2, 0.78);
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-dark-2, 0.75);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
 
-  // ── Reason box (Layer 2) ────────────────────────────────────────────────
+  // ── Reason (Layer 2) — left rule accent, no heavy box ───────────────────
 
   &__reasonBox {
-    border-radius: 0.8rem;
-    border: 1px solid $warn-border;
-    background: $warn-bg;
-    padding: 1.1rem 1.3rem;
+    border-left: 2px solid $warn-rule;
+    padding: 0.2rem 0 0.2rem 1.1rem;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
 
   &__reason {
@@ -80,8 +69,8 @@ $warn-border: rgba($warn-fg, 0.32);
   }
 
   &__path {
-    font-size: 1.1rem;
-    color: rgba(index.$color-text-dark-2, 0.72);
+    font-size: 1.05rem;
+    color: rgba(index.$color-text-dark-2, 0.7);
     word-break: break-all;
     line-height: 1.5;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
@@ -102,8 +91,8 @@ $warn-border: rgba($warn-fg, 0.32);
     gap: 0.4rem;
     border: none;
     background: transparent;
-    font-size: 1.15rem;
-    color: rgba(index.$color-text-dark-2, 0.75);
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-dark-2, 0.7);
     cursor: pointer;
     padding: 0.2rem 0.4rem;
     border-radius: 0.4rem;
@@ -122,12 +111,12 @@ $warn-border: rgba($warn-fg, 0.32);
   }
 
   &__detailBody {
-    background: rgba(index.$color-primary-light, 0.08);
-    border: 1px solid rgba(index.$color-primary-light, 0.18);
+    background: $warn-bg;
+    border: 1px solid $warn-rule;
     border-radius: 0.6rem;
-    padding: 1rem 1.2rem;
-    font-size: 1.1rem;
-    line-height: 1.65;
+    padding: 0.9rem 1.1rem;
+    font-size: 1.05rem;
+    line-height: 1.6;
     color: index.$color-text-dark-2;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
     overflow-x: auto;
@@ -141,31 +130,20 @@ $warn-border: rgba($warn-fg, 0.32);
 
   &__actions {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
-    gap: 0.8rem;
-    flex-wrap: wrap;
-    margin-top: 0.4rem;
-  }
-
-  &__actionsLeft,
-  &__actionsRight {
-    display: flex;
-    gap: 0.6rem;
-    align-items: center;
-    flex-wrap: wrap;
+    margin-top: 0.2rem;
   }
 
   &__btn {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    min-width: 8.4rem;
-    height: 3.2rem;
-    padding: 0 1.2rem;
-    border-radius: 0.6rem;
+    height: 3rem;
+    padding: 0 1.1rem;
+    border-radius: 0.5rem;
     border: 1px solid transparent;
-    font-size: 1.25rem;
+    font-size: 1.2rem;
     font-weight: 600;
     letter-spacing: 0.01em;
     cursor: pointer;
@@ -173,17 +151,8 @@ $warn-border: rgba($warn-fg, 0.32);
       background-color 120ms ease,
       border-color 120ms ease,
       color 120ms ease,
-      transform 120ms ease,
       box-shadow 120ms ease,
       opacity 120ms ease;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-1px);
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(0) scale(0.985);
-    }
 
     &:focus-visible {
       outline: none;
@@ -193,7 +162,6 @@ $warn-border: rgba($warn-fg, 0.32);
     &:disabled {
       opacity: 0.46;
       cursor: not-allowed;
-      transform: none;
     }
 
     &--ghost {
@@ -204,30 +172,8 @@ $warn-border: rgba($warn-fg, 0.32);
       &:hover:not(:disabled) {
         background: rgba(index.$color-primary-light, 0.08);
         border-color: rgba(index.$color-primary-light, 0.4);
+        color: index.$color-text-dark-1;
       }
-    }
-
-    &--primary {
-      background: index.$color-primary-dark;
-      color: index.$color-text-light-1;
-      box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.18);
-
-      &:hover:not(:disabled) {
-        background: index.$color-primary-light;
-        box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.22);
-      }
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &__btn,
-    &__detailToggle {
-      transition: none;
-    }
-
-    &__btn:hover:not(:disabled),
-    &__btn:active:not(:disabled) {
-      transform: none;
     }
   }
 }
