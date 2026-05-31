@@ -22,7 +22,7 @@ pub use file_system::{
     save_kifu_file,
 };
 pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
-pub use search::api::{open_project, search_position, SearchState};
+pub use search::api::{cancel_search, open_project, search_position, SearchState};
 pub use search::index_store::IndexStore;
 pub use study_positions::{load_study_positions, save_study_positions};
 
@@ -86,6 +86,7 @@ pub fn run() {
             get_engine_info,
             open_project,
             search_position,
+            cancel_search,
             load_study_positions,
             save_study_positions,
         ])

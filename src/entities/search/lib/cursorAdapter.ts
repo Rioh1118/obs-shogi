@@ -2,9 +2,9 @@ import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
 import type { CursorLite } from "../api/ids";
 
 export function cursorFromLite(c: CursorLite): KifuCursor {
-  const forkPointers = c.fork_pointers.map((p) => ({
+  const forkPointers = c.forkPointers.map((p) => ({
     te: p.te,
-    forkIndex: p.fork_index,
+    forkIndex: p.forkIndex,
   }));
 
   // JKFPlayerの文字列形式に寄せる（例: "7,[{"te":3,"forkIndex":0}]")

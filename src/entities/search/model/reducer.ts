@@ -37,7 +37,7 @@ function ensureSession(
       stale: false,
       isDone: false,
       error: null,
-      hits: [],
+      chunks: [],
       startedAt: Date.now(),
       endedAt: null,
     },
@@ -47,34 +47,34 @@ function ensureSession(
 function mergeFiles(base: FilePathById, files: MergeFilesInput): FilePathById {
   if (!files.length) return base;
 
-  let changed = false;
-  const next: FilePathById = { ...base };
+  let next: FilePathById | null = null;
 
   for (const f of files) {
-    const prev = next[f.file_id];
-    if (prev !== f.abs_path) {
-      next[f.file_id] = f.abs_path;
-      changed = true;
+    const prev = base[f.fileId];
+    if (prev !== f.absPath) {
+      if (!next) next = { ...base };
+      next[f.fileId] = f.absPath;
     }
   }
 
-  return changed ? next : base;
+  return next ?? base;
 }
 
 export function reducer(state: SearchState, action: Action): SearchState {
   switch (action.type) {
-    // ===== index events =====
     case "index_state": {
       const p = action.payload;
+      const isReady = p.state === "Ready";
       return {
         ...state,
         index: {
           ...state.index,
           state: p.state,
-          dirtyCount: p.dirty_count,
-          indexedFiles: p.indexed_files,
-          totalFiles: p.total_files,
-          doneFiles: Math.min(state.index.doneFiles, p.total_files),
+          dirtyCount: p.dirtyCount,
+          indexedFiles: p.indexedFiles,
+          totalFiles: p.totalFiles,
+          // Ready 到達時は doneFiles を totalFiles に揃える (C-M2 backstop)
+          doneFiles: isReady ? p.totalFiles : Math.min(state.index.doneFiles, p.totalFiles),
         },
       };
     }
@@ -85,10 +85,9 @@ export function reducer(state: SearchState, action: Action): SearchState {
         ...state,
         index: {
           ...state.index,
-          currentPath: p.current_path,
-
-          doneFiles: p.done_files,
-          totalFiles: state.index.totalFiles > 0 ? state.index.totalFiles : p.total_files,
+          currentPath: p.currentPath || state.index.currentPath,
+          doneFiles: p.doneFiles,
+          totalFiles: state.index.totalFiles > 0 ? state.index.totalFiles : p.totalFiles,
         },
       };
     }
@@ -102,7 +101,6 @@ export function reducer(state: SearchState, action: Action): SearchState {
     case "clear_warns":
       return { ...state, warns: [] };
 
-    // ===== open project lifecycle =====
     case "open_start":
       return {
         ...state,
@@ -132,18 +130,17 @@ export function reducer(state: SearchState, action: Action): SearchState {
         openError: action.payload.message,
       };
 
-    // ===== search events =====
     case "search_begin": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.request_id);
-      const s = sessions[p.request_id]!;
+      const sessions = ensureSession(state.sessions, p.requestId);
+      const s = sessions[p.requestId]!;
       return {
         ...state,
         isSearching: true,
-        currentRequestId: p.request_id,
+        currentRequestId: p.requestId,
         sessions: {
           ...sessions,
-          [p.request_id]: {
+          [p.requestId]: {
             ...s,
             stale: p.stale,
             isDone: false,
@@ -157,17 +154,18 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_chunk": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.request_id);
-      const s = sessions[p.request_id]!;
+      const sessions = ensureSession(state.sessions, p.requestId);
+      const s = sessions[p.requestId]!;
+      // chunk は配列のまま追加。フラット化は consumer 側で償却 O(n) (C-M1)
       return {
         ...state,
-        currentRequestId: state.currentRequestId ?? p.request_id,
+        currentRequestId: state.currentRequestId ?? p.requestId,
         filePathById: mergeFiles(state.filePathById, p.files),
         sessions: {
           ...sessions,
-          [p.request_id]: {
+          [p.requestId]: {
             ...s,
-            hits: [...s.hits, ...p.chunk],
+            chunks: [...s.chunks, p.chunk],
           },
         },
       };
@@ -193,16 +191,16 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_end": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.request_id);
-      const s = sessions[p.request_id]!;
-      const isCurrent = state.currentRequestId === p.request_id;
+      const sessions = ensureSession(state.sessions, p.requestId);
+      const s = sessions[p.requestId]!;
+      const isCurrent = state.currentRequestId === p.requestId;
 
       return {
         ...state,
         isSearching: isCurrent ? false : state.isSearching,
         sessions: {
           ...sessions,
-          [p.request_id]: {
+          [p.requestId]: {
             ...s,
             isDone: true,
             endedAt: Date.now(),
@@ -213,16 +211,16 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_error": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.request_id);
-      const s = sessions[p.request_id]!;
-      const isCurrent = state.currentRequestId === p.request_id;
+      const sessions = ensureSession(state.sessions, p.requestId);
+      const s = sessions[p.requestId]!;
+      const isCurrent = state.currentRequestId === p.requestId;
 
       return {
         ...state,
         isSearching: isCurrent ? false : state.isSearching,
         sessions: {
           ...sessions,
-          [p.request_id]: {
+          [p.requestId]: {
             ...s,
             error: p.message,
             isDone: true,
@@ -233,15 +231,9 @@ export function reducer(state: SearchState, action: Action): SearchState {
     }
 
     case "clear_search": {
-      const rid = action.payload?.requestId;
-      if (rid == null) {
-        return {
-          ...state,
-          isSearching: false,
-          currentRequestId: null,
-          sessions: {},
-        };
-      }
+      // C-M4: rid 必須化。全削除は許可しない (他モーダル誤巻き込み防止)。
+      const rid = action.payload.requestId;
+      if (!state.sessions[rid]) return state;
 
       const next = { ...state.sessions };
       delete next[rid];

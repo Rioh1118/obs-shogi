@@ -101,7 +101,7 @@ fn do_full_build(records: &[app_lib::search::fs_scan::FileRecord]) -> BuildResul
             file_id,
             path: rec.path.to_string_lossy().to_string(),
             deleted: false,
-            gen,
+            r#gen: gen,
         });
         nts.upsert(file_id, built.node_table);
 
@@ -471,9 +471,9 @@ fn bench_06_compaction() {
         // Merge all segments into one sorted vec
         let mut merged: Vec<(PositionKey, Occurrence)> = Vec::new();
         for seg in segs {
-            for e in seg.entries() {
-                if snap.file_table.is_occ_alive(e.1.file_id, e.1.gen) {
-                    merged.push(*e);
+            for e in seg.iter_entries() {
+                if snap.file_table.is_occ_alive(e.1.file_id, e.1.r#gen) {
+                    merged.push(e);
                 }
             }
         }
@@ -593,8 +593,8 @@ fn bench_08_encode_decode_size() {
     let mut all_entries: Vec<(PositionKey, Occurrence)> = Vec::new();
     for segs in &result.buckets {
         for seg in segs {
-            for e in seg.entries() {
-                all_entries.push(*e);
+            for e in seg.iter_entries() {
+                all_entries.push(e);
             }
         }
     }
@@ -612,7 +612,7 @@ fn bench_08_encode_decode_size() {
         raw.extend_from_slice(&k.z0.to_le_bytes());
         raw.extend_from_slice(&k.z1.to_le_bytes());
         raw.extend_from_slice(&o.file_id.to_le_bytes());
-        raw.extend_from_slice(&o.gen.to_le_bytes());
+        raw.extend_from_slice(&o.r#gen.to_le_bytes());
         raw.extend_from_slice(&o.node_id.to_le_bytes());
     }
 

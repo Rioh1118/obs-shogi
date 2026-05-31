@@ -4,29 +4,29 @@ export type Gen = number;
 export type NodeId = number;
 export type RequestId = number;
 
-// Rust: pub struct ForkPointer { te: u32, fork_index: u32 }
+// Rust: pub struct ForkPointer { te: u32, fork_index: u32 } -> camelCase
 export interface ForkPointer {
   te: number;
-  fork_index: number;
+  forkIndex: number;
 }
 
-// Rust: pub struct Occurrence { file_id, gen, node_id }
+// Rust: pub struct Occurrence { file_id, gen, node_id } -> camelCase + gen field renamed via #[serde(rename = "gen")]
 export interface Occurrence {
-  file_id: FileId;
+  fileId: FileId;
   gen: Gen;
-  node_id: NodeId;
+  nodeId: NodeId;
 }
 
-// Rust: pub struct FilePathEntry { file_id: u32, abs_path: String }
+// Rust: pub struct FilePathEntry { file_id: u32, abs_path: String } -> camelCase
 export interface FilePathEntry {
-  file_id: FileId;
-  abs_path: string;
+  fileId: FileId;
+  absPath: string;
 }
 
-// Rust: pub struct CursorLite { tesuu: u32, fork_pointers: Vec<ForkPointer> }
+// Rust: pub struct CursorLite { tesuu: u32, fork_pointers: Vec<ForkPointer> } -> camelCase
 export interface CursorLite {
   tesuu: number;
-  fork_pointers: ForkPointer[];
+  forkPointers: ForkPointer[];
 }
 
 // Rust: pub struct PositionHit { occ: Occurrence, cursor: CursorLite }

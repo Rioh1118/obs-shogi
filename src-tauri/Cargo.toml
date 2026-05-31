@@ -37,7 +37,7 @@ arc-swap = "1.8.1"
 walkdir = "2.5.0"
 notify = "8.2.0"
 rayon = "1.11.0"
-tokio-util = "0.7.18"
+tokio-util = { version = "0.7.18", default-features = false }
 
 thiserror = "2.0.12"
 sysinfo = "=0.35.2"
