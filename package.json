@@ -8,6 +8,8 @@
     "dev": "vp dev",
     "build": "tsc -b && vp build",
     "lint": "vp lint .",
+    "test": "vp test run",
+    "test:watch": "vp test watch",
     "preview": "vp preview",
     "prepare": "vp config"
   },
