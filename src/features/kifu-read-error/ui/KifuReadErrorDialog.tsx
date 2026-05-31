@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Copy, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Copy } from "lucide-react";
 import Modal from "@/shared/ui/Modal";
 import type { FsError } from "@/entities/file-tree/api/error";
 import "./KifuReadErrorDialog.scss";
@@ -63,14 +63,6 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
             <h2 className="kifu-read-error__title">棋譜を開けませんでした</h2>
             {fileName && <p className="kifu-read-error__file">{fileName}</p>}
           </div>
-          <button
-            type="button"
-            className="kifu-read-error__closeBtn"
-            onClick={onDismiss}
-            aria-label="閉じる"
-          >
-            <X size={16} />
-          </button>
         </header>
 
         {/* Layer 2: actionable reason */}
