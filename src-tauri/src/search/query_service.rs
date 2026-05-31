@@ -90,7 +90,35 @@ impl QueryService {
 
         match position_key_from_sfen(&input.sfen) {
             Ok(key) => {
-                let occs = snap.search_occurrences_by_key(key);
+                // 検索本体は CPU bound なので spawn_blocking に逃がす。
+                // ここを await ポイントにすることで、最初の chunk が出るまでの間も
+                // Tokio runtime が他タスク (cancel, watcher, 他検索) を進められる。
+                let snap_for_search = snap.clone();
+                let occs = match tokio::task::spawn_blocking(move || {
+                    snap_for_search.search_occurrences_by_key(key)
+                })
+                .await
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = handle.emit(
+                            EVT_SEARCH_ERROR,
+                            SearchErrorPayload {
+                                request_id,
+                                message: format!("search task join error: {e}"),
+                            },
+                        );
+                        self.cancellations.lock().remove(&request_id);
+                        return;
+                    }
+                };
+
+                if cancel.is_cancelled() {
+                    log::debug!("[query] rid={request_id} cancelled before stream");
+                    self.cancellations.lock().remove(&request_id);
+                    return;
+                }
+
                 let ft = snap.file_table.clone();
                 let nts = snap.node_tables.clone();
 
@@ -135,6 +163,12 @@ impl QueryService {
                             files,
                         },
                     );
+
+                    // chunk 間に await ポイントを入れる。
+                    // これが無いと連続 emit が同一 Tokio tick に閉じ、IPC / React batching
+                    // の都合でフロントには 1 フレームに合流して届く。yield_now で
+                    // runtime に制御を返し、実時間ストリーミングを成立させる。
+                    tokio::task::yield_now().await;
                 }
 
                 let _ = handle.emit(EVT_SEARCH_END, SearchEndPayload { request_id });

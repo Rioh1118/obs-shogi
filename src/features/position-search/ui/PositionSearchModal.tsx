@@ -132,8 +132,8 @@ export default function PositionSearchModal() {
     setActiveIndex(0);
 
     const doSearch = params.sfen
-      ? searchPosition({ sfen: params.sfen, consistency: "BestEffort", chunkSize: 5000 })
-      : searchCurrentPositionBestEffort({ chunkSize: 5000 });
+      ? searchPosition({ sfen: params.sfen, consistency: "BestEffort", chunkSize: 300 })
+      : searchCurrentPositionBestEffort({ chunkSize: 300 });
 
     doSearch
       .then((out) => {

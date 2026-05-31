@@ -146,7 +146,7 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
       return await searchPosition({
         sfen: currentSfen,
         consistency: opts?.consistency ?? "BestEffort",
-        chunkSize: opts?.chunkSize ?? 5000,
+        chunkSize: opts?.chunkSize ?? 300,
       });
     },
     [currentSfen, searchPosition],
