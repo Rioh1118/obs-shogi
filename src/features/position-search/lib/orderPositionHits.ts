@@ -1,7 +1,9 @@
 import type { PositionHit } from "@/entities/search";
 
 export const hitKey = (h: PositionHit) =>
-  `${h.occ.file_id}:${h.occ.gen}:${h.occ.node_id}:${h.cursor.tesuu}:${h.cursor.fork_pointers.join(",")}`;
+  `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${h.cursor.tesuu}:${h.cursor.forkPointers
+    .map((p) => `${p.te}-${p.forkIndex}`)
+    .join(",")}`;
 
 export function orderPositionHits(
   hits: PositionHit[],

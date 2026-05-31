@@ -14,14 +14,17 @@ pub type Gen = u32;
 pub type NodeId = u32;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub file_id: FileId,
     pub path: String,
     pub deleted: bool,
-    pub gen: Gen,
+    #[serde(rename = "gen")]
+    pub r#gen: Gen,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FilePathEntry {
     pub file_id: FileId,
     pub abs_path: String,
@@ -37,6 +40,7 @@ pub enum IndexState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IndexStatePayload {
     pub state: IndexState,
     pub dirty_count: u32,
@@ -46,54 +50,69 @@ pub struct IndexStatePayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Consistency {
-    BestEffort,   // 今あるsnapshotで即検索（stale可）
-    WaitForClean, // dirty反映を待つ（上限は内部で）
+    BestEffort,
+    WaitForClean,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchPositionInput {
     pub sfen: String,
     pub consistency: Consistency,
-    pub chunk_size: u32, // 例: 2000〜10000
+    pub chunk_size: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchPositionOutput {
     pub request_id: RequestId,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelSearchInput {
+    pub request_id: RequestId,
+}
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ForkPointer {
     pub te: u32,
     pub fork_index: u32,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
 pub struct Occurrence {
     pub file_id: FileId,
-    pub gen: Gen,
+    #[serde(rename = "gen")]
+    pub r#gen: Gen,
     pub node_id: NodeId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CursorLite {
     pub tesuu: u32,
     pub fork_pointers: Vec<ForkPointer>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PositionHit {
     pub occ: Occurrence,
     pub cursor: CursorLite,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchBeginPayload {
     pub request_id: RequestId,
     pub stale: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchChunkPayload {
     pub request_id: RequestId,
     pub chunk: Vec<PositionHit>,
@@ -101,27 +120,32 @@ pub struct SearchChunkPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchEndPayload {
     pub request_id: RequestId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchErrorPayload {
     pub request_id: RequestId,
     pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenProjectInput {
     pub root_dir: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OpenProjectOutput {
     pub total_files: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IndexProgressPayload {
     pub current_path: String,
     pub done_files: u32,
@@ -129,6 +153,7 @@ pub struct IndexProgressPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IndexWarnPayload {
     pub path: String,
     pub message: String,

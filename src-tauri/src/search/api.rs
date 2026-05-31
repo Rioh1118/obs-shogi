@@ -14,7 +14,7 @@ use crate::search::{
     position_key::PositionKey,
     project_manager::ProjectManager,
     query_service::QueryService,
-    types::{Occurrence, SearchPositionInput, SearchPositionOutput},
+    types::{CancelSearchInput, Occurrence, SearchPositionInput, SearchPositionOutput},
 };
 
 use super::{
@@ -55,16 +55,28 @@ impl SearchState {
     }
 }
 
-/// 局面検索コマンド（イベントで結果を返す）
+/// 局面検索コマンド（イベントで結果を返す）。
 ///
-/// 戻り値は request_id のみ（結果は EVT_* で push）
+/// `request_id` を即 return し、検索本体は background spawn する。結果と進捗は
+/// `EVT_SEARCH_*` で push される。
 #[tauri::command]
 pub async fn search_position(
     state: State<'_, SearchState>,
     input: SearchPositionInput,
 ) -> Result<SearchPositionOutput, String> {
     log::debug!("[cmd] search_position invoked");
-    Ok(state.query.search_position_impl(input).await)
+    state.query.clone().start_search(input).await
+}
+
+/// 進行中の検索をキャンセル。フロントの cleanup で呼ぶ。
+#[tauri::command]
+pub async fn cancel_search(
+    state: State<'_, SearchState>,
+    input: CancelSearchInput,
+) -> Result<(), String> {
+    log::debug!("[cmd] cancel_search rid={}", input.request_id);
+    state.query.cancel(input.request_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -106,15 +118,17 @@ pub async fn open_project(
                 restored.next_file_id
             );
 
-            // restore直後は Ready として install する（検索がすぐ動く）
+            // restore 直後は Updating として install する。
+            // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
+            // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
+            // Updating で開示する (C-M3)。
             store.install_restored(
-                StoreIndexState::Ready,
+                StoreIndexState::Updating,
                 restored.file_table,
                 restored.node_tables,
                 restored.buckets,
             );
 
-            // ProjectManager にも復元状態を入れる（watcher/run_rescan_diff_applyが必要）
             project
                 .install_after_full_build(
                     root_dir.clone(),
@@ -124,13 +138,12 @@ pub async fn open_project(
                 )
                 .await;
 
-            // UIへ Ready を通知（モーダルを後から開いても final refresh が走る）
             let _ = app.emit(
                 EVT_INDEX_STATE,
                 IndexStatePayload {
-                    state: IndexState::Ready,
+                    state: IndexState::Updating,
                     dirty_count: 0,
-                    indexed_files: total_files, // 325とか
+                    indexed_files: total_files,
                     total_files,
                 },
             );
@@ -146,14 +159,26 @@ pub async fn open_project(
                 log::info!("[open_project] watcher started");
             }
 
-            // 裏で差分反映（必要なら Updating→Ready が飛ぶ）
-            // dirty=0 なら何もせず return するが、すでに Ready を emit 済みなので問題なし
+            // 裏で差分反映 — 完了時に Ready (または変化なしなら即 Ready) を emit する。
             let pm = project.clone();
             let st = store.clone();
             let app2 = app.clone();
             tauri::async_runtime::spawn(async move {
                 log::debug!("[open_project] spawn run_rescan_diff_apply");
-                pm.run_rescan_diff_apply(app2, st).await;
+                pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
+                // 差分が無くて run_rescan_diff_apply が早期 return した場合、
+                // store の state は Updating のまま。 Ready に確実に上げ直す。
+                st.set_state(StoreIndexState::Ready);
+                let total_files = st.snapshot().file_table.len() as u32;
+                let _ = app2.emit(
+                    EVT_INDEX_STATE,
+                    IndexStatePayload {
+                        state: IndexState::Ready,
+                        dirty_count: 0,
+                        indexed_files: total_files,
+                        total_files,
+                    },
+                );
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
 
@@ -371,6 +396,18 @@ async fn build_full_index_task(
     }
 
     store.set_state(StoreIndexState::Ready);
+
+    // 最終 progress を必ず 1 回 emit する (C-M2)。 EMIT_INTERVAL の谷で
+    // 取りこぼした場合、 reducer の doneFiles が total_files に達しないまま
+    // Ready に飛ぶことを防ぐ。
+    let _ = app.emit(
+        EVT_INDEX_PROGRESS,
+        IndexProgressPayload {
+            current_path: String::new(),
+            done_files,
+            total_files,
+        },
+    );
 
     let _ = app.emit(
         EVT_INDEX_STATE,

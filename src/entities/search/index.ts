@@ -43,8 +43,8 @@ export {
   openProject,
   searchPosition,
   searchPositionBestEffort,
+  cancelSearch,
   listenSearchEvents,
-  filterByRequestId,
 } from "./api/tauri";
 
 export { PositionSearchProvider } from "./model/provider";

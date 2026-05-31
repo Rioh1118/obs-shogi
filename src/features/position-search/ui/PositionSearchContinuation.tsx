@@ -69,7 +69,7 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
     const abs = resolveAbsPath(activeHit);
     if (!abs) return null;
 
-    const fp = activeHit.cursor.fork_pointers.map((p) => `${p.te}-${p.fork_index}`).join(",");
+    const fp = activeHit.cursor.forkPointers.map((p) => `${p.te}-${p.forkIndex}`).join(",");
     return `${abs}::${activeHit.cursor.tesuu}::${fp}`;
   }, [activeHit, resolveAbsPath]);
 
