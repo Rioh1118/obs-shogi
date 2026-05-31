@@ -91,7 +91,7 @@ impl IndexSnapshot {
             }
         }
 
-        out.sort_by(|a, b| (a.file_id, a.node_id).cmp(&(b.file_id, b.node_id)));
+        out.sort_by_key(|a| (a.file_id, a.node_id));
         out
     }
 }

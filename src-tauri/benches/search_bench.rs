@@ -266,7 +266,7 @@ fn bench_03_full_build() {
 
     // top 5 slowest (parse)
     let mut sorted = result.per_file_stats.iter().collect::<Vec<_>>();
-    sorted.sort_by(|a, b| (b.parse_us + b.build_us).cmp(&(a.parse_us + a.build_us)));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.parse_us + b.build_us));
     println!("\ntop 5 slowest files (parse+build):");
     for s in sorted.iter().take(5) {
         let name = Path::new(&s.path)
