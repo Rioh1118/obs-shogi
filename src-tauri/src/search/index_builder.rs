@@ -210,7 +210,7 @@ pub fn bucketize_entries(
     }
 
     for b in &mut buckets {
-        b.sort_by(|(k1, _), (k2, _)| (k1.z0, k1.z1).cmp(&(k2.z0, k2.z1)));
+        b.sort_by_key(|(k, _)| (k.z0, k.z1));
     }
 
     buckets
