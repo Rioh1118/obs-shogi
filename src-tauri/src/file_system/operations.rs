@@ -1,6 +1,6 @@
 use crate::file_system::{
     error::{FsError, FsErrorCode},
-    utils::{ensure_not_exists, validate_basename},
+    utils::{atomic_write, ensure_not_exists, validate_basename, validate_under_root},
 };
 use std::io::Write;
 
@@ -10,7 +10,7 @@ use shogi_kifu_converter_obsshogi::{
     jkf::{Color, JsonKifuFormat, Preset},
 };
 use std::{fs::OpenOptions, path::PathBuf};
-use tauri::command;
+use tauri::{command, AppHandle, Runtime};
 
 use encoding_rs::SHIFT_JIS;
 use std::{fs, path::Path};
@@ -53,7 +53,7 @@ fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
 }
 
 #[command]
-pub fn read_file(file_path: String) -> Result<String, FsError> {
+pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<String, FsError> {
     let path = PathBuf::from(&file_path);
 
     if !path.exists() {
@@ -77,6 +77,8 @@ pub fn read_file(file_path: String) -> Result<String, FsError> {
                 .with_path(path.to_string_lossy().to_string()),
         );
     }
+
+    validate_under_root(&app, &path)?;
 
     read_text_portable(&path)
 }
@@ -143,7 +145,8 @@ fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<
 }
 
 #[command]
-pub fn create_kifu_file(
+pub fn create_kifu_file<R: Runtime>(
+    app: AppHandle<R>,
     parent_dir: String,
     file_name: String,
     mut jkf_data: JsonKifuFormat,
@@ -169,6 +172,8 @@ pub fn create_kifu_file(
         .with_path(file_path.to_string_lossy().to_string()));
     }
 
+    validate_under_root(&app, &file_path)?;
+
     // JKFデータを正規化
     jkf_data
         .normalize()
@@ -185,7 +190,8 @@ pub fn create_kifu_file(
 }
 
 #[command]
-pub fn import_kifu_file(
+pub fn import_kifu_file<R: Runtime>(
+    app: AppHandle<R>,
     parent_dir: String,
     file_name: String,
     jkf_data: JsonKifuFormat,
@@ -211,6 +217,8 @@ pub fn import_kifu_file(
         .with_path(file_path.to_string_lossy().to_string()));
     }
 
+    validate_under_root(&app, &file_path)?;
+
     // ファイル拡張子に応じて適切な形式に変換
     let content = convert_jkf_to_format(&jkf_data, &file_path)?;
 
@@ -222,7 +230,8 @@ pub fn import_kifu_file(
 }
 
 #[command]
-pub fn save_kifu_file(
+pub fn save_kifu_file<R: Runtime>(
+    app: AppHandle<R>,
     parent_dir: String,
     file_name: String,
     content: String,
@@ -248,15 +257,21 @@ pub fn save_kifu_file(
         .with_path(file_path.to_string_lossy().to_string()));
     }
 
-    // ファイル保存
-    fs::write(&file_path, content).map_err(FsError::from)?;
+    validate_under_root(&app, &file_path)?;
+
+    // ファイル保存（atomic write でクラッシュ時の半端な状態を避ける）
+    atomic_write(&file_path, content.as_bytes()).map_err(FsError::from)?;
 
     // 保存したファイルのパスを返す
     Ok(file_path.to_string_lossy().to_string())
 }
 
 #[command]
-pub fn create_directory(parent_dir: String, dir_name: String) -> Result<String, FsError> {
+pub fn create_directory<R: Runtime>(
+    app: AppHandle<R>,
+    parent_dir: String,
+    dir_name: String,
+) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
 
     // 親ディレクトリの存在確認
@@ -271,6 +286,7 @@ pub fn create_directory(parent_dir: String, dir_name: String) -> Result<String, 
 
     let new_dir_path = parent_path.join(&dir_name);
     ensure_not_exists(&new_dir_path)?;
+    validate_under_root(&app, &new_dir_path)?;
 
     fs::create_dir(&new_dir_path).map_err(FsError::from)?;
 
@@ -279,7 +295,7 @@ pub fn create_directory(parent_dir: String, dir_name: String) -> Result<String, 
 }
 
 #[command]
-pub fn delete_file(file_path: String) -> Result<(), FsError> {
+pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&file_path);
 
     if !path.exists() {
@@ -304,11 +320,13 @@ pub fn delete_file(file_path: String) -> Result<(), FsError> {
         );
     }
 
+    validate_under_root(&app, &path)?;
+
     fs::remove_file(path).map_err(FsError::from)
 }
 
 #[command]
-pub fn delete_directory(dir_path: String) -> Result<(), FsError> {
+pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&dir_path);
 
     if !path.exists() {
@@ -324,6 +342,8 @@ pub fn delete_directory(dir_path: String) -> Result<(), FsError> {
         )
         .with_path(path.to_string_lossy().to_string()));
     }
+
+    validate_under_root(&app, &path)?;
 
     fs::remove_dir_all(path).map_err(FsError::from)
 }

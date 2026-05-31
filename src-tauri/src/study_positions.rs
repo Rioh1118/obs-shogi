@@ -5,6 +5,8 @@ use std::{
 };
 use tauri::{AppHandle, Manager, Runtime};
 
+use crate::file_system::utils::atomic_write;
+
 const STUDY_POSITIONS_FILE_NAME: &str = "study_positions.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -44,15 +46,6 @@ fn study_positions_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, Strin
     Ok(config_dir.join(STUDY_POSITIONS_FILE_NAME))
 }
 
-fn ensure_parent_dir(path: &Path) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "study_positions path has no parent".to_string())?;
-
-    fs::create_dir_all(parent)
-        .map_err(|e| format!("failed to create config dir {}: {e}", parent.display()))
-}
-
 fn read_file_or_default(path: &Path) -> Result<StudyPositionsFile, String> {
     if !path.exists() {
         return Ok(StudyPositionsFile::default());
@@ -70,12 +63,11 @@ fn read_file_or_default(path: &Path) -> Result<StudyPositionsFile, String> {
 }
 
 fn write_file(path: &Path, input: &StudyPositionsFile) -> Result<(), String> {
-    ensure_parent_dir(path)?;
-
     let text = serde_json::to_string_pretty(input)
         .map_err(|e| format!("failed to serialize study positions: {e}"))?;
 
-    fs::write(path, text).map_err(|e| format!("failed to write {}: {e}", path.display()))
+    atomic_write(path, text.as_bytes())
+        .map_err(|e| format!("failed to write {}: {e}", path.display()))
 }
 
 #[tauri::command]

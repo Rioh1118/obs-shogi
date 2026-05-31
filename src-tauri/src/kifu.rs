@@ -3,10 +3,10 @@ use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
     jkf::JsonKifuFormat,
 };
-use std::fs;
 use std::path::Path;
-use tauri::command;
+use tauri::{command, AppHandle, Runtime};
 
+use crate::file_system::utils::{atomic_write, is_kifu_file, validate_under_root};
 use crate::file_system::{is_initial_gote, patch_gote_start};
 
 #[derive(Serialize, Deserialize)]
@@ -52,7 +52,7 @@ fn write_kifu_file_internal<P: AsRef<Path>>(
         _ => return Err(format!("未対応の形式: {}", format).into()),
     };
 
-    fs::write(file_path, content)?;
+    atomic_write(file_path.as_ref(), content.as_bytes())?;
     Ok(())
 }
 
@@ -77,8 +77,31 @@ fn convert_jkf_to_string_internal(
 }
 
 #[command]
-pub async fn write_kifu_to_file(request: WriteKifuRequest) -> WriteKifuResponse {
+pub async fn write_kifu_to_file<R: Runtime>(
+    app: AppHandle<R>,
+    request: WriteKifuRequest,
+) -> WriteKifuResponse {
     let mut jkf = request.jkf;
+    let target = Path::new(&request.file_path);
+
+    // 棋譜ファイル拡張子に限定
+    if !is_kifu_file(target) {
+        return WriteKifuResponse {
+            success: false,
+            file_path: None,
+            normalized_jkf: None,
+            error: Some("棋譜ファイルではありません".to_string()),
+        };
+    }
+    // root_dir 配下にあるか
+    if let Err(e) = validate_under_root(&app, target) {
+        return WriteKifuResponse {
+            success: false,
+            file_path: None,
+            normalized_jkf: None,
+            error: Some(e.message),
+        };
+    }
 
     match write_kifu_file_internal(&mut jkf, &request.file_path, &request.format) {
         Ok(_) => WriteKifuResponse {

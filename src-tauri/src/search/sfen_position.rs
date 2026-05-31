@@ -109,7 +109,7 @@ fn parse_board_into(pos: &mut PartialPosition, board: &str) -> Result<(), SfenPa
         let mut it = r_str.chars().peekable();
         while let Some(ch) = it.next() {
             if ch.is_ascii_digit() {
-                let n = ch.to_digit(10).unwrap() as i32;
+                let n = ch.to_digit(10).expect("is_ascii_digit checked") as i32;
                 file -= n;
                 continue;
             }
@@ -158,7 +158,7 @@ fn parse_hands_into(pos: &mut PartialPosition, hand: &str) -> Result<(), SfenPar
     let mut num: usize = 0;
     for ch in hand.chars() {
         if ch.is_ascii_digit() {
-            num = num * 10 + (ch.to_digit(10).unwrap() as usize);
+            num = num * 10 + (ch.to_digit(10).expect("is_ascii_digit checked") as usize);
             continue;
         }
 
