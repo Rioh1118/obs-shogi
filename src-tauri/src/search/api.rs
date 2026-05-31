@@ -249,7 +249,13 @@ async fn build_full_index_task(
     let mut last_emit = Instant::now();
 
     for (i, rec) in records.into_iter().enumerate() {
-        let permit = sem.clone().acquire_owned().await.unwrap();
+        let permit = match sem.clone().acquire_owned().await {
+            Ok(p) => p,
+            Err(e) => {
+                log::error!("[open_project] semaphore closed: {e}");
+                break;
+            }
+        };
 
         let rec2 = rec.clone();
         let file_id: FileId = (i as u32) + 1;

@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
+use crate::file_system::utils::atomic_write;
+
 const CONFIG_FILE: &str = "app.json";
 
 #[derive(Serialize, Deserialize, Default)]
@@ -33,9 +35,6 @@ pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
 #[tauri::command]
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let path = config_path(&app)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
     let data = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-    fs::write(path, data).map_err(|e| e.to_string())
+    atomic_write(&path, data.as_bytes()).map_err(|e| e.to_string())
 }

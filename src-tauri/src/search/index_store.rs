@@ -1,4 +1,5 @@
-use std::sync::{Arc, RwLock};
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::search::{node_table::NodeTableArc, types::Occurrence};
 
@@ -109,11 +110,11 @@ impl IndexStore {
 
     /// 現在の不変スナップショットを取得
     pub fn snapshot(&self) -> Arc<IndexSnapshot> {
-        self.snap.read().unwrap().clone()
+        self.snap.read().clone()
     }
 
     pub fn start_restoring(&self) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         *guard = Arc::new(IndexSnapshot {
             state: IndexState::Restoring,
             file_table: Arc::new(FileTable::default()),
@@ -138,7 +139,7 @@ impl IndexStore {
             }
         });
 
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         *guard = Arc::new(IndexSnapshot {
             state,
             file_table: Arc::new(file_table),
@@ -149,7 +150,7 @@ impl IndexStore {
 
     /// プロジェクトオープン時：空の Building にリセット
     pub fn start_full_build(&self) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         *guard = Arc::new(IndexSnapshot {
             state: IndexState::Building,
             file_table: Arc::new(FileTable::default()),
@@ -165,7 +166,7 @@ impl IndexStore {
         node_table: NodeTables,
         buckets: [Vec<SegmentArc>; 256],
     ) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         *guard = Arc::new(IndexSnapshot {
             state: IndexState::Ready,
             file_table: Arc::new(file_table),
@@ -176,7 +177,7 @@ impl IndexStore {
 
     /// state だけ変えたいとき
     pub fn set_state(&self, state: IndexState) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         let old = guard.clone();
         *guard = Arc::new(IndexSnapshot {
             state,
@@ -195,7 +196,7 @@ impl IndexStore {
         nt: NodeTableArc,
         by_bucket: BucketEntries,
     ) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         let old = guard.clone();
 
         let file_id = file_entry.file_id;
@@ -223,7 +224,7 @@ impl IndexStore {
     }
 
     pub fn insert_many_file_segments(&self, items: Vec<FileBucketEntries>) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         let old = guard.clone();
 
         let mut ft = (*old.file_table).clone();
@@ -252,7 +253,7 @@ impl IndexStore {
 
     /// ファイル削除（tombstone化）: 既存Segmentは残し、検索時のgenチェックで落とす
     pub fn tombstone_file(&self, file_id: FileId) {
-        let mut guard = self.snap.write().unwrap();
+        let mut guard = self.snap.write();
         let old = guard.clone();
 
         let mut ft = (*old.file_table).clone();

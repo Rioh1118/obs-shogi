@@ -315,13 +315,7 @@ impl UsiProtocol {
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         // 一時的なリスナー登録
-        let listener_name = format!(
-            "info_collection_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
+        let listener_name = format!("info_collection_{}", now_nanos());
 
         self.register_listener(listener_name.clone(), tx).await?;
         // USIコマンド送信
