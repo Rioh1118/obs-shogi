@@ -132,23 +132,27 @@ impl IndexSnapshot {
 
         let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(ranges.len());
 
-        let push_first_alive =
-            |heap: &mut BinaryHeap<HeapItem>, ri: usize, seg: &SegmentArc, mut idx: usize, hi: usize, ft: &FileTable| {
-                while idx < hi {
-                    let occ = seg.occ_at(idx);
-                    if ft.is_occ_alive(occ.file_id, occ.r#gen) {
-                        heap.push(HeapItem {
-                            file_id: occ.file_id,
-                            node_id: occ.node_id,
-                            occ,
-                            ri,
-                            idx,
-                        });
-                        return;
-                    }
-                    idx += 1;
+        let push_first_alive = |heap: &mut BinaryHeap<HeapItem>,
+                                ri: usize,
+                                seg: &SegmentArc,
+                                mut idx: usize,
+                                hi: usize,
+                                ft: &FileTable| {
+            while idx < hi {
+                let occ = seg.occ_at(idx);
+                if ft.is_occ_alive(occ.file_id, occ.r#gen) {
+                    heap.push(HeapItem {
+                        file_id: occ.file_id,
+                        node_id: occ.node_id,
+                        occ,
+                        ri,
+                        idx,
+                    });
+                    return;
                 }
-            };
+                idx += 1;
+            }
+        };
 
         for (ri, (seg, lo, hi)) in ranges.iter().enumerate() {
             push_first_alive(&mut heap, ri, seg, *lo, *hi, &self.file_table);
@@ -322,8 +326,7 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
     }
     impl Ord for HeapItem {
         fn cmp(&self, other: &Self) -> Ordering {
-            (other.z0, other.z1, other.seg, other.idx)
-                .cmp(&(self.z0, self.z1, self.seg, self.idx))
+            (other.z0, other.z1, other.seg, other.idx).cmp(&(self.z0, self.z1, self.seg, self.idx))
         }
     }
     impl PartialOrd for HeapItem {
