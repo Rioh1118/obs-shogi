@@ -82,12 +82,14 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     if (!selectedPreset) return null;
 
     const a = selectedPreset.analysis;
+    const mode = a?.mode ?? "infinite";
 
     return {
+      mode,
       timeSeconds: a?.timeSeconds,
       depth: a?.depth,
       nodes: a?.nodes,
-      mateSearch: a?.mateSearch ?? false,
+      mateSearch: mode === "mate",
     };
   }, [selectedPreset]);
 

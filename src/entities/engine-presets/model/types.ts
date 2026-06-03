@@ -1,12 +1,16 @@
 import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
+import type { AnalysisMode } from "@/entities/engine/api/rust-types";
 
 export type PresetId = string;
 export type UsiOptionMap = Record<string, string>;
 
 export type AnalysisDefaults = {
+  /** 解析モード。go コマンドの形を決める唯一のソース。 */
+  mode: AnalysisMode;
   timeSeconds?: number;
   depth?: number;
   nodes?: number;
+  /** 旧フィールド。`mode === "mate"` の派生として保持。新規コードでは mode を見る。 */
   mateSearch: boolean;
 };
 

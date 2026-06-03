@@ -29,12 +29,15 @@ export interface EngineSettings {
   options: Record<string, string>;
 }
 
+export type AnalysisMode = "infinite" | "time" | "depth" | "nodes" | "mate";
+
 export interface AnalysisConfig {
+  mode: AnalysisMode;
   time_limit?: Duration;
   depth_limit?: number;
   node_limit?: number;
-  mate_search: boolean;
-  multi_pv?: number;
+  /** legacy field — kept so旧 JSON のシリアライズが落ちないように。新規コードは mode を使う */
+  mate_search?: boolean;
 }
 
 export interface AnalysisStatus {

@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AnalysisResult, AnalysisStatus, EngineInfo, EngineSettings } from "./rust-types";
+import type {
+  AnalysisConfig,
+  AnalysisResult,
+  AnalysisStatus,
+  EngineInfo,
+  EngineSettings,
+} from "./rust-types";
 
 // ===== エンジン初期化・管理 =====
 export async function initializeEngine(enginePath: string, workDir: string): Promise<void> {
@@ -59,6 +65,10 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
 // ===== 解析実行 =====
 export async function startInfiniteAnalysis(): Promise<string> {
   return await invoke("start_infinite_analysis");
+}
+
+export async function startAnalysis(config: AnalysisConfig): Promise<string> {
+  return await invoke("start_analysis", { config });
 }
 
 export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResult> {

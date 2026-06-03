@@ -53,6 +53,7 @@ enum SessionType {
     Timed(Duration),
     #[allow(dead_code)]
     Depth(u32),
+    Config(AnalysisMode),
 }
 
 impl EngineBridge {
@@ -261,6 +262,36 @@ impl EngineBridge {
         );
     }
 
+    pub async fn start_analysis_impl(&self, config: AnalysisConfig) -> Result<String, String> {
+        if let Err(e) = self.ensure_no_active_session().await {
+            log::warn!(target: LOGT, "start_analysis: rejected: {}", e);
+            return Err(e);
+        }
+
+        log::debug!(
+            target: LOGT,
+            "start_analysis: requested mode={:?}",
+            config.mode
+        );
+
+        let mode = config.mode;
+        let result_rx = self.analyzer.start_with_config(config).await.map_err(|e| {
+            log::error!(target: LOGT, "start_analysis: analyzer failed: {:?}", e);
+            format!("Failed to start analysis: {:?}", e)
+        })?;
+
+        let session_id = self.create_session(SessionType::Config(mode)).await;
+        log::info!(
+            target: LOGT,
+            "start_analysis: ok session_id={} mode={:?}",
+            session_id,
+            mode
+        );
+
+        self.start_result_forwarding(&session_id, result_rx).await;
+        Ok(session_id)
+    }
+
     pub async fn analyze_with_time_impl(
         &self,
         time_seconds: u64,
@@ -367,6 +398,13 @@ impl EngineBridge {
             SessionType::Infinite => "infinite",
             SessionType::Timed(_) => "timed",
             SessionType::Depth(_) => "depth",
+            SessionType::Config(mode) => match mode {
+                AnalysisMode::Infinite => "infinite",
+                AnalysisMode::Time => "time",
+                AnalysisMode::Depth => "depth",
+                AnalysisMode::Nodes => "nodes",
+                AnalysisMode::Mate => "mate",
+            },
         };
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -472,6 +510,14 @@ pub async fn set_position(
 #[tauri::command]
 pub async fn start_infinite_analysis(state: tauri::State<'_, AppState>) -> Result<String, String> {
     state.bridge.start_infinite_analysis_impl().await
+}
+
+#[tauri::command]
+pub async fn start_analysis(
+    state: tauri::State<'_, AppState>,
+    config: AnalysisConfig,
+) -> Result<String, String> {
+    state.bridge.start_analysis_impl(config).await
 }
 
 #[tauri::command]

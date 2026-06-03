@@ -2,28 +2,59 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
-  startInfiniteAnalysis as startInfiniteAnalysisCore,
+  startAnalysis as startAnalysisCore,
   stopAnalysis as stopAnalysisCore,
 } from "@/entities/engine/api/tauri";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
-import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate, AnalysisConfig, Duration } from "@/entities/engine/api/rust-types";
+import type { AnalysisDefaults } from "@/entities/engine-presets/model/types";
 import { pickTopCandidate } from "../lib/candidates";
 import { AnalysisContext } from "./context";
 
 interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
+  /** preset から注入される解析既定値。null/未指定なら infinite。 */
+  analysisDefaults?: AnalysisDefaults | null;
 }
 
-export function AnalysisProvider({ children, positionSync }: Props) {
+function toDuration(seconds: number): Duration {
+  const safe = Math.max(0, Math.floor(seconds));
+  return { secs: safe, nanos: 0 };
+}
+
+function buildAnalysisConfig(defaults: AnalysisDefaults | null | undefined): AnalysisConfig {
+  if (!defaults) {
+    return { mode: "infinite" };
+  }
+  const time =
+    defaults.timeSeconds != null && defaults.timeSeconds > 0
+      ? toDuration(defaults.timeSeconds)
+      : undefined;
+  return {
+    mode: defaults.mode,
+    time_limit: time,
+    depth_limit: defaults.depth,
+    node_limit: defaults.nodes,
+    mate_search: defaults.mode === "mate",
+  };
+}
+
+export function AnalysisProvider({ children, positionSync, analysisDefaults }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
   const { isReady } = useEngine();
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
+
+  // 解析中の preset 切り替えにも追従できるよう ref に最新値を保つ
+  const analysisDefaultsRef = useRef<AnalysisDefaults | null>(analysisDefaults ?? null);
+  useEffect(() => {
+    analysisDefaultsRef.current = analysisDefaults ?? null;
+  }, [analysisDefaults]);
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
@@ -190,7 +221,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         clearFlushTimer();
         latestResultRef.current = null;
-        const newSessionId = await startInfiniteAnalysisCore();
+        const newSessionId = await startAnalysisCore(
+          buildAnalysisConfig(analysisDefaultsRef.current),
+        );
 
         dispatch({
           type: "start_analysis",
@@ -258,7 +291,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   }, [syncedSfen, state.isAnalyzing, isReady]);
 
-  const startInfiniteAnalysis = useCallback(async () => {
+  const startAnalysis = useCallback(async () => {
     if (!isReady) throw new Error("Engine not ready");
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
@@ -267,7 +300,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
 
-    const sessionId = await startInfiniteAnalysisCore();
+    const sessionId = await startAnalysisCore(buildAnalysisConfig(analysisDefaultsRef.current));
 
     dispatch({
       type: "start_analysis",
@@ -277,6 +310,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
   }, [isReady, state.isAnalyzing, currentSfen, syncPosition]);
+
+  // 後方互換 alias
+  const startInfiniteAnalysis = startAnalysis;
 
   const stopAnalysis = useCallback(async () => {
     desiredSfenRef.current = null;
@@ -317,6 +353,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const value = useMemo<AnalysisContextType>(
     () => ({
       state,
+      startAnalysis,
       startInfiniteAnalysis,
       stopAnalysis,
       clearResults,
@@ -326,6 +363,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }),
     [
       state,
+      startAnalysis,
       startInfiniteAnalysis,
       stopAnalysis,
       clearResults,

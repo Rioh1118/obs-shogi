@@ -117,14 +117,31 @@ pub struct AnalysisStatus {
     pub analysis_count: u64,
 }
 
+/// 解析モード。go コマンドの形を決める。
+/// serde は lowercase（infinite/time/depth/nodes/mate）で受け渡す。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnalysisMode {
+    #[default]
+    Infinite,
+    Time,
+    Depth,
+    Nodes,
+    Mate,
+}
+
 // 分析設定
-#[derive(Debug, Clone, Serialize, Deserialize)]
+//
+// MultiPV はここでは持たない — preset の USI options (`apply_engine_settings`) に統一済み。
+// `mate_search` は `mode == Mate` に置き換わったが、旧 JSON マイグレーション用にフィールドは残している。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AnalysisConfig {
+    pub mode: AnalysisMode,
     pub time_limit: Option<Duration>,
     pub depth_limit: Option<u32>,
     pub node_limit: Option<u64>,
+    #[serde(default)]
     pub mate_search: bool,
-    pub multi_pv: Option<u32>,
 }
 
 // 最善手情報
