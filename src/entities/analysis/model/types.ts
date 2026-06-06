@@ -27,12 +27,10 @@ export interface AnalysisContextType {
   state: AnalysisState;
 
   /**
-   * preset の analysisDefaults に従って解析を開始する。
-   * mode/閾値の選択は preset 側に集約される。
+   * 注入された `buildConfig()` に従って解析を開始する。
+   * mode/閾値などの選択は bridge 層 (= preset 等の外部依存を持つ層) に委ねられる。
    */
   startAnalysis: () => Promise<void>;
-  /** 後方互換 alias。内部で `startAnalysis()` に転送する。 */
-  startInfiniteAnalysis: () => Promise<void>;
   stopAnalysis: () => Promise<void>;
   clearResults: () => void;
   clearError: () => void;

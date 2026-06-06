@@ -63,20 +63,8 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
 }
 
 // ===== 解析実行 =====
-export async function startInfiniteAnalysis(): Promise<string> {
-  return await invoke("start_infinite_analysis");
-}
-
 export async function startAnalysis(config: AnalysisConfig): Promise<string> {
   return await invoke("start_analysis", { config });
-}
-
-export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResult> {
-  return await invoke("analyze_with_time", { timeSeconds });
-}
-
-export async function analyzeWithDepth(depth: number): Promise<AnalysisResult> {
-  return await invoke("analyze_with_depth", { depth });
 }
 
 export async function stopAnalysis(sessionId?: string): Promise<void> {

@@ -9,52 +9,32 @@ import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
-import type { AnalysisCandidate, AnalysisConfig, Duration } from "@/entities/engine/api/rust-types";
-import type { AnalysisDefaults } from "@/entities/engine-presets/model/types";
+import type { AnalysisCandidate, AnalysisConfig } from "@/entities/engine/api/rust-types";
 import { pickTopCandidate } from "../lib/candidates";
 import { AnalysisContext } from "./context";
 
 interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
-  /** preset から注入される解析既定値。null/未指定なら infinite。 */
-  analysisDefaults?: AnalysisDefaults | null;
+  /**
+   * 解析開始時に呼ばれる config ビルダ。bridge 層が preset などの外部依存を解決した上で
+   * `AnalysisConfig` を供給する責務を持つ (Strategy 注入)。
+   */
+  buildConfig: () => AnalysisConfig;
 }
 
-function toDuration(seconds: number): Duration {
-  const safe = Math.max(0, Math.floor(seconds));
-  return { secs: safe, nanos: 0 };
-}
-
-function buildAnalysisConfig(defaults: AnalysisDefaults | null | undefined): AnalysisConfig {
-  if (!defaults) {
-    return { mode: "infinite" };
-  }
-  const time =
-    defaults.timeSeconds != null && defaults.timeSeconds > 0
-      ? toDuration(defaults.timeSeconds)
-      : undefined;
-  return {
-    mode: defaults.mode,
-    time_limit: time,
-    depth_limit: defaults.depth,
-    node_limit: defaults.nodes,
-    mate_search: defaults.mode === "mate",
-  };
-}
-
-export function AnalysisProvider({ children, positionSync, analysisDefaults }: Props) {
+export function AnalysisProvider({ children, positionSync, buildConfig }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
   const { isReady } = useEngine();
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
-  // 解析中の preset 切り替えにも追従できるよう ref に最新値を保つ
-  const analysisDefaultsRef = useRef<AnalysisDefaults | null>(analysisDefaults ?? null);
+  // 解析中の preset 切り替えにも追従できるよう最新 builder を ref に保つ
+  const buildConfigRef = useRef(buildConfig);
   useEffect(() => {
-    analysisDefaultsRef.current = analysisDefaults ?? null;
-  }, [analysisDefaults]);
+    buildConfigRef.current = buildConfig;
+  }, [buildConfig]);
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
@@ -221,9 +201,7 @@ export function AnalysisProvider({ children, positionSync, analysisDefaults }: P
 
         clearFlushTimer();
         latestResultRef.current = null;
-        const newSessionId = await startAnalysisCore(
-          buildAnalysisConfig(analysisDefaultsRef.current),
-        );
+        const newSessionId = await startAnalysisCore(buildConfigRef.current());
 
         dispatch({
           type: "start_analysis",
@@ -300,7 +278,7 @@ export function AnalysisProvider({ children, positionSync, analysisDefaults }: P
 
     await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
 
-    const sessionId = await startAnalysisCore(buildAnalysisConfig(analysisDefaultsRef.current));
+    const sessionId = await startAnalysisCore(buildConfigRef.current());
 
     dispatch({
       type: "start_analysis",
@@ -310,9 +288,6 @@ export function AnalysisProvider({ children, positionSync, analysisDefaults }: P
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
   }, [isReady, state.isAnalyzing, currentSfen, syncPosition]);
-
-  // 後方互換 alias
-  const startInfiniteAnalysis = startAnalysis;
 
   const stopAnalysis = useCallback(async () => {
     desiredSfenRef.current = null;
@@ -354,7 +329,6 @@ export function AnalysisProvider({ children, positionSync, analysisDefaults }: P
     () => ({
       state,
       startAnalysis,
-      startInfiniteAnalysis,
       stopAnalysis,
       clearResults,
       clearError,
@@ -364,7 +338,6 @@ export function AnalysisProvider({ children, positionSync, analysisDefaults }: P
     [
       state,
       startAnalysis,
-      startInfiniteAnalysis,
       stopAnalysis,
       clearResults,
       clearError,

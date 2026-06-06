@@ -11,9 +11,9 @@ pub use crate::engine::bridge::AppState;
 pub use ai_library::{ensure_engines_dir, scan_ai_root};
 pub use config_dir::{load_config, save_config};
 pub use engine::bridge::{
-    analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
-    get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
-    set_position, shutdown_engine, start_analysis, start_infinite_analysis, stop_analysis,
+    apply_engine_settings, get_analysis_result, get_analysis_status, get_engine_info,
+    get_engine_settings, get_last_result, initialize_engine, set_position, shutdown_engine,
+    start_analysis, stop_analysis,
 };
 pub use engine_presets::{load_presets, save_presets};
 pub use file_system::{
@@ -74,10 +74,7 @@ pub fn run() {
             initialize_engine,
             shutdown_engine,
             set_position,
-            start_infinite_analysis,
             start_analysis,
-            analyze_with_time,
-            analyze_with_depth,
             stop_analysis,
             get_analysis_result,
             get_last_result,

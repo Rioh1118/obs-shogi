@@ -10,9 +10,9 @@ import type { AnalysisMode } from "@/entities/engine/api/rust-types";
 
 /**
  * `mode` を欠いた旧 preset JSON から mode を推定する。
- * 優先順: mate(=mateSearch true) > time > depth > nodes > infinite
+ * 優先順: mate (legacy `mateSearch: true`) > time > depth > nodes > infinite
  */
-function inferAnalysisMode(a: Partial<AnalysisDefaults>): AnalysisMode {
+function inferAnalysisMode(a: Partial<AnalysisDefaults> & { mateSearch?: boolean }): AnalysisMode {
   if (a.mateSearch) return "mate";
   if (a.timeSeconds != null && a.timeSeconds > 0) return "time";
   if (a.depth != null && a.depth > 0) return "depth";
@@ -84,20 +84,19 @@ export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
   p.options = { ...DEFAULT_USI_OPTIONS, ...nextOptions };
 
   if (p.analysis) {
-    const a: Partial<AnalysisDefaults> = { ...p.analysis };
+    const a: Partial<AnalysisDefaults> & { mateSearch?: boolean } = { ...p.analysis };
     if (a.timeSeconds != null && a.timeSeconds <= 0) delete a.timeSeconds;
     if (a.depth != null && a.depth <= 0) delete a.depth;
     if (a.nodes != null && a.nodes <= 0) delete a.nodes;
 
-    // mode が無い旧 JSON は legacy field から推定する
+    // mode が無い旧 JSON は legacy field から推定する。`mateSearch` は読み取り側のみで、
+    // 正規化後のフィールドからは落とす (mode === "mate" が新しい単一ソース)。
     const mode: AnalysisMode = a.mode ?? inferAnalysisMode(a);
     p.analysis = {
       mode,
       timeSeconds: a.timeSeconds,
       depth: a.depth,
       nodes: a.nodes,
-      // 派生値: mate モードなら true
-      mateSearch: mode === "mate",
     };
   }
 

@@ -6,21 +6,19 @@ import type { EnginePreset, AnalysisDefaults } from "@/entities/engine-presets/m
 import type { AnalysisMode } from "@/entities/engine/api/rust-types";
 
 const MODE_OPTIONS: Array<{ value: AnalysisMode; label: string; description: string }> = [
-  { value: "infinite", label: "∞ 無限", description: "外部 Stop を待つまで思考し続ける" },
-  { value: "time", label: "時間", description: "byoyomi (ms) を engine に渡す" },
-  { value: "depth", label: "深さ", description: "rank1 が指定 depth に到達したら Stop" },
-  { value: "nodes", label: "ノード", description: "rank1 が指定 nodes に到達したら Stop" },
-  { value: "mate", label: "詰", description: "go mate / mate infinite を engine に渡す" },
+  { value: "infinite", label: "∞ 無限", description: "停止操作するまで思考し続ける" },
+  { value: "time", label: "時間", description: "指定した秒数で打ち切る" },
+  { value: "depth", label: "深さ", description: "最善手の読み深さが指定値に達したら打ち切る" },
+  { value: "nodes", label: "ノード", description: "探索ノード数が指定値に達したら打ち切る" },
+  { value: "mate", label: "詰", description: "詰み探索を行う" },
 ];
 
 function mergeAnalysis(
   prev: AnalysisDefaults | undefined,
   patch: Partial<AnalysisDefaults>,
 ): AnalysisDefaults {
-  const base: AnalysisDefaults = prev ?? { mode: "infinite", mateSearch: false };
-  const next: AnalysisDefaults = { ...base, ...patch };
-  next.mateSearch = next.mode === "mate";
-  return next;
+  const base: AnalysisDefaults = prev ?? { mode: "infinite" };
+  return { ...base, ...patch };
 }
 
 export default function AnalysisDefaultsSection(props: {
@@ -40,11 +38,11 @@ export default function AnalysisDefaultsSection(props: {
   return (
     <SSection
       title="解析デフォルト"
-      description="このプリセットで解析開始した時の go コマンドを決めます"
+      description="このプリセットで解析を開始したときの停止条件を決めます"
     >
       <SField
         label="モード"
-        description="go コマンドの形を決める。値は各モードのフィールドが保持します"
+        description="停止条件を選びます。各モード固有の値 (時間/深さ/ノード数) は下のフィールドで指定します"
       >
         <SRadioGroup
           name="analysis-mode"
@@ -103,27 +101,6 @@ export default function AnalysisDefaultsSection(props: {
           />
         </SField>
       </div>
-
-      <SField
-        label="Mate timeout (sec)"
-        description={
-          mode === "mate"
-            ? "0 / 空 で `go mate infinite`、それ以外は `go mate <ms>`"
-            : "保持のみ（Time フィールドを共有）"
-        }
-      >
-        <SInput
-          type="number"
-          min={0}
-          disabled={mode !== "mate"}
-          value={draft.analysis?.timeSeconds ?? ""}
-          onChange={(e) => {
-            const v = e.target.value;
-            const n = v === "" ? undefined : parseIntSafe(v, 0);
-            setAnalysis({ timeSeconds: n });
-          }}
-        />
-      </SField>
     </SSection>
   );
 }

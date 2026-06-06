@@ -1,5 +1,5 @@
 use crate::engine::utils::{
-    extract_rank, get_depth_of_rank, get_or_create_candidate, map_score_to_evaluation, LogThrottle,
+    extract_rank, get_or_create_candidate, map_score_to_evaluation, LogThrottle,
 };
 
 use super::manager::EngineManager;
@@ -7,7 +7,7 @@ use super::protocol::UsiProtocol;
 use super::types::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use usi::{EngineCommand, GuiCommand, InfoParams, MateParam, ThinkParams};
 
@@ -42,17 +42,6 @@ struct AnalyzerState {
     current_position: Option<String>,
     last_result: Option<AnalysisResult>,
     analysis_count: u64,
-}
-
-enum StreamMode {
-    /// 外部 stop_analysis() を待つ。bestmove は stop 後のみ end とみなす（stale 防止）。
-    Infinite(Arc<AtomicBool>),
-    /// engine 側で自然に終わる（time/byoyomi 切れ、mate 完了 など）。bestmove で end。
-    Finite,
-    /// rank 1 candidate の depth が閾値に達したら stop を送り、bestmove で end。
-    FiniteDepth(u32),
-    /// rank 1 candidate の nodes が閾値に達したら stop を送り、bestmove で end。
-    FiniteNodes(u64),
 }
 
 impl EngineAnalyzer {
@@ -138,127 +127,24 @@ impl EngineAnalyzer {
         Ok(())
     }
 
-    /// 無限解析開始
-    pub async fn start_infinite_analysis(
-        &self,
-    ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
-        log::debug!(target: LOGT, "analysis.infinite.start: requested");
-
-        let stop_flag = Arc::new(AtomicBool::new(false));
-        *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
-
-        // initialized check
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
-
-        // channel
-        let (result_tx, result_rx) = mpsc::unbounded_channel();
-        let (raw_tx, raw_rx) = mpsc::unbounded_channel();
-
-        let listener_id = format!(
-            "infinite_analysis_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-
-        log::debug!(
-            target: LOGT,
-            "analysis.infinite: register_listener id={}",
-            listener_id
-        );
-
-        if let Err(e) = protocol
-            .register_listener(listener_id.clone(), raw_tx)
-            .await
-        {
-            log::error!(
-                target: LOGT,
-                "analysis.infinite: register_listener failed: {:?}",
-                e
-            );
-            return Err(e);
-        }
-
-        log::debug!(target: LOGT, "analysis.infinite: send_command go=infinite");
-        let go_command = GuiCommand::Go(ThinkParams::new().infinite());
-
-        if let Err(e) = protocol.send_command(&go_command).await {
-            log::error!(
-                target: LOGT,
-                "analysis.infinite: send_command failed: {:?}",
-                e
-            );
-            let _ = protocol.remove_listener(&listener_id).await;
-            return Err(e);
-        }
-
-        // 結果処理タスク開始前にログ
-        log::info!(
-            target: LOGT,
-            "analysis.infinite.started listener_id={}",
-            listener_id
-        );
-
-        // 結果処理タスク
-        let state_clone = Arc::clone(&self.state);
-        let protocol_for_task = protocol.clone();
-        let listener_id_for_task = listener_id.clone();
-
-        tokio::spawn(async move {
-            log::debug!(
-                target: LOGT,
-                "analysis.infinite.stream: start listener_id={}",
-                listener_id_for_task
-            );
-            Self::process_analysis_stream(
-                raw_rx,
-                result_tx,
-                state_clone,
-                StreamMode::Infinite(stop_flag),
-                None,
-            )
-            .await;
-
-            protocol_for_task
-                .remove_listener(&listener_id_for_task)
-                .await;
-            log::debug!(
-                target: LOGT,
-                "analysis.infinite.stream: end listener_id={}",
-                listener_id_for_task
-            );
-        });
-
-        Ok(result_rx)
-    }
-
-    /// 設定駆動の解析開始。mode に応じて go コマンドを切り替え、全モード streaming。
+    /// 設定駆動の解析開始。`AnalysisConfig` の variant が停止条件と go コマンド形を決める。
     ///
-    /// - `Infinite`: 既存の `start_infinite_analysis` と同じ意味論
-    /// - `Time`: `byoyomi <ms>` で送る。usi crate 0.6.2 は `go movetime` を ThinkParams で
-    ///   サポートしないため、近似として byoyomi を採用している。raw send 経路が入り次第差し替える。
-    /// - `Depth` / `Nodes`: ceiling として byoyomi 10 分を付け、stream 側で閾値到達時に Stop を送る
-    /// - `Mate`: `mate <ms> | infinite` で送る
-    pub async fn start_with_config(
+    /// - `Infinite`: 外部 `stop_analysis()` を待つ。stop が立つまで bestmove は stale とみなす
+    /// - `Time { seconds }`: `byoyomi <ms>` で送る。usi crate 0.6.2 は `go movetime` を
+    ///   ThinkParams で表現できないため byoyomi で近似している
+    /// - `Depth { plies }` / `Nodes { count }`: ceiling として byoyomi 10 分を付け、
+    ///   rank1 が閾値到達した時点で Stop を送る
+    /// - `Mate`: `go mate infinite` を送る
+    pub async fn start_analysis(
         &self,
         config: AnalysisConfig,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
         log::debug!(
             target: LOGT,
-            "analysis.start_with_config: mode={:?}",
-            config.mode
+            "analysis.start: mode={}",
+            config.mode_tag()
         );
 
-        // initialized check & protocol 取得
         let manager_guard = self.manager.lock().await;
         if !manager_guard.is_initialized().await {
             return Err(EngineError::NotInitialized(
@@ -268,51 +154,41 @@ impl EngineAnalyzer {
         let protocol = manager_guard.protocol()?;
         drop(manager_guard);
 
-        // mode 別の stream mode と go コマンドを決定
-        let (stream_mode, go_command) = build_stream_and_go(&config, &self.infinite_stop_requested)
-            .await
-            .ok_or_else(|| EngineError::InvalidState("invalid analysis config".to_string()))?;
+        // Infinite モードのみ外部 stop 用のフラグを登録する
+        let stop_flag = if matches!(config, AnalysisConfig::Infinite) {
+            let flag = Arc::new(AtomicBool::new(false));
+            *self.infinite_stop_requested.lock().await = Some(Arc::clone(&flag));
+            Some(flag)
+        } else {
+            None
+        };
 
-        // channel
+        let go_command = build_go_command(&config);
+
         let (result_tx, result_rx) = mpsc::unbounded_channel();
         let (raw_tx, raw_rx) = mpsc::unbounded_channel();
 
-        let listener_id = format!("analysis_{}_{}", mode_tag(&config.mode), now_nanos());
-
-        log::debug!(
-            target: LOGT,
-            "analysis.start_with_config: register_listener id={}",
-            listener_id
-        );
+        let listener_id = format!("analysis_{}_{}", config.mode_tag(), now_nanos());
 
         if let Err(e) = protocol
             .register_listener(listener_id.clone(), raw_tx)
             .await
         {
-            log::error!(
-                target: LOGT,
-                "analysis.start_with_config: register_listener failed: {:?}",
-                e
-            );
+            log::error!(target: LOGT, "analysis.start: register_listener failed: {:?}", e);
             return Err(e);
         }
 
-        log::debug!(target: LOGT, "analysis.start_with_config: send_command go");
         if let Err(e) = protocol.send_command(&go_command).await {
-            log::error!(
-                target: LOGT,
-                "analysis.start_with_config: send_command failed: {:?}",
-                e
-            );
+            log::error!(target: LOGT, "analysis.start: send_command failed: {:?}", e);
             let _ = protocol.remove_listener(&listener_id).await;
             return Err(e);
         }
 
         log::info!(
             target: LOGT,
-            "analysis.start_with_config.started listener_id={} mode={:?}",
+            "analysis.started listener_id={} mode={}",
             listener_id,
-            config.mode
+            config.mode_tag()
         );
 
         let state_clone = Arc::clone(&self.state);
@@ -320,126 +196,24 @@ impl EngineAnalyzer {
         let listener_id_for_task = listener_id.clone();
 
         tokio::spawn(async move {
-            log::debug!(
-                target: LOGT,
-                "analysis.start_with_config.stream: start listener_id={}",
-                listener_id_for_task
-            );
             Self::process_analysis_stream(
                 raw_rx,
                 result_tx,
                 state_clone,
-                stream_mode,
-                Some(protocol_for_task.clone()),
+                config,
+                stop_flag,
+                protocol_for_task.clone(),
             )
             .await;
 
             protocol_for_task
                 .remove_listener(&listener_id_for_task)
                 .await;
-            log::debug!(
-                target: LOGT,
-                "analysis.start_with_config.stream: end listener_id={}",
-                listener_id_for_task
-            );
         });
 
         Ok(result_rx)
     }
 
-    /// 固定時間解析
-    pub async fn analyze_with_time(
-        &self,
-        time_limit: Duration,
-    ) -> Result<AnalysisResult, EngineError> {
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
-
-        let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
-
-        let listener_id = format!("timed_analysis_{}", now_nanos());
-
-        protocol
-            .register_listener(listener_id.clone(), raw_tx)
-            .await?;
-
-        // 時間制限付き解析開始
-        let go_command = GuiCommand::Go(ThinkParams::new().byoyomi(time_limit));
-        protocol.send_command(&go_command).await?;
-
-        // 結果収集
-        let result = self.collect_single_result(&mut raw_rx, time_limit).await;
-
-        // クリーンアップ
-        protocol.remove_listener(&listener_id).await;
-
-        let analysis_result = result?;
-
-        // 状態更新
-        {
-            let mut state = self.state.write().await;
-            state.last_result = Some(analysis_result.clone());
-            state.analysis_count += 1;
-        }
-
-        Ok(analysis_result)
-    }
-
-    /// 深度制限解析
-    pub async fn analyze_with_depth(
-        &self,
-        depth_limit: u32,
-    ) -> Result<AnalysisResult, EngineError> {
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
-
-        let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
-
-        let listener_id = format!("depth_analysis_{}", now_nanos());
-
-        protocol
-            .register_listener(listener_id.clone(), raw_tx)
-            .await?;
-
-        // 深度制限解析 - 時間制限も併用
-        let go_command = GuiCommand::Go(
-            ThinkParams::new().byoyomi(Duration::from_secs(60)), // 最大60秒
-        );
-        protocol.send_command(&go_command).await?;
-
-        // 結果収集（深度チェック付き）
-        let result = self
-            .collect_result_with_depth(&mut raw_rx, depth_limit)
-            .await;
-
-        // クリーンアップ
-        protocol.remove_listener(&listener_id).await;
-
-        let analysis_result = result?;
-
-        // 状態更新
-        {
-            let mut state = self.state.write().await;
-            state.last_result = Some(analysis_result.clone());
-            state.analysis_count += 1;
-        }
-
-        Ok(analysis_result)
-    }
-
-    /// 解析停止
     pub async fn stop_analysis(&self) -> Result<(), EngineError> {
         let manager_guard = self.manager.lock().await;
         if !manager_guard.is_initialized().await {
@@ -475,97 +249,64 @@ impl EngineAnalyzer {
 
     // === 内部ヘルパーメソッド ===
 
-    /// 分析ストリーム処理（infinite / finite / 閾値モード共通）。
-    ///
-    /// 閾値モード（FiniteDepth/FiniteNodes）は rank 1 candidate の値が閾値に達したら
-    /// `protocol` 経由で `Stop` を送る。engine が bestmove を返した時点で stream を閉じる。
+    /// 分析ストリーム処理。`config` の振る舞いメソッドが停止判定と bestmove 処理を担う。
     async fn process_analysis_stream(
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
         result_tx: mpsc::UnboundedSender<AnalysisResult>,
-        #[allow(unused_variables)] state: Arc<RwLock<AnalyzerState>>,
-        mode: StreamMode,
-        protocol: Option<Arc<UsiProtocol>>,
+        state: Arc<RwLock<AnalyzerState>>,
+        config: AnalysisConfig,
+        stop_flag: Option<Arc<AtomicBool>>,
+        protocol: Arc<UsiProtocol>,
     ) {
-        log::debug!(target: LOGT, "stream: start");
-
         let mut current_result = AnalysisResult::default();
-        let mut processed: u64 = 0;
         let mut stop_sent = false;
-
         let mut stale_bestmove_warn = LogThrottle::new(Duration::from_secs(5));
 
         while let Some(cmd) = raw_rx.recv().await {
-            processed += 1;
-
             match cmd {
                 EngineCommand::Info(info_params) => {
                     Self::process_info_params(&info_params, &mut current_result);
-                    // 更新された結果を送信
                     if result_tx.send(current_result.clone()).is_err() {
-                        log::debug!(target: LOGT, "stream: result channel closed");
                         break;
                     }
 
-                    // 閾値モードは rank 1 を見て stop を一度だけ送る
-                    if !stop_sent {
-                        let reached = match &mode {
-                            StreamMode::FiniteDepth(target) => {
-                                get_depth_of_rank(&current_result, 1).is_some_and(|d| d >= *target)
-                            }
-                            StreamMode::FiniteNodes(target) => current_result
-                                .candidates
-                                .iter()
-                                .find(|c| c.rank == 1)
-                                .and_then(|c| c.nodes)
-                                .is_some_and(|n| n >= *target),
-                            _ => false,
-                        };
-
-                        if reached {
-                            if let Some(p) = &protocol {
-                                if let Err(e) = p.send_command(&GuiCommand::Stop).await {
-                                    log::warn!(
-                                        target: LOGT,
-                                        "stream: threshold stop send failed: {:?}",
-                                        e
-                                    );
-                                }
-                            }
-                            stop_sent = true;
+                    if !stop_sent && config.should_stop_on_info(&current_result) {
+                        if let Err(e) = protocol.send_command(&GuiCommand::Stop).await {
+                            log::warn!(
+                                target: LOGT,
+                                "stream: threshold stop send failed: {:?}",
+                                e
+                            );
                         }
+                        stop_sent = true;
                     }
                 }
                 EngineCommand::Checkmate(checkmate_params) => {
                     Self::process_checkmate(&checkmate_params, &mut current_result);
-
-                    log::info!(target: LOGT, "stream: checkmate received");
                     let _ = result_tx.send(current_result.clone());
                 }
-
-                EngineCommand::BestMove(_) => {
-                    match &mode {
-                        StreamMode::Finite
-                        | StreamMode::FiniteDepth(_)
-                        | StreamMode::FiniteNodes(_) => {
-                            let _ = result_tx.send(current_result.clone());
-                            break;
-                        }
-                        StreamMode::Infinite(stop_flag) => {
-                            // stop してないのに bestmove が来たらstaleの可能性
-                            if !stop_flag.load(Ordering::SeqCst) {
-                                if stale_bestmove_warn.allow() {
-                                    log::warn!(
-                                        target: LOGT,
-                                        "stream: bestmove received without stop request; ignoring (stale?)"
-                                    );
-                                }
-                                continue;
-                            }
-                            let _ = result_tx.send(current_result.clone());
-                            break;
-                        }
+                EngineCommand::BestMove(_) => match config.handle_bestmove() {
+                    BestmoveAction::Finish => {
+                        let _ = result_tx.send(current_result.clone());
+                        break;
                     }
-                }
+                    BestmoveAction::IgnoreUnlessStopped => {
+                        let stopped = stop_flag
+                            .as_ref()
+                            .is_some_and(|f| f.load(Ordering::SeqCst));
+                        if !stopped {
+                            if stale_bestmove_warn.allow() {
+                                log::warn!(
+                                    target: LOGT,
+                                    "stream: bestmove received without stop request; ignoring (stale?)"
+                                );
+                            }
+                            continue;
+                        }
+                        let _ = result_tx.send(current_result.clone());
+                        break;
+                    }
+                },
                 _ => {}
             }
         }
@@ -574,88 +315,6 @@ impl EngineAnalyzer {
             st.last_result = Some(current_result);
             st.analysis_count = st.analysis_count.wrapping_add(1);
         }
-
-        log::debug!(target: LOGT, "stream: end processed={}", processed);
-    }
-
-    /// 単一結果収集
-    async fn collect_single_result(
-        &self,
-        raw_rx: &mut mpsc::UnboundedReceiver<EngineCommand>,
-        timeout: Duration,
-    ) -> Result<AnalysisResult, EngineError> {
-        let mut result = AnalysisResult::default();
-        let start_time = Instant::now();
-
-        while start_time.elapsed() < timeout {
-            match tokio::time::timeout(Duration::from_millis(100), raw_rx.recv()).await {
-                Ok(Some(cmd)) => match cmd {
-                    EngineCommand::Info(info_params) => {
-                        Self::process_info_params(&info_params, &mut result);
-                    }
-                    EngineCommand::Checkmate(checkmate_params) => {
-                        Self::process_checkmate(&checkmate_params, &mut result);
-                    }
-                    EngineCommand::BestMove(_) => {
-                        return Ok(result);
-                    }
-                    _ => {}
-                },
-                Ok(None) => {
-                    return Err(EngineError::CommunicationFailed(
-                        "Channel closed".to_string(),
-                    ));
-                }
-                Err(_) => continue, // タイムアウト継続
-            }
-        }
-
-        Err(EngineError::Timeout("Analysis timeout".to_string()))
-    }
-
-    /// 深度制限付き結果収集
-    async fn collect_result_with_depth(
-        &self,
-        raw_rx: &mut mpsc::UnboundedReceiver<EngineCommand>,
-        target_depth: u32,
-    ) -> Result<AnalysisResult, EngineError> {
-        let mut result = AnalysisResult::default();
-        let timeout = Duration::from_secs(60);
-        let start_time = Instant::now();
-
-        while start_time.elapsed() < timeout {
-            match tokio::time::timeout(Duration::from_millis(100), raw_rx.recv()).await {
-                Ok(Some(cmd)) => {
-                    match cmd {
-                        EngineCommand::Info(info_params) => {
-                            Self::process_info_params(&info_params, &mut result);
-
-                            // 目標深度に達したら停止
-                            if let Some(depth) = get_depth_of_rank(&result, 1) {
-                                if depth >= target_depth {
-                                    self.stop_analysis().await?;
-                                }
-                            }
-                        }
-                        EngineCommand::Checkmate(checkmate_params) => {
-                            Self::process_checkmate(&checkmate_params, &mut result);
-                        }
-                        EngineCommand::BestMove(_) => {
-                            return Ok(result);
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(None) => {
-                    return Err(EngineError::CommunicationFailed(
-                        "Channel closed".to_string(),
-                    ));
-                }
-                Err(_) => continue, // タイムアウト継続
-            }
-        }
-
-        Err(EngineError::Timeout("Analysis timeout".to_string()))
     }
 
     /// InfoParams処理
@@ -713,71 +372,24 @@ impl EngineAnalyzer {
     }
 }
 
-/// AnalysisConfig から StreamMode と USI go コマンドを組み立てる。
+/// `AnalysisConfig` から USI go コマンドを組み立てる。
 ///
-/// Infinite モードのみ stop flag を `infinite_stop_requested` に登録する。
-async fn build_stream_and_go(
-    config: &AnalysisConfig,
-    infinite_stop_requested: &Mutex<Option<Arc<AtomicBool>>>,
-) -> Option<(StreamMode, GuiCommand)> {
-    let stream_mode = match config.mode {
-        AnalysisMode::Infinite => {
-            let flag = Arc::new(AtomicBool::new(false));
-            *infinite_stop_requested.lock().await = Some(Arc::clone(&flag));
-            StreamMode::Infinite(flag)
-        }
-        AnalysisMode::Time | AnalysisMode::Mate => StreamMode::Finite,
-        AnalysisMode::Depth => {
-            let limit = config.depth_limit.unwrap_or(20);
-            StreamMode::FiniteDepth(limit)
-        }
-        AnalysisMode::Nodes => {
-            let limit = config.node_limit.unwrap_or(1_000_000);
-            StreamMode::FiniteNodes(limit)
-        }
-    };
-
-    let go_command = build_go_command(config);
-    Some((stream_mode, go_command))
-}
-
+/// - `Time` は usi 0.6.2 が `go movetime` を ThinkParams で表現できないため byoyomi で近似
+/// - `Depth` / `Nodes` には ceiling として byoyomi 10 分を付け、閾値到達時の Stop で打ち切る
 fn build_go_command(config: &AnalysisConfig) -> GuiCommand {
-    // 閾値モード（depth/nodes）の保険となる長尺 ceiling
     const THRESHOLD_CEILING: Duration = Duration::from_secs(600);
 
-    let params = match config.mode {
-        AnalysisMode::Infinite => ThinkParams::new().infinite(),
-        AnalysisMode::Time => {
-            let d = config
-                .time_limit
-                .as_ref()
-                .map(|d| Duration::new(d.secs, d.nanos))
-                .unwrap_or(Duration::from_secs(10));
-            // NOTE: usi 0.6.2 は `go movetime` を ThinkParams で出せない。
-            // ここでは byoyomi で代用。raw send 経路が来たら差し替える。
-            ThinkParams::new().byoyomi(d)
+    let params = match config {
+        AnalysisConfig::Infinite => ThinkParams::new().infinite(),
+        AnalysisConfig::Time { seconds } => {
+            ThinkParams::new().byoyomi(Duration::from_secs(*seconds))
         }
-        AnalysisMode::Depth | AnalysisMode::Nodes => ThinkParams::new().byoyomi(THRESHOLD_CEILING),
-        AnalysisMode::Mate => {
-            let mate_param = config
-                .time_limit
-                .as_ref()
-                .map(|d| MateParam::Timeout(Duration::new(d.secs, d.nanos)))
-                .unwrap_or(MateParam::Infinite);
-            ThinkParams::new().mate(mate_param)
+        AnalysisConfig::Depth { .. } | AnalysisConfig::Nodes { .. } => {
+            ThinkParams::new().byoyomi(THRESHOLD_CEILING)
         }
+        AnalysisConfig::Mate => ThinkParams::new().mate(MateParam::Infinite),
     };
     GuiCommand::Go(params)
-}
-
-fn mode_tag(mode: &AnalysisMode) -> &'static str {
-    match mode {
-        AnalysisMode::Infinite => "infinite",
-        AnalysisMode::Time => "time",
-        AnalysisMode::Depth => "depth",
-        AnalysisMode::Nodes => "nodes",
-        AnalysisMode::Mate => "mate",
-    }
 }
 
 impl Clone for EngineAnalyzer {

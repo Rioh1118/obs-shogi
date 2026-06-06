@@ -29,16 +29,18 @@ export interface EngineSettings {
   options: Record<string, string>;
 }
 
-export type AnalysisMode = "infinite" | "time" | "depth" | "nodes" | "mate";
+/**
+ * 解析の停止条件。これが「解析設定」の全て — 他の解析オプション (MultiPV など) は
+ * `apply_engine_settings` 経由の USI options に集約されている。
+ */
+export type AnalysisConfig =
+  | { mode: "infinite" }
+  | { mode: "time"; timeSeconds: number }
+  | { mode: "depth"; depth: number }
+  | { mode: "nodes"; nodes: number }
+  | { mode: "mate" };
 
-export interface AnalysisConfig {
-  mode: AnalysisMode;
-  time_limit?: Duration;
-  depth_limit?: number;
-  node_limit?: number;
-  /** legacy field — kept so旧 JSON のシリアライズが落ちないように。新規コードは mode を使う */
-  mate_search?: boolean;
-}
+export type AnalysisMode = AnalysisConfig["mode"];
 
 export interface AnalysisStatus {
   is_analyzing: boolean;

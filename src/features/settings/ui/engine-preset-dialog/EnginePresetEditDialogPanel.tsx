@@ -436,7 +436,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     }
 
     // analysis: <=0 は落とす（軽く）。mode は preset 側に常に保持。
-    const a: AnalysisDefaults = draft.analysis ?? { mode: "infinite", mateSearch: false };
+    const a: AnalysisDefaults = draft.analysis ?? { mode: "infinite" };
     const timeSeconds =
       a.timeSeconds != null ? clampInt(parseIntSafe(a.timeSeconds, 0), 0, 3600) : undefined;
     const depth = a.depth != null ? clampInt(parseIntSafe(a.depth, 0), 0, 999) : undefined;
@@ -447,7 +447,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       timeSeconds: timeSeconds && timeSeconds > 0 ? timeSeconds : undefined,
       depth: depth && depth > 0 ? depth : undefined,
       nodes: nodes && nodes > 0 ? nodes : undefined,
-      mateSearch: a.mode === "mate",
     };
 
     // options: 空は入れない + UI state 優先

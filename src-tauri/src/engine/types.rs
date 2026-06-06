@@ -117,31 +117,76 @@ pub struct AnalysisStatus {
     pub analysis_count: u64,
 }
 
-/// 解析モード。go コマンドの形を決める。
-/// serde は lowercase（infinite/time/depth/nodes/mate）で受け渡す。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AnalysisMode {
+/// 解析の停止条件。これが「解析設定」の全て — 他の解析オプション（MultiPV など）は
+/// `apply_engine_settings` 経由の USI options に集約されている。
+///
+/// variant 名が serde tag `mode` を兼ねる。新しい停止条件を増やすときは variant を追加し、
+/// `should_stop_on_info` / `handle_bestmove` / `mode_tag` を更新する。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "lowercase")]
+pub enum AnalysisConfig {
     #[default]
     Infinite,
-    Time,
-    Depth,
-    Nodes,
+    Time {
+        #[serde(rename = "timeSeconds")]
+        seconds: u64,
+    },
+    Depth {
+        #[serde(rename = "depth")]
+        plies: u32,
+    },
+    Nodes {
+        #[serde(rename = "nodes")]
+        count: u64,
+    },
     Mate,
 }
 
-// 分析設定
-//
-// MultiPV はここでは持たない — preset の USI options (`apply_engine_settings`) に統一済み。
-// `mate_search` は `mode == Mate` に置き換わったが、旧 JSON マイグレーション用にフィールドは残している。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct AnalysisConfig {
-    pub mode: AnalysisMode,
-    pub time_limit: Option<Duration>,
-    pub depth_limit: Option<u32>,
-    pub node_limit: Option<u64>,
-    #[serde(default)]
-    pub mate_search: bool,
+/// bestmove を受け取ったときの処理方針。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BestmoveAction {
+    /// engine 自然終了。bestmove で stream 終了。
+    Finish,
+    /// 外部 stop を待っているモード（Infinite）。stop フラグが立つまでは stale として無視。
+    IgnoreUnlessStopped,
+}
+
+impl AnalysisConfig {
+    pub fn mode_tag(&self) -> &'static str {
+        match self {
+            Self::Infinite => "infinite",
+            Self::Time { .. } => "time",
+            Self::Depth { .. } => "depth",
+            Self::Nodes { .. } => "nodes",
+            Self::Mate => "mate",
+        }
+    }
+
+    /// rank 1 candidate の閾値が達したら true。閾値モードのみ意味を持つ。
+    pub fn should_stop_on_info(&self, result: &AnalysisResult) -> bool {
+        match self {
+            Self::Depth { plies } => result
+                .candidates
+                .iter()
+                .find(|c| c.rank == 1)
+                .and_then(|c| c.depth)
+                .is_some_and(|d| d >= *plies),
+            Self::Nodes { count } => result
+                .candidates
+                .iter()
+                .find(|c| c.rank == 1)
+                .and_then(|c| c.nodes)
+                .is_some_and(|n| n >= *count),
+            _ => false,
+        }
+    }
+
+    pub fn handle_bestmove(&self) -> BestmoveAction {
+        match self {
+            Self::Infinite => BestmoveAction::IgnoreUnlessStopped,
+            _ => BestmoveAction::Finish,
+        }
+    }
 }
 
 // 最善手情報
@@ -217,4 +262,144 @@ pub struct AnalysisCandidate {
 
     /// time は info time を受けるたび更新される
     pub time_ms: Option<u64>,
+}
+
+#[cfg(test)]
+mod analysis_config_tests {
+    use super::*;
+
+    fn candidate_with(rank: u32, depth: Option<u32>, nodes: Option<u64>) -> AnalysisCandidate {
+        AnalysisCandidate {
+            rank,
+            first_move: None,
+            pv_line: vec![],
+            evaluation: None,
+            depth,
+            nodes,
+            time_ms: None,
+        }
+    }
+
+    fn result_with(candidates: Vec<AnalysisCandidate>) -> AnalysisResult {
+        AnalysisResult {
+            candidates,
+            mate_sequence: None,
+        }
+    }
+
+    #[test]
+    fn mode_tag_returns_lowercase_variant_name() {
+        assert_eq!(AnalysisConfig::Infinite.mode_tag(), "infinite");
+        assert_eq!(AnalysisConfig::Time { seconds: 5 }.mode_tag(), "time");
+        assert_eq!(AnalysisConfig::Depth { plies: 5 }.mode_tag(), "depth");
+        assert_eq!(AnalysisConfig::Nodes { count: 5 }.mode_tag(), "nodes");
+        assert_eq!(AnalysisConfig::Mate.mode_tag(), "mate");
+    }
+
+    #[test]
+    fn handle_bestmove_finishes_for_non_infinite() {
+        assert_eq!(
+            AnalysisConfig::Time { seconds: 1 }.handle_bestmove(),
+            BestmoveAction::Finish
+        );
+        assert_eq!(
+            AnalysisConfig::Depth { plies: 1 }.handle_bestmove(),
+            BestmoveAction::Finish
+        );
+        assert_eq!(
+            AnalysisConfig::Nodes { count: 1 }.handle_bestmove(),
+            BestmoveAction::Finish
+        );
+        assert_eq!(AnalysisConfig::Mate.handle_bestmove(), BestmoveAction::Finish);
+    }
+
+    #[test]
+    fn handle_bestmove_for_infinite_waits_for_stop() {
+        assert_eq!(
+            AnalysisConfig::Infinite.handle_bestmove(),
+            BestmoveAction::IgnoreUnlessStopped
+        );
+    }
+
+    #[test]
+    fn should_stop_on_info_for_depth_when_reached() {
+        let cfg = AnalysisConfig::Depth { plies: 10 };
+        let r = result_with(vec![candidate_with(1, Some(10), None)]);
+        assert!(cfg.should_stop_on_info(&r));
+    }
+
+    #[test]
+    fn should_stop_on_info_for_depth_not_reached() {
+        let cfg = AnalysisConfig::Depth { plies: 10 };
+        let r = result_with(vec![candidate_with(1, Some(9), None)]);
+        assert!(!cfg.should_stop_on_info(&r));
+    }
+
+    #[test]
+    fn should_stop_on_info_for_depth_uses_rank1_only() {
+        // rank 2 が閾値に達しても rank 1 が達していなければ false
+        let cfg = AnalysisConfig::Depth { plies: 10 };
+        let r = result_with(vec![
+            candidate_with(1, Some(5), None),
+            candidate_with(2, Some(20), None),
+        ]);
+        assert!(!cfg.should_stop_on_info(&r));
+    }
+
+    #[test]
+    fn should_stop_on_info_for_nodes_when_reached() {
+        let cfg = AnalysisConfig::Nodes { count: 100_000 };
+        let r = result_with(vec![candidate_with(1, None, Some(100_000))]);
+        assert!(cfg.should_stop_on_info(&r));
+    }
+
+    #[test]
+    fn should_stop_on_info_for_nodes_not_reached() {
+        let cfg = AnalysisConfig::Nodes { count: 100_000 };
+        let r = result_with(vec![candidate_with(1, None, Some(99_999))]);
+        assert!(!cfg.should_stop_on_info(&r));
+    }
+
+    #[test]
+    fn should_stop_on_info_false_for_non_threshold_modes() {
+        let r = result_with(vec![candidate_with(1, Some(99), Some(99_999_999))]);
+        assert!(!AnalysisConfig::Infinite.should_stop_on_info(&r));
+        assert!(!AnalysisConfig::Time { seconds: 1 }.should_stop_on_info(&r));
+        assert!(!AnalysisConfig::Mate.should_stop_on_info(&r));
+    }
+
+    #[test]
+    fn serde_roundtrip_time() {
+        let cfg = AnalysisConfig::Time { seconds: 30 };
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert_eq!(json, r#"{"mode":"time","timeSeconds":30}"#);
+        let back: AnalysisConfig = serde_json::from_str(&json).unwrap();
+        assert!(matches!(back, AnalysisConfig::Time { seconds: 30 }));
+    }
+
+    #[test]
+    fn serde_roundtrip_depth() {
+        let cfg = AnalysisConfig::Depth { plies: 20 };
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert_eq!(json, r#"{"mode":"depth","depth":20}"#);
+    }
+
+    #[test]
+    fn serde_roundtrip_nodes() {
+        let cfg = AnalysisConfig::Nodes { count: 1_000_000 };
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert_eq!(json, r#"{"mode":"nodes","nodes":1000000}"#);
+    }
+
+    #[test]
+    fn serde_roundtrip_bare_variants() {
+        assert_eq!(
+            serde_json::to_string(&AnalysisConfig::Infinite).unwrap(),
+            r#"{"mode":"infinite"}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&AnalysisConfig::Mate).unwrap(),
+            r#"{"mode":"mate"}"#
+        );
+    }
 }
