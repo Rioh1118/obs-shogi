@@ -154,12 +154,15 @@ impl EngineAnalyzer {
         let protocol = manager_guard.protocol()?;
         drop(manager_guard);
 
-        // Infinite モードのみ外部 stop 用のフラグを登録する
+        // Infinite モードのみ外部 stop 用のフラグを登録する。
+        // 前回セッションの flag が居座らないよう、非 Infinite では明示的に None に戻す
+        // (M1: 旧 fix — 将来 IgnoreUnlessStopped を使う他モードが増えても破綻しないため)
         let stop_flag = if matches!(config, AnalysisConfig::Infinite) {
             let flag = Arc::new(AtomicBool::new(false));
             *self.infinite_stop_requested.lock().await = Some(Arc::clone(&flag));
             Some(flag)
         } else {
+            *self.infinite_stop_requested.lock().await = None;
             None
         };
 
@@ -291,9 +294,7 @@ impl EngineAnalyzer {
                         break;
                     }
                     BestmoveAction::IgnoreUnlessStopped => {
-                        let stopped = stop_flag
-                            .as_ref()
-                            .is_some_and(|f| f.load(Ordering::SeqCst));
+                        let stopped = stop_flag.as_ref().is_some_and(|f| f.load(Ordering::SeqCst));
                         if !stopped {
                             if stale_bestmove_warn.allow() {
                                 log::warn!(
@@ -375,9 +376,16 @@ impl EngineAnalyzer {
 /// `AnalysisConfig` から USI go コマンドを組み立てる。
 ///
 /// - `Time` は usi 0.6.2 が `go movetime` を ThinkParams で表現できないため byoyomi で近似
-/// - `Depth` / `Nodes` には ceiling として byoyomi 10 分を付け、閾値到達時の Stop で打ち切る
+/// - `Depth` / `Nodes` には ceiling として 24h byoyomi を付け、`should_stop_on_info` の
+///   threshold で Stop を送って打ち切る。ceiling は事実上 unlimited とし、
+///   深いモードでも byoyomi タイムアウトが先に来ないことを保証する
+///
+/// TODO(#107 follow-up): usi crate を拡張 / 自前 send_raw 経路を追加して
+/// `go movetime/depth/nodes` を直接送れるようにする。byoyomi 近似はそれまでの暫定。
 fn build_go_command(config: &AnalysisConfig) -> GuiCommand {
-    const THRESHOLD_CEILING: Duration = Duration::from_secs(600);
+    // 24 時間 — depth/nodes 系が threshold 到達まで byoyomi タイムアウトに当たらない
+    // よう実用上 unlimited なシーリング。フロントは `should_stop_on_info` で先に Stop を送る。
+    const THRESHOLD_CEILING: Duration = Duration::from_secs(24 * 60 * 60);
 
     let params = match config {
         AnalysisConfig::Infinite => ThinkParams::new().infinite(),

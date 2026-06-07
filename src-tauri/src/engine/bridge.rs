@@ -46,7 +46,6 @@ struct AnalysisUpdate {
     result: AnalysisResult,
 }
 
-
 impl EngineBridge {
     pub fn new() -> Self {
         Self {
@@ -211,13 +210,36 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // receiver が閉じた（analyzer 側が終了）ので最後に状態だけ落とす
-        {
+        // receiver が閉じた（analyzer 側が終了）ので最後に状態だけ落とす。
+        // 完了 event は finite モードの自然終了 (bestmove) と Infinite の外部 Stop
+        // 両方で必要 — フロント `AnalysisProvider` は `analysis-complete` でのみ
+        // `isAnalyzing` をクリアするので、ここで emit しないと UI が固着する。
+        let final_result = {
             let mut sessions_guard = sessions.write().await;
+            let final_result = sessions_guard
+                .get(&session_id)
+                .and_then(|s| s.last_result.clone());
             if let Some(session) = sessions_guard.get_mut(&session_id) {
                 session.is_active = false;
             }
+            final_result
+        };
+
+        if let Some(handle) = app_handle.read().await.clone() {
+            let payload = AnalysisUpdate {
+                session_id: session_id.clone(),
+                result: final_result.unwrap_or_default(),
+            };
+            if let Err(e) = handle.emit("analysis-complete", payload) {
+                log::warn!(
+                    target: LOGT,
+                    "forward_results: complete emit failed session_id={} err={}",
+                    session_id,
+                    e
+                );
+            }
         }
+
         log::debug!(
             target: LOGT,
             "forward_results: ended session_id={}",

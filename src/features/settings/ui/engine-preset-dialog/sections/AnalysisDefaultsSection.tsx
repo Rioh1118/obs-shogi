@@ -63,6 +63,8 @@ export default function AnalysisDefaultsSection(props: {
           <SInput
             type="number"
             min={0}
+            max={3600}
+            placeholder="未指定なら 30s"
             disabled={mode !== "time"}
             value={draft.analysis?.timeSeconds ?? ""}
             onChange={(e) => {
@@ -77,6 +79,8 @@ export default function AnalysisDefaultsSection(props: {
           <SInput
             type="number"
             min={0}
+            max={999}
+            placeholder="未指定なら 20"
             disabled={mode !== "depth"}
             value={draft.analysis?.depth ?? ""}
             onChange={(e) => {
@@ -91,6 +95,8 @@ export default function AnalysisDefaultsSection(props: {
           <SInput
             type="number"
             min={0}
+            max={999_999_999}
+            placeholder="未指定なら 100,000,000"
             disabled={mode !== "nodes"}
             value={draft.analysis?.nodes ?? ""}
             onChange={(e) => {

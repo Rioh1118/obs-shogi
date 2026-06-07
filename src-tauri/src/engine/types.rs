@@ -310,7 +310,10 @@ mod analysis_config_tests {
             AnalysisConfig::Nodes { count: 1 }.handle_bestmove(),
             BestmoveAction::Finish
         );
-        assert_eq!(AnalysisConfig::Mate.handle_bestmove(), BestmoveAction::Finish);
+        assert_eq!(
+            AnalysisConfig::Mate.handle_bestmove(),
+            BestmoveAction::Finish
+        );
     }
 
     #[test]

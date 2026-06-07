@@ -2,9 +2,10 @@ import type { AnalysisConfig } from "@/entities/engine/api/rust-types";
 import type { AnalysisDefaults } from "../model/types";
 
 // UI form は欠損を許容するため、Rust に渡す直前のフォールバック値をここで一元化する。
-const DEFAULT_TIME_SECONDS = 10;
+// AnalysisDefaultsSection の placeholder と同期させること。
+const DEFAULT_TIME_SECONDS = 30;
 const DEFAULT_DEPTH_PLIES = 20;
-const DEFAULT_NODES_COUNT = 1_000_000;
+const DEFAULT_NODES_COUNT = 100_000_000;
 
 /**
  * preset の flat な {@link AnalysisDefaults} を Rust 側の discriminated union
