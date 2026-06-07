@@ -7,7 +7,7 @@ import { useAnalysis } from "@/entities/analysis";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 
 function AnalysisPaneHeader() {
-  const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
+  const { state, startAnalysis, stopAnalysis } = useAnalysis();
   const { currentSfen } = usePositionSync();
   const { openModal, params, updateParams } = useURLParams();
   const { findBySfen } = useStudyPositions();
@@ -77,7 +77,7 @@ function AnalysisPaneHeader() {
       if (state.isAnalyzing) {
         await stopAnalysis();
       } else {
-        await startInfiniteAnalysis();
+        await startAnalysis();
       }
     } catch (error) {
       console.error("Failed to toggle analysis:", error);

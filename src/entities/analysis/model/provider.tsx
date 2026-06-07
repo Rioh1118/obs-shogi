@@ -2,28 +2,39 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
-  startInfiniteAnalysis as startInfiniteAnalysisCore,
+  startAnalysis as startAnalysisCore,
   stopAnalysis as stopAnalysisCore,
 } from "@/entities/engine/api/tauri";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
-import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate, AnalysisConfig } from "@/entities/engine/api/rust-types";
 import { pickTopCandidate } from "../lib/candidates";
 import { AnalysisContext } from "./context";
 
 interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
+  /**
+   * 解析開始時に呼ばれる config ビルダ。bridge 層が preset などの外部依存を解決した上で
+   * `AnalysisConfig` を供給する責務を持つ (Strategy 注入)。
+   */
+  buildConfig: () => AnalysisConfig;
 }
 
-export function AnalysisProvider({ children, positionSync }: Props) {
+export function AnalysisProvider({ children, positionSync, buildConfig }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
   const { isReady } = useEngine();
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
+
+  // 解析中の preset 切り替えにも追従できるよう最新 builder を ref に保つ
+  const buildConfigRef = useRef(buildConfig);
+  useEffect(() => {
+    buildConfigRef.current = buildConfig;
+  }, [buildConfig]);
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
@@ -190,7 +201,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         clearFlushTimer();
         latestResultRef.current = null;
-        const newSessionId = await startInfiniteAnalysisCore();
+        const newSessionId = await startAnalysisCore(buildConfigRef.current());
 
         dispatch({
           type: "start_analysis",
@@ -258,7 +269,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   }, [syncedSfen, state.isAnalyzing, isReady]);
 
-  const startInfiniteAnalysis = useCallback(async () => {
+  const startAnalysis = useCallback(async () => {
     if (!isReady) throw new Error("Engine not ready");
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
@@ -267,7 +278,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
 
-    const sessionId = await startInfiniteAnalysisCore();
+    const sessionId = await startAnalysisCore(buildConfigRef.current());
 
     dispatch({
       type: "start_analysis",
@@ -317,7 +328,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const value = useMemo<AnalysisContextType>(
     () => ({
       state,
-      startInfiniteAnalysis,
+      startAnalysis,
       stopAnalysis,
       clearResults,
       clearError,
@@ -326,7 +337,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }),
     [
       state,
-      startInfiniteAnalysis,
+      startAnalysis,
       stopAnalysis,
       clearResults,
       clearError,

@@ -1,13 +1,15 @@
 import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
+import type { AnalysisMode } from "@/entities/engine/api/rust-types";
 
 export type PresetId = string;
 export type UsiOptionMap = Record<string, string>;
 
+/** preset disk format で持つ解析既定値。フラット保持 (旧 JSON 互換)。 */
 export type AnalysisDefaults = {
+  mode: AnalysisMode;
   timeSeconds?: number;
   depth?: number;
   nodes?: number;
-  mateSearch: boolean;
 };
 
 export type EnginePreset = {

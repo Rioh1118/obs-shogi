@@ -26,7 +26,11 @@ export type PositionSyncAdapter = {
 export interface AnalysisContextType {
   state: AnalysisState;
 
-  startInfiniteAnalysis: () => Promise<void>;
+  /**
+   * 注入された `buildConfig()` に従って解析を開始する。
+   * mode/閾値などの選択は bridge 層 (= preset 等の外部依存を持つ層) に委ねられる。
+   */
+  startAnalysis: () => Promise<void>;
   stopAnalysis: () => Promise<void>;
   clearResults: () => void;
   clearError: () => void;

@@ -46,15 +46,6 @@ struct AnalysisUpdate {
     result: AnalysisResult,
 }
 
-#[derive(Debug, Clone)]
-enum SessionType {
-    Infinite,
-    #[allow(dead_code)]
-    Timed(Duration),
-    #[allow(dead_code)]
-    Depth(u32),
-}
-
 impl EngineBridge {
     pub fn new() -> Self {
         Self {
@@ -140,34 +131,6 @@ impl EngineBridge {
         Ok(())
     }
 
-    pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
-        if let Err(e) = self.ensure_no_active_session().await {
-            log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
-            return Err(e);
-        }
-
-        log::debug!(target: LOGT, "start_infinite_analysis: requested");
-
-        let result_rx = self.analyzer.start_infinite_analysis().await.map_err(|e| {
-            log::error!(
-                target: LOGT,
-                "start_infinite_analysis: analyzer failed: {:?}",
-                e
-            );
-            format!("Failed to start infinite analysis: {:?}", e)
-        })?;
-
-        let session_id = self.create_session(SessionType::Infinite).await;
-        log::info!(
-            target: LOGT,
-            "start_infinite_analysis: ok session_id={}",
-            session_id
-        );
-
-        self.start_result_forwarding(&session_id, result_rx).await;
-        Ok(session_id)
-    }
-
     async fn start_result_forwarding(
         &self,
         session_id: &str,
@@ -247,13 +210,36 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // receiver が閉じた（analyzer 側が終了）ので最後に状態だけ落とす
-        {
+        // receiver が閉じた（analyzer 側が終了）ので最後に状態だけ落とす。
+        // 完了 event は finite モードの自然終了 (bestmove) と Infinite の外部 Stop
+        // 両方で必要 — フロント `AnalysisProvider` は `analysis-complete` でのみ
+        // `isAnalyzing` をクリアするので、ここで emit しないと UI が固着する。
+        let final_result = {
             let mut sessions_guard = sessions.write().await;
+            let final_result = sessions_guard
+                .get(&session_id)
+                .and_then(|s| s.last_result.clone());
             if let Some(session) = sessions_guard.get_mut(&session_id) {
                 session.is_active = false;
             }
+            final_result
+        };
+
+        if let Some(handle) = app_handle.read().await.clone() {
+            let payload = AnalysisUpdate {
+                session_id: session_id.clone(),
+                result: final_result.unwrap_or_default(),
+            };
+            if let Err(e) = handle.emit("analysis-complete", payload) {
+                log::warn!(
+                    target: LOGT,
+                    "forward_results: complete emit failed session_id={} err={}",
+                    session_id,
+                    e
+                );
+            }
         }
+
         log::debug!(
             target: LOGT,
             "forward_results: ended session_id={}",
@@ -261,23 +247,30 @@ impl EngineBridge {
         );
     }
 
-    pub async fn analyze_with_time_impl(
-        &self,
-        time_seconds: u64,
-    ) -> Result<AnalysisResult, String> {
-        let duration = Duration::from_secs(time_seconds);
+    pub async fn start_analysis_impl(&self, config: AnalysisConfig) -> Result<String, String> {
+        if let Err(e) = self.ensure_no_active_session().await {
+            log::warn!(target: LOGT, "start_analysis: rejected: {}", e);
+            return Err(e);
+        }
 
-        self.analyzer
-            .analyze_with_time(duration)
-            .await
-            .map_err(|e| format!("Timed analysis failed: {:?}", e))
-    }
+        let mode_tag = config.mode_tag();
+        log::debug!(target: LOGT, "start_analysis: requested mode={}", mode_tag);
 
-    pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<AnalysisResult, String> {
-        self.analyzer
-            .analyze_with_depth(depth)
-            .await
-            .map_err(|e| format!("Depth analysis failed: {:?}", e))
+        let result_rx = self.analyzer.start_analysis(config).await.map_err(|e| {
+            log::error!(target: LOGT, "start_analysis: analyzer failed: {:?}", e);
+            format!("Failed to start analysis: {:?}", e)
+        })?;
+
+        let session_id = self.create_session(mode_tag).await;
+        log::info!(
+            target: LOGT,
+            "start_analysis: ok session_id={} mode={}",
+            session_id,
+            mode_tag
+        );
+
+        self.start_result_forwarding(&session_id, result_rx).await;
+        Ok(session_id)
     }
 
     pub async fn stop_analysis_impl(&self, session_id: Option<String>) -> Result<(), String> {
@@ -360,14 +353,9 @@ impl EngineBridge {
         }
     }
 
-    // ===  session === //
+    // === session === //
 
-    async fn create_session(&self, session_type: SessionType) -> String {
-        let prefix = match session_type {
-            SessionType::Infinite => "infinite",
-            SessionType::Timed(_) => "timed",
-            SessionType::Depth(_) => "depth",
-        };
+    async fn create_session(&self, prefix: &str) -> String {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -470,24 +458,11 @@ pub async fn set_position(
 }
 
 #[tauri::command]
-pub async fn start_infinite_analysis(state: tauri::State<'_, AppState>) -> Result<String, String> {
-    state.bridge.start_infinite_analysis_impl().await
-}
-
-#[tauri::command]
-pub async fn analyze_with_time(
+pub async fn start_analysis(
     state: tauri::State<'_, AppState>,
-    time_seconds: u64,
-) -> Result<AnalysisResult, String> {
-    state.bridge.analyze_with_time_impl(time_seconds).await
-}
-
-#[tauri::command]
-pub async fn analyze_with_depth(
-    state: tauri::State<'_, AppState>,
-    depth: u32,
-) -> Result<AnalysisResult, String> {
-    state.bridge.analyze_with_depth_impl(depth).await
+    config: AnalysisConfig,
+) -> Result<String, String> {
+    state.bridge.start_analysis_impl(config).await
 }
 
 #[tauri::command]

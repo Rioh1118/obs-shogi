@@ -19,7 +19,11 @@ import ImportantOptionsSection from "./sections/ImportantOptionsSection";
 import AnalysisDefaultsSection from "./sections/AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
 import { useAppConfig } from "@/entities/app-config";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type {
+  AnalysisDefaults,
+  EnginePreset,
+  PresetId,
+} from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 import { filterEnginesByAiLabel, listAiLabels } from "../../lib/engineFilter";
@@ -431,25 +435,19 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       return;
     }
 
-    // analysis: <=0 は落とす（軽く）
-    const a = draft.analysis ?? { mateSearch: false };
+    // analysis: <=0 は落とす（軽く）。mode は preset 側に常に保持。
+    const a: AnalysisDefaults = draft.analysis ?? { mode: "infinite" };
     const timeSeconds =
       a.timeSeconds != null ? clampInt(parseIntSafe(a.timeSeconds, 0), 0, 3600) : undefined;
     const depth = a.depth != null ? clampInt(parseIntSafe(a.depth, 0), 0, 999) : undefined;
     const nodes = a.nodes != null ? clampInt(parseIntSafe(a.nodes, 0), 0, 999_999_999) : undefined;
 
-    const analysis =
-      (timeSeconds && timeSeconds > 0) ||
-      (depth && depth > 0) ||
-      (nodes && nodes > 0) ||
-      a.mateSearch
-        ? {
-            timeSeconds: timeSeconds && timeSeconds > 0 ? timeSeconds : undefined,
-            depth: depth && depth > 0 ? depth : undefined,
-            nodes: nodes && nodes > 0 ? nodes : undefined,
-            mateSearch: Boolean(a.mateSearch),
-          }
-        : undefined;
+    const analysis: AnalysisDefaults = {
+      mode: a.mode,
+      timeSeconds: timeSeconds && timeSeconds > 0 ? timeSeconds : undefined,
+      depth: depth && depth > 0 ? depth : undefined,
+      nodes: nodes && nodes > 0 ? nodes : undefined,
+    };
 
     // options: 空は入れない + UI state 優先
     const rawOpt = draft.options ?? {};
