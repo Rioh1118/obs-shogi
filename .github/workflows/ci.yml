@@ -18,8 +18,10 @@ permissions:
 
 jobs:
   quality:
-    name: Quality (lint/test/fmt/clippy)
+    name: Quality (typecheck/lint/test/fmt/clippy)
     runs-on: ubuntu-22.04
+    env:
+      CI: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +33,10 @@ jobs:
 
       - name: Install frontend deps
         run: npm ci
+
+      # 型エラーをフルビルド(Windows/macOS)まで遅らせないための最速ゲート
+      - name: Frontend typecheck
+        run: npm run typecheck
 
       - name: Frontend lint (if present)
         run: npm run lint --if-present
