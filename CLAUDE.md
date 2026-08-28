@@ -19,7 +19,7 @@ docs や `.claude/` だけの変更は素通しする。
 
 実装を変えたら必ずレビューを通す。
 
-- `/review` — 観点ごとの reviewer を並列で走らせ `.claude/reviews/` に報告書を書く
+- `/review-round` — 観点ごとの reviewer を並列で走らせ `.claude/reviews/` に報告書を書く
 - `/review-fix` — 報告書の所見を1件1コミットで直し、結果を報告書に書き戻す
 
 指摘がゼロのラウンドが1回出るまでこのループを終わらせない。

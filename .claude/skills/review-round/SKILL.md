@@ -1,5 +1,5 @@
 ---
-name: review
+name: review-round
 description: レビュー用サブエージェントを並列で走らせ、所見を1つの報告書にまとめる。範囲を引数で渡す（未指定なら main との差分）。
 argument-hint: "[範囲: パス / --diff / --all / 観点名]"
 disable-model-invocation: true
