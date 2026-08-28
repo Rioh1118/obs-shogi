@@ -5,16 +5,40 @@ Tauri v2 デスクトップアプリ（React 19 + TypeScript + SCSS / Rust）。
 ## 検証（変更後に必ず実行）
 
 ```bash
-npm run verify          # tsc -b + lint + vitest
-npm run verify:rust     # cargo fmt --check + clippy -D warnings + cargo test
+npm run verify          # tsc -b + lint + vitest      （約8秒）
+npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 ```
 
+`git commit` は `.claude/hooks/verify-gate.sh` が横取りし、変更ファイルの種類に応じて
+上を自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
+docs や `.claude/` だけの変更は素通しする。
+
 作業を「完了」と報告する前に該当する方を必ず通すこと。通していないなら「未検証」と明示すること。
+
+## レビュー
+
+実装を変えたら必ずレビューを通す。
+
+- `/review` — 観点ごとの reviewer を並列で走らせ `.claude/reviews/` に報告書を書く
+- `/review-fix` — 報告書の所見を1件1コミットで直し、結果を報告書に書き戻す
+
+指摘がゼロのラウンドが1回出るまでこのループを終わらせない。
 
 ## テストの現状（誇張しないこと）
 
 TS 側のテストは2ファイル、Rust 側は `#[test]` が0個。`cargo test` の green は**何も保証しない**。
 「テストが通ったので安全」と書いてはいけない。新規ロジックには実際にテストを足すこと。
+
+## 依存の方向（`src/`）
+
+レイヤは Feature-Sliced Design。import は**下向きだけ**。
+
+```
+app → pages → widgets → features → entities → shared
+```
+
+上向きの import を新しく作らない。共有したい型やロジックは、共有できる位置まで**下げる**。
+（2026-08 時点で違反8件が残っている。lint で強制する準備はできているが、まだ有効化していない）
 
 ## 変更時に連動が必要な箇所
 
