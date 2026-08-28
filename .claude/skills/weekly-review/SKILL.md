@@ -1,5 +1,7 @@
 ---
+name: weekly-review
 description: obs-shogi 週次レビュー。前提の点検 → 決定を1件だけ確定 → Now の確認 → 摩擦の集計
+disable-model-invocation: true
 ---
 
 `docs/OPERATING-MODEL.md` の §3 に従って週次レビューを進行する。**あなたが決めるのではなく、ユーザーが決めるのを補助する。**
