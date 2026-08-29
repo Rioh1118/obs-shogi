@@ -8,27 +8,69 @@
 #
 # 落ちたら permissionDecision: deny を返してコミット自体を止める。
 # 逃げ道は用意しない。逃げ道を用意した時点でゲートではなくなる。
+#
+# 判定部分（commit の検出とツリーの決定）は `verify-gate.test.sh` が固定している。
+# ここを触ったらそちらも走らせること。
 
 set -uo pipefail
+
+# コマンド文字列に `git commit` があるかを見る。無ければ空を返す。
+#
+# 複合コマンドの中の commit も拾う。`-C <dir>` や `--git-dir=<dir>` のように
+# 値を取るオプションも越えて commit に届くこと。値を許さないと
+# `git -C <worktree> commit` がゲートを丸ごと素通しし、それは検証を飛ばす
+# 最も自然な手口になる。git は空白区切りと `=` の両方を受けるので両方許す。
+gate_matches_commit() {
+  local git_opt='(--?(C|c|git-dir|work-tree|namespace|super-prefix)([[:space:]]+|=)[^[:space:]]+|-[^[:space:]]+)'
+  printf '%s' "$1" | grep -Eq "(^|[;&|(]|[[:space:]])git([[:space:]]+$git_opt)*[[:space:]]+commit([[:space:]]|$)"
+}
+
+# コミットされるツリーの位置を決める。決められなければ空を返す。
+#
+# `-C <dir>` などでツリーを付け替えられていたら、その先を見る。ここを見落とすと
+# 「別のワークツリーへコミットしつつ、検証は手元のツリーで済ませる」が通る。
+# ワークツリーで作業しているとき CLAUDE_PROJECT_DIR は元のチェックアウトを
+# 指したままなので、最後の手段にしか使わない。
+gate_target_dir() {
+  local command=$1 dir=""
+
+  dir=$(printf '%s' "$command" | grep -Eo '(^|[[:space:]])-C([[:space:]]+|=)[^[:space:]]+' | tail -1 | sed -E 's/.*-C([[:space:]]+|=)//')
+  if [ -z "$dir" ]; then
+    dir=$(printf '%s' "$command" | grep -Eo -- '--work-tree([[:space:]]+|=)[^[:space:]]+' | tail -1 | sed -E 's/--work-tree([[:space:]]+|=)//')
+  fi
+
+  if [ -n "$dir" ]; then
+    git -C "$dir" rev-parse --show-toplevel 2>/dev/null
+    return
+  fi
+
+  git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-}"
+}
+
+# 読み込まれただけのときは判定関数を定義して終わる（テストから使う）。
+[ "${GATE_LIB_ONLY:-0}" = "1" ] && return 0
 
 payload=$(cat)
 command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
 
-# `git commit` を含まないコマンドは素通し。複合コマンドの中の commit も拾う。
-#
-# `-C <dir>` や `-c k=v` のように値を取るオプションも越えて commit に届くこと。
-# 値を許さないと `git -C <worktree> commit` がゲートを丸ごと素通しし、
-# それは検証を飛ばす最も自然な手口になる。
-git_opt='(-[cC][[:space:]]+[^[:space:]]+|--(git-dir|work-tree|namespace)=[^[:space:]]+|-[^[:space:]]+)'
-if ! printf '%s' "$command" | grep -Eq "(^|[;&|(]|[[:space:]])git([[:space:]]+$git_opt)*[[:space:]]+commit([[:space:]]|$)"; then
-  exit 0
-fi
+gate_matches_commit "$command" || exit 0
 
-# ワークツリーで作業しているとき、CLAUDE_PROJECT_DIR は元のチェックアウトを指したままになる。
-# それを優先すると、commit しようとしているツリーではなく別のツリーを検証してしまい、
-# 自分の変更は一度も見られないままゲートが通る（あるいは他人の作業で落ちる）。
-project_dir="$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-}")"
-[ -n "$project_dir" ] || exit 0
+deny() {
+  jq -n --arg reason "$1" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
+}
+
+project_dir=$(gate_target_dir "$command")
+if [ -z "$project_dir" ]; then
+  deny "検証ゲート: どのツリーへコミットするのか決められなかった。
+git のディレクトリ指定を外し、対象のワークツリーの中から実行すること。"
+fi
 cd "$project_dir" || exit 0
 
 # ステージ済みと作業ツリーの両方を見る（`git commit -a` を取りこぼさないため）。
@@ -49,17 +91,6 @@ done < <(git status --porcelain --untracked-files=no)
 if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ]; then
   exit 0
 fi
-
-deny() {
-  jq -n --arg reason "$1" '{
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: $reason
-    }
-  }'
-  exit 0
-}
 
 run_gate() {
   local label=$1 out
