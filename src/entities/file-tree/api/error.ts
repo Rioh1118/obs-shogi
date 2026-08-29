@@ -73,6 +73,17 @@ export function makeFsError(code: FsErrorCode, message: string, path?: string): 
 }
 
 /**
+ * 別名を選ばせる対話（`FileConflictDialog`）が引き取る失敗か。
+ *
+ * 引き取られた失敗を呼び出し元でも描くと、同じ失敗が対話とその背後に二重に出る。
+ * どちらが引き取るかの判定をここ1箇所に置き、失敗を出す側と引き取る側が
+ * 同じ条件を見るようにする。
+ */
+export function isResolvedByConflictDialog(code: FsErrorCode): boolean {
+  return code === "already_exists";
+}
+
+/**
  * 復帰に何が要るか（ADR-0004）。
  *
  * `warning` は読み直しで直る見込みがあるもの、`danger` は読み直しても結果が変わらず、

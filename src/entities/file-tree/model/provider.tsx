@@ -15,7 +15,7 @@ import {
   remapSubtreePath,
   scrollNodeIntoView,
 } from "../lib/path";
-import { makeFsError, type FsError } from "../api/error";
+import { isResolvedByConflictDialog, makeFsError, type FsError } from "../api/error";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { useAppConfig } from "@/entities/app-config";
 
@@ -81,7 +81,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // ここでも積むと同じ失敗が2箇所に、別の文言で同時に出る
   const deferFailure = useCallback(
     (error: FsError, request: FileConflictRequest) => {
-      if (error.code === "already_exists") {
+      if (isResolvedByConflictDialog(error.code)) {
         pushConflict(request, error);
       }
       return Err(error);

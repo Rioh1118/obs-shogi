@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { InitialPresetString } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { FsErrorView, isResolvedByConflictDialog, type FsError } from "@/entities/file-tree";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";
@@ -21,6 +22,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const [note, setNote] = useState("");
   const [preset, setPreset] = useState<InitialPresetString>("HIRATE");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<FsError | null>(null);
 
   const { createNewFile } = useFileTree();
 
@@ -29,6 +31,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     if (!fileName.trim()) return;
 
+    setError(null);
     setIsLoading(true);
     const result = await createNewFile(dirPath, {
       fileName: `${fileName.trim()}.${format}`,
@@ -45,6 +48,12 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     if (result.success) {
       toggleModal();
+      return;
+    }
+
+    // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
+    if (!isResolvedByConflictDialog(result.error.code)) {
+      setError(result.error);
     }
   };
 
@@ -140,6 +149,13 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
           onChange={(e) => setNote(e.target.value)}
         />
       </FormField>
+
+      {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+      {error && (
+        <FormField>
+          <FsErrorView error={error} />
+        </FormField>
+      )}
 
       <ButtonGroup>
         <Button type="submit" tone="primary" disabled={!fileName.trim()}>

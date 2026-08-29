@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { FsErrorView, isResolvedByConflictDialog, type FsError } from "@/entities/file-tree";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { type KifuFormat } from "@/entities/kifu/model/kifu";
 import Form from "@/shared/ui/Form/Form";
@@ -23,6 +24,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
   const [parseOk, setParseOk] = useState<boolean | null>(null);
   const [parseError, setParseError] = useState("");
+  const [saveError, setSaveError] = useState<FsError | null>(null);
 
   const fullFileName = useMemo(() => {
     const base = stripKnownExt(fileName.trim());
@@ -64,9 +66,16 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     if (!name || !text) return;
     if (parseOk !== true) return;
 
+    setSaveError(null);
     const result = await importKifuFile(dirPath, name, text);
     if (result.success) {
       toggleModal();
+      return;
+    }
+
+    // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
+    if (!isResolvedByConflictDialog(result.error.code)) {
+      setSaveError(result.error);
     }
   };
 
@@ -134,6 +143,13 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
           保存名: {fullFileName || "（未入力）"}
         </div>
       </FormField>
+
+      {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+      {saveError && (
+        <FormField>
+          <FsErrorView error={saveError} />
+        </FormField>
+      )}
 
       <ButtonGroup>
         <Button
