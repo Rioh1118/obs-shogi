@@ -9,11 +9,7 @@ import {
   type SwapQuery,
 } from "../model/branch";
 import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
-
-/** 安全に深いコピー（ブラウザ前提なら structuredClone でOK） */
-function clone<T>(x: T): T {
-  return JSON.parse(JSON.stringify(x));
-}
+import { cloneJkf } from "./cloneJkf";
 
 function normalizeRef<T extends BranchPointRef>(ref: T): T {
   return {
@@ -94,11 +90,11 @@ type Candidates = IMoveFormat[][];
  * - さらに「候補の先頭が forks を持つ」場合は “同じteの代替” なので持ち上げてフラット化
  */
 function readCandidates(h: BranchPointHandle): Candidates {
-  const tail = clone(h.line.slice(h.index)); // main tail
+  const tail = cloneJkf(h.line.slice(h.index)); // main tail
   if (tail.length === 0) throw new Error("main tail is empty");
 
   const head = tail[0];
-  const forks = head.forks ? clone(head.forks) : [];
+  const forks = head.forks ? cloneJkf(head.forks) : [];
   delete head.forks;
 
   const candidates: Candidates = [tail, ...forks];
@@ -111,7 +107,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
     for (const seg of candidates) {
       const segHead = seg[0];
       if (segHead?.forks?.length) {
-        extra.push(...clone(segHead.forks));
+        extra.push(...cloneJkf(segHead.forks));
         delete segHead.forks;
         changed = true;
       }
@@ -130,13 +126,13 @@ function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
     return;
   }
 
-  const main = clone(candidates[0]);
+  const main = cloneJkf(candidates[0]);
   if (main.length === 0) {
     h.line.splice(h.index);
     return;
   }
 
-  const forkSegs = candidates.slice(1).map(clone);
+  const forkSegs = candidates.slice(1).map((seg) => cloneJkf(seg));
 
   // forks は main head に集約
   if (forkSegs.length) main[0].forks = forkSegs;

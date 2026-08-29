@@ -6,7 +6,7 @@ import { useGame } from "@/entities/game";
 import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
-import { cloneJKF } from "../lib/cloneJKF";
+import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
 import { branchIndexFromRow, buildCursorWithForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
@@ -46,7 +46,7 @@ export default function KifuStreamList() {
 
   const rows = useMemo(() => {
     if (!view.player) return [];
-    const viewer = new JKFPlayer(cloneJKF(view.player.kifu));
+    const viewer = new JKFPlayer(cloneJkf(view.player.kifu));
     return buildStreamRowsFromCursor(viewer, plannedCursor);
   }, [view.player, plannedCursor]);
 

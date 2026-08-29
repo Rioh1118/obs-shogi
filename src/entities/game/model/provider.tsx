@@ -28,7 +28,8 @@ import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
 import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
-import { buildPlayer, cloneJkf } from "../lib/jkf";
+import { buildPlayer } from "../lib/jkf";
+import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { cursorFromPlayer, lastMovePlayer, mergeBranchPlan, sameForkPointers } from "../lib/cursor";
 import {
   setCommentsByCursorInJkf,
