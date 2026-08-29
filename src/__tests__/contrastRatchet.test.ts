@@ -62,7 +62,7 @@ const MEASURED_FLOOR = 51;
  * **どれも「合格」ではない**ので、件数を目に見える形で置く。
  * 面を持たせるか `surface` を渡すかして測れるようにしたら下げる → issue #185。
  */
-const UNMEASURED_CEILING = 416;
+const UNMEASURED_CEILING = 406;
 
 const rows: Row[] = [];
 let measured = 0;
