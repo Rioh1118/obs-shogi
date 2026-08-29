@@ -236,7 +236,7 @@ F-17 を起動直後の toast にしないのは、起動時点では検索を�
   **F-5（保存の失敗）は #85 に入っていない**
 - ADR-0003 が意味色をここに委ねていた分が埋まる。トークンは `src/index.scss` に置く
 - **分類とは独立に潰すものが4件ある。** どの分類を選んでも直す必要がある
-  - F-5 の unhandled rejection — 保存失敗が黙ってデータを捨てる
-  - F-3 のツリー消滅 — `widgets/file-tree/ui/FileTree.tsx:133` の `return;`
-  - F-9 の再試行が効かない構造 — `clearError` の呼び出し元が無い
-  - F-7 の Rust セッション残留 — issue #120 の再発経路
+  - **#169** F-3 のツリー消滅 — `widgets/file-tree/ui/FileTree.tsx:133` の `return;`
+  - **#170** F-5 の unhandled rejection — 保存失敗が黙ってデータを捨てる
+  - **#171** F-9 の再試行が効かない構造 — `clearError` の呼び出し元が無い
+  - **#172** F-7 の Rust セッション残留 — issue #120 の再発経路
