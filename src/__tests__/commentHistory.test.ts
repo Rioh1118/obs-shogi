@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { sourceFiles } from "./walk";
 
 /**
  * コメントに**変更の経緯**を書かない（`CONTRIBUTING.md` の「コメントの書き方」）。
@@ -46,14 +47,6 @@ const BRANCH_NAME = /(?:\b(?:fix|feat|chore|docs|refactor|perf|ci)\/\d|\bissue-\
 
 /** `//` 行コメントと `/* *\/` ブロックコメント。文字列の中は見ない（誤検出しても直せる形で出す） */
 const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(path);
-    return /\.(tsx?|rs|scss)$/.test(entry.name) ? [path] : [];
-  });
-}
 
 describe("コメント", () => {
   it("変更の経緯を書いていない", () => {

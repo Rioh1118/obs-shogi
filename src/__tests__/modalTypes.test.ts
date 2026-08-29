@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { tsFiles } from "./walk";
 
 /**
  * `ModalType` の各値に、それを読んで描くものが1つある。
@@ -27,20 +28,12 @@ function modalTypes(): string[] {
   return [...body.matchAll(/"([\w-]+)"/g)].map((match) => match[1]);
 }
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return entry.name === "__tests__" ? [] : sourceFiles(path);
-    return /\.tsx?$/.test(entry.name) ? [path] : [];
-  });
-}
-
 describe("ModalType", () => {
   it("どの値にも、それを読んで描くものがある", () => {
     const types = modalTypes();
     expect(types.length, "ModalType の値を1つも拾えていない").toBeGreaterThan(3);
 
-    const sources = sourceFiles(SRC)
+    const sources = tsFiles(SRC, { includeTests: false })
       .filter((file) => file !== ROUTER)
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");

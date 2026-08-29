@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { scssFiles } from "./walk";
 import { collectVariables, scanContrast } from "./contrast";
 
 /**
@@ -31,14 +32,6 @@ const BASELINE = [
 
 const SRC = join(process.cwd(), "src");
 const TOKEN_SOURCE = join(SRC, "index.scss");
-
-function scssFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return scssFiles(path);
-    return entry.name.endsWith(".scss") ? [path] : [];
-  });
-}
 
 type Row = { key: string; detail: string };
 

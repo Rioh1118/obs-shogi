@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { scssFiles } from "./walk";
 import type { Bucket, Finding } from "./scssScale";
 import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
 
@@ -26,14 +27,6 @@ const SRC = join(process.cwd(), "src");
 
 /** トークンの定義そのものなので、直値があって当然のファイル */
 const TOKEN_SOURCE = join(SRC, "index.scss");
-
-function scssFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return scssFiles(path);
-    return entry.name.endsWith(".scss") ? [path] : [];
-  });
-}
 
 function emptyCounts(): Record<Bucket, number> {
   return Object.fromEntries(BUCKETS.map((bucket) => [bucket, 0])) as Record<Bucket, number>;

@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { tsFiles } from "./walk";
 
 /**
  * スライスの外から、そのスライスの barrel が公開しているモジュールを
@@ -20,14 +21,6 @@ const LAYERS_WITH_SLICES = ["entities", "features", "widgets"];
 
 /** `export * from "./api/error"` / `export { default as X } from "./ui/X"` */
 const REEXPORT = /export\s+(?:\*|\{[^}]*\})\s+from\s+["']\.\/([\w./-]+)["']/g;
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(entry.name) ? [path] : [];
-  });
-}
 
 /** barrel を持つスライスと、そこが公開しているモジュールの `@/` パス */
 function publicModules(): Map<string, string[]> {
@@ -61,7 +54,7 @@ describe("スライスの公開境界", () => {
     const slices = publicModules();
     const offenders: string[] = [];
 
-    for (const file of sourceFiles(SRC)) {
+    for (const file of tsFiles(SRC)) {
       const source = readFileSync(file, "utf8");
       const name = relative(process.cwd(), file);
 

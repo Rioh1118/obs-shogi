@@ -1,6 +1,7 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { tsFiles } from "./walk";
 
 /**
  * `AsyncResult` を返す関数は**投げない**。戻り値を読まないと、失敗は
@@ -37,17 +38,9 @@ function bareCallOf(names: Set<string>): RegExp {
   return new RegExp(`^[ \\t]*(?:void await |void |await )${call}\\([^\\n]*`, "gm");
 }
 
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(path);
-    return /\.tsx?$/.test(entry.name) ? [path] : [];
-  });
-}
-
 describe("AsyncResult の戻り値", () => {
   it("結果を読まずに呼んでいる箇所が無い", () => {
-    const files = sourceFiles(SRC);
+    const files = tsFiles(SRC);
     const sources = new Map(files.map((file) => [file, readFileSync(file, "utf8")]));
 
     const names = new Set<string>();
