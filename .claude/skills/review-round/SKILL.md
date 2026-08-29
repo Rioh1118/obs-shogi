@@ -32,6 +32,7 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 | `rust-reviewer`         | `src-tauri/` の変更                                                                     |
 | `perf-reviewer`         | ループ・データ変換・描画・IO を含む変更                                                 |
 | `robustness-reviewer`   | エラー処理・IO・外部入力・パースを含む変更                                              |
+| `comment-reviewer`      | 常に（コメントと命名は全ての変更に付いてくる）                                          |
 | `oss-hygiene-reviewer`  | `README` / `CONTRIBUTING` / `docs/` / `.github/` / ライセンス周りの変更、または明示指定 |
 
 ## 手順3: 並列で起動する
