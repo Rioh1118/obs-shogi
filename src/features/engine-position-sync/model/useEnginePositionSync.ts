@@ -1,12 +1,22 @@
 import { useEngine } from "@/entities/engine";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { useGame } from "@/entities/game";
-import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PositionSyncContext } from "./context";
 import { setPositionFromSfen } from "@/entities/engine/api/tauri";
+import type { PositionSyncAdapter } from "@/entities/analysis";
 
-export function PositionSyncProvider({ children }: { children: React.ReactNode }) {
+const isNotInitializedError = (e: unknown) => {
+  const msg = e instanceof Error ? e.message : String(e);
+  return msg.includes("NotInitialized") || msg.includes("Engine not initialized");
+};
+
+/**
+ * 盤の現在局面をエンジンに送り続ける。
+ *
+ * entities/game・entities/engine・entities/engine-presets の3スライスを束ねるので、
+ * FSD 上これを置ける最下層は features になる。
+ */
+export function useEnginePositionSync(): PositionSyncAdapter {
   const { state: gameState, view: gameView } = useGame();
   const { isReady } = useEngine();
   const { state: presetsState, selectedPresetVersion } = useEnginePresets();
@@ -18,8 +28,6 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
   const lastEngineKeyRef = useRef<string | null>(engineKey);
 
   const [syncedSfen, setSyncedSfen] = useState<string | null>(null);
-  const [isPositionSynced, setIsPositionSynced] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
 
   // --- 多重呼び出し対策の中核 ---
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -28,19 +36,11 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
   // ready前の保留（NotInitialized 根絶）
   const pendingBeforeReadyRef = useRef<string | null>(null);
 
-  const isNotInitializedError = (e: unknown) => {
-    const msg = e instanceof Error ? e.message : String(e);
-    return msg.includes("NotInitialized") || msg.includes("Engine not initialized");
-  };
-
   const currentSfen = gameView.currentSfen;
 
   const syncPosition = useCallback(async (): Promise<void> => {
-    setSyncError(null);
-
     const sfen = currentSfen;
     if (!sfen) {
-      setIsPositionSynced(false);
       setSyncedSfen(null);
       pendingBeforeReadyRef.current = null;
       queuedSfenRef.current = null;
@@ -50,13 +50,11 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
     // ready前は送らない（保留して終了）
     if (!isReady) {
       pendingBeforeReadyRef.current = sfen;
-      setIsPositionSynced(false);
       return;
     }
 
     // すでに送れてるなら何もしない
     if (syncedSfen === sfen && syncedEngineKey === engineKey) {
-      setIsPositionSynced(true);
       return;
     }
 
@@ -79,18 +77,13 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
 
           setSyncedSfen(target);
           setSyncedEngineKey(engineKey);
-          setIsPositionSynced(true);
         } catch (e) {
           // 万一NotInitializedなら ready待ちへ戻す
           if (isNotInitializedError(e)) {
             pendingBeforeReadyRef.current = target;
-            setIsPositionSynced(false);
             return;
           }
 
-          const msg = e instanceof Error ? e.message : "Position sync failed";
-          setSyncError(msg);
-          setIsPositionSynced(false);
           // ここで止める（エラー時は連鎖しない）
           return;
         }
@@ -109,13 +102,11 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
 
     setSyncedSfen(null);
     setSyncedEngineKey(engineKey);
-    setIsPositionSynced(false);
   }, [engineKey]);
 
   //  自動同期：cursor変化で追従
   useEffect(() => {
     if (!gameState.cursor) {
-      setIsPositionSynced(false);
       setSyncedSfen(null);
       pendingBeforeReadyRef.current = null;
       queuedSfenRef.current = null;
@@ -135,16 +126,8 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
     syncPosition().catch(() => {});
   }, [isReady, syncPosition]);
 
-  const value = useMemo(
-    () => ({
-      currentSfen,
-      syncedSfen,
-      syncPosition,
-      isPositionSynced,
-      syncError,
-    }),
-    [currentSfen, syncedSfen, syncPosition, isPositionSynced, syncError],
+  return useMemo(
+    () => ({ currentSfen, syncedSfen, syncPosition }),
+    [currentSfen, syncedSfen, syncPosition],
   );
-
-  return <PositionSyncContext.Provider value={value}>{children}</PositionSyncContext.Provider>;
 }

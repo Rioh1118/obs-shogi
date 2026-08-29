@@ -1,13 +1,9 @@
 import type { ReactNode } from "react";
 import { AnalysisProvider } from "@/entities/analysis";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import { useEnginePositionSync } from "@/features/engine-position-sync";
 
 export function AnalysisBridge({ children }: { children: ReactNode }) {
-  const { currentSfen, syncedSfen, syncPosition } = usePositionSync();
+  const positionSync = useEnginePositionSync();
 
-  return (
-    <AnalysisProvider positionSync={{ currentSfen, syncedSfen, syncPosition }}>
-      {children}
-    </AnalysisProvider>
-  );
+  return <AnalysisProvider positionSync={positionSync}>{children}</AnalysisProvider>;
 }
