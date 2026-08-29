@@ -1,0 +1,97 @@
+@use "@/index.scss" as index;
+
+.ftError {
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-3;
+  padding: index.$space-5;
+  border: 1px solid rgba(index.$color-warning, 0.4);
+  border-left: 3px solid index.$color-warning;
+  border-radius: index.$radius-3;
+  background: rgba(index.$color-warning, 0.1);
+  color: index.$color-text-primary;
+
+  &__lead {
+    margin: 0;
+    font-size: index.$font-body;
+    font-weight: 600;
+  }
+
+  // パスは折り返させる。省略すると、どれが失敗したのか分からなくなる
+  &__path {
+    margin: 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.75);
+    overflow-wrap: anywhere;
+  }
+
+  &__detail {
+    border: 1px solid index.$stroke-weak;
+    border-radius: index.$radius-2;
+    background: rgba(black, 0.22);
+
+    summary {
+      cursor: pointer;
+      padding: index.$space-2 index.$space-3;
+      font-size: index.$font-hint;
+      color: rgba(index.$color-text-primary, 0.7);
+    }
+  }
+
+  &__raw {
+    margin: 0;
+    padding: 0 index.$space-3 index.$space-3;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: index.$space-3;
+  }
+
+  &__btn {
+    font: inherit;
+    font-size: index.$font-aux;
+    padding: index.$space-2 index.$space-5;
+    border-radius: index.$radius-3;
+    border: 1px solid index.$stroke;
+    background: transparent;
+    color: index.$color-text-primary;
+    cursor: pointer;
+    transition: background index.$duration-3 index.$ease;
+
+    &:hover:not(:disabled) {
+      background: rgba(white, 0.06);
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    // 銅の面に ghost と同じ白被せを当てると色が濁って別物に見えるので、
+    // 自分の色を明るくする方向でホバーする
+    &--primary {
+      background: index.$color-secondary-dark;
+      border-color: index.$color-secondary-dark;
+      color: index.$color-text-dark-1;
+      font-weight: 600;
+
+      &:hover:not(:disabled) {
+        background: color-mix(in srgb, index.$color-secondary-dark 86%, white);
+        border-color: color-mix(in srgb, index.$color-secondary-dark 86%, white);
+      }
+    }
+  }
+}

@@ -26,6 +26,8 @@ import ScrollDropZone from "./ScrollDropZone";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import Spinner from "@/shared/ui/Spinner";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
+import Modal from "@/shared/ui/Modal";
+import FileTreeErrorNotice from "./FileTreeErrorNotice";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 
 const collisionDetection: CollisionDetection = (args) => {
@@ -49,6 +51,8 @@ function FileTree() {
     moveNode,
     closeContextMenu,
     startInlineRename,
+    clearError,
+    refreshTree,
   } = useFileTree();
 
   const { config } = useAppConfig();
@@ -64,6 +68,18 @@ function FileTree() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FileTreeNode | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  // ツリーを読み直す。失敗した操作そのものはやり直さない。
+  // 何をしようとしていたかは、失敗を積んだ側（provider）に残っていない
+  const handleRetry = useCallback(async () => {
+    setIsRetrying(true);
+    try {
+      await refreshTree();
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [refreshTree]);
 
   const handleConfirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
@@ -130,10 +146,10 @@ function FileTree() {
       ]
     : [];
 
-  if (error) {
-    console.error("再読み込み", error);
-    return;
-  }
+  // 失敗はツリーの取得とファイル操作の両方が同じ `error` に積まれる。
+  // 見せ方を分けるのはツリーが残っているかどうかで、ツリーがあるなら
+  // 消さずに残す。消すと、そこからの操作が全部できなくなって復帰路まで失う
+  const hasTree = !!fileTree;
 
   return (
     <div className={`file-tree ${activePath ? "file-tree--dragging" : ""}`}>
@@ -147,6 +163,8 @@ function FileTree() {
         <ScrollDropZone rootPath={fileTree?.path ?? null}>
           {isLoading ? (
             <Spinner />
+          ) : error && !hasTree ? (
+            <FileTreeErrorNotice error={error} onRetry={handleRetry} isRetrying={isRetrying} />
           ) : !fileTree ? (
             <div className="empty">
               <p>ファイルツリーがありません</p>
@@ -158,6 +176,17 @@ function FileTree() {
           {menu && <ContextMenu x={menu.x} y={menu.y} items={items} onClose={closeContextMenu} />}
         </ScrollDropZone>
       </DndContext>
+
+      {error && hasTree && (
+        <Modal theme="dark" size="sm" onClose={clearError}>
+          <FileTreeErrorNotice
+            error={error}
+            onRetry={handleRetry}
+            onDismiss={clearError}
+            isRetrying={isRetrying}
+          />
+        </Modal>
+      )}
       {pendingDelete && (
         <ConfirmDialog
           title={
