@@ -19,7 +19,7 @@ use std::path::Path;
 ///   コマンド境界では `Unknown` にしかならず、フロントは「壊れている」という
 ///   復帰導線を出せない
 /// - io の失敗は [`BookError::from_io`] でパスを添えて返す
-pub trait BookReader: Send + Sync {
+pub(crate) trait BookReader: Send + Sync {
     /// この reader が読んでいる形式。`BookInfo` にそのまま載る。
     fn format(&self) -> BookFormat;
 
@@ -47,7 +47,7 @@ pub trait BookReader: Send + Sync {
 ///
 // TODO(#91): やねうら王テキスト定跡 (.db) の reader を足すまで、この関数は
 // 成功する経路を持たない。#[tauri::command] の open_book は必ず失敗する。
-pub fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError> {
+pub(crate) fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError> {
     let format = BookFormat::from_path(path)?;
 
     // `Path::is_file` は metadata が取れない理由を全て false に潰す。権限が無い

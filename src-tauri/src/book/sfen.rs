@@ -9,10 +9,13 @@ use crate::book::error::{BookError, BookErrorCode};
 /// `search` の `PositionKey`（Zobrist ハッシュ）とは別物。こちらは文字列で、
 /// 定跡ファイルに書かれている綴りと突き合わせるためにある。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BookKey(String);
+pub(crate) struct BookKey(String);
 
 impl BookKey {
-    pub fn as_str(&self) -> &str {
+    // TODO(#91): reader がファイルの綴りと突き合わせるときに使う。
+    // それまで呼び手はテストしか居ない。
+    #[cfg(test)]
+    pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 }
@@ -64,7 +67,7 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// ファイル上を二分探索する reader は通せない（通すと探索の前提である
 /// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
-pub fn to_book_key(input: &str) -> Result<BookKey, BookError> {
+pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     let invalid = |reason: &str| {
         BookError::new(
             BookErrorCode::InvalidSfen,

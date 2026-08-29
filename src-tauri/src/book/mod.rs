@@ -3,10 +3,10 @@
 //! 形式ごとの差は [`BookReader`] の裏に閉じ、開いた定跡は [`BookState`] が
 //! ハンドルで束ねる。
 //!
-//! サブモジュールは private にしてある。外から使えるのはここに並んでいるものだけで、
-//! 定跡を開く唯一の経路は `open_book` コマンド（内部では `reader::open_reader`）。
-//! 形式ごとの reader を足すときも、`BookState` を通さず reader を直に作る経路を
-//! 外に出さないこと。
+//! サブモジュールは private にしてあり、外から使えるのはここに並んでいるものだけ。
+//! `BookReader` も `BookState` の操作も `pub(crate)` なので、定跡を開く経路は
+//! `open_book` コマンドしかない。形式ごとの reader を足すときも、この境界を
+//! 越えて reader を直に作れるようにしないこと。
 
 mod api;
 mod error;
@@ -19,6 +19,8 @@ pub use api::{
     close_all_books, close_book, get_book_info, list_books, lookup_book_moves, open_book,
 };
 pub use error::{BookError, BookErrorCode};
-pub use reader::BookReader;
-pub use session::{BookSession, BookState};
-pub use types::{BookFormat, BookHandle, BookInfo, BookMove};
+pub use session::BookState;
+pub use types::{
+    BookFormat, BookHandle, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput,
+    OpenBookInput,
+};

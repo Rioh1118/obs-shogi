@@ -25,7 +25,7 @@ impl BookFormat {
     /// 拡張子が無い / 知らない場合は [`BookErrorCode::UnknownExtension`] にする。
     /// ShogiHome は既知の3拡張子以外を Apery と見なすが、それをすると別物の
     /// ファイルを固定長レコードとして読み進めてしまうため、ここでは拒否する。
-    pub fn from_path(path: &Path) -> Result<Self, BookError> {
+    pub(crate) fn from_path(path: &Path) -> Result<Self, BookError> {
         let ext = path
             .extension()
             .and_then(|e| e.to_str())

@@ -9,9 +9,9 @@ use std::sync::Arc;
 /// 開いている定跡ひとつ。
 ///
 /// `open_book` コマンドの引数 `OpenBookInput` とは無関係。
-pub struct BookSession {
-    pub info: BookInfo,
-    pub reader: Box<dyn BookReader>,
+pub(crate) struct BookSession {
+    pub(crate) info: BookInfo,
+    pub(crate) reader: Box<dyn BookReader>,
 }
 
 impl fmt::Debug for BookSession {
@@ -43,7 +43,7 @@ impl BookState {
     /// ハンドルは 0 から始めない。フロントの未初期化値と衝突しないため。
     /// 閉じたハンドルも配り直さない。再利用すると、close 済みのハンドルで引いた
     /// 呼び出しが別の定跡に静かに当たる。
-    pub fn register(&self, path: String, reader: Box<dyn BookReader>) -> BookInfo {
+    pub(crate) fn register(&self, path: String, reader: Box<dyn BookReader>) -> BookInfo {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed) + 1;
 
         let info = BookInfo {
@@ -69,7 +69,7 @@ impl BookState {
     /// map のロックを跨いで読ませないために `Arc` を複製して返す。返した `Arc` が
     /// 生きている間は、close されても reader は解放されない。引いている最中に
     /// 閉じられても落ちないための性質で、長く持ち回るとその間メモリが残る。
-    pub fn get(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
+    pub(crate) fn get(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
             .get(&handle)
             .map(|entry| Arc::clone(entry.value()))
@@ -84,7 +84,7 @@ impl BookState {
     /// 返り値を捨てるとその場で reader が Drop される。数百万個の `String` の解放が
     /// 走るので、捨てる場所は呼び出し側が選ぶ。
     #[must_use = "捨てた場所で reader の Drop が走る。どこで解放するかを選ぶこと"]
-    pub fn close(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
+    pub(crate) fn close(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
             .remove(&handle)
             .map(|(_, session)| session)
@@ -95,7 +95,7 @@ impl BookState {
     ///
     /// ハンドルはフロントの変数にしか無いので、webview が作り直されると
     /// close を呼べる者が居なくなる。ここから孤児を見つけて閉じられるようにする。
-    pub fn list(&self) -> Vec<BookInfo> {
+    pub(crate) fn list(&self) -> Vec<BookInfo> {
         let mut infos: Vec<BookInfo> = self
             .books
             .iter()
@@ -107,7 +107,7 @@ impl BookState {
 
     /// 全部閉じて、外した定跡を返す。
     #[must_use = "捨てた場所で reader の Drop が走る。どこで解放するかを選ぶこと"]
-    pub fn close_all(&self) -> Vec<Arc<BookSession>> {
+    pub(crate) fn close_all(&self) -> Vec<Arc<BookSession>> {
         let handles: Vec<BookHandle> = self.books.iter().map(|entry| *entry.key()).collect();
         handles
             .into_iter()
@@ -115,12 +115,14 @@ impl BookState {
             .collect()
     }
 
-    /// 開いている定跡の数。
-    pub fn len(&self) -> usize {
+    // 開いている件数は、外へは list で出す。この2つは leak を見るテスト用。
+    #[cfg(test)]
+    fn len(&self) -> usize {
         self.books.len()
     }
 
-    pub fn is_empty(&self) -> bool {
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
         self.books.is_empty()
     }
 
