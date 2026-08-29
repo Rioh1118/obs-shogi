@@ -166,6 +166,22 @@ describe("削除後のカーソル", () => {
 });
 
 describe("空の変化", () => {
+  test("先頭が null の変化でも throw する", () => {
+    // sanitizeJkf が落とすのは「長さ0」と「先頭が null」の2形。
+    // 弾く側がどちらか一方だけだと、もう一方で同じ捏造が起きる。
+    const kifu: JKFData = {
+      header: {},
+      moves: [mv("root"), mv("t1"), mv("main2", [[null as unknown as JKFMove], [mv("f1")]])],
+    };
+    expect(() =>
+      swapBranchesInKifu(
+        kifu,
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+        null,
+      ),
+    ).toThrow();
+  });
+
   test("手を捏造せず throw する", () => {
     // `{ ...undefined }` は `{}` になるので、素通しすると指し手も special も持たない
     // 手が本譜に入り、そのままファイルに書き戻される。

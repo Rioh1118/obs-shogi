@@ -1,6 +1,16 @@
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 
 /**
+ * 中身のある変化か
+ *
+ * `forks` の要素が空配列でも先頭が null でも、`fork[0]` を読む側は同じように壊れる。
+ * 落とす側と弾く側で条件がずれないよう、判定はここ1つにする。
+ */
+export function isUsableFork(fork: JKFMove[]): boolean {
+  return fork.length > 0 && fork[0] != null;
+}
+
+/**
  * `forks` から、空の変化と先頭が null の変化を再帰的に取り除く
  *
  * JKFPlayer は getReadableForkKifu() で `fork[0]` に無条件でアクセスするため、
@@ -9,9 +19,7 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
   return moves.map((m) => {
     if (!m.forks) return m;
-    const cleanForks = m.forks
-      .filter((fork) => fork.length > 0 && fork[0] != null)
-      .map((fork) => sanitizeJkfMoves(fork));
+    const cleanForks = m.forks.filter(isUsableFork).map((fork) => sanitizeJkfMoves(fork));
     return { ...m, forks: cleanForks.length > 0 ? cleanForks : undefined };
   });
 }

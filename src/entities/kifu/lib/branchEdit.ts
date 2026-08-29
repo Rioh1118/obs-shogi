@@ -13,6 +13,7 @@ import {
   type SwapQuery,
 } from "../model/branch";
 import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
+import { isUsableFork } from "./sanitizeJkf";
 
 function normalizeRef<T extends BranchPointRef>(ref: T): T {
   return {
@@ -107,7 +108,7 @@ type Candidates = IMoveFormat[][];
  * `JKFData` は parse の出口で空の変化を落としてあるので、ここは手で組む経路への保険。
  */
 function privatizeHead(fork: IMoveFormat[]): IMoveFormat[] {
-  if (fork.length === 0) throw new Error("empty fork");
+  if (!isUsableFork(fork)) throw new Error("empty fork");
   return [{ ...fork[0] }, ...fork.slice(1)];
 }
 
