@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使い方の質問・アイデア相談・雑談
+    url: https://github.com/Rioh1118/obs-shogi/discussions
+    about: 作業として追う必要が無い話題は Discussions へどうぞ。迷ったら Issue でも大丈夫です
+  - name: セキュリティ上の問題の報告
+    url: https://github.com/Rioh1118/obs-shogi/security/advisories/new
+    about: 公開の Issue ではなく、こちらから非公開で報告してください

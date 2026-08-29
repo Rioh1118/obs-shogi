@@ -1,6 +1,6 @@
 # ObsShogi
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE.md)
 
 ![overview](./docs/images/sample_overall.png)
 
@@ -165,4 +165,4 @@ ObsShogi は、**研究・序盤研究のワークフローに特化した将棋
 
 ## License
 
-This project is licensed under the [MIT License](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE.md).
