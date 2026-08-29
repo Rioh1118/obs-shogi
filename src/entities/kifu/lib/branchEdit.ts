@@ -99,23 +99,24 @@ function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHan
 type Candidates = IMoveFormat[][];
 
 /**
- * 分岐点を候補配列に正規化する
- * - candidates[0] = mainの tail（te から末尾まで）
- * - candidates[1..] = 兄弟候補（forks）
- * - さらに「候補の先頭が forks を持つ」場合は “同じteの代替” なので持ち上げてフラット化
- */
-/**
- * 先頭の手だけ複製した候補を作る
+ * 先頭の手だけ複製した変化を作る
  *
- * 空の変化が来たら throw する。`{ ...undefined }` は `{}` になるので、素通しすると
- * 指し手も `special` も持たない手を捏造して棋譜に書き戻すことになる。
- * `JKFData` は parse の出口で空の変化を落としてあるので、ここは手で組む経路への保険。
+ * 中身の無い変化は throw する。`{ ...undefined }` も `{ ...null }` も `{}` になるので、
+ * 素通しすると指し手も `special` も持たない手を捏造して棋譜に書き戻すことになる。
+ * `JKFData` は parse の出口で `sanitizeJkf` を通っているので、ここは手で組む経路への保険。
  */
 function privatizeHead(fork: IMoveFormat[]): IMoveFormat[] {
   if (!isUsableFork(fork)) throw new Error("empty fork");
   return [{ ...fork[0] }, ...fork.slice(1)];
 }
 
+/**
+ * 分岐点を候補の並びにする
+ *
+ * - `candidates[0]` = 本譜の `te` 以降
+ * - `candidates[1..]` = その手にぶら下がる変化
+ * - 候補の先頭がさらに `forks` を持つ形は「同じ手数の別候補」なので、兄弟に持ち上げて平坦にする
+ */
 function readCandidates(h: BranchPointHandle): Candidates {
   // 書き換えるのは各候補の先頭の手の forks だけなので、その手だけを複製する。
   // 深く複製すると、呼び出し側が既に作った複製ともう1枚ぶんの棋譜を余計にコピーすることになる。
