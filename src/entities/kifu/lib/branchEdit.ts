@@ -112,9 +112,9 @@ declare const candidatesBrand: unique symbol;
 /**
  * 分岐点を候補の並びに読み出した結果と、そこから派生させたもの
  *
- * 素の `number` を `BranchIndex` として渡せないのと同じく、`forks`（本譜のぶん1少ない）や
- * `BranchOption[]`（空の変化を読み飛ばすので候補数と一致しない）を同じ座標系として
- * 渡せないようにしてある。`as Candidates` はこのファイルの中でだけ書く。
+ * `forks`（本譜のぶん1少ない）や `BranchOption[]`（空の変化を読み飛ばすので候補数と
+ * 一致しない）を同じ座標系として暗黙に渡せないようにしてある。
+ * `as Candidates` は通るので、書いてよいのはこのファイルの中だけ、というのは規約。
  */
 type Candidates = IMoveFormat[][] & { readonly [candidatesBrand]: true };
 

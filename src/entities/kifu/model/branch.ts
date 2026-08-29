@@ -7,8 +7,10 @@ declare const branchIndexBrand: unique symbol;
  * 分岐一覧の中での位置。0=本譜、1.. = `forks[BranchIndex - 1]`
  *
  * `forkIndex` と1ずれるので、素の number にすると取り違えても tsc が黙る。
- * ずれたまま削除・入れ替えに渡ると別の分岐が消える。このファイルの変換関数以外から
- * 作れないよう brand を付けてある。
+ * ずれたまま削除・入れ替えに渡ると別の分岐が消える。
+ *
+ * brand が止めるのは暗黙の代入だけで、`7 as BranchIndex` は通る。
+ * **この型を作ってよいのはこのファイルの変換関数だけ**、というのは規約。
  */
 export type BranchIndex = number & { readonly [branchIndexBrand]: true };
 

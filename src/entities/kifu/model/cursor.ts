@@ -14,7 +14,9 @@ export type ForkPointer = {
  *
  * 文字列のままでも良いが、方で明示するためにbranded typeにする。
  */
-export type TesuuPointer = string & { readonly __brand: "TesuuPointer" };
+declare const tesuuPointerBrand: unique symbol;
+
+export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
 /**
  * アプリ側で保持する「公式カーソル」
