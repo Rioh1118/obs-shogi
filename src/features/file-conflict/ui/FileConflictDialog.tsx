@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Modal from "@/shared/ui/Modal";
 
 import type { FileConflictDialogProps } from "../model/types";
+import { describeFsError, fsErrorPresentation, type FsError } from "@/entities/file-tree";
 import { getConflictCopy } from "../lib/getConflictCopy";
 import { getRequestedName } from "../lib/getRequestedName";
 import ConflictMeta from "./ConflictMeta";
@@ -18,12 +19,16 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [draftName, setDraftName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // 解決しようとして失敗したときの理由。ここで出さないと、このダイアログが
+  // 開いている間の失敗は誰も出さない（reducer が state.error に積まない）
+  const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   useEffect(() => {
     if (!conflict) return;
 
     const requestedName = getRequestedName(conflict);
     setDraftName(requestedName);
+    setSubmitError(null);
 
     requestAnimationFrame(() => {
       const el = inputRef.current;
@@ -47,7 +52,9 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
 
     try {
       setIsSubmitting(true);
-      await onSubmitRename(trimmed);
+      setSubmitError(null);
+      const res = await onSubmitRename(trimmed);
+      if (!res.success) setSubmitError(res.error);
     } finally {
       setIsSubmitting(false);
     }
@@ -100,7 +107,16 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
               disabled={isSubmitting}
             />
 
-            <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
+            {submitError ? (
+              <p className="file-conflict__error" role="alert">
+                {describeFsError(submitError.code)}
+                {fsErrorPresentation(submitError.code).showMessage
+                  ? ` — ${submitError.message}`
+                  : ""}
+              </p>
+            ) : (
+              <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
+            )}
           </section>
         )}
 

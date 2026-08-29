@@ -193,6 +193,14 @@
     }
   }
 
+  // 解決しようとして失敗した理由。入力欄のすぐ下に置く。
+  // 画面隅に出すと、直すべき入力から目が離れる
+  &__error {
+    margin: 0;
+    font-size: index.$font-hint;
+    color: index.$color-danger;
+  }
+
   &__hint {
     font-size: 1.18rem;
     line-height: 1.58;

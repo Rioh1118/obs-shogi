@@ -97,6 +97,12 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     // それを閉じる操作で入力が blur して同じ名前がもう一度送られる。また失敗するので
     // 閉じても表示が戻ってくる。`conflict_opened` が畳んでいるのと同じ理由
     case "error":
+      // 衝突の解決中に失敗したときは、そのダイアログの中で伝える。ここで積むと
+      // モーダルが2枚重なり、Escape は先に登録された下のダイアログだけを閉じる。
+      // 保留していた解決操作を残したまま、通知だけが取り残される
+      if (state.conflict) {
+        return { ...state, isLoading: false };
+      }
       return {
         ...state,
         isLoading: false,

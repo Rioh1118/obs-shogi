@@ -91,6 +91,32 @@ describe("失敗を積んだとき", () => {
   });
 });
 
+describe("衝突の解決中に失敗したとき", () => {
+  function resolving(): FileTreeState {
+    return reducer(editing(), {
+      type: "conflict_opened",
+      payload: {
+        request: { kind: "rename_file", path: CHILD.path, newName: "b.kif" },
+        error: makeFsError("already_exists", "同じ名前のものがあります"),
+      },
+    });
+  }
+
+  // 積むとモーダルが2枚重なり、Escape は下のダイアログだけを閉じる
+  test("ダイアログの上に別の失敗を重ねない", () => {
+    const next = reducer(resolving(), { type: "error", payload: ERROR });
+
+    expect(next.error).toBeNull();
+    expect(next.conflict).not.toBeNull();
+  });
+
+  test("読み込み中の表示は下ろす", () => {
+    const next = reducer({ ...resolving(), isLoading: true }, { type: "error", payload: ERROR });
+
+    expect(next.isLoading).toBe(false);
+  });
+});
+
 describe("読み直しを始めたとき", () => {
   // 表示側はこれを前提に、読み直しの引き金になった失敗を自分で持つ
   test("失敗を消す", () => {
