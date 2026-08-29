@@ -256,10 +256,6 @@ function thresholdFor(ctx: Context): number {
 }
 
 /**
- * SCSS の入れ子のうち、DOM では同じ要素を指すもの（`&:hover` / `&.is-active` /
- * `&::before` / `&[disabled]`）。`&__x` や子孫セレクタは別の要素
- */
-/**
  * 無効化された部品。WCAG 1.4.3 が本文の基準から外している。
  * 薄くして「押せない」を示すのが普通なので、測ると必ず落ちる
  */
@@ -270,6 +266,12 @@ function isDisabledState(node: Container): boolean {
   return /:disabled|\[disabled\]|aria-disabled/.test(withoutNot);
 }
 
+/**
+ * SCSS の入れ子のうち、DOM では同じ要素を指すもの（`&:hover` / `&.is-active` /
+ * `&::before` / `&[disabled]`）。`&__x` や子孫セレクタは別の要素。
+ *
+ * `opacity` を親へ掛け合わせるか置き換えるかは、この判定だけで決まる
+ */
 function isSameElement(node: Container): boolean {
   const selector = (node as { selector?: string }).selector ?? "";
   return /^&[:.[]/.test(selector.trim());

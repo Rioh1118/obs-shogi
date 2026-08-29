@@ -35,26 +35,28 @@ const TOKEN_SOURCE = join(SRC, "index.scss");
 type Row = { key: string; detail: string };
 
 /**
- * 測れた対の下限。**下げない。**
+ * 測れた対の件数。**完全一致で固定する**（増えても減っても落ちる）。
  *
  * 割った対だけを見ていると、面を `rgba(..., 0.99)` にするだけで対が
  * 検査から静かに消え、テストは緑のまま通る。数えられていることそのものを
- * ここで固定する。増えたら上げる。
+ * ここで固定する。
  *
- * **下げてよいのは、規則そのものを消したときだけ。** 面を半透明にして
- * 測れなくしたのなら、下げずに面の側を直すこと。
+ * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
+ * 消したのでなければ、数を下げずに面の側を直すこと。
  */
-const MEASURED_FLOOR = 52;
+const MEASURED_COUNT = 52;
 
 /**
- * `color` を宣言しているのに測れなかった宣言の上限。**上げない。**
+ * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
  *
  * 測れないのは3つの場合。面が半透明のまま確定しない／色が解けない
  * （`currentColor` / `var()`）／`opacity` で薄める先の面が分からない。
  * **どれも「合格」ではない**ので、件数を目に見える形で置く。
- * 面を持たせるか `surface` を渡すかして測れるようにしたら下げる → issue #185。
+ *
+ * 動かしてよい向きは**下げる方だけ**。面を持たせるか `surface` を渡すかして
+ * 測れるようにしたら下げる → issue #185。
  */
-const UNMEASURED_CEILING = 406;
+const UNMEASURED_COUNT = 406;
 
 const rows: Row[] = [];
 let measured = 0;
@@ -110,23 +112,23 @@ describe("SCSS のコントラスト", () => {
     expect(
       measured,
       [
-        `測れた対が ${MEASURED_FLOOR} 件から ${measured} 件に減った。`,
+        `測れた対が ${MEASURED_COUNT} 件から ${measured} 件に減った。`,
         "面を半透明にすると、その配下は「どの親に載るか」が決まらず測れなくなる。",
         "面を不透明にするか、scanContrast に surface を渡すこと。",
-        `増えたなら MEASURED_FLOOR を ${measured} に上げること。`,
+        `増えたなら MEASURED_COUNT を ${measured} に上げること。`,
       ].join("\n"),
-    ).toBe(MEASURED_FLOOR);
+    ).toBe(MEASURED_COUNT);
   });
 
   it("測れなかった宣言が増えていない", () => {
     expect(
       unmeasured,
       [
-        `面が決まらず測れなかった color の宣言が ${UNMEASURED_CEILING} 件から ${unmeasured} 件になった。`,
+        `面が決まらず測れなかった color の宣言が ${UNMEASURED_COUNT} 件から ${unmeasured} 件になった。`,
         "「測れないから合格」を合格と数えないために置いてある枠。",
-        `減らしたなら UNMEASURED_CEILING を ${unmeasured} に下げること。`,
+        `減らしたなら UNMEASURED_COUNT を ${unmeasured} に下げること。`,
       ].join("\n"),
-    ).toBe(UNMEASURED_CEILING);
+    ).toBe(UNMEASURED_COUNT);
   });
 
   it("直した対が BASELINE に残っていない", () => {

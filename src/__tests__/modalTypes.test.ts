@@ -13,6 +13,10 @@ import { SRC, tsFiles } from "./walk";
  *
  * 逆向き（描くものがあるのに union に無い）は `params.modal === "x"` が
  * 型検査で落ちるので、ここでは見ない。
+ *
+ * **読む側は `params.modal === "<値>"` の形で書く。** この検査はその綴りを
+ * 文字列として探すので、`switch (params.modal)` や定数経由にすると、
+ * 描いていても落ちる。
  */
 
 const ROUTER = join(SRC, "shared", "lib", "router", "useURLParams.ts");
@@ -32,6 +36,7 @@ describe("ModalType", () => {
     const types = modalTypes();
     expect(types.length, "ModalType の値を1つも拾えていない").toBeGreaterThan(3);
 
+    // テストの中の言及を「描いている」と数えない
     const sources = tsFiles(SRC, { includeTests: false })
       .filter((file) => file !== ROUTER)
       .map((file) => readFileSync(file, "utf8"))
@@ -45,6 +50,7 @@ describe("ModalType", () => {
         "ModalType にあるのに、params.modal === でそれを読む場所が無い。",
         "openModal でその値へ遷移すると、URL だけ変わって誰も描かない。",
         "描くものを足すか、値を落とすこと。",
+        '描いているのに落ちたなら、読む側を params.modal === "<値>" の形に直すこと。',
         ...orphans,
       ].join("\n"),
     ).toEqual([]);
