@@ -8,14 +8,16 @@ export type ForkPointer = {
   forkIndex: number;
 };
 
-/**
- * JKFPlayer.getTesuuPointer()が返す「局面を一意に復元できる文字列」
- * 例: "7,[{\"te\":3,\"forkIndex\":0}]"
- *
- * 文字列のままでも良いが、方で明示するためにbranded typeにする。
- */
 declare const tesuuPointerBrand: unique symbol;
 
+/**
+ * JKFPlayer.getTesuuPointer() が返す「局面を一意に復元できる文字列」
+ * 例: `7,[{"te":3,"forkIndex":0}]`
+ *
+ * 素の文字列と取り違えないよう brand を付けてある。
+ * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
+ * **この型を作ってよいのは `buildTesuuPointer` だけ**、というのは規約。
+ */
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
 /**

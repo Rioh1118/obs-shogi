@@ -47,4 +47,15 @@ describe("computeLeafTesuu", () => {
       expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
     }
   });
+
+  test("上限ちょうどの手数は通り、超えると throw する", () => {
+    // `while (limit-- > 0)` だと 9999 手で「葉に着いてから」落ちていた。
+    // 名前が示す上限と実効値を合わせる。
+    const line = (n: number): JKFData => ({
+      header: {},
+      moves: Array.from({ length: n + 1 }, (_, i) => mv(String(i))),
+    });
+    expect(computeLeafTesuu(line(10000), null)).toBe(10000);
+    expect(() => computeLeafTesuu(line(10001), null)).toThrow(/overflows/);
+  });
 });

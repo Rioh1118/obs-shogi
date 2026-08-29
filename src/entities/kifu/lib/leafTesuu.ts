@@ -2,6 +2,9 @@ import type { JKFData } from "../model/jkf";
 import type { KifuCursor } from "../model/cursor";
 import { buildPlayer } from "./buildPlayer";
 
+/** `JKFPlayer.goto` が内部で使う上限と同じ。片方だけ先に打ち切ると値が食い違う。 */
+const LEAF_TESUU_LIMIT = 10000;
+
 /**
  * 計画に沿って辿り着ける末端の手数を返す
  *
@@ -10,7 +13,7 @@ import { buildPlayer } from "./buildPlayer";
  * `cursor` が無ければ本譜の末尾。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` が投げる）
- * @throws {Error} 上限まで進んでも葉に着かないとき
+ * @throws {Error} `LEAF_TESUU_LIMIT` 手進んでも葉に着かないとき
  */
 export function computeLeafTesuu(jkf: JKFData, cursor: KifuCursor | null): number {
   const sim = buildPlayer(jkf, cursor);
@@ -20,9 +23,10 @@ export function computeLeafTesuu(jkf: JKFData, cursor: KifuCursor | null): numbe
     plannedMap.set(p.te, p.forkIndex);
   }
 
-  // JKFPlayer.goto 自身が内部で使う上限に揃える。
-  let limit = 10000;
-  while (limit-- > 0) {
+  // JKFPlayer.goto 自身が内部で使う上限に揃える。片方だけ先に打ち切ると値が食い違う。
+  // for にしているのは、下の continue でも増分を通すため。
+  let steps = 0;
+  for (; steps <= LEAF_TESUU_LIMIT; steps++) {
     const nextTe = sim.tesuu + 1;
     // 手が無いのに forkAndForward を呼ぶと「N手目に有効な棋譜がありません」を投げる。
     // 計画が線の末尾+1に残っているとここに来る。
@@ -38,10 +42,9 @@ export function computeLeafTesuu(jkf: JKFData, cursor: KifuCursor | null): numbe
       // planned が無効なら本線へフォールバック
     }
 
-    const ok = sim.forward();
-    if (!ok) break; // これ以上進めない = 葉
+    if (!sim.forward()) break; // これ以上進めない = 葉
   }
 
-  if (limit <= 0) throw new Error("leaf tesuu overflows");
+  if (steps > LEAF_TESUU_LIMIT) throw new Error("leaf tesuu overflows");
   return sim.tesuu;
 }
