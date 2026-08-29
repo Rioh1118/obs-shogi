@@ -26,7 +26,7 @@ export function buildPreviewData(jkf: JKFPlayer, nodeId: string): PreviewData {
 export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
   const cur = sim.tesuu;
   const next: IMoveFormat | undefined = sim.currentStream?.[cur + 1];
-  if (!next?.move) return [];
+  if (!next) return [];
 
   const options: BranchOption[] = [];
 
@@ -34,19 +34,20 @@ export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
     id: `te${cur + 1}-main`,
     isMainLine: true,
     tesuu: cur + 1,
-    move: next.move,
+    moveFormat: next,
   });
 
   if (next.forks) {
     next.forks.forEach((forkLine, i) => {
       const forkFirst = forkLine?.[0];
-      if (!forkFirst?.move) return;
+      // 投了だけの変化も落とさない。落とすと forkIndex と表示上の番号がずれる。
+      if (!forkFirst) return;
 
       options.push({
         id: `te${cur + 1}-fork${i}`,
         isMainLine: false,
         tesuu: cur + 1,
-        move: forkFirst.move,
+        moveFormat: forkFirst,
         forkIndex: i,
       });
     });

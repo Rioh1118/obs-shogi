@@ -1,5 +1,5 @@
 import { JKFPlayer } from "json-kifu-format";
-import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 /**
  * 指し手を日本語の棋譜表記にする
@@ -10,14 +10,15 @@ import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
  * すべて揃っているため。棋譜ストリーム側は `JKFPlayer.getReadableKifu()` 経由で同じ関数に
  * 行き着くので、両方の一覧で同じ手が同じ文字列になる。
  *
- * 扱うのは指し手だけ。投了や中断（`IMoveFormat.special`）は受け取らないので、
- * それらを含む一覧では項目数まで揃うとは限らない。
+ * 投了・中断（`special`）も同じ関数が扱う。手も special も無い入力（手数0の枠など）は
+ * 空文字を返すので、呼び出し側で代替の文言を出すこと。
  *
  * **正規化を通した手を渡すこと。** 手番（`color`）も「同」も相対表記も、手そのものではなく
  * 正規化が埋める。手で組んだ JKF を `new JKFPlayer()` に渡しただけでは何も付かず、
  * `☗５八金右` が `☖５八金` になる。`color` が無い手は例外も空文字も出さず、
  * 黙って後手の記号が付く。
  */
-export function readableMove(move: IMoveMoveFormat): string {
-  return JKFPlayer.moveToReadableKifu({ move });
+export function readableMove(mf: IMoveFormat): string {
+  if (!mf.move && !mf.special) return "";
+  return JKFPlayer.moveToReadableKifu(mf);
 }

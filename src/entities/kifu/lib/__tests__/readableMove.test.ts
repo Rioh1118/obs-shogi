@@ -16,7 +16,7 @@ import { buildJkf, hand, KINGS, type Placement } from "./fixtures";
  */
 function readableMovesOf(content: string, format: "kif" | "jkf"): string[] {
   const jkf = parseKifuContentToJKF(content, format);
-  return jkf.moves.flatMap((mf) => (mf.move ? [readableMove(mf.move)] : []));
+  return jkf.moves.flatMap((mf) => (mf.move ? [readableMove(mf)] : []));
 }
 
 /**

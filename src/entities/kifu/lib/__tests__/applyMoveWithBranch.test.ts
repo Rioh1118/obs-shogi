@@ -238,8 +238,8 @@ describe("applyMoveWithBranch", () => {
       apply(player, KI_DROP_39);
 
       const te1 = player.kifu.moves[1];
-      expect(readableMove(te1.move!)).toBe("☗３九金");
-      expect(readableMove(te1.forks![0][0].move!)).toBe("☗３九金打");
+      expect(readableMove(te1)).toBe("☗３九金");
+      expect(readableMove(te1.forks![0][0])).toBe("☗３九金打");
     });
 
     test("C6. 既存 fork[0] と別 from の指し手は別 fork として追加", () => {

@@ -1,5 +1,5 @@
 import type { ForkPointer, KifuCursor, TesuuPointer } from "./cursor";
-import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 /**
  * 0=main, 1.. = forks[branchIndex-1]
@@ -13,7 +13,8 @@ export type BranchOption = {
   /** `forkIndex === undefined` と等価。 */
   isMainLine: boolean;
   tesuu: number;
-  move?: IMoveMoveFormat;
+  /** 指し手のほか、投了・中断（`special`）も入る。棋譜ストリームの分岐一覧と集合を揃えるため。 */
+  moveFormat: IMoveFormat;
   /** `IMoveFormat.forks` の添字。ForkPointer の値ではない。本譜なら undefined。 */
   forkIndex?: number;
 };

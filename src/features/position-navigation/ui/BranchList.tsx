@@ -181,7 +181,6 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
           key={branch.id}
           ref={setCardRef(idx)}
           branch={branch}
-          index={idx}
           selected={selectedIndex === idx}
           onClick={() => onSelectIndex(idx)}
         />
