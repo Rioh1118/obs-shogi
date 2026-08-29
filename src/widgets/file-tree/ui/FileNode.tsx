@@ -1,3 +1,4 @@
+import { keepInViewport } from "@/shared/lib/keepInViewport";
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
@@ -70,15 +71,18 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     pop.textContent = node.name;
 
     const r = el.getBoundingClientRect();
-    const margin = 10;
-    const left = Math.min(r.left, window.innerWidth - 320);
-    const top = r.bottom + margin;
-
     pop.style.position = "fixed";
-    pop.style.left = `${Math.max(8, left)}px`;
-    pop.style.top = `${Math.max(8, top)}px`;
-
     pop.showPopover();
+
+    // 大きさが決まってから丸める。下端の行では行の下が画面外になり、
+    // `popover` は top layer にいて何にもクリップされないので、
+    // 丸めないと名前を確かめる手段がその行だけ無くなる
+    const box = keepInViewport(
+      { x: r.left, y: r.bottom + 10 },
+      { width: pop.offsetWidth, height: pop.offsetHeight },
+    );
+    pop.style.left = `${box.left}px`;
+    pop.style.top = `${box.top}px`;
   };
 
   const hideNativeTooltip = () => {

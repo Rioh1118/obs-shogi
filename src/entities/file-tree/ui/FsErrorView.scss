@@ -70,9 +70,18 @@
     // ここはモーダルの本文（スクロールバー有り）の中に入れ子で置かれるので、
     // 外側だけ見た人は最後まで動かして「詳細はこれで全部」と読む
     scrollbar-width: thin;
+    // `-thumb` を書かないと、WebKit は既定描画をやめたままつまみを塗らない。
+    // レールだけ空いて「続きがある」が伝わらない
     &::-webkit-scrollbar {
       display: block;
-      width: 0.8rem;
+      width: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(index.$color-secondary-dark, 0.6);
+      border-radius: index.$radius-2;
     }
     margin: 0;
     padding: 0 index.$space-3 index.$space-3;

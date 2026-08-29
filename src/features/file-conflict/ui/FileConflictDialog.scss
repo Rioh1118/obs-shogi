@@ -117,8 +117,11 @@
       outline-offset: 1px;
     }
 
-    &:disabled {
+    // 送信中は `readOnly`（`disabled` にするとカード内の押せるものが0になる）。
+    // 見た目を変えないと、キャレットが出たまま打鍵が黙って捨てられる
+    &:read-only {
       opacity: 0.5;
+      cursor: default;
     }
   }
 

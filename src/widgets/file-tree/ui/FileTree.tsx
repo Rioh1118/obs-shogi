@@ -25,6 +25,7 @@ import {
 import ScrollDropZone from "./ScrollDropZone";
 import { isProjectRoot, useFileTree } from "@/entities/file-tree";
 import Spinner from "@/shared/ui/Spinner";
+import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import Modal from "@/shared/ui/Modal";
 import FileTreeErrorNotice from "./FileTreeErrorNotice";
@@ -195,9 +196,11 @@ function FileTree() {
               fallback={chooseWorkspace}
             />
           ) : !hasTree ? (
-            <div className="empty">
+            <div className="file-tree__empty">
               <p>ファイルツリーがありません</p>
-              <p>設定でルートディレクトリを選択してください</p>
+              <Button size="sm" onClick={chooseWorkspace.run}>
+                {chooseWorkspace.label}
+              </Button>
             </div>
           ) : (
             <RootNode key={"root"} node={fileTree} />

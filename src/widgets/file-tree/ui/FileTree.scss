@@ -24,3 +24,14 @@
   margin-bottom: index.$space-4;
   font-size: index.$font-aux;
 }
+
+// ツリーが無いときの空状態。同じ枠に出る `FileTreeErrorNotice` と骨格を揃える
+// （素の2行だと `global.scss` の `margin: 0` で左上端に貼り付く）
+.file-tree__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: index.$space-4;
+  padding: index.$space-5;
+  font-size: index.$font-aux;
+}
