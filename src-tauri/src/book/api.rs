@@ -73,7 +73,10 @@ fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
         .with_path(canonical.to_string_lossy()));
     }
 
-    let reader = open_reader(path)?;
+    // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
+    // symlink をもう一度たどるので、形式を検査した先と実際に開くファイルが
+    // 別物になりうる（その隙に張り替えられると BookInfo.path が旧い方を指す）。
+    let reader = open_reader(&canonical)?;
 
     Ok((canonical, reader))
 }
