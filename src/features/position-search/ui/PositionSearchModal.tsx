@@ -129,7 +129,6 @@ export default function PositionSearchModal() {
     setIsLaunching(true);
     setActiveIndex(0);
 
-    // queryKey は params.sfen ?? currentSfen なので、検索対象はこの1本で足りる。
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
         inFlightRidRef.current = out.requestId;

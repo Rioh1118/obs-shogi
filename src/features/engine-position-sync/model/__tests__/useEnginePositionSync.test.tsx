@@ -35,14 +35,12 @@ vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
 
 type Sync = ReturnType<typeof useEnginePositionSync>;
 
-/** フックを実際にマウントし、最新の戻り値と再レンダ回数を掴む。 */
+/** フックを実際にマウントし、最新の戻り値を掴む。 */
 function mountSync() {
   const seen: Sync[] = [];
-  let renders = 0;
 
   function Probe() {
     const sync = useEnginePositionSync();
-    renders += 1;
     useEffect(() => {
       seen.push(sync);
     });
@@ -60,9 +58,6 @@ function mountSync() {
     },
     get current() {
       return seen[seen.length - 1];
-    },
-    get renderCount() {
-      return renders;
     },
   };
 }
@@ -196,7 +191,7 @@ describe("useEnginePositionSync", () => {
     expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
   });
 
-  it("送信が成功しただけでは syncPosition の identity が変わらない", async () => {
+  it("syncPosition の identity が変わるのは局面が変わったときだけ", async () => {
     setPositionFromSfen.mockResolvedValue(undefined);
 
     const identities: unknown[] = [];

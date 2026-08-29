@@ -6,12 +6,15 @@ import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
  */
 export type BranchIndex = number;
 
-/** 手数 N から指せる分岐の候補。棋譜ツリーの構造であって描画データではない。 */
+/** 手数 N から指せる分岐の候補。 */
 export type BranchOption = {
+  /** リスト描画の key 用。安定していればよく、意味は持たない。 */
   id: string;
+  /** `forkIndex === undefined` と等価。 */
   isMainLine: boolean;
   tesuu: number;
   move?: IMoveMoveFormat;
+  /** `IMoveFormat.forks` の添字。ForkPointer の値ではない。本譜なら undefined。 */
   forkIndex?: number;
 };
 

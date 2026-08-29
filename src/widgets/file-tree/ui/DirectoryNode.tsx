@@ -10,8 +10,7 @@ import { DROP_ID, type DragData, type DropData } from "@/widgets/file-tree/lib/d
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
-// 木の再帰点は TreeNode 側に閉じてある。ここで TreeNode を import すると
-// モジュールの相互参照になり、評価順によっては片方が undefined になる。
+// TreeNode を import し返すと import/no-cycle に落ちる。子の描画は renderChild で受ける。
 function DirectoryNode({
   level,
   node,
@@ -21,6 +20,7 @@ function DirectoryNode({
   level: number;
   node: FileTreeNode;
   externalHoverDir?: string | null;
+  /** 子ノードの描画。返す要素には key を付けること（ここでは付けない）。 */
   renderChild: (child: FileTreeNode, level: number) => ReactNode;
 }) {
   const {

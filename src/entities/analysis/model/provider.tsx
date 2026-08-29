@@ -92,6 +92,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const RESTART_DEBOUNCE_MS = 100;
 
+  // エンジンが position を受け付けるまで待つ上限。これを超えたら送信できていないと
+  // 見なし、盤面と一致しない候補手を出さないために解析を始めない。
+  // 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
+  const POSITION_SYNC_TIMEOUT_MS = 2000;
+  const POSITION_SYNC_TIMEOUT_MESSAGE = "エンジンに現在の局面を送れませんでした";
+
   const waitUntil = async (cond: () => boolean, timeoutMs = 1500) => {
     const start = Date.now();
     while (!cond()) {
@@ -267,9 +273,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
     // 候補手が返ってきて、盤面と一致しないものが表示される。
-    const synced = await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
+    const synced = await waitUntil(
+      () => syncedSfenRef.current === currentSfen,
+      POSITION_SYNC_TIMEOUT_MS,
+    );
     if (!synced) {
-      throw new Error("エンジンに現在の局面を送れませんでした");
+      dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
+      throw new Error(POSITION_SYNC_TIMEOUT_MESSAGE);
     }
 
     const sessionId = await startInfiniteAnalysisCore();

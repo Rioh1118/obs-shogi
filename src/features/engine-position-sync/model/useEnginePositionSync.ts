@@ -15,6 +15,14 @@ const isNotInitializedError = (e: unknown) => {
  *
  * entities/game・entities/engine・entities/engine-presets の3スライスを束ねるので、
  * FSD 上これを置ける最下層は features になる。
+ *
+ * **アプリ全体で1箇所だけがマウントすること（`AnalysisBridge`）。** 送信の直列化は
+ * このフックのインスタンスが持つキューで行っているが、送り先のエンジンはプロセス1本なので、
+ * 2箇所でマウントすると互いのキューを知らないまま同じエンジンへ書き込む。
+ *
+ * 返す `syncPosition` は、エンジンへの送信に失敗すると reject する。ただし自動追従の
+ * 経路（局面やエンジンの変化に反応して呼ぶ側）はこのフックの中で握り潰しているので、
+ * 失敗を観測できるのは手動で呼んだ呼び出し元だけである。
  */
 export function useEnginePositionSync(): PositionSyncAdapter {
   const { state: gameState, view: gameView } = useGame();
