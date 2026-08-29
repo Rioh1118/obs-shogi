@@ -83,7 +83,8 @@ $sidebar-width: 23%;
 $titlebar-height: 2.6rem;
 // 付箋（`FloatingNote`）のヘッダ。高さがタイトルバーと揃うのは意匠で、従属ではない。
 // 利用者が1つしか無いのにここに置くのは、コンポーネント側のローカル変数に下ろすと
-// `scssScaleRatchet` の `indirect` が増えて落ちるため。直値を許すのはこのファイルだけ（ADR-0003）
+// `scssScaleRatchet` の `indirect` が増えて落ちるため。
+// `indirect` の枠を免除されるのはこのファイルだけ（`scssScale.ts` の `tokenSource`、ADR-0003）
 $floating-note-header-height: 2.6rem;
 
 // elevation
