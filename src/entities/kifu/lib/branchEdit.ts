@@ -40,7 +40,7 @@ function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIn
   return branchIndexFromSelection(p ? p.forkIndex : null);
 }
 
-/** te の branchIndex を forkPointers に反映（0なら削除） */
+/** te の BranchIndex を forkPointers に反映（MAIN_LINE なら該当 te の pointer を削除） */
 function setBranchIndex(
   forkPointers: ForkPointer[],
   te: number,
@@ -94,7 +94,7 @@ type Candidates = IMoveFormat[][];
  * - さらに「候補の先頭が forks を持つ」場合は “同じteの代替” なので持ち上げてフラット化
  */
 function readCandidates(h: BranchPointHandle): Candidates {
-  const tail = cloneJkf(h.line.slice(h.index)); // main tail
+  const tail = cloneJkf(h.line.slice(h.index)); // 本譜側の tail
   if (tail.length === 0) throw new Error("main tail is empty");
 
   const head = tail[0];
@@ -138,7 +138,7 @@ function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
 
   const forkSegs = candidates.slice(1).map((seg) => cloneJkf(seg));
 
-  // forks は main head に集約
+  // forks は本譜側の先頭の手に集約
   if (forkSegs.length) main[0].forks = forkSegs;
   else delete main[0].forks;
 
@@ -155,7 +155,7 @@ function swapInPlace<T>(arr: T[], i: number, j: number) {
 
 /** delete candidate */
 function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
-  const idx = target; // candidates は 0=main, 1..fork と同じ座標
+  const idx = target; // candidates は BranchIndex と同じ座標（0=本譜）
   if (idx < 0 || idx >= c.length) throw new Error("target out of range");
   const next = c.slice();
   next.splice(idx, 1);
@@ -186,12 +186,12 @@ function patchForkPointersForDeleteNonReloc(
 
   // chosen==target の場合は “退避” で処理するので、ここでは来ない想定
   if (target === MAIN_LINE) {
-    // main削除: fork(1)がmainに繰り上がる
-    if (chosen === MAIN_LINE) return fps; // main追従→新mainへ
-    // chosen>0 は1つ詰める（chosen=1 は main 化）
+    // 本譜を削除: 変化1 が本譜に繰り上がる
+    if (chosen === MAIN_LINE) return fps; // 本譜追従→新しい本譜へ
+    // それ以外は1つ詰める（変化1 は本譜になる）
     return setBranchIndex(fps, te, branchIndexAfterRemoval(chosen));
   } else {
-    // fork削除: targetより大きいforkは1つ詰める
+    // 変化を削除: target より後ろの変化は1つ詰める
     if (chosen === MAIN_LINE) return fps;
     if (chosen > target) return setBranchIndex(fps, te, branchIndexAfterRemoval(chosen));
     return fps;
@@ -218,7 +218,7 @@ function relocateCursorOnDelete(
         tesuuPointer: buildTesuuPointer(tesuu, fps),
       };
     }
-    // 代替がmainになった直後へ
+    // 代替が本譜になった直後へ
     const tesuu = ref.te;
     const fps = normalizeForkPointers(kept, tesuu);
     return {
@@ -228,7 +228,7 @@ function relocateCursorOnDelete(
     };
   }
 
-  // fork削除: main の te 適用後へ
+  // 変化を削除: 本譜の te 適用後へ
   const tesuu = ref.te;
   const fps = normalizeForkPointers(kept, tesuu);
   return {
