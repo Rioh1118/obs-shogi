@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import postcss from "postcss";
 import * as sass from "sass";
 import { describe, expect, it } from "vitest";
@@ -19,7 +19,12 @@ import { describe, expect, it } from "vitest";
  * 上書きする改変は落ちる。
  */
 
-const SRC = join(process.cwd(), "src");
+/**
+ * このファイル自身の位置から辿る。`process.cwd()` にすると、ランナーの起動場所が
+ * 別の作業ツリーだったときにテスト本体とは違う木の SCSS を読み、
+ * 何を検査したのかが起動場所で変わる
+ */
+const SRC = fileURLToPath(new URL("..", import.meta.url));
 
 /** `@use "@/index.scss"` を解決する。vite の alias はここには効かない */
 const importer = {
