@@ -1,6 +1,11 @@
 import { describe, expect, test, vi } from "vitest";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
-import { MAIN_LINE, branchIndexFromForkIndex } from "@/entities/kifu/model/branch";
+import {
+  MAIN_LINE,
+  branchIndexFromForkIndex,
+  buildTesuuPointer,
+} from "@/entities/kifu/model/branch";
+import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
 import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**
@@ -20,6 +25,10 @@ function kifuWithTwoForks(): JKFData {
 }
 
 const tags = (moves: JKFMove[] | undefined) => moves?.map((m) => m.comments?.[0]);
+
+function cursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
+  return { tesuu, forkPointers, tesuuPointer: buildTesuuPointer(tesuu, forkPointers) };
+}
 
 describe("swapBranchesInKifu", () => {
   test("本譜と変化1を入れ替えると、te 以降の並びごと入れ替わる", () => {
@@ -97,5 +106,74 @@ describe("複製の回数", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe("削除後のカーソル", () => {
+  test("消えた候補より後ろにいたら、同じ変化を指し続けるよう番号が詰まる", () => {
+    // 変化2（f1）を見ている状態で本譜を消すと、f1 は変化1に繰り上がる。
+    // 詰め忘れると、カーソルが隣の変化を指したまま保存される。
+    const kifu = kifuWithTwoForks();
+    const cursor = cursorAt(2, [{ te: 2, forkIndex: 1 }]);
+    const res = deleteBranchInKifu(kifu, { te: 2, forkPointers: [], target: MAIN_LINE }, cursor);
+
+    expect(kifu.moves[2].forks?.map(tags)).toEqual([["f1"]]);
+    expect(res.nextCursor?.forkPointers).toEqual([{ te: 2, forkIndex: 0 }]);
+  });
+
+  test("消えた候補の中にいたら、その手数の本譜へ退避する", () => {
+    const kifu = kifuWithTwoForks();
+    const cursor = cursorAt(2, [{ te: 2, forkIndex: 0 }]);
+    const res = deleteBranchInKifu(
+      kifu,
+      { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) },
+      cursor,
+    );
+
+    expect(res.nextCursor?.tesuu).toBe(2);
+    expect(res.nextCursor?.forkPointers).toEqual([]);
+  });
+
+  test("候補が全部消えたら、その手前まで戻る", () => {
+    const kifu: JKFData = { header: {}, moves: [mv("root"), mv("t1"), mv("main2")] };
+    const cursor = cursorAt(2, []);
+    const res = deleteBranchInKifu(kifu, { te: 2, forkPointers: [], target: MAIN_LINE }, cursor);
+
+    // te 以降が丸ごと消える。棋譜が短くなる側なので長さまで固定する。
+    expect(tags(kifu.moves)).toEqual(["root", "t1"]);
+    expect(res.nextCursor?.tesuu).toBe(1);
+  });
+});
+
+describe("同じ手数の入れ子の変化", () => {
+  test("持ち上げて平坦にしてから書き戻す", () => {
+    // 変化の先頭がさらに forks を持つ形は「同じ手数の別候補」なので、
+    // 候補配列では兄弟に並ぶ。平坦化を忘れると入れ替えが1段目にしか効かない。
+    const kifu: JKFData = {
+      header: {},
+      moves: [mv("root"), mv("t1"), mv("main2", [[mv("f0", [[mv("g0")]])]])],
+    };
+    swapBranchesInKifu(
+      kifu,
+      {
+        te: 2,
+        forkPointers: [],
+        a: branchIndexFromForkIndex(0),
+        b: branchIndexFromForkIndex(1),
+      },
+      null,
+    );
+
+    expect(tags(kifu.moves)).toEqual(["root", "t1", "main2"]);
+    expect(kifu.moves[2].forks?.map(tags)).toEqual([["g0"], ["f0"]]);
+  });
+});
+
+describe("swapBranchesInKifu の範囲外", () => {
+  test("候補数を超える添字は throw する", () => {
+    const kifu = kifuWithTwoForks();
+    expect(() =>
+      swapBranchesInKifu(kifu, { te: 2, forkPointers: [], a: MAIN_LINE, b: 9 as never }, null),
+    ).toThrow();
   });
 });
