@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./PositionSearchContinuation.scss";
 
 import type { PositionHit } from "@/entities/search";
-import { buildPlayer } from "@/entities/kifu/lib/cursorRuntime";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
