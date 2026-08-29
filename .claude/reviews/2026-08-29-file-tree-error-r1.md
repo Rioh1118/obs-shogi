@@ -3,7 +3,11 @@
 - 日付: 2026-08-29
 - 範囲: issue #169（`fix/169-file-tree-error`、`main...HEAD` の7ファイル）
 - 走らせた reviewer: architecture / react / ui / robustness / comment
-- 対象コミット: `653d937`
+- 対象: `main...HEAD`（当時の7ファイル）
+
+> 当初はここに短ハッシュ `653d937` を書いていたが、その後の rebase で
+> **HEAD から到達できなくなった**（`git merge-base --is-ancestor` が偽）。
+> 報告書には範囲を書く。ラウンド2 以降はそうしてある。
 
 所見 **29件**（HIGH 7 / MEDIUM 22）。1件は検証の結果 **棄却**（下の「矛盾した所見」）。
 
@@ -72,7 +76,7 @@ const res = await api.fetchTree(rootDir);
 - 直し方: `isRetrying` を消し `isLoading` を唯一の源にする。
   描画側を `isLoading && !fileTree ? <Spinner/> : ...` に、モーダル条件を `(error || isLoading) && hasTree` にし、
   `isRetrying={isLoading}` を渡す。
-- **結果: 対応済み（`b8a900d`）。** ただし提案どおりには直していない。
+- **結果: 対応済み。** ただし提案どおりには直していない。
   モーダル条件を `(error || isLoading) && hasTree` にすると、**ファイル操作のたびに走る通常の
   読み直しでも通知が出る**（`loadFileTree` は成功時にも毎回呼ばれる）。
   代わりに「読み直しの引き金になった失敗」を `retriedFrom` として持ち、
