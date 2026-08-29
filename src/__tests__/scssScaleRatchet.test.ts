@@ -19,6 +19,19 @@ const SCALED_PROPERTIES = new Set([
   "margin-right",
   "margin-bottom",
   "margin-left",
+  // 論理プロパティ。まだ使用例は無いが、物理プロパティだけ塞ぐと寄せ道になる
+  "padding-inline",
+  "padding-block",
+  "padding-inline-start",
+  "padding-inline-end",
+  "padding-block-start",
+  "padding-block-end",
+  "margin-inline",
+  "margin-block",
+  "margin-inline-start",
+  "margin-inline-end",
+  "margin-block-start",
+  "margin-block-end",
 ]);
 
 /**
