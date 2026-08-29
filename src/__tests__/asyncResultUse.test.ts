@@ -21,8 +21,15 @@ import { tsFiles } from "./walk";
 
 const SRC = join(process.cwd(), "src");
 
-/** 宣言の戻り値に `AsyncResult` が現れる関数名 */
-const DECLARES_ASYNC_RESULT = /(?:function\s+|const\s+)(\w+)[^\n]*?:\s*AsyncResult</g;
+/**
+ * 宣言の戻り値に `AsyncResult` が現れる関数名。
+ *
+ * **行をまたげること。** この repo の主流の書き方は
+ * `const f = useCallback(` で改行して次の行に `: AsyncResult<...> =>` なので、
+ * 1行に閉じた正規表現だと `provider.tsx` の主要な関数が丸ごと外れる。
+ * `;` `{` `}` を挟まない範囲に限って、別の宣言まで飲み込まないようにする
+ */
+const DECLARES_ASYNC_RESULT = /(?:function\s+|const\s+)(\w+)[^;{}]*?:\s*AsyncResult</g;
 
 /** 読まないのが正しいときの印。理由を書かせるので `:` まで含めて要求する */
 const IGNORE_MARKER = "async-result-ignored:";
@@ -47,10 +54,11 @@ describe("AsyncResult の戻り値", () => {
     for (const source of sources.values()) {
       for (const match of source.matchAll(DECLARES_ASYNC_RESULT)) names.add(match[1]);
     }
+    // 実測に近い下限。緩いままだと、書き方が変わって半分しか拾えなくなっても気づけない
     expect(
       names.size,
-      "AsyncResult を返す関数が1つも見つからない。検査が空振りしている",
-    ).toBeGreaterThan(5);
+      `AsyncResult を返す関数を ${names.size} 件しか拾えていない。名前の集め方が壊れている`,
+    ).toBeGreaterThanOrEqual(20);
 
     const pattern = bareCallOf(names);
     const offenders: string[] = [];

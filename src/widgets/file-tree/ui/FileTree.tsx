@@ -112,7 +112,7 @@ function FileTree() {
     if (!pendingDelete) return;
     setIsDeleting(true);
     try {
-      await deleteNode(pendingDelete);
+      await deleteNode(pendingDelete); // async-result-ignored: 失敗は deleteNode が通知へ積む
     } finally {
       setIsDeleting(false);
       setPendingDelete(null);
@@ -148,7 +148,7 @@ function FileTree() {
 
       if (node.isDirectory && isDescendantDir(node.path, destDir)) return;
 
-      await moveNode(node, destDir);
+      await moveNode(node, destDir); // async-result-ignored: 失敗は moveNode が通知へ積む
     } finally {
       setActivePath(null);
     }
