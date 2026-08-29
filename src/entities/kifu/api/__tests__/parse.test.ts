@@ -40,10 +40,11 @@ describe("parseKifuContentToJKF", () => {
     expect(texts(CSA, "csa")[3]).toBe("☖同　銀");
   });
 
-  test("盤上で再生できない手を含む棋譜は、tsshogi の出力がそのまま返る", () => {
+  test("盤上で再生できない手を含む棋譜は、未正規化のまま返る", () => {
     // 4手目は 4一の金を 2二 へ動かしていて届かない。正規化はそこで throw するが、
     // その手に same / capture を書き込んでから throw する。CSA と JKF は tsshogi が
     // 「同」を埋めないので、コピーを渡さないと中途半端に書き換わった棋譜が返る。
+    // 空の変化を落とす sanitize は通るので、比較は toEqual（構造の一致）で行う。
     const broken = CSA.replace("-3122GI", "-4122KI");
     const rec = importCSA(broken);
     if (rec instanceof Error) throw rec;
