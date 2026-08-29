@@ -12,20 +12,15 @@ pub fn rename_kifu_file(file_path: String, new_file_name: String) -> Result<Stri
     let src = PathBuf::from(&file_path);
 
     if !src.exists() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "ファイルが存在しません").with_path(file_path),
-        );
+        return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
     if !src.is_file() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはファイルではありません",
-        )
-        .with_path(src.to_string_lossy().to_string()));
+        return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
+            .with_path(src.to_string_lossy().to_string()));
     }
     if !is_kifu_file(&src) {
         return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "棋譜ファイルではありません")
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
                 .with_path(src.to_string_lossy().to_string()),
         );
     }
@@ -33,18 +28,17 @@ pub fn rename_kifu_file(file_path: String, new_file_name: String) -> Result<Stri
     let new_file_name = validate_basename(&new_file_name)?;
 
     let parent = src.parent().ok_or_else(|| {
-        FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが取得できません")
+        FsError::new(FsErrorCode::InvalidPath, "cannot resolve parent directory")
             .with_path(src.to_string_lossy().to_string())
     })?;
     let dest = parent.join(&new_file_name);
 
     // リネーム後も棋譜拡張子のみ許可（拡張子変更を防ぐ）
     if !is_kifu_file(&dest) {
-        return Err(FsError::new(
-            FsErrorCode::InvalidExtension,
-            "棋譜ファイルの拡張子ではありません",
-        )
-        .with_path(dest.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
+                .with_path(dest.to_string_lossy().to_string()),
+        );
     }
 
     ensure_not_exists(&dest)?;
@@ -62,20 +56,15 @@ pub fn mv_kifu_file(
     let src = PathBuf::from(&file_path);
 
     if !src.exists() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "ファイルが存在しません").with_path(file_path),
-        );
+        return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
     if !src.is_file() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはファイルではありません",
-        )
-        .with_path(src.to_string_lossy().to_string()));
+        return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
+            .with_path(src.to_string_lossy().to_string()));
     }
     if !is_kifu_file(&src) {
         return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "棋譜ファイルではありません")
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
                 .with_path(src.to_string_lossy().to_string()),
         );
     }
@@ -84,7 +73,7 @@ pub fn mv_kifu_file(
     if !dest_dir.exists() || !dest_dir.is_dir() {
         return Err(FsError::new(
             FsErrorCode::InvalidDestination,
-            "移動先ディレクトリが存在しません",
+            "destination directory does not exist",
         )
         .with_path(dest_dir.to_string_lossy().to_string()));
     }
@@ -93,7 +82,7 @@ pub fn mv_kifu_file(
         Some(n) => validate_basename(&n)?,
         None => src
             .file_name()
-            .ok_or_else(|| FsError::new(FsErrorCode::InvalidPath, "ファイル名が取得できません"))?
+            .ok_or_else(|| FsError::new(FsErrorCode::InvalidPath, "cannot resolve file name"))?
             .to_string_lossy()
             .to_string(),
     };
@@ -102,11 +91,10 @@ pub fn mv_kifu_file(
 
     // 移動後も棋譜拡張子のみ許可
     if !is_kifu_file(&dest) {
-        return Err(FsError::new(
-            FsErrorCode::InvalidExtension,
-            "棋譜ファイルの拡張子ではありません",
-        )
-        .with_path(dest.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
+                .with_path(dest.to_string_lossy().to_string()),
+        );
     }
 
     ensure_not_exists(&dest)?;
@@ -120,21 +108,20 @@ pub fn rename_directory(dir_path: String, new_dir_name: String) -> Result<String
 
     if !src.exists() {
         return Err(
-            FsError::new(FsErrorCode::NotFound, "ディレクトリが存在しません").with_path(dir_path),
+            FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
     if !src.is_dir() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはディレクトリではありません",
-        )
-        .with_path(src.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidType, "path is not a directory")
+                .with_path(src.to_string_lossy().to_string()),
+        );
     }
 
     let new_dir_name = validate_basename(&new_dir_name)?;
 
     let parent = src.parent().ok_or_else(|| {
-        FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが取得できません")
+        FsError::new(FsErrorCode::InvalidPath, "cannot resolve parent directory")
             .with_path(src.to_string_lossy().to_string())
     })?;
     let dest = parent.join(&new_dir_name);
@@ -155,22 +142,21 @@ pub fn mv_directory(
 
     if !src.exists() {
         return Err(
-            FsError::new(FsErrorCode::NotFound, "ディレクトリが存在しません").with_path(dir_path),
+            FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
     if !src.is_dir() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはディレクトリではありません",
-        )
-        .with_path(src.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidType, "path is not a directory")
+                .with_path(src.to_string_lossy().to_string()),
+        );
     }
 
     let dest_parent = PathBuf::from(&dest_parent_dir);
     if !dest_parent.exists() || !dest_parent.is_dir() {
         return Err(FsError::new(
             FsErrorCode::InvalidDestination,
-            "移動先ディレクトリが存在しません",
+            "destination directory does not exist",
         )
         .with_path(dest_parent.to_string_lossy().to_string()));
     }
@@ -179,9 +165,7 @@ pub fn mv_directory(
         Some(n) => validate_basename(&n)?,
         None => src
             .file_name()
-            .ok_or_else(|| {
-                FsError::new(FsErrorCode::InvalidPath, "ディレクトリ名が取得できません")
-            })?
+            .ok_or_else(|| FsError::new(FsErrorCode::InvalidPath, "cannot resolve directory name"))?
             .to_string_lossy()
             .to_string(),
     };

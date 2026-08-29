@@ -78,19 +78,16 @@ pub fn get_file_tree(root_dir: String) -> Result<FileTreeNode, FsError> {
     let root_path = PathBuf::from(&root_dir);
 
     if !root_path.exists() {
-        return Err(FsError::new(
-            FsErrorCode::NotFound,
-            "指定されたディレクトリが存在しません",
-        )
-        .with_path(root_dir));
+        return Err(
+            FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(root_dir),
+        );
     }
 
     if !root_path.is_dir() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはディレクトリではありません",
-        )
-        .with_path(root_path.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidType, "path is not a directory")
+                .with_path(root_path.to_string_lossy().to_string()),
+        );
     }
 
     // 絶対パスに正規化
