@@ -84,8 +84,10 @@ export function useEnginePositionSync(): PositionSyncAdapter {
             return;
           }
 
-          // ここで止める（エラー時は連鎖しない）
-          return;
+          // 呼び出し元へ投げる。ここで握り潰すと、エンジンに1手前の局面が
+          // 入ったまま解析が始まり、盤面と一致しない候補手が黙って表示される。
+          queuedSfenRef.current = null;
+          throw e;
         }
       }
     })().finally(() => {

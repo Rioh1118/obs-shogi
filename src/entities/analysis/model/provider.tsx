@@ -265,7 +265,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     await syncPosition();
 
-    await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
+    // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
+    // 候補手が返ってきて、盤面と一致しないものが表示される。
+    const synced = await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
+    if (!synced) {
+      throw new Error("エンジンに現在の局面を送れませんでした");
+    }
 
     const sessionId = await startInfiniteAnalysisCore();
 
