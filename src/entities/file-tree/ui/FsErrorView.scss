@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-.ftError {
+.fsError {
   display: flex;
   flex-direction: column;
   gap: index.$space-3;
@@ -11,7 +11,7 @@
   color: index.$color-text-primary;
 
   // 段は「復帰に何が要るか」で決まる（ADR-0004）。色だけでなく、
-  // 再読み込みを出すかどうかもここで分かれる
+  // どのボタンを出すかもここで分かれる
   &--warning {
     border-color: rgba(index.$color-warning, 0.4);
     border-left-color: index.$color-warning;
@@ -76,45 +76,5 @@
     display: flex;
     justify-content: flex-end;
     gap: index.$space-3;
-  }
-
-  &__btn {
-    font: inherit;
-    font-size: index.$font-aux;
-    padding: index.$space-2 index.$space-5;
-    border-radius: index.$radius-3;
-    border: 1px solid index.$stroke;
-    background: transparent;
-    color: index.$color-text-primary;
-    cursor: pointer;
-    transition: background index.$duration-3 index.$ease;
-
-    &:hover:not(:disabled) {
-      background: rgba(index.$color-white, 0.06);
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
-    }
-
-    &:disabled {
-      opacity: 0.45;
-      cursor: default;
-    }
-
-    // 銅の面に ghost と同じ白被せを当てると色が濁って別物に見えるので、
-    // 自分の色を明るくする方向でホバーする
-    &--primary {
-      background: index.$color-secondary-dark;
-      border-color: index.$color-secondary-dark;
-      color: index.$color-text-dark-1;
-      font-weight: 600;
-
-      &:hover:not(:disabled) {
-        background: color-mix(in srgb, index.$color-secondary-dark 86%, index.$color-white);
-        border-color: color-mix(in srgb, index.$color-secondary-dark 86%, index.$color-white);
-      }
-    }
   }
 }

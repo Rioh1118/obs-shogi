@@ -118,7 +118,7 @@ function mount() {
  * 拾うので、「本文に出ているか」「本文に出ていないか」はこちらで見る。
  */
 function noticeBody() {
-  return Array.from(screen.getByRole("alert").querySelectorAll(".ftError__lead, .ftError__hint"))
+  return Array.from(screen.getByRole("alert").querySelectorAll(".fsError__lead, .fsError__hint"))
     .map((el) => el.textContent ?? "")
     .join("\n");
 }
@@ -292,7 +292,7 @@ describe("段による出し分け", () => {
 
     mount();
 
-    expect(screen.getByRole("alert").className).toContain("ftError--danger");
+    expect(screen.getByRole("alert").className).toContain("fsError--danger");
   });
 });
 
