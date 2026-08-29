@@ -267,9 +267,11 @@ function relocateCursorOnDelete(
  * `te` にぶら下がる同じ手数の入れ子の変化は兄弟に平坦化される。触っていない変化でも
  * `te` の `forkIndex` の並びが変わり、その形でファイルに書き戻される。
  *
- * @throws {Error} `te` が1以上の手を指していないとき、`a` / `b` が整数でないか候補の範囲外のとき、
- *   `forkPointers` が実在しない変化を指すか `forkIndex` が整数でないとき、
- *   `forks` に中身の無い変化が混じるとき
+ * @throws {Error} `q.te` が1以上の手を指していないとき
+ * @throws {Error} `q.a` / `q.b` が整数でないか、候補の範囲外のとき
+ * @throws {Error} `q.forkPointers` が実在しない変化を指すとき
+ * @throws {Error} `cursor.forkPointers` の `q.te` に対応する `forkIndex` が0以上の整数でないとき
+ * @throws {Error} `forks` に中身の無い変化が混じるとき
  */
 export function swapBranchesInKifu(
   kifu: JKFData,
@@ -323,9 +325,11 @@ export function swapBranchesInKifu(
  * `cursor` が消える候補の中にいたときは、`te` の直後（消しきったなら `te - 1`）へ退避させた
  * カーソルを返す。
  *
- * @throws {Error} `te` が1以上の手を指していないとき、`target` が整数でないか候補の範囲外のとき、
- *   `forkPointers` が実在しない変化を指すか `forkIndex` が整数でないとき、
- *   `forks` に中身の無い変化が混じるとき
+ * @throws {Error} `q.te` が1以上の手を指していないとき
+ * @throws {Error} `q.target` が整数でないか、候補の範囲外のとき
+ * @throws {Error} `q.forkPointers` が実在しない変化を指すとき
+ * @throws {Error} `cursor.forkPointers` の `q.te` に対応する `forkIndex` が0以上の整数でないとき
+ * @throws {Error} `forks` に中身の無い変化が混じるとき
  */
 export function deleteBranchInKifu(
   kifu: JKFData,
