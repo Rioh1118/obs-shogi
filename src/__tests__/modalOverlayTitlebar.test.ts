@@ -165,10 +165,12 @@ function isBounded(value: string): boolean {
 }
 
 /**
- * ビューポート基準の高さ。`max-height` は要素を大きくできないので危なくない。
- * 器より大きくなりうるのは `height` と `min-height` を viewport で決めた場合だけ
+ * ビューポート基準の長さ。`vh` 系だけでなく `vw` / `vmin` / `vmax` も、
+ * 高さに使えば同じく器と無関係に決まる。
+ * `max-height` は要素を大きくできないので危なくない。器より大きくなりうるのは
+ * `height` と `min-height` を viewport で決めた場合だけ
  */
-const VIEWPORT_UNIT = /(?<![\w.])[\d.]+(vh|dvh|svh|lvh)\b/;
+const VIEWPORT_UNIT = /(?<![\w.])[\d.]+(?:d|s|l)?v(?:h|w|i|b|min|max)\b/;
 const FORCING_HEIGHT = new Set(["height", "min-height"]);
 
 function scssUnder(directory: string): string[] {
