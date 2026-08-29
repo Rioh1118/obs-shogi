@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { SButton, SField, SInput, SSection, SSelect } from "../../kit";
+import { SButton, SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { AiRootIndex, ProfileCandidate } from "@/entities/engine/api/aiLibrary";

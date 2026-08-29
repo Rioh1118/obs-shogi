@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
-import Modal from "../../../shared/ui/Modal";
+import Modal from "@/shared/ui/Modal";
 import { usePositionHitNavigation } from "@/features/position-search/lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
@@ -13,7 +13,7 @@ import { JKFPlayer } from "json-kifu-format";
 import type { Kind } from "shogi.js";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
-import PreviewPane from "../../../entities/position/ui/PositionPreviewPane";
+import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderPositionHits";

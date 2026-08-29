@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import { SButton } from "../../kit";
+import { SButton } from "@/features/settings/ui/kit";
 import { StepShell, type StepState } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 

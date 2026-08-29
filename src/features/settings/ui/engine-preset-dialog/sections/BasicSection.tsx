@@ -1,6 +1,6 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 
-import { SButton, SField, SInput, SSection, SSelect } from "../../kit";
+import { SButton, SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { pickDefaultBookDb, pickDefaultEvalFile } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
