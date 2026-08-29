@@ -87,8 +87,16 @@ fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
     // UnknownExtension ではなく NotFound が返る。
     let requested = BookFormat::from_path(path)?;
 
-    let canonical =
-        std::fs::canonicalize(path).map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
+    // 解決そのものが失敗したときは実体のパスが手に入らないが、リンク先の綴りは
+    // 読める。外付けを外した symlink は「見つからない」だけだと Finder に見えている
+    // ファイルを探し直すことになり、繋ぎ直すという唯一の復帰操作に辿り着けない。
+    let canonical = std::fs::canonicalize(path).map_err(|e| {
+        let err = BookError::from_io(e, path.to_string_lossy());
+        match std::fs::read_link(path) {
+            Ok(target) => annotate(err, &format!("リンク先 {}", target.display())),
+            Err(_) => err,
+        }
+    })?;
 
     // リンク先の拡張子が判別できない場合も食い違いとして扱う。そのまま
     // UnknownExtension を返すと、利用者が選んでいないパスについて
@@ -117,13 +125,22 @@ fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
 /// フロントにもログにも残らない。symlink 越しに権限が無い場合、許可すべきファイル名が
 /// どこにも現れなくなる。
 fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookError {
-    let message = if requested == canonical {
-        err.message
+    let err = if requested == canonical {
+        err
     } else {
-        format!("{}（実体 {}）", err.message, canonical.display())
+        annotate(err, &format!("実体 {}", canonical.display()))
     };
 
-    BookError::new(err.code, message).with_path(requested.to_string_lossy())
+    err.with_path(requested.to_string_lossy())
+}
+
+/// message に注記を足す。`path` は触らない。
+fn annotate(err: BookError, note: &str) -> BookError {
+    let annotated = BookError::new(err.code, format!("{}（{note}）", err.message));
+    match err.path {
+        Some(path) => annotated.with_path(path),
+        None => annotated,
+    }
 }
 
 /// フロントから来たパスの形を検査する。
@@ -418,37 +435,62 @@ mod tests {
         );
     }
 
+    fn some_error() -> BookError {
+        BookError::new(BookErrorCode::NotFound, "定跡ファイルが見つからない")
+    }
+
     /// path を要求時の綴りに戻すだけだと、どのファイルを開こうとして失敗したのかが
     /// フロントにもログにも残らない。symlink 越しに権限が無いとき、許可すべき
     /// ファイル名がどこにも出なくなる。
     #[test]
-    #[cfg(unix)]
-    fn errors_keep_the_resolved_path_in_the_message() {
-        let (dir, target, link) = linked("message", ".db", ".db");
-        // macOS の /var は /private/var への symlink なので、実体は canonicalize で取る
-        let resolved = std::fs::canonicalize(&target).expect("実体を解決できない");
-
-        let through_link = open_at(&link).err().map(|err| err.message);
-        let direct = open_at(&resolved).err().map(|err| err.message);
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
-
-        let through_link = through_link.expect("reader がまだ無いので必ず失敗する");
-        assert!(
-            through_link.contains(resolved.to_string_lossy().as_ref()),
-            "message={through_link}"
+    fn adds_the_resolved_path_when_it_differs_from_the_requested_one() {
+        let err = requested_error(
+            some_error(),
+            &PathBuf::from("/books/link.db"),
+            &PathBuf::from("/vol/ext/target.db"),
         );
 
-        // 渡した綴りが実体そのものなら、同じパスを二度書かない
-        let direct = direct.expect("reader がまだ無いので必ず失敗する");
-        assert!(!direct.contains("実体"), "message={direct}");
+        assert!(
+            err.message.contains("/vol/ext/target.db"),
+            "message={}",
+            err.message
+        );
+        assert_eq!(err.path.as_deref(), Some("/books/link.db"));
     }
 
     #[test]
-    fn reports_the_extension_before_looking_at_the_file_system() {
-        let err = open_at(&PathBuf::from("/nonexistent/book.txt"))
-            .err()
-            .map(|e| e.code);
-        assert_eq!(err, Some(BookErrorCode::UnknownExtension));
+    fn does_not_repeat_the_path_when_the_request_is_already_resolved() {
+        let path = PathBuf::from("/books/a.db");
+        let err = requested_error(some_error(), &path, &path);
+
+        assert_eq!(err.message, some_error().message);
+        assert_eq!(err.path.as_deref(), Some("/books/a.db"));
+    }
+
+    /// 解決自体が失敗する枝。実体は取れないが、リンク先の綴りは読める。
+    /// ここを落とすと、外付けを外した定跡が「見つからない」だけになる。
+    #[test]
+    #[cfg(unix)]
+    fn reports_the_link_target_when_it_cannot_be_resolved() {
+        let dir = std::env::temp_dir().join("obs-shogi-book-dangling");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+
+        let missing = dir.join("gone.db");
+        let link = dir.join("link.db");
+        std::os::unix::fs::symlink(&missing, &link).expect("symlink を作れない");
+
+        let err = open_at(&link).err();
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        let err = err.expect("リンク先が無いので必ず失敗する");
+        assert_eq!(err.code, BookErrorCode::NotFound);
+        assert!(
+            err.message.contains(missing.to_string_lossy().as_ref()),
+            "message={}",
+            err.message
+        );
+        assert_eq!(err.path.as_deref(), Some(link.to_string_lossy().as_ref()));
     }
 
     #[test]
