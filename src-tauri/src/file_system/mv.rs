@@ -1,15 +1,24 @@
 use std::fs;
 use std::path::PathBuf;
-use tauri::command;
+use tauri::{command, AppHandle, Runtime};
 
 use crate::file_system::error::{FsError, FsErrorCode};
-use crate::file_system::utils::{ensure_not_exists, validate_basename};
+use crate::file_system::utils::{ensure_not_exists, validate_basename, validate_under_root};
 
 use super::utils::is_kifu_file;
 
+// 移動と改名は**移動先が呼び出し側から来る唯一のコマンド群**なので、
+// root 配下かの関門は src と dest の両方に要る。dest だけだと root 外から
+// 引き込め、src だけだと root 外へ出せる
+
 #[command]
-pub fn rename_kifu_file(file_path: String, new_file_name: String) -> Result<String, FsError> {
+pub fn rename_kifu_file<R: Runtime>(
+    app: AppHandle<R>,
+    file_path: String,
+    new_file_name: String,
+) -> Result<String, FsError> {
     let src = PathBuf::from(&file_path);
+    validate_under_root(&app, &src)?;
 
     if !src.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
@@ -41,6 +50,7 @@ pub fn rename_kifu_file(file_path: String, new_file_name: String) -> Result<Stri
         );
     }
 
+    validate_under_root(&app, &dest)?;
     ensure_not_exists(&dest)?;
 
     fs::rename(&src, &dest).map_err(FsError::from)?;
@@ -48,12 +58,14 @@ pub fn rename_kifu_file(file_path: String, new_file_name: String) -> Result<Stri
 }
 
 #[command]
-pub fn mv_kifu_file(
+pub fn mv_kifu_file<R: Runtime>(
+    app: AppHandle<R>,
     file_path: String,
     dest_dir: String,
     new_file_name: Option<String>,
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&file_path);
+    validate_under_root(&app, &src)?;
 
     if !src.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
@@ -97,14 +109,20 @@ pub fn mv_kifu_file(
         );
     }
 
+    validate_under_root(&app, &dest)?;
     ensure_not_exists(&dest)?;
     fs::rename(&src, &dest).map_err(FsError::from)?;
     Ok(dest.to_string_lossy().to_string())
 }
 
 #[command]
-pub fn rename_directory(dir_path: String, new_dir_name: String) -> Result<String, FsError> {
+pub fn rename_directory<R: Runtime>(
+    app: AppHandle<R>,
+    dir_path: String,
+    new_dir_name: String,
+) -> Result<String, FsError> {
     let src = PathBuf::from(&dir_path);
+    validate_under_root(&app, &src)?;
 
     if !src.exists() {
         return Err(
@@ -126,6 +144,7 @@ pub fn rename_directory(dir_path: String, new_dir_name: String) -> Result<String
     })?;
     let dest = parent.join(&new_dir_name);
 
+    validate_under_root(&app, &dest)?;
     ensure_not_exists(&dest)?;
 
     fs::rename(&src, &dest).map_err(FsError::from)?;
@@ -133,12 +152,14 @@ pub fn rename_directory(dir_path: String, new_dir_name: String) -> Result<String
 }
 
 #[command]
-pub fn mv_directory(
+pub fn mv_directory<R: Runtime>(
+    app: AppHandle<R>,
     dir_path: String,
     dest_parent_dir: String,
     new_dir_name: Option<String>,
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&dir_path);
+    validate_under_root(&app, &src)?;
 
     if !src.exists() {
         return Err(
@@ -172,6 +193,7 @@ pub fn mv_directory(
 
     let dest = dest_parent.join(&name);
 
+    validate_under_root(&app, &dest)?;
     ensure_not_exists(&dest)?;
 
     fs::rename(&src, &dest).map_err(FsError::from)?;
