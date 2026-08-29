@@ -54,13 +54,5 @@ export function getConflictCopy(conflict: FileConflictState): ConflictCopy {
         renameLabel: "別名で移動",
         canRename: true,
       };
-
-    default:
-      return {
-        title: "同名の項目が既に存在します",
-        description: "続ける前に名前を見直してください。",
-        cancelLabel: "閉じる",
-        canRename: false,
-      };
   }
 }
