@@ -140,6 +140,17 @@ pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Res
     Ok(())
 }
 
+/// `target` が設定上の root そのものか。
+///
+/// root 自身の改名だけは行き先が root の**兄弟**になるので、
+/// `validate_under_root` では必ず落ちる。呼び出し側はこれで分岐する
+pub fn is_project_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<bool, FsError> {
+    let Some(root) = load_root_dir(app)? else {
+        return Ok(false);
+    };
+    Ok(canonicalize_for_guard(&root)? == canonicalize_for_guard(target)?)
+}
+
 /// テンポラリファイル経由の atomic write
 /// 既存ファイルの上書きが途中で壊れないように、tmp に書いてから rename する
 pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {

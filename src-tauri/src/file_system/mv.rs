@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use tauri::{command, AppHandle, Runtime};
 
 use crate::file_system::error::{FsError, FsErrorCode};
-use crate::file_system::utils::{ensure_not_exists, validate_basename, validate_under_root};
+use crate::file_system::utils::{
+    ensure_not_exists, is_project_root, validate_basename, validate_under_root,
+};
 
 use super::utils::is_kifu_file;
 
@@ -148,7 +150,12 @@ pub fn rename_directory<R: Runtime>(
     })?;
     let dest = parent.join(&new_dir_name);
 
-    validate_under_root(&app, &dest)?;
+    // ワークスペースそのものの改名だけは、行き先が root の**兄弟**になるので
+    // 関門に必ず落ちる。外して通す。`validate_basename` が区切り文字を弾いており、
+    // 行き先は `parent.join(name)` なので、root の親の直下から出ることはない
+    if !is_project_root(&app, &src)? {
+        validate_under_root(&app, &dest)?;
+    }
     ensure_not_exists(&dest)?;
 
     fs::rename(&src, &dest).map_err(FsError::from)?;
