@@ -5,7 +5,7 @@ use std::path::Path;
 /// 開いている定跡を指す識別子。一度配ったものは close 後も配り直さない。
 pub type BookHandle = u64;
 
-/// 定跡ファイルの形式。判別は拡張子で行う（[`BookFormat::from_path`]）。
+/// 定跡ファイルの形式。判別は拡張子で行う。
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum BookFormat {
