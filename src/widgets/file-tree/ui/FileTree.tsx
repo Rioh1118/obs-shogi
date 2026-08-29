@@ -203,7 +203,7 @@ function FileTree() {
       </DndContext>
 
       {shownError && hasTree && (
-        <Modal theme="dark" size="sm" onClose={clearError}>
+        <Modal theme="dark" size="sm" padding="none" scroll="content" onClose={clearError}>
           <FileTreeErrorNotice
             error={shownError}
             onRetry={handleRetry}

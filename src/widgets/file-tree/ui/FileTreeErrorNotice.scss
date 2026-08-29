@@ -59,7 +59,10 @@
     }
   }
 
+  // Rust から返る一行が長くなっても、カードを画面外まで伸ばさない
   &__raw {
+    max-height: 16rem;
+    overflow-y: auto;
     margin: 0;
     padding: 0 index.$space-3 index.$space-3;
     font-family: index.$font-mono;
