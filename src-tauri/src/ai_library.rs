@@ -262,6 +262,30 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
     out
 }
 
+/// AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。
+///
+/// **`create_directory` は使えない。** あちらはワークスペース配下かの関門を通るが、
+/// `ai_root` は利用者が別に選ぶ場所で、ワークスペースの外にある。
+/// 関門つきのコマンドで作ろうとすると、ワークスペースを設定済みの利用者は
+/// 必ず `invalid_path`（「その場所は扱えません」）で弾かれる
+#[command]
+pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, String> {
+    validate_dir("ai_root", &ai_root)?;
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("name must not be empty".to_string());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains('\0') {
+        return Err(format!("name must be a single path segment: {trimmed}"));
+    }
+
+    let profile = PathBuf::from(&ai_root).join(trimmed);
+    for sub in ["eval", "book"] {
+        fs::create_dir_all(profile.join(sub)).map_err(|e| e.to_string())?;
+    }
+    Ok(profile.to_string_lossy().to_string())
+}
+
 #[command]
 pub fn ensure_engines_dir(ai_root: String) -> Result<String, String> {
     validate_dir("ai_root", &ai_root)?;

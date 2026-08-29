@@ -45,3 +45,13 @@ export async function scanAiRoot(aiRoot: string): Promise<AiRootIndex> {
 export async function ensureEnginesDir(aiRoot: string): Promise<string> {
   return await invoke("ensure_engines_dir", { aiRoot });
 }
+
+/**
+ * AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。
+ *
+ * **`entities/file-tree` の `createDir` は使えない。** あちらはワークスペース配下かの
+ * 関門を通るコマンドを呼ぶので、別に選ぶ `ai_root` の下では必ず弾かれる
+ */
+export async function createAiProfileDirs(aiRoot: string, name: string): Promise<string> {
+  return await invoke("create_ai_profile_dirs", { aiRoot, name });
+}

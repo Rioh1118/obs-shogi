@@ -8,7 +8,7 @@ pub mod search;
 pub mod study_positions;
 
 pub use crate::engine::bridge::AppState;
-pub use ai_library::{ensure_engines_dir, scan_ai_root};
+pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
 pub use config_dir::{load_config, save_config};
 pub use engine::bridge::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
@@ -65,6 +65,7 @@ pub fn run() {
             write_kifu_to_file,
             mv_directory,
             ensure_engines_dir,
+            create_ai_profile_dirs,
             scan_ai_root,
             mv_kifu_file,
             rename_directory,

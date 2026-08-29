@@ -9,14 +9,13 @@ import { chooseAiRoot, useAppConfig } from "@/entities/app-config";
 
 import {
   scanAiRoot,
+  createAiProfileDirs,
   ensureEnginesDir,
   type AiRootIndex,
   type FsKind,
   type ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
 
-import { createDir } from "@/entities/file-tree";
-import { describeFsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { copyText } from "@/shared/api/clipboard/copyText";
 import SetupGuide, { type SetupGuideProfile } from "../ai-library-tab/SetupGuide";
@@ -163,17 +162,9 @@ export default function AiLibraryTab() {
       if (!root || !name) return;
       setScan({ status: "loading" });
       try {
-        // createDir は AsyncResult を返すので投げない。捨てると、フォルダが
-        // 作られていないのに「eval が未検出です」という警告だけが出て、
-        // 利用者は「まだ置いていないだけ」と読む
-        const profileRes = await createDir(root, name);
-        if (!profileRes.success) throw new Error(describeFsError(profileRes.error.code));
-        const profilePath = profileRes.data;
-
-        for (const sub of ["eval", "book"] as const) {
-          const res = await createDir(profilePath, sub);
-          if (!res.success) throw new Error(`${sub}: ${describeFsError(res.error.code)}`);
-        }
+        // ワークスペース配下かの関門を通るコマンド（`create_directory`）では作れない。
+        // `ai_root` は別に選ぶ場所なので、ワークスペースを設定済みだと必ず弾かれる
+        await createAiProfileDirs(root, name);
 
         await scanNow(root);
       } catch (e) {

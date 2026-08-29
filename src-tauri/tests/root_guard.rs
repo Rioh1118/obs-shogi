@@ -52,12 +52,16 @@ const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "s
 /// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
-const EXEMPT: [(&str, &str); 5] = [
+const EXEMPT: [(&str, &str); 6] = [
     (
         "scan_ai_root",
         "ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",
     ),
     ("ensure_engines_dir", "同上。ai_root の下に engines/ を作る"),
+    (
+        "create_ai_profile_dirs",
+        "(1) 同上。ai_root の下にプロファイルを作る",
+    ),
     (
         "initialize_engine",
         "engine_path は思考エンジンの実行ファイル。ワークスペースの外にある",
