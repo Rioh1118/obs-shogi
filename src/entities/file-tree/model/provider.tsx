@@ -642,6 +642,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         revealNodeByAbsPath,
         selectNodeByAbsPath,
         resolveConflictByRename,
+        pushError,
         clearError,
         clearKifuError,
         closeConflict,

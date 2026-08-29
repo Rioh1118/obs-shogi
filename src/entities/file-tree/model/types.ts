@@ -192,6 +192,8 @@ export type FileTreeContextType = FileTreeState & {
   startCreateDirectory: (parentPath: string) => void;
   cancelCreateDirectory: () => void;
 
+  /** 表示側で見つけた失敗を、Rust から返る失敗と同じ経路に載せる */
+  pushError: (error: FsError) => void;
   clearError: () => void;
   clearKifuError: () => void;
   closeConflict: () => void;

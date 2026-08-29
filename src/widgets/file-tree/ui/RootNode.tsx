@@ -10,13 +10,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-
-function validateBasename(name: string): string {
-  const next = name.trim();
-  if (!next) throw new Error("空の名前にはできません");
-  if (/[/\\]/.test(next)) throw new Error("名前に / や \\ は使えません");
-  return next;
-}
+import { validateBasename } from "@/entities/file-tree/lib/validateBasename";
 
 function RootNode({
   node,
@@ -36,6 +30,7 @@ function RootNode({
     creatingDirParentPath,
     cancelCreateDirectory,
     createNewDirectory,
+    pushError,
   } = useFileTree();
 
   const isRenaming = renamingNodeId === node.id;
@@ -49,13 +44,12 @@ function RootNode({
   };
 
   const handleCommitRename = async (nextNameRaw: string) => {
-    let nextName: string;
-    try {
-      nextName = validateBasename(nextNameRaw);
-    } catch (e) {
-      console.error(e);
+    const validated = validateBasename(nextNameRaw);
+    if (!validated.success) {
+      pushError(validated.error);
       return;
     }
+    const nextName = validated.data;
 
     if (nextName === node.name) {
       cancelInlineRename();

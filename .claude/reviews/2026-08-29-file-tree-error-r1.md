@@ -132,6 +132,12 @@ try {
   利用者には「Enter が効かない」としか見えない。
 - 直し方: `makeFsError("invalid_name", <検証関数のメッセージ>, node.path)` に変換して `pushError` 相当へ流す。
   provider に公開 API が無いなら `clearError` の並びに `reportError(error: FsError)` を足す。
+- **結果: 対応済み。** provider の `pushError` をそのまま公開した（別名を足すと
+  同じものに2つの名前がつく）。あわせて `validateBasename` を `RootNode` の中から
+  `entities/file-tree/lib/` へ出し、throw をやめて `Result<string, FsError>` を返す形にした。
+  widget の中に閉じていてテストが書けないこと自体が、この失敗が長く残った理由でもある。
+  変異3種（区切り文字を通す / 空を通す / 失敗の理由を1つに潰す）でそれぞれ落ちることを確認。
+  **`src/widgets/file-tree/` から `console.error` は0件になった。**
 
 ### [HIGH] H-5 同じ失敗に対して表示が二重に出る（作成モーダル内と、その上のモーダル）
 
