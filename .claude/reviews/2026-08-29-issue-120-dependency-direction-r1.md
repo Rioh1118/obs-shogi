@@ -32,6 +32,15 @@ import PieceFactory from "../../../widgets/game-board/ui/PieceFactory";
      `PieceFactory` の依存は `@/entities/position/model/shogi` の `PIECE_TYPES` / `convertJkfPiece` だけ。
   2. lint に「`../../` 以上遡る相対 import の全面禁止」を1本入れ、全経路を `@/` に矯正する。
      これを入れないとレイヤ規則が漏れる。
+- 結果: 対応済み（`996aa5e` lint 規則 / `9e01e86` PieceFactory の移動）。
+  - lint は `no-restricted-imports` をレイヤごとの override で表現し、`../../**` の禁止を併記した。
+    `import/no-cycle` も有効化（`lint.plugins` に `"import"` を追加）。**現時点では `warn`。** 手順7で `error` に上げる。
+  - 実測した上向き参照は **報告書の「8件」ではなく7件**（`@/` 経由6 + 相対1）。
+    内訳: `@/app/providers/bridges/position-sync` 5件（HIGH-2）、
+    `@/features/position-navigation/model/types` 1件（MEDIUM-9）、`PieceFactory` 相対1件（本件）。
+    lint はこの7件すべてを検出する。相対 import 全体は報告書通り20件。
+  - `PieceFactory` / `pieces/` / `Piece.scss` を `entities/position/ui/` へ移動。
+    `npm run verify` は SCSS の解決を検証しない（`tsc -b` + lint + test のみ）ため `npm run build` も通した。
 
 ### [HIGH-2] `position-sync` は1つのものではない。派生値と副作用の状態機械が同居している（architecture + react、独立に同一結論）
 
@@ -77,6 +86,25 @@ import PieceFactory from "../../../widgets/game-board/ui/PieceFactory";
 
 5箇所中3箇所が**同じコンポーネント内で既に `useGame()` を呼んでいる**ことが、(A) の配置が正しいことの実証。
 
+- 結果: (A) は MEDIUM-7 と合わせて対応済み（`93d6c6b`）。(B) も対応済み（`f753831`）。
+  - (B): `src/features/engine-position-sync/` を新設し `useEnginePositionSync()` にした。
+    `app/providers/bridges/position-sync/` は削除、`RuntimeProviders` から provider を1段外した。
+    戻り値の型は `entities/analysis` の `PositionSyncAdapter` をそのまま使う（面が一致している）。
+    `isPositionSynced` / `syncError` は読み手が0なのでこの面から落とした。
+    **失敗時の挙動は変えていない**（黙って送信ループを止める）。伝播は HIGH-4 で扱う。
+  - `GameView.currentSfen` を新設。`|| 1` を含め導出は既存のまま。
+    ただし失敗時の `console.error` は落とした。`view` の useMemo にある他6つの catch は
+    すべて沈黙しており、ここだけ出力すると不揃いになるため。
+  - `view` の useMemo を `positionView`（`state.jkf` / `state.cursor` / `state.branchPlan`）と
+    `legalMoves`（`positionView.player` / `state.selectedPosition`）に分割した。これが MEDIUM-7 の実体。
+  - `helpers` も `useMemo` で包んだ。**これを包まないと `contextValue` の memo は効かない**
+    （毎レンダで新しいオブジェクトになる唯一のメンバーだった）。所見には書かれていないが必須。
+  - `entities/search` の `searchCurrentPositionBestEffort` を削除。呼び出し元の
+    `PositionSearchModal` は `queryKey = params.sfen ?? currentSfen` を既に持っており、
+    分岐そのものが不要だった（`if (!queryKey) return;` があるため `No current SFEN` の throw は到達不能だった）。
+  - `position-sync` の `getCurrentSfen` は削除し `gameView.currentSfen` を読む形にした。
+  - 実測: 上向き参照は7件 → **1件**（残りは MEDIUM-9 の `BranchOption`）。`npm run build` も通した。
+
 ### [HIGH-3] 送信ループが古いクロージャで state を書き戻し、エンジン切替時のリセットを打ち消す（react）
 
 - 場所: `src/app/providers/bridges/position-sync/provider.tsx:76-78`, `:81-109`, `:114-122`
@@ -104,6 +132,13 @@ setSyncedEngineKey(engineKey); // ← 最初のクロージャがキャプチャ
 - 直し方: `syncPosition` に世代カウンタを持たせ、`await` 直後に `if (gen !== genRef.current) return;` を入れてから setState する。
   `:114-122` のエンジン変更 effect で `genRef.current++` して in-flight を無効化。
   `:90` は `latestEngineKeyRef.current` を読む。
+- 結果: 対応済み（`a392b0e`、HIGH-5 と同一コミット）。所見の通りに直した。
+  - **再現には条件がある。** 切替後の再送が完了する経路では、リセット→再キュー→再送で
+    自己修復してしまい観測できない。切替後の送信を保留にしたまま古い送信を完了させると、
+    古いクロージャの書き戻しが通って `syncedSfen` が `null` ではなく `'SFEN-1'` になる。
+    テストはこの条件を作って修正前に落ちることを確認してある。
+  - HIGH-5 の ref 退避を入れると、`engineKey` が古いクロージャに焼き付いたままになるため
+    **世代ガード無しでは HIGH-3 が確実に顕在化する。** 2件は分けて直せない。
 
 ### [HIGH-4] 同期失敗が完全に沈黙し、盤面と一致しない候補手が表示される（react）
 
@@ -124,6 +159,12 @@ const sessionId = await startInfiniteAnalysisCore();
   **エンジンには1手前の局面が入ったまま解析が始まり、盤面と一致しない候補手が表示される。エラーは一切出ない。**
 - 直し方: `waitUntil` の戻り値を検査し false なら throw して `AnalysisPaneHeader.tsx:82` の catch で表示する。
   `syncError` は表示するか、削って `syncPosition` の reject で伝える。読まれない state を Context に残さない。
+- 結果: 対応済み（`0f12911`）。`syncError` は削り `syncPosition` の reject で伝える方を採った。
+  `startInfiniteAnalysis` は `waitUntil` の戻り値を検査し、送れていなければ解析を始めない。
+  - **利用者への表示は入れていない。** `AnalysisPaneHeader.tsx:82` の catch は現状 `console.error`
+    だけで、解析のエラーを画面に出す口がどこにも無い（`AnalysisState.error` も読み手が0）。
+    表示を足すとエラー表示の共通化という未決の設計判断を先取りすることになるため、
+    この所見の範囲では「不整合な局面で解析が始まらない」ことまでを実体とした。**表示は残課題。**
 
 ### [HIGH-5] 自動同期 effect が自分の書いた state に依存しており自己再トリガ構造（react）
 
@@ -135,6 +176,14 @@ const sessionId = await startInfiniteAnalysisCore();
   **即座に無限レンダループになる。**
 - 直し方: `syncedSfen` / `syncedEngineKey` を `useRef` に退避し `syncPosition` の依存を落とす。
   effect の依存は `[engineKey, gameState.cursor]` だけにし、`syncPositionRef.current()` で呼ぶ。
+- 結果: 対応済み（`a392b0e`、HIGH-3 と同一コミット）。
+  - 実測: 修正前は1手ごとに `syncPosition` の identity が**2つ**生まれ、自動同期 effect が
+    **2回**走っていた。修正後は1つ・1回。
+  - `syncPositionRef` は要らなかった。`syncedSfen` / `syncedEngineKey` を ref に退避した時点で
+    `syncPosition` の依存は `[currentSfen, isReady, applySynced]` になり identity が安定するので、
+    effect は `syncPosition` を直接依存に持ったままでよい。間接の1段を足さない方が読める。
+  - なお **HIGH-2(B) で `syncError` を削ったため、所見が挙げていた「オブジェクトに変えると
+    無限ループ」の引き金そのものは既に無い。** それでも構造は直す価値がある（effect が二周する事実は残るため）。
 
 ### [HIGH-6] file-tree の循環は TreeNode ⇄ DirectoryNode の1本（architecture）
 
@@ -149,6 +198,14 @@ const sessionId = await startInfiniteAnalysisCore();
   `renderChild?: (child: FileTreeNode, level: number) => ReactNode` を prop で受け、
   `node.children.map((c) => renderChild(c, level + 1))` に置き換える。
   `externalHoverDir` は `renderChild` のクロージャで渡す（現状 `DirectoryNode` は子に伝播していないので挙動不変）。
+- 結果: 対応済み（`87c23c7`）。`import/no-cycle` の診断が消えたことで確認した。
+  - `renderChild` は**必須 prop** にした。省略可能にすると渡し忘れが「子が描画されない」という
+    沈黙した失敗になるため。呼び出し元は `TreeNode` 1つだけなので必須にして支障は無い。
+  - `externalHoverDir` は**クロージャで渡さず据え置いた。** 実測すると `DirectoryNode` に
+    `externalHoverDir` を渡している呼び出し元は存在しない（`TreeNode` は渡していない。
+    受け取っているのは `RootNode` だけで、これは別コンポーネント）。
+    渡すと入れ子ディレクトリに外部ホバーの強調が新たに付き、**挙動が変わる。**
+    所見が要求する「挙動不変」に反するため見送った。この prop が実質デッドである件は別途。
 
 ### [MEDIUM-7] 駒を選択するだけで6消費者が再レンダする（react）
 
@@ -183,6 +240,10 @@ const sessionId = await startInfiniteAnalysisCore();
   「手数 N の分岐候補」で `entities/kifu/model/cursor` の `ForkPointer` と同じ語彙（`tesuu` + `forkIndex` +
   `IMoveMoveFormat`）で書かれた棋譜ツリーの構造であり、描画データ（`PreviewData`）とは別物。
   同ファイルの `NavigationState` / `selectedBranchIndex` は UI 状態なので features に残す。**型全体を移さない。**
+- 結果: 対応済み（`862c28a`）。下ろし先は `entities/kifu/model/branch.ts`
+  （`ForkPointer` を使う分岐関連の型が既にここに集まっているため）。
+  `NavigationState` / `PreviewCursorDraft` は features に残した。
+  **これで `src` 全体の上向き import が 0 件になった。**
 
 ### [MEDIUM-10] bridges と gates を分ける基準が無く、gate が何も gate していない（architecture）
 
@@ -282,6 +343,43 @@ const sessionId = await startInfiniteAnalysisCore();
 5. HIGH-3 / HIGH-4 / HIGH-5：世代ガード・失敗の伝播・自己再トリガの解消（テスト先行）
 6. MEDIUM-9 `BranchOption` を `entities/kifu` へ
 7. lint 有効化 + CI
+
+## ラウンド1の対応結果
+
+**このラウンドの対象7件はすべて片付いた。**
+
+| 手順 | 所見                 | 結果                     | コミット                      |
+| ---- | -------------------- | ------------------------ | ----------------------------- |
+| 1    | HIGH-1               | 対応済み                 | `996aa5e` `9e01e86` `157e97e` |
+| 2    | HIGH-6               | 対応済み                 | `87c23c7`                     |
+| 3    | HIGH-2(A) + MEDIUM-7 | 対応済み                 | `93d6c6b`                     |
+| 4    | HIGH-2(B)            | 対応済み                 | `f753831`                     |
+| 5    | HIGH-4               | 対応済み（表示は残課題） | `0f12911`                     |
+| 5    | HIGH-3 + HIGH-5      | 対応済み                 | `a392b0e`                     |
+| 6    | MEDIUM-9             | 対応済み                 | `862c28a`                     |
+| 7    | lint 有効化 + CI     | 対応済み                 | `d892e7f`                     |
+
+計測（`src` 全体）:
+
+| 項目                     | 前  | 後  |
+| ------------------------ | --- | --- |
+| 上向き import            | 7   | 0   |
+| 2階層以上遡る相対 import | 20  | 0   |
+| モジュールの循環         | 1   | 0   |
+| lint の warning          | -   | 0   |
+| テスト                   | 29  | 33  |
+
+- `no-restricted-imports`（レイヤ規則 + 深い相対禁止）と `import/no-cycle` を `error` に。
+  `correctness` も `warn` → `error` に上げた。いずれも新たに落ちるものは無かった。
+- CI の Quality ジョブが既に `npm run lint` を実行しているため、ワークフローの変更は不要だった。
+  matrix を触っていないので branch protection の必須チェック名も無傷。
+- **意図的な違反を差し込んで、上向き import と深い相対 import がそれぞれ exit=1 になることを確認済み。**
+
+**残課題**
+
+- HIGH-4 の**利用者への表示**。解析のエラーを画面に出す口が無い（`AnalysisState.error` は読み手0）。
+  エラー表示の共通化はデザインシステムの未決事項なので、そちらの決定に合わせる
+- `DirectoryNode` の `externalHoverDir` が実質デッド（どの呼び出し元も渡していない）
 
 **見送る（別 issue）**
 
