@@ -78,6 +78,16 @@ describe("swapBranchesInKifu", () => {
     expect(movedMain[0]).not.toBe(mainHead);
     expect(movedMain[1]).toBe(mainTail);
   });
+  test("候補数を超える添字は throw する", () => {
+    const kifu = kifuWithTwoForks();
+    expect(() =>
+      swapBranchesInKifu(
+        kifu,
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(8) },
+        null,
+      ),
+    ).toThrow();
+  });
 });
 
 describe("deleteBranchInKifu", () => {
@@ -248,18 +258,5 @@ describe("同じ手数の入れ子の変化", () => {
 
     expect(tags(kifu.moves)).toEqual(["root", "t1", "main2"]);
     expect(kifu.moves[2].forks?.map(tags)).toEqual([["g0"], ["f0"]]);
-  });
-});
-
-describe("swapBranchesInKifu の範囲外", () => {
-  test("候補数を超える添字は throw する", () => {
-    const kifu = kifuWithTwoForks();
-    expect(() =>
-      swapBranchesInKifu(
-        kifu,
-        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(8) },
-        null,
-      ),
-    ).toThrow();
   });
 });

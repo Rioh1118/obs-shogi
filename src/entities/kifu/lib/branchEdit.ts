@@ -170,11 +170,9 @@ function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
 
   const forkSegs = candidates.slice(1);
 
-  // forks は本譜側の先頭の手に集約
   if (forkSegs.length) main[0].forks = forkSegs;
   else delete main[0].forks;
 
-  // te以降のtailを置換
   h.line.splice(h.index, h.line.length - h.index, ...main);
 }
 
@@ -217,7 +215,6 @@ function patchForkPointersForDeleteNonReloc(
 ): ForkPointer[] {
   const chosen = getChosenBranchIndex(fps, te);
 
-  // chosen==target の場合は “退避” で処理するので、ここでは来ない想定
   if (target === MAIN_LINE) {
     // 本譜を削除: 変化1 が本譜に繰り上がる
     if (chosen === MAIN_LINE) return fps; // 本譜追従→新しい本譜へ
@@ -305,7 +302,6 @@ export function swapBranchesInKifu(
 
   if (!cursor) return { changed: true, nextCursor: null };
 
-  // cursor がこのstreamを辿っているなら te の pointer をpatch
   if (!sameStreamPrefix(cursor.forkPointers, q.forkPointers, q.te)) {
     return { changed: true, nextCursor: cursor };
   }
@@ -352,7 +348,6 @@ export function deleteBranchInKifu(
 
   if (!cursor) return { changed: true, nextCursor: null };
 
-  // cursor が別streamなら何もしない
   if (!sameStreamPrefix(cursor.forkPointers, q.forkPointers, q.te)) {
     return { changed: true, nextCursor: cursor };
   }

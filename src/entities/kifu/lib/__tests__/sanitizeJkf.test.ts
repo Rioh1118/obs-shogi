@@ -40,9 +40,6 @@ describe("sanitizeJkf", () => {
     const input = move("a");
     expect(movesOf([input])[0]).toBe(input);
   });
-});
-
-describe("sanitizeJkf は元の JKF を書き換えない", () => {
   test("元の JKF は書き換えない", () => {
     const jkf: JKFData = { header: {}, moves: [move("a", [[]])] };
     sanitizeJkf(jkf);
