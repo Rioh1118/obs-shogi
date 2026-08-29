@@ -5,8 +5,9 @@
 # 大きい。素通しになる綴りを表にして固定する。
 #
 # 表は2つ。
-#   gate_matches_commit — コミットを作る呼び出しを見落とさないこと
-#   gate_target_dir     — 宛先が自明でない綴りは空（deny）にすること
+#   gate_matches_commit  — コミットを作る呼び出しを見落とさないこと
+#   gate_target_dir      — 宛先が自明でない綴りは空（deny）にすること
+#   gate_kinds_for_path  — どのファイル種別でどの検証を選ぶか
 
 set -uo pipefail
 
@@ -67,6 +68,10 @@ expect_match CATCH 'git merge --no-ff feature'
 expect_match CATCH 'git rebase --continue'
 expect_match CATCH 'git rebase main'
 expect_match CATCH 'git am /tmp/x.patch'
+expect_match CATCH 'git pull'
+expect_match CATCH 'git pull --rebase origin main'
+
+# コミットは作らないが、語彙に当たるので拾う（誤発火の側）
 expect_match CATCH 'git merge --abort'
 
 # commit ではないもの
@@ -113,6 +118,8 @@ expect_dir "$here" 'git add -A && git commit -m x' "$here"
 # ゲートの説明を書いたコミットほど止まる形になる。
 expect_dir "$here" 'git commit -m "fix: git commit の検出を直す"' "$here"
 expect_dir "$here" "git commit -m 'docs: git rebase の話'" "$here"
+# 単一引用符の中では何も走らないので、$ を含んでいても潰してよい
+expect_dir "$here" "git commit -m 'fix: 値段は \$5 だが git commit の話'" "$here"
 [ -n "$other" ] && expect_dir "$other" 'git commit -m x' "$other"
 
 # 宛先が自明でない綴りは、素通しさせずに deny 側へ落とす。
@@ -138,12 +145,40 @@ expect_dir "" 'cd $(dirname /tmp/x) && git commit -m x' "$here"
 expect_dir "" 'git commit -m a && git commit -m b' "$here"
 # 引用の中で本当にコマンドが走る形は、潰さずに数える
 expect_dir "" 'git commit -m "$(cd /tmp && git commit -m x)"' "$here"
+# 語中のアポストロフィを引用の開始と読むと、そこから次の ' までが消えて
+# 間の cd と2つ目の呼び出しが見えなくなる
+expect_dir "" 'git commit -m "don'"'"'t" && cd /tmp && git commit -m "won'"'"'t"' "$here"
 expect_dir "" "GIT_DIR=$target/.git GIT_WORK_TREE=$target git commit -m x" "$here"
 expect_dir "" "GIT_INDEX_FILE=/tmp/i git commit -m x" "$here"
 expect_dir "" 'nohup git commit -m x' "$here"
 expect_dir "" 'ssh host git commit -m x' "$here"
 expect_dir "" 'npm run build && git commit -m x' "$here"
 expect_dir "" 'git commit -m x' /nonexistent/not-a-repo
+
+
+expect_kinds() {
+  local want=$1 path=$2
+  local got
+  got=$(gate_kinds_for_path "$path")
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（無し）}" "${got:-（無し）}" "$path"
+    failures=$((failures + 1))
+  fi
+}
+
+# どのファイル種別でどの検証を選ぶか。
+expect_kinds "ts" "src/app/App.tsx"
+expect_kinds "ts" "src/shared/ui/Button.ts"
+expect_kinds "ts" "src/index.scss"
+expect_kinds "ts" "package.json"
+expect_kinds "rust" "src-tauri/src/book/api.rs"
+expect_kinds "rust" "src-tauri/Cargo.toml"
+expect_kinds "gate" ".claude/hooks/verify-gate.sh"
+expect_kinds "" "README.md"
+expect_kinds "" "docs/decisions/0002-drop-book-read-write.md"
+expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
+# 引用符付きのパスは -z で読むので、ここへは素のまま来る
+expect_kinds "ts" "src/dir with space/a.ts"
 
 if [ "$failures" -eq 0 ]; then
   echo "verify-gate: 全て期待どおり"

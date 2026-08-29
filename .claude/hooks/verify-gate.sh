@@ -18,20 +18,30 @@ set -uo pipefail
 # コマンド文字列を1行に畳む。
 #
 # 判定は grep（行単位）なので、`git \` + 改行 + `commit` のように行を跨ぐ綴りは
-# パターンが成立せず、ゲートごと素通しする。
+# 畳まないとパターンが成立せず、最後の網に落ちて deny になる。素通しはしないが、
+# 複数行で打っただけのコミットが止まる。
 gate_flatten() {
   printf '%s' "$1" | sed -E 's/\\$//' | tr '\n' ' '
 }
 
 # 引用の中身を空にする。
 #
-# コミットメッセージに `git commit` と書いただけで「呼び出しが2つある」と数えると、
-# ゲートの説明を書いたコミットほど止まる。ただし `$(` とバッククォートを含む引用は
-# 中で本当にコマンドが走るので潰さない。
+# コミットメッセージにゲートの説明を書いただけで「呼び出しが2つある」と数えると、
+# ゲートの話を書いたコミットほど止まる。
+#
+# 潰すのは、引用符がトークンの先頭に来ていて、中に空白を含むものだけ。
+#   - トークンの先頭に限るのは、"don't" のような語中のアポストロフィを引用の
+#     開始と読むと、そこから次の ' までが丸ごと消えて、間にある cd や2つ目の
+#     呼び出しまで見えなくなるため
+#   - 空白を含むものに限るのは、'git' のように語ひとつを引用しただけの綴りが
+#     呼び出しの一部だから
+#
+# 二重引用符の中は変数展開もコマンド置換も走るので、$ と backtick を含むものは
+# 潰さない。単一引用符の中では何も走らないので、その条件は掛けない。
 gate_strip_quotes() {
-  # 空白を含む引用だけを潰す。'''git''' のように語ひとつを引用しただけの綴りは
-  # 呼び出しの一部なので残す。
-  gate_flatten "$1" | sed -E "s/'[^'\`\$]*[[:space:]][^'\`\$]*'/''/g; s/\"[^\"\`\$]*[[:space:]][^\"\`\$]*\"/\"\"/g"
+  gate_flatten "$1" \
+    | sed -E 's/(^|[[:space:]=])"[^"`$]*[[:space:]][^"`$]*"([[:space:];\&|)]|$)/\1""\2/g' \
+    | sed -E "s/(^|[[:space:]=])'[^']*[[:space:]][^']*'([[:space:];\&|)]|\$)/\1''\2/g"
 }
 
 # コミットを作る git 呼び出しに当たる部分を切り出す。無ければ空を返す。
@@ -46,9 +56,12 @@ GATE_OPT_VALUE="('[^']*'|\"[^\"]*\"|(\\\\.|[^[:space:]])+)"
 GATE_GIT_OPT="(--?(C|c|git-dir|work-tree|namespace|super-prefix)([[:space:]]+|=)$GATE_OPT_VALUE|-[^[:space:]]+)"
 GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 
-# コミットを作る git サブコマンド。commit だけを見ていると、cherry-pick や
-# rebase で出来たツリーが一度も検証されないままコミットになる。
-GATE_COMMIT_VERB='(commit|revert|cherry-pick|merge|rebase|am)'
+# コミットを作りうる git サブコマンド。
+#
+# これらを語彙に入れるのは、宛先の判定（`-C` 付き / 呼び出しが複数）へ載せるため。
+# **作られるツリーはコマンドの前には存在しないので、ここでは検証できない。**
+# PreToolUse は実行前に走る。実行後のツリーを見るのは別の口の仕事。
+GATE_COMMIT_VERB='(commit|revert|cherry-pick|merge|rebase|am|pull)'
 
 gate_commit_call() {
   gate_strip_quotes "$1" \
@@ -118,6 +131,29 @@ gate_target_dir() {
   git -C "$base" rev-parse --show-toplevel 2>/dev/null
 }
 
+# パスから、必要な検証の種類を空白区切りで返す。
+#
+# `.scss` を ts 側に入れるのは、`npm run test` が `src/` の全 `.scss` を走査して
+# 直値の件数を厳密一致で見ているため（ADR-0003 のラチェット）。`.scss` だけの
+# コミットはここが唯一の検査になる。
+#
+# `.claude/hooks/*.sh` は、このゲート自身を決めているので例外として拾う。
+gate_kinds_for_path() {
+  local path=$1 kinds=""
+
+  case "$path" in
+    *.ts|*.tsx|*.scss|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
+  esac
+  case "$path" in
+    *.rs|*Cargo.toml|*Cargo.lock) kinds="$kinds rust" ;;
+  esac
+  case "$path" in
+    .claude/hooks/*.sh) kinds="$kinds gate" ;;
+  esac
+
+  printf '%s' "${kinds# }"
+}
+
 # 読み込まれただけのときは判定関数を定義して終わる（テストから使う）。
 [ "${GATE_LIB_ONLY:-0}" = "1" ] && return 0
 
@@ -162,25 +198,39 @@ cd "$project_dir" || exit 0
 
 # ステージ済みと作業ツリーの両方を見る（`git commit -a` を取りこぼさないため）。
 #
-# リネーム行 "R  old -> new" は両側を見る。新しい方だけだと、`.rs` を別の拡張子へ
-# 改名するコミットが Rust の変更として数えられない。
+# `-z` で読むのは、空白や非 ASCII を含むパスが `--porcelain` では引用符付きで
+# 出るため。引用符が付いたままだと拡張子の判定が全て外れる。
+# `-z` ではリネームが "XY new\0old\0" の2レコードで来るので、古い方も読む。
+# 新しい方だけだと、`.rs` を別の拡張子へ改名するコミットが Rust の変更として
+# 数えられない。
 needs_ts=0
 needs_rust=0
 needs_gate=0
-while IFS= read -r line; do
-  paths=${line:3}
-  for path in "${paths%% -> *}" "${paths##* -> }"; do
-    case "$path" in
-      *.ts|*.tsx|tsconfig*.json|vite.config.ts|package.json|package-lock.json) needs_ts=1 ;;
-    esac
-    case "$path" in
-      *.rs|*Cargo.toml|*Cargo.lock) needs_rust=1 ;;
-    esac
-    case "$path" in
-      .claude/hooks/*.sh) needs_gate=1 ;;
-    esac
-  done
-done < <(git status --porcelain --untracked-files=no)
+while IFS= read -r -d '' record; do
+  status=${record:0:2}
+  paths=${record:3}
+
+  case "$status" in
+    R*|C*)
+      IFS= read -r -d '' original || original=""
+      [ -n "$original" ] && paths="$paths
+$original"
+      ;;
+  esac
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    for kind in $(gate_kinds_for_path "$path"); do
+      case "$kind" in
+        ts) needs_ts=1 ;;
+        rust) needs_rust=1 ;;
+        gate) needs_gate=1 ;;
+      esac
+    done
+  done <<EOF
+$paths
+EOF
+done < <(git status --porcelain -z --untracked-files=no)
 
 if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ] && [ "$needs_gate" -eq 0 ]; then
   exit 0
