@@ -94,8 +94,9 @@ export default function SfenKifuCreateModal() {
       e.preventDefault();
       if (!fileName.trim() || !sfenInitial || isLoading) return;
 
-      // 選べる保存先が無いときは Select の下に理由が出ている。ここで積み直さない
-      if (!selectedDir) return;
+      // `selectedDir` が空になるのはツリーが1本も無いときだけで、
+      // そのとき送信ボタンは押せない。理由は Select の下に出している
+      if (dirOptions.length === 0) return;
 
       setSaveError(null);
       setIsLoading(true);
@@ -126,6 +127,7 @@ export default function SfenKifuCreateModal() {
       blackPlayer,
       whitePlayer,
       selectedDir,
+      dirOptions.length,
       sfenInitial,
       isLoading,
       createNewFile,
