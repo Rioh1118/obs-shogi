@@ -281,8 +281,14 @@ fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, Stri
             chars.next();
         }
 
-        // 1トークンの桁だけをここで見る。駒種ごとの上限は、盤上と合わせて
-        // 数え終わってから PieceCounts::validate が見る。
+        // 1トークンの枚数がこの範囲を超えることは無い（最も多い歩で18枚）。
+        // 駒種ごとの上限は、盤上と合わせて数え終わってから
+        // PieceCounts::validate が見る。
+        //
+        // ここで打ち切らないと add_many のループが入力の値ぶん回る。
+        // to_book_key は async ランタイム上で同期に呼ばれるので、
+        // "4294967295P" の1回でワーカが埋まる。桁あふれも u32::MAX に倒して
+        // 同じ検査へ落とす。
         let count = if digits.is_empty() {
             1
         } else {
@@ -477,7 +483,18 @@ mod tests {
     #[test]
     fn rejects_more_pieces_than_the_set_holds() {
         // 1トークンでは上限内でも、合算すると超える
-        for hands in ["18P1P", "9P9P1P", "3R", "3r", "2R1r", "5G"] {
+        // 巨大な枚数は、数え上げるより先に打ち切ること。数え始めると
+        // 入力の値ぶんループが回る
+        for hands in [
+            "18P1P",
+            "9P9P1P",
+            "3R",
+            "3r",
+            "2R1r",
+            "5G",
+            "4294967295P",
+            "99999999999P",
+        ] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
         }
