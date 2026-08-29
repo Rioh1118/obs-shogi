@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { isTopOverlay, popOverlay, pushOverlay } from "@/shared/lib/overlayStack";
 import "./Modal.scss";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -6,22 +7,6 @@ import { createPortal } from "react-dom";
 /** Tab で辿れる要素。`disabled` は辿れないので、busy のボタンはここに入らない */
 const FOCUSABLE =
   'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
-
-/**
- * 開いているカード。**閉じ込めも Escape も最上位の1枚だけが働く。**
- *
- * 1枚ごとに独立して「外へ出たら中へ戻す」をやると、2枚重なったときに
- * 互いのフォーカスを奪い合って `focus()` が同期でイベントを撒き続け、
- * マイクロタスクキューが空にならない（画面が固まる）。
- *
- * Escape も同じ理由で最上位に絞る。`document` のキャプチャ段は登録順に走るので、
- * 絞らないと**先に開いた下の1枚**が閉じる。
- */
-const openCards: HTMLElement[] = [];
-
-function isTopCard(card: HTMLElement): boolean {
-  return openCards[openCards.length - 1] === card;
-}
 
 type ModalTheme = "light" | "dark";
 type ModalVariant = "dialog" | "workspace";
@@ -94,7 +79,7 @@ function Modal({
     const card = cardRef.current;
     if (!card) return;
 
-    openCards.push(card);
+    pushOverlay(card);
 
     const focusables = () => [...card.querySelectorAll<HTMLElement>(FOCUSABLE)];
     const pullBack = () => (focusables()[0] ?? card).focus();
@@ -102,7 +87,7 @@ function Modal({
     pullBack();
 
     const onFocusOut = (event: FocusEvent) => {
-      if (!isTopCard(card)) return;
+      if (!isTopOverlay(card)) return;
 
       const next = event.relatedTarget as Node | null;
       if (next && card.contains(next)) return;
@@ -110,7 +95,7 @@ function Modal({
       // disabled で blur したときは relatedTarget が null になる。
       // 実際にどこへ移ったかが決まってから確かめる
       queueMicrotask(() => {
-        if (!card.isConnected || !isTopCard(card)) return;
+        if (!card.isConnected || !isTopOverlay(card)) return;
         if (card.contains(document.activeElement)) return;
         pullBack();
       });
@@ -118,7 +103,7 @@ function Modal({
 
     // 端での折り返し。ここを塞がないと、最初の要素から Shift+Tab で外へ出る
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !isTopCard(card)) return;
+      if (event.key !== "Tab" || !isTopOverlay(card)) return;
       const items = focusables();
       if (items.length === 0) {
         event.preventDefault();
@@ -140,8 +125,7 @@ function Modal({
       card.removeEventListener("focusout", onFocusOut);
       card.removeEventListener("keydown", onKeyDown);
 
-      const at = openCards.indexOf(card);
-      if (at >= 0) openCards.splice(at, 1);
+      popOverlay(card);
 
       restoreTo?.focus?.();
     };
@@ -154,7 +138,7 @@ function Modal({
       // 重なっているときに閉じるのは最上位の1枚だけ。絞らないと、
       // 登録順のせいで**先に開いた下の1枚**が閉じる
       const card = cardRef.current;
-      if (!card || !isTopCard(card)) return;
+      if (!card || !isTopOverlay(card)) return;
 
       const isComposing = e.isComposing;
       if (e.key === "Escape" && closeOnEsc && !isComposing) {

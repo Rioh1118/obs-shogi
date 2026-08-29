@@ -1,3 +1,4 @@
+import { isTopOverlay, popOverlay, pushOverlay } from "@/shared/lib/overlayStack";
 import { useEffect, useRef } from "react";
 import "./ContextMenu.scss";
 
@@ -29,8 +30,13 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
         onClose();
       }
     };
+    // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
+    // 同じイベントがここまで届いてメニューも一緒に閉じる
+    const token = {};
+    pushOverlay(token);
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && isTopOverlay(token)) {
         onClose();
       }
     };
@@ -47,6 +53,7 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
         capture: true,
       });
       window.removeEventListener("keydown", handleKeyDown);
+      popOverlay(token);
     };
   }, [onClose]);
 

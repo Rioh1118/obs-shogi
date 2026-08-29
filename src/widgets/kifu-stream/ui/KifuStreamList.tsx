@@ -1,3 +1,4 @@
+import { isTopOverlay, popOverlay, pushOverlay } from "@/shared/lib/overlayStack";
 import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
@@ -150,8 +151,13 @@ export default function KifuStreamList() {
       closeForkMenu(false);
     };
 
+    // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
+    // 同じイベントがここまで届いてメニューも一緒に閉じる
+    const token = {};
+    pushOverlay(token);
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && isTopOverlay(token)) {
         e.preventDefault();
         closeForkMenu(true);
       }
@@ -163,6 +169,7 @@ export default function KifuStreamList() {
     return () => {
       document.removeEventListener("pointerdown", onDocPointerDown);
       window.removeEventListener("keydown", onKey);
+      popOverlay(token);
     };
   }, [openFork, closeForkMenu]);
 
