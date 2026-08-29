@@ -50,6 +50,30 @@ pub fn get_book_info(
     Ok(state.get(input.handle)?.info.clone())
 }
 
+/// 開いている定跡を全て返す。
+///
+/// ハンドルはフロントの変数にしか無いので、webview が作り直されると閉じる術が
+/// 無くなり、定跡ぶんのメモリがプロセス終了まで残る。起動時にここを引いて、
+/// 自分が知らないハンドルを回収する。
+#[tauri::command]
+pub fn list_books(state: State<'_, BookState>) -> Vec<BookInfo> {
+    state.list()
+}
+
+/// 開いている定跡を全て閉じる。
+#[tauri::command]
+pub async fn close_all_books(state: State<'_, BookState>) -> Result<usize, BookError> {
+    let sessions = state.close_all();
+    let closed = sessions.len();
+    log::info!("[cmd] close_all_books closed={closed}");
+
+    tauri::async_runtime::spawn_blocking(move || drop(sessions))
+        .await
+        .map_err(join_error)?;
+
+    Ok(closed)
+}
+
 /// 閉じる。ハンドルは以後 InvalidHandle になる。
 ///
 /// 解放も blocking プールで行う。定跡の Drop は数百万個の `String` の解放になり、

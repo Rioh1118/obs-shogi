@@ -88,6 +88,30 @@ impl BookState {
             .ok_or_else(|| Self::invalid_handle(handle))
     }
 
+    /// 開いている定跡を、ハンドルの若い順に返す。
+    ///
+    /// ハンドルはフロントの変数にしか無いので、webview が作り直されると
+    /// close を呼べる者が居なくなる。ここから孤児を見つけて閉じられるようにする。
+    pub fn list(&self) -> Vec<BookInfo> {
+        let mut infos: Vec<BookInfo> = self
+            .books
+            .iter()
+            .map(|entry| entry.value().info.clone())
+            .collect();
+        infos.sort_by_key(|info| info.handle);
+        infos
+    }
+
+    /// 全部閉じて、外した定跡を返す。
+    #[must_use = "捨てた場所で reader の Drop が走る。どこで解放するかを選ぶこと"]
+    pub fn close_all(&self) -> Vec<Arc<BookSession>> {
+        let handles: Vec<BookHandle> = self.books.iter().map(|entry| *entry.key()).collect();
+        handles
+            .into_iter()
+            .filter_map(|handle| self.books.remove(&handle).map(|(_, session)| session))
+            .collect()
+    }
+
     /// 開いている定跡の数。
     pub fn len(&self) -> usize {
         self.books.len()
@@ -235,6 +259,45 @@ mod tests {
 
         assert!(state.is_empty());
         assert_eq!(alive.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn list_returns_every_open_book_in_handle_order() {
+        let state = BookState::new();
+        let alive = Arc::new(AtomicUsize::new(0));
+        let first = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
+        let second = state.register("/books/b.db".to_string(), FakeReader::boxed(&alive));
+
+        assert_eq!(state.list(), vec![first.clone(), second]);
+
+        drop(state.close(first.handle).unwrap());
+        assert_eq!(state.list().len(), 1);
+    }
+
+    /// ハンドルを失ったフロントが回収できる経路。全て Drop まで行くこと。
+    #[test]
+    fn close_all_drops_every_reader() {
+        let state = BookState::new();
+        let alive = Arc::new(AtomicUsize::new(0));
+        for i in 0..8 {
+            state.register(format!("/books/{i}.db"), FakeReader::boxed(&alive));
+        }
+
+        let closed = state.close_all();
+
+        assert_eq!(closed.len(), 8);
+        assert!(state.is_empty());
+        assert!(state.list().is_empty());
+        assert_eq!(alive.load(Ordering::SeqCst), 8, "返した間はまだ生きている");
+
+        drop(closed);
+        assert_eq!(alive.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn close_all_on_an_empty_state_is_not_an_error() {
+        let state = BookState::new();
+        assert!(state.close_all().is_empty());
     }
 
     /// `get` が返した `Arc` を持ったまま閉じても、参照が消えれば Drop まで行く。
