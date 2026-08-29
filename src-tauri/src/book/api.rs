@@ -35,7 +35,7 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
-        .map_err(join_error)?;
+        .map_err(join_error(input.path.clone()))?;
 
     let (canonical, reader) = opened?;
 
@@ -133,11 +133,12 @@ async fn lookup_inner(
     input: LookupBookMovesInput,
 ) -> Result<Vec<BookMove>, BookError> {
     let (book, key) = resolve_lookup(state, &input)?;
+    let path = book.info.path.clone();
 
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。
     tauri::async_runtime::spawn_blocking(move || book.reader.lookup(&key))
         .await
-        .map_err(join_error)?
+        .map_err(join_error(path))?
 }
 
 /// 引く先と引くキーを揃える。
@@ -230,11 +231,18 @@ fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError
     result
 }
 
-fn join_error(err: tauri::Error) -> BookError {
-    BookError::new(
-        BookErrorCode::Unknown,
-        format!("定跡の処理が異常終了した: {err}"),
-    )
+/// blocking プールへ投げた処理が panic などで落ちたときの受け皿。
+///
+/// どの定跡で起きたかを必ず添える。複数の定跡を開いていると、これが無いと
+/// 利用者はどれを閉じればよいか決められず、同じ局面を引くたびに同じ失敗が出る。
+fn join_error(path: impl Into<String>) -> impl FnOnce(tauri::Error) -> BookError {
+    move |err| {
+        BookError::new(
+            BookErrorCode::Unknown,
+            format!("定跡の処理が異常終了した。この定跡を閉じてから開き直すこと（{err}）"),
+        )
+        .with_path(path)
+    }
 }
 
 #[cfg(test)]
