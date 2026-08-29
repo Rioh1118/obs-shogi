@@ -2,12 +2,18 @@ use crate::book::error::{BookError, BookErrorCode};
 use crate::book::sfen::BookKey;
 use crate::book::types::BookFormat;
 use crate::book::types::BookMove;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// 形式ごとの定跡の読み手。
 ///
-/// 開いたあとに必要なのは「この局面の候補手」と「何局面あるか」だけなので、
-/// 形式差（テキスト / 固定長バイナリ / on-the-fly）はこの裏に閉じる。
+/// 開いたあとに必要なのは「この局面の候補手」だけなので、形式差
+/// （テキスト / 固定長バイナリ / on-the-fly）はこの裏に閉じる。
+///
+/// 収録局面数はここに置かない。開くときに1度決まる値で、開いたあとの
+/// 問い合わせではないから。実装ごとに「毎回数えるのか、開くときに数えるのか」を
+/// 判断させると、数え方の違いが trait の外から見えなくなる。
+/// 数えるのは [`open_reader`] の中（blocking プールの中）で、結果は
+/// [`OpenedBook::position_count`] に載せる。
 ///
 /// 実装が守ること:
 ///
@@ -21,36 +27,43 @@ use std::path::Path;
 ///   復帰導線を出せない
 /// - io の失敗は [`BookError::from_io`] でパスを添えて返す
 pub(crate) trait BookReader: Send + Sync {
-    /// 収録局面数。意味は [`crate::book::BookInfo::position_count`] と同じ。
-    fn position_count(&self) -> Option<u64>;
-
     /// 局面の候補手を、定跡に書かれている順で返す。
     ///
     /// 未収録の局面は空の `Vec` であって、エラーではない。
     fn lookup(&self, key: &BookKey) -> Result<Vec<BookMove>, BookError>;
 }
 
-/// 拡張子から形式を決めて reader を作る。
+/// 開いた定跡ひとつぶんの材料。
 ///
-/// `path` は canonicalize 済みのものを渡すこと。ここで解決を任せると、
-/// 呼び出し側が形式を検査した先と実際に開くファイルが別物になりうる。
+/// `format` と `position_count` を reader ではなくここに持つのは、どちらも
+/// [`open_reader`]（blocking プールの中）で確定させるため。`BookState::register` は
+/// async ランタイム上で走るので、そこで reader に問い合わせる形にすると、
+/// ヘッダを読んで答える実装が入った瞬間に IO が async ワーカで走る。
+pub(crate) struct OpenedBook {
+    pub(crate) path: PathBuf,
+    pub(crate) format: BookFormat,
+    pub(crate) position_count: Option<u64>,
+    pub(crate) reader: Box<dyn BookReader>,
+}
+
+/// 実体のファイルを開いて reader を作る。
 ///
-/// 検査の順序は、拡張子 → ファイルの実在。形式が分からないものは、たとえ
-/// 実在しても開きようが無いので先に弾く。存在しない `.txt` は `NotFound` ではなく
-/// `UnknownExtension` になる。
+/// `path` は canonicalize 済み、`format` は**その綴りから決めた形式**を渡すこと。
+/// ここで拡張子から決め直すと、呼び出し側が形式を検査した先と実際に開く
+/// ファイルが別物になりうる（symlink を張り替えられる隙が空く）。
 ///
 /// 返るもの:
 ///
-/// - `UnknownExtension` — 拡張子が `.db` / `.bin` / `.sbk` / `.ybb` のどれでもない
 /// - `NotFound` / `PermissionDenied` / `Io` — metadata が取れない
 /// - `InvalidType` — ディレクトリなどファイルでないもの
 /// - `UnsupportedFormat` — 形式は分かるが reader をまだ持っていない
 ///
+/// `NotFound` は、呼び出し側が解決を終えたあとに実体が消えた場合にだけ届く。
+/// 選ぶ時点で存在しないパスは、解決の側が先に弾く。
+///
 // TODO(#91): やねうら王テキスト定跡 (.db) の reader を足すまで、この関数は
 // 成功する経路を持たない。#[tauri::command] の open_book は必ず失敗する。
-pub(crate) fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError> {
-    let format = BookFormat::from_path(path)?;
-
+pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook, BookError> {
     // `Path::is_file` は metadata が取れない理由を全て false に潰す。権限が無い
     // ファイルまで「見つからない」と案内されると、利用者は Finder でそれを見ながら
     // 探し直すことになり、権限を与えるという正しい復帰操作に辿り着けない。
@@ -80,24 +93,16 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    /// `Box<dyn BookReader>` は Debug ではないので `unwrap_err` が使えない。
+    /// `OpenedBook` は Debug ではないので `unwrap_err` が使えない。
     fn open_err(path: &str) -> BookError {
-        let Err(err) = open_reader(&PathBuf::from(path)) else {
+        let Err(err) = open_reader(&PathBuf::from(path), BookFormat::YaneuraouDb) else {
             panic!("reader を持たない形式なのに open に成功した: {path}");
         };
         err
     }
 
-    /// 形式の判別はファイルの実在より先。存在しない `.txt` は NotFound ではなく
-    /// UnknownExtension になる。
-    #[test]
-    fn reports_the_extension_before_looking_at_the_file_system() {
-        assert_eq!(
-            open_err("/nonexistent/book.txt").code(),
-            BookErrorCode::UnknownExtension
-        );
-    }
-
+    /// 解決のあとに実体が消えた場合の経路。選ぶ時点で存在しないパスは、
+    /// 呼び出し側の解決が先に弾く。
     #[test]
     fn reports_a_missing_file() {
         let err = open_err("/nonexistent/book.db");
@@ -112,7 +117,7 @@ mod tests {
         let file = std::env::temp_dir().join("obs-shogi-book-unsupported.db");
         std::fs::write(&file, b"").expect("テスト用のファイルを作れない");
 
-        let result = open_reader(&file);
+        let result = open_reader(&file, BookFormat::YaneuraouDb);
         std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
 
         let Err(err) = result else {
@@ -139,7 +144,7 @@ mod tests {
         let dir = std::env::temp_dir().join("obs-shogi-book-open-reader-test.db");
         std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
 
-        let result = open_reader(&dir);
+        let result = open_reader(&dir, BookFormat::YaneuraouDb);
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         let Err(err) = result else {

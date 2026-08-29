@@ -1,6 +1,5 @@
-use crate::book::api::OpenedBook;
 use crate::book::error::{BookError, BookErrorCode};
-use crate::book::reader::BookReader;
+use crate::book::reader::{BookReader, OpenedBook};
 use crate::book::types::{BookHandle, BookInfo};
 use dashmap::DashMap;
 use std::fmt;
@@ -199,13 +198,10 @@ mod tests {
         }
     }
 
+    // 収録局面数は trait に無いので、`register` が reader に問い合わせる形へは
+    // 戻しようがない。以前はここで違う値を返してその退行を見張っていたが、
+    // 今はコンパイラが見る。
     impl BookReader for FakeReader {
-        fn position_count(&self) -> Option<u64> {
-            // opened() が渡す値と違えておく。register が reader に問い合わせる形へ
-            // 戻されたら、値の違いでテストが落ちる。
-            Some(99)
-        }
-
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())
         }

@@ -1,5 +1,5 @@
 use crate::book::error::{truncate_path, BookError, BookErrorCode};
-use crate::book::reader::{open_reader, BookReader};
+use crate::book::reader::{open_reader, OpenedBook};
 use crate::book::session::BookSession;
 use crate::book::session::BookState;
 use crate::book::sfen::to_book_key;
@@ -50,19 +50,6 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
     Ok(state.register(opened?))
 }
 
-/// 開いた定跡ひとつぶんの材料。
-///
-/// `format` と `position_count` を reader ではなくここに持つのは、どちらも
-/// [`open_at`]（blocking プールの中）で確定させるため。`BookState::register` は
-/// async ランタイム上で走るので、そこで reader に問い合わせる形にすると、
-/// ヘッダを読んで答える実装が入った瞬間に IO が async ワーカで走る。
-pub(crate) struct OpenedBook {
-    pub(crate) path: PathBuf,
-    pub(crate) format: BookFormat,
-    pub(crate) position_count: Option<u64>,
-    pub(crate) reader: Box<dyn BookReader>,
-}
-
 /// 定跡を開く。ファイルを読むので blocking プールから呼ぶこと。
 ///
 /// 返すエラーの `path` は常に呼び出し側が渡した綴り。解決後のパスを載せると、
@@ -71,17 +58,11 @@ pub(crate) struct OpenedBook {
 fn open_at(path: &Path) -> Result<OpenedBook, BookError> {
     let (canonical, format) = resolve_book_path(path)?;
 
-    // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
-    // symlink をもう一度たどるので、検査した先と実際に開くファイルが別物に
-    // なりうる（その隙に張り替えられると BookInfo.path() が旧い方を指す）。
-    let reader = open_reader(&canonical).map_err(|err| requested_error(err, path, &canonical))?;
-
-    Ok(OpenedBook {
-        format,
-        position_count: reader.position_count(),
-        path: canonical,
-        reader,
-    })
+    // reader は実体のパスから作る。形式は解決の側で決めたものをそのまま渡す。
+    // open_reader に決め直させると symlink をもう一度たどることになり、検査した
+    // 先と実際に開くファイルが別物になりうる（その隙に張り替えられると
+    // BookInfo.path() が旧い方を指す）。
+    open_reader(&canonical, format).map_err(|err| requested_error(err, path, &canonical))
 }
 
 /// 実体のパスと、そこを開いてよい形式を決める。
@@ -331,10 +312,6 @@ mod tests {
     struct FakeReader;
 
     impl BookReader for FakeReader {
-        fn position_count(&self) -> Option<u64> {
-            Some(0)
-        }
-
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())
         }
