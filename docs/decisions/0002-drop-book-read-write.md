@@ -3,7 +3,7 @@
 - 日付: 2026-08-29
 - 状態: 撤回（2026-08-29）。判断の軸を P-008「将棋AI開発者の需要を取り込む」に置き直したため。
   close した17件の issue は全て open に戻してある。**本文は当時のまま残す。**
-- 関連: `docs/PREMISES.md` P-006（反証）、`docs/OPEN-QUESTIONS.md` Q-003（この ADR で決着）、`research/findings/L3-book-solved.md`
+- 関連: `docs/PREMISES.md` P-006（反証）、`docs/OPEN-QUESTIONS.md` Q-003（この ADR で一度決着したが、撤回に伴い 🔴 に戻っている）、`research/findings/L3-book-solved.md`
 
 ## 文脈
 

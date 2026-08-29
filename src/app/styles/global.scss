@@ -1,5 +1,8 @@
 @use "@/index.scss" as index;
 
+// リセットと基準文字サイズの唯一の出力元。`@/index.scss` は変数だけを持つので、
+// このファイルが読まれないと root の 10px が全体に継承される
+
 *,
 *::after,
 *::before {

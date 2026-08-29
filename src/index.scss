@@ -87,5 +87,4 @@ $stroke-strong: rgba($color-white, 0.16);
 
 $focus-ring: rgba($color-secondary-dark, 0.85);
 
-// このファイルは変数だけを持つ。CSS を出力すると、@use している81ファイルすべてに複製される。
-// リセットと body の基準は src/app/styles/global.scss にあり、App.tsx が import する
+// このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
