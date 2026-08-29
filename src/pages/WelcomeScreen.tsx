@@ -11,7 +11,7 @@ function WelcomeScreen() {
           <div className="welcome-screen__icon">
             <FolderOpen size={48} />
           </div>
-          <h2 className="weelcome-screen__title">ファイルを選択してください</h2>
+          <h2 className="welcome-screen__title">ファイルを選択してください</h2>
           <p className="welcome-screen__description">
             左のファイルツリーから棋譜ファイルを選択すると、
             <br /> こちらに盤面が表示されます
