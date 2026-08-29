@@ -6,6 +6,7 @@ import Button from "@/shared/ui/Button/Button";
 import type { FileConflictDialogProps } from "../model/types";
 import { describeFsError, type FsError } from "@/entities/file-tree";
 import { getConflictCopy } from "../lib/getConflictCopy";
+import { getConflictSessionKey } from "../lib/getConflictSessionKey";
 import { getRequestedName } from "../lib/getRequestedName";
 import ConflictMeta from "./ConflictMeta";
 
@@ -24,10 +25,16 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   // 開いている間の失敗は誰も出さない（reducer が state.error に積まない）
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
-  useEffect(() => {
-    if (!conflict) return;
+  // 初期化は対話が開いたとき1回だけ。conflict オブジェクトの同一性で回すと、
+  // 別名でもう一度衝突したときに入力と失敗の理由がその場で消える
+  const sessionKey = conflict ? getConflictSessionKey(conflict) : null;
+  const requestedNameRef = useRef("");
+  requestedNameRef.current = conflict ? getRequestedName(conflict) : "";
 
-    const requestedName = getRequestedName(conflict);
+  useEffect(() => {
+    if (!sessionKey) return;
+
+    const requestedName = requestedNameRef.current;
     setDraftName(requestedName);
     setSubmitError(null);
 
@@ -37,7 +44,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       el.focus();
       el.setSelectionRange(0, getSelectionEnd(requestedName));
     });
-  }, [conflict]);
+  }, [sessionKey]);
 
   if (!conflict) return null;
 
