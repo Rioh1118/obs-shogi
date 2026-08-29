@@ -1,5 +1,7 @@
+// @vitest-environment happy-dom
+import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { isTopOverlay, popOverlay, pushOverlay } from "../overlayStack";
+import { useOverlayLayer } from "../overlayStack";
 
 /**
  * Escape とフォーカスの閉じ込めは最上位の1つだけが扱う。
@@ -7,44 +9,65 @@ import { isTopOverlay, popOverlay, pushOverlay } from "../overlayStack";
  * （`preventDefault()` は伝播を止めない）。
  */
 
-describe("overlayStack", () => {
-  it("最後に積んだものだけが最上位", () => {
-    const lower = {};
-    const upper = {};
+describe("useOverlayLayer", () => {
+  it("最後に開いたものだけが最上位", () => {
+    const lower = renderHook(() => useOverlayLayer(true));
+    expect(lower.result.current()).toBe(true);
 
-    pushOverlay(lower);
-    expect(isTopOverlay(lower)).toBe(true);
+    const upper = renderHook(() => useOverlayLayer(true));
+    expect(upper.result.current()).toBe(true);
+    expect(lower.result.current()).toBe(false);
 
-    pushOverlay(upper);
-    expect(isTopOverlay(upper)).toBe(true);
-    expect(isTopOverlay(lower)).toBe(false);
-
-    popOverlay(upper);
-    popOverlay(lower);
+    upper.unmount();
+    expect(lower.result.current()).toBe(true);
+    lower.unmount();
   });
 
-  it("途中のものを外しても、残りの順序は崩れない", () => {
-    const a = {};
-    const b = {};
-    const c = {};
-    [a, b, c].forEach(pushOverlay);
+  it("閉じている間は順序に載らない", () => {
+    const closed = renderHook(({ open }) => useOverlayLayer(open), {
+      initialProps: { open: false },
+    });
+    const opened = renderHook(() => useOverlayLayer(true));
 
-    popOverlay(b);
+    expect(closed.result.current()).toBe(false);
+    expect(opened.result.current()).toBe(true);
 
-    expect(isTopOverlay(c)).toBe(true);
-    popOverlay(c);
-    expect(isTopOverlay(a)).toBe(true);
-    popOverlay(a);
+    closed.rerender({ open: true });
+    expect(closed.result.current()).toBe(true);
+    expect(opened.result.current()).toBe(false);
+
+    closed.unmount();
+    opened.unmount();
   });
 
-  it("積んでいないものを外しても壊れない", () => {
-    const a = {};
-    pushOverlay(a);
+  // 親が再描画するたびに積み直すと、下にいたものが最上位へ登り直し、
+  // 上のモーダルから Escape と閉じ込めを奪う。`onClose={() => ...}` を
+  // 依存に入れるだけでそうなるので、hook の側で依存を固定してある
+  it("再描画では順序が動かない", () => {
+    const lower = renderHook(() => useOverlayLayer(true));
+    const upper = renderHook(() => useOverlayLayer(true));
 
-    popOverlay({});
+    lower.rerender();
+    lower.rerender();
 
-    expect(isTopOverlay(a)).toBe(true);
-    popOverlay(a);
-    expect(isTopOverlay(a)).toBe(false);
+    expect(upper.result.current()).toBe(true);
+    expect(lower.result.current()).toBe(false);
+
+    upper.unmount();
+    lower.unmount();
+  });
+
+  it("途中のものを閉じても、残りの順序は崩れない", () => {
+    const a = renderHook(() => useOverlayLayer(true));
+    const b = renderHook(() => useOverlayLayer(true));
+    const c = renderHook(() => useOverlayLayer(true));
+
+    b.unmount();
+
+    expect(c.result.current()).toBe(true);
+    c.unmount();
+    expect(a.result.current()).toBe(true);
+    a.unmount();
+    expect(a.result.current()).toBe(false);
   });
 });

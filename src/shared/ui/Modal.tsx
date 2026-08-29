@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import { isTopOverlay, popOverlay, pushOverlay } from "@/shared/lib/overlayStack";
+import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import "./Modal.scss";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -67,6 +67,8 @@ function Modal({
   }, [theme, variant, size, chrome, padding]);
 
   const cardRef = useRef<HTMLDivElement | null>(null);
+  // 開いている間だけマウントされる
+  const isTop = useOverlayLayer(true);
 
   // 開いたときに中へフォーカスを移し、開いている間は中に閉じ込める。
   //
@@ -79,15 +81,13 @@ function Modal({
     const card = cardRef.current;
     if (!card) return;
 
-    pushOverlay(card);
-
     const focusables = () => [...card.querySelectorAll<HTMLElement>(FOCUSABLE)];
     const pullBack = () => (focusables()[0] ?? card).focus();
 
     pullBack();
 
     const onFocusOut = (event: FocusEvent) => {
-      if (!isTopOverlay(card)) return;
+      if (!isTop()) return;
 
       const next = event.relatedTarget as Node | null;
       if (next && card.contains(next)) return;
@@ -95,7 +95,7 @@ function Modal({
       // disabled で blur したときは relatedTarget が null になる。
       // 実際にどこへ移ったかが決まってから確かめる
       queueMicrotask(() => {
-        if (!card.isConnected || !isTopOverlay(card)) return;
+        if (!card.isConnected || !isTop()) return;
         if (card.contains(document.activeElement)) return;
         pullBack();
       });
@@ -103,7 +103,7 @@ function Modal({
 
     // 端での折り返し。ここを塞がないと、最初の要素から Shift+Tab で外へ出る
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !isTopOverlay(card)) return;
+      if (event.key !== "Tab" || !isTop()) return;
       const items = focusables();
       if (items.length === 0) {
         event.preventDefault();
@@ -125,11 +125,9 @@ function Modal({
       card.removeEventListener("focusout", onFocusOut);
       card.removeEventListener("keydown", onKeyDown);
 
-      popOverlay(card);
-
       restoreTo?.focus?.();
     };
-  }, []);
+  }, [isTop]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -137,8 +135,7 @@ function Modal({
 
       // 重なっているときに閉じるのは最上位の1枚だけ。絞らないと、
       // 登録順のせいで**先に開いた下の1枚**が閉じる
-      const card = cardRef.current;
-      if (!card || !isTopOverlay(card)) return;
+      if (!isTop()) return;
 
       const isComposing = e.isComposing;
       if (e.key === "Escape" && closeOnEsc && !isComposing) {
@@ -150,7 +147,7 @@ function Modal({
 
     document.addEventListener("keydown", onKeyDown, true);
     return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [closeOnEsc, onClose]);
+  }, [closeOnEsc, onClose, isTop]);
 
   const root = document.getElementById("modal-root") ?? document.body;
 

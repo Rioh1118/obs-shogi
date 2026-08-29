@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 
 import Modal from "@/shared/ui/Modal";
 import Button from "@/shared/ui/Button/Button";
+import FloatingNote from "@/shared/ui/floating-note/FloatingNote";
 
 /**
  * モーダルは**開いたままフォーカスを失う**ことがある。フォーカスを持つ要素が
@@ -119,6 +120,39 @@ describe("Modal のフォーカス", () => {
 
     expect(closeUpper).toHaveBeenCalledTimes(1);
     expect(closeLower).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 下にいる付箋は、盤を動かすたびに再描画される。そのときに重なりへ積み直すと
+   * 自分が最上位へ登り直し、上のモーダルから Escape と閉じ込めを奪う。
+   * `onClose={() => ...}` のようにその場で作る関数を渡すのは普通の書き方なので、
+   * それだけで起きる形にしてはいけない
+   */
+  test("下のものが再描画されても、Escape で閉じるのは上の1枚のまま", () => {
+    const closeNote = vi.fn();
+    const closeModal = vi.fn();
+
+    // 付箋とモーダルは別々の親の下にいる。付箋だけが再描画される
+    const note = (tick: number) => (
+      <FloatingNote open anchorEl={null} onClose={() => closeNote()} title={`付箋 ${tick}`}>
+        <span>本文</span>
+      </FloatingNote>
+    );
+
+    const noteView = render(note(0));
+    render(
+      <Modal onClose={closeModal} label="上">
+        <Button>上のボタン</Button>
+      </Modal>,
+    );
+
+    noteView.rerender(note(1));
+    noteView.rerender(note(2));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(closeModal).toHaveBeenCalledTimes(1);
+    expect(closeNote).not.toHaveBeenCalled();
   });
 
   test("最初の要素から Shift+Tab で外へ出ない", () => {

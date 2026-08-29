@@ -1,4 +1,4 @@
-import { isTopOverlay, popOverlay, pushOverlay } from "@/shared/lib/overlayStack";
+import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import { useEffect, useRef } from "react";
 import "./ContextMenu.scss";
 
@@ -20,6 +20,8 @@ type ContextMenuProps = {
 
 function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // 開いている間だけマウントされる
+  const isTop = useOverlayLayer(true);
 
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
@@ -32,11 +34,8 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
     };
     // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
     // 同じイベントがここまで届いてメニューも一緒に閉じる
-    const token = {};
-    pushOverlay(token);
-
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isTopOverlay(token)) {
+      if (e.key === "Escape" && isTop()) {
         onClose();
       }
     };
@@ -53,9 +52,8 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
         capture: true,
       });
       window.removeEventListener("keydown", handleKeyDown);
-      popOverlay(token);
     };
-  }, [onClose]);
+  }, [onClose, isTop]);
 
   const handleItemClick = async (item: ContextMenuItem) => {
     if (item.disabled) return;

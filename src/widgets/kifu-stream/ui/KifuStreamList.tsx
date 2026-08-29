@@ -1,4 +1,4 @@
-import { isTopOverlay, popOverlay, pushOverlay } from "@/shared/lib/overlayStack";
+import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
@@ -29,6 +29,7 @@ export default function KifuStreamList() {
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
+  const isTop = useOverlayLayer(openFork !== null);
   const [openComment, setOpenComment] = useState<OpenCommentNote | null>(null);
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
@@ -153,11 +154,8 @@ export default function KifuStreamList() {
 
     // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
     // 同じイベントがここまで届いてメニューも一緒に閉じる
-    const token = {};
-    pushOverlay(token);
-
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isTopOverlay(token)) {
+      if (e.key === "Escape" && isTop()) {
         e.preventDefault();
         closeForkMenu(true);
       }
@@ -169,9 +167,8 @@ export default function KifuStreamList() {
     return () => {
       document.removeEventListener("pointerdown", onDocPointerDown);
       window.removeEventListener("keydown", onKey);
-      popOverlay(token);
     };
-  }, [openFork, closeForkMenu]);
+  }, [openFork, closeForkMenu, isTop]);
 
   useEffect(() => {
     const scroller = listRef.current;
