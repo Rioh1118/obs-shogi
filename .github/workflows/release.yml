@@ -40,7 +40,7 @@ jobs:
 
       - name: Create or fetch release
         id: create
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const tag      = process.env.RELEASE_TAG;
@@ -117,7 +117,7 @@ jobs:
             pkg-config
 
       # ── Toolchains ────────────────────────────────────────────────────────
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: npm
@@ -154,7 +154,7 @@ jobs:
           "
 
       - name: Build, sign & upload
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Updater signing key (stored in repo Secrets)
