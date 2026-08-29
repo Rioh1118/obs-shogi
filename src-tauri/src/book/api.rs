@@ -43,6 +43,10 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 }
 
 /// 実体のパスと reader を揃える。ファイルを読むので blocking プールから呼ぶこと。
+///
+/// 返すエラーの `path` は常に呼び出し側が渡した綴り。解決後のパスを載せると、
+/// 利用者が一度も打っていないファイル名について「見つからない」「権限が無い」と
+/// 言うことになり、選び直す先が分からなくなる。実体は message とログに残る。
 fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
     // 形式は利用者が指定した綴りから決める。symlink の指す先で判別すると、
     // `.db` を開いたつもりが黙って別形式として読まれる。
@@ -83,7 +87,7 @@ fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
     // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
     // symlink をもう一度たどるので、形式を検査した先と実際に開くファイルが
     // 別物になりうる（その隙に張り替えられると BookInfo.path が旧い方を指す）。
-    let reader = open_reader(&canonical)?;
+    let reader = open_reader(&canonical).map_err(|err| err.with_path(path.to_string_lossy()))?;
 
     Ok((canonical, reader))
 }
@@ -283,56 +287,79 @@ mod tests {
         assert_eq!(err.code, BookErrorCode::InvalidSfen);
     }
 
-    /// symlink の指す先の拡張子が違うと、BookInfo の path と format が別の
-    /// ファイルを指す値になる。開かせない。
-    #[test]
-    fn rejects_a_link_that_points_at_another_format() {
-        let dir = std::env::temp_dir().join("obs-shogi-book-open-at-test");
+    /// symlink を張ったディレクトリを作る。返り値は (dir, 実体, リンク)。
+    fn linked(name: &str, target_ext: &str, link_ext: &str) -> (PathBuf, PathBuf, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("obs-shogi-book-open-at-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
 
-        let target = dir.join("target.bin");
-        let link = dir.join("link.db");
+        let target = dir.join(format!("target{target_ext}"));
+        let link = dir.join(format!("link{link_ext}"));
         std::fs::write(&target, b"").expect("テスト用のファイルを作れない");
         std::os::unix::fs::symlink(&target, &link).expect("symlink を作れない");
 
-        let mismatched = open_at(&link).err().map(|err| (err.code, err.path));
-
-        // リンク先の拡張子が判別できない場合も、利用者が選んだ綴りについて答える
-        let plain = dir.join("plain");
-        let plain_link = dir.join("plain-link.db");
-        std::fs::write(&plain, b"").expect("テスト用のファイルを作れない");
-        std::os::unix::fs::symlink(&plain, &plain_link).expect("symlink を作れない");
-        let unknown = open_at(&plain_link).err().map(|err| (err.code, err.path));
-
-        // 同じ形式を指す symlink は、形式の食い違いでは弾かれない
-        let same = dir.join("same.db");
-        let same_link = dir.join("same-link.db");
-        std::fs::write(&same, b"").expect("テスト用のファイルを作れない");
-        std::os::unix::fs::symlink(&same, &same_link).expect("symlink を作れない");
-        let matched = open_at(&same_link).err().map(|err| err.code);
-
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
-
-        assert_eq!(
-            mismatched,
-            Some((
-                BookErrorCode::InvalidPath,
-                Some(link.to_string_lossy().into_owned())
-            ))
-        );
-        assert_eq!(
-            unknown,
-            Some((
-                BookErrorCode::InvalidPath,
-                Some(plain_link.to_string_lossy().into_owned())
-            ))
-        );
-        assert_eq!(matched, Some(BookErrorCode::UnsupportedFormat));
+        (dir, target, link)
     }
 
-    /// 形式の判別はファイルの実在より先。open_reader 単体だけでなく、
-    /// コマンドが通る経路でも同じ順序であること。
+    /// リンク先の拡張子が違うと、BookInfo の path と format が別のファイルを
+    /// 指す値になる。開かせない。
+    #[test]
+    fn rejects_a_link_that_points_at_another_format() {
+        let (dir, _target, link) = linked("mismatch", ".bin", ".db");
+        let result = open_at(&link).err().map(|err| err.code);
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        assert_eq!(result, Some(BookErrorCode::InvalidPath));
+    }
+
+    /// リンク先の拡張子が判別できない場合も、形式の食い違いとして扱う。
+    #[test]
+    fn rejects_a_link_whose_target_extension_is_unknown() {
+        let (dir, _target, link) = linked("unknown", "", ".db");
+        let result = open_at(&link).err().map(|err| err.code);
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        assert_eq!(result, Some(BookErrorCode::InvalidPath));
+    }
+
+    /// 同じ形式を指す symlink は、形式の食い違いでは弾かない。
+    #[test]
+    fn a_link_to_the_same_format_passes_the_format_check() {
+        let (dir, _target, link) = linked("same", ".db", ".db");
+        let result = open_at(&link).err().map(|err| err.code);
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        assert_ne!(result, Some(BookErrorCode::InvalidPath));
+    }
+
+    /// エラーに載るのは常に呼び出し側が渡した綴り。解決後のパスを載せると、
+    /// 利用者が一度も打っていないファイル名について答えることになる。
+    #[test]
+    fn errors_report_the_requested_spelling_not_the_resolved_one() {
+        let (dir, target, link) = linked("path", ".db", ".db");
+        let mismatch = linked("path-mismatch", ".bin", ".db");
+
+        // reader 由来（UnsupportedFormat）と食い違い由来（InvalidPath）の両方
+        let from_reader = open_at(&link).err().and_then(|err| err.path);
+        let from_mismatch = open_at(&mismatch.2).err().and_then(|err| err.path);
+
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        std::fs::remove_dir_all(&mismatch.0).expect("テスト用のディレクトリを消せない");
+
+        assert_eq!(
+            from_reader.as_deref(),
+            Some(link.to_string_lossy().as_ref())
+        );
+        assert_ne!(
+            from_reader.as_deref(),
+            Some(target.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            from_mismatch.as_deref(),
+            Some(mismatch.2.to_string_lossy().as_ref())
+        );
+    }
+
     #[test]
     fn reports_the_extension_before_looking_at_the_file_system() {
         let err = open_at(&PathBuf::from("/nonexistent/book.txt"))
