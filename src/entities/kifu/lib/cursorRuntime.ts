@@ -36,17 +36,3 @@ export function buildPlayer(jkf: JKFData, cursor: KifuCursor | null): JKFPlayer 
   applyCursorToPlayer(player, cursor);
   return player;
 }
-
-export function mergeForkPointers(
-  applied: ForkPointer[],
-  prevAll: ForkPointer[] | undefined,
-  tesuu: number,
-): ForkPointer[] {
-  const future = (prevAll ?? []).filter((p) => p.te > tesuu);
-
-  const map = new Map<number, ForkPointer>();
-  for (const p of future) map.set(p.te, p);
-  for (const p of applied) map.set(p.te, p);
-
-  return [...map.values()].sort((a, b) => a.te - b.te);
-}
