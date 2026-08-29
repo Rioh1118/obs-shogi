@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import BoardPreview from "./BoardPreview";
 import { Color } from "shogi.js";
+import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
 import "./PositionPreviewPane.scss";
 import HandRow from "./HandRow";
 import type { PreviewData } from "@/entities/position/model/preview";
@@ -68,8 +69,8 @@ function PreviewPane({ previewData, toKan }: Props) {
       </div>
 
       <div className="position-navigation-modal__hands">
-        <HandRow label="☗先手" kinds={hands[Color.Black] || []} toKan={toKan} />
-        <HandRow label="☖後手" kinds={hands[Color.White] || []} toKan={toKan} />
+        <HandRow label={SENTE_LABEL} kinds={hands[Color.Black] || []} toKan={toKan} />
+        <HandRow label={GOTE_LABEL} kinds={hands[Color.White] || []} toKan={toKan} />
       </div>
     </div>
   );
