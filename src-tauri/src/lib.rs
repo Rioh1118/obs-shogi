@@ -1,4 +1,5 @@
 pub mod ai_library;
+pub mod book;
 pub mod config_dir;
 pub mod engine;
 pub mod engine_presets;
