@@ -26,15 +26,17 @@ pub async fn open_book(
     let path = validate_book_path(&input.path)?;
     log::info!("[cmd] open_book path={}", path.display());
 
-    let opened = tauri::async_runtime::spawn_blocking(move || {
-        // 実体のパスで登録する。同じ定跡を別の綴りで開いたときに、
-        // BookInfo.path が指すものが揃う。
-        let canonical =
-            std::fs::canonicalize(&path).map_err(|e| BookError::from_io(e, path.to_string_lossy()));
-
+    let opened = tauri::async_runtime::spawn_blocking(move || -> Result<_, BookError> {
         // 形式は利用者が指定した綴りの拡張子で決める。symlink の指す先で
         // 判別すると、`.db` を開いたつもりが別形式として読まれる。
-        open_reader(&path).and_then(|reader| Ok((canonical?, reader)))
+        let reader = open_reader(&path)?;
+
+        // 登録は実体のパスで行う。同じ定跡を別の綴りで開いたときに、
+        // BookInfo.path が指すものが揃う。
+        let canonical = std::fs::canonicalize(&path)
+            .map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
+
+        Ok((canonical, reader))
     })
     .await
     .map_err(join_error)?;
