@@ -3,6 +3,10 @@ import "./Modal.scss";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 
+/** Tab で辿れる要素。`disabled` は辿れないので、busy のボタンはここに入らない */
+const FOCUSABLE =
+  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
 type ModalTheme = "light" | "dark";
 type ModalVariant = "dialog" | "workspace";
 type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
@@ -56,18 +60,60 @@ function Modal({
 
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  // 開いたときに中へフォーカスを移す。移さないと、キーボードだけの利用者は
-  // 背後の要素を辿らないとボタンに届かない。閉じたら元の場所へ返す
+  // 開いたときに中へフォーカスを移し、開いている間は中に閉じ込める。
+  //
+  // 閉じ込めが要るのは、**開いたままフォーカスを失う経路がある**ため。
+  // フォーカスを持つ要素が `disabled` になるとブラウザは blur し、行き先は `<body>`
+  // になる。`#modal-root` は `#root` の後ろにあるので、そこからの Tab は
+  // オーバーレイの裏のアプリ本体へ入っていく。閉じたら元の場所へ返す
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     const card = cardRef.current;
+    if (!card) return;
 
-    const focusable = card?.querySelector<HTMLElement>(
-      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-    );
-    (focusable ?? card)?.focus();
+    const focusables = () => [...card.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    const pullBack = () => (focusables()[0] ?? card).focus();
 
-    return () => restoreTo?.focus?.();
+    pullBack();
+
+    const onFocusOut = (event: FocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (next && card.contains(next)) return;
+
+      // disabled で blur したときは relatedTarget が null になる。
+      // 実際にどこへ移ったかが決まってから確かめる
+      queueMicrotask(() => {
+        if (!card.isConnected) return;
+        if (card.contains(document.activeElement)) return;
+        pullBack();
+      });
+    };
+
+    // 端での折り返し。ここを塞がないと、最初の要素から Shift+Tab で外へ出る
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      if (items.length === 0) {
+        event.preventDefault();
+        card.focus();
+        return;
+      }
+
+      const edge = event.shiftKey ? items[0] : items[items.length - 1];
+      if (document.activeElement !== edge) return;
+
+      event.preventDefault();
+      (event.shiftKey ? items[items.length - 1] : items[0]).focus();
+    };
+
+    card.addEventListener("focusout", onFocusOut);
+    card.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      card.removeEventListener("focusout", onFocusOut);
+      card.removeEventListener("keydown", onKeyDown);
+      restoreTo?.focus?.();
+    };
   }, []);
 
   useEffect(() => {
