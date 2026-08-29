@@ -31,10 +31,11 @@ export class KifuParseError extends Error {
 
 export type ParsedKifu = {
   /**
-   * 中身から判定した形式。
+   * 中身から判定した形式
    *
-   * 拡張子ではなくテキストから決めているので、保存し直すときはこれに合わせないと
-   * 中身と拡張子が食い違う。
+   * 拡張子とは独立に決まるので、`.kif` に CSA が入っていれば `"csa"` になる。
+   * 保存形式は拡張子から決めており（`file-tree/api/adapter.ts` の `kifuFormat`）、
+   * この値とは一致しない。
    */
   detectedFormat: KifuFormat;
   jkf: JKFData;
