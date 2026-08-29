@@ -1,25 +1,29 @@
-import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
+import { isUsableFork, type JKFData, type JKFMove } from "@/entities/kifu/model/jkf";
 
 /**
- * JKF の forks から空配列・null 先頭エントリを再帰的に除去する。
+ * `forks` から、空の変化と先頭が null の変化を再帰的に取り除く
  *
- * JKFPlayer は getReadableForkKifu() で fork[0] に無条件アクセスするため、
- * 空フォーク [] が存在すると TypeError になる。
- *
- * ゲーム本体と viewer が同じ sanitize 済みデータを参照するよう、
- * データの入り口（parseKifuContentToJKF 直後）で一度だけ適用すること。
- * これにより forkIndex の整合性が保たれる。
+ * JKFPlayer は getReadableForkKifu() で `fork[0]` に無条件でアクセスするため、
+ * 空の変化が1つでもあると TypeError になる。
  */
-export function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
+function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
   return moves.map((m) => {
     if (!m.forks) return m;
-    const cleanForks = m.forks
-      .filter((fork) => fork.length > 0 && fork[0] != null)
-      .map((fork) => sanitizeJkfMoves(fork));
+    const cleanForks = m.forks.filter(isUsableFork).map((fork) => sanitizeJkfMoves(fork));
     return { ...m, forks: cleanForks.length > 0 ? cleanForks : undefined };
   });
 }
 
+/**
+ * 「空の変化を含まない」という `JKFData` の不変条件を満たす
+ *
+ * 呼ぶのは `entities/kifu/api/parse` の出口だけ。`JKFData` を受け取った側は
+ * 空の変化が無いことを前提にしてよい。
+ *
+ * 空の変化を落とすと、後ろに並ぶ変化の `forkIndex` は1つずつ繰り上がる。
+ * `ForkPointer` を作ったあとに掛けると、その値は別の変化を指す。
+ * だから入口で1回だけ掛ける。
+ */
 export function sanitizeJkf(kifu: JKFData): JKFData {
   return { ...kifu, moves: sanitizeJkfMoves(kifu.moves) };
 }

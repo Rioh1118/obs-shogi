@@ -1,6 +1,7 @@
 import type { JKFPlayer } from "json-kifu-format";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { BranchOption } from "../model/branch";
+import { isUsableFork } from "../model/jkf";
 
 /**
  * 現在の局面から指せる分岐の候補を返す
@@ -16,7 +17,6 @@ export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
   const options: BranchOption[] = [];
 
   options.push({
-    id: `te${cur + 1}-main`,
     isMainLine: true,
     tesuu: cur + 1,
     moveFormat: next,
@@ -24,15 +24,14 @@ export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
 
   if (next.forks) {
     next.forks.forEach((forkLine, i) => {
-      // 空の変化は tsshogi の出口では作れないが、JKF を手で組む経路への保険。
-      const forkFirst = forkLine?.[0];
-      if (!forkFirst) return;
+      // JKFData は parse の出口で空の変化を落としてある（sanitizeJkf）。
+      // ここは JKF を手で組む経路への保険。
+      if (!isUsableFork(forkLine)) return;
 
       options.push({
-        id: `te${cur + 1}-fork${i}`,
         isMainLine: false,
         tesuu: cur + 1,
-        moveFormat: forkFirst,
+        moveFormat: forkLine[0],
         forkIndex: i,
       });
     });
