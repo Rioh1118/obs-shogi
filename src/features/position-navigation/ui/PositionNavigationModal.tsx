@@ -1,6 +1,6 @@
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
@@ -24,7 +24,7 @@ import type { NavigationState } from "@/features/position-navigation/model/types
  */
 function gotoPreview(
   player: JKFPlayer,
-  cursor: NavigationState["previewCursor"],
+  cursor: NavigationState["PreviewCursor"],
 ): JKFPlayer | null {
   const sim = new JKFPlayer(player.kifu);
   try {
@@ -42,22 +42,36 @@ function PositionNavigationModal() {
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
   const [nav, setNav] = useState<NavigationState>({
-    previewCursor: { tesuu: 0, forkPointers: [] },
+    PreviewCursor: { tesuu: 0, forkPointers: [] },
     selectedOptionIndex: 0,
   });
 
-  // 棋譜やカーソルが動いたら、前の nav を捨てて盤の現在地から取り直す。
-  // nav を読むのは開いている間だけなので、閉じている間は同期しない。
-  //
-  // useEffect だと、開いた最初のレンダが閉じていた間の古い nav で走り、
-  // 0手目のプレビューと分岐一覧が1フレーム描かれてから差し替わる。
-  // layout effect なら paint の前に差し替わる。
-  useLayoutEffect(() => {
+  useEffect(() => {
+    // 棋譜が切り替わったら、前棋譜の nav を捨てる
+    if (!gameView.player) {
+      setNav({
+        PreviewCursor: { tesuu: 0, forkPointers: [] },
+        selectedOptionIndex: 0,
+      });
+      return;
+    }
+
+    const cur = gameState.cursor;
+    setNav({
+      PreviewCursor: {
+        tesuu: cur?.tesuu ?? 0,
+        forkPointers: cur?.forkPointers ?? [],
+      },
+      selectedOptionIndex: 0,
+    });
+  }, [gameView.player, gameState.cursor]);
+
+  useEffect(() => {
     if (!isOpen) return;
 
     const cur = gameState.cursor;
     setNav({
-      previewCursor: {
+      PreviewCursor: {
         tesuu: cur?.tesuu ?? 0,
         forkPointers: cur?.forkPointers ?? [],
       },
@@ -72,7 +86,7 @@ function PositionNavigationModal() {
 
     // 盤上で再生できない手を含む棋譜では goto が throw する。ここはレンダ中なので、
     // 拾わないと React が root ごと unmount してウィンドウが白紙になる。
-    const sim = gotoPreview(gameView.player, nav.previewCursor);
+    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
     if (!sim) {
       return {
         previewData: null,
@@ -82,11 +96,11 @@ function PositionNavigationModal() {
     }
 
     return {
-      previewData: buildPreviewData(sim, sim.getTesuuPointer(nav.previewCursor.tesuu)),
+      previewData: buildPreviewData(sim, sim.getTesuuPointer(nav.PreviewCursor.tesuu)),
       options: buildNextOptions(sim),
       unreachable: false,
     };
-  }, [isOpen, gameView.player, nav.previewCursor]);
+  }, [isOpen, gameView.player, nav.PreviewCursor]);
 
   const handleSelectBranch = useCallback(
     (delta: number) => {
@@ -105,21 +119,21 @@ function PositionNavigationModal() {
     if (options.length === 0) return;
 
     setNav((prev) => {
-      const nextTe = prev.previewCursor.tesuu + 1;
+      const nextTe = prev.PreviewCursor.tesuu + 1;
       const sel = options[prev.selectedOptionIndex];
       if (!sel) return prev;
 
       // nextTe の選択を変える以上、その先の計画は捨てる。捨てないと、
       // 変化を見て戻って選び直したあとに、見ていない枝へ盤が進む。
       const fps = sel.isMainLine
-        ? truncatePlanFrom(prev.previewCursor.forkPointers, nextTe)
+        ? truncatePlanFrom(prev.PreviewCursor.forkPointers, nextTe)
         : upsertForkPointer(
-            truncatePlanFrom(prev.previewCursor.forkPointers, nextTe),
+            truncatePlanFrom(prev.PreviewCursor.forkPointers, nextTe),
             nextTe,
             sel.forkIndex,
           );
       return {
-        previewCursor: { tesuu: nextTe, forkPointers: fps },
+        PreviewCursor: { tesuu: nextTe, forkPointers: fps },
         selectedOptionIndex: 0,
       };
     });
@@ -127,11 +141,11 @@ function PositionNavigationModal() {
 
   const handlePrevious = useCallback(() => {
     setNav((prev) => {
-      if (prev.previewCursor.tesuu <= 0) return prev;
+      if (prev.PreviewCursor.tesuu <= 0) return prev;
       return {
-        previewCursor: {
-          ...prev.previewCursor,
-          tesuu: prev.previewCursor.tesuu - 1,
+        PreviewCursor: {
+          ...prev.PreviewCursor,
+          tesuu: prev.PreviewCursor.tesuu - 1,
         },
         selectedOptionIndex: 0,
       };
@@ -141,18 +155,18 @@ function PositionNavigationModal() {
   const handleConfirm = useCallback(() => {
     if (!gameView.player) return;
 
-    const sim = gotoPreview(gameView.player, nav.previewCursor);
+    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
     if (!sim) return;
 
     const cursor: KifuCursor = {
-      tesuu: nav.previewCursor.tesuu,
-      forkPointers: nav.previewCursor.forkPointers,
-      tesuuPointer: sim.getTesuuPointer(nav.previewCursor.tesuu) as TesuuPointer,
+      tesuu: nav.PreviewCursor.tesuu,
+      forkPointers: nav.PreviewCursor.forkPointers,
+      tesuuPointer: sim.getTesuuPointer(nav.PreviewCursor.tesuu) as TesuuPointer,
     };
 
     applyCursor(cursor);
     closeModal();
-  }, [applyCursor, closeModal, gameView.player, nav.previewCursor]);
+  }, [applyCursor, closeModal, gameView.player, nav.PreviewCursor]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -219,7 +233,7 @@ function PositionNavigationModal() {
                 <div className="branch-selector">
                   <div className="branch-selector__empty">
                     <p>
-                      この棋譜は{nav.previewCursor.tesuu}
+                      この棋譜は{nav.PreviewCursor.tesuu}
                       手目を盤上で再現できません。ここから先へは進めません。
                     </p>
                   </div>
