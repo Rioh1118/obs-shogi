@@ -182,7 +182,7 @@ function scssUnder(directory: string): string[] {
  *
  * モーダルの中身はカードの `overflow: hidden` の内側にいるので、カードを超えた分は
  * スクロールでも届かない。`Modal.scss` だけを見ていると、この故障は中身の側にあって
- * 検査に掛からない（実際 `.presetDialog` の退行がそうだった）
+ * 検査に掛からない
  */
 function unboundedForcedHeights(paths: string[]): string[] {
   const found: string[] = [];
