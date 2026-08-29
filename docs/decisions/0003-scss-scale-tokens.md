@@ -105,7 +105,12 @@ PR #73 が `info` / `warn` / `error` の3段だけを残した経路がこれに
 ### 6. 既存値は一括移行しない。ラチェットで守らせる
 
 `src/__tests__/scssScaleRatchet.test.ts` が `src/**/*.scss` を走査し、
-スケールに載るべきプロパティの直値を数える。**基準値を超えたら落ちる。**
+スケールに載るべきプロパティの直値を数える。**基準値と一致しなければ落ちる。**
+
+枠は6つ。`font-size` / `border-radius` / `spacing`（`padding` `margin` `gap`）/
+`elevation`（`box-shadow` `text-shadow`）/ `motion`（`transition` `animation`）/
+`indirect`（ローカル変数・カスタムプロパティ・mixin 引数）。
+最後の枠は、寸法をプロパティ名から離れた場所へ移しても数え漏れないために要る。
 
 - 新規に直値を書くと落ちる
 - 既存の直値は基準値として許容する

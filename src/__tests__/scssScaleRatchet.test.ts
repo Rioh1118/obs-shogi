@@ -29,6 +29,8 @@ const BASELINE = {
   "font-size": 252,
   "border-radius": 179,
   spacing: 527,
+  elevation: 78,
+  motion: 84,
   indirect: 53,
 };
 
@@ -59,6 +61,15 @@ const RAW_LENGTH = /(?<![\w$.-])\d*\.?\d+(rem|px|em)\b/;
 /** 角丸は `999px`（pill）と `50%`（円）にも $radius-pill / $radius-circle という寄せ先がある */
 const RAW_RADIUS = /(?<![\w$.-])\d*\.?\d+(rem|px|em|%)/;
 
+/** モーションの直値。時間は長さと単位が違うので別に見る */
+const RAW_DURATION = /(?<![\w$.-])\d*\.?\d+m?s\b/;
+
+/**
+ * ローディングの反復は秒単位で回り続ける別系統なので、$duration-* の寄せ先が無い。
+ * 実測では 1s 以上がそれにあたる
+ */
+const LOOPING_ANIMATION = /(?<![\w$.-])(?:[1-9]\d*(?:\.\d+)?s|\d{4,}ms)\b/;
+
 /**
  * トークン参照を取り除いた残り。混在した宣言（`padding: index.$space-2 1.37rem`）から
  * 直値だけを取り出すために使う。`var(--x, 1rem)` の代替値は直値として残す
@@ -67,9 +78,13 @@ function stripTokenReferences(value: string): string {
   return value.replace(/\$[\w-]+/g, "").replace(/var\(\s*--[\w-]+/g, "");
 }
 
-function hasRawLiteral(property: string, value: string): boolean {
-  const pattern = property === "border-radius" ? RAW_RADIUS : RAW_LENGTH;
-  return pattern.test(stripTokenReferences(value));
+function hasRawLiteral(bucket: Bucket, value: string): boolean {
+  const rest = stripTokenReferences(value);
+  if (bucket === "border-radius") return RAW_RADIUS.test(rest);
+  if (bucket === "motion") {
+    return RAW_DURATION.test(rest) && !LOOPING_ANIMATION.test(rest);
+  }
+  return RAW_LENGTH.test(rest);
 }
 
 type Declaration = { property: string; value: string; line: number };
@@ -125,9 +140,21 @@ function declarations(source: string): Declaration[] {
 /** `@include btn-size(1.2rem, 0.4rem)` のように mixin の引数へ逃がした直値 */
 const INCLUDE_ARGUMENTS = /@include\s+[\w-]+\s*\(([^)]*)\)/g;
 
+const ELEVATION_PROPERTIES = new Set(["box-shadow", "text-shadow"]);
+const MOTION_PROPERTIES = new Set([
+  "transition",
+  "transition-duration",
+  "transition-delay",
+  "animation",
+  "animation-duration",
+  "animation-delay",
+]);
+
 function bucketOf(property: string): Bucket | null {
   if (property === "font-size" || property === "border-radius") return property;
   if (SCALED_PROPERTIES.has(property)) return "spacing";
+  if (ELEVATION_PROPERTIES.has(property)) return "elevation";
+  if (MOTION_PROPERTIES.has(property)) return "motion";
   // 変数とカスタムプロパティは、寸法をプロパティ名から離れた場所へ移すだけで
   // 実体は直値なので、まとめて1つの枠で数える
   if (property.startsWith("$") || property.startsWith("--")) return "indirect";
@@ -142,12 +169,16 @@ function countRawDeclarations(): {
     "font-size": 0,
     "border-radius": 0,
     spacing: 0,
+    elevation: 0,
+    motion: 0,
     indirect: 0,
   };
   const samples: Record<Bucket, string[]> = {
     "font-size": [],
     "border-radius": [],
     spacing: [],
+    elevation: [],
+    motion: [],
     indirect: [],
   };
 
@@ -168,7 +199,7 @@ function countRawDeclarations(): {
       const bucket = bucketOf(property);
       if (!bucket) continue;
       if (bucket === "indirect" && isTokenSource) continue;
-      if (!hasRawLiteral(property, value)) continue;
+      if (!hasRawLiteral(bucket, value)) continue;
       if (rawLines[line - 1]?.includes(EXEMPT_MARKER)) continue;
       record(bucket, file, line, `${property}: ${value};`);
     }
