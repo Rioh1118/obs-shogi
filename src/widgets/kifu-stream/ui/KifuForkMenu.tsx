@@ -1,5 +1,5 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { branchIndexFromForkIndex, branchLabel } from "@/entities/kifu/model/branch";
+import { branchIndexFromSelection, branchLabel } from "@/entities/kifu/model/branch";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
@@ -27,7 +27,6 @@ type Props = {
 
 type Opt = {
   forkIndex: number | null;
-  branchIndex: number;
   tag: string;
   move: string;
   selected: boolean;
@@ -67,14 +66,12 @@ const KifuForkMenu = memo(function KifuForkMenu({
     return [
       {
         forkIndex: null,
-        branchIndex: 0,
         tag: branchLabel(),
         move: mainText || "(手がありません)",
         selected: normalized == null,
       },
       ...forkTexts.map((t, i) => ({
         forkIndex: i,
-        branchIndex: branchIndexFromForkIndex(i),
         tag: branchLabel(i),
         move: t || "(手がありません)",
         selected: normalized === i,
@@ -155,8 +152,9 @@ const KifuForkMenu = memo(function KifuForkMenu({
     rowEl: HTMLElement,
     canUp: boolean,
     canDown: boolean,
-    branchIndex: number,
+    forkIndex: number | null,
   ) => {
+    const branchIndex = branchIndexFromSelection(forkIndex);
     const r = rowEl.getBoundingClientRect();
 
     setActions((prev) => {
@@ -194,7 +192,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
               e.stopPropagation();
               if (busy) return;
               const rowEl = e.currentTarget as HTMLElement;
-              openActionsForRow(rowEl, canUp, canDown, opt.branchIndex);
+              openActionsForRow(rowEl, canUp, canDown, opt.forkIndex);
             }}
           >
             <button
@@ -239,7 +237,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
                   ".kifu-forkmenu__row",
                 ) as HTMLElement | null;
                 if (!rowEl) return;
-                openActionsForRow(rowEl, canUp, canDown, opt.branchIndex);
+                openActionsForRow(rowEl, canUp, canDown, opt.forkIndex);
               }}
             >
               <MoreHorizontal size={16} />
