@@ -86,7 +86,11 @@ function normalizeAndSanitize(exported: JKFData): JKFData {
 /**
  * 形式が分かっている棋譜テキストを `JKFData` にする
  *
- * 失敗すると {@link KifuParseError} を throw する。空文字と解析失敗の両方がここに来る。
+ * throw するのは空文字のときと、tsshogi が `Error` を返したときだけ。
+ * **読めなかった入力が「0手の棋譜」として返ることがある。** KIF / KI2 / CSA の
+ * インポータは、指し手を1つも読み取れなくても `Error` ではなく空の record を返す
+ * （壊れた JSON もただのテキストも `moves: [{}]` になる）。
+ * 「throw しなかった＝棋譜として読めた」ではない。
  *
  * 返り値は空の変化を含まない（`sanitizeJkf`）。受け取った側で掛け直す必要はない。
  *
@@ -119,9 +123,9 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
 /**
  * 形式が分からない棋譜テキストを、判定した形式ごと `JKFData` にする
  *
- * 未正規化のまま返りうる点、空の変化を含まない点、throw する点は
- * {@link parseKifuContentToJKF} と同じ。
- * 形式の判定そのものに失敗した場合も {@link KifuParseError} になる。
+ * 未正規化のまま返りうる点、空の変化を含まない点、読めなかった入力が
+ * 「0手の棋譜」として返りうる点は {@link parseKifuContentToJKF} と同じ。
+ * 形式の判定そのものに失敗した場合は {@link KifuParseError} になる。
  *
  * @throws {KifuParseError} 形式を判定できないか、棋譜として読めなかったとき
  */
