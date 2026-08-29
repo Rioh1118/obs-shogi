@@ -30,7 +30,7 @@ pub fn rename_kifu_file(file_path: String, new_file_name: String) -> Result<Stri
         );
     }
 
-    validate_basename(&new_file_name)?;
+    let new_file_name = validate_basename(&new_file_name)?;
 
     let parent = src.parent().ok_or_else(|| {
         FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが取得できません")
@@ -90,10 +90,7 @@ pub fn mv_kifu_file(
     }
 
     let name = match new_file_name {
-        Some(n) => {
-            validate_basename(&n)?;
-            n
-        }
+        Some(n) => validate_basename(&n)?,
         None => src
             .file_name()
             .ok_or_else(|| FsError::new(FsErrorCode::InvalidPath, "ファイル名が取得できません"))?
@@ -134,7 +131,7 @@ pub fn rename_directory(dir_path: String, new_dir_name: String) -> Result<String
         .with_path(src.to_string_lossy().to_string()));
     }
 
-    validate_basename(&new_dir_name)?;
+    let new_dir_name = validate_basename(&new_dir_name)?;
 
     let parent = src.parent().ok_or_else(|| {
         FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが取得できません")
@@ -179,10 +176,7 @@ pub fn mv_directory(
     }
 
     let name = match new_dir_name {
-        Some(n) => {
-            validate_basename(&n)?;
-            n
-        }
+        Some(n) => validate_basename(&n)?,
         None => src
             .file_name()
             .ok_or_else(|| {

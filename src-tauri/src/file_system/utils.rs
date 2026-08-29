@@ -23,10 +23,16 @@ pub fn is_kifu_file(path: &Path) -> bool {
     )
 }
 
-pub fn validate_basename(name: &str) -> Result<(), FsError> {
+/// 名前として使えるかを見て、**実際に使う形（前後の空白を落としたもの）を返す**。
+///
+/// 検証した文字列と、そのあとパスを組む文字列は同じものでなければならない。
+/// 生の名前でパスを組むと、`"a "` のように検証は通るが OS 側で別の名前になる
+/// （Windows は末尾の空白と `.` を落とす）ものが素通りする。
+///
+/// `message` は開発者向けのログ。利用者に見せる文は code から引く
+pub fn validate_basename(name: &str) -> Result<String, FsError> {
     let trimmed = name.trim();
 
-    // message は開発者向けのログ。利用者に見せる文は code から引く
     if trimmed.is_empty() {
         return Err(FsError::new(FsErrorCode::InvalidNameEmpty, "name is empty"));
     }
@@ -50,7 +56,7 @@ pub fn validate_basename(name: &str) -> Result<(), FsError> {
             "name contains a NUL byte",
         ));
     }
-    Ok(())
+    Ok(trimmed.to_string())
 }
 
 /// AppConfig.root_dir を取得（未設定なら None）
@@ -146,9 +152,52 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
 pub fn ensure_not_exists(path: &Path) -> Result<(), FsError> {
     if path.exists() {
         return Err(
-            FsError::new(FsErrorCode::AlreadyExists, "同名の項目が既に存在します")
+            FsError::new(FsErrorCode::AlreadyExists, "destination already exists")
                 .with_existing_path(path.to_string_lossy().to_string()),
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn returns_the_name_that_will_be_used() {
+        // 前後の空白を落とした形を返す。呼び出し元はこれでパスを組む。
+        // 生の名前で組むと、Windows が末尾の空白と `.` を落とすため、
+        // 検証した文字列と実際にできるファイルが別のものになる
+        assert_eq!(validate_basename("  研究.kif  ").unwrap(), "研究.kif");
+    }
+
+    #[test]
+    fn rejects_names_that_are_not_a_single_segment() {
+        for name in ["", "   ", ".", "..", "a/b", "a\\b", "a\0b"] {
+            assert!(
+                validate_basename(name).is_err(),
+                "{name:?} を通してはいけない"
+            );
+        }
+    }
+
+    #[test]
+    fn reports_why_it_was_rejected() {
+        use crate::file_system::error::FsErrorCode;
+
+        let code = |name: &str| format!("{:?}", validate_basename(name).unwrap_err().code);
+        assert_eq!(code(""), format!("{:?}", FsErrorCode::InvalidNameEmpty));
+        assert_eq!(
+            code(".."),
+            format!("{:?}", FsErrorCode::InvalidNameReserved)
+        );
+        assert_eq!(
+            code("a/b"),
+            format!("{:?}", FsErrorCode::InvalidNameSeparator)
+        );
+        assert_eq!(
+            code("a\0b"),
+            format!("{:?}", FsErrorCode::InvalidNameControl)
+        );
+    }
 }

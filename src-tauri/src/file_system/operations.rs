@@ -160,7 +160,7 @@ pub fn create_kifu_file<R: Runtime>(
         );
     }
 
-    validate_basename(&file_name)?;
+    let file_name = validate_basename(&file_name)?;
 
     let file_path = parent_path.join(&file_name);
 
@@ -208,7 +208,7 @@ pub fn import_kifu_file<R: Runtime>(
         );
     }
 
-    validate_basename(&file_name)?;
+    let file_name = validate_basename(&file_name)?;
 
     let file_path = parent_path.join(&file_name);
 
@@ -240,7 +240,6 @@ pub fn save_kifu_file<R: Runtime>(
     content: String,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
-    let file_path = parent_path.join(&file_name);
 
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
@@ -250,7 +249,10 @@ pub fn save_kifu_file<R: Runtime>(
         );
     }
 
-    validate_basename(&file_name)?;
+    // パスは検証を通した名前から組む。生の名前で先に組むと、検証した文字列と
+    // 実際に書き込む先が別のものになる
+    let file_name = validate_basename(&file_name)?;
+    let file_path = parent_path.join(&file_name);
 
     if !is_kifu_file(&file_path) {
         return Err(FsError::new(
@@ -285,7 +287,7 @@ pub fn create_directory<R: Runtime>(
         );
     }
 
-    validate_basename(&dir_name)?;
+    let dir_name = validate_basename(&dir_name)?;
 
     let new_dir_path = parent_path.join(&dir_name);
     ensure_not_exists(&new_dir_path)?;
