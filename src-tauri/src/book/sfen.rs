@@ -295,12 +295,14 @@ fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, Stri
         let piece = chars
             .next()
             .ok_or_else(|| format!("持駒の枚数 {digits} に駒が続いていない"))?;
+        // 玉は持駒にならないので HAND_PIECES に無い。ここで弾く。
+        // PieceCounts は盤上の玉を数えるために K を受け付けるので、
+        // この検査を外すと持駒の玉が通る。
         let index = HAND_PIECES
             .iter()
             .position(|p| *p == piece.to_ascii_uppercase())
             .ok_or_else(|| format!("持駒にできない文字 {piece} がある"))?;
 
-        // 玉は持駒にならないので HAND_PIECES には無く、ここで弾かれる。
         counts.add_many(piece, count)?;
 
         let side = usize::from(piece.is_ascii_lowercase());
