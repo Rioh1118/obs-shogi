@@ -48,7 +48,10 @@ app → pages → widgets → features → entities → shared
 ```
 
 上向きの import を新しく作らない。共有したい型やロジックは、共有できる位置まで**下げる**。
-（2026-08 時点で違反8件が残っている。lint で強制する準備はできているが、まだ有効化していない）
+
+lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤごとの override で表現してあり、
+違反すると `npm run lint` が落ちる。**2階層以上遡る相対 import も禁止**（`@/` を通らない経路を残すと
+レイヤ規則が素通りするため）。循環は `import/no-cycle` が拾う。
 
 ## 変更時に連動が必要な箇所
 

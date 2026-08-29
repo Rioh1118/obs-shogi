@@ -25,7 +25,7 @@ const layerBoundaries: OxlintOverride[] = LAYERS_TOP_DOWN.slice(1).map((layer, i
   rules: {
     // 後勝ちで上書きされるため、共通側の DEEP_RELATIVE_IMPORT をここでも並べる。
     "no-restricted-imports": [
-      "warn",
+      "error",
       {
         patterns: [
           DEEP_RELATIVE_IMPORT,
@@ -47,7 +47,7 @@ export default defineConfig({
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react", "import"],
     categories: {
-      correctness: "warn",
+      correctness: "error",
     },
     env: {
       builtin: true,
@@ -57,8 +57,8 @@ export default defineConfig({
       {
         files: ["**/*.{ts,tsx}"],
         rules: {
-          "no-restricted-imports": ["warn", { patterns: [DEEP_RELATIVE_IMPORT] }],
-          "import/no-cycle": "warn",
+          "no-restricted-imports": ["error", { patterns: [DEEP_RELATIVE_IMPORT] }],
+          "import/no-cycle": "error",
           "constructor-super": "off",
           "for-direction": "error",
           "getter-return": "off",
