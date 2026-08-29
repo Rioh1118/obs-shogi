@@ -16,6 +16,11 @@ import {
 } from "../model/branch";
 import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
 
+/**
+ * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする
+ *
+ * `normalizeForkPointers` の境界は `te <= 第2引数` なので、1引いて渡す。
+ */
 function normalizeRef<T extends BranchPointRef>(ref: T): T {
   return {
     ...ref,
@@ -54,15 +59,16 @@ function setBranchIndex(
   return next.sort((a, b) => a.te - b.te);
 }
 
-/** line + startTe を辿る（forkPointers は絶対手数で te を持っている） */
+/** `startTe` は `line[0]` に対応する絶対手数。`forkPointers` の te も絶対手数。 */
 type LineRef = { line: IMoveFormat[]; startTe: number };
 type BranchPointHandle = LineRef & { index: number; move: IMoveFormat };
 
+/** `forkPointers` を順に降りて、`uptoTe` を含む line とその先頭の絶対手数を返す */
 function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: number): LineRef {
   let line = kifu.moves as IMoveFormat[];
   let startTe = 0;
 
-  const fps = normalizeForkPointers(forkPointers, uptoTe - 1).filter((p) => p.te < uptoTe);
+  const fps = normalizeForkPointers(forkPointers, uptoTe - 1);
 
   for (const p of fps) {
     const idx = p.te - startTe;
@@ -150,7 +156,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
   return candidates;
 }
 
-/** candidates をJKFに書き戻す（te以降のtailを置換し、main headに forks を付与） */
+/** 候補の並びを棋譜に書き戻す（`te` 以降を置換し、本譜側の先頭の手に `forks` を集約） */
 function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
   if (candidates.length === 0) {
     // te以降を全部消す
@@ -172,14 +178,12 @@ function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
   h.line.splice(h.index, h.line.length - h.index, ...main);
 }
 
-/** swap */
 function swapInPlace<T>(arr: T[], i: number, j: number) {
   const t = arr[i];
   arr[i] = arr[j];
   arr[j] = t;
 }
 
-/** delete candidate */
 function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
   // candidates は BranchIndex と同じ座標（0=本譜）。範囲は呼び出し側が確かめている。
   const next = c.slice();
@@ -187,7 +191,7 @@ function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
   return next;
 }
 
-/** swap後の cursor patch（同一stream前提） */
+/** 入れ替え後の cursor の patch（同じ stream を辿っている前提） */
 function patchForkPointersForSwap(
   fps: ForkPointer[],
   te: number,
@@ -201,7 +205,11 @@ function patchForkPointersForSwap(
   return setBranchIndex(fps, te, nextChosen);
 }
 
-/** delete後の cursor patch（同一stream前提、退避しないケース用） */
+/**
+ * 削除後の cursor の patch（同じ stream を辿っている前提）
+ *
+ * `chosen === target`（消える候補の中にいる）ケースは退避で処理するので、ここには来ない。
+ */
 function patchForkPointersForDeleteNonReloc(
   fps: ForkPointer[],
   te: number,
@@ -276,7 +284,7 @@ function relocateCursorOnDelete(
  * `te` の `forkIndex` の並びが変わり、その形でファイルに書き戻される。
  *
  * @throws {Error} `te` が1以上の手を指していないとき、`a` / `b` が候補の範囲外のとき、
- *   `forkPointers` が実在しない変化を指すとき
+ *   `forkPointers` が実在しない変化を指すとき、`forks` に中身の無い変化が混じるとき
  */
 export function swapBranchesInKifu(
   kifu: JKFData,
@@ -324,7 +332,7 @@ export function swapBranchesInKifu(
  * カーソルを返す。
  *
  * @throws {Error} `te` が1以上の手を指していないとき、`target` が候補の範囲外のとき、
- *   `forkPointers` が実在しない変化を指すとき
+ *   `forkPointers` が実在しない変化を指すとき、`forks` に中身の無い変化が混じるとき
  */
 export function deleteBranchInKifu(
   kifu: JKFData,
