@@ -18,8 +18,37 @@ export type FsError = {
   cause?: string;
 };
 
+// `satisfies` で全ての code を並べさせる。`FsErrorCode` を増やすと型検査がここへ連れてくる
+const FS_ERROR_CODES = {
+  already_exists: true,
+  not_found: true,
+  invalid_name: true,
+  invalid_path: true,
+  invalid_type: true,
+  invalid_extension: true,
+  invalid_destination: true,
+  permission_denied: true,
+  io: true,
+  unknown: true,
+} satisfies Record<FsErrorCode, true>;
+
+function isFsErrorCode(code: unknown): code is FsErrorCode {
+  return typeof code === "string" && code in FS_ERROR_CODES;
+}
+
+/**
+ * 外から来た値を `FsError` にする。
+ *
+ * `api/service.ts` は `catch (e) { ... e as FsError }` の形で、Rust 由来でない例外も
+ * ここへ流す（棋譜のパース失敗など）。素通しすると `code` がどの分岐にも当たらず、
+ * 表示側で見出しの無い箱になる。
+ */
 export function asFsError(error: unknown): FsError {
-  return error as FsError;
+  const e = error as Partial<FsError> | null | undefined;
+  if (e && typeof e.message === "string" && isFsErrorCode(e.code)) {
+    return e as FsError;
+  }
+  return makeFsError("unknown", error instanceof Error ? error.message : String(error));
 }
 
 export function makeFsError(code: FsErrorCode, message: string, path?: string): FsError {
