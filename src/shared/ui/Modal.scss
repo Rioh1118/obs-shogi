@@ -5,7 +5,13 @@
 
   &__overlay {
     position: fixed;
-    inset: 0;
+    // タイトルバーはウィンドウを動かす唯一の手段（`data-tauri-drag-region`）を持つ。
+    // overlay は `#modal-root` から描かれるので、同じ z-index なら DOM 順で必ず overlay が
+    // 勝つ。z-index で競うのではなく、覆う範囲をタイトルバーの下からにして届かせない
+    top: index.$titlebar-height;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 9999;
 
     display: flex;
