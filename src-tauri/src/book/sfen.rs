@@ -180,6 +180,32 @@ fn truncate_for_message(reason: &str) -> String {
     out
 }
 
+/// 持駒トークン1つぶんの枚数。
+///
+/// [`HandCount::parse`] 以外から作れないので、範囲の検査を通らずに
+/// [`PieceCounts::add_many`] へ渡すことができない。数え上げてから検査する形に
+/// 書き換えると、`"4294967295P"` の1回で数え上げのループが 42.9 億回まわり、
+/// `to_book_key` を同期に呼んでいる async ワーカが埋まる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HandCount(u32);
+
+impl HandCount {
+    /// 1トークンの枚数は、最も多い歩でも18枚。桁あふれもここへ落とす。
+    fn parse(digits: &str) -> Result<Self, String> {
+        let count = if digits.is_empty() {
+            1
+        } else {
+            digits.parse::<u32>().unwrap_or(u32::MAX)
+        };
+
+        if count == 0 || count > 18 {
+            return Err(format!("持駒の枚数が範囲外（{digits}）"));
+        }
+
+        Ok(Self(count))
+    }
+}
+
 /// 駒種ごとの枚数。盤上と持駒を通して数える。
 #[derive(Default)]
 struct PieceCounts {
@@ -200,8 +226,8 @@ impl PieceCounts {
         Ok(())
     }
 
-    fn add_many(&mut self, piece: char, count: u32) -> Result<(), String> {
-        for _ in 0..count {
+    fn add_many(&mut self, piece: char, count: HandCount) -> Result<(), String> {
+        for _ in 0..count.0 {
             self.add(piece)?;
         }
         Ok(())
@@ -323,22 +349,9 @@ fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, Stri
             chars.next();
         }
 
-        // 1トークンの枚数がこの範囲を超えることは無い（最も多い歩で18枚）。
         // 駒種ごとの上限は、盤上と合わせて数え終わってから
-        // PieceCounts::validate が見る。
-        //
-        // ここで打ち切らないと add_many のループが入力の値ぶん回る。
-        // to_book_key は async ランタイム上で同期に呼ばれるので、
-        // "4294967295P" の1回でワーカが埋まる。桁あふれも u32::MAX に倒して
-        // 同じ検査へ落とす。
-        let count = if digits.is_empty() {
-            1
-        } else {
-            digits.parse::<u32>().unwrap_or(u32::MAX)
-        };
-        if count == 0 || count > 18 {
-            return Err(format!("持駒の枚数が範囲外（{digits}）"));
-        }
+        // PieceCounts::validate が見る。ここで見るのは1トークンの桁だけ。
+        let count = HandCount::parse(&digits)?;
 
         let piece = chars
             .next()
@@ -354,7 +367,7 @@ fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, Stri
         counts.add_many(piece, count)?;
 
         let side = usize::from(piece.is_ascii_lowercase());
-        hand_counts[side][index] += count;
+        hand_counts[side][index] += count.0;
     }
 
     let mut out = String::new();
@@ -582,19 +595,23 @@ mod tests {
         }
     }
 
-    /// 巨大な枚数は、数え上げる前に打ち切ること。打ち切りを外しても最後には
-    /// InvalidSfen になるので、種別だけでは区別が付かない。文言で分ける
-    /// （「範囲外」を出すのは1トークンの検査だけ）。
+    /// 1トークンの枚数の境界。数え上げより先にここで落ちる（型がそれを強制する）。
     #[test]
-    fn a_huge_hand_count_is_rejected_before_counting() {
+    fn hand_count_parse_rejects_values_outside_one_token() {
+        assert_eq!(HandCount::parse("").unwrap(), HandCount(1));
+        assert_eq!(HandCount::parse("18").unwrap(), HandCount(18));
+
+        for digits in ["0", "19", "4294967295", "99999999999"] {
+            let err = HandCount::parse(digits).unwrap_err();
+            assert!(err.contains("範囲外"), "digits={digits} err={err}");
+        }
+    }
+
+    #[test]
+    fn a_huge_hand_count_is_rejected() {
         for hands in ["19P", "4294967295P", "99999999999P"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
-            assert!(
-                err.message.contains("持駒の枚数が範囲外"),
-                "hands={hands} message={}",
-                err.message
-            );
         }
     }
 

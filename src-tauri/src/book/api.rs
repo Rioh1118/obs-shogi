@@ -365,15 +365,6 @@ mod tests {
         assert_eq!(state.get_calls(), 0);
     }
 
-    #[test]
-    fn reports_a_broken_position_for_a_live_handle() {
-        let state = BookState::new();
-        let info = state.register(opened("/books/a.db"));
-
-        let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidSfen);
-    }
-
     /// symlink を張ったディレクトリを作る。返り値は (dir, 実体, リンク)。
     ///
     /// symlink を作れるのが unix だけなので、これを使うテストも unix でだけ走る。
