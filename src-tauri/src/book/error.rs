@@ -26,19 +26,25 @@ pub enum BookErrorCode {
     InvalidHandle,
     /// 局面の指定が SFEN として読めない
     InvalidSfen,
+    /// 読み書きそのものが失敗した
     Io,
+    /// 上のどれにも当てはまらない。フロントは再試行しか案内できない
     Unknown,
 }
 
+/// 定跡まわりの失敗。Tauri コマンドの `Err` としてそのままフロントへ渡る。
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BookError {
     pub code: BookErrorCode,
+    /// 利用者に見せる説明。分岐には使わない
     pub message: String,
+    /// どのファイルで起きたか。複数の定跡を開いているときに要る
     pub path: Option<String>,
 }
 
 impl BookError {
+    /// パスに紐づかない失敗を作る。ファイルが絡むなら [`BookError::with_path`] を続ける。
     pub fn new(code: BookErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
@@ -47,6 +53,7 @@ impl BookError {
         }
     }
 
+    /// どのファイルで起きたかを添える。
     pub fn with_path(mut self, path: impl Into<String>) -> Self {
         self.path = Some(path.into());
         self

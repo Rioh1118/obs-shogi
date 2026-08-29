@@ -20,9 +20,10 @@ use std::path::Path;
 ///   復帰導線を出せない
 /// - io の失敗は [`BookError::from_io`] でパスを添えて返す
 pub trait BookReader: Send + Sync {
+    /// この reader が読んでいる形式。`BookInfo` にそのまま載る。
     fn format(&self) -> BookFormat;
 
-    /// 収録局面数。
+    /// 収録局面数。意味は [`crate::book::BookInfo::position_count`] と同じ。
     fn position_count(&self) -> u64;
 
     /// 局面の候補手を、定跡に書かれている順で返す。

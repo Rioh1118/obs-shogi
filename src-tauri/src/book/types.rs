@@ -58,6 +58,7 @@ pub struct BookMove {
     pub ponder: Option<String>,
     /// 手番側から見た評価値
     pub value: Option<i32>,
+    /// この手を決めたときの探索深さ
     pub depth: Option<i32>,
     /// この手が選ばれた回数
     pub count: Option<u64>,
@@ -68,8 +69,14 @@ pub struct BookMove {
 #[serde(rename_all = "camelCase")]
 pub struct BookInfo {
     pub handle: BookHandle,
+    /// 開いた定跡の実体のパス（symlink を解決したもの）
     pub path: String,
     pub format: BookFormat,
+    /// 収録局面の数。指し手の数ではない。
+    ///
+    /// 開いた時点で確定する。全件を数えずに開く on-the-fly の reader でも、
+    /// ファイルに書かれた局面数（やねうら王の `# NOE:N` など）を使って埋めること。
+    /// 数えられない形式は 0 を返してよい
     pub position_count: u64,
 }
 
