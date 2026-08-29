@@ -1,6 +1,6 @@
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
@@ -48,7 +48,11 @@ function PositionNavigationModal() {
 
   // 棋譜やカーソルが動いたら、前の nav を捨てて盤の現在地から取り直す。
   // nav を読むのは開いている間だけなので、閉じている間は同期しない。
-  useEffect(() => {
+  //
+  // useEffect だと、開いた最初のレンダが閉じていた間の古い nav で走り、
+  // 0手目のプレビューと分岐一覧が1フレーム描かれてから差し替わる。
+  // layout effect なら paint の前に差し替わる。
+  useLayoutEffect(() => {
     if (!isOpen) return;
 
     const cur = gameState.cursor;
