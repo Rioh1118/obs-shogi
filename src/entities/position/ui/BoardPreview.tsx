@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Piece, Color } from "shogi.js";
 import { indexToCoords } from "@/entities/position/lib/boardUtils";
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
-import PieceFactory from "../../../widgets/game-board/ui/PieceFactory";
+import PieceFactory from "./PieceFactory";
 import "./BoardPreview.scss";
 import type { ShogiMove } from "@/entities/game";
 
