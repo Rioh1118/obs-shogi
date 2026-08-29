@@ -194,6 +194,18 @@ describe("FileTree の失敗表示", () => {
     expect(refreshTree).toHaveBeenCalledTimes(1);
   });
 
+  // 唯一の復帰路がこのモーダルなので、キーボードだけで届く必要がある
+  test("失敗を出したら、その中へフォーカスが移る", () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+
+    mount();
+
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog).toBeTruthy();
+    expect(dialog!.contains(document.activeElement)).toBe(true);
+  });
+
   test("ツリーが残っているときは閉じられる", async () => {
     stub.fileTree = TREE;
     stub.error = IO_ERROR;

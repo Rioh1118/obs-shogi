@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import "./Modal.scss";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -51,6 +51,22 @@ function Modal({
     ].join(" ");
   }, [theme, variant, size, chrome, padding]);
 
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // 開いたときに中へフォーカスを移す。移さないと、キーボードだけの利用者は
+  // 背後の要素を辿らないとボタンに届かない。閉じたら元の場所へ返す
+  useEffect(() => {
+    const restoreTo = document.activeElement as HTMLElement | null;
+    const card = cardRef.current;
+
+    const focusable = card?.querySelector<HTMLElement>(
+      'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+    );
+    (focusable ?? card)?.focus();
+
+    return () => restoreTo?.focus?.();
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -79,7 +95,11 @@ function Modal({
         }}
       >
         <div
+          ref={cardRef}
           className={`modal__card modal__card--scroll-${scroll}`}
+          role="dialog"
+          aria-modal="true"
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
           {showCloseButton && (
