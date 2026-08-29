@@ -155,48 +155,6 @@
     }
   }
 
-  &__btn {
-    padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    font-size: 1.4rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    border: none;
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    &--primary {
-      background-color: index.$color-secondary-dark;
-      color: index.$color-white;
-
-      &:hover:not(:disabled) {
-        background-color: index.$color-secondary-dark-2;
-        box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.15);
-      }
-
-      &:active:not(:disabled) {
-        transform: translateY(0.1rem);
-        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
-      }
-    }
-
-    &--ghost {
-      background-color: transparent;
-      border: 0.2rem solid index.$color-secondary-dark;
-      color: index.$color-secondary-dark;
-      &:hover:not(:disabled) {
-        background-color: rgba(index.$color-secondary-dark, 0.1);
-      }
-      &:active:not(:disabled) {
-        background-color: rgba(index.$color-secondary-dark, 0.2);
-        transform: translateY(0.1rem);
-      }
-    }
-  }
-
   &__heading-secondary {
     font-size: 2.2rem;
     font-weight: 500;
@@ -262,33 +220,6 @@
 
       &::after {
         background-color: index.$color-secondary-dark;
-      }
-    }
-
-    .form__btn {
-      &--primary {
-        background-color: index.$color-secondary-dark;
-        color: index.$color-white;
-
-        &:hover:not(:disabled) {
-          background-color: index.$color-secondary-dark-2;
-          box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.3);
-        }
-      }
-
-      &--ghost {
-        border-color: rgba(index.$color-secondary-dark, 0.5);
-        color: rgba(index.$color-text-light-1, 0.7);
-
-        &:hover:not(:disabled) {
-          background-color: rgba(index.$color-white, 0.06);
-          border-color: index.$color-secondary-dark;
-          color: index.$color-text-light-1;
-        }
-
-        &:active:not(:disabled) {
-          background-color: rgba(index.$color-white, 0.1);
-        }
       }
     }
   }

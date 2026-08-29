@@ -12,7 +12,7 @@ import type { StudyPositionState } from "@/entities/study-positions/model/types"
 import TextInput from "@/shared/ui/Form/TextInput";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
-import Button from "@/shared/ui/Form/Button";
+import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { getBaseName } from "@/shared/lib/path";
 
@@ -235,21 +235,16 @@ export default function StudyPositionSaveModal() {
         <footer className="sp-save__footer">
           <div className="sp-save__footerLeft">
             {isEdit && (
-              <button
-                type="button"
-                className="sp-save__deleteBtn"
-                onClick={() => setConfirmDelete(true)}
-                disabled={isSaving}
-              >
+              <Button tone="danger" onClick={() => setConfirmDelete(true)} disabled={isSaving}>
                 {"削除"}
-              </button>
+              </Button>
             )}
           </div>
           <div className="sp-save__footerRight">
-            <Button variant="ghost" onClick={() => closeModal()} disabled={isSaving}>
+            <Button onClick={() => closeModal()} disabled={isSaving}>
               {"キャンセル"}
             </Button>
-            <Button variant="primary" onClick={handleSave} disabled={!sfen || isSaving}>
+            <Button tone="primary" onClick={handleSave} disabled={!sfen || isSaving}>
               {saveLabel}
             </Button>
           </div>

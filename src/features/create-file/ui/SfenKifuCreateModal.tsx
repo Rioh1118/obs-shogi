@@ -15,7 +15,7 @@ import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
-import Button from "@/shared/ui/Form/Button";
+import Button from "@/shared/ui/Button/Button";
 import Spinner from "@/shared/ui/Spinner";
 
 import "./SfenKifuCreateModal.scss";
@@ -207,10 +207,10 @@ export default function SfenKifuCreateModal() {
               </FormField>
 
               <ButtonGroup>
-                <Button type="submit" variant="primary" disabled={!fileName.trim() || !selectedDir}>
+                <Button type="submit" tone="primary" disabled={!fileName.trim() || !selectedDir}>
                   作成
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => closeModal()}>
+                <Button type="button" onClick={() => closeModal()}>
                   キャンセル
                 </Button>
               </ButtonGroup>

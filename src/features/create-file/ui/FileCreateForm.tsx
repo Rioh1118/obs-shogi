@@ -9,7 +9,7 @@ import Select from "@/shared/ui/Form/Select";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
-import Button from "@/shared/ui/Form/Button";
+import Button from "@/shared/ui/Button/Button";
 import Spinner from "@/shared/ui/Spinner";
 
 function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dirPath: string }) {
@@ -142,10 +142,10 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       </FormField>
 
       <ButtonGroup>
-        <Button type="submit" variant="primary" disabled={!fileName.trim()}>
+        <Button type="submit" tone="primary" disabled={!fileName.trim()}>
           作成
         </Button>
-        <Button type="button" variant="ghost" onClick={toggleModal}>
+        <Button type="button" onClick={toggleModal}>
           キャンセル
         </Button>
       </ButtonGroup>

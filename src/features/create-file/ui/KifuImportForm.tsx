@@ -8,7 +8,7 @@ import Textarea from "@/shared/ui/Form/Textarea";
 import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
-import Button from "@/shared/ui/Form/Button";
+import Button from "@/shared/ui/Button/Button";
 
 function stripKnownExt(name: string) {
   return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");
@@ -138,12 +138,12 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       <ButtonGroup>
         <Button
           type="submit"
-          variant="primary"
+          tone="primary"
           disabled={!fullFileName || !rawContent.trim() || parseOk !== true}
         >
           インポートして作成
         </Button>
-        <Button type="button" variant="ghost" onClick={toggleModal}>
+        <Button type="button" onClick={toggleModal}>
           キャンセル
         </Button>
       </ButtonGroup>

@@ -181,38 +181,6 @@
   }
 
   // larger hit targets for footer buttons
-  &__footer .form__btn {
-    min-width: 10rem;
-    min-height: 4rem;
-    font-size: 1.4rem;
-  }
-
-  &__deleteBtn {
-    min-height: 4rem;
-    padding: 0 1.4rem;
-    border-radius: 0.6rem;
-    border: 1px solid rgba(#e57373, 0.4);
-    background: transparent;
-    color: rgba(#e57373, 0.7);
-    font-size: 1.25rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition:
-      background-color 100ms ease,
-      border-color 100ms ease,
-      color 100ms ease;
-
-    &:hover:not(:disabled) {
-      background: rgba(#e57373, 0.1);
-      border-color: rgba(#e57373, 0.6);
-      color: #e57373;
-    }
-
-    &:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-  }
 
   @media (max-width: 980px) {
     &__body {
