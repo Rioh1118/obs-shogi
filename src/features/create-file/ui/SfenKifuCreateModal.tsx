@@ -4,6 +4,7 @@ import { turnText } from "@/shared/lib/turn";
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { FsErrorView, isResolvedByConflictDialog, type FsError } from "@/entities/file-tree";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
@@ -50,7 +51,7 @@ export default function SfenKifuCreateModal() {
   const [whitePlayer, setWhitePlayer] = useState("");
   const [selectedDir, setSelectedDir] = useState(fileTree?.path ?? "");
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<FsError | null>(null);
 
   const sfenInitial = useMemo(() => (sfen ? sfenToJkfInitial(sfen) : null), [sfen]);
 
@@ -82,7 +83,7 @@ export default function SfenKifuCreateModal() {
     setBlackPlayer("");
     setWhitePlayer("");
     setSelectedDir(rootPathRef.current);
-    setErrorMsg(null);
+    setSaveError(null);
   }, [isOpen]);
 
   const handleSubmit = useCallback(
@@ -90,12 +91,10 @@ export default function SfenKifuCreateModal() {
       e.preventDefault();
       if (!fileName.trim() || !sfenInitial) return;
 
-      if (!selectedDir) {
-        setErrorMsg("保存先フォルダが選択されていません");
-        return;
-      }
+      // 選べる保存先が無いときは Select の下に理由が出ている。ここで積み直さない
+      if (!selectedDir) return;
 
-      setErrorMsg(null);
+      setSaveError(null);
       setIsLoading(true);
       const result = await createNewFile(selectedDir, {
         fileName: `${fileName.trim()}.${format}`,
@@ -110,8 +109,12 @@ export default function SfenKifuCreateModal() {
 
       if (result.success) {
         closeModal();
-      } else {
-        setErrorMsg(result.error.message ?? "ファイルの作成に失敗しました");
+        return;
+      }
+
+      // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
+      if (!isResolvedByConflictDialog(result.error.code)) {
+        setSaveError(result.error);
       }
     },
     [
@@ -152,12 +155,6 @@ export default function SfenKifuCreateModal() {
                 <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
               </FormField>
 
-              {errorMsg && (
-                <FormField>
-                  <div className="sfen-kifu-create__error">{errorMsg}</div>
-                </FormField>
-              )}
-
               <FormField>
                 <Select
                   label="保存先フォルダ"
@@ -166,9 +163,14 @@ export default function SfenKifuCreateModal() {
                   value={selectedDir}
                   onChange={(v) => {
                     setSelectedDir(v);
-                    setErrorMsg(null);
+                    setSaveError(null);
                   }}
                 />
+                {dirOptions.length === 0 && (
+                  <p className="sfen-kifu-create__hint">
+                    保存先がありません。先にワークスペースを開いてください
+                  </p>
+                )}
               </FormField>
 
               <FormField horizontal>
@@ -205,6 +207,13 @@ export default function SfenKifuCreateModal() {
                   onChange={(e) => setWhitePlayer(e.target.value)}
                 />
               </FormField>
+
+              {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+              {saveError && (
+                <FormField>
+                  <FsErrorView error={saveError} />
+                </FormField>
+              )}
 
               <ButtonGroup>
                 <Button type="submit" tone="primary" disabled={!fileName.trim() || !selectedDir}>
