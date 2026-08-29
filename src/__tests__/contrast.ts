@@ -255,6 +255,26 @@ function thresholdFor(ctx: Context): number {
   return AA_NORMAL;
 }
 
+/**
+ * SCSS の入れ子のうち、DOM では同じ要素を指すもの（`&:hover` / `&.is-active` /
+ * `&::before` / `&[disabled]`）。`&__x` や子孫セレクタは別の要素
+ */
+/**
+ * 無効化された部品。WCAG 1.4.3 が本文の基準から外している。
+ * 薄くして「押せない」を示すのが普通なので、測ると必ず落ちる
+ */
+function isDisabledState(node: Container): boolean {
+  const selector = (node as { selector?: string }).selector ?? "";
+  // `:not(:disabled)` は**有効なとき**の段。先に外さないと逆を拾う
+  const withoutNot = selector.replace(/:not\([^)]*\)/g, "");
+  return /:disabled|\[disabled\]|aria-disabled/.test(withoutNot);
+}
+
+function isSameElement(node: Container): boolean {
+  const selector = (node as { selector?: string }).selector ?? "";
+  return /^&[:.[]/.test(selector.trim());
+}
+
 function selectorOf(node: Container): string {
   const anyNode = node as { selector?: string; name?: string; params?: string };
   if (anyNode.selector) return anyNode.selector.replace(/\s+/g, " ");
@@ -299,32 +319,43 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
     if (prop === "font-size") next.fontSize = toRem(child.value, vars);
     if (prop === "font-weight") next.bold = isBoldValue(child.value);
 
-    // 要素ごと薄くすると、文字も面も同じだけ地の色へ寄る。
-    // 見ないと、静止 0.9 / ホバー 1.0 のボタンを実物より良い比で報告する
+    // 要素ごと薄くすると、文字も面も同じだけ**親の面**へ寄る。
+    // 見ないと、静止 0.9 / ホバー 1.0 のボタンを実物より良い比で報告する。
+    //
+    // 擬似クラス・擬似要素の入れ子は同じ要素なので、掛けずに置き換える。
+    // 掛けると `&:hover { opacity: 1 }` が「戻す」でなく「そのまま」になる
     if (prop === "opacity") {
+      // 薄さは実効の比を動かす。宣言した規則は測り直す対象
+      declaresPair = true;
       const value = Number(child.value.trim());
-      if (!Number.isNaN(value)) next.opacity = inherited.opacity * value;
+      if (!Number.isNaN(value)) {
+        next.opacity = isSameElement(node) ? value : inherited.opacity * value;
+      }
     }
   }
 
-  if (declaresPair && next.color) {
-    if (next.surface) {
-      // 面が決まっているなら、下に見えている地は面そのもの。
-      // 要素ごとの `opacity` は文字と面の両方に掛かるので、両方を地へ寄せる
-      const under = next.surface;
-      const surface = next.opacity < 1 ? composite({ ...under, a: next.opacity }, under) : under;
-      const text = next.color.a < 1 ? composite(next.color, under) : next.color;
-      const fg = next.opacity < 1 ? composite({ ...text, a: next.opacity }, under) : text;
+  if (declaresPair && next.colorText && !isDisabledState(node)) {
+    // `opacity` は文字と面の両方を**親の面**へ寄せる。親が分からなければ測れない
+    const fadesInto = next.opacity < 1 ? inherited.surface : next.surface;
+
+    if (next.color && next.surface && fadesInto) {
+      const fade = (color: Rgba) =>
+        next.opacity < 1 ? composite({ ...color, a: next.opacity }, fadesInto) : color;
+
+      const surface = fade(next.surface);
+      const text = next.color.a < 1 ? composite(next.color, next.surface) : next.color;
 
       scan.pairs.push({
         line: node.source?.start?.line ?? 0,
         selector: selectorOf(node),
-        ratio: contrastRatio(fg, surface),
+        ratio: contrastRatio(fade(text), surface),
         threshold: thresholdFor(next),
         fg: next.colorText,
         bg: next.bgText,
       });
-    } else if (next.colorText) {
+    } else {
+      // 面が決まらない、色が解けない（`currentColor` / `var()`）、
+      // 薄めた先が分からない。**どれも「合格」ではない**ので数える
       scan.unmeasured += 1;
     }
   }

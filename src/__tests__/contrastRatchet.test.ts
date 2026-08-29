@@ -52,15 +52,17 @@ type Row = { key: string; detail: string };
  * **下げてよいのは、規則そのものを消したときだけ。** 面を半透明にして
  * 測れなくしたのなら、下げずに面の側を直すこと。
  */
-const MEASURED_FLOOR = 50;
+const MEASURED_FLOOR = 51;
 
 /**
- * `color` は宣言されているのに面が確定せず、測れなかった宣言の上限。**上げない。**
+ * `color` を宣言しているのに測れなかった宣言の上限。**上げない。**
  *
- * 「測れないから合格」を合格と数えないため、件数を目に見える形で置く。
+ * 測れないのは3つの場合。面が半透明のまま確定しない／色が解けない
+ * （`currentColor` / `var()`）／`opacity` で薄める先の面が分からない。
+ * **どれも「合格」ではない**ので、件数を目に見える形で置く。
  * 面を持たせるか `surface` を渡すかして測れるようにしたら下げる → issue #185。
  */
-const UNMEASURED_CEILING = 377;
+const UNMEASURED_CEILING = 416;
 
 const rows: Row[] = [];
 let measured = 0;

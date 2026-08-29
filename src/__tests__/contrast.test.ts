@@ -18,6 +18,11 @@ function scan(source: string) {
   return scanContrast(source, { vars: TOKENS }).pairs.filter((p) => p.ratio < p.threshold);
 }
 
+/** 配列の末尾。`Array.prototype.at` はこの tsconfig の lib に無い */
+function last<T>(items: T[]): T {
+  return items[items.length - 1];
+}
+
 /** 測れた対の全部。カバレッジを見るテストで使う */
 function measured(source: string) {
   return scanContrast(source, { vars: TOKENS });
@@ -103,11 +108,27 @@ describe("走査", () => {
         background: #1c2325;
         color: #5a5a5a;
 
+        &:focus-visible {
+          outline: 2px solid #fff;
+        }
+      }
+    `);
+    expect(findings.map((f) => f.selector)).toEqual([".a"]);
+  });
+
+  // WCAG は無効化された部品を本文の基準から外している
+  it("disabled の段は測らない", () => {
+    const findings = measured(`
+      .a {
+        background: #8f6b4e;
+        color: #ffffff;
+
         &:disabled {
           opacity: 0.45;
         }
       }
-    `);
+    `).pairs;
+
     expect(findings.map((f) => f.selector)).toEqual([".a"]);
   });
 
@@ -137,17 +158,50 @@ describe("走査", () => {
     ).toHaveLength(1);
   });
 
-  it("要素ごとの opacity は文字と面の両方に掛ける", () => {
-    const opaque = `
-      .a {
-        background: #8f6b4e;
-        color: #ffffff;
+  it("要素ごとの opacity は、文字と面の両方を親の面へ寄せる", () => {
+    const source = (extra: string) => `
+      .parent {
+        background: #1c2325;
+
+        .a {
+          background: #8f6b4e;
+          color: #ffffff;
+          ${extra}
+        }
       }
     `;
-    const faded = opaque.replace("color: #ffffff;", "color: #ffffff;\n        opacity: 0.9;");
 
-    // 薄くすると実物の比は下がる。見ないと実物より良い数字を報告する
-    expect(measured(faded).pairs[0].ratio).toBeLessThan(measured(opaque).pairs[0].ratio);
+    const opaque = last(measured(source("")).pairs);
+    const faded = last(measured(source("opacity: 0.9;")).pairs);
+
+    // 薄くすると実物の比は下がる。面側を寄せ忘れると、下がり方が足りない
+    expect(faded.ratio).toBeLessThan(opaque.ratio);
+    expect(faded.ratio).toBeCloseTo(4.44, 1);
+  });
+
+  // `&:hover` は同じ要素。掛けると「戻す」が「そのまま」になる
+  it("擬似クラスの opacity は掛けずに置き換える", () => {
+    const source = (extra: string) => `
+      .parent {
+        background: #1c2325;
+
+        .a {
+          background: #8f6b4e;
+          color: #f5f5f5;
+          ${extra}
+        }
+      }
+    `;
+
+    const plain = last(measured(source("")).pairs);
+    const findings = measured(source("opacity: 0.5;\n          &:hover { opacity: 1; }")).pairs;
+
+    const base = findings.find((f) => f.selector === ".a")!;
+    const hover = findings.find((f) => f.selector === "&:hover")!;
+
+    // ホバーは薄さが戻る。掛け算にすると 0.5 のままなので base と同じ比になる
+    expect(base.ratio).toBeLessThan(hover.ratio);
+    expect(hover.ratio).toBeCloseTo(plain.ratio, 5);
   });
 
   it("transparent は親の面をそのまま見せる", () => {
