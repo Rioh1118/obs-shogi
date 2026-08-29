@@ -40,7 +40,11 @@ describe("computeLeafTesuu", () => {
   });
 
   test("計画が指す変化が実在しなければ本譜へ落ちる", () => {
-    const cursor = cursorAt(0, [{ te: 2, forkIndex: 5 }]);
-    expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
+    // 範囲外・負・非整数のいずれでも同じ。forkAndForward は範囲外なら false を返すが、
+    // 負や非整数は forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
+    for (const forkIndex of [5, -1, 0.5, NaN]) {
+      const cursor = cursorAt(0, [{ te: 2, forkIndex }]);
+      expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
+    }
   });
 });

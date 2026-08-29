@@ -6,7 +6,8 @@ import { buildPlayer } from "./buildPlayer";
  * 計画に沿って辿り着ける末端の手数を返す
  *
  * `cursor.forkPointers` は「これから選ぶ計画」も含むので、その通りに降りたときの葉を数える。
- * 計画が指す変化が実在しなければ本譜へ落ちる。`cursor` が無ければ本譜の末尾。
+ * 計画が指す変化が実在しなければ（範囲外・負・非整数のいずれでも）本譜へ落ちる。
+ * `cursor` が無ければ本譜の末尾。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` が投げる）
  * @throws {Error} 上限まで進んでも葉に着かないとき
@@ -28,7 +29,10 @@ export function computeLeafTesuu(jkf: JKFData, cursor: KifuCursor | null): numbe
     if (!sim.currentStream[nextTe]) break;
 
     const forkIndex = plannedMap.get(nextTe);
-    if (forkIndex !== undefined) {
+    // forkAndForward は forks.length 以上なら false を返すが、負や非整数は
+    // forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
+    // 計画は無検証で持ち越されるので、ここで捨てて本譜へ落とす。
+    if (forkIndex !== undefined && Number.isInteger(forkIndex) && forkIndex >= 0) {
       const ok = sim.forkAndForward(forkIndex);
       if (ok) continue; // planned どおり分岐に入れた
       // planned が無効なら本線へフォールバック

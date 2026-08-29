@@ -91,6 +91,23 @@ describe("swapBranchesInKifu", () => {
     ).toThrow(/out of range/);
   });
 
+  test("一覧の末尾で「下へ」を押した値は throw する", () => {
+    // neighborBranchIndex の上限側。"up" 側と対称。
+    const kifu = kifuWithTwoForks();
+    expect(() =>
+      swapBranchesInKifu(
+        kifu,
+        {
+          te: 2,
+          forkPointers: [],
+          a: MAIN_LINE,
+          b: neighborBranchIndex(branchIndexFromForkIndex(1), "down"),
+        },
+        null,
+      ),
+    ).toThrow(/out of range/);
+  });
+
   test("候補数を超える添字は throw する", () => {
     const kifu = kifuWithTwoForks();
     expect(() =>

@@ -2,9 +2,8 @@
 
 分岐を指す値は2種類あり、1ずれる。取り違えると**別の分岐が消えてファイルに保存される**。
 
-PR #163+ のレビューで、この値の検査は4ラウンド連続で「1形ずつ漏れる」を繰り返した
-（空配列 → `[null]` → `NaN`・小数 → 負）。個別に潰していたからで、表を先に書いていれば
-1回で済んだ。ここが2度目なので表にする。
+値の分類を先に列挙せず個別に検査を足すと、`空配列` → `[null]` → `NaN`・小数 → 負 のように
+**1形ずつ漏れる**。実際にそうなった。だから表にする。
 
 ## 2つの座標系
 
@@ -73,8 +72,12 @@ PR #163+ のレビューで、この値の検査は4ラウンド連続で「1形
 ## 不変条件
 
 1. **`forks` の添字として書かれる値は、必ず0以上の整数である。**
-   `ForkPointer.forkIndex` に `-1` や `0.5` が残ると、その場では落ちず
-   遠くの `resolveLine` で `resolveLine failed at te=N forkIndex=-1` として表に出る。
+   `ForkPointer.forkIndex` に `-1` や `0.5` が残ると、その場では落ちず遠くで表に出る。
+   出方は経路で違う。`resolveLine`（`branchEdit`）は
+   `resolveLine failed at te=N forkIndex=-1` を投げるが、`JKFPlayer.forkAndForward` は
+   **`forks.length` 以上なら `false` を返すのに、負や非整数は `forks[-1]` を掴んで
+   内部で `TypeError`** になる。計画を辿る側（`computeLeafTesuu` /
+   `buildStreamRowsFromCursor`）は渡す前に自分で捨てる。
 2. **範囲外の値は、黙って別の候補に丸められない。**
    `splice` は `NaN` も小数も0方向へ丸めるので、大小比較だけの検査では
    `NaN` が「本譜を消す」に化ける。整数であることを先に見る。
