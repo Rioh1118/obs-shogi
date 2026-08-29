@@ -11,21 +11,22 @@ R9 から R12 まで毎ラウンド出た**（N-07 / O-04 / P-01 / Q-02）。原
 
 上から順に評価される。最初に当たったものが結果になる。
 
-| 記号 | 判定条件（式）                                   | 返るもの                                                              |
-| ---- | ------------------------------------------------ | --------------------------------------------------------------------- |
-| G0   | `input.chars().count() > MAX_INPUT_CHARS`（256） | `InvalidSfen`「局面として長すぎる」                                   |
-| G1   | `startpos` の次のトークンが存在する              | `InvalidSfen`（`moves` / 余分なトークン）                             |
-| G2   | board トークンが無い                             | `InvalidSfen`「局面が空」                                             |
-| G3   | side トークンが無い                              | `InvalidSfen`「手番が無い」                                           |
-| G4   | hands トークンが無い                             | `InvalidSfen`「持駒が無い」                                           |
-| G5   | `side != "b" && side != "w"`                     | `InvalidSfen`「手番が b でも w でもない」                             |
-| G6   | 手数の位置が `"moves"`                           | `InvalidSfen`（指し手列）                                             |
-| G7   | `ply.parse::<u32>().is_err()`                    | `InvalidSfen`「手数が数値でない: {ply}」                              |
-| G8   | 手数の後ろにトークンが残る                       | `InvalidSfen`（`moves` / 余分なトークン）                             |
-| G9   | `normalize_board` が `Err`                       | `InvalidSfen`（段数 / 列数 / 駒でない文字 / `+` の後ろ / 成れない駒） |
-| G10  | `normalize_hands` が `Err`                       | `InvalidSfen`（枚数が範囲外 / 駒が続かない / 持駒にできない文字）     |
-| G11  | `PieceCounts::validate` が `Err`                 | `InvalidSfen`（枚数超過 / 同じ側に玉2枚）                             |
-| OK   | 上のどれにも当たらない                           | `Ok(BookKey)`                                                         |
+| 記号 | 判定条件（式）                                                           | 返るもの                                                                           |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| G0   | トークンの合計字数 > `MAX_INPUT_CHARS`（256）。区切りの空白は1字と数える | `InvalidSfen`「局面として長すぎる」                                                |
+| G1   | `startpos` の次のトークンが存在する                                      | `InvalidSfen`（`moves` / 余分なトークン）                                          |
+| G2   | board トークンが無い                                                     | `InvalidSfen`「局面が空」                                                          |
+| G3   | side トークンが無い                                                      | `InvalidSfen`「手番が無い」                                                        |
+| G4   | hands トークンが無い                                                     | `InvalidSfen`「持駒が無い」                                                        |
+| G5   | `side != "b" && side != "w"`                                             | `InvalidSfen`「手番が b でも w でもない」                                          |
+| G6   | 手数の位置が `"moves"`                                                   | `InvalidSfen`（指し手列）                                                          |
+| G7a  | 手数の綴りが10進数字でない / 先頭ゼロ / `+` 付き                         | `InvalidSfen`「手数の綴りが数値でない: {ply}」                                     |
+| G7b  | `ply.parse::<u32>().is_err()`                                            | `InvalidSfen`「手数が大きすぎる: {ply}」                                           |
+| G8   | 手数の後ろにトークンが残る                                               | `InvalidSfen`（`moves` / 余分なトークン）                                          |
+| G9   | `normalize_board` が `Err`                                               | `InvalidSfen`（段数 / 列数 / 駒でない文字 / `+` の後ろ / 成れない駒）              |
+| G10  | `normalize_hands` が `Err`                                               | `InvalidSfen`（枚数に先頭ゼロ / 枚数が範囲外 / 駒が続かない / 持駒にできない文字） |
+| G11  | `PieceCounts::validate` が `Err`                                         | `InvalidSfen`（枚数超過 / 同じ側に玉2枚）                                          |
+| OK   | 上のどれにも当たらない                                                   | `Ok(BookKey)`                                                                      |
 
 ## 入力の形（イベント）
 
@@ -43,15 +44,15 @@ R9 から R12 まで毎ラウンド出た**（N-07 / O-04 / P-01 / Q-02）。原
 
 セルは「到達する検査」。`✓` はそのセルを踏むテストが存在する。
 
-| 入力の形          | 全体 ≤ 256 字                                                                                                                                                                          | 全体 > 256 字                                                                |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| A 正しい局面      | OK ✓（`drops_the_move_number` ほか）                                                                                                                                                   | **到達不能**（合法な局面は 256 字を超えない。下の不変条件 1）                |
-| B トークン不足    | G2 / G3 / G4 ✓（`rejects_input_that_is_not_a_position`。理由文まで見て3枝を区別する）                                                                                                  | G0（B の理由文は出ない）                                                     |
-| C 値が不正        | G5 ✓（`rejects_input_that_is_not_a_position`）/ G9 ✓（`rejects_a_broken_board`）/ G10 ✓（`rejects_a_broken_hand_field` / `rejects_redundant_spellings_that_would_unbound_the_length`） | G0                                                                           |
-| D トークンが余る  | G1 ✓ / G6 ✓（`rejects_a_position_with_moves`）/ G8 ✓（`rejects_trailing_tokens_after_the_position`）                                                                                   | G0                                                                           |
-| E 駒数超過        | G11 ✓（`rejects_more_pieces_than_the_set_holds`）                                                                                                                                      | G0                                                                           |
-| F 1トークンが長い | G7 / G8 / G10（枚数が範囲外 / 駒が続かない の2枝）に断片が入る ✓（`a_long_token_is_truncated_in_the_reason`）                                                                          | G0 ✓                                                                         |
-| G 全体が長い      | —                                                                                                                                                                                      | G0 ✓（`a_position_that_is_too_long_is_rejected_before_building_the_reason`） |
+| 入力の形          | 全体 ≤ 256 字                                                                                                                                                                                      | 全体 > 256 字                                                                                                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A 正しい局面      | OK ✓（`drops_the_move_number` ほか）                                                                                                                                                               | **到達不能**（トークンの合計で数えるので、合法な局面は 256 字を超えない。下の不変条件 1）。空白をいくつ挟んでも同じ ✓（`extra_whitespace_does_not_make_a_position_too_long`） |
+| B トークン不足    | G2 / G3 / G4 ✓（`rejects_input_that_is_not_a_position`。理由文まで見て3枝を区別する）                                                                                                              | G0（B の理由文は出ない）                                                                                                                                                      |
+| C 値が不正        | G5 ✓（`rejects_input_that_is_not_a_position`）/ G7a ✓（`rejects_spellings_that_would_unbound_the_length`）/ G9 ✓（`rejects_a_broken_board`）/ G10 ✓（`rejects_a_broken_hand_field` / 同上）        | G0                                                                                                                                                                            |
+| D トークンが余る  | G1 ✓ / G6 ✓（`rejects_a_position_with_moves`）/ G8 ✓（`rejects_trailing_tokens_after_the_position`）                                                                                               | G0                                                                                                                                                                            |
+| E 駒数超過        | G11 ✓（`rejects_more_pieces_than_the_set_holds`）                                                                                                                                                  | G0                                                                                                                                                                            |
+| F 1トークンが長い | 断片が入るのは G7a / G8 / G10（先頭ゼロ / 枚数が範囲外）✓（`a_long_token_is_truncated_in_the_reason` が枝ごとに理由文で確かめる）。G10 の「駒が続かない」は `digits` が2字までなので断片を持てない | G0 ✓                                                                                                                                                                          |
+| G 全体が長い      | —                                                                                                                                                                                                  | G0 ✓（`a_position_that_is_too_long_is_rejected_before_building_the_reason`）                                                                                                  |
 
 ### (F, ≤256) を埋めるもの
 
@@ -67,10 +68,10 @@ G10 の2枝（枚数が範囲外 / 駒が続かない）で計4つ。
 
 どのセルでも破ってはいけないもの。セルごとの期待挙動より寿命が長い。
 
-1. **合法な局面は必ず OK に着く。** 駒を盤から持駒へ移すと盤面は1字縮み持駒は1字増えるので、
-   盤面と持駒の合計は駒の置き方によらず 127 字。前置き・手番・10桁の手数を足して 155 字が最長。
-   `MAX_INPUT_CHARS` はこれを下回ってはならない。
-   **この計算は冗長な綴りを拒否していることに依存する**（受け付けると上限が無くなる）
+1. **合法な局面は必ず OK に着く。** 長さはトークンの合計で数える（空白はいくつ挟んでもよい）。
+   盤面と持駒の合計の**最大**は 165 字で、盤上を玉2枚だけにして残り38枚を1枚ずつ持駒に書いたとき。
+   前置き・手番・10桁の手数を足して 193 字が最長。`MAX_INPUT_CHARS` はこれを下回ってはならない。
+   **この計算は先頭ゼロと `+` 付きの手数を拒否していることに依存する**（受け付けると上限が無くなる）
 2. **失敗の `message` は、入力の長さに比例して伸びない。** `logged` 経由でログ（200KB / KeepOne）へ
    流れるので、失敗1件で以前の記録が消えてはならない
 3. **成功と「未収録」を取り違えさせない。** 壊れた入力が `Ok` になると、`lookup` の
@@ -78,12 +79,13 @@ G10 の2枝（枚数が範囲外 / 駒が続かない）で計4つ。
 
 ## 照合
 
-- 不変条件 1: `a_maximally_spelled_board_is_accepted` ✓。正当な入力の最長（155字）
+- 不変条件 1: `a_maximally_spelled_board_is_accepted` ✓。正当な入力の最長（193字）
   ちょうどを、`LONGEST_VALID_INPUT_CHARS` との等式で固定している。
   上限との関係は同じモジュールのコンパイル時 assert が見るので、
-  `MAX_INPUT_CHARS` を 154 以下へ詰めると**コンパイルが通らない**。
-  この不変条件が成り立つのは、冗長な綴り（持駒の枚数 `1`、先頭ゼロ）を
-  `rejects_redundant_spellings_that_would_unbound_the_length` が拒否しているから。
+  `MAX_INPUT_CHARS` を 192 以下へ詰めると**コンパイルが通らない**。
+  空白の側は `extra_whitespace_does_not_make_a_position_too_long` ✓。
+  この不変条件が成り立つのは、先頭ゼロと `+` 付きの手数を
+  `rejects_spellings_that_would_unbound_the_length` が拒否しているから。
   受け付けると同じ局面をいくらでも長く書けて、最長という概念が消える
 - 不変条件 2: `a_long_token_is_truncated_in_the_reason` ✓。
   長さだけを見ると理由文と引用のどちらか一方を打ち切っただけでも通るので、

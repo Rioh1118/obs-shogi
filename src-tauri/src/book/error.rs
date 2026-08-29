@@ -38,8 +38,7 @@ pub enum BookErrorCode {
 /// 定跡まわりの失敗。Tauri コマンドの `Err` としてそのままフロントへ渡る。
 ///
 /// フィールドは private。`path` の打ち切りは [`BookError::with_path`] が唯一の関門で、
-/// 構造体リテラルで組み立てられると迂回できてしまう（実際、打ち切りを呼び出し側に
-/// 置いていたときは6経路のうち1つにしか掛かっていなかった）。
+/// 構造体リテラルで組み立てられると迂回できてしまう。
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BookError {

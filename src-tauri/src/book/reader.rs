@@ -105,6 +105,33 @@ mod tests {
         assert_eq!(err.path(), Some("/nonexistent/book.db"));
     }
 
+    /// `open_reader` は成功経路を持たないので、これが今この機能を触った利用者に
+    /// 届く唯一の文面。種別だけを見るテストでは、案内を空にしても緑のまま通る。
+    #[test]
+    fn an_unsupported_format_tells_the_user_what_to_expect() {
+        let file = std::env::temp_dir().join("obs-shogi-book-unsupported.db");
+        std::fs::write(&file, b"").expect("テスト用のファイルを作れない");
+
+        let result = open_reader(&file);
+        std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
+
+        let Err(err) = result else {
+            panic!("reader を持たない形式なのに開けてしまった");
+        };
+        assert_eq!(err.code(), BookErrorCode::UnsupportedFormat);
+        assert!(
+            err.message()
+                .contains(BookFormat::YaneuraouDb.display_name()),
+            "形式名が出ていない: {}",
+            err.message()
+        );
+        assert!(
+            err.message().contains("同じ結果になる"),
+            "他を試しても無駄だと書かれていない: {}",
+            err.message()
+        );
+    }
+
     /// ディレクトリは存在するので NotFound ではない。「見つからない」と言われると
     /// 利用者は探し直してしまう。
     #[test]

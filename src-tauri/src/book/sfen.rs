@@ -94,7 +94,14 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
 
     // 局面として成立しうる長さを超えるものは、理由文を組み立てる前に落とす。
     // 打ち切りを断片ごとに足して回る形だと、枝が増えるたびに取り残しが出る。
-    if input.chars().count() > MAX_INPUT_CHARS {
+    //
+    // 数えるのはトークンの合計。区切りの空白はいくつ挟んでも同じ局面を指すので、
+    // 生の長さで測ると正当な局面を弾いてしまう。
+    let token_chars: usize = input
+        .split_whitespace()
+        .map(|token| token.chars().count() + 1)
+        .sum();
+    if token_chars > MAX_INPUT_CHARS {
         return Err(invalid("局面として長すぎる"));
     }
 
@@ -146,13 +153,17 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
         // 手数はキーから落とすが、数値でないものを黙って落とすと、書き間違えた
         // 局面が正しいキーとして通ってしまう。
         //
-        // 先頭ゼロも拒否する。parse は無視するので、受け付けると手数を好きなだけ
-        // 長く書けてしまい、局面の文字列に長さの上限が無くなる。
-        if ply.len() > 1 && ply.starts_with('0') {
-            return Err(invalid(&format!("手数に先頭ゼロがある: {ply}")));
+        // 判定は綴りで行う。`parse` は先頭の `+` と先頭ゼロを黙って受けるので、
+        // それに任せると `+0000…01` のように同じ手数をいくらでも長く書けて、
+        // 局面の文字列の長さに上限が無くなる。
+        let canonical_ply = !ply.is_empty()
+            && ply.chars().all(|c| c.is_ascii_digit())
+            && (ply == "0" || !ply.starts_with('0'));
+        if !canonical_ply {
+            return Err(invalid(&format!("手数の綴りが数値でない: {ply}")));
         }
         if ply.parse::<u32>().is_err() {
-            return Err(invalid(&format!("手数が数値でない: {ply}")));
+            return Err(invalid(&format!("手数が大きすぎる: {ply}")));
         }
         reject_rest(&mut tokens)?;
     }
@@ -193,17 +204,18 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
 
 /// 局面の文字列として受け付ける長さの上限。
 ///
-/// 盤面は `81 - 盤上の駒数 + 綴りの字数 + '/'8個` で、成れる駒を全て `+X`（2字）で
-/// 書き空きマスを畳まないときが最長。駒を1枚ずつ持駒へ移すと盤面は1字縮み、
-/// 持駒は1字増えるので、**盤面と持駒の合計は駒の置き方によらず 127 字**。
-/// `position sfen ` の前置き・手番・10桁の手数を足して 155 字が、正当な入力の最長。
+/// 数えるのはトークンの合計（区切りの空白は1字と数える）。
+///
+/// 盤面は `81 - 盤上の駒数 + 綴りの字数 + '/'8個`。持駒は1枚あたり最長2字
+/// （`1P` のように枚数を明示する綴り）。**盤面と持駒の合計の最大は 165 字**で、
+/// 盤上を玉2枚だけにして残り38枚を1枚ずつ持駒に書いたとき（89 + 76）。
+/// 前置き・手番・10桁の手数を足して 193 字。
 /// `a_maximally_spelled_board_is_accepted` がその長さちょうどを通している。
 ///
-/// この計算は、冗長な綴り（持駒の枚数 `1`、先頭ゼロ）を
-/// [`hand_count::HandCount::parse`] と手数の検査が拒否することに依存している。
-/// 受け付けると同じ局面を好きなだけ長く書けて、上限そのものが無くなる。
+/// この計算は、先頭ゼロを [`hand_count::HandCount::parse`] と手数の検査が拒否する
+/// ことに依存している。受け付けると同じ局面をいくらでも長く書けて、上限が無くなる。
 ///
-/// 155 の 1.65 倍を取り、2 の冪へ丸めて 256。
+/// 193 に余裕を持たせ、2 の冪へ丸めて 256。
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
 const MAX_INPUT_CHARS: usize = 256;
 
@@ -240,13 +252,13 @@ mod hand_count {
     impl HandCount {
         /// 1トークンの枚数は、最も多い歩でも18枚。桁あふれもここへ落とす。
         ///
-        /// 冗長な綴り（先頭ゼロ、枚数 `1` の明示）は拒否する。受け付けると
-        /// 同じ持駒を好きなだけ長く書けてしまい、局面の文字列に長さの上限が
-        /// 無くなる（`MAX_INPUT_CHARS` の根拠が成り立たなくなる）。
+        /// 先頭ゼロは拒否する。`parse` が無視するので、受け付けると同じ持駒を
+        /// 好きなだけ長く書けてしまい、局面の文字列の長さに上限が無くなる。
+        ///
+        /// 枚数 `1` の明示（`1P`）は受け付ける。書き出す側は省くのが普通だが
+        /// SFEN として正当で、読み手（tsshogi など）も受理する。長さは1駒あたり
+        /// 2字で頭打ちなので、上限の根拠は崩れない。
         pub(super) fn parse(digits: &str) -> Result<Self, String> {
-            if digits == "1" {
-                return Err("持駒の枚数 1 は書かない".to_string());
-            }
             if digits.len() > 1 && digits.starts_with('0') {
                 return Err(format!("持駒の枚数に先頭ゼロがある（{digits}）"));
             }
@@ -520,20 +532,26 @@ mod tests {
         let long_token = "x".repeat(150);
         let long_digits = "9".repeat(150);
 
+        // 枝ごとに、実際にそこへ落ちたことを理由文で確かめる。
+        // 打ち切りの跡（`…`）の数だけを見ると、検査の順序が変わって別の枝へ
+        // ずれても緑のまま通る。
         let inputs = [
-            // 手数が数値でない → 理由文に {ply} が入る
-            format!("{BARE_BOARD} b - {long_token}"),
-            // 局面の後ろに余分なトークン → 理由文に {extra} が入る
-            format!("{BARE_BOARD} b - 1 {long_token}"),
-            // 持駒の桁 → 理由文に {digits} が入る
-            format!("{BARE_BOARD} b {long_digits}P 1"),
-            // 持駒の枚数に駒が続かない → 理由文に {digits} が入る。
-            // 先頭ゼロで桁を伸ばす。"9" を並べると桁あふれで「範囲外」に落ちて
-            // 1つ上と同じ枝になり、この枝を通らない
-            format!("{BARE_BOARD} b {}1 1", "0".repeat(149)),
+            (
+                format!("{BARE_BOARD} b - {long_token}"),
+                "手数の綴りが数値でない",
+            ),
+            (format!("{BARE_BOARD} b - 1 {long_token}"), "余分なトークン"),
+            (
+                format!("{BARE_BOARD} b {long_digits}P 1"),
+                "持駒の枚数が範囲外",
+            ),
+            (
+                format!("{BARE_BOARD} b {}1P 1", "0".repeat(149)),
+                "持駒の枚数に先頭ゼロがある",
+            ),
         ];
 
-        for input in inputs {
+        for (input, reason) in inputs {
             assert!(
                 input.chars().count() <= MAX_INPUT_CHARS,
                 "入口の検査に落ちてしまう: len={}",
@@ -547,8 +565,8 @@ mod tests {
                     .message(),
             ] {
                 assert!(
-                    !message.contains("長すぎる"),
-                    "入口の検査に落ちている: {message}"
+                    message.contains(reason),
+                    "狙った枝に落ちていない（期待 {reason}）: {message}"
                 );
                 assert!(
                     message.chars().count() <= LOG_BUDGET_CHARS,
@@ -567,40 +585,60 @@ mod tests {
         }
     }
 
-    /// 不変条件 1: 合法な局面は必ず通る。
-    ///
-    /// 成駒を `+X` で書き、空きマスを畳まずに `1` の並びで書いた盤面が、
-    /// 正当な入力の最長。`MAX_INPUT_CHARS` を詰めるとここが落ちる。
-    /// 正当な入力の最長。盤面と持駒の合計は駒の置き方によらず 127 字で、
-    /// 前置き・手番・10桁の手数を足して 155 字。
-    const LONGEST_VALID_INPUT_CHARS: usize = 155;
+    /// 正規の綴りでの最長（トークンの合計）。
+    /// 前置き14 + 盤面89 + 手番1 + 持駒76 + 手数10 + 区切り3 = 193。
+    const LONGEST_VALID_INPUT_CHARS: usize = 193;
 
     /// 上限がこれを下回ると、正当な局面が入口の検査で落ちる。
     /// コンパイル時に見るので、定数を詰めた時点で気づける。
     const _: () = assert!(MAX_INPUT_CHARS >= LONGEST_VALID_INPUT_CHARS);
 
+    /// 不変条件 1: 合法な局面は必ず通る。
+    ///
+    /// 盤上を玉2枚だけにし、残り38枚を1枚ずつ（`1X`）持駒に書いた綴りが最長。
+    /// 空きマスは畳まない。`MAX_INPUT_CHARS` をこれより詰めると、上の
+    /// `const _` の assert でコンパイルが止まる。
     #[test]
     fn a_maximally_spelled_board_is_accepted() {
-        // 成れる34枚を `+X`、玉2枚と空きマス45を `1` で書いた盤面（123字）。
-        // 金4枚は成れないので持駒に置く（盤へ戻しても合計の字数は変わらない）。
+        // 各段9列。玉2枚以外は空きマスを `1` で1つずつ書く
         let board = concat!(
-            "+P1+P1+P1+P1+P/",
-            "+P1+P1+P1+P1+P/",
-            "+P1+P1+P1+P1+P/",
-            "+P1+P1+P1+L1+L/",
-            "+L1+L1+N1+N1+N/",
-            "+N1+S1+S1+S1+S/",
-            "+B1+B1+R1+R11/",
+            "111111111/",
+            "111111111/",
+            "111111111/",
+            "111111111/",
             "1K1k11111/",
+            "111111111/",
+            "111111111/",
+            "111111111/",
             "111111111",
         );
-        // 金は成れないので、持駒へ移しても盤面の字数は縮まない（空きマスの `1` が
-        // 増えるだけ）。持駒と最大桁の手数を載せた形が、正当な入力の最長。
-        let input = format!("position sfen {board} b GGGG 4294967295");
+        // 玉以外の38枚を全て持駒に。枚数 1 を明示すると1枚あたり2字になる
+        let hands = concat!(
+            "1R1R1B1B",
+            "1G1G1G1G",
+            "1S1S1S1S",
+            "1N1N1N1N",
+            "1L1L1L1L",
+            "1P1P1P1P1P1P1P1P1P1P1P1P1P1P1P1P1P1P",
+        );
+        let input = format!("position sfen {board} b {hands} 4294967295");
 
-        // 境界を等式で固定する。`<=` だけだと、上限を 155 まで詰めても落ちない。
+        // 境界を等式で固定する。`<=` だけだと、上限を詰めても落ちない。
         assert_eq!(input.chars().count(), LONGEST_VALID_INPUT_CHARS);
         assert!(to_book_key(&input).is_ok(), "{:?}", to_book_key(&input));
+    }
+
+    /// 区切りの空白をいくつ挟んでも同じ局面。生の長さで測ると、正当な局面を
+    /// 「長すぎる」で弾いてしまう。
+    #[test]
+    fn extra_whitespace_does_not_make_a_position_too_long() {
+        let gap = " ".repeat(100);
+        let padded = format!("{gap}position{gap}sfen{gap}{BARE_BOARD}{gap}b{gap}-{gap}1{gap}");
+        assert!(
+            padded.chars().count() > MAX_INPUT_CHARS,
+            "生の長さが上限を超えていないと、この性質を試せていない"
+        );
+        assert_eq!(key(&padded), key(&format!("{BARE_BOARD} b - 1")));
     }
 
     #[test]
@@ -706,26 +744,38 @@ mod tests {
         assert!(folded.ends_with(" b RLbp"), "folded={folded}");
     }
 
-    /// 冗長な綴りを受け付けると、同じ局面を好きなだけ長く書けてしまい、
+    /// 先頭ゼロや `+` を受け付けると、同じ局面を好きなだけ長く書けてしまい、
     /// 正当な入力の最長という概念が消える（`MAX_INPUT_CHARS` の根拠が崩れる）。
     #[test]
-    fn rejects_redundant_spellings_that_would_unbound_the_length() {
-        // 持駒の枚数 1 の明示、先頭ゼロ
-        for hands in ["1P", "01P", "018P", "0P"] {
+    fn rejects_spellings_that_would_unbound_the_length() {
+        for hands in ["01P", "018P", "001P"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
-        }
-
-        // 手数の先頭ゼロ
-        for ply in ["01", "0001"] {
-            let err = to_book_key(&format!("{BARE_BOARD} b - {ply}")).unwrap_err();
-            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "ply={ply}");
             assert!(
                 err.message().contains("先頭ゼロ"),
-                "message={}",
+                "hands={hands} message={}",
                 err.message()
             );
         }
+
+        // 手数。`parse` は先頭の `+` と先頭ゼロを黙って受けるので、綴りで見る
+        for ply in ["01", "0001", "+1", "+0001"] {
+            let err = to_book_key(&format!("{BARE_BOARD} b - {ply}")).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "ply={ply}");
+            assert!(
+                err.message().contains("綴りが数値でない"),
+                "ply={ply} message={}",
+                err.message()
+            );
+        }
+    }
+
+    /// 枚数 `1` の明示は SFEN として正当で、読み手も受理する。畳んだ結果は
+    /// 省いた綴りと同じキーになるので、拒否する理由が無い。
+    #[test]
+    fn an_explicit_count_of_one_is_accepted() {
+        assert_eq!(key(&bare_with_hands("1P")), key(&bare_with_hands("P")));
+        assert_eq!(key(&bare_with_hands("1P1p")), key(&bare_with_hands("Pp")));
     }
 
     #[test]
