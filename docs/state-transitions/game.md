@@ -127,15 +127,15 @@ D2 は state の中に印が無い。`error` は `clear_error` で消え、
 
 ## 埋まっていないセル
 
-| セル                                                   | 状態                                                                                                                      |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `GameProvider` 自体の遷移すべて                        | **テスト無し。** `provider.tsx` にテストが1本も無い。上の表で ✗ を付けたものは全部これ                                    |
-| 分岐メニュー「本譜」/「変化 k」                        | ✓ `KifuStreamList.forkMenu.test.tsx`（G2 で「本譜」が本譜へ戻ること、選択済みを再度押しても局面が動かないこと）           |
-| `cursorFromLite` が `te > tesuu` を返しうるか          | **未検証。** 正規化していないので Rust 側の出力次第。検索ヒットのカーソルがどう作られるかは `search.md`（未作成）で扱う   |
-| `PositionNavigationModal` の ← で作った `overridePlan` | **テスト無し。** `te > tesuu` を持つカーソルを `applyCursor` に渡す唯一の経路                                             |
-| D2 のあと `loadGame` で編集が消える                    | **テスト無し。** 手で再現していない。表に残す                                                                             |
-| `branchPlan` が線の末尾より先を指す                    | ✓ `leafTesuu.test.ts`「線の末尾より先に計画が残っていても throw しない」。ただし読み手 R1 だけ。R2（`goToIndex`）は未検証 |
-| 行の `branchForkPointers` が計画から作られる           | **テスト無し。** 削除・入れ替えのクエリが「辿っていない枝」を指しうる → #196                                              |
+| セル                                                   | 状態                                                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `GameProvider` 自体の遷移すべて                        | **テスト無し。** `provider.tsx` にテストが1本も無い。上の表で ✗ を付けたものは全部これ                                          |
+| 分岐メニュー「本譜」/「変化 k」                        | ✓ `cursorSelection.test.ts`。ただし `resolveForkSelection` の**振り分けまで**。`applyCursor` / `goToIndex` を通した結果は未検証 |
+| `cursorFromLite` が `te > tesuu` を返しうるか          | **未検証。** 正規化していないので Rust 側の出力次第。検索ヒットのカーソルがどう作られるかは `search.md`（未作成）で扱う         |
+| `PositionNavigationModal` の ← で作った `overridePlan` | **テスト無し。** `te > tesuu` を持つカーソルを `applyCursor` に渡す唯一の経路                                                   |
+| D2 のあと `loadGame` で編集が消える                    | **テスト無し。** 手で再現していない。表に残す                                                                                   |
+| `branchPlan` が線の末尾より先を指す                    | ✓ `leafTesuu.test.ts`「線の末尾より先に計画が残っていても throw しない」。ただし読み手 R1 だけ。R2（`goToIndex`）は未検証       |
+| 行の `branchForkPointers` が計画から作られる           | **テスト無し。** 削除・入れ替えのクエリが「辿っていない枝」を指しうる → #196                                                    |
 
 ## 不変条件
 
@@ -145,10 +145,11 @@ D2 は state の中に印が無い。`error` は `clear_error` で消え、
    `cursor.forkPointers` をそのまま写す。6つの書き込み経路すべてがこれを守っている。
    **破れると「盤に出ている局面」と「行のチェック」が同じ手数で食い違う。**
 
-2. **画面が「選ばれている」と描いたものと、押したときに比較される値は、同じ出どころでなければならない。**
-   行のチェックは `branchPlan`（`buildStreamRows.ts:49`）、メニューの一致判定は
-   かつて `cursor.forkPointers` だった。**不変条件1がある限り G1 では一致するので、
-   G2 でしか壊れない**。これが #225 が長く残った理由。
+2. **画面が「選ばれている」と描いた値と、押したときに比較する値は、同じ出どころでなければならない。**
+   行のチェックは `branchPlan`（`buildStreamRows.ts:49`）から出るので、
+   一致判定も `branchPlan` から引く（`resolveForkSelection`）。
+   `cursor.forkPointers` と比べても**不変条件1により G1 では一致してしまう**ので、
+   取り違えは G2 でしか表に出ない。この種の間違いはテストを G1 だけで書くと素通りする。
 
 3. **カーソルより先の計画を捨ててよいのは、棋譜が変わってその枝が実在しなくなったときだけ。**
    コメントの保存も駒を1つ動かすのも「棋譜が変わった」に含めているので、
@@ -166,6 +167,6 @@ D2 は state の中に印が無い。`error` は `clear_error` で消え、
 - カーソルの正規化: `src/entities/kifu/model/cursor.ts` の `normalizeForkPointers` / `cursorFromSource`
 - 行と分岐メニュー: `src/widgets/kifu-stream/`
 - テスト: `src/entities/game/model/__tests__/reducer.test.ts`（identity のみ）、
-  `src/widgets/kifu-stream/ui/__tests__/KifuStreamList.forkMenu.test.tsx`、
+  `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts`、
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
   `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`

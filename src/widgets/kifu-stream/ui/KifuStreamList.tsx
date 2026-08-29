@@ -13,7 +13,11 @@ import {
 } from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
-import { branchIndexFromRow, buildCursorWithForkSelection } from "../lib/cursorSelection";
+import {
+  branchIndexFromRow,
+  buildCursorWithForkSelection,
+  resolveForkSelection,
+} from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
 
@@ -212,19 +216,13 @@ export default function KifuStreamList() {
     (te: number, forkIndex: number | null) => {
       if (!plannedCursor) return;
 
-      const currentIdx = state.cursor?.forkPointers?.find((p) => p.te === te)?.forkIndex ?? null;
-
-      if (currentIdx === forkIndex) {
-        closeForkMenu(true);
-        goToIndex(te);
-        return;
-      }
-
-      const nextCursor = buildCursorWithForkSelection(plannedCursor, te, forkIndex);
+      const next = resolveForkSelection(plannedCursor, te, forkIndex);
       closeForkMenu(true);
-      applyCursor(nextCursor);
+
+      if (next.kind === "goto") goToIndex(next.te);
+      else applyCursor(next.cursor);
     },
-    [state.cursor, plannedCursor, applyCursor, goToIndex, closeForkMenu],
+    [plannedCursor, applyCursor, goToIndex, closeForkMenu],
   );
 
   if (!view.player) {
