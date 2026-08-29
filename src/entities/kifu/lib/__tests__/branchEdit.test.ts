@@ -92,9 +92,9 @@ describe("deleteBranchInKifu", () => {
 });
 
 describe("複製の回数", () => {
-  test("分岐点以下を複製するのは1回だけ", () => {
-    // 候補配列は readCandidates が作った私有コピーなので、持ち替えるだけでよい。
-    // 数え直しの複製が戻ると、分岐点が序盤にある棋譜ほど無駄が大きくなる。
+  test("棋譜の深いコピーを取らない", () => {
+    // 呼び出し側が既に複製した JKF を渡してくる（doc に書いてある前提）。
+    // ここで深いコピーを足すと、分岐点が序盤にある棋譜ほど無駄が大きくなる。
     const spy = vi.spyOn(globalThis, "structuredClone");
     try {
       swapBranchesInKifu(
@@ -102,7 +102,7 @@ describe("複製の回数", () => {
         { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
         null,
       );
-      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).not.toHaveBeenCalled();
     } finally {
       spy.mockRestore();
     }
