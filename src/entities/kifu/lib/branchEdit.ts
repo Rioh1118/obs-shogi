@@ -283,8 +283,9 @@ function relocateCursorOnDelete(
  * `te` にぶら下がる同じ手数の入れ子の変化は兄弟に平坦化される。触っていない変化でも
  * `te` の `forkIndex` の並びが変わり、その形でファイルに書き戻される。
  *
- * @throws {Error} `te` が1以上の手を指していないとき、`a` / `b` が候補の範囲外のとき、
- *   `forkPointers` が実在しない変化を指すとき、`forks` に中身の無い変化が混じるとき
+ * @throws {Error} `te` が1以上の手を指していないとき、`a` / `b` が整数でないか候補の範囲外のとき、
+ *   `forkPointers` が実在しない変化を指すか `forkIndex` が整数でないとき、
+ *   `forks` に中身の無い変化が混じるとき
  */
 export function swapBranchesInKifu(
   kifu: JKFData,
@@ -331,8 +332,9 @@ export function swapBranchesInKifu(
  * `cursor` が消える候補の中にいたときは、`te` の直後（消しきったなら `te - 1`）へ退避させた
  * カーソルを返す。
  *
- * @throws {Error} `te` が1以上の手を指していないとき、`target` が候補の範囲外のとき、
- *   `forkPointers` が実在しない変化を指すとき、`forks` に中身の無い変化が混じるとき
+ * @throws {Error} `te` が1以上の手を指していないとき、`target` が整数でないか候補の範囲外のとき、
+ *   `forkPointers` が実在しない変化を指すか `forkIndex` が整数でないとき、
+ *   `forks` に中身の無い変化が混じるとき
  */
 export function deleteBranchInKifu(
   kifu: JKFData,

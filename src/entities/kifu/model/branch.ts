@@ -29,7 +29,9 @@ export const MAIN_LINE = 0 as BranchIndex;
  * @throws {Error} 整数でないとき、`0 <= b < candidates.length` に入らないとき
  */
 export function assertBranchIndex(b: BranchIndex, candidates: readonly unknown[]): void {
-  if (!Number.isInteger(b) || b < MAIN_LINE || b >= candidates.length) {
+  // 理由ごとに分ける。0.5 を「範囲外」と言うと、範囲の側を疑って時間を使うことになる。
+  if (!Number.isInteger(b)) throw new Error(`branchIndex ${b} is not an integer`);
+  if (b < MAIN_LINE || b >= candidates.length) {
     throw new Error(`branchIndex ${b} is out of range (0..${candidates.length - 1})`);
   }
 }
