@@ -176,8 +176,9 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     if (!isReady) return;
     if (!pendingBeforeReadyRef.current) return;
 
-    // 保留していた SFEN そのものは積み直さない。syncPosition は現在の局面を読むので、
-    // 保留中に盤が動いていれば古い方を送ることになる。
+    // 保留していた SFEN そのものは積み直さない。syncPosition が現在の局面を読むので
+    // 積み直しは同じ値の重複にしかならない（保留は盤が動くたびに更新される）。
+    // ここでは「ready になったので送り直す」という合図だけを担う。
     pendingBeforeReadyRef.current = null;
 
     // 同じコミットで自動同期の effect が既に送信を始めていれば、それに任せる。

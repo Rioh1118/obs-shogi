@@ -166,6 +166,46 @@ describe("useEnginePositionSync", () => {
     expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-1");
   });
 
+  it("送信中に棋譜を閉じたら、完了した送信を書き戻さない", async () => {
+    const inFlight = deferred<void>();
+    setPositionFromSfen.mockReturnValueOnce(inFlight.promise);
+
+    const view = mountSync();
+    expect(setPositionFromSfen).toHaveBeenCalledWith("SFEN-1");
+
+    gameStub.cursor = null;
+    gameStub.currentSfen = null;
+    await view.refresh();
+
+    await act(async () => {
+      inFlight.resolve();
+      await inFlight.promise;
+    });
+    await view.refresh();
+
+    // 盤に局面が無いのに「送れている」と名乗ってはいけない。
+    expect(view.current.syncedSfen).toBeNull();
+  });
+
+  it("ready を待っている間に進んだ局面が、ready 後に送られる", async () => {
+    engineStub.isReady = false;
+    setPositionFromSfen.mockResolvedValue(undefined);
+
+    const view = mountSync();
+    expect(setPositionFromSfen).not.toHaveBeenCalled();
+
+    // ready を待っている間に1手進む
+    gameStub.currentSfen = "SFEN-2";
+    gameStub.cursor = { tesuuPointer: "1,[]" };
+    await view.refresh();
+
+    engineStub.isReady = true;
+    await view.refresh();
+
+    expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
+    expect(setPositionFromSfen).not.toHaveBeenCalledWith("SFEN-1");
+  });
+
   it("同期に失敗したら syncPosition が reject する", async () => {
     setPositionFromSfen.mockRejectedValue(new Error("boom"));
 
