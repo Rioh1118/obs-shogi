@@ -1,9 +1,9 @@
 @use "@/index.scss" as index;
 
 // ---- local tokens (no CSS vars) ----
-$radius-lg: 16px;
-$radius-md: 14px;
-$radius-sm: 12px;
+$settings-radius-lg: 16px;
+$settings-radius-md: 14px;
+$settings-radius-sm: 12px;
 
 $border: rgba(index.$color-white, 0.08);
 $border-weak: rgba(index.$color-white, 0.06);
@@ -37,7 +37,7 @@ $warn: #f0b429;
     background: rgba($danger, 0.1);
     color: $text;
     padding: 12px 14px;
-    border-radius: $radius-md;
+    border-radius: $settings-radius-md;
     margin-bottom: 14px;
   }
 
@@ -61,7 +61,7 @@ $warn: #f0b429;
     user-select: none;
     min-width: 0;
 
-    border-radius: $radius-lg;
+    border-radius: $settings-radius-lg;
     border: 1px solid $border;
     background:
       radial-gradient(
@@ -238,7 +238,7 @@ $warn: #f0b429;
 
   .engineTab__mini {
     border: 1px solid $border-weak;
-    border-radius: $radius-sm;
+    border-radius: $settings-radius-sm;
     padding: 10px 10px;
 
     background:

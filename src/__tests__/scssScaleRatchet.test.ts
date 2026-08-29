@@ -29,7 +29,7 @@ const BASELINE = {
   "font-size": 252,
   "border-radius": 179,
   spacing: 527,
-  indirect: 54,
+  indirect: 53,
 };
 
 type Bucket = keyof typeof BASELINE;
@@ -182,6 +182,39 @@ function countRawDeclarations(): {
 
   return { counts, samples };
 }
+
+/** `$name: ...` の定義。`@use` の名前空間があるので同名でもコンパイルは通る */
+const VARIABLE_DEFINITION = /^\s*\$([\w-]+)\s*:/gm;
+
+function definedIn(file: string): Set<string> {
+  const names = new Set<string>();
+  for (const match of blankComments(readFileSync(file, "utf8")).matchAll(VARIABLE_DEFINITION)) {
+    names.add(match[1]);
+  }
+  return names;
+}
+
+describe("SCSS のトークン名", () => {
+  it("ファイルローカルの変数がトークンと同名にならない", () => {
+    const tokens = definedIn(TOKEN_SOURCE);
+    const collisions = scssFiles(SRC)
+      .filter((file) => file !== TOKEN_SOURCE)
+      .flatMap((file) =>
+        [...definedIn(file)]
+          .filter((name) => tokens.has(name))
+          .map((name) => `${relative(process.cwd(), file)}  $${name}`),
+      );
+
+    expect(
+      collisions,
+      [
+        "トークンと同名のローカル変数がある。名前空間が違うのでコンパイルは通るが、",
+        "同じ名前が同じファイルの中で別の値を持つ。トークンへ寄せる置換で値が黙って変わる。",
+        ...collisions,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+});
 
 describe("SCSS のスケール", () => {
   const { counts, samples } = countRawDeclarations();
