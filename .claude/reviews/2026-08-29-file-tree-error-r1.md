@@ -160,6 +160,12 @@ setErrorMsg(result.error.message ?? "ファイルの作成に失敗しました"
   `FileCreateForm` / `KifuImportForm` も同じ経路。
 - 直し方: `state.error` の表示所有者を1つに決める。既存の `kifuError` / `conflict` と同じく
   `pages/AppModalLayer.tsx` に置くか、`createNewFile` 系の失敗を `pushError` させず呼び出し元へ返しきる。
+- **結果: 対応済み。** 後者を採った。呼び出し元を数えると**きれいに分かれていた**ため。
+  `createNewFile` / `importKifuFile` は `features/create-file` の3フォームからのみ呼ばれ、
+  どれも自分の中に失敗を出す場所を持つ。`createNewDirectory` / `renameNode` / `moveNode` は
+  `widgets/file-tree` からのみで、持たない。
+  `deferFailure`（衝突だけ拾い、ほかは呼び出し元へ返す）を足して前者に使う。
+  前者を採ると、モーダル内の失敗を画面隅へ出すことになり ADR-0004 の決定4に反する。
 
 ### [HIGH] H-6 `FsErrorCode` → 段 の対応が無く、10種すべてが `warning` で描かれる
 

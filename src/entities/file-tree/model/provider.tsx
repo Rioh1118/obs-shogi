@@ -63,6 +63,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     });
   }, []);
 
+  // ツリーから直に起こす操作で使う。呼び出し元は失敗を出す場所を持っていない
   const handleFailure = useCallback(
     (error: FsError, request?: FileConflictRequest) => {
       if (error.code === "already_exists" && request) {
@@ -73,6 +74,19 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       return Err(error);
     },
     [pushConflict, pushError],
+  );
+
+  // モーダルの中から起こす操作で使う。衝突だけは別名を選ばせる必要があるので拾い、
+  // ほかの失敗は呼び出し元へ返す。あちらは自分の中に失敗を出す場所を持っているので、
+  // ここでも積むと同じ失敗が2箇所に、別の文言で同時に出る
+  const deferFailure = useCallback(
+    (error: FsError, request: FileConflictRequest) => {
+      if (error.code === "already_exists") {
+        pushConflict(request, error);
+      }
+      return Err(error);
+    },
+    [pushConflict],
   );
 
   const reconcilePathMutation = useCallback(
@@ -236,7 +250,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const res = await api.createKifu(parentPath, options);
 
       if (!res.success) {
-        return handleFailure(res.error, {
+        return deferFailure(res.error, {
           kind: "create_file",
           parentPath,
           options,
@@ -250,7 +264,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       return Ok(undefined);
     },
-    [handleFailure, loadFileTree],
+    [deferFailure, loadFileTree],
   );
 
   const importKifuFile = useCallback(
@@ -263,7 +277,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const res = await api.importKifu(parentPath, fileName, trimmed);
 
       if (!res.success) {
-        return handleFailure(res.error, {
+        return deferFailure(res.error, {
           kind: "import_file",
           parentPath,
           fileName,
@@ -278,7 +292,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       return Ok(undefined);
     },
-    [loadFileTree, handleFailure],
+    [loadFileTree, deferFailure],
   );
 
   const createNewDirectory = useCallback(
