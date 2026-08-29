@@ -48,6 +48,7 @@ describe("commitName", () => {
     });
   });
 
+  // already_exists は衝突の対話、残りは通知。どちらも編集行ごと畳まれる
   test("名前を直しても通らない失敗は返さない。通知か対話が引き取る", async () => {
     for (const code of ["permission_denied", "io", "not_found", "already_exists"]) {
       expect(await commitName("研究", () => Promise.resolve(fail(code))), code).toEqual({

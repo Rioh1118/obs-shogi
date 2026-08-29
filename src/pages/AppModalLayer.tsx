@@ -17,8 +17,7 @@ export default function AppModalLayer() {
     useFileTree();
   const { closeModal } = useURLParams();
 
-  // 依存を conflict オブジェクト全体にしないため、レンダのたびに真偽へ落とす
-  const fromModal = conflict ? isRaisedFromModal(conflict.request) : false;
+  const fromModal = conflict ? isRaisedFromModal(conflict.request) : false; // 依存を真偽に落とす
 
   /**
    * 衝突を別名で解決したら、発端のモーダルも閉じる。

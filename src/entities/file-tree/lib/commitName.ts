@@ -18,7 +18,7 @@ export type CommitOutcome =
  *    モーダル側のファイル名欄はまだ通っていない → issue #224
  * 2. **入力欄に出す失敗を絞る。** 名前を直せば通る失敗だけを `shown` に載せる。
  *    それ以外は provider が振り分ける（`already_exists` は衝突の対話、残りは通知）。
- *    どちらも編集行を畳むので、ここでも出すと同じ失敗が2つの形で同時に出る
+ *    reducer はどちらでも編集行を畳むので、ここでも出すと同じ失敗が2つの形で同時に出る
  */
 export async function commitName(
   raw: string,

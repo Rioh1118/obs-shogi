@@ -11,7 +11,8 @@ type InlineRenameProps = {
    * どちらも `undefined` にすると、送り直しを止める判断がこちらから消える。
    *
    * `shown` に載るのは名前を直せば通る失敗だけ。それ以外は provider が
-   * 通知か衝突の対話へ振り分け、どちらも編集行を畳む。
+   * 通知（`state.error`）か衝突の対話（`state.conflict`）へ振り分け、
+   * reducer はどちらでも編集行を畳む。
    * 絞り込みは `entities/file-tree/lib/commitName` が持つ。
    */
   onCommit: (nextName: string) => Promise<CommitOutcome>;
@@ -131,7 +132,11 @@ function InlineNameEditor({
         重ねる以上、下の行のクリックを奪わないよう pointer-events は切る（SCSS 側）
       */}
       {error && (
-        <span className="inline-name-editor__error" role="alert">
+        <span
+          className="inline-name-editor__error"
+          role="alert"
+          title={describeFsError(error.code)}
+        >
           {describeFsError(error.code)}
         </span>
       )}

@@ -28,8 +28,12 @@
   color: index.$color-text-primary;
   font-size: index.$font-hint;
   line-height: 1.4;
-  white-space: normal;
-  overflow-wrap: anywhere;
+
+  // 1行に留める。折り返すと下のノードを2〜3行ぶん覆い、
+  // その行が見えないまま押せる状態になる。全文は title 属性で読める
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .file-name__input {

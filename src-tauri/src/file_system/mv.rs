@@ -18,11 +18,13 @@ pub fn rename_kifu_file<R: Runtime>(
     new_file_name: String,
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&file_path);
-    validate_under_root(&app, &src)?;
 
+    // 存在確認を先に置く。root 検査を先にすると、親ごと消えた場合に
+    // canonicalize が ENOENT で落ち、どのファイルの話かが表示から消える
     if !src.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
+    validate_under_root(&app, &src)?;
     if !src.is_file() {
         return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
             .with_path(src.to_string_lossy().to_string()));
@@ -65,11 +67,13 @@ pub fn mv_kifu_file<R: Runtime>(
     new_file_name: Option<String>,
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&file_path);
-    validate_under_root(&app, &src)?;
 
+    // 存在確認を先に置く。root 検査を先にすると、親ごと消えた場合に
+    // canonicalize が ENOENT で落ち、どのファイルの話かが表示から消える
     if !src.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
+    validate_under_root(&app, &src)?;
     if !src.is_file() {
         return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
             .with_path(src.to_string_lossy().to_string()));
@@ -125,13 +129,14 @@ pub fn rename_directory<R: Runtime>(
     new_dir_name: String,
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&dir_path);
-    validate_under_root(&app, &src)?;
 
+    // 存在確認を先に置く（上と同じ理由）
     if !src.exists() {
         return Err(
             FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
+    validate_under_root(&app, &src)?;
     if !src.is_dir() {
         return Err(
             FsError::new(FsErrorCode::InvalidType, "path is not a directory")
@@ -162,13 +167,14 @@ pub fn mv_directory<R: Runtime>(
     new_dir_name: Option<String>,
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&dir_path);
-    validate_under_root(&app, &src)?;
 
+    // 存在確認を先に置く（上と同じ理由）
     if !src.exists() {
         return Err(
             FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
+    validate_under_root(&app, &src)?;
     if !src.is_dir() {
         return Err(
             FsError::new(FsErrorCode::InvalidType, "path is not a directory")

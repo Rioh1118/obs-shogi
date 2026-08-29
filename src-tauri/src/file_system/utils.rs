@@ -81,7 +81,11 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
 
 /// 与えられた target が AppConfig.root_dir 配下にあるか検証する。
 /// target が存在しない場合は、親ディレクトリを canonicalize して合成する。
-/// root_dir が未設定なら検証をスキップする（後方互換）。
+///
+/// **`root_dir` が未設定なら、この関門は無条件で開く。**
+/// ワークスペースを選ぶ前に起きるので UI からは踏めないが、
+/// webview 側から `invoke` を直に呼べばどのパスでも通る。
+/// 塞ぐなら「未設定＝どのパスも許可しない」に倒すことになる → issue #215
 pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<(), FsError> {
     let Some(root) = load_root_dir(app)? else {
         return Ok(());

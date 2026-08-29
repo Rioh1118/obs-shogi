@@ -69,7 +69,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   }, []);
 
   // 失敗をどこへ出すかは、その操作を**起こした場所が出す場所を持っているか**で決まる。
-  // 3つの名前はその行き先を表す。→ docs/state-transitions/file-tree.md の ※2
+  // 行き先は5つ。名前を持つのは次の3つで、残り2つは `pushError` の直呼び（削除・
+  // 衝突の解決の中断）と `loadFileTree` の直積み。
+  // → docs/state-transitions/file-tree.md の ※2
 
   // 通知へ積む。ツリーから直に起こす操作で使う（呼び出し元は出す場所を持たない）
   const failWithNotice = useCallback(
@@ -377,6 +379,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.removeFile(node.path);
 
       if (!res.success) {
+        // 削除は衝突の要求を作れない（別名で解決しようがない）ので、
+        // `failWithNotice` の形を借りずに直に積む
         pushError(res.error);
         return Err(res.error);
       }
