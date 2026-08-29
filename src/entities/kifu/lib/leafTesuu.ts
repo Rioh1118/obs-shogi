@@ -9,10 +9,12 @@ const LEAF_TESUU_LIMIT = 10000;
  * 計画に沿って辿り着ける末端の手数を返す
  *
  * `cursor.forkPointers` は「これから選ぶ計画」も含むので、その通りに降りたときの葉を数える。
- * 計画が指す変化が実在しなければ（範囲外・負・非整数のいずれでも）本譜へ落ちる。
- * `cursor` が無ければ本譜の末尾。
+ * `cursor.tesuu` より先の計画は、指す変化が実在しなければ（範囲外・負・非整数のいずれでも）
+ * 本譜へ落ちる。`cursor.tesuu` までのぶんは `buildPlayer` の `goto` が扱うので、
+ * **そちらは負・非整数で `TypeError` になる**。`cursor` が無ければ本譜の末尾。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` が投げる）
+ * @throws {TypeError} `cursor.tesuu` までの `forkIndex` が負・非整数のとき（同上）
  * @throws {Error} `LEAF_TESUU_LIMIT` 手進んでも葉に着かないとき
  */
 export function computeLeafTesuu(jkf: JKFData, cursor: KifuCursor | null): number {

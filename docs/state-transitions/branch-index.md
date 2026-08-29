@@ -76,12 +76,21 @@
    出方は経路で違う。`resolveLine`（`branchEdit`）は
    `resolveLine failed at te=N forkIndex=-1` を投げるが、`JKFPlayer.forkAndForward` は
    **`forks.length` 以上なら `false` を返すのに、負や非整数は `forks[-1]` を掴んで
-   内部で `TypeError`** になる。計画を辿る側（`computeLeafTesuu` /
-   `buildStreamRowsFromCursor`）は渡す前に自分で捨てる。
-2. **範囲外の値は、黙って別の候補に丸められない。**
+   内部で `TypeError`** になる。
+
+   捨てているのは `cursor.tesuu` より先を辿る2箇所だけ（`computeLeafTesuu` /
+   `buildStreamRowsFromCursor`）。**`cursor.tesuu` までを扱う `goto` と、
+   `PositionSearchContinuation` の走査は捨てていない**（`goto` は `forkAndForward` の
+   返り値すら見ない）。同じ検査が3箇所に書き写されている状態で、境界を
+   `goto` に渡す直前の1点に寄せるのが本筋。→ #213
+
+2. **要求した局面に着いたかは `tesuu` では判定できない。**
+   `goto` は実在しない変化を黙って捨てて本譜を進むので、**要求した `tesuu` ちょうどで
+   別の線に着く**。比べるなら `player.getTesuuPointer(tesuu)` と `cursor.tesuuPointer`。
+3. **範囲外の値は、黙って別の候補に丸められない。**
    `splice` は `NaN` も小数も0方向へ丸めるので、大小比較だけの検査では
    `NaN` が「本譜を消す」に化ける。整数であることを先に見る。
-3. **表示のための関数は throw しない。**
+4. **表示のための関数は throw しない。**
    `branchLabel` は `BranchCard` / `StatusTips` / `KifuForkMenu` からレンダ中に呼ばれる。
    壊れた `forkIndex` では壊れたラベルを出す。ラベル1つのために画面を落とさない。
    値の検査は編集の入口（`swapBranchesInKifu` / `deleteBranchInKifu`）が行う。
