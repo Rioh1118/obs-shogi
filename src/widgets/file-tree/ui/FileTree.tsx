@@ -92,7 +92,7 @@ function FileTree() {
   const handleRetry = useCallback(async () => {
     setRetriedFrom(error);
     try {
-      await refreshTree();
+      await refreshTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が state.error に積む
     } finally {
       setRetriedFrom(null);
     }

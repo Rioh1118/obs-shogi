@@ -163,13 +163,18 @@ export default function AiLibraryTab() {
       if (!root || !name) return;
       setScan({ status: "loading" });
       try {
+        // createDir は AsyncResult を返すので投げない。捨てると、フォルダが
+        // 作られていないのに「eval が未検出です」という警告だけが出て、
+        // 利用者は「まだ置いていないだけ」と読む
         const profileRes = await createDir(root, name);
-        // FsError はオブジェクト。String() に落とすと "[object Object]" になり、
-        // 何が起きたか分からない文字列だけが画面に出る
         if (!profileRes.success) throw new Error(describeFsError(profileRes.error.code));
         const profilePath = profileRes.data;
-        await createDir(profilePath, "eval");
-        await createDir(profilePath, "book");
+
+        for (const sub of ["eval", "book"] as const) {
+          const res = await createDir(profilePath, sub);
+          if (!res.success) throw new Error(`${sub}: ${describeFsError(res.error.code)}`);
+        }
+
         await scanNow(root);
       } catch (e) {
         setScan({ status: "error", error: e instanceof Error ? e.message : String(e) });
