@@ -30,8 +30,12 @@ export type FsError = {
   cause?: string;
 };
 
-// `satisfies` で全ての code を並べさせる。`FsErrorCode` を増やすと型検査がここへ連れてくる
-const FS_ERROR_CODES = {
+/**
+ * `satisfies` で全ての code を並べさせる。`FsErrorCode` を増やすと型検査がここへ連れてくる。
+ *
+ * `src/__tests__/fsErrorCodes.test.ts` がこの並びを Rust の `FsErrorCode` と突き合わせる。
+ */
+export const FS_ERROR_CODES = {
   already_exists: true,
   not_found: true,
   invalid_name_empty: true,
@@ -65,7 +69,30 @@ export function asFsError(error: unknown): FsError {
   if (e && typeof e.message === "string" && isFsErrorCode(e.code)) {
     return e as FsError;
   }
-  return makeFsError("unknown", error instanceof Error ? error.message : String(error));
+
+  // Tauri の reject 値はプレーンオブジェクトなので、まとめて String() に落とすと
+  // "[object Object]" になり、**どのファイルで何が起きたかまで消える**。
+  // 分からないのが code だけなら、残りは拾い直す
+  if (typeof e === "object" && e !== null) {
+    return {
+      code: "unknown",
+      message: typeof e.message === "string" ? e.message : describeShape(e),
+      path: typeof e.path === "string" ? e.path : undefined,
+      existingPath: typeof e.existingPath === "string" ? e.existingPath : undefined,
+      cause: typeof e.code === "string" ? `未知の code: ${e.code}` : undefined,
+    };
+  }
+
+  return makeFsError("unknown", String(error));
+}
+
+/** 中身を1行のログに落とす。循環参照でも例外にしない */
+function describeShape(value: object): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 export function makeFsError(code: FsErrorCode, message: string, path?: string): FsError {

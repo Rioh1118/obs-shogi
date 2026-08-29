@@ -54,6 +54,30 @@ describe("asFsError", () => {
   test("落とすときも元の内容は残す", () => {
     expect(asFsError(new Error("パースできません")).message).toContain("パースできません");
   });
+
+  /**
+   * Tauri の reject 値はプレーンオブジェクト。まとめて `String()` に落とすと
+   * `[object Object]` になり、どのファイルで何が起きたかまで消える。
+   * Rust に code を1つ足しただけでこの経路に入るので、実際に起きる形で踏む。
+   */
+  test("知らない code でも path と message は捨てない", () => {
+    const res = asFsError({
+      code: "kifu_conversion_failed_v2",
+      message: "normalize failed",
+      path: "/root/a.kif",
+      existingPath: "/root/b.kif",
+    });
+
+    expect(res.code).toBe("unknown");
+    expect(res.message).toBe("normalize failed");
+    expect(res.path).toBe("/root/a.kif");
+    expect(res.existingPath).toBe("/root/b.kif");
+    expect(res.cause).toContain("kifu_conversion_failed_v2");
+  });
+
+  test("message すら無いオブジェクトでも [object Object] にしない", () => {
+    expect(asFsError({ code: "???", path: "/root/a.kif" }).message).toContain("/root/a.kif");
+  });
 });
 
 describe("describeFsError", () => {
