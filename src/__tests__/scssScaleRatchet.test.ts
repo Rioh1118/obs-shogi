@@ -9,11 +9,11 @@ import { Bucket, BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * `exempt` も枠の1つなので、除外の印を増やすにもこの表を触ることになる。
  */
 const BASELINE: Record<Bucket, number> = {
-  "font-size": 252,
+  "font-size": 251,
   "border-radius": 178,
   spacing: 528,
   elevation: 79,
-  motion: 81,
+  motion: 79,
   family: 18,
   indirect: 53,
   exempt: 0,
