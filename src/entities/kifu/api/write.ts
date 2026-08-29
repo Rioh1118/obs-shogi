@@ -9,8 +9,10 @@ import type { JKFData } from "../model/jkf";
  * throw しない。失敗はすべて `Err` に畳んであり、中身はそのまま利用者に見せられる
  * 日本語のメッセージ。呼び出し側で try/catch を重ねる必要はない。
  *
- * 書き出しは Rust 側で正規化を通るが、その結果は返さない。保存後の `jkf` は
- * ファイルの中身と一致するとは限らない。
+ * 書き出しに正規化は挟まらない。Rust 側で `normalize()` を呼ぶのは
+ * `convert_jkf_to_format` と `normalize_jkf` だけで、この経路は通らない。
+ * KIF / KI2 / CSA への変換は非可逆なので、書いたファイルを読み直した JKF は
+ * 渡した `jkf` と一致しない。
  */
 export async function saveKifuToFile(
   jkf: JKFData,
