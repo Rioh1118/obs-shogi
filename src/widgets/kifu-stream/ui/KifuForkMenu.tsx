@@ -8,7 +8,6 @@ import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
 import "./KifuForkMenu.scss";
-import type { ForkPointer } from "@/entities/kifu/model/cursor";
 
 type Props = {
   te: number;
@@ -16,8 +15,6 @@ type Props = {
   forkTexts: string[];
   selectedForkIndex: number | null;
   busy: boolean;
-
-  branchForkPointers: ForkPointer[];
 
   anchorEl: HTMLButtonElement;
   onSelect: (forkIndex: number | null) => void;

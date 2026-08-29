@@ -214,7 +214,6 @@ const KifuMoveCard = memo(
             onSelect={onSelect}
             onClose={onRequestCloseForkMenu}
             menuRef={forkMenuRef}
-            branchForkPointers={row.branchForkPointers}
             onSwap={(branchIndex, dir) => {
               onSwapBranch(row.te, row.branchForkPointers, branchIndex, dir);
             }}
