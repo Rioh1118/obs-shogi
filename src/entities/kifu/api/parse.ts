@@ -1,6 +1,7 @@
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 
+import { Normalizer } from "json-kifu-format";
 import {
   detectRecordFormat,
   RecordFormatType,
@@ -29,6 +30,27 @@ function stripBom(s: string): string {
   return s.replace(/^\uFEFF/, "");
 }
 
+
+/**
+ * どの形式から読んでも表記が揃うようにする
+ *
+ * 「同」や相対表記は棋譜テキストに書かれていた分しか入らない。CSA には「同」の表記が
+ * 無いため、これを通さないと同じ手が形式によって「☖２二銀」と「☖同　銀」に割れる。
+ * 分岐を1つ追加すると applyMoveWithBranch が棋譜全体を正規化するので、
+ * 通しておかないと「触っていない手の表記が勝手に変わる」ことになる。
+ *
+ * 非合法手を含む棋譜では正規化が throw する。そのときは元をそのまま返す。
+ * 表記が揃わないだけで、開いて読むことはできる。
+ */
+function normalizeForDisplay(jkf: JKFData): JKFData {
+  try {
+    return Normalizer.normalizeMinimal(structuredClone(jkf));
+  } catch {
+    // 壊れかけの棋譜でも開けることを優先する
+    return jkf;
+  }
+}
+
 export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
@@ -45,7 +67,7 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   if (rec instanceof Error) {
     throw new KifuParseError(`棋譜(${format})の解析に失敗しました。`, rec);
   }
-  return exportJKF(rec) as JKFData;
+  return normalizeForDisplay(exportJKF(rec) as JKFData);
 }
 
 export function parseKifuStringToJKF(raw: string): ParsedKifu {
@@ -55,7 +77,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
     if (rec instanceof Error) throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
-    return { detectedFormat: "jkf", jkf: exportJKF(rec) as JKFData };
+    return { detectedFormat: "jkf", jkf: normalizeForDisplay(exportJKF(rec) as JKFData) };
   }
 
   let fmt: RecordFormatType;
@@ -88,5 +110,5 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? "kif"
           : "jkf";
 
-  return { detectedFormat, jkf: exportJKF(rec) as JKFData };
+  return { detectedFormat, jkf: normalizeForDisplay(exportJKF(rec) as JKFData) };
 }
