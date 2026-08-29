@@ -11,10 +11,13 @@ import type { JKFData } from "../model/jkf";
  * （`Permission denied (os error 13)` など）がそのまま入るので、
  * 利用者に出すなら何をしようとして失敗したのかを前後に足すこと。
  *
- * 書き出しに正規化は挟まらない。Rust 側で `normalize()` を呼ぶのは
- * `convert_jkf_to_format` と `normalize_jkf` だけで、この経路は通らない。
- * KIF / KI2 / CSA への変換は非可逆なので、書いたファイルを読み直した JKF は
- * 渡した `jkf` と一致しない。
+ * この関数が呼ぶ `write_kifu_to_file` は正規化しない（`src-tauri/src/kifu.rs`）。
+ * 一方、新規作成の `create_kifu_file` は書く前に Rust 側で正規化する
+ * （`src-tauri/src/file_system/operations.rs`）。同じ JKF でも、作った時と
+ * 保存し直した時でファイルの中身が揃わない。
+ *
+ * KIF / KI2 / CSA への変換は非可逆なので、いずれにせよ書いたファイルを読み直した JKF は
+ * 渡した `jkf` と一致するとは限らない。
  */
 export async function saveKifuToFile(
   jkf: JKFData,
