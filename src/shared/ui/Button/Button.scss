@@ -1,0 +1,121 @@
+@use "@/index.scss" as index;
+
+.uiBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: index.$space-2;
+
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+
+  border: 1px solid index.$stroke;
+  background: transparent;
+  color: index.$color-text-primary;
+  cursor: pointer;
+
+  transition:
+    background-color index.$duration-3 index.$ease,
+    border-color index.$duration-3 index.$ease,
+    box-shadow index.$duration-3 index.$ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(index.$color-white, 0.06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  // ── 大きさ ──
+  &--sm {
+    height: 2.8rem;
+    padding: 0 index.$space-5;
+    font-size: index.$font-hint;
+  }
+
+  &--md {
+    height: 3.2rem;
+    padding: 0 index.$space-6;
+    font-size: index.$font-aux;
+  }
+
+  &--lg {
+    height: 3.8rem;
+    padding: 0 index.$space-8;
+    font-size: index.$font-body;
+  }
+
+  // ── 角丸 ──
+  &--r-sharp {
+    border-radius: index.$radius-2;
+  }
+
+  &--r-soft {
+    border-radius: index.$radius-3;
+  }
+
+  &--r-pill {
+    border-radius: index.$radius-pill;
+  }
+
+  // ── 面の色 ──
+  // primary の面は $color-secondary-solid。$color-secondary-dark だと
+  // 白文字が 3.80:1 になり本文の基準を割る
+  &--primary {
+    background: index.$color-secondary-solid;
+    border-color: index.$color-secondary-solid;
+    color: index.$color-white;
+
+    &:hover:not(:disabled) {
+      background: index.$color-secondary-solid-hover;
+      border-color: index.$color-secondary-solid-hover;
+    }
+  }
+
+  &--danger {
+    background: index.$color-danger;
+    border-color: index.$color-danger;
+    color: index.$color-text-dark-1;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, index.$color-danger 86%, index.$color-white);
+      border-color: color-mix(in srgb, index.$color-danger 86%, index.$color-white);
+    }
+  }
+
+  // 枠を持たない。並べたときに主ボタンから視線を奪わない
+  &--quiet {
+    border-color: transparent;
+    color: rgba(index.$color-text-primary, 0.72);
+
+    &:hover:not(:disabled) {
+      color: index.$color-text-primary;
+    }
+  }
+
+  // ── 動き ──
+  // 押した手応えを出す。連続で押す場所では切れるように分けてある
+  &--motion {
+    &:hover:not(:disabled) {
+      box-shadow: 0 index.$space-2 index.$space-4 rgba(0, 0, 0, 0.22);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0.1rem);
+      box-shadow: 0 index.$space-1 index.$space-2 rgba(0, 0, 0, 0.16);
+    }
+  }
+
+  &--block {
+    display: flex;
+    width: 100%;
+  }
+}
