@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # 更新 PR が多すぎるとレビューが追いつかず、結果として誰も見なくなる。
+  # 月1回・同時 5 本までに絞り、セキュリティ更新だけは Dependabot が別枠で即時に出す。
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # パッチとマイナーは1本にまとめる。個別に見る価値が無いため。
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

@@ -1,0 +1,44 @@
+name: 機能提案・研究ワークフローの要望
+description: 欲しい機能、研究で困っていること、UI/UX 上のつまずき
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ObsShogi は「定跡・序盤研究のワークフロー」に特化したアプリです。
+        **実際の研究で何に困ったか**が分かる形で書いていただけると、とても助かります。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 何に困っていますか
+      description: |
+        機能の案ではなく、**困りごと**を書いてください。
+        解決策は複数ありうるので、まず問題を共有していただけると議論しやすくなります。
+      placeholder: 分岐を10個以上作ると、どれがどの構想だったか分からなくなる
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: どういう場面で起きますか
+      description: 頻度、そのときやろうとしていたこと、扱っている棋譜の規模など
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 今はどうやって回避していますか
+      description: 別のツールを使っている、手作業でやっている、諦めている、など
+    validations:
+      required: false
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: 案があれば
+      description: 無くても構いません
+    validations:
+      required: false
