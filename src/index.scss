@@ -15,16 +15,61 @@ $color-text-dark-1: #0e1110;
 $color-text-dark-2: #3a3a3a;
 
 // font
-$default-font-size: 1.6rem;
+// 段は用途で選ぶ。サイズで選ぶと段の中で値が再び割れる（ADR-0003）
+$font-hint: 1.1rem; // 注記、件数、バッジ
+$font-aux: 1.2rem; // 説明文、副題、パス
+$font-body: 1.3rem; // 本文とフォームのコントロール。body の基準
+$font-body-lg: 1.4rem; // 強調した本文、入力欄
+$font-section: 1.6rem; // 小見出し、カードの題
+$font-title: 1.8rem; // ダイアログ・ペインの題
+$font-display: 2.4rem; // 画面の主題
+$font-hero: 4rem; // ガイド画面の導入
+
+// 盤の駒台の文字は盤サイズに従属するのでこのスケールに載せない
+
+$font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+
+// space
+// 役割名を付けない。役割と寸法が一対一に対応しないため
+$space-1: 0.2rem;
+$space-2: 0.4rem;
+$space-3: 0.6rem;
+$space-4: 0.8rem;
+$space-5: 1rem;
+$space-6: 1.2rem;
+$space-7: 1.6rem;
+$space-8: 2.4rem;
+
+// radius
+$radius-xs: 0.4rem;
+$radius-sm: 0.6rem;
+$radius-md: 0.8rem;
+$radius-lg: 1rem;
+$radius-xl: 1.2rem;
+$radius-2xl: 1.6rem;
+$radius-pill: 999px; // 文字サイズに従属しないので rem 化しない
+$radius-circle: 50%;
+
+// motion
+$duration-fast: 100ms;
+$duration: 120ms;
+$duration-slow: 160ms;
+$ease: ease;
+
+// ローディングの反復は秒単位の別系統なのでここには置かない
 
 // layout
 $sidebar-width: 23%;
 $titlebar-height: 2.6rem;
 
+// elevation
+// 段は浮き上がりの高さでなく、何が浮いているかで選ぶ
+$shadow-raised: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1); // カード
+$shadow-overlay: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.15); // ポップオーバー
 $shadow-1:
   0 1px 2px rgba(0, 0, 0, 0.24),
-  0 10px 24px rgba(0, 0, 0, 0.18);
-$shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28);
+  0 10px 24px rgba(0, 0, 0, 0.18); // モーダル
+$shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
 
 $stroke-weak: rgba($color-white, 0.06);
 $stroke: rgba($color-white, 0.1);
@@ -47,6 +92,9 @@ html {
 body {
   font-family: "Noto Sans JP", "sans-serif";
   font-weight: 400;
+  // ここに基準が無いと root の 10px が継承され、
+  // 全コンポーネントが font-size を自分で宣言せざるを得なくなる
+  font-size: $font-body;
 
   box-sizing: border-box;
 }

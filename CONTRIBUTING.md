@@ -175,6 +175,50 @@ issue 番号を必ず伴わせてください。
 
 ---
 
+## SCSS の書き方
+
+根拠は [ADR-0003](docs/decisions/0003-scss-scale-tokens.md)。
+
+### 寸法はトークンから選ぶ
+
+文字サイズ・間隔・角丸・影・モーションは `src/index.scss` のトークンを使ってください。
+`@use "@/index.scss" as index;` で読み込みます。
+
+```scss
+// こう
+font-size: index.$font-hint;
+gap: index.$space-4;
+border-radius: index.$radius-md;
+
+// これは通りません
+font-size: 1.15rem;
+gap: 0.75rem;
+```
+
+**文字サイズはサイズではなく用途で選んでください。** `$font-hint`（注記）・`$font-aux`（説明文）・
+`$font-body`（本文）のように役割で名前が付いています。近い大きさだからという理由で選ぶと、
+段の中で値が再び割れます。
+
+`body` に `$font-body` が入っているので、本文サイズなら `font-size` を書く必要はありません。
+
+### 直値は増やせません
+
+`src/__tests__/scssScaleRatchet.test.ts` が `src/**/*.scss` の直値を数えます。
+**基準値を超えると `npm run test` が落ちます。**
+
+既存の直値はまだ大量に残っていて、基準値として許容されています。
+直値をトークンへ寄せたら、その分だけ基準値を下げてください。**基準値は下げる方向にだけ動かします。**
+
+### まだ決まっていないもの
+
+**warning / danger / success / info の意味色はトークンにありません。** 段数が通知の分類に従属するため、
+分類が決まるまで置いていません。エラー表示を触るときは
+[#160](https://github.com/Rioh1118/obs-shogi/issues/160) を先に見てください。
+
+命名（ブロック / エレメント / モディファイア）と `@use` の書き方も未決です。
+
+---
+
 ## Pull Request のガイドライン
 
 PR には、できるだけ以下を書いてください。
