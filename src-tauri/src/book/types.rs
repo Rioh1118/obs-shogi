@@ -93,6 +93,9 @@ pub struct BookInfo {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenBookInput {
+    /// 定跡ファイルの絶対パス。空・NUL 入り・相対パスは `InvalidPath` になる。
+    /// symlink は実体に解決され、`BookInfo::path` には実体が入る。指定した綴りと
+    /// 実体の形式が食い違う場合も `InvalidPath`
     pub path: String,
 }
 
