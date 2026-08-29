@@ -67,6 +67,15 @@ const res = await api.fetchTree(rootDir);
 - 直し方: `isRetrying` を消し `isLoading` を唯一の源にする。
   描画側を `isLoading && !fileTree ? <Spinner/> : ...` に、モーダル条件を `(error || isLoading) && hasTree` にし、
   `isRetrying={isLoading}` を渡す。
+- **結果: 対応済み（`b8a900d`）。** ただし提案どおりには直していない。
+  モーダル条件を `(error || isLoading) && hasTree` にすると、**ファイル操作のたびに走る通常の
+  読み直しでも通知が出る**（`loadFileTree` は成功時にも毎回呼ばれる）。
+  代わりに「読み直しの引き金になった失敗」を `retriedFrom` として持ち、
+  `shownError = error ?? retriedFrom` を表示に使う。`isLoading` は
+  ボタンの状態にだけ使う。
+  先にテストを書いて3件が落ちることを確認し、直した後に変異を3種当てて
+  それぞれ落ちることを確認した（`shownError` を `error` に戻す / 読み込み中に
+  Spinner へ差し替える / ボタンを押せるままにする）。
 
 ### [HIGH] H-3 検証系の失敗で「どう直すか」が本文から消え、唯一具体を持つ一文が `<details>` に隠れる
 
