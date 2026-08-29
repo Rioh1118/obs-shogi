@@ -6,9 +6,9 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
  * JKFPlayer は getReadableForkKifu() で fork[0] に無条件アクセスするため、
  * 空フォーク [] が存在すると TypeError になる。
  *
- * ゲーム本体と viewer が同じ sanitize 済みデータを参照するよう、
- * データの入り口（parseKifuContentToJKF 直後）で一度だけ適用すること。
- * これにより forkIndex の整合性が保たれる。
+ * 呼ぶのは `entities/kifu/api/parse` の出口だけ。`JKFData` を手にした側は
+ * 空の変化が無いことを前提にしてよい。複数箇所で掛けると forkIndex が
+ * どの時点の並びを指すのかが読めなくなる。
  */
 export function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
   return moves.map((m) => {

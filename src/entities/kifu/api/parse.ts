@@ -1,5 +1,6 @@
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
+import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
 
 import { Normalizer } from "json-kifu-format";
 import {
@@ -57,6 +58,17 @@ function normalizeNotation(jkf: JKFData): JKFData {
   }
 }
 
+/**
+ * tsshogi の出力を `JKFData` に仕上げる。棋譜テキストから `JKFData` を作る経路は全てここを通す。
+ *
+ * 「空の変化を含まない」は `JKFData` の不変条件なので、満たす責任は型を所有する
+ * このスライスにある。呼び出し側で `sanitizeJkf` を掛けると、掛けたかどうかが
+ * 型から読めない `JKFData` が生まれる。
+ */
+function finishJKFData(exported: JKFData): JKFData {
+  return sanitizeJkf(normalizeNotation(exported));
+}
+
 export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
@@ -73,7 +85,7 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   if (rec instanceof Error) {
     throw new KifuParseError(`棋譜(${format})の解析に失敗しました。`, rec);
   }
-  return normalizeNotation(exportJKF(rec) as JKFData);
+  return finishJKFData(exportJKF(rec) as JKFData);
 }
 
 export function parseKifuStringToJKF(raw: string): ParsedKifu {
@@ -83,7 +95,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
     if (rec instanceof Error) throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
-    return { detectedFormat: "jkf", jkf: normalizeNotation(exportJKF(rec) as JKFData) };
+    return { detectedFormat: "jkf", jkf: finishJKFData(exportJKF(rec) as JKFData) };
   }
 
   let fmt: RecordFormatType;
@@ -116,5 +128,5 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? "kif"
           : "jkf";
 
-  return { detectedFormat, jkf: normalizeNotation(exportJKF(rec) as JKFData) };
+  return { detectedFormat, jkf: finishJKFData(exportJKF(rec) as JKFData) };
 }
