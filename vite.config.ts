@@ -228,6 +228,12 @@ export default defineConfig({
     ],
     options: {},
   },
+  // `.claude/worktrees/` には作業用のチェックアウトが丸ごと入る。走査対象に残すと
+  // 別ブランチのテストが混ざり、`npm run test` の結果が今のコードを指さなくなる。
+  // 既定値を上書きするので、既定で外れていたものも書き直す
+  test: {
+    exclude: ["**/node_modules/**", "**/dist/**", ".claude/**"],
+  },
   plugins: [react()],
   resolve: {
     alias: {
