@@ -49,9 +49,12 @@ function InlineNameEditor({
   // 外をクリックするたびに同じ名前が送り直され、同じ失敗が出続けて閉じられない
   const inFlightRef = useRef(false);
   const rejectedRef = useRef<string | null>(null);
-  // 送信中に外へ出たか。出たまま失敗すると、フォーカスの無い欄に失敗の箱だけが
-  // 残る（状態遷移表の E4）。閉じる手段が2手になるので、その状態を作らない
-  const blurredWhileInFlightRef = useRef(false);
+  // 欄の外に出たか。出たまま失敗すると、フォーカスの無い欄に失敗の箱だけが
+  // 残る（状態遷移表の E4）。閉じる手段が2手になるので、その状態を作らない。
+  //
+  // **blur そのものが確定の引き金になる経路も含める。** 送信中の blur だけを
+  // 見ていると、「打って外をクリック」という一番普通の操作で E4 が作られる
+  const leftFieldRef = useRef(false);
   const [draft, setDraft] = useState(initialName);
   const [error, setError] = useState<FsError | null>(null);
 
@@ -75,7 +78,7 @@ function InlineNameEditor({
     });
   }, [initialName, selectMode]);
 
-  const commit = async () => {
+  const commit = async (fromBlur = false) => {
     const next = draft.trim();
 
     // Escape で立てた印を戻す。ここへ来たということは取り消しではない
@@ -91,11 +94,11 @@ function InlineNameEditor({
     if (inFlightRef.current || next === rejectedRef.current) return;
 
     inFlightRef.current = true;
-    blurredWhileInFlightRef.current = false;
+    leftFieldRef.current = fromBlur;
     try {
       const outcome = await onCommit(next);
 
-      if (!outcome.ok && blurredWhileInFlightRef.current) {
+      if (!outcome.ok && leftFieldRef.current) {
         // 欄はもう見ていない。**ここで捨てると、名前の失敗はどの出口にも出ない**
         // （provider は `isNameInputError` を通知へ積まないので、出す責任はここだけ）。
         // 出せないものは呼び出し元へ返す
@@ -109,7 +112,7 @@ function InlineNameEditor({
       setError(outcome.ok ? null : (outcome.shown ?? null));
     } finally {
       inFlightRef.current = false;
-      blurredWhileInFlightRef.current = false;
+      leftFieldRef.current = false;
     }
   };
 
@@ -143,7 +146,7 @@ function InlineNameEditor({
           // 送信中に出たなら、確定が返った時点で閉じるかどうかを決める。
           // ここで確定し直しても `inFlightRef` が握り潰すだけ
           if (inFlightRef.current) {
-            blurredWhileInFlightRef.current = true;
+            leftFieldRef.current = true;
             return;
           }
 
@@ -154,7 +157,7 @@ function InlineNameEditor({
             return;
           }
 
-          void commit();
+          void commit(true);
         }}
       />
       {/* 行を押し広げて全文を出す。理由は docs/state-transitions/inline-name-editor.md */}

@@ -89,11 +89,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       await setRootDirApi(rootDir);
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
+      return { ok: true } as const;
     } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `ルートディレクトリの更新に失敗しました: ${String(err)}`,
-      });
+      const message = `ルートディレクトリの更新に失敗しました: ${String(err)}`;
+      dispatch({ type: "error", payload: message });
+      return { ok: false, message } as const;
     }
   }
 

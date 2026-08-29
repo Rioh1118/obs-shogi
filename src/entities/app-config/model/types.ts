@@ -24,6 +24,13 @@ export type AppConfigContextType = ConfigState & {
   updateConfig: (config: AppConfig) => Promise<void>;
   chooseRootDir: (opts?: ChooseOpts) => Promise<string | null>;
   chooseAiRoot: (opts?: ChooseOpts) => Promise<string | null>;
-  setRootDir: (root_dir: string) => Promise<void>;
+  /**
+   * ワークスペースを差し替える。**成否を返す。**
+   *
+   * `void` にすると、呼び出し元は設定が更新されたかどうかを見られない。
+   * ルート改名の経路はディスク上の改名を済ませてからここへ来るので、
+   * 失敗を見落とすと「ディスクは新しい名前・設定は古い名前」で固定される
+   */
+  setRootDir: (root_dir: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   setLastPresetId: (presetId: PresetId | null) => Promise<void>;
 };

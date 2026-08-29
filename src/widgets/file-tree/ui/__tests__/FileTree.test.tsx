@@ -344,6 +344,25 @@ describe("段による出し分け", () => {
  * 押した本人には「何も起きなかった」ようにしか見えない。
  */
 describe("再読み込みの最中", () => {
+  // 操作の失敗から「再読み込み」を押して、その読み直しも落ちると `from` は
+  // `reload` に化ける。そのまま出すと、失敗した操作を「完了しました」と断言する
+  test("操作の失敗から再読み込みして失敗しても、完了したとは言わない", async () => {
+    stub.fileTree = TREE;
+    stub.error = asOperationFailure(IO_ERROR);
+    nextError = IO_ERROR;
+    mount();
+
+    await act(async () => {
+      screen.getByRole("button", { name: "再読み込み" }).click();
+    });
+    await act(async () => {
+      release?.();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText(/操作は完了しましたが/)).toBeNull();
+  });
+
   test("読み込み中でもツリーは消えない", async () => {
     stub.fileTree = TREE;
     stub.error = asOperationFailure(IO_ERROR);

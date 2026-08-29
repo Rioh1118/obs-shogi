@@ -424,14 +424,30 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         // ここだけ読み直しを起こさない。ルート自体が変わるので、
         // `rootDir` の変化を受ける effect（上）が新しい場所で読み直す。
         // ここで待つと古い `rootDir` を読む
-        await setRootDir(nextPath);
+        const saved = await setRootDir(nextPath);
+        if (!saved.ok) {
+          // ディスク上の改名は済んでいる。ここで捨てると「ディスクは新しい名前・
+          // 設定は古い名前」で固定され、再起動しても開けない
+          return failWithNotice(makeFsError("io", saved.message, nextPath), {
+            kind: "rename_directory",
+            path: node.path,
+            newName,
+          });
+        }
         return Ok(undefined);
       }
 
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
-    [failToNameInput, loadFileTree, reconcilePathMutation, setRootDir, state.fileTree],
+    [
+      failToNameInput,
+      failWithNotice,
+      loadFileTree,
+      reconcilePathMutation,
+      setRootDir,
+      state.fileTree,
+    ],
   );
 
   const moveNode = useCallback(

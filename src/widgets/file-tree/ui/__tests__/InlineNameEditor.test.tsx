@@ -121,6 +121,31 @@ describe("InlineNameEditor", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  // 一番普通の操作。打って外をクリックすると blur が確定の引き金になるので、
+  // 失敗が返る頃には欄をもう見ていない
+  test("打って外をクリックし、それが失敗したら編集を閉じる", async () => {
+    const onCommit = vi.fn().mockResolvedValue(rejected);
+    const onCancel = vi.fn();
+
+    render(
+      <InlineNameEditor
+        initialName=""
+        onCommit={onCommit}
+        onCancel={onCancel}
+        onUnshowable={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "2026/08" } });
+    await act(async () => {
+      fireEvent.blur(input);
+    });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   // 状態遷移表の E2 → blur。ここを空欄のままにすると、フォーカスの無い欄に
   // 失敗の箱だけが残り、閉じるのに「欄をクリックして戻し、もう一度外を押す」の
   // 2手が要る（Escape は欄の上にしか張っていないので届かない）
