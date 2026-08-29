@@ -33,9 +33,29 @@ function formatPiece(kind: Kind): string {
   return pieceMap[kind] || kind;
 }
 
+const relativeMap: Record<string, string> = {
+  L: "左",
+  C: "直",
+  R: "右",
+  U: "上",
+  M: "寄",
+  D: "引",
+  H: "打",
+};
+
+/**
+ * JKF の相対表記コードを日本語に変換
+ *
+ * `relative` は「左右の別」と「動きの別」を繋げた文字列で、`"LU"` のように2文字来る。
+ * 表に無いコードはそのまま返す。読める文字を落として黙るより、異常が見えた方がよい。
+ */
+function formatRelative(relative: string): string {
+  return [...relative].map((code) => relativeMap[code] ?? code).join("");
+}
+
 /**
  * 手を日本語の棋譜記法に変換
- * 例: "７六歩", "２二角成", "同銀", "５三銀打"
+ * 例: "7六歩", "2二角成", "同銀", "5三銀打", "同銀右成"
  */
 export function formatMove(move?: IMoveMoveFormat): string {
   if (!move) return "";
@@ -52,19 +72,13 @@ export function formatMove(move?: IMoveMoveFormat): string {
   // 駒の種類
   result += formatPiece(move.piece);
 
-  // 成り
+  // 相対表記。駒打ちは JKF なら "H" が入るが、
+  // KIF を経由せず組み立てられた手には付かないので from の有無から補う
+  result += formatRelative(move.relative ?? (move.from ? "" : "H"));
+
+  // 成り。相対表記の後に置く（「同銀右成」の語順）
   if (move.promote) {
     result += "成";
-  }
-
-  // 駒打ち（fromがない場合）
-  if (!move.from) {
-    result += "打";
-  }
-
-  // 相対表記（「右」「左」「直」など）
-  if (move.relative) {
-    result += `(${move.relative})`;
   }
 
   return result;
