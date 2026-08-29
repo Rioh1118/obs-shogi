@@ -74,6 +74,17 @@ if [ -n "$other" ]; then
   expect_dir "$other" "cd $other; git commit -m x" "$here"
   expect_dir "$here" "cd $other && git -C $here commit -m x" "$here"
   expect_dir "$other" 'git commit -m x' "$other"
+  expect_dir "$other" "cd '$other' && git commit -m x" "$here"
+  expect_dir "$other" "cd \"$other\" && git commit -m x" "$here"
+  expect_dir "$other" "(cd $other && git commit -m x)" "$here"
+  expect_dir "$other" "pushd $other && git commit -m x" "$here"
+
+  # 解釈できない綴りは、素通しさせずに deny 側へ落とす
+  expect_dir "" "env -C $other git commit -m x" "$here"
+  expect_dir "" 'cd $TARGET && git commit -m x' "$here"
+  expect_dir "" 'cd ~/obs-shogi && git commit -m x' "$here"
+  expect_dir "" "sh -c 'cd $other && git commit -m x'" "$here"
+  expect_dir "" "cd $here && git commit -m a && cd $other && git commit -m b" "$here"
 else
   echo "SKIP  比較用のワークツリーが無いので cd 系のケースは走らせていない"
 fi
