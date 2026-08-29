@@ -30,7 +30,12 @@ const layerBoundaries: OxlintOverride[] = LAYERS_TOP_DOWN.slice(1).map((layer, i
         patterns: [
           DEEP_RELATIVE_IMPORT,
           {
-            group: LAYERS_TOP_DOWN.slice(0, i + 1).map((upper) => `@/${upper}/**`),
+            // `../${upper}/**` も並べる。レイヤ直下のファイルからは `../` 1段で
+            // 隣のレイヤに届くため、`@/` と `../../**` の2本だけでは素通りする。
+            group: LAYERS_TOP_DOWN.slice(0, i + 1).flatMap((upper) => [
+              `@/${upper}/**`,
+              `../${upper}/**`,
+            ]),
             message: `${layer} から上位レイヤへの import は禁止。共有したい型やロジックは共有できる位置まで下げること。`,
           },
         ],
