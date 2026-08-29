@@ -295,6 +295,7 @@ export default function StudyPositionsManagerModal() {
   return (
     <Modal
       onClose={closeModal}
+      label="課題局面"
       theme="dark"
       variant="workspace"
       size="xl"

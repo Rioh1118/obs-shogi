@@ -71,6 +71,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   return (
     <Modal
       onClose={onCancel}
+      label={copy.title}
       theme="dark"
       variant="dialog"
       size="sm"

@@ -221,6 +221,7 @@ export default function PositionSearchModal() {
   return (
     <Modal
       onClose={closeModal}
+      label="局面検索"
       theme="dark"
       variant="workspace"
       size="xl"

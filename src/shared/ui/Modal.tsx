@@ -17,6 +17,12 @@ type ModalScroll = "card" | "content" | "none";
 interface ModalProps {
   children: ReactNode;
   onClose: () => void;
+  /**
+   * 支援技術に読ませる名前。**必須。**
+   * 無いと `role="dialog"` が全部「ダイアログ」としか読まれず、
+   * 何が開いたのかが分からない。画面の見出しと同じ文にする
+   */
+  label: string;
   theme?: ModalTheme;
   variant?: ModalVariant;
   size?: ModalSize;
@@ -32,6 +38,7 @@ interface ModalProps {
 function Modal({
   children,
   onClose,
+  label,
 
   // 対話の面は暗い側を既定にしてある（ADR-0005）。共通の `Button` は暗い面の上に
   // しか色を持たないので、既定を明るい側にすると theme を書き忘れたモーダルで
@@ -148,6 +155,7 @@ function Modal({
           className={`modal__card modal__card--scroll-${scroll}`}
           role="dialog"
           aria-modal="true"
+          aria-label={label}
           tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >

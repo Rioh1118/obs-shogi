@@ -30,6 +30,7 @@ export default function ConfirmDialog({
   return (
     <Modal
       onClose={onCancel}
+      label={title}
       theme="dark"
       size="sm"
       padding="none"

@@ -139,7 +139,14 @@ export default function SfenKifuCreateModal() {
   if (!isOpen || !sfen) return null;
 
   return (
-    <Modal onClose={closeModal} theme="dark" variant="dialog" size="md" scroll="none">
+    <Modal
+      onClose={closeModal}
+      label="課題局面から棋譜を作成"
+      theme="dark"
+      variant="dialog"
+      size="md"
+      scroll="none"
+    >
       <div className="sfen-kifu-create">
         {isLoading ? (
           <Spinner />

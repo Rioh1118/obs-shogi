@@ -504,6 +504,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   return (
     <Modal
       onClose={onClose}
+      label={title}
       theme="dark"
       size="lg"
       padding="none"

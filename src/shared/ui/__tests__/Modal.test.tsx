@@ -28,7 +28,7 @@ afterEach(() => {
 describe("Modal のフォーカス", () => {
   test("開いたら中の押せるものへ移す", () => {
     render(
-      <Modal onClose={vi.fn()}>
+      <Modal onClose={vi.fn()} label="対話">
         <Button>閉じる</Button>
       </Modal>,
     );
@@ -44,7 +44,7 @@ describe("Modal のフォーカス", () => {
     render(
       <>
         <button type="button">裏のボタン</button>
-        <Modal onClose={vi.fn()}>
+        <Modal onClose={vi.fn()} label="対話">
           <Button>閉じる</Button>
         </Modal>
       </>,
@@ -61,7 +61,7 @@ describe("Modal のフォーカス", () => {
   // 処理中のボタンは disabled なので、そこへ戻すとまた外へ出る
   test("処理中のボタンには戻さない", () => {
     render(
-      <Modal onClose={vi.fn()}>
+      <Modal onClose={vi.fn()} label="対話">
         <Button isLoading>保存中</Button>
         <input aria-label="名前" />
       </Modal>,
@@ -72,7 +72,7 @@ describe("Modal のフォーカス", () => {
 
   test("最初の要素から Shift+Tab で外へ出ない", () => {
     render(
-      <Modal onClose={vi.fn()}>
+      <Modal onClose={vi.fn()} label="対話">
         <Button>先頭</Button>
         <Button>末尾</Button>
       </Modal>,

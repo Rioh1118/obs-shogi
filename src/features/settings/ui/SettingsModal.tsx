@@ -11,6 +11,7 @@ export default function SettingsModal() {
   return (
     <Modal
       onClose={closeModal}
+      label="設定"
       theme="dark"
       size="xl"
       padding="none"
