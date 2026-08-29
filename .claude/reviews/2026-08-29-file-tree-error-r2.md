@@ -398,14 +398,20 @@ H-5（どの失敗に入力欄を残すか）、H-11 / H-12（文書の真偽）
 
 ### 反論
 
-**H-10「`CLAUDE.md` から消した WIP=1 が3箇所に残っている」→ 前提が誤り。**
-`git log -S "WIP" -- CLAUDE.md` が空で、`main` の `CLAUDE.md` にも記述が無い。
-**WIP=1 が `CLAUDE.md` に書かれたことは一度も無い。** ADR-0001 /
-`OPERATING-MODEL.md` / `weekly-review/SKILL.md` の3つは互いに一致しており、
-append-only の違反は起きていない。ADR-0006 は書かない。
+**H-10「`CLAUDE.md` から消した WIP=1 が3箇所に残っている」→ この反論は誤りだった
+（ラウンド3 H-9 で覆った）。**
 
-同じ所見が併せて挙げていたブランチ名規則（`issue-<番号>/<slug>`）の方は事実で、
-直近の非 dependabot ブランチ6本中1本しか従っていない。**ただしこれは運用の決定**なので
+当初「`git log -S "WIP" -- CLAUDE.md` が空だから書かれたことは一度も無い」と書いたが、
+**`CLAUDE.md` の文言は「着手中の issue は**常に1件**」で `WIP` という語を含まず、
+検索語が当たらなかっただけ**だった。実際にはこのブランチの `090127b`
+（`chore: 実装の進め方から確認の手数と着手数の縛りを外す`）が
+`CLAUDE.md` と `implement/SKILL.md` の両方から削っている。所見は正しい。
+
+対応: ADR-0006 を書いて ADR-0001 の該当1行を supersede し、`LOG.md` に1行足し、
+`OPERATING-MODEL.md` と `weekly-review/SKILL.md` から落とした。
+
+同じ所見が併せて挙げていたブランチ名規則（`issue-<番号>/<slug>`）の方も事実で、
+直近の非 dependabot ブランチ6本中1本しか従っていない。**こちらは運用の決定**なので
 勝手に覆さず → #201。
 
 **M-2「`ghost` と `subtle` を `neutral` に潰した。軸は増やしたが区別は減った」→ 意図的。**
