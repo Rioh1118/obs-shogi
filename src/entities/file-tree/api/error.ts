@@ -84,6 +84,25 @@ export function isResolvedByConflictDialog(code: FsErrorCode): boolean {
 }
 
 /**
+ * 打った名前を直せば通る失敗か。
+ *
+ * この種の失敗は**入力欄のそばに出す**（ADR-0004 の F-14）。通知として積むと
+ * reducer が編集行ごと畳み、打った文字列まで一緒に捨てることになる。
+ * 直すための入力欄が、直せという知らせに巻き込まれて消える。
+ */
+export function isNameInputError(code: FsErrorCode): boolean {
+  switch (code) {
+    case "invalid_name_empty":
+    case "invalid_name_reserved":
+    case "invalid_name_separator":
+    case "invalid_name_control":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
  * 復帰に何が要るか（ADR-0004）。
  *
  * `warning` は読み直しで直る見込みがあるもの、`danger` は読み直しても結果が変わらず、

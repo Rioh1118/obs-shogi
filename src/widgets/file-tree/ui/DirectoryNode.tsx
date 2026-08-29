@@ -86,18 +86,20 @@ function DirectoryNode({
     openContextMenu(node, e.clientX, e.clientY);
   };
 
+  // 名前を直せば通る失敗は返す。入力欄がその場に残り、打った文字列も残る
   const handleCommit = async (nextName: string) => {
     const res = await renameNode(node, nextName);
-    if (res.success) {
-      cancelInlineRename();
-    }
+    if (!res.success) return res.error;
+    cancelInlineRename();
   };
 
   const handleCommitCreate = async (name: string) => {
     const next = name.trim();
-    cancelCreateDirectory();
     if (!next) return;
-    await createNewDirectory(node.path, next);
+
+    const res = await createNewDirectory(node.path, next);
+    if (!res.success) return res.error;
+    cancelCreateDirectory();
   };
 
   const isExternalOver = externalHoverDir && externalHoverDir === node.path;

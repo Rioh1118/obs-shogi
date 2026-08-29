@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { describeFsError, type FsError } from "@/entities/file-tree";
 import "./InlineNameEditor.scss";
 
 type InlineRenameProps = {
   isEditting: boolean;
   initialName: string;
-  onCommit: (nextName: string) => void | Promise<void>;
+  /**
+   * 名前を直せば通る失敗（`invalid_name_*`）は、通知に積まずここへ返す。
+   * 返された失敗は入力欄の下に出し、**打った文字列は残す**。
+   * 通知に積むと reducer が編集行ごと畳み、直すための入力欄まで消える。
+   */
+  onCommit: (nextName: string) => void | Promise<FsError | void>;
   onCancel: () => void;
   className?: string;
 
@@ -23,11 +29,13 @@ function InlineNameEditor({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cancelRef = useRef(false);
   const [draft, setDraft] = useState(initialName);
+  const [error, setError] = useState<FsError | null>(null);
 
   useEffect(() => {
     if (!isEditting) return;
 
     setDraft(initialName);
+    setError(null);
 
     requestAnimationFrame(() => {
       const el = inputRef.current;
@@ -56,34 +64,46 @@ function InlineNameEditor({
       return;
     }
 
-    await onCommit(next);
+    setError((await onCommit(next)) ?? null);
   };
 
   if (!isEditting) return null;
 
   return (
-    <input
-      ref={inputRef}
-      className={className}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Enter") void commit();
-        if (e.key === "Escape") {
-          cancelRef.current = true;
-          onCancel();
-        }
-      }}
-      onBlur={() => {
-        if (cancelRef.current) {
-          cancelRef.current = false;
-          return;
-        }
-        void commit();
-      }}
-    />
+    <span className="inline-name-editor">
+      <input
+        ref={inputRef}
+        className={className}
+        value={draft}
+        aria-invalid={error ? true : undefined}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setError(null);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") void commit();
+          if (e.key === "Escape") {
+            cancelRef.current = true;
+            onCancel();
+          }
+        }}
+        onBlur={() => {
+          if (cancelRef.current) {
+            cancelRef.current = false;
+            return;
+          }
+          void commit();
+        }}
+      />
+      {/* 行の高さを変えずに重ねる。ずらすと入力欄の位置が失敗のたびに動く */}
+      {error && (
+        <span className="inline-name-editor__error" role="alert">
+          {describeFsError(error.code)}
+        </span>
+      )}
+    </span>
   );
 }
 

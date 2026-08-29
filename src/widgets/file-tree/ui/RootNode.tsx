@@ -30,7 +30,6 @@ function RootNode({
     creatingDirParentPath,
     cancelCreateDirectory,
     createNewDirectory,
-    pushError,
   } = useFileTree();
 
   const isRenaming = renamingNodeId === node.id;
@@ -43,12 +42,10 @@ function RootNode({
     openContextMenu(node, e.clientX, e.clientY);
   };
 
+  // 名前を直せば通る失敗は返す。入力欄がその場に残り、打った文字列も残る
   const handleCommitRename = async (nextNameRaw: string) => {
     const validated = validateBasename(nextNameRaw);
-    if (!validated.success) {
-      pushError(validated.error);
-      return;
-    }
+    if (!validated.success) return validated.error;
     const nextName = validated.data;
 
     if (nextName === node.name) {
@@ -57,10 +54,7 @@ function RootNode({
     }
 
     const res = await renameNode(node, nextName);
-
-    if (!res.success) {
-      return;
-    }
+    if (!res.success) return res.error;
 
     cancelInlineRename();
   };
@@ -70,9 +64,7 @@ function RootNode({
     if (!next) return;
 
     const res = await createNewDirectory(node.path, next);
-    if (!res.success) {
-      return;
-    }
+    if (!res.success) return res.error;
 
     cancelCreateDirectory();
   };

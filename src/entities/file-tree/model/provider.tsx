@@ -15,7 +15,12 @@ import {
   remapSubtreePath,
   scrollNodeIntoView,
 } from "../lib/path";
-import { isResolvedByConflictDialog, makeFsError, type FsError } from "../api/error";
+import {
+  isNameInputError,
+  isResolvedByConflictDialog,
+  makeFsError,
+  type FsError,
+} from "../api/error";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { useAppConfig } from "@/entities/app-config";
 
@@ -66,7 +71,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // ツリーから直に起こす操作で使う。呼び出し元は失敗を出す場所を持っていない
   const handleFailure = useCallback(
     (error: FsError, request?: FileConflictRequest) => {
-      if (error.code === "already_exists" && request) {
+      if (isResolvedByConflictDialog(error.code) && request) {
         pushConflict(request, error);
       } else {
         pushError(error);
@@ -87,6 +92,21 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       return Err(error);
     },
     [pushConflict],
+  );
+
+  // 入力欄から起こす操作で使う。名前を直せば通る失敗は呼び出し元へ返す。
+  // 入力欄はその場に残っているので、そこへ出せば打った文字列を捨てずに直せる。
+  // state.error に積むと reducer が編集行ごと畳む（ADR-0004 の F-14）
+  const deferNameFailure = useCallback(
+    (error: FsError, request: FileConflictRequest) => {
+      if (isResolvedByConflictDialog(error.code)) {
+        pushConflict(request, error);
+      } else if (!isNameInputError(error.code)) {
+        pushError(error);
+      }
+      return Err(error);
+    },
+    [pushConflict, pushError],
   );
 
   const reconcilePathMutation = useCallback(
@@ -300,7 +320,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const res = await api.createDir(parentPath, dirname);
 
       if (!res.success) {
-        return handleFailure(res.error, {
+        return deferNameFailure(res.error, {
           kind: "create_directory",
           parentPath,
           dirName: dirname,
@@ -313,7 +333,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       return Ok(undefined);
     },
-    [handleFailure, loadFileTree],
+    [deferNameFailure, loadFileTree],
   );
 
   const toggleNode = useCallback(
@@ -369,7 +389,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.renameFile(node.path, newName);
 
       if (!res.success) {
-        return handleFailure(
+        return deferNameFailure(
           res.error,
           node.isDirectory
             ? {
@@ -399,7 +419,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       return Ok(undefined);
     },
-    [handleFailure, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
+    [deferNameFailure, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
   );
 
   const moveNode = useCallback(

@@ -1,7 +1,35 @@
 @use "@/index.scss" as index;
 
+.inline-name-editor {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+// 行の高さを変えずに重ねる。行を押し広げると、失敗のたびに下のノードが動く
+.inline-name-editor__error {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + index.$space-1);
+  left: 0;
+  max-width: 100%;
+
+  padding: index.$space-1 index.$space-3;
+  border-radius: index.$radius-2;
+  border: 1px solid rgba(index.$color-danger, 0.4);
+  background: color-mix(in srgb, index.$color-primary-black 94%, index.$color-danger);
+
+  color: index.$color-text-primary;
+  font-size: index.$font-hint;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .inline-name-editor__input,
 .file-name__input {
+  width: 100%;
   height: 2.2rem;
   max-width: 100%;
 
