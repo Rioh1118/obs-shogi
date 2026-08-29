@@ -27,12 +27,39 @@
 - #103 AI Library UI を新 book formats に対応
 - #104 `.sbk` 直接対応の調査タスク
 
-判断: 定跡の read/write 本体（#90–#100）が先。加えて、定跡の編集・変換は ShogiHome が v1.20.0 以降やねうら王 `.db` を read/edit/save 対応済み、BookConv が `.sbk` ↔ `book.bin` ↔ `.db` を処理しており、**既に解決済みの領域**である可能性が高い。着手前に実物での再調査が必要。
+判断: 定跡の read/write 本体（#84 #90–#101）が先。
+
+なお ShogiHome は4形式の read/write/変換をテスト付きで実装済みだが、**それは捨てる理由にならない**。
+判断の軸は「ShogiHome と張り合えるか」ではなく「将棋AI開発者の需要を取れるか」（→ `PREMISES.md` P-008）。
+`.sbk` の仕様把握には ShogiHome の `src/background/book/sbk.ts` が参考になる。
+**`.db.bin` は実在しないフォーマットなので #103 / #104 で拡張子を数えるときは注意すること**
+（やねうら王のバイナリ定跡は `.ybb`）。
 
 ## 棋譜内しおり（#118）
 
 「この棋譜の山場」を手にマークする機能。課題局面（study positions）とは別物。
-判断: 注釈機能（marks / file-meta）の設計が2系統に分裂したまま未決着なので、それを決めるまで着手しない。
+判断: 注釈機能（marks / file-meta）の設計が未決着なので、それを決めるまで着手しない。
+（「2系統に分裂」は誤りと判明している → `research/lanes/L0-annotation-implementations.md`）
+
+## #120 の積み残し（構造）
+
+レビュー3ラウンドで「別 issue に送る」と判定した所見のうち、**失敗経路以外**のもの。
+失敗経路に関わる分は #157 / #158 として issue にした。以下は構造的な負債で、
+単独で着手する価値がまだ判断できていない。
+
+- **局面の同一性キーが3系統3粒度ある** — Rust の `position_key_from_sfen` にまで及ぶ。
+  横断検索は `PositionKey`(SFEN由来)、棋譜内は `tesuuPointer`、解析はまた別。**触るなら一度に揃える**
+- **`tesuuPointer` の生成が3箇所に重複** — `CLAUDE.md` は「`indexOf(",")` によるパースの重複」と
+  書いているが**該当0件**。実在するのは生成側の重複。記述を直すこと
+- **`bridges` / `gates` を分ける基準が無い** — gate が何も gate していない
+- **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る
+- **`ModalType` union が上位層のスライス名簿を持っている** — 下位層が上位層の一覧を知っている
+- **`app-config` ⇄ `engine-presets` の双方向依存** — `PresetId` を branded type にすると切れる
+- **`convertJkfPiece` の到達不能コードと死んだ `isPromoted`**
+- **Rust `open_project` にコマンド層・ドメイン・IO が同居**（144行）
+
+**状態遷移表を他のモジュールに広げるかは未決。** いまは非同期・並行・外部プロセスが絡む箇所に
+限って使う道具であって、規約ではない。
 
 ---
 
