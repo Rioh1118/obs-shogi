@@ -185,20 +185,6 @@ function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
   return next as Candidates;
 }
 
-/** 入れ替え後の cursor の patch（同じ stream を辿っている前提） */
-function patchForkPointersForSwap(
-  fps: ForkPointer[],
-  te: number,
-  a: BranchIndex,
-  b: BranchIndex,
-): ForkPointer[] {
-  const chosen = getChosenBranchIndex(fps, te);
-
-  const nextChosen = chosen === a ? b : chosen === b ? a : chosen;
-
-  return setBranchIndex(fps, te, nextChosen);
-}
-
 /**
  * 削除後の cursor の patch（同じ stream を辿っている前提）
  *
@@ -293,16 +279,24 @@ export function swapBranchesInKifu(
   assertBranchIndex(q.b, candidates);
   if (q.a === q.b) return { changed: false, nextCursor: cursor };
 
+  // cursor の検査は棋譜を書き換える前に済ませる。後ろに置くと、例外が出たのに
+  // kifu だけ書き換わった状態が呼び出し側に残る。
+  const chosen =
+    cursor && sameStreamPrefix(cursor.forkPointers, q.forkPointers, q.te)
+      ? getChosenBranchIndex(cursor.forkPointers, q.te)
+      : null;
+
   swapInPlace(candidates, q.a, q.b);
   writeCandidates(h, candidates);
 
   if (!cursor) return { changed: true, nextCursor: null };
+  if (chosen === null) return { changed: true, nextCursor: cursor };
 
-  if (!sameStreamPrefix(cursor.forkPointers, q.forkPointers, q.te)) {
-    return { changed: true, nextCursor: cursor };
-  }
-
-  const fps = patchForkPointersForSwap(cursor.forkPointers, q.te, q.a, q.b);
+  const fps = setBranchIndex(
+    cursor.forkPointers,
+    q.te,
+    chosen === q.a ? q.b : chosen === q.b ? q.a : chosen,
+  );
   const nextFps = normalizeForkPointers(fps);
   const next: KifuCursor = {
     tesuu: cursor.tesuu,
@@ -339,16 +333,18 @@ export function deleteBranchInKifu(
 
   assertBranchIndex(q.target, candidatesBefore);
 
+  // cursor の検査は棋譜を書き換える前に済ませる。後ろに置くと、例外が出たのに
+  // kifu だけ書き換わった状態が呼び出し側に残る。
+  const chosen =
+    cursor && sameStreamPrefix(cursor.forkPointers, q.forkPointers, q.te)
+      ? getChosenBranchIndex(cursor.forkPointers, q.te)
+      : null;
+
   const candidatesAfter = deleteCandidate(candidatesBefore, q.target);
   writeCandidates(h, candidatesAfter);
 
   if (!cursor) return { changed: true, nextCursor: null };
-
-  if (!sameStreamPrefix(cursor.forkPointers, q.forkPointers, q.te)) {
-    return { changed: true, nextCursor: cursor };
-  }
-
-  const chosen = getChosenBranchIndex(cursor.forkPointers, q.te);
+  if (chosen === null) return { changed: true, nextCursor: cursor };
 
   // 削除された候補の中にいて、かつ te 以降にいるなら退避
   if (chosen === q.target) {

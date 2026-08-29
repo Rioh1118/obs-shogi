@@ -167,6 +167,29 @@ describe("複製の回数", () => {
   });
 });
 
+describe("throw したときの棋譜", () => {
+  test("cursor が壊れていても、棋譜は書き換わらない", () => {
+    // cursor の検査が書き換えの後にあると、例外が出たのに kifu だけ変わった状態が残る。
+    const kifu = kifuWithTwoForks();
+    const before = JSON.stringify(kifu);
+    const cursor = cursorAt(2, [{ te: 2, forkIndex: -1 }]);
+
+    expect(() =>
+      deleteBranchInKifu(kifu, { te: 2, forkPointers: [], target: MAIN_LINE }, cursor),
+    ).toThrow();
+    expect(JSON.stringify(kifu)).toBe(before);
+
+    expect(() =>
+      swapBranchesInKifu(
+        kifu,
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+        cursor,
+      ),
+    ).toThrow();
+    expect(JSON.stringify(kifu)).toBe(before);
+  });
+});
+
 describe("削除後のカーソル", () => {
   test("消えた候補より後ろにいたら、同じ変化を指し続けるよう番号が詰まる", () => {
     // 変化2（f1）を見ている状態で本譜を消すと、f1 は変化1に繰り上がる。
