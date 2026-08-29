@@ -1,4 +1,5 @@
 import { JKFPlayer } from "json-kifu-format";
+import type { JKFData } from "../model/jkf";
 import type { ForkPointer, KifuCursor } from "../model/cursor";
 
 /** 読むのは forkPointers だけ。ダミーの tesuuPointer を作らせないよう引数を狭めてある。 */
@@ -16,6 +17,19 @@ export function appliedForkPointers(
 export function applyCursorToPlayer(jkf: JKFPlayer, cursor: KifuCursor | null) {
   if (!cursor) return;
   jkf.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+}
+
+/**
+ * JKF とカーソルから再生済みの player を作る
+ *
+ * `jkf` は複製されない。`JKFPlayer` が棋譜を書き換えるのは `inputMove` だけなので、
+ * 読むだけの用途なら1つの JKF を複数の player で共有してよい。
+ * `inputMove` を呼ぶなら複製を渡すこと。
+ */
+export function buildPlayer(jkf: JKFData, cursor: KifuCursor | null): JKFPlayer {
+  const player = new JKFPlayer(jkf);
+  applyCursorToPlayer(player, cursor);
+  return player;
 }
 
 export function mergeForkPointers(

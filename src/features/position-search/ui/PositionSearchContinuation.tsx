@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./PositionSearchContinuation.scss";
 
 import type { PositionHit } from "@/entities/search";
-import { applyCursorToPlayer } from "@/entities/kifu/lib/cursorRuntime";
+import { buildPlayer } from "@/entities/kifu/lib/cursorRuntime";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { JKFPlayer } from "json-kifu-format";
 import { readFile } from "@/entities/file-tree/api/fileSystem";
 import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 
@@ -97,10 +96,8 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
           jkfCacheRef.current.set(abs, data);
         }
 
-        const jkf = new JKFPlayer(data);
-
         const cursor = cursorFromLite(activeHit.cursor);
-        applyCursorToPlayer(jkf, cursor);
+        const jkf = buildPlayer(data, cursor);
 
         const planned = new Map<number, number>();
         for (const p of cursor.forkPointers) planned.set(p.te, p.forkIndex);
