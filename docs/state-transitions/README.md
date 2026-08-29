@@ -14,7 +14,7 @@ L0  app.md                    アプリ全体。どのスライスに委譲さ�
 L1    ├─ engine.md            エンジンプロセスの起動・停止（外部プロセスを列に持つ）
       ├─ analysis.md          解析セッション（Rust 側のセッションを列に持つ）
       ├─ file-tree.md         ツリーとファイル操作
-      ├─ game.md              （未作成）棋譜の読み込み・移動・編集
+      ├─ game.md              棋譜の読み込み・移動・編集（カーソルと分岐計画）
       ├─ search.md            （未作成）インデックスと検索セッション
       └─ study-positions.md   （未作成）研究局面の読み書き
             │
@@ -30,18 +30,18 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 
 ## いま何が書けているか
 
-| 表                                                 | 状態      | 備考                                                       |
-| -------------------------------------------------- | --------- | ---------------------------------------------------------- |
-| [app.md](app.md)                                   | ✅        | L0                                                         |
-| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                     |
-| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                                  |
-| [file-tree.md](file-tree.md)                       | ✅        |                                                            |
-| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                    |
-| [failure-surfacing.md](failure-surfacing.md)       | ✅        | Q-005 の材料                                               |
-| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                     |
-| `game.md`                                          | ❌ 未作成 | `set_error` が9箇所から飛ぶが読み手が0。**書く価値が高い** |
-| `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある            |
-| `study-positions.md`                               | ❌ 未作成 |                                                            |
+| 表                                                 | 状態      | 備考                                                 |
+| -------------------------------------------------- | --------- | ---------------------------------------------------- |
+| [app.md](app.md)                                   | ✅        | L0                                                   |
+| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                               |
+| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                            |
+| [file-tree.md](file-tree.md)                       | ✅        |                                                      |
+| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                              |
+| [failure-surfacing.md](failure-surfacing.md)       | ✅        | Q-005 の材料                                         |
+| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない               |
+| [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸 |
+| `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある      |
+| `study-positions.md`                               | ❌ 未作成 |                                                      |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
 
