@@ -28,6 +28,12 @@
     background: color-mix(in srgb, index.$color-primary-black 94%, index.$color-danger);
   }
 
+  &__message {
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-2;
+  }
+
   &__lead {
     margin: 0;
     font-size: index.$font-body;

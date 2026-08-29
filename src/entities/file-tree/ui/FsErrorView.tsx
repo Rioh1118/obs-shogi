@@ -22,9 +22,15 @@ export default function FsErrorView({ error, actions }: Props) {
   const detail = [error.code, error.message, error.cause].filter(Boolean).join("\n");
 
   return (
-    <div className={`fsError fsError--${tier}`} role="alert">
-      <p className="fsError__lead">{describeFsError(error.code)}</p>
-      {error.path && <p className="fsError__path">{error.path}</p>}
+    <div className={`fsError fsError--${tier}`}>
+      {/*
+        読み上げるのは何が起きたかだけ。ボタンと畳んだログまで包むと、
+        読み直し中にボタンの文言が変わるたびに全文が読み上げ直される
+      */}
+      <div className="fsError__message" role="alert">
+        <p className="fsError__lead">{describeFsError(error.code)}</p>
+        {error.path && <p className="fsError__path">{error.path}</p>}
+      </div>
 
       <details className="fsError__detail">
         <summary>技術的な詳細</summary>

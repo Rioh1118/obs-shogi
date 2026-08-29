@@ -329,7 +329,7 @@ describe("段による出し分け", () => {
 
     mount();
 
-    expect(screen.getByRole("alert").className).toContain("fsError--danger");
+    expect(screen.getByRole("alert").closest(".fsError")!.className).toContain("fsError--danger");
   });
 });
 
