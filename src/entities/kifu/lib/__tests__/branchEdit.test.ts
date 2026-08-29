@@ -62,7 +62,8 @@ describe("swapBranchesInKifu", () => {
 
   test("複製するのは候補の先頭の手だけで、その先は元の棋譜と共有する", () => {
     // 書き換えるのは先頭の手の forks だけなので、深い手まで複製する必要はない。
-    // 先頭を共有すると writeCandidates が入力側の手に forks を生やす（上のテスト）。
+    // 先頭を共有すると writeCandidates が入力側の手に forks を生やす
+    // （「入力の手のオブジェクトを書き換えない」で押さえている）。
     const kifu = kifuWithTwoForks();
     const mainHead = kifu.moves[2];
     const mainTail = kifu.moves[3];
@@ -114,8 +115,9 @@ describe("deleteBranchInKifu", () => {
   });
 
   test("整数でない対象は throw する", () => {
-    // NaN も小数も `< 0` と `>= count` の両方を false にするので、大小比較だけの検査を
-    // 素通りし、splice が 0 方向へ丸めて本譜を消す。
+    // NaN も小数も `< 0` と `>= 候補数` の両方を false にするので、大小比較だけの検査を
+    // 素通りし、splice が 0 方向へ丸める。NaN と 0.5 は本譜を、1.9 は隣の変化を、
+    // 頼んでいないのに消す。
     for (const target of [NaN, 0.5, 1.9]) {
       const kifu = kifuWithTwoForks();
       expect(() =>

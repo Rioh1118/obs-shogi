@@ -73,10 +73,10 @@ function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: number)
   for (const p of fps) {
     const idx = p.te - startTe;
     const mv = line[idx];
-    if (!mv || !mv.forks || !mv.forks[p.forkIndex]) {
+    if (!isUsableFork(mv?.forks?.[p.forkIndex])) {
       throw new Error(`resolveLine failed at te=${p.te} forkIndex=${p.forkIndex}`);
     }
-    line = mv.forks[p.forkIndex];
+    line = mv!.forks![p.forkIndex];
     startTe = p.te;
   }
 

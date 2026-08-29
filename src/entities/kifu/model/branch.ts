@@ -48,8 +48,11 @@ export type BranchOption = {
   moveFormat: IMoveFormat;
 } & (
   | { isMainLine: true; forkIndex?: never }
-  /** `IMoveFormat.forks` の添字。ForkPointer の値ではない。 */
-  | { isMainLine: false; forkIndex: number }
+  | {
+      isMainLine: false;
+      /** `IMoveFormat.forks` の添字。`ForkPointer.forkIndex` と同じ値で、`BranchIndex` とは1ずれる。 */
+      forkIndex: number;
+    }
 );
 
 export type BranchPointRef = {
