@@ -257,29 +257,40 @@ gap: 0.75rem;
 危険な操作の色は、まだ全部が寄り切っていません
 （[#180](https://github.com/Rioh1118/obs-shogi/issues/180)）。
 
-| 場所                   | いまの値                                          | 状態                                                                                       |
-| ---------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `IconButton`           | `#dc3545` を CSS 変数の既定値として直書き         | 自前の値のまま                                                                             |
-| `KifuForkActions`      | `rgba(215, 96, 96, …)` / `rgba(235, 160, 160, …)` | 自前の値のまま                                                                             |
-| `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                             |
-| `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**（[#185](https://github.com/Rioh1118/obs-shogi/issues/185)） |
-| `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                   |
+| 場所                   | いまの値                                          | 状態                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IconButton`           | `#dc3545` を CSS 変数の既定値として直書き         | 自前の値のまま                                                                                                                                                               |
+| `KifuForkActions`      | `rgba(215, 96, 96, …)` / `rgba(235, 160, 160, …)` | 自前の値のまま                                                                                                                                                               |
+| `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                                                                                                               |
+| `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**。比の話は [#185](https://github.com/Rioh1118/obs-shogi/issues/185)、意味の取り違えは [#180](https://github.com/Rioh1118/obs-shogi/issues/180) |
+| `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                                                                                                     |
 
 ### 機械で止めているもの
 
 `npm run test` に、人の注意では止まらなかったものを検査として置いてあります。
 落ちたときの逃げ道はそれぞれ違います。
 
-| 検査                 | 何を止めるか                                      | 逃げ道                                             |
-| -------------------- | ------------------------------------------------- | -------------------------------------------------- |
-| `scssScaleRatchet`   | 寸法の直値が増えること                            | `// scale-exempt` の印（上の節）                   |
-| `contrastRatchet`    | 文字と面の比が基準を割ること／測れる対が減ること  | 面か文字の値を直す。`BASELINE` は減らす方向だけ    |
-| `asyncResultUse`     | `AsyncResult` の戻り値を捨てること                | その行に `// async-result-ignored: <理由>`         |
-| `commentHistory`     | コメントに変更の経緯が入ること                    | 無し。いま何がどうあるべきかだけを書く             |
-| `sliceBarrels`       | barrel を通さずスライスの中を読むこと             | 無し。barrel から読む                              |
-| `modalTypes`         | 誰も描かない `ModalType` が残ること               | 無し。描くものを足すか値を落とす                   |
-| `fsErrorCodes`       | Rust の `FsErrorCode` が TS の union を外れること | TS 側だけの code は検査の `TS_ONLY` に理由と一緒に |
-| `root_guard`（Rust） | パスを受けるコマンドが root 検査を飛ばすこと      | `EXEMPT` に名前と理由                              |
+| 検査                   | 何を止めるか                                       | 逃げ道                                                                                                                                                                     |
+| ---------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scssScaleRatchet`     | 寸法の直値が増えること                             | `// scale-exempt` の印（上の節）。`BASELINE` は減る方向だけ                                                                                                                |
+| `contrastRatchet`      | 文字と面の比が基準を割ること／測れる対が減ること   | 面か文字の値を直す。`BASELINE` は減る方向、`MEASURED_COUNT` は増える方向、`UNMEASURED_COUNT` は減る方向。`:disabled` を含む段は**そもそも測らない**（WCAG 1.4.3 の対象外） |
+| `asyncResultUse`       | `AsyncResult` の戻り値を捨てること                 | その行に `// async-result-ignored: <理由>`                                                                                                                                 |
+| `commentHistory`       | コメントに変更の経緯が入ること                     | 無し。いま何がどうあるべきかだけを書く                                                                                                                                     |
+| `sliceBarrels`         | barrel を通さずスライスの中を読むこと              | `vi.mock("...")` は素通し。それ以外は barrel から読む                                                                                                                      |
+| `modalTypes`           | 誰も描かない `ModalType` が残ること                | 無し。描くものを足すか値を落とす。読む側は `params.modal === "<値>"` の綴りで書く                                                                                          |
+| `fsErrorCodes`         | Rust の `FsErrorCode` が TS の union を外れること  | TS 側だけの code は検査の `TS_ONLY` に理由と一緒に                                                                                                                         |
+| `modalOverlayTitlebar` | モーダルの overlay がタイトルバーの帯を覆うこと    | 無し。器に対する頭打ちを持たせる                                                                                                                                           |
+| `turnGlyphLiterals`    | ☗ / ☖ の直書き                                     | `shared/lib/turn.ts` の定数を使う                                                                                                                                          |
+| `testsLayerBoundary`   | `src/__tests__` がアプリのコードを import すること | 無し。ソースを文字列として読む                                                                                                                                             |
+| `root_guard`（Rust）   | パスを受けるコマンドが root 検査を飛ばすこと       | `EXEMPT` に名前と理由。パスを型の中で受けるものは `STRUCT_CARRIED_PATH` に                                                                                                 |
+
+走査の対象と起点は `src/__tests__/walk.ts` が1箇所で決めます。各検査で
+`readdirSync` を書かないでください（除外を足すとき直す場所が散り、
+1つ直し忘れても違反が減るだけなので緑のまま通ります）。
+
+Rust のテストの置き場は2つに分かれます。crate の内部（private / `pub(crate)`）を
+見るものは `src` の `#[cfg(test)]`。crate の公開面か、ソースを文字列として読む
+リポジトリ横断の検査は `src-tauri/tests/`。
 
 ### まだ決まっていないもの
 

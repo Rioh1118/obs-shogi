@@ -48,6 +48,8 @@ function publicModules(): Map<string, string[]> {
   return found;
 }
 
+// TODO(#216): 見ているのは `entities` と `features` だけ。`widgets` の
+// スライス境界は素通しになっている
 describe("スライスの公開境界", () => {
   it("barrel が公開しているものを、スライスの外から直に読まない", () => {
     const slices = publicModules();

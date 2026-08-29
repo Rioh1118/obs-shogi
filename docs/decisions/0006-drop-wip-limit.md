@@ -67,7 +67,9 @@ ADR-0001 の他の決定（`main` 一本、`git worktree`、Stack PR を採ら�
 
 ## やらないこと
 
-- `docs/decisions/0001-branch-and-pr-policy.md` の本文は**書き換えない**（append-only）。
-  この ADR がその1行を上書きする
+- `docs/decisions/0001-branch-and-pr-policy.md` の**決定の内容は書き換えない**。
+  入れるのは supersede の印だけ（状態行と、撤回した1行への `→ ADR-0006 で撤回` の追記）。
+  印まで入れないと、本文を grep で当たった人が死んだ決定を拾う。
+  例外の範囲は `docs/OPERATING-MODEL.md` §1
 - ブランチ名の規則（`issue-<番号>/<slug>`）はここでは扱わない。実態と食い違っているが
   別の決定なので → [#201](https://github.com/Rioh1118/obs-shogi/issues/201)
