@@ -2,6 +2,12 @@ import type { KifuCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
 
+/**
+ * 棋譜ストリームの行を組む
+ *
+ * `jkf` を末尾まで進めるが、棋譜自体は書き換えない（`inputMove` を呼ばない）。
+ * 呼び出し側はこの前提で棋譜を複製せずに渡している。ここで棋譜を編集しないこと。
+ */
 export function buildStreamRowsFromCursor(jkf: JKFPlayer, cursor: KifuCursor | null): RowModel[] {
   const planned = new Map<number, number>();
   for (const p of cursor?.forkPointers ?? []) planned.set(p.te, p.forkIndex);
