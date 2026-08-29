@@ -24,10 +24,30 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     ? `${presetsState.selectedPresetId}@${selectedPresetVersion}`
     : "no-engine";
 
-  const [syncedEngineKey, setSyncedEngineKey] = useState<string | null>(null);
+  const [syncedSfen, setSyncedSfen] = useState<string | null>(null);
+
+  // syncPosition が読むと同時に書く値。state のまま依存に入れると、送信が成功する
+  // たびに syncPosition の identity が変わり、それを依存に持つ自動同期 effect が
+  // 同じ局面で二周する。読む側は ref、外へ見せる側は state に分ける。
+  const syncedSfenRef = useRef<string | null>(null);
+  const syncedEngineKeyRef = useRef<string | null>(null);
+
+  const applySynced = useCallback((sfen: string | null, key: string | null) => {
+    syncedSfenRef.current = sfen;
+    syncedEngineKeyRef.current = key;
+    setSyncedSfen(sfen);
+  }, []);
+
   const lastEngineKeyRef = useRef<string | null>(engineKey);
 
-  const [syncedSfen, setSyncedSfen] = useState<string | null>(null);
+  // 送信中に engineKey が変わったら、その前に始まった送信の書き戻しを無効にする。
+  // await の後で「その間に条件が変わったか」を検査しないと、古いクロージャが
+  // 切替後のリセットを打ち消す。
+  const generationRef = useRef(0);
+
+  // 送信ループが読む engineKey。クロージャに焼き付けると切替後も古い値を書く。
+  const engineKeyRef = useRef(engineKey);
+  engineKeyRef.current = engineKey;
 
   // --- 多重呼び出し対策の中核 ---
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -41,7 +61,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   const syncPosition = useCallback(async (): Promise<void> => {
     const sfen = currentSfen;
     if (!sfen) {
-      setSyncedSfen(null);
+      applySynced(null, syncedEngineKeyRef.current);
       pendingBeforeReadyRef.current = null;
       queuedSfenRef.current = null;
       return;
@@ -54,7 +74,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     }
 
     // すでに送れてるなら何もしない
-    if (syncedSfen === sfen && syncedEngineKey === engineKey) {
+    if (syncedSfenRef.current === sfen && syncedEngineKeyRef.current === engineKeyRef.current) {
       return;
     }
 
@@ -67,6 +87,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     }
 
     // 送信ループ：キューがある限り直列に送る（最後の1つだけが最終反映）
+    const generation = generationRef.current;
     inFlightRef.current = (async () => {
       while (queuedSfenRef.current) {
         const target = queuedSfenRef.current;
@@ -75,8 +96,10 @@ export function useEnginePositionSync(): PositionSyncAdapter {
         try {
           await setPositionFromSfen(target);
 
-          setSyncedSfen(target);
-          setSyncedEngineKey(engineKey);
+          // await の間にエンジンが切り替わっていたら、この結果は捨てる。
+          if (generation !== generationRef.current) return;
+
+          applySynced(target, engineKeyRef.current);
         } catch (e) {
           // 万一NotInitializedなら ready待ちへ戻す
           if (isNotInitializedError(e)) {
@@ -95,27 +118,29 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     });
 
     return inFlightRef.current;
-  }, [currentSfen, isReady, syncedSfen, syncedEngineKey, engineKey]);
+  }, [currentSfen, isReady, applySynced]);
 
   useEffect(() => {
     if (lastEngineKeyRef.current === engineKey) return;
 
     lastEngineKeyRef.current = engineKey;
 
-    setSyncedSfen(null);
-    setSyncedEngineKey(engineKey);
-  }, [engineKey]);
+    // 進行中の送信の書き戻しを無効にしてからリセットする。
+    generationRef.current += 1;
+    queuedSfenRef.current = null;
+    applySynced(null, engineKey);
+  }, [engineKey, applySynced]);
 
   //  自動同期：cursor変化で追従
   useEffect(() => {
     if (!gameState.cursor) {
-      setSyncedSfen(null);
+      applySynced(null, syncedEngineKeyRef.current);
       pendingBeforeReadyRef.current = null;
       queuedSfenRef.current = null;
       return;
     }
     syncPosition().catch(() => {});
-  }, [engineKey, gameState.cursor, syncPosition]);
+  }, [engineKey, gameState.cursor, syncPosition, applySynced]);
 
   useEffect(() => {
     if (!isReady) return;

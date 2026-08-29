@@ -97,9 +97,12 @@ describe("useEnginePositionSync", () => {
     // エンジン A への送信が始まっている
     expect(setPositionFromSfen).toHaveBeenCalledWith("SFEN-1");
 
-    // 送信中にプリセットを B へ切り替える
+    // 切替後の送信は保留にする。こうすると「B へ送れた」事実は無いので、
+    // syncedSfen が立ったならそれは古い送信の書き戻しが通ったことを意味する。
+    const afterSwitch = deferred<void>();
+    setPositionFromSfen.mockReturnValue(afterSwitch.promise);
+
     presetsStub.selectedPresetId = "B";
-    setPositionFromSfen.mockResolvedValue(undefined);
     await view.refresh();
 
     // ここで A 向けの送信が完了する
@@ -109,12 +112,7 @@ describe("useEnginePositionSync", () => {
     });
     await view.refresh();
 
-    // syncedSfen が立っているなら、それは「今のエンジンに送れた」ことを意味していなければならない。
-    // 古いクロージャの書き戻しが通ると、B に送れていないのに同期済みに見える。
-    if (view.current.syncedSfen !== null) {
-      expect(setPositionFromSfen.mock.calls.length).toBeGreaterThanOrEqual(2);
-      expect(setPositionFromSfen).toHaveBeenLastCalledWith(view.current.syncedSfen);
-    }
+    expect(view.current.syncedSfen).toBeNull();
   });
 
   it("同期に失敗したら syncPosition が reject する", async () => {
@@ -140,5 +138,34 @@ describe("useEnginePositionSync", () => {
 
     expect(setPositionFromSfen).toHaveBeenCalledTimes(2);
     expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
+  });
+
+  it("送信が成功しただけでは syncPosition の identity が変わらない", async () => {
+    setPositionFromSfen.mockResolvedValue(undefined);
+
+    const identities: unknown[] = [];
+    function Probe() {
+      const sync = useEnginePositionSync();
+      useEffect(() => {
+        identities.push(sync.syncPosition);
+      });
+      return null;
+    }
+    const utils = render(<Probe />);
+    await act(async () => {});
+
+    // syncPosition が自分で書いた state に依存していると、送信成功のたびに
+    // identity が変わり、それを依存に持つ自動同期 effect が同じ局面で二周する。
+    expect(new Set(identities).size).toBe(1);
+
+    identities.length = 0;
+    gameStub.currentSfen = "SFEN-2";
+    gameStub.cursor = { tesuuPointer: "1,[]" };
+    await act(async () => {
+      utils.rerender(<Probe />);
+    });
+
+    // 局面が変われば identity は1回だけ変わってよい。二周してはいけない。
+    expect(new Set(identities).size).toBe(1);
   });
 });
