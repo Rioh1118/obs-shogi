@@ -36,6 +36,11 @@ case "conflict_opened":
   同じ形が `DirectoryNode.tsx:89` / `RootNode.tsx:65,74` にもある。
 - 直し方: `reducer.ts:96` の `error` で `conflict_opened` と同じく
   `renamingNodeId: null, creatingDirParentPath: null, menu: null` を落とす。
+- **結果: 対応済み。** 提案どおり reducer 側で畳んだ。表示側では直していない。
+  編集行が開いたままであること自体が原因なので、出口（`InlineNameEditor` の `onBlur`）を
+  塞いでも `DirectoryNode` / `RootNode` の3経路に同じ手当てが要る。
+  `entities/file-tree/model/__tests__/reducer.test.ts` を新設し、先に2件が落ちることを
+  確認してから直した。変異（畳む処理を戻す）で2件落ちることも確認済み。
 
 > **この変更が作った新しい経路。** 以前は `return;` でツリーごと消えていたため、入力も一緒に消えていた。
 

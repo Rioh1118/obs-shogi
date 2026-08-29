@@ -93,8 +93,18 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
           action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
       };
 
+    // 編集中の行とメニューは畳む。開いたままだと失敗を伝える表示がその上に重なり、
+    // それを閉じる操作で入力が blur して同じ名前がもう一度送られる。また失敗するので
+    // 閉じても表示が戻ってくる。`conflict_opened` が畳んでいるのと同じ理由
     case "error":
-      return { ...state, isLoading: false, error: action.payload };
+      return {
+        ...state,
+        isLoading: false,
+        menu: null,
+        renamingNodeId: null,
+        creatingDirParentPath: null,
+        error: action.payload,
+      };
 
     case "error_cleared":
       return { ...state, error: null };
