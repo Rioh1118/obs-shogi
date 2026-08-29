@@ -46,30 +46,12 @@ function PositionNavigationModal() {
     selectedOptionIndex: 0,
   });
 
-  useEffect(() => {
-    // 棋譜が切り替わったら、前棋譜の nav を捨てる
-    if (!gameView.player) {
-      setNav({
-        PreviewCursor: { tesuu: 0, forkPointers: [] },
-        selectedOptionIndex: 0,
-      });
-      return;
-    }
-
-    const cur = gameState.cursor;
-    setNav({
-      PreviewCursor: {
-        tesuu: cur?.tesuu ?? 0,
-        forkPointers: cur?.forkPointers ?? [],
-      },
-      selectedOptionIndex: 0,
-    });
-  }, [gameView.player, gameState.cursor]);
-
+  // 棋譜やカーソルが動いたら、前の nav を捨てて盤の現在地から取り直す。
+  // nav を読むのは開いている間だけなので、閉じている間は同期しない。
   useEffect(() => {
     if (!isOpen) return;
 
-    const cur = gameState.cursor;
+    const cur = gameView.player ? gameState.cursor : null;
     setNav({
       PreviewCursor: {
         tesuu: cur?.tesuu ?? 0,
@@ -77,7 +59,7 @@ function PositionNavigationModal() {
       },
       selectedOptionIndex: 0,
     });
-  }, [isOpen, gameState.cursor]);
+  }, [isOpen, gameView.player, gameState.cursor]);
 
   const { previewData, options, unreachable } = useMemo(() => {
     if (!isOpen || !gameView.player) {
