@@ -1,4 +1,5 @@
 import "./HandHeader.scss";
+import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
 
 export type HandSide = "sente" | "gote";
 export type HandAlign = "start" | "end";
@@ -15,8 +16,8 @@ type Props = HandHeaderMeta & {
   placement: HandPlacement;
 };
 const SIDE_UI: Record<HandSide, { label: string; symbol: { top: string; bottom: string } }> = {
-  sente: { label: "先手", symbol: { bottom: "☗", top: "⛊" } },
-  gote: { label: "後手", symbol: { bottom: "☖", top: "⛉" } },
+  sente: { label: "先手", symbol: { bottom: SENTE_GLYPH, top: "⛊" } },
+  gote: { label: "後手", symbol: { bottom: GOTE_GLYPH, top: "⛉" } },
 };
 
 function clampTo15Chars(s: string) {

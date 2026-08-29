@@ -1,4 +1,4 @@
-import type { JKFData } from "@/entities/kifu";
+import type { JKFData } from "@/entities/kifu/model/jkf";
 import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
 
 export function cloneJKF(kifu: JKFData): JKFData {

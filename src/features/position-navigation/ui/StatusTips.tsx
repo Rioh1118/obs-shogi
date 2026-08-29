@@ -1,15 +1,17 @@
 import type { PreviewData } from "@/entities/position/model/preview";
+import { branchLabel, type BranchOption } from "@/entities/kifu/model/branch";
 import "./StatusTips.scss";
 
 type Props = {
   previewData: PreviewData | null;
-  selectedBranchIndex: number;
+  /** 選択中の分岐。表示順の添字ではなく option を渡す（番号の出どころを1つにするため）。 */
+  selectedBranch: BranchOption | undefined;
 };
 
-export default function StatusTips({ previewData, selectedBranchIndex }: Props) {
+export default function StatusTips({ previewData, selectedBranch }: Props) {
   const tesuu = previewData?.tesuu ?? 0;
   const turn = previewData?.turn === 0 ? "先手" : "後手";
-  const sel = selectedBranchIndex === 0 ? "本譜" : `変化${selectedBranchIndex}`;
+  const sel = selectedBranch ? branchLabel(selectedBranch.forkIndex) : "—";
 
   return (
     <div className="position-navigation-modal__status-tips" aria-label="局面ステータス">

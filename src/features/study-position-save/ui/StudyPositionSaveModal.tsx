@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
+import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -62,8 +61,6 @@ export default function StudyPositionSaveModal() {
     }
   }, [isOpen, existing]);
 
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
-
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
     return buildPreviewDataFromSfen(sfen);
@@ -74,7 +71,7 @@ export default function StudyPositionSaveModal() {
   // 現在対局の tesuu / fileName は別の棋譜のものになるため表示しない
   const isFromGameContext = !params.sfen;
   const tesuu = isFromGameContext ? getCurrentMoveIndex() : null;
-  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnBadge = previewData ? turnText(previewData.turn) : null;
   const fileName = useMemo(() => {
     if (!isFromGameContext) return null;
     const absPath = gameState.loadedAbsPath;
@@ -175,10 +172,10 @@ export default function StudyPositionSaveModal() {
         <div className="sp-save__body">
           <aside className="sp-save__left">
             <div className="sp-save__preview">
-              <PreviewPane previewData={previewData} toKan={toKan} />
+              <PreviewPane previewData={previewData} />
             </div>
             <div className="sp-save__context">
-              {turnLabel && <span className="sp-save__contextItem">{turnLabel}</span>}
+              {turnBadge && <span className="sp-save__contextItem">{turnBadge}</span>}
               {tesuu !== null && <span className="sp-save__contextItem">{`${tesuu}手目`}</span>}
               {fileName && (
                 <span className="sp-save__contextItem sp-save__contextItem--file">{fileName}</span>

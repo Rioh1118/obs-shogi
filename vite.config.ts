@@ -1,6 +1,7 @@
 import { defineConfig } from "vite-plus";
 import type { OxlintOverride } from "vite-plus/lint";
 import react from "@vitejs/plugin-react";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -17,36 +18,63 @@ const DEEP_RELATIVE_IMPORT = {
     "2階層以上遡る相対 import は禁止。`@/` エイリアスで書くこと。相対パスはレイヤ規則を素通りする。",
 };
 
+// 自分より上のレイヤへの import を禁じるパターン。
+// `../${upper}/**` も並べるのは、レイヤ直下のファイルからは `../` 1段で隣のレイヤに届き、
+// `@/` と `../../**` の2本だけでは素通りするため。
+function upperLayers(layer: (typeof LAYERS_TOP_DOWN)[number]) {
+  const depth = LAYERS_TOP_DOWN.indexOf(layer);
+  return {
+    group: LAYERS_TOP_DOWN.slice(0, depth).flatMap((upper) => [`@/${upper}/**`, `../${upper}/**`]),
+    message: `${layer} から上位レイヤへの import は禁止。共有したい型やロジックは共有できる位置まで下げること。`,
+  };
+}
+
 // 各レイヤから、自分より上のレイヤへの import を禁じる。
 // 型を戻り値側に置くのは、末尾の `.slice(1)` が文脈型の伝播を止めてしまい、
 // `["error", {...}]` が oxlint の要求するタプルではなく配列に広がるため。
 const layerBoundaries = LAYERS_TOP_DOWN.map(
-  (layer, depth): OxlintOverride => ({
+  (layer): OxlintOverride => ({
     files: [`src/${layer}/**/*.{ts,tsx}`],
     rules: {
       // 後勝ちで上書きされるため、共通側の DEEP_RELATIVE_IMPORT をここでも並べる。
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            DEEP_RELATIVE_IMPORT,
-            {
-              // 自分より前＝自分より上位のレイヤ。
-              // `../${upper}/**` も並べるのは、レイヤ直下のファイルからは `../` 1段で
-              // 隣のレイヤに届き、`@/` と `../../**` の2本だけでは素通りするため。
-              group: LAYERS_TOP_DOWN.slice(0, depth).flatMap((upper) => [
-                `@/${upper}/**`,
-                `../${upper}/**`,
-              ]),
-              message: `${layer} から上位レイヤへの import は禁止。共有したい型やロジックは共有できる位置まで下げること。`,
-            },
-          ],
-        },
-      ],
+      "no-restricted-imports": ["error", { patterns: [DEEP_RELATIVE_IMPORT, upperLayers(layer)] }],
     },
     // app は最上位なので禁止する相手がいない。
   }),
 ).slice(1);
+
+// 自スライスの barrel（`@/entities/kifu` のような index）を、そのスライスの中から読み返さない。
+// 読み返すと index の export がひとつ増えただけで循環になる。中からは実体を直に読むこと。
+//
+// この override は layerBoundaries より後に並ぶ。no-restricted-imports は後勝ちで丸ごと
+// 差し替わるので、上位レイヤの規則もここで並べ直さないとスライス配下で規則が消える。
+const sliceSelfBarrels = (["entities", "features", "widgets"] as const).flatMap((layer) => {
+  const dir = path.resolve(__dirname, "src", layer);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map(
+      (e): OxlintOverride => ({
+        files: [`src/${layer}/${e.name}/**/*.{ts,tsx}`],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [DEEP_RELATIVE_IMPORT, upperLayers(layer)],
+              paths: [
+                {
+                  name: `@/${layer}/${e.name}`,
+                  message:
+                    "自スライスの barrel を中から読まない。実体のモジュールを直接 import すること（循環の種になる）。",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+});
 
 // `src/__tests__/` はレイヤに属さない。リポジトリ横断の検査だけを置く場所であり、
 // `src/**` はデータとして読む。レイヤの外にあるので、ここを素通り口にしないため全レイヤを禁じる。
@@ -195,6 +223,7 @@ export default defineConfig({
         },
       },
       ...layerBoundaries,
+      ...sliceSelfBarrels,
       layerFreeTests,
     ],
     options: {},

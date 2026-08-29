@@ -6,7 +6,7 @@ import { eqMove } from "./eqMove";
 export type ApplyMoveResult = {
   /** 既存の手（本譜 or 既存分岐）を使ったか */
   usedExisting: boolean;
-  /** 新規分岐を作ったか（= inputMove したか） */
+  /** 棋譜に新しい分岐を1本足したか */
   createdNew: boolean;
   /** 適用後の tesuu（jkf.tesuu） */
   tesuu: number;
@@ -20,6 +20,11 @@ export type ApplyMoveResult = {
  * 1. 同じ手が本譜にあれば forward()
  * 2. 同じ手が forks[1..] にあれば forkAndForward()
  * 3. 無ければ新規分岐として追加
+ *
+ * 渡した `move` は棋譜が所有する。コピーせずそのまま収まり、正規化が
+ * `color` / `piece` / `same` / `capture` / `promote` / `relative` を書き加える。しかも正規化は棋譜全体に
+ * 走るので、後から別の分岐を足したときにも書き換わる。呼び出し側は同じオブジェクトを
+ * 使い回さないこと。3 の経路も末端の `inputMove` も同じ。
  */
 export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): ApplyMoveResult {
   const curTesuu = jkf.tesuu;
@@ -58,6 +63,8 @@ export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): Appl
     }
     const newForkIndex = nextFormat.forks.length;
     nextFormat.forks.push([{ move }]);
+    // 表記もここに依存している。相対表記が埋まらないと、分岐一覧で
+    // 「3九金(49)」と「3九金打」が同じ文字列になり読み分けられない。
     Normalizer.normalizeMinimal(jkf.kifu);
     jkf.forkAndForward(newForkIndex);
     return buildResult(jkf, false, true);

@@ -56,7 +56,10 @@ const AppLayout = () => {
       className={`app-layout ${isSidebarOpen ? "" : "app-layout--sidebar-closed"}`}
       onPointerDownCapture={onPointerDownCapture}
     >
-      <AppModalLayer />
+      {/* モーダル1枚の事故で本体まで unmount させない */}
+      <AppErrorBoundary>
+        <AppModalLayer />
+      </AppErrorBoundary>
 
       <AppLayoutHeader
         toggleSidebar={toggleSidebar}

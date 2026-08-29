@@ -1,33 +1,26 @@
-import { formatMove } from "@/features/position-navigation/lib/shogi-format";
-import { memo } from "react";
+import { readableMove } from "@/entities/kifu/lib/readableMove";
 import "./BranchCard.scss";
-import type { BranchOption } from "@/entities/kifu/model/branch";
+import { branchLabel, type BranchOption } from "@/entities/kifu/model/branch";
 
 type Props = {
   branch: BranchOption;
-  index: number;
   selected: boolean;
   onClick: () => void;
   ref?: React.Ref<HTMLDivElement>;
 };
 
-function BranchCard({ branch, index, selected, onClick, ref }: Props) {
+function BranchCard({ branch, selected, onClick, ref }: Props) {
   const base = "branch-selector__card";
   const selectedClass = selected ? "branch-selector__card--selected" : "";
   const className = [base, selectedClass].filter(Boolean).join("  ");
 
-  const isMain = index === 0;
-  const leftLabel = isMain ? "本譜" : `変化${index}`;
-  const rightText = branch.move
-    ? formatMove(branch.move)
-    : isMain
-      ? "次の手"
-      : `${branch.tesuu}手目`;
+  const rightText =
+    readableMove(branch.moveFormat) || (branch.isMainLine ? "次の手" : `${branch.tesuu}手目`);
 
   return (
     <div ref={ref} className={className} onClick={onClick}>
       <div className="branch-selector__header">
-        <span className="branch-selector__label">{leftLabel}</span>
+        <span className="branch-selector__label">{branchLabel(branch.forkIndex)}</span>
         <span className="branch-selector__evaluation">
           <span className="branch-selector__move-pill">{rightText}</span>
         </span>
@@ -41,4 +34,4 @@ function BranchCard({ branch, index, selected, onClick, ref }: Props) {
   );
 }
 
-export default memo(BranchCard);
+export default BranchCard;

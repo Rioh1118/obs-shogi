@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
+import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import type { KifuFormat } from "@/entities/kifu";
+import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
@@ -57,9 +56,7 @@ export default function SfenKifuCreateModal() {
 
   const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
 
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
-
-  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const dirOptions = useMemo(() => {
     if (!fileTree) return [];
@@ -146,8 +143,8 @@ export default function SfenKifuCreateModal() {
         ) : (
           <>
             <div className="sfen-kifu-create__preview">
-              <PreviewPane previewData={previewData} toKan={toKan} />
-              {turnLabel && <div className="sfen-kifu-create__turnBadge">{turnLabel}</div>}
+              <PreviewPane previewData={previewData} />
+              {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
             </div>
 
             <Form handleSubmit={handleSubmit} theme="dark">

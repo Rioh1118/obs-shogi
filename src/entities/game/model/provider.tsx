@@ -15,7 +15,7 @@ import {
 } from "./types";
 import { GameContext } from "./context";
 
-import type { JKFData } from "@/entities/kifu";
+import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   ROOT_CURSOR,
   normalizeForkPointers,

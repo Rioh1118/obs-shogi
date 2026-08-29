@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Piece, Color } from "shogi.js";
+import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
 import { indexToCoords } from "@/entities/position/lib/boardUtils";
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
 import PieceFactory from "./PieceFactory";
@@ -108,7 +109,7 @@ function BoardPreview({
     return (
       <div className="board-preview__hands">
         <div className="board-preview__hand board-preview__hand--white">
-          <div className="board-preview__hand-label">☗後手</div>
+          <div className="board-preview__hand-label">{GOTE_LABEL}</div>
           <div className="board-preview__hand-pieces">
             {whiteHand.map((kind, index) => (
               <div key={`white-${kind}-${index}`} className="board-preview__hand-piece">
@@ -120,7 +121,7 @@ function BoardPreview({
         </div>
 
         <div className="board-preview__hand board-preview__hand--black">
-          <div className="board-preview__hand-label">☖先手</div>
+          <div className="board-preview__hand-label">{SENTE_LABEL}</div>
           <div className="board-preview__hand-pieces">
             {blackHand.map((kind, index) => (
               <div key={`black-${kind}-${index}`} className="board-preview__hand-piece">
