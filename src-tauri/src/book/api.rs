@@ -23,8 +23,12 @@ pub async fn open_book(
     state: State<'_, BookState>,
     input: OpenBookInput,
 ) -> Result<BookInfo, BookError> {
+    log::info!("[cmd] open_book path={}", input.path);
+    logged("open_book", open_book_inner(&state, input).await)
+}
+
+async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<BookInfo, BookError> {
     let path = validate_book_path(&input.path)?;
-    log::info!("[cmd] open_book path={}", path.display());
 
     let opened = tauri::async_runtime::spawn_blocking(move || -> Result<_, BookError> {
         // 形式は利用者が指定した綴りの拡張子で決める。symlink の指す先で
@@ -78,7 +82,14 @@ pub async fn lookup_book_moves(
     state: State<'_, BookState>,
     input: LookupBookMovesInput,
 ) -> Result<Vec<BookMove>, BookError> {
-    let (book, key) = resolve_lookup(&state, &input)?;
+    logged("lookup_book_moves", lookup_inner(&state, input).await)
+}
+
+async fn lookup_inner(
+    state: &BookState,
+    input: LookupBookMovesInput,
+) -> Result<Vec<BookMove>, BookError> {
+    let (book, key) = resolve_lookup(state, &input)?;
 
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。
     tauri::async_runtime::spawn_blocking(move || book.reader.lookup(&key))
@@ -106,7 +117,10 @@ pub fn get_book_info(
     state: State<'_, BookState>,
     input: BookHandleInput,
 ) -> Result<BookInfo, BookError> {
-    Ok(state.get(input.handle)?.info.clone())
+    logged(
+        "get_book_info",
+        state.get(input.handle).map(|book| book.info.clone()),
+    )
 }
 
 /// 開いている定跡を全て返す。
@@ -126,9 +140,12 @@ pub async fn close_all_books(state: State<'_, BookState>) -> Result<usize, BookE
     let closed = sessions.len();
     log::info!("[cmd] close_all_books closed={closed}");
 
-    tauri::async_runtime::spawn_blocking(move || drop(sessions))
-        .await
-        .map_err(join_error)?;
+    logged(
+        "close_all_books",
+        tauri::async_runtime::spawn_blocking(move || drop(sessions))
+            .await
+            .map_err(join_error),
+    )?;
 
     Ok(closed)
 }
@@ -143,11 +160,27 @@ pub async fn close_book(
     input: BookHandleInput,
 ) -> Result<(), BookError> {
     log::info!("[cmd] close_book handle={}", input.handle);
+    logged("close_book", close_book_inner(&state, input).await)
+}
+
+async fn close_book_inner(state: &BookState, input: BookHandleInput) -> Result<(), BookError> {
     let session = state.close(input.handle)?;
 
     tauri::async_runtime::spawn_blocking(move || drop(session))
         .await
         .map_err(join_error)
+}
+
+/// 失敗をログに残す。
+///
+/// 定跡が開けなかったという報告を受けたとき、権限なのか拡張子なのか壊れた
+/// ファイルなのかをログから切り分けられるようにする。種別を持たせた設計は
+/// フロントに届くだけでは足りない。
+fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError> {
+    if let Err(err) = &result {
+        log::warn!("[cmd] {command} failed: {err}");
+    }
+    result
 }
 
 fn join_error(err: tauri::Error) -> BookError {
