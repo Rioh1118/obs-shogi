@@ -1,8 +1,9 @@
 import type { ForkPointer, KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
+import { branchIndexFromSelection, type BranchIndex } from "@/entities/kifu/model/branch";
 import type { RowModel } from "../ui/KifuMoveCard";
 
-export const branchIndexFromRow = (r: RowModel): number => {
-  return r.selectedForkIndex == null ? 0 : r.selectedForkIndex + 1;
+export const branchIndexFromRow = (r: RowModel): BranchIndex => {
+  return branchIndexFromSelection(r.selectedForkIndex);
 };
 
 export function buildCursorWithForkSelection(

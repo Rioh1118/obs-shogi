@@ -64,6 +64,17 @@ export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
   return forkIndex + 1;
 }
 
+/**
+ * 「本譜か、何番目の変化か」を BranchIndex にする
+ *
+ * 選択を表す `forkIndex` は本譜のとき null になる。この null を 0 に読み替える
+ * 変換が画面ごとに手書きされると、`+1` の付け忘れが削除・入れ替えの対象を
+ * 1つずらす形で表に出る。
+ */
+export function branchIndexFromSelection(forkIndex: number | null): BranchIndex {
+  return forkIndex == null ? 0 : branchIndexFromForkIndex(forkIndex);
+}
+
 export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
   // JKFPlayer の "N,[{te,forkIndex}]" と揃える
   return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
