@@ -7,9 +7,12 @@ $color-secondary-dark: #a27b5c;
 $color-secondary-dark-2: #a57d5c;
 
 // 面として敷く銅。$color-secondary-dark に白文字を置くと 3.80:1 で本文の基準を割る。
-// 一段暗くすると 4.79:1 になり、白文字のまま基準を満たせる
-$color-secondary-solid: #8f6b4e;
-$color-secondary-solid-hover: #9e7757;
+// 一段暗くすると 4.79:1 になり、白文字のまま基準を満たせる。
+//
+// ホバーは**暗くする**。白文字を載せる面なので、明るくすると押そうとしている
+// 瞬間に読みにくくなる（#9e7757 は 4.02:1 で基準を割っていた）
+$color-secondary-solid: #8f6b4e; // 白文字 4.79:1
+$color-secondary-solid-hover: #866549; // 白文字 5.29:1
 
 $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
