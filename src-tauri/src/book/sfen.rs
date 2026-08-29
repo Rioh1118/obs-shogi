@@ -75,22 +75,33 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
+    book_key(input).map_err(|reason| {
+        BookError::new(
+            BookErrorCode::InvalidSfen,
+            format!("{reason}。{SFEN_RECOVERY}: {}", excerpt(input)),
+        )
+    })
+}
+
+/// 局面の指定が読めないときに利用者へ出す復帰操作。
+///
+/// この文字列を組み立てるのは利用者ではなくフロントなので、「書き直せ」では
+/// 直せない。届いた時点でこちら側の不具合である可能性が高いことまで言う。
+const SFEN_RECOVERY: &str =
+    "この局面では定跡を引けない。盤面を操作し直しても直らなければ不具合として報告すること";
+
+/// 失敗の理由だけを返す。復帰操作と種別は、呼び出し元が文脈に応じて足す。
+///
+/// 同じ綴りの誤りでも、利用者が操作した局面なら「盤面を操作し直せ」、定跡
+/// ファイルの中身なら「取得し直せ」で、出すべき復帰操作が違う。
+fn book_key(input: &str) -> Result<BookKey, String> {
     // 引用は発生源で打ち切る。input はコマンド境界から来る任意長の文字列で、
     // 打ち切らないと message がそのままログへ流れ、失敗1回で以前の記録が消える。
     //
     // 理由文の側も通す。入口で全体の長さを切っているので断片も 256 字以下に
     // 収まるが、`MAX_INPUT_CHARS` を緩めたときや `invalid` を経由しない理由文が
     // 増えたときに取り残さないための二重の防御。
-    let invalid = |reason: &str| {
-        BookError::new(
-            BookErrorCode::InvalidSfen,
-            format!(
-                "{}: {}",
-                truncate_for_message(reason),
-                truncate_for_message(input.trim())
-            ),
-        )
-    };
+    let invalid = truncate_for_message;
 
     // 局面として成立しうる長さを超えるものは、理由文を組み立てる前に落とす。
     // 打ち切りを断片ごとに足して回る形だと、枝が増えるたびに取り残しが出る。
@@ -101,7 +112,7 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
 
     // 指し手を適用せずに黙って捨てると、進めたはずの局面に初期局面の候補手が返る。
     // エラーにならないので呼び出し側が誤りに気づけない。
-    let reject_rest = |tokens: &mut dyn Iterator<Item = &str>| -> Result<(), BookError> {
+    let reject_rest = |tokens: &mut dyn Iterator<Item = &str>| -> Result<(), String> {
         match tokens.next() {
             None => Ok(()),
             Some("moves") => Err(invalid(
@@ -184,12 +195,12 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
 // するかは、そこで決める。
 #[allow(dead_code)]
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
-    to_book_key(line).map_err(|err| {
+    book_key(line).map_err(|reason| {
         BookError::new(
             BookErrorCode::InvalidContent,
             format!(
-                "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{}）",
-                err.message()
+                "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{reason}: {}）",
+                excerpt(line)
             ),
         )
         .with_path(path)
@@ -231,6 +242,11 @@ const MAX_INPUT_CHARS: usize = 256;
 /// 「持駒が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
 /// ログ（200KB でローテート）の予算を食い潰さない上限として選んだ。
 const MESSAGE_EXCERPT_CHARS: usize = 120;
+
+/// message に載せる引用。前後の空白は落とし、長さを打ち切る。
+fn excerpt(input: &str) -> String {
+    truncate_for_message(input.trim())
+}
 
 /// message に載せる引用を打ち切る。
 fn truncate_for_message(excerpt: &str) -> String {
@@ -520,6 +536,49 @@ mod tests {
                 err.message()
             );
         }
+    }
+
+    /// 局面の文字列を組み立てるのは利用者ではなくフロントなので、理由だけを
+    /// 出しても画面の前に居る人には次の操作が無い。種別だけを見るテストでは、
+    /// 案内を消しても緑のまま通る。
+    #[test]
+    fn an_unreadable_position_tells_the_user_what_to_do_next() {
+        let inputs = [
+            String::new(),
+            "lnsgkgsnl".to_string(),
+            format!("{BARE_BOARD} x - 1"),
+            format!("{BARE_BOARD} b - 1 moves 7g7f"),
+        ];
+
+        for input in inputs {
+            let err = to_book_key(&input).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "input={input:?}");
+            // 定数と突き合わせない。`contains(SFEN_RECOVERY)` は案内を空にすると
+            // 常に真になり、案内が消えたことをこのテストが見逃す。
+            assert!(
+                err.message().contains("盤面を操作し直"),
+                "input={input:?} message={}",
+                err.message()
+            );
+        }
+    }
+
+    /// 定跡ファイル側の失敗には、盤面を操作し直す案内を出さない。
+    /// 利用者の操作では直らず、直す先はファイルの取得だから。
+    #[test]
+    fn a_broken_line_in_a_book_does_not_ask_the_user_to_move_the_board() {
+        let err = to_book_key_in_file("lnsgkgsnl", "/books/a.db").unwrap_err();
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(
+            !err.message().contains("盤面を操作し直"),
+            "message={}",
+            err.message()
+        );
+        assert!(
+            err.message().contains("取得し直す"),
+            "message={}",
+            err.message()
+        );
     }
 
     /// 理由文に入力の断片を埋める枝を、実際に通して打ち切りを見る。

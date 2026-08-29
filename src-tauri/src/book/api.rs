@@ -116,7 +116,7 @@ fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
         return Err(BookError::new(
             BookErrorCode::InvalidPath,
             format!(
-                "リンク先 {} の形式が指定と違う（指定 {} / 実体 {}）",
+                "リンク先 {} の形式が指定と違う（指定 {} / 実体 {}）。{PATH_RECOVERY}",
                 canonical.display(),
                 requested.display_name(),
                 resolved_name
@@ -152,13 +152,23 @@ fn annotate(err: BookError, note: &str) -> BookError {
     }
 }
 
+/// パスが受け付けられないときに利用者へ出す復帰操作。
+///
+/// 「絶対パスで渡すこと」のような理由は呼び出し側（フロント）に向けた言葉で、
+/// 画面の前に居る人には何をすればよいか分からない。操作に翻訳して添える。
+const PATH_RECOVERY: &str = "定跡ファイルを選び直すこと";
+
 /// フロントから来たパスの形を検査する。
 ///
 /// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
 /// 失敗し、`BookInfo.path()` にもその相対文字列が残って UI に出しても意味を成さない。
 fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
     let invalid = |reason: &str| {
-        BookError::new(BookErrorCode::InvalidPath, reason.to_string()).with_path(raw)
+        BookError::new(
+            BookErrorCode::InvalidPath,
+            format!("{reason}。{PATH_RECOVERY}"),
+        )
+        .with_path(raw)
     };
 
     if raw.trim().is_empty() {
@@ -529,6 +539,22 @@ mod tests {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidPath, "raw={raw:?}");
             assert_eq!(err.path(), Some(raw));
+        }
+    }
+
+    /// 「絶対パスで渡すこと」は呼び出し側に向けた言葉で、画面の前に居る人には
+    /// 次の操作が無い。種別だけを見る上のテストは、案内を消しても緑のまま通る。
+    #[test]
+    fn a_rejected_path_tells_the_user_what_to_do_next() {
+        for raw in ["", "   ", "books/standard.db", "a\0b.db"] {
+            let err = validate_book_path(raw).unwrap_err();
+            // 定数と突き合わせない。`contains(PATH_RECOVERY)` は案内を空にすると
+            // 常に真になり、案内が消えたことをこのテストが見逃す。
+            assert!(
+                err.message().contains("選び直すこと"),
+                "raw={raw:?} message={}",
+                err.message()
+            );
         }
     }
 
