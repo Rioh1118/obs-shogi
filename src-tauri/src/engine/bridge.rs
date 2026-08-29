@@ -416,7 +416,7 @@ impl EngineBridge {
         {
             let mut sessions = self.active_sessions.write().await;
 
-            for (_, session) in sessions.iter_mut() {
+            for session in sessions.values_mut() {
                 session.is_active = false;
             }
             sessions.clear();

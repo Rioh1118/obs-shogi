@@ -23,8 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 
-# Claude Code (machine-specific settings only; agents/ and skills/ are tracked)
+# Claude Code
+# settings.json / agents / skills / hooks / rules / reviews は追跡する。
+# 機械固有の設定とセッション作業用の計画メモだけ除外する。
 .claude/settings.local.json
+.claude/plans/
 
 # Debug logs
 .debug/
