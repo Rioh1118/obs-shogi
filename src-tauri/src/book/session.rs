@@ -32,6 +32,9 @@ impl fmt::Debug for BookSession {
 pub struct BookState {
     books: DashMap<BookHandle, Arc<BookSession>>,
     next_handle: AtomicU64,
+    /// `get` が呼ばれた回数。呼び出し側が `Arc` を取る位置をテストで固定するために持つ。
+    #[cfg(test)]
+    get_calls: AtomicU64,
 }
 
 impl BookState {
@@ -89,6 +92,9 @@ impl BookState {
     /// **最後の参照になりうるので、落とす場所は blocking プールにすること。**
     /// async ランタイム上で落とすと、reader の Drop がそこで走る。
     pub(crate) fn get(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
+        #[cfg(test)]
+        self.get_calls.fetch_add(1, Ordering::Relaxed);
+
         self.books
             .get(&handle)
             .map(|entry| Arc::clone(entry.value()))
@@ -137,6 +143,11 @@ impl BookState {
             .into_iter()
             .filter_map(|handle| self.books.remove(&handle).map(|(_, session)| session))
             .collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_calls(&self) -> u64 {
+        self.get_calls.load(Ordering::Relaxed)
     }
 
     // 開いている件数は、外へは list で出す。この2つは leak を見るテスト用。
@@ -190,7 +201,9 @@ mod tests {
 
     impl BookReader for FakeReader {
         fn position_count(&self) -> Option<u64> {
-            Some(3)
+            // opened() が渡す値と違えておく。register が reader に問い合わせる形へ
+            // 戻されたら、値の違いでテストが落ちる。
+            Some(99)
         }
 
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
@@ -216,7 +229,7 @@ mod tests {
     }
 
     #[test]
-    fn register_fills_the_info_from_the_reader() {
+    fn register_fills_the_info_from_the_opened_book() {
         let (_state, _alive, info) = state_with_one_book();
         assert_eq!(info.path, "/books/a.db");
         assert_eq!(info.format, BookFormat::YaneuraouDb);

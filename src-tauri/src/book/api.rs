@@ -349,6 +349,22 @@ mod tests {
         assert_eq!(err.code, BookErrorCode::InvalidHandle);
     }
 
+    /// 壊れた局面では `get` を呼ばないこと。
+    ///
+    /// 先に `Arc` を取る形に戻すと、その枝で落ちた `Arc` が最後の参照だったときに
+    /// reader の Drop が async ワーカで走る。返る種別は両方の順序で同じなので、
+    /// 種別を見るテストではこの差を捕まえられない。
+    #[test]
+    fn a_broken_position_does_not_take_a_reference() {
+        let state = BookState::new();
+        let info = state.register(opened("/books/a.db"));
+
+        let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
+
+        assert_eq!(err.code, BookErrorCode::InvalidSfen);
+        assert_eq!(state.get_calls(), 0);
+    }
+
     #[test]
     fn reports_a_broken_position_for_a_live_handle() {
         let state = BookState::new();
@@ -504,7 +520,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_path_that_cannot_be_resolved() {
+    fn rejects_a_path_that_is_not_an_absolute_spelling() {
         for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidPath, "raw={raw:?}");

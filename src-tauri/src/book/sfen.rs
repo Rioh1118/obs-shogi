@@ -67,6 +67,9 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// 綴りの揺れ（空きマスの数字の分割、持駒の並び）は畳む。畳んだ結果をもう一度
 /// 通しても同じキーになる。
 ///
+/// これを直接呼ぶのはコマンド境界だけ。定跡ファイルに書かれている局面を
+/// キーにするときは [`to_book_key_in_file`] を使うこと（失敗の意味が違う）。
+///
 /// メモリに展開する reader は、定跡ファイル側のキーもこの関数を通すこと。
 /// ファイル上を二分探索する reader は通せない（通すと探索の前提である
 /// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
@@ -139,6 +142,19 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     counts.validate().map_err(|reason| invalid(&reason))?;
 
     Ok(BookKey(format!("{board} {side} {hands}")))
+}
+
+/// 定跡ファイルに書かれている局面をキーにする。
+///
+/// 読めない行は利用者の入力の誤りではなくファイルの破損なので、`InvalidSfen`
+/// ではなく `InvalidContent` にして定跡のパスを添える。ここを分けないと、
+/// 盤を1手進めただけの利用者に「渡した局面が読めない」と案内され、
+/// 「この定跡が壊れている」という正しい復帰導線に辿り着けない。
+// TODO(#91): 最初の呼び手はやねうら王 .db の reader。
+#[allow(dead_code)]
+pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
+    to_book_key(line)
+        .map_err(|err| BookError::new(BookErrorCode::InvalidContent, err.message).with_path(path))
 }
 
 /// 駒種ごとの枚数。盤上と持駒を通して数える。
@@ -350,6 +366,14 @@ mod tests {
 
     const HIRATE_SFEN: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
+    /// ファイルの行が読めないのは利用者の入力の誤りではない。
+    #[test]
+    fn a_broken_line_in_a_file_is_reported_as_broken_content() {
+        let err = to_book_key_in_file("壊れた行", "/books/a.db").unwrap_err();
+        assert_eq!(err.code, BookErrorCode::InvalidContent);
+        assert_eq!(err.path.as_deref(), Some("/books/a.db"));
+    }
+
     #[test]
     fn drops_the_move_number() {
         assert_eq!(key(HIRATE_SFEN), HIRATE_BOOK_KEY);
@@ -486,18 +510,7 @@ mod tests {
     #[test]
     fn rejects_more_pieces_than_the_set_holds() {
         // 1トークンでは上限内でも、合算すると超える
-        // 巨大な枚数は、数え上げるより先に打ち切ること。数え始めると
-        // 入力の値ぶんループが回る
-        for hands in [
-            "18P1P",
-            "9P9P1P",
-            "3R",
-            "3r",
-            "2R1r",
-            "5G",
-            "4294967295P",
-            "99999999999P",
-        ] {
+        for hands in ["18P1P", "9P9P1P", "3R", "3r", "2R1r", "5G"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
         }
@@ -517,6 +530,22 @@ mod tests {
         ] {
             let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "board={board}");
+        }
+    }
+
+    /// 巨大な枚数は、数え上げる前に打ち切ること。打ち切りを外しても最後には
+    /// InvalidSfen になるので、種別だけでは区別が付かない。文言で分ける
+    /// （「範囲外」を出すのは1トークンの検査だけ）。
+    #[test]
+    fn a_huge_hand_count_is_rejected_before_counting() {
+        for hands in ["19P", "4294967295P", "99999999999P"] {
+            let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
+            assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
+            assert!(
+                err.message.contains("持駒の枚数が範囲外"),
+                "hands={hands} message={}",
+                err.message
+            );
         }
     }
 
