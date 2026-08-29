@@ -276,6 +276,34 @@ expect_teardown NO 'git commit -m x && git rebase --abort'
 expect_teardown NO 'git -C /tmp/other rebase --abort'
 expect_teardown NO 'git commit --amend'
 
+# 宛先が別リポジトリなら、このプロジェクトの検証は当てない。
+#
+# 当てると、そのツリーに `package.json` が無いという理由で deny になり、
+# 利用者には触ってもいないファイルについて直す対象が示される。
+expect_project() {
+  local want=$1 target=$2
+  local got=OUT
+  gate_in_project "$target" "$GATE_HOME" && got=IN
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$target"
+    failures=$((failures + 1))
+  fi
+}
+
+# このワークツリー自身と、本チェックアウト（共通の .git を指すので一致する）
+expect_project IN "$GATE_HOME"
+expect_project IN "$(git -C "$GATE_HOME" rev-parse --path-format=absolute --git-common-dir | sed 's|/\.git$||')"
+
+# 無関係なリポジトリ
+gate_other_repo=$(mktemp -d)
+git -C "$gate_other_repo" init -q
+expect_project OUT "$gate_other_repo"
+rm -rf "$gate_other_repo"
+
+# リポジトリですらない場所
+expect_project OUT "$(mktemp -d)"
+expect_project OUT ""
+
 if [ "$failures" -eq 0 ]; then
   echo "verify-gate: 全て期待どおり"
   exit 0

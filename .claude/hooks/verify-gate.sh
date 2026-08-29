@@ -235,6 +235,29 @@ gate_is_teardown() {
     | grep -Eq '^[[:space:]]*git[[:space:]]+(rebase|merge|cherry-pick|am|revert)[[:space:]]+--(abort|quit|skip|edit-todo)[[:space:]]*$'
 }
 
+# コミット先が、このゲートを持っているプロジェクトのツリーかどうか。
+#
+# `gate_target_dir` は「宛先が自明か」しか見ていない。別のリポジトリで作業して
+# いても宛先は自明に決まるので、そこへ `cd` して `npm run verify` を走らせて
+# しまう。そのツリーに `package.json` は無いから必ず失敗し、**利用者は触っても
+# いないファイルについて deny される。直す対象が存在せず、逃げ道も無い。**
+#
+# 比べるのは `--git-common-dir`。同じプロジェクトの別ワークツリーは共通の .git を
+# 指すので一致し、今までどおりゲートに掛かる。別リポジトリだけが外れる。
+#
+# 基準に `$CLAUDE_PROJECT_DIR` ではなく hook 自身の位置を使うのは、
+# ワークツリーごとに値が変わらないため。
+gate_in_project() {
+  local target=$1 home=$2 target_dir home_dir
+  [ -n "$target" ] || return 1
+  target_dir=$(git -C "$target" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  home_dir=$(git -C "$home" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || return 1
+  [ -n "$target_dir" ] && [ "$target_dir" = "$home_dir" ]
+}
+
+# ゲート自身が置かれているツリー。`.claude/hooks/` の2つ上。
+GATE_HOME=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+
 # 読み込まれただけのときは判定関数を定義して終わる（テストから使う）。
 [ "${GATE_LIB_ONLY:-0}" = "1" ] && return 0
 
@@ -275,6 +298,12 @@ if [ -z "$project_dir" ]; then
 同じコマンドの中で cd / pushd / env / サブシェルを使わないこと。
 1つのコマンドに commit を2つ以上並べないこと。"
 fi
+
+# このプロジェクト以外のツリーには、このプロジェクトの検証を当てる筋合いが無い。
+if ! gate_in_project "$project_dir" "$GATE_HOME"; then
+  exit 0
+fi
+
 cd "$project_dir" || exit 0
 
 # ステージ済みと作業ツリーの両方を見る（`git commit -a` を取りこぼさないため）。
