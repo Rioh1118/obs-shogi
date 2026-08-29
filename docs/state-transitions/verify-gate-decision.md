@@ -9,55 +9,53 @@
 
 ## 段（状態）
 
-| 記号 | 判定条件（式） | 通らなかったときの行き先 |
-| ---- | -------------- | ------------------------ |
-| S1 | `gate_matches_commit "$command"` — コミットを作る git 呼び出しとして切り出せる | S2 へ |
-| S2 | `gate_mentions_commit "$command"` — `git` とコミット動詞が語として現れる | **exit 0（素通し）** |
-| S3 | `gate_target_dir "$command" "$cwd"` が非空 — 宛先が自明 | deny |
-| S4 | `gate_kinds_for_path` × `git status -z` — 検証の種類が1つ以上 | exit 0（変更が docs だけ） |
-| S5 | `run_gate` — 選ばれた検証が通る | deny |
+| 記号 | 判定条件（式）                                                                 | 通らなかったときの行き先   |
+| ---- | ------------------------------------------------------------------------------ | -------------------------- |
+| S1   | `gate_matches_commit "$command"` — コミットを作る git 呼び出しとして切り出せる | S2 へ                      |
+| S2   | `gate_mentions_commit "$command"` — `git` とコミット動詞が語として現れる       | **exit 0（素通し）**       |
+| S3   | `gate_target_dir "$command" "$cwd"` が非空 — 宛先が自明                        | deny                       |
+| S4   | `gate_kinds_for_path` × `git status -z` — 検証の種類が1つ以上                  | exit 0（変更が docs だけ） |
+| S5   | `run_gate` — 選ばれた検証が通る                                                | deny                       |
 
 S1 を通れば S3 へ、S1 を落ちて S2 に当たれば deny、S2 も落ちれば**素通し**。
 
 ## コマンドの形（イベント）
 
-| 記号 | 形 |
-| ---- | -- |
-| A | `git commit -m x`（起点の作業ディレクトリで、ディレクトリ指定なし） |
-| B | `git add -A && git commit -m x`（手前が git 呼び出しだけ） |
-| C | ディレクトリを付け替える（`-C` / `--git-dir` / `cd X &&` / `pushd` / `env -C` / `GIT_DIR=`） |
-| D | コミットを作る別の動詞（`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`） |
-| E | alias（`git ci`）、alias の合成（`git acp`） |
-| F1 | `git` の綴りにパス修飾や引用が付く（`/usr/bin/git` / `'git'` / `\git`） |
-| F2 | `git` の綴りが展開でしか決まらない（`$(which git)` / `$x`） |
-| G | 行を跨ぐ（`git \` + 改行 + `commit`） |
-| H | 引用の中に動詞が出るだけ（`git commit -m "fix: git commit の話"`） |
-| I | commit ではない（`git add` / `git log` / `npm run commit-helper`） |
+| 記号 | 形                                                                                           |
+| ---- | -------------------------------------------------------------------------------------------- |
+| A    | `git commit -m x`（起点の作業ディレクトリで、ディレクトリ指定なし）                          |
+| B    | `git add -A && git commit -m x`（手前が git 呼び出しだけ）                                   |
+| C    | ディレクトリを付け替える（`-C` / `--git-dir` / `cd X &&` / `pushd` / `env -C` / `GIT_DIR=`） |
+| D    | コミットを作る別の動詞（`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`）      |
+| E    | alias（`git ci`）、alias の合成（`git acp`）                                                 |
+| F1   | `git` の綴りにパス修飾や引用が付く（`/usr/bin/git` / `'git'` / `\git`）                      |
+| F2   | `git` の綴りが展開でしか決まらない（`$(which git)` / `$x`）                                  |
+| G    | 行を跨ぐ（`git \` + 改行 + `commit`）                                                        |
+| H    | 引用の中に動詞が出るだけ（`git commit -m "fix: git commit の話"`）                           |
+| I    | commit ではない（`git add` / `git log` / `npm run commit-helper`）                           |
 
 ## 表
 
 セルは「到達する結果」。`✓` はそのセルを踏むケースが `verify-gate.test.sh` にある。
 
-| コマンドの形 | S1 | S2 | S3 | 結果 |
-| ------------ | -- | -- | -- | ---- |
-| A | 通る ✓ | — | 起点 ✓ | S4 へ（検証） |
-| B | 通る ✓ | — | 起点 ✓ | S4 へ（検証） |
-| C | 通る ✓ | — | **空** ✓ | deny |
-| D | 通る ✓ | — | 起点 | S4 へ（検証。ただし作られるツリーは検証できない） |
-| E | 通る ✓（`expect_alias` / `expect_alias_resolution`。値に生の改行を含む形も ✓） | — | 起点 | S4 へ |
-| F1 | 通る ✓ | — | 起点 ✓ | S4 へ（検証） |
-| F2 | 落ちる | 当たる ✓ | — | deny |
-| G | 通る ✓（`gate_flatten` が畳む） | — | 起点 | S4 へ |
-| H | 通る ✓（`gate_strip_quotes` が潰す） | — | 起点 ✓ | S4 へ |
-| I | 落ちる ✓ | 落ちる ✓ | — | 素通し（正しい） |
+| コマンドの形 | S1                                                                             | S2       | S3       | 結果                                              |
+| ------------ | ------------------------------------------------------------------------------ | -------- | -------- | ------------------------------------------------- |
+| A            | 通る ✓                                                                         | —        | 起点 ✓   | S4 へ（検証）                                     |
+| B            | 通る ✓                                                                         | —        | 起点 ✓   | S4 へ（検証）                                     |
+| C            | 通る ✓                                                                         | —        | **空** ✓ | deny                                              |
+| D            | 通る ✓                                                                         | —        | 起点     | S4 へ（検証。ただし作られるツリーは検証できない） |
+| E            | 通る ✓（`expect_alias` / `expect_alias_resolution`。値に生の改行を含む形も ✓） | —        | 起点     | S4 へ                                             |
+| F1           | 通る ✓                                                                         | —        | 起点 ✓   | S4 へ（検証）                                     |
+| F2           | 落ちる                                                                         | 当たる ✓ | —        | deny                                              |
+| G            | 通る ✓（`gate_flatten` が畳む）                                                | —        | 起点     | S4 へ                                             |
+| H            | 通る ✓（`gate_strip_quotes` が潰す）                                           | —        | 起点 ✓   | S4 へ                                             |
+| I            | 落ちる ✓                                                                       | 落ちる ✓ | —        | 素通し（正しい）                                  |
 
 ### 埋まっていないセル
 
 - **(D, S4)**: `git rebase main` は S1 を通るが、作業ツリーが clean なら S4 で
   `needs_*=0` になり素通しする。**これは PreToolUse の構造上どうにもならない**
   （コマンドの前に、そのツリーは存在しない）。表に残す
-- ~~**(E, alias の値に生の改行)**~~: 埋めた。`git config -z` で読む。
-  fixture の表に1行足してある（**変異で確認: `-z` をやめると落ちる**）
 - **S4 の分類**: `expect_kinds` があるのは `gate_kinds_for_path` 単体で、
   **`git status -z` の出力を食わせる end-to-end のケースは無い**（リネーム2レコード、
   引用符付きパス）

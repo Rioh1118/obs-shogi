@@ -550,9 +550,9 @@ mod tests {
 
     /// 検査を通った長いパスも、下流の失敗で載るときには打ち切られていること。
     ///
-    /// 検査で弾いていた頃は上限が検査側にあったが、弾くのをやめたので
-    /// **通り抜けた長いパスが `open_at` 以降の全ての経路へ生のまま流れうる**。
-    /// `validate_book_path` だけを見るテストでは、この経路を1つも踏まない。
+    /// `validate_book_path` は長さで弾かないので、**通り抜けた長いパスが
+    /// `open_at` 以降の全ての経路へ生のまま流れる**。`validate_book_path` だけを
+    /// 見るテストでは、この経路を1つも踏まない。
     #[test]
     fn an_over_long_path_that_passes_validation_is_truncated_downstream() {
         // 実在しないので canonicalize が必ず失敗する
