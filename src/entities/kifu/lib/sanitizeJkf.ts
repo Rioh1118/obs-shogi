@@ -20,8 +20,11 @@ export function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
  * 「空の変化を含まない」という `JKFData` の不変条件を満たす
  *
  * 呼ぶのは `entities/kifu/api/parse` の出口だけ。`JKFData` を受け取った側は
- * 空の変化が無いことを前提にしてよい。複数箇所で掛けると `forkIndex` が
- * どの時点の並びを指すのかが読めなくなる。
+ * 空の変化が無いことを前提にしてよい。
+ *
+ * 空の変化を落とすと、後ろに並ぶ変化の `forkIndex` は1つずつ繰り上がる。
+ * `ForkPointer` を作ったあとに掛けると、その値は別の変化を指す。
+ * だから入口で1回だけ掛ける。
  */
 export function sanitizeJkf(kifu: JKFData): JKFData {
   return { ...kifu, moves: sanitizeJkfMoves(kifu.moves) };

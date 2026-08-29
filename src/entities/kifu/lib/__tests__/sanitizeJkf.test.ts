@@ -19,9 +19,10 @@ describe("sanitizeJkfMoves", () => {
     expect(m.forks).toBeUndefined();
   });
 
-  test("空の変化を挟んでいても、残る変化の順序は保たれる", () => {
-    // 落とすだけで並べ替えないこと。forkIndex は forks の添字なので、
-    // 並びが変わると同じ変化を指す ForkPointer が別の枝を指す。
+  test("空の変化を挟んでいても、残る変化の相対順序は変わらない", () => {
+    // 番号は詰まる（forks[2] だった y が forks[1] になる）。詰まること自体は
+    // 避けられないので、せめて並べ替えはしない。並べ替えると、保存し直した
+    // ファイルの変化の順序が読み込みのたびに変わる。
     const [m] = sanitizeJkfMoves([move("a", [[move("x")], [], [move("y")]])]);
     expect(m.forks?.map((f) => f[0].comments)).toEqual([["x"], ["y"]]);
   });
