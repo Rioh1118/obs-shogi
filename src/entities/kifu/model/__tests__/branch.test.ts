@@ -3,6 +3,7 @@ import {
   MAIN_LINE,
   branchIndexFromForkIndex,
   branchIndexFromSelection,
+  branchLabel,
   forkIndexFromBranchIndex,
 } from "../branch";
 
@@ -43,6 +44,22 @@ describe("BranchIndex から forkIndex に戻す", () => {
     for (const b of [0.5, NaN, Infinity, -1]) {
       expect(() => forkIndexFromBranchIndex(b as never)).toThrow();
       expect(() => branchIndexFromForkIndex(b)).toThrow();
+    }
+  });
+});
+
+describe("branchLabel", () => {
+  test("番号は forkIndex から作り、BranchIndex と一致する", () => {
+    expect(branchLabel()).toBe("本譜");
+    expect(branchLabel(0)).toBe(`変化${branchIndexFromForkIndex(0)}`);
+    expect(branchLabel(2)).toBe(`変化${branchIndexFromForkIndex(2)}`);
+  });
+
+  test("壊れた forkIndex でも throw しない", () => {
+    // レンダ中に呼ばれるので、ラベル1つのために画面を落とさない。
+    // 値の検査は編集の入口が行う。
+    for (const f of [-1, 0.5, NaN]) {
+      expect(() => branchLabel(f)).not.toThrow();
     }
   });
 });

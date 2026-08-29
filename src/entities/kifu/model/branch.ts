@@ -71,9 +71,14 @@ export type BranchEditResult = {
  *
  * 番号は表示順ではなく `forkIndex` から作る。棋譜ストリームの分岐メニューが
  * `forkIndex` で番号を振るので、表示順で作ると同じ分岐が画面ごとに別の番号で呼ばれる。
+ *
+ * `branchIndexFromForkIndex` を通さないのは、この関数がレンダ中に呼ばれるから
+ * （`BranchCard` / `StatusTips` / `KifuForkMenu`）。壊れた `forkIndex` で例外を投げると
+ * ラベル1つのために画面が落ちる。値の検査は編集の入口（`swapBranchesInKifu` /
+ * `deleteBranchInKifu`）が行う。番号の作り方は `branchIndexFromForkIndex` と同じ。
  */
 export function branchLabel(forkIndex?: number): string {
-  return forkIndex == null ? "本譜" : `変化${branchIndexFromForkIndex(forkIndex)}`;
+  return forkIndex == null ? "本譜" : `変化${forkIndex + 1}`;
 }
 
 /**
@@ -114,6 +119,8 @@ export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
  * 選択を表す `forkIndex` は本譜のとき null になる。この null を 0 に読み替える
  * 変換が画面ごとに手書きされると、`+1` の付け忘れが削除・入れ替えの対象を
  * 1つずらす形で表に出る。
+ *
+ * @throws {Error} `forkIndex` が0以上の整数でも null でもないとき
  */
 export function branchIndexFromSelection(forkIndex: number | null): BranchIndex {
   return forkIndex == null ? MAIN_LINE : branchIndexFromForkIndex(forkIndex);
@@ -123,7 +130,8 @@ export function branchIndexFromSelection(forkIndex: number | null): BranchIndex 
  * 一覧で1つ上/下に並ぶ分岐
  *
  * 一覧の端では `MAIN_LINE` 未満や候補数以上の値を返す。ここでは候補数を知らないので
- * 上限を見られない。**`BranchIndex` として使う前に `assertBranchIndex` を通すこと。**
+ * 上限を見られない。範囲は `swapBranchesInKifu` / `deleteBranchInKifu` が入口で見て throw する。
+ * 呼び出し側はそこへ渡す前に自分で捨てるかどうかを決めればよい。
  */
 export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchIndex {
   return (dir === "up" ? b - 1 : b + 1) as BranchIndex;
