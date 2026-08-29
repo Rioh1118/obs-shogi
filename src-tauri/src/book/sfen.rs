@@ -6,22 +6,11 @@ const HIRATE_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKG
 /// 定跡を引くためのキーに直す。
 ///
 /// 定跡は同じ局面を手数違いで別項目にしてはいけないので、キーから手数を落とす。
-/// `position` / `sfen` の前置きと `startpos` も、USI 文字列をそのまま渡せるように吸収する。
+/// `position` / `sfen` の前置きと `startpos` は書き方の揺れなので吸収する。
+///
+/// 指し手列は解釈しない。`moves` が付いた USI の position 文字列は拒否する。
+/// 局面を進めるのは呼び出し側の責務で、進めた結果の SFEN を渡すこと。
 pub fn normalize_sfen(input: &str) -> Result<String, BookError> {
-    let mut tokens = input.split_whitespace().peekable();
-
-    if tokens.peek() == Some(&"position") {
-        tokens.next();
-    }
-
-    if tokens.peek() == Some(&"startpos") {
-        return Ok(HIRATE_KEY.to_string());
-    }
-
-    if tokens.peek() == Some(&"sfen") {
-        tokens.next();
-    }
-
     let invalid = |reason: &str| {
         BookError::new(
             BookErrorCode::InvalidSfen,
@@ -29,12 +18,56 @@ pub fn normalize_sfen(input: &str) -> Result<String, BookError> {
         )
     };
 
+    // 指し手を適用せずに黙って捨てると、進めたはずの局面に初期局面の候補手が返る。
+    // エラーにならないので呼び出し側が誤りに気づけない。
+    let reject_rest = |tokens: &mut dyn Iterator<Item = &str>| -> Result<(), BookError> {
+        match tokens.next() {
+            None => Ok(()),
+            Some("moves") => Err(invalid(
+                "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
+            )),
+            Some(extra) => Err(invalid(&format!(
+                "局面の後ろに余分なトークン {extra} がある"
+            ))),
+        }
+    };
+
+    let mut tokens = input.split_whitespace().peekable();
+
+    if tokens.peek() == Some(&"position") {
+        tokens.next();
+    }
+
+    if tokens.peek() == Some(&"startpos") {
+        tokens.next();
+        reject_rest(&mut tokens)?;
+        return Ok(HIRATE_KEY.to_string());
+    }
+
+    if tokens.peek() == Some(&"sfen") {
+        tokens.next();
+    }
+
     let board = tokens.next().ok_or_else(|| invalid("局面が空"))?;
     let side = tokens.next().ok_or_else(|| invalid("手番が無い"))?;
     let hands = tokens.next().ok_or_else(|| invalid("持駒が無い"))?;
 
     if side != "b" && side != "w" {
         return Err(invalid("手番が b でも w でもない"));
+    }
+
+    // 手数は落とすが、書かれているなら数値であることは見る。
+    // ここを素通しにすると `moves` の検査が手数の位置で素通りする。
+    if let Some(ply) = tokens.next() {
+        if ply == "moves" {
+            return Err(invalid(
+                "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
+            ));
+        }
+        if ply.parse::<u32>().is_err() {
+            return Err(invalid(&format!("手数が数値でない: {ply}")));
+        }
+        reject_rest(&mut tokens)?;
     }
 
     Ok(format!("{board} {side} {hands}"))
@@ -87,13 +120,39 @@ mod tests {
         }
     }
 
-    /// `startpos moves 7g7f` を渡されても、初期局面のキーになる。
+    /// 指し手列を適用しないので受け取らない。黙って初期局面のキーを返すと、
+    /// 進めたはずの局面に別の局面の候補手が返る。
     #[test]
-    fn ignores_the_moves_suffix_of_startpos() {
-        assert_eq!(
-            normalize_sfen("position startpos moves 7g7f").unwrap(),
-            HIRATE_KEY
-        );
+    fn rejects_a_position_with_moves() {
+        for input in [
+            "position startpos moves 7g7f",
+            "startpos moves 7g7f 3c3d",
+            &format!("position sfen {HIRATE_SFEN} moves 7g7f"),
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - moves 7g7f",
+        ] {
+            let err = normalize_sfen(input).unwrap_err();
+            assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
+            assert!(
+                err.message.contains("指し手列"),
+                "message={:?} input={input:?}",
+                err.message
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_trailing_tokens_after_the_position() {
+        for input in ["startpos extra", &format!("{HIRATE_SFEN} extra")] {
+            let err = normalize_sfen(input).unwrap_err();
+            assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
+        }
+    }
+
+    #[test]
+    fn rejects_a_non_numeric_move_number() {
+        let err = normalize_sfen("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - x")
+            .unwrap_err();
+        assert_eq!(err.code, BookErrorCode::InvalidSfen);
     }
 
     #[test]
