@@ -41,7 +41,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
     $surface-0;
 
   border: 1px solid $border;
-  box-shadow: index.$shadow-1;
+  box-shadow: index.$shadow-panel;
 
   display: grid;
   grid-template-rows: auto 1fr;

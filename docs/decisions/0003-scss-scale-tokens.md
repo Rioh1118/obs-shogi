@@ -91,8 +91,11 @@ body {
 刻みは 2.4rem まで**欠けなく張る**。段を飛ばすと、実測 51件の `1.4rem`（モーダル・ダイアログの外殻）が
 1.2 と 1.6 のどちらにも倒せてしまい、同じ役割の部品が寄せ先の判断次第で割れる。
 
-- **段階** 役割で4段。`$shadow-raised`（カード）/ `$shadow-overlay`（ポップオーバー）/
-  `$shadow-1`（モーダル、既存）/ `$shadow-press`（押下、既存）
+- **段階** 役割で3段。`$shadow-panel`（パネル・カード）/ `$shadow-overlay`（ポップオーバー・メニュー）/
+  `$shadow-press`（押下）。値は実在する影から取る。
+  `$shadow-panel` は旧 `$shadow-1`（棋譜ペイン・盤の操作列・付箋・設定パネルで使用中）を改名したもので、
+  「モーダル」という名前は実際の用途と合っていなかった。
+  `$shadow-overlay` は `ContextMenu` の影から取る。暗い面の上に出るのでパネルより強い
 - **モーション** `$duration-fast` 100ms / `$duration` 120ms / `$duration-slow` 160ms、`$ease: ease`。
   実測の山は 120ms（52件）。**2s / 15s などの長い値はローディングの反復であり別系統**なので載せない
 - **等幅** `$font-mono`。実測では2系統あり、多数派の `ui-monospace, SFMono-Regular, …` を採る
