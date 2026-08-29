@@ -253,7 +253,10 @@ fn normalize_board(board: &str, counts: &mut PieceCounts) -> Result<String, Stri
     Ok(out)
 }
 
-/// 溜めた空きマスを1つの数字として書き出す。9マスまでしか溜まらない。
+/// 溜めた空きマスを10進で書き出す。
+///
+/// 段の列数が9かを見るのは呼び出し側で、それはこの関数を呼んだ後なので、
+/// ここには 9 を超える値も来る（`"99"` という段など）。1桁を前提にしないこと。
 fn flush_empty(out: &mut String, empty: &mut u32) {
     if *empty > 0 {
         out.push_str(&empty.to_string());
