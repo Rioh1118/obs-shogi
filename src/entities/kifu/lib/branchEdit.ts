@@ -99,6 +99,18 @@ type Candidates = IMoveFormat[][];
  * - candidates[1..] = 兄弟候補（forks）
  * - さらに「候補の先頭が forks を持つ」場合は “同じteの代替” なので持ち上げてフラット化
  */
+/**
+ * 先頭の手だけ複製した候補を作る
+ *
+ * 空の変化が来たら throw する。`{ ...undefined }` は `{}` になるので、素通しすると
+ * 指し手も `special` も持たない手を捏造して棋譜に書き戻すことになる。
+ * `JKFData` は parse の出口で空の変化を落としてあるので、ここは手で組む経路への保険。
+ */
+function privatizeHead(fork: IMoveFormat[]): IMoveFormat[] {
+  if (fork.length === 0) throw new Error("empty fork");
+  return [{ ...fork[0] }, ...fork.slice(1)];
+}
+
 function readCandidates(h: BranchPointHandle): Candidates {
   // 書き換えるのは各候補の先頭の手の forks だけなので、その手だけを複製する。
   // 深く複製すると、呼び出し側が既に作った複製ともう1枚ぶんの棋譜を余計にコピーすることになる。
@@ -110,7 +122,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
   delete head.forks;
   tail[0] = head;
 
-  const candidates: Candidates = [tail, ...forks.map((f) => [{ ...f[0] }, ...f.slice(1)])];
+  const candidates: Candidates = [tail, ...forks.map(privatizeHead)];
 
   // 同じteのforksを持ち上げ（固定点まで）
   let changed = true;
@@ -120,7 +132,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
     for (const seg of candidates) {
       const segHead = seg[0];
       if (segHead.forks?.length) {
-        extra.push(...segHead.forks.map((f) => [{ ...f[0] }, ...f.slice(1)]));
+        extra.push(...segHead.forks.map(privatizeHead));
         delete segHead.forks;
         changed = true;
       }

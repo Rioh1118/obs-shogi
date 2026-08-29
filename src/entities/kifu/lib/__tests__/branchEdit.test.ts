@@ -165,6 +165,24 @@ describe("削除後のカーソル", () => {
   });
 });
 
+describe("空の変化", () => {
+  test("手を捏造せず throw する", () => {
+    // `{ ...undefined }` は `{}` になるので、素通しすると指し手も special も持たない
+    // 手が本譜に入り、そのままファイルに書き戻される。
+    const kifu: JKFData = {
+      header: {},
+      moves: [mv("root"), mv("t1"), mv("main2", [[], [mv("f1")]])],
+    };
+    expect(() =>
+      swapBranchesInKifu(
+        kifu,
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+        null,
+      ),
+    ).toThrow();
+  });
+});
+
 describe("同じ手数の入れ子の変化", () => {
   test("持ち上げて平坦にしてから書き戻す", () => {
     // 変化の先頭がさらに forks を持つ形は「同じ手数の別候補」なので、
