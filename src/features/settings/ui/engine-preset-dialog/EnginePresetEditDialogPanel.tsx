@@ -507,7 +507,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       label={title}
       theme="dark"
       size="lg"
-      padding="none"
       variant="dialog"
       chrome="card"
       scroll="none"

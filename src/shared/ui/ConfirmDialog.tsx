@@ -34,7 +34,6 @@ export default function ConfirmDialog({
       label={title}
       theme="dark"
       size="sm"
-      padding="none"
       scroll="none"
       closeOnEsc={!isLoading}
       closeOnOverlay={!isLoading}

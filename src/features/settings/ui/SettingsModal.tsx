@@ -14,7 +14,6 @@ export default function SettingsModal() {
       label="設定"
       theme="dark"
       size="xl"
-      padding="none"
       variant="workspace"
       scroll="none"
     >

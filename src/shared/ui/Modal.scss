@@ -162,23 +162,6 @@
     }
   }
 
-  &--pad-none {
-    .modal__card--scroll-card {
-      padding: 0;
-    }
-    .modal__body {
-      padding: 0;
-    }
-  }
-  &--pad-md {
-    .modal__card--scroll-card {
-      padding: 20px;
-    }
-    .modal__body {
-      padding: 20px;
-    }
-  }
-
   // ---------- sizes ----------
   // 高さの上限は必ず `100%`（= overlay の内容ボックス）で挟む。`vh` だけで書くと
   // overlay がタイトルバーの分だけ低いことを無視して、カードが内容ボックスから

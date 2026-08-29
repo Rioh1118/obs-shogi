@@ -52,7 +52,6 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
       theme="dark"
       variant="dialog"
       size="sm"
-      padding="none"
       scroll="content"
       closeOnEsc
       closeOnOverlay

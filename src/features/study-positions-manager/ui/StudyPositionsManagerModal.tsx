@@ -300,7 +300,6 @@ export default function StudyPositionsManagerModal() {
       variant="workspace"
       size="xl"
       chrome="card"
-      padding="none"
       scroll="none"
       closeOnEsc
       closeOnOverlay

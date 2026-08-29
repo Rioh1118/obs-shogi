@@ -219,7 +219,6 @@ function PositionNavigationModal() {
       variant="workspace"
       size="xl"
       chrome="none"
-      padding="none"
       scroll="none"
     >
       <div className="position-navigation-modal">

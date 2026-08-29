@@ -221,7 +221,6 @@ export default function PositionSearchModal() {
       variant="workspace"
       size="xl"
       chrome="card"
-      padding="none"
       scroll="none"
       closeOnEsc
       closeOnOverlay

@@ -12,7 +12,6 @@ type ModalTheme = "light" | "dark";
 type ModalVariant = "dialog" | "workspace";
 type ModalSize = "sm" | "md" | "lg" | "xl";
 type ModalChrome = "card" | "none";
-type ModalPadding = "none" | "md";
 type ModalScroll = "card" | "content" | "none";
 
 interface ModalProps {
@@ -28,7 +27,6 @@ interface ModalProps {
   variant?: ModalVariant;
   size?: ModalSize;
   chrome?: ModalChrome;
-  padding?: ModalPadding;
   scroll?: ModalScroll;
 
   closeOnEsc?: boolean;
@@ -48,7 +46,6 @@ function Modal({
   variant = "dialog",
   size = "md",
   chrome = "card",
-  padding = "md",
   scroll = "none",
 
   closeOnEsc = true,
@@ -62,9 +59,8 @@ function Modal({
       `modal--${variant}`,
       `modal--size-${size}`,
       `modal--chrome-${chrome}`,
-      `modal--pad-${padding}`,
     ].join(" ");
-  }, [theme, variant, size, chrome, padding]);
+  }, [theme, variant, size, chrome]);
 
   const cardRef = useRef<HTMLDivElement | null>(null);
   // 開いている間だけマウントされる

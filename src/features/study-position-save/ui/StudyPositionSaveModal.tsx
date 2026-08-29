@@ -158,7 +158,6 @@ export default function StudyPositionSaveModal() {
       variant="workspace"
       size="xl"
       chrome="card"
-      padding="none"
       scroll="none"
       closeOnEsc
       closeOnOverlay

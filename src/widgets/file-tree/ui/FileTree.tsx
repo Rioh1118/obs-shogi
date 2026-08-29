@@ -214,7 +214,6 @@ function FileTree() {
           label="ファイル操作に失敗しました"
           theme="dark"
           size="sm"
-          padding="none"
           scroll="content"
           onClose={dismissError}
         >
