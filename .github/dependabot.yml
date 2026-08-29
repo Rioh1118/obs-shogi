@@ -7,6 +7,15 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    # vite-plus のツールチェーンは3パッケージの版がそろっていないと壊れる。
+    # `@voidzero-dev/vite-plus-test` は core を完全一致で依存しており、core だけが
+    # 先に上がると `node_modules/vitest/` の下に入れ子の core が入る。入れ子側には
+    # プラットフォームバイナリが同梱されないため `prepare` の `vp config` が落ち、
+    # `npm ci` ごと止まる。3つそろって上がるまで手で上げる。
+    ignore:
+      - dependency-name: vite-plus
+      - dependency-name: vite
+      - dependency-name: "@voidzero-dev/*"
     groups:
       # パッチとマイナーは1本にまとめる。個別に見る価値が無いため。
       minor-and-patch:

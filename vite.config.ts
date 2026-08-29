@@ -18,33 +18,35 @@ const DEEP_RELATIVE_IMPORT = {
 };
 
 // 各レイヤから、自分より上のレイヤへの import を禁じる。
-// 型を明示するのは、生成された override と直書きの override の union が
-// そのままだと tsc の比較深度を超えるため。
-const layerBoundaries: OxlintOverride[] = LAYERS_TOP_DOWN.map((layer, depth) => ({
-  files: [`src/${layer}/**/*.{ts,tsx}`],
-  rules: {
-    // 後勝ちで上書きされるため、共通側の DEEP_RELATIVE_IMPORT をここでも並べる。
-    "no-restricted-imports": [
-      "error",
-      {
-        patterns: [
-          DEEP_RELATIVE_IMPORT,
-          {
-            // 自分より前＝自分より上位のレイヤ。
-            // `../${upper}/**` も並べるのは、レイヤ直下のファイルからは `../` 1段で
-            // 隣のレイヤに届き、`@/` と `../../**` の2本だけでは素通りするため。
-            group: LAYERS_TOP_DOWN.slice(0, depth).flatMap((upper) => [
-              `@/${upper}/**`,
-              `../${upper}/**`,
-            ]),
-            message: `${layer} から上位レイヤへの import は禁止。共有したい型やロジックは共有できる位置まで下げること。`,
-          },
-        ],
-      },
-    ],
-  },
-  // app は最上位なので禁止する相手がいない。
-})).slice(1);
+// 型を戻り値側に置くのは、末尾の `.slice(1)` が文脈型の伝播を止めてしまい、
+// `["error", {...}]` が oxlint の要求するタプルではなく配列に広がるため。
+const layerBoundaries = LAYERS_TOP_DOWN.map(
+  (layer, depth): OxlintOverride => ({
+    files: [`src/${layer}/**/*.{ts,tsx}`],
+    rules: {
+      // 後勝ちで上書きされるため、共通側の DEEP_RELATIVE_IMPORT をここでも並べる。
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            DEEP_RELATIVE_IMPORT,
+            {
+              // 自分より前＝自分より上位のレイヤ。
+              // `../${upper}/**` も並べるのは、レイヤ直下のファイルからは `../` 1段で
+              // 隣のレイヤに届き、`@/` と `../../**` の2本だけでは素通りするため。
+              group: LAYERS_TOP_DOWN.slice(0, depth).flatMap((upper) => [
+                `@/${upper}/**`,
+                `../${upper}/**`,
+              ]),
+              message: `${layer} から上位レイヤへの import は禁止。共有したい型やロジックは共有できる位置まで下げること。`,
+            },
+          ],
+        },
+      ],
+    },
+    // app は最上位なので禁止する相手がいない。
+  }),
+).slice(1);
 
 // https://vite.dev/config/
 export default defineConfig({
