@@ -1,0 +1,10 @@
+# ツールチェーンを固定する。
+#
+# 固定しない場合、開発環境と CI で clippy のバージョンが食い違い、lint の集合がずれる。
+# 手元で `npm run verify:rust` が通っても CI が落ちるため、検証が検証にならない。
+#
+# 上げるときは、先に手元で `npm run verify:rust` を通してからこの値を変えること。
+# 新しい clippy が追加した lint に既存コードが引っかかる場合、修正が先に要る。
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]

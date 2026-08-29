@@ -8,8 +8,11 @@
     "dev": "vp dev",
     "build": "tsc -b && vp build",
     "lint": "vp lint .",
+    "typecheck": "tsc -b",
     "test": "vp test run",
     "test:watch": "vp test watch",
+    "verify": "npm run typecheck && npm run lint && npm test",
+    "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked",
     "preview": "vp preview",
     "prepare": "vp config"
   },
