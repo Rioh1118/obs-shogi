@@ -10,9 +10,8 @@
       "vitest": ["./node_modules/@voidzero-dev/vite-plus-test"]
     }
   },
-  // `vite-env.d.ts` は `.scss` などの副作用 import に型を与える。
-  // 含めないと、スタイルを読むコンポーネントをテストから import した時点で
-  // そのファイルが丸ごと TS2307 になる
+  // vite-env.d.ts を入れないと、.tsx を辿るテストで `import "./x.scss"` が
+  // TS2307 になる（noUncheckedSideEffectImports が効くため）。
   "include": [
     "src/vite-env.d.ts",
     "src/**/__tests__/**/*",

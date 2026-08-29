@@ -5,9 +5,14 @@ import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
 import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
-import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
+import {
+  neighborBranchIndex,
+  MAIN_LINE,
+  type BranchIndex,
+  type DeleteQuery,
+  type SwapQuery,
+} from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
-import { cloneJKF } from "../lib/cloneJKF";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
 import { branchIndexFromRow, buildCursorWithForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
@@ -48,7 +53,9 @@ export default function KifuStreamList() {
 
   const rows = useMemo(() => {
     if (!view.player) return [];
-    const viewer = new JKFPlayer(cloneJKF(view.player.kifu));
+    // 一覧を組むための再生用に、盤の player とは別の player を立てる。
+    // buildStreamRowsFromCursor は棋譜を書き換えない契約なので、棋譜は共有してよい。
+    const viewer = new JKFPlayer(view.player.kifu);
     return buildStreamRowsFromCursor(viewer, plannedCursor);
   }, [view.player, plannedCursor]);
 
@@ -81,12 +88,12 @@ export default function KifuStreamList() {
     async (
       te: number,
       branchForkPointers: ForkPointer[],
-      branchIndex: number,
+      branchIndex: BranchIndex,
       dir: "up" | "down",
     ) => {
       const a = branchIndex;
-      const b = dir === "up" ? branchIndex - 1 : branchIndex + 1;
-      if (b < 0) return;
+      const b = neighborBranchIndex(branchIndex, dir);
+      if (b < MAIN_LINE) return;
 
       const q: SwapQuery = {
         te,
@@ -100,7 +107,7 @@ export default function KifuStreamList() {
   );
 
   const onDeleteBranch = useCallback(
-    async (te: number, branchForkPointers: ForkPointer[], branchIndex: number) => {
+    async (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
       const q: DeleteQuery = {
         te,
         forkPointers: branchForkPointers,
@@ -268,10 +275,12 @@ export default function KifuStreamList() {
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {
           const isForkOpen = openFork?.te === r.te;
+          // 先に openComment を見て短絡させる。閉じている間は行ごとの
+          // カーソル組み立て（JSON.stringify を含む）を走らせない。
           const isCommentOpen =
-            openComment?.cursor.tesuuPointer ===
-            buildCursorWithForkSelection(plannedCursor ?? state.cursor!, r.te, r.selectedForkIndex)
-              .tesuuPointer;
+            openComment != null &&
+            openComment.cursor.tesuuPointer ===
+              buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex).tesuuPointer;
 
           return (
             <KifuMoveCard

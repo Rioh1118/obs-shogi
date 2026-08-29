@@ -178,7 +178,7 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
 
       {branches.map((branch, idx) => (
         <BranchCard
-          key={branch.id}
+          key={branch.isMainLine ? "main" : `fork-${branch.forkIndex}`}
           ref={setCardRef(idx)}
           branch={branch}
           selected={selectedIndex === idx}

@@ -8,7 +8,6 @@ import { initialState } from "./types";
 import * as api from "../api/service";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 import { type KifuCreationOptions } from "@/entities/kifu/model/kifu";
-import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
 import {
   findNodeChain,
   isSameOrDescendantPath,
@@ -251,7 +250,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     }
 
     try {
-      const jkfData = sanitizeJkf(parseKifuContentToJKF(readRes.data, fmt));
+      const jkfData = parseKifuContentToJKF(readRes.data, fmt);
       dispatch({
         type: "kifu_opened",
         payload: {

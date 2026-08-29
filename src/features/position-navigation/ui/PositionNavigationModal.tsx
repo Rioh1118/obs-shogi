@@ -11,7 +11,7 @@ import { truncatePlanFrom, upsertForkPointer } from "@/features/position-navigat
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
-import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
+import { normalizeForkPointers } from "@/entities/kifu/model/cursor";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
 import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
@@ -28,7 +28,7 @@ function gotoPreview(
 ): JKFPlayer | null {
   const sim = new JKFPlayer(player.kifu);
   try {
-    sim.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+    sim.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
     return sim;
   } catch {
     return null;
@@ -43,7 +43,7 @@ function PositionNavigationModal() {
 
   const [nav, setNav] = useState<NavigationState>({
     PreviewCursor: { tesuu: 0, forkPointers: [] },
-    selectedBranchIndex: 0,
+    selectedOptionIndex: 0,
   });
 
   useEffect(() => {
@@ -51,7 +51,7 @@ function PositionNavigationModal() {
     if (!gameView.player) {
       setNav({
         PreviewCursor: { tesuu: 0, forkPointers: [] },
-        selectedBranchIndex: 0,
+        selectedOptionIndex: 0,
       });
       return;
     }
@@ -62,7 +62,7 @@ function PositionNavigationModal() {
         tesuu: cur?.tesuu ?? 0,
         forkPointers: cur?.forkPointers ?? [],
       },
-      selectedBranchIndex: 0,
+      selectedOptionIndex: 0,
     });
   }, [gameView.player, gameState.cursor]);
 
@@ -75,7 +75,7 @@ function PositionNavigationModal() {
         tesuu: cur?.tesuu ?? 0,
         forkPointers: cur?.forkPointers ?? [],
       },
-      selectedBranchIndex: 0,
+      selectedOptionIndex: 0,
     });
   }, [isOpen, gameState.cursor]);
 
@@ -106,9 +106,9 @@ function PositionNavigationModal() {
     (delta: number) => {
       setNav((prev) => ({
         ...prev,
-        selectedBranchIndex: Math.max(
+        selectedOptionIndex: Math.max(
           0,
-          Math.min(options.length - 1, prev.selectedBranchIndex + delta),
+          Math.min(options.length - 1, prev.selectedOptionIndex + delta),
         ),
       }));
     },
@@ -120,7 +120,7 @@ function PositionNavigationModal() {
 
     setNav((prev) => {
       const nextTe = prev.PreviewCursor.tesuu + 1;
-      const sel = options[prev.selectedBranchIndex];
+      const sel = options[prev.selectedOptionIndex];
       if (!sel) return prev;
 
       // nextTe の選択を変える以上、その先の計画は捨てる。捨てないと、
@@ -134,7 +134,7 @@ function PositionNavigationModal() {
           );
       return {
         PreviewCursor: { tesuu: nextTe, forkPointers: fps },
-        selectedBranchIndex: 0,
+        selectedOptionIndex: 0,
       };
     });
   }, [options]);
@@ -147,7 +147,7 @@ function PositionNavigationModal() {
           ...prev.PreviewCursor,
           tesuu: prev.PreviewCursor.tesuu - 1,
         },
-        selectedBranchIndex: 0,
+        selectedOptionIndex: 0,
       };
     });
   }, []);
@@ -224,7 +224,7 @@ function PositionNavigationModal() {
       <div className="position-navigation-modal">
         <PositionNavigationHeader
           previewData={previewData}
-          selectedBranch={options[nav.selectedBranchIndex]}
+          selectedBranch={options[nav.selectedOptionIndex]}
         />
         <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">
@@ -244,8 +244,8 @@ function PositionNavigationModal() {
               ) : (
                 <BranchList
                   branches={options}
-                  selectedIndex={nav.selectedBranchIndex}
-                  onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedBranchIndex: idx }))}
+                  selectedIndex={nav.selectedOptionIndex}
+                  onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedOptionIndex: idx }))}
                 />
               )}
             </div>
