@@ -20,9 +20,9 @@ use tauri::State;
 /// プロジェクト root の外に置かれる。`file_system` の `validate_under_root` は
 /// 当てられないので、パスに課す条件は `OpenBookInput::path` に書いた形だけになる。
 ///
-/// `.db` の reader が入る #91 まで、このコマンドは成功しない。形式が判別できて
-/// 実体がファイルなら `UnsupportedFormat`、ディレクトリなどファイルでないものは
-/// `InvalidType`、それ以外は各検査の種別が返る。
+/// 検査は パスの形 → 拡張子 → 実体の解決 → 指定と実体の形式の一致 → ファイルであること
+/// の順で、落ちた検査の種別が返る。全て通ると、`.db` の reader が入る #91 までは
+/// `UnsupportedFormat` になる。
 #[tauri::command]
 pub async fn open_book(
     state: State<'_, BookState>,
@@ -198,13 +198,16 @@ async fn lookup_inner(
 /// ハンドルを先に見る。ハンドルが閉じられていて SFEN も壊れている入力で
 /// InvalidSfen だけを返すと、フロントは定跡が閉じられていることに気づけず、
 /// 開き直す導線を出せない。
+///
+/// ただし `Arc` を取るのは最後。失敗しうる処理を跨いで持つと、その枝で
+/// 落ちた `Arc` が最後の参照だったときに reader の Drop が async ワーカで走る。
 fn resolve_lookup(
     state: &BookState,
     input: &LookupBookMovesInput,
 ) -> Result<(Arc<BookSession>, BookKey), BookError> {
-    let book = state.get(input.handle)?;
+    state.info(input.handle)?;
     let key = to_book_key(&input.sfen)?;
-    Ok((book, key))
+    Ok((state.get(input.handle)?, key))
 }
 
 /// 開いている定跡のメタ情報。

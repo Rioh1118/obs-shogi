@@ -260,9 +260,10 @@ mod tests {
         assert!(!err.message.contains("開き直す"), "message={}", err.message);
     }
 
-    /// 引こうとしたときは開き直すのが復帰操作。閉じようとしたときと逆になる。
+    /// 引くのもメタ情報を見るのも、復帰操作は開き直すこと。
+    /// 閉じようとしたときだけ逆になる（`close_rejects_an_already_closed_handle`）。
     #[test]
-    fn lookups_on_a_closed_handle_say_to_open_it_again() {
+    fn reading_a_closed_handle_says_to_open_it_again() {
         let (state, _alive, info) = state_with_one_book();
         drop(state.close(info.handle).unwrap());
 
