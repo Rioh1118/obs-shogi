@@ -4,8 +4,10 @@
 //! [`session::BookState`] がハンドルで束ねる。
 
 pub mod error;
+pub mod reader;
 pub mod sfen;
 pub mod types;
 
 pub use error::{BookError, BookErrorCode};
+pub use reader::BookReader;
 pub use types::{BookFormat, BookHandle, BookInfo, BookMove};
