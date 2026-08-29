@@ -296,6 +296,10 @@ mod tests {
     }
 
     /// symlink を張ったディレクトリを作る。返り値は (dir, 実体, リンク)。
+    ///
+    /// symlink を作れるのが unix だけなので、これを使うテストも unix でだけ走る。
+    /// 形式の食い違い検査自体は Windows でも本番経路として動くが、**検証していない。**
+    #[cfg(unix)]
     fn linked(name: &str, target_ext: &str, link_ext: &str) -> (PathBuf, PathBuf, PathBuf) {
         let dir = std::env::temp_dir().join(format!("obs-shogi-book-open-at-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -312,6 +316,7 @@ mod tests {
     /// リンク先の拡張子が違うと、BookInfo の path と format が別のファイルを
     /// 指す値になる。開かせない。
     #[test]
+    #[cfg(unix)]
     fn rejects_a_link_that_points_at_another_format() {
         let (dir, _target, link) = linked("mismatch", ".bin", ".db");
         let result = open_at(&link).err().map(|err| err.code);
@@ -322,6 +327,7 @@ mod tests {
 
     /// リンク先の拡張子が判別できない場合も、形式の食い違いとして扱う。
     #[test]
+    #[cfg(unix)]
     fn rejects_a_link_whose_target_extension_is_unknown() {
         let (dir, _target, link) = linked("unknown", "", ".db");
         let result = open_at(&link).err().map(|err| err.code);
@@ -332,6 +338,7 @@ mod tests {
 
     /// 同じ形式を指す symlink は、形式の食い違いでは弾かない。
     #[test]
+    #[cfg(unix)]
     fn a_link_to_the_same_format_passes_the_format_check() {
         let (dir, _target, link) = linked("same", ".db", ".db");
         let result = open_at(&link).err().map(|err| err.code);
@@ -343,6 +350,7 @@ mod tests {
     /// エラーに載るのは常に呼び出し側が渡した綴り。解決後のパスを載せると、
     /// 利用者が一度も打っていないファイル名について答えることになる。
     #[test]
+    #[cfg(unix)]
     fn errors_report_the_requested_spelling_not_the_resolved_one() {
         let (dir, target, link) = linked("path", ".db", ".db");
         let mismatch = linked("path-mismatch", ".bin", ".db");
