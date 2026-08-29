@@ -184,6 +184,33 @@ PR には、できるだけ以下を書いてください。
 - どの Issue に対応するか
 - 影響範囲
 
+### ブランチの切り方
+
+**`main` から切って、`main` に出してください。**
+
+```bash
+git switch main && git pull
+git switch -c issue-123/short-description
+```
+
+- ブランチ名は `issue-<番号>/<説明>`
+- 未マージの他のブランチから切らないでください。PR の差分に無関係な変更が混ざります
+- 他の PR の成果に依存する作業は、その PR がマージされてから始めてください
+
+詳しい理由は [ADR-0001](./docs/decisions/0001-branch-and-pr-policy.md) にあります。
+
+### 検証を通してから出してください
+
+```bash
+npm run verify        # TypeScript を触った場合
+npm run verify:rust   # Rust を触った場合
+```
+
+Rust のツールチェーンは `rust-toolchain.toml` で固定しています。手元と CI で同じ結果になります。
+
+**通していない場合は、PR にその旨を書いてください。** 通したふりをされる方が困ります。
+未検証の PR は歓迎します。
+
 ### 小さく分けていただけると助かります
 
 大きすぎる PR はレビューが難しくなるため、可能なら小さく分けてください。
