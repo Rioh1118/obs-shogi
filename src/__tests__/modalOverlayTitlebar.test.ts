@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import postcss from "postcss";
@@ -163,6 +164,57 @@ function isBounded(value: string): boolean {
   return call[1] === "min" ? args.includes("100%") : args.length === 3 && args[2] === "100%";
 }
 
+/**
+ * ビューポート基準の高さ。`max-height` は要素を大きくできないので危なくない。
+ * 器より大きくなりうるのは `height` と `min-height` を viewport で決めた場合だけ
+ */
+const VIEWPORT_UNIT = /(?<![\w.])[\d.]+(vh|dvh|svh|lvh)\b/;
+const FORCING_HEIGHT = new Set(["height", "min-height"]);
+
+function scssUnder(directory: string): string[] {
+  return readdirSync(join(SRC, directory), { recursive: true, encoding: "utf8" })
+    .filter((name) => name.endsWith(".scss"))
+    .map((name) => join(directory, name));
+}
+
+/**
+ * ビューポートで高さを決めていながら、器に対する頭打ちを持たない規則。
+ *
+ * モーダルの中身はカードの `overflow: hidden` の内側にいるので、カードを超えた分は
+ * スクロールでも届かない。`Modal.scss` だけを見ていると、この故障は中身の側にあって
+ * 検査に掛からない（実際 `.presetDialog` の退行がそうだった）
+ */
+function unboundedForcedHeights(paths: string[]): string[] {
+  const found: string[] = [];
+  for (const path of paths) {
+    postcss.parse(compile(path)).walkRules((rule) => {
+      const heights = rule.nodes.filter(
+        (node): node is postcss.Declaration =>
+          node.type === "decl" && /^(min-|max-)?height$/.test(node.prop),
+      );
+      const forcing = heights.filter(
+        (declaration) =>
+          FORCING_HEIGHT.has(declaration.prop) && VIEWPORT_UNIT.test(declaration.value),
+      );
+      if (forcing.length === 0) return;
+
+      // 上限になれるのは `max-height` と、それ自身が挟まれている `height` だけ。
+      // `min-height: 0` は下限を外すだけで、器を超えるのを止めない
+      const bounded = heights.some(
+        (declaration) =>
+          (declaration.prop === "max-height" || declaration.prop === "height") &&
+          isBounded(declaration.value),
+      );
+      if (bounded) return;
+
+      for (const declaration of forcing) {
+        found.push(`${path}  ${rule.selector} { ${declaration.prop}: ${declaration.value} }`);
+      }
+    });
+  }
+  return found;
+}
+
 const modalCss = compile("shared/ui/Modal.scss");
 const titlebarCss = compile("shared/ui/TitleBar.scss");
 
@@ -254,6 +306,22 @@ describe("モーダルの overlay とタイトルバー", () => {
         "`100%` / `auto` / `0`、`100%` を引数に持つ `min()`、",
         "第3引数が `100%` の `clamp()` が上限として効く。",
         "`max(…, 100%)` や `calc(100% + …)`、`none` は上限にならない。",
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
+  it("モーダルの中身がビューポート基準で高さを決めていない", () => {
+    // カードは overlay の内容ボックスで頭打ちになり、`overflow: hidden` で切る。
+    // 中身がビューポート基準で高さを決めると短いウィンドウでカードを超え、
+    // 超えた分（下端のフッタとそこに載るボタン）はスクロールでも届かなくなる。
+    // Modal を使うのは `src/features/**` の10ファイルだけなのでそこを見る
+    expect(
+      unboundedForcedHeights(scssUnder("features")),
+      [
+        "モーダルの中身の高さは、ビューポートでなくカードを基準にすること。",
+        "`height` / `min-height` を `vh` で決めるなら、同じ規則に",
+        "`max-height: 100%` のような器に対する頭打ちを添える。",
+        "`max-height` だけを `vh` で書くのは要素を大きくしないので対象外。",
       ].join("\n"),
     ).toEqual([]);
   });
