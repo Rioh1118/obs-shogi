@@ -12,9 +12,11 @@ use crate::book::error::{BookError, BookErrorCode};
 pub(crate) struct BookKey(String);
 
 impl BookKey {
-    // TODO(#91): reader がファイルの綴りと突き合わせるときに使う。
-    // それまで呼び手はテストしか居ない。
-    #[cfg(test)]
+    // ファイル上を探索する reader は、これで取り出した綴りをファイルの中身と
+    // 突き合わせる。#[cfg(test)] で塞ぐとその reader が書けなくなるので、
+    // 呼び手がテストしか居ない間も本番ビルドに残す。
+    // TODO(#91): やねうら王 .db の reader が最初の呼び手になる。
+    #[allow(dead_code)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
