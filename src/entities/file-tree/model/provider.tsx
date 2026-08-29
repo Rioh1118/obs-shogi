@@ -431,7 +431,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
-    [failToNameInput, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
+    [failToNameInput, loadFileTree, reconcilePathMutation, setRootDir, state.fileTree],
   );
 
   const moveNode = useCallback(

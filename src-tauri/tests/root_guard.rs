@@ -173,6 +173,29 @@ fn takes_a_path(chunk: &str) -> bool {
     })
 }
 
+/// `validate_under_root(&app, &x)` の `(位置, x)` を全部集める。
+///
+/// 位置だけで比べると、パスを2本受けるコマンドの正しい並びを違反として拾ってしまう。
+/// 守りたいのは「**その変数**を関門へ通す前に、その変数の存在や種類を見ない」
+fn guarded_variables(body: &str) -> Vec<(usize, String)> {
+    let mut found = Vec::new();
+    for (at, _) in body.match_indices(GUARD) {
+        let rest = &body[at..];
+        let Some(open) = rest.find('(') else { continue };
+        let Some(close) = rest.find(')') else {
+            continue;
+        };
+        if close < open {
+            continue;
+        }
+        let Some(last) = rest[open + 1..close].split(',').next_back() else {
+            continue;
+        };
+        found.push((at, last.trim().trim_start_matches('&').to_string()));
+    }
+    found
+}
+
 fn rust_files(dir: &Path) -> Vec<(String, String)> {
     let mut found = Vec::new();
     for entry in fs::read_dir(dir).expect("ディレクトリを読めない") {
@@ -220,19 +243,33 @@ fn every_path_taking_command_checks_the_root() {
     }
 
     // 関門は**存在確認より前**に置く。後ろに置くと、root 外のパスについて
-    // `is_file()` / `is_dir()` / `read_dir` の結果まで返してしまう。
-    // 規則がコメントにしか無いと、10個目のコマンドを足す人が順序を逆にしても緑になる
+    // 在るかどうかや種類の判定結果まで返してしまう。
+    // 規則がコメントにしか無いと、10個目のコマンドを足す人が順序を逆にしても緑になる。
+    //
+    // **変数ごとに見る。** 位置だけで比べると、パスを2本受けるコマンドで
+    // 「1本目の関門 → 1本目の存在確認 → 2本目の関門」という正しい並びを
+    // 違反として拾うか、2本目の関門を後ろへ動かしても見逃すかのどちらかになる。
+    // `validate_under_root(&app, &x)` の `x` を取り、その `x` に対する
+    // 存在確認・種類の判定が関門より前に無いかを見る
     let mut wrong_order: Vec<String> = Vec::new();
     for (file, source) in &files {
         for (name, body) in commands(source) {
-            let Some(guard_at) = body.find(GUARD) else {
-                continue;
-            };
-            for probe in [".exists()", "ensure_not_exists(", ".is_dir()", ".is_file()"] {
-                if let Some(at) = body.find(probe) {
+            for (guard_at, variable) in guarded_variables(&body) {
+                for probe in [".exists()", ".is_dir()", ".is_file()", ".symlink_metadata("] {
+                    let call = format!("{variable}{probe}");
+                    if let Some(at) = body.find(&call) {
+                        if at < guard_at {
+                            wrong_order.push(format!(
+                                "{file}: {name} が {call} を {variable} の関門より前に呼んでいる"
+                            ));
+                        }
+                    }
+                }
+                let ensure = format!("ensure_not_exists(&{variable})");
+                if let Some(at) = body.find(&ensure) {
                     if at < guard_at {
                         wrong_order.push(format!(
-                            "{file}: {name} が {probe} を関門より前に呼んでいる"
+                            "{file}: {name} が {ensure} を {variable} の関門より前に呼んでいる"
                         ));
                     }
                 }
@@ -394,6 +431,31 @@ fn every_listed_name_is_a_real_command() {
         assert!(
             names.iter().any(|n| n == listed),
             "STRUCT_CARRIED_PATH: {listed} が無い"
+        );
+    }
+    // コマンド名の側を綴り間違えると `name == command` が永久に偽になり、
+    // 対応表の1行が黙って無効になる（関門名の側は `missing_extra` が拾う）
+    for (listed, _) in EXTRA_GUARDS {
+        assert!(
+            names.iter().any(|n| n == listed),
+            "EXTRA_GUARDS: {listed} が無い"
+        );
+    }
+}
+
+/// `EXTRA_GUARDS` が要求する関門が、実在する `pub fn` か
+#[test]
+fn every_extra_guard_is_a_real_function() {
+    let sources: String = rust_files(Path::new("src"))
+        .iter()
+        .map(|(_, source)| source.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    for (command, guard) in EXTRA_GUARDS {
+        assert!(
+            sources.contains(&format!("pub fn {guard}")),
+            "{command} が要求する {guard} が実在しない"
         );
     }
 }

@@ -210,7 +210,7 @@ pub fn mv_directory<R: Runtime>(
     // 自分の中へは動かせない。ここで止めないと `fs::rename` が EINVAL を返し、
     // `io`（「読み書きに失敗しました」/ tier は warning）に丸まる。
     // 何度読み直しても同じなので、利用者は効かない再読み込みを押し続ける
-    if is_move_into_itself(&src, &dest) {
+    if is_move_into_itself(&src, &dest)? {
         return Err(FsError::new(
             FsErrorCode::InvalidDestination,
             "cannot move a directory into itself",

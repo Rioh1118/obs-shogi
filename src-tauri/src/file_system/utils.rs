@@ -149,9 +149,17 @@ pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Res
 ///
 /// ディレクトリを自分の中へ動かすのは `fs::rename` が `EINVAL` で落とす。
 /// そのまま返すと `io` に丸まり、tier が `warning` なので「再読み込み」が出る。
-/// 何度読み直しても同じなので、押しても直らない導線を出すことになる
-pub fn is_move_into_itself(src: &Path, dest: &Path) -> bool {
-    is_under(src, dest)
+/// 何度読み直しても同じなので、押しても直らない導線を出すことになる。
+///
+/// **字面で比べない。** `ws/current -> ws/2026` を行き先に選ぶと、
+/// `starts_with` は偽になるのに `rename` は EINVAL で落ちる。ツリーは
+/// root の中で閉じた symlink を普通のフォルダとして出すので、そこへ
+/// ドロップするのは踏める操作
+pub fn is_move_into_itself(src: &Path, dest: &Path) -> Result<bool, FsError> {
+    Ok(is_under(
+        &canonicalize_for_guard(src)?,
+        &canonicalize_for_guard(dest)?,
+    ))
 }
 
 /// `target` が設定上の root そのものか。
@@ -247,15 +255,43 @@ mod tests {
     }
 
     /// ディレクトリを自分の中へ動かす形。`/root/a` と `/root/ab` を
-    /// 取り違えないことも一緒に固定する
+    /// 取り違えないことも一緒に固定する。
+    ///
+    /// 判定そのものは `is_under` で、`is_move_into_itself` はその手前で
+    /// 両側を canonicalize する（symlink を挟んだ行き先を字面で見逃さないため）。
+    /// 実体を作らずに済むのは `is_under` の側なので、ここはそちらを見る
     #[test]
     fn rejects_moving_a_directory_into_itself() {
         let src = Path::new("/root/a");
 
-        assert!(is_move_into_itself(src, Path::new("/root/a")));
-        assert!(is_move_into_itself(src, Path::new("/root/a/b/a")));
-        assert!(!is_move_into_itself(src, Path::new("/root/ab/a")));
-        assert!(!is_move_into_itself(src, Path::new("/root/b/a")));
+        assert!(is_under(src, Path::new("/root/a")));
+        assert!(is_under(src, Path::new("/root/a/b/a")));
+        assert!(!is_under(src, Path::new("/root/ab/a")));
+        assert!(!is_under(src, Path::new("/root/b/a")));
+    }
+
+    /// symlink を挟んだ行き先。字面の `starts_with` では見逃す
+    #[test]
+    fn resolves_symlinks_before_deciding_a_move_into_itself() {
+        let tmp = std::env::temp_dir().join(format!("obs-shogi-mv-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("a/b")).expect("作れない");
+
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(tmp.join("a"), tmp.join("link")).expect("張れない");
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(tmp.join("a"), tmp.join("link")).expect("張れない");
+
+        // `a` を `link/x`（＝`a/x`）へ動かすのは自分の中への移動
+        let src = tmp.join("a");
+        let dest = tmp.join("link").join("x");
+        assert!(!is_under(&src, &dest), "字面では見逃す形であること");
+        assert!(is_move_into_itself(&src, &dest).expect("判定できない"));
+
+        let outside = tmp.join("c");
+        assert!(!is_move_into_itself(&src, &outside).expect("判定できない"));
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 
     #[test]
