@@ -268,7 +268,8 @@ function relocateCursorOnDelete(
  * `cursor` が同じ stream を辿っているときだけ、選択が同じ候補を指し続けるよう patch した
  * カーソルを返す。別 stream なら `cursor` をそのまま返す。
  *
- * @throws {Error} `a` / `b` が候補の範囲外のとき、`forkPointers` が実在しない変化を指すとき
+ * @throws {Error} `te` に手が無いとき、`a` / `b` が候補の範囲外のとき、
+ *   `forkPointers` が実在しない変化を指すとき
  */
 export function swapBranchesInKifu(
   kifu: JKFData,
@@ -313,7 +314,8 @@ export function swapBranchesInKifu(
  * `cursor` が消える候補の中にいたときは、`te` の直後（消しきったなら `te - 1`）へ退避させた
  * カーソルを返す。
  *
- * @throws {Error} `target` が候補の範囲外のとき、`forkPointers` が実在しない変化を指すとき
+ * @throws {Error} `te` に手が無いとき、`target` が候補の範囲外のとき、
+ *   `forkPointers` が実在しない変化を指すとき
  */
 export function deleteBranchInKifu(
   kifu: JKFData,
