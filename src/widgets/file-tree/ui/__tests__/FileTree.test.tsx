@@ -415,7 +415,31 @@ describe("再読み込みの最中", () => {
     mount();
     await startRetry();
 
-    // ツリーが無いなら見せるものが無いので、読み込み中の表示に切り替わってよい
+    // ツリーが無いなら見せるものが無いので、読み込み中の表示に切り替わってよい。
+    // 「ツリーが無い」だけを見ていると、この行を消しても緑のままになる
     expect(screen.queryByTestId("tree")).toBeNull();
+    expect(screen.getByRole("status", { name: "読み込み中" })).toBeTruthy();
+  });
+
+  /**
+   * 読み込みを始めると reducer が `error` を落とすので、表示を保っているのは
+   * `retriedFrom` の側。閉じる操作がそれを落とさないと、Escape とオーバーレイが
+   * 黙って効かなくなる（押しても何も起きない）。
+   */
+  test("読み直しの最中でも Escape で閉じられる", async () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+
+    mount();
+    await startRetry();
+
+    expect(screen.getByRole("alert")).toBeTruthy();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+
+    expect(clearError).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
