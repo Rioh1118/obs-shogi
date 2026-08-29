@@ -138,9 +138,10 @@
   }
 
   &__hand-label {
-    // 盤の縮尺に従う。兄弟の __coordinate と同じ考え方で、
-    // アプリの文字の階層とは別系統
-    font-size: calc(var(--square-size) * 0.225);
+    // 盤の中は独立した縮尺で、アプリの文字の階層には乗らない。
+    // 兄弟の __coordinate も data-size ごとに px で固定してある。
+    // --square-size から導くと size="small"（盤 180px）で 4.5px まで落ちる
+    font-size: 0.75rem; // scale-exempt
     font-weight: 600;
     min-width: 3rem;
     text-align: center;
@@ -168,9 +169,8 @@
   }
 
   &__hand-empty {
-    // 盤の縮尺に従う。兄弟の __coordinate と同じ考え方で、
-    // アプリの文字の階層とは別系統
-    font-size: calc(var(--square-size) * 0.1875);
+    // __hand-label と同じ理由でスケールの段に乗せない
+    font-size: 0.625rem; // scale-exempt
     color: var(--text-tertiary);
     font-style: italic;
   }
