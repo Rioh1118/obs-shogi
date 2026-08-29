@@ -1,0 +1,37 @@
+@use "@/index.scss" as index;
+
+.kifu-import {
+  // 貼り付けた棋譜が読めたかどうか。押す前に分かる必要があるので、
+  // 送信できない理由をボタンの disabled だけに任せない
+  &__parse {
+    font-size: index.$font-body;
+    color: index.$color-text-primary;
+  }
+
+  // まだ何も貼られていない状態。失敗ではないので本文より弱く出す
+  &__parse--idle {
+    color: rgba(index.$color-text-primary, 0.7);
+  }
+
+  &__parseDetail {
+    margin-top: index.$space-3;
+
+    summary {
+      cursor: pointer;
+    }
+  }
+
+  &__parseRaw {
+    margin: index.$space-2 0 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.75);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__saveName {
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.75);
+  }
+}

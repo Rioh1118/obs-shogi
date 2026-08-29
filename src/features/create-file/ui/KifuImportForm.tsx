@@ -10,6 +10,7 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
+import "./KifuImportForm.scss";
 
 function stripKnownExt(name: string) {
   return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");
@@ -104,17 +105,17 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
       <FormField>
         {parseOk === null ? (
-          <div style={{ fontSize: "1.3rem", color: "#666" }}>
+          <div className="kifu-import__parse kifu-import__parse--idle">
             解析: 未実行（棋譜を入力してください）
           </div>
         ) : parseOk ? (
-          <div style={{ fontSize: "1.3rem" }}>解析: OK</div>
+          <div className="kifu-import__parse">解析: OK</div>
         ) : (
-          <div style={{ fontSize: "1.3rem" }}>
+          <div className="kifu-import__parse">
             解析: 失敗しました
-            <details style={{ marginTop: "0.6rem" }}>
-              <summary style={{ cursor: "pointer" }}>詳細</summary>
-              <pre style={{ whiteSpace: "pre-wrap", fontSize: "1.2rem" }}>{parseError}</pre>
+            <details className="kifu-import__parseDetail">
+              <summary>詳細</summary>
+              <pre className="kifu-import__parseRaw">{parseError}</pre>
             </details>
           </div>
         )}
@@ -139,9 +140,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       </FormField>
 
       <FormField>
-        <div style={{ fontSize: "1.2rem", color: "#666" }}>
-          保存名: {fullFileName || "（未入力）"}
-        </div>
+        <div className="kifu-import__saveName">保存名: {fullFileName || "（未入力）"}</div>
       </FormField>
 
       {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}

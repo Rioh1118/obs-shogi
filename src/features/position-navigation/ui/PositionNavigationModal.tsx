@@ -211,6 +211,8 @@ function PositionNavigationModal() {
   return (
     <Modal
       onClose={closeModal}
+      // 既定の暗い面ではなく明るい面に載る唯一のモーダル。中の分岐カードが
+      // 明るい面を前提に組んであり、寄せるには作り直しが要る → issue #183
       theme="light"
       variant="workspace"
       size="xl"

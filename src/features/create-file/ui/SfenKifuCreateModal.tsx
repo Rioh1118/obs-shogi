@@ -150,7 +150,7 @@ export default function SfenKifuCreateModal() {
               {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
             </div>
 
-            <Form handleSubmit={handleSubmit} theme="dark">
+            <Form handleSubmit={handleSubmit}>
               <FormField>
                 <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
               </FormField>

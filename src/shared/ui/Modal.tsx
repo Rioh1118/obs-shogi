@@ -29,7 +29,10 @@ function Modal({
   children,
   onClose,
 
-  theme = "light",
+  // 対話の面は暗い側を既定にしてある（ADR-0005）。共通の `Button` は暗い面の上に
+  // しか色を持たないので、既定を明るい側にすると theme を書き忘れたモーダルで
+  // 「キャンセル」が背景に溶ける。既定を安全側に置いて書き忘れを事故にしない
+  theme = "dark",
   variant = "dialog",
   size = "md",
   chrome = "card",

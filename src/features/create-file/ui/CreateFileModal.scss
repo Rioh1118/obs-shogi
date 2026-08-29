@@ -3,18 +3,17 @@
 .create-file-modal {
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: index.$space-6;
 
   // タブ
   &__tabs {
     display: inline-flex;
     align-self: flex-start;
 
-    background-color: rgba(index.$color-white, 0.45);
-    border: 1px solid rgba(index.$color-primary-light, 0.18);
-    border-radius: 1.2rem;
-    padding: 0.4rem;
-    box-shadow: 0 0.6rem 1.4rem rgba(0, 0, 0, 0.06);
+    background-color: rgba(index.$color-white, 0.06);
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-6;
+    padding: index.$space-2;
   }
 
   &__tab {
@@ -22,41 +21,33 @@
     border: none;
     background: transparent;
 
-    padding: 0.8rem 1.2rem;
-    border-radius: 0.9rem;
+    padding: index.$space-4 index.$space-6;
+    border-radius: index.$radius-5;
 
-    font-size: 1.35rem;
+    font-size: index.$font-body;
     font-weight: 600;
-    color: rgba(index.$color-primary-dark, 0.8);
+    color: rgba(index.$color-text-primary, 0.72);
 
     cursor: pointer;
     transition:
-      background-color 140ms ease,
-      transform 120ms ease,
-      color 120ms ease;
+      background-color index.$duration-4 index.$ease,
+      color index.$duration-3 index.$ease;
 
     &:hover {
-      background-color: rgba(index.$color-secondary-light, 0.35);
+      background-color: rgba(index.$color-white, 0.04);
     }
 
-    &:active {
-      transform: translateY(1px);
-    }
-
+    // 選択中は面と枠の両方で示す。色だけだと、隣り合った2枚の差が
+    // コントラスト比の差にしかならず、どちらが選ばれているか読めない
     &.is-active {
-      background: rgba(index.$color-secondary-dark, 0.15);
-      color: index.$color-primary-dark;
-      box-shadow: inset 0 0 0 1px rgba(index.$color-secondary-dark, 0.22);
-    }
-
-    &:focus {
-      outline: none;
+      background: rgba(index.$color-white, 0.1);
+      color: index.$color-text-primary;
+      box-shadow: inset 0 0 0 1px rgba(index.$color-secondary-solid, 0.55);
     }
 
     &:focus-visible {
-      box-shadow:
-        0 0 0 2px rgba(index.$color-secondary-dark, 0.45),
-        0 0 0 5px rgba(index.$color-secondary-dark, 0.18);
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
     }
   }
 

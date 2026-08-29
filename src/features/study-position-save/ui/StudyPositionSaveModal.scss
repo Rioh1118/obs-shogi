@@ -117,40 +117,6 @@
     }
   }
 
-  // tags input dark theme
-  .tags-input-wrapper {
-    .tags-input__label {
-      color: index.$color-text-light-1;
-    }
-
-    .tags-input__help {
-      color: rgba(index.$color-text-light-1, 0.4);
-    }
-  }
-
-  .tags-input {
-    background-color: rgba(index.$color-white, 0.06);
-    border-color: index.$stroke-strong;
-
-    &--focused {
-      border-color: index.$color-secondary-dark;
-      background-color: rgba(index.$color-white, 0.1);
-    }
-  }
-
-  .tags-input__input {
-    color: index.$color-text-light-1;
-
-    &::placeholder {
-      color: rgba(index.$color-text-light-1, 0.35);
-    }
-  }
-
-  .tag {
-    background-color: rgba(index.$color-secondary-dark, 0.3);
-    color: index.$color-text-light-1;
-  }
-
   &__error {
     flex-shrink: 0;
     padding: 0.8rem 2.4rem;
