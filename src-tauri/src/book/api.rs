@@ -170,8 +170,8 @@ pub async fn close_all_books(state: State<'_, BookState>) -> Result<usize, BookE
 
 /// 閉じる。ハンドルは以後 InvalidHandle になる。
 ///
-/// 解放も blocking プールで行う。定跡の Drop は収録局面ぶんの `String` の解放に
-/// なるので、IPC を受けたスレッドで走らせると閉じた瞬間に画面が固まる。
+/// 解放も blocking プールで行う。メモリに展開する reader では Drop が収録局面ぶんの
+/// 解放になるので、IPC を受けたスレッドで走らせると閉じた瞬間に画面が固まる。
 #[tauri::command]
 pub async fn close_book(
     state: State<'_, BookState>,

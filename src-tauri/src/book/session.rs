@@ -85,8 +85,8 @@ impl BookState {
     /// 知らないハンドルを黙って成功させないのは、二重 close やハンドルの取り違えが
     /// フロント側で検出できなくなるため。
     ///
-    /// 返り値を捨てるとその場で reader が Drop される。数百万個の `String` の解放が
-    /// 走るので、捨てる場所は呼び出し側が選ぶ。
+    /// 返り値を捨てるとその場で reader が Drop される。メモリに展開する reader では
+    /// 収録局面ぶんの解放になるので、捨てる場所は呼び出し側が選ぶ。
     #[must_use = "捨てた場所で reader の Drop が走る。どこで解放するかを選ぶこと"]
     pub(crate) fn close(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
