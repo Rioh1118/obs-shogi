@@ -18,15 +18,19 @@ export const MAIN_LINE = 0 as BranchIndex;
 /**
  * 候補の実在する位置か確かめる
  *
- * 整数であることまで見る。`NaN` も小数も `< 0` と `>= count` の両方を false にするので、
+ * 整数であることまで見る。`NaN` も小数も `< 0` と `>= 候補数` の両方を false にするので、
  * 大小比較だけの検査を素通りし、`Array.prototype.splice` が 0 方向へ丸めて
  * 頼んだのと違う候補を消す。
  *
- * @throws {Error} 整数でないとき、`0 <= b < count` に入らないとき
+ * 上限は候補配列そのものから取る。数を引数で受けると、`forks.length`（本譜のぶん1少ない）や
+ * `options.length`（空の変化を読み飛ばすので候補数と一致しない）を渡せてしまい、
+ * `BranchIndex` の brand で潰したはずの ±1 の取り違えが上限側に戻る。
+ *
+ * @throws {Error} 整数でないとき、`0 <= b < candidates.length` に入らないとき
  */
-export function assertBranchIndex(b: BranchIndex, count: number): void {
-  if (!Number.isInteger(b) || b < MAIN_LINE || b >= count) {
-    throw new Error(`branchIndex ${b} is out of range (0..${count - 1})`);
+export function assertBranchIndex(b: BranchIndex, candidates: readonly unknown[]): void {
+  if (!Number.isInteger(b) || b < MAIN_LINE || b >= candidates.length) {
+    throw new Error(`branchIndex ${b} is out of range (0..${candidates.length - 1})`);
   }
 }
 

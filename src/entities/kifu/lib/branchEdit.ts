@@ -295,8 +295,8 @@ export function swapBranchesInKifu(
   const h = resolveBranchPoint(kifu, q);
   const candidates = readCandidates(h);
 
-  assertBranchIndex(q.a, candidates.length);
-  assertBranchIndex(q.b, candidates.length);
+  assertBranchIndex(q.a, candidates);
+  assertBranchIndex(q.b, candidates);
   if (q.a === q.b) return { changed: false, nextCursor: cursor };
 
   swapInPlace(candidates, q.a, q.b);
@@ -343,7 +343,7 @@ export function deleteBranchInKifu(
   const h = resolveBranchPoint(kifu, q);
   const candidatesBefore = readCandidates(h);
 
-  assertBranchIndex(q.target, candidatesBefore.length);
+  assertBranchIndex(q.target, candidatesBefore);
 
   const candidatesAfter = deleteCandidate(candidatesBefore, q.target);
   writeCandidates(h, candidatesAfter);
