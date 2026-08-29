@@ -14,7 +14,12 @@ export function appliedForkPointers(
   return [...map.values()].sort((a, b) => a.te - b.te);
 }
 
-/** @throws {Error} cursor の手数まで進めないとき（`JKFPlayer.goto` が投げる） */
+/**
+ * `goto` は届かないときに throw せず、進めるところで黙って止まる。
+ *
+ * @throws {Error} 盤上で再生できない手に当たったとき、
+ *   `forkPointers` が手の無い te を指しているとき
+ */
 function applyCursorToPlayer(player: JKFPlayer, cursor: KifuCursor | null) {
   if (!cursor) return;
   player.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
@@ -28,8 +33,11 @@ function applyCursorToPlayer(player: JKFPlayer, cursor: KifuCursor | null) {
  * **棋譜を書き換える操作を通すなら複製を渡すこと。** `inputMove` だけでなく、
  * `applyMoveWithBranch` のように `player.kifu` を直に編集するものも含む。
  *
- * @throws {Error} 未正規化の棋譜などで cursor の手数まで進めないとき。
- *   レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）
+ * **返り値の `tesuu` が `cursor.tesuu` と一致するとは限らない。** `goto` は届かなければ
+ * 進めるところで黙って止まる。一致を要求する側は自分で比べること。
+ *
+ * @throws {Error} 盤上で再生できない手に当たったとき、`forkPointers` が手の無い te を
+ *   指しているとき。レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）
  */
 export function buildPlayer(jkf: JKFData, cursor: KifuCursor | null): JKFPlayer {
   const player = new JKFPlayer(jkf);
