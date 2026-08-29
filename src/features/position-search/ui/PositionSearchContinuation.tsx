@@ -97,28 +97,28 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
         }
 
         const cursor = cursorFromLite(activeHit.cursor);
-        const jkf = buildPlayer(data, cursor);
+        const player = buildPlayer(data, cursor);
 
         const planned = new Map<number, number>();
         for (const p of cursor.forkPointers) planned.set(p.te, p.forkIndex);
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {
-          const te = jkf.tesuu + 1;
-          if (!jkf.currentStream[te]) break;
+          const te = player.tesuu + 1;
+          if (!player.currentStream[te]) break;
 
           const plannedForkIndex = planned.get(te) ?? null;
 
           let ok = false;
           if (plannedForkIndex != null) {
-            ok = jkf.forkAndForward(plannedForkIndex);
-            if (!ok) ok = jkf.forward();
+            ok = player.forkAndForward(plannedForkIndex);
+            if (!ok) ok = player.forward();
           } else {
-            ok = jkf.forward();
+            ok = player.forward();
           }
           if (!ok) break;
 
-          const s = jkf.getReadableKifu?.() ?? "";
+          const s = player.getReadableKifu?.() ?? "";
           if (s) out.push(s);
         }
 

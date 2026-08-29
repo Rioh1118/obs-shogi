@@ -5,17 +5,20 @@ import type { RowModel } from "../ui/KifuMoveCard";
 /**
  * 棋譜ストリームの行を組む
  *
- * `jkf` を末尾まで進めるが、棋譜自体は書き換えない（`inputMove` を呼ばない）。
+ * `player` を末尾まで進めるが、棋譜自体は書き換えない（`inputMove` を呼ばない）。
  * 呼び出し側はこの前提で棋譜を複製せずに渡している。ここで棋譜を編集しないこと。
  */
-export function buildStreamRowsFromCursor(jkf: JKFPlayer, cursor: KifuCursor | null): RowModel[] {
+export function buildStreamRowsFromCursor(
+  player: JKFPlayer,
+  cursor: KifuCursor | null,
+): RowModel[] {
   const planned = new Map<number, number>();
   for (const p of cursor?.forkPointers ?? []) planned.set(p.te, p.forkIndex);
 
   const rows: RowModel[] = [];
   const currentTesuu = cursor?.tesuu ?? 0;
 
-  const mf0 = jkf.currentStream[0];
+  const mf0 = player.currentStream[0];
   rows.push({
     te: 0,
     side: "none",
@@ -31,15 +34,15 @@ export function buildStreamRowsFromCursor(jkf: JKFPlayer, cursor: KifuCursor | n
 
   let safety = 100000;
   while (safety-- > 0) {
-    const te = jkf.tesuu + 1;
-    if (!jkf.currentStream[te]) break;
+    const te = player.tesuu + 1;
+    if (!player.currentStream[te]) break;
 
-    const forkTexts = jkf.getReadableForkKifu?.() ?? [];
+    const forkTexts = player.getReadableForkKifu?.() ?? [];
     const mainText = (() => {
-      const ok = jkf.forward();
+      const ok = player.forward();
       if (!ok) return "";
-      const s = jkf.getReadableKifu?.() ?? "";
-      jkf.backward();
+      const s = player.getReadableKifu?.() ?? "";
+      player.backward();
       return s;
     })();
 
@@ -47,20 +50,20 @@ export function buildStreamRowsFromCursor(jkf: JKFPlayer, cursor: KifuCursor | n
 
     let ok = false;
     if (plannedForkIndex != null) {
-      ok = jkf.forkAndForward(plannedForkIndex);
-      if (!ok) ok = jkf.forward();
+      ok = player.forkAndForward(plannedForkIndex);
+      if (!ok) ok = player.forward();
     } else {
-      ok = jkf.forward();
+      ok = player.forward();
     }
     if (!ok) break;
 
-    const mf = jkf.currentStream[te];
+    const mf = player.currentStream[te];
     const mv = mf?.move;
 
     const side =
       mv?.color === 0 ? "sente" : mv?.color === 1 ? "gote" : te % 2 === 1 ? "sente" : "gote";
 
-    const text = jkf.getReadableKifu?.() ?? "";
+    const text = player.getReadableKifu?.() ?? "";
 
     const branchForkPointers = (cursor?.forkPointers ?? []).filter((p) => p.te < te);
     rows.push({
