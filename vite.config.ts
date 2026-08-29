@@ -228,11 +228,12 @@ export default defineConfig({
     ],
     options: {},
   },
-  // `.claude/worktrees/` には作業用のチェックアウトが丸ごと入る。走査対象に残すと
-  // 別ブランチのテストが混ざり、`npm run test` の結果が今のコードを指さなくなる。
-  // 既定値を上書きするので、既定で外れていたものも書き直す
+  // 走査するのは `src/` の中だけ。除外を並べる形だと、`.claude/worktrees/` の
+  // 別ブランチのチェックアウトや、リポジトリ直下に置いた確認用のテストが混ざり、
+  // `npm run test` の末尾の件数が今のコードを指さなくなる。`CLAUDE.md` は
+  // その数を現在値として読めと書いているので、混ざると数え間違いが伝播する
   test: {
-    exclude: ["**/node_modules/**", "**/dist/**", ".claude/**"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "vite.config.test.ts"],
   },
   plugins: [react()],
   resolve: {
