@@ -35,7 +35,7 @@ describe("swapBranchesInKifu", () => {
     expect(kifu.moves[2].forks?.map(tags)).toEqual([["main2", "main3"], ["f1"]]);
   });
 
-  test("入れ替えた枝どうしが同じオブジェクトを共有しない", () => {
+  test("入れ替えた候補どうしが同じオブジェクトを共有しない", () => {
     const kifu = kifuWithTwoForks();
     swapBranchesInKifu(
       kifu,
@@ -43,7 +43,7 @@ describe("swapBranchesInKifu", () => {
       null,
     );
 
-    // 片方を書き換えたときにもう片方が動くと、次の編集で無関係な枝が壊れる。
+    // 片方を書き換えたときにもう片方が動くと、次の編集で無関係な変化が壊れる。
     kifu.moves[2].comments = ["touched"];
     expect(kifu.moves[2].forks?.[0][0].comments).toEqual(["main2"]);
   });

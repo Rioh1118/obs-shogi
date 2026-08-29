@@ -204,7 +204,7 @@ function patchForkPointersForDeleteNonReloc(
   }
 }
 
-/** deleteで “削除された枝の中にいた” ときの退避 */
+/** 削除された候補の中に cursor がいたときの退避先 */
 function relocateCursorOnDelete(
   cursor: KifuCursor,
   ref: BranchPointRef,
@@ -305,7 +305,7 @@ export function deleteBranchInKifu(
 
   const chosen = getChosenBranchIndex(cursor.forkPointers, q.te);
 
-  // “削除された枝の中にいて”、かつ te 以降にいるなら退避
+  // 削除された候補の中にいて、かつ te 以降にいるなら退避
   if (chosen === q.target) {
     if (cursor.tesuu >= q.te) {
       return {
