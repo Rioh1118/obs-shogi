@@ -70,6 +70,57 @@ describe("Modal のフォーカス", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("名前"));
   });
 
+  /**
+   * 重なりは特殊な状況ではない。作成フォームで既にある名前を出すと、その上に
+   * 衝突ダイアログが載る。1枚ごとに独立して奪い返すと、`focus()` が同期で
+   * イベントを撒き続けてマイクロタスクキューが空にならず、画面が固まる。
+   */
+  test("2枚重なっても、フォーカスを奪い合わない", async () => {
+    const focusCalls = vi.spyOn(HTMLElement.prototype, "focus");
+
+    render(
+      <>
+        <Modal onClose={vi.fn()} label="下">
+          <Button>下のボタン</Button>
+        </Modal>
+        <Modal onClose={vi.fn()} label="上">
+          <Button>上のボタン</Button>
+        </Modal>
+      </>,
+    );
+
+    const before = focusCalls.mock.calls.length;
+    await act(async () => {
+      // マイクロタスクを何度か流す。奪い合っていればここで発散する
+      for (let i = 0; i < 20; i += 1) await Promise.resolve();
+    });
+
+    expect(focusCalls.mock.calls.length - before).toBeLessThan(5);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "上のボタン" }));
+    focusCalls.mockRestore();
+  });
+
+  test("重なっているとき、Escape で閉じるのは上の1枚だけ", () => {
+    const closeLower = vi.fn();
+    const closeUpper = vi.fn();
+
+    render(
+      <>
+        <Modal onClose={closeLower} label="下">
+          <Button>下のボタン</Button>
+        </Modal>
+        <Modal onClose={closeUpper} label="上">
+          <Button>上のボタン</Button>
+        </Modal>
+      </>,
+    );
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(closeUpper).toHaveBeenCalledTimes(1);
+    expect(closeLower).not.toHaveBeenCalled();
+  });
+
   test("最初の要素から Shift+Tab で外へ出ない", () => {
     render(
       <Modal onClose={vi.fn()} label="対話">
