@@ -156,7 +156,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
       const p = action.payload;
       const sessions = ensureSession(state.sessions, p.requestId);
       const s = sessions[p.requestId]!;
-      // chunk は配列のまま追加。フラット化は consumer 側で償却 O(n) (C-M1)
+      // chunk は配列のまま追加。フラット化は consumer 側で償却 O(n)
       return {
         ...state,
         currentRequestId: state.currentRequestId ?? p.requestId,

@@ -92,7 +92,7 @@ export default function PositionSearchModal() {
   const lastQueryKeyRef = useRef<string | null>(null);
 
   // 進行中の rid を ref で追跡し、 queryKey が変わったタイミングや unmount で
-  // cancelSearch を投げる (C-H2)。 setRequestId とは別経路にして、 invoke の
+  // cancelSearch を投げる。 setRequestId とは別経路にして、 invoke の
   // 解決前に乱発される再検索でも確実に直前の rid をキャンセルできるようにする。
   const inFlightRidRef = useRef<number | null>(null);
 

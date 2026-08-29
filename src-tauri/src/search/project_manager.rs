@@ -215,7 +215,7 @@ impl ProjectManager {
             );
         }
 
-        // modified + added → 並列ビルドして 1 回の insert_many にまとめる (A-M1)
+        // modified + added → 並列ビルドして 1 回の insert_many にまとめる
         struct PendingBuild {
             rec: FileRecord,
             file_id: FileId,
@@ -314,7 +314,7 @@ impl ProjectManager {
 
     /// 1 ファイル分の build を spawn_blocking で行い、 store に直接書き込まずに
     /// FileBucketEntries を返す。 run_rescan_diff_apply 側で batch 化して
-    /// insert_many_file_segments を 1 回呼ぶ用 (A-M1)。
+    /// insert_many_file_segments を 1 回呼ぶ用。
     async fn build_one_file(
         &self,
         app: &AppHandle,
