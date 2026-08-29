@@ -96,15 +96,16 @@ describe("SCSS のスケール", () => {
   const { counts, samples } = countRawDeclarations();
 
   for (const bucket of Object.keys(BASELINE) as (keyof typeof BASELINE)[]) {
-    it(`${bucket} の直値が基準値を超えない`, () => {
+    it(`${bucket} の直値が基準値と一致する`, () => {
       expect(
         counts[bucket],
         [
-          `${bucket} の直値が ${BASELINE[bucket]} 件から ${counts[bucket]} 件に増えた。`,
-          `src/index.scss のトークンを使うこと（ADR-0003）。`,
+          `${bucket} の直値が基準値 ${BASELINE[bucket]} 件に対して ${counts[bucket]} 件ある。`,
+          `増えたなら src/index.scss のトークンを使うこと（ADR-0003）。`,
+          `減ったなら BASELINE を ${counts[bucket]} に下げること。`,
           ...samples[bucket],
         ].join("\n"),
-      ).toBeLessThanOrEqual(BASELINE[bucket]);
+      ).toBe(BASELINE[bucket]);
     });
   }
 });
