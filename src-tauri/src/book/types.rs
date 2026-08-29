@@ -2,7 +2,7 @@ use crate::book::error::{BookError, BookErrorCode};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// 開いている定跡を指す識別子。close するまで再利用しない。
+/// 開いている定跡を指す識別子。一度配ったものは close 後も配り直さない。
 pub type BookHandle = u64;
 
 /// 定跡ファイルの形式。判別は拡張子で行う（[`BookFormat::from_path`]）。
