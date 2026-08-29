@@ -35,6 +35,10 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    // 上限は size ごとの規則ではなくここで一度だけ決める。size 側に任せると、
+    // 高さを書かない size を1つ足しただけでカードが内容の高さまで伸び、
+    // overlay を超えてタイトルバーの帯に載る
+    max-height: 100%;
 
     border-radius: 1rem;
     outline: none;
@@ -228,7 +232,9 @@
     &--size-md .modal__card {
       width: 96vw;
       height: 100%;
-      max-height: none;
+      // size ごとの `min(88vh, …)` を外して overlay いっぱいまで使う。
+      // `none` にすると上限が消えるので `100%` に置き換える形で外す
+      max-height: 100%;
       border-radius: 14px;
     }
   }
