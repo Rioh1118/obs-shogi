@@ -50,11 +50,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [persistence],
   );
 
-  // 盤の状態だけから導かれる射影。駒の選択には依存させない。
-  // 選択を混ぜると、局面が変わっていない「駒をクリックしただけ」でも
-  // JKFPlayer を作り直すことになり、currentSfen の identity が変わって
-  // 下流のエンジン同期や解析まで巻き添えで再実行される。
-  const positionView = useMemo<Omit<GameView, "legalMoves">>(() => {
+  // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
+  // 「駒をクリックしただけ」でも JKFPlayer を作り直すことになり、
+  // currentSfen の identity が変わって下流のエンジン同期や解析まで巻き添えで再実行される。
+  const cursorView = useMemo<Omit<GameView, "legalMoves">>(() => {
     if (!state.jkf) {
       return {
         player: null,
@@ -106,7 +105,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         currentTurn = Color.Black;
       }
 
-      // 手数 0 を 1 として扱うのは既存の挙動。エンジンに送る局面もこれに従っている。
+      // SFEN の手数フィールドは 1 始まり（shogi.js の既定値も 1）。
+      // 初期局面の tesuu 0 をそのまま渡すと USI 側で不正な position になるため丸める。
       let currentSfen: string | null = null;
       try {
         currentSfen = player.shogi ? player.shogi.toSFENString(player.tesuu || 1) : null;
@@ -136,9 +136,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     }
   }, [state.jkf, state.cursor, state.branchPlan]);
 
-  // 選択中の駒から導く。局面ではなく UI の選択に紐づくので分けてある。
   const legalMoves = useMemo<ShogiMove[]>(() => {
-    const player = positionView.player;
+    const player = cursorView.player;
     const sel = state.selectedPosition;
     if (!player || !sel) return [];
 
@@ -149,12 +148,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     } catch {
       return [];
     }
-  }, [positionView.player, state.selectedPosition, moveValidator]);
+  }, [cursorView.player, state.selectedPosition, moveValidator]);
 
-  const view = useMemo<GameView>(
-    () => ({ ...positionView, legalMoves }),
-    [positionView, legalMoves],
-  );
+  const view = useMemo<GameView>(() => ({ ...cursorView, legalMoves }), [cursorView, legalMoves]);
 
   const navigate = useCallback(
     (

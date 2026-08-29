@@ -49,7 +49,8 @@ export interface GameView {
   totalMoves: number;
 
   /**
-   * 現在の局面の SFEN。盤の状態から導かれる射影であり、駒の選択には依存しない。
+   * 現在の局面の SFEN。棋譜カーソルから導かれる射影であり、駒の選択には依存しない。
+   * 手数フィールドは常に 1 以上（SFEN の手数は 1 始まり）。
    * 局面を組み立てられない間は null。
    */
   currentSfen: string | null;
