@@ -72,7 +72,6 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 
 ## 進め方
 
-- 着手中の issue は**常に1件**。`gh issue list --assignee @me` が2件以上返る状態を作らない
 - コミットは `<type>: <description>`（type: feat/fix/refactor/docs/test/chore/perf/ci）
 - `main` に直接コミットしない。ブランチを切ること
 - 同じ失敗を2回するまでルールを足さない。1回目は**ルールではなくテスト**を書く
