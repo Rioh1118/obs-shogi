@@ -87,6 +87,34 @@ describe("SCSS のトークン名", () => {
   });
 });
 
+/**
+ * `no-restricted-imports` は静的な import 文しか見ない。
+ * `await import("@/…")` と `vi.mock("@/…")` はレイヤ規則を素通りするので、
+ * ここは文字列として拾う
+ */
+describe("レイヤに依存しない検査の置き場", () => {
+  it("src/__tests__ がアプリのコードを参照しない", () => {
+    const here = join(SRC, "__tests__");
+    const offenders = readdirSync(here)
+      .filter((name) => name.endsWith(".ts"))
+      .flatMap((name) => {
+        const matches = readFileSync(join(here, name), "utf8").matchAll(
+          /["'`]@\/(app|pages|widgets|features|entities|shared)\//g,
+        );
+        return [...matches].map((match) => `${name}  ${match[0]}`);
+      });
+
+    expect(
+      offenders,
+      [
+        "src/__tests__ はレイヤに依存しない検査だけを置く場所。",
+        "静的 import は lint が止めるが、動的 import と vi.mock は素通りする。",
+        ...offenders,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+});
+
 describe("SCSS のスケール", () => {
   const { counts, samples } = countRawDeclarations();
 
