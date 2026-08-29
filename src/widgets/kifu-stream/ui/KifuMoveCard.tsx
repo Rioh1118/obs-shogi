@@ -4,6 +4,7 @@ import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
 import "./KifuForkMenu.scss";
 import type { ForkPointer } from "@/entities/kifu/model/cursor";
+import type { BranchIndex } from "@/entities/kifu/model/branch";
 
 export type RowModel = {
   te: number;
@@ -39,11 +40,11 @@ type Props = {
   onSwapBranch: (
     te: number,
     branchForkPointers: ForkPointer[],
-    branchIndex: number,
+    branchIndex: BranchIndex,
     dir: "up" | "down",
   ) => void;
 
-  onDeleteBranch: (te: number, branchForkPointers: ForkPointer[], branchIndex: number) => void;
+  onDeleteBranch: (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => void;
 };
 
 function sideLabel(side: RowModel["side"]) {

@@ -1,7 +1,10 @@
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
+  branchIndexFromSelection,
   buildTesuuPointer,
+  MAIN_LINE,
+  shiftBranchIndexDown,
   type BranchEditResult,
   type BranchIndex,
   type BranchPointRef,
@@ -33,7 +36,7 @@ function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boole
 
 function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {
   const p = forkPointers.find((x) => x.te === te);
-  return p ? ((p.forkIndex + 1) as BranchIndex) : 0;
+  return branchIndexFromSelection(p ? p.forkIndex : null);
 }
 
 /** te の branchIndex を forkPointers に反映（0なら削除） */
@@ -181,16 +184,15 @@ function patchForkPointersForDeleteNonReloc(
   const chosen = getChosenBranchIndex(fps, te);
 
   // chosen==target の場合は “退避” で処理するので、ここでは来ない想定
-  if (target === 0) {
+  if (target === MAIN_LINE) {
     // main削除: fork(1)がmainに繰り上がる
-    if (chosen === 0) return fps; // main追従→新mainへ
-    if (chosen === 1) return setBranchIndex(fps, te, 0); // fork1がmain化
-    // chosen>1 は1つ詰める
-    return setBranchIndex(fps, te, chosen - 1);
+    if (chosen === MAIN_LINE) return fps; // main追従→新mainへ
+    // chosen>0 は1つ詰める（chosen=1 は main 化）
+    return setBranchIndex(fps, te, shiftBranchIndexDown(chosen));
   } else {
     // fork削除: targetより大きいforkは1つ詰める
-    if (chosen === 0) return fps;
-    if (chosen > target) return setBranchIndex(fps, te, chosen - 1);
+    if (chosen === MAIN_LINE) return fps;
+    if (chosen > target) return setBranchIndex(fps, te, shiftBranchIndexDown(chosen));
     return fps;
   }
 }
@@ -205,7 +207,7 @@ function relocateCursorOnDelete(
   // 退避時は te 以降の pointer を落とす
   const kept = cursor.forkPointers.filter((p) => p.te < ref.te);
 
-  if (target === 0) {
+  if (target === MAIN_LINE) {
     if (candidatesAfter.length === 0) {
       const tesuu = Math.max(0, ref.te - 1);
       const fps = normalizeForkPointers(kept, tesuu);
@@ -306,7 +308,7 @@ export function deleteBranchInKifu(
     }
 
     // 予定していた選択が消えた
-    const fps = setBranchIndex(cursor.forkPointers, q.te, 0);
+    const fps = setBranchIndex(cursor.forkPointers, q.te, MAIN_LINE);
     const nextFps = normalizeForkPointers(fps);
     return {
       changed: true,

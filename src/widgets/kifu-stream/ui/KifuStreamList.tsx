@@ -4,7 +4,13 @@ import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
 import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
-import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
+import {
+  neighborBranchIndex,
+  MAIN_LINE,
+  type BranchIndex,
+  type DeleteQuery,
+  type SwapQuery,
+} from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
@@ -79,12 +85,12 @@ export default function KifuStreamList() {
     async (
       te: number,
       branchForkPointers: ForkPointer[],
-      branchIndex: number,
+      branchIndex: BranchIndex,
       dir: "up" | "down",
     ) => {
       const a = branchIndex;
-      const b = dir === "up" ? branchIndex - 1 : branchIndex + 1;
-      if (b < 0) return;
+      const b = neighborBranchIndex(branchIndex, dir);
+      if (b < MAIN_LINE) return;
 
       const q: SwapQuery = {
         te,
@@ -98,7 +104,7 @@ export default function KifuStreamList() {
   );
 
   const onDeleteBranch = useCallback(
-    async (te: number, branchForkPointers: ForkPointer[], branchIndex: number) => {
+    async (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
       const q: DeleteQuery = {
         te,
         forkPointers: branchForkPointers,

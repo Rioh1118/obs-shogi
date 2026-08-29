@@ -1,5 +1,9 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { branchIndexFromSelection, branchLabel } from "@/entities/kifu/model/branch";
+import {
+  branchIndexFromSelection,
+  branchLabel,
+  type BranchIndex,
+} from "@/entities/kifu/model/branch";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
@@ -19,8 +23,8 @@ type Props = {
   onSelect: (forkIndex: number | null) => void;
   onClose: () => void;
 
-  onSwap: (branchIndex: number, dir: "up" | "down") => void;
-  onDelete: (branchIndex: number) => void;
+  onSwap: (branchIndex: BranchIndex, dir: "up" | "down") => void;
+  onDelete: (branchIndex: BranchIndex) => void;
 
   menuRef?: React.RefObject<HTMLDivElement | null>;
 };
@@ -38,7 +42,7 @@ function normalizeSelected(selected: number | null, n: number): number | null {
 }
 
 type ActionsState = {
-  branchIndex: number;
+  branchIndex: BranchIndex;
   canUp: boolean;
   canDown: boolean;
   anchorRect: DOMRect;
