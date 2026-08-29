@@ -99,7 +99,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     //
     // **畳むのをやめるなら、`InlineNameEditor` に返す失敗の絞り込みが要る。**
     // いま名前以外の失敗が入力欄の下に出ないのは、ここで編集行ごと消えるため
-    // （`widgets/file-tree/lib/commitName` がその前提で絞っている）
+    // （`lib/commitName` がその前提で絞っている）
     case "error":
       // 衝突の解決中に失敗したときは、そのダイアログの中で伝える（`submitError`）。
       // ここで積むと対話の裏に別の失敗の箱が重なり、解決操作の続きが

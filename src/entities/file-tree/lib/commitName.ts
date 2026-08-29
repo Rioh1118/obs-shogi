@@ -1,4 +1,5 @@
-import { isNameInputError, validateBasename, type FsError } from "@/entities/file-tree";
+import { isNameInputError, type FsError } from "@/entities/file-tree/api/error";
+import { validateBasename } from "@/entities/file-tree/lib/validateBasename";
 import type { AsyncResult } from "@/shared/lib/result";
 
 export type CommitOutcome =

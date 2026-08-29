@@ -9,8 +9,7 @@ import FileIcon from "./FileIcon";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree";
-import { useFileTree } from "@/entities/file-tree";
-import { commitName } from "@/widgets/file-tree/lib/commitName";
+import { commitName, useFileTree } from "@/entities/file-tree";
 
 function RootNode({
   node,

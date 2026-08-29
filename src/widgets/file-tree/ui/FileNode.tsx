@@ -1,13 +1,13 @@
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
-import { commitName } from "@/widgets/file-tree/lib/commitName";
+
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
-import { useFileTree } from "@/entities/file-tree";
+import { commitName, useFileTree } from "@/entities/file-tree";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {

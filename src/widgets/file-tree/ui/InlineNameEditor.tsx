@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { describeFsError, type FsError } from "@/entities/file-tree";
-import type { CommitOutcome } from "@/widgets/file-tree/lib/commitName";
+import { describeFsError, type CommitOutcome, type FsError } from "@/entities/file-tree";
+
 import "./InlineNameEditor.scss";
 
 type InlineRenameProps = {
@@ -12,7 +12,7 @@ type InlineRenameProps = {
    *
    * `shown` に載るのは名前を直せば通る失敗だけ。それ以外は provider が
    * 通知か衝突の対話へ振り分け、どちらも編集行を畳む。
-   * 絞り込みは `widgets/file-tree/lib/commitName` が持つ。
+   * 絞り込みは `entities/file-tree/lib/commitName` が持つ。
    */
   onCommit: (nextName: string) => Promise<CommitOutcome>;
   onCancel: () => void;

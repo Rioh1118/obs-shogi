@@ -1,5 +1,6 @@
 export * from "./api/error";
 export * from "./lib/validateBasename";
+export * from "./lib/commitName";
 export * from "./model/types";
 export * from "./model/useFileTree";
 export * from "./model/provider";
