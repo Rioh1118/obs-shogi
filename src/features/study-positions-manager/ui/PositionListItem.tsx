@@ -14,12 +14,12 @@ interface Props {
   position: StudyPosition;
   selected: boolean;
   onClick: () => void;
-  turnLabel: string | null;
+  turnText: string | null;
   tesuu: number;
 }
 
 const PositionListItem = forwardRef<HTMLDivElement, Props>(function PositionListItem(
-  { position, selected, onClick, turnLabel, tesuu },
+  { position, selected, onClick, turnText, tesuu },
   ref,
 ) {
   const stateInfo = STATE_LABELS[position.state] ?? STATE_LABELS.inbox;
@@ -49,9 +49,9 @@ const PositionListItem = forwardRef<HTMLDivElement, Props>(function PositionList
         {position.tags.length > 2 && (
           <span className="sp-list-item__tagMore">+{position.tags.length - 2}</span>
         )}
-        {turnLabel && (
+        {turnText && (
           <span className="sp-list-item__meta">
-            {turnLabel} {tesuu}手目
+            {turnText} {tesuu}手目
           </span>
         )}
       </div>

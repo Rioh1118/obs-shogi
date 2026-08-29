@@ -65,7 +65,6 @@ export default function PositionSearchModal() {
     return "待機中";
   }, [isSearching, error, isDone]);
 
-
   const previewData = useMemo(() => {
     if (!isOpen) return null;
 

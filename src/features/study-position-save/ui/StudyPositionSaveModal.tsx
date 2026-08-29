@@ -60,7 +60,6 @@ export default function StudyPositionSaveModal() {
     }
   }, [isOpen, existing]);
 
-
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
     return buildPreviewDataFromSfen(sfen);
@@ -71,7 +70,7 @@ export default function StudyPositionSaveModal() {
   // 現在対局の tesuu / fileName は別の棋譜のものになるため表示しない
   const isFromGameContext = !params.sfen;
   const tesuu = isFromGameContext ? getCurrentMoveIndex() : null;
-  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnText = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
   const fileName = useMemo(() => {
     if (!isFromGameContext) return null;
     const absPath = gameState.loadedAbsPath;
@@ -175,7 +174,7 @@ export default function StudyPositionSaveModal() {
               <PreviewPane previewData={previewData} />
             </div>
             <div className="sp-save__context">
-              {turnLabel && <span className="sp-save__contextItem">{turnLabel}</span>}
+              {turnText && <span className="sp-save__contextItem">{turnText}</span>}
               {tesuu !== null && <span className="sp-save__contextItem">{`${tesuu}手目`}</span>}
               {fileName && (
                 <span className="sp-save__contextItem sp-save__contextItem--file">{fileName}</span>

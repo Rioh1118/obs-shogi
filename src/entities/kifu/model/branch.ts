@@ -6,18 +6,23 @@ import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
  */
 export type BranchIndex = number;
 
-/** 手数 N から指せる分岐の候補。 */
+/**
+ * 手数 N から指せる分岐の候補。
+ *
+ * 本譜かどうかは `forkIndex` の有無だけで決まる。両方を別々のフィールドで持つと
+ * 「本譜と表示しながら fork を進める」ような食い違った値が型として作れてしまう。
+ */
 export type BranchOption = {
   /** リスト描画の key 用。安定していればよく、意味は持たない。 */
   id: string;
-  /** `forkIndex === undefined` と等価。 */
-  isMainLine: boolean;
   tesuu: number;
   /** 指し手のほか、投了・中断（`special`）も入る。棋譜ストリームの分岐一覧と集合を揃えるため。 */
   moveFormat: IMoveFormat;
-  /** `IMoveFormat.forks` の添字。ForkPointer の値ではない。本譜なら undefined。 */
-  forkIndex?: number;
-};
+} & (
+  | { isMainLine: true; forkIndex?: never }
+  /** `IMoveFormat.forks` の添字。ForkPointer の値ではない。 */
+  | { isMainLine: false; forkIndex: number }
+);
 
 export type BranchPointRef = {
   /**
@@ -41,6 +46,17 @@ export type BranchEditResult = {
   changed: boolean;
   nextCursor: KifuCursor | null;
 };
+
+/**
+ * 分岐の表示名
+ *
+ * 番号は表示順ではなく `forkIndex` から作る。一覧から間引かれた分岐があると
+ * 表示順はずれるが、棋譜ストリームの分岐メニューは `forkIndex` で番号を振るため、
+ * 表示順で作ると同じ分岐が画面ごとに別の番号で呼ばれる。
+ */
+export function branchLabel(forkIndex?: number): string {
+  return forkIndex == null ? "本譜" : `変化${branchIndexFromForkIndex(forkIndex)}`;
+}
 
 export function forkIndexFromBranchIndex(b: BranchIndex): number {
   if (b <= 0) throw new Error("branchIndex=0 has no forkIndex");

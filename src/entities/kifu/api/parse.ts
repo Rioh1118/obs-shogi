@@ -30,9 +30,11 @@ function stripBom(s: string): string {
   return s.replace(/^\uFEFF/, "");
 }
 
-
 /**
  * どの形式から読んでも表記が揃うようにする
+ *
+ * 戻り値は表示だけでなく保存にも使われる正規形。ここで足した `same` / `relative` は
+ * 書き戻したファイルにも出る。
  *
  * 「同」や相対表記は棋譜テキストに書かれていた分しか入らない。CSA には「同」の表記が
  * 無いため、これを通さないと同じ手が形式によって「☖２二銀」と「☖同　銀」に割れる。
@@ -42,11 +44,17 @@ function stripBom(s: string): string {
  * 非合法手を含む棋譜では正規化が throw する。そのときは元をそのまま返す。
  * 表記が揃わないだけで、開いて読むことはできる。
  */
-function normalizeForDisplay(jkf: JKFData): JKFData {
+function normalizeNotation(jkf: JKFData): JKFData {
   try {
+    // 正規化は途中で throw しうるが、その手前まで入力を書き換えている可能性がある。
+    // コピーを渡して原本を返せるようにしておく。現在の入口は必ず tsshogi を通り、
+    // tsshogi は同・相対表記を先に埋めるので書き換えは実質起きないが、
+    // 原本を守る責任をここに置いておく。
     return Normalizer.normalizeMinimal(structuredClone(jkf));
   } catch {
-    // 壊れかけの棋譜でも開けることを優先する
+    // 盤上で再生できない手がある棋譜。開けること自体を優先して未正規化のまま返す。
+    // ただし表記が揃わないだけでなく、その手より先へは進めない（goto がそこで失敗する）。
+    // 利用者への通知は issue #157 の担当。
     return jkf;
   }
 }
@@ -67,7 +75,7 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   if (rec instanceof Error) {
     throw new KifuParseError(`棋譜(${format})の解析に失敗しました。`, rec);
   }
-  return normalizeForDisplay(exportJKF(rec) as JKFData);
+  return normalizeNotation(exportJKF(rec) as JKFData);
 }
 
 export function parseKifuStringToJKF(raw: string): ParsedKifu {
@@ -77,7 +85,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
     if (rec instanceof Error) throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
-    return { detectedFormat: "jkf", jkf: normalizeForDisplay(exportJKF(rec) as JKFData) };
+    return { detectedFormat: "jkf", jkf: normalizeNotation(exportJKF(rec) as JKFData) };
   }
 
   let fmt: RecordFormatType;
@@ -110,5 +118,5 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? "kif"
           : "jkf";
 
-  return { detectedFormat, jkf: normalizeForDisplay(exportJKF(rec) as JKFData) };
+  return { detectedFormat, jkf: normalizeNotation(exportJKF(rec) as JKFData) };
 }

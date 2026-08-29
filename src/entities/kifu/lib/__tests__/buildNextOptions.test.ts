@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
-import { readableMove } from "@/entities/kifu/lib/readableMove";
+import { readableMove } from "../readableMove";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { buildNextOptions } from "../buildPreviewData";
+import { buildNextOptions } from "../buildNextOptions";
 
 /** 3手目に「投了」だけの変化と、指し手の変化が1本ずつ生える棋譜。 */
 const KIFU_WITH_RESIGN_FORK = `手合割：平手
@@ -24,6 +24,18 @@ function optionsAtTesuu2(): ReturnType<typeof buildNextOptions> {
 }
 
 describe("buildNextOptions", () => {
+  test("本譜の次が投了でも候補に出す", () => {
+    // 棋譜ストリームは投了を行として並べる。局面ナビだけ隠すと項目数が食い違う。
+    const jkf = new JKFPlayer(
+      parseKifuContentToJKF("手合割：平手\n   1 ７六歩(77)\n   2 投了\n", "kif"),
+    );
+    jkf.goto(1);
+    const options = buildNextOptions(jkf);
+
+    expect(options.map((o) => readableMove(o.moveFormat))).toEqual(["投了"]);
+    expect(options[0].isMainLine).toBe(true);
+  });
+
   test("投了だけの変化も候補に残す", () => {
     // 落とすと棋譜ストリームの分岐メニューと項目数が食い違い、
     // 「変化N」が別の分岐を指すようになる。

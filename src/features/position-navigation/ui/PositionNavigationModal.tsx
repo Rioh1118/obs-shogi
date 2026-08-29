@@ -5,7 +5,8 @@ import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
-import { buildNextOptions, buildPreviewData } from "@/entities/position/lib/buildPreviewData";
+import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
+import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
 import { removeForkPointer, upsertForkPointer } from "@/features/position-navigation/lib/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
@@ -107,13 +108,9 @@ function PositionNavigationModal() {
 
       let fps = prev.PreviewCursor.forkPointers;
 
-      if (sel.isMainLine) {
-        fps = removeForkPointer(fps, nextTe);
-      } else {
-        if (typeof sel.forkIndex === "number") {
-          fps = upsertForkPointer(fps, nextTe, sel.forkIndex);
-        }
-      }
+      fps = sel.isMainLine
+        ? removeForkPointer(fps, nextTe)
+        : upsertForkPointer(fps, nextTe, sel.forkIndex);
       return {
         PreviewCursor: { tesuu: nextTe, forkPointers: fps },
         selectedBranchIndex: 0,
@@ -196,7 +193,6 @@ function PositionNavigationModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm, closeModal]);
 
-
   // ---- render ----
   if (!isOpen) return null;
 
@@ -213,7 +209,7 @@ function PositionNavigationModal() {
       <div className="position-navigation-modal">
         <PositionNavigationHeader
           previewData={previewData}
-          selectedBranchIndex={nav.selectedBranchIndex}
+          selectedBranch={options[nav.selectedBranchIndex]}
         />
         <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">

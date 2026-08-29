@@ -55,8 +55,7 @@ export default function SfenKifuCreateModal() {
 
   const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
 
-
-  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnText = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
 
   const dirOptions = useMemo(() => {
     if (!fileTree) return [];
@@ -144,7 +143,7 @@ export default function SfenKifuCreateModal() {
           <>
             <div className="sfen-kifu-create__preview">
               <PreviewPane previewData={previewData} />
-              {turnLabel && <div className="sfen-kifu-create__turnBadge">{turnLabel}</div>}
+              {turnText && <div className="sfen-kifu-create__turnBadge">{turnText}</div>}
             </div>
 
             <Form handleSubmit={handleSubmit} theme="dark">

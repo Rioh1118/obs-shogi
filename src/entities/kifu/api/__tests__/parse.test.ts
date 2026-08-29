@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { exportJKF, importKIF } from "tsshogi";
 import { readableMove } from "@/entities/kifu/lib/readableMove";
 import { parseKifuContentToJKF, parseKifuStringToJKF } from "../parse";
 
@@ -39,15 +40,19 @@ describe("parseKifuContentToJKF", () => {
     expect(texts(CSA, "csa")[3]).toBe("☖同　銀");
   });
 
-  test("非合法手を含む棋譜でも開ける（表記が揃わないだけ）", () => {
-    // 4手目で 3一の銀が居ない地点から動かしている。正規化は throw する。
+  test("盤上で再生できない手を含む棋譜は、tsshogi の出力がそのまま返る", () => {
+    // 4手目は 4一の金を 2二 へ動かしていて届かない。正規化はここで throw する。
+    // 手が欠けたり中途半端に書き換わった棋譜を返してはいけない。
     const broken = `手合割：平手
    1 ７六歩(77)
    2 ３四歩(33)
    3 ２二角成(88)
-   4 同　銀(41)
+   4 同　金(41)
 `;
-    expect(() => parseKifuContentToJKF(broken, "kif")).not.toThrow();
+    const rec = importKIF(broken);
+    if (rec instanceof Error) throw rec;
+
+    expect(parseKifuContentToJKF(broken, "kif")).toEqual(exportJKF(rec));
   });
 
   test("空の棋譜は KifuParseError", () => {
