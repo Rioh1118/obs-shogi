@@ -32,9 +32,11 @@
   }
 }
 
+// `<select>` であることを示す唯一の図形。透かすと 2.32:1 まで落ちて、
+// 非文字の基準（3:1）を割る。不透明なら 3.26:1
 .form__select-icon {
   pointer-events: none;
-  color: rgba(index.$color-secondary-dark, 0.7);
+  color: index.$color-secondary-dark;
 }
 
 .form__select-menu {

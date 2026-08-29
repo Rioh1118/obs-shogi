@@ -54,8 +54,9 @@
       box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
     }
 
+    // 0.35 だと、この面（暗いカードの上の白 8%）に対して 2.80:1 で本文の基準を割る
     &::placeholder {
-      color: rgba(index.$color-text-light-1, 0.35);
+      color: rgba(index.$color-text-light-1, 0.6);
     }
   }
 
