@@ -17,8 +17,14 @@ import { describe, expect, it } from "vitest";
  *
  * 見るのは**綴りでなく実効値**。`inset` 系は辺に展開してから比べ、高さの上限は
  * どの引数が上限になるかで判定するので、等価な書き換えは通る。
- * 知らない書き方に当たったら通さずに落とす。見落として緑になるより、
- * 展開規則を足させるほうが安い。
+ *
+ * 辺の検査だけは fail-closed にしてある。知らない `inset-*` 系に当たったら
+ * 通さずに落とす。高さの検査はそうなっていない。見るのは
+ * `src/features/**` の `height` / `min-height` だけで、モーダルの中身を
+ * 別のレイヤに置いた場合や、`grid-template-rows` / `flex-basis` で
+ * 高さを決めた場合は素通りする。
+ *
+ * 判定そのものは末尾の `describe("検査の判定")` で固定してある。
  */
 
 /**
@@ -199,10 +205,10 @@ function scssUnder(directory: string): string[] {
  * スクロールでも届かない。`Modal.scss` だけを見ていると、この故障は中身の側にあって
  * 検査に掛からない
  */
-function unboundedForcedHeights(paths: string[]): string[] {
+function unboundedIn(label: string, css: string): string[] {
   const found: string[] = [];
-  for (const path of paths) {
-    postcss.parse(compile(path)).walkRules((rule) => {
+  {
+    postcss.parse(css).walkRules((rule) => {
       const heights = rule.nodes.filter(
         (node): node is postcss.Declaration =>
           node.type === "decl" && /^(min-|max-)?height$/.test(node.prop),
@@ -228,11 +234,15 @@ function unboundedForcedHeights(paths: string[]): string[] {
       if (bounded) return;
 
       for (const declaration of forcing) {
-        found.push(`${path}  ${rule.selector} { ${declaration.prop}: ${declaration.value} }`);
+        found.push(`${label}  ${rule.selector} { ${declaration.prop}: ${declaration.value} }`);
       }
     });
   }
   return found;
+}
+
+function unboundedForcedHeights(paths: string[]): string[] {
+  return paths.flatMap((path) => unboundedIn(path, compile(path)));
 }
 
 const modalCss = compile("shared/ui/Modal.scss");
@@ -347,4 +357,51 @@ describe("モーダルの overlay とタイトルバー", () => {
       ].join("\n"),
     ).toEqual([]);
   });
+});
+
+/**
+ * 判定そのものを固定する。上の検査は SCSS の現状に依存するので、
+ * 判定を緩めても現状が通れば緑のままになる。ここが緩みを止める
+ */
+describe("検査の判定", () => {
+  const boundedCases: [string, boolean][] = [
+    ["100%", true],
+    ["auto", true],
+    ["min(88vh, 100%)", true],
+    ["min(100%, 88vh)", true],
+    ["min(88vh, 100%, 700px)", true],
+    ["clamp(0px, 88vh, 100%)", true],
+    // 第1引数が 100% を超えうるので上限にならない
+    ["clamp(32rem, 78vh, 100%)", false],
+    // `100%` を含むが上限にならない書き方
+    ["max(92vh, 100%)", false],
+    ["calc(100% + 6rem)", false],
+    ["none", false],
+    ["92vh", false],
+  ];
+
+  for (const [value, expected] of boundedCases) {
+    it(`\`${value}\` を${expected ? "上限として認める" : "上限と認めない"}`, () => {
+      expect(isBounded(value)).toBe(expected);
+    });
+  }
+
+  const heightCases: [string, string, boolean][] = [
+    ["viewport 基準の height に頭打ちがある", ".a { height: 78vh; max-height: 100%; }", false],
+    ["頭打ちが無い", ".a { height: 78vh; }", true],
+    // 解決順は max(min-height, min(max-height, height))
+    ["min-height が viewport 基準", ".a { min-height: 60vh; max-height: 100%; }", true],
+    ["height: auto は上限にならない", ".a { min-height: 78vh; height: auto; }", true],
+    ["min-height: 0 は上限にならない", ".a { height: 78vh; min-height: 0; }", true],
+    // 大きくしないので対象外
+    ["max-height だけが viewport 基準", ".a { max-height: 34vh; }", false],
+    ["vh 以外の viewport 単位", ".a { height: 70vmin; }", true],
+    ["at-rule の内側でも見る", "@media (min-height: 1px) { .a { height: 78vh; } }", true],
+  ];
+
+  for (const [name, css, violates] of heightCases) {
+    it(`${name}`, () => {
+      expect(unboundedIn("case", css)).toHaveLength(violates ? 1 : 0);
+    });
+  }
 });
