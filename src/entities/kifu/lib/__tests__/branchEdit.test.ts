@@ -44,6 +44,22 @@ describe("swapBranchesInKifu", () => {
     expect(kifu.moves[2].forks?.map(tags)).toEqual([["main2", "main3"], ["f1"]]);
   });
 
+  test("入力の手のオブジェクトを書き換えない", () => {
+    // 候補の先頭の手は readCandidates が複製する。複製し忘れると、
+    // writeCandidates の `main[0].forks = forkSegs` が入力側の手に forks を生やす。
+    const kifu = kifuWithTwoForks();
+    const forkHead = kifu.moves[2].forks![0][0];
+
+    swapBranchesInKifu(
+      kifu,
+      { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+      null,
+    );
+
+    expect(kifu.moves[2]).not.toBe(forkHead);
+    expect(forkHead.forks).toBeUndefined();
+  });
+
   test("入れ替えた候補どうしが同じオブジェクトを共有しない", () => {
     const kifu = kifuWithTwoForks();
     swapBranchesInKifu(

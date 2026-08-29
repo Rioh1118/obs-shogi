@@ -87,9 +87,9 @@ function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHan
 /**
  * 分岐点にぶら下がる候補の並び。添字は `BranchIndex`（0=本譜）。
  *
- * 配列と各候補の先頭の手は `readCandidates` が作り直した私有のもので、
- * それより深い手は元の棋譜と共有する。共有部分は誰も書き換えないので、
- * 書き戻すときに複製し直さない。
+ * 配列と各候補の先頭の手は `readCandidates` が作り直した私有のもの。
+ * `writeCandidates` が書き換えるのは先頭の手の `forks` だけなので、
+ * それより深い手は元の棋譜と共有したまま書き戻してよい。
  */
 type Candidates = IMoveFormat[][];
 
@@ -100,7 +100,7 @@ type Candidates = IMoveFormat[][];
  * - さらに「候補の先頭が forks を持つ」場合は “同じteの代替” なので持ち上げてフラット化
  */
 function readCandidates(h: BranchPointHandle): Candidates {
-  // 書き換えるのは各候補の先頭の手の forks だけなので、その手だけを複製して差し替える。
+  // 書き換えるのは各候補の先頭の手の forks だけなので、その手だけを複製する。
   // 深く複製すると、呼び出し側が既に作った複製ともう1枚ぶんの棋譜を余計にコピーすることになる。
   const tail = h.line.slice(h.index);
   if (tail.length === 0) throw new Error("main tail is empty");
@@ -110,7 +110,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
   delete head.forks;
   tail[0] = head;
 
-  const candidates: Candidates = [tail, ...forks.map((f) => f.slice())];
+  const candidates: Candidates = [tail, ...forks.map((f) => [{ ...f[0] }, ...f.slice(1)])];
 
   // 同じteのforksを持ち上げ（固定点まで）
   let changed = true;
@@ -118,11 +118,10 @@ function readCandidates(h: BranchPointHandle): Candidates {
     changed = false;
     const extra: IMoveFormat[][] = [];
     for (const seg of candidates) {
-      const segHead = { ...seg[0] };
+      const segHead = seg[0];
       if (segHead.forks?.length) {
-        extra.push(...segHead.forks.map((f) => f.slice()));
+        extra.push(...segHead.forks.map((f) => [{ ...f[0] }, ...f.slice(1)]));
         delete segHead.forks;
-        seg[0] = segHead;
         changed = true;
       }
     }
