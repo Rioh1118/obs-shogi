@@ -19,6 +19,9 @@ pub enum FsErrorCode {
     InvalidType,
     InvalidExtension,
     InvalidDestination,
+    /// ワークスペースそのものを消そうとした。中身ごと消えて取り消せないので、
+    /// UI の判定に頼らずここで止める
+    RootNotDeletable,
     /// 棋譜を保存する形へ直せなかった。正規化と直列化の失敗をここへ載せる。
     /// InvalidType に載せると「ファイルとフォルダを取り違えています」と表示される
     KifuConversionFailed,
@@ -88,6 +91,7 @@ mod tests {
             FsErrorCode::InvalidType => "invalid_type",
             FsErrorCode::InvalidExtension => "invalid_extension",
             FsErrorCode::InvalidDestination => "invalid_destination",
+            FsErrorCode::RootNotDeletable => "root_not_deletable",
             FsErrorCode::KifuConversionFailed => "kifu_conversion_failed",
             FsErrorCode::PermissionDenied => "permission_denied",
             FsErrorCode::Io => "io",
@@ -114,6 +118,7 @@ mod tests {
             FsErrorCode::InvalidType,
             FsErrorCode::InvalidExtension,
             FsErrorCode::InvalidDestination,
+            FsErrorCode::RootNotDeletable,
             FsErrorCode::KifuConversionFailed,
             FsErrorCode::PermissionDenied,
             FsErrorCode::Io,

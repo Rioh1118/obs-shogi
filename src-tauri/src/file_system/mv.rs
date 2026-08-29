@@ -4,14 +4,15 @@ use tauri::{command, AppHandle, Runtime};
 
 use crate::file_system::error::{FsError, FsErrorCode};
 use crate::file_system::utils::{
-    ensure_not_exists, is_project_root, validate_basename, validate_under_root,
+    ensure_not_exists, is_move_into_itself, is_project_root, validate_basename, validate_under_root,
 };
 
 use super::utils::is_kifu_file;
 
 // 行き先を呼び出し側から受けるのは `mv_kifu_file` / `mv_directory` の2つ。
-// `rename_*` の行き先は `src.parent().join(name)` で導出する（`validate_basename` が
-// 区切り文字を弾くので、src が root 配下なら行き先も必ず root 配下になる）。
+// `rename_*` の行き先は `src.parent().join(name)` で導出する。`validate_basename` が
+// 区切り文字を弾くので、src が root の**配下**（root 自身を除く）なら行き先も root 配下。
+// root 自身の改名だけは行き先が root の兄弟になるので、`is_project_root` で分岐する。
 //
 // **関門はどれも存在確認より先に置く。** 後ろに置くと、root 外のパスが在るかどうかを
 // 返ってくる code で判別できてしまう。順序の理由は `validate_under_root` に書いてある
@@ -206,6 +207,16 @@ pub fn mv_directory<R: Runtime>(
     let dest = dest_parent.join(&name);
 
     validate_under_root(&app, &dest)?;
+    // 自分の中へは動かせない。ここで止めないと `fs::rename` が EINVAL を返し、
+    // `io`（「読み書きに失敗しました」/ tier は warning）に丸まる。
+    // 何度読み直しても同じなので、利用者は効かない再読み込みを押し続ける
+    if is_move_into_itself(&src, &dest) {
+        return Err(FsError::new(
+            FsErrorCode::InvalidDestination,
+            "cannot move a directory into itself",
+        )
+        .with_path(dest.to_string_lossy().to_string()));
+    }
     ensure_not_exists(&dest)?;
 
     fs::rename(&src, &dest).map_err(FsError::from)?;

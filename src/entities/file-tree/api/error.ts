@@ -10,6 +10,8 @@ export type FsErrorCode =
   | "invalid_type"
   | "invalid_extension"
   | "invalid_destination"
+  // ワークスペースそのものを消そうとした。UI の判定に頼らず Rust が止める
+  | "root_not_deletable"
   // 棋譜を保存する形へ直せなかった（Rust の正規化・直列化）
   | "kifu_conversion_failed"
   | "permission_denied"
@@ -50,6 +52,7 @@ export const FS_ERROR_CODES = {
   invalid_type: true,
   invalid_extension: true,
   invalid_destination: true,
+  root_not_deletable: true,
   kifu_conversion_failed: true,
   permission_denied: true,
   io: true,
@@ -138,6 +141,7 @@ export function isNameInputError(code: FsErrorCode): boolean {
     case "invalid_path":
     case "invalid_type":
     case "invalid_destination":
+    case "root_not_deletable":
     case "kifu_conversion_failed":
     case "permission_denied":
     case "io":
@@ -177,6 +181,7 @@ export function fsErrorTier(code: FsErrorCode): "warning" | "danger" {
     case "invalid_type":
     case "invalid_extension":
     case "invalid_destination":
+    case "root_not_deletable":
     case "kifu_conversion_failed":
     case "kifu_format_unknown":
     case "kifu_parse_failed":
@@ -210,6 +215,8 @@ export function describeFsError(code: FsErrorCode): string {
       return "対応していない拡張子です";
     case "invalid_destination":
       return "その移動先には置けません";
+    case "root_not_deletable":
+      return "ワークスペースそのものは削除できません";
     case "kifu_conversion_failed":
       return "棋譜をこの形式に変換できませんでした";
     case "permission_denied":

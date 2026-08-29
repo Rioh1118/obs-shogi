@@ -5,11 +5,11 @@ use tauri::{command, AppHandle, Runtime};
 use crate::file_system::error::{FsError, FsErrorCode};
 
 use super::types::FileTreeNode;
-use super::utils::{generate_id, get_file_extension, is_kifu_file, validate_under_root};
+use super::utils::{generate_id, get_file_extension, is_kifu_file, is_under, validate_under_root};
 
-// TODO(#215): 深さの止めが無い。symlink は下で外しているので循環はしないが、
-// 実体のディレクトリを深く積めば同じことが起きる
-fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, FsError> {
+// TODO(#215): 深さの止めが無い。root の中で閉じた symlink は辿るので循環しうるし、
+// 実体のディレクトリを深く積んでも同じことが起きる
+fn build_file_tree_recursive(path: &Path, canonical_root: &Path) -> Result<FileTreeNode, FsError> {
     let metadata = fs::metadata(path).map_err(FsError::from)?;
     let is_dir = metadata.is_dir();
 
@@ -51,20 +51,27 @@ fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, FsError> {
             };
             let child_path = entry.path();
 
-            // **symlink は辿らない。** `entry.file_type()` は `read_dir` が返した
-            // 型なので symlink をそのまま symlink と答える（`Path::is_dir` は辿る）。
-            // 辿ると一覧が root の外へ出る。しかも中身は `read_file` の関門が
-            // canonicalize して弾くので、辿った先は**見えるのに開けない行**になる
+            // **root の外へ出る symlink は落とす。** `Path::is_dir` は symlink を辿るので、
+            // 素通しにすると一覧がホーム以下まで広がる。しかも辿った先は `read_file` の
+            // 関門が canonicalize して弾くので、**見えるのに開けない行**になる。
+            //
+            // root の中で閉じている symlink（`ws/current -> ws/2026/08`）は普通の使い方で、
+            // 中身も開けるので残す。無条件に落とすと、何も伝えないまま一覧から消える
             let Ok(file_type) = entry.file_type() else {
                 continue;
             };
             if file_type.is_symlink() {
-                continue;
+                let Ok(resolved) = fs::canonicalize(&child_path) else {
+                    continue;
+                };
+                if !is_under(canonical_root, &resolved) {
+                    continue;
+                }
             }
 
             // ディレクトリまたは棋譜ファイルのみを含める
-            if file_type.is_dir() || is_kifu_file(&child_path) {
-                match build_file_tree_recursive(&child_path) {
+            if child_path.is_dir() || is_kifu_file(&child_path) {
+                match build_file_tree_recursive(&child_path, canonical_root) {
                     Ok(child_node) => children.push(child_node),
                     Err(_) => continue, // エラーは無視して続行
                 }
@@ -91,8 +98,8 @@ fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, FsError> {
 /// 突き合わせないと `invoke("get_file_tree", { rootDir: "/Users/x" })` で
 /// ホーム以下の全ディレクトリ名・棋譜のフルパス・サイズ・更新時刻が返る。
 /// 中身は `read_file` が `validate_under_root` で守っているが、一覧は素通りになる。
-/// 走査の側で root の外へ出ないことは `build_file_tree_recursive` が symlink を
-/// 外して受け持つ（関門は引数1点しか見ない）。
+/// 走査の側で root の外へ出ないことは `build_file_tree_recursive` が受け持つ
+/// （関門は引数1点しか見ない）。
 #[command]
 pub fn get_file_tree<R: Runtime>(
     app: AppHandle<R>,
@@ -116,5 +123,5 @@ pub fn get_file_tree<R: Runtime>(
 
     // 絶対パスに正規化
     let canonical_path = root_path.canonicalize().map_err(FsError::from)?;
-    build_file_tree_recursive(&canonical_path)
+    build_file_tree_recursive(&canonical_path, &canonical_path)
 }

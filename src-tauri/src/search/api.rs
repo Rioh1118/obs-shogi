@@ -80,6 +80,9 @@ pub async fn cancel_search(
 }
 
 #[tauri::command]
+// TODO(#215): `input.root_dir` を無検証で受け、その下を歩いて棋譜を読む。
+// ワークスペースの root を決める前に呼ばれるので `validate_under_root` を掛けられない。
+// 免除は `tests/root_guard.rs` の EXEMPT に理由つきで並べてある
 pub async fn open_project(
     app: AppHandle,
     state: State<'_, crate::search::api::SearchState>,

@@ -33,6 +33,9 @@ pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
 }
 
 #[tauri::command]
+// TODO(#215): `config.root_dir` を無検証で受ける。ここが root を決める側なので
+// `validate_under_root` を掛けられない。webview から直に呼べば関門を全開にできる。
+// 免除は `tests/root_guard.rs` の EXEMPT に理由つきで並べてある
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let path = config_path(&app)?;
     let data = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;

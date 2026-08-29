@@ -83,7 +83,7 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
 ///
 /// 両方 canonicalize 済みであることを前提にする。`Path::starts_with` は
 /// 成分単位で見るので `/root2` は `/root` 配下と判定されない
-fn is_under(root: &Path, target: &Path) -> bool {
+pub fn is_under(root: &Path, target: &Path) -> bool {
     target.starts_with(root)
 }
 
@@ -113,10 +113,14 @@ fn canonicalize_for_guard(target: &Path) -> Result<PathBuf, FsError> {
 
 /// 与えられた target が AppConfig.root_dir 配下にあるか検証する。
 ///
-/// **存在確認より先に呼ぶ。** 後ろに置くと、root 外のパスが在るかどうかを
-/// 返ってくる code（`not_found` か `invalid_path` か）で判別できてしまう。
+/// **存在確認より先に呼ぶ。** 後ろに置くと、root 外のパスについて
+/// `is_file()` / `is_dir()` / `read_dir` の結果まで返してしまう。
 /// 先に置いても、失敗には `canonicalize_for_guard` が `path` を載せるので
 /// どのパスの話かは画面に残る。
+///
+/// **存否そのものは隠せない。** 親を canonicalize する以上、root 外のパスでも
+/// 「在る（`invalid_path`）」と「無い（`not_found`）」は返る code から読める。
+/// ここは webview を信用しない前提の防壁ではないので、それは範囲外とする（下記）。
 ///
 /// **`root_dir` が未設定なら、この関門は無条件で開く。**
 /// ワークスペースを選ぶ前に起きるので UI からは踏めないが、
@@ -138,6 +142,15 @@ pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Res
         );
     }
     Ok(())
+}
+
+/// `dest` が `src` 自身か、その配下か。
+///
+/// ディレクトリを自分の中へ動かすのは `fs::rename` が `EINVAL` で落とす。
+/// そのまま返すと `io` に丸まり、tier が `warning` なので「再読み込み」が出る。
+/// 何度読み直しても同じなので、押しても直らない導線を出すことになる
+pub fn is_move_into_itself(src: &Path, dest: &Path) -> bool {
+    is_under(src, dest)
 }
 
 /// `target` が設定上の root そのものか。
@@ -230,6 +243,18 @@ mod tests {
         assert!(!is_under(root, Path::new("/root2/a.kif")));
         assert!(!is_under(root, Path::new("/etc/passwd")));
         assert!(!is_under(root, Path::new("/")));
+    }
+
+    /// ディレクトリを自分の中へ動かす形。`/root/a` と `/root/ab` を
+    /// 取り違えないことも一緒に固定する
+    #[test]
+    fn rejects_moving_a_directory_into_itself() {
+        let src = Path::new("/root/a");
+
+        assert!(is_move_into_itself(src, Path::new("/root/a")));
+        assert!(is_move_into_itself(src, Path::new("/root/a/b/a")));
+        assert!(!is_move_into_itself(src, Path::new("/root/ab/a")));
+        assert!(!is_move_into_itself(src, Path::new("/root/b/a")));
     }
 
     #[test]

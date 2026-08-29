@@ -21,6 +21,7 @@ import {
   makeFsError,
   type FsError,
 } from "../api/error";
+import { isProjectRoot } from "../lib/isProjectRoot";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { useAppConfig } from "@/entities/app-config";
 
@@ -422,7 +423,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const nextPath = res.data;
       reconcilePathMutation(node.path, nextPath);
 
-      const isRootRename = node.isDirectory && rootDir === node.path;
+      const isRootRename = node.isDirectory && isProjectRoot(node.path, state.fileTree);
       if (isRootRename) {
         // ここだけ読み直しを起こさない。ルート自体が変わるので、
         // `rootDir` の変化を受ける effect（上）が新しい場所で読み直す。

@@ -16,21 +16,39 @@
 use std::fs;
 use std::path::Path;
 
-/// `#[command]` と `#[tauri::command]` の両方。表記はこの crate の中で割れている
-const ATTRIBUTES: [&str; 2] = ["#[command]", "#[tauri::command]"];
+/// `#[command]` と `#[tauri::command]` の両方。表記はこの crate の中で割れている。
+/// **閉じ括弧まで含めない。** Tauri は `#[tauri::command(async)]` や
+/// `#[tauri::command(rename_all = "snake_case")]` も正規の書き方として認めており、
+/// 完全一致にすると、その形で足されたコマンドが走査から丸ごと消える
+const ATTRIBUTES: [&str; 2] = ["#[command", "#[tauri::command"];
 
 /// root 配下かを確かめる関門
 const GUARD: &str = "validate_under_root";
 
+/// 関門のほかに、そのコマンドだけが呼ばなければならないもの。
+///
+/// `validate_under_root` は `root == target` を「配下」として通すので、
+/// **root 自身を壊す操作は別に止める必要がある**。UI 側にも判定はあるが、
+/// あちらは設定に保存した文字列と canonicalize したパスを比べていて、
+/// symlink を1つ挟むと一致しない。守れる層で止める
+const EXTRA_GUARDS: [(&str, &str); 2] = [
+    ("delete_directory", "is_project_root"),
+    ("mv_directory", "is_move_into_itself"),
+];
+
 /// パスを引数の**型の中**で受け取るコマンド。署名の字面には出ないので手で並べる。
 /// 構造体でパスを受けるコマンドを足したら、ここにも足すこと
-const STRUCT_CARRIED_PATH: [&str; 2] = ["write_kifu_to_file", "open_project"];
+const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "save_config"];
 
 /// 関門を通さないコマンドと、その理由。
 ///
-/// **理由なしで足さない。** ここに並ぶのは「ワークスペースとは別の場所を
-/// 意図して触る」ものだけで、「まだ直していない」ものではない
-const EXEMPT: [(&str, &str); 4] = [
+/// **理由なしで足さない。** 並んでよいのは次の2種類だけ。
+///
+/// 1. ワークスペースとは別の場所を意図して触るもの
+/// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
+///
+/// 「まだ直していない」は理由にならない
+const EXEMPT: [(&str, &str); 5] = [
     (
         "scan_ai_root",
         "ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",
@@ -42,7 +60,11 @@ const EXEMPT: [(&str, &str); 4] = [
     ),
     (
         "open_project",
-        "索引を張る対象の root を受け取る側。root を決める前に呼ばれる → TODO(#215)",
+        "(2) 索引を張る対象の root を受け取る側。root を決める前に呼ばれる → TODO(#215)",
+    ),
+    (
+        "save_config",
+        "(2) root_dir を決める側。関門を掛けると root を設定できなくなる → TODO(#215)",
     ),
 ];
 
@@ -123,6 +145,11 @@ fn commands(source: &str) -> Vec<(String, String)> {
 /// 署名がパスらしきものを受け取っているか。
 /// 引数名の末尾が `path` / `dir` / `root` のもの、および `Path` / `PathBuf` を見る
 fn takes_a_path(chunk: &str) -> bool {
+    // 属性の括弧（`#[tauri::command(async)]` や `#[allow(...)]`）を署名と取り違えない
+    let Some(signature_start) = chunk.find("fn ") else {
+        return false;
+    };
+    let chunk = &chunk[signature_start..];
     let Some(open) = chunk.find('(') else {
         return false;
     };
@@ -191,6 +218,22 @@ fn every_path_taking_command_checks_the_root() {
             missing.push(format!("{file}: {name}"));
         }
     }
+
+    let mut missing_extra: Vec<String> = Vec::new();
+    for (_, source) in &files {
+        for (name, body) in commands(source) {
+            for (command, guard) in EXTRA_GUARDS {
+                if name == command && !body.contains(guard) {
+                    missing_extra.push(format!("{command} が {guard} を呼んでいない"));
+                }
+            }
+        }
+    }
+    assert!(
+        missing_extra.is_empty(),
+        "root 自身を壊す操作を止めていない:\n{}",
+        missing_extra.join("\n")
+    );
 
     // 0件で緑になる形を作らない。切り出しが壊れたらここで気づく
     assert!(
@@ -282,5 +325,73 @@ fn only_signatures_that_carry_a_path_are_checked() {
     assert!(takes("p: &Path"));
 
     assert!(!takes("state: State<'_, AppState>, depth: u32"));
+    // `AppConfig` は中に root_dir を持つが署名からは見えない。
+    // 署名で拾えないものは `STRUCT_CARRIED_PATH` の側で名指しする
     assert!(!takes("app: AppHandle, config: AppConfig"));
+}
+
+#[test]
+fn the_scan_survives_attributes_with_arguments() {
+    let source = r#"
+#[tauri::command(rename_all = "snake_case")]
+#[allow(clippy::too_many_arguments)]
+pub async fn a(app: AppHandle, file_path: String) -> () {
+    validate_under_root(&app, &p);
+}
+"#;
+
+    let found = commands(source);
+    assert_eq!(found.len(), 1, "引数付きの属性を拾えていない");
+    assert_eq!(found[0].0, "a");
+    assert!(
+        takes_a_path(&found[0].1),
+        "属性の括弧を署名と取り違えている"
+    );
+}
+
+/// `EXEMPT` と `STRUCT_CARRIED_PATH` に書いた名前が実在しないと、
+/// 綴りを間違えた瞬間にその行が黙って無効になる
+#[test]
+fn every_listed_name_is_a_real_command() {
+    let names: Vec<String> = rust_files(Path::new("src"))
+        .iter()
+        .flat_map(|(_, source)| commands(source))
+        .map(|(name, _)| name)
+        .collect();
+
+    for (listed, _) in EXEMPT {
+        assert!(names.iter().any(|n| n == listed), "EXEMPT: {listed} が無い");
+    }
+    for listed in STRUCT_CARRIED_PATH {
+        assert!(
+            names.iter().any(|n| n == listed),
+            "STRUCT_CARRIED_PATH: {listed} が無い"
+        );
+    }
+}
+
+/// `EXEMPT` の理由に書いた `TODO(#N)` が、実際にソースへ置かれているか。
+/// 置かれていないと、免除されていること自体がコードから辿れない
+#[test]
+fn every_todo_in_a_reason_exists_in_the_source() {
+    let sources: String = rust_files(Path::new("src"))
+        .iter()
+        .map(|(_, source)| source.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    for (name, reason) in EXEMPT {
+        let Some(at) = reason.find("TODO(#") else {
+            continue;
+        };
+        let end = reason[at..]
+            .find(')')
+            .map(|e| at + e + 1)
+            .unwrap_or(reason.len());
+        let todo = &reason[at..end];
+        assert!(
+            sources.contains(todo),
+            "{name} の理由が指す {todo} がソースに無い"
+        );
+    }
 }

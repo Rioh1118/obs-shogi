@@ -1,7 +1,6 @@
 import RootNode from "./RootNode";
 import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
-import { useAppConfig } from "@/entities/app-config";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -24,7 +23,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import ScrollDropZone from "./ScrollDropZone";
-import { useFileTree } from "@/entities/file-tree";
+import { isProjectRoot, useFileTree } from "@/entities/file-tree";
 import Spinner from "@/shared/ui/Spinner";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import Modal from "@/shared/ui/Modal";
@@ -57,7 +56,6 @@ function FileTree() {
     refreshTree,
   } = useFileTree();
 
-  const { config } = useAppConfig();
   const { openModal } = useURLParams();
 
   // ルートそのものが読めないとき、この widget の中に復帰路が無い。
@@ -154,7 +152,7 @@ function FileTree() {
     }
   };
 
-  const isRoot = !!(menu && config?.root_dir && menu.node.path === config.root_dir);
+  const isRoot = !!menu && isProjectRoot(menu.node.path, fileTree);
 
   const items = menu
     ? [

@@ -1,6 +1,11 @@
+// `invalid_path` は **root の外**専用。手前の `validate_under_root` だけが返す。
+// 「無い」を `invalid_path` に載せると、tier が `danger` になって
+// 「再読み込み」の導線が消える（ツリーが古いだけなのに、直す操作が画面から消える）
 use crate::file_system::{
     error::{FsError, FsErrorCode},
-    utils::{atomic_write, ensure_not_exists, validate_basename, validate_under_root},
+    utils::{
+        atomic_write, ensure_not_exists, is_project_root, validate_basename, validate_under_root,
+    },
 };
 use std::io::Write;
 
@@ -150,7 +155,7 @@ pub fn create_kifu_file<R: Runtime>(
 
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "parent directory does not exist")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
@@ -198,7 +203,7 @@ pub fn import_kifu_file<R: Runtime>(
 
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "parent directory does not exist")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
@@ -239,7 +244,7 @@ pub fn save_kifu_file<R: Runtime>(
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "parent directory does not exist")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
@@ -277,7 +282,7 @@ pub fn create_directory<R: Runtime>(
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "parent directory does not exist")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
@@ -323,6 +328,18 @@ pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(
 pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&dir_path);
     validate_under_root(&app, &path)?;
+
+    // ワークスペースそのものは消させない。`remove_dir_all` は中身ごと消し、
+    // 取り消す手段が無い。UI 側にも判定はあるが、そちらは設定に保存された文字列と
+    // Rust が canonicalize したパスを比べているので、symlink を1つ挟むと一致しない
+    // （macOS で `/tmp` を選ぶと `/private/tmp` になる）。守れる層で止める
+    if is_project_root(&app, &path)? {
+        return Err(FsError::new(
+            FsErrorCode::RootNotDeletable,
+            "cannot delete the project root",
+        )
+        .with_path(dir_path));
+    }
 
     if !path.exists() {
         return Err(
