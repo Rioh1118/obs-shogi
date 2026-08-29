@@ -34,8 +34,8 @@ export type ParsedKifu = {
    * 中身から判定した形式
    *
    * 拡張子とは独立に決まるので、`.kif` に CSA が入っていれば `"csa"` になる。
-   * 保存形式は拡張子から決めており（`file-tree/api/adapter.ts` の `kifuFormat`）、
-   * この値とは一致しない。
+   * 保存形式は拡張子から決めているので（`file-tree/api/adapter.ts` の `kifuFormat`）、
+   * この値と一致するとは限らない。
    */
   detectedFormat: KifuFormat;
   jkf: JKFData;

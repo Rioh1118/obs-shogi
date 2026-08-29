@@ -10,8 +10,9 @@ export interface NavigationState {
   /**
    * `buildNextOptions` が返した候補配列の添字。
    *
-   * `BranchIndex` ではない。`buildNextOptions` は空の変化を読み飛ばすので、
-   * 表示順の添字と分岐一覧の位置は一致しない。削除・入れ替えに渡す値ではない。
+   * `BranchIndex` ではない。`buildNextOptions` は先頭が空の変化を読み飛ばすので、
+   * 一致する保証が無い。削除・入れ替えに渡すなら `BranchOption.forkIndex` から
+   * `branchIndexFromSelection` で作り直すこと。
    */
   selectedOptionIndex: number;
 }
