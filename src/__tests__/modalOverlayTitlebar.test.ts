@@ -16,15 +16,17 @@ import { describe, expect, it } from "vitest";
  * レイアウト計算が無いので重なりは再現できない。SCSS をコンパイルして値で見る。
  *
  * 見るのは**綴りでなく実効値**。`inset` 系は辺に展開してから比べ、高さの上限は
- * どの引数が上限になるかで判定するので、等価な書き換えは通る。
+ * どの引数が上限になるかで判定するので、`min()` の引数の順序を変えるような
+ * 等価な書き換えは通る。ただし上限の判定は形の列挙なので、
+ * `min(80vh, calc(100% - 1rem))` のように列挙に無い書き方は正しくても落ちる（安全側）。
  *
  * 辺の検査だけは fail-closed にしてある。知らない `inset-*` 系に当たったら
- * 通さずに落とす。高さの検査はそうなっていない。見るのは
- * `src/features/**` の `height` / `min-height` だけで、モーダルの中身を
- * 別のレイヤに置いた場合や、`grid-template-rows` / `flex-basis` で
- * 高さを決めた場合は素通りする。
+ * 通さずに落とす。高さの検査はそうなっていない。見るのは `.modal__card` の
+ * 高さ系と、`src/features/**` の `height` / `min-height` / `block-size` 系。
+ * モーダルの中身を別のレイヤに置いた場合や、`grid-template-rows` / `flex-basis` /
+ * `padding` で高さを作る形は素通りする。
  *
- * 判定そのものは末尾の `describe("検査の判定")` で固定してある。
+ * 判定は末尾の `describe("検査の判定")` で固定してある。
  */
 
 /**
@@ -74,6 +76,9 @@ function lastCompound(selector: string): string {
   return parts[parts.length - 1] ?? "";
 }
 
+/** 疑似要素。CSS2 由来の4つはコロン1つでも書ける */
+const PSEUDO_ELEMENT = /::|:(?:after|before|first-line|first-letter)\b/;
+
 type Declaration = { selector: string; prop: string; value: string; unconditional: boolean };
 
 /**
@@ -89,8 +94,9 @@ function declarationsFor(css: string, target: string): Declaration[] {
     const matches = rule.selectors.some((selector) => {
       const compound = lastCompound(selector);
       // 疑似要素は別の箱。`::after` の `top` も `::-webkit-scrollbar` の `height` も
-      // 本体の幾何とは関係が無いのに、`\b` は `::` の前でも成立してしまう
-      return !compound.includes("::") && pattern.test(compound);
+      // 本体の幾何とは関係が無いのに、`\b` はコロンの前でも成立してしまう。
+      // sass は `:after` を `::after` へ正規化しないので、綴りは両方見る
+      return !PSEUDO_ELEMENT.test(compound) && pattern.test(compound);
     });
     if (!matches) return;
     rule.walkDecls((declaration) => {
@@ -180,17 +186,19 @@ function isBounded(value: string): boolean {
   if (call[1] === "min") return args.includes("100%");
   // clamp(a, b, c) は max(a, min(b, c))。第3引数が `100%` でも、第1引数が
   // それを超えうるなら上限にならない（`clamp(32rem, 78vh, 100%)` は器を超える）
-  return args.length === 3 && args[2] === "100%" && /^0(px|%|rem|em)?$/.test(args[0] ?? "");
+  // ゼロ長は単位に関係なく `100%` 以下。裸の `0` は sass が長さとして受け付けない
+  return args.length === 3 && args[2] === "100%" && /^0[a-z%]*$/.test(args[0] ?? "");
 }
 
 /**
  * ビューポート基準の長さ。`vh` 系だけでなく `vw` / `vmin` / `vmax` も、
  * 高さに使えば同じく器と無関係に決まる。
- * `max-height` は要素を大きくできないので危なくない。器より大きくなりうるのは
- * `height` と `min-height` を viewport で決めた場合だけ
+ * `max-height` は要素を大きくできないので危なくない。器より大きくなりうるのは、
+ * 高さの下限か指定値を viewport で決めた場合。論理プロパティの `block-size` は
+ * `horizontal-tb` では `height` と同じ（辺の展開と同じ前提）
  */
 const VIEWPORT_UNIT = /(?<![\w.])[\d.]+(?:d|s|l)?v(?:h|w|i|b|min|max)\b/;
-const FORCING_HEIGHT = new Set(["height", "min-height"]);
+const FORCING_HEIGHT = new Set(["height", "min-height", "block-size", "min-block-size"]);
 
 function scssUnder(directory: string): string[] {
   return readdirSync(join(SRC, directory), { recursive: true, encoding: "utf8" })
@@ -211,7 +219,7 @@ function unboundedIn(label: string, css: string): string[] {
     postcss.parse(css).walkRules((rule) => {
       const heights = rule.nodes.filter(
         (node): node is postcss.Declaration =>
-          node.type === "decl" && /^(min-|max-)?height$/.test(node.prop),
+          node.type === "decl" && /^(min-|max-)?(height|block-size)$/.test(node.prop),
       );
       const forcing = heights.filter(
         (declaration) =>
@@ -221,15 +229,13 @@ function unboundedIn(label: string, css: string): string[] {
 
       // 解決順は `max(min-height, min(max-height, height))` なので、`min-height` が
       // 器を超える値なら `max-height` では止まらない。`min-height: 0` は下限を
-      // 外すだけで上限にはならない。`height: auto` も上限ではない
-      const forcedFromBelow = forcing.some((declaration) => declaration.prop === "min-height");
+      // 外すだけで上限にはならない
+      const forcedFromBelow = forcing.some((declaration) => declaration.prop.startsWith("min-"));
       const bounded =
         !forcedFromBelow &&
         heights.some(
           (declaration) =>
-            (declaration.prop === "max-height" ||
-              (declaration.prop === "height" && declaration.value.trim() !== "auto")) &&
-            isBounded(declaration.value),
+            /^(max-)?(height|block-size)$/.test(declaration.prop) && isBounded(declaration.value),
         );
       if (bounded) return;
 
@@ -336,7 +342,8 @@ describe("モーダルの overlay とタイトルバー", () => {
         "`vh` だけで書くと overlay がタイトルバーの分だけ低いことを無視して、",
         "カードが上へはみ出して帯を覆い、下へはみ出して画面外に出る。",
         "`100%` / `auto` / `0`、`100%` を引数に持つ `min()`、",
-        "第3引数が `100%` の `clamp()` が上限として効く。",
+        "第1引数がゼロで第3引数が `100%` の `clamp()` が上限として効く。",
+        "`clamp()` の下限が非ゼロだと器を超えうるので、`min(…, 100%)` に書き換えること。",
         "`max(…, 100%)` や `calc(100% + …)`、`none` は上限にならない。",
       ].join("\n"),
     ).toEqual([]);
@@ -371,6 +378,9 @@ describe("検査の判定", () => {
     ["min(100%, 88vh)", true],
     ["min(88vh, 100%, 700px)", true],
     ["clamp(0px, 88vh, 100%)", true],
+    ["clamp(0vh, 88vh, 100%)", true],
+    // `100%` が引数に無ければ上限にならない
+    ["min(80vh, 700px)", false],
     // 第1引数が 100% を超えうるので上限にならない
     ["clamp(32rem, 78vh, 100%)", false],
     // `100%` を含むが上限にならない書き方
@@ -391,11 +401,13 @@ describe("検査の判定", () => {
     ["頭打ちが無い", ".a { height: 78vh; }", true],
     // 解決順は max(min-height, min(max-height, height))
     ["min-height が viewport 基準", ".a { min-height: 60vh; max-height: 100%; }", true],
-    ["height: auto は上限にならない", ".a { min-height: 78vh; height: auto; }", true],
+    ["後から height: auto で上書きすれば強制されない", ".a { height: 78vh; height: auto; }", false],
     ["min-height: 0 は上限にならない", ".a { height: 78vh; min-height: 0; }", true],
     // 大きくしないので対象外
     ["max-height だけが viewport 基準", ".a { max-height: 34vh; }", false],
     ["vh 以外の viewport 単位", ".a { height: 70vmin; }", true],
+    ["論理プロパティの高さ", ".a { block-size: 78vh; }", true],
+    ["論理プロパティの頭打ち", ".a { block-size: 78vh; max-block-size: 100%; }", false],
     ["at-rule の内側でも見る", "@media (min-height: 1px) { .a { height: 78vh; } }", true],
   ];
 
@@ -404,4 +416,49 @@ describe("検査の判定", () => {
       expect(unboundedIn("case", css)).toHaveLength(violates ? 1 : 0);
     });
   }
+
+  it("inset の短縮形を辺に展開する", () => {
+    const { settings } = edgeSettings([
+      { selector: ".a", prop: "inset", value: "2.6rem 0 0", unconditional: true },
+    ]);
+    expect(settings.map(({ edge, value }) => `${edge}:${value}`)).toEqual([
+      "top:2.6rem",
+      "right:0",
+      "bottom:0",
+      "left:0",
+    ]);
+  });
+
+  it("論理プロパティを物理の辺に展開する", () => {
+    const { settings } = edgeSettings([
+      { selector: ".a", prop: "inset-block", value: "0", unconditional: true },
+    ]);
+    expect(settings.map(({ edge, value }) => `${edge}:${value}`)).toEqual(["top:0", "bottom:0"]);
+  });
+
+  it("辺を決めうるのに展開できないプロパティは通さない", () => {
+    const { unknown } = edgeSettings([
+      { selector: ".a", prop: "inset-area", value: "top", unconditional: true },
+    ]);
+    expect(unknown).toHaveLength(1);
+  });
+
+  it("結合子で切るとき、関数擬似クラスの引数リストを壊さない", () => {
+    expect(lastCompound(":is(.modal__overlay, .other)")).toBe(":is(.modal__overlay, .other)");
+    expect(lastCompound(".modal--dark .modal__overlay")).toBe(".modal__overlay");
+  });
+
+  it("疑似要素の規則を本体の宣言として数えない", () => {
+    expect(declarationsFor(".a::after { top: 0 }", ".a")).toEqual([]);
+    expect(declarationsFor(".a:after { top: 0 }", ".a")).toEqual([]);
+    expect(declarationsFor(".a { top: 0 }", ".a")).toHaveLength(1);
+  });
+
+  it("at-rule の内側の宣言を無条件と数えない", () => {
+    expect(
+      declarationsFor("@media (min-height: 1px) { .a { max-height: 100% } }", ".a")[0]
+        ?.unconditional,
+    ).toBe(false);
+    expect(declarationsFor(".a { max-height: 100% }", ".a")[0]?.unconditional).toBe(true);
+  });
 });
