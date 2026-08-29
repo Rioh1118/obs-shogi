@@ -6,6 +6,11 @@
 
   width: 100%;
   height: min(78vh, 760px);
+  // カードは `overflow: hidden` なので、はみ出した分はスクロールでも届かない。
+  // カード自身の高さは overlay の内容ボックスで頭打ちになるから、`78vh` だけでは
+  // 短いウィンドウでフッタごと切られる（ウィンドウ高 236px でボタンが全部隠れる）
+  max-height: 100%;
+  min-height: 0;
 
   .presetDialog__header {
     padding: 18px 18px 14px 18px;
