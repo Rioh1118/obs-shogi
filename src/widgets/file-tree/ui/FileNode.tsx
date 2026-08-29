@@ -102,12 +102,8 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  const handleCommit = async (nextName: string) => {
-    const res = await commitName(nextName, (name) => renameNode(node, name));
-    if (!res.ok) return res;
-    cancelInlineRename();
-    return res;
-  };
+  const handleCommitRename = (nextName: string) =>
+    commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
   return (
     <NodeBox
@@ -130,7 +126,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
           initialName={node.name}
           selectMode="file"
           onCancel={cancelInlineRename}
-          onCommit={handleCommit}
+          onCommit={handleCommitRename}
         />
       ) : (
         <span
