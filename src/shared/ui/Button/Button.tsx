@@ -2,10 +2,10 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import "./Button.scss";
 
 /** 面の色と文字色を決める。それ以外の軸とは独立している。 */
-export type ButtonTone = "primary" | "neutral" | "quiet" | "danger";
+export type ButtonTone = "primary" | "neutral" | "danger";
 /** 高さ・左右の余白・文字サイズをまとめて決める。 */
-export type ButtonSize = "sm" | "md" | "lg";
-export type ButtonRadius = "sharp" | "soft" | "pill";
+export type ButtonSize = "sm" | "md";
+export type ButtonRadius = "soft" | "pill";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   tone?: ButtonTone;
@@ -13,7 +13,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   radius?: ButtonRadius;
   /** ホバーの影と押下の沈み込み。並べて何度も押す場所では切る */
   motion?: boolean;
-  block?: boolean;
   /** 処理中。押せなくしたうえで、待っていることを支援技術にも伝える */
   isLoading?: boolean;
   children: ReactNode;
@@ -30,7 +29,6 @@ export default function Button({
   size = "md",
   radius = "soft",
   motion = true,
-  block = false,
   isLoading = false,
   disabled,
   className,
@@ -43,7 +41,6 @@ export default function Button({
     `uiBtn--${size}`,
     `uiBtn--r-${radius}`,
     motion ? "uiBtn--motion" : null,
-    block ? "uiBtn--block" : null,
     className,
   ]
     .filter(Boolean)

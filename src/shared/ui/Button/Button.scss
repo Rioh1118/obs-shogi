@@ -47,17 +47,7 @@
     font-size: index.$font-aux;
   }
 
-  &--lg {
-    height: 3.8rem;
-    padding: 0 index.$space-8;
-    font-size: index.$font-body;
-  }
-
   // ── 角丸 ──
-  &--r-sharp {
-    border-radius: index.$radius-2;
-  }
-
   &--r-soft {
     border-radius: index.$radius-3;
   }
@@ -92,16 +82,6 @@
     }
   }
 
-  // 枠を持たない。並べたときに主ボタンから視線を奪わない
-  &--quiet {
-    border-color: transparent;
-    color: rgba(index.$color-text-primary, 0.72);
-
-    &:hover:not(:disabled) {
-      color: index.$color-text-primary;
-    }
-  }
-
   // ── 動き ──
   // 押した手応えを出す。連続で押す場所では切れるように分けてある
   &--motion {
@@ -113,11 +93,6 @@
       transform: translateY(0.1rem);
       box-shadow: index.$shadow-control-press;
     }
-  }
-
-  &--block {
-    display: flex;
-    width: 100%;
   }
 
   &__label {
