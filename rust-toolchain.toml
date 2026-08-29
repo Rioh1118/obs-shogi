@@ -1,0 +1,7 @@
+# ローカルと CI で同じ clippy が走るように固定する。
+# 固定していないと、手元 1.94 / CI 1.98 のように lint の集合がずれ、
+# ローカルの verify:rust が green でも CI で落ちる（実際に PR #119 で起きた）。
+# 上げるときは手元で `npm run verify:rust` を通してからこの値を変えること。
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]
