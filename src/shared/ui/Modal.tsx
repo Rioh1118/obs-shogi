@@ -150,7 +150,11 @@ function Modal({
     // **バブル段で聞く。** キャプチャ段だと、ポータル先（`#modal-root`）に張られた
     // React のハンドラより必ず先に走る。中の入力が Escape を自分の用途に使う
     // （`TagsInput` は打ちかけの文字を消す）経路が、届く前に閉じられて死ぬ。
-    // バブルなら内側が先に処理でき、`e.defaultPrevented` でここが降りる
+    // バブルなら内側が先に処理でき、`e.defaultPrevented` でここが降りる。
+    //
+    // **内側は `preventDefault()` で降ろすこと。`stopPropagation()` は使わない。**
+    // あちらは `document` までイベントを届かせないので、`defaultPrevented` の判定に
+    // 到達せず、消すものが無いときも Escape が無反応になる
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [closeOnEsc, onClose, isTop]);

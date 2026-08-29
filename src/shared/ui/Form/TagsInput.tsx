@@ -52,10 +52,12 @@ export function TagsInput({
       removeTag(tags.length - 1);
     } else if (e.key === "Escape" && inputValue) {
       // 打ちかけの文字を消すのが先。消すものが無いときは止めないので、
-      // そのまま上のモーダルまで届いて閉じる
+      // そのまま上のモーダルまで届いて閉じる。
+      //
+      // **blur しない。** ここで抜けると `Modal` の閉じ込めが外へ出た焦点を
+      // カード内の先頭の要素へ引き戻すので、キャレットが別の入力欄へ飛ぶ
       e.preventDefault();
       setInputValue("");
-      inputRef.current?.blur();
     }
   };
 
