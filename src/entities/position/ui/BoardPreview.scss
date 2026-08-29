@@ -138,8 +138,9 @@
   }
 
   &__hand-label {
-    // 盤の大きさに従属して縮む。文字の階層とは別系統なのでスケールに載せない
-    font-size: 0.75rem; // scale-exempt
+    // 盤の縮尺に従う。兄弟の __coordinate と同じ考え方で、
+    // アプリの文字の階層とは別系統
+    font-size: calc(var(--square-size) * 0.225);
     font-weight: 600;
     min-width: 3rem;
     text-align: center;
@@ -167,8 +168,9 @@
   }
 
   &__hand-empty {
-    // 盤の大きさに従属して縮む。文字の階層とは別系統なのでスケールに載せない
-    font-size: 0.625rem; // scale-exempt
+    // 盤の縮尺に従う。兄弟の __coordinate と同じ考え方で、
+    // アプリの文字の階層とは別系統
+    font-size: calc(var(--square-size) * 0.1875);
     color: var(--text-tertiary);
     font-style: italic;
   }

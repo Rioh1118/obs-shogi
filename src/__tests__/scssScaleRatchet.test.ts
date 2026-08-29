@@ -16,7 +16,7 @@ const BASELINE: Record<Bucket, number> = {
   motion: 81,
   family: 18,
   indirect: 53,
-  exempt: 2,
+  exempt: 0,
 };
 
 const SRC = join(process.cwd(), "src");
