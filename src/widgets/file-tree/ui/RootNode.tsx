@@ -26,6 +26,7 @@ function RootNode({
     renamingNodeId,
     renameNode,
     cancelInlineRename,
+    pushError,
     creatingDirParentPath,
     cancelCreateDirectory,
     createNewDirectory,
@@ -56,6 +57,9 @@ function RootNode({
   };
 
   const handleClick = () => {
+    // 改名中は畳まない。失敗の箱は行を押し広げて出るので、その文を読もうとした
+    // クリックがここに来る。畳むと打った名前と理由が同時に消える
+    if (isRenaming) return;
     setIsOpen(!isOpen);
   };
 
@@ -91,6 +95,7 @@ function RootNode({
             selectMode="all"
             onCancel={cancelInlineRename}
             onCommit={handleCommitRename}
+            onUnshowable={pushError}
           />
         ) : (
           <span className="file-tree__rootdir--name">{node.name}</span>
@@ -108,6 +113,7 @@ function RootNode({
                 selectMode="all"
                 onCancel={cancelCreateDirectory}
                 onCommit={handleCommitCreate}
+                onUnshowable={pushError}
               />
             </NodeBox>
           )}

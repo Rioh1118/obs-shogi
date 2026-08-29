@@ -28,8 +28,7 @@ import Spinner from "@/shared/ui/Spinner";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import Modal from "@/shared/ui/Modal";
 import FileTreeErrorNotice from "./FileTreeErrorNotice";
-import type { FsError } from "@/entities/file-tree";
-import type { FileTreeNode } from "@/entities/file-tree";
+import type { FileTreeFailure, FileTreeNode } from "@/entities/file-tree";
 
 const collisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);
@@ -83,7 +82,7 @@ function FileTree() {
   // 落とすので、これが無いと押した瞬間に通知が消えて何も伝わらないまま終わる。
   // `isLoading` では代用できない。ツリーはファイル操作のたびに読み直され、
   // そのすべてで通知を出すことになる
-  const [retriedFrom, setRetriedFrom] = useState<FsError | null>(null);
+  const [retriedFrom, setRetriedFrom] = useState<FileTreeFailure | null>(null);
 
   // ツリーを読み直す。失敗した操作そのものはやり直さない。
   // 何をしようとしていたかは、失敗を積んだ側（provider）に残っていない
@@ -190,7 +189,7 @@ function FileTree() {
             <Spinner />
           ) : shownError && !hasTree ? (
             <FileTreeErrorNotice
-              error={shownError}
+              error={shownError.error}
               onRetry={handleRetry}
               isRetrying={isLoading}
               fallback={chooseWorkspace}
@@ -209,14 +208,25 @@ function FileTree() {
 
       {shownError && hasTree && (
         <Modal
-          label="ファイル操作に失敗しました"
+          label={
+            shownError.from === "reload"
+              ? "一覧を取り直せませんでした"
+              : "ファイル操作に失敗しました"
+          }
           theme="dark"
           size="sm"
           scroll="content"
           onClose={dismissError}
         >
+          {/* 操作は通っていて一覧だけが古い場合、「失敗しました」とだけ出すと
+              操作が失敗したと読める。何が起きたかを先に書く */}
+          {shownError.from === "reload" && (
+            <p className="file-tree__reloadNote">
+              操作は完了しましたが、一覧を取り直せませんでした。
+            </p>
+          )}
           <FileTreeErrorNotice
-            error={shownError}
+            error={shownError.error}
             onRetry={handleRetry}
             onDismiss={dismissError}
             isRetrying={isLoading}

@@ -13,7 +13,12 @@ export type { FsError, FsErrorCode } from "./api/error";
 export { describeFsError, fsErrorTier, isResolvedByConflictDialog } from "./api/error";
 export { commitName, type CommitOutcome } from "./lib/commitName";
 export { isProjectRoot } from "./lib/isProjectRoot";
-export type { FileTreeNode, FileConflictRequest, FileConflictState } from "./model/types";
+export type {
+  FileTreeNode,
+  FileTreeFailure,
+  FileConflictRequest,
+  FileConflictState,
+} from "./model/types";
 export { useFileTree } from "./model/useFileTree";
 export { FileTreeProvider } from "./model/provider";
 export { default as FsErrorView } from "./ui/FsErrorView";

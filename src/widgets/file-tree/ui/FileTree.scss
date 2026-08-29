@@ -1,3 +1,5 @@
+@use "@/index.scss" as index;
+
 .file-tree {
   height: 100%;
   min-height: 0;
@@ -13,4 +15,12 @@
 
     padding-bottom: 24px;
   }
+}
+
+// 操作は通っていて一覧だけが古いときの前置き。理由の箱の上に置く。
+// 文字色は器（モーダルのカード）から継ぐ。ここで宣言すると、面が決まらない分
+// コントラストの走査から外れる
+.file-tree__reloadNote {
+  margin-bottom: index.$space-4;
+  font-size: index.$font-aux;
 }

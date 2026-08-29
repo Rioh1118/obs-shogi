@@ -33,6 +33,7 @@ function DirectoryNode({
     renamingNodeId,
     renameNode,
     cancelInlineRename,
+    pushError,
     createNewDirectory,
   } = useFileTree();
 
@@ -127,6 +128,7 @@ function DirectoryNode({
             selectMode="all"
             onCancel={cancelInlineRename}
             onCommit={handleCommitRename}
+            onUnshowable={pushError}
           />
         ) : (
           <span>{node.name}</span>
@@ -143,6 +145,7 @@ function DirectoryNode({
                 selectMode="all"
                 onCancel={cancelCreateDirectory}
                 onCommit={handleCommitCreate}
+                onUnshowable={pushError}
               />
             </NodeBox>
           )}

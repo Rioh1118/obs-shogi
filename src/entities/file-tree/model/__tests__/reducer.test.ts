@@ -53,7 +53,7 @@ describe("失敗を積んだとき", () => {
   test("失敗の中身はそのまま持つ", () => {
     const next = reducer(editing(), { type: "error", payload: ERROR });
 
-    expect(next.error).toEqual(ERROR);
+    expect(next.error).toEqual({ from: "operation", error: ERROR });
   });
 
   test("コンテキストメニューを閉じる", () => {
@@ -122,7 +122,9 @@ describe("衝突の解決中に失敗したとき", () => {
   test("読み直しの失敗は捨てない", () => {
     const next = reducer(resolving(), { type: "reload_failed", payload: ERROR });
 
-    expect(next.error).toEqual(ERROR);
+    // **出どころも持つ。** 表示側は「操作が失敗した」と「操作は通ったが
+    // 一覧が取り直せなかった」を書き分けられないと、成功を失敗として伝える
+    expect(next.error).toEqual({ from: "reload", error: ERROR });
   });
 
   // 読み直しの失敗は操作の失敗ではないので、開いている入力欄を巻き添えにしない

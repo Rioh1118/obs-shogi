@@ -96,9 +96,21 @@ export type FileTreeState = {
   menu: MenuState;
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
-  error: FsError | null;
+  /**
+   * ツリーまわりの失敗。**出どころを持つ。**
+   *
+   * `operation` は利用者が起こした操作そのものの失敗。`reload` は操作は通ったが
+   * そのあとの読み直しが落ちた場合で、画面に「失敗しました」とだけ出すと
+   * 「操作が失敗した」と読めてしまう（実際は済んでいて、一覧だけが古い）
+   */
+  error: FileTreeFailure | null;
   kifuError: FsError | null;
   conflict: FileConflictState | null;
+};
+
+export type FileTreeFailure = {
+  from: "operation" | "reload";
+  error: FsError;
 };
 
 export type FileTreeAction =

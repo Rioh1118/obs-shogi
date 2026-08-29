@@ -2,7 +2,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
 
-import type { FsError } from "@/entities/file-tree";
+import type { FileTreeFailure, FsError } from "@/entities/file-tree";
 
 /**
  * ツリー取得の失敗とファイル操作の失敗は、どちらも同じ `state.error` に積まれる。
@@ -13,8 +13,12 @@ import type { FsError } from "@/entities/file-tree";
 const stub = {
   fileTree: null as { path: string; name: string } | null,
   isLoading: false,
-  error: null as FsError | null,
+  error: null as FileTreeFailure | null,
 };
+
+/** 操作そのものの失敗。読み直しの失敗は `from: "reload"` で別に出す */
+const asOperationFailure = (error: FsError | null): FileTreeFailure | null =>
+  error && { from: "operation", error };
 
 const clearError = vi.fn();
 
@@ -43,7 +47,8 @@ const refreshTree = vi.fn(async () => {
   });
 
   stub.isLoading = false;
-  stub.error = nextError;
+  // 読み直しの失敗は `reload_failed` として積まれる
+  stub.error = nextError && { from: "reload", error: nextError };
   repaint?.();
 
   return nextError ? ({ success: false, error: nextError } as const) : ({ success: true } as const);
@@ -143,7 +148,7 @@ async function finishRetry() {
 describe("FileTree の失敗表示", () => {
   test("ファイル操作が失敗しても、ツリーは残る", () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     render(<FileTree />);
 
@@ -153,7 +158,7 @@ describe("FileTree の失敗表示", () => {
 
   test("失敗した対象のパスが出る", () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     render(<FileTree />);
 
@@ -162,7 +167,7 @@ describe("FileTree の失敗表示", () => {
 
   test("Rust の生メッセージは畳んだ中に置き、そのまま本文にしない", () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     render(<FileTree />);
 
@@ -176,7 +181,7 @@ describe("FileTree の失敗表示", () => {
 
   test("ツリーがまだ無いときは、その場に失敗を出す", () => {
     stub.fileTree = null;
-    stub.error = { code: "permission_denied", message: "denied" };
+    stub.error = asOperationFailure({ code: "permission_denied", message: "denied" });
 
     render(<FileTree />);
 
@@ -188,7 +193,7 @@ describe("FileTree の失敗表示", () => {
 
   test("再読み込みを押すと読み直す", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
     await startRetry();
@@ -199,7 +204,7 @@ describe("FileTree の失敗表示", () => {
   // 唯一の復帰路がこのモーダルなので、キーボードだけで届く必要がある
   test("失敗を出したら、その中へフォーカスが移る", () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
 
@@ -210,7 +215,7 @@ describe("FileTree の失敗表示", () => {
 
   test("ツリーが残っているときは閉じられる", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     render(<FileTree />);
 
@@ -223,7 +228,7 @@ describe("FileTree の失敗表示", () => {
 
   test("ツリーが無いときは閉じるを出さない。閉じても何も出せない", () => {
     stub.fileTree = null;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     render(<FileTree />);
 
@@ -249,7 +254,7 @@ describe("FileTree の失敗表示", () => {
 describe("段による出し分け", () => {
   test("入力が原因の失敗では、何を直せばよいかが本文に出る", () => {
     stub.fileTree = TREE;
-    stub.error = BAD_NAME;
+    stub.error = asOperationFailure(BAD_NAME);
 
     mount();
 
@@ -259,7 +264,7 @@ describe("段による出し分け", () => {
 
   test("入力が原因の失敗では、再読み込みを出さない", () => {
     stub.fileTree = TREE;
-    stub.error = BAD_NAME;
+    stub.error = asOperationFailure(BAD_NAME);
 
     mount();
 
@@ -268,7 +273,7 @@ describe("段による出し分け", () => {
 
   test("一時的かもしれない失敗では、再読み込みを出す", () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
 
@@ -277,7 +282,7 @@ describe("段による出し分け", () => {
 
   test("ツリーが読めないまま直らない失敗なら、ワークスペースを選び直せる", async () => {
     stub.fileTree = null;
-    stub.error = DENIED;
+    stub.error = asOperationFailure(DENIED);
 
     mount();
 
@@ -298,7 +303,7 @@ describe("段による出し分け", () => {
    */
   test("ルートが消えたときも、ワークスペースを選び直せる", async () => {
     stub.fileTree = null;
-    stub.error = ROOT_GONE;
+    stub.error = asOperationFailure(ROOT_GONE);
 
     mount();
 
@@ -312,7 +317,7 @@ describe("段による出し分け", () => {
 
   test("開発者向けのログは本文に出さない", () => {
     stub.fileTree = TREE;
-    stub.error = BAD_NAME;
+    stub.error = asOperationFailure(BAD_NAME);
 
     mount();
 
@@ -325,7 +330,7 @@ describe("段による出し分け", () => {
 
   test("段は見た目にも出る", () => {
     stub.fileTree = TREE;
-    stub.error = DENIED;
+    stub.error = asOperationFailure(DENIED);
 
     mount();
 
@@ -341,7 +346,7 @@ describe("段による出し分け", () => {
 describe("再読み込みの最中", () => {
   test("読み込み中でもツリーは消えない", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
     await startRetry();
@@ -351,7 +356,7 @@ describe("再読み込みの最中", () => {
 
   test("読み込み中も、何が失敗したかは出したままにする", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
     await startRetry();
@@ -361,7 +366,7 @@ describe("再読み込みの最中", () => {
 
   test("読み込み中はボタンがそう表示し、押せない", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
     await startRetry();
@@ -372,7 +377,7 @@ describe("再読み込みの最中", () => {
 
   test("読み込みが成功したら失敗表示は消える", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
     nextError = null;
 
     mount();
@@ -385,7 +390,7 @@ describe("再読み込みの最中", () => {
 
   test("読み込みが失敗し続けても、もう一度押せる", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
     nextError = IO_ERROR;
 
     mount();
@@ -401,7 +406,7 @@ describe("再読み込みの最中", () => {
 
   test("読み直しても直らない失敗では、再読み込みを出さない", () => {
     stub.fileTree = TREE;
-    stub.error = DENIED;
+    stub.error = asOperationFailure(DENIED);
 
     mount();
 
@@ -410,7 +415,7 @@ describe("再読み込みの最中", () => {
 
   test("ツリーがまだ無いときは、読み込み中に Spinner を出す", async () => {
     stub.fileTree = null;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
     await startRetry();
@@ -428,7 +433,7 @@ describe("再読み込みの最中", () => {
    */
   test("読み直しの最中でも Escape で閉じられる", async () => {
     stub.fileTree = TREE;
-    stub.error = IO_ERROR;
+    stub.error = asOperationFailure(IO_ERROR);
 
     mount();
     await startRetry();

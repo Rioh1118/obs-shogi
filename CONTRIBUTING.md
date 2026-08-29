@@ -284,9 +284,13 @@ gap: 0.75rem;
 | `testsLayerBoundary`   | `src/__tests__` がアプリのコードを import すること | 無し。ソースを文字列として読む                                                                                                                                             |
 | `root_guard`（Rust）   | パスを受けるコマンドが root 検査を飛ばすこと       | `EXEMPT` に名前と理由。パスを型の中で受けるものは `STRUCT_CARRIED_PATH` に                                                                                                 |
 
-走査の対象と起点は `src/__tests__/walk.ts` が1箇所で決めます。各検査で
-`readdirSync` を書かないでください（除外を足すとき直す場所が散り、
+走査の対象と起点は `src/__tests__/walk.ts` が1箇所で決めます。ファイルの中身を
+読む走査で `readdirSync` を書かないでください（除外を足すとき直す場所が散り、
 1つ直し忘れても違反が減るだけなので緑のまま通ります）。
+
+例外はディレクトリ名そのものを数える場合（`sliceBarrels` がスライスを、
+`testsLayerBoundary` がレイヤを、`stateTransitionIndex` が表を数えます）。
+起点（`REPO_ROOT` / `SRC` / `RUST_SRC`）はその場合も `walk.ts` から引きます。
 
 Rust のテストの置き場は2つに分かれます。crate の内部（private / `pub(crate)`）を
 見るものは `src` の `#[cfg(test)]`。crate の公開面か、ソースを文字列として読む

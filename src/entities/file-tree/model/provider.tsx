@@ -147,9 +147,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
    * `reload_failed` として積むので、返すと同じ失敗が2箇所に出るうえ
    * 「操作に失敗した」という嘘になる
    */
-  // TODO(#216): `value` は毎レンダ新しいオブジェクトで、滅多に変わらない `fileTree` と
-  // クリックのたびに変わる `selectedNode` / `menu` が同居している。全ての行が
-  // `useFileTree()` を読むので、1行を選ぶだけでツリーの全行が再レンダする
   const loadFileTree = useCallback(async (): AsyncResult<void, FsError> => {
     if (!rootDir) {
       return Ok(undefined);
@@ -397,7 +394,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const renameNode = useCallback(
-    async (node: FileTreeNode, newName: string) => {
+    async (node: FileTreeNode, newName: string): AsyncResult<void, FsError> => {
       const res = node.isDirectory
         ? await api.renameDir(node.path, newName)
         : await api.renameFile(node.path, newName);
@@ -664,6 +661,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "conflict_closed" });
   }, []);
 
+  // TODO(#216): `value` は毎レンダ新しいオブジェクトで、滅多に変わらない `fileTree` と
+  // クリックのたびに変わる `selectedNode` / `menu` が同居している。全ての行が
+  // `useFileTree()` を読むので、1行を選ぶだけでツリーの全行が再レンダする
   return (
     <FileTreeContext.Provider
       value={{

@@ -109,7 +109,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
         menu: null,
         renamingNodeId: null,
         creatingDirParentPath: null,
-        error: action.payload,
+        error: { from: "operation", error: action.payload },
       };
 
     // 読み直しの失敗は**対話が開いていても捨てない**。捨てると、別名で解決した直後の
@@ -120,7 +120,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     // 畳まないのは、これが操作の失敗ではなく**そのあとの読み直しの失敗**だから。
     // 開いている入力欄は、読み直しが直れば意味を持ち続ける
     case "reload_failed":
-      return { ...state, isLoading: false, error: action.payload };
+      return { ...state, isLoading: false, error: { from: "reload", error: action.payload } };
 
     case "error_cleared":
       return { ...state, error: null };

@@ -17,6 +17,14 @@ type InlineRenameProps = {
    */
   onCommit: (nextName: string) => Promise<CommitOutcome>;
   onCancel: () => void;
+  /**
+   * 入力欄に出すはずだった失敗を、出せなかったときの行き先。
+   *
+   * 確定の最中に欄の外へ出ると、失敗が返る頃にはもう見ていない。
+   * 名前の失敗は provider が通知へ積まない（出す責任がここだけにある）ので、
+   * ここで捨てると**どの出口にも出ない**
+   */
+  onUnshowable: (error: FsError) => void;
   className?: string;
 
   // "file" なら拡張子手前まで選択、"all" なら全文選択
@@ -28,6 +36,7 @@ function InlineNameEditor({
   initialName,
   onCommit,
   onCancel,
+  onUnshowable,
   className = "file-name__input",
   selectMode = "all",
 }: InlineRenameProps) {
@@ -86,6 +95,10 @@ function InlineNameEditor({
       const outcome = await onCommit(next);
 
       if (!outcome.ok && blurredWhileInFlightRef.current) {
+        // 欄はもう見ていない。**ここで捨てると、名前の失敗はどの出口にも出ない**
+        // （provider は `isNameInputError` を通知へ積まないので、出す責任はここだけ）。
+        // 出せないものは呼び出し元へ返す
+        if (outcome.shown) onUnshowable(outcome.shown);
         onCancel();
         return;
       }

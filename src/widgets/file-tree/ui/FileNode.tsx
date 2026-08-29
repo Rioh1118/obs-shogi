@@ -19,6 +19,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     renamingNodeId,
     renameNode,
     cancelInlineRename,
+    pushError,
   } = useFileTree();
   const isSelected = selectedNode?.id === node.id;
   const isActive = activeKifuPath === node.path;
@@ -127,6 +128,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
           selectMode="file"
           onCancel={cancelInlineRename}
           onCommit={handleCommitRename}
+          onUnshowable={pushError}
         />
       ) : (
         <span

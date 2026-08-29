@@ -3,9 +3,9 @@ import { validateBasename } from "@/entities/file-tree/lib/validateBasename";
 import type { AsyncResult } from "@/shared/lib/result";
 
 export type CommitOutcome =
-  /** 通った。編集行を閉じてよい */
+  /** 通った */
   | { ok: true }
-  /** 通らなかった。編集行は残す。`shown` があれば入力欄の下に出す */
+  /** 通らなかった。`shown` があれば入力欄の下に出す */
   | { ok: false; shown?: FsError };
 
 /**

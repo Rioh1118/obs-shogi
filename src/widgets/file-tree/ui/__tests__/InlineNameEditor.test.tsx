@@ -38,7 +38,13 @@ describe("InlineNameEditor", () => {
   test("失敗が返ったら理由を出し、打った文字列を残す", async () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);
     render(
-      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
+      <InlineNameEditor
+        isEditting
+        initialName="研究"
+        onCommit={onCommit}
+        onCancel={vi.fn()}
+        onUnshowable={vi.fn()}
+      />,
     );
 
     await typeAndCommit("研究/2026");
@@ -55,6 +61,7 @@ describe("InlineNameEditor", () => {
         initialName="研究"
         onCommit={vi.fn().mockResolvedValue(rejected)}
         onCancel={vi.fn()}
+        onUnshowable={vi.fn()}
       />,
     );
 
@@ -74,7 +81,13 @@ describe("InlineNameEditor", () => {
   test("落ちた名前を blur で送り直さない", async () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);
     render(
-      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
+      <InlineNameEditor
+        isEditting
+        initialName="研究"
+        onCommit={onCommit}
+        onCancel={vi.fn()}
+        onUnshowable={vi.fn()}
+      />,
     );
 
     await typeAndCommit("研究/2026");
@@ -100,6 +113,7 @@ describe("InlineNameEditor", () => {
         initialName="研究"
         onCommit={vi.fn().mockResolvedValue(rejected)}
         onCancel={onCancel}
+        onUnshowable={vi.fn()}
       />,
     );
 
@@ -125,7 +139,13 @@ describe("InlineNameEditor", () => {
     const onCancel = vi.fn();
 
     render(
-      <InlineNameEditor isEditting initialName="a.kif" onCommit={onCommit} onCancel={onCancel} />,
+      <InlineNameEditor
+        isEditting
+        initialName="a.kif"
+        onCommit={onCommit}
+        onCancel={onCancel}
+        onUnshowable={vi.fn()}
+      />,
     );
 
     const input = screen.getByRole("textbox");
@@ -142,10 +162,51 @@ describe("InlineNameEditor", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // 名前の失敗は provider が通知へ積まない（出す責任がこの欄だけにある）。
+  // 欄が閉じるときに捨てると、どの出口にも出ないまま終わる
+  test("送信中に外へ出たら、出せなかった失敗を呼び出し元へ返す", async () => {
+    let settle: (outcome: typeof rejected) => void = () => {};
+    const onCommit = vi.fn(
+      () =>
+        new Promise<typeof rejected>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const onUnshowable = vi.fn();
+
+    render(
+      <InlineNameEditor
+        isEditting
+        initialName="a.kif"
+        onCommit={onCommit}
+        onCancel={vi.fn()}
+        onUnshowable={onUnshowable}
+      />,
+    );
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "a/b.kif" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
+
+    await act(async () => {
+      settle(rejected);
+      await Promise.resolve();
+    });
+
+    expect(onUnshowable).toHaveBeenCalledWith(BAD_NAME);
+  });
+
   test("ここに出さない失敗でも、同じ名前を送り直さない", async () => {
     const onCommit = vi.fn().mockResolvedValue(elsewhere);
     render(
-      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
+      <InlineNameEditor
+        isEditting
+        initialName="研究"
+        onCommit={onCommit}
+        onCancel={vi.fn()}
+        onUnshowable={vi.fn()}
+      />,
     );
 
     await typeAndCommit("研究2026");
@@ -162,7 +223,13 @@ describe("InlineNameEditor", () => {
   test("通った名前では理由を出さない", async () => {
     const onCommit = vi.fn().mockResolvedValue(passed);
     render(
-      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
+      <InlineNameEditor
+        isEditting
+        initialName="研究"
+        onCommit={onCommit}
+        onCancel={vi.fn()}
+        onUnshowable={vi.fn()}
+      />,
     );
 
     await typeAndCommit("研究2026");
@@ -174,7 +241,13 @@ describe("InlineNameEditor", () => {
     const onCommit = vi.fn().mockResolvedValue(passed);
     const onCancel = vi.fn();
     render(
-      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={onCancel} />,
+      <InlineNameEditor
+        isEditting
+        initialName="研究"
+        onCommit={onCommit}
+        onCancel={onCancel}
+        onUnshowable={vi.fn()}
+      />,
     );
 
     await typeAndCommit("   ");
