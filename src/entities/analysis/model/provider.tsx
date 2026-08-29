@@ -88,6 +88,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const desiredSfenRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const restartSeqRef = useRef(0);
+  // 自動再開の同期待ちを開始した時刻。打ち切りの判定に使う。
+  const syncWaitStartedAtRef = useRef<number | null>(null);
   const pendingAfterRef = useRef(false);
 
   const RESTART_DEBOUNCE_MS = 100;
@@ -170,12 +172,28 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (lastAnalyzedSfenRef.current === want) return;
 
     if (syncedSfen !== want) {
+      // 同期を待つ。手動開始と同じ上限で打ち切る。上限が無いと、同期が恒久的に
+      // 失敗したときに「解析中」の表示のままタイマーだけが回り続け、
+      // 利用者には何も起きていないのに正常に見える。
+      const startedAt = syncWaitStartedAtRef.current ?? Date.now();
+      syncWaitStartedAtRef.current = startedAt;
+
+      if (Date.now() - startedAt > POSITION_SYNC_TIMEOUT_MS) {
+        syncWaitStartedAtRef.current = null;
+        clearDebounceTimer();
+        dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
+        dispatch({ type: "stop_analysis" });
+        return;
+      }
+
       clearDebounceTimer();
       debounceTimerRef.current = window.setTimeout(() => {
         runRestartRef.current(seq);
       }, 16);
       return;
     }
+
+    syncWaitStartedAtRef.current = null;
 
     if (restartInFlightRef.current) {
       pendingAfterRef.current = true;
