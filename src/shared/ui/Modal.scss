@@ -181,9 +181,12 @@
 
   // ---------- sizes ----------
   // 高さの上限は必ず `100%`（= overlay の内容ボックス）で挟む。`vh` だけで書くと
-  // overlay がタイトルバーの分だけ低いことを無視して、カードが overlay の外へ
-  // 対称にはみ出す（`align-items: center`）。上へはみ出せばタイトルバーを覆い、
-  // 下へはみ出せば画面外に出る。overlay は `position: fixed` なのでスクロールで届かない
+  // overlay がタイトルバーの分だけ低いことを無視して、カードが内容ボックスから
+  // 上下対称にはみ出す（`align-items: center`）。まず `padding` の 2rem を食い、
+  // 食い切ると上はタイトルバーの帯を覆い、下は画面外に出る。overlay は
+  // `position: fixed` なのでスクロールでは届かない。
+  // 帯に届く境は `88vh` ならウィンドウ高 217px、`80vh` なら 130px。
+  // `tauri.conf.json` に `minHeight` が無く `resizable: true` なのでそこまで縮められる
   &--size-sm .modal__card {
     width: min(520px, 92vw);
     max-height: min(80vh, 100%);
