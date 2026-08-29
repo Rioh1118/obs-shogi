@@ -95,11 +95,11 @@ describe("SCSS のトークン名", () => {
 describe("レイヤに依存しない検査の置き場", () => {
   it("src/__tests__ がアプリのコードを参照しない", () => {
     const here = join(SRC, "__tests__");
-    const offenders = readdirSync(here)
-      .filter((name) => name.endsWith(".ts"))
+    const offenders = readdirSync(here, { recursive: true, encoding: "utf8" })
+      .filter((name) => /\.tsx?$/.test(name))
       .flatMap((name) => {
         const matches = readFileSync(join(here, name), "utf8").matchAll(
-          /["'`]@\/(app|pages|widgets|features|entities|shared)\//g,
+          /["'`]@\/(app|pages|widgets|features|entities|shared)\b/g,
         );
         return [...matches].map((match) => `${name}  ${match[0]}`);
       });
