@@ -12,15 +12,21 @@ F 番号はここで採番し、各表と ADR から参照する。
 
 ## 0. 先に、いま出口がいくつあるか
 
-利用者に届く経路は **5つだけ**。
+利用者に届く経路は **8つ**。
 
-|                  | 場所                                                  | 出るもの                                 | 消えるか                   |
-| ---------------- | ----------------------------------------------------- | ---------------------------------------- | -------------------------- |
-| モーダル         | `features/kifu-read-error/ui/KifuReadErrorDialog.tsx` | 棋譜が開けなかった                       | 閉じるまで残る             |
-| モーダル         | `features/file-conflict/`（`ConflictDialog`）         | 同名ファイル。**リネームして続行できる** | 閉じるまで残る             |
-| 境界の差し替え   | `shared/ui/AppErrorBoundary.tsx`                      | React が落ちた。**囲った範囲だけ**※      | 残る                       |
-| モーダル内       | `features/position-navigation/`                       | この手目を盤上で再現できない             | 閉じるまで残る             |
-| 画面内インライン | 設定タブ・保存モーダル・検索モーダル                  | 各機能ごとに手書き                       | その画面を開いている間だけ |
+|                  | 場所                                                         | 出るもの                                 | 消えるか                   |
+| ---------------- | ------------------------------------------------------------ | ---------------------------------------- | -------------------------- |
+| モーダル         | `features/kifu-read-error/ui/KifuReadErrorDialog.tsx`        | 棋譜が開けなかった                       | 閉じるまで残る             |
+| モーダル         | `features/file-conflict/ui/FileConflictDialog.tsx`           | 同名ファイル。**リネームして続行できる** | 閉じるまで残る             |
+| モーダル         | `widgets/file-tree/ui/FileTree.tsx` の `FileTreeErrorNotice` | ファイル操作の失敗（ツリーは残る）       | 閉じるまで残る             |
+| その場           | 同上（ツリーが1本も無いとき）                                | ツリーを開けなかった                     | 直るまで残る               |
+| フォーム内       | `create-file` の3フォームの `FsErrorView`                    | 作成・取り込みの失敗                     | 打ち直すまで               |
+| 入力欄の直下     | `widgets/file-tree/ui/InlineNameEditor.tsx`                  | 名前の訂正で直る失敗                     | 打ち直すまで               |
+| 境界の差し替え   | `shared/ui/AppErrorBoundary.tsx`                             | React が落ちた。**囲った範囲だけ**※      | 残る                       |
+| 画面内インライン | 設定タブ・保存モーダル・検索モーダル                         | 各機能ごとに手書き                       | その画面を開いている間だけ |
+
+ファイル系の4つは `entities/file-tree/ui/FsErrorView` を共有する（ADR-0005 決定5）。
+`position-navigation` の「この手目を盤上で再現できない」はモーダル内の手書き。
 
 ※ 全画面ではない。`pages/AppLayout.tsx` で**モーダル層と棋譜ペインをそれぞれ囲っている**。
 囲われていない場所で throw すると、いまも root ごと unmount する。
@@ -37,9 +43,14 @@ F 番号はここで採番し、各表と ADR から参照する。
 | `analysis`        | `state.error`     | 4箇所                              | **0**（issue #157）                 |
 | `study-positions` | `state.error`     | `load_error` / `save_error`        | **0**                               |
 | `search`          | `state.openError` | `open_error`                       | **0**                               |
-| `file-tree`       | `state.error`     | `pushError` から **9箇所**         | 1（ツリーは消さない → F-3）         |
+| `file-tree`       | `state.error`     | **7経路**（うち2つは条件付き）※    | 1（ツリーは消さない → F-3）         |
 | `file-tree`       | `state.kifuError` | `kifu_error`                       | 1（`AppModalLayer` → モーダル）     |
 | `engine`          | `state.error`     | `initialize_error`                 | 1（**設定タブを開いている間だけ**） |
+
+※ `handleFailure`（移動）/ `deferNameFailure`（リネーム・フォルダ作成。`invalid_name_*` は積まない）/
+`pushError` の直呼び4箇所（削除・衝突の解決の中断）/ `loadFileTree` の直積み。
+`deferFailure`（作成・取り込み）は**一度も積まない**。数え方は
+「`state.error` に到達しうる呼び出し元」。→ `docs/state-transitions/file-tree.md` の ※2
 
 さらに **`clearError` は6スライスすべてが context に公開しているが、呼び出し元は
 `file-tree` の1つだけ**（#169 で `FileTree.tsx` が呼ぶようになった。残り5つは0）。
@@ -91,6 +102,11 @@ F 番号はここで採番し、各表と ADR から参照する。
 段は ADR-0004 が決めた4つ（`info` / `warning` / `danger` / `fatal`）。
 どの F がどの段かは **ADR-0004 の「割り当て」節**が持つ。ここで二重に持たない
 （2箇所に置くと、片方だけ直る）。
+
+**例外は F-3。** ファイル操作の失敗は1つの段に収まらず、`code` ごとに
+`warning` と `danger` に割れる。対応を持っているのは
+`fsErrorTier`（`src/entities/file-tree/api/error.ts`）。ADR-0004 の表は
+F-3 を1行で書いているので、そこだけでは `danger` の存在に気づけない。
 
 ## 4. まだ出口が無いもの
 
