@@ -1,14 +1,4 @@
-import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
-
-/**
- * 中身のある変化か
- *
- * `forks` の要素が空配列でも先頭が null でも、`fork[0]` を読む側は同じように壊れる。
- * 落とす側と弾く側で条件がずれないよう、判定はここ1つにする。
- */
-export function isUsableFork(fork: JKFMove[]): boolean {
-  return fork.length > 0 && fork[0] != null;
-}
+import { isUsableFork, type JKFData, type JKFMove } from "@/entities/kifu/model/jkf";
 
 /**
  * `forks` から、空の変化と先頭が null の変化を再帰的に取り除く

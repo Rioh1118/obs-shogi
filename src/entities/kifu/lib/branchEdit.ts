@@ -1,4 +1,5 @@
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
+import { isUsableFork } from "@/entities/kifu/model/jkf";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   assertBranchIndex,
@@ -14,7 +15,6 @@ import {
   type SwapQuery,
 } from "../model/branch";
 import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
-import { isUsableFork } from "./sanitizeJkf";
 
 function normalizeRef<T extends BranchPointRef>(ref: T): T {
   return {

@@ -1,3 +1,5 @@
+import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
+
 export type {
   IJSONKifuFormat as JKFData,
   IMoveFormat as JKFMove,
@@ -38,6 +40,17 @@ export const JKFSpecial = {
 } as const;
 
 export type JKFSpecialType = (typeof JKFSpecial)[keyof typeof JKFSpecial];
+
+/**
+ * 中身のある変化か
+ *
+ * `forks` の要素が空配列でも先頭が null でも、`fork[0]` を読む側は同じように壊れる。
+ * 落とす側（`sanitizeJkf`）と弾く側（`branchEdit` / `buildNextOptions`）で条件が
+ * ずれないよう、判定はここ1つにする。
+ */
+export function isUsableFork(fork: IMoveFormat[] | undefined): boolean {
+  return !!fork && fork.length > 0 && fork[0] != null;
+}
 
 export function isValidJKFSpecial(s: string): s is JKFSpecialType {
   return Object.values(JKFSpecial).includes(s as JKFSpecialType);
