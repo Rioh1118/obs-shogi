@@ -1,6 +1,17 @@
 import type { ForkPointer, KifuCursor, TesuuPointer } from "./cursor";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 
+declare const candidatesBrand: unique symbol;
+
+/**
+ * 分岐点にぶら下がる候補の並び。添字は `BranchIndex`（0=本譜）。
+ *
+ * `readCandidates` が作ったものだけをこう呼ぶ。`forks`（本譜のぶん1少ない）や
+ * `BranchOption[]`（空の変化を読み飛ばすので候補数と一致しない）を同じ座標系として
+ * 扱わせないために brand を付けてある。
+ */
+export type Candidates = IMoveFormat[][] & { readonly [candidatesBrand]: true };
+
 declare const branchIndexBrand: unique symbol;
 
 /**
@@ -22,13 +33,13 @@ export const MAIN_LINE = 0 as BranchIndex;
  * 大小比較だけの検査を素通りし、`Array.prototype.splice` が 0 方向へ丸めて
  * 頼んだのと違う候補を消す。
  *
- * 上限は候補配列そのものから取る。数を引数で受けると、`forks.length`（本譜のぶん1少ない）や
- * `options.length`（空の変化を読み飛ばすので候補数と一致しない）を渡せてしまい、
+ * 上限は `Candidates` から取る。数や素の配列を受けると、`forks`（本譜のぶん1少ない）や
+ * `BranchOption[]`（空の変化を読み飛ばすので候補数と一致しない）を渡せてしまい、
  * `BranchIndex` の brand で潰したはずの ±1 の取り違えが上限側に戻る。
  *
  * @throws {Error} 整数でないとき、`0 <= b < candidates.length` に入らないとき
  */
-export function assertBranchIndex(b: BranchIndex, candidates: readonly unknown[]): void {
+export function assertBranchIndex(b: BranchIndex, candidates: Candidates): void {
   // 理由ごとに分ける。0.5 を「範囲外」と言うと、範囲の側を疑って時間を使うことになる。
   if (!Number.isInteger(b)) throw new Error(`branchIndex ${b} is not an integer`);
   if (b < MAIN_LINE || b >= candidates.length) {

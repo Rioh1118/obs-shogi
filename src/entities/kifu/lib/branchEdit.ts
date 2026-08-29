@@ -4,6 +4,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   assertBranchIndex,
   branchIndexFromSelection,
+  type Candidates,
   buildTesuuPointer,
   forkIndexFromBranchIndex,
   MAIN_LINE,
@@ -97,15 +98,6 @@ function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHan
 }
 
 /**
- * 分岐点にぶら下がる候補の並び。添字は `BranchIndex`（0=本譜）。
- *
- * 配列と各候補の先頭の手は `readCandidates` が作り直した私有のもの。
- * `writeCandidates` が書き換えるのは先頭の手の `forks` だけなので、
- * それより深い手は元の棋譜と共有したまま書き戻してよい。
- */
-type Candidates = IMoveFormat[][];
-
-/**
  * 先頭の手だけ複製した変化を作る
  *
  * 中身の無い変化は throw する。`{ ...undefined }` も `{ ...null }` も `{}` になるので、
@@ -123,6 +115,9 @@ function privatizeHead(fork: IMoveFormat[]): IMoveFormat[] {
  * - `candidates[0]` = 本譜の `te` 以降
  * - `candidates[1..]` = その手にぶら下がる変化
  * - 候補の先頭がさらに `forks` を持つ形は「同じ手数の別候補」なので、兄弟に持ち上げて平坦にする
+ *
+ * 配列と各候補の先頭の手はここで作り直した私有のもの。`writeCandidates` が書き換えるのは
+ * 先頭の手の `forks` だけなので、それより深い手は元の棋譜と共有したまま書き戻してよい。
  */
 function readCandidates(h: BranchPointHandle): Candidates {
   // 書き換えるのは各候補の先頭の手の forks だけなので、その手だけを複製する。
@@ -135,7 +130,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
   delete head.forks;
   tail[0] = head;
 
-  const candidates: Candidates = [tail, ...forks.map(privatizeHead)];
+  const candidates: IMoveFormat[][] = [tail, ...forks.map(privatizeHead)];
 
   // 同じteのforksを持ち上げ（固定点まで）
   let changed = true;
@@ -153,7 +148,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
     if (extra.length) candidates.push(...extra);
   }
 
-  return candidates;
+  return candidates as Candidates;
 }
 
 /** 候補の並びを棋譜に書き戻す（`te` 以降を置換し、本譜側の先頭の手に `forks` を集約） */
@@ -184,9 +179,10 @@ function swapInPlace<T>(arr: T[], i: number, j: number) {
 
 function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
   // candidates は BranchIndex と同じ座標（0=本譜）。範囲は呼び出し側が確かめている。
-  const next = c.slice();
+  const next = c.slice() as IMoveFormat[][];
   next.splice(target, 1);
-  return next;
+  // 元が Candidates なので、1つ減っても座標系は同じ。
+  return next as Candidates;
 }
 
 /** 入れ替え後の cursor の patch（同じ stream を辿っている前提） */
