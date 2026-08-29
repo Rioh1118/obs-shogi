@@ -4,11 +4,8 @@
 # 素通し（検証されないまま通る）は、誤発火（余分に検証が走るだけ）より危険が
 # 大きい。素通しになる綴りを表にして固定する。
 #
-# 表は4つ。
-#   gate_matches_commit  — コミットを作る呼び出しを見落とさないこと
-#   gate_mentions_commit — 切り出せない綴りを最後の網で拾うこと
-#   gate_target_dir      — 宛先が自明でない綴りは空（deny）にすること
-#   gate_kinds_for_path  — どのファイル種別でどの検証を選ぶか
+# 関数ごとに `expect_*` の表を置く。どの関数を固定しているかは、この下の
+# `expect_*` の定義を見ること（数を書くと、表を足した人が必ず更新し忘れる）。
 
 set -uo pipefail
 
@@ -132,6 +129,12 @@ expect_alias_resolution "ci|acp" "[alias]
 expect_alias_resolution "" "[alias]
 	st = status
 	co = checkout"
+
+# 値に生の改行が入る形。素で読むと2行目以降が alias. で始まらず、名前を
+# 切り出せない。取りこぼすとその alias が素通しする
+expect_alias_resolution "acp" "[alias]
+	acp = \"!f() { \\n git commit -m x \\n }; f\"
+	st = status"
 
 expect_mentions() {
   local want=$1 command=$2

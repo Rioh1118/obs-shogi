@@ -78,8 +78,9 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     // 引用は発生源で打ち切る。input はコマンド境界から来る任意長の文字列で、
     // 打ち切らないと message がそのままログへ流れ、失敗1回で以前の記録が消える。
     //
-    // 理由文の側も通す。理由には入力から切り出したトークン（余分なトークン、
-    // 手数、持駒の桁）が入るので、input だけを切っても長さは抑えられない。
+    // 理由文の側も通す。入口で全体の長さを切っているので断片も 256 字以下に
+    // 収まるが、`MAX_INPUT_CHARS` を緩めたときや `invalid` を経由しない理由文が
+    // 増えたときに取り残さないための二重の防御。
     let invalid = |reason: &str| {
         BookError::new(
             BookErrorCode::InvalidSfen,
@@ -186,13 +187,17 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
 
 /// 局面の文字列として受け付ける長さの上限。
 ///
-/// 平手の SFEN は手数込みで 60 字程度、持駒が最大でも 120 字を超えない。
+/// 長さを決めるのは盤面の綴り。成駒を `+X`（2字）で書き、空きマスを畳まずに
+/// `1` の並びで書くと、駒箱の上限内でも 123 字になる。`position sfen ` の前置きと
+/// 手数を足して 160 字前後が、正当な局面の最長。その 1.5 倍を取る。
+///
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
+/// 下限は `a_maximally_spelled_board_is_accepted` が固定している。
 const MAX_INPUT_CHARS: usize = 256;
 
 /// message に載せる引用の上限。
 ///
-/// 「手数が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
+/// 「持駒が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
 /// ログ（200KB でローテート）の予算を食い潰さない上限として選んだ。
 const MESSAGE_EXCERPT_CHARS: usize = 120;
 
@@ -459,34 +464,53 @@ mod tests {
         );
     }
 
-    /// 長い入力は、ファイル経由でもコマンド経由でも message に丸ごと入らないこと。
-    /// そのまま入れると、失敗1回でログ（200KB でローテート）の記録が消える。
+    /// 入力そのものが長い場合は、理由文を組み立てる前に落ちること。
+    #[test]
+    fn a_position_that_is_too_long_is_rejected_before_building_the_reason() {
+        let huge = "x".repeat(100_000);
+
+        for input in [huge.clone(), format!("{HIRATE_SFEN} {huge}")] {
+            let err = to_book_key(&input).unwrap_err();
+            assert_eq!(err.code, BookErrorCode::InvalidSfen);
+            assert!(err.message.contains("長すぎる"), "message={}", err.message);
+        }
+    }
+
+    /// 理由文に入力の断片を埋める枝を、実際に通して打ち切りを見る。
     ///
-    /// 理由文に入力の断片を埋める枝を全て通すこと。1トークンだけの入力では
-    /// `invalid` の引用側しか通らず、理由文側の取り残しを踏まない。
+    /// 入力全体を長くすると入口の長さ検査に落ちてこの枝へ来ないので、
+    /// **全体は `MAX_INPUT_CHARS` 以下のまま、1トークンだけを長くする。**
     /// 上限は絶対値で見る。`MESSAGE_EXCERPT_CHARS` から導くと、その定数を
     /// 緩めたときにテストも一緒に緩む。
+    ///
+    /// 長さだけを見ると、理由文と引用のどちらか一方を打ち切っただけでも通る。
+    /// 打ち切りの跡（`…`）の数で、両方に効いていることを見る。
     #[test]
-    fn a_long_input_is_truncated_in_the_message() {
+    fn a_long_token_is_truncated_in_the_reason() {
         const LOG_BUDGET_CHARS: usize = 512;
 
-        let huge = "x".repeat(100_000);
-        let digits = "9".repeat(100_000);
+        // 全体が 256 字を超えない範囲で、1トークンだけを長くする
+        let long_token = "x".repeat(150);
+        let long_digits = "9".repeat(150);
 
         let inputs = [
-            // 引用の側だけを通る
-            huge.clone(),
-            // 局面の後ろに余分なトークン
-            format!("{HIRATE_SFEN} {huge}"),
-            // 手数が数値でない
-            format!("{BARE_BOARD} b - {huge}"),
-            // 持駒の桁
-            format!("{BARE_BOARD} b {digits}P 1"),
-            // 持駒の枚数に駒が続かない
-            format!("{BARE_BOARD} b {digits} 1"),
+            // 手数が数値でない → 理由文に {ply} が入る
+            format!("{BARE_BOARD} b - {long_token}"),
+            // 局面の後ろに余分なトークン → 理由文に {extra} が入る
+            format!("{BARE_BOARD} b - 1 {long_token}"),
+            // 持駒の桁 → 理由文に {digits} が入る
+            format!("{BARE_BOARD} b {long_digits}P 1"),
+            // 持駒の枚数に駒が続かない → 理由文に {digits} が入る
+            format!("{BARE_BOARD} b {long_digits} 1"),
         ];
 
         for input in inputs {
+            assert!(
+                input.chars().count() <= MAX_INPUT_CHARS,
+                "入口の検査に落ちてしまう: len={}",
+                input.chars().count()
+            );
+
             for message in [
                 to_book_key(&input).unwrap_err().message,
                 to_book_key_in_file(&input, "/books/a.db")
@@ -494,13 +518,53 @@ mod tests {
                     .message,
             ] {
                 assert!(
+                    !message.contains("長すぎる"),
+                    "入口の検査に落ちている: {message}"
+                );
+                assert!(
                     message.chars().count() <= LOG_BUDGET_CHARS,
-                    "len={} message={}",
-                    message.chars().count(),
-                    &message[..message.len().min(200)]
+                    "len={}",
+                    message.chars().count()
+                );
+
+                // 理由文と引用の両方が打ち切られていること。`…` の数で見るのは、
+                // 片方だけ打ち切っても長さの上限は満たしてしまうため。
+                assert_eq!(
+                    message.matches('…').count(),
+                    2,
+                    "理由文と引用の両方が打ち切られていない: {message}"
                 );
             }
         }
+    }
+
+    /// 不変条件 1: 合法な局面は必ず通る。
+    ///
+    /// 成駒を `+X` で書き、空きマスを畳まずに `1` の並びで書いた盤面が、
+    /// 正当な入力の最長。`MAX_INPUT_CHARS` を詰めるとここが落ちる。
+    #[test]
+    fn a_maximally_spelled_board_is_accepted() {
+        // 駒箱の40枚を全て盤に置き、成れる34枚を `+X`、空きマス41を `1` の並びで
+        // 書いた形。盤面だけで123字になる。
+        let board = concat!(
+            "+P1+P1+P1+P1+P/",
+            "+P1+P1+P1+P1+P/",
+            "+P1+P1+P1+P1+P/",
+            "+P1+P1+P1+L1+L/",
+            "+L1+L1+N1+N1+N/",
+            "+N1+S1+S1+S1+S/",
+            "+B1+B1+R1+R1G/",
+            "G1G1G1K1k/",
+            "111111111",
+        );
+        let input = format!("position sfen {board} b - 9999");
+
+        assert!(
+            input.chars().count() <= MAX_INPUT_CHARS,
+            "正当な局面が入口の検査で落ちる: len={}",
+            input.chars().count()
+        );
+        assert!(to_book_key(&input).is_ok(), "{:?}", to_book_key(&input));
     }
 
     #[test]

@@ -8,8 +8,9 @@
 # 落ちたら permissionDecision: deny を返してコミット自体を止める。
 # 逃げ道は用意しない。逃げ道を用意した時点でゲートではなくなる。
 #
-# 判定部分（commit の検出とツリーの決定）は `verify-gate.test.sh` が固定している。
-# ここを触ったらそちらも走らせること。
+# 判定に関わる関数は `verify-gate.test.sh` が表で固定している。どの関数に表が
+# あるかは、そちらの `expect_*` の定義を見ること。ここを触ったら走らせること
+# （`.claude/hooks/*.sh` を変更したコミットでは、このゲート自身が走らせる）。
 
 set -uo pipefail
 
@@ -80,7 +81,11 @@ gate_alias_verbs() {
   fi
 
   local config known="$GATE_COMMIT_VERB_BASE" found="" added=1
-  config=$(git config --get-regexp '^alias\.[^.]+$' 2>/dev/null) || return 0
+
+  # -z で読む。`git config --get-regexp` は値に含まれる改行をそのまま出すので、
+  # 素で読むと2行目以降が `alias.` で始まらず、名前を切り出せない。
+  config=$(git config -z --get-regexp '^alias\.[^.]+$' 2>/dev/null \
+    | tr '\n' ' ' | tr '\0' '\n') || return 0
 
   while [ "$added" -eq 1 ]; do
     added=0
@@ -106,13 +111,12 @@ gate_alias_verbs() {
   printf '%s' "$found"
 }
 
+# 判定に使う語彙。呼び出しは全てコマンド置換の中なので、ここで変数へ覚えても
+# サブシェルの終わりで消える。素直に毎回組み立てる（`git config` 1回ぶん）。
 gate_commit_verb() {
-  if [ -z "${GATE_COMMIT_VERB_CACHE:-}" ]; then
-    local aliases
-    aliases=$(gate_alias_verbs)
-    GATE_COMMIT_VERB_CACHE="($GATE_COMMIT_VERB_BASE${aliases:+|$aliases})"
-  fi
-  printf '%s' "$GATE_COMMIT_VERB_CACHE"
+  local aliases
+  aliases=$(gate_alias_verbs)
+  printf '%s' "($GATE_COMMIT_VERB_BASE${aliases:+|$aliases})"
 }
 
 gate_commit_call() {

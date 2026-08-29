@@ -146,29 +146,35 @@ fn annotate(err: BookError, note: &str) -> BookError {
     }
 }
 
+/// エラーに載せるパスの上限。
+///
+/// 出荷対象のうち最も緩い Linux の `PATH_MAX`（4096 バイト）を、文字数で数えても
+/// 下回らない値にしてある。**弾くためではなく、打ち切るための値。**
+/// 長いパスを拒否すると、深い階層に定跡を置いている利用者が行き止まりになる。
+const MAX_PATH_CHARS: usize = 4096;
+
+/// エラーに載せるパスを打ち切る。切れていることが分かるように印を付ける。
+fn truncate_path(raw: &str) -> String {
+    let mut out: String = raw.chars().take(MAX_PATH_CHARS).collect();
+    if out.chars().count() < raw.chars().count() {
+        out.push('…');
+    }
+    out
+}
+
 /// フロントから来たパスの形を検査する。
 ///
 /// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
 /// 失敗し、`BookInfo.path` にもその相対文字列が残って UI に出しても意味を成さない。
-/// パスとして受け付ける長さの上限。OS の `PATH_MAX` は 1024 前後。
-const MAX_PATH_CHARS: usize = 1024;
-
 fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
-    // path にも上限を掛ける。raw はコマンド境界から来る任意長の文字列で、
+    // エラーに載せる path は打ち切る。raw はコマンド境界から来る任意長の文字列で、
     // BookError の Display は path を含めてログへ出る。
     let invalid = |reason: &str| {
-        BookError::new(BookErrorCode::InvalidPath, reason.to_string())
-            .with_path(raw.chars().take(MAX_PATH_CHARS).collect::<String>())
+        BookError::new(BookErrorCode::InvalidPath, reason.to_string()).with_path(truncate_path(raw))
     };
 
     if raw.trim().is_empty() {
         return Err(invalid("定跡のパスが空"));
-    }
-
-    // OS のパスの上限（PATH_MAX は 1024 前後）を超える綴りはファイルを指せない。
-    // 打ち切らずにログや message へ流すと、失敗1件でログの予算を使い切る。
-    if raw.chars().count() > MAX_PATH_CHARS {
-        return Err(invalid("定跡のパスが長すぎる"));
     }
 
     // NUL 入りのパスは std が InvalidInput で弾く。素通しすると原因が Io に化けて、
@@ -525,28 +531,30 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_path_that_is_not_an_absolute_spelling() {
-        let too_long = format!("/{}", "a".repeat(MAX_PATH_CHARS));
-
-        for raw in [
-            "",
-            "   ",
-            "books/standard.db",
-            "./standard.db",
-            "a\0b.db",
-            too_long.as_str(),
-        ] {
+    fn rejects_a_path_that_cannot_point_at_a_file() {
+        for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidPath, "raw={raw:?}");
-            // path も打ち切る。ここを素通しにすると、弾いた入力でログが埋まる
-            assert!(
-                err.path.as_deref().unwrap_or("").chars().count() <= MAX_PATH_CHARS,
-                "path len={}",
-                err.path.as_deref().unwrap_or("").chars().count()
-            );
-            if raw.chars().count() <= MAX_PATH_CHARS {
-                assert_eq!(err.path.as_deref(), Some(raw));
-            }
+            assert_eq!(err.path.as_deref(), Some(raw));
         }
+    }
+
+    /// 長いパスは弾かずに、エラーへ載せるときだけ打ち切る。
+    /// 弾くと、深い階層に定跡を置いている利用者が行き止まりになる
+    /// （Linux の PATH_MAX は 4096）。
+    #[test]
+    fn an_over_long_path_is_truncated_in_the_error_but_not_rejected() {
+        let long = format!("/{}", "a".repeat(MAX_PATH_CHARS));
+        assert!(
+            validate_book_path(&long).is_ok(),
+            "長さだけを理由に弾いている"
+        );
+
+        // 弾かれる理由が別にある場合、載る path は打ち切られている
+        let relative = "a".repeat(MAX_PATH_CHARS + 10);
+        let err = validate_book_path(&relative).unwrap_err();
+        let path = err.path.expect("path が載っていない");
+        assert_eq!(path.chars().count(), MAX_PATH_CHARS + 1, "…のぶんだけ長い");
+        assert!(path.ends_with('…'), "切れたことが分からない");
     }
 }
