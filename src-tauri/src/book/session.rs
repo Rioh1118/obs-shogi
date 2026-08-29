@@ -6,7 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// 開いている定跡ひとつ。
-pub struct OpenBook {
+///
+/// `open_book` コマンドの引数 `OpenBookInput` とは無関係。
+pub struct BookSession {
     pub info: BookInfo,
     pub reader: Box<dyn BookReader>,
 }
@@ -17,7 +19,7 @@ pub struct OpenBook {
 /// 同じパスを2回開けば別のハンドルになる。
 #[derive(Default)]
 pub struct BookState {
-    books: DashMap<BookHandle, Arc<OpenBook>>,
+    books: DashMap<BookHandle, Arc<BookSession>>,
     next_handle: AtomicU64,
 }
 
@@ -42,7 +44,7 @@ impl BookState {
 
         self.books.insert(
             handle,
-            Arc::new(OpenBook {
+            Arc::new(BookSession {
                 info: info.clone(),
                 reader,
             }),
@@ -54,7 +56,7 @@ impl BookState {
     /// ハンドルの指す定跡を取り出す。
     ///
     /// map のロックを跨いで読ませないために `Arc` を複製して返す。
-    pub fn get(&self, handle: BookHandle) -> Result<Arc<OpenBook>, BookError> {
+    pub fn get(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
             .get(&handle)
             .map(|entry| Arc::clone(entry.value()))
@@ -128,7 +130,7 @@ mod tests {
         }
     }
 
-    /// `OpenBook` は Debug ではないので `unwrap_err` が使えない。
+    /// `BookSession` は Debug ではないので `unwrap_err` が使えない。
     fn get_err(state: &BookState, handle: BookHandle) -> BookError {
         let Err(err) = state.get(handle) else {
             panic!("開かれていないはずのハンドル {handle} が引けた");

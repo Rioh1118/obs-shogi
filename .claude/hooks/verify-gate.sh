@@ -19,7 +19,10 @@ if ! printf '%s' "$command" | grep -Eq '(^|[;&|(]|[[:space:]])git([[:space:]]+-[
   exit 0
 fi
 
-project_dir="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+# ワークツリーで作業しているとき、CLAUDE_PROJECT_DIR は元のチェックアウトを指したままになる。
+# それを優先すると、commit しようとしているツリーではなく別のツリーを検証してしまい、
+# 自分の変更は一度も見られないままゲートが通る（あるいは他人の作業で落ちる）。
+project_dir="$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-}")"
 [ -n "$project_dir" ] || exit 0
 cd "$project_dir" || exit 0
 
