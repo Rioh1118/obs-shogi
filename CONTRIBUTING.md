@@ -242,9 +242,16 @@ gap: 0.75rem;
 
 `success` は置いていません。成功を通知する場面が現物に1件も無いためです。必要になったら足します。
 
-既存の危険な操作（`ContextMenu` / `FileConflictDialog` / `IconButton` / `KifuForkActions`）は
-まだ自前の値のままで、ここには寄っていません
+危険な操作の色は、まだ全部が寄り切っていません
 （[#180](https://github.com/Rioh1118/obs-shogi/issues/180)）。
+
+| 場所                   | いまの値                                          | 状態                                                                                       |
+| ---------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `IconButton`           | `#dc3545` を CSS 変数の既定値として直書き         | 自前の値のまま                                                                             |
+| `KifuForkActions`      | `rgba(215, 96, 96, …)` / `rgba(235, 160, 160, …)` | 自前の値のまま                                                                             |
+| `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                             |
+| `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**（[#185](https://github.com/Rioh1118/obs-shogi/issues/185)） |
+| `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                   |
 
 ### まだ決まっていないもの
 
