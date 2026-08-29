@@ -51,9 +51,8 @@ export default function KifuStreamList() {
 
   const rows = useMemo(() => {
     if (!view.player) return [];
-    // 一覧を組むための再生用に、盤の player とは別の player を立てる。棋譜は共有してよい。
-    // JKFPlayer が棋譜を書き換えるのは inputMove だけで、buildStreamRowsFromCursor は
-    // forward / backward / forkAndForward しか呼ばない。盤面も Shogi が持ち直すので干渉しない。
+    // 一覧を組むための再生用に、盤の player とは別の player を立てる。
+    // buildStreamRowsFromCursor は棋譜を書き換えない契約なので、棋譜は共有してよい。
     const viewer = new JKFPlayer(view.player.kifu);
     return buildStreamRowsFromCursor(viewer, plannedCursor);
   }, [view.player, plannedCursor]);
