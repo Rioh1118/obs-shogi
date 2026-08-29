@@ -145,7 +145,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     const res = await api.fetchTree(rootDir);
 
     if (!res.success) {
-      dispatch({ type: "error", payload: res.error });
+      dispatch({ type: "reload_failed", payload: res.error });
       return Err(res.error);
     }
 

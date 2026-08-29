@@ -135,6 +135,8 @@ export type FileTreeAction =
       };
     }
   | { type: "error"; payload: FsError }
+  /** ツリーの読み直しの失敗。`error` と違い、衝突の対話が開いていても捨てない */
+  | { type: "reload_failed"; payload: FsError }
   | { type: "error_cleared" }
   | { type: "kifu_error"; payload: FsError }
   | { type: "kifu_error_cleared" }

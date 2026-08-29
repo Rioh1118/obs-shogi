@@ -93,13 +93,9 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
           action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
       };
 
-    // 編集中の行とメニューは畳む。開いたままだと失敗を伝える表示がその上に重なり、
-    // それを閉じる操作で入力が blur して同じ名前がもう一度送られる。また失敗するので
-    // 閉じても表示が戻ってくる。`conflict_opened` が畳んでいるのと同じ理由。
-    //
-    // **畳むのをやめるなら、`InlineNameEditor` に返す失敗の絞り込みが要る。**
-    // いま名前以外の失敗が入力欄の下に出ないのは、ここで編集行ごと消えるため
-    // （`lib/commitName` がその前提で絞っている）
+    // 編集中の行とメニューは畳む。名前を直しても通らない失敗しかここへ来ないので
+    // （`isNameInputError` が真のものは `failToNameInput` が入力欄へ返す）、
+    // 入力欄を残しても直せる先が無い。`conflict_opened` が畳んでいるのと同じ理由
     case "error":
       // 衝突の解決中に失敗したときは、そのダイアログの中で伝える（`submitError`）。
       // ここで積むと対話の裏に別の失敗の箱が重なり、解決操作の続きが
@@ -115,6 +111,16 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
         creatingDirParentPath: null,
         error: action.payload,
       };
+
+    // 読み直しの失敗は**対話が開いていても捨てない**。捨てると、別名で解決した直後の
+    // 読み直しが落ちたときに「ファイルはできている・ツリーは古いまま・失敗はどこにも
+    // 出ない」で終わる。操作は `Ok` を返しているので対話は成功として閉じ、
+    // 利用者は「作られていない」と読んで押し直し、`already_exists` に当たる。
+    //
+    // 畳まないのは、これが操作の失敗ではなく**そのあとの読み直しの失敗**だから。
+    // 開いている入力欄は、読み直しが直れば意味を持ち続ける
+    case "reload_failed":
+      return { ...state, isLoading: false, error: action.payload };
 
     case "error_cleared":
       return { ...state, error: null };

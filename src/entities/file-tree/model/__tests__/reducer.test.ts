@@ -115,6 +115,23 @@ describe("衝突の解決中に失敗したとき", () => {
 
     expect(next.isLoading).toBe(false);
   });
+
+  // 別名での解決は「操作 → 読み直し → 対話を閉じる」の順で走るので、読み直しは
+  // 対話が開いたままの窓の中で終わる。ここで捨てると、ファイルはできていて
+  // ツリーは古いまま、失敗はどこにも出ないまま対話が成功として閉じる
+  test("読み直しの失敗は捨てない", () => {
+    const next = reducer(resolving(), { type: "reload_failed", payload: ERROR });
+
+    expect(next.error).toEqual(ERROR);
+  });
+
+  // 読み直しの失敗は操作の失敗ではないので、開いている入力欄を巻き添えにしない
+  test("読み直しの失敗では編集中の行を畳まない", () => {
+    const opened = { ...resolving(), renamingNodeId: CHILD.id };
+    const next = reducer(opened, { type: "reload_failed", payload: ERROR });
+
+    expect(next.renamingNodeId).toBe(CHILD.id);
+  });
 });
 
 describe("読み直しを始めたとき", () => {
