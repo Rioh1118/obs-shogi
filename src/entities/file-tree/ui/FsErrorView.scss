@@ -40,13 +40,6 @@
     font-weight: 600;
   }
 
-  // 何を直せばよいか。code だけでは伝わらない失敗で出す
-  &__hint {
-    margin: 0;
-    font-size: index.$font-aux;
-    color: index.$color-text-primary;
-  }
-
   // パスは折り返させる。省略すると、どれが失敗したのか分からなくなる
   &__path {
     margin: 0;
