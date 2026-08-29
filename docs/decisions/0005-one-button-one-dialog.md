@@ -16,6 +16,8 @@
 | `kifu-read-error__btn`  | `features/kifu-read-error` | 1rem   | 0.46   | 明るい文字（深緑のグラデーション面） |
 | `file-conflict__button` | `features/file-conflict`   | 独自   | 独自   | 独自                                 |
 
+`ControlButton`（盤の操作列）は当時数えていなかった。実際には6系統目として現存する。
+
 **「danger の赤」も3通りあった**（`$color-danger` `#b5645c` / IconButton の `#dc3545` /
 SButton の `#ff5a5a`）。
 
@@ -123,8 +125,12 @@ Esc・オーバーレイのクリック・portal・タイトルバーを覆わ�
 
 ## 影響
 
-- ボタンの定義が5 → 1。削除は約1,100行
-- SCSS の直値が **118件**減った（ADR-0003 のラチェット。`font-size` 251→218 /
-  `spacing` 528→479 / `border-radius` 178→158 ほか）。#160 の残量がその分減る
+- **文脈に並べた5系統のうち4系統を畳んだ。** 残るのは `IconButton`（#180 で保留）。
+  文脈に数え落としていた `ControlButton`（盤の操作列）も残っているので、
+  押すものの定義はいま **3つ**（`Button` / `IconButton` / `ControlButton`）。
+  「1つに揃える」はまだ途中で、この ADR が決めたのは**寄せ先を1つに決めたこと**
+- SCSS の直値が **143件**減った（ADR-0003 のラチェット。`font-size` 251→216 /
+  `spacing` 528→475 / `border-radius` 178→155 / `elevation` 79→62 /
+  `motion` 79→68 / `family` 18→15 / `indirect` 53→52）。#160 の残量がその分減る
 - `CONTRIBUTING.md` の SCSS 節に意味色の選び方を書いた
 - `IconButton` の棚卸しは #180 に残っている
