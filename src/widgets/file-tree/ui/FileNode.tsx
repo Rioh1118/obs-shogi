@@ -1,6 +1,7 @@
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
+import { commitName } from "@/widgets/file-tree/lib/commitName";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
@@ -101,10 +102,9 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  // 名前を直せば通る失敗は返す。入力欄がその場に残り、打った文字列も残る
   const handleCommit = async (nextName: string) => {
-    const res = await renameNode(node, nextName);
-    if (!res.success) return res.error;
+    const res = await commitName(nextName, (name) => renameNode(node, name));
+    if (!res.ok) return res.shown;
     cancelInlineRename();
   };
 

@@ -6,9 +6,13 @@ type InlineRenameProps = {
   isEditting: boolean;
   initialName: string;
   /**
-   * 名前を直せば通る失敗（`invalid_name_*`）は、通知に積まずここへ返す。
-   * 返された失敗は入力欄の下に出し、**打った文字列は残す**。
-   * 通知に積むと reducer が編集行ごと畳み、直すための入力欄まで消える。
+   * 名前を直せば通る失敗（`invalid_name_*`）だけを返す。返された失敗は
+   * 入力欄の下に出し、**打った文字列は残す**。
+   *
+   * それ以外の失敗は返さない。通知へ積まれ、その時点で reducer が
+   * 編集行を畳む（`entities/file-tree/model/reducer.ts` の `error`）。
+   * ここへも返すと、畳むのをやめた瞬間に同じ失敗が2つの形で同時に出る。
+   * 絞り込みは `widgets/file-tree/lib/commitName` が持つ。
    */
   onCommit: (nextName: string) => void | Promise<FsError | void>;
   onCancel: () => void;

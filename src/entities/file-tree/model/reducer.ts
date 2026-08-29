@@ -95,7 +95,11 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
 
     // 編集中の行とメニューは畳む。開いたままだと失敗を伝える表示がその上に重なり、
     // それを閉じる操作で入力が blur して同じ名前がもう一度送られる。また失敗するので
-    // 閉じても表示が戻ってくる。`conflict_opened` が畳んでいるのと同じ理由
+    // 閉じても表示が戻ってくる。`conflict_opened` が畳んでいるのと同じ理由。
+    //
+    // **畳むのをやめるなら、`InlineNameEditor` に返す失敗の絞り込みが要る。**
+    // いま名前以外の失敗が入力欄の下に出ないのは、ここで編集行ごと消えるため
+    // （`widgets/file-tree/lib/commitName` がその前提で絞っている）
     case "error":
       // 衝突の解決中に失敗したときは、そのダイアログの中で伝える。ここで積むと
       // モーダルが2枚重なり、Escape は先に登録された下のダイアログだけを閉じる。

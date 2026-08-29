@@ -10,7 +10,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { useFileTree } from "@/entities/file-tree";
-import { validateBasename } from "@/entities/file-tree/lib/validateBasename";
+import { commitName } from "@/widgets/file-tree/lib/commitName";
 
 function RootNode({
   node,
@@ -42,30 +42,15 @@ function RootNode({
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  // 名前を直せば通る失敗は返す。入力欄がその場に残り、打った文字列も残る
-  const handleCommitRename = async (nextNameRaw: string) => {
-    const validated = validateBasename(nextNameRaw);
-    if (!validated.success) return validated.error;
-    const nextName = validated.data;
-
-    if (nextName === node.name) {
-      cancelInlineRename();
-      return;
-    }
-
-    const res = await renameNode(node, nextName);
-    if (!res.success) return res.error;
-
+  const handleCommitRename = async (nextName: string) => {
+    const res = await commitName(nextName, (name) => renameNode(node, name));
+    if (!res.ok) return res.shown;
     cancelInlineRename();
   };
 
-  const handleCommitCreate = async (name: string) => {
-    const next = name.trim();
-    if (!next) return;
-
-    const res = await createNewDirectory(node.path, next);
-    if (!res.success) return res.error;
-
+  const handleCommitCreate = async (nextName: string) => {
+    const res = await commitName(nextName, (name) => createNewDirectory(node.path, name));
+    if (!res.ok) return res.shown;
     cancelCreateDirectory();
   };
 
