@@ -95,13 +95,7 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     // 局面として成立しうる長さを超えるものは、理由文を組み立てる前に落とす。
     // 打ち切りを断片ごとに足して回る形だと、枝が増えるたびに取り残しが出る。
     //
-    // 数えるのはトークンの合計。区切りの空白はいくつ挟んでも同じ局面を指すので、
-    // 生の長さで測ると正当な局面を弾いてしまう。
-    let token_chars: usize = input
-        .split_whitespace()
-        .map(|token| token.chars().count() + 1)
-        .sum();
-    if token_chars > MAX_INPUT_CHARS {
+    if measured_len(input) > MAX_INPUT_CHARS {
         return Err(invalid("局面として長すぎる"));
     }
 
@@ -202,20 +196,33 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
     })
 }
 
-/// 局面の文字列として受け付ける長さの上限。
+/// 長さの物差し。トークンごとに、その字数と区切り1字を数える。
 ///
-/// 数えるのはトークンの合計（区切りの空白は1字と数える）。
+/// 区切りの空白はいくつ挟んでも同じ局面を指すので、生の長さでは測らない。
+///
+/// **入口の検査と、上限の根拠を固定するテストの両方がこれを呼ぶ。**
+/// 片方を生の文字数で測ると、末尾のトークンのぶんだけ1字ずれる。ずれの幅は
+/// たかだか1だが、境界ちょうどの1点で「テストは落ちるのに assert は通る」が
+/// 起きるので、上限を詰めたときにコンパイルで止まるという保証が崩れる。
+fn measured_len(input: &str) -> usize {
+    input
+        .split_whitespace()
+        .map(|token| token.chars().count() + 1)
+        .sum()
+}
+
+/// 局面の文字列として受け付ける長さの上限。単位は [`measured_len`]。
 ///
 /// 盤面は `81 - 盤上の駒数 + 綴りの字数 + '/'8個`。持駒は1枚あたり最長2字
 /// （`1P` のように枚数を明示する綴り）。**盤面と持駒の合計の最大は 165 字**で、
 /// 盤上を玉2枚だけにして残り38枚を1枚ずつ持駒に書いたとき（89 + 76）。
-/// 前置き・手番・10桁の手数を足して 193 字。
+/// 前置き・手番・10桁の手数と、トークンごとの区切りを足して 194。
 /// `a_maximally_spelled_board_is_accepted` がその長さちょうどを通している。
 ///
 /// この計算は、先頭ゼロを [`hand_count::HandCount::parse`] と手数の検査が拒否する
 /// ことに依存している。受け付けると同じ局面をいくらでも長く書けて、上限が無くなる。
 ///
-/// 193 に余裕を持たせ、2 の冪へ丸めて 256。
+/// 194 に余裕を持たせ、2 の冪へ丸めて 256。
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
 const MAX_INPUT_CHARS: usize = 256;
 
@@ -553,9 +560,9 @@ mod tests {
 
         for (input, reason) in inputs {
             assert!(
-                input.chars().count() <= MAX_INPUT_CHARS,
+                measured_len(&input) <= MAX_INPUT_CHARS,
                 "入口の検査に落ちてしまう: len={}",
-                input.chars().count()
+                measured_len(&input)
             );
 
             for message in [
@@ -585,9 +592,9 @@ mod tests {
         }
     }
 
-    /// 正規の綴りでの最長（トークンの合計）。
-    /// 前置き14 + 盤面89 + 手番1 + 持駒76 + 手数10 + 区切り3 = 193。
-    const LONGEST_VALID_INPUT_CHARS: usize = 193;
+    /// 正規の綴りでの最長。単位は [`measured_len`]（トークンごとに区切り1字を含む）。
+    /// `position` 9 + `sfen` 5 + 盤面 90 + 手番 2 + 持駒 77 + 手数 11 = 194。
+    const LONGEST_VALID_INPUT_CHARS: usize = 194;
 
     /// 上限がこれを下回ると、正当な局面が入口の検査で落ちる。
     /// コンパイル時に見るので、定数を詰めた時点で気づける。
@@ -624,7 +631,9 @@ mod tests {
         let input = format!("position sfen {board} b {hands} 4294967295");
 
         // 境界を等式で固定する。`<=` だけだと、上限を詰めても落ちない。
-        assert_eq!(input.chars().count(), LONGEST_VALID_INPUT_CHARS);
+        // 測るのは入口の検査と同じ物差し。生の文字数で測ると単位が2つに割れ、
+        // 境界ちょうどで assert とテストの言うことが食い違う。
+        assert_eq!(measured_len(&input), LONGEST_VALID_INPUT_CHARS);
         assert!(to_book_key(&input).is_ok(), "{:?}", to_book_key(&input));
     }
 

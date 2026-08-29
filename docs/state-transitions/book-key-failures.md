@@ -11,22 +11,22 @@ R9 から R12 まで毎ラウンド出た**（N-07 / O-04 / P-01 / Q-02）。原
 
 上から順に評価される。最初に当たったものが結果になる。
 
-| 記号 | 判定条件（式）                                                           | 返るもの                                                                           |
-| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| G0   | トークンの合計字数 > `MAX_INPUT_CHARS`（256）。区切りの空白は1字と数える | `InvalidSfen`「局面として長すぎる」                                                |
-| G1   | `startpos` の次のトークンが存在する                                      | `InvalidSfen`（`moves` / 余分なトークン）                                          |
-| G2   | board トークンが無い                                                     | `InvalidSfen`「局面が空」                                                          |
-| G3   | side トークンが無い                                                      | `InvalidSfen`「手番が無い」                                                        |
-| G4   | hands トークンが無い                                                     | `InvalidSfen`「持駒が無い」                                                        |
-| G5   | `side != "b" && side != "w"`                                             | `InvalidSfen`「手番が b でも w でもない」                                          |
-| G6   | 手数の位置が `"moves"`                                                   | `InvalidSfen`（指し手列）                                                          |
-| G7a  | 手数の綴りが10進数字でない / 先頭ゼロ / `+` 付き                         | `InvalidSfen`「手数の綴りが数値でない: {ply}」                                     |
-| G7b  | `ply.parse::<u32>().is_err()`                                            | `InvalidSfen`「手数が大きすぎる: {ply}」                                           |
-| G8   | 手数の後ろにトークンが残る                                               | `InvalidSfen`（`moves` / 余分なトークン）                                          |
-| G9   | `normalize_board` が `Err`                                               | `InvalidSfen`（段数 / 列数 / 駒でない文字 / `+` の後ろ / 成れない駒）              |
-| G10  | `normalize_hands` が `Err`                                               | `InvalidSfen`（枚数に先頭ゼロ / 枚数が範囲外 / 駒が続かない / 持駒にできない文字） |
-| G11  | `PieceCounts::validate` が `Err`                                         | `InvalidSfen`（枚数超過 / 同じ側に玉2枚）                                          |
-| OK   | 上のどれにも当たらない                                                   | `Ok(BookKey)`                                                                      |
+| 記号 | 判定条件（式）                                                                   | 返るもの                                                                           |
+| ---- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| G0   | `measured_len` > `MAX_INPUT_CHARS`（256）。トークンごとに字数と区切り1字を数える | `InvalidSfen`「局面として長すぎる」                                                |
+| G1   | `startpos` の次のトークンが存在する                                              | `InvalidSfen`（`moves` / 余分なトークン）                                          |
+| G2   | board トークンが無い                                                             | `InvalidSfen`「局面が空」                                                          |
+| G3   | side トークンが無い                                                              | `InvalidSfen`「手番が無い」                                                        |
+| G4   | hands トークンが無い                                                             | `InvalidSfen`「持駒が無い」                                                        |
+| G5   | `side != "b" && side != "w"`                                                     | `InvalidSfen`「手番が b でも w でもない」                                          |
+| G6   | 手数の位置が `"moves"`                                                           | `InvalidSfen`（指し手列）                                                          |
+| G7a  | 手数の綴りが10進数字でない / 先頭ゼロ / `+` 付き                                 | `InvalidSfen`「手数の綴りが数値でない: {ply}」                                     |
+| G7b  | `ply.parse::<u32>().is_err()`                                                    | `InvalidSfen`「手数が大きすぎる: {ply}」                                           |
+| G8   | 手数の後ろにトークンが残る                                                       | `InvalidSfen`（`moves` / 余分なトークン）                                          |
+| G9   | `normalize_board` が `Err`                                                       | `InvalidSfen`（段数 / 列数 / 駒でない文字 / `+` の後ろ / 成れない駒）              |
+| G10  | `normalize_hands` が `Err`                                                       | `InvalidSfen`（枚数に先頭ゼロ / 枚数が範囲外 / 駒が続かない / 持駒にできない文字） |
+| G11  | `PieceCounts::validate` が `Err`                                                 | `InvalidSfen`（枚数超過 / 同じ側に玉2枚）                                          |
+| OK   | 上のどれにも当たらない                                                           | `Ok(BookKey)`                                                                      |
 
 ## 入力の形（イベント）
 
@@ -70,7 +70,8 @@ G10 の2枝（枚数が範囲外 / 駒が続かない）で計4つ。
 
 1. **合法な局面は必ず OK に着く。** 長さはトークンの合計で数える（空白はいくつ挟んでもよい）。
    盤面と持駒の合計の**最大**は 165 字で、盤上を玉2枚だけにして残り38枚を1枚ずつ持駒に書いたとき。
-   前置き・手番・10桁の手数を足して 193 字が最長。`MAX_INPUT_CHARS` はこれを下回ってはならない。
+   前置き・手番・10桁の手数と、トークンごとの区切りを足して 194 が最長。
+   `MAX_INPUT_CHARS` はこれを下回ってはならない。
    **この計算は先頭ゼロと `+` 付きの手数を拒否していることに依存する**（受け付けると上限が無くなる）
 2. **失敗の `message` は、入力の長さに比例して伸びない。** `logged` 経由でログ（200KB / KeepOne）へ
    流れるので、失敗1件で以前の記録が消えてはならない
@@ -79,10 +80,12 @@ G10 の2枝（枚数が範囲外 / 駒が続かない）で計4つ。
 
 ## 照合
 
-- 不変条件 1: `a_maximally_spelled_board_is_accepted` ✓。正当な入力の最長（193字）
+- 不変条件 1: `a_maximally_spelled_board_is_accepted` ✓。正当な入力の最長（194）
   ちょうどを、`LONGEST_VALID_INPUT_CHARS` との等式で固定している。
   上限との関係は同じモジュールのコンパイル時 assert が見るので、
-  `MAX_INPUT_CHARS` を 192 以下へ詰めると**コンパイルが通らない**。
+  `MAX_INPUT_CHARS` を 193 以下へ詰めると**コンパイルが通らない**。
+  テストと assert は同じ物差し（`measured_len`）で測る。片方を生の文字数で測ると、
+  境界ちょうどの1点で「テストは落ちるのに assert は通る」が起きる。
   空白の側は `extra_whitespace_does_not_make_a_position_too_long` ✓。
   この不変条件が成り立つのは、先頭ゼロと `+` 付きの手数を
   `rejects_spellings_that_would_unbound_the_length` が拒否しているから。
