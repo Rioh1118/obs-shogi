@@ -2,6 +2,7 @@ use crate::book::error::{BookError, BookErrorCode};
 use crate::book::reader::BookReader;
 use crate::book::types::{BookHandle, BookInfo};
 use dashmap::DashMap;
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -11,6 +12,15 @@ use std::sync::Arc;
 pub struct BookSession {
     pub info: BookInfo,
     pub reader: Box<dyn BookReader>,
+}
+
+impl fmt::Debug for BookSession {
+    // reader は形式ごとに中身が違い、ログに出しても意味を成さないので info だけ見せる。
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BookSession")
+            .field("info", &self.info)
+            .finish_non_exhaustive()
+    }
 }
 
 /// 開いている定跡を束ねる Tauri State。
@@ -63,12 +73,18 @@ impl BookState {
             .ok_or_else(|| Self::invalid_handle(handle))
     }
 
-    /// 閉じる。閉じたあとに残ると定跡ぶんのメモリを抱えたままになるので、
-    /// 知らないハンドルは黙って成功させず失敗として返す。
-    pub fn close(&self, handle: BookHandle) -> Result<(), BookError> {
+    /// 閉じて、外した定跡そのものを返す。
+    ///
+    /// 知らないハンドルを黙って成功させないのは、二重 close やハンドルの取り違えが
+    /// フロント側で検出できなくなるため。
+    ///
+    /// 返り値を捨てるとその場で reader が Drop される。数百万個の `String` の解放が
+    /// 走るので、捨てる場所は呼び出し側が選ぶ。
+    #[must_use = "捨てた場所で reader の Drop が走る。どこで解放するかを選ぶこと"]
+    pub fn close(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
             .remove(&handle)
-            .map(|_| ())
+            .map(|(_, session)| session)
             .ok_or_else(|| Self::invalid_handle(handle))
     }
 
@@ -130,14 +146,6 @@ mod tests {
         }
     }
 
-    /// `BookSession` は Debug ではないので `unwrap_err` が使えない。
-    fn get_err(state: &BookState, handle: BookHandle) -> BookError {
-        let Err(err) = state.get(handle) else {
-            panic!("開かれていないはずのハンドル {handle} が引けた");
-        };
-        err
-    }
-
     fn state_with_one_book() -> (BookState, Arc<AtomicUsize>, BookInfo) {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
@@ -175,14 +183,14 @@ mod tests {
     #[test]
     fn get_rejects_an_unknown_handle() {
         let (state, _alive, info) = state_with_one_book();
-        let err = get_err(&state, info.handle + 1);
+        let err = state.get(info.handle + 1).unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidHandle);
     }
 
     #[test]
     fn close_rejects_an_already_closed_handle() {
         let (state, _alive, info) = state_with_one_book();
-        state.close(info.handle).unwrap();
+        drop(state.close(info.handle).unwrap());
 
         let err = state.close(info.handle).unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidHandle);
@@ -193,12 +201,12 @@ mod tests {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
         let first = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
-        state.close(first.handle).unwrap();
+        drop(state.close(first.handle).unwrap());
 
         let second = state.register("/books/b.db".to_string(), FakeReader::boxed(&alive));
         assert_ne!(first.handle, second.handle);
         assert_eq!(
-            get_err(&state, first.handle).code,
+            state.get(first.handle).unwrap_err().code,
             BookErrorCode::InvalidHandle
         );
     }
@@ -222,7 +230,7 @@ mod tests {
         assert_eq!(alive.load(Ordering::SeqCst), 32);
 
         for handle in handles {
-            state.close(handle).unwrap();
+            drop(state.close(handle).unwrap());
         }
 
         assert!(state.is_empty());
@@ -235,7 +243,7 @@ mod tests {
         let (state, alive, info) = state_with_one_book();
 
         let held = state.get(info.handle).unwrap();
-        state.close(info.handle).unwrap();
+        drop(state.close(info.handle).unwrap());
         assert_eq!(alive.load(Ordering::SeqCst), 1);
 
         drop(held);

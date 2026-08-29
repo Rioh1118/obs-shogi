@@ -51,10 +51,20 @@ pub fn get_book_info(
 }
 
 /// 閉じる。ハンドルは以後 InvalidHandle になる。
+///
+/// 解放も blocking プールで行う。定跡の Drop は数百万個の `String` の解放になり、
+/// IPC を受けたスレッドで走らせると閉じた瞬間に画面が固まる。
 #[tauri::command]
-pub fn close_book(state: State<'_, BookState>, input: BookHandleInput) -> Result<(), BookError> {
+pub async fn close_book(
+    state: State<'_, BookState>,
+    input: BookHandleInput,
+) -> Result<(), BookError> {
     log::info!("[cmd] close_book handle={}", input.handle);
-    state.close(input.handle)
+    let session = state.close(input.handle)?;
+
+    tauri::async_runtime::spawn_blocking(move || drop(session))
+        .await
+        .map_err(join_error)
 }
 
 fn join_error(err: tauri::Error) -> BookError {
