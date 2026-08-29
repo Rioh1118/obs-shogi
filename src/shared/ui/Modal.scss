@@ -5,7 +5,20 @@
 
   &__overlay {
     position: fixed;
-    inset: 0;
+    // タイトルバーのある画面（`RuntimeShell` の配下）でしか開かないことが前提。
+    // タイトルバーはウィンドウを動かす唯一の手段（`data-tauri-drag-region`）を持つ。
+    // overlay は `#modal-root` から描かれるので、同じ z-index なら DOM 順で必ず overlay が
+    // 勝つ。覆う範囲そのものを帯の下からにして、塗り順の勝ち負けに依存させない。
+    // z-index を上げて競う手もあるが、それだと帯を守れるかが2つの値の大小に戻り、
+    // タイトルバーと同じ値のまま DOM 順に頼る形を次に足す人が再現できてしまう。
+    // 加えて、`inset: 0` に戻して z-index で競う形にすると、カードが内容ボックスを
+    // 埋める構成（下の `@media` の配下、`--size-full`、内容ボックスが 760px を切ったときの
+    // `--workspace.modal--size-xl`）でカード上端が `padding` の 20px になり、
+    // 帯の 26px に潜って上端が隠れる。いまの `top` があるのでどの構成でも 46px に留まる
+    top: index.$titlebar-height;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 9999;
 
     display: flex;
@@ -25,6 +38,11 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    // size が高さを書かないときの受け皿。size 側のセレクタは詳細度で勝つので、
+    // 書いてある size ではそちらが実効の上限になる（だから size 側にも `100%` を
+    // 入れる。下の sizes の注記）。これが無いと、高さを書かない size を1つ
+    // 足しただけでカードが内容の高さまで伸び、overlay を超えて帯に載る
+    max-height: 100%;
 
     border-radius: 1rem;
     outline: none;
@@ -170,17 +188,30 @@
   }
 
   // ---------- sizes ----------
+  // 高さの上限は必ず `100%`（= overlay の内容ボックス）で挟む。`vh` だけで書くと
+  // overlay がタイトルバーの分だけ低いことを無視して、カードが内容ボックスから
+  // 上下対称にはみ出す（`align-items: center`）。まず `padding` の 2rem を食い、
+  // 食い切ると上はタイトルバーの帯を覆い、下は画面外に出る。overlay は
+  // `position: fixed` なのでスクロールでは届かない。
+  //
+  // 上限を `kH`（`k` は vh 係数）で書いたときの境。内容ボックスは `H - 66`px なので
+  // はみ出すのは `H < 66 / (1 - k)`、カード上端は `13 + (1 - k)H / 2` で
+  // 帯の 26px を割るのは `H < 26 / (1 - k)`。
+  // ただし `--size-md` / `--size-lg` は下の `@media` が H ≤ 720 で先に効くので、
+  // ここに書いた `88vh` がその境に届くことはない。届くのは `@media` の対象外である
+  // `--dialog.modal--size-xl`（`k = 0.88` で H < 217）と `--size-sm`（`k = 0.8` で H < 130）。
+  // `tauri.conf.json` に `minHeight` が無く `resizable: true` なのでそこまで縮められる
   &--size-sm .modal__card {
     width: min(520px, 92vw);
-    max-height: 80vh;
+    max-height: min(80vh, 100%);
   }
   &--size-md .modal__card {
     width: min(720px, 92vw);
-    max-height: 88vh;
+    max-height: min(88vh, 100%);
   }
   &--size-lg .modal__card {
     width: min(900px, 92vw);
-    max-height: 88vh;
+    max-height: min(88vh, 100%);
   }
 
   &--chrome-none {
@@ -193,16 +224,16 @@
 
   &--dialog.modal--size-xl .modal__card {
     width: min(1100px, 92vw);
-    max-height: 88vh;
+    max-height: min(88vh, 100%);
   }
   &--workspace.modal--size-xl .modal__card {
     width: min(1100px, 92vw);
-    height: min(760px, 88vh);
+    height: min(760px, 100%);
   }
 
   &--size-full .modal__card {
     width: 96vw;
-    height: 92vh;
+    height: 100%;
     border-radius: 14px;
   }
 
@@ -210,8 +241,10 @@
     &--size-lg .modal__card,
     &--size-md .modal__card {
       width: 96vw;
-      height: 92vh;
-      max-height: none;
+      height: 100%;
+      // size ごとの `min(88vh, …)` を外して overlay いっぱいまで使う。
+      // `none` にすると上限が消えるので `100%` に置き換える形で外す
+      max-height: 100%;
       border-radius: 14px;
     }
   }

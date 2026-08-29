@@ -76,7 +76,16 @@ $ease: ease;
 
 // layout
 $sidebar-width: 23%;
+// `.titlebar` の高さであり、`decorations: false` のウィンドウを動かす唯一の
+// ドラッグ領域の高さでもある。`Modal.scss` の overlay はこの帯を空けて `top` を置く。
+// 値を動かすぶんには両者が揃って動くが、片方だけ直値に書き換えると境がずれて
+// ウィンドウを掴めなくなる
 $titlebar-height: 2.6rem;
+// 付箋（`FloatingNote`）のヘッダ。高さがタイトルバーと揃うのは意匠で、従属ではない。
+// 利用者が1つしか無いのにここに置くのは、コンポーネント側のローカル変数に下ろすと
+// `scssScaleRatchet` の `indirect` が増えて落ちるため。
+// `indirect` の枠を免除されるのはこのファイルだけ（`scssScale.ts` の `tokenSource`、ADR-0003）
+$floating-note-header-height: 2.6rem;
 
 // elevation
 // 段は浮き上がりの高さでなく、何が浮いているかで選ぶ

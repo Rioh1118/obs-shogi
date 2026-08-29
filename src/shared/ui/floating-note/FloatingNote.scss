@@ -40,8 +40,8 @@ $edge-hit-size: 6px;
   gap: 0.6rem;
   flex-shrink: 0;
 
-  height: index.$titlebar-height;
-  min-height: index.$titlebar-height;
+  height: index.$floating-note-header-height;
+  min-height: index.$floating-note-header-height;
   padding: 0 0.55rem 0 0.85rem;
 
   user-select: none;
