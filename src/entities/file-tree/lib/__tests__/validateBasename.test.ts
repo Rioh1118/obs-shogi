@@ -25,17 +25,32 @@ describe("validateBasename", () => {
     }
   });
 
-  // 利用者に見せる文は code から引く。原因を1つの code に潰すと、
-  // 「その名前は使えません」しか出せなくなって直しようがなくなる
+  test("予約された名前は通さない", () => {
+    for (const name of [".", "..", "  ..  "]) {
+      expect(validateBasename(name).success, name).toBe(false);
+    }
+  });
+
+  test("NUL は通さない", () => {
+    expect(validateBasename("a\0b").success).toBe(false);
+  });
+
+  /**
+   * 利用者に見せる文は code から引く。原因を1つの code に潰すと、
+   * 「その名前は使えません」しか出せなくなって直しようがなくなる。
+   *
+   * 規則と code は Rust 側（`file_system/utils.rs`）と同じ4つ。片方だけ
+   * 増やすと、ここを通ってから向こうで落ちる名前ができる
+   */
   test("原因ごとに違う code を返す", () => {
-    const empty = validateBasename("");
-    const separator = validateBasename("a/b");
+    const codeOf = (name: string) => {
+      const res = validateBasename(name);
+      return res.success ? null : res.error.code;
+    };
 
-    expect(empty.success).toBe(false);
-    expect(separator.success).toBe(false);
-    if (empty.success || separator.success) return;
-
-    expect(empty.error.code).toBe("invalid_name_empty");
-    expect(separator.error.code).toBe("invalid_name_separator");
+    expect(codeOf("")).toBe("invalid_name_empty");
+    expect(codeOf("..")).toBe("invalid_name_reserved");
+    expect(codeOf("a/b")).toBe("invalid_name_separator");
+    expect(codeOf("a\0b")).toBe("invalid_name_control");
   });
 });
