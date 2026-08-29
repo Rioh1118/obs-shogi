@@ -20,7 +20,8 @@ use tauri::State;
 /// プロジェクト root の外に置かれる。`file_system` の `validate_under_root` は
 /// 当てられないので、パスに課す条件は `OpenBookInput::path` に書いた形だけになる。
 ///
-/// `.db` の reader が入る #91 まで、このコマンドは常に `UnsupportedFormat` を返す。
+/// `.db` の reader が入る #91 まで、このコマンドは成功しない。パスと形式の検査を
+/// 通った場合の失敗が `UnsupportedFormat` で、通らなければそれぞれの種別が返る。
 #[tauri::command]
 pub async fn open_book(
     state: State<'_, BookState>,

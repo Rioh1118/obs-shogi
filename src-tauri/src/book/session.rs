@@ -136,7 +136,7 @@ impl BookState {
     fn invalid_handle(handle: BookHandle) -> BookError {
         BookError::new(
             BookErrorCode::InvalidHandle,
-            format!("定跡ハンドル {handle} は開かれていない"),
+            format!("この定跡は閉じられている。開き直すこと（ハンドル {handle}）"),
         )
     }
 }
