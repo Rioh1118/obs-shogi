@@ -2,9 +2,7 @@ import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { isUsableFork } from "@/entities/kifu/model/jkf";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
-  assertBranchIndex,
   branchIndexFromSelection,
-  type Candidates,
   buildTesuuPointer,
   forkIndexFromBranchIndex,
   MAIN_LINE,
@@ -107,6 +105,35 @@ function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHan
 function privatizeHead(fork: IMoveFormat[]): IMoveFormat[] {
   if (!isUsableFork(fork)) throw new Error("empty fork");
   return [{ ...fork[0] }, ...fork.slice(1)];
+}
+
+declare const candidatesBrand: unique symbol;
+
+/**
+ * 分岐点を候補の並びに読み出した結果と、そこから派生させたもの
+ *
+ * 素の `number` を `BranchIndex` として渡せないのと同じく、`forks`（本譜のぶん1少ない）や
+ * `BranchOption[]`（空の変化を読み飛ばすので候補数と一致しない）を同じ座標系として
+ * 渡せないようにしてある。`as Candidates` はこのファイルの中でだけ書く。
+ */
+type Candidates = IMoveFormat[][] & { readonly [candidatesBrand]: true };
+
+/**
+ * 候補の実在する位置か確かめる
+ *
+ * 整数であることまで見る。`NaN` も小数も `< 0` と `>= 候補数` の両方を false にするので、
+ * 大小比較だけの検査を素通りし、`Array.prototype.splice` が 0 方向へ丸めて
+ * 頼んだのと違う候補を消す。
+ *
+ * @throws {Error} 整数でないとき
+ * @throws {Error} `0 <= b < candidates.length` に入らないとき
+ */
+function assertBranchIndex(b: BranchIndex, candidates: Candidates): void {
+  // 理由ごとに分ける。0.5 を「範囲外」と言うと、範囲の側を疑って時間を使うことになる。
+  if (!Number.isInteger(b)) throw new Error(`branchIndex ${b} is not an integer`);
+  if (b < MAIN_LINE || b >= candidates.length) {
+    throw new Error(`branchIndex ${b} is out of range (0..${candidates.length - 1})`);
+  }
 }
 
 /**

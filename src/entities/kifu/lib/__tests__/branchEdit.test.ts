@@ -4,6 +4,7 @@ import {
   MAIN_LINE,
   branchIndexFromForkIndex,
   buildTesuuPointer,
+  neighborBranchIndex,
 } from "@/entities/kifu/model/branch";
 import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
 import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
@@ -78,6 +79,18 @@ describe("swapBranchesInKifu", () => {
     expect(movedMain[0]).not.toBe(mainHead);
     expect(movedMain[1]).toBe(mainTail);
   });
+  test("MAIN_LINE より小さい添字は throw する", () => {
+    // 一覧の先頭で「上へ」を押したときに neighborBranchIndex が返す値がここで止まる。
+    const kifu = kifuWithTwoForks();
+    expect(() =>
+      swapBranchesInKifu(
+        kifu,
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: neighborBranchIndex(MAIN_LINE, "up") },
+        null,
+      ),
+    ).toThrow(/out of range/);
+  });
+
   test("候補数を超える添字は throw する", () => {
     const kifu = kifuWithTwoForks();
     expect(() =>

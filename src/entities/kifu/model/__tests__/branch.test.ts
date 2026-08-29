@@ -1,13 +1,9 @@
 import { describe, expect, test } from "vitest";
-import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import {
   MAIN_LINE,
-  assertBranchIndex,
   branchIndexFromForkIndex,
   branchIndexFromSelection,
   forkIndexFromBranchIndex,
-  neighborBranchIndex,
-  type Candidates,
 } from "../branch";
 
 describe("BranchIndex を作る", () => {
@@ -48,35 +44,5 @@ describe("BranchIndex から forkIndex に戻す", () => {
       expect(() => forkIndexFromBranchIndex(b as never)).toThrow();
       expect(() => branchIndexFromForkIndex(b)).toThrow();
     }
-  });
-});
-
-describe("assertBranchIndex", () => {
-  /** 本譜 + 変化2本ぶん。中身は長さしか見られないので空の手で足りる。 */
-  const candidates = [[{}], [{}], [{}]] as IMoveFormat[][] as Candidates;
-
-  test("候補の範囲に入っていれば通る", () => {
-    expect(() => assertBranchIndex(MAIN_LINE, candidates)).not.toThrow();
-    expect(() => assertBranchIndex(branchIndexFromForkIndex(1), candidates)).not.toThrow();
-  });
-
-  test("整数でない値は「範囲外」ではなく「整数でない」と言う", () => {
-    // 0.5 は 0..2 の範囲内なので、範囲の側を疑わせない。
-    // この2つは正規の変換では作れないので、brand を破って作る。
-    expect(() => assertBranchIndex(0.5 as never, candidates)).toThrow(/not an integer/);
-    expect(() => assertBranchIndex(NaN as never, candidates)).toThrow(/not an integer/);
-  });
-
-  test("候補数以上の値は範囲外", () => {
-    expect(() => assertBranchIndex(branchIndexFromForkIndex(2), candidates)).toThrow(
-      /out of range/,
-    );
-  });
-
-  test("MAIN_LINE より小さい値は範囲外", () => {
-    // 一覧の先頭で「上へ」を押したときに neighborBranchIndex が返す値がここで止まる。
-    expect(() => assertBranchIndex(neighborBranchIndex(MAIN_LINE, "up"), candidates)).toThrow(
-      /out of range/,
-    );
   });
 });
