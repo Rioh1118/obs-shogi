@@ -18,7 +18,9 @@ use tauri::State;
 ///
 /// 棋譜と違い、定跡はエンジン同梱のディレクトリや外付けドライブなど
 /// プロジェクト root の外に置かれる。`file_system` の `validate_under_root` は
-/// 当てられないので、代わりに [`validate_book_path`] で形だけを検査する。
+/// 当てられないので、代わりに絶対パスであることと NUL を含まないことだけを見る。
+///
+/// `.db` の reader が入る #91 まで、このコマンドは常に `UnsupportedFormat` を返す。
 #[tauri::command]
 pub async fn open_book(
     state: State<'_, BookState>,
