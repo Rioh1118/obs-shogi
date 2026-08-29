@@ -16,6 +16,21 @@ export type BranchIndex = number & { readonly [branchIndexBrand]: true };
 export const MAIN_LINE = 0 as BranchIndex;
 
 /**
+ * 候補の実在する位置か確かめる
+ *
+ * 整数であることまで見る。`NaN` も小数も `< 0` と `>= count` の両方を false にするので、
+ * 大小比較だけの検査を素通りし、`Array.prototype.splice` が 0 方向へ丸めて
+ * 頼んだのと違う候補を消す。
+ *
+ * @throws {Error} 整数でないとき、`0 <= b < count` に入らないとき
+ */
+export function assertBranchIndex(b: BranchIndex, count: number): void {
+  if (!Number.isInteger(b) || b < MAIN_LINE || b >= count) {
+    throw new Error(`branchIndex ${b} is out of range (0..${count - 1})`);
+  }
+}
+
+/**
  * 手数 N から指せる分岐の候補。
  *
  * 本譜かどうかは `forkIndex` の有無だけで決まる。両方を別々のフィールドで持つと
@@ -84,8 +99,13 @@ export function forkIndexFromBranchIndex(b: BranchIndex): number {
   return b - 1;
 }
 
-/** `IMoveFormat.forks` の添字を分岐一覧の位置にする。本譜が0を占めるぶん1ずれる。 */
+/**
+ * `IMoveFormat.forks` の添字を分岐一覧の位置にする。本譜が0を占めるぶん1ずれる。
+ *
+ * @throws {Error} 整数でないとき。brand を「整数である」ことの保証にするための境界
+ */
 export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
+  if (!Number.isInteger(forkIndex)) throw new Error(`forkIndex ${forkIndex} is not an integer`);
   return (forkIndex + 1) as BranchIndex;
 }
 

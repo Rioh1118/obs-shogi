@@ -1,6 +1,7 @@
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
+  assertBranchIndex,
   branchIndexFromSelection,
   buildTesuuPointer,
   forkIndexFromBranchIndex,
@@ -158,10 +159,8 @@ function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
   }
 
   const main = candidates[0];
-  if (main.length === 0) {
-    h.line.splice(h.index);
-    return;
-  }
+  // 候補は tail か privatizeHead の返り値で、どちらも非空。空なら不変条件が壊れている。
+  if (main.length === 0) throw new Error("candidate is empty");
 
   const forkSegs = candidates.slice(1);
 
@@ -182,10 +181,9 @@ function swapInPlace<T>(arr: T[], i: number, j: number) {
 
 /** delete candidate */
 function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
-  const idx = target; // candidates は BranchIndex と同じ座標（0=本譜）
-  if (idx < 0 || idx >= c.length) throw new Error("target out of range");
+  // candidates は BranchIndex と同じ座標（0=本譜）。範囲は呼び出し側が確かめている。
   const next = c.slice();
-  next.splice(idx, 1);
+  next.splice(target, 1);
   return next;
 }
 
@@ -289,9 +287,8 @@ export function swapBranchesInKifu(
   const h = resolveBranchPoint(kifu, q);
   const candidates = readCandidates(h);
 
-  if (q.a < 0 || q.b < 0 || q.a >= candidates.length || q.b >= candidates.length) {
-    throw new Error("swap indices out of range");
-  }
+  assertBranchIndex(q.a, candidates.length);
+  assertBranchIndex(q.b, candidates.length);
   if (q.a === q.b) return { changed: false, nextCursor: cursor };
 
   swapInPlace(candidates, q.a, q.b);
@@ -338,9 +335,7 @@ export function deleteBranchInKifu(
   const h = resolveBranchPoint(kifu, q);
   const candidatesBefore = readCandidates(h);
 
-  if (q.target < 0 || q.target >= candidatesBefore.length) {
-    throw new Error("delete target out of range");
-  }
+  assertBranchIndex(q.target, candidatesBefore.length);
 
   const candidatesAfter = deleteCandidate(candidatesBefore, q.target);
   writeCandidates(h, candidatesAfter);

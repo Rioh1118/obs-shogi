@@ -108,6 +108,18 @@ describe("deleteBranchInKifu", () => {
     expect(kifu.moves).toHaveLength(4);
   });
 
+  test("整数でない対象は throw する", () => {
+    // NaN も小数も `< 0` と `>= count` の両方を false にするので、大小比較だけの検査を
+    // 素通りし、splice が 0 方向へ丸めて本譜を消す。
+    for (const target of [NaN, 0.5, 1.9]) {
+      const kifu = kifuWithTwoForks();
+      expect(() =>
+        deleteBranchInKifu(kifu, { te: 2, forkPointers: [], target: target as never }, null),
+      ).toThrow();
+      expect(tags(kifu.moves)).toEqual(["root", "t1", "main2", "main3"]);
+    }
+  });
+
   test("範囲外の対象は throw する", () => {
     const kifu = kifuWithTwoForks();
     expect(() =>
