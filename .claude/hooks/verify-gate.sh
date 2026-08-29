@@ -68,20 +68,42 @@ GATE_COMMIT_VERB_BASE='commit|revert|cherry-pick|merge|rebase|am|pull'
 # 語彙を人が書き足す形では次の alias に必ず置いていかれるので、git 自身に
 # 引かせる。展開先にコミット動詞を「含む」もので拾うのは、`!f() { git commit … }`
 # のような shell alias も取るため（過検出の側に倒す）。
-# テストから固定できるように `GATE_EXTRA_VERBS` で差し込めるようにしてある。
+#
+# 展開先が別の alias（`acp = !… git ci …`）のこともあるので、増えなくなるまで
+# 繰り返す。1周で止めると、合成した alias がそのまま素通しになる。
+# テストから固定できるように `GATE_EXTRA_VERBS` で差し込めるようにしてある
+# （設定されていれば空でもそれを使う。空は「alias 無し」の意味）。
 gate_alias_verbs() {
-  # 変数が「設定されているか」で見る。空を設定したら「alias 無し」の意味になる。
   if [ -n "${GATE_EXTRA_VERBS+set}" ]; then
     printf '%s' "$GATE_EXTRA_VERBS"
     return 0
   fi
 
-  git config --get-regexp '^alias\.[^.]+$' 2>/dev/null \
-    | grep -E "(^|[^[:alnum:]_-])($GATE_COMMIT_VERB_BASE)([^[:alnum:]_-]|$)" \
-    | sed -E 's/^alias\.([A-Za-z0-9_-]+).*/\1/' \
-    | grep -E '^[A-Za-z0-9_-]+$' \
-    | tr '\n' '|' \
-    | sed 's/|$//'
+  local config known="$GATE_COMMIT_VERB_BASE" found="" added=1
+  config=$(git config --get-regexp '^alias\.[^.]+$' 2>/dev/null) || return 0
+
+  while [ "$added" -eq 1 ]; do
+    added=0
+    local names
+    names=$(printf '%s\n' "$config" \
+      | grep -E "(^|[^[:alnum:]_-])($known)([^[:alnum:]_-]|$)" \
+      | sed -E 's/^alias\.([A-Za-z0-9_-]+).*/\1/' \
+      | grep -E '^[A-Za-z0-9_-]+$')
+
+    local name
+    for name in $names; do
+      case "|$found|" in
+        *"|$name|"*) ;;
+        *)
+          found="${found:+$found|}$name"
+          known="$known|$name"
+          added=1
+          ;;
+      esac
+    done
+  done
+
+  printf '%s' "$found"
 }
 
 gate_commit_verb() {
@@ -168,8 +190,10 @@ gate_target_dir() {
 # コミットはここが唯一の検査になる。
 #
 # `tauri.conf.json` と `capabilities/*.json` を rust 側に入れるのは、`build.rs` と
-# `generate_context!` がコンパイル時に読むため。壊すと clippy が落ちる内容なのに、
-# そのファイルだけのコミットでは検証が走らない状態だった。
+# `generate_context!` がコンパイル時に読むため。壊すと clippy が落ちるので、
+# そのファイルだけのコミットでも検証が要る。
+# `rust-toolchain.toml` は、替えると clippy の lint 集合ごと変わって既存のコードが
+# 落ちうるので同じ扱いにする。
 #
 # `.claude/hooks/*.sh` は、このゲート自身を決めているので例外として拾う。
 gate_kinds_for_path() {

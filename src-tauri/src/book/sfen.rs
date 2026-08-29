@@ -77,12 +77,25 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     // 引用は発生源で打ち切る。input はコマンド境界から来る任意長の文字列で、
     // 打ち切らないと message がそのままログへ流れ、失敗1回で以前の記録が消える。
+    //
+    // 理由文の側も通す。理由には入力から切り出したトークン（余分なトークン、
+    // 手数、持駒の桁）が入るので、input だけを切っても長さは抑えられない。
     let invalid = |reason: &str| {
         BookError::new(
             BookErrorCode::InvalidSfen,
-            format!("{reason}: {}", truncate_for_message(input.trim())),
+            format!(
+                "{}: {}",
+                truncate_for_message(reason),
+                truncate_for_message(input.trim())
+            ),
         )
     };
+
+    // 局面として成立しうる長さを超えるものは、理由文を組み立てる前に落とす。
+    // 打ち切りを断片ごとに足して回る形だと、枝が増えるたびに取り残しが出る。
+    if input.chars().count() > MAX_INPUT_CHARS {
+        return Err(invalid("局面として長すぎる"));
+    }
 
     // 指し手を適用せずに黙って捨てると、進めたはずの局面に初期局面の候補手が返る。
     // エラーにならないので呼び出し側が誤りに気づけない。
@@ -171,6 +184,12 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
     })
 }
 
+/// 局面の文字列として受け付ける長さの上限。
+///
+/// 平手の SFEN は手数込みで 60 字程度、持駒が最大でも 120 字を超えない。
+/// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
+const MAX_INPUT_CHARS: usize = 256;
+
 /// message に載せる引用の上限。
 ///
 /// 「手数が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
@@ -178,9 +197,9 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
 const MESSAGE_EXCERPT_CHARS: usize = 120;
 
 /// message に載せる引用を打ち切る。
-fn truncate_for_message(reason: &str) -> String {
-    let mut out: String = reason.chars().take(MESSAGE_EXCERPT_CHARS).collect();
-    if out.chars().count() < reason.chars().count() {
+fn truncate_for_message(excerpt: &str) -> String {
+    let mut out: String = excerpt.chars().take(MESSAGE_EXCERPT_CHARS).collect();
+    if out.chars().count() < excerpt.chars().count() {
         out.push('…');
     }
     out
@@ -442,22 +461,45 @@ mod tests {
 
     /// 長い入力は、ファイル経由でもコマンド経由でも message に丸ごと入らないこと。
     /// そのまま入れると、失敗1回でログ（200KB でローテート）の記録が消える。
+    ///
+    /// 理由文に入力の断片を埋める枝を全て通すこと。1トークンだけの入力では
+    /// `invalid` の引用側しか通らず、理由文側の取り残しを踏まない。
+    /// 上限は絶対値で見る。`MESSAGE_EXCERPT_CHARS` から導くと、その定数を
+    /// 緩めたときにテストも一緒に緩む。
     #[test]
     fn a_long_input_is_truncated_in_the_message() {
-        let line = "x".repeat(100_000);
+        const LOG_BUDGET_CHARS: usize = 512;
 
-        for message in [
-            to_book_key(&line).unwrap_err().message,
-            to_book_key_in_file(&line, "/books/a.db")
-                .unwrap_err()
-                .message,
-        ] {
-            assert!(
-                message.chars().count() < MESSAGE_EXCERPT_CHARS * 2,
-                "len={}",
-                message.chars().count()
-            );
-            assert!(message.contains('…'), "message={message}");
+        let huge = "x".repeat(100_000);
+        let digits = "9".repeat(100_000);
+
+        let inputs = [
+            // 引用の側だけを通る
+            huge.clone(),
+            // 局面の後ろに余分なトークン
+            format!("{HIRATE_SFEN} {huge}"),
+            // 手数が数値でない
+            format!("{BARE_BOARD} b - {huge}"),
+            // 持駒の桁
+            format!("{BARE_BOARD} b {digits}P 1"),
+            // 持駒の枚数に駒が続かない
+            format!("{BARE_BOARD} b {digits} 1"),
+        ];
+
+        for input in inputs {
+            for message in [
+                to_book_key(&input).unwrap_err().message,
+                to_book_key_in_file(&input, "/books/a.db")
+                    .unwrap_err()
+                    .message,
+            ] {
+                assert!(
+                    message.chars().count() <= LOG_BUDGET_CHARS,
+                    "len={} message={}",
+                    message.chars().count(),
+                    &message[..message.len().min(200)]
+                );
+            }
         }
     }
 

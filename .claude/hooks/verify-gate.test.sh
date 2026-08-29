@@ -99,6 +99,40 @@ expect_alias CATCH 'git cm -m x' 'ci|cm'
 expect_alias SKIP 'git st' 'ci'
 expect_alias SKIP 'git ci -m x' ''
 
+# alias の解決そのものを見る表。`GATE_EXTRA_VERBS` は解決ロジックを丸ごと
+# 差し替える seam なので、それでは展開先を辿る動きを固定できない。
+# GIT_CONFIG_GLOBAL に fixture を置いて、実際の設定に依存させずに回す。
+expect_alias_resolution() {
+  local want=$1 config=$2
+  local fixture got
+  fixture=$(mktemp)
+  printf '%s\n' "$config" > "$fixture"
+
+  got=$(
+    unset GATE_EXTRA_VERBS
+    GIT_CONFIG_GLOBAL=$fixture GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+      bash -c 'GATE_LIB_ONLY=1 . .claude/hooks/verify-gate.sh; gate_alias_verbs'
+  )
+  rm -f "$fixture"
+
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（無し）}" "${got:-（無し）}" "$config"
+    failures=$((failures + 1))
+  fi
+}
+
+expect_alias_resolution "ci" "[alias]
+	ci = commit
+	st = status"
+# 展開先が別の alias のときも辿ること。1周で止めると acp が素通しする
+expect_alias_resolution "ci|acp" "[alias]
+	ci = commit
+	acp = !f() { git ci -m \"\$1\"; }; f
+	st = status"
+expect_alias_resolution "" "[alias]
+	st = status
+	co = checkout"
+
 expect_mentions() {
   local want=$1 command=$2
   local got=SKIP

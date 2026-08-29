@@ -21,19 +21,21 @@ use tauri::State;
 /// 当てられないので、パスに課す条件は `OpenBookInput::path` に書いた形だけになる。
 ///
 /// 検査は パスの形 → 拡張子 → 実体の解決 → 指定と実体の形式の一致 → ファイルであること
-/// の順で、落ちた検査の種別が返る。全て通ると、`.db` の reader が入る #91 までは
-/// `UnsupportedFormat` になる。
+/// の順で、落ちた検査の種別が返る。全て通っても、その形式の reader を持っていなければ
+/// `UnsupportedFormat` になる。どの形式を読めるかは `reader::open_reader` を見ること。
 #[tauri::command]
 pub async fn open_book(
     state: State<'_, BookState>,
     input: OpenBookInput,
 ) -> Result<BookInfo, BookError> {
-    log::info!("[cmd] open_book path={}", input.path);
     logged("open_book", open_book_inner(&state, input).await)
 }
 
 async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<BookInfo, BookError> {
+    // 検査を通ってからログに書く。生のまま書くと、弾かれる入力であっても
+    // その前にログ（200KB でローテート）を使い切られる。
     let path = validate_book_path(&input.path)?;
+    log::info!("[cmd] open_book path={}", path.display());
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
@@ -148,13 +150,25 @@ fn annotate(err: BookError, note: &str) -> BookError {
 ///
 /// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
 /// 失敗し、`BookInfo.path` にもその相対文字列が残って UI に出しても意味を成さない。
+/// パスとして受け付ける長さの上限。OS の `PATH_MAX` は 1024 前後。
+const MAX_PATH_CHARS: usize = 1024;
+
 fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
+    // path にも上限を掛ける。raw はコマンド境界から来る任意長の文字列で、
+    // BookError の Display は path を含めてログへ出る。
     let invalid = |reason: &str| {
-        BookError::new(BookErrorCode::InvalidPath, reason.to_string()).with_path(raw)
+        BookError::new(BookErrorCode::InvalidPath, reason.to_string())
+            .with_path(raw.chars().take(MAX_PATH_CHARS).collect::<String>())
     };
 
     if raw.trim().is_empty() {
         return Err(invalid("定跡のパスが空"));
+    }
+
+    // OS のパスの上限（PATH_MAX は 1024 前後）を超える綴りはファイルを指せない。
+    // 打ち切らずにログや message へ流すと、失敗1件でログの予算を使い切る。
+    if raw.chars().count() > MAX_PATH_CHARS {
+        return Err(invalid("定跡のパスが長すぎる"));
     }
 
     // NUL 入りのパスは std が InvalidInput で弾く。素通しすると原因が Io に化けて、
@@ -512,10 +526,27 @@ mod tests {
 
     #[test]
     fn rejects_a_path_that_is_not_an_absolute_spelling() {
-        for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
+        let too_long = format!("/{}", "a".repeat(MAX_PATH_CHARS));
+
+        for raw in [
+            "",
+            "   ",
+            "books/standard.db",
+            "./standard.db",
+            "a\0b.db",
+            too_long.as_str(),
+        ] {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidPath, "raw={raw:?}");
-            assert_eq!(err.path.as_deref(), Some(raw));
+            // path も打ち切る。ここを素通しにすると、弾いた入力でログが埋まる
+            assert!(
+                err.path.as_deref().unwrap_or("").chars().count() <= MAX_PATH_CHARS,
+                "path len={}",
+                err.path.as_deref().unwrap_or("").chars().count()
+            );
+            if raw.chars().count() <= MAX_PATH_CHARS {
+                assert_eq!(err.path.as_deref(), Some(raw));
+            }
         }
     }
 }
