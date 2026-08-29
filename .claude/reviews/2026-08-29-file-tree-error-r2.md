@@ -346,3 +346,101 @@ H-5（どの失敗に入力欄を残すか）、H-11 / H-12（文書の真偽）
 8. MEDIUM の残り
 
 **3 は検査を先に書く。** コントラストは2ラウンド続けて同じ穴が出ており、人の目では止まらない。
+
+---
+
+## 対応結果（書き戻し）
+
+**BLOCK 3件と HIGH 12件はすべて対応。MEDIUM 19件のうち16件を対応、3件は反論または issue へ送った。**
+
+| #    | 結果                                                                                                                     |
+| ---- | ------------------------------------------------------------------------------------------------------------------------ |
+| B-1  | 対応。2フォームに `FsErrorView` を置き、衝突の引き取り判定を `isResolvedByConflictDialog` に集約。テスト5件を追加        |
+| B-2  | 対応。`Modal` / `Form` の既定を `dark` に。`TagsInput` を暗い面へ寄せ、`StudyPositionSaveModal` の私物の上書きを落とした |
+| B-3  | 対応。`SfenKifuCreateModal` を `FsErrorView` に。保存先の案内は失敗ではないので Select の下の hint へ移した              |
+| H-1  | 対応。逃げ道は段に関わらず並べる。`not_found` を通るテストを追加                                                         |
+| H-2  | 対応。ホバーを `#866549`（5.29:1）へ。ADR-0005 に実測とホバーの向きの決め方を追記                                        |
+| H-3  | 対応。`$color-danger-solid`（4.92:1）と `-hover`（6.10:1）を足した                                                       |
+| H-4  | 対応。`FsErrorView` に不透明な面（`$color-primary-black` 94% + 意味色）を持たせた                                        |
+| H-5  | 対応。`invalid_name_*` は積まずに返し、`InlineNameEditor` が入力欄の下に出す。`deferNameFailure` を追加                  |
+| H-6  | 対応。初期化の鍵を `getConflictSessionKey`（打ち直した名前では変わらない）に                                             |
+| H-7  | 対応。`Modal` にフォーカスの閉じ込め（`focusout` の戻しと Tab の折り返し）                                               |
+| H-8  | 対応。Rust に `KifuConversionFailed` を足して2箇所を向けた                                                               |
+| H-9  | 対応。`asFsError` が `message` / `path` / `existingPath` を拾い直す。Rust↔TS の突き合わせ検査を追加                      |
+| H-10 | **反論。** 下の「反論」を参照。ブランチ名規則の方は → #201                                                               |
+| H-11 | 対応。※1 の見出しを削り、※2 を3経路の表に書き直した                                                                      |
+| H-12 | 対応。生きた台帳として書き直し、§3 を ADR-0004 へのリンク、§4 §5 を「まだ出口が無いもの」に置き換えた                    |
+| M-1  | 対応。`quiet` / `lg` / `sharp` / `block` を落とし、MultiPV のステッパーで `motion={false}`                               |
+| M-2  | **反論。** 下の「反論」を参照                                                                                            |
+| M-3  | **反論。**（依存は存在しない）語彙の置き場は → #202                                                                      |
+| M-4  | 対応。barrel が公開しているものは外から直に読まない検査を追加                                                            |
+| M-5  | 対応。`ALL_CODES` を `FS_ERROR_CODES` から導出                                                                           |
+| M-6  | 対応。`describeFsError` を通す                                                                                           |
+| M-7  | 対応。`Modal` の `label` を必須にし、12箇所に付けた                                                                      |
+| M-8  | 対応。`role="alert"` は見出しとパスだけを包む                                                                            |
+| M-9  | 対応。閉じるときに `retriedFrom` も落とす                                                                                |
+| M-10 | 対応。`Spinner` に名前を持たせ、テストがそれを見る                                                                       |
+| M-11 | 対応。`isLoading` に寄せた（文言の入れ替えは残す）                                                                       |
+| M-12 | 対応。`padding="none"` を渡す                                                                                            |
+| M-13 | 対応。`$shadow-control` / `$shadow-control-press` を足した                                                               |
+| M-14 | **一部のみ。** 見出しの枠 1.20:1 は面を持たせて対応。バッジの 10.43→5.30 は場所を特定できなかった                        |
+| M-15 | 対応。`$color-danger-text`（5.66:1）を足した                                                                             |
+| M-16 | **一部のみ。** 基準を割っていた 0.55 の2箇所を 0.7 へ。段の設計は → #184                                                 |
+| M-17 | 対応。`validate_basename` が検証した形を返し、呼び出し元がそれでパスを組む。Rust のテスト3件を追加                       |
+| M-18 | 対応。Rust の `message` を英語に揃え、`FsError` の型に規約を書いた                                                       |
+| M-19 | 対応。118→143件、「5→1」→「文脈の5系統のうち4系統を畳んだ。実物はいま3系統」                                             |
+
+**そのほか**の8件も対応:
+`.fsError__hint` を削除 / `FileTreeErrorNotice` のコメント（H-1 と同時）/ `ConfirmDialog` のコメント /
+`validateBasename` を Rust と同じ4規則に / テストのコメントから経緯を削除 /
+ラウンド1 の短ハッシュを範囲へ / `CONTRIBUTING.md` の #180 リストを表に /
+`CLAUDE.md` のテスト件数 / `review-round` と `implement` の食い違い。
+
+### 反論
+
+**H-10「`CLAUDE.md` から消した WIP=1 が3箇所に残っている」→ 前提が誤り。**
+`git log -S "WIP" -- CLAUDE.md` が空で、`main` の `CLAUDE.md` にも記述が無い。
+**WIP=1 が `CLAUDE.md` に書かれたことは一度も無い。** ADR-0001 /
+`OPERATING-MODEL.md` / `weekly-review/SKILL.md` の3つは互いに一致しており、
+append-only の違反は起きていない。ADR-0006 は書かない。
+
+同じ所見が併せて挙げていたブランチ名規則（`issue-<番号>/<slug>`）の方は事実で、
+直近の非 dependabot ブランチ6本中1本しか従っていない。**ただしこれは運用の決定**なので
+勝手に覆さず → #201。
+
+**M-2「`ghost` と `subtle` を `neutral` に潰した。軸は増やしたが区別は減った」→ 意図的。**
+畳んだ理由は `b9a2252` のコミットメッセージに書いてある
+（「枠を落とすと押せる場所が分からなくなる」）。区別を戻すなら枠を持たない段が要るが、
+その `quiet` こそ呼び出し元ゼロで、同じレビューの M-1 が落とせと言っている。
+両方を同時には満たせないので、**枠を残す側を採る**。
+
+**M-3「棋譜スライスがファイルツリーに依存」→ 依存は存在しない。**
+`entities/kifu` / `entities/position` / `entities/study-positions` から `file-tree` への
+import は0件。棋譜の失敗を作っているのは `file-tree` の `provider.tsx` の側。
+残る「語彙の名前と置き場が中身より広い」は本当なので → #202。
+
+**M-14 のバッジ「10.43→5.30」は場所を特定できなかった。**
+差分に含まれるヘッダを持つ4ファイル（`FileConflictDialog` / `KifuReadErrorDialog` /
+`StudyPositionSaveModal` / `UpdaterScreen`）と `SettingsBadge` / `sp-save__contextItem` /
+`sfen-kifu-create__turnBadge` を見たが、`color` を宣言していないか、比が合わなかった。
+1.20:1 のヘッダ枠（`StudyPositionSaveModal.scss`）は特定できたので対応した。
+測れる対はこのラウンドから `contrastRatchet.test.ts` が全部見る。
+
+### 足した装置
+
+- **`src/__tests__/contrast.ts` + `contrastRatchet.test.ts`** — 文字と面の対の比を測る。
+  差分の外の12件は `BASELINE` に置いた → #185
+- **`src/__tests__/fsErrorCodes.test.ts`** — Rust ⊆ TS の突き合わせ。Rust 側に網羅 `match` の
+  シリアライズ名テスト（`src-tauri` 初の `#[test]`）
+- **`src/__tests__/sliceBarrels.test.ts`** — barrel が公開しているものへの外からの直 import を止める
+- テストは **19ファイル / 211件 → 30ファイル / 249件**。Rust は 0 → 4件
+
+### 立てた issue
+
+| #    | 内容                                                       |
+| ---- | ---------------------------------------------------------- |
+| #183 | 分岐選択のモーダルだけが明るい面に残っている               |
+| #184 | 文字の薄さ `rgba(text-primary, N)` が15通りあり段が無い    |
+| #185 | コントラスト検査に載せた既存の12件（IconButton は 1.03:1） |
+| #201 | ADR-0001 のブランチ名規則が守られていない                  |
+| #202 | `FsError` の語彙が「ファイルツリーの失敗」より広い         |
