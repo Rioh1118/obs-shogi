@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { JKFPlayer } from "json-kifu-format";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import type { KifuCursor, ForkPointer } from "@/entities/kifu/model/cursor";
 import { buildTesuuPointer } from "@/entities/kifu/model/branch";
@@ -22,12 +21,12 @@ function kifu(): JKFData {
 
 describe("computeLeafTesuu", () => {
   test("計画が無ければ本譜の末尾", () => {
-    expect(computeLeafTesuu(new JKFPlayer(kifu()), null)).toBe(3);
+    expect(computeLeafTesuu(kifu(), null)).toBe(3);
   });
 
   test("計画どおり変化へ降りた先の末尾", () => {
     const cursor = cursorAt(0, [{ te: 2, forkIndex: 0 }]);
-    expect(computeLeafTesuu(new JKFPlayer(kifu()), cursor)).toBe(3);
+    expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
   });
 
   test("線の末尾より先に計画が残っていても throw しない", () => {
@@ -36,12 +35,12 @@ describe("computeLeafTesuu", () => {
     // 呼ぶと「N手目に有効な棋譜がありません」を投げ、手数表示が実際より小さく出る。
     // 本譜は te=3 で終わる。計画が te=4 を指していると forkAndForward が呼ばれる。
     const cursor = cursorAt(0, [{ te: 4, forkIndex: 0 }]);
-    expect(() => computeLeafTesuu(new JKFPlayer(kifu()), cursor)).not.toThrow();
-    expect(computeLeafTesuu(new JKFPlayer(kifu()), cursor)).toBe(3);
+    expect(() => computeLeafTesuu(kifu(), cursor)).not.toThrow();
+    expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
   });
 
   test("計画が指す変化が実在しなければ本譜へ落ちる", () => {
     const cursor = cursorAt(0, [{ te: 2, forkIndex: 5 }]);
-    expect(computeLeafTesuu(new JKFPlayer(kifu()), cursor)).toBe(3);
+    expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
   });
 });

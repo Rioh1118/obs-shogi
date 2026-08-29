@@ -79,7 +79,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
       let totalMoves = 0;
       try {
-        totalMoves = computeLeafTesuu(player, plannedCursor);
+        totalMoves = computeLeafTesuu(state.jkf, plannedCursor);
       } catch {
         totalMoves = player.getMaxTesuu();
       }

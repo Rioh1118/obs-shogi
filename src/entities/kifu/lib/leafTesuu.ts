@@ -1,4 +1,4 @@
-import type { JKFPlayer } from "json-kifu-format";
+import type { JKFData } from "../model/jkf";
 import type { KifuCursor } from "../model/cursor";
 import { buildPlayer } from "./buildPlayer";
 
@@ -6,15 +6,13 @@ import { buildPlayer } from "./buildPlayer";
  * 計画に沿って辿り着ける末端の手数を返す
  *
  * `cursor.forkPointers` は「これから選ぶ計画」も含むので、その通りに降りたときの葉を数える。
- * 計画が指す変化が実在しなければ本譜へ落ちる。
+ * 計画が指す変化が実在しなければ本譜へ落ちる。`cursor` が無ければ本譜の末尾。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` が投げる）
  * @throws {Error} 上限まで進んでも葉に着かないとき
  */
-export function computeLeafTesuu(player: JKFPlayer, cursor: KifuCursor | null): number {
-  const sim = buildPlayer(player.kifu, cursor);
-  // cursor が無いときは、渡された player の現在地から数える。
-  if (!cursor) sim.goto(player.tesuu);
+export function computeLeafTesuu(jkf: JKFData, cursor: KifuCursor | null): number {
+  const sim = buildPlayer(jkf, cursor);
 
   const plannedMap = new Map<number, number>();
   for (const p of cursor?.forkPointers ?? []) {
