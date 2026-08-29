@@ -28,6 +28,9 @@ dist-ssr
 # 機械固有の設定とセッション作業用の計画メモだけ除外する。
 .claude/settings.local.json
 .claude/plans/
+# セッション間の引き継ぎ指示書。実体はメインのチェックアウトに置き、
+# worktree からは絶対パスで読む。腐るものなので履歴に残さない。
+.claude/handoffs/
 
 # Debug logs
 .debug/
