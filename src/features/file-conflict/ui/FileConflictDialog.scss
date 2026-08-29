@@ -61,7 +61,7 @@
   &__label {
     flex: none;
     font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.55);
+    color: rgba(index.$color-text-primary, 0.7);
   }
 
   &__value {
@@ -125,7 +125,7 @@
   &__hint {
     margin: 0;
     font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.55);
+    color: rgba(index.$color-text-primary, 0.7);
   }
 
   // 解決しようとして失敗した理由。入力欄のすぐ下に置く。
