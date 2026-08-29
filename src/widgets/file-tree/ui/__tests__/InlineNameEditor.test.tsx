@@ -60,6 +60,49 @@ describe("InlineNameEditor", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  /**
+   * blur でも確定する。落ちた名前を送り直すと同じ失敗が戻るので、
+   * 外をクリックしても表示が消えない状態になる。閉じる手段が無いまま
+   * 行の上に貼り付き、下の行のクリックまで奪う。
+   */
+  test("落ちた名前を blur で送り直さない", async () => {
+    const onCommit = vi.fn().mockResolvedValue(BAD_NAME);
+    render(
+      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
+    );
+
+    await typeAndCommit("研究/2026");
+    expect(onCommit).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      fireEvent.blur(screen.getByRole("textbox"));
+    });
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  test("フォーカスを外したあとでも Escape で閉じられる", async () => {
+    const onCancel = vi.fn();
+    render(
+      <InlineNameEditor
+        isEditting
+        initialName="研究"
+        onCommit={vi.fn().mockResolvedValue(BAD_NAME)}
+        onCancel={onCancel}
+      />,
+    );
+
+    await typeAndCommit("研究/2026");
+    await act(async () => {
+      fireEvent.blur(screen.getByRole("textbox"));
+    });
+
+    // 入力欄の外（失敗表示を含む箱）で押しても届く
+    fireEvent.keyDown(screen.getByRole("alert"), { key: "Escape", bubbles: true });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   test("通った名前では理由を出さない", async () => {
     const onCommit = vi.fn().mockResolvedValue(undefined);
     render(

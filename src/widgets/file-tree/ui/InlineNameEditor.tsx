@@ -28,6 +28,10 @@ function InlineNameEditor({
 }: InlineRenameProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cancelRef = useRef(false);
+  // 送信中と、直前に落ちた名前。blur でも確定するので、この2つが無いと
+  // 外をクリックするたびに同じ名前が送り直され、同じ失敗が出続けて閉じられない
+  const inFlightRef = useRef(false);
+  const rejectedRef = useRef<string | null>(null);
   const [draft, setDraft] = useState(initialName);
   const [error, setError] = useState<FsError | null>(null);
 
@@ -36,6 +40,7 @@ function InlineNameEditor({
 
     setDraft(initialName);
     setError(null);
+    rejectedRef.current = null;
 
     requestAnimationFrame(() => {
       const el = inputRef.current;
@@ -55,22 +60,46 @@ function InlineNameEditor({
   const commit = async () => {
     const next = draft.trim();
 
-    // 親側で renaming を終了させたいので、ここでは onCancel は呼ばない
-    // （renameNode の中で refresh したりするので UI状態管理は親に寄せる）
+    // Escape で立てた印を戻す。ここへ来たということは取り消しではない
     cancelRef.current = false;
 
+    // 空欄と同名は送っても何も変わらない。編集を閉じるだけにする
     if (!next || next === initialName) {
       onCancel();
       return;
     }
 
-    setError((await onCommit(next)) ?? null);
+    // 一度落ちた名前を blur のたびに送り直すと、同じ失敗が出続けて閉じられない
+    if (inFlightRef.current || next === rejectedRef.current) return;
+
+    inFlightRef.current = true;
+    try {
+      const failure = (await onCommit(next)) ?? null;
+      rejectedRef.current = failure ? next : null;
+      setError(failure);
+    } finally {
+      inFlightRef.current = false;
+    }
   };
 
   if (!isEditting) return null;
 
+  const cancel = () => {
+    cancelRef.current = true;
+    onCancel();
+  };
+
   return (
-    <span className="inline-name-editor">
+    // Escape は span で拾う。input の上だけに置くと、失敗を出したあとに
+    // フォーカスを外した利用者が閉じる手段を失う
+    <span
+      className="inline-name-editor"
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return;
+        e.stopPropagation();
+        cancel();
+      }}
+    >
       <input
         ref={inputRef}
         className={className}
@@ -79,15 +108,13 @@ function InlineNameEditor({
         onChange={(e) => {
           setDraft(e.target.value);
           setError(null);
+          rejectedRef.current = null;
         }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          e.stopPropagation();
+          // Escape は span 側で拾う。ここで止めると届かない
+          if (e.key !== "Escape") e.stopPropagation();
           if (e.key === "Enter") void commit();
-          if (e.key === "Escape") {
-            cancelRef.current = true;
-            onCancel();
-          }
         }}
         onBlur={() => {
           if (cancelRef.current) {
@@ -97,7 +124,10 @@ function InlineNameEditor({
           void commit();
         }}
       />
-      {/* 行の高さを変えずに重ねる。ずらすと入力欄の位置が失敗のたびに動く */}
+      {/*
+        行の高さを変えずに重ねる。ずらすと入力欄の位置が失敗のたびに動く。
+        重ねる以上、下の行のクリックを奪わないよう pointer-events は切る（SCSS 側）
+      */}
       {error && (
         <span className="inline-name-editor__error" role="alert">
           {describeFsError(error.code)}

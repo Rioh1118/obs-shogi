@@ -7,10 +7,12 @@
   min-width: 0;
 }
 
-// 行の高さを変えずに重ねる。行を押し広げると、失敗のたびに下のノードが動く
+// 行の高さを変えずに重ねる。行を押し広げると、失敗のたびに下のノードが動く。
+// 重ねている以上、下の行のクリックを奪わないよう当たり判定は持たせない
 .inline-name-editor__error {
   position: absolute;
   z-index: 1;
+  pointer-events: none;
   top: calc(100% + index.$space-1);
   left: 0;
   max-width: 100%;
