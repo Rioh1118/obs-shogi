@@ -118,9 +118,14 @@
     }
 
     // 送信中は `readOnly`（`disabled` にするとカード内の押せるものが0になる）。
-    // 見た目を変えないと、キャレットが出たまま打鍵が黙って捨てられる
+    // 見た目を変えないと、キャレットが出たまま打鍵が黙って捨てられる。
+    //
+    // **`opacity` で薄めない。** `:disabled` は WCAG 1.4.3 の対象外だが
+    // `:read-only` は対象で、0.5 を掛けると打った名前が 3.84:1 になる。
+    // 別名を何度も試す対話なので、送信中に自分の名前が読めないのが一番困る
     &:read-only {
-      opacity: 0.5;
+      background: rgba(index.$color-primary-black, 0.65);
+      border-color: index.$stroke-weak;
       cursor: default;
     }
   }

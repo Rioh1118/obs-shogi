@@ -21,7 +21,9 @@
 // 文字色は器（モーダルのカード）から継ぐ。ここで宣言すると、面が決まらない分
 // コントラストの走査から外れる
 .file-tree__reloadNote {
-  margin-bottom: index.$space-4;
+  // カードは余白を持たない（余白は中身が持つ）。ここで持たないと、
+  // 文字がカードの枠に触れ、角丸に先頭が食われる
+  padding: index.$space-5 index.$space-5 0;
   font-size: index.$font-aux;
 }
 

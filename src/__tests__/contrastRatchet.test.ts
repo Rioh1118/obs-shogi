@@ -56,16 +56,14 @@ const MEASURED_COUNT = 53;
  * 動かしてよい向きは**下げる方だけ**。面を持たせるか `surface` を渡すかして
  * 測れるようにしたら下げる → issue #185。
  *
- * **例外は「測れない段を新しく測るようにした」場合。** `:disabled` の段は
+ * **上げてよいのは「測れない段を新しく測るようにした」場合だけ。** `:disabled` の段は
  * WCAG 1.4.3 の対象外として走査から外してあるので、そこを `:read-only` に
- * 直すと、その段が測定の対象に入って件数が増える。増やしたぶんは
- * ここに理由を残す（半透明の面はそのままなので `unmeasured` に落ちる）。
+ * 直すと、その段が測定の対象に入って件数が増える。
  *
- * - +1 `FileConflictDialog` の入力欄を `:disabled` から `:read-only` へ
- * - +2 `FsErrorView` の詳細にスクロールバーのつまみを戻した
- * - −1 `.file-conflict__error` に不透明な面を与えて測れるようにした
+ * それ以外で増やさない。面が決まらない箱を新しく足したなら、
+ * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 408;
+const UNMEASURED_COUNT = 407;
 
 const rows: Row[] = [];
 let measured = 0;

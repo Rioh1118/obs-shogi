@@ -71,9 +71,4 @@
     background: rgba(index.$color-secondary-dark, 0.42);
     color: index.$color-text-light-1;
   }
-
-  // placeholder (for create directory row initialName="":)
-  &::placeholder {
-    color: rgba(index.$color-text-light-1, 0.5);
-  }
 }

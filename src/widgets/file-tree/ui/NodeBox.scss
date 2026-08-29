@@ -39,7 +39,9 @@
 
   &__content {
     display: flex;
-    align-items: center;
+    // 失敗の箱で `__main` が伸びたとき、`__actions` を中央へ置くと
+    // 入力欄の横ではなく箱の横にボタンが出る。行の最低高さは `min-height` が持つ
+    align-items: flex-start;
     justify-content: space-between;
     width: 100%;
     min-height: 2.4rem; // 最小高さを確保
@@ -77,6 +79,9 @@
 }
 
 .filetree-tooltip {
+  // 画面内へ丸めるので、下端の行ではアンカーに重なる。当たり判定を持つと
+  // ポインタを奪い、離れる → また出る、の往復になって名前を読めない
+  pointer-events: none;
   padding: 0.45rem 0.65rem;
   border-radius: 0.65rem;
   background: rgba(0, 0, 0, 0.28);
