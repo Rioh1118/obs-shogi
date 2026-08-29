@@ -44,7 +44,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに面の側を直すこと。
  */
-const MEASURED_COUNT = 53;
+const MEASURED_COUNT = 54;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -58,12 +58,13 @@ const MEASURED_COUNT = 53;
  *
  * **上げてよいのは「測れない段を新しく測るようにした」場合だけ。** `:disabled` の段は
  * WCAG 1.4.3 の対象外として走査から外してあるので、そこを `:read-only` に
- * 直すと、その段が測定の対象に入って件数が増える。
+ * 直すと、その段が測定の対象に入る。そのとき面が確定しなければここが、
+ * 確定すれば `MEASURED_COUNT` の側が増える。上げてよいのは前者だけ。
  *
  * それ以外で増やさない。面が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 407;
+const UNMEASURED_COUNT = 406;
 
 const rows: Row[] = [];
 let measured = 0;

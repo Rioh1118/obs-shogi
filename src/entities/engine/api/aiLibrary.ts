@@ -49,8 +49,8 @@ export async function ensureEnginesDir(aiRoot: string): Promise<string> {
 /**
  * AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。
  *
- * **`entities/file-tree` の `createDir` は使えない。** あちらはワークスペース配下かの
- * 関門を通るコマンドを呼ぶので、別に選ぶ `ai_root` の下では必ず弾かれる
+ * ワークスペース配下かの関門を通るコマンドでは作れない。
+ * 理由は Rust の `create_ai_profile_dirs` の doc
  */
 export async function createAiProfileDirs(aiRoot: string, name: string): Promise<string> {
   return await invoke("create_ai_profile_dirs", { aiRoot, name });

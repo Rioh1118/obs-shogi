@@ -123,9 +123,12 @@
     // **`opacity` で薄めない。** `:disabled` は WCAG 1.4.3 の対象外だが
     // `:read-only` は対象で、0.5 を掛けると打った名前が 3.84:1 になる。
     // 別名を何度も試す対話なので、送信中に自分の名前が読めないのが一番困る
+    // **カードと同じ色にアルファを掛けない。** カードも `$color-primary-black` なので、
+    // どのアルファでも合成後の差が 1/255 未満になり、見た目が1ピクセルも変わらない。
+    // 不透明で一段明るい面にして「いま打てない」を示す
     &:read-only {
-      background: rgba(index.$color-primary-black, 0.65);
-      border-color: index.$stroke-weak;
+      background: color-mix(in srgb, index.$color-primary-black 86%, index.$color-white);
+      border-color: index.$stroke-strong;
       cursor: default;
     }
   }

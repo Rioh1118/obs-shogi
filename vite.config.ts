@@ -201,9 +201,8 @@ export default defineConfig({
           "@typescript-eslint/triple-slash-reference": "error",
           "react-hooks/rules-of-hooks": "error",
           // **error にする。** 読む値を替えて依存を替え忘れると、その `useCallback` は
-          // 古い値を掴んだまま固定される。#169 では root 判定の入力を替えたのに依存が
-          // 残り、起動直後のワークスペース改名が設定を更新しない状態になった。
-          // warn だと `npm run verify` が通るので、そのまま出ていく
+          // 古い値を掴んだまま固定される。warn だと `npm run verify` が通るので、
+          // そのまま出ていく
           "react-hooks/exhaustive-deps": "error",
           "react/only-export-components": [
             "warn",

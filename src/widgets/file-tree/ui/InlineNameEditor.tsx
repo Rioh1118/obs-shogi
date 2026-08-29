@@ -99,12 +99,18 @@ function InlineNameEditor({
       const outcome = await onCommit(next);
 
       if (!outcome.ok && leftFieldRef.current) {
-        // 欄はもう見ていない。**ここで捨てると、名前の失敗はどの出口にも出ない**
-        // （provider は `isNameInputError` を通知へ積まないので、出す責任はここだけ）。
-        // 出せないものは呼び出し元へ返す
-        if (outcome.shown) onUnshowable(outcome.shown);
-        onCancel();
-        return;
+        // 欄の外に出たまま失敗した。**閉じない。** 閉じると打った文字列ごと消え、
+        // 「直すための入力欄が、直せという知らせに巻き込まれて消える」形になる
+        // （`isNameInputError` の TSDoc）。焦点を戻して直せる状態にする
+        if (outcome.shown && inputRef.current) {
+          inputRef.current.focus();
+        } else if (outcome.shown) {
+          // 欄がもう無い（呼び出し側が畳んだ）。名前の失敗は provider が
+          // 通知へ積まないので、ここで捨てるとどの出口にも出ない
+          onUnshowable(outcome.shown);
+          onCancel();
+          return;
+        }
       }
 
       // 通らなかったなら、ここに出さない失敗でも送り直さない

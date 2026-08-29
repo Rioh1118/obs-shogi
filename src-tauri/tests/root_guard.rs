@@ -27,8 +27,6 @@ const ATTRIBUTES: [&str; 2] = ["#[command", "#[tauri::command"];
 /// root 配下かを確かめる関門
 const GUARD: &str = "validate_under_root";
 
-/// 関門のほかに、そのコマンドだけが呼ばなければならないもの。
-///
 /// 関門だけでは足りず、そのコマンドだけが呼ばなければならないもの。
 ///
 /// - `delete_directory`: `validate_under_root` は `root == target` を「配下」として
@@ -55,16 +53,19 @@ const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "s
 const EXEMPT: [(&str, &str); 6] = [
     (
         "scan_ai_root",
-        "ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",
+        "(1) ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",
     ),
-    ("ensure_engines_dir", "同上。ai_root の下に engines/ を作る"),
+    (
+        "ensure_engines_dir",
+        "(1) 同上。ai_root の下に engines/ を作る",
+    ),
     (
         "create_ai_profile_dirs",
         "(1) 同上。ai_root の下にプロファイルを作る",
     ),
     (
         "initialize_engine",
-        "engine_path は思考エンジンの実行ファイル。ワークスペースの外にある",
+        "(1) engine_path は思考エンジンの実行ファイル。ワークスペースの外にある",
     ),
     (
         "open_project",
@@ -79,9 +80,9 @@ const EXEMPT: [(&str, &str); 6] = [
 /// `/* */` と `//` を落とす。関数名をコメントに書く習慣があるので、
 /// 落とさないと「呼んでいない」を「呼んでいる」と読み違える。
 ///
-/// 文字列リテラルの中の `//`（`"https://..."` など）もコメントとして落ちる。
-/// 落ちるのはその行の残りだけで、起きるのは偽陽性（呼んでいるのに見えない）なので、
-/// 字句解析はしない
+/// 文字列リテラルの中の `//` は、その行の残りが落ちるだけ（偽陽性）。
+/// **`/*` は違う。** 文字列の中にあると次の `*/` までが丸ごと落ち、その範囲の
+/// `#[command]` が走査から消える（偽陰性）。いまソースに `/*` を含む文字列は無い
 fn without_comments(source: &str) -> String {
     let mut out = String::with_capacity(source.len());
     let bytes = source.as_bytes();

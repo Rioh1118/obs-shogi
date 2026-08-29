@@ -4,10 +4,6 @@
   display: block;
   flex: 1 1 auto;
   min-width: 0;
-  // 失敗の箱で自分の高さが伸びても、行の中では上端に付ける。
-  // 親（`.node-box__main`）は `align-items: center` なので、揃えないと
-  // 兄弟のアイコンと chevron が伸びた高さの中央（＝箱の横）まで落ちる
-  align-self: flex-start;
 }
 
 // **重ねずに行を押し広げる。** 採らなかった案とその理由は

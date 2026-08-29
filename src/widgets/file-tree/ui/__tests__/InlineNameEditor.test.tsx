@@ -121,9 +121,10 @@ describe("InlineNameEditor", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  // 一番普通の操作。打って外をクリックすると blur が確定の引き金になるので、
-  // 失敗が返る頃には欄をもう見ていない
-  test("打って外をクリックし、それが失敗したら編集を閉じる", async () => {
+  // 一番普通の操作。打って外をクリックすると blur が確定の引き金になる。
+  // ここで閉じると打った文字列ごと消え、「直すための入力欄が、直せという知らせに
+  // 巻き込まれて消える」形になる。焦点を戻して直せる状態にする
+  test("打って外をクリックし、それが失敗したら焦点を戻して理由を出す", async () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);
     const onCancel = vi.fn();
 
@@ -142,14 +143,16 @@ describe("InlineNameEditor", () => {
       fireEvent.blur(input);
     });
 
-    expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect((input as HTMLInputElement).value).toBe("2026/08");
+    expect(document.activeElement).toBe(input);
   });
 
   // 状態遷移表の E2 → blur。ここを空欄のままにすると、フォーカスの無い欄に
   // 失敗の箱だけが残り、閉じるのに「欄をクリックして戻し、もう一度外を押す」の
   // 2手が要る（Escape は欄の上にしか張っていないので届かない）
-  test("送信中に外へ出て、そのあと失敗したら編集を閉じる", async () => {
+  test("送信中に外へ出て、そのあと失敗したら焦点を戻す", async () => {
     let settle: (outcome: typeof rejected) => void = () => {};
     const onCommit = vi.fn(
       () =>
@@ -178,13 +181,13 @@ describe("InlineNameEditor", () => {
       await Promise.resolve();
     });
 
-    expect(onCancel).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
   });
 
   // 名前の失敗は provider が通知へ積まない（出す責任がこの欄だけにある）。
-  // 欄が閉じるときに捨てると、どの出口にも出ないまま終わる
-  test("送信中に外へ出たら、出せなかった失敗を呼び出し元へ返す", async () => {
+  // 欄がもう無いときに捨てると、どの出口にも出ないまま終わる
+  test("欄がもう無いなら、出せなかった失敗を呼び出し元へ返す", async () => {
     let settle: (outcome: typeof rejected) => void = () => {};
     const onCommit = vi.fn(
       () =>
@@ -194,7 +197,7 @@ describe("InlineNameEditor", () => {
     );
     const onUnshowable = vi.fn();
 
-    render(
+    const view = render(
       <InlineNameEditor
         initialName="a.kif"
         onCommit={onCommit}
@@ -207,6 +210,9 @@ describe("InlineNameEditor", () => {
     fireEvent.change(input, { target: { value: "a/b.kif" } });
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.blur(input);
+
+    // 呼び出し側が畳んだ（reducer の `case "error"` など）
+    view.unmount();
 
     await act(async () => {
       settle(rejected);

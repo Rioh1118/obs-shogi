@@ -417,7 +417,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
 
       const nextPath = res.data;
-      reconcilePathMutation(node.path, nextPath);
 
       const isRootRename = node.isDirectory && isProjectRoot(node.path, state.fileTree);
       if (isRootRename) {
@@ -425,17 +424,24 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         // `rootDir` の変化を受ける effect（上）が新しい場所で読み直す。
         // ここで待つと古い `rootDir` を読む
         const saved = await setRootDir(nextPath);
-        if (!saved.ok) {
+        if (!saved.success) {
           // ディスク上の改名は済んでいる。ここで捨てると「ディスクは新しい名前・
-          // 設定は古い名前」で固定され、再起動しても開けない
-          return failWithNotice(makeFsError("io", saved.message, nextPath), {
+          // 設定は古い名前」で固定され、再起動しても開けない。
+          //
+          // code は `io` にしない。あれは tier が `warning` で「再読み込み」が出るが、
+          // 読み直す先は自分で改名して消えた古いパスなので、押すたびに
+          // 「見つかりません」が返る。設定を書けないのは読み直しでは直らない
+          return failWithNotice(makeFsError("permission_denied", saved.error, nextPath), {
             kind: "rename_directory",
             path: node.path,
             newName,
           });
         }
+        reconcilePathMutation(node.path, nextPath);
         return Ok(undefined);
       }
+
+      reconcilePathMutation(node.path, nextPath);
 
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);

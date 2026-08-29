@@ -5,6 +5,8 @@ use std::{
 };
 use tauri::command;
 
+use crate::file_system::utils::validate_basename;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FsKind {
@@ -271,15 +273,13 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
 #[command]
 pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, String> {
     validate_dir("ai_root", &ai_root)?;
-    let trimmed = name.trim();
-    if trimmed.is_empty() {
-        return Err("name must not be empty".to_string());
-    }
-    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains('\0') {
-        return Err(format!("name must be a single path segment: {trimmed}"));
-    }
 
-    let profile = PathBuf::from(&ai_root).join(trimmed);
+    // **名前の規則は写さない。** ここで書き直すと、`.` と `..` のような
+    // 1つの規則を落としたときに `ai_root` の外へ作れてしまう
+    // （`join("..")` は親へ抜ける。`create_dir_all` は途中の段も黙って作る）
+    let trimmed = validate_basename(&name).map_err(|e| e.message)?;
+
+    let profile = PathBuf::from(&ai_root).join(&trimmed);
     for sub in ["eval", "book"] {
         fs::create_dir_all(profile.join(sub)).map_err(|e| e.to_string())?;
     }

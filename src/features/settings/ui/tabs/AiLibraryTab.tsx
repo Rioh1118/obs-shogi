@@ -162,8 +162,6 @@ export default function AiLibraryTab() {
       if (!root || !name) return;
       setScan({ status: "loading" });
       try {
-        // ワークスペース配下かの関門を通るコマンド（`create_directory`）では作れない。
-        // `ai_root` は別に選ぶ場所なので、ワークスペースを設定済みだと必ず弾かれる
         await createAiProfileDirs(root, name);
 
         await scanNow(root);

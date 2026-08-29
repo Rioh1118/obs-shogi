@@ -20,10 +20,17 @@
 // 操作は通っていて一覧だけが古いときの前置き。理由の箱の上に置く。
 // 文字色は器（モーダルのカード）から継ぐ。ここで宣言すると、面が決まらない分
 // コントラストの走査から外れる
+// カードは余白を持たない（余白は中身が持つ）。持ち主を1つに決めて、
+// 前置きと失敗の箱の両方をここで包む。片方だけに持たせると、
+// もう片方がカードの枠に触れて角丸に食われる
+.file-tree__failure {
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-4;
+  padding: index.$space-5;
+}
+
 .file-tree__reloadNote {
-  // カードは余白を持たない（余白は中身が持つ）。ここで持たないと、
-  // 文字がカードの枠に触れ、角丸に先頭が食われる
-  padding: index.$space-5 index.$space-5 0;
   font-size: index.$font-aux;
 }
 

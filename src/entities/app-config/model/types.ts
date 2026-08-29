@@ -1,4 +1,5 @@
 import type { PresetId } from "@/entities/engine-presets/model/types";
+import type { AsyncResult } from "@/shared/lib/result";
 
 export type AppConfig = {
   root_dir: string | null;
@@ -31,6 +32,6 @@ export type AppConfigContextType = ConfigState & {
    * ルート改名の経路はディスク上の改名を済ませてからここへ来るので、
    * 失敗を見落とすと「ディスクは新しい名前・設定は古い名前」で固定される
    */
-  setRootDir: (root_dir: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  setRootDir: (rootDir: string) => AsyncResult<void, string>;
   setLastPresetId: (presetId: PresetId | null) => Promise<void>;
 };

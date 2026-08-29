@@ -234,17 +234,19 @@ function FileTree() {
         >
           {/* 操作は通っていて一覧だけが古い場合、「失敗しました」とだけ出すと
               操作が失敗したと読める。何が起きたかを先に書く */}
-          {operationCompleted && (
-            <p className="file-tree__reloadNote">
-              操作は完了しましたが、一覧を取り直せませんでした。
-            </p>
-          )}
-          <FileTreeErrorNotice
-            error={shownError.error}
-            onRetry={handleRetry}
-            onDismiss={dismissError}
-            isRetrying={isLoading}
-          />
+          <div className="file-tree__failure">
+            {operationCompleted && (
+              <p className="file-tree__reloadNote">
+                操作は完了しましたが、一覧を取り直せませんでした。
+              </p>
+            )}
+            <FileTreeErrorNotice
+              error={shownError.error}
+              onRetry={handleRetry}
+              onDismiss={dismissError}
+              isRetrying={isLoading}
+            />
+          </div>
         </Modal>
       )}
       {pendingDelete && (

@@ -11,6 +11,7 @@ import {
   setRootDir as setRootDirApi,
 } from "../api/directories";
 import type { PresetId } from "@/entities/engine-presets/model/types";
+import { Err, Ok } from "@/shared/lib/result";
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(configReducer, initialState);
@@ -89,11 +90,13 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       await setRootDirApi(rootDir);
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
-      return { ok: true } as const;
+      return Ok(undefined);
     } catch (err) {
-      const message = `ルートディレクトリの更新に失敗しました: ${String(err)}`;
-      dispatch({ type: "error", payload: message });
-      return { ok: false, message } as const;
+      // **`dispatch({type:"error"})` はしない。** `RequireRootDir` がそれを見て
+      // `/` へ飛ばすので、ランタイムごと unmount され、呼び出し元が出そうとした
+      // 失敗が画面に出る前に消える。設定の**更新**が落ちただけで、
+      // すでに読めている `config` は生きている
+      return Err(`ルートディレクトリの更新に失敗しました: ${String(err)}`);
     }
   }
 

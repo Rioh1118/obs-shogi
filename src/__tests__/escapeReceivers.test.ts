@@ -35,16 +35,44 @@ function stripComments(code: string): string {
 }
 
 /**
+ * 文字列・テンプレートリテラルの中身を空白に潰す。
+ *
+ * 潰さないと、`const brace = "}"` の1行で波括弧の対応がずれ、
+ * その先の `stopPropagation()` が本体から外れて**違反が緑で通る**
+ */
+function blankStrings(code: string): string {
+  const out = code.split("");
+  let quote: string | null = null;
+  for (let i = 0; i < out.length; i += 1) {
+    const c = out[i];
+    if (quote) {
+      if (c === "\\") {
+        out[i] = " ";
+        if (i + 1 < out.length) out[i + 1] = " ";
+        i += 1;
+        continue;
+      }
+      if (c === quote) quote = null;
+      else if (c !== "\n") out[i] = " ";
+      continue;
+    }
+    if (c === '"' || c === "'" || c === "`") quote = c;
+  }
+  return out.join("");
+}
+
+/**
  * `at` を含む、最も内側の `{ ... }` の中身。
  *
  * 前へ向かって対応の取れていない `{` を探し、そこから対応する `}` まで取る。
- * 文字列やテンプレートリテラルの中の括弧は数えない（`"}"` を書ける）
+ * 数える対象は `blankStrings` を通した文字列なので、リテラルの中の括弧は数えない
  */
 function enclosingBlock(code: string, at: number): string | null {
+  const scan = blankStrings(code);
   let depth = 0;
   let open = -1;
   for (let i = at; i >= 0; i -= 1) {
-    const c = code[i];
+    const c = scan[i];
     if (c === "}") depth += 1;
     else if (c === "{") {
       if (depth === 0) {
@@ -57,8 +85,8 @@ function enclosingBlock(code: string, at: number): string | null {
   if (open < 0) return null;
 
   depth = 0;
-  for (let i = open; i < code.length; i += 1) {
-    const c = code[i];
+  for (let i = open; i < scan.length; i += 1) {
+    const c = scan[i];
     if (c === "{") depth += 1;
     else if (c === "}") {
       depth -= 1;
@@ -104,6 +132,24 @@ describe("Escape の受け口", () => {
         ...offenders,
       ].join("\n"),
     ).toEqual([]);
+  });
+
+  // 切り出しが壊れると、件数は増えたまま違反だけが消える。
+  // 既知の違反の形を渡して、拾えることを直に見る
+  it("文字列の中の波括弧で切り口がずれない", () => {
+    const source = [
+      "const handleKeyDown = (e) => {",
+      '  if (e.key !== "Escape") return;',
+      '  const brace = "}";',
+      "  e.stopPropagation();",
+      "};",
+    ].join("\n");
+
+    const at = source.indexOf('"Escape"');
+    const body = enclosingBlock(source, at);
+
+    expect(body, "本体を切り出せていない").not.toBeNull();
+    expect(body).toContain("stopPropagation");
   });
 
   it("ALLOWED に並ぶファイルが実在する", () => {
