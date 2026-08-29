@@ -13,6 +13,7 @@
 
 mod api;
 mod error;
+mod open;
 mod reader;
 mod session;
 mod sfen;
