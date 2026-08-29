@@ -96,6 +96,31 @@ describe("FileCreateForm", () => {
 
     expect(screen.queryByText("同じ名前のものが既にあります")).toBeNull();
   });
+
+  /**
+   * 押しても画面が変わらない間にもう一度押すと、1回目は成功して
+   * 2回目が already_exists になる。「押しても何も起きなかったのに、なぜか
+   * 同名が既にあると言われる」という読み解けない画面になる。
+   */
+  test("送信中は押し直せない。入力欄も消さない", async () => {
+    let release: (() => void) | null = null;
+    createNewFile.mockImplementation(
+      () => new Promise((resolve) => (release = () => resolve({ success: true, data: undefined }))),
+    );
+    render(<FileCreateForm toggleModal={toggleModal} dirPath="/root" />);
+
+    typeInto("ファイル名", "研究");
+    await submitForm();
+    await submitForm();
+
+    expect(createNewFile).toHaveBeenCalledTimes(1);
+    // 差し替えると、失敗して戻ったときにどこにいるか分からなくなる
+    expect(screen.getByLabelText("ファイル名")).toBeTruthy();
+
+    await act(async () => {
+      release?.();
+    });
+  });
 });
 
 describe("KifuImportForm", () => {

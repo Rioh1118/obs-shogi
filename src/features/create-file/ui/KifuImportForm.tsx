@@ -30,6 +30,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const [parseOk, setParseOk] = useState<boolean | null>(null);
   const [parseError, setParseError] = useState("");
   const [saveError, setSaveError] = useState<FsError | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fullFileName = useMemo(() => {
     const base = stripKnownExt(fileName.trim());
@@ -70,17 +71,25 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     if (!name || !text) return;
     if (parseOk !== true) return;
+    // 取り込みは書き込みとツリーの読み直しを通る。押しても画面が変わらない間に
+    // もう一度押すと、1回目は成功して2回目が already_exists になる
+    if (isSaving) return;
 
     setSaveError(null);
-    const result = await importKifuFile(dirPath, name, text);
-    if (result.success) {
-      toggleModal();
-      return;
-    }
+    setIsSaving(true);
+    try {
+      const result = await importKifuFile(dirPath, name, text);
+      if (result.success) {
+        toggleModal();
+        return;
+      }
 
-    // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
-    if (!isResolvedByConflictDialog(result.error.code)) {
-      setSaveError(result.error);
+      // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
+      if (!isResolvedByConflictDialog(result.error.code)) {
+        setSaveError(result.error);
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -158,11 +167,12 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
         <Button
           type="submit"
           tone="primary"
+          isLoading={isSaving}
           disabled={!fullFileName || !rawContent.trim() || parseOk !== true}
         >
-          インポートして作成
+          {isSaving ? "作成中..." : "インポートして作成"}
         </Button>
-        <Button type="button" onClick={toggleModal}>
+        <Button type="button" onClick={toggleModal} disabled={isSaving}>
           キャンセル
         </Button>
       </ButtonGroup>

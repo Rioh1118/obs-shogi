@@ -15,7 +15,6 @@ import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
-import Spinner from "@/shared/ui/Spinner";
 
 function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dirPath: string }) {
   const [fileName, setFileName] = useState("");
@@ -33,7 +32,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fileName.trim()) return;
+    if (!fileName.trim() || isLoading) return;
 
     setError(null);
     setIsLoading(true);
@@ -83,10 +82,6 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     { value: "8", label: "八枚落ち" },
     { value: "10", label: "十枚落ち" },
   ];
-
-  if (isLoading) {
-    return <Spinner />;
-  }
 
   return (
     <Form handleSubmit={handleSubmit}>
@@ -162,10 +157,12 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       )}
 
       <ButtonGroup>
-        <Button type="submit" tone="primary" disabled={!fileName.trim()}>
-          作成
+        {/* フォームは出したままにする。差し替えると入力欄が消え、
+            失敗して戻ったときキーボードの利用者はどこにいるか分からなくなる */}
+        <Button type="submit" tone="primary" isLoading={isLoading} disabled={!fileName.trim()}>
+          {isLoading ? "作成中..." : "作成"}
         </Button>
-        <Button type="button" onClick={toggleModal}>
+        <Button type="button" onClick={toggleModal} disabled={isLoading}>
           キャンセル
         </Button>
       </ButtonGroup>

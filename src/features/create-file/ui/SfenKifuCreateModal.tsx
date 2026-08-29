@@ -21,7 +21,6 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
-import Spinner from "@/shared/ui/Spinner";
 
 import "./SfenKifuCreateModal.scss";
 
@@ -93,7 +92,7 @@ export default function SfenKifuCreateModal() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!fileName.trim() || !sfenInitial) return;
+      if (!fileName.trim() || !sfenInitial || isLoading) return;
 
       // 選べる保存先が無いときは Select の下に理由が出ている。ここで積み直さない
       if (!selectedDir) return;
@@ -128,6 +127,7 @@ export default function SfenKifuCreateModal() {
       whitePlayer,
       selectedDir,
       sfenInitial,
+      isLoading,
       createNewFile,
       closeModal,
     ],
@@ -152,91 +152,92 @@ export default function SfenKifuCreateModal() {
       scroll="none"
     >
       <div className="sfen-kifu-create">
-        {isLoading ? (
-          <Spinner />
-        ) : (
-          <>
-            <div className="sfen-kifu-create__preview">
-              <PreviewPane previewData={previewData} />
-              {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
-            </div>
+        <div className="sfen-kifu-create__preview">
+          <PreviewPane previewData={previewData} />
+          {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
+        </div>
 
-            <Form handleSubmit={handleSubmit}>
-              <FormField>
-                <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
-              </FormField>
+        <Form handleSubmit={handleSubmit}>
+          <FormField>
+            <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
+          </FormField>
 
-              <FormField>
-                <Select
-                  label="保存先フォルダ"
-                  id="saveDir"
-                  options={dirOptions}
-                  value={selectedDir}
-                  onChange={(v) => {
-                    setSelectedDir(v);
-                    setSaveError(null);
-                  }}
-                />
-                {dirOptions.length === 0 && (
-                  <p className="sfen-kifu-create__hint">
-                    保存先がありません。先にワークスペースを開いてください
-                  </p>
-                )}
-              </FormField>
+          <FormField>
+            <Select
+              label="保存先フォルダ"
+              id="saveDir"
+              options={dirOptions}
+              value={selectedDir}
+              onChange={(v) => {
+                setSelectedDir(v);
+                setSaveError(null);
+              }}
+            />
+            {dirOptions.length === 0 && (
+              <p className="sfen-kifu-create__hint">
+                保存先がありません。先にワークスペースを開いてください
+              </p>
+            )}
+          </FormField>
 
-              <FormField horizontal>
-                <TextInput
-                  label="ファイル名"
-                  id="sfenFileName"
-                  placeholder="45角戦法"
-                  value={fileName}
-                  onChange={(e) => setFileName(e.target.value)}
-                  required
-                />
-                <Select
-                  label="フォーマット"
-                  id="sfenFormat"
-                  options={formatOptions}
-                  value={format}
-                  onChange={(v) => setFormat(v as KifuFormat)}
-                />
-              </FormField>
+          <FormField horizontal>
+            <TextInput
+              label="ファイル名"
+              id="sfenFileName"
+              placeholder="45角戦法"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              required
+            />
+            <Select
+              label="フォーマット"
+              id="sfenFormat"
+              options={formatOptions}
+              value={format}
+              onChange={(v) => setFormat(v as KifuFormat)}
+            />
+          </FormField>
 
-              <FormField horizontal>
-                <TextInput
-                  label="先手名"
-                  id="sfenBlack"
-                  placeholder="Player1"
-                  value={blackPlayer}
-                  onChange={(e) => setBlackPlayer(e.target.value)}
-                />
-                <TextInput
-                  label="後手名"
-                  id="sfenWhite"
-                  placeholder="Player2"
-                  value={whitePlayer}
-                  onChange={(e) => setWhitePlayer(e.target.value)}
-                />
-              </FormField>
+          <FormField horizontal>
+            <TextInput
+              label="先手名"
+              id="sfenBlack"
+              placeholder="Player1"
+              value={blackPlayer}
+              onChange={(e) => setBlackPlayer(e.target.value)}
+            />
+            <TextInput
+              label="後手名"
+              id="sfenWhite"
+              placeholder="Player2"
+              value={whitePlayer}
+              onChange={(e) => setWhitePlayer(e.target.value)}
+            />
+          </FormField>
 
-              {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
-              {saveError && (
-                <FormField>
-                  <FsErrorView error={saveError} />
-                </FormField>
-              )}
+          {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+          {saveError && (
+            <FormField>
+              <FsErrorView error={saveError} />
+            </FormField>
+          )}
 
-              <ButtonGroup>
-                <Button type="submit" tone="primary" disabled={!fileName.trim() || !selectedDir}>
-                  作成
-                </Button>
-                <Button type="button" onClick={() => closeModal()}>
-                  キャンセル
-                </Button>
-              </ButtonGroup>
-            </Form>
-          </>
-        )}
+          {/* フォームは出したままにする。差し替えると入力欄が消え、
+                  失敗して戻ったときキーボードの利用者はどこにいるか分からなくなる */}
+          <ButtonGroup>
+            <Button
+              type="submit"
+              tone="primary"
+              isLoading={isLoading}
+              disabled={!fileName.trim() || !selectedDir}
+            >
+              {isLoading ? "作成中..." : "作成"}
+            </Button>
+            <Button type="button" onClick={() => closeModal()} disabled={isLoading}>
+              キャンセル
+            </Button>
+          </ButtonGroup>
+        </Form>
       </div>
     </Modal>
   );
