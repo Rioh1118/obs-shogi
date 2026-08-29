@@ -587,8 +587,6 @@ mod tests {
                     message.chars().count()
                 );
 
-                // 理由文と引用の両方が打ち切られていること。`…` の数で見るのは、
-                // 片方だけ打ち切っても長さの上限は満たしてしまうため。
                 assert_eq!(
                     message.matches('…').count(),
                     2,
