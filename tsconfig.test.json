@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      // `vitest` は package.json の overrides で置き換えられており、
+      // node_modules/vitest が作られない。型だけ実体へ向ける
+      "vitest": ["./node_modules/@voidzero-dev/vite-plus-test"]
+    }
+  },
+  "include": ["src/**/__tests__/**/*", "src/**/*.test.ts", "src/**/*.test.tsx"],
+  "exclude": []
+}

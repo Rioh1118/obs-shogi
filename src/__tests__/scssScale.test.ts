@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Bucket, scan } from "./scssScale";
+import type { Bucket } from "./scssScale";
+import { scan } from "./scssScale";
 
 function count(source: string, bucket: Bucket): number {
   return scan(source).filter((finding) => finding.bucket === bucket).length;
@@ -229,5 +230,28 @@ describe("等幅フォント", () => {
   it("継承と単一の総称名は数えない", () => {
     expect(count(".a { font-family: inherit; }", "family")).toBe(0);
     expect(count(".a { font-family: sans-serif; }", "family")).toBe(0);
+  });
+});
+
+describe("at-rule へ逃がした寸法", () => {
+  it("mixin の既定値を数える", () => {
+    expect(count("@mixin card($pad: 1.37rem) { padding: $pad; }", "indirect")).toBe(1);
+  });
+
+  it("@return の直値を数える", () => {
+    expect(count("@function gap() { @return 1.37rem; }", "indirect")).toBe(1);
+  });
+
+  it("@each のマップの直値を数える", () => {
+    const source = "@each $n, $v in (sm: 1.37rem) { .c-#{$n} { padding: $v; } }";
+    expect(count(source, "indirect")).toBe(1);
+  });
+
+  it("@use with の設定値を数える", () => {
+    expect(count('@use "./t" with ($gap: 1.37rem);', "indirect")).toBe(1);
+  });
+
+  it("@media の条件は寸法ではないので数えない", () => {
+    expect(count("@media (min-width: 640px) { .a { color: red; } }", "indirect")).toBe(0);
   });
 });

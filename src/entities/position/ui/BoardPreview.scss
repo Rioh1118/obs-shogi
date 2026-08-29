@@ -139,8 +139,8 @@
 
   &__hand-label {
     // 盤の中は独立した縮尺で、アプリの文字の階層には乗らない。
-    // 兄弟の __coordinate も data-size ごとに px で固定してある。
-    // --square-size から導くと size="small"（盤 180px）で 4.5px まで落ちる
+    // --square-size から導くと size="small"（盤 180px）で 4.5px まで落ちるので、
+    // 盤の大きさによらず読める固定値にしてある
     font-size: 0.75rem; // scale-exempt
     font-weight: 600;
     min-width: 3rem;

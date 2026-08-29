@@ -110,7 +110,10 @@ export function bucketOf(property: string): Bucket | null {
   return null;
 }
 
-/** 反復するアニメーションは秒単位で回り続ける別系統なので、$duration-* の寄せ先が無い */
+/**
+ * 反復するアニメーションは、一度きりの遷移と違って持続時間が
+ * 動きの速さではなく回転周期を決めるので、$duration-* の段に載らない
+ */
 function isLoopingAnimation(property: string, value: string): boolean {
   return property.toLowerCase().startsWith("animation") && /\binfinite\b/.test(value);
 }
@@ -147,17 +150,37 @@ function isExempt(node: ChildNode): boolean {
   );
 }
 
-/** `@include name(1.2rem, 0.4rem)` のように mixin の引数へ逃がした直値 */
-function includeHasRawLiteral(params: string): boolean {
-  const open = params.indexOf("(");
-  if (open === -1) return false;
-  return RAW_LENGTH.test(stripTokenReferences(params.slice(open)));
+/**
+ * 寸法を宣言の外へ逃がせる at-rule。`@include` の引数だけを見ていると、
+ * `@mixin card($pad: 1.2rem)` の既定値や `@return` で同じことができる。
+ * `@media` / `@supports` / `@container` の条件部は値ではなくブレークポイントなので入れない
+ */
+const INDIRECT_AT_RULES = new Set([
+  "include",
+  "mixin",
+  "function",
+  "return",
+  "each",
+  "for",
+  "use",
+  "forward",
+]);
+
+/** at-rule のパラメータに逃がした直値。名前の部分は見ない */
+function paramsHaveRawLiteral(params: string): boolean {
+  return RAW_LENGTH.test(stripTokenReferences(params));
 }
 
-/** 1ファイル分の所見。印が付いた宣言は本来の枠でなく `exempt` に入る */
-export function scan(source: string, options: { tokenSource?: boolean } = {}) {
+/**
+ * 1ファイル分の所見。印が付いた宣言は本来の枠でなく `exempt` に入る。
+ *
+ * @param options.tokenSource `indirect` の枠だけを落とす。トークンを定義するファイルは
+ *   `$name: 値` が直値であって当然だが、それ以外の宣言は通常どおり数える
+ * @param options.from 解析に失敗したときの例外にファイル名を載せる
+ */
+export function scan(source: string, options: { tokenSource?: boolean; from?: string } = {}) {
   const findings: Finding[] = [];
-  const root = scss.parse(source);
+  const root = scss.parse(source, { from: options.from });
 
   root.walkDecls((decl: Declaration) => {
     const bucket = bucketOf(decl.prop);
@@ -171,12 +194,13 @@ export function scan(source: string, options: { tokenSource?: boolean } = {}) {
     });
   });
 
-  root.walkAtRules("include", (rule) => {
-    if (!includeHasRawLiteral(rule.params)) return;
+  root.walkAtRules((rule) => {
+    if (!INDIRECT_AT_RULES.has(rule.name.toLowerCase())) return;
+    if (!paramsHaveRawLiteral(rule.params)) return;
     findings.push({
       bucket: isExempt(rule) ? "exempt" : "indirect",
       line: rule.source?.start?.line ?? 0,
-      text: `@include ${rule.params};`,
+      text: `@${rule.name} ${rule.params};`,
     });
   });
 
