@@ -1,0 +1,72 @@
+name: バグ報告
+description: 動作がおかしい、落ちる、表示が壊れる
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        報告ありがとうございます。
+        セキュリティ上の問題の場合は、ここではなく [SECURITY.md](../blob/main/SECURITY.md) の手順で非公開に報告してください。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 何が起きましたか
+      description: 実際に起きたことを書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 本来どうなってほしかったですか
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 手順が分からない場合は「不明」で構いません。分かる範囲で書いてください
+      placeholder: |
+        1. 棋譜を開く
+        2. 分岐を切り替える
+        3. ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ObsShogi のバージョン
+      description: Releases からダウンロードしたバージョン、または自前ビルドならコミットハッシュ
+    validations:
+      required: true
+
+  - type: input
+    id: engine
+    attributes:
+      label: 使用しているエンジン
+      description: エンジンに関係する不具合の場合のみ。名前とバージョン
+    validations:
+      required: false
+
+  - type: textarea
+    id: files
+    attributes:
+      label: 関係するファイル・ログ・スクリーンショット
+      description: 棋譜ファイルが原因と思われる場合、共有できるならとても助かります
+    validations:
+      required: false
