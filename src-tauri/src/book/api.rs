@@ -195,10 +195,7 @@ pub fn get_book_info(
     state: State<'_, BookState>,
     input: BookHandleInput,
 ) -> Result<BookInfo, BookError> {
-    logged(
-        "get_book_info",
-        state.get(input.handle).map(|book| book.info.clone()),
-    )
+    logged("get_book_info", state.info(input.handle))
 }
 
 /// 開いている定跡を全て返す。

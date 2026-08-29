@@ -23,7 +23,9 @@ pub enum BookErrorCode {
     /// ファイルの中身が形式の規定を満たさない
     InvalidContent,
     /// 閉じた、あるいは一度も開かれていないハンドル。
-    /// フロントが出す復帰導線は「開き直す」。孤児のハンドルは `list_books` で拾える
+    /// 復帰導線は操作によって変わるので message に載せてある
+    /// （引くなら開き直す、閉じるなら何もしなくてよい）。
+    /// 孤児のハンドルは `list_books` で拾える
     InvalidHandle,
     /// 局面の指定が SFEN として読めない
     InvalidSfen,

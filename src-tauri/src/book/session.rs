@@ -69,16 +69,30 @@ impl BookState {
         info
     }
 
+    /// ハンドルの指す定跡のメタ情報だけを返す。
+    ///
+    /// `Arc` を持ち出さないので、呼び出し側が最後の参照になることが無い。
+    /// メタ情報を見るだけの経路はこちらを使うこと。
+    pub(crate) fn info(&self, handle: BookHandle) -> Result<BookInfo, BookError> {
+        self.books
+            .get(&handle)
+            .map(|entry| entry.value().info.clone())
+            .ok_or_else(|| Self::invalid_handle(handle, "開き直すこと"))
+    }
+
     /// ハンドルの指す定跡を取り出す。
     ///
     /// map のロックを跨いで読ませないために `Arc` を複製して返す。返した `Arc` が
     /// 生きている間は、close されても reader は解放されない。引いている最中に
     /// 閉じられても落ちないための性質で、長く持ち回るとその間メモリが残る。
+    ///
+    /// **最後の参照になりうるので、落とす場所は blocking プールにすること。**
+    /// async ランタイム上で落とすと、reader の Drop がそこで走る。
     pub(crate) fn get(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
             .get(&handle)
             .map(|entry| Arc::clone(entry.value()))
-            .ok_or_else(|| Self::invalid_handle(handle))
+            .ok_or_else(|| Self::invalid_handle(handle, "開き直すこと"))
     }
 
     /// 閉じて、外した定跡そのものを返す。
@@ -93,7 +107,9 @@ impl BookState {
         self.books
             .remove(&handle)
             .map(|(_, session)| session)
-            .ok_or_else(|| Self::invalid_handle(handle))
+            // 閉じたいのに「開き直せ」と言われると、指示に従うと閉じたはずの
+            // 定跡が載り直す。close にとって未知のハンドルは、目的が既に達成された状態。
+            .ok_or_else(|| Self::invalid_handle(handle, "既に閉じられているので操作は要らない"))
     }
 
     /// 開いている定跡を、ハンドルの若い順に返す。
@@ -134,10 +150,12 @@ impl BookState {
         self.books.is_empty()
     }
 
-    fn invalid_handle(handle: BookHandle) -> BookError {
+    /// `recovery` は呼び出し側から渡す。閉じようとしたのか引こうとしたのかで、
+    /// 次にやるべきことが逆になる。
+    fn invalid_handle(handle: BookHandle, recovery: &'static str) -> BookError {
         BookError::new(
             BookErrorCode::InvalidHandle,
-            format!("この定跡は閉じられている。開き直すこと（ハンドル {handle}）"),
+            format!("この定跡は閉じられている。{recovery}（ハンドル {handle}）"),
         )
     }
 }
@@ -238,6 +256,31 @@ mod tests {
 
         let err = state.close(info.handle).unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidHandle);
+        // 閉じたい相手に「開き直せ」と言わないこと
+        assert!(!err.message.contains("開き直す"), "message={}", err.message);
+    }
+
+    /// 引こうとしたときは開き直すのが復帰操作。閉じようとしたときと逆になる。
+    #[test]
+    fn lookups_on_a_closed_handle_say_to_open_it_again() {
+        let (state, _alive, info) = state_with_one_book();
+        drop(state.close(info.handle).unwrap());
+
+        for err in [
+            state.get(info.handle).unwrap_err(),
+            state.info(info.handle).unwrap_err(),
+        ] {
+            assert_eq!(err.code, BookErrorCode::InvalidHandle);
+            assert!(err.message.contains("開き直す"), "message={}", err.message);
+        }
+    }
+
+    /// メタ情報だけを見る経路は Arc を持ち出さない。持ち出すと、その参照が
+    /// 最後の1つになったとき reader の Drop が呼び出し側のスレッドで走る。
+    #[test]
+    fn info_returns_the_same_values_as_the_session() {
+        let (state, _alive, expected) = state_with_one_book();
+        assert_eq!(state.info(expected.handle).unwrap(), expected);
     }
 
     #[test]
