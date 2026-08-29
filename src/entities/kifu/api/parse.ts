@@ -87,6 +87,8 @@ function finishJKFData(exported: JKFData): JKFData {
  *
  * 失敗すると {@link KifuParseError} を throw する。空文字と解析失敗の両方がここに来る。
  *
+ * 返り値は空の変化を含まない（`sanitizeJkf`）。受け取った側で掛け直す必要はない。
+ *
  * 盤上で再生できない手を含む棋譜では throw せず、**未正規化のまま返る**。
  * このとき表記が揃わないだけでなく、その手以降へ `JKFPlayer.goto` が進めない。
  * 返り値を持って局面を動かす側は、`goto` が失敗しうる前提で境界を用意すること
@@ -116,7 +118,8 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
 /**
  * 形式が分からない棋譜テキストを、判定した形式ごと `JKFData` にする
  *
- * 未正規化のまま返りうる点と throw する点は {@link parseKifuContentToJKF} と同じ。
+ * 未正規化のまま返りうる点、空の変化を含まない点、throw する点は
+ * {@link parseKifuContentToJKF} と同じ。
  * 形式の判定そのものに失敗した場合も {@link KifuParseError} になる。
  *
  * @throws {KifuParseError} 形式を判定できないか、棋譜として読めなかったとき
