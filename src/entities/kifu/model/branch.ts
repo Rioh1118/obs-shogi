@@ -108,10 +108,16 @@ export function forkIndexFromBranchIndex(b: BranchIndex): number {
 /**
  * `IMoveFormat.forks` の添字を分岐一覧の位置にする。本譜が0を占めるぶん1ずれる。
  *
- * @throws {Error} 整数でないとき。brand を「整数である」ことの保証にするための境界
+ * 負を弾くのは、`-1` が `MAIN_LINE` に化けて「範囲外の値」が「本譜」として
+ * 通ってしまうため。逆向きの `forkIndexFromBranchIndex` が防いでいるのと同じ丸めを、
+ * こちら側でも起こさせない。
+ *
+ * @throws {Error} 0以上の整数でないとき。brand を「安全に作れた」ことの保証にするための境界
  */
 export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
-  if (!Number.isInteger(forkIndex)) throw new Error(`forkIndex ${forkIndex} is not an integer`);
+  if (!Number.isInteger(forkIndex) || forkIndex < 0) {
+    throw new Error(`forkIndex ${forkIndex} is not a valid forks index`);
+  }
   return (forkIndex + 1) as BranchIndex;
 }
 
