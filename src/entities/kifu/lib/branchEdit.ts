@@ -77,6 +77,10 @@ function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: number)
 }
 
 function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHandle {
+  // moves[0] は開始局面のエントリで指し手ではない。te=0 を通すと本譜の削除が
+  // moves を空にする（`line[0]` が truthy なので「手が無い」判定に掛からない）。
+  if (ref0.te < 1) throw new Error(`No move at te=${ref0.te}`);
+
   const ref = normalizeRef(ref0);
   const { line, startTe } = resolveLine(kifu, ref.forkPointers, ref.te);
   const index = ref.te - startTe;
@@ -272,7 +276,7 @@ function relocateCursorOnDelete(
  * `te` にぶら下がる同じ手数の入れ子の変化は兄弟に平坦化される。触っていない変化でも
  * `te` の `forkIndex` の並びが変わり、その形でファイルに書き戻される。
  *
- * @throws {Error} `te` に手が無いとき、`a` / `b` が候補の範囲外のとき、
+ * @throws {Error} `te` が1以上の手を指していないとき、`a` / `b` が候補の範囲外のとき、
  *   `forkPointers` が実在しない変化を指すとき
  */
 export function swapBranchesInKifu(
@@ -321,7 +325,7 @@ export function swapBranchesInKifu(
  * `cursor` が消える候補の中にいたときは、`te` の直後（消しきったなら `te - 1`）へ退避させた
  * カーソルを返す。
  *
- * @throws {Error} `te` に手が無いとき、`target` が候補の範囲外のとき、
+ * @throws {Error} `te` が1以上の手を指していないとき、`target` が候補の範囲外のとき、
  *   `forkPointers` が実在しない変化を指すとき
  */
 export function deleteBranchInKifu(

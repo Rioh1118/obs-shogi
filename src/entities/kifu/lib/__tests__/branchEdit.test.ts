@@ -99,6 +99,15 @@ describe("deleteBranchInKifu", () => {
     expect(kifu.moves[2].forks).toBeUndefined();
   });
 
+  test("te=0 は throw する", () => {
+    // moves[0] は開始局面のエントリ。通すと本譜の削除が moves を空にする。
+    const kifu = kifuWithTwoForks();
+    expect(() =>
+      deleteBranchInKifu(kifu, { te: 0, forkPointers: [], target: MAIN_LINE }, null),
+    ).toThrow();
+    expect(kifu.moves).toHaveLength(4);
+  });
+
   test("範囲外の対象は throw する", () => {
     const kifu = kifuWithTwoForks();
     expect(() =>
