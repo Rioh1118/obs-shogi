@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Modal from "@/shared/ui/Modal";
+import Button from "@/shared/ui/Button/Button";
 
 import type { FileConflictDialogProps } from "../model/types";
 import { describeFsError, type FsError } from "@/entities/file-tree";
@@ -63,7 +64,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   return (
     <Modal
       onClose={onCancel}
-      theme="light"
+      theme="dark"
       variant="dialog"
       size="sm"
       scroll="content"
@@ -118,23 +119,14 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
         )}
 
         <div className="file-conflict__actions">
-          <button
-            type="button"
-            className="file-conflict__button file-conflict__button--ghost"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
+          <Button onClick={onCancel} disabled={isSubmitting}>
             {copy.cancelLabel}
-          </button>
+          </Button>
 
           {copy.canRename && (
-            <button
-              type="submit"
-              className="file-conflict__button file-conflict__button--primary"
-              disabled={!canSubmit}
-            >
+            <Button type="submit" tone="primary" disabled={!canSubmit}>
               {copy.renameLabel}
-            </button>
+            </Button>
           )}
         </div>
       </form>

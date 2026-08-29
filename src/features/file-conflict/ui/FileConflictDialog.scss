@@ -1,196 +1,131 @@
 @use "@/index.scss" as index;
 
 .file-conflict {
-  width: 100%;
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.8rem;
+  gap: index.$space-5;
+  padding: index.$space-8;
 
   &__header {
     display: flex;
     align-items: flex-start;
-    gap: 1.2rem;
-    min-width: 0;
+    gap: index.$space-4;
   }
 
   &__iconWrap {
-    flex: 0 0 auto;
-    width: 3.8rem;
-    height: 3.8rem;
-    border-radius: 1.2rem;
-
     display: grid;
     place-items: center;
-
-    background:
-      linear-gradient(180deg, rgba(index.$color-white, 0.5), rgba(index.$color-white, 0.18)),
-      rgba(index.$color-secondary-dark, 0.12);
-    color: rgba(index.$color-secondary-dark, 0.96);
-    border: 1px solid rgba(index.$color-primary-light, 0.12);
-    box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.08);
+    flex: none;
+    width: index.$space-12;
+    height: index.$space-12;
+    border-radius: index.$radius-circle;
+    background: rgba(index.$color-warning, 0.18);
+    color: index.$color-warning;
   }
 
   &__headingBlock {
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
   }
 
   &__title {
-    font-size: 1.95rem;
-    line-height: 1.28;
-    font-weight: 700;
-    color: index.$color-text-dark-1;
-    letter-spacing: 0.01em;
+    margin: 0;
+    font-size: index.$font-section;
+    font-weight: 600;
+    color: index.$color-text-primary;
   }
 
   &__description {
-    font-size: 1.34rem;
-    line-height: 1.68;
-    color: rgba(index.$color-text-dark-2, 0.9);
+    margin: index.$space-1 0 0;
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.75);
   }
 
-  &__meta,
-  &__editor {
-    border-radius: 1.4rem;
-    border: 1px solid rgba(index.$color-primary-light, 0.12);
-    background:
-      linear-gradient(180deg, rgba(index.$color-white, 0.5), rgba(index.$color-white, 0.24)),
-      rgba(index.$color-secondary-light, 0.42);
-    box-shadow: 0 0.6rem 1.6rem rgba(0, 0, 0, 0.06);
-  }
-
+  // ── 衝突した相手の情報（ConflictMeta）──
   &__meta {
-    padding: 1.4rem;
-  }
-
-  &__editor {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 1.4rem;
-  }
-
-  &__meta-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.2rem;
+    gap: index.$space-3;
+    padding: index.$space-5;
+    border: 1px solid index.$stroke-weak;
+    border-radius: index.$radius-3;
+    background: rgba(index.$color-primary-black, 0.28);
   }
 
   &__field {
-    min-width: 0;
     display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-
-    &--full {
-      grid-column: 1 / -1;
-    }
+    align-items: baseline;
+    gap: index.$space-4;
+    min-width: 0;
   }
 
   &__label {
-    font-size: 1.14rem;
-    font-weight: 700;
-    color: rgba(index.$color-text-dark-2, 0.78);
-    letter-spacing: 0.02em;
-  }
-
-  &__editorLabel {
-    font-size: 1.22rem;
-    font-weight: 700;
-    color: rgba(index.$color-text-dark-2, 0.88);
-    letter-spacing: 0.01em;
+    flex: none;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.55);
   }
 
   &__value {
-    font-size: 1.45rem;
-    line-height: 1.45;
-    color: index.$color-text-dark-1;
-    font-weight: 600;
+    min-width: 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-primary;
+    overflow-wrap: anywhere;
+  }
+
+  // パスは折り返させる。省略すると、どれと衝突したのか分からなくなる
+  &__path {
+    min-width: 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.7);
+    overflow-wrap: anywhere;
   }
 
   &__pill {
-    display: inline-flex;
-    align-items: center;
-    width: fit-content;
-    max-width: 100%;
-
-    padding: 0.66rem 0.98rem;
-    border-radius: 999px;
-
-    background: rgba(index.$color-primary-light, 0.07);
-    border: 1px solid rgba(index.$color-primary-light, 0.11);
-
-    font-size: 1.34rem;
-    font-weight: 700;
-    line-height: 1.35;
-    color: index.$color-text-dark-1;
-    word-break: break-word;
+    flex: none;
+    padding: 0 index.$space-3;
+    border-radius: index.$radius-pill;
+    border: 1px solid index.$stroke;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.75);
   }
 
-  &__path {
-    padding: 0.95rem 1rem;
-    border-radius: 1rem;
-    background: rgba(index.$color-white, 0.46);
-    border: 1px solid rgba(index.$color-primary-light, 0.09);
+  // ── 新しい名前の入力 ──
+  &__editor {
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-2;
+  }
 
-    font-size: 1.24rem;
-    line-height: 1.62;
-    color: rgba(index.$color-text-dark-2, 0.95);
-    word-break: break-word;
-
-    &--conflict {
-      border-color: rgba(index.$color-secondary-dark, 0.24);
-      background:
-        linear-gradient(180deg, rgba(index.$color-white, 0.4), rgba(index.$color-white, 0.14)),
-        rgba(index.$color-secondary-dark, 0.08);
-      color: index.$color-text-dark-1;
-      font-weight: 600;
-    }
+  &__editorLabel {
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.6);
   }
 
   &__input {
     width: 100%;
-    height: 4.4rem;
-    padding: 0 1.2rem;
-    border-radius: 1rem;
-    border: 1px solid rgba(index.$color-primary-light, 0.16);
-    background: rgba(index.$color-white, 0.82);
-
-    font-size: 1.45rem;
-    font-weight: 600;
-    color: index.$color-text-dark-1;
+    padding: index.$space-3 index.$space-4;
+    border-radius: index.$radius-3;
+    border: 1px solid index.$stroke;
+    background: rgba(index.$color-primary-black, 0.45);
+    color: index.$color-text-primary;
     caret-color: index.$color-secondary-dark;
-    outline: none;
+    font-family: inherit;
+    font-size: index.$font-body;
 
-    transition:
-      border-color 120ms ease,
-      box-shadow 120ms ease,
-      background-color 120ms ease,
-      transform 120ms ease;
-
-    &:hover {
-      background: rgba(index.$color-white, 0.9);
-    }
-
-    &:focus,
     &:focus-visible {
-      border-color: rgba(index.$color-secondary-dark, 0.78);
-      box-shadow: 0 0 0 3px rgba(index.$color-secondary-dark, 0.16);
-      background: rgba(index.$color-white, 0.96);
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 1px;
     }
 
     &:disabled {
-      opacity: 0.62;
-      cursor: not-allowed;
+      opacity: 0.5;
     }
+  }
 
-    &::selection {
-      background: rgba(index.$color-secondary-dark, 0.24);
-      color: index.$color-text-dark-1;
-    }
+  &__hint {
+    margin: 0;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.55);
   }
 
   // 解決しようとして失敗した理由。入力欄のすぐ下に置く。
@@ -201,126 +136,10 @@
     color: index.$color-danger;
   }
 
-  &__hint {
-    font-size: 1.18rem;
-    line-height: 1.58;
-    color: rgba(index.$color-text-dark-2, 0.8);
-  }
-
   &__actions {
     display: flex;
     justify-content: flex-end;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.9rem;
-    padding-top: 0.2rem;
-  }
-
-  &__button {
-    min-width: 10.8rem;
-    height: 4rem;
-    padding: 0 1.4rem;
-    border-radius: 1.05rem;
-    border: 1px solid transparent;
-
-    font-size: 1.34rem;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    cursor: pointer;
-
-    transition:
-      transform 120ms ease,
-      box-shadow 120ms ease,
-      background-color 120ms ease,
-      border-color 120ms ease,
-      color 120ms ease,
-      opacity 120ms ease;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-1px);
-    }
-
-    &:active:not(:disabled) {
-      transform: translateY(0) scale(0.985);
-    }
-
-    &:focus-visible {
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(index.$color-secondary-dark, 0.22);
-    }
-
-    &:disabled {
-      opacity: 0.46;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-
-    &--ghost {
-      background: transparent;
-      border-color: rgba(index.$color-primary-light, 0.14);
-      color: rgba(index.$color-text-dark-2, 0.92);
-    }
-
-    &--secondary {
-      background: rgba(index.$color-primary-light, 0.07);
-      border-color: rgba(index.$color-primary-light, 0.13);
-      color: index.$color-text-dark-1;
-    }
-
-    &--primary {
-      background: linear-gradient(
-        180deg,
-        rgba(index.$color-primary-light, 0.96),
-        rgba(index.$color-primary-dark, 0.96)
-      );
-      color: index.$color-text-light-1;
-      box-shadow: 0 0.6rem 1.4rem rgba(44, 54, 57, 0.2);
-    }
-
-    &--danger {
-      background: linear-gradient(
-        180deg,
-        rgba(index.$color-secondary-dark, 0.96),
-        rgba(index.$color-secondary-dark-2, 0.96)
-      );
-      color: index.$color-white;
-      box-shadow: 0 0.6rem 1.4rem rgba(162, 123, 92, 0.2);
-    }
-  }
-
-  @media (max-width: 640px) {
-    gap: 1.5rem;
-
-    &__header {
-      gap: 1rem;
-    }
-
-    &__iconWrap {
-      width: 3.4rem;
-      height: 3.4rem;
-      border-radius: 1rem;
-    }
-
-    &__title {
-      font-size: 1.75rem;
-    }
-
-    &__description {
-      font-size: 1.28rem;
-    }
-
-    &__meta-grid {
-      grid-template-columns: 1fr;
-    }
-
-    &__actions {
-      flex-direction: column-reverse;
-      align-items: stretch;
-    }
-
-    &__button {
-      width: 100%;
-    }
+    gap: index.$space-3;
+    margin-top: index.$space-2;
   }
 }
