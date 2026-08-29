@@ -122,13 +122,11 @@ export function useEnginePositionSync(): PositionSyncAdapter {
           await setPositionFromSfen(target);
           failure = null;
         } catch (e) {
-          // 万一NotInitializedなら ready待ちへ戻す
+          // ここへ来る時点で isReady は必ず true（false なら送信前に保留して返している）。
+          // つまり NotInitialized はフロント側の準備完了判定が実態とずれている印であり、
+          // ready の再遷移は来ない。保留しても誰も引かないので呼び出し元へ投げる。
           if (isNotInitializedError(e)) {
-            pendingBeforeReadyRef.current = target;
-            // isReady が true のまま NotInitialized が返るのは、フロント側の
-            // 準備完了判定が実態とずれている場合。ready の再遷移が来ないので
-            // 保留だけでは復帰しない。呼び出し元にも知らせる。
-            failure = isReady ? e : null;
+            failure = e;
             continue;
           }
 

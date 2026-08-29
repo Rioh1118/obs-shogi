@@ -88,8 +88,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const desiredSfenRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const restartSeqRef = useRef(0);
-  // 自動再開の同期待ちを開始した時刻。打ち切りの判定に使う。
-  const syncWaitStartedAtRef = useRef<number | null>(null);
+  // 自動再開の同期待ち。打ち切りの判定に使う。
+  // 待っている対象（seq と局面）ごと持つ。時刻だけを持つと、前回の待ちの経過時間を
+  // 引き継いで、次の待ちを1ミリ秒も待たずに打ち切ってしまう。
+  const syncWaitRef = useRef<{ seq: number; want: string; startedAt: number } | null>(null);
   const pendingAfterRef = useRef(false);
 
   const RESTART_DEBOUNCE_MS = 100;
@@ -175,12 +177,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // 同期を待つ。手動開始と同じ上限で打ち切る。上限が無いと、同期が恒久的に
       // 失敗したときに「解析中」の表示のままタイマーだけが回り続け、
       // 利用者には何も起きていないのに正常に見える。
-      const startedAt = syncWaitStartedAtRef.current ?? Date.now();
-      syncWaitStartedAtRef.current = startedAt;
+      const prev = syncWaitRef.current;
+      const startedAt =
+        prev && prev.seq === seq && prev.want === want ? prev.startedAt : Date.now();
+      syncWaitRef.current = { seq, want, startedAt };
 
       if (Date.now() - startedAt > POSITION_SYNC_TIMEOUT_MS) {
-        syncWaitStartedAtRef.current = null;
+        syncWaitRef.current = null;
         clearDebounceTimer();
+
+        // エンジン側のセッションも必ず止める。React の state だけ落とすと
+        // Rust には is_active なセッションが残り、以降 start_infinite_analysis が
+        // 常に「Analysis already running」で弾かれて解析を再開できなくなる。
+        const sid = sessionIdRef.current;
+        void stopAnalysisCore(sid ?? undefined).catch(() => {});
+
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
         dispatch({ type: "stop_analysis" });
         return;
@@ -193,7 +204,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       return;
     }
 
-    syncWaitStartedAtRef.current = null;
+    syncWaitRef.current = null;
 
     if (restartInFlightRef.current) {
       pendingAfterRef.current = true;
