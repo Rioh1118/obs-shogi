@@ -1,9 +1,50 @@
 import { defineConfig } from "vite-plus";
+import type { OxlintOverride } from "vite-plus/lint";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// レイヤは Feature-Sliced Design。import は下向きだけ許す。
+const LAYERS_TOP_DOWN = ["app", "pages", "widgets", "features", "entities", "shared"] as const;
+
+// 2階層以上遡る相対 import を禁じる。下のレイヤ規則は `@/` から始まるパスしか見ないため、
+// これが無いと相対パスで書かれた層違反が素通りし「違反ゼロ」が信用できなくなる。
+const DEEP_RELATIVE_IMPORT = {
+  group: ["../../**"],
+  message:
+    "2階層以上遡る相対 import は禁止。`@/` エイリアスで書くこと。相対パスはレイヤ規則を素通りする。",
+};
+
+// 各レイヤから、自分より上のレイヤへの import を禁じる。
+// 型を明示するのは、生成された override と直書きの override の union が
+// そのままだと tsc の比較深度を超えるため。
+const layerBoundaries: OxlintOverride[] = LAYERS_TOP_DOWN.map((layer, depth) => ({
+  files: [`src/${layer}/**/*.{ts,tsx}`],
+  rules: {
+    // 後勝ちで上書きされるため、共通側の DEEP_RELATIVE_IMPORT をここでも並べる。
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          DEEP_RELATIVE_IMPORT,
+          {
+            // 自分より前＝自分より上位のレイヤ。
+            // `../${upper}/**` も並べるのは、レイヤ直下のファイルからは `../` 1段で
+            // 隣のレイヤに届き、`@/` と `../../**` の2本だけでは素通りするため。
+            group: LAYERS_TOP_DOWN.slice(0, depth).flatMap((upper) => [
+              `@/${upper}/**`,
+              `../${upper}/**`,
+            ]),
+            message: `${layer} から上位レイヤへの import は禁止。共有したい型やロジックは共有できる位置まで下げること。`,
+          },
+        ],
+      },
+    ],
+  },
+  // app は最上位なので禁止する相手がいない。
+})).slice(1);
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -11,9 +52,9 @@ export default defineConfig({
     "*": "vp check --fix",
   },
   lint: {
-    plugins: ["oxc", "typescript", "unicorn", "react"],
+    plugins: ["oxc", "typescript", "unicorn", "react", "import"],
     categories: {
-      correctness: "warn",
+      correctness: "error",
     },
     env: {
       builtin: true,
@@ -23,6 +64,8 @@ export default defineConfig({
       {
         files: ["**/*.{ts,tsx}"],
         rules: {
+          "no-restricted-imports": ["error", { patterns: [DEEP_RELATIVE_IMPORT] }],
+          "import/no-cycle": "error",
           "constructor-super": "off",
           "for-direction": "error",
           "getter-return": "off",
@@ -128,6 +171,7 @@ export default defineConfig({
           WorkletGlobalScope: "readonly",
         },
       },
+      ...layerBoundaries,
     ],
     options: {},
   },

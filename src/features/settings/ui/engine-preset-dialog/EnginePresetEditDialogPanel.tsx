@@ -22,8 +22,8 @@ import { useAppConfig } from "@/entities/app-config";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
-import { filterEnginesByAiLabel, listAiLabels } from "../../lib/engineFilter";
-import type { ThreadsMode } from "../../model/types";
+import { filterEnginesByAiLabel, listAiLabels } from "@/features/settings/lib/engineFilter";
+import type { ThreadsMode } from "@/features/settings/model/types";
 import PresetDialogHeader from "./PresetDialogHeader";
 import {
   ensureEnginesDir,

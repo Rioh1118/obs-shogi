@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { SField, SInput, SSection } from "../../kit";
+import { SField, SInput, SSection } from "@/features/settings/ui/kit";
 import { parseIntSafe } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 

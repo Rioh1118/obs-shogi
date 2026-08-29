@@ -10,7 +10,6 @@ import StatsSection from "./StatsSection";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine/api/rust-types";
 import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
 
@@ -22,8 +21,8 @@ type PaneSnapshot = {
 function AnalysisPane() {
   const { state } = useAnalysis();
 
-  const { getCurrentTurn, state: gameState } = useGame();
-  const { currentSfen } = usePositionSync();
+  const { getCurrentTurn, state: gameState, view: gameView } = useGame();
+  const currentSfen = gameView.currentSfen;
   const { selectedNode } = useFileTree();
   const { state: presetsState } = useEnginePresets();
   // ===== cache key =====

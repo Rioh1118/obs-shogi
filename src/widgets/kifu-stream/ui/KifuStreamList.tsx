@@ -65,6 +65,10 @@ export default function KifuStreamList() {
     }
   }, []);
 
+  // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
+  // インラインのアロー関数を挟むと全行の memo が外れる。
+  const closeForkMenuAndFocus = useCallback(() => closeForkMenu(true), [closeForkMenu]);
+
   const toggleMoveMenu = useCallback((te: number, anchorRect: DOMRect) => {
     setOpenFork(null);
     setOpenComment(null);
@@ -278,8 +282,8 @@ export default function KifuStreamList() {
               onClickRow={onClickRow}
               onToggleForkMenu={onToggleForkMenu}
               onSelectFork={onSelectFork}
-              onRequestOpenMoveMenu={(te, rect) => toggleMoveMenu(te, rect)}
-              onRequestCloseForkMenu={() => closeForkMenu(true)}
+              onRequestOpenMoveMenu={toggleMoveMenu}
+              onRequestCloseForkMenu={closeForkMenuAndFocus}
               onOpenComment={onOpenComment}
               onSwapBranch={onSwapBranch}
               onDeleteBranch={onDeleteBranch}

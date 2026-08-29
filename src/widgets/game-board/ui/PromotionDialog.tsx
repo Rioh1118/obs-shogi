@@ -1,5 +1,5 @@
 import { Color } from "shogi.js";
-import PieceFactory from "./PieceFactory";
+import PieceFactory from "@/entities/position/ui/PieceFactory";
 import "./PromotionDialog.scss";
 
 function PromotionDialog({

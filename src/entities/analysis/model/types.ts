@@ -17,9 +17,22 @@ export type AnalysisAction =
   | { type: "clear_error" }
   | { type: "clear_results" };
 
+/** エンジンへの局面同期を解析側へ注入するための面。実装は features 側にある。 */
 export type PositionSyncAdapter = {
+  /** 盤が指している局面の SFEN。棋譜を開いていなければ null。 */
   currentSfen: string | null;
+  /**
+   * 最後にエンジンへ送れた SFEN。
+   * エンジンの切替・再起動と、棋譜を閉じたときに null に戻る。
+   */
   syncedSfen: string | null;
+  /**
+   * 現在の局面をエンジンへ送る。送信に失敗すると reject する。
+   *
+   * **resolve は送れたことを意味しない。** エンジンが未 ready のときと棋譜を開いていない
+   * ときは何も送らずに resolve する。送れたかどうかは `syncedSfen` で判定すること。
+   * `syncedSfen` の反映は resolve と同じレンダではない。
+   */
   syncPosition: () => Promise<void>;
 };
 

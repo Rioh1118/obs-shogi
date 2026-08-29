@@ -88,11 +88,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const desiredSfenRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const restartSeqRef = useRef(0);
+  // 自動再開の同期待ち。打ち切りの判定に使う。
+  // 待っている対象（seq と局面）ごと持つ。時刻だけを持つと、前回の待ちの経過時間を
+  // 引き継いで、次の待ちを1ミリ秒も待たずに打ち切ってしまう。
+  const syncWaitRef = useRef<{ seq: number; want: string; startedAt: number } | null>(null);
   const pendingAfterRef = useRef(false);
 
   const RESTART_DEBOUNCE_MS = 100;
 
-  const waitUntil = async (cond: () => boolean, timeoutMs = 1500) => {
+  // エンジンが position を受け付けるまで待つ上限。これを超えたら送信できていないと
+  // 見なし、盤面と一致しない候補手を出さないために解析を始めない。
+  // 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
+  const POSITION_SYNC_TIMEOUT_MS = 2000;
+  const POSITION_SYNC_TIMEOUT_MESSAGE = "エンジンに現在の局面を送れませんでした";
+
+  const waitUntil = async (cond: () => boolean, timeoutMs: number) => {
     const start = Date.now();
     while (!cond()) {
       if (Date.now() - start > timeoutMs) return false;
@@ -164,12 +174,37 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (lastAnalyzedSfenRef.current === want) return;
 
     if (syncedSfen !== want) {
+      // 同期を待つ。手動開始と同じ上限で打ち切る。上限が無いと、同期が恒久的に
+      // 失敗したときに「解析中」の表示のままタイマーだけが回り続け、
+      // 利用者には何も起きていないのに正常に見える。
+      const prev = syncWaitRef.current;
+      const startedAt =
+        prev && prev.seq === seq && prev.want === want ? prev.startedAt : Date.now();
+      syncWaitRef.current = { seq, want, startedAt };
+
+      if (Date.now() - startedAt > POSITION_SYNC_TIMEOUT_MS) {
+        syncWaitRef.current = null;
+        clearDebounceTimer();
+
+        // エンジン側のセッションも必ず止める。React の state だけ落とすと
+        // Rust には is_active なセッションが残り、以降 start_infinite_analysis が
+        // 常に「Analysis already running」で弾かれて解析を再開できなくなる。
+        const sid = sessionIdRef.current;
+        void stopAnalysisCore(sid ?? undefined).catch(() => {});
+
+        dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
+        dispatch({ type: "stop_analysis" });
+        return;
+      }
+
       clearDebounceTimer();
       debounceTimerRef.current = window.setTimeout(() => {
         runRestartRef.current(seq);
       }, 16);
       return;
     }
+
+    syncWaitRef.current = null;
 
     if (restartInFlightRef.current) {
       pendingAfterRef.current = true;
@@ -265,7 +300,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     await syncPosition();
 
-    await waitUntil(() => syncedSfenRef.current === currentSfen, 2000);
+    // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
+    // 候補手が返ってきて、盤面と一致しないものが表示される。
+    const synced = await waitUntil(
+      () => syncedSfenRef.current === currentSfen,
+      POSITION_SYNC_TIMEOUT_MS,
+    );
+    if (!synced) {
+      dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
+      throw new Error(POSITION_SYNC_TIMEOUT_MESSAGE);
+    }
 
     const sessionId = await startInfiniteAnalysisCore();
 

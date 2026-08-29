@@ -47,6 +47,13 @@ export interface GameView {
 
   /** branchPlan を考慮した終端手数 */
   totalMoves: number;
+
+  /**
+   * 現在の局面の SFEN。棋譜カーソルから導かれる射影であり、駒の選択には依存しない。
+   * 手数フィールドは常に 1 以上（SFEN の手数は 1 始まり）。
+   * 局面を組み立てられない間は null。
+   */
+  currentSfen: string | null;
 }
 
 export type GameAction =

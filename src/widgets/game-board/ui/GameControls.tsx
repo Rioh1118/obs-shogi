@@ -1,4 +1,4 @@
-import ControlButton from "../../../shared/ui/ControlButton";
+import ControlButton from "@/shared/ui/ControlButton";
 import { ChevronFirst, ChevronLeft, ChevronRight, ChevronLast } from "lucide-react";
 import "./GameControls.scss";
 import { useGame } from "@/entities/game";

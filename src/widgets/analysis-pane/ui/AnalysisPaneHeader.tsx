@@ -2,13 +2,14 @@ import { useEffect, useState, useRef } from "react";
 import { Settings, Play, Square, Navigation, Search, RotateCw, Bookmark } from "lucide-react";
 import "./AnalysisPaneHeader.scss";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
+import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
-  const { currentSfen } = usePositionSync();
+  const { view: gameView } = useGame();
+  const currentSfen = gameView.currentSfen;
   const { openModal, params, updateParams } = useURLParams();
   const { findBySfen } = useStudyPositions();
   const isBookmarked = !!findBySfen(currentSfen);

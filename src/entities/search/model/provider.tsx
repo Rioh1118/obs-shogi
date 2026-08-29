@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } f
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 import { useAppConfig } from "@/entities/app-config";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
 
 import {
   openProject as openProjectApi,
@@ -10,12 +9,7 @@ import {
   searchPosition as searchPositionApi,
   cancelSearch as cancelSearchApi,
 } from "../api/tauri";
-import type {
-  Consistency,
-  OpenProjectOutput,
-  SearchPositionInput,
-  SearchPositionOutput,
-} from "../api/contract";
+import type { OpenProjectOutput, SearchPositionInput, SearchPositionOutput } from "../api/contract";
 import type {
   IndexProgressPayload,
   IndexStatePayload,
@@ -43,7 +37,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const { config } = useAppConfig();
-  const { currentSfen } = usePositionSync();
 
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
@@ -137,21 +130,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const searchCurrentPositionBestEffort = useCallback(
-    async (opts?: {
-      chunkSize?: number;
-      consistency?: Consistency;
-    }): Promise<SearchPositionOutput> => {
-      if (!currentSfen) throw new Error("No current SFEN");
-      return await searchPosition({
-        sfen: currentSfen,
-        consistency: opts?.consistency ?? "BestEffort",
-        chunkSize: opts?.chunkSize ?? 300,
-      });
-    },
-    [currentSfen, searchPosition],
-  );
-
   const cancelSearch = useCallback(async (requestId: RequestId) => {
     try {
       await cancelSearchApi(requestId);
@@ -228,7 +206,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
       state,
       openProject,
       searchPosition,
-      searchCurrentPositionBestEffort,
       cancelSearch,
       getSessionByRequestId,
       getHitsByRequestId,
@@ -242,7 +219,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
       state,
       openProject,
       searchPosition,
-      searchCurrentPositionBestEffort,
       cancelSearch,
       getSessionByRequestId,
       getHitsByRequestId,

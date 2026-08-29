@@ -2,7 +2,7 @@ import Square from "./Square";
 import { indexToCoords } from "@/entities/position/lib/boardUtils";
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
 import "./Board.scss";
-import PieceFactory from "./PieceFactory";
+import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { Color, Piece } from "shogi.js";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";

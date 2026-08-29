@@ -1,7 +1,7 @@
 import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react";
 import "./BranchList.scss";
 import BranchCard from "./BranchCard";
-import type { BranchOption } from "@/features/position-navigation/model/types";
+import type { BranchOption } from "@/entities/kifu/model/branch";
 
 type Props = {
   branches: BranchOption[];

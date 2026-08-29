@@ -1,5 +1,12 @@
-import type { SRadioOption } from "../../kit/SRadioGroup";
-import { SButton, SField, SInput, SRadioGroup, SSection, SSelect } from "../../kit";
+import type { SRadioOption } from "@/features/settings/ui/kit/SRadioGroup";
+import {
+  SButton,
+  SField,
+  SInput,
+  SRadioGroup,
+  SSection,
+  SSelect,
+} from "@/features/settings/ui/kit";
 import {
   cx,
   HASH_CHOICES,
