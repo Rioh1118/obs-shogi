@@ -125,7 +125,7 @@ jobs:
         run: npm ci
 
       - name: Build (tauri-action, no bundle)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           CI: "true"
         with:
