@@ -1,5 +1,6 @@
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { keepInViewport } from "@/shared/lib/keepInViewport";
 import "./ContextMenu.scss";
 
 type ContextMenuItem = {
@@ -22,6 +23,14 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
   const menuRef = useRef<HTMLDivElement | null>(null);
   // 開いている間だけマウントされる
   const isTop = useOverlayLayer(true);
+  // 自分の大きさが決まってからでないと丸められないので、まず開いた場所へ出す
+  const [box, setBox] = useState({ left: x, top: y });
+
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    setBox(keepInViewport({ x, y }, { width: el.offsetWidth, height: el.offsetHeight }));
+  }, [x, y]);
 
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
@@ -71,8 +80,8 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
       role="menu"
       style={{
         position: "fixed",
-        left: x,
-        top: y,
+        left: box.left,
+        top: box.top,
         minWidth,
         zIndex: 9999,
       }}

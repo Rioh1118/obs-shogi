@@ -75,7 +75,7 @@ function Modal({
   // 閉じ込めが要るのは、**開いたままフォーカスを失う経路がある**ため。
   // フォーカスを持つ要素が `disabled` になるとブラウザは blur し、行き先は `<body>`
   // になる。`#modal-root` は `#root` の後ろにあるので、そこからの Tab は
-  // オーバーレイの裏のアプリ本体へ入っていく。閉じたら元の場所へ返す
+  // オーバーレイの裏のアプリ本体へ入っていく。閉じたら元の場所へ返す（残っていれば）
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     const card = cardRef.current;
@@ -125,7 +125,13 @@ function Modal({
       card.removeEventListener("focusout", onFocusOut);
       card.removeEventListener("keydown", onKeyDown);
 
-      restoreTo?.focus?.();
+      // 開いた引き金が同じコミットで消えている経路がある（右クリックのメニューから
+      // 削除の確認へ、インライン編集が畳まれてから失敗のモーダルへ）。そのとき
+      // `restoreTo` は `<body>` なので、返すとフォーカスが文書の先頭へ落ちる。
+      // 返せる先が無いなら何もしない
+      if (restoreTo && restoreTo !== document.body && restoreTo.isConnected) {
+        restoreTo.focus();
+      }
     };
   }, [isTop]);
 

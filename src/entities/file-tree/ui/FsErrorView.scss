@@ -76,6 +76,10 @@
 
   &__actions {
     display: flex;
+    // サイドバーの中（幅 26rem）にも出る。ボタンは `white-space: nowrap` で
+    // 縮まないので、折り返さないと `justify-content: flex-end` があふれを
+    // **開始側**へ押し出し、逃げ道のラベルが左へ欠けたまま到達できなくなる
+    flex-wrap: wrap;
     justify-content: flex-end;
     gap: index.$space-3;
   }

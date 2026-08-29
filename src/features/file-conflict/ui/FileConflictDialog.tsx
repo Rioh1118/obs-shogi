@@ -52,10 +52,12 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   const requestedName = getRequestedName(conflict);
   const trimmed = draftName.trim();
 
-  const canSubmit = !isSubmitting && trimmed.length > 0 && trimmed !== requestedName;
+  // 名前として送れるか。**送信中かどうかは含めない。** `Button` は `isLoading` で
+  // 自分を無効にするので、そこへ重ねると「送信中は押せない」が2箇所に分かれる
+  const isNameSendable = trimmed.length > 0 && trimmed !== requestedName;
 
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    if (!isNameSendable || isSubmitting) return;
 
     try {
       setIsSubmitting(true);
@@ -112,7 +114,11 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
             onChange={(e) => setDraftName(e.target.value)}
             autoComplete="off"
             spellCheck={false}
-            disabled={isSubmitting}
+            // **`disabled` にしない。** 送信中はボタンも `isLoading` で押せなくなるので、
+            // ここまで無効にするとカードの中に Tab で辿れる要素が0になり、
+            // `Modal` の閉じ込めがカードの `div` へ落ちる。別名を何度も試す対話なので、
+            // 失敗して戻ったときに欄へ戻れないのが一番困る
+            readOnly={isSubmitting}
           />
 
           {submitError ? (
@@ -129,9 +135,9 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
             {copy.cancelLabel}
           </Button>
 
-          {/* 処理中は isLoading で示す（ADR-0005 決定1）。disabled だけだと
-              aria-busy が立たず、カード内の押せるものが0になる */}
-          <Button type="submit" tone="primary" isLoading={isSubmitting} disabled={!canSubmit}>
+          {/* 処理中は isLoading で示す（ADR-0005 決定1）。`Button` は isLoading で
+              disabled も立てるので、ここで重ねて渡さない */}
+          <Button type="submit" tone="primary" isLoading={isSubmitting} disabled={!isNameSendable}>
             {copy.renameLabel}
           </Button>
         </div>
