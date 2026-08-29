@@ -93,8 +93,13 @@ export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchI
   return (dir === "up" ? b - 1 : b + 1) as BranchIndex;
 }
 
-/** 手前の分岐が1つ消えて詰まったあとの位置。 */
-export function shiftBranchIndexDown(b: BranchIndex): BranchIndex {
+/**
+ * 自分より前にある分岐が1つ削除されたあとの位置
+ *
+ * `MAIN_LINE` に対して呼ぶと範囲外の値を返す。その値を `setBranchIndex` に渡すと
+ * `forkIndexFromBranchIndex` が throw するので、黙って本譜にはならない。
+ */
+export function branchIndexAfterRemoval(b: BranchIndex): BranchIndex {
   return (b - 1) as BranchIndex;
 }
 

@@ -5,7 +5,7 @@ import {
   buildTesuuPointer,
   forkIndexFromBranchIndex,
   MAIN_LINE,
-  shiftBranchIndexDown,
+  branchIndexAfterRemoval,
   type BranchEditResult,
   type BranchIndex,
   type BranchPointRef,
@@ -189,11 +189,11 @@ function patchForkPointersForDeleteNonReloc(
     // main削除: fork(1)がmainに繰り上がる
     if (chosen === MAIN_LINE) return fps; // main追従→新mainへ
     // chosen>0 は1つ詰める（chosen=1 は main 化）
-    return setBranchIndex(fps, te, shiftBranchIndexDown(chosen));
+    return setBranchIndex(fps, te, branchIndexAfterRemoval(chosen));
   } else {
     // fork削除: targetより大きいforkは1つ詰める
     if (chosen === MAIN_LINE) return fps;
-    if (chosen > target) return setBranchIndex(fps, te, shiftBranchIndexDown(chosen));
+    if (chosen > target) return setBranchIndex(fps, te, branchIndexAfterRemoval(chosen));
     return fps;
   }
 }
