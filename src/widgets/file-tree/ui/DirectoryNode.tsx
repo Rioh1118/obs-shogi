@@ -123,7 +123,6 @@ function DirectoryNode({
         <FileIcon isOpen={isOpen} type={node.displayInfo.iconType} />
         {isRenaming ? (
           <InlineNameEditor
-            isEditting={isRenaming}
             initialName={node.name}
             selectMode="all"
             onCancel={cancelInlineRename}
@@ -140,7 +139,6 @@ function DirectoryNode({
             <NodeBox level={level + 1} handleClick={() => {}}>
               <FileIcon type="folder" />
               <InlineNameEditor
-                isEditting={showCreateRow}
                 initialName=""
                 selectMode="all"
                 onCancel={cancelCreateDirectory}

@@ -240,8 +240,10 @@ fn every_path_taking_command_checks_the_root() {
         all >= 30,
         "コマンドを {all} 件しか見つけられていない。切り出しが壊れている"
     );
+    // 下限は**壊れ検出**。現在値と一致させない（正当に減らしたとき、
+    // 「署名の判定が壊れている」という無関係なメッセージで落ちる）
     assert!(
-        path_taking.len() >= 17,
+        path_taking.len() >= 12,
         "パスを受けるコマンドを {} 件しか見つけられていない。署名の判定が壊れている: {path_taking:?}",
         path_taking.len()
     );

@@ -34,6 +34,7 @@ export default function KifuStreamList() {
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
+  // Escape は最上位の1枚だけ → `overlayStack`
   const isTop = useOverlayLayer(openFork !== null);
   const [openComment, setOpenComment] = useState<OpenCommentNote | null>(null);
 
@@ -159,8 +160,6 @@ export default function KifuStreamList() {
       closeForkMenu(false);
     };
 
-    // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
-    // 同じイベントがここまで届いてメニューも一緒に閉じる
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isTop()) {
         e.preventDefault();

@@ -127,7 +127,6 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       <FileIcon type={node.displayInfo.iconType} />
       {isRenaming ? (
         <InlineNameEditor
-          isEditting={isRenaming}
           initialName={node.name}
           selectMode="file"
           onCancel={cancelInlineRename}

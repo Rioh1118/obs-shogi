@@ -90,7 +90,6 @@ function RootNode({
         <DirectoryToggleIcon isExpanded={isOpen} />
         {isRenaming ? (
           <InlineNameEditor
-            isEditting={isRenaming}
             initialName={node.name}
             selectMode="all"
             onCancel={cancelInlineRename}
@@ -108,7 +107,6 @@ function RootNode({
             <NodeBox level={1} handleClick={() => {}}>
               <FileIcon type="folder" />
               <InlineNameEditor
-                isEditting
                 initialName=""
                 selectMode="all"
                 onCancel={cancelCreateDirectory}

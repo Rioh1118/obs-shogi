@@ -3,8 +3,12 @@ import { describeFsError, type CommitOutcome, type FsError } from "@/entities/fi
 
 import "./InlineNameEditor.scss";
 
+/**
+ * **描かれている＝編集中。** 呼び出し側は5経路とも `isRenaming` /
+ * `showCreateRow` で分岐して unmount するので、「閉じている」という状態を
+ * この component は持たない（状態遷移表の E0）
+ */
 type InlineRenameProps = {
-  isEditting: boolean;
   initialName: string;
   /**
    * 確定の結果。**成功と「失敗したがここには出さない」を型で分ける**（`CommitOutcome`）。
@@ -32,7 +36,6 @@ type InlineRenameProps = {
 };
 
 function InlineNameEditor({
-  isEditting,
   initialName,
   onCommit,
   onCancel,
@@ -53,8 +56,6 @@ function InlineNameEditor({
   const [error, setError] = useState<FsError | null>(null);
 
   useEffect(() => {
-    if (!isEditting) return;
-
     setDraft(initialName);
     setError(null);
     rejectedRef.current = null;
@@ -72,7 +73,7 @@ function InlineNameEditor({
         el.select();
       }
     });
-  }, [isEditting, initialName, selectMode]);
+  }, [initialName, selectMode]);
 
   const commit = async () => {
     const next = draft.trim();
@@ -111,8 +112,6 @@ function InlineNameEditor({
       blurredWhileInFlightRef.current = false;
     }
   };
-
-  if (!isEditting) return null;
 
   return (
     <span className="inline-name-editor">

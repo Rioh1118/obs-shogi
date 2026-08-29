@@ -10,10 +10,8 @@
   align-self: flex-start;
 }
 
-// **重ねずに行を押し広げる。** 重ねる形は2つとも成立しなかった。
-// 1行に切って全文を title へ逃がすと、`pointer-events: none` の要素は
-// ヒットテストの対象外なのでツールチップが出ない。当たり判定を戻して重ねると、
-// 下の行を覆ったままその行が押せる。→ docs/state-transitions/inline-name-editor.md
+// **重ねずに行を押し広げる。** 採らなかった案とその理由は
+// docs/state-transitions/inline-name-editor.md の「失敗の箱」
 .inline-name-editor__error {
   display: block;
   margin-top: index.$space-1;

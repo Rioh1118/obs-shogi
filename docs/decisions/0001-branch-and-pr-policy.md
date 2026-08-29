@@ -52,15 +52,15 @@
 ## 並行作業の手順
 
 ```bash
-git worktree add ../obs-shogi-<slug> -b issue-<番号>/<slug> main
-cd ../obs-shogi-<slug>
+git worktree add .claude/worktrees/<slug> -b issue-<番号>/<slug> main
+cd .claude/worktrees/<slug>
 npm ci
 ```
 
 終わったら削除する。
 
 ```bash
-git worktree remove ../obs-shogi-<slug>
+git worktree remove .claude/worktrees/<slug>
 ```
 
 `npm ci` が worktree ごとに要る点と、Rust のビルドキャッシュが共有されない点に注意。

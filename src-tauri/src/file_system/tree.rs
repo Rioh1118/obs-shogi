@@ -56,7 +56,8 @@ fn build_file_tree_recursive(path: &Path, canonical_root: &Path) -> Result<FileT
             // 関門が canonicalize して弾くので、**見えるのに開けない行**になる。
             //
             // root の中で閉じている symlink（`ws/current -> ws/2026/08`）は普通の使い方で、
-            // 中身も開けるので残す。無条件に落とすと、何も伝えないまま一覧から消える
+            // 中身も開けるので残す。無条件に落とすと、何も伝えないまま一覧から消える。
+            // 落とした行があることは利用者に出ない → issue #179
             let Ok(file_type) = entry.file_type() else {
                 continue;
             };

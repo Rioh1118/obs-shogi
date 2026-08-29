@@ -48,8 +48,9 @@ function publicModules(): Map<string, string[]> {
   return found;
 }
 
-// TODO(#216): 見ているのは `entities` と `features` だけ。`widgets` の
-// スライス境界は素通しになっている
+// TODO(#216): 制約が掛かるのは barrel（`index.ts`）を持つスライスだけ。
+// 持たないスライスは何も制約されず、逆に barrel を1つ足すとその瞬間に
+// 既存の深い import が違反になる。境界を足すコストを検査が引き上げている
 describe("スライスの公開境界", () => {
   it("barrel が公開しているものを、スライスの外から直に読まない", () => {
     const slices = publicModules();

@@ -21,7 +21,7 @@ type ContextMenuProps = {
 
 function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
-  // 開いている間だけマウントされる
+  // 開いている間だけマウントされる。Escape は最上位の1枚だけ → `overlayStack`
   const isTop = useOverlayLayer(true);
   // 自分の大きさが決まってからでないと丸められないので、まず開いた場所へ出す
   const [box, setBox] = useState({ left: x, top: y });
@@ -41,8 +41,6 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
         onClose();
       }
     };
-    // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
-    // 同じイベントがここまで届いてメニューも一緒に閉じる
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isTop()) {
         onClose();

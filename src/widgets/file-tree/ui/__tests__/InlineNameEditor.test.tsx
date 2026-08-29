@@ -39,7 +39,6 @@ describe("InlineNameEditor", () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={onCommit}
         onCancel={vi.fn()}
@@ -57,7 +56,6 @@ describe("InlineNameEditor", () => {
   test("打ち直すと理由が消える。直したそばから古い理由が残らない", async () => {
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={vi.fn().mockResolvedValue(rejected)}
         onCancel={vi.fn()}
@@ -82,7 +80,6 @@ describe("InlineNameEditor", () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={onCommit}
         onCancel={vi.fn()}
@@ -102,14 +99,13 @@ describe("InlineNameEditor", () => {
 
   /**
    * Escape は入力欄にフォーカスがあるときしか届かない（失敗の箱は
-   * `tabIndex` を持たず `pointer-events: none`）。落ちた名前のまま外へ出たら、
+   * `tabIndex` を持たないので焦点を取れない）。落ちた名前のまま外へ出たら、
    * 箱を残さず編集を閉じる。残すと閉じる手段が無くなる。
    */
   test("落ちた名前のまま外へ出たら、編集を閉じる", async () => {
     const onCancel = vi.fn();
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={vi.fn().mockResolvedValue(rejected)}
         onCancel={onCancel}
@@ -140,7 +136,6 @@ describe("InlineNameEditor", () => {
 
     render(
       <InlineNameEditor
-        isEditting
         initialName="a.kif"
         onCommit={onCommit}
         onCancel={onCancel}
@@ -176,7 +171,6 @@ describe("InlineNameEditor", () => {
 
     render(
       <InlineNameEditor
-        isEditting
         initialName="a.kif"
         onCommit={onCommit}
         onCancel={vi.fn()}
@@ -201,7 +195,6 @@ describe("InlineNameEditor", () => {
     const onCommit = vi.fn().mockResolvedValue(elsewhere);
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={onCommit}
         onCancel={vi.fn()}
@@ -224,7 +217,6 @@ describe("InlineNameEditor", () => {
     const onCommit = vi.fn().mockResolvedValue(passed);
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={onCommit}
         onCancel={vi.fn()}
@@ -242,7 +234,6 @@ describe("InlineNameEditor", () => {
     const onCancel = vi.fn();
     render(
       <InlineNameEditor
-        isEditting
         initialName="研究"
         onCommit={onCommit}
         onCancel={onCancel}
