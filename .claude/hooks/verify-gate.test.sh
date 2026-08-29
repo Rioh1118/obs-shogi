@@ -4,8 +4,9 @@
 # 素通し（検証されないまま通る）は、誤発火（余分に検証が走るだけ）より危険が
 # 大きい。素通しになる綴りを表にして固定する。
 #
-# 表は2つ。
+# 表は4つ。
 #   gate_matches_commit  — コミットを作る呼び出しを見落とさないこと
+#   gate_mentions_commit — 切り出せない綴りを最後の網で拾うこと
 #   gate_target_dir      — 宛先が自明でない綴りは空（deny）にすること
 #   gate_kinds_for_path  — どのファイル種別でどの検証を選ぶか
 
@@ -79,6 +80,24 @@ expect_match SKIP 'git add -A'
 expect_match SKIP 'git log --oneline'
 expect_match SKIP 'npm run commit-helper'
 expect_match SKIP 'echo commit'
+
+# alias で付けた別名も拾うこと。`git ci` は綴りが利用者の設定で決まるので、
+# 表は fixture（GATE_EXTRA_VERBS）で固定する。実際の設定に依存させると、
+# alias を持たない環境では何も守らないテストになる。
+expect_alias() {
+  local want=$1 command=$2 verbs=$3
+  local got=SKIP
+  ( GATE_EXTRA_VERBS=$verbs GATE_COMMIT_VERB_CACHE= gate_matches_commit "$command" ) && got=CATCH
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : %s（alias=%s）\n' "$want" "$got" "$command" "$verbs"
+    failures=$((failures + 1))
+  fi
+}
+
+expect_alias CATCH 'git ci -m x' 'ci'
+expect_alias CATCH 'git cm -m x' 'ci|cm'
+expect_alias SKIP 'git st' 'ci'
+expect_alias SKIP 'git ci -m x' ''
 
 expect_mentions() {
   local want=$1 command=$2
@@ -173,6 +192,9 @@ expect_kinds "ts" "src/index.scss"
 expect_kinds "ts" "package.json"
 expect_kinds "rust" "src-tauri/src/book/api.rs"
 expect_kinds "rust" "src-tauri/Cargo.toml"
+expect_kinds "rust" "src-tauri/tauri.conf.json"
+expect_kinds "rust" "src-tauri/capabilities/default.json"
+expect_kinds "rust" "rust-toolchain.toml"
 expect_kinds "gate" ".claude/hooks/verify-gate.sh"
 expect_kinds "" "README.md"
 expect_kinds "" "docs/decisions/0002-drop-book-read-write.md"

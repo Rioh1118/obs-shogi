@@ -2,10 +2,8 @@
 # PreToolUse(Bash) ゲート: 検証を通していない `git commit` を止める。
 #
 # 変更ファイルの種類だけを見て、必要な verify を選んで走らせる。
-#   *.ts / *.tsx / tsconfig / vite.config / package.json -> npm run verify
-#   *.rs / Cargo.toml / Cargo.lock                       -> npm run verify:rust
-# どちらにも当たらない変更（docs/ など）は素通しする。ただし `.claude/hooks/*.sh`
-# は、このゲート自身を決めているので例外（ケース表を走らせる）。
+# どの種類がどれを呼ぶかは `gate_kinds_for_path` が唯一の出典（ここに写さない。
+# 2箇所に書くと必ず片方が腐る）。当たらない変更（docs/ など）は素通しする。
 #
 # 落ちたら permissionDecision: deny を返してコミット自体を止める。
 # 逃げ道は用意しない。逃げ道を用意した時点でゲートではなくなる。
@@ -58,14 +56,46 @@ GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 
 # コミットを作りうる git サブコマンド。
 #
-# これらを語彙に入れるのは、宛先の判定（`-C` 付き / 呼び出しが複数）へ載せるため。
-# **作られるツリーはコマンドの前には存在しないので、ここでは検証できない。**
-# PreToolUse は実行前に走る。実行後のツリーを見るのは別の口の仕事。
-GATE_COMMIT_VERB='(commit|revert|cherry-pick|merge|rebase|am|pull)'
+# `commit` は、手元の index と作業ツリーがそのままコミットされるので、下の
+# 検証（`npm run verify` / `verify:rust`）が掛かる。それ以外
+# （`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`）が作るツリーは
+# コマンドの前には存在しないので検証できない。**宛先の判定（`-C` 付き /
+# 呼び出しが複数）へ載せて deny の対象にするために語彙へ入れている。**
+GATE_COMMIT_VERB_BASE='commit|revert|cherry-pick|merge|rebase|am|pull'
+
+# alias で付けられた別名。`git ci` のように、綴りは利用者の設定で無限に増える。
+#
+# 語彙を人が書き足す形では次の alias に必ず置いていかれるので、git 自身に
+# 引かせる。展開先にコミット動詞を「含む」もので拾うのは、`!f() { git commit … }`
+# のような shell alias も取るため（過検出の側に倒す）。
+# テストから固定できるように `GATE_EXTRA_VERBS` で差し込めるようにしてある。
+gate_alias_verbs() {
+  # 変数が「設定されているか」で見る。空を設定したら「alias 無し」の意味になる。
+  if [ -n "${GATE_EXTRA_VERBS+set}" ]; then
+    printf '%s' "$GATE_EXTRA_VERBS"
+    return 0
+  fi
+
+  git config --get-regexp '^alias\.[^.]+$' 2>/dev/null \
+    | grep -E "(^|[^[:alnum:]_-])($GATE_COMMIT_VERB_BASE)([^[:alnum:]_-]|$)" \
+    | sed -E 's/^alias\.([A-Za-z0-9_-]+).*/\1/' \
+    | grep -E '^[A-Za-z0-9_-]+$' \
+    | tr '\n' '|' \
+    | sed 's/|$//'
+}
+
+gate_commit_verb() {
+  if [ -z "${GATE_COMMIT_VERB_CACHE:-}" ]; then
+    local aliases
+    aliases=$(gate_alias_verbs)
+    GATE_COMMIT_VERB_CACHE="($GATE_COMMIT_VERB_BASE${aliases:+|$aliases})"
+  fi
+  printf '%s' "$GATE_COMMIT_VERB_CACHE"
+}
 
 gate_commit_call() {
   gate_strip_quotes "$1" \
-    | grep -Eo "(^|[;&|(]|[[:space:]])$GATE_GIT_WORD([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+$GATE_COMMIT_VERB([[:space:]]|$)" \
+    | grep -Eo "(^|[;&|(]|[[:space:]])$GATE_GIT_WORD([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+$(gate_commit_verb)([[:space:]]|$)" \
     | tail -1
 }
 
@@ -75,7 +105,7 @@ gate_matches_commit() {
 
 gate_commit_count() {
   gate_strip_quotes "$1" \
-    | grep -Eo "(^|[;&|(]|[[:space:]])$GATE_GIT_WORD([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+$GATE_COMMIT_VERB([[:space:]]|$)" \
+    | grep -Eo "(^|[;&|(]|[[:space:]])$GATE_GIT_WORD([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+$(gate_commit_verb)([[:space:]]|$)" \
     | grep -c .
 }
 
@@ -87,7 +117,7 @@ gate_mentions_commit() {
   local flat
   flat=$(gate_flatten "$1")
   printf '%s' "$flat" | grep -Eq '(^|[^[:alnum:]_.-])git([^[:alnum:]_-]|$)' \
-    && printf '%s' "$flat" | grep -Eq "(^|[^[:alnum:]_-])$GATE_COMMIT_VERB([^[:alnum:]_-]|\$)"
+    && printf '%s' "$flat" | grep -Eq "(^|[^[:alnum:]_-])$(gate_commit_verb)([^[:alnum:]_-]|\$)"
 }
 
 # コミットされるツリーの位置を決める。決められなければ空を返す。
@@ -137,6 +167,10 @@ gate_target_dir() {
 # 直値の件数を厳密一致で見ているため（ADR-0003 のラチェット）。`.scss` だけの
 # コミットはここが唯一の検査になる。
 #
+# `tauri.conf.json` と `capabilities/*.json` を rust 側に入れるのは、`build.rs` と
+# `generate_context!` がコンパイル時に読むため。壊すと clippy が落ちる内容なのに、
+# そのファイルだけのコミットでは検証が走らない状態だった。
+#
 # `.claude/hooks/*.sh` は、このゲート自身を決めているので例外として拾う。
 gate_kinds_for_path() {
   local path=$1 kinds=""
@@ -145,7 +179,8 @@ gate_kinds_for_path() {
     *.ts|*.tsx|*.scss|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
   esac
   case "$path" in
-    *.rs|*Cargo.toml|*Cargo.lock) kinds="$kinds rust" ;;
+    *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
+      kinds="$kinds rust" ;;
   esac
   case "$path" in
     .claude/hooks/*.sh) kinds="$kinds gate" ;;
