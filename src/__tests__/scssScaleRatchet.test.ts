@@ -26,7 +26,7 @@ const SCALED_PROPERTIES = new Set([
  * 直値をトークンへ寄せたらこの数を減らす。増やす変更は通さない。
  */
 const BASELINE = {
-  "font-size": 254,
+  "font-size": 252,
   "border-radius": 179,
   spacing: 527,
   indirect: 54,
@@ -38,6 +38,12 @@ const SRC = join(process.cwd(), "src");
 
 /** トークンの定義そのものなので、直値があって当然のファイル */
 const TOKEN_SOURCE = join(SRC, "index.scss");
+
+/**
+ * スケールに載らない寸法に付ける印。盤に従属して縮む文字のように、
+ * 文字の階層と無関係な別系統がある。印は宣言と同じ行に書く
+ */
+const EXEMPT_MARKER = "scale-exempt";
 
 function scssFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -153,7 +159,9 @@ function countRawDeclarations(): {
   };
 
   for (const file of scssFiles(SRC)) {
-    const source = blankComments(readFileSync(file, "utf8"));
+    const original = readFileSync(file, "utf8");
+    const rawLines = original.split("\n");
+    const source = blankComments(original);
     const isTokenSource = file === TOKEN_SOURCE;
 
     for (const { property, value, line } of declarations(source)) {
@@ -161,6 +169,7 @@ function countRawDeclarations(): {
       if (!bucket) continue;
       if (bucket === "indirect" && isTokenSource) continue;
       if (!hasRawLiteral(property, value)) continue;
+      if (rawLines[line - 1]?.includes(EXEMPT_MARKER)) continue;
       record(bucket, file, line, `${property}: ${value};`);
     }
 
@@ -184,7 +193,10 @@ describe("SCSS のスケール", () => {
         [
           `${bucket} の直値が基準値 ${BASELINE[bucket]} 件に対して ${counts[bucket]} 件ある。`,
           `増えたなら src/index.scss のトークンを使うこと（ADR-0003）。`,
+          `どの宣言を足したかは git diff で見ること。スケールに載らない寸法には`,
+          `宣言と同じ行に ${EXEMPT_MARKER} の印を付ければ数えない。`,
           `減ったなら BASELINE を ${counts[bucket]} に下げること。`,
+          `--- 既存の直値の例（走査順の先頭。あなたが足した行とは限らない） ---`,
           ...samples[bucket],
         ].join("\n"),
       ).toBe(BASELINE[bucket]);
