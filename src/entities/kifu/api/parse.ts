@@ -1,6 +1,7 @@
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
+import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 
 import { Normalizer } from "json-kifu-format";
 import {
@@ -63,7 +64,7 @@ function normalizeNotation(jkf: JKFData): JKFData {
     // 正規化は失敗した手に color / same / capture などを書き込んでから throw する。
     // 「同」を tsshogi が先に埋めるのは KIF と KI2 だけで、CSA と JKF は埋めない。
     // コピーを渡さないと、それらの形式で中途半端に書き換わった棋譜が保存側まで流れる。
-    return Normalizer.normalizeMinimal(structuredClone(jkf));
+    return Normalizer.normalizeMinimal(cloneJkf(jkf));
   } catch {
     // 開けること自体を優先して未正規化のまま返す。
     return jkf;
