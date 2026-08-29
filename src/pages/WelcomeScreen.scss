@@ -2,7 +2,8 @@
 
 .welcome-screen {
   display: flex;
-  align-items: center;
+  // 親と同じ理由で safe。ここが center のままだと上端が切れる
+  align-items: safe center;
   justify-content: center;
   width: 100%;
   height: 100%;

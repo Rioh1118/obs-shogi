@@ -76,6 +76,27 @@ const sliceSelfBarrels = (["entities", "features", "widgets"] as const).flatMap(
     );
 });
 
+// `src/__tests__/` はレイヤに属さない。リポジトリ横断の検査だけを置く場所であり、
+// `src/**` はデータとして読む。レイヤの外にあるので、ここを素通り口にしないため全レイヤを禁じる。
+const layerFreeTests: OxlintOverride = {
+  files: ["src/__tests__/**/*.{ts,tsx}"],
+  rules: {
+    "no-restricted-imports": [
+      "error",
+      {
+        patterns: [
+          DEEP_RELATIVE_IMPORT,
+          {
+            group: LAYERS_TOP_DOWN.flatMap((layer) => [`@/${layer}/**`, `../${layer}/**`]),
+            message:
+              "src/__tests__ はレイヤに依存しない検査だけを置く場所。アプリのコードを import しない。",
+          },
+        ],
+      },
+    ],
+  },
+};
+
 // https://vite.dev/config/
 export default defineConfig({
   staged: {
@@ -203,6 +224,7 @@ export default defineConfig({
       },
       ...layerBoundaries,
       ...sliceSelfBarrels,
+      layerFreeTests,
     ],
     options: {},
   },

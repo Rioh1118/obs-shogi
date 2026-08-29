@@ -2,8 +2,8 @@
 @use "./handGeometry.scss" as hand;
 
 @function hand-w-unit() {
-  // 20rem -> 20（unitless）
-  @return math.div(hand.$hand-w, 1rem);
+  // 20rem -> 20（unitless）。1rem は単位を落とすための除数で、意匠の寸法ではない
+  @return math.div(hand.$hand-w, 1rem); // scale-exempt
 }
 
 .hand-container {

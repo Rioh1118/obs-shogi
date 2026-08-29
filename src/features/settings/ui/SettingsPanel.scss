@@ -1,7 +1,6 @@
 @use "@/index.scss" as index;
 
 $radius: 14px;
-$radius-sm: 12px;
 
 $border: rgba(index.$color-white, 0.08);
 $border-strong: rgba(index.$color-white, 0.12);
@@ -42,7 +41,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
     $surface-0;
 
   border: 1px solid $border;
-  box-shadow: index.$shadow-1;
+  box-shadow: index.$shadow-panel;
 
   display: grid;
   grid-template-rows: auto 1fr;

@@ -46,7 +46,22 @@
   &__empty {
     height: 100%;
     display: grid;
-    place-items: center;
+    // 中身が入りきらないとき、素の center は上端も切り落とす。
+    // safe なら上端を保ち、あふれた分はスクロールで届く
+    place-items: safe center;
+    overflow: auto;
+
+    // リセットが全要素のスクロールバーを消しているので、
+    // 続きがあることを示す手掛かりがここだけ無くなる
+    scrollbar-width: thin;
+    &::-webkit-scrollbar {
+      display: block;
+      width: 8px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(index.$color-secondary-dark, 0.6);
+      border-radius: index.$radius-4;
+    }
   }
 }
 
