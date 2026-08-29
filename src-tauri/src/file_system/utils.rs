@@ -26,27 +26,28 @@ pub fn is_kifu_file(path: &Path) -> bool {
 pub fn validate_basename(name: &str) -> Result<(), FsError> {
     let trimmed = name.trim();
 
+    // message は開発者向けのログ。利用者に見せる文は code から引く
     if trimmed.is_empty() {
-        return Err(FsError::new(
-            super::error::FsErrorCode::InvalidName,
-            "名前が空です",
-        ));
+        return Err(FsError::new(FsErrorCode::InvalidNameEmpty, "name is empty"));
     }
     if trimmed == "." || trimmed == ".." {
-        return Err(FsError::new(FsErrorCode::InvalidName, "無効な名前です"));
+        return Err(FsError::new(
+            FsErrorCode::InvalidNameReserved,
+            "name is a reserved path segment",
+        ));
     }
     // パス区切りが入ってたら弾く（basenameのみ許可）
     if trimmed.contains('/') || trimmed.contains('\\') {
         return Err(FsError::new(
-            FsErrorCode::InvalidName,
-            "名前にパス区切りを含めることはできません",
+            FsErrorCode::InvalidNameSeparator,
+            "name contains a path separator",
         ));
     }
     // null byte は OS によっては別のパスに化けるので拒否
     if trimmed.contains('\0') {
         return Err(FsError::new(
-            FsErrorCode::InvalidName,
-            "名前にヌル文字を含めることはできません",
+            FsErrorCode::InvalidNameControl,
+            "name contains a NUL byte",
         ));
     }
     Ok(())

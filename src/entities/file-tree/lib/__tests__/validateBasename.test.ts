@@ -25,9 +25,9 @@ describe("validateBasename", () => {
     }
   });
 
-  // 何が悪いかは code では伝わらない。空とパス区切りが同じ code に落ちるので、
-  // 直し方を持っているのは message だけになる
-  test("何を直せばよいかを message に持つ", () => {
+  // 利用者に見せる文は code から引く。原因を1つの code に潰すと、
+  // 「その名前は使えません」しか出せなくなって直しようがなくなる
+  test("原因ごとに違う code を返す", () => {
     const empty = validateBasename("");
     const separator = validateBasename("a/b");
 
@@ -35,15 +35,7 @@ describe("validateBasename", () => {
     expect(separator.success).toBe(false);
     if (empty.success || separator.success) return;
 
-    expect(empty.error.message).not.toBe(separator.error.message);
-    expect(separator.error.message).toContain("/");
-  });
-
-  test("失敗は FsError の形で返す", () => {
-    const res = validateBasename("a/b");
-
-    expect(res.success).toBe(false);
-    if (res.success) return;
-    expect(res.error.code).toBe("invalid_name");
+    expect(empty.error.code).toBe("invalid_name_empty");
+    expect(separator.error.code).toBe("invalid_name_separator");
   });
 });

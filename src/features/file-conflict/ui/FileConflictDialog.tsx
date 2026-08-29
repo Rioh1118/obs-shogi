@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Modal from "@/shared/ui/Modal";
 
 import type { FileConflictDialogProps } from "../model/types";
-import { describeFsError, fsErrorPresentation, type FsError } from "@/entities/file-tree";
+import { describeFsError, type FsError } from "@/entities/file-tree";
 import { getConflictCopy } from "../lib/getConflictCopy";
 import { getRequestedName } from "../lib/getRequestedName";
 import ConflictMeta from "./ConflictMeta";
@@ -110,9 +110,6 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
             {submitError ? (
               <p className="file-conflict__error" role="alert">
                 {describeFsError(submitError.code)}
-                {fsErrorPresentation(submitError.code).showMessage
-                  ? ` — ${submitError.message}`
-                  : ""}
               </p>
             ) : (
               <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>

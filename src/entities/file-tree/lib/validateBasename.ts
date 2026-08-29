@@ -9,16 +9,17 @@ import { makeFsError, type FsError } from "@/entities/file-tree/api/error";
  * 往復を待たせないため。**あちらの規則を緩める方向に変えないこと。**
  *
  * `FsError` として返すので、Rust から返る失敗と同じ経路で表示できる。
+ * `message` は開発者向けのログ。利用者に見せる文は `describeFsError` が code から作る。
  */
 export function validateBasename(name: string): Result<string, FsError> {
   const next = name.trim();
 
   if (!next) {
-    return Err(makeFsError("invalid_name", "名前を入力してください"));
+    return Err(makeFsError("invalid_name_empty", "name is empty"));
   }
 
   if (/[/\\]/.test(next)) {
-    return Err(makeFsError("invalid_name", "名前に / や \\ は使えません"));
+    return Err(makeFsError("invalid_name_separator", "name contains a path separator"));
   }
 
   return Ok(next);

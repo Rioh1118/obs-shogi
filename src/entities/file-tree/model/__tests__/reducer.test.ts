@@ -10,7 +10,7 @@ import { makeFsError } from "@/entities/file-tree/api/error";
  * 積んだときに編集中の行をどうするかは表示側からは見えないので、ここで固定する。
  */
 
-const ERROR = makeFsError("invalid_name", "名前にパス区切りを含めることはできません", "/root/a");
+const ERROR = makeFsError("invalid_name_separator", "name contains a path separator", "/root/a");
 
 const ROOT: FileTreeNode = {
   id: "root",

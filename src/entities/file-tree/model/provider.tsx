@@ -180,7 +180,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
     const fmt = node.kifuInfo?.format;
     if (!fmt) {
-      const error = makeFsError("invalid_type", "棋譜フォーマットが不明です", node.path);
+      const error = makeFsError("kifu_format_unknown", "kifu format is not resolved", node.path);
       dispatch({ type: "kifu_error", payload: error });
       return Err(error);
     }
@@ -231,8 +231,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
             : e.message
           : String(e);
       const error: FsError = {
-        code: "invalid_type",
-        message: "棋譜の解析に失敗しました。",
+        code: "kifu_parse_failed",
+        message: "failed to parse kifu content",
         path: node.path,
         cause,
       };
@@ -487,7 +487,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       const trimmed = nextName.trim();
       if (!trimmed) {
-        const error = makeFsError("invalid_name", "名前を入力してください");
+        const error = makeFsError("invalid_name_empty", "name is empty");
         pushError(error);
         return Err(error);
       }
@@ -529,7 +529,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         case "rename_directory": {
           const node = findNodeByPath(req.path);
           if (!node) {
-            const error = makeFsError("not_found", "変更対象の項目が見つかりません", req.path);
+            const error = makeFsError("not_found", "rename target is missing", req.path);
             dispatch({ type: "conflict_closed" });
             pushError(error);
             return Err(error);
@@ -547,7 +547,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         case "move_directory": {
           const node = findNodeByPath(req.path);
           if (!node) {
-            const error = makeFsError("not_found", "移動対象の項目が見つかりません", req.path);
+            const error = makeFsError("not_found", "move target is missing", req.path);
             dispatch({ type: "conflict_closed" });
             pushError(error);
             return Err(error);

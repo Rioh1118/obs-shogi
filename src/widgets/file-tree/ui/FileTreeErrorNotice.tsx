@@ -1,6 +1,6 @@
 import Button from "@/shared/ui/Button/Button";
 import FsErrorView from "@/entities/file-tree/ui/FsErrorView";
-import { fsErrorPresentation, type FsError } from "@/entities/file-tree/api/error";
+import { fsErrorTier, type FsError } from "@/entities/file-tree/api/error";
 
 interface Props {
   error: FsError;
@@ -30,7 +30,7 @@ export default function FileTreeErrorNotice({
   isRetrying,
   fallback,
 }: Props) {
-  const { tier } = fsErrorPresentation(error.code);
+  const tier = fsErrorTier(error.code);
 
   return (
     <FsErrorView

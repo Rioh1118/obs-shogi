@@ -85,8 +85,8 @@ const IO_ERROR: FsError = { code: "io", message: "os error 5", path: "/root/a.ki
 // 読み直しても結果が変わらない失敗。原因は権限や入力の側にある
 const DENIED: FsError = { code: "permission_denied", message: "denied", path: "/root/a.kif" };
 const BAD_NAME: FsError = {
-  code: "invalid_name",
-  message: "名前にパス区切りを含めることはできません",
+  code: "invalid_name_separator",
+  message: "name contains a path separator",
   path: "/root",
 };
 
@@ -118,7 +118,7 @@ function mount() {
  * 拾うので、「本文に出ているか」「本文に出ていないか」はこちらで見る。
  */
 function noticeBody() {
-  return Array.from(screen.getByRole("alert").querySelectorAll(".fsError__lead, .fsError__hint"))
+  return Array.from(screen.getByRole("alert").querySelectorAll(".fsError__lead"))
     .map((el) => el.textContent ?? "")
     .join("\n");
 }
@@ -233,14 +233,14 @@ describe("FileTree の失敗表示", () => {
  * 読み直しても直らない失敗に「再読み込み」を出すと、利用者は押し続ける。
  */
 describe("段による出し分け", () => {
-  test("入力が原因の失敗では、何が悪いかを本文に出す", () => {
+  test("入力が原因の失敗では、何を直せばよいかが本文に出る", () => {
     stub.fileTree = TREE;
     stub.error = BAD_NAME;
 
     mount();
 
-    // 「その名前は使えません」だけでは直せない。区切り文字が原因だと分からない
-    expect(noticeBody()).toContain("パス区切り");
+    // 原因ごとに code を分けてあるので、本文だけで直し方が分かる
+    expect(noticeBody()).toContain("/");
   });
 
   test("入力が原因の失敗では、再読み込みを出さない", () => {
@@ -276,14 +276,17 @@ describe("段による出し分け", () => {
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
   });
 
-  test("本文に出した内容を、畳んだ中で繰り返さない", () => {
+  test("開発者向けのログは本文に出さない", () => {
     stub.fileTree = TREE;
     stub.error = BAD_NAME;
 
     mount();
 
-    // 本文に出ているものをもう一度畳んで見せても、開く手間が増えるだけ
-    expect(screen.queryByText("技術的な詳細")).toBeNull();
+    // message は Rust と provider が入れるログ。利用者向けの文は code から引く
+    expect(noticeBody()).not.toContain("path separator");
+    expect(screen.getByText("技術的な詳細").closest("details")!.textContent).toContain(
+      "path separator",
+    );
   });
 
   test("段は見た目にも出る", () => {

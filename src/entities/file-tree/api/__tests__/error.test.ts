@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   asFsError,
   describeFsError,
-  fsErrorPresentation,
+  fsErrorTier,
   makeFsError,
   type FsErrorCode,
 } from "@/entities/file-tree/api/error";
@@ -15,13 +15,18 @@ import {
 const ALL_CODES: FsErrorCode[] = [
   "already_exists",
   "not_found",
-  "invalid_name",
+  "invalid_name_empty",
+  "invalid_name_reserved",
+  "invalid_name_separator",
+  "invalid_name_control",
   "invalid_path",
   "invalid_type",
   "invalid_extension",
   "invalid_destination",
   "permission_denied",
   "io",
+  "kifu_format_unknown",
+  "kifu_parse_failed",
   "unknown",
 ];
 
@@ -64,39 +69,38 @@ describe("describeFsError", () => {
 
     expect(seen.size).toBe(ALL_CODES.length);
   });
+
+  // 名前の検証は原因ごとに code を分けてある。同じ文に潰すと分けた意味が消える
+  test("名前の検証は原因ごとに違う直し方を示す", () => {
+    expect(describeFsError("invalid_name_separator")).toContain("/");
+    expect(describeFsError("invalid_name_empty")).not.toBe(
+      describeFsError("invalid_name_separator"),
+    );
+  });
 });
 
-describe("fsErrorPresentation", () => {
+describe("fsErrorTier", () => {
   test("どの code でも段が決まる", () => {
     for (const code of ALL_CODES) {
-      expect(["warning", "danger"], code).toContain(fsErrorPresentation(code).tier);
+      expect(["warning", "danger"], code).toContain(fsErrorTier(code));
     }
   });
 
   // 読み直しで結果が変わらないものに再読み込みを出すと、押しても何も起きない
   test("読み直しても直らないものは warning にしない", () => {
-    for (const code of ["permission_denied", "invalid_name", "already_exists"] as const) {
-      expect(fsErrorPresentation(code).tier, code).toBe("danger");
+    for (const code of [
+      "permission_denied",
+      "invalid_name_separator",
+      "already_exists",
+      "kifu_parse_failed",
+    ] as const) {
+      expect(fsErrorTier(code), code).toBe("danger");
     }
   });
 
   test("一時的でありうるものは読み直しを促す", () => {
     for (const code of ["io", "not_found", "unknown"] as const) {
-      expect(fsErrorPresentation(code).tier, code).toBe("warning");
-    }
-  });
-
-  // 検証の失敗は空・ドット・パス区切り・NUL を1つの code に潰しているので、
-  // 何を直せばよいかを持つのは message だけ
-  test("入力が原因のものは message を本文に出す", () => {
-    for (const code of ["invalid_name", "invalid_path", "invalid_destination"] as const) {
-      expect(fsErrorPresentation(code).showMessage, code).toBe(true);
-    }
-  });
-
-  test("Rust の生メッセージしか無いものは本文に出さない", () => {
-    for (const code of ["io", "unknown", "permission_denied"] as const) {
-      expect(fsErrorPresentation(code).showMessage, code).toBe(false);
+      expect(fsErrorTier(code), code).toBe("warning");
     }
   });
 });

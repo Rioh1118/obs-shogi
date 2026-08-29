@@ -6,7 +6,14 @@ use std::io;
 pub enum FsErrorCode {
     AlreadyExists,
     NotFound,
-    InvalidName,
+    /// 名前が空。何を直せばよいかが code から決まるように、原因ごとに分けてある
+    InvalidNameEmpty,
+    /// `.` と `..`
+    InvalidNameReserved,
+    /// `/` と `\`
+    InvalidNameSeparator,
+    /// NUL。OS によっては別のパスに化ける
+    InvalidNameControl,
     InvalidPath,
     InvalidType,
     InvalidExtension,

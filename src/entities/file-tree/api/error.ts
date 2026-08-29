@@ -1,17 +1,29 @@
 export type FsErrorCode =
   | "already_exists"
   | "not_found"
-  | "invalid_name"
+  // 名前の検証。何を直せばよいかが code から決まるように、原因ごとに分けてある
+  | "invalid_name_empty"
+  | "invalid_name_reserved"
+  | "invalid_name_separator"
+  | "invalid_name_control"
   | "invalid_path"
   | "invalid_type"
   | "invalid_extension"
   | "invalid_destination"
   | "permission_denied"
   | "io"
+  // 棋譜の読み込み。Rust は返さない。TS 側で作る
+  | "kifu_format_unknown"
+  | "kifu_parse_failed"
   | "unknown";
 
 export type FsError = {
   code: FsErrorCode;
+  /**
+   * 開発者向けのログ。**利用者に見せる文は `describeFsError` が code から作る。**
+   * ここに利用者向けの日本語を入れると、同じ型の値が画面ごとに違う規則で
+   * 文章化されることになる。
+   */
   message: string;
   path?: string;
   existingPath?: string;
@@ -22,13 +34,18 @@ export type FsError = {
 const FS_ERROR_CODES = {
   already_exists: true,
   not_found: true,
-  invalid_name: true,
+  invalid_name_empty: true,
+  invalid_name_reserved: true,
+  invalid_name_separator: true,
+  invalid_name_control: true,
   invalid_path: true,
   invalid_type: true,
   invalid_extension: true,
   invalid_destination: true,
   permission_denied: true,
   io: true,
+  kifu_format_unknown: true,
+  kifu_parse_failed: true,
   unknown: true,
 } satisfies Record<FsErrorCode, true>;
 
@@ -39,7 +56,7 @@ function isFsErrorCode(code: unknown): code is FsErrorCode {
 /**
  * 外から来た値を `FsError` にする。
  *
- * `api/service.ts` は `catch (e) { ... e as FsError }` の形で、Rust 由来でない例外も
+ * `api/service.ts` は `catch (e) { ... }` の形で、Rust 由来でない例外も
  * ここへ流す（棋譜のパース失敗など）。素通しすると `code` がどの分岐にも当たらず、
  * 表示側で見出しの無い箱になる。
  */
@@ -55,53 +72,44 @@ export function makeFsError(code: FsErrorCode, message: string, path?: string): 
   return { code, message, path };
 }
 
-export type FsErrorPresentation = {
-  /**
-   * 復帰に何が要るか（ADR-0004）。`warning` は読み直しで直る見込みがあるもの、
-   * `danger` は読み直しても結果が変わらず、入力か権限の側を変えないと直らないもの。
-   */
-  tier: "warning" | "danger";
-  /**
-   * `code` だけでは何を直せばよいか伝わらないので、Rust の `message` を本文に添える。
-   * 検証の失敗は空・`.`・`..`・パス区切り・NUL を1つの `code` に潰しているため、
-   * 具体を持っているのは `message` しかない。
-   */
-  showMessage: boolean;
-};
-
 /**
- * 段と本文の出し方を同時に決める。分けて置くと、`FsErrorCode` を増やしたときに
- * 片方だけ更新して気づかない。
+ * 復帰に何が要るか（ADR-0004）。
+ *
+ * `warning` は読み直しで直る見込みがあるもの、`danger` は読み直しても結果が変わらず、
+ * 入力か権限の側を変えないと直らないもの。読み直しても直らない失敗に再読み込みを
+ * 出すと、押しても何も起きないので利用者は押し続ける。
  */
-export function fsErrorPresentation(code: FsErrorCode): FsErrorPresentation {
+export function fsErrorTier(code: FsErrorCode): "warning" | "danger" {
   switch (code) {
     // 一時的な事情で失敗した可能性がある。読み直すと結果が変わりうる
     case "io":
     case "unknown":
-      return { tier: "warning", showMessage: false };
+      return "warning";
 
     // ほかで移動・削除された。読み直せばツリーが現在の状態に追いつく
     case "not_found":
-      return { tier: "warning", showMessage: false };
+      return "warning";
 
-    // 何度読み直しても同じ結果になる。権限を変えるしかない
+    // 何度読み直しても同じ結果になる。権限か入力、あるいはファイルの中身の側を変えるしかない
     case "permission_denied":
-      return { tier: "danger", showMessage: false };
-
-    // 利用者の入力が原因。直し方は入力を変えることだけ
     case "already_exists":
-    case "invalid_name":
+    case "invalid_name_empty":
+    case "invalid_name_reserved":
+    case "invalid_name_separator":
+    case "invalid_name_control":
     case "invalid_path":
     case "invalid_type":
     case "invalid_extension":
     case "invalid_destination":
-      return { tier: "danger", showMessage: true };
+    case "kifu_format_unknown":
+    case "kifu_parse_failed":
+      return "danger";
   }
 }
 
 /**
- * 利用者に見せる一文。`message` は Rust の生メッセージなのでそのままは出さない。
- * 網羅にすることで、`FsErrorCode` を増やしたときに型検査がここへ連れてくる。
+ * 利用者に見せる一文。**ここが利用者向けの文言の唯一の置き場。**
+ * 網羅にしてあるので、`FsErrorCode` を増やすと型検査がここへ連れてくる。
  */
 export function describeFsError(code: FsErrorCode): string {
   switch (code) {
@@ -109,8 +117,14 @@ export function describeFsError(code: FsErrorCode): string {
       return "同じ名前のものが既にあります";
     case "not_found":
       return "見つかりません。ほかで移動または削除された可能性があります";
-    case "invalid_name":
+    case "invalid_name_empty":
+      return "名前を入力してください";
+    case "invalid_name_reserved":
       return "その名前は使えません";
+    case "invalid_name_separator":
+      return "名前に / や \\ は使えません";
+    case "invalid_name_control":
+      return "名前に使えない文字が含まれています";
     case "invalid_path":
       return "その場所は扱えません";
     case "invalid_type":
@@ -123,6 +137,10 @@ export function describeFsError(code: FsErrorCode): string {
       return "権限がありません";
     case "io":
       return "読み書きに失敗しました";
+    case "kifu_format_unknown":
+      return "対応していない棋譜の形式です";
+    case "kifu_parse_failed":
+      return "棋譜を解析できませんでした";
     case "unknown":
       return "原因が分かりませんでした";
   }
