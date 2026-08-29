@@ -60,17 +60,22 @@ describe("swapBranchesInKifu", () => {
     expect(forkHead.forks).toBeUndefined();
   });
 
-  test("入れ替えた候補どうしが同じオブジェクトを共有しない", () => {
+  test("複製するのは候補の先頭の手だけで、その先は元の棋譜と共有する", () => {
+    // 書き換えるのは先頭の手の forks だけなので、深い手まで複製する必要はない。
+    // 先頭を共有すると writeCandidates が入力側の手に forks を生やす（上のテスト）。
     const kifu = kifuWithTwoForks();
+    const mainHead = kifu.moves[2];
+    const mainTail = kifu.moves[3];
+
     swapBranchesInKifu(
       kifu,
       { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
       null,
     );
 
-    // 片方を書き換えたときにもう片方が動くと、次の編集で無関係な変化が壊れる。
-    kifu.moves[2].comments = ["touched"];
-    expect(kifu.moves[2].forks?.[0][0].comments).toEqual(["main2"]);
+    const movedMain = kifu.moves[2].forks![0];
+    expect(movedMain[0]).not.toBe(mainHead);
+    expect(movedMain[1]).toBe(mainTail);
   });
 });
 
