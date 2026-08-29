@@ -1,5 +1,5 @@
 import type { IMoveMoveFormat, IPlaceFormat } from "json-kifu-format/dist/src/Formats";
-import type { Kind } from "shogi.js";
+import { Color, type Kind } from "shogi.js";
 
 /**
  * 座標を将棋の記法に変換
@@ -55,12 +55,13 @@ function formatRelative(relative: string): string {
 
 /**
  * 手を日本語の棋譜記法に変換
- * 例: "7六歩", "2二角成", "同銀", "5三銀打", "同銀右成"
+ * 例: "☗7六歩", "☖2二角成", "☗同銀", "☖5三銀打", "☗同銀右成"
  */
 export function formatMove(move?: IMoveMoveFormat): string {
   if (!move) return "";
 
-  let result = "";
+  // 手番。棋譜だけを見て先後が分かるようにする
+  let result = move.color === Color.White ? "☖" : "☗";
 
   // 移動先
   if (move.same) {

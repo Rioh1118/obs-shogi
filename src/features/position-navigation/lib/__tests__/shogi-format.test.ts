@@ -21,11 +21,11 @@ describe("formatMove", () => {
   });
 
   test("移動先と駒を繋げる", () => {
-    expect(formatMove(GI_FROM_78_TO_77)).toBe("7七銀");
+    expect(formatMove(GI_FROM_78_TO_77)).toBe("☗7七銀");
   });
 
   test("same なら移動先の代わりに「同」", () => {
-    expect(formatMove({ ...GI_FROM_78_TO_77, same: true })).toBe("同銀");
+    expect(formatMove({ ...GI_FROM_78_TO_77, same: true })).toBe("☗同銀");
   });
 
   test("promote なら末尾に「成」", () => {
@@ -36,35 +36,46 @@ describe("formatMove", () => {
       color: Color.Black,
       promote: true,
     };
-    expect(formatMove(move)).toBe("2二角成");
+    expect(formatMove(move)).toBe("☗2二角成");
+  });
+
+  describe("手番", () => {
+    test("先手は ☗", () => {
+      expect(formatMove(GI_FROM_78_TO_77).startsWith("☗")).toBe(true);
+    });
+
+    test("後手は ☖", () => {
+      const white: IMoveMoveFormat = { ...GI_FROM_78_TO_77, color: Color.White };
+      expect(formatMove(white)).toBe("☖7七銀");
+    });
   });
 
   describe("相対表記", () => {
     test.each([
-      ["L", "7七銀左"],
-      ["C", "7七銀直"],
-      ["R", "7七銀右"],
-      ["U", "7七銀上"],
-      ["M", "7七銀寄"],
-      ["D", "7七銀引"],
+      ["L", "☗7七銀左"],
+      ["C", "☗7七銀直"],
+      ["R", "☗7七銀右"],
+      ["U", "☗7七銀上"],
+      ["M", "☗7七銀寄"],
+      ["D", "☗7七銀引"],
     ])("%s を日本語で出す", (relative, expected) => {
       expect(formatMove(withRelative(relative))).toBe(expected);
     });
 
     test.each([
-      ["LU", "7七銀左上"],
-      ["RD", "7七銀右引"],
-      ["LM", "7七銀左寄"],
+      ["LU", "☗7七銀左上"],
+      ["RD", "☗7七銀右引"],
+      ["LM", "☗7七銀左寄"],
     ])("複合コード %s も順に並べる", (relative, expected) => {
       expect(formatMove(withRelative(relative))).toBe(expected);
     });
 
     test("成りは相対表記の後に来る", () => {
-      expect(formatMove({ ...withRelative("R"), promote: true })).toBe("7七銀右成");
+      expect(formatMove({ ...withRelative("R"), promote: true })).toBe("☗7七銀右成");
     });
 
     test("表に無いコードはそのまま残す", () => {
-      expect(formatMove(withRelative("X"))).toBe("7七銀X");
+      expect(formatMove(withRelative("X"))).toBe("☗7七銀X");
     });
   });
 
@@ -76,11 +87,11 @@ describe("formatMove", () => {
     };
 
     test("relative が \"H\" なら「打」", () => {
-      expect(formatMove({ ...GI_DROP_TO_53, relative: "H" })).toBe("5三銀打");
+      expect(formatMove({ ...GI_DROP_TO_53, relative: "H" })).toBe("☗5三銀打");
     });
 
     test("relative が無くても from が無ければ「打」を補う", () => {
-      expect(formatMove(GI_DROP_TO_53)).toBe("5三銀打");
+      expect(formatMove(GI_DROP_TO_53)).toBe("☗5三銀打");
     });
 
     test("「打」は重ならない", () => {
