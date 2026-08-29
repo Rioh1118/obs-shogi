@@ -48,7 +48,7 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 
     let (canonical, reader) = opened?;
 
-    Ok(state.register(canonical.to_string_lossy().into_owned(), reader))
+    Ok(state.register(canonical, reader))
 }
 
 /// フロントから来たパスの形を検査する。
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn reports_a_closed_handle_before_a_broken_position() {
         let state = BookState::new();
-        let info = state.register("/books/a.db".to_string(), Box::new(FakeReader));
+        let info = state.register(PathBuf::from("/books/a.db"), Box::new(FakeReader));
         drop(state.close(info.handle).unwrap());
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn reports_a_broken_position_for_a_live_handle() {
         let state = BookState::new();
-        let info = state.register("/books/a.db".to_string(), Box::new(FakeReader));
+        let info = state.register(PathBuf::from("/books/a.db"), Box::new(FakeReader));
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidSfen);

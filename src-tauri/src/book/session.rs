@@ -3,6 +3,7 @@ use crate::book::reader::BookReader;
 use crate::book::types::{BookHandle, BookInfo};
 use dashmap::DashMap;
 use std::fmt;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -40,15 +41,18 @@ impl BookState {
 
     /// reader を預かってハンドルを振る。
     ///
+    /// `path` は canonicalize 済みのものを渡すこと（`BookInfo::path` の意味）。
+    /// 文字列で受けると、組み立てた綴りをそのまま渡す経路が型検査を素通りする。
+    ///
     /// ハンドルは 0 から始めない。フロントの未初期化値と衝突しないため。
     /// 閉じたハンドルも配り直さない。再利用すると、close 済みのハンドルで引いた
     /// 呼び出しが別の定跡に静かに当たる。
-    pub(crate) fn register(&self, path: String, reader: Box<dyn BookReader>) -> BookInfo {
+    pub(crate) fn register(&self, path: PathBuf, reader: Box<dyn BookReader>) -> BookInfo {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed) + 1;
 
         let info = BookInfo {
             handle,
-            path,
+            path: path.to_string_lossy().into_owned(),
             format: reader.format(),
             position_count: reader.position_count(),
         };
@@ -178,7 +182,7 @@ mod tests {
     fn state_with_one_book() -> (BookState, Arc<AtomicUsize>, BookInfo) {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let info = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
+        let info = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
         (state, alive, info)
     }
 
@@ -195,8 +199,8 @@ mod tests {
     fn handles_are_distinct_even_for_the_same_path() {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
-        let second = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
+        let first = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
+        let second = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
 
         assert_ne!(first.handle, second.handle);
         assert_eq!(state.len(), 2);
@@ -229,10 +233,10 @@ mod tests {
     fn a_closed_handle_is_not_handed_out_again() {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
+        let first = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
         drop(state.close(first.handle).unwrap());
 
-        let second = state.register("/books/b.db".to_string(), FakeReader::boxed(&alive));
+        let second = state.register(PathBuf::from("/books/b.db"), FakeReader::boxed(&alive));
         assert_ne!(first.handle, second.handle);
         assert_eq!(
             state.get(first.handle).unwrap_err().code,
@@ -250,7 +254,10 @@ mod tests {
         let handles: Vec<BookHandle> = (0..32)
             .map(|i| {
                 state
-                    .register(format!("/books/{i}.db"), FakeReader::boxed(&alive))
+                    .register(
+                        PathBuf::from(format!("/books/{i}.db")),
+                        FakeReader::boxed(&alive),
+                    )
                     .handle
             })
             .collect();
@@ -270,8 +277,8 @@ mod tests {
     fn list_returns_every_open_book_in_handle_order() {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register("/books/a.db".to_string(), FakeReader::boxed(&alive));
-        let second = state.register("/books/b.db".to_string(), FakeReader::boxed(&alive));
+        let first = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
+        let second = state.register(PathBuf::from("/books/b.db"), FakeReader::boxed(&alive));
 
         assert_eq!(state.list(), vec![first.clone(), second]);
 
@@ -285,7 +292,10 @@ mod tests {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
         for i in 0..8 {
-            state.register(format!("/books/{i}.db"), FakeReader::boxed(&alive));
+            state.register(
+                PathBuf::from(format!("/books/{i}.db")),
+                FakeReader::boxed(&alive),
+            );
         }
 
         let closed = state.close_all();
