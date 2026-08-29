@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { Download, RefreshCw, X } from "lucide-react";
 import { useUpdater } from "../lib/useUpdater";
 import "./UpdaterScreen.scss";
+import Button from "@/shared/ui/Button/Button";
 
 export default function UpdaterScreen() {
   const { status, downloadAndInstall, restart, dismiss } = useUpdater();
@@ -73,41 +74,30 @@ export default function UpdaterScreen() {
         <div className="updater-card__actions">
           {status.phase === "available" && (
             <>
-              <button
-                type="button"
-                className="updater-card__btn updater-card__btn--secondary"
-                onClick={dismiss}
-              >
+              <Button size="sm" radius="pill" onClick={dismiss}>
                 後で
-              </button>
-              <button
-                type="button"
-                className="updater-card__btn updater-card__btn--primary"
+              </Button>
+              <Button
+                size="sm"
+                radius="pill"
+                tone="primary"
                 onClick={() => void downloadAndInstall()}
               >
                 <Download size={13} strokeWidth={2.2} />
                 今すぐ更新
-              </button>
+              </Button>
             </>
           )}
           {status.phase === "ready" && (
-            <button
-              type="button"
-              className="updater-card__btn updater-card__btn--primary"
-              onClick={() => void restart()}
-            >
+            <Button size="sm" radius="pill" tone="primary" onClick={() => void restart()}>
               <RefreshCw size={13} strokeWidth={2.2} />
               再起動して適用
-            </button>
+            </Button>
           )}
           {status.phase === "error" && (
-            <button
-              type="button"
-              className="updater-card__btn updater-card__btn--secondary"
-              onClick={dismiss}
-            >
+            <Button size="sm" radius="pill" onClick={dismiss}>
               閉じる
-            </button>
+            </Button>
           )}
         </div>
       </div>
