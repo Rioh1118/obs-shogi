@@ -276,6 +276,16 @@ describe("段による出し分け", () => {
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
   });
 
+  test("本文に出した内容を、畳んだ中で繰り返さない", () => {
+    stub.fileTree = TREE;
+    stub.error = BAD_NAME;
+
+    mount();
+
+    // 本文に出ているものをもう一度畳んで見せても、開く手間が増えるだけ
+    expect(screen.queryByText("技術的な詳細")).toBeNull();
+  });
+
   test("段は見た目にも出る", () => {
     stub.fileTree = TREE;
     stub.error = DENIED;

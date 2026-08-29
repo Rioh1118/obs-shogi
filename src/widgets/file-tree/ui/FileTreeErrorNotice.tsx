@@ -37,14 +37,17 @@ export default function FileTreeErrorNotice({
       {showMessage && <p className="ftError__hint">{error.message}</p>}
       {error.path && <p className="ftError__path">{error.path}</p>}
 
-      <details className="ftError__detail">
-        <summary>技術的な詳細</summary>
-        <pre className="ftError__raw">
-          {error.code}
-          {"\n"}
-          {error.message}
-        </pre>
-      </details>
+      {/* 本文に出した内容を畳んでもう一度見せても、開く手間が増えるだけ */}
+      {!showMessage && (
+        <details className="ftError__detail">
+          <summary>技術的な詳細</summary>
+          <pre className="ftError__raw">
+            {error.code}
+            {"\n"}
+            {error.message}
+          </pre>
+        </details>
+      )}
 
       <div className="ftError__actions">
         {onDismiss && (
