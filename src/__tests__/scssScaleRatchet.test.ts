@@ -30,7 +30,7 @@ const SCALED_PROPERTIES = [
  */
 const BASELINE = {
   "font-size": 253,
-  "border-radius": 128,
+  "border-radius": 176,
   spacing: 523,
 };
 
@@ -47,12 +47,14 @@ function scssFiles(dir: string): string[] {
 /** rem / px / em の直値。`0` は単位が無いのでここには掛からない */
 const RAW_LENGTH = /(?<![\w$.-])\d*\.?\d+(rem|px|em)\b/;
 
+/** 角丸は `999px`（pill）と `50%`（円）にも $radius-pill / $radius-circle という寄せ先がある */
+const RAW_RADIUS = /(?<![\w$.-])\d*\.?\d+(rem|px|em|%)/;
+
 function isRawDeclaration(property: string, value: string): boolean {
-  if (!RAW_LENGTH.test(value)) return false;
+  const rawLiteral = property === "border-radius" ? RAW_RADIUS : RAW_LENGTH;
+  if (!rawLiteral.test(value)) return false;
   // 1つでもトークンを参照していれば移行の途中とみなす。全部直値の宣言だけ数える
   if (/[$]|var\(/.test(value)) return false;
-  // pill と円はトークン側でも px / % なので、数えても寄せ先が無い
-  if (property === "border-radius" && /^(50%|9{2,4}px)$/.test(value.trim())) return false;
   return true;
 }
 
