@@ -18,13 +18,13 @@
   &--warning {
     border-color: rgba(index.$color-warning, 0.4);
     border-left-color: index.$color-warning;
-    background: color-mix(in srgb, index.$color-primary-black 94%, index.$color-warning);
+    background: index.$surface-warning;
   }
 
   &--danger {
     border-color: rgba(index.$color-danger, 0.4);
     border-left-color: index.$color-danger;
-    background: color-mix(in srgb, index.$color-primary-black 94%, index.$color-danger);
+    background: index.$surface-danger;
   }
 
   &__message {

@@ -46,6 +46,11 @@ $color-danger-solid-hover: #c3817b; // $color-text-dark-1 で 6.10:1
 // 暗い面の上に置く危険色の文字。$color-danger のままだと暗いカードで 3.75:1
 $color-danger-text: #c98a83; // 暗いカード（#1c2325）で 5.66:1
 
+// 失敗を伝える箱の面。**不透明**にするのは、載る場所（暗いカード・サイドバー・
+// ツリーの行）ごとに実効値が変わるのを防ぐため。段は意味色で分ける
+$surface-warning: color-mix(in srgb, $color-primary-black 94%, $color-warning);
+$surface-danger: color-mix(in srgb, $color-primary-black 94%, $color-danger);
+
 // 成功は置かない。通知する場面が1件も無いため（必要になったら足す）
 
 // font
