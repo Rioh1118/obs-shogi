@@ -60,17 +60,24 @@ fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
     // BookInfo に載るのは実体のパスなので、指定と実体の形式が食い違うと
     // 「.bin なのにやねうら王テキスト定跡」という値がフロントへ渡り、
     // そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
-    let resolved = BookFormat::from_path(&canonical)?;
-    if requested != resolved {
+    //
+    // リンク先の拡張子が判別できない場合も同じ扱いにする。そのまま
+    // UnknownExtension を返すと、利用者が選んでいないパスについて
+    // 「拡張子から形式を判別できない」と言うことになる。
+    let resolved = BookFormat::from_path(&canonical).ok();
+    if resolved != Some(requested) {
+        let resolved_name = resolved.map_or("判別できない形式", BookFormat::display_name);
         return Err(BookError::new(
             BookErrorCode::InvalidPath,
             format!(
-                "リンク先の形式が違う（指定 {} / 実体 {}）",
+                "リンク先 {} の形式が指定と違う（指定 {} / 実体 {}）",
+                canonical.display(),
                 requested.display_name(),
-                resolved.display_name()
+                resolved_name
             ),
         )
-        .with_path(canonical.to_string_lossy()));
+        // 選び直せるのは利用者が渡した綴りの方なので、そちらを載せる。
+        .with_path(path.to_string_lossy()));
     }
 
     // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
@@ -288,7 +295,14 @@ mod tests {
         std::fs::write(&target, b"").expect("テスト用のファイルを作れない");
         std::os::unix::fs::symlink(&target, &link).expect("symlink を作れない");
 
-        let mismatched = open_at(&link).err().map(|err| err.code);
+        let mismatched = open_at(&link).err().map(|err| (err.code, err.path));
+
+        // リンク先の拡張子が判別できない場合も、利用者が選んだ綴りについて答える
+        let plain = dir.join("plain");
+        let plain_link = dir.join("plain-link.db");
+        std::fs::write(&plain, b"").expect("テスト用のファイルを作れない");
+        std::os::unix::fs::symlink(&plain, &plain_link).expect("symlink を作れない");
+        let unknown = open_at(&plain_link).err().map(|err| (err.code, err.path));
 
         // 同じ形式を指す symlink は、形式の食い違いでは弾かれない
         let same = dir.join("same.db");
@@ -299,7 +313,20 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
-        assert_eq!(mismatched, Some(BookErrorCode::InvalidPath));
+        assert_eq!(
+            mismatched,
+            Some((
+                BookErrorCode::InvalidPath,
+                Some(link.to_string_lossy().into_owned())
+            ))
+        );
+        assert_eq!(
+            unknown,
+            Some((
+                BookErrorCode::InvalidPath,
+                Some(plain_link.to_string_lossy().into_owned())
+            ))
+        );
         assert_eq!(matched, Some(BookErrorCode::UnsupportedFormat));
     }
 
