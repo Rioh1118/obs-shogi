@@ -122,9 +122,12 @@ jobs:
           node-version: lts/*
           cache: npm
 
+      # 実際に使われるツールチェーンは rust-toolchain.toml が決める。
+      # この action の targets: は stable に対して効いてしまい、固定版には付かないので使わない。
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target }}
+
+      - name: Add build target (rust-toolchain.toml のツールチェーンに対して)
+        run: rustup target add ${{ matrix.rust_target }}
 
       - uses: swatinem/rust-cache@v2
         with:

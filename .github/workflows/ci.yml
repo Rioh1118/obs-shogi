@@ -107,10 +107,14 @@ jobs:
           node-version: lts/*
           cache: npm
 
-      - name: Install Rust stable
+      # 実際に使われるツールチェーンは rust-toolchain.toml が決める。
+      # この action の targets: は stable に対して効いてしまい、固定版には付かないので使わない。
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Add build targets (rust-toolchain.toml のツールチェーンに対して)
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Rust cache (src-tauri)
         uses: swatinem/rust-cache@v2
