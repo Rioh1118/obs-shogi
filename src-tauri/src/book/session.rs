@@ -1,9 +1,9 @@
+use crate::book::api::OpenedBook;
 use crate::book::error::{BookError, BookErrorCode};
 use crate::book::reader::BookReader;
 use crate::book::types::{BookHandle, BookInfo};
 use dashmap::DashMap;
 use std::fmt;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -41,27 +41,28 @@ impl BookState {
 
     /// reader を預かってハンドルを振る。
     ///
-    /// `path` は canonicalize 済みのものを渡すこと（`BookInfo::path` の意味）。
-    /// 文字列で受けると、組み立てた綴りをそのまま渡す経路が型検査を素通りする。
+    /// 材料は [`crate::book::api::OpenedBook`] としてまとめて受け取る。`format` と
+    /// `position_count` を reader に問い合わせないのは、この関数が async ランタイム上で
+    /// 走るため（詳細は `OpenedBook` の doc）。
     ///
     /// ハンドルは 0 から始めない。フロントの未初期化値と衝突しないため。
     /// 閉じたハンドルも配り直さない。再利用すると、close 済みのハンドルで引いた
     /// 呼び出しが別の定跡に静かに当たる。
-    pub(crate) fn register(&self, path: PathBuf, reader: Box<dyn BookReader>) -> BookInfo {
+    pub(crate) fn register(&self, opened: OpenedBook) -> BookInfo {
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed) + 1;
 
         let info = BookInfo {
             handle,
-            path: path.to_string_lossy().into_owned(),
-            format: reader.format(),
-            position_count: reader.position_count(),
+            path: opened.path.to_string_lossy().into_owned(),
+            format: opened.format,
+            position_count: opened.position_count,
         };
 
         self.books.insert(
             handle,
             Arc::new(BookSession {
                 info: info.clone(),
-                reader,
+                reader: opened.reader,
             }),
         );
 
@@ -146,6 +147,7 @@ mod tests {
     use super::*;
     use crate::book::sfen::BookKey;
     use crate::book::types::{BookFormat, BookMove};
+    use std::path::PathBuf;
     use std::sync::atomic::AtomicUsize;
 
     /// Drop まで観測したいので、生存数を外の counter に持たせる。
@@ -169,10 +171,6 @@ mod tests {
     }
 
     impl BookReader for FakeReader {
-        fn format(&self) -> BookFormat {
-            BookFormat::YaneuraouDb
-        }
-
         fn position_count(&self) -> u64 {
             3
         }
@@ -182,10 +180,20 @@ mod tests {
         }
     }
 
+    /// register に渡す材料。テストが見るのは path と reader だけ。
+    fn opened(path: &str, alive: &Arc<AtomicUsize>) -> OpenedBook {
+        OpenedBook {
+            path: PathBuf::from(path),
+            format: BookFormat::YaneuraouDb,
+            position_count: 3,
+            reader: FakeReader::boxed(alive),
+        }
+    }
+
     fn state_with_one_book() -> (BookState, Arc<AtomicUsize>, BookInfo) {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let info = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
+        let info = state.register(opened("/books/a.db", &alive));
         (state, alive, info)
     }
 
@@ -202,8 +210,8 @@ mod tests {
     fn handles_are_distinct_even_for_the_same_path() {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
-        let second = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
+        let first = state.register(opened("/books/a.db", &alive));
+        let second = state.register(opened("/books/a.db", &alive));
 
         assert_ne!(first.handle, second.handle);
         assert_eq!(state.len(), 2);
@@ -236,10 +244,10 @@ mod tests {
     fn a_closed_handle_is_not_handed_out_again() {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
+        let first = state.register(opened("/books/a.db", &alive));
         drop(state.close(first.handle).unwrap());
 
-        let second = state.register(PathBuf::from("/books/b.db"), FakeReader::boxed(&alive));
+        let second = state.register(opened("/books/b.db", &alive));
         assert_ne!(first.handle, second.handle);
         assert_eq!(
             state.get(first.handle).unwrap_err().code,
@@ -257,10 +265,7 @@ mod tests {
         let handles: Vec<BookHandle> = (0..32)
             .map(|i| {
                 state
-                    .register(
-                        PathBuf::from(format!("/books/{i}.db")),
-                        FakeReader::boxed(&alive),
-                    )
+                    .register(opened(&format!("/books/{i}.db"), &alive))
                     .handle
             })
             .collect();
@@ -280,8 +285,8 @@ mod tests {
     fn list_returns_every_open_book_in_handle_order() {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register(PathBuf::from("/books/a.db"), FakeReader::boxed(&alive));
-        let second = state.register(PathBuf::from("/books/b.db"), FakeReader::boxed(&alive));
+        let first = state.register(opened("/books/a.db", &alive));
+        let second = state.register(opened("/books/b.db", &alive));
 
         assert_eq!(state.list(), vec![first.clone(), second]);
 
@@ -295,10 +300,7 @@ mod tests {
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
         for i in 0..8 {
-            state.register(
-                PathBuf::from(format!("/books/{i}.db")),
-                FakeReader::boxed(&alive),
-            );
+            state.register(opened(&format!("/books/{i}.db"), &alive));
         }
 
         let closed = state.close_all();

@@ -1,6 +1,7 @@
 use crate::book::error::{BookError, BookErrorCode};
 use crate::book::sfen::BookKey;
-use crate::book::types::{BookFormat, BookMove};
+use crate::book::types::BookFormat;
+use crate::book::types::BookMove;
 use std::path::Path;
 
 /// 形式ごとの定跡の読み手。
@@ -20,9 +21,6 @@ use std::path::Path;
 ///   復帰導線を出せない
 /// - io の失敗は [`BookError::from_io`] でパスを添えて返す
 pub(crate) trait BookReader: Send + Sync {
-    /// この reader が読んでいる形式。`BookInfo` にそのまま載る。
-    fn format(&self) -> BookFormat;
-
     /// 収録局面数。意味は [`crate::book::BookInfo::position_count`] と同じ。
     fn position_count(&self) -> u64;
 

@@ -36,37 +36,61 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
-        .map_err(join_error(input.path.clone()))?;
+        .map_err(join_error(input.path, "もう一度開き直すこと"))?;
 
-    let (canonical, reader) = opened?;
-
-    Ok(state.register(canonical, reader))
+    Ok(state.register(opened?))
 }
 
-/// 実体のパスと reader を揃える。ファイルを読むので blocking プールから呼ぶこと。
+/// 開いた定跡ひとつぶんの材料。
+///
+/// `format` と `position_count` を reader ではなくここに持つのは、どちらも
+/// [`open_at`]（blocking プールの中）で確定させるため。`BookState::register` は
+/// async ランタイム上で走るので、そこで reader に問い合わせる形にすると、
+/// ヘッダを読んで答える実装が入った瞬間に IO が async ワーカで走る。
+pub(crate) struct OpenedBook {
+    pub(crate) path: PathBuf,
+    pub(crate) format: BookFormat,
+    pub(crate) position_count: u64,
+    pub(crate) reader: Box<dyn BookReader>,
+}
+
+/// 定跡を開く。ファイルを読むので blocking プールから呼ぶこと。
 ///
 /// 返すエラーの `path` は常に呼び出し側が渡した綴り。解決後のパスを載せると、
 /// 利用者が一度も打っていないファイル名について「見つからない」「権限が無い」と
-/// 言うことになり、選び直す先が分からなくなる。実体は message とログに残る。
-fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
-    // 形式は利用者が指定した綴りから決める。symlink の指す先で判別すると、
-    // `.db` を開いたつもりが黙って別形式として読まれる。
-    //
-    // 実在より先に見るのは open_reader と同じ理由で、形式が分からないものは
-    // 実在しても開きようが無いから。ここで canonicalize を先に呼ぶと、
-    // 存在しない `.txt` に UnknownExtension ではなく NotFound が返る。
+/// 言うことになり、選び直す先が分からなくなる。実体は message に添える。
+fn open_at(path: &Path) -> Result<OpenedBook, BookError> {
+    let (canonical, format) = resolve_book_path(path)?;
+
+    // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
+    // symlink をもう一度たどるので、検査した先と実際に開くファイルが別物に
+    // なりうる（その隙に張り替えられると BookInfo.path が旧い方を指す）。
+    let reader = open_reader(&canonical).map_err(|err| requested_error(err, path, &canonical))?;
+
+    Ok(OpenedBook {
+        format,
+        position_count: reader.position_count(),
+        path: canonical,
+        reader,
+    })
+}
+
+/// 実体のパスと、そこを開いてよい形式を決める。
+///
+/// 形式は利用者が指定した綴りから決める。symlink の指す先で判別すると、
+/// `.db` を開いたつもりが黙って別形式として読まれる。一方 `BookInfo` に載るのは
+/// 実体のパスなので、両者が食い違うと「.bin なのにやねうら王テキスト定跡」という
+/// 値がフロントへ渡り、そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
+fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
+    // 実在より先に形式を見るのは open_reader と同じ理由で、形式が分からないものは
+    // 実在しても開きようが無いから。canonicalize を先に呼ぶと、存在しない `.txt` に
+    // UnknownExtension ではなく NotFound が返る。
     let requested = BookFormat::from_path(path)?;
 
-    // 登録は実体のパスで行う。同じ定跡を別の綴りで開いたときに、
-    // BookInfo.path が指すものが揃う。
     let canonical =
         std::fs::canonicalize(path).map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
 
-    // BookInfo に載るのは実体のパスなので、指定と実体の形式が食い違うと
-    // 「.bin なのにやねうら王テキスト定跡」という値がフロントへ渡り、
-    // そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
-    //
-    // リンク先の拡張子が判別できない場合も同じ扱いにする。そのまま
+    // リンク先の拡張子が判別できない場合も食い違いとして扱う。そのまま
     // UnknownExtension を返すと、利用者が選んでいないパスについて
     // 「拡張子から形式を判別できない」と言うことになる。
     let resolved = BookFormat::from_path(&canonical).ok();
@@ -81,16 +105,25 @@ fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
                 resolved_name
             ),
         )
-        // 選び直せるのは利用者が渡した綴りの方なので、そちらを載せる。
         .with_path(path.to_string_lossy()));
     }
 
-    // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
-    // symlink をもう一度たどるので、形式を検査した先と実際に開くファイルが
-    // 別物になりうる（その隙に張り替えられると BookInfo.path が旧い方を指す）。
-    let reader = open_reader(&canonical).map_err(|err| err.with_path(path.to_string_lossy()))?;
+    Ok((canonical, requested))
+}
 
-    Ok((canonical, reader))
+/// 実体で起きた失敗を、利用者が渡した綴りの失敗として言い直す。
+///
+/// `path` を要求時の綴りに戻すだけだと、どのファイルを開こうとして失敗したのかが
+/// フロントにもログにも残らない。symlink 越しに権限が無い場合、許可すべきファイル名が
+/// どこにも現れなくなる。
+fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookError {
+    let message = if requested == canonical {
+        err.message
+    } else {
+        format!("{}（実体 {}）", err.message, canonical.display())
+    };
+
+    BookError::new(err.code, message).with_path(requested.to_string_lossy())
 }
 
 /// フロントから来たパスの形を検査する。
@@ -139,7 +172,7 @@ async fn lookup_inner(
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。
     tauri::async_runtime::spawn_blocking(move || book.reader.lookup(&key))
         .await
-        .map_err(join_error(path))?
+        .map_err(join_error(path, "この定跡を閉じてから開き直すこと"))?
 }
 
 /// 引く先と引くキーを揃える。
@@ -234,13 +267,19 @@ fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError
 
 /// blocking プールへ投げた処理が panic などで落ちたときの受け皿。
 ///
-/// どの定跡で起きたかを必ず添える。複数の定跡を開いていると、これが無いと
-/// 利用者はどれを閉じればよいか決められず、同じ局面を引くたびに同じ失敗が出る。
-fn join_error(path: impl Into<String>) -> impl FnOnce(tauri::Error) -> BookError {
+/// どの定跡で起きたかを必ず添える。複数開いていると、これが無いと利用者は
+/// どのファイルの話なのか決められない。
+///
+/// `recovery` は呼び出し側から渡す。open の途中で落ちた場合はまだハンドルが
+/// 無いので、「閉じてから開き直す」は案内できない。
+fn join_error(
+    path: impl Into<String>,
+    recovery: &'static str,
+) -> impl FnOnce(tauri::Error) -> BookError {
     move |err| {
         BookError::new(
             BookErrorCode::Unknown,
-            format!("定跡の処理が異常終了した。この定跡を閉じてから開き直すこと（{err}）"),
+            format!("定跡の処理が異常終了した。{recovery}（{err}）"),
         )
         .with_path(path)
     }
@@ -255,16 +294,21 @@ mod tests {
     struct FakeReader;
 
     impl BookReader for FakeReader {
-        fn format(&self) -> BookFormat {
-            BookFormat::YaneuraouDb
-        }
-
         fn position_count(&self) -> u64 {
             0
         }
 
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())
+        }
+    }
+
+    fn opened(path: &str) -> OpenedBook {
+        OpenedBook {
+            path: PathBuf::from(path),
+            format: BookFormat::YaneuraouDb,
+            position_count: 0,
+            reader: Box::new(FakeReader),
         }
     }
 
@@ -280,7 +324,7 @@ mod tests {
     #[test]
     fn reports_a_closed_handle_before_a_broken_position() {
         let state = BookState::new();
-        let info = state.register(PathBuf::from("/books/a.db"), Box::new(FakeReader));
+        let info = state.register(opened("/books/a.db"));
         drop(state.close(info.handle).unwrap());
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
@@ -290,7 +334,7 @@ mod tests {
     #[test]
     fn reports_a_broken_position_for_a_live_handle() {
         let state = BookState::new();
-        let info = state.register(PathBuf::from("/books/a.db"), Box::new(FakeReader));
+        let info = state.register(opened("/books/a.db"));
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidSfen);
@@ -375,6 +419,31 @@ mod tests {
             from_mismatch.as_deref(),
             Some(mismatch.2.to_string_lossy().as_ref())
         );
+    }
+
+    /// path を要求時の綴りに戻すだけだと、どのファイルを開こうとして失敗したのかが
+    /// フロントにもログにも残らない。symlink 越しに権限が無いとき、許可すべき
+    /// ファイル名がどこにも出なくなる。
+    #[test]
+    #[cfg(unix)]
+    fn errors_keep_the_resolved_path_in_the_message() {
+        let (dir, target, link) = linked("message", ".db", ".db");
+        // macOS の /var は /private/var への symlink なので、実体は canonicalize で取る
+        let resolved = std::fs::canonicalize(&target).expect("実体を解決できない");
+
+        let through_link = open_at(&link).err().map(|err| err.message);
+        let direct = open_at(&resolved).err().map(|err| err.message);
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        let through_link = through_link.expect("reader がまだ無いので必ず失敗する");
+        assert!(
+            through_link.contains(resolved.to_string_lossy().as_ref()),
+            "message={through_link}"
+        );
+
+        // 渡した綴りが実体そのものなら、同じパスを二度書かない
+        let direct = direct.expect("reader がまだ無いので必ず失敗する");
+        assert!(!direct.contains("実体"), "message={direct}");
     }
 
     #[test]
