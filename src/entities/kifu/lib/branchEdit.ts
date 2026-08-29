@@ -244,7 +244,17 @@ function relocateCursorOnDelete(
   };
 }
 
-/** 公開: swap */
+/**
+ * 分岐点の候補2つを入れ替える
+ *
+ * `kifu` をその場で書き換える。呼び出し側は `cloneJkf` した複製を渡すこと。
+ * React の state をそのまま渡すと、盤と棋譜ストリームが state 更新を経ずに食い違う。
+ *
+ * `cursor` が同じ stream を辿っているときだけ、選択が同じ候補を指し続けるよう patch した
+ * カーソルを返す。別 stream なら `cursor` をそのまま返す。
+ *
+ * @throws {Error} `a` / `b` が候補の範囲外のとき、`forkPointers` が実在しない変化を指すとき
+ */
 export function swapBranchesInKifu(
   kifu: JKFData,
   q0: SwapQuery,
@@ -279,7 +289,17 @@ export function swapBranchesInKifu(
   return { changed: true, nextCursor: next };
 }
 
-/** 公開: delete */
+/**
+ * 分岐点の候補を1つ消す
+ *
+ * `kifu` をその場で書き換える。呼び出し側は `cloneJkf` した複製を渡すこと。
+ * 本譜を消すと変化1が本譜に繰り上がり、`te` 以降の手ごと置き換わる。
+ *
+ * `cursor` が消える候補の中にいたときは、`te` の直後（消しきったなら `te - 1`）へ退避させた
+ * カーソルを返す。
+ *
+ * @throws {Error} `target` が候補の範囲外のとき、`forkPointers` が実在しない変化を指すとき
+ */
 export function deleteBranchInKifu(
   kifu: JKFData,
   q0: DeleteQuery,
