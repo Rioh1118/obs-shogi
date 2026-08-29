@@ -3,6 +3,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   branchIndexFromSelection,
   buildTesuuPointer,
+  forkIndexFromBranchIndex,
   MAIN_LINE,
   shiftBranchIndexDown,
   type BranchEditResult,
@@ -46,9 +47,9 @@ function setBranchIndex(
   branchIndex: BranchIndex,
 ): ForkPointer[] {
   const next = forkPointers.filter((p) => p.te !== te);
-  if (branchIndex <= 0) return next.sort((a, b) => a.te - b.te);
+  if (branchIndex === MAIN_LINE) return next.sort((a, b) => a.te - b.te);
 
-  next.push({ te, forkIndex: branchIndex - 1 });
+  next.push({ te, forkIndex: forkIndexFromBranchIndex(branchIndex) });
   return next.sort((a, b) => a.te - b.te);
 }
 
