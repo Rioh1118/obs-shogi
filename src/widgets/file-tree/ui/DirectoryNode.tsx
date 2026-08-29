@@ -1,8 +1,7 @@
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
-import TreeNode from "./TreeNode";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
@@ -11,14 +10,18 @@ import { DROP_ID, type DragData, type DropData } from "@/widgets/file-tree/lib/d
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 
+// 木の再帰点は TreeNode 側に閉じてある。ここで TreeNode を import すると
+// モジュールの相互参照になり、評価順によっては片方が undefined になる。
 function DirectoryNode({
   level,
   node,
   externalHoverDir,
+  renderChild,
 }: {
   level: number;
   node: FileTreeNode;
   externalHoverDir?: string | null;
+  renderChild: (child: FileTreeNode, level: number) => ReactNode;
 }) {
   const {
     toggleNode,
@@ -152,9 +155,7 @@ function DirectoryNode({
           )}
           {!node.children?.length
             ? null
-            : node.children.map((child) => (
-                <TreeNode key={child.id} level={level + 1} node={child} />
-              ))}
+            : node.children.map((child) => renderChild(child, level + 1))}
         </>
       )}
     </>
