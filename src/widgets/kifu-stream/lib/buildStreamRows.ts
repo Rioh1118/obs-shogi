@@ -49,7 +49,10 @@ export function buildStreamRowsFromCursor(
     const plannedForkIndex = planned.get(te) ?? null;
 
     let ok = false;
-    if (plannedForkIndex != null) {
+    // forkAndForward は forks.length 以上なら false を返すが、負や非整数は
+    // forks[-1] を掴んで JKFPlayer の内部で TypeError になる。ここはレンダ中なので、
+    // 拾わないと棋譜ペインごと落ちる。計画は無検証で持ち越されるので自分で捨てる。
+    if (plannedForkIndex != null && Number.isInteger(plannedForkIndex) && plannedForkIndex >= 0) {
       ok = player.forkAndForward(plannedForkIndex);
       if (!ok) ok = player.forward();
     } else {
