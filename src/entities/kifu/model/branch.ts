@@ -64,11 +64,20 @@ export function branchLabel(forkIndex?: number): string {
   return forkIndex == null ? "本譜" : `変化${branchIndexFromForkIndex(forkIndex)}`;
 }
 
+/**
+ * `IMoveFormat.forks` の添字に戻す
+ *
+ * 本譜は `forks` の外にいて添字を持たないので、`MAIN_LINE` を渡すと throw する。
+ * 範囲外の値を黙って本譜に丸めないための境界。
+ *
+ * @throws {Error} `MAIN_LINE` 以下を渡したとき
+ */
 export function forkIndexFromBranchIndex(b: BranchIndex): number {
   if (b <= 0) throw new Error("branchIndex=0 has no forkIndex");
   return b - 1;
 }
 
+/** `IMoveFormat.forks` の添字を分岐一覧の位置にする。本譜が0を占めるぶん1ずれる。 */
 export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
   return (forkIndex + 1) as BranchIndex;
 }
@@ -105,6 +114,12 @@ export function branchIndexAfterRemoval(b: BranchIndex): BranchIndex {
   return (b - 1) as BranchIndex;
 }
 
+/**
+ * 局面を一意に表す文字列を組む
+ *
+ * `forkPointers` は正規化してから渡すこと。並びが違うだけで別の文字列になり、
+ * 同じ局面が別のキーとして扱われる。
+ */
 export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
   // JKFPlayer の "N,[{te,forkIndex}]" と揃える
   return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
