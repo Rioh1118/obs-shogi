@@ -102,6 +102,12 @@ return Err(FsError::new(FsErrorCode::InvalidName, "名前にパス区切りを�
 - 直し方: 検証系（`invalid_*`）は `message` を本文の2行目に出す。Rust の文言は既に利用者向けの日本語で、
   隠す理由が無い。生メッセージを本文に出さない方針を守るなら Rust の code を細分し、
   `describeFsError` 側で具体文を返す。
+- **結果: 対応済み。** 提案の前者を採った。`showMessage` が真の code
+  （`invalid_*` と `already_exists`）で `message` を本文に出す。
+  Rust の code を細分する案は、TS と Rust の両方を同時に変える必要があり、
+  この変更の範囲を超える。
+  テストは `getByRole("alert").textContent` が畳んだ `<details>` の中身まで拾うため、
+  本文だけを見るヘルパーを足した（**最初に書いたテストはこれを見落として通っていた**）。
 
 > **「Rust の生メッセージを本文にしない」という判断が、この分類では情報を殺している。**
 
@@ -170,6 +176,10 @@ background: rgba(index.$color-warning, 0.1);
 - 直し方: `error.ts` に `fsErrorTier(code): "info"|"warning"|"danger"|"fatal"` を
   `describeFsError` と同じ網羅 switch で置き、段を modifier（`ftError--danger`）に反映する。
   `danger` では「再読み込み」を主ボタンから外す。
+- **結果: 対応済み。** 段だけを返す関数ではなく `fsErrorPresentation(code)` として
+  `{ tier, showMessage }` を1つの網羅 switch で返す。H-3 の「本文に `message` を添えるか」も
+  code ごとに決まるので、分けて置くと片方だけ更新して気づかない。
+  段は `warning` / `danger` の2つ。`info` と `fatal` はファイル操作の失敗には現れない。
 
 > ADR-0004 の決定3「**直らないものに再試行を出すと、通知が無いより悪い**」に真っ向から反している。
 
@@ -225,6 +235,8 @@ background: rgba(index.$color-warning, 0.1);
   **技術情報ゼロの折り畳み**が常に1つ増える。`KifuReadErrorDialog` は `hasDetail = !!error.cause` で
   無いときは出さない。同じ役割で挙動が割れている。
 - 直し方: 詳細に出す情報が実際にあるときだけ `<details>` を描く。または `pushError` 側で `cause` を詰める。
+- **結果: 一部対応。** H-3 の対応で `error.cause` を読む死んだ分岐は消えた。
+  「詳細に出す情報が無いときは `<details>` ごと出さない」はまだ。
 
 ### [MEDIUM] M-4 `describeFsError` に `default` が無く、`FsError` でない値が届くと見出しが空になる
 

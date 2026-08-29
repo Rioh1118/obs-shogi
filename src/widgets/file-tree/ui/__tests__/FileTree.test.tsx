@@ -77,6 +77,13 @@ const { default: FileTree } = await import("../FileTree");
 
 const TREE = { path: "/root", name: "root" };
 const IO_ERROR: FsError = { code: "io", message: "os error 5", path: "/root/a.kif" };
+// 読み直しても結果が変わらない失敗。原因は権限や入力の側にある
+const DENIED: FsError = { code: "permission_denied", message: "denied", path: "/root/a.kif" };
+const BAD_NAME: FsError = {
+  code: "invalid_name",
+  message: "名前にパス区切りを含めることはできません",
+  path: "/root",
+};
 
 beforeEach(() => {
   stub.fileTree = null;
@@ -98,6 +105,16 @@ function mount() {
   const view = render(<FileTree />);
   repaint = () => view.rerender(<FileTree />);
   return view;
+}
+
+/**
+ * 通知の本文。`getByRole("alert").textContent` は畳んだ `<details>` の中身まで
+ * 拾うので、「本文に出ているか」「本文に出ていないか」はこちらで見る。
+ */
+function noticeBody() {
+  return Array.from(screen.getByRole("alert").querySelectorAll(".ftError__lead, .ftError__hint"))
+    .map((el) => el.textContent ?? "")
+    .join("\n");
 }
 
 /** 再読み込みを押す。読み込み中のまま返るので、途中の画面を検査できる。 */
@@ -145,6 +162,8 @@ describe("FileTree の失敗表示", () => {
     expect(detail).toBeTruthy();
     expect(detail!.hasAttribute("open")).toBe(false);
     expect(detail!.textContent).toContain("os error 5");
+    // 畳んだ中にあることだけを見ると、本文にも出す実装で緑のままになる
+    expect(noticeBody()).not.toContain("os error 5");
   });
 
   test("ツリーがまだ無いときは、その場に失敗を出す", () => {
@@ -200,6 +219,49 @@ describe("FileTree の失敗表示", () => {
 
     expect(screen.getByTestId("tree")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/**
+ * 復帰に何が要るかで見せ方を変える（ADR-0004）。
+ * 読み直しても直らない失敗に「再読み込み」を出すと、利用者は押し続ける。
+ */
+describe("段による出し分け", () => {
+  test("入力が原因の失敗では、何が悪いかを本文に出す", () => {
+    stub.fileTree = TREE;
+    stub.error = BAD_NAME;
+
+    mount();
+
+    // 「その名前は使えません」だけでは直せない。区切り文字が原因だと分からない
+    expect(noticeBody()).toContain("パス区切り");
+  });
+
+  test("入力が原因の失敗では、再読み込みを出さない", () => {
+    stub.fileTree = TREE;
+    stub.error = BAD_NAME;
+
+    mount();
+
+    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+  });
+
+  test("一時的かもしれない失敗では、再読み込みを出す", () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+
+    mount();
+
+    expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
+  });
+
+  test("段は見た目にも出る", () => {
+    stub.fileTree = TREE;
+    stub.error = DENIED;
+
+    mount();
+
+    expect(screen.getByRole("alert").className).toContain("ftError--danger");
   });
 });
 
@@ -267,6 +329,15 @@ describe("再読み込みの最中", () => {
 
     await startRetry();
     expect(refreshTree).toHaveBeenCalledTimes(2);
+  });
+
+  test("読み直しても直らない失敗では、再読み込みを出さない", () => {
+    stub.fileTree = TREE;
+    stub.error = DENIED;
+
+    mount();
+
+    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
   });
 
   test("ツリーがまだ無いときは、読み込み中に Spinner を出す", async () => {

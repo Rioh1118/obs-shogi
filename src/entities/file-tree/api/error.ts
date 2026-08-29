@@ -26,6 +26,50 @@ export function makeFsError(code: FsErrorCode, message: string, path?: string): 
   return { code, message, path };
 }
 
+export type FsErrorPresentation = {
+  /**
+   * 復帰に何が要るか（ADR-0004）。`warning` は読み直しで直る見込みがあるもの、
+   * `danger` は読み直しても結果が変わらず、入力か権限の側を変えないと直らないもの。
+   */
+  tier: "warning" | "danger";
+  /**
+   * `code` だけでは何を直せばよいか伝わらないので、Rust の `message` を本文に添える。
+   * 検証の失敗は空・`.`・`..`・パス区切り・NUL を1つの `code` に潰しているため、
+   * 具体を持っているのは `message` しかない。
+   */
+  showMessage: boolean;
+};
+
+/**
+ * 段と本文の出し方を同時に決める。分けて置くと、`FsErrorCode` を増やしたときに
+ * 片方だけ更新して気づかない。
+ */
+export function fsErrorPresentation(code: FsErrorCode): FsErrorPresentation {
+  switch (code) {
+    // 一時的な事情で失敗した可能性がある。読み直すと結果が変わりうる
+    case "io":
+    case "unknown":
+      return { tier: "warning", showMessage: false };
+
+    // ほかで移動・削除された。読み直せばツリーが現在の状態に追いつく
+    case "not_found":
+      return { tier: "warning", showMessage: false };
+
+    // 何度読み直しても同じ結果になる。権限を変えるしかない
+    case "permission_denied":
+      return { tier: "danger", showMessage: false };
+
+    // 利用者の入力が原因。直し方は入力を変えることだけ
+    case "already_exists":
+    case "invalid_name":
+    case "invalid_path":
+    case "invalid_type":
+    case "invalid_extension":
+    case "invalid_destination":
+      return { tier: "danger", showMessage: true };
+  }
+}
+
 /**
  * 利用者に見せる一文。`message` は Rust の生メッセージなのでそのままは出さない。
  * 網羅にすることで、`FsErrorCode` を増やしたときに型検査がここへ連れてくる。

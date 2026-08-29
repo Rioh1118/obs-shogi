@@ -5,16 +5,36 @@
   flex-direction: column;
   gap: index.$space-3;
   padding: index.$space-5;
-  border: 1px solid rgba(index.$color-warning, 0.4);
-  border-left: 3px solid index.$color-warning;
+  border: 1px solid;
+  border-left-width: 3px;
   border-radius: index.$radius-3;
-  background: rgba(index.$color-warning, 0.1);
   color: index.$color-text-primary;
+
+  // 段は「復帰に何が要るか」で決まる（ADR-0004）。色だけでなく、
+  // 再読み込みを出すかどうかもここで分かれる
+  &--warning {
+    border-color: rgba(index.$color-warning, 0.4);
+    border-left-color: index.$color-warning;
+    background: rgba(index.$color-warning, 0.1);
+  }
+
+  &--danger {
+    border-color: rgba(index.$color-danger, 0.4);
+    border-left-color: index.$color-danger;
+    background: rgba(index.$color-danger, 0.1);
+  }
 
   &__lead {
     margin: 0;
     font-size: index.$font-body;
     font-weight: 600;
+  }
+
+  // 何を直せばよいか。code だけでは伝わらない失敗で出す
+  &__hint {
+    margin: 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-primary;
   }
 
   // パスは折り返させる。省略すると、どれが失敗したのか分からなくなる
