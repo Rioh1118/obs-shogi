@@ -15,9 +15,13 @@ pub enum FsErrorCode {
     /// NUL。OS によっては別のパスに化ける
     InvalidNameControl,
     InvalidPath,
+    /// ファイルとディレクトリの取り違え。`is_file()` / `is_dir()` の判定にだけ使う
     InvalidType,
     InvalidExtension,
     InvalidDestination,
+    /// 棋譜を保存する形へ直せなかった。正規化と直列化の失敗をここへ載せる。
+    /// InvalidType に載せると「ファイルとフォルダを取り違えています」と表示される
+    KifuConversionFailed,
     PermissionDenied,
     Io,
     Unknown,
@@ -84,6 +88,7 @@ mod tests {
             FsErrorCode::InvalidType => "invalid_type",
             FsErrorCode::InvalidExtension => "invalid_extension",
             FsErrorCode::InvalidDestination => "invalid_destination",
+            FsErrorCode::KifuConversionFailed => "kifu_conversion_failed",
             FsErrorCode::PermissionDenied => "permission_denied",
             FsErrorCode::Io => "io",
             FsErrorCode::Unknown => "unknown",
@@ -109,6 +114,7 @@ mod tests {
             FsErrorCode::InvalidType,
             FsErrorCode::InvalidExtension,
             FsErrorCode::InvalidDestination,
+            FsErrorCode::KifuConversionFailed,
             FsErrorCode::PermissionDenied,
             FsErrorCode::Io,
             FsErrorCode::Unknown,

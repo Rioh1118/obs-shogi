@@ -136,7 +136,7 @@ fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<
         Some("ki2") => Ok(patch_gote_start(jkf_data.to_ki2_owned(), is_gote)),
         Some("csa") => Ok(jkf_data.to_csa_owned()),
         Some("jkf") => serde_json::to_string_pretty(jkf_data)
-            .map_err(|e| FsError::new(FsErrorCode::InvalidType, e.to_string())),
+            .map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string())),
         _ => Err(
             FsError::new(FsErrorCode::InvalidExtension, "未対応の形式です")
                 .with_path(file_path.to_string_lossy().to_string()),
@@ -175,9 +175,12 @@ pub fn create_kifu_file<R: Runtime>(
     validate_under_root(&app, &file_path)?;
 
     // JKFデータを正規化
-    jkf_data
-        .normalize()
-        .map_err(|e| FsError::new(FsErrorCode::InvalidType, format!("正規化エラー: {:?}", e)))?;
+    jkf_data.normalize().map_err(|e| {
+        FsError::new(
+            FsErrorCode::KifuConversionFailed,
+            format!("正規化エラー: {:?}", e),
+        )
+    })?;
 
     // ファイル拡張子に応じて適切な形式に変換
     let content = convert_jkf_to_format(&jkf_data, &file_path)?;

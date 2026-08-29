@@ -10,6 +10,8 @@ export type FsErrorCode =
   | "invalid_type"
   | "invalid_extension"
   | "invalid_destination"
+  // 棋譜を保存する形へ直せなかった（Rust の正規化・直列化）
+  | "kifu_conversion_failed"
   | "permission_denied"
   | "io"
   // 棋譜の読み込み。Rust は返さない。TS 側で作る
@@ -46,6 +48,7 @@ export const FS_ERROR_CODES = {
   invalid_type: true,
   invalid_extension: true,
   invalid_destination: true,
+  kifu_conversion_failed: true,
   permission_denied: true,
   io: true,
   kifu_format_unknown: true,
@@ -158,6 +161,7 @@ export function fsErrorTier(code: FsErrorCode): "warning" | "danger" {
     case "invalid_type":
     case "invalid_extension":
     case "invalid_destination":
+    case "kifu_conversion_failed":
     case "kifu_format_unknown":
     case "kifu_parse_failed":
       return "danger";
@@ -190,6 +194,8 @@ export function describeFsError(code: FsErrorCode): string {
       return "対応していない拡張子です";
     case "invalid_destination":
       return "その移動先には置けません";
+    case "kifu_conversion_failed":
+      return "棋譜をこの形式に変換できませんでした";
     case "permission_denied":
       return "権限がありません";
     case "io":

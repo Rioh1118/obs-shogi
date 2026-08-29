@@ -23,6 +23,7 @@ const ALL_CODES: FsErrorCode[] = [
   "invalid_type",
   "invalid_extension",
   "invalid_destination",
+  "kifu_conversion_failed",
   "permission_denied",
   "io",
   "kifu_format_unknown",
