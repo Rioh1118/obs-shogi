@@ -128,7 +128,7 @@ export function branchIndexFromSelection(forkIndex: number | null): BranchIndex 
  * 一覧で1つ上/下に並ぶ分岐
  *
  * 一覧の端では範囲外の値を返す。下限（`MAIN_LINE` 未満）は呼び出し側が捨て、
- * 上限は `swapBranchesInKifu` が "swap indices out of range" で弾く。
+ * 上限は `swapBranchesInKifu` が `assertBranchIndex` で弾く。
  * ここでは候補数を知らないので上限を見られない。
  */
 export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchIndex {
