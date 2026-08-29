@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 
 export interface TurnInfo {
-  turnText: string | null;
+  turnShortText: string | null;
   tesuu: number;
 }
 
@@ -18,7 +18,7 @@ export function useTurnInfoCache() {
     const cached = cache.current.get(sfen);
     if (cached !== undefined) {
       return {
-        turnText: cached === 0 ? "先手" : "後手",
+        turnShortText: cached === 0 ? "先手" : "後手",
         tesuu: parseTesuu(sfen),
       };
     }
@@ -27,11 +27,11 @@ export function useTurnInfoCache() {
     if (pd) {
       cache.current.set(sfen, pd.turn);
       return {
-        turnText: pd.turn === 0 ? "先手" : "後手",
+        turnShortText: pd.turn === 0 ? "先手" : "後手",
         tesuu: parseTesuu(sfen),
       };
     }
 
-    return { turnText: null, tesuu: 0 };
+    return { turnShortText: null, tesuu: 0 };
   }, []);
 }

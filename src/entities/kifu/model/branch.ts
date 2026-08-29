@@ -50,9 +50,8 @@ export type BranchEditResult = {
 /**
  * 分岐の表示名
  *
- * 番号は表示順ではなく `forkIndex` から作る。一覧から間引かれた分岐があると
- * 表示順はずれるが、棋譜ストリームの分岐メニューは `forkIndex` で番号を振るため、
- * 表示順で作ると同じ分岐が画面ごとに別の番号で呼ばれる。
+ * 番号は表示順ではなく `forkIndex` から作る。棋譜ストリームの分岐メニューが
+ * `forkIndex` で番号を振るので、表示順で作ると同じ分岐が画面ごとに別の番号で呼ばれる。
  */
 export function branchLabel(forkIndex?: number): string {
   return forkIndex == null ? "本譜" : `変化${branchIndexFromForkIndex(forkIndex)}`;

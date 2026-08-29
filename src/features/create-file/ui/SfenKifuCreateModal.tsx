@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -55,7 +56,7 @@ export default function SfenKifuCreateModal() {
 
   const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
 
-  const turnText = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const dirOptions = useMemo(() => {
     if (!fileTree) return [];
@@ -143,7 +144,7 @@ export default function SfenKifuCreateModal() {
           <>
             <div className="sfen-kifu-create__preview">
               <PreviewPane previewData={previewData} />
-              {turnText && <div className="sfen-kifu-create__turnBadge">{turnText}</div>}
+              {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
             </div>
 
             <Form handleSubmit={handleSubmit} theme="dark">

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { turnText } from "@/shared/lib/turn";
 
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
@@ -38,7 +39,7 @@ export default function PositionDetail({
     return buildPreviewDataFromSfen(position.sfen);
   }, [position]);
 
-  const turnText = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const handleDelete = useCallback(async () => {
     if (!position || isDeleting) return;
@@ -90,7 +91,7 @@ export default function PositionDetail({
           ))}
         </div>
         <div className="sp-detail__metaSub">
-          {turnText && <span>{turnText}</span>}
+          {turnBadge && <span>{turnBadge}</span>}
           <span>{formatDate(position.updatedAt)} 更新</span>
         </div>
         {position.description && <div className="sp-detail__memo">{position.description}</div>}

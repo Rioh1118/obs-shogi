@@ -467,7 +467,7 @@ export default function StudyPositionsManagerModal() {
                     position={pos}
                     selected={selectedIndex === idx}
                     onClick={() => setSelectedId(pos.id)}
-                    turnText={info.turnText}
+                    turnShortText={info.turnShortText}
                     tesuu={info.tesuu}
                   />
                 );

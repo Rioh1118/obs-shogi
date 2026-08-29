@@ -15,6 +15,9 @@ type Override = { files?: string[]; rules?: Record<string, unknown> };
 const overrides = (config.lint?.overrides ?? []) as Override[];
 
 function globToRegExp(glob: string): RegExp {
+  // 扱えるのは `**/` `*` `{a,b}` だけ。設定に別のメタ文字が出たらモデルが
+  // 現実とずれるので、黙って通さず落とす。
+  if (/[?[\]!]/.test(glob)) throw new Error(`未対応の glob: ${glob}`);
   let re = "";
   for (let i = 0; i < glob.length; i++) {
     const c = glob[i];
@@ -63,19 +66,30 @@ function groupsFor(file: string): string[] {
   return (effectiveFor(file)?.patterns ?? []).flatMap((p) => p.group ?? []);
 }
 
-const CASES = [
-  { file: "src/entities/kifu/lib/readableMove.ts", forbids: "@/features/**" },
-  { file: "src/entities/position/ui/HandRow.tsx", forbids: "@/widgets/**" },
-  { file: "src/features/settings/ui/SettingsPanel.tsx", forbids: "@/widgets/**" },
-  { file: "src/features/position-navigation/ui/BranchCard.tsx", forbids: "@/app/**" },
-  { file: "src/widgets/kifu-stream/lib/buildStreamRows.ts", forbids: "@/pages/**" },
-  { file: "src/shared/lib/turn.ts", forbids: "@/entities/**" },
-];
+const LAYERS_TOP_DOWN = ["app", "pages", "widgets", "features", "entities", "shared"] as const;
+
+/** 各レイヤの代表ファイル。スライスを持つ層はスライス配下から選ぶ（override が別なので）。 */
+const SAMPLES: Record<string, string> = {
+  pages: "src/pages/AppLayout.tsx",
+  widgets: "src/widgets/kifu-stream/lib/buildStreamRows.ts",
+  features: "src/features/position-navigation/ui/BranchCard.tsx",
+  entities: "src/entities/kifu/lib/readableMove.ts",
+  shared: "src/shared/lib/turn.ts",
+};
 
 describe("レイヤ規則", () => {
-  test.each(CASES)("$file は $forbids を禁じている", ({ file, forbids }) => {
+  // 期待集合は LAYERS_TOP_DOWN から導く。レイヤを増やしたときも追随する。
+  // `@/` 形式だけを見ていると `../app/**` 側を消しても気づけない。pages と app には
+  // レイヤ直下のファイルが実在するので、1階層の `../` で隣のレイヤに届く。
+  test.each(Object.entries(SAMPLES))("%s は上位レイヤを両形式で禁じている", (layer, file) => {
+    const depth = LAYERS_TOP_DOWN.indexOf(layer as (typeof LAYERS_TOP_DOWN)[number]);
+    const expected = LAYERS_TOP_DOWN.slice(0, depth).flatMap((upper) => [
+      `@/${upper}/**`,
+      `../${upper}/**`,
+    ]);
+
     expect(effectiveFor(file), `${file} に no-restricted-imports が効いていない`).toBeTruthy();
-    expect(groupsFor(file)).toContain(forbids);
+    expect(groupsFor(file)).toEqual(expect.arrayContaining(expected));
   });
 
   test("スライス配下でも2階層以上遡る相対 import を禁じている", () => {

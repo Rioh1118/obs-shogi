@@ -6,7 +6,7 @@ import { eqMove } from "./eqMove";
 export type ApplyMoveResult = {
   /** 既存の手（本譜 or 既存分岐）を使ったか */
   usedExisting: boolean;
-  /** 新規分岐を作ったか（= inputMove したか） */
+  /** 棋譜に新しい分岐を1本足したか */
   createdNew: boolean;
   /** 適用後の tesuu（jkf.tesuu） */
   tesuu: number;
@@ -22,7 +22,7 @@ export type ApplyMoveResult = {
  * 3. 無ければ新規分岐として追加
  *
  * 渡した `move` は棋譜が所有する。コピーせずそのまま収まり、正規化が
- * `color` / `same` / `relative` / `capture` を書き加える。しかも正規化は棋譜全体に
+ * `color` / `piece` / `same` / `capture` / `promote` / `relative` を書き加える。しかも正規化は棋譜全体に
  * 走るので、後から別の分岐を足したときにも書き換わる。呼び出し側は同じオブジェクトを
  * 使い回さないこと。3 の経路も末端の `inputMove` も同じ。
  */

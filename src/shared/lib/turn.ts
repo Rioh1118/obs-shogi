@@ -22,3 +22,8 @@ export const GOTE_LABEL = `${GOTE_GLYPH}後手`;
 export function turnLabel(color: Color): string {
   return color === Color.Black ? SENTE_LABEL : GOTE_LABEL;
 }
+
+/** 記号を出さず「〜番」で言う場合。`turnLabel` とは別物なので名前を分けてある。 */
+export function turnText(color: Color): "先手番" | "後手番" {
+  return color === Color.Black ? "先手番" : "後手番";
+}

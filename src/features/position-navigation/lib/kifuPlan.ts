@@ -12,6 +12,16 @@ export function upsertForkPointer(
   return [...map.values()].sort((a, b) => a.te - b.te);
 }
 
+/**
+ * te 以降の計画を捨てる
+ *
+ * te の選択を変えたら、その先の計画は別の枝に対して作られた値なので意味を失う。
+ * 残すと、利用者が一度も見ていない変化に盤が入る。
+ */
+export function truncatePlanFrom(fps: ForkPointer[], te: number): ForkPointer[] {
+  return fps.filter((p) => p.te < te);
+}
+
 /** “本譜を選ぶ” = その te の forkPointer を削除 */
 export function removeForkPointer(fps: ForkPointer[], te: number): ForkPointer[] {
   return fps.filter((p) => p.te !== te);

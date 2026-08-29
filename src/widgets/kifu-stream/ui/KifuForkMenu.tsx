@@ -68,7 +68,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
       {
         forkIndex: null,
         branchIndex: 0,
-        tag: "本譜",
+        tag: branchLabel(),
         move: mainText || "(手がありません)",
         selected: normalized == null,
       },
