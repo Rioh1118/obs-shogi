@@ -55,6 +55,7 @@ fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
 #[command]
 pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<String, FsError> {
     let path = PathBuf::from(&file_path);
+    validate_under_root(&app, &path)?;
 
     if !path.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
@@ -72,8 +73,6 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
                 .with_path(path.to_string_lossy().to_string()),
         );
     }
-
-    validate_under_root(&app, &path)?;
 
     read_text_portable(&path)
 }
@@ -147,6 +146,7 @@ pub fn create_kifu_file<R: Runtime>(
     mut jkf_data: JsonKifuFormat,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
@@ -194,6 +194,7 @@ pub fn import_kifu_file<R: Runtime>(
     jkf_data: JsonKifuFormat,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
@@ -233,6 +234,7 @@ pub fn save_kifu_file<R: Runtime>(
     content: String,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
@@ -270,6 +272,7 @@ pub fn create_directory<R: Runtime>(
     dir_name: String,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
@@ -282,8 +285,8 @@ pub fn create_directory<R: Runtime>(
     let dir_name = validate_basename(&dir_name)?;
 
     let new_dir_path = parent_path.join(&dir_name);
-    ensure_not_exists(&new_dir_path)?;
     validate_under_root(&app, &new_dir_path)?;
+    ensure_not_exists(&new_dir_path)?;
 
     fs::create_dir(&new_dir_path).map_err(FsError::from)?;
 
@@ -294,6 +297,7 @@ pub fn create_directory<R: Runtime>(
 #[command]
 pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&file_path);
+    validate_under_root(&app, &path)?;
 
     if !path.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
@@ -312,14 +316,13 @@ pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(
         );
     }
 
-    validate_under_root(&app, &path)?;
-
     fs::remove_file(path).map_err(FsError::from)
 }
 
 #[command]
 pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&dir_path);
+    validate_under_root(&app, &path)?;
 
     if !path.exists() {
         return Err(
@@ -333,8 +336,6 @@ pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Resu
                 .with_path(path.to_string_lossy().to_string()),
         );
     }
-
-    validate_under_root(&app, &path)?;
 
     fs::remove_dir_all(path).map_err(FsError::from)
 }

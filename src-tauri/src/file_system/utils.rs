@@ -79,38 +79,59 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
     Ok(cfg.root_dir.map(PathBuf::from))
 }
 
+/// `target` が `root` と同じか、その配下にあるか。
+///
+/// 両方 canonicalize 済みであることを前提にする。`Path::starts_with` は
+/// 成分単位で見るので `/root2` は `/root` 配下と判定されない
+fn is_under(root: &Path, target: &Path) -> bool {
+    target.starts_with(root)
+}
+
+/// 存在しないパスでも判定できる形にして返す。
+///
+/// **ENOENT を `not_found` のまま通し、必ず `path` を載せる。**
+/// `invalid_path` に丸めると、画面には「その場所は扱えません」とだけ出て
+/// どのフォルダの話か分からず、tier が `danger` なので「再読み込み」の導線も消える
+/// （ワークスペースを Finder で消したときに一番よく踏む）
+fn canonicalize_for_guard(target: &Path) -> Result<PathBuf, FsError> {
+    let attach =
+        |e: std::io::Error| FsError::from(e).with_path(target.to_string_lossy().to_string());
+
+    if target.exists() {
+        return fs::canonicalize(target).map_err(attach);
+    }
+    let parent = target.parent().ok_or_else(|| {
+        FsError::new(FsErrorCode::InvalidPath, "no parent")
+            .with_path(target.to_string_lossy().to_string())
+    })?;
+    let name = target.file_name().ok_or_else(|| {
+        FsError::new(FsErrorCode::InvalidPath, "no filename")
+            .with_path(target.to_string_lossy().to_string())
+    })?;
+    Ok(fs::canonicalize(parent).map_err(attach)?.join(name))
+}
+
 /// 与えられた target が AppConfig.root_dir 配下にあるか検証する。
-/// target が存在しない場合は、親ディレクトリを canonicalize して合成する。
+///
+/// **存在確認より先に呼ぶ。** 後ろに置くと、root 外のパスが在るかどうかを
+/// 返ってくる code（`not_found` か `invalid_path` か）で判別できてしまう。
+/// 先に置いても、失敗には `canonicalize_for_guard` が `path` を載せるので
+/// どのパスの話かは画面に残る。
 ///
 /// **`root_dir` が未設定なら、この関門は無条件で開く。**
 /// ワークスペースを選ぶ前に起きるので UI からは踏めないが、
 /// webview 側から `invoke` を直に呼べばどのパスでも通る。
-/// 塞ぐなら「未設定＝どのパスも許可しない」に倒すことになる → issue #215
+/// `save_config` も `root_dir` を無検証で受けるので、2回の `invoke` で
+/// この関門は開けられる。ここが止めているのは UI 側の取り違えと壊れたパスであって、
+/// webview を信用しない前提の防壁ではない → issue #215
 pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<(), FsError> {
     let Some(root) = load_root_dir(app)? else {
         return Ok(());
     };
-    let canonical_root = fs::canonicalize(&root).map_err(|e| {
-        FsError::new(
-            FsErrorCode::InvalidPath,
-            format!("root_dir canonicalize: {e}"),
-        )
-    })?;
+    let canonical_root = canonicalize_for_guard(&root)?;
+    let canonical_target = canonicalize_for_guard(target)?;
 
-    let canonical_target = if target.exists() {
-        fs::canonicalize(target).map_err(FsError::from)?
-    } else {
-        let parent = target
-            .parent()
-            .ok_or_else(|| FsError::new(FsErrorCode::InvalidPath, "no parent"))?;
-        let name = target
-            .file_name()
-            .ok_or_else(|| FsError::new(FsErrorCode::InvalidPath, "no filename"))?;
-        let parent_canon = fs::canonicalize(parent).map_err(FsError::from)?;
-        parent_canon.join(name)
-    };
-
-    if !canonical_target.starts_with(&canonical_root) {
+    if !is_under(&canonical_root, &canonical_target) {
         return Err(
             FsError::new(FsErrorCode::InvalidPath, "path is outside project root")
                 .with_path(target.to_string_lossy().to_string()),
@@ -185,6 +206,19 @@ mod tests {
                 "{name:?} を通してはいけない"
             );
         }
+    }
+
+    /// 名前の前方一致で見ると `/root2` が `/root` 配下になる。
+    /// `Path::starts_with` は成分単位なのでそうならない、を固定する
+    #[test]
+    fn treats_the_root_as_a_boundary_of_path_segments() {
+        let root = Path::new("/root");
+
+        assert!(is_under(root, Path::new("/root")));
+        assert!(is_under(root, Path::new("/root/a/b.kif")));
+        assert!(!is_under(root, Path::new("/root2/a.kif")));
+        assert!(!is_under(root, Path::new("/etc/passwd")));
+        assert!(!is_under(root, Path::new("/")));
     }
 
     #[test]

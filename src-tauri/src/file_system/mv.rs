@@ -7,9 +7,12 @@ use crate::file_system::utils::{ensure_not_exists, validate_basename, validate_u
 
 use super::utils::is_kifu_file;
 
-// この4つは**既存のパス(src)と行き先(dest)の2つを同時に受ける**唯一のコマンド群。
-// root 配下かの関門は両方に要る。dest だけだと root 外から引き込め、
-// src だけだと root 外へ出せる
+// 行き先を呼び出し側から受けるのは `mv_kifu_file` / `mv_directory` の2つ。
+// `rename_*` の行き先は `src.parent().join(name)` で導出する（`validate_basename` が
+// 区切り文字を弾くので、src が root 配下なら行き先も必ず root 配下になる）。
+//
+// **関門はどれも存在確認より先に置く。** 後ろに置くと、root 外のパスが在るかどうかを
+// 返ってくる code で判別できてしまう。順序の理由は `validate_under_root` に書いてある
 
 #[command]
 pub fn rename_kifu_file<R: Runtime>(
@@ -19,12 +22,10 @@ pub fn rename_kifu_file<R: Runtime>(
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&file_path);
 
-    // 存在確認を先に置く。root 検査を先にすると、親ごと消えた場合に
-    // canonicalize が ENOENT で落ち、どのファイルの話かが表示から消える
+    validate_under_root(&app, &src)?;
     if !src.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
-    validate_under_root(&app, &src)?;
     if !src.is_file() {
         return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
             .with_path(src.to_string_lossy().to_string()));
@@ -68,12 +69,10 @@ pub fn mv_kifu_file<R: Runtime>(
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&file_path);
 
-    // 存在確認を先に置く。root 検査を先にすると、親ごと消えた場合に
-    // canonicalize が ENOENT で落ち、どのファイルの話かが表示から消える
+    validate_under_root(&app, &src)?;
     if !src.exists() {
         return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
-    validate_under_root(&app, &src)?;
     if !src.is_file() {
         return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
             .with_path(src.to_string_lossy().to_string()));
@@ -86,8 +85,6 @@ pub fn mv_kifu_file<R: Runtime>(
     }
 
     let dest_dir = PathBuf::from(&dest_dir);
-    // 存在確認より先に通す。後ろに置くと、root 外のパスの有無を
-    // invalid_destination か invalid_path かで判別できてしまう
     validate_under_root(&app, &dest_dir)?;
     if !dest_dir.exists() || !dest_dir.is_dir() {
         return Err(FsError::new(
@@ -130,13 +127,12 @@ pub fn rename_directory<R: Runtime>(
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&dir_path);
 
-    // 存在確認を先に置く（上と同じ理由）
+    validate_under_root(&app, &src)?;
     if !src.exists() {
         return Err(
             FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
-    validate_under_root(&app, &src)?;
     if !src.is_dir() {
         return Err(
             FsError::new(FsErrorCode::InvalidType, "path is not a directory")
@@ -168,13 +164,12 @@ pub fn mv_directory<R: Runtime>(
 ) -> Result<String, FsError> {
     let src = PathBuf::from(&dir_path);
 
-    // 存在確認を先に置く（上と同じ理由）
+    validate_under_root(&app, &src)?;
     if !src.exists() {
         return Err(
             FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
-    validate_under_root(&app, &src)?;
     if !src.is_dir() {
         return Err(
             FsError::new(FsErrorCode::InvalidType, "path is not a directory")
@@ -183,7 +178,6 @@ pub fn mv_directory<R: Runtime>(
     }
 
     let dest_parent = PathBuf::from(&dest_parent_dir);
-    // 存在確認より先に通す（上と同じ理由）
     validate_under_root(&app, &dest_parent)?;
     if !dest_parent.exists() || !dest_parent.is_dir() {
         return Err(FsError::new(
