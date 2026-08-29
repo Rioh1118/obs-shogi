@@ -28,8 +28,8 @@ const SCALED_PROPERTIES = new Set([
 const BASELINE = {
   "font-size": 252,
   "border-radius": 179,
-  spacing: 527,
-  elevation: 78,
+  spacing: 529,
+  elevation: 80,
   motion: 84,
   indirect: 53,
 };
@@ -55,20 +55,23 @@ function scssFiles(dir: string): string[] {
   });
 }
 
-/** rem / px / em の直値。`0` は単位が無いのでここには掛からない */
-const RAW_LENGTH = /(?<![\w$.-])\d*\.?\d+(rem|px|em)\b/;
+/**
+ * rem / px / em の直値。`0` は単位が無いのでここには掛からない。
+ * 符号を含めて拾う。負のマージンを抜け道にしないため
+ */
+const RAW_LENGTH = /(?<![\w$.])-?\d*\.?\d+(rem|px|em)\b/;
 
 /** 角丸は `999px`（pill）と `50%`（円）にも $radius-pill / $radius-circle という寄せ先がある */
-const RAW_RADIUS = /(?<![\w$.-])\d*\.?\d+(rem|px|em|%)/;
+const RAW_RADIUS = /(?<![\w$.])-?\d*\.?\d+(rem|px|em|%)/;
 
 /** モーションの直値。時間は長さと単位が違うので別に見る */
-const RAW_DURATION = /(?<![\w$.-])\d*\.?\d+m?s\b/;
+const RAW_DURATION = /(?<![\w$.])-?\d*\.?\d+m?s\b/;
 
 /**
  * ローディングの反復は秒単位で回り続ける別系統なので、$duration-* の寄せ先が無い。
  * 実測では 1s 以上がそれにあたる
  */
-const LOOPING_ANIMATION = /(?<![\w$.-])(?:[1-9]\d*(?:\.\d+)?s|\d{4,}ms)\b/;
+const LOOPING_ANIMATION = /(?<![\w$.])-?(?:[1-9]\d*(?:\.\d+)?s|\d{4,}ms)\b/;
 
 /**
  * トークン参照を取り除いた残り。混在した宣言（`padding: index.$space-2 1.37rem`）から
