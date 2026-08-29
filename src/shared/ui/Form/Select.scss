@@ -63,8 +63,8 @@
   }
 }
 
-/* ========== dark theme (via parent .form--dark) ========== */
-.form--dark {
+// 面は暗い側だけ（ADR-0005 決定3）
+.form {
   .form__select-button {
     color: index.$color-text-light-1;
     background-color: rgba(index.$color-white, 0.08);

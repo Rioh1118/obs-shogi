@@ -25,9 +25,9 @@ function isTopCard(card: HTMLElement): boolean {
 
 type ModalTheme = "light" | "dark";
 type ModalVariant = "dialog" | "workspace";
-type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
+type ModalSize = "sm" | "md" | "lg" | "xl";
 type ModalChrome = "card" | "none";
-type ModalPadding = "none" | "sm" | "md";
+type ModalPadding = "none" | "md";
 type ModalScroll = "card" | "content" | "none";
 
 interface ModalProps {
