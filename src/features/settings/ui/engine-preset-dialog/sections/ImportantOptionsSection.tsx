@@ -99,8 +99,10 @@ export default function ImportantOptionsSection(props: {
 
           {showMultiPvCustom && (
             <div className="presetDialog__stepper">
+              {/* 数を合わせるまで連続で押す場所。押すたびに浮き沈みすると目が疲れる */}
               <Button
                 size="sm"
+                motion={false}
                 onClick={() => onChangeMultiPv(multiPv - 1)}
                 disabled={multiPv <= MULTIPV_MIN}
               >
@@ -119,6 +121,7 @@ export default function ImportantOptionsSection(props: {
 
               <Button
                 size="sm"
+                motion={false}
                 onClick={() => onChangeMultiPv(multiPv + 1)}
                 disabled={multiPv >= MULTIPV_MAX}
               >
