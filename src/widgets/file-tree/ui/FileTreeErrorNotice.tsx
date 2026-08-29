@@ -8,7 +8,7 @@ interface Props {
   onDismiss?: () => void;
   isRetrying?: boolean;
   /**
-   * 読み直しでは直らない失敗のときに出す逃げ道。
+   * ツリーが1本も無いときの逃げ道。
    * 何をすれば直るかは失敗ごとに違うので、動作ごと受け取る（ADR-0004）。
    */
   fallback?: { label: string; run: () => void };
@@ -17,11 +17,16 @@ interface Props {
 /**
  * ファイル操作とツリー取得の失敗を、復帰路つきで出す。
  *
- * 出すボタンは段が決める。読み直しても直らない失敗に再読み込みを出すと、
+ * 再読み込みを出すかは段が決める。読み直しても直らない失敗に出すと、
  * 押しても何も変わらないので利用者は押し続ける。
  *
- * 復帰路は読み直しの1本だけ。失敗した操作の内容は state に残らないので
- * （`already_exists` のみ `conflict` として保持される）、同じ操作はやり直せない。
+ * 逃げ道は段では決めない。**渡されているなら段に関わらず並べる。**
+ * ルートが消えたときの `not_found` は「読み直せば追いつく」ので `warning` だが、
+ * 読み直す先が消えているので必ず失敗する。段で切ると、この一番よく起きる
+ * 経路だけが行き止まりになる。
+ *
+ * 失敗した操作そのものはやり直せない。内容が state に残らないため
+ * （`already_exists` のみ `conflict` として保持される）。
  */
 export default function FileTreeErrorNotice({
   error,
@@ -30,7 +35,7 @@ export default function FileTreeErrorNotice({
   isRetrying,
   fallback,
 }: Props) {
-  const tier = fsErrorTier(error.code);
+  const canRetry = fsErrorTier(error.code) === "warning";
 
   return (
     <FsErrorView
@@ -42,12 +47,13 @@ export default function FileTreeErrorNotice({
               閉じる
             </Button>
           )}
-          {tier !== "warning" && fallback && (
-            <Button tone="primary" onClick={fallback.run}>
+          {/* 両方出るときは、直る見込みのある読み直しを主にする */}
+          {fallback && (
+            <Button tone={canRetry ? "neutral" : "primary"} onClick={fallback.run}>
               {fallback.label}
             </Button>
           )}
-          {tier === "warning" && (
+          {canRetry && (
             <Button tone="primary" onClick={onRetry} disabled={isRetrying}>
               {isRetrying ? "読み込み中..." : "再読み込み"}
             </Button>

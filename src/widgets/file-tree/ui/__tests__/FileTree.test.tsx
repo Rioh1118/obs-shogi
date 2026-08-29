@@ -84,6 +84,8 @@ const TREE = { path: "/root", name: "root" };
 const IO_ERROR: FsError = { code: "io", message: "os error 5", path: "/root/a.kif" };
 // 読み直しても結果が変わらない失敗。原因は権限や入力の側にある
 const DENIED: FsError = { code: "permission_denied", message: "denied", path: "/root/a.kif" };
+// ルートごと消えた。Rust が返すのはこれ。段は warning だが読み直す先が無い
+const ROOT_GONE: FsError = { code: "not_found", message: "root is missing", path: "/root" };
 const BAD_NAME: FsError = {
   code: "invalid_name_separator",
   message: "name contains a path separator",
@@ -281,6 +283,26 @@ describe("段による出し分け", () => {
 
     // 読み直しても直らないので再読み込みは出ない。閉じる先のツリーも無い。
     // ここで導線が無いとサイドバーの中で行き止まりになる
+    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    await act(async () => {
+      screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
+    });
+
+    expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
+  });
+
+  /**
+   * ルートごと消えたときに Rust が返すのは `not_found`。段は `warning` なので、
+   * 逃げ道を段で切ると**実際に一番よく起きる経路だけ**が行き止まりになる。
+   * 読み直す先が消えているので、再読み込みは何度押しても同じ失敗に戻る。
+   */
+  test("ルートが消えたときも、ワークスペースを選び直せる", async () => {
+    stub.fileTree = null;
+    stub.error = ROOT_GONE;
+
+    mount();
+
+    expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
     await act(async () => {
       screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
     });
