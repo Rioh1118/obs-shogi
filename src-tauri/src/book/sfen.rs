@@ -113,14 +113,15 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
         return Err(invalid("手番が b でも w でもない"));
     }
 
-    // 手数は落とすが、書かれているなら数値であることは見る。
-    // ここを素通しにすると `moves` の検査が手数の位置で素通りする。
     if let Some(ply) = tokens.next() {
+        // 手数の位置に来た moves は、後ろの reject_rest まで届かないのでここで見る。
         if ply == "moves" {
             return Err(invalid(
                 "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
             ));
         }
+        // 手数はキーから落とすが、数値でないものを黙って落とすと、書き間違えた
+        // 局面が正しいキーとして通ってしまう。
         if ply.parse::<u32>().is_err() {
             return Err(invalid(&format!("手数が数値でない: {ply}")));
         }
