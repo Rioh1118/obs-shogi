@@ -65,6 +65,8 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 - `JKFPlayer.goto(tesuu, forkPointers)` は goto 後に `tesuu` が一致しなければ stale として扱う
 - JSX 内の全角スペースは `no-irregular-whitespace` で lint エラーになる → `{"　"}` で囲む
 - SCSS トークンは `@use "@/index.scss" as index;` で読み込む
+- SCSS の寸法は直値を書かず `src/index.scss` のトークンから選ぶ。**文字サイズはサイズ名でなく用途名**
+  （`$font-hint` / `$font-aux` / `$font-body` …）。直値が増えると `npm run test` が落ちる（ADR-0003）
 - `main` に注釈機能（marks / file-meta / normalizedTree）は**存在しない**。未マージブランチの識別子を既存として参照しないこと
 
 ## 進め方

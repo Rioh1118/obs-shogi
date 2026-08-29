@@ -17,6 +17,17 @@ updates:
       - dependency-name: vite
       - dependency-name: "@voidzero-dev/*"
     groups:
+      # postcss と postcss-scss は peer で結ばれている（postcss-scss@4 は postcss ^8.4.29）。
+      # postcss だけが major で先に上がると peer を割り、入れ子か解決失敗になる。
+      # vite-plus で踏んだのと同じ形なので、major も含めて1本にまとめる。
+      postcss-toolchain:
+        patterns:
+          - postcss
+          - postcss-scss
+        update-types:
+          - minor
+          - patch
+          - major
       # パッチとマイナーは1本にまとめる。個別に見る価値が無いため。
       minor-and-patch:
         update-types:

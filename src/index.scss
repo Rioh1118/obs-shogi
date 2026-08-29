@@ -15,16 +15,80 @@ $color-text-dark-1: #0e1110;
 $color-text-dark-2: #3a3a3a;
 
 // font
-$default-font-size: 1.6rem;
+// 段は用途で選ぶ。サイズで選ぶと段の中で値が再び割れる（ADR-0003）
+$font-hint: 1.1rem; // 注記、件数、バッジ
+$font-aux: 1.2rem; // 説明文、副題、パス
+$font-body: 1.3rem; // 本文とフォームのコントロール。body の基準
+$font-lead: 1.4rem; // リード文、強調した本文、入力欄
+$font-section: 1.6rem; // 小見出し、カードの題
+$font-title: 1.8rem; // ダイアログ・ペインの題
+$font-display: 2.4rem; // 画面の主題
+$font-hero: 4rem; // ガイド画面の導入
+
+$font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+
+// space
+// 役割名を付けない。役割と寸法が一対一に対応しないため。
+// 0.2rem 刻みを 2.4rem まで欠けなく張る。段を飛ばすと寄せ先が2つに割れる
+$space-1: 0.2rem;
+$space-2: 0.4rem;
+$space-3: 0.6rem;
+$space-4: 0.8rem;
+$space-5: 1rem;
+$space-6: 1.2rem;
+$space-7: 1.4rem;
+$space-8: 1.6rem;
+$space-9: 1.8rem;
+$space-10: 2rem;
+$space-11: 2.2rem;
+$space-12: 2.4rem;
+
+// radius
+// 間隔と同じ連番。**同じ N は同じ値**にしてある。
+// 途中から始めると $space-6 と $radius-6 が別の値になり、
+// どちらもトークン参照なのでラチェットもレビューも気づけない
+$radius-1: 0.2rem;
+$radius-2: 0.4rem;
+$radius-3: 0.6rem;
+$radius-4: 0.8rem;
+$radius-5: 1rem;
+$radius-6: 1.2rem;
+$radius-7: 1.4rem;
+$radius-8: 1.6rem;
+$radius-9: 1.8rem;
+$radius-pill: 999px; // 文字サイズに従属しないので rem 化しない
+$radius-circle: 50%;
+
+// motion
+// 実測で8件以上ある値には段を置く。段を欠くと、たとえば 140ms が
+// 120 と 160 のどちらにも倒せてしまい、寄せ先が2つに割れる。
+// 件数はここに書かない。移行で減るので、書くと必ず腐る（実測は ADR-0003 §4）
+$duration-1: 80ms;
+$duration-2: 100ms;
+$duration-3: 120ms;
+$duration-4: 140ms;
+$duration-5: 150ms;
+$duration-6: 160ms;
+$duration-7: 200ms;
+$ease: ease;
+
+// ローディングの反復は秒単位の別系統なのでここには置かない
 
 // layout
 $sidebar-width: 23%;
 $titlebar-height: 2.6rem;
 
-$shadow-1:
+// elevation
+// 段は浮き上がりの高さでなく、何が浮いているかで選ぶ
+// パネル・カード。棋譜ペイン、盤の操作列、付箋、設定パネルが乗る
+$shadow-panel:
   0 1px 2px rgba(0, 0, 0, 0.24),
   0 10px 24px rgba(0, 0, 0, 0.18);
-$shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28);
+// ポップオーバー・メニュー。暗い面の上に出るので、パネルより強く落とす
+$shadow-overlay:
+  0 10px 30px rgba(0, 0, 0, 0.45),
+  0 2px 10px rgba(0, 0, 0, 0.35);
+$shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
 
 $stroke-weak: rgba($color-white, 0.06);
 $stroke: rgba($color-white, 0.1);
@@ -32,30 +96,4 @@ $stroke-strong: rgba($color-white, 0.16);
 
 $focus-ring: rgba($color-secondary-dark, 0.85);
 
-*,
-*::after,
-*::before {
-  margin: 0;
-  padding: 0;
-  box-sizing: inherit;
-}
-
-html {
-  font-size: 62.5%; // 1rem = 10px
-}
-
-body {
-  font-family: "Noto Sans JP", "sans-serif";
-  font-weight: 400;
-
-  box-sizing: border-box;
-}
-
-* {
-  scrollbar-width: none; // Firefox
-  -ms-overflow-style: none; // IE and Edge
-
-  &::-webkit-scrollbar {
-    display: none; // Chrome, Safari, Opera
-  }
-}
+// このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
