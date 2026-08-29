@@ -1,15 +1,11 @@
-import { JKFPlayer } from "json-kifu-format";
+import type { JKFPlayer } from "json-kifu-format";
 import type { KifuCursor } from "../model/cursor";
-import { normalizeForkPointers } from "../model/cursor";
+import { buildPlayer } from "./buildPlayer";
 
-export function computeLeafTesuu(jkf: JKFPlayer, cursor: KifuCursor | null): number {
-  const sim = new JKFPlayer(jkf.kifu);
-
-  if (cursor) {
-    sim.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
-  } else {
-    sim.goto(jkf.tesuu);
-  }
+export function computeLeafTesuu(player: JKFPlayer, cursor: KifuCursor | null): number {
+  const sim = buildPlayer(player.kifu, cursor);
+  // cursor が無いときは、渡された player の現在地から数える。
+  if (!cursor) sim.goto(player.tesuu);
 
   const plannedMap = new Map<number, number>();
   for (const p of cursor?.forkPointers ?? []) {
