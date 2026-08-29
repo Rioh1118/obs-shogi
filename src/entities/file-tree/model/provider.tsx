@@ -279,9 +279,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = res.data;
 
-      const reload = await loadFileTree();
-      if (!reload.success) return reload;
-
+      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
+      void loadFileTree();
       return Ok(undefined);
     },
     [deferFailure, loadFileTree],
@@ -307,9 +307,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = res.data;
 
-      const reload = await loadFileTree();
-      if (!reload.success) return reload;
-
+      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
+      void loadFileTree();
       return Ok(undefined);
     },
     [loadFileTree, deferFailure],
@@ -328,9 +328,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
       pendingRevealPathRef.current = res.data;
 
-      const reload = await loadFileTree();
-      if (!reload.success) return reload;
-
+      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
+      void loadFileTree();
       return Ok(undefined);
     },
     [deferNameFailure, loadFileTree],
@@ -374,9 +374,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         dispatch({ type: "kifu_closed" });
       }
 
-      const reload = await loadFileTree();
-      if (!reload.success) return reload;
-
+      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
+      void loadFileTree();
       return Ok(undefined);
     },
     [loadFileTree, pushError, state.selectedNode, state.activeKifuPath],
@@ -414,9 +414,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Ok(undefined);
       }
 
-      const reload = await loadFileTree();
-      if (!reload.success) return reload;
-
+      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
+      void loadFileTree();
       return Ok(undefined);
     },
     [deferNameFailure, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
@@ -450,9 +450,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const nextPath = res.data;
       reconcilePathMutation(node.path, nextPath);
 
-      const reload = await loadFileTree();
-      if (!reload.success) return reload;
-
+      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
+      void loadFileTree();
       return Ok(undefined);
     },
     [handleFailure, reconcilePathMutation, loadFileTree],
