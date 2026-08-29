@@ -101,9 +101,9 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     // いま名前以外の失敗が入力欄の下に出ないのは、ここで編集行ごと消えるため
     // （`widgets/file-tree/lib/commitName` がその前提で絞っている）
     case "error":
-      // 衝突の解決中に失敗したときは、そのダイアログの中で伝える。ここで積むと
-      // モーダルが2枚重なり、Escape は先に登録された下のダイアログだけを閉じる。
-      // 保留していた解決操作を残したまま、通知だけが取り残される
+      // 衝突の解決中に失敗したときは、そのダイアログの中で伝える（`submitError`）。
+      // ここで積むと対話の裏に別の失敗の箱が重なり、解決操作の続きが
+      // どちらの箱に属するか読めなくなる
       if (state.conflict) {
         return { ...state, isLoading: false };
       }

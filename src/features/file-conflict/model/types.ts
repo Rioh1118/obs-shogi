@@ -10,8 +10,7 @@ export type ConflictCopy = {
   title: string;
   description: string;
   cancelLabel: string;
-  renameLabel?: string;
-  canRename: boolean;
+  renameLabel: string;
 };
 
 export type FileConflictDialogProps = {

@@ -12,7 +12,6 @@ export function getConflictCopy(conflict: FileConflictState): ConflictCopy {
         description: "新しいファイルを作成しようとしましたが、保存先に同名の項目があります。",
         cancelLabel: "キャンセル",
         renameLabel: "名前を変える",
-        canRename: true,
       };
 
     case "import_file":
@@ -22,7 +21,6 @@ export function getConflictCopy(conflict: FileConflictState): ConflictCopy {
           "インポート先に同名のファイルがあります。名前を見直してもう一度保存してください。",
         cancelLabel: "キャンセル",
         renameLabel: "名前を変える",
-        canRename: true,
       };
 
     case "create_directory":
@@ -31,7 +29,6 @@ export function getConflictCopy(conflict: FileConflictState): ConflictCopy {
         description: "新しいフォルダを作成しようとしましたが、保存先に同名の項目があります。",
         cancelLabel: "キャンセル",
         renameLabel: "名前を変える",
-        canRename: true,
       };
 
     case "rename_file":
@@ -42,7 +39,6 @@ export function getConflictCopy(conflict: FileConflictState): ConflictCopy {
           "名前を変更しようとしましたが、変更先に同名の項目があります。別の名前を入力してください。",
         cancelLabel: "キャンセル",
         renameLabel: "名前を変える",
-        canRename: true,
       };
 
     case "move_file":
@@ -52,7 +48,6 @@ export function getConflictCopy(conflict: FileConflictState): ConflictCopy {
         description: "移動先で名前が重複しています。別の名前を指定してそのまま移動できます。",
         cancelLabel: "キャンセル",
         renameLabel: "別名で移動",
-        canRename: true,
       };
   }
 }

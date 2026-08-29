@@ -7,7 +7,7 @@ import type { FsError } from "@/entities/file-tree";
 /**
  * 作成とインポートは、失敗を出す場所を自分で持つ。
  *
- * provider の `deferFailure` は衝突以外を積まない。フォームが `result.error` を
+ * provider の `failToCaller` は衝突以外を積まない。フォームが `result.error` を
  * 捨てると失敗がどこにも出ず、押しても何も起きない画面になる。
  */
 

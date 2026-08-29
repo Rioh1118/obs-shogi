@@ -52,8 +52,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   const requestedName = getRequestedName(conflict);
   const trimmed = draftName.trim();
 
-  const canSubmit =
-    copy.canRename && !isSubmitting && trimmed.length > 0 && trimmed !== requestedName;
+  const canSubmit = !isSubmitting && trimmed.length > 0 && trimmed !== requestedName;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -100,43 +99,41 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
 
         <ConflictMeta conflict={conflict} />
 
-        {copy.canRename && (
-          <section className="file-conflict__editor">
-            <label className="file-conflict__editorLabel" htmlFor="file-conflict-name">
-              新しい名前
-            </label>
+        <section className="file-conflict__editor">
+          <label className="file-conflict__editorLabel" htmlFor="file-conflict-name">
+            新しい名前
+          </label>
 
-            <input
-              id="file-conflict-name"
-              ref={inputRef}
-              className="file-conflict__input"
-              value={draftName}
-              onChange={(e) => setDraftName(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              disabled={isSubmitting}
-            />
+          <input
+            id="file-conflict-name"
+            ref={inputRef}
+            className="file-conflict__input"
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+            disabled={isSubmitting}
+          />
 
-            {submitError ? (
-              <p className="file-conflict__error" role="alert">
-                {describeFsError(submitError.code)}
-              </p>
-            ) : (
-              <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
-            )}
-          </section>
-        )}
+          {submitError ? (
+            <p className="file-conflict__error" role="alert">
+              {describeFsError(submitError.code)}
+            </p>
+          ) : (
+            <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
+          )}
+        </section>
 
         <div className="file-conflict__actions">
           <Button onClick={onCancel} disabled={isSubmitting}>
             {copy.cancelLabel}
           </Button>
 
-          {copy.canRename && (
-            <Button type="submit" tone="primary" disabled={!canSubmit}>
-              {copy.renameLabel}
-            </Button>
-          )}
+          {/* 処理中は isLoading で示す（ADR-0005 決定1）。disabled だけだと
+              aria-busy が立たず、カード内の押せるものが0になる */}
+          <Button type="submit" tone="primary" isLoading={isSubmitting} disabled={!canSubmit}>
+            {copy.renameLabel}
+          </Button>
         </div>
       </form>
     </Modal>
