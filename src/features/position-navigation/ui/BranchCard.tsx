@@ -1,4 +1,4 @@
-import { formatMove } from "@/features/position-navigation/lib/shogi-format";
+import { readableMove } from "@/entities/kifu/lib/readableMove";
 import { memo } from "react";
 import "./BranchCard.scss";
 import type { BranchOption } from "@/entities/kifu/model/branch";
@@ -19,7 +19,7 @@ function BranchCard({ branch, index, selected, onClick, ref }: Props) {
   const isMain = index === 0;
   const leftLabel = isMain ? "本譜" : `変化${index}`;
   const rightText = branch.move
-    ? formatMove(branch.move)
+    ? readableMove(branch.move)
     : isMain
       ? "次の手"
       : `${branch.tesuu}手目`;
