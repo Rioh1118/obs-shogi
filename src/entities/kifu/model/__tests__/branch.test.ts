@@ -40,6 +40,15 @@ describe("BranchIndex から forkIndex に戻す", () => {
   test("変化は1ずれた添字になる", () => {
     expect(forkIndexFromBranchIndex(branchIndexFromForkIndex(2))).toBe(2);
   });
+
+  test("整数でない値も throw する（作る側と同じ値域を弾く）", () => {
+    // 片側だけ検査があると、非整数が forkIndex として ForkPointer に残り、
+    // 遠くの resolveLine で表に出る。
+    for (const b of [0.5, NaN, Infinity, -1]) {
+      expect(() => forkIndexFromBranchIndex(b as never)).toThrow();
+      expect(() => branchIndexFromForkIndex(b)).toThrow();
+    }
+  });
 });
 
 describe("assertBranchIndex", () => {

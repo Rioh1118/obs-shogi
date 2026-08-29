@@ -109,13 +109,16 @@ export function branchLabel(forkIndex?: number): string {
 /**
  * `IMoveFormat.forks` の添字に戻す
  *
- * 本譜は `forks` の外にいて添字を持たないので、`MAIN_LINE` を渡すと throw する。
- * 範囲外の値を黙って本譜に丸めないための境界。
+ * 本譜は `forks` の外にいて添字を持たない。`MAIN_LINE` や負の値を通すと
+ * `forks[-1]` のような添字が `ForkPointer` に残り、遠くの `resolveLine` で表に出る。
+ * `branchIndexFromForkIndex` と対で、本譜と変化の境界を跨ぐ変換を両向きとも止める。
  *
- * @throws {Error} `MAIN_LINE` 以下を渡したとき
+ * @throws {Error} `MAIN_LINE` 以下のとき、整数でないとき
  */
 export function forkIndexFromBranchIndex(b: BranchIndex): number {
-  if (b <= 0) throw new Error("branchIndex=0 has no forkIndex");
+  if (!Number.isInteger(b) || b <= MAIN_LINE) {
+    throw new Error(`branchIndex ${b} has no forkIndex`);
+  }
   return b - 1;
 }
 
@@ -123,8 +126,8 @@ export function forkIndexFromBranchIndex(b: BranchIndex): number {
  * `IMoveFormat.forks` の添字を分岐一覧の位置にする。本譜が0を占めるぶん1ずれる。
  *
  * 負を弾くのは、`-1` が `MAIN_LINE` に化けて「範囲外の値」が「本譜」として
- * 通ってしまうため。逆向きの `forkIndexFromBranchIndex` が防いでいるのと同じ丸めを、
- * こちら側でも起こさせない。
+ * 通ってしまうため。`forkIndexFromBranchIndex` と対で、本譜と変化の境界を跨ぐ変換を
+ * 両向きとも止める。
  *
  * @throws {Error} 0以上の整数でないとき。brand を「安全に作れた」ことの保証にするための境界
  */
@@ -149,9 +152,8 @@ export function branchIndexFromSelection(forkIndex: number | null): BranchIndex 
 /**
  * 一覧で1つ上/下に並ぶ分岐
  *
- * 一覧の端では範囲外の値を返す。下限（`MAIN_LINE` 未満）は呼び出し側が捨て、
- * 上限は `swapBranchesInKifu` が `assertBranchIndex` で弾く。
- * ここでは候補数を知らないので上限を見られない。
+ * 一覧の端では `MAIN_LINE` 未満や候補数以上の値を返す。ここでは候補数を知らないので
+ * 上限を見られない。**`BranchIndex` として使う前に `assertBranchIndex` を通すこと。**
  */
 export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchIndex {
   return (dir === "up" ? b - 1 : b + 1) as BranchIndex;
@@ -160,8 +162,8 @@ export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchI
 /**
  * 自分より前にある分岐が1つ削除されたあとの位置
  *
- * `MAIN_LINE` に対して呼ぶと範囲外の値を返す。その値を `setBranchIndex` に渡すと
- * `forkIndexFromBranchIndex` が throw するので、黙って本譜にはならない。
+ * `MAIN_LINE` に対して呼ぶと `MAIN_LINE` 未満の値を返す。`forkIndexFromBranchIndex` が
+ * それを throw で止めるので、黙って本譜には化けない。
  */
 export function branchIndexAfterRemoval(b: BranchIndex): BranchIndex {
   return (b - 1) as BranchIndex;
