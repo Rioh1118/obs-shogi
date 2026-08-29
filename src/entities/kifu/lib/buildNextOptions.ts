@@ -23,7 +23,8 @@ export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
 
   if (next.forks) {
     next.forks.forEach((forkLine, i) => {
-      // 空の変化は tsshogi の出口では作れないが、JKF を手で組む経路への保険。
+      // JKFData は parse の出口で空の変化を落としてある（sanitizeJkf）。
+      // ここは JKF を手で組む経路への保険。
       const forkFirst = forkLine?.[0];
       if (!forkFirst) return;
 
