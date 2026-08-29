@@ -484,8 +484,8 @@ mod tests {
         for board in [
             // 玉が9枚
             "KKKKKKKKK/9/9/9/9/9/9/9/9",
-            // 同じ側に玉が2枚
-            "3kk4/9/9/9/9/9/9/9/4K4",
+            // 同じ側に玉が2枚。合計は2枚なので、片側だけを見る検査でしか落ちない
+            "3kk4/9/9/9/9/9/9/9/9",
             // 歩が81枚
             "PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP",
         ] {
