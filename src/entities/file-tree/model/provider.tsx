@@ -507,9 +507,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       const trimmed = nextName.trim();
       if (!trimmed) {
-        const error = makeFsError("invalid_name_empty", "name is empty");
-        pushError(error);
-        return Err(error);
+        // 対話が開いている間 reducer は `error` を落とすので、積んでも出ない。
+        // 名前の失敗は対話の `submitError` が出す（ADR-0004 の F-14）
+        return Err(makeFsError("invalid_name_empty", "name is empty"));
       }
 
       const req = conflict.request;
@@ -549,6 +549,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         case "rename_directory": {
           const node = findNodeByPath(req.path);
           if (!node) {
+            // 対話を先に閉じてから積む。開いている間は reducer が `error` を落とす。
+            // 対象が消えている以上、この対話では直せないので通知へ送る
             const error = makeFsError("not_found", "rename target is missing", req.path);
             dispatch({ type: "conflict_closed" });
             pushError(error);
@@ -567,6 +569,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         case "move_directory": {
           const node = findNodeByPath(req.path);
           if (!node) {
+            // 対話を先に閉じてから積む（上と同じ理由）
             const error = makeFsError("not_found", "move target is missing", req.path);
             dispatch({ type: "conflict_closed" });
             pushError(error);
