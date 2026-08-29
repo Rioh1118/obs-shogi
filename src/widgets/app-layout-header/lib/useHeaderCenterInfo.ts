@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Color } from "shogi.js";
+import { turnGlyph, type TurnGlyph } from "@/shared/lib/turn";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import { useGame } from "@/entities/game";
 
@@ -21,7 +22,7 @@ export type HeaderCenterInfo = {
   isPlayersShown: boolean;
 
   hasBadges: boolean;
-  turnGlyph: "☗" | "☖";
+  turnGlyph: TurnGlyph;
   turnText: "先手番" | "後手番";
   tesuuText: string;
   totalText: string;
@@ -70,7 +71,7 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
     const total = loaded ? getTotalMoves() : 0;
 
     const isSenteTurn = turn === Color.Black;
-    const turnGlyph = isSenteTurn ? "☗" : "☖";
+    const glyph = turnGlyph(turn);
     const turnText = isSenteTurn ? "先手番" : "後手番";
 
     const tesuuText = loaded ? `${tesuu}手目` : "";
@@ -93,7 +94,7 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
       goteName,
       isPlayersShown,
       hasBadges: loaded,
-      turnGlyph,
+      turnGlyph: glyph,
       turnText,
       tesuuText,
       totalText,

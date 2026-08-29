@@ -5,16 +5,35 @@ import { JKFPlayer } from "json-kifu-format";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
-import { buildNextOptions, buildPreviewData } from "@/entities/position/lib/buildPreviewData";
-import { removeForkPointer, upsertForkPointer } from "@/features/position-navigation/lib/kifuPlan";
+import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
+import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
+import { truncatePlanFrom, upsertForkPointer } from "@/features/position-navigation/lib/kifuPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
 import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
-import type { Kind } from "shogi.js";
 import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
+
+/**
+ * プレビュー用に棋譜を辿る。辿れなければ null。
+ *
+ * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
+ * `goto` が throw する。呼び出し側はレンダ中なので、ここで拾わないと画面が消える。
+ */
+function gotoPreview(
+  player: JKFPlayer,
+  cursor: NavigationState["PreviewCursor"],
+): JKFPlayer | null {
+  const sim = new JKFPlayer(player.kifu);
+  try {
+    sim.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+    return sim;
+  } catch {
+    return null;
+  }
+}
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();
@@ -60,29 +79,27 @@ function PositionNavigationModal() {
     });
   }, [isOpen, gameState.cursor]);
 
-  const { previewData, options } = useMemo(() => {
+  const { previewData, options, unreachable } = useMemo(() => {
     if (!isOpen || !gameView.player) {
-      return { previewData: null, options: [] as BranchOption[] };
+      return { previewData: null, options: [] as BranchOption[], unreachable: false };
     }
 
-    const sim = new JKFPlayer(gameView.player.kifu);
-    sim.goto(
-      nav.PreviewCursor.tesuu,
-      appliedForkPointers(
-        {
-          ...nav.PreviewCursor,
-          tesuuPointer: "0,[]" as TesuuPointer, // TODO: これは参照されない変数
-        },
-        nav.PreviewCursor.tesuu,
-      ),
-    );
+    // 盤上で再生できない手を含む棋譜では goto が throw する。ここはレンダ中なので、
+    // 拾わないと React が root ごと unmount してウィンドウが白紙になる。
+    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
+    if (!sim) {
+      return {
+        previewData: null,
+        options: [] as BranchOption[],
+        unreachable: true,
+      };
+    }
 
-    const opts = buildNextOptions(sim);
-
-    const nodeId = sim.getTesuuPointer(nav.PreviewCursor.tesuu);
-    const pd = buildPreviewData(sim, nodeId);
-
-    return { previewData: pd, options: opts };
+    return {
+      previewData: buildPreviewData(sim, sim.getTesuuPointer(nav.PreviewCursor.tesuu)),
+      options: buildNextOptions(sim),
+      unreachable: false,
+    };
   }, [isOpen, gameView.player, nav.PreviewCursor]);
 
   const handleSelectBranch = useCallback(
@@ -106,15 +123,15 @@ function PositionNavigationModal() {
       const sel = options[prev.selectedBranchIndex];
       if (!sel) return prev;
 
-      let fps = prev.PreviewCursor.forkPointers;
-
-      if (sel.isMainLine) {
-        fps = removeForkPointer(fps, nextTe);
-      } else {
-        if (typeof sel.forkIndex === "number") {
-          fps = upsertForkPointer(fps, nextTe, sel.forkIndex);
-        }
-      }
+      // nextTe の選択を変える以上、その先の計画は捨てる。捨てないと、
+      // 変化を見て戻って選び直したあとに、見ていない枝へ盤が進む。
+      const fps = sel.isMainLine
+        ? truncatePlanFrom(prev.PreviewCursor.forkPointers, nextTe)
+        : upsertForkPointer(
+            truncatePlanFrom(prev.PreviewCursor.forkPointers, nextTe),
+            nextTe,
+            sel.forkIndex,
+          );
       return {
         PreviewCursor: { tesuu: nextTe, forkPointers: fps },
         selectedBranchIndex: 0,
@@ -138,17 +155,8 @@ function PositionNavigationModal() {
   const handleConfirm = useCallback(() => {
     if (!gameView.player) return;
 
-    const sim = new JKFPlayer(gameView.player.kifu);
-    sim.goto(
-      nav.PreviewCursor.tesuu,
-      appliedForkPointers(
-        {
-          ...nav.PreviewCursor,
-          tesuuPointer: "0,[]" as TesuuPointer,
-        },
-        nav.PreviewCursor.tesuu,
-      ),
-    );
+    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
+    if (!sim) return;
 
     const cursor: KifuCursor = {
       tesuu: nav.PreviewCursor.tesuu,
@@ -197,8 +205,6 @@ function PositionNavigationModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm, closeModal]);
 
-  const toKan = (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k;
-
   // ---- render ----
   if (!isOpen) return null;
 
@@ -215,19 +221,30 @@ function PositionNavigationModal() {
       <div className="position-navigation-modal">
         <PositionNavigationHeader
           previewData={previewData}
-          selectedBranchIndex={nav.selectedBranchIndex}
+          selectedBranch={options[nav.selectedBranchIndex]}
         />
         <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">
             <div className="position-navigation-modal__grid-left">
-              <PreviewPane previewData={previewData} toKan={toKan} />
+              <PreviewPane previewData={previewData} />
             </div>
             <div className="position-navigation-modal__grid-right">
-              <BranchList
-                branches={options}
-                selectedIndex={nav.selectedBranchIndex}
-                onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedBranchIndex: idx }))}
-              />
+              {unreachable ? (
+                <div className="branch-selector">
+                  <div className="branch-selector__empty">
+                    <p>
+                      この棋譜は{nav.PreviewCursor.tesuu}
+                      手目を盤上で再現できません。ここから先へは進めません。
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <BranchList
+                  branches={options}
+                  selectedIndex={nav.selectedBranchIndex}
+                  onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedBranchIndex: idx }))}
+                />
+              )}
             </div>
           </div>
         </main>

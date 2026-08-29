@@ -1,7 +1,11 @@
 import { JKFPlayer } from "json-kifu-format";
 import type { ForkPointer, KifuCursor } from "../model/cursor";
 
-export function appliedForkPointers(cursor: KifuCursor | null, tesuu: number): ForkPointer[] {
+/** 読むのは forkPointers だけ。ダミーの tesuuPointer を作らせないよう引数を狭めてある。 */
+export function appliedForkPointers(
+  cursor: Pick<KifuCursor, "forkPointers"> | null,
+  tesuu: number,
+): ForkPointer[] {
   const map = new Map<number, ForkPointer>();
   for (const p of cursor?.forkPointers ?? []) {
     if (p.te <= tesuu) map.set(p.te, p);

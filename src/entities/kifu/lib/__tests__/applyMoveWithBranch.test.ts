@@ -1,27 +1,29 @@
 import { describe, expect, test } from "vitest";
-import { JKFPlayer } from "json-kifu-format";
-import type { IJSONKifuFormat, IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import type { JKFPlayer } from "json-kifu-format";
+import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color } from "shogi.js";
 import { applyMoveWithBranch } from "../applyMoveWithBranch";
+import { readableMove } from "../readableMove";
+import { newGoldToTheSameSquarePlayer, newHiratePlayer } from "./fixtures";
 
-/** 平手初期局面の JKFPlayer を作る */
-function newHiratePlayer(): JKFPlayer {
-  const data: IJSONKifuFormat = {
-    header: {},
-    initial: { preset: "HIRATE" },
-    moves: [{}],
-  };
-  return new JKFPlayer(data);
-}
-
-/** 指定した手を順に inputMove していく (初期手順構築) */
+/**
+ * 指定した手を順に inputMove していく (初期手順構築)
+ *
+ * 手は必ず複製して渡す。applyMoveWithBranch / inputMove は渡された手をそのまま棋譜に
+ * 収め、正規化がそれを書き換えるため、共有した定数を渡すと後続のテストが汚れる。
+ */
 function play(jkf: JKFPlayer, moves: IMoveMoveFormat[]): void {
   for (const move of moves) {
-    const ok = jkf.inputMove(move);
+    const ok = jkf.inputMove({ ...move });
     if (!ok) {
       throw new Error(`inputMove failed at tesuu=${jkf.tesuu} for ${JSON.stringify(move)}`);
     }
   }
+}
+
+/** 手を複製してから適用する。理由は {@link play} と同じ。 */
+function apply(jkf: JKFPlayer, move: IMoveMoveFormat) {
+  return applyMoveWithBranch(jkf, { ...move });
 }
 
 const FU_27_TO_26: IMoveMoveFormat = {
@@ -59,6 +61,20 @@ const FU_57_TO_56: IMoveMoveFormat = {
   color: Color.Black,
 };
 
+/** 以下2つは同じ地点へ行く指し手と打ち。取り違えると issue #74 が再発する。 */
+const KI_49_TO_39: IMoveMoveFormat = {
+  from: { x: 4, y: 9 },
+  to: { x: 3, y: 9 },
+  piece: "KI",
+  color: Color.Black,
+};
+
+const KI_DROP_39: IMoveMoveFormat = {
+  to: { x: 3, y: 9 },
+  piece: "KI",
+  color: Color.Black,
+};
+
 describe("applyMoveWithBranch", () => {
   describe("A. 本線合流", () => {
     test("A1. 次手と完全一致 → forward(), 分岐なし", () => {
@@ -66,7 +82,7 @@ describe("applyMoveWithBranch", () => {
       play(jkf, [FU_27_TO_26]);
       jkf.goto(0);
 
-      const result = applyMoveWithBranch(jkf, { ...FU_27_TO_26 });
+      const result = apply(jkf, { ...FU_27_TO_26 });
 
       expect(result.usedExisting).toBe(true);
       expect(result.createdNew).toBe(false);
@@ -97,12 +113,12 @@ describe("applyMoveWithBranch", () => {
         color: Color.Black,
         promote: false,
       };
-      const r1 = applyMoveWithBranch(jkf, ascend);
+      const r1 = apply(jkf, ascend);
       expect(r1.createdNew).toBe(true);
 
       // 同位置で promote=true → 別 fork
       jkf.backward();
-      const r2 = applyMoveWithBranch(jkf, { ...ascend, promote: true });
+      const r2 = apply(jkf, { ...ascend, promote: true });
 
       expect(r2.createdNew).toBe(true);
       expect(r2.usedExisting).toBe(false);
@@ -116,12 +132,12 @@ describe("applyMoveWithBranch", () => {
       play(jkf, [FU_27_TO_26]);
 
       jkf.goto(0);
-      const r1 = applyMoveWithBranch(jkf, FU_77_TO_76);
+      const r1 = apply(jkf, FU_77_TO_76);
       expect(r1.createdNew).toBe(true);
       expect(jkf.kifu.moves[1].forks?.length).toBe(1);
 
       jkf.goto(0);
-      const r2 = applyMoveWithBranch(jkf, { ...FU_77_TO_76 });
+      const r2 = apply(jkf, { ...FU_77_TO_76 });
 
       expect(r2.usedExisting).toBe(true);
       expect(r2.createdNew).toBe(false);
@@ -134,13 +150,13 @@ describe("applyMoveWithBranch", () => {
       play(jkf, [FU_27_TO_26]);
 
       jkf.goto(0);
-      applyMoveWithBranch(jkf, FU_77_TO_76);
+      apply(jkf, FU_77_TO_76);
       jkf.goto(0);
-      applyMoveWithBranch(jkf, FU_57_TO_56);
+      apply(jkf, FU_57_TO_56);
       expect(jkf.kifu.moves[1].forks?.length).toBe(2);
 
       jkf.goto(0);
-      const r = applyMoveWithBranch(jkf, { ...FU_57_TO_56 });
+      const r = apply(jkf, { ...FU_57_TO_56 });
       expect(r.usedExisting).toBe(true);
       expect(jkf.kifu.moves[1].forks?.length).toBe(2);
       expect(jkf.tesuu).toBe(1);
@@ -150,7 +166,7 @@ describe("applyMoveWithBranch", () => {
   describe("C. 新規分岐追加 (#74 回帰テスト)", () => {
     test("C1. 末端で新規追加 → 本線末尾に追加 (forks ではない)", () => {
       const jkf = newHiratePlayer();
-      const r = applyMoveWithBranch(jkf, FU_27_TO_26);
+      const r = apply(jkf, FU_27_TO_26);
 
       expect(r.createdNew).toBe(true);
       expect(jkf.tesuu).toBe(1);
@@ -163,7 +179,7 @@ describe("applyMoveWithBranch", () => {
       play(jkf, [FU_27_TO_26]);
 
       jkf.goto(0);
-      const r = applyMoveWithBranch(jkf, FU_77_TO_76);
+      const r = apply(jkf, FU_77_TO_76);
 
       expect(r.createdNew).toBe(true);
       expect(r.usedExisting).toBe(false);
@@ -176,9 +192,9 @@ describe("applyMoveWithBranch", () => {
       play(jkf, [FU_27_TO_26]);
 
       jkf.goto(0);
-      applyMoveWithBranch(jkf, FU_77_TO_76); // fork[0]
+      apply(jkf, FU_77_TO_76); // fork[0]
       jkf.goto(0);
-      const r = applyMoveWithBranch(jkf, FU_57_TO_56); // fork[1]
+      const r = apply(jkf, FU_57_TO_56); // fork[1]
 
       expect(r.createdNew).toBe(true);
       expect(jkf.kifu.moves[1].forks?.length).toBe(2);
@@ -186,80 +202,44 @@ describe("applyMoveWithBranch", () => {
     });
 
     test("C4. ★ 既存=指し手 (from 有り) / 入力=打ち (from 無し) → 別 fork", () => {
-      // 既存 JKF: te=1 に「3九金(49→39)」が入っている状態を手で組む
-      // (実盤面の整合は問わず、合流判定のみを検証する)
-      const data: IJSONKifuFormat = {
-        header: {},
-        initial: { preset: "HIRATE" },
-        moves: [
-          {},
-          {
-            move: {
-              from: { x: 4, y: 9 },
-              to: { x: 3, y: 9 },
-              piece: "KI",
-              color: Color.Black,
-            },
-          },
-        ],
-      };
-      const player = new JKFPlayer(data);
+      const player = newGoldToTheSameSquarePlayer();
+      play(player, [KI_49_TO_39]);
       player.goto(0);
 
-      const dropMove: IMoveMoveFormat = {
-        to: { x: 3, y: 9 },
-        piece: "KI",
-        color: Color.Black,
-      };
+      const r = apply(player, KI_DROP_39);
 
-      // forkAndForward 内の forward → doMove は局面整合が無いと throw する可能性があるため許容
-      try {
-        applyMoveWithBranch(player, dropMove);
-      } catch {
-        // ignore: shogi state mismatch is acceptable for this assertion
-      }
-
-      // ★ 期待: 既存指し手と打ちは同一視されず、新規 fork が作られている
+      expect(r.createdNew).toBe(true);
+      expect(r.usedExisting).toBe(false);
       expect(player.kifu.moves[1].forks?.length).toBe(1);
       expect(player.kifu.moves[1].move?.from).toEqual({ x: 4, y: 9 }); // 本線は不変
       expect(player.kifu.moves[1].forks?.[0][0].move?.from).toBeUndefined();
-      expect(player.kifu.moves[1].forks?.[0][0].move?.piece).toBe("KI");
     });
 
     test("C5. ★ 既存=打ち / 入力=指し手 (対称) → 別 fork", () => {
-      const data: IJSONKifuFormat = {
-        header: {},
-        initial: { preset: "HIRATE" },
-        moves: [
-          {},
-          {
-            move: {
-              to: { x: 3, y: 9 },
-              piece: "KI",
-              color: Color.Black,
-            },
-          },
-        ],
-      };
-      const player = new JKFPlayer(data);
+      const player = newGoldToTheSameSquarePlayer();
+      play(player, [KI_DROP_39]);
       player.goto(0);
 
-      const newMove: IMoveMoveFormat = {
-        from: { x: 4, y: 9 },
-        to: { x: 3, y: 9 },
-        piece: "KI",
-        color: Color.Black,
-      };
+      const r = apply(player, KI_49_TO_39);
 
-      try {
-        applyMoveWithBranch(player, newMove);
-      } catch {
-        // ignore: shogi state mismatch is acceptable
-      }
-
+      expect(r.createdNew).toBe(true);
+      expect(r.usedExisting).toBe(false);
       expect(player.kifu.moves[1].forks?.length).toBe(1);
       expect(player.kifu.moves[1].move?.from).toBeUndefined();
       expect(player.kifu.moves[1].forks?.[0][0].move?.from).toEqual({ x: 4, y: 9 });
+    });
+
+    test("C7. 指し手と打ちが分岐一覧で別の文字列になる", () => {
+      // 「打」が付くのは applyMoveWithBranch が棋譜全体を再正規化して relative:"H" を
+      // 入れるため。この再正規化を外すと、分岐カードに同じ文字列が2枚並ぶ。
+      const player = newGoldToTheSameSquarePlayer();
+      play(player, [KI_49_TO_39]);
+      player.goto(0);
+      apply(player, KI_DROP_39);
+
+      const te1 = player.kifu.moves[1];
+      expect(readableMove(te1)).toBe("☗３九金");
+      expect(readableMove(te1.forks![0][0])).toBe("☗３九金打");
     });
 
     test("C6. 既存 fork[0] と別 from の指し手は別 fork として追加", () => {
@@ -267,9 +247,9 @@ describe("applyMoveWithBranch", () => {
       play(jkf, [FU_27_TO_26]);
 
       jkf.goto(0);
-      applyMoveWithBranch(jkf, FU_77_TO_76);
+      apply(jkf, FU_77_TO_76);
       jkf.goto(0);
-      applyMoveWithBranch(jkf, FU_57_TO_56);
+      apply(jkf, FU_57_TO_56);
 
       expect(jkf.kifu.moves[1].forks?.length).toBe(2);
       expect(jkf.kifu.moves[1].forks?.[0][0].move?.from).toEqual({ x: 7, y: 7 });

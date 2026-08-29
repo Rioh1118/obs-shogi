@@ -1,6 +1,6 @@
 import type { Color, IMove, Kind } from "shogi.js";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
-import type { StandardMoveFormat } from "@/entities/game";
+import type { StandardMoveFormat } from "@/entities/game/model/types";
 
 export function fromIMove(
   move: IMove,

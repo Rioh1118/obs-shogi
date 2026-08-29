@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, Settings, Library } from "lucide-react";
 import IconButton from "@/shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
 import "./AppLayoutHeader.scss";
 import Title from "@/shared/ui/Title";
 import { useHeaderCenterInfo } from "@/widgets/app-layout-header/lib/useHeaderCenterInfo";
@@ -20,12 +21,12 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
     <span className="app-header__muted">棋譜表示中</span>
   ) : (
     <span className="app-header__meta" aria-label="対局者">
-      <span className="app-header__piece app-header__piece--sente">☗</span>
+      <span className="app-header__piece app-header__piece--sente">{SENTE_GLYPH}</span>
       <span className="app-header__meta-name">{info.senteName ?? "先手"}</span>
       <span className="app-header__meta-sep" aria-hidden="true">
         ・
       </span>
-      <span className="app-header__piece app-header__piece--gote">☖</span>
+      <span className="app-header__piece app-header__piece--gote">{GOTE_GLYPH}</span>
       <span className="app-header__meta-name">{info.goteName ?? "後手"}</span>
     </span>
   );

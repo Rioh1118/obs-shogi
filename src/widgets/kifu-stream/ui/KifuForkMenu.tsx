@@ -1,4 +1,5 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { branchIndexFromForkIndex, branchLabel } from "@/entities/kifu/model/branch";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
 import KifuForkActions from "./KifuForkActions";
@@ -67,14 +68,14 @@ const KifuForkMenu = memo(function KifuForkMenu({
       {
         forkIndex: null,
         branchIndex: 0,
-        tag: "本譜",
+        tag: branchLabel(),
         move: mainText || "(手がありません)",
         selected: normalized == null,
       },
       ...forkTexts.map((t, i) => ({
         forkIndex: i,
-        branchIndex: i + 1,
-        tag: `変化${i + 1}`,
+        branchIndex: branchIndexFromForkIndex(i),
+        tag: branchLabel(i),
         move: t || "(手がありません)",
         selected: normalized === i,
       })),

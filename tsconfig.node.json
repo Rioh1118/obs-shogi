@@ -19,7 +19,11 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "paths": {
+      // vitest は override 経由で node_modules/vitest が無い。張らないと設定のテストが型検査から落ちる。
+      "vitest": ["./node_modules/@voidzero-dev/vite-plus-test"]
+    }
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "vite.config.test.ts"]
 }

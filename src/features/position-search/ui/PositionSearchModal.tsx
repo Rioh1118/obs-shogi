@@ -9,8 +9,6 @@ import PositionSearchHitList from "./PositionSearchHitList";
 
 import "./PositionSearchModal.scss";
 
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
@@ -66,8 +64,6 @@ export default function PositionSearchModal() {
     if (isDone) return "完了";
     return "待機中";
   }, [isSearching, error, isDone]);
-
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const previewData = useMemo(() => {
     if (!isOpen) return null;
@@ -274,7 +270,7 @@ export default function PositionSearchModal() {
                 {params.sfen ? "検索対象の局面" : "現在の局面"}
               </div>
               <div className="pos-search__preview">
-                <PreviewPane previewData={previewData} toKan={toKan} />
+                <PreviewPane previewData={previewData} />
               </div>
 
               <div className="pos-search__aux">

@@ -3,7 +3,7 @@ import { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { Color, Kind } from "shogi.js";
 
-import type { JKFData } from "@/entities/kifu";
+import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { AsyncResult } from "@/shared/lib/result";
 import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";

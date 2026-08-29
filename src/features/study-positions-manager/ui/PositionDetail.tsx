@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
+import { turnText } from "@/shared/lib/turn";
 
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
@@ -35,14 +34,12 @@ export default function PositionDetail({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
-
   const previewData = useMemo(() => {
     if (!position) return null;
     return buildPreviewDataFromSfen(position.sfen);
   }, [position]);
 
-  const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
+  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const handleDelete = useCallback(async () => {
     if (!position || isDeleting) return;
@@ -78,7 +75,7 @@ export default function PositionDetail({
   return (
     <div className="sp-detail">
       <div className="sp-detail__preview">
-        <PreviewPane previewData={previewData} toKan={toKan} />
+        <PreviewPane previewData={previewData} />
       </div>
 
       <div className="sp-detail__meta">
@@ -94,7 +91,7 @@ export default function PositionDetail({
           ))}
         </div>
         <div className="sp-detail__metaSub">
-          {turnLabel && <span>{turnLabel}</span>}
+          {turnBadge && <span>{turnBadge}</span>}
           <span>{formatDate(position.updatedAt)} 更新</span>
         </div>
         {position.description && <div className="sp-detail__memo">{position.description}</div>}

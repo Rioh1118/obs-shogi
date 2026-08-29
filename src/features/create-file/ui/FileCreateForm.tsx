@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { InitialPresetString, KifuFormat } from "@/entities/kifu";
+import type { InitialPresetString } from "@/entities/kifu/model/jkf";
+import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";

@@ -1,4 +1,4 @@
-import type { JKFData } from "@/entities/kifu";
+import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { RustFileTreeNode } from "./rust-types";
 import { RustFileTreeAdapter } from "./adapter";
 import type { FileTreeNode } from "../model/types";
