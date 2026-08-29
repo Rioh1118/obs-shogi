@@ -11,11 +11,17 @@ function cursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
   return { tesuu, forkPointers, tesuuPointer: buildTesuuPointer(tesuu, forkPointers) };
 }
 
-/** 本譜3手。te=2 に2手ぶんの変化がぶら下がる。 */
+/**
+ * 本譜3手。te=2 に**1手だけ**の変化がぶら下がる。
+ *
+ * 変化の長さを本譜と変えてあるのは、「計画どおり降りた葉」（2）と
+ * 「本譜へ落ちた葉」（3）を別の値で区別するため。同じ長さにすると、
+ * 計画を丸ごと無視する実装でも全部通ってしまう。
+ */
 function kifu(): JKFData {
   return {
     header: {},
-    moves: [mv("root"), mv("t1"), mv("t2", [[mv("f2"), mv("f3")]]), mv("t3")],
+    moves: [mv("root"), mv("t1"), mv("t2", [[mv("f2")]]), mv("t3")],
   };
 }
 
@@ -26,7 +32,7 @@ describe("computeLeafTesuu", () => {
 
   test("計画どおり変化へ降りた先の末尾", () => {
     const cursor = cursorAt(0, [{ te: 2, forkIndex: 0 }]);
-    expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
+    expect(computeLeafTesuu(kifu(), cursor)).toBe(2);
   });
 
   test("線の末尾より先に計画が残っていても throw しない", () => {
