@@ -19,6 +19,8 @@ export type FsErrorCode =
   | "kifu_parse_failed"
   | "unknown";
 
+// TODO(#202): この語彙はファイルツリーの失敗より広い（棋譜の読み込みと書き出しを含む）。
+// 名前と置き場を中身に合わせるかどうかは、依存が生まれる前に決める
 export type FsError = {
   code: FsErrorCode;
   /**
