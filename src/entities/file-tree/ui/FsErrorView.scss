@@ -11,17 +11,21 @@
   color: index.$color-text-primary;
 
   // 段は「復帰に何が要るか」で決まる（ADR-0004）。色だけでなく、
-  // どのボタンを出すかもここで分かれる
+  // どのボタンを出すかもここで分かれる。
+  //
+  // 面は**不透明**にする。半透明を親に重ねると、この部品が載る面ごとに実効値が
+  // 変わる。実際に暗いカードとサイドバーの2つに載っており、サイドバー側では
+  // 本文が 3.52:1 まで落ちていた
   &--warning {
     border-color: rgba(index.$color-warning, 0.4);
     border-left-color: index.$color-warning;
-    background: rgba(index.$color-warning, 0.1);
+    background: color-mix(in srgb, index.$color-primary-black 94%, index.$color-warning);
   }
 
   &--danger {
     border-color: rgba(index.$color-danger, 0.4);
     border-left-color: index.$color-danger;
-    background: rgba(index.$color-danger, 0.1);
+    background: color-mix(in srgb, index.$color-primary-black 94%, index.$color-danger);
   }
 
   &__lead {
