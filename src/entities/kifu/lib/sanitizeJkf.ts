@@ -6,7 +6,7 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
  * JKFPlayer は getReadableForkKifu() で `fork[0]` に無条件でアクセスするため、
  * 空の変化が1つでもあると TypeError になる。
  */
-export function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
+function sanitizeJkfMoves(moves: JKFMove[]): JKFMove[] {
   return moves.map((m) => {
     if (!m.forks) return m;
     const cleanForks = m.forks
