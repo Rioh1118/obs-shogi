@@ -112,6 +112,9 @@ impl BookState {
     /// 全部閉じて、外した定跡を返す。
     #[must_use = "捨てた場所で reader の Drop が走る。どこで解放するかを選ぶこと"]
     pub(crate) fn close_all(&self) -> Vec<Arc<BookSession>> {
+        // dashmap は map への参照を握ったまま remove を呼ぶと deadlock しうる
+        // （dashmap 6.1.0 の DashMap::remove の doc）。キーを取り切って iter を
+        // 終わらせてから外す。1段に畳むとコマンドがアプリを固める。
         let handles: Vec<BookHandle> = self.books.iter().map(|entry| *entry.key()).collect();
         handles
             .into_iter()
