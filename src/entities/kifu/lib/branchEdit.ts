@@ -210,44 +210,22 @@ function patchForkPointersForDeleteNonReloc(
   }
 }
 
-/** 削除された候補の中に cursor がいたときの退避先 */
+/**
+ * 削除された候補の中に cursor がいたときの退避先
+ *
+ * 本譜を消したか変化を消したかで退避先は変わらない。変わるのは「候補が残っているか」だけ。
+ */
 function relocateCursorOnDelete(
   cursor: KifuCursor,
   ref: BranchPointRef,
-  target: BranchIndex,
   candidatesAfter: Candidates,
 ): KifuCursor {
   // 退避時は te 以降の pointer を落とす
   const kept = cursor.forkPointers.filter((p) => p.te < ref.te);
-
-  if (target === MAIN_LINE) {
-    if (candidatesAfter.length === 0) {
-      const tesuu = Math.max(0, ref.te - 1);
-      const fps = normalizeForkPointers(kept, tesuu);
-      return {
-        tesuu,
-        forkPointers: fps,
-        tesuuPointer: buildTesuuPointer(tesuu, fps),
-      };
-    }
-    // 代替が本譜になった直後へ
-    const tesuu = ref.te;
-    const fps = normalizeForkPointers(kept, tesuu);
-    return {
-      tesuu,
-      forkPointers: fps,
-      tesuuPointer: buildTesuuPointer(tesuu, fps),
-    };
-  }
-
-  // 変化を削除: 本譜の te 適用後へ
-  const tesuu = ref.te;
+  // 候補が全部消えたら te の手前へ。残っていれば繰り上がった候補の te 適用後へ。
+  const tesuu = candidatesAfter.length === 0 ? Math.max(0, ref.te - 1) : ref.te;
   const fps = normalizeForkPointers(kept, tesuu);
-  return {
-    tesuu,
-    forkPointers: fps,
-    tesuuPointer: buildTesuuPointer(tesuu, fps),
-  };
+  return { tesuu, forkPointers: fps, tesuuPointer: buildTesuuPointer(tesuu, fps) };
 }
 
 /**
@@ -351,7 +329,7 @@ export function deleteBranchInKifu(
     if (cursor.tesuu >= q.te) {
       return {
         changed: true,
-        nextCursor: relocateCursorOnDelete(cursor, q, q.target, candidatesAfter),
+        nextCursor: relocateCursorOnDelete(cursor, q, candidatesAfter),
       };
     }
 
