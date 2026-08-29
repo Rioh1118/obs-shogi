@@ -102,7 +102,11 @@ describe("deleteBranchInKifu", () => {
   test("範囲外の対象は throw する", () => {
     const kifu = kifuWithTwoForks();
     expect(() =>
-      deleteBranchInKifu(kifu, { te: 2, forkPointers: [], target: 5 as never }, null),
+      deleteBranchInKifu(
+        kifu,
+        { te: 2, forkPointers: [], target: branchIndexFromForkIndex(4) },
+        null,
+      ),
     ).toThrow();
   });
 });
@@ -189,7 +193,11 @@ describe("swapBranchesInKifu の範囲外", () => {
   test("候補数を超える添字は throw する", () => {
     const kifu = kifuWithTwoForks();
     expect(() =>
-      swapBranchesInKifu(kifu, { te: 2, forkPointers: [], a: MAIN_LINE, b: 9 as never }, null),
+      swapBranchesInKifu(
+        kifu,
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(8) },
+        null,
+      ),
     ).toThrow();
   });
 });
