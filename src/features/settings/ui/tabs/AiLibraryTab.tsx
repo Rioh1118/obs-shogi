@@ -17,6 +17,7 @@ import {
 } from "@/entities/engine/api/aiLibrary";
 
 import { createDir } from "@/entities/file-tree/api/service";
+import { describeFsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { copyText } from "@/shared/api/clipboard/copyText";
 import SetupGuide, { type SetupGuideProfile } from "../ai-library-tab/SetupGuide";
@@ -164,7 +165,9 @@ export default function AiLibraryTab() {
       setScan({ status: "loading" });
       try {
         const profileRes = await createDir(root, name);
-        if (!profileRes.success) throw new Error(String(profileRes.error));
+        // FsError はオブジェクト。String() に落とすと "[object Object]" になり、
+        // 何が起きたか分からない文字列だけが画面に出る
+        if (!profileRes.success) throw new Error(describeFsError(profileRes.error.code));
         const profilePath = profileRes.data;
         await createDir(profilePath, "eval");
         await createDir(profilePath, "book");
