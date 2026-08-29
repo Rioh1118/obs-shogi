@@ -49,7 +49,7 @@
   &__detail {
     border: 1px solid index.$stroke-weak;
     border-radius: index.$radius-2;
-    background: rgba(black, 0.22);
+    background: rgba(index.$color-primary-black, 0.22);
 
     summary {
       cursor: pointer;
@@ -87,7 +87,7 @@
     transition: background index.$duration-3 index.$ease;
 
     &:hover:not(:disabled) {
-      background: rgba(white, 0.06);
+      background: rgba(index.$color-white, 0.06);
     }
 
     &:focus-visible {
@@ -109,8 +109,8 @@
       font-weight: 600;
 
       &:hover:not(:disabled) {
-        background: color-mix(in srgb, index.$color-secondary-dark 86%, white);
-        border-color: color-mix(in srgb, index.$color-secondary-dark 86%, white);
+        background: color-mix(in srgb, index.$color-secondary-dark 86%, index.$color-white);
+        border-color: color-mix(in srgb, index.$color-secondary-dark 86%, index.$color-white);
       }
     }
   }
