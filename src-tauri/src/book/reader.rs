@@ -7,6 +7,18 @@ use std::path::Path;
 ///
 /// 開いたあとに必要なのは「この局面の候補手」と「何局面あるか」だけなので、
 /// 形式差（テキスト / 固定長バイナリ / on-the-fly）はこの裏に閉じる。
+///
+/// 実装が守ること:
+///
+/// - **失敗を空の結果に丸めない。** 読めなかったときは `Io`、書式が壊れている
+///   ときは `InvalidContent` を返す。空の `Vec` は「未収録」だけを意味する。
+///   外付けドライブを抜かれた定跡が「全局面が定跡に無い」に見えると、利用者は
+///   定跡が死んだことに気づけない
+/// - **壊れた内容で panic しない。** 途中で切れたファイルは固定長レコードの
+///   境界を跨ぐので、範囲検査をして `InvalidContent` を返す。panic すると
+///   コマンド境界では `Unknown` にしかならず、フロントは「壊れている」という
+///   復帰導線を出せない
+/// - io の失敗は [`BookError::from_io`] でパスを添えて返す
 pub trait BookReader: Send + Sync {
     fn format(&self) -> BookFormat;
 
@@ -26,8 +38,8 @@ pub fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError> {
     // `Path::is_file` は metadata が取れない理由を全て false に潰す。権限が無い
     // ファイルまで「見つからない」と案内されると、利用者は Finder でそれを見ながら
     // 探し直すことになり、権限を与えるという正しい復帰操作に辿り着けない。
-    let meta = std::fs::metadata(path)
-        .map_err(|e| BookError::from(e).with_path(path.to_string_lossy()))?;
+    let meta =
+        std::fs::metadata(path).map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
 
     if !meta.is_file() {
         return Err(BookError::new(

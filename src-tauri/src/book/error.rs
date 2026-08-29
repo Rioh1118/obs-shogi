@@ -49,6 +49,14 @@ impl BookError {
         self.path = Some(path.into());
         self
     }
+
+    /// io の失敗に、どのファイルで起きたかを添える。
+    ///
+    /// `?` 越しの [`From<io::Error>`] は path を埋められないので、複数の定跡を
+    /// 開いているときに「どれが死んだのか」がフロントに伝わらない。
+    pub fn from_io(err: io::Error, path: impl Into<String>) -> Self {
+        Self::from(err).with_path(path)
+    }
 }
 
 impl fmt::Display for BookError {
@@ -70,6 +78,38 @@ impl From<io::Error> for BookError {
             _ => BookErrorCode::Io,
         };
 
-        BookError::new(code, value.to_string())
+        BookError::new(code, format!("定跡ファイルを読めない: {value}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn io_error_kinds_map_to_their_own_codes() {
+        let cases = [
+            (io::ErrorKind::NotFound, BookErrorCode::NotFound),
+            (
+                io::ErrorKind::PermissionDenied,
+                BookErrorCode::PermissionDenied,
+            ),
+            (io::ErrorKind::UnexpectedEof, BookErrorCode::Io),
+        ];
+
+        for (kind, expected) in cases {
+            let err = BookError::from(io::Error::new(kind, "boom"));
+            assert_eq!(err.code, expected, "kind={kind:?}");
+        }
+    }
+
+    #[test]
+    fn from_io_keeps_the_path() {
+        let err = BookError::from_io(
+            io::Error::new(io::ErrorKind::PermissionDenied, "boom"),
+            "/books/a.db",
+        );
+        assert_eq!(err.code, BookErrorCode::PermissionDenied);
+        assert_eq!(err.path.as_deref(), Some("/books/a.db"));
     }
 }
