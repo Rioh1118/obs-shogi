@@ -49,7 +49,7 @@ type Row = { key: string; detail: string };
  * 検査から静かに消え、テストは緑のまま通る。数えられていることそのものを
  * ここで固定する。増えたら上げる。増やせない理由があるなら issue #185。
  */
-const MEASURED_FLOOR = 50;
+const MEASURED_FLOOR = 51;
 
 /**
  * `color` は宣言されているのに面が確定せず、測れなかった宣言の上限。**上げない。**
@@ -57,7 +57,7 @@ const MEASURED_FLOOR = 50;
  * 「測れないから合格」を合格と数えないため、件数を目に見える形で置く。
  * 面を持たせるか `surface` を渡すかして測れるようにしたら下げる → issue #185。
  */
-const UNMEASURED_CEILING = 386;
+const UNMEASURED_CEILING = 385;
 
 const rows: Row[] = [];
 let measured = 0;

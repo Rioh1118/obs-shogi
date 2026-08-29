@@ -4,13 +4,17 @@
   display: flex;
   flex-direction: column;
   gap: index.$space-6;
+  // Modal 側の padding は none。中身が自分で持つ（他の対話と同じ形）。
+  // 両方が持つと、タブと Form の中の入力欄で左端が 30px ずれる
+  padding: index.$space-6 index.$space-6 0;
 
   // タブ
   &__tabs {
     display: inline-flex;
     align-self: flex-start;
 
-    background-color: rgba(index.$color-white, 0.06);
+    // 帯に面を敷かない。敷くと選択中の面との差が 1.4:1 まで潰れ、
+    // どちらが選ばれているか見た目で読めなくなる
     border: 1px solid index.$stroke;
     border-radius: index.$radius-6;
     padding: index.$space-2;
@@ -37,12 +41,11 @@
       background-color: rgba(index.$color-white, 0.04);
     }
 
-    // 選択中は面と枠の両方で示す。色だけだと、隣り合った2枚の差が
-    // コントラスト比の差にしかならず、どちらが選ばれているか読めない
+    // 選択中は主ボタンと同じ面に置く。カードに対して 3.33:1 の段差があるので
+    // 面そのものが手掛かりになる（白文字は 4.79:1）
     &.is-active {
-      background: rgba(index.$color-white, 0.1);
-      color: index.$color-text-primary;
-      box-shadow: inset 0 0 0 1px rgba(index.$color-secondary-solid, 0.55);
+      background: index.$color-secondary-solid;
+      color: index.$color-white;
     }
 
     &:focus-visible {

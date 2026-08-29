@@ -15,7 +15,7 @@ const BASELINE: Record<Bucket, number> = {
   "font-size": 216,
   "border-radius": 155,
   spacing: 475,
-  elevation: 56,
+  elevation: 55,
   motion: 68,
   family: 15,
   indirect: 52,
