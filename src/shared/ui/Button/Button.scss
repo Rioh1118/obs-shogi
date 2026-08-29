@@ -80,14 +80,15 @@
     }
   }
 
+  // danger の面は $color-danger-solid。$color-danger だと暗い文字が 4.47:1 になる
   &--danger {
-    background: index.$color-danger;
-    border-color: index.$color-danger;
+    background: index.$color-danger-solid;
+    border-color: index.$color-danger-solid;
     color: index.$color-text-dark-1;
 
     &:hover:not(:disabled) {
-      background: color-mix(in srgb, index.$color-danger 86%, index.$color-white);
-      border-color: color-mix(in srgb, index.$color-danger 86%, index.$color-white);
+      background: index.$color-danger-solid-hover;
+      border-color: index.$color-danger-solid-hover;
     }
   }
 
