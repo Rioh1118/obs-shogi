@@ -47,9 +47,9 @@ F 番号はここで採番し、各表と ADR から参照する。
 | `file-tree`       | `state.kifuError` | `kifu_error`                       | 1（`AppModalLayer` → モーダル）     |
 | `engine`          | `state.error`     | `initialize_error`                 | 1（**設定タブを開いている間だけ**） |
 
-※ `handleFailure`（移動）/ `deferNameFailure`（リネーム・フォルダ作成。`invalid_name_*` は積まない）/
+※ `failWithNotice`（移動）/ `failToNameInput`（リネーム・フォルダ作成。`invalid_name_*` は積まない）/
 `pushError` の直呼び4箇所（削除・衝突の解決の中断）/ `loadFileTree` の直積み。
-`deferFailure`（作成・取り込み）は**一度も積まない**。数え方は
+`failToCaller`（作成・取り込み）は**一度も積まない**。数え方は
 「`state.error` に到達しうる呼び出し元」。→ `docs/state-transitions/file-tree.md` の ※2
 
 さらに **`clearError` は6スライスすべてが context に公開しているが、呼び出し元は

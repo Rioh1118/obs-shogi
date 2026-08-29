@@ -25,7 +25,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const [note, setNote] = useState("");
   const [preset, setPreset] = useState<InitialPresetString>("HIRATE");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<FsError | null>(null);
+  const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   const { createNewFile } = useFileTree();
 
@@ -34,7 +34,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     if (!fileName.trim() || isLoading) return;
 
-    setError(null);
+    setSubmitError(null);
     setIsLoading(true);
     const result = await createNewFile(dirPath, {
       fileName: `${fileName.trim()}.${format}`,
@@ -56,7 +56,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
     if (!isResolvedByConflictDialog(result.error.code)) {
-      setError(result.error);
+      setSubmitError(result.error);
     }
   };
 
@@ -150,9 +150,9 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       </FormField>
 
       {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
-      {error && (
+      {submitError && (
         <FormField>
-          <FsErrorView error={error} />
+          <FsErrorView error={submitError} />
         </FormField>
       )}
 

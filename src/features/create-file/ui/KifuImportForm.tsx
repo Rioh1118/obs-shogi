@@ -29,7 +29,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
   const [parseOk, setParseOk] = useState<boolean | null>(null);
   const [parseError, setParseError] = useState("");
-  const [saveError, setSaveError] = useState<FsError | null>(null);
+  const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const fullFileName = useMemo(() => {
@@ -75,7 +75,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     // もう一度押すと、1回目は成功して2回目が already_exists になる
     if (isSaving) return;
 
-    setSaveError(null);
+    setSubmitError(null);
     setIsSaving(true);
     try {
       const result = await importKifuFile(dirPath, name, text);
@@ -86,7 +86,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
       // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
       if (!isResolvedByConflictDialog(result.error.code)) {
-        setSaveError(result.error);
+        setSubmitError(result.error);
       }
     } finally {
       setIsSaving(false);
@@ -157,9 +157,9 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       </FormField>
 
       {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
-      {saveError && (
+      {submitError && (
         <FormField>
-          <FsErrorView error={saveError} />
+          <FsErrorView error={submitError} />
         </FormField>
       )}
 

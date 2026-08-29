@@ -68,8 +68,11 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     });
   }, []);
 
-  // ツリーから直に起こす操作で使う。呼び出し元は失敗を出す場所を持っていない
-  const handleFailure = useCallback(
+  // 失敗をどこへ出すかは、その操作を**起こした場所が出す場所を持っているか**で決まる。
+  // 3つの名前はその行き先を表す。→ docs/state-transitions/file-tree.md の ※2
+
+  // 通知へ積む。ツリーから直に起こす操作で使う（呼び出し元は出す場所を持たない）
+  const failWithNotice = useCallback(
     (error: FsError, request?: FileConflictRequest) => {
       if (isResolvedByConflictDialog(error.code) && request) {
         pushConflict(request, error);
@@ -81,10 +84,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [pushConflict, pushError],
   );
 
-  // モーダルの中から起こす操作で使う。衝突だけは別名を選ばせる必要があるので拾い、
-  // ほかの失敗は呼び出し元へ返す。あちらは自分の中に失敗を出す場所を持っているので、
-  // ここでも積むと同じ失敗が2箇所に、別の文言で同時に出る
-  const deferFailure = useCallback(
+  // 呼び出し元へ返す。モーダルの中から起こす操作で使う。
+  // あちらは自分の中に出す場所を持っているので、ここでも積むと同じ失敗が
+  // 2箇所に別の文言で同時に出る。衝突だけは別名を選ばせる対話が引き取る
+  const failToCaller = useCallback(
     (error: FsError, request: FileConflictRequest) => {
       if (isResolvedByConflictDialog(error.code)) {
         pushConflict(request, error);
@@ -94,10 +97,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [pushConflict],
   );
 
-  // 入力欄から起こす操作で使う。名前を直せば通る失敗は呼び出し元へ返す。
+  // 名前の失敗だけ呼び出し元へ返し、残りは通知へ積む。入力欄から起こす操作で使う。
   // 入力欄はその場に残っているので、そこへ出せば打った文字列を捨てずに直せる。
   // state.error に積むと reducer が編集行ごと畳む（ADR-0004 の F-14）
-  const deferNameFailure = useCallback(
+  const failToNameInput = useCallback(
     (error: FsError, request: FileConflictRequest) => {
       if (isResolvedByConflictDialog(error.code)) {
         pushConflict(request, error);
@@ -270,7 +273,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const res = await api.createKifu(parentPath, options);
 
       if (!res.success) {
-        return deferFailure(res.error, {
+        return failToCaller(res.error, {
           kind: "create_file",
           parentPath,
           options,
@@ -284,7 +287,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       void loadFileTree();
       return Ok(undefined);
     },
-    [deferFailure, loadFileTree],
+    [failToCaller, loadFileTree],
   );
 
   const importKifuFile = useCallback(
@@ -297,7 +300,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const res = await api.importKifu(parentPath, fileName, trimmed);
 
       if (!res.success) {
-        return deferFailure(res.error, {
+        return failToCaller(res.error, {
           kind: "import_file",
           parentPath,
           fileName,
@@ -312,7 +315,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       void loadFileTree();
       return Ok(undefined);
     },
-    [loadFileTree, deferFailure],
+    [loadFileTree, failToCaller],
   );
 
   const createNewDirectory = useCallback(
@@ -320,7 +323,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const res = await api.createDir(parentPath, dirname);
 
       if (!res.success) {
-        return deferNameFailure(res.error, {
+        return failToNameInput(res.error, {
           kind: "create_directory",
           parentPath,
           dirName: dirname,
@@ -333,7 +336,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       void loadFileTree();
       return Ok(undefined);
     },
-    [deferNameFailure, loadFileTree],
+    [failToNameInput, loadFileTree],
   );
 
   const toggleNode = useCallback(
@@ -389,7 +392,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.renameFile(node.path, newName);
 
       if (!res.success) {
-        return deferNameFailure(
+        return failToNameInput(
           res.error,
           node.isDirectory
             ? {
@@ -419,7 +422,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       void loadFileTree();
       return Ok(undefined);
     },
-    [deferNameFailure, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
+    [failToNameInput, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
   );
 
   const moveNode = useCallback(
@@ -429,7 +432,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.moveFile(node.path, destDir, newName);
 
       if (!res.success) {
-        return handleFailure(
+        return failWithNotice(
           res.error,
           node.isDirectory
             ? {
@@ -455,7 +458,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       void loadFileTree();
       return Ok(undefined);
     },
-    [handleFailure, reconcilePathMutation, loadFileTree],
+    [failWithNotice, reconcilePathMutation, loadFileTree],
   );
 
   const openContextMenu = useCallback((node: FileTreeNode, x: number, y: number) => {

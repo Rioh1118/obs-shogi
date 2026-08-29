@@ -54,7 +54,7 @@ export default function SfenKifuCreateModal() {
   const [whitePlayer, setWhitePlayer] = useState("");
   const [selectedDir, setSelectedDir] = useState(fileTree?.path ?? "");
   const [isLoading, setIsLoading] = useState(false);
-  const [saveError, setSaveError] = useState<FsError | null>(null);
+  const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   const sfenInitial = useMemo(() => (sfen ? sfenToJkfInitial(sfen) : null), [sfen]);
 
@@ -86,7 +86,7 @@ export default function SfenKifuCreateModal() {
     setBlackPlayer("");
     setWhitePlayer("");
     setSelectedDir(rootPathRef.current);
-    setSaveError(null);
+    setSubmitError(null);
   }, [isOpen]);
 
   const handleSubmit = useCallback(
@@ -98,7 +98,7 @@ export default function SfenKifuCreateModal() {
       // そのとき送信ボタンは押せない。理由は Select の下に出している
       if (dirOptions.length === 0) return;
 
-      setSaveError(null);
+      setSubmitError(null);
       setIsLoading(true);
       const result = await createNewFile(selectedDir, {
         fileName: `${fileName.trim()}.${format}`,
@@ -118,7 +118,7 @@ export default function SfenKifuCreateModal() {
 
       // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
       if (!isResolvedByConflictDialog(result.error.code)) {
-        setSaveError(result.error);
+        setSubmitError(result.error);
       }
     },
     [
@@ -172,7 +172,7 @@ export default function SfenKifuCreateModal() {
               value={selectedDir}
               onChange={(v) => {
                 setSelectedDir(v);
-                setSaveError(null);
+                setSubmitError(null);
               }}
             />
             {dirOptions.length === 0 && (
@@ -218,9 +218,9 @@ export default function SfenKifuCreateModal() {
           </FormField>
 
           {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
-          {saveError && (
+          {submitError && (
             <FormField>
-              <FsErrorView error={saveError} />
+              <FsErrorView error={submitError} />
             </FormField>
           )}
 
