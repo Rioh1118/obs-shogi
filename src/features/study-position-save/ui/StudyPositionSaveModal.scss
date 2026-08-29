@@ -8,10 +8,13 @@
   min-height: 0;
   color: index.$color-text-light-1;
 
+  // 面を持たせて帯として見せる。1px の線だけだと暗いカードの上で 1.20:1 になり、
+  // 見出しと中身の境が実質見えない
   &__header {
     flex-shrink: 0;
     padding: 2rem 2.4rem 1.2rem;
-    border-bottom: 1px solid index.$stroke-weak;
+    background: rgba(index.$color-white, 0.03);
+    border-bottom: 1px solid index.$stroke;
   }
 
   &__title {
