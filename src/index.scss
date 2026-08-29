@@ -132,6 +132,9 @@ $shadow-overlay:
   0 10px 30px rgba(0, 0, 0, 0.45),
   0 2px 10px rgba(0, 0, 0, 0.35);
 $shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
+// 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
+$shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
+$shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
 
 $stroke-weak: rgba($color-white, 0.06);
 $stroke: rgba($color-white, 0.1);

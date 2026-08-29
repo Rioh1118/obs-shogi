@@ -106,12 +106,12 @@
   // 押した手応えを出す。連続で押す場所では切れるように分けてある
   &--motion {
     &:hover:not(:disabled) {
-      box-shadow: 0 index.$space-2 index.$space-4 rgba(0, 0, 0, 0.22);
+      box-shadow: index.$shadow-control;
     }
 
     &:active:not(:disabled) {
       transform: translateY(0.1rem);
-      box-shadow: 0 index.$space-1 index.$space-2 rgba(0, 0, 0, 0.16);
+      box-shadow: index.$shadow-control-press;
     }
   }
 
