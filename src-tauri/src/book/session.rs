@@ -259,7 +259,7 @@ mod tests {
     fn get_rejects_an_unknown_handle() {
         let (state, _alive, info) = state_with_one_book();
         let err = state.get(info.handle + 1).unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidHandle);
+        assert_eq!(err.code(), BookErrorCode::InvalidHandle);
     }
 
     #[test]
@@ -268,9 +268,13 @@ mod tests {
         drop(state.close(info.handle).unwrap());
 
         let err = state.close(info.handle).unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidHandle);
+        assert_eq!(err.code(), BookErrorCode::InvalidHandle);
         // 閉じたい相手に「開き直せ」と言わないこと
-        assert!(!err.message.contains("開き直す"), "message={}", err.message);
+        assert!(
+            !err.message().contains("開き直す"),
+            "message={}",
+            err.message()
+        );
     }
 
     /// 引くのもメタ情報を見るのも、復帰操作は開き直すこと。
@@ -284,8 +288,12 @@ mod tests {
             state.get(info.handle).unwrap_err(),
             state.info(info.handle).unwrap_err(),
         ] {
-            assert_eq!(err.code, BookErrorCode::InvalidHandle);
-            assert!(err.message.contains("開き直す"), "message={}", err.message);
+            assert_eq!(err.code(), BookErrorCode::InvalidHandle);
+            assert!(
+                err.message().contains("開き直す"),
+                "message={}",
+                err.message()
+            );
         }
     }
 
@@ -307,7 +315,7 @@ mod tests {
         let second = state.register(opened("/books/b.db", &alive));
         assert_ne!(first.handle, second.handle);
         assert_eq!(
-            state.get(first.handle).unwrap_err().code,
+            state.get(first.handle).unwrap_err().code(),
             BookErrorCode::InvalidHandle
         );
     }

@@ -67,7 +67,10 @@ pub(crate) fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError>
 
     Err(BookError::new(
         BookErrorCode::UnsupportedFormat,
-        format!("{}はまだ開けない", format.display_name()),
+        format!(
+            "{}はまだ開けない。他の形式もまだ開けないので、別のファイルを試しても同じ結果になる",
+            format.display_name()
+        ),
     )
     .with_path(path.to_string_lossy()))
 }
@@ -90,7 +93,7 @@ mod tests {
     #[test]
     fn reports_the_extension_before_looking_at_the_file_system() {
         assert_eq!(
-            open_err("/nonexistent/book.txt").code,
+            open_err("/nonexistent/book.txt").code(),
             BookErrorCode::UnknownExtension
         );
     }
@@ -98,8 +101,8 @@ mod tests {
     #[test]
     fn reports_a_missing_file() {
         let err = open_err("/nonexistent/book.db");
-        assert_eq!(err.code, BookErrorCode::NotFound);
-        assert_eq!(err.path.as_deref(), Some("/nonexistent/book.db"));
+        assert_eq!(err.code(), BookErrorCode::NotFound);
+        assert_eq!(err.path(), Some("/nonexistent/book.db"));
     }
 
     /// ディレクトリは存在するので NotFound ではない。「見つからない」と言われると
@@ -115,6 +118,6 @@ mod tests {
         let Err(err) = result else {
             panic!("ディレクトリを定跡として開けてしまった");
         };
-        assert_eq!(err.code, BookErrorCode::InvalidType);
+        assert_eq!(err.code(), BookErrorCode::InvalidType);
     }
 }

@@ -36,14 +36,18 @@ pub enum BookErrorCode {
 }
 
 /// 定跡まわりの失敗。Tauri コマンドの `Err` としてそのままフロントへ渡る。
+///
+/// フィールドは private。`path` の打ち切りは [`BookError::with_path`] が唯一の関門で、
+/// 構造体リテラルで組み立てられると迂回できてしまう（実際、打ち切りを呼び出し側に
+/// 置いていたときは6経路のうち1つにしか掛かっていなかった）。
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BookError {
-    pub code: BookErrorCode,
+    code: BookErrorCode,
     /// 利用者に見せる説明。分岐には使わない
-    pub message: String,
+    message: String,
     /// どのファイルで起きたか。複数の定跡を開いているときに要る
-    pub path: Option<String>,
+    path: Option<String>,
 }
 
 impl BookError {
@@ -54,6 +58,18 @@ impl BookError {
             message: message.into(),
             path: None,
         }
+    }
+
+    pub(crate) fn code(&self) -> BookErrorCode {
+        self.code
+    }
+
+    pub(crate) fn message(&self) -> &str {
+        &self.message
+    }
+
+    pub(crate) fn path(&self) -> Option<&str> {
+        self.path.as_deref()
     }
 
     /// どのファイルで起きたかを添える。
@@ -93,9 +109,9 @@ pub(crate) fn truncate_path(raw: &str) -> String {
 
 impl fmt::Display for BookError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.path {
-            Some(path) => write!(f, "{:?}: {} ({path})", self.code, self.message),
-            None => write!(f, "{:?}: {}", self.code, self.message),
+        match &self.path() {
+            Some(path) => write!(f, "{:?}: {} ({path})", self.code(), self.message()),
+            None => write!(f, "{:?}: {}", self.code(), self.message()),
         }
     }
 }
@@ -107,12 +123,18 @@ impl From<io::Error> for BookError {
         // 案内は日本語で、次に何をすればよいかまで書く。OS の原文は後ろに残す。
         // message はログにもそのまま出るので、ここから落とすと切り分けができなくなる。
         let (code, guidance) = match value.kind() {
-            io::ErrorKind::NotFound => (BookErrorCode::NotFound, "定跡ファイルが見つからない"),
+            io::ErrorKind::NotFound => (
+                BookErrorCode::NotFound,
+                "定跡ファイルが見つからない。外付けなら接続を確かめ、移動したなら選び直すこと",
+            ),
             io::ErrorKind::PermissionDenied => (
                 BookErrorCode::PermissionDenied,
                 "定跡ファイルを読む権限が無い。システム設定でこのアプリにアクセスを許可するか、別の場所にコピーすること",
             ),
-            _ => (BookErrorCode::Io, "定跡ファイルを読めない"),
+            _ => (
+                BookErrorCode::Io,
+                "定跡ファイルを読めない。開き直しても直らなければ、定跡を取得し直すこと",
+            ),
         };
 
         BookError::new(code, format!("{guidance}（{value}）"))
@@ -122,6 +144,24 @@ impl From<io::Error> for BookError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 種別だけを見ると、案内文を空にしても緑のまま通る。
+    /// どの kind でも「次に何をすればよいか」が書かれていること。
+    #[test]
+    fn io_errors_tell_the_user_what_to_do_next() {
+        for kind in [
+            io::ErrorKind::NotFound,
+            io::ErrorKind::PermissionDenied,
+            io::ErrorKind::UnexpectedEof,
+        ] {
+            let err = BookError::from(io::Error::new(kind, "boom"));
+            assert!(
+                err.message().contains("こと"),
+                "kind={kind:?} message={}",
+                err.message()
+            );
+        }
+    }
 
     #[test]
     fn io_error_kinds_map_to_their_own_codes() {
@@ -136,7 +176,7 @@ mod tests {
 
         for (kind, expected) in cases {
             let err = BookError::from(io::Error::new(kind, "boom"));
-            assert_eq!(err.code, expected, "kind={kind:?}");
+            assert_eq!(err.code(), expected, "kind={kind:?}");
         }
     }
 
@@ -146,7 +186,7 @@ mod tests {
             io::Error::new(io::ErrorKind::PermissionDenied, "boom"),
             "/books/a.db",
         );
-        assert_eq!(err.code, BookErrorCode::PermissionDenied);
-        assert_eq!(err.path.as_deref(), Some("/books/a.db"));
+        assert_eq!(err.code(), BookErrorCode::PermissionDenied);
+        assert_eq!(err.path(), Some("/books/a.db"));
     }
 }

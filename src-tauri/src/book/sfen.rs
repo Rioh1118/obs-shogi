@@ -145,6 +145,12 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
         }
         // 手数はキーから落とすが、数値でないものを黙って落とすと、書き間違えた
         // 局面が正しいキーとして通ってしまう。
+        //
+        // 先頭ゼロも拒否する。parse は無視するので、受け付けると手数を好きなだけ
+        // 長く書けてしまい、局面の文字列に長さの上限が無くなる。
+        if ply.len() > 1 && ply.starts_with('0') {
+            return Err(invalid(&format!("手数に先頭ゼロがある: {ply}")));
+        }
         if ply.parse::<u32>().is_err() {
             return Err(invalid(&format!("手数が数値でない: {ply}")));
         }
@@ -178,7 +184,7 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
             BookErrorCode::InvalidContent,
             format!(
                 "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{}）",
-                err.message
+                err.message()
             ),
         )
         .with_path(path)
@@ -187,12 +193,17 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
 
 /// 局面の文字列として受け付ける長さの上限。
 ///
-/// 長さを決めるのは盤面の綴り。成駒を `+X`（2字）で書き、空きマスを畳まずに
-/// `1` の並びで書くと、駒箱の上限内でも 123 字になる。金は成れないので持駒へ
-/// 移しても盤面は縮まず、持駒の字数が上乗せされる。`position sfen ` の前置きと
-/// 10桁の手数まで足した最長を `a_maximally_spelled_board_is_accepted` が実測して
-/// いる。倍近い余裕を取り、2 の冪へ丸めて 256。
+/// 盤面は `81 - 盤上の駒数 + 綴りの字数 + '/'8個` で、成れる駒を全て `+X`（2字）で
+/// 書き空きマスを畳まないときが最長。駒を1枚ずつ持駒へ移すと盤面は1字縮み、
+/// 持駒は1字増えるので、**盤面と持駒の合計は駒の置き方によらず 127 字**。
+/// `position sfen ` の前置き・手番・10桁の手数を足して 155 字が、正当な入力の最長。
+/// `a_maximally_spelled_board_is_accepted` がその長さちょうどを通している。
 ///
+/// この計算は、冗長な綴り（持駒の枚数 `1`、先頭ゼロ）を
+/// [`hand_count::HandCount::parse`] と手数の検査が拒否することに依存している。
+/// 受け付けると同じ局面を好きなだけ長く書けて、上限そのものが無くなる。
+///
+/// 155 の 1.65 倍を取り、2 の冪へ丸めて 256。
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
 const MAX_INPUT_CHARS: usize = 256;
 
@@ -228,7 +239,18 @@ mod hand_count {
 
     impl HandCount {
         /// 1トークンの枚数は、最も多い歩でも18枚。桁あふれもここへ落とす。
+        ///
+        /// 冗長な綴り（先頭ゼロ、枚数 `1` の明示）は拒否する。受け付けると
+        /// 同じ持駒を好きなだけ長く書けてしまい、局面の文字列に長さの上限が
+        /// 無くなる（`MAX_INPUT_CHARS` の根拠が成り立たなくなる）。
         pub(super) fn parse(digits: &str) -> Result<Self, String> {
+            if digits == "1" {
+                return Err("持駒の枚数 1 は書かない".to_string());
+            }
+            if digits.len() > 1 && digits.starts_with('0') {
+                return Err(format!("持駒の枚数に先頭ゼロがある（{digits}）"));
+            }
+
             let count = if digits.is_empty() {
                 1
             } else {
@@ -451,17 +473,17 @@ mod tests {
     #[test]
     fn a_broken_line_in_a_file_is_reported_as_broken_content() {
         let err = to_book_key_in_file("壊れた行", "/books/a.db").unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidContent);
-        assert_eq!(err.path.as_deref(), Some("/books/a.db"));
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert_eq!(err.path(), Some("/books/a.db"));
         assert!(
-            err.message.contains("定跡ファイル"),
+            err.message().contains("定跡ファイル"),
             "message={}",
-            err.message
+            err.message()
         );
         assert!(
-            err.message.contains("取得し直す"),
+            err.message().contains("取得し直す"),
             "message={}",
-            err.message
+            err.message()
         );
     }
 
@@ -472,8 +494,12 @@ mod tests {
 
         for input in [huge.clone(), format!("{HIRATE_SFEN} {huge}")] {
             let err = to_book_key(&input).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen);
-            assert!(err.message.contains("長すぎる"), "message={}", err.message);
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen);
+            assert!(
+                err.message().contains("長すぎる"),
+                "message={}",
+                err.message()
+            );
         }
     }
 
@@ -515,10 +541,10 @@ mod tests {
             );
 
             for message in [
-                to_book_key(&input).unwrap_err().message,
+                to_book_key(&input).unwrap_err().message(),
                 to_book_key_in_file(&input, "/books/a.db")
                     .unwrap_err()
-                    .message,
+                    .message(),
             ] {
                 assert!(
                     !message.contains("長すぎる"),
@@ -545,10 +571,18 @@ mod tests {
     ///
     /// 成駒を `+X` で書き、空きマスを畳まずに `1` の並びで書いた盤面が、
     /// 正当な入力の最長。`MAX_INPUT_CHARS` を詰めるとここが落ちる。
+    /// 正当な入力の最長。盤面と持駒の合計は駒の置き方によらず 127 字で、
+    /// 前置き・手番・10桁の手数を足して 155 字。
+    const LONGEST_VALID_INPUT_CHARS: usize = 155;
+
+    /// 上限がこれを下回ると、正当な局面が入口の検査で落ちる。
+    /// コンパイル時に見るので、定数を詰めた時点で気づける。
+    const _: () = assert!(MAX_INPUT_CHARS >= LONGEST_VALID_INPUT_CHARS);
+
     #[test]
     fn a_maximally_spelled_board_is_accepted() {
-        // 駒箱の40枚を全て盤に置き、成れる34枚を `+X`、空きマス41を `1` の並びで
-        // 書いた形。盤面だけで123字になる。
+        // 成れる34枚を `+X`、玉2枚と空きマス45を `1` で書いた盤面（123字）。
+        // 金4枚は成れないので持駒に置く（盤へ戻しても合計の字数は変わらない）。
         let board = concat!(
             "+P1+P1+P1+P1+P/",
             "+P1+P1+P1+P1+P/",
@@ -564,11 +598,8 @@ mod tests {
         // 増えるだけ）。持駒と最大桁の手数を載せた形が、正当な入力の最長。
         let input = format!("position sfen {board} b GGGG 4294967295");
 
-        assert!(
-            input.chars().count() <= MAX_INPUT_CHARS,
-            "正当な局面が入口の検査で落ちる: len={}",
-            input.chars().count()
-        );
+        // 境界を等式で固定する。`<=` だけだと、上限を 155 まで詰めても落ちない。
+        assert_eq!(input.chars().count(), LONGEST_VALID_INPUT_CHARS);
         assert!(to_book_key(&input).is_ok(), "{:?}", to_book_key(&input));
     }
 
@@ -617,11 +648,11 @@ mod tests {
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - moves 7g7f",
         ] {
             let err = to_book_key(input).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "input={input:?}");
             assert!(
-                err.message.contains("指し手列"),
+                err.message().contains("指し手列"),
                 "message={:?} input={input:?}",
-                err.message
+                err.message()
             );
         }
     }
@@ -630,7 +661,7 @@ mod tests {
     fn rejects_trailing_tokens_after_the_position() {
         for input in ["startpos extra", &format!("{HIRATE_SFEN} extra")] {
             let err = to_book_key(input).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "input={input:?}");
         }
     }
 
@@ -638,7 +669,7 @@ mod tests {
     fn rejects_a_non_numeric_move_number() {
         let err = to_book_key("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - x")
             .unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidSfen);
+        assert_eq!(err.code(), BookErrorCode::InvalidSfen);
     }
 
     #[test]
@@ -659,7 +690,7 @@ mod tests {
     #[test]
     fn hand_spelling_does_not_change_the_key() {
         let canonical = key(&bare_with_hands("2P2p"));
-        for spelling in ["2p2P", "PP2p", "2Ppp", "P1P2p"] {
+        for spelling in ["2p2P", "PP2p", "2Ppp", "pp2P"] {
             assert_eq!(
                 key(&bare_with_hands(spelling)),
                 canonical,
@@ -675,11 +706,33 @@ mod tests {
         assert!(folded.ends_with(" b RLbp"), "folded={folded}");
     }
 
+    /// 冗長な綴りを受け付けると、同じ局面を好きなだけ長く書けてしまい、
+    /// 正当な入力の最長という概念が消える（`MAX_INPUT_CHARS` の根拠が崩れる）。
+    #[test]
+    fn rejects_redundant_spellings_that_would_unbound_the_length() {
+        // 持駒の枚数 1 の明示、先頭ゼロ
+        for hands in ["1P", "01P", "018P", "0P"] {
+            let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
+        }
+
+        // 手数の先頭ゼロ
+        for ply in ["01", "0001"] {
+            let err = to_book_key(&format!("{BARE_BOARD} b - {ply}")).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "ply={ply}");
+            assert!(
+                err.message().contains("先頭ゼロ"),
+                "message={}",
+                err.message()
+            );
+        }
+    }
+
     #[test]
     fn rejects_a_broken_hand_field() {
         for hands in ["K", "k", "0P", "19P", "2", "-P", "P-", "+P", "x"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
         }
     }
 
@@ -699,7 +752,7 @@ mod tests {
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSN+",
         ] {
             let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "board={board}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "board={board}");
         }
     }
 
@@ -710,13 +763,13 @@ mod tests {
         // 1トークンでは上限内でも、合算すると超える
         for hands in ["18P1P", "9P9P1P", "3R", "3r", "2R1r", "5G"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
         }
 
         // 盤上と持駒の通し。平手には既に歩が18枚ある
         let err = to_book_key("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P 1")
             .unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidSfen);
+        assert_eq!(err.code(), BookErrorCode::InvalidSfen);
 
         for board in [
             // 玉が9枚
@@ -727,7 +780,7 @@ mod tests {
             "PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP",
         ] {
             let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "board={board}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "board={board}");
         }
     }
 
@@ -748,7 +801,7 @@ mod tests {
     fn a_huge_hand_count_is_rejected() {
         for hands in ["19P", "4294967295P", "99999999999P"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
         }
     }
 
@@ -790,8 +843,9 @@ mod tests {
         assert!(to_book_key(&format!("{board} b - 1")).is_ok());
     }
 
-    /// トークンが足りない3つの枝を、理由文まで見て別々に固定する。
-    /// 種別だけを見ると、どれが欠けても同じ InvalidSfen なので区別が付かない。
+    /// トークンが欠ける3枝（局面 / 手番 / 持駒）と、手番の値が不正な枝を、
+    /// 理由文まで見て別々に固定する。
+    /// 種別だけを見ると、どれも同じ InvalidSfen なので区別が付かない。
     #[test]
     fn rejects_input_that_is_not_a_position() {
         let cases = [
@@ -806,11 +860,11 @@ mod tests {
 
         for (input, reason) in cases {
             let err = to_book_key(input).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "input={input:?}");
             assert!(
-                err.message.contains(reason),
+                err.message().contains(reason),
                 "input={input:?} message={}",
-                err.message
+                err.message()
             );
         }
     }

@@ -154,8 +154,8 @@ mod tests {
     fn rejects_unknown_and_missing_extension() {
         for path in ["/books/book.txt", "/books/book", "/books/.db/x"] {
             let err = format_of(path).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::UnknownExtension, "path={path}");
-            assert_eq!(err.path.as_deref(), Some(path));
+            assert_eq!(err.code(), BookErrorCode::UnknownExtension, "path={path}");
+            assert_eq!(err.path(), Some(path));
         }
     }
 

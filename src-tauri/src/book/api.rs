@@ -73,7 +73,7 @@ fn open_at(path: &Path) -> Result<OpenedBook, BookError> {
 
     // reader も実体のパスから作る。指定した綴りを渡すと open_reader が
     // symlink をもう一度たどるので、検査した先と実際に開くファイルが別物に
-    // なりうる（その隙に張り替えられると BookInfo.path が旧い方を指す）。
+    // なりうる（その隙に張り替えられると BookInfo.path() が旧い方を指す）。
     let reader = open_reader(&canonical).map_err(|err| requested_error(err, path, &canonical))?;
 
     Ok(OpenedBook {
@@ -145,8 +145,8 @@ fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookEr
 
 /// message に注記を足す。`path` は触らない。
 fn annotate(err: BookError, note: &str) -> BookError {
-    let annotated = BookError::new(err.code, format!("{}（{note}）", err.message));
-    match err.path {
+    let annotated = BookError::new(err.code(), format!("{}（{note}）", err.message()));
+    match err.path() {
         Some(path) => annotated.with_path(path),
         None => annotated,
     }
@@ -155,7 +155,7 @@ fn annotate(err: BookError, note: &str) -> BookError {
 /// フロントから来たパスの形を検査する。
 ///
 /// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
-/// 失敗し、`BookInfo.path` にもその相対文字列が残って UI に出しても意味を成さない。
+/// 失敗し、`BookInfo.path()` にもその相対文字列が残って UI に出しても意味を成さない。
 fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
     let invalid = |reason: &str| {
         BookError::new(BookErrorCode::InvalidPath, reason.to_string()).with_path(raw)
@@ -355,7 +355,7 @@ mod tests {
         drop(state.close(info.handle).unwrap());
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
-        assert_eq!(err.code, BookErrorCode::InvalidHandle);
+        assert_eq!(err.code(), BookErrorCode::InvalidHandle);
     }
 
     /// 壊れた局面では `get` を呼ばないこと。
@@ -370,7 +370,7 @@ mod tests {
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
 
-        assert_eq!(err.code, BookErrorCode::InvalidSfen);
+        assert_eq!(err.code(), BookErrorCode::InvalidSfen);
         assert_eq!(state.get_calls(), 0);
     }
 
@@ -398,7 +398,7 @@ mod tests {
     #[cfg(unix)]
     fn rejects_a_link_that_points_at_another_format() {
         let (dir, _target, link) = linked("mismatch", ".bin", ".db");
-        let result = open_at(&link).err().map(|err| err.code);
+        let result = open_at(&link).err().map(|err| err.code());
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         assert_eq!(result, Some(BookErrorCode::InvalidPath));
@@ -409,7 +409,7 @@ mod tests {
     #[cfg(unix)]
     fn rejects_a_link_whose_target_extension_is_unknown() {
         let (dir, _target, link) = linked("unknown", "", ".db");
-        let result = open_at(&link).err().map(|err| err.code);
+        let result = open_at(&link).err().map(|err| err.code());
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         assert_eq!(result, Some(BookErrorCode::InvalidPath));
@@ -420,7 +420,7 @@ mod tests {
     #[cfg(unix)]
     fn a_link_to_the_same_format_passes_the_format_check() {
         let (dir, _target, link) = linked("same", ".db", ".db");
-        let result = open_at(&link).err().map(|err| err.code);
+        let result = open_at(&link).err().map(|err| err.code());
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         assert_ne!(result, Some(BookErrorCode::InvalidPath));
@@ -435,8 +435,12 @@ mod tests {
         let mismatch = linked("path-mismatch", ".bin", ".db");
 
         // reader 由来（UnsupportedFormat）と食い違い由来（InvalidPath）の両方
-        let from_reader = open_at(&link).err().and_then(|err| err.path);
-        let from_mismatch = open_at(&mismatch.2).err().and_then(|err| err.path);
+        let from_reader = open_at(&link)
+            .err()
+            .and_then(|err| err.path().map(str::to_owned));
+        let from_mismatch = open_at(&mismatch.2)
+            .err()
+            .and_then(|err| err.path().map(str::to_owned));
 
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
         std::fs::remove_dir_all(&mismatch.0).expect("テスト用のディレクトリを消せない");
@@ -471,11 +475,11 @@ mod tests {
         );
 
         assert!(
-            err.message.contains("/vol/ext/target.db"),
+            err.message().contains("/vol/ext/target.db"),
             "message={}",
-            err.message
+            err.message()
         );
-        assert_eq!(err.path.as_deref(), Some("/books/link.db"));
+        assert_eq!(err.path(), Some("/books/link.db"));
     }
 
     #[test]
@@ -483,8 +487,8 @@ mod tests {
         let path = PathBuf::from("/books/a.db");
         let err = requested_error(some_error(), &path, &path);
 
-        assert_eq!(err.message, some_error().message);
-        assert_eq!(err.path.as_deref(), Some("/books/a.db"));
+        assert_eq!(err.message(), some_error().message());
+        assert_eq!(err.path(), Some("/books/a.db"));
     }
 
     /// 解決自体が失敗する枝。実体は取れないが、リンク先の綴りは読める。
@@ -504,13 +508,13 @@ mod tests {
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         let err = err.expect("リンク先が無いので必ず失敗する");
-        assert_eq!(err.code, BookErrorCode::NotFound);
+        assert_eq!(err.code(), BookErrorCode::NotFound);
         assert!(
-            err.message.contains(missing.to_string_lossy().as_ref()),
+            err.message().contains(missing.to_string_lossy().as_ref()),
             "message={}",
-            err.message
+            err.message()
         );
-        assert_eq!(err.path.as_deref(), Some(link.to_string_lossy().as_ref()));
+        assert_eq!(err.path(), Some(link.to_string_lossy().as_ref()));
     }
 
     #[test]
@@ -523,8 +527,8 @@ mod tests {
     fn rejects_a_path_that_cannot_point_at_a_file() {
         for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
             let err = validate_book_path(raw).unwrap_err();
-            assert_eq!(err.code, BookErrorCode::InvalidPath, "raw={raw:?}");
-            assert_eq!(err.path.as_deref(), Some(raw));
+            assert_eq!(err.code(), BookErrorCode::InvalidPath, "raw={raw:?}");
+            assert_eq!(err.path(), Some(raw));
         }
     }
 
@@ -561,7 +565,7 @@ mod tests {
     }
 
     fn assert_truncated_path(err: &BookError) {
-        let path = err.path.as_deref().expect("path が載っていない");
+        let path = err.path().expect("path が載っていない");
         assert_eq!(path.chars().count(), MAX_PATH_CHARS + 1, "…のぶんだけ長い");
         assert!(path.ends_with('…'), "切れたことが分からない");
     }
