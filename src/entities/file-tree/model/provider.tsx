@@ -136,6 +136,17 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [state.selectedNode?.path, state.activeKifuPath],
   );
 
+  /**
+   * ツリーを取り直す。**操作のあとは必ず待つ。**
+   *
+   * 待たないと、操作が返った時点でツリーが古いままになり、呼び出し元は
+   * 「作られていない」画面を描く。読み直しが2本重なると
+   * `pendingRevealPathRef` の受け渡しも壊れる。
+   *
+   * ただし呼び出し元は**結果を返さない**。読み直しの失敗はここが
+   * `reload_failed` として積むので、返すと同じ失敗が2箇所に出るうえ
+   * 「操作に失敗した」という嘘になる
+   */
   const loadFileTree = useCallback(async (): AsyncResult<void, FsError> => {
     if (!rootDir) {
       return Ok(undefined);
@@ -285,12 +296,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = res.data;
 
-      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
-      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
-      // pendingRevealPathRef の受け渡しも壊れる。
-      //
-      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
-      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
@@ -317,12 +322,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = res.data;
 
-      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
-      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
-      // pendingRevealPathRef の受け渡しも壊れる。
-      //
-      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
-      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
@@ -342,12 +341,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
       pendingRevealPathRef.current = res.data;
 
-      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
-      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
-      // pendingRevealPathRef の受け渡しも壊れる。
-      //
-      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
-      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
@@ -394,12 +387,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         dispatch({ type: "kifu_closed" });
       }
 
-      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
-      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
-      // pendingRevealPathRef の受け渡しも壊れる。
-      //
-      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
-      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
@@ -434,16 +421,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       const isRootRename = node.isDirectory && rootDir === node.path;
       if (isRootRename) {
-        setRootDir(nextPath);
+        // ここだけ読み直しを起こさない。ルート自体が変わるので、
+        // `rootDir` の変化を受ける effect（上）が新しい場所で読み直す。
+        // ここで待つと古い `rootDir` を読む
+        await setRootDir(nextPath);
         return Ok(undefined);
       }
 
-      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
-      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
-      // pendingRevealPathRef の受け渡しも壊れる。
-      //
-      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
-      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
@@ -478,12 +462,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const nextPath = res.data;
       reconcilePathMutation(node.path, nextPath);
 
-      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
-      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
-      // pendingRevealPathRef の受け渡しも壊れる。
-      //
-      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
-      // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
