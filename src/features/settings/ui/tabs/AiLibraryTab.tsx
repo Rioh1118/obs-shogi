@@ -5,8 +5,7 @@ import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection } from "../kit";
-import { useAppConfig } from "@/entities/app-config";
-import { chooseAiRoot } from "@/entities/app-config/api/directories";
+import { chooseAiRoot, useAppConfig } from "@/entities/app-config";
 
 import {
   scanAiRoot,

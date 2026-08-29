@@ -1,6 +1,5 @@
 import Button from "@/shared/ui/Button/Button";
-import FsErrorView from "@/entities/file-tree/ui/FsErrorView";
-import { fsErrorTier, type FsError } from "@/entities/file-tree/api/error";
+import { FsErrorView, fsErrorTier, type FsError } from "@/entities/file-tree";
 
 interface Props {
   error: FsError;

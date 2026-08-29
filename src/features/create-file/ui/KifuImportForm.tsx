@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-import { FsErrorView, isResolvedByConflictDialog, type FsError } from "@/entities/file-tree";
+import {
+  FsErrorView,
+  isResolvedByConflictDialog,
+  useFileTree,
+  type FsError,
+} from "@/entities/file-tree";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { type KifuFormat } from "@/entities/kifu/model/kifu";
 import Form from "@/shared/ui/Form/Form";

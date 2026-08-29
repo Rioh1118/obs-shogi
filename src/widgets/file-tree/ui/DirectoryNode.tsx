@@ -7,8 +7,8 @@ import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, type DragData, type DropData } from "@/widgets/file-tree/lib/dnd";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import type { FileTreeNode } from "@/entities/file-tree";
+import { useFileTree } from "@/entities/file-tree";
 
 // TreeNode を import し返すと import/no-cycle に落ちる。子の描画は renderChild で受ける。
 function DirectoryNode({

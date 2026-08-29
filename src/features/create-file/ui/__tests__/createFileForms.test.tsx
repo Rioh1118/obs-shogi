@@ -2,7 +2,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 
-import type { FsError } from "@/entities/file-tree/api/error";
+import type { FsError } from "@/entities/file-tree";
 
 /**
  * 作成とインポートは、失敗を出す場所を自分で持つ。
@@ -14,6 +14,7 @@ import type { FsError } from "@/entities/file-tree/api/error";
 const createNewFile = vi.fn();
 const importKifuFile = vi.fn();
 
+// 差し替えるのは実体の側。barrel は再 export なので、こちらを差し替えれば通る
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile, importKifuFile }),
 }));

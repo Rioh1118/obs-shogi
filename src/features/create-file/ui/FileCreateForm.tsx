@@ -1,8 +1,12 @@
 import { useState } from "react";
 import type { InitialPresetString } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-import { FsErrorView, isResolvedByConflictDialog, type FsError } from "@/entities/file-tree";
+import {
+  FsErrorView,
+  isResolvedByConflictDialog,
+  useFileTree,
+  type FsError,
+} from "@/entities/file-tree";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";

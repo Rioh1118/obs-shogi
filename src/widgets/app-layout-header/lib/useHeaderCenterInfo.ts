@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Color } from "shogi.js";
 import { turnGlyph, type TurnGlyph } from "@/shared/lib/turn";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 
 function basename(path: string) {

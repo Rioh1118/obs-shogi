@@ -8,8 +8,8 @@ import InlineNameEditor from "./InlineNameEditor";
 import FileIcon from "./FileIcon";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import type { FileTreeNode } from "@/entities/file-tree";
+import { useFileTree } from "@/entities/file-tree";
 import { validateBasename } from "@/entities/file-tree/lib/validateBasename";
 
 function RootNode({

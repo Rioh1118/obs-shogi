@@ -24,13 +24,13 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import ScrollDropZone from "./ScrollDropZone";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useFileTree } from "@/entities/file-tree";
 import Spinner from "@/shared/ui/Spinner";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import Modal from "@/shared/ui/Modal";
 import FileTreeErrorNotice from "./FileTreeErrorNotice";
-import type { FsError } from "@/entities/file-tree/api/error";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
+import type { FsError } from "@/entities/file-tree";
+import type { FileTreeNode } from "@/entities/file-tree";
 
 const collisionDetection: CollisionDetection = (args) => {
   const collisions = pointerWithin(args);

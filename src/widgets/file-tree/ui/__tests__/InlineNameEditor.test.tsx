@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import type { FsError } from "@/entities/file-tree/api/error";
+import type { FsError } from "@/entities/file-tree";
 import InlineNameEditor from "../InlineNameEditor";
 
 /**

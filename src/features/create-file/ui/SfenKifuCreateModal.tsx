@@ -3,9 +3,13 @@ import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-import { FsErrorView, isResolvedByConflictDialog, type FsError } from "@/entities/file-tree";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
+import {
+  FsErrorView,
+  isResolvedByConflictDialog,
+  useFileTree,
+  type FileTreeNode,
+  type FsError,
+} from "@/entities/file-tree";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";

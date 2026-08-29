@@ -2,7 +2,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
 
-import type { FsError } from "@/entities/file-tree/api/error";
+import type { FsError } from "@/entities/file-tree";
 
 /**
  * ツリー取得の失敗とファイル操作の失敗は、どちらも同じ `state.error` に積まれる。

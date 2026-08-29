@@ -7,7 +7,7 @@ import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
 import AnalysisPaneHeader from "./AnalysisPaneHeader";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine/api/rust-types";
