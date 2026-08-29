@@ -16,7 +16,6 @@ export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
   const options: BranchOption[] = [];
 
   options.push({
-    id: `te${cur + 1}-main`,
     isMainLine: true,
     tesuu: cur + 1,
     moveFormat: next,
@@ -29,7 +28,6 @@ export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
       if (!forkFirst) return;
 
       options.push({
-        id: `te${cur + 1}-fork${i}`,
         isMainLine: false,
         tesuu: cur + 1,
         moveFormat: forkFirst,

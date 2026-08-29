@@ -13,8 +13,6 @@ export type BranchIndex = number;
  * 「本譜と表示しながら fork を進める」ような食い違った値が型として作れてしまう。
  */
 export type BranchOption = {
-  /** リスト描画の key 用。安定していればよく、意味は持たない。 */
-  id: string;
   tesuu: number;
   /** 指し手のほか、投了・中断（`special`）も入る。棋譜ストリームの分岐一覧と集合を揃えるため。 */
   moveFormat: IMoveFormat;
