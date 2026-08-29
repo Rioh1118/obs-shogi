@@ -10,6 +10,9 @@ import { describe, expect, it } from "vitest";
  * 経緯は git log と PR に残る。コードには**現在どうあるべきか**だけを書く。
  *
  * `docs/` と `.claude/` は対象外。あちらは経緯を残す場所。
+ *
+ * レビューの識別子（`// 6:` / `(C-H1)`）も止める。付いた時点では意味があるが、
+ * 指す先はレビューが終われば消える。
  */
 
 const ROOTS = [join(process.cwd(), "src"), join(process.cwd(), "src-tauri", "src")];
@@ -28,7 +31,12 @@ const HISTORY_WORDS = [
   "差分の外",
   "に変更した",
   "から変えた",
+  "残っていた",
+  "旧 ",
 ];
+
+/** 指す先の消えたレビュー識別子。`// 6:` や `(C-H1)` のような形 */
+const REVIEW_TAG = /^\s*\/\/\s*\d+:|\([A-Z]-[A-Z]?\d+\)/;
 
 /**
  * ブランチ名。マージすると消えるので、コードから指してはいけない。
@@ -53,6 +61,9 @@ describe("コメント", () => {
 
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
+        // この検査自身は、止めたい形を例として書く場所
+        if (file === __filename) continue;
+
         const source = readFileSync(file, "utf8");
         const name = relative(process.cwd(), file);
 
@@ -60,10 +71,12 @@ describe("コメント", () => {
           const text = match[0];
           const hit = HISTORY_WORDS.find((word) => text.includes(word));
           const branch = text.match(BRANCH_NAME)?.[0];
-          if (!hit && !branch) continue;
+          const tag = text.match(REVIEW_TAG)?.[0];
+          if (!hit && !branch && !tag) continue;
 
           const line = source.slice(0, match.index).split("\n").length;
-          offenders.push(`${name}:${line}  「${hit ?? branch}」  ${text.slice(0, 70).trim()}`);
+          const why = hit ?? branch ?? tag;
+          offenders.push(`${name}:${line}  「${why}」  ${text.slice(0, 70).trim()}`);
         }
       }
     }

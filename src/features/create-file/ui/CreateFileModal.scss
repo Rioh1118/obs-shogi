@@ -38,8 +38,17 @@
       background-color index.$duration-4 index.$ease,
       color index.$duration-3 index.$ease;
 
+    // 面の差だけだと 1.12:1 で読めない。文字の濃さでも示す
     &:hover {
       background-color: rgba(index.$color-white, 0.04);
+      color: index.$color-text-primary;
+    }
+
+    // 選択中はホバーで見た目を変えない。面はもう主ボタンの色で、
+    // 詳細度が同じなので記述順だけで勝敗が決まる形にしない
+    &.is-active:hover {
+      background: index.$color-secondary-solid;
+      color: index.$color-white;
     }
 
     // 選択中は主ボタンと同じ面に置く。カードに対して 3.33:1 の段差があるので

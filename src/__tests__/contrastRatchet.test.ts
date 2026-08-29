@@ -52,7 +52,7 @@ type Row = { key: string; detail: string };
  * **下げてよいのは、規則そのものを消したときだけ。** 面を半透明にして
  * 測れなくしたのなら、下げずに面の側を直すこと。
  */
-const MEASURED_FLOOR = 51;
+const MEASURED_FLOOR = 52;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の上限。**上げない。**
