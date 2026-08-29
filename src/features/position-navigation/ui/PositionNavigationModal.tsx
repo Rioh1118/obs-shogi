@@ -51,9 +51,7 @@ function PositionNavigationModal() {
   useEffect(() => {
     if (!isOpen) return;
 
-    // player を組めなかった棋譜では gameState.cursor が前の棋譜のものなので、
-    // それを使わず0手目から取り直す。
-    const cur = gameView.player ? gameState.cursor : null;
+    const cur = gameState.cursor;
     setNav({
       PreviewCursor: {
         tesuu: cur?.tesuu ?? 0,
@@ -61,7 +59,7 @@ function PositionNavigationModal() {
       },
       selectedOptionIndex: 0,
     });
-  }, [isOpen, gameView.player, gameState.cursor]);
+  }, [isOpen, gameState.cursor]);
 
   const { previewData, options, unreachable } = useMemo(() => {
     if (!isOpen || !gameView.player) {
