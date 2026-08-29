@@ -84,8 +84,13 @@ body {
 間隔と角丸は既に 0.2rem 刻みにほぼ乗っている（`gap` の約89%、`border-radius` の約83%）。
 乗っていない値をその刻みに寄せる。
 
-- **間隔** `$space-1`…`$space-8` = 0.2 / 0.4 / 0.6 / 0.8 / 1.0 / 1.2 / 1.6 / 2.4rem
-- **角丸** `$radius-xs`…`$radius-xl` = 0.4 / 0.6 / 0.8 / 1.0 / 1.2 / 1.6rem、加えて `$radius-pill` `$radius-circle`
+- **間隔** `$space-1`…`$space-11` = 0.2 / 0.4 / 0.6 / 0.8 / 1.0 / 1.2 / 1.4 / 1.6 / 1.8 / 2.0 / 2.4rem
+- **角丸** `$radius-xs`…`$radius-3xl` = 0.4 / 0.6 / 0.8 / 1.0 / 1.2 / 1.4 / 1.6rem、
+  加えて `$radius-pill`（`999px`）と `$radius-circle`（`50%`）
+
+刻みは 2.4rem まで**欠けなく張る**。段を飛ばすと、実測 51件の `1.4rem`（モーダル・ダイアログの外殻）が
+1.2 と 1.6 のどちらにも倒せてしまい、同じ役割の部品が寄せ先の判断次第で割れる。
+
 - **段階** 役割で4段。`$shadow-raised`（カード）/ `$shadow-overlay`（ポップオーバー）/
   `$shadow-1`（モーダル、既存）/ `$shadow-press`（押下、既存）
 - **モーション** `$duration-fast` 100ms / `$duration` 120ms / `$duration-slow` 160ms、`$ease: ease`。

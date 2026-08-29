@@ -28,15 +28,19 @@ $font-hero: 4rem; // ガイド画面の導入
 $font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
 
 // space
-// 役割名を付けない。役割と寸法が一対一に対応しないため
+// 役割名を付けない。役割と寸法が一対一に対応しないため。
+// 0.2rem 刻みを 2.4rem まで欠けなく張る。段を飛ばすと寄せ先が2つに割れる
 $space-1: 0.2rem;
 $space-2: 0.4rem;
 $space-3: 0.6rem;
 $space-4: 0.8rem;
 $space-5: 1rem;
 $space-6: 1.2rem;
-$space-7: 1.6rem;
-$space-8: 2.4rem;
+$space-7: 1.4rem;
+$space-8: 1.6rem;
+$space-9: 1.8rem;
+$space-10: 2rem;
+$space-11: 2.4rem;
 
 // radius
 $radius-xs: 0.4rem;
@@ -44,7 +48,8 @@ $radius-sm: 0.6rem;
 $radius-md: 0.8rem;
 $radius-lg: 1rem;
 $radius-xl: 1.2rem;
-$radius-2xl: 1.6rem;
+$radius-2xl: 1.4rem;
+$radius-3xl: 1.6rem;
 $radius-pill: 999px; // 文字サイズに従属しないので rem 化しない
 $radius-circle: 50%;
 
