@@ -4,7 +4,7 @@ import EngineTab from "./tabs/EngineTab";
 
 import "./SettingsPanel.scss";
 import SettingsTabButton from "./SettingsTabButton";
-import { TABS, type TabKey } from "@/features/settings";
+import { TABS, type TabKey } from "@/features/settings/model/tabs";
 import WorkspaceTab from "./tabs/WorkspaceTab";
 import AiLibraryTab from "./tabs/AiLibraryTab";
 import { useMemo } from "react";

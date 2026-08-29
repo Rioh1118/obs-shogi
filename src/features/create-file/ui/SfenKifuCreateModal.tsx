@@ -4,7 +4,7 @@ import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useFileTree } from "@/entities/file-tree/model/useFileTree";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import type { KifuFormat } from "@/entities/kifu";
+import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";

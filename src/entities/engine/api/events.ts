@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AnalysisResult } from "@/entities/engine";
+import type { AnalysisResult } from "@/entities/engine/api/rust-types";
 import { EVENT_NAMES } from "./eventNames";
 
 type AnalysisUpdate = { sessionId: string; result: AnalysisResult };

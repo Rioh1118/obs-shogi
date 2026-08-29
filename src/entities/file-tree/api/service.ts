@@ -1,10 +1,10 @@
 import type { AsyncResult } from "@/shared/lib/result";
 import type { FileTreeNode } from "../model/types";
-import type { KifuCreationOptions } from "@/entities/kifu";
-import type { JKFData } from "@/entities/kifu";
-
+import type { KifuCreationOptions } from "@/entities/kifu/model/kifu";
+import type { JKFData } from "@/entities/kifu/model/jkf";
 import * as fs from "./fileSystem";
-import { createInitialJKFData, parseKifuStringToJKF } from "@/entities/kifu";
+import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
+import { createInitialJKFData } from "@/entities/kifu/lib/createInitialJKFData";
 import type { FsError } from "./error";
 
 export async function fetchTree(rootPath: string): AsyncResult<FileTreeNode, FsError> {

@@ -1,5 +1,5 @@
 import type { FileTreeNode } from "../model/types";
-import type { KifuFormat } from "@/entities/kifu";
+import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import type { RustFileTreeNode } from "./rust-types";
 
 export class RustFileTreeAdapter {

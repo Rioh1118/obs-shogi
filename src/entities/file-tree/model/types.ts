@@ -1,5 +1,5 @@
-import type { JKFData } from "@/entities/kifu";
-import type { KifuCreationOptions, KifuFormat } from "@/entities/kifu";
+import type { JKFData } from "@/entities/kifu/model/jkf";
+import type { KifuCreationOptions, KifuFormat } from "@/entities/kifu/model/kifu";
 import type { AsyncResult } from "@/shared/lib/result";
 import type { FsError } from "../api/error";
 

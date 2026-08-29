@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { GameProvider, type GamePersistence } from "@/entities/game";
-import { saveKifuToFile, type JKFData } from "@/entities/kifu";
+import { saveKifuToFile } from "@/entities/kifu/api/write";
+import { type JKFData } from "@/entities/kifu/model/jkf";
 import { GameFileTreeBridge } from "../bridges/GameFileTreeBridge";
 import { useFileTree } from "@/entities/file-tree";
 

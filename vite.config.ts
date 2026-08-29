@@ -1,6 +1,7 @@
 import { defineConfig } from "vite-plus";
 import type { OxlintOverride } from "vite-plus/lint";
 import react from "@vitejs/plugin-react";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -16,6 +17,36 @@ const DEEP_RELATIVE_IMPORT = {
   message:
     "2階層以上遡る相対 import は禁止。`@/` エイリアスで書くこと。相対パスはレイヤ規則を素通りする。",
 };
+
+// 自スライスの barrel（`@/entities/kifu` のような index）を、そのスライスの中から読み返さない。
+// 読み返すと index の export がひとつ増えただけで循環になる。中からは実体を直に読むこと。
+const sliceSelfBarrels = ["entities", "features", "widgets"].flatMap((layer) => {
+  const dir = path.resolve(__dirname, "src", layer);
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map(
+      (e): OxlintOverride => ({
+        files: [`src/${layer}/${e.name}/**/*.{ts,tsx}`],
+        rules: {
+          "no-restricted-imports": [
+            "error",
+            {
+              patterns: [DEEP_RELATIVE_IMPORT],
+              paths: [
+                {
+                  name: `@/${layer}/${e.name}`,
+                  message:
+                    "自スライスの barrel を中から読まない。実体のモジュールを直接 import すること（循環の種になる）。",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+});
 
 // 各レイヤから、自分より上のレイヤへの import を禁じる。
 // 型を戻り値側に置くのは、末尾の `.slice(1)` が文脈型の伝播を止めてしまい、
@@ -174,6 +205,7 @@ export default defineConfig({
         },
       },
       ...layerBoundaries,
+      ...sliceSelfBarrels,
     ],
     options: {},
   },
