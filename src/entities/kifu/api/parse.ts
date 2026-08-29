@@ -1,5 +1,7 @@
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
+import { sanitizeJkf } from "@/entities/kifu/lib/sanitizeJkf";
+import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 
 import { Normalizer } from "json-kifu-format";
 import {
@@ -12,6 +14,12 @@ import {
   exportJKF,
 } from "tsshogi";
 
+/**
+ * 棋譜を `JKFData` にできなかったことを表す
+ *
+ * `message` はそのまま利用者に見せる想定で日本語で書く。`cause` には tsshogi や
+ * 形式判定が返した理由が入るが、こちらは利用者向けではない。
+ */
 export class KifuParseError extends Error {
   readonly cause?: Error | string;
   constructor(message: string, cause?: Error | string) {
@@ -22,6 +30,13 @@ export class KifuParseError extends Error {
 }
 
 export type ParsedKifu = {
+  /**
+   * 中身から判定した形式
+   *
+   * 拡張子とは独立に決まるので、`.kif` に CSA が入っていれば `"csa"` になる。
+   * 保存形式は拡張子から決めているので（`file-tree/api/adapter.ts` の `kifuFormat`）、
+   * この値と一致するとは限らない。
+   */
   detectedFormat: KifuFormat;
   jkf: JKFData;
 };
@@ -50,13 +65,42 @@ function normalizeNotation(jkf: JKFData): JKFData {
     // 正規化は失敗した手に color / same / capture などを書き込んでから throw する。
     // 「同」を tsshogi が先に埋めるのは KIF と KI2 だけで、CSA と JKF は埋めない。
     // コピーを渡さないと、それらの形式で中途半端に書き換わった棋譜が保存側まで流れる。
-    return Normalizer.normalizeMinimal(structuredClone(jkf));
+    return Normalizer.normalizeMinimal(cloneJkf(jkf));
   } catch {
     // 開けること自体を優先して未正規化のまま返す。
     return jkf;
   }
 }
 
+/**
+ * tsshogi の出力を `JKFData` にする。棋譜テキストから `JKFData` を作る経路は全てここを通す。
+ *
+ * 「空の変化を含まない」は `JKFData` の不変条件なので、満たす責任は型を所有する
+ * このスライスにある。呼び出し側で `sanitizeJkf` を掛けると、掛けたかどうかが
+ * 型から読めない `JKFData` が生まれる。
+ */
+function normalizeAndSanitize(exported: JKFData): JKFData {
+  return sanitizeJkf(normalizeNotation(exported));
+}
+
+/**
+ * 形式が分かっている棋譜テキストを `JKFData` にする
+ *
+ * throw するのは空文字のときと、tsshogi が `Error` を返したときだけ。
+ * **読めなかった入力が「0手の棋譜」として返ることがある。** KIF / KI2 / CSA の
+ * インポータは、指し手を1つも読み取れなくても `Error` ではなく空の record を返す
+ * （壊れた JSON もただのテキストも `moves: [{}]` になる）。
+ * 「throw しなかった＝棋譜として読めた」ではない。
+ *
+ * 返り値は空の変化を含まない（`sanitizeJkf`）。受け取った側で掛け直す必要はない。
+ *
+ * 盤上で再生できない手を含む棋譜では throw せず、**未正規化のまま返る**。
+ * このとき表記が揃わないだけでなく、その手以降へ `JKFPlayer.goto` が進めない。
+ * 返り値を持って局面を動かす側は、`goto` が失敗しうる前提で境界を用意すること
+ * （レンダ中に呼ぶと画面が落ちる）。
+ *
+ * @throws {KifuParseError} 棋譜として読めなかったとき
+ */
 export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
@@ -73,9 +117,18 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   if (rec instanceof Error) {
     throw new KifuParseError(`棋譜(${format})の解析に失敗しました。`, rec);
   }
-  return normalizeNotation(exportJKF(rec) as JKFData);
+  return normalizeAndSanitize(exportJKF(rec) as JKFData);
 }
 
+/**
+ * 形式が分からない棋譜テキストを、判定した形式ごと `JKFData` にする
+ *
+ * 未正規化のまま返りうる点、空の変化を含まない点、読めなかった入力が
+ * 「0手の棋譜」として返りうる点は {@link parseKifuContentToJKF} と同じ。
+ * 形式の判定そのものに失敗した場合は {@link KifuParseError} になる。
+ *
+ * @throws {KifuParseError} 形式を判定できないか、棋譜として読めなかったとき
+ */
 export function parseKifuStringToJKF(raw: string): ParsedKifu {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
@@ -83,7 +136,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
     if (rec instanceof Error) throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
-    return { detectedFormat: "jkf", jkf: normalizeNotation(exportJKF(rec) as JKFData) };
+    return { detectedFormat: "jkf", jkf: normalizeAndSanitize(exportJKF(rec) as JKFData) };
   }
 
   let fmt: RecordFormatType;
@@ -116,5 +169,5 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? "kif"
           : "jkf";
 
-  return { detectedFormat, jkf: normalizeNotation(exportJKF(rec) as JKFData) };
+  return { detectedFormat, jkf: normalizeAndSanitize(exportJKF(rec) as JKFData) };
 }

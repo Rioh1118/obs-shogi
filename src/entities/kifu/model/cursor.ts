@@ -8,13 +8,17 @@ export type ForkPointer = {
   forkIndex: number;
 };
 
+declare const tesuuPointerBrand: unique symbol;
+
 /**
- * JKFPlayer.getTesuuPointer()が返す「局面を一意に復元できる文字列」
- * 例: "7,[{\"te\":3,\"forkIndex\":0}]"
+ * JKFPlayer.getTesuuPointer() が返す「局面を一意に復元できる文字列」
+ * 例: `7,[{"te":3,"forkIndex":0}]`
  *
- * 文字列のままでも良いが、方で明示するためにbranded typeにする。
+ * 素の文字列と取り違えないよう brand を付けてある。
+ * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
+ * **この型を作ってよいのは `buildTesuuPointer` だけ**、というのは規約。
  */
-export type TesuuPointer = string & { readonly __brand: "TesuuPointer" };
+export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
 /**
  * アプリ側で保持する「公式カーソル」
@@ -24,7 +28,7 @@ export type TesuuPointer = string & { readonly __brand: "TesuuPointer" };
  * - forkPointers は「現在局面までの分岐履歴」だけでなく、
  *   将来 forward するときに使う分岐計画も含みうる。
  * - 実際に current position を player に適用するときは
- *   appliedForkPointers(cursor, cursor.tesuu) を使う。
+ *   normalizeForkPointers(cursor.forkPointers, cursor.tesuu) で計画を落としてから渡す。
  */
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */

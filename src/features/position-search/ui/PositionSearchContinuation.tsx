@@ -2,11 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./PositionSearchContinuation.scss";
 
 import type { PositionHit } from "@/entities/search";
-import { applyCursorToPlayer } from "@/entities/kifu/lib/cursorRuntime";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { JKFPlayer } from "json-kifu-format";
 import { readFile } from "@/entities/file-tree/api/fileSystem";
 import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 
@@ -97,31 +96,29 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
           jkfCacheRef.current.set(abs, data);
         }
 
-        const jkf = new JKFPlayer(data);
-
         const cursor = cursorFromLite(activeHit.cursor);
-        applyCursorToPlayer(jkf, cursor);
+        const player = buildPlayer(data, cursor);
 
         const planned = new Map<number, number>();
         for (const p of cursor.forkPointers) planned.set(p.te, p.forkIndex);
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {
-          const te = jkf.tesuu + 1;
-          if (!jkf.currentStream[te]) break;
+          const te = player.tesuu + 1;
+          if (!player.currentStream[te]) break;
 
           const plannedForkIndex = planned.get(te) ?? null;
 
           let ok = false;
           if (plannedForkIndex != null) {
-            ok = jkf.forkAndForward(plannedForkIndex);
-            if (!ok) ok = jkf.forward();
+            ok = player.forkAndForward(plannedForkIndex);
+            if (!ok) ok = player.forward();
           } else {
-            ok = jkf.forward();
+            ok = player.forward();
           }
           if (!ok) break;
 
-          const s = jkf.getReadableKifu?.() ?? "";
+          const s = player.getReadableKifu?.() ?? "";
           if (s) out.push(s);
         }
 

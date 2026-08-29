@@ -10,6 +10,13 @@
       "vitest": ["./node_modules/@voidzero-dev/vite-plus-test"]
     }
   },
-  "include": ["src/**/__tests__/**/*", "src/**/*.test.ts", "src/**/*.test.tsx"],
+  // vite-env.d.ts を入れないと、.tsx を辿るテストで `import "./x.scss"` が
+  // TS2307 になる（noUncheckedSideEffectImports が効くため）。
+  "include": [
+    "src/vite-env.d.ts",
+    "src/**/__tests__/**/*",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ],
   "exclude": []
 }
