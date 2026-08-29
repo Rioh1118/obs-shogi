@@ -3,17 +3,15 @@
 .context-menu {
   background: index.$color-primary-black;
   border: 1px solid rgba(index.$color-white, 0.12);
-  border-radius: 0.6rem;
-  padding: 0.4rem 0;
+  border-radius: index.$radius-3;
+  padding: index.$space-2 0;
 
-  box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.45),
-    0 2px 10px rgba(0, 0, 0, 0.35);
+  box-shadow: index.$shadow-overlay;
 
   color: index.$color-text-light-1;
 
   transform-origin: top left;
-  animation: context-menu-in 140ms ease-out;
+  animation: context-menu-in index.$duration-4 ease-out;
 
   user-select: none;
   display: flex;
@@ -29,7 +27,7 @@
     padding: 0 1.1rem;
 
     // typography
-    font-size: 1.4rem;
+    font-size: index.$font-lead;
     line-height: 1;
     text-align: left;
     color: index.$color-text-light-1;
@@ -40,9 +38,9 @@
 
     // smoother hover feel
     transition:
-      background-color 120ms ease,
-      color 120ms ease,
-      box-shadow 120ms ease;
+      background-color index.$duration-3 index.$ease,
+      color index.$duration-3 index.$ease,
+      box-shadow index.$duration-3 index.$ease;
 
     &:hover:not(:disabled) {
       background-color: rgba(index.$color-white, 0.1);

@@ -138,7 +138,10 @@
   }
 
   &__hand-label {
-    font-size: 0.75rem;
+    // 盤の中は独立した縮尺で、アプリの文字の階層には乗らない。
+    // --square-size から導くと size="small"（盤 180px）で 4.5px まで落ちるので、
+    // 盤の大きさによらず読める固定値にしてある
+    font-size: 0.75rem; // scale-exempt
     font-weight: 600;
     min-width: 3rem;
     text-align: center;
@@ -166,7 +169,8 @@
   }
 
   &__hand-empty {
-    font-size: 0.625rem;
+    // __hand-label と同じ理由でスケールの段に乗せない
+    font-size: 0.625rem; // scale-exempt
     color: var(--text-tertiary);
     font-style: italic;
   }

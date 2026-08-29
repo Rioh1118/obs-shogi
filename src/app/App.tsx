@@ -1,4 +1,6 @@
 import { BrowserRouter } from "react-router";
+// リセットと基準文字サイズ。App.scss より前に読む
+import "./styles/global.scss";
 import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";
 import AppRouter from "./routing/AppRouter";
