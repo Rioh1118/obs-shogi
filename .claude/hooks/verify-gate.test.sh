@@ -46,6 +46,15 @@ expect_match CATCH "git -C '/tmp/My Books/repo' commit -m x"
 expect_match CATCH 'git -C "/tmp/My Books/repo" commit -m x'
 expect_match CATCH "git --work-tree '/tmp/My Books/r' --git-dir '/tmp/My Books/r/.git' commit -m x"
 
+# 行を跨ぐ綴り。grep は行単位なので、畳まないとパターンが成立しない。
+expect_match CATCH "$(printf 'git \\\n  commit -m x')"
+expect_match CATCH "$(printf 'git -C /tmp/other \\\n  commit -m x')"
+
+# git の綴りにパス修飾や引用が付く形
+expect_match CATCH '/usr/bin/git commit -m x'
+expect_match CATCH "'git' commit -m x"
+expect_match CATCH '\git commit -m x'
+
 # `-c` の次のトークンが設定名として消費されるので、`a` がサブコマンドになり
 # commit へ到達しない。素通ししても検証されないコミットは生まれない。
 expect_match SKIP 'git -c user.name a commit'
@@ -55,6 +64,23 @@ expect_match SKIP 'git add -A'
 expect_match SKIP 'git log --oneline'
 expect_match SKIP 'npm run commit-helper'
 expect_match SKIP 'echo commit'
+
+expect_mentions() {
+  local want=$1 command=$2
+  local got=SKIP
+  gate_mentions_commit "$command" && got=CATCH
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$command"
+    failures=$((failures + 1))
+  fi
+}
+
+# 呼び出しとして切り出せない綴りは、最後の網で拾って deny 側へ落とす。
+expect_mentions CATCH '$(which git) commit -m x'
+expect_mentions CATCH 'x=git; $x commit -m y'
+expect_mentions SKIP 'npm run commit-helper'
+expect_mentions SKIP 'git log --oneline'
+expect_mentions SKIP 'echo commit'
 
 expect_dir() {
   local want=$1 command=$2 base=$3
@@ -96,6 +122,11 @@ expect_dir "" 'cd $TARGET && git commit -m x' "$here"
 expect_dir "" 'cd ~/obs-shogi && git commit -m x' "$here"
 expect_dir "" 'cd $(dirname /tmp/x) && git commit -m x' "$here"
 expect_dir "" 'git commit -m a && git commit -m b' "$here"
+expect_dir "" "GIT_DIR=$target/.git GIT_WORK_TREE=$target git commit -m x" "$here"
+expect_dir "" "GIT_INDEX_FILE=/tmp/i git commit -m x" "$here"
+expect_dir "" 'nohup git commit -m x' "$here"
+expect_dir "" 'ssh host git commit -m x' "$here"
+expect_dir "" 'npm run build && git commit -m x' "$here"
 expect_dir "" 'git commit -m x' /nonexistent/not-a-repo
 
 if [ "$failures" -eq 0 ]; then

@@ -14,17 +14,28 @@
 
 set -uo pipefail
 
+# コマンド文字列を1行に畳む。
+#
+# 判定は grep（行単位）なので、`git \` + 改行 + `commit` のように行を跨ぐ綴りは
+# パターンが成立せず、ゲートごと素通しする。
+gate_flatten() {
+  printf '%s' "$1" | sed -E 's/\\$//' | tr '\n' ' '
+}
+
 # `git ... commit` の呼び出しに当たる部分を切り出す。無ければ空を返す。
 #
 # 複合コマンドの中の commit も拾う。オプションの値は引用符とエスケープを含めて
 # 飲む。`git -c 'user.name=A B' commit` のように値に空白が入るだけで commit まで
 # 届かなくなると、ゲートは deny も検証もせずに素通しする。
+#
+# `git` の直前には、パス修飾や引用（`/usr/bin/git` / `'git'` / `\git`）が付きうる。
 GATE_OPT_VALUE="('[^']*'|\"[^\"]*\"|(\\\\.|[^[:space:]])+)"
 GATE_GIT_OPT="(--?(C|c|git-dir|work-tree|namespace|super-prefix)([[:space:]]+|=)$GATE_OPT_VALUE|-[^[:space:]]+)"
+GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 
 gate_commit_call() {
-  printf '%s' "$1" \
-    | grep -Eo "(^|[;&|(]|[[:space:]])git([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+commit([[:space:]]|$)" \
+  gate_flatten "$1" \
+    | grep -Eo "(^|[;&|(]|[[:space:]])$GATE_GIT_WORD([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+commit([[:space:]]|$)" \
     | tail -1
 }
 
@@ -33,24 +44,37 @@ gate_matches_commit() {
 }
 
 gate_commit_count() {
-  printf '%s' "$1" \
-    | grep -Eo "(^|[;&|(]|[[:space:]])git([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+commit([[:space:]]|$)" \
+  gate_flatten "$1" \
+    | grep -Eo "(^|[;&|(]|[[:space:]])$GATE_GIT_WORD([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+commit([[:space:]]|$)" \
     | grep -c .
+}
+
+# `git` と `commit` の両方を含むのに呼び出しとして切り出せなかったコマンド。
+#
+# 綴りを言い当てられなかったという理由で止めるための最後の網。ここを素通しに
+# すると、判別できない綴りが「検証もされず deny もされない」形で通る。
+gate_mentions_commit() {
+  local flat
+  flat=$(gate_flatten "$1")
+  printf '%s' "$flat" | grep -Eq '(^|[^[:alnum:]_.-])git([^[:alnum:]_-]|$)' \
+    && printf '%s' "$flat" | grep -Eq '(^|[^[:alnum:]_-])commit([^[:alnum:]_-]|$)'
 }
 
 # コミットされるツリーの位置を決める。決められなければ空を返す。
 #
 # **コマンド文字列からディレクトリを読み取ることはしない。** 4ラウンド続けて、
 # 綴りを変えるだけで別のツリーへコミットしつつ手元のツリーで検証を済ませる穴が
-# 出た（`git -C` / `cd X &&` / `(cd X && …)` / `pushd` / `env -C` / `env --chdir=`）。
-# シェルの文字列からコミット先を言い当てるのは原理的に閉じないので、言い当てない。
+# 出た（`git -C` / `cd X &&` / `(cd X && …)` / `pushd` / `env -C` / `env --chdir=` /
+# `GIT_DIR=`）。シェルの文字列からコミット先を言い当てるのは原理的に閉じないので、
+# 言い当てない。
 #
-# 宛先が自明な形だけを通す。すなわち「起点の作業ディレクトリで、ディレクトリ指定の
-# 無い `git commit` が1つだけ走る」。それ以外は空を返して deny 側へ落とす。
+# 通すのは、宛先が自明な形だけ。すなわち「起点の作業ディレクトリで、ディレクトリ
+# 指定の無い `git commit` が1つだけ走り、その手前には別の git 呼び出ししか無い」。
+# 手前を許可リストで見るのは、拒否リストが必ず次の綴りに置いていかれるため。
 # 起点は呼び出し元から渡す（Bash の作業ディレクトリは呼び出しを跨いで持続するので、
 # hook 自身の CWD はコマンドが実際に走る場所と一致しないことがある）。
 gate_target_dir() {
-  local command=$1 base=${2:-$PWD} call
+  local command=$1 base=${2:-$PWD} call flat prefix
 
   call=$(gate_commit_call "$command")
   [ -n "$call" ] || return 0
@@ -63,12 +87,16 @@ gate_target_dir() {
     *-C*|*--git-dir*|*--work-tree*|*--namespace*) return 0 ;;
   esac
 
-  # 同じコマンドの中で作業ディレクトリを動かすもの、および展開しないと
-  # 分からないもの。`cd` を含む綴り（`(cd …` / `builtin cd` / `pushd`）は
-  # まとめてここで落ちる。
-  local prefix=${command%"$call"*}
+  # 手前に置いてよいのは、ディレクトリ指定の無い git 呼び出しだけ。
+  flat=$(gate_flatten "$command")
+  prefix=${flat%"$call"*}
+  # 空の prefix も1行として渡す。printf '%s' だと行が無く、grep が必ず外れる。
+  printf '%s\n' "$prefix" \
+    | grep -Eq '^[[:space:]]*(git[[:space:]]+[^;&|()<>]*(&&|;)[[:space:]]*)*$' \
+    || return 0
+
   case "$prefix" in
-    *cd*|*pushd*|*popd*|*env*|*eval*|*-c\ *|*'$('*|*'`'*) return 0 ;;
+    *-C*|*--git-dir*|*--work-tree*) return 0 ;;
   esac
 
   git -C "$base" rev-parse --show-toplevel 2>/dev/null
@@ -81,7 +109,12 @@ payload=$(cat)
 command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
 cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
 
-gate_matches_commit "$command" || exit 0
+if ! gate_matches_commit "$command"; then
+  # 呼び出しとして切り出せないのに git と commit が並んでいるなら、綴りを
+  # 言い当てられなかったということ。素通しさせない。
+  gate_mentions_commit "$command" || exit 0
+  gate_unknown_spelling=1
+fi
 
 deny() {
   jq -n --arg reason "$1" '{
@@ -93,6 +126,12 @@ deny() {
   }'
   exit 0
 }
+
+if [ "${gate_unknown_spelling:-0}" = "1" ]; then
+  deny "検証ゲート: git commit の呼び出しを判別できなかった。
+
+ディレクトリ指定の無い \`git commit\` 単体として、1行で実行すること。"
+fi
 
 project_dir=$(gate_target_dir "$command" "${cwd:-$PWD}")
 if [ -z "$project_dir" ]; then
@@ -106,18 +145,21 @@ fi
 cd "$project_dir" || exit 0
 
 # ステージ済みと作業ツリーの両方を見る（`git commit -a` を取りこぼさないため）。
-# リネーム行 "R  old -> new" は新しい方だけを見れば足りる。
+#
+# リネーム行 "R  old -> new" は両側を見る。新しい方だけだと、`.rs` を別の拡張子へ
+# 改名するコミットが Rust の変更として数えられない。
 needs_ts=0
 needs_rust=0
 while IFS= read -r line; do
-  path=${line:3}
-  path=${path##* -> }
-  case "$path" in
-    *.ts|*.tsx|tsconfig*.json|vite.config.ts|package.json|package-lock.json) needs_ts=1 ;;
-  esac
-  case "$path" in
-    *.rs|*Cargo.toml|*Cargo.lock) needs_rust=1 ;;
-  esac
+  paths=${line:3}
+  for path in "${paths%% -> *}" "${paths##* -> }"; do
+    case "$path" in
+      *.ts|*.tsx|tsconfig*.json|vite.config.ts|package.json|package-lock.json) needs_ts=1 ;;
+    esac
+    case "$path" in
+      *.rs|*Cargo.toml|*Cargo.lock) needs_rust=1 ;;
+    esac
+  done
 done < <(git status --porcelain --untracked-files=no)
 
 if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ]; then
