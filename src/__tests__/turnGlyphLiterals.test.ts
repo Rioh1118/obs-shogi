@@ -21,7 +21,10 @@ function stripComments(code: string): string {
 describe("先後の記号の直書き", () => {
   it("shared/lib/turn.ts 以外に無い", () => {
     // テストは期待値として記号を書くので外す
-    const offenders = tsFiles(SRC, { includeTests: false })
+    const scanned = tsFiles(SRC, { includeTests: false });
+    expect(scanned.length, "走査できていない").toBeGreaterThan(100);
+
+    const offenders = scanned
       .map((file) => relative(SRC, file))
       .filter((file) => file !== DEFINITION)
       .filter((file) => /[☗☖]/.test(stripComments(readFileSync(join(SRC, file), "utf8"))));

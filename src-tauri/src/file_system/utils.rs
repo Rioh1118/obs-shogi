@@ -70,7 +70,10 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
         .path()
         .app_config_dir()
         .map_err(|e| FsError::new(FsErrorCode::InvalidPath, e.to_string()))?
-        .join("app.json");
+        // 置き場も `config_dir` から借りる。ここで写すと、あちらがファイル名や
+        // 置き場を変えた瞬間に `exists()` が偽になり、関門が全パスで開いたまま
+        // コンパイルも `cargo test` も通る
+        .join(crate::config_dir::CONFIG_FILE);
     if !cfg_path.exists() {
         return Ok(None);
     }
@@ -119,9 +122,10 @@ fn canonicalize_for_guard(target: &Path) -> Result<PathBuf, FsError> {
 /// 先に置いても、失敗には `canonicalize_for_guard` が `path` を載せるので
 /// どのパスの話かは画面に残る。
 ///
-/// **存否そのものは隠せない。** 親を canonicalize する以上、root 外のパスでも
-/// 「在る（`invalid_path`）」と「無い（`not_found`）」は返る code から読める。
-/// ここは webview を信用しない前提の防壁ではないので、それは範囲外とする（下記）。
+/// **その親の存否は隠せない。** 存在しないパスは親を canonicalize して組むので、
+/// root 外でも「親が在る（`invalid_path`）」と「親も無い（`not_found`）」は
+/// 返る code から読める。ここは webview を信用しない前提の防壁ではないので、
+/// それは範囲外とする（下記）。
 ///
 /// **`root_dir` が未設定なら、この関門は無条件で開く。**
 /// ワークスペースを選ぶ前に起きるので UI からは踏めないが、

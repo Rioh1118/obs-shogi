@@ -1,4 +1,4 @@
-import type { Evaluation, EvaluationKind } from "@/entities/engine/api/rust-types";
+import type { Evaluation, EvaluationKind } from "@/entities/engine";
 import { Color, Record } from "tsshogi";
 // 変換後の指し手データ型
 export interface ConvertedMove {

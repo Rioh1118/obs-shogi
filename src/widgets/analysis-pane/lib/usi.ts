@@ -1,8 +1,4 @@
-import type {
-  AnalysisCandidate,
-  Evaluation,
-  EvaluationKind,
-} from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate, Evaluation, EvaluationKind } from "@/entities/engine";
 import { Color } from "shogi.js";
 
 export function convertEvaluationToSenteView(

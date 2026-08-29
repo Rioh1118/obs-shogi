@@ -7,11 +7,14 @@ import type { FileTreeNode } from "@/entities/file-tree/model/types";
  * `config.root_dir` はディレクトリを選ぶダイアログが返した値をそのまま保存したもので、
  * ツリーの各ノードの `path` は Rust が `canonicalize` した結果から組み立てられる。
  * symlink 成分が1つでもあると両者は一致しない（macOS で `/tmp/kifu` を選ぶと
- * 実体は `/private/tmp/kifu`）。一致しないと、削除を禁じるはずのメニューが
- * ワークスペース全消しを許し、改名は `setRootDir` を通らずに古い場所を読み直す。
+ * 実体は `/private/tmp/kifu`）。一致しないと、押しても必ず `root_not_deletable` で
+ * 落ちる Delete がメニューに出て、改名は `setRootDir` を通らずに古い場所を読み直す。
  *
  * 削除の禁止そのものは Rust（`delete_directory` の `root_not_deletable`）が持つ。
  * ここが決めるのは**画面に出すかどうか**だけ。
+ *
+ * ツリーがまだ読めていない（`null`）ときは偽を返す。呼び出し側は
+ * 改名も削除もツリーの行から起こすので、その状態では呼ばれない
  */
 export function isProjectRoot(path: string, fileTree: FileTreeNode | null): boolean {
   return fileTree !== null && path === fileTree.path;

@@ -65,8 +65,10 @@ describe("コメント", () => {
   it("変更の経緯を書いていない", () => {
     const offenders: string[] = [];
 
+    let scanned = 0;
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
+        scanned += 1;
         // この検査自身は、止めたい形を例として書く場所
         if (file === __filename) continue;
 
@@ -86,6 +88,9 @@ describe("コメント", () => {
         }
       }
     }
+
+    // 走査が空振りしても「違反0」になる。歩けていることを別に固定する
+    expect(scanned, `${scanned} ファイルしか歩けていない`).toBeGreaterThan(150);
 
     expect(
       offenders,

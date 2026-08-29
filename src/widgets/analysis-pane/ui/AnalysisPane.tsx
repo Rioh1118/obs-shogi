@@ -10,7 +10,7 @@ import StatsSection from "./StatsSection";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import type { AnalysisCandidate, Evaluation } from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
 
 type PaneSnapshot = {

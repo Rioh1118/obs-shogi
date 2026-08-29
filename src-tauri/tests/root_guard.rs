@@ -10,8 +10,10 @@
 //! 見るテストは `src` 側の `#[cfg(test)]` に置く（`CONTRIBUTING.md` の
 //! 「機械で止めているもの」を参照）。
 //!
-//! 見ているのは「関門を呼んでいるか」だけ。関門そのものは `root_dir` が
-//! 未設定のときに無条件で開く（`utils.rs` の `validate_under_root`）。
+//! 見ているのは3つ。関門を呼んでいるか、その**順序**（存在確認より前か）、
+//! コマンド固有の追加の関門（`EXTRA_GUARDS`）。
+//! 関門そのものは `root_dir` が未設定のときに無条件で開く
+//! （`utils.rs` の `validate_under_root`）。
 
 use std::fs;
 use std::path::Path;
@@ -27,10 +29,12 @@ const GUARD: &str = "validate_under_root";
 
 /// 関門のほかに、そのコマンドだけが呼ばなければならないもの。
 ///
-/// `validate_under_root` は `root == target` を「配下」として通すので、
-/// **root 自身を壊す操作は別に止める必要がある**。UI 側にも判定はあるが、
-/// あちらは設定に保存した文字列と canonicalize したパスを比べていて、
-/// symlink を1つ挟むと一致しない。守れる層で止める
+/// 関門だけでは足りず、そのコマンドだけが呼ばなければならないもの。
+///
+/// - `delete_directory`: `validate_under_root` は `root == target` を「配下」として
+///   通すので、ワークスペース自身の削除が素通りする（`is_project_root`）
+/// - `mv_directory`: 自分の中への移動は `fs::rename` が `EINVAL` で落とし、
+///   `io`（tier は warning）に丸まって効かない再読み込みが出る（`is_move_into_itself`）
 const EXTRA_GUARDS: [(&str, &str); 2] = [
     ("delete_directory", "is_project_root"),
     ("mv_directory", "is_move_into_itself"),

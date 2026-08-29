@@ -1,4 +1,4 @@
-import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate } from "@/entities/engine";
 
 export function sortByRank(cands: AnalysisCandidate[]): AnalysisCandidate[] {
   return [...cands].sort((a, b) => a.rank - b.rank);

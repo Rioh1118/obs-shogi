@@ -18,8 +18,14 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 const LAYERS_WITH_SLICES = ["entities", "features", "widgets"];
 
-/** `export * from "./api/error"` / `export { default as X } from "./ui/X"` */
-const REEXPORT = /export\s+(?:\*|\{[^}]*\})\s+from\s+["']\.\/([\w./-]+)["']/g;
+/**
+ * `export * from "./api/error"` / `export { default as X } from "./ui/X"` /
+ * `export type { X } from "./model/types"`。
+ *
+ * **`type` を落とさない。** 落とすと、型だけを再エクスポートしているモジュールが
+ * 公開面から外れ、barrel に載せたのに深い import が禁じられないままになる
+ */
+const REEXPORT = /export\s+(?:type\s+)?(?:\*|\{[^}]*\})\s+from\s+["']\.\/([\w./-]+)["']/g;
 
 /** barrel を持つスライスと、そこが公開しているモジュールの `@/` パス */
 function publicModules(): Map<string, string[]> {
@@ -54,6 +60,9 @@ function publicModules(): Map<string, string[]> {
 describe("スライスの公開境界", () => {
   it("barrel が公開しているものを、スライスの外から直に読まない", () => {
     const slices = publicModules();
+    // barrel を1つも見つけられないと、この検査は何も見ずに緑になる
+    expect(slices.size, "barrel を持つスライスを拾えていない").toBeGreaterThan(5);
+
     const offenders: string[] = [];
 
     for (const file of tsFiles(SRC)) {

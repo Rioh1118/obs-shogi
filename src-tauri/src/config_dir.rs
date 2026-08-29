@@ -4,7 +4,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::file_system::utils::atomic_write;
 
-const CONFIG_FILE: &str = "app.json";
+pub(crate) const CONFIG_FILE: &str = "app.json";
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct AppConfig {

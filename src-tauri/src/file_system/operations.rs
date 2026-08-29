@@ -330,9 +330,9 @@ pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Resu
     validate_under_root(&app, &path)?;
 
     // ワークスペースそのものは消させない。`remove_dir_all` は中身ごと消し、
-    // 取り消す手段が無い。UI 側にも判定はあるが、そちらは設定に保存された文字列と
-    // Rust が canonicalize したパスを比べているので、symlink を1つ挟むと一致しない
-    // （macOS で `/tmp` を選ぶと `/private/tmp` になる）。守れる層で止める
+    // 取り消す手段が無い。UI 側にも判定はあるが、**取り消せない操作を UI の判定だけに
+    // 預けない**。webview から直に invoke されても、UI の判定を消す変更が入っても
+    // 壊れない層に置く
     if is_project_root(&app, &path)? {
         return Err(FsError::new(
             FsErrorCode::RootNotDeletable,

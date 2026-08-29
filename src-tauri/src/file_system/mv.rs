@@ -14,8 +14,7 @@ use super::utils::is_kifu_file;
 // 区切り文字を弾くので、src が root の**配下**（root 自身を除く）なら行き先も root 配下。
 // root 自身の改名だけは行き先が root の兄弟になるので、`is_project_root` で分岐する。
 //
-// **関門はどれも存在確認より先に置く。** 後ろに置くと、root 外のパスが在るかどうかを
-// 返ってくる code で判別できてしまう。順序の理由は `validate_under_root` に書いてある
+// **関門はどれも存在確認より先に置く。** 理由は `validate_under_root` の doc に1回だけ書く
 
 #[command]
 pub fn rename_kifu_file<R: Runtime>(

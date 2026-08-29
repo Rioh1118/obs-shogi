@@ -31,7 +31,11 @@ function appReference(names: string[]): RegExp {
 describe("レイヤに依存しない検査の置き場", () => {
   it("src/__tests__ がアプリのコードを参照しない", () => {
     const pattern = appReference(layers());
-    const offenders = tsFiles(HERE).flatMap((file) =>
+    const scanned = tsFiles(HERE);
+    // 走査が空振りしても「違反0」になる。歩けていることを別に固定する
+    expect(scanned.length, "src/__tests__ を歩けていない").toBeGreaterThan(8);
+
+    const offenders = scanned.flatMap((file) =>
       [...readFileSync(file, "utf8").matchAll(pattern)].map(
         (match) => `${relative(HERE, file)}  ${match[0]}`,
       ),
