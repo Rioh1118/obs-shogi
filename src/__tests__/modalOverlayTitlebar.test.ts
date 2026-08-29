@@ -273,9 +273,10 @@ describe("モーダルの overlay とタイトルバー", () => {
     ).toEqual(["bottom", "left", "right"]);
   });
 
-  it("カード自身が高さの上限を持ち、size ごとの規則に依存していない", () => {
-    // size 側だけに上限があると、高さを書かない size を1つ足しただけで
-    // カードが内容の高さまで伸び、overlay を超えて帯に載る
+  it("カード自身が高さの上限を持っている", () => {
+    // size 側のセレクタは詳細度で勝つので、書いてある size ではそちらが実効の
+    // 上限になる。ここで見るのは、高さを書かない size が1つ増えたときの受け皿が
+    // あること。無ければカードが内容の高さまで伸び、overlay を超えて帯に載る
     const base = cardDeclarations.filter(
       ({ selector, prop }) => selector === ".modal__card" && prop === "max-height",
     );
