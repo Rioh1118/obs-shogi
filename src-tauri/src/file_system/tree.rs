@@ -1,11 +1,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::command;
+use tauri::{command, AppHandle, Runtime};
 
 use crate::file_system::error::{FsError, FsErrorCode};
 
 use super::types::FileTreeNode;
-use super::utils::{generate_id, get_file_extension, is_kifu_file};
+use super::utils::{generate_id, get_file_extension, is_kifu_file, validate_under_root};
 
 fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, FsError> {
     let metadata = fs::metadata(path).map_err(FsError::from)?;
@@ -73,9 +73,18 @@ fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, FsError> {
     Ok(node)
 }
 
+/// ツリーの取得。**`root_dir` は呼び出し側から来るので、設定値と突き合わせる。**
+///
+/// 突き合わせないと `invoke("get_file_tree", { rootDir: "/Users/x" })` で
+/// ホーム以下の全ディレクトリ名・棋譜のフルパス・サイズ・更新時刻が返る。
+/// 中身は `read_file` が `validate_under_root` で守っているが、一覧は素通りになる。
 #[command]
-pub fn get_file_tree(root_dir: String) -> Result<FileTreeNode, FsError> {
+pub fn get_file_tree<R: Runtime>(
+    app: AppHandle<R>,
+    root_dir: String,
+) -> Result<FileTreeNode, FsError> {
     let root_path = PathBuf::from(&root_dir);
+    validate_under_root(&app, &root_path)?;
 
     if !root_path.exists() {
         return Err(

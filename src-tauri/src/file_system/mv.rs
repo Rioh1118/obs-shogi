@@ -7,9 +7,9 @@ use crate::file_system::utils::{ensure_not_exists, validate_basename, validate_u
 
 use super::utils::is_kifu_file;
 
-// 移動と改名は**移動先が呼び出し側から来る唯一のコマンド群**なので、
-// root 配下かの関門は src と dest の両方に要る。dest だけだと root 外から
-// 引き込め、src だけだと root 外へ出せる
+// この4つは**既存のパス(src)と行き先(dest)の2つを同時に受ける**唯一のコマンド群。
+// root 配下かの関門は両方に要る。dest だけだと root 外から引き込め、
+// src だけだと root 外へ出せる
 
 #[command]
 pub fn rename_kifu_file<R: Runtime>(
@@ -82,6 +82,9 @@ pub fn mv_kifu_file<R: Runtime>(
     }
 
     let dest_dir = PathBuf::from(&dest_dir);
+    // 存在確認より先に通す。後ろに置くと、root 外のパスの有無を
+    // invalid_destination か invalid_path かで判別できてしまう
+    validate_under_root(&app, &dest_dir)?;
     if !dest_dir.exists() || !dest_dir.is_dir() {
         return Err(FsError::new(
             FsErrorCode::InvalidDestination,
@@ -174,6 +177,8 @@ pub fn mv_directory<R: Runtime>(
     }
 
     let dest_parent = PathBuf::from(&dest_parent_dir);
+    // 存在確認より先に通す（上と同じ理由）
+    validate_under_root(&app, &dest_parent)?;
     if !dest_parent.exists() || !dest_parent.is_dir() {
         return Err(FsError::new(
             FsErrorCode::InvalidDestination,
