@@ -32,22 +32,34 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   const syncedSfenRef = useRef<string | null>(null);
   const syncedEngineKeyRef = useRef<string | null>(null);
 
-  const applySynced = useCallback((sfen: string | null, key: string | null) => {
-    syncedSfenRef.current = sfen;
-    syncedEngineKeyRef.current = key;
-    setSyncedSfen(sfen);
-  }, []);
-
-  const lastEngineKeyRef = useRef<string | null>(engineKey);
-
-  // 送信中に engineKey が変わったら、その前に始まった送信の書き戻しを無効にする。
-  // await の後で「その間に条件が変わったか」を検査しないと、古いクロージャが
-  // 切替後のリセットを打ち消す。
+  // 送信の周回ごとに読む。await の後で世代が変わっていれば、その周回の結果は
+  // 別のエンジン・別の棋譜に対するものなので書き戻さない。
   const generationRef = useRef(0);
 
   // 送信ループが読む engineKey。クロージャに焼き付けると切替後も古い値を書く。
   const engineKeyRef = useRef(engineKey);
   engineKeyRef.current = engineKey;
+
+  const markSynced = useCallback((sfen: string, key: string | null) => {
+    syncedSfenRef.current = sfen;
+    syncedEngineKeyRef.current = key;
+    setSyncedSfen(sfen);
+  }, []);
+
+  /**
+   * 送信済みの記録を捨て、進行中の送信の書き戻しを無効にする。
+   * 世代を上げる操作をここに閉じてあるのは、リセットの契機が複数あり
+   * どれか1つで上げ忘れると「送っていないのに送れたことになる」ためである。
+   */
+  const invalidateSynced = useCallback((nextEngineKey: string | null) => {
+    generationRef.current += 1;
+    syncedSfenRef.current = null;
+    syncedEngineKeyRef.current = nextEngineKey;
+    setSyncedSfen(null);
+  }, []);
+
+  const lastEngineKeyRef = useRef<string | null>(engineKey);
+  const lastReadyRef = useRef(isReady);
 
   // --- 多重呼び出し対策の中核 ---
   const inFlightRef = useRef<Promise<void> | null>(null);
@@ -61,7 +73,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   const syncPosition = useCallback(async (): Promise<void> => {
     const sfen = currentSfen;
     if (!sfen) {
-      applySynced(null, syncedEngineKeyRef.current);
+      invalidateSynced(syncedEngineKeyRef.current);
       pendingBeforeReadyRef.current = null;
       queuedSfenRef.current = null;
       return;
@@ -87,69 +99,98 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     }
 
     // 送信ループ：キューがある限り直列に送る（最後の1つだけが最終反映）
-    const generation = generationRef.current;
     inFlightRef.current = (async () => {
+      let failure: unknown = null;
+
       while (queuedSfenRef.current) {
         const target = queuedSfenRef.current;
         queuedSfenRef.current = null;
 
+        // 世代は周回ごとに読む。ループ単位で捕まえると、送信中にエンジンが
+        // 切り替わったとき、切替後に積み直された局面まで送らずに終わる。
+        const generation = generationRef.current;
+
         try {
           await setPositionFromSfen(target);
-
-          // await の間にエンジンが切り替わっていたら、この結果は捨てる。
-          if (generation !== generationRef.current) return;
-
-          applySynced(target, engineKeyRef.current);
+          failure = null;
         } catch (e) {
           // 万一NotInitializedなら ready待ちへ戻す
           if (isNotInitializedError(e)) {
             pendingBeforeReadyRef.current = target;
-            return;
+            // isReady が true のまま NotInitialized が返るのは、フロント側の
+            // 準備完了判定が実態とずれている場合。ready の再遷移が来ないので
+            // 保留だけでは復帰しない。呼び出し元にも知らせる。
+            failure = isReady ? e : null;
+            continue;
           }
 
-          // 呼び出し元へ投げる。ここで握り潰すと、エンジンに1手前の局面が
-          // 入ったまま解析が始まり、盤面と一致しない候補手が黙って表示される。
-          queuedSfenRef.current = null;
-          throw e;
+          // 送信の失敗でキューを捨てない。失敗したのは target であって、
+          // その後に積まれた新しい局面まで巻き添えにすると、盤は進んでいるのに
+          // エンジンには誰も送らない状態が残る。
+          failure = e;
+          continue;
         }
+
+        // await の間にエンジンや棋譜が変わっていたら、この結果は書き戻さない。
+        // ここで return するとキューが残ったまま誰も引かなくなる。
+        if (generation !== generationRef.current) continue;
+
+        markSynced(target, engineKeyRef.current);
       }
+
+      // 呼び出し元へ投げる。握り潰すと、エンジンに別の局面が入ったまま
+      // 解析が始まり、盤面と一致しない候補手が黙って表示される。
+      if (failure) throw failure;
     })().finally(() => {
       inFlightRef.current = null;
     });
 
     return inFlightRef.current;
-  }, [currentSfen, isReady, applySynced]);
+  }, [currentSfen, isReady, invalidateSynced, markSynced]);
 
   useEffect(() => {
     if (lastEngineKeyRef.current === engineKey) return;
 
     lastEngineKeyRef.current = engineKey;
-
-    // 進行中の送信の書き戻しを無効にしてからリセットする。
-    generationRef.current += 1;
     queuedSfenRef.current = null;
-    applySynced(null, engineKey);
-  }, [engineKey, applySynced]);
+    invalidateSynced(engineKey);
+  }, [engineKey, invalidateSynced]);
+
+  // エンジンは engineKey が変わらなくても再起動しうる（AI ルートの変更など）。
+  // 起動し直されたプロセスには何も送られていないので、送信済みの記録を捨てる。
+  // この effect は自動同期より先に宣言してあること。順序が逆だと
+  // 「すでに送れてる」の判定に古い記録が残ったまま当たる。
+  useEffect(() => {
+    if (lastReadyRef.current === isReady) return;
+
+    lastReadyRef.current = isReady;
+    if (!isReady) return;
+
+    invalidateSynced(syncedEngineKeyRef.current);
+  }, [isReady, invalidateSynced]);
 
   //  自動同期：cursor変化で追従
   useEffect(() => {
     if (!gameState.cursor) {
-      applySynced(null, syncedEngineKeyRef.current);
+      invalidateSynced(syncedEngineKeyRef.current);
       pendingBeforeReadyRef.current = null;
       queuedSfenRef.current = null;
       return;
     }
     syncPosition().catch(() => {});
-  }, [engineKey, gameState.cursor, syncPosition, applySynced]);
+  }, [engineKey, gameState.cursor, syncPosition, invalidateSynced]);
 
   useEffect(() => {
     if (!isReady) return;
-    const pending = pendingBeforeReadyRef.current;
-    if (!pending) return;
+    if (!pendingBeforeReadyRef.current) return;
 
+    // 保留していた SFEN そのものは積み直さない。syncPosition は現在の局面を読むので、
+    // 保留中に盤が動いていれば古い方を送ることになる。
     pendingBeforeReadyRef.current = null;
-    // 最新としてキューに積む
-    queuedSfenRef.current = pending;
+
+    // 同じコミットで自動同期の effect が既に送信を始めていれば、それに任せる。
+    // ここで重ねて呼ぶと同じ局面を2回送ることになる。
+    if (inFlightRef.current) return;
     syncPosition().catch(() => {});
   }, [isReady, syncPosition]);
 

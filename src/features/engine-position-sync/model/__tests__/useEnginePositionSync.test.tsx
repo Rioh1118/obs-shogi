@@ -97,8 +97,7 @@ describe("useEnginePositionSync", () => {
     // エンジン A への送信が始まっている
     expect(setPositionFromSfen).toHaveBeenCalledWith("SFEN-1");
 
-    // 切替後の送信は保留にする。こうすると「B へ送れた」事実は無いので、
-    // syncedSfen が立ったならそれは古い送信の書き戻しが通ったことを意味する。
+    // 切替後の送信は保留にする。こうすると「B へ送れた」事実がまだ無い状態を作れる。
     const afterSwitch = deferred<void>();
     setPositionFromSfen.mockReturnValue(afterSwitch.promise);
 
@@ -112,7 +111,64 @@ describe("useEnginePositionSync", () => {
     });
     await view.refresh();
 
+    // B にはまだ送れていないので、同期済みを名乗ってはいけない。
     expect(view.current.syncedSfen).toBeNull();
+
+    // かつ、B への送信は始まっていなければならない。ここを見ないと
+    // 「古い書き戻しを捨てた」と「そもそも送らなくなった」を区別できない。
+    expect(setPositionFromSfen).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      afterSwitch.resolve();
+      await afterSwitch.promise;
+    });
+    await view.refresh();
+
+    expect(view.current.syncedSfen).toBe("SFEN-1");
+  });
+
+  it("送信の失敗で、その後に積まれた新しい局面まで捨てない", async () => {
+    const failing = deferred<void>();
+    setPositionFromSfen.mockReturnValueOnce(failing.promise);
+
+    const view = mountSync();
+    expect(setPositionFromSfen).toHaveBeenCalledWith("SFEN-1");
+
+    // 送信中に盤を1手進める
+    setPositionFromSfen.mockResolvedValue(undefined);
+    gameStub.currentSfen = "SFEN-2";
+    gameStub.cursor = { tesuuPointer: "1,[]" };
+    await view.refresh();
+
+    // 先に投げた送信が失敗する
+    await act(async () => {
+      failing.reject(new Error("boom"));
+      await failing.promise.catch(() => {});
+    });
+    await view.refresh();
+
+    // SFEN-2 は送られていなければならない。ここを捨てると、盤は進んでいるのに
+    // エンジンには誰も送らない状態が残る。
+    expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
+    expect(view.current.syncedSfen).toBe("SFEN-2");
+  });
+
+  it("engineKey が変わらないエンジン再起動でも送り直す", async () => {
+    setPositionFromSfen.mockResolvedValue(undefined);
+
+    const view = mountSync();
+    await act(async () => {});
+    expect(setPositionFromSfen).toHaveBeenCalledTimes(1);
+
+    // AI ルートの変更などでは engineKey は変わらないままエンジンだけが再起動する。
+    // 新しいプロセスには局面が入っていないので送り直す必要がある。
+    engineStub.isReady = false;
+    await view.refresh();
+    engineStub.isReady = true;
+    await view.refresh();
+
+    expect(setPositionFromSfen).toHaveBeenCalledTimes(2);
+    expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-1");
   });
 
   it("同期に失敗したら syncPosition が reject する", async () => {
