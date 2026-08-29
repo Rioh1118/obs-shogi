@@ -1,4 +1,4 @@
-use crate::book::error::{BookError, BookErrorCode};
+use crate::book::error::{truncate_path, BookError, BookErrorCode};
 use crate::book::reader::{open_reader, BookReader};
 use crate::book::session::BookSession;
 use crate::book::session::BookState;
@@ -34,8 +34,14 @@ pub async fn open_book(
 async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<BookInfo, BookError> {
     // 検査を通ってからログに書く。生のまま書くと、弾かれる入力であっても
     // その前にログ（200KB でローテート）を使い切られる。
+    //
+    // 長さの打ち切りは BookError の with_path が持っているが、ログは
+    // BookError を通らないのでここで明示的に掛ける。
     let path = validate_book_path(&input.path)?;
-    log::info!("[cmd] open_book path={}", path.display());
+    log::info!(
+        "[cmd] open_book path={}",
+        truncate_path(&path.to_string_lossy())
+    );
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
@@ -146,31 +152,13 @@ fn annotate(err: BookError, note: &str) -> BookError {
     }
 }
 
-/// エラーに載せるパスの上限。
-///
-/// 出荷対象のうち最も緩い Linux の `PATH_MAX`（4096 バイト）を、文字数で数えても
-/// 下回らない値にしてある。**弾くためではなく、打ち切るための値。**
-/// 長いパスを拒否すると、深い階層に定跡を置いている利用者が行き止まりになる。
-const MAX_PATH_CHARS: usize = 4096;
-
-/// エラーに載せるパスを打ち切る。切れていることが分かるように印を付ける。
-fn truncate_path(raw: &str) -> String {
-    let mut out: String = raw.chars().take(MAX_PATH_CHARS).collect();
-    if out.chars().count() < raw.chars().count() {
-        out.push('…');
-    }
-    out
-}
-
 /// フロントから来たパスの形を検査する。
 ///
 /// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
 /// 失敗し、`BookInfo.path` にもその相対文字列が残って UI に出しても意味を成さない。
 fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
-    // エラーに載せる path は打ち切る。raw はコマンド境界から来る任意長の文字列で、
-    // BookError の Display は path を含めてログへ出る。
     let invalid = |reason: &str| {
-        BookError::new(BookErrorCode::InvalidPath, reason.to_string()).with_path(truncate_path(raw))
+        BookError::new(BookErrorCode::InvalidPath, reason.to_string()).with_path(raw)
     };
 
     if raw.trim().is_empty() {
@@ -326,6 +314,7 @@ fn join_error(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::book::error::MAX_PATH_CHARS;
     use crate::book::reader::BookReader;
     use crate::book::types::BookFormat;
 
@@ -540,8 +529,7 @@ mod tests {
     }
 
     /// 長いパスは弾かずに、エラーへ載せるときだけ打ち切る。
-    /// 弾くと、深い階層に定跡を置いている利用者が行き止まりになる
-    /// （Linux の PATH_MAX は 4096）。
+    /// 弾くと、深い階層に定跡を置いている利用者が行き止まりになる。
     #[test]
     fn an_over_long_path_is_truncated_in_the_error_but_not_rejected() {
         let long = format!("/{}", "a".repeat(MAX_PATH_CHARS));
@@ -553,7 +541,27 @@ mod tests {
         // 弾かれる理由が別にある場合、載る path は打ち切られている
         let relative = "a".repeat(MAX_PATH_CHARS + 10);
         let err = validate_book_path(&relative).unwrap_err();
-        let path = err.path.expect("path が載っていない");
+        assert_truncated_path(&err);
+    }
+
+    /// 検査を通った長いパスも、下流の失敗で載るときには打ち切られていること。
+    ///
+    /// 検査で弾いていた頃は上限が検査側にあったが、弾くのをやめたので
+    /// **通り抜けた長いパスが `open_at` 以降の全ての経路へ生のまま流れうる**。
+    /// `validate_book_path` だけを見るテストでは、この経路を1つも踏まない。
+    #[test]
+    fn an_over_long_path_that_passes_validation_is_truncated_downstream() {
+        // 実在しないので canonicalize が必ず失敗する
+        let long = format!("/{}.db", "a".repeat(MAX_PATH_CHARS));
+        let err = open_at(&PathBuf::from(&long))
+            .err()
+            .expect("開けるはずがない");
+
+        assert_truncated_path(&err);
+    }
+
+    fn assert_truncated_path(err: &BookError) {
+        let path = err.path.as_deref().expect("path が載っていない");
         assert_eq!(path.chars().count(), MAX_PATH_CHARS + 1, "…のぶんだけ長い");
         assert!(path.ends_with('…'), "切れたことが分からない");
     }

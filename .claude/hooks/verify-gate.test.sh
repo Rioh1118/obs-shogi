@@ -84,7 +84,7 @@ expect_match SKIP 'echo commit'
 expect_alias() {
   local want=$1 command=$2 verbs=$3
   local got=SKIP
-  ( GATE_EXTRA_VERBS=$verbs GATE_COMMIT_VERB_CACHE= gate_matches_commit "$command" ) && got=CATCH
+  ( GATE_EXTRA_VERBS=$verbs gate_matches_commit "$command" ) && got=CATCH
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s（alias=%s）\n' "$want" "$got" "$command" "$verbs"
     failures=$((failures + 1))
@@ -170,6 +170,9 @@ other=$(git worktree list --porcelain | awk '/^worktree /{print $2}' | grep -v "
 expect_dir "$here" 'git commit -m x' "$here"
 expect_dir "$here" 'git commit -m "fix: 直した"' "$here"
 expect_dir "$here" 'git add -A && git commit -m x' "$here"
+# git の綴りにパス修飾や引用が付いても、宛先は起点のまま（deny にはならない）
+expect_dir "$here" '/usr/bin/git commit -m x' "$here"
+expect_dir "$here" "'git' commit -m x" "$here"
 # メッセージ本文に git commit と書いただけで「呼び出しが2つ」と数えないこと。
 # ゲートの説明を書いたコミットほど止まる形になる。
 expect_dir "$here" 'git commit -m "fix: git commit の検出を直す"' "$here"

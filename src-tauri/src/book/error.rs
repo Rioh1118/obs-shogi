@@ -57,8 +57,12 @@ impl BookError {
     }
 
     /// どのファイルで起きたかを添える。
+    ///
+    /// ここで打ち切る。載せるパスはコマンド境界から来る任意長の文字列で、
+    /// `Display` がこれを含めてログ（200KB でローテート）へ出る。呼び出し側で
+    /// 打ち切る形にすると、経路が増えるたびに取り残す。
     pub fn with_path(mut self, path: impl Into<String>) -> Self {
-        self.path = Some(path.into());
+        self.path = Some(truncate_path(&path.into()));
         self
     }
 
@@ -69,6 +73,22 @@ impl BookError {
     pub fn from_io(err: io::Error, path: impl Into<String>) -> Self {
         Self::from(err).with_path(path)
     }
+}
+
+/// エラーに載せるパスの上限。
+///
+/// 出荷対象で最も長いのは Windows の長パス（32,767 UTF-16 単位）。全部を載せても
+/// ログの役に立たないのでここで切る。Linux の `PATH_MAX`（4096 バイト）以内の
+/// パスは丸ごと載る。**弾くための値ではない。**
+pub(crate) const MAX_PATH_CHARS: usize = 4096;
+
+/// エラーやログに載せるパスを打ち切る。切れていることが分かるように印を付ける。
+pub(crate) fn truncate_path(raw: &str) -> String {
+    let mut out: String = raw.chars().take(MAX_PATH_CHARS).collect();
+    if out.chars().count() < raw.chars().count() {
+        out.push('…');
+    }
+    out
 }
 
 impl fmt::Display for BookError {

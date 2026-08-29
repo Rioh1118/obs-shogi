@@ -1,10 +1,10 @@
 # verify-gate の判定
 
 `.claude/hooks/verify-gate.sh` は PreToolUse で `git commit` を横取りし、必要な検証を走らせる。
-**素通し（deny も検証もされずに通る）が唯一の致命的な失敗**で、それは9ラウンド続けて出た
+**素通し（deny も検証もされずに通る）が唯一の致命的な失敗**で、R2 から R11 まで毎ラウンド出た
 （G-09 / H-01 / H-02 / I-01 / J-01 / K-01 / L-01 / L-02 / M-02 / N-01 / N-02 / O-02 / P-03）。
 
-毎回「新しい綴り」として1件ずつ潰してきたが、**段が4つあり、どの段で落ちても結果が
+毎回「新しい綴り」として1件ずつ潰してきたが、**段が複数あり、どの段で落ちても結果が
 「素通し」になる**ことを表にしていなかった。綴りではなく段で見る。
 
 ## 段（状態）
@@ -28,7 +28,8 @@ S1 を通れば S3 へ、S1 を落ちて S2 に当たれば deny、S2 も落ち�
 | C | ディレクトリを付け替える（`-C` / `--git-dir` / `cd X &&` / `pushd` / `env -C` / `GIT_DIR=`） |
 | D | コミットを作る別の動詞（`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`） |
 | E | alias（`git ci`）、alias の合成（`git acp`） |
-| F | `git` の綴りが素でない（`/usr/bin/git` / `'git'` / `\git` / `$(which git)`） |
+| F1 | `git` の綴りにパス修飾や引用が付く（`/usr/bin/git` / `'git'` / `\git`） |
+| F2 | `git` の綴りが展開でしか決まらない（`$(which git)` / `$x`） |
 | G | 行を跨ぐ（`git \` + 改行 + `commit`） |
 | H | 引用の中に動詞が出るだけ（`git commit -m "fix: git commit の話"`） |
 | I | commit ではない（`git add` / `git log` / `npm run commit-helper`） |
@@ -44,7 +45,8 @@ S1 を通れば S3 へ、S1 を落ちて S2 に当たれば deny、S2 も落ち�
 | C | 通る ✓ | — | **空** ✓ | deny |
 | D | 通る ✓ | — | 起点 | S4 へ（検証。ただし作られるツリーは検証できない） |
 | E | 通る ✓（`expect_alias` / `expect_alias_resolution`。値に生の改行を含む形も ✓） | — | 起点 | S4 へ |
-| F | 一部通る ✓ / `$(which git)` は落ちる | 当たる ✓ | — | deny |
+| F1 | 通る ✓ | — | 起点 ✓ | S4 へ（検証） |
+| F2 | 落ちる | 当たる ✓ | — | deny |
 | G | 通る ✓（`gate_flatten` が畳む） | — | 起点 | S4 へ |
 | H | 通る ✓（`gate_strip_quotes` が潰す） | — | 起点 ✓ | S4 へ |
 | I | 落ちる ✓ | 落ちる ✓ | — | 素通し（正しい） |
@@ -69,6 +71,8 @@ S1 を通れば S3 へ、S1 を落ちて S2 に当たれば deny、S2 も落ち�
 
 ## 照合
 
-- 不変条件 1: `expect_alias_resolution` の表が担っている ✓（値に生の改行を含む形を含む）
-- 不変条件 2: S3 の表（`expect_dir` 32件）が担っている ✓
+- 不変条件 1: `expect_mentions` の表が担っている ✓（S1 で切り出せない綴りを S2 が拾う）。
+  語彙の取りこぼし側は `expect_alias_resolution` ✓（値に生の改行を含む形を含む）。
+  **語彙側だけでは、`$(which git)` のような切り出せない綴りは守られない**
+- 不変条件 2: S3 の表（`expect_dir`）が担っている ✓
 - 不変条件 3: 意図した挙動として R6 で確定。deny 側のケースを表に並べてある ✓

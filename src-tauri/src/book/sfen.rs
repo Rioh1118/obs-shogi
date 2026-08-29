@@ -188,11 +188,12 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
 /// 局面の文字列として受け付ける長さの上限。
 ///
 /// 長さを決めるのは盤面の綴り。成駒を `+X`（2字）で書き、空きマスを畳まずに
-/// `1` の並びで書くと、駒箱の上限内でも 123 字になる。`position sfen ` の前置きと
-/// 手数を足して 160 字前後が、正当な局面の最長。その 1.5 倍を取る。
+/// `1` の並びで書くと、駒箱の上限内でも 123 字になる。金は成れないので持駒へ
+/// 移しても盤面は縮まず、持駒の字数が上乗せされる。`position sfen ` の前置きと
+/// 10桁の手数まで足した最長を `a_maximally_spelled_board_is_accepted` が実測して
+/// いる。倍近い余裕を取り、2 の冪へ丸めて 256。
 ///
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
-/// 下限は `a_maximally_spelled_board_is_accepted` が固定している。
 const MAX_INPUT_CHARS: usize = 256;
 
 /// message に載せる引用の上限。
@@ -500,8 +501,10 @@ mod tests {
             format!("{BARE_BOARD} b - 1 {long_token}"),
             // 持駒の桁 → 理由文に {digits} が入る
             format!("{BARE_BOARD} b {long_digits}P 1"),
-            // 持駒の枚数に駒が続かない → 理由文に {digits} が入る
-            format!("{BARE_BOARD} b {long_digits} 1"),
+            // 持駒の枚数に駒が続かない → 理由文に {digits} が入る。
+            // 先頭ゼロで桁を伸ばす。"9" を並べると桁あふれで「範囲外」に落ちて
+            // 1つ上と同じ枝になり、この枝を通らない
+            format!("{BARE_BOARD} b {}1 1", "0".repeat(149)),
         ];
 
         for input in inputs {
@@ -553,11 +556,13 @@ mod tests {
             "+P1+P1+P1+L1+L/",
             "+L1+L1+N1+N1+N/",
             "+N1+S1+S1+S1+S/",
-            "+B1+B1+R1+R1G/",
-            "G1G1G1K1k/",
+            "+B1+B1+R1+R11/",
+            "1K1k11111/",
             "111111111",
         );
-        let input = format!("position sfen {board} b - 9999");
+        // 金は成れないので、持駒へ移しても盤面の字数は縮まない（空きマスの `1` が
+        // 増えるだけ）。持駒と最大桁の手数を載せた形が、正当な入力の最長。
+        let input = format!("position sfen {board} b GGGG 4294967295");
 
         assert!(
             input.chars().count() <= MAX_INPUT_CHARS,
@@ -785,11 +790,28 @@ mod tests {
         assert!(to_book_key(&format!("{board} b - 1")).is_ok());
     }
 
+    /// トークンが足りない3つの枝を、理由文まで見て別々に固定する。
+    /// 種別だけを見ると、どれが欠けても同じ InvalidSfen なので区別が付かない。
     #[test]
     fn rejects_input_that_is_not_a_position() {
-        for input in ["", "   ", "sfen", "lnsgkgsnl b", "lnsgkgsnl x - 1"] {
+        let cases = [
+            ("", "局面が空"),
+            ("   ", "局面が空"),
+            ("sfen", "局面が空"),
+            ("lnsgkgsnl", "手番が無い"),
+            ("sfen lnsgkgsnl", "手番が無い"),
+            ("lnsgkgsnl b", "持駒が無い"),
+            ("lnsgkgsnl x - 1", "手番が b でも w でもない"),
+        ];
+
+        for (input, reason) in cases {
             let err = to_book_key(input).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
+            assert!(
+                err.message.contains(reason),
+                "input={input:?} message={}",
+                err.message
+            );
         }
     }
 }
