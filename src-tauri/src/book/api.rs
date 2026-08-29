@@ -1,7 +1,7 @@
 use crate::book::error::{BookError, BookErrorCode};
 use crate::book::reader::open_reader;
 use crate::book::session::BookState;
-use crate::book::sfen::normalize_sfen;
+use crate::book::sfen::to_book_key;
 use crate::book::types::{
     BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
 };
@@ -32,7 +32,7 @@ pub async fn lookup_book_moves(
     state: State<'_, BookState>,
     input: LookupBookMovesInput,
 ) -> Result<Vec<BookMove>, BookError> {
-    let key = normalize_sfen(&input.sfen)?;
+    let key = to_book_key(&input.sfen)?;
     let book = state.get(input.handle)?;
 
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。

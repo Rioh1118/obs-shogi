@@ -90,6 +90,7 @@ impl BookState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::book::sfen::BookKey;
     use crate::book::types::{BookFormat, BookMove};
     use std::sync::atomic::AtomicUsize;
 
@@ -122,7 +123,7 @@ mod tests {
             3
         }
 
-        fn lookup(&self, _key: &str) -> Result<Vec<BookMove>, BookError> {
+        fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())
         }
     }

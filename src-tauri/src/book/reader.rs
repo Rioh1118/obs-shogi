@@ -1,4 +1,5 @@
 use crate::book::error::{BookError, BookErrorCode};
+use crate::book::sfen::BookKey;
 use crate::book::types::{BookFormat, BookMove};
 use std::path::Path;
 
@@ -14,9 +15,8 @@ pub trait BookReader: Send + Sync {
 
     /// 局面の候補手を、定跡に書かれている順で返す。
     ///
-    /// `key` は [`crate::book::sfen::normalize_sfen`] を通したもの。生の SFEN を
-    /// 渡すと手数の違いで引けなくなる。未収録の局面は空の `Vec` であって、エラーではない。
-    fn lookup(&self, key: &str) -> Result<Vec<BookMove>, BookError>;
+    /// 未収録の局面は空の `Vec` であって、エラーではない。
+    fn lookup(&self, key: &BookKey) -> Result<Vec<BookMove>, BookError>;
 }
 
 /// 拡張子から形式を決めて reader を作る。

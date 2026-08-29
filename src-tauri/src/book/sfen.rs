@@ -1,7 +1,24 @@
 use crate::book::error::{BookError, BookErrorCode};
 
+/// 正規化を通した定跡のキー。
+///
+/// 生の SFEN と混ざると、手数や持駒の綴りの違いで黙って引けなくなる。中身を
+/// private にして [`to_book_key`] 以外から作れなくすることで、その取り違えを
+/// コンパイル時に止める。
+///
+/// `search` の `PositionKey`（Zobrist ハッシュ）とは別物。こちらは文字列で、
+/// 定跡ファイルに書かれている綴りと突き合わせるためにある。
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BookKey(String);
+
+impl BookKey {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// 平手初期局面の定跡キー。`startpos` を引かれたときの展開先。
-const HIRATE_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -";
+const HIRATE_BOOK_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -";
 
 /// 盤上に置ける駒。`+` を前置すると成駒になる（金と玉は成れない）。
 const BOARD_PIECES: &str = "PLNSGKBR";
@@ -24,7 +41,7 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 ///
 /// 定跡ファイル側のキーもこの関数を通して作ること。持駒の並びをここで畳んでいるので、
 /// 片方だけ生の綴りを使うと同じ局面が一致しない。
-pub fn normalize_sfen(input: &str) -> Result<String, BookError> {
+pub fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     let invalid = |reason: &str| {
         BookError::new(
             BookErrorCode::InvalidSfen,
@@ -55,7 +72,7 @@ pub fn normalize_sfen(input: &str) -> Result<String, BookError> {
     if tokens.peek() == Some(&"startpos") {
         tokens.next();
         reject_rest(&mut tokens)?;
-        return Ok(HIRATE_KEY.to_string());
+        return Ok(BookKey(HIRATE_BOOK_KEY.to_string()));
     }
 
     if tokens.peek() == Some(&"sfen") {
@@ -87,7 +104,7 @@ pub fn normalize_sfen(input: &str) -> Result<String, BookError> {
     validate_board(board).map_err(|reason| invalid(&reason))?;
     let hands = normalize_hands(hands).map_err(|reason| invalid(&reason))?;
 
-    Ok(format!("{board} {side} {hands}"))
+    Ok(BookKey(format!("{board} {side} {hands}")))
 }
 
 /// 9段 × 各段9列ぶんが埋まっていることを見る。
@@ -196,11 +213,16 @@ fn normalize_hands(hands: &str) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    /// 期待値は文字列で書きたいので、BookKey を剥がして返す。
+    fn key(input: &str) -> String {
+        to_book_key(input).unwrap().0
+    }
+
     const HIRATE_SFEN: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
     #[test]
     fn drops_the_move_number() {
-        assert_eq!(normalize_sfen(HIRATE_SFEN).unwrap(), HIRATE_KEY);
+        assert_eq!(key(HIRATE_SFEN), HIRATE_BOOK_KEY);
     }
 
     /// 同じ局面が手数違いで別キーにならないこと。定跡が引けるかを決める性質。
@@ -208,34 +230,27 @@ mod tests {
     fn same_position_with_different_move_number_maps_to_one_key() {
         let early = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 2";
         let late = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 40";
-        assert_eq!(
-            normalize_sfen(early).unwrap(),
-            normalize_sfen(late).unwrap()
-        );
+        assert_eq!(key(early), key(late));
     }
 
     #[test]
     fn accepts_a_missing_move_number() {
         let without_ply = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -";
-        assert_eq!(normalize_sfen(without_ply).unwrap(), HIRATE_KEY);
+        assert_eq!(key(without_ply), HIRATE_BOOK_KEY);
     }
 
     #[test]
     fn strips_the_usi_prefixes() {
         for prefix in ["sfen ", "position sfen "] {
             let input = format!("{prefix}{HIRATE_SFEN}");
-            assert_eq!(
-                normalize_sfen(&input).unwrap(),
-                HIRATE_KEY,
-                "prefix={prefix}"
-            );
+            assert_eq!(key(&input), HIRATE_BOOK_KEY, "prefix={prefix}");
         }
     }
 
     #[test]
     fn expands_startpos() {
         for input in ["startpos", "position startpos", "  startpos  "] {
-            assert_eq!(normalize_sfen(input).unwrap(), HIRATE_KEY, "input={input}");
+            assert_eq!(key(input), HIRATE_BOOK_KEY, "input={input}");
         }
     }
 
@@ -249,7 +264,7 @@ mod tests {
             &format!("position sfen {HIRATE_SFEN} moves 7g7f"),
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - moves 7g7f",
         ] {
-            let err = normalize_sfen(input).unwrap_err();
+            let err = to_book_key(input).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
             assert!(
                 err.message.contains("指し手列"),
@@ -262,14 +277,14 @@ mod tests {
     #[test]
     fn rejects_trailing_tokens_after_the_position() {
         for input in ["startpos extra", &format!("{HIRATE_SFEN} extra")] {
-            let err = normalize_sfen(input).unwrap_err();
+            let err = to_book_key(input).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
         }
     }
 
     #[test]
     fn rejects_a_non_numeric_move_number() {
-        let err = normalize_sfen("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - x")
+        let err = to_book_key("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - x")
             .unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidSfen);
     }
@@ -277,7 +292,7 @@ mod tests {
     #[test]
     fn keeps_the_hand_field() {
         let with_hands = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P2p 1";
-        assert!(normalize_sfen(with_hands).unwrap().ends_with(" b P2p"));
+        assert!(key(with_hands).ends_with(" b P2p"));
     }
 
     fn hirate_with_hands(hands: &str) -> String {
@@ -288,10 +303,10 @@ mod tests {
     /// 同じ局面が一致しない。
     #[test]
     fn hand_spelling_does_not_change_the_key() {
-        let canonical = normalize_sfen(&hirate_with_hands("2P2p")).unwrap();
+        let canonical = key(&hirate_with_hands("2P2p"));
         for spelling in ["2p2P", "PP2p", "2Ppp", "P1P2p"] {
             assert_eq!(
-                normalize_sfen(&hirate_with_hands(spelling)).unwrap(),
+                key(&hirate_with_hands(spelling)),
                 canonical,
                 "spelling={spelling}"
             );
@@ -301,14 +316,14 @@ mod tests {
     #[test]
     fn hands_are_written_in_a_fixed_order() {
         // 先手（大文字）が先、その中は R B G S N L P の順。
-        let key = normalize_sfen(&hirate_with_hands("pLbR")).unwrap();
+        let key = key(&hirate_with_hands("pLbR"));
         assert!(key.ends_with(" b RLbp"), "key={key}");
     }
 
     #[test]
     fn rejects_a_broken_hand_field() {
         for hands in ["K", "k", "0P", "19P", "2", "-P", "P-", "+P", "x"] {
-            let err = normalize_sfen(&hirate_with_hands(hands)).unwrap_err();
+            let err = to_book_key(&hirate_with_hands(hands)).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
         }
     }
@@ -328,7 +343,7 @@ mod tests {
             // + の後ろに駒が無い
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSN+",
         ] {
-            let err = normalize_sfen(&format!("{board} b - 1")).unwrap_err();
+            let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "board={board}");
         }
     }
@@ -336,13 +351,13 @@ mod tests {
     #[test]
     fn accepts_promoted_pieces_on_the_board() {
         let board = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5+R1/LNSGKGSNL";
-        assert!(normalize_sfen(&format!("{board} b - 1")).is_ok());
+        assert!(to_book_key(&format!("{board} b - 1")).is_ok());
     }
 
     #[test]
     fn rejects_input_that_is_not_a_position() {
         for input in ["", "   ", "sfen", "lnsgkgsnl b", "lnsgkgsnl x - 1"] {
-            let err = normalize_sfen(input).unwrap_err();
+            let err = to_book_key(input).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "input={input:?}");
         }
     }
