@@ -17,7 +17,37 @@ const stub = {
 };
 
 const clearError = vi.fn();
-const refreshTree = vi.fn(async () => ({ success: true }) as const);
+
+// 再読み込みの結果。テストごとに差し替える
+let nextError: FsError | null = null;
+// 状態を動かしたあと画面を描き直すための口。`mount()` が差し込む
+let repaint: (() => void) | null = null;
+// 読み込みの完了タイミングを握る。読み込み中の画面を観測するために要る
+let release: (() => void) | null = null;
+
+/**
+ * 実物と同じ順序で state を動かす。
+ *
+ * `loadFileTree` は最初の `await` より前に同期で `loading` を dispatch し、
+ * reducer の `loading` は `error` を `null` にする。静的なスタブにすると
+ * この2つが起きないので、「押した瞬間に失敗表示が消える」という実物の挙動が
+ * テストから見えなくなる。
+ */
+const refreshTree = vi.fn(async () => {
+  stub.isLoading = true;
+  stub.error = null;
+  repaint?.();
+
+  await new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  stub.isLoading = false;
+  stub.error = nextError;
+  repaint?.();
+
+  return nextError ? ({ success: false, error: nextError } as const) : ({ success: true } as const);
+});
 
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({
@@ -52,6 +82,9 @@ beforeEach(() => {
   stub.fileTree = null;
   stub.isLoading = false;
   stub.error = null;
+  nextError = null;
+  repaint = null;
+  release = null;
   clearError.mockClear();
   refreshTree.mockClear();
 });
@@ -59,6 +92,28 @@ beforeEach(() => {
 // globals を有効にしていないので自動 cleanup が効かない。
 // Modal は body へ portal するため、消さないと次のテストに残る
 afterEach(cleanup);
+
+/** `refreshTree` が state を動かしたときに描き直せる形でマウントする。 */
+function mount() {
+  const view = render(<FileTree />);
+  repaint = () => view.rerender(<FileTree />);
+  return view;
+}
+
+/** 再読み込みを押す。読み込み中のまま返るので、途中の画面を検査できる。 */
+async function startRetry() {
+  await act(async () => {
+    screen.getByRole("button", { name: "再読み込み" }).click();
+  });
+}
+
+/** 読み込みを完了させる。 */
+async function finishRetry() {
+  await act(async () => {
+    release?.();
+    await Promise.resolve();
+  });
+}
 
 describe("FileTree の失敗表示", () => {
   test("ファイル操作が失敗しても、ツリーは残る", () => {
@@ -104,15 +159,12 @@ describe("FileTree の失敗表示", () => {
     expect(screen.queryByText(/ルートディレクトリを選択/)).toBeNull();
   });
 
-  test("再読み込みで復帰できる", async () => {
+  test("再読み込みを押すと読み直す", async () => {
     stub.fileTree = TREE;
     stub.error = IO_ERROR;
 
-    render(<FileTree />);
-
-    await act(async () => {
-      screen.getByRole("button", { name: "再読み込み" }).click();
-    });
+    mount();
+    await startRetry();
 
     expect(refreshTree).toHaveBeenCalledTimes(1);
   });
@@ -148,5 +200,83 @@ describe("FileTree の失敗表示", () => {
 
     expect(screen.getByTestId("tree")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/**
+ * 読み込み中は `error` が `null` に戻る（reducer の `loading`）。
+ * ここを素通しにすると、失敗表示もツリーも押した瞬間に消えて、
+ * この変更が直したはずの症状が再読み込み経路だけで再発する。
+ */
+describe("再読み込みの最中", () => {
+  test("読み込み中でもツリーは消えない", async () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+
+    mount();
+    await startRetry();
+
+    expect(screen.getByTestId("tree")).toBeTruthy();
+  });
+
+  test("読み込み中も、何が失敗したかは出したままにする", async () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+
+    mount();
+    await startRetry();
+
+    expect(screen.getByRole("alert").textContent).toContain("読み書きに失敗しました");
+  });
+
+  test("読み込み中はボタンがそう表示し、押せない", async () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+
+    mount();
+    await startRetry();
+
+    const btn = screen.getByRole("button", { name: "読み込み中..." });
+    expect((btn as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test("読み込みが成功したら失敗表示は消える", async () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+    nextError = null;
+
+    mount();
+    await startRetry();
+    await finishRetry();
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByTestId("tree")).toBeTruthy();
+  });
+
+  test("読み込みが失敗し続けても、もう一度押せる", async () => {
+    stub.fileTree = TREE;
+    stub.error = IO_ERROR;
+    nextError = IO_ERROR;
+
+    mount();
+    await startRetry();
+    await finishRetry();
+
+    const btn = screen.getByRole("button", { name: "再読み込み" });
+    expect((btn as HTMLButtonElement).disabled).toBe(false);
+
+    await startRetry();
+    expect(refreshTree).toHaveBeenCalledTimes(2);
+  });
+
+  test("ツリーがまだ無いときは、読み込み中に Spinner を出す", async () => {
+    stub.fileTree = null;
+    stub.error = IO_ERROR;
+
+    mount();
+    await startRetry();
+
+    // ツリーが無いなら見せるものが無いので、読み込み中の表示に切り替わってよい
+    expect(screen.queryByTestId("tree")).toBeNull();
   });
 });

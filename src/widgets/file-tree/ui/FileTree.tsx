@@ -28,6 +28,7 @@ import Spinner from "@/shared/ui/Spinner";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import Modal from "@/shared/ui/Modal";
 import FileTreeErrorNotice from "./FileTreeErrorNotice";
+import type { FsError } from "@/entities/file-tree/api/error";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
 
 const collisionDetection: CollisionDetection = (args) => {
@@ -68,18 +69,25 @@ function FileTree() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<FileTreeNode | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
+  // 読み直しの引き金になった失敗。読み込みを始めると reducer が `error` を
+  // 落とすので、これが無いと押した瞬間に通知が消えて何も伝わらないまま終わる。
+  // `isLoading` では代用できない。ツリーはファイル操作のたびに読み直され、
+  // そのすべてで通知を出すことになる
+  const [retriedFrom, setRetriedFrom] = useState<FsError | null>(null);
 
   // ツリーを読み直す。失敗した操作そのものはやり直さない。
   // 何をしようとしていたかは、失敗を積んだ側（provider）に残っていない
   const handleRetry = useCallback(async () => {
-    setIsRetrying(true);
+    setRetriedFrom(error);
     try {
       await refreshTree();
     } finally {
-      setIsRetrying(false);
+      setRetriedFrom(null);
     }
-  }, [refreshTree]);
+  }, [error, refreshTree]);
+
+  // 読み直しが終わって新しい失敗が来ていれば、そちらが今の状態
+  const shownError = error ?? retriedFrom;
 
   const handleConfirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
@@ -161,11 +169,11 @@ function FileTree() {
         onDragEnd={onDragEnd}
       >
         <ScrollDropZone rootPath={fileTree?.path ?? null}>
-          {isLoading ? (
+          {isLoading && !hasTree ? (
             <Spinner />
-          ) : error && !hasTree ? (
-            <FileTreeErrorNotice error={error} onRetry={handleRetry} isRetrying={isRetrying} />
-          ) : !fileTree ? (
+          ) : shownError && !hasTree ? (
+            <FileTreeErrorNotice error={shownError} onRetry={handleRetry} isRetrying={isLoading} />
+          ) : !hasTree ? (
             <div className="empty">
               <p>ファイルツリーがありません</p>
               <p>設定でルートディレクトリを選択してください</p>
@@ -177,13 +185,13 @@ function FileTree() {
         </ScrollDropZone>
       </DndContext>
 
-      {error && hasTree && (
+      {shownError && hasTree && (
         <Modal theme="dark" size="sm" onClose={clearError}>
           <FileTreeErrorNotice
-            error={error}
+            error={shownError}
             onRetry={handleRetry}
             onDismiss={clearError}
-            isRetrying={isRetrying}
+            isRetrying={isLoading}
           />
         </Modal>
       )}
