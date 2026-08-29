@@ -270,10 +270,12 @@ export default function KifuStreamList() {
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {
           const isForkOpen = openFork?.te === r.te;
+          // 先に openComment を見て短絡させる。閉じている間は行ごとの
+          // カーソル組み立て（JSON.stringify を含む）を走らせない。
           const isCommentOpen =
-            openComment?.cursor.tesuuPointer ===
-            buildCursorWithForkSelection(plannedCursor ?? state.cursor!, r.te, r.selectedForkIndex)
-              .tesuuPointer;
+            openComment != null &&
+            openComment.cursor.tesuuPointer ===
+              buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex).tesuuPointer;
 
           return (
             <KifuMoveCard
