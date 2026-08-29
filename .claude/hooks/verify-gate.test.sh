@@ -69,7 +69,7 @@ expect_match CATCH 'git am /tmp/x.patch'
 expect_match CATCH 'git pull'
 expect_match CATCH 'git pull --rebase origin main'
 
-# コミットは作らないが、語彙に当たるので拾う（誤発火の側）
+# 語彙には当たる。免除は下の expect_teardown が別に見る
 expect_match CATCH 'git merge --abort'
 
 # commit ではないもの
@@ -241,6 +241,40 @@ expect_kinds "" "docs/decisions/0002-drop-book-read-write.md"
 expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
 # 引用符付きのパスは -z で読むので、ここへは素のまま来る
 expect_kinds "ts" "src/dir with space/a.ts"
+
+# 積んだ操作を畳む呼び出しは、検証の対象にしない。
+#
+# ここを塞ぐと、競合を抱えたツリー（＝検証が必ず落ちる状態）で競合を畳む手段が
+# 無くなる。実際に行き止まりを踏んだのでテストで固定する。
+expect_teardown() {
+  local want=$1 command=$2
+  local got=NO
+  gate_is_teardown "$command" && got=YES
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$command"
+    failures=$((failures + 1))
+  fi
+}
+
+expect_teardown YES 'git rebase --abort'
+expect_teardown YES 'git rebase --quit'
+expect_teardown YES 'git rebase --skip'
+expect_teardown YES 'git rebase --edit-todo'
+expect_teardown YES 'git merge --abort'
+expect_teardown YES 'git cherry-pick --abort'
+expect_teardown YES 'git am --abort'
+expect_teardown YES 'git revert --quit'
+expect_teardown YES '  git   merge   --abort  '
+
+# --continue はコミットを作るので、免除しない
+expect_teardown NO 'git rebase --continue'
+expect_teardown NO 'git cherry-pick --continue'
+
+# コミットを作る呼び出しを混ぜたものへ免除を広げない
+expect_teardown NO 'git rebase --abort && git commit -m x'
+expect_teardown NO 'git commit -m x && git rebase --abort'
+expect_teardown NO 'git -C /tmp/other rebase --abort'
+expect_teardown NO 'git commit --amend'
 
 if [ "$failures" -eq 0 ]; then
   echo "verify-gate: 全て期待どおり"

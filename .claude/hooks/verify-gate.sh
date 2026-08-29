@@ -217,6 +217,24 @@ gate_kinds_for_path() {
   printf '%s' "${kinds# }"
 }
 
+# 積んだ操作を畳む呼び出し。コミットを1つも作らない。
+#
+# `--abort` / `--quit` / `--skip` / `--edit-todo` は、語彙（`rebase` / `merge` /
+# `cherry-pick` / `am`）に当たるというだけで検証へ載っていた。競合を抱えた
+# ツリーでは `package.json` に競合マーカが入っていて `npm run verify` が必ず
+# 落ちるので、**その競合を畳む手段そのものが取り上げられて行き止まりになる。**
+# しかも案内文は「再度コミットすること」で、利用者はコミットしようとしていない。
+#
+# `--continue` は入れない。あれはコミットを作る。
+#
+# 1つの git 呼び出しだけに限るので、免除は広がらない。
+# `git rebase --abort && git commit -m x` はここに当たらず、下の宛先の判定で
+# 呼び出しが2つと数えられて deny になる。
+gate_is_teardown() {
+  gate_flatten "$1" \
+    | grep -Eq '^[[:space:]]*git[[:space:]]+(rebase|merge|cherry-pick|am|revert)[[:space:]]+--(abort|quit|skip|edit-todo)[[:space:]]*$'
+}
+
 # 読み込まれただけのときは判定関数を定義して終わる（テストから使う）。
 [ "${GATE_LIB_ONLY:-0}" = "1" ] && return 0
 
@@ -294,6 +312,14 @@ $original"
 $paths
 EOF
 done < <(git status --porcelain -z --untracked-files=no)
+
+# 畳む操作は作業ツリーに何が載っていても検証が要らない。コミットを1つも
+# 作らないので、検証すべき成果物がそもそも生まれない。
+if gate_is_teardown "$command"; then
+  needs_ts=0
+  needs_rust=0
+  needs_gate=0
+fi
 
 if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ] && [ "$needs_gate" -eq 0 ]; then
   exit 0
