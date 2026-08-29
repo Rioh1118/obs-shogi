@@ -152,7 +152,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   }, [rootDir]);
 
   useEffect(() => {
-    if (rootDir) void loadFileTree();
+    if (!rootDir) return;
+    void loadFileTree(); // async-result-ignored: 初回の読み込み。失敗は loadFileTree が積む
   }, [rootDir, loadFileTree]);
 
   useEffect(() => {
@@ -282,9 +283,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = res.data;
 
-      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
+      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
+      // pendingRevealPathRef の受け渡しも壊れる。
+      //
+      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
       // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
-      void loadFileTree();
+      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
     [failToCaller, loadFileTree],
@@ -310,9 +315,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       pendingRevealPathRef.current = res.data;
 
-      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
+      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
+      // pendingRevealPathRef の受け渡しも壊れる。
+      //
+      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
       // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
-      void loadFileTree();
+      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
     [loadFileTree, failToCaller],
@@ -331,9 +340,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
       pendingRevealPathRef.current = res.data;
 
-      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
+      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
+      // pendingRevealPathRef の受け渡しも壊れる。
+      //
+      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
       // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
-      void loadFileTree();
+      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
     [failToNameInput, loadFileTree],
@@ -377,9 +390,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         dispatch({ type: "kifu_closed" });
       }
 
-      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
+      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
+      // pendingRevealPathRef の受け渡しも壊れる。
+      //
+      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
       // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
-      void loadFileTree();
+      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
     [loadFileTree, pushError, state.selectedNode, state.activeKifuPath],
@@ -417,9 +434,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Ok(undefined);
       }
 
-      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
+      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
+      // pendingRevealPathRef の受け渡しも壊れる。
+      //
+      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
       // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
-      void loadFileTree();
+      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
     [failToNameInput, loadFileTree, reconcilePathMutation, rootDir, setRootDir],
@@ -453,9 +474,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const nextPath = res.data;
       reconcilePathMutation(node.path, nextPath);
 
-      // 変更そのものは成功している。読み直しの失敗は loadFileTree が state.error へ
+      // 読み直しは**待つ**。待たないと、操作が返った時点でツリーが古いままになり、
+      // 呼び出し元は「作られていない」画面を描く。読み直しが2本重なると
+      // pendingRevealPathRef の受け渡しも壊れる。
+      //
+      // ただし結果は返さない。読み直しの失敗は loadFileTree が state.error へ
       // 積むので、ここで返すと同じ失敗が2箇所に出るうえ「操作に失敗した」と嘘になる
-      void loadFileTree();
+      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
     [failWithNotice, reconcilePathMutation, loadFileTree],
@@ -627,7 +652,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         state.kifuFormat === node.kifuInfo?.format;
 
       if (!isAlreadyActive) {
-        void openKifuNode(node);
+        void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
       }
 
       return true;

@@ -26,9 +26,15 @@ const DECLARES_ASYNC_RESULT = /(?:function\s+|const\s+)(\w+)[^\n]*?:\s*AsyncResu
 /** 読まないのが正しいときの印。理由を書かせるので `:` まで含めて要求する */
 const IGNORE_MARKER = "async-result-ignored:";
 
-/** 行頭から始まる `await f(` / `void await f(`。代入も `return` も付いていない */
-function bareAwaitOf(names: Set<string>): RegExp {
-  return new RegExp(`^[ \\t]*(?:void )?await (${[...names].join("|")})\\([^\\n]*`, "gm");
+/**
+ * 行頭から始まる `await f(` / `void await f(` / `void f(`。
+ * 代入も `return` も付いていない＝結果を読みようがない形。
+ *
+ * `void f(` を落とすと、`await` を消すだけで検査を抜けられる
+ */
+function bareCallOf(names: Set<string>): RegExp {
+  const call = `(?:\\w+\\.)?(${[...names].join("|")})`;
+  return new RegExp(`^[ \\t]*(?:void await |void |await )${call}\\([^\\n]*`, "gm");
 }
 
 function sourceFiles(dir: string): string[] {
@@ -53,7 +59,7 @@ describe("AsyncResult の戻り値", () => {
       "AsyncResult を返す関数が1つも見つからない。検査が空振りしている",
     ).toBeGreaterThan(5);
 
-    const pattern = bareAwaitOf(names);
+    const pattern = bareCallOf(names);
     const offenders: string[] = [];
     for (const [file, source] of sources) {
       const name = relative(process.cwd(), file);

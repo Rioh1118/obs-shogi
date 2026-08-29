@@ -92,7 +92,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     selectNode(node);
 
     if (!isActive) {
-      void openKifuNode(node);
+      void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
     }
   };
 
