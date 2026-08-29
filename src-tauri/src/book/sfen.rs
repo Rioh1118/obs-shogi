@@ -20,12 +20,30 @@ impl BookKey {
 /// 平手初期局面の定跡キー。`startpos` を引かれたときの展開先。
 const HIRATE_BOOK_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -";
 
-/// 盤上に置ける駒。`+` を前置すると成駒になる（金と玉は成れない）。
-const BOARD_PIECES: &str = "PLNSGKBR";
-
-/// 持駒になりうる駒を、キーに書く順で並べたもの。
+/// 駒種と、40枚の駒箱に入っている数。玉は先後1枚ずつ。
 ///
-/// 同じ持駒が別の綴りで来ると別のキーになってしまうので、この順に畳んで書き直す。
+/// 盤上と持駒を通して数え、この数を超えたら綴りが壊れていると判断する。
+const PIECE_LIMITS: [(char, u32); 8] = [
+    ('P', 18),
+    ('L', 4),
+    ('N', 4),
+    ('S', 4),
+    ('G', 4),
+    ('B', 2),
+    ('R', 2),
+    ('K', 2),
+];
+
+/// 持駒になりうる駒を、キーに書く順で並べたもの。玉は持駒にならない。
+///
+/// 同じ持駒が別の綴りで来ると別のキーになるので、この順に畳んで書き直す。
+///
+/// **この並びは外部仕様に従属する。** ファイル上を二分探索する reader は、
+/// ファイルに書かれた綴りとキーを直接比較するため、並びがやねうら王の書き出す
+/// 持駒順とバイト単位で一致していなければ全ての lookup が空を返す。
+/// 現在の並びは `research/findings/L3-book-solved.md` の記録に基づくもので、
+/// やねうら王本体の `Position::sfen()` までは確認できていない。
+/// #91 で実物の定跡を fixture に置くとき、そこで突き合わせること。
 const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 
 /// 定跡を引くためのキーに直す。
@@ -39,8 +57,13 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// 盤面と持駒は書式を検査する。`lookup` は未収録の局面に空の `Vec` を返す約束なので、
 /// 壊れた局面を素通しすると「定跡に載っていない」と見分けが付かなくなる。
 ///
-/// 定跡ファイル側のキーもこの関数を通して作ること。持駒の並びをここで畳んでいるので、
-/// 片方だけ生の綴りを使うと同じ局面が一致しない。
+/// 綴りの揺れ（空きマスの数字の分割、持駒の並び）は畳む。畳んだ結果をもう一度
+/// 通しても同じキーになる。
+///
+/// メモリに展開する reader は、定跡ファイル側のキーもこの関数を通すこと。
+/// ファイル上を二分探索する reader は通せない（通すと探索の前提である
+/// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
+/// ファイルの綴りと一致していることに依存する。
 pub fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     let invalid = |reason: &str| {
         BookError::new(
@@ -101,59 +124,143 @@ pub fn to_book_key(input: &str) -> Result<BookKey, BookError> {
         reject_rest(&mut tokens)?;
     }
 
-    validate_board(board).map_err(|reason| invalid(&reason))?;
-    let hands = normalize_hands(hands).map_err(|reason| invalid(&reason))?;
+    // 盤上と持駒を通して数えるので、駒数の検査は両方を読んでから行う。
+    let mut counts = PieceCounts::default();
+    let board = normalize_board(board, &mut counts).map_err(|reason| invalid(&reason))?;
+    let hands = normalize_hands(hands, &mut counts).map_err(|reason| invalid(&reason))?;
+    counts.validate().map_err(|reason| invalid(&reason))?;
 
     Ok(BookKey(format!("{board} {side} {hands}")))
 }
 
-/// 9段 × 各段9列ぶんが埋まっていることを見る。
-fn validate_board(board: &str) -> Result<(), String> {
+/// 駒種ごとの枚数。盤上と持駒を通して数える。
+#[derive(Default)]
+struct PieceCounts {
+    /// [先手, 後手] × PIECE_LIMITS
+    by_side: [[u32; PIECE_LIMITS.len()]; 2],
+}
+
+impl PieceCounts {
+    /// 大文字なら先手、小文字なら後手として1枚数える。成駒は元の駒種で数える。
+    fn add(&mut self, piece: char) -> Result<(), String> {
+        let index = PIECE_LIMITS
+            .iter()
+            .position(|(kind, _)| *kind == piece.to_ascii_uppercase())
+            .ok_or_else(|| format!("駒でない文字 {piece} がある"))?;
+
+        let side = usize::from(piece.is_ascii_lowercase());
+        self.by_side[side][index] += 1;
+        Ok(())
+    }
+
+    fn add_many(&mut self, piece: char, count: u32) -> Result<(), String> {
+        for _ in 0..count {
+            self.add(piece)?;
+        }
+        Ok(())
+    }
+
+    /// 駒箱に入っている数を超えていないか見る。
+    ///
+    /// 超えている局面は将棋に存在しないので、どの定跡にも載っていない。
+    /// 素通しすると、壊れた入力が「定跡に載っていない」と見分けが付かなくなる。
+    fn validate(&self) -> Result<(), String> {
+        for (index, (kind, limit)) in PIECE_LIMITS.iter().enumerate() {
+            let total = self.by_side[0][index] + self.by_side[1][index];
+            if total > *limit {
+                return Err(format!("{kind} が{total}枚ある（多くても{limit}枚）"));
+            }
+
+            // 玉だけは先後それぞれ1枚。合計2枚の検査では 0 対 2 を弾けない。
+            if *kind == 'K' && (self.by_side[0][index] > 1 || self.by_side[1][index] > 1) {
+                return Err("同じ側に玉が2枚以上ある".to_string());
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// 盤面を検査し、空きマスの綴りを畳んで返す。
+///
+/// `4k22` と `4k4` は同じ盤面なので、畳まないと同じ局面が2つのキーになる。
+fn normalize_board(board: &str, counts: &mut PieceCounts) -> Result<String, String> {
     let ranks: Vec<&str> = board.split('/').collect();
     if ranks.len() != 9 {
         return Err(format!("盤面が9段ではない（{}段）", ranks.len()));
     }
 
+    let mut out = String::with_capacity(board.len());
+
     for (i, rank) in ranks.iter().enumerate() {
+        if i > 0 {
+            out.push('/');
+        }
+
         let mut files = 0u32;
+        let mut empty = 0u32;
         let mut chars = rank.chars();
 
         while let Some(c) = chars.next() {
             match c {
-                '1'..='9' => files += c.to_digit(10).expect("1-9 は必ず数字"),
+                '1'..='9' => {
+                    empty += c.to_digit(10).expect("1-9 は必ず数字");
+                    files += c.to_digit(10).expect("1-9 は必ず数字");
+                    continue;
+                }
                 '+' => {
                     let promoted = chars
                         .next()
                         .ok_or_else(|| format!("{}段目の + の後ろに駒が無い", i + 1))?;
                     // 金と玉は成れないので、+ の後ろに来たら綴りが壊れている。
-                    if !BOARD_PIECES.contains(promoted.to_ascii_uppercase())
-                        || matches!(promoted.to_ascii_uppercase(), 'G' | 'K')
-                    {
+                    if matches!(promoted.to_ascii_uppercase(), 'G' | 'K') {
                         return Err(format!("{}段目に成れない駒 +{promoted} がある", i + 1));
                     }
+                    counts
+                        .add(promoted)
+                        .map_err(|reason| format!("{}段目に{reason}", i + 1))?;
+                    flush_empty(&mut out, &mut empty);
+                    out.push('+');
+                    out.push(promoted);
                     files += 1;
                 }
-                _ if BOARD_PIECES.contains(c.to_ascii_uppercase()) => files += 1,
-                _ => return Err(format!("{}段目に駒でない文字 {c} がある", i + 1)),
+                _ => {
+                    counts
+                        .add(c)
+                        .map_err(|reason| format!("{}段目に{reason}", i + 1))?;
+                    flush_empty(&mut out, &mut empty);
+                    out.push(c);
+                    files += 1;
+                }
             }
         }
+
+        flush_empty(&mut out, &mut empty);
 
         if files != 9 {
             return Err(format!("{}段目の列数が9ではない（{files}）", i + 1));
         }
     }
 
-    Ok(())
+    Ok(out)
+}
+
+/// 溜めた空きマスを1つの数字として書き出す。9マスまでしか溜まらない。
+fn flush_empty(out: &mut String, empty: &mut u32) {
+    if *empty > 0 {
+        out.push_str(&empty.to_string());
+        *empty = 0;
+    }
 }
 
 /// 持駒を検査し、`HAND_PIECES` の順（先手を先）に畳んで書き直す。
-fn normalize_hands(hands: &str) -> Result<String, String> {
+fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, String> {
     if hands == "-" {
         return Ok("-".to_string());
     }
 
-    // [先手, 後手] × HAND_PIECES の枚数。
-    let mut counts = [[0u32; HAND_PIECES.len()]; 2];
+    // [先手, 後手] × HAND_PIECES の枚数。書き出す順に畳むために持つ。
+    let mut hand_counts = [[0u32; HAND_PIECES.len()]; 2];
     let mut chars = hands.chars().peekable();
 
     while chars.peek().is_some() {
@@ -166,7 +273,8 @@ fn normalize_hands(hands: &str) -> Result<String, String> {
             chars.next();
         }
 
-        // 歩は最大18枚なので、それを超える綴りは壊れている。
+        // 1トークンの桁だけをここで見る。駒種ごとの上限は、盤上と合わせて
+        // 数え終わってから PieceCounts::validate が見る。
         let count = if digits.is_empty() {
             1
         } else {
@@ -184,12 +292,15 @@ fn normalize_hands(hands: &str) -> Result<String, String> {
             .position(|p| *p == piece.to_ascii_uppercase())
             .ok_or_else(|| format!("持駒にできない文字 {piece} がある"))?;
 
+        // 玉は持駒にならないので HAND_PIECES には無く、ここで弾かれる。
+        counts.add_many(piece, count)?;
+
         let side = usize::from(piece.is_ascii_lowercase());
-        counts[side][index] += count;
+        hand_counts[side][index] += count;
     }
 
     let mut out = String::new();
-    for (side, row) in counts.iter().enumerate() {
+    for (side, row) in hand_counts.iter().enumerate() {
         for (index, &count) in row.iter().enumerate() {
             if count == 0 {
                 continue;
@@ -291,22 +402,25 @@ mod tests {
 
     #[test]
     fn keeps_the_hand_field() {
-        let with_hands = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P2p 1";
-        assert!(key(with_hands).ends_with(" b P2p"));
+        assert!(key(&bare_with_hands("P2p")).ends_with(" b P2p"));
     }
 
-    fn hirate_with_hands(hands: &str) -> String {
-        format!("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b {hands} 1")
+    /// 玉だけの盤面。持駒の綴りを試すのに使う。平手のままだと盤上の駒と
+    /// 合わせて駒箱の数を超えてしまう。
+    const BARE_BOARD: &str = "4k4/9/9/9/9/9/9/9/4K4";
+
+    fn bare_with_hands(hands: &str) -> String {
+        format!("{BARE_BOARD} b {hands} 1")
     }
 
     /// 同じ持駒が別の綴りで来ても同じキーになること。片方だけ生の綴りを使うと
     /// 同じ局面が一致しない。
     #[test]
     fn hand_spelling_does_not_change_the_key() {
-        let canonical = key(&hirate_with_hands("2P2p"));
+        let canonical = key(&bare_with_hands("2P2p"));
         for spelling in ["2p2P", "PP2p", "2Ppp", "P1P2p"] {
             assert_eq!(
-                key(&hirate_with_hands(spelling)),
+                key(&bare_with_hands(spelling)),
                 canonical,
                 "spelling={spelling}"
             );
@@ -316,14 +430,14 @@ mod tests {
     #[test]
     fn hands_are_written_in_a_fixed_order() {
         // 先手（大文字）が先、その中は R B G S N L P の順。
-        let key = key(&hirate_with_hands("pLbR"));
-        assert!(key.ends_with(" b RLbp"), "key={key}");
+        let folded = key(&bare_with_hands("pLbR"));
+        assert!(folded.ends_with(" b RLbp"), "folded={folded}");
     }
 
     #[test]
     fn rejects_a_broken_hand_field() {
         for hands in ["K", "k", "0P", "19P", "2", "-P", "P-", "+P", "x"] {
-            let err = to_book_key(&hirate_with_hands(hands)).unwrap_err();
+            let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
         }
     }
@@ -345,6 +459,66 @@ mod tests {
         ] {
             let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
             assert_eq!(err.code, BookErrorCode::InvalidSfen, "board={board}");
+        }
+    }
+
+    /// 駒箱に入っていない枚数の局面は将棋に存在しないので、どの定跡にも載っていない。
+    /// 素通しすると「定跡に載っていない」と見分けが付かなくなる。
+    #[test]
+    fn rejects_more_pieces_than_the_set_holds() {
+        // 1トークンでは上限内でも、合算すると超える
+        for hands in ["18P1P", "9P9P1P", "3R", "3r", "2R1r", "5G"] {
+            let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
+            assert_eq!(err.code, BookErrorCode::InvalidSfen, "hands={hands}");
+        }
+
+        // 盤上と持駒の通し。平手には既に歩が18枚ある
+        let err = to_book_key("lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P 1")
+            .unwrap_err();
+        assert_eq!(err.code, BookErrorCode::InvalidSfen);
+
+        for board in [
+            // 玉が9枚
+            "KKKKKKKKK/9/9/9/9/9/9/9/9",
+            // 同じ側に玉が2枚
+            "3kk4/9/9/9/9/9/9/9/4K4",
+            // 歩が81枚
+            "PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP/PPPPPPPPP",
+        ] {
+            let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
+            assert_eq!(err.code, BookErrorCode::InvalidSfen, "board={board}");
+        }
+    }
+
+    /// 空きマスの綴りが分かれていても同じキーになること。畳まないと同じ局面が
+    /// 2つのキーになり、片方でしか引けない。
+    #[test]
+    fn an_empty_square_run_has_one_spelling() {
+        let split = key("4k22/9/9/9/9/9/9/9/4K4 b - 1");
+        let folded = key("4k4/9/9/9/9/9/9/9/4K4 b - 1");
+        assert_eq!(split, folded);
+        assert!(folded.starts_with("4k4/"), "folded={folded}");
+
+        assert_eq!(
+            key("4k4/45/9/9/9/9/9/9/4K4 b - 1"),
+            key("4k4/9/9/9/9/9/9/9/4K4 b - 1")
+        );
+    }
+
+    /// キーをもう一度通しても同じキーであること。畳み残しがあるとここで壊れる。
+    #[test]
+    fn a_key_is_stable_when_normalized_again() {
+        for input in [
+            HIRATE_SFEN,
+            "startpos",
+            "4k22/9/9/9/9/9/9/9/4K4 b - 1",
+            &bare_with_hands("pLbR"),
+            &bare_with_hands("18P"),
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5+R1/LNSGKGSNL w - 40",
+        ] {
+            let once = to_book_key(input).unwrap();
+            let twice = to_book_key(once.as_str()).unwrap();
+            assert_eq!(once, twice, "input={input}");
         }
     }
 
