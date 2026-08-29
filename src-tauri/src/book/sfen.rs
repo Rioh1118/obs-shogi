@@ -70,8 +70,8 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// これを直接呼ぶのはコマンド境界だけ。定跡ファイルに書かれている局面を
 /// キーにするときは [`to_book_key_in_file`] を使うこと（失敗の意味が違う）。
 ///
-/// メモリに展開する reader は、定跡ファイル側のキーもこの関数を通すこと。
-/// ファイル上を二分探索する reader は通せない（通すと探索の前提である
+/// メモリに展開する reader は、定跡ファイル側のキーも [`to_book_key_in_file`] を
+/// 通すこと。ファイル上を二分探索する reader は通せない（通すと探索の前提である
 /// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
@@ -147,14 +147,37 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
 /// 定跡ファイルに書かれている局面をキーにする。
 ///
 /// 読めない行は利用者の入力の誤りではなくファイルの破損なので、`InvalidSfen`
-/// ではなく `InvalidContent` にして定跡のパスを添える。ここを分けないと、
-/// 盤を1手進めただけの利用者に「渡した局面が読めない」と案内され、
-/// 「この定跡が壊れている」という正しい復帰導線に辿り着けない。
-// TODO(#91): 最初の呼び手はやねうら王 .db の reader。
+/// ではなく `InvalidContent` にして定跡のパスと復帰操作を添える。種別だけ
+/// 付け替えても、人が読むのは message なので「渡した局面が読めない」のままになる。
+///
+/// 元の理由は括弧に入れて残すが、行そのものは打ち切る。`.db` の1行は、途中で
+/// 切れたファイルや別形式のファイルでは数 MB になりうる。それをそのまま
+/// message に入れると、`logged` 経由でログを1回の lookup で埋め尽くす。
+// TODO(#91): 最初の呼び手はやねうら王 .db の reader。行番号を添えられるように
+// するかは、そこで決める。
 #[allow(dead_code)]
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
-    to_book_key(line)
-        .map_err(|err| BookError::new(BookErrorCode::InvalidContent, err.message).with_path(path))
+    to_book_key(line).map_err(|err| {
+        BookError::new(
+            BookErrorCode::InvalidContent,
+            format!(
+                "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{}）",
+                truncate_for_message(&err.message)
+            ),
+        )
+        .with_path(path)
+    })
+}
+
+/// message に載せる引用を打ち切る。
+const MESSAGE_EXCERPT_CHARS: usize = 120;
+
+fn truncate_for_message(reason: &str) -> String {
+    let mut out: String = reason.chars().take(MESSAGE_EXCERPT_CHARS).collect();
+    if out.chars().count() < reason.chars().count() {
+        out.push('…');
+    }
+    out
 }
 
 /// 駒種ごとの枚数。盤上と持駒を通して数える。
@@ -367,11 +390,37 @@ mod tests {
     const HIRATE_SFEN: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
     /// ファイルの行が読めないのは利用者の入力の誤りではない。
+    /// 種別だけでなく、人が読む文面も「ファイルが壊れている」と言うこと。
     #[test]
     fn a_broken_line_in_a_file_is_reported_as_broken_content() {
         let err = to_book_key_in_file("壊れた行", "/books/a.db").unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidContent);
         assert_eq!(err.path.as_deref(), Some("/books/a.db"));
+        assert!(
+            err.message.contains("定跡ファイル"),
+            "message={}",
+            err.message
+        );
+        assert!(
+            err.message.contains("取得し直す"),
+            "message={}",
+            err.message
+        );
+    }
+
+    /// 途中で切れたファイルの1行は数 MB になりうる。そのまま message に入れると
+    /// ログを1回の lookup で埋め尽くす。
+    #[test]
+    fn a_long_broken_line_is_truncated_in_the_message() {
+        let line = "x".repeat(100_000);
+        let err = to_book_key_in_file(&line, "/books/a.db").unwrap_err();
+
+        assert!(
+            err.message.chars().count() < 300,
+            "len={}",
+            err.message.chars().count()
+        );
+        assert!(err.message.contains('…'), "message={}", err.message);
     }
 
     #[test]
