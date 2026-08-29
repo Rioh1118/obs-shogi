@@ -42,29 +42,28 @@
     opacity: 0.75;
   }
 
+  // 面を持たない。白の被せはパレットと無関係な灰色になり、
+  // 深緑の面の上では箱だけが浮いて見える。区切りと余白で構造を出す
   &__context {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.55rem 0.9rem;
-    border-radius: 0.6rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    gap: index.$space-1;
+    padding: index.$space-3 index.$space-5;
   }
 
   &__docline {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 0.8rem;
+    gap: index.$space-4;
     width: 100%;
     flex-wrap: nowrap;
   }
 
   &__filename {
     min-width: 0;
-    font-size: 1.35rem;
+    font-size: index.$font-body;
     opacity: 0.95;
     white-space: nowrap;
     overflow: hidden;
@@ -76,25 +75,23 @@
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
-    gap: 0.6rem;
+    gap: index.$space-3;
   }
 
   &__badge {
-    font-size: 1.05rem;
-    padding: 0.25rem 0.65rem;
-    border-radius: 0.6rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.04);
-    opacity: 0.95;
+    font-size: index.$font-hint;
+    padding: index.$space-1 index.$space-3;
+    border-radius: index.$radius-3;
+    border: 1px solid index.$stroke-weak;
+    color: rgba(index.$color-text-primary, 0.72);
     white-space: nowrap;
   }
 
   &__divider {
     flex: 0 0 auto;
     width: 1px;
-    height: 1.6rem;
-    background: rgba(255, 255, 255, 0.14);
-    opacity: 0.7;
+    height: index.$space-8;
+    background: index.$stroke;
   }
 
   &__meta {
@@ -115,7 +112,7 @@
 
   &__meta-sep {
     opacity: 0.45;
-    margin: 0 0.55rem;
+    margin: 0 index.$space-3;
     user-select: none;
   }
 
@@ -125,7 +122,7 @@
 
   &__muted {
     opacity: 0.75;
-    font-size: 1.25rem;
+    font-size: index.$font-aux;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
