@@ -22,7 +22,7 @@ use std::path::Path;
 /// - io の失敗は [`BookError::from_io`] でパスを添えて返す
 pub(crate) trait BookReader: Send + Sync {
     /// 収録局面数。意味は [`crate::book::BookInfo::position_count`] と同じ。
-    fn position_count(&self) -> u64;
+    fn position_count(&self) -> Option<u64>;
 
     /// 局面の候補手を、定跡に書かれている順で返す。
     ///

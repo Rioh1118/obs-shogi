@@ -20,8 +20,9 @@ use tauri::State;
 /// プロジェクト root の外に置かれる。`file_system` の `validate_under_root` は
 /// 当てられないので、パスに課す条件は `OpenBookInput::path` に書いた形だけになる。
 ///
-/// `.db` の reader が入る #91 まで、このコマンドは成功しない。パスと形式の検査を
-/// 通った場合の失敗が `UnsupportedFormat` で、通らなければそれぞれの種別が返る。
+/// `.db` の reader が入る #91 まで、このコマンドは成功しない。形式が判別できて
+/// 実体がファイルなら `UnsupportedFormat`、ディレクトリなどファイルでないものは
+/// `InvalidType`、それ以外は各検査の種別が返る。
 #[tauri::command]
 pub async fn open_book(
     state: State<'_, BookState>,
@@ -50,7 +51,7 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 pub(crate) struct OpenedBook {
     pub(crate) path: PathBuf,
     pub(crate) format: BookFormat,
-    pub(crate) position_count: u64,
+    pub(crate) position_count: Option<u64>,
     pub(crate) reader: Box<dyn BookReader>,
 }
 
@@ -308,8 +309,8 @@ mod tests {
     struct FakeReader;
 
     impl BookReader for FakeReader {
-        fn position_count(&self) -> u64 {
-            0
+        fn position_count(&self) -> Option<u64> {
+            Some(0)
         }
 
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
@@ -321,7 +322,7 @@ mod tests {
         OpenedBook {
             path: PathBuf::from(path),
             format: BookFormat::YaneuraouDb,
-            position_count: 0,
+            position_count: Some(0),
             reader: Box::new(FakeReader),
         }
     }

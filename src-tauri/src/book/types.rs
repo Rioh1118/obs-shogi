@@ -86,8 +86,9 @@ pub struct BookInfo {
     ///
     /// 開いた時点で確定する。全件を数えずに開く on-the-fly の reader でも、
     /// ファイルに書かれた局面数（やねうら王の `# NOE:N` など）を使って埋めること。
-    /// 数えられない形式は 0 を返してよい
-    pub position_count: u64,
+    /// **数えられない形式は `null`。** 0 は「本当に0局面」を意味する。
+    /// 同じ値にすると、局面数の書かれていない定跡が「空の定跡」として表示される
+    pub position_count: Option<u64>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -95,7 +96,8 @@ pub struct BookInfo {
 pub struct OpenBookInput {
     /// 定跡ファイルの絶対パス。空・NUL 入り・相対パスは `InvalidPath` になる。
     /// symlink は実体に解決され、`BookInfo::path` には実体が入る。指定した綴りと
-    /// 実体の形式が食い違う場合も `InvalidPath`
+    /// 実体の形式が食い違う場合も `InvalidPath`。
+    /// ファイル以外（ディレクトリなど）を指すと `InvalidType`
     pub path: String,
 }
 

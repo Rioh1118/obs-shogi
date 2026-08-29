@@ -189,8 +189,8 @@ mod tests {
     }
 
     impl BookReader for FakeReader {
-        fn position_count(&self) -> u64 {
-            3
+        fn position_count(&self) -> Option<u64> {
+            Some(3)
         }
 
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
@@ -203,7 +203,7 @@ mod tests {
         OpenedBook {
             path: PathBuf::from(path),
             format: BookFormat::YaneuraouDb,
-            position_count: 3,
+            position_count: Some(3),
             reader: FakeReader::boxed(alive),
         }
     }
@@ -220,7 +220,7 @@ mod tests {
         let (_state, _alive, info) = state_with_one_book();
         assert_eq!(info.path, "/books/a.db");
         assert_eq!(info.format, BookFormat::YaneuraouDb);
-        assert_eq!(info.position_count, 3);
+        assert_eq!(info.position_count, Some(3));
         assert!(info.handle > 0);
     }
 
