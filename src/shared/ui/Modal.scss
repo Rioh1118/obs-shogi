@@ -7,7 +7,9 @@
     position: fixed;
     // タイトルバーはウィンドウを動かす唯一の手段（`data-tauri-drag-region`）を持つ。
     // overlay は `#modal-root` から描かれるので、同じ z-index なら DOM 順で必ず overlay が
-    // 勝つ。z-index で競うのではなく、覆う範囲をタイトルバーの下からにして届かせない
+    // 勝つ。z-index を上げて競う手もあるが、それでは overlay 自身が退いてもカードが
+    // タイトルバーの上に載る（下の `padding` を挟んでカード上端は 20px、帯は 26px）。
+    // 覆う範囲そのものをタイトルバーの下からにして、幾何で届かせない
     top: index.$titlebar-height;
     right: 0;
     bottom: 0;
