@@ -47,6 +47,12 @@ export interface GameView {
 
   /** branchPlan を考慮した終端手数 */
   totalMoves: number;
+
+  /**
+   * 現在の局面の SFEN。盤の状態から導かれる射影であり、駒の選択には依存しない。
+   * 局面を組み立てられない間は null。
+   */
+  currentSfen: string | null;
 }
 
 export type GameAction =

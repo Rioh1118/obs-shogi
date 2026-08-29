@@ -33,21 +33,12 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
     return msg.includes("NotInitialized") || msg.includes("Engine not initialized");
   };
 
-  const getCurrentSfen = useCallback((): string | null => {
-    try {
-      if (!gameView.player?.shogi) return null;
-
-      return gameView.player.shogi.toSFENString(gameView.player.tesuu || 1);
-    } catch (error) {
-      console.error("❌ [POSITION] Error getting SFEN:", error);
-      return null;
-    }
-  }, [gameView.player]);
+  const currentSfen = gameView.currentSfen;
 
   const syncPosition = useCallback(async (): Promise<void> => {
     setSyncError(null);
 
-    const sfen = getCurrentSfen();
+    const sfen = currentSfen;
     if (!sfen) {
       setIsPositionSynced(false);
       setSyncedSfen(null);
@@ -109,7 +100,7 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
     });
 
     return inFlightRef.current;
-  }, [getCurrentSfen, isReady, syncedSfen, syncedEngineKey, engineKey]);
+  }, [currentSfen, isReady, syncedSfen, syncedEngineKey, engineKey]);
 
   useEffect(() => {
     if (lastEngineKeyRef.current === engineKey) return;
@@ -143,8 +134,6 @@ export function PositionSyncProvider({ children }: { children: React.ReactNode }
     queuedSfenRef.current = pending;
     syncPosition().catch(() => {});
   }, [isReady, syncPosition]);
-
-  const currentSfen = getCurrentSfen();
 
   const value = useMemo(
     () => ({

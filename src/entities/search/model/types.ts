@@ -88,11 +88,6 @@ export type PositionSearchContextType = {
 
   searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
 
-  searchCurrentPositionBestEffort: (opts?: {
-    chunkSize?: number;
-    consistency?: Consistency;
-  }) => Promise<SearchPositionOutput>;
-
   cancelSearch: (requestId: RequestId) => Promise<void>;
 
   getSessionByRequestId: (requestId: RequestId | null | undefined) => SearchSession | null;

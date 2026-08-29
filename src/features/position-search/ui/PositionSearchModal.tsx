@@ -18,7 +18,6 @@ import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderPositionHits";
 import { useGame } from "@/entities/game";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
 
@@ -26,13 +25,12 @@ export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "position-search";
 
-  const { currentSfen } = usePositionSync();
   const { state: gameState, view: gameView } = useGame();
+  const currentSfen = gameView.currentSfen;
 
   const {
     state,
     searchPosition,
-    searchCurrentPositionBestEffort,
     cancelSearch,
     getSessionByRequestId,
     getHitsByRequestId,
@@ -131,11 +129,8 @@ export default function PositionSearchModal() {
     setIsLaunching(true);
     setActiveIndex(0);
 
-    const doSearch = params.sfen
-      ? searchPosition({ sfen: params.sfen, consistency: "BestEffort", chunkSize: 300 })
-      : searchCurrentPositionBestEffort({ chunkSize: 300 });
-
-    doSearch
+    // queryKey は params.sfen ?? currentSfen なので、検索対象はこの1本で足りる。
+    searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
         inFlightRidRef.current = out.requestId;
         setRequestId(out.requestId);
@@ -148,14 +143,7 @@ export default function PositionSearchModal() {
       .finally(() => {
         setIsLaunching(false);
       });
-  }, [
-    isOpen,
-    queryKey,
-    params.sfen,
-    searchPosition,
-    searchCurrentPositionBestEffort,
-    cancelSearch,
-  ]);
+  }, [isOpen, queryKey, searchPosition, cancelSearch]);
 
   // unmount 時にも進行中検索を取り下げる
   useEffect(() => {
