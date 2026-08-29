@@ -13,7 +13,13 @@ $color-white: #ffffff;
 $stroke: rgba($color-white, 0.1);
 `);
 
+/** 基準を割った対だけ。走査そのものは測れた対を全部返す */
 function scan(source: string) {
+  return scanContrast(source, { vars: TOKENS }).pairs.filter((p) => p.ratio < p.threshold);
+}
+
+/** 測れた対の全部。カバレッジを見るテストで使う */
+function measured(source: string) {
   return scanContrast(source, { vars: TOKENS });
 }
 
@@ -105,15 +111,43 @@ describe("走査", () => {
     expect(findings.map((f) => f.selector)).toEqual([".a"]);
   });
 
-  it("面が半透明のまま確定しなければ測らない", () => {
+  it("面が半透明のまま確定しなければ測らず、測れなかったことを数える", () => {
+    const result = measured(`
+      .a {
+        background: rgba(index.$color-white, 0.06);
+        color: rgba(index.$color-text-primary, 0.3);
+      }
+    `);
+
+    expect(result.pairs).toEqual([]);
+    // 「測れないから合格」を合格と数えない
+    expect(result.unmeasured).toBe(1);
+  });
+
+  it("載る面を渡せば、自分では面を宣言しない部品も測れる", () => {
+    const source = `
+      .a {
+        color: rgba(index.$color-text-primary, 0.3);
+      }
+    `;
+
+    expect(measured(source).pairs).toHaveLength(0);
     expect(
-      scan(`
-        .a {
-          background: rgba(index.$color-white, 0.06);
-          color: rgba(index.$color-text-primary, 0.3);
-        }
-      `),
-    ).toEqual([]);
+      scanContrast(source, { vars: TOKENS, surface: { r: 28, g: 35, b: 37, a: 1 } }).pairs,
+    ).toHaveLength(1);
+  });
+
+  it("要素ごとの opacity は文字と面の両方に掛ける", () => {
+    const opaque = `
+      .a {
+        background: #8f6b4e;
+        color: #ffffff;
+      }
+    `;
+    const faded = opaque.replace("color: #ffffff;", "color: #ffffff;\n        opacity: 0.9;");
+
+    // 薄くすると実物の比は下がる。見ないと実物より良い数字を報告する
+    expect(measured(faded).pairs[0].ratio).toBeLessThan(measured(opaque).pairs[0].ratio);
   });
 
   it("transparent は親の面をそのまま見せる", () => {

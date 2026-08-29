@@ -8,9 +8,11 @@ import scss from "postcss-scss";
  * 2ラウンド続けて別の場所から出た（主ボタンのホバー・確認の実行ボタン）。
  *
  * 測れるのは**面が不透明に確定する対だけ**。半透明の面を親に重ねているだけの
- * 部品（`FsErrorView` など）は、どの親に載るかで実効値が変わるので、
- * ここでは判定しない。判定できないものを「合格」と数えないため、
- * `scanContrast` は測れた対しか返さない。
+ * 部品は、どの親に載るかで実効値が変わるので判定しない。
+ *
+ * **測れた対と測れなかった宣言の両方を返す。** 割った対だけを返すと、
+ * 面を半透明にするだけで対が検査から静かに消え、テストは緑のままになる。
+ * 数えられていることそのものを呼び出し側がラチェットできるようにする。
  */
 
 export type Rgba = { r: number; g: number; b: number; a: number };
@@ -193,6 +195,13 @@ export type ContrastPair = {
   bg: string;
 };
 
+export type ContrastScan = {
+  /** 面が不透明に確定して比を出せた対 */
+  pairs: ContrastPair[];
+  /** `color` は宣言されているのに面が確定せず、測れなかった宣言の数 */
+  unmeasured: number;
+};
+
 type Context = {
   /** 不透明に確定した面。確定していなければ `null` */
   surface: Rgba | null;
@@ -202,6 +211,8 @@ type Context = {
   /** rem。大きい文字の判定に使う */
   fontSize: number | null;
   bold: boolean;
+  /** 継承する `opacity`。文字と面の両方に同じだけ掛かる */
+  opacity: number;
 };
 
 const ROOT_CONTEXT: Context = {
@@ -211,6 +222,7 @@ const ROOT_CONTEXT: Context = {
   colorText: "",
   fontSize: null,
   bold: false,
+  opacity: 1,
 };
 
 function isDeclaration(node: ChildNode): node is Declaration {
@@ -250,12 +262,7 @@ function selectorOf(node: Container): string {
   return "";
 }
 
-function visit(
-  node: Container,
-  inherited: Context,
-  vars: Map<string, string>,
-  findings: ContrastPair[],
-) {
+function visit(node: Container, inherited: Context, vars: Map<string, string>, scan: ContrastScan) {
   const next: Context = { ...inherited };
   // 自分では何も宣言していない入れ子は、親と同じ対を繰り返すだけなので数えない
   let declaresPair = false;
@@ -291,44 +298,60 @@ function visit(
 
     if (prop === "font-size") next.fontSize = toRem(child.value, vars);
     if (prop === "font-weight") next.bold = isBoldValue(child.value);
+
+    // 要素ごと薄くすると、文字も面も同じだけ地の色へ寄る。
+    // 見ないと、静止 0.9 / ホバー 1.0 のボタンを実物より良い比で報告する
+    if (prop === "opacity") {
+      const value = Number(child.value.trim());
+      if (!Number.isNaN(value)) next.opacity = inherited.opacity * value;
+    }
   }
 
-  if (declaresPair && next.surface && next.color) {
-    const fg = next.color.a < 1 ? composite(next.color, next.surface) : next.color;
-    const ratio = contrastRatio(fg, next.surface);
-    const threshold = thresholdFor(next);
-    if (ratio < threshold) {
-      findings.push({
+  if (declaresPair && next.color) {
+    if (next.surface) {
+      // 面が決まっているなら、下に見えている地は面そのもの。
+      // 要素ごとの `opacity` は文字と面の両方に掛かるので、両方を地へ寄せる
+      const under = next.surface;
+      const surface = next.opacity < 1 ? composite({ ...under, a: next.opacity }, under) : under;
+      const text = next.color.a < 1 ? composite(next.color, under) : next.color;
+      const fg = next.opacity < 1 ? composite({ ...text, a: next.opacity }, under) : text;
+
+      scan.pairs.push({
         line: node.source?.start?.line ?? 0,
         selector: selectorOf(node),
-        ratio,
-        threshold,
+        ratio: contrastRatio(fg, surface),
+        threshold: thresholdFor(next),
         fg: next.colorText,
         bg: next.bgText,
       });
+    } else if (next.colorText) {
+      scan.unmeasured += 1;
     }
   }
 
   for (const child of node.nodes ?? []) {
     if (child.type === "rule" || child.type === "atrule") {
-      visit(child, next, vars, findings);
+      visit(child, next, vars, scan);
     }
   }
 }
 
 /**
- * 1ファイル分の所見。面が不透明に確定した対だけを測る。
+ * 1ファイル分の走査。**測れた対と、測れなかった宣言の数の両方**を返す。
  *
  * 入れ子は継承として扱う。`&:hover { background: ... }` は親が宣言した
- * `color` の上に載るので、ホバーだけ基準を割る事故がここで見える
+ * `color` の上に載るので、ホバーだけ基準を割る事故がここで見える。
+ *
+ * @param options.surface このファイルが載る面。渡すと最上位の面がそこから始まるので、
+ *   自分では面を宣言しない部品（モーダルの中身など）も測れるようになる
  */
 export function scanContrast(
   source: string,
-  options: { vars: Map<string, string>; from?: string } = { vars: new Map() },
-): ContrastPair[] {
-  const findings: ContrastPair[] = [];
+  options: { vars: Map<string, string>; from?: string; surface?: Rgba } = { vars: new Map() },
+): ContrastScan {
+  const scan: ContrastScan = { pairs: [], unmeasured: 0 };
   const root = scss.parse(source, { from: options.from });
   const vars = collectVariables(source, new Map(options.vars));
-  visit(root, ROOT_CONTEXT, vars, findings);
-  return findings;
+  visit(root, { ...ROOT_CONTEXT, surface: options.surface ?? null }, vars, scan);
+  return scan;
 }

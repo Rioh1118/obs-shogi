@@ -43,21 +43,44 @@ function scssFiles(dir: string): string[] {
 
 type Row = { key: string; detail: string };
 
+/**
+ * 測れた対の下限。**下げない。**
+ *
+ * 割った対だけを見ていると、面を `rgba(..., 0.99)` にするだけで対が
+ * 検査から静かに消え、テストは緑のまま通る。数えられていることそのものを
+ * ここで固定する。増えたら上げる。
+ */
+const MEASURED_FLOOR = 50;
+
+/**
+ * `color` は宣言されているのに面が確定せず、測れなかった宣言の上限。**上げない。**
+ *
+ * 「測れないから合格」を合格と数えないため、件数を目に見える形で置く。
+ * 面を持たせるか `surface` を渡すかして測れるようにしたら下げる → issue
+ */
+const UNMEASURED_CEILING = 386;
+
 const rows: Row[] = [];
+let measured = 0;
+let unmeasured = 0;
 
 beforeAll(() => {
   const vars = collectVariables(readFileSync(TOKEN_SOURCE, "utf8"));
 
   for (const file of scssFiles(SRC)) {
     const name = relative(SRC, file).split("\\").join("/");
-    let findings;
+    let scan;
     try {
-      findings = scanContrast(readFileSync(file, "utf8"), { vars, from: file });
+      scan = scanContrast(readFileSync(file, "utf8"), { vars, from: file });
     } catch (error) {
       throw new Error(`${name} を解析できない: ${String(error)}`);
     }
 
-    for (const f of findings) {
+    measured += scan.pairs.length;
+    unmeasured += scan.unmeasured;
+
+    for (const f of scan.pairs) {
+      if (f.ratio >= f.threshold) continue;
       rows.push({
         key: `${name} | ${f.selector} | ${f.fg} | ${f.bg}`,
         detail: `${name}:${f.line} ${f.ratio.toFixed(2)}:1（基準 ${f.threshold}:1）`,
@@ -80,6 +103,34 @@ describe("SCSS のコントラスト", () => {
         ...added.map((r) => `${r.detail}\n  ${r.key}`),
       ].join("\n"),
     ).toEqual([]);
+  });
+
+  /**
+   * 何件測れているかを固定する。**この検査が無いと、割った対だけを見る限り
+   * 「測るのをやめる」変更が緑で通る。** 実際、`Button.scss` の面を
+   * `rgba(..., 0.99)` にするだけで主ボタンの4対が検査から消える。
+   */
+  it("測れた対が減っていない", () => {
+    expect(
+      measured,
+      [
+        `測れた対が ${MEASURED_FLOOR} 件から ${measured} 件に減った。`,
+        "面を半透明にすると、その配下は「どの親に載るか」が決まらず測れなくなる。",
+        "面を不透明にするか、scanContrast に surface を渡すこと。",
+        `増えたなら MEASURED_FLOOR を ${measured} に上げること。`,
+      ].join("\n"),
+    ).toBe(MEASURED_FLOOR);
+  });
+
+  it("測れなかった宣言が増えていない", () => {
+    expect(
+      unmeasured,
+      [
+        `面が決まらず測れなかった color の宣言が ${UNMEASURED_CEILING} 件から ${unmeasured} 件になった。`,
+        "「測れないから合格」を合格と数えないために置いてある枠。",
+        `減らしたなら UNMEASURED_CEILING を ${unmeasured} に下げること。`,
+      ].join("\n"),
+    ).toBe(UNMEASURED_CEILING);
   });
 
   it("直した対が BASELINE に残っていない", () => {
