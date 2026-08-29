@@ -18,8 +18,8 @@ describe("cloneJkf", () => {
   });
 
   test("値が undefined のキーも残る", () => {
-    // JSON 経由の複製だとキーごと落ちる。複製の書き方で「キーがあるか」が
-    // 変わらないことが、複数実装を1本にまとめた理由。
+    // JSON 経由の複製だとキーごと落ちる。`sanitizeJkfMoves` が `forks: undefined` を
+    // 作るので、複製の書き方でキーの有無が変わらないことを固定しておく。
     const moves: JKFMove[] = [{ comments: ["a"], forks: undefined }];
     const copy = cloneJkf(moves);
 
