@@ -22,9 +22,10 @@ export function applyCursorToPlayer(jkf: JKFPlayer, cursor: KifuCursor | null) {
 /**
  * JKF とカーソルから再生済みの player を作る
  *
- * `jkf` は複製されない。`JKFPlayer` が棋譜を書き換えるのは `inputMove` だけなので、
- * 読むだけの用途なら1つの JKF を複数の player で共有してよい。
- * `inputMove` を呼ぶなら複製を渡すこと。
+ * `jkf` は複製されない。読むだけなら1つの JKF を複数の player が共有してよい
+ * （`JKFPlayer` は `inputMove` 以外で棋譜を書かず、盤は `Shogi` が持ち直す）。
+ * **棋譜を書き換える操作を通すなら複製を渡すこと。** `inputMove` だけでなく、
+ * `applyMoveWithBranch` のように `player.kifu` を直に編集するものも含む。
  */
 export function buildPlayer(jkf: JKFData, cursor: KifuCursor | null): JKFPlayer {
   const player = new JKFPlayer(jkf);
