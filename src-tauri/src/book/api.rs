@@ -161,12 +161,7 @@ pub async fn close_all_books(state: State<'_, BookState>) -> Result<usize, BookE
     let closed = sessions.len();
     log::info!("[cmd] close_all_books closed={closed}");
 
-    logged(
-        "close_all_books",
-        tauri::async_runtime::spawn_blocking(move || drop(sessions))
-            .await
-            .map_err(join_error),
-    )?;
+    drop_in_background(sessions).await;
 
     Ok(closed)
 }
@@ -186,10 +181,19 @@ pub async fn close_book(
 
 async fn close_book_inner(state: &BookState, input: BookHandleInput) -> Result<(), BookError> {
     let session = state.close(input.handle)?;
+    drop_in_background(session).await;
+    Ok(())
+}
 
-    tauri::async_runtime::spawn_blocking(move || drop(session))
-        .await
-        .map_err(join_error)
+/// 定跡を blocking プールで捨てる。
+///
+/// ここへ来た時点でハンドルは既に map から外れているので、解放そのものが
+/// 失敗しても呼び出し側にとっては閉じ終わっている。失敗として返すと、利用者は
+/// 「閉じられなかった」と読んで再試行し、InvalidHandle で行き止まりになる。
+async fn drop_in_background<T: Send + 'static>(value: T) {
+    if let Err(err) = tauri::async_runtime::spawn_blocking(move || drop(value)).await {
+        log::error!("[cmd] 定跡の解放が異常終了した: {err}");
+    }
 }
 
 /// 失敗をログに残す。
