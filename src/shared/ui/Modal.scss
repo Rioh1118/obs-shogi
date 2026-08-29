@@ -5,6 +5,7 @@
 
   &__overlay {
     position: fixed;
+    // タイトルバーのある画面（`RuntimeShell` の配下）でしか開かないことが前提。
     // タイトルバーはウィンドウを動かす唯一の手段（`data-tauri-drag-region`）を持つ。
     // overlay は `#modal-root` から描かれるので、同じ z-index なら DOM 順で必ず overlay が
     // 勝つ。z-index を上げて競う手もあるが、それでは overlay 自身が退いてもカードが
