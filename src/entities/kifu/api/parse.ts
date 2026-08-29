@@ -13,6 +13,12 @@ import {
   exportJKF,
 } from "tsshogi";
 
+/**
+ * 棋譜を `JKFData` にできなかったことを表す
+ *
+ * `message` はそのまま利用者に見せる想定で日本語で書く。`cause` には tsshogi や
+ * 形式判定が返した理由が入るが、こちらは利用者向けではない。
+ */
 export class KifuParseError extends Error {
   readonly cause?: Error | string;
   constructor(message: string, cause?: Error | string) {
@@ -23,6 +29,12 @@ export class KifuParseError extends Error {
 }
 
 export type ParsedKifu = {
+  /**
+   * 中身から判定した形式。
+   *
+   * 拡張子ではなくテキストから決めているので、保存し直すときはこれに合わせないと
+   * 中身と拡張子が食い違う。
+   */
   detectedFormat: KifuFormat;
   jkf: JKFData;
 };
@@ -69,6 +81,18 @@ function finishJKFData(exported: JKFData): JKFData {
   return sanitizeJkf(normalizeNotation(exported));
 }
 
+/**
+ * 形式が分かっている棋譜テキストを `JKFData` にする
+ *
+ * 失敗すると {@link KifuParseError} を throw する。空文字と解析失敗の両方がここに来る。
+ *
+ * 盤上で再生できない手を含む棋譜では throw せず、**未正規化のまま返る**。
+ * このとき表記が揃わないだけでなく、その手以降へ `JKFPlayer.goto` が進めない。
+ * 返り値を持って局面を動かす側は、`goto` が失敗しうる前提で境界を用意すること
+ * （レンダ中に呼ぶと画面が落ちる）。
+ *
+ * @throws {KifuParseError} 棋譜として読めなかったとき
+ */
 export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
@@ -88,6 +112,14 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   return finishJKFData(exportJKF(rec) as JKFData);
 }
 
+/**
+ * 形式が分からない棋譜テキストを、判定した形式ごと `JKFData` にする
+ *
+ * 未正規化のまま返りうる点と throw する点は {@link parseKifuContentToJKF} と同じ。
+ * 形式の判定そのものに失敗した場合も {@link KifuParseError} になる。
+ *
+ * @throws {KifuParseError} 形式を判定できないか、棋譜として読めなかったとき
+ */
 export function parseKifuStringToJKF(raw: string): ParsedKifu {
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");

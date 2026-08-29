@@ -3,6 +3,15 @@ import { writeKifuToFile } from "./tauri";
 import type { KifuFormat } from "../model/kifu";
 import type { JKFData } from "../model/jkf";
 
+/**
+ * JKF を指定の形式でファイルへ書き出す
+ *
+ * throw しない。失敗はすべて `Err` に畳んであり、中身はそのまま利用者に見せられる
+ * 日本語のメッセージ。呼び出し側で try/catch を重ねる必要はない。
+ *
+ * 書き出しは Rust 側で正規化を通るが、その結果は返さない。保存後の `jkf` は
+ * ファイルの中身と一致するとは限らない。
+ */
 export async function saveKifuToFile(
   jkf: JKFData,
   filePath: string,
