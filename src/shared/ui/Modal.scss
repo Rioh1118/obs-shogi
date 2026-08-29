@@ -176,17 +176,21 @@
   }
 
   // ---------- sizes ----------
+  // 高さの上限は必ず `100%`（= overlay の内容ボックス）で挟む。`vh` だけで書くと
+  // overlay がタイトルバーの分だけ低いことを無視して、カードが overlay の外へ
+  // 対称にはみ出す（`align-items: center`）。上へはみ出せばタイトルバーを覆い、
+  // 下へはみ出せば画面外に出る。overlay は `position: fixed` なのでスクロールで届かない
   &--size-sm .modal__card {
     width: min(520px, 92vw);
-    max-height: 80vh;
+    max-height: min(80vh, 100%);
   }
   &--size-md .modal__card {
     width: min(720px, 92vw);
-    max-height: 88vh;
+    max-height: min(88vh, 100%);
   }
   &--size-lg .modal__card {
     width: min(900px, 92vw);
-    max-height: 88vh;
+    max-height: min(88vh, 100%);
   }
 
   &--chrome-none {
@@ -199,16 +203,16 @@
 
   &--dialog.modal--size-xl .modal__card {
     width: min(1100px, 92vw);
-    max-height: 88vh;
+    max-height: min(88vh, 100%);
   }
   &--workspace.modal--size-xl .modal__card {
     width: min(1100px, 92vw);
-    height: min(760px, 88vh);
+    height: min(760px, 100%);
   }
 
   &--size-full .modal__card {
     width: 96vw;
-    height: 92vh;
+    height: 100%;
     border-radius: 14px;
   }
 
@@ -216,7 +220,7 @@
     &--size-lg .modal__card,
     &--size-md .modal__card {
       width: 96vw;
-      height: 92vh;
+      height: 100%;
       max-height: none;
       border-radius: 14px;
     }
