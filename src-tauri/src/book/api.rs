@@ -101,7 +101,8 @@ fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
         return Err(invalid("定跡のパスが空"));
     }
 
-    // NUL は OS のパス API で切り詰められるので、渡す前に弾く。
+    // NUL 入りのパスは std が InvalidInput で弾く。素通しすると原因が Io に化けて、
+    // 「パスの書き間違い」という復帰導線を出せなくなる。
     if raw.contains('\0') {
         return Err(invalid("定跡のパスに NUL が含まれている"));
     }
