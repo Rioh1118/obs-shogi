@@ -44,17 +44,22 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 
 /// 実体のパスと reader を揃える。ファイルを読むので blocking プールから呼ぶこと。
 fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
+    // 形式は利用者が指定した綴りから決める。symlink の指す先で判別すると、
+    // `.db` を開いたつもりが黙って別形式として読まれる。
+    //
+    // 実在より先に見るのは open_reader と同じ理由で、形式が分からないものは
+    // 実在しても開きようが無いから。ここで canonicalize を先に呼ぶと、
+    // 存在しない `.txt` に UnknownExtension ではなく NotFound が返る。
+    let requested = BookFormat::from_path(path)?;
+
     // 登録は実体のパスで行う。同じ定跡を別の綴りで開いたときに、
     // BookInfo.path が指すものが揃う。
     let canonical =
         std::fs::canonicalize(path).map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
 
-    // 形式は利用者が指定した綴りから決める。symlink の指す先で判別すると、
-    // `.db` を開いたつもりが黙って別形式として読まれる。
-    // 一方 BookInfo に載るのは実体のパスなので、両者が食い違うと
+    // BookInfo に載るのは実体のパスなので、指定と実体の形式が食い違うと
     // 「.bin なのにやねうら王テキスト定跡」という値がフロントへ渡り、
     // そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
-    let requested = BookFormat::from_path(path)?;
     let resolved = BookFormat::from_path(&canonical)?;
     if requested != resolved {
         return Err(BookError::new(
@@ -293,6 +298,16 @@ mod tests {
 
         assert_eq!(mismatched, Some(BookErrorCode::InvalidPath));
         assert_eq!(matched, Some(BookErrorCode::UnsupportedFormat));
+    }
+
+    /// 形式の判別はファイルの実在より先。open_reader 単体だけでなく、
+    /// コマンドが通る経路でも同じ順序であること。
+    #[test]
+    fn reports_the_extension_before_looking_at_the_file_system() {
+        let err = open_at(&PathBuf::from("/nonexistent/book.txt"))
+            .err()
+            .map(|e| e.code);
+        assert_eq!(err, Some(BookErrorCode::UnknownExtension));
     }
 
     #[test]
