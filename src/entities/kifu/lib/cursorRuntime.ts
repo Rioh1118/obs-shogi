@@ -15,9 +15,9 @@ export function appliedForkPointers(
 }
 
 /** @throws {Error} cursor の手数まで進めないとき（`JKFPlayer.goto` が投げる） */
-export function applyCursorToPlayer(jkf: JKFPlayer, cursor: KifuCursor | null) {
+function applyCursorToPlayer(player: JKFPlayer, cursor: KifuCursor | null) {
   if (!cursor) return;
-  jkf.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+  player.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
 }
 
 /**
