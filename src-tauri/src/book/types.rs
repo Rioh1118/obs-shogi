@@ -20,6 +20,16 @@ pub enum BookFormat {
 }
 
 impl BookFormat {
+    /// 利用者に見せる名前。enum のバリアント名をそのまま出さないため。
+    pub(crate) fn display_name(self) -> &'static str {
+        match self {
+            BookFormat::YaneuraouDb => "やねうら王テキスト定跡 (.db)",
+            BookFormat::AperyBin => "Apery 定跡 (.bin)",
+            BookFormat::ShogiGuiSbk => "ShogiGUI 定跡 (.sbk)",
+            BookFormat::YaneuraouYbb => "やねうら王バイナリ定跡 (.ybb)",
+        }
+    }
+
     /// 拡張子から形式を決める。
     ///
     /// 拡張子が無い / 知らない場合は [`BookErrorCode::UnknownExtension`] にする。

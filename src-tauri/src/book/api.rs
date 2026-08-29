@@ -1,13 +1,13 @@
 use crate::book::error::{BookError, BookErrorCode};
-use crate::book::reader::open_reader;
+use crate::book::reader::{open_reader, BookReader};
 use crate::book::session::BookSession;
 use crate::book::session::BookState;
 use crate::book::sfen::to_book_key;
 use crate::book::sfen::BookKey;
 use crate::book::types::{
-    BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
+    BookFormat, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 
@@ -31,24 +31,44 @@ pub async fn open_book(
 async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<BookInfo, BookError> {
     let path = validate_book_path(&input.path)?;
 
-    let opened = tauri::async_runtime::spawn_blocking(move || -> Result<_, BookError> {
-        // 形式は利用者が指定した綴りの拡張子で決める。symlink の指す先で
-        // 判別すると、`.db` を開いたつもりが別形式として読まれる。
-        let reader = open_reader(&path)?;
-
-        // 登録は実体のパスで行う。同じ定跡を別の綴りで開いたときに、
-        // BookInfo.path が指すものが揃う。
-        let canonical = std::fs::canonicalize(&path)
-            .map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
-
-        Ok((canonical, reader))
-    })
-    .await
-    .map_err(join_error)?;
+    let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
+        .await
+        .map_err(join_error)?;
 
     let (canonical, reader) = opened?;
 
     Ok(state.register(canonical, reader))
+}
+
+/// 実体のパスと reader を揃える。ファイルを読むので blocking プールから呼ぶこと。
+fn open_at(path: &Path) -> Result<(PathBuf, Box<dyn BookReader>), BookError> {
+    // 登録は実体のパスで行う。同じ定跡を別の綴りで開いたときに、
+    // BookInfo.path が指すものが揃う。
+    let canonical =
+        std::fs::canonicalize(path).map_err(|e| BookError::from_io(e, path.to_string_lossy()))?;
+
+    // 形式は利用者が指定した綴りから決める。symlink の指す先で判別すると、
+    // `.db` を開いたつもりが黙って別形式として読まれる。
+    // 一方 BookInfo に載るのは実体のパスなので、両者が食い違うと
+    // 「.bin なのにやねうら王テキスト定跡」という値がフロントへ渡り、
+    // そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
+    let requested = BookFormat::from_path(path)?;
+    let resolved = BookFormat::from_path(&canonical)?;
+    if requested != resolved {
+        return Err(BookError::new(
+            BookErrorCode::InvalidPath,
+            format!(
+                "リンク先の形式が違う（指定 {} / 実体 {}）",
+                requested.display_name(),
+                resolved.display_name()
+            ),
+        )
+        .with_path(canonical.to_string_lossy()));
+    }
+
+    let reader = open_reader(path)?;
+
+    Ok((canonical, reader))
 }
 
 /// フロントから来たパスの形を検査する。
@@ -239,6 +259,34 @@ mod tests {
 
         let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
         assert_eq!(err.code, BookErrorCode::InvalidSfen);
+    }
+
+    /// symlink の指す先の拡張子が違うと、BookInfo の path と format が別の
+    /// ファイルを指す値になる。開かせない。
+    #[test]
+    fn rejects_a_link_that_points_at_another_format() {
+        let dir = std::env::temp_dir().join("obs-shogi-book-open-at-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+
+        let target = dir.join("target.bin");
+        let link = dir.join("link.db");
+        std::fs::write(&target, b"").expect("テスト用のファイルを作れない");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink を作れない");
+
+        let mismatched = open_at(&link).err().map(|err| err.code);
+
+        // 同じ形式を指す symlink は、形式の食い違いでは弾かれない
+        let same = dir.join("same.db");
+        let same_link = dir.join("same-link.db");
+        std::fs::write(&same, b"").expect("テスト用のファイルを作れない");
+        std::os::unix::fs::symlink(&same, &same_link).expect("symlink を作れない");
+        let matched = open_at(&same_link).err().map(|err| err.code);
+
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        assert_eq!(mismatched, Some(BookErrorCode::InvalidPath));
+        assert_eq!(matched, Some(BookErrorCode::UnsupportedFormat));
     }
 
     #[test]
