@@ -2,6 +2,7 @@ import RootNode from "./RootNode";
 import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
 import { useAppConfig } from "@/entities/app-config";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useCallback, useMemo, useState } from "react";
 import {
   buildNodeMap,
@@ -57,6 +58,17 @@ function FileTree() {
   } = useFileTree();
 
   const { config } = useAppConfig();
+  const { openModal } = useURLParams();
+
+  // ルートそのものが読めないとき、この widget の中に復帰路が無い。
+  // 読み直しても同じ場所を見にいくだけなので、選び直せる場所へ送る
+  const chooseWorkspace = useMemo(
+    () => ({
+      label: "ワークスペースを選び直す",
+      run: () => openModal("settings", { tab: "workspace" }),
+    }),
+    [openModal],
+  );
 
   const nodeMap = useMemo(() => buildNodeMap(fileTree), [fileTree]);
 
@@ -172,7 +184,12 @@ function FileTree() {
           {isLoading && !hasTree ? (
             <Spinner />
           ) : shownError && !hasTree ? (
-            <FileTreeErrorNotice error={shownError} onRetry={handleRetry} isRetrying={isLoading} />
+            <FileTreeErrorNotice
+              error={shownError}
+              onRetry={handleRetry}
+              isRetrying={isLoading}
+              fallback={chooseWorkspace}
+            />
           ) : !hasTree ? (
             <div className="empty">
               <p>ファイルツリーがありません</p>

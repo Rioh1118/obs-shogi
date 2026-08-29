@@ -68,6 +68,11 @@ vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: { root_dir: "/root" } }),
 }));
 
+const openModal = vi.fn();
+vi.mock("@/shared/lib/router/useURLParams", () => ({
+  useURLParams: () => ({ openModal, closeModal: vi.fn(), updateParams: vi.fn(), params: {} }),
+}));
+
 // ツリーが描かれたかだけを見たいので、中身は差し替える
 vi.mock("../RootNode", () => ({
   default: ({ node }: { node: { name: string } }) => <div data-testid="tree">{node.name}</div>,
@@ -94,6 +99,7 @@ beforeEach(() => {
   release = null;
   clearError.mockClear();
   refreshTree.mockClear();
+  openModal.mockClear();
 });
 
 // globals を有効にしていないので自動 cleanup が効かない。
@@ -253,6 +259,21 @@ describe("段による出し分け", () => {
     mount();
 
     expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
+  });
+
+  test("ツリーが読めないまま直らない失敗なら、ワークスペースを選び直せる", async () => {
+    stub.fileTree = null;
+    stub.error = DENIED;
+
+    mount();
+
+    // 読み直しても直らないので再読み込みは出ない。閉じる先のツリーも無い。
+    // ここで導線が無いとサイドバーの中で行き止まりになる
+    await act(async () => {
+      screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
+    });
+
+    expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
   });
 
   test("段は見た目にも出る", () => {

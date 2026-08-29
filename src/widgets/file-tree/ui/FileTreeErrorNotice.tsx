@@ -6,6 +6,11 @@ interface Props {
   onRetry: () => void;
   onDismiss?: () => void;
   isRetrying?: boolean;
+  /**
+   * 読み直しでは直らない失敗のときに出す逃げ道。
+   * 何をすれば直るかは失敗ごとに違うので、動作ごと受け取る（ADR-0004）。
+   */
+  fallback?: { label: string; run: () => void };
 }
 
 /**
@@ -17,7 +22,13 @@ interface Props {
  * 復帰路は読み直しの1本だけ。失敗した操作の内容は state に残らないので
  * （`already_exists` のみ `conflict` として保持される）、同じ操作をやり直すことはできない。
  */
-export default function FileTreeErrorNotice({ error, onRetry, onDismiss, isRetrying }: Props) {
+export default function FileTreeErrorNotice({
+  error,
+  onRetry,
+  onDismiss,
+  isRetrying,
+  fallback,
+}: Props) {
   const { tier, showMessage } = fsErrorPresentation(error.code);
 
   return (
@@ -39,6 +50,15 @@ export default function FileTreeErrorNotice({ error, onRetry, onDismiss, isRetry
         {onDismiss && (
           <button type="button" className="ftError__btn" onClick={onDismiss} disabled={isRetrying}>
             閉じる
+          </button>
+        )}
+        {tier !== "warning" && fallback && (
+          <button
+            type="button"
+            className="ftError__btn ftError__btn--primary"
+            onClick={fallback.run}
+          >
+            {fallback.label}
           </button>
         )}
         {tier === "warning" && (
