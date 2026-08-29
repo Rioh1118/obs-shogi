@@ -40,7 +40,7 @@ rayon = "1.11.0"
 tokio-util = { version = "0.7.18", default-features = false }
 
 thiserror = "2.0.12"
-sysinfo = "=0.35.2"
+sysinfo = "=0.38.3"
 tauri-plugin-fs = "2"
 zstd = "0.13"
 blake3 = "1.8"
