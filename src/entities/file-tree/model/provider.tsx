@@ -242,7 +242,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       return Ok(undefined);
     } catch (e) {
       restoreSelection();
-      // 6: cause には元の例外メッセージのみ。スタックはノイズが多いため除外
+      // cause には元の例外メッセージだけを入れる。スタックはノイズが多い
       const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
       const cause =
         e instanceof Error

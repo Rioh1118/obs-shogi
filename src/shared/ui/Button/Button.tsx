@@ -21,7 +21,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 /**
  * アプリ共通のボタン。
  *
- * **明るい面の上には置かない。** 通知や対話の面は暗い側を既定にしてある（ADR-0004）ので、
+ * **明るい面の上には置かない。** 対話の面は暗い側を既定にしてある（ADR-0005 決定3。
+ * 通知については ADR-0004）ので、
  * 明暗の2系統を持たない。明るい面が要る画面が出たら、そのときに軸を足す。
  */
 export default function Button({
