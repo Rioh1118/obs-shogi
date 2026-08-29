@@ -1,11 +1,14 @@
 use crate::book::error::{BookError, BookErrorCode};
 use crate::book::reader::open_reader;
+use crate::book::session::BookSession;
 use crate::book::session::BookState;
 use crate::book::sfen::to_book_key;
+use crate::book::sfen::BookKey;
 use crate::book::types::{
     BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
 };
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::State;
 
 /// 定跡を開いてハンドルを返す。
@@ -73,13 +76,26 @@ pub async fn lookup_book_moves(
     state: State<'_, BookState>,
     input: LookupBookMovesInput,
 ) -> Result<Vec<BookMove>, BookError> {
-    let key = to_book_key(&input.sfen)?;
-    let book = state.get(input.handle)?;
+    let (book, key) = resolve_lookup(&state, &input)?;
 
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。
     tauri::async_runtime::spawn_blocking(move || book.reader.lookup(&key))
         .await
         .map_err(join_error)?
+}
+
+/// 引く先と引くキーを揃える。
+///
+/// ハンドルを先に見る。ハンドルが閉じられていて SFEN も壊れている入力で
+/// InvalidSfen だけを返すと、フロントは定跡が閉じられていることに気づけず、
+/// 開き直す導線を出せない。
+fn resolve_lookup(
+    state: &BookState,
+    input: &LookupBookMovesInput,
+) -> Result<(Arc<BookSession>, BookKey), BookError> {
+    let book = state.get(input.handle)?;
+    let key = to_book_key(&input.sfen)?;
+    Ok((book, key))
 }
 
 /// 開いている定跡のメタ情報。
@@ -142,6 +158,52 @@ fn join_error(err: tauri::Error) -> BookError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::book::reader::BookReader;
+    use crate::book::types::BookFormat;
+
+    struct FakeReader;
+
+    impl BookReader for FakeReader {
+        fn format(&self) -> BookFormat {
+            BookFormat::YaneuraouDb
+        }
+
+        fn position_count(&self) -> u64 {
+            0
+        }
+
+        fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
+            Ok(Vec::new())
+        }
+    }
+
+    fn lookup_input(handle: u64, sfen: &str) -> LookupBookMovesInput {
+        LookupBookMovesInput {
+            handle,
+            sfen: sfen.to_string(),
+        }
+    }
+
+    /// 両方が壊れている入力で SFEN の側だけを返すと、フロントは定跡が
+    /// 閉じられていることに気づけない。
+    #[test]
+    fn reports_a_closed_handle_before_a_broken_position() {
+        let state = BookState::new();
+        let info = state.register("/books/a.db".to_string(), Box::new(FakeReader));
+        drop(state.close(info.handle).unwrap());
+
+        let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
+        assert_eq!(err.code, BookErrorCode::InvalidHandle);
+    }
+
+    #[test]
+    fn reports_a_broken_position_for_a_live_handle() {
+        let state = BookState::new();
+        let info = state.register("/books/a.db".to_string(), Box::new(FakeReader));
+
+        let err = resolve_lookup(&state, &lookup_input(info.handle, "壊れた局面")).unwrap_err();
+        assert_eq!(err.code, BookErrorCode::InvalidSfen);
+    }
 
     #[test]
     fn accepts_an_absolute_path() {
