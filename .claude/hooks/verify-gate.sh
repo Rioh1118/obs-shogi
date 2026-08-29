@@ -15,7 +15,12 @@ payload=$(cat)
 command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
 
 # `git commit` を含まないコマンドは素通し。複合コマンドの中の commit も拾う。
-if ! printf '%s' "$command" | grep -Eq '(^|[;&|(]|[[:space:]])git([[:space:]]+-[^[:space:]]+)*[[:space:]]+commit([[:space:]]|$)'; then
+#
+# `-C <dir>` や `-c k=v` のように値を取るオプションも越えて commit に届くこと。
+# 値を許さないと `git -C <worktree> commit` がゲートを丸ごと素通しし、
+# それは検証を飛ばす最も自然な手口になる。
+git_opt='(-[cC][[:space:]]+[^[:space:]]+|--(git-dir|work-tree|namespace)=[^[:space:]]+|-[^[:space:]]+)'
+if ! printf '%s' "$command" | grep -Eq "(^|[;&|(]|[[:space:]])git([[:space:]]+$git_opt)*[[:space:]]+commit([[:space:]]|$)"; then
   exit 0
 fi
 
