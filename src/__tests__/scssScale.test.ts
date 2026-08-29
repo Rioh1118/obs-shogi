@@ -5,6 +5,30 @@ function count(source: string, bucket: Bucket): number {
   return scan(source).filter((finding) => finding.bucket === bucket).length;
 }
 
+describe("所見の位置", () => {
+  it("宣言のある行を指す", () => {
+    const source = ".a {\n  color: red;\n  font-size: 1.37rem;\n}";
+    expect(scan(source)).toEqual([{ bucket: "font-size", line: 3, text: "font-size: 1.37rem;" }]);
+  });
+
+  it("折り返した宣言はプロパティ名のある行を指す", () => {
+    const source = ".a {\n  padding:\n    1.37rem\n    2.11rem;\n}";
+    expect(scan(source)[0].line).toBe(2);
+  });
+});
+
+describe("トークンを定義するファイル", () => {
+  const tokens = "$font-body: 1.3rem;\n$space-1: 0.2rem;";
+
+  it("既定では変数の定義も数える", () => {
+    expect(count(tokens, "indirect")).toBe(2);
+  });
+
+  it("tokenSource なら数えない", () => {
+    expect(scan(tokens, { tokenSource: true }).filter((f) => f.bucket === "indirect")).toEqual([]);
+  });
+});
+
 describe("宣言の切り出し", () => {
   it("1行に収まった宣言を拾う", () => {
     expect(count(".a { font-size: 1.37rem; }", "font-size")).toBe(1);
@@ -51,6 +75,44 @@ describe("コメントと文字列", () => {
 
   it("文字列の中の記号で宣言が壊れない", () => {
     expect(count('.a { content: "a;b{c}"; padding: 1.37rem; }', "spacing")).toBe(1);
+  });
+
+  it("エスケープされた引用符の後の宣言を落とさない", () => {
+    expect(count('.a { content: "\\""; padding: 1.37rem; }', "spacing")).toBe(1);
+  });
+
+  it("コメントの中の @include は数えない", () => {
+    expect(count(".a {\n  // @include size(1.37rem);\n}", "indirect")).toBe(0);
+    expect(count(".a { /* @include size(1.37rem); */ }", "indirect")).toBe(0);
+  });
+});
+
+describe("Sass の構文", () => {
+  it("補間を含む宣言でも、同じ宣言の直値を見失わない", () => {
+    expect(count(".a { padding: #{$x} 1.37rem; }", "spacing")).toBe(1);
+  });
+
+  it("補間そのものは直値ではない", () => {
+    expect(count(".a { font-size: calc(100cqw / #{$unit}); }", "font-size")).toBe(0);
+  });
+
+  it("@media の中の宣言を数える", () => {
+    const source = "@media (min-width: 640px) {\n  .a { padding: 1.37rem; }\n}";
+    expect(count(source, "spacing")).toBe(1);
+  });
+
+  it("@media の条件は宣言ではない", () => {
+    expect(count("@media (min-width: 640px) { .a { color: red; } }", "spacing")).toBe(0);
+  });
+
+  it("@each の中の宣言を数える", () => {
+    const source = "@each $n in a, b {\n  .#{$n} { padding: 1.37rem; }\n}";
+    expect(count(source, "spacing")).toBe(1);
+  });
+
+  it("@if / @else の中の宣言を数える", () => {
+    const source = "@mixin m($x) {\n  @if $x { padding: 1.37rem; } @else { margin: 2.11rem; }\n}";
+    expect(count(source, "spacing")).toBe(2);
   });
 });
 
@@ -125,6 +187,32 @@ describe("除外の印", () => {
     const source = ".a { @include size(1.37rem); // scale-exempt\n}";
     expect(count(source, "indirect")).toBe(0);
     expect(count(source, "exempt")).toBe(1);
+  });
+
+  it("複数行の値の途中に紛れた別の宣言の印を拾わない", () => {
+    const source = [
+      ".a {",
+      "  box-shadow:",
+      "    0 1px 2px rgba(0, 0, 0, 0.2),",
+      "    0 2px 4px rgba(0, 0, 0, 0.1); font-size: 1.2rem; // scale-exempt",
+      "}",
+    ].join("\n");
+    expect(count(source, "elevation")).toBe(1);
+    expect(count(source, "exempt")).toBe(1);
+  });
+});
+
+describe("角丸", () => {
+  it("pill を数える", () => {
+    expect(count(".a { border-radius: 999px; }", "border-radius")).toBe(1);
+  });
+
+  it("円を数える", () => {
+    expect(count(".a { border-radius: 50%; }", "border-radius")).toBe(1);
+  });
+
+  it("角丸以外の % は数えない", () => {
+    expect(count(".a { padding: 50%; }", "spacing")).toBe(0);
   });
 });
 
