@@ -1,12 +1,12 @@
 import type { ForkPointer } from "@/entities/kifu/model/cursor";
 
-export type PreviewCursorDraft = {
+export type previewCursorDraft = {
   tesuu: number;
   forkPointers: ForkPointer[];
 };
 
 export interface NavigationState {
-  PreviewCursor: PreviewCursorDraft;
+  previewCursor: previewCursorDraft;
   /**
    * `buildNextOptions` が返した候補配列の添字。
    *
