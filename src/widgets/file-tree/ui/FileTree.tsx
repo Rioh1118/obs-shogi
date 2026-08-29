@@ -101,6 +101,13 @@ function FileTree() {
   // 読み直しが終わって新しい失敗が来ていれば、そちらが今の状態
   const shownError = error ?? retriedFrom;
 
+  // 閉じるときは引き金にした失敗も落とす。clearError だけだと、読み直しの最中は
+  // retriedFrom が残って表示が閉じず、Escape とオーバーレイが黙って効かなくなる
+  const dismissError = useCallback(() => {
+    setRetriedFrom(null);
+    clearError();
+  }, [clearError]);
+
   const handleConfirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
     setIsDeleting(true);
@@ -209,12 +216,12 @@ function FileTree() {
           size="sm"
           padding="none"
           scroll="content"
-          onClose={clearError}
+          onClose={dismissError}
         >
           <FileTreeErrorNotice
             error={shownError}
             onRetry={handleRetry}
-            onDismiss={clearError}
+            onDismiss={dismissError}
             isRetrying={isLoading}
           />
         </Modal>
