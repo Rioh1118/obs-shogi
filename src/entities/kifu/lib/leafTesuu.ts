@@ -1,12 +1,12 @@
 import { JKFPlayer } from "json-kifu-format";
 import type { KifuCursor } from "../model/cursor";
-import { appliedForkPointers } from "./cursorRuntime";
+import { normalizeForkPointers } from "../model/cursor";
 
 export function computeLeafTesuu(jkf: JKFPlayer, cursor: KifuCursor | null): number {
   const sim = new JKFPlayer(jkf.kifu);
 
   if (cursor) {
-    sim.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+    sim.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
   } else {
     sim.goto(jkf.tesuu);
   }

@@ -11,7 +11,7 @@ import { truncatePlanFrom, upsertForkPointer } from "@/features/position-navigat
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
-import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
+import { normalizeForkPointers } from "@/entities/kifu/model/cursor";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
 import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
@@ -28,7 +28,7 @@ function gotoPreview(
 ): JKFPlayer | null {
   const sim = new JKFPlayer(player.kifu);
   try {
-    sim.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+    sim.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
     return sim;
   } catch {
     return null;

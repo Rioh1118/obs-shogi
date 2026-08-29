@@ -1,18 +1,6 @@
 import { JKFPlayer } from "json-kifu-format";
 import type { JKFData } from "../model/jkf";
-import type { ForkPointer, KifuCursor } from "../model/cursor";
-
-/** 読むのは forkPointers だけ。ダミーの tesuuPointer を作らせないよう引数を狭めてある。 */
-export function appliedForkPointers(
-  cursor: Pick<KifuCursor, "forkPointers"> | null,
-  tesuu: number,
-): ForkPointer[] {
-  const map = new Map<number, ForkPointer>();
-  for (const p of cursor?.forkPointers ?? []) {
-    if (p.te <= tesuu) map.set(p.te, p);
-  }
-  return [...map.values()].sort((a, b) => a.te - b.te);
-}
+import { normalizeForkPointers, type KifuCursor } from "../model/cursor";
 
 /**
  * `goto` は届かないときに throw せず、進めるところで黙って止まる。
@@ -22,7 +10,7 @@ export function appliedForkPointers(
  */
 function applyCursorToPlayer(player: JKFPlayer, cursor: KifuCursor | null) {
   if (!cursor) return;
-  player.goto(cursor.tesuu, appliedForkPointers(cursor, cursor.tesuu));
+  player.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
 }
 
 /**

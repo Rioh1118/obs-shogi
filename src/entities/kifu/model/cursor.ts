@@ -24,7 +24,7 @@ export type TesuuPointer = string & { readonly __brand: "TesuuPointer" };
  * - forkPointers は「現在局面までの分岐履歴」だけでなく、
  *   将来 forward するときに使う分岐計画も含みうる。
  * - 実際に current position を player に適用するときは
- *   appliedForkPointers(cursor, cursor.tesuu) を使う。
+ *   normalizeForkPointers(cursor.forkPointers, cursor.tesuu) で計画を落としてから渡す。
  */
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
