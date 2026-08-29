@@ -67,7 +67,7 @@ if (error) {
 → [failure-surfacing.md](failure-surfacing.md) F-3
 
 ※2 `handleFailure` が `already_exists` 以外を全部 `pushError` に流す
-（`provider.tsx:65-75`）。**作成・リネーム・削除・移動の失敗が、
+（`provider.tsx` の `handleFailure`）。**作成・リネーム・削除・移動の失敗が、
 どれもツリーを消すという同じ結末に落ちる。** 失敗の種類は `FsError` に入っているが使われていない
 
 ※3 **S3 からの復帰は E1（ルートの再設定）だけ。**
