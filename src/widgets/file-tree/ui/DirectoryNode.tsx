@@ -89,14 +89,16 @@ function DirectoryNode({
 
   const handleCommit = async (nextName: string) => {
     const res = await commitName(nextName, (name) => renameNode(node, name));
-    if (!res.ok) return res.shown;
+    if (!res.ok) return res;
     cancelInlineRename();
+    return res;
   };
 
   const handleCommitCreate = async (nextName: string) => {
     const res = await commitName(nextName, (name) => createNewDirectory(node.path, name));
-    if (!res.ok) return res.shown;
+    if (!res.ok) return res;
     cancelCreateDirectory();
+    return res;
   };
 
   const isExternalOver = externalHoverDir && externalHoverDir === node.path;

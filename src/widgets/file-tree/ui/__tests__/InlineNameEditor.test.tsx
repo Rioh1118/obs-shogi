@@ -18,6 +18,12 @@ const BAD_NAME: FsError = {
   message: "name contains a path separator",
 };
 
+/** 名前を直せば通る失敗。入力欄の下に出す */
+const rejected = { ok: false as const, shown: BAD_NAME };
+/** 通知が引き取る失敗。ここには出さないが、送り直しは止める */
+const elsewhere = { ok: false as const, shown: undefined };
+const passed = { ok: true as const };
+
 afterEach(() => cleanup());
 
 function typeAndCommit(value: string) {
@@ -30,7 +36,7 @@ function typeAndCommit(value: string) {
 
 describe("InlineNameEditor", () => {
   test("失敗が返ったら理由を出し、打った文字列を残す", async () => {
-    const onCommit = vi.fn().mockResolvedValue(BAD_NAME);
+    const onCommit = vi.fn().mockResolvedValue(rejected);
     render(
       <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
     );
@@ -47,7 +53,7 @@ describe("InlineNameEditor", () => {
       <InlineNameEditor
         isEditting
         initialName="研究"
-        onCommit={vi.fn().mockResolvedValue(BAD_NAME)}
+        onCommit={vi.fn().mockResolvedValue(rejected)}
         onCancel={vi.fn()}
       />,
     );
@@ -66,7 +72,7 @@ describe("InlineNameEditor", () => {
    * 行の上に貼り付き、下の行のクリックまで奪う。
    */
   test("落ちた名前を blur で送り直さない", async () => {
-    const onCommit = vi.fn().mockResolvedValue(BAD_NAME);
+    const onCommit = vi.fn().mockResolvedValue(rejected);
     render(
       <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
     );
@@ -81,13 +87,18 @@ describe("InlineNameEditor", () => {
     expect(onCommit).toHaveBeenCalledTimes(1);
   });
 
-  test("フォーカスを外したあとでも Escape で閉じられる", async () => {
+  /**
+   * Escape は入力欄にフォーカスがあるときしか届かない（失敗の箱は
+   * `tabIndex` を持たず `pointer-events: none`）。落ちた名前のまま外へ出たら、
+   * 箱を残さず編集を閉じる。残すと閉じる手段が無くなる。
+   */
+  test("落ちた名前のまま外へ出たら、編集を閉じる", async () => {
     const onCancel = vi.fn();
     render(
       <InlineNameEditor
         isEditting
         initialName="研究"
-        onCommit={vi.fn().mockResolvedValue(BAD_NAME)}
+        onCommit={vi.fn().mockResolvedValue(rejected)}
         onCancel={onCancel}
       />,
     );
@@ -97,14 +108,28 @@ describe("InlineNameEditor", () => {
       fireEvent.blur(screen.getByRole("textbox"));
     });
 
-    // 入力欄の外（失敗表示を含む箱）で押しても届く
-    fireEvent.keyDown(screen.getByRole("alert"), { key: "Escape", bubbles: true });
-
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  test("ここに出さない失敗でも、同じ名前を送り直さない", async () => {
+    const onCommit = vi.fn().mockResolvedValue(elsewhere);
+    render(
+      <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
+    );
+
+    await typeAndCommit("研究2026");
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    await act(async () => {
+      fireEvent.blur(screen.getByRole("textbox"));
+    });
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
   test("通った名前では理由を出さない", async () => {
-    const onCommit = vi.fn().mockResolvedValue(undefined);
+    const onCommit = vi.fn().mockResolvedValue(passed);
     render(
       <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={vi.fn()} />,
     );
@@ -115,7 +140,7 @@ describe("InlineNameEditor", () => {
   });
 
   test("空にして確定したら、失敗ではなく取り消しとして扱う", async () => {
-    const onCommit = vi.fn();
+    const onCommit = vi.fn().mockResolvedValue(passed);
     const onCancel = vi.fn();
     render(
       <InlineNameEditor isEditting initialName="研究" onCommit={onCommit} onCancel={onCancel} />,

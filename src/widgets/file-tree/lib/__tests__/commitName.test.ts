@@ -38,7 +38,17 @@ describe("commitName", () => {
     });
   });
 
-  test("名前以外の失敗は返さない。通知が引き取り、編集行ごと畳まれる", async () => {
+  // 拡張子も名前の一部。落とすと、直すための入力欄ごと消える
+  test("拡張子の失敗も入力欄へ返す", async () => {
+    const res = await commitName("研究", () => Promise.resolve(fail("invalid_extension")));
+
+    expect(res).toEqual({
+      ok: false,
+      shown: expect.objectContaining({ code: "invalid_extension" }),
+    });
+  });
+
+  test("名前を直しても通らない失敗は返さない。通知か対話が引き取る", async () => {
     for (const code of ["permission_denied", "io", "not_found", "already_exists"]) {
       expect(await commitName("研究", () => Promise.resolve(fail(code))), code).toEqual({
         ok: false,

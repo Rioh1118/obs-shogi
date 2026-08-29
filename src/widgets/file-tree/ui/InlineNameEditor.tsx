@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { describeFsError, type FsError } from "@/entities/file-tree";
+import type { CommitOutcome } from "@/widgets/file-tree/lib/commitName";
 import "./InlineNameEditor.scss";
 
 type InlineRenameProps = {
   isEditting: boolean;
   initialName: string;
   /**
-   * 名前を直せば通る失敗（`invalid_name_*`）だけを返す。返された失敗は
-   * 入力欄の下に出し、**打った文字列は残す**。
+   * 確定の結果。**成功と「失敗したがここには出さない」を型で分ける**（`CommitOutcome`）。
+   * どちらも `undefined` にすると、送り直しを止める判断がこちらから消える。
    *
-   * それ以外の失敗は返さない。通知へ積まれ、その時点で reducer が
-   * 編集行を畳む（`entities/file-tree/model/reducer.ts` の `error`）。
-   * ここへも返すと、畳むのをやめた瞬間に同じ失敗が2つの形で同時に出る。
+   * `shown` に載るのは名前を直せば通る失敗だけ。それ以外は provider が
+   * 通知か衝突の対話へ振り分け、どちらも編集行を畳む。
    * 絞り込みは `widgets/file-tree/lib/commitName` が持つ。
    */
-  onCommit: (nextName: string) => void | Promise<FsError | void>;
+  onCommit: (nextName: string) => Promise<CommitOutcome>;
   onCancel: () => void;
   className?: string;
 
@@ -78,9 +78,10 @@ function InlineNameEditor({
 
     inFlightRef.current = true;
     try {
-      const failure = (await onCommit(next)) ?? null;
-      rejectedRef.current = failure ? next : null;
-      setError(failure);
+      const outcome = await onCommit(next);
+      // 通らなかったなら、ここに出さない失敗でも送り直さない
+      rejectedRef.current = outcome.ok ? null : next;
+      setError(outcome.ok ? null : (outcome.shown ?? null));
     } finally {
       inFlightRef.current = false;
     }
@@ -88,22 +89,8 @@ function InlineNameEditor({
 
   if (!isEditting) return null;
 
-  const cancel = () => {
-    cancelRef.current = true;
-    onCancel();
-  };
-
   return (
-    // Escape は span で拾う。input の上だけに置くと、失敗を出したあとに
-    // フォーカスを外した利用者が閉じる手段を失う
-    <span
-      className="inline-name-editor"
-      onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.stopPropagation();
-        cancel();
-      }}
-    >
+    <span className="inline-name-editor">
       <input
         ref={inputRef}
         className={className}
@@ -116,15 +103,26 @@ function InlineNameEditor({
         }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          // Escape は span 側で拾う。ここで止めると届かない
-          if (e.key !== "Escape") e.stopPropagation();
+          e.stopPropagation();
           if (e.key === "Enter") void commit();
+          if (e.key === "Escape") {
+            cancelRef.current = true;
+            onCancel();
+          }
         }}
         onBlur={() => {
           if (cancelRef.current) {
             cancelRef.current = false;
             return;
           }
+
+          // 落ちた名前のまま外へ出たら編集を閉じる。残すと、失敗の箱が
+          // 行の上に出たまま閉じる手段が無くなる（Escape は入力欄にしか届かない）
+          if (draft.trim() === rejectedRef.current) {
+            onCancel();
+            return;
+          }
+
           void commit();
         }}
       />

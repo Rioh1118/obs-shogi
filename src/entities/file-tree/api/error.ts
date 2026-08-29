@@ -128,8 +128,22 @@ export function isNameInputError(code: FsErrorCode): boolean {
     case "invalid_name_reserved":
     case "invalid_name_separator":
     case "invalid_name_control":
+    case "invalid_extension": // 拡張子も名前の一部。直すのは同じ入力欄
       return true;
-    default:
+
+    // ここから下は名前を直しても通らない。網羅にしてあるので、
+    // code を増やすと型検査がここへ連れてくる
+    case "already_exists":
+    case "not_found":
+    case "invalid_path":
+    case "invalid_type":
+    case "invalid_destination":
+    case "kifu_conversion_failed":
+    case "permission_denied":
+    case "io":
+    case "kifu_format_unknown":
+    case "kifu_parse_failed":
+    case "unknown":
       return false;
   }
 }

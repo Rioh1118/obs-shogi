@@ -104,8 +104,9 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
 
   const handleCommit = async (nextName: string) => {
     const res = await commitName(nextName, (name) => renameNode(node, name));
-    if (!res.ok) return res.shown;
+    if (!res.ok) return res;
     cancelInlineRename();
+    return res;
   };
 
   return (
