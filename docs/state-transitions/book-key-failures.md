@@ -44,22 +44,25 @@ R9 から R12 まで毎ラウンド出た**（N-07 / O-04 / P-01 / Q-02）。原
 
 セルは「到達する検査」。`✓` はそのセルを踏むテストが存在する。
 
-| 入力の形          | 全体 ≤ 256 字                                                                                                                                                                                      | 全体 > 256 字                                                                                                                                                                 |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A 正しい局面      | OK ✓（`drops_the_move_number` ほか）                                                                                                                                                               | **到達不能**（トークンの合計で数えるので、合法な局面は 256 字を超えない。下の不変条件 1）。空白をいくつ挟んでも同じ ✓（`extra_whitespace_does_not_make_a_position_too_long`） |
-| B トークン不足    | G2 / G3 / G4 ✓（`rejects_input_that_is_not_a_position`。理由文まで見て3枝を区別する）                                                                                                              | G0（B の理由文は出ない）                                                                                                                                                      |
-| C 値が不正        | G5 ✓（`rejects_input_that_is_not_a_position`）/ G7a ✓（`rejects_spellings_that_would_unbound_the_length`）/ G9 ✓（`rejects_a_broken_board`）/ G10 ✓（`rejects_a_broken_hand_field` / 同上）        | G0                                                                                                                                                                            |
-| D トークンが余る  | G1 ✓ / G6 ✓（`rejects_a_position_with_moves`）/ G8 ✓（`rejects_trailing_tokens_after_the_position`）                                                                                               | G0                                                                                                                                                                            |
-| E 駒数超過        | G11 ✓（`rejects_more_pieces_than_the_set_holds`）                                                                                                                                                  | G0                                                                                                                                                                            |
-| F 1トークンが長い | 断片が入るのは G7a / G8 / G10（先頭ゼロ / 枚数が範囲外）✓（`a_long_token_is_truncated_in_the_reason` が枝ごとに理由文で確かめる）。G10 の「駒が続かない」は `digits` が2字までなので断片を持てない | G0 ✓                                                                                                                                                                          |
-| G 全体が長い      | —                                                                                                                                                                                                  | G0 ✓（`a_position_that_is_too_long_is_rejected_before_building_the_reason`）                                                                                                  |
+| 入力の形          | 全体 ≤ 256 字                                                                                                                                                                                                                                   | 全体 > 256 字                                                                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A 正しい局面      | OK ✓（`drops_the_move_number` ほか）                                                                                                                                                                                                            | **到達不能**（トークンの合計で数えるので、合法な局面は 256 字を超えない。下の不変条件 1）。空白をいくつ挟んでも同じ ✓（`extra_whitespace_does_not_make_a_position_too_long`） |
+| B トークン不足    | G2 / G3 / G4 ✓（`rejects_input_that_is_not_a_position`。理由文まで見て3枝を区別する）                                                                                                                                                           | G0（B の理由文は出ない）                                                                                                                                                      |
+| C 値が不正        | G5 ✓（`rejects_input_that_is_not_a_position`）/ G7a ✓（`rejects_spellings_that_would_unbound_the_length`）/ G7b ✓（`a_long_token_is_truncated_in_the_reason`）/ G9 ✓（`rejects_a_broken_board`）/ G10 ✓（`rejects_a_broken_hand_field` / 同上） | G0                                                                                                                                                                            |
+| D トークンが余る  | G1 ✓ / G6 ✓（`rejects_a_position_with_moves`）/ G8 ✓（`rejects_trailing_tokens_after_the_position`）                                                                                                                                            | G0                                                                                                                                                                            |
+| E 駒数超過        | G11 ✓（`rejects_more_pieces_than_the_set_holds`）                                                                                                                                                                                               | G0                                                                                                                                                                            |
+| F 1トークンが長い | 断片が入るのは G7a / G7b / G8 / G10（先頭ゼロ / 枚数が範囲外）の5枝。全て ✓（`a_long_token_is_truncated_in_the_reason` が枝ごとに理由文で確かめる）。G10 の「駒が続かない」は `digits` が2字までなので断片を持てない                            | G0 ✓                                                                                                                                                                          |
+| G 全体が長い      | —                                                                                                                                                                                                                                               | G0 ✓（`a_position_that_is_too_long_is_rejected_before_building_the_reason`）                                                                                                  |
 
 ### (F, ≤256) を埋めるもの
 
-理由文に入力の断片（`{extra}` / `{ply}` / `{digits}`）を埋める枝は、G7 / G8 と
-G10 の2枝（枚数が範囲外 / 駒が続かない）で計4つ。
-`a_long_token_is_truncated_in_the_reason` が、全体を 256 字以下に保ったまま
-1トークンだけを 150 字にして4つとも通す。
+理由文に入力の断片（`{extra}` / `{ply}` / `{digits}`）を埋める枝は5つ。
+G7a（綴りが数値でない）/ G7b（u32 に収まらない）/ G8（余分なトークン）と、
+G10 の2枝（先頭ゼロ / 枚数が範囲外）。
+`a_long_token_is_truncated_in_the_reason` が、全体を上限以下に保ったまま
+1トークンだけを 150 字にして5つとも通す。
+
+G10 の「駒が続かない」はこの5つに入らない。`digits` が2字までなので断片を持てない。
 
 **入力全体を長くするとこのセルへは来ない**（G0 に落ちる）。同じ狙いのテストを
 書くときは、全体の長さと1トークンの長さを分けること。

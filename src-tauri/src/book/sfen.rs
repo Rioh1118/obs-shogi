@@ -547,6 +547,12 @@ mod tests {
                 format!("{BARE_BOARD} b - {long_token}"),
                 "手数の綴りが数値でない",
             ),
+            // 全桁が数字で先頭ゼロも無いので綴りの検査は通り、u32 に収まらずに落ちる。
+            // 綴りの検査と違う枝なので、両方を通さないと片方の打ち切りが外れても気づけない。
+            (
+                format!("{BARE_BOARD} b - {long_digits}"),
+                "手数が大きすぎる",
+            ),
             (format!("{BARE_BOARD} b - 1 {long_token}"), "余分なトークン"),
             (
                 format!("{BARE_BOARD} b {long_digits}P 1"),
