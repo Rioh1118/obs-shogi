@@ -10,6 +10,10 @@ use std::io;
 pub enum BookErrorCode {
     /// 定跡ファイルが存在しない
     NotFound,
+    /// 存在するが読む権限が無い
+    PermissionDenied,
+    /// 指されたものがファイルではない（ディレクトリなど）
+    InvalidType,
     /// 拡張子から形式を判別できない
     UnknownExtension,
     /// 形式は判別できたが reader をまだ持っていない
@@ -62,6 +66,7 @@ impl From<io::Error> for BookError {
     fn from(value: io::Error) -> Self {
         let code = match value.kind() {
             io::ErrorKind::NotFound => BookErrorCode::NotFound,
+            io::ErrorKind::PermissionDenied => BookErrorCode::PermissionDenied,
             _ => BookErrorCode::Io,
         };
 

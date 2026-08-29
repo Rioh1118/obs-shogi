@@ -23,11 +23,18 @@ pub trait BookReader: Send + Sync {
 pub fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError> {
     let format = BookFormat::from_path(path)?;
 
-    if !path.is_file() {
-        return Err(
-            BookError::new(BookErrorCode::NotFound, "定跡ファイルが見つからない")
-                .with_path(path.to_string_lossy()),
-        );
+    // `Path::is_file` は metadata が取れない理由を全て false に潰す。権限が無い
+    // ファイルまで「見つからない」と案内されると、利用者は Finder でそれを見ながら
+    // 探し直すことになり、権限を与えるという正しい復帰操作に辿り着けない。
+    let meta = std::fs::metadata(path)
+        .map_err(|e| BookError::from(e).with_path(path.to_string_lossy()))?;
+
+    if !meta.is_file() {
+        return Err(BookError::new(
+            BookErrorCode::InvalidType,
+            "定跡ファイルではないものが指定されている",
+        )
+        .with_path(path.to_string_lossy()));
     }
 
     Err(BookError::new(
@@ -65,5 +72,21 @@ mod tests {
         let err = open_err("/nonexistent/book.db");
         assert_eq!(err.code, BookErrorCode::NotFound);
         assert_eq!(err.path.as_deref(), Some("/nonexistent/book.db"));
+    }
+
+    /// ディレクトリは存在するので NotFound ではない。「見つからない」と言われると
+    /// 利用者は探し直してしまう。
+    #[test]
+    fn reports_a_directory_as_a_wrong_kind() {
+        let dir = std::env::temp_dir().join("obs-shogi-book-open-reader-test.db");
+        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+
+        let result = open_reader(&dir);
+        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+
+        let Err(err) = result else {
+            panic!("ディレクトリを定跡として開けてしまった");
+        };
+        assert_eq!(err.code, BookErrorCode::InvalidType);
     }
 }
