@@ -100,7 +100,8 @@ pub struct OpenBookInput {
 #[serde(rename_all = "camelCase")]
 pub struct LookupBookMovesInput {
     pub handle: BookHandle,
-    /// 局面の SFEN。手数は無視されるので付いていてもよい
+    /// 局面の SFEN。手数は付いていてもよい（キーからは落とす）が、書式は検査する。
+    /// 数値でない手数、`moves` 付き、余分なトークンは `InvalidSfen` になる
     pub sfen: String,
 }
 
