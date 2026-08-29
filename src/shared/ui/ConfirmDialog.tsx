@@ -45,7 +45,7 @@ export default function ConfirmDialog({
           <Button onClick={onCancel} disabled={isLoading}>
             {cancelLabel}
           </Button>
-          <Button tone="danger" onClick={onConfirm} disabled={isLoading}>
+          <Button tone="danger" onClick={onConfirm} isLoading={isLoading}>
             {isLoading ? "削除中..." : confirmLabel}
           </Button>
         </div>
