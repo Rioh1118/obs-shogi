@@ -14,6 +14,8 @@ pub enum BookErrorCode {
     PermissionDenied,
     /// 指されたものがファイルではない（ディレクトリなど）
     InvalidType,
+    /// パスが定跡の指定として成立していない
+    InvalidPath,
     /// 拡張子から形式を判別できない
     UnknownExtension,
     /// 形式は判別できたが reader をまだ持っていない
