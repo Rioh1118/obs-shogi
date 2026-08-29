@@ -75,10 +75,12 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
+    // 引用は発生源で打ち切る。input はコマンド境界から来る任意長の文字列で、
+    // 打ち切らないと message がそのままログへ流れ、失敗1回で以前の記録が消える。
     let invalid = |reason: &str| {
         BookError::new(
             BookErrorCode::InvalidSfen,
-            format!("{reason}: {}", input.trim()),
+            format!("{reason}: {}", truncate_for_message(input.trim())),
         )
     };
 
@@ -150,9 +152,9 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
 /// ではなく `InvalidContent` にして定跡のパスと復帰操作を添える。種別だけ
 /// 付け替えても、人が読むのは message なので「渡した局面が読めない」のままになる。
 ///
-/// 元の理由は括弧に入れて残すが、行そのものは打ち切る。`.db` の1行は、途中で
-/// 切れたファイルや別形式のファイルでは数 MB になりうる。それをそのまま
-/// message に入れると、`logged` 経由でログを1回の lookup で埋め尽くす。
+/// 元の理由は括弧に入れて残す。行そのものの打ち切りは [`to_book_key`] の中で
+/// 済んでいる（`.db` の1行は、途中で切れたファイルや別形式のファイルでは
+/// 数 MB になりうる）。
 // TODO(#91): 最初の呼び手はやねうら王 .db の reader。行番号を添えられるように
 // するかは、そこで決める。
 #[allow(dead_code)]
@@ -162,16 +164,20 @@ pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, Boo
             BookErrorCode::InvalidContent,
             format!(
                 "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{}）",
-                truncate_for_message(&err.message)
+                err.message
             ),
         )
         .with_path(path)
     })
 }
 
-/// message に載せる引用を打ち切る。
+/// message に載せる引用の上限。
+///
+/// 「手数が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
+/// ログ（200KB でローテート）の予算を食い潰さない上限として選んだ。
 const MESSAGE_EXCERPT_CHARS: usize = 120;
 
+/// message に載せる引用を打ち切る。
 fn truncate_for_message(reason: &str) -> String {
     let mut out: String = reason.chars().take(MESSAGE_EXCERPT_CHARS).collect();
     if out.chars().count() < reason.chars().count() {
@@ -180,31 +186,44 @@ fn truncate_for_message(reason: &str) -> String {
     out
 }
 
-/// 持駒トークン1つぶんの枚数。
+/// 持駒の枚数を、検査を通さずに作れないようにするための囲い。
 ///
-/// [`HandCount::parse`] 以外から作れないので、範囲の検査を通らずに
-/// [`PieceCounts::add_many`] へ渡すことができない。数え上げてから検査する形に
-/// 書き換えると、`"4294967295P"` の1回で数え上げのループが 42.9 億回まわり、
-/// `to_book_key` を同期に呼んでいる async ワーカが埋まる。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct HandCount(u32);
+/// 内側のモジュールに入れるのは、タプル構造体のフィールドが**同じモジュールからは
+/// 見える**ため。`normalize_hands` も `PieceCounts::add_many` も `sfen` の直下に
+/// あるので、ここに置かないと `HandCount(raw)` と書けてしまい、型は何も止めない。
+mod hand_count {
+    /// 持駒トークン1つぶんの枚数。
+    ///
+    /// [`HandCount::parse`] 以外から作れない。数え上げてから検査する形に
+    /// 書き換えるとコンパイルが通らない。通ってしまうと、`"4294967295P"` の1回で
+    /// 数え上げのループが 42.9 億回まわり、`to_book_key` を同期に呼んでいる
+    /// async ワーカが埋まる。
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) struct HandCount(u32);
 
-impl HandCount {
-    /// 1トークンの枚数は、最も多い歩でも18枚。桁あふれもここへ落とす。
-    fn parse(digits: &str) -> Result<Self, String> {
-        let count = if digits.is_empty() {
-            1
-        } else {
-            digits.parse::<u32>().unwrap_or(u32::MAX)
-        };
+    impl HandCount {
+        /// 1トークンの枚数は、最も多い歩でも18枚。桁あふれもここへ落とす。
+        pub(super) fn parse(digits: &str) -> Result<Self, String> {
+            let count = if digits.is_empty() {
+                1
+            } else {
+                digits.parse::<u32>().unwrap_or(u32::MAX)
+            };
 
-        if count == 0 || count > 18 {
-            return Err(format!("持駒の枚数が範囲外（{digits}）"));
+            if count == 0 || count > 18 {
+                return Err(format!("持駒の枚数が範囲外（{digits}）"));
+            }
+
+            Ok(Self(count))
         }
 
-        Ok(Self(count))
+        pub(super) fn get(self) -> u32 {
+            self.0
+        }
     }
 }
+
+use hand_count::HandCount;
 
 /// 駒種ごとの枚数。盤上と持駒を通して数える。
 #[derive(Default)]
@@ -227,7 +246,7 @@ impl PieceCounts {
     }
 
     fn add_many(&mut self, piece: char, count: HandCount) -> Result<(), String> {
-        for _ in 0..count.0 {
+        for _ in 0..count.get() {
             self.add(piece)?;
         }
         Ok(())
@@ -367,7 +386,7 @@ fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, Stri
         counts.add_many(piece, count)?;
 
         let side = usize::from(piece.is_ascii_lowercase());
-        hand_counts[side][index] += count.0;
+        hand_counts[side][index] += count.get();
     }
 
     let mut out = String::new();
@@ -421,19 +440,25 @@ mod tests {
         );
     }
 
-    /// 途中で切れたファイルの1行は数 MB になりうる。そのまま message に入れると
-    /// ログを1回の lookup で埋め尽くす。
+    /// 長い入力は、ファイル経由でもコマンド経由でも message に丸ごと入らないこと。
+    /// そのまま入れると、失敗1回でログ（200KB でローテート）の記録が消える。
     #[test]
-    fn a_long_broken_line_is_truncated_in_the_message() {
+    fn a_long_input_is_truncated_in_the_message() {
         let line = "x".repeat(100_000);
-        let err = to_book_key_in_file(&line, "/books/a.db").unwrap_err();
 
-        assert!(
-            err.message.chars().count() < 300,
-            "len={}",
-            err.message.chars().count()
-        );
-        assert!(err.message.contains('…'), "message={}", err.message);
+        for message in [
+            to_book_key(&line).unwrap_err().message,
+            to_book_key_in_file(&line, "/books/a.db")
+                .unwrap_err()
+                .message,
+        ] {
+            assert!(
+                message.chars().count() < MESSAGE_EXCERPT_CHARS * 2,
+                "len={}",
+                message.chars().count()
+            );
+            assert!(message.contains('…'), "message={message}");
+        }
     }
 
     #[test]
@@ -595,11 +620,12 @@ mod tests {
         }
     }
 
-    /// 1トークンの枚数の境界。数え上げより先にここで落ちる（型がそれを強制する）。
+    /// 1トークンの枚数の境界。`HandCount(1)` と書けないこと自体が、
+    /// 検査を通さずに数え上げへ渡せないことの証拠になっている。
     #[test]
     fn hand_count_parse_rejects_values_outside_one_token() {
-        assert_eq!(HandCount::parse("").unwrap(), HandCount(1));
-        assert_eq!(HandCount::parse("18").unwrap(), HandCount(18));
+        assert_eq!(HandCount::parse("").unwrap().get(), 1);
+        assert_eq!(HandCount::parse("18").unwrap().get(), 18);
 
         for digits in ["0", "19", "4294967295", "99999999999"] {
             let err = HandCount::parse(digits).unwrap_err();
