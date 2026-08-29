@@ -44,23 +44,30 @@ $space-11: 2.2rem;
 $space-12: 2.4rem;
 
 // radius
-// 間隔と同じ連番にする。sm / md は選択をサイズ勘に戻すうえ、
-// 上にも下にも段を足せなくなる（xs の下、3xl の上に名前が無い）
-$radius-1: 0.4rem;
-$radius-2: 0.6rem;
-$radius-3: 0.8rem;
-$radius-4: 1rem;
-$radius-5: 1.2rem;
-$radius-6: 1.4rem;
-$radius-7: 1.6rem;
-$radius-8: 1.8rem;
+// 間隔と同じ連番。**同じ N は同じ値**にしてある。
+// 途中から始めると $space-6 と $radius-6 が別の値になり、
+// どちらもトークン参照なのでラチェットもレビューも気づけない
+$radius-1: 0.2rem;
+$radius-2: 0.4rem;
+$radius-3: 0.6rem;
+$radius-4: 0.8rem;
+$radius-5: 1rem;
+$radius-6: 1.2rem;
+$radius-7: 1.4rem;
+$radius-8: 1.6rem;
+$radius-9: 1.8rem;
 $radius-pill: 999px; // 文字サイズに従属しないので rem 化しない
 $radius-circle: 50%;
 
 // motion
-$duration-fast: 100ms;
-$duration: 120ms;
-$duration-slow: 160ms;
+// 実測の山（120ms 52件 / 140ms 25件 / 100ms 23件 / 200ms 20件 / 160ms 15件）を
+// 全部段にする。140ms は 120 と 160 の中間で、段を欠くと寄せ先が2つに割れる
+$duration-1: 80ms;
+$duration-2: 100ms;
+$duration-3: 120ms;
+$duration-4: 140ms;
+$duration-5: 160ms;
+$duration-6: 200ms;
 $ease: ease;
 
 // ローディングの反復は秒単位の別系統なのでここには置かない
