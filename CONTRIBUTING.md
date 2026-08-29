@@ -188,7 +188,7 @@ issue 番号を必ず伴わせてください。
 // こう
 font-size: index.$font-hint;
 gap: index.$space-4;
-border-radius: index.$radius-md;
+border-radius: index.$radius-3;
 
 // これは通りません
 font-size: 1.15rem;

@@ -40,16 +40,20 @@ $space-7: 1.4rem;
 $space-8: 1.6rem;
 $space-9: 1.8rem;
 $space-10: 2rem;
-$space-11: 2.4rem;
+$space-11: 2.2rem;
+$space-12: 2.4rem;
 
 // radius
-$radius-xs: 0.4rem;
-$radius-sm: 0.6rem;
-$radius-md: 0.8rem;
-$radius-lg: 1rem;
-$radius-xl: 1.2rem;
-$radius-2xl: 1.4rem;
-$radius-3xl: 1.6rem;
+// 間隔と同じ連番にする。sm / md は選択をサイズ勘に戻すうえ、
+// 上にも下にも段を足せなくなる（xs の下、3xl の上に名前が無い）
+$radius-1: 0.4rem;
+$radius-2: 0.6rem;
+$radius-3: 0.8rem;
+$radius-4: 1rem;
+$radius-5: 1.2rem;
+$radius-6: 1.4rem;
+$radius-7: 1.6rem;
+$radius-8: 1.8rem;
 $radius-pill: 999px; // 文字サイズに従属しないので rem 化しない
 $radius-circle: 50%;
 
