@@ -68,7 +68,7 @@ function lastCompound(selector: string): string {
   return parts[parts.length - 1] ?? "";
 }
 
-type Declaration = { selector: string; prop: string; value: string };
+type Declaration = { selector: string; prop: string; value: string; unconditional: boolean };
 
 /**
  * 末尾の複合セレクタが `target` に当たる規則の宣言を、ソース順に全部集める。
@@ -80,9 +80,20 @@ function declarationsFor(css: string, target: string): Declaration[] {
   const pattern = new RegExp(`${target.replace(/\./g, "\\.")}\\b`);
   const found: Declaration[] = [];
   postcss.parse(css).walkRules((rule) => {
-    if (!rule.selectors.some((selector) => pattern.test(lastCompound(selector)))) return;
+    const matches = rule.selectors.some((selector) => {
+      const compound = lastCompound(selector);
+      // 疑似要素は別の箱。`::after` の `top` も `::-webkit-scrollbar` の `height` も
+      // 本体の幾何とは関係が無いのに、`\b` は `::` の前でも成立してしまう
+      return !compound.includes("::") && pattern.test(compound);
+    });
+    if (!matches) return;
     rule.walkDecls((declaration) => {
-      found.push({ selector: rule.selector, prop: declaration.prop, value: declaration.value });
+      found.push({
+        selector: rule.selector,
+        prop: declaration.prop,
+        value: declaration.value,
+        unconditional: rule.parent?.type === "root",
+      });
     });
   });
   return found;
@@ -160,8 +171,10 @@ function isBounded(value: string): boolean {
   if (!call) return false;
 
   const args = splitTopLevel(call[2] ?? "", /,/).map((arg) => arg.trim());
-  // min() はどの引数も上限になる。clamp() で上限になるのは第3引数だけ
-  return call[1] === "min" ? args.includes("100%") : args.length === 3 && args[2] === "100%";
+  if (call[1] === "min") return args.includes("100%");
+  // clamp(a, b, c) は max(a, min(b, c))。第3引数が `100%` でも、第1引数が
+  // それを超えうるなら上限にならない（`clamp(32rem, 78vh, 100%)` は器を超える）
+  return args.length === 3 && args[2] === "100%" && /^0(px|%|rem|em)?$/.test(args[0] ?? "");
 }
 
 /**
@@ -200,13 +213,18 @@ function unboundedForcedHeights(paths: string[]): string[] {
       );
       if (forcing.length === 0) return;
 
-      // 上限になれるのは `max-height` と、それ自身が挟まれている `height` だけ。
-      // `min-height: 0` は下限を外すだけで、器を超えるのを止めない
-      const bounded = heights.some(
-        (declaration) =>
-          (declaration.prop === "max-height" || declaration.prop === "height") &&
-          isBounded(declaration.value),
-      );
+      // 解決順は `max(min-height, min(max-height, height))` なので、`min-height` が
+      // 器を超える値なら `max-height` では止まらない。`min-height: 0` は下限を
+      // 外すだけで上限にはならない。`height: auto` も上限ではない
+      const forcedFromBelow = forcing.some((declaration) => declaration.prop === "min-height");
+      const bounded =
+        !forcedFromBelow &&
+        heights.some(
+          (declaration) =>
+            (declaration.prop === "max-height" ||
+              (declaration.prop === "height" && declaration.value.trim() !== "auto")) &&
+            isBounded(declaration.value),
+        );
       if (bounded) return;
 
       for (const declaration of forcing) {
@@ -280,7 +298,8 @@ describe("モーダルの overlay とタイトルバー", () => {
     // 上限になる。ここで見るのは、高さを書かない size が1つ増えたときの受け皿が
     // あること。無ければカードが内容の高さまで伸び、overlay を超えて帯に載る
     const base = cardDeclarations.filter(
-      ({ selector, prop }) => selector === ".modal__card" && prop === "max-height",
+      ({ selector, prop, unconditional }) =>
+        selector === ".modal__card" && prop === "max-height" && unconditional,
     );
 
     expect(
