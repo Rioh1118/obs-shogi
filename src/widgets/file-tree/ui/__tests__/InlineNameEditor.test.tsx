@@ -111,6 +111,37 @@ describe("InlineNameEditor", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  // 状態遷移表の E2 → blur。ここを空欄のままにすると、フォーカスの無い欄に
+  // 失敗の箱だけが残り、閉じるのに「欄をクリックして戻し、もう一度外を押す」の
+  // 2手が要る（Escape は欄の上にしか張っていないので届かない）
+  test("送信中に外へ出て、そのあと失敗したら編集を閉じる", async () => {
+    let settle: (outcome: typeof rejected) => void = () => {};
+    const onCommit = vi.fn(
+      () =>
+        new Promise<typeof rejected>((resolve) => {
+          settle = resolve;
+        }),
+    );
+    const onCancel = vi.fn();
+
+    render(
+      <InlineNameEditor isEditting initialName="a.kif" onCommit={onCommit} onCancel={onCancel} />,
+    );
+
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "a/b.kif" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.blur(input);
+
+    await act(async () => {
+      settle(rejected);
+      await Promise.resolve();
+    });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   test("ここに出さない失敗でも、同じ名前を送り直さない", async () => {
     const onCommit = vi.fn().mockResolvedValue(elsewhere);
     render(

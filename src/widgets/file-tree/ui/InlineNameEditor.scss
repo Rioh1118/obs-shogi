@@ -7,14 +7,13 @@
   min-width: 0;
 }
 
-// 行の高さを変えずに重ねる。行を押し広げると、失敗のたびに下のノードが動く。
-// 重ねている以上、下の行のクリックを奪わないよう当たり判定は持たせない
+// **重ねずに行を押し広げる。** 重ねる形は2つとも成立しなかった。
+// 1行に切って全文を title へ逃がすと、`pointer-events: none` の要素は
+// ヒットテストの対象外なのでツールチップが出ない。当たり判定を戻して重ねると、
+// 下の行を覆ったままその行が押せる。→ docs/state-transitions/inline-name-editor.md
 .inline-name-editor__error {
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-  top: calc(100% + index.$space-1);
-  left: 0;
+  display: block;
+  margin-top: index.$space-1;
   max-width: 100%;
 
   padding: index.$space-1 index.$space-3;
@@ -29,11 +28,8 @@
   font-size: index.$font-hint;
   line-height: 1.4;
 
-  // 1行に留める。折り返すと下のノードを2〜3行ぶん覆い、
-  // その行が見えないまま押せる状態になる。全文は title 属性で読める
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  // 名前の失敗の文は最長で17文字。サイドバーの幅では収まらないので折り返す
+  overflow-wrap: anywhere;
 }
 
 .file-name__input {
