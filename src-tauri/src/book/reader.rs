@@ -66,7 +66,7 @@ pub(crate) fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError>
 
     Err(BookError::new(
         BookErrorCode::UnsupportedFormat,
-        format!("{format:?} の reader をまだ持っていない"),
+        format!("{}はまだ開けない", format.display_name()),
     )
     .with_path(path.to_string_lossy()))
 }

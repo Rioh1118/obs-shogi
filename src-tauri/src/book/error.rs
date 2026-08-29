@@ -81,13 +81,18 @@ impl std::error::Error for BookError {}
 
 impl From<io::Error> for BookError {
     fn from(value: io::Error) -> Self {
-        let code = match value.kind() {
-            io::ErrorKind::NotFound => BookErrorCode::NotFound,
-            io::ErrorKind::PermissionDenied => BookErrorCode::PermissionDenied,
-            _ => BookErrorCode::Io,
+        // 案内は日本語で、次に何をすればよいかまで書く。OS の原文は後ろに残す。
+        // message はログにもそのまま出るので、ここから落とすと切り分けができなくなる。
+        let (code, guidance) = match value.kind() {
+            io::ErrorKind::NotFound => (BookErrorCode::NotFound, "定跡ファイルが見つからない"),
+            io::ErrorKind::PermissionDenied => (
+                BookErrorCode::PermissionDenied,
+                "定跡ファイルを読む権限が無い。システム設定でこのアプリにアクセスを許可するか、別の場所にコピーすること",
+            ),
+            _ => (BookErrorCode::Io, "定跡ファイルを読めない"),
         };
 
-        BookError::new(code, format!("定跡ファイルを読めない: {value}"))
+        BookError::new(code, format!("{guidance}（{value}）"))
     }
 }
 
