@@ -3,6 +3,7 @@ import {
   asFsError,
   describeFsError,
   fsErrorTier,
+  FS_ERROR_CODES,
   makeFsError,
   type FsErrorCode,
 } from "@/entities/file-tree/api/error";
@@ -12,24 +13,11 @@ import {
  * だけでなく、棋譜のパース失敗のような別の例外も混ざる。
  */
 
-const ALL_CODES: FsErrorCode[] = [
-  "already_exists",
-  "not_found",
-  "invalid_name_empty",
-  "invalid_name_reserved",
-  "invalid_name_separator",
-  "invalid_name_control",
-  "invalid_path",
-  "invalid_type",
-  "invalid_extension",
-  "invalid_destination",
-  "kifu_conversion_failed",
-  "permission_denied",
-  "io",
-  "kifu_format_unknown",
-  "kifu_parse_failed",
-  "unknown",
-];
+/**
+ * 手で並べると、`FsErrorCode` を増やしてもここが古いまま緑になる。
+ * union の網羅は `FS_ERROR_CODES` が `satisfies` で保証しているので、そこから導く。
+ */
+const ALL_CODES = Object.keys(FS_ERROR_CODES) as FsErrorCode[];
 
 describe("asFsError", () => {
   test("Rust から返った形はそのまま通す", () => {
