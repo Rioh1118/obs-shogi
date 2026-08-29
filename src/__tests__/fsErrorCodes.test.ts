@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { RUST_SRC, SRC } from "./walk";
 
 /**
  * Rust の `FsErrorCode` が TS の `FsErrorCode` に収まっていることを見る。
@@ -13,8 +14,8 @@ import { describe, expect, it } from "vitest";
  * （`testsLayerBoundary.test.ts`）ので import では読めない。
  */
 
-const RUST_ENUM = join(process.cwd(), "src-tauri", "src", "file_system", "error.rs");
-const TS_CODES = join(process.cwd(), "src", "entities", "file-tree", "api", "error.ts");
+const RUST_ENUM = join(RUST_SRC, "file_system", "error.rs");
+const TS_CODES = join(SRC, "entities", "file-tree", "api", "error.ts");
 
 /** Rust が返さない code。棋譜の読み込みは TS 側で失敗し、TS 側で作る */
 const TS_ONLY = ["kifu_format_unknown", "kifu_parse_failed"];

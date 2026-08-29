@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { tsFiles } from "./walk";
+import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 /**
  * スライスの外から、そのスライスの barrel が公開しているモジュールを
@@ -16,7 +16,6 @@ import { tsFiles } from "./walk";
  * `vi.mock("...")` は素通しする。差し替えるのは実体の側でなければ効かない。
  */
 
-const SRC = join(process.cwd(), "src");
 const LAYERS_WITH_SLICES = ["entities", "features", "widgets"];
 
 /** `export * from "./api/error"` / `export { default as X } from "./ui/X"` */
@@ -56,7 +55,7 @@ describe("スライスの公開境界", () => {
 
     for (const file of tsFiles(SRC)) {
       const source = readFileSync(file, "utf8");
-      const name = relative(process.cwd(), file);
+      const name = relative(REPO_ROOT, file);
 
       for (const [slice, modules] of slices) {
         // スライスの中からは実体を直に読む（barrel を読み返すと循環の種になる）

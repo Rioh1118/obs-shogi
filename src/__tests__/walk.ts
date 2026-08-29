@@ -1,4 +1,5 @@
 import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 /**
@@ -9,9 +10,23 @@ import { join } from "node:path";
  * 散っていて、1つ直し忘れても違反が減るだけなので緑のまま通る。
  *
  * **`__tests__` は既定で含める。** テストのコードも読み手が読むコードで、
- * コメントの規約も import の規則も同じに掛かる。期待値として規約違反の形を
- * 書く必要がある検査（自分自身を走査するもの）だけが外す。
+ * コメントの規約も import の規則も同じに掛かる。外すのは、テストの中の記述を
+ * 実装として数えると答えが変わる検査（期待値に規約違反の形を書くもの、
+ * テスト中の言及を「描いている」と数えたくないもの）だけ。
+ *
+ * 走査の起点も**ここで決める**。`process.cwd()` から組み立てると、ランナーの
+ * 起動場所が別の作業ツリーだったときにテスト本体とは違う木を読み、
+ * 何を検査したのかが起動場所で変わる。
  */
+
+/** リポジトリの根。このファイルの位置から辿る */
+export const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+
+/** アプリのソース */
+export const SRC = join(REPO_ROOT, "src");
+
+/** Rust のソース */
+export const RUST_SRC = join(REPO_ROOT, "src-tauri", "src");
 
 export type WalkOptions = {
   /** `__tests__` 配下を含めるか。既定は含める */

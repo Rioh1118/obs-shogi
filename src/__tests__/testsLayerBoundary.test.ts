@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { SRC, tsFiles } from "./walk";
+import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -10,7 +11,6 @@ import { describe, expect, it } from "vitest";
  * `await import("@/…")` と `vi.mock("@/…")` は素通りする。ここは文字列として拾う。
  */
 
-const SRC = join(process.cwd(), "src");
 const HERE = join(SRC, "__tests__");
 
 /**
@@ -31,13 +31,11 @@ function appReference(names: string[]): RegExp {
 describe("レイヤに依存しない検査の置き場", () => {
   it("src/__tests__ がアプリのコードを参照しない", () => {
     const pattern = appReference(layers());
-    const offenders = readdirSync(HERE, { recursive: true, encoding: "utf8" })
-      .filter((name) => /\.tsx?$/.test(name))
-      .flatMap((name) =>
-        [...readFileSync(join(HERE, name), "utf8").matchAll(pattern)].map(
-          (match) => `${name}  ${match[0]}`,
-        ),
-      );
+    const offenders = tsFiles(HERE).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(pattern)].map(
+        (match) => `${relative(HERE, file)}  ${match[0]}`,
+      ),
+    );
 
     expect(
       offenders,

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { tsFiles } from "./walk";
+import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 /**
  * `AsyncResult` を返す関数は**投げない**。戻り値を読まないと、失敗は
@@ -18,8 +18,6 @@ import { tsFiles } from "./walk";
  * その1行に `// async-result-ignored: <理由>` を付けると外れる。
  * 印を付ける変更は差分としてレビューに出る。
  */
-
-const SRC = join(process.cwd(), "src");
 
 /**
  * 宣言の戻り値に `AsyncResult` が現れる関数名。
@@ -63,7 +61,7 @@ describe("AsyncResult の戻り値", () => {
     const pattern = bareCallOf(names);
     const offenders: string[] = [];
     for (const [file, source] of sources) {
-      const name = relative(process.cwd(), file);
+      const name = relative(REPO_ROOT, file);
       for (const match of source.matchAll(pattern)) {
         if (match[0].includes(IGNORE_MARKER)) continue;
         const line = source.slice(0, match.index).split("\n").length;

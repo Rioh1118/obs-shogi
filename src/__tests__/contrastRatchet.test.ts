@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { scssFiles } from "./walk";
+import { SRC, scssFiles } from "./walk";
 import { collectVariables, scanContrast } from "./contrast";
 
 /**
@@ -30,7 +30,6 @@ const BASELINE = [
   "widgets/file-tree/ui/ContextMenu.scss | &:focus-visible:not(:disabled) | color: index.$color-secondary-dark | background-color: rgba(index.$color-secondary-dark, 0.22)",
 ];
 
-const SRC = join(process.cwd(), "src");
 const TOKEN_SOURCE = join(SRC, "index.scss");
 
 type Row = { key: string; detail: string };

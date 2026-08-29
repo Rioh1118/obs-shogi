@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { tsFiles } from "./walk";
+import { SRC, tsFiles } from "./walk";
 
 /**
  * `ModalType` の各値に、それを読んで描くものが1つある。
@@ -15,7 +15,6 @@ import { tsFiles } from "./walk";
  * 型検査で落ちるので、ここでは見ない。
  */
 
-const SRC = join(process.cwd(), "src");
 const ROUTER = join(SRC, "shared", "lib", "router", "useURLParams.ts");
 
 /** `export type ModalType =` に並ぶ文字列リテラル */

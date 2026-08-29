@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { sourceFiles } from "./walk";
+import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
 
 /**
  * コメントに**変更の経緯**を書かない（`CONTRIBUTING.md` の「コメントの書き方」）。
@@ -10,13 +10,14 @@ import { sourceFiles } from "./walk";
  * マージした時点で指すものが消え、残るのは辿れない参照だけになる。
  * 経緯は git log と PR に残る。コードには**現在どうあるべきか**だけを書く。
  *
- * `docs/` と `.claude/` は対象外。あちらは経緯を残す場所。
+ * 見るのは下の `ROOTS`（アプリと Rust のソース、Rust の検査）。`docs/` と
+ * `.claude/` は経緯を残す場所なので入れない。設定ファイル類は入れていない。
  *
  * レビューの識別子（`// 6:` / `(C-H1)`）も止める。付いた時点では意味があるが、
  * 指す先はレビューが終われば消える。
  */
 
-const ROOTS = [join(process.cwd(), "src"), join(process.cwd(), "src-tauri", "src")];
+const ROOTS = [SRC, RUST_SRC, join(REPO_ROOT, "src-tauri", "tests")];
 
 /**
  * 経緯にしか出てこない語。**「なぜ」を書くのに要らないものだけ**を並べる。
@@ -33,8 +34,19 @@ const HISTORY_WORDS = [
   "に変更した",
   "から変えた",
   "残っていた",
-  "旧 ",
+  "旧来",
+  "旧実装",
+  "旧仕様",
+  "以前",
+  "かつて",
+  "元々",
 ];
+
+/**
+ * `だった` と `元は` は入れない。前者は「読み込み中だったら」、後者は「呼び出し元は」
+ * のように、いまの状態を書くのに出る。
+ * `で対応` は経緯にも設計の説明にも出るので、`PR で対応` の形だけを上で見る
+ */
 
 /** 指す先の消えたレビュー識別子。`// 6:` や `(C-H1)` のような形 */
 const REVIEW_TAG = /^\s*\/\/\s*\d+:|\([A-Z]-[A-Z]?\d+\)/;
@@ -58,7 +70,7 @@ describe("コメント", () => {
         if (file === __filename) continue;
 
         const source = readFileSync(file, "utf8");
-        const name = relative(process.cwd(), file);
+        const name = relative(REPO_ROOT, file);
 
         for (const match of source.matchAll(COMMENT)) {
           const text = match[0];
