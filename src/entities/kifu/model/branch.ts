@@ -1,9 +1,19 @@
 import type { ForkPointer, KifuCursor, TesuuPointer } from "./cursor";
+import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 /**
  * 0=main, 1.. = forks[branchIndex-1]
  */
 export type BranchIndex = number;
+
+/** 手数 N から指せる分岐の候補。棋譜ツリーの構造であって描画データではない。 */
+export type BranchOption = {
+  id: string;
+  isMainLine: boolean;
+  tesuu: number;
+  move?: IMoveMoveFormat;
+  forkIndex?: number;
+};
 
 export type BranchPointRef = {
   /**

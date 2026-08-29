@@ -1,7 +1,7 @@
 import { formatMove } from "@/features/position-navigation/lib/shogi-format";
 import { memo } from "react";
 import "./BranchCard.scss";
-import type { BranchOption } from "@/features/position-navigation/model/types";
+import type { BranchOption } from "@/entities/kifu/model/branch";
 
 type Props = {
   branch: BranchOption;

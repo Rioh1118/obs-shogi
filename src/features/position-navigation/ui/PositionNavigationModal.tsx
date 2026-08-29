@@ -13,7 +13,8 @@ import { useGame } from "@/entities/game";
 import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
 import type { Kind } from "shogi.js";
-import type { BranchOption, NavigationState } from "@/features/position-navigation/model/types";
+import type { BranchOption } from "@/entities/kifu/model/branch";
+import type { NavigationState } from "@/features/position-navigation/model/types";
 
 function PositionNavigationModal() {
   const { params, closeModal } = useURLParams();

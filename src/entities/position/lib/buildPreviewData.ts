@@ -1,5 +1,5 @@
 import type { PreviewData } from "@/entities/position/model/preview";
-import type { BranchOption } from "@/features/position-navigation/model/types";
+import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { JKFPlayer } from "json-kifu-format";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 
