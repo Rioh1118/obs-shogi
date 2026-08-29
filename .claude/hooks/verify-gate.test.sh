@@ -3,6 +3,10 @@
 #
 # 素通し（検証されないまま通る）は、誤発火（余分に検証が走るだけ）より危険が
 # 大きい。素通しになる綴りを表にして固定する。
+#
+# 表は2つ。
+#   gate_matches_commit — commit を見落とさないこと。落とすとゲートごと素通しする
+#   gate_target_dir     — 宛先が自明でない綴りは空（deny）にすること
 
 set -uo pipefail
 
@@ -21,7 +25,7 @@ expect_match() {
   fi
 }
 
-# 素通ししてはいけないもの
+# 見落としてはいけないもの
 expect_match CATCH 'git commit -m x'
 expect_match CATCH 'git commit'
 expect_match CATCH 'cd /x && git commit -m x'
@@ -33,6 +37,14 @@ expect_match CATCH 'git --work-tree /tmp/x --git-dir /tmp/x/.git commit -m x'
 expect_match CATCH 'git --namespace foo commit'
 expect_match CATCH 'git -c user.name=a commit'
 expect_match CATCH 'git -c foo.bar commit -m x'
+
+# オプションの値に空白が入っても commit まで届くこと。届かないとゲートは
+# deny も検証もせずに素通しする。
+expect_match CATCH "git -c 'user.name=A B' commit -m x"
+expect_match CATCH 'git -c "user.name=A B" commit -m x'
+expect_match CATCH "git -C '/tmp/My Books/repo' commit -m x"
+expect_match CATCH 'git -C "/tmp/My Books/repo" commit -m x'
+expect_match CATCH "git --work-tree '/tmp/My Books/r' --git-dir '/tmp/My Books/r/.git' commit -m x"
 
 # `-c` の次のトークンが設定名として消費されるので、`a` がサブコマンドになり
 # commit へ到達しない。素通ししても検証されないコミットは生まれない。
@@ -49,45 +61,42 @@ expect_dir() {
   local got
   got=$(gate_target_dir "$command" "$base")
   if [ "$got" != "$want" ]; then
-    printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$command"
+    printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（空）}" "${got:-（空）}" "$command"
     failures=$((failures + 1))
   fi
 }
 
-# 検証するのは、コミットされるツリー。
 here=$(git rev-parse --show-toplevel)
 other=$(git worktree list --porcelain | awk '/^worktree /{print $2}' | grep -v "^$here$" | head -1)
 
+# 宛先が自明な形。起点の作業ディレクトリで commit が1つだけ走る。
 expect_dir "$here" 'git commit -m x' "$here"
-expect_dir "$here" "git -C $here commit -m x" /
-expect_dir "$here" "tar -C /tmp x && git commit -m x" "$here"
-expect_dir "$here" "grep -C 3 foo f.txt && git commit -m x" "$here"
-expect_dir "$here" "git commit -m x && git -C /tmp log" "$here"
-expect_dir "" 'git -C /nonexistent/not-a-repo commit -m x' "$here"
-# --git-dir だけでは作業ツリーを一意に決められないので deny 側へ落とす
+expect_dir "$here" 'git commit -m "fix: 直した"' "$here"
+expect_dir "$here" 'git add -A && git commit -m x' "$here"
+[ -n "$other" ] && expect_dir "$other" 'git commit -m x' "$other"
+
+# 宛先が自明でない綴りは、素通しさせずに deny 側へ落とす。
+# 「解決しようとして間違える」より「止める」を選んだ結果なので、
+# ここに並ぶ綴りが増えても deny のままでよい。
+target=${other:-/tmp}
+expect_dir "" "git -C $target commit -m x" "$here"
+expect_dir "" "git --work-tree $target --git-dir $target/.git commit -m x" "$here"
 expect_dir "" 'git --git-dir=/tmp/x/.git commit -m x' "$here"
-
-# cd で移った先がコミットされるツリー。Bash の作業ディレクトリは呼び出しを
-# 跨いで持続するので、起点は payload の cwd から渡す。
-if [ -n "$other" ]; then
-  expect_dir "$other" "cd $other && git commit -m x" "$here"
-  expect_dir "$other" "cd $other; git commit -m x" "$here"
-  expect_dir "$here" "cd $other && git -C $here commit -m x" "$here"
-  expect_dir "$other" 'git commit -m x' "$other"
-  expect_dir "$other" "cd '$other' && git commit -m x" "$here"
-  expect_dir "$other" "cd \"$other\" && git commit -m x" "$here"
-  expect_dir "$other" "(cd $other && git commit -m x)" "$here"
-  expect_dir "$other" "pushd $other && git commit -m x" "$here"
-
-  # 解釈できない綴りは、素通しさせずに deny 側へ落とす
-  expect_dir "" "env -C $other git commit -m x" "$here"
-  expect_dir "" 'cd $TARGET && git commit -m x' "$here"
-  expect_dir "" 'cd ~/obs-shogi && git commit -m x' "$here"
-  expect_dir "" "sh -c 'cd $other && git commit -m x'" "$here"
-  expect_dir "" "cd $here && git commit -m a && cd $other && git commit -m b" "$here"
-else
-  echo "SKIP  比較用のワークツリーが無いので cd 系のケースは走らせていない"
-fi
+expect_dir "" "cd $target && git commit -m x" "$here"
+expect_dir "" "cd '$target' && git commit -m x" "$here"
+expect_dir "" "cd $target; git commit -m x" "$here"
+expect_dir "" "cd $target&&git commit -m x" "$here"
+expect_dir "" "(cd $target && git commit -m x)" "$here"
+expect_dir "" "pushd $target && git commit -m x" "$here"
+expect_dir "" "builtin cd $target && git commit -m x" "$here"
+expect_dir "" "env -C $target git commit -m x" "$here"
+expect_dir "" "env --chdir=$target git commit -m x" "$here"
+expect_dir "" "sh -c 'cd $target && git commit -m x'" "$here"
+expect_dir "" 'cd $TARGET && git commit -m x' "$here"
+expect_dir "" 'cd ~/obs-shogi && git commit -m x' "$here"
+expect_dir "" 'cd $(dirname /tmp/x) && git commit -m x' "$here"
+expect_dir "" 'git commit -m a && git commit -m b' "$here"
+expect_dir "" 'git commit -m x' /nonexistent/not-a-repo
 
 if [ "$failures" -eq 0 ]; then
   echo "verify-gate: 全て期待どおり"
