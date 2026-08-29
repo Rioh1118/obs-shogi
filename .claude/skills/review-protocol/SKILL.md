@@ -17,7 +17,7 @@ user-invocable: false
 
 ## このプロジェクトの実態（前提を間違えないこと）
 
-- テストは TS 側4ファイル・33件 / Rust 側 `#[test]` 0個。**`cargo test` の green は何も保証しない**。「テストが通るので安全」と書かない
+- テストは TS 側が片手で数えられる本数 / Rust 側 `#[test]` 0個（現在値は `npm run test` で確認）。**`cargo test` の green は何も保証しない**。「テストが通るので安全」と書かない
 - 検証は `npm run verify`（tsc + oxlint + vitest、約8秒）と `npm run verify:rust`（fmt + clippy + test、約2分15秒）
 - E2E は無い。今後も作らない（`tauri-driver` が macOS 非対応のため）
 - 対象画面サイズは **MacBook 相当以上**（幅 1280px 以上）。スマホ・タブレット対応は要求しない

@@ -83,7 +83,7 @@ beforeEach(() => {
 });
 
 describe("useEnginePositionSync", () => {
-  it("送信中にエンジンが切り替わったら、古い送信の結果を書き戻さない", async () => {
+  it("送信中にエンジンが切り替わったら、古い結果を書き戻さず、新しいエンジンへ送り直す", async () => {
     const inFlight = deferred<void>();
     setPositionFromSfen.mockReturnValueOnce(inFlight.promise);
 
@@ -191,7 +191,7 @@ describe("useEnginePositionSync", () => {
     expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
   });
 
-  it("syncPosition の identity が変わるのは局面が変わったときだけ", async () => {
+  it("局面が変わらない限り syncPosition の identity は変わらない", async () => {
     setPositionFromSfen.mockResolvedValue(undefined);
 
     const identities: unknown[] = [];

@@ -5,11 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 import type { PositionSyncAdapter } from "@/entities/analysis";
 
-const isNotInitializedError = (e: unknown) => {
-  const msg = e instanceof Error ? e.message : String(e);
-  return msg.includes("NotInitialized") || msg.includes("Engine not initialized");
-};
-
 /**
  * 盤の現在局面をエンジンに送り続ける。
  *
@@ -69,11 +64,9 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   const lastEngineKeyRef = useRef<string | null>(engineKey);
   const lastReadyRef = useRef(isReady);
 
-  // --- 多重呼び出し対策の中核 ---
   const inFlightRef = useRef<Promise<void> | null>(null);
   const queuedSfenRef = useRef<string | null>(null);
 
-  // ready前の保留（NotInitialized 根絶）
   const pendingBeforeReadyRef = useRef<string | null>(null);
 
   const currentSfen = gameView.currentSfen;
@@ -87,26 +80,21 @@ export function useEnginePositionSync(): PositionSyncAdapter {
       return;
     }
 
-    // ready前は送らない（保留して終了）
     if (!isReady) {
       pendingBeforeReadyRef.current = sfen;
       return;
     }
 
-    // すでに送れてるなら何もしない
     if (syncedSfenRef.current === sfen && syncedEngineKeyRef.current === engineKeyRef.current) {
       return;
     }
 
-    // 送りたい最新をキューに積む（latest wins）
     queuedSfenRef.current = sfen;
 
-    // すでに送信中なら、ここで終わり（多重送信を防ぐ）
     if (inFlightRef.current) {
       return inFlightRef.current;
     }
 
-    // 送信ループ：キューがある限り直列に送る（最後の1つだけが最終反映）
     inFlightRef.current = (async () => {
       let failure: unknown = null;
 
@@ -122,17 +110,13 @@ export function useEnginePositionSync(): PositionSyncAdapter {
           await setPositionFromSfen(target);
           failure = null;
         } catch (e) {
-          // ここへ来る時点で isReady は必ず true（false なら送信前に保留して返している）。
-          // つまり NotInitialized はフロント側の準備完了判定が実態とずれている印であり、
-          // ready の再遷移は来ない。保留しても誰も引かないので呼び出し元へ投げる。
-          if (isNotInitializedError(e)) {
-            failure = e;
-            continue;
-          }
-
-          // 送信の失敗でキューを捨てない。失敗したのは target であって、
-          // その後に積まれた新しい局面まで巻き添えにすると、盤は進んでいるのに
-          // エンジンには誰も送らない状態が残る。
+          // キューを捨てない。失敗したのは target であって、その後に積まれた
+          // 新しい局面まで巻き添えにすると、盤は進んでいるのにエンジンには
+          // 誰も送らない状態が残る。
+          //
+          // NotInitialized も他の失敗と区別しない。ここへ来る時点で isReady は必ず true
+          // （false なら送信前に保留して返している）ので、これはフロント側の準備完了判定が
+          // 実態とずれている印であり、ready の再遷移を待っても来ない。
           failure = e;
           continue;
         }
@@ -164,8 +148,10 @@ export function useEnginePositionSync(): PositionSyncAdapter {
 
   // エンジンは engineKey が変わらなくても再起動しうる（AI ルートの変更など）。
   // 起動し直されたプロセスには何も送られていないので、送信済みの記録を捨てる。
-  // この effect は自動同期より先に宣言してあること。順序が逆だと
-  // 「すでに送れてる」の判定に古い記録が残ったまま当たる。
+  //
+  // この effect は、保留していた局面を送り直す effect（下）より先に置くこと。
+  // 逆にすると、そちらの syncPosition() が古い記録に対する「すでに送れてる」の
+  // 判定で早期 return し、再起動後のエンジンへ一度も送られない。
   useEffect(() => {
     if (lastReadyRef.current === isReady) return;
 

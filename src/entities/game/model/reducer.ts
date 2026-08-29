@@ -40,9 +40,11 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         selectedPosition: action.payload,
       };
 
-    // 値が変わらないなら同じ参照を返す。新しいオブジェクトを返すと state の identity が
-    // 変わり、それだけで contextValue が作り直されて useGame() の消費者が全部再レンダする。
-    // 空きマスのクリックや、いま居る手数への移動で毎回これが起きていた。
+    // 以下3つは値が変わらないなら同じ参照を返す。新しいオブジェクトを返すと state の
+    // identity が変わり、それだけで contextValue が作り直されて useGame() の消費者が
+    // 全部再レンダする。空きマスのクリックといま居る手数への移動は、値が変わらないまま
+    // この dispatch を撃つ経路。
+    // set_error / set_selection は値の変化が実質必ず伴うので短絡しない。
     case "clear_selection":
       return state.selectedPosition === null ? state : { ...state, selectedPosition: null };
 

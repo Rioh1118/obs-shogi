@@ -102,7 +102,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const POSITION_SYNC_TIMEOUT_MS = 2000;
   const POSITION_SYNC_TIMEOUT_MESSAGE = "エンジンに現在の局面を送れませんでした";
 
-  const waitUntil = async (cond: () => boolean, timeoutMs = 1500) => {
+  const waitUntil = async (cond: () => boolean, timeoutMs: number) => {
     const start = Date.now();
     while (!cond()) {
       if (Date.now() - start > timeoutMs) return false;
