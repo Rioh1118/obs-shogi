@@ -219,6 +219,32 @@ fn every_path_taking_command_checks_the_root() {
         }
     }
 
+    // 関門は**存在確認より前**に置く。後ろに置くと、root 外のパスについて
+    // `is_file()` / `is_dir()` / `read_dir` の結果まで返してしまう。
+    // 規則がコメントにしか無いと、10個目のコマンドを足す人が順序を逆にしても緑になる
+    let mut wrong_order: Vec<String> = Vec::new();
+    for (file, source) in &files {
+        for (name, body) in commands(source) {
+            let Some(guard_at) = body.find(GUARD) else {
+                continue;
+            };
+            for probe in [".exists()", "ensure_not_exists(", ".is_dir()", ".is_file()"] {
+                if let Some(at) = body.find(probe) {
+                    if at < guard_at {
+                        wrong_order.push(format!(
+                            "{file}: {name} が {probe} を関門より前に呼んでいる"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        wrong_order.is_empty(),
+        "関門より前に存在や種類を見ている:\n{}",
+        wrong_order.join("\n")
+    );
+
     let mut missing_extra: Vec<String> = Vec::new();
     for (_, source) in &files {
         for (name, body) in commands(source) {

@@ -133,10 +133,19 @@
 
   // 解決しようとして失敗した理由。入力欄のすぐ下に置く。
   // 画面隅に出すと、直すべき入力から目が離れる
+  // 入力の直下に出す失敗は、ツリーの入力欄（`.inline-name-editor__error`）と
+  // 同じ形にする。輪郭は意味色の帯で示す（1px の枠だけだと地に対して 1.66:1 で
+  // 箱として見えない）。独立した通知の面は `FsErrorView` が持つ
   &__error {
     margin: 0;
+    padding: index.$space-1 index.$space-3;
+    border: 1px solid rgba(index.$color-danger, 0.4);
+    border-left: 3px solid index.$color-danger;
+    border-radius: index.$radius-2;
+    background: index.$surface-danger;
+
+    color: index.$color-text-primary;
     font-size: index.$font-hint;
-    color: index.$color-danger-text;
   }
 
   &__actions {

@@ -15,7 +15,7 @@ import {
   type ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
 
-import { createDir } from "@/entities/file-tree/api/service";
+import { createDir } from "@/entities/file-tree";
 import { describeFsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { copyText } from "@/shared/api/clipboard/copyText";

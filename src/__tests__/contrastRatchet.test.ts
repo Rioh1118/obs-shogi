@@ -44,7 +44,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに面の側を直すこと。
  */
-const MEASURED_COUNT = 52;
+const MEASURED_COUNT = 53;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -63,8 +63,9 @@ const MEASURED_COUNT = 52;
  *
  * - +1 `FileConflictDialog` の入力欄を `:disabled` から `:read-only` へ
  * - +2 `FsErrorView` の詳細にスクロールバーのつまみを戻した
+ * - −1 `.file-conflict__error` に不透明な面を与えて測れるようにした
  */
-const UNMEASURED_COUNT = 409;
+const UNMEASURED_COUNT = 408;
 
 const rows: Row[] = [];
 let measured = 0;
@@ -120,7 +121,7 @@ describe("SCSS のコントラスト", () => {
     expect(
       measured,
       [
-        `測れた対が ${MEASURED_COUNT} 件から ${measured} 件に減った。`,
+        `測れた対が ${MEASURED_COUNT} 件から ${measured} 件になった。`,
         "面を半透明にすると、その配下は「どの親に載るか」が決まらず測れなくなる。",
         "面を不透明にするか、scanContrast に surface を渡すこと。",
         `増えたなら MEASURED_COUNT を ${measured} に上げること。`,

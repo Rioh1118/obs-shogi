@@ -6,7 +6,7 @@ import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { readFile } from "@/entities/file-tree/api/fileSystem";
+import { readFile } from "@/entities/file-tree";
 import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 
 type Props = {

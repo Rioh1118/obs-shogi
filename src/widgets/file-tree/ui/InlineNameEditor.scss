@@ -19,8 +19,9 @@
 
   padding: index.$space-1 index.$space-3;
   border-radius: index.$radius-2;
-  // 輪郭は意味色の帯で示す。1px の枠だけだとサイドバーの地に対して 1.66:1 で、
-  // 箱として見えない（`FsErrorView` と同じ形にする）
+  // 輪郭は意味色の帯で示す。1px の枠だけだと地に対して 1.66:1 で箱として見えない。
+  // 入力の直下に出す失敗はこの形で揃える（`.file-conflict__error` も同じ）。
+  // 独立した通知の面は `FsErrorView` が持つ
   border: 1px solid rgba(index.$color-danger, 0.4);
   border-left: 3px solid index.$color-danger;
   background: index.$surface-danger;

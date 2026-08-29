@@ -59,7 +59,12 @@ pub fn validate_basename(name: &str) -> Result<String, FsError> {
     Ok(trimmed.to_string())
 }
 
-/// AppConfig.root_dir を取得（未設定なら None）
+/// AppConfig.root_dir を取得（未設定なら None）。
+///
+/// **`AppConfig` を写さない。** 形を手で写すと、`serde` は欠けたフィールドを
+/// 黙って `None` にするので、`config_dir` 側で改名やネスト化をした瞬間に
+/// この関門が**全パスで開いたまま**コンパイルも `cargo test` も通る。
+/// 型を借りていれば、その変更は型検査に当たる
 fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsError> {
     let cfg_path = app
         .path()
@@ -70,11 +75,7 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
         return Ok(None);
     }
     let data = fs::read_to_string(&cfg_path).map_err(FsError::from)?;
-    #[derive(serde::Deserialize)]
-    struct Cfg {
-        root_dir: Option<String>,
-    }
-    let cfg: Cfg = serde_json::from_str(&data)
+    let cfg: crate::config_dir::AppConfig = serde_json::from_str(&data)
         .map_err(|e| FsError::new(FsErrorCode::InvalidPath, e.to_string()))?;
     Ok(cfg.root_dir.map(PathBuf::from))
 }
