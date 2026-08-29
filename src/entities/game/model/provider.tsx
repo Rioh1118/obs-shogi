@@ -50,16 +50,19 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [persistence],
   );
 
-  const view = useMemo<GameView>(() => {
+  // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
+  // 「駒をクリックしただけ」でも JKFPlayer を作り直すことになり、
+  // currentSfen の identity が変わって下流のエンジン同期や解析まで巻き添えで再実行される。
+  const cursorView = useMemo<Omit<GameView, "legalMoves">>(() => {
     if (!state.jkf) {
       return {
         player: null,
-        legalMoves: [],
         lastMove: null,
         currentMove: undefined,
         currentComments: [],
         currentTurn: Color.Black,
         totalMoves: 0,
+        currentSfen: null,
       };
     }
 
@@ -102,41 +105,52 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         currentTurn = Color.Black;
       }
 
-      let legalMoves: ShogiMove[] = [];
+      // SFEN の手数フィールドは 1 始まり（shogi.js の既定値も 1）。
+      // 初期局面の tesuu 0 をそのまま渡すと USI 側で不正な position になるため丸める。
+      let currentSfen: string | null = null;
       try {
-        const sel = state.selectedPosition;
-        if (sel) {
-          if (sel.type === "square") {
-            legalMoves = moveValidator.getLegalMovesFrom(player.shogi, sel.x, sel.y);
-          } else {
-            legalMoves = moveValidator.getLegalDropsByKind(player.shogi, sel.color, sel.kind);
-          }
-        }
+        currentSfen = player.shogi ? player.shogi.toSFENString(player.tesuu || 1) : null;
       } catch {
-        legalMoves = [];
+        currentSfen = null;
       }
 
       return {
         player,
-        legalMoves,
         lastMove: lastMovePlayer(player),
         currentMove,
         currentComments,
         currentTurn,
         totalMoves,
+        currentSfen,
       };
     } catch {
       return {
         player: null,
-        legalMoves: [],
         lastMove: null,
         currentMove: undefined,
         currentComments: [],
         currentTurn: Color.Black,
         totalMoves: 0,
+        currentSfen: null,
       };
     }
-  }, [state.jkf, state.cursor, state.branchPlan, state.selectedPosition, moveValidator]);
+  }, [state.jkf, state.cursor, state.branchPlan]);
+
+  const legalMoves = useMemo<ShogiMove[]>(() => {
+    const player = cursorView.player;
+    const sel = state.selectedPosition;
+    if (!player || !sel) return [];
+
+    try {
+      return sel.type === "square"
+        ? moveValidator.getLegalMovesFrom(player.shogi, sel.x, sel.y)
+        : moveValidator.getLegalDropsByKind(player.shogi, sel.color, sel.kind);
+    } catch {
+      return [];
+    }
+  }, [cursorView.player, state.selectedPosition, moveValidator]);
+
+  const view = useMemo<GameView>(() => ({ ...cursorView, legalMoves }), [cursorView, legalMoves]);
 
   const navigate = useCallback(
     (
@@ -612,64 +626,103 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [state.jkf, state.branchPlan],
   );
 
-  const helpers: JKFPlayerHelpers = {
-    isLegalMove: (jkfPlayer, move) => {
-      try {
-        return moveValidator.isLegalMove(jkfPlayer.shogi, move);
-      } catch {
-        return false;
-      }
-    },
-    canPromoteMove: (jkfPlayer, move) => {
-      try {
-        return moveValidator.canPromote(jkfPlayer.shogi, move);
-      } catch {
-        return false;
-      }
-    },
-    mustPromoteMove: (jkfPlayer, move) => {
-      try {
-        return moveValidator.mustPromote(jkfPlayer.shogi, move);
-      } catch {
-        return false;
-      }
-    },
-  };
+  const helpers = useMemo<JKFPlayerHelpers>(
+    () => ({
+      isLegalMove: (jkfPlayer, move) => {
+        try {
+          return moveValidator.isLegalMove(jkfPlayer.shogi, move);
+        } catch {
+          return false;
+        }
+      },
+      canPromoteMove: (jkfPlayer, move) => {
+        try {
+          return moveValidator.canPromote(jkfPlayer.shogi, move);
+        } catch {
+          return false;
+        }
+      },
+      mustPromoteMove: (jkfPlayer, move) => {
+        try {
+          return moveValidator.mustPromote(jkfPlayer.shogi, move);
+        } catch {
+          return false;
+        }
+      },
+    }),
+    [moveValidator],
+  );
 
-  const contextValue: GameContextType = {
-    state,
-    view,
-    helpers,
-    loadGame,
-    resetGame,
-    goToIndex,
-    nextMove,
-    previousMove,
-    goToStart,
-    goToEnd,
-    selectSquare,
-    selectHand,
-    clearSelection,
-    makeMove,
-    swapBranches,
-    deleteBranch,
-    getCommentsByCursor,
-    setCommentsByCursor,
-    setCurrentComments,
-    clearError,
-    isGameLoaded,
-    isAtStart,
-    isAtEnd,
-    canGoForward,
-    canGoBackward,
-    getCurrentTurn,
-    getCurrentMoveIndex,
-    getTotalMoves,
-    hasSelection,
-    getCurrentMove,
-    getCurrentComments,
-    applyCursor,
-  };
+  const contextValue = useMemo<GameContextType>(
+    () => ({
+      state,
+      view,
+      helpers,
+      loadGame,
+      resetGame,
+      goToIndex,
+      nextMove,
+      previousMove,
+      goToStart,
+      goToEnd,
+      selectSquare,
+      selectHand,
+      clearSelection,
+      makeMove,
+      swapBranches,
+      deleteBranch,
+      getCommentsByCursor,
+      setCommentsByCursor,
+      setCurrentComments,
+      clearError,
+      isGameLoaded,
+      isAtStart,
+      isAtEnd,
+      canGoForward,
+      canGoBackward,
+      getCurrentTurn,
+      getCurrentMoveIndex,
+      getTotalMoves,
+      hasSelection,
+      getCurrentMove,
+      getCurrentComments,
+      applyCursor,
+    }),
+    [
+      state,
+      view,
+      helpers,
+      loadGame,
+      resetGame,
+      goToIndex,
+      nextMove,
+      previousMove,
+      goToStart,
+      goToEnd,
+      selectSquare,
+      selectHand,
+      clearSelection,
+      makeMove,
+      swapBranches,
+      deleteBranch,
+      getCommentsByCursor,
+      setCommentsByCursor,
+      setCurrentComments,
+      clearError,
+      isGameLoaded,
+      isAtStart,
+      isAtEnd,
+      canGoForward,
+      canGoBackward,
+      getCurrentTurn,
+      getCurrentMoveIndex,
+      getTotalMoves,
+      hasSelection,
+      getCurrentMove,
+      getCurrentComments,
+      applyCursor,
+    ],
+  );
 
   return <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>;
 }

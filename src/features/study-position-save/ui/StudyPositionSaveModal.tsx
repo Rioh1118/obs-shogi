@@ -4,7 +4,6 @@ import type { Kind } from "shogi.js";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { usePositionSync } from "@/app/providers/bridges/position-sync";
 import { useGame } from "@/entities/game";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
@@ -26,8 +25,8 @@ export default function StudyPositionSaveModal() {
   const { params, closeModal } = useURLParams();
   const isOpen = params.modal === "study-position-save";
 
-  const { currentSfen } = usePositionSync();
-  const { state: gameState, getCurrentMoveIndex } = useGame();
+  const { state: gameState, view: gameView, getCurrentMoveIndex } = useGame();
+  const currentSfen = gameView.currentSfen;
 
   const { findBySfen, addPosition, updatePosition, deletePosition } = useStudyPositions();
 

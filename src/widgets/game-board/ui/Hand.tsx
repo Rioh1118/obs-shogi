@@ -1,5 +1,5 @@
 import { Color, type Kind } from "shogi.js";
-import PieceFactory from "./PieceFactory";
+import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
 import { useEffect, useState } from "react";
