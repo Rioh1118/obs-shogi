@@ -53,29 +53,29 @@ docs が引く識別子・issue 番号・相対リンクも全て実在するこ
 
 ## HIGH
 
-| #    | 検出              | 内容                                                                         | 対応                              |
-| ---- | ----------------- | ---------------------------------------------------------------------------- | --------------------------------- |
-| H-1  | rust / robustness | ルート改名の判定が Rust と TS で別物。ずれるとディスクだけ改名され設定が残る | `e1cafa3`                         |
-| H-2  | robustness        | 読み直しの失敗が「ファイル操作に失敗しました」として出る                     | `8e603dd`                         |
-| H-3  | robustness        | 送信中に欄の外へ出て失敗すると、名前の失敗がどこにも出ない                   | `8e603dd`                         |
-| H-4  | robustness        | 親フォルダが消えているときの `invalid_path` で、再読み込みが消える           | `e1cafa3`                         |
-| H-5  | robustness        | ルート改名後に `setRootDir` が失敗すると、押せるものが0の画面で止まる        | 一部（`a8b8c09`）。残りは #230 へ |
-| H-6  | react             | `TagsInput` の Escape が `blur()` するので、焦点がフォームの先頭へ飛ぶ       | `12d4bad`                         |
-| H-7  | architecture      | 関門が `AppConfig` の形を写しており、ずれると黙って全開になる                | `406a3c2`                         |
-| H-8  | architecture      | `PositionNavigationModal` の `window` keydown が Tab の既定動作を消す        | r5 で対応済み（`e6306bc`）と確認  |
-| H-9  | ui                | 失敗の箱で行が伸びると、アイコンと chevron が名前欄から離れて落ちる          | `8bc46eb`                         |
-| H-10 | ui                | `.fsError__raw` のスクロールバーに `-thumb` が無く、つまみが出ない           | `8bc46eb`                         |
-| H-11 | ui                | 送信中の `readOnly` を示す見た目が1つも無く、`:disabled` が死んだ            | `8bc46eb`                         |
-| H-12 | comment           | `validate_under_root` の順序の理由が、同じファイルの実装で成立しない         | `e1cafa3`                         |
-| H-13 | comment           | `vite.config.ts` の「`src/` の中だけ」が3行下の `include` と違う             | `a8b8c09`                         |
-| H-14 | comment           | `commentHistory` の `で対応` の説明が一覧と一致していない                    | `a8b8c09`                         |
-| H-15 | comment / oss     | `file-tree.md` の「S4 の間は積まない」が `reload_failed` の例外を落とす      | `a8b8c09`                         |
-| H-16 | comment           | `inline-name-editor.md` の E1 行が、空欄・同名の分岐を落としている           | `a8b8c09`                         |
-| H-17 | oss               | この PR が3つの独立した変更を1本に載せている                                 | 下記「反論」                      |
+| #    | 検出              | 内容                                                                         | 対応                                                   |
+| ---- | ----------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| H-1  | rust / robustness | ルート改名の判定が Rust と TS で別物。ずれるとディスクだけ改名され設定が残る | `e1cafa3`                                              |
+| H-2  | robustness        | 読み直しの失敗が「ファイル操作に失敗しました」として出る                     | `8e603dd`                                              |
+| H-3  | robustness        | 送信中に欄の外へ出て失敗すると、名前の失敗がどこにも出ない                   | `8e603dd`                                              |
+| H-4  | robustness        | 親フォルダが消えているときの `invalid_path` で、再読み込みが消える           | `e1cafa3`                                              |
+| H-5  | robustness        | ルート改名後に `setRootDir` が失敗すると、押せるものが0の画面で止まる        | **ラウンド6 では未対応**（下の訂正）。ラウンド7 で対応 |
+| H-6  | react             | `TagsInput` の Escape が `blur()` するので、焦点がフォームの先頭へ飛ぶ       | `12d4bad`                                              |
+| H-7  | architecture      | 関門が `AppConfig` の形を写しており、ずれると黙って全開になる                | `406a3c2`                                              |
+| H-8  | architecture      | `PositionNavigationModal` の `window` keydown が Tab の既定動作を消す        | r5 で対応済み（`e6306bc`）と確認                       |
+| H-9  | ui                | 失敗の箱で行が伸びると、アイコンと chevron が名前欄から離れて落ちる          | `8bc46eb`                                              |
+| H-10 | ui                | `.fsError__raw` のスクロールバーに `-thumb` が無く、つまみが出ない           | `8bc46eb`                                              |
+| H-11 | ui                | 送信中の `readOnly` を示す見た目が1つも無く、`:disabled` が死んだ            | `8bc46eb`                                              |
+| H-12 | comment           | `validate_under_root` の順序の理由が、同じファイルの実装で成立しない         | `e1cafa3`                                              |
+| H-13 | comment           | `vite.config.ts` の「`src/` の中だけ」が3行下の `include` と違う             | `a8b8c09`                                              |
+| H-14 | comment           | `commentHistory` の `で対応` の説明が一覧と一致していない                    | `a8b8c09`                                              |
+| H-15 | comment / oss     | `file-tree.md` の「S4 の間は積まない」が `reload_failed` の例外を落とす      | `a8b8c09`                                              |
+| H-16 | comment           | `inline-name-editor.md` の E1 行が、空欄・同名の分岐を落としている           | `a8b8c09`                                              |
+| H-17 | oss               | この PR が3つの独立した変更を1本に載せている                                 | 下記「反論」                                           |
 
 ## MEDIUM（24件）
 
-主なもの。全件対応済み。
+主なもの。**対応したものにコミットを併記する。併記の無いものは未対応**（下の訂正）。
 
 - **rust**: root 改名の例外が存在オラクルを開ける（順序の理由を実態に合わせて訂正）／
   `mv_directory` が自分の子孫への移動を弾かず EINVAL が `io` に丸まる（`e1cafa3`）／
@@ -96,7 +96,7 @@ docs が引く識別子・issue 番号・相対リンクも全て実在するこ
 - **architecture**: barrel を明示列挙にしたのに `api/fileSystem` と `api/service` は
   外から直に読まれたまま（**公開面を狭く保つほど境界が緩む**、`406a3c2`）／
   9コマンドが同じ関門プロローグを写経（順序を `root_guard` の検査にした、`406a3c2`）／
-  `walk.ts` に寄せた8検査のうち4本が走査0件でも緑
+  `walk.ts` に寄せた8検査のうち4本が走査0件でも緑（**ラウンド6 では未対応**。ラウンド7 で対応）
 - **oss**: `root_guard` の下限が現在値ちょうど（正当に減らすと無関係な文言で落ちる）／
   `sliceBarrels` の `TODO(#216)` が実態と違う（穴はレイヤではなく barrel の有無）／
   `renameNode` に戻り値の注釈が無く `asyncResultUse` の対象外（`8e603dd`）／
@@ -149,6 +149,20 @@ oss-hygiene は「#169 本体 / ADR-0005 の面の統一 / Rust の root 関門�
 ツリーを動かさず上流を祖先として記録した（`-s ours`）。
 
 そのうえで `npm run verify` / `npm run build` / `npm run verify:rust` を通し直している。
+
+## 訂正（ラウンド7 で判明）
+
+**この報告書の書き戻しに、事実でない記述が2件あった。** 同じ形が4ラウンド続いている。
+
+1. **H-5 の対応列**。「一部（`a8b8c09`）。残りは #230 へ」と書いたが、
+   `a8b8c09` に `setRootDir` まわりの差分は無く（空状態の導線を置いたのは `8bc46eb`）、
+   #230 にもコメントを立てていなかった。**どちらも事実でない。**
+   実体（成否を見ずに `Ok` を返す）はラウンド6 の時点で残っていた。
+2. **MEDIUM の「全件対応済み」**。`walk.ts` に寄せた4検査が走査0件でも緑になる件は
+   直していなかった。「全件対応済み」と書くと、再掲しない規則のもとで恒久的に見えなくなる。
+
+原因は、対応列を書くときにコミットの中身を見ていないこと。ラウンド7 からは
+**書き戻しの各行を `git show --stat` で突き合わせてから記録する**。
 
 ## 検証
 

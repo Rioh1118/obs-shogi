@@ -75,5 +75,7 @@ E3 で欄の下に出る。**行を押し広げる**（重ねない）。
 ## 埋まっていないもの
 
 - 送信中に呼び出し側が unmount する経路（reducer が畳む）。確定の結果は捨てられる。
-  `onUnshowable` は unmount 後に呼ばれるので、通知には出る
+  **`onUnshowable` はこの経路では呼ばれない**（立てるのは `onBlur` だけで、
+  DOM から外れても blur は発火しない）。この経路へ来る失敗は名前の失敗ではないので、
+  provider が `state.error` へ積んでおり通知には出る
 - IME の変換中に Enter を押した場合。`isComposing` を見ていない（`Modal` は見ている）。**未追跡**
