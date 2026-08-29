@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import { sanitizeJkf, sanitizeJkfMoves } from "../sanitizeJkf";
 
-/** 指し手の中身は空フォークの判定に関係しないので、区別が付く印だけ持たせる。 */
+/** 指し手の中身は空の変化の判定に関係しないので、区別が付く印だけ持たせる。 */
 function move(comment: string, forks?: JKFMove[][]): JKFMove {
   return forks ? { comments: [comment], forks } : { comments: [comment] };
 }
