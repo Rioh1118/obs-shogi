@@ -53,13 +53,13 @@
   &:hover:not(.tags-input--disabled) {
     background-color: rgba(index.$color-white, 0.1);
     border-color: index.$stroke-strong;
-    box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.25);
+    box-shadow: index.$shadow-control;
   }
 
   &--focused {
     background-color: rgba(index.$color-white, 0.1);
     border-color: index.$color-secondary-dark;
-    box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
+    box-shadow: index.$shadow-control;
 
     .tags-input__label-icon {
       color: index.$color-secondary-dark;
@@ -109,13 +109,13 @@
   font-size: 1.2rem;
   font-weight: 500;
   animation: tagSlideIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+  box-shadow: index.$shadow-control-press;
   transition: all 0.2s ease;
-  border: 0.1rem solid rgba(255, 255, 255, 0.2);
+  border: 0.1rem solid rgba(index.$color-white, 0.2);
 
   &:hover {
     transform: translateY(-0.1rem) scale(1.02);
-    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.25);
+    box-shadow: index.$shadow-control;
     background: rgba(index.$color-secondary-dark, 0.42);
   }
 }
@@ -207,13 +207,14 @@
   border: none;
   background: index.$color-secondary-solid;
   color: index.$color-white;
-  box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.2);
-  opacity: 0.9;
+  box-shadow: index.$shadow-control-press;
 
+  // 静止とホバーは面の色で分ける。opacity で薄くすると文字も一緒に薄まり、
+  // 4.79:1 のはずの白文字が実測 4.23:1 まで落ちる
   &:hover:not(:disabled) {
-    opacity: 1;
+    background: index.$color-secondary-solid-hover;
     transform: translateY(-0.1rem) scale(1.05);
-    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.15);
+    box-shadow: index.$shadow-control;
   }
 
   &:active:not(:disabled) {
@@ -229,7 +230,9 @@
 
 .tags-input__help {
   font-size: 1.1rem;
-  color: rgba(index.$color-text-light-1, 0.55);
+  // 面を敷いた span の中でも本文の基準を満たす所で止める。
+  // 0.55 だと地では 5.36:1 だが、span の面の上で 4.45:1 に落ちる
+  color: rgba(index.$color-text-light-1, 0.65);
   font-style: italic;
   margin-left: 0.4rem;
 
