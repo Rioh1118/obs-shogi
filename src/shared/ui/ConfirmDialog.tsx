@@ -1,4 +1,5 @@
-import Button from "@/shared/ui/Form/Button";
+import Button from "@/shared/ui/Button/Button";
+import Modal from "@/shared/ui/Modal";
 import "./ConfirmDialog.scss";
 
 interface ConfirmDialogProps {
@@ -11,6 +12,12 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+/**
+ * 取り消せない操作の確認（ADR-0004）。
+ *
+ * 実行する側を `danger` にして、押し分けを見た目で伝える。
+ * 同じ形のボタンを2つ並べると、どちらが破壊的かが色でしか分からなくなる。
+ */
 export default function ConfirmDialog({
   title,
   subtitle,
@@ -21,21 +28,27 @@ export default function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <div className="confirm-dialog-overlay" onClick={onCancel}>
-      <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+    <Modal
+      onClose={onCancel}
+      theme="dark"
+      size="sm"
+      padding="none"
+      scroll="none"
+      closeOnEsc={!isLoading}
+      closeOnOverlay={!isLoading}
+    >
+      <div className="confirm-dialog">
         <p className="confirm-dialog__title">{title}</p>
         {subtitle && <p className="confirm-dialog__sub">{subtitle}</p>}
         <div className="confirm-dialog__actions">
-          <Button variant="ghost" onClick={onCancel} disabled={isLoading}>
+          <Button onClick={onCancel} disabled={isLoading}>
             {cancelLabel}
           </Button>
-          <Button variant="ghost" onClick={onConfirm} disabled={isLoading}>
-            <span className="confirm-dialog__danger-label">
-              {isLoading ? "削除中..." : confirmLabel}
-            </span>
+          <Button tone="danger" onClick={onConfirm} disabled={isLoading}>
+            {isLoading ? "削除中..." : confirmLabel}
           </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
