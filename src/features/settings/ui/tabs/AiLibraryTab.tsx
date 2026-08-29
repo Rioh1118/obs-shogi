@@ -3,7 +3,8 @@ import "./AiLibraryTab.scss";
 
 import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
-import { SButton, SField, SInput, SSection } from "../kit";
+import Button from "@/shared/ui/Button/Button";
+import { SField, SInput, SSection } from "../kit";
 import { useAppConfig } from "@/entities/app-config";
 import { chooseAiRoot } from "@/entities/app-config/api/directories";
 
@@ -208,28 +209,26 @@ export default function AiLibraryTab() {
               description="決めたルールのフォルダ構成でファイルを置くと自動検出します。"
               right={
                 <div className="aiLibraryTab__fieldActions">
-                  <SButton variant="primary" size="sm" onClick={onPick}>
+                  <Button tone="primary" size="sm" onClick={onPick}>
                     <FolderOpen size={16} style={{ marginRight: 6 }} />
                     選択…
-                  </SButton>
-                  <SButton
-                    variant="ghost"
+                  </Button>
+                  <Button
                     size="sm"
                     onClick={onOpenAiRoot}
                     disabled={!canOperate}
                     title="Finder/Explorer で開く"
                   >
                     開く
-                  </SButton>
-                  <SButton
-                    variant="ghost"
+                  </Button>
+                  <Button
                     size="sm"
                     onClick={() => copyText(localAiRoot)}
                     disabled={!canOperate}
                     title="パスをコピー"
                   >
                     <Copy size={16} />
-                  </SButton>
+                  </Button>
                 </div>
               }
             >
@@ -242,25 +241,23 @@ export default function AiLibraryTab() {
 
             <div className="aiLibraryTab__rowActions">
               {!enginesDirOk && (
-                <SButton
-                  variant="subtle"
+                <Button
                   size="sm"
                   onClick={onEnsureEngines}
                   disabled={!canOperate || scan.status === "loading"}
                 >
                   <Sparkles size={16} style={{ marginRight: 6 }} />
                   engines/ を作成
-                </SButton>
+                </Button>
               )}
-              <SButton
-                variant="ghost"
+              <Button
                 size="sm"
                 onClick={onOpenEnginesDir}
                 disabled={!canOperate}
                 title="engines/ を開く"
               >
                 engines/ を開く
-              </SButton>
+              </Button>
             </div>
 
             {scan.status === "error" && (

@@ -1,6 +1,7 @@
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 
-import { SButton, SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
+import { SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { pickDefaultBookDb, pickDefaultEvalFile } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
@@ -68,19 +69,18 @@ export default function BasicSection(props: {
           description={aiRoot ? `現在: ${aiRoot}` : "未設定です。AI_ROOT を選択してください。"}
         >
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <SButton variant="ghost" size="sm" onClick={() => chooseAiRoot?.()}>
+            <Button size="sm" onClick={() => chooseAiRoot?.()}>
               AI_ROOT を選択…
-            </SButton>
+            </Button>
 
-            <SButton
-              variant="ghost"
+            <Button
               size="sm"
               onClick={rescan}
               disabled={!aiRootReady || indexStatus === "loading"}
               isLoading={indexStatus === "loading"}
             >
               再スキャン
-            </SButton>
+            </Button>
           </div>
 
           {indexStatus === "error" && indexError && (

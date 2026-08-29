@@ -118,4 +118,28 @@
     display: flex;
     width: 100%;
   }
+
+  &__label {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-2;
+  }
+
+  // 処理中を回転で示す。止まって見えると押し直される
+  &__spinner {
+    width: index.$space-6;
+    height: index.$space-6;
+    flex: none;
+    border-radius: index.$radius-circle;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    opacity: 0.7;
+    animation: uiBtnSpin 0.8s linear infinite;
+  }
+}
+
+@keyframes uiBtnSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }

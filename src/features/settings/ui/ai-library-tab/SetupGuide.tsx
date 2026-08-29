@@ -9,7 +9,8 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-import { SButton, SField, SInput, SSection } from "../kit";
+import Button from "@/shared/ui/Button/Button";
+import { SField, SInput, SSection } from "../kit";
 import SettingsBadge from "../kit/SettingsBadge";
 import type { StepState } from "./steps/StepShell";
 import { Step1SelectRoot } from "./steps/Step1SelectRoot";
@@ -283,20 +284,20 @@ export default function SetupGuide({
         </div>
         <div className="setupGuide__heroActions">
           {nextAction.primaryLabel && (
-            <SButton
-              variant="primary"
+            <Button
+              tone="primary"
               size="sm"
               onClick={nextAction.onPrimary}
               disabled={!nextAction.onPrimary}
               isLoading={nextAction.primaryLoading}
             >
               {nextAction.primaryLabel}
-            </SButton>
+            </Button>
           )}
           {nextAction.secondaryLabel && nextAction.onSecondary && (
-            <SButton variant="ghost" size="sm" onClick={nextAction.onSecondary}>
+            <Button size="sm" onClick={nextAction.onSecondary}>
               {nextAction.secondaryLabel}
-            </SButton>
+            </Button>
           )}
         </div>
       </div>
@@ -397,8 +398,7 @@ export default function SetupGuide({
                   }}
                 />
               </div>
-              <SButton
-                variant="subtle"
+              <Button
                 size="sm"
                 onClick={() => void handleCreateFolder()}
                 isLoading={isCreatingFolder}
@@ -406,7 +406,7 @@ export default function SetupGuide({
               >
                 <Sparkles size={14} style={{ marginRight: 6 }} />
                 作成
-              </SButton>
+              </Button>
             </div>
           </SField>
         </SSection>

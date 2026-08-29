@@ -14,6 +14,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** ホバーの影と押下の沈み込み。並べて何度も押す場所では切る */
   motion?: boolean;
   block?: boolean;
+  /** 処理中。押せなくしたうえで、待っていることを支援技術にも伝える */
+  isLoading?: boolean;
   children: ReactNode;
 }
 
@@ -29,6 +31,8 @@ export default function Button({
   radius = "soft",
   motion = true,
   block = false,
+  isLoading = false,
+  disabled,
   className,
   children,
   ...rest
@@ -46,8 +50,15 @@ export default function Button({
     .join(" ");
 
   return (
-    <button type="button" className={classes} {...rest}>
-      {children}
+    <button
+      type="button"
+      className={classes}
+      disabled={disabled || isLoading}
+      aria-busy={isLoading || undefined}
+      {...rest}
+    >
+      <span className="uiBtn__label">{children}</span>
+      {isLoading && <span className="uiBtn__spinner" aria-hidden="true" />}
     </button>
   );
 }

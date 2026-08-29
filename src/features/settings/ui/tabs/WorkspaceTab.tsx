@@ -4,7 +4,7 @@ import "./WorkspaceTab.scss";
 import { Copy, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 import SSection from "../kit/SSection";
-import SButton from "../kit/SButton";
+import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
 import { usePositionSearch } from "@/entities/search";
@@ -97,9 +97,9 @@ export default function WorkspaceTab() {
         description="局面検索インデックスの準備状況を表示します。"
         actions={
           warns.length > 0 ? (
-            <SButton variant="ghost" size="sm" onClick={clearWarns}>
+            <Button size="sm" onClick={clearWarns}>
               警告をクリア
-            </SButton>
+            </Button>
           ) : null
         }
       >
@@ -180,10 +180,10 @@ export default function WorkspaceTab() {
         description="棋譜・ノート・タグなどのデータを保存する“Vault”です。通常は変更しません。"
         actions={
           <div className="wsTab__actions">
-            <SButton variant="ghost" size="sm" onClick={onCopyPath} disabled={isLoading}>
+            <Button size="sm" onClick={onCopyPath} disabled={isLoading}>
               <Copy size={16} />
               コピー
-            </SButton>
+            </Button>
           </div>
         }
       >
@@ -202,9 +202,9 @@ export default function WorkspaceTab() {
         </div>
 
         <div className="wsTab__dangerActions">
-          <SButton variant="danger" size="sm" onClick={() => setConfirmOpen(true)}>
+          <Button tone="danger" size="sm" onClick={() => setConfirmOpen(true)}>
             ワークスペースを変更…
-          </SButton>
+          </Button>
         </div>
 
         {confirmOpen && (
@@ -223,18 +223,18 @@ export default function WorkspaceTab() {
             />
 
             <div className="wsTab__confirmButtons">
-              <SButton variant="ghost" size="sm" onClick={() => setConfirmOpen(false)}>
+              <Button size="sm" onClick={() => setConfirmOpen(false)}>
                 キャンセル
-              </SButton>
-              <SButton
-                variant="danger"
+              </Button>
+              <Button
+                tone="danger"
                 size="sm"
                 onClick={onChangeWorkspace}
                 disabled={!canChange}
                 isLoading={isLoading}
               >
                 変更して再読み込み
-              </SButton>
+              </Button>
             </div>
           </div>
         )}
