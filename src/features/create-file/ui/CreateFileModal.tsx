@@ -25,6 +25,7 @@ function CreateFileModal() {
       label="ファイルを作成"
       variant="dialog"
       size="md"
+      padding="none"
       scroll="card"
     >
       <div className="create-file-modal">

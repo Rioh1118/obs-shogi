@@ -4,9 +4,10 @@
   display: flex;
   flex-direction: column;
   gap: index.$space-6;
-  // Modal 側の padding は none。中身が自分で持つ（他の対話と同じ形）。
-  // 両方が持つと、タブと Form の中の入力欄で左端が 30px ずれる
-  padding: index.$space-6 index.$space-6 0;
+  // 余白は中身が持つ（他の対話と同じ形。`Modal` には padding="none" を渡す）。
+  // タブと入力欄の左端が揃わないのは `Form` が自分の左右 padding を持つため。
+  // ここを合わせておくと、タブの左端が Form の見出しの左端と揃う
+  padding: index.$space-10 index.$space-12 0;
 
   // タブ
   &__tabs {
