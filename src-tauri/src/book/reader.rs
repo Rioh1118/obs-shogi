@@ -32,6 +32,20 @@ pub trait BookReader: Send + Sync {
 }
 
 /// 拡張子から形式を決めて reader を作る。
+///
+/// 検査の順序は、拡張子 → ファイルの実在。形式が分からないものは、たとえ
+/// 実在しても開きようが無いので先に弾く。存在しない `.txt` は `NotFound` ではなく
+/// `UnknownExtension` になる。
+///
+/// 返るもの:
+///
+/// - `UnknownExtension` — 拡張子が `.db` / `.bin` / `.sbk` / `.ybb` のどれでもない
+/// - `NotFound` / `PermissionDenied` / `Io` — metadata が取れない
+/// - `InvalidType` — ディレクトリなどファイルでないもの
+/// - `UnsupportedFormat` — 形式は分かるが reader をまだ持っていない
+///
+// TODO(#91): やねうら王テキスト定跡 (.db) の reader を足すまで、この関数は
+// 成功する経路を持たない。#[tauri::command] の open_book は必ず失敗する。
 pub fn open_reader(path: &Path) -> Result<Box<dyn BookReader>, BookError> {
     let format = BookFormat::from_path(path)?;
 

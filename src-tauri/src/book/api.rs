@@ -13,7 +13,8 @@ use tauri::State;
 
 /// 定跡を開いてハンドルを返す。
 ///
-/// 定跡は数百 MB になるので、読み込みは blocking プールへ逃がす。
+/// ファイルを読んで解析する処理なので、blocking プールへ逃がして
+/// コマンドの async ランタイムを塞がないようにする。
 ///
 /// 棋譜と違い、定跡はエンジン同梱のディレクトリや外付けドライブなど
 /// プロジェクト root の外に置かれる。`file_system` の `validate_under_root` は
@@ -152,8 +153,8 @@ pub async fn close_all_books(state: State<'_, BookState>) -> Result<usize, BookE
 
 /// 閉じる。ハンドルは以後 InvalidHandle になる。
 ///
-/// 解放も blocking プールで行う。定跡の Drop は数百万個の `String` の解放になり、
-/// IPC を受けたスレッドで走らせると閉じた瞬間に画面が固まる。
+/// 解放も blocking プールで行う。定跡の Drop は収録局面ぶんの `String` の解放に
+/// なるので、IPC を受けたスレッドで走らせると閉じた瞬間に画面が固まる。
 #[tauri::command]
 pub async fn close_book(
     state: State<'_, BookState>,

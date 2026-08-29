@@ -39,10 +39,11 @@ impl BookState {
     }
 
     /// reader を預かってハンドルを振る。
+    ///
+    /// ハンドルは 0 から始めない。フロントの未初期化値と衝突しないため。
+    /// 閉じたハンドルも配り直さない。再利用すると、close 済みのハンドルで引いた
+    /// 呼び出しが別の定跡に静かに当たる。
     pub fn register(&self, path: String, reader: Box<dyn BookReader>) -> BookInfo {
-        // 0 を配らないので、フロントの未初期化値と衝突しない。
-        // 閉じたハンドルを配り直すこともしないので、close 済みのハンドルで引くと
-        // 別の定跡に当たるのではなく必ず InvalidHandle になる。
         let handle = self.next_handle.fetch_add(1, Ordering::Relaxed) + 1;
 
         let info = BookInfo {
@@ -65,7 +66,9 @@ impl BookState {
 
     /// ハンドルの指す定跡を取り出す。
     ///
-    /// map のロックを跨いで読ませないために `Arc` を複製して返す。
+    /// map のロックを跨いで読ませないために `Arc` を複製して返す。返した `Arc` が
+    /// 生きている間は、close されても reader は解放されない。引いている最中に
+    /// 閉じられても落ちないための性質で、長く持ち回るとその間メモリが残る。
     pub fn get(&self, handle: BookHandle) -> Result<Arc<BookSession>, BookError> {
         self.books
             .get(&handle)
