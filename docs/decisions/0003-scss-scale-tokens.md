@@ -100,7 +100,7 @@ body {
 分類より先に色の段数を決めると、実装都合の段数が分類を先取りする。
 PR #73 が `info` / `warn` / `error` の3段だけを残した経路がこれにあたる。
 
-→ `.claude/handoffs/error-display-foundation.md` の「1. 種類を決める」の後に回す。
+→ `docs/OPEN-QUESTIONS.md` の Q-005（通知の種類をいくつに分けるか）が決まった後に回す。
 
 ### 6. 既存値は一括移行しない。ラチェットで守らせる
 

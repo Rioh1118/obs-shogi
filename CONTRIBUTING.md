@@ -213,7 +213,7 @@ gap: 0.75rem;
 
 **warning / danger / success / info の意味色はトークンにありません。** 段数が通知の分類に従属するため、
 分類が決まるまで置いていません。エラー表示を触るときは
-[#160](https://github.com/Rioh1118/obs-shogi/issues/160) を先に見てください。
+[OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) の Q-005 を先に見てください。
 
 命名（ブロック / エレメント / モディファイア）と `@use` の書き方も未決です。
 
