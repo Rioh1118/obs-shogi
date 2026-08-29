@@ -1,3 +1,4 @@
+import { toKan } from "@/entities/position/lib/toKan";
 import "./HandRow.scss";
 
 const HAND_ORDER = ["FU", "KY", "KE", "GI", "KI", "KA", "HI"];
@@ -11,10 +12,9 @@ const countKinds = (kinds: string[]) => {
 type Props = {
   label: string;
   kinds: string[];
-  toKan: (k: string) => string;
 };
 
-function HandRow({ label, kinds, toKan }: Props) {
+function HandRow({ label, kinds }: Props) {
   const counts = countKinds(kinds);
   const ordered = [
     ...HAND_ORDER.filter((k) => counts.has(k)),

@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -62,7 +60,6 @@ export default function StudyPositionSaveModal() {
     }
   }, [isOpen, existing]);
 
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
@@ -175,7 +172,7 @@ export default function StudyPositionSaveModal() {
         <div className="sp-save__body">
           <aside className="sp-save__left">
             <div className="sp-save__preview">
-              <PreviewPane previewData={previewData} toKan={toKan} />
+              <PreviewPane previewData={previewData} />
             </div>
             <div className="sp-save__context">
               {turnLabel && <span className="sp-save__contextItem">{turnLabel}</span>}

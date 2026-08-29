@@ -12,7 +12,6 @@ import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
 import { appliedForkPointers } from "@/entities/kifu/lib/cursorRuntime";
 import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
-import type { Kind } from "shogi.js";
 import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
 
@@ -197,7 +196,6 @@ function PositionNavigationModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm, closeModal]);
 
-  const toKan = (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k;
 
   // ---- render ----
   if (!isOpen) return null;
@@ -220,7 +218,7 @@ function PositionNavigationModal() {
         <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">
             <div className="position-navigation-modal__grid-left">
-              <PreviewPane previewData={previewData} toKan={toKan} />
+              <PreviewPane previewData={previewData} />
             </div>
             <div className="position-navigation-modal__grid-right">
               <BranchList

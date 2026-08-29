@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -57,7 +55,6 @@ export default function SfenKifuCreateModal() {
 
   const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
 
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const turnLabel = previewData ? (previewData.turn === 0 ? "先手番" : "後手番") : null;
 
@@ -146,7 +143,7 @@ export default function SfenKifuCreateModal() {
         ) : (
           <>
             <div className="sfen-kifu-create__preview">
-              <PreviewPane previewData={previewData} toKan={toKan} />
+              <PreviewPane previewData={previewData} />
               {turnLabel && <div className="sfen-kifu-create__turnBadge">{turnLabel}</div>}
             </div>
 

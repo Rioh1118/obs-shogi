@@ -8,11 +8,10 @@ import type { PreviewData } from "@/entities/position/model/preview";
 
 type Props = {
   previewData: PreviewData | null;
-  toKan: (k: string) => string;
 };
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-function PreviewPane({ previewData, toKan }: Props) {
+function PreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(320);
 
@@ -69,8 +68,8 @@ function PreviewPane({ previewData, toKan }: Props) {
       </div>
 
       <div className="position-navigation-modal__hands">
-        <HandRow label={SENTE_LABEL} kinds={hands[Color.Black] || []} toKan={toKan} />
-        <HandRow label={GOTE_LABEL} kinds={hands[Color.White] || []} toKan={toKan} />
+        <HandRow label={SENTE_LABEL} kinds={hands[Color.Black] || []} />
+        <HandRow label={GOTE_LABEL} kinds={hands[Color.White] || []} />
       </div>
     </div>
   );

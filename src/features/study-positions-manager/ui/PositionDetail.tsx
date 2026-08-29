@@ -1,6 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import { JKFPlayer } from "json-kifu-format";
-import type { Kind } from "shogi.js";
 
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
@@ -35,7 +33,6 @@ export default function PositionDetail({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const toKan = useMemo(() => (k: string) => JKFPlayer.kindToKan(k as Kind) ?? k, []);
 
   const previewData = useMemo(() => {
     if (!position) return null;
@@ -78,7 +75,7 @@ export default function PositionDetail({
   return (
     <div className="sp-detail">
       <div className="sp-detail__preview">
-        <PreviewPane previewData={previewData} toKan={toKan} />
+        <PreviewPane previewData={previewData} />
       </div>
 
       <div className="sp-detail__meta">
