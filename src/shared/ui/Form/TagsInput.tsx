@@ -50,7 +50,10 @@ export function TagsInput({
       addTag(inputValue);
     } else if (e.key === "Backspace" && !inputValue && tags.length > 0) {
       removeTag(tags.length - 1);
-    } else if (e.key === "Escape") {
+    } else if (e.key === "Escape" && inputValue) {
+      // 打ちかけの文字を消すのが先。消すものが無いときは止めないので、
+      // そのまま上のモーダルまで届いて閉じる
+      e.preventDefault();
       setInputValue("");
       inputRef.current?.blur();
     }

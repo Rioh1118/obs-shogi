@@ -155,6 +155,44 @@ describe("Modal のフォーカス", () => {
     expect(closeNote).not.toHaveBeenCalled();
   });
 
+  /**
+   * 中の入力が Escape を自分の用途に使う経路がある（`TagsInput` は打ちかけの
+   * 文字を消す）。キャプチャ段で聞くと、そこへ届く前に必ず閉じてしまい、
+   * 打ちかけどころかフォームの入力が全部消える
+   */
+  test("中の要素が Escape を使ったら閉じない", () => {
+    const onClose = vi.fn();
+
+    render(
+      <Modal onClose={onClose} label="対話">
+        <input
+          aria-label="タグ"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") e.preventDefault();
+          }}
+        />
+      </Modal>,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("タグ"), { key: "Escape" });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("中の要素が使わなければ、Escape で閉じる", () => {
+    const onClose = vi.fn();
+
+    render(
+      <Modal onClose={onClose} label="対話">
+        <input aria-label="タグ" />
+      </Modal>,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("タグ"), { key: "Escape" });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   test("最初の要素から Shift+Tab で外へ出ない", () => {
     render(
       <Modal onClose={vi.fn()} label="対話">

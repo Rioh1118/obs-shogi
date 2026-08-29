@@ -179,13 +179,8 @@ export default function PositionSearchModal() {
     closeModal({ skipReturn: true });
   };
 
+  // Escape は `Modal` が扱う。ここで拾うと受け口が2つになる
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      closeModal();
-      return;
-    }
-
     if (e.key === "Enter") {
       e.preventDefault();
       if (isSearching) return;
