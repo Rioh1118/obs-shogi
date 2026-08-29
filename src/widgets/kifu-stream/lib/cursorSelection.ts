@@ -1,4 +1,9 @@
-import { ROOT_CURSOR, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
+import {
+  ROOT_CURSOR,
+  normalizeForkPointers,
+  type ForkPointer,
+  type KifuCursor,
+} from "@/entities/kifu/model/cursor";
 import {
   branchIndexFromSelection,
   buildTesuuPointer,
@@ -18,7 +23,10 @@ export function buildCursorWithForkSelection(
   const prev = base ?? ROOT_CURSOR;
 
   const prefix = (prev.forkPointers ?? []).filter((p) => p.te < te);
-  const forkPointers: ForkPointer[] = forkIndex == null ? prefix : [...prefix, { te, forkIndex }];
+  const picked: ForkPointer[] = forkIndex == null ? prefix : [...prefix, { te, forkIndex }];
+  // buildTesuuPointer は並びをそのまま文字列にする。正規化を通さないと、
+  // 同じ局面が並び順の違いで別のキーになり、コメント欄の開閉判定が外れる。
+  const forkPointers = normalizeForkPointers(picked, te);
 
   return { tesuu: te, forkPointers, tesuuPointer: buildTesuuPointer(te, forkPointers) };
 }
