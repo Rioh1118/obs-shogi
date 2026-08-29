@@ -17,6 +17,21 @@ export async function fetchTree(rootPath: string): AsyncResult<FileTreeNode, FsE
   }
 }
 
+/**
+ * テキストとして読む。**投げない。**
+ *
+ * `api/fileSystem` の `readFile` は生の invoke の包みで投げるので、
+ * 呼び出し側が `catch {}` で握り潰すと、権限も見つからないも解析失敗も
+ * 同じ「何も出ない」に落ちる。公開面にはこちらだけを出す
+ */
+export async function readText(path: string): AsyncResult<string, FsError> {
+  try {
+    return { success: true, data: await fs.readFile(path) };
+  } catch (e) {
+    return { success: false, error: asFsError(e) };
+  }
+}
+
 export async function readKifu(node: FileTreeNode): AsyncResult<string, FsError> {
   try {
     const content = await fs.readFile(node.path);

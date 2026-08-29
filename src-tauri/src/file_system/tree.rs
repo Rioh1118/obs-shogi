@@ -7,6 +7,10 @@ use crate::file_system::error::{FsError, FsErrorCode};
 use super::types::FileTreeNode;
 use super::utils::{generate_id, get_file_extension, is_kifu_file, is_under, validate_under_root};
 
+// TODO(#215): 循環そのものは `Walk.ancestors` が止めるが、
+// symlink を辿るたびに `canonicalize` を1回呼ぶ。数万ファイルの木で
+// どれだけ効くかは測っていない
+
 /// 降りてよい深さの上限。
 ///
 /// 実体のディレクトリだけでもここまで積める人はいないが、**上限が無いと

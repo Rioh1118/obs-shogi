@@ -22,4 +22,4 @@ export type {
 export { useFileTree } from "./model/useFileTree";
 export { FileTreeProvider } from "./model/provider";
 export { default as FsErrorView } from "./ui/FsErrorView";
-export { readFile } from "./api/fileSystem";
+export { readText } from "./api/service";

@@ -6,7 +6,11 @@ use crate::file_system::utils::atomic_write;
 
 pub(crate) const CONFIG_FILE: &str = "app.json";
 
+/// **`#[serde(default)]` を外さない。** 外すと、フィールドを1つ足した時点で
+/// 既存利用者の `app.json` が parse に失敗し、パスを受ける全コマンドが落ちる
+/// （関門が `app.json` を読むため）。
 #[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct AppConfig {
     pub root_dir: Option<String>,
     pub ai_root: Option<String>,

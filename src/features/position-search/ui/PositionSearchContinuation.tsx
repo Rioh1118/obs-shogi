@@ -6,7 +6,7 @@ import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { readFile } from "@/entities/file-tree";
+import { describeFsError, readText } from "@/entities/file-tree";
 import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 
 type Props = {
@@ -51,9 +51,11 @@ function toText(content: unknown): string {
 }
 
 async function loadJkfData(absPath: string): Promise<JKFData> {
-  const raw = await readFile(absPath);
-  const text = toText(raw);
-  return parseKifuStringToJKF(text).jkf as JKFData;
+  const res = await readText(absPath);
+  // 投げる API を `catch {}` で握り潰すと、権限も見つからないも解析失敗も
+  // 同じ「続きが無い」に見える。理由を持ったまま上へ返す
+  if (!res.success) throw new Error(describeFsError(res.error.code));
+  return parseKifuStringToJKF(toText(res.data)).jkf as JKFData;
 }
 
 export default function PositionSearchContinuation({ activeHit, resolveAbsPath, ply = 3 }: Props) {

@@ -77,9 +77,15 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
     if !cfg_path.exists() {
         return Ok(None);
     }
-    let data = fs::read_to_string(&cfg_path).map_err(FsError::from)?;
-    let cfg: crate::config_dir::AppConfig = serde_json::from_str(&data)
-        .map_err(|e| FsError::new(FsErrorCode::InvalidPath, e.to_string()))?;
+    // 失敗しているのは**設定ファイル**であって、利用者が触ったパスではない。
+    // `path` を付けないと「その場所は扱えません」とだけ出て、原因が `app.json` に
+    // あることも、どのファイルの話でもないことも伝わらない
+    let named = |e: String| {
+        FsError::new(FsErrorCode::InvalidPath, e).with_path(cfg_path.to_string_lossy().to_string())
+    };
+    let data = fs::read_to_string(&cfg_path).map_err(|e| named(e.to_string()))?;
+    let cfg: crate::config_dir::AppConfig =
+        serde_json::from_str(&data).map_err(|e| named(e.to_string()))?;
     Ok(cfg.root_dir.map(PathBuf::from))
 }
 
