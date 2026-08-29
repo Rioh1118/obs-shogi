@@ -50,7 +50,14 @@ export type DeleteQuery = BranchPointRef & {
 };
 
 export type BranchEditResult = {
+  /** 棋譜を書き換えたか。`false` なら渡した `kifu` は無傷。 */
   changed: boolean;
+  /**
+   * 編集後のカーソル。
+   *
+   * `null` になるのは `cursor` を渡さなかったときだけ。編集が別の stream で起きて
+   * カーソルに影響しない場合は、渡した `cursor` がそのまま返る。
+   */
   nextCursor: KifuCursor | null;
 };
 
