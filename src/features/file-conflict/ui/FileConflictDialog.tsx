@@ -75,6 +75,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       theme="dark"
       variant="dialog"
       size="sm"
+      padding="none"
       scroll="content"
       closeOnEsc={!isSubmitting}
       closeOnOverlay={!isSubmitting}
