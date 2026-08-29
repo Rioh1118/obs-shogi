@@ -22,6 +22,14 @@ body {
   box-sizing: border-box;
 }
 
+// UA スタイルが自前の font を当てるため、書かないと body の基準も書体も継承しない
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 * {
   scrollbar-width: none; // Firefox
   -ms-overflow-style: none; // IE and Edge
