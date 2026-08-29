@@ -146,8 +146,14 @@ overlay が `inset: 0` だった場合の値。現行は `top` が 26px ある�
 - reviewer: `comment`
 - 対応: `05a3324`
 
-他のモーダルの根はすべて `height: 100%; min-height: 0`。ここだけ違うので揃え忘れに見える。
-揃えるとカードの高さが不定な大きいウィンドウで百分率が `auto` に落ち、内容の高さまで縮む。
+カードいっぱいに広げる他のモーダルの根は `height: 100%; min-height: 0`。ここだけ違うので揃え忘れに見える。
+
+> **ラウンド5で訂正。** 「すべて」は誤り。根に `height: 100%` があるのは9件中5件
+> （`PositionSearchModal` / `StudyPositionSaveModal` / `StudyPositionsManagerModal` /
+> `PositionNavigationModal` / `SettingsPanel`）。残る4件（`CreateFileModal` /
+> `SfenKifuCreateModal` / `FileConflictDialog` / `KifuReadErrorDialog`）は
+> `height` を一切書かず、内容に合わせて縮む側にいる。SCSS のコメントも `2aae452` で直した。
+> 揃えるとカードの高さが不定な大きいウィンドウで百分率が `auto` に落ち、内容の高さまで縮む。
 
 ---
 
