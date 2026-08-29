@@ -1,0 +1,45 @@
+@use "@/index.scss" as index;
+
+.settings {
+  .usiOptRow {
+    border: 1px solid rgba(index.$color-white, 0.06);
+    background: rgba(index.$color-primary-black, 0.18);
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+
+  .usiOptRow__head {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.2fr) minmax(140px, 2fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .usiOptRow__name {
+    color: index.$color-text-light-1;
+    font-size: 1.25rem;
+    font-weight: 700;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .usiOptRow__control {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .usiOptRow__default {
+    justify-self: end;
+  }
+
+  .usiOptRow__augment {
+    margin-top: 6px;
+    padding-left: calc(120px + 12px); /* 名前カラムと揃える */
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.1rem;
+  }
+}

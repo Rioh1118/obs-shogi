@@ -1,0 +1,17 @@
+@use "@/index.scss" as index;
+
+.settings {
+  .usiOptDefaultBadge {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+
+    .sbadge {
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .usiOptDefaultBadge--overridden .sbadge {
+    opacity: 1;
+  }
+}

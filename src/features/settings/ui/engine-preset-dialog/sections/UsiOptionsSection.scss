@@ -1,0 +1,60 @@
+@use "@/index.scss" as index;
+
+.settings {
+  .usiOptSection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .usiOptSection__placeholder,
+  .usiOptSection__status {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(index.$color-primary-black, 0.18);
+    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: 1.2rem;
+  }
+
+  .usiOptSection__error {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(#e35b5b, 0.14);
+    border: 1px solid rgba(#e35b5b, 0.4);
+    color: rgba(index.$color-text-light-1, 0.92);
+    font-size: 1.15rem;
+  }
+
+  .usiOptSection__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .usiOptSection__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(index.$color-text-light-1, 0.85);
+    font-size: 1.15rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .usiOptSection__search {
+    flex: 1;
+    min-width: 160px;
+    max-width: 320px;
+  }
+
+  .usiOptSection__resetAll {
+    margin-left: auto;
+  }
+
+  .usiOptSection__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+}

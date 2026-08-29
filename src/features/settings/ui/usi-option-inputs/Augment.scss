@@ -1,0 +1,54 @@
+@use "@/index.scss" as index;
+
+.settings {
+  .usiOptAug {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .usiOptAug__line {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 1.1rem;
+    color: rgba(index.$color-text-light-1, 0.78);
+  }
+
+  .usiOptAug__label {
+    opacity: 0.7;
+  }
+
+  .usiOptAug__num {
+    font-weight: 700;
+    color: index.$color-text-light-1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .usiOptAug__sep {
+    opacity: 0.4;
+  }
+
+  .usiOptAug__bar {
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(index.$color-white, 0.08);
+    overflow: hidden;
+    max-width: 220px;
+  }
+
+  .usiOptAug__barFill {
+    height: 100%;
+    background: rgba(index.$color-secondary-dark, 0.7);
+    transition: width 140ms ease;
+  }
+
+  .usiOptAug__barFill.is-warn {
+    background: rgba(#f0b429, 0.75);
+  }
+
+  .usiOptAug__warn {
+    font-size: 1.05rem;
+    color: rgba(#f0b429, 0.92);
+  }
+}

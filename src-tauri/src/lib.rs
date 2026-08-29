@@ -1,6 +1,7 @@
 pub mod ai_library;
 pub mod config_dir;
 pub mod engine;
+pub mod engine_options;
 pub mod engine_presets;
 pub mod file_system;
 pub mod kifu;
@@ -15,6 +16,7 @@ pub use engine::bridge::{
     get_engine_settings, get_last_result, initialize_engine, set_position, shutdown_engine,
     start_analysis, stop_analysis,
 };
+pub use engine_options::{get_engine_options, rescan_engine_options};
 pub use engine_presets::{load_presets, save_presets};
 pub use file_system::{
     create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree,
@@ -86,6 +88,8 @@ pub fn run() {
             search_position,
             load_study_positions,
             save_study_positions,
+            get_engine_options,
+            rescan_engine_options,
         ])
         .plugin(tauri_plugin_dialog::init())
         .manage(search_state)
