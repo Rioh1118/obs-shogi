@@ -139,7 +139,7 @@ npm run tauri dev
 - 経緯は `git log` と PR に残ります。コードには**いま何がどうあるべきか**だけを書いてください
 
 > AI 支援で書かれたコードでは、この違反が特に出やすいです。
-> 修正作業の文脈がそのままコメントに残ることがあるので、レビュー時に確認してください。
+> 修正作業の文脈がそのままコメントに残ることがあるので、`npm run test` の `commentHistory` が機械で止めます。
 
 ### 置き場所
 
@@ -242,6 +242,18 @@ gap: 0.75rem;
 
 `success` は置いていません。成功を通知する場面が現物に1件も無いためです。必要になったら足します。
 
+**面と文字で使うトークンは分かれています。**
+
+| 用途                   | トークン                                      |
+| ---------------------- | --------------------------------------------- |
+| 枠・薄い面・アイコン   | `$color-warning` / `$color-danger` ほか意味色 |
+| 押せる面（確認の実行） | `$color-danger-solid` / `-hover`              |
+| 暗い面の上に置く文字   | `$color-danger-text`                          |
+| 失敗を伝える箱の面     | `$surface-warning` / `$surface-danger`        |
+
+失敗の箱を新しく作るときは `$surface-*` を使ってください。
+`color-mix(...)` を手で書くと、同じ式が複数のファイルに散ります。
+
 危険な操作の色は、まだ全部が寄り切っていません
 （[#180](https://github.com/Rioh1118/obs-shogi/issues/180)）。
 
@@ -252,6 +264,22 @@ gap: 0.75rem;
 | `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                             |
 | `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**（[#185](https://github.com/Rioh1118/obs-shogi/issues/185)） |
 | `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                   |
+
+### 機械で止めているもの
+
+`npm run test` に、人の注意では止まらなかったものを検査として置いてあります。
+落ちたときの逃げ道はそれぞれ違います。
+
+| 検査                 | 何を止めるか                                      | 逃げ道                                             |
+| -------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| `scssScaleRatchet`   | 寸法の直値が増えること                            | `// scale-exempt` の印（上の節）                   |
+| `contrastRatchet`    | 文字と面の比が基準を割ること／測れる対が減ること  | 面か文字の値を直す。`BASELINE` は減らす方向だけ    |
+| `asyncResultUse`     | `AsyncResult` の戻り値を捨てること                | その行に `// async-result-ignored: <理由>`         |
+| `commentHistory`     | コメントに変更の経緯が入ること                    | 無し。いま何がどうあるべきかだけを書く             |
+| `sliceBarrels`       | barrel を通さずスライスの中を読むこと             | 無し。barrel から読む                              |
+| `modalTypes`         | 誰も描かない `ModalType` が残ること               | 無し。描くものを足すか値を落とす                   |
+| `fsErrorCodes`       | Rust の `FsErrorCode` が TS の union を外れること | TS 側だけの code は検査の `TS_ONLY` に理由と一緒に |
+| `root_guard`（Rust） | パスを受けるコマンドが root 検査を飛ばすこと      | `EXEMPT` に名前と理由                              |
 
 ### まだ決まっていないもの
 

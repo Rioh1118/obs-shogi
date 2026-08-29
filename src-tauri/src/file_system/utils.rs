@@ -149,6 +149,8 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
     }
 }
 
+// TODO(#215): dest が src と同じ実体かを見ていない。APFS では大文字小文字だけを
+// 変える改名が、自分自身を衝突相手として弾かれる
 pub fn ensure_not_exists(path: &Path) -> Result<(), FsError> {
     if path.exists() {
         return Err(

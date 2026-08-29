@@ -47,10 +47,12 @@ F 番号はここで採番し、各表と ADR から参照する。
 | `file-tree`       | `state.kifuError` | `kifu_error`                       | 1（`AppModalLayer` → モーダル）     |
 | `engine`          | `state.error`     | `initialize_error`                 | 1（**設定タブを開いている間だけ**） |
 
-※ `failWithNotice`（移動）/ `failToNameInput`（リネーム・フォルダ作成。`invalid_name_*` は積まない）/
-`pushError` の直呼び4箇所（削除・衝突の解決の中断）/ `loadFileTree` の直積み。
-`failToCaller`（作成・取り込み）は**一度も積まない**。数え方は
-「`state.error` に到達しうる呼び出し元」。→ `docs/state-transitions/file-tree.md` の ※2
+※ `failWithNotice`（移動）/ `failToNameInput`（リネーム・フォルダ作成。
+`invalid_name_*` と `invalid_extension` は積まない）/ `pushError` の直呼び
+（削除、衝突の解決の中断）/ `loadFileTree` の直積み。
+`failToCaller`（作成・取り込み）は**一度も積まない**。
+**件数は書かない。**（数えると、経路を1つ足したときに嘘になる）
+→ `docs/state-transitions/file-tree.md` の ※2
 
 さらに **`clearError` は6スライスすべてが context に公開しているが、呼び出し元は
 `file-tree` の1つだけ**（#169 で `FileTree.tsx` が呼ぶようになった。残り5つは0）。
@@ -108,9 +110,15 @@ F 番号はここで採番し、各表と ADR から参照する。
 `fsErrorTier`（`src/entities/file-tree/api/error.ts`）。ADR-0004 の表は
 F-3 を1行で書いているので、そこだけでは `danger` の存在に気づけない。
 
+ADR-0004 が使う `F-12a` / `F-12b` は、**採番元がここ**なので §2 で2行に割ってある。
+
 ## 4. まだ出口が無いもの
 
-上の表で「復帰導線: 無い」となっている行が残っている作業。issue になっているもの:
+**抽出条件: §2 の「いま起きること」が `console.error` だけ / state に載るが読み手0 /
+何も出ない、のいずれか。** 「復帰導線」の列ではない（そこに何か書いてあっても、
+出口が無ければ利用者はその導線に辿り着けない）。
+
+issue になっているもの:
 
 | #   | issue | 内容                                             |
 | --- | ----- | ------------------------------------------------ |
@@ -119,4 +127,10 @@ F-3 を1行で書いているので、そこだけでは `danger` の存在に�
 | F-7 | #172  | 解析の停止に失敗すると Rust にセッションが残る   |
 | —   | #179  | 読み取れないサブフォルダがツリーから黙って消える |
 
-残り（F-1 / F-2 / F-4 / F-10 / F-11 / F-12 / F-17 / F-18）はまだ issue になっていない。
+まだ issue になっていないもの:
+
+**F-1 / F-2 / F-4 / F-6 / F-8 / F-10 / F-11 / F-12a / F-12b / F-17 / F-18**。
+
+F-8（エンジン停止の失敗＝プロセスが残りうる）は ADR-0004 で `fatal` に
+割り当てられている。F-6 と F-8 は「復帰導線」の列に何か書いてあるので、
+条件を列で引くと落ちる。

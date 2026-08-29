@@ -7,6 +7,8 @@ use crate::file_system::error::{FsError, FsErrorCode};
 use super::types::FileTreeNode;
 use super::utils::{generate_id, get_file_extension, is_kifu_file, validate_under_root};
 
+// TODO(#215): 循環と深さの止めが無い。root 配下に自分を指す symlink が1つあると
+// スタックオーバーフローでプロセスごと落ちる（起動のたびに走るので復旧できない）
 fn build_file_tree_recursive(path: &Path) -> Result<FileTreeNode, FsError> {
     let metadata = fs::metadata(path).map_err(FsError::from)?;
     let is_dir = metadata.is_dir();
