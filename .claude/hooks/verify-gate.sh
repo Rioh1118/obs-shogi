@@ -14,37 +14,84 @@
 
 set -uo pipefail
 
-# コマンド文字列に `git commit` があるかを見る。無ければ空を返す。
+# `git ... commit` の呼び出しに当たる部分を切り出す。無ければ空を返す。
 #
 # 複合コマンドの中の commit も拾う。`-C <dir>` や `--git-dir=<dir>` のように
 # 値を取るオプションも越えて commit に届くこと。値を許さないと
 # `git -C <worktree> commit` がゲートを丸ごと素通しし、それは検証を飛ばす
 # 最も自然な手口になる。git は空白区切りと `=` の両方を受けるので両方許す。
+#
+# 切り出した区間を gate_target_dir が読む。コマンド全体から `-C` を探すと、
+# `tar -C dir && git commit` のような git 以外の `-C` を拾ってしまう。
+GATE_GIT_OPT='(--?(C|c|git-dir|work-tree|namespace|super-prefix)([[:space:]]+|=)[^[:space:]]+|-[^[:space:]]+)'
+
+gate_commit_call() {
+  printf '%s' "$1" \
+    | grep -Eo "(^|[;&|(]|[[:space:]])git([[:space:]]+$GATE_GIT_OPT)*[[:space:]]+commit([[:space:]]|$)" \
+    | tail -1
+}
+
 gate_matches_commit() {
-  local git_opt='(--?(C|c|git-dir|work-tree|namespace|super-prefix)([[:space:]]+|=)[^[:space:]]+|-[^[:space:]]+)'
-  printf '%s' "$1" | grep -Eq "(^|[;&|(]|[[:space:]])git([[:space:]]+$git_opt)*[[:space:]]+commit([[:space:]]|$)"
+  [ -n "$(gate_commit_call "$1")" ]
 }
 
 # コミットされるツリーの位置を決める。決められなければ空を返す。
 #
-# `-C <dir>` などでツリーを付け替えられていたら、その先を見る。ここを見落とすと
-# 「別のワークツリーへコミットしつつ、検証は手元のツリーで済ませる」が通る。
-# ワークツリーで作業しているとき CLAUDE_PROJECT_DIR は元のチェックアウトを
-# 指したままなので、最後の手段にしか使わない。
+# 見るのは3つ。(1) 呼び出しの直前までに効いている `cd`、(2) その `git` 呼び出しに
+# 属する `-C` / `--work-tree`、(3) 起点となる作業ディレクトリ。
+# ここを見落とすと「別のワークツリーへコミットしつつ、検証は手元のツリーで
+# 済ませる」が通る。
+#
+# 起点は呼び出し元から渡す。Bash の作業ディレクトリは呼び出しを跨いで持続する
+# ので、hook 自身の CWD ではコマンドが実際に走る場所と一致しない。
+#
+# `--git-dir` は作業ツリーを一意に決められない（cwd が作業ツリーになる）ので、
+# `--work-tree` を伴わない限り空を返して deny 側へ落とす。
 gate_target_dir() {
-  local command=$1 dir=""
+  local command=$1 base=${2:-$PWD} call dir="" segment
 
-  dir=$(printf '%s' "$command" | grep -Eo '(^|[[:space:]])-C([[:space:]]+|=)[^[:space:]]+' | tail -1 | sed -E 's/.*-C([[:space:]]+|=)//')
+  call=$(gate_commit_call "$command")
+  [ -n "$call" ] || return 0
+
+  # 呼び出しより前のセグメントに現れる cd を順に適用する。
+  local prefix=${command%%"$call"*}
+  local IFS='
+'
+  for segment in $(printf '%s' "$prefix" | sed -E 's/(\&\&|\|\||;|\|)/\n/g'); do
+    segment=${segment#"${segment%%[![:space:]]*}"}
+    case "$segment" in
+      cd\ *)
+        local target=${segment#cd }
+        target=${target%%[[:space:]]*}
+        case "$target" in
+          /*) base=$target ;;
+          *) base="$base/$target" ;;
+        esac
+        ;;
+    esac
+  done
+
+  case "$call" in
+    *--git-dir*)
+      case "$call" in
+        *--work-tree*) ;;
+        *) return 0 ;;
+      esac
+      ;;
+  esac
+
+  dir=$(printf '%s' "$call" | grep -Eo -- '--work-tree([[:space:]]+|=)[^[:space:]]+' | tail -1 | sed -E 's/--work-tree([[:space:]]+|=)//')
   if [ -z "$dir" ]; then
-    dir=$(printf '%s' "$command" | grep -Eo -- '--work-tree([[:space:]]+|=)[^[:space:]]+' | tail -1 | sed -E 's/--work-tree([[:space:]]+|=)//')
+    dir=$(printf '%s' "$call" | grep -Eo '(^|[[:space:]])-C([[:space:]]+|=)?[^[:space:]]+' | tail -1 | sed -E 's/.*-C([[:space:]]+|=)?//')
   fi
 
-  if [ -n "$dir" ]; then
-    git -C "$dir" rev-parse --show-toplevel 2>/dev/null
-    return
-  fi
+  case "$dir" in
+    "") ;;
+    /*) base=$dir ;;
+    *) base="$base/$dir" ;;
+  esac
 
-  git rev-parse --show-toplevel 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR:-}"
+  git -C "$base" rev-parse --show-toplevel 2>/dev/null
 }
 
 # 読み込まれただけのときは判定関数を定義して終わる（テストから使う）。
@@ -52,6 +99,7 @@ gate_target_dir() {
 
 payload=$(cat)
 command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
+cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
 
 gate_matches_commit "$command" || exit 0
 
@@ -66,10 +114,10 @@ deny() {
   exit 0
 }
 
-project_dir=$(gate_target_dir "$command")
+project_dir=$(gate_target_dir "$command" "${cwd:-$PWD}")
 if [ -z "$project_dir" ]; then
   deny "検証ゲート: どのツリーへコミットするのか決められなかった。
-git のディレクトリ指定を外し、対象のワークツリーの中から実行すること。"
+対象のワークツリーへ cd してから、ディレクトリ指定なしで実行すること。"
 fi
 cd "$project_dir" || exit 0
 
