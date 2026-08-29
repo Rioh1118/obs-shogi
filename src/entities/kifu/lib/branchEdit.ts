@@ -85,6 +85,12 @@ function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHan
   return { line, startTe, index, move };
 }
 
+/**
+ * 分岐点にぶら下がる候補の並び。添字は `BranchIndex`（0=本譜）。
+ *
+ * 中身は `readCandidates` が作った私有のコピーで、元の棋譜とは何も共有しない。
+ * だから持ち替えるだけでよく、書き戻すときに複製し直さない。
+ */
 type Candidates = IMoveFormat[][];
 
 /**
@@ -98,7 +104,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
   if (tail.length === 0) throw new Error("main tail is empty");
 
   const head = tail[0];
-  const forks = head.forks ? cloneJkf(head.forks) : [];
+  const forks = head.forks ?? [];
   delete head.forks;
 
   const candidates: Candidates = [tail, ...forks];
@@ -111,7 +117,7 @@ function readCandidates(h: BranchPointHandle): Candidates {
     for (const seg of candidates) {
       const segHead = seg[0];
       if (segHead?.forks?.length) {
-        extra.push(...cloneJkf(segHead.forks));
+        extra.push(...segHead.forks);
         delete segHead.forks;
         changed = true;
       }
@@ -130,13 +136,13 @@ function writeCandidates(h: BranchPointHandle, candidates: Candidates): void {
     return;
   }
 
-  const main = cloneJkf(candidates[0]);
+  const main = candidates[0];
   if (main.length === 0) {
     h.line.splice(h.index);
     return;
   }
 
-  const forkSegs = candidates.slice(1).map((seg) => cloneJkf(seg));
+  const forkSegs = candidates.slice(1);
 
   // forks は本譜側の先頭の手に集約
   if (forkSegs.length) main[0].forks = forkSegs;

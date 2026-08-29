@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import { MAIN_LINE, branchIndexFromForkIndex } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
@@ -79,5 +79,23 @@ describe("deleteBranchInKifu", () => {
     expect(() =>
       deleteBranchInKifu(kifu, { te: 2, forkPointers: [], target: 5 as never }, null),
     ).toThrow();
+  });
+});
+
+describe("複製の回数", () => {
+  test("分岐点以下を複製するのは1回だけ", () => {
+    // 候補配列は readCandidates が作った私有コピーなので、持ち替えるだけでよい。
+    // 数え直しの複製が戻ると、分岐点が序盤にある棋譜ほど無駄が大きくなる。
+    const spy = vi.spyOn(globalThis, "structuredClone");
+    try {
+      swapBranchesInKifu(
+        kifuWithTwoForks(),
+        { te: 2, forkPointers: [], a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+        null,
+      );
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
