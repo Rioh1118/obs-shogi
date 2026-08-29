@@ -45,7 +45,7 @@
     "sass": "^1.103.1",
     "shogi.js": "5.4.1",
     "tsshogi": "^2.3.4",
-    "uuid": "^11.1.1"
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",
