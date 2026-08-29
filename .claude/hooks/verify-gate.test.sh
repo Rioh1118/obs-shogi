@@ -5,7 +5,7 @@
 # 大きい。素通しになる綴りを表にして固定する。
 #
 # 表は2つ。
-#   gate_matches_commit — commit を見落とさないこと。落とすとゲートごと素通しする
+#   gate_matches_commit — コミットを作る呼び出しを見落とさないこと
 #   gate_target_dir     — 宛先が自明でない綴りは空（deny）にすること
 
 set -uo pipefail
@@ -59,6 +59,16 @@ expect_match CATCH '\git commit -m x'
 # commit へ到達しない。素通ししても検証されないコミットは生まれない。
 expect_match SKIP 'git -c user.name a commit'
 
+# commit 以外にもコミットを作るサブコマンドがある。見落とすと、出来たツリーが
+# 一度も検証されないままコミットが増える。
+expect_match CATCH 'git revert --no-edit HEAD'
+expect_match CATCH 'git cherry-pick abc123'
+expect_match CATCH 'git merge --no-ff feature'
+expect_match CATCH 'git rebase --continue'
+expect_match CATCH 'git rebase main'
+expect_match CATCH 'git am /tmp/x.patch'
+expect_match CATCH 'git merge --abort'
+
 # commit ではないもの
 expect_match SKIP 'git add -A'
 expect_match SKIP 'git log --oneline'
@@ -99,6 +109,10 @@ other=$(git worktree list --porcelain | awk '/^worktree /{print $2}' | grep -v "
 expect_dir "$here" 'git commit -m x' "$here"
 expect_dir "$here" 'git commit -m "fix: 直した"' "$here"
 expect_dir "$here" 'git add -A && git commit -m x' "$here"
+# メッセージ本文に git commit と書いただけで「呼び出しが2つ」と数えないこと。
+# ゲートの説明を書いたコミットほど止まる形になる。
+expect_dir "$here" 'git commit -m "fix: git commit の検出を直す"' "$here"
+expect_dir "$here" "git commit -m 'docs: git rebase の話'" "$here"
 [ -n "$other" ] && expect_dir "$other" 'git commit -m x' "$other"
 
 # 宛先が自明でない綴りは、素通しさせずに deny 側へ落とす。
@@ -122,6 +136,8 @@ expect_dir "" 'cd $TARGET && git commit -m x' "$here"
 expect_dir "" 'cd ~/obs-shogi && git commit -m x' "$here"
 expect_dir "" 'cd $(dirname /tmp/x) && git commit -m x' "$here"
 expect_dir "" 'git commit -m a && git commit -m b' "$here"
+# 引用の中で本当にコマンドが走る形は、潰さずに数える
+expect_dir "" 'git commit -m "$(cd /tmp && git commit -m x)"' "$here"
 expect_dir "" "GIT_DIR=$target/.git GIT_WORK_TREE=$target git commit -m x" "$here"
 expect_dir "" "GIT_INDEX_FILE=/tmp/i git commit -m x" "$here"
 expect_dir "" 'nohup git commit -m x' "$here"
