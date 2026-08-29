@@ -57,7 +57,11 @@ export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): Appl
       nextFormat.forks = [];
     }
     const newForkIndex = nextFormat.forks.length;
+    // move はコピーせず棋譜に収まり、直後の正規化がそれを書き換える（color / same /
+    // relative / capture が生える）。呼び出し側が同じオブジェクトを使い回さないこと。
     nextFormat.forks.push([{ move }]);
+    // 表記もここに依存している。相対表記が埋まらないと、分岐一覧で
+    // 「3九金(49)」と「3九金打」が同じ文字列になり読み分けられない。
     Normalizer.normalizeMinimal(jkf.kifu);
     jkf.forkAndForward(newForkIndex);
     return buildResult(jkf, false, true);

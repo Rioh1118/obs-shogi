@@ -1,13 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { JKFPlayer } from "json-kifu-format";
-import type { IJSONKifuFormat } from "json-kifu-format/dist/src/Formats";
+import type { IHandFormat, IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import { Color } from "shogi.js";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { applyMoveWithBranch } from "../applyMoveWithBranch";
 import { readableMove } from "../readableMove";
+import { buildJkf, hand, KINGS, type Placement } from "./fixtures";
 
 /**
- * 入力の指し手は手書きせず、必ずパーサが組み立てたものを渡す。手をリテラルで書くと
- * `promote: false`（不成）のように、実データにだけ現れる形が抜ける。
+ * 棋譜を読んで各手の表記を並べる
+ *
+ * KIF で書ける場面は KIF で書く。手をリテラルで組むと `promote: false`（不成）のように
+ * 実データにだけ現れる形が抜ける。
  *
  * 逆に期待値の文字列は手で書く。ライブラリから取ると同じ関数を左右に置いた恒真テストになり、
  * 委譲先が変わっても落ちなくなる。
@@ -17,35 +19,21 @@ function readableMovesOf(content: string, format: "kif" | "jkf"): string[] {
   return jkf.moves.flatMap((mf) => (mf.move ? [readableMove(mf.move)] : []));
 }
 
-/** 平手から短い手順では作れない配置（同じ駒3枚・持ち駒あり）を置くための JKF ソース文字列。 */
-function jkfContentWithBoard(
-  pieces: { x: number; y: number; color: number; kind: string }[],
-  hands: [Record<string, number>, Record<string, number>],
-  move: object,
-): string {
-  return JSON.stringify(buildJkf(pieces, hands, [{}, { move }]));
+/**
+ * 盤面を置いた棋譜を読んで各手の表記を並べる
+ *
+ * 平手から短い手順では作れない配置のときだけ使う。手はリテラルで組むが、
+ * パーサに通してから `readableMove` に渡す。未正規化の手は `color` も `relative` も
+ * 持たず、例外も出さずに違う文字列になる。
+ */
+function readableMovesOnBoard(
+  pieces: Placement[],
+  hands: [Partial<IHandFormat>, Partial<IHandFormat>],
+  move: IMoveMoveFormat,
+): string[] {
+  const jkf = buildJkf(pieces, [hand(hands[0]), hand(hands[1])], [{}, { move }]);
+  return readableMovesOf(JSON.stringify(jkf), "jkf");
 }
-
-function buildJkf(
-  pieces: { x: number; y: number; color: number; kind: string }[],
-  hands: [Record<string, number>, Record<string, number>],
-  moves: object[],
-): IJSONKifuFormat {
-  const board = Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => ({})));
-  for (const p of pieces) {
-    board[p.x - 1][p.y - 1] = { color: p.color, kind: p.kind };
-  }
-  return {
-    header: {},
-    initial: { preset: "OTHER", data: { color: 0, board, hands } },
-    moves,
-  } as IJSONKifuFormat;
-}
-
-const KINGS = [
-  { x: 5, y: 9, color: 0, kind: "OU" },
-  { x: 5, y: 1, color: 1, kind: "OU" },
-];
 
 const HIRATE = "手合割：平手\n";
 
@@ -80,28 +68,28 @@ describe("readableMove", () => {
     });
 
     test("上下も左右も他の駒がいるなら2文字を順に並べる", () => {
-      const content = jkfContentWithBoard(
+      const moves = readableMovesOnBoard(
         [
           ...KINGS,
-          { x: 6, y: 8, color: 0, kind: "KI" },
-          { x: 6, y: 9, color: 0, kind: "KI" },
-          { x: 4, y: 9, color: 0, kind: "KI" },
+          { x: 6, y: 8, color: Color.Black, kind: "KI" },
+          { x: 6, y: 9, color: Color.Black, kind: "KI" },
+          { x: 4, y: 9, color: Color.Black, kind: "KI" },
         ],
         [{}, {}],
-        { from: { x: 6, y: 9 }, to: { x: 5, y: 8 }, piece: "KI" },
+        { from: { x: 6, y: 9 }, to: { x: 5, y: 8 }, piece: "KI", color: Color.Black },
       );
-      expect(readableMovesOf(content, "jkf")[0]).toBe("☗５八金左上");
+      expect(moves[0]).toBe("☗５八金左上");
     });
   });
 
   describe("駒打ち", () => {
     test("盤上の駒も同じ地点に行けるなら「打」で区別する", () => {
-      const content = jkfContentWithBoard(
-        [...KINGS, { x: 4, y: 4, color: 0, kind: "GI" }],
+      const moves = readableMovesOnBoard(
+        [...KINGS, { x: 4, y: 4, color: Color.Black, kind: "GI" }],
         [{ GI: 1 }, {}],
-        { to: { x: 5, y: 3 }, piece: "GI" },
+        { to: { x: 5, y: 3 }, piece: "GI", color: Color.Black },
       );
-      expect(readableMovesOf(content, "jkf")[0]).toBe("☗５三銀打");
+      expect(moves[0]).toBe("☗５三銀打");
     });
 
     test("区別が要らない打には「打」を付けない（棋譜の作法どおり）", () => {
@@ -110,21 +98,6 @@ describe("readableMove", () => {
         "kif",
       );
       expect(moves[4]).toBe("☗４五角");
-    });
-
-    test("盤上で作った新規分岐でも、指し手と打ちが別表記になる (issue #74)", () => {
-      // 「打」が出るのは applyMoveWithBranch が棋譜全体を再正規化して relative:"H" を
-      // 入れるため。その再正規化を外すと分岐カードに同じ文字列が2枚並ぶ。
-      const jkf = new JKFPlayer(
-        buildJkf([...KINGS, { x: 4, y: 9, color: 0, kind: "KI" }], [{ KI: 1 }, {}], [{}]),
-      );
-      jkf.inputMove({ from: { x: 4, y: 9 }, to: { x: 3, y: 9 }, piece: "KI" });
-      jkf.goto(0);
-      applyMoveWithBranch(jkf, { to: { x: 3, y: 9 }, piece: "KI" });
-
-      const mainLine = jkf.kifu.moves[1];
-      expect(readableMove(mainLine.move!)).toBe("☗３九金");
-      expect(readableMove(mainLine.forks![0][0].move!)).toBe("☗３九金打");
     });
   });
 });
