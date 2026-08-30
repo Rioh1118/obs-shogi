@@ -106,7 +106,7 @@
   padding: 0.45rem 0.65rem;
   border-radius: 0.65rem;
   background: rgba(0, 0, 0, 0.28);
-  background: color-mix(in srgb, #1b2123 88%, transparent);
+  background: index.$surface-overlay;
   border: 1px solid rgba(index.$color-white, 0.08);
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.28),

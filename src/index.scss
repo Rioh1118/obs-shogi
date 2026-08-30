@@ -58,6 +58,10 @@ $surface-danger: color-mix(in srgb, $color-primary-black 94%, $color-danger);
 // どれが一段上なのかコードから読めなくなる
 $surface-raised: color-mix(in srgb, $color-primary-black 86%, $color-white);
 
+// 器の上に浮かせる面（ツールチップ）。**半透明**なので、載る場所ごとに実効値が
+// 変わる。文字との比はコントラストの走査では測れない → #185
+$surface-overlay: color-mix(in srgb, $color-primary-black 88%, transparent);
+
 // 成功は置かない。通知する場面が1件も無いため（必要になったら足す）
 
 // font
