@@ -233,19 +233,22 @@ P2 は state の中に印が無い。`error` は7箇所で消える（局面を�
 
 ## 書き込み — 7経路のうち3経路が先の計画を捨てる
 
-| #      | イベント      | 実装                            | `branchPlan` の決め方                                  | G2 で呼ぶと                      |
-| ------ | ------------- | ------------------------------- | ------------------------------------------------------ | -------------------------------- |
-| **W0** | E2            | `reset_state`（`reducer.ts`）   | `initialGameState` の空                                | 棋譜ごと捨てるので自明に正しい   |
-| **W1** | E1            | `loadGame` → `game_loaded`      | `asBranchPlan([...cursor.forkPointers])`（reducer 側） | 棋譜が変わるので捨てて正しい     |
-| **W2** | E3〜E7        | `navigate` → `navigated`        | `mergeBranchPlan(next, plan)`                          | 先の計画が**残る**               |
-| **W3** | E8〜E10       | `applyCursor` → `navigated`     | `mergeBranchPlan(next, plan, cursor.forkPointers)`     | 先の計画が**残る**               |
-| **W4** | E11 / E12     | `edit` → `jkf_replaced`         | `asBranchPlan([...nextCursor.forkPointers])`           | 先の計画が**消える** → #226      |
-| **W5** | E13（swap）   | `swapBranches` → `jkf_replaced` | 同上                                                   | 同上                             |
-| **W6** | E13（delete） | `deleteBranch` → `jkf_replaced` | 同上                                                   | 同上                             |
-| **W7** | E14           | `jkf_restored`（3経路とも）     | 編集の**前**の `branchPlan` へ戻す                     | 巻き戻しなので、置く前の組へ戻す |
+| #      | イベント         | 実装                                     | `branchPlan` の決め方                                  | G2 で呼ぶと                                                            |
+| ------ | ---------------- | ---------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| **W0** | E2               | `reset_state`（`reducer.ts`）            | `initialGameState` の空                                | 棋譜ごと捨てるので自明に正しい                                         |
+| **W1** | E1               | `loadGame` → `game_loaded`               | `asBranchPlan([...cursor.forkPointers])`（reducer 側） | 棋譜が変わるので捨てて正しい                                           |
+| **W2** | E3〜E7           | `navigate` → `navigated`                 | `mergeBranchPlan(next, plan)`                          | 先の計画が**残る**                                                     |
+| **W3** | E8〜E10          | `applyCursor` → `navigated`              | `mergeBranchPlan(next, plan, cursor.forkPointers)`     | 先の計画が**残る**                                                     |
+| **W4** | E11 / E12        | `edit` → `jkf_replaced`                  | `asBranchPlan([...nextCursor.forkPointers])`           | 先の計画が**消える** → #226                                            |
+| **W5** | E13（swap）      | `swapBranches` → `jkf_replaced`          | 同上                                                   | 同上                                                                   |
+| **W6** | E13（delete）    | `deleteBranch` → `jkf_replaced`          | 同上                                                   | 同上                                                                   |
+| **W7** | E14（E11 / E13） | `jkf_restored`（`restoreCursor: true`）  | 編集の**前**の `branchPlan` へ戻す                     | 巻き戻しなので、置く前の組へ戻す                                       |
+| **W8** | E14（E12）       | `jkf_restored`（`restoreCursor: false`） | **触らない**（棋譜だけ戻す）                           | 局面を動かさない書き込みで戻すと、待っている間に進めた手数まで巻き戻る |
 
 W4〜W6 は `te > tesuu` の計画を無条件に捨てる。**コメントを1つ保存するだけで、
 見ていた変化の予定が消えて手数表示が本譜の長さに戻る**（#226）。
+W8 でも戻さないので、**コメントの保存は成功しても失敗しても計画を失う**。
+直すなら W4 の側（`jkf_replaced` が `mergeBranchPlan` を使う）で、そこが #226。
 W5 / W6 は棋譜が変わって枝が実在しなくなることがあるが、それは「捨てる」ではなく
 「作り直す」で扱うべき区別で、今は両方まとめて捨てている。
 

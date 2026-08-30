@@ -201,8 +201,12 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
 
   // unmount では書きに行けない（`await` できない）ので、預けるだけ預ける。
   // 置き場がコンポーネントの外にあるので、開き直せば出せる。
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
+    // setup → cleanup → setup が走ったとき（StrictMode）に false のまま残り、
+    // 失敗の理由も「保存済み」も**一切描かなくなる**。
+    aliveRef.current = true;
+    return () => {
       aliveRef.current = false;
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       const cur = leavingRef.current;
@@ -218,9 +222,8 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
           told: kept?.told ?? false,
         });
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
