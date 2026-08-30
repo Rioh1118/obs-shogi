@@ -86,7 +86,7 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
     onClose();
   }, [cursor, dirty, doSave, isSaving, onClose]);
 
-  // カーソルが変わったらノートを作り直す。鍵は cursorKey（要求を比べる正典）。
+  // 指す局面が変わったらノートを作り直す。鍵は cursorKey（見るのは te <= tesuu の範囲だけ）。
   const editorKey = cursor ? cursorKey(cursor) : "no-cursor";
 
   const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
