@@ -85,8 +85,14 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
 
   /** いま描いている面。書き込みが返ってきたときに、書き戻してよいかをこれで見る */
   const faceRef = useRef<Face | null>(null);
-  /** まだ画面に居るか。畳んだあとの結果を「見せた」と数えないため */
-  const aliveRef = useRef(true);
+  /**
+   * まだ mount しているか。unmount のあとに `setEditing` を撃たないため。
+   *
+   * **畳んだあとの結果を捨てるのはこれではない。** ノートを畳んでもこの
+   * コンポーネントは unmount しない（`KifuStreamList` が `open` で描き分ける）ので、
+   * そちらは下の `showing()` が `faceRef` と突き合わせて弾いている。
+   */
+  const mountedRef = useRef(true);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -102,7 +108,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   const save = useCallback(
     (target: Face, text: string, baseAtFire: string): Promise<"saved" | "failed" | "skipped"> => {
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
-        const showing = () => aliveRef.current && faceRef.current?.key === target.key;
+        const showing = () => mountedRef.current && faceRef.current?.key === target.key;
 
         // **開いた棋譜と、いま読み込まれている棋譜が同じときだけ書く。**
         // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
@@ -136,8 +142,8 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
                 // 「この面で初めての失敗なら閉じない」も**どちらも発火しない**。
                 // 利用者から見ると、失敗を出したまま1回で閉じて本文が消える。
                 const base = e.baseText === baseAtFire ? e : { ...e, baseText: baseAtFire };
-                // 同じ理由で参照を変えない。変えると自動保存の効果が張り直され、
-                // 書けない棋譜で**毎秒1本の書き込みを永久に撃ち続ける**
+                // 中身が同じなら同じ参照を返す。新しい参照は面の入れ替えを見る効果を
+                // 走らせるだけで、そこは鍵が同じなら何もしない
                 if (base === e && e.error === res.error && e.told) return e;
                 return { ...base, error: res.error, told: true };
               });
@@ -198,9 +204,9 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
     // setup → cleanup → setup が走ったとき（StrictMode）に false のまま残り、
     // 失敗の理由も「保存済み」も**一切描かなくなる**。
-    aliveRef.current = true;
+    mountedRef.current = true;
     return () => {
-      aliveRef.current = false;
+      mountedRef.current = false;
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
     };
   }, []);
@@ -215,8 +221,9 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       return;
     }
 
-    // 撃つ先を張った時点で固定する。900ms の間に面が入れ替わっても、
-    // 書くのはこの本文を打った面。入れ替わり自体は上の効果が書き切る
+    // 撃つ先を張った時点で固定する。**効くのは撃ってから返るまでの間。**
+    // その窓で面が入れ替わっても、書くのはこの本文を打った面。
+    // 900ms の途中の入れ替わりは下の cleanup が消し、上の効果が書き直す
     const target = editing.face;
     const text = editing.draft;
     const base = editing.baseText;
