@@ -1,15 +1,10 @@
-use thiserror::Error;
-
 use shogi_core::PartialPosition;
-use shogi_kifu_converter_obsshogi::{error::ConvertError, jkf::JsonKifuFormat};
+use shogi_kifu_converter_obsshogi::{
+    error::ConvertError,
+    jkf::{Initial, JsonKifuFormat, Preset},
+};
 
 pub type Jkf = JsonKifuFormat;
-
-#[derive(Debug, Error)]
-pub enum InitialPosError {
-    #[error("cannot build the initial position: {0}")]
-    Unbuildable(#[from] ConvertError),
-}
 
 /// JKF から開始局面を作る
 ///
@@ -21,56 +16,48 @@ pub enum InitialPosError {
 /// 盤の添字も持駒の並びも、こちらとクレートで二重に書けば黙ってずれる。
 /// ずれると同じ棋譜から違う `PositionKey` が出て、検索が当たらなくなるだけで
 /// エラーは出ない。書く場所を1つにしておく。
-pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, InitialPosError> {
-    match &jkf.initial {
-        None => Ok(PartialPosition::startpos()),
-        Some(initial) => Ok(PartialPosition::try_from(initial)?),
-    }
+///
+/// **`data` があればそちらを採る。** クレートの `TryFrom` は `preset` を先に見て
+/// `data` を読まないので、`{preset: HIRATE, data: 詰将棋の盤面}` を渡すと平手が返る。
+/// KIF / KI2 / CSA のパーサは盤面があれば必ず `PresetOther` を付けるのでこの形は
+/// 作らないが、`.jkf` は外部の JSON をそのまま信じている。盤面が書いてあるのに
+/// 平手として索引に入れると、**その局面で検索しても当たらず、平手の検索結果に紛れる**。
+///
+/// # Errors
+///
+/// [`ConvertError`] を返すのは3つ。`preset` が `OTHER` なのに盤面が無い、
+/// 盤の座標が 1〜9 を外れる、持駒が1組に収まらない。
+/// ここで失敗したファイルは索引に入らない（`index_builder`）。
+pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, ConvertError> {
+    let Some(initial) = &jkf.initial else {
+        return Ok(PartialPosition::startpos());
+    };
+
+    let initial = match initial.data {
+        Some(_) => &Initial {
+            preset: Preset::PresetOther,
+            data: initial.data,
+        },
+        None => initial,
+    };
+
+    PartialPosition::try_from(initial)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shogi_kifu_converter_obsshogi::parser::parse_kif_str;
+    use crate::search::test_kifu::{one_move_kif, HANDICAPS};
+    use shogi_kifu_converter_obsshogi::parser::{parse_jkf_str, parse_kif_str};
 
-    const HANDICAPS: [&str; 15] = [
-        "香落ち",
-        "右香落ち",
-        "角落ち",
-        "飛車落ち",
-        "飛香落ち",
-        "二枚落ち",
-        "三枚落ち",
-        "四枚落ち",
-        "五枚落ち",
-        "左五枚落ち",
-        "六枚落ち",
-        "右七枚落ち",
-        "左七枚落ち",
-        "八枚落ち",
-        "十枚落ち",
-    ];
-
-    /// 手合割つきは上手（後手）から指す。平手だけ先手からなので初手を分ける
     fn handicap_jkf(name: &str) -> Jkf {
-        let first = if name == "平手" {
-            "７六歩(77)"
-        } else {
-            "３四歩(33)"
-        };
-        parse_kif_str(&format!(
-            "手合割：{name}\n\
-             手数----指手---------消費時間--\n   \
-             1 {first}   ( 0:01/00:00:01)\n"
-        ))
-        .expect("読めること")
+        parse_kif_str(&one_move_kif(name)).expect("読めること")
     }
 
     /// 手合割の棋譜が索引に入る。
     ///
     /// パーサは手合割の盤面を `{preset, data: None}` に畳む（`normalize_initial`）。
     /// **手合割の棋譜はここへ `data` 無しで届くのが通常**で、例外ではない。
-    /// 盤面を自前で組み直さず、クレートの表に任せる理由がこれ。
     #[test]
     fn every_handicap_yields_an_initial_position() {
         for name in HANDICAPS {
@@ -99,5 +86,37 @@ mod tests {
             !seen.contains(&hirate.to_sfen_owned()),
             "手合割が平手と同じ局面になった"
         );
+    }
+
+    /// 盤面が書いてあれば、`preset` が何であれ盤面を採る。
+    ///
+    /// クレートの `TryFrom` は `preset` を先に見て `data` を読まない。
+    /// `.jkf` は外部の JSON をそのまま信じているので、`{preset: HIRATE, data: 別盤面}`
+    /// が届きうる。平手として索引に入れると、その局面で検索しても当たらず、
+    /// 平手の検索結果に紛れる。
+    #[test]
+    fn a_board_wins_over_a_preset_that_disagrees_with_it() {
+        // 5五に先手玉、9五に後手玉だけの盤面を preset HIRATE で名乗る JKF
+        let json = r#"{"header":{},"initial":{"preset":"HIRATE","data":{"color":0,
+          "board":[[{},{},{},{},{},{},{},{},{}],[{},{},{},{},{},{},{},{},{}],
+                   [{},{},{},{},{},{},{},{},{}],[{},{},{},{},{},{},{},{},{}],
+                   [{"color":1,"kind":"OU"},{},{},{},{"color":0,"kind":"OU"},{},{},{},{}],
+                   [{},{},{},{},{},{},{},{},{}],[{},{},{},{},{},{},{},{},{}],
+                   [{},{},{},{},{},{},{},{},{}],[{},{},{},{},{},{},{},{},{}]],
+          "hands":[{"FU":0,"KY":0,"KE":0,"GI":0,"KI":0,"KA":0,"HI":0},
+                   {"FU":0,"KY":0,"KE":0,"GI":0,"KI":0,"KA":0,"HI":0}]}},"moves":[{}]}"#;
+        let jkf = parse_jkf_str(json).expect("読めること");
+
+        let sfen = initial_partial_position(&jkf)
+            .expect("開始局面")
+            .to_sfen_owned();
+        let hirate = initial_partial_position(&handicap_jkf("平手"))
+            .expect("平手")
+            .to_sfen_owned();
+
+        assert_ne!(sfen, hirate, "盤面を捨てて平手にしている");
+        // 玉2枚だけの盤面。JKF の board は board[筋-1][段-1] なので
+        // 5一に後手玉、5五に先手玉が入る
+        assert_eq!(sfen, "4k4/9/9/9/4K4/9/9/9/9 b - 1", "盤面が違う");
     }
 }

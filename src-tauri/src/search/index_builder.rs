@@ -6,7 +6,7 @@ use shogi_core::PartialPosition;
 use shogi_kifu_converter_obsshogi::jkf::{JsonKifuFormat, MoveFormat};
 
 use super::{
-    initial_position::{initial_partial_position, InitialPosError},
+    initial_position::initial_partial_position,
     node_table::{NodeTable, NodeTableBuilder},
     position_apply::{apply_node_action, ApplyError, ApplyStatus},
     position_key::{key_from_partial_position, PositionKey},
@@ -37,7 +37,7 @@ pub struct FileIndexBuild {
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error("failed to create initial position: {0}")]
-    Initial(#[from] InitialPosError),
+    Initial(#[from] shogi_kifu_converter_obsshogi::error::ConvertError),
 
     #[error("failed to apply move at {cursor:?}: {source}")]
     Apply {
