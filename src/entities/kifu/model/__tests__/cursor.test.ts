@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
+import { JKFPlayer } from "json-kifu-format";
 import {
-  ROOT_CURSOR,
   cursorKey,
+  descendTo,
   forkIndexAt,
   makeKifuCursor,
   mergeBranchPlan,
@@ -63,11 +64,9 @@ describe("selectAt の並び", () => {
 });
 
 describe("mergeBranchPlan", () => {
-  const cursorAt = (tesuu: number, forkPointers: ForkPointer[]): KifuCursor => ({
-    ...ROOT_CURSOR,
-    tesuu,
-    forkPointers,
-  });
+  // 手で組むと、makeKifuCursor の正規化を変えても fixture が旧挙動を再現し続ける。
+  const cursorAt = (tesuu: number, forkPointers: ForkPointer[]): KifuCursor =>
+    makeKifuCursor(tesuu, forkPointers, cursorKey({ tesuu, forkPointers }));
 
   // 不変条件1: te <= cursor.tesuu の範囲は cursor.forkPointers からしか取らない
   test("カーソル以下の範囲は cursor が勝ち、計画側は無視される", () => {
@@ -94,8 +93,9 @@ describe("mergeBranchPlan", () => {
 describe("cursorKey", () => {
   const at = (tesuu: number, forkPointers: ForkPointer[]) => ({ tesuu, forkPointers });
 
-  // 鍵は正規化を通す。通さないと同じ局面が並び順の違いで別の鍵になり、
-  // コメント欄の開閉判定（KifuStreamList）と editorKey（KifuCommentNote）が外れる。
+  // cursorKey が受ける CursorPath は、並び順も te <= tesuu も型では保証されない
+  // （previewCursor は handlePrevious のあと te > tesuu を持つ）。
+  // 鍵の側で畳まないと、同じ局面を指す2つの CursorPath が別の鍵になる。
   test("並びが違うだけの forkPointers は同じ鍵", () => {
     expect(cursorKey(at(5, [fp(4, 1), fp(2, 0)]))).toBe(cursorKey(at(5, [fp(2, 0), fp(4, 1)])));
   });
@@ -113,11 +113,18 @@ describe("cursorKey", () => {
     expect(cursorKey(at(5, []))).not.toBe(cursorKey(at(6, [])));
   });
 
-  // 到達したかを確かめる側は、この鍵と再生器が返した tesuuPointer を突き合わせる。
-  // 書式が揃っていないと比較そのものが成り立たない。
+  // 到達したかを確かめる側は、この鍵と再生器が返した tesuuPointer を突き合わせる
+  // （buildPlayer の doc がその手順を指している）。書式は JKFPlayer.getTesuuPointer に
+  // 従属し、JSON のキーの並び（te → forkIndex）まで一致していないと成り立たない。
+  // 手で組んだ文字列と比べると、ライブラリ側が並びを変えても気づけない。
   test("再生器が返す tesuuPointer と同じ書式", () => {
-    const observed = makeKifuCursor(5, [fp(2, 0)], `5,${JSON.stringify([fp(2, 0)])}`);
-    expect(cursorKey(at(5, [fp(2, 0)]))).toBe(observed.tesuuPointer);
+    const player = new JKFPlayer({
+      header: {},
+      moves: [{}, {}, { comments: ["t2"], forks: [[{ comments: ["f2"] }]] }, {}],
+    });
+    player.goto(2, [{ te: 2, forkIndex: 0 }]);
+
+    expect(cursorKey(at(2, [fp(2, 0)]))).toBe(player.getTesuuPointer(2));
   });
 });
 
@@ -134,5 +141,34 @@ describe("makeKifuCursor", () => {
 
   test("tesuuPointer は渡された文字列をそのまま持つ", () => {
     expect(makeKifuCursor(1, [], "5,[]").tesuuPointer).toBe("5,[]");
+  });
+});
+
+describe("descendTo", () => {
+  const at = (tesuu: number, forkPointers: ForkPointer[]) => ({ tesuu, forkPointers });
+
+  test("te の選択を書き、tesuu は te になる", () => {
+    expect(descendTo(at(1, []), 2, 0)).toEqual({ tesuu: 2, forkPointers: [fp(2, 0)] });
+  });
+
+  // te の選択を変えた以上、その先は別の枝に対して作られた値なので捨てる。
+  // 残すと利用者が一度も見ていない変化に盤が入る。
+  test("te 以降の選択は落とす", () => {
+    expect(descendTo(at(9, [fp(2, 0), fp(5, 1), fp(7, 0)]), 5, 0)).toEqual({
+      tesuu: 5,
+      forkPointers: [fp(2, 0), fp(5, 0)],
+    });
+  });
+
+  // null は「本譜を選ぶ」。0 は「変化の0番目」であって本譜ではない。
+  test("forkIndex が null なら te の選択を消す", () => {
+    expect(descendTo(at(9, [fp(2, 0), fp(5, 1)]), 5, null)).toEqual({
+      tesuu: 5,
+      forkPointers: [fp(2, 0)],
+    });
+  });
+
+  test("te より手前の選択は残す", () => {
+    expect(descendTo(at(1, [fp(1, 0)]), 3, 1).forkPointers).toEqual([fp(1, 0), fp(3, 1)]);
   });
 });
