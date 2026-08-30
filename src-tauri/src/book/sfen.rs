@@ -124,9 +124,7 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     let reject_rest = |tokens: &mut dyn Iterator<Item = &str>| -> Result<(), String> {
         match tokens.next() {
             None => Ok(()),
-            Some("moves") => Err(invalid(
-                "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
-            )),
+            Some("moves") => Err(invalid(MOVES_IN_SFEN)),
             Some(extra) => Err(invalid(&format!(
                 "局面の後ろに余分なトークン {extra} がある"
             ))),
@@ -160,9 +158,7 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     if let Some(ply) = tokens.next() {
         // 手数の位置に来た moves は、後ろの reject_rest まで届かないのでここで見る。
         if ply == "moves" {
-            return Err(invalid(
-                "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
-            ));
+            return Err(invalid(MOVES_IN_SFEN));
         }
         // 手数はキーから落とすが、数値でないものを黙って落とすと、書き間違えた
         // 局面が正しいキーとして通ってしまう。
@@ -215,12 +211,21 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
 /// 行番号は添えない。呼び出し側が行を数えているので、位置を足すのはそちら
 /// （`yaneuraou_db` の `annotate_line`）。ここへ持たせると、行の概念が無い
 /// 形式の reader が意味の無い番号を渡すことになる。
+/// 局面の後ろに指し手列が付いている、の理由文。
+///
+/// **復帰操作は書かない。** 理由文は呼び出し元が文脈に応じて包む（`sfen.rs` の
+/// 冒頭の宣言）。「進めた局面の SFEN を渡すこと」はフロントの実装者への指示で、
+/// 定跡ファイルの中身が同じ形だったときには実行できる操作が対応しない。
+const MOVES_IN_SFEN: &str = "局面の後ろに指し手列が付いている";
+
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(line).map_err(|reason| {
         BookError::new(
             BookErrorCode::InvalidContent,
+            // **並びは「何が起きたか（引用）。次にやること」。** 引用で終わると、
+            // 利用者は行番号と引用だけを読んで復帰操作を読み飛ばす。
             format!(
-                "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{reason}: {}）",
+                "定跡ファイルに読めない行がある（{reason}: {}）。取得し直すか、別の定跡を開くこと",
                 excerpt(line)
             ),
         )
@@ -643,6 +648,31 @@ mod tests {
             let expected = sfen.rsplit_once(' ').expect("手数のトークンが必ず付く").0;
 
             assert_eq!(key(&sfen), expected, "sfen={sfen}");
+        }
+    }
+
+    /// **理由文に復帰操作を書かないこと。**
+    ///
+    /// 理由文は呼び出し元が文脈に応じて包む。利用者が操作した局面なら
+    /// 「盤面を操作し直せ」、定跡ファイルの中身なら「取得し直せ」で、出すべき
+    /// 復帰操作が違う。理由文の中に書くと、**ファイル由来の失敗で
+    /// フロントの実装者向けの指示が利用者に出る。**
+    #[test]
+    fn a_reason_does_not_carry_a_recovery_step() {
+        let broken = [
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 moves 7g7f",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - x",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL x - 1",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b K 1",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 x",
+        ];
+        for sfen in broken {
+            let reason = book_key_or_reason(sfen).expect_err("読めないはず");
+            assert!(
+                !reason.contains("こと"),
+                "理由文に復帰操作が入っている: {reason}"
+            );
         }
     }
 

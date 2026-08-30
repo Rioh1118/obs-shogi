@@ -197,24 +197,31 @@ impl std::error::Error for BookError {}
 
 impl From<io::Error> for BookError {
     fn from(value: io::Error) -> Self {
-        // 案内は日本語で、次に何をすればよいかまで書く。OS の原文は後ろに残す。
+        // 案内は日本語で、次に何をすればよいかまで書く。OS の原文は残す。
         // message はログにもそのまま出るので、ここから落とすと切り分けができなくなる。
-        let (code, guidance) = match value.kind() {
+        //
+        // **並びは「何が起きたか（原文）。次にやること」。** 原文を末尾に置くと
+        // message が引用で終わり、利用者が復帰操作を読み飛ばす。失敗の message は
+        // 必ず「次に何をすればよいか」で終わる（表の不変条件3）。
+        let (code, cause, recovery) = match value.kind() {
             io::ErrorKind::NotFound => (
                 BookErrorCode::NotFound,
-                "定跡ファイルが見つからない。外付けなら接続を確かめ、移動したなら選び直すこと",
+                "定跡ファイルが見つからない",
+                "外付けなら接続を確かめ、移動したなら選び直すこと",
             ),
             io::ErrorKind::PermissionDenied => (
                 BookErrorCode::PermissionDenied,
-                "定跡ファイルを読む権限が無い。システム設定でこのアプリにアクセスを許可するか、別の場所にコピーすること",
+                "定跡ファイルを読む権限が無い",
+                "システム設定でこのアプリにアクセスを許可するか、別の場所にコピーすること",
             ),
             _ => (
                 BookErrorCode::Io,
-                "定跡ファイルを読めない。開き直しても直らなければ、定跡を取得し直すこと",
+                "定跡ファイルを読めない",
+                "開き直しても直らなければ、定跡を取得し直すこと",
             ),
         };
 
-        BookError::new(code, format!("{guidance}（{value}）"))
+        BookError::new(code, format!("{cause}（{value}）。{recovery}"))
     }
 }
 
@@ -265,6 +272,25 @@ mod tests {
         );
         assert_eq!(err.code(), BookErrorCode::PermissionDenied);
         assert_eq!(err.path(), Some("/books/a.db"));
+    }
+
+    /// **OS 由来の失敗も「次に何をすればよいか」で終わること。**
+    ///
+    /// 原文を末尾に置くと message が引用で終わり、利用者が復帰操作を読み飛ばす。
+    /// `.db` 側の失敗（表の不変条件3）と同じ規約。
+    #[test]
+    fn an_io_error_ends_with_something_the_user_can_do() {
+        for kind in [
+            io::ErrorKind::NotFound,
+            io::ErrorKind::PermissionDenied,
+            io::ErrorKind::Other,
+        ] {
+            let err = BookError::from(io::Error::new(kind, "os の原文"));
+            let message = err.message();
+            assert!(message.ends_with("こと"), "{kind:?}: {message}");
+            // 原文は残す。落とすとログから切り分けられなくなる
+            assert!(message.contains("os の原文"), "{kind:?}: {message}");
+        }
     }
 
     /// 引用は予算に収まること。制御文字を含む入力でも同じ。

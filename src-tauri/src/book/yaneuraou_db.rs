@@ -1645,7 +1645,7 @@ mod tests {
     #[test]
     fn every_failure_ends_with_something_the_user_can_do() {
         let long_move = "x".repeat(3000);
-        let cases: [(&str, String); 6] = [
+        let cases: [(&str, String); 7] = [
             ("空", String::new()),
             ("注記だけ", "# a\n".to_string()),
             ("定跡ではない", "これは定跡ではない\n".to_string()),
@@ -1655,6 +1655,9 @@ mod tests {
                 format!("sfen {HIRATE}\n{long_move}\n"),
             ),
             ("申告との不一致", format!("# NOE:2\nsfen {HIRATE}\n7g7f\n")),
+            // `sfen ` 行が `BookKey` の検査に落ちる枝。**ここだけ引用で
+            // 終わっていた**（復帰操作を文の途中に置いていた）
+            ("局面行が読めない", format!("sfen {HIRATE} moves 7g7f\n")),
         ];
 
         for (name, text) in cases {
