@@ -6,6 +6,7 @@ import { editorTextToLines, linesToEditorText } from "../lib/commentText";
 import {
   dropUnsavedDraft,
   dropUnsavedDraftIfUnchanged,
+  generationOf,
   getUnsavedDraft,
   putUnsavedDraft,
 } from "../lib/unsavedDrafts";
@@ -112,6 +113,17 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
    */
   const save = useCallback(
     (target: Face, text: string): Promise<"saved" | "failed" | "skipped"> => {
+      // **分岐の番号の世代を撃った時点で掴む。**
+      //
+      // `target.cursor` は `forkIndex`（`forks` 配列の位置）を含む。列で待っている間に
+      // 分岐が削除・入れ替えされると、同じ番号は**別の変化**を指す。そのまま書くと
+      // 打っていない変化に本文が入り、**その変化に元からあったコメントが消える**。
+      // 書き込みは成功するので画面には何も出ない。
+      const bornAt = generationOf(target.absPath);
+      const stillValid = () => bornAt === generationOf(target.absPath);
+      const stash = (value: { draft: string; error: string; told: boolean }) =>
+        putUnsavedDraft(target.key, value, { absPath: target.absPath, generation: bornAt });
+
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
         const showing = () => faceRef.current?.key === target.key;
 
@@ -122,7 +134,16 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         if (target.absPath !== commitRef.current.loadedAbsPath) {
           const msg = "棋譜が切り替わったので保存できませんでした";
           const seen = showing();
-          putUnsavedDraft(target.key, { draft: text, error: msg, told: seen });
+          stash({ draft: text, error: msg, told: seen });
+          if (seen) setEditing((e) => (e && e.face.key === target.key ? { ...e, error: msg } : e));
+          return "skipped";
+        }
+
+        // 番号が動いていたら書かない。預けもしない（`stash` が世代で弾く）。
+        // 本文は失われるが、残すと利用者が打った覚えのない変化へ入る。
+        if (!stillValid()) {
+          const msg = "分岐の並びが変わったので保存できませんでした";
+          const seen = showing();
           if (seen) setEditing((e) => (e && e.face.key === target.key ? { ...e, error: msg } : e));
           return "skipped";
         }
@@ -143,7 +164,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
             // **いま書こうとした本文を預ける。** 列で直列化しているので、
             // 置き場にあるのは必ずこれより古い。古いほうを残すと、
             // 「続けて書けば保存し直します」と出しながら書き足したぶんを捨てることになる。
-            putUnsavedDraft(target.key, { draft: text, error: res.error, told: seen });
+            stash({ draft: text, error: res.error, told: seen });
             if (seen)
               setEditing((e) =>
                 // 同じ理由なら参照を変えない。変えると自動保存の効果が張り直され、
@@ -269,16 +290,21 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // 書き込めない場所に置いた棋譜ではノートを閉じる手段が1つも無くなる
     // （失敗を伝えるより悪い行き止まり）。2回目は諦めて閉じる。
     if (editing && dirty) {
+      const told = getUnsavedDraft(editing.face.key)?.told === true;
+
       // **列が動いているなら待たない。** 待つと、他の書き込みが返ってこない間
       // 閉じるが効かなくなる（押しても何も起きず、押せない見た目にもならない）。
-      // 撃つだけ撃てば、失敗しても `save` が本文を預けるので失わない。
+      //
+      // ただし**閉じる判断は結果に委ねる**。ここで即座に閉じると、
+      // 失敗する環境ほど確実にこの分岐を通るのに、失敗が一度も画面に出ない。
+      // 押した瞬間から「保存中」が出ているので、押せない見た目にはならない。
       if (inFlightRef.current > 0) {
-        void save(editing.face, editing.draft);
-        onClose();
+        void save(editing.face, editing.draft).then((r) => {
+          if (r !== "failed" || told) onClose();
+        });
         return;
       }
 
-      const told = getUnsavedDraft(editing.face.key)?.told === true;
       const result = await save(editing.face, editing.draft);
       if (result === "failed") {
         if (!told) return;

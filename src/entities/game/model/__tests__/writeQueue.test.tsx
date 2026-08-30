@@ -105,6 +105,57 @@ describe("書き込みの列", () => {
       await second;
     });
 
-    expect(written.filter((w) => w.path === "/ws/b.kif")).toEqual([]);
+    // **b.kif へ書かないだけでは足りない。** 撃った時点で `persistence` を固定した以上、
+    // 走る時点の突き合わせを丸ごと消しても書かれる先は a.kif のままで、
+    // このテストは緑になってしまう。**書かなかったこと**まで見る。
+    expect(written).toHaveLength(1);
+    await expect(second).resolves.toMatchObject({ success: false });
+  });
+
+  // `persistence` は `useMemo` で作り直されるので、同じパスを開き直すと identity が変わる。
+  // 走る時点の突き合わせが無いと、**読み直した内容の上へ、列の中の古い棋譜が着地する**。
+  it("同じ棋譜を開き直しても、列の中の古い書き込みは着地しない", async () => {
+    const written: { path: string; jkf: JKFData }[] = [];
+    const first = makePersistence("/ws/a.kif", written);
+    const reopened = makePersistence("/ws/a.kif", written);
+
+    let game!: ReturnType<typeof useGame>;
+    const view = render(
+      <GameProvider persistence={first.persistence}>
+        <Harness onReady={(g) => (game = g)} />
+      </GameProvider>,
+    );
+
+    await act(async () => {
+      await game.loadGame(JKF_A, "/ws/a.kif");
+    });
+
+    let second: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      void game.setCommentsByCursor(game.state.cursor!, ["1本目"]); // async-result-ignored: 握ったまま返さない1本目
+      await Promise.resolve();
+    });
+    await act(async () => {
+      second = game.setCommentsByCursor(game.state.cursor!, ["2本目"]);
+      await Promise.resolve();
+    });
+
+    // 同じパスを開き直す（`persistence` の identity だけが変わる）
+    await act(async () => {
+      view.rerender(
+        <GameProvider persistence={reopened.persistence}>
+          <Harness onReady={(g) => (game = g)} />
+        </GameProvider>,
+      );
+      await game.loadGame(JKF_A, "/ws/a.kif");
+    });
+
+    await act(async () => {
+      first.pending[0]?.release();
+      await second;
+    });
+
+    expect(written).toHaveLength(1);
+    await expect(second).resolves.toMatchObject({ success: false });
   });
 });

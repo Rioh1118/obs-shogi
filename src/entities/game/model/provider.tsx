@@ -47,35 +47,31 @@ import {
  */
 const WRITE_DEADLINE_MS = 15_000;
 
+/** 応答が無いまま上限時間を過ぎたときの理由。**巻き戻しの判断がこれを見る** */
+const NO_RESPONSE = "書き込みが応答しません。保存できたかどうか分かりません";
+
 /**
- * 返ってこない書き込みを失敗として畳む。
+ * 返ってこない書き込みを、**呼び出し元に対してだけ**失敗として畳む。
  *
- * 畳まないと、書き込みは列で順に流すので**1本刺さるだけで以後すべてが無言で止まる**。
- * `finally` も走らないので「操作中」は立ちっぱなし、失敗も出ない。
+ * 畳まないと、`finally` が走らないので「操作中」が立ちっぱなしになり、
+ * 失敗も出ないまま操作を受け付けなくなる。
  * 刺さる条件（NFS / SMB、他プロセスが掴んでいる、fsync が返らない）は
  * このブランチが既に前提として認めている。
  *
- * **畳んだあとに本物の書き込みが着地する可能性は残る。** そのとき一時的に
- * メモリ（巻き戻し済み）とディスクが食い違うが、次の書き込みがディスクを
- * メモリに合わせるので残り続けはしない。全部の書き込みが黙って死ぬより軽い。
+ * **列は畳まない。** 畳んで次を走らせると、刺さったままの1本と新しい1本が
+ * 並行に走り、**後に着地したほうが勝つ**。直列化した理由そのものが消える。
+ * 列は本物が settle するまで待たせる。
  */
-async function withDeadline(
-  saving: AsyncResult<void, string>,
+function withDeadline(
+  running: Promise<{ success: true; data: void } | { success: false; error: string }>,
 ): Promise<{ success: true; data: void } | { success: false; error: string }> {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  try {
-    return await Promise.race([
-      saving,
-      new Promise<{ success: false; error: string }>((resolve) => {
-        timer = setTimeout(
-          () => resolve({ success: false, error: "書き込みが応答しません" }),
-          WRITE_DEADLINE_MS,
-        );
-      }),
-    ]);
-  } finally {
+  const deadline = new Promise<{ success: false; error: string }>((resolve) => {
+    timer = setTimeout(() => resolve({ success: false, error: NO_RESPONSE }), WRITE_DEADLINE_MS);
+  });
+  return Promise.race([running, deadline]).finally(() => {
     if (timer) clearTimeout(timer);
-  }
+  });
 }
 
 export function GameProvider({ children, persistence }: GameProviderProps) {
@@ -145,7 +141,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return Err(msg);
         }
 
-        const res = await withDeadline(persistence.save(jkfToSave));
+        const res = await persistence.save(jkfToSave);
         if (!res.success) {
           // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
           // A の保存が失敗して返ってきたときに B が読み込まれていると、
@@ -158,9 +154,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       };
 
       // 前の書き込みが失敗しても列は止めない（`catch` 側でも同じものを繋ぐ）。
-      const next = writeChainRef.current.then(writeOnce, writeOnce);
-      writeChainRef.current = next;
-      return next;
+      // **列は本物が settle するまで待つ。** 呼び出し元へ返すぶんだけ期限を掛ける。
+      const running = writeChainRef.current.then(writeOnce, writeOnce);
+      writeChainRef.current = running;
+      return withDeadline(running);
     },
     // 宛先は `destRef` から**走る時点で**読むので、依存に持たない。
     // 持つと宛先が変わるたびに下流の `useCallback` が全部作り直される
@@ -357,7 +354,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        if (!saved.success)
+        // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
+        // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
+        // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
+        if (!saved.success && saved.error !== NO_RESPONSE)
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
@@ -500,7 +500,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        if (!saved.success)
+        // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
+        // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
+        // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
+        if (!saved.success && saved.error !== NO_RESPONSE)
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
@@ -547,7 +550,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        if (!saved.success)
+        // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
+        // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
+        // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
+        if (!saved.success && saved.error !== NO_RESPONSE)
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
@@ -583,7 +589,12 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           const result = setCommentsByCursorInJkf(nextJkf, cursor, comments);
 
           if (!result.ok) {
-            throw new Error("Failed to resolve comment target");
+            // **利用者の言葉で書く。** この文字列はノートの赤い箱にそのまま出る。
+            // 「続けて書けば保存し直します」は嘘になる理由（同じ場所を指し続ける）なので、
+            // 何をすれば直るかを書く。
+            throw new Error(
+              "この手が棋譜の中に見つかりませんでした。棋譜が変わっている可能性があります。ノートを閉じて開き直してください",
+            );
           }
 
           if (!result.changed) {

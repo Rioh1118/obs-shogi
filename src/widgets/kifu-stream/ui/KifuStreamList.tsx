@@ -198,12 +198,15 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      // **番号を動かす前に、預かった下書きを捨てる。**
+      const res = await swapBranches(q);
+      // **番号が動いたあとに、影響を受ける預かりを捨てる。**
       // コメントの預かりは `forkIndex`（`forks` 配列の位置）を鍵に持つので、
       // 入れ替えたあとの同じ番号は**別の変化**を指す。残すと、そこのノートに
       // 前の変化の下書きが本文として出て、900ms 後にそこへ書き込まれる。
-      dropUnsavedDraftsFor(state.loadedAbsPath);
-      await swapBranches(q); // async-result-ignored: 失敗を出す口がまだ無い → #277
+      //
+      // 先に捨てると、書き込みが失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
+      // 落とす範囲を `te` 以降に絞るのは、それより前の番号は動かないため。
+      if (res.success) dropUnsavedDraftsFor(state.loadedAbsPath, te);
     },
     [swapBranches, state.loadedAbsPath],
   );
@@ -263,9 +266,9 @@ export default function KifuStreamList() {
     if (!pendingDelete) return;
 
     setDeleting(true);
-    // 入れ替えと同じ理由。消すと、それより後ろの `forkIndex` が全部1つずつずれる
-    dropUnsavedDraftsFor(state.loadedAbsPath);
     const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
+    // 入れ替えと同じ理由。消すと、それより後ろの `forkIndex` が全部1つずつずれる
+    if (res.success) dropUnsavedDraftsFor(state.loadedAbsPath, pendingDelete.query.te);
 
     // **閉じられていても失敗は出す。**
     //
