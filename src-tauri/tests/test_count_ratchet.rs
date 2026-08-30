@@ -15,7 +15,7 @@ use std::path::Path;
 
 /// 現在の本数。**下げるときは理由をコミットメッセージに書くこと。**
 /// 上げるのは自由（足したぶんだけ上がる）。
-const EXPECTED_MIN: usize = 162;
+const EXPECTED_MIN: usize = 163;
 
 /// 取り込み忘れを許す幅。**1回の作業で足すテストの本数の目安。**
 /// これ以上ずれたら更新忘れとみなす。
@@ -78,7 +78,7 @@ fn the_number_of_tests_does_not_go_down() {
 
 /// 増えたぶんを取り込み忘れると、次に消えたときの検出力が落ちる。
 ///
-/// 例えば 162 のまま 200 本まで増やすと、38 本消しても緑で通る。
+/// 例えば 163 のまま 200 本まで増やすと、37 本消しても緑で通る。
 #[test]
 fn the_expected_number_is_kept_up_to_date() {
     let found = count_all_tests();

@@ -354,6 +354,7 @@ fn check_expanded_size(
     moves: usize,
     max_bytes: usize,
     file_size: u64,
+    consumed: u64,
     path: &str,
 ) -> Result<(), BookError> {
     let estimated = positions * BYTES_PER_POSITION + moves * BYTES_PER_MOVE;
@@ -361,16 +362,21 @@ fn check_expanded_size(
         return Ok(());
     }
 
-    // **走行合計は出さない。** この検査は1件ごとに走るので、超えた瞬間の値は
-    // 常に上限とほぼ同じになり、3倍の超過も300倍の超過も同じ見た目になる。
-    // 利用者が「どれくらい小さい定跡なら開けるか」を判断できる数字を出す。
+    // **展開の上限そのものは出さない。** ファイルの上限（`MAX_FILE_BYTES`）は
+    // 展開の上限より小さいので、その2つを並べると必ず「小さいファイルが大きい
+    // 上限を超えた」と読める。利用者はアプリの不具合だと判断するか、
+    // 「上限まで余裕がある」と逆方向へ動く。
+    //
+    // 出すのは同じ量どうし。**上限に当たった時点で読めていたバイト数**が、
+    // この形の定跡なら開ける大きさそのものになる。
     Err(BookError::new(
         BookErrorCode::TooLarge,
         format!(
-            "この定跡は展開すると大きすぎて開けない（{} のファイル / 展開できるのは\
-             上限 {} 相当まで）。より小さい定跡を開くこと",
+            "この定跡は展開するとメモリに収まらない（{} のうち先頭 {} を読んだ\
+             ところで上限）。この形の定跡なら {} 程度までにすること",
             format_size(file_size),
-            format_size(max_bytes as u64)
+            format_size(consumed),
+            format_size(consumed)
         ),
     )
     .with_path(path))
@@ -449,12 +455,16 @@ fn parse_limited<R: BufRead>(
     // 申告と突き合わせるのは `sfen` 行の数。map の要素数ではない（正規化と
     // 重複の畳み込みで減るので、正常な定跡でも一致しない）。
     let mut sfen_lines: u64 = 0;
+    // 上限に当たった時点で読めていた量。文面に出す唯一の数字なので、
+    // 行を1つ読むたびに積む（改行のぶんを含める）。
+    let mut consumed: u64 = 0;
     let mut total_moves: usize = 0;
 
     while let Some(terminated) =
         read_line(&mut reader, &mut raw, &mut buffer, false, index + 1, path)?
     {
         index += 1;
+        consumed += raw.len() as u64 + 1;
         let line = buffer.trim();
         if is_skippable(line) {
             // 注記や空行で終わるファイルは、切れていても失われたのは注記だけ。
@@ -478,6 +488,7 @@ fn parse_limited<R: BufRead>(
                 total_moves,
                 max_bytes,
                 file_size,
+                consumed,
                 path,
             )?;
             flush(&mut positions, &mut current, &mut buffered);
@@ -524,6 +535,7 @@ fn parse_limited<R: BufRead>(
             total_moves,
             max_bytes,
             file_size,
+            consumed,
             path,
         )?;
         buffered.push(parsed);
@@ -1317,6 +1329,11 @@ mod tests {
 
     /// **どちらの上限にも2倍の余裕を要求する。** 実物に近い値を置くと、
     /// 版が重なった時点で実利用者が弾かれ、そのとき出せる復帰操作が無い。
+    /// ファイルの上限は展開の上限より小さい。**この向きが変わると、`check_expanded_size`
+    /// が「ファイルの大きさ」と「展開の上限」を並べても矛盾して見えなくなる**ので、
+    /// 文面の作り方を見直す合図になる。
+    const _: () = assert!(MAX_FILE_BYTES < MAX_EXPANDED_BYTES as u64);
+
     const _: () = assert!(REAL_BOOK_BYTES * 2 < MAX_FILE_BYTES);
     const _: () = assert!(
         (REAL_BOOK_POSITIONS * BYTES_PER_POSITION + REAL_BOOK_MOVES * BYTES_PER_MOVE) * 2
@@ -1427,23 +1444,6 @@ mod tests {
         }
     }
 
-    /// 展開の見積もりが上限を超えたら落とす。
-    #[test]
-    fn a_book_that_expands_past_the_limit_is_refused() {
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
-        // 局面1 + 指し手3 で 280 + 450 = 730 バイトの見積もり
-        let err = parse_limited(
-            std::io::Cursor::new(text.as_bytes()),
-            "/books/a.db",
-            700,
-            text.len() as u64,
-        )
-        .expect_err("上限を超えている");
-
-        assert_eq!(err.code(), BookErrorCode::TooLarge);
-        assert!(err.message().contains("こと"), "{}", err.message());
-    }
-
     /// 上限ちょうどは通す。境界で間違えると、上限近くの定跡が開けなくなる。
     #[test]
     fn a_book_at_the_expansion_limit_is_accepted() {
@@ -1478,46 +1478,6 @@ mod tests {
         .expect_err("局面だけでも上限に当たる");
 
         assert_eq!(err.code(), BookErrorCode::TooLarge);
-    }
-
-    /// 文面の数字が、そのファイルを指していること。
-    ///
-    /// 走行合計を出すと、この検査は1件ごとに走るので超えた瞬間の値は常に上限と
-    /// ほぼ同じになり、**3倍の超過も300倍の超過も同じ見た目になる。**
-    /// 「より小さい定跡を開く」を実行する当てが無くなる。
-    #[test]
-    fn the_limit_message_names_the_size_of_this_file() {
-        // 相異なる局面を並べる。同じ局面を手数違いで並べても畳まれて1件になる。
-        let mut text = String::from("#YANEURAOU-DB2016 1.00\n");
-        for rank in 0..9 {
-            let before = rank;
-            let after = 8 - rank;
-            let run = |n: usize| if n == 0 { String::new() } else { n.to_string() };
-            text.push_str(&format!(
-                "sfen 4k4/9/9/9/9/9/9/9/{}K{} b - 1\n",
-                run(before),
-                run(after)
-            ));
-        }
-
-        let message = |file_size: u64| {
-            parse_limited(
-                std::io::Cursor::new(text.as_bytes()),
-                "/books/a.db",
-                280,
-                file_size,
-            )
-            .expect_err("上限を超えている")
-            .message()
-            .to_string()
-        };
-
-        let small = message(20_000_000);
-        let huge = message(900_000_000);
-
-        assert!(small.contains("20.0MB"), "{small}");
-        assert!(huge.contains("900.0MB"), "{huge}");
-        assert_ne!(small, huge, "ファイルが違うのに同じ文面: {small}");
     }
 
     /// 1行ぶんの確保はどちらの上限にも入らない。改行を1つも含まないファイルは
@@ -1564,6 +1524,88 @@ mod tests {
             assert_eq!(positions.len(), 1, "marker={marker}");
             assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 1);
         }
+    }
+
+    /// 展開の見積もりが上限を超えたら落とす。
+    #[test]
+    fn a_book_that_expands_past_the_limit_is_refused() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
+        // 局面1 + 指し手3 で 280 + 450 = 730 バイトの見積もり
+        let err = parse_limited(
+            std::io::Cursor::new(text.as_bytes()),
+            "/books/a.db",
+            700,
+            text.len() as u64,
+        )
+        .expect_err("上限を超えている");
+
+        assert_eq!(err.code(), BookErrorCode::TooLarge);
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 文面の数字が、そのファイルのどこまで読めたかを指していること。
+    ///
+    /// **展開の上限そのものを出してはいけない。** ファイルの上限
+    /// （[`MAX_FILE_BYTES`]）は展開の上限より小さいので、その2つを並べると
+    /// 必ず「小さいファイルが大きい上限を超えた」と読める。利用者はアプリの
+    /// 不具合だと判断するか、「上限まで余裕がある」と逆方向へ動く。
+    ///
+    /// テストも**本番と同じ向き**で組む。上限をファイルより小さくすると、
+    /// この性質を構造的に踏めない。
+    #[test]
+    fn the_limit_message_names_how_far_it_got_not_the_limit() {
+        let mut text = String::from("#YANEURAOU-DB2016 1.00\n");
+        for rank in 0..9 {
+            let run = |n: usize| if n == 0 { String::new() } else { n.to_string() };
+            text.push_str(&format!(
+                "sfen 4k4/9/9/9/9/9/9/9/{}K{} b - 1\n",
+                run(rank),
+                run(8 - rank)
+            ));
+        }
+
+        // 本番と同じ向き: ファイル（20MB）< 展開の上限（6.4GB）
+        let err = parse_limited(
+            std::io::Cursor::new(text.as_bytes()),
+            "/books/a.db",
+            280,
+            20_000_000,
+        )
+        .expect_err("上限を超えている");
+
+        let message = err.message();
+        assert!(
+            message.contains("20.0MB"),
+            "ファイルの大きさが無い: {message}"
+        );
+        // 渡した上限そのものを出していないこと。**実際に渡した値で見る。**
+        // 定数（6.4GB）と突き合わせると、上限を小さくしたテストでは何も検出できない。
+        assert!(
+            !message.contains(&format_size(280)),
+            "上限を出している（本番ではファイルより大きいので矛盾して見える）: {message}"
+        );
+        // 読めた量が出ていること。0 のままだと「どこまで読めたか」を伝えていない
+        assert!(!message.contains("0.0KB"), "読めた量が 0 のまま: {message}");
+    }
+
+    /// 表の (S1, E0) / (S1, E1) / (S1, E3)。
+    ///
+    /// 見出しの後、最初の `sfen` 行より前に来る空行・2度目の見出し・`#` 注記。
+    /// S0 と S2 では踏んでいたが、S1 だけ通していなかった。
+    #[test]
+    fn notes_between_the_header_and_the_first_position_are_skipped() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             \n\
+             # 生成: 2026-08-30\n\
+             #YANEURAOU-DB2016 1.00\n\
+             // 出典: floodgate\n\
+             sfen {HIRATE}\n\
+             7g7f none 50 32 1\n"
+        );
+        let positions = parsed(&text).expect("注記は読み飛ばされるはず");
+        assert_eq!(positions.len(), 1);
+        assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 1);
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
