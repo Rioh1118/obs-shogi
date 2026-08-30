@@ -49,6 +49,16 @@ describe("buildStreamRowsFromCursor", () => {
     }
   });
 
+  test("選択肢は te の forks から出る", () => {
+    // resolveForkSelection が「食い違う計画値は押せない」で済ませられるのは、
+    // メニューの選択肢が forkAndForward と同じ forks から作られているから。
+    // ここがずれると、範囲外の計画値が選択肢の内側に入って一致してしまう。
+    const rows = rowsFor([]);
+
+    expect(rows.map((r) => r.forkCount)).toEqual([0, 0, 1, 0]);
+    expect(rows.find((r) => r.te === 2)?.forkTexts).toEqual(["☖８四歩"]);
+  });
+
   test("計画が壊れていてもレンダを落とさない", () => {
     // forkAndForward は forks.length 以上なら false を返すが、負や非整数は
     // forks[-1] を掴んで TypeError になる。ここはレンダ中に呼ばれるので、

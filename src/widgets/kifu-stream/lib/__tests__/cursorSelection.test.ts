@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+import { JKFPlayer } from "json-kifu-format";
+import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 import { buildTesuuPointer } from "@/entities/kifu/model/branch";
 import {
   asBranchPlan,
@@ -6,7 +8,24 @@ import {
   plannedCursorFrom,
   type ForkPointer,
 } from "@/entities/kifu/model/cursor";
+import { buildStreamRowsFromCursor } from "../buildStreamRows";
 import { resolveForkSelection } from "../cursorSelection";
+
+/** 本譜3手。te=2 に変化が1本。`buildStreamRows.test.ts` と同じ形 */
+const KIF = `手合割：平手
+   1 ７六歩(77)
+   2 ３四歩(33)
+   3 ２六歩(27)
+
+変化：2手
+   2 ８四歩(83)
+`;
+
+const rowsFor = (branchPlan: ForkPointer[]) =>
+  buildStreamRowsFromCursor(
+    new JKFPlayer(parseKifuContentToJKF(KIF, "kif")),
+    plannedCursor(0, branchPlan),
+  );
 
 /**
  * 実物と同じ組み方で `PlannedCursor` を作る。
@@ -90,11 +109,19 @@ describe("resolveForkSelection", () => {
     // buildStreamRowsFromCursor は forks の範囲外の計画では本譜へ落ち、行のチェックも
     // 本譜に付く。一方この関数は範囲外の値をそのまま読むので、2つは食い違う。
     // 害が出ないのは、その値がメニューの選択肢に無いから（選択肢も同じ forks から作る）。
-    // 押せるのは「本譜」と変化 0..forks.length-1 だけで、どれを押しても一致しない。
-    const outOfRange = plannedCursor(0, [{ te: 3, forkIndex: 9 }]);
+    //
+    // 選択肢は手で書かず、行が持つ forkCount から組む。手で書くと、選択肢の作られ方が
+    // ずれて範囲外の値が選択肢の内側に入っても、このテストは緑のまま通る。
+    const plan = [{ te: 2, forkIndex: 9 }];
+    const row = rowsFor(plan).find((r) => r.te === 2);
+    if (!row) throw new Error("te=2 の行が無い");
 
-    for (const forkIndex of [null, 0, 1, 2]) {
-      expect(resolveForkSelection(outOfRange, 3, forkIndex).kind).toBe("applyCursor");
+    // 行は本譜に ✓ を描く（計画とは食い違う）
+    expect(row.selectedForkIndex).toBeNull();
+
+    const options = [null, ...Array.from({ length: row.forkCount }, (_, i) => i)];
+    for (const forkIndex of options) {
+      expect(resolveForkSelection(plannedCursor(0, plan), 2, forkIndex).kind).toBe("applyCursor");
     }
   });
 
