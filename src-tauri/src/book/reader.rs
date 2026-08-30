@@ -50,9 +50,7 @@ pub(crate) struct OpenedBook {
     pub(crate) reader: Box<dyn BookReader>,
 }
 
-/// 形式ごとの、1バイトも読まずに落とす大きさの上限。
-///
-/// 読める形式の1件ぶん。
+/// 読める形式1件ぶん。上限と reader の作り方を1つに持つ。
 struct Support {
     /// 1バイトも読まずに落とす大きさの上限。`None` なら上限を掛けない
     /// （on-the-fly で読む形式は、大きさそのものが問題にならない）。
