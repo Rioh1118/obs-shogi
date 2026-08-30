@@ -3,6 +3,7 @@ import "./PositionSearchContinuation.scss";
 
 import type { PositionHit } from "@/entities/search";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import { advanceWithPlan, indexPlan } from "@/entities/kifu/lib/advanceWithPlan";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
@@ -101,24 +102,11 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
         const cursor = cursorFromLite(activeHit.cursor);
         const player = buildPlayer(data, cursor);
 
-        const planned = new Map<number, number>();
-        for (const p of cursor.forkPointers) planned.set(p.te, p.forkIndex);
+        const plan = indexPlan(cursor.forkPointers);
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {
-          const te = player.tesuu + 1;
-          if (!player.currentStream[te]) break;
-
-          const plannedForkIndex = planned.get(te) ?? null;
-
-          let ok = false;
-          if (plannedForkIndex != null) {
-            ok = player.forkAndForward(plannedForkIndex);
-            if (!ok) ok = player.forward();
-          } else {
-            ok = player.forward();
-          }
-          if (!ok) break;
+          if (!advanceWithPlan(player, plan).moved) break;
 
           const s = player.getReadableKifu?.() ?? "";
           if (s) out.push(s);

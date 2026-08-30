@@ -1,3 +1,4 @@
+import { advanceWithPlan, indexPlan } from "@/entities/kifu/lib/advanceWithPlan";
 import type { PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
@@ -12,8 +13,7 @@ export function buildStreamRowsFromCursor(
   player: JKFPlayer,
   cursor: PlannedCursor | null,
 ): RowModel[] {
-  const planned = new Map<number, number>();
-  for (const p of cursor?.forkPointers ?? []) planned.set(p.te, p.forkIndex);
+  const plan = indexPlan(cursor?.forkPointers);
 
   const rows: RowModel[] = [];
   const currentTesuu = cursor?.tesuu ?? 0;
@@ -46,26 +46,11 @@ export function buildStreamRowsFromCursor(
       return s;
     })();
 
-    const plannedForkIndex = planned.get(te) ?? null;
-
-    let ok = false;
-    // 実際に降りた分岐。計画が使えなくて本譜へ落ちたら null のままにする。
-    // 行が「選ばれている」と言う値は、この走査が実際に選んだものでなければならない。
-    // 計画をそのまま載せると、バッジは「変化1」なのにメニューの ✓ は本譜、
+    // 行が「選ばれている」と言う値は、この走査が実際に降りたものでなければならない。
+    // 計画をそのまま載せると、本譜へ落ちたのにバッジは「変化1」でメニューの ✓ は本譜、
     // という食い違った画面になり、`branchIndexFromRow` が使えない値を投げる。
-    let selectedForkIndex: number | null = null;
-
-    // forkAndForward は forks.length 以上なら false を返すが、負や非整数は
-    // forks[-1] を掴んで JKFPlayer の内部で TypeError になる。ここはレンダ中なので、
-    // 拾わないと棋譜ペインごと落ちる。計画は無検証で持ち越されるので自分で捨てる。
-    if (plannedForkIndex != null && Number.isInteger(plannedForkIndex) && plannedForkIndex >= 0) {
-      ok = player.forkAndForward(plannedForkIndex);
-      if (ok) selectedForkIndex = plannedForkIndex;
-      else ok = player.forward();
-    } else {
-      ok = player.forward();
-    }
-    if (!ok) break;
+    const { moved, forkIndex: selectedForkIndex } = advanceWithPlan(player, plan);
+    if (!moved) break;
 
     const mf = player.currentStream[te];
     const mv = mf?.move;
