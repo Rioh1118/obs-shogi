@@ -451,7 +451,7 @@ fn encode_all(
 /// **確保量が入力の長さで頭打ちになる**のがここで欲しい性質で、
 /// 万一 `file_id` が疎になる変更が入っても、外れる方向は「捨てて作り直す」側。
 ///
-/// `zstd` は checksum 無しで書いているのでビット化けを捕まえない（#337）。
+/// `zstd` は checksum 無しで書いているのでビット化けを捕まえない（#336）。
 /// 化けた値がここに届くことは前提にしてよい。
 fn checked_file_id(file_id: FileId, ft_len: usize) -> Result<FileId, String> {
     if file_id as usize > ft_len {
@@ -791,7 +791,7 @@ mod tests {
     /// 検査せずに通すと 74 バイトのファイルが 100GB 超の確保を要求する。
     /// 出るのは `Err` ではなく SIGKILL で、利用者から見ると
     /// 「プロジェクトを開くたびにアプリが固まって落ちる」になる。
-    /// `zstd` を checksum 無しで書いている（#337）以上、化けた値はここに届く。
+    /// `zstd` を checksum 無しで書いている（#336）以上、化けた値はここに届く。
     #[test]
     fn a_file_id_from_a_corrupt_cache_cannot_decide_how_much_to_allocate() {
         let root = Path::new("/tmp");
