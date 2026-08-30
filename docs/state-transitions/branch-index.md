@@ -86,7 +86,7 @@
 
 2. **要求した局面に着いたかは `tesuu` では判定できない。**
    `goto` は実在しない変化を黙って捨て、そこまでに降りた線を進むので、**要求した `tesuu` ちょうどで
-   別の線に着く**。比べるなら `player.getTesuuPointer(tesuu)` と `cursor.tesuuPointer`。
+   別の線に着く**。比べるなら `player.getTesuuPointer(tesuu)` と `cursorKey(cursor)`。
 3. **範囲外の値は、黙って別の候補に丸められない。**
    `splice` は `NaN` も小数も0方向へ丸めるので、大小比較だけの検査では
    `NaN` が「本譜を消す」に化ける。整数であることを先に見る。

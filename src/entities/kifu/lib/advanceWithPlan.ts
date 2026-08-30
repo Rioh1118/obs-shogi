@@ -16,8 +16,14 @@ export type PlanByTe = ReadonlyMap<number, number>;
  * `BranchPlan` を `PlanByTe` にする。同じ te が重なれば後勝ち。
  *
  * 素の `ForkPointer[]` を受けないのは、`cursor.forkPointers`（`te <= tesuu` に
- * 正規化済み＝計画を持たない）を渡せてしまうと、引く te が `tesuu + 1` 以降なので
- * **1度も当たらないまま黙って線を進む**ため。計画を持たないことを言いたい側は
+ * 正規化済み＝計画を持たない）を渡せてしまうため。壊れ方は呼び出し側で違う。
+ *
+ * - player が `cursor.tesuu` にいる走査（`computeLeafTesuu` / `nextMove` / `goToEnd`）は
+ *   引く te が `tesuu + 1` 以降なので**1度も当たらず、黙って線を進む**
+ * - tesuu 0 から歩き直す走査（`buildStreamRowsFromCursor`）は `te <= tesuu` だけが当たり、
+ *   **カーソルより先の行が本譜に化ける**
+ *
+ * どちらも失敗が画面に出ないので型で止める。計画を持たないことを言いたい側は
  * `advanceCurrentLine` を使う。
  */
 export function planByTe(forkPointers: BranchPlan | undefined): PlanByTe {

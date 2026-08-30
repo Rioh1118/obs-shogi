@@ -39,8 +39,8 @@ export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): T
  * 現在局面を一意に表現し、UIの再描画やデバッグに使う。
  *
  * `forkPointers` は `te <= tesuu` に正規化されている（組む2つが必ず通す）。
- * **カーソルより先の計画はここには入らない。** それを持てるのは `PlannedCursor`
- * と `BranchPlan` だけ。
+ * **`te > tesuu` を持たないのはこの型だけ。** `CursorPath` / `PlannedCursor` /
+ * `BranchPlan` はいずれも持ちうる。
  */
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
@@ -58,6 +58,9 @@ export interface KifuCursor {
  *
  * `goto` に渡すのに要るのは `tesuu` と `forkPointers` だけで、`te > tesuu` は
  * `normalizeForkPointers` が落とす。だから辿ったカーソルと計画カーソルのどちらも受けられる。
+ *
+ * **この型は `te > tesuu` を持ちうる**（`previewCursor` が実際に持つ）。落とすのは
+ * `goto` に渡す手前の `normalizeForkPointers` であって、型ではない。
  * 局面が一致したかを確かめたい側は `KifuCursor` を自分で保持すること。この型には
  * `tesuuPointer` が無い。
  */
@@ -89,8 +92,7 @@ declare const plannedCursorBrand: unique symbol;
 /**
  * 「これから降りるつもりの変化」まで載せたカーソル
  *
- * `KifuCursor` との違いは2つ。局面を一意に指さないので `tesuuPointer` を持たないことと、
- * **`te > tesuu` の `ForkPointer` を持てるのはこちらだけ**であること。
+ * `KifuCursor` との違いは、局面を一意に指さないので `tesuuPointer` を持たないこと。
  *
  * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
  * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` は
@@ -246,7 +248,11 @@ export function makeKifuCursor(
 }
 
 /**
- * カーソルを文字列の鍵にする。**カーソルどうしを比べる正典はこれ1つ。**
+ * カーソルを文字列の鍵にする。**`CursorPath` どうしを比べる鍵はこれ1つ。**
+ *
+ * 「着いた局面」どうしを比べるのは別で、そちらは `KifuCursor.tesuuPointer`
+ * （`provider.tsx` の移動前後の比較、`AnalysisPane` のキャッシュ鍵）。
+ * つまり鍵は2種類あり、**要求を比べるのがこれ**。
  *
  * `KifuCursor.tesuuPointer` と違い、これは**要求の鍵**でしかない。
  * 再生器を通していないので、その局面に本当に着ける保証は無い
