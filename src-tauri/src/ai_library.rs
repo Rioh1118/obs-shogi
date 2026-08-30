@@ -5,7 +5,7 @@ use std::{
 };
 use tauri::command;
 
-use crate::file_system::error::FsErrorCode;
+use crate::file_system::error::{FsError, FsErrorCode};
 use crate::file_system::utils::validate_basename;
 
 /// エンジンの置き場。**AI のプロファイル名として使えない。**
@@ -13,6 +13,27 @@ use crate::file_system::utils::validate_basename;
 /// `read_profiles` がこの名前を一覧から除くので、作れても出てこない。
 /// 除く側と弾く側で綴りが分かれると、作成は通るのに一覧に出ないフォルダができる
 const ENGINES_DIR: &str = "engines";
+
+/// AI プロファイルが持つ下位フォルダ
+const PROFILE_SUBS: [&str; 2] = ["eval", "book"];
+
+/// 一覧に出るプロファイルか。
+///
+/// **一覧に出す側と作成を拒否する側で、同じ述語を使う。** 別々に書くと片方が
+/// `any`、片方が `all` になり、`eval` だけを持つプロファイル（YaneuraOu の
+/// 普通の形）に同じ名前で「作成」を押すと、既存の中へ黙って `book` が足される
+fn is_listed_profile(dir: &Path) -> bool {
+    PROFILE_SUBS.iter().any(|sub| dir.join(sub).is_dir())
+}
+
+/// 中身が1つでも入っているか。空なら「作りかけ」として作成のやり直しを通す
+fn has_any_content(dir: &Path) -> bool {
+    PROFILE_SUBS.iter().any(|sub| {
+        fs::read_dir(dir.join(sub))
+            .map(|mut it| it.next().is_some())
+            .unwrap_or(false)
+    })
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -23,18 +44,34 @@ pub enum FsKind {
     Unknown,
 }
 
-/// 名前の失敗を利用者向けの一文にする。
+/// 失敗を利用者向けの一文にする。
 ///
 /// `FsError.message` は開発者向けのログで、`ai_library` の戻り値は `String` なので
 /// code が落ちる。**素通しにすると画面に英語の内部文言が出る。**
-/// 戻り値を `FsError` にできれば TS 側の `describeFsError` に寄せられる → TODO(#231)
+///
+/// **`_ =>` を置かない。** 置くと `FsErrorCode` を増やした日から、入力欄の下に
+/// `名前が不正です（KifuConversionFailed）` のような内部の識別子が出る。
+/// 網羅にしてあれば、増やした人がここへ連れてこられる。
+///
+/// 文言は TS 側の `describeFsError` と二重になっている。戻り値を `FsError` に
+/// できれば1箇所へ寄せられる → TODO(#231)
 fn describe(code: FsErrorCode) -> String {
     match code {
         FsErrorCode::InvalidNameEmpty => "名前を入力してください".to_string(),
         FsErrorCode::InvalidNameSeparator => "名前に / や \\ は使えません".to_string(),
         FsErrorCode::InvalidNameReserved => "その名前は使えません".to_string(),
         FsErrorCode::InvalidNameControl => "名前に使えない文字が含まれています".to_string(),
-        other => format!("名前が不正です（{other:?}）"),
+        FsErrorCode::InvalidExtension => "対応していない拡張子です".to_string(),
+        FsErrorCode::PermissionDenied => "権限がありません".to_string(),
+        FsErrorCode::AlreadyExists => "同じ名前のものが既にあります".to_string(),
+        FsErrorCode::NotFound => "見つかりません".to_string(),
+        FsErrorCode::InvalidPath => "その場所は扱えません".to_string(),
+        FsErrorCode::InvalidType => "ファイルとフォルダを取り違えています".to_string(),
+        FsErrorCode::InvalidDestination => "その移動先には置けません".to_string(),
+        FsErrorCode::RootNotDeletable => "ワークスペースそのものは削除できません".to_string(),
+        FsErrorCode::KifuConversionFailed => "棋譜をこの形式に変換できませんでした".to_string(),
+        FsErrorCode::Io => "読み書きに失敗しました".to_string(),
+        FsErrorCode::Unknown => "原因が分かりませんでした".to_string(),
     }
 }
 
@@ -188,7 +225,12 @@ fn read_profiles(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
     for entry in fs::read_dir(ai_root).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.is_empty() || name.eq_ignore_ascii_case(ENGINES_DIR) {
+        // **ここは綴りで比べない。** 除く側は破壊的なので、作成を断る側
+        // （`eq_ignore_ascii_case`）と対称にしてはいけない。case-sensitive な
+        // ファイルシステム（Linux、case-sensitive APFS）では `engines` と
+        // `Engines` は別の実体として共存でき、後者は正当なプロファイル。
+        // 綴りで除くと、どちらの一覧にも出ないフォルダができる
+        if name.is_empty() || name == ENGINES_DIR {
             continue;
         }
 
@@ -197,17 +239,14 @@ fn read_profiles(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
             continue;
         }
 
-        let eval_dir = path.join("eval");
-        let book_dir = path.join("book");
-
-        let has_eval_dir = eval_dir.exists() && eval_dir.is_dir();
-        let has_book_dir = book_dir.exists() && book_dir.is_dir();
-
-        // 候補として出す条件（現状維持）:
-        // eval/ または book/ があるディレクトリだけ
-        if !(has_eval_dir || has_book_dir) {
+        if !is_listed_profile(&path) {
             continue;
         }
+
+        let eval_dir = path.join("eval");
+        let book_dir = path.join("book");
+        let has_eval_dir = eval_dir.is_dir();
+        let has_book_dir = book_dir.is_dir();
 
         let eval_files = if has_eval_dir {
             list_file_candidates(&eval_dir, None, 200)
@@ -301,9 +340,13 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, S
     // 素通しにすると入力欄の下に `name contains a path separator` と出る
     let trimmed = validate_basename(&name).map_err(|e| describe(e.code))?;
 
-    // **大文字小文字を無視する。** macOS の既定（APFS）は case-insensitive なので、
-    // `Engines` は Rust の `==` では別物だがファイルシステムでは `engines` と同じ実体。
-    // 通すと、エンジンの置き場が AI プロファイルとしても一覧に出る
+    // **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
+    // case-insensitive なので、`Engines` は Rust の `==` では別物でも
+    // ファイルシステムでは `engines` と同じ実体。通すと `eval` / `book` が
+    // **エンジンの置き場の中に**作られ、しかも `read_profiles` は実際の名前
+    // （`engines`）を読んで除外するので、一覧には出ない。
+    //
+    // 除く側（`read_profiles`）は逆に綴りで比べる。理由はあちらに書いてある
     if trimmed.eq_ignore_ascii_case(ENGINES_DIR) {
         return Err(format!(
             "{ENGINES_DIR} はエンジンの置き場なので、名前に使えません"
@@ -312,17 +355,38 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, S
 
     let profile = PathBuf::from(&ai_root).join(&trimmed);
 
-    // **見るのは成果物であって、フォルダの有無ではない。** `profile` だけを見ると、
-    // `book` の作成が落ちて `eval` だけ残った状態でやり直せなくなる。
-    // Finder で名前だけ作った利用者が画面の案内どおり押した場合も同じ。
-    // `create_dir_all` は冪等なので、片方だけあるなら残りを補う
-    let subs = ["eval", "book"];
-    if subs.iter().all(|sub| profile.join(sub).is_dir()) {
+    // 通すのは**作りかけの補完だけ**。作りかけは「下位フォルダが揃っておらず、
+    // かつ中身が空」で見分ける。
+    //
+    // どちらか一方でも欠くと穴が開く。
+    // - 揃っているかだけを見る（`all`）→ `eval` だけを持つ既存のプロファイル
+    //   （YaneuraOu の普通の形。一覧にも出ている）へ黙って `book` を足して合流する
+    // - 中身だけを見る → アプリで作った直後の空のプロファイルに同じ名前を打つと
+    //   何も起きずに成功が返り、「作成は通ったのに一覧が変わらない」になる
+    let complete = PROFILE_SUBS.iter().all(|sub| profile.join(sub).is_dir());
+    if complete || (is_listed_profile(&profile) && has_any_content(&profile)) {
         return Err(format!("{trimmed} はすでにあります"));
     }
 
-    for sub in subs {
-        fs::create_dir_all(profile.join(sub)).map_err(|e| e.to_string())?;
+    for sub in PROFILE_SUBS {
+        let dir = profile.join(sub);
+
+        // 同名のファイルがあると `create_dir_all` は EEXIST で落ちる。名前を変える
+        // 以外に直しようが無いので、何が邪魔しているかを名指しする
+        if dir.exists() && !dir.is_dir() {
+            return Err(format!(
+                "{trimmed}/{sub} が同じ名前のファイルとして既にあります"
+            ));
+        }
+
+        // OS のメッセージを素通しにすると、名前欄の下に
+        // `Permission denied (os error 13)` が出る
+        fs::create_dir_all(&dir).map_err(|e| {
+            format!(
+                "{trimmed}/{sub} を作れませんでした（{}）",
+                describe(FsError::from(e).code)
+            )
+        })?;
     }
     Ok(profile.to_string_lossy().to_string())
 }
@@ -439,6 +503,38 @@ mod tests {
 
         assert!(create(&root, "suisho").is_ok(), "作りかけを直せない");
         assert!(root.join("suisho/book").is_dir(), "book を補っていない");
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// `eval` だけを持つプロファイルは YaneuraOu の普通の形で、一覧にも出ている。
+    /// 「両方あるときだけ拒否」にすると、そこへ同じ名前で `book` を足して
+    /// **既存の AI へ黙って合流する**
+    #[test]
+    fn an_eval_only_profile_is_not_merged_into() {
+        let (base, root) = temp_ai_root("evalonly");
+        fs::create_dir_all(root.join("suisho/eval")).expect("作れない");
+        fs::write(root.join("suisho/eval/nn.bin"), "").expect("書けない");
+
+        assert!(create(&root, "suisho").is_err(), "既存へ合流している");
+        assert!(!root.join("suisho/book").is_dir(), "book を足している");
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// `create_dir_all` は同名のファイルがあると EEXIST で落ちる。OS のメッセージを
+    /// 素通しにすると、名前欄の下に `File exists (os error 17)` と出る
+    #[test]
+    fn a_blocking_file_is_explained_in_the_users_language() {
+        let (base, root) = temp_ai_root("blocked");
+        fs::create_dir_all(root.join("suisho")).expect("作れない");
+        fs::write(root.join("suisho/eval"), "").expect("書けない");
+
+        let message = create(&root, "suisho").expect_err("通している");
+        assert!(
+            !message.is_ascii(),
+            "OS のメッセージがそのまま出ている: {message}"
+        );
 
         let _ = fs::remove_dir_all(&base);
     }

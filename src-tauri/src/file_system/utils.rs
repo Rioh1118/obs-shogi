@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 use uuid::Uuid;
 
@@ -42,7 +42,24 @@ pub fn validate_basename(name: &str) -> Result<String, FsError> {
             "name is a reserved path segment",
         ));
     }
-    // パス区切りが入ってたら弾く（basenameのみ許可）
+    // **成分がちょうど1つかを `Path` に判定させる。** 区切り文字を列挙すると、
+    // プラットフォームの規則をここへ写すことになる。Windows の `C:x` は `\\` を
+    // 含まないが prefix を持つので、`parent.join("C:x")` は `parent` を捨てて
+    // `C:x`（ドライブ相対パス）になる。列挙で弾いていると、
+    // 「行き先は `parent.join(name)` なので親の外へ出ない」が成り立たない
+    let mut components = Path::new(trimmed).components();
+    if !matches!(
+        (components.next(), components.next()),
+        (Some(Component::Normal(_)), None)
+    ) {
+        return Err(FsError::new(
+            FsErrorCode::InvalidNameSeparator,
+            "name is not a single path component",
+        ));
+    }
+
+    // 区切り文字も明示的に弾く。`\` は Unix では区切りでないので上の判定を通るが、
+    // その名前のフォルダを Windows で開くと区切りとして解釈される
     if trimmed.contains('/') || trimmed.contains('\\') {
         return Err(FsError::new(
             FsErrorCode::InvalidNameSeparator,
