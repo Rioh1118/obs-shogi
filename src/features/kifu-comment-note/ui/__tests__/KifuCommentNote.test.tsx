@@ -14,11 +14,13 @@ import type { KifuCursor } from "@/entities/kifu/model/cursor";
 
 const setCommentsByCursor = vi.fn();
 const gameState = { loadedAbsPath: "/ws/a.kif" as string | null };
+/** メモリの棋譜が持つコメント。`edit` は書き込みの前にここを更新する */
+let comments: string[] = [];
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
     state: gameState,
-    getCommentsByCursor: () => [],
+    getCommentsByCursor: () => comments,
     setCommentsByCursor: (...a: unknown[]) => setCommentsByCursor(...a),
   }),
 }));
@@ -32,8 +34,23 @@ vi.mock("@/shared/ui/live-markdown-note/LiveMarkdownNote", () => ({
 }));
 
 vi.mock("@/shared/ui/floating-note/FloatingNote", () => ({
-  default: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
-    open ? <div>{children}</div> : null,
+  default: ({
+    open,
+    children,
+    onClose,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+    onClose: () => void;
+  }) =>
+    open ? (
+      <div>
+        <button data-testid="close" onClick={onClose}>
+          close
+        </button>
+        {children}
+      </div>
+    ) : null,
 }));
 
 const { default: KifuCommentNote } = await import("../KifuCommentNote");
@@ -69,6 +86,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   gameState.loadedAbsPath = "/ws/a.kif";
+  comments = [];
   setCommentsByCursor.mockResolvedValue(Ok(undefined));
 });
 
@@ -84,10 +102,58 @@ describe("保存の失敗", () => {
     expect(screen.getByRole("alert").textContent).toContain("Permission denied");
   });
 
-  // 固定しているのは「失敗しても下書きを元に戻さない」ところまで。
-  // 「dirty が落ちない」ことは、この経路（書き足して再度 autosave）では
-  // どちらでも緑になるので**このテストでは押さえていない**。
-  // 落ちないことは1件目（失敗のあと「保存済み」を出さない）が押さえる。
+  // **これが #227 の核。** 失敗しても baseText を進めると dirty が落ち、
+  // autosave も閉じるときの保存も二度と走らない。閉じた時点で本文が消える。
+  // 「保存済みを出さない」だけでは足りない（出さずに本文だけ失う形が通る）。
+  it("失敗したあと、何も書き足さずに閉じても保存をやり直す", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    open("/ws/a.kif");
+
+    await typeAndAutosave("メモ");
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+
+    // 閉じる要求。dirty が落ちていれば保存は試みられない
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(2);
+    expect(setCommentsByCursor.mock.calls[1][1]).toEqual(["メモ"]);
+  });
+
+  it("メモリの棋譜が動いても、書けていない下書きを「保存済み」の側へ寄せない", async () => {
+    // `edit` は楽観的更新で、書き込みの前に `jkf_replaced` を撃つ。
+    // その結果 `getCommentsByCursor` が新しい本文を返すようになるが、
+    // それを baseText へ入れると dirty が落ちて上と同じ失われ方をする。
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    const view = open("/ws/a.kif");
+
+    await typeAndAutosave("メモ");
+
+    // 書き込みは失敗したが、メモリの棋譜には入った。
+    // `useGame()` はモックなので、再レンダを起こさないと `sourceText` が動かない
+    comments = ["メモ"];
+    await act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open
+          cursor={CURSOR}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={() => {}}
+        />,
+      );
+    });
+
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(2);
+  });
+
   it("失敗しても下書きは捨てない。書き足した全文で保存し直す", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom"));
     open("/ws/a.kif");

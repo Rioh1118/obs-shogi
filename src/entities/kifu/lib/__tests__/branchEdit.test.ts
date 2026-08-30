@@ -315,6 +315,14 @@ describe("同じ手数の入れ子の変化", () => {
   });
 });
 
+/** JKF 全体の手数。`forks` の中も数える。照合側が1段しか見ないと入れ子の差を見逃す */
+function countAll(moves: JKFMove[] | undefined): number {
+  return (moves ?? []).reduce(
+    (n, m) => n + 1 + (m.forks ?? []).reduce((s, f) => s + countAll(f), 0),
+    0,
+  );
+}
+
 describe("countMovesToDelete", () => {
   // 確認に出す数が実際に消える数と食い違うと、確認の意味が無くなる。
   // **同じ棋譜に対して、数えた数と削除後の減りぶんが一致すること**を固定する。
@@ -324,11 +332,36 @@ describe("countMovesToDelete", () => {
     const counted = countMovesToDelete(kifuWithTwoForks(), q);
 
     const kifu = kifuWithTwoForks();
-    const before = kifu.moves[2].forks?.flat().length ?? 0;
+    const before = countAll(kifu.moves);
     deleteBranchInKifu(kifu, q, null);
-    const after = kifu.moves[2].forks?.flat().length ?? 0;
 
-    expect(counted).toBe(before - after);
+    expect(counted).toBe(before - countAll(kifu.moves));
+  });
+
+  // **これが確認ダイアログの本題。** 研究の棋譜は変化の中に変化を持つのが普通で、
+  // 深いほど失うものが大きい。`candidates[target].length` は線の長さしか見ないので、
+  // いちばん過少に出るのが**いちばん消えるとき**になる。
+  test("消える線の中にぶら下がる変化も数える", () => {
+    // 変化1 = [f0a, f0b]。f0b の下にさらに3手の変化。消えるのは 2 + 3 = 5手
+    const nested = (): JKFData => ({
+      header: {},
+      moves: [
+        mv("root"),
+        mv("t1"),
+        mv("main2", [[mv("f0a"), mv("f0b", [[mv("g0"), mv("g1"), mv("g2")]])]]),
+        mv("main3"),
+      ],
+    });
+    const q: DeleteQuery = { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) };
+
+    const counted = countMovesToDelete(nested(), q);
+    expect(counted).toBe(5);
+
+    const kifu = nested();
+    const before = countAll(kifu.moves);
+    deleteBranchInKifu(kifu, q, null);
+
+    expect(counted).toBe(before - countAll(kifu.moves));
   });
 
   test("本譜は te 以降の手数を数える", () => {

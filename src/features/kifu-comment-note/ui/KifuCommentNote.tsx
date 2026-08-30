@@ -44,12 +44,31 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     return linesToEditorText(getCommentsByCursor(cursor));
   }, [cursor, getCommentsByCursor]);
 
+  const editorKey = editorKeyFor(cursor, absPath);
+
+  // **開いた面が変わったときだけ取り込む。**
+  //
+  // `sourceText` はメモリの棋譜から作る。`edit` は楽観的更新（ADR-0004 決定7）で
+  // 書き込みの**前**に `jkf_replaced` を撃つので、書けたかどうかが決まる前に
+  // `sourceText` が新しい本文になる。それを `baseText` へ入れると `dirty` が落ち、
+  // **書き込みに失敗した本文が「保存済みと同じ見た目」でアプリの中に残る。**
+  // 閉じて開き直しても本文は出るが、ディスクには無い。
+  //
+  // `open` だけでは足りない。開いたまま別の手のコメントへ移る経路があり、
+  // そこでは `open` が true のままで面だけが入れ替わる。
+  const loadedKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      loadedKeyRef.current = null;
+      return;
+    }
+    if (loadedKeyRef.current === editorKey) return;
+    loadedKeyRef.current = editorKey;
+
     setDraft(sourceText);
     setBaseText(sourceText);
     setSaveError(null);
-  }, [open, sourceText]);
+  }, [open, editorKey, sourceText]);
 
   const dirty = draft !== baseText;
 
@@ -99,6 +118,13 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     }
   }, [setCommentsByCursor]);
 
+  // **タイマーは最新の `doSave` を呼ぶ。** 下の効果は `draft` だけを見るので、
+  // `doSave` を直に渡すと**最後の打鍵時点の closure**が 900ms 後に走る。
+  // `doSave` → `setCommentsByCursor` → `edit` は `state.jkf` を閉じ込めているため、
+  // その間に盤で指した手を含まない棋譜を書き戻すことになる（指した手が消える）。
+  const doSaveRef = useRef(doSave);
+  doSaveRef.current = doSave;
+
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!dirty) {
@@ -109,13 +135,15 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       return;
     }
 
-    autoSaveTimerRef.current = setTimeout(() => void doSave(), 900);
+    autoSaveTimerRef.current = setTimeout(() => void doSaveRef.current(), 900);
     return () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = null;
       }
     };
+    // `doSave` は入れない。入れると毎レンダでタイマーが張り直され、
+    // 打鍵が止まっても 900ms が来ない。最新は `doSaveRef` から読む
   }, [draft]); // oxlint-disable-line react-hooks/exhaustive-deps
 
   const handleRequestClose = useCallback(async () => {
@@ -126,16 +154,19 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       autoSaveTimerRef.current = null;
     }
 
-    // 一度失敗を出したあとの close は、保存を諦めて閉じる。
-    // ここで再試行し続けると、書き込めない場所に置いた棋譜ではノートを
-    // 閉じる手段が1つも無くなる（失敗を伝えるより悪い行き止まり）。
-    if (dirty && cursor && !saveError) {
-      if ((await doSave()) === "failed") return;
+    // **閉じる前に必ずもう一度書きにいく。** 失敗が出ているからと飛ばすと、
+    // 一時的な失敗（別のプロセスが掴んでいた等）でも本文が捨てられる。
+    //
+    // 閉じないのは**失敗を初めて出したときだけ**。止め続けると、書き込めない場所に
+    // 置いた棋譜ではノートを閉じる手段が1つも無くなる（失敗を伝えるより悪い
+    // 行き止まり）。2回目は諦めて閉じる。本文が失われることは `saveError` の箱が
+    // 「閉じると、この本文は失われます」と先に伝えている。
+    if (dirty && cursor) {
+      const result = await doSave();
+      if (result === "failed" && !saveError) return;
     }
     onClose();
   }, [cursor, dirty, doSave, isSaving, onClose, saveError]);
-
-  const editorKey = editorKeyFor(cursor, absPath);
 
   const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
 

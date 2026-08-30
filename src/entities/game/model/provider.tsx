@@ -51,7 +51,24 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   // 画面から消えて利用者だけが保存されたと信じることになる。
   const persistIfPossible = useCallback(
     async (jkfToSave: JKFData): AsyncResult<void, string> => {
-      if (!persistence) return Ok(undefined);
+      if (!persistence) {
+        const msg = "保存先が決まっていません";
+        dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
+      }
+
+      // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
+      //
+      // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
+      // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
+      // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
+      // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+      if (persistence.absPath !== state.loadedAbsPath) {
+        const msg = "保存先が切り替わったため書き込みを中止しました";
+        dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
+      }
+
       const res = await persistence.save(jkfToSave);
       if (!res.success) {
         dispatch({ type: "set_error", payload: res.error });
@@ -59,7 +76,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       }
       return Ok(undefined);
     },
-    [persistence],
+    [persistence, state.loadedAbsPath],
   );
 
   // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない

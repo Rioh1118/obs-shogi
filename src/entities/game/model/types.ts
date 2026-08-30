@@ -127,6 +127,16 @@ export interface StandardMoveFormat {
 }
 
 export type GamePersistence = {
+  /**
+   * `save` が書き込む先。
+   *
+   * **`save` だけでは、いま読み込んでいる棋譜へ書くのかが分からない。**
+   * `persistence` を組むのは `activeKifuPath`（file-tree 側）で、
+   * `state.jkf` / `state.loadedAbsPath` が追いつくのは橋渡しの effect が走った後。
+   * その1コミットぶんのずれの中で書くと、**前の棋譜が新しいファイルへ入る。**
+   * 突き合わせられるように、宛先を値として持たせる。
+   */
+  absPath: string;
   save: (jkf: JKFData) => AsyncResult<void, string>;
 };
 
