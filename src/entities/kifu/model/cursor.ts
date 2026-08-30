@@ -24,12 +24,12 @@ declare const tesuuPointerBrand: unique symbol;
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
 /**
- * 局面を一意に表す文字列を組む
+ * 局面を一意に表す文字列を組む。**このファイルの中だけで使う。**
  *
- * `forkPointers` は正規化してから渡すこと。並びが違うだけで別の文字列になり、
- * 同じ局面が別のキーとして扱われる。
+ * 正規化を掛けないので、外から呼ぶと並びの違いがそのまま別の鍵になる。
+ * 外向きの口は `cursorKey`（正規化を通す）。
  */
-export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
+function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
   // JKFPlayer の "N,[{te,forkIndex}]" と揃える
   return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
 }

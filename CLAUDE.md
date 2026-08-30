@@ -64,7 +64,7 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 
 ## 既知の落とし穴
 
-- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。**解く経路はリポジトリに1つも無い。** 分解したくなったら、それは `KifuCursor` の `tesuu` / `forkPointers` を直接見るべき合図。組む側は `buildTesuuPointer` に寄せるのが規約（`entities/kifu/model/cursor.ts`）だが、`as TesuuPointer` で規約を抜ける箇所が現物に残っている。**触る前に `grep -rn "as TesuuPointer" src/` で現在地を数えること**（ここに件数を書くと腐る）→ #243
+- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。**解く経路はリポジトリに1つも無い。** 分解したくなったら、それは `KifuCursor` の `tesuu` / `forkPointers` を直接見るべき合図。鍵を組む側は `cursorKey`（`entities/kifu/model/cursor.ts`）に寄せる。正規化を通すのはこれだけで、素の `buildTesuuPointer` は同ファイルの非公開。`KifuCursor` を作る口も同ファイルの2つ（`makeKifuCursor` / `ROOT_CURSOR`）に閉じてある。**触る前に `grep -rn "as TesuuPointer" src/` で現在地を数えること**（ここに件数を書くと腐る）
 - `JKFPlayer.goto(tesuu, forkPointers)` は goto 後に `tesuu` が一致しなければ stale として扱う
 - JSX 内の全角スペースは `no-irregular-whitespace` で lint エラーになる → `{"　"}` で囲む
 - SCSS トークンは `@use "@/index.scss" as index;` で読み込む
