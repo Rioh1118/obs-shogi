@@ -326,8 +326,21 @@ fn flush(
         Entry::Vacant(slot) => {
             slot.insert(std::mem::take(buffered));
         }
-        // 同じ局面が2度書かれていても、後から来た手を捨てない。
-        Entry::Occupied(mut slot) => slot.get_mut().append(buffered),
+        // 同じ局面が2度書かれていることがある。キーは手数を落とすので、
+        // `... b - 1` と `... b - 31` は同じキーになる（本家 `book.cpp:688-694` が
+        // 手数違いの重複が実在したことを認めている）。
+        //
+        // **同じ指し手は先に読んだ方を残す。** 連ねると同じ指し手が評価値違いで
+        // 2度返り、「先頭がその局面の best move」という形式の約束が
+        // 2つのエントリの境目で崩れる。ShogiHome も先勝ちを採っている。
+        Entry::Occupied(mut slot) => {
+            let existing = slot.get_mut();
+            for candidate in buffered.drain(..) {
+                if !existing.iter().any(|m| m.usi_move == candidate.usi_move) {
+                    existing.push(candidate);
+                }
+            }
+        }
     }
 }
 
@@ -766,12 +779,32 @@ mod tests {
         assert!(positions.contains_key(&to_book_key(HIRATE).unwrap()));
     }
 
-    /// 局面が2度書かれていても、後から来た手を捨てない。
+    /// 局面が2度書かれていても、2つ目にしか無い指し手は捨てない。
     #[test]
     fn merges_a_position_that_appears_twice() {
         let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\nsfen {HIRATE}\n2g2f\n");
         let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
         assert_eq!(moves.len(), 2);
+    }
+
+    /// 手数を落とすので `... b - 1` と `... b - 31` は同じキーになる。
+    /// 同じ指し手を連ねると評価値違いで2度返り、「先頭が best move」という
+    /// 形式の約束が2つのエントリの境目で崩れる。
+    #[test]
+    fn a_move_written_twice_for_the_same_position_is_kept_once() {
+        let text = "#YANEURAOU-DB2016 1.00\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n\
+             7g7f none 50 32 100\n\
+             2g2f none 40 32 80\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 31\n\
+             2g2f none 60 32 9\n\
+             3g3f none 10 32 5\n";
+        let moves = &loaded(text)[&to_book_key(HIRATE).unwrap()];
+
+        let usi: Vec<&str> = moves.iter().map(|m| m.usi_move.as_str()).collect();
+        assert_eq!(usi, ["7g7f", "2g2f", "3g3f"]);
+        // 先に読んだ側の値が残る
+        assert_eq!(moves[1].value, Some(40));
     }
 
     #[test]
