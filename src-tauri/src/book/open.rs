@@ -38,9 +38,9 @@ pub(crate) fn open_at(path: &Path) -> Result<OpenedBook, BookError> {
 /// 実体のパスなので、両者が食い違うと「.bin なのにやねうら王テキスト定跡」という
 /// 値がフロントへ渡り、そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
 fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
-    // 実在より先に形式を見るのは open_reader と同じ理由で、形式が分からないものは
-    // 実在しても開きようが無いから。canonicalize を先に呼ぶと、存在しない `.txt` に
-    // UnknownExtension ではなく NotFound が返る。
+    // 実在より先に形式を見る。canonicalize を先に呼ぶと、存在しない `.txt` に
+    // UnknownExtension ではなく NotFound が返り、利用者は開けるはずの無い
+    // ファイルを探し直すことになる。
     let requested = BookFormat::from_path(path)?;
 
     // 解決そのものが失敗したときは実体のパスが手に入らないが、リンク先の綴りは
