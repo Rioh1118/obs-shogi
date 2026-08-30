@@ -9,7 +9,6 @@ import {
   getUnsavedDraft,
   putUnsavedDraft,
 } from "../lib/unsavedDrafts";
-import { branchGenerationOf } from "@/entities/kifu/lib/branchGeneration";
 import FloatingNote from "@/shared/ui/floating-note/FloatingNote";
 import LiveMarkdownNote from "@/shared/ui/live-markdown-note/LiveMarkdownNote";
 import "./KifuCommentNote.scss";
@@ -86,9 +85,6 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     commitRef.current = { setCommentsByCursor, loadedAbsPath: state.loadedAbsPath };
   });
 
-  /** 走っている保存の本数。閉じるときに列を待つかの判断に使う */
-  const inFlightRef = useRef(0);
-
   /**
    * 走っている保存の列。**同じノートから2本同時に撃たない。**
    *
@@ -113,19 +109,8 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
    */
   const save = useCallback(
     (target: Face, text: string): Promise<"saved" | "failed" | "skipped"> => {
-      // **分岐の番号の世代を撃った時点で掴む。**
-      //
-      // `target.cursor` は `forkIndex`（`forks` 配列の位置）を含む。列で待っている間に
-      // 分岐が削除・入れ替えされると、同じ番号は**別の変化**を指す。そのまま書くと
-      // 打っていない変化に本文が入り、**その変化に元からあったコメントが消える**。
-      // 書き込みは成功するので画面には何も出ない。
-      const bornAt = branchGenerationOf(target.absPath);
-      const stillValid = () => bornAt === branchGenerationOf(target.absPath);
       const stash = (value: { draft: string; error: string; told: boolean }) =>
-        putUnsavedDraft(target.key, value, {
-          at: bornAt,
-          now: () => branchGenerationOf(target.absPath),
-        });
+        putUnsavedDraft(target.key, value);
 
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
         const showing = () => faceRef.current?.key === target.key;
@@ -142,20 +127,10 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
           return "skipped";
         }
 
-        // 番号が動いていたら書かない。預けもしない（`stash` が世代で弾く）。
-        // 本文は失われるが、残すと利用者が打った覚えのない変化へ入る。
-        if (!stillValid()) {
-          const msg = "分岐の並びが変わったので保存できませんでした";
-          const seen = showing();
-          if (seen) setEditing((e) => (e && e.face.key === target.key ? { ...e, error: msg } : e));
-          return "skipped";
-        }
-
         // 掃除は**預かりの実体**で判定する（`dropUnsavedDraftIfUnchanged` の doc を参照）。
         const before = getUnsavedDraft(target.key);
 
         setStatus({ key: target.key, kind: "saving" });
-        inFlightRef.current += 1;
         try {
           const res = await commitRef.current.setCommentsByCursor(
             target.cursor,
@@ -194,7 +169,6 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
           }
           return "saved";
         } finally {
-          inFlightRef.current -= 1;
           setStatus((s) => (s?.key === target.key && s.kind === "saving" ? null : s));
         }
       };
@@ -205,9 +179,6 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     },
     [],
   );
-
-  const saveRef = useRef(save);
-  saveRef.current = save;
 
   // **面が入れ替わる前に、出ていく面を書き切る。**
   //
@@ -228,8 +199,8 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     }
     setStatus(null);
 
-    if (prev.draft !== prev.baseText) void saveRef.current(prev.face, prev.draft);
-  }, [editing]);
+    if (prev.draft !== prev.baseText) void save(prev.face, prev.draft);
+  }, [editing, save]);
 
   // unmount では書きに行けない（`await` できない）ので、預けるだけ預ける。
   // 置き場がコンポーネントの外にあるので、開き直せば出せる。
@@ -267,7 +238,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // 書くのはこの本文を打った面。入れ替わり自体は上の効果が書き切る
     const target = editing.face;
     const text = editing.draft;
-    autoSaveTimerRef.current = setTimeout(() => void saveRef.current(target, text), 900);
+    autoSaveTimerRef.current = setTimeout(() => void save(target, text), 900);
     return () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
@@ -296,54 +267,27 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       const target = editing;
       const told = getUnsavedDraft(target.face.key)?.told === true;
 
-      /**
-       * 閉じ切る。`result` が `"failed"` なら諦めて閉じる側。
-       *
-       * **下書きも一緒に落とす。** 落とさないと、この直後に面が消える効果が
-       * もう1本書きに行き、いま捨てた預かりを積み直す。
-       * 画面には「閉じると、この本文は失われます」と出しているので、失わせる。
-       *
-       * `leavingRef` は**同期で**書く。`setEditing` は `onClose()` と同じバッチに
-       * まとまるので、効果が読む前のコミットに載らない。ref なら巻き込まれない。
-       *
-       * **2つの経路（待つ／待たない）から呼ぶ。** 片方にだけ後始末を付けると、
-       * 「閉じると失われます」がその経路でだけ嘘になり、`told` も false へ巻き戻って
-       * 次は2回押さないと閉じなくなる。
-       */
-      const finish = (result: "saved" | "failed" | "skipped") => {
-        // 待っている間に別の面へ移っていたら、その面を閉じない。
-        // `onClose` はどの面を閉じるかを引数に取らないので、そのまま呼ぶと
-        // **入力中の別の手のノートが勝手に畳まれる**。
-        if (faceRef.current?.key !== target.face.key) return;
-
-        if (result === "failed") {
-          dropUnsavedDraft(target.face.key);
-          const settled = { ...target, draft: target.baseText, error: null };
-          leavingRef.current = settled;
-          setEditing(settled);
-        }
-        // `"skipped"`（宛先が消えた）は捨てない。元の棋譜へ戻れば出し直せる
-        onClose();
-      };
-
-      // **列が動いているなら待たない。** 待つと、他の書き込みが返ってこない間
-      // 閉じるが効かなくなる（押しても何も起きず、押せない見た目にもならない）。
-      //
-      // ただし**閉じる判断は結果に委ねる**。ここで即座に閉じると、
-      // 失敗する環境ほど確実にこの分岐を通るのに、失敗が一度も画面に出ない。
-      // 押した瞬間から「保存中」が出ているので、押せない見た目にはならない。
-      if (inFlightRef.current > 0) {
-        void save(target.face, target.draft).then((r) => {
-          if (r === "failed" && !told) return;
-          finish(r);
-        });
-        return;
-      }
-
       const result = await save(target.face, target.draft);
       if (result === "failed" && !told) return;
-      finish(result);
-      return;
+
+      // 待っている間に別の面へ移っていたら、その面を閉じない。
+      // `onClose` はどの面を閉じるかを引数に取らないので、そのまま呼ぶと
+      // **入力中の別の手のノートが勝手に畳まれる**。
+      if (faceRef.current?.key !== target.face.key) return;
+
+      if (result === "failed") {
+        // 諦めて閉じる。**下書きも一緒に落とす。** 落とさないと、この直後に面が消える
+        // 効果がもう1本書きに行き、いま捨てた預かりを積み直す。
+        // 画面には「閉じると、この本文は失われます」と出しているので、失わせる。
+        //
+        // `leavingRef` は**同期で**書く。`setEditing` は `onClose()` と同じバッチに
+        // まとまるので、効果が読む前のコミットに載らない。ref なら巻き込まれない。
+        dropUnsavedDraft(target.face.key);
+        const settled = { ...target, draft: target.baseText, error: null };
+        leavingRef.current = settled;
+        setEditing(settled);
+      }
+      // `"skipped"`（宛先が消えた）は捨てない。元の棋譜へ戻れば出し直せる
     }
     onClose();
   }, [editing, dirty, save, onClose]);

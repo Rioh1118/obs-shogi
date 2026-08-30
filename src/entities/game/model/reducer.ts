@@ -4,7 +4,7 @@ import { initialGameState } from "./types";
 
 export function gameReducer(state: GameContextState, action: GameAction): GameContextState {
   switch (action.type) {
-    // `pendingWrites` を持ち越す。ここで 0 に戻すと、走っている書き込みの
+    // `blockingWrites` を持ち越す。ここで 0 に戻すと、走っている書き込みの
     // `write_ended` が負の数へ落として以後 `isLoading` が二度と立たなくなる。
     case "game_loaded":
       return {
@@ -14,7 +14,6 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
         isLoading: state.blockingWrites > 0,
-        pendingWrites: state.pendingWrites,
         blockingWrites: state.blockingWrites,
         error: null,
       };
@@ -77,16 +76,18 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     case "clear_selection":
       return state.selectedPosition === null ? state : { ...state, selectedPosition: null };
 
+    // 止めない書き込み（コメントの自動保存）では**同じ参照を返す**。
+    // 新しい state を返すと、それだけで `useGame()` の消費者が全員描き直される。
     case "write_started": {
-      const pendingWrites = state.pendingWrites + 1;
-      const blockingWrites = state.blockingWrites + (action.payload.blocking ? 1 : 0);
-      return { ...state, pendingWrites, blockingWrites, isLoading: blockingWrites > 0 };
+      if (!action.payload.blocking) return state;
+      const blockingWrites = state.blockingWrites + 1;
+      return { ...state, blockingWrites, isLoading: true };
     }
 
     case "write_ended": {
-      const pendingWrites = Math.max(0, state.pendingWrites - 1);
-      const blockingWrites = Math.max(0, state.blockingWrites - (action.payload.blocking ? 1 : 0));
-      return { ...state, pendingWrites, blockingWrites, isLoading: blockingWrites > 0 };
+      if (!action.payload.blocking) return state;
+      const blockingWrites = Math.max(0, state.blockingWrites - 1);
+      return { ...state, blockingWrites, isLoading: blockingWrites > 0 };
     }
 
     // **`isLoading` を触らない。** 失敗したのは撃った1本であって、
@@ -105,12 +106,11 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     case "clear_error":
       return state.error === null ? state : { ...state, error: null };
 
-    // `game_loaded` と同じ理由で `pendingWrites` を持ち越す。
+    // `game_loaded` と同じ理由で `blockingWrites` を持ち越す。
     // 棋譜を閉じるのは書き込みが走っている最中にも起こる（ワークスペースの切り替え）。
     case "reset_state":
       return {
         ...initialGameState,
-        pendingWrites: state.pendingWrites,
         blockingWrites: state.blockingWrites,
         isLoading: state.blockingWrites > 0,
       };

@@ -51,25 +51,24 @@ describe("走っている書き込みを数える", () => {
     ).toBe(false);
   });
 
-  // 自動保存は行を止めない（利用者が起動していない）が、**走っていることは数える**。
-  // 数えないと pendingWrites が本数を名乗れなくなり、
-  // 「いま書いていない」の意味で isLoading を読む実装が入る。
-  it("止めない書き込みも本数には数える", () => {
+  // 自動保存は行を止めない（利用者が起動していない）。
+  // **同じ参照を返す**ので、それだけで useGame() の消費者が描き直されることも無い。
+  it("止めない書き込みは isLoading も state の identity も動かさない", () => {
     const bg = gameReducer(initialGameState, {
       type: "write_started",
       payload: { blocking: false },
     });
-    expect(bg.pendingWrites).toBe(1);
-    expect(bg.isLoading).toBe(false);
+    expect(bg).toBe(initialGameState);
 
-    const both = gameReducer(bg, { type: "write_started", payload: { blocking: true } });
-    expect(both.pendingWrites).toBe(2);
-    expect(both.isLoading).toBe(true);
+    const blocking = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    expect(blocking.isLoading).toBe(true);
 
-    // 止めない側が先に終わっても、止めている側は解けない
-    const bgDone = gameReducer(both, { type: "write_ended", payload: { blocking: false } });
-    expect(bgDone.pendingWrites).toBe(1);
-    expect(bgDone.isLoading).toBe(true);
+    // 止めない側が終わっても、止めている側は解けない
+    const bgDone = gameReducer(blocking, { type: "write_ended", payload: { blocking: false } });
+    expect(bgDone).toBe(blocking);
   });
 
   // A の保存が失敗して返ってきたときに B が読み込まれていると、

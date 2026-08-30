@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useMemo, useReducer } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color, type Kind } from "shogi.js";
@@ -30,7 +30,6 @@ import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
-import { bumpBranchGeneration } from "@/entities/kifu/lib/branchGeneration";
 import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
@@ -40,61 +39,9 @@ import {
   getCommentsByCursor as getCommentsByCursorFromJkf,
 } from "@/entities/kifu/lib/comment";
 
-/**
- * 書き込み1本の上限時間。
- *
- * ネットワーク越しのワークスペースで大きな棋譜を書く時間より長く、
- * 「アプリが死んだ」と読まれるより短いところ。**測っていない経験則。**
- */
-const WRITE_DEADLINE_MS = 15_000;
-
-/** 応答が無いまま上限時間を過ぎたときの理由。**巻き戻しの判断がこれを見る** */
-const NO_RESPONSE = "書き込みが応答しません。保存できたかどうか分かりません";
-
-/**
- * 返ってこない書き込みを、**呼び出し元に対してだけ**失敗として畳む。
- *
- * 畳まないと、`finally` が走らないので「操作中」が立ちっぱなしになり、
- * 失敗も出ないまま操作を受け付けなくなる。
- * 刺さる条件（NFS / SMB、他プロセスが掴んでいる、fsync が返らない）は
- * このブランチが既に前提として認めている。
- *
- * **列は畳まない。** 畳んで次を走らせると、刺さったままの1本と新しい1本が
- * 並行に走り、**後に着地したほうが勝つ**。直列化した理由そのものが消える。
- * 列は本物が settle するまで待たせる。
- */
-function withDeadline(
-  running: Promise<{ success: true; data: void } | { success: false; error: string }>,
-): Promise<{ success: true; data: void } | { success: false; error: string }> {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const deadline = new Promise<{ success: false; error: string }>((resolve) => {
-    timer = setTimeout(() => resolve({ success: false, error: NO_RESPONSE }), WRITE_DEADLINE_MS);
-  });
-  return Promise.race([running, deadline]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
-
 export function GameProvider({ children, persistence }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
-
-  /**
-   * 走っている書き込みの列。**同じファイルへ2本同時に書かない。**
-   *
-   * Rust の `write_kifu_to_file` は `async fn` で、Tauri は並行に走らせる。
-   * `atomic_write` なので壊れたファイルは残らないが、**後に着地したほうが勝つ**。
-   * コメントの自動保存 → 分岐の削除、の順に撃ってコメントが後に着地すると、
-   * **削除がディスクから消え、メモリだけ削除済みになる**。確認ダイアログは成功として閉じ、
-   * 次に開き直すまで誰も気づかない。順番に流せばこの並びは作れない。
-   */
-  const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
-
-  // 宛先。**荷物と同じ時刻で固定し、走る時点で変わっていないことを確かめる**ために持つ。
-  const destRef = useRef({ persistence, loadedAbsPath: state.loadedAbsPath });
-  useEffect(() => {
-    destRef.current = { persistence, loadedAbsPath: state.loadedAbsPath };
-  });
 
   // 失敗を `state.error` へ積んだうえで、**呼び出し元にも返す**。
   //
@@ -103,66 +50,37 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   // 「保存済み」と出す側が自分で成否を見られないと、書けなかった本文が
   // 画面から消えて利用者だけが保存されたと信じることになる。
   const persistIfPossible = useCallback(
-    (jkfToSave: JKFData): AsyncResult<void, string> => {
-      // **荷物と宛先を同じ時刻で固定する。**
+    async (jkfToSave: JKFData): AsyncResult<void, string> => {
+      if (!persistence) {
+        const msg = "保存先が決まっていません";
+        dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
+      }
+
+      // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
       //
-      // 走る時点で読むと、列で待っている間に別の棋譜を開いた場合に
-      // `persistence` も `loadedAbsPath` も**揃って**新しいファイルへ移る。
-      // 門番は「いまの2つ」を比べるだけなので通ってしまい、
-      // **前の棋譜が新しく開いたファイルへ丸ごと書かれる**（#245 と同じ形）。
-      const { persistence, loadedAbsPath } = destRef.current;
+      // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
+      // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
+      // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
+      // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+      if (persistence.absPath !== state.loadedAbsPath) {
+        const msg = "保存先が切り替わったため書き込みを中止しました";
+        dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
+      }
 
-      const writeOnce = async (): AsyncResult<void, string> => {
-        if (!persistence) {
-          const msg = "保存先が決まっていません";
-          dispatch({ type: "set_error", payload: msg });
-          return Err(msg);
-        }
-
-        // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
-        //
-        // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
-        // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
-        // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
-        // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
-        if (persistence.absPath !== loadedAbsPath) {
-          const msg = "保存先が切り替わったため書き込みを中止しました";
-          dispatch({ type: "set_error", payload: msg });
-          return Err(msg);
-        }
-
-        // 列で待っている間に宛先が変わっていたら書かない。
-        // 撃った時点の宛先はもう画面に無く、書けば古い棋譜を新しいファイルへ入れる。
-        if (
-          destRef.current.persistence !== persistence ||
-          destRef.current.loadedAbsPath !== loadedAbsPath
-        ) {
-          const msg = "保存先が切り替わったため書き込みを中止しました";
-          dispatch({ type: "set_error", payload: msg });
-          return Err(msg);
-        }
-
-        const res = await persistence.save(jkfToSave);
-        if (!res.success) {
-          // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
-          // A の保存が失敗して返ってきたときに B が読み込まれていると、
-          // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
-          // **別のファイルの失敗が新しく開いたファイルの上に出る**。
-          dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
-          return Err(res.error);
-        }
-        return Ok(undefined);
-      };
-
-      // 前の書き込みが失敗しても列は止めない（`catch` 側でも同じものを繋ぐ）。
-      // **列は本物が settle するまで待つ。** 呼び出し元へ返すぶんだけ期限を掛ける。
-      const running = writeChainRef.current.then(writeOnce, writeOnce);
-      writeChainRef.current = running;
-      return withDeadline(running);
+      const res = await persistence.save(jkfToSave);
+      if (!res.success) {
+        // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
+        // A の保存が失敗して返ってきたときに B が読み込まれていると、
+        // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
+        // **別のファイルの失敗が新しく開いたファイルの上に出る**。
+        dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
+        return Err(res.error);
+      }
+      return Ok(undefined);
     },
-    // 宛先は `destRef` から**走る時点で**読むので、依存に持たない。
-    // 持つと宛先が変わるたびに下流の `useCallback` が全部作り直される
-    [],
+    [persistence, state.loadedAbsPath],
   );
 
   // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
@@ -355,10 +273,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
-        // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
-        // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
-        if (!saved.success && saved.error !== NO_RESPONSE)
+        if (!saved.success)
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
@@ -499,19 +414,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
-        // **番号が動いたのはここ。** 書き込みの成否を待たない。
-        // 待つと、列で走っている書き込みが「詰まった配列に、詰める前の番号」を当てる。
-        bumpBranchGeneration(state.loadedAbsPath);
-
         const saved = await persistIfPossible(nextJkf);
-        // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
-        // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
-        // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
-        if (!saved.success && saved.error !== NO_RESPONSE) {
+        if (!saved.success)
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
-          // 番号がもう一度動いたので、もう一度進める
-          bumpBranchGeneration(state.loadedAbsPath);
-        }
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to swap branches";
@@ -521,7 +426,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
-    [state.jkf, state.cursor, state.branchPlan, state.loadedAbsPath, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const deleteBranch = useCallback(
@@ -555,19 +460,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
-        // **番号が動いたのはここ。** 書き込みの成否を待たない。
-        // 待つと、列で走っている書き込みが「詰まった配列に、詰める前の番号」を当てる。
-        bumpBranchGeneration(state.loadedAbsPath);
-
         const saved = await persistIfPossible(nextJkf);
-        // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
-        // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
-        // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
-        if (!saved.success && saved.error !== NO_RESPONSE) {
+        if (!saved.success)
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
-          // 番号がもう一度動いたので、もう一度進める
-          bumpBranchGeneration(state.loadedAbsPath);
-        }
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete branch";
@@ -577,7 +472,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
-    [state.jkf, state.cursor, state.branchPlan, state.loadedAbsPath, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const getCommentsByCursor = useCallback(

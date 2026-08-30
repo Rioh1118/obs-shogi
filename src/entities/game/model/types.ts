@@ -45,9 +45,7 @@ export interface GameContextState {
    * 確認ダイアログが押し直せる状態へ戻る。
    */
   isLoading: boolean;
-  /** 起動した書き込みの本数。**自動保存も数える**（数えないと本数を名乗れない） */
-  pendingWrites: number;
-  /** そのうち、利用者を待たせているぶん。`isLoading` を導く */
+  /** 利用者を待たせている書き込みの本数。`isLoading` を導く */
   blockingWrites: number;
   error: string | null;
 }
@@ -158,7 +156,6 @@ export const initialGameState: GameContextState = {
   selectedPosition: null,
   loadedAbsPath: null,
   isLoading: false,
-  pendingWrites: 0,
   blockingWrites: 0,
   error: null,
 };
