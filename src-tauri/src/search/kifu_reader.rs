@@ -121,7 +121,13 @@ fn says_nothing(jkf: &Jkf) -> bool {
     jkf.moves.first().map_or(true, |m| {
         m.comments.is_none()
             && m.special.is_none()
-            && m.forks.as_ref().map_or(true, |f| f.is_empty())
+            // **空の変化行は無いのと同じ。** `index_builder` が
+            // `if fork_line.is_empty() { continue; }` で飛ばすので、
+            // 外側の Vec が空かどうかだけを見ると、歩かれない変化を
+            // 「中身あり」と数えて平手の初期局面を索引に入れてしまう
+            && m.forks
+                .as_ref()
+                .map_or(true, |f| f.iter().all(|line| line.is_empty()))
     })
 }
 
@@ -1503,6 +1509,25 @@ mod tests {
             ..Jkf::default()
         };
 
+        // **中身の無い変化行は「あり」に数えない。** `index_builder` が飛ばすので、
+        // 数えると平手の初期局面だけが索引に入る（この判定が防ぐはずの当のもの）
+        let empty_fork_line = Jkf {
+            moves: vec![MoveFormat {
+                forks: Some(vec![vec![]]),
+                ..MoveFormat::default()
+            }],
+            ..Jkf::default()
+        };
+        let path = dir.join("empty-fork-line.jkf");
+        fs::write(
+            &path,
+            serde_json::to_string(&empty_fork_line).expect("JKF に綴れること"),
+        )
+        .expect("書き出し");
+        let Err(KifuReadError::NothingToIndex) = read_path_to_jkf(&path, KifuKind::Jkf) else {
+            panic!("空の変化行だけの .jkf を索引に入れている");
+        };
+
         for (label, jkf) in [("special-only", special_only), ("forks-only", forks_only)] {
             let path = dir.join(format!("{label}.jkf"));
             fs::write(
@@ -1575,12 +1600,16 @@ mod tests {
     /// **このアプリが作った棋譜を、このアプリが「壊れている」と言わない。**
     ///
     /// 新規作成フォームはファイル名以外すべて任意なので、対局者名を入れずに
-    /// 作れる。そのとき `create_kifu_file` が綴るのは
-    /// 「平手の初期局面だけ」— つまり `says_nothing` に当たる形そのもの。
+    /// 作れる。そのとき綴られるのは「平手の初期局面だけ」で、
+    /// `says_nothing` に当たる形そのもの。
     ///
     /// これを `ParseFailed` にすると、**利用者が作った直後のファイルについて
     /// アプリが「保存が途中で終わっていないか」と警告する**。保存は終わっている。
     /// 索引に入れる局面が無いことと、ファイルが壊れていることは別。
+    ///
+    /// **見ているのは綴りの段（`spell_for_extension`）だけ。**
+    /// `create_kifu_file` はその手前で `normalize()` を通すので、
+    /// そちらが空の JKF に何かを足すよう変われば、このテストは緑のまま素通りする。
     #[test]
     fn a_kifu_this_app_just_created_is_never_called_broken() {
         use crate::file_system::spell_for_extension_for_test as spell;
@@ -1604,8 +1633,12 @@ mod tests {
             ("jkf", KifuKind::Jkf),
         ] {
             let path = dir.join(format!("新規.{ext}"));
-            let content =
-                spell(&blank, &path).unwrap_or_else(|e| panic!("{ext} を綴れない: {}", e.message));
+            // **綴れないなら綴れないでよい。0バイトのファイルを置くことだけが駄目。**
+            // `.ki2` は平手・ヘッダ空・0手を空文字列に綴るので、ここで断られる
+            let Ok(content) = spell(&blank, &path) else {
+                continue;
+            };
+            assert!(!content.is_empty(), "{ext}: 0バイトのファイルを作っている");
             fs::write(&path, &content).expect("書き出し");
 
             match read_path_to_jkf(&path, kind) {

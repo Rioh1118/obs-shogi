@@ -94,7 +94,7 @@ fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<St
         r.map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string()))
     };
 
-    match get_file_extension(file_path).as_deref() {
+    let text = match get_file_extension(file_path).as_deref() {
         Some("kif") => to_fs_error(jkf_data.try_to_kif_owned()),
         Some("ki2") => to_fs_error(jkf_data.try_to_ki2_owned()),
         Some("csa") => to_fs_error(jkf_data.try_to_csa_owned()),
@@ -104,7 +104,24 @@ fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<St
             FsError::new(FsErrorCode::InvalidExtension, "unsupported kifu format")
                 .with_path(file_path.to_string_lossy().to_string()),
         ),
+    }?;
+
+    // **0バイトのファイルを置かせない。**
+    // `try_to_ki2_owned` は「平手・ヘッダ空・0手」の JKF を空文字列に綴る。
+    // 新規作成フォームはファイル名以外すべて任意なので、`.ki2` を選ぶと
+    // 既定の操作でこれに当たる。書いてしまうと `Ok` が返って作成は成功に見えるが、
+    // 次に開くと「空の棋譜です。」で行き止まりになり、
+    // アプリの中で中身を入れる手段が無い（削除して作り直すしかない）。
+    // 索引側は中身の無い記録を黙って通すので、警告もどこにも出ない
+    if text.is_empty() {
+        return Err(FsError::new(
+            FsErrorCode::KifuConversionFailed,
+            "この形式では書き出す中身がありません。対局者名か手合割を入れてください",
+        )
+        .with_path(file_path.to_string_lossy().to_string()));
     }
+
+    Ok(text)
 }
 
 #[command]
@@ -371,6 +388,49 @@ mod tests {
             "{:?}",
             err.code
         );
+    }
+
+    /// 0バイトのファイルを作らない。
+    ///
+    /// `try_to_ki2_owned` は「平手・ヘッダ空・0手」の JKF を空文字列に綴る。
+    /// 新規作成フォームはファイル名以外すべて任意なので、`.ki2` を選ぶと
+    /// **既定の操作でこれに当たる**（他の3形式は骨組みを書くので当たらない）。
+    ///
+    /// 書いてしまうと `Ok` が返って作成は成功に見えるのに、次に開くと
+    /// 「空の棋譜です。」で行き止まりになる。そのダイアログは再読み込みも出さないので、
+    /// **アプリの中で中身を入れる手段が無い**（削除して作り直すしかない）。
+    /// 索引側は中身の無い記録を黙って通すので、警告もどこにも出ない。
+    #[test]
+    fn an_empty_spelling_is_refused_instead_of_written() {
+        let blank = JsonKifuFormat {
+            initial: Some(Initial {
+                preset: Preset::PresetHirate,
+                data: None,
+            }),
+            moves: vec![shogi_kifu_converter_obsshogi::jkf::MoveFormat::default()],
+            ..JsonKifuFormat::default()
+        };
+
+        let err = spell_for_extension(&blank, Path::new("新規.ki2"))
+            .expect_err("空に綴れる形式は断ること");
+        assert!(
+            matches!(err.code, FsErrorCode::KifuConversionFailed),
+            "{:?}",
+            err.code
+        );
+
+        // 他の3形式は骨組みを書くので通る。**通る側も0バイトでないことを見る**
+        for ext in ["kif", "csa", "jkf"] {
+            let text = spell_for_extension(&blank, Path::new(&format!("新規.{ext}")))
+                .unwrap_or_else(|e| panic!("{ext} を綴れない: {}", e.message));
+            assert!(!text.is_empty(), "{ext} が空になっている");
+        }
+
+        // 対局者名が1つでもあれば `.ki2` も中身を持つ
+        let mut named = blank;
+        named.header.insert("先手".to_owned(), "山田".to_owned());
+        let text = spell_for_extension(&named, Path::new("新規.ki2")).expect("綴れること");
+        assert!(!text.is_empty());
     }
 
     /// 綴れなかったときに、クレートが名指ししたものを消さない。
