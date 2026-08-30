@@ -29,7 +29,7 @@ declare const tesuuPointerBrand: unique symbol;
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
  * **この型を作ってよいのはこのファイルの中だけ**、というのは規約。
- * 作っているのは3つ: `buildTesuuPointer`（組み立て）、`ROOT_CURSOR`（定数）、
+ * 作っているのは2つ: `ROOT_CURSOR`（定数）と
  * `makeKifuCursor`（再生器の返り値に brand を付ける）。
  * 外に `as TesuuPointer` を書かないこと。
  */
@@ -52,14 +52,18 @@ export type CursorKey = string & { readonly [cursorKeyBrand]: true };
 declare const kifuCursorBrand: unique symbol;
 
 /**
- * 局面を一意に表す文字列を組む。**このファイルの中だけで使う。**
+ * 局面を指す文字列に整える。**このファイルの中だけで使う。**
  *
  * 正規化を掛けないので、外から呼ぶと並びの違いがそのまま別の鍵になる。
  * 外向きの口は `cursorKey`（正規化を通す）。
+ *
+ * 返すのは**素の `string`**。ここで `TesuuPointer` を返すと、再生器を通していない値を
+ * `tesuuPointer` の欄に入れる経路がこのファイルの中に開く（欄に書ける owner は
+ * この `cursor.ts` なので、綴りの番人も素通りする）。
  */
-function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
+function formatPointer(tesuu: number, forkPointers: ForkPointer[]): string {
   // JKFPlayer の "N,[{te,forkIndex}]" と揃える
-  return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
+  return `${tesuu},${JSON.stringify(forkPointers)}`;
 }
 
 /**
@@ -72,8 +76,10 @@ function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPoi
  *
  * 作るのは `makeKifuCursor` と `ROOT_CURSOR` の2つ。brand はそれを支える印だが、
  * **止まるのは素のオブジェクトリテラルだけ**（スプレッドと二重キャストは通る）。
- * 要求の鍵が観測の欄に入る形を実際に止めているのは、`TesuuPointer` と
- * `CursorKey` を別の型にしてあること。
+ * 要求の鍵が観測の欄に入る形を止めているのは、`TesuuPointer` と `CursorKey` を
+ * 別の型にしてあること。**ただし `makeKifuCursor` の第3引数は素の `string`** なので、
+ * そこへ `cursorKey` の返りを渡す形は型では止まらない。止めているのは
+ * `src/__tests__/cursorConstruction.test.ts` の「呼び出しの持ち主」の規則。
  */
 interface KifuCursorFields {
   /** 現在の手数(0=開始局面) */
@@ -351,8 +357,10 @@ export function descendTo(
  * 着いた先の同一性が要る側は `state.cursor.tesuuPointer`（再生器が返した値）を見ること。
  */
 export function cursorKey(path: CursorPath): CursorKey {
-  const key = buildTesuuPointer(path.tesuu, normalizeForkPointers(path.forkPointers, path.tesuu));
-  return key as string as CursorKey;
+  return formatPointer(
+    path.tesuu,
+    normalizeForkPointers(path.forkPointers, path.tesuu),
+  ) as CursorKey;
 }
 
 /**
