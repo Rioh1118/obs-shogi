@@ -227,6 +227,9 @@ fn parse<R: BufRead>(
     // ハッシュ計算が1回ずつ走る（100MB の定跡で 312 万回、パース時間の 17%）。
     let mut buffered: Vec<BookMove> = Vec::new();
     let mut declared: Option<u64> = None;
+    // 申告と突き合わせるのは `sfen` 行の数。map の要素数ではない（正規化と
+    // 重複の畳み込みで減るので、正常な定跡でも一致しない）。
+    let mut sfen_lines: u64 = 0;
 
     while read_line(&mut reader, &mut buffer, false, path)? {
         index += 1;
@@ -239,6 +242,7 @@ fn parse<R: BufRead>(
         }
 
         if let Some(rest) = line.strip_prefix("sfen ") {
+            sfen_lines += 1;
             flush(&mut positions, &mut current, &mut buffered);
             // 行番号を添える。壊れた行だけ位置が分からないと、100万行の定跡で
             // 利用者にも報告を受けた側にも直しようが無い。
@@ -281,12 +285,18 @@ fn parse<R: BufRead>(
     // 自分の局面が載っていない」と受け取り、取得し直すという唯一の復帰操作に
     // 辿り着けない。
     if let Some(count) = declared {
-        if count != positions.len() as u64 {
+        // 比べるのは `sfen` 行の数。**`positions.len()` と比べてはいけない。**
+        // キーは手数を落とすので、手数違いで2度書かれた局面は1つに畳まれる
+        // （`flush` の doc のとおり実在する）。畳んだ後の数と申告を突き合わせると、
+        // 正常な定跡が「途中で切れている。取得し直すこと」で拒否され、
+        // 何度取得し直しても直らない案内を出すことになる。
+        //
+        // 読めた行が申告より多いのは、こちらの数え方が壊れている場合なので見ない。
+        if sfen_lines < count {
             return Err(invalid_content(
                 &format!(
-                    "定跡ファイルに {count} 局面と書かれているが {} 局面しか読めない。\
-                     途中で切れているかもしれない。取得し直すか、別の定跡を開くこと",
-                    positions.len()
+                    "定跡ファイルに {count} 局面と書かれているが {sfen_lines} 局面しか読めない。\
+                     途中で切れているかもしれない。取得し直すか、別の定跡を開くこと"
                 ),
                 path,
             ));
@@ -683,6 +693,24 @@ mod tests {
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
         assert!(err.message().contains("1250000"), "{}", err.message());
         assert!(err.message().contains("取得し直す"), "{}", err.message());
+    }
+
+    /// 手数違いで2度書かれた局面は1つに畳まれるので、畳んだ後の数と申告は
+    /// 一致しない。畳んだ後で突き合わせると、正常な定跡が「途中で切れている。
+    /// 取得し直すこと」で拒否される（何度取得し直しても直らない案内になる）。
+    #[test]
+    fn a_book_with_duplicate_positions_is_not_mistaken_for_a_truncated_one() {
+        let text = "#YANEURAOU-DB2016 1.00\n\
+             # NOE:2\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n\
+             7g7f none 50 32 1\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 31\n\
+             2g2f none 40 32 1\n";
+        let positions = loaded(text);
+
+        // 畳まれて1局面。申告は2だが、数えているのは sfen 行なので通る
+        assert_eq!(positions.len(), 1);
+        assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 2);
     }
 
     /// 申告が合っていれば通る。突き合わせが常に落ちる形になっていないこと。
