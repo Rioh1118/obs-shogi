@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import { cursorKey } from "@/entities/kifu/model/cursor";
-import { cursorFromPlayer, reachedCursor } from "../playerCursor";
+import { cursorFromPlayer, observedPointerOf, reachedCursor } from "../playerCursor";
 import { buildPlayer } from "../buildPlayer";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
@@ -80,5 +80,35 @@ describe("reachedCursor", () => {
 
     expect(player.tesuu).toBe(path.tesuu);
     expect(reachedCursor(player, path)).toBe(false);
+  });
+});
+
+describe("observedPointerOf", () => {
+  // 移動前後の比較はこの値どうしで回る。要求の鍵に置き換わると、着けていなくても
+  // 一致して「動いていない」と判定され、盤が黙って止まる。
+  test("cursor があればその観測値を返す", () => {
+    const path = { tesuu: 3, forkPointers: [] };
+    const player = buildPlayer(kifu(), path);
+    const cursor = cursorFromPlayer(player);
+
+    expect(observedPointerOf(cursor, player)).toBe(cursor.tesuuPointer);
+  });
+
+  // 棋譜を開いた直後は state.cursor がまだ無い。盤に出ている局面を観測して使う
+  test("cursor が null なら player から観測する", () => {
+    const player = buildPlayer(kifu(), { tesuu: 2, forkPointers: [] });
+
+    expect(observedPointerOf(null, player)).toBe(cursorFromPlayer(player).tesuuPointer);
+  });
+
+  // 前の局面の観測値を返すこと。player の現在地に引きずられると、
+  // 移動後に取り直したのと同じ値になって「動いた」が検出できなくなる
+  test("player が先に進んでいても、渡した cursor の値を返す", () => {
+    const player = buildPlayer(kifu(), { tesuu: 1, forkPointers: [] });
+    const before = cursorFromPlayer(player);
+    player.forward();
+
+    expect(observedPointerOf(before, player)).toBe(before.tesuuPointer);
+    expect(observedPointerOf(before, player)).not.toBe(cursorFromPlayer(player).tesuuPointer);
   });
 });

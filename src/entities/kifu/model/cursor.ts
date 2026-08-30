@@ -23,7 +23,8 @@ declare const tesuuPointerBrand: unique symbol;
  * **本番の経路で `KifuCursor.tesuuPointer` に入れてよいのは観測の側だけ。**
  * 要求の鍵を入れると、着けもしない局面の識別子で停止判定やキャッシュが回る。
  * テストの fixture は `cursorKey` で埋めてよい（本番の停止判定・キャッシュ鍵に当たる
- * 読み手がテストの中に居ないため。書式そのものを見る `cursor.test.ts` の2本は別）。
+ * 読み手がテストの中に居ないため）。書式そのものを突き合わせるテストは別で、
+ * それらは `cursorKey` を**期待値**として使う。
  *
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。

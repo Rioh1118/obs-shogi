@@ -5,6 +5,7 @@ import {
   pointsAtSame,
   type CursorPath,
   type KifuCursor,
+  type TesuuPointer,
 } from "../model/cursor";
 
 /**
@@ -21,6 +22,20 @@ import {
 export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
   const tesuu = player.tesuu;
   return makeKifuCursor(tesuu, player.getForkPointers(tesuu), player.getTesuuPointer(tesuu));
+}
+
+/**
+ * 移動・編集の**前**の観測値を取る。
+ *
+ * 前後の比較は**再生器が返した観測値**どうしでしか成立しない。要求の鍵
+ * （`cursorKey`）に置き換えると、要求どおりに着けたかに関わらず一致してしまい、
+ * **盤が動かないのにエラーも出ない**。`KifuCursor.tesuuPointer` に観測値しか
+ * 入れないという規約（`entities/kifu/model/cursor.ts`）は、この比較を守るためにある。
+ *
+ * `cursor` が無い（棋譜を開いた直後）ときは、いま盤に出ている局面を観測して使う。
+ */
+export function observedPointerOf(cursor: KifuCursor | null, player: JKFPlayer): TesuuPointer {
+  return cursor?.tesuuPointer ?? cursorFromPlayer(player).tesuuPointer;
 }
 
 /**

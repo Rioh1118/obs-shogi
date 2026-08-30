@@ -38,7 +38,7 @@ import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/bran
 import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
 import { buildPlayer, gotoPath } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
-import { cursorFromPlayer } from "@/entities/kifu/lib/playerCursor";
+import { cursorFromPlayer, observedPointerOf } from "@/entities/kifu/lib/playerCursor";
 import {
   setCommentsByCursorInJkf,
   getCommentsByCursor as getCommentsByCursorFromJkf,
@@ -164,14 +164,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "clear_error" });
 
         const player = buildPlayer(state.jkf, state.cursor);
-        /**
-         * 移動の前後は**再生器が返した観測値**どうしでしか比べられない。
-         * `cursorKey`（要求の鍵）に置き換えると、要求どおりに着けたかに関わらず
-         * 一致してしまい、**盤が動かないのにエラーも出ない**。
-         * `KifuCursor.tesuuPointer` に観測値しか入れないという規約
-         * （`entities/kifu/model/cursor.ts`）は、この5行を守るためにある。
-         */
-        const beforePointer = state.cursor?.tesuuPointer ?? cursorFromPlayer(player).tesuuPointer;
+        const beforePointer = observedPointerOf(state.cursor, player);
 
         const result = run(player, state.branchPlan);
         if (result === false) return;
@@ -215,7 +208,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         const nextJkf = cloneJkf(state.jkf);
         const player = buildPlayer(nextJkf, state.cursor);
-        const beforePointer = state.cursor?.tesuuPointer ?? cursorFromPlayer(player).tesuuPointer;
+        const beforePointer = observedPointerOf(state.cursor, player);
 
         const result = run(player, nextJkf);
         if (result === false) return;
