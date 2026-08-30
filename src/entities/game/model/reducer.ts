@@ -4,8 +4,9 @@ import { initialGameState } from "./types";
 
 export function gameReducer(state: GameContextState, action: GameAction): GameContextState {
   switch (action.type) {
-    // `blockingWrites` を持ち越す。ここで 0 に戻すと、走っている書き込みの
-    // `write_ended` が負の数へ落として以後 `isLoading` が二度と立たなくなる。
+    // `blockingWrites` を持ち越す。ここで 0 に戻すと、**まだ書いている最中に
+    // `isLoading` が落ちる**。確認ダイアログの「削除中...」が解け、
+    // 候補列が既に1つ減った状態に同じ指定が撃ち直せる（`set_error` と同じ理由）。
     case "game_loaded":
       return {
         jkf: action.payload.jkf,
