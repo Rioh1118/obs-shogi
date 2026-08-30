@@ -88,6 +88,28 @@ export function staleUncreatedNames(line: string, exists: (name: string) => bool
 }
 
 /**
+ * 1つの文書の中で「実在する表を未作成と書いている」箇所を、1始まりの行番号とともに返す。
+ *
+ * **ここでフェンスを落としてはいけない。** 索引の階層図はコードフェンスの中にあり、
+ * 名前はバッククォートもリンクも付かない裸で書かれる。
+ *
+ * ```
+ * L1    ├─ search.md            （未作成）インデックスと検索セッション
+ * ```
+ *
+ * 表を書いたあと在庫表の状態欄だけ直して階層図を消し忘れる、というのが実際の腐り方の
+ * 1つなので、リンク検査と同じ気持ちで `stripFences` を通すと、検査は緑のまま見逃す。
+ */
+export function staleUncreatedInBody(
+  body: string,
+  exists: (name: string) => boolean,
+): { line: number; name: string }[] {
+  return body
+    .split("\n")
+    .flatMap((line, i) => staleUncreatedNames(line, exists).map((name) => ({ line: i + 1, name })));
+}
+
+/**
  * コードフェンスの中身を落とす。中は説明のための例なので、リンクとしても見出しとしても
  * 数えない。
  *

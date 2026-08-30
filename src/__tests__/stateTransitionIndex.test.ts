@@ -6,6 +6,7 @@ import {
   headingSlug,
   headingSlugs,
   markdownFiles,
+  staleUncreatedInBody,
   staleUncreatedNames,
   stripFences,
   TABLES_DIR,
@@ -65,18 +66,13 @@ describe("状態遷移表の索引", () => {
    * 本文中の3通りある。判定は `staleUncreatedNames` が持つ。
    */
   test("実在する表を「未作成」と書いている行が無い", () => {
-    const stale: string[] = [];
     const exists = (name: string) => existsSync(join(TABLES_DIR, name));
 
-    for (const file of tables()) {
-      readFileSync(join(TABLES_DIR, file), "utf8")
-        .split("\n")
-        .forEach((line, i) => {
-          for (const name of staleUncreatedNames(line, exists)) {
-            stale.push(`${file}:${i + 1}  ${name}`);
-          }
-        });
-    }
+    const stale = tables().flatMap((file) =>
+      staleUncreatedInBody(readFileSync(join(TABLES_DIR, file), "utf8"), exists).map(
+        (hit) => `${file}:${hit.line}  ${hit.name}`,
+      ),
+    );
 
     expect(stale, ["実在する表を未作成と書いている:", ...stale].join("\n")).toEqual([]);
   });
@@ -120,6 +116,25 @@ describe("staleUncreatedNames", () => {
     ["| `search.md` | ❌ 未作成 | まだ |", []],
   ])("%s", (line, expected) => {
     expect(staleUncreatedNames(line, exists)).toEqual(expected);
+  });
+});
+
+describe("staleUncreatedInBody", () => {
+  const exists = (name: string) => name === "game.md";
+
+  test("フェンスの中の階層図でも、罫線付きの裸のファイル名を拾う", () => {
+    // 索引の階層図はフェンスの中にあり、名前は裸で書かれる。ここでフェンスを落とすと
+    // 「在庫表の状態欄だけ直して階層図を消し忘れる」という腐り方を見逃す。
+    const body = [
+      "# 索引",
+      "",
+      "```",
+      "L1    ├─ game.md              （未作成）棋譜の読み込み・移動・編集",
+      "      └─ search.md            （未作成）インデックスと検索セッション",
+      "```",
+    ].join("\n");
+
+    expect(staleUncreatedInBody(body, exists)).toEqual([{ line: 4, name: "game.md" }]);
   });
 });
 
