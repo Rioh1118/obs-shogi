@@ -24,7 +24,6 @@ import {
   sameForkPointers,
   type ForkPointer,
   type CursorPath,
-  type KifuCursor,
 } from "@/entities/kifu/model/cursor";
 import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
 import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
@@ -388,7 +387,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   );
 
   const getCommentsByCursor = useCallback(
-    (cursor: KifuCursor | null) => {
+    (cursor: CursorPath | null) => {
       if (!state.jkf) return [];
 
       try {
@@ -401,7 +400,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   );
 
   const setCommentsByCursor = useCallback(
-    async (cursor: KifuCursor, comments: string[]) => {
+    async (cursor: CursorPath, comments: string[]) => {
       if (!state.jkf) return;
 
       await edit(
