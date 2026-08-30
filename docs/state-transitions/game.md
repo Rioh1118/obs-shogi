@@ -1,7 +1,7 @@
 # 状態遷移表: game（L1）
 
 対象: `src/entities/game/model/provider.tsx` と `reducer.ts`、
-`src/entities/kifu/lib/playerCursor.ts`、`src/entities/kifu/lib/branchPlan.ts`、
+`src/entities/kifu/lib/playerCursor.ts`、`src/entities/kifu/model/cursor.ts`、
 `src/entities/kifu/lib/advanceWithPlan.ts`、
 および分岐メニューを持つ `src/widgets/kifu-stream/`。
 
@@ -273,7 +273,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 
 - 状態と action: `src/entities/game/model/types.ts`、`src/entities/game/model/reducer.ts`
 - 書き込み7経路: `src/entities/game/model/provider.tsx`
-- 計画の合成: `src/entities/kifu/lib/branchPlan.ts` の `mergeBranchPlan`
+- 計画の合成: `src/entities/kifu/model/cursor.ts` の `mergeBranchPlan`
 - 辿ったカーソルの生成: `src/entities/kifu/lib/playerCursor.ts` の `cursorFromPlayer`
 - 計画に沿った走査: `src/entities/kifu/lib/advanceWithPlan.ts`
 - 2つの型: `src/entities/kifu/model/cursor.ts` の `KifuCursor` / `PlannedCursor`
@@ -283,4 +283,4 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
   `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`、
   `src/entities/kifu/lib/__tests__/advanceWithPlan.test.ts`、
-  `src/entities/kifu/lib/__tests__/branchPlan.test.ts`
+  `src/entities/kifu/model/__tests__/branchPlan.test.ts`
