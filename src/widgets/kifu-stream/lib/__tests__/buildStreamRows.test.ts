@@ -34,6 +34,17 @@ describe("buildStreamRowsFromCursor", () => {
     expect(rowsFor([{ te: 2, forkIndex: 0 }]).map((r) => r.te)).toEqual([0, 1, 2]);
   });
 
+  test("行が言う選択は、実際に降りた分岐だけ", () => {
+    // 計画をそのまま載せると、本譜を歩いている行が「変化1」を選んでいると言う。
+    // バッジとメニューの ✓ が食い違い、branchIndexFromRow が使えない値を投げる。
+    const selected = (plan: ForkPointer[]) => rowsFor(plan).map((r) => r.selectedForkIndex);
+
+    expect(selected([{ te: 2, forkIndex: 0 }])).toEqual([null, null, 0]);
+    for (const forkIndex of [5, -1, 0.5, NaN]) {
+      expect(selected([{ te: 2, forkIndex }])).toEqual([null, null, null, null]);
+    }
+  });
+
   test("計画が壊れていてもレンダを落とさない", () => {
     // forkAndForward は forks.length 以上なら false を返すが、負や非整数は
     // forks[-1] を掴んで TypeError になる。ここはレンダ中に呼ばれるので、
