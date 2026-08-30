@@ -36,6 +36,12 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const pendingSelectedPathRef = useRef<string | null>(null);
   const selectedNodeRef = useRef(state.selectedNode);
   selectedNodeRef.current = state.selectedNode;
+  // **`reconcilePathMutation` は ref から読む。** 呼ばれるのは IPC を2〜3往復
+  // したあとで、その間に利用者は別の棋譜を開ける。closure に閉じ込めた古い値で
+  // 付け替えると、`jkfData` は新しい棋譜・`activeKifuPath` は古い棋譜になり、
+  // 保存が**別のファイルへ書かれる**（`GamePersistenceGate` は path で書く）
+  const activeKifuPathRef = useRef(state.activeKifuPath);
+  activeKifuPathRef.current = state.activeKifuPath;
   const kifuOpenGenerationRef = useRef(0);
 
   const revealNodeInCurrentTree = useCallback(
@@ -114,27 +120,24 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [pushConflict, pushError],
   );
 
-  const reconcilePathMutation = useCallback(
-    (oldPath: string, nextPath: string) => {
-      const selectedPath = state.selectedNode?.path ?? null;
-      if (isSameOrDescendantPath(selectedPath, oldPath)) {
-        pendingSelectedPathRef.current = remapSubtreePath(selectedPath, oldPath, nextPath);
-      }
+  const reconcilePathMutation = useCallback((oldPath: string, nextPath: string) => {
+    const selectedPath = selectedNodeRef.current?.path ?? null;
+    if (isSameOrDescendantPath(selectedPath, oldPath)) {
+      pendingSelectedPathRef.current = remapSubtreePath(selectedPath, oldPath, nextPath);
+    }
 
-      const activePath = state.activeKifuPath;
-      if (isSameOrDescendantPath(activePath, oldPath)) {
-        const nextActiveKifuPath = remapSubtreePath(activePath, oldPath, nextPath);
+    const activePath = activeKifuPathRef.current;
+    if (isSameOrDescendantPath(activePath, oldPath)) {
+      const nextActiveKifuPath = remapSubtreePath(activePath, oldPath, nextPath);
 
-        dispatch({
-          type: "active_kifu_reconciled",
-          payload: { path: nextActiveKifuPath },
-        });
-      }
+      dispatch({
+        type: "active_kifu_reconciled",
+        payload: { path: nextActiveKifuPath },
+      });
+    }
 
-      pendingRevealPathRef.current = nextPath;
-    },
-    [state.selectedNode?.path, state.activeKifuPath],
-  );
+    pendingRevealPathRef.current = nextPath;
+  }, []);
 
   /**
    * ツリーを取り直す。**操作のあとは必ず待つ。**
