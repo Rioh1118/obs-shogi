@@ -12,6 +12,8 @@
 //! ✓ の正しさ（そのセルを踏むテストが本当にあるか）はここでは見られない。
 //! 表の全セルにテスト名を書く規約が要るので、それは別の話。
 
+mod common;
+use common::without_comments;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -47,7 +49,10 @@ const NOT_RUST: [(&str, &str); 9] = [
 /// 表に出るが実装の識別子ではないもの。
 ///
 /// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
-const NOT_IDENTIFIERS: [&str; 2] = [
+const NOT_IDENTIFIERS: [&str; 4] = [
+    // ShogiHome（TypeScript）の識別子。この crate の定数ではない
+    "SCORE_NONE",
+    "DEPTH_NONE",
     // やねうら王の定跡フォーマットの見出し。文字列であって定数名ではない
     "YANEURAOU",
     // 局面数の注記。`# NOE:` の綴りの一部
@@ -90,6 +95,10 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
                     .expect("実装を読めない")
             })
             .collect();
+
+        // **コメントを落としてから見る。** 定数を消しても doc の言及は残りやすい。
+        // 落とさないと、その1行だけで「実装にある」と読んでしまう。
+        let code = without_comments(&code);
 
         // 部分文字列で見ない。`MAX_MOVE` は `MAX_MOVE_CHARS` に含まれるので、
         // 消した定数の接頭辞が別の定数に残っているだけで通ってしまう。
