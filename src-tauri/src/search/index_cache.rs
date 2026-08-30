@@ -931,6 +931,256 @@ mod tests {
         }
     }
 
+    /// [`min_bytes`] の7つの値が、`encode_all` が実際に書く最小より大きくないこと。
+    ///
+    /// 大きく見積もると [`Reader::read_len`] が正当な長さを弾き、
+    /// **本物のキャッシュが毎回捨てられる**。呼び手は全件作り直しへ落ちるだけなので、
+    /// 利用者に見えるのは「起動が毎回遅い」だけで原因を辿る手掛かりが無い。
+    ///
+    /// **節ごとに、その節で blob が終わる形を組む。** 後ろに何か続いていると
+    /// そのバイトが余裕として効いてしまい、見積もりの誤りが埋もれる
+    /// （実際、末尾の節である `OCCURRENCE` 以外は本物大の往復テストでも捕まらない）。
+    /// 可変長は長さ0で書くので、1項目ぶんがちょうど最小になる。
+    ///
+    /// `cargo-mutants` は定数の増減を変異に持たないので、**ここでしか守れない**。
+    #[test]
+    fn no_min_bytes_estimate_is_larger_than_what_is_written() {
+        let root = Path::new("/tmp");
+
+        // (節の名前, その節までの前置き, 1項目ぶんの最小バイト列)
+        /// blob に書き足す1手（前置き / 1項目）
+        type Write = dyn Fn(&mut Vec<u8>);
+        let cases: [(&str, &Write, &Write); 7] = [
+            ("FILE_ENTRY", &|_b: &mut Vec<u8>| {}, &|b: &mut Vec<u8>| {
+                write_u32(b, 0); // file_id
+                write_u32(b, 0); // gen
+                write_u8(b, 0); // deleted
+                write_u32(b, 0); // 長さ0のパス
+            }),
+            (
+                "FILE_RECORD",
+                &|b: &mut Vec<u8>| write_u32(b, 0),
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0); // 長さ0のパス
+                    write_u8(b, 1); // kind
+                    write_u64(b, 0); // size
+                    write_u64(b, 0); // mtime_ms
+                },
+            ),
+            (
+                "PATH_TO_ID",
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0); // file_table
+                    write_u32(b, 0); // scan records
+                    write_u32(b, 1); // next_file_id
+                },
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0); // 長さ0のパス
+                    write_u32(b, 0); // file_id
+                },
+            ),
+            (
+                "NODE_TABLE",
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0);
+                    write_u32(b, 0);
+                    write_u32(b, 1);
+                    write_u32(b, 0);
+                },
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0); // file_id
+                    write_u32(b, 0); // nodes_len
+                    write_u32(b, 0); // forks_len
+                },
+            ),
+            (
+                "NODE",
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0);
+                    write_u32(b, 0);
+                    write_u32(b, 1);
+                    write_u32(b, 0);
+                    write_u32(b, 1); // node_tables: 1件
+                    write_u32(b, 0); // file_id
+                },
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0); // tesuu
+                    write_u32(b, 0); // fork_off
+                    write_u16(b, 0); // fork_len
+                    write_u16(b, 0); // 詰め物
+                },
+            ),
+            (
+                "FORK",
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0);
+                    write_u32(b, 0);
+                    write_u32(b, 1);
+                    write_u32(b, 0);
+                    write_u32(b, 1);
+                    write_u32(b, 0); // file_id
+                    write_u32(b, 0); // nodes_len
+                },
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0); // te
+                    write_u32(b, 0); // fork_index
+                },
+            ),
+            (
+                "OCCURRENCE",
+                &|b: &mut Vec<u8>| {
+                    write_u32(b, 0);
+                    write_u32(b, 0);
+                    write_u32(b, 1);
+                    write_u32(b, 0);
+                    write_u32(b, 0); // node_tables: 0件
+                },
+                &|b: &mut Vec<u8>| {
+                    write_u64(b, 0); // z0
+                    write_u64(b, 0); // z1
+                    write_u32(b, 0); // file_id
+                    write_u32(b, 0); // gen
+                    write_u32(b, 0); // node_id
+                },
+            ),
+        ];
+
+        for (label, prefix, one_item) in cases {
+            let mut blob = header_for(root);
+            prefix(&mut blob);
+            write_u32(&mut blob, 1); // その節の項目数
+            one_item(&mut blob);
+            // ここで blob は終わり。**この節の余裕はゼロ**
+
+            match decode_all(&blob, root) {
+                // 節を読み切ってから、後続の節でバイトが尽きる。これが正しい
+                Err(e) if e.contains("unexpected eof") => {}
+                // 見積もりが大きいと、項目を読む前に長さで弾かれる
+                Err(e) if e.contains("bad length") => {
+                    panic!("{label}: 実際に書かれる最小より大きく見積もっている: {e}")
+                }
+                Err(e) => panic!("{label}: 想定しない理由で失敗した: {e}"),
+                Ok(_) => panic!("{label}: 後続の節が無いのに読めてしまった"),
+            }
+        }
+    }
+
+    /// **本物の大きさの索引が読み戻せること。**
+    ///
+    /// [`min_bytes`] の値を1つでも大きく見積もると、[`Reader::read_len`] が
+    /// 正当な長さを「残りバイト数を超える」と判定して `Err` になる。
+    /// 呼び手は `log::warn!` して全件作り直しへ落ちるだけなので、
+    /// **利用者に見えるのは「起動が毎回遅い」だけ**で、原因を辿る手掛かりが無い。
+    ///
+    /// とくに危ないのは `OCCURRENCE`。**buckets は blob の最後の区間**なので
+    /// `n * OCCURRENCE` が残りバイト数とぴったり等しくなり、余裕がゼロになる。
+    /// 手前の区間は後続のバイトが余裕として効いてしまうので、
+    /// 小さい題材ではこの誤りが埋もれる。
+    ///
+    /// `cargo-mutants` は定数の増減を変異に持たないので、
+    /// **`min_bytes` を守れるのはこのテストだけ**。
+    #[test]
+    fn an_index_of_a_realistic_size_can_be_read_back() {
+        use super::super::node_table::{ForkPtr, NodeCursor};
+
+        const FILES: u32 = 300;
+        const NODES_PER_FILE: u32 = 40;
+        const OCCS: u32 = 4_000;
+
+        let root = Path::new("/tmp/obs-shogi-realistic");
+
+        // パスは長いほうが厳しい（可変長を0バイトと見積もっているので、
+        // 長いパスは余裕を増やす方向。短いパスのほうが境界に近い）
+        let path_of = |i: u32| format!("dir{}/kifu-{i}.kif", i % 17);
+
+        let mut ft = FileTable::default();
+        let mut path_to_id: HashMap<String, FileId> = HashMap::new();
+        let mut records: Vec<FileRecord> = Vec::new();
+        let mut nts = NodeTables::default();
+
+        for i in 1..=FILES {
+            ft.upsert(FileEntry {
+                file_id: i,
+                path: path_of(i),
+                deleted: false,
+                r#gen: 1,
+            });
+            path_to_id.insert(path_of(i), i);
+            records.push(FileRecord {
+                path: root.join(path_of(i)),
+                kind: KifuKind::Kif,
+                size: 4096,
+                mtime_ms: 1_700_000_000_000,
+            });
+
+            let mut nt = NodeTable::empty();
+            for n in 0..NODES_PER_FILE {
+                nt.nodes.push(NodeCursor {
+                    tesuu: n,
+                    fork_off: n % 3,
+                    fork_len: (n % 2) as u16,
+                });
+            }
+            for f in 0..3u32 {
+                nt.forks.push(ForkPtr {
+                    te: f,
+                    fork_index: f,
+                });
+            }
+            nts.upsert(i, Arc::new(nt));
+        }
+
+        let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] =
+            std::array::from_fn(|_| Vec::new());
+        for i in 0..OCCS {
+            let z0 = u64::from(i).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+            let key = PositionKey { z0, z1: !z0 };
+            buckets[key.bucket() as usize].push((
+                key,
+                Occurrence {
+                    file_id: (i % FILES) + 1,
+                    r#gen: 1,
+                    node_id: i % NODES_PER_FILE,
+                },
+            ));
+        }
+        let written: usize = buckets.iter().map(Vec::len).sum();
+
+        let mut blob = Vec::new();
+        encode_all(
+            &mut blob,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &snapshot_from_records(root, records),
+                path_to_id: &path_to_id,
+                next_file_id: FILES + 1,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect("書けない");
+
+        let Ok(back) = decode_all(&blob, root) else {
+            panic!("本物の大きさの索引を読み戻せない（min_bytes を大きく見積もっている）");
+        };
+        assert_eq!(back.file_table.len(), FILES as usize);
+        assert_eq!(back.scan.by_path.len(), FILES as usize);
+        assert_eq!(back.path_to_id.len(), FILES as usize);
+        assert_eq!(
+            back.buckets.iter().map(Vec::len).sum::<usize>(),
+            written,
+            "出現が欠けた"
+        );
+        assert_eq!(
+            back.node_tables
+                .by_id_iter()
+                .filter(|x| x.is_some())
+                .count(),
+            FILES as usize
+        );
+    }
+
     /// 書いたものが**そのまま**読み戻せること。
     ///
     /// ここが崩れると、索引の中身が黙って別の意味になる。バイト位置が
