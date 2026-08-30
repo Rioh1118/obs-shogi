@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
+import { codeOf } from "./sourceText";
 
 /**
  * `KifuCursor` の材料を鋳造する綴りを、それを持つファイルの中に閉じる。
@@ -17,6 +18,13 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  *
  * 山括弧キャスト（`<TesuuPointer>s`）は `erasableSyntaxOnly` が TS1294 で
  * 落とすので、ここでは見ない。
+ *
+ * **止められていない形が1つある。** `{ ...cursor, tesuu: cursor.tesuu + 1 }` のように
+ * `tesuuPointer` を書かずにスプレッドだけで別の局面のカーソルを作ると、
+ * 手数と識別子が食い違ったまま通る。綴りで見分けるには
+ * 「カーソルのスプレッド」を名前で拾うしかなく、`previewCursor`（`CursorPath` なので
+ * 無害）が現に引っ掛かる。名前に頼る規則を足すより、`cursorFromPlayer` を
+ * 通していない `KifuCursor` は作らない、という規約で持たせている。
  */
 const RULES = [
   {
@@ -40,29 +48,23 @@ const RULES = [
     pattern: /as TesuuPointer/,
     owners: ["src/entities/kifu/model/cursor.ts"],
   },
+  {
+    /**
+     * `{ ...cursor, tesuuPointer: ... }` と `{ ...cursor, tesuu: ... }`。
+     * スプレッドは brand ごと写すので型では止まらない。**欄に書く側**を見る。
+     * 読み取り（`.tesuuPointer`）は `:` を伴わないので当たらない。
+     */
+    name: "tesuuPointer への書き込み",
+    pattern: /tesuuPointer\s*:/,
+    owners: ["src/entities/kifu/model/cursor.ts"],
+  },
+  {
+    /** 二重キャストは brand を素通りする。`PlannedCursor` も同じ守り方に揃える */
+    name: "カーソル型への as キャスト",
+    pattern: /as (?:unknown as )?(?:KifuCursor|PlannedCursor)\b/,
+    owners: ["src/entities/kifu/model/cursor.ts"],
+  },
 ] as const;
-
-/**
- * コメントだけの行を落としてから探す。doc がこれらの綴りを名指しするので、
- * そのままだと説明している側が違反に数えられる。
- *
- * 言語を解析しない。素の `String.replace` でブロックコメントを落とすと、
- * **文字列リテラル中の `/` と `*` の並び**が遠くの閉じと組になり、その間の本物の
- * コードごと消える。消えた範囲は検査から外れ、**違反があっても緑になる**。
- * 1文字ずつ走る版も試したが、JSX の `</div>` や `/>` を正規表現リテラルの
- * 始まりと読んでしまい、同じ「黙って消える」に戻る。
- *
- * 行頭だけを見るこの形は、コードと同じ行に書かれた末尾コメントを落とさないので、
- * `// makeKifuCursor(...) と書くこと` のような行は違反として**目に見えて落ちる**。
- * 黙って取りこぼすより、うるさく落ちるほうを選んでいる。
- */
-const COMMENT_ONLY = /^\s*(\/\/|\*|\/\*)/;
-
-const codeOf = (body: string) =>
-  body
-    .split("\n")
-    .filter((line) => !COMMENT_ONLY.test(line))
-    .join("\n");
 
 const read = (rel: string) => codeOf(readFileSync(join(REPO_ROOT, rel), "utf8"));
 

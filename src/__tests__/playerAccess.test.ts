@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
+import { codeOf } from "./sourceText";
 
 /**
  * `JKFPlayer` を組む・動かす・観測する呼び出しを `entities/kifu/lib` に閉じる。
@@ -15,12 +16,6 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  * `nodeId` を落とせばこの許可も消える。
  */
 const GUARDED = /new JKFPlayer\(|\.goto\(|\.getTesuuPointer\(|\.getForkPointers\(/;
-
-/**
- * コメントを落としてから探す。doc は `JKFPlayer.getTesuuPointer()` のように
- * メソッドを名指しするので、そのままだと説明している側が違反に数えられる。
- */
-const codeOf = (body: string) => body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
 /** 口を持つ側。ここは呼んでよい */
 const OWNER = "src/entities/kifu/lib/";
