@@ -23,8 +23,8 @@ permissions:
 
 concurrency:
   # 排他するのはリリース1本＝タグ。`github.ref` にすると push と dispatch が別グループになる。
-  # 下の `RELEASE_TAG` と同じ式なのは、ここでは `env` コンテキストが解決されないため
-  # （寄せると空になり、全リリースが1つのグループに直列化される）。
+  # 下の `RELEASE_TAG` と同じ式なのは、ここで `env` を参照すると
+  # `Unrecognized named-value: 'env'` で **workflow ごと弾かれ、run が1つも始まらない**ため。
   group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
@@ -100,7 +100,17 @@ jobs:
             }
 
             core.setOutput('release_id', releaseId);
-            // タグが無かったなら、いま createRelease が context.sha の上に作った
+
+            // **リリースはあるがタグが無い**セルへ落ちない。ここは `createRelease` を
+            // 通らないので、`context.sha`（撃った ref の先端）を配ることになる。
+            // それは「タグの木を組む」という前提そのものが崩れた状態で、
+            // 資産だけ既存のリリースへ上がる。
+            if (releaseId !== null && tagSha === null) {
+              throw new Error(`release ${tag} exists but the tag does not. delete the release, or push the tag`);
+            }
+
+            // ここへ来る `tagSha === null` は「タグもリリースも無く、いま createRelease が
+            // `context.sha` の上に作った」場合だけ
             const sha = tagSha ?? context.sha;
             // 空を配らない。`actions/checkout` は空の `ref` を未指定と同じに扱い、
             // **黙って `github.ref` へ戻る**。ここで止めないと気づけない
