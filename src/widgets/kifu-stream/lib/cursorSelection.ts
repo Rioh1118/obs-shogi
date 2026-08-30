@@ -1,7 +1,6 @@
 import {
+  descendTo,
   forkIndexAt,
-  selectAt,
-  truncateFrom,
   type CursorPath,
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
@@ -26,10 +25,7 @@ export function buildCursorWithForkSelection(
   te: number,
   forkIndex: number | null,
 ): CursorPath {
-  return {
-    tesuu: te,
-    forkPointers: selectAt(truncateFrom(base?.forkPointers ?? [], te), te, forkIndex),
-  };
+  return descendTo(base ?? { tesuu: te, forkPointers: [] }, te, forkIndex);
 }
 
 /** 分岐メニューの選択に対して次に呼ぶ操作 */

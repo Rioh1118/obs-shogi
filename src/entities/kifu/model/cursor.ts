@@ -248,6 +248,19 @@ export function makeKifuCursor(
 }
 
 /**
+ * `te` の選択を選び直して、そこへ移るカーソルを組む。
+ *
+ * `te` 以降の選択は落とす。`te` の選択を変えた以上、その先は別の枝に対して
+ * 作られた値なので意味を失う（残すと利用者が一度も見ていない変化に盤が入る）。
+ *
+ * **ただし落ちるのはこの戻り値の中だけ。** `state.branchPlan` に残っている分は
+ * `mergeBranchPlan` が復活させる（線を乗り換えても深い計画は残る → #306）。
+ */
+export function descendTo(path: CursorPath, te: number, forkIndex: number | null): CursorPath {
+  return { tesuu: te, forkPointers: selectAt(truncateFrom(path.forkPointers, te), te, forkIndex) };
+}
+
+/**
  * カーソルを文字列の鍵にする。**`CursorPath` どうしを比べる鍵はこれ1つ。**
  *
  * 「着いた局面」どうしを比べるのは別で、そちらは `KifuCursor.tesuuPointer`

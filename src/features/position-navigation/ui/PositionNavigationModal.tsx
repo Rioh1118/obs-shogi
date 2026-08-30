@@ -7,7 +7,7 @@ import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
 import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
-import { selectAt, truncateFrom } from "@/entities/kifu/model/cursor";
+import { descendTo } from "@/entities/kifu/model/cursor";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
@@ -105,15 +105,8 @@ function PositionNavigationModal() {
       const sel = options[prev.selectedOptionIndex];
       if (!sel) return prev;
 
-      // nextTe の選択を変える以上、その先の計画は捨てる。捨てないと、
-      // 変化を見て戻って選び直したあとに、見ていない枝へ盤が進む。
-      const fps = selectAt(
-        truncateFrom(prev.previewCursor.forkPointers, nextTe),
-        nextTe,
-        sel.isMainLine ? null : sel.forkIndex,
-      );
       return {
-        previewCursor: { tesuu: nextTe, forkPointers: fps },
+        previewCursor: descendTo(prev.previewCursor, nextTe, sel.isMainLine ? null : sel.forkIndex),
         selectedOptionIndex: 0,
       };
     });
