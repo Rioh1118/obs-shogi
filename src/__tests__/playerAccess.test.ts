@@ -32,18 +32,21 @@ const ALLOWED = [
 ];
 
 describe("JKFPlayer に触る場所", () => {
+  // 読むのは絶対パス。相対にすると `process.cwd()` から解決され、`walk.ts` が
+  // 起点を `import.meta.url` で固定した意味が消える（このリポジトリは
+  // `.claude/worktrees/` に複数の作業ツリーを持つので、別の木を読みうる）。
   const offenders = tsFiles(SRC, { includeTests: false })
-    .map((path) => relative(REPO_ROOT, path))
-    .filter((rel) => !rel.startsWith(OWNER))
-    .filter((rel) => GUARDED.test(codeOf(readFileSync(rel, "utf8"))))
+    .map((path) => ({ path, rel: relative(REPO_ROOT, path) }))
+    .filter(({ rel }) => !rel.startsWith(OWNER))
+    .filter(({ path }) => GUARDED.test(codeOf(readFileSync(path, "utf8"))))
+    .map(({ rel }) => rel)
     .sort();
 
   // 0件を見て緑になる形を止める（正規表現が実装に追随できなくなったら落ちる）
   test("口を持つ側では実際に呼んでいる", () => {
     const owners = tsFiles(SRC, { includeTests: false })
-      .map((path) => relative(REPO_ROOT, path))
-      .filter((rel) => rel.startsWith(OWNER))
-      .filter((rel) => GUARDED.test(codeOf(readFileSync(rel, "utf8"))));
+      .filter((path) => relative(REPO_ROOT, path).startsWith(OWNER))
+      .filter((path) => GUARDED.test(codeOf(readFileSync(path, "utf8"))));
 
     expect(owners.length).toBeGreaterThan(0);
   });
