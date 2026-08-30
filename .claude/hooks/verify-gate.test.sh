@@ -245,7 +245,7 @@ expect_kinds "ts" "src/dir with space/a.ts"
 # 積んだ操作を畳む呼び出しは、検証の対象にしない。
 #
 # ここを塞ぐと、競合を抱えたツリー（＝検証が必ず落ちる状態）で競合を畳む手段が
-# 無くなる。実際に行き止まりを踏んだのでテストで固定する。
+# 無くなる。
 expect_teardown() {
   local want=$1 command=$2
   local got=NO

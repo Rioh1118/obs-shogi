@@ -198,9 +198,8 @@ mod tests {
         }
     }
 
-    // 収録局面数は trait に無いので、`register` が reader に問い合わせる形へは
-    // 戻しようがない。以前はここで違う値を返してその退行を見張っていたが、
-    // 今はコンパイラが見る。
+    // 収録局面数は trait に無いので、`register` が reader に問い合わせる形は
+    // コンパイルが通らない。ここで値を細工して見張る必要は無い。
     impl BookReader for FakeReader {
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())
