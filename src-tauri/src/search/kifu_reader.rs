@@ -49,65 +49,52 @@ const LOSSY_DECODERS: [LossyDecoder; 2] = [
     |bytes| SHIFT_JIS.decode(bytes).0,
 ];
 
-/// 中身が1文字も無いファイルか。
+/// 読めた記録が、何も言っていないか。
 ///
-/// **KIF / KI2 のパーサは中身の無いファイルを「平手の初期局面1件」として
-/// `Ok` で返す。** 索引に入ると平手の初期局面で検索したときに全部ヒットし、
-/// 開いても初期局面しか出ないので「そういう棋譜」と誤解される。警告も出ない。
+/// **パーサは中身の無いファイルを「平手の初期局面1件」として `Ok` で返す。**
+/// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
+/// 初期局面しか出ないので「そういう棋譜」と誤解される。警告も出ない。
 /// 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く。
 ///
-/// `.jkf` は serde が、`.csa` は `csa` の手番行の要求が先に弾くので、
-/// この門が要るのは KIF / KI2 だけ。形式で分けずに掛けるのは、
-/// どの形式でも「中身が無いファイル」を索引に入れる理由が無いから。
+/// # バイト列でなく、読めた記録の形で決める
 ///
-/// # バイトで数えず、復号してから `trim` する
+/// **バイト列を先に検査すると、検査した文字コードの集合と、
+/// あとで実際に読み通す集合とがずれる。** 読み手が通すのは
+/// クレートの2つ・[`ENCODINGS_THE_CRATE_SKIPS`] の4つ・[`LOSSY_DECODERS`] の2つで、
+/// 事前の門でそれを再現しようとすると、増やすたびに片方だけ増えて穴が空く。
+/// **同じ穴が5回開いた。** 題材を足すのではなく、判定する場所を
+/// 「読み通したあと」へ動かすことでしか閉じない。
 ///
-/// **空の記録が生まれる条件はクレート側の `s.trim().is_empty()` にある**
-/// （`parser.rs`）。`str::trim` は Unicode の空白を落とすので、
-/// `U+3000`（全角スペース）も `U+00A0` も空白として扱われる。
+/// ここまで来たら文字コードの話は終わっている。残るのは
+/// **その記録が何か言っているか**だけで、それは JKF の形で分かる。
 ///
-/// こちらがバイトの集合（ASCII 空白と NUL）で数えていると、
-/// **全角スペース1文字で門を抜ける**。実際その形で3度取りこぼしている。
-/// 判断の根拠が向こうにある以上、こちらも同じ土俵で見るのが唯一ずれない。
+/// 見るのは4つ。1つでも埋まっていれば通す。
 ///
-/// 復号は「BOM があればそれ、無ければ UTF-8 と Shift_JIS」の3通り。
-/// **どれか1つでも空白だけになれば中身が無いとみなす** —
-/// 正しい文字コードで読めば空白だけになるファイルを拾いたいので、
-/// 間違った文字コードで読んだ結果が空白でないことは根拠にならない。
+/// | 欄 | 埋まる例 |
+/// | --- | --- |
+/// | 指し手が2件以上 | 1手でも指されていれば `moves` は初期局面ぶんと合わせて2件 |
+/// | ヘッダ | `先手：` `棋戦：` などが1つでもある |
+/// | 初期局面 | 盤面が書いてある、平手以外の手合割 |
+/// | 最初の局面の注釈・終局 | `*` のコメント、`投了` だけの記録 |
 ///
-/// 先頭 [`CONTENT_PROBE`] バイトだけを見る。**それを超えるファイルは通す** —
-/// 8KiB ぶんの空白しかない棋譜は現実には無く、
-/// 大きいファイルを丸ごと読む代金のほうが高い。
-fn has_no_content(path: &Path) -> bool {
-    let Ok(file) = fs::File::open(path) else {
-        return false;
-    };
-    use std::io::Read as _;
-    let mut head = Vec::new();
-    if file
-        .take(CONTENT_PROBE as u64)
-        .read_to_end(&mut head)
-        .is_err()
-    {
-        return false;
-    }
-    if head.len() == CONTENT_PROBE {
-        return false;
-    }
+/// **`手合割：平手` だけの記録は空と区別できない** — 平手の初期局面は
+/// 何も書かなかったときと同じ値になる。区別する意味も無い（どちらも
+/// 索引に入れる中身が無い）。
+fn says_nothing(jkf: &Jkf) -> bool {
+    use shogi_kifu_converter_obsshogi::jkf::Preset;
 
-    if let Some((encoding, _)) = Encoding::for_bom(&head) {
-        return encoding.decode(&head).0.trim().is_empty();
+    if jkf.moves.len() > 1 || !jkf.header.is_empty() {
+        return false;
     }
-    [encoding_rs::UTF_8, SHIFT_JIS]
-        .iter()
-        .any(|enc| enc.decode(&head).0.trim().is_empty())
+    if let Some(initial) = &jkf.initial {
+        if initial.data.is_some() || initial.preset != Preset::PresetHirate {
+            return false;
+        }
+    }
+    jkf.moves
+        .first()
+        .map_or(true, |m| m.comments.is_none() && m.special.is_none())
 }
-
-/// 中身があるかを見るために読む先頭のバイト数。
-///
-/// **全部読まない。** `.kif` に改名した大きなファイル（動画など）を
-/// 索引作りが最大8本並列で読むので、全読みすると使わないコピーが積み上がる。
-const CONTENT_PROBE: usize = 8 * 1024;
 
 /// 利用者に出す文言の上限。
 ///
@@ -142,18 +129,19 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
         Err(e) => return Err(unreadable(e)),
     }
 
-    if has_no_content(path) {
-        return Err(parse_failed(
-            "ファイルが空です。保存が途中で終わっていないか確かめてください",
-        ));
-    }
-
-    match kind {
+    let jkf = match kind {
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
         KifuKind::Csa => parse_csa_guarded(path),
         KifuKind::Jkf => parse_jkf_file(path).map_err(parse_failed),
+    }?;
+
+    if says_nothing(&jkf) {
+        return Err(parse_failed(
+            "棋譜として中身がありません。保存が途中で終わっていないか確かめてください",
+        ));
     }
+    Ok(jkf)
 }
 
 /// CSA を読む。**パニックを捕まえるのはこの形式だけ。**
@@ -1186,15 +1174,19 @@ mod tests {
     /// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
     /// 初期局面しか出ないので「そういう棋譜」と誤解される。
     ///
-    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定はバイト列が空かどうかで、
-    /// 読めた手数では見ない。
+    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定は読めた記録が
+    /// 何か言っているかで、手数だけでは見ない。
+    ///
+    /// 題材にいろいろな文字コードを並べてあるのは、**バイト列を先に検査する
+    /// 作りに戻ると、ここが落ちる**ようにするため。事前の門はどうしても
+    /// 読み手より狭い集合しか見ないので、EUC-JP や BOM 無しの UTF-16 が抜ける。
     #[test]
     fn an_empty_file_is_rejected_but_a_moveless_kifu_is_not() {
         let dir = temp_dir("empty");
 
         // 「書き出しが途中で終わった跡」の形はいくつもある。
         // バイト数だけ、あるいは生バイトの空白だけを見ると取りこぼす
-        let cases: [(&str, Vec<u8>); 13] = [
+        let cases: [(&str, Vec<u8>); 20] = [
             ("empty", vec![]),
             ("whitespace", b"\n\n   \n".to_vec()),
             ("utf8-bom-only", vec![0xEF, 0xBB, 0xBF]),
@@ -1218,6 +1210,24 @@ mod tests {
             }),
             ("nbsp-utf8", "\u{00A0}".as_bytes().to_vec()),
             ("utf16le-zenkaku", vec![0xFF, 0xFE, 0x00, 0x30]),
+            // ここから下は**事前の門が復号しない文字コード**。
+            // クレートも読めないが、総当たりと最終手段が読み通してしまう
+            ("eucjp-zenkaku", vec![0xA1, 0xA1]),
+            ("iso2022-zenkaku", b"\x1b$B\x21\x21\x1b(B".to_vec()),
+            ("bomless-utf16le-space", vec![0x20, 0x00]),
+            ("bomless-utf16be-space", vec![0x00, 0x20]),
+            (
+                "bomless-utf16le-nl-space",
+                vec![0x0A, 0x00, 0x20, 0x00, 0x0A, 0x00],
+            ),
+            ("bomless-utf16le-zenkaku", vec![0x00, 0x30]),
+            // 平手は「何も書かなかった」と同じ値になる。区別する意味も無い
+            (
+                "hirate-only",
+                "手合割：平手\n手数----指手---------消費時間--\n"
+                    .as_bytes()
+                    .to_vec(),
+            ),
         ];
         for (label, body) in cases {
             let path = dir.join(format!("{label}.kif"));
@@ -1226,17 +1236,31 @@ mod tests {
                 .err()
                 .unwrap_or_else(|| panic!("{label} を弾いていない"));
             assert!(
-                err.to_string().contains("空です"),
+                err.to_string().contains("中身がありません"),
                 "{label} の理由が違う: {err}"
             );
         }
 
-        // 初期局面だけを記録した棋譜は正当。手数では判定しない
+        // 中身のある記録は、指し手が0手でも通る。
+        // 「対局前に保存した」棋譜はこの形になる
         let moveless = dir.join("moveless.kif");
-        let (bytes, _, _) = SHIFT_JIS.encode("手合割：平手\n手数----指手---------消費時間--\n");
+        let (bytes, _, _) =
+            SHIFT_JIS.encode("先手：山田\n後手：田中\n手数----指手---------消費時間--\n");
         fs::write(&moveless, &bytes).expect("書き出し");
         let jkf = read_path_to_jkf(&moveless, KifuKind::Kif).expect("0手の棋譜は読めること");
         assert_eq!(jkf.moves.len(), 1, "初期局面だけのはず");
+
+        // 盤面や手合割が書いてあれば、それだけで中身がある
+        let handicap = dir.join("handicap.kif");
+        let (bytes, _, _) = SHIFT_JIS.encode("手合割：香落ち\n");
+        fs::write(&handicap, &bytes).expect("書き出し");
+        read_path_to_jkf(&handicap, KifuKind::Kif).expect("手合割だけの棋譜は読めること");
+
+        // 最初の局面へのコメントだけでも中身がある
+        let note = dir.join("note.kif");
+        let (bytes, _, _) = SHIFT_JIS.encode("*この局面から考える\n");
+        fs::write(&note, &bytes).expect("書き出し");
+        read_path_to_jkf(&note, KifuKind::Kif).expect("コメントだけの棋譜は読めること");
 
         fs::remove_dir_all(&dir).ok();
     }
