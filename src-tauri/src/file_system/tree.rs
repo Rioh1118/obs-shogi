@@ -7,20 +7,22 @@ use crate::file_system::error::{FsError, FsErrorCode};
 use super::types::FileTreeNode;
 use super::utils::{generate_id, get_file_extension, is_kifu_file, is_under, validate_under_root};
 
-/// 降りてよい深さの上限。
+/// 降りてよい深さの上限。**再帰のフレーム数を止める。**
 ///
-/// 実体のディレクトリだけでもここまで積める人はいないが、**上限が無いと
-/// スタックオーバーフローでプロセスごと落ちる**。Rust のそれは `catch_unwind` できず、
-/// `get_file_tree` は `Err` すら返せない。起動のたびに無言で落ちるので、
-/// 利用者は自力で原因に辿り着けない
+/// `followed` は同じ実体を2度辿らないだけなので、**相異なる**ディレクトリを鎖状に
+/// symlink で繋ぐと深さがディレクトリ数まで伸びる。走査は再帰なので、
+/// 深いほどスタックが積み上がる。Rust のスタックオーバーフローは `catch_unwind`
+/// できず、`get_file_tree` は `Err` すら返せないまま落ちる。
+///
+/// 実体のディレクトリだけでこの深さに達する棋譜庫は無い
 const MAX_DEPTH: usize = 64;
 
-/// 作ってよいノード数の上限。
+/// 作ってよいノード数の上限。**総数を止める。**
 ///
-/// 深さの上限だけでは足りない。`ws/a0..a7` の中で互いを指す symlink を張ると、
-/// 経路が順列に展開されて**深さ8のまま175万ノード**になる。1ノードごとに
-/// UUID とフルパスの String を持つので、数百 MB の割り当てと直列化になり、
-/// `get_file_tree` は同期実行なので応答が返らない。
+/// 深さの上限では足りない。`ws/a0..a7` の中で互いを指す symlink を張ると、
+/// 経路が順列に展開されて**深さ8のまま175万ノード**になる。深さの上限は
+/// 一度も効かない。1ノードごとに UUID とフルパスの String を持つので、
+/// 数百 MB の割り当てと直列化になり、`get_file_tree` は同期実行なので応答が返らない。
 ///
 /// **ファイルも数える。** ディレクトリの下降だけを止めると、1つのフォルダに
 /// 数十万の `.csa` を置いた形（floodgate の取り込み）で上限が効かない。
@@ -31,15 +33,19 @@ const MAX_NODES: usize = 200_000;
 
 /// 走査の途中の状態。
 ///
-/// `ancestors` は**辿った symlink の解決先**を積む。root の中で閉じた symlink は
-/// 一覧に出す（`ws/current -> ws/2026/08` は普通の使い方）ので、
-/// `ws/self -> .` のような自分を指すものが1本あるだけで無限に降りてしまう。
+/// `followed` は**root と、いまの経路で辿った symlink の解決先**を積む。
+/// root の中で閉じた symlink は一覧に出す（`ws/current -> ws/2026/08` は普通の
+/// 使い方）ので、これが無いと自分や祖先を指す1本で同じ部分木を積み直す。
+/// 深さは `MAX_DEPTH` が止めるが、そこまでの部分木が毎回複製される。
+///
+/// **root を最初に入れておく。** 入れないと `ws/self -> .` が1段降りてから
+/// 初めて弾かれる。
 ///
 /// **経路ごとに持ち、`&mut` で回す。** 訪問済みの集合にすると、同じ実体を指す
 /// 2本の symlink のうち後の1本が黙って消える。複製にすると項目ごとに Vec を作る
 struct Walk<'a> {
     canonical_root: &'a Path,
-    ancestors: Vec<PathBuf>,
+    followed: Vec<PathBuf>,
     depth: usize,
     /// 残り。0 になったらその枝を `truncated` にして降りない
     budget: usize,
@@ -108,7 +114,7 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
                 continue;
             };
 
-            let mut followed = false;
+            let mut pushed = false;
             if file_type.is_symlink() {
                 let Ok(resolved) = fs::canonicalize(&child_path) else {
                     continue;
@@ -117,32 +123,32 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
                     continue;
                 }
                 // 自分か祖先を指す symlink。降りると同じ部分木を積み直す
-                if walk.ancestors.contains(&resolved) {
+                if walk.followed.contains(&resolved) {
                     continue;
                 }
-                walk.ancestors.push(resolved);
-                followed = true;
+                walk.followed.push(resolved);
+                pushed = true;
             }
 
-            // ディレクトリまたは棋譜ファイルのみを含める
             if child_path.is_dir() || is_kifu_file(&child_path) {
                 walk.depth += 1;
                 walk.budget -= 1;
                 let built = build_file_tree_recursive(&child_path, walk);
                 walk.depth -= 1;
-                if followed {
-                    walk.ancestors.pop();
+                if pushed {
+                    walk.followed.pop();
                 }
                 match built {
                     Ok(child_node) => children.push(child_node),
-                    Err(_) => continue, // エラーは無視して続行
+                    // 1項目を読めなくても一覧全体は返す。返さないと、
+                    // 権限の無いフォルダが1つあるだけでツリーが出なくなる
+                    Err(_) => continue,
                 }
-            } else if followed {
-                walk.ancestors.pop();
+            } else if pushed {
+                walk.followed.pop();
             }
         }
 
-        // ディレクトリを先に、その後ファイルの名前順でソート
         children.sort_by(|a, b| match (a.is_dir, b.is_dir) {
             (true, false) => std::cmp::Ordering::Less,
             (false, true) => std::cmp::Ordering::Greater,
@@ -185,13 +191,14 @@ pub fn get_file_tree<R: Runtime>(
         );
     }
 
-    // 絶対パスに正規化
+    // symlink まで解決しておく。解決前のパスを `canonical_root` にすると、
+    // 配下かどうかの判定が解決後のパスと噛み合わない
     let canonical_path = root_path.canonicalize().map_err(FsError::from)?;
     let mut walk = Walk {
         // **引数のディレクトリ**であって、設定上の root ではない。
         // 部分木を渡す呼び方（いまは無い）を足すと、その外を指す symlink が落ちる
         canonical_root: &canonical_path,
-        ancestors: vec![canonical_path.clone()],
+        followed: vec![canonical_path.clone()],
         depth: 0,
         budget: MAX_NODES,
     };
@@ -229,7 +236,7 @@ mod tests {
         let root = fs::canonicalize(dir).expect("解決できない");
         let mut walk = Walk {
             canonical_root: &root,
-            ancestors: vec![root.clone()],
+            followed: vec![root.clone()],
             depth: 0,
             budget: MAX_NODES,
         };
@@ -249,9 +256,8 @@ mod tests {
             .sum::<usize>()
     }
 
-    /// `ws/self -> .` が1本あるだけでプロセスごと落ちていた。
-    /// Rust のスタックオーバーフローは `catch_unwind` できないので、
-    /// `get_file_tree` は `Err` すら返せず、起動のたびに無言で落ちる
+    /// `ws/self -> .` は自分を指すので降りない。降りると同じ部分木を
+    /// 積み直し、深さの上限まで複製が増える
     #[test]
     fn a_symlink_pointing_at_itself_does_not_recurse_forever() {
         let tmp = std::env::temp_dir().join(format!("obs-shogi-tree-{}", std::process::id()));
@@ -265,7 +271,7 @@ mod tests {
         let root = fs::canonicalize(&tmp).expect("解決できない");
         let mut walk = Walk {
             canonical_root: &root,
-            ancestors: vec![root.clone()],
+            followed: vec![root.clone()],
             depth: 0,
             budget: MAX_NODES,
         };
@@ -330,7 +336,7 @@ mod tests {
         let root = fs::canonicalize(&ws).expect("解決できない");
         let mut walk = Walk {
             canonical_root: &root,
-            ancestors: vec![root.clone()],
+            followed: vec![root.clone()],
             depth: 0,
             budget: 500,
         };
@@ -355,7 +361,7 @@ mod tests {
         let root = fs::canonicalize(&ws).expect("解決できない");
         let mut walk = Walk {
             canonical_root: &root,
-            ancestors: vec![root.clone()],
+            followed: vec![root.clone()],
             depth: 0,
             budget: 10,
         };
@@ -385,7 +391,7 @@ mod tests {
             let root = fs::canonicalize(&ws).expect("解決できない");
             let mut walk = Walk {
                 canonical_root: &root,
-                ancestors: vec![root.clone()],
+                followed: vec![root.clone()],
                 depth: 0,
                 budget,
             };
@@ -421,7 +427,7 @@ mod tests {
         let root = fs::canonicalize(&tmp).expect("解決できない");
         let mut walk = Walk {
             canonical_root: &root,
-            ancestors: vec![root.clone()],
+            followed: vec![root.clone()],
             depth: 0,
             budget: MAX_NODES,
         };
