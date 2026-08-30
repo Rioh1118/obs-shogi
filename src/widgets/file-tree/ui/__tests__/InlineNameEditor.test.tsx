@@ -26,6 +26,16 @@ const passed = { ok: true as const };
 
 afterEach(() => cleanup());
 
+/**
+ * 欄の下に出ている理由。
+ *
+ * **領域は常設**（空でも DOM にある）なので、`queryByRole("alert")` の有無では
+ * 出ているかどうかを見られない。中身で見る
+ */
+function reasonText() {
+  return screen.getByRole("alert").textContent;
+}
+
 function typeAndCommit(value: string) {
   const input = screen.getByRole("textbox");
   fireEvent.change(input, { target: { value } });
@@ -64,11 +74,11 @@ describe("InlineNameEditor", () => {
     );
 
     await typeAndCommit("研究/2026");
-    expect(screen.queryByRole("alert")).toBeTruthy();
+    expect(reasonText()).not.toBe("");
 
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "研究2026" } });
 
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reasonText()).toBe("");
   });
 
   /**
@@ -123,8 +133,8 @@ describe("InlineNameEditor", () => {
 
   // 一番普通の操作。打って外をクリックすると blur が確定の引き金になる。
   // ここで閉じると打った文字列ごと消え、「直すための入力欄が、直せという知らせに
-  // 巻き込まれて消える」形になる。焦点を戻して直せる状態にする
-  test("打って外をクリックし、それが失敗したら焦点を戻して理由を出す", async () => {
+  // 巻き込まれて消える」形になる。焦点は戻さない（状態遷移表の E4 を許す）
+  test("打って外をクリックし、それが失敗しても閉じずに理由を出す", async () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);
     const onCancel = vi.fn();
 
@@ -260,7 +270,7 @@ describe("InlineNameEditor", () => {
 
     await typeAndCommit("研究2026");
     expect(onCommit).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reasonText()).toBe("");
 
     await act(async () => {
       fireEvent.blur(screen.getByRole("textbox"));
@@ -282,7 +292,7 @@ describe("InlineNameEditor", () => {
 
     await typeAndCommit("研究2026");
 
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reasonText()).toBe("");
   });
 
   test("空にして確定したら、失敗ではなく取り消しとして扱う", async () => {

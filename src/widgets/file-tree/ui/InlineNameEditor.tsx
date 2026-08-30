@@ -22,11 +22,14 @@ type InlineRenameProps = {
   onCommit: (nextName: string) => Promise<CommitOutcome>;
   onCancel: () => void;
   /**
-   * 入力欄に出すはずだった失敗を、出せなかったときの行き先。
+   * 欄が **unmount されたあと**に失敗が返ったときの行き先。
    *
-   * 確定の最中に欄の外へ出ると、失敗が返る頃にはもう見ていない。
-   * 名前の失敗は provider が通知へ積まない（出す責任がここだけにある）ので、
-   * ここで捨てると**どの出口にも出ない**
+   * 確定の最中に呼び出し側が編集行を畳むと（reducer の `case "error"` など）、
+   * 返ってきた失敗を出す場所が無い。名前の失敗は provider が通知へ積まない
+   * （出す責任がここだけにある）ので、ここで捨てると**どの出口にも出ない**。
+   *
+   * 欄が残っているなら閉じずにその場へ出すので、ここへは来ない。
+   * 判定は `inputRef.current` の有無で、「欄の外へ出たか」は見ない
    */
   onUnshowable: (error: FsError) => void;
   className?: string;
@@ -156,11 +159,12 @@ function InlineNameEditor({
         }}
       />
       {/* 行を押し広げて全文を出す。理由は docs/state-transitions/inline-name-editor.md */}
-      {error && (
-        <span className="inline-name-editor__error" role="alert">
-          {describeFsError(error.code)}
-        </span>
-      )}
+      {/* **領域は常設する。** 中身と同時に DOM へ入れると、VoiceOver は
+          live region の変化として読まない。焦点を戻さない形にした以上、
+          キーボードだけの利用者へはここからしか伝わらない */}
+      <span className="inline-name-editor__error" role="alert">
+        {error ? describeFsError(error.code) : ""}
+      </span>
     </span>
   );
 }
