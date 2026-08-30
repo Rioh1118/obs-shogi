@@ -78,7 +78,19 @@ export function advanceMainLine(player: JKFPlayer): AdvanceResult {
   return advanceWithPlan(player, NO_PLAN);
 }
 
-/** `JKFPlayer.goto` が進める最長と同じ。片方だけ先に打ち切ると値が食い違う。 */
+/**
+ * 際限なく歩き続けないための上限。`JKFPlayer.goto` が内部で使う数と同じ値。
+ *
+ * **`goto` と足並みが揃うとは考えないこと。** `goto` の番人は
+ * `var c = 1e4; for (; tesuu !== e && forward() && c-- > 0;); if (0 === c) throw`
+ * で、`c` がちょうど0で終わったときだけ投げる。つまり**ぴったり 10000 手動かす
+ * `goto` だけが投げ、10001 手の `goto` は素通りする**（実測。
+ * `__tests__/advanceWithPlan.test.ts` が固定している）。上限ではなく等値判定なので、
+ * 「どちらが先に打ち切るか」を揃えようとしても揃わない。
+ *
+ * 実際には `computeLeafTesuu` が `buildPlayer` の `goto` を先に通すので、
+ * この値が先に効く場面は無い。
+ */
 export const PLAN_WALK_LIMIT = 10000;
 
 /**
@@ -86,7 +98,7 @@ export const PLAN_WALK_LIMIT = 10000;
  *
  * 葉に着いたことを確かめるには「`PLAN_WALK_LIMIT` 手進む」ぶんに加えて
  * 「もう進めない」を1回見る必要があるので、反復は `PLAN_WALK_LIMIT + 1` 回まで許す。
- * `< PLAN_WALK_LIMIT` にすると、`goto` は届く 10000 手の線でここだけが投げる。
+ * `< PLAN_WALK_LIMIT` にすると、確かめられる最長が 9999 手に落ちる。
  *
  * @throws {Error} `PLAN_WALK_LIMIT` 手進んでも葉に着かないとき
  * @throws {Error} 盤上で再生できない手に当たったとき（`advanceWithPlan` が投げる）

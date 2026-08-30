@@ -113,8 +113,6 @@ describe("advanceToLeafWithPlan", () => {
     return new JKFPlayer({ header: {}, moves });
   };
 
-  // 上限は JKFPlayer.goto が進める最長に合わせてある。ちょうどの線でここだけが
-  // 投げると、computeLeafTesuu の手数表示と goto の到達点が食い違う。
   test("上限ちょうどの線は葉まで進める", () => {
     const player = lineOf(PLAN_WALK_LIMIT);
     expect(() => advanceToLeafWithPlan(player, planByTe([]))).not.toThrow();
@@ -125,5 +123,24 @@ describe("advanceToLeafWithPlan", () => {
     expect(() => advanceToLeafWithPlan(lineOf(PLAN_WALK_LIMIT + 1), planByTe([]))).toThrow(
       /overflows/,
     );
+  });
+
+  // PLAN_WALK_LIMIT の doc が「goto と足並みは揃わない」と言っている根拠。
+  // goto の番人は上限ではなく `0 === c` の等値判定なので、ぴったりの手数だけが
+  // 投げて、それより長い線は素通りする。この非単調さを前提に doc を書いてある。
+  test("goto はぴったり PLAN_WALK_LIMIT 手のときだけ投げ、それより長いと投げない", () => {
+    const gotoResult = (length: number) => {
+      const player = lineOf(length);
+      try {
+        player.goto(length);
+        return player.tesuu;
+      } catch {
+        return "threw";
+      }
+    };
+
+    expect(gotoResult(PLAN_WALK_LIMIT - 1)).toBe(PLAN_WALK_LIMIT - 1);
+    expect(gotoResult(PLAN_WALK_LIMIT)).toBe("threw");
+    expect(gotoResult(PLAN_WALK_LIMIT + 1)).toBe(PLAN_WALK_LIMIT + 1);
   });
 });
