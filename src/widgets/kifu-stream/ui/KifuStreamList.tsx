@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import { plannedCursorOf, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import {
   neighborBranchIndex,
   MAIN_LINE,
@@ -45,13 +45,10 @@ export default function KifuStreamList() {
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const plannedCursor = useMemo(() => {
-    if (!state.cursor) return null;
-    return {
-      ...state.cursor,
-      forkPointers: state.branchPlan,
-    };
-  }, [state.cursor, state.branchPlan]);
+  const plannedCursor = useMemo(
+    () => plannedCursorOf(state.cursor, state.branchPlan),
+    [state.cursor, state.branchPlan],
+  );
 
   const rows = useMemo(() => {
     if (!view.player) return [];
@@ -219,7 +216,7 @@ export default function KifuStreamList() {
       const next = resolveForkSelection(plannedCursor, te, forkIndex);
       closeForkMenu(true);
 
-      if (next.kind === "goto") goToIndex(next.te);
+      if (next.kind === "goToIndex") goToIndex(next.te);
       else applyCursor(next.cursor);
     },
     [plannedCursor, applyCursor, goToIndex, closeForkMenu],

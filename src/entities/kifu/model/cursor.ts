@@ -41,6 +41,34 @@ export interface KifuCursor {
   tesuuPointer: TesuuPointer;
 }
 
+declare const plannedCursorBrand: unique symbol;
+
+/**
+ * 「これから降りるつもりの変化」まで載せたカーソル
+ *
+ * `KifuCursor` との違いは2つ。`te > tesuu` の `ForkPointer` を持つことと、
+ * 局面を一意に指さないので `tesuuPointer` を持たないこと。
+ * 盤の再生（`buildPlayer` / `goto`）にはそのまま渡せない。
+ *
+ * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
+ * brand が無いと `KifuCursor` がそのまま代入でき、`cursor.forkPointers` は
+ * `te <= tesuu` に正規化済みなので、**カーソルより先の選択が黙って空になる**。
+ */
+export interface PlannedCursor {
+  tesuu: number;
+  forkPointers: ForkPointer[];
+  readonly [plannedCursorBrand]: true;
+}
+
+/** 現在局面と分岐計画から `PlannedCursor` を組む。**この型を作ってよいのはここだけ** */
+export function plannedCursorOf(
+  cursor: KifuCursor | null,
+  branchPlan: ForkPointer[],
+): PlannedCursor | null {
+  if (!cursor) return null;
+  return { tesuu: cursor.tesuu, forkPointers: branchPlan } as PlannedCursor;
+}
+
 /**
  * 開始局面のカーソル。
  * ここでは「空の分岐履歴」を表す最小形として定義する。

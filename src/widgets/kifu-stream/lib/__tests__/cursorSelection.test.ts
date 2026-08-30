@@ -1,25 +1,26 @@
 import { describe, expect, test } from "vitest";
 import { buildTesuuPointer } from "@/entities/kifu/model/branch";
-import { normalizeForkPointers, type ForkPointer } from "@/entities/kifu/model/cursor";
-import { buildCursorWithForkSelection, resolveForkSelection } from "../cursorSelection";
+import {
+  normalizeForkPointers,
+  plannedCursorOf,
+  type ForkPointer,
+} from "@/entities/kifu/model/cursor";
+import { resolveForkSelection } from "../cursorSelection";
 
 /**
- * 「計画した変化」を持つカーソル。`KifuStreamList` の `plannedCursor` と同じ組み方で、
- * `state.branchPlan` をそのまま `forkPointers` に載せる（`te > tesuu` を落とさない）。
+ * 実物と同じ組み方で `PlannedCursor` を作る。
+ *
+ * `state.cursor.forkPointers` は `te <= tesuu` に正規化された「辿った変化」、
+ * `state.branchPlan` はそれに `te > tesuu` の計画を足したもの。
+ * `te <= tesuu` の範囲で両者が一致するのが `game.md` の不変条件1で、
+ * `normalizeForkPointers` を通しているのはそれを守るため。
  */
-const planned = (tesuu: number, forkPointers: ForkPointer[]) => ({
-  tesuu,
-  forkPointers,
-  tesuuPointer: buildTesuuPointer(tesuu, forkPointers),
-});
-
-/**
- * 「辿った変化」だけを持つカーソル。`cursorFromSource` と同じく `te <= tesuu` に正規化する。
- * これを比較先に使うと #225 になる。
- */
-const traced = (tesuu: number, forkPointers: ForkPointer[]) => {
-  const fps = normalizeForkPointers(forkPointers, tesuu);
-  return { tesuu, forkPointers: fps, tesuuPointer: buildTesuuPointer(tesuu, fps) };
+const plannedCursor = (tesuu: number, branchPlan: ForkPointer[]) => {
+  const traced = normalizeForkPointers(branchPlan, tesuu);
+  const cursor = { tesuu, forkPointers: traced, tesuuPointer: buildTesuuPointer(tesuu, traced) };
+  const planned = plannedCursorOf(cursor, branchPlan);
+  if (!planned) throw new Error("plannedCursorOf returned null for a non-null cursor");
+  return planned;
 };
 
 describe("resolveForkSelection", () => {
@@ -28,57 +29,102 @@ describe("resolveForkSelection", () => {
     // 「辿った変化」は te <= 5 しか持たないので 10手目については空。
     const plan = [{ te: 10, forkIndex: 0 }];
 
-    test("「本譜」を押したら本譜の指定になる", () => {
-      const r = resolveForkSelection(planned(5, plan), 10, null);
+    test("「本譜」を押したら本譜のカーソルになる", () => {
+      const r = resolveForkSelection(plannedCursor(5, plan), 10, null);
 
-      // goto に落ちると、計画を積んだままの goToIndex(10) で変化が確定する（#225）。
-      expect(r.kind).toBe("apply");
-      if (r.kind !== "apply") return;
+      // goToIndex に落ちると、計画を積んだままの goto で変化が確定してしまう。
+      expect(r.kind).toBe("applyCursor");
+      if (r.kind !== "applyCursor") return;
       expect(r.cursor.tesuu).toBe(10);
       expect(r.cursor.forkPointers.some((p) => p.te === 10)).toBe(false);
     });
 
     test("選択済みの変化をもう一度押したら移動だけ", () => {
-      expect(resolveForkSelection(planned(5, plan), 10, 0)).toEqual({ kind: "goto", te: 10 });
+      expect(resolveForkSelection(plannedCursor(5, plan), 10, 0)).toEqual({
+        kind: "goToIndex",
+        te: 10,
+      });
     });
 
-    test("別の変化を押したらその変化の指定になる", () => {
-      const r = resolveForkSelection(planned(5, plan), 10, 1);
+    test("別の変化を押したらその変化のカーソルになる", () => {
+      const r = resolveForkSelection(plannedCursor(5, plan), 10, 1);
 
-      expect(r.kind).toBe("apply");
-      if (r.kind !== "apply") return;
+      expect(r.kind).toBe("applyCursor");
+      if (r.kind !== "applyCursor") return;
       expect(r.cursor.forkPointers).toContainEqual({ te: 10, forkIndex: 1 });
     });
 
-    test("「辿った変化」を比較先にすると本譜と変化が入れ替わる", () => {
-      // 比較先を取り違えたときに何が起きるかを固定しておく。上の3件が
-      // 「たまたま通っている」のではないことは、この対比で確かめられる。
-      const wrong = traced(5, plan);
+    test("計画を落とした値を比較先にすると「本譜」だけが変化へ落ちる", () => {
+      // 「辿った変化」だけを載せた値。型では渡せないので、同じ内容を計画として組んで再現する。
+      // 壊れるのは「本譜」の一方向だけで、変化を押す側は不一致のまま正しく動く。
+      const dropped = plannedCursor(5, normalizeForkPointers(plan, 5));
 
-      expect(wrong.forkPointers).toEqual([]);
-      expect(resolveForkSelection(wrong, 10, null)).toEqual({ kind: "goto", te: 10 });
+      expect(dropped.forkPointers).toEqual([]);
+      expect(resolveForkSelection(dropped, 10, null)).toEqual({ kind: "goToIndex", te: 10 });
+      expect(resolveForkSelection(dropped, 10, 0).kind).toBe("applyCursor");
     });
   });
 
-  describe("カーソル以下の te（両方が同じ内容を持つ）", () => {
+  describe("カーソル以下の te（辿った変化と計画が一致する範囲）", () => {
     const plan = [{ te: 2, forkIndex: 0 }];
 
     test("選択済みの変化をもう一度押したら移動だけ", () => {
-      expect(resolveForkSelection(planned(5, plan), 2, 0)).toEqual({ kind: "goto", te: 2 });
-      expect(resolveForkSelection(traced(5, plan), 2, 0)).toEqual({ kind: "goto", te: 2 });
+      expect(resolveForkSelection(plannedCursor(5, plan), 2, 0)).toEqual({
+        kind: "goToIndex",
+        te: 2,
+      });
     });
 
-    test("「本譜」を押したら本譜の指定になる", () => {
-      for (const base of [planned(5, plan), traced(5, plan)]) {
-        const r = resolveForkSelection(base, 2, null);
-        expect(r.kind).toBe("apply");
-        if (r.kind !== "apply") continue;
-        expect(r.cursor).toEqual(buildCursorWithForkSelection(base, 2, null));
-      }
+    test("「本譜」を押したら te の選択が落ちる", () => {
+      const r = resolveForkSelection(plannedCursor(5, plan), 2, null);
+
+      expect(r.kind).toBe("applyCursor");
+      if (r.kind !== "applyCursor") return;
+      expect(r.cursor.tesuu).toBe(2);
+      expect(r.cursor.forkPointers.some((p) => p.te === 2)).toBe(false);
     });
   });
 
   test("計画がまったく無ければ「本譜」は移動だけ", () => {
-    expect(resolveForkSelection(planned(0, []), 3, null)).toEqual({ kind: "goto", te: 3 });
+    expect(resolveForkSelection(plannedCursor(0, []), 3, null)).toEqual({
+      kind: "goToIndex",
+      te: 3,
+    });
+  });
+
+  describe("捨てない値", () => {
+    test("押した te より先の計画は戻り値から落ちる", () => {
+      const r = resolveForkSelection(
+        plannedCursor(5, [
+          { te: 10, forkIndex: 0 },
+          { te: 15, forkIndex: 2 },
+        ]),
+        10,
+        null,
+      );
+
+      // 落ちるのはこの戻り値の中だけ。state.branchPlan に残っている te=15 は
+      // applyCursor の mergeBranchPlan が復活させる（docs/state-transitions/game.md の不変条件3）。
+      expect(r.kind).toBe("applyCursor");
+      if (r.kind !== "applyCursor") return;
+      expect(r.cursor.forkPointers.some((p) => p.te === 15)).toBe(false);
+    });
+
+    test("壊れた forkIndex は落とさずそのまま持ち越す", () => {
+      // 負・非整数を捨てる検査は computeLeafTesuu と buildStreamRowsFromCursor の2箇所にある。
+      // ここで3箇所目を書くと寄せ先が増えるだけなので書かない。この値は goto まで届き、
+      // JKFPlayer の内部で TypeError になって applyCursor の catch が受ける。→ #213
+      for (const forkIndex of [-1, 0.5, NaN]) {
+        const plan = [
+          { te: 3, forkIndex },
+          { te: 10, forkIndex: 0 },
+        ];
+        const r = resolveForkSelection(plannedCursor(5, plan), 10, null);
+
+        expect(r.kind).toBe("applyCursor");
+        if (r.kind !== "applyCursor") continue;
+        expect(r.cursor.forkPointers).toContainEqual({ te: 3, forkIndex });
+      }
+    });
   });
 });

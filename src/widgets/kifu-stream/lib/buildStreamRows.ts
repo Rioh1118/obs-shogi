@@ -1,4 +1,4 @@
-import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import type { PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
 
@@ -10,7 +10,7 @@ import type { RowModel } from "../ui/KifuMoveCard";
  */
 export function buildStreamRowsFromCursor(
   player: JKFPlayer,
-  cursor: KifuCursor | null,
+  cursor: PlannedCursor | null,
 ): RowModel[] {
   const planned = new Map<number, number>();
   for (const p of cursor?.forkPointers ?? []) planned.set(p.te, p.forkIndex);

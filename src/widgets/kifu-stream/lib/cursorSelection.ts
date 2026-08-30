@@ -1,8 +1,8 @@
 import {
-  ROOT_CURSOR,
   normalizeForkPointers,
   type ForkPointer,
   type KifuCursor,
+  type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
 import {
   branchIndexFromSelection,
@@ -15,14 +15,21 @@ export const branchIndexFromRow = (r: RowModel): BranchIndex => {
   return branchIndexFromSelection(r.selectedForkIndex);
 };
 
+/**
+ * 分岐メニューで選ばれた項目を、局面を指すカーソルに変換する
+ *
+ * `te` 以降の計画は落とす。行を押した時点で、その先はもう一度選び直す対象になるため。
+ * 戻り値は `te <= tesuu` に正規化済みで、そのまま `applyCursor` に渡してよい。
+ *
+ * ただし `te` より先の計画を消せるのはこの戻り値の中だけで、`state.branchPlan` に
+ * 残っている分は `mergeBranchPlan` が復活させる。線を乗り換えても深い計画は残る。
+ */
 export function buildCursorWithForkSelection(
-  base: KifuCursor | null,
+  base: PlannedCursor | null,
   te: number,
   forkIndex: number | null,
 ): KifuCursor {
-  const prev = base ?? ROOT_CURSOR;
-
-  const prefix = (prev.forkPointers ?? []).filter((p) => p.te < te);
+  const prefix = (base?.forkPointers ?? []).filter((p) => p.te < te);
   const picked: ForkPointer[] = forkIndex == null ? prefix : [...prefix, { te, forkIndex }];
   // buildTesuuPointer は並びをそのまま文字列にする。正規化を通さないと、
   // 同じ局面が並び順の違いで別のキーになり、コメント欄の開閉判定が外れる。
@@ -31,25 +38,28 @@ export function buildCursorWithForkSelection(
   return { tesuu: te, forkPointers, tesuuPointer: buildTesuuPointer(te, forkPointers) };
 }
 
-/** 分岐メニューの選択が、局面の指定になるのか、その手数への移動で足りるのか */
-export type ForkSelection = { kind: "goto"; te: number } | { kind: "apply"; cursor: KifuCursor };
+/** 分岐メニューの選択に対して次に呼ぶ操作 */
+export type ForkMenuAction =
+  | { kind: "goToIndex"; te: number }
+  | { kind: "applyCursor"; cursor: KifuCursor };
 
 /**
  * 分岐メニューで選ばれた項目を、次に呼ぶ操作へ振り分ける
  *
- * `planned` は**行のチェックを描いたのと同じカーソル**（`state.branchPlan` から組む）を渡す。
- * `state.cursor` を渡してはならない。`cursor.forkPointers` は `te <= cursor.tesuu` に
- * 正規化されていてカーソルより先の選択を持たないので、先の行はどの項目も
- * 「選ばれていない」と読める。すると「本譜」を押したときだけ一致してしまい、
- * 計画を積んだままの `goToIndex` に落ちて、本譜どころか変化が確定する。
+ * 比較先は**行のチェックを描いたのと同じ値**でなければならない。行のチェックは
+ * `PlannedCursor.forkPointers`（= `state.branchPlan`）から出る（`buildStreamRows.ts`）。
+ * `KifuCursor.forkPointers` は `te <= tesuu` に正規化されていてカーソルより先の選択を
+ * 持たないので、そちらと比べると先の行はどの項目も「選ばれていない」と読める。
+ * すると「本譜」を押したときだけ一致し、計画を積んだままの `goToIndex` へ落ちて
+ * 本譜どころか変化が確定する。型で `KifuCursor` を弾いているのはそのため。
  */
 export function resolveForkSelection(
-  planned: KifuCursor,
+  planned: PlannedCursor,
   te: number,
   forkIndex: number | null,
-): ForkSelection {
+): ForkMenuAction {
   const selected = planned.forkPointers.find((p) => p.te === te)?.forkIndex ?? null;
-  if (selected === forkIndex) return { kind: "goto", te };
+  if (selected === forkIndex) return { kind: "goToIndex", te };
 
-  return { kind: "apply", cursor: buildCursorWithForkSelection(planned, te, forkIndex) };
+  return { kind: "applyCursor", cursor: buildCursorWithForkSelection(planned, te, forkIndex) };
 }
