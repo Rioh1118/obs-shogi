@@ -68,12 +68,20 @@ export default function KifuStreamList() {
   const closeForkMenu = useCallback((focusAnchor: boolean) => {
     const anchor = lastAnchorRef.current;
     setOpenFork(null);
-    if (focusAnchor) {
-      // preventScroll を外すと focus 既定のスクロールが走り、同じフレーム帯で動く
-      // scrollToRowSafeZone の位置合わせを「見えるところまで」に上書きしてしまう。
-      // 行の位置を決めるのは scrollToRowSafeZone だけにする。
-      requestAnimationFrame(() => anchor?.focus({ preventScroll: true }));
-    }
+    if (!focusAnchor) return;
+
+    requestAnimationFrame(() => {
+      // 行の位置を決めるのは scrollToRowSafeZone だけにする。focus 既定のスクロールは
+      // 「見えるところまで」なので、25% のセーフゾーンに寄せる位置合わせを上書きする。
+      anchor?.focus({ preventScroll: true });
+
+      // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
+      // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
+      // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
+      const scroller = listRef.current;
+      const rowEl = anchor?.closest<HTMLElement>(".kifu-row") ?? null;
+      if (scroller && rowEl) scrollToRowSafeZone(scroller, rowEl, "auto");
+    });
   }, []);
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
