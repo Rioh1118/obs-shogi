@@ -1,6 +1,5 @@
 use std::{
     fs,
-    panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
 };
 
@@ -37,38 +36,15 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     match kind {
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
-        KifuKind::Csa => safe_parse_csa(path),
-        KifuKind::Jkf => safe_parse_jkf(path),
+        KifuKind::Csa => parse_csa_file(path).map_err(|e| failed(path, e)),
+        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| failed(path, e)),
     }
 }
 
-/// CSA パーサーのパニックを捕捉してエラーに変換する
-fn safe_parse_csa(path: &Path) -> Result<Jkf, KifuReadError> {
-    match catch_unwind(AssertUnwindSafe(|| parse_csa_file(path))) {
-        Ok(Ok(jkf)) => Ok(jkf),
-        Ok(Err(e)) => Err(KifuReadError::ParseFailed {
-            path: path.to_path_buf(),
-            message: format!("{e:?}"),
-        }),
-        Err(_) => Err(KifuReadError::ParseFailed {
-            path: path.to_path_buf(),
-            message: "parser panicked (likely unsupported format)".to_string(),
-        }),
-    }
-}
-
-/// JKF パーサーのパニックを捕捉してエラーに変換する
-fn safe_parse_jkf(path: &Path) -> Result<Jkf, KifuReadError> {
-    match catch_unwind(AssertUnwindSafe(|| parse_jkf_file(path))) {
-        Ok(Ok(jkf)) => Ok(jkf),
-        Ok(Err(e)) => Err(KifuReadError::ParseFailed {
-            path: path.to_path_buf(),
-            message: format!("{e:?}"),
-        }),
-        Err(_) => Err(KifuReadError::ParseFailed {
-            path: path.to_path_buf(),
-            message: "parser panicked (likely unsupported format)".to_string(),
-        }),
+fn failed(path: &Path, e: impl std::fmt::Display) -> KifuReadError {
+    KifuReadError::ParseFailed {
+        path: path.to_path_buf(),
+        message: e.to_string(),
     }
 }
 
@@ -92,46 +68,25 @@ pub fn read_many_to_jkf(records: &[FileRecord]) -> (ReadOk, ReadErr) {
 // -------------------------
 
 fn parse_kif_portable(path: &Path) -> Result<Jkf, KifuReadError> {
-    // 1) まずライブラリ標準（拡張子ベースのデコード）を試す
-    //    外部クレートのパーサーはカスタム初期局面でパニックする場合がある
-    match catch_unwind(AssertUnwindSafe(|| parse_kif_file(path))) {
-        Ok(Ok(jkf)) => return Ok(jkf),
-        Ok(Err(_)) => {}
-        Err(_) => {
-            // パーサーがパニックした場合はフォールバックへ
-        }
+    // 1) まずライブラリ標準（拡張子ベースのデコード）
+    if let Ok(jkf) = parse_kif_file(path) {
+        return Ok(jkf);
     }
 
     // 2) ダメなら "自前で bytes -> text" をやって parse_kif_str を総当たり
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, |s| {
-        match catch_unwind(AssertUnwindSafe(|| parse_kif_str(s))) {
-            Ok(result) => result,
-            Err(_) => Err(shogi_kifu_converter_obsshogi::error::ParseError::Kif(
-                "parser panicked".to_string(),
-            )),
-        }
-    })
+    try_parse_text_with_fallback(path, &bytes, parse_kif_str)
 }
 
 fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
     // 1) まずライブラリ標準
-    match catch_unwind(AssertUnwindSafe(|| parse_ki2_file(path))) {
-        Ok(Ok(jkf)) => return Ok(jkf),
-        Ok(Err(_)) => {}
-        Err(_) => {}
+    if let Ok(jkf) = parse_ki2_file(path) {
+        return Ok(jkf);
     }
 
     // 2) フォールバック
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, |s| {
-        match catch_unwind(AssertUnwindSafe(|| parse_ki2_str(s))) {
-            Ok(result) => result,
-            Err(_) => Err(shogi_kifu_converter_obsshogi::error::ParseError::Ki2(
-                "parser panicked".to_string(),
-            )),
-        }
-    })
+    try_parse_text_with_fallback(path, &bytes, parse_ki2_str)
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
@@ -220,5 +175,68 @@ fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
         &bytes[3..]
     } else {
         bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 手合割の名前だけを変えた同じ棋譜。上手（後手）から指すので ３四歩 は
+    /// どの手合割でも指せる（3三の歩はどの手合割でも落ちない）
+    const HANDICAPS: [&str; 15] = [
+        "香落ち",
+        "右香落ち",
+        "角落ち",
+        "飛車落ち",
+        "飛香落ち",
+        "二枚落ち",
+        "三枚落ち",
+        "四枚落ち",
+        "五枚落ち",
+        "左五枚落ち",
+        "六枚落ち",
+        "右七枚落ち",
+        "左七枚落ち",
+        "八枚落ち",
+        "十枚落ち",
+    ];
+
+    /// 手合割つきの棋譜を読んでもパニックしない。
+    ///
+    /// v0.3.1 のクレートは手合割の盤面を表で持っておらず、表に無い5種
+    /// （三枚落ち / 五枚落ち / 左五枚落ち / 右七枚落ち / 左七枚落ち）で
+    /// `unimplemented!()` に落ちていた。走査は1ファイルずつ読むので、
+    /// **1件混ざると索引作りがそこで死ぬ**。`catch_unwind` はそれを包むためにあった。
+    ///
+    /// 表が入って理由が消えたので包みを外した。外したままでよいことを、
+    /// 落ちていた5種を含む全手合割で見る。
+    #[test]
+    fn every_handicap_reads_without_panicking() {
+        let dir = std::env::temp_dir().join(format!(
+            "obs-shogi-handicap-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        fs::create_dir_all(&dir).expect("一時ディレクトリ");
+
+        for name in HANDICAPS {
+            let path = dir.join(format!("{name}.kif"));
+            fs::write(
+                &path,
+                format!(
+                    "手合割：{name}\n\
+                     手数----指手---------消費時間--\n   \
+                     1 ３四歩(33)   ( 0:01/00:00:01)\n"
+                ),
+            )
+            .expect("書き出し");
+
+            let jkf = read_path_to_jkf(&path, KifuKind::Kif)
+                .unwrap_or_else(|e| panic!("{name} が読めない: {e}"));
+            assert_eq!(jkf.moves.len(), 2, "{name} の指し手数");
+        }
+
+        fs::remove_dir_all(&dir).ok();
     }
 }
