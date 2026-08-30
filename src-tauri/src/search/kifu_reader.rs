@@ -15,7 +15,7 @@ use shogi_kifu_converter_obsshogi::parser::{
     parse_csa_file, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file, parse_kif_str,
 };
 
-use encoding_rs::{EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE};
+use encoding_rs::{EUC_JP, ISO_2022_JP, UTF_16BE, UTF_16LE};
 
 pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
@@ -68,25 +68,23 @@ pub fn read_many_to_jkf(records: &[FileRecord]) -> (ReadOk, ReadErr) {
 // -------------------------
 
 fn parse_kif_portable(path: &Path) -> Result<Jkf, KifuReadError> {
-    // 1) まずライブラリ標準（拡張子ベースのデコード）
-    if let Ok(jkf) = parse_kif_file(path) {
-        return Ok(jkf);
-    }
+    let reason = match parse_kif_file(path) {
+        Ok(jkf) => return Ok(jkf),
+        Err(e) => e,
+    };
 
-    // 2) ダメなら "自前で bytes -> text" をやって parse_kif_str を総当たり
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, parse_kif_str)
+    try_other_encodings(&bytes, parse_kif_str).ok_or_else(|| failed(path, reason))
 }
 
 fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
-    // 1) まずライブラリ標準
-    if let Ok(jkf) = parse_ki2_file(path) {
-        return Ok(jkf);
-    }
+    let reason = match parse_ki2_file(path) {
+        Ok(jkf) => return Ok(jkf),
+        Err(e) => e,
+    };
 
-    // 2) フォールバック
     let bytes = read_bytes(path)?;
-    try_parse_text_with_fallback(path, &bytes, parse_ki2_str)
+    try_other_encodings(&bytes, parse_ki2_str).ok_or_else(|| failed(path, reason))
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
@@ -96,91 +94,127 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
     })
 }
 
-/// いろんな文字コードで decode → parse を試す
+/// クレートが見ない文字コードで decode → parse を試す。読めたら `Some`。
 ///
-/// 方針:
-/// - UTF-8（BOMあり/なし）
-/// - UTF-16LE/BE（BOMあり想定でも無理やり試す）
-/// - Windows-31J(CP932) / Shift-JIS / EUC-JP / ISO-2022-JP
-/// - 最後に UTF-8 lossy
-fn try_parse_text_with_fallback<F>(
-    path: &Path,
-    bytes: &[u8],
-    mut parse: F,
-) -> Result<Jkf, KifuReadError>
+/// クレートは拡張子が名乗る文字コードと Shift_JIS / UTF-8 のもう一方しか試さない
+/// （`parser::read_kifu`）。実測でこの4つが残る。
+///
+/// | 文字コード | クレート単体 |
+/// | --- | --- |
+/// | EUC-JP | `Decode Error` |
+/// | UTF-16LE / UTF-16BE | `Decode Error` |
+/// | ISO-2022-JP | Shift_JIS として解釈が通ってしまい、指し手行で落ちる |
+///
+/// **読めなかったときに理由を返さないのは意図的。** クレートが返した理由のほうが
+/// 具体的（「何行目の何が読めないか」を言う）で、ここで試した分の失敗を並べると
+/// それが埋まる。呼び手はクレート側の理由を使う。
+fn try_other_encodings<F>(bytes: &[u8], mut parse: F) -> Option<Jkf>
 where
     F: FnMut(&str) -> Result<Jkf, shogi_kifu_converter_obsshogi::error::ParseError>,
 {
-    let mut errs: Vec<String> = Vec::new();
-
-    // --- UTF-8 (BOM strip) ---
-    let utf8_bytes = strip_utf8_bom(bytes);
-    if let Ok(s) = std::str::from_utf8(utf8_bytes) {
-        match parse(s) {
-            Ok(jkf) => return Ok(jkf),
-            Err(e) => errs.push(format!("utf-8: {e:?}")),
-        }
-    } else {
-        errs.push("utf-8: invalid bytes".to_string());
-    }
-
-    // --- UTF-16LE / UTF-16BE ---
-    for (label, enc) in [("utf-16le", UTF_16LE), ("utf-16be", UTF_16BE)] {
-        let (cow, _, had_errors) = enc.decode(bytes);
-        let s = cow.as_ref();
-        match parse(s) {
-            Ok(jkf) => return Ok(jkf),
-            Err(e) => errs.push(format!(
-                "{label}{}: {e:?}",
-                if had_errors { " (had_errors)" } else { "" }
-            )),
+    for enc in [UTF_16LE, UTF_16BE, EUC_JP, ISO_2022_JP] {
+        let (cow, _, _) = enc.decode(bytes);
+        if let Ok(jkf) = parse(cow.as_ref()) {
+            return Some(jkf);
         }
     }
 
-    // --- Japanese legacy encodings ---
-    for (label, enc) in [
-        ("shift_jis", SHIFT_JIS),
-        ("euc-jp", EUC_JP),
-        ("iso-2022-jp", ISO_2022_JP),
-    ] {
-        let (cow, _, had_errors) = enc.decode(bytes);
-        let s = cow.as_ref();
-        match parse(s) {
-            Ok(jkf) => return Ok(jkf),
-            Err(e) => errs.push(format!(
-                "{label}{}: {e:?}",
-                if had_errors { " (had_errors)" } else { "" }
-            )),
-        }
-    }
-
-    // --- UTF-8 lossy (最終手段) ---
-    {
-        let s = String::from_utf8_lossy(utf8_bytes);
-        match parse(&s) {
-            Ok(jkf) => return Ok(jkf),
-            Err(e) => errs.push(format!("utf-8 lossy: {e:?}")),
-        }
-    }
-
-    Err(KifuReadError::ParseFailed {
-        path: path.to_path_buf(),
-        message: format!("all decode+parse attempts failed:\n- {}", errs.join("\n- ")),
-    })
-}
-
-fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
-    const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
-    if bytes.len() >= 3 && bytes[0..3] == BOM {
-        &bytes[3..]
-    } else {
-        bytes
-    }
+    // 最終手段。読めない位置を落として読み進める。#293 で扱いを決めるまでは、
+    // 「開けない」より「一部が欠けても開ける」を採る既存の判断を変えない
+    parse(&String::from_utf8_lossy(bytes)).ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use encoding_rs::SHIFT_JIS;
+
+    const HIRATE: &str = "手合割：平手\n\
+                          手数----指手---------消費時間--\n   \
+                          1 ７六歩(77)   ( 0:01/00:00:01)\n";
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "obs-shogi-{tag}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        fs::create_dir_all(&dir).expect("一時ディレクトリ");
+        dir
+    }
+
+    /// 拡張子が名乗る文字コードと中身が食い違うファイルを読む。
+    ///
+    /// クレートは拡張子の文字コードと Shift_JIS / UTF-8 のもう一方しか試さない。
+    /// ここに挙げた4つは**クレート単体では読めない**ことを実測で確かめてある
+    /// （EUC-JP / UTF-16 は `Decode Error`、ISO-2022-JP は指し手行で落ちる）。
+    /// `try_other_encodings` はそのために残してある。
+    #[test]
+    fn encodings_the_crate_does_not_try_are_still_read() {
+        let dir = temp_dir("encoding");
+
+        for (label, enc) in [
+            ("eucjp", EUC_JP),
+            ("iso2022", ISO_2022_JP),
+            ("utf16le", UTF_16LE),
+            ("utf16be", UTF_16BE),
+        ] {
+            let bytes: Vec<u8> = if enc == UTF_16LE || enc == UTF_16BE {
+                // encoding_rs は UTF-16 へ encode できないので自分で組む
+                HIRATE
+                    .encode_utf16()
+                    .flat_map(|u| {
+                        if enc == UTF_16LE {
+                            u.to_le_bytes()
+                        } else {
+                            u.to_be_bytes()
+                        }
+                    })
+                    .collect()
+            } else {
+                let (cow, _, had_errors) = enc.encode(HIRATE);
+                assert!(!had_errors, "{label} へ encode できること");
+                cow.into_owned()
+            };
+
+            let path = dir.join(format!("{label}.kif"));
+            fs::write(&path, &bytes).expect("書き出し");
+
+            let jkf = read_path_to_jkf(&path, KifuKind::Kif)
+                .unwrap_or_else(|e| panic!("{label} が読めない: {e}"));
+            assert_eq!(jkf.moves.len(), 2, "{label} の指し手数");
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// クレートが読めた上で拒んだのなら、その理由をそのまま返す。
+    ///
+    /// 文字コードの総当たりは、当たらなかったぶんの失敗を積むと**クレートが言った
+    /// 具体的な理由を埋めてしまう**。v0.4.0 のパーサは読み残しがある入力を
+    /// エラーにするようになったので、この経路を通る棋譜が実際に出てくる。
+    #[test]
+    fn a_readable_file_the_parser_rejects_keeps_the_crates_reason() {
+        let dir = temp_dir("reason");
+        let path = dir.join("unknown-word.kif");
+        // 「パス」は KIF の語彙に無い。文字コードは Shift_JIS で正しい
+        let text = format!("{HIRATE}   2 パス\n");
+        let (bytes, _, _) = SHIFT_JIS.encode(&text);
+        fs::write(&path, &bytes).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            message.contains("パス"),
+            "読めなかった語を指していない: {message}"
+        );
+        assert!(
+            !message.contains("utf-16"),
+            "総当たりの失敗が理由を埋めている: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
 
     /// 手合割の名前だけを変えた同じ棋譜。上手（後手）から指すので ３四歩 は
     /// どの手合割でも指せる（3三の歩はどの手合割でも落ちない）
