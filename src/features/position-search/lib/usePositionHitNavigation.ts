@@ -15,7 +15,7 @@ type PendingNav = {
  *
  * - 同一ファイルなら即 applyCursor
  * - 別ファイルなら selectNodeByAbsPath で FileTree を切り替え、
- *   GameContext がそのファイルを load して jkfPlayer が用意できたら applyCursor
+ *   GameContext がそのファイルを load して view.player が立ったら applyCursor
  */
 export function usePositionHitNavigation() {
   const { selectedNode, selectNodeByAbsPath } = useFileTree();
@@ -27,7 +27,7 @@ export function usePositionHitNavigation() {
     (absPath: string, cursor: CursorLite) => {
       pendingRef.current = { absPath, cursor };
 
-      // すでにそのファイルが開かれていて、jkfPlayer もあるなら即ジャンプ
+      // すでにそのファイルが開かれていて、view.player もあるなら即ジャンプ
       if (
         selectedNode &&
         !selectedNode.isDirectory &&
@@ -48,7 +48,7 @@ export function usePositionHitNavigation() {
     [applyCursor, gameView.player, selectNodeByAbsPath, selectedNode],
   );
 
-  // ファイル切替 → 読み込み完了（jkfPlayer が立つ）を待ってから applyCursor
+  // ファイル切替 → 読み込み完了（view.player が立つ）を待ってから applyCursor
   useEffect(() => {
     const p = pendingRef.current;
     if (!p) return;

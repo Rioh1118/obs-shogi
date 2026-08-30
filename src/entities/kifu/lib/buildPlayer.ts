@@ -34,7 +34,7 @@ function applyCursorToPlayer(player: JKFPlayer, cursor: CursorPath | null) {
  *   **要求した `tesuu` ちょうどで別の線に着く**（`tesuu` は一致する）
  *
  * したがって `tesuu` の比較では後者を検出できない。一致を要求する側は
- * `reachedCursor(player, cursor)`（`playerCursor.ts`）で突き合わせること。
+ * `reachedCursor(player, cursor)`（`playerCursor.ts`）を通す。最初の客は #296。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき、`forkPointers` が手の無い te を
  *   指しているとき。レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）

@@ -16,9 +16,14 @@ declare const tesuuPointerBrand: unique symbol;
  *
  * **出どころは2つあり、書式だけが同じ。** 再生器が返した観測値
  * （`JKFPlayer.getTesuuPointer`）と、要求から組んだ鍵（`cursorKey`）。
+ * **一意なのは1つの棋譜の中だけ。** どの棋譜でも開始局面は `"0,[]"` になるので、
+ * 棋譜をまたいで鍵にするならファイル識別子と組むこと（`AnalysisPane` の `cacheKey`、
+ * `KifuStreamList` の追従 effect がそうしている）。
+ *
  * **本番の経路で `KifuCursor.tesuuPointer` に入れてよいのは観測の側だけ。**
  * 要求の鍵を入れると、着けもしない局面の識別子で停止判定やキャッシュが回る。
- * テストの fixture は `cursorKey` で埋めてよい（`tesuuPointer` の読み手がテストの中に居ない）。
+ * テストの fixture は `cursorKey` で埋めてよい（本番の停止判定・キャッシュ鍵に当たる
+ * 読み手がテストの中に居ないため。書式そのものを見る `cursor.test.ts` の2本は別）。
  *
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
@@ -298,9 +303,7 @@ export function descendTo(
  *
  * 「着いた局面」どうしを比べるのは別で、そちらは `KifuCursor.tesuuPointer`
  * （`provider.tsx` の移動前後の比較、`AnalysisPane` のキャッシュ鍵）。
- * つまり鍵は2種類あり、**要求を比べるのがこれ**。
- *
- * `KifuCursor.tesuuPointer` と違い、これは**要求の鍵**でしかない。
+ * `KifuCursor.tesuuPointer` と違い、再生器を通していない。
  * 再生器を通していないので、その局面に本当に着ける保証は無い
  * （`goto` は実在しない変化を黙って捨て、同じ `tesuu` の別の線に着く）。
  * **見るのは `te <= tesuu` の範囲だけ。** `CursorPath` が持ちうる `te > tesuu` の計画
