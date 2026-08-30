@@ -48,9 +48,9 @@ export type ForkMenuAction =
  *
  * 比較先は**行のチェックを描いたのと同じ値**でなければならない。行のチェックは
  * `PlannedCursor.forkPointers`（= `state.branchPlan`）から出る（`buildStreamRows.ts`）。
- * `KifuCursor.forkPointers` は `te <= tesuu` に正規化されていてカーソルより先の選択を
- * 持たないので、そちらと比べると先の行はどの項目も「選ばれていない」と読める。
- * すると「本譜」を押したときだけ一致し、計画を積んだままの `goToIndex` へ落ちて
+ * `state.cursor.forkPointers` は `cursorFromSource` が `te <= tesuu` に正規化して作るので
+ * カーソルより先の選択を持たず、そちらと比べると先の行はどの項目も「選ばれていない」と
+ * 読める。すると「本譜」を押したときだけ一致し、計画を積んだままの `goToIndex` へ落ちて
  * 本譜どころか変化が確定する。型で `KifuCursor` を弾いているのはそのため。
  */
 export function resolveForkSelection(

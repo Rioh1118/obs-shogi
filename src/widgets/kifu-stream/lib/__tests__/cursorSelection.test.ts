@@ -92,7 +92,7 @@ describe("resolveForkSelection", () => {
     });
   });
 
-  describe("捨てない値", () => {
+  describe("戻り値のどこを落とし、どこを持ち越すか", () => {
     test("押した te より先の計画は戻り値から落ちる", () => {
       const r = resolveForkSelection(
         plannedCursor(5, [
@@ -110,16 +110,21 @@ describe("resolveForkSelection", () => {
       expect(r.cursor.forkPointers.some((p) => p.te === 15)).toBe(false);
     });
 
-    test("壊れた forkIndex は落とさずそのまま持ち越す", () => {
-      // 負・非整数を捨てる検査は computeLeafTesuu と buildStreamRowsFromCursor の2箇所にある。
+    test("押した te より手前の壊れた計画は持ち越す", () => {
+      // 壊れた値が残りうるのは te > tesuu の側だけ。te <= tesuu は cursorFromPlayer 由来で、
+      // 壊れていれば cursorView の buildPlayer が先に落ちて棋譜ペインが出ない。
+      //
+      // 負・非整数を捨てる検査は computeLeafTesuu と buildStreamRowsFromCursor にある。
       // ここで3箇所目を書くと寄せ先が増えるだけなので書かない。この値は goto まで届き、
-      // JKFPlayer の内部で TypeError になって applyCursor の catch が受ける。→ #213
-      for (const forkIndex of [-1, 0.5, NaN]) {
+      // その te に forks があれば JKFPlayer の内部で TypeError になって applyCursor の
+      // catch が受ける。**forks が無ければ forkAndForward が false を返し、goto は
+      // 返り値を見ないので、例外も出ないまま別の線に着く。** → #213
+      for (const forkIndex of [7, -1, 0.5, NaN]) {
         const plan = [
           { te: 3, forkIndex },
           { te: 10, forkIndex: 0 },
         ];
-        const r = resolveForkSelection(plannedCursor(5, plan), 10, null);
+        const r = resolveForkSelection(plannedCursor(2, plan), 10, null);
 
         expect(r.kind).toBe("applyCursor");
         if (r.kind !== "applyCursor") continue;
