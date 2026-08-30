@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquareText } from "lucide-react";
 import { useGame } from "@/entities/game";
-import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import { cursorKey, type CursorPath } from "@/entities/kifu/model/cursor";
 import { editorTextToLines, linesToEditorText } from "../lib/commentText";
 import FloatingNote from "@/shared/ui/floating-note/FloatingNote";
 import LiveMarkdownNote from "@/shared/ui/live-markdown-note/LiveMarkdownNote";
@@ -9,15 +9,14 @@ import "./KifuCommentNote.scss";
 
 type Props = {
   open: boolean;
-  cursor: KifuCursor | null;
+  cursor: CursorPath | null;
   anchorEl: HTMLButtonElement | null;
   onClose: () => void;
 };
 
-function cursorToStableKey(cursor: KifuCursor | null) {
-  if (!cursor) return "no-cursor";
-  const path = (cursor.forkPointers ?? []).map((p) => `${p.te}:${p.forkIndex}`).join("|");
-  return `${cursor.tesuu}__${path}`;
+/** カーソルが変わったらノートを作り直すための鍵。正典は `cursorKey` 1つ。 */
+function noteKey(cursor: CursorPath | null) {
+  return cursor ? cursorKey(cursor) : "no-cursor";
 }
 
 export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Props) {
@@ -92,7 +91,7 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
     onClose();
   }, [cursor, dirty, doSave, isSaving, onClose]);
 
-  const editorKey = cursorToStableKey(cursor);
+  const editorKey = noteKey(cursor);
 
   const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
 

@@ -239,18 +239,15 @@ export function makeKifuCursor(
 }
 
 /**
- * **これから行きたい**局面を指す `KifuCursor` を組む
+ * カーソルを文字列の鍵にする。**カーソルどうしを比べる正典はこれ1つ。**
  *
- * `makeKifuCursor` と違い、再生器を通していない。`tesuuPointer` は
- * `buildTesuuPointer` が組んだ**要求の識別子**であって、その局面に本当に
- * 着ける保証は無い（`goto` は実在しない変化を黙って捨て、同じ `tesuu` の
- * 別の線に着く）。着いた先を知りたい側は、`applyCursor` が
- * `cursorFromPlayer` で作り直した `state.cursor` を見ること。
+ * `KifuCursor.tesuuPointer` と違い、これは**要求の鍵**でしかない。
+ * 再生器を通していないので、その局面に本当に着ける保証は無い
+ * （`goto` は実在しない変化を黙って捨て、同じ `tesuu` の別の線に着く）。
+ * 「同じ鍵 = 同じ要求」であって「同じ局面」ではない。
  *
- * 分岐メニューの選択がこれを使う。押した時点では、その変化が棋譜に
- * 実在するかを確かめていない。
+ * 着いた先の同一性が要る側は `state.cursor.tesuuPointer`（再生器が返した値）を見ること。
  */
-export function requestedCursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
-  const normalized = normalizeForkPointers(forkPointers, tesuu);
-  return { tesuu, forkPointers: normalized, tesuuPointer: buildTesuuPointer(tesuu, normalized) };
+export function cursorKey(path: CursorPath): TesuuPointer {
+  return buildTesuuPointer(path.tesuu, normalizeForkPointers(path.forkPointers, path.tesuu));
 }

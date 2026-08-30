@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import { plannedCursorFrom, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
+import {
+  cursorKey,
+  plannedCursorFrom,
+  type CursorPath,
+  type ForkPointer,
+} from "@/entities/kifu/model/cursor";
 import {
   neighborBranchIndex,
   MAIN_LINE,
@@ -33,7 +38,7 @@ const RECENT_SCROLL_MS = 120;
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
 type OpenCommentNote = {
-  cursor: KifuCursor;
+  cursor: CursorPath;
   anchorEl: HTMLButtonElement;
 };
 
@@ -324,8 +329,8 @@ export default function KifuStreamList() {
           // カーソル組み立て（JSON.stringify を含む）を走らせない。
           const isCommentOpen =
             openComment != null &&
-            openComment.cursor.tesuuPointer ===
-              buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex).tesuuPointer;
+            cursorKey(openComment.cursor) ===
+              cursorKey(buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex));
 
           return (
             <KifuMoveCard
