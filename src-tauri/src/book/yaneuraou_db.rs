@@ -117,6 +117,16 @@ fn read_line<R: BufRead>(
         return Ok(None);
     }
 
+    // **長さの検査より前に落とす。** BOM を残したまま `is_note` に渡すと、
+    // `0xEF` は ASCII 空白ではないので1行目の注記が注記と判定されない。
+    // BOM 付きの `.db` は実在する（ShogiHome が開ける側の fixture に持っている）
+    // ので、1行目に長い生成情報コメントを置いた定跡が BOM の有無だけで拒否される。
+    if first && raw.starts_with(&BOM) {
+        raw.drain(..BOM.len());
+    }
+
+    // 見るのは**読んだバイト数**。`raw.len()` だと BOM を落とした3バイトぶん
+    // 短くなって上限をすり抜け、行の残りが次の行として読まれる。
     if read > MAX_LINE_BYTES && !raw.ends_with(b"\n") {
         // **注記だけは捨てて読み進む。** 本家は注記の中身を見ないので、長い注記を
         // 1行持つだけの定跡を普通に読む。拒否すると、正しい定跡に対して
@@ -143,11 +153,6 @@ fn read_line<R: BufRead>(
     let terminated = raw.ends_with(b"\n");
     while raw.ends_with(b"\n") || raw.ends_with(b"\r") {
         raw.pop();
-    }
-
-    // BOM 付きで配られている定跡がある。落とさないとヘッダの検査が必ず外れる。
-    if first && raw.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        raw.drain(..3);
     }
 
     buffer.clear();
@@ -321,6 +326,9 @@ fn first_token(line: &str) -> &str {
 const EMPTY_OF_POSITIONS: &str = "定跡ファイルに局面が1つも書かれていない。\
                                   途中で切れているかもしれない。\
                                   取得し直すか、別の定跡を開くこと";
+
+/// UTF-8 の BOM。付いたまま配られている定跡がある。
+const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// 局面行の頭。
 const POSITION_PREFIX: &str = "sfen ";
@@ -1843,6 +1851,26 @@ mod tests {
             let positions = parsed(&text).expect("長い注記があっても読めるはず");
             assert_eq!(positions.len(), 1, "marker={marker}");
             assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 1);
+        }
+    }
+
+    /// **1行目の長い注記も同じ。BOM が付いていても。**
+    ///
+    /// BOM を落とすのを長さの検査より後にすると、`0xEF` は ASCII 空白ではないので
+    /// 1行目の注記が注記と判定されない。BOM 付きの `.db` は実在する（ShogiHome が
+    /// 開ける側の fixture に持っている）ので、1行目に長い生成情報コメントを置いた
+    /// 定跡が **BOM の有無だけで**「定跡ファイルではないかもしれない」と拒否される。
+    ///
+    /// 2行目以降に置くテストではこの経路を1バイトも通らない（`first` が偽）。
+    #[test]
+    fn a_long_note_on_the_first_line_is_skipped_even_with_a_bom() {
+        for lead in ["", "\u{feff}"] {
+            let text = format!(
+                "{lead}# {}\n#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n",
+                "x".repeat(MAX_LINE_BYTES * 3)
+            );
+            let positions = parsed(&text).expect("長い注記があっても読めるはず");
+            assert_eq!(positions.len(), 1, "lead={lead:?}");
         }
     }
 
