@@ -209,19 +209,30 @@ fn detect_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
 
 /// NUL の並びから UTF-16 のバイト順を決める。印と言えるだけの偏りが無ければ `None`。
 ///
-/// **「多いほうが勝ち」では印にならない。** NUL が1バイト混じっただけの Shift_JIS を
-/// UTF-16 と断定してしまい、化けた行を「読めない行」として名指しする。
-/// 末尾に NUL を詰める書き出しや、途中で切れたファイルで実際に起きる。
+/// **見るのは「量」ではなく「並び」。** UTF-16 の NUL は ASCII 1文字につき1つ出るので、
+/// 量は本文の中身しだいで大きく動く。実測:
 ///
-/// 本物の UTF-16 は、棋譜のように ASCII と全角が混じっていても NUL が
-/// 全体の 1/4 を下回らない。しかも NUL は片側の番地にほぼ全部集まる。
-/// その2つを満たすときだけ印として扱う。
+/// | 題材（UTF-16LE） | NUL の割合 |
+/// | --- | --- |
+/// | 指し手行だけの KIF | 36.5% |
+/// | 注釈の多い KIF | 13.6% |
+/// | KI2（見出しも指し手も全角） | 10.0% |
+///
+/// 割合に下限を置くと、**全角の多い棋譜ほど落ちる**（KI2 はまず通らない）。
+/// 落ちると「どの文字コードでも読めなかった」と出て、中身が正しい棋譜を
+/// 「棋譜ではない」と疑わせる。
+///
+/// 一方で並びは中身に依らない。UTF-16 の NUL は**片側の番地にだけ**現れる。
+/// NUL 詰めや途中で切れたファイルの NUL は連続するので両側に散る。
+/// だから偏りだけを見て、量は誤検知除けの下限（`MIN_NUL`）に留める。
 fn utf16_by_nul_layout(bytes: &[u8]) -> Option<&'static Encoding> {
-    if bytes.len() % 2 != 0 {
-        return None;
-    }
+    /// これ未満の NUL は偶然で並びうるので、印として扱わない
+    const MIN_NUL: usize = 8;
 
-    let (even, odd) = bytes.iter().enumerate().filter(|(_, b)| **b == 0).fold(
+    // 途中で切れた UTF-16 は奇数長になる。末尾の端数を落として並びだけ見る
+    let body = &bytes[..bytes.len() & !1];
+
+    let (even, odd) = body.iter().enumerate().filter(|(_, b)| **b == 0).fold(
         (0usize, 0usize),
         |(e, o), (i, _)| {
             if i % 2 == 0 {
@@ -232,20 +243,41 @@ fn utf16_by_nul_layout(bytes: &[u8]) -> Option<&'static Encoding> {
         },
     );
 
-    if (even + odd) * 4 < bytes.len() {
-        return None;
-    }
-
     let (major, minor, encoding) = if even > odd {
         (even, odd, UTF_16BE)
     } else {
         (odd, even, UTF_16LE)
     };
+
+    if major < MIN_NUL {
+        return None;
+    }
     // 反対側の番地にも同じくらい NUL があるなら、UTF-16 の並びではない
     if minor * 8 >= major {
         return None;
     }
     Some(encoding)
+}
+
+/// バイト列から一度だけ読み取る手掛かり。
+///
+/// `detected` は `bytes` から導ける値なので、別々に持ち回ると
+/// **食い違った組を作れてしまう**（`detect_encoding` が返さない
+/// `Some(EUC_JP)` を渡す、など）。1箇所で作って持ち回る。
+struct Evidence {
+    /// バイト列が名乗っている文字コード
+    detected: Option<&'static Encoding>,
+    /// 0x80 以上のバイトがあるか
+    has_high_bytes: bool,
+}
+
+impl Evidence {
+    fn of(bytes: &[u8]) -> Self {
+        Self {
+            detected: detect_encoding(bytes),
+            has_high_bytes: bytes.iter().any(|b| *b >= 0x80),
+        }
+    }
 }
 
 /// この文字コードで読めた理由を、利用者に**その名前で**出してよいか。
@@ -265,18 +297,13 @@ fn utf16_by_nul_layout(bytes: &[u8]) -> Option<&'static Encoding> {
 /// ただし **8bit の文字が1つも無いなら、どの日本語文字コードの証拠でもない。**
 /// ASCII だけのファイル（`.kif` に改名した CSA、SFEN のメモ）は EUC-JP としても
 /// 誤り無く復号できてしまうので、名乗らせない。
-fn can_be_named(
-    enc: &'static Encoding,
-    detected: Option<&'static Encoding>,
-    had_errors: bool,
-    bytes: &[u8],
-) -> bool {
+fn can_be_named(enc: &'static Encoding, evidence: &Evidence, had_errors: bool) -> bool {
     if had_errors {
         return false;
     }
-    match detected {
+    match evidence.detected {
         Some(named) => named == enc,
-        None => enc == EUC_JP && bytes.iter().any(|b| *b >= 0x80),
+        None => enc == EUC_JP && evidence.has_high_bytes,
     }
 }
 
@@ -292,20 +319,20 @@ struct Unparsable {
 /// 「どの文字コードでも読めなかった」と「ISO-2022-JP としては読めたが4行目が棋譜でない」は
 /// 利用者にとって別の話で、後者には直す手がある。
 ///
-/// 名乗っていない（`detect_encoding` が `None`）なら理由は返さない。
+/// 名乗っていないときに理由を返すのは EUC-JP だけ（消去法。条件は [`can_be_named`]）。
 /// **どれで読めたかを言えないのに文字コード名を出すと、嘘になる。**
 fn try_other_encodings<F>(bytes: &[u8], mut parse: F) -> Result<Jkf, Option<Unparsable>>
 where
     F: FnMut(&str) -> Result<Jkf, ParseError>,
 {
-    let detected = detect_encoding(bytes);
+    let evidence = Evidence::of(bytes);
     let mut unparsable = None;
 
     for enc in ENCODINGS_THE_CRATE_SKIPS {
         let (cow, _, had_errors) = enc.decode(bytes);
         match parse(cow.as_ref()) {
             Ok(jkf) => return Ok(jkf),
-            Err(error) if can_be_named(enc, detected, had_errors, bytes) => {
+            Err(error) if can_be_named(enc, &evidence, had_errors) => {
                 unparsable = Some(Unparsable {
                     encoding: enc.name(),
                     error,
@@ -359,9 +386,13 @@ fn describe(by_crate: ParseError, bytes: &[u8], by_fallback: Option<Unparsable>)
                     "{other}: {} を名乗っているが、その文字コードでも棋譜として読めなかった",
                     enc.name()
                 ),
+                // 「文字として読めなかった」と言い切れるのは 8bit の文字が
+                // 1つも無いときだけ。復号が途中で化けた場合もここへ来るので、
+                // 断定しない言い方にする
                 None => format!(
-                    "{other}: {} のどれでも文字として読めなかった。\
-                     棋譜ではないファイルに棋譜の拡張子が付いていないか確かめること",
+                    "{other}: {} のどれでも棋譜として読めなかった。\
+                     文字コードが壊れているか、棋譜ではないファイルに\
+                     棋譜の拡張子が付いている可能性がある",
                     tried.join(" / ")
                 ),
             }
@@ -619,22 +650,87 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    /// 全角の多い棋譜。KI2 は見出しも指し手も全角なので NUL の割合が下がる
+    /// （実測で1割ほど。指し手行だけの KIF は3割半）
+    fn zenkaku_heavy_ki2() -> String {
+        "開始日時：２０２６年８月３１日\n\
+         棋戦：研究会\n\
+         場所：東京\n\
+         手合割：平手\n\
+         先手：あなた\n\
+         後手：あいて\n\
+         ▲７六歩 △３四歩 ▲２二角成 △同　銀\n\
+         ▲８八銀 △３二金 ▲七七銀 △六二銀\n\
+         まで８手で先手の勝ち\n"
+            .to_owned()
+    }
+
+    fn to_utf16(text: &str, little_endian: bool) -> Vec<u8> {
+        text.encode_utf16()
+            .flat_map(|u| {
+                if little_endian {
+                    u.to_le_bytes()
+                } else {
+                    u.to_be_bytes()
+                }
+            })
+            .collect()
+    }
+
     /// `detect_encoding` は「印」だけを見る。**推測しない。**
     ///
     /// 呼び出し経路（`read_path_to_jkf`）越しにしか見ていないと、
     /// どの入力で何を返すかが分からないまま条件だけが増える。
+    ///
+    /// **通してはいけない入力と通さねばならない入力を対で並べる。**
+    /// 片方だけだと、閾値をきつくして本物を落としても緑のまま通る。
     #[test]
     fn only_a_real_marker_names_an_encoding() {
         let kif = hirate_kif();
         let sjis = SHIFT_JIS.encode(&kif).0.into_owned();
-        let utf16le: Vec<u8> = kif.encode_utf16().flat_map(u16::to_le_bytes).collect();
-        let utf16be: Vec<u8> = kif.encode_utf16().flat_map(u16::to_be_bytes).collect();
 
-        let cases: [(&str, Vec<u8>, Option<&'static Encoding>); 10] = [
+        let cases: Vec<(&str, Vec<u8>, Option<&'static Encoding>)> = vec![
+            // --- 名乗っていない ---
             ("空", vec![], None),
             ("1バイト", vec![b'a'], None),
             // NUL しか無いと、どちら側に寄っているかを言えない
             ("NUL だけ", vec![0, 0], None),
+            ("Shift_JIS", sjis.clone(), None),
+            // NUL が1つ混じっただけで UTF-16 と決めない
+            (
+                "Shift_JIS + NUL 1つ",
+                {
+                    let mut v = sjis.clone();
+                    v.push(0);
+                    v
+                },
+                None,
+            ),
+            // 少数の NUL が片側の番地だけに散った場合。並びは UTF-16 に似るが、
+            // 数が足りないので偶然と見なす（`MIN_NUL`）
+            (
+                "Shift_JIS + 片側に NUL 2つ",
+                {
+                    let mut v = sjis.clone();
+                    if v.len() % 2 != 0 {
+                        v.push(b'a');
+                    }
+                    v.extend_from_slice(&[0, b'a', 0, b'a']);
+                    v
+                },
+                None,
+            ),
+            // NUL 詰めは連続するので両側の番地に散る
+            (
+                "Shift_JIS + NUL 16個",
+                {
+                    let mut v = sjis.clone();
+                    v.extend(std::iter::repeat_n(0u8, 16));
+                    v
+                },
+                None,
+            ),
+            // --- 名乗っている ---
             (
                 "UTF-8 の BOM",
                 vec![0xEF, 0xBB, 0xBF, b'a'],
@@ -647,18 +743,29 @@ mod tests {
                 ISO_2022_JP.encode(&kif).0.into_owned(),
                 Some(ISO_2022_JP),
             ),
-            ("UTF-16LE の本文", utf16le, Some(UTF_16LE)),
-            ("UTF-16BE の本文", utf16be, Some(UTF_16BE)),
-            // ここが本題。NUL が1つ混じっただけの Shift_JIS を UTF-16 と
-            // 断定すると、化けた行を「読めない行」として名指しする
+            ("UTF-16LE の KIF", to_utf16(&kif, true), Some(UTF_16LE)),
+            ("UTF-16BE の KIF", to_utf16(&kif, false), Some(UTF_16BE)),
+            // 全角が多いと NUL の割合は下がるが、並びは変わらない。
+            // 割合に下限を置くとここが落ちる
             (
-                "Shift_JIS + NUL 1つ",
+                "UTF-16LE の KI2（全角主体）",
+                to_utf16(&zenkaku_heavy_ki2(), true),
+                Some(UTF_16LE),
+            ),
+            (
+                "UTF-16BE の KI2（全角主体）",
+                to_utf16(&zenkaku_heavy_ki2(), false),
+                Some(UTF_16BE),
+            ),
+            // 途中で切れた UTF-16 は奇数長になる。並びは残っている
+            (
+                "途中で切れた UTF-16LE",
                 {
-                    let mut v = sjis.clone();
-                    v.push(0);
+                    let mut v = to_utf16(&kif, true);
+                    v.pop();
                     v
                 },
-                None,
+                Some(UTF_16LE),
             ),
         ];
 
@@ -672,22 +779,29 @@ mod tests {
     }
 
     /// 名乗ってよい条件。化けていたら名乗らない。ASCII だけなら名乗らない。
+    ///
+    /// 手掛かりは `Evidence::of` でバイト列から作る。**手で組み立てない** —
+    /// `detect_encoding` が返さない組（`Some(EUC_JP)` など）を書けてしまい、
+    /// 起こり得ない状態を固定することになる。
     #[test]
     fn a_garbled_or_ascii_only_read_does_not_claim_an_encoding() {
         let japanese = SHIFT_JIS.encode(&hirate_kif()).0.into_owned();
         let ascii = b"V2.2\nPI\n+\n".to_vec();
-
-        // 印があっても、復号で化けていれば名乗らない
-        assert!(!can_be_named(EUC_JP, Some(EUC_JP), true, &japanese));
-        assert!(can_be_named(EUC_JP, Some(EUC_JP), false, &japanese));
+        let utf16 = to_utf16(&hirate_kif(), true);
 
         // 印が無いとき名乗ってよいのは EUC-JP だけ
-        assert!(can_be_named(EUC_JP, None, false, &japanese));
-        assert!(!can_be_named(UTF_16LE, None, false, &japanese));
-        assert!(!can_be_named(ISO_2022_JP, None, false, &japanese));
+        let plain = Evidence::of(&japanese);
+        assert!(can_be_named(EUC_JP, &plain, false));
+        assert!(!can_be_named(UTF_16LE, &plain, false));
+        assert!(!can_be_named(ISO_2022_JP, &plain, false));
 
         // 8bit の文字が無いなら、どの日本語文字コードの証拠でもない
-        assert!(!can_be_named(EUC_JP, None, false, &ascii));
+        assert!(!can_be_named(EUC_JP, &Evidence::of(&ascii), false));
+
+        // 印があっても、復号で化けていれば名乗らない
+        let marked = Evidence::of(&utf16);
+        assert!(can_be_named(UTF_16LE, &marked, false));
+        assert!(!can_be_named(UTF_16LE, &marked, true));
     }
 
     /// 棋譜でないファイルに棋譜の拡張子が付いていたら、そう言う。

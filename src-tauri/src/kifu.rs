@@ -37,8 +37,12 @@ pub struct ConvertKifuResponse {
     pub error: Option<String>,
 }
 
+/// JKF を指定の形式でファイルへ書き出す。
+///
+/// **`jkf` を書き換えない**（`&` で受けているのがその印）。
+/// `normalize()` を呼ぶ `convert_jkf_to_string_internal` との違いはそこにある（#322）。
 fn write_kifu_file_internal<P: AsRef<Path>>(
-    jkf: &mut JsonKifuFormat,
+    jkf: &JsonKifuFormat,
     file_path: P,
     format: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -60,11 +64,11 @@ fn convert_jkf_to_string_internal(
     format: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // ここに来る JKF はパーサではなく webview 側が組んだもの。
-    // **呼び直しかどうかは確かめていない** — `JKFPlayer` が指し手を足すときに
-    // json-kifu-format の正規化が走り、`same` / `promote` / `capture` / `relative` を
-    // 埋めると TS 側の `applyMoveWithBranch` は書いている。
-    // だとすればこの呼び出しは二重だが、外すと**書き出しがどう変わるかを
-    // 測っていない**ので外さない。どちらへ揃えるかは #322。
+    // **呼び直しかどうかは確かめていない。** 外すと書き出しがどう変わるかも
+    // 測っていないので外さない。どちらへ揃えるかは #322。
+    //
+    // 呼んでも `promote` は守られない。`normalize()` は `same` を局面から
+    // 復元するが、`promote` は復元せず `Some(false)` を書く（#331）。
     jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 
     let content = match format.to_lowercase().as_str() {
@@ -85,7 +89,7 @@ pub async fn write_kifu_to_file<R: Runtime>(
     app: AppHandle<R>,
     request: WriteKifuRequest,
 ) -> WriteKifuResponse {
-    let mut jkf = request.jkf;
+    let jkf = request.jkf;
     let target = Path::new(&request.file_path);
 
     // 棋譜ファイル拡張子に限定
@@ -107,7 +111,7 @@ pub async fn write_kifu_to_file<R: Runtime>(
         };
     }
 
-    match write_kifu_file_internal(&mut jkf, &request.file_path, &request.format) {
+    match write_kifu_file_internal(&jkf, &request.file_path, &request.format) {
         Ok(_) => WriteKifuResponse {
             success: true,
             file_path: Some(request.file_path),
@@ -247,16 +251,17 @@ mod tests {
     ///
     /// **欄によって、落としたときの見え方が違う。**
     ///
-    /// | 欄 | KIF / KI2 / CSA の本文 |
-    /// | --- | --- |
-    /// | `same` | 変わる（`同　` が座標に戻る） |
-    /// | `promote` | 変わる（`成` が消える＝**別の手になる**） |
-    /// | `capture` | 変わらない（書き出しが読まない） |
-    /// | `relative` | 変わらない（書き出しが局面から作り直す） |
+    /// | 欄 | KIF | KI2 | CSA |
+    /// | --- | --- | --- | --- |
+    /// | `same` | 変わる（`同　` が座標に戻る） | 変わる | 変わらない（座標しか書かない） |
+    /// | `promote` | 変わる（`成` が消える＝**別の手**） | 変わる | 変わる（`UM` が `KA` に） |
+    /// | `capture` | 変わらない（どの形式も読まない） | 変わらない | 変わらない |
+    /// | `relative` | 変わらない（書かない） | 変わらない（局面から作り直す） | 変わらない（書かない） |
     ///
-    /// ここで見るのは `capture` を落とした場合。**本文が変わらない欄なので、
-    /// 正規化の有無が出るのは `jkf` 形式だけ**（受け取った JKF をそのまま
-    /// JSON にする）。`same` / `promote` を落とした場合は
+    /// **正規化の有無が出るのは `jkf` 形式だけ** — 受け取った JKF をそのまま
+    /// JSON にするので、落とした欄がそのまま消える。他の3形式は
+    /// `capture` / `relative` を読まないので、そこを落としても本文が変わらない。
+    /// `promote` を落とした場合は
     /// `a_dropped_promotion_changes_the_move_that_is_written` が見る。
     #[test]
     fn the_write_path_does_not_normalize_and_the_json_shows_it() {
@@ -278,9 +283,8 @@ mod tests {
         assert!(dropped > 0, "落とす欄が1つも埋まっていない");
 
         // 書かない側: 落としたまま出る
-        let mut written_jkf = stripped.clone();
         let path = dir.join("gote.jkf");
-        write_kifu_file_internal(&mut written_jkf, &path, "jkf").expect("書き出し");
+        write_kifu_file_internal(&stripped, &path, "jkf").expect("書き出し");
         let on_disk = std::fs::read_to_string(&path).expect("読み取り");
         assert!(
             !on_disk.contains("capture"),
@@ -302,12 +306,13 @@ mod tests {
     ///
     /// KIF / KI2 / CSA の書き出しは `promote` を局面から作り直さず、
     /// JKF の欄をそのまま読む。落ちていれば `成` を書かない。
-    /// `write_kifu_file_internal` は `normalize()` を呼ばないので、
-    /// **欠けたまま届けばそのままディスクに出る**。
+    /// **`normalize()` を呼んでも直らない。** 実測すると `normalize()` は
+    /// `same` は局面から復元するが、`promote` は復元せず `Some(false)` を書く。
+    /// つまり書き込み経路（呼ばない）でも変換経路（呼ぶ）でも、
+    /// 欠けた成りは黙って不成として確定する（#331）。
     ///
-    /// 実際にそうなるかは webview が何を送るかで決まる。TS 側の
-    /// `applyMoveWithBranch` は「正規化が `promote` を書き加える」と書いているので、
-    /// 埋まった状態で届く前提。ここはその前提が崩れたときに何が起きるかを固定する。
+    /// 届く JKF に `promote` が入っているかは webview 側しだいで、まだ測っていない。
+    /// ここは欠けた場合に何が起きるかを固定する。
     #[test]
     fn a_dropped_promotion_changes_the_move_that_is_written() {
         let dir = temp_dir("dropped-promotion");
@@ -328,12 +333,12 @@ mod tests {
         }
 
         let path = dir.join("kept.kif");
-        write_kifu_file_internal(&mut source.clone(), &path, "kif").expect("書き出し");
+        write_kifu_file_internal(&source, &path, "kif").expect("書き出し");
         let kept = std::fs::read_to_string(&path).expect("読み取り");
         assert!(kept.contains('成'), "元の棋譜に成が無い:\n{kept}");
 
         let path = dir.join("dropped.kif");
-        write_kifu_file_internal(&mut stripped.clone(), &path, "kif").expect("書き出し");
+        write_kifu_file_internal(&stripped, &path, "kif").expect("書き出し");
         let dropped = std::fs::read_to_string(&path).expect("読み取り");
         assert!(
             !dropped.contains('成'),
@@ -358,9 +363,8 @@ mod tests {
             ("kif", parse_kif_str as Reparse),
             ("ki2", parse_ki2_str as Reparse),
         ] {
-            let mut jkf = source.clone();
             let path = dir.join(format!("gote.{format}"));
-            write_kifu_file_internal(&mut jkf, &path, format)
+            write_kifu_file_internal(&source, &path, format)
                 .unwrap_or_else(|e| panic!("{format} の書き出し: {e}"));
 
             let written = std::fs::read_to_string(&path).expect("読み取り");
