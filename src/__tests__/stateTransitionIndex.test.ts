@@ -199,6 +199,14 @@ describe("stripFences", () => {
     expect(stripFences(body)).toContain("real.md");
   });
 
+  test("閉じが3スペースまで字下げされていても閉じる", () => {
+    // 窓を狭める向きの変更も、有効な閉じを取りこぼしてファイルの残りを飲み込む側に倒れる。
+    const body = ["```", "[例](nope.md)", "   ```", "", "[本物](real.md)"].join("\n");
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
+  });
+
   test("箇条書きが字下げ不足で終わる形では、閉じの扱いが CommonMark と食い違う", () => {
     // CommonMark では列0の ``` は閉じではない。字下げ不足でリスト項目が終わり、
     // そこでフェンスも終わり、列0の ``` が**新しい開き**になるので real.md は
