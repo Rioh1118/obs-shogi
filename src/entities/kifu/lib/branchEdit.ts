@@ -13,6 +13,7 @@ import {
   type SwapQuery,
 } from "../model/branch";
 import { normalizeForkPointers, type CursorPath, type ForkPointer } from "../model/cursor";
+import { resolveLine, type LineRef } from "./resolveLine";
 
 /**
  * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする
@@ -57,29 +58,7 @@ function setBranchIndex(
   return next.sort((a, b) => a.te - b.te);
 }
 
-/** `startTe` は `line[0]` に対応する絶対手数。`forkPointers` の te も絶対手数。 */
-type LineRef = { line: IMoveFormat[]; startTe: number };
 type BranchPointHandle = LineRef & { index: number; move: IMoveFormat };
-
-/** `forkPointers` を順に降りて、`uptoTe` を含む line とその先頭の絶対手数を返す */
-function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: number): LineRef {
-  let line = kifu.moves as IMoveFormat[];
-  let startTe = 0;
-
-  const fps = normalizeForkPointers(forkPointers, uptoTe - 1);
-
-  for (const p of fps) {
-    const idx = p.te - startTe;
-    const mv = line[idx];
-    if (!isUsableFork(mv?.forks?.[p.forkIndex])) {
-      throw new Error(`resolveLine failed at te=${p.te} forkIndex=${p.forkIndex}`);
-    }
-    line = mv!.forks![p.forkIndex];
-    startTe = p.te;
-  }
-
-  return { line, startTe };
-}
 
 function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHandle {
   // moves[0] は開始局面のエントリで指し手ではない。te=0 を通すと本譜の削除が
