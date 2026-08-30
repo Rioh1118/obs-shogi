@@ -121,7 +121,7 @@ fn read_line<R: BufRead>(
         Ok(line) => buffer.push_str(line),
         Err(_) => {
             // 注記なら中身を見ない。本家と同じ扱い。
-            if raw.starts_with(b"#") || raw.starts_with(b"//") {
+            if is_note(&raw) {
                 return Ok(Some(terminated));
             }
             return Err(invalid_content(
@@ -205,7 +205,21 @@ const HEADER_PREFIX: &str = "#YANEURAOU-DB";
 /// - 最初の `sfen` 行より前にあると「局面より先に指し手」の枝に落ち、
 ///   本家が普通に読める定跡が丸ごと開けなくなる
 fn is_skippable(line: &str) -> bool {
-    line.is_empty() || line.starts_with('#') || line.starts_with("//")
+    line.is_empty() || is_note(line.as_bytes())
+}
+
+/// 注記の行か。**バイト列で見る。** 文字コードの分からない注記を落とす判定に
+/// 使うので、`str` に直す前に呼べる必要がある。
+///
+/// 字下げを許すのは、パーサの他の判定が全て `trim` 済みの行を見ているため。
+/// ここだけ生の先頭で見ると、**字下げした注記だけが別の文字コードで拒否される**
+/// という説明できない挙動になる。
+fn is_note(raw: &[u8]) -> bool {
+    let body = raw
+        .iter()
+        .position(|b| !b.is_ascii_whitespace())
+        .map_or(&raw[..0], |at| &raw[at..]);
+    body.starts_with(b"#") || body.starts_with(b"//")
 }
 
 /// ファイル自身が申告する収録局面数の綴り。
@@ -295,14 +309,19 @@ fn parse_limited<R: BufRead>(
 
     while let Some(terminated) = read_line(&mut reader, &mut buffer, false, index + 1, path)? {
         index += 1;
-        last_line_terminated = terminated;
         let line = buffer.trim();
         if is_skippable(line) {
+            // 注記や空行で終わるファイルは、切れていても失われたのは注記だけ。
+            // ここで上書きすると、完全な定跡を「ダウンロードが途中で切れた」と
+            // 診断する。見るのはデータの行だけ。
+            last_line_terminated = true;
             if let Some(count) = declared_count(line) {
                 declared = Some(count);
             }
             continue;
         }
+
+        last_line_terminated = terminated;
 
         if let Some(rest) = line.strip_prefix("sfen ") {
             sfen_lines += 1;
@@ -387,7 +406,9 @@ fn parse_limited<R: BufRead>(
     // 走らない。切れたファイルは最終行が改行で終わらないので、そちらでも見る。
     // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わり、それまでは
     // 52万局面が読めて「小さい定跡」に見えていた。
-    if !last_line_terminated {
+    // 申告が満たされているなら、改行の有無を切れの根拠に持ち出す理由が無い。
+    let complete_by_declaration = declared.is_some_and(|count| sfen_lines >= count);
+    if !last_line_terminated && !complete_by_declaration {
         return Err(invalid_content(
             "定跡ファイルが改行で終わっていない。ダウンロードが途中で切れたか、\
              最後の行が書きかけになっている。取得し直すか、末尾に改行を足すこと",
@@ -1207,6 +1228,50 @@ mod tests {
         // 実測: 併合のたびに畳む形で 4.70s、読み切った後に1回で 0.10s（47倍）。
         // 閾値の 2 秒は、速い側の 20 倍・遅い側の半分以下。
         assert!(elapsed.as_secs() < 2, "併合が二乗になっている: {elapsed:?}");
+    }
+
+    /// 注記や空行で終わるファイルは、切れていても失われたのは注記だけ。
+    /// データは1件も欠けていないのに「ダウンロードが途中で切れた」と診断しない。
+    #[test]
+    fn a_file_ending_with_a_note_is_not_called_truncated() {
+        for tail in ["# 生成: 2026-08-30", "// 出典: floodgate", "   "] {
+            let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n{tail}");
+            assert!(parsed(&text).is_ok(), "tail={tail:?}");
+        }
+    }
+
+    /// 申告が満たされているなら、改行の有無を切れの根拠に持ち出さない。
+    #[test]
+    fn a_declared_count_that_is_met_overrides_the_newline_check() {
+        let text = format!("#YANEURAOU-DB2016 1.00\n# NOE:1\nsfen {HIRATE}\n7g7f none 50 32 1");
+        assert!(parsed(&text).is_ok());
+    }
+
+    /// 注記の判定は字下げを許す。パーサの他の判定は全て `trim` 済みの行を見るので、
+    /// ここだけ生の先頭で見ると、字下げした注記だけが別の文字コードで拒否される。
+    #[test]
+    fn an_indented_note_is_still_a_note() {
+        assert!(is_note(b"# a"));
+        assert!(is_note(b"  # a"));
+        assert!(is_note(b"\t// a"));
+        assert!(!is_note(b"7g7f none 0 0 1"));
+        assert!(!is_note(b""));
+    }
+
+    /// 字下げした注記が別の文字コードでも、定跡全体を拒否しない。
+    #[test]
+    fn an_indented_note_in_another_encoding_does_not_reject_the_book() {
+        for lead in ["", "  ", "\t"] {
+            let mut bytes = b"#YANEURAOU-DB2016 1.00\n".to_vec();
+            bytes.extend_from_slice(lead.as_bytes());
+            bytes.extend_from_slice(b"// ");
+            bytes.extend_from_slice(&[0x90, 0xB6, 0x90, 0xAC]); // cp932 の「生成」
+            bytes.extend_from_slice(b"\n");
+            bytes.extend_from_slice(format!("sfen {HIRATE}\n7g7f none 50 32 1\n").as_bytes());
+
+            let result = parse(std::io::Cursor::new(bytes), "/books/a.db");
+            assert!(result.is_ok(), "lead={lead:?}");
+        }
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
