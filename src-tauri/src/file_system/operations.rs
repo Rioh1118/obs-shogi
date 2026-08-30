@@ -9,6 +9,7 @@ use std::io::Write;
 use super::utils::{get_file_extension, is_kifu_file};
 use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
+    error::ConvertError,
     jkf::{Color, JsonKifuFormat, Preset},
 };
 use std::{fs::OpenOptions, path::PathBuf};
@@ -127,10 +128,22 @@ pub(crate) fn patch_gote_start(mut content: String, is_gote: bool) -> String {
 fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
     let is_gote = is_initial_gote(jkf_data);
 
+    // 綴れなかった理由は ConvertError の Display が言う（何手目の何の手か）。
+    // ここで潰すと、利用者に出るのは「変換に失敗」だけになる
+    let spell = |r: Result<String, ConvertError>| {
+        r.map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string()))
+    };
+
     match get_file_extension(file_path).as_deref() {
-        Some("kif") => Ok(patch_gote_start(jkf_data.to_kif_owned(), is_gote)),
-        Some("ki2") => Ok(patch_gote_start(jkf_data.to_ki2_owned(), is_gote)),
-        Some("csa") => Ok(jkf_data.to_csa_owned()),
+        Some("kif") => Ok(patch_gote_start(
+            spell(jkf_data.try_to_kif_owned())?,
+            is_gote,
+        )),
+        Some("ki2") => Ok(patch_gote_start(
+            spell(jkf_data.try_to_ki2_owned())?,
+            is_gote,
+        )),
+        Some("csa") => spell(jkf_data.try_to_csa_owned()),
         Some("jkf") => serde_json::to_string_pretty(jkf_data)
             .map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string())),
         _ => Err(

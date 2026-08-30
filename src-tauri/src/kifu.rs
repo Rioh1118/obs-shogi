@@ -45,9 +45,9 @@ fn write_kifu_file_internal<P: AsRef<Path>>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let is_gote = is_initial_gote(jkf);
     let content = match format.to_lowercase().as_str() {
-        "kif" => patch_gote_start(jkf.to_kif_owned(), is_gote),
-        "ki2" => patch_gote_start(jkf.to_ki2_owned(), is_gote),
-        "csa" => jkf.to_csa_owned(),
+        "kif" => patch_gote_start(jkf.try_to_kif_owned()?, is_gote),
+        "ki2" => patch_gote_start(jkf.try_to_ki2_owned()?, is_gote),
+        "csa" => jkf.try_to_csa_owned()?,
         "jkf" | "json" => serde_json::to_string_pretty(jkf)?,
         _ => return Err(format!("未対応の形式: {}", format).into()),
     };
@@ -66,9 +66,9 @@ fn convert_jkf_to_string_internal(
 
     let is_gote = is_initial_gote(jkf);
     let content = match format.to_lowercase().as_str() {
-        "kif" => patch_gote_start(jkf.to_kif_owned(), is_gote),
-        "ki2" => patch_gote_start(jkf.to_ki2_owned(), is_gote),
-        "csa" => jkf.to_csa_owned(),
+        "kif" => patch_gote_start(jkf.try_to_kif_owned()?, is_gote),
+        "ki2" => patch_gote_start(jkf.try_to_ki2_owned()?, is_gote),
+        "csa" => jkf.try_to_csa_owned()?,
         "jkf" | "json" => serde_json::to_string_pretty(jkf)?,
         _ => return Err(format!("未対応の形式: {}", format).into()),
     };
