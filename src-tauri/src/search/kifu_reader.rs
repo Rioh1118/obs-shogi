@@ -36,6 +36,14 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
     read_path_to_jkf(&rec.path, rec.kind)
 }
 
+/// 利用者に出す文言の上限。
+///
+/// クレートのエラーは**読めなかった位置から行末までを引用する**ので、
+/// 改行を含まない大きなファイル（`.kif` に改名した zip など）では
+/// ファイルの中身がそのまま文言になる。これが `IndexWarnPayload` に載り、
+/// webview の state に200件まで溜まる。
+const MESSAGE_LIMIT: usize = 300;
+
 /// 棋譜ファイルを JKF に読む。**形式ごとに手当てが違う。**
 ///
 /// | 形式 | 文字コードの総当たり | パニックを捕まえる |
@@ -48,8 +56,21 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
 ///
 /// # Errors
 ///
-/// [`KifuReadError::ParseFailed`] のみ。読めなかったファイルは索引に入らない。
+/// [`KifuReadError::ParseFailed`] のみ。**読めなかったファイルが索引にどう残るかは
+/// 呼び口で違う** — 差分更新（`project_manager`）は登録せず、全件構築（`api`）は
+/// 局面を1つも持たない項目として登録する（#333）。
+/// どちらの経路でも、その棋譜の局面は検索に出てこない。
 pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
+    // 0バイトのファイルは、どの形式のパーサも**平手の初期局面1件**として `Ok` を返す。
+    // 索引に入ると平手の初期局面で検索したときに全部ヒットし、
+    // 開いても初期局面しか出ないので「そういう棋譜」と誤解される。
+    // 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く
+    if fs::metadata(path).is_ok_and(|m| m.len() == 0) {
+        return Err(parse_failed(
+            "ファイルが空です。保存が途中で終わっていないか確かめてください",
+        ));
+    }
+
     match kind {
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
@@ -101,8 +122,21 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
     }
 }
 
+/// 読めなかった理由を、利用者に出せる形にして包む。
+///
+/// **`KifuReadError` を作る口はここだけ。** 長さと制御文字を落とすのを
+/// 各所でやると必ず漏れる。
 fn parse_failed(e: impl std::fmt::Display) -> KifuReadError {
-    KifuReadError::ParseFailed(e.to_string())
+    let raw = e.to_string();
+    // 制御文字は画面に出しても意味が無く、生の NUL やエスケープが混ざる
+    let mut message: String = raw
+        .chars()
+        .map(|c| if c == '\n' || !c.is_control() { c } else { ' ' })
+        .collect();
+    if message.chars().count() > MESSAGE_LIMIT {
+        message = message.chars().take(MESSAGE_LIMIT).collect::<String>() + "…";
+    }
+    KifuReadError::ParseFailed(message)
 }
 
 // -------------------------
@@ -197,13 +231,15 @@ fn declared_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
     if bytes.starts_with(&[0xFE, 0xFF]) {
         return Some(UTF_16BE);
     }
-    // ISO-2022-JP は定義上 7bit。0x80 以上があれば、エスケープの並びが
-    // たまたま現れただけ（バイナリに `.kif` が付いている場合など）
-    if bytes.iter().all(|b| *b < 0x80)
-        && bytes
-            .windows(3)
-            .any(|w| w == b"\x1b$B" || w == b"\x1b(B" || w == b"\x1b(J")
-    {
+    // 見るのは `ESC $ B`（JIS X 0208 へ切り替える）だけ。
+    // `ESC ( B` / `ESC ( J` は ASCII へ戻す指示で、**ASCII のファイルにも現れうる**ので
+    // ISO-2022-JP である証拠にならない。
+    //
+    // 7bit かどうかはここでは見ない。ISO-2022-JP は定義上 7bit なので、
+    // 0x80 以上があれば**そのファイルが壊れている**（途中で切れた、別の文字コードが
+    // 混ざった）。それは `Evidence::declared_but_garbled` が拾って、
+    // 「切れていないか」と案内する側の話になる。
+    if bytes.windows(3).any(|w| w == b"\x1b$B") {
         return Some(ISO_2022_JP);
     }
     None
@@ -251,9 +287,10 @@ impl Evidence {
 /// - ISO-2022-JP は必ずエスケープを持つので、印が無いなら ISO-2022-JP ではない
 /// - Shift_JIS と UTF-8 はクレートが先に試しており、ここには来ない
 ///
-/// ただし **8bit の文字が1つも無いなら、どの日本語文字コードの証拠でもない。**
+/// ただし**印が無いとき**は、8bit の文字が1つも無ければ EUC-JP の証拠でもない。
 /// ASCII だけのファイル（`.kif` に改名した CSA、SFEN のメモ）は EUC-JP としても
 /// 誤り無く復号できてしまうので、名乗らせない。
+/// （印がある側では見ない。ISO-2022-JP は 7bit なので、そこで弾くと必ず落ちる）
 ///
 /// 名乗れなかった試行をどう扱うかは [`try_other_encodings`] が決める。
 fn can_be_named(enc: &'static Encoding, evidence: &Evidence, had_errors: bool) -> bool {
@@ -273,7 +310,11 @@ struct Unparsable {
     /// 名前を出せないことと、理由（何行目で止まったか）を出せないことは別。
     /// 名前が無くても行番号は利用者の役に立つ。
     encoding: Option<&'static str>,
-    error: ParseError,
+    /// どこで止まったか。**同じ行数の読み方が2つあって決められないときは `None`。**
+    ///
+    /// 決められないのに片方の行を引用すると、化けた読み方の位置を
+    /// 正しい位置として見せることになる。
+    error: Option<ParseError>,
 }
 
 /// クレートが見ない文字コードで decode → parse を試す。
@@ -294,8 +335,10 @@ where
 {
     let mut named = None;
     // 名乗れない候補は**行数が一番多いもの**を採る。並び順で決めると、
-    // バイト順を取り違えた UTF-16（1行にまとまる）が先にあるだけで勝ってしまう
+    // バイト順を取り違えた UTF-16（1行にまとまる）が先にあるだけで勝ってしまう。
+    // 同点なら決められない（`tied`）— 1行の棋譜では正しい読み方も1行になる
     let mut anonymous: Option<(usize, Unparsable)> = None;
+    let mut tied = false;
 
     for enc in ENCODINGS_THE_CRATE_SKIPS {
         let (cow, _, had_errors) = enc.decode(bytes);
@@ -311,17 +354,25 @@ where
             // ここが2度通ることはない
             named = Some(Unparsable {
                 encoding: Some(enc.name()),
-                error,
+                error: Some(error),
             });
-        } else if !had_errors && anonymous.as_ref().map_or(true, |(best, _)| lines > *best) {
+        } else if !had_errors {
             // 名乗れないが文字にはできた。行番号だけでも利用者の役に立つ
-            anonymous = Some((
-                lines,
-                Unparsable {
-                    encoding: None,
-                    error,
-                },
-            ));
+            match anonymous.as_ref().map(|(best, _)| lines.cmp(best)) {
+                None | Some(std::cmp::Ordering::Greater) => {
+                    tied = false;
+                    anonymous = Some((
+                        lines,
+                        Unparsable {
+                            encoding: None,
+                            error: Some(error),
+                        },
+                    ));
+                }
+                // 同じ行数の読み方が2つある。どちらが正しいかを言えない
+                Some(std::cmp::Ordering::Equal) => tied = true,
+                Some(std::cmp::Ordering::Less) => {}
+            }
         }
     }
 
@@ -330,6 +381,10 @@ where
     match parse(&String::from_utf8_lossy(bytes)) {
         Ok(jkf) => Ok(jkf),
         // lossy はどんなバイト列でも「読めた」ことになるので、理由の候補にしない
+        Err(_) if tied && named.is_none() => Err(Some(Unparsable {
+            encoding: None,
+            error: None,
+        })),
         Err(_) => Err(named.or_else(|| anonymous.map(|(_, u)| u))),
     }
 }
@@ -339,7 +394,9 @@ where
 /// バイト順を取り違えた UTF-16 を弾くのが目的。UTF-16 は LE と BE のどちらで
 /// 読んでも誤りが出ないので `had_errors` では区別が付かないが、取り違えると
 /// 改行 `U+000A` が `U+0A00` になり、**行が1つにまとまる**。
-/// 正しい読み方のほうが必ず行数が多い。
+/// 改行が1つでもある棋譜なら、正しい読み方のほうが行数が多い。
+/// **1行しか無い棋譜では同数になる** — そのときは決められないものとして扱う
+/// （[`try_other_encodings`]）。
 ///
 /// **「改行があること」を通過条件にはしない。** 1行しかない KI2 も、
 /// CR だけで行を区切る古い棋譜も正当な入力で、候補が1つならそれを採る。
@@ -382,7 +439,7 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
 
     if let Some(Unparsable {
         encoding: Some(name),
-        error,
+        error: Some(error),
     }) = &by_fallback
     {
         return format!("{name} としては読めたが、棋譜として読めなかった: {error}");
@@ -396,8 +453,17 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         // クレートも文字にできなかった。誤り無く復号できた試行があれば、
         // 名前は伏せて理由だけ使う
         other => match by_fallback {
-            Some(Unparsable { error, .. }) => {
+            Some(Unparsable {
+                error: Some(error), ..
+            }) => {
                 format!("文字コードは特定できませんが、棋譜として読めない箇所があります: {error}")
+            }
+            // 同じ行数の読み方が2つあって決められない。片方の行を引用すると、
+            // 化けた読み方の位置を正しい位置として見せることになる
+            Some(Unparsable { error: None, .. }) => {
+                "文字にはできましたが、読み方（バイト順）を決められません。\
+                 BOM を付けて保存し直すか、UTF-8 に変換してください"
+                    .to_owned()
             }
             None => {
                 let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
@@ -711,7 +777,8 @@ mod tests {
                 "Shift_JIS + NUL 16個",
                 {
                     let mut v = sjis.clone();
-                    v.extend(std::iter::repeat_n(0u8, 16));
+                    // `repeat_n` は Rust 1.82 以降。MSRV は 1.77.2（`Cargo.toml`）
+                    v.extend(std::iter::repeat(0u8).take(16));
                     v
                 },
                 None,
@@ -737,22 +804,22 @@ mod tests {
                     .into_owned(),
                 Some(ISO_2022_JP),
             ),
-            // ISO-2022-JP は定義上 7bit。0x80 以上があれば、
-            // エスケープの並びがたまたま現れただけ（`.kif` に改名したバイナリ）
-            (
-                "ESC はあるが 8bit の文字がある",
-                b"\x1b(B\xFF\xFE\n".to_vec(),
-                None,
-            ),
-            // 3つの節を1つずつ。**その節でしか当たらない題材にする** —
+            // `ESC ( B` / `ESC ( J` は ASCII へ戻す指示で、ASCII のファイルにも
+            // 現れうる。ISO-2022-JP である証拠にならない
+            ("ESC ( B だけ", b"#KIF\x1b(B\n".to_vec(), None),
+            ("ESC ( J だけ", b"#KIF\x1b(J\n".to_vec(), None),
             // `ESC $ B` を混ぜると、他の節を消しても通ってしまう
             (
                 "ESC $ B だけ",
                 b"#KIF\x1b$B\x24\x22\n".to_vec(),
                 Some(ISO_2022_JP),
             ),
-            ("ESC ( B だけ", b"#KIF\x1b(B\n".to_vec(), Some(ISO_2022_JP)),
-            ("ESC ( J だけ", b"#KIF\x1b(J\n".to_vec(), Some(ISO_2022_JP)),
+            // 8bit があっても名乗る。壊れているのは `declared_but_garbled` が拾う
+            (
+                "ESC $ B があって 8bit も混じる",
+                b"#KIF\x1b$B\x24\x22\xFF\n".to_vec(),
+                Some(ISO_2022_JP),
+            ),
         ];
 
         for (label, bytes, expected) in cases {
@@ -792,10 +859,13 @@ mod tests {
         assert!(!can_be_named(UTF_16LE, &marked, true));
     }
 
-    /// 棋譜でないファイルに棋譜の拡張子が付いていたら、そう言う。
+    /// ASCII だけのファイルを文字コードのせいにしない。
     ///
-    /// ASCII だけのファイルは EUC-JP としても誤り無く復号できるので、
+    /// `.kif` に改名した CSA は EUC-JP としても誤り無く復号できるので、
     /// 「EUC-JP としては読めた」と名乗ると**文字コードを疑わせて遠回りさせる**。
+    ///
+    /// 出るのはクレートの理由（何行目が読めないか）。
+    /// 「拡張子が中身と合っているか」まで案内するかは #327。
     #[test]
     fn a_non_kifu_ascii_file_is_not_blamed_on_an_encoding() {
         let dir = temp_dir("ascii-not-kifu");
@@ -869,8 +939,8 @@ mod tests {
     /// BOM の無い UTF-16 は、**バイト順を取り違えた読み方の行を出さない。**
     ///
     /// UTF-16 は LE と BE のどちらで読んでも誤りが出ないので、`had_errors` では
-    /// 区別が付かない。取り違えると改行が `U+0A00` になって**1行**になるので、
-    /// 行があることを条件にする（`looks_like_text`）。
+    /// 区別が付かない。取り違えると改行が `U+0A00` になって**1行にまとまる**ので、
+    /// 候補どうしを行数で比べる（[`line_count`]）。1行しか無い候補も落とさない。
     ///
     /// **LE と BE を対で見る。** 片方だけだと、総当たりの並びで先にあるほうが
     /// たまたま通っているだけかもしれない。
@@ -1027,13 +1097,13 @@ mod tests {
         let named = || {
             Some(Unparsable {
                 encoding: Some("EUC-JP"),
-                error: ParseError::Kif("at line 4 NAMED".to_owned()),
+                error: Some(ParseError::Kif("at line 4 NAMED".to_owned())),
             })
         };
         let anonymous = || {
             Some(Unparsable {
                 encoding: None,
-                error: ParseError::Kif("at line 5 ANON".to_owned()),
+                error: Some(ParseError::Kif("at line 5 ANON".to_owned())),
             })
         };
 
@@ -1089,6 +1159,62 @@ mod tests {
         assert!(
             !message.contains("棋譜ではないファイル"),
             "棋譜なのに棋譜でないと言っている: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 0バイトのファイルは索引に入れない。
+    ///
+    /// どの形式のパーサも**平手の初期局面1件**として `Ok` を返す。
+    /// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
+    /// 初期局面しか出ないので「そういう棋譜」と誤解される。
+    ///
+    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定はバイト列が空かどうかで、
+    /// 読めた手数では見ない。
+    #[test]
+    fn an_empty_file_is_rejected_but_a_moveless_kifu_is_not() {
+        let dir = temp_dir("empty");
+
+        let empty = dir.join("empty.kif");
+        fs::write(&empty, b"").expect("書き出し");
+        let err = read_path_to_jkf(&empty, KifuKind::Kif).expect_err("空は弾くこと");
+        assert!(err.to_string().contains("空です"), "理由が違う: {err}");
+
+        // 初期局面だけを記録した棋譜は正当。手数では判定しない
+        let moveless = dir.join("moveless.kif");
+        let (bytes, _, _) = SHIFT_JIS.encode("手合割：平手\n手数----指手---------消費時間--\n");
+        fs::write(&moveless, &bytes).expect("書き出し");
+        let jkf = read_path_to_jkf(&moveless, KifuKind::Kif).expect("0手の棋譜は読めること");
+        assert_eq!(jkf.moves.len(), 1, "初期局面だけのはず");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 利用者に出す文言は、長さを刈って制御文字を落とす。
+    ///
+    /// クレートのエラーは読めなかった位置から**行末まで**を引用するので、
+    /// 改行を含まない大きなファイルではファイルの中身がそのまま文言になる。
+    /// それが `IndexWarnPayload` に載り、webview の state に200件まで溜まる。
+    #[test]
+    fn a_huge_one_line_file_does_not_put_its_contents_in_the_message() {
+        let dir = temp_dir("huge-line");
+        let path = dir.join("one-line.kif");
+        // 改行が1つも無い大きなファイル。制御文字も混ぜる
+        let mut bytes = vec![b'x'; 200_000];
+        bytes[10] = 0;
+        fs::write(&path, &bytes).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            message.chars().count() <= MESSAGE_LIMIT + 1,
+            "文言が刈られていない: {} 文字",
+            message.chars().count()
+        );
+        assert!(
+            !message.contains('\0'),
+            "制御文字がそのまま入っている: {message:?}"
         );
 
         fs::remove_dir_all(&dir).ok();
