@@ -203,19 +203,10 @@ jobs:
           # 知らない入力は `Unexpected input(s)` の warning になるだけで、
           # ジョブは緑のまま資産名が CLI の既定へ落ちる。
 
-          # 既定が true なので値としては再掲。updater の endpoint がこの json に
-          # 依存していることを、消してよい入力に見えないよう明示しておく。
-          #
-          # **v1 が書く `latest.json` の url は `api.github.com/.../releases/assets/<id>` 形式。**
-          # v0 が書いていた `github.com/.../releases/download/<tag>/<name>` とは別のホストで、
-          # 未認証だと IP あたり 60 req/h の制限に当たる。詰まったときの症状は
-          # 「ブラウザからの手動 DL は通るのに自動更新だけ静かに失敗する」になる
+          # 既定が true なので値としては再掲。消してよい入力に見せない
           uploadUpdaterJson: true
 
-          # 人が読める資産名にする。
-          #
-          # **`[arch]` は bundle ごとに綴りが違う。** AppImage と deb は `amd64`、
-          # rpm は `x86_64`、Windows と macOS は `x64` / `aarch64`。
-          # 同じ x86-64 でも3通りの名前が出るので、ダウンロードの URL を
-          # 手で組む文書はここを見て書くこと（v0.2.1 の資産が現物）。
+          # `[arch]` の綴りは bundle ごとに違う（AppImage/deb=amd64、rpm=x86_64、
+          # Windows/macOS=x64/aarch64）。パターンを固定の綴りに書き換えると、
+          # tauri-action が資産と署名を突き合わせられず latest.json から落ちる
           releaseAssetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
