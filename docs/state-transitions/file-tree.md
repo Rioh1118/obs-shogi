@@ -2,7 +2,7 @@
 
 対象: `src/entities/file-tree/model/provider.tsx` と `src/widgets/file-tree/ui/FileTree.tsx`。
 
-上位は [app.md](app.md)。棋譜そのものの読み込みは `game.md`（未作成）が持つ。
+上位は [app.md](app.md)。棋譜そのものの読み込みは [game.md](game.md) が持つ。
 
 ## 状態
 

@@ -25,8 +25,8 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 ```
 
 `branch-index.md` だけ粒度が違う。スライスの状態ではなく**1つの値が取りうる形**を軸にしている。
-`game.md` を書くときは「棋譜がどの状態にあるか」をそちらへ、
-「`BranchIndex` にどの値が入りうるか」は `branch-index.md` に置く。
+「棋譜がどの状態にあるか」は [game.md](game.md)、
+「`BranchIndex` にどの値が入りうるか」は `branch-index.md` が持つ。
 
 ## いま何が書けているか
 
