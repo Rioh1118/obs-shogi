@@ -746,6 +746,35 @@ mod tests {
         assert!(err.contains("bad version"), "理由が版でない: {err}");
     }
 
+    /// 索引でないファイルを索引として読まない。
+    ///
+    /// キャッシュの置き場に別のものが入っていても、中身を信じて進まない。
+    #[test]
+    fn a_file_that_is_not_an_index_is_rejected() {
+        let mut blob = b"PK\x03\x04....".to_vec();
+        write_u32(&mut blob, VERSION);
+
+        let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
+            panic!("索引でないファイルを読んでしまった");
+        };
+        assert!(err.contains("bad magic"), "理由が magic でない: {err}");
+    }
+
+    /// 別のプロジェクトの索引を、今のプロジェクトの索引として復元しない。
+    ///
+    /// 通してしまうと、検索結果に**別のフォルダの棋譜のパス**が並ぶ。
+    /// 開こうとしても無いので、利用者から見ると「検索が壊れている」になる。
+    #[test]
+    fn an_index_built_for_another_project_is_rejected() {
+        let mut blob = header_for(Path::new("/tmp/project-a"));
+        write_u32(&mut blob, 0);
+
+        let Err(err) = decode_all(&blob, Path::new("/tmp/project-b")) else {
+            panic!("別のプロジェクトの索引を読んでしまった");
+        };
+        assert!(err.contains("root hash"), "理由が root hash でない: {err}");
+    }
+
     /// 版の検査を通ったところまでの blob を組む。
     fn header_for(root_dir: &Path) -> Vec<u8> {
         let mut blob = Vec::new();
@@ -777,5 +806,179 @@ mod tests {
             panic!("壊れた file_id を受け入れてしまった");
         };
         assert!(err.contains("bad file_id"), "理由が file_id でない: {err}");
+    }
+
+    /// 形式の綴りと読みが対で動くこと。
+    ///
+    /// 片方だけ動かすと、復元した索引の全 `.kif` が `.ki2` になる
+    /// といった形で**読み直しの形式が入れ替わる**。
+    #[test]
+    fn every_kifu_kind_survives_a_round_trip() {
+        for kind in [KifuKind::Kif, KifuKind::Ki2, KifuKind::Csa, KifuKind::Jkf] {
+            let back = u8_to_kind(kind_to_u8(kind)).expect("読み戻せない");
+            assert_eq!(back, kind, "{kind:?} の綴りと読みが対になっていない");
+        }
+    }
+
+    /// 書いたものが**そのまま**読み戻せること。
+    ///
+    /// ここが崩れると、索引の中身が黙って別の意味になる。バイト位置が
+    /// 1つずれるだけで `fork_off` / `fork_len` が全部でたらめになり、
+    /// 検索は当たるのに指し手が別の棋譜のものになる。
+    /// ヘッダ12バイトで止まるテストでは、そこまで届かない。
+    ///
+    /// **`VERSION` を上げた版に更新した利用者は、次の起動で必ず1回ここを通る。**
+    #[test]
+    fn what_is_written_to_the_cache_is_what_is_read_back() {
+        use super::super::node_table::{ForkPtr, NodeCursor};
+
+        let root = Path::new("/tmp/obs-shogi-roundtrip");
+
+        let mut ft = FileTable::default();
+        for (file_id, path, deleted) in [(1u32, "a.kif", false), (2u32, "変化.ki2", true)] {
+            ft.upsert(FileEntry {
+                file_id,
+                path: path.to_owned(),
+                deleted,
+                r#gen: file_id + 40,
+            });
+        }
+
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(NodeCursor {
+            tesuu: 7,
+            fork_off: 0,
+            fork_len: 2,
+        });
+        nt.nodes.push(NodeCursor {
+            tesuu: 9,
+            fork_off: 2,
+            fork_len: 0,
+        });
+        nt.forks.push(ForkPtr {
+            te: 3,
+            fork_index: 0,
+        });
+        nt.forks.push(ForkPtr {
+            te: 5,
+            fork_index: 1,
+        });
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
+        let records = vec![
+            FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-roundtrip/a.kif"),
+                kind: KifuKind::Kif,
+                size: 4096,
+                mtime_ms: 1_700_000_000_000,
+            },
+            FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-roundtrip/変化.ki2"),
+                kind: KifuKind::Ki2,
+                size: 77,
+                mtime_ms: 1_700_000_000_001,
+            },
+        ];
+        let scan = snapshot_from_records(root, records);
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32), ("変化.ki2".to_owned(), 2u32)]
+                .into_iter()
+                .collect();
+
+        // 別々の bucket に落ちる鍵を選ぶ（bucket は z0 の下位8ビットで決まる）
+        let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] =
+            std::array::from_fn(|_| Vec::new());
+        buckets[0x11].push((
+            PositionKey {
+                z0: 0x1111,
+                z1: 0x2222,
+            },
+            Occurrence {
+                file_id: 1,
+                r#gen: 41,
+                node_id: 0,
+            },
+        ));
+        buckets[0x22].push((
+            PositionKey {
+                z0: 0x2222,
+                z1: 0x3333,
+            },
+            Occurrence {
+                file_id: 2,
+                r#gen: 42,
+                node_id: 1,
+            },
+        ));
+
+        let mut blob = Vec::new();
+        encode_all(
+            &mut blob,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 3,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect("書けない");
+
+        let Ok(back) = decode_all(&blob, root) else {
+            panic!("書いたものを読み戻せない");
+        };
+
+        assert_eq!(back.next_file_id, 3);
+        assert_eq!(back.path_to_id, path_to_id);
+
+        for file_id in [1u32, 2] {
+            let before = ft.get(file_id).expect("元のファイル表に無い");
+            let after = back.file_table.get(file_id).expect("読み戻せていない");
+            assert_eq!(
+                (after.path, after.deleted, after.r#gen),
+                (before.path, before.deleted, before.r#gen),
+                "file_id={file_id}"
+            );
+        }
+
+        for (key, rec) in &scan.by_path {
+            let after = back.scan.by_path.get(key).expect("走査結果が欠けた");
+            assert_eq!(
+                (after.kind, after.size, after.mtime_ms),
+                (rec.kind, rec.size, rec.mtime_ms),
+                "{:?}",
+                rec.path
+            );
+        }
+
+        let after_nt = back.node_tables.get(1).expect("ノード表が欠けた");
+        assert_eq!(
+            after_nt
+                .nodes
+                .iter()
+                .map(|n| (n.tesuu, n.fork_off, n.fork_len))
+                .collect::<Vec<_>>(),
+            vec![(7, 0, 2), (9, 2, 0)],
+        );
+        assert_eq!(
+            after_nt
+                .forks
+                .iter()
+                .map(|f| (f.te, f.fork_index))
+                .collect::<Vec<_>>(),
+            vec![(3, 0), (5, 1)],
+        );
+
+        let flat = |bs: &[Vec<(PositionKey, Occurrence)>; 256]| {
+            bs.iter()
+                .flatten()
+                .map(|(k, o)| (k.z0, k.z1, o.file_id, o.r#gen, o.node_id))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(flat(&back.buckets), flat(&buckets));
     }
 }
