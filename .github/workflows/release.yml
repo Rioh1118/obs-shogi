@@ -61,13 +61,18 @@ jobs:
               if (e.status !== 404) throw e;
             }
 
+            // タグがまだ無ければ createRelease が作る。target_commitish を省くと
+            // 既定のデフォルトブランチの上に作られるので、workflow_dispatch を
+            // ブランチから撃ったとき、タグは main を指すのに build の checkout は
+            // github.ref を取り、**タグが指す木と配布物の中身が一致しない**。
             const r = await github.rest.repos.createRelease({
               owner, repo,
-              tag_name:   tag,
-              name:       `ObsShogi ${tag}`,
-              body:       `## What's new\n\n*See the assets below to download and install.*`,
-              draft:      false,   // must be false for latest/download/ URL to resolve
-              prerelease: isPrerel,
+              tag_name:         tag,
+              target_commitish: context.sha,
+              name:             `ObsShogi ${tag}`,
+              body:             `## What's new\n\n*See the assets below to download and install.*`,
+              draft:            false,   // must be false for latest/download/ URL to resolve
+              prerelease:       isPrerel,
             });
             core.setOutput('release_id', String(r.data.id));
 
