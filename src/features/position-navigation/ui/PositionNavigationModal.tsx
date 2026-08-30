@@ -134,14 +134,15 @@ function PositionNavigationModal() {
   }, []);
 
   const handleConfirm = useCallback(() => {
-    if (!gameView.player) return;
-
     // 辿れない棋譜では `applyCursor` が catch してエラーを残すだけになる。閉じずにここで止める。
-    if (!buildPreviewPlayer(gameView.player, nav.previewCursor)) return;
+    // 判定は上の memo が出した `unreachable` を使う。ここで辿り直すと、
+    // 「辿り着けるか」の答えが2箇所にでき、画面には「再現できません」と出ているのに
+    // Enter だけ通る、という食い違いが起きうる。
+    if (!gameView.player || unreachable) return;
 
     applyCursor(nav.previewCursor);
     closeModal();
-  }, [applyCursor, closeModal, gameView.player, nav.previewCursor]);
+  }, [applyCursor, closeModal, gameView.player, nav.previewCursor, unreachable]);
 
   // Keyboard navigation
   useEffect(() => {
