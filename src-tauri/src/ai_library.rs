@@ -148,7 +148,6 @@ fn read_engines(engines_dir: &Path) -> Result<Vec<EngineCandidate>, String> {
             continue;
         }
 
-        // ここが要件：YaneuraOu で始まるものだけ
         if !file_name.starts_with("YaneuraOu") {
             continue;
         }
@@ -200,7 +199,6 @@ fn read_profiles(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
             vec![]
         };
 
-        // book は .db のみ
         let book_db_files = if has_book_dir {
             list_file_candidates(&book_dir, Some("db"), 200)
         } else {
@@ -240,7 +238,6 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
         let path = entry.path();
         let kind = kind_of(&path);
 
-        // file/symlink のみ採用（dir は除外）
         match kind {
             FsKind::File | FsKind::Symlink => {}
             _ => continue,
