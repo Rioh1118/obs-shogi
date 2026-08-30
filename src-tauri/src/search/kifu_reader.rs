@@ -1,5 +1,6 @@
 use std::{
     fs,
+    panic::{catch_unwind, AssertUnwindSafe},
     path::{Path, PathBuf},
 };
 
@@ -7,15 +8,13 @@ use thiserror::Error;
 
 use crate::search::fs_scan::{FileRecord, KifuKind};
 
-pub type ReadOk = Vec<(FileRecord, Jkf)>;
-pub type ReadErr = Vec<(FileRecord, KifuReadError)>;
-
 // shogi-kifu-converter
 use shogi_kifu_converter_obsshogi::parser::{
     parse_csa_file, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file, parse_kif_str,
 };
 
-use encoding_rs::{EUC_JP, ISO_2022_JP, UTF_16BE, UTF_16LE};
+use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, UTF_16BE, UTF_16LE};
+use shogi_kifu_converter_obsshogi::error::ParseError;
 
 pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
@@ -36,31 +35,43 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     match kind {
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
-        KifuKind::Csa => parse_csa_file(path).map_err(|e| failed(path, e)),
-        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| failed(path, e)),
+        KifuKind::Csa => parse_csa_guarded(path),
+        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| parse_failed(path, e)),
     }
 }
 
-fn failed(path: &Path, e: impl std::fmt::Display) -> KifuReadError {
+/// CSA を読む。**パニックを捕まえるのはこの形式だけ。**
+///
+/// `shogi-kifu-converter` は CSA の本文を `csa` クレートに投げており、
+/// そちらは `Cargo.lock` で 1.0.2 に固定されたまま `unwrap` を残している。
+///
+/// | 入力 | どこで落ちるか |
+/// | --- | --- |
+/// | `$START_TIME:2004/02/30`（存在しない日付） | `csa-1.0.2/src/parser/time.rs:57` |
+/// | 20桁の消費時間 `T99999999999999999999` | `csa-1.0.2/src/parser/game.rs:40` |
+///
+/// `shogi-kifu-converter` v0.4.0 が `panic` / `unwrap` を lint で締め出したのは
+/// **自分の crate の中だけ**で、`csa` には届かない。KIF / KI2 / JKF はその
+/// lint の内側で完結するので包まない。
+///
+/// 呼び口は `spawn_blocking` の中なのでプロセスは落ちないが、
+/// 捕まえずに落ちると利用者に届くのが `spawn_blocking join error: task N panicked`
+/// になり、どのファイルのどこが悪いのかが消える。
+fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
+    match catch_unwind(AssertUnwindSafe(|| parse_csa_file(path))) {
+        Ok(result) => result.map_err(|e| parse_failed(path, e)),
+        Err(_) => Err(parse_failed(
+            path,
+            "CSA パーサが異常終了した（日付か消費時間の値が壊れている可能性がある）",
+        )),
+    }
+}
+
+fn parse_failed(path: &Path, e: impl std::fmt::Display) -> KifuReadError {
     KifuReadError::ParseFailed {
         path: path.to_path_buf(),
         message: e.to_string(),
     }
-}
-
-/// 走査結果(FileRecord)をまとめて JKF に読み取る
-pub fn read_many_to_jkf(records: &[FileRecord]) -> (ReadOk, ReadErr) {
-    let mut ok = Vec::new();
-    let mut ng = Vec::new();
-
-    for r in records {
-        match read_to_jkf(r) {
-            Ok(jkf) => ok.push((r.clone(), jkf)),
-            Err(e) => ng.push((r.clone(), e)),
-        }
-    }
-
-    (ok, ng)
 }
 
 // -------------------------
@@ -74,7 +85,7 @@ fn parse_kif_portable(path: &Path) -> Result<Jkf, KifuReadError> {
     };
 
     let bytes = read_bytes(path)?;
-    try_other_encodings(&bytes, parse_kif_str).ok_or_else(|| failed(path, reason))
+    try_other_encodings(&bytes, parse_kif_str).ok_or_else(|| parse_failed(path, reason_for(reason)))
 }
 
 fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
@@ -84,7 +95,7 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
     };
 
     let bytes = read_bytes(path)?;
-    try_other_encodings(&bytes, parse_ki2_str).ok_or_else(|| failed(path, reason))
+    try_other_encodings(&bytes, parse_ki2_str).ok_or_else(|| parse_failed(path, reason_for(reason)))
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
@@ -105,53 +116,73 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
 /// | UTF-16LE / UTF-16BE | `Decode Error` |
 /// | ISO-2022-JP | Shift_JIS として解釈が通ってしまい、指し手行で落ちる |
 ///
-/// **読めなかったときに理由を返さないのは意図的。** クレートが返した理由のほうが
-/// 具体的（「何行目の何が読めないか」を言う）で、ここで試した分の失敗を並べると
-/// それが埋まる。呼び手はクレート側の理由を使う。
+/// **読めなかったときに理由を返さないのは意図的。** ただしクレート側の理由が
+/// 使えるのは、クレートがデコードまで通っていた場合だけ。使い分けは
+/// [`reason_for`] が持つ。
 fn try_other_encodings<F>(bytes: &[u8], mut parse: F) -> Option<Jkf>
 where
-    F: FnMut(&str) -> Result<Jkf, shogi_kifu_converter_obsshogi::error::ParseError>,
+    F: FnMut(&str) -> Result<Jkf, ParseError>,
 {
-    for enc in [UTF_16LE, UTF_16BE, EUC_JP, ISO_2022_JP] {
+    for enc in ATTEMPTED_ENCODINGS {
         let (cow, _, _) = enc.decode(bytes);
         if let Ok(jkf) = parse(cow.as_ref()) {
             return Some(jkf);
         }
     }
 
-    // 最終手段。読めない位置を落として読み進める。#293 で扱いを決めるまでは、
-    // 「開けない」より「一部が欠けても開ける」を採る既存の判断を変えない
+    // 最終手段。読めない位置を落として読み進める。
+    // TODO(#293): 欠けたことを利用者に告げないまま索引へ入れている
     parse(&String::from_utf8_lossy(bytes)).ok()
+}
+
+/// クレートが試さない文字コード。`try_other_encodings` が上から順に試す
+const ATTEMPTED_ENCODINGS: [&Encoding; 4] = [UTF_16LE, UTF_16BE, EUC_JP, ISO_2022_JP];
+
+/// どの文字コードでも読めなかったときに利用者へ出す理由。
+///
+/// クレートの理由をそのまま使えるのは `Kif` / `Ki2` / `Normalize` のときだけで、
+/// これらは「何行目の何が読めないか」を言う。**`Decode` の Display は
+/// `Decode Error` の一語しかない。** そのまま出すと、利用者には
+/// 「読めません」以上のことが何も残らないので、試した文字コードを添える。
+fn reason_for(e: ParseError) -> String {
+    match e {
+        ParseError::Kif(_) | ParseError::Ki2(_) | ParseError::Csa(_) | ParseError::Normalize(_) => {
+            e.to_string()
+        }
+        other => {
+            let tried: Vec<&str> = std::iter::once("Shift_JIS")
+                .chain(std::iter::once("UTF-8"))
+                .chain(ATTEMPTED_ENCODINGS.iter().map(|enc| enc.name()))
+                .collect();
+            format!(
+                "{other}: {} のどれでも読めなかった。エディタで UTF-8 に変換し直すと開けることがある",
+                tried.join(" / ")
+            )
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::test_kifu::{one_move_kif, temp_dir, HANDICAPS};
     use encoding_rs::SHIFT_JIS;
 
-    const HIRATE: &str = "手合割：平手\n\
-                          手数----指手---------消費時間--\n   \
-                          1 ７六歩(77)   ( 0:01/00:00:01)\n";
-
-    fn temp_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "obs-shogi-{tag}-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        fs::create_dir_all(&dir).expect("一時ディレクトリ");
-        dir
+    fn hirate_kif() -> String {
+        one_move_kif("平手")
     }
 
     /// 拡張子が名乗る文字コードと中身が食い違うファイルを読む。
     ///
     /// クレートは拡張子の文字コードと Shift_JIS / UTF-8 のもう一方しか試さない。
-    /// ここに挙げた4つは**クレート単体では読めない**ことを実測で確かめてある
-    /// （EUC-JP / UTF-16 は `Decode Error`、ISO-2022-JP は指し手行で落ちる）。
-    /// `try_other_encodings` はそのために残してある。
+    /// **`try_other_encodings` が要る根拠そのものをここで確かめる** — 各文字コードで
+    /// クレート単体が失敗することを先に見てから、こちらが読めることを見る。
+    /// クレートが将来この4つを自前で扱うようになれば前半が落ち、
+    /// 総当たりを畳んでよいことがここで分かる。
     #[test]
     fn encodings_the_crate_does_not_try_are_still_read() {
         let dir = temp_dir("encoding");
+        let hirate = hirate_kif();
 
         for (label, enc) in [
             ("eucjp", EUC_JP),
@@ -161,7 +192,7 @@ mod tests {
         ] {
             let bytes: Vec<u8> = if enc == UTF_16LE || enc == UTF_16BE {
                 // encoding_rs は UTF-16 へ encode できないので自分で組む
-                HIRATE
+                hirate
                     .encode_utf16()
                     .flat_map(|u| {
                         if enc == UTF_16LE {
@@ -172,13 +203,18 @@ mod tests {
                     })
                     .collect()
             } else {
-                let (cow, _, had_errors) = enc.encode(HIRATE);
+                let (cow, _, had_errors) = enc.encode(&hirate);
                 assert!(!had_errors, "{label} へ encode できること");
                 cow.into_owned()
             };
 
             let path = dir.join(format!("{label}.kif"));
             fs::write(&path, &bytes).expect("書き出し");
+
+            assert!(
+                parse_kif_file(&path).is_err(),
+                "{label} をクレート単体が読めてしまう。総当たりを畳めるか確かめること"
+            );
 
             let jkf = read_path_to_jkf(&path, KifuKind::Kif)
                 .unwrap_or_else(|e| panic!("{label} が読めない: {e}"));
@@ -191,14 +227,14 @@ mod tests {
     /// クレートが読めた上で拒んだのなら、その理由をそのまま返す。
     ///
     /// 文字コードの総当たりは、当たらなかったぶんの失敗を積むと**クレートが言った
-    /// 具体的な理由を埋めてしまう**。v0.4.0 のパーサは読み残しがある入力を
-    /// エラーにするようになったので、この経路を通る棋譜が実際に出てくる。
+    /// 具体的な理由を埋めてしまう**。パーサは読み残しのある入力をエラーにするので、
+    /// この経路を通る棋譜が実際に出てくる。
     #[test]
     fn a_readable_file_the_parser_rejects_keeps_the_crates_reason() {
         let dir = temp_dir("reason");
         let path = dir.join("unknown-word.kif");
         // 「パス」は KIF の語彙に無い。文字コードは Shift_JIS で正しい
-        let text = format!("{HIRATE}   2 パス\n");
+        let text = format!("{}   2 パス\n", hirate_kif());
         let (bytes, _, _) = SHIFT_JIS.encode(&text);
         fs::write(&path, &bytes).expect("書き出し");
 
@@ -208,63 +244,93 @@ mod tests {
             message.contains("パス"),
             "読めなかった語を指していない: {message}"
         );
-        assert!(
-            !message.contains("utf-16"),
-            "総当たりの失敗が理由を埋めている: {message}"
-        );
+        for enc in ATTEMPTED_ENCODINGS {
+            assert!(
+                !message.to_lowercase().contains(&enc.name().to_lowercase()),
+                "総当たりの失敗が理由を埋めている（{}）: {message}",
+                enc.name()
+            );
+        }
 
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 手合割の名前だけを変えた同じ棋譜。上手（後手）から指すので ３四歩 は
-    /// どの手合割でも指せる（3三の歩はどの手合割でも落ちない）
-    const HANDICAPS: [&str; 15] = [
-        "香落ち",
-        "右香落ち",
-        "角落ち",
-        "飛車落ち",
-        "飛香落ち",
-        "二枚落ち",
-        "三枚落ち",
-        "四枚落ち",
-        "五枚落ち",
-        "左五枚落ち",
-        "六枚落ち",
-        "右七枚落ち",
-        "左七枚落ち",
-        "八枚落ち",
-        "十枚落ち",
-    ];
+    /// どの文字コードでも読めなかったときは、試した文字コードを添える。
+    ///
+    /// クレートが返す `ParseError::Decode` の Display は `Decode Error` の一語しかない。
+    /// そのまま出すと、利用者に「読めません」以外が何も残らない。
+    #[test]
+    fn a_file_no_encoding_can_decode_lists_what_was_tried() {
+        let dir = temp_dir("undecodable");
+        let path = dir.join("binary.kif");
+        // どの日本語文字コードとしても解釈できず、棋譜としても読めないバイト列
+        fs::write(&path, [0xC0u8, 0xC1, 0xF5, 0xFF, 0xFE, 0x00, 0x80]).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        for enc in ATTEMPTED_ENCODINGS {
+            assert!(
+                message.contains(enc.name()),
+                "試した文字コード {} が出ていない: {message}",
+                enc.name()
+            );
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// CSA は壊れた値でパニックせずエラーを返す。
+    ///
+    /// CSA の本文を読むのは `csa` クレートで、そちらは `unwrap` を残している。
+    /// `shogi-kifu-converter` の lint はそこへ届かないので、
+    /// `parse_csa_guarded` が捕まえる。
+    #[test]
+    fn a_csa_with_broken_values_is_an_error_not_a_panic() {
+        let dir = temp_dir("csa");
+
+        for (label, body) in [
+            (
+                "存在しない日付",
+                "V2.2\n$START_TIME:2004/02/30 10:30:00\nPI\n+\n+7776FU\n%TORYO\n",
+            ),
+            (
+                "桁あふれの消費時間",
+                "V2.2\nPI\n+\n+7776FU\nT99999999999999999999\n%TORYO\n",
+            ),
+        ] {
+            let path = dir.join(format!("{label}.csa"));
+            fs::write(&path, body).expect("書き出し");
+
+            let err = read_path_to_jkf(&path, KifuKind::Csa)
+                .err()
+                .unwrap_or_else(|| panic!("{label}: 読めてしまった"));
+            assert!(
+                err.to_string().contains(&path.display().to_string()),
+                "{label}: どのファイルか言っていない: {err}"
+            );
+        }
+
+        // 壊れていない CSA は読める。上のテストだけだと、CSA を常に失敗させても通る
+        let ok_path = dir.join("ok.csa");
+        fs::write(&ok_path, "V2.2\nPI\n+\n+7776FU\n%TORYO\n").expect("書き出し");
+        let jkf = read_path_to_jkf(&ok_path, KifuKind::Csa).expect("正常な CSA が読めること");
+        assert_eq!(jkf.moves.len(), 3, "指し手数");
+
+        fs::remove_dir_all(&dir).ok();
+    }
 
     /// 手合割つきの棋譜を読んでもパニックしない。
     ///
-    /// v0.3.1 のクレートは手合割の盤面を表で持っておらず、表に無い5種
-    /// （三枚落ち / 五枚落ち / 左五枚落ち / 右七枚落ち / 左七枚落ち）で
-    /// `unimplemented!()` に落ちていた。走査は1ファイルずつ読むので、
-    /// **1件混ざると索引作りがそこで死ぬ**。`catch_unwind` はそれを包むためにあった。
-    ///
-    /// 表が入って理由が消えたので包みを外した。外したままでよいことを、
-    /// 落ちていた5種を含む全手合割で見る。
+    /// 手合割の盤面はクレートの表（`handicap.rs`）が持つ。表に無い手合割は
+    /// 初期局面を組むところで `unimplemented!()` に落ちるので、
+    /// **1件混ざるとその棋譜が読めなくなる**。全種が読めることをここで固定する。
     #[test]
     fn every_handicap_reads_without_panicking() {
-        let dir = std::env::temp_dir().join(format!(
-            "obs-shogi-handicap-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        fs::create_dir_all(&dir).expect("一時ディレクトリ");
+        let dir = temp_dir("handicap");
 
         for name in HANDICAPS {
             let path = dir.join(format!("{name}.kif"));
-            fs::write(
-                &path,
-                format!(
-                    "手合割：{name}\n\
-                     手数----指手---------消費時間--\n   \
-                     1 ３四歩(33)   ( 0:01/00:00:01)\n"
-                ),
-            )
-            .expect("書き出し");
+            fs::write(&path, one_move_kif(name)).expect("書き出し");
 
             let jkf = read_path_to_jkf(&path, KifuKind::Kif)
                 .unwrap_or_else(|e| panic!("{name} が読めない: {e}"));

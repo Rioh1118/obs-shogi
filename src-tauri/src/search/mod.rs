@@ -13,5 +13,7 @@ pub mod project_manager;
 pub mod query_service;
 pub mod segment;
 pub mod sfen_position;
+#[cfg(test)]
+pub mod test_kifu;
 pub mod traverse;
 pub mod types;
