@@ -58,10 +58,16 @@ pub(crate) struct OpenedBook {
 ///
 /// 返るもの:
 ///
-/// - `NotFound` / `PermissionDenied` / `Io` — metadata が取れない
-/// - `InvalidType` — ディレクトリなどファイルでないもの
-/// - `InvalidContent` — 形式の中身が読めない
-/// - `UnsupportedFormat` — 形式は分かるが reader をまだ持っていない
+/// - [`BookErrorCode::NotFound`] / [`BookErrorCode::PermissionDenied`] /
+///   [`BookErrorCode::Io`] — metadata が取れない、または読んでいる途中で失敗した
+/// - [`BookErrorCode::InvalidType`] — ディレクトリなどファイルでないもの
+/// - [`BookErrorCode::InvalidContent`] — 形式の中身が読めない
+/// - [`BookErrorCode::TooLarge`] — 形式ごとの大きさの上限を超える
+/// - [`BookErrorCode::UnsupportedFormat`] — 形式は分かるが reader をまだ持っていない
+///
+/// **列挙はリンクで書くこと。** 綴りだけだと、種別を足したときにここが古いまま
+/// 残る（実際 `TooLarge` を足した2ラウンド後まで残っていた）。呼び手はこの
+/// 列挙を見て `code` の分岐を書くので、落ちた種別はそのまま分岐から漏れる。
 ///
 /// `NotFound` は、呼び出し側が解決を終えたあとに実体が消えた場合にだけ届く。
 /// 選ぶ時点で存在しないパスは、解決の側が先に弾く。
