@@ -172,7 +172,9 @@ mod tests {
     use crate::test_support::temp_dir;
     use shogi_kifu_converter_obsshogi::error::ParseError;
     use shogi_kifu_converter_obsshogi::jkf::Color;
-    use shogi_kifu_converter_obsshogi::parser::{parse_ki2_str, parse_kif_str};
+    use shogi_kifu_converter_obsshogi::parser::{
+        parse_csa_str, parse_jkf_str, parse_ki2_str, parse_kif_str,
+    };
 
     /// 後手番の任意局面。`手合割：その他` + 盤面 + 「後手番」で手番が決まる。
     ///
@@ -290,6 +292,12 @@ mod tests {
         let path = dir.join("gote.jkf");
         write_kifu_file_internal(&stripped, &path, "jkf").expect("書き出し");
         let on_disk = std::fs::read_to_string(&path).expect("読み取り");
+        // 「無いこと」だけを見ると、**空ファイルが一番簡単にそれを満たす**。
+        // 中身があることを対で見る
+        assert!(
+            on_disk.contains("\"moves\""),
+            "JSON に中身が無い:\n{on_disk}"
+        );
         assert!(
             !on_disk.contains("capture"),
             "書き込み経路が正規化している:\n{on_disk}"
@@ -363,9 +371,13 @@ mod tests {
         let moves = source.moves.len();
 
         type Reparse = fn(&str) -> Result<JsonKifuFormat, ParseError>;
+        // 4形式とも見る。1つでも抜くと、その形式の綴り手を取り違える変更が
+        // 素通りする（`.csa` に KIF を書いても気付けない）
         for (format, reparse) in [
             ("kif", parse_kif_str as Reparse),
             ("ki2", parse_ki2_str as Reparse),
+            ("csa", parse_csa_str as Reparse),
+            ("jkf", parse_jkf_str as Reparse),
         ] {
             let path = dir.join(format!("gote.{format}"));
             write_kifu_file_internal(&source, &path, format)
@@ -376,6 +388,11 @@ mod tests {
             assert_eq!(initial_color(&back), Some(Color::White), "{format} の手番");
             assert_eq!(back.moves.len(), moves, "{format} の指し手が落ちた");
         }
+
+        // 知らない形式は書かずに失敗する。書いてしまうと中身の無いファイルが残る
+        let path = dir.join("gote.xxx");
+        write_kifu_file_internal(&source, &path, "xxx").expect_err("未対応の形式は失敗すること");
+        assert!(!path.exists(), "失敗したのにファイルができている");
 
         std::fs::remove_dir_all(&dir).ok();
     }

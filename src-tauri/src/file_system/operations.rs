@@ -143,13 +143,10 @@ pub fn create_kifu_file<R: Runtime>(
         )
     })?;
 
-    // ファイル拡張子に応じて適切な形式に変換
     let content = convert_jkf_to_format(&jkf_data, &file_path)?;
 
-    // ファイル保存
     write_new_file(&file_path, &content)?;
 
-    // 保存したファイルのパスを返す
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -183,13 +180,10 @@ pub fn import_kifu_file<R: Runtime>(
 
     validate_under_root(&app, &file_path)?;
 
-    // ファイル拡張子に応じて適切な形式に変換
     let content = convert_jkf_to_format(&jkf_data, &file_path)?;
 
-    // ファイル保存
     write_new_file(&file_path, &content)?;
 
-    // 保存したファイルのパスを返す
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -203,7 +197,6 @@ pub fn save_kifu_file<R: Runtime>(
     let parent_path = PathBuf::from(&parent_dir);
     validate_under_root(&app, &parent_path)?;
 
-    // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
             FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
@@ -228,7 +221,6 @@ pub fn save_kifu_file<R: Runtime>(
     // ファイル保存（atomic write でクラッシュ時の半端な状態を避ける）
     atomic_write(&file_path, content.as_bytes()).map_err(FsError::from)?;
 
-    // 保存したファイルのパスを返す
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -241,7 +233,6 @@ pub fn create_directory<R: Runtime>(
     let parent_path = PathBuf::from(&parent_dir);
     validate_under_root(&app, &parent_path)?;
 
-    // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
             FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
@@ -257,7 +248,6 @@ pub fn create_directory<R: Runtime>(
 
     fs::create_dir(&new_dir_path).map_err(FsError::from)?;
 
-    // 作成したディレクトリのパスを返す
     Ok(new_dir_path.to_string_lossy().to_string())
 }
 
