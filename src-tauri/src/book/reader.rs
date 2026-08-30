@@ -52,17 +52,39 @@ pub(crate) struct OpenedBook {
 
 /// 形式ごとの、1バイトも読まずに落とす大きさの上限。
 ///
-/// **`match` で書くこと。** 形式を足すと枝が足りなくなってコンパイルが止まる。
-/// `if let` や `_ =>` にすると、新しい形式が既定値で素通りする。
+/// 読める形式の1件ぶん。
+struct Support {
+    /// 1バイトも読まずに落とす大きさの上限。`None` なら上限を掛けない
+    /// （on-the-fly で読む形式は、大きさそのものが問題にならない）。
+    max_file_bytes: Option<u64>,
+    /// 解決済みのパスと `metadata` の大きさから reader を作る。
+    open: fn(&Path, u64) -> Result<OpenedBook, BookError>,
+}
+
+/// 形式ごとの表。**読める形式の情報はここ1箇所にまとめる。**
 ///
-/// 値そのものと、その形式でなぜその値かは形式のモジュールに置く。ここは
-/// 「どの形式にも上限を決めさせる」ことだけを持つ。
-fn max_file_bytes(format: BookFormat) -> Option<u64> {
+/// 上限と reader を別々の `match` に分けてはいけない。どちらも網羅的なので
+/// コンパイラは何も言わないが、**reader を足して上限の枝を直し忘れると、
+/// 検査が黙って外れる**。1つにまとめておけば、`Support` を書いた時点で
+/// 上限を決めることになる。
+///
+/// `match` で書くこと。形式を足すと枝が足りなくなってコンパイルが止まる。
+/// `if let` や `_ =>` にすると、新しい形式が既定値で素通りする。
+fn support(format: BookFormat) -> Option<Support> {
     match format {
-        BookFormat::YaneuraouDb => Some(crate::book::yaneuraou_db::MAX_FILE_BYTES),
-        // reader がまだ無い形式。**大きさより先に `UnsupportedFormat` を返すのが
-        // 正しい**（縮めても開けないので、大きさを言われても利用者にできることが
-        // 無い）。reader を足すときに、この枝で上限を決めること。
+        BookFormat::YaneuraouDb => Some(Support {
+            max_file_bytes: Some(crate::book::yaneuraou_db::MAX_FILE_BYTES),
+            open: |path, size| {
+                let reader = crate::book::yaneuraou_db::load(path, size)?;
+                Ok(OpenedBook {
+                    path: path.to_path_buf(),
+                    format: BookFormat::YaneuraouDb,
+                    position_count: Some(reader.position_count()),
+                    reader: Box::new(reader),
+                })
+            },
+        }),
+        // reader をまだ持っていない。
         BookFormat::AperyBin | BookFormat::ShogiGuiSbk | BookFormat::YaneuraouYbb => None,
     }
 }
@@ -71,8 +93,8 @@ fn max_file_bytes(format: BookFormat) -> Option<u64> {
 ///
 /// **[`BookErrorCode::InvalidContent`] にしない。** 「壊れている」と読まれると
 /// 取得し直すという効かない復帰操作へ誘導する。ファイルは正しく、大きすぎるだけ。
-fn check_file_size(size: u64, format: BookFormat, path: &str) -> Result<(), BookError> {
-    let Some(limit) = max_file_bytes(format) else {
+fn check_file_size(size: u64, limit: Option<u64>, path: &str) -> Result<(), BookError> {
+    let Some(limit) = limit else {
         return Ok(());
     };
     if size <= limit {
@@ -126,34 +148,25 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         .with_path(path.to_string_lossy()));
     }
 
-    // **大きさの検査は形式の分岐より前。** ここに置けば、形式を足す人が
-    // 検査を書き忘れても素通りしない。`metadata` は既に取ってあるので、
-    // 1バイトも読まずに落とせる。
-    check_file_size(meta.len(), format, &path.to_string_lossy())?;
+    // **未対応が先、大きさが後。** 縮めても開けない形式に「大きすぎる」と
+    // 言われても、利用者にできることが無い。
+    let Some(support) = support(format) else {
+        return Err(BookError::new(
+            BookErrorCode::UnsupportedFormat,
+            format!(
+                "{}はまだ開けない。やねうら王テキスト定跡 (.db) なら開ける",
+                format.display_name()
+            ),
+        )
+        .with_path(path.to_string_lossy()));
+    };
 
-    // 読める形式が増えたら、ここに枝を足す。
+    // **中身を読む前に落とす。** `metadata` は既に取ってあるので、
+    // 1バイトも読まずに済む。
+    check_file_size(meta.len(), support.max_file_bytes, &path.to_string_lossy())?;
+
     // 数え上げも reader の生成もこの中（blocking プールの中）で終わらせること。
-    match format {
-        BookFormat::YaneuraouDb => {
-            let reader = crate::book::yaneuraou_db::load(path, meta.len())?;
-            Ok(OpenedBook {
-                path: path.to_path_buf(),
-                format,
-                position_count: Some(reader.position_count()),
-                reader: Box::new(reader),
-            })
-        }
-        BookFormat::AperyBin | BookFormat::ShogiGuiSbk | BookFormat::YaneuraouYbb => {
-            Err(BookError::new(
-                BookErrorCode::UnsupportedFormat,
-                format!(
-                    "{}はまだ開けない。やねうら王テキスト定跡 (.db) なら開ける",
-                    format.display_name()
-                ),
-            )
-            .with_path(path.to_string_lossy()))
-        }
-    }
+    (support.open)(path, meta.len())
 }
 
 #[cfg(test)]
@@ -161,10 +174,17 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    fn db_limit() -> u64 {
+        support(BookFormat::YaneuraouDb)
+            .expect("reader がある")
+            .max_file_bytes
+            .expect("上限がある")
+    }
+
     /// `OpenedBook` は Debug ではないので `unwrap_err` が使えない。
     fn open_err(path: &str) -> BookError {
         let Err(err) = open_reader(&PathBuf::from(path), BookFormat::YaneuraouDb) else {
-            panic!("reader を持たない形式なのに open に成功した: {path}");
+            panic!("失敗するはずのパスで開けてしまった: {path}");
         };
         err
     }
@@ -255,8 +275,8 @@ mod tests {
     /// 大きすぎるだけ。
     #[test]
     fn a_file_over_the_limit_is_refused() {
-        let limit = max_file_bytes(BookFormat::YaneuraouDb).expect("上限がある");
-        let Err(err) = check_file_size(limit + 1, BookFormat::YaneuraouDb, "/books/huge.db") else {
+        let limit = db_limit();
+        let Err(err) = check_file_size(limit + 1, Some(limit), "/books/huge.db") else {
             panic!("上限を超えたのに通してしまった");
         };
 
@@ -270,8 +290,8 @@ mod tests {
     /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
     #[test]
     fn a_file_at_the_limit_is_accepted() {
-        let limit = max_file_bytes(BookFormat::YaneuraouDb).expect("上限がある");
-        assert!(check_file_size(limit, BookFormat::YaneuraouDb, "/books/a.db").is_ok());
+        let limit = db_limit();
+        assert!(check_file_size(limit, Some(limit), "/books/a.db").is_ok());
     }
 
     /// **`open_reader` を実際に通して、1バイトも読まないことを見る。**
@@ -304,18 +324,52 @@ mod tests {
 
     /// **reader がまだ無い形式は、大きさより先に「対応していない」と言うこと。**
     /// 縮めても開けないので、大きさを言われても利用者にできることが無い。
-    /// 検査を形式の分岐より前へ出したときに、この順序が壊れやすい。
+    ///
+    /// **`open_reader` を通して見る。** `support` に問い合わせるだけの形だと、
+    /// その形式に reader を足した時点でテスト名だけが嘘になり、順序を守らない。
     #[test]
     fn an_unsupported_format_is_not_reported_as_too_large() {
-        let over = crate::book::yaneuraou_db::MAX_FILE_BYTES * 4;
+        let dir = crate::book::test_paths::scratch_dir("unsupported-over-sized");
+        let file = dir.join("huge.bin");
+        let handle = std::fs::File::create(&file).expect("テスト用のファイルを作れない");
+        handle
+            .set_len(crate::book::yaneuraou_db::MAX_FILE_BYTES * 4)
+            .expect("大きさを設定できない");
+        drop(handle);
+
+        let result = open_reader(&file, BookFormat::AperyBin);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let Err(err) = result else {
+            panic!("reader を持たない形式なのに開けてしまった");
+        };
+        assert_eq!(
+            err.code(),
+            BookErrorCode::UnsupportedFormat,
+            "{}",
+            err.message()
+        );
+    }
+
+    /// **reader を足すときに上限も決めること。** 上限と reader を別々の `match` に
+    /// 分けていると、reader を足して上限の枝を直し忘れた状態がコンパイルを通る。
+    #[test]
+    fn every_readable_format_has_a_size_limit() {
         for format in [
+            BookFormat::YaneuraouDb,
             BookFormat::AperyBin,
             BookFormat::ShogiGuiSbk,
             BookFormat::YaneuraouYbb,
         ] {
+            let Some(support) = support(format) else {
+                continue;
+            };
+            let limit = support
+                .max_file_bytes
+                .unwrap_or_else(|| panic!("{format:?} に上限が無い"));
             assert!(
-                check_file_size(over, format, "/books/a.bin").is_ok(),
-                "{format:?} が大きさで落ちている"
+                (100_000_000..100_000_000_000).contains(&limit),
+                "上限が現実的な範囲に無い: {format:?} {limit}"
             );
         }
     }
