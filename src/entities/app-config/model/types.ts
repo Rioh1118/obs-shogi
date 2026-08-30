@@ -29,6 +29,14 @@ export type ConfigAction =
    * `AppLoading` の分岐）がその後ずっと押せなくなる
    */
   | { type: "settled" }
+  /**
+   * **ランタイムから追い出す。** 設定の読み込みそのものが成立しないときだけ使う。
+   *
+   * `RequireRootDir` はこれを見て `/` へ飛ばすので、盤も棋譜も unmount される。
+   * 更新の失敗（保存できなかった、選び直せなかった）をここへ載せると、
+   * 呼び出し元が出そうとした失敗が画面に出る前に消える。更新の失敗は
+   * 戻り値で返し、`isLoading` は `settled` で降ろすこと → TODO(#249)
+   */
   | { type: "error"; payload: string };
 
 export type AppConfigContextType = ConfigState & {
