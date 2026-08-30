@@ -78,11 +78,12 @@
    **`forks.length` 以上なら `false` を返すのに、負や非整数は `forks[-1]` を掴んで
    内部で `TypeError`** になる。
 
-   捨てているのは `cursor.tesuu` より先を辿る2箇所だけ（`computeLeafTesuu` /
-   `buildStreamRowsFromCursor`）。**`cursor.tesuu` までを扱う `goto` と、
-   `PositionSearchContinuation` の走査は捨てていない**（`goto` は `forkAndForward` の
-   返り値すら見ない）。同じ検査が3箇所に書き写されている状態で、境界を
-   `goto` に渡す直前の1点に寄せるのが本筋。→ #213
+   計画に沿って `forkAndForward` する走査は5箇所ある（`computeLeafTesuu` /
+   `buildStreamRowsFromCursor` / `provider.tsx` の `nextMove` と `goToEnd` /
+   `PositionSearchContinuation`）。**そのうち壊れた値を捨てているのは前の2つだけ**で、
+   `cursor.tesuu` までを扱う `goto` も残り3つも捨てていない（`goto` は
+   `forkAndForward` の返り値すら見ない）。境界を `goto` に渡す直前の1点に
+   寄せるのが本筋。→ #213
 
 2. **要求した局面に着いたかは `tesuu` では判定できない。**
    `goto` は実在しない変化を黙って捨てて本譜を進むので、**要求した `tesuu` ちょうどで

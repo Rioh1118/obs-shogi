@@ -12,8 +12,8 @@ widget へ渡す口は brand 付きの `PlannedCursor`（`entities/kifu/model/cu
 `provider.tsx:73-78` は同じ組み立てを手書きで持っている（→ #247）。
 同じ取り違えから #226 と #196 が出ている。
 
-イベントを列でなく行に置いてあるのは、この表のイベントが15個あり列に並べると読めなくなるため。
-他の表（`app.md` / `engine.md`）とは向きが違う。
+イベントを列でなく行に置いてあるのは、この表はイベントが状態より一桁多く、
+列に並べると1行が読めない幅になるため。他の表（`app.md` / `engine.md`）とは向きが違う。
 
 ## 2つの値
 
@@ -67,61 +67,70 @@ widget へ渡す口は brand 付きの `PlannedCursor`（`entities/kifu/model/cu
 
 ## イベント
 
-| 記号 | イベント                        | 発生源                                                                           |
-| ---- | ------------------------------- | -------------------------------------------------------------------------------- |
-| E1   | `loadGame`                      | `GameFileTreeBridge`（ツリーで棋譜を開く）                                       |
-| E2   | `resetGame`                     | 棋譜を閉じる                                                                     |
-| E3   | `nextMove`                      | → キー / `GameControls`                                                          |
-| E4   | `previousMove`                  | ← キー / `GameControls`                                                          |
-| E5   | `goToStart`                     | `GameControls`                                                                   |
-| E6   | `goToEnd`                       | `GameControls`                                                                   |
-| E7   | `goToIndex(n)`                  | 棋譜ストリームの行クリック                                                       |
-| E8   | `applyCursor(c)`                | 局面ナビ / 検索ヒット / 分岐メニュー                                             |
-| E9   | 分岐メニューで「本譜」          | `KifuForkMenu`                                                                   |
-| E10  | 分岐メニューで「変化 k」        | `KifuForkMenu`                                                                   |
-| E11  | `makeMove`                      | 盤のクリック                                                                     |
-| E12  | `setCommentsByCursor`           | コメント欄                                                                       |
-| E13  | `swapBranches` / `deleteBranch` | 行メニュー                                                                       |
-| E14  | 保存の失敗                      | `persistence.save`（Rust の書き込み）                                            |
-| E15  | ワークスペース変更              | `GameFileTreeBridge` / `GamePersistenceGate`                                     |
-| E16  | 読み込みの失敗                  | 棋譜が壊れている（`provider.tsx:256`）                                           |
-| E17  | 編集の失敗                      | `applyMoveWithBranch` / `assertBranchIndex` の throw（`:233` / `:366` / `:403`） |
+| 記号    | イベント                        | 発生源                                                                           |
+| ------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| **E1**  | `loadGame`                      | `GameFileTreeBridge`（ツリーで棋譜を開く）                                       |
+| **E2**  | `resetGame`                     | 棋譜を閉じる                                                                     |
+| **E3**  | `nextMove`                      | → キー / `GameControls`                                                          |
+| **E4**  | `previousMove`                  | ← キー / `GameControls`                                                          |
+| **E5**  | `goToStart`                     | `GameControls`                                                                   |
+| **E6**  | `goToEnd`                       | `GameControls`                                                                   |
+| **E7**  | `goToIndex(n)`                  | 棋譜ストリームの行クリック                                                       |
+| **E8**  | `applyCursor(c)`                | 局面ナビ / 検索ヒット / 分岐メニュー                                             |
+| **E9**  | 分岐メニューで「本譜」          | `KifuForkMenu`                                                                   |
+| **E10** | 分岐メニューで「変化 k」        | `KifuForkMenu`                                                                   |
+| **E11** | `makeMove`                      | 盤のクリック                                                                     |
+| **E12** | `setCommentsByCursor`           | コメント欄                                                                       |
+| **E13** | `swapBranches` / `deleteBranch` | 行メニュー                                                                       |
+| **E14** | 保存の失敗                      | `persistence.save`（Rust の書き込み）                                            |
+| **E15** | ワークスペース変更              | `GameFileTreeBridge` / `GamePersistenceGate`                                     |
+| **E16** | 棋譜を載せられない              | パース済み JKF の複製・`JKFPlayer` 構築の失敗（`provider.tsx:256`）              |
+| **E17** | 編集の失敗                      | `applyMoveWithBranch` / `assertBranchIndex` の throw（`:233` / `:366` / `:403`） |
 
 `selectSquare` / `selectHand` の失敗（`:521` / `:552`）は `selectedPosition` の話で、
 この表が持つ `cursor` / `branchPlan` / `jkf` を動かさないので扱わない。
 `set_error` の9箇所はこの2つを引いた7つが E14 / E16 / E17 と E3〜E10 に対応する。
+
+**棋譜の読み取り失敗とパース失敗はこの表に来ない。** `GameFileTreeBridge` は
+`activeKifuPath` / `jkfData` / `kifuFormat` が揃ったときだけ `loadGame` を呼ぶので、
+パースできなかった棋譜は `loadGame` に届かない。それらは file-tree が `kifu_error` に
+落とし、`KifuReadErrorDialog` がモーダルで出す（**数少ない画面に出る失敗**）。
+→ [file-tree.md](file-tree.md) の E11 / S5。E16 はその先、パースできた JKF から
+`JKFPlayer` を組めなかった場合だけを指す。
 
 ## 表
 
 `—` はそのイベントがその状態で起きないか、状態が変わらないもの。
 `無視` は早期 return（`if (!state.jkf) return` / `if (!plannedCursor) return`）で抜けること。
 
-| イベント               | G0 未ロード    | G1 先の予定なし                                                      | G2 先の計画あり                                                                           | テスト |
-| ---------------------- | -------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------ |
-| E1 `loadGame`          | → G1           | → G1（前の計画は消える）                                             | → G1（同左）                                                                              | ✗      |
-| E2 `resetGame`         | —              | → G0                                                                 | → G0                                                                                      | ✗      |
-| E3 `nextMove`          | 無視           | いま辿っている線を1手進む                                            | `te = tesuu+1` の計画があればそこへ降りる。**線の末尾に計画が残っていると throw**（下記） | ✗      |
-| E4 `previousMove`      | 無視           | 1手戻る。**戻る前の `tesuu` に fork ポインタがあるときだけ G2 へ**   | 1手戻る。G2 のまま                                                                        | ✗      |
-| E5 `goToStart`         | 無視           | te 0 へ。**`cursor.forkPointers` が空でなければ G2 へ**              | te 0 へ。G2 のまま                                                                        | ✗      |
-| E6 `goToEnd`           | 無視           | いま辿っている線の葉まで                                             | 計画に沿って降りた葉 → G1。**末尾より先に計画が残っていると throw して1手も動かない**     | ✗      |
-| E7 `goToIndex(n)`      | 無視           | `n` までいま辿っている線を進む                                       | `te <= n` の計画に沿って降りる。`n < tesuu` なら G2 のまま                                | ✗      |
-| E8 `applyCursor(c)`    | 無視           | `c` の局面へ。`c` が `te > c.tesuu` を持てば → G2                    | `c.forkPointers` と旧計画の `te > c.tesuu` を**両方**残す                                 | ✗      |
-| E9 「本譜」            | 無視           | `te` に選択があれば `applyCursor` で落とす。無ければ `goToIndex(te)` | 同じ規則。計画に選択があるので `applyCursor` へ行き、本譜へ戻る                           | ✓      |
-| E10 「変化 k」         | 無視           | 選択済みを再度なら `goToIndex(te)`、別のものなら `applyCursor`       | 同じ規則                                                                                  | ✓      |
-| E11 `makeMove`         | 無視           | 手を足して1手進む                                                    | **先の計画が消える** → #226                                                               | ✗      |
-| E12 コメント保存       | 無視           | 局面は動かない（`forceCommit`）                                      | **先の計画が消える** → #226                                                               | ✗      |
-| E13 `swap` / `delete`  | 無視           | 棋譜が変わり、カーソルは `res.nextCursor` 由来へ                     | **先の計画が消える。** 消えて正しいのは消した枝を指す分だけ                               | ✗      |
-| E14 保存の失敗         | —              | P2 へ。`error` に載るが**画面には出ない**                            | 同左                                                                                      | ✗      |
-| E15 ワークスペース変更 | —              | **この表でも追えていない** → #245                                    | 同左                                                                                      | ✗      |
-| E16 読み込みの失敗     | 棋譜が載らない | 前の棋譜がそのまま残り、`error` だけ載る（読み手0）                  | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                | ✗      |
-| E17 編集の失敗         | 無視           | 棋譜も計画も変わらず `error` だけ載る（読み手0）                     | 同左                                                                                      | ✗      |
+| イベント                   | G0 未ロード    | G1 先の予定なし                                                      | G2 先の計画あり                                                                         | テスト |
+| -------------------------- | -------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------ |
+| **E1** `loadGame`          | → G1           | → G1（前の計画は消える）                                             | → G1（同左）                                                                            | ✗      |
+| **E2** `resetGame`         | —              | → G0                                                                 | → G0                                                                                    | ✗      |
+| **E3** `nextMove`          | 無視           | いま辿っている線を1手進む                                            | `te = tesuu+1` の計画があればそこへ降りる。**線の末尾に計画が残っていると throw**※1     | ✗      |
+| **E4** `previousMove`      | 無視           | 1手戻る。**戻る前の `tesuu` に fork ポインタがあるときだけ G2 へ**   | 1手戻る。G2 のまま                                                                      | ✗      |
+| **E5** `goToStart`         | 無視           | te 0 へ。**`cursor.forkPointers` が空でなければ G2 へ**              | te 0 へ。G2 のまま                                                                      | ✗      |
+| **E6** `goToEnd`           | 無視           | いま辿っている線の葉まで                                             | 計画に沿って降りた葉 → G1。**末尾より先に計画が残っていると throw して1手も動かない**※1 | ✗      |
+| **E7** `goToIndex(n)`      | 無視           | `n` までいま辿っている線を進む                                       | `te <= n` の計画に沿って降りる。`n < tesuu` なら G2 のまま                              | ✗      |
+| **E8** `applyCursor(c)`    | 無視           | `c` の局面へ。`c` が `te > c.tesuu` を持てば → G2                    | `c.forkPointers` と旧計画の `te > c.tesuu` を**両方**残す                               | ✗      |
+| **E9** 「本譜」            | 無視           | `te` に選択があれば `applyCursor` で落とす。無ければ `goToIndex(te)` | 同じ規則。計画に選択があるので `applyCursor` へ行き、本譜へ戻る※2                       | ✓      |
+| **E10** 「変化 k」         | 無視           | 選択済みを再度なら `goToIndex(te)`、別のものなら `applyCursor`       | 同じ規則※2                                                                              | ✓      |
+| **E11** `makeMove`         | 無視           | 手を足して1手進む                                                    | **先の計画が消える** → #226                                                             | ✗      |
+| **E12** コメント保存       | 無視           | 局面は動かない（`forceCommit`）                                      | **先の計画が消える** → #226                                                             | ✗      |
+| **E13** `swap` / `delete`  | 無視           | 棋譜が変わり、カーソルは `res.nextCursor` 由来へ                     | **先の計画が消える。** 消えて正しいのは消した枝を指す分だけ                             | ✗      |
+| **E14** 保存の失敗         | —              | P2 へ。`error` に載るが**画面には出ない**                            | 同左                                                                                    | ✗      |
+| **E15** ワークスペース変更 | —              | 取得が成功すれば E2 と同じ。失敗したときの窓は未検証 → #245          | 同左                                                                                    | ✗      |
+| **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残り、`error` だけ載る（読み手0）                  | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                              | ✗      |
+| **E17** 編集の失敗         | 無視           | 棋譜も計画も変わらず `error` だけ載る（読み手0）                     | 同左                                                                                    | ✗      |
 
-E3 / E6 の throw は `forkAndForward` の入口。`getMoveFormat(tesuu + 1)` が無いと
+### 注
+
+※1 throw は `forkAndForward` の入口。`getMoveFormat(tesuu + 1)` が無いと
 `「N手目に有効な棋譜がありません」` を投げる。「te=12 の変化を計画 → その枝を
 `deleteBranch` で消す → `goToEnd`」で踏める。`navigate` の `catch` が `set_error` に
 落とすが読み手が0なので、**盤が1手も動かず画面には何も出ない**。
 
-E9 / E10 は `resolveForkSelection` が振り分ける。比較先は行のチェックを描いたのと
+※2 振り分けるのは `resolveForkSelection`。比較先は行のチェックを描いたのと
 同じ `PlannedCursor` で、`KifuCursor` は型で弾く。
 
 ## ディスクを組で見る
@@ -137,7 +146,12 @@ E9 / E10 は `resolveForkSelection` が振り分ける。比較先は行のチ�
 
 E2 は `GameFileTreeBridge.tsx:11-15` が `activeKifuPath` / `jkfData` / `kifuFormat` の
 どれかを失った瞬間に `resetGame()` を呼ぶ経路。`reset_state` は保存を挟まない。
-E15（ワークスペース変更）も `activeKifuPath` が落ちるので P 側の帰結は E2 と同じ。
+
+E15（ワークスペース変更）で `activeKifuPath` が落ちるのは、新しいツリーの取得が成功し、
+その中に旧パスが見つからなかったときだけ（`file-tree/model/provider.tsx:134-140`）。
+**取得に失敗すると `kifu_closed` が来ないので、`activeKifuPath` も `persistence` も
+旧ワークスペースを指したまま残る。** その状態で編集すると、新しいワークスペースを
+開いているつもりで旧ワークスペースのファイルに書き込む。→ #245
 
 P2 は state の中に印が無い。`error` は7箇所で消える（`clear_error` を撃つ
 `provider.tsx:164` / `207` / `243` / `343` / `380` / `609` と、明示的な `clearError`
@@ -222,8 +236,8 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 | セル                                                   | 状態                                                                                                                                                                                               |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GameProvider` 自体の遷移すべて                        | **テスト無し。** `provider.tsx` にテストが1本も無い。上の表で ✗ を付けたものは全部これ                                                                                                             |
-| E9 / E10 分岐メニュー                                  | ✓ `cursorSelection.test.ts`。ただし `resolveForkSelection` の**振り分けまで**。`applyCursor` / `goToIndex` を通した結果は未検証                                                                    |
-| E15 ワークスペース変更                                 | **追えていない → #245。** `app.md` の ※2 がここへ投げた宿題だが、`GamePersistenceGate` / `GameFileTreeBridge` を読んでいない                                                                       |
+| **E9** / E10 分岐メニュー                              | ✓ `cursorSelection.test.ts`。ただし `resolveForkSelection` の**振り分けまで**。`applyCursor` / `goToIndex` を通した結果は未検証                                                                    |
+| **E15** でツリーの取得が失敗したとき                   | **未検証 → #245。** `kifu_closed` が来ないので旧ワークスペースの `activeKifuPath` と `persistence` が残る。読み込み中の窓も見ていない                                                              |
 | `(G2, P2)` で `loadGame`                               | **テスト無し。** 未保存の編集と先の計画が同時に消える。手で再現していない                                                                                                                          |
 | `(G1/P2, E2)` 保存に失敗したまま棋譜を閉じる           | **テスト無し。** 編集が永久に消える。`resetGame` は保存を挟まないので復帰の手段が無い                                                                                                              |
 | 線を乗り換えたとき、深い計画をどうするか               | **判断が決まっていない。** `buildCursorWithForkSelection` は `te` 以降を落とすが `mergeBranchPlan` が復活させる。乗り換え先に無い変化を指したまま残り、`computeLeafTesuu` が見たことのない葉を返す |
