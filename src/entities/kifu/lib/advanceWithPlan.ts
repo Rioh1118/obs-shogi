@@ -2,22 +2,25 @@ import type { JKFPlayer } from "json-kifu-format";
 import type { ForkPointer } from "../model/cursor";
 
 /**
- * 計画を手数で引ける形にしたもの
+ * 計画を手数で引ける形にしたもの（`te` → `forkIndex`）
  *
  * 1手進めるたびに `ForkPointer[]` を線形に探すと、末尾まで歩く側が
  * 計画の長さぶん余計に走る。歩き始める前に1度だけ組む。
+ *
+ * `Index` を名前に使わないのは、このリポジトリで `BranchIndex` / `forkIndex` が
+ * 「配列の添字」を指すため。こちらは添字ではなく引き当ての表。
  */
-export type PlanIndex = ReadonlyMap<number, number>;
+export type PlanByTe = ReadonlyMap<number, number>;
 
-/** `ForkPointer[]` を `PlanIndex` にする。同じ te が重なれば後勝ち。 */
-export function indexPlan(forkPointers: readonly ForkPointer[] | undefined): PlanIndex {
-  const index = new Map<number, number>();
-  for (const p of forkPointers ?? []) index.set(p.te, p.forkIndex);
-  return index;
+/** `ForkPointer[]` を `PlanByTe` にする。同じ te が重なれば後勝ち。 */
+export function planByTe(forkPointers: readonly ForkPointer[] | undefined): PlanByTe {
+  const byTe = new Map<number, number>();
+  for (const p of forkPointers ?? []) byTe.set(p.te, p.forkIndex);
+  return byTe;
 }
 
 /** `advanceWithPlan` が1手ぶん進めた結果 */
-export type PlanStep = {
+export type AdvanceResult = {
   /** 進んだか。`false` なら player は動いていない（葉に着いた） */
   moved: boolean;
   /**
@@ -29,7 +32,7 @@ export type PlanStep = {
   forkIndex: number | null;
 };
 
-const NOT_MOVED: PlanStep = { moved: false, forkIndex: null };
+const NOT_MOVED: AdvanceResult = { moved: false, forkIndex: null };
 
 /**
  * 計画に沿って1手進める
@@ -50,7 +53,7 @@ const NOT_MOVED: PlanStep = { moved: false, forkIndex: null };
  * @throws {Error} 盤上で再生できない手に当たったとき（`JKFPlayer.forward` が投げる）。
  *   レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）
  */
-export function advanceWithPlan(player: JKFPlayer, plan: PlanIndex): PlanStep {
+export function advanceWithPlan(player: JKFPlayer, plan: PlanByTe): AdvanceResult {
   const te = player.tesuu + 1;
   if (!player.currentStream[te]) return NOT_MOVED;
 
@@ -75,7 +78,7 @@ export const PLAN_WALK_LIMIT = 10000;
  * @throws {Error} `PLAN_WALK_LIMIT` 手進んでも葉に着かないとき
  * @throws {Error} 盤上で再生できない手に当たったとき（`advanceWithPlan` が投げる）
  */
-export function advanceToLeafWithPlan(player: JKFPlayer, plan: PlanIndex): void {
+export function advanceToLeafWithPlan(player: JKFPlayer, plan: PlanByTe): void {
   for (let steps = 0; steps <= PLAN_WALK_LIMIT; steps += 1) {
     if (!advanceWithPlan(player, plan).moved) return;
   }

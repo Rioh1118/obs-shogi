@@ -4,7 +4,7 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import {
   advanceToLeafWithPlan,
   advanceWithPlan,
-  indexPlan,
+  planByTe,
   PLAN_WALK_LIMIT,
 } from "../advanceWithPlan";
 
@@ -33,19 +33,19 @@ const playerAt = (tesuu: number) => {
 describe("advanceWithPlan", () => {
   test("計画が無ければ本譜を1手進む", () => {
     const player = playerAt(1);
-    expect(advanceWithPlan(player, indexPlan([]))).toEqual({ moved: true, forkIndex: null });
+    expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: true, forkIndex: null });
     expect(player.tesuu).toBe(2);
   });
 
   test("計画どおり変化に降りると、降りた forkIndex を返す", () => {
     const player = playerAt(1);
-    expect(advanceWithPlan(player, indexPlan([{ te: 2, forkIndex: 0 }]))).toEqual({
+    expect(advanceWithPlan(player, planByTe([{ te: 2, forkIndex: 0 }]))).toEqual({
       moved: true,
       forkIndex: 0,
     });
     expect(player.tesuu).toBe(2);
     // 変化は1手で終わるので、本譜（3手）と葉の位置が違う
-    expect(advanceWithPlan(player, indexPlan([]))).toEqual({ moved: false, forkIndex: null });
+    expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: false, forkIndex: null });
   });
 
   test("計画が実在しない変化を指せば本譜へ落ち、forkIndex は null", () => {
@@ -53,7 +53,7 @@ describe("advanceWithPlan", () => {
     // forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
     for (const forkIndex of [5, -1, 0.5, NaN]) {
       const player = playerAt(1);
-      expect(advanceWithPlan(player, indexPlan([{ te: 2, forkIndex }]))).toEqual({
+      expect(advanceWithPlan(player, planByTe([{ te: 2, forkIndex }]))).toEqual({
         moved: true,
         forkIndex: null,
       });
@@ -66,8 +66,8 @@ describe("advanceWithPlan", () => {
   test("線の末尾より先に計画が残っていても throw しない", () => {
     // 手が無いのに forkAndForward を呼ぶと「N手目に有効な棋譜がありません」を投げる。
     const player = playerAt(3);
-    expect(() => advanceWithPlan(player, indexPlan([{ te: 4, forkIndex: 0 }]))).not.toThrow();
-    expect(advanceWithPlan(playerAt(3), indexPlan([{ te: 4, forkIndex: 0 }]))).toEqual({
+    expect(() => advanceWithPlan(player, planByTe([{ te: 4, forkIndex: 0 }]))).not.toThrow();
+    expect(advanceWithPlan(playerAt(3), planByTe([{ te: 4, forkIndex: 0 }]))).toEqual({
       moved: false,
       forkIndex: null,
     });
@@ -75,35 +75,35 @@ describe("advanceWithPlan", () => {
 
   test("葉では進まない", () => {
     const player = playerAt(3);
-    expect(advanceWithPlan(player, indexPlan([]))).toEqual({ moved: false, forkIndex: null });
+    expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: false, forkIndex: null });
     expect(player.tesuu).toBe(3);
   });
 });
 
-describe("indexPlan", () => {
+describe("planByTe", () => {
   test("同じ te が重なれば後勝ち", () => {
-    const index = indexPlan([
+    const byTe = planByTe([
       { te: 2, forkIndex: 0 },
       { te: 2, forkIndex: 1 },
     ]);
-    expect(index.get(2)).toBe(1);
+    expect(byTe.get(2)).toBe(1);
   });
 
-  test("undefined は空の索引", () => {
-    expect(indexPlan(undefined).size).toBe(0);
+  test("undefined は空の表", () => {
+    expect(planByTe(undefined).size).toBe(0);
   });
 });
 
 describe("advanceToLeafWithPlan", () => {
   test("計画が無ければ本譜の末尾まで", () => {
     const player = playerAt(0);
-    advanceToLeafWithPlan(player, indexPlan([]));
+    advanceToLeafWithPlan(player, planByTe([]));
     expect(player.tesuu).toBe(3);
   });
 
   test("計画どおり降りた変化の末尾まで", () => {
     const player = playerAt(0);
-    advanceToLeafWithPlan(player, indexPlan([{ te: 2, forkIndex: 0 }]));
+    advanceToLeafWithPlan(player, planByTe([{ te: 2, forkIndex: 0 }]));
     expect(player.tesuu).toBe(2);
   });
 
@@ -117,12 +117,12 @@ describe("advanceToLeafWithPlan", () => {
   // 投げると、computeLeafTesuu の手数表示と goto の到達点が食い違う。
   test("上限ちょうどの線は葉まで進める", () => {
     const player = lineOf(PLAN_WALK_LIMIT);
-    expect(() => advanceToLeafWithPlan(player, indexPlan([]))).not.toThrow();
+    expect(() => advanceToLeafWithPlan(player, planByTe([]))).not.toThrow();
     expect(player.tesuu).toBe(PLAN_WALK_LIMIT);
   });
 
   test("上限を超える線では throw する", () => {
-    expect(() => advanceToLeafWithPlan(lineOf(PLAN_WALK_LIMIT + 1), indexPlan([]))).toThrow(
+    expect(() => advanceToLeafWithPlan(lineOf(PLAN_WALK_LIMIT + 1), planByTe([]))).toThrow(
       /overflows/,
     );
   });

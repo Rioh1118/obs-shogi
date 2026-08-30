@@ -1,4 +1,4 @@
-import { advanceWithPlan, indexPlan } from "@/entities/kifu/lib/advanceWithPlan";
+import { advanceWithPlan, planByTe } from "@/entities/kifu/lib/advanceWithPlan";
 import type { PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
@@ -19,7 +19,7 @@ export function buildStreamRowsFromCursor(
   player: JKFPlayer,
   cursor: PlannedCursor | null,
 ): RowModel[] {
-  const plan = indexPlan(cursor?.forkPointers);
+  const plan = planByTe(cursor?.forkPointers);
 
   const rows: RowModel[] = [];
   const currentTesuu = cursor?.tesuu ?? 0;

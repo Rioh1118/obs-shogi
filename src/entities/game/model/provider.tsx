@@ -30,7 +30,7 @@ import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import {
   advanceToLeafWithPlan,
   advanceWithPlan,
-  indexPlan,
+  planByTe,
 } from "@/entities/kifu/lib/advanceWithPlan";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
@@ -281,7 +281,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const nextMove = useCallback(() => {
     navigate((player, branchPlan) => {
-      return advanceWithPlan(player, indexPlan(branchPlan)).moved;
+      return advanceWithPlan(player, planByTe(branchPlan)).moved;
     }, "Failed to move forward");
   }, [navigate]);
 
@@ -301,7 +301,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const goToEnd = useCallback(() => {
     navigate((player, branchPlan) => {
       const startTesuu = player.tesuu;
-      advanceToLeafWithPlan(player, indexPlan(branchPlan));
+      advanceToLeafWithPlan(player, planByTe(branchPlan));
       if (player.tesuu === startTesuu) return false;
     }, "Failed to go to end");
   }, [navigate]);

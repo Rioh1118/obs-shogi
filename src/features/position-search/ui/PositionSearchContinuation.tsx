@@ -3,7 +3,7 @@ import "./PositionSearchContinuation.scss";
 
 import type { PositionHit } from "@/entities/search";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
-import { advanceWithPlan, indexPlan } from "@/entities/kifu/lib/advanceWithPlan";
+import { advanceWithPlan, planByTe } from "@/entities/kifu/lib/advanceWithPlan";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
@@ -102,7 +102,7 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
         const cursor = cursorFromLite(activeHit.cursor);
         const player = buildPlayer(data, cursor);
 
-        const plan = indexPlan(cursor.forkPointers);
+        const plan = planByTe(cursor.forkPointers);
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {

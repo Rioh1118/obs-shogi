@@ -1,6 +1,6 @@
 import type { JKFData } from "../model/jkf";
 import type { PlannedCursor } from "../model/cursor";
-import { advanceToLeafWithPlan, indexPlan } from "./advanceWithPlan";
+import { advanceToLeafWithPlan, planByTe } from "./advanceWithPlan";
 import { buildPlayer } from "./buildPlayer";
 
 /**
@@ -18,6 +18,6 @@ import { buildPlayer } from "./buildPlayer";
  */
 export function computeLeafTesuu(jkf: JKFData, cursor: PlannedCursor | null): number {
   const sim = buildPlayer(jkf, cursor);
-  advanceToLeafWithPlan(sim, indexPlan(cursor?.forkPointers));
+  advanceToLeafWithPlan(sim, planByTe(cursor?.forkPointers));
   return sim.tesuu;
 }
