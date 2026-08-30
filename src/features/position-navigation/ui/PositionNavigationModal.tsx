@@ -7,7 +7,7 @@ import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
 import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
-import { truncatePlanFrom, upsertForkPointer } from "@/entities/kifu/lib/branchPlanEdit";
+import { truncatePlanFrom, upsertForkPointer } from "@/entities/kifu/lib/branchPlan";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";

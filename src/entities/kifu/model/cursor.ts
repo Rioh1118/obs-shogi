@@ -149,6 +149,12 @@ export function normalizeForkPointers(forkPointers: ForkPointer[], tesuu?: numbe
   return unique;
 }
 
+/** 同じ選択の並びか。`normalizeForkPointers` を通した値どうしで比べること。 */
+export function sameForkPointers(a: ForkPointer[], b: ForkPointer[]) {
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => x.te === b[i]?.te && x.forkIndex === b[i]?.forkIndex);
+}
+
 /**
  * JKFPlayer から cursor を生成するための最小インタフェース。
  * （types 層が JKFPlayer クラスに直接依存しないための抽象）

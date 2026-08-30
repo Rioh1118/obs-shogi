@@ -1,26 +1,10 @@
-import type { JKFPlayer } from "json-kifu-format";
 import {
   asBranchPlan,
-  cursorFromSource,
   normalizeForkPointers,
   type BranchPlan,
   type ForkPointer,
   type KifuCursor,
 } from "../model/cursor";
-
-/**
- * 再生し終えた player から `KifuCursor` を作る。
- *
- * `model/cursor.ts` の `cursorFromSource` に `JKFPlayer` を差す口。型の側が
- * `JKFPlayer` クラスに依存しないよう、具体の依存はこちらに寄せてある。
- */
-export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
-  return cursorFromSource({
-    tesuu: player.tesuu,
-    getForkPointers: (tesuu?: number) => player.getForkPointers(tesuu),
-    getTesuuPointer: (tesuu?: number) => player.getTesuuPointer(tesuu),
-  });
-}
 
 /**
  * 辿ったカーソルと、カーソルより先の計画を合成する。
@@ -44,7 +28,28 @@ export function mergeBranchPlan(
   );
 }
 
-export function sameForkPointers(a: ForkPointer[], b: ForkPointer[]) {
-  if (a.length !== b.length) return false;
-  return a.every((x, i) => x.te === b[i]?.te && x.forkIndex === b[i]?.forkIndex);
+/**
+ * te の選択を計画に書き込む（同じ te があれば上書き）
+ *
+ * 返りは te 昇順。並びが崩れると `buildTesuuPointer` が同じ計画を別のキーにする。
+ */
+export function upsertForkPointer(
+  fps: ForkPointer[],
+  te: number,
+  forkIndex: number,
+): ForkPointer[] {
+  const map = new Map<number, ForkPointer>();
+  for (const p of fps) map.set(p.te, p);
+  map.set(te, { te, forkIndex });
+  return [...map.values()].sort((a, b) => a.te - b.te);
+}
+
+/**
+ * te 以降の計画を捨てる
+ *
+ * te の選択を変えたら、その先の計画は別の枝に対して作られた値なので意味を失う。
+ * 残すと、利用者が一度も見ていない変化に盤が入る。
+ */
+export function truncatePlanFrom(fps: ForkPointer[], te: number): ForkPointer[] {
+  return fps.filter((p) => p.te < te);
 }

@@ -21,6 +21,7 @@ import {
   asBranchPlan,
   normalizeForkPointers,
   plannedCursorFrom,
+  sameForkPointers,
   type ForkPointer,
   type CursorPath,
   type KifuCursor,
@@ -38,11 +39,8 @@ import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/bran
 import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
-import {
-  cursorFromPlayer,
-  mergeBranchPlan,
-  sameForkPointers,
-} from "@/entities/kifu/lib/cursorRuntime";
+import { cursorFromPlayer } from "@/entities/kifu/lib/playerCursor";
+import { mergeBranchPlan } from "@/entities/kifu/lib/branchPlan";
 import {
   setCommentsByCursorInJkf,
   getCommentsByCursor as getCommentsByCursorFromJkf,
