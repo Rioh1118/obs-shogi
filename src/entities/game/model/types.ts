@@ -81,6 +81,14 @@ export type GameAction =
       };
     }
   | {
+      type: "jkf_restored";
+      payload: {
+        jkf: JKFData | null;
+        cursor: KifuCursor | null;
+        branchPlan: BranchPlan;
+      };
+    }
+  | {
       type: "set_selection";
       payload: SelectedPosition | null;
     }

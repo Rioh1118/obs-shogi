@@ -45,6 +45,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   }, [cursor, getCommentsByCursor]);
 
   const editorKey = editorKeyFor(cursor, absPath);
+  const dirty = draft !== baseText;
 
   // **開いた面が変わったときだけ取り込む。**
   //
@@ -59,7 +60,12 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   const loadedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!open) {
-      loadedKeyRef.current = null;
+      // **下書きや失敗を抱えたまま閉じたときは、鍵を忘れない。**
+      // 忘れると、開き直したときに「同じ面だから取り込まない」が効かず、
+      // メモリの棋譜から `baseText` を入れ直して `dirty` を落としてしまう。
+      // ノートは `KifuStreamList` が `setOpenComment(null)` を直に呼ぶ経路でも
+      // 閉じる（分岐メニュー・手のメニューを開いたとき）ので、この窓は実在する。
+      if (!dirty && !saveError) loadedKeyRef.current = null;
       return;
     }
     if (loadedKeyRef.current === editorKey) return;
@@ -68,9 +74,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     setDraft(sourceText);
     setBaseText(sourceText);
     setSaveError(null);
-  }, [open, editorKey, sourceText]);
-
-  const dirty = draft !== baseText;
+  }, [open, editorKey, sourceText, dirty, saveError]);
 
   // 自動保存は 900ms 後に走るので、撃った時点の closure を読むと古い値で保存する。
   // 棋譜の識別子も一緒に持つ（保存の直前に突き合わせる）。

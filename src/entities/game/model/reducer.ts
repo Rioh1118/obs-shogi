@@ -35,6 +35,25 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         error: null,
       };
 
+    // 書き込みに失敗したときに、置き換える前の棋譜へ戻す。
+    //
+    // ADR-0004 決定7 の楽観的更新は「先に変えて、**失敗したら戻す**」。
+    // 戻さないと、メモリとディスクが食い違ったまま次の操作が積み上がる。
+    // 分岐の削除では、候補列が1つ減った状態に同じ添字で再試行が当たって
+    // **別の枝が消える**。コメントでは、同じ本文の再試行が `changed: false` に
+    // なって書き込みを飛ばし、「保存済み」だけが出る。
+    //
+    // `error` は消さない。戻したことと、戻した理由は別々に伝わる必要がある。
+    case "jkf_restored":
+      return {
+        ...state,
+        jkf: action.payload.jkf,
+        cursor: action.payload.cursor,
+        branchPlan: action.payload.branchPlan,
+        selectedPosition: null,
+        isLoading: false,
+      };
+
     case "set_selection":
       return {
         ...state,

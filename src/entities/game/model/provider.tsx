@@ -244,6 +244,12 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return Ok(undefined);
         }
 
+        const before = {
+          jkf: state.jkf,
+          cursor: state.cursor,
+          branchPlan: state.branchPlan,
+        };
+
         dispatch({
           type: "jkf_replaced",
           payload: {
@@ -253,7 +259,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           },
         });
 
-        return await persistIfPossible(nextJkf);
+        const saved = await persistIfPossible(nextJkf);
+        if (!saved.success) dispatch({ type: "jkf_restored", payload: before });
+        return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : errorMessage;
         dispatch({ type: "set_error", payload: msg });
@@ -262,7 +270,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_loading", payload: false });
       }
     },
-    [state.jkf, state.cursor, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const loadGame = useCallback(async (jkf: JKFData, absPath: string | null) => {
@@ -378,6 +386,12 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         const rebuilt = buildPlayer(nextJkf, baseCursor);
         const nextCursor = cursorFromPlayer(rebuilt);
 
+        const before = {
+          jkf: state.jkf,
+          cursor: state.cursor,
+          branchPlan: state.branchPlan,
+        };
+
         dispatch({
           type: "jkf_replaced",
           payload: {
@@ -387,7 +401,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           },
         });
 
-        return await persistIfPossible(nextJkf);
+        const saved = await persistIfPossible(nextJkf);
+        if (!saved.success) dispatch({ type: "jkf_restored", payload: before });
+        return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to swap branches";
         dispatch({ type: "set_error", payload: msg });
@@ -396,7 +412,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_loading", payload: false });
       }
     },
-    [state.jkf, state.cursor, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const deleteBranch = useCallback(
@@ -416,6 +432,12 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         const rebuilt = buildPlayer(nextJkf, baseCursor);
         const nextCursor = cursorFromPlayer(rebuilt);
 
+        const before = {
+          jkf: state.jkf,
+          cursor: state.cursor,
+          branchPlan: state.branchPlan,
+        };
+
         dispatch({
           type: "jkf_replaced",
           payload: {
@@ -425,7 +447,9 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           },
         });
 
-        return await persistIfPossible(nextJkf);
+        const saved = await persistIfPossible(nextJkf);
+        if (!saved.success) dispatch({ type: "jkf_restored", payload: before });
+        return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete branch";
         dispatch({ type: "set_error", payload: msg });
@@ -434,7 +458,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_loading", payload: false });
       }
     },
-    [state.jkf, state.cursor, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const getCommentsByCursor = useCallback(
