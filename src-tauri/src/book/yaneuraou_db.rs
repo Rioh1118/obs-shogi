@@ -75,12 +75,18 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
 /// そのキーは引かれることが無いので、「定跡に載っていない」と区別が付かない。
 /// `read_line` は不正な UTF-8 に `InvalidData` を返すので、それを利用者向けの
 /// 文面へ言い直す。
+/// 返り値は「読めたか」と「その行が改行で終わっていたか」。
+///
+/// 後者は途中で切れたファイルを見つけるために要る。**実物の定跡に `# NOE:` は
+/// 無い**（配布されている `user_book1.db` で確認）ので、申告値との突き合わせは
+/// 唯一の大定跡では一度も走らない。任意のバイト位置で切れたファイルは、
+/// 行長 22 バイト前後のこの形式ではほぼ確実に行の途中で終わる。
 fn read_line<R: BufRead>(
     reader: &mut R,
     buffer: &mut String,
     first: bool,
     path: &str,
-) -> Result<bool, BookError> {
+) -> Result<Option<bool>, BookError> {
     buffer.clear();
     let read = reader.read_line(buffer).map_err(|e| {
         if e.kind() == std::io::ErrorKind::InvalidData {
@@ -95,8 +101,10 @@ fn read_line<R: BufRead>(
     })?;
 
     if read == 0 {
-        return Ok(false);
+        return Ok(None);
     }
+
+    let terminated = buffer.ends_with('\n');
 
     // BOM 付きで配られている定跡がある。落とさないとヘッダの検査が必ず外れる。
     if first {
@@ -108,7 +116,7 @@ fn read_line<R: BufRead>(
     while buffer.ends_with('\n') || buffer.ends_with('\r') {
         buffer.pop();
     }
-    Ok(true)
+    Ok(Some(terminated))
 }
 
 /// 失敗に行番号を前置する。
@@ -216,11 +224,13 @@ fn parse_limited<R: BufRead>(
     let mut index = 0usize;
     let mut header: Option<usize> = None;
     let mut declared: Option<u64> = None;
+    let mut last_line_terminated = true;
 
     // 見出しより前にも注記は書ける。本家は `#` と `//` を位置に関係なく
     // 読み飛ばす（`book.cpp:709-716`）ので、先頭の1行のせいで定跡を拒否しない。
-    while read_line(&mut reader, &mut buffer, index == 0, path)? {
+    while let Some(terminated) = read_line(&mut reader, &mut buffer, index == 0, path)? {
         index += 1;
+        last_line_terminated = terminated;
         let line = buffer.trim();
         if line.is_empty() {
             continue;
@@ -264,8 +274,9 @@ fn parse_limited<R: BufRead>(
     let mut sfen_lines: u64 = 0;
     let mut total_moves: usize = 0;
 
-    while read_line(&mut reader, &mut buffer, false, path)? {
+    while let Some(terminated) = read_line(&mut reader, &mut buffer, false, path)? {
         index += 1;
+        last_line_terminated = terminated;
         let line = buffer.trim();
         if is_skippable(line) {
             if let Some(count) = declared_count(line) {
@@ -351,8 +362,23 @@ fn parse_limited<R: BufRead>(
                 path,
             ));
         }
-    } else if positions.is_empty() {
-        // 申告が無い定跡もあるので、そのときの保険。局面が1つも無い定跡は成立しない。
+    }
+
+    // **実物の定跡に `# NOE:` は無い**ので、上の突き合わせは唯一の大定跡では
+    // 走らない。切れたファイルは最終行が改行で終わらないので、そちらでも見る。
+    // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わり、それまでは
+    // 52万局面が読めて「小さい定跡」に見えていた。
+    if !last_line_terminated {
+        return Err(invalid_content(
+            "定跡ファイルが改行で終わっていない。ダウンロードが途中で切れたか、\
+             最後の行が書きかけになっている。取得し直すか、末尾に改行を足すこと",
+            path,
+        ));
+    }
+
+    // **申告の有無に関係なく効かせる。** 申告の側にぶら下げると、`# NOE:0` と
+    // 書いた 31 バイトのファイルが「0局面の定跡」として成功する。
+    if positions.is_empty() {
         return Err(invalid_content(
             "定跡ファイルに局面が1つも書かれていない。途中で切れているかもしれない。\
              取得し直すか、別の定跡を開くこと",
@@ -949,6 +975,37 @@ mod tests {
     const REAL_BOOK_MOVES: usize = 11_250_000; // 2,252,118 局面 × 約5手
     const _: () = assert!(REAL_BOOK_BYTES * 2 < MAX_FILE_BYTES);
     const _: () = assert!(REAL_BOOK_MOVES < MAX_MOVES);
+
+    /// **実物の定跡に `# NOE:` は無い**（配布されている `user_book1.db` で確認）。
+    /// 申告値との突き合わせは唯一の大定跡では一度も走らないので、切れたファイルを
+    /// 別の手でも見る。任意のバイト位置で切れたファイルは、行長 22 バイト前後の
+    /// この形式ではほぼ確実に行の途中で終わる。
+    #[test]
+    fn a_file_cut_mid_line_is_rejected_even_without_a_declared_count() {
+        // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わっていた
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n7b7a+ n");
+        let err = parsed(&text).unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(err.message().contains("改行"), "{}", err.message());
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 改行で終わっていれば通る。切れの検出が常に落ちる形になっていないこと。
+    #[test]
+    fn a_file_ending_with_a_newline_is_accepted() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n");
+        assert!(parsed(&text).is_ok());
+    }
+
+    /// `# NOE:0` と書いたファイルで「0局面は成立しない」の保険を迂回しない。
+    /// 申告の側にぶら下げると、31 バイトのファイルが成功する。
+    #[test]
+    fn a_declared_count_of_zero_does_not_bypass_the_empty_check() {
+        let err = parsed("#YANEURAOU-DB2016 1.00\n# NOE:0\n").unwrap_err();
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(err.message().contains("局面が1つも"), "{}", err.message());
+    }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
     /// 空の定跡と区別が付かず、利用者は全ての局面が未収録だと受け取る。
