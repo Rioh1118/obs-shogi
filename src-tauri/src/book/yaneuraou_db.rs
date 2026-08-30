@@ -200,7 +200,7 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 ///
 /// | ファイル | 局面 | 指し手 | ピーク確保 |
 /// | --- | --- | --- | --- |
-/// | 831.0 MB | 20,000,000 | 0 | **3.07 GB**（定常値での旧測定） |
+/// | 831.0 MB | 20,000,000 | 0 | **3.07 GB**（定常値での測定。ピークではない） |
 ///
 /// この形をファイルサイズの上限まで伸ばすと約 5,170 万局面・14 GB を超える。16 GB の機械では、棋譜ツリーとエンジンを抱えたまま
 /// スワップに入ってアプリごと落ちる（未保存の棋譜が消える）。
@@ -397,7 +397,8 @@ fn parse_limited<R: BufRead>(
     file_size: u64,
 ) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
     let mut buffer = String::new();
-    // 行ごとに作り直さない。実物の定跡で 225 万回の確保になる。
+    // 行ごとに作り直さない。実物の定跡で 1,800 万回超の確保になる
+    // （局面 225 万行 + 指し手 1,610 万行）。
     let mut raw = Vec::new();
     let mut index = 0usize;
     let mut header: Option<usize> = None;
@@ -1847,7 +1848,8 @@ mod tests {
     #[test]
     fn a_position_with_very_many_moves_is_still_deduped() {
         let mut text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n");
-        // 相異なる 200 手を2回ずつ書く
+        // 相異なる 81 手を2回ずつ書く。`SCAN_LIMIT`（32）を超えるので
+        // `HashSet` の枝に入る
         for _ in 0..2 {
             for file in 1..=9 {
                 for rank in b'a'..=b'i' {
