@@ -13,10 +13,13 @@ export type LineRef = { line: JKFMove[]; startTe: number };
  * `startTe` を持ち直して差を取る。この座標系を手書きすると、変化の中の手だけ
  * 1つずれた位置に当たる。
  *
- * `uptoTe` の分岐そのものは降りない。`normalizeForkPointers` の境界は
- * `te <= 第2引数` なので1引いて渡す。`uptoTe` の手を得たい側は `uptoTe` を、
- * `uptoTe` の分岐を選び直したい側も `uptoTe` を渡してよい（前者は返った
- * `line[uptoTe - startTe]`、後者は `forks` を見る）。
+ * **`uptoTe` の分岐そのものは降りない**（`normalizeForkPointers` の境界は
+ * `te <= 第2引数` なので1引いて渡している）。渡す値は用途で1つずれる。
+ *
+ * - `te` の**手そのもの**が欲しい side は `te + 1` を渡す。`te` の分岐を降りないと、
+ *   その変化に入っている局面で**同じ絶対手数の本譜の手が返る**（例外は出ない）
+ * - `te` の `forks` を**選び直したい**側だけが `te` を渡す。`BranchPointRef` の
+ *   規約「すべて `p.te < te`」を満たす `forkPointers` を持つ側に限る
  *
  * @throws {Error} `forkPointers` が実在しない変化・中身の無い変化を指すとき
  */
