@@ -205,8 +205,7 @@ mod tests {
         }
     }
 
-    // 収録局面数は trait に無いので、`register` が reader に問い合わせる形は
-    // コンパイルが通らない。ここで値を細工して見張る必要は無い。
+    // このモジュールのテストは候補手を見ないので、lookup は空で返す。
     impl BookReader for FakeReader {
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())

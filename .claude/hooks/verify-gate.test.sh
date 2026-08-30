@@ -273,8 +273,11 @@ expect_teardown NO 'git cherry-pick --continue'
 # コミットを作る呼び出しを混ぜたものへ免除を広げない
 expect_teardown NO 'git rebase --abort && git commit -m x'
 expect_teardown NO 'git commit -m x && git rebase --abort'
-expect_teardown NO 'git -C /tmp/other rebase --abort'
 expect_teardown NO 'git commit --amend'
+
+# ディレクトリ指定の付いた綴りは免除しない。宛先が別ツリーでも gate_target_dir が
+# 先に deny するので、免除を広げても届かない
+expect_teardown NO 'git -C /tmp/other rebase --abort'
 
 # 宛先が別リポジトリなら、このプロジェクトの検証は当てない。
 #

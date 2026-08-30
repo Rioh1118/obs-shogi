@@ -1,7 +1,9 @@
 # 定跡キーへの変換の失敗経路
 
 `src-tauri/src/book/sfen.rs` の `book_key_or_reason` が、局面の文字列を読む唯一の実装。
-**この表が並べる G0〜G11 は全て `book_key_or_reason` の中にある。**
+**この表が並べるのは `book_key_or_reason` から到達する枝。** G0〜G8 はその本体、
+G9 / G10 / G11 はそこから呼ぶ `normalize_board` / `normalize_hands` /
+`PieceCounts::validate` の中にある。
 
 公開している入口は2つで、どちらも `book_key_or_reason` を呼び、失敗に種別と復帰操作を足すだけ。
 
@@ -10,8 +12,9 @@
 | `to_book_key`         | コマンド境界（`lookup_book_moves`） | `InvalidSfen` + 盤面を操作し直す案内     |
 | `to_book_key_in_file` | 定跡ファイル（#91 の reader）       | `InvalidContent` + 取得し直す案内 + パス |
 
-**枝を足すときに更新する対象は `book_key_or_reason`。** 入口の側に検査を足すと、片方の経路
-だけが厳しくなり、この表からは見えなくなる。
+**枝を足すのは `book_key_or_reason` かその3つの被呼び出しのどれか。** 入口
+（`to_book_key` / `to_book_key_in_file`）の側に足すと片方の経路だけが厳しくなり、
+この表からは見えなくなる。
 
 純関数だが表を作る。**同じ場所で「テストが通っていると思っていた枝を1つも通っていない」が
 R9 から R12 まで毎ラウンド出た**（N-07 / O-04 / P-01 / Q-02）。原因は枝そのものではなく、
