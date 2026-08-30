@@ -164,6 +164,13 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "clear_error" });
 
         const player = buildPlayer(state.jkf, state.cursor);
+        /**
+         * 移動の前後は**再生器が返した観測値**どうしでしか比べられない。
+         * `cursorKey`（要求の鍵）に置き換えると、要求どおりに着けたかに関わらず
+         * 一致してしまい、**盤が動かないのにエラーも出ない**。
+         * `KifuCursor.tesuuPointer` に観測値しか入れないという規約
+         * （`entities/kifu/model/cursor.ts`）は、この5行を守るためにある。
+         */
         const beforePointer = state.cursor?.tesuuPointer ?? cursorFromPlayer(player).tesuuPointer;
 
         const result = run(player, state.branchPlan);

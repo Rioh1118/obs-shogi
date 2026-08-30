@@ -12,7 +12,8 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  *
  * 要求の鍵が `state.cursor.tesuuPointer`（観測の欄）に入ると、
  * `provider.tsx` の移動前後の比較が着けもしない局面の識別子で回り、
- * **盤が動かないのにエラーも出ない**。型で止まらない綴りをここで止める。
+ * **盤が動かないのにエラーも出ない**。doc に書いても型でも止まらない種類の規約なので、
+ * 綴りをここで止める。
  *
  * 山括弧キャスト（`<TesuuPointer>s`）は `erasableSyntaxOnly` が TS1294 で
  * 落とすので、ここでは見ない。
