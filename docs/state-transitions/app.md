@@ -57,8 +57,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 → [failure-surfacing.md](failure-surfacing.md) F-1
 
 ※2 ワークスペースを変えたときに開いている棋譜がどうなるかは
-`GamePersistenceGate` / `GameFileTreeBridge` が決めている。**この表でも [game.md](game.md) でも追えていない。**
-埋めるには両者を読む必要がある
+`GamePersistenceGate` / `GameFileTreeBridge` が決めている。**この表でも [game.md](game.md) でも追えていない。** → #245
 
 ※3 `startInfiniteAnalysis` が `throw new Error("Engine not ready")` を投げるが、
 呼び出し元（`AnalysisPaneHeader:84`）は `console.error` で終わる。**押しても何も起きない**
