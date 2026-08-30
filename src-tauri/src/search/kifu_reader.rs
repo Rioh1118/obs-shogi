@@ -36,6 +36,64 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
     read_path_to_jkf(&rec.path, rec.kind)
 }
 
+/// 中身が1文字も無いファイルか。
+///
+/// **KIF / KI2 のパーサは中身の無いファイルを「平手の初期局面1件」として
+/// `Ok` で返す。** 索引に入ると平手の初期局面で検索したときに全部ヒットし、
+/// 開いても初期局面しか出ないので「そういう棋譜」と誤解される。警告も出ない。
+/// 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く。
+///
+/// `.jkf` は serde が、`.csa` は `csa` の手番行の要求が先に弾くので、
+/// この門が要るのは KIF / KI2 だけ。形式で分けずに掛けるのは、
+/// どの形式でも「中身が無いファイル」を索引に入れる理由が無いから。
+///
+/// **BOM は中身に数えない。** 書き出しが BOM を書いた直後に落ちると
+/// 2〜3バイトのファイルが残り、バイト数だけを見ると通り抜ける。
+/// UTF-16 の空白は `0x20 0x00` なので NUL も空白として扱う。
+///
+/// 先頭 [`CONTENT_PROBE`] バイトだけを見る。**それを超えても空白しか無いなら
+/// 中身があるものとして通す** — 索引に入れる側へ倒す（読めなければ後段が弾く）。
+fn has_no_content(path: &Path) -> bool {
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    use std::io::Read as _;
+    let mut head = Vec::new();
+    if file
+        .take(CONTENT_PROBE as u64)
+        .read_to_end(&mut head)
+        .is_err()
+    {
+        return false;
+    }
+    if head.len() == CONTENT_PROBE {
+        return false;
+    }
+
+    let body = strip_bom(&head);
+    body.iter().all(|b| b.is_ascii_whitespace() || *b == 0)
+}
+
+/// BOM を落とす。UTF-8 / UTF-16LE / UTF-16BE
+fn strip_bom(bytes: &[u8]) -> &[u8] {
+    for bom in [
+        &[0xEF, 0xBB, 0xBF][..],
+        &[0xFF, 0xFE][..],
+        &[0xFE, 0xFF][..],
+    ] {
+        if let Some(rest) = bytes.strip_prefix(bom) {
+            return rest;
+        }
+    }
+    bytes
+}
+
+/// 中身があるかを見るために読む先頭のバイト数。
+///
+/// **全部読まない。** `.kif` に改名した大きなファイル（動画など）を
+/// 索引作りが最大8本並列で読むので、全読みすると使わないコピーが積み上がる。
+const CONTENT_PROBE: usize = 8 * 1024;
+
 /// 利用者に出す文言の上限。
 ///
 /// クレートのエラーは**読めなかった位置から行末までを引用する**ので、
@@ -61,17 +119,7 @@ const MESSAGE_LIMIT: usize = 300;
 /// 局面を1つも持たない項目として登録する（#333）。
 /// どちらの経路でも、その棋譜の局面は検索に出てこない。
 pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
-    // **KIF / KI2 のパーサは中身の無いファイルを「平手の初期局面1件」として
-    // `Ok` で返す。** 索引に入ると平手の初期局面で検索したときに全部ヒットし、
-    // 開いても初期局面しか出ないので「そういう棋譜」と誤解される。警告も出ない。
-    // 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く。
-    //
-    // `.jkf` は serde が、`.csa` は `csa` の手番行の要求が先に弾くので、
-    // この門が要るのは KIF / KI2 だけ。形式で分けずに掛けるのは、
-    // どの形式でも「中身が無いファイル」を索引に入れる理由が無いから。
-    //
-    // **空白だけのファイルも同じ**。バイト数だけを見ると通り抜ける
-    if fs::read(path).is_ok_and(|b| b.iter().all(u8::is_ascii_whitespace)) {
+    if has_no_content(path) {
         return Err(parse_failed(
             "ファイルが空です。保存が途中で終わっていないか確かめてください",
         ));
@@ -193,7 +241,23 @@ where
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
-    fs::read(path).map_err(|e| parse_failed(format!("io error: {e}")))
+    fs::read(path).map_err(unreadable)
+}
+
+/// ファイルそのものを読めなかったときの文言。
+///
+/// **`os error 13` から権限を疑える利用者はいない。** この経路の文言も
+/// 索引の警告としてそのまま画面に出るので、他と同じく次の行動まで言う。
+fn unreadable(e: std::io::Error) -> KifuReadError {
+    let what = match e.kind() {
+        std::io::ErrorKind::PermissionDenied => {
+            "ファイルを開く権限がありません。権限を確かめるか、この場所を索引から外してください"
+                .to_owned()
+        }
+        std::io::ErrorKind::NotFound => "索引を作っている間にファイルが無くなりました".to_owned(),
+        other => format!("ファイルを読めませんでした（{other:?}）"),
+    };
+    parse_failed(what)
 }
 
 /// クレートが試さない文字コード
@@ -316,11 +380,8 @@ struct Unparsable {
     /// 名前を出せないことと、理由（何行目で止まったか）を出せないことは別。
     /// 名前が無くても行番号は利用者の役に立つ。
     encoding: Option<&'static str>,
-    /// どこで止まったか。**同じ行数の読み方が2つあって決められないときは `None`。**
-    ///
-    /// 決められないのに片方の行を引用すると、化けた読み方の位置を
-    /// 正しい位置として見せることになる。
-    error: Option<ParseError>,
+    /// どこで止まったか
+    error: ParseError,
 }
 
 /// クレートが見ない文字コードで decode → parse を試す。
@@ -359,7 +420,7 @@ where
             // ここが2度通ることはない
             named = Some(Unparsable {
                 encoding: Some(enc.name()),
-                error: Some(error),
+                error,
             });
         } else if !had_errors {
             // 名乗れないが文字にはできた。行番号だけでも利用者の役に立つ
@@ -368,7 +429,7 @@ where
                     lines,
                     Unparsable {
                         encoding: None,
-                        error: Some(error),
+                        error,
                     },
                 ));
             }
@@ -446,7 +507,7 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
 
     if let Some(Unparsable {
         encoding: Some(name),
-        error: Some(error),
+        error,
     }) = &by_fallback
     {
         return format!("{name} としては読めたが、棋譜として読めなかった: {error}");
@@ -460,17 +521,8 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         // クレートも文字にできなかった。誤り無く復号できた試行があれば、
         // 名前は伏せて理由だけ使う
         other => match by_fallback {
-            Some(Unparsable {
-                error: Some(error), ..
-            }) => {
+            Some(Unparsable { error, .. }) => {
                 format!("文字コードは特定できませんが、棋譜として読めない箇所があります: {error}")
-            }
-            // 同じ行数の読み方が2つあって決められない。片方の行を引用すると、
-            // 化けた読み方の位置を正しい位置として見せることになる
-            Some(Unparsable { error: None, .. }) => {
-                "文字にはできましたが、読み方（バイト順）を決められません。\
-                 BOM を付けて保存し直すか、UTF-8 に変換してください"
-                    .to_owned()
             }
             None => {
                 let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
@@ -1112,10 +1164,23 @@ mod tests {
     fn an_empty_file_is_rejected_but_a_moveless_kifu_is_not() {
         let dir = temp_dir("empty");
 
-        // バイト数だけを見ると、空白だけのファイルが通り抜ける
-        for (label, body) in [("empty", &b""[..]), ("whitespace", b"\n\n   \n")] {
+        // 「書き出しが途中で終わった跡」の形はいくつもある。
+        // バイト数だけ、あるいは生バイトの空白だけを見ると取りこぼす
+        let cases: [(&str, Vec<u8>); 6] = [
+            ("empty", vec![]),
+            ("whitespace", b"\n\n   \n".to_vec()),
+            ("utf8-bom-only", vec![0xEF, 0xBB, 0xBF]),
+            ("utf16le-bom-only", vec![0xFF, 0xFE]),
+            ("utf16be-bom-only", vec![0xFE, 0xFF]),
+            // UTF-16LE の改行と空白。NUL が挟まる
+            (
+                "utf16le-whitespace",
+                vec![0xFF, 0xFE, 0x0A, 0x00, 0x20, 0x00],
+            ),
+        ];
+        for (label, body) in cases {
             let path = dir.join(format!("{label}.kif"));
-            fs::write(&path, body).expect("書き出し");
+            fs::write(&path, &body).expect("書き出し");
             let err = read_path_to_jkf(&path, KifuKind::Kif)
                 .err()
                 .unwrap_or_else(|| panic!("{label} を弾いていない"));
@@ -1187,13 +1252,13 @@ mod tests {
         let named = || {
             Some(Unparsable {
                 encoding: Some("EUC-JP"),
-                error: Some(ParseError::Kif("at line 4 NAMED".to_owned())),
+                error: ParseError::Kif("at line 4 NAMED".to_owned()),
             })
         };
         let anonymous = || {
             Some(Unparsable {
                 encoding: None,
-                error: Some(ParseError::Kif("at line 5 ANON".to_owned())),
+                error: ParseError::Kif("at line 5 ANON".to_owned()),
             })
         };
 
