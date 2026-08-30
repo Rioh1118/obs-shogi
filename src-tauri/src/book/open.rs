@@ -334,15 +334,41 @@ mod tests {
         for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidPath, "raw={raw:?}");
-            assert_eq!(err.path(), Some(raw));
         }
+    }
+
+    /// 載る path は利用者が渡した綴りそのもの。選び直す先が分からなくなるので、
+    /// 解決後のパスに差し替えない。
+    #[test]
+    fn the_error_carries_the_spelling_the_caller_passed() {
+        let err = validate_book_path("books/standard.db").unwrap_err();
+        assert_eq!(err.path(), Some("books/standard.db"));
+    }
+
+    /// パスの検査は空 / NUL / 絶対パスしか見ないので、改行を含むパスは
+    /// **通る**（`/a\nb.db` は絶対パス）。そのままログへ載せると1回の log! が
+    /// 2行になり、後ろの行が本物のコマンドログと見分けが付かない。
+    #[test]
+    fn control_characters_cannot_forge_a_log_line() {
+        let forged = "/books/a.db\n[cmd] open_book path=/etc/passwd";
+        assert!(
+            validate_book_path(forged).is_ok(),
+            "改行入りのパスは形の検査では弾かれない。だから載せる側で潰す"
+        );
+
+        let rendered = crate::book::error::truncate_path(forged);
+        assert!(!rendered.contains('\n'), "rendered={rendered}");
+        assert!(
+            rendered.contains("[cmd] open_book path=/etc/passwd"),
+            "中身まで消す必要は無い: {rendered}"
+        );
     }
 
     /// 「絶対パスで渡すこと」は呼び出し側に向けた言葉で、画面の前に居る人には
     /// 次の操作が無い。種別だけを見る上のテストは、案内を消しても緑のまま通る。
     #[test]
     fn a_rejected_path_tells_the_user_what_to_do_next() {
-        for raw in ["", "   ", "books/standard.db", "a\0b.db"] {
+        for raw in ["", "   ", "books/standard.db"] {
             let err = validate_book_path(raw).unwrap_err();
             // 定数と突き合わせない。`contains(PATH_RECOVERY)` は案内を空にすると
             // 常に真になり、案内が消えたことをこのテストが見逃す。
