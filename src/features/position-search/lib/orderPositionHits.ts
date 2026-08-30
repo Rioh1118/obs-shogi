@@ -5,8 +5,8 @@ import { cursorKey } from "@/entities/kifu/model/cursor";
 /**
  * ヒットの同一性。索引の位置（file / gen / node）とカーソルの組。
  *
- * カーソル側は `cursorKey` に寄せる。索引は `fork_pointers` の並びを保証しないので、
- * 自前で直列化すると同じヒットが並び順の違いだけで別の鍵になる。
+ * カーソル側の直列化は `cursorFromLite` → `cursorKey` に任せる。ここで自前に
+ * 組み直すと、鍵の書式が2つになる。
  */
 export const hitKey = (h: PositionHit) =>
   `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${cursorKey(cursorFromLite(h.cursor))}`;

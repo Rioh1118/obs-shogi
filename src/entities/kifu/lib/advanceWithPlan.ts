@@ -110,8 +110,11 @@ export function advanceCurrentLine(player: JKFPlayer): AdvanceResult {
  *
  * この定数を読むのは `advanceToLeafWithPlan` だけで、その呼び出し側は
  * `goToEnd` と `computeLeafTesuu` の2つ（`nextMove` は `advanceWithPlan` を呼ぶので
- * ここを通らない）。`goto` が先に投げるのは `cursor.tesuu` がちょうど
- * `PLAN_WALK_LIMIT` のときだけで、それ以外はこの上限が唯一の番人になる。
+ * ここを通らない）。
+ *
+ * **どちらが先に打ち切るかを表す1つの数は無い。** `forkPointers` を渡された `goto` は
+ * `goto(te - 1)` の連鎖へ分解され、`c = 1e4` は**区間ごとに作り直される**。
+ * この定数と `goto` の番人を比べようとしないこと。
  */
 export const PLAN_WALK_LIMIT = 10000;
 

@@ -4,8 +4,10 @@ import type { CursorLite } from "../api/ids";
 /**
  * Rust の索引が返すカーソルを、盤を辿るのに使える形にする。
  *
- * 索引側は `fork_pointers` の並びを保証しないので `normalizeForkPointers` を通す。
- * 通さないと、同じ局面が並び順の違いだけで別の経路として `buildPlayer` に渡る。
+ * 索引はいま te 昇順・te 一意で組む（`src-tauri/src/search/index_builder.rs` の
+ * `push_or_replace_fork` が push のたびに `sort_by_key` する）ので、この正規化は
+ * 現物に対しては no-op。それでも通すのは、ワイヤ越しに来る `CursorLite` を
+ * `CursorPath` の前提（整列済み・`te <= tesuu`）へ合わせる関門を1つに保つため。
  *
  * **索引のカーソルは「辿った経路」であって分岐計画ではない。** Rust 側は分岐点
  * （`te == tesuu`）でしか `fork_path` を伸ばさないので `te > tesuu` を含まず、
