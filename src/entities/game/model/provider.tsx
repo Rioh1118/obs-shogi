@@ -27,6 +27,11 @@ import {
 } from "@/entities/kifu/model/cursor";
 import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
 import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
+import {
+  advanceToLeafWithPlan,
+  advanceWithPlan,
+  indexPlan,
+} from "@/entities/kifu/lib/advanceWithPlan";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
@@ -272,14 +277,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const nextMove = useCallback(() => {
     navigate((player, branchPlan) => {
-      const nextTe = player.tesuu + 1;
-      const planned = branchPlan.find((p) => p.te === nextTe);
-
-      if (planned && player.forkAndForward(planned.forkIndex)) {
-        return true;
-      }
-
-      return player.forward();
+      return advanceWithPlan(player, indexPlan(branchPlan)).moved;
     }, "Failed to move forward");
   }, [navigate]);
 
@@ -298,27 +296,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const goToEnd = useCallback(() => {
     navigate((player, branchPlan) => {
-      const plannedMap = new Map<number, number>();
-      for (const p of branchPlan) {
-        plannedMap.set(p.te, p.forkIndex);
-      }
-
       const startTesuu = player.tesuu;
-      let limit = 10000;
-
-      while (limit-- > 0) {
-        const nextTe = player.tesuu + 1;
-
-        const forkIndex = plannedMap.get(nextTe);
-        if (forkIndex !== undefined && player.forkAndForward(forkIndex)) {
-          continue;
-        }
-
-        const ok = player.forward();
-        if (!ok) break;
-      }
-
-      if (limit <= 0) throw new Error("goToEnd overflows");
+      advanceToLeafWithPlan(player, indexPlan(branchPlan));
       if (player.tesuu === startTesuu) return false;
     }, "Failed to go to end");
   }, [navigate]);
