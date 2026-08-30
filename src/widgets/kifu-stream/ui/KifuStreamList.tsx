@@ -33,7 +33,6 @@ export default function KifuStreamList() {
     useGame();
 
   const listRef = useRef<HTMLDivElement | null>(null);
-  const activeRowRef = useRef<HTMLDivElement | null>(null);
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
@@ -41,6 +40,7 @@ export default function KifuStreamList() {
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const lastForkTeRef = useRef<number | null>(null);
 
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
@@ -65,24 +65,49 @@ export default function KifuStreamList() {
     setOpenComment(null);
   }, []);
 
-  const closeForkMenu = useCallback((focusAnchor: boolean) => {
-    const anchor = lastAnchorRef.current;
-    setOpenFork(null);
-    if (!focusAnchor) return;
+  /**
+   * 行の位置合わせはここに一本化する。行要素は id で引く（`KifuMoveCard` が振る）。
+   * scroller の中を引くので、unmount 済みの行は見つからない。`closest` で親を辿ると
+   * 切り離された行を掴み、`offsetTop` が 0 になってリストが先頭まで飛ぶ。
+   *
+   * `yieldToRecent` は「直前に誰かが位置を決めていたら譲る」。局面が変わる経路では
+   * カーソル変化の effect が先に走っており、同じ行へ撃ち直すと effect が選んだ
+   * smooth を開始直後に打ち切ってしまう。
+   */
+  const scrollRowIntoSafeZone = useCallback((te: number, yieldToRecent: boolean) => {
+    const scroller = listRef.current;
+    const rowEl = scroller?.querySelector<HTMLElement>(`#kifu-row-${te}`);
+    if (!scroller || !rowEl) return;
 
-    requestAnimationFrame(() => {
-      // 行の位置を決めるのは scrollToRowSafeZone だけにする。focus 既定のスクロールは
-      // 「見えるところまで」なので、25% のセーフゾーンに寄せる位置合わせを上書きする。
-      anchor?.focus({ preventScroll: true });
+    const now = performance.now();
+    const dt = now - lastScrollAtRef.current;
+    if (yieldToRecent && dt < 120) return;
+    lastScrollAtRef.current = now;
 
-      // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
-      // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
-      // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
-      const scroller = listRef.current;
-      const rowEl = anchor?.closest<HTMLElement>(".kifu-row") ?? null;
-      if (scroller && rowEl) scrollToRowSafeZone(scroller, rowEl, "auto");
-    });
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    scrollToRowSafeZone(scroller, rowEl, reduced || dt < 120 ? "auto" : "smooth");
   }, []);
+
+  const closeForkMenu = useCallback(
+    (focusAnchor: boolean) => {
+      const anchor = lastAnchorRef.current;
+      const te = lastForkTeRef.current;
+      setOpenFork(null);
+      if (!focusAnchor) return;
+
+      requestAnimationFrame(() => {
+        // 行の位置を決めるのは scrollRowIntoSafeZone だけにする。focus 既定のスクロールは
+        // 「見えるところまで」なので、25% のセーフゾーンに寄せる位置合わせを上書きする。
+        anchor?.focus({ preventScroll: true });
+
+        // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
+        // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
+        // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
+        if (te != null) scrollRowIntoSafeZone(te, true);
+      });
+    },
+    [scrollRowIntoSafeZone],
+  );
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
   // インラインのアロー関数を挟むと全行の memo が外れる。
@@ -186,20 +211,8 @@ export default function KifuStreamList() {
   }, [openFork, closeForkMenu]);
 
   useEffect(() => {
-    const scroller = listRef.current;
-    const rowEl = activeRowRef.current;
-    if (!scroller || !rowEl) return;
-
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-
-    const now = performance.now();
-    const dt = now - lastScrollAtRef.current;
-    lastScrollAtRef.current = now;
-
-    const behavior: ScrollBehavior = reduced ? "auto" : dt < 120 ? "auto" : "smooth";
-
-    scrollToRowSafeZone(scroller, rowEl, behavior);
-  }, [state.cursor?.tesuuPointer]);
+    scrollRowIntoSafeZone(state.cursor?.tesuu ?? 0, false);
+  }, [state.cursor?.tesuuPointer, state.cursor?.tesuu, scrollRowIntoSafeZone]);
 
   const onClickRow = useCallback(
     (te: number) => {
@@ -212,6 +225,7 @@ export default function KifuStreamList() {
 
   const onToggleForkMenu = useCallback((te: number, anchorEl: HTMLButtonElement) => {
     lastAnchorRef.current = anchorEl;
+    lastForkTeRef.current = te;
     setOpenComment(null);
     setOpenMoveMenu(null);
     setOpenFork((prev) => {
@@ -287,7 +301,6 @@ export default function KifuStreamList() {
           return (
             <KifuMoveCard
               key={r.te}
-              ref={r.isActive ? activeRowRef : undefined}
               row={r}
               busy={state.isLoading}
               isForkMenuOpen={isForkOpen}
