@@ -15,7 +15,9 @@ import {
 import {
   normalizeForkPointers,
   plannedForkIndexAt,
+  sameForkPointers,
   selectAt,
+  truncatePlanFrom,
   type CursorPath,
   type ForkPointer,
 } from "../model/cursor";
@@ -33,17 +35,15 @@ function normalizeRef<T extends BranchPointRef>(ref: T): T {
   };
 }
 
-/** te より前の stream が同じか（forkPointers の prefix 同一判定） */
+/**
+ * te より前の stream が同じか（`forkPointers` の prefix 同一判定）
+ *
+ * 境界を `normalizeForkPointers` に任せるのは、`te` より前だけ残す判断が
+ * `<` か `<=` かでこのリポジトリが繰り返し事故を起こしているため。
+ * `normalizeForkPointers` の境界は `te <= 第2引数` なので1引いて渡す。
+ */
 function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boolean {
-  const mapA = new Map<number, number>();
-  for (const p of a) if (p.te < te) mapA.set(p.te, p.forkIndex);
-
-  const mapB = new Map<number, number>();
-  for (const p of b) if (p.te < te) mapB.set(p.te, p.forkIndex);
-
-  if (mapA.size !== mapB.size) return false;
-  for (const [k, v] of mapA) if (mapB.get(k) !== v) return false;
-  return true;
+  return sameForkPointers(normalizeForkPointers(a, te - 1), normalizeForkPointers(b, te - 1));
 }
 
 function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {
@@ -235,7 +235,7 @@ function relocateCursorOnDelete(
   candidatesAfter: Candidates,
 ): CursorPath {
   // 退避時は te 以降の pointer を落とす
-  const kept = cursor.forkPointers.filter((p) => p.te < ref.te);
+  const kept = truncatePlanFrom(cursor.forkPointers, ref.te);
   // 候補が全部消えたら te の手前へ。残っていれば繰り上がった候補の te 適用後へ。
   const tesuu = candidatesAfter.length === 0 ? Math.max(0, ref.te - 1) : ref.te;
   return { tesuu, forkPointers: normalizeForkPointers(kept, tesuu) };

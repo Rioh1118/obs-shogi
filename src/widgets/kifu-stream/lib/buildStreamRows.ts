@@ -1,5 +1,5 @@
 import { advanceWithPlan, planByTe } from "@/entities/kifu/lib/advanceWithPlan";
-import type { PlannedCursor } from "@/entities/kifu/model/cursor";
+import { truncatePlanFrom, type PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 import type { RowModel } from "../ui/KifuMoveCard";
 
@@ -66,7 +66,7 @@ export function buildStreamRowsFromCursor(
 
     const text = player.getReadableKifu?.() ?? "";
 
-    const branchForkPointers = (cursor?.forkPointers ?? []).filter((p) => p.te < te);
+    const branchForkPointers = truncatePlanFrom(cursor?.forkPointers ?? [], te);
     rows.push({
       te,
       side,
