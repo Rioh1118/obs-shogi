@@ -47,7 +47,10 @@ struct Walk<'a> {
     canonical_root: &'a Path,
     followed: Vec<PathBuf>,
     depth: usize,
-    /// 残り。0 になったらその枝を `truncated` にして降りない
+    /// あと何ノード作ってよいか。**走査全体で1つ**を分け合う。
+    ///
+    /// 0 になったところで、そのディレクトリを `truncated` にして以降の項目を積まない。
+    /// 枝ごとに持たせると、枝の数だけ上限が掛け算になって上限にならない
     budget: usize,
 }
 
@@ -83,24 +86,24 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
         },
     };
 
-    if is_dir && walk.depth >= MAX_DEPTH {
+    // 予算が尽きているなら `read_dir` すら呼ばない。呼ぶと、打ち切ろうとしている
+    // 瞬間に一番重い処理（全項目を Vec に起こして整列する）を1回だけやることになる
+    if is_dir && (walk.depth >= MAX_DEPTH || walk.budget == 0) {
         node.truncated = true;
     } else if is_dir {
         let mut children = Vec::new();
 
         // **降りる前に並べる。** `read_dir` の順は OS まかせ（APFS はハッシュ順）なので、
-        // 並べずに打ち切ると、同じディレクトリでも読み直すたびに消える行が入れ替わる
+        // 並べずに打ち切ると、同じディレクトリでも読み直すたびに消える行が入れ替わる。
+        // キーは `OsString` を新しく確保するので `sort_by_cached_key`
+        // （`sort_by_key` はキー関数を比較のたびに呼ぶ）
         let mut entries: Vec<_> = fs::read_dir(path)
             .map_err(FsError::from)?
             .filter_map(Result::ok)
             .collect();
-        entries.sort_by_key(|entry| entry.file_name());
+        entries.sort_by_cached_key(|entry| entry.file_name());
 
         for entry in entries {
-            if walk.budget == 0 {
-                node.truncated = true;
-                break;
-            }
             let child_path = entry.path();
 
             // **root の外へ出る symlink は落とす。** `Path::is_dir` は symlink を辿るので、
@@ -130,22 +133,35 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
                 pushed = true;
             }
 
-            if child_path.is_dir() || is_kifu_file(&child_path) {
-                walk.depth += 1;
-                walk.budget -= 1;
-                let built = build_file_tree_recursive(&child_path, walk);
-                walk.depth -= 1;
+            if !child_path.is_dir() && !is_kifu_file(&child_path) {
+                // 一覧に出さない項目（`.DS_Store` など）。予算にも打ち切りにも数えない。
+                // 数えると、隠した行が1つも無いのに「以降は出ません」と出る
                 if pushed {
                     walk.followed.pop();
                 }
-                match built {
-                    Ok(child_node) => children.push(child_node),
-                    // 1項目を読めなくても一覧全体は返す。返さないと、
-                    // 権限の無いフォルダが1つあるだけでツリーが出なくなる
-                    Err(_) => continue,
+                continue;
+            }
+
+            if walk.budget == 0 {
+                node.truncated = true;
+                if pushed {
+                    walk.followed.pop();
                 }
-            } else if pushed {
+                break;
+            }
+
+            walk.depth += 1;
+            walk.budget -= 1;
+            let built = build_file_tree_recursive(&child_path, walk);
+            walk.depth -= 1;
+            if pushed {
                 walk.followed.pop();
+            }
+            match built {
+                Ok(child_node) => children.push(child_node),
+                // 1項目を読めなくても一覧全体は返す。返さないと、
+                // 権限の無いフォルダが1つあるだけでツリーが出なくなる
+                Err(_) => continue,
             }
         }
 
@@ -342,7 +358,9 @@ mod tests {
         };
         let node = build_file_tree_recursive(&root, &mut walk).expect("走査できない");
 
-        assert!(count_nodes(&node) <= 600, "ノード数が抑えられていない");
+        // 予算 + 自分。**余裕を持たせない。** `<= 600` のように緩めると、
+        // 予算の減らし忘れが100ノードぶん見逃される
+        assert!(count_nodes(&node) <= 501, "ノード数が抑えられていない");
 
         let _ = fs::remove_dir_all(&base);
     }
