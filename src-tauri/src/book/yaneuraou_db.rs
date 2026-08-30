@@ -213,13 +213,13 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 ///
 /// **上限を実物の大きさに近づけて置かない。** 版が重なった時点で実利用者が
 /// 弾かれ、そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
-/// 分割機能が無い）。実物が見積もりで 3.04 GB を使うので、2倍の余裕を取って 6 GiB。
+/// 分割機能が無い）。実物が見積もりで 3.32 GB を使うので、2倍の余裕を取って 7 GiB。
 ///
-/// **6 GiB を「安全な量」と読まないこと。** これはメモリへ展開する設計の代価で、
+/// **7 GiB を「安全な量」と読まないこと。** これはメモリへ展開する設計の代価で、
 /// 実物1本ですでに 3 GB 前後を使う。8 GB の機械では実物1本でも苦しい。
 /// 減らす道は綴りの interning（#274。実測で半分程度）で、上限を下げることではない。
 /// 開いている間の進捗と中断は #197。
-const MAX_EXPANDED_BYTES: usize = 6 * 1024 * 1024 * 1024;
+const MAX_EXPANDED_BYTES: usize = 7 * 1024 * 1024 * 1024;
 
 /// 局面1件あたりの見積もり。
 ///
@@ -227,16 +227,35 @@ const MAX_EXPANDED_BYTES: usize = 6 * 1024 * 1024 * 1024;
 /// 定常値ではない。差の出どころは `HashMap` のバケットの空き（要素数の最大2倍）、
 /// 拡張中に旧テーブルが生きること、長い列を畳むときの一時領域。
 ///
-/// 実測（`peak memory footprint`）: 400 万局面・0手のファイルで 1,063,749,032
-/// バイト＝**266 B/局面**。較正に使ったキーは正規化後 47 字で、実物（76 字前後）
-/// より短いので、実物形状ではもう少し増える。280 を置く。
-const BYTES_PER_POSITION: usize = 280;
+/// **測る点は `HashMap` が拡張した直後。** 1点だけで測ると、鋸歯のどこに
+/// 乗ったかで倍近く違う値が出る。実測（`peak memory footprint`、正規化後 62 字の
+/// キー、aarch64 macOS / release）:
+///
+/// | 局面 | ピーク | B/局面 |
+/// | --- | --- | --- |
+/// | 458,752 | 91,411,944 | 199.3（拡張の直前） |
+/// | 459,000 | 142,726,680 | **311.0**（拡張の直後） |
+/// | 470,000 | 143,717,984 | 305.8 |
+/// | 520,000 | 147,711,584 | 284.1 |
+///
+/// 実物のキーは 76 字前後。確保は 16 バイト刻みなので 64 → 80 で 16 バイト増え、
+/// 311.0 + 16 = 327。330 を置く。
+const BYTES_PER_POSITION: usize = 330;
 
 /// 指し手1件あたりの見積もり。
 ///
-/// 実測（同上）: 1局面・800 万手のファイルで 1,151,821,056 バイト＝**144 B/手**。
-/// 150 を置く。
-const BYTES_PER_MOVE: usize = 150;
+/// **応手付きで測る。** 応手を省いた行は `String` を1つ確保しないので 2 割ほど
+/// 軽く出る。実測（同上。`Vec` が拡張した直後を探した）:
+///
+/// | 指し手 | B/手 |
+/// | --- | --- |
+/// | 2,000,000 | **157.2** |
+/// | 2,097,200 | 155.2 |
+/// | 4,194,400 | 147.0 |
+/// | 5,000,000 | 128.9（拡張の直前） |
+///
+/// 160 を置く。
+const BYTES_PER_MOVE: usize = 160;
 
 /// 1行として受け付ける長さの上限。
 ///
@@ -268,7 +287,7 @@ const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// 相手は Finder / エクスプローラのファイル情報で、そちらは 10 進。
 /// 1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
 ///
-/// **桁で単位を選ぶ。** 行長（4 KiB）から展開の上限（6 GiB）まで同じ関数に
+/// **桁で単位を選ぶ。** 行長（4 KiB）から展開の上限（7 GiB）まで同じ関数に
 /// 通すので、`MB` 固定だと 4096 バイトが `0.0MB` になって上限を1つも伝えない。
 fn format_size(bytes: u64) -> String {
     const KB: f64 = 1_000.0;
@@ -391,7 +410,7 @@ fn check_expanded_size(
 }
 
 /// 展開後の上限（[`MAX_EXPANDED_BYTES`]）を差し替えられる形。
-/// テストが 6 GiB ぶんの入力を組まずに済むように分ける。ファイルサイズの上限
+/// テストが 7 GiB ぶんの入力を組まずに済むように分ける。ファイルサイズの上限
 /// （[`MAX_FILE_BYTES`]）はここでは見ない。
 fn parse_limited<R: BufRead>(
     mut reader: R,
@@ -1219,7 +1238,7 @@ mod tests {
     fn sizes_are_shown_in_the_same_unit_as_the_file_manager() {
         assert_eq!(format_size(1_000_000), "1.0MB");
         assert_eq!(format_size(493_157_464), "493.2MB");
-        // 行長（4 KiB）から展開の上限（6 GiB）まで同じ関数に通す。MB 固定だと
+        // 行長（4 KiB）から展開の上限（7 GiB）まで同じ関数に通す。MB 固定だと
         // 4096 バイトが 0.0MB になり、上限を1つも伝えない文面になる。
         assert_eq!(format_size(4096), "4.1KB");
         assert_eq!(format_size(6 * 1024 * 1024 * 1024), "6.4GB");
@@ -1597,13 +1616,17 @@ mod tests {
     }
 
     /// 上限ちょうどは通す。境界で間違えると、上限近くの定跡が開けなくなる。
+    ///
+    /// 上限は単価から組む。**見ているのは単価ではなく `<=` と `<` の別**なので、
+    /// 単価を直すたびにこの数字を直させるのは、境界の意味と関係の無い作業。
     #[test]
     fn a_book_at_the_expansion_limit_is_accepted() {
         let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
+        let exactly = BYTES_PER_POSITION + 3 * BYTES_PER_MOVE;
         assert!(parse_limited(
             std::io::Cursor::new(text.as_bytes()),
             "/books/a.db",
-            730,
+            exactly,
             text.len() as u64
         )
         .is_ok());
@@ -1620,7 +1643,7 @@ mod tests {
                 "sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - {ply}\n"
             ));
         }
-        // 正規化で1局面に畳まれるので、見積もりは 280 バイト（上限 200 を超える）
+        // 正規化で1局面に畳まれる。局面1つぶんの見積もりが上限 200 を超える
         let err = parse_limited(
             std::io::Cursor::new(text.as_bytes()),
             "/books/a.db",
@@ -1682,11 +1705,11 @@ mod tests {
     #[test]
     fn a_book_that_expands_past_the_limit_is_refused() {
         let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
-        // 局面1 + 指し手3 で 280 + 450 = 730 バイトの見積もり
+        // 局面1 + 指し手3 のちょうど1バイト下
         let err = parse_limited(
             std::io::Cursor::new(text.as_bytes()),
             "/books/a.db",
-            700,
+            BYTES_PER_POSITION + 3 * BYTES_PER_MOVE - 1,
             text.len() as u64,
         )
         .expect_err("上限を超えている");

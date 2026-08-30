@@ -187,7 +187,18 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     let hands = normalize_hands(hands, &mut counts).map_err(|reason| invalid(&reason))?;
     counts.validate().map_err(|reason| invalid(&reason))?;
 
-    Ok(BookKey(format!("{board} {side} {hands}")))
+    // **`format!` を使わない。** `format!` は途中で `reserve` を呼ぶので容量が
+    // 倍化し、綴りの長さの 1.8 倍前後を確保したまま返る。`BookKey` は定跡を
+    // 開いている間ずっと保持され、縮める箇所が無いので、その余りがそのまま
+    // 常駐する（実物の定跡で 76 字のキーが 138 バイト確保、225 万局面で 144 MB）。
+    // 見積もりの単価（`BYTES_PER_POSITION`）も、この余りを含んだ値になる。
+    let mut key = String::with_capacity(board.len() + side.len() + hands.len() + 2);
+    key.push_str(&board);
+    key.push(' ');
+    key.push_str(side);
+    key.push(' ');
+    key.push_str(&hands);
+    Ok(BookKey(key))
 }
 
 /// 定跡ファイルに書かれている局面をキーにする。
@@ -652,6 +663,29 @@ mod tests {
             let expected = sfen.rsplit_once(' ').expect("手数のトークンが必ず付く").0;
 
             assert_eq!(key(&sfen), expected, "sfen={sfen}");
+        }
+    }
+
+    /// キーは余分な容量を抱えないこと。
+    ///
+    /// **`format!` は途中で `reserve` を呼ぶので容量が倍化する。** 実測で
+    /// 76 字のキーが 138 バイト確保になり、`BookKey` は定跡を開いている間ずっと
+    /// 保持されるので、その余りがそのまま常駐する（225 万局面で 144 MB）。
+    /// `BYTES_PER_POSITION` の見積もりも、その余りを含んだ値になる。
+    ///
+    /// 持駒の有無で綴りの組み方が変わるので、両方を見る。
+    #[test]
+    fn a_book_key_does_not_carry_slack_capacity() {
+        for sfen in [
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1",
+            "lnsgkgsnl/1r5b1/pppppppp1/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w p 5",
+        ] {
+            let key = to_book_key(sfen).expect("読めるはず");
+            assert_eq!(
+                key.0.capacity(),
+                key.0.len(),
+                "余分な容量を抱えている: {sfen}"
+            );
         }
     }
 
