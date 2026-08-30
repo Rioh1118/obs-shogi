@@ -19,6 +19,16 @@ export type ConfigAction =
   | { type: "loading" }
   | { type: "loaded"; payload: AppConfig }
   | { type: "updated"; payload: AppConfig }
+  /**
+   * 失敗を積まずに `isLoading` だけ降ろす。
+   *
+   * `loading` を立てた関数が失敗を戻り値で返すなら、この出口を使う。
+   * `error` を使うと `RequireRootDir` がランタイムごと畳んでしまうし、
+   * かといって何も送らないと `isLoading` が `true` のまま固定され、
+   * `isLoading` を見て無効化されている操作（`WorkspaceTab` のボタン、
+   * `AppLoading` の分岐）がその後ずっと押せなくなる
+   */
+  | { type: "settled" }
   | { type: "error"; payload: string };
 
 export type AppConfigContextType = ConfigState & {

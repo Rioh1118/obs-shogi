@@ -95,7 +95,10 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       // **`dispatch({type:"error"})` はしない。** `RequireRootDir` がそれを見て
       // `/` へ飛ばすので、ランタイムごと unmount され、呼び出し元が出そうとした
       // 失敗が画面に出る前に消える。設定の**更新**が落ちただけで、
-      // すでに読めている `config` は生きている
+      // すでに読めている `config` は生きている。
+      // ただし `loading` は降ろす。降ろさないと `isLoading` が `true` で固定され、
+      // 呼び出し元が案内する先（設定 → ワークスペース）のボタンが押せなくなる
+      dispatch({ type: "settled" });
       return Err(`ルートディレクトリの更新に失敗しました: ${String(err)}`);
     }
   }
