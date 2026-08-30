@@ -448,7 +448,8 @@ fn encode_all(
 /// 上限に `ft_len` を使えるのは、`file_id` が1から詰めて振られ、
 /// 生きている `file_id` は必ずファイル表に項目を持つから
 /// （`FileTable::iter_all` は空のスロットを飛ばすので、項目数＝最大の `file_id`）。
-/// **確保量が入力の長さで頭打ちになる**のがここで欲しい性質で、
+/// その `ft_len` 自身は [`Reader::read_len`] が残りバイト数で縛るので、
+/// **確保量は blob の長さで頭打ちになる**。
 /// 万一 `file_id` が疎になる変更が入っても、外れる方向は「捨てて作り直す」側。
 ///
 /// `zstd` は checksum 無しで書いているのでビット化けを捕まえない（#336）。
@@ -458,6 +459,27 @@ fn checked_file_id(file_id: FileId, ft_len: usize) -> Result<FileId, String> {
         return Err(format!("bad file_id: {file_id} (file_table len {ft_len})"));
     }
     Ok(file_id)
+}
+
+/// 1項目が blob 上で占める最小のバイト数。**[`Reader::read_len`] の上限に使う。**
+///
+/// 可変長（文字列）を含む項目は、長さの欄だけを数えて中身を0バイトとする。
+/// 上限として使うので、**小さく見積もるぶんには安全側**（通す範囲が広くなるだけ）。
+mod min_bytes {
+    /// `file_id` + `gen` + `deleted` + パスの長さ
+    pub(super) const FILE_ENTRY: usize = 4 + 4 + 1 + 4;
+    /// パスの長さ + `kind` + `size` + `mtime_ms`
+    pub(super) const FILE_RECORD: usize = 4 + 1 + 8 + 8;
+    /// パスの長さ + `file_id`
+    pub(super) const PATH_TO_ID: usize = 4 + 4;
+    /// `file_id` + ノード数 + 分岐数
+    pub(super) const NODE_TABLE: usize = 4 + 4 + 4;
+    /// `tesuu` + `fork_off` + `fork_len` + 詰め物
+    pub(super) const NODE: usize = 4 + 4 + 2 + 2;
+    /// `te` + `fork_index`
+    pub(super) const FORK: usize = 4 + 4;
+    /// `z0` + `z1` + `file_id` + `gen` + `node_id`
+    pub(super) const OCCURRENCE: usize = 8 + 8 + 4 + 4 + 4;
 }
 
 fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
@@ -482,7 +504,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
         return Err("root hash mismatch (different project root)".to_string());
     }
     // ---- file_table ----
-    let ft_len = r.read_u32()? as usize;
+    let ft_len = r.read_len(min_bytes::FILE_ENTRY)?;
     let mut ft = FileTable::default();
     for _ in 0..ft_len {
         let file_id = checked_file_id(r.read_u32()?, ft_len)?;
@@ -498,7 +520,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     }
 
     // ---- scan snapshot ----
-    let rec_len = r.read_u32()? as usize;
+    let rec_len = r.read_len(min_bytes::FILE_RECORD)?;
     let mut records: Vec<FileRecord> = Vec::with_capacity(rec_len);
     for _ in 0..rec_len {
         let path = PathBuf::from(r.read_string()?);
@@ -517,7 +539,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
 
     // ---- path_to_id / next_file_id ----
     let next_file_id = r.read_u32()?;
-    let map_len = r.read_u32()? as usize;
+    let map_len = r.read_len(min_bytes::PATH_TO_ID)?;
     let mut path_to_id = HashMap::with_capacity(map_len);
     for _ in 0..map_len {
         let p = r.read_string()?;
@@ -526,12 +548,12 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     }
 
     // ---- node tables ----
-    let nt_len = r.read_u32()? as usize;
+    let nt_len = r.read_len(min_bytes::NODE_TABLE)?;
     let mut nts = NodeTables::default();
     for _ in 0..nt_len {
         let file_id = checked_file_id(r.read_u32()?, ft_len)?;
-        let nodes_len = r.read_u32()? as usize;
-        let forks_len = r.read_u32()? as usize;
+        let nodes_len = r.read_len(min_bytes::NODE)?;
+        let forks_len = r.read_len(min_bytes::FORK)?;
 
         let mut nt = NodeTable::empty();
         nt.nodes.reserve(nodes_len);
@@ -560,7 +582,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     // ---- buckets ----
     let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] = std::array::from_fn(|_| Vec::new());
     for bucket in buckets.iter_mut() {
-        let n = r.read_u32()? as usize;
+        let n = r.read_len(min_bytes::OCCURRENCE)?;
         let mut v = Vec::with_capacity(n);
         for _ in 0..n {
             let z0 = r.read_u64()?;
@@ -682,6 +704,30 @@ impl<'a> Reader<'a> {
         self.i += n;
         Ok(s.to_string())
     }
+    /// 項目数を読む。**残っているバイト数で縛る。**
+    ///
+    /// キャッシュから読んだ `u32` をそのまま `with_capacity` / `reserve` /
+    /// `resize` に渡すと、**壊れた4バイトが確保量を決める**。
+    /// とくに `HashMap::with_capacity` は hashbrown が制御バイトを埋めるので
+    /// 遅延予約にならず、実際にページを触る — 68バイトの blob で
+    /// `map_len = 5e8` にすると 1.08 GB / 353 ms を実測している。
+    /// `u32::MAX` まで振れば `handle_alloc_error` が unwind せずプロセスが落ちる。
+    ///
+    /// 実プロジェクトの項目数は小さいので、**最上位ビットが1つ反転するだけで
+    /// 20億を超える**。`zstd` は checksum 無しなので化けた値はここに届く（#336）。
+    ///
+    /// `min_bytes_each` は [`min_bytes`] から選ぶ。n 項目を読むには
+    /// 少なくとも `n * min_bytes_each` バイト残っている必要があり、
+    /// **これで確保量が blob の長さで頭打ちになる**。
+    fn read_len(&mut self, min_bytes_each: usize) -> Result<usize, String> {
+        let n = self.read_u32()? as usize;
+        let remaining = self.b.len() - self.i;
+        if n.saturating_mul(min_bytes_each) > remaining {
+            return Err(format!("bad length: {n} (remaining {remaining} bytes)"));
+        }
+        Ok(n)
+    }
+
     fn read_fixed<const N: usize>(&mut self) -> Result<[u8; N], String> {
         if self.i + N > self.b.len() {
             return Err("unexpected eof".to_string());
@@ -806,6 +852,71 @@ mod tests {
             panic!("壊れた file_id を受け入れてしまった");
         };
         assert!(err.contains("bad file_id"), "理由が file_id でない: {err}");
+    }
+
+    /// 壊れた**長さの欄**も確保量を決められない。
+    ///
+    /// `file_id` だけを縛っても足りない。とくに `HashMap::with_capacity` は
+    /// hashbrown が制御バイトを埋めるので遅延予約にならず、
+    /// 68バイトの blob で 1.08 GB / 353 ms を実測している。
+    /// 実プロジェクトの項目数は小さいので、**最上位ビットが1つ反転するだけで
+    /// 20億を超える**。`zstd` は checksum 無しなので化けた値はここに届く（#336）。
+    ///
+    /// **欄ごとに1件ずつ見る。** 1箇所しか見なかった結果がこの穴だった。
+    #[test]
+    fn a_corrupt_length_cannot_decide_how_much_to_allocate() {
+        let root = Path::new("/tmp");
+
+        // 正しいところまで組んで、狙った欄だけを壊す。
+        // 手前の欄は空（長さ0）にして通す
+        let prefixes: [(&str, usize); 5] = [
+            ("file_table", 0),
+            ("scan_records", 1),
+            ("path_to_id", 2),
+            ("node_tables", 3),
+            ("buckets", 4),
+        ];
+        for (label, zeros_before) in prefixes {
+            let mut blob = header_for(root);
+            for i in 0..zeros_before {
+                write_u32(&mut blob, 0);
+                // `path_to_id` の手前には `next_file_id` が挟まる
+                if i == 1 {
+                    write_u32(&mut blob, 1);
+                }
+            }
+            write_u32(&mut blob, u32::MAX);
+
+            let Err(err) = decode_all(&blob, root) else {
+                panic!("{label}: 壊れた長さを受け入れてしまった");
+            };
+            assert!(
+                err.contains("bad length"),
+                "{label}: 理由が長さでない: {err}"
+            );
+        }
+
+        // ノード表の中の2つは、表を1つ通してからでないと届かない。
+        // 手前を空にするだけの組み立てでは素通りする
+        for (label, forks_broken) in [("nodes_len", false), ("forks_len", true)] {
+            let mut blob = header_for(root);
+            write_u32(&mut blob, 0); // file_table
+            write_u32(&mut blob, 0); // scan records
+            write_u32(&mut blob, 1); // next_file_id
+            write_u32(&mut blob, 0); // path_to_id
+            write_u32(&mut blob, 1); // node_tables: 1件
+            write_u32(&mut blob, 0); // file_id
+            write_u32(&mut blob, if forks_broken { 0 } else { u32::MAX });
+            write_u32(&mut blob, if forks_broken { u32::MAX } else { 0 });
+
+            let Err(err) = decode_all(&blob, root) else {
+                panic!("{label}: 壊れた長さを受け入れてしまった");
+            };
+            assert!(
+                err.contains("bad length"),
+                "{label}: 理由が長さでない: {err}"
+            );
+        }
     }
 
     /// 形式の綴りと読みが対で動くこと。
