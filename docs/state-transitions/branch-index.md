@@ -78,12 +78,11 @@
    **`forks.length` 以上なら `false` を返すのに、負や非整数は `forks[-1]` を掴んで
    内部で `TypeError`** になる。
 
-   計画に沿って `forkAndForward` する走査は5箇所ある（`computeLeafTesuu` /
-   `buildStreamRowsFromCursor` / `provider.tsx` の `nextMove` と `goToEnd` /
-   `PositionSearchContinuation`）。**そのうち壊れた値を捨てているのは前の2つだけ**で、
-   `cursor.tesuu` までを扱う `goto` も残り3つも捨てていない（`goto` は
-   `forkAndForward` の返り値すら見ない）。境界を `goto` に渡す直前の1点に
-   寄せるのが本筋。→ #213
+   計画に沿って `forkAndForward` する走査は `advanceWithPlan`
+   （`src/entities/kifu/lib/advanceWithPlan.ts`）の1本で、壊れた値はそこで捨てる。
+   **捨てていないのは `goto` に渡す経路**（`buildPlayer` / `goToIndex`。`goto` は
+   `forkAndForward` の返り値すら見ない）**と `buildCursorWithForkSelection`** の2つ。
+   この2つは値を検査せず、`cursor.forkPointers` に載せたまま先へ運ぶ。
 
 2. **要求した局面に着いたかは `tesuu` では判定できない。**
    `goto` は実在しない変化を黙って捨てて本譜を進むので、**要求した `tesuu` ちょうどで
