@@ -42,13 +42,21 @@ pub enum KifuReadError {
     /// （`create_kifu_file` → `try_to_*_owned`）。それを「壊れている」と
     /// 告げるのは嘘で、しかも利用者は直しようが無い。
     ///
-    /// 呼び手は**警告を出さずに、局面を持たない項目として登録する**こと。
-    /// 登録しないと走査のたびに読み直しに来る。
+    /// **呼び手のすることは1つだけ — 警告を出さない。**
+    /// 登録するかどうかはこの腕が決めていない（[`KifuReadError::ParseFailed`] でも
+    /// 同じ「局面を持たない項目」が積まれる）。登録そのものが要る理由は別で、
+    /// **`file_table` の gen が上がらないと前の世代のセグメントが索引に残る**
+    /// （`project_manager` の `build_one_file` が `None` を返したときの腕）。
     #[error("索引に入れる局面がありません")]
     NothingToIndex,
 }
 
-/// 走査で見つけたファイルを JKF に読む
+/// 走査で見つけたファイルを JKF に読む。
+///
+/// # Errors
+///
+/// [`read_path_to_jkf`] と同じ。**呼び手はこちらを呼ぶ**ので、
+/// 腕ごとの義務はそちらの表を見ること。
 pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
     read_path_to_jkf(&rec.path, rec.kind)
 }
@@ -59,7 +67,7 @@ type LossyDecoder = fn(&[u8]) -> Cow<'_, str>;
 /// 誤りを落として読む復号。**上から順に試す。**
 ///
 /// クレートは誤りが1つでもある復号を捨てて `Decode` を返す
-/// （`parser::read_kifu` は `!had_errors` のときしか採らない）ので、
+/// （`parser.rs` の `parse_kif_file` / `parse_ki2_file` は `!had_errors` のときしか採らない）ので、
 /// **Shift_JIS も UTF-8 もここで試し直す**。KIF の既定は Shift_JIS なので、
 /// 1バイト壊れただけの棋譜がここに来る。
 ///
@@ -173,10 +181,18 @@ fn too_large_to_be_a_kifu(len: u64) -> bool {
 ///
 /// # Errors
 ///
-/// [`KifuReadError::ParseFailed`] のみ。**読めなかったファイルが索引にどう残るかは
-/// 呼び口で違う** — 差分更新（`project_manager`）は登録せず、全件構築（`api`）は
-/// 局面を1つも持たない項目として登録する（#333）。
+/// 2つある。**どちらを返すかで、呼び手が警告を出すかどうかが変わる。**
+///
+/// | 腕 | 何が起きたか | 呼び手のすること |
+/// | --- | --- | --- |
+/// | [`KifuReadError::ParseFailed`] | 読めなかった | 文言を警告として出す |
+/// | [`KifuReadError::NothingToIndex`] | 読めたが入れる局面が無い | **警告を出さない** |
+///
+/// **項目の登録はどちらも同じ。** 全件構築（`api`）も差分更新（`project_manager`）も、
+/// 局面を1つも持たない項目として登録する（`project_manager` は
+/// `build_one_file` が `None` を返したときに呼び手側で積む）。
 /// どちらの経路でも、その棋譜の局面は検索に出てこない。
+/// 表は `docs/state-transitions/search.md` にもある。
 pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
@@ -316,8 +332,13 @@ fn unreadable_record(e: ParseError) -> String {
 ///
 /// **刈るのを最後まで遅らせると、刈る対象が先に出来上がる。**
 /// `ParseError` の `Display` は読めなかった位置から行末までを引用するので、
-/// 改行の無い 8 MiB のファイルでは 8 MiB の `String` が1本できる。
-/// [`Capped`] に直に書き取れば、その1本を作らずに済む。
+/// 埋め込みで作る `format!` の結果がファイルの大きさになる。
+/// ここで刈ると `describe` の戻り値は 4 MiB → 440 バイトになる。
+///
+/// **クレートが持っている引用文そのものは消せない。**
+/// `ParseError::Kif` は `Kif(String)` で、引用はパース時に確定して保持されている
+/// （4 MiB の1行ファイルで内部の `String` が 4,194,343 バイト）。
+/// **確保のピークを頭打ちにしているのは [`SIZE_LIMIT`] のほう。**
 fn capped(e: &dyn std::fmt::Display) -> String {
     use std::fmt::Write as _;
     let mut sink = Capped::default();
@@ -327,8 +348,9 @@ fn capped(e: &dyn std::fmt::Display) -> String {
 
 /// 読めなかった理由を、利用者に出せる形にして包む。
 ///
-/// **`KifuReadError` を作る口はここだけ。** 長さと制御文字を落とすのを
-/// 各所でやると必ず漏れる。
+/// **[`KifuReadError::ParseFailed`] を作る口はここだけ。** 長さと制御文字を落とすのを
+/// 各所でやると必ず漏れる。文言を持たない [`KifuReadError::NothingToIndex`] は
+/// 刈るものが無いので、ここを通らず直に組む。
 ///
 /// **上限は組みながら掛ける。** `to_string()` を先に呼ぶと、
 /// クレートが引用する「読めなかった位置から行末まで」が丸ごと確保される。
@@ -397,7 +419,7 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 /// クレートで読み、だめなら他の文字コードで読み直す。
 ///
 /// クレートが試すのは拡張子が名乗る文字コードと Shift_JIS / UTF-8 のもう一方だけ
-/// （`parser::read_kifu`）。ただし復号に `Encoding::decode` を使うので、
+/// （`parser.rs` の `parse_kif_file` / `parse_ki2_file`）。ただし復号に `Encoding::decode` を使うので、
 /// **BOM があればそれに従う**（BOM 付きの UTF-8 / UTF-16 はクレート単体で読める）。
 ///
 /// 残るのは次の3つ。実測で確かめてある。
@@ -433,11 +455,10 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
     fs::read(path).map_err(cannot_open)
 }
 
-/// ファイルそのものを読めなかったときの文言。
+/// ファイルそのものを開けなかった／読めなかったことを [`KifuReadError`] にする。
 ///
 /// **`os error 13` から権限を疑える利用者はいない。** この経路の文言も
 /// 索引の警告としてそのまま画面に出るので、他と同じく次の行動まで言う。
-/// ファイルそのものを開けなかった／読めなかった。
 ///
 /// **[`unreadable_record`] とは別物。** あちらは「開けたが棋譜ではない」。
 /// 名前が近いと呼び違えるが、`ParseError::Io` の腕では**型が合ってしまう**ので
@@ -1896,7 +1917,7 @@ mod tests {
 
     /// 手合割つきの棋譜が読める。
     ///
-    /// 手合割の盤面はクレートの表（`handicap.rs`）が持つ。表に無い名前は
+    /// 手合割の盤面はクレートの `Preset`（`shogi_core/from.rs`）が持つ。表に無い名前は
     /// **平手として素通しされ**（`Preset` の enum に無い名前は値にならない）、
     /// 上手の初手が指せずに `ParseError::Normalize(MakeMoveFailed)` で落ちる。
     /// **不正な手を記録した棋譜と見分けが付かない**ので、全種が読めることを
