@@ -1039,16 +1039,25 @@ mod tests {
         assert!(err.message().contains("3行目"), "{}", err.message());
     }
 
-    /// 改行の無いファイルは1行がファイル全体になる。パス用の打ち切り（4096字）を
-    /// 使うと、失敗1回でログの予算を食い潰す。
+    /// 引用は引用の予算で打ち切る。パス用の打ち切り（4096字）を使うと、
+    /// 1行が上限いっぱいの定跡で、失敗1回がログの予算を食い潰す。
+    ///
+    /// **入力は行長の上限より短くすること。** 超えると `read_line` の側で
+    /// 「長すぎる」に落ち、引用の経路を1バイトも通らない。実際そう書いていて、
+    /// パス用の打ち切りへ差し替える変異が緑で通っていた。
     #[test]
-    fn a_long_first_line_is_cut_to_the_excerpt_budget() {
-        let err = parsed(&"x".repeat(10_000)).unwrap_err();
+    fn a_long_line_is_cut_to_the_excerpt_budget() {
+        let err = parsed(&"x".repeat(3000)).unwrap_err();
+        let message = err.message();
+
         assert!(
-            err.message().chars().count() < 300,
-            "len={} message={}",
-            err.message().chars().count(),
-            &err.message()[..80.min(err.message().len())]
+            message.contains('…'),
+            "打ち切りの跡が無い（引用を通っていない）: {message}"
+        );
+        assert!(
+            message.chars().count() < 300,
+            "len={} message={message}",
+            message.chars().count(),
         );
     }
 
@@ -1060,13 +1069,17 @@ mod tests {
         for garbage in [
             "ここに別のテキストが連結された",
             "<html><body>404 Not Found</body></html>",
-            &"x".repeat(5000),
+            // 行長の上限より短くすること。超えると `read_line` の側で
+            // 「長すぎる」に落ち、指し手として読む経路まで届かない。
+            &"x".repeat(3000),
         ] {
             let text =
                 format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f 3c3d 50 32 1\n{garbage}\n");
             let err = parsed(&text).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidContent, "{garbage:.20}");
-            assert!(err.message().contains("4行目"), "{}", err.message());
+            let message = err.message();
+            assert!(message.contains("4行目"), "{message}");
+            assert!(message.contains("指し手として読めない"), "{message}");
         }
     }
 
