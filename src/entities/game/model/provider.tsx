@@ -244,11 +244,17 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       dispatch({ type: "set_loading", payload: true });
 
       const nextJkf = cloneJkf(jkf);
-      const cursor = cursorFromPlayer(buildPlayer(nextJkf, null));
+
+      // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
+      // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
+      // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
+      // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
+      // `cursorView` の catch で盤が黙って空になる。
+      buildPlayer(nextJkf, ROOT_CURSOR);
 
       dispatch({
         type: "game_loaded",
-        payload: { jkf: nextJkf, absPath, cursor },
+        payload: { jkf: nextJkf, absPath, cursor: ROOT_CURSOR },
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load game";
