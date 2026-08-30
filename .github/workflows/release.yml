@@ -110,7 +110,15 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
+      # **タグを唯一の出所にする。** `ref` を省くと `github.ref` を取るので、
+      # 既にあるタグを指して `workflow_dispatch` を撃ち直したとき、
+      # `create-release` は既存のリリースを再利用する（＝タグは古い commit のまま）のに、
+      # ここはブランチの現在の HEAD を組む。同じリリースの中に別の木から作った
+      # 資産が混ざり、`latest.json` はそれを自動更新に載せる。
+      # `needs: create-release` を通っているのでタグは必ず存在する。
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       # ── System dependencies ───────────────────────────────────────────────
       - name: Install Linux system dependencies
