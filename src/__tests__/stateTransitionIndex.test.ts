@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import {
+  brokenLinksInBody,
   docsPath,
   headingSlug,
   headingSlugs,
@@ -18,6 +19,8 @@ import {
  * 宣言している。索引と実在するファイルがずれると、次に書く人が既存の表に気づかず
  * 重複した表を作る。ずれ方は3つあり、それぞれ別のテストで見る。
  */
+const REASON = { "no-file": "ファイルが無い", "no-heading": "見出しが無い" } as const;
+
 describe("状態遷移表の索引", () => {
   test("README がすべての表を列挙している", () => {
     const files = tables().filter((f) => f !== "README.md");
@@ -27,36 +30,16 @@ describe("状態遷移表の索引", () => {
     expect(missing).toEqual([]);
   });
 
-  /**
-   * 表どうしのリンクは腐っても実行時に誰も踏まないので、見出しアンカーまでここで解決する。
-   *
-   * 見ているのは markdown のリンク記法だけ。`docs/decisions/` などがパスをコードスパンで
-   * 書いている箇所（36箇所）は対象外で、そこは腐っても落ちない。
-   */
+  /** 判定は `brokenLinksInBody` が持つ */
   test("docs の中の相対リンクが実在するファイルと見出しを指す", () => {
-    const broken: string[] = [];
+    const read = (abs: string) => readFileSync(abs, "utf8");
 
-    for (const file of markdownFiles()) {
+    const broken = markdownFiles().flatMap((file) => {
       const abs = docsPath(file);
-      const body = stripFences(readFileSync(abs, "utf8"));
-
-      for (const m of body.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-        const href = m[1] ?? "";
-        if (/^(https?:|mailto:)/.test(href)) continue;
-
-        const [path, anchor] = href.split("#");
-        const target = path === "" ? abs : join(dirname(abs), path);
-
-        if (!existsSync(target)) {
-          broken.push(`${file}  ${href}  （ファイルが無い）`);
-          continue;
-        }
-        if (!target.endsWith(".md")) continue;
-        if (anchor && !headingSlugs(readFileSync(target, "utf8")).has(headingSlug(anchor))) {
-          broken.push(`${file}  ${href}  （見出しが無い）`);
-        }
-      }
-    }
+      return brokenLinksInBody(read(abs), abs, existsSync, read).map(
+        (hit) => `${file}  ${hit.href}  （${REASON[hit.reason]}）`,
+      );
+    });
 
     expect(broken, ["docs のリンクが切れている:", ...broken].join("\n")).toEqual([]);
   });
@@ -116,6 +99,47 @@ describe("staleUncreatedNames", () => {
     ["| `search.md` | ❌ 未作成 | まだ |", []],
   ])("%s", (line, expected) => {
     expect(staleUncreatedNames(line, exists)).toEqual(expected);
+  });
+});
+
+describe("brokenLinksInBody", () => {
+  const SELF = join("/docs", "a.md");
+  const files = new Map([
+    [SELF, "# 自分の見出し\n"],
+    [join("/docs", "b.md"), "# 相手の見出し\n"],
+    [join("/docs", "図.png"), ""],
+  ]);
+  const exists = (abs: string) => files.has(abs);
+  const read = (abs: string) => files.get(abs) ?? "";
+  const find = (body: string) => brokenLinksInBody(body, SELF, exists, read);
+
+  test("フェンスの中のリンクは解決しない", () => {
+    // 「存在しないファイルを指す例」を docs に書けなくなる。
+    expect(find("```\n[例](nope.md)\n```\n")).toEqual([]);
+  });
+
+  test("http と mailto は見ない", () => {
+    expect(find("[外](https://example.com/x.md) [宛](mailto:a@example.com)")).toEqual([]);
+  });
+
+  test("空パスは自分自身の見出しを指す", () => {
+    expect(find("[こ](#自分の見出し)\n[ど](#無い見出し)")).toEqual([
+      { href: "#無い見出し", reason: "no-heading" },
+    ]);
+  });
+
+  test("md 以外を指すリンクはアンカーを見ない", () => {
+    expect(find("[図](図.png#どこか)")).toEqual([]);
+  });
+
+  test("行き先が無ければファイルが無い側で返す", () => {
+    expect(find("[無](nope.md#見出し)")).toEqual([{ href: "nope.md#見出し", reason: "no-file" }]);
+  });
+
+  test("他の文書の見出しまで解決する", () => {
+    expect(find("[隣](b.md#相手の見出し)\n[隣](b.md#無い見出し)")).toEqual([
+      { href: "b.md#無い見出し", reason: "no-heading" },
+    ]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * `docs/state-transitions/` の索引が腐っていないかを見る検査の本体。
@@ -85,6 +85,49 @@ export function staleUncreatedNames(line: string, exists: (name: string) => bool
     for (const name of names) if (exists(name)) out.push(name);
   }
   return out;
+}
+
+export type BrokenLink = { href: string; reason: "no-file" | "no-heading" };
+
+/**
+ * 1つの文書の中で、解決できない相対リンクを返す。表どうしのリンクは腐っても実行時に
+ * 誰も踏まないので、見出しアンカーまでここで解決する。
+ *
+ * `exists` と `read` を受け取るのは、ファイルの有無と中身の取得を呼ぶ側に預けるため。
+ * 判定はこの関数だけが持つ。
+ *
+ * 見るのは markdown のリンク記法だけ。`docs/decisions/` などがパスをコードスパンで
+ * 書いている箇所は対象外で、そこは腐っても落ちない。
+ */
+export function brokenLinksInBody(
+  body: string,
+  selfPath: string,
+  exists: (abs: string) => boolean,
+  read: (abs: string) => string,
+): BrokenLink[] {
+  const broken: BrokenLink[] = [];
+
+  // フェンスの中は落とす。例として書いたリンクまで解決しにいくと、
+  // 「存在しないファイルを指す例」が docs に書けなくなる。
+  for (const m of stripFences(body).matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
+    const href = m[1] ?? "";
+    if (/^(https?:|mailto:)/.test(href)) continue;
+
+    const [path, anchor] = href.split("#");
+    // 空パスは同じ文書の中のアンカー（`[…](#見出し)`）を指す
+    const target = path === "" ? selfPath : join(dirname(selfPath), path);
+
+    if (!exists(target)) {
+      broken.push({ href, reason: "no-file" });
+      continue;
+    }
+    // 画像などに見出しは無いので、アンカーが付いていても解決しない
+    if (!target.endsWith(".md")) continue;
+    if (anchor && !headingSlugs(read(target)).has(headingSlug(anchor))) {
+      broken.push({ href, reason: "no-heading" });
+    }
+  }
+  return broken;
 }
 
 /**
