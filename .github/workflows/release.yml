@@ -6,7 +6,7 @@ on:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
       # pre-release 識別子は 65535 以下の10進数だけ（MSI の制約）。
-      # このパターンはそれより広く、外れたタグは Windows だけ落ちる。TODO(#269)
+      # このパターンはそれより広く、外れたタグは Windows だけ落ちる。TODO(#285)
       - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
     inputs:
@@ -86,9 +86,7 @@ jobs:
 
             if (releaseId === null) {
               // **target_commitish が効くのはタグをこれから作るときだけ**で、既にあれば無視される。
-              // 省くと新しいタグが既定ブランチの上に作られ、その run は `context.sha`
-              // （撃った ref）から資産を組むのでタグと中身が別の木を指す。
-              // 次に同じタグで撃つと `tagSha` が既定ブランチを返し、資産まで入れ替わる。
+              // 省くと、新しいタグが撃った ref ではなく既定ブランチの上に作られる。
               const r = await github.rest.repos.createRelease({
                 owner, repo,
                 tag_name:         tag,
@@ -114,8 +112,8 @@ jobs:
     name: Build · ${{ matrix.name }}
     needs: create-release
     strategy:
-      # 1つの OS が落ちても残りは上げる。**リリースは公開されたまま残るので、
-      # 資産の欠けたリリースが `latest` として外から見える**（直し方は docs/RELEASE.md）。
+      # 1つの OS が落ちても残りは上げる。**資産の欠けたリリースが公開されたまま残る**
+      # （直し方は docs/RELEASE.md）。
       fail-fast: false
       matrix:
         # ターゲットを決めるのは `rust_target` だけ。空は「ホストのまま組む」で、

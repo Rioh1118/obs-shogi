@@ -23,17 +23,17 @@ git tag v0.3.0 && git push origin v0.3.0
 
 | 制約                                            | 理由                                                                    |
 | ----------------------------------------------- | ----------------------------------------------------------------------- |
-| `vN.N.N` か `vN.N.N-<数字>`                     | `on.push.tags` のパターン                                               |
+| `vN.N.N` か `vN.N.N-<任意>`                     | `on.push.tags` のパターン。**`-` の後ろは何でも通る**                   |
 | pre-release 識別子は **65535 以下の10進数だけ** | Windows は msi も作る。MSI の ProductVersion に数値以外を載せられない   |
 | `-` を含むと自動で pre-release 扱いになる       | `isPrerel` が `tag.includes('-')` を見る。`/releases/latest` に載らない |
 
 `v1.0.0-beta.1` も `v1.0.0-20260830`（65535 超）も、**Windows のジョブだけ**が
 bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産が載ったリリースは
-そのまま公開される。どちらを恒久的に潰すかは #269。
+そのまま公開される。どちらを恒久的に潰すかは #285。
 
 ## 動作確認（空打ち）
 
-**`dry_run` はまだ無い**（#267）。いま撃つと本物のリリースが作られる。
+**`dry_run` はまだ無い**（#285）。いま撃つと本物のリリースが作られる。
 `-` を含まないタグで撃つと `/releases/latest` が置き換わり、
 **既存の利用者全員にそのビルドが自動更新として降る。**
 
@@ -42,10 +42,9 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 
 確かめること:
 
-1. **4ジョブ全部が緑**（#256 の受入）
-2. **資産名が v0.2.1 と同じ形**。`tauri-action` は `@v0` → `@v1` に上がっており、
-   入力名が `assetNamePattern` → `releaseAssetNamePattern` に変わっている。
-   届いていなければ CLI の既定名（`ObsShogi_0.0.1-1_amd64.AppImage` 系）になる
+1. **4ジョブ全部が緑**
+2. **資産名が下の「資産名」の形になっている**。`releaseAssetNamePattern` の綴りを
+   誤ると**黙って無視され**、CLI の既定名（`ObsShogi_0.0.1-1_amd64.AppImage` 系）になる
 
    ```
    gh api repos/Rioh1118/obs-shogi/releases/tags/v0.0.1-1 --jq '.assets[].name'
@@ -53,15 +52,14 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 
    ジョブのログに `Unexpected input(s)` が出ていないことも見る。
 
-3. **`latest.json` の url**。v1 は `api.github.com/repos/.../releases/assets/<id>` 形式で書く
-   （v0 は `github.com/.../releases/download/<tag>/<name>`）。**ホストごと変わる。**
+3. **`latest.json` の url が `api.github.com/repos/.../releases/assets/<id>` 形式で、実際に引ける**
 
    ```
    curl -sL https://github.com/Rioh1118/obs-shogi/releases/download/v0.0.1-1/latest.json | jq '.platforms[].url'
-   curl -sI -H "Accept: application/octet-stream" -L "<上の url の1つ>" | head -1
+   curl -s -o /dev/null -w '%{http_code}\n' -H "Accept: application/octet-stream" -L "<上の url の1つ>"
    ```
 
-   2本目が `200` を返すこと。未認証の `api.github.com` は IP あたり 60 req/h の制限下にあるので、
+   2本目が `200` を返すこと（`curl -I -L … | head -1` は途中の 302 を出すので使わない）。未認証の `api.github.com` は IP あたり 60 req/h の制限下にあるので、
    ここで詰まると「手動ダウンロードは通るのに自動更新だけ静かに失敗する」形になる。
 
 終わったらリリースと `refs/tags/v0.0.1-1` の両方を消す。
@@ -106,13 +104,14 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 ## 同時に走らせない
 
 `concurrency` の group はタグ（`github.event.inputs.tag || github.ref_name`）。
-push と dispatch を同じタグに対して同時に撃つと、
-4本の leg が同じ `latest.json` を read-modify-write して後勝ちになる。
-group はそれを直列化する。
+group が直列化するのは **run** で、1つの run の中の4本は並行に走ったまま。
+
+push と dispatch を同じタグに対して撃つと、group が無ければ2つの run（計8本の leg）が
+同じ `latest.json` を read-modify-write して後勝ちになる。group はそれを止める。
+**1つの run の中の4本が同じ `latest.json` を触ることへの保護は無い**（未検証。→ #286）。
 
 ## 関連
 
 - [ADR-0001 ブランチと PR の方針](decisions/0001-branch-and-pr-policy.md)
-- #267 `dry_run` 入力
-- #269 非数値 pre-release と msi
-- #270 `.github/workflows/**` に検査が1つも掛かっていない
+- #285 エピック: リリースワークフローが本番を壊す（`dry_run`、非数値 pre-release と msi）
+- #286 エピック: 検査が掛かっていない範囲（`.github/workflows/**` に検査が1つも無い）
