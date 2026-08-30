@@ -127,6 +127,22 @@ fn is_skippable(line: &str) -> bool {
     line.is_empty() || line.starts_with('#') || line.starts_with("//")
 }
 
+/// ファイル自身が申告する収録局面数の綴り。
+const DECLARED_COUNT_PREFIX: &str = "# NOE:";
+
+/// 申告された局面数を読む。
+///
+/// **この値を確保に使ってはいけない。** `# NOE:99999999999` と書かれた 40 バイトの
+/// ファイルで `with_capacity` を呼ぶと確保が失敗し、`handle_alloc_error` で
+/// abort する（`BookReader` の「壊れた内容で panic しない」に正面から反する）。
+/// 使い道は展開後の実数との突き合わせだけ。
+fn declared_count(line: &str) -> Option<u64> {
+    line.strip_prefix(DECLARED_COUNT_PREFIX)?
+        .trim()
+        .parse()
+        .ok()
+}
+
 /// 本文を局面ごとに畳む。
 ///
 /// ヘッダを検査するのは、別形式のファイルに `.db` を付けただけのものを
@@ -172,11 +188,15 @@ fn parse<R: BufRead>(
     // 現在の局面ぶんを溜める。行ごとに map を引くと、指し手1行につきキーの確保と
     // ハッシュ計算が1回ずつ走る（100MB の定跡で 312 万回、パース時間の 17%）。
     let mut buffered: Vec<BookMove> = Vec::new();
+    let mut declared: Option<u64> = None;
 
     while read_line(&mut reader, &mut buffer, false, path)? {
         index += 1;
         let line = buffer.trim();
         if is_skippable(line) {
+            if let Some(count) = declared_count(line) {
+                declared = Some(count);
+            }
             continue;
         }
 
@@ -214,6 +234,33 @@ fn parse<R: BufRead>(
     }
 
     flush(&mut positions, &mut current, &mut buffered);
+
+    // 途中で切れたファイルは、ヘッダの検査では止まらない。**自分自身が正しい
+    // 見出しを持っているから。** 止められるのは中身との突き合わせだけ。
+    //
+    // ここを素通しすると、先頭数 KB だけ保存されたファイルが `position_count: Some(0)`
+    // で成功する。以後どの局面を引いても空が返るので、利用者は「この定跡には
+    // 自分の局面が載っていない」と受け取り、取得し直すという唯一の復帰操作に
+    // 辿り着けない。
+    if let Some(count) = declared {
+        if count != positions.len() as u64 {
+            return Err(invalid_content(
+                &format!(
+                    "定跡ファイルに {count} 局面と書かれているが {} 局面しか読めない。\
+                     途中で切れているかもしれない。取得し直すか、別の定跡を開くこと",
+                    positions.len()
+                ),
+                path,
+            ));
+        }
+    } else if positions.is_empty() {
+        // 申告が無い定跡もあるので、そのときの保険。局面が1つも無い定跡は成立しない。
+        return Err(invalid_content(
+            "定跡ファイルに局面が1つも書かれていない。途中で切れているかもしれない。\
+             取得し直すか、別の定跡を開くこと",
+            path,
+        ));
+    }
 
     Ok(positions)
 }
@@ -562,6 +609,38 @@ mod tests {
             let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n{spelling} none 0 0 1\n");
             assert!(parsed(&text).is_ok(), "spelling={spelling}");
         }
+    }
+
+    /// 途中で切れたファイルは、自分自身が正しい見出しを持っているのでヘッダの
+    /// 検査では止まらない。ファイルが申告する局面数と突き合わせて初めて止まる。
+    #[test]
+    fn a_truncated_file_is_caught_by_its_own_declared_count() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             # NOE:1250000\n\
+             sfen {HIRATE}\n\
+             7g7f 3c3d 50 32 1\n"
+        );
+        let err = parsed(&text).unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(err.message().contains("1250000"), "{}", err.message());
+        assert!(err.message().contains("取得し直す"), "{}", err.message());
+    }
+
+    /// 申告が合っていれば通る。突き合わせが常に落ちる形になっていないこと。
+    #[test]
+    fn a_matching_declared_count_is_accepted() {
+        let text = format!("#YANEURAOU-DB2016 1.00\n# NOE:1\nsfen {HIRATE}\n7g7f 3c3d 50 32 1\n");
+        assert!(parsed(&text).is_ok());
+    }
+
+    /// 申告の無い定跡もある。そのときは「局面が1つも無い」を保険にする。
+    #[test]
+    fn a_book_without_positions_is_rejected() {
+        let err = parsed("#YANEURAOU-DB2016 1.00\n").unwrap_err();
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(err.message().contains("取得し直す"), "{}", err.message());
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
