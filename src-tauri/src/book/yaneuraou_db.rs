@@ -624,8 +624,8 @@ fn parse_limited<R: BufRead>(
 
     flush(&mut positions, &mut current, &mut buffered);
 
-    // 途中で切れたファイルは、ヘッダの検査では止まらない。**自分自身が正しい
-    // 見出しを持っているから。** 止められるのは中身との突き合わせだけ。
+    // 途中で切れたファイルは、行の形の検査では止まらない。**切れた先頭は正しい
+    // 定跡と同じ形をしているから。** 止められるのは中身との突き合わせだけ。
     //
     // ここを素通しすると、先頭数 KB だけ保存されたファイルが `position_count: Some(0)`
     // で成功する。以後どの局面を引いても空が返るので、利用者は「この定跡には
@@ -695,7 +695,8 @@ fn parse_limited<R: BufRead>(
 /// `lookup` は未収録と同じ空を返すが、`position_count` はこれを数える。
 /// 消すと収録局面数だけが黙って減り、テストは全部緑のまま通る。
 ///
-/// 容量はここでは縮めない。畳んだ後に一括で縮める。
+/// 短い列はちょうどの大きさへ移し替えて空きを落とす（長い列は移し替えない。
+/// 理由は本体）。`shrink_to_fit` は重複を畳んだ後に一括で掛ける。
 fn flush(
     positions: &mut HashMap<BookKey, Vec<BookMove>>,
     current: &mut Option<BookKey>,
@@ -1143,10 +1144,10 @@ mod tests {
         assert!(err.message().contains("4行目"), "{}", err.message());
     }
 
-    /// 先頭に空行があるファイルでは、見出しの検査対象は1行目ではない。
-    /// 存在しない位置を指す診断を出さない。
+    /// 空行も行番号に数える。数えないと、先頭に空行を置いた定跡で診断が
+    /// 存在しない位置を指す。
     #[test]
-    fn the_header_error_points_at_the_line_it_actually_read() {
+    fn blank_lines_are_counted_in_the_reported_line_number() {
         let err = parsed("\n\n これは定跡ではない\n").unwrap_err();
         assert!(err.message().contains("3行目"), "{}", err.message());
     }
@@ -1212,8 +1213,8 @@ mod tests {
         }
     }
 
-    /// 途中で切れたファイルは、自分自身が正しい見出しを持っているのでヘッダの
-    /// 検査では止まらない。ファイルが申告する局面数と突き合わせて初めて止まる。
+    /// 途中で切れたファイルは、切れた先頭が正しい定跡と同じ形をしているので
+    /// 行の形の検査では止まらない。申告する局面数と突き合わせて初めて止まる。
     #[test]
     fn a_truncated_file_is_caught_by_its_own_declared_count() {
         let text = format!(
@@ -1345,8 +1346,8 @@ mod tests {
         for line in [
             "resign none 0 0 1",
             "7g7f 3c3d 50 32 1",
-            // **指し手でない行も揃えること。** ここが抜けていたので、見出しの
-            // ある側だけ `<!DOCTYPE html>` に「指し手が書かれている」と言っていた
+            // **指し手でない行も揃えること。** 見出しの有無で診断が割れると、
+            // 同じ壊れ方に別の説明が出る
             "<!DOCTYPE html>",
             "これは定跡ではない",
         ] {
@@ -1444,9 +1445,8 @@ mod tests {
 
     /// 見出しが無くても、定跡ではないファイルは落ちること。
     ///
-    /// 見出しの検査を外した理由は「正しい定跡を拒否しない」であって、
-    /// 「何でも開く」ではない。別形式のファイルが「0局面の定跡」として開けると、
-    /// 空の定跡と見分けが付かなくなる。
+    /// 見出しは要求しないが、それは「何でも開く」ではない。別形式のファイルが
+    /// 「0局面の定跡」として開けると、空の定跡と見分けが付かなくなる。
     #[test]
     fn a_file_that_is_not_a_book_still_fails_without_a_header() {
         for text in [
@@ -2032,6 +2032,8 @@ mod tests {
         .expect_err("上限を超えている");
 
         let message = err.message();
+        // 表の H6 が結果欄に引用している綴り。文面を動かしたら表も一緒に落ちる
+        assert!(message.contains("メモリに収まらない"), "{message}");
         assert!(
             message.contains("20.0MB"),
             "ファイルの大きさが無い: {message}"
@@ -2079,9 +2081,9 @@ mod tests {
 
     /// 局面が1つも無いファイルは、**中身の有無にかかわらず同じ文面**で落とす。
     ///
-    /// 見出しを要求しなくなったので、注記だけのファイルは見出し探索の側で
-    /// 終わる。そこで「空」と言うと、エディタで中身が見える利用者は
-    /// アプリの不具合だと判断する。
+    /// 見出しは要求しないので、注記だけのファイルは見出し探索の側で終わる。
+    /// そこで「空」と言うと、エディタで中身が見える利用者はアプリの不具合だと
+    /// 判断する。
     #[test]
     fn a_file_without_positions_says_so_whether_or_not_it_is_empty() {
         for text in [
@@ -2226,8 +2228,8 @@ mod tests {
         assert_eq!(reader.position_count(), 2);
     }
 
-    /// BOM 付きで配られている定跡がある。落とさないと見出しの検査が必ず外れ、
-    /// 正しい定跡が「別の形式かもしれない」と拒否される。
+    /// BOM 付きで配られている定跡がある。落とさないと1行目が注記にも `sfen ` 行にも
+    /// 見えず、正しい定跡が「別の形式かもしれない」と拒否される。
     #[test]
     fn tolerates_a_utf8_bom() {
         let dir = crate::book::test_paths::scratch_dir("bom");
