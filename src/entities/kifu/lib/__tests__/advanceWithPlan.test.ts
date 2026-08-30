@@ -63,10 +63,14 @@ describe("advanceWithPlan", () => {
     }
   });
 
-  test("線の末尾より先に計画が残っていても throw しない", () => {
+  // 「壊れた計画」と「線の末尾」は結末が違う。前者は本譜へ落ちて1手進み、
+  // 後者は forward を呼ばずに返る（= 盤が動かない）。docs/state-transitions/game.md の
+  // ※1 がこの違いを持っているので、片方に寄せて読まれないようテストで分ける。
+  test("線の末尾より先に計画が残っていても throw せず、1手も動かない", () => {
     // 手が無いのに forkAndForward を呼ぶと「N手目に有効な棋譜がありません」を投げる。
     const player = playerAt(3);
     expect(() => advanceWithPlan(player, planByTe([{ te: 4, forkIndex: 0 }]))).not.toThrow();
+    expect(player.tesuu).toBe(3);
     expect(advanceWithPlan(playerAt(3), planByTe([{ te: 4, forkIndex: 0 }]))).toEqual({
       moved: false,
       forkIndex: null,

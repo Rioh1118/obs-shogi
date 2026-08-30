@@ -128,15 +128,19 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 ### 注
 
 ※1 捨てているのは `advanceWithPlan`（`src/entities/kifu/lib/advanceWithPlan.ts`）。
-`forkAndForward` を呼ぶ前に線の続きがあるかを見て、`forkIndex` が0以上の整数で
-なければ渡さない。どちらも満たさなければ本譜へ落ちる。
+**2つの条件は結末が違う。**
+
+- `forkIndex` が0以上の整数でなければ、計画を捨てて `forward` で**本譜を1手進む**
+- 線の続きが無ければ（`!player.currentStream[te]`）、`forward` を呼ばずに
+  `moved: false` で返る。**1手も動かない。** E3 はこのとき盤が動かず、
+  E6 はその場が葉なので止まる
 
 **盤の再生そのものは別で、再生できない手に当たれば `forward` が投げる。**
 `navigate` の `catch` が `set_error` に落とすが読み手が0なので、そのときは
 盤が1手も動かず画面には何も出ない。
 
 ※5 `△` は「歩き方の部品だけ固定されている」の意。`advanceWithPlan.test.ts` が
-1手ぶんの規則（壊れた計画を捨てて本譜へ落ちる）を固定しているだけで、
+1手ぶんの規則（壊れた計画は本譜へ、線の末尾では動かない）を固定しているだけで、
 **`navigate` を通した `state.branchPlan` の遷移（G2 のまま残るか G1 に落ちるか）は
 未検証**。`provider.tsx` にテストは1本も無い。
 
