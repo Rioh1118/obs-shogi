@@ -91,6 +91,13 @@ const IO_ERROR: FsError = { code: "io", message: "os error 5", path: "/root/a.ki
 const DENIED: FsError = { code: "permission_denied", message: "denied", path: "/root/a.kif" };
 // ルートごと消えた。Rust が返すのはこれ。段は warning だが読み直す先が無い
 const ROOT_GONE: FsError = { code: "not_found", message: "root is missing", path: "/root" };
+
+/** ディスク上の改名は通り、`app.json` の書き戻しだけが落ちた */
+const CONFIG_FAILED: FsError = {
+  code: "config_write_failed",
+  message: "ルートディレクトリの更新に失敗しました: disk full",
+  path: "/root2",
+};
 const BAD_NAME: FsError = {
   code: "invalid_name_separator",
   message: "name contains a path separator",
@@ -332,6 +339,21 @@ describe("段による出し分け", () => {
     });
 
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
+  });
+
+  /**
+   * この経路はディスク上の操作が**通ってから**来る。「ファイル操作に失敗しました」と
+   * 出すと利用者は「改名されなかった」と読み、ツリーは古い名前を表示し続けるので
+   * 食い違いに気づけない。
+   */
+  test("設定だけ書けなかったときは、操作が失敗したと書かない", () => {
+    stub.fileTree = TREE;
+    stub.error = asOperationFailure(CONFIG_FAILED);
+
+    mount();
+
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(dialog?.getAttribute("aria-label")).toBe("設定に保存できませんでした");
   });
 
   test("開発者向けのログは本文に出さない", () => {

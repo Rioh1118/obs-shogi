@@ -428,10 +428,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
           // ディスク上の改名は済んでいる。ここで捨てると「ディスクは新しい名前・
           // 設定は古い名前」で固定され、再起動しても開けない。
           //
-          // code は `io` にしない。あれは tier が `warning` で「再読み込み」が出るが、
-          // 読み直す先は自分で改名して消えた古いパスなので、押すたびに
-          // 「見つかりません」が返る。設定を書けないのは読み直しでは直らない
-          return failWithNotice(makeFsError("permission_denied", saved.error, nextPath), {
+          // **段のために別の code を借りない。** code は tier だけでなく利用者に
+          // 見せる一文も決めるので、借りると原因を偽ることになる。`setRootDir` が
+          // 落ちる理由は権限とは限らない（ディスク満杯・直列化・IPC 断）
+          return failWithNotice(makeFsError("config_write_failed", saved.error, nextPath), {
             kind: "rename_directory",
             path: node.path,
             newName,

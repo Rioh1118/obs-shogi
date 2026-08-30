@@ -17,8 +17,14 @@ import { RUST_SRC, SRC } from "./walk";
 const RUST_ENUM = join(RUST_SRC, "file_system", "error.rs");
 const TS_CODES = join(SRC, "entities", "file-tree", "api", "error.ts");
 
-/** Rust が返さない code。棋譜の読み込みは TS 側で失敗し、TS 側で作る */
-const TS_ONLY = ["kifu_format_unknown", "kifu_parse_failed"];
+/**
+ * Rust が返さない code。
+ *
+ * 棋譜の読み込みは TS 側で失敗し、TS 側で作る。`config_write_failed` は
+ * ディスク側の操作と設定の書き戻しが別の Tauri コマンドに分かれていて、
+ * 「片方だけ通った」を知っているのが TS 側しかないため
+ */
+const TS_ONLY = ["kifu_format_unknown", "kifu_parse_failed", "config_write_failed"];
 
 function block(source: string, open: RegExp, from: string): string {
   const start = source.match(open);

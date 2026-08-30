@@ -42,6 +42,18 @@ const collisionDetection: CollisionDetection = (args) => {
   return collisions.length ? collisions : closestCenter(args);
 };
 
+/**
+ * 見出しは「**何が落ちたか**」で決まる。
+ *
+ * 「ファイル操作に失敗しました」を一律に出すと、通っている操作まで失敗したと読める。
+ * ルート改名で設定だけ書けなかった場合、ディスク上の名前はもう変わっているので、
+ * 利用者は見出しを読んで「改名されなかった」と受け取り、食い違いに気づけない。
+ */
+function failureHeading(failure: FileTreeFailure, operationCompleted: boolean): string {
+  if (failure.error.code === "config_write_failed") return "設定に保存できませんでした";
+  return operationCompleted ? "一覧を取り直せませんでした" : "ファイル操作に失敗しました";
+}
+
 function FileTree() {
   const {
     fileTree,
@@ -226,7 +238,7 @@ function FileTree() {
 
       {shownError && hasTree && (
         <Modal
-          label={operationCompleted ? "一覧を取り直せませんでした" : "ファイル操作に失敗しました"}
+          label={failureHeading(shownError, operationCompleted)}
           theme="dark"
           size="sm"
           scroll="content"

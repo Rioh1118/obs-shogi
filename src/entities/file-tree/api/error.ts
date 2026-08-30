@@ -19,6 +19,10 @@ export type FsErrorCode =
   // 棋譜の読み込み。Rust は返さない。TS 側で作る
   | "kifu_format_unknown"
   | "kifu_parse_failed"
+  // ディスク側の操作は通ったが、設定を書き戻せなかった。Rust は返さない。
+  // **段のために他の code を借りない**ための1つ。借りると、利用者に見せる一文
+  // （`describeFsError`）が原因を偽る
+  | "config_write_failed"
   | "unknown";
 
 // TODO(#202): この語彙はファイルツリーの失敗より広い（棋譜の読み込みと書き出しを含む）。
@@ -58,6 +62,7 @@ export const FS_ERROR_CODES = {
   io: true,
   kifu_format_unknown: true,
   kifu_parse_failed: true,
+  config_write_failed: true,
   unknown: true,
 } satisfies Record<FsErrorCode, true>;
 
@@ -147,6 +152,7 @@ export function isNameInputError(code: FsErrorCode): boolean {
     case "io":
     case "kifu_format_unknown":
     case "kifu_parse_failed":
+    case "config_write_failed":
     case "unknown":
       return false;
   }
@@ -185,6 +191,7 @@ export function fsErrorTier(code: FsErrorCode): "warning" | "danger" {
     case "kifu_conversion_failed":
     case "kifu_format_unknown":
     case "kifu_parse_failed":
+    case "config_write_failed":
       return "danger";
   }
 }
@@ -227,6 +234,8 @@ export function describeFsError(code: FsErrorCode): string {
       return "対応していない棋譜の形式です";
     case "kifu_parse_failed":
       return "棋譜を解析できませんでした";
+    case "config_write_failed":
+      return "ディスク上の変更は済みましたが、アプリの設定に保存できませんでした";
     case "unknown":
       return "原因が分かりませんでした";
   }
