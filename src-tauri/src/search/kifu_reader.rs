@@ -1,4 +1,4 @@
-use std::{fs, panic::catch_unwind, path::Path};
+use std::{borrow::Cow, fs, panic::catch_unwind, path::Path};
 
 use thiserror::Error;
 
@@ -36,6 +36,19 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
     read_path_to_jkf(&rec.path, rec.kind)
 }
 
+/// 誤りを落として読む復号。上から順に試す。
+///
+/// KIF の既定は Shift_JIS で、UTF-8 で書かれたものも多い。
+/// クレートはどちらも**誤りの無い復号しか採らない**ので、
+/// 1バイト壊れた棋譜はここまで来る。
+/// 誤りを落とす復号1つ
+type LossyDecoder = fn(&[u8]) -> Cow<'_, str>;
+
+const LOSSY_DECODERS: [LossyDecoder; 2] = [
+    |bytes| String::from_utf8_lossy(bytes),
+    |bytes| SHIFT_JIS.decode(bytes).0,
+];
+
 /// 中身が1文字も無いファイルか。
 ///
 /// **KIF / KI2 のパーサは中身の無いファイルを「平手の初期局面1件」として
@@ -47,12 +60,24 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
 /// この門が要るのは KIF / KI2 だけ。形式で分けずに掛けるのは、
 /// どの形式でも「中身が無いファイル」を索引に入れる理由が無いから。
 ///
-/// **BOM は中身に数えない。** 書き出しが BOM を書いた直後に落ちると
-/// 2〜3バイトのファイルが残り、バイト数だけを見ると通り抜ける。
-/// UTF-16 の空白は `0x20 0x00` なので NUL も空白として扱う。
+/// # バイトで数えず、復号してから `trim` する
 ///
-/// 先頭 [`CONTENT_PROBE`] バイトだけを見る。**それを超えても空白しか無いなら
-/// 中身があるものとして通す** — 索引に入れる側へ倒す（読めなければ後段が弾く）。
+/// **空の記録が生まれる条件はクレート側の `s.trim().is_empty()` にある**
+/// （`parser.rs`）。`str::trim` は Unicode の空白を落とすので、
+/// `U+3000`（全角スペース）も `U+00A0` も空白として扱われる。
+///
+/// こちらがバイトの集合（ASCII 空白と NUL）で数えていると、
+/// **全角スペース1文字で門を抜ける**。実際その形で3度取りこぼしている。
+/// 判断の根拠が向こうにある以上、こちらも同じ土俵で見るのが唯一ずれない。
+///
+/// 復号は「BOM があればそれ、無ければ UTF-8 と Shift_JIS」の3通り。
+/// **どれか1つでも空白だけになれば中身が無いとみなす** —
+/// 正しい文字コードで読めば空白だけになるファイルを拾いたいので、
+/// 間違った文字コードで読んだ結果が空白でないことは根拠にならない。
+///
+/// 先頭 [`CONTENT_PROBE`] バイトだけを見る。**それを超えるファイルは通す** —
+/// 8KiB ぶんの空白しかない棋譜は現実には無く、
+/// 大きいファイルを丸ごと読む代金のほうが高い。
 fn has_no_content(path: &Path) -> bool {
     let Ok(file) = fs::File::open(path) else {
         return false;
@@ -70,22 +95,12 @@ fn has_no_content(path: &Path) -> bool {
         return false;
     }
 
-    let body = strip_bom(&head);
-    body.iter().all(|b| b.is_ascii_whitespace() || *b == 0)
-}
-
-/// BOM を落とす。UTF-8 / UTF-16LE / UTF-16BE
-fn strip_bom(bytes: &[u8]) -> &[u8] {
-    for bom in [
-        &[0xEF, 0xBB, 0xBF][..],
-        &[0xFF, 0xFE][..],
-        &[0xFE, 0xFF][..],
-    ] {
-        if let Some(rest) = bytes.strip_prefix(bom) {
-            return rest;
-        }
+    if let Some((encoding, _)) = Encoding::for_bom(&head) {
+        return encoding.decode(&head).0.trim().is_empty();
     }
-    bytes
+    [encoding_rs::UTF_8, SHIFT_JIS]
+        .iter()
+        .any(|enc| enc.decode(&head).0.trim().is_empty())
 }
 
 /// 中身があるかを見るために読む先頭のバイト数。
@@ -119,6 +134,14 @@ const MESSAGE_LIMIT: usize = 300;
 /// 局面を1つも持たない項目として登録する（#333）。
 /// どちらの経路でも、その棋譜の局面は検索に出てこない。
 pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
+    // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
+    // CSA / JKF はクレートが自分で開くので、ここを通さないと
+    // `Permission denied (os error 13)` が生のまま画面に出る
+    match fs::File::open(path) {
+        Ok(_) => {}
+        Err(e) => return Err(unreadable(e)),
+    }
+
     if has_no_content(path) {
         return Err(parse_failed(
             "ファイルが空です。保存が途中で終わっていないか確かめてください",
@@ -255,7 +278,10 @@ fn unreadable(e: std::io::Error) -> KifuReadError {
                 .to_owned()
         }
         std::io::ErrorKind::NotFound => "索引を作っている間にファイルが無くなりました".to_owned(),
-        other => format!("ファイルを読めませんでした（{other:?}）"),
+        // `ErrorKind` の Debug は内部の識別子なので出さない
+        _ => {
+            "ファイルを読めませんでした。ディスクやネットワークの接続を確かめてください".to_owned()
+        }
     };
     parse_failed(what)
 }
@@ -403,7 +429,7 @@ where
     let mut named = None;
     // 名乗れない候補は**行数が一番多いもの**を採る。並び順で決めると、
     // バイト順を取り違えた UTF-16（1行にまとまる）が先にあるだけで勝ってしまう。
-    // 同点なら決められない（`tied`）— 1行の棋譜では正しい読み方も1行になる
+    // 同点の扱いは [`line_count`]
     let mut anonymous: Option<(usize, Unparsable)> = None;
 
     for enc in ENCODINGS_THE_CRATE_SKIPS {
@@ -443,11 +469,10 @@ where
     // KIF の既定は Shift_JIS なので、1バイト壊れただけの棋譜がここに来る。
     //
     // TODO(#293): 欠けたことを利用者に告げないまま索引へ入れている
-    for decoded in [
-        String::from_utf8_lossy(bytes).into_owned(),
-        SHIFT_JIS.decode(bytes).0.into_owned(),
-    ] {
-        if let Ok(jkf) = parse(&decoded) {
+    // 配列リテラルにすると**両方の復号がループに入る前に走る**ので、
+    // 1本目で読めたときに使わないコピーを1本作ることになる
+    for decode in LOSSY_DECODERS {
+        if let Ok(jkf) = parse(&decode(bytes)) {
             return Ok(jkf);
         }
     }
@@ -460,11 +485,14 @@ where
 /// 復号した結果が何行になったか。**候補どうしを比べるためだけに使う。**
 ///
 /// バイト順を取り違えた UTF-16 を弾くのが目的。UTF-16 は LE と BE のどちらで
-/// 読んでも誤りが出ないので `had_errors` では区別が付かないが、取り違えると
+/// 読んでもほとんど誤りが出ないので `had_errors` では当てにできないが、取り違えると
 /// 改行 `U+000A` が `U+0A00` になり、**行が1つにまとまる**。
 /// 改行が1つでもある棋譜なら、正しい読み方のほうが行数が多い。
 /// **1行しか無い棋譜では同数になる** — そのときは先に試したほうを採る。
-/// どちらを採っても行番号は1行目なので、利用者に出る文言は変わらない。
+/// 行番号はどちらも1行目だが、**引用される行の本文は違う**（クレートは
+/// 読めなかった行をそのまま引用する。`nom` の `convert_error`）。
+/// BOM の無い UTF-16 では LE と BE を原理的に区別できないので、
+/// ここは当てにいかず先着順にしてある。
 ///
 /// **「改行があること」を通過条件にはしない。** 1行しかない KI2 は正当な入力で、
 /// 候補が1つならそれを採る。落とすのは
@@ -1122,8 +1150,8 @@ mod tests {
     ///
     /// **文字コードごとに表で回す。** 1つの題材だけだと、
     /// たまたまその文字コードを拾う経路が生きているだけで緑になる。
-    /// 実際、UTF-8 だけを見ていたときは Shift_JIS の穴に気付けなかった —
-    /// KIF の既定は Shift_JIS なので、そこが一番よく通る道。
+    /// KIF の既定は Shift_JIS なので、そこが一番よく通る道 —
+    /// 表から Shift_JIS の段を消すと落ちる。
     ///
     /// 欠けたまま索引へ入れていることは #293 で扱う。
     #[test]
@@ -1166,7 +1194,7 @@ mod tests {
 
         // 「書き出しが途中で終わった跡」の形はいくつもある。
         // バイト数だけ、あるいは生バイトの空白だけを見ると取りこぼす
-        let cases: [(&str, Vec<u8>); 6] = [
+        let cases: [(&str, Vec<u8>); 13] = [
             ("empty", vec![]),
             ("whitespace", b"\n\n   \n".to_vec()),
             ("utf8-bom-only", vec![0xEF, 0xBB, 0xBF]),
@@ -1177,6 +1205,19 @@ mod tests {
                 "utf16le-whitespace",
                 vec![0xFF, 0xFE, 0x0A, 0x00, 0x20, 0x00],
             ),
+            // `str::trim` は Unicode の空白を落とす。バイトの集合で数えると
+            // 全角スペース1文字で抜ける
+            ("zenkaku-utf8", "　".as_bytes().to_vec()),
+            ("zenkaku-utf8-lines", "　　　\n".as_bytes().to_vec()),
+            ("zenkaku-sjis", vec![0x81, 0x40]),
+            ("zenkaku-sjis-nl", vec![0x81, 0x40, 0x0A]),
+            ("bom-then-zenkaku", {
+                let mut v = vec![0xEF, 0xBB, 0xBF];
+                v.extend("　".as_bytes());
+                v
+            }),
+            ("nbsp-utf8", "\u{00A0}".as_bytes().to_vec()),
+            ("utf16le-zenkaku", vec![0xFF, 0xFE, 0x00, 0x30]),
         ];
         for (label, body) in cases {
             let path = dir.join(format!("{label}.kif"));
@@ -1294,6 +1335,50 @@ mod tests {
             message.contains("UTF-16LE"),
             "6 が使われていない: {message}"
         );
+    }
+
+    /// ファイルを開けなかった理由も日本語で言う。**4形式すべてで。**
+    ///
+    /// CSA / JKF はクレートが自分でファイルを開くので、
+    /// 形式ごとの分岐より前に見ないと `os error 13` が生のまま画面に出る。
+    #[test]
+    fn a_file_that_cannot_be_opened_says_why_in_every_format() {
+        let dir = temp_dir("unreadable");
+        let kinds = [
+            ("kif", KifuKind::Kif),
+            ("ki2", KifuKind::Ki2),
+            ("csa", KifuKind::Csa),
+            ("jkf", KifuKind::Jkf),
+        ];
+
+        for (label, kind) in kinds {
+            // 存在しない
+            let missing = dir.join(format!("missing.{label}"));
+            let err = read_path_to_jkf(&missing, kind)
+                .err()
+                .unwrap_or_else(|| panic!("{label}: 無いファイルが読めた"));
+            assert!(
+                err.to_string().contains("無くなりました"),
+                "{label}: 無いことを言っていない: {err}"
+            );
+
+            // 権限が無い
+            let denied = dir.join(format!("denied.{label}"));
+            fs::write(&denied, b"x").expect("書き出し");
+            let mut perms = fs::metadata(&denied).expect("metadata").permissions();
+            std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o000);
+            fs::set_permissions(&denied, perms).expect("chmod");
+
+            let err = read_path_to_jkf(&denied, kind)
+                .err()
+                .unwrap_or_else(|| panic!("{label}: 読めない権限で読めた"));
+            assert!(
+                err.to_string().contains("権限"),
+                "{label}: 権限のことを言っていない: {err}"
+            );
+        }
+
+        fs::remove_dir_all(&dir).ok();
     }
 
     /// 手合割つきの棋譜が読める。
