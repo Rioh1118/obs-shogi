@@ -90,6 +90,19 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   const aliveRef = useRef(true);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /** 面ごとに走っている保存の本数 */
+  const pendingByKeyRef = useRef(new Map<string, number>());
+  /**
+   * 画面から外れた面の、**最後に画面に出ていた本文**。
+   *
+   * `stash` は「利用者が打ち直して元へ戻したか」を見るのに画面の本文が要るが、
+   * 面が外れると `leavingRef` はもう別の面を指している。控えが無いと、
+   * 撃った時点で固定した古い本文をそのまま預けることになる。
+   *
+   * **走っている保存がある面だけ持つ。** 常に持つと、手を送るたびに増え続ける。
+   */
+  const latestDraftByKeyRef = useRef(new Map<string, string>());
+
   /**
    * 指定した面へ書く。**書く先も、書き戻す先も、面で決める。**
    *
@@ -130,6 +143,19 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
             return;
           }
           putUnsavedDraft(target.key, { ...value, draft: onScreen.draft });
+          return;
+        }
+
+        // 画面から外れた面も同じ判定を通す。**外れる出口は4つある**
+        // （閉じる／別の手のコメントへ移る／棋譜が差し替わる／unmount）ので、
+        // 画面に出たままの1つだけを塞ぐと、残りの3つで古い本文が預けられる。
+        const latest = latestDraftByKeyRef.current.get(target.key);
+        if (latest !== undefined) {
+          if (latest === baseAtFire) {
+            dropUnsavedDraft(target.key);
+            return;
+          }
+          putUnsavedDraft(target.key, { ...value, draft: latest });
           return;
         }
 
@@ -205,9 +231,21 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         }
       };
 
+      const pending = pendingByKeyRef.current;
+      pending.set(target.key, (pending.get(target.key) ?? 0) + 1);
+
       const next = chainRef.current.then(saveOnce, saveOnce);
       chainRef.current = next;
-      return next;
+      return next.finally(() => {
+        const left = (pending.get(target.key) ?? 1) - 1;
+        if (left > 0) {
+          pending.set(target.key, left);
+          return;
+        }
+        // この面へ書きに行く経路がもう無いので、控えも落とす
+        pending.delete(target.key);
+        latestDraftByKeyRef.current.delete(target.key);
+      });
     },
     [],
   );
@@ -231,6 +269,10 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     }
     setStatus(null);
 
+    // 走っている保存はこのあと結果を書き戻す。**最後に画面に出ていた本文を控える。**
+    if ((pendingByKeyRef.current.get(prev.face.key) ?? 0) > 0)
+      latestDraftByKeyRef.current.set(prev.face.key, prev.draft);
+
     if (prev.draft !== prev.baseText) void save(prev.face, prev.draft, prev.baseText);
   }, [editing, save]);
 
@@ -241,11 +283,19 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // setup → cleanup → setup が走ったとき（StrictMode）に false のまま残り、
     // 失敗の理由も「保存済み」も**一切描かなくなる**。
     aliveRef.current = true;
+    // Map の実体は張り替わらないので、cleanup が読むぶんはここで押さえてよい
+    const pending = pendingByKeyRef.current;
+    const latestDraft = latestDraftByKeyRef.current;
     return () => {
       aliveRef.current = false;
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       const cur = leavingRef.current;
-      if (cur && cur.draft !== cur.baseText) {
+      if (!cur) return;
+
+      // 走っている保存はこのあと結果を書き戻す。unmount も面が外れる出口の1つ
+      if ((pending.get(cur.face.key) ?? 0) > 0) latestDraft.set(cur.face.key, cur.draft);
+
+      if (cur.draft !== cur.baseText) {
         // **本文はいま画面に出ているものを採る。** 既に預かりがあってもそちらは
         // 必ず古い（失敗したときの本文）。古いほうを残すと、
         // 「続けて書けば保存し直します」と出しながら書き足したぶんだけを捨てる。

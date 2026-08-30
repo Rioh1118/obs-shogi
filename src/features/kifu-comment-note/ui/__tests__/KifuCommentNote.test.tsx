@@ -550,15 +550,18 @@ describe("走っている保存の面を組み直したとき", () => {
     tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
   };
 
-  function show(view: ReturnType<typeof open>, cursor: KifuCursor, onClose = () => {}) {
+  function show(
+    view: ReturnType<typeof open>,
+    props: { cursor?: KifuCursor; open?: boolean } = {},
+  ) {
     return act(async () => {
       view.rerender(
         <KifuCommentNote
-          open
-          cursor={cursor}
+          open={props.open ?? true}
+          cursor={props.cursor ?? CURSOR}
           absPath="/ws/a.kif"
           anchorEl={null}
-          onClose={onClose}
+          onClose={() => {}}
         />,
       );
     });
@@ -595,8 +598,8 @@ describe("走っている保存の面を組み直したとき", () => {
 
     // 楽観的更新。書き込みはまだ返っていない
     comments = ["消えては困るメモ"];
-    await show(view, OTHER);
-    await show(view, CURSOR);
+    await show(view, { cursor: OTHER });
+    await show(view, {});
 
     await fail();
 
@@ -613,8 +616,8 @@ describe("走っている保存の面を組み直したとき", () => {
 
     await typeAndAutosave("消えては困るメモ");
     comments = ["消えては困るメモ"];
-    await show(view, OTHER);
-    await show(view, CURSOR);
+    await show(view, { cursor: OTHER });
+    await show(view, {});
 
     await fail();
     const before = setCommentsByCursor.mock.calls.length;
@@ -626,5 +629,77 @@ describe("走っている保存の面を組み直したとき", () => {
     const calls = setCommentsByCursor.mock.calls;
     expect(calls.length).toBeGreaterThan(before);
     expect(calls[calls.length - 1][1]).toEqual(["消えては困るメモ"]);
+  });
+});
+
+/**
+ * **面が画面から外れる出口は4つある**（閉じる／別の手のコメントへ移る／
+ * 棋譜が差し替わる／unmount）。走っている保存が返るのはそのあとなので、
+ * 「打ち直して元へ戻したなら預からない」を画面に出たままの1つだけに掛けると、
+ * 残りの出口では**利用者が消した本文が預かりに入る**。
+ *
+ * 入ると、開き直したときにその本文がエディタに戻り、900ms 後にファイルへ書かれて
+ * 「保存済み」が出る。コメントの無い手では「書いたけどやっぱり全部消す」が
+ * `draft === baseText === ""` になるので、特別な操作ではなく普通の使い方で踏む。
+ */
+describe("打ち直して元へ戻したまま面が外れたとき", () => {
+  const OTHER: KifuCursor = {
+    tesuu: 7,
+    forkPointers: [],
+    tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
+  };
+
+  function show(view: ReturnType<typeof open>, props: { cursor?: KifuCursor; open?: boolean }) {
+    return act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open={props.open ?? true}
+          cursor={props.cursor ?? CURSOR}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={() => {}}
+        />,
+      );
+    });
+  }
+
+  /** 打って、保存を撃って、返る前に全部消す。`dirty` が落ちるので再保存は撃たれない */
+  async function typeThenRevert() {
+    let release!: () => void;
+    const held = new Promise((r) => {
+      release = () => r(Err("Permission denied (os error 13)"));
+    });
+    setCommentsByCursor.mockReturnValue(held);
+
+    await typeAndAutosave("打ち間違い");
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+    await type("");
+
+    return async () => {
+      await act(async () => {
+        release();
+        await held;
+      });
+    };
+  }
+
+  it("ノートを閉じたあとに失敗が返っても、消した本文を預からない", async () => {
+    const view = open("/ws/a.kif");
+    const fail = await typeThenRevert();
+
+    await show(view, { open: false });
+    await fail();
+
+    expect(getUnsavedDraft(unsavedDraftKey(CURSOR, "/ws/a.kif"))).toBeUndefined();
+  });
+
+  it("別の手のコメントへ移ったあとに失敗が返っても、消した本文を預からない", async () => {
+    const view = open("/ws/a.kif");
+    const fail = await typeThenRevert();
+
+    await show(view, { cursor: OTHER });
+    await fail();
+
+    expect(getUnsavedDraft(unsavedDraftKey(CURSOR, "/ws/a.kif"))).toBeUndefined();
   });
 });
