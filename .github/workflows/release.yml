@@ -26,7 +26,15 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  # **排他したい資源はリリース1本＝タグ。** `github.ref` にすると push tag の run と
+  # workflow_dispatch の run が別グループになり、同じタグに対して同時に走る。
+  # 4本の leg が同じ `latest.json` を read-modify-write するので、後勝ちで
+  # プラットフォームの entry が消える。復旧が dispatch を通るのでこの経路は現実に踏む。
+  #
+  # 下の `RELEASE_TAG` と同じ式を書いているのは、**workflow レベルの `concurrency` では
+  # `env` コンテキストが解決されない**ため。寄せると空になり、`release-` という
+  # 単一のグループに全リリースが直列化される。
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
