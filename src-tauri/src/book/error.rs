@@ -7,7 +7,7 @@ use std::io;
 /// メッセージ文字列で分岐させないために、`file_system::FsError` と同じ形を取る。
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum BookErrorCode {
+pub(crate) enum BookErrorCode {
     /// 定跡ファイルが存在しない
     NotFound,
     /// 存在するが読む権限が無い
@@ -51,7 +51,7 @@ pub struct BookError {
 
 impl BookError {
     /// パスに紐づかない失敗を作る。ファイルが絡むなら [`BookError::with_path`] を続ける。
-    pub fn new(code: BookErrorCode, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: BookErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -76,7 +76,7 @@ impl BookError {
     /// ここで打ち切る。載せるパスはコマンド境界から来る任意長の文字列で、
     /// `Display` がこれを含めてログ（200KB でローテート）へ出る。呼び出し側で
     /// 打ち切る形にすると、経路が増えるたびに取り残す。
-    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+    pub(crate) fn with_path(mut self, path: impl Into<String>) -> Self {
         self.path = Some(truncate_path(&path.into()));
         self
     }
@@ -85,7 +85,7 @@ impl BookError {
     ///
     /// `?` 越しの [`From<io::Error>`] は path を埋められないので、複数の定跡を
     /// 開いているときに「どれが死んだのか」がフロントに伝わらない。
-    pub fn from_io(err: io::Error, path: impl Into<String>) -> Self {
+    pub(crate) fn from_io(err: io::Error, path: impl Into<String>) -> Self {
         Self::from(err).with_path(path)
     }
 }

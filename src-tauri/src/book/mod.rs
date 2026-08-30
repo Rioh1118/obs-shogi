@@ -22,7 +22,10 @@ mod types;
 pub use api::{
     close_all_books, close_book, get_book_info, list_books, lookup_book_moves, open_book,
 };
-pub use error::{BookError, BookErrorCode};
+// `BookError` はコマンドの `Err` 型なので `pub`。組み立てと読み取りは
+// `pub(crate)` にしてある。外から「作れるが読めない」型にしないため。
+// 種別で分岐させたくなったら、`code()` を上げるのと一緒に `BookErrorCode` も上げる。
+pub use error::BookError;
 pub use session::BookState;
 pub use types::{
     BookFormat, BookHandle, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput,
