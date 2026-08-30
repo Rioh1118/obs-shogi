@@ -17,10 +17,32 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 表と、その表が指している実装。
-const TABLES: [(&str, &[&str]); 1] = [(
-    "docs/state-transitions/yaneuraou-db-parse.md",
-    &["src/book/yaneuraou_db.rs", "src/book/sfen.rs"],
-)];
+const TABLES: [(&str, &[&str]); 2] = [
+    (
+        "docs/state-transitions/yaneuraou-db-parse.md",
+        &["src/book/yaneuraou_db.rs", "src/book/sfen.rs"],
+    ),
+    (
+        "docs/state-transitions/book-key-failures.md",
+        &["src/book/sfen.rs"],
+    ),
+];
+
+/// Rust の実装を指していない表。**理由を書かずに足さない。**
+///
+/// 対応表を手で書く以上、足し忘れは必ず起きる。`root_guard.rs` と同じで、
+/// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
+const NOT_RUST: [(&str, &str); 9] = [
+    ("analysis.md", "解析パネル。TS 側の reducer"),
+    ("app.md", "アプリ全体の起動と終了。TS 側"),
+    ("branch-index.md", "分岐の索引。TS 側"),
+    ("engine-position-sync.md", "局面の送信。TS 側のフック"),
+    ("engine.md", "エンジンの生存。TS 側から見た状態"),
+    ("failure-surfacing.md", "失敗の見せ方。TS 側"),
+    ("file-tree.md", "ファイル木。TS 側"),
+    ("inline-name-editor.md", "名前の編集。TS 側"),
+    ("verify-gate-decision.md", "検証ゲート。shell スクリプト"),
+];
 
 /// 表に出るが実装の識別子ではないもの。
 ///
@@ -69,9 +91,15 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
             })
             .collect();
 
+        // 部分文字列で見ない。`MAX_MOVE` は `MAX_MOVE_CHARS` に含まれるので、
+        // 消した定数の接頭辞が別の定数に残っているだけで通ってしまう。
+        let declared: BTreeSet<&str> = code
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .collect();
+
         let missing: Vec<String> = constants_in(&text)
             .into_iter()
-            .filter(|name| !code.contains(name.as_str()))
+            .filter(|name| !declared.contains(name.as_str()))
             .collect();
 
         assert!(
@@ -81,6 +109,36 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
              存在しない検査を前提に設計する人が出る。",
         );
     }
+}
+
+/// 表を足したときに、この検査へ取り込み忘れないこと。
+///
+/// **対応表を手で書いている以上、これが無いと表を1つ足すだけで検査を抜けられる。**
+/// 実際、この検査を入れた時点で `book-key-failures.md` が抜けていた。
+/// 定数を書いた表がそこにあり、まさに見るべき形をしていたのに。
+#[test]
+fn every_table_is_either_checked_or_declared_not_rust() {
+    let dir = repo_file("docs/state-transitions");
+    let mut unregistered = Vec::new();
+
+    for entry in fs::read_dir(&dir).expect("表の置き場を読めない") {
+        let name = entry.expect("表を読めない").file_name();
+        let name = name.to_string_lossy().to_string();
+        if !name.ends_with(".md") || name == "README.md" {
+            continue;
+        }
+        let checked = TABLES.iter().any(|(path, _)| path.ends_with(&name));
+        let excused = NOT_RUST.iter().any(|(excused, _)| *excused == name);
+        if !checked && !excused {
+            unregistered.push(name);
+        }
+    }
+
+    assert!(
+        unregistered.is_empty(),
+        "この検査に登録されていない表がある: {unregistered:?}\n\
+         Rust の実装を指す表なら TABLES へ、そうでないなら理由を添えて NOT_RUST へ。",
+    );
 }
 
 /// 検査そのものが空振りしていないこと。
