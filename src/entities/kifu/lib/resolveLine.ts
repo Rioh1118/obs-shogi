@@ -16,7 +16,7 @@ export type LineRef = { line: JKFMove[]; startTe: number };
  * **`uptoTe` の分岐そのものは降りない**（境界は `normalizeBefore` が持つ）。
  * 渡す値は用途で1つずれる。
  *
- * - `te` の**手そのもの**が欲しい side は `te + 1` を渡す。`te` の分岐を降りないと、
+ * - `te` の**手そのもの**が欲しい側は `te + 1` を渡す。`te` の分岐を降りないと、
  *   その変化に入っている局面で**同じ絶対手数の本譜の手が返る**（例外は出ない）
  * - `te` の `forks` を**選び直したい**側だけが `te` を渡す。`BranchPointRef` の
  *   規約「すべて `p.te < te`」を満たす `forkPointers` を持つ側に限る
