@@ -1,16 +1,12 @@
 name: Release
 
-# Triggered by version tags (v1.2.3) or manual dispatch
+# 手順・タグの制約・空打ち・壊れたリリースの直し方は docs/RELEASE.md
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-      # pre-release: v1.0.0-1。**`-` の後ろは 65535 以下の10進数だけ。**
-      # Windows は msi も作る（`tauri.conf.json` の `bundle.targets`）が、
-      # MSI の ProductVersion にはそれ以外を載せられず bundler が bail する。
-      # `-beta.1` も `-20260830` も落ちる。落ちても `fail-fast: false` なので
-      # 他の OS の資産だけが載ったリリースがそのまま公開される。
-      # TODO(#269): このパターンで弾くか、msi を作るのをやめるか
+      # pre-release 識別子は 65535 以下の10進数だけ（MSI の制約）。
+      # このパターンはそれより広く、外れたタグは Windows だけ落ちる。TODO(#269)
       - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
     inputs:
@@ -26,14 +22,9 @@ permissions:
   contents: write
 
 concurrency:
-  # **排他したい資源はリリース1本＝タグ。** `github.ref` にすると push tag の run と
-  # workflow_dispatch の run が別グループになり、同じタグに対して同時に走る。
-  # 4本の leg が同じ `latest.json` を read-modify-write するので、後勝ちで
-  # プラットフォームの entry が消える。復旧が dispatch を通るのでこの経路は現実に踏む。
-  #
-  # 下の `RELEASE_TAG` と同じ式を書いているのは、**workflow レベルの `concurrency` では
-  # `env` コンテキストが解決されない**ため。寄せると空になり、`release-` という
-  # 単一のグループに全リリースが直列化される。
+  # 排他するのはリリース1本＝タグ。`github.ref` にすると push と dispatch が別グループになる。
+  # 下の `RELEASE_TAG` と同じ式なのは、ここでは `env` コンテキストが解決されないため
+  # （寄せると空になり、全リリースが1つのグループに直列化される）。
   group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
@@ -49,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
-      # 4本の build が組む commit。タグから1度だけ解決して配る
+      # 4本の build が組む commit。ここで1度だけ解決して配る
       sha: ${{ steps.create.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -64,9 +55,9 @@ jobs:
                              '${{ github.event.inputs.prerelease }}' === 'true';
             const { owner, repo } = context.repo;
 
-            // タグが指す commit。annotated tag は object が tag なのでもう一段引く。
-            // 無ければ null。**404 をここで閉じる**（下の try へ混ぜると、タグが無いことが
-            // 「リリースが無い」と読み替えられて createRelease に落ち、422 で死ぬ）。
+            // タグが指す commit。無ければ null。annotated tag は object が tag なのでもう一段引く。
+            // **404 をここで閉じる**。下の try へ混ぜると、タグが無いことが
+            // 「リリースが無い」と読み替えられて createRelease に落ち、422 で死ぬ。
             async function shaOfTag(tag) {
               try {
                 const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
@@ -80,8 +71,8 @@ jobs:
             }
 
             // **タグの有無とリリースの有無は別。** createRelease はリリースを作るだけで、
-            // タグが既にあれば触らない。混ぜると「タグはあるがリリースを消して撃ち直す」経路で、
-            // タグの commit ではなく dispatch した ref の先端を配ってしまう。
+            // タグが既にあれば触らない。リリースだけ消して撃ち直す経路があるので、
+            // 「リリースが無い ⇒ タグも無い」と読むと dispatch した ref の先端を配ってしまう。
             const tagSha = await shaOfTag(tag);
 
             // Reuse if already exists (idempotent re-run)
@@ -95,8 +86,9 @@ jobs:
 
             if (releaseId === null) {
               // **target_commitish が効くのはタグをこれから作るときだけ**で、既にあれば無視される。
-              // 省くとリポジトリの既定ブランチの上に作られるので、ブランチから
-              // workflow_dispatch を撃つとブランチの修正が入らないリリースが出る。
+              // 省くと新しいタグが既定ブランチの上に作られ、その run は `context.sha`
+              // （撃った ref）から資産を組むのでタグと中身が別の木を指す。
+              // 次に同じタグで撃つと `tagSha` が既定ブランチを返し、資産まで入れ替わる。
               const r = await github.rest.repos.createRelease({
                 owner, repo,
                 tag_name:         tag,
@@ -123,16 +115,7 @@ jobs:
     needs: create-release
     strategy:
       # 1つの OS が落ちても残りは上げる。**リリースは公開されたまま残るので、
-      # 資産の欠けたリリースが `latest` として外から見える。**
-      #
-      # 直し方は失敗した場所で分かれる。この yml が原因なら、直したブランチから
-      # 同じタグで `workflow_dispatch` を撃てば埋まる（**手順はこの yml、つまり
-      # `github.ref` から来る。**組むソースだけがタグの木）。タグの木が原因なら
-      # 撃ち直しても再現するので、タグを付け替えるか新しいバージョンを切る。
-      #
-      # **どちらでも、先にリリースを資産ごと消すこと。** 撃ち直しは既存のリリースを
-      # 再利用し、tauri-action は同じ名前の資産しか差し替えない。前の run の資産が
-      # 残ったまま `latest.json` にマージされ、**別の木の資産が1つのリリースに同居する。**
+      # 資産の欠けたリリースが `latest` として外から見える**（直し方は docs/RELEASE.md）。
       fail-fast: false
       matrix:
         # ターゲットを決めるのは `rust_target` だけ。空は「ホストのまま組む」で、
@@ -160,11 +143,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      # **run の中の4本は同じ commit を組む。** タグ名を渡すと `actions/checkout` は
-      # fetch した時点のタグを引く（40桁 hex のときだけ commit 固定になる）ので、
-      # `cancel-in-progress: false` の run が走っている最中にタグを付け替えると、
-      # leg ごとに別の木が checkout される。
-      # run をまたいだ混在は塞がない（上の `fail-fast` の節）。
+      # **SHA で受け取る。** タグ名を渡すと `actions/checkout` は fetch した時点のタグを引く
+      # （commit を固定するのは `ref` 未指定か 40桁 hex のときだけ）ので、
+      # 走っている最中にタグを付け替えると leg ごとに別の木になる。
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.create-release.outputs.sha }}
@@ -240,7 +221,6 @@ jobs:
           # 既定が true なので値としては再掲。消してよい入力に見せない
           uploadUpdaterJson: true
 
-          # `[arch]` の綴りは bundle ごとに違う（AppImage/deb=amd64、rpm=x86_64、
-          # Windows/macOS=x64/aarch64）。パターンを固定の綴りに書き換えると、
-          # tauri-action が資産と署名を突き合わせられず latest.json から落ちる
+          # `[arch]` を固定の綴りに書き換えると、tauri-action が資産と署名を
+          # 突き合わせられず latest.json から落ちる（綴りの一覧は docs/RELEASE.md）
           releaseAssetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
