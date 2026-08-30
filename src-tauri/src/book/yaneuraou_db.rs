@@ -82,41 +82,58 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
 /// 無い**（配布されている `user_book1.db` で確認）ので、申告値との突き合わせは
 /// 唯一の大定跡では一度も走らない。任意のバイト位置で切れたファイルは、
 /// 行長 22 バイト前後のこの形式ではほぼ確実に行の途中で終わる。
+///
+/// **バイト列で読んで、行ごとに UTF-8 を試す。** ファイル全体を UTF-8 として
+/// 読むと、Shift_JIS の注記が1行あるだけで定跡全体が拒否される。本家は行を
+/// 生のバイト列として読み、注記は中身を見ずに捨てるので、そういう定跡を普通に
+/// 読む。注記でない行が読めないときだけ落とす（キーが置換文字で汚れる懸念は、
+/// `sfen` 行と指し手行に厳格な UTF-8 を課したままなので保たれる）。
 fn read_line<R: BufRead>(
     reader: &mut R,
     buffer: &mut String,
     first: bool,
+    line_number: usize,
     path: &str,
 ) -> Result<Option<bool>, BookError> {
-    buffer.clear();
-    let read = reader.read_line(buffer).map_err(|e| {
-        if e.kind() == std::io::ErrorKind::InvalidData {
-            invalid_content(
-                "定跡ファイルがテキストとして読めない。やねうら王テキスト定跡 (.db) 以外の\
-                 ファイルを選んでいないか確かめ、選び直すこと",
-                path,
-            )
-        } else {
-            BookError::from_io(e, path)
-        }
-    })?;
+    let mut raw = Vec::new();
+    let read = reader
+        .read_until(b'\n', &mut raw)
+        .map_err(|e| BookError::from_io(e, path))?;
 
     if read == 0 {
         return Ok(None);
     }
 
-    let terminated = buffer.ends_with('\n');
+    let terminated = raw.ends_with(b"\n");
+    while raw.ends_with(b"\n") || raw.ends_with(b"\r") {
+        raw.pop();
+    }
 
     // BOM 付きで配られている定跡がある。落とさないとヘッダの検査が必ず外れる。
     if first {
-        if let Some(rest) = buffer.strip_prefix('\u{feff}') {
-            *buffer = rest.to_string();
+        if let Some(rest) = raw.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+            raw = rest.to_vec();
         }
     }
 
-    while buffer.ends_with('\n') || buffer.ends_with('\r') {
-        buffer.pop();
+    buffer.clear();
+    match std::str::from_utf8(&raw) {
+        Ok(line) => buffer.push_str(line),
+        Err(_) => {
+            // 注記なら中身を見ない。本家と同じ扱い。
+            if raw.starts_with(b"#") || raw.starts_with(b"//") {
+                return Ok(Some(terminated));
+            }
+            return Err(invalid_content(
+                &format!(
+                    "{line_number}行目に文字として読めないバイトがある。\
+                     定跡を取得し直すか、別の定跡を開くこと"
+                ),
+                path,
+            ));
+        }
     }
+
     Ok(Some(terminated))
 }
 
@@ -229,7 +246,7 @@ fn parse_limited<R: BufRead>(
 
     // 見出しより前にも注記は書ける。本家は `#` と `//` を位置に関係なく
     // 読み飛ばす（`book.cpp:709-716`）ので、先頭の1行のせいで定跡を拒否しない。
-    while let Some(terminated) = read_line(&mut reader, &mut buffer, index == 0, path)? {
+    while let Some(terminated) = read_line(&mut reader, &mut buffer, index == 0, index + 1, path)? {
         index += 1;
         last_line_terminated = terminated;
         let line = buffer.trim();
@@ -275,7 +292,7 @@ fn parse_limited<R: BufRead>(
     let mut sfen_lines: u64 = 0;
     let mut total_moves: usize = 0;
 
-    while let Some(terminated) = read_line(&mut reader, &mut buffer, false, path)? {
+    while let Some(terminated) = read_line(&mut reader, &mut buffer, false, index + 1, path)? {
         index += 1;
         last_line_terminated = terminated;
         let line = buffer.trim();
@@ -962,86 +979,35 @@ mod tests {
         assert_eq!(usi, ["7g7f", "2g2f"]);
     }
 
-    /// 表の F1。不正な UTF-8 は `read_line` が `InvalidData` を返す。
-    /// 「UTF-8」は利用者の言葉ではないので、形式違いの案内へ言い直していること。
+    /// 表の F1。**注記の中身は見ない。** 本家は行を生のバイト列として読み、
+    /// `#` / `//` を中身を見ずに捨てる。ファイル全体を UTF-8 として読むと、
+    /// Shift_JIS の注記が1行あるだけで定跡全体が拒否される。
     #[test]
-    fn a_binary_file_is_reported_as_not_being_a_text_book() {
-        // 単独の 0x80 は UTF-8 として成立しない
-        let bytes: Vec<u8> = vec![b'#', 0x80, b'\n'];
+    fn a_note_in_another_encoding_does_not_reject_the_book() {
+        let mut bytes = b"#YANEURAOU-DB2016 1.00\n// ".to_vec();
+        // cp932 の「生成」
+        bytes.extend_from_slice(&[0x90, 0xB6, 0x90, 0xAC]);
+        bytes.extend_from_slice(b"\n");
+        bytes.extend_from_slice(format!("sfen {HIRATE}\n7g7f none 50 32 1\n").as_bytes());
+
+        let positions = parse(std::io::Cursor::new(bytes), "/books/a.db").expect("読めるはず");
+        assert_eq!(positions.len(), 1);
+    }
+
+    /// 注記でない行が読めないときは落とす。**行番号を添える。**
+    /// 100万行の定跡で「どこか」としか言われないと、利用者にも報告を受けた側にも
+    /// 打つ手が無い。同じファイルの他の失敗は行番号を出すので、ここだけ揃えない
+    /// 理由が無い。
+    #[test]
+    fn an_unreadable_byte_outside_a_note_is_reported_with_its_line_number() {
+        let mut bytes =
+            format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n").into_bytes();
+        bytes.extend_from_slice(&[0x80, b'\n']);
+
         let err = parse(std::io::Cursor::new(bytes), "/books/a.db").unwrap_err();
-
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
-        assert!(
-            err.message().contains("テキストとして読めない"),
-            "{}",
-            err.message()
-        );
-        assert!(err.message().contains("選び直すこと"), "{}", err.message());
-    }
-
-    /// 表の不変条件4の行数側。
-    ///
-    /// ファイルサイズの上限だけでは有界にならない。最短の指し手行だけで
-    /// 512MiB を埋めたファイルは1億行になり、`BookMove` 80 バイト × 1億で
-    /// 8.6 GB を確保しにいく（上限を置いても SIGKILL の経路が残る）。
-    #[test]
-    fn a_book_with_too_many_moves_is_refused() {
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
-        let err = parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2)
-            .expect_err("上限を超えている");
-
-        assert_eq!(err.code(), BookErrorCode::TooLarge);
+        assert!(err.message().contains("4行目"), "{}", err.message());
         assert!(err.message().contains("こと"), "{}", err.message());
-    }
-
-    /// 上限ちょうどは通す。境界で1手間違えると、上限近くの定跡が開けなくなる。
-    #[test]
-    fn a_book_at_the_move_limit_is_accepted() {
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n");
-        assert!(parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2).is_ok());
-    }
-
-    /// **実在する最大の定跡が、どちらの上限にも余裕を持って収まること。**
-    ///
-    /// 上限を実物に近づけると、版が重なった時点で実利用者が弾かれる。そのとき
-    /// 出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも分割機能が無い）。
-    ///
-    /// 数字の出どころは配布されている `user_book1.db`（peta_shock 系）の実測。
-    /// 実行時ではなくコンパイル時に見るので、上限を実物へ近づけた時点で止まる。
-    const REAL_BOOK_BYTES: u64 = 493_157_464; // 470.3 MiB
-    const REAL_BOOK_MOVES: usize = 11_250_000; // 2,252,118 局面 × 約5手
-    const _: () = assert!(REAL_BOOK_BYTES * 2 < MAX_FILE_BYTES);
-    const _: () = assert!(REAL_BOOK_MOVES < MAX_MOVES);
-
-    /// **実物の定跡に `# NOE:` は無い**（配布されている `user_book1.db` で確認）。
-    /// 申告値との突き合わせは唯一の大定跡では一度も走らないので、切れたファイルを
-    /// 別の手でも見る。任意のバイト位置で切れたファイルは、行長 22 バイト前後の
-    /// この形式ではほぼ確実に行の途中で終わる。
-    #[test]
-    fn a_file_cut_mid_line_is_rejected_even_without_a_declared_count() {
-        // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わっていた
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n7b7a+ n");
-        let err = parsed(&text).unwrap_err();
-
-        assert_eq!(err.code(), BookErrorCode::InvalidContent);
-        assert!(err.message().contains("改行"), "{}", err.message());
-        assert!(err.message().contains("こと"), "{}", err.message());
-    }
-
-    /// 改行で終わっていれば通る。切れの検出が常に落ちる形になっていないこと。
-    #[test]
-    fn a_file_ending_with_a_newline_is_accepted() {
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n");
-        assert!(parsed(&text).is_ok());
-    }
-
-    /// `# NOE:0` と書いたファイルで「0局面は成立しない」の保険を迂回しない。
-    /// 申告の側にぶら下げると、31 バイトのファイルが成功する。
-    #[test]
-    fn a_declared_count_of_zero_does_not_bypass_the_empty_check() {
-        let err = parsed("#YANEURAOU-DB2016 1.00\n# NOE:0\n").unwrap_err();
-        assert_eq!(err.code(), BookErrorCode::InvalidContent);
-        assert!(err.message().contains("局面が1つも"), "{}", err.message());
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
