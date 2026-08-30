@@ -54,19 +54,9 @@ impl super::reader::BookReader for YaneuraouDbReader {
 pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookError> {
     let shown = path.to_string_lossy();
 
-    if size > MAX_FILE_BYTES {
-        return Err(BookError::new(
-            BookErrorCode::TooLarge,
-            format!(
-                "この定跡はこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
-                 より小さい定跡を開くこと",
-                format_size(size),
-                format_size(MAX_FILE_BYTES)
-            ),
-        )
-        .with_path(shown.clone()));
-    }
-
+    // ファイルサイズの上限（[`MAX_FILE_BYTES`]）はここでは見ない。形式の分岐より
+    // 前で `open_reader` が当てる。形式ごとに違う値でも、そこに置けば新しい形式が
+    // 検査を飛ばせない。
     let file = std::fs::File::open(path).map_err(|e| BookError::from_io(e, shown.clone()))?;
     let positions = parse(std::io::BufReader::new(file), &shown, size)?;
     Ok(YaneuraouDbReader { positions })
@@ -279,7 +269,7 @@ const MAX_LINE_BYTES: usize = 4 * 1024;
 /// 512 MiB では実物の 91.9% しかなく、版が重なった時点で実利用者が弾かれる。
 /// そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
 /// 分割機能が無い）ので、近い値を置いてはいけない。
-const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+pub(crate) const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// 利用者に見せる大きさ。
 ///
@@ -289,7 +279,7 @@ const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 ///
 /// **桁で単位を選ぶ。** 行長（4 KiB）から展開の上限（7 GiB）まで同じ関数に
 /// 通すので、`MB` 固定だと 4096 バイトが `0.0MB` になって上限を1つも伝えない。
-fn format_size(bytes: u64) -> String {
+pub(crate) fn format_size(bytes: u64) -> String {
     const KB: f64 = 1_000.0;
     const MB: f64 = 1_000_000.0;
     const GB: f64 = 1_000_000_000.0;
@@ -898,7 +888,6 @@ mod tests {
     use super::*;
     use crate::book::reader::BookReader;
     use crate::book::sfen::to_book_key;
-    use std::path::Path;
 
     const HIRATE: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
@@ -1209,26 +1198,6 @@ mod tests {
         assert!(err.message().contains("取得し直す"), "{}", err.message());
     }
 
-    /// 上限を超えるファイルは1バイトも読まずに落とす。
-    ///
-    /// `InvalidContent` に混ぜると「壊れている」と読まれ、取得し直すという
-    /// 効かない復帰操作へ誘導することになる。種別を分ける。
-    #[test]
-    fn a_file_over_the_limit_is_refused_before_reading_it() {
-        // 実在しないパスを渡す。大きさの検査が先なら open にすら来ない。
-        let Err(err) = load(Path::new("/nonexistent/huge.db"), MAX_FILE_BYTES + 1) else {
-            panic!("上限を超えたのに開けてしまった");
-        };
-
-        assert_eq!(err.code(), BookErrorCode::TooLarge);
-        assert!(
-            err.message().contains(&format_size(MAX_FILE_BYTES)),
-            "{}",
-            err.message()
-        );
-        assert!(err.message().contains("こと"), "{}", err.message());
-    }
-
     /// 利用者が見比べる相手は Finder / エクスプローラのファイル情報で、そちらは
     /// 10 進。1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
     ///
@@ -1242,15 +1211,6 @@ mod tests {
         // 4096 バイトが 0.0MB になり、上限を1つも伝えない文面になる。
         assert_eq!(format_size(4096), "4.1KB");
         assert_eq!(format_size(6 * 1024 * 1024 * 1024), "6.4GB");
-    }
-
-    /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
-    #[test]
-    fn a_file_at_the_limit_is_not_refused_for_its_size() {
-        let Err(err) = load(Path::new("/nonexistent/at-limit.db"), MAX_FILE_BYTES) else {
-            panic!("存在しないパスなので必ず失敗する");
-        };
-        assert_ne!(err.code(), BookErrorCode::TooLarge);
     }
 
     /// 表の (S0, E3) / (S0, E4) / (S0, E2)。

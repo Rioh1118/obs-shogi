@@ -50,6 +50,46 @@ pub(crate) struct OpenedBook {
     pub(crate) reader: Box<dyn BookReader>,
 }
 
+/// 形式ごとの、1バイトも読まずに落とす大きさの上限。
+///
+/// **`match` で書くこと。** 形式を足すと枝が足りなくなってコンパイルが止まる。
+/// `if let` や `_ =>` にすると、新しい形式が既定値で素通りする。
+///
+/// 値そのものと、その形式でなぜその値かは形式のモジュールに置く。ここは
+/// 「どの形式にも上限を決めさせる」ことだけを持つ。
+fn max_file_bytes(format: BookFormat) -> Option<u64> {
+    match format {
+        BookFormat::YaneuraouDb => Some(crate::book::yaneuraou_db::MAX_FILE_BYTES),
+        // reader がまだ無い形式。**大きさより先に `UnsupportedFormat` を返すのが
+        // 正しい**（縮めても開けないので、大きさを言われても利用者にできることが
+        // 無い）。reader を足すときに、この枝で上限を決めること。
+        BookFormat::AperyBin | BookFormat::ShogiGuiSbk | BookFormat::YaneuraouYbb => None,
+    }
+}
+
+/// 開ける大きさか。
+///
+/// **[`BookErrorCode::InvalidContent`] にしない。** 「壊れている」と読まれると
+/// 取得し直すという効かない復帰操作へ誘導する。ファイルは正しく、大きすぎるだけ。
+fn check_file_size(size: u64, format: BookFormat, path: &str) -> Result<(), BookError> {
+    let Some(limit) = max_file_bytes(format) else {
+        return Ok(());
+    };
+    if size <= limit {
+        return Ok(());
+    }
+    Err(BookError::new(
+        BookErrorCode::TooLarge,
+        format!(
+            "この定跡はこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
+             より小さい定跡を開くこと",
+            crate::book::yaneuraou_db::format_size(size),
+            crate::book::yaneuraou_db::format_size(limit)
+        ),
+    )
+    .with_path(path))
+}
+
 /// 実体のファイルを開いて reader を作る。
 ///
 /// `path` は canonicalize 済み、`format` は**その綴りから決めた形式**を渡すこと。
@@ -86,12 +126,15 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         .with_path(path.to_string_lossy()));
     }
 
+    // **大きさの検査は形式の分岐より前。** ここに置けば、形式を足す人が
+    // 検査を書き忘れても素通りしない。`metadata` は既に取ってあるので、
+    // 1バイトも読まずに落とせる。
+    check_file_size(meta.len(), format, &path.to_string_lossy())?;
+
     // 読める形式が増えたら、ここに枝を足す。
     // 数え上げも reader の生成もこの中（blocking プールの中）で終わらせること。
     match format {
         BookFormat::YaneuraouDb => {
-            // 大きさの検査はここで済ませる。`metadata` は既に取ってあるので、
-            // 1バイトも読まずに落とせる。
             let reader = crate::book::yaneuraou_db::load(path, meta.len())?;
             Ok(OpenedBook {
                 path: path.to_path_buf(),
@@ -200,6 +243,50 @@ mod tests {
         let opened = result.expect("読めるはず");
         assert_eq!(opened.position_count, Some(1));
         assert_eq!(opened.format, BookFormat::YaneuraouDb);
+    }
+
+    /// 上限を超えたら、1バイトも読まずに落とすこと。
+    ///
+    /// **種別を `InvalidContent` にしない。** 「壊れている」と読まれると、
+    /// 取得し直すという効かない復帰操作へ誘導する。ファイルは正しく、
+    /// 大きすぎるだけ。
+    #[test]
+    fn a_file_over_the_limit_is_refused() {
+        let limit = max_file_bytes(BookFormat::YaneuraouDb).expect("上限がある");
+        let Err(err) = check_file_size(limit + 1, BookFormat::YaneuraouDb, "/books/huge.db") else {
+            panic!("上限を超えたのに通してしまった");
+        };
+
+        assert_eq!(err.code(), BookErrorCode::TooLarge);
+        assert_eq!(err.path(), Some("/books/huge.db"));
+        // 上限がいくつかを伝えないと、どれくらい小さくすればよいか分からない
+        assert!(err.message().contains("2.1GB"), "{}", err.message());
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
+    #[test]
+    fn a_file_at_the_limit_is_accepted() {
+        let limit = max_file_bytes(BookFormat::YaneuraouDb).expect("上限がある");
+        assert!(check_file_size(limit, BookFormat::YaneuraouDb, "/books/a.db").is_ok());
+    }
+
+    /// **reader がまだ無い形式は、大きさより先に「対応していない」と言うこと。**
+    /// 縮めても開けないので、大きさを言われても利用者にできることが無い。
+    /// 検査を形式の分岐より前へ出したときに、この順序が壊れやすい。
+    #[test]
+    fn an_unsupported_format_is_not_reported_as_too_large() {
+        let over = crate::book::yaneuraou_db::MAX_FILE_BYTES * 4;
+        for format in [
+            BookFormat::AperyBin,
+            BookFormat::ShogiGuiSbk,
+            BookFormat::YaneuraouYbb,
+        ] {
+            assert!(
+                check_file_size(over, format, "/books/a.bin").is_ok(),
+                "{format:?} が大きさで落ちている"
+            );
+        }
     }
 
     /// ディレクトリは存在するので NotFound ではない。「見つからない」と言われると
