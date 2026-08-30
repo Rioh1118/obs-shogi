@@ -86,6 +86,18 @@ describe("resolveForkSelection", () => {
     });
   });
 
+  test("行のチェックと食い違う計画は、押せる選択肢のどれとも一致しない", () => {
+    // buildStreamRowsFromCursor は forks の範囲外の計画では本譜へ落ち、行のチェックも
+    // 本譜に付く。一方この関数は範囲外の値をそのまま読むので、2つは食い違う。
+    // 害が出ないのは、その値がメニューの選択肢に無いから（選択肢も同じ forks から作る）。
+    // 押せるのは「本譜」と変化 0..forks.length-1 だけで、どれを押しても一致しない。
+    const outOfRange = plannedCursor(0, [{ te: 3, forkIndex: 9 }]);
+
+    for (const forkIndex of [null, 0, 1, 2]) {
+      expect(resolveForkSelection(outOfRange, 3, forkIndex).kind).toBe("applyCursor");
+    }
+  });
+
   test("計画がまったく無ければ「本譜」は移動だけ", () => {
     expect(resolveForkSelection(plannedCursor(0, []), 3, null)).toEqual({
       kind: "goToIndex",

@@ -46,12 +46,17 @@ export type ForkMenuAction =
 /**
  * 分岐メニューで選ばれた項目を、次に呼ぶ操作へ振り分ける
  *
- * 比較先は**行のチェックを描いたのと同じ値**でなければならない。行のチェックは
- * `PlannedCursor.forkPointers`（= `state.branchPlan`）から出る（`buildStreamRows.ts`）。
+ * 比較先は `PlannedCursor.forkPointers`（= `state.branchPlan`）から引く。
  * `state.cursor.forkPointers` は `cursorFromSource` が `te <= tesuu` に正規化して作るので
  * カーソルより先の選択を持たず、そちらと比べると先の行はどの項目も「選ばれていない」と
  * 読める。すると「本譜」を押したときだけ一致し、計画を積んだままの `goToIndex` へ落ちて
  * 本譜どころか変化が確定する。型で `KifuCursor` を弾いているのはそのため。
+ *
+ * 行のチェックは計画そのものではなく、`buildStreamRowsFromCursor` が**実際に降りた**
+ * 分岐から出る。2つが食い違うのは計画が `forks` の範囲外だったときだけで、
+ * そのとき行は「本譜」に ✓ を描き、ここは範囲外の値を読む。**その値はメニューの
+ * 選択肢に無い**（選択肢も同じ `forks` から作られる）ので、どの項目を押しても
+ * 一致せず `applyCursor` に落ちる。壊れた計画は押した時点で捨てられる。
  */
 export function resolveForkSelection(
   planned: PlannedCursor,

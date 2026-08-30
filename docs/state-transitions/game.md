@@ -135,8 +135,8 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 `deleteBranch` で枝を消す手順では踏めない。W6 が `te > tesuu` の計画ごと捨てるので、
 throw の前提が消える。
 
-※2 振り分けるのは `resolveForkSelection`。比較先は行のチェックを描いたのと
-同じ `PlannedCursor` で、`KifuCursor` は型で弾く。
+※2 振り分けるのは `resolveForkSelection`。比較先は `PlannedCursor` で、
+`KifuCursor` は型で弾く。行のチェックとの食い違いは不変条件2 を見る。
 
 ※3 **盤には前の棋譜が出たままなのに、保存先だけが新しいファイルになっている。**
 `kifu_opened` は `activeKifuPath` を先に更新し、`GamePersistenceGate` はそれを見て
@@ -230,9 +230,12 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
    7つの書き込み経路すべてがこれを守っている。
    **破れると「盤に出ている局面」と「行のチェック」が同じ手数で食い違う。**
 
-2. **画面が「選ばれている」と描いた値と、押したときに比較する値は、同じ出どころでなければならない。**
-   行のチェックは `branchPlan`（`buildStreamRowsFromCursor` の `selectedForkIndex`）から出るので、
-   一致判定も `branchPlan` から引く（`resolveForkSelection`）。
+2. **画面が「選ばれている」と描いた値と、押したときに比較する値は、食い違っても
+   押せる選択肢の中では一致していなければならない。**
+   一致判定は `branchPlan` から引く（`resolveForkSelection`）。行のチェックは
+   `buildStreamRowsFromCursor` が**実際に降りた**分岐から出るので、計画が `forks` の
+   範囲外だったときだけ2つは食い違う。その値はメニューの選択肢に無い（選択肢も同じ
+   `forks` から作られる）ので、どの項目を押しても `applyCursor` に落ちる。
    `cursor.forkPointers` と比べても**不変条件1により G1 では一致してしまう**ので、
    取り違えは G2 でしか表に出ない。テストを G1 だけで書くと素通りする。
 
