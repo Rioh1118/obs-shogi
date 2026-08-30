@@ -1,5 +1,5 @@
+import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
-import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 import { cursorKey } from "@/entities/kifu/model/cursor";
 
 /**

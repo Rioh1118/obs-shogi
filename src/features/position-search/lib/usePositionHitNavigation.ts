@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
-import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
+import { cursorFromLite } from "@/entities/search";
 import type { CursorLite } from "@/entities/search";
 
 type PendingNav = {

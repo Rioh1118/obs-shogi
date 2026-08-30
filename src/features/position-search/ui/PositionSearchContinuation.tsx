@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./PositionSearchContinuation.scss";
 
+import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
@@ -8,7 +9,6 @@ import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { describeFsError, readText } from "@/entities/file-tree";
-import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
 import { cursorKey } from "@/entities/kifu/model/cursor";
 
 type Props = {
