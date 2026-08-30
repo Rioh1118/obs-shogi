@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SRC, tsFiles } from "./walk";
+import { codeOf } from "./sourceText";
 
 /**
  * 先後の記号（☗ / ☖）の直書きを禁じる
@@ -13,11 +14,6 @@ import { SRC, tsFiles } from "./walk";
 /** 定義元。ここだけが記号のリテラルを持ってよい。 */
 const DEFINITION = join("shared", "lib", "turn.ts");
 
-/** コメント中の例は対象外。禁じたいのは画面に出るリテラル。 */
-function stripComments(code: string): string {
-  return code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-}
-
 describe("先後の記号の直書き", () => {
   it("shared/lib/turn.ts 以外に無い", () => {
     // テストは期待値として記号を書くので外す
@@ -27,7 +23,7 @@ describe("先後の記号の直書き", () => {
     const offenders = scanned
       .map((file) => relative(SRC, file))
       .filter((file) => file !== DEFINITION)
-      .filter((file) => /[☗☖]/.test(stripComments(readFileSync(join(SRC, file), "utf8"))));
+      .filter((file) => /[☗☖]/.test(codeOf(readFileSync(join(SRC, file), "utf8"))));
 
     expect(
       offenders,
