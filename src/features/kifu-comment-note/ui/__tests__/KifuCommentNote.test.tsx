@@ -67,11 +67,15 @@ function open(absPath: string | null) {
   );
 }
 
-/** 900ms のデバウンスを待たずに autosave を撃つ */
-async function typeAndAutosave(text: string) {
+async function type(text: string) {
   await act(async () => {
     fireEvent.change(screen.getByTestId("editor"), { target: { value: text } });
   });
+}
+
+/** 900ms のデバウンスを待たずに autosave を撃つ */
+async function typeAndAutosave(text: string) {
+  await type(text);
   await act(async () => {
     vi.advanceTimersByTime(1000);
   });
@@ -195,5 +199,108 @@ describe("開いた棋譜との突き合わせ", () => {
 
     expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
     expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["A のメモ"]);
+  });
+});
+
+/**
+ * ノートは閉じる手続きを通らずに閉じたり移ったりする。
+ * `KifuStreamList` は分岐メニュー・手のメニュー・棋譜の差し替えで
+ * `setOpenComment(null)` を直に呼び、別の手のコメントボタンは
+ * `open` を true のままカーソルだけ差し替える。
+ *
+ * どちらも 900ms のタイマーより早く踏めるので、出ていく面を書き切らないと
+ * **書きかけの本文が黙って消える**。
+ */
+describe("面が入れ替わるとき", () => {
+  const OTHER: KifuCursor = {
+    tesuu: 7,
+    forkPointers: [],
+    tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
+  };
+
+  it("別の手のコメントへ移る前に、出ていく面へ書く", async () => {
+    const view = open("/ws/a.kif");
+    await type("5手目のメモ");
+
+    await act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open
+          cursor={OTHER}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={() => {}}
+        />,
+      );
+    });
+
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+    // **出ていく面の cursor へ書く。** いまの cursor へ書くと 7手目に 5手目の本文が入る
+    expect(setCommentsByCursor.mock.calls[0][0]).toBe(CURSOR);
+    expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["5手目のメモ"]);
+  });
+
+  it("閉じる手続きを通らずに閉じられても、出ていく面へ書く", async () => {
+    const view = open("/ws/a.kif");
+    await type("メモ");
+
+    await act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open={false}
+          cursor={CURSOR}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={() => {}}
+        />,
+      );
+    });
+
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+    expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["メモ"]);
+  });
+
+  // 閉じている間は失敗を出す場所が無い（FloatingNote は DOM ごと消える）。
+  // 捨てると、利用者は**書いたことも失敗したことも知らないまま**本文を失う。
+  it("書けなかった本文は、同じ手を開き直したときに出し直す", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    const view = open("/ws/a.kif");
+    await type("消えては困るメモ");
+
+    await act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open={false}
+          cursor={CURSOR}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={() => {}}
+        />,
+      );
+    });
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open
+          cursor={CURSOR}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={() => {}}
+        />,
+      );
+    });
+
+    expect(screen.getByRole("alert").textContent).toContain("boom");
+
+    // 出し直した本文で書き直せる（下書きが残っていなければ dirty が落ちて撃たれない）
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(2);
+    expect(setCommentsByCursor.mock.calls[1][1]).toEqual(["消えては困るメモ"]);
   });
 });
