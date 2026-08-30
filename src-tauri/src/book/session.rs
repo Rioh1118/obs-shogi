@@ -43,9 +43,9 @@ impl BookState {
 
     /// reader を預かってハンドルを振る。
     ///
-    /// 材料は [`crate::book::api::OpenedBook`] としてまとめて受け取る。`format` と
-    /// `position_count` を reader に問い合わせないのは、この関数が async ランタイム上で
-    /// 走るため（詳細は `OpenedBook` の doc）。
+    /// 材料は [`OpenedBook`] としてまとめて受け取る。`format` と `position_count` を
+    /// reader に問い合わせないのは、この関数が async ランタイム上で走るため
+    /// （詳細は [`OpenedBook`] の doc）。
     ///
     /// ハンドルは 0 から始めない。フロントの未初期化値と衝突しないため。
     /// 閉じたハンドルも配り直さない。再利用すると、close 済みのハンドルで引いた
