@@ -199,7 +199,18 @@ fn parse<R: BufRead>(
             ));
         }
 
-        buffered.push(parse_move(line));
+        let parsed = parse_move(line);
+        if !looks_like_a_move(&parsed.usi_move) {
+            return Err(invalid_content(
+                &format!(
+                    "{index}行目が指し手として読めない（{}）。別のファイルが連結されて\
+                     いるかもしれない。取得し直すか、別の定跡を開くこと",
+                    excerpt(&parsed.usi_move)
+                ),
+                path,
+            ));
+        }
+        buffered.push(parsed);
     }
 
     flush(&mut positions, &mut current, &mut buffered);
@@ -264,6 +275,26 @@ fn parse_move(line: &str) -> BookMove {
     }
 }
 
+/// 指し手の綴りとして成立しうる最長。
+///
+/// USI の指し手は `7g7f` / `7g7f+`（成り）/ `P*5e`（打つ手）で最長5字。
+/// 「指し手が無い」の綴りは `resign` の6字。余裕を1字持たせる。
+const MAX_MOVE_CHARS: usize = 7;
+
+/// 指し手の綴りとして成立しうる形か。
+///
+/// **綴りの一覧は持たない。** 定跡側が使う綴りを網羅できないので、一覧で
+/// 弾くと読めるはずの定跡が開けなくなる。見るのは「短い ASCII の英数字と記号」
+/// という形だけで、これは実在する綴り（`7g7f` / `P*5e` / `resign` / `none`）を
+/// すべて通し、紛れ込んだ日本語・HTML・長いテキストを落とす。
+fn looks_like_a_move(token: &str) -> bool {
+    !token.is_empty()
+        && token.chars().count() <= MAX_MOVE_CHARS
+        && token
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '*' || c == '+')
+}
+
 /// 指し手が無いことを表す綴り。
 ///
 /// 出典: 本家 `source/book/book.cpp:118-119`。`move` と `ponder` の両方で
@@ -274,7 +305,9 @@ const ABSENT_MOVE: [&str; 3] = ["none", "None", "resign"];
 /// 応手の欄を読む。省略・空欄・「指し手が無い」の綴りはすべて欠損。
 fn optional_move(token: Option<&str>) -> Option<String> {
     let token = token?.trim();
-    if token.is_empty() || ABSENT_MOVE.contains(&token) {
+    // 形を満たさない応手は、指し手として渡せないので落とす。ここで落としても
+    // 候補手そのものは残るので、定跡が引けなくなることはない。
+    if token.is_empty() || ABSENT_MOVE.contains(&token) || !looks_like_a_move(token) {
         return None;
     }
     Some(token.to_string())
@@ -502,6 +535,33 @@ mod tests {
             err.message().chars().count(),
             &err.message()[..80.min(err.message().len())]
         );
+    }
+
+    /// `sfen ` で始まらず注記でもない行は、すべて候補手として登録される。
+    /// 検査しないと、ダウンロードが途中で切れて連結された HTML が
+    /// `usi_move` としてフロントへ渡る（エラーは一切出ない）。
+    #[test]
+    fn text_that_is_not_a_move_is_rejected() {
+        for garbage in [
+            "ここに別のテキストが連結された",
+            "<html><body>404 Not Found</body></html>",
+            &"x".repeat(5000),
+        ] {
+            let text =
+                format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f 3c3d 50 32 1\n{garbage}\n");
+            let err = parsed(&text).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidContent, "{garbage:.20}");
+            assert!(err.message().contains("4行目"), "{}", err.message());
+        }
+    }
+
+    /// 実在する綴りは全て通す。一覧で弾くと読めるはずの定跡が開けなくなる。
+    #[test]
+    fn every_real_move_spelling_is_accepted() {
+        for spelling in ["7g7f", "7g7f+", "P*5e", "1a9i", "resign", "none"] {
+            let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n{spelling} none 0 0 1\n");
+            assert!(parsed(&text).is_ok(), "spelling={spelling}");
+        }
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
