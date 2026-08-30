@@ -4,6 +4,7 @@ import {
   branchIndexAfterRemoval,
   branchIndexFromForkIndex,
   branchIndexFromSelection,
+  forkIndexOrNull,
   branchLabel,
   forkIndexFromBranchIndex,
   neighborBranchIndex,
@@ -103,6 +104,25 @@ describe("branchLabel", () => {
     // 値の検査は編集の入口が行う。
     for (const f of [-1, 0.5, NaN]) {
       expect(() => branchLabel(f)).not.toThrow();
+    }
+  });
+});
+
+describe("forkIndexOrNull", () => {
+  // branchIndexFromSelection の逆。本譜と「変化0番」は BranchIndex では別物だが、
+  // forkIndex では null と 0 になる。往復で潰れると削除・入れ替えの対象が1つずれる。
+  test("本譜は null", () => {
+    expect(forkIndexOrNull(MAIN_LINE)).toBeNull();
+  });
+
+  test("変化は0始まりの forkIndex に戻る", () => {
+    expect(forkIndexOrNull(branchIndexFromSelection(0))).toBe(0);
+    expect(forkIndexOrNull(branchIndexFromSelection(3))).toBe(3);
+  });
+
+  test("branchIndexFromSelection と往復しても値が変わらない", () => {
+    for (const forkIndex of [null, 0, 1, 7]) {
+      expect(forkIndexOrNull(branchIndexFromSelection(forkIndex))).toBe(forkIndex);
     }
   });
 });

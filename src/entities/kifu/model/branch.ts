@@ -118,6 +118,18 @@ export function branchIndexFromForkIndex(forkIndex: number): BranchIndex {
 }
 
 /**
+ * 表示のための `forkIndex`。本譜なら `null`
+ *
+ * `forkIndexFromBranchIndex` は `MAIN_LINE` で throw するので、ラベルや1手目を
+ * 出すだけの場所からは呼べない。**`b - 1` を画面ごとに手書きさせないため**に置く。
+ * brand は `number & { ... }` なので裸の算術を tsc が通してしまい、
+ * `MAIN_LINE` の位置や brand の作り方が変わったときに手書きの側だけ取り残される。
+ */
+export function forkIndexOrNull(b: BranchIndex): number | null {
+  return b === MAIN_LINE ? null : forkIndexFromBranchIndex(b);
+}
+
+/**
  * 「本譜か、何番目の変化か」を BranchIndex にする
  *
  * 選択を表す `forkIndex` は本譜のとき null になる。この null を 0 に読み替える

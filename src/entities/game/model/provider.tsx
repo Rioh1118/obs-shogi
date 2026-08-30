@@ -16,6 +16,7 @@ import {
 import { GameContext } from "./context";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import {
   ROOT_CURSOR,
   asBranchPlan,
@@ -48,15 +49,44 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
 
+  // 失敗を `state.error` へ積んだうえで、**呼び出し元にも返す**。
+  //
+  // 積むだけでは届かない。`state.error` を描いている場所はまだ無いので
+  // （ADR-0004 決定6 は state を残すとしか決めていない）、
+  // 「保存済み」と出す側が自分で成否を見られないと、書けなかった本文が
+  // 画面から消えて利用者だけが保存されたと信じることになる。
   const persistIfPossible = useCallback(
-    async (jkfToSave: JKFData) => {
-      if (!persistence) return;
+    async (jkfToSave: JKFData): AsyncResult<void, string> => {
+      if (!persistence) {
+        const msg = "保存先が決まっていません";
+        dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
+      }
+
+      // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
+      //
+      // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
+      // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
+      // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
+      // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+      if (persistence.absPath !== state.loadedAbsPath) {
+        const msg = "保存先が切り替わったため書き込みを中止しました";
+        dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
+      }
+
       const res = await persistence.save(jkfToSave);
       if (!res.success) {
-        dispatch({ type: "set_error", payload: res.error });
+        // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
+        // A の保存が失敗して返ってきたときに B が読み込まれていると、
+        // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
+        // **別のファイルの失敗が新しく開いたファイルの上に出る**。
+        dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
+        return Err(res.error);
       }
+      return Ok(undefined);
     },
-    [persistence],
+    [persistence, state.loadedAbsPath],
   );
 
   // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
@@ -194,16 +224,25 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [state.jkf, state.cursor, state.branchPlan],
   );
 
+  // `Ok` は「棋譜が意図どおりになり、書けた」。書き込みが失敗したら `Err` を返す。
+  // 何も変えなかった場合（棋譜が無い / `run` が `false` を返した / 局面が動かなかった）も
+  // `Ok` にする。呼び出し側にとって「変える必要が無かった」は失敗ではない。
   const edit = useCallback(
     async (
       run: (player: JKFPlayer, nextJkf: JKFData) => boolean | void,
       errorMessage: string,
-      opt?: { forceCommit?: boolean },
-    ) => {
-      if (!state.jkf) return;
+      opt?: { forceCommit?: boolean; background?: boolean },
+    ): AsyncResult<void, string> => {
+      if (!state.jkf) return Ok(undefined);
+
+      // `isLoading` は棋譜一覧の全行を無効にする。**利用者が起動していない書き込みで
+      // 立てない。** コメントの自動保存は打鍵が止まった 900ms 後に撃つので、
+      // 書き終えて次の手をクリックする瞬間と正確に重なる。そこで行が反応しなくなると、
+      // 合図も無くクリックが捨てられる。
+      const blocking = !opt?.background;
 
       try {
-        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "write_started", payload: { blocking } });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -211,12 +250,18 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         const beforePointer = observedPointerOf(state.cursor, player);
 
         const result = run(player, nextJkf);
-        if (result === false) return;
+        if (result === false) return Ok(undefined);
 
         const nextCursor = cursorFromPlayer(player);
         if (!opt?.forceCommit && nextCursor.tesuuPointer === beforePointer) {
-          return;
+          return Ok(undefined);
         }
+
+        const before = {
+          jkf: state.jkf,
+          cursor: state.cursor,
+          branchPlan: state.branchPlan,
+        };
 
         dispatch({
           type: "jkf_replaced",
@@ -227,21 +272,35 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           },
         });
 
-        await persistIfPossible(nextJkf);
+        const saved = await persistIfPossible(nextJkf);
+        if (!saved.success)
+          dispatch({
+            type: "jkf_restored",
+            payload: {
+              ...before,
+              expectedJkf: nextJkf,
+              // **局面を動かさなかった書き込みでは、カーソルを戻さない。**
+              // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が
+              // 手を進めていることがある。戻すと盤と一覧が黙って戻る。
+              restoreCursor: nextCursor.tesuuPointer !== beforePointer,
+            },
+          });
+        return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : errorMessage;
         dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({ type: "write_ended", payload: { blocking } });
       }
     },
-    [state.jkf, state.cursor, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const loadGame = useCallback(async (jkf: JKFData, absPath: string | null) => {
     try {
       dispatch({ type: "clear_error" });
-      dispatch({ type: "set_loading", payload: true });
+      dispatch({ type: "write_started", payload: { blocking: true } });
 
       const nextJkf = cloneJkf(jkf);
 
@@ -260,7 +319,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       const msg = e instanceof Error ? e.message : "Failed to load game";
       dispatch({ type: "set_error", payload: msg });
     } finally {
-      dispatch({ type: "set_loading", payload: false });
+      dispatch({ type: "write_ended", payload: { blocking: true } });
     }
   }, []);
 
@@ -305,8 +364,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   }, [navigate]);
 
   const makeMove = useCallback(
-    async (move: StandardMoveFormat) => {
-      await edit((player) => {
+    async (move: StandardMoveFormat): AsyncResult<void, string> => {
+      return await edit((player) => {
         applyMoveWithBranch(player, toIMoveMoveFormat(move));
       }, "Failed to make move");
     },
@@ -314,21 +373,27 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   );
 
   const swapBranches = useCallback(
-    async (q: SwapQuery) => {
-      if (!state.jkf) return;
+    async (q: SwapQuery): AsyncResult<void, string> => {
+      if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "write_started", payload: { blocking: true } });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
         const res = swapBranchesInKifu(nextJkf, q, state.cursor);
 
-        if (!res.changed) return;
+        if (!res.changed) return Ok(undefined);
 
         const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
         const rebuilt = buildPlayer(nextJkf, baseCursor);
         const nextCursor = cursorFromPlayer(rebuilt);
+
+        const before = {
+          jkf: state.jkf,
+          cursor: state.cursor,
+          branchPlan: state.branchPlan,
+        };
 
         dispatch({
           type: "jkf_replaced",
@@ -338,34 +403,47 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
-
-        await persistIfPossible(nextJkf);
+        const saved = await persistIfPossible(nextJkf);
+        if (!saved.success)
+          dispatch({
+            type: "jkf_restored",
+            // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
+            payload: { ...before, expectedJkf: nextJkf, restoreCursor: true },
+          });
+        return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to swap branches";
         dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
-    [state.jkf, state.cursor, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const deleteBranch = useCallback(
-    async (q: DeleteQuery) => {
-      if (!state.jkf) return;
+    async (q: DeleteQuery): AsyncResult<void, string> => {
+      if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "write_started", payload: { blocking: true } });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
         const res = deleteBranchInKifu(nextJkf, q, state.cursor);
 
-        if (!res.changed) return;
+        if (!res.changed) return Ok(undefined);
 
         const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
         const rebuilt = buildPlayer(nextJkf, baseCursor);
         const nextCursor = cursorFromPlayer(rebuilt);
+
+        const before = {
+          jkf: state.jkf,
+          cursor: state.cursor,
+          branchPlan: state.branchPlan,
+        };
 
         dispatch({
           type: "jkf_replaced",
@@ -375,16 +453,23 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
-
-        await persistIfPossible(nextJkf);
+        const saved = await persistIfPossible(nextJkf);
+        if (!saved.success)
+          dispatch({
+            type: "jkf_restored",
+            // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
+            payload: { ...before, expectedJkf: nextJkf, restoreCursor: true },
+          });
+        return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete branch";
         dispatch({ type: "set_error", payload: msg });
+        return Err(msg);
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
-    [state.jkf, state.cursor, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
   const getCommentsByCursor = useCallback(
@@ -401,15 +486,20 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   );
 
   const setCommentsByCursor = useCallback(
-    async (cursor: CursorPath, comments: string[]) => {
-      if (!state.jkf) return;
+    async (cursor: CursorPath, comments: string[]): AsyncResult<void, string> => {
+      if (!state.jkf) return Ok(undefined);
 
-      await edit(
+      return await edit(
         (_player, nextJkf) => {
           const result = setCommentsByCursorInJkf(nextJkf, cursor, comments);
 
           if (!result.ok) {
-            throw new Error("Failed to resolve comment target");
+            // **利用者の言葉で書く。** この文字列はノートの赤い箱にそのまま出る。
+            // 「続けて書けば保存し直します」は嘘になる理由（同じ場所を指し続ける）なので、
+            // 何をすれば直るかを書く。
+            throw new Error(
+              "この手が棋譜の中に見つかりませんでした。棋譜が変わっている可能性があります。ノートを閉じて開き直してください",
+            );
           }
 
           if (!result.changed) {
@@ -419,16 +509,17 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return true;
         },
         "Failed to update comments",
-        { forceCommit: true },
+        // 自動保存は利用者が起動しない。棋譜一覧の行を止めない
+        { forceCommit: true, background: true },
       );
     },
     [state.jkf, edit],
   );
 
   const setCurrentComments = useCallback(
-    async (comments: string[]) => {
-      if (!state.cursor) return;
-      await setCommentsByCursor(state.cursor, comments);
+    async (comments: string[]): AsyncResult<void, string> => {
+      if (!state.cursor) return Ok(undefined);
+      return await setCommentsByCursor(state.cursor, comments);
     },
     [state.cursor, setCommentsByCursor],
   );
@@ -452,7 +543,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
               state.selectedPosition.kind,
               state.selectedPosition.color,
             );
-            await makeMove(standardMove);
+            await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #277
           } else {
             dispatch({ type: "clear_selection" });
           }
@@ -471,7 +562,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             const fromPiece = shogi.get(state.selectedPosition.x, state.selectedPosition.y);
             if (fromPiece) {
               const standardMove = fromIMove(move, fromPiece.kind, fromPiece.color, promote);
-              await makeMove(standardMove);
+              await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #277
             }
             return;
           }

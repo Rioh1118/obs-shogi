@@ -11,12 +11,16 @@ import {
   type ForkPointer,
 } from "@/entities/kifu/model/cursor";
 import {
+  branchLabel,
+  forkIndexOrNull,
   neighborBranchIndex,
   MAIN_LINE,
   type BranchIndex,
   type DeleteQuery,
   type SwapQuery,
 } from "@/entities/kifu/model/branch";
+import { countMovesToDelete } from "@/entities/kifu/lib/branchEdit";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
@@ -34,10 +38,44 @@ const RECENT_SCROLL_MS = 120;
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
+/**
+ * 削除の確認に出すもの。
+ *
+ * クエリをそのまま持つ。確認のあとで組み直すと、押した行と実際に消える枝が
+ * 食い違いうる（間に棋譜が変わる）。
+ */
+type PendingDelete = {
+  query: DeleteQuery;
+  /** 押した時点の棋譜。ここが今の棋譜と違うなら、この確認はもう別のファイルの話 */
+  absPath: string | null;
+  /** 「本譜」か「変化N」 */
+  label: string;
+  /** 消える線の1手目。読めなければ空 */
+  firstMove: string;
+  /** 消える手数。数えられなければ null（数を伏せて確認だけ出す） */
+  moveCount: number | null;
+  /** 削除に失敗した理由。出るまで確認は閉じない */
+  error?: string;
+};
 type OpenCommentNote = {
   cursor: CursorPath;
   anchorEl: HTMLButtonElement;
+  /** 開いた時点の棋譜。ここが今の棋譜と違うなら、書き込み先と中身が食い違っている */
+  absPath: string | null;
 };
+
+/**
+ * 確認に出す一文。
+ *
+ * **主語を空にしない。** 1手目も手数も欠けたときに
+ * `.filter(Boolean).join()` で組むと「が消えます。」で始まる文になり、
+ * **何が消えるのか1つも書かれていない確認**を取り消せない操作に出すことになる。
+ */
+function describeDelete(pending: PendingDelete): string {
+  const what = pending.firstMove ? `${pending.firstMove} から先` : pending.label;
+  const size = pending.moveCount === null ? "手数は数えられませんでした" : `${pending.moveCount}手`;
+  return `${what}（${size}）が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
+}
 
 export default function KifuStreamList() {
   const { state, view, goToIndex, getTotalMoves, applyCursor, deleteBranch, swapBranches } =
@@ -57,6 +95,21 @@ export default function KifuStreamList() {
 
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  /**
+   * いま書いている最中の削除。**どの削除かまで持つ。**
+   *
+   * **`state.isLoading` を使わない。** あれは「棋譜への書き込みが1つ以上走っている」で、
+   * 誰の書き込みかを区別しない。コメントの自動保存が並行して終わると
+   * 「削除中...」が解け、まだ書いている最中に「削除する」を押し直せる。
+   * そのとき候補列は既に1つ減っているので、**確認していない枝が消える。**
+   *
+   * 真偽値1つでも足りない。実行中でも確認は閉じられる（塞ぐと出口ゼロの
+   * 行き止まりになる）ので、閉じてから**別の枝**の確認を開ける。
+   * 誰の書き込みかを持たないと、その新しい確認が最初から「削除中...」で出る。
+   */
+  const [deleting, setDeleting] = useState<DeleteQuery | null>(null);
 
   const plannedCursor = useMemo(
     () => plannedCursorFrom(state.cursor, state.branchPlan),
@@ -152,22 +205,95 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      await swapBranches(q);
+      // 失敗しても画面に出す場所がまだ無い。巻き戻しはメモリの側で効く → #277
+      await swapBranches(q); // async-result-ignored: 出口が無い（#277）
     },
     [swapBranches],
   );
 
+  // 押した瞬間には消さない。**確認を挟む。**
+  //
+  // 分岐メニューの「削除」は「上へ」「下へ」と同じポップオーバーの中にあり、
+  // 区切り線1本しか隔てていない。取り消しは無く（ADR-0004 決定8 は undo を採らない）、
+  // `deleteBranch` は消したうえで元のファイルへ即書き込む。誤クリックでも同じ結果になる。
   const onDeleteBranch = useCallback(
-    async (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
-      const q: DeleteQuery = {
+    (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
+      const query: DeleteQuery = {
         te,
         forkPointers: branchForkPointers,
         target: branchIndex,
       };
-      await deleteBranch(q);
+
+      const row = rows.find((r) => r.te === te);
+      const forkIndex = forkIndexOrNull(branchIndex) ?? undefined;
+
+      // 数えるのは実際に消す関数と同じ経路。`q` を解決できないクエリはここで throw する。
+      // そのときは数を伏せて確認だけ出す（**数が出ないことを理由に確認を飛ばさない**）。
+      // ただし throw の有無は削除が通るかの保証ではない。`cursor` 由来の失敗は
+      // ここでは起こしようがないので、数が出ても削除が落ちる経路は残る → #277
+      let moveCount: number | null = null;
+      if (state.jkf) {
+        try {
+          moveCount = countMovesToDelete(state.jkf, query);
+        } catch {
+          moveCount = null;
+        }
+      }
+
+      setOpenFork(null);
+      setOpenMoveMenu(null);
+      setPendingDelete({
+        query,
+        absPath: state.loadedAbsPath,
+        label: branchLabel(forkIndex),
+        firstMove: (forkIndex === undefined ? row?.mainText : row?.forkTexts[forkIndex]) ?? "",
+        moveCount,
+      });
     },
-    [deleteBranch],
+    [rows, state.jkf, state.loadedAbsPath],
   );
+
+  // 失敗が返るのを待っている間に棋譜が変わりうるので、突き合わせは**返った時点**の値で行う
+  const loadedAbsPathRef = useRef(state.loadedAbsPath);
+  useEffect(() => {
+    loadedAbsPathRef.current = state.loadedAbsPath;
+  });
+
+  // **閉じるのは書けたときだけ。** 先に閉じると `isLoading` も「削除中...」も
+  // 一度も描かれず、失敗しても画面からは枝が消えたように見える（ファイルには残る）。
+  // 確認文で「棋譜ファイルもすぐ書き換わります」と断言している以上、破れたら伝える。
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+
+    const query = pendingDelete.query;
+    setDeleting(query);
+    const res = await deleteBranch(query).finally(() =>
+      setDeleting((cur) => (cur === query ? null : cur)),
+    );
+    // **閉じられていても失敗は出す。**
+    //
+    // 待つのが長いと利用者は Escape で確認を閉じる。そこで失敗を捨てると、
+    // 見えるのは「削除したはずの変化が勝手に生き返った」だけになる
+    // （巻き戻しがメモリを戻すため）。確認文で「棋譜ファイルもすぐ書き換わります」と
+    // 断言している以上、破れたことは伝える。
+    //
+    // 開き直しても危険ではない。`error` があるとき実行ボタンは押せないので、
+    // 「利用者が閉じた確認が復活して、古いクエリのまま再実行される」形にはならない。
+    // ただし**棋譜が変わっていたら開き直さない**。別のファイルを見ている画面に、
+    // 前のファイルの枝についての確認を出しても読めない。
+    if (!res.success) {
+      const stillHere = pendingDelete.absPath === loadedAbsPathRef.current;
+      setPendingDelete((prev) => {
+        if (prev?.query === query) return { ...prev, error: res.error };
+        // **別の確認が開いていたら、そちらを押し退けない。** 押し退けると、
+        // 利用者がいま読んでいる確認が、閉じたはずの別の枝の確認に黙って化ける。
+        if (prev) return prev;
+        return stillHere ? { ...pendingDelete, error: res.error } : prev;
+      });
+      return;
+    }
+    setPendingDelete((prev) => (prev?.query === query ? null : prev));
+  }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
     (row: RowModel, anchorEl: HTMLButtonElement) => {
@@ -177,10 +303,24 @@ export default function KifuStreamList() {
 
       setOpenFork(null);
       setOpenMoveMenu(null);
-      setOpenComment({ cursor, anchorEl });
+      setOpenComment({ cursor, anchorEl, absPath: state.loadedAbsPath });
     },
-    [plannedCursor],
+    [plannedCursor, state.loadedAbsPath],
   );
+
+  // 棋譜が変わったら、開いている面を全部閉じる。
+  //
+  // 行は `key={r.te}` なので DOM のボタンは再利用され、`anchorEl` も生き残る。
+  // 棋譜の差し替えでは `view.player` が null になる瞬間も無い（`kifu_loading` は
+  // `jkfData` を保持する）ので、**ノートは同じ位置に開いたまま前の棋譜の本文を出し続ける。**
+  // 見出しは手数しか出さないので、どのファイルのものかは画面から読めない。
+  useEffect(() => {
+    setOpenComment(null);
+    setOpenFork(null);
+    setOpenMoveMenu(null);
+    // 確認を出したまま棋譜が変わると、押した瞬間に**別のファイルの枝**が消える
+    setPendingDelete(null);
+  }, [state.loadedAbsPath]);
 
   useEffect(() => {
     if (!openMoveMenu) return;
@@ -306,17 +446,28 @@ export default function KifuStreamList() {
           if (!r) return;
 
           const branchIndex = branchIndexFromRow(r);
-          void onDeleteBranch(te, r.branchForkPointers, branchIndex);
-          setOpenMoveMenu(null);
+          onDeleteBranch(te, r.branchForkPointers, branchIndex);
         }}
       />
 
       <KifuCommentNote
         open={!!openComment}
         cursor={openComment?.cursor ?? null}
+        absPath={openComment?.absPath ?? null}
         anchorEl={openComment?.anchorEl ?? null}
         onClose={closeCommentNote}
       />
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
+          subtitle={describeDelete(pendingDelete)}
+          error={pendingDelete.error}
+          isLoading={deleting === pendingDelete.query}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
 
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {

@@ -109,6 +109,11 @@ npm run tauri dev
 - Node.js (LTS 推奨)
 - npm
 
+### リリース
+
+出し方・タグの制約・動作確認・壊れたリリースの直し方は
+[`docs/RELEASE.md`](docs/RELEASE.md)。**`.github/workflows/release.yml` を読む前にそちら。**
+
 ---
 
 ## コメントの書き方
