@@ -219,8 +219,11 @@ export default function KifuStreamList() {
     };
   }, [openFork, closeForkMenu]);
 
-  // tesuuPointer は "<tesuu>,[...]" 形式で tesuu を含むので、2つは必ず連動する。
-  // どちらが変わっても余分には走らない。
+  // tesuu は本文が読む値なので dep に要る。tesuuPointer は "<tesuu>,[...]" 形式で
+  // tesuu を含むため、足しても発火は増えない。
+  //
+  // 逆は成り立たない。同じ手数のまま分岐だけを選び直すと tesuuPointer だけが変わるので、
+  // tesuuPointer を「冗長だから」と落とすとその経路で追従が止まる。
   useEffect(() => {
     revealRow(state.cursor?.tesuu ?? 0, false);
   }, [state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
