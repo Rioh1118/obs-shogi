@@ -23,7 +23,7 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
 
-判定  book-key-failures.md     book_key の検査の順序 × 入力の形
+判定  book-key-failures.md     book_key_or_reason の検査の順序 × 入力の形
 判定  verify-gate-decision.md  verify-gate の段 × コマンドの形
 ```
 
@@ -46,7 +46,7 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 | [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                    |
 | [failure-surfacing.md](failure-surfacing.md)       | ✅        | Q-005 の材料                                               |
 | [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                     |
-| [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key` の検査の順序                            |
+| [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                  |
 | [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                 |
 | `game.md`                                          | ❌ 未作成 | `set_error` が9箇所から飛ぶが読み手が0。**書く価値が高い** |
 | `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある            |
