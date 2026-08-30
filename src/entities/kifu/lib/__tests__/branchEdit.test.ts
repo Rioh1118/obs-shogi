@@ -5,7 +5,7 @@ import {
   branchIndexFromForkIndex,
   neighborBranchIndex,
 } from "@/entities/kifu/model/branch";
-import { buildTesuuPointer, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
+import type { CursorPath, ForkPointer } from "@/entities/kifu/model/cursor";
 import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**
@@ -26,8 +26,11 @@ function kifuWithTwoForks(): JKFData {
 
 const tags = (moves: JKFMove[] | undefined) => moves?.map((m) => m.comments?.[0]);
 
-function cursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
-  return { tesuu, forkPointers, tesuuPointer: buildTesuuPointer(tesuu, forkPointers) };
+// swapBranchesInKifu / deleteBranchInKifu が読むのは tesuu と forkPointers だけ
+// （引数の型も CursorPath）。tesuuPointer を組むと、この PR が本番から落とした
+// 「誰も読まない値」をテスト側で作り直すことになる。
+function cursorAt(tesuu: number, forkPointers: ForkPointer[]): CursorPath {
+  return { tesuu, forkPointers };
 }
 
 describe("swapBranchesInKifu", () => {

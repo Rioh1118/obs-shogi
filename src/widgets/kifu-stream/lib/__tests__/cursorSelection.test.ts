@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { buildTesuuPointer } from "@/entities/kifu/model/cursor";
 import {
   asBranchPlan,
+  makeKifuCursor,
   normalizeForkPointers,
   plannedCursorFrom,
   type ForkPointer,
@@ -36,8 +36,10 @@ const rowsFor = (branchPlan: ForkPointer[]) =>
  * `normalizeForkPointers` を通しているのはそれを守るため。
  */
 const plannedCursor = (tesuu: number, branchPlan: ForkPointer[]) => {
+  // 実物と同じ構築関数を通す。手で組むと、makeKifuCursor の正規化を変えても
+  // この fixture が旧挙動を再現し続け、テストがオラクルとして効かなくなる。
   const traced = normalizeForkPointers(branchPlan, tesuu);
-  const cursor = { tesuu, forkPointers: traced, tesuuPointer: buildTesuuPointer(tesuu, traced) };
+  const cursor = makeKifuCursor(tesuu, traced, `${tesuu},${JSON.stringify(traced)}`);
   const planned = plannedCursorFrom(cursor, asBranchPlan(branchPlan));
   if (!planned) throw new Error("plannedCursorFrom returned null for a non-null cursor");
   return planned;
