@@ -18,19 +18,19 @@ const KIFU_WITH_RESIGN_FORK = `手合割：平手
 `;
 
 function optionsAtTesuu2(): ReturnType<typeof buildNextOptions> {
-  const jkf = new JKFPlayer(parseKifuContentToJKF(KIFU_WITH_RESIGN_FORK, "kif"));
-  jkf.goto(2);
-  return buildNextOptions(jkf);
+  const player = new JKFPlayer(parseKifuContentToJKF(KIFU_WITH_RESIGN_FORK, "kif"));
+  player.goto(2);
+  return buildNextOptions(player);
 }
 
 describe("buildNextOptions", () => {
   test("本譜の次が投了でも候補に出す", () => {
     // 棋譜ストリームは投了を行として並べる。局面ナビだけ隠すと項目数が食い違う。
-    const jkf = new JKFPlayer(
+    const player = new JKFPlayer(
       parseKifuContentToJKF("手合割：平手\n   1 ７六歩(77)\n   2 投了\n", "kif"),
     );
-    jkf.goto(1);
-    const options = buildNextOptions(jkf);
+    player.goto(1);
+    const options = buildNextOptions(player);
 
     expect(options.map((o) => readableMove(o.moveFormat))).toEqual(["投了"]);
     expect(options[0].isMainLine).toBe(true);
@@ -53,9 +53,9 @@ describe("buildNextOptions", () => {
   });
 
   test("棋譜ストリーム側の分岐一覧と同じ文字列・同じ並びになる", () => {
-    const jkf = new JKFPlayer(parseKifuContentToJKF(KIFU_WITH_RESIGN_FORK, "kif"));
-    jkf.goto(2);
-    const forkTexts = jkf.getReadableForkKifu();
+    const player = new JKFPlayer(parseKifuContentToJKF(KIFU_WITH_RESIGN_FORK, "kif"));
+    player.goto(2);
+    const forkTexts = player.getReadableForkKifu();
     const options = optionsAtTesuu2().filter((o) => !o.isMainLine);
 
     expect(options.map((o) => readableMove(o.moveFormat))).toEqual(forkTexts);

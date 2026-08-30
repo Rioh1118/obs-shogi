@@ -34,9 +34,9 @@ export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFo
  *
  * `to` を持たない手（投了・中断などの `special`）は指す升が無いので `null`。
  */
-export function lastMovePlayer(jkf: JKFPlayer) {
-  if (jkf.tesuu === 0) return null;
-  const mv = jkf.getMove();
+export function lastMovePlayer(player: JKFPlayer) {
+  if (player.tesuu === 0) return null;
+  const mv = player.getMove();
   if (!mv || !mv.to) return null;
   return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
 }
