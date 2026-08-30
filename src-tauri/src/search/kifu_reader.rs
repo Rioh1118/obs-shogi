@@ -15,7 +15,7 @@ use shogi_kifu_converter_obsshogi::error::ParseError;
 /// 棋譜1つ分。クレートの JKF をそのまま使う
 pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
-/// 棋譜を読めなかった理由
+/// 棋譜を JKF にできなかった理由
 #[derive(Debug, Error)]
 pub enum KifuReadError {
     /// どの文字コードでも、あるいは棋譜としても読めなかった。
@@ -29,6 +29,23 @@ pub enum KifuReadError {
     /// 持っており、画面はその欄と本文を並べて描くので、入れると同じパスが2回出る。
     #[error("{0}")]
     ParseFailed(String),
+
+    /// **読めた。ただし索引に入れる局面が無い。**
+    ///
+    /// 中身の無いファイルを索引に入れると、平手の初期局面で検索したときに
+    /// 全部ヒットし、開いても初期局面しか出ないので「そういう棋譜」と誤解される。
+    /// だから局面は入れない。
+    ///
+    /// **これは失敗ではないので、警告を出してはいけない。** 同じ形になるのは
+    /// 「保存が途中で終わった跡」だけではない — **このアプリの新規作成で
+    /// 対局者名を入れずに作ったファイルがちょうどこの形**になる
+    /// （`create_kifu_file` → `try_to_*_owned`）。それを「壊れている」と
+    /// 告げるのは嘘で、しかも利用者は直しようが無い。
+    ///
+    /// 呼び手は**警告を出さずに、局面を持たない項目として登録する**こと。
+    /// 登録しないと走査のたびに読み直しに来る。
+    #[error("索引に入れる局面がありません")]
+    NothingToIndex,
 }
 
 /// 走査で見つけたファイルを JKF に読む
@@ -55,37 +72,41 @@ const LOSSY_DECODERS: [LossyDecoder; 2] = [
     |bytes| SHIFT_JIS.decode(bytes).0,
 ];
 
-/// 読めた記録が、何も言っていないか。
+/// 読めた記録に、索引へ入れる局面が無いか。
 ///
 /// **パーサは中身の無いファイルを「平手の初期局面1件」として `Ok` で返す。**
-/// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
-/// 初期局面しか出ないので「そういう棋譜」と誤解される。警告も出ない。
-/// 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く。
+/// そのまま索引に入れると平手の初期局面で検索したときに全部ヒットし、開いても
+/// 初期局面しか出ないので「そういう棋譜」と誤解される。だから入れない。
+///
+/// **これは「壊れている」の判定ではない。** [`KifuReadError::NothingToIndex`]
+/// の doc のとおり、同じ形になるものにはこのアプリが作った新しい棋譜も含まれる。
 ///
 /// # バイト列でなく、読めた記録の形で決める
 ///
 /// **バイト列を先に検査すると、検査した文字コードの集合と、
 /// あとで実際に読み通す集合とがずれる。** 読み手が通すのは
 /// クレートの2つ・[`ENCODINGS_THE_CRATE_SKIPS`] の4つ・[`LOSSY_DECODERS`] の2つで、
-/// 事前の門でそれを再現しようとすると、増やすたびに片方だけ増えて穴が空く。
-/// **同じ穴が5回開いた。** 題材を足すのではなく、判定する場所を
-/// 「読み通したあと」へ動かすことでしか閉じない。
+/// 事前の門でそれを再現しようとすると、復号を1つ足すたびに片方だけ増えて穴が空く。
+/// 判定する場所を「読み通したあと」に置けば、集合はそもそも1つしかない。
 ///
-/// ここまで来たら文字コードの話は終わっている。残るのは
-/// **その記録が何か言っているか**だけで、それは JKF の形で分かる。
+/// # 見る欄は [`index_builder`] が歩く欄と揃える
 ///
-/// 見るのは4つ。1つでも埋まっていれば通す。
+/// [`crate::search::index_builder`] は本線と `forks` の両方を歩く。
+/// **こちらが見る欄がそれより狭いと、局面を持つ記録を落とす。**
+/// 1つでも埋まっていれば通す。
 ///
 /// | 欄 | 埋まる例 |
 /// | --- | --- |
-/// | 指し手が2件以上 | 1手でも指されていれば `moves` は初期局面ぶんと合わせて2件 |
+/// | 指し手が2件以上 | 1手でも指されていれば `moves` は初期局面ぶんと合わせて2件。`投了` だけの記録もこれ |
 /// | ヘッダ | `先手：` `棋戦：` などが1つでもある |
-/// | 初期局面 | 盤面が書いてある、平手以外の手合割 |
-/// | 最初の局面の注釈・終局 | `*` のコメント、`投了` だけの記録 |
+/// | 初期局面 | 盤面が書いてある（詰将棋・局面図）、平手以外の手合割 |
+/// | 最初の局面の注釈・終局・分岐 | `*` のコメント、本線が空で分岐だけを持つ `.jkf` |
 ///
-/// **`手合割：平手` だけの記録は空と区別できない** — 平手の初期局面は
-/// 何も書かなかったときと同じ値になる。区別する意味も無い（どちらも
-/// 索引に入れる中身が無い）。
+/// 最後の欄に届くのは**手で組んだ `.jkf` だけ**。KIF / KI2 / CSA のパーサは
+/// 終局も分岐も番号付きの手順行からしか作らないので、そちらは1行目で通る。
+///
+/// **`手合割：平手` だけの記録は、何も書かなかったものと区別できない** —
+/// 平手の初期局面は既定値と同じになる。どちらも入れる局面が無いので区別しない。
 fn says_nothing(jkf: &Jkf) -> bool {
     use shogi_kifu_converter_obsshogi::jkf::Preset;
 
@@ -97,9 +118,11 @@ fn says_nothing(jkf: &Jkf) -> bool {
             return false;
         }
     }
-    jkf.moves
-        .first()
-        .map_or(true, |m| m.comments.is_none() && m.special.is_none())
+    jkf.moves.first().map_or(true, |m| {
+        m.comments.is_none()
+            && m.special.is_none()
+            && m.forks.as_ref().map_or(true, |f| f.is_empty())
+    })
 }
 
 /// 利用者に出す文言の上限。
@@ -174,9 +197,7 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     }?;
 
     if says_nothing(&jkf) {
-        return Err(parse_failed(
-            "棋譜として中身がありません。保存が途中で終わっていないか確かめてください",
-        ));
+        return Err(KifuReadError::NothingToIndex);
     }
     Ok(jkf)
 }
@@ -677,6 +698,7 @@ mod tests {
     use crate::test_support::temp_dir;
     use encoding_rs::SHIFT_JIS;
     use shogi_kifu_converter_obsshogi::error::{NormalizeError, NormalizeErrorKind};
+    use shogi_kifu_converter_obsshogi::jkf::{Initial, MoveFormat, MoveSpecial, Preset};
 
     fn hirate_kif() -> String {
         one_move_kif("平手")
@@ -1283,18 +1305,18 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 中身の無いファイルは索引に入れない。
+    /// 中身の無いファイルは索引に入れない。**警告も出さない。**
     ///
     /// KIF / KI2 のパーサは**平手の初期局面1件**として `Ok` を返す。
-    /// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
-    /// 初期局面しか出ないので「そういう棋譜」と誤解される。
+    /// そのまま索引に入れると平手の初期局面で検索したときに全部ヒットし、
+    /// 開いても初期局面しか出ないので「そういう棋譜」と誤解される。
     ///
-    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定は読めた記録が
-    /// 何か言っているかで、手数だけでは見ない。
+    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定は読めた記録に
+    /// 索引へ入れる局面があるかで、手数だけでは見ない。
     ///
     /// 題材にいろいろな文字コードを並べてあるのは、**バイト列を先に検査する
-    /// 作りに戻ると、ここが落ちる**ようにするため。事前の門はどうしても
-    /// 読み手より狭い集合しか見ないので、EUC-JP や BOM 無しの UTF-16 が抜ける。
+    /// 作りに戻ると、ここが落ちる**ようにするため。読み通す前に判定すると
+    /// 読み手より狭い集合しか見られず、EUC-JP や BOM 無しの UTF-16 が抜ける。
     #[test]
     fn an_empty_file_is_rejected_but_a_moveless_kifu_is_not() {
         let dir = temp_dir("empty");
@@ -1325,8 +1347,9 @@ mod tests {
             }),
             ("nbsp-utf8", "\u{00A0}".as_bytes().to_vec()),
             ("utf16le-zenkaku", vec![0xFF, 0xFE, 0x00, 0x30]),
-            // ここから下は**事前の門が復号しない文字コード**。
-            // クレートも読めないが、総当たりと最終手段が読み通してしまう
+            // ここから下は**クレートが試さない文字コード**。
+            // 総当たりと [`LOSSY_DECODERS`] が読み通すので、
+            // 読み通す前に判定する作りだとここが素通りする
             ("eucjp-zenkaku", vec![0xA1, 0xA1]),
             ("iso2022-zenkaku", b"\x1b$B\x21\x21\x1b(B".to_vec()),
             ("bomless-utf16le-space", vec![0x20, 0x00]),
@@ -1351,8 +1374,8 @@ mod tests {
                 .err()
                 .unwrap_or_else(|| panic!("{label} を弾いていない"));
             assert!(
-                err.to_string().contains("中身がありません"),
-                "{label} の理由が違う: {err}"
+                matches!(err, KifuReadError::NothingToIndex),
+                "{label} が警告つきで弾かれている: {err}"
             );
         }
 
@@ -1376,6 +1399,132 @@ mod tests {
         let (bytes, _, _) = SHIFT_JIS.encode("*この局面から考える\n");
         fs::write(&note, &bytes).expect("書き出し");
         read_path_to_jkf(&note, KifuKind::Kif).expect("コメントだけの棋譜は読めること");
+
+        // 盤面だけの棋譜（詰将棋・局面図）
+        let mate = dir.join("mate.kif");
+        let (bytes, _, _) = SHIFT_JIS.encode(BOARD_ONLY_KIF);
+        fs::write(&mate, &bytes).expect("書き出し");
+        let board = read_path_to_jkf(&mate, KifuKind::Kif).expect("盤面だけの棋譜は読めること");
+        assert!(
+            board.initial.as_ref().is_some_and(|i| i.data.is_some()),
+            "盤面が読めていない題材になっている"
+        );
+
+        // **`initial.data` の欄を見る唯一の題材。**
+        // 手合割つきの棋譜は `preset` が `PresetOther` になるので手前の条件で通る。
+        // `preset` が平手のまま盤面を持てるのは手で組んだ `.jkf` だけで、
+        // `initial_position.rs` が「盤面が preset に勝つ」と決めているのはこの形。
+        // これが無いと `initial.data.is_some()` を落とす変更が全件緑のまま通る
+        let mut board_under_hirate = board;
+        board_under_hirate.initial = board_under_hirate.initial.map(|i| Initial {
+            preset: Preset::PresetHirate,
+            data: i.data,
+        });
+        board_under_hirate.header.clear();
+        let path = dir.join("board-under-hirate.jkf");
+        fs::write(
+            &path,
+            serde_json::to_string(&board_under_hirate).expect("JKF に綴れること"),
+        )
+        .expect("書き出し");
+        read_path_to_jkf(&path, KifuKind::Jkf).expect("盤面を持つ .jkf を落としている");
+
+        // 手で組んだ `.jkf` だけが届く2つの欄。KIF / KI2 / CSA のパーサは
+        // 終局も分岐も**番号付きの手順行から**しか作らないので、
+        // そちらは手数（`moves.len() > 1`）のほうで通る。
+        // この2件が無いと、対応する条件を落とす変更が全件緑のまま通る
+        let one_move = parse_kif_str(&one_move_kif("平手")).expect("題材の KIF が読めること");
+
+        let special_only = Jkf {
+            moves: vec![MoveFormat {
+                special: Some(MoveSpecial::SpecialToryo),
+                ..MoveFormat::default()
+            }],
+            ..Jkf::default()
+        };
+
+        let forks_only = Jkf {
+            moves: vec![MoveFormat {
+                forks: Some(vec![vec![one_move.moves[1].clone()]]),
+                ..MoveFormat::default()
+            }],
+            ..Jkf::default()
+        };
+
+        for (label, jkf) in [("special-only", special_only), ("forks-only", forks_only)] {
+            let path = dir.join(format!("{label}.jkf"));
+            fs::write(
+                &path,
+                serde_json::to_string(&jkf).expect("JKF に綴れること"),
+            )
+            .expect("書き出し");
+            read_path_to_jkf(&path, KifuKind::Jkf)
+                .unwrap_or_else(|e| panic!("{label} を落としている: {e}"));
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 盤面だけを書いた KIF。列の見出しは**先頭2文字ぶん空ける**
+    /// （クレートの `board_row` がそう読む）。
+    const BOARD_ONLY_KIF: &str = "後手の持駒：なし
+  ９ ８ ７ ６ ５ ４ ３ ２ １
++---------------------------+
+| ・ ・ ・ ・v玉 ・ ・ ・ ・|一
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|二
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|三
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|四
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|五
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|六
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|七
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|八
+| ・ ・ ・ ・ 玉 ・ ・ ・ ・|九
++---------------------------+
+先手の持駒：金二
+";
+
+    /// **このアプリが作った棋譜を、このアプリが「壊れている」と言わない。**
+    ///
+    /// 新規作成フォームはファイル名以外すべて任意なので、対局者名を入れずに
+    /// 作れる。そのとき `create_kifu_file` が綴るのは
+    /// 「平手の初期局面だけ」— つまり `says_nothing` に当たる形そのもの。
+    ///
+    /// これを `ParseFailed` にすると、**利用者が作った直後のファイルについて
+    /// アプリが「保存が途中で終わっていないか」と警告する**。保存は終わっている。
+    /// 索引に入れる局面が無いことと、ファイルが壊れていることは別。
+    #[test]
+    fn a_kifu_this_app_just_created_is_never_called_broken() {
+        use crate::file_system::convert_jkf_to_format_for_test as convert;
+
+        let dir = temp_dir("just-created");
+
+        // `createInitialJKFData` が何も入力しなかったときに組むもの
+        let blank = Jkf {
+            initial: Some(Initial {
+                preset: Preset::PresetHirate,
+                data: None,
+            }),
+            moves: vec![MoveFormat::default()],
+            ..Jkf::default()
+        };
+
+        for (ext, kind) in [
+            ("kif", KifuKind::Kif),
+            ("ki2", KifuKind::Ki2),
+            ("csa", KifuKind::Csa),
+            ("jkf", KifuKind::Jkf),
+        ] {
+            let path = dir.join(format!("新規.{ext}"));
+            let content = convert(&blank, &path)
+                .unwrap_or_else(|e| panic!("{ext} を綴れない: {}", e.message));
+            fs::write(&path, &content).expect("書き出し");
+
+            match read_path_to_jkf(&path, kind) {
+                Ok(_) => {}
+                Err(KifuReadError::NothingToIndex) => {}
+                Err(e) => panic!("{ext}: 作ったばかりの棋譜を壊れていると言っている: {e}"),
+            }
+        }
 
         fs::remove_dir_all(&dir).ok();
     }

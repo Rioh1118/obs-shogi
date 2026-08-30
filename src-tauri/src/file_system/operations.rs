@@ -80,7 +80,10 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
     read_text_portable(&path)
 }
 
-/// JKF データをファイル拡張子に応じた形式に変換する
+/// JKF データをファイル拡張子に応じた形式に変換する。
+///
+/// 綴り分けの判断はここだけ。`kifu.rs` の同名のコマンドとは別物で、
+/// あちらは形式名を文字列で受け取り `normalize()` を呼ぶ（#322）。
 fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
     // `ConvertError` の Display は綴れなかったものを名指しする（書き分けられない手、
     // 綴りの無い枚数、盤面の無い手合割）。何手目かは言わない — ply を持つのは
@@ -307,6 +310,19 @@ pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Resu
     }
 
     fs::remove_dir_all(path).map_err(FsError::from)
+}
+
+/// [`convert_jkf_to_format`] をテストから呼ぶための口。
+///
+/// **綴った結果を読み手（`search::kifu_reader`）に通すテストが要る。**
+/// 書き手と読み手を別々に見ていると、このアプリが作ったファイルを
+/// このアプリが読めない、という組み合わせを誰も見ない。
+#[cfg(test)]
+pub fn convert_jkf_to_format_for_test(
+    jkf_data: &JsonKifuFormat,
+    file_path: &Path,
+) -> Result<String, FsError> {
+    convert_jkf_to_format(jkf_data, file_path)
 }
 
 #[cfg(test)]

@@ -16,7 +16,7 @@ use crate::search::{
     },
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{FileBucketEntries, IndexState as StoreIndexState, IndexStore},
-    kifu_reader::read_to_jkf,
+    kifu_reader::{read_to_jkf, KifuReadError},
     node_table::NodeTable,
     position_key::PositionKey,
     types::{
@@ -327,7 +327,20 @@ impl ProjectManager {
 
         let built = task::spawn_blocking(
             move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
-                let jkf = read_to_jkf(&rec_cloned).map_err(|e| e.to_string())?;
+                let jkf = match read_to_jkf(&rec_cloned) {
+                    Ok(jkf) => jkf,
+                    // 読めた。ただし入れる局面が無い。**警告は出さない** —
+                    // このアプリの新規作成で対局者名を入れずに作った棋譜が
+                    // ちょうどこの形になる。局面を持たない項目として登録する
+                    Err(KifuReadError::NothingToIndex) => {
+                        return Ok((
+                            std::array::from_fn(|_| Vec::new()),
+                            Arc::new(NodeTable::empty()),
+                            Vec::new(),
+                        ))
+                    }
+                    Err(e) => return Err(e.to_string()),
+                };
                 let b = build_index_for_jkf(file_id, new_gen, &jkf, BuildPolicy::Loose)
                     .map_err(|e| e.to_string())?;
                 let by_bucket: BucketEntries = bucketize_entries(b.entries);

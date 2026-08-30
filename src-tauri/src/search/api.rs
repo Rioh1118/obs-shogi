@@ -21,7 +21,7 @@ use super::{
     fs_scan::{scan_kifu_files, ScanOptions},
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{IndexState as StoreIndexState, IndexStore},
-    kifu_reader::read_to_jkf,
+    kifu_reader::{read_to_jkf, KifuReadError},
     types::{
         FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
         OpenProjectInput, OpenProjectOutput, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -311,7 +311,20 @@ async fn build_full_index_task(
 
             let res = tokio::task::spawn_blocking(
                 move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
-                    let jkf = read_to_jkf(&rec2).map_err(|e| e.to_string())?;
+                    let jkf = match read_to_jkf(&rec2) {
+                        Ok(jkf) => jkf,
+                        // 読めた。ただし入れる局面が無い。**警告は出さない** —
+                        // このアプリの新規作成で対局者名を入れずに作った棋譜が
+                        // ちょうどこの形になる。局面を持たない項目として登録する
+                        Err(KifuReadError::NothingToIndex) => {
+                            return Ok((
+                                std::array::from_fn(|_| Vec::new()),
+                                Arc::new(NodeTable::empty()),
+                                Vec::new(),
+                            ))
+                        }
+                        Err(e) => return Err(e.to_string()),
+                    };
                     let built = build_index_for_jkf(file_id, gen, &jkf, BuildPolicy::Loose)
                         .map_err(|e| e.to_string())?;
 
