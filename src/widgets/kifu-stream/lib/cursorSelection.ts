@@ -45,7 +45,7 @@ export type ForkMenuAction =
  * 分岐メニューで選ばれた項目を、次に呼ぶ操作へ振り分ける
  *
  * 比較先は `PlannedCursor.forkPointers`（= `state.branchPlan`）から引く。
- * `state.cursor.forkPointers` は `cursorFromSource` が `te <= tesuu` に正規化して作るので
+ * `state.cursor.forkPointers` は `makeKifuCursor` が `te <= tesuu` に正規化して作るので
  * カーソルより先の選択を持たず、そちらと比べると先の行はどの項目も「選ばれていない」と
  * 読める。すると「本譜」を押したときだけ一致し、計画を積んだままの `goToIndex` へ落ちて
  * 本譜どころか変化が確定する。型で `KifuCursor` を弾いているのはそのため。

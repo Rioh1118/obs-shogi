@@ -95,7 +95,7 @@ declare const plannedCursorBrand: unique symbol;
  *
  * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
  * brand が無いと `state.cursor` がそのまま代入できる。`state.cursor.forkPointers` は
- * `cursorFromSource` が `te <= tesuu` に正規化して作るので、
+ * `makeKifuCursor` が `te <= tesuu` に正規化して作るので、
  * **カーソルより先の選択が黙って空になる**。
  */
 export interface PlannedCursor extends CursorPath {
@@ -209,27 +209,24 @@ export function plannedForkIndexAt(fps: ForkPointer[], te: number): number | nul
 }
 
 /**
- * JKFPlayer から cursor を生成するための最小インタフェース。
- * （types 層が JKFPlayer クラスに直接依存しないための抽象）
+ * 辿り終えた局面の生の値から `KifuCursor` を組む。**この型を作ってよいのはここだけ**
+ *
+ * `forkPointers` は `te <= tesuu` に正規化する。だから
+ * **`state.cursor.forkPointers` はカーソルより先の選択を持たない**
+ * （計画は `BranchPlan` が別に持つ）。
+ *
+ * `tesuuPointer` は再生器が返した文字列をそのまま brand 付きにするので、
+ * 渡す3つは**同じ局面を辿り終えた1つの再生器から**取ること。別々に組むと、
+ * 局面を一意に指すはずの値が中身と食い違う。
  */
-export interface CursorSource {
-  tesuu: number;
-  getForkPointers: (tesuu?: number) => ForkPointer[];
-  getTesuuPointer: (tesuu?: number) => string;
-}
-
-/**
- * CursorSource から KifuCursor を生成する。
- * GameContext 側で「局面変更のたびに必ず同期」するために使う。
- */
-export function cursorFromSource(source: CursorSource): KifuCursor {
-  const tesuu = source.tesuu;
-  const fps = normalizeForkPointers(source.getForkPointers(tesuu), tesuu);
-  const ptr = source.getTesuuPointer(tesuu) as TesuuPointer;
-
+export function makeKifuCursor(
+  tesuu: number,
+  forkPointers: ForkPointer[],
+  tesuuPointer: string,
+): KifuCursor {
   return {
     tesuu,
-    forkPointers: fps,
-    tesuuPointer: ptr,
+    forkPointers: normalizeForkPointers(forkPointers, tesuu),
+    tesuuPointer: tesuuPointer as TesuuPointer,
   };
 }

@@ -1,16 +1,14 @@
 import type { JKFPlayer } from "json-kifu-format";
-import { cursorFromSource, type KifuCursor } from "../model/cursor";
+import { makeKifuCursor, type KifuCursor } from "../model/cursor";
 
 /**
  * 再生し終えた player から `KifuCursor` を作る。
  *
- * `model/cursor.ts` の `cursorFromSource` に `JKFPlayer` を差す口。型の側が
- * `JKFPlayer` クラスに直接依存しないよう、具体の依存はここに閉じてある。
+ * `JKFPlayer` への依存をこの1本に閉じてある。3つの値を同じ player の
+ * 同じ `tesuu` から取るのは `makeKifuCursor` の要求（別々に組むと
+ * `tesuuPointer` が中身と食い違う）。
  */
 export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
-  return cursorFromSource({
-    tesuu: player.tesuu,
-    getForkPointers: (tesuu?: number) => player.getForkPointers(tesuu),
-    getTesuuPointer: (tesuu?: number) => player.getTesuuPointer(tesuu),
-  });
+  const tesuu = player.tesuu;
+  return makeKifuCursor(tesuu, player.getForkPointers(tesuu), player.getTesuuPointer(tesuu));
 }
