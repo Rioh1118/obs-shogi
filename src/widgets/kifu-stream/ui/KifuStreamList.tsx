@@ -70,8 +70,7 @@ type OpenCommentNote = {
 function describeDelete(pending: PendingDelete): string {
   const what = pending.firstMove ? `${pending.firstMove} から先` : pending.label;
   const size = pending.moveCount === null ? "手数は数えられませんでした" : `${pending.moveCount}手`;
-  const head = `${what}（${size}）が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
-  return pending.error ? `${head}\n削除できませんでした: ${pending.error}` : head;
+  return `${what}（${size}）が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
 }
 
 export default function KifuStreamList() {
@@ -431,6 +430,7 @@ export default function KifuStreamList() {
         <ConfirmDialog
           title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
           subtitle={describeDelete(pendingDelete)}
+          error={pendingDelete.error}
           isLoading={deleting}
           onConfirm={() => void confirmDelete()}
           onCancel={() => setPendingDelete(null)}
