@@ -15,7 +15,7 @@ use std::path::Path;
 
 /// 現在の本数。**下げるときは理由をコミットメッセージに書くこと。**
 /// 上げるのは自由（足したぶんだけ上がる）。
-const EXPECTED_MIN: usize = 147;
+const EXPECTED_MIN: usize = 146;
 
 /// `#[test]` の総数を数える。
 ///
@@ -56,7 +56,7 @@ fn the_number_of_tests_does_not_go_down() {
 
 /// 増えたぶんを取り込み忘れると、次に消えたときの検出力が落ちる。
 ///
-/// 例えば 147 のまま 200 本まで増やすと、57 本消しても緑で通る。
+/// 例えば 146 のまま 200 本まで増やすと、57 本消しても緑で通る。
 #[test]
 fn the_expected_number_is_kept_up_to_date() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

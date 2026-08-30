@@ -402,22 +402,27 @@ fn parse_limited<R: BufRead>(
         }
     }
 
-    // **実物の定跡に `# NOE:` は無い**ので、上の突き合わせは唯一の大定跡では
-    // 走らない。切れたファイルは最終行が改行で終わらないので、そちらでも見る。
-    // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わり、それまでは
-    // 52万局面が読めて「小さい定跡」に見えていた。
-    // 申告が満たされているなら、改行の有無を切れの根拠に持ち出す理由が無い。
-    let complete_by_declaration = declared.is_some_and(|count| sfen_lines >= count);
-    if !last_line_terminated && !complete_by_declaration {
-        return Err(invalid_content(
-            "定跡ファイルが改行で終わっていない。ダウンロードが途中で切れたか、\
-             最後の行が書きかけになっている。取得し直すか、末尾に改行を足すこと",
-            path,
-        ));
+    // 最終行が改行で終わらないことは、**切れの根拠にならない。** 両方向に外れる。
+    //
+    // - 拒否の側: 本家は末尾の改行を要求しない（`book.cpp:705` の
+    //   `while (reader.ReadLine(line).is_ok())`）。改行が無いだけの完全な定跡を
+    //   拒否すると、表の不変条件1（本家が読めるものは読める）と3（正しい
+    //   ファイルを拒否しない）の両方を破る。しかも復帰操作「末尾に改行を足す」は
+    //   470MB のファイルでは編集ソフトが開けない
+    // - 見逃しの側: 行境界でちょうど切れたファイルは素通りする。行単位で書き出す
+    //   生成器がディスク満杯や kill で止まった場合は**必ず**行境界で終わるので、
+    //   その経路は 100% 検出できない
+    //
+    // 事実として記録し、判断は利用者に残す。局面数は `BookInfo` に載るので、
+    // 配布元の申告と突き合わせられる。
+    if !last_line_terminated {
+        log::warn!(
+            "[book] 定跡ファイルが改行で終わっていない path={} 局面数={}",
+            crate::book::error::truncate_path(path),
+            positions.len()
+        );
     }
 
-    // **申告の有無に関係なく効かせる。** 申告の側にぶら下げると、`# NOE:0` と
-    // 書いた 31 バイトのファイルが「0局面の定跡」として成功する。
     keep_first_of_each_move_everywhere(&mut positions);
 
     if positions.is_empty() {
@@ -1169,28 +1174,6 @@ mod tests {
         assert!(parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2).is_ok());
     }
 
-    /// **実物の定跡に `# NOE:` は無い**（配布されている `user_book1.db` で確認）。
-    /// 申告値との突き合わせは唯一の大定跡では一度も走らないので、切れたファイルを
-    /// 別の手でも見る。任意のバイト位置で切れたファイルは、行長 22 バイト前後の
-    /// この形式ではほぼ確実に行の途中で終わる。
-    #[test]
-    fn a_file_cut_mid_line_is_rejected_even_without_a_declared_count() {
-        // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わっていた
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n7b7a+ n");
-        let err = parsed(&text).unwrap_err();
-
-        assert_eq!(err.code(), BookErrorCode::InvalidContent);
-        assert!(err.message().contains("改行"), "{}", err.message());
-        assert!(err.message().contains("こと"), "{}", err.message());
-    }
-
-    /// 改行で終わっていれば通る。切れの検出が常に落ちる形になっていないこと。
-    #[test]
-    fn a_file_ending_with_a_newline_is_accepted() {
-        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n");
-        assert!(parsed(&text).is_ok());
-    }
-
     /// `# NOE:0` と書いたファイルで「0局面は成立しない」の保険を迂回しない。
     /// 申告の側にぶら下げると、31 バイトのファイルが成功する。
     #[test]
@@ -1230,23 +1213,6 @@ mod tests {
         assert!(elapsed.as_secs() < 2, "併合が二乗になっている: {elapsed:?}");
     }
 
-    /// 注記や空行で終わるファイルは、切れていても失われたのは注記だけ。
-    /// データは1件も欠けていないのに「ダウンロードが途中で切れた」と診断しない。
-    #[test]
-    fn a_file_ending_with_a_note_is_not_called_truncated() {
-        for tail in ["# 生成: 2026-08-30", "// 出典: floodgate", "   "] {
-            let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n{tail}");
-            assert!(parsed(&text).is_ok(), "tail={tail:?}");
-        }
-    }
-
-    /// 申告が満たされているなら、改行の有無を切れの根拠に持ち出さない。
-    #[test]
-    fn a_declared_count_that_is_met_overrides_the_newline_check() {
-        let text = format!("#YANEURAOU-DB2016 1.00\n# NOE:1\nsfen {HIRATE}\n7g7f none 50 32 1");
-        assert!(parsed(&text).is_ok());
-    }
-
     /// 注記の判定は字下げを許す。パーサの他の判定は全て `trim` 済みの行を見るので、
     /// ここだけ生の先頭で見ると、字下げした注記だけが別の文字コードで拒否される。
     #[test]
@@ -1271,6 +1237,44 @@ mod tests {
 
             let result = parse(std::io::Cursor::new(bytes), "/books/a.db");
             assert!(result.is_ok(), "lead={lead:?}");
+        }
+    }
+
+    /// **末尾の改行は要求しない。** 本家は `while (reader.ReadLine(line).is_ok())`
+    /// で読むので、改行が無いだけの完全な定跡を普通に読む。拒否すると表の
+    /// 不変条件1（本家が読めるものは読める）と3（正しいファイルを拒否しない）を
+    /// 同時に破る。
+    ///
+    /// 切れの検出には使えない。行境界でちょうど切れたファイルは素通りし、
+    /// 行単位で書き出す生成器が止まった場合は**必ず**行境界で終わる。
+    #[test]
+    fn a_complete_book_without_a_final_newline_is_accepted() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1");
+        let positions = parsed(&text).expect("改行が無いだけの完全な定跡");
+        assert_eq!(positions.len(), 1);
+    }
+
+    /// 注記や空行で終わるファイルも同じ。
+    #[test]
+    fn a_book_ending_with_a_note_and_no_newline_is_accepted() {
+        for tail in ["# 生成: 2026-08-30", "// 出典: floodgate", "   "] {
+            let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n{tail}");
+            assert!(parsed(&text).is_ok(), "tail={tail:?}");
+        }
+    }
+
+    /// 切れの検出は申告との突き合わせだけが担う。**改行の有無で無効にしない。**
+    /// `# NOE:` を1行足すだけで検出が消えると、手で編集して申告が古くなった
+    /// 定跡のダウンロードが切れたときに、静かに「小さい定跡」として開く。
+    #[test]
+    fn a_declared_count_still_catches_a_truncated_file() {
+        for tail in ["", "\n"] {
+            let text = format!(
+                "#YANEURAOU-DB2016 1.00\n# NOE:1250000\nsfen {HIRATE}\n7g7f none 50 32 1{tail}"
+            );
+            let err = parsed(&text).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidContent, "tail={tail:?}");
+            assert!(err.message().contains("1250000"), "{}", err.message());
         }
     }
 
