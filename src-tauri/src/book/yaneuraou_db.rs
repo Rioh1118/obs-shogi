@@ -22,6 +22,7 @@ use crate::book::sfen::{to_book_key_in_file, BookKey};
 use crate::book::types::BookMove;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::io::BufRead;
 use std::path::Path;
 
 /// 展開済みの定跡。
@@ -42,24 +43,68 @@ impl super::reader::BookReader for YaneuraouDbReader {
 }
 
 /// ファイルを読んで展開する。
+///
+/// **1行ずつ読む。** ファイル全体を先に確保すると、そのバッファが展開の間ずっと
+/// 生きるので、ピークに入力サイズがそのまま乗る（実測でピークの 18.6%）。
+/// 展開後の map しか残らない形にすると、100MB の定跡でピークが 541MB → 316MB。
 pub(crate) fn load(path: &Path) -> Result<YaneuraouDbReader, BookError> {
     let shown = path.to_string_lossy();
-    let bytes = std::fs::read(path).map_err(|e| BookError::from_io(e, shown.clone()))?;
+    let file = std::fs::File::open(path).map_err(|e| BookError::from_io(e, shown.clone()))?;
+    let positions = parse(std::io::BufReader::new(file), &shown)?;
+    Ok(YaneuraouDbReader { positions })
+}
 
-    // BOM 付きで配られている定跡がある。落とさないとヘッダの検査が必ず外れる。
-    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(&bytes);
-
-    // 壊れたバイト列を lossy で読むと、置換文字を含むキーが黙って登録される。
-    // そのキーは引かれることが無いので、「定跡に載っていない」と区別が付かない。
-    let text = std::str::from_utf8(bytes).map_err(|_| {
-        invalid_content(
-            "定跡ファイルが UTF-8 として読めない。取得し直すか、別の定跡を開くこと",
-            &shown,
-        )
+/// 1行読む。行末の改行と、最初の行だけ BOM を落とす。
+///
+/// 壊れたバイト列を lossy で読むと、置換文字を含むキーが黙って登録される。
+/// そのキーは引かれることが無いので、「定跡に載っていない」と区別が付かない。
+/// `read_line` は不正な UTF-8 に `InvalidData` を返すので、それを利用者向けの
+/// 文面へ言い直す。
+fn read_line<R: BufRead>(
+    reader: &mut R,
+    buffer: &mut String,
+    first: bool,
+    path: &str,
+) -> Result<bool, BookError> {
+    buffer.clear();
+    let read = reader.read_line(buffer).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            invalid_content(
+                "定跡ファイルがテキストとして読めない。やねうら王テキスト定跡 (.db) 以外の\
+                 ファイルを選んでいないか確かめ、選び直すこと",
+                path,
+            )
+        } else {
+            BookError::from_io(e, path)
+        }
     })?;
 
-    let positions = parse(text, &shown)?;
-    Ok(YaneuraouDbReader { positions })
+    if read == 0 {
+        return Ok(false);
+    }
+
+    // BOM 付きで配られている定跡がある。落とさないとヘッダの検査が必ず外れる。
+    if first {
+        if let Some(rest) = buffer.strip_prefix('\u{feff}') {
+            *buffer = rest.to_string();
+        }
+    }
+
+    while buffer.ends_with('\n') || buffer.ends_with('\r') {
+        buffer.pop();
+    }
+    Ok(true)
+}
+
+/// 失敗に行番号を前置する。
+///
+/// `to_book_key_in_file` は行の中身しか知らないので、位置はここで足す。
+fn annotate_line(err: BookError, line_number: usize) -> BookError {
+    let annotated = BookError::new(err.code(), format!("{line_number}行目: {}", err.message()));
+    match err.path() {
+        Some(path) => annotated.with_path(path),
+        None => annotated,
+    }
 }
 
 fn invalid_content(message: &str, path: &str) -> BookError {
@@ -86,20 +131,28 @@ fn is_skippable(line: &str) -> bool {
 ///
 /// ヘッダを検査するのは、別形式のファイルに `.db` を付けただけのものを
 /// 「0局面の定跡」として開かないため。空の定跡と見分けが付かなくなる。
-fn parse(text: &str, path: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
-    let mut lines = text.lines().map(str::trim_end).enumerate();
+fn parse<R: BufRead>(
+    mut reader: R,
+    path: &str,
+) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
+    let mut buffer = String::new();
+    let mut index = 0usize;
+    let mut header: Option<(usize, String)> = None;
 
-    let header = lines
-        .by_ref()
-        .find(|(_, line)| !line.trim().is_empty())
-        .map(|(_, line)| line);
+    while read_line(&mut reader, &mut buffer, index == 0, path)? {
+        index += 1;
+        if !buffer.trim().is_empty() {
+            header = Some((index, buffer.trim_end().to_string()));
+            break;
+        }
+    }
 
-    match header {
-        Some(line) if line.starts_with(HEADER_PREFIX) => {}
-        Some(line) => {
+    match header.as_ref().map(|(n, line)| (*n, line.as_str())) {
+        Some((_, line)) if line.starts_with(HEADER_PREFIX) => {}
+        Some((number, line)) => {
             return Err(invalid_content(
                 &format!(
-                    "やねうら王テキスト定跡の見出しが無い（1行目: {}）。\
+                    "やねうら王テキスト定跡の見出しが無い（{number}行目: {}）。\
                      別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
                     crate::book::error::truncate_path(line)
                 ),
@@ -120,24 +173,27 @@ fn parse(text: &str, path: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, Book
     // ハッシュ計算が1回ずつ走る（100MB の定跡で 312 万回、パース時間の 17%）。
     let mut buffered: Vec<BookMove> = Vec::new();
 
-    for (index, line) in lines {
-        let line = line.trim();
+    while read_line(&mut reader, &mut buffer, false, path)? {
+        index += 1;
+        let line = buffer.trim();
         if is_skippable(line) {
             continue;
         }
 
         if let Some(rest) = line.strip_prefix("sfen ") {
             flush(&mut positions, &mut current, &mut buffered);
-            current = Some(to_book_key_in_file(rest, path)?);
+            // 行番号を添える。壊れた行だけ位置が分からないと、100万行の定跡で
+            // 利用者にも報告を受けた側にも直しようが無い。
+            current =
+                Some(to_book_key_in_file(rest, path).map_err(|err| annotate_line(err, index))?);
             continue;
         }
 
         if current.is_none() {
             return Err(invalid_content(
                 &format!(
-                    "局面より先に指し手が書かれている（{}行目）。\
-                     途中で切れたファイルかもしれない。取得し直すか、別の定跡を開くこと",
-                    index + 1
+                    "局面より先に指し手が書かれている（{index}行目）。\
+                     途中で切れたファイルかもしれない。取得し直すか、別の定跡を開くこと"
                 ),
                 path,
             ));
@@ -252,8 +308,13 @@ mod tests {
         )
     }
 
+    /// テストは文字列で書きたいが、本番は1行ずつ読む。同じ `parse` を通す。
+    fn parsed(text: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
+        parse(std::io::Cursor::new(text.as_bytes()), "/books/a.db")
+    }
+
     fn loaded(text: &str) -> HashMap<BookKey, Vec<BookMove>> {
-        parse(text, "/books/a.db").expect("読めるはず")
+        parsed(text).expect("読めるはず")
     }
 
     #[test]
@@ -353,7 +414,7 @@ mod tests {
              sfen {HIRATE}\n\
              7g7f 3c3d 50 32 1\n"
         );
-        assert!(parse(&text, "/books/a.db").is_ok());
+        assert!(parsed(&text).is_ok());
     }
 
     /// ShogiHome は score と depth を省くとき空文字を書き出す。連続した空白を
@@ -408,11 +469,33 @@ mod tests {
         assert!(positions[&to_book_key(HIRATE).unwrap()].is_empty());
     }
 
+    /// 壊れた行の位置が分からないと、100万行の定跡で利用者にも報告を受けた側にも
+    /// 直しようが無い。同じファイルの他の失敗は行番号を出すので、片方だけ嘘をつかない。
+    #[test]
+    fn a_broken_line_carries_its_line_number() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             sfen {HIRATE}\n\
+             7g7f 3c3d 50 32 1\n\
+             sfen これは局面ではない\n"
+        );
+        let err = parsed(&text).unwrap_err();
+        assert!(err.message().contains("4行目"), "{}", err.message());
+    }
+
+    /// 先頭に空行があるファイルでは、見出しの検査対象は1行目ではない。
+    /// 存在しない位置を指す診断を出さない。
+    #[test]
+    fn the_header_error_points_at_the_line_it_actually_read() {
+        let err = parsed("\n\n これは定跡ではない\n").unwrap_err();
+        assert!(err.message().contains("3行目"), "{}", err.message());
+    }
+
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
     /// 空の定跡と区別が付かず、利用者は全ての局面が未収録だと受け取る。
     #[test]
     fn rejects_a_file_that_is_not_a_yaneuraou_book() {
-        let err = parse("これは定跡ではない\n7g7f\n", "/books/a.db").unwrap_err();
+        let err = parsed("これは定跡ではない\n7g7f\n").unwrap_err();
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
         assert_eq!(err.path(), Some("/books/a.db"));
         assert!(err.message().contains("こと"), "{}", err.message());
@@ -420,14 +503,14 @@ mod tests {
 
     #[test]
     fn rejects_an_empty_file() {
-        let err = parse("", "/books/a.db").unwrap_err();
+        let err = parsed("").unwrap_err();
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
     }
 
     /// 途中で切れたファイルは、局面より先に指し手が来る形になる。
     #[test]
     fn rejects_moves_before_any_position() {
-        let err = parse("#YANEURAOU-DB2016 1.00\n7g7f 3c3d 50 32 1\n", "/books/a.db").unwrap_err();
+        let err = parsed("#YANEURAOU-DB2016 1.00\n7g7f 3c3d 50 32 1\n").unwrap_err();
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
         assert!(err.message().contains("2行目"), "{}", err.message());
     }
@@ -439,7 +522,7 @@ mod tests {
     #[test]
     fn a_broken_position_line_is_reported_as_broken_content() {
         let text = "#YANEURAOU-DB2016 1.00\nsfen これは局面ではない\n7g7f\n";
-        let err = parse(text, "/books/a.db").unwrap_err();
+        let err = parsed(text).unwrap_err();
 
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
         assert_eq!(err.path(), Some("/books/a.db"));
