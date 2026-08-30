@@ -100,6 +100,11 @@ describe("headingSlug", () => {
   test("同じ見出しが2度目に出たら連番が付く", () => {
     expect(headingSlugs("# 表\n\n## 表\n\n### 表\n")).toEqual(new Set(["表", "表-1", "表-2"]));
   });
+
+  test("フェンスの中の見出しはアンカーにならない", () => {
+    // 例として書いた見出しを数えると、そこへのリンクが「見出しがある」と通ってしまう。
+    expect(headingSlugs("```\n# 例\n```\n\n# 本物\n")).toEqual(new Set(["本物"]));
+  });
 });
 
 describe("staleUncreatedNames", () => {
@@ -131,6 +136,38 @@ describe("stripFences", () => {
     ].join("\n");
 
     expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
+  });
+
+  test("開きより長い閉じでも閉じる", () => {
+    const body = ["```", "[例](nope.md)", "`````", "", "[本物](real.md)"].join("\n");
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
+  });
+
+  test("情報文字列の付いた行は閉じない", () => {
+    // 閉じに情報文字列は書けないので、これは中身の一部。閉じと見なすと、
+    // 続く例が本文として漏れる。
+    const body = ["```", "```js", "[例](nope.md)", "```", "", "[本物](real.md)"].join("\n");
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
+  });
+
+  test("記号の違うフェンスでは閉じない", () => {
+    const body = [
+      "```",
+      "[例](nope.md)",
+      "~~~",
+      "[例2](nope2.md)",
+      "```",
+      "",
+      "[本物](real.md)",
+    ].join("\n");
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).not.toContain("nope2.md");
     expect(stripFences(body)).toContain("real.md");
   });
 
