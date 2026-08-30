@@ -1,7 +1,6 @@
 import {
-  buildTesuuPointer,
-  normalizeForkPointers,
   plannedForkIndexAt,
+  requestedCursorAt,
   selectAt,
   truncatePlanFrom,
   type KifuCursor,
@@ -28,12 +27,12 @@ export function buildCursorWithForkSelection(
   te: number,
   forkIndex: number | null,
 ): KifuCursor {
-  const picked = selectAt(truncatePlanFrom(base?.forkPointers ?? [], te), te, forkIndex);
-  // buildTesuuPointer は並びをそのまま文字列にする。正規化を通さないと、
-  // 同じ局面が並び順の違いで別のキーになり、コメント欄の開閉判定が外れる。
-  const forkPointers = normalizeForkPointers(picked, te);
-
-  return { tesuu: te, forkPointers, tesuuPointer: buildTesuuPointer(te, forkPointers) };
+  // 正規化は requestedCursorAt が通す。通さないと、同じ局面が並び順の違いで
+  // 別のキーになり、コメント欄の開閉判定が外れる。
+  return requestedCursorAt(
+    te,
+    selectAt(truncatePlanFrom(base?.forkPointers ?? [], te), te, forkIndex),
+  );
 }
 
 /** 分岐メニューの選択に対して次に呼ぶ操作 */

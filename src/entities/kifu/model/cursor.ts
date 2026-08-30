@@ -16,8 +16,10 @@ declare const tesuuPointerBrand: unique symbol;
  *
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
- * **この型を作ってよいのは `buildTesuuPointer` だけ**、というのは規約。
- * だからこのファイルの中に置いてある。外に `as TesuuPointer` を書かないこと。
+ * **この型を作ってよいのはこのファイルの中だけ**、というのは規約。
+ * 作っているのは3つ: `buildTesuuPointer`（組み立て）、`ROOT_CURSOR`（定数）、
+ * `makeKifuCursor`（再生器の返り値に brand を付ける）。
+ * 外に `as TesuuPointer` を書かないこと。
  */
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
@@ -209,15 +211,15 @@ export function plannedForkIndexAt(fps: ForkPointer[], te: number): number | nul
 }
 
 /**
- * 辿り終えた局面の生の値から `KifuCursor` を組む。**この型を作ってよいのはここだけ**
+ * **辿り終えた**局面から `KifuCursor` を組む
+ *
+ * `tesuuPointer` は再生器が返した文字列をそのまま brand 付きにするので、
+ * 渡す3つは**同じ局面を辿り終えた1つの再生器から**取ること。別々に組むと、
+ * 局面を一意に指すはずの値が中身と食い違う。実際の口は `cursorFromPlayer`。
  *
  * `forkPointers` は `te <= tesuu` に正規化する。だから
  * **`state.cursor.forkPointers` はカーソルより先の選択を持たない**
  * （計画は `BranchPlan` が別に持つ）。
- *
- * `tesuuPointer` は再生器が返した文字列をそのまま brand 付きにするので、
- * 渡す3つは**同じ局面を辿り終えた1つの再生器から**取ること。別々に組むと、
- * 局面を一意に指すはずの値が中身と食い違う。
  */
 export function makeKifuCursor(
   tesuu: number,
@@ -229,4 +231,21 @@ export function makeKifuCursor(
     forkPointers: normalizeForkPointers(forkPointers, tesuu),
     tesuuPointer: tesuuPointer as TesuuPointer,
   };
+}
+
+/**
+ * **これから行きたい**局面を指す `KifuCursor` を組む
+ *
+ * `makeKifuCursor` と違い、再生器を通していない。`tesuuPointer` は
+ * `buildTesuuPointer` が組んだ**要求の識別子**であって、その局面に本当に
+ * 着ける保証は無い（`goto` は実在しない変化を黙って捨て、同じ `tesuu` の
+ * 別の線に着く）。着いた先を知りたい側は、`applyCursor` が
+ * `cursorFromPlayer` で作り直した `state.cursor` を見ること。
+ *
+ * 分岐メニューの選択がこれを使う。押した時点では、その変化が棋譜に
+ * 実在するかを確かめていない。
+ */
+export function requestedCursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
+  const normalized = normalizeForkPointers(forkPointers, tesuu);
+  return { tesuu, forkPointers: normalized, tesuuPointer: buildTesuuPointer(tesuu, normalized) };
 }
