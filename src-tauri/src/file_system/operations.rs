@@ -82,16 +82,18 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
 
 /// JKF データをファイル拡張子に応じた形式に変換する
 fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
-    // 綴れなかった理由は ConvertError の Display が言う（何手目の何の手か）。
-    // ここで潰すと、利用者に出るのは「変換に失敗」だけになる
-    let spell = |r: Result<String, ConvertError>| {
+    // `ConvertError` の Display は綴れなかったものを名指しする（書き分けられない手、
+    // 綴りの無い枚数、盤面の無い手合割）。何手目かは言わない — ply を持つのは
+    // `Normalize` だけで、KIF / KI2 / CSA の書き出しはそれを作らない。
+    // ここで文言を潰すと、利用者に出るのは「変換に失敗」だけになる
+    let to_fs_error = |r: Result<String, ConvertError>| {
         r.map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string()))
     };
 
     match get_file_extension(file_path).as_deref() {
-        Some("kif") => spell(jkf_data.try_to_kif_owned()),
-        Some("ki2") => spell(jkf_data.try_to_ki2_owned()),
-        Some("csa") => spell(jkf_data.try_to_csa_owned()),
+        Some("kif") => to_fs_error(jkf_data.try_to_kif_owned()),
+        Some("ki2") => to_fs_error(jkf_data.try_to_ki2_owned()),
+        Some("csa") => to_fs_error(jkf_data.try_to_csa_owned()),
         Some("jkf") => serde_json::to_string_pretty(jkf_data)
             .map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string())),
         _ => Err(

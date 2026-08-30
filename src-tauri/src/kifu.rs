@@ -194,9 +194,9 @@ mod tests {
 
     /// 「後手番」を書くのはクレートの仕事で、こちらは足さない。
     ///
-    /// 足すと2行になる。KIF は2行でも読めてしまうが、**KI2 は指し手行が
-    /// 読めなくなる**ので、保存したファイルが開けなくなる。
-    /// 1回であることを数えるのは、補正が戻ってきたらここで気付くため。
+    /// 2行になると **KI2 は指し手行が読めなくなり**、保存したファイルが開けなくなる
+    /// （KIF は2行でも読めてしまうので、KIF だけでは気付けない）。
+    /// 行数を数えるのは、こちら側で足す実装が入ったときにここで止めるため。
     #[test]
     fn gote_start_is_written_once_and_survives_a_round_trip() {
         let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
@@ -222,5 +222,43 @@ mod tests {
             assert_eq!(initial_color(&back), Some(Color::White), "{format} の手番");
             assert_eq!(back.moves.len(), moves, "{format} の指し手が落ちた");
         }
+    }
+
+    /// ディスクへ書く経路で、書いたものが読み戻せる。
+    ///
+    /// `write_kifu_file_internal` は `convert_jkf_to_string_internal` と別の関数で、
+    /// **`normalize()` を呼ばない**（#322）。上のテストが通るのは呼ばない側なので、
+    /// `atomic_write` に届く文字列を見ているのはここだけ。
+    #[test]
+    fn what_the_write_path_puts_on_disk_can_be_read_back() {
+        let dir = std::env::temp_dir().join(format!(
+            "obs-shogi-write-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("一時ディレクトリ");
+
+        // normalize を通していない JKF を渡す。この経路の実態に合わせる
+        let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
+        let moves = source.moves.len();
+
+        type Reparse = fn(&str) -> Result<JsonKifuFormat, ParseError>;
+        for (format, reparse) in [
+            ("kif", parse_kif_str as Reparse),
+            ("ki2", parse_ki2_str as Reparse),
+        ] {
+            let mut jkf = source.clone();
+            let path = dir.join(format!("gote.{format}"));
+            write_kifu_file_internal(&mut jkf, &path, format)
+                .unwrap_or_else(|e| panic!("{format} の書き出し: {e}"));
+
+            let written = std::fs::read_to_string(&path).expect("読み取り");
+            let back = reparse(&written).unwrap_or_else(|e| panic!("{format} の読み戻し: {e}"));
+            assert_eq!(initial_color(&back), Some(Color::White), "{format} の手番");
+            assert_eq!(back.moves.len(), moves, "{format} の指し手が落ちた");
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
