@@ -1223,6 +1223,47 @@ mod tests {
         }
     }
 
+    /// 表の (S0, E5) / (S0, E6) / (S0, E7)。見出しより先に来た行は、局面でも
+    /// 指し手でも「見出しが無い」へ落ちる。
+    ///
+    /// **`sfen ` 行を特別扱いしないこと。** 見出しを読み飛ばして局面から
+    /// 拾い始めると、`.db` ではないテキストが「0局面の定跡」として開ける。
+    #[test]
+    fn any_line_before_the_header_is_rejected_the_same_way() {
+        for line in [
+            &format!("sfen {HIRATE}"),
+            "resign none 0 0 1",
+            "7g7f 3c3d 50 32 1",
+        ] {
+            let err = parsed(&format!("{line}\n")).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidContent, "line={line}");
+            assert!(
+                err.message().contains("見出しが無い"),
+                "line={line} message={}",
+                err.message()
+            );
+        }
+    }
+
+    /// 表の (S0, E2)。見出しより前の `# NOE:` も申告値として覚える。
+    ///
+    /// **注記として読み飛ばすだけでは足りない。** `# NOE:` は注記の形をして
+    /// いるので、`is_skippable` を先に見る順序へ変えると値を取り逃し、
+    /// 切れの検出が黙って消える。読み飛ばしだけを見るテストでは、その入れ替えが
+    /// 緑で通る。
+    #[test]
+    fn a_declared_count_before_the_header_still_catches_a_truncated_file() {
+        let text = format!("# NOE:1250000\n#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n");
+        let err = parsed(&text).unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(
+            err.message().contains("1250000"),
+            "申告値を取り逃している: {}",
+            err.message()
+        );
+    }
+
     /// 表の (S1, E6) / (S1, E8)。局面より先に来た行は、指し手の形を満たすかに
     /// かかわらず同じ枝へ落ちる。
     #[test]
