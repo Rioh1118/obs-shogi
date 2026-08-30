@@ -5,6 +5,7 @@ import KifuForkMenu from "./KifuForkMenu";
 import "./KifuForkMenu.scss";
 import type { ForkPointer } from "@/entities/kifu/model/cursor";
 import type { BranchIndex } from "@/entities/kifu/model/branch";
+import { kifuRowId } from "../lib/rowId";
 
 export type RowModel = {
   te: number;
@@ -129,7 +130,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
 
   return (
     <div
-      id={`kifu-row-${row.te}`}
+      id={kifuRowId(row.te)}
       className={rowClass}
       onClick={() => !busy && onClickRow(row.te)}
       onKeyDown={onRowKeyDown}

@@ -1,6 +1,8 @@
 import {
+  asBranchPlan,
   cursorFromSource,
   normalizeForkPointers,
+  type BranchPlan,
   type ForkPointer,
   type KifuCursor,
 } from "@/entities/kifu/model/cursor";
@@ -21,16 +23,24 @@ export function lastMovePlayer(jkf: JKFPlayer) {
   return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
 }
 
+/**
+ * 辿ったカーソルと、カーソルより先の計画を合成する。
+ *
+ * `te <= cursor.tesuu` の範囲は `cursor.forkPointers` からしか取らない。ここが
+ * `state.branchPlan` と `cursor.forkPointers` が一致するという不変条件の根拠。
+ */
 export function mergeBranchPlan(
   cursor: KifuCursor,
   prevPlan: ForkPointer[],
   overridePlan?: ForkPointer[],
-): ForkPointer[] {
-  return normalizeForkPointers([
-    ...cursor.forkPointers,
-    ...prevPlan.filter((fp) => fp.te > cursor.tesuu),
-    ...(overridePlan ?? []).filter((fp) => fp.te > cursor.tesuu),
-  ]);
+): BranchPlan {
+  return asBranchPlan(
+    normalizeForkPointers([
+      ...cursor.forkPointers,
+      ...prevPlan.filter((fp) => fp.te > cursor.tesuu),
+      ...(overridePlan ?? []).filter((fp) => fp.te > cursor.tesuu),
+    ]),
+  );
 }
 
 export function sameForkPointers(a: ForkPointer[], b: ForkPointer[]) {

@@ -62,7 +62,14 @@ declare const branchPlanBrand: unique symbol;
  */
 export type BranchPlan = ForkPointer[] & { readonly [branchPlanBrand]: true };
 
-/** 分岐計画として確定した配列に印を付ける。呼んでよいのは `gameReducer` だけ */
+/**
+ * 分岐計画として確定した配列に印を付ける。
+ *
+ * 付けてよいのは**計画を作る側**だけ。`mergeBranchPlan`（`te > tesuu` を持ち越す唯一の
+ * 関数）、初期状態の空配列、そして棋譜が変わって計画を意図的に捨てる書き込み経路。
+ * 「捨てる」の印を呼び出し側に書かせているのは、捨てた場所を数えられるようにするため。
+ * テストは実物と同じ組み立てを再現するために通す。
+ */
 export const asBranchPlan = (forkPointers: ForkPointer[]) => forkPointers as BranchPlan;
 
 declare const plannedCursorBrand: unique symbol;

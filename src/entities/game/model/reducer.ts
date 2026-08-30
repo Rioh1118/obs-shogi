@@ -19,7 +19,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
       return {
         ...state,
         cursor: action.payload.cursor,
-        branchPlan: asBranchPlan(action.payload.branchPlan),
+        branchPlan: action.payload.branchPlan,
         selectedPosition: null,
         error: null,
       };
@@ -29,7 +29,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         ...state,
         jkf: action.payload.jkf,
         cursor: action.payload.cursor,
-        branchPlan: asBranchPlan(action.payload.branchPlan),
+        branchPlan: action.payload.branchPlan,
         selectedPosition: null,
         isLoading: false,
         error: null,

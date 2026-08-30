@@ -18,6 +18,7 @@ import { GameContext } from "./context";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   ROOT_CURSOR,
+  asBranchPlan,
   normalizeForkPointers,
   plannedCursorFrom,
   type ForkPointer,
@@ -219,7 +220,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           payload: {
             jkf: nextJkf,
             cursor: nextCursor,
-            branchPlan: [...nextCursor.forkPointers],
+            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
 
@@ -352,7 +353,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           payload: {
             jkf: nextJkf,
             cursor: nextCursor,
-            branchPlan: [...nextCursor.forkPointers],
+            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
 
@@ -389,7 +390,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           payload: {
             jkf: nextJkf,
             cursor: nextCursor,
-            branchPlan: [...nextCursor.forkPointers],
+            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
 

@@ -19,7 +19,11 @@ import {
   resolveForkSelection,
 } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
+import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
+
+/** 連続移動とみなす間隔（ミリ秒）。`revealRow` の2つの判断がこれを共有する */
+const RECENT_SCROLL_MS = 120;
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
@@ -66,26 +70,30 @@ export default function KifuStreamList() {
   }, []);
 
   /**
-   * 行の位置合わせはここに一本化する。行要素は id で引く（`KifuMoveCard` が振る）。
-   * scroller の中を引くので、unmount 済みの行は見つからない。`closest` で親を辿ると
-   * 切り離された行を掴み、`offsetTop` が 0 になってリストが先頭まで飛ぶ。
+   * 行を見える位置へ戻す。位置合わせの入口はここ1つで、幾何の計算は
+   * `scrollToRowSafeZone` が持つ。
+   *
+   * 行は scroller の中を id で引く。`closest` で親を辿ると unmount 済みの行を掴み、
+   * 切り離された要素の `offsetTop` は 0 なのでリストが先頭まで飛ぶ。
    *
    * `yieldToRecent` は「直前に誰かが位置を決めていたら譲る」。局面が変わる経路では
    * カーソル変化の effect が先に走っており、同じ行へ撃ち直すと effect が選んだ
    * smooth を開始直後に打ち切ってしまう。
    */
-  const scrollRowIntoSafeZone = useCallback((te: number, yieldToRecent: boolean) => {
+  const revealRow = useCallback((te: number, yieldToRecent: boolean) => {
     const scroller = listRef.current;
-    const rowEl = scroller?.querySelector<HTMLElement>(`#kifu-row-${te}`);
+    const rowEl = scroller?.querySelector<HTMLElement>(`#${kifuRowId(te)}`);
     if (!scroller || !rowEl) return;
 
     const now = performance.now();
     const dt = now - lastScrollAtRef.current;
-    if (yieldToRecent && dt < 120) return;
+    // 連続移動とみなす間隔。これ以内の再入なら、譲る側は撃たず、撃つ側も
+    // smooth をやめて追従を優先する。矢印キーのリピート間隔に合わせた実測の暫定値。
+    if (yieldToRecent && dt < RECENT_SCROLL_MS) return;
     lastScrollAtRef.current = now;
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    scrollToRowSafeZone(scroller, rowEl, reduced || dt < 120 ? "auto" : "smooth");
+    scrollToRowSafeZone(scroller, rowEl, reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth");
   }, []);
 
   const closeForkMenu = useCallback(
@@ -103,10 +111,10 @@ export default function KifuStreamList() {
         // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
         // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
         // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
-        if (te != null) scrollRowIntoSafeZone(te, true);
+        if (te != null) revealRow(te, true);
       });
     },
-    [scrollRowIntoSafeZone],
+    [revealRow],
   );
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
@@ -210,9 +218,10 @@ export default function KifuStreamList() {
     };
   }, [openFork, closeForkMenu]);
 
+  // tesuuPointer は "<tesuu>,[...]" 形式で tesuu を含むので、これだけで足りる。
   useEffect(() => {
-    scrollRowIntoSafeZone(state.cursor?.tesuu ?? 0, false);
-  }, [state.cursor?.tesuuPointer, state.cursor?.tesuu, scrollRowIntoSafeZone]);
+    revealRow(state.cursor?.tesuu ?? 0, false);
+  }, [state.cursor?.tesuuPointer, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {
