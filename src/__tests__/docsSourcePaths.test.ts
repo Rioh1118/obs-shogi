@@ -7,24 +7,28 @@ import { missingPaths, sourcePathsIn } from "./docsSourcePaths";
  * 状態遷移表がバッククォートで指すソースのパスが実在するかを見る。
  *
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
- * どこに移ったのかは doc からは分からない。**この故障は #279 の中で3回起きた**
- * （`entities/game/lib/cursor.ts` → `entities/kifu/lib/cursorRuntime.ts` →
- * `entities/kifu/lib/branchPlan.ts` と、直すたびに別の死んだパスになった）ので、
- * 人の注意ではなく機械で見る。
+ * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
  *
  * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と `IDEAS.md` / `PREMISES.md` が
- * **作らないと決めたもの**のパスを書くため（例: `decisions/0002-drop-book-read-write.md`
- * の `src/background/book/`）。そこを実在させろと言うのは記録の書き換えになる。
- * 状態遷移表は現物の実装を指す約束なので、実在しなければ腐っている。
+ * **別リポジトリ（ShogiHome）のパス**を根拠として引くため
+ * （`src/background/book/` ほか3件）。このリポジトリの現物を指す約束があるのは
+ * 状態遷移表だけなので、そこだけが「実在しなければ腐っている」と言える。
+ * 他リポジトリのパスを外部リンクの形で書く規約にすれば `docs/` 全体へ広げられる。
  */
 describe("状態遷移表が指すソースのパス", () => {
+  const tableFiles = () => markdownFiles().filter((f) => f.startsWith("state-transitions/"));
+
+  // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
+  // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
+  test("状態遷移表を拾えている", () => {
+    expect(tableFiles().length).toBeGreaterThan(3);
+  });
+
   test("実在しないパスを指していない", () => {
-    const broken = markdownFiles()
-      .filter((relative) => relative.startsWith("state-transitions/"))
-      .flatMap((relative) => {
-        const body = readFileSync(docsPath(relative), "utf8");
-        return missingPaths(sourcePathsIn(body)).map((p) => `${relative}: ${p}`);
-      });
+    const broken = tableFiles().flatMap((relative) => {
+      const body = readFileSync(docsPath(relative), "utf8");
+      return missingPaths(sourcePathsIn(body)).map((p) => `${relative}: ${p}`);
+    });
 
     expect(broken).toEqual([]);
   });
