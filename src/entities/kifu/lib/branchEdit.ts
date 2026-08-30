@@ -13,6 +13,7 @@ import {
   type SwapQuery,
 } from "../model/branch";
 import {
+  normalizeBefore,
   normalizeForkPointers,
   forkIndexAt,
   sameForkPointers,
@@ -23,15 +24,11 @@ import {
 } from "../model/cursor";
 import { resolveLine, type LineRef } from "./resolveLine";
 
-/**
- * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする
- *
- * `normalizeForkPointers` の境界は `te <= 第2引数` なので、1引いて渡す。
- */
+/** `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする（境界は `normalizeBefore`） */
 function normalizeRef<T extends BranchPointRef>(ref: T): T {
   return {
     ...ref,
-    forkPointers: normalizeForkPointers(ref.forkPointers, ref.te - 1),
+    forkPointers: normalizeBefore(ref.forkPointers, ref.te),
   };
 }
 
@@ -39,15 +36,14 @@ function normalizeRef<T extends BranchPointRef>(ref: T): T {
  * te より前の stream が同じか（`forkPointers` の prefix 同一判定）
  *
  * `sameForkPointers` は**並び順つきの列比較**なので、比べる前に両側を
- * 整列・重複除去しておく必要がある。`normalizeForkPointers` はそれを
- * `te` の絞りと同時にやる。境界は `te <= 第2引数` なので1引いて渡す。
+ * 整列・重複除去しておく必要がある。`normalizeBefore` がそれを `te` の絞りと同時にやる。
  *
  * **`truncateFrom` に置き換えないこと。** あちらは絞るだけで整列しないので、
  * `[{te:4},{te:2}]` と `[{te:2},{te:4}]` が別物になる。`cursor` は
  * 任意の呼び出し側から `CursorPath` として渡るので、正規化済みとは限らない。
  */
 function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boolean {
-  return sameForkPointers(normalizeForkPointers(a, te - 1), normalizeForkPointers(b, te - 1));
+  return sameForkPointers(normalizeBefore(a, te), normalizeBefore(b, te));
 }
 
 function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {

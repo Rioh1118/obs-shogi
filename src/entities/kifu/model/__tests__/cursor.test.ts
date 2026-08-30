@@ -5,6 +5,7 @@ import {
   asBranchPlan,
   cursorKey,
   descendTo,
+  normalizeBefore,
   normalizeForkPointers,
   plannedCursorFrom,
   sameForkPointers,
@@ -225,6 +226,22 @@ describe("normalizeForkPointers", () => {
     const input = [fp(5, 0), fp(1, 0)];
     normalizeForkPointers(input);
     expect(input).toEqual([fp(5, 0), fp(1, 0)]);
+  });
+});
+
+describe("normalizeBefore", () => {
+  // BranchPointRef の規約「すべて p.te < te」。te そのものを残すと、
+  // resolveLine が選び直す対象の分岐点ではなくその中の1本を指す。
+  test("te そのものは落とす", () => {
+    expect(normalizeBefore([fp(2, 0), fp(3, 1)], 3)).toEqual([fp(2, 0)]);
+  });
+
+  test("並べ替えと重複の畳み込みもする", () => {
+    expect(normalizeBefore([fp(2, 1), fp(1, 0), fp(2, 0)], 5)).toEqual([fp(1, 0), fp(2, 0)]);
+  });
+
+  test("te = 0 なら空", () => {
+    expect(normalizeBefore([fp(0, 0)], 0)).toEqual([]);
   });
 });
 

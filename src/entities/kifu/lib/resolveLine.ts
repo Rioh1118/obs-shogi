@@ -1,6 +1,6 @@
 import { isUsableFork } from "../model/jkf";
 import type { JKFData, JKFMove } from "../model/jkf";
-import { normalizeForkPointers, type ForkPointer } from "../model/cursor";
+import { normalizeBefore, type ForkPointer } from "../model/cursor";
 
 /** `startTe` は `line[0]` に対応する絶対手数。`forkPointers` の te も絶対手数。 */
 export type LineRef = { line: JKFMove[]; startTe: number };
@@ -13,8 +13,8 @@ export type LineRef = { line: JKFMove[]; startTe: number };
  * `startTe` を持ち直して差を取る。この座標系を手書きすると、変化の中の手だけ
  * 1つずれた位置に当たる。
  *
- * **`uptoTe` の分岐そのものは降りない**（`normalizeForkPointers` の境界は
- * `te <= 第2引数` なので1引いて渡している）。渡す値は用途で1つずれる。
+ * **`uptoTe` の分岐そのものは降りない**（境界は `normalizeBefore` が持つ）。
+ * 渡す値は用途で1つずれる。
  *
  * - `te` の**手そのもの**が欲しい side は `te + 1` を渡す。`te` の分岐を降りないと、
  *   その変化に入っている局面で**同じ絶対手数の本譜の手が返る**（例外は出ない）
@@ -27,7 +27,7 @@ export function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: 
   let line = kifu.moves as JKFMove[];
   let startTe = 0;
 
-  for (const p of normalizeForkPointers(forkPointers, uptoTe - 1)) {
+  for (const p of normalizeBefore(forkPointers, uptoTe)) {
     const idx = p.te - startTe;
     const mv = line[idx];
     if (!isUsableFork(mv?.forks?.[p.forkIndex])) {

@@ -156,6 +156,20 @@ export function normalizeForkPointers(forkPointers: ForkPointer[], tesuu?: numbe
   return unique;
 }
 
+/**
+ * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする。並びも揃える。
+ *
+ * `normalizeForkPointers` の境界は `te <= 第2引数` なので1引く。この `- 1` を
+ * 呼び出し側で手書きすると、書き忘れた側が `te` の分岐そのものを降りてしまい、
+ * **選び直す対象の分岐点ではなく、そのうちの1本の中**を指す。例外は出ないまま
+ * 削除・入れ替えが別の階層の枝に当たる。
+ *
+ * `truncateFrom` は絞るだけで並べ替えない。整列が要るならこちら。
+ */
+export function normalizeBefore(fps: ForkPointer[], te: number): ForkPointer[] {
+  return normalizeForkPointers(fps, te - 1);
+}
+
 /** 同じ選択の並びか。`normalizeForkPointers` を通した値どうしで比べること。 */
 export function sameForkPointers(a: ForkPointer[], b: ForkPointer[]) {
   if (a.length !== b.length) return false;
