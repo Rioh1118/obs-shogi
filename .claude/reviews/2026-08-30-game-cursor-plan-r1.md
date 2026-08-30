@@ -14,8 +14,8 @@
 - 場所: `docs/state-transitions/game.md:92`、`:93`（併せて `:7`）
 - reviewer: comment（BLOCK）/ oss-hygiene（HIGH）/ robustness（HIGH）— 3本が独立に検出
 - 根拠: G2 列に「**`goToIndex` に落ちて変化が確定する** → #225」「「別の選択」と誤判定して `applyCursor`」と書いてあるが、`cursorSelection.ts:51` の `selected` は `planned.forkPointers` から引くので、G2 の「本譜」は `selected=0 ≠ null` で `apply`、「変化 k」再選択は `selected === forkIndex` で `goto` になる。同じ行のテスト列は `✓` で、そのテストは表と**正反対**を assert している。
-- 追加: G1 列の「`applyCursor` で本譜へ」も不正確。その te に選択が無ければ `selected === null === forkIndex` で `goto` になる（`cursorSelection.test.ts:79-81` が固定済み）。
-- 結果: 対応済み（下記）
+- 追加: G1 列の「`applyCursor` で本譜へ」も不正確。その te に選択が無ければ `selected === null === forkIndex` で `goto` になる。
+- 結果: 対応済み（`0c276f8`）。**これは自分が作った退行**。表を先に書いてから #225 を直し、表側を更新しなかった
 
 ### F2 [HIGH] 読み手の表 R3 / R4 / R5 の ✓ と不変条件4が、実装と食い違う
 
@@ -23,42 +23,43 @@
 - reviewer: oss-hygiene / architecture / robustness — 3本が独立に検出
 - 根拠: `forkAndForward` が `false` を返すのは `forks.length <= r` のときだけ。負・非整数は `forks[-1]` を掴んで `TypeError`（`branch-index.md:77-80` が既に書いている）。`provider.tsx:280`（`nextMove`）と `:315`（`goToEnd`）はどちらも検査していない。さらに両者とも `currentStream[nextTe]` の存在を見ないので、**線の末尾+1 に計画が残っていると `forkAndForward` が throw する**（「te=12 の変化を計画 → その枝を削除 → `goToEnd`」で盤が1手も動かず、`set_error` は読み手0）。
 - 追加（robustness）: R5 も割る必要がある。`plannedCursor` の読み手は2つあり、`buildStreamRowsFromCursor` は捨てるが `buildCursorWithForkSelection` は捨てずに `goto` まで届ける。捨てているのは `computeLeafTesuu` と `buildStreamRowsFromCursor` の2箇所だけで、これは `branch-index.md:81-85` の記述と一致する。`game.md` 側だけが食い違っている。
-- 結果: 対応済み（下記）
+- 結果: 対応済み（`0c276f8`）。読み手を R1〜R6 の6つに割り、捨てるのは R1 / R5 だけと書き直した。不変条件4も直した
 
 ### F3 [HIGH] 「`state.cursor` を渡せなくした」は型では成立していない
 
 - 場所: `src/widgets/kifu-stream/lib/cursorSelection.ts:46-50`、`src/widgets/kifu-stream/ui/KifuStreamList.tsx:48-54`、`src/entities/game/model/provider.tsx:73-77`
 - reviewer: architecture（HIGH）/ comment（HIGH）/ react（MEDIUM）/ robustness（MEDIUM）— 4本
 - 根拠: `resolveForkSelection(planned: KifuCursor, ...)` なので `if (state.cursor) resolveForkSelection(state.cursor, te, i)` は今でも tsc を通る。制限はコメントだけ。加えて `plannedCursor` は `{...state.cursor, forkPointers: state.branchPlan}` で組むため、`tesuuPointer` だけ「辿ったカーソル」由来のまま残る**不整合な `KifuCursor`**。`cursor.ts:19` の「この型を作ってよいのは `buildTesuuPointer` だけ」という規約も破っている。同じ組み立てが provider と widget に手書きで2つある。
-- 結果: 対応済み（下記）。provider 側の重複は wt-227 との競合を避けて残した（F3-b）
+- 結果: 対応済み（`11bb8b3`）。`tesuuPointer` を持たない `PlannedCursor` を brand 付きで `entities/kifu/model/cursor.ts` に置き、構築を `plannedCursorOf` に一本化した。`state.cursor` を渡すと tsc が `Property '[plannedCursorBrand]' is missing` で落ちることを実測で確認済み。
+  **provider 側（`provider.tsx:73-77`）の重複は残した。** `GameView` に載せる案は `entities/game/model/provider.tsx` を触るので wt-227 と競合する
 
 ### F4 [HIGH] `game.md` を書いたのに、他の表からの参照が「未作成」のまま。`app.md` のリンクは死んでいる
 
 - 場所: `docs/state-transitions/app.md:48`、`file-tree.md:5`、`README.md:28`
 - reviewer: oss-hygiene
 - 根拠: `app.md:48` は `[game](#未作成の表)` だが `app.md` に `## 未作成の表` は無い（0件）。L0 から L1 game への唯一の導線がそこ。`stateTransitionIndex.test.ts:21` は README が `(game.md)` を含むかしか見ないので落ちない。
-- 結果: 対応済み（下記）
+- 結果: 対応済み（`cc9e5e5`）。再発防止のリンク検査を `6d24dac` で追加した
 
 ### F5 [HIGH] テスト名「本譜と変化が入れ替わる」が、検証している事実と違う
 
 - 場所: `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts:53-60`
 - reviewer: comment
-- 根拠: 「入れ替わる」なら逆方向も壊れるはずだが、`wrong` に `forkIndex = 0` を渡すと `selected === null` で不一致 → `apply` になり結果は正しい。壊れるのは「本譜」の一方向だけで、これは `cursorSelection.ts:43` の JSDoc とも一致する。
-- 結果: 対応済み（下記）
+- 根拠: 「入れ替わる」なら逆方向も壊れるはずだが、`wrong` に `forkIndex = 0` を渡すと `selected === null` で不一致 → `apply` になり結果は正しい。壊れるのは「本譜」の一方向だけで、これは JSDoc とも一致する。
+- 結果: 対応済み（`11bb8b3`）。「計画を落とした値を比較先にすると「本譜」だけが変化へ落ちる」に改名し、逆方向が `applyCursor` になることも足した
 
 ### F6 [HIGH] テストヘルパの JSDoc が「実物と同じ組み方」と書いているが `tesuuPointer` が違う
 
 - 場所: `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts:6-14`
 - reviewer: comment / architecture
 - 根拠: ヘルパは `buildTesuuPointer(tesuu, forkPointers)` で整合した値を作るが、実物（`KifuStreamList.tsx:48-54`）は `state.cursor` の `tesuuPointer` をそのまま持ち回る。本番の壊れた形をテストが再現していない。
-- 結果: 対応済み（F3 の型変更で `tesuuPointer` 自体を持たせない形にして解消）
+- 結果: 対応済み（`11bb8b3`）。`PlannedCursor` が `tesuuPointer` を持たなくなったので、食い違いようが無くなった。ヘルパも `plannedCursorOf` を通す形に直した
 
 ### F7 [HIGH] 変更の経緯がコメントと doc に残っている
 
 - 場所: `docs/state-transitions/game.md:126`（「別ブランチで対応中」）、`:56`（「〜がまだ無かった名残」）、`cursorSelection.test.ts:18`、`:34`（`#225`）
 - reviewer: comment
 - 根拠: `CONTRIBUTING.md:135-139` が禁じている形。「別ブランチで対応中」はマージされた瞬間に嘘になる。
-- 結果: 対応済み（下記）
+- 結果: 対応済み（`0c276f8` / `11bb8b3`）
 
 ### F8 [HIGH] 「本譜」の失敗が完全に沈黙する
 
@@ -66,35 +67,35 @@
 - reviewer: robustness
 - 根拠: `applyCursor` は `catch` で `set_error` に落とすが読み手0（F-12）。`closeForkMenu(true)` を先に呼ぶので、失敗しても選択画面すら残らず「押しても何も起きない」だけになる。
 - **退行ではない**（修正前の `goToIndex` 経路も同じ壊れた値を `goto` に渡していた。到達経路が `navigate` の catch から `applyCursor` の catch へ移っただけ）。
-- 結果: 見送り。`applyCursor` の返り値を変えるには `entities/game/model/provider.tsx` を触る必要があり、そこは wt-227 が占有している。表への追記だけ行い、本体は #227 の側へ送る（下記）
+- 結果: 一部対応（`70f451c`）。`game.md` と `failure-surfacing.md` の F-12 に「分岐メニューは閉じるだけで盤が動かない」を書いた。本体（`applyCursor` に成否を返させる）は `provider.tsx` を触るため見送り。#227 の側で扱う
 
 ## MEDIUM
 
-| #   | 所見                                                                                       | reviewer             | 結果                     |
-| --- | ------------------------------------------------------------------------------------------ | -------------------- | ------------------------ |
-| M1  | `ForkSelection` の名が既存語彙の「selection」（= `forkIndex \| null`）と衝突               | comment              | 対応済み                 |
-| M2  | `buildCursorWithForkSelection` に TSDoc が無く、`te` 以降を捨てる契約が書かれていない      | comment              | 対応済み                 |
-| M3  | `planned` が同一リポジトリで3つの別物を指す                                                | comment              | 対応済み（範囲内のみ）   |
-| M4  | 「両方が同じ内容」の describe が同一入力を2回回し、アサーションが実装の写し                | comment              | 対応済み                 |
-| M5  | 新規テストが壊れた計画（負・非整数）と `te` より深い計画のセルを落としている               | robustness           | 対応済み                 |
-| M6  | `game.md` D0 の判定条件が実装と違う（`loadedAbsPath` は保存判定に関与しない）              | comment / robustness | 対応済み                 |
-| M7  | `clear_error` は7箇所（`applyCursor` を含む）。表は2箇所しか挙げていない                   | robustness           | 対応済み                 |
-| M8  | 書き込みの表に `reset_state` が抜け、経路は7つ                                             | architecture         | 対応済み                 |
-| M9  | `overridePlan` の記述が「唯一の経路」と「未検証」で自己矛盾。Rust 側が構造的に保証している | architecture         | 対応済み                 |
-| M10 | 状態×イベント表の3セルが条件付き遷移を無条件に書いている                                   | architecture         | 対応済み                 |
-| M11 | G1 列が「計画なし」を「本譜にいる」と取り違えている                                        | robustness           | 対応済み                 |
-| M12 | `—` の凡例が1つなのに3通りの意味で使われている                                             | oss-hygiene          | 対応済み                 |
-| M13 | 既存8本とタイトル・「対象」行・上位リンク・記号（P vs D）が揃っていない                    | oss-hygiene          | 対応済み                 |
-| M14 | 外部状態を別表に切ったのに相互に相手側の列を持たせていない                                 | oss-hygiene          | 対応済み                 |
-| M15 | README 階層図で L2 が `study-positions.md` の子に見える                                    | oss-hygiene          | 対応済み                 |
-| M16 | `app.md` ※2 が game.md に投げた宿題（ワークスペース変更）が埋まっていない                  | oss-hygiene          | 対応済み                 |
-| M17 | `te` より深い計画が乗り換えた別の線に黙って適用される                                      | robustness           | 対応済み（判断を明記）   |
-| M18 | `applyCursor` に `navigate` の no-op ガードが無く、空撃ちで全消費者が再レンダ              | react                | 見送り → issue           |
-| M19 | `RowModel.selectedForkIndex` の丸めを消費者3箇所が別々に解釈                               | react                | 見送り → issue           |
-| M20 | `focus()` がスクロールを起こし `scrollToRowSafeZone` と競合                                | react                | 対応済み（独立コミット） |
-| M21 | 1回の選択で `closeForkMenu(true)` が2回呼ばれる                                            | react                | 見送り → issue           |
-| M22 | widget の `lib` が `ui` の型（`RowModel`）に依存                                           | architecture         | 見送り → issue           |
-| M23 | `cursorAdapter.ts:11` が `as TesuuPointer` を直書きし、規約を破っている                    | architecture         | 見送り → issue           |
+| #   | 所見                                                                                       | reviewer             | 結果                                      |
+| --- | ------------------------------------------------------------------------------------------ | -------------------- | ----------------------------------------- |
+| M1  | `ForkSelection` の名が既存語彙の「selection」（= `forkIndex \| null`）と衝突               | comment              | 対応済み（`11bb8b3`）                     |
+| M2  | `buildCursorWithForkSelection` に TSDoc が無く、`te` 以降を捨てる契約が書かれていない      | comment              | 対応済み（`11bb8b3`）                     |
+| M3  | `planned` が同一リポジトリで3つの別物を指す                                                | comment              | 対応済み（`11bb8b3`、範囲内のみ）         |
+| M4  | 「両方が同じ内容」の describe が同一入力を2回回し、アサーションが実装の写し                | comment              | 対応済み（`11bb8b3`）                     |
+| M5  | 新規テストが壊れた計画（負・非整数）と `te` より深い計画のセルを落としている               | robustness           | 対応済み（`11bb8b3`）                     |
+| M6  | `game.md` D0 の判定条件が実装と違う（`loadedAbsPath` は保存判定に関与しない）              | comment / robustness | 対応済み（`0c276f8`）                     |
+| M7  | `clear_error` は7箇所（`applyCursor` を含む）。表は2箇所しか挙げていない                   | robustness           | 対応済み（`0c276f8`）                     |
+| M8  | 書き込みの表に `reset_state` が抜け、経路は7つ                                             | architecture         | 対応済み（`0c276f8`）                     |
+| M9  | `overridePlan` の記述が「唯一の経路」と「未検証」で自己矛盾。Rust 側が構造的に保証している | architecture         | 対応済み（`0c276f8`）                     |
+| M10 | 状態×イベント表の3セルが条件付き遷移を無条件に書いている                                   | architecture         | 対応済み（`0c276f8`）                     |
+| M11 | G1 列が「計画なし」を「本譜にいる」と取り違えている                                        | robustness           | 対応済み（`0c276f8`）                     |
+| M12 | `—` の凡例が1つなのに3通りの意味で使われている                                             | oss-hygiene          | 対応済み（`0c276f8`）                     |
+| M13 | 既存8本とタイトル・「対象」行・上位リンク・記号（P vs D）が揃っていない                    | oss-hygiene          | 一部対応（`0c276f8`）※                    |
+| M14 | 外部状態を別表に切ったのに相互に相手側の列を持たせていない                                 | oss-hygiene          | 対応済み（`0c276f8`）                     |
+| M15 | README 階層図で L2 が `study-positions.md` の子に見える                                    | oss-hygiene          | 対応済み（`66dede7`）                     |
+| M16 | `app.md` ※2 が game.md に投げた宿題（ワークスペース変更）が埋まっていない                  | oss-hygiene          | 見送り → #245                             |
+| M17 | `te` より深い計画が乗り換えた別の線に黙って適用される                                      | robustness           | 対応済み（`0c276f8`、判断待ちとして明記） |
+| M18 | `applyCursor` に `navigate` の no-op ガードが無く、空撃ちで全消費者が再レンダ              | react                | 見送り → #239                             |
+| M19 | `RowModel.selectedForkIndex` の丸めを消費者3箇所が別々に解釈                               | react                | 見送り → #240                             |
+| M20 | `focus()` がスクロールを起こし `scrollToRowSafeZone` と競合                                | react                | 対応済み（`7d61a02`）                     |
+| M21 | 1回の選択で `closeForkMenu(true)` が2回呼ばれる                                            | react                | 見送り → #241                             |
+| M22 | widget の `lib` が `ui` の型（`RowModel`）に依存                                           | architecture         | 見送り → #242                             |
+| M23 | `cursorAdapter.ts:11` が `as TesuuPointer` を直書きし、規約を破っている                    | architecture         | 見送り → #243                             |
 
 ## 重複・矛盾した所見
 
@@ -123,6 +124,20 @@
 4. `src/*/*/lib/**` から `../ui/*` への import 禁止（`vite.config.ts` の override を1つ追加）→ M22。**issue へ**
 5. `branch.ts` 以外での `as TesuuPointer` の禁止 → M23。**issue へ**
 6. **機械では防げないもの**: 表のセルが実装の現在の挙動と合っているか（F1 / F2）、テスト名と本文の食い違い（F5）、実装の写しになったアサーション（M4）、`focus()` の `preventScroll` 漏れ（M20）。運用で見るしかない
+
+### ※ M13 を全部は採らなかった理由
+
+タイトル・「対象」行・上位リンク・外部状態の記号（`D` → `P`）は既存8本に揃えた。
+**イベントを列に置く形にはしなかった。** この表のイベントは15個あり、列に並べると
+1行が読めない幅になる。`app.md` は10列でぎりぎり、`engine.md` は8列。
+15列は既存のどの表とも違う読みにくさになるので、イベントを行に置いたまま、
+その理由を表の冒頭に書いた。イベントに `E1`〜`E15` の記号を振ったので、
+他の表から番号で指す用途は満たせている。
+
+### 反論を書いた所見は無い
+
+見送った6件（F8 / M16 / M18 / M19 / M21 / M22 / M23）はいずれも指摘が正しく、
+範囲外か別ブランチとの競合が理由。issue に送って再現手順と直し方を残した。
 
 ## 次ラウンドの対象
 
