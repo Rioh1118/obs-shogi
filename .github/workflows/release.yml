@@ -103,7 +103,11 @@ jobs:
 
             core.setOutput('release_id', releaseId);
             // タグが無かったなら、いま createRelease が context.sha の上に作った
-            core.setOutput('sha', tagSha ?? context.sha);
+            const sha = tagSha ?? context.sha;
+            // 空を配らない。`actions/checkout` は空の `ref` を未指定と同じに扱い、
+            // **黙って `github.ref` へ戻る**。ここで止めないと気づけない
+            if (!sha) throw new Error(`cannot resolve a commit for ${tag}`);
+            core.setOutput('sha', sha);
 
   # 2. Build, sign and upload bundles for every target platform
   build:
@@ -111,9 +115,16 @@ jobs:
     needs: create-release
     strategy:
       # 1つの OS が落ちても残りは上げる。**リリースは公開されたまま残るので、
-      # 資産の欠けたリリースが `latest` として外から見える。** 直すのは
-      # 「同じタグで撃ち直す」ではなく（組むのはタグの木なので同じ失敗が再現する）、
-      # タグを付け替えて push し直すか、新しいバージョンを切ること。
+      # 資産の欠けたリリースが `latest` として外から見える。**
+      #
+      # 直し方は失敗した場所で分かれる。この yml が原因なら、直したブランチから
+      # 同じタグで `workflow_dispatch` を撃てば埋まる（**手順はこの yml、つまり
+      # `github.ref` から来る。**組むソースだけがタグの木）。タグの木が原因なら
+      # 撃ち直しても再現するので、タグを付け替えるか新しいバージョンを切る。
+      #
+      # **どちらでも、先にリリースを資産ごと消すこと。** 撃ち直しは既存のリリースを
+      # 再利用し、tauri-action は同じ名前の資産しか差し替えない。前の run の資産が
+      # 残ったまま `latest.json` にマージされ、**別の木の資産が1つのリリースに同居する。**
       fail-fast: false
       matrix:
         # ターゲットを決めるのは `rust_target` だけ。空は「ホストのまま組む」で、
@@ -141,14 +152,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      # **4本とも同じ commit を組む。** タグ名を渡すと `actions/checkout` は
+      # **run の中の4本は同じ commit を組む。** タグ名を渡すと `actions/checkout` は
       # fetch した時点のタグを引く（40桁 hex のときだけ commit 固定になる）ので、
-      # 実行中にタグを付け替えると leg ごとに別の木が checkout される。
-      # `concurrency` は `cancel-in-progress: false` なので走っている run は止まらず、
-      # 1つのリリースに別の木の資産が混ざったまま `latest.json` に載る。
-      #
-      # 組むのはソースだけで、**この workflow の手順そのものは `github.ref` から来る**。
-      # 古いタグを指して撃っても、当たるのは今日のビルド手順。
+      # `cancel-in-progress: false` の run が走っている最中にタグを付け替えると、
+      # leg ごとに別の木が checkout される。
+      # run をまたいだ混在は塞がない（上の `fail-fast` の節）。
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.create-release.outputs.sha }}
