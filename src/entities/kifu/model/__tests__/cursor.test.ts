@@ -1,8 +1,10 @@
 import { describe, expect, test } from "vitest";
 import {
   ROOT_CURSOR,
-  mergeBranchPlan,
+  cursorKey,
   forkIndexAt,
+  makeKifuCursor,
+  mergeBranchPlan,
   selectAt,
   truncateFrom,
   type ForkPointer,
@@ -86,5 +88,51 @@ describe("mergeBranchPlan", () => {
   test("overridePlan は同じ te で prevPlan に勝つ", () => {
     const merged = mergeBranchPlan(cursorAt(1, []), [fp(4, 0)], [fp(4, 1)]);
     expect(merged).toEqual([fp(4, 1)]);
+  });
+});
+
+describe("cursorKey", () => {
+  const at = (tesuu: number, forkPointers: ForkPointer[]) => ({ tesuu, forkPointers });
+
+  // 鍵は正規化を通す。通さないと同じ局面が並び順の違いで別の鍵になり、
+  // コメント欄の開閉判定（KifuStreamList）と editorKey（KifuCommentNote）が外れる。
+  test("並びが違うだけの forkPointers は同じ鍵", () => {
+    expect(cursorKey(at(5, [fp(4, 1), fp(2, 0)]))).toBe(cursorKey(at(5, [fp(2, 0), fp(4, 1)])));
+  });
+
+  test("tesuu より先の選択は鍵に載らない", () => {
+    expect(cursorKey(at(3, [fp(2, 0), fp(5, 1)]))).toBe(cursorKey(at(3, [fp(2, 0)])));
+  });
+
+  test("同じ te が重なれば後勝ちで1つに畳む", () => {
+    expect(cursorKey(at(5, [fp(2, 0), fp(2, 1)]))).toBe(cursorKey(at(5, [fp(2, 1)])));
+  });
+
+  test("違う局面は違う鍵", () => {
+    expect(cursorKey(at(5, [fp(2, 0)]))).not.toBe(cursorKey(at(5, [fp(2, 1)])));
+    expect(cursorKey(at(5, []))).not.toBe(cursorKey(at(6, [])));
+  });
+
+  // 到達したかを確かめる側は、この鍵と再生器が返した tesuuPointer を突き合わせる。
+  // 書式が揃っていないと比較そのものが成り立たない。
+  test("再生器が返す tesuuPointer と同じ書式", () => {
+    const observed = makeKifuCursor(5, [fp(2, 0)], `5,${JSON.stringify([fp(2, 0)])}`);
+    expect(cursorKey(at(5, [fp(2, 0)]))).toBe(observed.tesuuPointer);
+  });
+});
+
+describe("makeKifuCursor", () => {
+  // 正規化はここが通す。呼び出し側（cursorFromPlayer）は player の生の値を渡す。
+  test("forkPointers を te <= tesuu に正規化する", () => {
+    const c = makeKifuCursor(3, [fp(5, 1), fp(2, 0)], "ignored");
+    expect(c.forkPointers).toEqual([fp(2, 0)]);
+  });
+
+  test("同じ te が重なれば後勝ち", () => {
+    expect(makeKifuCursor(5, [fp(2, 0), fp(2, 1)], "x").forkPointers).toEqual([fp(2, 1)]);
+  });
+
+  test("tesuuPointer は渡された文字列をそのまま持つ", () => {
+    expect(makeKifuCursor(1, [], "5,[]").tesuuPointer).toBe("5,[]");
   });
 });
