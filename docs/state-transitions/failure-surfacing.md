@@ -80,7 +80,7 @@ F 番号はここで採番し、各表と ADR から参照する。
 | **F-9**   | エンジン初期化の失敗                                     | `engine` `initialize_error`              | 設定タブでのみ見える。**同じ設定では再トライしない**                                                                | 要る（設定の修正）     | `clearError` は呼ばれていない    | 残るべき                |
 | **F-10**  | 研究局面の削除失敗                                       | `PositionDetail:51`                      | `console.error` のみ。**消えたように見えて消えていない**                                                            | 要る                   | 再試行                           | ダメ                    |
 | **F-11**  | 研究局面の読み込み失敗                                   | `study-positions:103`                    | 静かに空リストになる                                                                                                | 要る                   | 無い                             | ダメ                    |
-| **F-12a** | 棋譜の**保存**失敗（`persistIfPossible`）                | `game` `set_error` ×1                    | state に載るが**読み手0**。直すのは #227                                                                            | 要る                   | 再保存                           | ダメ                    |
+| **F-12a** | 棋譜の**保存**失敗（`persistIfPossible`）                | `game` `set_error` ×1 ＋ **戻り値**      | `state.error` の読み手は依然0。ただし**コメントの保存だけ**はノート内に出る※5                                       | 要る                   | 書き足せば再試行                 | コメント以外はダメ      |
 | **F-12b** | 棋譜の**操作**失敗（移動・分岐入替・分岐削除・盤面選択） | `game` `set_error` ×8                    | state に載るが**読み手0**。分岐メニューは**閉じるだけで盤が動かない**（2026-08-30 / `fix/225-fork-menu-main-line`） | 要る                   | 無い（同じ入力で同じ結果）       | ダメ                    |
 | **F-13**  | Finder で開けない                                        | `revealInFileManager:10`                 | `console.error` のみ                                                                                                | 要らない               | 不要                             | **消えてよい**          |
 | **F-14**  | リネーム名が不正                                         | `InlineNameEditor`                       | 入力欄の直下に出す。入力は残る                                                                                      | 要る（**入力の訂正**） | 入力を直す                       | 打ち直すまで            |
@@ -116,6 +116,13 @@ F-3 を1行で書いているので、そこだけでは `danger` の存在に�
 
 ADR-0004 が使う `F-12a` / `F-12b` は、**採番元がここ**。段が分かれる
 （保存は `warning`、操作は `danger`）ので §2 でも2行にしてある。
+
+※5 F-12a のうち**コメントの保存だけ**は出口がある。`entities/game` の書き換え操作
+（`makeMove` / `swapBranches` / `deleteBranch` / `setCommentsByCursor` / `setCurrentComments`）が
+`AsyncResult` を返すようになり、`KifuCommentNote` がそれを読んでノートの中に出す。
+書けていないので `baseText` を進めず、下書きは画面に残る。
+**盤で1手指したときの保存の失敗は、依然としてどこにも出ない**（`selectSquare` の2箇所に
+`async-result-ignored` の印がある）。出口を作るのは #186。
 
 ## 4. まだ出口が無いもの
 
