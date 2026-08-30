@@ -1,7 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
-import { advanceToLeafWithPlan, advanceWithPlan, indexPlan } from "../advanceWithPlan";
+import {
+  advanceToLeafWithPlan,
+  advanceWithPlan,
+  indexPlan,
+  PLAN_WALK_LIMIT,
+} from "../advanceWithPlan";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
   forks ? { comments: [tag], forks } : { comments: [tag] };
@@ -102,11 +107,23 @@ describe("advanceToLeafWithPlan", () => {
     expect(player.tesuu).toBe(2);
   });
 
-  test("上限を超える線では throw する", () => {
+  const lineOf = (length: number) => {
     const moves: JKFMove[] = [mv("root")];
-    for (let i = 0; i < 10001; i += 1) moves.push(mv(`t${i}`));
-    const player = new JKFPlayer({ header: {}, moves });
+    for (let i = 0; i < length; i += 1) moves.push(mv(`t${i}`));
+    return new JKFPlayer({ header: {}, moves });
+  };
 
-    expect(() => advanceToLeafWithPlan(player, indexPlan([]))).toThrow(/overflows/);
+  // 上限は JKFPlayer.goto が進める最長に合わせてある。ちょうどの線でここだけが
+  // 投げると、computeLeafTesuu の手数表示と goto の到達点が食い違う。
+  test("上限ちょうどの線は葉まで進める", () => {
+    const player = lineOf(PLAN_WALK_LIMIT);
+    expect(() => advanceToLeafWithPlan(player, indexPlan([]))).not.toThrow();
+    expect(player.tesuu).toBe(PLAN_WALK_LIMIT);
+  });
+
+  test("上限を超える線では throw する", () => {
+    expect(() => advanceToLeafWithPlan(lineOf(PLAN_WALK_LIMIT + 1), indexPlan([]))).toThrow(
+      /overflows/,
+    );
   });
 });

@@ -8,6 +8,12 @@ import type { RowModel } from "../ui/KifuMoveCard";
  *
  * `player` を末尾まで進めるが、棋譜自体は書き換えない（`inputMove` を呼ばない）。
  * 呼び出し側はこの前提で棋譜を複製せずに渡している。ここで棋譜を編集しないこと。
+ *
+ * **これはレンダ中に走る。** 壊れた計画は `advanceWithPlan` が捨てるので投げないが、
+ * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
+ * 再生そのものが投げる。拾わないと棋譜ペインごと落ちる。
+ *
+ * @throws {Error} 盤上で再生できない手に当たったとき（`advanceWithPlan` が投げる）
  */
 export function buildStreamRowsFromCursor(
   player: JKFPlayer,

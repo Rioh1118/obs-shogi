@@ -11,8 +11,9 @@ import { buildPlayer } from "./buildPlayer";
  * 本譜へ落ちる（`advanceWithPlan`）。`cursor.tesuu` までのぶんは `buildPlayer` の `goto` が
  * 扱うので、**そちらは負・非整数で `TypeError` になる**。`cursor` が無ければ本譜の末尾。
  *
- * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` が投げる）
- * @throws {TypeError} `cursor.tesuu` までの `forkIndex` が負・非整数のとき（同上）
+ * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` と、葉まで歩く
+ *   `advanceToLeafWithPlan` の両方が投げうる）
+ * @throws {TypeError} `cursor.tesuu` までの `forkIndex` が負・非整数のとき（`buildPlayer`）
  * @throws {Error} `PLAN_WALK_LIMIT` 手進んでも葉に着かないとき
  */
 export function computeLeafTesuu(jkf: JKFData, cursor: PlannedCursor | null): number {

@@ -44,7 +44,11 @@ const NOT_MOVED: PlanStep = { moved: false, forkIndex: null };
  * `false` を返すだけだが、負や非整数は `forks[-1]` を掴んで `JKFPlayer` の内部で
  * `TypeError` になるので、渡す前に捨てる。
  *
- * 例外を投げないので、レンダ中の走査（棋譜ストリームの行組み立て）からも呼べる。
+ * **計画が壊れていても投げない**のはここまで。盤の再生そのものは別で、
+ * 再生できない手に当たれば `forward` が投げる。
+ *
+ * @throws {Error} 盤上で再生できない手に当たったとき（`JKFPlayer.forward` が投げる）。
+ *   レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）
  */
 export function advanceWithPlan(player: JKFPlayer, plan: PlanIndex): PlanStep {
   const te = player.tesuu + 1;
@@ -58,13 +62,18 @@ export function advanceWithPlan(player: JKFPlayer, plan: PlanIndex): PlanStep {
   return player.forward() ? { moved: true, forkIndex: null } : NOT_MOVED;
 }
 
-/** `JKFPlayer.goto` が内部で使う上限と同じ。片方だけ先に打ち切ると値が食い違う。 */
+/** `JKFPlayer.goto` が進める最長と同じ。片方だけ先に打ち切ると値が食い違う。 */
 export const PLAN_WALK_LIMIT = 10000;
 
 /**
  * 計画に沿って葉まで進める
  *
+ * 葉に着いたことを確かめるには「`PLAN_WALK_LIMIT` 手進む」ぶんに加えて
+ * 「もう進めない」を1回見る必要があるので、反復は `PLAN_WALK_LIMIT + 1` 回まで許す。
+ * `< PLAN_WALK_LIMIT` にすると、`goto` は届く 10000 手の線でここだけが投げる。
+ *
  * @throws {Error} `PLAN_WALK_LIMIT` 手進んでも葉に着かないとき
+ * @throws {Error} 盤上で再生できない手に当たったとき（`advanceWithPlan` が投げる）
  */
 export function advanceToLeafWithPlan(player: JKFPlayer, plan: PlanIndex): void {
   for (let steps = 0; steps <= PLAN_WALK_LIMIT; steps += 1) {
