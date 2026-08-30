@@ -20,7 +20,10 @@ import type { NavigationState } from "@/features/position-navigation/model/types
  * プレビュー用に棋譜を辿る。辿れなければ null。
  *
  * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
- * `goto` が throw する。呼び出し側はレンダ中なので、ここで拾わないと画面が消える。
+ * `goto` が throw する。呼び出し側はレンダ中なので、拾わないと
+ * `AppModalLayer` を包む `AppErrorBoundary`（`pages/AppLayout.tsx`）が受け、
+ * モーダルが丸ごと「表示中にエラーが発生しました」に置き換わる。
+ * **ここで拾うのは、どの手が再現できないかを名指しした文言を出すため。**
  *
  * 棋譜を複製せず共有してよいのは、ここが読むだけで `player.kifu` を書かないため。
  */
@@ -65,8 +68,6 @@ function PositionNavigationModal() {
       return { previewData: null, options: [] as BranchOption[], unreachable: false };
     }
 
-    // 盤上で再生できない手を含む棋譜では goto が throw する。ここはレンダ中なので、
-    // 拾わないと React が root ごと unmount してウィンドウが白紙になる。
     const player = buildPreviewPlayer(gameView.player, nav.previewCursor);
     if (!player) {
       return {
