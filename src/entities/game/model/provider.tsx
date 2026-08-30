@@ -71,7 +71,11 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
       const res = await persistence.save(jkfToSave);
       if (!res.success) {
-        dispatch({ type: "set_error", payload: res.error });
+        // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
+        // A の保存が失敗して返ってきたときに B が読み込まれていると、
+        // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
+        // **別のファイルの失敗が新しく開いたファイルの上に出る**。
+        dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
         return Err(res.error);
       }
       return Ok(undefined);

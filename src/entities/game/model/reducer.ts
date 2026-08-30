@@ -95,6 +95,10 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         error: action.payload,
       };
 
+    case "write_failed":
+      if (state.jkf !== action.payload.expectedJkf) return state;
+      return { ...state, error: action.payload.error };
+
     case "clear_error":
       return state.error === null ? state : { ...state, error: null };
 

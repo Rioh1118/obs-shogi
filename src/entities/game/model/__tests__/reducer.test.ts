@@ -46,6 +46,25 @@ describe("走っている書き込みを数える", () => {
     expect(gameReducer(oneLeft, { type: "write_ended" }).isLoading).toBe(false);
   });
 
+  // A の保存が失敗して返ってきたときに B が読み込まれていると、
+  // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
+  // 別のファイルの失敗が新しく開いたファイルの上に出る。
+  it("書こうとした棋譜がもう別物なら、失敗を積まない", () => {
+    const placed = { header: {}, moves: [{}] };
+    const other = { header: {}, moves: [{}, {}] };
+
+    const onPlaced = gameReducer(
+      { ...initialGameState, jkf: placed },
+      { type: "write_failed", payload: { error: "boom", expectedJkf: placed } },
+    );
+    expect(onPlaced.error).toBe("boom");
+
+    const moved = { ...initialGameState, jkf: other };
+    expect(
+      gameReducer(moved, { type: "write_failed", payload: { error: "boom", expectedJkf: placed } }),
+    ).toBe(moved);
+  });
+
   // 失敗したのは撃った1本であって、並行して走っている他の書き込みではない。
   it("set_error は走っている書き込みを終わらせない", () => {
     const writing = gameReducer(initialGameState, { type: "write_started" });

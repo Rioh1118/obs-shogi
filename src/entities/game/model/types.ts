@@ -126,6 +126,16 @@ export type GameAction =
       type: "set_error";
       payload: string | null;
     }
+  // 書き込みが失敗したときの `set_error`。**待っている間に棋譜が別物に
+  // なっていたら積まない**（`jkf_restored` の `expectedJkf` と同じ判定）。
+  | {
+      type: "write_failed";
+      payload: {
+        error: string;
+        /** 書こうとした棋譜。いまの `jkf` がこれでなければ、この失敗はもう誰のものでもない */
+        expectedJkf: JKFData;
+      };
+    }
   | {
       type: "clear_error";
     }
