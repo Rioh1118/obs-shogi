@@ -285,6 +285,9 @@ fn format_size(bytes: u64) -> String {
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
 const HEADER_PREFIX: &str = "#YANEURAOU-DB";
 
+/// 局面行の頭。
+const POSITION_PREFIX: &str = "sfen ";
+
 /// 読み飛ばす行。
 ///
 /// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:710-715` が
@@ -330,8 +333,10 @@ fn declared_count(line: &str) -> Option<u64> {
 
 /// 本文を局面ごとに畳む。
 ///
-/// ヘッダを検査するのは、別形式のファイルに `.db` を付けただけのものを
-/// 「0局面の定跡」として開かないため。空の定跡と見分けが付かなくなる。
+/// **見出しは要求しない。** 本家は検査しないし、見出しの無い `.db` は実在する。
+/// 別形式のファイルに `.db` を付けただけのものは、局面行にも注記にもならない行が
+/// あるので、そこで落ちる。「0局面の定跡」として開けると空の定跡と見分けが
+/// 付かなくなるので、そこは通さない。
 fn parse<R: BufRead>(
     reader: R,
     path: &str,
@@ -399,6 +404,9 @@ fn parse_limited<R: BufRead>(
     let mut declared: Option<u64> = None;
     let mut last_line_terminated = true;
     let mut dropped = DroppedFields::default();
+    // 見出しの無い定跡では、見出しを探す間に読んだ局面行がそのまま本体の1行目に
+    // なる。読み直せないので、本体のループはまず `buffer` の中身から始める。
+    let mut unread = false;
 
     // 見出しより前にも注記は書ける。本家は `#` と `//` を位置に関係なく
     // 読み飛ばす（`book.cpp:709-716`）ので、先頭の1行のせいで定跡を拒否しない。
@@ -429,10 +437,18 @@ fn parse_limited<R: BufRead>(
         if is_skippable(line) {
             continue;
         }
-        // 注記でも見出しでもない行に当たった。ここで見出しが無いと決まる。
+        // 見出しの無い `.db` は実在する。ShogiHome は `yaneuraou-no-header.db` を
+        // **開ける側**の回帰 fixture に置いているし、本家は見出しを検査しない。
+        // 局面行に当たったらそこが本体の始まり。読み捨てずに本体へ渡す。
+        if line.starts_with(POSITION_PREFIX) {
+            header = Some(index);
+            unread = true;
+            break;
+        }
+        // 局面でも注記でも見出しでもない行に当たった。ここで定跡ではないと決まる。
         return Err(invalid_content(
             &format!(
-                "やねうら王テキスト定跡の見出しが無い（{index}行目: {}）。\
+                "やねうら王テキスト定跡として読めない（{index}行目: {}）。\
                  別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
                 excerpt(line)
             ),
@@ -460,10 +476,20 @@ fn parse_limited<R: BufRead>(
     let mut consumed: u64 = 0;
     let mut total_moves: usize = 0;
 
-    while let Some(terminated) =
-        read_line(&mut reader, &mut raw, &mut buffer, false, index + 1, path)?
-    {
-        index += 1;
+    loop {
+        if unread {
+            // 見出しを探す間に読んだ行。`index` はそのとき既に進めてある。
+            unread = false;
+        } else {
+            match read_line(&mut reader, &mut raw, &mut buffer, false, index + 1, path)? {
+                Some(terminated) => {
+                    index += 1;
+                    last_line_terminated = terminated;
+                }
+                None => break,
+            }
+        }
+        let terminated = last_line_terminated;
         consumed += raw.len() as u64 + 1;
         let line = buffer.trim();
         if is_skippable(line) {
@@ -1235,25 +1261,68 @@ mod tests {
         }
     }
 
-    /// 表の (S0, E5) / (S0, E6) / (S0, E7)。見出しより先に来た行は、局面でも
-    /// 指し手でも「見出しが無い」へ落ちる。
-    ///
-    /// **`sfen ` 行を特別扱いしないこと。** 見出しを読み飛ばして局面から
-    /// 拾い始めると、`.db` ではないテキストが「0局面の定跡」として開ける。
+    /// 表の (S0, E6) / (S0, E7)。局面より先に来た指し手は、見出しの有無に
+    /// かかわらず落ちる。
     #[test]
-    fn any_line_before_the_header_is_rejected_the_same_way() {
-        for line in [
-            &format!("sfen {HIRATE}"),
-            "resign none 0 0 1",
-            "7g7f 3c3d 50 32 1",
-        ] {
+    fn a_move_before_any_position_is_rejected_without_a_header() {
+        for line in ["resign none 0 0 1", "7g7f 3c3d 50 32 1"] {
             let err = parsed(&format!("{line}\n")).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidContent, "line={line}");
             assert!(
-                err.message().contains("見出しが無い"),
+                err.message().contains("読めない"),
                 "line={line} message={}",
                 err.message()
             );
+        }
+    }
+
+    /// 表の (S0, E5)。見出しの無い定跡も読む。
+    ///
+    /// **ShogiHome は `yaneuraou-no-header.db` を「開ける」側の回帰 fixture に
+    /// 置いている。** 本家も見出しを検査しない。拒否すると、正しい定跡に対して
+    /// 「別の形式のファイルかもしれない」と言いながら、引用する行は誰が見ても
+    /// やねうら王の局面行、という自己矛盾した案内になる。
+    ///
+    /// 見出しを探す間に読んだ局面行は読み直せないので、そのまま本体へ渡すこと。
+    /// 捨てると、見出しの無い定跡だけ先頭の1局面が消える。
+    #[test]
+    fn a_book_without_a_header_is_read() {
+        // ShogiHome の fixture と同じ形。BOM 付きも同じ扱い。
+        for lead in ["", "\u{feff}"] {
+            let text = format!(
+                "{lead}sfen {HIRATE}\n\
+                 2b8h+ none none none 103\n\
+                 sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 2\n\
+                 3c3d none none none 3\n"
+            );
+            let positions = loaded(&text);
+
+            assert_eq!(positions.len(), 2, "lead={lead:?}");
+            let moves: Vec<&str> = positions
+                .values()
+                .flatten()
+                .map(|m| m.usi_move.as_str())
+                .collect();
+            assert_eq!(moves.len(), 2, "lead={lead:?} moves={moves:?}");
+            assert!(moves.contains(&"2b8h+"), "lead={lead:?} moves={moves:?}");
+        }
+    }
+
+    /// 見出しが無くても、定跡ではないファイルは落ちること。
+    ///
+    /// 見出しの検査を外した理由は「正しい定跡を拒否しない」であって、
+    /// 「何でも開く」ではない。別形式のファイルが「0局面の定跡」として開けると、
+    /// 空の定跡と見分けが付かなくなる。
+    #[test]
+    fn a_file_that_is_not_a_book_still_fails_without_a_header() {
+        for text in [
+            "<!DOCTYPE html>\n<html><body>404</body></html>\n",
+            "not a book\n",
+            // 注記だけ。局面が1つも無い
+            "# ここには何も無い\n// 何も無い\n",
+        ] {
+            let err = parsed(text).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidContent, "text={text:.20}");
         }
     }
 
@@ -1686,8 +1755,9 @@ mod tests {
         assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 1);
     }
 
-    /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
-    /// 空の定跡と区別が付かず、利用者は全ての局面が未収録だと受け取る。
+    /// 局面行にも注記にもならない行を通すと、別形式のファイルが
+    /// 「0局面の定跡」として開ける。空の定跡と区別が付かず、利用者は全ての局面が
+    /// 未収録だと受け取る。
     #[test]
     fn rejects_a_file_that_is_not_a_yaneuraou_book() {
         let err = parsed("これは定跡ではない\n7g7f\n").unwrap_err();
