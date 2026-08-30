@@ -33,9 +33,14 @@ const GUARD: &str = "validate_under_root";
 ///   通すので、ワークスペース自身の削除が素通りする（`is_project_root`）
 /// - `mv_directory`: 自分の中への移動は `fs::rename` が `EINVAL` で落とし、
 ///   `io`（tier は warning）に丸まって効かない再読み込みが出る（`is_move_into_itself`）
-const EXTRA_GUARDS: [(&str, &str); 2] = [
+/// - `create_ai_profile_dirs`: `ai_root` の外なので `validate_under_root` は掛からない。
+///   名前の規則をここで書き直すと、`..` のような1つの規則を落としたときに
+///   `ai_root` の外へ作れてしまう（`join("..")` は親へ抜け、`create_dir_all` は
+///   途中の段も黙って作る）
+const EXTRA_GUARDS: [(&str, &str); 3] = [
     ("delete_directory", "is_project_root"),
     ("mv_directory", "is_move_into_itself"),
+    ("create_ai_profile_dirs", "validate_basename"),
 ];
 
 /// パスを引数の**型の中**で受け取るコマンド。署名の字面には出ないので手で並べる。
@@ -303,7 +308,7 @@ fn every_path_taking_command_checks_the_root() {
     }
     assert!(
         missing_extra.is_empty(),
-        "root 自身を壊す操作を止めていない:\n{}",
+        "そのコマンドだけが呼ぶべき関門を呼んでいない:\n{}",
         missing_extra.join("\n")
     );
 
