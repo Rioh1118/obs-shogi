@@ -436,6 +436,30 @@ fn encode_all(
     Ok(())
 }
 
+/// キャッシュから読んだ `file_id` を、確保の添字に使ってよい範囲に絞る。
+///
+/// **`FileTable` と `NodeTables` は `file_id` をそのまま `Vec` の添字にし、
+/// 足りなければ `resize` する。** つまり検査せずに通すと、**壊れたキャッシュの
+/// 4バイトが確保量を決める**。`0xFFFFFFFF` が1つ入っているだけで
+/// 100GB 超を確保しにいき、`Err` ではなく OOM でプロセスごと落ちる。
+/// 呼び手（`api.rs` の `open_project`）は `Err` なら全件作り直しへ落ちられるが、
+/// 落ちたプロセスは何も選べない。
+///
+/// 上限に `ft_len` を使えるのは、`file_id` が1から詰めて振られ、
+/// 生きている `file_id` は必ずファイル表に項目を持つから
+/// （`FileTable::iter_all` は空のスロットを飛ばすので、項目数＝最大の `file_id`）。
+/// **確保量が入力の長さで頭打ちになる**のがここで欲しい性質で、
+/// 万一 `file_id` が疎になる変更が入っても、外れる方向は「捨てて作り直す」側。
+///
+/// `zstd` は checksum 無しで書いているのでビット化けを捕まえない（#337）。
+/// 化けた値がここに届くことは前提にしてよい。
+fn checked_file_id(file_id: FileId, ft_len: usize) -> Result<FileId, String> {
+    if file_id as usize > ft_len {
+        return Err(format!("bad file_id: {file_id} (file_table len {ft_len})"));
+    }
+    Ok(file_id)
+}
+
 fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let mut r = Reader::new(bytes);
 
@@ -461,7 +485,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let ft_len = r.read_u32()? as usize;
     let mut ft = FileTable::default();
     for _ in 0..ft_len {
-        let file_id = r.read_u32()?;
+        let file_id = checked_file_id(r.read_u32()?, ft_len)?;
         let gen_val = r.read_u32()?;
         let deleted = r.read_u8()? != 0;
         let path = r.read_string()?;
@@ -497,7 +521,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let mut path_to_id = HashMap::with_capacity(map_len);
     for _ in 0..map_len {
         let p = r.read_string()?;
-        let id = r.read_u32()?;
+        let id = checked_file_id(r.read_u32()?, ft_len)?;
         path_to_id.insert(p, id);
     }
 
@@ -505,7 +529,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let nt_len = r.read_u32()? as usize;
     let mut nts = NodeTables::default();
     for _ in 0..nt_len {
-        let file_id = r.read_u32()?;
+        let file_id = checked_file_id(r.read_u32()?, ft_len)?;
         let nodes_len = r.read_u32()? as usize;
         let forks_len = r.read_u32()? as usize;
 
@@ -541,7 +565,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
         for _ in 0..n {
             let z0 = r.read_u64()?;
             let z1 = r.read_u64()?;
-            let file_id = r.read_u32()?;
+            let file_id = checked_file_id(r.read_u32()?, ft_len)?;
             let gen_val = r.read_u32()?;
             let node_id = r.read_u32()?;
             v.push((
@@ -704,5 +728,54 @@ mod tests {
             panic!("本体が無いので失敗するはず");
         };
         assert!(!err.contains("bad version"), "今の版が弾かれている: {err}");
+    }
+
+    /// ディスクに書く版の値を**リテラルで**留める。
+    ///
+    /// 上の2本は `VERSION` そのものを使って blob を組むので、値がいくつでも通る。
+    /// **[`VERSION`] を留めるものが他に無い。** 1 に戻ると v0.3.1 が書いた索引が
+    /// そのまま読まれ、`(size, mtime_ms)` が変わっていない棋譜は
+    /// 古い解釈のまま検索に当たり続ける。警告も出ない。
+    #[test]
+    fn version_one_is_never_accepted_again() {
+        let blob = [b'O', b'B', b'S', b'I', b'X', b'v', b'0', b'1', 1, 0, 0, 0];
+
+        let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
+            panic!("v0.3.1 が書いた索引を読んでしまった");
+        };
+        assert!(err.contains("bad version"), "理由が版でない: {err}");
+    }
+
+    /// 版の検査を通ったところまでの blob を組む。
+    fn header_for(root_dir: &Path) -> Vec<u8> {
+        let mut blob = Vec::new();
+        blob.extend_from_slice(&MAGIC);
+        write_u32(&mut blob, VERSION);
+        write_u64(&mut blob, 0);
+        blob.extend_from_slice(&root_hash(root_dir));
+        blob
+    }
+
+    /// 壊れた `file_id` は `Err` になる。**確保しにいかない。**
+    ///
+    /// `FileTable` は `file_id` をそのまま `Vec` の添字にして `resize` するので、
+    /// 検査せずに通すと 74 バイトのファイルが 100GB 超の確保を要求する。
+    /// 出るのは `Err` ではなく SIGKILL で、利用者から見ると
+    /// 「プロジェクトを開くたびにアプリが固まって落ちる」になる。
+    /// `zstd` を checksum 無しで書いている（#337）以上、化けた値はここに届く。
+    #[test]
+    fn a_file_id_from_a_corrupt_cache_cannot_decide_how_much_to_allocate() {
+        let root = Path::new("/tmp");
+        let mut blob = header_for(root);
+        write_u32(&mut blob, 1); // ファイル表の項目数
+        write_u32(&mut blob, u32::MAX); // 壊れた file_id
+        write_u32(&mut blob, 0);
+        write_u8(&mut blob, 0);
+        write_string(&mut blob, "a.kif");
+
+        let Err(err) = decode_all(&blob, root) else {
+            panic!("壊れた file_id を受け入れてしまった");
+        };
+        assert!(err.contains("bad file_id"), "理由が file_id でない: {err}");
     }
 }
