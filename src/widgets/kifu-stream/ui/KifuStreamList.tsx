@@ -224,9 +224,13 @@ export default function KifuStreamList() {
   //
   // 逆は成り立たない。同じ手数のまま分岐だけを選び直すと tesuuPointer だけが変わるので、
   // tesuuPointer を「冗長だから」と落とすとその経路で追従が止まる。
+  //
+  // 棋譜そのものも見る。tesuuPointer が一意なのは1つの棋譜の中だけで、どの棋譜でも
+  // 開始局面は "0,[]" になる。棋譜を切り替えても一覧は unmount されないので、
+  // カーソルを動かさずに切り替えると scrollTop だけが前の棋譜の位置に残る。
   useEffect(() => {
     revealRow(state.cursor?.tesuu ?? 0, false);
-  }, [state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
+  }, [state.jkf, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {
