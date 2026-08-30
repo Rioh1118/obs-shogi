@@ -7,6 +7,12 @@ use tauri::command;
 
 use crate::file_system::utils::validate_basename;
 
+/// エンジンの置き場。**AI のプロファイル名として使えない。**
+///
+/// `read_profiles` がこの名前を一覧から除くので、作れても出てこない。
+/// 除く側と弾く側で綴りが分かれると、作成は通るのに一覧に出ないフォルダができる
+const ENGINES_DIR: &str = "engines";
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FsKind {
@@ -103,7 +109,7 @@ pub fn scan_ai_root(ai_root: String) -> Result<AiRootIndex, String> {
     validate_dir("ai_root", &ai_root)?;
     let root = PathBuf::from(&ai_root);
 
-    let engines_dir_path = root.join("engines");
+    let engines_dir_path = root.join(ENGINES_DIR);
     let engines_dir_exists = engines_dir_path.exists();
     let engines_dir_kind = if engines_dir_exists {
         kind_of(&engines_dir_path)
@@ -167,7 +173,7 @@ fn read_profiles(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
     for entry in fs::read_dir(ai_root).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.is_empty() || name == "engines" {
+        if name.is_empty() || name == ENGINES_DIR {
             continue;
         }
 
@@ -279,7 +285,22 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, S
     // （`join("..")` は親へ抜ける。`create_dir_all` は途中の段も黙って作る）
     let trimmed = validate_basename(&name).map_err(|e| e.message)?;
 
+    // `engines` は `read_profiles` が一覧から除く名前なので、作れても出てこない。
+    // 「作成は通ったのに一覧に無い」は、利用者からは作成の失敗と区別が付かない
+    if trimmed == ENGINES_DIR {
+        return Err(format!(
+            "{ENGINES_DIR} はエンジンの置き場なので、名前に使えません"
+        ));
+    }
+
     let profile = PathBuf::from(&ai_root).join(&trimmed);
+
+    // 既にあるなら作らない。`create_dir_all` は既存のフォルダでも `Ok` を返すので、
+    // 素通しにすると別の AI の `eval` / `book` へ黙って合流する
+    if profile.exists() {
+        return Err(format!("{trimmed} はすでにあります"));
+    }
+
     for sub in ["eval", "book"] {
         fs::create_dir_all(profile.join(sub)).map_err(|e| e.to_string())?;
     }
@@ -291,7 +312,7 @@ pub fn ensure_engines_dir(ai_root: String) -> Result<String, String> {
     validate_dir("ai_root", &ai_root)?;
     let root = PathBuf::from(&ai_root);
 
-    let engines_dir = root.join("engines");
+    let engines_dir = root.join(ENGINES_DIR);
     if engines_dir.exists() {
         if !engines_dir.is_dir() {
             return Err(format!(
@@ -304,4 +325,57 @@ pub fn ensure_engines_dir(ai_root: String) -> Result<String, String> {
 
     fs::create_dir_all(&engines_dir).map_err(|e| e.to_string())?;
     Ok(engines_dir.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_root(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("obs-shogi-ai-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("作れない");
+        dir
+    }
+
+    fn create(root: &Path, name: &str) -> Result<String, String> {
+        create_ai_profile_dirs(root.to_string_lossy().to_string(), name.to_string())
+    }
+
+    /// `..` を通すと `ai_root` の外へ作れる。名前の規則を写さず
+    /// `validate_basename` を呼んでいることを、実際の入力で固定する
+    #[test]
+    fn a_profile_name_cannot_climb_out_of_the_ai_root() {
+        let root = temp_root("climb");
+
+        assert!(create(&root, "..").is_err(), "`..` を通している");
+        assert!(create(&root, "a/b").is_err(), "区切りを通している");
+        assert!(!root.join("../eval").exists(), "ai_root の外に作っている");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `read_profiles` が一覧から除く名前。作れても出てこないので、
+    /// 利用者からは作成の失敗と区別が付かない
+    #[test]
+    fn the_engines_directory_is_not_a_profile_name() {
+        let root = temp_root("engines");
+
+        assert!(create(&root, ENGINES_DIR).is_err(), "engines を通している");
+        assert!(!root.join(ENGINES_DIR).exists(), "engines を作っている");
+
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// `create_dir_all` は既存のフォルダでも `Ok` を返す。素通しにすると
+    /// 別の AI の `eval` / `book` へ黙って合流する
+    #[test]
+    fn an_existing_profile_name_is_rejected_instead_of_merged() {
+        let root = temp_root("dup");
+
+        assert!(create(&root, "suisho").is_ok(), "1つ目を作れない");
+        assert!(create(&root, "suisho").is_err(), "同じ名前で通している");
+
+        let _ = fs::remove_dir_all(&root);
+    }
 }
