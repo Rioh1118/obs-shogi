@@ -20,8 +20,8 @@
 //! （[`MAX_EXPANDED_BYTES`]）。**どれが欠けても穴が空く。**
 //! 進捗と中断は #197。
 
-use crate::book::error::{BookError, BookErrorCode};
-use crate::book::sfen::{excerpt, to_book_key_in_file, BookKey};
+use crate::book::error::{excerpt, format_size, BookError, BookErrorCode};
+use crate::book::sfen::{to_book_key_in_file, BookKey};
 use crate::book::types::BookMove;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -270,29 +270,6 @@ const MAX_LINE_BYTES: usize = 4 * 1024;
 /// そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
 /// 分割機能が無い）ので、近い値を置いてはいけない。
 pub(crate) const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-
-/// 利用者に見せる大きさ。
-///
-/// **10進で数える。** 上限そのものは 2 の冪で持っているが、利用者が見比べる
-/// 相手は Finder / エクスプローラのファイル情報で、そちらは 10 進。
-/// 1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
-///
-/// **桁で単位を選ぶ。** 行長（4 KiB）から展開の上限（7 GiB）まで同じ関数に
-/// 通すので、`MB` 固定だと 4096 バイトが `0.0MB` になって上限を1つも伝えない。
-pub(crate) fn format_size(bytes: u64) -> String {
-    const KB: f64 = 1_000.0;
-    const MB: f64 = 1_000_000.0;
-    const GB: f64 = 1_000_000_000.0;
-
-    let value = bytes as f64;
-    if value >= GB {
-        format!("{:.1}GB", value / GB)
-    } else if value >= MB {
-        format!("{:.1}MB", value / MB)
-    } else {
-        format!("{:.1}KB", value / KB)
-    }
-}
 
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
 const HEADER_PREFIX: &str = "#YANEURAOU-DB";

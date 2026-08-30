@@ -1,4 +1,4 @@
-use crate::book::error::{BookError, BookErrorCode};
+use crate::book::error::{format_size, BookError, BookErrorCode};
 use crate::book::sfen::BookKey;
 use crate::book::types::BookFormat;
 use crate::book::types::BookMove;
@@ -83,8 +83,8 @@ fn check_file_size(size: u64, format: BookFormat, path: &str) -> Result<(), Book
         format!(
             "この定跡はこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
              より小さい定跡を開くこと",
-            crate::book::yaneuraou_db::format_size(size),
-            crate::book::yaneuraou_db::format_size(limit)
+            format_size(size),
+            format_size(limit)
         ),
     )
     .with_path(path))

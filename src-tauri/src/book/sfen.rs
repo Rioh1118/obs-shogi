@@ -1,4 +1,4 @@
-use crate::book::error::{BookError, BookErrorCode};
+use crate::book::error::{excerpt, truncate_for_message, BookError, BookErrorCode};
 
 /// 正規化を通した定跡のキー。
 ///
@@ -256,32 +256,6 @@ fn measured_len(input: &str) -> usize {
 /// 194 に余裕を持たせ、2 の冪へ丸めて 256。
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
 const MAX_INPUT_CHARS: usize = 256;
-
-/// message に載せる引用の上限。
-///
-/// 「持駒が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
-/// ログ（200KB でローテート）の予算を食い潰さない上限として選んだ。
-const MESSAGE_EXCERPT_CHARS: usize = 120;
-
-/// message に載せる引用。前後の空白は落とし、長さを打ち切る。
-///
-/// **定跡ファイルの中身を message へ載せるときは、必ずこれを通すこと。**
-/// パス用の [`crate::book::error::truncate_path`] は上限が 4096 字で、
-/// 引用の予算（120字）の 34 倍ある。1行の長さは読み込みの側が頭打ちにするが、
-/// その上限もこの予算の 34 倍なので、そちらを使うと失敗1回でログの予算を
-/// 食い潰す。
-pub(crate) fn excerpt(input: &str) -> String {
-    truncate_for_message(input.trim())
-}
-
-/// message に載せる引用を打ち切る。
-fn truncate_for_message(excerpt: &str) -> String {
-    let mut out: String = excerpt.chars().take(MESSAGE_EXCERPT_CHARS).collect();
-    if out.chars().count() < excerpt.chars().count() {
-        out.push('…');
-    }
-    out
-}
 
 /// 持駒の枚数を、検査を通さずに作れないようにするための囲い。
 ///
@@ -693,7 +667,7 @@ mod tests {
     ///
     /// 入力全体を長くすると入口の長さ検査に落ちてこの枝へ来ないので、
     /// **全体は `MAX_INPUT_CHARS` 以下のまま、1トークンだけを長くする。**
-    /// 上限は絶対値で見る。`MESSAGE_EXCERPT_CHARS` から導くと、その定数を
+    /// 上限は絶対値で見る。[`crate::book::error::excerpt`] の予算 から導くと、その定数を
     /// 緩めたときにテストも一緒に緩む。
     ///
     /// 長さだけを見ると、理由文と引用のどちらか一方を打ち切っただけでも通る。

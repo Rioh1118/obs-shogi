@@ -118,6 +118,58 @@ pub(crate) fn truncate_path(raw: &str) -> String {
     out
 }
 
+/// message に載せる引用の上限。
+///
+/// 「持駒が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
+/// ログ（200KB でローテート）の予算を食い潰さない上限として選んだ。
+const MESSAGE_EXCERPT_CHARS: usize = 120;
+
+/// message に載せる引用。前後の空白は落とし、長さを打ち切る。
+///
+/// **定跡ファイルの中身を message へ載せるときは、必ずこれを通すこと。**
+/// パス用の [`truncate_path`] は上限が [`MAX_PATH_CHARS`] 字で、
+/// 引用の予算（120字）の 34 倍ある。1行の長さは読み込みの側が頭打ちにするが、
+/// その上限もこの予算の 34 倍なので、そちらを使うと失敗1回でログの予算を
+/// 食い潰す。
+pub(crate) fn excerpt(input: &str) -> String {
+    truncate_for_message(input.trim())
+}
+
+/// message に載せる引用を打ち切る。
+pub(crate) fn truncate_for_message(excerpt: &str) -> String {
+    let mut out: String = excerpt.chars().take(MESSAGE_EXCERPT_CHARS).collect();
+    if out.chars().count() < excerpt.chars().count() {
+        out.push('…');
+    }
+    out
+}
+
+/// 利用者に見せる大きさ。
+///
+/// **10進で数える。** 上限そのものは 2 の冪で持っているが、利用者が見比べる
+/// 相手は Finder / エクスプローラのファイル情報で、そちらは 10 進。
+/// 1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
+///
+/// **桁で単位を選ぶ。** 行長（4 KiB）から展開の上限（7 GiB）まで同じ関数に
+/// 通すので、`MB` 固定だと 4096 バイトが `0.0MB` になって上限を1つも伝えない。
+///
+/// パスの打ち切り（[`MAX_PATH_CHARS`]）と引用の打ち切り（[`MESSAGE_EXCERPT_CHARS`]）と
+/// 同じ場所に置く。どれも「message に載せるときの決まり」で、形式の事実ではない。
+pub(crate) fn format_size(bytes: u64) -> String {
+    const KB: f64 = 1_000.0;
+    const MB: f64 = 1_000_000.0;
+    const GB: f64 = 1_000_000_000.0;
+
+    let value = bytes as f64;
+    if value >= GB {
+        format!("{:.1}GB", value / GB)
+    } else if value >= MB {
+        format!("{:.1}MB", value / MB)
+    } else {
+        format!("{:.1}KB", value / KB)
+    }
+}
+
 impl fmt::Display for BookError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.path() {
