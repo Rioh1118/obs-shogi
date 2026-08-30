@@ -158,10 +158,14 @@ fn read_line<R: BufRead>(
             if is_note(raw) {
                 return Ok(Some(terminated));
             }
+            // **形式違いの可能性を先に言う。** 「文字として読めないバイト」は
+            // 利用者の言葉ではないし、最初に提示する復帰操作が「取得し直す」だと、
+            // `.bin` を `.db` に付け替えただけのファイルでは何度やっても直らない。
             return Err(invalid_content(
                 &format!(
-                    "{line_number}行目に文字として読めないバイトがある。\
-                     定跡を取得し直すか、別の定跡を開くこと"
+                    "やねうら王テキスト定跡 (.db) として読めない\
+                     （{line_number}行目に文字として読めないバイトがある）。\
+                     別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと"
                 ),
                 path,
             ));
@@ -273,6 +277,14 @@ pub(crate) const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
 const HEADER_PREFIX: &str = "#YANEURAOU-DB";
+
+/// 局面が1つも書かれていないファイルの文面。
+///
+/// **2箇所から出る**（局面行に一度も当たらずに読み終わった場合と、注記だけの
+/// 場合）。利用者から見れば同じ状況なので、同じ文面にする。
+const EMPTY_OF_POSITIONS: &str = "定跡ファイルに局面が1つも書かれていない。\
+                                  途中で切れているかもしれない。\
+                                  取得し直すか、別の定跡を開くこと";
 
 /// 局面行の頭。
 const POSITION_PREFIX: &str = "sfen ";
@@ -446,11 +458,12 @@ fn parse_limited<R: BufRead>(
         ));
     }
 
+    // 見出しは要求しないので、ここへ来るのは「局面行が1つも無かった」とき。
+    // **「空」と言わない。** 注記だけのファイルは空ではないので、利用者は
+    // エディタで中身を見てアプリの不具合だと判断する。局面が0という点では
+    // 読み切った後の検査と同じ状況なので、文面も揃える。
     if header.is_none() {
-        return Err(invalid_content(
-            "定跡ファイルが空。取得し直すか、別の定跡を開くこと",
-            path,
-        ));
+        return Err(invalid_content(EMPTY_OF_POSITIONS, path));
     }
 
     let mut positions: HashMap<BookKey, Vec<BookMove>> = HashMap::new();
@@ -610,11 +623,7 @@ fn parse_limited<R: BufRead>(
     keep_first_of_each_move_everywhere(&mut positions);
 
     if positions.is_empty() {
-        return Err(invalid_content(
-            "定跡ファイルに局面が1つも書かれていない。途中で切れているかもしれない。\
-             取得し直すか、別の定跡を開くこと",
-            path,
-        ));
+        return Err(invalid_content(EMPTY_OF_POSITIONS, path));
     }
 
     if dropped.ponder > 0 || dropped.numbers > 0 {
@@ -1437,8 +1446,13 @@ mod tests {
 
         let err = parse(std::io::Cursor::new(bytes), "/books/a.db", 0).unwrap_err();
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
-        assert!(err.message().contains("4行目"), "{}", err.message());
-        assert!(err.message().contains("こと"), "{}", err.message());
+        let message = err.message();
+        assert!(message.contains("4行目"), "{message}");
+        // **形式違いの可能性を伝えること。** これが無いと、`.bin` を `.db` に
+        // 付け替えただけのファイルに「取得し直す」としか言えず、何度やっても
+        // 直らない。行番号だけを見るテストではこの退行を止められない
+        assert!(message.contains("別の形式"), "{message}");
+        assert!(message.contains("こと"), "{message}");
     }
 
     /// `sfen` 行の途中で切れたファイルでは、形式のキーワードが指し手の位置に来る。
@@ -1821,10 +1835,27 @@ mod tests {
         assert!(err.message().contains("こと"), "{}", err.message());
     }
 
+    /// 局面が1つも無いファイルは、**中身の有無にかかわらず同じ文面**で落とす。
+    ///
+    /// 見出しを要求しなくなったので、注記だけのファイルは見出し探索の側で
+    /// 終わる。そこで「空」と言うと、エディタで中身が見える利用者は
+    /// アプリの不具合だと判断する。
     #[test]
-    fn rejects_an_empty_file() {
-        let err = parsed("").unwrap_err();
-        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+    fn a_file_without_positions_says_so_whether_or_not_it_is_empty() {
+        for text in [
+            // 本当に空
+            "",
+            // 注記だけ（見出し無し）
+            "# a\n// b\n",
+            // 見出しと注記だけ
+            "#YANEURAOU-DB2016 1.00\n# a\n",
+        ] {
+            let err = parsed(text).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidContent, "text={text:?}");
+            let message = err.message();
+            assert!(message.contains("局面が1つも"), "text={text:?} {message}");
+            assert!(!message.contains("空"), "text={text:?} {message}");
+        }
     }
 
     /// 途中で切れたファイルは、局面より先に指し手が来る形になる。
