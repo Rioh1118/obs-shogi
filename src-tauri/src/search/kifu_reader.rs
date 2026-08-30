@@ -133,7 +133,7 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
         KifuKind::Csa => parse_csa_guarded(path),
-        KifuKind::Jkf => parse_jkf_file(path).map_err(parse_failed),
+        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| parse_failed(unreadable_record(e))),
     }?;
 
     if says_nothing(&jkf) {
@@ -170,7 +170,7 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
 /// 揃えるかどうかは #325 で決める。
 fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
     match catch_unwind(|| parse_csa_file(path)) {
-        Ok(result) => result.map_err(parse_failed),
+        Ok(result) => result.map_err(|e| parse_failed(unreadable_record(e))),
         // パニックの中身を捨てない。上の表は実測した2件だが、`csa` には
         // 他にも `unwrap` があり、原因を決め打ちすると**違う理由を名指しする**
         Err(payload) => {
@@ -184,6 +184,51 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
                      確かめてください（内部の理由: {what}）"
             )))
         }
+    }
+}
+
+/// クレートの理由を、そのまま利用者に出せる文言にする。
+///
+/// **文字コードの総当たりを掛けない形式（CSA / JKF）はここを通る。**
+/// KIF / KI2 は候補が複数あるので [`describe`] が選んでから、
+/// 棋譜として読めなかった腕でここを呼ぶ。
+///
+/// [`KifuReadError::ParseFailed`] の doc が定めた「何が読めなかったかと
+/// 次に何をすればよいか」を満たすのはこの関数の仕事。クレートの文言は
+/// **行番号と読めなかった行の本文**を持っていて役に立つので捨てないが、
+/// `KIF Error: 0: at line 2, in cannot read this` は `nom` の語彙で、
+/// 利用者の言葉ではない。前に1文を置いて、何をすればよいかを言う。
+fn unreadable_record(e: ParseError) -> String {
+    match e {
+        // `parse_csa_file` は `read_to_string` するので、UTF-8 でない CSA は
+        // 必ずここに来る。**ShogiGUI / Shogidokoro が書く CSA は対局者名を
+        // Shift_JIS で書くのが普通**なので、事故ではなく既定に近い（#325）
+        ParseError::Io(io) if io.kind() == std::io::ErrorKind::InvalidData => {
+            "UTF-8 として読めませんでした。Shift_JIS で保存されている可能性があります。\
+             UTF-8 で保存し直してください"
+                .to_owned()
+        }
+        ParseError::Io(io) => unreadable_reason(&io),
+        ParseError::Csa(_) | ParseError::CsaConvert(_) => format!(
+            "CSA として読めません。V2.2 のヘッダと手番行（+ か -）があるか\
+             確かめてください（{e}）"
+        ),
+        ParseError::Serde(_) => format!(
+            "JKF（JSON）として壊れています（{e}）。\
+             元のアプリで書き出し直してください"
+        ),
+        ParseError::Kif(_) | ParseError::Ki2(_) => format!(
+            "棋譜として読めない行があります。その行を直すか、\
+             拡張子が中身と合っているか確かめてください:\n{e}"
+        ),
+        // 文字コードの話。KIF / KI2 は [`describe`] が先に扱うので、
+        // ここに来るのは総当たりを掛けない形式だけ
+        ParseError::Decode | ParseError::FileExtension => format!(
+            "{e}: 文字として読めませんでした。\
+             棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください"
+        ),
+        // 局面に合わない手。文字コードとは関係が無いので、そのまま出す
+        ParseError::Normalize(_) => e.to_string(),
     }
 }
 
@@ -260,7 +305,11 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
 /// **`os error 13` から権限を疑える利用者はいない。** この経路の文言も
 /// 索引の警告としてそのまま画面に出るので、他と同じく次の行動まで言う。
 fn unreadable(e: std::io::Error) -> KifuReadError {
-    let what = match e.kind() {
+    parse_failed(unreadable_reason(&e))
+}
+
+fn unreadable_reason(e: &std::io::Error) -> String {
+    match e.kind() {
         std::io::ErrorKind::PermissionDenied => {
             "ファイルを開く権限がありません。権限を確かめるか、この場所を索引から外してください"
                 .to_owned()
@@ -270,8 +319,7 @@ fn unreadable(e: std::io::Error) -> KifuReadError {
         _ => {
             "ファイルを読めませんでした。ディスクやネットワークの接続を確かめてください".to_owned()
         }
-    };
-    parse_failed(what)
+    }
 }
 
 /// クレートが試さない文字コード
@@ -533,7 +581,7 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         // クレートが文字にできていた。総当たりの対象は
         // `ENCODINGS_THE_CRATE_SKIPS` の4つだけで、Shift_JIS も UTF-8 もそこに無い。
         // BOM で UTF-8 と分かっていても絞り込む先が無いので、そのまま出す
-        ParseError::Kif(_) | ParseError::Ki2(_) => by_crate.to_string(),
+        ParseError::Kif(_) | ParseError::Ki2(_) => unreadable_record(by_crate),
         // クレートも文字にできなかった。誤り無く復号できた試行があれば、
         // 名前は伏せて理由だけ使う
         other => match by_fallback {
@@ -1386,19 +1434,87 @@ mod tests {
                 "{label}: 無いことを言っていない: {err}"
             );
 
-            // 権限が無い
-            let denied = dir.join(format!("denied.{label}"));
-            fs::write(&denied, b"x").expect("書き出し");
-            let mut perms = fs::metadata(&denied).expect("metadata").permissions();
-            std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o000);
-            fs::set_permissions(&denied, perms).expect("chmod");
+            // 権限が無い。**モードの立て方が OS ごとに違う**ので unix だけ
+            #[cfg(unix)]
+            {
+                let denied = dir.join(format!("denied.{label}"));
+                fs::write(&denied, b"x").expect("書き出し");
+                let mut perms = fs::metadata(&denied).expect("metadata").permissions();
+                std::os::unix::fs::PermissionsExt::set_mode(&mut perms, 0o000);
+                fs::set_permissions(&denied, perms).expect("chmod");
 
-            let err = read_path_to_jkf(&denied, kind)
+                let err = read_path_to_jkf(&denied, kind)
+                    .err()
+                    .unwrap_or_else(|| panic!("{label}: 読めない権限で読めた"));
+                assert!(
+                    err.to_string().contains("権限"),
+                    "{label}: 権限のことを言っていない: {err}"
+                );
+            }
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 棋譜として読めなかった理由も、4形式とも利用者の言葉で出す。
+    ///
+    /// **ファイルを開けない経路とは別。** こちらはファイルが開けたあと、
+    /// 中身が棋譜でなかったときの話で、`describe` を通らない CSA / JKF は
+    /// クレートの英語がそのまま画面に出ていた。
+    /// `KifuReadError::ParseFailed` の doc が定めた「次に何をすればよいか」を、
+    /// **`describe` を通る形式だけが満たしている**状態になりやすい。
+    #[test]
+    fn why_a_file_is_not_a_kifu_is_said_in_every_format() {
+        let dir = temp_dir("not-a-kifu");
+
+        // (拡張子, 中身, 文言に必ず含まれるもの)
+        let cases: [(&str, KifuKind, Vec<u8>, &str); 5] = [
+            // Shift_JIS の CSA。ShogiGUI / Shogidokoro が書くとこうなる
+            (
+                "csa",
+                KifuKind::Csa,
+                {
+                    let (bytes, _, _) = SHIFT_JIS.encode("V2.2\nN+先手\nPI\n+\n");
+                    bytes.into_owned()
+                },
+                "Shift_JIS",
+            ),
+            (
+                "csa",
+                KifuKind::Csa,
+                b"this is not a csa file\n".to_vec(),
+                "CSA として読めません",
+            ),
+            (
+                "jkf",
+                KifuKind::Jkf,
+                br#"{"header":"#.to_vec(),
+                "JKF（JSON）として壊れています",
+            ),
+            (
+                "kif",
+                KifuKind::Kif,
+                b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\n".to_vec(),
+                "棋譜として読めない行があります",
+            ),
+            (
+                "ki2",
+                KifuKind::Ki2,
+                b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\n".to_vec(),
+                "棋譜として読めない行があります",
+            ),
+        ];
+
+        for (i, (ext, kind, body, must_say)) in cases.into_iter().enumerate() {
+            let path = dir.join(format!("case{i}.{ext}"));
+            fs::write(&path, &body).expect("書き出し");
+            let err = read_path_to_jkf(&path, kind)
                 .err()
-                .unwrap_or_else(|| panic!("{label}: 読めない権限で読めた"));
+                .unwrap_or_else(|| panic!("case{i}: 読めてしまった"));
+            let message = err.to_string();
             assert!(
-                err.to_string().contains("権限"),
-                "{label}: 権限のことを言っていない: {err}"
+                message.contains(must_say),
+                "case{i}: 「{must_say}」を言っていない: {message}"
             );
         }
 
