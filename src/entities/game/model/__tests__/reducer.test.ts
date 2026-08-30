@@ -163,7 +163,13 @@ describe("jkf_restored", () => {
 
     const restored = gameReducer(replaced, {
       type: "jkf_restored",
-      payload: { jkf: jkfA, cursor: cursorA, branchPlan: asBranchPlan([]), expectedJkf: jkfB },
+      payload: {
+        jkf: jkfA,
+        cursor: cursorA,
+        branchPlan: asBranchPlan([]),
+        expectedJkf: jkfB,
+        restoreCursor: true,
+      },
     });
 
     expect(restored.jkf).toBe(jkfA);
@@ -178,7 +184,13 @@ describe("jkf_restored", () => {
       { ...initialGameState, jkf: jkfB, error: "書き込みに失敗しました" },
       {
         type: "jkf_restored",
-        payload: { jkf: jkfA, cursor: null, branchPlan: asBranchPlan([]), expectedJkf: jkfB },
+        payload: {
+          jkf: jkfA,
+          cursor: null,
+          branchPlan: asBranchPlan([]),
+          expectedJkf: jkfB,
+          restoreCursor: true,
+        },
       },
     );
 
@@ -194,9 +206,42 @@ describe("jkf_restored", () => {
     const restored = gameReducer(now, {
       type: "jkf_restored",
       // 置いたのは jkfB だったが、いまは jkfC（誰かが差し替えた）
-      payload: { jkf: jkfA, cursor: cursorA, branchPlan: asBranchPlan([]), expectedJkf: jkfB },
+      payload: {
+        jkf: jkfA,
+        cursor: cursorA,
+        branchPlan: asBranchPlan([]),
+        expectedJkf: jkfB,
+        restoreCursor: true,
+      },
     });
 
     expect(restored).toBe(now);
+  });
+
+  // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が手を進めている
+  // ことがある。局面を動かさなかった書き込みの巻き戻しで**盤と一覧まで戻すと**、
+  // 何も起きていないのに手数が黙って戻る。
+  it("局面を動かさなかった書き込みでは、カーソルも計画も戻さない", () => {
+    const placed = {
+      ...initialGameState,
+      jkf: jkfB,
+      cursor: cursorB,
+      branchPlan: asBranchPlan([{ te: 1, forkIndex: 0 }]),
+    };
+
+    const restored = gameReducer(placed, {
+      type: "jkf_restored",
+      payload: {
+        jkf: jkfA,
+        cursor: cursorA,
+        branchPlan: asBranchPlan([]),
+        expectedJkf: jkfB,
+        restoreCursor: false,
+      },
+    });
+
+    expect(restored.jkf).toBe(jkfA);
+    expect(restored.cursor).toBe(cursorB);
+    expect(restored.branchPlan).toEqual([{ te: 1, forkIndex: 0 }]);
   });
 });

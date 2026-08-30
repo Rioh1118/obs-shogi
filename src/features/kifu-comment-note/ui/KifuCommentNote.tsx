@@ -8,6 +8,7 @@ import {
   dropUnsavedDraftIfUnchanged,
   getUnsavedDraft,
   putUnsavedDraft,
+  unsavedDraftKey,
 } from "../lib/unsavedDrafts";
 import FloatingNote from "@/shared/ui/floating-note/FloatingNote";
 import LiveMarkdownNote from "@/shared/ui/live-markdown-note/LiveMarkdownNote";
@@ -22,18 +23,8 @@ type Props = {
   onClose: () => void;
 };
 
-/**
- * ノートが出している面。書く先も、下書きの持ち主も、これで決まる。
- *
- * **棋譜の識別子を混ぜる。** 手数と変化だけで鍵を作ると、別のファイルの同じ手数が
- * 同じ鍵になり、預かった下書きが別のファイルへ出る。
- */
+/** ノートが出している面。書く先も、下書きの持ち主も、これで決まる */
 type Face = { key: string; cursor: KifuCursor; absPath: string | null };
-
-function faceKeyFor(cursor: KifuCursor, absPath: string | null) {
-  const path = (cursor.forkPointers ?? []).map((p) => `${p.te}:${p.forkIndex}`).join("|");
-  return `${absPath ?? ""}__${cursor.tesuu}__${path}`;
-}
 
 /** ノートが出している面の、確定した中身。鍵と本文が必ず同じコミットで揃う */
 type Editing = { face: Face; draft: string; baseText: string; error: string | null };
@@ -49,7 +40,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   }, [cursor, getCommentsByCursor]);
 
   const face = useMemo<Face | null>(
-    () => (open && cursor ? { key: faceKeyFor(cursor, absPath), cursor, absPath } : null),
+    () => (open && cursor ? { key: unsavedDraftKey(cursor, absPath), cursor, absPath } : null),
     [open, cursor, absPath],
   );
 
@@ -95,6 +86,8 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
 
   /** いま描いている面。書き込みが返ってきたときに、書き戻してよいかをこれで見る */
   const faceRef = useRef<Face | null>(null);
+  /** まだ画面に居るか。畳んだあとの結果を「見せた」と数えないため */
+  const aliveRef = useRef(true);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -109,11 +102,15 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
    */
   const save = useCallback(
     (target: Face, text: string): Promise<"saved" | "failed" | "skipped"> => {
-      const stash = (value: { draft: string; error: string; told: boolean }) =>
+      // 畳んだあとに遅れて返った失敗は、**畳むときに預けた本文より必ず古い**。
+      // 上書きすると、打ち足したぶんだけが消えて1つ前の本文が残る。
+      const stash = (value: { draft: string; error: string; told: boolean }) => {
+        if (!aliveRef.current && getUnsavedDraft(target.key)) return;
         putUnsavedDraft(target.key, value);
+      };
 
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
-        const showing = () => faceRef.current?.key === target.key;
+        const showing = () => aliveRef.current && faceRef.current?.key === target.key;
 
         // **開いた棋譜と、いま読み込まれている棋譜が同じときだけ書く。**
         // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
@@ -206,6 +203,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   // 置き場がコンポーネントの外にあるので、開き直せば出せる。
   useEffect(
     () => () => {
+      aliveRef.current = false;
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       const cur = leavingRef.current;
       if (cur && cur.draft !== cur.baseText) {

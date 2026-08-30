@@ -205,8 +205,10 @@ export default function KifuStreamList() {
       // 前の変化の下書きが本文として出て、900ms 後にそこへ書き込まれる。
       //
       // 先に捨てると、書き込みが失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
-      // 落とす範囲を `te` 以降に絞るのは、それより前の番号は動かないため。
-      if (res.success) dropUnsavedDraftsFor(state.loadedAbsPath, te);
+      // 落とす範囲は `dropUnsavedDraftsFor` が決める（この分岐点を通る面と、
+      // 本譜が動いたときの `te` 以降だけ）。
+      if (res.success)
+        dropUnsavedDraftsFor(state.loadedAbsPath, te, a === MAIN_LINE || b === MAIN_LINE);
     },
     [swapBranches, state.loadedAbsPath],
   );
@@ -267,8 +269,13 @@ export default function KifuStreamList() {
 
     setDeleting(true);
     const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
-    // 入れ替えと同じ理由。消すと、それより後ろの `forkIndex` が全部1つずつずれる
-    if (res.success) dropUnsavedDraftsFor(state.loadedAbsPath, pendingDelete.query.te);
+    // 入れ替えと同じ理由。消すと、その分岐点の `forkIndex` が1つずつ詰まる
+    if (res.success)
+      dropUnsavedDraftsFor(
+        state.loadedAbsPath,
+        pendingDelete.query.te,
+        pendingDelete.query.target === MAIN_LINE,
+      );
 
     // **閉じられていても失敗は出す。**
     //

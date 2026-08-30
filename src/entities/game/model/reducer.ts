@@ -54,13 +54,15 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
       // 待っている間に入った編集や読み込みを、巻き戻しが上書きしないため。
       if (state.jkf !== action.payload.expectedJkf) return state;
 
-      return {
-        ...state,
-        jkf: action.payload.jkf,
-        cursor: action.payload.cursor,
-        branchPlan: action.payload.branchPlan,
-        selectedPosition: null,
-      };
+      return action.payload.restoreCursor
+        ? {
+            ...state,
+            jkf: action.payload.jkf,
+            cursor: action.payload.cursor,
+            branchPlan: action.payload.branchPlan,
+            selectedPosition: null,
+          }
+        : { ...state, jkf: action.payload.jkf };
 
     case "set_selection":
       return {

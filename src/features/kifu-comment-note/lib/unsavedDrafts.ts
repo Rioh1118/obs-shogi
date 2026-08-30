@@ -1,12 +1,11 @@
+import type { KifuCursor } from "@/entities/kifu/model/cursor";
+
 /**
  * まだディスクへ書けていない下書きの置き場。
  *
  * **コンポーネントの外に置く。** コメントノートは `KifuStreamList` の中にあり、
  * 棋譜を閉じると（ワークスペースの切り替え、開いているフォルダの削除）一覧ごと
  * unmount する。中に持つと、そこで下書きが黙って消える。
- *
- * 鍵は「どのファイルの、どの手の、どの変化か」。手数と変化だけで作ると、
- * 別のファイルの同じ手数が同じ鍵になり、預かった下書きが別のファイルへ出る。
  */
 export type UnsavedDraft = {
   draft: string;
@@ -16,13 +15,26 @@ export type UnsavedDraft = {
   told: boolean;
 };
 
+/**
+ * 預かりの鍵。「どのファイルの、どの手の、どの変化か」。
+ *
+ * **棋譜の識別子を混ぜる。** 手数と変化だけで作ると、別のファイルの同じ手数が
+ * 同じ鍵になり、預かった下書きが別のファイルへ出る。
+ *
+ * **組む側と読む側を同じファイルに置く。** 形を2箇所が別々に知っていると、
+ * 掃除する側が経路を読み違えて、番号の動いていない面まで落とす。
+ */
+export function unsavedDraftKey(cursor: KifuCursor, absPath: string | null): string {
+  const path = (cursor.forkPointers ?? []).map((p) => `${p.te}:${p.forkIndex}`).join("|");
+  return `${absPath ?? ""}__${cursor.tesuu}__${path}`;
+}
+
 const store = new Map<string, UnsavedDraft>();
 
 export function getUnsavedDraft(key: string): UnsavedDraft | undefined {
   return store.get(key);
 }
 
-/** 預ける */
 export function putUnsavedDraft(key: string, value: UnsavedDraft): void {
   store.set(key, value);
 }
@@ -41,31 +53,51 @@ export function dropUnsavedDraftIfUnchanged(key: string, expected: UnsavedDraft 
   if (store.get(key) === expected) store.delete(key);
 }
 
-/** 鍵から手数を読む。形は `${absPath}__${tesuu}__${forkPath}` */
-function tesuuOf(key: string, prefix: string): number | null {
+/** 鍵を分解する。形は `${absPath}__${tesuu}__${te}:${forkIndex}|…` */
+function parseKey(key: string, prefix: string): { tesuu: number; forkPath: string[] } | null {
   const rest = key.slice(prefix.length);
-  const tesuu = Number.parseInt(rest.slice(0, rest.indexOf("__")), 10);
-  return Number.isFinite(tesuu) ? tesuu : null;
+  const sep = rest.indexOf("__");
+  if (sep < 0) return null;
+  const tesuu = Number.parseInt(rest.slice(0, sep), 10);
+  if (!Number.isFinite(tesuu)) return null;
+  const path = rest.slice(sep + 2);
+  return { tesuu, forkPath: path === "" ? [] : path.split("|") };
 }
 
 /**
- * 分岐の番号が振り直されたので、影響を受ける預かりを捨てる。
+ * 分岐の番号が振り直されたので、**その振り直しに当たる面**の預かりを捨てる。
  *
- * **`fromTesuu` より前の手は落とさない。** そこの `forkIndex` は動かないので、
- * 落とすと「書いた本文はこのまま残っています」という断言が
- * **無関係な操作1回で破れる**。
+ * 鍵は `forkIndex`（`forks` 配列の位置）を含む。番号が動いたあとに残しておくと、
+ * その鍵は**別の変化**を指し、預かった下書きがそこのノートに出て書き込まれる。
+ *
+ * **当たらない面は落とさない。** 落とすと「書いた本文はこのまま残っています」という
+ * 断言が、**本文と何の関係も無い操作1回で**、しかも無通知に破れる。
+ * 当たるのは2つだけ。
+ *
+ * - `te` の分岐点を**通っている**面（そこの番号が詰まる／入れ替わる）
+ * - 本譜が動いた場合の、`te` 以降で**その分岐点を通っていない**面
+ *   （本譜そのものが別の線に差し替わるため）
  *
  * **番号を動かす書き込みが成功したあとに呼ぶこと。** 先に呼ぶと、
  * 失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
  *
- * **列で待っている書き込みが持つ `cursor` の番号までは直せない。** そこは #309。
+ * **走っている書き込みが掴んでいる `cursor` の番号までは直せない** → #309
  */
-export function dropUnsavedDraftsFor(absPath: string | null, fromTesuu: number): void {
+export function dropUnsavedDraftsFor(
+  absPath: string | null,
+  te: number,
+  mainLineMoved: boolean,
+): void {
   const prefix = `${absPath ?? ""}__`;
   for (const key of Array.from(store.keys())) {
     if (!key.startsWith(prefix)) continue;
-    const tesuu = tesuuOf(key, prefix);
-    if (tesuu === null || tesuu >= fromTesuu) store.delete(key);
+    const parsed = parseKey(key, prefix);
+    if (!parsed) {
+      store.delete(key);
+      continue;
+    }
+    const passesThrough = parsed.forkPath.some((p) => p.startsWith(`${te}:`));
+    if (passesThrough || (mainLineMoved && parsed.tesuu >= te)) store.delete(key);
   }
 }
 

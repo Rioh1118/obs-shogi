@@ -236,9 +236,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       // 立てない。** コメントの自動保存は打鍵が止まった 900ms 後に撃つので、
       // 書き終えて次の手をクリックする瞬間と正確に重なる。そこで行が反応しなくなると、
       // 合図も無くクリックが捨てられる。
-      // **数えるのは常に。止めるかどうかだけが `background` で変わる。**
-      // 数えないと `pendingWrites` が本数を名乗れなくなり、
-      // 「いま書いていない」の意味で `isLoading` を読む実装が入る。
       const blocking = !opt?.background;
 
       try {
@@ -274,7 +271,17 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         const saved = await persistIfPossible(nextJkf);
         if (!saved.success)
-          dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
+          dispatch({
+            type: "jkf_restored",
+            payload: {
+              ...before,
+              expectedJkf: nextJkf,
+              // **局面を動かさなかった書き込みでは、カーソルを戻さない。**
+              // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が
+              // 手を進めていることがある。戻すと盤と一覧が黙って戻る。
+              restoreCursor: nextCursor.tesuuPointer !== beforePointer,
+            },
+          });
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : errorMessage;
@@ -416,7 +423,11 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
         const saved = await persistIfPossible(nextJkf);
         if (!saved.success)
-          dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
+          dispatch({
+            type: "jkf_restored",
+            // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
+            payload: { ...before, expectedJkf: nextJkf, restoreCursor: true },
+          });
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to swap branches";
@@ -462,7 +473,11 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
         const saved = await persistIfPossible(nextJkf);
         if (!saved.success)
-          dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
+          dispatch({
+            type: "jkf_restored",
+            // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
+            payload: { ...before, expectedJkf: nextJkf, restoreCursor: true },
+          });
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete branch";
