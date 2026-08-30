@@ -8,7 +8,7 @@ import { buildPlayer } from "./buildPlayer";
  *
  * `cursor.forkPointers` は「これから選ぶ計画」も含むので、その通りに降りたときの葉を数える。
  * `cursor.tesuu` より先の計画は、指す変化が実在しなければ（範囲外・負・非整数のいずれでも）
- * 本譜へ落ちる（`advanceWithPlan`）。`cursor.tesuu` までのぶんは `buildPlayer` の `goto` が
+ * 捨てていま辿っている線を進む（`advanceWithPlan`）。`cursor.tesuu` までのぶんは `buildPlayer` の `goto` が
  * 扱うので、**そちらは負・非整数で `TypeError` になる**。`cursor` が無ければ本譜の末尾。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`buildPlayer` と、葉まで歩く

@@ -24,7 +24,8 @@ export type AdvanceResult = {
   /** 進んだか。`false` なら player は動いていない（葉に着いた） */
   moved: boolean;
   /**
-   * 実際に降りた変化の `forkIndex`。本譜を進んだときと、計画が使えず本譜へ落ちたときは `null`。
+   * この1手で新しく降りた変化の `forkIndex`。変化に降りずに線をそのまま進んだときは `null`
+   * （計画が無かったときと、計画が使えず捨てたときの両方）。
    *
    * **計画の値ではなく、この1手が実際に選んだもの。** 計画をそのまま載せると、
    * 落ちたのに「変化1を選んだ」と言う値が出て、画面のバッジと ✓ が食い違う。
@@ -40,7 +41,9 @@ const NOT_MOVED: AdvanceResult = { moved: false, forkIndex: null };
  * `ForkPointer` は「これから降りるつもり」の計画であって、実在する保証は無い。
  * 別の分岐で選んだ計画が `mergeBranchPlan` で持ち越されるので、いまの線には
  * 無い te や、範囲外・負・非整数の `forkIndex` が普通に混ざる。
- * **無効なら黙って本譜へ落とす**、というのがこの規則。
+ * **無効なら黙って捨て、いま辿っている線をそのまま1手進む**、というのがこの規則。
+ * 落ちる先は本譜とは限らない。変化の中にいれば変化の続きへ進む
+ * （`forward` が読む `currentStream` は `player.forkPointers` を降りた先の線）。
  *
  * 手が無いのに `forkAndForward` を呼ぶと「N手目に有効な棋譜がありません」を投げるので、
  * 呼ぶ前に線の続きがあるかを見る。`forkAndForward` は `forks.length` 以上なら

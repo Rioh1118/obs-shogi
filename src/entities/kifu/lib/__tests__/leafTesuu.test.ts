@@ -19,7 +19,7 @@ const planFrom = (branchPlan: ForkPointer[]) =>
  * 本譜3手。te=2 に**1手だけ**の変化がぶら下がる。
  *
  * 変化の長さを本譜と変えてあるのは、「計画どおり降りた葉」（2）と
- * 「本譜へ落ちた葉」（3）を別の値で区別するため。同じ長さにすると、
+ * 「計画を捨てて線を進んだ葉」（3）を別の値で区別するため。同じ長さにすると、
  * 計画を丸ごと無視する実装でも全部通ってしまう。
  */
 function kifu(): JKFData {
@@ -49,7 +49,7 @@ describe("computeLeafTesuu", () => {
     expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
   });
 
-  test("計画が指す変化が実在しなければ本譜へ落ちる", () => {
+  test("計画が指す変化が実在しなければ捨てて線を進む", () => {
     // 範囲外・負・非整数のいずれでも同じ。forkAndForward は範囲外なら false を返すが、
     // 負や非整数は forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
     for (const forkIndex of [5, -1, 0.5, NaN]) {

@@ -4,7 +4,7 @@ import { normalizeForkPointers, type CursorPath } from "../model/cursor";
 
 /**
  * `goto` は届かないときに throw せず、進めるところで黙って止まる。
- * `forkAndForward` の返り値も見ないので、実在しない変化は黙って捨てて本譜を進む。
+ * `forkAndForward` の返り値も見ないので、実在しない変化は黙って捨て、そこまでに降りた線を進む。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき、
  *   `forkPointers` が手の無い te を指しているとき

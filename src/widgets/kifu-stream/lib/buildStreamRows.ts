@@ -56,7 +56,7 @@ export function buildStreamRowsFromCursor(
     })();
 
     // 行が「選ばれている」と言う値は、この走査が実際に降りたものでなければならない。
-    // 計画をそのまま載せると、本譜へ落ちたのにバッジは「変化1」でメニューの ✓ は本譜、
+    // 計画をそのまま載せると、降りられずに線を進んだのにバッジは「変化1」でメニューの ✓ は本譜、
     // という食い違った画面になり、`branchIndexFromRow` が使えない値を投げる。
     const { moved, forkIndex: selectedForkIndex } = advanceWithPlan(player, plan);
     if (!moved) break;

@@ -15,7 +15,7 @@ const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
  * 本譜3手。te=2 に**1手だけ**の変化がぶら下がる。
  *
  * 変化の長さを本譜と変えてあるのは、「計画どおり降りた葉」（2）と
- * 「本譜へ落ちた葉」（3）を別の値で区別するため。
+ * 「計画を捨てて線を進んだ葉」（3）を別の値で区別するため。
  */
 function kifu(): JKFData {
   return {
@@ -31,7 +31,7 @@ const playerAt = (tesuu: number) => {
 };
 
 describe("advanceWithPlan", () => {
-  test("計画が無ければ本譜を1手進む", () => {
+  test("計画が無ければ線をそのまま1手進む", () => {
     const player = playerAt(1);
     expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: true, forkIndex: null });
     expect(player.tesuu).toBe(2);
@@ -48,7 +48,7 @@ describe("advanceWithPlan", () => {
     expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: false, forkIndex: null });
   });
 
-  test("計画が実在しない変化を指せば本譜へ落ち、forkIndex は null", () => {
+  test("計画が実在しない変化を指せば捨てて線を進み、forkIndex は null", () => {
     // 範囲外・負・非整数のいずれでも同じ。負や非整数を forkAndForward に渡すと
     // forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
     for (const forkIndex of [5, -1, 0.5, NaN]) {
@@ -58,12 +58,33 @@ describe("advanceWithPlan", () => {
         forkIndex: null,
       });
       expect(player.tesuu).toBe(2);
-      // 落ちた先が本譜であることを、変化側（"f2"）と区別できる形で見る
+      // 降りずに進んだことを、変化側（"f2"）と区別できる形で見る
       expect(player.currentStream[2]?.comments).toEqual(["t2"]);
     }
   });
 
-  // 「壊れた計画」と「線の末尾」は結末が違う。前者は本譜へ落ちて1手進み、
+  // 落ちる先は「本譜」ではなく「いま辿っている線」。変化の中で壊れた計画に当たっても
+  // 本譜へは戻らず、変化の続きを進む（forward が読む currentStream は
+  // player.forkPointers を降りた先の線）。doc がここを何度も取り違えた。
+  test("変化の中で計画を捨てたときは、本譜ではなく変化の続きを進む", () => {
+    const branching: JKFData = {
+      header: {},
+      moves: [mv("root"), mv("t1"), mv("t2", [[mv("f2"), mv("f3")]]), mv("t3")],
+    };
+    const player = new JKFPlayer(branching);
+    player.goto(2, [{ te: 2, forkIndex: 0 }]);
+    expect(player.currentStream[2]?.comments).toEqual(["f2"]);
+
+    // te=3 に実在しない変化の計画を置く
+    expect(advanceWithPlan(player, planByTe([{ te: 3, forkIndex: 99 }]))).toEqual({
+      moved: true,
+      forkIndex: null,
+    });
+    // 本譜の "t3" ではなく変化の続き "f3"
+    expect(player.currentStream[3]?.comments).toEqual(["f3"]);
+  });
+
+  // 「壊れた計画」と「線の末尾」は結末が違う。前者は捨てて線をそのまま1手進み、
   // 後者は forward を呼ばずに返る（= 盤が動かない）。docs/state-transitions/game.md の
   // ※1 がこの違いを持っているので、片方に寄せて読まれないようテストで分ける。
   test("線の末尾より先に計画が残っていても throw せず、1手も動かない", () => {

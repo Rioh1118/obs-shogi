@@ -106,7 +106,7 @@ describe("resolveForkSelection", () => {
   });
 
   test("行のチェックと食い違う計画は、押せる選択肢のどれとも一致しない", () => {
-    // buildStreamRowsFromCursor は forks の範囲外の計画では本譜へ落ち、行のチェックも
+    // buildStreamRowsFromCursor は forks の範囲外の計画では降りずに線を進み、行のチェックも
     // 本譜に付く。一方この関数は範囲外の値をそのまま読むので、2つは食い違う。
     // 害が出ないのは、その値がメニューの選択肢に無いから（選択肢も同じ forks から作る）。
     //
