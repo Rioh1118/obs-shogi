@@ -14,6 +14,15 @@ pub enum FsErrorCode {
     InvalidNameSeparator,
     /// NUL。OS によっては別のパスに化ける
     InvalidNameControl,
+    /// **その場所を扱えない。** 入るのは3つ。
+    ///
+    /// - root の外（`validate_under_root`）
+    /// - 親や名前を解決できない（`mv.rs`）
+    /// - 設定そのものを読めない（`load_root_dir`）
+    ///
+    /// 「**無い**」は入れない。それは `NotFound`。無いをここへ載せると tier が
+    /// `danger` になって「再読み込み」の導線が消える。ツリーが古いだけなのに、
+    /// 追いつくための操作が画面から消える
     InvalidPath,
     /// ファイルとディレクトリの取り違え。`is_file()` / `is_dir()` の判定にだけ使う
     InvalidType,

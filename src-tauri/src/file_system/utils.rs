@@ -61,18 +61,19 @@ pub fn validate_basename(name: &str) -> Result<String, FsError> {
 
 /// AppConfig.root_dir を取得（未設定なら None）。
 ///
-/// **`AppConfig` を写さない。** 形を手で写すと、`serde` は欠けたフィールドを
-/// 黙って `None` にするので、`config_dir` 側で改名やネスト化をした瞬間に
-/// この関門が**全パスで開いたまま**コンパイルも `cargo test` も通る。
-/// 型を借りていれば、その変更は型検査に当たる
+/// **`config_dir` から型もファイル名も借りる。写さない。**
+///
+/// 写すと、あちらの変更がこちらに当たらない。`serde` は欠けたフィールドを黙って
+/// `None` にし、`exists()` は見つからないファイルに偽を返すので、どちらの場合も
+/// 「root_dir は未設定」に落ちる。関門は未設定のとき無条件で開くので、
+/// **全パスで開いたままコンパイルも `cargo test` も通る**。
+/// 借りていれば、あちらの変更は型検査か定数の不在に当たる
 fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsError> {
     let cfg_path = app
         .path()
         .app_config_dir()
         .map_err(|e| FsError::new(FsErrorCode::InvalidPath, e.to_string()))?
-        // 置き場も `config_dir` から借りる。ここで写すと、あちらがファイル名や
-        // 置き場を変えた瞬間に `exists()` が偽になり、関門が全パスで開いたまま
-        // コンパイルも `cargo test` も通る
+        // 置き場も借りる（理由は上）
         .join(crate::config_dir::CONFIG_FILE);
     if !cfg_path.exists() {
         return Ok(None);

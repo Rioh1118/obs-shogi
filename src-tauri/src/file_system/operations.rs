@@ -1,7 +1,3 @@
-// `invalid_path` は「**その場所を扱えない**」の意味。root の外（`validate_under_root`）、
-// 親や名前が解決できない、設定そのものが読めない、の3つが入る。
-// 「**無い**」だけは `not_found`。無いを `invalid_path` に載せると tier が `danger` に
-// なって「再読み込み」の導線が消える（ツリーが古いだけなのに、直す操作が画面から消える）
 use crate::file_system::{
     error::{FsError, FsErrorCode},
     utils::{
