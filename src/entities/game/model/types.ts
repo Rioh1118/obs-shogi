@@ -33,16 +33,22 @@ export interface GameContextState {
   loadedAbsPath: string | null;
 
   /**
-   * 走っている書き込みが1つ以上あるか。`pendingWrites > 0` の射影。
+   * **利用者を待たせている**書き込みが1つ以上あるか。`blockingWrites > 0` の射影。
    *
-   * **真偽値のまま `finally` で降ろさない。** 書き込みは並行しうる
-   * （コメントの自動保存は 900ms 後に、開いた面や確認ダイアログとは無関係に撃つ）。
-   * 先に終わった1つが false を撃つと、まだ走っている書き込みの最中に
-   * 「操作中」が解け、確認ダイアログが押し直せる状態へ戻る。
+   * これを見て棋譜一覧の行が無効になる。だから
+   * **利用者が起動していない書き込み（コメントの自動保存）では立てない**。
+   * 自動保存は打鍵が止まった 900ms 後に撃つので、書き終えて次の手をクリックする
+   * 瞬間と正確に重なる。そこで行が反応しなくなると、合図も無くクリックが捨てられる。
+   *
+   * **真偽値のまま `finally` で降ろさない。** 書き込みは並行して起動しうるので、
+   * 先に終わった1つが false を撃つと、まだ走っている書き込みの最中に「操作中」が解け、
+   * 確認ダイアログが押し直せる状態へ戻る。
    */
   isLoading: boolean;
-  /** 走っている書き込みの本数。`isLoading` を導くためだけに持つ */
+  /** 起動した書き込みの本数。**自動保存も数える**（数えないと本数を名乗れない） */
   pendingWrites: number;
+  /** そのうち、利用者を待たせているぶん。`isLoading` を導く */
+  blockingWrites: number;
   error: string | null;
 }
 
@@ -115,12 +121,14 @@ export type GameAction =
     }
   // 数える。**真偽値を撃たない。** 並行する書き込みのうち先に終わった1つが
   // 「操作中」を解いてしまうため（`isLoading` の doc を参照）。
-  // 撃った回数と同じだけ `write_ended` を撃つこと（`finally` で1回）。
+  // 撃った回数と同じだけ、**同じ `blocking` で** `write_ended` を撃つこと（`finally` で1回）。
   | {
       type: "write_started";
+      payload: { blocking: boolean };
     }
   | {
       type: "write_ended";
+      payload: { blocking: boolean };
     }
   | {
       type: "set_error";
@@ -151,6 +159,7 @@ export const initialGameState: GameContextState = {
   loadedAbsPath: null,
   isLoading: false,
   pendingWrites: 0,
+  blockingWrites: 0,
   error: null,
 };
 

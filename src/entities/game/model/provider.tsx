@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useReducer } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color, type Kind } from "shogi.js";
@@ -43,6 +43,23 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
 
+  /**
+   * 走っている書き込みの列。**同じファイルへ2本同時に書かない。**
+   *
+   * Rust の `write_kifu_to_file` は `async fn` で、Tauri は並行に走らせる。
+   * `atomic_write` なので壊れたファイルは残らないが、**後に着地したほうが勝つ**。
+   * コメントの自動保存 → 分岐の削除、の順に撃ってコメントが後に着地すると、
+   * **削除がディスクから消え、メモリだけ削除済みになる**。確認ダイアログは成功として閉じ、
+   * 次に開き直すまで誰も気づかない。順番に流せばこの並びは作れない。
+   */
+  const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
+
+  // 列に並んでいる間に宛先が変わりうるので、門番は**撃った時点ではなく走る時点**の値を見る。
+  const destRef = useRef({ persistence, loadedAbsPath: state.loadedAbsPath });
+  useEffect(() => {
+    destRef.current = { persistence, loadedAbsPath: state.loadedAbsPath };
+  });
+
   // 失敗を `state.error` へ積んだうえで、**呼び出し元にも返す**。
   //
   // 積むだけでは届かない。`state.error` を描いている場所はまだ無いので
@@ -50,37 +67,47 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   // 「保存済み」と出す側が自分で成否を見られないと、書けなかった本文が
   // 画面から消えて利用者だけが保存されたと信じることになる。
   const persistIfPossible = useCallback(
-    async (jkfToSave: JKFData): AsyncResult<void, string> => {
-      if (!persistence) {
-        const msg = "保存先が決まっていません";
-        dispatch({ type: "set_error", payload: msg });
-        return Err(msg);
-      }
+    (jkfToSave: JKFData): AsyncResult<void, string> => {
+      const writeOnce = async (): AsyncResult<void, string> => {
+        const { persistence, loadedAbsPath } = destRef.current;
+        if (!persistence) {
+          const msg = "保存先が決まっていません";
+          dispatch({ type: "set_error", payload: msg });
+          return Err(msg);
+        }
 
-      // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
-      //
-      // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
-      // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
-      // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
-      // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
-      if (persistence.absPath !== state.loadedAbsPath) {
-        const msg = "保存先が切り替わったため書き込みを中止しました";
-        dispatch({ type: "set_error", payload: msg });
-        return Err(msg);
-      }
+        // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
+        //
+        // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
+        // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
+        // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
+        // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+        if (persistence.absPath !== loadedAbsPath) {
+          const msg = "保存先が切り替わったため書き込みを中止しました";
+          dispatch({ type: "set_error", payload: msg });
+          return Err(msg);
+        }
 
-      const res = await persistence.save(jkfToSave);
-      if (!res.success) {
-        // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
-        // A の保存が失敗して返ってきたときに B が読み込まれていると、
-        // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
-        // **別のファイルの失敗が新しく開いたファイルの上に出る**。
-        dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
-        return Err(res.error);
-      }
-      return Ok(undefined);
+        const res = await persistence.save(jkfToSave);
+        if (!res.success) {
+          // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
+          // A の保存が失敗して返ってきたときに B が読み込まれていると、
+          // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
+          // **別のファイルの失敗が新しく開いたファイルの上に出る**。
+          dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
+          return Err(res.error);
+        }
+        return Ok(undefined);
+      };
+
+      // 前の書き込みが失敗しても列は止めない（`catch` 側でも同じものを繋ぐ）。
+      const next = writeChainRef.current.then(writeOnce, writeOnce);
+      writeChainRef.current = next;
+      return next;
     },
-    [persistence, state.loadedAbsPath],
+    // 宛先は `destRef` から**走る時点で**読むので、依存に持たない。
+    // 持つと宛先が変わるたびに下流の `useCallback` が全部作り直される
+    [],
   );
 
   // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
@@ -236,10 +263,13 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       // 立てない。** コメントの自動保存は打鍵が止まった 900ms 後に撃つので、
       // 書き終えて次の手をクリックする瞬間と正確に重なる。そこで行が反応しなくなると、
       // 合図も無くクリックが捨てられる。
-      const announce = !opt?.background;
+      // **数えるのは常に。止めるかどうかだけが `background` で変わる。**
+      // 数えないと `pendingWrites` が本数を名乗れなくなり、
+      // 「いま書いていない」の意味で `isLoading` を読む実装が入る。
+      const blocking = !opt?.background;
 
       try {
-        if (announce) dispatch({ type: "write_started" });
+        dispatch({ type: "write_started", payload: { blocking } });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -278,7 +308,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        if (announce) dispatch({ type: "write_ended" });
+        dispatch({ type: "write_ended", payload: { blocking } });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
@@ -287,7 +317,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const loadGame = useCallback(async (jkf: JKFData, absPath: string | null) => {
     try {
       dispatch({ type: "clear_error" });
-      dispatch({ type: "write_started" });
+      dispatch({ type: "write_started", payload: { blocking: true } });
 
       const nextJkf = cloneJkf(jkf);
       const player = new JKFPlayer(nextJkf);
@@ -301,7 +331,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       const msg = e instanceof Error ? e.message : "Failed to load game";
       dispatch({ type: "set_error", payload: msg });
     } finally {
-      dispatch({ type: "write_ended" });
+      dispatch({ type: "write_ended", payload: { blocking: true } });
     }
   }, []);
 
@@ -385,7 +415,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "write_started" });
+        dispatch({ type: "write_started", payload: { blocking: true } });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -421,7 +451,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        dispatch({ type: "write_ended" });
+        dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
@@ -432,7 +462,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "write_started" });
+        dispatch({ type: "write_started", payload: { blocking: true } });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -468,7 +498,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        dispatch({ type: "write_ended" });
+        dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],

@@ -13,8 +13,9 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         branchPlan: asBranchPlan([...action.payload.cursor.forkPointers]),
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
-        isLoading: state.pendingWrites > 0,
+        isLoading: state.blockingWrites > 0,
         pendingWrites: state.pendingWrites,
+        blockingWrites: state.blockingWrites,
         error: null,
       };
 
@@ -78,12 +79,14 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
 
     case "write_started": {
       const pendingWrites = state.pendingWrites + 1;
-      return { ...state, pendingWrites, isLoading: true };
+      const blockingWrites = state.blockingWrites + (action.payload.blocking ? 1 : 0);
+      return { ...state, pendingWrites, blockingWrites, isLoading: blockingWrites > 0 };
     }
 
     case "write_ended": {
       const pendingWrites = Math.max(0, state.pendingWrites - 1);
-      return { ...state, pendingWrites, isLoading: pendingWrites > 0 };
+      const blockingWrites = Math.max(0, state.blockingWrites - (action.payload.blocking ? 1 : 0));
+      return { ...state, pendingWrites, blockingWrites, isLoading: blockingWrites > 0 };
     }
 
     // **`isLoading` を触らない。** 失敗したのは撃った1本であって、
@@ -108,7 +111,8 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
       return {
         ...initialGameState,
         pendingWrites: state.pendingWrites,
-        isLoading: state.pendingWrites > 0,
+        blockingWrites: state.blockingWrites,
+        isLoading: state.blockingWrites > 0,
       };
 
     default:

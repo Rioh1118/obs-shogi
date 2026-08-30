@@ -36,14 +36,40 @@ describe("gameReducer", () => {
 // **まだ書いている最中に「操作中」を解く**。
 describe("走っている書き込みを数える", () => {
   it("先に終わった1つでは isLoading が解けない", () => {
-    const one = gameReducer(initialGameState, { type: "write_started" });
-    const two = gameReducer(one, { type: "write_started" });
+    const one = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    const two = gameReducer(one, { type: "write_started", payload: { blocking: true } });
     expect(two.isLoading).toBe(true);
 
-    const oneLeft = gameReducer(two, { type: "write_ended" });
+    const oneLeft = gameReducer(two, { type: "write_ended", payload: { blocking: true } });
     expect(oneLeft.isLoading).toBe(true);
 
-    expect(gameReducer(oneLeft, { type: "write_ended" }).isLoading).toBe(false);
+    expect(
+      gameReducer(oneLeft, { type: "write_ended", payload: { blocking: true } }).isLoading,
+    ).toBe(false);
+  });
+
+  // 自動保存は行を止めない（利用者が起動していない）が、**走っていることは数える**。
+  // 数えないと pendingWrites が本数を名乗れなくなり、
+  // 「いま書いていない」の意味で isLoading を読む実装が入る。
+  it("止めない書き込みも本数には数える", () => {
+    const bg = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: false },
+    });
+    expect(bg.pendingWrites).toBe(1);
+    expect(bg.isLoading).toBe(false);
+
+    const both = gameReducer(bg, { type: "write_started", payload: { blocking: true } });
+    expect(both.pendingWrites).toBe(2);
+    expect(both.isLoading).toBe(true);
+
+    // 止めない側が先に終わっても、止めている側は解けない
+    const bgDone = gameReducer(both, { type: "write_ended", payload: { blocking: false } });
+    expect(bgDone.pendingWrites).toBe(1);
+    expect(bgDone.isLoading).toBe(true);
   });
 
   // A の保存が失敗して返ってきたときに B が読み込まれていると、
@@ -67,7 +93,10 @@ describe("走っている書き込みを数える", () => {
 
   // 失敗したのは撃った1本であって、並行して走っている他の書き込みではない。
   it("set_error は走っている書き込みを終わらせない", () => {
-    const writing = gameReducer(initialGameState, { type: "write_started" });
+    const writing = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
     const errored = gameReducer(writing, { type: "set_error", payload: "boom" });
     expect(errored.error).toBe("boom");
     expect(errored.isLoading).toBe(true);
@@ -76,7 +105,10 @@ describe("走っている書き込みを数える", () => {
   // 0 に戻すと、走っている書き込みの write_ended が負へ落として
   // 以後 isLoading が二度と立たなくなる。
   it("棋譜を読み込み直しても、走っている書き込みの本数は持ち越す", () => {
-    const writing = gameReducer(initialGameState, { type: "write_started" });
+    const writing = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
     const loaded = gameReducer(writing, {
       type: "game_loaded",
       payload: {
@@ -86,18 +118,25 @@ describe("走っている書き込みを数える", () => {
       },
     });
     expect(loaded.isLoading).toBe(true);
-    expect(gameReducer(loaded, { type: "write_ended" }).isLoading).toBe(false);
+    expect(
+      gameReducer(loaded, { type: "write_ended", payload: { blocking: true } }).isLoading,
+    ).toBe(false);
   });
 
   // 棋譜を閉じるのも書き込みが走っている最中に起こる（ワークスペースの切り替え）。
   // 0 に戻すと、次の書き込みが 1 に上げたところへ古い1本の finally が着地して
   // **まだ書いている最中に isLoading が解ける**。
   it("棋譜を閉じても、走っている書き込みの本数は持ち越す", () => {
-    const writing = gameReducer(initialGameState, { type: "write_started" });
+    const writing = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
     const reset = gameReducer(writing, { type: "reset_state" });
     expect(reset.jkf).toBeNull();
     expect(reset.isLoading).toBe(true);
-    expect(gameReducer(reset, { type: "write_ended" }).isLoading).toBe(false);
+    expect(gameReducer(reset, { type: "write_ended", payload: { blocking: true } }).isLoading).toBe(
+      false,
+    );
   });
 });
 

@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Err, Ok } from "@/shared/lib/result";
 import type { KifuCursor } from "@/entities/kifu/model/cursor";
@@ -26,12 +27,40 @@ vi.mock("@/entities/game", () => ({
 }));
 
 // Lexical は happy-dom で組み立てられないので、本文の入口だけを持つ板に差し替える。
-// 見たいのは「何を、どこへ、いつ書くか」であって、エディタの中身ではない。
+//
+// **`initialMarkdown` は捨てない。** Lexical は `initialConfig` を mount 時にしか読まないので、
+// 「エディタが何で組まれたか」は mount 時の値そのもの。捨てると、
+// **移った先のエディタが前の手の本文で mount される**形をテストが1本も見なくなる。
+function EditorStub({
+  initialMarkdown,
+  onMarkdownChange,
+}: {
+  initialMarkdown?: string;
+  onMarkdownChange?: (s: string) => void;
+}) {
+  // **mount 時の値で固定する。** 再レンダで追随させると、Lexical が
+  // `initialConfig` を1回しか読まないという肝心の性質を再現しない。
+  const [mounted] = useState(initialMarkdown ?? "");
+  return (
+    <textarea
+      data-testid="editor"
+      data-mounted-with={mounted}
+      defaultValue={mounted}
+      onChange={(e) => onMarkdownChange?.(e.target.value)}
+    />
+  );
+}
+
 vi.mock("@/shared/ui/live-markdown-note/LiveMarkdownNote", () => ({
-  default: ({ onMarkdownChange }: { onMarkdownChange?: (s: string) => void }) => (
-    <textarea data-testid="editor" onChange={(e) => onMarkdownChange?.(e.target.value)} />
+  default: (props: { initialMarkdown?: string; onMarkdownChange?: (s: string) => void }) => (
+    <EditorStub {...props} />
   ),
 }));
+
+/** エディタが**何で mount されたか**。Lexical は初期値しか読まない */
+function mountedWith() {
+  return screen.getByTestId("editor").getAttribute("data-mounted-with") ?? "";
+}
 
 vi.mock("@/shared/ui/floating-note/FloatingNote", () => ({
   default: ({
@@ -54,6 +83,7 @@ vi.mock("@/shared/ui/floating-note/FloatingNote", () => ({
 }));
 
 const { default: KifuCommentNote } = await import("../KifuCommentNote");
+const { clearUnsavedDrafts } = await import("../../lib/unsavedDrafts");
 
 const CURSOR: KifuCursor = {
   tesuu: 5,
@@ -92,6 +122,9 @@ beforeEach(() => {
   gameState.loadedAbsPath = "/ws/a.kif";
   comments = [];
   setCommentsByCursor.mockResolvedValue(Ok(undefined));
+  // 預かりはモジュールに置いてある（ノートが unmount しても消えないため）ので、
+  // テストの間で持ち越さないように毎回空にする
+  clearUnsavedDrafts();
 });
 
 describe("保存の失敗", () => {
@@ -408,5 +441,67 @@ describe("面が入れ替わるとき", () => {
     const last = calls[calls.length - 1];
     expect(last[0]).toBe(CURSOR);
     expect(last[1]).toEqual(["5手目のメモ"]);
+  });
+
+  // エディタを作り直す鍵と中身が別々の出どころだと1レンダずれ、
+  // **移った先のエディタが前の手の本文で mount される**。
+  // Lexical は初期値しか読まないので、そのまま最後まで残る。
+  it("移った先のエディタを、前の手の本文で組まない", async () => {
+    const view = open("/ws/a.kif");
+    await type("5手目のメモ");
+
+    await show(view, { cursor: OTHER });
+
+    expect(mountedWith()).toBe("");
+  });
+
+  // 預かりを本文の一致で捨てると、続きを書いて保存に成功したときに一致せず、
+  // 預かりが永久に残る。次にその手を開くと古い本文が出て、
+  // **保存済みの本文をディスク上で巻き戻す**。失敗は1度も起きていない経路。
+  it("預かりのあとで保存に成功したら、同じ手へ戻っても古い本文は出てこない", async () => {
+    const view = open("/ws/a.kif");
+    await type("aaa");
+
+    // 別の棋譜を開く → 宛先が変わるので預かりに入る
+    gameState.loadedAbsPath = "/ws/b.kif";
+    await show(view, { open: false });
+    gameState.loadedAbsPath = "/ws/a.kif";
+    await show(view, { open: true });
+    expect(mountedWith()).toBe("aaa");
+
+    // 続きを書いて保存が通る
+    await typeAndAutosave("aaa と続き");
+    expect(screen.getByText("保存済み")).toBeTruthy();
+
+    // 別の手へ行って戻る
+    await show(view, { cursor: OTHER });
+    await show(view, { cursor: CURSOR });
+
+    expect(mountedWith()).toBe("");
+    expect(screen.getByRole("alert").textContent).toBe("");
+  });
+
+  // 撃てないぶんを捨てると、利用者から見えるのは「保存済み」だけで、
+  // 最後に打った本文はどこにも入っていない。
+  it("保存中に来た自動保存を捨てず、前の保存が終わってから書く", async () => {
+    let release: ((v: unknown) => void) | null = null;
+    setCommentsByCursor.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r(Ok(undefined)))),
+    );
+
+    open("/ws/a.kif");
+    await typeAndAutosave("あ");
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+
+    // 1本目が返らないうちに打ち足して、次の自動保存を撃つ
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await typeAndAutosave("あい");
+
+    await act(async () => {
+      release?.(null);
+    });
+
+    const written = setCommentsByCursor.mock.calls.map((c) => c[1]);
+    expect(written).toContainEqual(["あい"]);
   });
 });
