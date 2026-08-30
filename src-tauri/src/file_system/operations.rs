@@ -308,3 +308,79 @@ pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Resu
 
     fs::remove_dir_all(path).map_err(FsError::from)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::test_kifu::one_move_kif;
+    use shogi_kifu_converter_obsshogi::{
+        jkf::{Initial, Preset},
+        parser::{parse_csa_str, parse_jkf_str, parse_ki2_str, parse_kif_str},
+    };
+
+    /// 拡張子が指す形式で書く。
+    ///
+    /// `create_kifu_file` / `import_kifu_file` は webview から直に呼べる口で、
+    /// ここが唯一の「どの形式で綴るか」の判断。**取り違えると `a.kif` に
+    /// CSA が入る** — 索引は KIF として読んで失敗し、画面でも開けない。
+    /// 型検査は落ちない（どの綴り手も `Result<String, ConvertError>` を返す）。
+    #[test]
+    fn the_extension_decides_which_format_is_written() {
+        type Reparse =
+            fn(&str) -> Result<JsonKifuFormat, shogi_kifu_converter_obsshogi::error::ParseError>;
+        let source = parse_kif_str(&one_move_kif("平手")).expect("題材の KIF が読めること");
+
+        for (format, reparse) in [
+            ("kif", parse_kif_str as Reparse),
+            ("ki2", parse_ki2_str as Reparse),
+            ("csa", parse_csa_str as Reparse),
+            ("jkf", parse_jkf_str as Reparse),
+        ] {
+            let written = convert_jkf_to_format(&source, Path::new(&format!("a.{format}")))
+                .unwrap_or_else(|e| panic!("{format} に綴れない: {}", e.message));
+
+            // 他の形式のパーサでも読めてしまう綴りがあるので、
+            // 「その形式で読める」だけでは取り違えを捕まえられない。
+            // 書いたものが元の指し手を保つことまで見る
+            let back = reparse(&written)
+                .unwrap_or_else(|e| panic!("{format} として読み戻せない: {e}\n{written}"));
+            assert_eq!(back.moves.len(), source.moves.len(), "{format} の指し手");
+        }
+
+        let err = convert_jkf_to_format(&source, Path::new("a.xxx"))
+            .expect_err("知らない拡張子は失敗すること");
+        assert!(
+            matches!(err.code, FsErrorCode::InvalidExtension),
+            "{:?}",
+            err.code
+        );
+    }
+
+    /// 綴れなかったときに、クレートが名指ししたものを消さない。
+    ///
+    /// `ConvertError` は書き分けられない手・綴りの無い枚数・盤面の無い手合割を
+    /// 名指しする。固定の文言に潰すと、利用者に出るのは「変換に失敗」だけになり、
+    /// **どの棋譜のどこが悪いのかを知る手段が無くなる**。
+    #[test]
+    fn what_could_not_be_written_is_named_in_the_message() {
+        let mut jkf = parse_kif_str(&one_move_kif("平手")).expect("題材の KIF が読めること");
+        // 盤面を伴わない `PresetOther` は、どの形式でも綴れない
+        jkf.initial = Some(Initial {
+            preset: Preset::PresetOther,
+            data: None,
+        });
+
+        let err = convert_jkf_to_format(&jkf, Path::new("a.kif"))
+            .expect_err("盤面の無い手合割は綴れないこと");
+        assert!(
+            matches!(err.code, FsErrorCode::KifuConversionFailed),
+            "{:?}",
+            err.code
+        );
+        assert!(
+            err.message.contains("PresetOther") || err.message.contains("initial"),
+            "クレートの名指しが消えている: {}",
+            err.message
+        );
+    }
+}
