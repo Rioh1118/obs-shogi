@@ -225,12 +225,16 @@ export default function KifuStreamList() {
   // 逆は成り立たない。同じ手数のまま分岐だけを選び直すと tesuuPointer だけが変わるので、
   // tesuuPointer を「冗長だから」と落とすとその経路で追従が止まる。
   //
-  // 棋譜そのものも見る。tesuuPointer が一意なのは1つの棋譜の中だけで、どの棋譜でも
-  // 開始局面は "0,[]" になる。棋譜を切り替えても一覧は unmount されないので、
+  // どの棋譜を読み込んだかも見る。tesuuPointer が一意なのは1つの棋譜の中だけで、
+  // どの棋譜でも開始局面は "0,[]" になる。棋譜を切り替えても一覧は unmount されないので、
   // カーソルを動かさずに切り替えると scrollTop だけが前の棋譜の位置に残る。
+  //
+  // ここで見るのは読み込んだファイルであって、棋譜の中身ではない。`state.jkf` は
+  // コメントの保存でも別オブジェクトになるので、それを見ると入力中に一覧が
+  // カーソル行へ飛ぶ。同じパスを読み直したときは発火しないが、中身が同じなので害は無い。
   useEffect(() => {
     revealRow(state.cursor?.tesuu ?? 0, false);
-  }, [state.jkf, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
+  }, [state.loadedAbsPath, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {
