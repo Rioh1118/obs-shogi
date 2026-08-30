@@ -14,11 +14,6 @@ type Props = {
   onClose: () => void;
 };
 
-/** カーソルが変わったらノートを作り直すための鍵。正典は `cursorKey` 1つ。 */
-function noteKey(cursor: CursorPath | null) {
-  return cursor ? cursorKey(cursor) : "no-cursor";
-}
-
 export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Props) {
   const { getCommentsByCursor, setCommentsByCursor } = useGame();
 
@@ -91,7 +86,8 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
     onClose();
   }, [cursor, dirty, doSave, isSaving, onClose]);
 
-  const editorKey = noteKey(cursor);
+  // カーソルが変わったらノートを作り直す。鍵は cursorKey（要求を比べる正典）。
+  const editorKey = cursor ? cursorKey(cursor) : "no-cursor";
 
   const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
 
