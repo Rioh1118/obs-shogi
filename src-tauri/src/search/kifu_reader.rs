@@ -104,6 +104,28 @@ fn says_nothing(jkf: &Jkf) -> bool {
 /// webview の state に200件まで溜まる。
 const MESSAGE_LIMIT: usize = 300;
 
+/// これを超えるファイルは棋譜として読まない。
+///
+/// **読めないファイルほど高くつく。** 読み通せなかった KIF / KI2 は、
+/// クレート・[`read_bytes`]・[`ENCODINGS_THE_CRATE_SKIPS`] の4つ・
+/// [`LOSSY_DECODERS`] の2つで同じ中身を何度も持つ。実測で 50MB の
+/// 1行ファイル1つが 3.3 秒・常駐 500MB（クレート単体の 6.6 倍）。
+/// 索引作りは最大8本並列なので、`.kif` に改名した動画や zip が数本混ざると
+/// その間だけ数 GB 持っていかれる。
+///
+/// 8 MiB は、609件のコーパスで一番大きい棋譜（分岐の多い研究ファイル・669 KB）の
+/// 12 倍。**上限に当たる棋譜が実在するなら、それは上げる理由になる** —
+/// 文言がサイズを言うのはそのため。
+const SIZE_LIMIT: u64 = 8 * 1024 * 1024;
+
+/// 境界を1箇所に置く。**上限ちょうどは読む。**
+///
+/// 通し経路のテストで境界を見ようとすると、8 MiB の棋譜を実際に読ませることになり
+/// テスト1本で6秒かかる。判断はここだけなので、ここを直に見れば足りる。
+fn too_large_to_be_a_kifu(len: u64) -> bool {
+    len > SIZE_LIMIT
+}
+
 /// 棋譜ファイルを JKF に読む。**形式ごとに手当てが違う。**
 ///
 /// | 形式 | 文字コードの総当たり | パニックを捕まえる |
@@ -124,9 +146,18 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
     // `Permission denied (os error 13)` が生のまま画面に出る
-    match fs::File::open(path) {
-        Ok(_) => {}
-        Err(e) => return Err(unreadable(e)),
+    let file = fs::File::open(path).map_err(unreadable)?;
+
+    // 大きさは開いた手で見る。`fs::metadata` を別に呼ぶと、
+    // 見た対象と読む対象がずれる
+    if let Ok(meta) = file.metadata() {
+        if too_large_to_be_a_kifu(meta.len()) {
+            return Err(parse_failed(format!(
+                "ファイルが大きすぎます（{} MB）。棋譜ではないファイルに\
+                 棋譜の拡張子が付いていないか確かめてください",
+                meta.len() / (1024 * 1024)
+            )));
+        }
     }
 
     let jkf = match kind {
@@ -236,17 +267,54 @@ fn unreadable_record(e: ParseError) -> String {
 ///
 /// **`KifuReadError` を作る口はここだけ。** 長さと制御文字を落とすのを
 /// 各所でやると必ず漏れる。
+///
+/// **上限は組みながら掛ける。** `to_string()` を先に呼ぶと、
+/// クレートが引用する「読めなかった位置から行末まで」が丸ごと確保される。
+/// 16MB の1行ファイルで文言は 300 文字に縮んでも、その手前で
+/// 16MB の文字列を2本作っていた。
 fn parse_failed(e: impl std::fmt::Display) -> KifuReadError {
-    let raw = e.to_string();
-    // 制御文字は画面に出しても意味が無く、生の NUL やエスケープが混ざる
-    let mut message: String = raw
-        .chars()
-        .map(|c| if c == '\n' || !c.is_control() { c } else { ' ' })
-        .collect();
-    if message.chars().count() > MESSAGE_LIMIT {
-        message = message.chars().take(MESSAGE_LIMIT).collect::<String>() + "…";
+    use std::fmt::Write as _;
+
+    let mut sink = Capped::default();
+    // `Display` は `Ok` しか返さないが、`Capped` は上限で `Err` を返して
+    // 書き手を止める。どちらも文言としては完成しているので結果は見ない
+    let _ = write!(sink, "{e}");
+    KifuReadError::ParseFailed(sink.finish())
+}
+
+/// [`MESSAGE_LIMIT`] 文字まで書き取る受け皿。**超えたぶんは組み立てない。**
+#[derive(Default)]
+struct Capped {
+    out: String,
+    taken: usize,
+    truncated: bool,
+}
+
+impl Capped {
+    fn finish(mut self) -> String {
+        if self.truncated {
+            self.out.push('…');
+        }
+        self.out
     }
-    KifuReadError::ParseFailed(message)
+}
+
+impl std::fmt::Write for Capped {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        for c in s.chars() {
+            if self.taken >= MESSAGE_LIMIT {
+                self.truncated = true;
+                // 書き手を止める。`Display` の実装は途中で抜けても
+                // ここまでに書かれたものを壊さない
+                return Err(std::fmt::Error);
+            }
+            // 制御文字は画面に出しても意味が無く、生の NUL やエスケープが混ざる
+            self.out
+                .push(if c == '\n' || !c.is_control() { c } else { ' ' });
+            self.taken += 1;
+        }
+        Ok(())
+    }
 }
 
 // -------------------------
@@ -1452,6 +1520,41 @@ mod tests {
                 );
             }
         }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 大きすぎるファイルは、読もうとする前に断る。
+    ///
+    /// 読めないファイルほど高くつく（同じ中身を復号ごとに持つ）。
+    /// 索引作りは最大8本並列なので、`.kif` に改名した動画や zip が数本あると
+    /// その間だけ数 GB 持っていかれる。
+    ///
+    /// **中身は棋譜として正しくても断る。** 大きさだけで決めるので、
+    /// 上限に当たる棋譜が実在するなら上限を上げる話になる。
+    #[test]
+    fn a_file_too_large_to_be_a_kifu_is_refused_before_it_is_read() {
+        let dir = temp_dir("too-large");
+
+        let path = dir.join("huge.kif");
+        let mut body = hirate_kif().into_bytes();
+        body.resize(SIZE_LIMIT as usize + 1, b' ');
+        fs::write(&path, &body).expect("書き出し");
+
+        let Err(err) = read_path_to_jkf(&path, KifuKind::Kif) else {
+            panic!("上限を超えたファイルを読んでしまった");
+        };
+        assert!(
+            err.to_string().contains("大きすぎます"),
+            "理由が大きさでない: {err}"
+        );
+
+        // 境界。1つずれると、上限ちょうどの棋譜が読めなくなる
+        assert!(!too_large_to_be_a_kifu(SIZE_LIMIT), "上限ちょうどを断った");
+        assert!(
+            too_large_to_be_a_kifu(SIZE_LIMIT + 1),
+            "上限の1つ上を通した"
+        );
 
         fs::remove_dir_all(&dir).ok();
     }
