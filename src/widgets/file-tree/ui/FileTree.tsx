@@ -214,12 +214,14 @@ function FileTree() {
           {isLoading && !hasTree ? (
             <Spinner />
           ) : shownError && !hasTree ? (
-            <FileTreeErrorNotice
-              error={shownError.error}
-              onRetry={handleRetry}
-              isRetrying={isLoading}
-              fallback={chooseWorkspace}
-            />
+            <div className="file-tree__failure">
+              <FileTreeErrorNotice
+                error={shownError.error}
+                onRetry={handleRetry}
+                isRetrying={isLoading}
+                fallback={chooseWorkspace}
+              />
+            </div>
           ) : !hasTree ? (
             <div className="file-tree__empty">
               <p>ファイルツリーがありません</p>
