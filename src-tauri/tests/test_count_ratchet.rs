@@ -15,9 +15,19 @@ use std::path::Path;
 
 /// 現在の本数。**下げるときは理由をコミットメッセージに書くこと。**
 /// 上げるのは自由（足したぶんだけ上がる）。
-const EXPECTED_MIN: usize = 148;
+const EXPECTED_MIN: usize = 159;
+
+/// 取り込み忘れを許す幅。**1回の作業で足すテストの本数の目安。**
+/// これ以上ずれたら更新忘れとみなす。
+///
+/// 広げるほど検出力が落ちる。幅が N なら、常に N 本までは消しても緑で通る。
+const DRIFT_ALLOWANCE: usize = 20;
 
 /// `#[test]` の総数を数える。
+///
+/// **行が属性そのものであるものだけ数える。** 文字列リテラルやコメントの中の
+/// `#[test]` を数えると、コメントを膨らませるだけで下限を水増しできる
+/// （このファイル自身が、素朴に数えると 2 本のところ 5 本に見える）。
 ///
 /// 属性の綴りは1つしか使っていないが、`#[tokio::test]` などが増えたらここへ足す。
 fn count_tests(dir: &Path) -> usize {
@@ -34,16 +44,28 @@ fn count_tests(dir: &Path) -> usize {
             continue;
         }
         let source = fs::read_to_string(&path).expect("ソースを読めない");
-        total += source.matches("#[test]").count();
+        total += source
+            .lines()
+            .filter(|line| line.trim_start().starts_with("#[test]"))
+            .count();
     }
 
     total
 }
 
+/// `src` と `tests` の両方を見る。
+///
+/// **`tests/` を外してはいけない。** `root_guard.rs` は、パスを受け取る Tauri
+/// コマンドが root 配下を確かめていることを見る関門で、消えて一番困るテストが
+/// そこにある。
+fn count_all_tests() -> usize {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    count_tests(&manifest.join("src")) + count_tests(&manifest.join("tests"))
+}
+
 #[test]
 fn the_number_of_tests_does_not_go_down() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let found = count_tests(&root);
+    let found = count_all_tests();
 
     assert!(
         found >= EXPECTED_MIN,
@@ -56,16 +78,16 @@ fn the_number_of_tests_does_not_go_down() {
 
 /// 増えたぶんを取り込み忘れると、次に消えたときの検出力が落ちる。
 ///
-/// 例えば 148 のまま 200 本まで増やすと、57 本消しても緑で通る。
+/// 例えば 159 のまま 200 本まで増やすと、41 本消しても緑で通る。
 #[test]
 fn the_expected_number_is_kept_up_to_date() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let found = count_tests(&root);
+    let found = count_all_tests();
 
     assert!(
-        found <= EXPECTED_MIN + 20,
-        "テストが {} 本増えている（{found} > {EXPECTED_MIN}）。\n\
+        found <= EXPECTED_MIN + DRIFT_ALLOWANCE,
+        "テストが {} 本増えている（{found} > {}）。\n\
          EXPECTED_MIN を {found} へ上げること。放っておくと、次に消えたときに検出できない。",
-        found - EXPECTED_MIN
+        found - EXPECTED_MIN,
+        EXPECTED_MIN + DRIFT_ALLOWANCE
     );
 }
