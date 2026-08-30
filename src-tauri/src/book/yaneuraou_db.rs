@@ -251,6 +251,16 @@ const MAX_EXPANDED_BYTES: usize = 7 * 1024 * 1024 * 1024;
 /// | ちょうどの大きさへ移し替える | 546MB | 812MB | 0.67 |
 ///
 /// つまり 330 / 160 は `flush` の移し替えを入れて初めて上界になる。
+///
+/// **掃引する軸は3つ。** 局面と手数の組み合わせ（上の表）に加えて、
+/// **`flush` の閾値（`LONG_MOVE_LIST`）の直上**でも測る。閾値を超えると
+/// 移し替えをやめるので、そこで空きの扱いが変わる。1局面あたりの手数を
+/// 9 / 32 / 33 / 65 / 257 で掃引した比:
+///
+/// | 手/局面 | 9 | 32 | 33 | 65 | 257 |
+/// | --- | --- | --- | --- | --- | --- |
+/// | 溜める側が倍々 | 0.72 | 0.73 | **1.20** | 1.02 | **1.34** |
+/// | 刻みで頭打ち | 0.69 | 0.62 | 0.79 | 0.70 | 0.63 |
 const BYTES_PER_POSITION: usize = 330;
 
 /// 指し手1件あたりの見積もり。
@@ -619,7 +629,7 @@ fn parse_limited<R: BufRead>(
             consumed,
             path,
         )?;
-        buffered.push(parsed);
+        push_without_doubling(&mut buffered, parsed);
     }
 
     flush(&mut positions, &mut current, &mut buffered);
@@ -719,10 +729,9 @@ fn flush(
             //
             // ちょうどの大きさへ移し替え、`buffered` の容量は次の局面へ回す。
             // **長い列は移し替えない。** 移し替えの瞬間だけ2本持つので、
-            // 1局面に大量の手が続く形で逆に膨らむ（実測 +47.8%）。境目は
-            // `keep_first_of_each_move` の `SCAN_LIMIT` と同じ根拠で、
-            // 正常な定跡の候補手は 10 手前後。
-            if buffered.len() <= COMPACT_LIMIT {
+            // 1局面に大量の手が続く形で逆に膨らむ（実測 +47.8%）。
+            // 境目は `LONG_MOVE_LIST`。
+            if buffered.len() <= LONG_MOVE_LIST {
                 let mut exact = Vec::with_capacity(buffered.len());
                 exact.append(buffered);
                 slot.insert(exact);
@@ -745,12 +754,37 @@ fn flush(
     }
 }
 
-/// ちょうどの大きさへ移し替える候補手の数の上限。
+/// 溜める側を伸ばす刻み。
 ///
-/// これを超える列は移し替えない（移し替えの瞬間だけ2本持つので逆に膨らむ）。
-/// 値の根拠は `keep_first_of_each_move` の `SCAN_LIMIT` と同じで、
-/// 正常な定跡の候補手は 10 手前後。
-const COMPACT_LIMIT: usize = 32;
+/// **倍々に伸ばさない。** `Vec::push` は容量を2倍にするので、`len` が2の冪を
+/// 1つ超えた直後に最大の空きを残す（33 手なら容量 64）。その空きは
+/// [`flush`] が `mem::take` で map へ渡す列に乗ったまま、読み切るまで残る。
+/// 刻みで伸ばせば空きはこの数で頭打ちになる。
+///
+/// 8 は「正常な定跡の候補手は 10 手前後」から。再確保の回数は 10 手で2回、
+/// 257 手で 33 回で、どちらも局面あたりの費用として無視できる。
+const MOVE_CHUNK: usize = 8;
+
+/// 候補手を溜める。**倍々の成長をさせない**（理由は [`MOVE_CHUNK`]）。
+fn push_without_doubling(buffered: &mut Vec<BookMove>, parsed: BookMove) {
+    if buffered.len() == buffered.capacity() {
+        buffered.reserve_exact(MOVE_CHUNK);
+    }
+    buffered.push(parsed);
+}
+
+/// 1局面の候補手として異常に長いと見なす数。
+///
+/// **正常な定跡の候補手は 10 手前後。** これを超える列は、同じ局面が延々と
+/// 繰り返されるファイルでしか出ない。
+///
+/// [`flush`] が使う。ちょうどの大きさへ移し替えるか、そのまま渡すか。
+/// 移し替えは一瞬だけ2本持つので、長い列では逆に膨らむ（実測 +47.8%）。
+///
+/// **`keep_first_of_each_move` の `SCAN_LIMIT` と同じ値だが、同じ定数にしない。**
+/// 動かしたい向きが逆で、片方を実測で直した人がもう片方を壊す。
+/// あちらは低くしたい（走査が二乗）、こちらは高くしたい（移し替えの費用）。
+const LONG_MOVE_LIST: usize = 32;
 
 /// 読み切った後に1回だけ、全ての局面の重複を畳む。
 ///
@@ -785,6 +819,9 @@ fn keep_first_of_each_move_everywhere(positions: &mut HashMap<BookKey, Vec<BookM
 /// アプリは無反応のまま戻らない）。長い列だけ `HashSet` へ切り替える。
 fn keep_first_of_each_move(moves: &mut Vec<BookMove>) {
     /// 走査と `HashSet` の切り替え点。1局面の候補手がこれを超えるのは異常な形。
+    ///
+    /// [`LONG_MOVE_LIST`] と同じ値だが**別の判断**（あちらは移し替えの費用）。
+    /// 動かしたい向きが逆なので、同じ定数にしない。
     const SCAN_LIMIT: usize = 32;
 
     if moves.len() <= SCAN_LIMIT {
@@ -1956,7 +1993,10 @@ mod tests {
         // 倍々成長で 8 まで伸ばし、5 で止める（容量 8 / 長さ 5）
         let mut buffered: Vec<BookMove> = Vec::new();
         for _ in 0..5 {
-            buffered.push(parse_move("7g7f", &mut DroppedFields::default()));
+            push_without_doubling(
+                &mut buffered,
+                parse_move("7g7f", &mut DroppedFields::default()),
+            );
         }
         assert!(buffered.capacity() > buffered.len(), "前提が崩れている");
 
@@ -1966,15 +2006,23 @@ mod tests {
         assert_eq!(moves.capacity(), moves.len(), "余分な容量を抱えている");
     }
 
-    /// **長い列は移し替えないこと。** 移し替えの瞬間だけ2本持つので、
-    /// 1局面に大量の手が続く形では逆に膨らむ（実測 +47.8%）。
+    /// **長い列は移し替えない**（移し替えの瞬間だけ2本持つので、1局面に大量の
+    /// 手が続く形では逆に膨らむ。実測 +47.8%）。**そのぶん空きが残るので、
+    /// 溜める側の成長を刻みで頭打ちにする。**
+    ///
+    /// 頭打ちにしないと、閾値のすぐ上（33 手）で `push` の倍々成長が容量 64 を
+    /// 取り、その空きが読み切るまで残る。実測でその形の比が 0.73 → 1.20 に跳ねる
+    /// （＝単価が上界でなくなる）。
     #[test]
-    fn a_long_move_list_is_moved_not_copied() {
+    fn a_long_move_list_keeps_its_slack_bounded() {
         let mut positions: HashMap<BookKey, Vec<BookMove>> = HashMap::new();
         let mut current = Some(to_book_key(HIRATE).expect("平手は読める"));
         let mut buffered: Vec<BookMove> = Vec::new();
-        for _ in 0..(COMPACT_LIMIT + 1) {
-            buffered.push(parse_move("7g7f", &mut DroppedFields::default()));
+        for _ in 0..(LONG_MOVE_LIST + 1) {
+            push_without_doubling(
+                &mut buffered,
+                parse_move("7g7f", &mut DroppedFields::default()),
+            );
         }
         let capacity = buffered.capacity();
 
@@ -1982,6 +2030,12 @@ mod tests {
 
         let moves = &positions[&to_book_key(HIRATE).unwrap()];
         assert_eq!(moves.capacity(), capacity, "移し替えている");
+        assert!(
+            moves.capacity() - moves.len() < MOVE_CHUNK,
+            "空きが刻みを超えている: capacity={} len={}",
+            moves.capacity(),
+            moves.len()
+        );
     }
 
     /// 展開の見積もりが上限を超えたら落とす。
