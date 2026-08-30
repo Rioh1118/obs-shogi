@@ -1,129 +1,103 @@
 use thiserror::Error;
 
-use shogi_core::{Color as CoreColor, Hand as CoreHand, PartialPosition, Piece, PieceKind, Square};
-use shogi_kifu_converter_obsshogi::jkf::{
-    Color as JkfColor, Hand as JkfHand, Initial, JsonKifuFormat, Kind as JkfKind,
-    Piece as JkfPiece, Preset, StateFormat,
-};
+use shogi_core::PartialPosition;
+use shogi_kifu_converter_obsshogi::{error::ConvertError, jkf::JsonKifuFormat};
 
 pub type Jkf = JsonKifuFormat;
 
 #[derive(Debug, Error)]
 pub enum InitialPosError {
-    #[error("unsupported preset without explicit data: {0:?}")]
-    UnsupportedPreset(Preset),
-
-    #[error("invalid square: x={x}, y={y}")]
-    InvalidSquare { x: u8, y: u8 },
-
-    #[error("unsupported piece kind in JKF: {0:?}")]
-    UnsupportedKind(JkfKind),
-
-    #[error("invalid hand construction")]
-    InvalidHand,
+    #[error("cannot build the initial position: {0}")]
+    Unbuildable(#[from] ConvertError),
 }
 
-/// JKFから「開始局面」を作る（方針：平手 or dataありのみ対応）
+/// JKF から開始局面を作る
+///
+/// 盤の組み立ては**クレートに任せる**。手合割の盤面はクレートが表で持っており
+/// （`handicap.rs`）、パーサはそれに合う盤面を `{preset, data: None}` へ畳んで返す。
+/// つまり手合割の棋譜はここへ `data` 無しで届くので、`data` のある形だけを
+/// 自前で組むと**手合割の棋譜が丸ごと索引から漏れる**。
+///
+/// 盤の添字も持駒の並びも、こちらとクレートで二重に書けば黙ってずれる。
+/// ずれると同じ棋譜から違う `PositionKey` が出て、検索が当たらなくなるだけで
+/// エラーは出ない。書く場所を1つにしておく。
 pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, InitialPosError> {
-    match jkf.initial {
+    match &jkf.initial {
         None => Ok(PartialPosition::startpos()),
-        Some(init) => initial_from_initial(init),
+        Some(initial) => Ok(PartialPosition::try_from(initial)?),
     }
 }
 
-fn initial_from_initial(init: Initial) -> Result<PartialPosition, InitialPosError> {
-    match (init.preset, init.data) {
-        (Preset::PresetHirate, None) => Ok(PartialPosition::startpos()),
-        (_preset, Some(state)) => partial_from_state(state),
-        (preset, None) => Err(InitialPosError::UnsupportedPreset(preset)),
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shogi_kifu_converter_obsshogi::parser::parse_kif_str;
+
+    const HANDICAPS: [&str; 15] = [
+        "香落ち",
+        "右香落ち",
+        "角落ち",
+        "飛車落ち",
+        "飛香落ち",
+        "二枚落ち",
+        "三枚落ち",
+        "四枚落ち",
+        "五枚落ち",
+        "左五枚落ち",
+        "六枚落ち",
+        "右七枚落ち",
+        "左七枚落ち",
+        "八枚落ち",
+        "十枚落ち",
+    ];
+
+    /// 手合割つきは上手（後手）から指す。平手だけ先手からなので初手を分ける
+    fn handicap_jkf(name: &str) -> Jkf {
+        let first = if name == "平手" {
+            "７六歩(77)"
+        } else {
+            "３四歩(33)"
+        };
+        parse_kif_str(&format!(
+            "手合割：{name}\n\
+             手数----指手---------消費時間--\n   \
+             1 {first}   ( 0:01/00:00:01)\n"
+        ))
+        .expect("読めること")
     }
-}
 
-fn partial_from_state(state: StateFormat) -> Result<PartialPosition, InitialPosError> {
-    let mut pos = PartialPosition::empty();
-
-    // 手番
-    pos.side_to_move_set(to_core_color(state.color));
-
-    // 盤面：JKFのboardは board[x-1][y-1] 前提で読む
-    for x in 1..=9u8 {
-        for y in 1..=9u8 {
-            let sq = Square::new(x, y).ok_or(InitialPosError::InvalidSquare { x, y })?;
-
-            let jp: JkfPiece = state.board[(x - 1) as usize][(y - 1) as usize];
-            let piece = jkf_piece_to_core_piece(jp)?;
-            pos.piece_set(sq, piece);
+    /// 手合割の棋譜が索引に入る。
+    ///
+    /// パーサは手合割の盤面を `{preset, data: None}` に畳む（`normalize_initial`）。
+    /// **手合割の棋譜はここへ `data` 無しで届くのが通常**で、例外ではない。
+    /// 盤面を自前で組み直さず、クレートの表に任せる理由がこれ。
+    #[test]
+    fn every_handicap_yields_an_initial_position() {
+        for name in HANDICAPS {
+            let jkf = handicap_jkf(name);
+            initial_partial_position(&jkf).unwrap_or_else(|e| panic!("{name}: {e}"));
         }
     }
 
-    // 持ち駒（JKF: hands[0]=先手, hands[1]=後手 として扱う）
-    set_hand(&mut pos, CoreColor::Black, state.hands[0])?;
-    set_hand(&mut pos, CoreColor::White, state.hands[1])?;
-
-    Ok(pos)
-}
-
-fn set_hand(
-    pos: &mut PartialPosition,
-    color: CoreColor,
-    h: JkfHand,
-) -> Result<(), InitialPosError> {
-    let mut hand = CoreHand::new();
-
-    hand = add_n(hand, PieceKind::Pawn, h.FU)?;
-    hand = add_n(hand, PieceKind::Lance, h.KY)?;
-    hand = add_n(hand, PieceKind::Knight, h.KE)?;
-    hand = add_n(hand, PieceKind::Silver, h.GI)?;
-    hand = add_n(hand, PieceKind::Gold, h.KI)?;
-    hand = add_n(hand, PieceKind::Bishop, h.KA)?;
-    hand = add_n(hand, PieceKind::Rook, h.HI)?;
-
-    *pos.hand_of_a_player_mut(color) = hand;
-    Ok(())
-}
-
-// Hand::added を回す（Hand APIはこれが基本）:contentReference[oaicite:1]{index=1}
-fn add_n(mut hand: CoreHand, pk: PieceKind, n: u8) -> Result<CoreHand, InitialPosError> {
-    for _ in 0..n {
-        hand = hand.added(pk).ok_or(InitialPosError::InvalidHand)?;
-    }
-    Ok(hand)
-}
-
-fn jkf_piece_to_core_piece(p: JkfPiece) -> Result<Option<Piece>, InitialPosError> {
-    match (p.color, p.kind) {
-        (Some(c), Some(k)) => {
-            let pk = to_piece_kind(k)?;
-            Ok(Some(Piece::new(pk, to_core_color(c))))
+    /// 手合割ごとに違う開始局面になる。
+    ///
+    /// 表を引き違えて全部が平手になっても、上のテストは通ってしまう。
+    /// `PositionKey` は開始局面から作るので、**取り違えると別の棋譜が
+    /// 同じ局面として索引に入る**。
+    #[test]
+    fn each_handicap_is_a_distinct_position() {
+        let mut seen = std::collections::HashSet::new();
+        for name in HANDICAPS {
+            let pos = initial_partial_position(&handicap_jkf(name)).expect(name);
+            assert!(
+                seen.insert(pos.to_sfen_owned()),
+                "{name} が他と同じ局面になった"
+            );
         }
-        (None, None) => Ok(None),
-        // “片方だけSome” は基本不正データなので、方針次第でエラーにしてもOK
-        _ => Ok(None),
-    }
-}
-
-fn to_piece_kind(k: JkfKind) -> Result<PieceKind, InitialPosError> {
-    Ok(match k {
-        JkfKind::FU => PieceKind::Pawn,
-        JkfKind::KY => PieceKind::Lance,
-        JkfKind::KE => PieceKind::Knight,
-        JkfKind::GI => PieceKind::Silver,
-        JkfKind::KI => PieceKind::Gold,
-        JkfKind::KA => PieceKind::Bishop,
-        JkfKind::HI => PieceKind::Rook,
-        JkfKind::OU => PieceKind::King,
-        JkfKind::TO => PieceKind::ProPawn,
-        JkfKind::NY => PieceKind::ProLance,
-        JkfKind::NK => PieceKind::ProKnight,
-        JkfKind::NG => PieceKind::ProSilver,
-        JkfKind::UM => PieceKind::ProBishop,
-        JkfKind::RY => PieceKind::ProRook,
-    })
-}
-
-fn to_core_color(c: JkfColor) -> CoreColor {
-    match c {
-        JkfColor::Black => CoreColor::Black,
-        JkfColor::White => CoreColor::White,
+        let hirate = initial_partial_position(&handicap_jkf("平手")).expect("平手");
+        assert!(
+            !seen.contains(&hirate.to_sfen_owned()),
+            "手合割が平手と同じ局面になった"
+        );
     }
 }
