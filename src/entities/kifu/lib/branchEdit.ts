@@ -314,6 +314,26 @@ export function swapBranchesInKifu(
 }
 
 /**
+ * 削除で消える手数
+ *
+ * **`deleteBranchInKifu` と同じ経路で数える。** 別々に数えると、確認に出した数と
+ * 実際に消える数が食い違う。数えるだけで `kifu` は書き換えない。
+ *
+ * 「取り消せない操作の前に、何がどれだけ消えるかを見せる」ためのものなので、
+ * 数えられなかったときは呼び出し側が数を伏せて確認を出すこと。**数が出ないことを
+ * 理由に確認を飛ばさない。**
+ *
+ * @throws {Error} `deleteBranchInKifu` と同じ条件（解決できないクエリ、範囲外の `target`）
+ */
+export function countMovesToDelete(kifu: JKFData, q0: DeleteQuery): number {
+  const q = normalizeRef(q0);
+  const h = resolveBranchPoint(kifu, q);
+  const candidates = readCandidates(h);
+  assertBranchIndex(q.target, candidates);
+  return candidates[q.target].length;
+}
+
+/**
  * 分岐点の候補を1つ消す
  *
  * `kifu` をその場で書き換える。呼び出し側は `cloneJkf` した複製を渡すこと。

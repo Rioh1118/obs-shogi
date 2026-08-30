@@ -6,12 +6,15 @@ import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
 import { plannedCursorFrom, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import {
+  branchLabel,
   neighborBranchIndex,
   MAIN_LINE,
   type BranchIndex,
   type DeleteQuery,
   type SwapQuery,
 } from "@/entities/kifu/model/branch";
+import { countMovesToDelete } from "@/entities/kifu/lib/branchEdit";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
 import {
@@ -32,6 +35,21 @@ const RECENT_SCROLL_MS = 120;
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
+/**
+ * 削除の確認に出すもの。
+ *
+ * クエリをそのまま持つ。確認のあとで組み直すと、押した行と実際に消える枝が
+ * 食い違いうる（間に棋譜が変わる）。
+ */
+type PendingDelete = {
+  query: DeleteQuery;
+  /** 「本譜」か「変化N」 */
+  label: string;
+  /** 消える線の1手目。読めなければ空 */
+  firstMove: string;
+  /** 消える手数。数えられなければ null（数を伏せて確認だけ出す） */
+  moveCount: number | null;
+};
 type OpenCommentNote = {
   cursor: KifuCursor;
   anchorEl: HTMLButtonElement;
@@ -57,6 +75,8 @@ export default function KifuStreamList() {
 
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const plannedCursor = useMemo(
     () => plannedCursorFrom(state.cursor, state.branchPlan),
@@ -155,17 +175,50 @@ export default function KifuStreamList() {
     [swapBranches],
   );
 
+  // 押した瞬間には消さない。**確認を挟む。**
+  //
+  // 分岐メニューの「削除」は「上へ」「下へ」と同じポップオーバーの中にあり、
+  // 区切り線1本しか隔てていない。取り消しは無く（ADR-0004 決定8 は undo を採らない）、
+  // `deleteBranch` は消したうえで元のファイルへ即書き込む。誤クリックでも同じ結果になる。
   const onDeleteBranch = useCallback(
-    async (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
-      const q: DeleteQuery = {
+    (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
+      const query: DeleteQuery = {
         te,
         forkPointers: branchForkPointers,
         target: branchIndex,
       };
-      await deleteBranch(q); // async-result-ignored: 失敗を出す口がまだ無い → #198
+
+      const row = rows.find((r) => r.te === te);
+      const forkIndex = branchIndex === MAIN_LINE ? undefined : branchIndex - 1;
+
+      // 数えるのは実際に消す関数と同じ経路。解決できないクエリはここで throw するが、
+      // それは削除自体も通らないということなので、数を伏せて確認だけ出す（#198 の担当）。
+      let moveCount: number | null = null;
+      if (state.jkf) {
+        try {
+          moveCount = countMovesToDelete(state.jkf, query);
+        } catch {
+          moveCount = null;
+        }
+      }
+
+      setOpenFork(null);
+      setOpenMoveMenu(null);
+      setPendingDelete({
+        query,
+        label: branchLabel(forkIndex),
+        firstMove: (forkIndex === undefined ? row?.mainText : row?.forkTexts[forkIndex]) ?? "",
+        moveCount,
+      });
     },
-    [deleteBranch],
+    [rows, state.jkf],
   );
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    await deleteBranch(pendingDelete.query); // async-result-ignored: 失敗を出す口がまだ無い → #198
+  }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
     (row: RowModel, anchorEl: HTMLButtonElement) => {
@@ -190,6 +243,8 @@ export default function KifuStreamList() {
     setOpenComment(null);
     setOpenFork(null);
     setOpenMoveMenu(null);
+    // 確認を出したまま棋譜が変わると、押した瞬間に**別のファイルの枝**が消える
+    setPendingDelete(null);
   }, [state.loadedAbsPath]);
 
   useEffect(() => {
@@ -316,8 +371,7 @@ export default function KifuStreamList() {
           if (!r) return;
 
           const branchIndex = branchIndexFromRow(r);
-          void onDeleteBranch(te, r.branchForkPointers, branchIndex);
-          setOpenMoveMenu(null);
+          onDeleteBranch(te, r.branchForkPointers, branchIndex);
         }}
       />
 
@@ -328,6 +382,22 @@ export default function KifuStreamList() {
         anchorEl={openComment?.anchorEl ?? null}
         onClose={closeCommentNote}
       />
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
+          subtitle={[
+            pendingDelete.firstMove && `${pendingDelete.firstMove} から先`,
+            pendingDelete.moveCount !== null && `${pendingDelete.moveCount}手`,
+            "が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          isLoading={state.isLoading}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
 
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {
