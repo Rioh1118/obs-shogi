@@ -1,4 +1,5 @@
 import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import { forkIndexOrNull, MAIN_LINE, type BranchIndex } from "@/entities/kifu/model/branch";
 
 /**
  * まだディスクへ書けていない下書きの置き場。
@@ -75,7 +76,16 @@ function parseKey(
   return { tesuu, forkPath };
 }
 
-/** 番号が振り直された分岐点と、そこで動いた範囲 */
+/**
+ * 番号が振り直された分岐点と、そこで動いた範囲
+ *
+ * **入れ替えと削除で動き方が違う。** 入れ替えは指した2つだけが入れ替わり、
+ * 削除は消した位置から後ろが全部1つ詰まる。同じ形で表すと、
+ * 入れ替えのときに**番号が1つも動いていない変化まで落とす**。
+ *
+ * 組むのは `branchNumberingForSwap` / `branchNumberingForDelete`。
+ * 呼び出し側で `te` と数を並べない（並べると、どちらの形かを取り違える）。
+ */
 export type BranchNumbering = {
   /** 分岐点の手数 */
   te: number;
@@ -83,9 +93,48 @@ export type BranchNumbering = {
   forkPointers: readonly { te: number; forkIndex: number }[];
   /** 本譜そのものが差し替わったか（本譜の削除、本譜を含む入れ替え） */
   mainLineMoved: boolean;
-  /** 番号が動いた最小の `forkIndex`。変化の番号が1つも動かないなら null */
-  movedFromForkIndex: number | null;
-};
+} & (
+  | { kind: "swapped"; movedForkIndexes: readonly number[] }
+  | { kind: "shifted"; movedFromForkIndex: number }
+);
+
+/**
+ * 入れ替えで番号が動く範囲。`swapInPlace` が触るのは指した2つだけ
+ * （`entities/kifu/lib/branchEdit.ts`）。
+ */
+export function branchNumberingForSwap(
+  te: number,
+  forkPointers: readonly { te: number; forkIndex: number }[],
+  a: BranchIndex,
+  b: BranchIndex,
+): BranchNumbering {
+  const moved = [forkIndexOrNull(a), forkIndexOrNull(b)].filter((i): i is number => i !== null);
+  return {
+    kind: "swapped",
+    te,
+    forkPointers,
+    mainLineMoved: a === MAIN_LINE || b === MAIN_LINE,
+    movedForkIndexes: moved,
+  };
+}
+
+/**
+ * 削除で番号が動く範囲。`splice(target, 1)` なので、消した位置から後ろが全部詰まる。
+ * 本譜を消すと変化1が本譜へ繰り上がるので、変化の番号は0から全部動く。
+ */
+export function branchNumberingForDelete(
+  te: number,
+  forkPointers: readonly { te: number; forkIndex: number }[],
+  target: BranchIndex,
+): BranchNumbering {
+  return {
+    kind: "shifted",
+    te,
+    forkPointers,
+    mainLineMoved: target === MAIN_LINE,
+    movedFromForkIndex: forkIndexOrNull(target) ?? 0,
+  };
+}
 
 /** `te` より前の経路が同じか。違えば**別の線**なので番号は動かない */
 function sameStreamPrefix(
@@ -114,6 +163,9 @@ function sameStreamPrefix(
  * - `te` より前の経路が同じで、`te` に選択を持たず（本譜を辿る）、
  *   **本譜そのものが差し替わった**ときの `te` 以降の面
  *
+ * `readCandidates` は同じ手数の入れ子の変化を兄弟へ持ち上げるが、持ち上げたぶんは
+ * 並びの**末尾**に足されるので、既にある番号は動かない（`branchEdit.ts`）。
+ *
  * **番号を動かす書き込みが成功したあとに呼ぶこと。** 先に呼ぶと、
  * 失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
  *
@@ -134,7 +186,9 @@ export function dropUnsavedDraftsFor(absPath: string | null, moved: BranchNumber
     const hit =
       here === undefined
         ? moved.mainLineMoved && parsed.tesuu >= moved.te
-        : moved.movedFromForkIndex !== null && here.forkIndex >= moved.movedFromForkIndex;
+        : moved.kind === "swapped"
+          ? moved.movedForkIndexes.includes(here.forkIndex)
+          : here.forkIndex >= moved.movedFromForkIndex;
     if (hit) store.delete(key);
   }
 }
