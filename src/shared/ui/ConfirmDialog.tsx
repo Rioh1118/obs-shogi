@@ -47,6 +47,11 @@ export default function ConfirmDialog({
       <div className="confirm-dialog">
         <p className="confirm-dialog__title">{title}</p>
         {subtitle && <p className="confirm-dialog__sub">{subtitle}</p>}
+        {/* **実行中は「閉じても続く」と書く。** 走っている書き込みを止める経路は無い。
+            「キャンセル」のまま出すと、押した人は止めたと信じて閉じ、削除はそのまま
+            完了する。画面に出るのは「枝が消えたこと」だけで、止まらなかったことは
+            どこにも出ない。取り消せない操作の確認で一番まずい破れ方。 */}
+        {isLoading && <p className="confirm-dialog__sub">閉じても、この操作は続きます。</p>}
         {/* 領域は常設する（空でも DOM に置く）。中身と同時に入れると VoiceOver が
             live region の変化として読まない */}
         <div className="confirm-dialog__error" role="alert">
@@ -62,7 +67,7 @@ export default function ConfirmDialog({
           )}
         </div>
         <div className="confirm-dialog__actions">
-          <Button onClick={onCancel}>{cancelLabel}</Button>
+          <Button onClick={onCancel}>{isLoading ? "閉じる" : cancelLabel}</Button>
           {/* **失敗したあとは押せなくする。** ここでの再実行は、押した時点の指定を
               そのまま撃ち直す。失敗の間にメモリ側の棋譜が変わっていると、同じ指定が
               **別のものを指す**（分岐の削除では隣の変化が消える）。
