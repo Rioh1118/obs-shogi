@@ -69,7 +69,10 @@ export default function KifuStreamList() {
     const anchor = lastAnchorRef.current;
     setOpenFork(null);
     if (focusAnchor) {
-      requestAnimationFrame(() => anchor?.focus());
+      // preventScroll を外すと focus 既定のスクロールが走り、同じフレーム帯で動く
+      // scrollToRowSafeZone の位置合わせを「見えるところまで」に上書きしてしまう。
+      // 行の位置を決めるのは scrollToRowSafeZone だけにする。
+      requestAnimationFrame(() => anchor?.focus({ preventScroll: true }));
     }
   }, []);
 
