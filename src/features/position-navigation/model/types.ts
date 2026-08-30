@@ -1,12 +1,13 @@
-import type { ForkPointer } from "@/entities/kifu/model/cursor";
-
-export type PreviewCursorDraft = {
-  tesuu: number;
-  forkPointers: ForkPointer[];
-};
+import type { CursorPath } from "@/entities/kifu/model/cursor";
 
 export interface NavigationState {
-  PreviewCursor: PreviewCursorDraft;
+  /**
+   * プレビューが見ている位置と、そこへ降りるための選択。
+   *
+   * `tesuu` より先の `ForkPointer` を持ちうる。`handlePrevious` は `tesuu` だけ戻して
+   * 計画を残すので、戻ってから確定すると先の選択が `branchPlan` に引き継がれる。
+   */
+  PreviewCursor: CursorPath;
   /**
    * `buildNextOptions` が返した候補配列の添字。
    *

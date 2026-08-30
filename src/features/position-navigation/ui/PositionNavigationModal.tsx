@@ -11,8 +11,8 @@ import { truncatePlanFrom, upsertForkPointer } from "@/features/position-navigat
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
-import { normalizeForkPointers } from "@/entities/kifu/model/cursor";
-import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import type { CursorPath } from "@/entities/kifu/model/cursor";
 import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
 
@@ -21,15 +21,12 @@ import type { NavigationState } from "@/features/position-navigation/model/types
  *
  * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
  * `goto` が throw する。呼び出し側はレンダ中なので、ここで拾わないと画面が消える。
+ *
+ * 棋譜を複製せず共有してよいのは、ここが読むだけで `player.kifu` を書かないため。
  */
-function gotoPreview(
-  player: JKFPlayer,
-  cursor: NavigationState["PreviewCursor"],
-): JKFPlayer | null {
-  const sim = new JKFPlayer(player.kifu);
+function gotoPreview(player: JKFPlayer, cursor: CursorPath): JKFPlayer | null {
   try {
-    sim.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
-    return sim;
+    return buildPlayer(player.kifu, cursor);
   } catch {
     return null;
   }
@@ -139,16 +136,10 @@ function PositionNavigationModal() {
   const handleConfirm = useCallback(() => {
     if (!gameView.player) return;
 
-    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
-    if (!sim) return;
+    // 辿れない棋譜では `applyCursor` が catch してエラーを残すだけになる。閉じずにここで止める。
+    if (!gotoPreview(gameView.player, nav.PreviewCursor)) return;
 
-    const cursor: KifuCursor = {
-      tesuu: nav.PreviewCursor.tesuu,
-      forkPointers: nav.PreviewCursor.forkPointers,
-      tesuuPointer: sim.getTesuuPointer(nav.PreviewCursor.tesuu) as TesuuPointer,
-    };
-
-    applyCursor(cursor);
+    applyCursor(nav.PreviewCursor);
     closeModal();
   }, [applyCursor, closeModal, gameView.player, nav.PreviewCursor]);
 

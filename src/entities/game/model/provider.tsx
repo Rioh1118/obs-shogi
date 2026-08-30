@@ -22,6 +22,7 @@ import {
   normalizeForkPointers,
   plannedCursorFrom,
   type ForkPointer,
+  type CursorPath,
   type KifuCursor,
 } from "@/entities/kifu/model/cursor";
 import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
@@ -599,7 +600,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   }, [view.currentComments]);
 
   const applyCursor = useCallback(
-    (cursor: KifuCursor) => {
+    (cursor: CursorPath) => {
       if (!state.jkf) return;
 
       try {
