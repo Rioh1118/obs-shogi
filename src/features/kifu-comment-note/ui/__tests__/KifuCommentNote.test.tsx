@@ -337,6 +337,52 @@ describe("面が入れ替わるとき", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  /**
+   * **止め続けない側も固定する。** 止め続けると、書き込めない場所に置いた棋譜では
+   * ノートを閉じる手段が1つも無くなる（失敗を伝えるより悪い行き止まり）。
+   * `ConfirmDialog` の同じ判断には「閉じる道は塞がない」が付いているのに、
+   * こちらには付いていなかった。
+   */
+  it("同じ失敗が2回続いたら、ノートは閉じる", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("Permission denied (os error 13)"));
+    const onClose = vi.fn();
+    const view = open("/ws/a.kif");
+    await show(view, { onClose });
+    await type("メモ");
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 宛先が切り替わった枝は `setCommentsByCursor` を**呼ぶ前に**戻るので、
+   * 本文はディスクにもメモリの棋譜にも入っていない。失敗と同じだけ失うのに
+   * 1回で閉じると、理由を入れた赤い箱が1フレームも見えない。
+   */
+  it("宛先が切り替わっていても、初めての失敗ではノートを閉じない", async () => {
+    const onClose = vi.fn();
+    const view = open("/ws/a.kif");
+    await show(view, { onClose });
+    // 突き合わせは再レンダを跨いで拾うので、打つ前に切り替える
+    gameState.loadedAbsPath = "/ws/b.kif";
+    await type("メモ");
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    expect(setCommentsByCursor).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain("棋譜が切り替わった");
+  });
+
   // エディタを作り直す鍵と中身が別々の出どころだと1レンダずれ、
   // **移った先のエディタが前の手の本文で mount される**。
   // Lexical は初期値しか読まないので、そのまま最後まで残る。

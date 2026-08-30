@@ -181,8 +181,9 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   // 直に呼ぶ経路でも閉じたり移ったりする（分岐メニュー・手のメニュー・棋譜の差し替え）。
   // そこは閉じる手続きを通らないので、ここで書かないと**書きかけの本文が黙って消える**。
   //
-  // 書き切れなかったぶんは失われる。画面にもそう出している
-  // （「閉じると、この本文は失われます」）。面をまたいで預かる形は → #314
+  // **ここで書き切れなかったぶんは、失敗も本文も画面に出ない。** 面はもう外れており、
+  // 下の `showing()` が書き戻しを弾く。「閉じると、この本文は失われます」を出せるのは
+  // ノート自身の閉じる操作を通ったときだけ → #315。面をまたいで預かる形は → #314
   const leavingRef = useRef<Editing | null>(null);
   useEffect(() => {
     const prev = leavingRef.current;
@@ -256,14 +257,17 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       const target = editing;
 
       const result = await save(target.face, target.draft, target.baseText);
-      if (result === "failed" && !target.told) return;
+      // **`"skipped"` も同じだけ本文を失う。** 宛先が切り替わった枝は
+      // `setCommentsByCursor` を呼ぶ前に戻るので、本文はディスクにもメモリの棋譜にも
+      // 入っていない。ここで抜けると、理由を入れた赤い箱が1フレームも見えないまま閉じる。
+      if (result !== "saved" && !target.told) return;
 
       // 待っている間に別の面へ移っていたら、その面を閉じない。
       // `onClose` はどの面を閉じるかを引数に取らないので、そのまま呼ぶと
       // **入力中の別の手のノートが勝手に畳まれる**。
       if (faceRef.current?.key !== target.face.key) return;
 
-      if (result === "failed") {
+      if (result !== "saved") {
         // 諦めて閉じる。画面には「閉じると、この本文は失われます」と出しているので、
         // 失わせる。**基準へ戻すのは、この直後に面が消える効果がもう1本
         // 書きに行かないため。**
@@ -274,7 +278,6 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         leavingRef.current = settled;
         setEditing(settled);
       }
-      // `"skipped"`（宛先が消えた）でも同じ。元の棋譜へ戻れば本文は棋譜の側にある
     }
     onClose();
   }, [editing, dirty, save, onClose]);
