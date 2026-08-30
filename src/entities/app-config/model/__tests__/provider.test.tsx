@@ -7,31 +7,42 @@ import { useAppConfig } from "../useAppConfig";
 
 const loadConfig = vi.fn();
 const setRootDirApi = vi.fn();
+const chooseRootDirApi = vi.fn();
 
 vi.mock("../../api/config", () => ({
   loadConfig: (...args: unknown[]) => loadConfig(...args),
   saveConfig: vi.fn(),
+  backupBrokenConfig: vi.fn(),
 }));
 
 vi.mock("../../api/directories", () => ({
   setRootDir: (...args: unknown[]) => setRootDirApi(...args),
-  chooseRootDir: vi.fn(),
+  chooseRootDir: (...args: unknown[]) => chooseRootDirApi(...args),
   chooseAiRoot: vi.fn(),
 }));
 
 /** 呼び出しの成否と `isLoading` の両方を画面に出す */
 function Probe() {
-  const { isLoading, error, setRootDir } = useAppConfig();
+  const { isLoading, error, setRootDir, chooseRootDir } = useAppConfig();
   return (
     <div>
       <span data-testid="loading">{String(isLoading)}</span>
       <span data-testid="error">{error ?? "-"}</span>
       <button
+        data-testid="set"
         onClick={() => {
           void setRootDir("/next");
         }}
       >
         set
+      </button>
+      <button
+        data-testid="choose"
+        onClick={() => {
+          void chooseRootDir({ force: true });
+        }}
+      >
+        choose
       </button>
     </div>
   );
@@ -51,7 +62,7 @@ async function mountAndFail() {
   );
   await waitFor(() => expect(loadingText()).toBe("false"));
 
-  fireEvent.click(screen.getByRole("button"));
+  fireEvent.click(screen.getByTestId("set"));
   // 押した直後に `true` になっていることまで見る。見ないと、降ろし損ねの変異でも
   // 「最初から false のまま」で緑になり、この検査が空振りする
   expect(loadingText()).toBe("true");
@@ -75,6 +86,31 @@ describe("AppConfigProvider", () => {
     await mountAndFail();
 
     await waitFor(() => expect(loadingText()).toBe("false"));
+  });
+
+  /**
+   * ピッカーを閉じただけで、設定は1バイトも動いていない。にもかかわらず
+   * 「ルートディレクトリの初期化に失敗しました」に差し替わると、利用者は
+   * 自分がしていない操作を失敗として名指しされ、元の原因も画面から消える
+   */
+  it("選び直しを取り消しても、元の失敗の理由を消さない", async () => {
+    loadConfig.mockRejectedValue(new Error("壊れている"));
+    chooseRootDirApi.mockResolvedValue(null);
+
+    render(
+      <AppConfigProvider>
+        <Probe />
+      </AppConfigProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("error").textContent).toContain("設定の読み込みに失敗しました"),
+    );
+
+    fireEvent.click(screen.getByTestId("choose"));
+    await waitFor(() => expect(loadingText()).toBe("false"));
+
+    expect(screen.getByTestId("error").textContent).toContain("設定の読み込みに失敗しました");
+    expect(screen.getByTestId("error").textContent).not.toContain("初期化に失敗");
   });
 
   /**

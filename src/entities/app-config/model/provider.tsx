@@ -53,9 +53,16 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }
 
   async function chooseRootDir(opts = {}) {
-    dispatch({ type: "loading" });
+    // **ピッカーを開く前に `loading` を立てない。** `loading` は `error` も消すので、
+    // 立てると「選ぶのをやめた」だけで直前の失敗の理由が画面から消える。
+    // ネイティブのピッカーは自分で画面を止めるので、待たせる表示も要らない
     try {
       const rootDir = await chooseRootDirApi(opts);
+
+      // 取り消し。設定は1バイトも動いていないので、`config` も `error` も触らない
+      if (rootDir === null) return null;
+
+      dispatch({ type: "loading" });
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
       return rootDir;
@@ -69,9 +76,12 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }
 
   async function chooseAiRoot(opts = {}) {
-    dispatch({ type: "loading" });
+    // 理由は `chooseRootDir` と同じ
     try {
       const aiRoot = await chooseAiRootApi(opts);
+      if (aiRoot === null) return null;
+
+      dispatch({ type: "loading" });
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
       return aiRoot;
