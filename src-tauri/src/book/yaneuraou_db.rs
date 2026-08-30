@@ -1513,6 +1513,38 @@ mod tests {
         );
     }
 
+    /// **不変条件3。どの失敗も「次に何をすればよいか」で終わること。**
+    ///
+    /// 個々のテストは自分が見たい語しか assert しないので、復帰操作が消えても
+    /// 大半は緑のまま通る（実際、局面が1つも無い枝と局面より先の指し手の枝は
+    /// 種別しか見ていなかった）。**枝を1箇所に並べて、まとめて見る。**
+    ///
+    /// ここに並んでいない失敗の枝を足したら、この一覧にも足すこと。
+    #[test]
+    fn every_failure_ends_with_something_the_user_can_do() {
+        let long_move = "x".repeat(3000);
+        let cases: [(&str, String); 6] = [
+            ("空", String::new()),
+            ("注記だけ", "# a\n".to_string()),
+            ("定跡ではない", "これは定跡ではない\n".to_string()),
+            ("局面より先に指し手", "7g7f 3c3d 50 32 1\n".to_string()),
+            (
+                "指し手として読めない",
+                format!("sfen {HIRATE}\n{long_move}\n"),
+            ),
+            ("申告との不一致", format!("# NOE:2\nsfen {HIRATE}\n7g7f\n")),
+        ];
+
+        for (name, text) in cases {
+            let err = parsed(&text).unwrap_err();
+            let message = err.message();
+            assert!(
+                message.ends_with("こと"),
+                "{name}: 次に何をすればよいかで終わっていない: {message}"
+            );
+        }
+    }
+
     /// `sfen` 行の途中で切れたファイルでは、形式のキーワードが指し手の位置に来る。
     /// 形は満たすので、綴りで外さないと候補手に入る。
     #[test]
