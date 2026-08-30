@@ -101,14 +101,18 @@ export default function KifuStreamList() {
 
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   /**
-   * この削除自身が書いている最中か。
+   * いま書いている最中の削除。**どの削除かまで持つ。**
    *
    * **`state.isLoading` を使わない。** あれは「棋譜への書き込みが1つ以上走っている」で、
    * 誰の書き込みかを区別しない。コメントの自動保存が並行して終わると
    * 「削除中...」が解け、まだ書いている最中に「削除する」を押し直せる。
    * そのとき候補列は既に1つ減っているので、**確認していない枝が消える。**
+   *
+   * 真偽値1つでも足りない。実行中でも確認は閉じられる（塞ぐと出口ゼロの
+   * 行き止まりになる）ので、閉じてから**別の枝**の確認を開ける。
+   * 誰の書き込みかを持たないと、その新しい確認が最初から「削除中...」で出る。
    */
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState<DeleteQuery | null>(null);
 
   const plannedCursor = useMemo(
     () => plannedCursorFrom(state.cursor, state.branchPlan),
@@ -274,8 +278,11 @@ export default function KifuStreamList() {
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
 
-    setDeleting(true);
-    const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
+    const query = pendingDelete.query;
+    setDeleting(query);
+    const res = await deleteBranch(query).finally(() =>
+      setDeleting((cur) => (cur === query ? null : cur)),
+    );
     // 入れ替えと同じ理由。消すと、その分岐点の `forkIndex` が1つずつ詰まる
     if (res.success)
       dropUnsavedDraftsFor(
@@ -301,12 +308,15 @@ export default function KifuStreamList() {
     if (!res.success) {
       const stillHere = pendingDelete.absPath === loadedAbsPathRef.current;
       setPendingDelete((prev) => {
-        if (prev?.query === pendingDelete.query) return { ...prev, error: res.error };
+        if (prev?.query === query) return { ...prev, error: res.error };
+        // **別の確認が開いていたら、そちらを押し退けない。** 押し退けると、
+        // 利用者がいま読んでいる確認が、閉じたはずの別の枝の確認に黙って化ける。
+        if (prev) return prev;
         return stillHere ? { ...pendingDelete, error: res.error } : prev;
       });
       return;
     }
-    setPendingDelete((prev) => (prev?.query === pendingDelete.query ? null : prev));
+    setPendingDelete((prev) => (prev?.query === query ? null : prev));
   }, [deleteBranch, pendingDelete, state.loadedAbsPath]);
 
   const onOpenComment = useCallback(
@@ -477,7 +487,7 @@ export default function KifuStreamList() {
           title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
           subtitle={describeDelete(pendingDelete)}
           error={pendingDelete.error}
-          isLoading={deleting}
+          isLoading={deleting === pendingDelete.query}
           onConfirm={() => void confirmDelete()}
           onCancel={() => setPendingDelete(null)}
         />
