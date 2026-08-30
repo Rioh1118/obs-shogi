@@ -221,7 +221,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [state.jkf, state.cursor, state.branchPlan],
   );
 
-  // `Ok` は「棋譜が意図どおりになった」まで含む。**書き込みまで成功したかは別。**
+  // `Ok` は「棋譜が意図どおりになり、書けた」。書き込みが失敗したら `Err` を返す。
   // 何も変えなかった場合（棋譜が無い / `run` が `false` を返した / 局面が動かなかった）も
   // `Ok` にする。呼び出し側にとって「変える必要が無かった」は失敗ではない。
   const edit = useCallback(
