@@ -314,6 +314,41 @@ export function swapBranchesInKifu(
 }
 
 /**
+ * 線とその中にぶら下がる変化を、全部まとめて数える
+ *
+ * **`line.length` では足りない。** `readCandidates` が兄弟へ持ち上げるのは
+ * 各候補の**先頭の手**の `forks` だけで、2手目以降にぶら下がる変化は候補の中に残る。
+ * 候補ごと消えるので、数に入れないと「3手」と言って7手消すことになる。
+ */
+function countMovesDeep(line: IMoveFormat[]): number {
+  return line.reduce(
+    (total, move) =>
+      total + 1 + (move.forks ?? []).reduce((sub, fork) => sub + countMovesDeep(fork), 0),
+    0,
+  );
+}
+
+/**
+ * 削除で消える手数。**中にぶら下がる変化も含む。**
+ *
+ * **`deleteBranchInKifu` と同じ経路で解決する。** 別々に解決すると、確認に出した対象と
+ * 実際に消える対象が食い違う。数えるだけで `kifu` は書き換えない。
+ *
+ * 「取り消せない操作の前に、何がどれだけ消えるかを見せる」ためのものなので、
+ * 数えられなかったときは呼び出し側が数を伏せて確認を出すこと。**数が出ないことを
+ * 理由に確認を飛ばさない。**
+ *
+ * @throws {Error} `deleteBranchInKifu` と同じ条件（解決できないクエリ、範囲外の `target`）
+ */
+export function countMovesToDelete(kifu: JKFData, q0: DeleteQuery): number {
+  const q = normalizeRef(q0);
+  const h = resolveBranchPoint(kifu, q);
+  const candidates = readCandidates(h);
+  assertBranchIndex(q.target, candidates);
+  return countMovesDeep(candidates[q.target]);
+}
+
+/**
  * 分岐点の候補を1つ消す
  *
  * `kifu` をその場で書き換える。呼び出し側は `cloneJkf` した複製を渡すこと。

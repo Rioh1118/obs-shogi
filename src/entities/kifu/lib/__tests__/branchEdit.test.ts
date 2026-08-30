@@ -5,9 +5,10 @@ import {
   branchIndexFromForkIndex,
   buildTesuuPointer,
   neighborBranchIndex,
+  type DeleteQuery,
 } from "@/entities/kifu/model/branch";
 import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
-import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
+import { countMovesToDelete, deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**
  * 分岐編集は `forks` の形しか見ないので、指し手の中身は区別が付く印で足りる。
@@ -311,5 +312,94 @@ describe("同じ手数の入れ子の変化", () => {
 
     expect(tags(kifu.moves)).toEqual(["root", "t1", "main2"]);
     expect(kifu.moves[2].forks?.map(tags)).toEqual([["g0"], ["f0"]]);
+  });
+});
+
+/** JKF 全体の手数。`forks` の中も数える。照合側が1段しか見ないと入れ子の差を見逃す */
+function countAll(moves: JKFMove[] | undefined): number {
+  return (moves ?? []).reduce(
+    (n, m) => n + 1 + (m.forks ?? []).reduce((s, f) => s + countAll(f), 0),
+    0,
+  );
+}
+
+describe("countMovesToDelete", () => {
+  // 確認に出す数が実際に消える数と食い違うと、確認の意味が無くなる。
+  // **同じ棋譜に対して、数えた数と削除後の減りぶんが一致すること**を固定する。
+  test("数えた手数と、実際に消える手数が一致する", () => {
+    const q: DeleteQuery = { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) };
+
+    const counted = countMovesToDelete(kifuWithTwoForks(), q);
+
+    const kifu = kifuWithTwoForks();
+    const before = countAll(kifu.moves);
+    deleteBranchInKifu(kifu, q, null);
+
+    expect(counted).toBe(before - countAll(kifu.moves));
+  });
+
+  // **これが確認ダイアログの本題。** 研究の棋譜は変化の中に変化を持つのが普通で、
+  // 深いほど失うものが大きい。`candidates[target].length` は線の長さしか見ないので、
+  // いちばん過少に出るのが**いちばん消えるとき**になる。
+  test("消える線の中にぶら下がる変化も数える", () => {
+    // 変化1 = [f0a, f0b]。f0b の下にさらに3手の変化。消えるのは 2 + 3 = 5手
+    const nested = (): JKFData => ({
+      header: {},
+      moves: [
+        mv("root"),
+        mv("t1"),
+        mv("main2", [[mv("f0a"), mv("f0b", [[mv("g0"), mv("g1"), mv("g2")]])]]),
+        mv("main3"),
+      ],
+    });
+    const q: DeleteQuery = { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) };
+
+    const counted = countMovesToDelete(nested(), q);
+    expect(counted).toBe(5);
+
+    const kifu = nested();
+    const before = countAll(kifu.moves);
+    deleteBranchInKifu(kifu, q, null);
+
+    expect(counted).toBe(before - countAll(kifu.moves));
+  });
+
+  test("本譜は te 以降の手数を数える", () => {
+    // moves = [root, t1, main2, main3] なので te=2 以降は2手。
+    // 変化ではなく本譜を指したときに 0 や undefined を返さないことを見る。
+    expect(
+      countMovesToDelete(kifuWithTwoForks(), { te: 2, forkPointers: [], target: MAIN_LINE }),
+    ).toBe(2);
+  });
+
+  test("数えるだけで棋譜を書き換えない", () => {
+    const kifu = kifuWithTwoForks();
+    const snapshot = JSON.stringify(kifu);
+
+    countMovesToDelete(kifu, { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) });
+
+    expect(JSON.stringify(kifu)).toBe(snapshot);
+  });
+
+  // 文言まで見る。`candidates[99].length` の TypeError でも `toThrow()` は通るので、
+  // 範囲検査を外す変異がそれだけでは落ちない。
+  test("範囲外の target は範囲の検査で落ちる（削除と同じ条件）", () => {
+    expect(() =>
+      countMovesToDelete(kifuWithTwoForks(), {
+        te: 2,
+        forkPointers: [],
+        target: 99 as never,
+      }),
+    ).toThrow(/out of range/);
+  });
+
+  test("整数でない target も落ちる", () => {
+    expect(() =>
+      countMovesToDelete(kifuWithTwoForks(), {
+        te: 2,
+        forkPointers: [],
+        target: 0.5 as never,
+      }),
+    ).toThrow(/not an integer/);
   });
 });
