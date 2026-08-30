@@ -234,7 +234,8 @@ export default function KifuStreamList() {
   //
   // ここで見るのは読み込んだファイルであって、棋譜の中身ではない。`state.jkf` は
   // コメントの保存でも別オブジェクトになるので、それを見ると入力中に一覧が
-  // カーソル行へ飛ぶ。同じパスを読み直したときは発火しないが、中身が同じなので害は無い。
+  // カーソル行へ飛ぶ。同じパスを読み直したときは、読み直す前のカーソルも0だった場合に
+  // 限って3つとも変わらないので戻さない。
   useEffect(() => {
     revealRow(state.cursor?.tesuu ?? 0, false);
   }, [state.loadedAbsPath, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
