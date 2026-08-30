@@ -1,12 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { ROOT_CURSOR, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import {
+  ROOT_CURSOR,
   mergeBranchPlan,
   plannedForkIndexAt,
   selectAt,
   truncatePlanFrom,
-  upsertForkPointer,
-} from "../branchPlan";
+  type ForkPointer,
+  type KifuCursor,
+} from "../cursor";
 
 const fp = (te: number, forkIndex: number): ForkPointer => ({ te, forkIndex });
 
@@ -53,9 +54,9 @@ describe("truncatePlanFrom", () => {
   });
 });
 
-describe("upsertForkPointer", () => {
+describe("selectAt の並び", () => {
   test("同じ te は上書きし、te 昇順で返す", () => {
-    expect(upsertForkPointer([fp(3, 0), fp(1, 0)], 3, 2)).toEqual([fp(1, 0), fp(3, 2)]);
+    expect(selectAt([fp(3, 0), fp(1, 0)], 3, 2)).toEqual([fp(1, 0), fp(3, 2)]);
   });
 });
 

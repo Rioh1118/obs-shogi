@@ -19,6 +19,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   ROOT_CURSOR,
   asBranchPlan,
+  mergeBranchPlan,
   normalizeForkPointers,
   plannedCursorFrom,
   sameForkPointers,
@@ -39,7 +40,6 @@ import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConv
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { cursorFromPlayer } from "@/entities/kifu/lib/playerCursor";
-import { mergeBranchPlan } from "@/entities/kifu/lib/branchPlan";
 import {
   setCommentsByCursorInJkf,
   getCommentsByCursor as getCommentsByCursorFromJkf,

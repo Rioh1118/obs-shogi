@@ -12,9 +12,14 @@ import {
   type DeleteQuery,
   type SwapQuery,
 } from "../model/branch";
-import { normalizeForkPointers, type CursorPath, type ForkPointer } from "../model/cursor";
+import {
+  normalizeForkPointers,
+  plannedForkIndexAt,
+  selectAt,
+  type CursorPath,
+  type ForkPointer,
+} from "../model/cursor";
 import { resolveLine, type LineRef } from "./resolveLine";
-import { plannedForkIndexAt, selectAt } from "./branchPlan";
 
 /**
  * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする

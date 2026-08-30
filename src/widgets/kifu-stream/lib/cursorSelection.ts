@@ -1,10 +1,12 @@
 import {
   buildTesuuPointer,
   normalizeForkPointers,
+  plannedForkIndexAt,
+  selectAt,
+  truncatePlanFrom,
   type KifuCursor,
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
-import { plannedForkIndexAt, selectAt, truncatePlanFrom } from "@/entities/kifu/lib/branchPlan";
 import { branchIndexFromSelection, type BranchIndex } from "@/entities/kifu/model/branch";
 import type { RowModel } from "../ui/KifuMoveCard";
 

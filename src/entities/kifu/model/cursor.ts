@@ -156,6 +156,59 @@ export function sameForkPointers(a: ForkPointer[], b: ForkPointer[]) {
 }
 
 /**
+ * 辿ったカーソルと、カーソルより先の計画を合成する。
+ *
+ * `prevPlan` / `overridePlan` を `fp.te > cursor.tesuu` で絞るのは、
+ * 「`branchPlan` の `te <= cursor.tesuu` の部分は `cursor.forkPointers` と一致する」
+ * （`docs/state-transitions/game.md` の不変条件1）を、この関数を通る書き込み経路が
+ * 守るため。他の経路は空にするか `cursor.forkPointers` をそのまま写して守っている。
+ */
+export function mergeBranchPlan(
+  cursor: KifuCursor,
+  prevPlan: ForkPointer[],
+  overridePlan?: ForkPointer[],
+): BranchPlan {
+  return asBranchPlan(
+    normalizeForkPointers([
+      ...cursor.forkPointers,
+      ...prevPlan.filter((fp) => fp.te > cursor.tesuu),
+      ...(overridePlan ?? []).filter((fp) => fp.te > cursor.tesuu),
+    ]),
+  );
+}
+
+/**
+ * te 以降の計画を捨てる
+ *
+ * te の選択を変えたら、その先の計画は別の枝に対して作られた値なので意味を失う。
+ * 残すと、利用者が一度も見ていない変化に盤が入る。
+ */
+export function truncatePlanFrom(fps: ForkPointer[], te: number): ForkPointer[] {
+  return fps.filter((p) => p.te < te);
+}
+
+/**
+ * te の選択を差し替える。`null` は「本譜を選ぶ」＝その te の選択を消す。
+ * **計画に選択を書く口はこれ1つ。**
+ *
+ * 本譜を `forkIndex` の無い状態で表すのは `ForkPointer` の作りに従ったもの。
+ * `0` は「変化の0番目」であって本譜ではない。
+ *
+ * 返りは te 昇順。`mergeBranchPlan` や `normalizeForkPointers` と同じ並びで
+ * 返さないと、比べる側（`sameForkPointers`）が並び順の違いだけで別の計画と判定する。
+ */
+export function selectAt(fps: ForkPointer[], te: number, forkIndex: number | null): ForkPointer[] {
+  const without = fps.filter((p) => p.te !== te);
+  if (forkIndex != null) without.push({ te, forkIndex });
+  return without.sort((a, b) => a.te - b.te);
+}
+
+/** te に計画された選択。無ければ `null`（＝本譜）。 */
+export function plannedForkIndexAt(fps: ForkPointer[], te: number): number | null {
+  return fps.find((p) => p.te === te)?.forkIndex ?? null;
+}
+
+/**
  * JKFPlayer から cursor を生成するための最小インタフェース。
  * （types 層が JKFPlayer クラスに直接依存しないための抽象）
  */
