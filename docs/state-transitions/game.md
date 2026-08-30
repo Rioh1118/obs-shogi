@@ -172,7 +172,8 @@ P2 は state の中に印が無い。`error` は7箇所で消える（局面を�
 
 そもそも `state.error` には**読み手が0**で、上の表の「`error` に載る」は state に載るだけで
 画面には出ない。発火元の数と読み手の数を数えているのは
-[failure-surfacing.md](failure-surfacing.md) の F-12 なので、そちらを見る。
+[failure-surfacing.md](failure-surfacing.md) の F-12a（保存）と F-12b（操作）なので、
+そちらを見る。この段落が言っているのは保存の側で、F-12a。
 
 分岐メニューの失敗もここに落ちる。壊れた計画が残っていると `applyCursor` の中で
 `goto` が `TypeError` を投げ、`catch` が `set_error` に落として終わる。
