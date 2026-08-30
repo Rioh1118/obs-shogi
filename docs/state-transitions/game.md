@@ -1,7 +1,8 @@
 # 状態遷移表: game（L1）
 
 対象: `src/entities/game/model/provider.tsx` と `reducer.ts`、
-`src/entities/kifu/lib/cursorRuntime.ts`、`src/entities/kifu/lib/advanceWithPlan.ts`、
+`src/entities/kifu/lib/playerCursor.ts`、`src/entities/kifu/lib/branchPlan.ts`、
+`src/entities/kifu/lib/advanceWithPlan.ts`、
 および分岐メニューを持つ `src/widgets/kifu-stream/`。
 
 上位は [app.md](app.md)。分岐を指す値の分類は [branch-index.md](branch-index.md)、
@@ -108,10 +109,10 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | -------------------------- | -------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------ |
 | **E1** `loadGame`          | → G1           | → G1（前の計画は消える）                                             | → G1（同左）                                                                                | ✗      |
 | **E2** `resetGame`         | —              | → G0                                                                 | → G0                                                                                        | ✗      |
-| **E3** `nextMove`          | 無視           | いま辿っている線を1手進む                                            | `te = tesuu+1` の計画があればそこへ降りる。壊れた計画・線の末尾より先の計画は捨てて本譜へ※1 | ✓      |
+| **E3** `nextMove`          | 無視           | いま辿っている線を1手進む                                            | `te = tesuu+1` の計画があればそこへ降りる。壊れた計画・線の末尾より先の計画は捨てて本譜へ※1 | △※5    |
 | **E4** `previousMove`      | 無視           | 1手戻る。**戻る前の `tesuu` に fork ポインタがあるときだけ G2 へ**   | 1手戻る。G2 のまま                                                                          | ✗      |
 | **E5** `goToStart`         | 無視           | te 0 へ。**`cursor.forkPointers` が空でなければ G2 へ**              | te 0 へ。G2 のまま                                                                          | ✗      |
-| **E6** `goToEnd`           | 無視           | いま辿っている線の葉まで                                             | 計画に沿って降りた葉 → G1。壊れた計画・末尾より先の計画は捨てて本譜へ※1                     | ✓      |
+| **E6** `goToEnd`           | 無視           | いま辿っている線の葉まで                                             | 計画に沿って降りた葉 → G1。壊れた計画・末尾より先の計画は捨てて本譜へ※1                     | △※5    |
 | **E7** `goToIndex(n)`      | 無視           | `n` までいま辿っている線を進む                                       | `te <= n` の計画に沿って降りる。`n < tesuu` なら G2 のまま                                  | ✗      |
 | **E8** `applyCursor(c)`    | 無視           | `c` の局面へ。`c` が `te > c.tesuu` を持てば → G2                    | `c.forkPointers` と旧計画の `te > c.tesuu` を**両方**残す                                   | ✗      |
 | **E9** 「本譜」            | 無視           | `te` に選択があれば `applyCursor` で落とす。無ければ `goToIndex(te)` | 同じ規則。計画に選択があるので `applyCursor` へ行き、本譜へ戻る※2                           | ✓      |
@@ -133,6 +134,11 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 **盤の再生そのものは別で、再生できない手に当たれば `forward` が投げる。**
 `navigate` の `catch` が `set_error` に落とすが読み手が0なので、そのときは
 盤が1手も動かず画面には何も出ない。
+
+※5 `△` は「歩き方の部品だけ固定されている」の意。`advanceWithPlan.test.ts` が
+1手ぶんの規則（壊れた計画を捨てて本譜へ落ちる）を固定しているだけで、
+**`navigate` を通した `state.branchPlan` の遷移（G2 のまま残るか G1 に落ちるか）は
+未検証**。`provider.tsx` にテストは1本も無い。
 
 ※2 振り分けるのは `resolveForkSelection`。比較先は `PlannedCursor` で、
 `KifuCursor` は型で弾く。行のチェックとの食い違いは不変条件2 を見る。
@@ -252,7 +258,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 
 | セル                                                   | 状態                                                                                                                                                                                               |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GameProvider` 自体の遷移すべて                        | **テスト無し。** `provider.tsx` にテストが1本も無い。上の表で ✗ を付けたものは全部これ                                                                                                             |
+| `GameProvider` 自体の遷移すべて                        | **テスト無し。** `provider.tsx` にテストが1本も無い。上の表の ✗ は全部これで、`△` も provider を通る部分は同じく未検証                                                                             |
 | **E9** / **E10** 分岐メニュー                          | ✓ `cursorSelection.test.ts`。ただし `resolveForkSelection` の**振り分けまで**。`applyCursor` / `goToIndex` を通した結果は未検証                                                                    |
 | **E15** でツリーの取得が失敗したとき                   | **未検証 → #245。** `kifu_closed` が来ないので旧ワークスペースの `activeKifuPath` と `persistence` が残る。読み込み中の窓も見ていない                                                              |
 | `(G2, P2)` で `loadGame`                               | **テスト無し。** 未保存の編集と先の計画が同時に消える。手で再現していない                                                                                                                          |
@@ -267,11 +273,14 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 
 - 状態と action: `src/entities/game/model/types.ts`、`src/entities/game/model/reducer.ts`
 - 書き込み7経路: `src/entities/game/model/provider.tsx`
-- 計画の合成: `src/entities/kifu/lib/cursorRuntime.ts` の `mergeBranchPlan`
+- 計画の合成: `src/entities/kifu/lib/branchPlan.ts` の `mergeBranchPlan`
+- 辿ったカーソルの生成: `src/entities/kifu/lib/playerCursor.ts` の `cursorFromPlayer`
 - 計画に沿った走査: `src/entities/kifu/lib/advanceWithPlan.ts`
 - 2つの型: `src/entities/kifu/model/cursor.ts` の `KifuCursor` / `PlannedCursor`
 - 行と分岐メニュー: `src/widgets/kifu-stream/`
 - テスト: `src/entities/game/model/__tests__/reducer.test.ts`（identity のみ）、
   `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts`、
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
-  `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`
+  `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`、
+  `src/entities/kifu/lib/__tests__/advanceWithPlan.test.ts`、
+  `src/entities/kifu/lib/__tests__/branchPlan.test.ts`
