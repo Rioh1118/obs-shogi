@@ -177,10 +177,17 @@ fn parse_move(line: &str) -> BookMove {
     }
 }
 
+/// 指し手が無いことを表す綴り。
+///
+/// 出典: 本家 `source/book/book.cpp:118-119`。`move` と `ponder` の両方で
+/// 同じ3綴りを見ている。`none` だけを見ると、`None` や `resign` が
+/// **指し手として扱える形**でフロントへ渡る。
+const ABSENT_MOVE: [&str; 3] = ["none", "None", "resign"];
+
 /// 応手の欄を読む。省略・空欄・「指し手が無い」の綴りはすべて欠損。
 fn optional_move(token: Option<&str>) -> Option<String> {
     let token = token?.trim();
-    if token.is_empty() || token == "none" {
+    if token.is_empty() || ABSENT_MOVE.contains(&token) {
         return None;
     }
     Some(token.to_string())
@@ -337,6 +344,19 @@ mod tests {
         assert_eq!(moves[1].value, None);
         assert_eq!(moves[1].depth, None);
         assert_eq!(moves[1].count, Some(1234));
+    }
+
+    /// 本家は `none` / `None` / `resign` の3綴りを「指し手が無い」として扱う
+    /// （`book.cpp:118-119`）。1つでも取りこぼすと、指し手として扱える形で
+    /// フロントへ渡る。
+    #[test]
+    fn every_spelling_of_an_absent_ponder_is_dropped() {
+        for spelling in ["none", "None", "resign"] {
+            let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f {spelling} 50 32 1\n");
+            let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+            assert_eq!(moves[0].ponder, None, "spelling={spelling}");
+            assert_eq!(moves[0].value, Some(50), "spelling={spelling}");
+        }
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
