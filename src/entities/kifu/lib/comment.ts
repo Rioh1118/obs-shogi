@@ -43,12 +43,32 @@ function getMoveByCursor(jkf: JKFData, cursor: CursorPath | null): JKFMove | nul
   }
 }
 
+/**
+ * cursor が指す手のコメントを行の配列で返す。
+ *
+ * 解決できないカーソル（実在しない変化を指す、線の末尾より先）でも throw せず
+ * 空配列。**「コメントが無い」と「その手に届かなかった」は区別できない。**
+ */
 export function getCommentsByCursor(jkf: JKFData, cursor: CursorPath | null): string[] {
   const move = getMoveByCursor(jkf, cursor);
   if (!move?.comments) return [];
   return normalizeCommentLines(move.comments);
 }
 
+/**
+ * cursor が指す手にコメントを書く。
+ *
+ * **`jkf` をその場で書き換える。** 複製は返さないので、React の state を
+ * そのまま渡さないこと（`cloneJkf` した複製を渡す）。
+ *
+ * 1要素に改行が混ざっていれば行に分解して書く。JKF の `comments` は
+ * 1要素 = 1行なので、分解しないと壊れた JKF をファイルに書き戻すことになる。
+ *
+ * 返りの2つは別のことを言う。
+ * - `ok: false` … カーソルを解決できず**1文字も書いていない**。呼び出し側は
+ *   利用者の入力を捨ててはいけない
+ * - `changed: false` … 解決はできたが中身が同じだった。保存する必要が無い
+ */
 export function setCommentsByCursorInJkf(
   jkf: JKFData,
   cursor: CursorPath,
