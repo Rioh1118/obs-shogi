@@ -131,11 +131,13 @@ pub fn create_kifu_file<R: Runtime>(
 
     validate_under_root(&app, &file_path)?;
 
-    // JKFデータを正規化
+    // ここに来る JKF は webview 側が組んだもので、パーサ由来ではない。
+    // `parse_*` の戻り値なら正規化済みだが、この経路はそうではないので呼ぶ。
+    // なお `import_kifu_file` と `write_kifu_to_file` は呼ばない（#322）
     jkf_data.normalize().map_err(|e| {
         FsError::new(
             FsErrorCode::KifuConversionFailed,
-            format!("normalize failed: {:?}", e),
+            format!("normalize failed: {e}"),
         )
     })?;
 

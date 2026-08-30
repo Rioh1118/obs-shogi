@@ -59,8 +59,11 @@ fn convert_jkf_to_string_internal(
     jkf: &mut JsonKifuFormat,
     format: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    jkf.normalize()
-        .map_err(|e| format!("正規化エラー: {:?}", e))?;
+    // ここに来る JKF は**パーサではなく webview 側**が組んだもの。`parse_*` が
+    // 返す JKF なら正規化済みなので呼び直しになるが、この経路の JKF は
+    // TS 側で指し手を足したあとの状態で、`piece` や `same` が埋まっていない。
+    // 呼ばないと書き出し側が局面を組めない
+    jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 
     let content = match format.to_lowercase().as_str() {
         "kif" => jkf.try_to_kif_owned()?,
@@ -152,7 +155,7 @@ pub async fn normalize_jkf(mut jkf: JsonKifuFormat) -> ConvertKifuResponse {
             success: false,
             content: None,
             normalized_jkf: None,
-            error: Some(format!("正規化エラー: {:?}", error)),
+            error: Some(format!("正規化エラー: {error}")),
         },
     }
 }
