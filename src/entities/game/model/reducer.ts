@@ -102,8 +102,14 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     case "clear_error":
       return state.error === null ? state : { ...state, error: null };
 
+    // `game_loaded` と同じ理由で `pendingWrites` を持ち越す。
+    // 棋譜を閉じるのは書き込みが走っている最中にも起こる（ワークスペースの切り替え）。
     case "reset_state":
-      return initialGameState;
+      return {
+        ...initialGameState,
+        pendingWrites: state.pendingWrites,
+        isLoading: state.pendingWrites > 0,
+      };
 
     default:
       return state;

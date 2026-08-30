@@ -228,12 +228,18 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     async (
       run: (player: JKFPlayer, nextJkf: JKFData) => boolean | void,
       errorMessage: string,
-      opt?: { forceCommit?: boolean },
+      opt?: { forceCommit?: boolean; background?: boolean },
     ): AsyncResult<void, string> => {
       if (!state.jkf) return Ok(undefined);
 
+      // `isLoading` は棋譜一覧の全行を無効にする。**利用者が起動していない書き込みで
+      // 立てない。** コメントの自動保存は打鍵が止まった 900ms 後に撃つので、
+      // 書き終えて次の手をクリックする瞬間と正確に重なる。そこで行が反応しなくなると、
+      // 合図も無くクリックが捨てられる。
+      const announce = !opt?.background;
+
       try {
-        dispatch({ type: "write_started" });
+        if (announce) dispatch({ type: "write_started" });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -272,7 +278,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        dispatch({ type: "write_ended" });
+        if (announce) dispatch({ type: "write_ended" });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
@@ -500,7 +506,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return true;
         },
         "Failed to update comments",
-        { forceCommit: true },
+        // 自動保存は利用者が起動しない。棋譜一覧の行を止めない
+        { forceCommit: true, background: true },
       );
     },
     [state.jkf, edit],

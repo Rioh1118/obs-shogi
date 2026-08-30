@@ -217,6 +217,28 @@ describe("面が入れ替わるとき", () => {
     forkPointers: [],
     tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
   };
+  const THIRD: KifuCursor = {
+    tesuu: 9,
+    forkPointers: [],
+    tesuuPointer: "9,[]" as KifuCursor["tesuuPointer"],
+  };
+
+  function show(
+    view: ReturnType<typeof open>,
+    props: { open?: boolean; cursor?: KifuCursor; absPath?: string | null; onClose?: () => void },
+  ) {
+    return act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open={props.open ?? true}
+          cursor={props.cursor ?? CURSOR}
+          absPath={props.absPath ?? "/ws/a.kif"}
+          anchorEl={null}
+          onClose={props.onClose ?? (() => {})}
+        />,
+      );
+    });
+  }
 
   it("別の手のコメントへ移る前に、出ていく面へ書く", async () => {
     const view = open("/ws/a.kif");
@@ -302,5 +324,89 @@ describe("面が入れ替わるとき", () => {
 
     expect(setCommentsByCursor).toHaveBeenCalledTimes(2);
     expect(setCommentsByCursor.mock.calls[1][1]).toEqual(["消えては困るメモ"]);
+  });
+
+  // **書かずに戻る出口も本文を預ける。** 棋譜を切り替えると `loadedAbsPath` が先に
+  // 進むので、書き切りの呼び出しは宛先の門番で**必ず**落ちる。預けないと、ここが
+  // 「書いた本文がどこにも残らない」唯一の穴になる。
+  it("別の棋譜へ切り替えても、書きかけの本文は預かって出し直す", async () => {
+    const view = open("/ws/a.kif");
+    await type("消えては困るメモ");
+
+    // ツリーで別の棋譜を押すと loadedAbsPath が先に進み、続けてノートが畳まれる
+    gameState.loadedAbsPath = "/ws/b.kif";
+    await show(view, { open: false });
+
+    expect(setCommentsByCursor).not.toHaveBeenCalled();
+
+    // 元の棋譜へ戻って同じ手を開く
+    gameState.loadedAbsPath = "/ws/a.kif";
+    await show(view, { open: true });
+
+    expect(screen.getByRole("alert").textContent).toContain("棋譜が切り替わった");
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+    expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["消えては困るメモ"]);
+  });
+
+  // 面の入れ替えは書き切りを await せずに撃つので、返る頃には別の面が描かれている。
+  // 突き合わせずに書き戻すと、**打っていない手のノートに失敗の箱が出る**。
+  it("出ていく面の失敗を、移った先の面に出さない", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom-A"));
+    const view = open("/ws/a.kif");
+    await type("5手目のメモ");
+
+    await show(view, { cursor: OTHER });
+
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert").textContent).toBe("");
+  });
+
+  // `saveError` は面をまたいで残りうる。それで判定すると、別の手の失敗を抱えている
+  // だけで、この面の**初回**の失敗が2回目と判定されて一度も伝えずに閉じる。
+  it("別の手の失敗が残っていても、この面の初回の失敗ではノートを閉じない", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    const onClose = vi.fn();
+    const view = open("/ws/a.kif");
+    await type("5手目のメモ");
+
+    await show(view, { cursor: OTHER, onClose });
+    await type("7手目のメモ");
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // 失敗の原因はその棋譜に対して持続するので、2手目のコメントも必ず失敗する。
+  // 1枠だと2つ目の失敗が1つ目の本文を消し、「書いた本文はこのまま残っています」
+  // という断言が**次のコメントを書いただけで破れる**。
+  it("2つの手で続けて失敗しても、どちらの本文も出し直せる", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    const view = open("/ws/a.kif");
+    await type("5手目のメモ");
+
+    await show(view, { cursor: OTHER });
+    await type("7手目のメモ");
+
+    await show(view, { cursor: THIRD });
+    await show(view, { cursor: CURSOR });
+
+    expect(screen.getByRole("alert").textContent).toContain("boom");
+
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    const calls = setCommentsByCursor.mock.calls;
+    const last = calls[calls.length - 1];
+    expect(last[0]).toBe(CURSOR);
+    expect(last[1]).toEqual(["5手目のメモ"]);
   });
 });

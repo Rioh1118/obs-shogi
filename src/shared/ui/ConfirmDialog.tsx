@@ -38,15 +38,12 @@ export default function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal
-      onClose={onCancel}
-      label={title}
-      theme="dark"
-      size="sm"
-      scroll="none"
-      closeOnEsc={!isLoading}
-      closeOnOverlay={!isLoading}
-    >
+    // **閉じる道を塞がない。** 実行中でも Escape とオーバーレイは効かせる。
+    // 書き込みが返ってこない（NFS / SMB のワークスペース、他プロセスが掴んでいる、
+    // fsync が返らない）とき、塞いでいるとこのダイアログが**出口ゼロの行き止まり**になる。
+    // × ボタンも無く、キャンセルも実行も押せず、残るのはウィンドウごと閉じることだけになる。
+    // 二重実行を止めるのは下の実行ボタンの `isLoading` で足りる。
+    <Modal onClose={onCancel} label={title} theme="dark" size="sm" scroll="none">
       <div className="confirm-dialog">
         <p className="confirm-dialog__title">{title}</p>
         {subtitle && <p className="confirm-dialog__sub">{subtitle}</p>}
@@ -58,16 +55,19 @@ export default function ConfirmDialog({
               <span className="confirm-dialog__errorHead">実行できませんでした。</span>
               <span className="confirm-dialog__errorCause">{error}</span>
               <span className="confirm-dialog__errorHint">
-                もう一度押すとやり直します。ファイルが書き込めるかを確かめてください。
+                この確認を閉じて、もう一度選び直してください。
+                ファイルが書き込めるかも確かめてください。
               </span>
             </>
           )}
         </div>
         <div className="confirm-dialog__actions">
-          <Button onClick={onCancel} disabled={isLoading}>
-            {cancelLabel}
-          </Button>
-          <Button tone="danger" onClick={onConfirm} isLoading={isLoading}>
+          <Button onClick={onCancel}>{cancelLabel}</Button>
+          {/* **失敗したあとは押せなくする。** ここでの再実行は、押した時点の指定を
+              そのまま撃ち直す。失敗の間にメモリ側の棋譜が変わっていると、同じ指定が
+              **別のものを指す**（分岐の削除では隣の変化が消える）。
+              確認を閉じて選び直せば、そのときの棋譜に対して指定が組み直される。 */}
+          <Button tone="danger" onClick={onConfirm} isLoading={isLoading} disabled={!!error}>
             {isLoading ? "削除中..." : confirmLabel}
           </Button>
         </div>

@@ -57,18 +57,27 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   );
 
   /**
-   * 書けなかった本文を、その面の鍵ごと預かる。
+   * 書けなかった本文を、面ごとに預かる。
    *
    * ノートが閉じている間は失敗を出す場所が無い（`FloatingNote` は閉じていると
    * DOM ごと消える）。捨てると、利用者は**書いたことも失敗したことも知らないまま**
    * 本文を失う。同じ面へ戻ってきたときに出せるよう、鍵と対で持っておく。
+   *
+   * **1枠にしない。** 失敗の原因（権限が無い・別プロセスが掴んでいる・
+   * ワークスペースの外）はどれもその棋譜に対して持続するので、2手目のコメントも
+   * 必ず失敗する。1枠だと2つ目の失敗が1つ目の本文を消し、
+   * 「書いた本文はこのまま残っています」という断言が**次のコメントを書いただけで破れる**。
+   * 鍵は `editorKeyFor` で `absPath` を含むので、棋譜を跨いでも衝突しない。
    */
-  const retainedRef = useRef<{ key: string; draft: string; error: string } | null>(null);
+  const retainedRef = useRef<Map<string, { draft: string; error: string }>>(new Map());
 
   const stateRef = useRef({ draft, isSaving, loadedAbsPath: state.loadedAbsPath });
   useEffect(() => {
     stateRef.current = { draft, isSaving, loadedAbsPath: state.loadedAbsPath };
   });
+
+  /** いま描いている面。書き込みが返ってきたときに、書き戻してよいかをこれで見る */
+  const loadedFaceRef = useRef<Face | null>(null);
 
   /**
    * 指定した面へ書く。**書く先を引数で受け取る。**
@@ -83,33 +92,62 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
    *
    * `"skipped"` と `"failed"` を分けるのは、閉じてよいかが逆だから。
    * 宛先が変わったなら書く先がもう無いので閉じてよい。書き込みに失敗したなら、
-   * 閉じると本文が消えるので閉じない。
+   * 閉じると本文が消えるので閉じない。**どちらも本文は預ける。**
    */
   const doSave = useCallback(
     async (target: Face, text: string): Promise<"saved" | "failed" | "skipped"> => {
-      if (stateRef.current.isSaving) return "skipped";
+      // **書かずに戻る出口も、本文を預けてから返る。**
+      // 預けないと、ここが「書いた本文がどこにも残らない」唯一の穴になる。
+      // どちらの門番も、棋譜を切り替えた瞬間に**必ず**踏む経路にある。
+      if (stateRef.current.isSaving) {
+        retainedRef.current.set(target.key, {
+          draft: text,
+          error: "前の保存が終わっていないので保存できませんでした",
+        });
+        return "skipped";
+      }
 
       // **開いた棋譜と、いま読み込まれている棋譜が同じときだけ書く。**
       // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
       // 棋譜が差し替わったあとに走ると、前のファイルの本文が**次のファイルの
       // 同じ手数へ**書き込まれる。エディタを作り直す前に autosave が撃つ競合が
       // 残るので、鍵（`editorKeyFor`）だけでは塞がらない。
-      if (target.absPath !== stateRef.current.loadedAbsPath) return "skipped";
+      if (target.absPath !== stateRef.current.loadedAbsPath) {
+        retainedRef.current.set(target.key, {
+          draft: text,
+          error: "棋譜が切り替わったので保存できませんでした",
+        });
+        return "skipped";
+      }
 
       setIsSaving(true);
       try {
         const res = await setCommentsByCursor(target.cursor, editorTextToLines(text));
+
+        // **書き戻す先も突き合わせる。** 面の入れ替えは `doSave` を await せずに撃つので、
+        // ここへ来る頃には別の面が描かれている。突き合わせずに書くと、
+        // 打っていない手のノートに「保存できませんでした」や「保存済み」が出る。
+        const showing = loadedFaceRef.current?.key === target.key;
+
         if (!res.success) {
-          retainedRef.current = { key: target.key, draft: text, error: res.error };
-          setSaveError(res.error);
+          // 待っている間に打ち足したぶんがあれば、そちらを残す（古い本文で潰さない）
+          const kept = retainedRef.current.get(target.key);
+          retainedRef.current.set(target.key, { draft: kept?.draft ?? text, error: res.error });
+          if (showing) setSaveError(res.error);
           return "failed";
         }
 
-        if (retainedRef.current?.key === target.key) retainedRef.current = null;
-        setSaveError(null);
-        setBaseText(text);
-        setSavedFlash(true);
-        setTimeout(() => setSavedFlash(false), 1200);
+        // 書けたのが**いま預かっている本文と同じとき**だけ捨てる。
+        // 待っている間に打ち足したぶんを消さないため。
+        if (retainedRef.current.get(target.key)?.draft === text)
+          retainedRef.current.delete(target.key);
+
+        if (showing) {
+          setSaveError(null);
+          setBaseText(text);
+          setSavedFlash(true);
+          setTimeout(() => setSavedFlash(false), 1200);
+        }
         return "saved";
       } finally {
         setIsSaving(false);
@@ -126,7 +164,6 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   // **書きかけの本文が黙って消える**。900ms のタイマーもまだ来ていない。
   //
   // 書けなかったぶんは `retainedRef` に預け、同じ面へ戻ってきたら本文ごと出し直す。
-  const loadedFaceRef = useRef<Face | null>(null);
   const doSaveRef = useRef(doSave);
   useEffect(() => {
     const prev = loadedFaceRef.current;
@@ -139,8 +176,8 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
 
     if (!face) return;
 
-    const retained = retainedRef.current;
-    if (retained?.key === face.key) {
+    const retained = retainedRef.current.get(face.key);
+    if (retained) {
       // 書けなかった本文を出し直す。`baseText` は取り込んだ値のままにして
       // `dirty` を立てておく（**この本文はまだディスクに無い**）。
       setDraft(retained.draft);
@@ -197,19 +234,26 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // **閉じる前に必ずもう一度書きにいく。** 失敗が出ているからと飛ばすと、
     // 一時的な失敗（別のプロセスが掴んでいた等）でも本文が捨てられる。
     //
-    // 閉じないのは**失敗を初めて出したときだけ**。止め続けると、書き込めない場所に
+    // 閉じないのは**この面で失敗を初めて出したときだけ**。止め続けると、書き込めない場所に
     // 置いた棋譜ではノートを閉じる手段が1つも無くなる（失敗を伝えるより悪い
     // 行き止まり）。2回目は諦めて閉じる。本文が失われることは `saveError` の箱が
     // 「閉じると、この本文は失われます」と先に伝えている。
+    //
+    // **`saveError` で判定しない。** あれは面をまたいで残りうるので、別の手の失敗を
+    // 抱えていると、この面の**初回**の失敗が2回目と判定されて一度も伝えずに閉じる。
     if (dirty && face) {
+      const failedBefore = retainedRef.current.has(face.key);
       const result = await doSave(face, draft);
-      if (result === "failed" && !saveError) return;
-      // 諦めて閉じるなら、預かっているぶんも捨てる。残すと次に同じ手を開いたときに
-      // 「閉じると失われます」と伝えたはずの本文が戻ってくる
-      if (result === "failed" && retainedRef.current?.key === face.key) retainedRef.current = null;
+      if (result === "failed") {
+        if (!failedBefore) return;
+        // 諦めて閉じるなら、預かっているぶんも捨てる。残すと次に同じ手を開いたときに
+        // 「閉じると失われます」と伝えたはずの本文が戻ってくる
+        retainedRef.current.delete(face.key);
+      }
+      // `"skipped"`（宛先が消えた）は捨てない。元の棋譜へ戻れば出し直せる
     }
     onClose();
-  }, [draft, face, dirty, doSave, isSaving, onClose, saveError]);
+  }, [draft, face, dirty, doSave, isSaving, onClose]);
 
   const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
 

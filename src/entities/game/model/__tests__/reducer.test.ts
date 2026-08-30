@@ -88,6 +88,17 @@ describe("走っている書き込みを数える", () => {
     expect(loaded.isLoading).toBe(true);
     expect(gameReducer(loaded, { type: "write_ended" }).isLoading).toBe(false);
   });
+
+  // 棋譜を閉じるのも書き込みが走っている最中に起こる（ワークスペースの切り替え）。
+  // 0 に戻すと、次の書き込みが 1 に上げたところへ古い1本の finally が着地して
+  // **まだ書いている最中に isLoading が解ける**。
+  it("棋譜を閉じても、走っている書き込みの本数は持ち越す", () => {
+    const writing = gameReducer(initialGameState, { type: "write_started" });
+    const reset = gameReducer(writing, { type: "reset_state" });
+    expect(reset.jkf).toBeNull();
+    expect(reset.isLoading).toBe(true);
+    expect(gameReducer(reset, { type: "write_ended" }).isLoading).toBe(false);
+  });
 });
 
 describe("jkf_restored", () => {
