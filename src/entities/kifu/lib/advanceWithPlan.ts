@@ -65,6 +65,19 @@ export function advanceWithPlan(player: JKFPlayer, plan: PlanByTe): AdvanceResul
   return player.forward() ? { moved: true, forkIndex: null } : NOT_MOVED;
 }
 
+const NO_PLAN: PlanByTe = new Map();
+
+/**
+ * 計画を持たずに本譜を1手進める
+ *
+ * 「計画が無い」ことを呼び出し側で言うためのもの。空の `PlanByTe` を渡すのと
+ * 同じだが、`advanceWithPlan(player, planByTe(x))` と書いてある箇所は
+ * 「x に沿って降りる」と読めてしまう。
+ */
+export function advanceMainLine(player: JKFPlayer): AdvanceResult {
+  return advanceWithPlan(player, NO_PLAN);
+}
+
 /** `JKFPlayer.goto` が進める最長と同じ。片方だけ先に打ち切ると値が食い違う。 */
 export const PLAN_WALK_LIMIT = 10000;
 
