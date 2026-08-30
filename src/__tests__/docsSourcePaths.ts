@@ -4,7 +4,8 @@ import { REPO_ROOT } from "./walk";
 
 /**
  * docs が指すソースのパスが実在するかを見る検査の本体。
- * `docsSourcePaths.test.ts` が個々の振る舞いを固定し、同じ関数を docs 全体に掛ける。
+ * `docsSourcePaths.test.ts` が個々の振る舞いを固定し、`docs/state-transitions/` の
+ * 全ファイルへ掛ける（`docs/` 全体に掛けない理由はテスト側の doc）。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
