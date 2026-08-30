@@ -83,7 +83,8 @@ vi.mock("@/shared/ui/floating-note/FloatingNote", () => ({
 }));
 
 const { default: KifuCommentNote } = await import("../KifuCommentNote");
-const { clearUnsavedDrafts } = await import("../../lib/unsavedDrafts");
+const { clearUnsavedDrafts, getUnsavedDraft, unsavedDraftKey } =
+  await import("../../lib/unsavedDrafts");
 
 const CURSOR: KifuCursor = {
   tesuu: 5,
@@ -531,5 +532,99 @@ describe("面が入れ替わるとき", () => {
 
     expect(mountedWith()).toBe("");
     expect(screen.getByRole("alert").textContent).toBe("");
+  });
+});
+
+/**
+ * `edit` は書き込みの**前**にメモリの棋譜を置き換える（ADR-0004 決定7）。
+ * その最中に面を組み直すと、`baseText` に**まだディスクに無い本文**が入る。
+ *
+ * ここは `useGame` を板に差し替えているので、楽観的更新は `comments` を手で進めて表す。
+ * 「`edit` が書き込みの前に置き換える」ことと「失敗したら巻き戻す」ことは
+ * `entities/game` 側（`persistGuard.test.tsx` / `reducer.test.ts`）が固定している。
+ */
+describe("走っている保存の面を組み直したとき", () => {
+  const OTHER: KifuCursor = {
+    tesuu: 7,
+    forkPointers: [],
+    tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
+  };
+
+  function show(view: ReturnType<typeof open>, cursor: KifuCursor, onClose = () => {}) {
+    return act(async () => {
+      view.rerender(
+        <KifuCommentNote
+          open
+          cursor={cursor}
+          absPath="/ws/a.kif"
+          anchorEl={null}
+          onClose={onClose}
+        />,
+      );
+    });
+  }
+
+  /** 1本目だけ握って返さない。以降は即座に同じ失敗を返す */
+  function holdFirstFailure(error: string) {
+    let release!: () => void;
+    const held = new Promise((r) => {
+      release = () => r(Err(error));
+    });
+    setCommentsByCursor.mockImplementation(() =>
+      setCommentsByCursor.mock.calls.length === 1 ? held : Promise.resolve(Err(error)),
+    );
+    return async () => {
+      await act(async () => {
+        release();
+        await held;
+      });
+    };
+  }
+
+  /**
+   * **`baseText` が楽観的更新の写しで固まると、`stash` が「利用者が打ち直して
+   * 元へ戻した」と読み違えて本文を捨てる。** 棋譜のほうは失敗で巻き戻るので、
+   * 本文はメモリにもディスクにも預かりにも残らない。
+   */
+  it("走っている保存の面へ戻ってから失敗が返っても、書いた本文を捨てない", async () => {
+    const fail = holdFirstFailure("Permission denied (os error 13)");
+    const view = open("/ws/a.kif");
+
+    await typeAndAutosave("消えては困るメモ");
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+
+    // 楽観的更新。書き込みはまだ返っていない
+    comments = ["消えては困るメモ"];
+    await show(view, OTHER);
+    await show(view, CURSOR);
+
+    await fail();
+
+    expect(getUnsavedDraft(unsavedDraftKey(CURSOR, "/ws/a.kif"))?.draft).toBe("消えては困るメモ");
+  });
+
+  /**
+   * 失敗の書き戻しで基準も戻さないと `dirty` が落ちたままになり、
+   * 閉じるときの再試行も「この面で初めての失敗なら閉じない」も**どちらも発火しない**。
+   */
+  it("走っている保存の面へ戻ってから失敗が返ったら、閉じるときにもう一度書きに行く", async () => {
+    const fail = holdFirstFailure("boom");
+    const view = open("/ws/a.kif");
+
+    await typeAndAutosave("消えては困るメモ");
+    comments = ["消えては困るメモ"];
+    await show(view, OTHER);
+    await show(view, CURSOR);
+
+    await fail();
+    const before = setCommentsByCursor.mock.calls.length;
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+
+    const calls = setCommentsByCursor.mock.calls;
+    expect(calls.length).toBeGreaterThan(before);
+    expect(calls[calls.length - 1][1]).toEqual(["消えては困るメモ"]);
   });
 });
