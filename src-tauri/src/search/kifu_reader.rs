@@ -36,14 +36,20 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
     read_path_to_jkf(&rec.path, rec.kind)
 }
 
-/// 誤りを落として読む復号。上から順に試す。
-///
-/// KIF の既定は Shift_JIS で、UTF-8 で書かれたものも多い。
-/// クレートはどちらも**誤りの無い復号しか採らない**ので、
-/// 1バイト壊れた棋譜はここまで来る。
 /// 誤りを落とす復号1つ
 type LossyDecoder = fn(&[u8]) -> Cow<'_, str>;
 
+/// 誤りを落として読む復号。**上から順に試す。**
+///
+/// クレートは誤りが1つでもある復号を捨てて `Decode` を返す
+/// （`parser::read_kifu` は `!had_errors` のときしか採らない）ので、
+/// **Shift_JIS も UTF-8 もここで試し直す**。KIF の既定は Shift_JIS なので、
+/// 1バイト壊れただけの棋譜がここに来る。
+///
+/// **並びは取り違えを防いでいない。** 実測すると、UTF-8 の棋譜を
+/// Shift_JIS で落として読んでも、その逆でも `parse` は通らない
+/// （化けた本文は指し手行の形にならない）。並びが決めるのは
+/// **どちらを先に試すか＝どちらで読めたときに復号1本ぶん安く済むか**だけ。
 const LOSSY_DECODERS: [LossyDecoder; 2] = [
     |bytes| String::from_utf8_lossy(bytes),
     |bytes| SHIFT_JIS.decode(bytes).0,
@@ -422,14 +428,10 @@ const ENCODINGS_THE_CRATE_TRIES: [&str; 2] = ["Shift_JIS", "UTF-8"];
 /// BOM の無い UTF-16 は名乗らない。総当たりが読むので開ける。
 /// 読めなかったときに `UTF-16LE として…` と言えないだけ。
 fn declared_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
-    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        return Some(encoding_rs::UTF_8);
-    }
-    if bytes.starts_with(&[0xFF, 0xFE]) {
-        return Some(UTF_16LE);
-    }
-    if bytes.starts_with(&[0xFE, 0xFF]) {
-        return Some(UTF_16BE);
+    // BOM の並びは手で書かない。`encoding_rs` が同じ表を持っており、
+    // 写すと片方だけ動かしたときに黙って食い違う
+    if let Some((encoding, _)) = Encoding::for_bom(bytes) {
+        return Some(encoding);
     }
     // 見るのは `ESC $ B`（JIS X 0208 へ切り替える）だけ。
     // `ESC ( B` / `ESC ( J` は ASCII へ戻す指示で、**ASCII のファイルにも現れうる**ので
@@ -566,15 +568,11 @@ where
         }
     }
 
-    // 最終手段。**誤りを落として読み進める。**
+    // 最終手段。誤りを落として読み進める（[`LOSSY_DECODERS`]）。
     //
-    // クレートは誤りの1つでもある復号を捨てて `Decode` を返す（`parser::read_kifu` は
-    // `!had_errors` のときしか採らない）ので、**Shift_JIS も UTF-8 もここで試し直す**。
-    // KIF の既定は Shift_JIS なので、1バイト壊れただけの棋譜がここに来る。
-    //
-    // TODO(#293): 欠けたことを利用者に告げないまま索引へ入れている
-    // 配列リテラルにすると**両方の復号がループに入る前に走る**ので、
-    // 1本目で読めたときに使わないコピーを1本作ることになる
+    // TODO(#336): クレートは**行末の改行が化けると、その行以降を黙って捨てて
+    // `Ok` を返す**。誤りを落とした復号ではその形が出やすく、
+    // 欠けたことを利用者に告げないまま索引へ入れている
     for decode in LOSSY_DECODERS {
         if let Ok(jkf) = parse(&decode(bytes)) {
             return Ok(jkf);
@@ -595,8 +593,8 @@ where
 /// **1行しか無い棋譜では同数になる** — そのときは先に試したほうを採る。
 /// 行番号はどちらも1行目だが、**引用される行の本文は違う**（クレートは
 /// 読めなかった行をそのまま引用する。`nom` の `convert_error`）。
-/// BOM の無い UTF-16 では LE と BE を原理的に区別できないので、
-/// ここは当てにいかず先着順にしてある。
+/// **1行しか無い候補では行数で差が付かない。** NUL の位置や数で
+/// バイト順を当てにいかない理由は [`declared_encoding`] の表にある。
 ///
 /// **「改行があること」を通過条件にはしない。** 1行しかない KI2 は正当な入力で、
 /// 候補が1つならそれを採る。落とすのは
@@ -1129,8 +1127,9 @@ mod tests {
 
     /// BOM の無い UTF-16 は、**バイト順を取り違えた読み方の行を出さない。**
     ///
-    /// UTF-16 は LE と BE のどちらで読んでも誤りが出ないので、`had_errors` では
-    /// 区別が付かない。取り違えると改行が `U+0A00` になって**1行にまとまる**ので、
+    /// UTF-16 は LE と BE のどちらで読んでもほとんど誤りが出ないので、
+    /// `had_errors` では当てにできない（[`line_count`] の doc）。
+    /// 取り違えると改行が `U+0A00` になって**1行にまとまる**ので、
     /// 候補どうしを行数で比べる（[`line_count`]）。1行しか無い候補も落とさない。
     ///
     /// **LE と BE を対で見る。** 片方だけだと、総当たりの並びで先にあるほうが
