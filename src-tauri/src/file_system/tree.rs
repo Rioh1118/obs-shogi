@@ -86,9 +86,10 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
         },
     };
 
-    // 予算が尽きているなら `read_dir` すら呼ばない。呼ぶと、打ち切ろうとしている
-    // 瞬間に一番重い処理（全項目を Vec に起こして整列する）を1回だけやることになる
-    if is_dir && (walk.depth >= MAX_DEPTH || walk.budget == 0) {
+    // **深さの上限を見るのはここだけ。** 下のループはノード数しか見ないので、
+    // この条件を外すと `MAX_DEPTH` が完全に消える（結果はスタックオーバーフローで、
+    // `catch_unwind` できずプロセスごと落ちる）
+    if is_dir && walk.depth >= MAX_DEPTH {
         node.truncated = true;
     } else if is_dir {
         let mut children = Vec::new();
@@ -103,6 +104,10 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
             .collect();
         entries.sort_by_cached_key(|entry| entry.file_name());
 
+        // 予算が尽きていても `read_dir` は済んでいる。**空のディレクトリで
+        // 「以降は出ません」と出さない**ために、1つでも隠したときだけ印を立てる。
+        // ここを入口の条件（`budget == 0` で降りない）にすると、予算が
+        // ちょうど尽きた瞬間に降りた空のフォルダにも印が付く
         for entry in entries {
             let child_path = entry.path();
 
@@ -391,6 +396,34 @@ mod tests {
             "予算を超えて積んでいる（自分 + 10）"
         );
         assert!(node.truncated, "打ち切ったことを返していない");
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// 予算がちょうど尽きた瞬間に降りたフォルダに、隠した行が1つも無いのに
+    /// 「以降は出ません」と出さない
+    #[test]
+    fn an_empty_folder_at_the_budget_edge_is_not_marked_truncated() {
+        let base = temp_dir("edge");
+        let ws = base.join("ws");
+        fs::create_dir_all(ws.join("empty")).expect("作れない");
+
+        let root = fs::canonicalize(&ws).expect("解決できない");
+        let mut walk = Walk {
+            canonical_root: &root,
+            followed: vec![root.clone()],
+            depth: 0,
+            // `empty` へ降りるぶんだけ。降りた先では 0 になっている
+            budget: 1,
+        };
+        let node = build_file_tree_recursive(&root, &mut walk).expect("走査できない");
+
+        let child = &node.children.as_deref().expect("子が無い")[0];
+        assert_eq!(child.name, "empty");
+        assert!(
+            !child.truncated,
+            "隠した行が無いのに打ち切りの印が付いている"
+        );
 
         let _ = fs::remove_dir_all(&base);
     }
