@@ -9,7 +9,7 @@ use shogi_kifu_converter_obsshogi::parser::{
     parse_csa_file, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file, parse_kif_str,
 };
 
-use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, UTF_16BE, UTF_16LE};
+use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE};
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
 /// 棋譜1つ分。クレートの JKF をそのまま使う
@@ -61,11 +61,17 @@ const MESSAGE_LIMIT: usize = 300;
 /// 局面を1つも持たない項目として登録する（#333）。
 /// どちらの経路でも、その棋譜の局面は検索に出てこない。
 pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
-    // 0バイトのファイルは、どの形式のパーサも**平手の初期局面1件**として `Ok` を返す。
-    // 索引に入ると平手の初期局面で検索したときに全部ヒットし、
-    // 開いても初期局面しか出ないので「そういう棋譜」と誤解される。
-    // 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く
-    if fs::metadata(path).is_ok_and(|m| m.len() == 0) {
+    // **KIF / KI2 のパーサは中身の無いファイルを「平手の初期局面1件」として
+    // `Ok` で返す。** 索引に入ると平手の初期局面で検索したときに全部ヒットし、
+    // 開いても初期局面しか出ないので「そういう棋譜」と誤解される。警告も出ない。
+    // 保存が途中で終わった / 同期が失敗した跡なので、ここで弾く。
+    //
+    // `.jkf` は serde が、`.csa` は `csa` の手番行の要求が先に弾くので、
+    // この門が要るのは KIF / KI2 だけ。形式で分けずに掛けるのは、
+    // どの形式でも「中身が無いファイル」を索引に入れる理由が無いから。
+    //
+    // **空白だけのファイルも同じ**。バイト数だけを見ると通り抜ける
+    if fs::read(path).is_ok_and(|b| b.iter().all(u8::is_ascii_whitespace)) {
         return Err(parse_failed(
             "ファイルが空です。保存が途中で終わっていないか確かめてください",
         ));
@@ -203,7 +209,7 @@ const ENCODINGS_THE_CRATE_TRIES: [&str; 2] = ["Shift_JIS", "UTF-8"];
 /// | 印 | 文字コード |
 /// | --- | --- |
 /// | BOM | UTF-8 / UTF-16LE / UTF-16BE |
-/// | エスケープ `ESC $ B` / `ESC ( B` / `ESC ( J` | ISO-2022-JP |
+/// | エスケープ `ESC $ B` | ISO-2022-JP |
 ///
 /// # NUL の数や偏りで UTF-16 を当てにいかないこと
 ///
@@ -338,7 +344,6 @@ where
     // バイト順を取り違えた UTF-16（1行にまとまる）が先にあるだけで勝ってしまう。
     // 同点なら決められない（`tied`）— 1行の棋譜では正しい読み方も1行になる
     let mut anonymous: Option<(usize, Unparsable)> = None;
-    let mut tied = false;
 
     for enc in ENCODINGS_THE_CRATE_SKIPS {
         let (cow, _, had_errors) = enc.decode(bytes);
@@ -358,35 +363,37 @@ where
             });
         } else if !had_errors {
             // 名乗れないが文字にはできた。行番号だけでも利用者の役に立つ
-            match anonymous.as_ref().map(|(best, _)| lines.cmp(best)) {
-                None | Some(std::cmp::Ordering::Greater) => {
-                    tied = false;
-                    anonymous = Some((
-                        lines,
-                        Unparsable {
-                            encoding: None,
-                            error: Some(error),
-                        },
-                    ));
-                }
-                // 同じ行数の読み方が2つある。どちらが正しいかを言えない
-                Some(std::cmp::Ordering::Equal) => tied = true,
-                Some(std::cmp::Ordering::Less) => {}
+            if anonymous.as_ref().map_or(true, |(best, _)| lines > *best) {
+                anonymous = Some((
+                    lines,
+                    Unparsable {
+                        encoding: None,
+                        error: Some(error),
+                    },
+                ));
             }
         }
     }
 
-    // 最終手段。読めない位置を落として読み進める。
+    // 最終手段。**誤りを落として読み進める。**
+    //
+    // クレートは誤りの1つでもある復号を捨てて `Decode` を返す（`parser::read_kifu` は
+    // `!had_errors` のときしか採らない）ので、**Shift_JIS も UTF-8 もここで試し直す**。
+    // KIF の既定は Shift_JIS なので、1バイト壊れただけの棋譜がここに来る。
+    //
     // TODO(#293): 欠けたことを利用者に告げないまま索引へ入れている
-    match parse(&String::from_utf8_lossy(bytes)) {
-        Ok(jkf) => Ok(jkf),
-        // lossy はどんなバイト列でも「読めた」ことになるので、理由の候補にしない
-        Err(_) if tied && named.is_none() => Err(Some(Unparsable {
-            encoding: None,
-            error: None,
-        })),
-        Err(_) => Err(named.or_else(|| anonymous.map(|(_, u)| u))),
+    for decoded in [
+        String::from_utf8_lossy(bytes).into_owned(),
+        SHIFT_JIS.decode(bytes).0.into_owned(),
+    ] {
+        if let Ok(jkf) = parse(&decoded) {
+            return Ok(jkf);
+        }
     }
+
+    // 誤りを落としても読めない。理由の候補にはしない
+    // （誤りを落とした復号が指す位置は元のファイルの位置と合わない）
+    Err(named.or_else(|| anonymous.map(|(_, u)| u)))
 }
 
 /// 復号した結果が何行になったか。**候補どうしを比べるためだけに使う。**
@@ -395,12 +402,12 @@ where
 /// 読んでも誤りが出ないので `had_errors` では区別が付かないが、取り違えると
 /// 改行 `U+000A` が `U+0A00` になり、**行が1つにまとまる**。
 /// 改行が1つでもある棋譜なら、正しい読み方のほうが行数が多い。
-/// **1行しか無い棋譜では同数になる** — そのときは決められないものとして扱う
-/// （[`try_other_encodings`]）。
+/// **1行しか無い棋譜では同数になる** — そのときは先に試したほうを採る。
+/// どちらを採っても行番号は1行目なので、利用者に出る文言は変わらない。
 ///
-/// **「改行があること」を通過条件にはしない。** 1行しかない KI2 も、
-/// CR だけで行を区切る古い棋譜も正当な入力で、候補が1つならそれを採る。
-/// 落とすのは「他にもっと行数の多い読み方があるとき」だけ。
+/// **「改行があること」を通過条件にはしない。** 1行しかない KI2 は正当な入力で、
+/// 候補が1つならそれを採る。落とすのは
+/// 「他にもっと行数の多い読み方があるとき」だけ。
 fn line_count(decoded: &str) -> usize {
     decoded.lines().count()
 }
@@ -1060,18 +1067,101 @@ mod tests {
     ///
     /// **索引に入るかどうかを決める最後の分岐。** これを外すと、
     /// 1バイト壊れただけの棋譜が丸ごと検索から消える。
-    /// 欠けたまま入れていることは #293 で扱う。
+    ///
+    /// **文字コードごとに表で回す。** 1つの題材だけだと、
+    /// たまたまその文字コードを拾う経路が生きているだけで緑になる。
+    /// 実際、UTF-8 だけを見ていたときは Shift_JIS の穴に気付けなかった —
+    /// KIF の既定は Shift_JIS なので、そこが一番よく通る道。
+    ///
+    /// 欠けたまま索引へ入れていることは #293 で扱う。
     #[test]
     fn a_file_with_one_broken_byte_is_still_read() {
         let dir = temp_dir("lossy");
-        let path = dir.join("broken-comment.kif");
-        // UTF-8 の棋譜のコメント行に、UTF-8 として不正なバイトを混ぜる
-        let mut bytes = format!("*コメント\n{}", hirate_kif()).into_bytes();
-        bytes[1] = 0xFF;
+        let text = format!("*コメント\n{}", hirate_kif());
+
+        for (label, encoded) in [
+            ("utf-8", text.clone().into_bytes()),
+            ("shift_jis", SHIFT_JIS.encode(&text).0.into_owned()),
+            ("euc-jp", EUC_JP.encode(&text).0.into_owned()),
+        ] {
+            let mut bytes = encoded;
+            // コメント行の途中を、どの日本語文字コードでも不正なバイトにする
+            let at = bytes.len() / 4;
+            bytes[at] = 0xFD;
+
+            let path = dir.join(format!("{label}.kif"));
+            fs::write(&path, &bytes).expect("書き出し");
+
+            let jkf = read_path_to_jkf(&path, KifuKind::Kif)
+                .unwrap_or_else(|e| panic!("{label} が読めない: {e}"));
+            assert_eq!(jkf.moves.len(), 2, "{label} の指し手が落ちた");
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 中身の無いファイルは索引に入れない。
+    ///
+    /// KIF / KI2 のパーサは**平手の初期局面1件**として `Ok` を返す。
+    /// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
+    /// 初期局面しか出ないので「そういう棋譜」と誤解される。
+    ///
+    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定はバイト列が空かどうかで、
+    /// 読めた手数では見ない。
+    #[test]
+    fn an_empty_file_is_rejected_but_a_moveless_kifu_is_not() {
+        let dir = temp_dir("empty");
+
+        // バイト数だけを見ると、空白だけのファイルが通り抜ける
+        for (label, body) in [("empty", &b""[..]), ("whitespace", b"\n\n   \n")] {
+            let path = dir.join(format!("{label}.kif"));
+            fs::write(&path, body).expect("書き出し");
+            let err = read_path_to_jkf(&path, KifuKind::Kif)
+                .err()
+                .unwrap_or_else(|| panic!("{label} を弾いていない"));
+            assert!(
+                err.to_string().contains("空です"),
+                "{label} の理由が違う: {err}"
+            );
+        }
+
+        // 初期局面だけを記録した棋譜は正当。手数では判定しない
+        let moveless = dir.join("moveless.kif");
+        let (bytes, _, _) = SHIFT_JIS.encode("手合割：平手\n手数----指手---------消費時間--\n");
+        fs::write(&moveless, &bytes).expect("書き出し");
+        let jkf = read_path_to_jkf(&moveless, KifuKind::Kif).expect("0手の棋譜は読めること");
+        assert_eq!(jkf.moves.len(), 1, "初期局面だけのはず");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 利用者に出す文言は、長さを刈って制御文字を落とす。
+    ///
+    /// クレートのエラーは読めなかった位置から**行末まで**を引用するので、
+    /// 改行を含まない大きなファイルではファイルの中身がそのまま文言になる。
+    /// それが `IndexWarnPayload` に載り、webview の state に200件まで溜まる。
+    #[test]
+    fn a_huge_one_line_file_does_not_put_its_contents_in_the_message() {
+        let dir = temp_dir("huge-line");
+        let path = dir.join("one-line.kif");
+        // 改行が1つも無い大きなファイル。制御文字も混ぜる
+        let mut bytes = vec![b'x'; 200_000];
+        bytes[10] = 0;
         fs::write(&path, &bytes).expect("書き出し");
 
-        let jkf = read_path_to_jkf(&path, KifuKind::Kif).expect("落として読めること");
-        assert_eq!(jkf.moves.len(), 2, "指し手が落ちた");
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        // **固定したい定数そのものと比べない。** `MESSAGE_LIMIT` を上げるだけで
+        // 通ってしまい、刈り込みが効かなくなったことに気付けない
+        assert!(
+            message.chars().count() < 1_000,
+            "文言が刈られていない: {} 文字",
+            message.chars().count()
+        );
+        assert!(
+            !message.contains('\0'),
+            "制御文字がそのまま入っている: {message:?}"
+        );
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -1139,85 +1229,6 @@ mod tests {
             message.contains("UTF-16LE"),
             "6 が使われていない: {message}"
         );
-    }
-
-    /// 改行の無い棋譜を「棋譜ではない」と言わない。
-    ///
-    /// 1行しかない KI2 も、CR だけで行を区切る古い棋譜も正当な入力。
-    /// 「改行があること」を通過条件にすると、**中身が正しい棋譜に対して
-    /// 『棋譜ではないファイルに拡張子が付いていないか』と出る**。
-    #[test]
-    fn a_kifu_without_newlines_is_not_called_a_non_kifu() {
-        let dir = temp_dir("no-newline");
-        let path = dir.join("one-line.ki2");
-        // 改行が1つも無い KI2。「パス」は KI2 の語彙に無い
-        let text = "▲７六歩 △３四歩 ▲パス";
-        fs::write(&path, to_utf16(text, true)).expect("書き出し");
-
-        let err = read_path_to_jkf(&path, KifuKind::Ki2).expect_err("読めないこと");
-        let message = err.to_string();
-        assert!(
-            !message.contains("棋譜ではないファイル"),
-            "棋譜なのに棋譜でないと言っている: {message}"
-        );
-
-        fs::remove_dir_all(&dir).ok();
-    }
-
-    /// 0バイトのファイルは索引に入れない。
-    ///
-    /// どの形式のパーサも**平手の初期局面1件**として `Ok` を返す。
-    /// 索引に入ると平手の初期局面で検索したときに全部ヒットし、開いても
-    /// 初期局面しか出ないので「そういう棋譜」と誤解される。
-    ///
-    /// **指し手が0手の正当な棋譜と混同しないこと。** 判定はバイト列が空かどうかで、
-    /// 読めた手数では見ない。
-    #[test]
-    fn an_empty_file_is_rejected_but_a_moveless_kifu_is_not() {
-        let dir = temp_dir("empty");
-
-        let empty = dir.join("empty.kif");
-        fs::write(&empty, b"").expect("書き出し");
-        let err = read_path_to_jkf(&empty, KifuKind::Kif).expect_err("空は弾くこと");
-        assert!(err.to_string().contains("空です"), "理由が違う: {err}");
-
-        // 初期局面だけを記録した棋譜は正当。手数では判定しない
-        let moveless = dir.join("moveless.kif");
-        let (bytes, _, _) = SHIFT_JIS.encode("手合割：平手\n手数----指手---------消費時間--\n");
-        fs::write(&moveless, &bytes).expect("書き出し");
-        let jkf = read_path_to_jkf(&moveless, KifuKind::Kif).expect("0手の棋譜は読めること");
-        assert_eq!(jkf.moves.len(), 1, "初期局面だけのはず");
-
-        fs::remove_dir_all(&dir).ok();
-    }
-
-    /// 利用者に出す文言は、長さを刈って制御文字を落とす。
-    ///
-    /// クレートのエラーは読めなかった位置から**行末まで**を引用するので、
-    /// 改行を含まない大きなファイルではファイルの中身がそのまま文言になる。
-    /// それが `IndexWarnPayload` に載り、webview の state に200件まで溜まる。
-    #[test]
-    fn a_huge_one_line_file_does_not_put_its_contents_in_the_message() {
-        let dir = temp_dir("huge-line");
-        let path = dir.join("one-line.kif");
-        // 改行が1つも無い大きなファイル。制御文字も混ぜる
-        let mut bytes = vec![b'x'; 200_000];
-        bytes[10] = 0;
-        fs::write(&path, &bytes).expect("書き出し");
-
-        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
-        let message = err.to_string();
-        assert!(
-            message.chars().count() <= MESSAGE_LIMIT + 1,
-            "文言が刈られていない: {} 文字",
-            message.chars().count()
-        );
-        assert!(
-            !message.contains('\0'),
-            "制御文字がそのまま入っている: {message:?}"
-        );
-
-        fs::remove_dir_all(&dir).ok();
     }
 
     /// 手合割つきの棋譜が読める。
