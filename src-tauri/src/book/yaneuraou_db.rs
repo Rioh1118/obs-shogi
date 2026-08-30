@@ -425,7 +425,10 @@ fn parse_limited<R: BufRead>(
     let mut index = 0usize;
     let mut header: Option<usize> = None;
     let mut declared: Option<u64> = None;
+    // データの行が改行で終わっていたか。**注記と空行は数えない。**
     let mut last_line_terminated = true;
+    // 見出し探索で読んだ行を本体へ持ち越すときの、その行の改行の有無。
+    let mut carried_terminated = true;
     let mut dropped = DroppedFields::default();
     // 見出しの無い定跡では、見出しを探す間に読んだ局面行がそのまま本体の1行目に
     // なる。読み直せないので、本体のループはまず `buffer` の中身から始める。
@@ -442,7 +445,7 @@ fn parse_limited<R: BufRead>(
         path,
     )? {
         index += 1;
-        last_line_terminated = terminated;
+        carried_terminated = terminated;
         let line = buffer.trim();
         if line.is_empty() {
             continue;
@@ -509,32 +512,32 @@ fn parse_limited<R: BufRead>(
     let mut total_moves: usize = 0;
 
     loop {
+        let mut terminated = carried_terminated;
         if unread {
             // 見出しを探す間に読んだ行。`index` はそのとき既に進めてある。
             unread = false;
         } else {
             match read_line(&mut reader, &mut raw, &mut buffer, false, index + 1, path)? {
-                Some(terminated) => {
+                Some(read) => {
                     index += 1;
-                    last_line_terminated = terminated;
+                    terminated = read;
                 }
                 None => break,
             }
         }
-        let terminated = last_line_terminated;
         consumed += raw.len() as u64 + 1;
         let line = buffer.trim();
         if is_skippable(line) {
-            // 注記や空行で終わるファイルは、切れていても失われたのは注記だけ。
-            // ここで上書きすると、完全な定跡を「ダウンロードが途中で切れた」と
-            // 診断する。見るのはデータの行だけ。
-            last_line_terminated = true;
             if let Some(count) = declared_count(line) {
                 declared = Some(count);
             }
             continue;
         }
 
+        // **データの行だけを記録する。** 上の枝が注記と空行を先に `continue` で
+        // 抜けているので、ここへ来るのはデータの行だけ。本家は末尾の改行を
+        // 要求しない（`book.cpp:705`）ので、改行の無い注記が末尾に1行あるだけの
+        // 完全な定跡がある。そこまで数えると、正しい定跡が毎回警告される。
         last_line_terminated = terminated;
 
         if let Some(rest) = line.strip_prefix("sfen ") {
