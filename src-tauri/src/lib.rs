@@ -1,4 +1,5 @@
 pub mod ai_library;
+pub mod book;
 pub mod config_dir;
 pub mod engine;
 pub mod engine_presets;
@@ -9,6 +10,9 @@ pub mod study_positions;
 
 pub use crate::engine::bridge::AppState;
 pub use ai_library::{ensure_engines_dir, scan_ai_root};
+pub use book::{
+    close_all_books, close_book, get_book_info, list_books, lookup_book_moves, open_book, BookState,
+};
 pub use config_dir::{load_config, save_config};
 pub use engine::bridge::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
@@ -49,6 +53,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
+        .manage(BookState::new())
         .invoke_handler(tauri::generate_handler![
             load_config,
             save_config,
@@ -89,6 +94,12 @@ pub fn run() {
             cancel_search,
             load_study_positions,
             save_study_positions,
+            open_book,
+            lookup_book_moves,
+            get_book_info,
+            close_book,
+            list_books,
+            close_all_books,
         ])
         .plugin(tauri_plugin_dialog::init())
         .manage(search_state)
