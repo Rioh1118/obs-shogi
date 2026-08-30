@@ -1108,6 +1108,9 @@ mod tests {
             let message = err.message();
             assert!(message.contains("4行目"), "{message}");
             assert!(message.contains("指し手として読めない"), "{message}");
+            // この文面の引用も予算で打ち切ること。長い綴りをそのまま載せると、
+            // 失敗1回でログの予算を食い潰す
+            assert!(message.chars().count() < 300, "{message:.120}");
         }
     }
 
@@ -1165,6 +1168,23 @@ mod tests {
     fn a_matching_declared_count_is_accepted() {
         let text = format!("#YANEURAOU-DB2016 1.00\n# NOE:1\nsfen {HIRATE}\n7g7f 3c3d 50 32 1\n");
         assert!(parsed(&text).is_ok());
+    }
+
+    /// **1局面だけ足りないファイルも拒否すること。**
+    ///
+    /// 既存の2本は極端な値でしか見ていない（申告 125 万対 1局面、または一致
+    /// ちょうど）ので、`<` を `+ 1 <` へずらす変異が通る。H4 は切れの検出を
+    /// 単独で担う唯一の関門（H7 は改行の無い定跡を拒否できないので使えない）
+    /// なので、境界が1つずれると**最後の1局面だけ落ちたファイル**が黙って開く。
+    #[test]
+    fn a_book_one_position_short_of_its_declared_count_is_rejected() {
+        let text = format!("#YANEURAOU-DB2016 1.00\n# NOE:2\nsfen {HIRATE}\n7g7f 3c3d 50 32 1\n");
+        let err = parsed(&text).unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        let message = err.message();
+        assert!(message.contains('2') && message.contains('1'), "{message}");
+        assert!(message.contains("取得し直す"), "{message}");
     }
 
     /// 申告の無い定跡もある。そのときは「局面が1つも無い」を保険にする。
@@ -1267,6 +1287,53 @@ mod tests {
             assert_eq!(moves.len(), 2, "lead={lead:?} moves={moves:?}");
             assert!(moves.contains(&"2b8h+"), "lead={lead:?} moves={moves:?}");
         }
+    }
+
+    /// **見出しを探す間に読んだ行を、二重に数えないこと。**
+    ///
+    /// その行は本体のループへ持ち越すが、`index` は読んだ時点で既に進めてある。
+    /// もう一度進めると、見出しの無い定跡でだけ行番号が1つずれる。100万行の
+    /// 定跡で壊れた行の位置が1つずれると、利用者にも報告を受けた側にも
+    /// 直しようが無い。
+    #[test]
+    fn the_line_carried_over_from_the_header_search_keeps_its_number() {
+        let err = parsed("sfen これは局面ではない\n").unwrap_err();
+        let message = err.message();
+
+        assert!(message.contains("1行目"), "{message}");
+    }
+
+    /// **持ち越した行を、読んだ量から落とさないこと。**
+    ///
+    /// 上限に当たったときの文面はこの量だけを出す（`check_expanded_size`）。
+    /// 落とすと、見出しの無い定跡でだけ「この形の定跡なら N 程度まで」の N が
+    /// 小さく出て、利用者は必要以上に削ることになる。
+    ///
+    /// 見出しの有無だけが違う2つを同じ上限で通し、文面が一致することで見る。
+    /// **絶対値で書かない**（単価を直すたびに数字を直させることになる）。
+    #[test]
+    fn a_header_does_not_change_how_much_was_read() {
+        let body = format!("sfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
+        let over = BYTES_PER_POSITION + 3 * BYTES_PER_MOVE - 1;
+
+        let without = parse_limited(
+            std::io::Cursor::new(body.as_bytes()),
+            "/books/a.db",
+            over,
+            body.len() as u64,
+        )
+        .expect_err("上限を超えている");
+
+        let with = format!("#YANEURAOU-DB2016 1.00\n{body}");
+        let with = parse_limited(
+            std::io::Cursor::new(with.as_bytes()),
+            "/books/a.db",
+            over,
+            body.len() as u64,
+        )
+        .expect_err("上限を超えている");
+
+        assert_eq!(without.message(), with.message());
     }
 
     /// 見出しが無くても、定跡ではないファイルは落ちること。
@@ -1627,15 +1694,21 @@ mod tests {
 
     /// 上限ちょうどの行は通す。
     ///
-    /// **末尾に改行が無い形で見る。** 改行付きの行では `take` が切らないので、
-    /// 境界を `>` と `>=` のどちらにしても同じ結果になり、区別できない。
+    /// 境界が効く入力の条件は2つ。**末尾に改行が無いこと**（改行付きの行では
+    /// `take` が切らないので、`>` と `>=` のどちらでも同じ結果になる）と、
+    /// **注記でないこと**（注記は長さの枝より先に読み捨てへ落ちる）。
+    /// 片方でも外すと、境界をずらす変異が緑で通る。
     #[test]
     fn a_line_at_the_length_limit_is_accepted() {
-        let text = format!(
-            "#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 0 0 1\n{}",
-            "#".repeat(MAX_LINE_BYTES)
-        );
-        assert!(parsed(&text).is_ok());
+        // 指し手行を空白で上限ちょうどまで伸ばす。末尾に改行は付けない
+        let last = format!("{:<width$}", "7g7f none 0 0 1", width = MAX_LINE_BYTES);
+        assert_eq!(last.len(), MAX_LINE_BYTES);
+        assert!(!is_note(last.as_bytes()));
+
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n{last}");
+        let positions = loaded(&text);
+
+        assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 1);
     }
 
     /// **長すぎる注記は捨てて読み進む。** 本家は注記の中身を見ないので、長い注記を
