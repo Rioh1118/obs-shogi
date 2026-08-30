@@ -101,6 +101,9 @@ describe("cursorKey", () => {
     expect(cursorKey(at(5, [fp(4, 1), fp(2, 0)]))).toBe(cursorKey(at(5, [fp(2, 0), fp(4, 1)])));
   });
 
+  // 鍵は te <= tesuu しか見ない。だから「先の計画だけが違う2つの要求」は同じ鍵になる。
+  // applyCursor はその部分を branchPlan へ引き継ぐので、要求の重複判定には使えない
+  // （使うと先の計画を積む要求が落ちる → #239 を直す人が踏む）。
   test("tesuu より先の選択は鍵に載らない", () => {
     expect(cursorKey(at(3, [fp(2, 0), fp(5, 1)]))).toBe(cursorKey(at(3, [fp(2, 0)])));
   });

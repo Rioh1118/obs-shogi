@@ -107,7 +107,7 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 
 | イベント                   | G0 未ロード    | G1 先の予定なし                                                      | G2 先の計画あり                                                                                      | テスト |
 | -------------------------- | -------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------ |
-| **E1** `loadGame`          | → G1           | → G1（前の計画は消える）                                             | → G1（同左）                                                                                         | ✗      |
+| **E1** `loadGame`          | → G1           | → G1（前の計画は消える）                                             | → G1（同左）                                                                                         | ✓※6    |
 | **E2** `resetGame`         | —              | → G0                                                                 | → G0                                                                                                 | ✗      |
 | **E3** `nextMove`          | 無視           | いま辿っている線を1手進む                                            | `te = tesuu+1` の計画があればそこへ降りる。壊れた計画は捨てて線をそのまま1手。線の末尾では動かない※1 | △※5    |
 | **E4** `previousMove`      | 無視           | 1手戻る。**戻る前の `tesuu` に fork ポインタがあるときだけ G2 へ**   | 1手戻る。G2 のまま                                                                                   | ✗      |
@@ -122,7 +122,7 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | **E13** `swap` / `delete`  | 無視           | 棋譜が変わり、カーソルは `res.nextCursor` 由来へ                     | **先の計画が消える。** 消えて正しいのは消した枝を指す分だけ                                          | ✗      |
 | **E14** 保存の失敗         | —              | P2 へ。`error` に載るが**画面には出ない**                            | 同左                                                                                                 | ✗      |
 | **E15** ワークスペース変更 | —              | 取得が成功すれば E2 と同じ※4                                         | 同左                                                                                                 | ✗      |
-| **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残り、`error` だけ載る（読み手0）※3                | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                           | ✗      |
+| **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残り、`error` だけ載る（読み手0）※3                | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                           | ✓※6    |
 | **E17** 編集の失敗         | 無視           | 棋譜も計画も変わらず `error` だけ載る（読み手0）                     | 同左                                                                                                 | ✗      |
 
 ### 注
@@ -145,10 +145,15 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 `navigate` の `catch` が `set_error` に落とすが読み手が0なので、そのときは
 盤が1手も動かず画面には何も出ない。
 
+※6 `provider.test.tsx` が固定しているのは `loadGame` の2つ（読み込めた棋譜が
+`state` に入ること、盤に載せられない棋譜を弾いて `error` を残すこと）。
+**E16 の番人は `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけ**で、
+返り値を使わないので消しても tsc も lint も通る。このテストがその1行を守っている。
+
 ※5 `△` は「歩き方の部品だけ固定されている」の意。`advanceWithPlan.test.ts` が
 1手ぶんの規則（壊れた計画は捨てて線をそのまま進む、線の末尾では動かない）を固定しているだけで、
 **`navigate` を通した `state.branchPlan` の遷移（G2 のまま残るか G1 に落ちるか）は
-未検証**。`provider.tsx` にテストは1本も無い。
+未検証**。`provider.test.tsx` が踏むのは `loadGame` だけ（※6）。
 
 ※2 振り分けるのは `resolveForkSelection`。比較先は `PlannedCursor` で、
 `KifuCursor` は型で弾く。行のチェックとの食い違いは不変条件2 を見る。
@@ -267,7 +272,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 
 | セル                                                   | 状態                                                                                                                                                                                               |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GameProvider` 自体の遷移すべて                        | **テスト無し。** `provider.tsx` にテストが1本も無い。上の表の ✗ は全部これで、`△` も provider を通る部分は同じく未検証                                                                             |
+| `GameProvider` の遷移のうち `loadGame` 以外            | **テスト無し。** `provider.test.tsx` が踏むのは `loadGame`（成功と E16）だけ。上の表の ✗ は全部これで、`△` も provider を通る部分は同じく未検証                                                    |
 | **E9** / **E10** 分岐メニュー                          | ✓ `cursorSelection.test.ts`。ただし `resolveForkSelection` の**振り分けまで**。`applyCursor` / `goToIndex` を通した結果は未検証                                                                    |
 | **E15** でツリーの取得が失敗したとき                   | **未検証 → #245。** `kifu_closed` が来ないので旧ワークスペースの `activeKifuPath` と `persistence` が残る。読み込み中の窓も見ていない                                                              |
 | `(G2, P2)` で `loadGame`                               | **テスト無し。** 未保存の編集と先の計画が同時に消える。手で再現していない                                                                                                                          |
@@ -287,7 +292,8 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 - 計画に沿った走査: `src/entities/kifu/lib/advanceWithPlan.ts`
 - 2つの型: `src/entities/kifu/model/cursor.ts` の `KifuCursor` / `PlannedCursor`
 - 行と分岐メニュー: `src/widgets/kifu-stream/`
-- テスト: `src/entities/game/model/__tests__/reducer.test.ts`（identity のみ）、
+- テスト: `src/entities/game/model/__tests__/provider.test.tsx`（`loadGame` と E16）、
+  `src/entities/game/model/__tests__/reducer.test.ts`（identity のみ）、
   `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts`、
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
   `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`、

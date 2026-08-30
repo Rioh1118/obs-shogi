@@ -294,7 +294,7 @@ export function descendTo(
 }
 
 /**
- * カーソルを文字列の鍵にする。**`CursorPath` どうしを比べる鍵はこれ1つ。**
+ * カーソルが指す**局面**を文字列の鍵にする。**`CursorPath` の局面を比べる鍵はこれ1つ。**
  *
  * 「着いた局面」どうしを比べるのは別で、そちらは `KifuCursor.tesuuPointer`
  * （`provider.tsx` の移動前後の比較、`AnalysisPane` のキャッシュ鍵）。
@@ -303,7 +303,10 @@ export function descendTo(
  * `KifuCursor.tesuuPointer` と違い、これは**要求の鍵**でしかない。
  * 再生器を通していないので、その局面に本当に着ける保証は無い
  * （`goto` は実在しない変化を黙って捨て、同じ `tesuu` の別の線に着く）。
- * 「同じ鍵 = 同じ要求」であって「同じ局面」ではない。
+ * **見るのは `te <= tesuu` の範囲だけ。** `CursorPath` が持ちうる `te > tesuu` の計画
+ * （`previewCursor`）は鍵に載らないので、**カーソルより先の予定だけが違う2つの要求は
+ * 同じ鍵になる**。`applyCursor` はその部分を `branchPlan` へ引き継ぐので、
+ * **要求の重複判定にこの鍵を使わないこと**（使うと先の計画を積む要求が落ちる）。
  *
  * 着いた先の同一性が要る側は `state.cursor.tesuuPointer`（再生器が返した値）を見ること。
  */
