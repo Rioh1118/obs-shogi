@@ -23,11 +23,14 @@
 
 ## 状態
 
-| 記号 | 判定条件（式）                          | 意味                             |
-| ---- | --------------------------------------- | -------------------------------- |
-| S0   | `header.is_none()`                      | 見出しをまだ見ていない           |
-| S1   | `header.is_some() && current.is_none()` | 見出し済み、局面をまだ見ていない |
-| S2   | `header.is_some() && current.is_some()` | 局面を読んでいる最中             |
+| 記号 | 判定条件（式）                      | 意味                                 |
+| ---- | ----------------------------------- | ------------------------------------ |
+| S0   | `!body_started`                     | 本体の開始行をまだ見つけていない     |
+| S1   | `body_started && current.is_none()` | 本体は始まったが局面をまだ見ていない |
+| S2   | `body_started && current.is_some()` | 局面を読んでいる最中                 |
+
+**S0 を「見出しをまだ見ていない」と読まないこと。** 見出しは要求しないので、
+局面行に当たった時点でも S1 へ進む（そのとき読んだ行は本体へ持ち越す）。
 
 `buffered` は S2 でしか非空にならない（S1 で指し手行はエラーになる）。
 `flush` の早期 return はこの不変条件に依存している。
@@ -43,7 +46,7 @@
 | E2   | `line.trim().starts_with("# NOE:")`                        |
 | E3   | `line.starts_with('#')`（E1 / E2 以外）                    |
 | E4   | `line.starts_with("//")`                                   |
-| E5   | `line.strip_prefix("sfen ").is_some()`                     |
+| E5   | `line.strip_prefix(POSITION_PREFIX).is_some()`             |
 | E6   | 先頭トークンが `ABSENT_MOVE`（`none` / `None` / `resign`） |
 | E7   | 先頭トークンが `looks_like_a_move` を満たす                |
 | E8   | それ以外（形を満たさない）                                 |

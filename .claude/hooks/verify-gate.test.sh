@@ -242,6 +242,8 @@ expect_kinds "rust" "rust-toolchain.toml"
 expect_kinds "gate" ".claude/hooks/verify-gate.sh"
 expect_kinds "" "README.md"
 expect_kinds "" "docs/decisions/0002-drop-book-read-write.md"
+# 状態遷移表は `state_table_terms.rs` が突き合わせるので、表だけのコミットでも走らせる
+expect_kinds "rust" "docs/state-transitions/yaneuraou-db-parse.md"
 expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
 # 引用符付きのパスは -z で読むので、ここへは素のまま来る
 expect_kinds "ts" "src/dir with space/a.ts"

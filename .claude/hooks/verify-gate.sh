@@ -214,6 +214,11 @@ gate_kinds_for_path() {
     *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
       kinds="$kinds rust" ;;
   esac
+  # 状態遷移表は `state_table_terms.rs` が実装と突き合わせる。表だけを直した
+  # コミットで走らないと、その検査が仕事をしない。
+  case "$path" in
+    docs/state-transitions/*.md) kinds="$kinds rust" ;;
+  esac
   case "$path" in
     .claude/hooks/*.sh) kinds="$kinds gate" ;;
   esac

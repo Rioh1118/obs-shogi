@@ -351,7 +351,7 @@ const POSITION_PREFIX: &str = "sfen ";
 
 /// 読み飛ばす行。
 ///
-/// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:710-715` が
+/// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:709-716` が
 /// `#` と `//` の両方を読み飛ばす）。落とさないと2通りに壊れる。
 ///
 /// - `sfen` 行の後ろにあると候補手として登録され、しかも先頭に来る。
@@ -462,7 +462,9 @@ fn parse_limited<R: BufRead>(
     // （局面 225 万行 + 指し手 1,610 万行）。
     let mut raw = Vec::new();
     let mut index = 0usize;
-    let mut header: Option<usize> = None;
+    // **「見出しを読んだか」ではない。** 見出しは要求しないので、局面行に
+    // 当たったときも真になる。持つのは「本体が始まったか」。
+    let mut body_started = false;
     let mut declared: Option<u64> = None;
     // データの行が改行で終わっていたか。**注記と空行は数えない。**
     let mut last_line_terminated = true;
@@ -496,7 +498,7 @@ fn parse_limited<R: BufRead>(
             continue;
         }
         if line.starts_with(HEADER_PREFIX) {
-            header = Some(index);
+            body_started = true;
             break;
         }
         if is_skippable(line) {
@@ -506,7 +508,7 @@ fn parse_limited<R: BufRead>(
         // **開ける側**の回帰 fixture に置いているし、本家は見出しを検査しない。
         // 局面行に当たったらそこが本体の始まり。読み捨てずに本体へ渡す。
         if line.starts_with(POSITION_PREFIX) {
-            header = Some(index);
+            body_started = true;
             unread = true;
             break;
         }
@@ -517,7 +519,7 @@ fn parse_limited<R: BufRead>(
     // **「空」と言わない。** 注記だけのファイルは空ではないので、利用者は
     // エディタで中身を見てアプリの不具合だと判断する。局面が0という点では
     // 読み切った後の検査と同じ状況なので、文面も揃える。
-    if header.is_none() {
+    if !body_started {
         return Err(invalid_content(EMPTY_OF_POSITIONS, path));
     }
 
@@ -564,7 +566,7 @@ fn parse_limited<R: BufRead>(
         // 完全な定跡がある。そこまで数えると、正しい定跡が毎回警告される。
         last_line_terminated = terminated;
 
-        if let Some(rest) = line.strip_prefix("sfen ") {
+        if let Some(rest) = line.strip_prefix(POSITION_PREFIX) {
             sfen_lines += 1;
             // 局面だけのファイルは手数を1つも増やさないので、指し手の側の
             // 検査に一度も当たらない。ここでも見る。
@@ -1045,7 +1047,7 @@ mod tests {
         assert_eq!(moves[0].count, Some(1234));
     }
 
-    /// `//` は形式の一部のコメント（本家 `book.cpp:710-715`）。
+    /// `//` は形式の一部のコメント（本家 `book.cpp:709-716`）。
     /// 読み飛ばさないと、先頭の候補手＝best move の位置に `//` が入る。
     #[test]
     fn skips_slash_comments_between_moves() {
@@ -1254,10 +1256,11 @@ mod tests {
 
     /// **1局面だけ足りないファイルも拒否すること。**
     ///
-    /// 既存の2本は極端な値でしか見ていない（申告 125 万対 1局面、または一致
-    /// ちょうど）ので、`<` を `+ 1 <` へずらす変異が通る。H4 は切れの検出を
-    /// 単独で担う唯一の関門（H7 は改行の無い定跡を拒否できないので使えない）
-    /// なので、境界が1つずれると**最後の1局面だけ落ちたファイル**が黙って開く。
+    /// **境界が効く入力で見ること。** 極端な値（申告 125 万対 1局面）や一致
+    /// ちょうどでは、`<` を `+ 1 <` へずらしても結果が変わらない。H4 は切れの
+    /// 検出を単独で担う唯一の関門（H7 は改行の無い定跡を拒否できないので
+    /// 使えない）なので、境界が1つずれると**最後の1局面だけ落ちたファイル**が
+    /// 黙って開く。
     #[test]
     fn a_book_one_position_short_of_its_declared_count_is_rejected() {
         let text = format!("#YANEURAOU-DB2016 1.00\n# NOE:2\nsfen {HIRATE}\n7g7f 3c3d 50 32 1\n");
@@ -1518,6 +1521,24 @@ mod tests {
         assert_eq!(usi, ["7g7f", "2g2f"]);
     }
 
+    /// 表の (S2, E2)。局面より**後ろ**の `# NOE:` も申告値として覚える。
+    ///
+    /// **読み飛ばしだけを見るテストでは足りない。** 申告値が実数と一致する入力を
+    /// 使うと、覚えても覚えなくても同じ結果になり、本体ループの枝を丸ごと消しても
+    /// 緑で通る。実数と食い違わせて、H4 が発火することで見る。
+    #[test]
+    fn a_declared_count_after_the_first_position_is_remembered() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n# NOE:1250000\n");
+        let err = parsed(&text).unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(
+            err.message().contains("1250000"),
+            "申告値を取り逃している: {}",
+            err.message()
+        );
+    }
+
     /// 表の H1。**注記の中身は見ない。** 本家は行を生のバイト列として読み、
     /// `#` / `//` を中身を見ずに捨てる。ファイル全体を UTF-8 として読むと、
     /// Shift_JIS の注記が1行あるだけで定跡全体が拒否される。
@@ -1581,8 +1602,7 @@ mod tests {
     /// **不変条件3。どの失敗も「次に何をすればよいか」で終わること。**
     ///
     /// 個々のテストは自分が見たい語しか assert しないので、復帰操作が消えても
-    /// 大半は緑のまま通る（実際、局面が1つも無い枝と局面より先の指し手の枝は
-    /// 種別しか見ていなかった）。**枝を1箇所に並べて、まとめて見る。**
+    /// 大半は緑のまま通る。**枝を1箇所に並べて、まとめて見る。**
     ///
     /// ここに並んでいない失敗の枝を足したら、この一覧にも足すこと。
     #[test]
@@ -1827,8 +1847,7 @@ mod tests {
     }
 
     /// **局面だけのファイルも上限に当たること。** 指し手を1つも増やさないので、
-    /// 手数だけを数える形では一度も当たらない（実測で 831MB のファイルが
-    /// 3.07 GB を確保して成功していた）。
+    /// 手数だけを数える形では一度も当たらない（831MB / 2,000 万局面で確保 3.07 GB）。
     #[test]
     fn a_book_of_positions_only_still_hits_the_limit() {
         let mut text = String::from("#YANEURAOU-DB2016 1.00\n");
