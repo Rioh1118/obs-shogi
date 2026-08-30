@@ -243,6 +243,7 @@ fn parse_limited<R: BufRead>(
     let mut header: Option<usize> = None;
     let mut declared: Option<u64> = None;
     let mut last_line_terminated = true;
+    let mut dropped = DroppedFields::default();
 
     // 見出しより前にも注記は書ける。本家は `#` と `//` を位置に関係なく
     // 読み飛ばす（`book.cpp:709-716`）ので、先頭の1行のせいで定跡を拒否しない。
@@ -323,7 +324,7 @@ fn parse_limited<R: BufRead>(
             ));
         }
 
-        let parsed = parse_move(line);
+        let parsed = parse_move(line, &mut dropped);
         // 「指し手が無い」の綴り。本家は指し手の欄でも同じ3綴りを見る
         // （`book.cpp:118-119`）。候補手にすると、盤に適用できない綴りが
         // 先頭＝best move の位置に座る。局面は `flush` が空でも登録する。
@@ -402,6 +403,15 @@ fn parse_limited<R: BufRead>(
              取得し直すか、別の定跡を開くこと",
             path,
         ));
+    }
+
+    if dropped.ponder > 0 || dropped.numbers > 0 {
+        log::warn!(
+            "[book] 読めない欄を読み飛ばした path={} 応手={} 数値={}",
+            crate::book::error::truncate_path(path),
+            dropped.ponder,
+            dropped.numbers
+        );
     }
 
     Ok(positions)
@@ -500,7 +510,18 @@ fn keep_first_of_each_move(moves: &mut Vec<BookMove>) {
 ///
 /// 呼び出し側が空行と注記を除いてから渡すので、先頭のトークンは必ず存在する。
 /// 指し手として成立しているかは呼び出し側が [`looks_like_a_move`] で見る。
-fn parse_move(line: &str) -> BookMove {
+/// 読めずに捨てた欄の数。
+///
+/// 落とした事実がどこにも出ないと、誤読みだと分かる手がかりが利用者にも
+/// 報告を受けた側にも無い。行ごとに `log` を出すと 100 万行でログが溢れるので、
+/// 数えて最後に1回だけ出す。
+#[derive(Default)]
+struct DroppedFields {
+    ponder: usize,
+    numbers: usize,
+}
+
+fn parse_move(line: &str, dropped: &mut DroppedFields) -> BookMove {
     // 6つ目以降は形式に無い。畳んでおけば、末尾に何か付いていても欄がずれない。
     let mut tokens = line.splitn(6, ' ');
 
@@ -511,10 +532,10 @@ fn parse_move(line: &str) -> BookMove {
 
     BookMove {
         usi_move,
-        ponder: optional_move(tokens.next()),
-        value: optional_number(tokens.next()),
-        depth: optional_number(tokens.next()),
-        count: optional_number(tokens.next()),
+        ponder: optional_move(tokens.next(), dropped),
+        value: optional_number(tokens.next(), dropped),
+        depth: optional_number(tokens.next(), dropped),
+        count: optional_number(tokens.next(), dropped),
     }
 }
 
@@ -534,6 +555,13 @@ const MAX_MOVE_CHARS: usize = 7;
 /// 「指し手が無い」の綴り（[`ABSENT_MOVE`]）もこの形は満たす。**それらを
 /// 落とすのは呼び出し側の役目**で、形の検査には入れない（形と意味は別の層）。
 fn looks_like_a_move(token: &str) -> bool {
+    // 形式のキーワード。`sfen` 行の途中で切れたファイルでは、これが指し手の
+    // 位置に来る（実測で `usi_move: "sfen"` が候補手に入った）。形は満たすので、
+    // 綴りで外す。
+    if token == "sfen" {
+        return false;
+    }
+
     !token.is_empty()
         && token.chars().count() <= MAX_MOVE_CHARS
         && token
@@ -549,11 +577,15 @@ fn looks_like_a_move(token: &str) -> bool {
 const ABSENT_MOVE: [&str; 3] = ["none", "None", "resign"];
 
 /// 応手の欄を読む。省略・空欄・「指し手が無い」の綴りはすべて欠損。
-fn optional_move(token: Option<&str>) -> Option<String> {
+fn optional_move(token: Option<&str>, dropped: &mut DroppedFields) -> Option<String> {
     let token = token?.trim();
+    if token.is_empty() || ABSENT_MOVE.contains(&token) {
+        return None;
+    }
     // 形を満たさない応手は、指し手として渡せないので落とす。ここで落としても
     // 候補手そのものは残るので、定跡が引けなくなることはない。
-    if token.is_empty() || ABSENT_MOVE.contains(&token) || !looks_like_a_move(token) {
+    if !looks_like_a_move(token) {
+        dropped.ponder += 1;
         return None;
     }
     Some(token.to_string())
@@ -567,8 +599,21 @@ fn optional_move(token: Option<&str>) -> Option<String> {
 /// `Err` は `parse` → `load` → `open_reader` を素通しして `open_book` ごと
 /// 失敗させるので、評価値の綴りが1つ壊れているだけの数百 MB の定跡が
 /// まったく開けなくなる。
-fn optional_number<T: std::str::FromStr>(token: Option<&str>) -> Option<T> {
-    token.and_then(|t| t.trim().parse().ok())
+fn optional_number<T: std::str::FromStr>(
+    token: Option<&str>,
+    dropped: &mut DroppedFields,
+) -> Option<T> {
+    let token = token?.trim();
+    if token.is_empty() {
+        return None;
+    }
+    match token.parse() {
+        Ok(value) => Some(value),
+        Err(_) => {
+            dropped.numbers += 1;
+            None
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1008,6 +1053,40 @@ mod tests {
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
         assert!(err.message().contains("4行目"), "{}", err.message());
         assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// `sfen` 行の途中で切れたファイルでは、形式のキーワードが指し手の位置に来る。
+    /// 形は満たすので、綴りで外さないと候補手に入る。
+    #[test]
+    fn the_sfen_keyword_is_not_a_candidate_move() {
+        assert!(!looks_like_a_move("sfen"));
+        assert!(looks_like_a_move("7g7f"));
+    }
+
+    /// 落とした欄の数を数えていること。数えていないと、誤読みだと分かる
+    /// 手がかりが利用者にも報告を受けた側にも無い。
+    #[test]
+    fn dropped_fields_are_counted() {
+        let mut dropped = DroppedFields::default();
+        // 応手が指し手の形を満たさない / 評価値が数値でない
+        let parsed = parse_move("7g7f ここには指し手が来るはず x 32 1", &mut dropped);
+
+        assert_eq!(parsed.usi_move, "7g7f");
+        assert_eq!(parsed.ponder, None);
+        assert_eq!(parsed.value, None);
+        assert_eq!(dropped.ponder, 1);
+        assert_eq!(dropped.numbers, 1);
+    }
+
+    /// 空欄は「読めなかった」ではないので数えない。数えると、正常な定跡で
+    /// 毎回ログが出て、本当に読めなかった場合と区別が付かなくなる。
+    #[test]
+    fn an_empty_field_is_not_counted_as_dropped() {
+        let mut dropped = DroppedFields::default();
+        parse_move("7g7f none  32 5", &mut dropped);
+
+        assert_eq!(dropped.ponder, 0);
+        assert_eq!(dropped.numbers, 0);
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
