@@ -5,10 +5,12 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-      # pre-release: v1.0.0-1。`-` の後ろは数字だけにする。
-      # Windows は msi も作る（`tauri.conf.json` の `bundle.targets: "all"`）が、
-      # MSI の ProductVersion は数値しか持てないので `-beta.1` のような綴りは
-      # bundler が bail し、**Windows の資産だけ欠けたリリースが公開される**（#256 と同じ形）
+      # pre-release: v1.0.0-1。**`-` の後ろは 65535 以下の10進数だけ。**
+      # Windows は msi も作る（`tauri.conf.json` の `bundle.targets`）が、
+      # MSI の ProductVersion にはそれ以外を載せられず bundler が bail する。
+      # `-beta.1` も `-20260830` も落ちる。落ちても `fail-fast: false` なので
+      # 他の OS の資産だけが載ったリリースがそのまま公開される。
+      # TODO(#269): このパターンで弾くか、msi を作るのをやめるか
       - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
     inputs:
