@@ -20,7 +20,6 @@ import {
   ROOT_CURSOR,
   asBranchPlan,
   mergeBranchPlan,
-  normalizeForkPointers,
   plannedCursorFrom,
   sameForkPointers,
   type BranchPlan,
@@ -37,7 +36,7 @@ import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
 import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
-import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import { buildPlayer, gotoPath } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { cursorFromPlayer } from "@/entities/kifu/lib/playerCursor";
 import {
@@ -165,7 +164,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "clear_error" });
 
         const player = buildPlayer(state.jkf, state.cursor);
-        const beforePointer = state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+        const beforePointer = state.cursor?.tesuuPointer ?? cursorFromPlayer(player).tesuuPointer;
 
         const result = run(player, state.branchPlan);
         if (result === false) return;
@@ -209,7 +208,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         const nextJkf = cloneJkf(state.jkf);
         const player = buildPlayer(nextJkf, state.cursor);
-        const beforePointer = state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+        const beforePointer = state.cursor?.tesuuPointer ?? cursorFromPlayer(player).tesuuPointer;
 
         const result = run(player, nextJkf);
         if (result === false) return;
@@ -267,7 +266,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const goToIndex = useCallback(
     (index: number) => {
       navigate((player, branchPlan) => {
-        player.goto(index, normalizeForkPointers(branchPlan, index));
+        gotoPath(player, { tesuu: index, forkPointers: branchPlan });
       }, "Failed to go to index");
     },
     [navigate],

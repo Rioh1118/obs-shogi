@@ -10,9 +10,13 @@ import { normalizeForkPointers, type CursorPath } from "../model/cursor";
  *   `forkPointers` が手の無い te を指しているとき
  * @throws {TypeError} `forkIndex` が負・非整数のとき（`forks[-1]` を掴む）
  */
+export function gotoPath(player: JKFPlayer, path: CursorPath): void {
+  player.goto(path.tesuu, normalizeForkPointers(path.forkPointers, path.tesuu));
+}
+
 function applyCursorToPlayer(player: JKFPlayer, cursor: CursorPath | null) {
   if (!cursor) return;
-  player.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
+  gotoPath(player, cursor);
 }
 
 /**
