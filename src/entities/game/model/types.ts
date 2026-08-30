@@ -5,7 +5,12 @@ import type { Color, Kind } from "shogi.js";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { AsyncResult } from "@/shared/lib/result";
-import { asBranchPlan, type BranchPlan, type KifuCursor } from "@/entities/kifu/model/cursor";
+import {
+  asBranchPlan,
+  type BranchPlan,
+  type CursorPath,
+  type KifuCursor,
+} from "@/entities/kifu/model/cursor";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 
 import type { IMove as ShogiMove } from "shogi.js";
@@ -175,9 +180,9 @@ export const initialGameState: GameContextState = {
 };
 
 export interface JKFPlayerHelpers {
-  isLegalMove: (jkfPlayer: JKFPlayer, move: ShogiMove) => boolean;
-  canPromoteMove: (jkfPlayer: JKFPlayer, move: ShogiMove) => boolean;
-  mustPromoteMove: (jkfPlayer: JKFPlayer, move: ShogiMove) => boolean;
+  isLegalMove: (player: JKFPlayer, move: ShogiMove) => boolean;
+  canPromoteMove: (player: JKFPlayer, move: ShogiMove) => boolean;
+  mustPromoteMove: (player: JKFPlayer, move: ShogiMove) => boolean;
 }
 
 export interface StandardMoveFormat {
@@ -233,8 +238,8 @@ export interface GameContextType {
   swapBranches: (q: SwapQuery) => AsyncResult<void, string>;
   deleteBranch: (q: DeleteQuery) => AsyncResult<void, string>;
 
-  getCommentsByCursor: (cursor: KifuCursor | null) => string[];
-  setCommentsByCursor: (cursor: KifuCursor, comments: string[]) => AsyncResult<void, string>;
+  getCommentsByCursor: (cursor: CursorPath | null) => string[];
+  setCommentsByCursor: (cursor: CursorPath, comments: string[]) => AsyncResult<void, string>;
   setCurrentComments: (comments: string[]) => AsyncResult<void, string>;
 
   clearError: () => void;
@@ -253,7 +258,16 @@ export interface GameContextType {
   getCurrentMove: () => IMoveMoveFormat | undefined;
   getCurrentComments: () => string[];
 
-  applyCursor: (cursor: KifuCursor) => void;
+  /**
+   * 指定の位置へ盤を移す。
+   *
+   * `CursorPath` を取るのは `tesuuPointer` を読まないから。着いた先の
+   * `KifuCursor` は `cursorFromPlayer` が player から作り直す。要求した局面に
+   * 着いたかは `state.cursor` を見ること。
+   *
+   * `cursor.tesuu` より先の `ForkPointer` は捨てずに `branchPlan` へ引き継ぐ。
+   */
+  applyCursor: (cursor: CursorPath) => void;
 }
 
 export interface GameProviderProps {

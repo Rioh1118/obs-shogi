@@ -1,4 +1,4 @@
-import type { ForkPointer, KifuCursor, TesuuPointer } from "./cursor";
+import type { CursorPath, ForkPointer } from "./cursor";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 declare const branchIndexBrand: unique symbol;
@@ -62,8 +62,12 @@ export type BranchEditResult = {
    *
    * `null` になるのは `cursor` を渡さなかったときだけ。編集が別の stream で起きて
    * カーソルに影響しない場合は、渡した `cursor` がそのまま返る。
+   *
+   * `tesuuPointer` を持たないのは、書き換わった棋譜の上でその局面に本当に着けるかを
+   * ここでは確かめられないため。編集後の `KifuCursor` は、呼び出し側が
+   * この値で棋譜を辿り直してから `cursorFromPlayer` で作ること。
    */
-  nextCursor: KifuCursor | null;
+  nextCursor: CursorPath | null;
 };
 
 /**
@@ -157,15 +161,4 @@ export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchI
  */
 export function branchIndexAfterRemoval(b: BranchIndex): BranchIndex {
   return (b - 1) as BranchIndex;
-}
-
-/**
- * 局面を一意に表す文字列を組む
- *
- * `forkPointers` は正規化してから渡すこと。並びが違うだけで別の文字列になり、
- * 同じ局面が別のキーとして扱われる。
- */
-export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
-  // JKFPlayer の "N,[{te,forkIndex}]" と揃える
-  return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
 }

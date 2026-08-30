@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Err, Ok } from "@/shared/lib/result";
-import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import type { CursorPath } from "@/entities/kifu/model/cursor";
 
 /**
  * ノートは**書けたときだけ**「保存済み」を出し、**開いた棋譜へだけ**書く。
@@ -84,10 +84,9 @@ vi.mock("@/shared/ui/floating-note/FloatingNote", () => ({
 
 const { default: KifuCommentNote } = await import("../KifuCommentNote");
 
-const CURSOR: KifuCursor = {
+const CURSOR: CursorPath = {
   tesuu: 5,
   forkPointers: [],
-  tesuuPointer: "5,[]" as KifuCursor["tesuuPointer"],
 };
 
 function open(absPath: string | null) {
@@ -241,15 +240,14 @@ describe("開いた棋譜との突き合わせ", () => {
  * **書きかけの本文が黙って消える**。
  */
 describe("面が入れ替わるとき", () => {
-  const OTHER: KifuCursor = {
+  const OTHER: CursorPath = {
     tesuu: 7,
     forkPointers: [],
-    tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
   };
 
   function show(
     view: ReturnType<typeof open>,
-    props: { open?: boolean; cursor?: KifuCursor; absPath?: string | null; onClose?: () => void },
+    props: { open?: boolean; cursor?: CursorPath; absPath?: string | null; onClose?: () => void },
   ) {
     return act(async () => {
       view.rerender(
@@ -429,15 +427,14 @@ describe("面が入れ替わるとき", () => {
  * `entities/game` 側（`persistGuard.test.tsx` / `reducer.test.ts`）が固定している。
  */
 describe("走っている保存の面を組み直したとき", () => {
-  const OTHER: KifuCursor = {
+  const OTHER: CursorPath = {
     tesuu: 7,
     forkPointers: [],
-    tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
   };
 
   function show(
     view: ReturnType<typeof open>,
-    props: { cursor?: KifuCursor; open?: boolean } = {},
+    props: { cursor?: CursorPath; open?: boolean } = {},
   ) {
     return act(async () => {
       view.rerender(

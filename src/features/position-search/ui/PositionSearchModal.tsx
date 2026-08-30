@@ -74,10 +74,10 @@ export default function PositionSearchModal() {
     }
 
     // 通常: 現在の棋譜の局面から構築
-    const jkf = gameView.player;
-    if (!jkf) return null;
-    const nodeId = jkf.getTesuuPointer(jkf.tesuu);
-    return buildPreviewData(jkf, nodeId);
+    const player = gameView.player;
+    if (!player) return null;
+    const nodeId = player.getTesuuPointer(player.tesuu);
+    return buildPreviewData(player, nodeId);
   }, [isOpen, params.sfen, gameView.player]);
 
   const orderedHits = useMemo(() => {

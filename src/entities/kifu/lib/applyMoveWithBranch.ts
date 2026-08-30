@@ -8,7 +8,7 @@ export type ApplyMoveResult = {
   usedExisting: boolean;
   /** 棋譜に新しい分岐を1本足したか */
   createdNew: boolean;
-  /** 適用後の tesuu（jkf.tesuu） */
+  /** 適用後の手数 */
   tesuu: number;
 
   /** 現在ルートの分岐選択の履歴 */
@@ -26,14 +26,14 @@ export type ApplyMoveResult = {
  * 走るので、後から別の分岐を足したときにも書き換わる。呼び出し側は同じオブジェクトを
  * 使い回さないこと。3 の経路も末端の `inputMove` も同じ。
  */
-export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): ApplyMoveResult {
-  const curTesuu = jkf.tesuu;
+export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): ApplyMoveResult {
+  const curTesuu = player.tesuu;
 
   // 1) 本線合流
-  const nextFormat = getNextMoveFormat(jkf, curTesuu);
+  const nextFormat = getNextMoveFormat(player, curTesuu);
   if (nextFormat?.move && eqMove(nextFormat.move, move)) {
-    jkf.forward();
-    return buildResult(jkf, true, false);
+    player.forward();
+    return buildResult(player, true, false);
   }
 
   // 2) 既存変化合流
@@ -42,15 +42,15 @@ export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): Appl
       const forkLine = nextFormat.forks[i];
       const forkFirst = forkLine?.[0];
       if (forkFirst?.move && eqMove(forkFirst.move, move)) {
-        jkf.forkAndForward(i);
-        return buildResult(jkf, true, false);
+        player.forkAndForward(i);
+        return buildResult(player, true, false);
       }
     }
   }
 
   // 3) 新規追加
   //
-  // 注意: jkf.inputMove() は内部で JKFPlayer.sameMoveMinimal を使うが、
+  // 注意: player.inputMove() は内部で JKFPlayer.sameMoveMinimal を使うが、
   // この関数は「片方だけ from がある」ケースで piece のみ比較するため
   // 例: 既存「3九金(49)」(from あり) と 入力「3九金打」(from なし) を同一視し、
   // forward() して既存手へ合流させてしまう（issue #74）。
@@ -65,22 +65,26 @@ export function applyMoveWithBranch(jkf: JKFPlayer, move: IMoveMoveFormat): Appl
     nextFormat.forks.push([{ move }]);
     // 表記もここに依存している。相対表記が埋まらないと、分岐一覧で
     // 「3九金(49)」と「3九金打」が同じ文字列になり読み分けられない。
-    Normalizer.normalizeMinimal(jkf.kifu);
-    jkf.forkAndForward(newForkIndex);
-    return buildResult(jkf, false, true);
+    Normalizer.normalizeMinimal(player.kifu);
+    player.forkAndForward(newForkIndex);
+    return buildResult(player, false, true);
   }
 
   // 末端（次手が存在しない）の場合は inputMove が安全（バグ箇所に到達しない）
-  jkf.inputMove(move);
-  return buildResult(jkf, false, true);
+  player.inputMove(move);
+  return buildResult(player, false, true);
 }
 
-function buildResult(jkf: JKFPlayer, usedExisting: boolean, createdNew: boolean): ApplyMoveResult {
-  const fps = (jkf.getForkPointers?.() ?? []) as ForkPointer[];
+function buildResult(
+  player: JKFPlayer,
+  usedExisting: boolean,
+  createdNew: boolean,
+): ApplyMoveResult {
+  const fps = (player.getForkPointers?.() ?? []) as ForkPointer[];
   return {
     usedExisting,
     createdNew,
-    tesuu: jkf.tesuu,
+    tesuu: player.tesuu,
     forkPointers: fps,
   };
 }
@@ -88,8 +92,8 @@ function buildResult(jkf: JKFPlayer, usedExisting: boolean, createdNew: boolean)
 /**
  * 現在の手順での次の手 (moveFormat) を取得
  */
-function getNextMoveFormat(jkf: JKFPlayer, tesuu: number): IMoveFormat | undefined {
-  const currentStream = jkf.currentStream;
+function getNextMoveFormat(player: JKFPlayer, tesuu: number): IMoveFormat | undefined {
+  const currentStream = player.currentStream;
 
   if (!currentStream || tesuu + 1 >= currentStream.length) {
     return undefined;

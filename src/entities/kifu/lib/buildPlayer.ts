@@ -4,15 +4,19 @@ import { normalizeForkPointers, type CursorPath } from "../model/cursor";
 
 /**
  * `goto` は届かないときに throw せず、進めるところで黙って止まる。
- * `forkAndForward` の返り値も見ないので、実在しない変化は黙って捨てて本譜を進む。
+ * `forkAndForward` の返り値も見ないので、実在しない変化は黙って捨て、そこまでに降りた線を進む。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき、
  *   `forkPointers` が手の無い te を指しているとき
  * @throws {TypeError} `forkIndex` が負・非整数のとき（`forks[-1]` を掴む）
  */
+export function gotoPath(player: JKFPlayer, path: CursorPath): void {
+  player.goto(path.tesuu, normalizeForkPointers(path.forkPointers, path.tesuu));
+}
+
 function applyCursorToPlayer(player: JKFPlayer, cursor: CursorPath | null) {
   if (!cursor) return;
-  player.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
+  gotoPath(player, cursor);
 }
 
 /**
@@ -30,7 +34,7 @@ function applyCursorToPlayer(player: JKFPlayer, cursor: CursorPath | null) {
  *   **要求した `tesuu` ちょうどで別の線に着く**（`tesuu` は一致する）
  *
  * したがって `tesuu` の比較では後者を検出できない。一致を要求する側は
- * `player.getTesuuPointer(cursor.tesuu)` を `cursor.tesuuPointer` と突き合わせること。
+ * `reachedCursor(player, cursor)`（`playerCursor.ts`）を通す。最初の客は #296。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき、`forkPointers` が手の無い te を
  *   指しているとき。レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）

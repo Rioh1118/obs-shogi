@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquareText } from "lucide-react";
 import { useGame } from "@/entities/game";
-import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import type { CursorPath } from "@/entities/kifu/model/cursor";
 import { editorTextToLines, linesToEditorText } from "../lib/commentText";
 import { faceKey } from "../lib/faceKey";
 import FloatingNote from "@/shared/ui/floating-note/FloatingNote";
@@ -10,7 +10,7 @@ import "./KifuCommentNote.scss";
 
 type Props = {
   open: boolean;
-  cursor: KifuCursor | null;
+  cursor: CursorPath | null;
   /** このノートを開いた時点の棋譜。いま読み込まれている棋譜と違うなら保存しない */
   absPath: string | null;
   anchorEl: HTMLButtonElement | null;
@@ -18,7 +18,7 @@ type Props = {
 };
 
 /** ノートが出している面。書く先はこれで決まる */
-type Face = { key: string; cursor: KifuCursor; absPath: string | null };
+type Face = { key: string; cursor: CursorPath; absPath: string | null };
 
 /**
  * ノートが出している面の、確定した中身。鍵と本文が必ず同じコミットで揃う。

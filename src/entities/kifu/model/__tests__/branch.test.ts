@@ -1,13 +1,16 @@
 import { describe, expect, test } from "vitest";
 import {
   MAIN_LINE,
+  branchIndexAfterRemoval,
   branchIndexFromForkIndex,
   branchIndexFromSelection,
+  forkIndexOrNull,
   branchLabel,
   forkIndexFromBranchIndex,
+  neighborBranchIndex,
 } from "../branch";
 
-describe("BranchIndex を作る", () => {
+describe("branchIndexFromSelection", () => {
   test("本譜の選択は MAIN_LINE", () => {
     expect(branchIndexFromSelection(null)).toBe(MAIN_LINE);
   });
@@ -29,7 +32,7 @@ describe("BranchIndex を作る", () => {
   });
 });
 
-describe("BranchIndex から forkIndex に戻す", () => {
+describe("forkIndexFromBranchIndex", () => {
   test("本譜は forks の外にいるので throw する", () => {
     expect(() => forkIndexFromBranchIndex(MAIN_LINE)).toThrow();
   });
@@ -48,6 +51,47 @@ describe("BranchIndex から forkIndex に戻す", () => {
   });
 });
 
+describe("branchIndexFromForkIndex", () => {
+  test("forks の添字は1ずれた位置になる", () => {
+    expect(branchIndexFromForkIndex(0)).toBe(1);
+    expect(branchIndexFromForkIndex(3)).toBe(4);
+  });
+
+  test("0以上の整数でなければ throw する", () => {
+    // -1 を通すと MAIN_LINE に化け、範囲外の値が「本譜」として削除に渡る。
+    for (const f of [-1, 0.5, NaN, Infinity]) {
+      expect(() => branchIndexFromForkIndex(f)).toThrow();
+    }
+  });
+});
+
+describe("neighborBranchIndex", () => {
+  test("一覧で1つ上/下に並ぶ位置", () => {
+    expect(neighborBranchIndex(branchIndexFromForkIndex(1), "up")).toBe(1);
+    expect(neighborBranchIndex(branchIndexFromForkIndex(1), "down")).toBe(3);
+  });
+
+  // 候補数を知らないので上限を見られない。範囲は編集の入口が throw で止める。
+  test("一覧の端では範囲外の値を返す（検査しない）", () => {
+    expect(neighborBranchIndex(MAIN_LINE, "up")).toBe(-1);
+    expect(() => neighborBranchIndex(MAIN_LINE, "up")).not.toThrow();
+  });
+});
+
+describe("branchIndexAfterRemoval", () => {
+  test("自分より前が1つ消えた位置", () => {
+    expect(branchIndexAfterRemoval(branchIndexFromForkIndex(2))).toBe(2);
+  });
+
+  // MAIN_LINE に対して呼ぶと MAIN_LINE 未満を返す。黙って本譜に化けないよう、
+  // forkIndexFromBranchIndex が throw で止める。
+  test("MAIN_LINE に対しては MAIN_LINE 未満を返し、変換側が throw する", () => {
+    const below = branchIndexAfterRemoval(MAIN_LINE);
+    expect(below).toBe(-1);
+    expect(() => forkIndexFromBranchIndex(below)).toThrow();
+  });
+});
+
 describe("branchLabel", () => {
   test("番号は forkIndex から作り、BranchIndex と一致する", () => {
     expect(branchLabel()).toBe("本譜");
@@ -60,6 +104,25 @@ describe("branchLabel", () => {
     // 値の検査は編集の入口が行う。
     for (const f of [-1, 0.5, NaN]) {
       expect(() => branchLabel(f)).not.toThrow();
+    }
+  });
+});
+
+describe("forkIndexOrNull", () => {
+  // branchIndexFromSelection の逆。本譜と「変化0番」は BranchIndex では別物だが、
+  // forkIndex では null と 0 になる。往復で潰れると削除・入れ替えの対象が1つずれる。
+  test("本譜は null", () => {
+    expect(forkIndexOrNull(MAIN_LINE)).toBeNull();
+  });
+
+  test("変化は0始まりの forkIndex に戻る", () => {
+    expect(forkIndexOrNull(branchIndexFromSelection(0))).toBe(0);
+    expect(forkIndexOrNull(branchIndexFromSelection(3))).toBe(3);
+  });
+
+  test("branchIndexFromSelection と往復しても値が変わらない", () => {
+    for (const forkIndex of [null, 0, 1, 7]) {
+      expect(forkIndexOrNull(branchIndexFromSelection(forkIndex))).toBe(forkIndex);
     }
   });
 });

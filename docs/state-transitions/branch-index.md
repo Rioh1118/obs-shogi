@@ -30,17 +30,17 @@
 
 ## 生成側 — どの状態が作れるか
 
-| イベント                                                      | 入力              | 結果                                                | テスト                  |
-| ------------------------------------------------------------- | ----------------- | --------------------------------------------------- | ----------------------- |
-| `MAIN_LINE`                                                   | —                 | S0                                                  | ✓ `branch.test.ts`      |
-| `branchIndexFromSelection(null)`                              | —                 | S0                                                  | ✓                       |
-| `branchIndexFromSelection(f)` / `branchIndexFromForkIndex(f)` | `f` が0以上の整数 | S1 または S2                                        | ✓                       |
-| 同上                                                          | `f` が負          | **throw** `forkIndex -1 is not a valid forks index` | ✓                       |
-| 同上                                                          | `f` が非整数      | **throw** 同上                                      | ✓                       |
-| `neighborBranchIndex(b, "up")`                                | `b = MAIN_LINE`   | S3（`-1`）。**検査しない**                          | ✓ 消費側で throw を確認 |
-| `neighborBranchIndex(b, "down")`                              | `b` が末尾        | S2。**検査しない**                                  | ✓ 同上                  |
-| `branchIndexAfterRemoval(b)`                                  | `b = MAIN_LINE`   | S3（`-1`）。**検査しない**                          | ✗ 到達不能（下記）      |
-| `as BranchIndex`                                              | 任意              | 任意。**型では止まらない**（規約で禁止）            | —                       |
+| イベント                                                      | 入力              | 結果                                                 | テスト                  |
+| ------------------------------------------------------------- | ----------------- | ---------------------------------------------------- | ----------------------- |
+| `MAIN_LINE`                                                   | —                 | S0                                                   | ✓ `branch.test.ts`      |
+| `branchIndexFromSelection(null)`                              | —                 | S0                                                   | ✓                       |
+| `branchIndexFromSelection(f)` / `branchIndexFromForkIndex(f)` | `f` が0以上の整数 | S1 または S2                                         | ✓                       |
+| 同上                                                          | `f` が負          | **throw** `forkIndex -1 is not a valid forks index`  | ✓                       |
+| 同上                                                          | `f` が非整数      | **throw** 同上                                       | ✓                       |
+| `neighborBranchIndex(b, "up")`                                | `b = MAIN_LINE`   | S3（`-1`）。**検査しない**                           | ✓ 消費側で throw を確認 |
+| `neighborBranchIndex(b, "down")`                              | `b` が末尾        | S2。**検査しない**                                   | ✓ 同上                  |
+| `branchIndexAfterRemoval(b)`                                  | `b = MAIN_LINE`   | S3（`-1`）。**検査しない**。本番では到達不能（下記） | ✓ 消費側で throw を確認 |
+| `as BranchIndex`                                              | 任意              | 任意。**型では止まらない**（規約で禁止）             | —                       |
 
 **S2 / S3 を意図的に返す関数が3つある。** どれも候補数を知らないので上限を見られない。
 値が正しいかは消費側が決める。
@@ -62,12 +62,12 @@
 
 ## 埋まっていないセル
 
-| セル                                                    | 状態                                                                                                                       |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `-0` を各消費側に渡す                                   | **テスト無し。** 実装上 `0` と同じ経路に落ちる（`Number.isInteger(-0)` も `splice(-0)` も `0` と同じ）ことを実測で確認済み |
-| `branchIndexAfterRemoval(MAIN_LINE)` → `setBranchIndex` | **テスト無し。** 今日の呼び出し側は `chosen >= 1` を確かめてから呼ぶので到達しない。到達したら throw する                  |
-| `branchLabel` の S3 / S4                                | ✓ テストあり。throw せず壊れたラベルを出す                                                                                 |
-| `as BranchIndex` で作った値                             | **テストで固定できない。** 型では止まらないので規約と lint で守る                                                          |
+| セル                                                               | 状態                                                                                                                             |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `-0` を各消費側に渡す                                              | **テスト無し。** 実装上 `0` と同じ経路に落ちる（`Number.isInteger(-0)` も `splice(-0)` も `0` と同じ）ことを実測で確認済み       |
+| `branchIndexAfterRemoval(MAIN_LINE)` → `setBranchIndex` の**合成** | **テスト無し。** 単体は `branch.test.ts` が固定している。今日の呼び出し側は `chosen >= 1` を確かめてから呼ぶので合成は到達しない |
+| `branchLabel` の S3 / S4                                           | ✓ テストあり。throw せず壊れたラベルを出す                                                                                       |
+| `as BranchIndex` で作った値                                        | **テストで固定できない。** 型では止まらないので規約と lint で守る                                                                |
 
 ## 不変条件
 
@@ -78,16 +78,18 @@
    **`forks.length` 以上なら `false` を返すのに、負や非整数は `forks[-1]` を掴んで
    内部で `TypeError`** になる。
 
-   計画に沿って `forkAndForward` する走査は5箇所ある（`computeLeafTesuu` /
-   `buildStreamRowsFromCursor` / `provider.tsx` の `nextMove` と `goToEnd` /
-   `PositionSearchContinuation`）。**そのうち壊れた値を捨てているのは前の2つだけ**で、
-   `cursor.tesuu` までを扱う `goto` も残り3つも捨てていない（`goto` は
-   `forkAndForward` の返り値すら見ない）。境界を `goto` に渡す直前の1点に
-   寄せるのが本筋。→ #213
+   計画に沿って `forkAndForward` する走査は `advanceWithPlan`
+   （`src/entities/kifu/lib/advanceWithPlan.ts`）の1本で、壊れた値はそこで捨てる。
+   **捨てていないのは `goto` に渡す経路**（`buildPlayer` / `goToIndex`。`goto` は
+   `forkAndForward` の返り値すら見ない）**と `descendTo`** の2つ。
+   この2つは値を検査せず、`branchPlan`（と `descendTo` が返す `CursorPath`）に
+   載せたまま先へ運ぶ → #310。**`state.cursor.forkPointers` には入らない。**
+   あれを作るのは `cursorFromPlayer` だけで、値は `forkAndForward` が成功したときの実測。
 
 2. **要求した局面に着いたかは `tesuu` では判定できない。**
-   `goto` は実在しない変化を黙って捨てて本譜を進むので、**要求した `tesuu` ちょうどで
-   別の線に着く**。比べるなら `player.getTesuuPointer(tesuu)` と `cursor.tesuuPointer`。
+   `goto` は実在しない変化を黙って捨て、そこまでに降りた線を進むので、**要求した `tesuu` ちょうどで
+   別の線に着く**。比べるなら `reachedCursor(player, cursor)`（`src/entities/kifu/lib/playerCursor.ts`）。
+   **いま呼んでいる側は無い → #296**
 3. **範囲外の値は、黙って別の候補に丸められない。**
    `splice` は `NaN` も小数も0方向へ丸めるので、大小比較だけの検査では
    `NaN` が「本譜を消す」に化ける。整数であることを先に見る。

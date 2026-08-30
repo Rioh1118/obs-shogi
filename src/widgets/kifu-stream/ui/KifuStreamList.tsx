@@ -1,10 +1,15 @@
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
-import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import { plannedCursorFrom, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
+import {
+  cursorKey,
+  descendTo,
+  plannedCursorFrom,
+  type CursorPath,
+  type ForkPointer,
+} from "@/entities/kifu/model/cursor";
 import {
   branchLabel,
   forkIndexOrNull,
@@ -17,12 +22,9 @@ import {
 import { countMovesToDelete } from "@/entities/kifu/lib/branchEdit";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
-import {
-  branchIndexFromRow,
-  buildCursorWithForkSelection,
-  resolveForkSelection,
-} from "../lib/cursorSelection";
+import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
@@ -56,7 +58,7 @@ type PendingDelete = {
   error?: string;
 };
 type OpenCommentNote = {
-  cursor: KifuCursor;
+  cursor: CursorPath;
   anchorEl: HTMLButtonElement;
   /** 開いた時点の棋譜。ここが今の棋譜と違うなら、書き込み先と中身が食い違っている */
   absPath: string | null;
@@ -114,12 +116,14 @@ export default function KifuStreamList() {
     [state.cursor, state.branchPlan],
   );
 
+  // TODO(#295): buildStreamRowsFromCursor は盤上で再生できない手で投げる。ここは
+  // レンダ中なので AppErrorBoundary が受けて棋譜ペインが行き止まりになる。
+  // try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
   const rows = useMemo(() => {
     if (!view.player) return [];
     // 一覧を組むための再生用に、盤の player とは別の player を立てる。
     // buildStreamRowsFromCursor は棋譜を書き換えない契約なので、棋譜は共有してよい。
-    const viewer = new JKFPlayer(view.player.kifu);
-    return buildStreamRowsFromCursor(viewer, plannedCursor);
+    return buildStreamRowsFromCursor(buildPlayer(view.player.kifu, null), plannedCursor);
   }, [view.player, plannedCursor]);
 
   const totalMoves = view.player ? getTotalMoves() : 0;
@@ -295,7 +299,7 @@ export default function KifuStreamList() {
     (row: RowModel, anchorEl: HTMLButtonElement) => {
       if (!plannedCursor) return;
 
-      const cursor = buildCursorWithForkSelection(plannedCursor, row.te, row.selectedForkIndex);
+      const cursor = descendTo(plannedCursor, row.te, row.selectedForkIndex);
 
       setOpenFork(null);
       setOpenMoveMenu(null);
@@ -472,8 +476,8 @@ export default function KifuStreamList() {
           // カーソル組み立て（JSON.stringify を含む）を走らせない。
           const isCommentOpen =
             openComment != null &&
-            openComment.cursor.tesuuPointer ===
-              buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex).tesuuPointer;
+            cursorKey(openComment.cursor) ===
+              cursorKey(descendTo(plannedCursor, r.te, r.selectedForkIndex));
 
           return (
             <KifuMoveCard

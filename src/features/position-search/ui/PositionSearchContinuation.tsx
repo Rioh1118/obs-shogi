@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "./PositionSearchContinuation.scss";
 
+import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { describeFsError, readText } from "@/entities/file-tree";
-import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
+import { cursorKey } from "@/entities/kifu/model/cursor";
 
 type Props = {
   activeHit: PositionHit | null;
@@ -70,8 +72,7 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
     const abs = resolveAbsPath(activeHit);
     if (!abs) return null;
 
-    const fp = activeHit.cursor.forkPointers.map((p) => `${p.te}-${p.forkIndex}`).join(",");
-    return `${abs}::${activeHit.cursor.tesuu}::${fp}`;
+    return `${abs}::${cursorKey(cursorFromLite(activeHit.cursor))}`;
   }, [activeHit, resolveAbsPath]);
 
   useEffect(() => {
@@ -98,27 +99,15 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
           jkfCacheRef.current.set(abs, data);
         }
 
-        const cursor = cursorFromLite(activeHit.cursor);
-        const player = buildPlayer(data, cursor);
-
-        const planned = new Map<number, number>();
-        for (const p of cursor.forkPointers) planned.set(p.te, p.forkIndex);
+        const player = buildPlayer(data, cursorFromLite(activeHit.cursor));
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {
-          const te = player.tesuu + 1;
-          if (!player.currentStream[te]) break;
-
-          const plannedForkIndex = planned.get(te) ?? null;
-
-          let ok = false;
-          if (plannedForkIndex != null) {
-            ok = player.forkAndForward(plannedForkIndex);
-            if (!ok) ok = player.forward();
-          } else {
-            ok = player.forward();
-          }
-          if (!ok) break;
+          // ヒット局面が乗っている線の続きを辿る（変化の中のヒットなら変化の続き）。
+          // 索引のカーソルは「辿った経路」で `te > tesuu` を持たないので、
+          // 渡せる計画がそもそも無い（`planByTe(cursor.forkPointers)` を渡しても
+          // 引く te が `tesuu + 1` 以降なので1度も当たらない）。
+          if (!advanceCurrentLine(player).moved) break;
 
           const s = player.getReadableKifu?.() ?? "";
           if (s) out.push(s);

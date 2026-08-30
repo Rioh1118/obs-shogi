@@ -20,20 +20,26 @@ import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import {
   ROOT_CURSOR,
   asBranchPlan,
-  normalizeForkPointers,
+  mergeBranchPlan,
   plannedCursorFrom,
-  type ForkPointer,
-  type KifuCursor,
+  sameForkPointers,
+  type BranchPlan,
+  type CursorPath,
 } from "@/entities/kifu/model/cursor";
 import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
 import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
+import {
+  advanceToLeafWithPlan,
+  advanceWithPlan,
+  planByTe,
+} from "@/entities/kifu/lib/advanceWithPlan";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
-import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
-import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
+import { buildPlayer, gotoPath } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
-import { cursorFromPlayer, lastMovePlayer, mergeBranchPlan, sameForkPointers } from "../lib/cursor";
+import { cursorFromPlayer, observedPointerOf } from "@/entities/kifu/lib/playerCursor";
 import {
   setCommentsByCursorInJkf,
   getCommentsByCursor as getCommentsByCursorFromJkf,
@@ -144,7 +150,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
       return {
         player,
-        lastMove: lastMovePlayer(player),
+        lastMove: lastMoveHighlight(player),
         currentMove,
         currentComments,
         currentTurn,
@@ -181,17 +187,14 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const view = useMemo<GameView>(() => ({ ...cursorView, legalMoves }), [cursorView, legalMoves]);
 
   const navigate = useCallback(
-    (
-      run: (player: JKFPlayer, branchPlan: ForkPointer[]) => boolean | void,
-      errorMessage: string,
-    ) => {
+    (run: (player: JKFPlayer, branchPlan: BranchPlan) => boolean | void, errorMessage: string) => {
       if (!state.jkf) return;
 
       try {
         dispatch({ type: "clear_error" });
 
         const player = buildPlayer(state.jkf, state.cursor);
-        const beforePointer = state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+        const beforePointer = observedPointerOf(state.cursor, player);
 
         const result = run(player, state.branchPlan);
         if (result === false) return;
@@ -244,7 +247,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
         const nextJkf = cloneJkf(state.jkf);
         const player = buildPlayer(nextJkf, state.cursor);
-        const beforePointer = state.cursor?.tesuuPointer ?? (player.getTesuuPointer() as string);
+        const beforePointer = observedPointerOf(state.cursor, player);
 
         const result = run(player, nextJkf);
         if (result === false) return Ok(undefined);
@@ -300,12 +303,17 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       dispatch({ type: "write_started", payload: { blocking: true } });
 
       const nextJkf = cloneJkf(jkf);
-      const player = new JKFPlayer(nextJkf);
-      const cursor = cursorFromPlayer(player);
+
+      // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
+      // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
+      // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
+      // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
+      // `cursorView` の catch で盤が黙って空になる。
+      buildPlayer(nextJkf, ROOT_CURSOR);
 
       dispatch({
         type: "game_loaded",
-        payload: { jkf: nextJkf, absPath, cursor },
+        payload: { jkf: nextJkf, absPath, cursor: ROOT_CURSOR },
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to load game";
@@ -322,7 +330,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const goToIndex = useCallback(
     (index: number) => {
       navigate((player, branchPlan) => {
-        player.goto(index, normalizeForkPointers(branchPlan, index));
+        gotoPath(player, { tesuu: index, forkPointers: branchPlan });
       }, "Failed to go to index");
     },
     [navigate],
@@ -330,14 +338,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const nextMove = useCallback(() => {
     navigate((player, branchPlan) => {
-      const nextTe = player.tesuu + 1;
-      const planned = branchPlan.find((p) => p.te === nextTe);
-
-      if (planned && player.forkAndForward(planned.forkIndex)) {
-        return true;
-      }
-
-      return player.forward();
+      return advanceWithPlan(player, planByTe(branchPlan)).moved;
     }, "Failed to move forward");
   }, [navigate]);
 
@@ -350,33 +351,14 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const goToStart = useCallback(() => {
     navigate((player) => {
-      player.goto(0);
+      gotoPath(player, ROOT_CURSOR);
     }, "Failed to go to start");
   }, [navigate]);
 
   const goToEnd = useCallback(() => {
     navigate((player, branchPlan) => {
-      const plannedMap = new Map<number, number>();
-      for (const p of branchPlan) {
-        plannedMap.set(p.te, p.forkIndex);
-      }
-
       const startTesuu = player.tesuu;
-      let limit = 10000;
-
-      while (limit-- > 0) {
-        const nextTe = player.tesuu + 1;
-
-        const forkIndex = plannedMap.get(nextTe);
-        if (forkIndex !== undefined && player.forkAndForward(forkIndex)) {
-          continue;
-        }
-
-        const ok = player.forward();
-        if (!ok) break;
-      }
-
-      if (limit <= 0) throw new Error("goToEnd overflows");
+      advanceToLeafWithPlan(player, planByTe(branchPlan));
       if (player.tesuu === startTesuu) return false;
     }, "Failed to go to end");
   }, [navigate]);
@@ -491,7 +473,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   );
 
   const getCommentsByCursor = useCallback(
-    (cursor: KifuCursor | null) => {
+    (cursor: CursorPath | null) => {
       if (!state.jkf) return [];
 
       try {
@@ -504,7 +486,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   );
 
   const setCommentsByCursor = useCallback(
-    async (cursor: KifuCursor, comments: string[]): AsyncResult<void, string> => {
+    async (cursor: CursorPath, comments: string[]): AsyncResult<void, string> => {
       if (!state.jkf) return Ok(undefined);
 
       return await edit(
@@ -690,7 +672,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   }, [view.currentComments]);
 
   const applyCursor = useCallback(
-    (cursor: KifuCursor) => {
+    (cursor: CursorPath) => {
       if (!state.jkf) return;
 
       try {
@@ -717,23 +699,23 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const helpers = useMemo<JKFPlayerHelpers>(
     () => ({
-      isLegalMove: (jkfPlayer, move) => {
+      isLegalMove: (player, move) => {
         try {
-          return moveValidator.isLegalMove(jkfPlayer.shogi, move);
+          return moveValidator.isLegalMove(player.shogi, move);
         } catch {
           return false;
         }
       },
-      canPromoteMove: (jkfPlayer, move) => {
+      canPromoteMove: (player, move) => {
         try {
-          return moveValidator.canPromote(jkfPlayer.shogi, move);
+          return moveValidator.canPromote(player.shogi, move);
         } catch {
           return false;
         }
       },
-      mustPromoteMove: (jkfPlayer, move) => {
+      mustPromoteMove: (player, move) => {
         try {
-          return moveValidator.mustPromote(jkfPlayer.shogi, move);
+          return moveValidator.mustPromote(player.shogi, move);
         } catch {
           return false;
         }

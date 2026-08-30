@@ -3,11 +3,10 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import {
   MAIN_LINE,
   branchIndexFromForkIndex,
-  buildTesuuPointer,
   neighborBranchIndex,
   type DeleteQuery,
 } from "@/entities/kifu/model/branch";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import type { CursorPath, ForkPointer } from "@/entities/kifu/model/cursor";
 import { countMovesToDelete, deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**
@@ -28,8 +27,11 @@ function kifuWithTwoForks(): JKFData {
 
 const tags = (moves: JKFMove[] | undefined) => moves?.map((m) => m.comments?.[0]);
 
-function cursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
-  return { tesuu, forkPointers, tesuuPointer: buildTesuuPointer(tesuu, forkPointers) };
+// swapBranchesInKifu / deleteBranchInKifu が読むのは tesuu と forkPointers だけ
+// （引数の型も CursorPath）。tesuuPointer を組むと、誰も読まない値を
+// テスト側だけで持つことになる。
+function cursorAt(tesuu: number, forkPointers: ForkPointer[]): CursorPath {
+  return { tesuu, forkPointers };
 }
 
 describe("swapBranchesInKifu", () => {
@@ -312,6 +314,48 @@ describe("同じ手数の入れ子の変化", () => {
 
     expect(tags(kifu.moves)).toEqual(["root", "t1", "main2"]);
     expect(kifu.moves[2].forks?.map(tags)).toEqual([["g0"], ["f0"]]);
+  });
+});
+
+describe("cursor の forkPointers が正規化されていないとき", () => {
+  /**
+   * te=1 と te=2 で変化に降り、その先の te=3 にも分岐がある棋譜。
+   * 編集する te より手前に**2つ**選択があるので、並び順の違いが表に出る。
+   */
+  function nestedKifu(): JKFData {
+    return {
+      header: {},
+      moves: [
+        mv("root"),
+        mv("m1", [[mv("v1"), mv("v2", [[mv("w2"), mv("w3", [[mv("x3")]])]])]]),
+        mv("m2"),
+      ],
+    };
+  }
+
+  const prefix: ForkPointer[] = [
+    { te: 1, forkIndex: 0 },
+    { te: 2, forkIndex: 0 },
+  ];
+
+  // `swapBranchesInKifu` は cursor が同じ stream を辿っているときだけ選択を patch する。
+  // 判定は並び順つきの列比較なので、比べる前に両側を整列しないと、同じ経路を
+  // 並び順の違いだけで「別の stream」と読み、patch を取りこぼす。
+  // cursor は `CursorPath` として任意の呼び出し側から渡るので、整列済みとは限らない。
+  test("並び順が崩れていても同じ stream と判定して選択を patch する", () => {
+    const swapAt3 = (forkPointers: ForkPointer[]) =>
+      swapBranchesInKifu(
+        nestedKifu(),
+        { te: 3, forkPointers: prefix, a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+        { tesuu: 3, forkPointers },
+      );
+
+    const sorted = swapAt3([...prefix, { te: 3, forkIndex: 0 }]);
+    const unsorted = swapAt3([{ te: 3, forkIndex: 0 }, prefix[1], prefix[0]]);
+
+    // 本譜と変化1を入れ替えたので、te=3 の選択は「変化1 → 本譜」へ patch される
+    expect(sorted.nextCursor?.forkPointers).toEqual(prefix);
+    expect(unsorted.nextCursor?.forkPointers).toEqual(sorted.nextCursor?.forkPointers);
   });
 });
 

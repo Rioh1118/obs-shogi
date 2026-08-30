@@ -1,9 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { buildTesuuPointer } from "@/entities/kifu/model/branch";
 import {
   asBranchPlan,
+  cursorKey,
+  makeKifuCursor,
   normalizeForkPointers,
   plannedCursorFrom,
   type ForkPointer,
@@ -36,8 +37,10 @@ const rowsFor = (branchPlan: ForkPointer[]) =>
  * `normalizeForkPointers` を通しているのはそれを守るため。
  */
 const plannedCursor = (tesuu: number, branchPlan: ForkPointer[]) => {
+  // 実物と同じ構築関数を通す。手で組むと、makeKifuCursor の正規化を変えても
+  // この fixture が旧挙動を再現し続け、テストがオラクルとして効かなくなる。
   const traced = normalizeForkPointers(branchPlan, tesuu);
-  const cursor = { tesuu, forkPointers: traced, tesuuPointer: buildTesuuPointer(tesuu, traced) };
+  const cursor = makeKifuCursor(tesuu, traced, cursorKey({ tesuu, forkPointers: traced }));
   const planned = plannedCursorFrom(cursor, asBranchPlan(branchPlan));
   if (!planned) throw new Error("plannedCursorFrom returned null for a non-null cursor");
   return planned;
@@ -106,7 +109,7 @@ describe("resolveForkSelection", () => {
   });
 
   test("行のチェックと食い違う計画は、押せる選択肢のどれとも一致しない", () => {
-    // buildStreamRowsFromCursor は forks の範囲外の計画では本譜へ落ち、行のチェックも
+    // buildStreamRowsFromCursor は forks の範囲外の計画では降りずに線を進み、行のチェックも
     // 本譜に付く。一方この関数は範囲外の値をそのまま読むので、2つは食い違う。
     // 害が出ないのは、その値がメニューの選択肢に無いから（選択肢も同じ forks から作る）。
     //
@@ -155,11 +158,12 @@ describe("resolveForkSelection", () => {
       // navigate / applyCursor / edit / swap / delete のどの経路も cursorFromPlayer で
       // 引き直すので、player が実際に辿った選択しか入らない。
       //
-      // 負・非整数を捨てる検査は computeLeafTesuu と buildStreamRowsFromCursor にある。
-      // ここで3箇所目を書くと寄せ先が増えるだけなので書かない。この値は goto まで届く。
-      // forkIndex が forks の範囲内で負・非整数なら JKFPlayer の内部で TypeError になり
-      // applyCursor の catch が受ける。**範囲外の正の整数なら forkAndForward が false を
-      // 返し、goto は返り値を見ないので、例外も出ないまま別の線に着く。** → #213
+      // 負・非整数を捨てる検査は advanceWithPlan の1箇所にある。ここはその手前で、
+      // 検査を通らずに goto まで届く経路を見ている（descendTo は
+      // 値を検査しない）。forkIndex が forks の範囲内で負・非整数なら JKFPlayer の
+      // 内部で TypeError になり applyCursor の catch が受ける。**範囲外の正の整数なら
+      // forkAndForward が false を返し、goto は返り値を見ないので、例外も出ないまま
+      // 別の線に着く。**
       for (const forkIndex of [7, -1, 0.5, NaN]) {
         const plan = [
           { te: 3, forkIndex },

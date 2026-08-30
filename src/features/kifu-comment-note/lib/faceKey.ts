@@ -1,4 +1,4 @@
-import type { KifuCursor } from "@/entities/kifu/model/cursor";
+import type { CursorPath } from "@/entities/kifu/model/cursor";
 
 /**
  * ノートが出している面の識別子。「どのファイルの、どの手の、どの変化か」。
@@ -7,9 +7,10 @@ import type { KifuCursor } from "@/entities/kifu/model/cursor";
  * 同じ面になり、書き込みが返ってきたときの突き合わせが素通りする。
  *
  * `tesuuPointer` を使わない。あれを解く経路はリポジトリに1つも無く、
- * 組む側も `buildTesuuPointer` に寄せる規約なので、ここで別の読み方を増やさない。
+ * そもそも受け取るのは `CursorPath` なので観測値を持たない。要求から鍵を組むなら
+ * `cursorKey` に寄せる規約で、ここで別の読み方を増やさない。
  */
-export function faceKey(cursor: KifuCursor, absPath: string | null): string {
+export function faceKey(cursor: CursorPath, absPath: string | null): string {
   const path = (cursor.forkPointers ?? []).map((p) => `${p.te}:${p.forkIndex}`).join("|");
   return `${absPath ?? ""}__${cursor.tesuu}__${path}`;
 }

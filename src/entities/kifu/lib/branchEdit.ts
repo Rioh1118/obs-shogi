@@ -3,7 +3,6 @@ import { isUsableFork } from "@/entities/kifu/model/jkf";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   branchIndexFromSelection,
-  buildTesuuPointer,
   forkIndexFromBranchIndex,
   MAIN_LINE,
   branchIndexAfterRemoval,
@@ -13,74 +12,62 @@ import {
   type DeleteQuery,
   type SwapQuery,
 } from "../model/branch";
-import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
+import {
+  normalizeBefore,
+  normalizeForkPointers,
+  forkIndexAt,
+  sameForkPointers,
+  selectAt,
+  truncateFrom,
+  type CursorPath,
+  type ForkPointer,
+} from "../model/cursor";
+import { resolveLine, type LineRef } from "./resolveLine";
 
-/**
- * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする
- *
- * `normalizeForkPointers` の境界は `te <= 第2引数` なので、1引いて渡す。
- */
+/** `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする（境界は `normalizeBefore`） */
 function normalizeRef<T extends BranchPointRef>(ref: T): T {
   return {
     ...ref,
-    forkPointers: normalizeForkPointers(ref.forkPointers, ref.te - 1),
+    forkPointers: normalizeBefore(ref.forkPointers, ref.te),
   };
 }
 
-/** te より前の stream が同じか（forkPointers の prefix 同一判定） */
+/**
+ * te より前の stream が同じか（`forkPointers` の prefix 同一判定）
+ *
+ * `sameForkPointers` は**並び順つきの列比較**なので、比べる前に両側を
+ * 整列・重複除去しておく必要がある。`normalizeBefore` がそれを `te` の絞りと同時にやる。
+ *
+ * **`truncateFrom` に置き換えないこと。** あちらは絞るだけで整列しないので、
+ * `[{te:4},{te:2}]` と `[{te:2},{te:4}]` が別物になる。`cursor` は
+ * 任意の呼び出し側から `CursorPath` として渡るので、正規化済みとは限らない。
+ */
 function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boolean {
-  const mapA = new Map<number, number>();
-  for (const p of a) if (p.te < te) mapA.set(p.te, p.forkIndex);
-
-  const mapB = new Map<number, number>();
-  for (const p of b) if (p.te < te) mapB.set(p.te, p.forkIndex);
-
-  if (mapA.size !== mapB.size) return false;
-  for (const [k, v] of mapA) if (mapB.get(k) !== v) return false;
-  return true;
+  return sameForkPointers(normalizeBefore(a, te), normalizeBefore(b, te));
 }
 
 function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {
-  const p = forkPointers.find((x) => x.te === te);
-  return branchIndexFromSelection(p ? p.forkIndex : null);
+  return branchIndexFromSelection(forkIndexAt(forkPointers, te));
 }
 
-/** te の BranchIndex を forkPointers に反映（MAIN_LINE なら該当 te の pointer を削除） */
+/**
+ * te の BranchIndex を forkPointers に反映（MAIN_LINE なら該当 te の pointer を削除）
+ *
+ * 座標系の変換だけがここの仕事。選択の書き換えそのものは `selectAt` が持つ。
+ */
 function setBranchIndex(
   forkPointers: ForkPointer[],
   te: number,
   branchIndex: BranchIndex,
 ): ForkPointer[] {
-  const next = forkPointers.filter((p) => p.te !== te);
-  if (branchIndex === MAIN_LINE) return next.sort((a, b) => a.te - b.te);
-
-  next.push({ te, forkIndex: forkIndexFromBranchIndex(branchIndex) });
-  return next.sort((a, b) => a.te - b.te);
+  return selectAt(
+    forkPointers,
+    te,
+    branchIndex === MAIN_LINE ? null : forkIndexFromBranchIndex(branchIndex),
+  );
 }
 
-/** `startTe` は `line[0]` に対応する絶対手数。`forkPointers` の te も絶対手数。 */
-type LineRef = { line: IMoveFormat[]; startTe: number };
 type BranchPointHandle = LineRef & { index: number; move: IMoveFormat };
-
-/** `forkPointers` を順に降りて、`uptoTe` を含む line とその先頭の絶対手数を返す */
-function resolveLine(kifu: JKFData, forkPointers: ForkPointer[], uptoTe: number): LineRef {
-  let line = kifu.moves as IMoveFormat[];
-  let startTe = 0;
-
-  const fps = normalizeForkPointers(forkPointers, uptoTe - 1);
-
-  for (const p of fps) {
-    const idx = p.te - startTe;
-    const mv = line[idx];
-    if (!isUsableFork(mv?.forks?.[p.forkIndex])) {
-      throw new Error(`resolveLine failed at te=${p.te} forkIndex=${p.forkIndex}`);
-    }
-    line = mv!.forks![p.forkIndex];
-    startTe = p.te;
-  }
-
-  return { line, startTe };
-}
 
 function resolveBranchPoint(kifu: JKFData, ref0: BranchPointRef): BranchPointHandle {
   // moves[0] は開始局面のエントリで指し手ではない。te=0 を通すと本譜の削除が
@@ -243,16 +230,15 @@ function patchForkPointersForDeleteNonReloc(
  * 本譜を消したか変化を消したかで退避先は変わらない。変わるのは「候補が残っているか」だけ。
  */
 function relocateCursorOnDelete(
-  cursor: KifuCursor,
+  cursor: CursorPath,
   ref: BranchPointRef,
   candidatesAfter: Candidates,
-): KifuCursor {
+): CursorPath {
   // 退避時は te 以降の pointer を落とす
-  const kept = cursor.forkPointers.filter((p) => p.te < ref.te);
+  const kept = truncateFrom(cursor.forkPointers, ref.te);
   // 候補が全部消えたら te の手前へ。残っていれば繰り上がった候補の te 適用後へ。
   const tesuu = candidatesAfter.length === 0 ? Math.max(0, ref.te - 1) : ref.te;
-  const fps = normalizeForkPointers(kept, tesuu);
-  return { tesuu, forkPointers: fps, tesuuPointer: buildTesuuPointer(tesuu, fps) };
+  return { tesuu, forkPointers: normalizeForkPointers(kept, tesuu) };
 }
 
 /**
@@ -276,7 +262,7 @@ function relocateCursorOnDelete(
 export function swapBranchesInKifu(
   kifu: JKFData,
   q0: SwapQuery,
-  cursor: KifuCursor | null,
+  cursor: CursorPath | null,
 ): BranchEditResult {
   const q = normalizeRef(q0);
   const h = resolveBranchPoint(kifu, q);
@@ -304,11 +290,9 @@ export function swapBranchesInKifu(
     q.te,
     chosen === q.a ? q.b : chosen === q.b ? q.a : chosen,
   );
-  const nextFps = normalizeForkPointers(fps);
-  const next: KifuCursor = {
+  const next: CursorPath = {
     tesuu: cursor.tesuu,
-    forkPointers: nextFps,
-    tesuuPointer: buildTesuuPointer(cursor.tesuu, nextFps),
+    forkPointers: normalizeForkPointers(fps),
   };
   return { changed: true, nextCursor: next };
 }
@@ -369,7 +353,7 @@ export function countMovesToDelete(kifu: JKFData, q0: DeleteQuery): number {
 export function deleteBranchInKifu(
   kifu: JKFData,
   q0: DeleteQuery,
-  cursor: KifuCursor | null,
+  cursor: CursorPath | null,
 ): BranchEditResult {
   const q = normalizeRef(q0);
   const h = resolveBranchPoint(kifu, q);
@@ -401,24 +385,20 @@ export function deleteBranchInKifu(
 
     // 予定していた選択が消えた
     const fps = setBranchIndex(cursor.forkPointers, q.te, MAIN_LINE);
-    const nextFps = normalizeForkPointers(fps);
     return {
       changed: true,
       nextCursor: {
         tesuu: cursor.tesuu,
-        forkPointers: nextFps,
-        tesuuPointer: buildTesuuPointer(cursor.tesuu, nextFps),
+        forkPointers: normalizeForkPointers(fps),
       },
     };
   }
 
   // それ以外は pointer の詰めだけ
   const fps = patchForkPointersForDeleteNonReloc(cursor.forkPointers, q.te, q.target);
-  const nextFps = normalizeForkPointers(fps);
-  const next: KifuCursor = {
+  const next: CursorPath = {
     tesuu: cursor.tesuu,
-    forkPointers: nextFps,
-    tesuuPointer: buildTesuuPointer(cursor.tesuu, nextFps),
+    forkPointers: normalizeForkPointers(fps),
   };
   return { changed: true, nextCursor: next };
 }
