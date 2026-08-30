@@ -44,13 +44,14 @@ const PIECE_LIMITS: [(char, u32); 8] = [
 /// 同じ持駒が別の綴りで来ると別のキーになるので、この順に畳んで書き直す。
 ///
 /// **この並びは外部仕様に従属する。** ファイル上を二分探索する reader は、
-/// ファイルに書かれた綴りとキーを直接比較するため、並びがやねうら王の書き出す
+/// ファイルに書かれた綴りとキーを直接比較するため、並びが定跡ファイルの
 /// 持駒順とバイト単位で一致していなければ全ての lookup が空を返す。
 ///
-/// 現在の並びは USI の持駒表記の慣例（飛角金銀桂香歩）に合わせたもので、
-/// **一次資料とは突き合わせていない。**
-// TODO(#91): 実物の定跡を fixture に置くとき、やねうら王の書き出す綴りと
-// 突き合わせて確定させる。
+/// 並びは USI の SFEN のもの。この repo が既に依存している `shogi_core` が
+/// 同じ順で書き出すことを `the_key_matches_what_a_usi_implementation_writes`
+/// が固定している。
+// TODO(#91): 実物の定跡を fixture に置くとき、やねうら王が USI 標準どおりに
+// 書いていることまで確かめる（並び自体はここで閉じている）。
 const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 
 /// 定跡を引くためのキーに直す。
@@ -579,6 +580,65 @@ mod tests {
             "message={}",
             err.message()
         );
+    }
+
+    /// 持駒の並びと畳み方を、リテラルではなく外部の実装に紐づける。
+    ///
+    /// `hands_are_written_in_a_fixed_order` は期待値が手書きの文字列なので、
+    /// 外部仕様が変わっても自分の実装が変わっても気づけない。定跡ファイルの
+    /// 綴りは USI の SFEN なので、同じ USI を書く実装と突き合わせる。
+    ///
+    /// `shogi_core` は search 側が既に使っている依存で、持駒を `PLNSGBR` の
+    /// 逆順（飛角金銀桂香歩）に、2枚以上のときだけ枚数を前置し、空なら `-` で書く。
+    #[test]
+    fn the_key_matches_what_a_usi_implementation_writes() {
+        use shogi_core::{Color, PartialPosition, Piece, PieceKind, Square};
+
+        // 盤上の駒を持駒へ移す。単に持駒へ足すと駒箱を超えて、こちらの
+        // 駒数の検査に落ちる（それは正しい振る舞いで、突き合わせにならない）。
+        /// 盤から持駒へ移す駒（駒種と、いま居るマスの筋・段）。
+        type Moved = (Color, PieceKind, (u8, u8));
+
+        let moved: [&[Moved]; 4] = [
+            &[],
+            &[
+                (Color::Black, PieceKind::Pawn, (1, 7)),
+                (Color::Black, PieceKind::Rook, (2, 8)),
+            ],
+            &[
+                (Color::Black, PieceKind::Pawn, (1, 7)),
+                (Color::Black, PieceKind::Pawn, (2, 7)),
+                (Color::White, PieceKind::Lance, (1, 1)),
+                (Color::White, PieceKind::Gold, (4, 1)),
+            ],
+            &[
+                (Color::Black, PieceKind::Bishop, (8, 8)),
+                (Color::Black, PieceKind::Silver, (3, 9)),
+                (Color::Black, PieceKind::Knight, (2, 9)),
+                (Color::White, PieceKind::Bishop, (2, 2)),
+            ],
+        ];
+
+        for pieces in moved {
+            let mut position = PartialPosition::startpos();
+            for (color, kind, (file, rank)) in pieces {
+                let square = Square::new(*file, *rank).expect("盤の中");
+                assert_eq!(
+                    position.piece_at(square),
+                    Some(Piece::new(*kind, *color)),
+                    "そのマスに居ない: {file}{rank}"
+                );
+                position.piece_set(square, None);
+                let hand = position.hand_of_a_player_mut(*color);
+                *hand = hand.added(*kind).expect("駒箱を超えない");
+            }
+
+            // to_sfen_owned は "盤面 手番 持駒 手数"。キーは手数を落とした形。
+            let sfen = position.to_sfen_owned();
+            let expected = sfen.rsplit_once(' ').expect("手数のトークンが必ず付く").0;
+
+            assert_eq!(key(&sfen), expected, "sfen={sfen}");
+        }
     }
 
     /// 理由文に入力の断片を埋める枝を、実際に通して打ち切りを見る。
