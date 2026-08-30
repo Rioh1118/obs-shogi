@@ -240,6 +240,17 @@ const MAX_EXPANDED_BYTES: usize = 7 * 1024 * 1024 * 1024;
 ///
 /// 実物のキーは 76 字前後。確保は 16 バイト刻みなので 64 → 80 で 16 バイト増え、
 /// 311.0 + 16 = 327。330 を置く。
+///
+/// **片方の軸だけ動かした形で較正しない。** 局面だけ／1局面に大量の手、では
+/// どちらも見積もりを下回るのに、**両方が同時に効く実物と同じ形でだけ破れる**。
+/// 459,000 局面 × 9 手（実物の平均は 7.15 手）で測った比:
+///
+/// | | 実 footprint | 見積もり | 比 |
+/// | --- | --- | --- | --- |
+/// | `flush` が容量ごと渡す | 1,254MB | 812MB | **1.54** |
+/// | ちょうどの大きさへ移し替える | 546MB | 812MB | 0.67 |
+///
+/// つまり 330 / 160 は `flush` の移し替えを入れて初めて上界になる。
 const BYTES_PER_POSITION: usize = 330;
 
 /// 指し手1件あたりの見積もり。
@@ -698,7 +709,23 @@ fn flush(
     // **ここでは畳まない。** 理由と実測は `keep_first_of_each_move_everywhere` の doc。
     match positions.entry(key) {
         Entry::Vacant(slot) => {
-            slot.insert(std::mem::take(buffered));
+            // **溜める側の容量ごと渡さない。** `push` の倍々成長が残す空きは
+            // 展開後の 28%（`keep_first_of_each_move_everywhere` の doc）で、
+            // それを落とすのは読み切った**後**。つまりピークには必ず全部乗る。
+            // 実測（459,000 局面 × 9 手）で、見積もりの 1.54 倍まで膨らむ。
+            //
+            // ちょうどの大きさへ移し替え、`buffered` の容量は次の局面へ回す。
+            // **長い列は移し替えない。** 移し替えの瞬間だけ2本持つので、
+            // 1局面に大量の手が続く形で逆に膨らむ（実測 +47.8%）。境目は
+            // `keep_first_of_each_move` の `SCAN_LIMIT` と同じ根拠で、
+            // 正常な定跡の候補手は 10 手前後。
+            if buffered.len() <= COMPACT_LIMIT {
+                let mut exact = Vec::with_capacity(buffered.len());
+                exact.append(buffered);
+                slot.insert(exact);
+            } else {
+                slot.insert(std::mem::take(buffered));
+            }
         }
         // 同じ局面が2度書かれていることがある。キーは手数を落とすので、
         // `... b - 1` と `... b - 31` は同じキーになる（本家 `book.cpp:688-694` が
@@ -714,6 +741,13 @@ fn flush(
         Entry::Occupied(mut slot) => slot.get_mut().append(buffered),
     }
 }
+
+/// ちょうどの大きさへ移し替える候補手の数の上限。
+///
+/// これを超える列は移し替えない（移し替えの瞬間だけ2本持つので逆に膨らむ）。
+/// 値の根拠は `keep_first_of_each_move` の `SCAN_LIMIT` と同じで、
+/// 正常な定跡の候補手は 10 手前後。
+const COMPACT_LIMIT: usize = 32;
 
 /// 読み切った後に1回だけ、全ての局面の重複を畳む。
 ///
@@ -1885,6 +1919,50 @@ mod tests {
             let positions = parsed(&text).expect("長い注記があっても読めるはず");
             assert_eq!(positions.len(), 1, "lead={lead:?}");
         }
+    }
+
+    /// **溜める側の容量ごと渡さない。**
+    ///
+    /// `push` の倍々成長が残す空きは展開後の 28% で、それを落とすのは読み切った
+    /// 後（`keep_first_of_each_move_everywhere`）。つまりピークには全部乗る。
+    /// 実測（459,000 局面 × 9 手、実物と同じ形）で 1,254MB → 546MB。
+    /// 単価（`BYTES_PER_POSITION` / `BYTES_PER_MOVE`）は**この移し替えを入れて
+    /// 初めて上界になる**（比 1.54 → 0.67）。
+    ///
+    /// `shrink_to_fit` より前の状態を見られるのは `flush` を直接呼ぶここだけ。
+    #[test]
+    fn a_flushed_position_does_not_carry_slack_capacity() {
+        let mut positions: HashMap<BookKey, Vec<BookMove>> = HashMap::new();
+        let mut current = Some(to_book_key(HIRATE).expect("平手は読める"));
+        // 倍々成長で 8 まで伸ばし、5 で止める（容量 8 / 長さ 5）
+        let mut buffered: Vec<BookMove> = Vec::new();
+        for _ in 0..5 {
+            buffered.push(parse_move("7g7f", &mut DroppedFields::default()));
+        }
+        assert!(buffered.capacity() > buffered.len(), "前提が崩れている");
+
+        flush(&mut positions, &mut current, &mut buffered);
+
+        let moves = &positions[&to_book_key(HIRATE).unwrap()];
+        assert_eq!(moves.capacity(), moves.len(), "余分な容量を抱えている");
+    }
+
+    /// **長い列は移し替えないこと。** 移し替えの瞬間だけ2本持つので、
+    /// 1局面に大量の手が続く形では逆に膨らむ（実測 +47.8%）。
+    #[test]
+    fn a_long_move_list_is_moved_not_copied() {
+        let mut positions: HashMap<BookKey, Vec<BookMove>> = HashMap::new();
+        let mut current = Some(to_book_key(HIRATE).expect("平手は読める"));
+        let mut buffered: Vec<BookMove> = Vec::new();
+        for _ in 0..(COMPACT_LIMIT + 1) {
+            buffered.push(parse_move("7g7f", &mut DroppedFields::default()));
+        }
+        let capacity = buffered.capacity();
+
+        flush(&mut positions, &mut current, &mut buffered);
+
+        let moves = &positions[&to_book_key(HIRATE).unwrap()];
+        assert_eq!(moves.capacity(), capacity, "移し替えている");
     }
 
     /// 展開の見積もりが上限を超えたら落とす。
