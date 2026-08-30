@@ -38,11 +38,9 @@ export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): T
  * アプリ側で保持する「公式カーソル」
  * 現在局面を一意に表現し、UIの再描画やデバッグに使う。
  *
- * 注意:
- * - forkPointers は「現在局面までの分岐履歴」だけでなく、
- *   将来 forward するときに使う分岐計画も含みうる。
- * - 実際に current position を player に適用するときは
- *   normalizeForkPointers(cursor.forkPointers, cursor.tesuu) で計画を落としてから渡す。
+ * `forkPointers` は `te <= tesuu` に正規化されている（組む2つが必ず通す）。
+ * **カーソルより先の計画はここには入らない。** それを持てるのは `PlannedCursor`
+ * と `BranchPlan` だけ。
  */
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
@@ -91,13 +89,12 @@ declare const plannedCursorBrand: unique symbol;
 /**
  * 「これから降りるつもりの変化」まで載せたカーソル
  *
- * `KifuCursor` との違いは、局面を一意に指さないので `tesuuPointer` を持たないこと。
- * `te > tesuu` の `ForkPointer` を持ちうるが、それは `KifuCursor` も同じ
- * （`PositionNavigationModal` が `tesuu` だけ戻したカーソルを作る）。
+ * `KifuCursor` との違いは2つ。局面を一意に指さないので `tesuuPointer` を持たないことと、
+ * **`te > tesuu` の `ForkPointer` を持てるのはこちらだけ**であること。
  *
  * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
- * brand が無いと `state.cursor` がそのまま代入できる。`state.cursor.forkPointers` は
- * `makeKifuCursor` が `te <= tesuu` に正規化して作るので、
+ * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` を組む2つ
+ * （`makeKifuCursor` / `requestedCursorAt`）はどちらも `te <= tesuu` に正規化するので、
  * **カーソルより先の選択が黙って空になる**。
  */
 export interface PlannedCursor extends CursorPath {
