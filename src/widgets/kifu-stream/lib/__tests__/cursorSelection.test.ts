@@ -155,11 +155,12 @@ describe("resolveForkSelection", () => {
       // navigate / applyCursor / edit / swap / delete のどの経路も cursorFromPlayer で
       // 引き直すので、player が実際に辿った選択しか入らない。
       //
-      // 負・非整数を捨てる検査は computeLeafTesuu と buildStreamRowsFromCursor にある。
-      // ここで3箇所目を書くと寄せ先が増えるだけなので書かない。この値は goto まで届く。
-      // forkIndex が forks の範囲内で負・非整数なら JKFPlayer の内部で TypeError になり
-      // applyCursor の catch が受ける。**範囲外の正の整数なら forkAndForward が false を
-      // 返し、goto は返り値を見ないので、例外も出ないまま別の線に着く。** → #213
+      // 負・非整数を捨てる検査は advanceWithPlan の1箇所にある。ここはその手前で、
+      // 検査を通らずに goto まで届く経路を見ている（buildCursorWithForkSelection は
+      // 値を検査しない）。forkIndex が forks の範囲内で負・非整数なら JKFPlayer の
+      // 内部で TypeError になり applyCursor の catch が受ける。**範囲外の正の整数なら
+      // forkAndForward が false を返し、goto は返り値を見ないので、例外も出ないまま
+      // 別の線に着く。**
       for (const forkIndex of [7, -1, 0.5, NaN]) {
         const plan = [
           { te: 3, forkIndex },
