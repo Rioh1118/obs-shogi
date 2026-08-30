@@ -3,7 +3,6 @@ import { useCallback, useMemo } from "react";
 
 export type ModalType =
   | "navigation"
-  | "analysis"
   | "settings"
   | "create-file"
   | "position-search"

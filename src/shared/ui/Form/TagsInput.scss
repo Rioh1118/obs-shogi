@@ -1,5 +1,8 @@
 @use "@/index.scss" as index;
 
+// 対話の面は暗い側だけ（ADR-0005）。明暗の2系統は持たない。
+// 明るい面が要る画面が出たら、そのときに軸を足す
+
 .tags-input-wrapper {
   display: flex;
   flex-direction: column;
@@ -12,7 +15,7 @@
   gap: 0.6rem;
   font-size: 1.3rem;
   font-weight: 500;
-  color: index.$color-primary-dark;
+  color: rgba(index.$color-text-light-1, 0.7);
   margin-left: 0.4rem;
   transition: all 0.2s;
 }
@@ -27,11 +30,11 @@
   align-items: center;
   gap: 0.2rem;
   font-size: 1.1rem;
-  color: #888;
+  color: rgba(index.$color-text-light-1, 0.6);
   font-weight: 400;
   margin-left: auto;
   padding: 0.2rem 0.6rem;
-  background-color: rgba(index.$color-secondary-light, 0.3);
+  background-color: rgba(index.$color-white, 0.08);
   border-radius: 1rem;
   transition: all 0.2s ease;
 }
@@ -39,8 +42,8 @@
 .tags-input {
   min-height: 5.2rem;
   padding: 1rem 1.2rem;
-  background-color: rgba(index.$color-secondary-light, 0.5);
-  border: 0.2rem solid transparent;
+  background-color: rgba(index.$color-white, 0.06);
+  border: 0.2rem solid index.$stroke;
   border-radius: 0.8rem;
   transition: all 0.3s ease;
   cursor: text;
@@ -48,17 +51,15 @@
   backdrop-filter: blur(10px);
 
   &:hover:not(.tags-input--disabled) {
-    background-color: rgba(255, 255, 255, 0.4);
-    border-color: rgba(index.$color-secondary-dark-2, 0.3);
-    box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.05);
+    background-color: rgba(index.$color-white, 0.1);
+    border-color: index.$stroke-strong;
+    box-shadow: index.$shadow-control;
   }
 
   &--focused {
-    background-color: rgba(255, 255, 255, 0.65);
-    border-color: index.$color-secondary-dark-2;
-    box-shadow:
-      0 0.4rem 1.2rem rgba(0, 0, 0, 0.08),
-      0 0 0 0.3rem rgba(index.$color-secondary-dark-2, 0.1);
+    background-color: rgba(index.$color-white, 0.1);
+    border-color: index.$color-secondary-dark;
+    box-shadow: index.$shadow-control;
 
     .tags-input__label-icon {
       color: index.$color-secondary-dark;
@@ -68,7 +69,7 @@
   &--disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    background-color: rgba(index.$color-secondary-light, 0.2);
+    background-color: rgba(index.$color-white, 0.03);
   }
 
   &--max {
@@ -101,21 +102,21 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, index.$color-secondary-dark, index.$color-secondary-dark-2);
-  color: index.$color-white;
+  background: rgba(index.$color-secondary-dark, 0.3);
+  color: index.$color-text-light-1;
   padding: 0.5rem 0.8rem;
   border-radius: 1.6rem;
   font-size: 1.2rem;
   font-weight: 500;
   animation: tagSlideIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+  box-shadow: index.$shadow-control-press;
   transition: all 0.2s ease;
-  border: 0.1rem solid rgba(255, 255, 255, 0.2);
+  border: 0.1rem solid rgba(index.$color-white, 0.2);
 
   &:hover {
     transform: translateY(-0.1rem) scale(1.02);
-    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.15);
-    background: linear-gradient(135deg, index.$color-secondary-dark-2, index.$color-secondary-dark);
+    box-shadow: index.$shadow-control;
+    background: rgba(index.$color-secondary-dark, 0.42);
   }
 }
 
@@ -172,20 +173,21 @@
   font-size: 1.4rem;
   font-weight: 400;
   font-family: inherit;
-  color: index.$color-primary-dark;
+  color: index.$color-text-light-1;
   background: transparent;
   border: none;
   outline: none;
   line-height: 1.5;
 
+  // 0.35 だと、この面（暗いカードの上の白 6%）に対して 2.86:1 で本文の基準を割る
   &::placeholder {
-    color: #999;
+    color: rgba(index.$color-text-light-1, 0.6);
     font-style: italic;
     transition: color 0.2s ease;
   }
 
   &:focus::placeholder {
-    color: #bbb;
+    color: rgba(index.$color-text-light-1, 0.7);
   }
 
   &:disabled {
@@ -204,15 +206,16 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  background: linear-gradient(135deg, index.$color-secondary-dark-2, index.$color-secondary-dark);
+  background: index.$color-secondary-solid;
   color: index.$color-white;
-  box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
-  opacity: 0.9;
+  box-shadow: index.$shadow-control-press;
 
+  // 静止とホバーは面の色で分ける。opacity で薄くすると文字も一緒に薄まり、
+  // 4.79:1 のはずの白文字が実測 4.23:1 まで落ちる
   &:hover:not(:disabled) {
-    opacity: 1;
+    background: index.$color-secondary-solid-hover;
     transform: translateY(-0.1rem) scale(1.05);
-    box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.15);
+    box-shadow: index.$shadow-control;
   }
 
   &:active:not(:disabled) {
@@ -228,13 +231,15 @@
 
 .tags-input__help {
   font-size: 1.1rem;
-  color: #666;
+  // 面を敷いた span の中でも本文の基準を満たす所で止める。
+  // 0.55 だと地では 5.36:1 だが、span の面の上で 4.45:1 に落ちる
+  color: rgba(index.$color-text-light-1, 0.65);
   font-style: italic;
   margin-left: 0.4rem;
 
   span {
     padding: 0.1rem 0.4rem;
-    background-color: rgba(index.$color-secondary-light, 0.3);
+    background-color: rgba(index.$color-white, 0.1);
     border-radius: 0.3rem;
     font-family: monospace;
     font-style: normal;

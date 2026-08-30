@@ -9,6 +9,13 @@ export interface FileSystemNode {
   path: string;
   isDirectory: boolean;
   children?: FileTreeNode[];
+  /**
+   * 走査を途中で打ち切った。**`children` の少なさを鵜呑みにできない印。**
+   *
+   * これを見ないと、上限に当たったフォルダが「空のフォルダ」と同じに描かれる。
+   * 中身は Finder では見えるのに、何度読み直しても一覧には出ない
+   */
+  truncated?: boolean;
   lastModified?: Date;
   size?: number;
 }
@@ -96,9 +103,21 @@ export type FileTreeState = {
   menu: MenuState;
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
-  error: FsError | null;
+  /**
+   * ツリーまわりの失敗。**出どころを持つ。**
+   *
+   * `operation` は利用者が起こした操作そのものの失敗。`reload` は操作は通ったが
+   * そのあとの読み直しが落ちた場合で、画面に「失敗しました」とだけ出すと
+   * 「操作が失敗した」と読めてしまう（実際は済んでいて、一覧だけが古い）
+   */
+  error: FileTreeFailure | null;
   kifuError: FsError | null;
   conflict: FileConflictState | null;
+};
+
+export type FileTreeFailure = {
+  from: "operation" | "reload";
+  error: FsError;
 };
 
 export type FileTreeAction =
@@ -135,6 +154,8 @@ export type FileTreeAction =
       };
     }
   | { type: "error"; payload: FsError }
+  /** ツリーの読み直しの失敗。`error` と違い、衝突の対話が開いていても捨てない */
+  | { type: "reload_failed"; payload: FsError }
   | { type: "error_cleared" }
   | { type: "kifu_error"; payload: FsError }
   | { type: "kifu_error_cleared" }
@@ -192,6 +213,8 @@ export type FileTreeContextType = FileTreeState & {
   startCreateDirectory: (parentPath: string) => void;
   cancelCreateDirectory: () => void;
 
+  /** 表示側で見つけた失敗を、Rust から返る失敗と同じ経路に載せる */
+  pushError: (error: FsError) => void;
   clearError: () => void;
   clearKifuError: () => void;
   closeConflict: () => void;

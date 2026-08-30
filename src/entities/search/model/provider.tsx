@@ -41,7 +41,7 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
   /**
-   * 償却 O(n) の hits キャッシュ (C-M1)。session.chunks に新規 chunk が増えたら
+   * 償却 O(n) の hits キャッシュ。session.chunks に新規 chunk が増えたら
    * 末尾だけ flat 配列に append する。同一 chunks 参照を見ている間は flat 配列も
    * stable で React の memo が効く。
    */

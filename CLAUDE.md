@@ -37,8 +37,10 @@ docs や `.claude/` だけの変更は素通しする。
 
 ## テストの現状（誇張しないこと）
 
-TS 側のテストは片手で数えられる本数しか無く、Rust 側は `#[test]` が0個。
-現在値は `npm run test` の末尾で確認すること。`cargo test` の green は**何も保証しない**。
+**件数をここに書かない。** 書くと必ず腐る。現在値は `npm run test` と
+`cargo test` の末尾で確認すること。どちらも薄い。とくに Rust 側は
+`cargo test` の大半がベンチで、`src/` の振る舞いを見ている `#[test]` は数個しかない。
+**`cargo test` の green は「Rust が壊れていない」を意味しない。**
 「テストが通ったので安全」と書いてはいけない。新規ロジックには実際にテストを足すこと。
 
 ## 依存の方向（`src/`）
@@ -67,12 +69,13 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 - JSX 内の全角スペースは `no-irregular-whitespace` で lint エラーになる → `{"　"}` で囲む
 - SCSS トークンは `@use "@/index.scss" as index;` で読み込む
 - SCSS の寸法は直値を書かず `src/index.scss` のトークンから選ぶ。**文字サイズはサイズ名でなく用途名**
-  （`$font-hint` / `$font-aux` / `$font-body` …）。直値が増えると `npm run test` が落ちる（ADR-0003）
+  （`$font-hint` / `$font-aux` / `$font-body` …）。ラチェットが見るのは
+  **スケールに載るプロパティだけ**（ADR-0003）。`min-height` などは素通りするので、
+  緑で通ったことを「規約に沿っている」と読まない
 - `main` に注釈機能（marks / file-meta / normalizedTree）は**存在しない**。未マージブランチの識別子を既存として参照しないこと
 
 ## 進め方
 
-- 着手中の issue は**常に1件**。`gh issue list --assignee @me` が2件以上返る状態を作らない
 - コミットは `<type>: <description>`（type: feat/fix/refactor/docs/test/chore/perf/ci）
 - `main` に直接コミットしない。ブランチを切ること
 - 同じ失敗を2回するまでルールを足さない。1回目は**ルールではなくテスト**を書く

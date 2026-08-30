@@ -3,7 +3,7 @@ import "./EngineTab.scss";
 
 import { Plus, Pencil, Copy, Trash2, RefreshCcw, CheckCircle2, AlertTriangle } from "lucide-react";
 
-import SButton from "../kit/SButton";
+import Button from "@/shared/ui/Button/Button";
 import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
@@ -71,24 +71,14 @@ export default function EngineTab() {
         description="エンジンの起動設定・解析の基本設定をプリセットとして管理します。保存時に必要なら自動でエンジンが再起動されます。"
         actions={
           <div className="engineTab__actions">
-            <SButton
-              variant="ghost"
-              size="sm"
-              onClick={() => reload()}
-              isLoading={state.status === "loading"}
-            >
+            <Button size="sm" onClick={() => reload()} isLoading={state.status === "loading"}>
               <RefreshCcw size={16} style={{ marginRight: 6 }} />
               再読み込み
-            </SButton>
-            <SButton
-              variant="primary"
-              size="sm"
-              onClick={onAdd}
-              disabled={state.status === "loading"}
-            >
+            </Button>
+            <Button tone="primary" size="sm" onClick={onAdd} disabled={state.status === "loading"}>
               <Plus size={16} style={{ marginRight: 6 }} />
               追加
-            </SButton>
+            </Button>
           </div>
         }
       >
@@ -153,28 +143,21 @@ export default function EngineTab() {
                     </div>
 
                     <div className="engineTab__cardActions" onClick={(e) => e.stopPropagation()}>
-                      <SButton
-                        variant="ghost"
+                      <Button
                         size="sm"
                         onClick={() => setEditingId(p.id)}
                         aria-label="編集"
                         title="編集"
                       >
                         <Pencil size={16} />
-                      </SButton>
+                      </Button>
 
-                      <SButton
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDup(p.id)}
-                        aria-label="複製"
-                        title="複製"
-                      >
+                      <Button size="sm" onClick={() => onDup(p.id)} aria-label="複製" title="複製">
                         <Copy size={16} />
-                      </SButton>
+                      </Button>
 
-                      <SButton
-                        variant="danger"
+                      <Button
+                        tone="danger"
                         size="sm"
                         onClick={() => onDelete(p.id)}
                         aria-label="削除"
@@ -182,7 +165,7 @@ export default function EngineTab() {
                         disabled={presets.length <= 1}
                       >
                         <Trash2 size={16} />
-                      </SButton>
+                      </Button>
                     </div>
                   </header>
 

@@ -200,7 +200,10 @@ export default defineConfig({
           "@typescript-eslint/prefer-namespace-keyword": "error",
           "@typescript-eslint/triple-slash-reference": "error",
           "react-hooks/rules-of-hooks": "error",
-          "react-hooks/exhaustive-deps": "warn",
+          // **error にする。** 読む値を替えて依存を替え忘れると、その `useCallback` は
+          // 古い値を掴んだまま固定される。warn だと `npm run verify` が通るので、
+          // そのまま出ていく
+          "react-hooks/exhaustive-deps": "error",
           "react/only-export-components": [
             "warn",
             {
@@ -227,6 +230,15 @@ export default defineConfig({
       layerFreeTests,
     ],
     options: {},
+  },
+  // 走査するのは `src/` と、設定そのものを検査する `vite.config.test.ts` の2つだけ
+  // （あちらは `vite.config` を import するので `src/` へ置けない）。
+  // 除外を並べる形だと、`.claude/worktrees/` の別ブランチのチェックアウトや、
+  // 確認用に作ったディレクトリが混ざり、`npm run test` の末尾の件数が
+  // 今のコードを指さなくなる。`CLAUDE.md` はその数を現在値として読めと
+  // 書いているので、混ざると数え間違いがそのまま文書へ伝播する
+  test: {
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "vite.config.test.ts"],
   },
   plugins: [react()],
   resolve: {

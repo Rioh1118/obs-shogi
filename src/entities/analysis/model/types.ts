@@ -1,4 +1,4 @@
-import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine";
 
 export interface AnalysisState {
   isAnalyzing: boolean;

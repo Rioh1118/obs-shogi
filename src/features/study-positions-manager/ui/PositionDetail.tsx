@@ -3,7 +3,7 @@ import { turnText } from "@/shared/lib/turn";
 
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
-import Button from "@/shared/ui/Form/Button";
+import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { formatDate } from "@/shared/lib/date";
 import type { StudyPosition } from "@/entities/study-positions/model/types";
@@ -99,22 +99,14 @@ export default function PositionDetail({
 
       <div className="sp-detail__actions">
         <div className="sp-detail__actionsLeft">
-          <button
-            type="button"
-            className="sp-detail__deleteBtn"
-            onClick={() => setConfirmDelete(true)}
-          >
+          <Button tone="danger" onClick={() => setConfirmDelete(true)}>
             {"削除"}
-          </button>
+          </Button>
         </div>
         <div className="sp-detail__actionsRight">
-          <Button variant="ghost" onClick={() => onEdit(position.sfen)}>
-            {"編集"}
-          </Button>
-          <Button variant="ghost" onClick={() => onCreateKifu(position.sfen)}>
-            {"棋譜作成"}
-          </Button>
-          <Button variant="primary" onClick={() => onSearch(position.sfen)}>
+          <Button onClick={() => onEdit(position.sfen)}>{"編集"}</Button>
+          <Button onClick={() => onCreateKifu(position.sfen)}>{"棋譜作成"}</Button>
+          <Button tone="primary" onClick={() => onSearch(position.sfen)}>
             {"局面検索"}
           </Button>
         </div>

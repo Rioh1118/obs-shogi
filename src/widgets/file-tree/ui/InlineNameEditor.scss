@@ -1,7 +1,46 @@
 @use "@/index.scss" as index;
 
-.inline-name-editor__input,
+.inline-name-editor {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+// **重ねずに行を押し広げる。** 採らなかった案とその理由は
+// docs/state-transitions/inline-name-editor.md の「失敗の箱」
+.inline-name-editor__error {
+  display: block;
+  margin-top: index.$space-1;
+  max-width: 100%;
+
+  padding: index.$space-1 index.$space-3;
+  border-radius: index.$radius-2;
+  // 輪郭は意味色の帯で示す。1px の枠だけだと地に対して 1.66:1 で箱として見えない。
+  // 入力の直下に出す失敗はこの形で揃える（`.file-conflict__error` も同じ）。
+  // 独立した通知の面は `FsErrorView` が持つ
+  border: 1px solid rgba(index.$color-danger, 0.4);
+  border-left: 3px solid index.$color-danger;
+  background: index.$surface-danger;
+
+  color: index.$color-text-primary;
+  font-size: index.$font-hint;
+  line-height: 1.4;
+
+  // 名前の失敗の文は最長で17文字。サイドバーの幅では収まらないので折り返す
+  overflow-wrap: anywhere;
+
+  // 領域は常設（空でも DOM に置く）なので、中身が無いときは箱を消す。
+  // **`display: none` にはしない。** 支援技術から領域ごと消えて、
+  // 常設にした意味（あとから入る中身を読ませる）が無くなる
+  &:empty {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+}
+
 .file-name__input {
+  width: 100%;
   height: 2.2rem;
   max-width: 100%;
 
@@ -36,28 +75,5 @@
   &::selection {
     background: rgba(index.$color-secondary-dark, 0.42);
     color: index.$color-text-light-1;
-  }
-
-  // placeholder (for create directory row initialName="":)
-  &::placeholder {
-    color: rgba(index.$color-text-light-1, 0.5);
-  }
-}
-
-.node-box--editing {
-  background-color: rgba(index.$color-secondary-dark, 0.08);
-
-  // left indicator like VSCode
-  position: relative;
-
-  &::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0.2rem;
-    bottom: 0.2rem;
-    width: 2px;
-    border-radius: 1px;
-    background: rgba(index.$color-secondary-dark, 0.9);
   }
 }

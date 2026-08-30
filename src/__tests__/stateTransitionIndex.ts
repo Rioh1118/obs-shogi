@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { REPO_ROOT } from "./walk";
 
 /**
  * `docs/state-transitions/` の索引が腐っていないかを見る検査の本体。
@@ -9,7 +10,9 @@ import { dirname, join } from "node:path";
  * テストがコピーの方を叩き、出荷される検査に1本もテストが掛からない形になる。
  */
 
-const DOCS = join(process.cwd(), "docs");
+// 起点は `walk.ts` が決める。`process.cwd()` にすると、ランナーの起動場所が
+// 別の作業ツリーだったときに違う木の docs を読む
+const DOCS = join(REPO_ROOT, "docs");
 
 /** 状態遷移表の置き場。索引（`README.md`）も表もここに並ぶ */
 export const TABLES_DIR = join(DOCS, "state-transitions");

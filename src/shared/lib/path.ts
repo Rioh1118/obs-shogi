@@ -1,5 +1,7 @@
 import { basename, dirname } from "pathe";
 
+// TODO(#216): パスの手書きヘルパが4層に4本ある。ここの `replace` は `/g` が無く、
+// 区切りを1つしか置き換えない
 const norm = (p: string) => p.replace("\\", "/");
 
 export function toRelPath(absPath: string, rootDir: string | null): string {

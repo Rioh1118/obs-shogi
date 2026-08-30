@@ -6,13 +6,63 @@ $color-secondary-light: #dcd7c9;
 $color-secondary-dark: #a27b5c;
 $color-secondary-dark-2: #a57d5c;
 
+// 面として敷く銅。$color-secondary-dark に白文字を置くと 3.80:1 で本文の基準を割る。
+// 一段暗くすると 4.79:1 になり、白文字のまま基準を満たせる。
+//
+// ホバーは**暗くする**。白文字を載せる面なので、明るくすると比が下がり、
+// 押そうとしている瞬間にいちばん読みにくくなる
+$color-secondary-solid: #8f6b4e; // 白文字 4.79:1
+$color-secondary-solid-hover: #866549; // 白文字 5.29:1
+
 $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
 
 $color-text-primary: #dcd7c9;
+// TODO(#184): rgba($color-text-primary, N) の N がばらけていて段が無い。
+// 次に書く人は隣のファイルから写すしかない。薄さの上限は載る面で変わる
 
 $color-text-dark-1: #0e1110;
 $color-text-dark-2: #3a3a3a;
+
+// 意味色
+// 段は「復帰に何が要るか」で切ってある（ADR-0004）。深刻度ではないので、
+// 見た目の派手さで選ばない。
+// パレットと同じ温度に合わせて彩度を落としてある。無関係な色を足すと浮く
+//
+// 危険な操作の色はまだ全部が寄り切っていない。どこが何を使っているかは
+// CONTRIBUTING.md の「SCSS」節に一覧がある → issue #180
+$color-info: #7d93a3; // 伝えるだけ。寄せ先の候補で、まだ使い先が無い
+$color-warning: #c8955a; // 再試行で直る
+$color-danger: #b5645c; // 別の操作が要る。危険な操作の確認もここへ寄せる
+$color-fatal: #8c4a44; // アプリ再起動。寄せ先の候補で、まだ使い先が無い
+
+// 面として敷く危険色。$color-danger は枠・文字・薄い面に残す。
+// 面に敷いて $color-text-dark-1 を載せると 4.47:1 で本文の基準を割る。
+// 付くのは削除の確定など取り消せない操作なので、文言が読めることが一番要る。
+//
+// ホバーは**明るくする**。暗い文字を載せる面なので、明るくすると比が上がる
+// （向きの決め方は ADR-0005 決定2）
+$color-danger-solid: #b96d66; // $color-text-dark-1 で 4.92:1
+$color-danger-solid-hover: #c3817b; // $color-text-dark-1 で 6.10:1
+
+// 暗い面の上に置く危険色の文字。$color-danger のままだと暗いカードで 3.75:1
+$color-danger-text: #c98a83; // 暗いカード（#1c2325）で 5.66:1
+
+// 失敗を伝える箱の面。**不透明**にするのは、載る場所（暗いカード・サイドバー・
+// ツリーの行）ごとに実効値が変わるのを防ぐため。段は意味色で分ける
+$surface-warning: color-mix(in srgb, $color-primary-black 94%, $color-warning);
+$surface-danger: color-mix(in srgb, $color-primary-black 94%, $color-danger);
+
+// 暗い面を一段持ち上げた面。意味色を持たず、「いま触れない」を示すのに使う。
+// **部品の中で百分率を書かない。** 段が名前を持たないまま増えると、
+// どれが一段上なのかコードから読めなくなる
+$surface-raised: color-mix(in srgb, $color-primary-black 86%, $color-white);
+
+// 器の上に浮かせる面（ツールチップ）。**半透明**なので、載る場所ごとに実効値が
+// 変わる。文字との比はコントラストの走査では測れない → #185
+$surface-overlay: color-mix(in srgb, $color-primary-black 88%, transparent);
+
+// 成功は置かない。通知する場面が1件も無いため（必要になったら足す）
 
 // font
 // 段は用途で選ぶ。サイズで選ぶと段の中で値が再び割れる（ADR-0003）
@@ -98,6 +148,9 @@ $shadow-overlay:
   0 10px 30px rgba(0, 0, 0, 0.45),
   0 2px 10px rgba(0, 0, 0, 0.35);
 $shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
+// 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
+$shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
+$shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
 
 $stroke-weak: rgba($color-white, 0.06);
 $stroke: rgba($color-white, 0.1);

@@ -1,0 +1,104 @@
+@use "@/index.scss" as index;
+
+.fsError {
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-3;
+  padding: index.$space-5;
+  border: 1px solid;
+  border-left-width: 3px;
+  border-radius: index.$radius-3;
+  color: index.$color-text-primary;
+
+  // 段は「復帰に何が要るか」で決まる（ADR-0004）。色だけでなく、
+  // どのボタンを出すかもここで分かれる。
+  //
+  // 面は**不透明**にする。この部品は暗いカードとサイドバーの2つに載るので、
+  // 半透明を親に重ねると載る場所ごとに実効値が変わる
+  &--warning {
+    border-color: rgba(index.$color-warning, 0.4);
+    border-left-color: index.$color-warning;
+    background: index.$surface-warning;
+  }
+
+  &--danger {
+    border-color: rgba(index.$color-danger, 0.4);
+    border-left-color: index.$color-danger;
+    background: index.$surface-danger;
+  }
+
+  &__message {
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-2;
+  }
+
+  &__lead {
+    margin: 0;
+    font-size: index.$font-body;
+    font-weight: 600;
+  }
+
+  // パスは折り返させる。省略すると、どれが失敗したのか分からなくなる
+  &__path {
+    margin: 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.75);
+    overflow-wrap: anywhere;
+  }
+
+  &__detail {
+    border: 1px solid index.$stroke-weak;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-primary-black, 0.22);
+
+    summary {
+      cursor: pointer;
+      padding: index.$space-2 index.$space-3;
+      font-size: index.$font-hint;
+      color: rgba(index.$color-text-primary, 0.7);
+    }
+  }
+
+  // Rust から返る一行が長くなっても、カードを画面外まで伸ばさない
+  &__raw {
+    max-height: 16rem;
+    overflow-y: auto;
+    // スクロールバーを戻す。`global.scss` が全要素から消しているので、
+    // 戻さないと「続きがある」ことが画面のどこにも出ない。
+    // ここはモーダルの本文（スクロールバー有り）の中に入れ子で置かれるので、
+    // 外側だけ見た人は最後まで動かして「詳細はこれで全部」と読む
+    scrollbar-width: thin;
+    // `-thumb` を書かないと、WebKit は既定描画をやめたままつまみを塗らない。
+    // レールだけ空いて「続きがある」が伝わらない
+    &::-webkit-scrollbar {
+      display: block;
+      width: 8px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(index.$color-secondary-dark, 0.6);
+      border-radius: index.$radius-2;
+    }
+    margin: 0;
+    padding: 0 index.$space-3 index.$space-3;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    display: flex;
+    // サイドバーの中（幅 26rem）にも出る。ボタンは `white-space: nowrap` で
+    // 縮まないので、折り返さないと `justify-content: flex-end` があふれを
+    // **開始側**へ押し出し、逃げ道のラベルが左へ欠けたまま到達できなくなる
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: index.$space-3;
+  }
+}

@@ -1,12 +1,14 @@
+import { keepInViewport } from "@/shared/lib/keepInViewport";
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
+
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import type { FileTreeNode } from "@/entities/file-tree";
+import { commitName, useFileTree } from "@/entities/file-tree";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
@@ -18,6 +20,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     renamingNodeId,
     renameNode,
     cancelInlineRename,
+    pushError,
   } = useFileTree();
   const isSelected = selectedNode?.id === node.id;
   const isActive = activeKifuPath === node.path;
@@ -68,15 +71,18 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     pop.textContent = node.name;
 
     const r = el.getBoundingClientRect();
-    const margin = 10;
-    const left = Math.min(r.left, window.innerWidth - 320);
-    const top = r.bottom + margin;
-
     pop.style.position = "fixed";
-    pop.style.left = `${Math.max(8, left)}px`;
-    pop.style.top = `${Math.max(8, top)}px`;
-
     pop.showPopover();
+
+    // 大きさが決まってから丸める。下端の行では行の下が画面外になり、
+    // `popover` は top layer にいて何にもクリップされないので、
+    // 丸めないと名前を確かめる手段がその行だけ無くなる
+    const box = keepInViewport(
+      { x: r.left, y: r.bottom + 10 },
+      { width: pop.offsetWidth, height: pop.offsetHeight },
+    );
+    pop.style.left = `${box.left}px`;
+    pop.style.top = `${box.top}px`;
   };
 
   const hideNativeTooltip = () => {
@@ -91,7 +97,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     selectNode(node);
 
     if (!isActive) {
-      void openKifuNode(node);
+      void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
     }
   };
 
@@ -101,12 +107,8 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  const handleCommit = async (nextName: string) => {
-    const res = await renameNode(node, nextName);
-    if (res.success) {
-      cancelInlineRename();
-    }
-  };
+  const handleCommitRename = (nextName: string) =>
+    commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
   return (
     <NodeBox
@@ -125,11 +127,11 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       <FileIcon type={node.displayInfo.iconType} />
       {isRenaming ? (
         <InlineNameEditor
-          isEditting={isRenaming}
           initialName={node.name}
           selectMode="file"
           onCancel={cancelInlineRename}
-          onCommit={handleCommit}
+          onCommit={handleCommitRename}
+          onUnshowable={pushError}
         />
       ) : (
         <span

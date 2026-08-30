@@ -1,5 +1,5 @@
 import { FolderOpen, RefreshCw } from "lucide-react";
-import { SButton } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
 import { StepShell, type StepState } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
@@ -37,14 +37,14 @@ export function Step3PlaceEngines({
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <SButton variant="ghost" size="sm" onClick={onOpenEnginesDir}>
+        <Button size="sm" onClick={onOpenEnginesDir}>
           <FolderOpen size={14} style={{ marginRight: 6 }} />
           engines/ を開く
-        </SButton>
-        <SButton variant="subtle" size="sm" onClick={onScan} disabled={isScanning}>
+        </Button>
+        <Button size="sm" onClick={onScan} disabled={isScanning}>
           <RefreshCw size={14} style={{ marginRight: 6 }} />
           スキャン
-        </SButton>
+        </Button>
       </div>
     </StepShell>
   );

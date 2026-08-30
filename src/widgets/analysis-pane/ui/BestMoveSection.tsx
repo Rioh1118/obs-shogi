@@ -5,7 +5,7 @@ import {
 import MoveSequence from "./MoveSequence";
 import EvaluationBar from "./EvaluationBar";
 import "./BestMoveSection.scss";
-import type { Evaluation } from "@/entities/engine/api/rust-types";
+import type { Evaluation } from "@/entities/engine";
 
 interface BestMoveSectionProps {
   bestMove: ConvertedMove[] | null;

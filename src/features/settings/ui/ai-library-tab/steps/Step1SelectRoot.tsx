@@ -1,5 +1,5 @@
 import { FolderOpen } from "lucide-react";
-import { SButton } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
 import { StepShell, type StepState } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
@@ -26,10 +26,10 @@ export function Step1SelectRoot({ state, aiRoot, onSelect }: Props) {
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <SButton variant="primary" size="sm" onClick={onSelect}>
+        <Button tone="primary" size="sm" onClick={onSelect}>
           <FolderOpen size={14} style={{ marginRight: 6 }} />
           フォルダを選択…
-        </SButton>
+        </Button>
       </div>
     </StepShell>
   );

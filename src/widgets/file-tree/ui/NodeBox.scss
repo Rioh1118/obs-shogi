@@ -2,6 +2,7 @@
 
 .node-box {
   padding: 0;
+  cursor: pointer;
   color: index.$color-text-primary;
   font-size: 1.4rem;
   border-radius: 0.6rem;
@@ -12,6 +13,15 @@
 
   &:hover {
     background-color: rgba(index.$color-white, 0.15);
+  }
+
+  // 押せない行。押せる行と同じ手掛かり（指のポインタ・ホバーの帯）を持たせると、
+  // 「開けば続きが出る」と読んで押し、無反応を「固まった」と受け取る
+  &--static {
+    // ホバーの帯もポインタも当たり判定ごと外す。`:hover` を上書きで打ち消すと、
+    // 面が `transparent` の対がコントラストの走査で「測れない」枠に増える
+    pointer-events: none;
+    cursor: default;
   }
 
   &__selected {
@@ -39,6 +49,10 @@
 
   &__content {
     display: flex;
+    // **通常の行を揃える側に倒す。** 上端で揃えると、伸びない側（`__main` の
+    // 中身）が 24px の行の上に寄り、名前・アイコン・ボタンの縦中心が数 px ずつ
+    // ずれる。失敗の箱で伸びたときにボタンを上端へ置く要求は `__actions` 側の
+    // `align-self` で満たす
     align-items: center;
     justify-content: space-between;
     width: 100%;
@@ -47,6 +61,12 @@
 
   &__main {
     display: flex;
+    // **子に `display` を書かない。** `.file-name` の内側がフレックスになると
+    // `text-overflow: ellipsis` が効かず、長い名前が「…」無しで断ち切られる。
+    // 「まだ続いている」という手掛かりが画面から消える。
+    //
+    // 失敗の箱で行が伸びるとアイコンがその中央へ落ちる。行を1枚の要素にしないと
+    // 解けないので、ここでは通常の行の揃いを取る → TODO(#246)
     align-items: center;
     gap: 0.03rem;
     flex: 1;
@@ -65,6 +85,9 @@
     display: flex;
     margin-right: 1.5rem;
     align-items: center;
+    // 失敗の箱で行が伸びたとき、中央に置くと入力欄の横ではなく箱の横に出る。
+    // 伸びない側だけを上端へ寄せるので、通常の行の揃いは崩れない
+    align-self: flex-start;
     gap: 0.2rem;
     pointer-events: auto;
     opacity: 0;
@@ -77,10 +100,13 @@
 }
 
 .filetree-tooltip {
+  // 画面内へ丸めるので、下端の行ではアンカーに重なる。当たり判定を持つと
+  // ポインタを奪い、離れる → また出る、の往復になって名前を読めない
+  pointer-events: none;
   padding: 0.45rem 0.65rem;
   border-radius: 0.65rem;
   background: rgba(0, 0, 0, 0.28);
-  background: color-mix(in srgb, #1b2123 88%, transparent);
+  background: index.$surface-overlay;
   border: 1px solid rgba(index.$color-white, 0.08);
   box-shadow:
     0 6px 16px rgba(0, 0, 0, 0.28),

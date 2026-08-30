@@ -3,10 +3,11 @@ import Title from "../shared/ui/Title";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";
+import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspaceButton";
 
 function FolderSelect() {
   const navigate = useNavigate();
-  const { config, chooseRootDir } = useAppConfig();
+  const { config } = useAppConfig();
   // 初回マウント時にチェック
   useEffect(() => {
     if (config?.root_dir) {
@@ -14,19 +15,11 @@ function FolderSelect() {
     }
   }, [config?.root_dir, navigate]);
 
-  async function handleClick() {
-    const rootDir = await chooseRootDir({ force: true });
-    if (rootDir) {
-      navigate("/app", { replace: true });
-    }
-  }
   return (
     <div className="container">
       <Title />
       <p className="guide--text">あなたの定跡を整理するノートアプリへようこそ</p>
-      <button onClick={handleClick} className="guide__btn--big">
-        <span className="folder-icon">📁</span>フォルダを選択
-      </button>
+      <ChooseWorkspaceButton onChosen={() => navigate("/app", { replace: true })} />
     </div>
   );
 }

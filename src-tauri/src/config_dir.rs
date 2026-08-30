@@ -4,9 +4,13 @@ use tauri::{AppHandle, Manager};
 
 use crate::file_system::utils::atomic_write;
 
-const CONFIG_FILE: &str = "app.json";
+pub(crate) const CONFIG_FILE: &str = "app.json";
 
+/// **`#[serde(default)]` を外さない。** 外すと、フィールドを1つ足した時点で
+/// 既存利用者の `app.json` が parse に失敗し、パスを受ける全コマンドが落ちる
+/// （関門が `app.json` を読むため）。
 #[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct AppConfig {
     pub root_dir: Option<String>,
     pub ai_root: Option<String>,
@@ -32,7 +36,38 @@ pub fn load_config(app: AppHandle) -> Result<AppConfig, String> {
     }
 }
 
+/// 読めなかった `app.json` を退避する。**上書きの前に呼ぶ。**
+///
+/// `save_config` はファイルごと置き換えるので、読めなかった設定に対して
+/// 呼び出し元が組み立てた値を書くと、読めていない欄（`ai_root` /
+/// `last_preset_id`）が `null` として書き潰される。壊れた JSON でも、
+/// 中の文字列は利用者が選んだ場所そのもの。**捨てる前に取っておく。**
+///
+/// 退避先を返す。無ければ `None`
 #[tauri::command]
+pub fn backup_broken_config(app: AppHandle) -> Result<Option<String>, String> {
+    let path = config_path(&app)?;
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    // 上書きされないように、既にある退避先は避ける
+    let mut backup = path.with_extension("json.broken");
+    for n in 1..100 {
+        if !backup.exists() {
+            break;
+        }
+        backup = path.with_extension(format!("json.broken.{n}"));
+    }
+
+    fs::rename(&path, &backup).map_err(|e| e.to_string())?;
+    Ok(Some(backup.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+// TODO(#215): `config.root_dir` を無検証で受ける。ここが root を決める側なので
+// `validate_under_root` を掛けられない。webview から直に呼べば関門を全開にできる。
+// 免除は `tests/root_guard.rs` の EXEMPT に理由つきで並べてある
 pub fn save_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     let path = config_path(&app)?;
     let data = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;

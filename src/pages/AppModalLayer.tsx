@@ -1,4 +1,7 @@
+import { useCallback } from "react";
 import { useFileTree } from "@/entities/file-tree";
+import { isRaisedFromModal } from "@/features/file-conflict/lib/isRaisedFromModal";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import SfenKifuCreateModal from "@/features/create-file/ui/SfenKifuCreateModal";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
@@ -12,6 +15,25 @@ import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/St
 export default function AppModalLayer() {
   const { conflict, kifuError, closeConflict, resolveConflictByRename, clearKifuError } =
     useFileTree();
+  const { closeModal } = useURLParams();
+
+  const fromModal = conflict ? isRaisedFromModal(conflict.request) : false; // 依存を真偽に落とす
+
+  /**
+   * 衝突を別名で解決したら、発端のモーダルも閉じる。
+   *
+   * 閉じないと、ファイルは作られたのに**入力がそのまま残ったフォーム**が下から
+   * 出てくる。成功も失敗も出ていないので作られたことに気づけず、もう一度押すと
+   * 同じ棋譜の2本目ができる。
+   */
+  const submitRename = useCallback(
+    async (nextName: string) => {
+      const res = await resolveConflictByRename(nextName);
+      if (res.success && fromModal) closeModal();
+      return res;
+    },
+    [fromModal, resolveConflictByRename, closeModal],
+  );
 
   return (
     <>
@@ -25,7 +47,7 @@ export default function AppModalLayer() {
       <FileConflictDialog
         conflict={conflict}
         onCancel={closeConflict}
-        onSubmitRename={resolveConflictByRename}
+        onSubmitRename={submitRename}
       />
       <KifuReadErrorDialog error={kifuError} onDismiss={clearKifuError} />
     </>
