@@ -114,8 +114,7 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
 /// 表を足したときに、この検査へ取り込み忘れないこと。
 ///
 /// **対応表を手で書いている以上、これが無いと表を1つ足すだけで検査を抜けられる。**
-/// 実際、この検査を入れた時点で `book-key-failures.md` が抜けていた。
-/// 定数を書いた表がそこにあり、まさに見るべき形をしていたのに。
+/// 抜けた表は、定数を書いていても誰にも見られない。
 #[test]
 fn every_table_is_either_checked_or_declared_not_rust() {
     let dir = repo_file("docs/state-transitions");

@@ -230,7 +230,11 @@ expect_kinds "ts" "src/app/App.tsx"
 expect_kinds "ts" "src/shared/ui/Button.ts"
 expect_kinds "ts" "src/index.scss"
 expect_kinds "ts" "package.json"
-expect_kinds "rust" "src-tauri/src/book/api.rs"
+# `.rs` は両方。`src/__tests__/` の規約の検査には **Rust のソースを走査する
+# もの**があり、それは vitest でしか走らない。rust だけにすると、Rust しか
+# 触らないコミットでその検査が一度も走らない。
+expect_kinds "ts rust" "src-tauri/src/book/api.rs"
+expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"
 expect_kinds "rust" "src-tauri/Cargo.toml"
 expect_kinds "rust" "src-tauri/tauri.conf.json"
 expect_kinds "rust" "src-tauri/capabilities/default.json"

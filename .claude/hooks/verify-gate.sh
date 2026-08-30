@@ -203,8 +203,12 @@ gate_target_dir() {
 gate_kinds_for_path() {
   local path=$1 kinds=""
 
+  # `.rs` がここにも入るのは、`src/__tests__/` の規約の検査のうち
+  # **Rust のソースを走査するもの**（コメントに経緯を書かない、など）が
+  # vitest でしか走らないため。rust だけに分類すると、Rust しか触らない
+  # コミットでその検査が一度も走らない。
   case "$path" in
-    *.ts|*.tsx|*.scss|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
+    *.ts|*.tsx|*.scss|*.rs|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
   esac
   case "$path" in
     *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
