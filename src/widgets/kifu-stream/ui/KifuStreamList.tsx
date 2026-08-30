@@ -44,6 +44,8 @@ type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
  */
 type PendingDelete = {
   query: DeleteQuery;
+  /** 押した時点の棋譜。ここが今の棋譜と違うなら、この確認はもう別のファイルの話 */
+  absPath: string | null;
   /** 「本譜」か「変化N」 */
   label: string;
   /** 消える線の1手目。読めなければ空 */
@@ -233,13 +235,20 @@ export default function KifuStreamList() {
       setOpenMoveMenu(null);
       setPendingDelete({
         query,
+        absPath: state.loadedAbsPath,
         label: branchLabel(forkIndex),
         firstMove: (forkIndex === undefined ? row?.mainText : row?.forkTexts[forkIndex]) ?? "",
         moveCount,
       });
     },
-    [rows, state.jkf],
+    [rows, state.jkf, state.loadedAbsPath],
   );
+
+  // 失敗が返るのを待っている間に棋譜が変わりうるので、突き合わせは**返った時点**の値で行う
+  const loadedAbsPathRef = useRef(state.loadedAbsPath);
+  useEffect(() => {
+    loadedAbsPathRef.current = state.loadedAbsPath;
+  });
 
   // **閉じるのは書けたときだけ。** 先に閉じると `isLoading` も「削除中...」も
   // 一度も描かれず、失敗しても画面からは枝が消えたように見える（ファイルには残る）。
@@ -250,14 +259,23 @@ export default function KifuStreamList() {
     setDeleting(true);
     const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
 
-    // **待っている間に確認が閉じていたら、開き直さない。**
-    // Escape で閉じた／棋譜が変わって上の効果が畳んだ、のどちらでも
-    // 古い closure をそのまま書き戻すと**利用者が閉じた確認が復活する**。
-    // 棋譜が変わったあとの復活は、別のファイルの枝へ古いクエリを当てることになる。
+    // **閉じられていても失敗は出す。**
+    //
+    // 待つのが長いと利用者は Escape で確認を閉じる。そこで失敗を捨てると、
+    // 見えるのは「削除したはずの変化が勝手に生き返った」だけになる
+    // （巻き戻しがメモリを戻すため）。確認文で「棋譜ファイルもすぐ書き換わります」と
+    // 断言している以上、破れたことは伝える。
+    //
+    // 開き直しても危険ではない。`error` があるとき実行ボタンは押せないので、
+    // 「利用者が閉じた確認が復活して、古いクエリのまま再実行される」形にはならない。
+    // ただし**棋譜が変わっていたら開き直さない**。別のファイルを見ている画面に、
+    // 前のファイルの枝についての確認を出しても読めない。
     if (!res.success) {
-      setPendingDelete((prev) =>
-        prev?.query === pendingDelete.query ? { ...prev, error: res.error } : prev,
-      );
+      const stillHere = pendingDelete.absPath === loadedAbsPathRef.current;
+      setPendingDelete((prev) => {
+        if (prev?.query === pendingDelete.query) return { ...prev, error: res.error };
+        return stillHere ? { ...pendingDelete, error: res.error } : prev;
+      });
       return;
     }
     setPendingDelete((prev) => (prev?.query === pendingDelete.query ? null : prev));
