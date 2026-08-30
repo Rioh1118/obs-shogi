@@ -9,7 +9,7 @@ pub mod study_positions;
 
 pub use crate::engine::bridge::AppState;
 pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
-pub use config_dir::{load_config, save_config};
+pub use config_dir::{backup_broken_config, load_config, save_config};
 pub use engine::bridge::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
     get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
@@ -50,6 +50,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
+            backup_broken_config,
             load_config,
             save_config,
             get_file_tree,
