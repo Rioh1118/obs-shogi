@@ -11,8 +11,10 @@
  */
 export type { FsError, FsErrorCode } from "./api/error";
 export {
+  asFsError,
   describeFsError,
   fsErrorTier,
+  isNameInputError,
   isOperationAlreadyCommitted,
   isResolvedByConflictDialog,
 } from "./api/error";

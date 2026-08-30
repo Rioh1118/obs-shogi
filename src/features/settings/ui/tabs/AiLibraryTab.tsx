@@ -16,6 +16,7 @@ import {
   type ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
 
+import { describeFsError, isNameInputError, type FsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { copyText } from "@/shared/api/clipboard/copyText";
 import SetupGuide, { type SetupGuideProfile } from "../ai-library-tab/SetupGuide";
@@ -156,20 +157,33 @@ export default function AiLibraryTab() {
   const enginesDirOk = !!(data?.engines_dir?.exists && isDir(data.engines_dir.kind));
 
   /**
-   * AI フォルダを作る。**失敗は投げ返す。**
+   * AI フォルダを作る。**名前の失敗だけを呼び出し元へ返す。**
    *
-   * `scan` の状態へ移すと、見出しが「フォルダを確認できませんでした」、主動作が
-   * 「再スキャン」になる。読み取りは成功しているので嘘だし、名前を直さない限り
-   * 再スキャンは何も変えない。名前を直せば通る失敗は名前の欄のそばに出す
+   * 全部を `scan` の状態へ移すと、見出しが「フォルダを確認できませんでした」、
+   * 主動作が「再スキャン」になる。読み取りは成功しているので嘘だし、名前を
+   * 直さない限り再スキャンは何も変えない。
+   *
+   * 逆に全部を名前の欄へ出すと、AI ルートが消えている（外付けを外した等）
+   * ときに「名前が悪い」という位置に出る。利用者は名前を打ち直し続ける。
+   * 振り分けは code で決める（`file-tree` の `failToNameInput` と同じ形）
    */
   const onCreateAiFolder = useCallback(
-    async (aiName: string) => {
+    async (aiName: string): Promise<FsError | null> => {
       const root = localAiRoot.trim();
       const name = aiName.trim();
-      if (!root || !name) return;
+      if (!root || !name) return null;
 
-      await createAiProfileDirs(root, name);
+      const created = await createAiProfileDirs(root, name);
+      if (!created.success) {
+        if (isNameInputError(created.error.code)) return created.error;
+
+        // 名前では直せない。AI ルートの診断側へ回す
+        setScan({ status: "error", error: describeFsError(created.error.code) });
+        return null;
+      }
+
       await scanNow(root);
+      return null;
     },
     [localAiRoot, scanNow],
   );

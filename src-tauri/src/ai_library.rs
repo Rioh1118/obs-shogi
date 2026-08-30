@@ -6,6 +6,7 @@ use std::{
 use tauri::command;
 
 use crate::file_system::error::{FsError, FsErrorCode};
+
 use crate::file_system::utils::validate_basename;
 
 /// エンジンの置き場。**AI のプロファイル名として使えない。**
@@ -42,37 +43,6 @@ pub enum FsKind {
     Dir,
     Symlink,
     Unknown,
-}
-
-/// 失敗を利用者向けの一文にする。
-///
-/// `FsError.message` は開発者向けのログで、`ai_library` の戻り値は `String` なので
-/// code が落ちる。**素通しにすると画面に英語の内部文言が出る。**
-///
-/// **`_ =>` を置かない。** 置くと `FsErrorCode` を増やした日から、入力欄の下に
-/// `名前が不正です（KifuConversionFailed）` のような内部の識別子が出る。
-/// 網羅にしてあれば、増やした人がここへ連れてこられる。
-///
-/// 文言は TS 側の `describeFsError` と二重になっている。戻り値を `FsError` に
-/// できれば1箇所へ寄せられる → TODO(#231)
-fn describe(code: FsErrorCode) -> String {
-    match code {
-        FsErrorCode::InvalidNameEmpty => "名前を入力してください".to_string(),
-        FsErrorCode::InvalidNameSeparator => "名前に / や \\ は使えません".to_string(),
-        FsErrorCode::InvalidNameReserved => "その名前は使えません".to_string(),
-        FsErrorCode::InvalidNameControl => "名前に使えない文字が含まれています".to_string(),
-        FsErrorCode::InvalidExtension => "対応していない拡張子です".to_string(),
-        FsErrorCode::PermissionDenied => "権限がありません".to_string(),
-        FsErrorCode::AlreadyExists => "同じ名前のものが既にあります".to_string(),
-        FsErrorCode::NotFound => "見つかりません".to_string(),
-        FsErrorCode::InvalidPath => "その場所は扱えません".to_string(),
-        FsErrorCode::InvalidType => "ファイルとフォルダを取り違えています".to_string(),
-        FsErrorCode::InvalidDestination => "その移動先には置けません".to_string(),
-        FsErrorCode::RootNotDeletable => "ワークスペースそのものは削除できません".to_string(),
-        FsErrorCode::KifuConversionFailed => "棋譜をこの形式に変換できませんでした".to_string(),
-        FsErrorCode::Io => "読み書きに失敗しました".to_string(),
-        FsErrorCode::Unknown => "原因が分かりませんでした".to_string(),
-    }
 }
 
 fn validate_dir(label: &str, value: &str) -> Result<(), String> {
@@ -329,16 +299,18 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
 /// 関門つきのコマンドで作ろうとすると、ワークスペースを設定済みの利用者は
 /// 必ず `invalid_path`（「その場所は扱えません」）で弾かれる
 #[command]
-pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, String> {
-    validate_dir("ai_root", &ai_root)?;
+pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, FsError> {
+    // **`FsError` で返す。** `String` にすると code が落ちるので、受け側は
+    // 「名前を直せば通る失敗」と「AI ルートが無い」を区別できない。
+    // 区別できないと、名前と無関係な失敗まで名前の欄の下に出る
+    validate_dir("ai_root", &ai_root)
+        .map_err(|message| FsError::new(FsErrorCode::InvalidPath, message).with_path(&ai_root))?;
 
     // **名前の規則は写さない。** ここで書き直すと、`.` と `..` のような
     // 1つの規則を落としたときに `ai_root` の外へ作れてしまう
     // （`join("..")` は親へ抜ける。`create_dir_all` は途中の段も黙って作る）。
     //
-    // 文言は code から引く。`e.message` は開発者向けのログなので、
-    // 素通しにすると入力欄の下に `name contains a path separator` と出る
-    let trimmed = validate_basename(&name).map_err(|e| describe(e.code))?;
+    let trimmed = validate_basename(&name)?;
 
     // **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
     // case-insensitive なので、`Engines` は Rust の `==` では別物でも
@@ -348,8 +320,9 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, S
     //
     // 除く側（`read_profiles`）は逆に綴りで比べる。理由はあちらに書いてある
     if trimmed.eq_ignore_ascii_case(ENGINES_DIR) {
-        return Err(format!(
-            "{ENGINES_DIR} はエンジンの置き場なので、名前に使えません"
+        return Err(FsError::new(
+            FsErrorCode::InvalidNameReserved,
+            format!("{ENGINES_DIR} is reserved for engine binaries"),
         ));
     }
 
@@ -365,28 +338,27 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, S
     //   何も起きずに成功が返り、「作成は通ったのに一覧が変わらない」になる
     let complete = PROFILE_SUBS.iter().all(|sub| profile.join(sub).is_dir());
     if complete || (is_listed_profile(&profile) && has_any_content(&profile)) {
-        return Err(format!("{trimmed} はすでにあります"));
+        return Err(
+            FsError::new(FsErrorCode::AlreadyExists, "profile already exists")
+                .with_path(profile.to_string_lossy().to_string()),
+        );
     }
 
     for sub in PROFILE_SUBS {
         let dir = profile.join(sub);
 
-        // 同名のファイルがあると `create_dir_all` は EEXIST で落ちる。名前を変える
-        // 以外に直しようが無いので、何が邪魔しているかを名指しする
+        // 同名のファイルがあると `create_dir_all` は EEXIST で落ちる。
+        // 名前を変える以外に直しようが無いので、名前の失敗として返す
         if dir.exists() && !dir.is_dir() {
-            return Err(format!(
-                "{trimmed}/{sub} が同じ名前のファイルとして既にあります"
-            ));
+            return Err(FsError::new(
+                FsErrorCode::InvalidType,
+                "a file blocks the profile directory",
+            )
+            .with_path(dir.to_string_lossy().to_string()));
         }
 
-        // OS のメッセージを素通しにすると、名前欄の下に
-        // `Permission denied (os error 13)` が出る
-        fs::create_dir_all(&dir).map_err(|e| {
-            format!(
-                "{trimmed}/{sub} を作れませんでした（{}）",
-                describe(FsError::from(e).code)
-            )
-        })?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| FsError::from(e).with_path(dir.to_string_lossy().to_string()))?;
     }
     Ok(profile.to_string_lossy().to_string())
 }
@@ -434,7 +406,7 @@ mod tests {
         (base, root)
     }
 
-    fn create(root: &Path, name: &str) -> Result<String, String> {
+    fn create(root: &Path, name: &str) -> Result<String, FsError> {
         create_ai_profile_dirs(root.to_string_lossy().to_string(), name.to_string())
     }
 
@@ -451,16 +423,25 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
-    /// 失敗の文は利用者が読む。`FsError.message`（開発者向けのログ）を
-    /// 素通しにすると `name contains a path separator` が入力欄の下に出る
+    /// 文言でなく code を返す。TS 側は code で「名前の欄に出すか」を決めるので、
+    /// `String` に潰すと名前と無関係な失敗まで名前の欄の下に出る
     #[test]
-    fn a_rejected_name_is_explained_in_the_users_language() {
+    fn a_rejected_name_carries_a_code() {
         let (base, root) = temp_ai_root("wording");
 
-        let message = create(&root, "a/b").expect_err("通している");
+        let error = create(&root, "a/b").expect_err("通している");
         assert!(
-            !message.is_ascii(),
-            "開発者向けのログがそのまま出ている: {message}"
+            matches!(error.code, FsErrorCode::InvalidNameSeparator),
+            "名前の失敗として返していない: {:?}",
+            error.code
+        );
+
+        // AI ルートが無いのは名前の失敗ではない。同じ箱に混ぜない
+        let gone = create(Path::new("/nope/missing"), "suisho").expect_err("通している");
+        assert!(
+            matches!(gone.code, FsErrorCode::InvalidPath),
+            "AI ルートの失敗を名前の失敗にしている: {:?}",
+            gone.code
         );
 
         let _ = fs::remove_dir_all(&base);
@@ -522,18 +503,19 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
-    /// `create_dir_all` は同名のファイルがあると EEXIST で落ちる。OS のメッセージを
-    /// 素通しにすると、名前欄の下に `File exists (os error 17)` と出る
+    /// `create_dir_all` は同名のファイルがあると EEXIST で落ちる。OS の失敗を
+    /// そのまま返すと `io` になり、利用者には「読み書きに失敗しました」としか出ない
     #[test]
-    fn a_blocking_file_is_explained_in_the_users_language() {
+    fn a_blocking_file_is_named_as_such() {
         let (base, root) = temp_ai_root("blocked");
         fs::create_dir_all(root.join("suisho")).expect("作れない");
         fs::write(root.join("suisho/eval"), "").expect("書けない");
 
-        let message = create(&root, "suisho").expect_err("通している");
+        let error = create(&root, "suisho").expect_err("通している");
         assert!(
-            !message.is_ascii(),
-            "OS のメッセージがそのまま出ている: {message}"
+            matches!(error.code, FsErrorCode::InvalidType),
+            "邪魔しているものを名指しできていない: {:?}",
+            error.code
         );
 
         let _ = fs::remove_dir_all(&base);

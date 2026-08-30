@@ -10,6 +10,7 @@ import {
   Wrench,
 } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
+import { describeFsError, type FsError } from "@/entities/file-tree";
 import { SField, SInput, SSection } from "../kit";
 import SettingsBadge from "../kit/SettingsBadge";
 import type { StepState } from "./steps/StepShell";
@@ -58,7 +59,8 @@ type Props = {
   onCreateEnginesDir: () => void;
   onOpenAiRoot: () => void;
   onOpenEnginesDir: () => void;
-  onCreateAiFolder: (aiName: string) => Promise<void>;
+  /** 名前を直せば通る失敗だけを返す。それ以外は呼び出し元が診断側へ回す */
+  onCreateAiFolder: (aiName: string) => Promise<FsError | null>;
 };
 
 function StatusCard({
@@ -127,26 +129,36 @@ export default function SetupGuide({
 }: Props) {
   const [aiNameDraft, setAiNameDraft] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const inFlightRef = useRef(false);
   // 名前を直せば通る失敗。**欄のそばに出し、打った文字列は残す**
   const [createError, setCreateError] = useState<string | null>(null);
   const aiNameRef = useRef<HTMLInputElement | null>(null);
 
   const handleCreateFolder = async () => {
+    // **`useState` では取りこぼす。** Enter のキーリピートはレンダより速いので、
+    // 同じ名前で並走して「作れたのに『すでにあります』が出る」になる
+    if (inFlightRef.current) return;
+
     const name = aiNameDraft.trim();
     if (!name) {
       aiNameRef.current?.focus();
       return;
     }
+
+    inFlightRef.current = true;
+    setIsCreatingFolder(true);
+    setCreateError(null);
     try {
-      setIsCreatingFolder(true);
-      setCreateError(null);
-      await onCreateAiFolder(name);
+      const nameError = await onCreateAiFolder(name);
+      if (nameError) {
+        // 打った名前は消さない。消すと、直すのではなく打ち直しになる
+        setCreateError(describeFsError(nameError.code));
+        aiNameRef.current?.focus();
+        return;
+      }
       setAiNameDraft("");
-    } catch (e) {
-      // 打った名前は消さない。消すと、直すのではなく打ち直しになる
-      setCreateError(e instanceof Error ? e.message : String(e));
-      aiNameRef.current?.focus();
     } finally {
+      inFlightRef.current = false;
       setIsCreatingFolder(false);
     }
   };
@@ -398,7 +410,7 @@ export default function SetupGuide({
                 <SInput
                   ref={aiNameRef}
                   value={aiNameDraft}
-                  aria-invalid={createError ? true : undefined}
+                  invalid={!!createError}
                   onChange={(e) => {
                     setAiNameDraft(e.target.value);
                     setCreateError(null);
