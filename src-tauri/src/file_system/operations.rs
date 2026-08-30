@@ -80,11 +80,12 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
     read_text_portable(&path)
 }
 
-/// JKF データをファイル拡張子に応じた形式に変換する。
+/// JKF を、拡張子が指す形式の文字列に綴る。
 ///
-/// 綴り分けの判断はここだけ。`kifu.rs` の同名のコマンドとは別物で、
-/// あちらは形式名を文字列で受け取り `normalize()` を呼ぶ（#322）。
-fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
+/// **`kifu.rs` の `convert_jkf_to_format` とは別物。** あちらは Tauri コマンドで、
+/// 形式名を文字列で受け取り `normalize()` を呼ぶ。同じ名前にしていると、
+/// #322（どの経路が正規化するか）のコメントがどちらを指すか決められない。
+fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
     // `ConvertError` の Display は綴れなかったものを名指しする（書き分けられない手、
     // 綴りの無い枚数、盤面の無い手合割）。何手目かは言わない — ply を持つのは
     // `Normalize` だけで、KIF / KI2 / CSA の書き出しはそれを作らない。
@@ -146,7 +147,7 @@ pub fn create_kifu_file<R: Runtime>(
         )
     })?;
 
-    let content = convert_jkf_to_format(&jkf_data, &file_path)?;
+    let content = spell_for_extension(&jkf_data, &file_path)?;
 
     write_new_file(&file_path, &content)?;
 
@@ -183,7 +184,7 @@ pub fn import_kifu_file<R: Runtime>(
 
     validate_under_root(&app, &file_path)?;
 
-    let content = convert_jkf_to_format(&jkf_data, &file_path)?;
+    let content = spell_for_extension(&jkf_data, &file_path)?;
 
     write_new_file(&file_path, &content)?;
 
@@ -312,17 +313,17 @@ pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Resu
     fs::remove_dir_all(path).map_err(FsError::from)
 }
 
-/// [`convert_jkf_to_format`] をテストから呼ぶための口。
+/// [`spell_for_extension`] をテストから呼ぶための口。
 ///
 /// **綴った結果を読み手（`search::kifu_reader`）に通すテストが要る。**
 /// 書き手と読み手を別々に見ていると、このアプリが作ったファイルを
 /// このアプリが読めない、という組み合わせを誰も見ない。
 #[cfg(test)]
-pub fn convert_jkf_to_format_for_test(
+pub fn spell_for_extension_for_test(
     jkf_data: &JsonKifuFormat,
     file_path: &Path,
 ) -> Result<String, FsError> {
-    convert_jkf_to_format(jkf_data, file_path)
+    spell_for_extension(jkf_data, file_path)
 }
 
 #[cfg(test)]
@@ -352,7 +353,7 @@ mod tests {
             ("csa", parse_csa_str as Reparse),
             ("jkf", parse_jkf_str as Reparse),
         ] {
-            let written = convert_jkf_to_format(&source, Path::new(&format!("a.{format}")))
+            let written = spell_for_extension(&source, Path::new(&format!("a.{format}")))
                 .unwrap_or_else(|e| panic!("{format} に綴れない: {}", e.message));
 
             // 他の形式のパーサでも読めてしまう綴りがあるので、
@@ -363,7 +364,7 @@ mod tests {
             assert_eq!(back.moves.len(), source.moves.len(), "{format} の指し手");
         }
 
-        let err = convert_jkf_to_format(&source, Path::new("a.xxx"))
+        let err = spell_for_extension(&source, Path::new("a.xxx"))
             .expect_err("知らない拡張子は失敗すること");
         assert!(
             matches!(err.code, FsErrorCode::InvalidExtension),
@@ -386,7 +387,7 @@ mod tests {
             data: None,
         });
 
-        let err = convert_jkf_to_format(&jkf, Path::new("a.kif"))
+        let err = spell_for_extension(&jkf, Path::new("a.kif"))
             .expect_err("盤面の無い手合割は綴れないこと");
         assert!(
             matches!(err.code, FsErrorCode::KifuConversionFailed),

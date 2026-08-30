@@ -114,14 +114,20 @@ pub async fn open_project(
     // その間 tokio のワーカースレッドが1本止まり、同じスレッドに載っている
     // 他のコマンド（`cancel_search` など）が動かない。書き出し側
     // （`save_checkpoint`）は既に逃がしてあるので、読み込み側も揃える
+    //
+    // 逃がした先が落ちても `open_project` は失敗させない。復元は元来
+    // 「だめなら全件作り直す」設計で、**作り直せる以上プロジェクトは開ける**
     let restored = {
         let app2 = app.clone();
         let root2 = root_dir.clone();
-        tauri::async_runtime::spawn_blocking(move || {
+        match tauri::async_runtime::spawn_blocking(move || {
             crate::search::index_cache::try_restore(&app2, &root2)
         })
         .await
-        .map_err(|e| format!("索引の復元を実行できませんでした: {e}"))?
+        {
+            Ok(v) => v,
+            Err(e) => Err(format!("索引の復元を実行できませんでした: {e}")),
+        }
     };
 
     match restored {

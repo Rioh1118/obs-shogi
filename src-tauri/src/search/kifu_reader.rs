@@ -175,16 +175,20 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
     // `Permission denied (os error 13)` が生のまま画面に出る
-    let file = fs::File::open(path).map_err(unreadable)?;
+    let file = fs::File::open(path).map_err(cannot_open)?;
 
     // 大きさは開いた手で見る。`fs::metadata` を別に呼ぶと、
     // 見た対象と読む対象がずれる
     if let Ok(meta) = file.metadata() {
         if too_large_to_be_a_kifu(meta.len()) {
+            // **上限値そのものを言う。** 「大きすぎる」だけだと、
+            // 上限を上げるべき棋譜が実在したときに報告のしようがない。
+            // 切り上げるのは、上限直上のファイルが「上限ちょうど」に見えないため
             return Err(parse_failed(format!(
-                "ファイルが大きすぎます（{} MB）。棋譜ではないファイルに\
-                 棋譜の拡張子が付いていないか確かめてください",
-                meta.len() / (1024 * 1024)
+                "棋譜として読むには大きすぎます（{} MiB。上限は {} MiB）。\
+                 棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください",
+                meta.len().div_ceil(1024 * 1024),
+                SIZE_LIMIT / (1024 * 1024),
             )));
         }
     }
@@ -272,7 +276,7 @@ fn unreadable_record(e: ParseError) -> String {
              UTF-8 で保存し直してください"
                 .to_owned()
         }
-        ParseError::Io(io) => unreadable_reason(&io),
+        ParseError::Io(io) => cannot_open_reason(&io),
         ParseError::Csa(_) | ParseError::CsaConvert(_) => format!(
             "CSA として読めません。V2.2 のヘッダと手番行（+ か -）があるか\
              確かめてください（{by_crate}）"
@@ -420,18 +424,24 @@ where
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
-    fs::read(path).map_err(unreadable)
+    fs::read(path).map_err(cannot_open)
 }
 
 /// ファイルそのものを読めなかったときの文言。
 ///
 /// **`os error 13` から権限を疑える利用者はいない。** この経路の文言も
 /// 索引の警告としてそのまま画面に出るので、他と同じく次の行動まで言う。
-fn unreadable(e: std::io::Error) -> KifuReadError {
-    parse_failed(unreadable_reason(&e))
+/// ファイルそのものを開けなかった／読めなかった。
+///
+/// **[`unreadable_record`] とは別物。** あちらは「開けたが棋譜ではない」。
+/// 名前が近いと呼び違えるが、`ParseError::Io` の腕では**型が合ってしまう**ので
+/// コンパイラは止めない。
+fn cannot_open(e: std::io::Error) -> KifuReadError {
+    parse_failed(cannot_open_reason(&e))
 }
 
-fn unreadable_reason(e: &std::io::Error) -> String {
+/// [`cannot_open`] の文言だけ。`ParseError::Io` を包み直すときに使う。
+fn cannot_open_reason(e: &std::io::Error) -> String {
     match e.kind() {
         std::io::ErrorKind::PermissionDenied => {
             "ファイルを開く権限がありません。権限を確かめるか、この場所を索引から外してください"
@@ -1573,7 +1583,7 @@ mod tests {
     /// 索引に入れる局面が無いことと、ファイルが壊れていることは別。
     #[test]
     fn a_kifu_this_app_just_created_is_never_called_broken() {
-        use crate::file_system::convert_jkf_to_format_for_test as convert;
+        use crate::file_system::spell_for_extension_for_test as spell;
 
         let dir = temp_dir("just-created");
 
@@ -1594,8 +1604,8 @@ mod tests {
             ("jkf", KifuKind::Jkf),
         ] {
             let path = dir.join(format!("新規.{ext}"));
-            let content = convert(&blank, &path)
-                .unwrap_or_else(|e| panic!("{ext} を綴れない: {}", e.message));
+            let content =
+                spell(&blank, &path).unwrap_or_else(|e| panic!("{ext} を綴れない: {}", e.message));
             fs::write(&path, &content).expect("書き出し");
 
             match read_path_to_jkf(&path, kind) {
