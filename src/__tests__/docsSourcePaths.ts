@@ -19,9 +19,33 @@ import { REPO_ROOT } from "./walk";
  */
 const ROOTS = ["", "src/", "src-tauri/src/"];
 
+/** リポジトリの起点から書かれた形。これで始まるものは実在を必ず要求する */
+const ROOTED = /^(src|src-tauri|docs)\//;
+
+/**
+ * 接頭辞を省いても追う綴りの形。`src/` 直下のレイヤ名で始まるものだけ。
+ *
+ * 何にでも接頭辞を試すと、`example.com/a.html` のような**ソースでない綴り**まで
+ * 「実在しないパス」として赤くなる。書いた人はソースを1つも触っていないので
+ * 何を要求されたのか分からない。
+ */
+const LAYER = /^(app|pages|widgets|features|entities|shared)\//;
+
 /** 接頭辞を補ったうえで実在する形を返す。どれも無ければ元のまま返す */
 function resolve(path: string): string {
   return ROOTS.map((root) => root + path).find((p) => existsSync(join(REPO_ROOT, p))) ?? path;
+}
+
+/**
+ * 実在を要求してよい綴りか。
+ *
+ * 追わないもの: 相対リンク（`./branch-index.md`）は doc どうしの参照であって
+ * ソースの置き場ではない。追うと**丁寧に相対で書いた人だけが赤くなる**。
+ * レイヤ名でも起点でもない綴り（外部 URL、他リポジトリのパス）も追わない。
+ */
+function tracked(inline: string, resolved: string): boolean {
+  if (/^\.\.?\//.test(inline)) return false;
+  return ROOTED.test(resolved) || LAYER.test(inline);
 }
 
 /**
@@ -38,7 +62,9 @@ export function sourcePathsIn(markdown: string): string[] {
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
     if (!/^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.#:-]*)+$/.test(inline)) continue;
 
-    const path = resolve(inline.replace(/[#:]L?\d+$/, ""));
+    const bare = inline.replace(/[#:]L?\d+$/, "");
+    const path = resolve(bare);
+    if (!tracked(bare, path)) continue;
     // 拡張子か末尾のスラッシュがあるものだけ。`src/entities/kifu` のような
     // スライス名は「置き場」の話であってファイルを指していない
     if (!/\.[a-z]+$|\/$/.test(path)) continue;

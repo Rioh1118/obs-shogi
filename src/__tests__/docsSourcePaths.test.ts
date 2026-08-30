@@ -68,3 +68,34 @@ describe("sourcePathsIn", () => {
     expect(sourcePathsIn("`src/index.scss` と `src/index.scss`")).toEqual(["src/index.scss"]);
   });
 });
+
+describe("接頭辞の扱い", () => {
+  // 表は接頭辞を省いても書く。絞りすぎると拾われず黙って緑になる
+  test("レイヤ名で始まる綴りは src/ を補って解決する", () => {
+    expect(sourcePathsIn("`entities/kifu/model/cursor.ts`")).toEqual([
+      "src/entities/kifu/model/cursor.ts",
+    ]);
+  });
+
+  test("補っても実在しないなら、その綴りを missing として返す", () => {
+    const found = sourcePathsIn("`entities/kifu/model/GONE.ts`");
+
+    expect(missingPaths(found)).toEqual(["entities/kifu/model/GONE.ts"]);
+  });
+
+  // 相対リンクは doc どうしの参照。追うと丁寧に書いた人だけが赤くなる
+  test("相対リンクは拾わない", () => {
+    expect(sourcePathsIn("`./branch-index.md` `../decisions/0003-x.md`")).toEqual([]);
+  });
+
+  // ソースでない綴りに接頭辞を試すと、触ってもいないものが赤くなる
+  test("レイヤ名でも起点でもない綴りは拾わない", () => {
+    expect(sourcePathsIn("`example.com/a.html`")).toEqual([]);
+  });
+
+  test("起点から書いたものは実在を要求する", () => {
+    expect(missingPaths(sourcePathsIn("`src/entities/kifu/model/GONE.ts`"))).toEqual([
+      "src/entities/kifu/model/GONE.ts",
+    ]);
+  });
+});

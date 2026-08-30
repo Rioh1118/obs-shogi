@@ -5,8 +5,10 @@
  * 均すか**もここだけで決める。検査ごとに書くと、片方だけが危ない形のまま残る。
  */
 
-/** 行頭がここから始まる行はコメントとみなす */
-const COMMENT_ONLY = /^\s*(\/\/|\*|\/\*)/;
+/** 行頭が `/*` ならブロックコメントの始まり。同じ行に閉じがあればその行で閉じる */
+const BLOCK_OPEN = /^\s*\/\*/;
+/** 行頭が `//` の行 */
+const LINE_COMMENT = /^\s*\/\//;
 
 /**
  * コメントだけの行を落とす。doc が禁じている綴りを名指しするので、
@@ -18,13 +20,35 @@ const COMMENT_ONLY = /^\s*(\/\/|\*|\/\*)/;
  * 文字列を見分けながら1文字ずつ走る形も試したが、JSX の `</div>` や `/>` を
  * 正規表現リテラルの始まりと読んで同じ「黙って消える」に戻る。
  *
+ * ブロックの開始は**行頭の `/*` だけ**で判定する。行の途中に現れる `/*`
+ * （文字列リテラルの中の `"...\/*.png"` など）でブロックが開かないので、
+ * 素の `String.replace` のように離れた閉じと組になって本物のコードを飲み込まない。
+ *
+ * 継続行の `*` を落とすのはブロックの内側にいるときだけ。外側の
+ * `  * expr` のような行（行頭に演算子を置く整形）は**コードとして残す**。
+ * 落としていた頃は、名前空間 import と組み合わせて綴りを1行に載せると
+ * 検査を丸ごと素通りできた。
+ *
  * 行頭だけを見るこの形は、コードと同じ行に書かれた末尾コメントを落とさない。
  * `const c = cursorFromPlayer(p); // makeKifuCursor は直に呼ばない` のように
  * 綴りを末尾コメントへ書くと違反として**目に見えて落ちる**。
  * 黙って取りこぼすより、うるさく落ちる側に倒している。
  */
-export const codeOf = (body: string): string =>
-  body
+export const codeOf = (body: string): string => {
+  let inBlock = false;
+
+  return body
     .split("\n")
-    .filter((line) => !COMMENT_ONLY.test(line))
+    .filter((line) => {
+      if (inBlock) {
+        if (line.includes("*/")) inBlock = false;
+        return false;
+      }
+      if (BLOCK_OPEN.test(line)) {
+        inBlock = !line.includes("*/");
+        return false;
+      }
+      return !LINE_COMMENT.test(line);
+    })
     .join("\n");
+};
