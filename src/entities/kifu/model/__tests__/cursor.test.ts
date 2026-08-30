@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import {
+  ROOT_CURSOR,
   asBranchPlan,
   cursorKey,
   descendTo,
@@ -178,6 +179,19 @@ describe("descendTo", () => {
 
   test("path が null で forkIndex も null なら選択を持たない", () => {
     expect(descendTo(null, 3, null)).toEqual({ tesuu: 3, forkPointers: [] });
+  });
+});
+
+describe("ROOT_CURSOR", () => {
+  // tesuuPointer を手書きのリテラルで持っている唯一の定数。書式は
+  // JKFPlayer.getTesuuPointer に従属するので、組む側と一致していることを見る。
+  test("tesuuPointer は cursorKey が組むものと一致する", () => {
+    expect(ROOT_CURSOR.tesuuPointer).toBe(cursorKey(ROOT_CURSOR));
+  });
+
+  test("開始局面で選択を持たない", () => {
+    expect(ROOT_CURSOR.tesuu).toBe(0);
+    expect(ROOT_CURSOR.forkPointers).toEqual([]);
   });
 });
 

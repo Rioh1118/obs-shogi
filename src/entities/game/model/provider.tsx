@@ -244,8 +244,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       dispatch({ type: "set_loading", payload: true });
 
       const nextJkf = cloneJkf(jkf);
-      const player = new JKFPlayer(nextJkf);
-      const cursor = cursorFromPlayer(player);
+      const cursor = cursorFromPlayer(buildPlayer(nextJkf, null));
 
       dispatch({
         type: "game_loaded",
@@ -287,7 +286,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const goToStart = useCallback(() => {
     navigate((player) => {
-      player.goto(0);
+      gotoPath(player, ROOT_CURSOR);
     }, "Failed to go to start");
   }, [navigate]);
 

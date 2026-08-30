@@ -1,5 +1,4 @@
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
-import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
@@ -19,6 +18,7 @@ import {
   type SwapQuery,
 } from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
 import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
@@ -70,8 +70,7 @@ export default function KifuStreamList() {
     if (!view.player) return [];
     // 一覧を組むための再生用に、盤の player とは別の player を立てる。
     // buildStreamRowsFromCursor は棋譜を書き換えない契約なので、棋譜は共有してよい。
-    const viewerPlayer = new JKFPlayer(view.player.kifu);
-    return buildStreamRowsFromCursor(viewerPlayer, plannedCursor);
+    return buildStreamRowsFromCursor(buildPlayer(view.player.kifu, null), plannedCursor);
   }, [view.player, plannedCursor]);
 
   const totalMoves = view.player ? getTotalMoves() : 0;
