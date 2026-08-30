@@ -81,7 +81,7 @@
    計画に沿って `forkAndForward` する走査は `advanceWithPlan`
    （`src/entities/kifu/lib/advanceWithPlan.ts`）の1本で、壊れた値はそこで捨てる。
    **捨てていないのは `goto` に渡す経路**（`buildPlayer` / `goToIndex`。`goto` は
-   `forkAndForward` の返り値すら見ない）**と `buildCursorWithForkSelection`** の2つ。
+   `forkAndForward` の返り値すら見ない）**と `descendTo`** の2つ。
    この2つは値を検査せず、`cursor.forkPointers` に載せたまま先へ運ぶ。
 
 2. **要求した局面に着いたかは `tesuu` では判定できない。**

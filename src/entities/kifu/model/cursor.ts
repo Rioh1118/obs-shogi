@@ -98,8 +98,9 @@ declare const plannedCursorBrand: unique symbol;
  * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` は
  * `te <= tesuu` に正規化されているので、**カーソルより先の選択が黙って空になる**。
  *
- * 素の `CursorPath`（`previewCursor` など）は `te > tesuu` を持ちうる。
- * brand が止めるのは `KifuCursor` を計画として渡すことだけ。
+ * **通せるのは `plannedCursorFrom` の返り値だけ。** 素の `CursorPath` も `KifuCursor` も
+ * 型で弾かれる。`te > tesuu` を持つ素の `CursorPath`（`previewCursor`）を計画として
+ * 使いたい側は、`asBranchPlan` を通して `plannedCursorFrom` で組み直すこと。
  */
 export interface PlannedCursor {
   tesuu: number;
@@ -255,6 +256,9 @@ export function makeKifuCursor(
  *
  * **ただし落ちるのはこの戻り値の中だけ。** `state.branchPlan` に残っている分は
  * `mergeBranchPlan` が復活させる（線を乗り換えても深い計画は残る → #306）。
+ *
+ * `path` が `null` のときは選択の履歴が無いものとして、`te` の選択だけを持つ
+ * カーソルを組む（棋譜を開いた直後で `state.cursor` がまだ無い行から呼ばれる）。
  */
 export function descendTo(
   path: CursorPath | null,

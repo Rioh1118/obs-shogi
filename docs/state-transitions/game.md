@@ -215,22 +215,21 @@ W5 / W6 は棋譜が変わって枝が実在しなくなることがあるが、
 W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの呼び出し側のうち
 `PositionNavigationModal` だけ。← で戻ると `tesuu` だけ減って `forkPointers` は残る
 （`PositionNavigationModal` の `handlePrevious`）。`KifuStreamList` は
-`buildCursorWithForkSelection` が `normalizeForkPointers(picked, te)` で落とすので常に空。
-`usePositionHitNavigation` の `cursorFromLite` は正規化しないが、供給元の
-`src-tauri/src/search/index_builder.rs` が `fork_path` に `te <= tesuu` しか積まないので
-（`walk_sequence` / `push_node`）構造的に保証されている。破れるのはインデックスが
-壊れている場合だけ。
+`descendTo` が `truncateFrom(…, te)` で `te` 以降を落とし、書き足すのは `te` だけなので
+`te > tesuu` が構造的に出ない。`usePositionHitNavigation` の `cursorFromLite` は
+`normalizeForkPointers(…, tesuu)` を通すので入口で落ちる（根拠は
+`src/entities/search/lib/cursorAdapter.ts`）。
 
 ## 読み手 — 6箇所。捨てるのは4箇所
 
-| #      | 読み手                                           | 何に使うか                               | 壊れた `forkIndex` を                                 |
-| ------ | ------------------------------------------------ | ---------------------------------------- | ----------------------------------------------------- |
-| **R1** | `cursorView` → `computeLeafTesuu`                | `view.totalMoves`                        | **捨てる** ✓                                          |
-| **R2** | `goToIndex` → `goto`                             | `goto` の第2引数（`te <= index` に絞る） | 捨てない。`goto` は `forkAndForward` の返り値も見ない |
-| **R3** | `nextMove` → `advanceWithPlan`                   | 次の1手で降りる変化                      | **捨てる** ✓                                          |
-| **R4** | `goToEnd` → `advanceToLeafWithPlan`              | 末尾まで降り続ける経路                   | **捨てる** ✓                                          |
-| **R5** | `plannedCursor` → `buildStreamRowsFromCursor`    | 行の並び・チェック・分岐メニューの表示   | **捨てる** ✓                                          |
-| **R6** | `plannedCursor` → `buildCursorWithForkSelection` | 分岐メニューの選択・コメントの書き込み先 | 捨てない。`applyCursor` → `goto` まで届く             |
+| #      | 読み手                                        | 何に使うか                               | 壊れた `forkIndex` を                                 |
+| ------ | --------------------------------------------- | ---------------------------------------- | ----------------------------------------------------- |
+| **R1** | `cursorView` → `computeLeafTesuu`             | `view.totalMoves`                        | **捨てる** ✓                                          |
+| **R2** | `goToIndex` → `goto`                          | `goto` の第2引数（`te <= index` に絞る） | 捨てない。`goto` は `forkAndForward` の返り値も見ない |
+| **R3** | `nextMove` → `advanceWithPlan`                | 次の1手で降りる変化                      | **捨てる** ✓                                          |
+| **R4** | `goToEnd` → `advanceToLeafWithPlan`           | 末尾まで降り続ける経路                   | **捨てる** ✓                                          |
+| **R5** | `plannedCursor` → `buildStreamRowsFromCursor` | 行の並び・チェック・分岐メニューの表示   | **捨てる** ✓                                          |
+| **R6** | `plannedCursor` → `descendTo`                 | 分岐メニューの選択・コメントの書き込み先 | 捨てない。`applyCursor` → `goto` まで届く             |
 
 捨てる4箇所（R1 / R3 / R4 / R5）は、どれも自分で検査を書かず `advanceWithPlan` を通す。
 捨てないのは `goto` に渡す R2 と、`applyCursor` まで値を運ぶ R6 の2つ。

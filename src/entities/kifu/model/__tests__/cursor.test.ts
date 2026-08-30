@@ -170,6 +170,15 @@ describe("descendTo", () => {
   test("te より手前の選択は残す", () => {
     expect(descendTo(at(1, [fp(1, 0)]), 3, 1).forkPointers).toEqual([fp(1, 0), fp(3, 1)]);
   });
+
+  // 棋譜を開いた直後で state.cursor がまだ無い行から呼ばれる
+  test("path が null なら te の選択だけを持つ", () => {
+    expect(descendTo(null, 3, 1)).toEqual({ tesuu: 3, forkPointers: [fp(3, 1)] });
+  });
+
+  test("path が null で forkIndex も null なら選択を持たない", () => {
+    expect(descendTo(null, 3, null)).toEqual({ tesuu: 3, forkPointers: [] });
+  });
 });
 
 describe("normalizeForkPointers", () => {
