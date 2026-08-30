@@ -1,9 +1,15 @@
 import type { PositionHit } from "@/entities/search";
+import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
+import { cursorKey } from "@/entities/kifu/model/cursor";
 
+/**
+ * ヒットの同一性。索引の位置（file / gen / node）とカーソルの組。
+ *
+ * カーソル側は `cursorKey` に寄せる。索引は `fork_pointers` の並びを保証しないので、
+ * 自前で直列化すると同じヒットが並び順の違いだけで別の鍵になる。
+ */
 export const hitKey = (h: PositionHit) =>
-  `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${h.cursor.tesuu}:${h.cursor.forkPointers
-    .map((p) => `${p.te}-${p.forkIndex}`)
-    .join(",")}`;
+  `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${cursorKey(cursorFromLite(h.cursor))}`;
 
 export function orderPositionHits(
   hits: PositionHit[],

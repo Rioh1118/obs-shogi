@@ -9,6 +9,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { describeFsError, readText } from "@/entities/file-tree";
 import { cursorFromLite } from "@/entities/search/lib/cursorAdapter";
+import { cursorKey } from "@/entities/kifu/model/cursor";
 
 type Props = {
   activeHit: PositionHit | null;
@@ -71,8 +72,7 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
     const abs = resolveAbsPath(activeHit);
     if (!abs) return null;
 
-    const fp = activeHit.cursor.forkPointers.map((p) => `${p.te}-${p.forkIndex}`).join(",");
-    return `${abs}::${activeHit.cursor.tesuu}::${fp}`;
+    return `${abs}::${cursorKey(cursorFromLite(activeHit.cursor))}`;
   }, [activeHit, resolveAbsPath]);
 
   useEffect(() => {
