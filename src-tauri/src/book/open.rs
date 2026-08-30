@@ -3,6 +3,10 @@
 //! **検査の順序を語るのはここ1箇所。** パスの形 → 拡張子から形式 → 実体の解決 →
 //! 指定と実体の形式の一致 → ファイルであること、の順に落ちる。
 //!
+//! 最初の「パスの形」だけは [`validate_book_path`] という別の関門で、
+//! 呼び手が先に通す。通した証拠が [`ValidatedBookPath`] で、[`open_at`] は
+//! それしか受け取らないので、飛ばすとコンパイルが通らない。
+//!
 //! コマンド層から分けてあるのは、開き口がコマンドだけとは限らないため。
 //! 起動時に前回の定跡を開き直す、reader の結合テストを書く、といった呼び手が
 //! `tauri::State` を経由せずにここへ来られる。
@@ -21,7 +25,8 @@ use std::path::{Path, PathBuf};
 /// 返すエラーの `path` は常に呼び出し側が渡した綴り。解決後のパスを載せると、
 /// 利用者が一度も打っていないファイル名について「見つからない」「権限が無い」と
 /// 言うことになり、選び直す先が分からなくなる。実体は message に添える。
-pub(crate) fn open_at(path: &Path) -> Result<OpenedBook, BookError> {
+pub(crate) fn open_at(path: &ValidatedBookPath) -> Result<OpenedBook, BookError> {
+    let path = path.as_path();
     let (canonical, format) = resolve_book_path(path)?;
 
     // reader は実体のパスから作る。形式は解決の側で決めたものをそのまま渡す。
@@ -38,9 +43,9 @@ pub(crate) fn open_at(path: &Path) -> Result<OpenedBook, BookError> {
 /// 実体のパスなので、両者が食い違うと「.bin なのにやねうら王テキスト定跡」という
 /// 値がフロントへ渡り、そのパスで開き直すと別形式の reader ができる。食い違うなら開かない。
 fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
-    // 実在より先に形式を見るのは open_reader と同じ理由で、形式が分からないものは
-    // 実在しても開きようが無いから。canonicalize を先に呼ぶと、存在しない `.txt` に
-    // UnknownExtension ではなく NotFound が返る。
+    // 実在より先に形式を見る。canonicalize を先に呼ぶと、存在しない `.txt` に
+    // UnknownExtension ではなく NotFound が返り、利用者は開けるはずの無い
+    // ファイルを探し直すことになる。
     let requested = BookFormat::from_path(path)?;
 
     // 解決そのものが失敗したときは実体のパスが手に入らないが、リンク先の綴りは
@@ -99,47 +104,87 @@ fn annotate(err: BookError, note: &str) -> BookError {
     }
 }
 
-/// パスが受け付けられないときに利用者へ出す復帰操作。
+/// 形を検査したパスと、その検査。
 ///
-/// 「絶対パスで渡すこと」のような理由は呼び出し側（フロント）に向けた言葉で、
-/// 画面の前に居る人には何をすればよいか分からない。操作に翻訳して添える。
-const PATH_RECOVERY: &str = "定跡ファイルを選び直すこと";
+/// 内側のモジュールに入れるのは、タプル構造体のフィールドが**同じモジュールからは
+/// 見える**ため。ここに置かないと `open.rs` のどこからでも `ValidatedBookPath(p)`
+/// と書けてしまい、型は何も止めない。
+mod validated {
+    use super::{BookError, BookErrorCode};
+    use std::path::{Path, PathBuf};
 
-/// フロントから来たパスの形を検査する。
-///
-/// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
-/// 失敗し、`BookInfo.path()` にもその相対文字列が残って UI に出しても意味を成さない。
-pub(crate) fn validate_book_path(raw: &str) -> Result<PathBuf, BookError> {
-    let invalid = |reason: &str| {
-        BookError::new(
-            BookErrorCode::InvalidPath,
-            format!("{reason}。{PATH_RECOVERY}"),
-        )
-        .with_path(raw)
-    };
+    /// パスが受け付けられないときに利用者へ出す復帰操作。
+    ///
+    /// 「絶対パスで渡すこと」のような理由は呼び出し側（フロント）に向けた言葉で、
+    /// 画面の前に居る人には何をすればよいか分からない。操作に翻訳して添える。
+    pub(super) const PATH_RECOVERY: &str = "定跡ファイルを選び直すこと";
 
-    if raw.trim().is_empty() {
-        return Err(invalid("定跡のパスが空"));
+    /// 形の検査を通ったパス。[`validate_book_path`] 以外から作れない。
+    ///
+    /// 保証するのは3つだけ。**空でない / NUL を含まない / 絶対パス。**
+    /// 実在は見ていない。長さの上限も掛けていない（深い階層に定跡を置く利用者を
+    /// 弾かないため。長いパスの打ち切りは、エラーへ載せるときにだけ効く）。
+    ///
+    /// `open_at` の引数をこの型にすることで、「先に形を検査する」という呼び順を
+    /// コメントではなくコンパイラが強制する。このモジュールは開き口がコマンド
+    /// だけとは限らないことを前提にしており（起動時の再オープン、reader の
+    /// 結合テスト）、そういう呼び手はコマンド層の検査を通らずにここへ来る。
+    #[derive(Debug)]
+    pub(crate) struct ValidatedBookPath(PathBuf);
+
+    impl ValidatedBookPath {
+        pub(super) fn as_path(&self) -> &Path {
+            &self.0
+        }
     }
 
-    // NUL 入りのパスは std が InvalidInput で弾く。素通しすると原因が Io に化けて、
-    // 「パスの書き間違い」という復帰導線を出せなくなる。
-    if raw.contains('\0') {
-        return Err(invalid("定跡のパスに NUL が含まれている"));
-    }
+    /// フロントから来たパスの形を検査する。
+    ///
+    /// バンドルされた macOS アプリの CWD は `/` なので、相対パスは黙って解決に
+    /// 失敗し、`BookInfo.path()` にもその相対文字列が残って UI に出しても意味を成さない。
+    pub(crate) fn validate_book_path(raw: &str) -> Result<ValidatedBookPath, BookError> {
+        let invalid = |reason: &str| {
+            BookError::new(
+                BookErrorCode::InvalidPath,
+                format!("{reason}。{PATH_RECOVERY}"),
+            )
+            .with_path(raw)
+        };
 
-    let path = PathBuf::from(raw);
-    if !path.is_absolute() {
-        return Err(invalid("定跡のパスは絶対パスで渡すこと"));
-    }
+        // 空のパスは canonicalize が NotFound にする。「見つからない」と言われた
+        // 利用者は探し直すが、探す対象が無い。
+        if raw.trim().is_empty() {
+            return Err(invalid("定跡のパスが空"));
+        }
 
-    Ok(path)
+        // NUL 入りのパスは std が InvalidInput で弾く。素通しすると原因が Io に化けて、
+        // 「パスの書き間違い」という復帰導線を出せなくなる。
+        if raw.contains('\0') {
+            return Err(invalid("定跡のパスに NUL が含まれている"));
+        }
+
+        let path = PathBuf::from(raw);
+        if !path.is_absolute() {
+            return Err(invalid("定跡のパスは絶対パスで渡すこと"));
+        }
+
+        Ok(ValidatedBookPath(path))
+    }
 }
+
+use validated::PATH_RECOVERY;
+pub(crate) use validated::{validate_book_path, ValidatedBookPath};
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::book::error::MAX_PATH_CHARS;
+
+    /// テストからも本番と同じ関門を通す。`open_at` は形を検査したパスしか
+    /// 受け取らないので、ここを迂回する道はテストにも無い。
+    fn validated(path: &Path) -> ValidatedBookPath {
+        validate_book_path(&path.to_string_lossy()).expect("テスト用のパスは絶対パス")
+    }
 
     /// symlink を張ったディレクトリを作る。返り値は (dir, 実体, リンク)。
     ///
@@ -165,7 +210,7 @@ mod tests {
     #[cfg(unix)]
     fn rejects_a_link_that_points_at_another_format() {
         let (dir, _target, link) = linked("mismatch", ".bin", ".db");
-        let result = open_at(&link).err().map(|err| err.code());
+        let result = open_at(&validated(&link)).err().map(|err| err.code());
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         assert_eq!(result, Some(BookErrorCode::InvalidPath));
@@ -176,7 +221,7 @@ mod tests {
     #[cfg(unix)]
     fn rejects_a_link_whose_target_extension_is_unknown() {
         let (dir, _target, link) = linked("unknown", "", ".db");
-        let result = open_at(&link).err().map(|err| err.code());
+        let result = open_at(&validated(&link)).err().map(|err| err.code());
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         assert_eq!(result, Some(BookErrorCode::InvalidPath));
@@ -187,7 +232,7 @@ mod tests {
     #[cfg(unix)]
     fn a_link_to_the_same_format_passes_the_format_check() {
         let (dir, _target, link) = linked("same", ".db", ".db");
-        let result = open_at(&link).err().map(|err| err.code());
+        let result = open_at(&validated(&link)).err().map(|err| err.code());
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         assert_ne!(result, Some(BookErrorCode::InvalidPath));
@@ -202,10 +247,10 @@ mod tests {
         let mismatch = linked("path-mismatch", ".bin", ".db");
 
         // reader 由来（UnsupportedFormat）と食い違い由来（InvalidPath）の両方
-        let from_reader = open_at(&link)
+        let from_reader = open_at(&validated(&link))
             .err()
             .and_then(|err| err.path().map(str::to_owned));
-        let from_mismatch = open_at(&mismatch.2)
+        let from_mismatch = open_at(&validated(&mismatch.2))
             .err()
             .and_then(|err| err.path().map(str::to_owned));
 
@@ -271,7 +316,7 @@ mod tests {
         let link = dir.join("link.db");
         std::os::unix::fs::symlink(&missing, &link).expect("symlink を作れない");
 
-        let err = open_at(&link).err();
+        let err = open_at(&validated(&link)).err();
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         let err = err.expect("リンク先が無いので必ず失敗する");
@@ -287,7 +332,7 @@ mod tests {
     #[test]
     fn accepts_an_absolute_path() {
         let path = validate_book_path("/books/standard.db").unwrap();
-        assert_eq!(path, PathBuf::from("/books/standard.db"));
+        assert_eq!(path.as_path(), Path::new("/books/standard.db"));
     }
 
     #[test]
@@ -295,15 +340,41 @@ mod tests {
         for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidPath, "raw={raw:?}");
-            assert_eq!(err.path(), Some(raw));
         }
+    }
+
+    /// 載る path は利用者が渡した綴りそのもの。選び直す先が分からなくなるので、
+    /// 解決後のパスに差し替えない。
+    #[test]
+    fn the_error_carries_the_spelling_the_caller_passed() {
+        let err = validate_book_path("books/standard.db").unwrap_err();
+        assert_eq!(err.path(), Some("books/standard.db"));
+    }
+
+    /// パスの検査は空 / NUL / 絶対パスしか見ないので、改行を含むパスは
+    /// **通る**（`/a\nb.db` は絶対パス）。そのままログへ載せると1回の log! が
+    /// 2行になり、後ろの行が本物のコマンドログと見分けが付かない。
+    #[test]
+    fn control_characters_cannot_forge_a_log_line() {
+        let forged = "/books/a.db\n[cmd] open_book path=/etc/passwd";
+        assert!(
+            validate_book_path(forged).is_ok(),
+            "改行入りのパスは形の検査では弾かれない。だから載せる側で潰す"
+        );
+
+        let rendered = crate::book::error::truncate_path(forged);
+        assert!(!rendered.contains('\n'), "rendered={rendered}");
+        assert!(
+            rendered.contains("[cmd] open_book path=/etc/passwd"),
+            "中身まで消す必要は無い: {rendered}"
+        );
     }
 
     /// 「絶対パスで渡すこと」は呼び出し側に向けた言葉で、画面の前に居る人には
     /// 次の操作が無い。種別だけを見る上のテストは、案内を消しても緑のまま通る。
     #[test]
     fn a_rejected_path_tells_the_user_what_to_do_next() {
-        for raw in ["", "   ", "books/standard.db", "a\0b.db"] {
+        for raw in ["", "   ", "books/standard.db"] {
             let err = validate_book_path(raw).unwrap_err();
             // 定数と突き合わせない。`contains(PATH_RECOVERY)` は案内を空にすると
             // 常に真になり、案内が消えたことをこのテストが見逃す。
@@ -340,7 +411,7 @@ mod tests {
     fn an_over_long_path_that_passes_validation_is_truncated_downstream() {
         // 実在しないので canonicalize が必ず失敗する
         let long = format!("/{}.db", "a".repeat(MAX_PATH_CHARS));
-        let err = open_at(&PathBuf::from(&long))
+        let err = open_at(&validated(Path::new(&long)))
             .err()
             .expect("開けるはずがない");
 

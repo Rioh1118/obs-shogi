@@ -35,10 +35,14 @@ pub(crate) trait BookReader: Send + Sync {
 
 /// 開いた定跡ひとつぶんの材料。
 ///
-/// `format` と `position_count` を reader ではなくここに持つのは、どちらも
-/// [`open_reader`]（blocking プールの中）で確定させるため。`BookState::register` は
-/// async ランタイム上で走るので、そこで reader に問い合わせる形にすると、
+/// 確定させる場所は2つに分かれる。`format` は `open` モジュールがパスを解決する
+/// ときに決め、[`open_reader`] は受け取るだけ（決め直すと symlink をもう一度
+/// たどることになる）。`position_count` は [`open_reader`] が数える。
+///
+/// どちらも reader ではなくここに持つのは、**`BookState::register` に
+/// 問い合わせさせないため。** register は async ランタイム上で走るので、
 /// ヘッダを読んで答える実装が入った瞬間に IO が async ワーカで走る。
+/// 数えるのは blocking プールの中で1度だけ。
 pub(crate) struct OpenedBook {
     pub(crate) path: PathBuf,
     pub(crate) format: BookFormat,

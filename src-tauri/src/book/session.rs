@@ -27,7 +27,6 @@ impl fmt::Debug for BookSession {
 ///
 /// 同じ局面を複数の定跡で引き比べたい（#96）ので、1つに畳まずハンドルで並べて持つ。
 /// 同じパスを2回開けば別のハンドルになる。
-#[derive(Default)]
 pub struct BookState {
     books: DashMap<BookHandle, Arc<BookSession>>,
     next_handle: AtomicU64,
@@ -37,15 +36,23 @@ pub struct BookState {
 }
 
 impl BookState {
-    pub fn new() -> Self {
-        Self::default()
+    pub(crate) fn new() -> Self {
+        // `Default` は derive しない。`BookState` は crate 外へ再公開しているので、
+        // derive すると `BookState::default()` が公開の生成口として残り、
+        // 「操作は全て pub(crate)」という mod.rs の宣言が成り立たなくなる。
+        Self {
+            books: DashMap::new(),
+            next_handle: AtomicU64::new(0),
+            #[cfg(test)]
+            get_calls: AtomicU64::new(0),
+        }
     }
 
     /// reader を預かってハンドルを振る。
     ///
-    /// 材料は [`crate::book::api::OpenedBook`] としてまとめて受け取る。`format` と
-    /// `position_count` を reader に問い合わせないのは、この関数が async ランタイム上で
-    /// 走るため（詳細は `OpenedBook` の doc）。
+    /// 材料は [`OpenedBook`] としてまとめて受け取る。`format` と `position_count` を
+    /// reader に問い合わせないのは、この関数が async ランタイム上で走るため
+    /// （詳細は [`OpenedBook`] の doc）。
     ///
     /// ハンドルは 0 から始めない。フロントの未初期化値と衝突しないため。
     /// 閉じたハンドルも配り直さない。再利用すると、close 済みのハンドルで引いた
@@ -198,9 +205,7 @@ mod tests {
         }
     }
 
-    // 収録局面数は trait に無いので、`register` が reader に問い合わせる形へは
-    // 戻しようがない。以前はここで違う値を返してその退行を見張っていたが、
-    // 今はコンパイラが見る。
+    // このモジュールのテストは候補手を見ないので、lookup は空で返す。
     impl BookReader for FakeReader {
         fn lookup(&self, _key: &BookKey) -> Result<Vec<BookMove>, BookError> {
             Ok(Vec::new())

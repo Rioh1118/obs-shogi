@@ -3,8 +3,12 @@ use crate::book::error::{BookError, BookErrorCode};
 /// 正規化を通した定跡のキー。
 ///
 /// 生の SFEN と混ざると、手数や持駒の綴りの違いで黙って引けなくなる。中身を
-/// private にして [`to_book_key`] 以外から作れなくすることで、その取り違えを
-/// コンパイル時に止める。
+/// private にして、公開している2つの入口以外から作れなくしてある。
+///
+/// **どちらを通すかは呼び手の立場で決まる。** 利用者が操作した局面なら
+/// [`to_book_key`]、定跡ファイルに書かれている行なら [`to_book_key_in_file`]。
+/// 判断の根拠は [`to_book_key`] の doc にある。取り違えると、ファイルの破損に
+/// 「盤面を操作し直せ」と案内することになり、定跡のパスも付かない。
 ///
 /// `search` の `PositionKey`（Zobrist ハッシュ）とは別物。こちらは文字列で、
 /// 定跡ファイルに書かれている綴りと突き合わせるためにある。
@@ -76,7 +80,7 @@ const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 /// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
-    book_key(input).map_err(|reason| {
+    book_key_or_reason(input).map_err(|reason| {
         BookError::new(
             BookErrorCode::InvalidSfen,
             format!("{reason}。{SFEN_RECOVERY}: {}", excerpt(input)),
@@ -95,7 +99,7 @@ const SFEN_RECOVERY: &str =
 ///
 /// 同じ綴りの誤りでも、利用者が操作した局面なら「盤面を操作し直せ」、定跡
 /// ファイルの中身なら「取得し直せ」で、出すべき復帰操作が違う。
-fn book_key(input: &str) -> Result<BookKey, String> {
+fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     // 引用は発生源で打ち切る。input はコマンド境界から来る任意長の文字列で、
     // 打ち切らないと message がそのままログへ流れ、失敗1回で以前の記録が消える。
     //
@@ -189,14 +193,15 @@ fn book_key(input: &str) -> Result<BookKey, String> {
 /// ではなく `InvalidContent` にして定跡のパスと復帰操作を添える。種別だけ
 /// 付け替えても、人が読むのは message なので「渡した局面が読めない」のままになる。
 ///
-/// 元の理由は括弧に入れて残す。行そのものの打ち切りは [`to_book_key`] の中で
-/// 済んでいる（`.db` の1行は、途中で切れたファイルや別形式のファイルでは
-/// 数 MB になりうる）。
+/// 元の理由は括弧に入れて残す。理由文の側の打ち切りは [`book_key_or_reason`] の中で済むが、
+/// **行そのものを切るのはここの [`excerpt`] だけ。** `.db` の1行は、途中で切れた
+/// ファイルや別形式のファイルでは数 MB になりうる。ここを外すと message が
+/// そのままログへ流れ、失敗1回で以前の記録が消える。
 // TODO(#91): 最初の呼び手はやねうら王 .db の reader。行番号を添えられるように
 // するかは、そこで決める。
 #[allow(dead_code)]
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
-    book_key(line).map_err(|reason| {
+    book_key_or_reason(line).map_err(|reason| {
         BookError::new(
             BookErrorCode::InvalidContent,
             format!(

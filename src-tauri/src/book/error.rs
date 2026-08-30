@@ -99,7 +99,15 @@ pub(crate) const MAX_PATH_CHARS: usize = 4096;
 
 /// エラーやログに載せるパスを打ち切る。切れていることが分かるように印を付ける。
 pub(crate) fn truncate_path(raw: &str) -> String {
-    let mut out: String = raw.chars().take(MAX_PATH_CHARS).collect();
+    // 制御文字を潰す。パスの検査は空 / NUL / 絶対パスしか見ないので、改行を
+    // 含むパスがそのまま通る。1回の log! が2行になり、後ろの行が本物の
+    // コマンドログと見分けが付かなくなる（報告を受けてログから切り分ける、
+    // というこの層の目的が直接壊れる）。
+    let mut out: String = raw
+        .chars()
+        .take(MAX_PATH_CHARS)
+        .map(|c| if c.is_control() { '\u{2423}' } else { c })
+        .collect();
     if out.chars().count() < raw.chars().count() {
         out.push('…');
     }

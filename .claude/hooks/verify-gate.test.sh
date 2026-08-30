@@ -245,7 +245,7 @@ expect_kinds "ts" "src/dir with space/a.ts"
 # 積んだ操作を畳む呼び出しは、検証の対象にしない。
 #
 # ここを塞ぐと、競合を抱えたツリー（＝検証が必ず落ちる状態）で競合を畳む手段が
-# 無くなる。実際に行き止まりを踏んだのでテストで固定する。
+# 無くなる。
 expect_teardown() {
   local want=$1 command=$2
   local got=NO
@@ -273,8 +273,11 @@ expect_teardown NO 'git cherry-pick --continue'
 # コミットを作る呼び出しを混ぜたものへ免除を広げない
 expect_teardown NO 'git rebase --abort && git commit -m x'
 expect_teardown NO 'git commit -m x && git rebase --abort'
-expect_teardown NO 'git -C /tmp/other rebase --abort'
 expect_teardown NO 'git commit --amend'
+
+# ディレクトリ指定の付いた綴りは免除しない。宛先が別ツリーでも gate_target_dir が
+# 先に deny するので、免除を広げても届かない
+expect_teardown NO 'git -C /tmp/other rebase --abort'
 
 # 宛先が別リポジトリなら、このプロジェクトの検証は当てない。
 #
