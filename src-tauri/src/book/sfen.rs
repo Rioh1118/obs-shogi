@@ -251,7 +251,12 @@ const MAX_INPUT_CHARS: usize = 256;
 const MESSAGE_EXCERPT_CHARS: usize = 120;
 
 /// message に載せる引用。前後の空白は落とし、長さを打ち切る。
-fn excerpt(input: &str) -> String {
+///
+/// **定跡ファイルの中身を message へ載せるときは、必ずこれを通すこと。**
+/// パス用の [`crate::book::error::truncate_path`] は上限が 4096 字で、
+/// 引用の予算（120字）の 34 倍ある。改行の無いファイルは1行がファイル全体に
+/// なるので、そちらを使うと失敗1回でログの予算を食い潰す。
+pub(crate) fn excerpt(input: &str) -> String {
     truncate_for_message(input.trim())
 }
 

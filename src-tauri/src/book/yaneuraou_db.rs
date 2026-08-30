@@ -18,7 +18,7 @@
 //! 大きいファイルの上限・進捗・中断は #197。ここでは扱わない。
 
 use crate::book::error::{BookError, BookErrorCode};
-use crate::book::sfen::{to_book_key_in_file, BookKey};
+use crate::book::sfen::{excerpt, to_book_key_in_file, BookKey};
 use crate::book::types::BookMove;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -154,7 +154,7 @@ fn parse<R: BufRead>(
                 &format!(
                     "やねうら王テキスト定跡の見出しが無い（{number}行目: {}）。\
                      別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
-                    crate::book::error::truncate_path(line)
+                    excerpt(line)
                 ),
                 path,
             ))
@@ -489,6 +489,19 @@ mod tests {
     fn the_header_error_points_at_the_line_it_actually_read() {
         let err = parsed("\n\n これは定跡ではない\n").unwrap_err();
         assert!(err.message().contains("3行目"), "{}", err.message());
+    }
+
+    /// 改行の無いファイルは1行がファイル全体になる。パス用の打ち切り（4096字）を
+    /// 使うと、失敗1回でログの予算を食い潰す。
+    #[test]
+    fn a_long_first_line_is_cut_to_the_excerpt_budget() {
+        let err = parsed(&"x".repeat(10_000)).unwrap_err();
+        assert!(
+            err.message().chars().count() < 300,
+            "len={} message={}",
+            err.message().chars().count(),
+            &err.message()[..80.min(err.message().len())]
+        );
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
