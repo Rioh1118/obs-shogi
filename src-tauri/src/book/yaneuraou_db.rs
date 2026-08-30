@@ -355,6 +355,7 @@ fn flush(
 /// 誰も気づけない。
 ///
 /// 呼び出し側が空行と注記を除いてから渡すので、先頭のトークンは必ず存在する。
+/// 指し手として成立しているかは呼び出し側が [`looks_like_a_move`] で見る。
 fn parse_move(line: &str) -> BookMove {
     // 6つ目以降は形式に無い。畳んでおけば、末尾に何か付いていても欄がずれない。
     let mut tokens = line.splitn(6, ' ');
@@ -413,8 +414,12 @@ fn optional_move(token: Option<&str>) -> Option<String> {
 
 /// 数値として読めない綴りは、行ごと落とさずに欠損として扱う。
 ///
-/// 評価値や深さは付加情報で、無くても候補手としては使える。1つの綴りのために
-/// その局面の定跡を丸ごと失う方が損。
+/// 評価値や深さは付加情報で、無くても候補手としては使える。
+///
+/// **ここを `Result` にすると、失うのはその局面ではなく定跡ファイル全体。**
+/// `Err` は `parse` → `load` → `open_reader` を素通しして `open_book` ごと
+/// 失敗させるので、評価値の綴りが1つ壊れているだけの数百 MB の定跡が
+/// まったく開けなくなる。
 fn optional_number<T: std::str::FromStr>(token: Option<&str>) -> Option<T> {
     token.and_then(|t| t.trim().parse().ok())
 }

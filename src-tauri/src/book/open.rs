@@ -183,8 +183,7 @@ mod tests {
     /// 開いてから引くまでを、実物と同じ形の定跡ファイルで通す。
     ///
     /// 各段の unit test は自分の担当だけを見るので、**繋ぎ目がずれても全部緑のまま
-    /// 通る。** 実際 `open_reader` は #90 の間ずっと成功経路を持たず、
-    /// 「開ける」と言えるテストが1本も無かった。
+    /// 通る。** ここだけが「開いて引ける」を言える。
     #[test]
     fn opens_a_book_and_finds_the_opening_moves() {
         use crate::book::sfen::to_book_key;

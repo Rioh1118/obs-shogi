@@ -16,10 +16,12 @@ use crate::book::error::{BookError, BookErrorCode};
 pub(crate) struct BookKey(String);
 
 impl BookKey {
-    // ファイル上を探索する reader は、これで取り出した綴りをファイルの中身と
-    // 突き合わせる。#[cfg(test)] で塞ぐとその reader が書けなくなるので、
-    // 呼び手がテストしか居ない間も本番ビルドに残す。
-    // TODO(#91): やねうら王 .db の reader が最初の呼び手になる。
+    // 本番の呼び手はまだ無い。メモリへ展開する reader はキーどうしを突き合わせる
+    // ので、綴りを取り出す必要が無い。
+    //
+    // #[cfg(test)] で塞がないのは、キーから局面を復元する reader（Apery の
+    // ハッシュキーなど）がこれを入口にするため。塞ぐとその reader が書けない。
+    // TODO(#275): 復元に必要な形を決めるとき、この口の形も一緒に決める。
     #[allow(dead_code)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
@@ -54,7 +56,7 @@ const PIECE_LIMITS: [(char, u32); 8] = [
 /// 並びは USI の SFEN のもの。この repo が既に依存している `shogi_core` が
 /// 同じ順で書き出すことを `the_key_matches_what_a_usi_implementation_writes`
 /// が固定している。
-// TODO(#91): 実物の定跡を fixture に置くとき、やねうら王が USI 標準どおりに
+// TODO(#291): 実物の定跡を fixture に置くとき、やねうら王が USI 標準どおりに
 // 書いていることまで確かめる（並び自体はここで閉じている）。
 const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 
@@ -198,9 +200,9 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
 /// **行そのものを切るのはここの [`excerpt`] だけ。** `.db` の1行は、途中で切れた
 /// ファイルや別形式のファイルでは数 MB になりうる。ここを外すと message が
 /// そのままログへ流れ、失敗1回でそれまでの記録が押し流される。
-// TODO(#91): 最初の呼び手はやねうら王 .db の reader。行番号を添えられるように
-// するかは、そこで決める。
-#[allow(dead_code)]
+/// 行番号は添えない。呼び出し側が行を数えているので、位置を足すのはそちら
+/// （`yaneuraou_db` の `annotate_line`）。ここへ持たせると、行の概念が無い
+/// 形式の reader が意味の無い番号を渡すことになる。
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(line).map_err(|reason| {
         BookError::new(
