@@ -260,7 +260,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        if (!saved.success) dispatch({ type: "jkf_restored", payload: before });
+        if (!saved.success)
+          dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : errorMessage;
@@ -402,7 +403,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        if (!saved.success) dispatch({ type: "jkf_restored", payload: before });
+        if (!saved.success)
+          dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to swap branches";
@@ -448,7 +450,8 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         });
 
         const saved = await persistIfPossible(nextJkf);
-        if (!saved.success) dispatch({ type: "jkf_restored", payload: before });
+        if (!saved.success)
+          dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete branch";

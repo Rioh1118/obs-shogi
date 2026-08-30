@@ -86,6 +86,14 @@ export type GameAction =
         jkf: JKFData | null;
         cursor: KifuCursor | null;
         branchPlan: BranchPlan;
+        /**
+         * 戻す前に置いたはずの棋譜。**いまの `jkf` がこれでなければ戻さない。**
+         *
+         * 書き込みを待っている間に、別のファイルが読み込まれたり次の手が指されたりする。
+         * 無条件に戻すと、その編集や読み込みを**巻き戻しが消す**。
+         * `cloneJkf` も `loadGame` も必ず新しいオブジェクトを作るので、参照の同一性で判定できる。
+         */
+        expectedJkf: JKFData;
       };
     }
   | {

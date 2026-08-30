@@ -24,6 +24,9 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         error: null,
       };
 
+    // **`isLoading` を触らない。** ここで false を立てると、続く書き込みの間ずっと
+    // 「操作中」を名乗れず、確認ダイアログの「削除中...」も `closeOnEsc` も効かない。
+    // 落とすのは `edit` / `swapBranches` / `deleteBranch` の `finally` に一本化する。
     case "jkf_replaced":
       return {
         ...state,
@@ -31,7 +34,6 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         cursor: action.payload.cursor,
         branchPlan: action.payload.branchPlan,
         selectedPosition: null,
-        isLoading: false,
         error: null,
       };
 
@@ -45,13 +47,16 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     //
     // `error` は消さない。戻したことと、戻した理由は別々に伝わる必要がある。
     case "jkf_restored":
+      // 自分が置いた棋譜がもう別物なら、戻さない。
+      // 待っている間に入った編集や読み込みを、巻き戻しが上書きしないため。
+      if (state.jkf !== action.payload.expectedJkf) return state;
+
       return {
         ...state,
         jkf: action.payload.jkf,
         cursor: action.payload.cursor,
         branchPlan: action.payload.branchPlan,
         selectedPosition: null,
-        isLoading: false,
       };
 
     case "set_selection":

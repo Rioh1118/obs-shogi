@@ -63,7 +63,7 @@ describe("jkf_restored", () => {
 
     const restored = gameReducer(replaced, {
       type: "jkf_restored",
-      payload: { jkf: jkfA, cursor: cursorA, branchPlan: asBranchPlan([]) },
+      payload: { jkf: jkfA, cursor: cursorA, branchPlan: asBranchPlan([]), expectedJkf: jkfB },
     });
 
     expect(restored.jkf).toBe(jkfA);
@@ -78,11 +78,25 @@ describe("jkf_restored", () => {
       { ...initialGameState, jkf: jkfB, error: "書き込みに失敗しました" },
       {
         type: "jkf_restored",
-        payload: { jkf: jkfA, cursor: null, branchPlan: asBranchPlan([]) },
+        payload: { jkf: jkfA, cursor: null, branchPlan: asBranchPlan([]), expectedJkf: jkfB },
       },
     );
 
     expect(restored.error).toBe("書き込みに失敗しました");
-    expect(restored.isLoading).toBe(false);
+  });
+
+  // 書き込みを待っている間に、別のファイルが読み込まれたり次の手が指されたりする。
+  // 無条件に戻すと、その編集や読み込みを**巻き戻しが消す**。
+  it("置いた棋譜がもう別物なら戻さない", () => {
+    const jkfC = { header: {}, moves: [{}, {}, {}] };
+    const now = { ...initialGameState, jkf: jkfC, cursor: cursorB };
+
+    const restored = gameReducer(now, {
+      type: "jkf_restored",
+      // 置いたのは jkfB だったが、いまは jkfC（誰かが差し替えた）
+      payload: { jkf: jkfA, cursor: cursorA, branchPlan: asBranchPlan([]), expectedJkf: jkfB },
+    });
+
+    expect(restored).toBe(now);
   });
 });

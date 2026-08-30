@@ -240,11 +240,18 @@ export default function KifuStreamList() {
     if (!pendingDelete) return;
 
     const res = await deleteBranch(pendingDelete.query);
+
+    // **待っている間に確認が閉じていたら、開き直さない。**
+    // Escape で閉じた／棋譜が変わって上の効果が畳んだ、のどちらでも
+    // 古い closure をそのまま書き戻すと**利用者が閉じた確認が復活する**。
+    // 棋譜が変わったあとの復活は、別のファイルの枝へ古いクエリを当てることになる。
     if (!res.success) {
-      setPendingDelete({ ...pendingDelete, error: res.error });
+      setPendingDelete((prev) =>
+        prev?.query === pendingDelete.query ? { ...prev, error: res.error } : prev,
+      );
       return;
     }
-    setPendingDelete(null);
+    setPendingDelete((prev) => (prev?.query === pendingDelete.query ? null : prev));
   }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
