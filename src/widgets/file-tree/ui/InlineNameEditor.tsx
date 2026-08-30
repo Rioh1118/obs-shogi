@@ -86,7 +86,8 @@ function InlineNameEditor({
    * 焦点を奪い返す。押した行は開くのにキーボードはここに残り、この欄は `onKeyDown` を
    * 全て `stopPropagation()` するので Escape が他の受け口にも届かなくなる。
    *
-   * 閉じるのは、欄そのものが無くなったとき（呼び出し側が畳んだ）だけ。
+   * 閉じるのは2つ。**送るものが無いとき**（空欄・`initialName` と同じ）と、
+   * **欄そのものが無くなったとき**（呼び出し側が畳んだ）。失敗では閉じない。
    */
   const commit = async () => {
     const next = draft.trim();

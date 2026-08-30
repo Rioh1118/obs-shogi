@@ -7,6 +7,7 @@ import { pickDirectory } from "@/shared/api/picker/pickDirectory";
  *
  * ここは root を**決める**側で、決め直す唯一の出口でもある。読めない設定に
  * 依存すると、`app.json` が壊れているときに出口そのものが同じ理由で落ちる。
+ * 起動エラーの画面で押せる唯一のボタンがこれを通る。
  *
  * **読めなかったことを値に潰さない。** `save_config` はファイルごと置き換えるので、
  * 空として扱ったまま書くと、読めていない欄（`ai_root` / `last_preset_id`）が

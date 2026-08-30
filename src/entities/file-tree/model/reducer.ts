@@ -93,9 +93,10 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
           action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
       };
 
-    // 編集中の行とメニューは畳む。名前を直しても通らない失敗しかここへ来ないので
-    // （`isNameInputError` が真のものは `failToNameInput` が入力欄へ返す）、
-    // 入力欄を残しても直せる先が無い。`conflict_opened` が畳んでいるのと同じ理由
+    // 編集中の行とメニューは畳む。**畳んでよいのは、ここへ来た時点で欄がもう
+    // 無いから。** 欄が生きているうちは `failToNameInput` が入力欄へ返すので、
+    // ここへ届く名前の失敗は `InlineNameEditor` の `onUnshowable` 経由だけ
+    // （＝欄が unmount されたあと）。`conflict_opened` が畳んでいるのと同じ理由
     case "error":
       // 衝突の解決中に失敗したときは、そのダイアログの中で伝える（`submitError`）。
       // ここで積むと対話の裏に別の失敗の箱が重なり、解決操作の続きが
