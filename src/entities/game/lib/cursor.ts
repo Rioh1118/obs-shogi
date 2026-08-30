@@ -26,8 +26,10 @@ export function lastMovePlayer(jkf: JKFPlayer) {
 /**
  * 辿ったカーソルと、カーソルより先の計画を合成する。
  *
- * `te <= cursor.tesuu` の範囲は `cursor.forkPointers` からしか取らない。ここが
- * `state.branchPlan` と `cursor.forkPointers` が一致するという不変条件の根拠。
+ * `prevPlan` / `overridePlan` を `fp.te > cursor.tesuu` で絞るのは、
+ * 「`branchPlan` の `te <= cursor.tesuu` の部分は `cursor.forkPointers` と一致する」
+ * （`docs/state-transitions/game.md` の不変条件1）を、この関数を通る書き込み経路が
+ * 守るため。他の経路は空にするか `cursor.forkPointers` をそのまま写して守っている。
  */
 export function mergeBranchPlan(
   cursor: KifuCursor,

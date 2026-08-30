@@ -22,7 +22,11 @@ import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
 
-/** 連続移動とみなす間隔（ミリ秒）。`revealRow` の2つの判断がこれを共有する */
+/**
+ * 連続移動とみなす間隔（ミリ秒）。これ以内の再入なら、譲る側は撃たず、
+ * 撃つ側も smooth をやめて追従を優先する。`revealRow` の2つの判断がこれを共有する。
+ * 値の根拠は未測定の経験則。
+ */
 const RECENT_SCROLL_MS = 120;
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
@@ -87,8 +91,6 @@ export default function KifuStreamList() {
 
     const now = performance.now();
     const dt = now - lastScrollAtRef.current;
-    // 連続移動とみなす間隔。これ以内の再入なら、譲る側は撃たず、撃つ側も
-    // smooth をやめて追従を優先する。矢印キーのリピート間隔に合わせた実測の暫定値。
     if (yieldToRecent && dt < RECENT_SCROLL_MS) return;
     lastScrollAtRef.current = now;
 
@@ -104,8 +106,7 @@ export default function KifuStreamList() {
       if (!focusAnchor) return;
 
       requestAnimationFrame(() => {
-        // 行の位置を決めるのは scrollRowIntoSafeZone だけにする。focus 既定のスクロールは
-        // 「見えるところまで」なので、25% のセーフゾーンに寄せる位置合わせを上書きする。
+        // focus 既定のスクロールは「見えるところまで」で、セーフゾーン寄せを上書きするので切る。
         anchor?.focus({ preventScroll: true });
 
         // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
@@ -218,10 +219,11 @@ export default function KifuStreamList() {
     };
   }, [openFork, closeForkMenu]);
 
-  // tesuuPointer は "<tesuu>,[...]" 形式で tesuu を含むので、これだけで足りる。
+  // tesuuPointer は "<tesuu>,[...]" 形式で tesuu を含むので、2つは必ず連動する。
+  // どちらが変わっても余分には走らない。
   useEffect(() => {
     revealRow(state.cursor?.tesuu ?? 0, false);
-  }, [state.cursor?.tesuuPointer, revealRow]);
+  }, [state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {

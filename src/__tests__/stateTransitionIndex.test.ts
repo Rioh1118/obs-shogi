@@ -58,6 +58,28 @@ const headingSlugs = (body: string) => {
 };
 
 /**
+ * その行で「実在する表を未作成と書いている」名前を返す。
+ *
+ * 文（`。`）で区切ってから共起を見る。行ごと見ると
+ * 「`search.md` は未作成。`game.md` は書けている」で落ちるが、区切れば落ちない。
+ *
+ * 表のセル（`|`）では区切らない。在庫表は名前と状態が別のセルにあり、
+ * `| [game.md](game.md) | ❌ 未作成 |`（リンクを張ってから状態欄を直し忘れる）が
+ * 実際の腐り方だから。同じ理由で、リンクになっている名前を除くのも駄目。
+ */
+export function staleUncreatedNames(line: string, exists: (name: string) => boolean): string[] {
+  if (!line.includes("未作成")) return [];
+
+  const out: string[] = [];
+  for (const segment of line.split("。")) {
+    if (!segment.includes("未作成")) continue;
+    const names = new Set([...segment.matchAll(/([\w-]+\.md)/g)].map((m) => m[1] ?? ""));
+    for (const name of names) if (exists(name)) out.push(name);
+  }
+  return out;
+}
+
+/**
  * コードフェンスの中身を落とす。中は説明のための例なので、リンクとしても見出しとしても
  * 数えない。
  *
@@ -66,17 +88,18 @@ const headingSlugs = (body: string) => {
  * 開きと対になり、**例として書いたリンクが本文として残る**。未閉じも同じ側に倒れる。
  */
 function stripFences(body: string): string {
-  let fence: { mark: string; indent: number } | null = null;
+  let fence: string | null = null;
   const out: string[] = [];
 
   for (const line of body.split("\n")) {
-    // 箇条書きの中のフェンスは4スペース以上字下げされる。開きの字下げを覚えて、
-    // 閉じはそれ以上の字下げまで許す（CommonMark は開きより深い閉じを認める）。
-    const m = /^( *)(`{3,}|~{3,})(.*)$/.exec(line);
+    // 箇条書きの中のフェンスは字下げされるので、字下げ幅は見ない。CommonMark は
+    // 閉じの字下げを開きに一致させることを求めないので、一致を要求すると有効な閉じを
+    // 取りこぼし、そのファイルの残り全部を飲み込む。
+    const m = /^ *(`{3,}|~{3,})(.*)$/.exec(line);
 
     if (fence == null) {
       if (m) {
-        fence = { mark: m[2]!, indent: m[1]!.length };
+        fence = m[1]!;
         out.push("");
         continue;
       }
@@ -85,11 +108,7 @@ function stripFences(body: string): string {
     }
 
     const closes =
-      m != null &&
-      m[2]![0] === fence.mark[0] &&
-      m[2]!.length >= fence.mark.length &&
-      m[1]!.length >= fence.indent &&
-      !m[3]!.trim();
+      m != null && m[1]![0] === fence[0] && m[1]!.length >= fence.length && !m[2]!.trim();
     if (closes) fence = null;
     out.push("");
   }
@@ -141,32 +160,20 @@ describe("状態遷移表の索引", () => {
 
   /**
    * 表を書いたあと、他の表や索引に残った「未作成」を消し忘れる。書き方は階層図・在庫表・
-   * 本文中の3通りあるので、ファイル名と「未作成」が同じ行にあることを見る。
-   *
-   * 文（`。`）で区切ってから共起を見る。行ごと見ると
-   * 「`search.md` は未作成。`game.md` は書けている」で落ちるが、区切れば落ちない。
-   *
-   * 表のセル（`|`）では区切らない。在庫表は名前と状態が別のセルにあり、
-   * `| [game.md](game.md) | ❌ 未作成 |`（リンクを張ってから状態欄を直し忘れる）が
-   * 実際の腐り方だから。同じ理由で、リンクになっている名前を除くのも駄目。
+   * 本文中の3通りある。判定は `staleUncreatedNames` が持つ。
    */
   test("実在する表を「未作成」と書いている行が無い", () => {
     const stale: string[] = [];
+    const exists = (name: string) => existsSync(join(TABLES_DIR, name));
 
     for (const file of tables()) {
-      const lines = readFileSync(join(TABLES_DIR, file), "utf8").split("\n");
-
-      lines.forEach((line, i) => {
-        if (!line.includes("未作成")) return;
-
-        for (const segment of line.split("。")) {
-          if (!segment.includes("未作成")) continue;
-          const names = new Set([...segment.matchAll(/([\w-]+\.md)/g)].map((m) => m[1] ?? ""));
-          for (const name of names) {
-            if (existsSync(join(TABLES_DIR, name))) stale.push(`${file}:${i + 1}  ${name}`);
+      readFileSync(join(TABLES_DIR, file), "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          for (const name of staleUncreatedNames(line, exists)) {
+            stale.push(`${file}:${i + 1}  ${name}`);
           }
-        }
-      });
+        });
     }
 
     expect(stale, ["実在する表を未作成と書いている:", ...stale].join("\n")).toEqual([]);
@@ -193,19 +200,9 @@ describe("headingSlug", () => {
   });
 });
 
-describe("実在する表を「未作成」と書いている行", () => {
+describe("staleUncreatedNames", () => {
   // 在庫表の腐り方は「リンクを張ってから状態欄を直し忘れる」なので、リンク形も拾う。
   // 一方で、1行に未作成のものと書けたものを並べただけでは落ちてはいけない。
-  const staleNames = (line: string, exists: (name: string) => boolean) => {
-    const out: string[] = [];
-    if (!line.includes("未作成")) return out;
-    for (const segment of line.split("。")) {
-      if (!segment.includes("未作成")) continue;
-      const names = new Set([...segment.matchAll(/([\w-]+\.md)/g)].map((m) => m[1] ?? ""));
-      for (const name of names) if (exists(name)) out.push(name);
-    }
-    return out;
-  };
   const exists = (name: string) => name === "game.md";
 
   test.each([
@@ -215,7 +212,7 @@ describe("実在する表を「未作成」と書いている行", () => {
     ["`search.md` は未作成。`game.md` は書けている", []],
     ["| `search.md` | ❌ 未作成 | まだ |", []],
   ])("%s", (line, expected) => {
-    expect(staleNames(line, exists)).toEqual(expected);
+    expect(staleUncreatedNames(line, exists)).toEqual(expected);
   });
 });
 
@@ -237,6 +234,17 @@ describe("stripFences", () => {
 
   test("閉じていないフェンスは末尾まで飲み込む", () => {
     expect(stripFences("```\n[例](nope.md)\n")).not.toContain("nope.md");
+  });
+
+  test("開きより浅い閉じでも閉じる", () => {
+    // CommonMark は閉じの字下げを開きに一致させることを求めない。
+    // 一致を要求すると、この形でファイルの残り全部を飲み込む。
+    const body = ["- 例:", "", "    ```", "    [例](nope.md)", "```", "", "[本物](real.md)"].join(
+      "\n",
+    );
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
   });
 
   test("箇条書きの中の字下げフェンスも落とす", () => {
