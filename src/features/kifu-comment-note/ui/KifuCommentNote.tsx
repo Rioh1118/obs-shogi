@@ -27,6 +27,7 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
   const [baseText, setBaseText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const sourceText = useMemo(() => {
     if (!cursor) return "";
@@ -37,6 +38,7 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
     if (!open) return;
     setDraft(sourceText);
     setBaseText(sourceText);
+    setSaveError(null);
   }, [open, sourceText]);
 
   const dirty = draft !== baseText;
@@ -46,16 +48,31 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
     stateRef.current = { cursor, draft, isSaving };
   });
 
+  /**
+   * 書けたときだけ `baseText` を進める。
+   *
+   * 失敗しても進めると `dirty` が落ちて、autosave も閉じるときの保存も
+   * 二度と走らない。**画面には「保存済み」だけが出て、書いた本文はどこにも残らない。**
+   *
+   * @returns ディスクまで書けたか。書けていないなら呼び出し側はノートを閉じない
+   */
   const doSave = useCallback(async () => {
     const { cursor, draft, isSaving } = stateRef.current;
-    if (!cursor || isSaving) return;
+    if (!cursor || isSaving) return false;
 
     setIsSaving(true);
     try {
-      await setCommentsByCursor(cursor, editorTextToLines(draft));
+      const res = await setCommentsByCursor(cursor, editorTextToLines(draft));
+      if (!res.success) {
+        setSaveError(res.error);
+        return false;
+      }
+
+      setSaveError(null);
       setBaseText(draft);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1200);
+      return true;
     } finally {
       setIsSaving(false);
     }
@@ -88,9 +105,15 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
       autoSaveTimerRef.current = null;
     }
 
-    if (dirty && cursor) await doSave();
+    // 一度失敗を出したあとの close は、保存を諦めて閉じる。
+    // ここで再試行し続けると、書き込めない場所に置いた棋譜ではノートを
+    // 閉じる手段が1つも無くなる（失敗を伝えるより悪い行き止まり）。
+    if (dirty && cursor && !saveError) {
+      const saved = await doSave();
+      if (!saved) return;
+    }
     onClose();
-  }, [cursor, dirty, doSave, isSaving, onClose]);
+  }, [cursor, dirty, doSave, isSaving, onClose, saveError]);
 
   const editorKey = cursorToStableKey(cursor);
 
@@ -123,7 +146,23 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
           onMarkdownChange={setDraft}
           onSubmitShortcut={() => void handleRequestClose()}
         />
-        {(isSaving || savedFlash) && (
+        {/* 領域は常設する（空でも DOM に置く）。中身と同時に入れると VoiceOver が
+            live region の変化として読まない。面も宣言する。宣言しないと
+            `contrastRatchet` が「面が決まらない」として測れない枠へ落とす */}
+        <div className="kifu-comment-note__error" role="alert">
+          {saveError && (
+            <>
+              <span className="kifu-comment-note__errorHead">
+                保存できませんでした。書いた本文はこのまま残っています。
+              </span>
+              <span className="kifu-comment-note__errorCause">{saveError}</span>
+              <span className="kifu-comment-note__errorHint">
+                続けて書けば保存し直します。閉じると、この本文は失われます。
+              </span>
+            </>
+          )}
+        </div>
+        {!saveError && (isSaving || savedFlash) && (
           <div className="kifu-comment-note__status">{isSaving ? "保存中" : "保存済み"}</div>
         )}
       </div>

@@ -148,7 +148,7 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      await swapBranches(q);
+      await swapBranches(q); // async-result-ignored: 失敗を出す口がまだ無い → #198
     },
     [swapBranches],
   );
@@ -160,7 +160,7 @@ export default function KifuStreamList() {
         forkPointers: branchForkPointers,
         target: branchIndex,
       };
-      await deleteBranch(q);
+      await deleteBranch(q); // async-result-ignored: 失敗を出す口がまだ無い → #198
     },
     [deleteBranch],
   );

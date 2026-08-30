@@ -148,13 +148,22 @@ export interface GameContextType {
   selectHand: (color: Color, kind: Kind) => void;
   clearSelection: () => void;
 
-  makeMove: (move: StandardMoveFormat) => Promise<void>;
-  swapBranches: (q: SwapQuery) => Promise<void>;
-  deleteBranch: (q: DeleteQuery) => Promise<void>;
+  // 棋譜を書き換える操作。**どれも throw しない。** 失敗は `Err` で返る。
+  //
+  // `state.error` にも積むが、それを描いている場所はまだ無い（#186）。
+  // 戻り値を捨てると、書けなかったことが利用者にも呼び出し側にも届かない。
+  // 捨てるのが正しい呼び出しは `// async-result-ignored: <理由>` を付けること
+  // （`src/__tests__/asyncResultUse.test.ts`）。
+  //
+  // `Ok` は「棋譜が意図どおりになった」。**何も変えなかった場合も `Ok`**
+  // （変える必要が無かったのは失敗ではない）。
+  makeMove: (move: StandardMoveFormat) => AsyncResult<void, string>;
+  swapBranches: (q: SwapQuery) => AsyncResult<void, string>;
+  deleteBranch: (q: DeleteQuery) => AsyncResult<void, string>;
 
   getCommentsByCursor: (cursor: KifuCursor | null) => string[];
-  setCommentsByCursor: (cursor: KifuCursor, comments: string[]) => Promise<void>;
-  setCurrentComments: (comments: string[]) => Promise<void>;
+  setCommentsByCursor: (cursor: KifuCursor, comments: string[]) => AsyncResult<void, string>;
+  setCurrentComments: (comments: string[]) => AsyncResult<void, string>;
 
   clearError: () => void;
 
