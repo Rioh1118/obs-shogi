@@ -68,13 +68,17 @@ export function advanceWithPlan(player: JKFPlayer, plan: PlanByTe): AdvanceResul
 const NO_PLAN: PlanByTe = new Map();
 
 /**
- * 計画を持たずに本譜を1手進める
+ * 計画を使わず、**いま辿っている線**を1手進める
+ *
+ * 本譜とは限らない。変化の中にいれば変化の続きを進む（`currentStream` は
+ * `player.forkPointers` を降りた先の線）。「本譜」はこのリポジトリでは
+ * `MAIN_LINE` / `isMainLine` が指す別の概念なので、この関数名に含めない。
  *
  * 「計画が無い」ことを呼び出し側で言うためのもの。空の `PlanByTe` を渡すのと
  * 同じだが、`advanceWithPlan(player, planByTe(x))` と書いてある箇所は
  * 「x に沿って降りる」と読めてしまう。
  */
-export function advanceMainLine(player: JKFPlayer): AdvanceResult {
+export function advanceCurrentLine(player: JKFPlayer): AdvanceResult {
   return advanceWithPlan(player, NO_PLAN);
 }
 

@@ -3,7 +3,7 @@ import "./PositionSearchContinuation.scss";
 
 import type { PositionHit } from "@/entities/search";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
-import { advanceMainLine } from "@/entities/kifu/lib/advanceWithPlan";
+import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
@@ -103,10 +103,11 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {
-          // ヒット局面から先は本譜を辿る。索引のカーソルは「辿った経路」で
-          // `te > tesuu` を持たないので、渡せる計画がそもそも無い
-          // （`planByTe(cursor.forkPointers)` を渡しても1度も当たらない）。
-          if (!advanceMainLine(player).moved) break;
+          // ヒット局面が乗っている線の続きを辿る（変化の中のヒットなら変化の続き）。
+          // 索引のカーソルは「辿った経路」で `te > tesuu` を持たないので、
+          // 渡せる計画がそもそも無い（`planByTe(cursor.forkPointers)` を渡しても
+          // 引く te が `tesuu + 1` 以降なので1度も当たらない）。
+          if (!advanceCurrentLine(player).moved) break;
 
           const s = player.getReadableKifu?.() ?? "";
           if (s) out.push(s);
