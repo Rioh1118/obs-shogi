@@ -40,6 +40,19 @@ export function dropUnsavedDraftIfUnchanged(key: string, expected: UnsavedDraft 
   if (store.get(key) === expected) store.delete(key);
 }
 
+/**
+ * その棋譜の預かりを全部捨てる。
+ *
+ * **鍵に `forkIndex` が入っているから要る。** `forkIndex` は `forks` 配列の位置で、
+ * 分岐の削除・入れ替えはその配列を詰めたり入れ替えたりする。番号が振り直されると、
+ * 預かった下書きが**別の変化のノートに本文として出て、そこへ書き込まれる**。
+ * 番号を動かした側が捨てる。
+ */
+export function dropUnsavedDraftsFor(absPath: string | null): void {
+  const prefix = `${absPath ?? ""}__`;
+  for (const key of Array.from(store.keys())) if (key.startsWith(prefix)) store.delete(key);
+}
+
 /** テスト用。実行時に呼ぶ場所は無い */
 export function clearUnsavedDrafts(): void {
   store.clear();

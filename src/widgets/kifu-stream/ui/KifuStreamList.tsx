@@ -26,6 +26,7 @@ import {
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
+import { dropUnsavedDraftsFor } from "@/features/kifu-comment-note/lib/unsavedDrafts";
 
 /**
  * 連続移動とみなす間隔（ミリ秒）。これ以内の再入なら、譲る側は撃たず、
@@ -197,9 +198,14 @@ export default function KifuStreamList() {
         a,
         b,
       };
+      // **番号を動かす前に、預かった下書きを捨てる。**
+      // コメントの預かりは `forkIndex`（`forks` 配列の位置）を鍵に持つので、
+      // 入れ替えたあとの同じ番号は**別の変化**を指す。残すと、そこのノートに
+      // 前の変化の下書きが本文として出て、900ms 後にそこへ書き込まれる。
+      dropUnsavedDraftsFor(state.loadedAbsPath);
       await swapBranches(q); // async-result-ignored: 失敗を出す口がまだ無い → #277
     },
-    [swapBranches],
+    [swapBranches, state.loadedAbsPath],
   );
 
   // 押した瞬間には消さない。**確認を挟む。**
@@ -257,6 +263,8 @@ export default function KifuStreamList() {
     if (!pendingDelete) return;
 
     setDeleting(true);
+    // 入れ替えと同じ理由。消すと、それより後ろの `forkIndex` が全部1つずつずれる
+    dropUnsavedDraftsFor(state.loadedAbsPath);
     const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
 
     // **閉じられていても失敗は出す。**
@@ -279,7 +287,7 @@ export default function KifuStreamList() {
       return;
     }
     setPendingDelete((prev) => (prev?.query === pendingDelete.query ? null : prev));
-  }, [deleteBranch, pendingDelete]);
+  }, [deleteBranch, pendingDelete, state.loadedAbsPath]);
 
   const onOpenComment = useCallback(
     (row: RowModel, anchorEl: HTMLButtonElement) => {

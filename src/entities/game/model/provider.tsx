@@ -39,6 +39,45 @@ import {
   getCommentsByCursor as getCommentsByCursorFromJkf,
 } from "@/entities/kifu/lib/comment";
 
+/**
+ * 書き込み1本の上限時間。
+ *
+ * ネットワーク越しのワークスペースで大きな棋譜を書く時間より長く、
+ * 「アプリが死んだ」と読まれるより短いところ。**測っていない経験則。**
+ */
+const WRITE_DEADLINE_MS = 15_000;
+
+/**
+ * 返ってこない書き込みを失敗として畳む。
+ *
+ * 畳まないと、書き込みは列で順に流すので**1本刺さるだけで以後すべてが無言で止まる**。
+ * `finally` も走らないので「操作中」は立ちっぱなし、失敗も出ない。
+ * 刺さる条件（NFS / SMB、他プロセスが掴んでいる、fsync が返らない）は
+ * このブランチが既に前提として認めている。
+ *
+ * **畳んだあとに本物の書き込みが着地する可能性は残る。** そのとき一時的に
+ * メモリ（巻き戻し済み）とディスクが食い違うが、次の書き込みがディスクを
+ * メモリに合わせるので残り続けはしない。全部の書き込みが黙って死ぬより軽い。
+ */
+async function withDeadline(
+  saving: AsyncResult<void, string>,
+): Promise<{ success: true; data: void } | { success: false; error: string }> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      saving,
+      new Promise<{ success: false; error: string }>((resolve) => {
+        timer = setTimeout(
+          () => resolve({ success: false, error: "書き込みが応答しません" }),
+          WRITE_DEADLINE_MS,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function GameProvider({ children, persistence }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
@@ -54,7 +93,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
    */
   const writeChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  // 列に並んでいる間に宛先が変わりうるので、門番は**撃った時点ではなく走る時点**の値を見る。
+  // 宛先。**荷物と同じ時刻で固定し、走る時点で変わっていないことを確かめる**ために持つ。
   const destRef = useRef({ persistence, loadedAbsPath: state.loadedAbsPath });
   useEffect(() => {
     destRef.current = { persistence, loadedAbsPath: state.loadedAbsPath };
@@ -68,8 +107,15 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   // 画面から消えて利用者だけが保存されたと信じることになる。
   const persistIfPossible = useCallback(
     (jkfToSave: JKFData): AsyncResult<void, string> => {
+      // **荷物と宛先を同じ時刻で固定する。**
+      //
+      // 走る時点で読むと、列で待っている間に別の棋譜を開いた場合に
+      // `persistence` も `loadedAbsPath` も**揃って**新しいファイルへ移る。
+      // 門番は「いまの2つ」を比べるだけなので通ってしまい、
+      // **前の棋譜が新しく開いたファイルへ丸ごと書かれる**（#245 と同じ形）。
+      const { persistence, loadedAbsPath } = destRef.current;
+
       const writeOnce = async (): AsyncResult<void, string> => {
-        const { persistence, loadedAbsPath } = destRef.current;
         if (!persistence) {
           const msg = "保存先が決まっていません";
           dispatch({ type: "set_error", payload: msg });
@@ -88,7 +134,18 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           return Err(msg);
         }
 
-        const res = await persistence.save(jkfToSave);
+        // 列で待っている間に宛先が変わっていたら書かない。
+        // 撃った時点の宛先はもう画面に無く、書けば古い棋譜を新しいファイルへ入れる。
+        if (
+          destRef.current.persistence !== persistence ||
+          destRef.current.loadedAbsPath !== loadedAbsPath
+        ) {
+          const msg = "保存先が切り替わったため書き込みを中止しました";
+          dispatch({ type: "set_error", payload: msg });
+          return Err(msg);
+        }
+
+        const res = await withDeadline(persistence.save(jkfToSave));
         if (!res.success) {
           // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
           // A の保存が失敗して返ってきたときに B が読み込まれていると、

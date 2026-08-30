@@ -75,10 +75,18 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
 
   const dirty = editing != null && editing.draft !== editing.baseText;
 
-  const destRef = useRef({ loadedAbsPath: state.loadedAbsPath });
+  // 列で待っている間に棋譜は動く。**書き込みの実体は走る時点で引き直す。**
+  //
+  // 撃った時点の `setCommentsByCursor` を捕まえると、その先の `edit` が
+  // **撃った時点の `state.jkf`** を閉じ込めているので、待っている間に盤で指した手を
+  // 含まない棋譜を書き戻す。指した手がメモリからもディスクからも消える。
+  const commitRef = useRef({ setCommentsByCursor, loadedAbsPath: state.loadedAbsPath });
   useEffect(() => {
-    destRef.current = { loadedAbsPath: state.loadedAbsPath };
+    commitRef.current = { setCommentsByCursor, loadedAbsPath: state.loadedAbsPath };
   });
+
+  /** 走っている保存の本数。閉じるときに列を待つかの判断に使う */
+  const inFlightRef = useRef(0);
 
   /**
    * 走っている保存の列。**同じノートから2本同時に撃たない。**
@@ -111,7 +119,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
         // 棋譜が差し替わったあとに走ると、前のファイルの本文が**次のファイルの
         // 同じ手数へ**書き込まれる。鍵だけでは塞がらない。
-        if (target.absPath !== destRef.current.loadedAbsPath) {
+        if (target.absPath !== commitRef.current.loadedAbsPath) {
           const msg = "棋譜が切り替わったので保存できませんでした";
           const seen = showing();
           putUnsavedDraft(target.key, { draft: text, error: msg, told: seen });
@@ -123,20 +131,27 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         const before = getUnsavedDraft(target.key);
 
         setStatus({ key: target.key, kind: "saving" });
+        inFlightRef.current += 1;
         try {
-          const res = await setCommentsByCursor(target.cursor, editorTextToLines(text));
+          const res = await commitRef.current.setCommentsByCursor(
+            target.cursor,
+            editorTextToLines(text),
+          );
 
           if (!res.success) {
             const seen = showing();
-            // 待っている間に打ち足したぶんがあれば、そちらを残す（古い本文で潰さない）
-            const kept = getUnsavedDraft(target.key);
-            putUnsavedDraft(target.key, {
-              draft: kept?.draft ?? text,
-              error: res.error,
-              told: seen,
-            });
+            // **いま書こうとした本文を預ける。** 列で直列化しているので、
+            // 置き場にあるのは必ずこれより古い。古いほうを残すと、
+            // 「続けて書けば保存し直します」と出しながら書き足したぶんを捨てることになる。
+            putUnsavedDraft(target.key, { draft: text, error: res.error, told: seen });
             if (seen)
-              setEditing((e) => (e && e.face.key === target.key ? { ...e, error: res.error } : e));
+              setEditing((e) =>
+                // 同じ理由なら参照を変えない。変えると自動保存の効果が張り直され、
+                // 書けない棋譜で**毎秒1本の書き込みを永久に撃ち続ける**
+                e && e.face.key === target.key && e.error !== res.error
+                  ? { ...e, error: res.error }
+                  : e,
+              );
             return "failed";
           }
 
@@ -155,6 +170,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
           }
           return "saved";
         } finally {
+          inFlightRef.current -= 1;
           setStatus((s) => (s?.key === target.key && s.kind === "saving" ? null : s));
         }
       };
@@ -163,7 +179,7 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       chainRef.current = next;
       return next;
     },
-    [setCommentsByCursor],
+    [],
   );
 
   const saveRef = useRef(save);
@@ -197,12 +213,18 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     () => () => {
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       const cur = leavingRef.current;
-      if (cur && cur.draft !== cur.baseText && !getUnsavedDraft(cur.face.key))
+      if (cur && cur.draft !== cur.baseText) {
+        // **本文はいま画面に出ているものを採る。** 既に預かりがあってもそちらは
+        // 必ず古い（失敗したときの本文）。古いほうを残すと、
+        // 「続けて書けば保存し直します」と出しながら書き足したぶんだけを捨てる。
+        // 理由と `told` は引き継ぐ（失敗を見せたかどうかは変わっていない）。
+        const kept = getUnsavedDraft(cur.face.key);
         putUnsavedDraft(cur.face.key, {
           draft: cur.draft,
-          error: "棋譜を閉じたので保存できませんでした",
-          told: false,
+          error: kept?.error ?? "棋譜を閉じたので保存できませんでした",
+          told: kept?.told ?? false,
         });
+      }
     },
     [],
   );
@@ -228,7 +250,11 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         autoSaveTimerRef.current = null;
       }
     };
-  }, [editing, dirty]);
+    // **`editing` そのものを見ない。** 失敗の書き戻しも `editing` を作り直すので、
+    // 書けない棋譜では「失敗 → 張り直し → 900ms → 失敗」で**毎秒1本の書き込みを
+    // 永久に撃ち続ける**。画面には「続けて書けば保存し直します」と出しており、
+    // 自動で再試行しないと宣言している。張り直す理由は本文か面が変わったときだけ。
+  }, [editing?.face.key, editing?.draft, dirty]); // oxlint-disable-line react-hooks/exhaustive-deps
 
   const handleRequestClose = useCallback(async () => {
     if (autoSaveTimerRef.current) {
@@ -243,6 +269,15 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // 書き込めない場所に置いた棋譜ではノートを閉じる手段が1つも無くなる
     // （失敗を伝えるより悪い行き止まり）。2回目は諦めて閉じる。
     if (editing && dirty) {
+      // **列が動いているなら待たない。** 待つと、他の書き込みが返ってこない間
+      // 閉じるが効かなくなる（押しても何も起きず、押せない見た目にもならない）。
+      // 撃つだけ撃てば、失敗しても `save` が本文を預けるので失わない。
+      if (inFlightRef.current > 0) {
+        void save(editing.face, editing.draft);
+        onClose();
+        return;
+      }
+
       const told = getUnsavedDraft(editing.face.key)?.told === true;
       const result = await save(editing.face, editing.draft);
       if (result === "failed") {
@@ -250,8 +285,13 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
         // 諦めて閉じる。**下書きも一緒に落とす。** 落とさないと、この直後に
         // 面が消える効果がもう1本書きに行き、いま捨てた預かりを積み直す。
         // 画面には「閉じると、この本文は失われます」と出しているので、失わせる。
+        //
+        // `leavingRef` は**同期で**書く。`setEditing` は `onClose()` と同じバッチに
+        // まとまるので、効果が読む前のコミットに載らない。ref なら巻き込まれない。
         dropUnsavedDraft(editing.face.key);
-        setEditing((e) => (e ? { ...e, draft: e.baseText, error: null } : e));
+        const settled = { ...editing, draft: editing.baseText, error: null };
+        leavingRef.current = settled;
+        setEditing(settled);
       }
       // `"skipped"`（宛先が消えた）は捨てない。元の棋譜へ戻れば出し直せる
     }
