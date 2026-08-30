@@ -240,11 +240,16 @@ function FileTree() {
                 操作は完了しましたが、一覧を取り直せませんでした。
               </p>
             )}
+            {/* ツリーが残っていても、その根が実在しないことはある
+                （ルート改名でディスクだけ通り、設定の書き込みが落ちた場合）。
+                `hasTree` で逃げ道を切ると、その一番抜けにくい状態でだけ
+                「閉じる」しか出ない */}
             <FileTreeErrorNotice
               error={shownError.error}
               onRetry={handleRetry}
               onDismiss={dismissError}
               isRetrying={isLoading}
+              fallback={chooseWorkspace}
             />
           </div>
         </Modal>

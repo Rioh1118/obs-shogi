@@ -7,7 +7,7 @@ interface Props {
   onDismiss?: () => void;
   isRetrying?: boolean;
   /**
-   * ツリーが1本も無いときの逃げ道。
+   * この部品の中では直せない失敗からの逃げ道。
    * 何をすれば直るかは失敗ごとに違うので、動作ごと受け取る（ADR-0004）。
    */
   fallback?: { label: string; run: () => void };

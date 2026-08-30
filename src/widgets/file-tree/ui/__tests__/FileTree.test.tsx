@@ -315,6 +315,25 @@ describe("段による出し分け", () => {
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
   });
 
+  /**
+   * ツリーが残っていても、その根が実在しないことはある（ルート改名で
+   * ディスク側だけ通り、設定の書き込みが落ちた場合）。この状態は
+   * **モーダルの中でしか脱出できない**ので、`hasTree` で逃げ道を切らない。
+   */
+  test("ツリーが残っていても、直らない失敗ならワークスペースを選び直せる", async () => {
+    stub.fileTree = TREE;
+    stub.error = asOperationFailure(DENIED);
+
+    mount();
+
+    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    await act(async () => {
+      screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
+    });
+
+    expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
+  });
+
   test("開発者向けのログは本文に出さない", () => {
     stub.fileTree = TREE;
     stub.error = asOperationFailure(BAD_NAME);
