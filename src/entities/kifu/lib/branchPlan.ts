@@ -53,3 +53,19 @@ export function upsertForkPointer(
 export function truncatePlanFrom(fps: ForkPointer[], te: number): ForkPointer[] {
   return fps.filter((p) => p.te < te);
 }
+
+/**
+ * te の選択を差し替える。`null` は「本譜を選ぶ」＝その te の選択を消す。
+ *
+ * 本譜を `forkIndex` の無い状態で表すのは `ForkPointer` の作りに従ったもの。
+ * `0` は「変化の0番目」であって本譜ではない。
+ */
+export function selectAt(fps: ForkPointer[], te: number, forkIndex: number | null): ForkPointer[] {
+  if (forkIndex == null) return fps.filter((p) => p.te !== te).sort((a, b) => a.te - b.te);
+  return upsertForkPointer(fps, te, forkIndex);
+}
+
+/** te に計画された選択。無ければ `null`（＝本譜）。 */
+export function plannedForkIndexAt(fps: ForkPointer[], te: number): number | null {
+  return fps.find((p) => p.te === te)?.forkIndex ?? null;
+}

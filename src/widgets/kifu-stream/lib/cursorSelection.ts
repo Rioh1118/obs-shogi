@@ -1,10 +1,10 @@
 import {
   buildTesuuPointer,
   normalizeForkPointers,
-  type ForkPointer,
   type KifuCursor,
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
+import { plannedForkIndexAt, selectAt, truncatePlanFrom } from "@/entities/kifu/lib/branchPlan";
 import { branchIndexFromSelection, type BranchIndex } from "@/entities/kifu/model/branch";
 import type { RowModel } from "../ui/KifuMoveCard";
 
@@ -26,8 +26,7 @@ export function buildCursorWithForkSelection(
   te: number,
   forkIndex: number | null,
 ): KifuCursor {
-  const prefix = (base?.forkPointers ?? []).filter((p) => p.te < te);
-  const picked: ForkPointer[] = forkIndex == null ? prefix : [...prefix, { te, forkIndex }];
+  const picked = selectAt(truncatePlanFrom(base?.forkPointers ?? [], te), te, forkIndex);
   // buildTesuuPointer は並びをそのまま文字列にする。正規化を通さないと、
   // 同じ局面が並び順の違いで別のキーになり、コメント欄の開閉判定が外れる。
   const forkPointers = normalizeForkPointers(picked, te);
@@ -60,7 +59,7 @@ export function resolveForkSelection(
   te: number,
   forkIndex: number | null,
 ): ForkMenuAction {
-  const selected = planned.forkPointers.find((p) => p.te === te)?.forkIndex ?? null;
+  const selected = plannedForkIndexAt(planned.forkPointers, te);
   if (selected === forkIndex) return { kind: "goToIndex", te };
 
   return { kind: "applyCursor", cursor: buildCursorWithForkSelection(planned, te, forkIndex) };

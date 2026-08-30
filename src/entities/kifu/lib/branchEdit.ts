@@ -14,6 +14,7 @@ import {
 } from "../model/branch";
 import { normalizeForkPointers, type CursorPath, type ForkPointer } from "../model/cursor";
 import { resolveLine, type LineRef } from "./resolveLine";
+import { plannedForkIndexAt, selectAt } from "./branchPlan";
 
 /**
  * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする
@@ -41,21 +42,24 @@ function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boole
 }
 
 function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {
-  const p = forkPointers.find((x) => x.te === te);
-  return branchIndexFromSelection(p ? p.forkIndex : null);
+  return branchIndexFromSelection(plannedForkIndexAt(forkPointers, te));
 }
 
-/** te の BranchIndex を forkPointers に反映（MAIN_LINE なら該当 te の pointer を削除） */
+/**
+ * te の BranchIndex を forkPointers に反映（MAIN_LINE なら該当 te の pointer を削除）
+ *
+ * 座標系の変換だけがここの仕事。選択の書き換えそのものは `selectAt` が持つ。
+ */
 function setBranchIndex(
   forkPointers: ForkPointer[],
   te: number,
   branchIndex: BranchIndex,
 ): ForkPointer[] {
-  const next = forkPointers.filter((p) => p.te !== te);
-  if (branchIndex === MAIN_LINE) return next.sort((a, b) => a.te - b.te);
-
-  next.push({ te, forkIndex: forkIndexFromBranchIndex(branchIndex) });
-  return next.sort((a, b) => a.te - b.te);
+  return selectAt(
+    forkPointers,
+    te,
+    branchIndex === MAIN_LINE ? null : forkIndexFromBranchIndex(branchIndex),
+  );
 }
 
 type BranchPointHandle = LineRef & { index: number; move: IMoveFormat };
