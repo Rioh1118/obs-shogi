@@ -158,3 +158,12 @@ describe("eqMove (デフォルト = eqMoveMinimal)", () => {
     expect(eqMove).toBe(eqMoveMinimal);
   });
 });
+
+describe("eqMove", () => {
+  // 本番が使うのはこの別名（applyMoveWithBranch の合流判定）。
+  // 実体が eqMoveMinimal であることを固定しておかないと、
+  // 別名の付け替えで #74 の厳密判定が黙って外れる。
+  test("eqMoveMinimal の別名", () => {
+    expect(eqMove).toBe(eqMoveMinimal);
+  });
+});

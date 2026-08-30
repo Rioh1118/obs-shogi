@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import {
+  advanceCurrentLine,
   advanceToLeafWithPlan,
   advanceWithPlan,
   planByTe,
@@ -116,6 +117,24 @@ describe("advanceWithPlan", () => {
       forkIndex: null,
     });
     expect(player.tesuu).toBe(3);
+  });
+});
+
+describe("advanceCurrentLine", () => {
+  // 計画を持たずに、いま辿っている線を1手進む。本譜とは限らない
+  test("変化の中では変化の続きを進む", () => {
+    const player = playerAt(1);
+    advanceWithPlan(player, planByTe(asBranchPlan([{ te: 2, forkIndex: 0 }])));
+    expect(player.currentStream[2]?.comments).toEqual(["f2"]);
+
+    // 変化は1手で終わるので、そこが葉
+    expect(advanceCurrentLine(player)).toEqual({ moved: false, forkIndex: null });
+  });
+
+  test("本譜では本譜を進む", () => {
+    const player = playerAt(1);
+    expect(advanceCurrentLine(player)).toEqual({ moved: true, forkIndex: null });
+    expect(player.currentStream[2]?.comments).toEqual(["t2"]);
   });
 });
 
