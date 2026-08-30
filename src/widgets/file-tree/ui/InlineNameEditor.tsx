@@ -49,12 +49,6 @@ function InlineNameEditor({
   // 外をクリックするたびに同じ名前が送り直され、同じ失敗が出続けて閉じられない
   const inFlightRef = useRef(false);
   const rejectedRef = useRef<string | null>(null);
-  // 欄の外に出たか。出たまま失敗すると、フォーカスの無い欄に失敗の箱だけが
-  // 残る（状態遷移表の E4）。閉じる手段が2手になるので、その状態を作らない。
-  //
-  // **blur そのものが確定の引き金になる経路も含める。** 送信中の blur だけを
-  // 見ていると、「打って外をクリック」という一番普通の操作で E4 が作られる
-  const leftFieldRef = useRef(false);
   const [draft, setDraft] = useState(initialName);
   const [error, setError] = useState<FsError | null>(null);
 
@@ -78,7 +72,7 @@ function InlineNameEditor({
     });
   }, [initialName, selectMode]);
 
-  const commit = async (fromBlur = false) => {
+  const commit = async () => {
     const next = draft.trim();
 
     // Escape で立てた印を戻す。ここへ来たということは取り消しではない
@@ -94,31 +88,30 @@ function InlineNameEditor({
     if (inFlightRef.current || next === rejectedRef.current) return;
 
     inFlightRef.current = true;
-    leftFieldRef.current = fromBlur;
     try {
       const outcome = await onCommit(next);
 
-      if (!outcome.ok && leftFieldRef.current) {
-        // 欄の外に出たまま失敗した。**閉じない。** 閉じると打った文字列ごと消え、
-        // 「直すための入力欄が、直せという知らせに巻き込まれて消える」形になる
-        // （`isNameInputError` の TSDoc）。焦点を戻して直せる状態にする
-        if (outcome.shown && inputRef.current) {
-          inputRef.current.focus();
-        } else if (outcome.shown) {
-          // 欄がもう無い（呼び出し側が畳んだ）。名前の失敗は provider が
-          // 通知へ積まないので、ここで捨てるとどの出口にも出ない
-          onUnshowable(outcome.shown);
-          onCancel();
-          return;
-        }
+      // 欄がもう無い（呼び出し側が畳んだ）。名前の失敗は provider が通知へ積まない
+      // ので、ここで捨てるとどの出口にも出ない
+      if (!outcome.ok && outcome.shown && !inputRef.current) {
+        onUnshowable(outcome.shown);
+        onCancel();
+        return;
       }
+
+      // 欄が残っているなら**閉じずに箱を出すだけ**にする。閉じると打った文字列ごと
+      // 消え、「直すための入力欄が、直せという知らせに巻き込まれて消える」形になる
+      // （`isNameInputError` の TSDoc）。
+      //
+      // **焦点は動かさない。** blur を起こしたのが「別の行をクリックした」なら、
+      // 確定は click より前のマイクロタスクで返るので、`focus()` は利用者が
+      // 移った先から焦点を奪い返す。押した行は開くのにキーボードはここに残る
 
       // 通らなかったなら、ここに出さない失敗でも送り直さない
       rejectedRef.current = outcome.ok ? null : next;
       setError(outcome.ok ? null : (outcome.shown ?? null));
     } finally {
       inFlightRef.current = false;
-      leftFieldRef.current = false;
     }
   };
 
@@ -149,12 +142,8 @@ function InlineNameEditor({
             return;
           }
 
-          // 送信中に出たなら、確定が返った時点で閉じるかどうかを決める。
-          // ここで確定し直しても `inFlightRef` が握り潰すだけ
-          if (inFlightRef.current) {
-            leftFieldRef.current = true;
-            return;
-          }
+          // 送信中なら確定し直さない。`inFlightRef` が握り潰すだけ
+          if (inFlightRef.current) return;
 
           // 落ちた名前のまま外へ出たら編集を閉じる。残すと、失敗の箱が
           // 行の上に出たまま閉じる手段が無くなる（Escape は入力欄にしか届かない）
@@ -163,7 +152,7 @@ function InlineNameEditor({
             return;
           }
 
-          void commit(true);
+          void commit();
         }}
       />
       {/* 行を押し広げて全文を出す。理由は docs/state-transitions/inline-name-editor.md */}

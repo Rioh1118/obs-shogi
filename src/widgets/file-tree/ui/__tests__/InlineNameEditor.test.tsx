@@ -146,13 +146,21 @@ describe("InlineNameEditor", () => {
     expect(onCancel).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toBeTruthy();
     expect((input as HTMLInputElement).value).toBe("2026/08");
-    expect(document.activeElement).toBe(input);
   });
 
-  // 状態遷移表の E2 → blur。ここを空欄のままにすると、フォーカスの無い欄に
-  // 失敗の箱だけが残り、閉じるのに「欄をクリックして戻し、もう一度外を押す」の
-  // 2手が要る（Escape は欄の上にしか張っていないので届かない）
-  test("送信中に外へ出て、そのあと失敗したら焦点を戻す", async () => {
+  /**
+   * 状態遷移表の E2 → blur。**焦点は動かさない。**
+   *
+   * 確定は click より前のマイクロタスクで返るので、ここで `focus()` を呼ぶと
+   * 利用者が移った先から焦点を奪い返す。押した行は開くのにキーボードは
+   * 改名欄に残り、しかも入力欄は `onKeyDown` で全て `stopPropagation()` するので
+   * Escape が他の受け口へ届かなくなる。
+   *
+   * **焦点を実際に動かして測る。** `fireEvent.blur` は happy-dom の
+   * `document.activeElement` を動かさないので、それだけでは
+   * 「欄に焦点がある」が成立しようのない条件になり、検査が空振りする。
+   */
+  test("送信中に外へ出て、そのあと失敗しても焦点を奪い返さない", async () => {
     let settle: (outcome: typeof rejected) => void = () => {};
     const onCommit = vi.fn(
       () =>
@@ -161,6 +169,9 @@ describe("InlineNameEditor", () => {
         }),
     );
     const onCancel = vi.fn();
+
+    const elsewhereButton = document.createElement("button");
+    document.body.appendChild(elsewhereButton);
 
     render(
       <InlineNameEditor
@@ -171,18 +182,32 @@ describe("InlineNameEditor", () => {
       />,
     );
 
-    const input = screen.getByRole("textbox");
+    // マウント時の `requestAnimationFrame` が欄へ焦点を置く。先に流しておかないと、
+    // このあとの焦点移動をそれが上書きする
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    });
+
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+
     fireEvent.change(input, { target: { value: "a/b.kif" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.blur(input);
+    // 利用者が別の対話可能な要素へ移った。blur はその結果として起きる
+    elsewhereButton.focus();
 
     await act(async () => {
       settle(rejected);
       await Promise.resolve();
     });
 
+    expect(document.activeElement).toBe(elsewhereButton);
+    // 閉じない。打った文字列と理由は欄に残す
     expect(onCancel).not.toHaveBeenCalled();
-    expect(document.activeElement).toBe(input);
+    expect(screen.getByRole("alert")).toBeTruthy();
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("a/b.kif");
+
+    elsewhereButton.remove();
   });
 
   // 名前の失敗は provider が通知へ積まない（出す責任がこの欄だけにある）。
