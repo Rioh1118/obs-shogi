@@ -127,7 +127,7 @@
     // どのアルファでも合成後の差が 1/255 未満になり、見た目が1ピクセルも変わらない。
     // 不透明で一段明るい面にして「いま打てない」を示す
     &:read-only {
-      background: color-mix(in srgb, index.$color-primary-black 86%, index.$color-white);
+      background: index.$surface-raised;
       border-color: index.$stroke-strong;
       cursor: default;
     }
