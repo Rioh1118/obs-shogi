@@ -102,9 +102,31 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
    */
   const save = useCallback(
     (target: Face, text: string): Promise<"saved" | "failed" | "skipped"> => {
-      // 畳んだあとに遅れて返った失敗は、**畳むときに預けた本文より必ず古い**。
-      // 上書きすると、打ち足したぶんだけが消えて1つ前の本文が残る。
+      /**
+       * 書けなかった本文を預ける。**預けるのは常に「いま画面にある本文」。**
+       *
+       * `text` は撃った時点で固定した本文で、返ってくる頃には古い。
+       * 打ち直して**元へ戻した**（`draft === baseText`）ときにそれを預けると、
+       * 次に開き直したときに**利用者が消した本文が出て、900ms 後にファイルへ入る**。
+       * 「保存できませんでした。書いた本文はこのまま残っています」の箱も、
+       * 画面に無い本文について語ることになる。
+       *
+       * 畳んだあとに遅れて返った失敗も同じで、畳むときに預けた本文のほうが新しい。
+       */
       const stash = (value: { draft: string; error: string; told: boolean }) => {
+        const live = leavingRef.current;
+        const onScreen = live && live.face.key === target.key ? live : null;
+
+        if (onScreen) {
+          // 打ち直して元へ戻したなら、預かるものが無い
+          if (onScreen.draft === onScreen.baseText) {
+            dropUnsavedDraft(target.key);
+            return;
+          }
+          putUnsavedDraft(target.key, { ...value, draft: onScreen.draft });
+          return;
+        }
+
         if (!aliveRef.current && getUnsavedDraft(target.key)) return;
         putUnsavedDraft(target.key, value);
       };

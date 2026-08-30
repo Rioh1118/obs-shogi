@@ -504,4 +504,32 @@ describe("面が入れ替わるとき", () => {
     const written = setCommentsByCursor.mock.calls.map((c) => c[1]);
     expect(written).toContainEqual(["あい"]);
   });
+
+  // **打ち直して元へ戻したら、預かるものは無い。** 撃った時点で固定した本文を
+  // そのまま預けると、次に開き直したときに**利用者が消した本文が出て、
+  // 900ms 後にファイルへ入る**。赤い箱も画面に無い本文について語ることになる。
+  it("打ち直して元へ戻したら、消した本文を預からない", async () => {
+    let release!: (v: unknown) => void;
+    setCommentsByCursor.mockImplementationOnce(
+      () => new Promise((r) => (release = () => r(Err("Permission denied")))),
+    );
+
+    const view = open("/ws/a.kif");
+    await typeAndAutosave("打ち間違い");
+    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
+
+    // 気づいて全部消す（元の本文＝空に戻るので、再保存は撃たれない）
+    await type("");
+
+    await act(async () => {
+      release(null);
+    });
+
+    // 開き直しても、消した本文は出てこない
+    await show(view, { open: false });
+    await show(view, { open: true });
+
+    expect(mountedWith()).toBe("");
+    expect(screen.getByRole("alert").textContent).toBe("");
+  });
 });

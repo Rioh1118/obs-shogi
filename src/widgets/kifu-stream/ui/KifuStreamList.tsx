@@ -208,7 +208,17 @@ export default function KifuStreamList() {
       // 落とす範囲は `dropUnsavedDraftsFor` が決める（この分岐点を通る面と、
       // 本譜が動いたときの `te` 以降だけ）。
       if (res.success)
-        dropUnsavedDraftsFor(state.loadedAbsPath, te, a === MAIN_LINE || b === MAIN_LINE);
+        dropUnsavedDraftsFor(state.loadedAbsPath, {
+          te,
+          forkPointers: branchForkPointers,
+          mainLineMoved: a === MAIN_LINE || b === MAIN_LINE,
+          // 入れ替えは隣どうしなので、動くのは a と b の2つだけ。
+          // 小さいほうから見れば範囲がその2つに一致する
+          movedFromForkIndex: Math.min(
+            forkIndexOrNull(a) ?? Number.POSITIVE_INFINITY,
+            forkIndexOrNull(b) ?? Number.POSITIVE_INFINITY,
+          ),
+        });
     },
     [swapBranches, state.loadedAbsPath],
   );
@@ -271,11 +281,13 @@ export default function KifuStreamList() {
     const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
     // 入れ替えと同じ理由。消すと、その分岐点の `forkIndex` が1つずつ詰まる
     if (res.success)
-      dropUnsavedDraftsFor(
-        state.loadedAbsPath,
-        pendingDelete.query.te,
-        pendingDelete.query.target === MAIN_LINE,
-      );
+      dropUnsavedDraftsFor(state.loadedAbsPath, {
+        te: pendingDelete.query.te,
+        forkPointers: pendingDelete.query.forkPointers,
+        mainLineMoved: pendingDelete.query.target === MAIN_LINE,
+        // 本譜を消すと変化0が本譜へ繰り上がるので、変化の番号は全部動く
+        movedFromForkIndex: forkIndexOrNull(pendingDelete.query.target) ?? 0,
+      });
 
     // **閉じられていても失敗は出す。**
     //

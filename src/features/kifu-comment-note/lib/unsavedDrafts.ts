@@ -54,14 +54,49 @@ export function dropUnsavedDraftIfUnchanged(key: string, expected: UnsavedDraft 
 }
 
 /** 鍵を分解する。形は `${absPath}__${tesuu}__${te}:${forkIndex}|…` */
-function parseKey(key: string, prefix: string): { tesuu: number; forkPath: string[] } | null {
+function parseKey(
+  key: string,
+  prefix: string,
+): { tesuu: number; forkPath: { te: number; forkIndex: number }[] } | null {
   const rest = key.slice(prefix.length);
   const sep = rest.indexOf("__");
   if (sep < 0) return null;
   const tesuu = Number.parseInt(rest.slice(0, sep), 10);
   if (!Number.isFinite(tesuu)) return null;
   const path = rest.slice(sep + 2);
-  return { tesuu, forkPath: path === "" ? [] : path.split("|") };
+  if (path === "") return { tesuu, forkPath: [] };
+
+  const forkPath: { te: number; forkIndex: number }[] = [];
+  for (const part of path.split("|")) {
+    const [te, forkIndex] = part.split(":").map((n) => Number.parseInt(n, 10));
+    if (!Number.isFinite(te) || !Number.isFinite(forkIndex)) return null;
+    forkPath.push({ te, forkIndex });
+  }
+  return { tesuu, forkPath };
+}
+
+/** 番号が振り直された分岐点と、そこで動いた範囲 */
+export type BranchNumbering = {
+  /** 分岐点の手数 */
+  te: number;
+  /** そこまでどの変化を辿って来たか。**同じ `te` でも経路が違えば別の分岐点** */
+  forkPointers: readonly { te: number; forkIndex: number }[];
+  /** 本譜そのものが差し替わったか（本譜の削除、本譜を含む入れ替え） */
+  mainLineMoved: boolean;
+  /** 番号が動いた最小の `forkIndex`。変化の番号が1つも動かないなら null */
+  movedFromForkIndex: number | null;
+};
+
+/** `te` より前の経路が同じか。違えば**別の線**なので番号は動かない */
+function sameStreamPrefix(
+  path: { te: number; forkIndex: number }[],
+  ref: readonly { te: number; forkIndex: number }[],
+  te: number,
+): boolean {
+  const a = path.filter((p) => p.te < te);
+  const b = ref.filter((p) => p.te < te);
+  if (a.length !== b.length) return false;
+  return a.every((p, i) => p.te === b[i]!.te && p.forkIndex === b[i]!.forkIndex);
 }
 
 /**
@@ -72,22 +107,19 @@ function parseKey(key: string, prefix: string): { tesuu: number; forkPath: strin
  *
  * **当たらない面は落とさない。** 落とすと「書いた本文はこのまま残っています」という
  * 断言が、**本文と何の関係も無い操作1回で**、しかも無通知に破れる。
- * 当たるのは2つだけ。
+ * 分岐点は `te` だけでは決まらない（同じ手数に、辿ってきた経路の数だけ分岐点がある）ので、
+ * **経路まで突き合わせる**。当たるのは次の2つだけ。
  *
- * - `te` の分岐点を**通っている**面（そこの番号が詰まる／入れ替わる）
- * - 本譜が動いた場合の、`te` 以降で**その分岐点を通っていない**面
- *   （本譜そのものが別の線に差し替わるため）
+ * - `te` より前の経路が同じで、`te` の変化の番号が**動いた範囲に入っている**面
+ * - `te` より前の経路が同じで、`te` に選択を持たず（本譜を辿る）、
+ *   **本譜そのものが差し替わった**ときの `te` 以降の面
  *
  * **番号を動かす書き込みが成功したあとに呼ぶこと。** 先に呼ぶと、
  * 失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
  *
  * **走っている書き込みが掴んでいる `cursor` の番号までは直せない** → #309
  */
-export function dropUnsavedDraftsFor(
-  absPath: string | null,
-  te: number,
-  mainLineMoved: boolean,
-): void {
+export function dropUnsavedDraftsFor(absPath: string | null, moved: BranchNumbering): void {
   const prefix = `${absPath ?? ""}__`;
   for (const key of Array.from(store.keys())) {
     if (!key.startsWith(prefix)) continue;
@@ -96,8 +128,14 @@ export function dropUnsavedDraftsFor(
       store.delete(key);
       continue;
     }
-    const passesThrough = parsed.forkPath.some((p) => p.startsWith(`${te}:`));
-    if (passesThrough || (mainLineMoved && parsed.tesuu >= te)) store.delete(key);
+    if (!sameStreamPrefix(parsed.forkPath, moved.forkPointers, moved.te)) continue;
+
+    const here = parsed.forkPath.find((p) => p.te === moved.te);
+    const hit =
+      here === undefined
+        ? moved.mainLineMoved && parsed.tesuu >= moved.te
+        : moved.movedFromForkIndex !== null && here.forkIndex >= moved.movedFromForkIndex;
+    if (hit) store.delete(key);
   }
 }
 

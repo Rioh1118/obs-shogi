@@ -195,4 +195,55 @@ describe("保存先の門番", () => {
     expect(game.state.jkf).toBe(beforeJkf);
     expect(game.state.jkf?.moves[2]?.forks).toHaveLength(2);
   });
+
+  // **どちらで戻すかを決めているのは reducer ではなく `edit` の判定。**
+  // コメントの自動保存は 900ms 後に撃つので、返るまでの間に手を進められる。
+  // そこで盤まで戻すと、何も操作していないのに手数が黙って戻る。
+  it("コメントの保存が失敗しても、待っている間に進めた手数は戻さない", async () => {
+    const written: { path: string; jkf: JKFData }[] = [];
+    let release!: () => void;
+    const held = new Promise<Awaited<AsyncResult<void, string>>>((r) => {
+      release = () => r(Err("Permission denied"));
+    });
+
+    let game!: ReturnType<typeof useGame>;
+    render(
+      <GameProvider
+        persistence={{
+          absPath: "/ws/a.kif",
+          save: (jkf) => {
+            written.push({ path: "/ws/a.kif", jkf });
+            return held;
+          },
+        }}
+      >
+        <Harness onReady={(g) => (game = g)} />
+      </GameProvider>,
+    );
+
+    await act(async () => {
+      await game.loadGame(JKF_FORKED, "/ws/a.kif");
+    });
+
+    await act(async () => {
+      void game.setCommentsByCursor(game.state.cursor!, ["メモ"]); // async-result-ignored: 握ったまま返さない
+      await Promise.resolve();
+    });
+
+    // 書き込みが返る前に手を進める（1回ずつ。同じ act の中で2回撃つと古い state を読む）
+    await act(async () => {
+      game.nextMove();
+    });
+    await act(async () => {
+      game.nextMove();
+    });
+    const advanced = game.state.cursor?.tesuu;
+    expect(advanced).toBe(2);
+
+    await act(async () => {
+      release();
+    });
+
+    expect(game.state.cursor?.tesuu).toBe(advanced);
+  });
 });
