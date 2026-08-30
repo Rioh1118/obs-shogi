@@ -1,8 +1,8 @@
 import {
-  plannedForkIndexAt,
+  forkIndexAt,
   requestedCursorAt,
   selectAt,
-  truncatePlanFrom,
+  truncateFrom,
   type KifuCursor,
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
@@ -29,10 +29,7 @@ export function buildCursorWithForkSelection(
 ): KifuCursor {
   // 正規化は requestedCursorAt が通す。通さないと、同じ局面が並び順の違いで
   // 別のキーになり、コメント欄の開閉判定が外れる。
-  return requestedCursorAt(
-    te,
-    selectAt(truncatePlanFrom(base?.forkPointers ?? [], te), te, forkIndex),
-  );
+  return requestedCursorAt(te, selectAt(truncateFrom(base?.forkPointers ?? [], te), te, forkIndex));
 }
 
 /** 分岐メニューの選択に対して次に呼ぶ操作 */
@@ -60,7 +57,7 @@ export function resolveForkSelection(
   te: number,
   forkIndex: number | null,
 ): ForkMenuAction {
-  const selected = plannedForkIndexAt(planned.forkPointers, te);
+  const selected = forkIndexAt(planned.forkPointers, te);
   if (selected === forkIndex) return { kind: "goToIndex", te };
 
   return { kind: "applyCursor", cursor: buildCursorWithForkSelection(planned, te, forkIndex) };

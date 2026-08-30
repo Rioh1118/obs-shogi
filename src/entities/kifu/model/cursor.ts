@@ -177,12 +177,15 @@ export function mergeBranchPlan(
 }
 
 /**
- * te 以降の計画を捨てる
+ * `te` 以降の選択を落とす（`te` そのものも落とす）
  *
- * te の選択を変えたら、その先の計画は別の枝に対して作られた値なので意味を失う。
- * 残すと、利用者が一度も見ていない変化に盤が入る。
+ * 使う側は2つ。**計画を書き換える側**は、`te` の選択を変えたらその先の計画が
+ * 別の枝に対して作られた値になるので捨てる（残すと利用者が一度も見ていない
+ * 変化に盤が入る）。**分岐編集で退避する側**は、消える枝より先の選択を落とす。
+ *
+ * 並べ替えはしない。順序も揃えたいなら `normalizeForkPointers` を使うこと。
  */
-export function truncatePlanFrom(fps: ForkPointer[], te: number): ForkPointer[] {
+export function truncateFrom(fps: ForkPointer[], te: number): ForkPointer[] {
   return fps.filter((p) => p.te < te);
 }
 
@@ -202,8 +205,13 @@ export function selectAt(fps: ForkPointer[], te: number, forkIndex: number | nul
   return without.sort((a, b) => a.te - b.te);
 }
 
-/** te に計画された選択。無ければ `null`（＝本譜）。 */
-export function plannedForkIndexAt(fps: ForkPointer[], te: number): number | null {
+/**
+ * `te` で選ばれている変化。無ければ `null`（＝本譜）。
+ *
+ * 計画（`BranchPlan`）にも辿ったカーソル（`cursor.forkPointers`）にも使う。
+ * `0` は「変化の0番目」であって本譜ではないので、`?? null` の形を崩さないこと。
+ */
+export function forkIndexAt(fps: ForkPointer[], te: number): number | null {
   return fps.find((p) => p.te === te)?.forkIndex ?? null;
 }
 

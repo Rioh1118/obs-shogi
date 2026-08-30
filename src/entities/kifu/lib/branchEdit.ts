@@ -14,10 +14,10 @@ import {
 } from "../model/branch";
 import {
   normalizeForkPointers,
-  plannedForkIndexAt,
+  forkIndexAt,
   sameForkPointers,
   selectAt,
-  truncatePlanFrom,
+  truncateFrom,
   type CursorPath,
   type ForkPointer,
 } from "../model/cursor";
@@ -42,7 +42,7 @@ function normalizeRef<T extends BranchPointRef>(ref: T): T {
  * 整列・重複除去しておく必要がある。`normalizeForkPointers` はそれを
  * `te` の絞りと同時にやる。境界は `te <= 第2引数` なので1引いて渡す。
  *
- * **`truncatePlanFrom` に置き換えないこと。** あちらは絞るだけで整列しないので、
+ * **`truncateFrom` に置き換えないこと。** あちらは絞るだけで整列しないので、
  * `[{te:4},{te:2}]` と `[{te:2},{te:4}]` が別物になる。`cursor` は
  * 任意の呼び出し側から `CursorPath` として渡るので、正規化済みとは限らない。
  */
@@ -51,7 +51,7 @@ function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boole
 }
 
 function getChosenBranchIndex(forkPointers: ForkPointer[], te: number): BranchIndex {
-  return branchIndexFromSelection(plannedForkIndexAt(forkPointers, te));
+  return branchIndexFromSelection(forkIndexAt(forkPointers, te));
 }
 
 /**
@@ -239,7 +239,7 @@ function relocateCursorOnDelete(
   candidatesAfter: Candidates,
 ): CursorPath {
   // 退避時は te 以降の pointer を落とす
-  const kept = truncatePlanFrom(cursor.forkPointers, ref.te);
+  const kept = truncateFrom(cursor.forkPointers, ref.te);
   // 候補が全部消えたら te の手前へ。残っていれば繰り上がった候補の te 適用後へ。
   const tesuu = candidatesAfter.length === 0 ? Math.max(0, ref.te - 1) : ref.te;
   return { tesuu, forkPointers: normalizeForkPointers(kept, tesuu) };

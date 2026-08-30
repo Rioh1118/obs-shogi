@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import {
   ROOT_CURSOR,
   mergeBranchPlan,
-  plannedForkIndexAt,
+  forkIndexAt,
   selectAt,
-  truncatePlanFrom,
+  truncateFrom,
   type ForkPointer,
   type KifuCursor,
 } from "../cursor";
@@ -34,23 +34,23 @@ describe("selectAt", () => {
   });
 });
 
-describe("plannedForkIndexAt", () => {
+describe("forkIndexAt", () => {
   test("計画があればその forkIndex", () => {
-    expect(plannedForkIndexAt([fp(2, 1)], 2)).toBe(1);
+    expect(forkIndexAt([fp(2, 1)], 2)).toBe(1);
   });
 
   test("forkIndex 0 は null にならない", () => {
-    expect(plannedForkIndexAt([fp(2, 0)], 2)).toBe(0);
+    expect(forkIndexAt([fp(2, 0)], 2)).toBe(0);
   });
 
   test("計画が無ければ null（本譜）", () => {
-    expect(plannedForkIndexAt([fp(2, 0)], 3)).toBeNull();
+    expect(forkIndexAt([fp(2, 0)], 3)).toBeNull();
   });
 });
 
-describe("truncatePlanFrom", () => {
+describe("truncateFrom", () => {
   test("te 以降を捨てる。te そのものも捨てる", () => {
-    expect(truncatePlanFrom([fp(1, 0), fp(3, 0), fp(5, 0)], 3)).toEqual([fp(1, 0)]);
+    expect(truncateFrom([fp(1, 0), fp(3, 0), fp(5, 0)], 3)).toEqual([fp(1, 0)]);
   });
 });
 

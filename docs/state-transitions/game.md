@@ -287,4 +287,4 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
   `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`、
   `src/entities/kifu/lib/__tests__/advanceWithPlan.test.ts`、
-  `src/entities/kifu/model/__tests__/branchPlan.test.ts`
+  `src/entities/kifu/model/__tests__/cursor.test.ts`
