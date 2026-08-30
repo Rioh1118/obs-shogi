@@ -41,6 +41,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
+      # 4本の build が組む木。ここで1度だけ解決して配る（下の `sha` の節）
+      sha: ${{ steps.create.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,19 +56,27 @@ jobs:
                              '${{ github.event.inputs.prerelease }}' === 'true';
             const { owner, repo } = context.repo;
 
+            // タグが指す commit。annotated tag は object が tag なのでもう一段引く。
+            async function shaOfTag(tag) {
+              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+              if (ref.data.object.type !== 'tag') return ref.data.object.sha;
+              const t = await github.rest.git.getTag({ owner, repo, tag_sha: ref.data.object.sha });
+              return t.data.object.sha;
+            }
+
             // Reuse if already exists (idempotent re-run)
             try {
               const r = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
               core.setOutput('release_id', String(r.data.id));
+              core.setOutput('sha', await shaOfTag(tag));
               return;
             } catch (e) {
               if (e.status !== 404) throw e;
             }
 
-            // タグがまだ無ければ createRelease が作る。target_commitish を省くと
-            // 既定のデフォルトブランチの上に作られるので、workflow_dispatch を
-            // ブランチから撃ったとき、タグは main を指すのに build の checkout は
-            // github.ref を取り、**タグが指す木と配布物の中身が一致しない**。
+            // タグがまだ無ければ createRelease が作る。**target_commitish が効くのはこの経路だけ**で、
+            // タグが既にあるときは無視される。省くとリポジトリの既定ブランチの上に作られるので、
+            // ブランチから workflow_dispatch を撃つとブランチの修正が入らないリリースが出る。
             const r = await github.rest.repos.createRelease({
               owner, repo,
               tag_name:         tag,
@@ -77,6 +87,9 @@ jobs:
               prerelease:       isPrerel,
             });
             core.setOutput('release_id', String(r.data.id));
+            // いま作ったので `context.sha` がそのままタグの commit。ここで getRef を
+            // 撃つと作成直後の伝播を待つ窓が開くだけで、得るものが無い。
+            core.setOutput('sha', context.sha);
 
   # 2. Build, sign and upload bundles for every target platform
   build:
@@ -110,15 +123,17 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      # **タグを唯一の出所にする。** `ref` を省くと `github.ref` を取るので、
-      # 既にあるタグを指して `workflow_dispatch` を撃ち直したとき、
-      # `create-release` は既存のリリースを再利用する（＝タグは古い commit のまま）のに、
-      # ここはブランチの現在の HEAD を組む。同じリリースの中に別の木から作った
-      # 資産が混ざり、`latest.json` はそれを自動更新に載せる。
-      # `needs: create-release` を通っているのでタグは必ず存在する。
+      # **4本とも同じ commit を組む。** タグ名を渡すと `actions/checkout` は
+      # fetch した時点のタグを引く（40桁 hex のときだけ commit 固定になる）ので、
+      # 実行中にタグを付け替えると leg ごとに別の木が checkout される。
+      # `concurrency` は `cancel-in-progress: false` なので走っている run は止まらず、
+      # 1つのリリースに別の木の資産が混ざったまま `latest.json` に載る。
+      #
+      # 組むのはソースだけで、**この workflow の手順そのものは `github.ref` から来る**。
+      # 古いタグを指して撃っても、当たるのは今日のビルド手順。
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.create-release.outputs.sha }}
 
       # ── System dependencies ───────────────────────────────────────────────
       - name: Install Linux system dependencies
