@@ -1089,6 +1089,70 @@ mod tests {
         assert_eq!(dropped.numbers, 0);
     }
 
+    /// **実在する最大の定跡が、どちらの上限にも余裕を持って収まること。**
+    ///
+    /// 上限を実物に近づけると、版が重なった時点で実利用者が弾かれる。そのとき
+    /// 出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも分割機能が無い）。
+    ///
+    /// 数字の出どころは配布されている `user_book1.db`（peta_shock 系）の実測。
+    /// 実行時ではなくコンパイル時に見るので、上限を実物へ近づけた時点で止まる。
+    const REAL_BOOK_BYTES: u64 = 493_157_464; // 470.3 MiB
+    const REAL_BOOK_MOVES: usize = 11_250_000; // 2,252,118 局面 × 約5手
+    const _: () = assert!(REAL_BOOK_BYTES * 2 < MAX_FILE_BYTES);
+    const _: () = assert!(REAL_BOOK_MOVES < MAX_MOVES);
+
+    /// 表の不変条件4の行数側。
+    ///
+    /// ファイルサイズの上限だけでは有界にならない。最短の指し手行だけで
+    /// 512MiB を埋めたファイルは1億行になり、`BookMove` 80 バイト × 1億で
+    /// 8.6 GB を確保しにいく（上限を置いても SIGKILL の経路が残る）。
+    #[test]
+    fn a_book_with_too_many_moves_is_refused() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
+        let err = parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2)
+            .expect_err("上限を超えている");
+
+        assert_eq!(err.code(), BookErrorCode::TooLarge);
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 上限ちょうどは通す。境界で1手間違えると、上限近くの定跡が開けなくなる。
+    #[test]
+    fn a_book_at_the_move_limit_is_accepted() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n");
+        assert!(parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2).is_ok());
+    }
+
+    /// **実物の定跡に `# NOE:` は無い**（配布されている `user_book1.db` で確認）。
+    /// 申告値との突き合わせは唯一の大定跡では一度も走らないので、切れたファイルを
+    /// 別の手でも見る。任意のバイト位置で切れたファイルは、行長 22 バイト前後の
+    /// この形式ではほぼ確実に行の途中で終わる。
+    #[test]
+    fn a_file_cut_mid_line_is_rejected_even_without_a_declared_count() {
+        // 100MB に切り詰めた実物は `7b7a+ n`（改行なし）で終わっていた
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n7b7a+ n");
+        let err = parsed(&text).unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(err.message().contains("改行"), "{}", err.message());
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 改行で終わっていれば通る。切れの検出が常に落ちる形になっていないこと。
+    #[test]
+    fn a_file_ending_with_a_newline_is_accepted() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n");
+        assert!(parsed(&text).is_ok());
+    }
+
+    /// `# NOE:0` と書いたファイルで「0局面は成立しない」の保険を迂回しない。
+    /// 申告の側にぶら下げると、31 バイトのファイルが成功する。
+    #[test]
+    fn a_declared_count_of_zero_does_not_bypass_the_empty_check() {
+        let err = parsed("#YANEURAOU-DB2016 1.00\n# NOE:0\n").unwrap_err();
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(err.message().contains("局面が1つも"), "{}", err.message());
+    }
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
     /// 空の定跡と区別が付かず、利用者は全ての局面が未収録だと受け取る。
     #[test]
