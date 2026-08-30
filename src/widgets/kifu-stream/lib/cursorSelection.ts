@@ -11,23 +11,6 @@ export const branchIndexFromRow = (r: RowModel): BranchIndex => {
   return branchIndexFromSelection(r.selectedForkIndex);
 };
 
-/**
- * 分岐メニューで選ばれた項目を、局面を指すカーソルに変換する
- *
- * `te` 以降の計画は落とす。行を押した時点で、その先はもう一度選び直す対象になるため。
- * 戻り値は `te <= tesuu` に正規化済みで、そのまま `applyCursor` に渡してよい。
- *
- * ただし `te` より先の計画を消せるのはこの戻り値の中だけで、`state.branchPlan` に
- * 残っている分は `mergeBranchPlan` が復活させる。線を乗り換えても深い計画は残る。
- */
-export function buildCursorWithForkSelection(
-  base: PlannedCursor | null,
-  te: number,
-  forkIndex: number | null,
-): CursorPath {
-  return descendTo(base ?? { tesuu: te, forkPointers: [] }, te, forkIndex);
-}
-
 /** 分岐メニューの選択に対して次に呼ぶ操作 */
 export type ForkMenuAction =
   | { kind: "goToIndex"; te: number }
@@ -56,5 +39,5 @@ export function resolveForkSelection(
   const selected = forkIndexAt(planned.forkPointers, te);
   if (selected === forkIndex) return { kind: "goToIndex", te };
 
-  return { kind: "applyCursor", cursor: buildCursorWithForkSelection(planned, te, forkIndex) };
+  return { kind: "applyCursor", cursor: descendTo(planned, te, forkIndex) };
 }

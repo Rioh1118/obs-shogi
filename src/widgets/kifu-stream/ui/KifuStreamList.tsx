@@ -6,6 +6,7 @@ import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
 import {
   cursorKey,
+  descendTo,
   plannedCursorFrom,
   type CursorPath,
   type ForkPointer,
@@ -19,11 +20,7 @@ import {
 } from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
-import {
-  branchIndexFromRow,
-  buildCursorWithForkSelection,
-  resolveForkSelection,
-} from "../lib/cursorSelection";
+import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
@@ -177,7 +174,7 @@ export default function KifuStreamList() {
     (row: RowModel, anchorEl: HTMLButtonElement) => {
       if (!plannedCursor) return;
 
-      const cursor = buildCursorWithForkSelection(plannedCursor, row.te, row.selectedForkIndex);
+      const cursor = descendTo(plannedCursor, row.te, row.selectedForkIndex);
 
       setOpenFork(null);
       setOpenMoveMenu(null);
@@ -330,7 +327,7 @@ export default function KifuStreamList() {
           const isCommentOpen =
             openComment != null &&
             cursorKey(openComment.cursor) ===
-              cursorKey(buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex));
+              cursorKey(descendTo(plannedCursor, r.te, r.selectedForkIndex));
 
           return (
             <KifuMoveCard

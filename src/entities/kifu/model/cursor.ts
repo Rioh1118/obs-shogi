@@ -256,7 +256,12 @@ export function makeKifuCursor(
  * **ただし落ちるのはこの戻り値の中だけ。** `state.branchPlan` に残っている分は
  * `mergeBranchPlan` が復活させる（線を乗り換えても深い計画は残る → #306）。
  */
-export function descendTo(path: CursorPath, te: number, forkIndex: number | null): CursorPath {
+export function descendTo(
+  path: CursorPath | null,
+  te: number,
+  forkIndex: number | null,
+): CursorPath {
+  if (!path) return { tesuu: te, forkPointers: selectAt([], te, forkIndex) };
   return { tesuu: te, forkPointers: selectAt(truncateFrom(path.forkPointers, te), te, forkIndex) };
 }
 
