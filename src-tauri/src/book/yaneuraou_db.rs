@@ -15,7 +15,8 @@
 //! 展開してしまえばファイル側のキーも [`to_book_key_in_file`] を通せるので、
 //! 綴りの揺れを吸収でき、持駒の並びの取り決めが lookup の正しさに影響しなくなる。
 //!
-//! 大きさの上限はここで持つ（値の根拠は [`MAX_FILE_BYTES`]）。
+//! 大きさの上限は2つ。読む前のファイルサイズ（[`MAX_FILE_BYTES`]）と、
+//! 読みながらの展開後の見積もり（[`MAX_EXPANDED_BYTES`]）。
 //! 進捗と中断は #197。
 
 use crate::book::error::{BookError, BookErrorCode};
@@ -78,10 +79,9 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
 /// 文面へ言い直す。
 /// 返り値は「読めたか」と「その行が改行で終わっていたか」。
 ///
-/// 後者は途中で切れたファイルを見つけるために要る。**実物の定跡に `# NOE:` は
-/// 無い**（配布されている `user_book1.db` で確認）ので、申告値との突き合わせは
-/// 唯一の大定跡では一度も走らない。任意のバイト位置で切れたファイルは、
-/// 行長 22 バイト前後のこの形式ではほぼ確実に行の途中で終わる。
+/// **2つ目は切れの判定には使わない。** 行境界で切れたファイルは素通りするので
+/// 根拠にならない（理由は `parse_limited` の末尾）。事実として `log::warn!` に
+/// 出すためだけに返す。
 ///
 /// **バイト列で読んで、行ごとに UTF-8 を試す。** ファイル全体を UTF-8 として
 /// 読むと、Shift_JIS の注記が1行あるだけで定跡全体が拒否される。本家は行を
@@ -168,9 +168,9 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 /// 単価は実測。局面1件あたり約 150 バイト、指し手1件あたり約 100 バイト
 /// （`user_book1.db` の 2.03 GB / 2,252,118 局面 + 16,097,817 手と、上の表から）。
 ///
-/// **値は 4 GiB。** 実物がこの見積もりで 1.95 GB を使うので、2 GiB では実物に
-/// 余裕がゼロになる（B-05 で「近い値を置いてはいけない」として 512 MiB を
-/// 捨てたのと同じ形）。2倍の余裕を取ると 4 GiB。
+/// **上限を実物の大きさに近づけて置かない。** 版が重なった時点で実利用者が
+/// 弾かれ、そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
+/// 分割機能が無い）。実物が見積もりで 1.95 GB を使うので、2倍の余裕を取って 4 GiB。
 ///
 /// **これはメモリへ展開する設計の代価。** 綴りを interning すれば実測で
 /// 半分程度になる（#274）が、それは内部表現の設計変更なので別で扱う。
@@ -185,7 +185,7 @@ const BYTES_PER_MOVE: usize = 100;
 
 /// 開けるファイルの上限。
 ///
-/// **メモリの上界はここではなく [`MAX_MOVES`] が持つ。** ここは「明らかに定跡で
+/// **メモリの上界はここではなく [`MAX_EXPANDED_BYTES`] が持つ。** ここは「明らかに定跡で
 /// ないものを1バイトも読まずに落とす」ための粗い前段。`.db` は SQLite でも使う
 /// 拡張子なので、数 GB のデータベースを選んだときに読み進めないためにある。
 ///
@@ -313,6 +313,8 @@ fn parse_limited<R: BufRead>(
         if line.is_empty() {
             continue;
         }
+        // **`is_skippable` より先に見る。** `# NOE:` は注記の形をしているので、
+        // 順序を入れ替えると申告値を取り逃し、切れの検出が丸ごと消える。
         if let Some(count) = declared_count(line) {
             declared = Some(count);
             continue;
@@ -503,9 +505,7 @@ fn parse_limited<R: BufRead>(
 /// `lookup` は未収録と同じ空を返すが、`position_count` はこれを数える。
 /// 消すと収録局面数だけが黙って減り、テストは全部緑のまま通る。
 ///
-/// `shrink_to_fit` を通すのは、`push` の倍々成長が残す空き容量を捨てるため。
-/// 5手の局面は容量8まで伸びるので、1局面あたり 240 バイトが空きになる
-/// （実測で展開後の 28%）。
+/// 容量はここでは縮めない。畳んだ後に一括で縮める。
 fn flush(
     positions: &mut HashMap<BookKey, Vec<BookMove>>,
     current: &mut Option<BookKey>,
@@ -518,9 +518,7 @@ fn flush(
         return;
     };
 
-    // **ここでは畳まない。** 併合のたびに畳むと、1回の仕事が `existing.len()` に
-    // 比例するので、同じキーが N ブロックに分かれた定跡で総計が二乗になる。
-    // 畳むのは読み切った後に1回（`keep_first_of_each_move_everywhere`）。
+    // **ここでは畳まない。** 理由と実測は `keep_first_of_each_move_everywhere` の doc。
     match positions.entry(key) {
         Entry::Vacant(slot) => {
             slot.insert(std::mem::take(buffered));
@@ -551,7 +549,8 @@ fn flush(
 /// | 10,000 | 18.8 s | 0.34 s |
 /// | 40,000 | 412 s | 38.9 s |
 ///
-/// 畳む前は重複を抱えたままになるが、その量は [`MAX_MOVES`] が上界を持つ。
+/// 畳む前は重複を抱えたままになるが、その量は [`MAX_EXPANDED_BYTES`] が
+/// `total_moves` の側で上界を持つ。
 ///
 /// 畳んでから `shrink_to_fit` を掛ける。`push` の倍々成長が残す空き容量は、
 /// 実測で展開後の 28%。
@@ -601,6 +600,17 @@ fn keep_first_of_each_move(moves: &mut Vec<BookMove>) {
     moves.retain(|_| kept.next().unwrap_or(false));
 }
 
+/// 読めずに捨てた欄の数。
+///
+/// 落とした事実がどこにも出ないと、誤読みだと分かる手がかりが利用者にも
+/// 報告を受けた側にも無い。行ごとに `log` を出すと 100 万行でログが溢れるので、
+/// 数えて最後に1回だけ出す。
+#[derive(Default)]
+struct DroppedFields {
+    ponder: usize,
+    numbers: usize,
+}
+
 /// 指し手の行を1つ読む。
 ///
 /// 並びは `指し手 応手 評価値 深さ 選択回数`。後ろの3つは形式として optional で、
@@ -613,17 +623,6 @@ fn keep_first_of_each_move(moves: &mut Vec<BookMove>) {
 ///
 /// 呼び出し側が空行と注記を除いてから渡すので、先頭のトークンは必ず存在する。
 /// 指し手として成立しているかは呼び出し側が [`looks_like_a_move`] で見る。
-/// 読めずに捨てた欄の数。
-///
-/// 落とした事実がどこにも出ないと、誤読みだと分かる手がかりが利用者にも
-/// 報告を受けた側にも無い。行ごとに `log` を出すと 100 万行でログが溢れるので、
-/// 数えて最後に1回だけ出す。
-#[derive(Default)]
-struct DroppedFields {
-    ponder: usize,
-    numbers: usize,
-}
-
 fn parse_move(line: &str, dropped: &mut DroppedFields) -> BookMove {
     // 6つ目以降は形式に無い。畳んでおけば、末尾に何か付いていても欄がずれない。
     let mut tokens = line.splitn(6, ' ');
