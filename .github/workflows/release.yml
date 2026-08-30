@@ -1,11 +1,13 @@
 name: Release
 
-# Triggered by version tags (v1.2.3) or manual dispatch
+# 手順・タグの制約・空打ち・壊れたリリースの直し方は docs/RELEASE.md
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-      - "v[0-9]+.[0-9]+.[0-9]+-*" # pre-release: v1.0.0-beta.1
+      # pre-release 識別子は 65535 以下の10進数だけ（MSI の制約）。
+      # このパターンはそれより広く、外れたタグは Windows だけ落ちる。TODO(#285)
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
     inputs:
       tag:
@@ -20,7 +22,10 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  # 排他するのはリリース1本＝タグ。`github.ref` にすると push と dispatch が別グループになる。
+  # 下の `RELEASE_TAG` と同じ式なのは、ここで `env` を参照すると
+  # `Unrecognized named-value: 'env'` で **workflow ごと弾かれ、run が1つも始まらない**ため。
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -35,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
+      # 4本の build が組む commit。ここで1度だけ解決して配る
+      sha: ${{ steps.create.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,60 +55,116 @@ jobs:
                              '${{ github.event.inputs.prerelease }}' === 'true';
             const { owner, repo } = context.repo;
 
+            // タグが指す commit。無ければ null。annotated tag は object が tag なのでもう一段引く。
+            // **404 をここで閉じる**。下の try へ混ぜると、タグが無いことが
+            // 「リリースが無い」と読み替えられて createRelease に落ち、422 で死ぬ。
+            async function shaOfTag(tag) {
+              try {
+                const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+                if (ref.data.object.type !== 'tag') return ref.data.object.sha;
+                const t = await github.rest.git.getTag({ owner, repo, tag_sha: ref.data.object.sha });
+                return t.data.object.sha;
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                return null;
+              }
+            }
+
+            // **タグの有無とリリースの有無は別。** createRelease はリリースを作るだけで、
+            // タグが既にあれば触らない。リリースだけ消して撃ち直す経路があるので、
+            // 「リリースが無い ⇒ タグも無い」と読むと dispatch した ref の先端を配ってしまう。
+            const tagSha = await shaOfTag(tag);
+
             // Reuse if already exists (idempotent re-run)
+            let releaseId = null;
             try {
               const r = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              core.setOutput('release_id', String(r.data.id));
-              return;
+              releaseId = String(r.data.id);
             } catch (e) {
               if (e.status !== 404) throw e;
             }
 
-            const r = await github.rest.repos.createRelease({
-              owner, repo,
-              tag_name:   tag,
-              name:       `ObsShogi ${tag}`,
-              body:       `## What's new\n\n*See the assets below to download and install.*`,
-              draft:      false,   // must be false for latest/download/ URL to resolve
-              prerelease: isPrerel,
-            });
-            core.setOutput('release_id', String(r.data.id));
+            // `createRelease` を通ったかどうかは、通す**前**に覚える。
+            // 後から `releaseId` を見ると必ず非 null なので、下のガードが恒真になる。
+            const hadRelease = releaseId !== null;
+
+            if (!hadRelease) {
+              // **target_commitish が効くのはタグをこれから作るときだけ**で、既にあれば無視される。
+              // 省くと、新しいタグが撃った ref ではなく既定ブランチの上に作られる。
+              const r = await github.rest.repos.createRelease({
+                owner, repo,
+                tag_name:         tag,
+                target_commitish: context.sha,
+                name:             `ObsShogi ${tag}`,
+                body:             `## What's new\n\n*See the assets below to download and install.*`,
+                draft:            false,   // must be false for latest/download/ URL to resolve
+                prerelease:       isPrerel,
+              });
+              releaseId = String(r.data.id);
+            }
+
+            core.setOutput('release_id', releaseId);
+
+            // **リリースはあるがタグが無い**セルへ落ちない。ここは `createRelease` を
+            // 通らないので、`context.sha`（撃った ref の先端）を配ることになる。
+            // それは「タグの木を組む」という前提そのものが崩れた状態で、
+            // 資産だけ既存のリリースへ上がる。
+            //
+            // **`hadRelease` で見る。** `releaseId` は `createRelease` のあとでは必ず非 null なので、
+            // そちらで見ると「タグもリリースも無い」セル（dispatch で新しいタグを切る正当な経路）
+            // まで落ち、リリースとタグを作った直後に偽のメッセージで止まる。
+            if (hadRelease && tagSha === null) {
+              throw new Error(`release ${tag} exists but the tag does not. delete the release, or push the tag`);
+            }
+
+            // ここへ来る `tagSha === null` は「タグもリリースも無く、いま createRelease が
+            // `context.sha` の上にタグごと作った」場合だけ
+            const sha = tagSha ?? context.sha;
+            // 空を配らない。`actions/checkout` は空の `ref` を未指定と同じに扱い、
+            // **黙って `github.ref` へ戻る**。ここで止めないと気づけない
+            if (!sha) throw new Error(`cannot resolve a commit for ${tag}`);
+            core.setOutput('sha', sha);
 
   # 2. Build, sign and upload bundles for every target platform
   build:
     name: Build · ${{ matrix.name }}
     needs: create-release
     strategy:
+      # 1つの OS が落ちても残りは上げる。**資産の欠けたリリースが公開されたまま残る**
+      # （直し方は docs/RELEASE.md）。
       fail-fast: false
       matrix:
+        # ターゲットを決めるのは `rust_target` だけ。空は「ホストのまま組む」で、
+        # `rustup target add` のステップも tauri への `--target` も出なくなる。
         include:
           # ── macOS ──────────────────────────────────────────────────────────
           - name: macOS-arm64
             runner: macos-latest
             rust_target: aarch64-apple-darwin
-            tauri_args: --target aarch64-apple-darwin
 
           - name: macOS-x64
             runner: macos-latest
             rust_target: x86_64-apple-darwin
-            tauri_args: --target x86_64-apple-darwin
 
           # ── Windows ────────────────────────────────────────────────────────
           - name: Windows-x64
             runner: windows-latest
             rust_target: ""
-            tauri_args: ""
 
           # ── Linux ──────────────────────────────────────────────────────────
           - name: Linux-x64
             runner: ubuntu-22.04
             rust_target: ""
-            tauri_args: ""
 
     runs-on: ${{ matrix.runner }}
 
     steps:
+      # **SHA で受け取る。** タグ名を渡すと `actions/checkout` は fetch した時点のタグを引く
+      # （commit を固定するのは `ref` 未指定か 40桁 hex のときだけ）ので、
+      # 走っている最中にタグを付け替えると leg ごとに別の木になる。
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-release.outputs.sha }}
 
       # ── System dependencies ───────────────────────────────────────────────
       - name: Install Linux system dependencies
@@ -126,7 +189,9 @@ jobs:
       # この action の targets: は stable に対して効いてしまい、固定版には付かないので使わない。
       - uses: dtolnay/rust-toolchain@stable
 
+      # ガードが無いと、空の行が引数の無い `rustup target add` に展開されて exit 1 する。
       - name: Add build target (rust-toolchain.toml のツールチェーンに対して)
+        if: matrix.rust_target != ''
         run: rustup target add ${{ matrix.rust_target }}
 
       - uses: swatinem/rust-cache@v2
@@ -163,13 +228,16 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ env.RELEASE_TAG }}
-          args: ${{ matrix.tauri_args }}
+          args: ${{ matrix.rust_target && format('--target {0}', matrix.rust_target) }}
 
-          # Generates and uploads latest.json so the updater endpoint resolves
-          includeUpdaterJson: true
+          # 下2つの名前は tauri-action v1 のもの。**綴りを間違えても止まらない。**
+          # 知らない入力は `Unexpected input(s)` の warning になるだけで、
+          # ジョブは緑のまま資産名が CLI の既定へ落ちる。
 
-          # Human-readable asset names:
-          # ObsShogi-v0.2.0-darwin-aarch64.dmg
-          # ObsShogi-v0.2.0-windows-x86_64-setup.exe
-          # ObsShogi-v0.2.0-linux-x86_64.AppImage
-          assetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
+          # 既定が true なので値としては再掲。消してよい入力に見せない
+          uploadUpdaterJson: true
+
+          # `[arch]` を固定の綴りにすると、`[platform]` が同じ macOS の2本が
+          # **同名の資産を出す**。後から走った方が先の資産を消すので、
+          # latest.json はその欄を落とすか消えた asset を指す（綴りは docs/RELEASE.md）
+          releaseAssetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
