@@ -35,6 +35,8 @@ type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
 type OpenCommentNote = {
   cursor: KifuCursor;
   anchorEl: HTMLButtonElement;
+  /** 開いた時点の棋譜。ここが今の棋譜と違うなら、書き込み先と中身が食い違っている */
+  absPath: string | null;
 };
 
 export default function KifuStreamList() {
@@ -173,10 +175,22 @@ export default function KifuStreamList() {
 
       setOpenFork(null);
       setOpenMoveMenu(null);
-      setOpenComment({ cursor, anchorEl });
+      setOpenComment({ cursor, anchorEl, absPath: state.loadedAbsPath });
     },
-    [plannedCursor],
+    [plannedCursor, state.loadedAbsPath],
   );
+
+  // 棋譜が変わったら、開いている面を全部閉じる。
+  //
+  // 行は `key={r.te}` なので DOM のボタンは再利用され、`anchorEl` も生き残る。
+  // 棋譜の差し替えでは `view.player` が null になる瞬間も無い（`kifu_loading` は
+  // `jkfData` を保持する）ので、**ノートは同じ位置に開いたまま前の棋譜の本文を出し続ける。**
+  // 見出しは手数しか出さないので、どのファイルのものかは画面から読めない。
+  useEffect(() => {
+    setOpenComment(null);
+    setOpenFork(null);
+    setOpenMoveMenu(null);
+  }, [state.loadedAbsPath]);
 
   useEffect(() => {
     if (!openMoveMenu) return;
@@ -310,6 +324,7 @@ export default function KifuStreamList() {
       <KifuCommentNote
         open={!!openComment}
         cursor={openComment?.cursor ?? null}
+        absPath={openComment?.absPath ?? null}
         anchorEl={openComment?.anchorEl ?? null}
         onClose={closeCommentNote}
       />

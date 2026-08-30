@@ -10,18 +10,28 @@ import "./KifuCommentNote.scss";
 type Props = {
   open: boolean;
   cursor: KifuCursor | null;
+  /** このノートを開いた時点の棋譜。いま読み込まれている棋譜と違うなら保存しない */
+  absPath: string | null;
   anchorEl: HTMLButtonElement | null;
   onClose: () => void;
 };
 
-function cursorToStableKey(cursor: KifuCursor | null) {
-  if (!cursor) return "no-cursor";
+/**
+ * Lexical を作り直させる鍵。
+ *
+ * **棋譜の識別子を混ぜる。** `LexicalComposer` は `initialConfig` を mount 時にしか
+ * 読まないので、鍵が同じままだと `initialMarkdown` が変わってもエディタの中身は
+ * 前の棋譜の本文のまま残る。手数と変化だけで鍵を作ると、別のファイルの同じ手数が
+ * 同じ鍵になる。
+ */
+function editorKeyFor(cursor: KifuCursor | null, absPath: string | null) {
+  if (!cursor) return `no-cursor__${absPath ?? ""}`;
   const path = (cursor.forkPointers ?? []).map((p) => `${p.te}:${p.forkIndex}`).join("|");
-  return `${cursor.tesuu}__${path}`;
+  return `${absPath ?? ""}__${cursor.tesuu}__${path}`;
 }
 
-export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Props) {
-  const { getCommentsByCursor, setCommentsByCursor } = useGame();
+export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClose }: Props) {
+  const { state, getCommentsByCursor, setCommentsByCursor } = useGame();
 
   const [draft, setDraft] = useState("");
   const [baseText, setBaseText] = useState("");
@@ -43,9 +53,11 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
 
   const dirty = draft !== baseText;
 
-  const stateRef = useRef({ cursor, draft, isSaving });
+  // 自動保存は 900ms 後に走るので、撃った時点の closure を読むと古い値で保存する。
+  // 棋譜の識別子も一緒に持つ（保存の直前に突き合わせる）。
+  const stateRef = useRef({ cursor, draft, isSaving, absPath, loadedAbsPath: state.loadedAbsPath });
   useEffect(() => {
-    stateRef.current = { cursor, draft, isSaving };
+    stateRef.current = { cursor, draft, isSaving, absPath, loadedAbsPath: state.loadedAbsPath };
   });
 
   /**
@@ -54,25 +66,34 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
    * 失敗しても進めると `dirty` が落ちて、autosave も閉じるときの保存も
    * 二度と走らない。**画面には「保存済み」だけが出て、書いた本文はどこにも残らない。**
    *
-   * @returns ディスクまで書けたか。書けていないなら呼び出し側はノートを閉じない
+   * `"skipped"` と `"failed"` を分けるのは、閉じてよいかが逆だから。
+   * 宛先が変わったなら書く先がもう無いので閉じてよい。書き込みに失敗したなら、
+   * 閉じると本文が消えるので閉じない。
    */
-  const doSave = useCallback(async () => {
-    const { cursor, draft, isSaving } = stateRef.current;
-    if (!cursor || isSaving) return false;
+  const doSave = useCallback(async (): Promise<"saved" | "failed" | "skipped"> => {
+    const { cursor, draft, isSaving, absPath, loadedAbsPath } = stateRef.current;
+    if (!cursor || isSaving) return "skipped";
+
+    // **開いた棋譜と、いま読み込まれている棋譜が同じときだけ書く。**
+    // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
+    // 棋譜が差し替わったあとに走ると、前のファイルの本文が**次のファイルの
+    // 同じ手数へ**書き込まれる。エディタを作り直す前に autosave が撃つ競合が
+    // 残るので、鍵（`editorKeyFor`）だけでは塞がらない。
+    if (absPath !== loadedAbsPath) return "skipped";
 
     setIsSaving(true);
     try {
       const res = await setCommentsByCursor(cursor, editorTextToLines(draft));
       if (!res.success) {
         setSaveError(res.error);
-        return false;
+        return "failed";
       }
 
       setSaveError(null);
       setBaseText(draft);
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1200);
-      return true;
+      return "saved";
     } finally {
       setIsSaving(false);
     }
@@ -109,13 +130,12 @@ export default function KifuCommentNote({ open, cursor, anchorEl, onClose }: Pro
     // ここで再試行し続けると、書き込めない場所に置いた棋譜ではノートを
     // 閉じる手段が1つも無くなる（失敗を伝えるより悪い行き止まり）。
     if (dirty && cursor && !saveError) {
-      const saved = await doSave();
-      if (!saved) return;
+      if ((await doSave()) === "failed") return;
     }
     onClose();
   }, [cursor, dirty, doSave, isSaving, onClose, saveError]);
 
-  const editorKey = cursorToStableKey(cursor);
+  const editorKey = editorKeyFor(cursor, absPath);
 
   const moveLabel = cursor ? (cursor.tesuu === 0 ? "開始" : `${cursor.tesuu}手`) : "コメント";
 
