@@ -15,8 +15,9 @@
 //! 展開してしまえばファイル側のキーも [`to_book_key_in_file`] を通せるので、
 //! 綴りの揺れを吸収でき、持駒の並びの取り決めが lookup の正しさに影響しなくなる。
 //!
-//! 大きさの上限は2つ。読む前のファイルサイズ（[`MAX_FILE_BYTES`]）と、
-//! 読みながらの展開後の見積もり（[`MAX_EXPANDED_BYTES`]）。
+//! 大きさの上限は3つ。読む前のファイルサイズ（[`MAX_FILE_BYTES`]）、
+//! 1行の長さ（[`MAX_LINE_BYTES`]）、読みながらの展開後の見積もり
+//! （[`MAX_EXPANDED_BYTES`]）。**どれが欠けても穴が空く。**
 //! 進捗と中断は #197。
 
 use crate::book::error::{BookError, BookErrorCode};
@@ -59,8 +60,8 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
             format!(
                 "この定跡はこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
                  より小さい定跡を開くこと",
-                megabytes(size),
-                megabytes(MAX_FILE_BYTES)
+                format_size(size),
+                format_size(MAX_FILE_BYTES)
             ),
         )
         .with_path(shown.clone()));
@@ -71,6 +72,20 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
     Ok(YaneuraouDbReader { positions })
 }
 
+/// 行の残りを読み捨てる。確保は [`MAX_LINE_BYTES`] ずつで頭打ち。
+fn discard_rest_of_line<R: BufRead>(reader: &mut R, path: &str) -> Result<(), BookError> {
+    let mut sink = Vec::new();
+    loop {
+        sink.clear();
+        let read = std::io::Read::take(reader.by_ref(), MAX_LINE_BYTES as u64)
+            .read_until(b'\n', &mut sink)
+            .map_err(|e| BookError::from_io(e, path))?;
+        if read == 0 || sink.ends_with(b"\n") {
+            return Ok(());
+        }
+    }
+}
+
 /// 1行読む。行末の改行と、最初の行だけ BOM を落とす。
 ///
 /// 壊れたバイト列を lossy で読むと、置換文字を含むキーが黙って登録される。
@@ -78,6 +93,9 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
 /// `read_line` は不正な UTF-8 に `InvalidData` を返すので、それを利用者向けの
 /// 文面へ言い直す。
 /// 返り値は「読めたか」と「その行が改行で終わっていたか」。
+///
+/// 1行が [`MAX_LINE_BYTES`] を超えて改行が来ないときは `InvalidContent` で落とす
+/// （理由は定数の doc）。不正な UTF-8 も、注記でなければ落とす。
 ///
 /// **2つ目は切れの判定には使わない。** 行境界で切れたファイルは素通りするので
 /// 根拠にならない（理由は `parse_limited` の末尾）。事実として `log::warn!` に
@@ -97,10 +115,7 @@ fn read_line<R: BufRead>(
     path: &str,
 ) -> Result<Option<bool>, BookError> {
     raw.clear();
-    // **1行ぶんの確保に上限を掛ける。** 掛けないと、改行を1つも含まないファイルは
-    // 行＝ファイル全体になり、ここと `buffer` に2部乗る。実測で 2 GiB の1行
-    // ファイルがピーク 4.32 GB。展開の見積もり（`check_expanded_size`）は行を
-    // 受理した後にしか走らないので、この確保はどちらの上限にも入っていない。
+    // 上限の根拠は `MAX_LINE_BYTES` の doc。
     let read = std::io::Read::take(reader.by_ref(), MAX_LINE_BYTES as u64 + 1)
         .read_until(b'\n', raw)
         .map_err(|e| BookError::from_io(e, path))?;
@@ -110,11 +125,23 @@ fn read_line<R: BufRead>(
     }
 
     if read > MAX_LINE_BYTES && !raw.ends_with(b"\n") {
+        // **注記だけは捨てて読み進む。** 本家は注記の中身を見ないので、長い注記を
+        // 1行持つだけの定跡を普通に読む。拒否すると、正しい定跡に対して
+        // 「別のファイルを選び直すこと」という効かない復帰操作を出すことになる。
+        // 自由に伸びうるのは注記だけなので、ここを通せば残りは短い。
+        if is_note(raw) {
+            discard_rest_of_line(reader, path)?;
+            raw.clear();
+            buffer.clear();
+            buffer.push('#');
+            return Ok(Some(true));
+        }
+
         return Err(invalid_content(
             &format!(
-                "{line_number}行目が長すぎる（{} 超）。定跡ファイルではないかも\
-                 しれない。別のファイルを選び直すこと",
-                megabytes(MAX_LINE_BYTES as u64)
+                "{line_number}行目が長すぎる（{} を超えている）。定跡ファイルでは\
+                 ないかもしれない。別のファイルを選び直すこと",
+                format_size(MAX_LINE_BYTES as u64)
             ),
             path,
         ));
@@ -173,14 +200,13 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 ///
 /// | ファイル | 局面 | 指し手 | ピーク確保 |
 /// | --- | --- | --- | --- |
-/// | 831.0 MB | 20,000,000 | 0 | **3.07 GB** |
+/// | 831.0 MB | 20,000,000 | 0 | **3.07 GB**（定常値での旧測定） |
 ///
-/// この形をファイルサイズの上限（2 GiB）まで伸ばすと約 5,170 万局面・
-/// 約 7.9 GB になる。16 GB の機械では、棋譜ツリーとエンジンを抱えたまま
+/// この形をファイルサイズの上限まで伸ばすと約 5,170 万局面・14 GB を超える。16 GB の機械では、棋譜ツリーとエンジンを抱えたまま
 /// スワップに入ってアプリごと落ちる（未保存の棋譜が消える）。
 ///
-/// 単価は実測。局面1件あたり約 150 バイト、指し手1件あたり約 100 バイト
-/// （`user_book1.db` の 2.03 GB / 2,252,118 局面 + 16,097,817 手と、上の表から）。
+/// 単価は [`BYTES_PER_POSITION`] と [`BYTES_PER_MOVE`]。**数字はそちらにだけ置く。**
+/// ここへ写すと、単価を直したときにこの説明だけが取り残される。
 ///
 /// **上限を実物の大きさに近づけて置かない。** 版が重なった時点で実利用者が
 /// 弾かれ、そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
@@ -190,10 +216,6 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 /// 実物1本ですでに 3 GB 前後を使う。8 GB の機械では実物1本でも苦しい。
 /// 減らす道は綴りの interning（#274。実測で半分程度）で、上限を下げることではない。
 /// 開いている間の進捗と中断は #197。
-///
-/// **これはメモリへ展開する設計の代価。** 綴りを interning すれば実測で
-/// 半分程度になる（#274）が、それは内部表現の設計変更なので別で扱う。
-/// 大きい定跡を開いている間の進捗と中断は #197。
 const MAX_EXPANDED_BYTES: usize = 6 * 1024 * 1024 * 1024;
 
 /// 局面1件あたりの見積もり。
@@ -242,8 +264,22 @@ const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// **10進で数える。** 上限そのものは 2 の冪で持っているが、利用者が見比べる
 /// 相手は Finder / エクスプローラのファイル情報で、そちらは 10 進。
 /// 1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
-fn megabytes(bytes: u64) -> String {
-    format!("{:.1}MB", bytes as f64 / 1_000_000.0)
+///
+/// **桁で単位を選ぶ。** 行長（4 KiB）から展開の上限（6 GiB）まで同じ関数に
+/// 通すので、`MB` 固定だと 4096 バイトが `0.0MB` になって上限を1つも伝えない。
+fn format_size(bytes: u64) -> String {
+    const KB: f64 = 1_000.0;
+    const MB: f64 = 1_000_000.0;
+    const GB: f64 = 1_000_000_000.0;
+
+    let value = bytes as f64;
+    if value >= GB {
+        format!("{:.1}GB", value / GB)
+    } else if value >= MB {
+        format!("{:.1}MB", value / MB)
+    } else {
+        format!("{:.1}KB", value / KB)
+    }
 }
 
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
@@ -333,14 +369,16 @@ fn check_expanded_size(
         format!(
             "この定跡は展開すると大きすぎて開けない（{} のファイル / 展開できるのは\
              上限 {} 相当まで）。より小さい定跡を開くこと",
-            megabytes(file_size),
-            megabytes(max_bytes as u64)
+            format_size(file_size),
+            format_size(max_bytes as u64)
         ),
     )
     .with_path(path))
 }
 
-/// 上限を差し替えられる形。テストが 2GB ぶんの入力を組まずに済むように分ける。
+/// 展開後の上限（[`MAX_EXPANDED_BYTES`]）を差し替えられる形。
+/// テストが 6 GiB ぶんの入力を組まずに済むように分ける。ファイルサイズの上限
+/// （[`MAX_FILE_BYTES`]）はここでは見ない。
 fn parse_limited<R: BufRead>(
     mut reader: R,
     path: &str,
@@ -1097,7 +1135,7 @@ mod tests {
 
         assert_eq!(err.code(), BookErrorCode::TooLarge);
         assert!(
-            err.message().contains(&megabytes(MAX_FILE_BYTES)),
+            err.message().contains(&format_size(MAX_FILE_BYTES)),
             "{}",
             err.message()
         );
@@ -1107,12 +1145,16 @@ mod tests {
     /// 利用者が見比べる相手は Finder / エクスプローラのファイル情報で、そちらは
     /// 10 進。1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
     ///
-    /// 定数と突き合わせない。`megabytes(MAX_FILE_BYTES)` と比べると、関数を
+    /// 定数と突き合わせない。`format_size(MAX_FILE_BYTES)` と比べると、関数を
     /// 変えたときに両辺が同じだけ動いて、食い違いを見逃す。
     #[test]
     fn sizes_are_shown_in_the_same_unit_as_the_file_manager() {
-        assert_eq!(megabytes(1_000_000), "1.0MB");
-        assert_eq!(megabytes(493_157_464), "493.2MB");
+        assert_eq!(format_size(1_000_000), "1.0MB");
+        assert_eq!(format_size(493_157_464), "493.2MB");
+        // 行長（4 KiB）から展開の上限（6 GiB）まで同じ関数に通す。MB 固定だと
+        // 4096 バイトが 0.0MB になり、上限を1つも伝えない文面になる。
+        assert_eq!(format_size(4096), "4.1KB");
+        assert_eq!(format_size(6 * 1024 * 1024 * 1024), "6.4GB");
     }
 
     /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
@@ -1263,9 +1305,8 @@ mod tests {
     /// 上限を実物に近づけると、版が重なった時点で実利用者が弾かれる。そのとき
     /// 出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも分割機能が無い）。
     ///
-    /// 数字の出どころは配布されている `user_book1.db`（peta_shock 系）の実測。
+    /// 配布されている `user_book1.db`（peta_shock 系）の実測（`parse` と同じ数え方）。
     /// 実行時ではなくコンパイル時に見るので、上限を実物へ近づけた時点で止まる。
-    /// `user_book1.db` の実測（`parse` と同じ数え方）。
     ///
     /// **この値が実測と合っているかは機械では守れない。** 上限に余裕がある間は、
     /// 間違った数を書いても assert が通る。出典は
@@ -1427,7 +1468,7 @@ mod tests {
                 "sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - {ply}\n"
             ));
         }
-        // 正規化で1局面に畳まれるので、見積もりは 150 バイト
+        // 正規化で1局面に畳まれるので、見積もりは 280 バイト（上限 200 を超える）
         let err = parse_limited(
             std::io::Cursor::new(text.as_bytes()),
             "/books/a.db",
@@ -1476,7 +1517,6 @@ mod tests {
 
         assert!(small.contains("20.0MB"), "{small}");
         assert!(huge.contains("900.0MB"), "{huge}");
-        // 走行合計を出していた頃は、どのファイルでも同じ数字しか出なかった
         assert_ne!(small, huge, "ファイルが違うのに同じ文面: {small}");
     }
 
@@ -1489,6 +1529,9 @@ mod tests {
 
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
         assert!(err.message().contains("長すぎる"), "{}", err.message());
+        // 上限を伝えていること。`0.0MB` のような丸め方だと、どの行も超えるので
+        // 文面が何も言っていない
+        assert!(err.message().contains("4.1KB"), "{}", err.message());
         assert!(err.message().contains("こと"), "{}", err.message());
     }
 
@@ -1503,6 +1546,24 @@ mod tests {
             "#".repeat(MAX_LINE_BYTES)
         );
         assert!(parsed(&text).is_ok());
+    }
+
+    /// **長すぎる注記は捨てて読み進む。** 本家は注記の中身を見ないので、長い注記を
+    /// 1行持つだけの定跡を普通に読む。拒否すると、正しい定跡に対して
+    /// 「別のファイルを選び直すこと」という効かない復帰操作を出すことになる。
+    ///
+    /// 表の不変条件1（本家が読める定跡は、こちらでも読める）の側。
+    #[test]
+    fn a_note_longer_than_the_line_limit_is_skipped_not_rejected() {
+        for marker in ["#", "//"] {
+            let text = format!(
+                "#YANEURAOU-DB2016 1.00\n{marker}{}\nsfen {HIRATE}\n7g7f none 50 32 1\n",
+                "x".repeat(MAX_LINE_BYTES * 3)
+            );
+            let positions = parsed(&text).expect("長い注記があっても読めるはず");
+            assert_eq!(positions.len(), 1, "marker={marker}");
+            assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 1);
+        }
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
