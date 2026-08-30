@@ -75,9 +75,76 @@
 - 導入コミットの sha: `a2b33a6`（**ラウンド1で私が入れた**）
 - 主張を固定するテスト名: 未検証
 
+### [HIGH] R2-5 `build` がタグを checkout しないので、R1-4 では「タグ ≠ 資産」が塞がっていない
+
+- 場所: `.github/workflows/release.yml:112`（`actions/checkout@v4` に `ref` が無い）（reviewer: oss-hygiene）
+- 根拠: REST の `createRelease` は `target_commitish` を
+  「Unused if the Git tag already exists」と定義している。`create-release` の冒頭（`:55-62`）は
+  タグが既にあれば `getReleaseByTag` で既存のリリースを返して終わる。
+- なぜ問題か: **R1-4 が閉じたのは初回 dispatch だけ。** 残った経路が #256 の復旧そのもの。
+  1. `v0.2.2` を push → Windows だけ落ちて、macOS / Linux の資産だけが載ったリリースが残る
+  2. `main` に修正を積む
+  3. `workflow_dispatch` で同じ `v0.2.2` を撃ち直す
+  4. `getReleaseByTag` が既存のリリースを返し、`target_commitish` は無視される（タグは古い commit のまま）
+  5. `build` は `github.ref` の**動いた後の HEAD** を組む
+
+  1つのリリースの中に「タグの木から作った macOS / Linux」と「タグより後の木から作った Windows」が
+  混ざり、`latest.json` がそれを自動更新に載せる。
+
+- 直し方: `build` の checkout を `ref: ${{ env.RELEASE_TAG }}` で固定する。
+  `needs: create-release` を通っているのでタグは必ず存在する。
+- 導入コミットの sha: `d78964a`。**`c4c212e`（R1-4）が塞いだつもりで塞ぎ切れていなかった。**
+- 主張を固定するテスト名: 未検証
+
+### [MEDIUM] R2-6 資産名の例（R2-1 と同じ所見。2体が別経路で当てた）
+
+- reviewer: oss-hygiene。`gh api releases/tags/v0.2.1` と、v1 の `src/build.ts` が
+  `debianArch`（deb / AppImage → `amd64`）と `rpmArch`（→ `x86_64`）を別々に作り、
+  windows 節が `arch = 'x64'` に畳んでいることの両方から当てている。
+- 追加で分かったこと: `[arch]` を `x86_64` に固定しようとしてパターンをいじると、
+  `upload-version-json.ts` の `filteredAssets.find(a => a.assetLabel === …)` が
+  資産と署名を突き合わせられなくなり、**`latest.json` から該当プラットフォームが丸ごと落ちる。**
+
+### [MEDIUM] R2-7 v1 は `latest.json` の url を `api.github.com` の asset API 形式で書く
+
+- 場所: `.github/workflows/release.yml:169,185-186`（reviewer: oss-hygiene）
+- 根拠: v1 の `src/upload-version-json.ts` が
+  `url: \`${githubBaseUrl}/repos/${owner}/${repo}/releases/assets/${data.id}\``を組む。
+v0.2.1 の`latest.json`（v0 で生成）は全エントリが
+`https://github.com/Rioh1118/obs-shogi/releases/download/v0.2.1/…`。
+  `@v0 → @v1` は `bfa609b`（dependabot）で入っただけで、**この bump 以降リリースが1本も出ていない。**
+- なぜ問題か: 自動更新のダウンロード先がホストごと移る。動作自体はする
+  （`tauri-plugin-updater` は `Accept: application/octet-stream` を付ける）が、
+  未認証の `api.github.com` は IP あたり 60 req/h の制限下にある。詰まったときの症状は
+  「ブラウザからの手動 DL は通るのに自動更新だけ静かに失敗する」で、
+  workflow を触った変更が原因だと後から誰も結び付けられない。
+- 直し方: 事実をコメントに残し、空打ちの受入に `latest.json` の url 形式の確認を足す（#267 へ）。
+- 導入コミットの sha: `bfa609b`（dependabot の major bump）
+- 主張を固定するテスト名: 未検証
+
 ## 重複・矛盾した所見
 
-無し。
+R2-1（comment）と R2-6（oss-hygiene）は同じ所見。**2体が別の経路で当てている**
+（comment は公開済み資産名との突き合わせ、oss は `src/build.ts` の arch 変換）。
+統合して R2-1 の修正1つで閉じた。
+
+矛盾は無し。
+
+## 確認して問題が無かったもの（oss-hygiene が潰した分。所見にはしない）
+
+- `args: ${{ matrix.rust_target && format('--target {0}', matrix.rust_target) }}` は**正しい**。
+  空文字は falsy なので Windows / Linux では空になり、v1 の `inputs.ts` が `stringArgv('')` → `[]`、
+  `runner.ts` が `--` も付けないので `npm run tauri build` になる。
+  `getTargetInfo(undefined)` が `process.arch` を使うため `target/release` を見る
+- `target_commitish` の **push tag 経路での副作用は無い**（タグが既にあるので無視され、
+  値も `context.sha` と一致する）
+- v0.2.1 の資産名は再現する。`renderNamePattern` の `[version]` `[platform]` `[arch]` `[setup]` `[ext]`
+  はすべて `Artifact` に存在する
+- `tauri_args` の参照は残っていない
+- `Stamp version` の `python3 -c` は `^version = ` に `count=1` で当たり、`Cargo.toml` の
+  `[package]` 側1本だけに効く。`jq` は `.version` だけ差し替え、`plugins.updater` を保持する
+- `swatinem/rust-cache` の `key: ${{ matrix.name }}` は4行とも別値。`permissions: contents: write` で足りる
+- `.claude/worktrees/*/src-tauri/tauri.conf.json` は `.gitignore` 済みで CI の checkout に現れない
 
 ## 見ていない範囲
 
@@ -105,8 +172,13 @@
 | R2-2 | `3ba96bd`      | 「届かないと json が出ない」を落とし、既定が true であることを書いた |
 | R2-3 | `48a0ba7`      | 存在しない「2欄」の説明を削除。二重書きを1箇所に寄せた               |
 | R2-4 | `1dc2145`      | 「65535 以下の10進数」まで書き、`TODO(#269)` へ                      |
+| R2-5 | `28c12c6`      | `build` の checkout を `ref: ${{ env.RELEASE_TAG }}` で固定          |
+| R2-6 | —              | R2-1 と同じ所見。`e6ed584` で閉じている                              |
+| R2-7 | `5e8af7d`      | `latest.json` の url がホストごと変わることをコメントに残した        |
 
-送ったもの: 無し（R2-4 の設計判断は r1 で立てた #269 が既に持っている）。
+送ったもの: R2-7 の空打ちでの確認手順を #267 へ（資産名の確認と、
+`latest.json` の url を `Accept: application/octet-stream` で引いて 200 を見る2本）。
+R2-4 の設計判断は r1 で立てた #269 が既に持っている。
 
 ## この2ラウンドで分かったこと
 
