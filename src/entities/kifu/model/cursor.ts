@@ -42,6 +42,70 @@ export interface KifuCursor {
 }
 
 /**
+ * 盤を再生するのに要る最小の組。`KifuCursor` と `PlannedCursor` の共通部分。
+ *
+ * `goto` に渡すのに要るのは `tesuu` と `forkPointers` だけで、`te > tesuu` は
+ * `normalizeForkPointers` が落とす。だから辿ったカーソルと計画カーソルのどちらも受けられる。
+ * 局面が一致したかを確かめたい側は `KifuCursor` を自分で保持すること。この型には
+ * `tesuuPointer` が無い。
+ */
+export type CursorPath = Pick<KifuCursor, "tesuu" | "forkPointers">;
+
+declare const branchPlanBrand: unique symbol;
+
+/**
+ * 「これから降りるつもりの変化」の一覧。`state.branchPlan` の型。
+ *
+ * `te > cursor.tesuu` の `ForkPointer` を持ちうる点が `cursor.forkPointers` と違う。
+ * 素の `ForkPointer[]` と取り違えると、カーソルより先の選択が黙って空になるので brand を付ける。
+ * **この型を作ってよいのは `asBranchPlan` だけ**、というのは規約。
+ */
+export type BranchPlan = ForkPointer[] & { readonly [branchPlanBrand]: true };
+
+/**
+ * 分岐計画として確定した配列に印を付ける。
+ *
+ * 付けてよいのは**計画を作る側**だけ。`mergeBranchPlan`（`te > tesuu` を持ち越す唯一の
+ * 関数）、初期状態の空配列、そして棋譜が変わって計画を意図的に捨てる書き込み経路。
+ * 「捨てる」の印を呼び出し側に書かせているのは、捨てた場所を数えられるようにするため。
+ * テストは実物と同じ組み立てを再現するために通す。
+ */
+export const asBranchPlan = (forkPointers: ForkPointer[]) => forkPointers as BranchPlan;
+
+declare const plannedCursorBrand: unique symbol;
+
+/**
+ * 「これから降りるつもりの変化」まで載せたカーソル
+ *
+ * `KifuCursor` との違いは、局面を一意に指さないので `tesuuPointer` を持たないこと。
+ * `te > tesuu` の `ForkPointer` を持ちうるが、それは `KifuCursor` も同じ
+ * （`PositionNavigationModal` が `tesuu` だけ戻したカーソルを作る）。
+ *
+ * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
+ * brand が無いと `state.cursor` がそのまま代入できる。`state.cursor.forkPointers` は
+ * `cursorFromSource` が `te <= tesuu` に正規化して作るので、
+ * **カーソルより先の選択が黙って空になる**。
+ */
+export interface PlannedCursor extends CursorPath {
+  readonly [plannedCursorBrand]: true;
+}
+
+/**
+ * 現在局面と分岐計画から `PlannedCursor` を組む。**この型を作ってよいのはここだけ**
+ *
+ * 第2引数が `BranchPlan` なのは、`cursor.forkPointers`（素の `ForkPointer[]`）を
+ * 渡せてしまうと計画の抜けた値が brand 付きで通ってしまうため。
+ */
+export function plannedCursorFrom(
+  cursor: KifuCursor | null,
+  branchPlan: BranchPlan,
+): PlannedCursor | null {
+  if (!cursor) return null;
+  const path: CursorPath = { tesuu: cursor.tesuu, forkPointers: branchPlan };
+  return path as PlannedCursor;
+}
+
+/**
  * 開始局面のカーソル。
  * ここでは「空の分岐履歴」を表す最小形として定義する。
  */

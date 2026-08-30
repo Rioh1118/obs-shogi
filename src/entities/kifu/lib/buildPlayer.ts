@@ -1,6 +1,6 @@
 import { JKFPlayer } from "json-kifu-format";
 import type { JKFData } from "../model/jkf";
-import { normalizeForkPointers, type KifuCursor } from "../model/cursor";
+import { normalizeForkPointers, type CursorPath } from "../model/cursor";
 
 /**
  * `goto` は届かないときに throw せず、進めるところで黙って止まる。
@@ -10,7 +10,7 @@ import { normalizeForkPointers, type KifuCursor } from "../model/cursor";
  *   `forkPointers` が手の無い te を指しているとき
  * @throws {TypeError} `forkIndex` が負・非整数のとき（`forks[-1]` を掴む）
  */
-function applyCursorToPlayer(player: JKFPlayer, cursor: KifuCursor | null) {
+function applyCursorToPlayer(player: JKFPlayer, cursor: CursorPath | null) {
   if (!cursor) return;
   player.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
 }
@@ -37,7 +37,7 @@ function applyCursorToPlayer(player: JKFPlayer, cursor: KifuCursor | null) {
  * @throws {TypeError} `forkPointers` の `forkIndex` が負・非整数のとき。
  *   `forks[-1]` を掴んで `JKFPlayer` の内部で落ちる
  */
-export function buildPlayer(jkf: JKFData, cursor: KifuCursor | null): JKFPlayer {
+export function buildPlayer(jkf: JKFData, cursor: CursorPath | null): JKFPlayer {
   const player = new JKFPlayer(jkf);
   applyCursorToPlayer(player, cursor);
   return player;

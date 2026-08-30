@@ -5,7 +5,7 @@ import type { Color, Kind } from "shogi.js";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { AsyncResult } from "@/shared/lib/result";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import { asBranchPlan, type BranchPlan, type KifuCursor } from "@/entities/kifu/model/cursor";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 
 import type { IMove as ShogiMove } from "shogi.js";
@@ -25,7 +25,7 @@ export interface GameContextState {
    * 将来の forward / goToIndex / goToEnd で使う進路計画
    * 現在地点までの forkPointers も含む
    */
-  branchPlan: ForkPointer[];
+  branchPlan: BranchPlan;
 
   selectedPosition: SelectedPosition | null;
 
@@ -69,7 +69,7 @@ export type GameAction =
       type: "navigated";
       payload: {
         cursor: KifuCursor;
-        branchPlan: ForkPointer[];
+        branchPlan: BranchPlan;
       };
     }
   | {
@@ -77,7 +77,7 @@ export type GameAction =
       payload: {
         jkf: JKFData;
         cursor: KifuCursor;
-        branchPlan: ForkPointer[];
+        branchPlan: BranchPlan;
       };
     }
   | {
@@ -105,7 +105,7 @@ export type GameAction =
 export const initialGameState: GameContextState = {
   jkf: null,
   cursor: null,
-  branchPlan: [],
+  branchPlan: asBranchPlan([]),
   selectedPosition: null,
   loadedAbsPath: null,
   isLoading: false,

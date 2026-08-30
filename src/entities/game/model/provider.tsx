@@ -18,7 +18,9 @@ import { GameContext } from "./context";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   ROOT_CURSOR,
+  asBranchPlan,
   normalizeForkPointers,
+  plannedCursorFrom,
   type ForkPointer,
   type KifuCursor,
 } from "@/entities/kifu/model/cursor";
@@ -70,12 +72,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     try {
       const player = buildPlayer(state.jkf, state.cursor);
 
-      const plannedCursor = state.cursor
-        ? {
-            ...state.cursor,
-            forkPointers: state.branchPlan,
-          }
-        : null;
+      const plannedCursor = plannedCursorFrom(state.cursor, state.branchPlan);
 
       let totalMoves = 0;
       try {
@@ -223,7 +220,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           payload: {
             jkf: nextJkf,
             cursor: nextCursor,
-            branchPlan: [...nextCursor.forkPointers],
+            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
 
@@ -356,7 +353,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           payload: {
             jkf: nextJkf,
             cursor: nextCursor,
-            branchPlan: [...nextCursor.forkPointers],
+            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
 
@@ -393,7 +390,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
           payload: {
             jkf: nextJkf,
             cursor: nextCursor,
-            branchPlan: [...nextCursor.forkPointers],
+            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
 

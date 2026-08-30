@@ -1,3 +1,4 @@
+import { asBranchPlan } from "@/entities/kifu/model/cursor";
 import type { GameAction, GameContextState } from "./types";
 import { initialGameState } from "./types";
 
@@ -7,7 +8,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
       return {
         jkf: action.payload.jkf,
         cursor: action.payload.cursor,
-        branchPlan: [...action.payload.cursor.forkPointers],
+        branchPlan: asBranchPlan([...action.payload.cursor.forkPointers]),
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
         isLoading: false,

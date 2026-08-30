@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import { plannedCursorFrom, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import {
   neighborBranchIndex,
   MAIN_LINE,
@@ -14,9 +14,21 @@ import {
 } from "@/entities/kifu/model/branch";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
-import { branchIndexFromRow, buildCursorWithForkSelection } from "../lib/cursorSelection";
+import {
+  branchIndexFromRow,
+  buildCursorWithForkSelection,
+  resolveForkSelection,
+} from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
+import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
+
+/**
+ * 連続移動とみなす間隔（ミリ秒）。これ以内の再入なら、譲る側は撃たず、
+ * 撃つ側も smooth をやめて追従を優先する。`revealRow` の2つの判断がこれを共有する。
+ * 値の根拠は未測定の経験則。
+ */
+const RECENT_SCROLL_MS = 120;
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
@@ -30,7 +42,6 @@ export default function KifuStreamList() {
     useGame();
 
   const listRef = useRef<HTMLDivElement | null>(null);
-  const activeRowRef = useRef<HTMLDivElement | null>(null);
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
@@ -40,17 +51,15 @@ export default function KifuStreamList() {
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const lastForkTeRef = useRef<number | null>(null);
 
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const plannedCursor = useMemo(() => {
-    if (!state.cursor) return null;
-    return {
-      ...state.cursor,
-      forkPointers: state.branchPlan,
-    };
-  }, [state.cursor, state.branchPlan]);
+  const plannedCursor = useMemo(
+    () => plannedCursorFrom(state.cursor, state.branchPlan),
+    [state.cursor, state.branchPlan],
+  );
 
   const rows = useMemo(() => {
     if (!view.player) return [];
@@ -67,13 +76,50 @@ export default function KifuStreamList() {
     setOpenComment(null);
   }, []);
 
-  const closeForkMenu = useCallback((focusAnchor: boolean) => {
-    const anchor = lastAnchorRef.current;
-    setOpenFork(null);
-    if (focusAnchor) {
-      requestAnimationFrame(() => anchor?.focus());
-    }
+  /**
+   * 行を見える位置へ戻す。位置合わせの入口はここ1つで、幾何の計算は
+   * `scrollToRowSafeZone` が持つ。
+   *
+   * 行は scroller の中を id で引く。`closest` で親を辿ると unmount 済みの行を掴み、
+   * 切り離された要素の `offsetTop` は 0 なのでリストが先頭まで飛ぶ。
+   *
+   * `yieldToRecent` は「直前に誰かが位置を決めていたら譲る」。局面が変わる経路では
+   * カーソル変化の effect が先に走っており、同じ行へ撃ち直すと effect が選んだ
+   * smooth を開始直後に打ち切ってしまう。
+   */
+  const revealRow = useCallback((te: number, yieldToRecent: boolean) => {
+    const scroller = listRef.current;
+    const rowEl = scroller?.querySelector<HTMLElement>(`#${kifuRowId(te)}`);
+    if (!scroller || !rowEl) return;
+
+    const now = performance.now();
+    const dt = now - lastScrollAtRef.current;
+    if (yieldToRecent && dt < RECENT_SCROLL_MS) return;
+    lastScrollAtRef.current = now;
+
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    scrollToRowSafeZone(scroller, rowEl, reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth");
   }, []);
+
+  const closeForkMenu = useCallback(
+    (focusAnchor: boolean) => {
+      const anchor = lastAnchorRef.current;
+      const te = lastForkTeRef.current;
+      setOpenFork(null);
+      if (!focusAnchor) return;
+
+      requestAnimationFrame(() => {
+        // focus 既定のスクロールは「見えるところまで」で、セーフゾーン寄せを上書きするので切る。
+        anchor?.focus({ preventScroll: true });
+
+        // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
+        // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
+        // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
+        if (te != null) revealRow(te, true);
+      });
+    },
+    [revealRow],
+  );
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
   // インラインのアロー関数を挟むと全行の memo が外れる。
@@ -176,21 +222,23 @@ export default function KifuStreamList() {
     };
   }, [openFork, closeForkMenu, isTop]);
 
+  // tesuu は本文が読む値なので dep に要る。tesuuPointer は "<tesuu>,[...]" 形式で
+  // tesuu を含むため、足しても発火は増えない。
+  //
+  // 逆は成り立たない。同じ手数のまま分岐だけを選び直すと tesuuPointer だけが変わるので、
+  // tesuuPointer を「冗長だから」と落とすとその経路で追従が止まる。
+  //
+  // どの棋譜を読み込んだかも見る。tesuuPointer が一意なのは1つの棋譜の中だけで、
+  // どの棋譜でも開始局面は "0,[]" になる。棋譜を切り替えても一覧は unmount されないので、
+  // カーソルを動かさずに切り替えると scrollTop だけが前の棋譜の位置に残る。
+  //
+  // ここで見るのは読み込んだファイルであって、棋譜の中身ではない。`state.jkf` は
+  // コメントの保存でも別オブジェクトになるので、それを見ると入力中に一覧が
+  // カーソル行へ飛ぶ。同じパスを読み直したときは、読み直す前のカーソルも0だった場合に
+  // 限って3つとも変わらないので戻さない。
   useEffect(() => {
-    const scroller = listRef.current;
-    const rowEl = activeRowRef.current;
-    if (!scroller || !rowEl) return;
-
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-
-    const now = performance.now();
-    const dt = now - lastScrollAtRef.current;
-    lastScrollAtRef.current = now;
-
-    const behavior: ScrollBehavior = reduced ? "auto" : dt < 120 ? "auto" : "smooth";
-
-    scrollToRowSafeZone(scroller, rowEl, behavior);
-  }, [state.cursor?.tesuuPointer]);
+    revealRow(state.cursor?.tesuu ?? 0, false);
+  }, [state.loadedAbsPath, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {
@@ -203,6 +251,7 @@ export default function KifuStreamList() {
 
   const onToggleForkMenu = useCallback((te: number, anchorEl: HTMLButtonElement) => {
     lastAnchorRef.current = anchorEl;
+    lastForkTeRef.current = te;
     setOpenComment(null);
     setOpenMoveMenu(null);
     setOpenFork((prev) => {
@@ -215,19 +264,13 @@ export default function KifuStreamList() {
     (te: number, forkIndex: number | null) => {
       if (!plannedCursor) return;
 
-      const currentIdx = state.cursor?.forkPointers?.find((p) => p.te === te)?.forkIndex ?? null;
-
-      if (currentIdx === forkIndex) {
-        closeForkMenu(true);
-        goToIndex(te);
-        return;
-      }
-
-      const nextCursor = buildCursorWithForkSelection(plannedCursor, te, forkIndex);
+      const next = resolveForkSelection(plannedCursor, te, forkIndex);
       closeForkMenu(true);
-      applyCursor(nextCursor);
+
+      if (next.kind === "goToIndex") goToIndex(next.te);
+      else applyCursor(next.cursor);
     },
-    [state.cursor, plannedCursor, applyCursor, goToIndex, closeForkMenu],
+    [plannedCursor, applyCursor, goToIndex, closeForkMenu],
   );
 
   if (!view.player) {
@@ -284,7 +327,6 @@ export default function KifuStreamList() {
           return (
             <KifuMoveCard
               key={r.te}
-              ref={r.isActive ? activeRowRef : undefined}
               row={r}
               busy={state.isLoading}
               isForkMenuOpen={isForkOpen}

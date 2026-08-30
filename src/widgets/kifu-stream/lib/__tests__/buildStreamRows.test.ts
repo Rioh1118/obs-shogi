@@ -1,8 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { buildTesuuPointer } from "@/entities/kifu/model/branch";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import {
+  ROOT_CURSOR,
+  asBranchPlan,
+  plannedCursorFrom,
+  type ForkPointer,
+} from "@/entities/kifu/model/cursor";
 import { buildStreamRowsFromCursor } from "../buildStreamRows";
 
 /** 本譜3手。te=2 に変化が1本。 */
@@ -15,12 +19,8 @@ const KIF = `手合割：平手
    2 ８四歩(83)
 `;
 
-const rowsFor = (forkPointers: ForkPointer[]) => {
-  const cursor: KifuCursor = {
-    tesuu: 0,
-    forkPointers,
-    tesuuPointer: buildTesuuPointer(0, forkPointers),
-  };
+const rowsFor = (branchPlan: ForkPointer[]) => {
+  const cursor = plannedCursorFrom(ROOT_CURSOR, asBranchPlan(branchPlan));
   return buildStreamRowsFromCursor(new JKFPlayer(parseKifuContentToJKF(KIF, "kif")), cursor);
 };
 
@@ -32,6 +32,31 @@ describe("buildStreamRowsFromCursor", () => {
   test("計画どおり変化へ降りる", () => {
     // 変化は1手なので、降りると本譜より1行短い。
     expect(rowsFor([{ te: 2, forkIndex: 0 }]).map((r) => r.te)).toEqual([0, 1, 2]);
+  });
+
+  test("行が言う選択は、実際に降りた分岐だけ", () => {
+    // 計画をそのまま載せると、本譜を歩いている行が変化を選んでいると言う。
+    // バッジとメニューの ✓ が食い違い、branchIndexFromRow が使えない値を投げる。
+    const selected = (plan: ForkPointer[]) => rowsFor(plan).map((r) => r.selectedForkIndex);
+
+    expect(selected([{ te: 2, forkIndex: 0 }])).toEqual([null, null, 0]);
+
+    // 変化を持たない手数。forkAndForward は forks が無ければ false を返す。
+    expect(selected([{ te: 1, forkIndex: 0 }])).toEqual([null, null, null, null]);
+
+    for (const forkIndex of [5, -1, 0.5, NaN]) {
+      expect(selected([{ te: 2, forkIndex }])).toEqual([null, null, null, null]);
+    }
+  });
+
+  test("選択肢は te の forks から出る", () => {
+    // resolveForkSelection が「食い違う計画値は押せない」で済ませられるのは、
+    // メニューの選択肢が forkAndForward と同じ forks から作られているから。
+    // ここがずれると、範囲外の計画値が選択肢の内側に入って一致してしまう。
+    const rows = rowsFor([]);
+
+    expect(rows.map((r) => r.forkCount)).toEqual([0, 0, 1, 0]);
+    expect(rows.find((r) => r.te === 2)?.forkTexts).toEqual(["☖８四歩"]);
   });
 
   test("計画が壊れていてもレンダを落とさない", () => {
