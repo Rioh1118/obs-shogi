@@ -24,9 +24,9 @@ pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 pub enum KifuReadError {
     /// どの文字コードでも、あるいは棋譜としても読めなかった。
     ///
-    /// **`message` はそのまま利用者の画面に出る**（`index_builder` →
-    /// `EVT_INDEX_WARN` → 設定のワークスペース）。内部の識別子ではなく、
-    /// 何が読めなかったかと次に何をすればよいかを入れること。
+    /// **`message` はそのまま利用者の画面に出る**（`project_manager` と `api` が
+    /// `IndexWarnPayload` に詰め、`EVT_INDEX_WARN` で設定のワークスペースへ）。
+    /// 内部の識別子ではなく、何が読めなかったかと次に何をすればよいかを入れること。
     #[error("parse failed: {path}: {message}")]
     ParseFailed { path: PathBuf, message: String },
 }
@@ -204,7 +204,23 @@ fn detect_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
         return Some(ISO_2022_JP);
     }
 
-    // UTF-16 は ASCII の隣が必ず NUL になる。どちら側に寄るかでバイト順が決まる
+    utf16_by_nul_layout(bytes)
+}
+
+/// NUL の並びから UTF-16 のバイト順を決める。印と言えるだけの偏りが無ければ `None`。
+///
+/// **「多いほうが勝ち」では印にならない。** NUL が1バイト混じっただけの Shift_JIS を
+/// UTF-16 と断定してしまい、化けた行を「読めない行」として名指しする。
+/// 末尾に NUL を詰める書き出しや、途中で切れたファイルで実際に起きる。
+///
+/// 本物の UTF-16 は、棋譜のように ASCII と全角が混じっていても NUL が
+/// 全体の 1/4 を下回らない。しかも NUL は片側の番地にほぼ全部集まる。
+/// その2つを満たすときだけ印として扱う。
+fn utf16_by_nul_layout(bytes: &[u8]) -> Option<&'static Encoding> {
+    if bytes.len() % 2 != 0 {
+        return None;
+    }
+
     let (even, odd) = bytes.iter().enumerate().filter(|(_, b)| **b == 0).fold(
         (0usize, 0usize),
         |(e, o), (i, _)| {
@@ -215,33 +231,52 @@ fn detect_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
             }
         },
     );
-    match even.cmp(&odd) {
-        std::cmp::Ordering::Greater => Some(UTF_16BE),
-        std::cmp::Ordering::Less => Some(UTF_16LE),
-        // NUL が無い（0 と 0）か、綺麗に半々。どちらも UTF-16 の証拠にならない
-        std::cmp::Ordering::Equal => None,
+
+    if (even + odd) * 4 < bytes.len() {
+        return None;
     }
+
+    let (major, minor, encoding) = if even > odd {
+        (even, odd, UTF_16BE)
+    } else {
+        (odd, even, UTF_16LE)
+    };
+    // 反対側の番地にも同じくらい NUL があるなら、UTF-16 の並びではない
+    if minor * 8 >= major {
+        return None;
+    }
+    Some(encoding)
 }
 
 /// この文字コードで読めた理由を、利用者に**その名前で**出してよいか。
 ///
-/// 名乗る印があればそれだけを使う。印が無いときに名前を出してよいのは
-/// **EUC-JP だけ**で、消去法で決まる。
+/// **復号で1文字でも化けたら名乗らない。** 化けたまま「〜としては読めた」と出すと、
+/// 利用者は文字コードが合っていると思い込み、本当の原因（途中で切れている、
+/// 別の文字コードが混ざっている）に辿り着けない。
 ///
-/// - UTF-16 は印（BOM か NUL の偏り）が無ければ候補にしない。
-///   印の無いバイト列でもほぼ必ず誤り無く復号でき、`had_errors` では弾けない
+/// 印があればその文字コードだけ。印が無いときに名乗ってよいのは **EUC-JP だけ**で、
+/// 消去法で決まる。
+///
+/// - UTF-16 は印（BOM か NUL の並び）が無ければ候補にしない。
+///   印の無いバイト列でもほぼ必ず誤り無く復号できるので `had_errors` では弾けない
 /// - ISO-2022-JP は必ずエスケープを持つので、印が無いなら ISO-2022-JP ではない
 /// - Shift_JIS と UTF-8 はクレートが先に試しており、ここには来ない
 ///
-/// 残るのが EUC-JP 1つなので、誤り無く復号できたなら名前を出してよい。
+/// ただし **8bit の文字が1つも無いなら、どの日本語文字コードの証拠でもない。**
+/// ASCII だけのファイル（`.kif` に改名した CSA、SFEN のメモ）は EUC-JP としても
+/// 誤り無く復号できてしまうので、名乗らせない。
 fn can_be_named(
     enc: &'static Encoding,
     detected: Option<&'static Encoding>,
     had_errors: bool,
+    bytes: &[u8],
 ) -> bool {
+    if had_errors {
+        return false;
+    }
     match detected {
         Some(named) => named == enc,
-        None => enc == EUC_JP && !had_errors,
+        None => enc == EUC_JP && bytes.iter().any(|b| *b >= 0x80),
     }
 }
 
@@ -270,7 +305,7 @@ where
         let (cow, _, had_errors) = enc.decode(bytes);
         match parse(cow.as_ref()) {
             Ok(jkf) => return Ok(jkf),
-            Err(error) if can_be_named(enc, detected, had_errors) => {
+            Err(error) if can_be_named(enc, detected, had_errors, bytes) => {
                 unparsable = Some(Unparsable {
                     encoding: enc.name(),
                     error,
@@ -308,8 +343,9 @@ fn describe(by_crate: ParseError, bytes: &[u8], by_fallback: Option<Unparsable>)
     }
 
     match by_crate {
-        // クレートが文字にできていた。Shift_JIS か UTF-8 のどちらかで、
-        // 名乗る印が無かった以上これ以上の絞り込みはできない
+        // クレートが文字にできていた。総当たりの対象は
+        // `ENCODINGS_THE_CRATE_SKIPS` の4つだけで、Shift_JIS も UTF-8 もそこに無い。
+        // BOM で UTF-8 と分かっていても絞り込む先が無いので、そのまま出す
         ParseError::Kif(_) | ParseError::Ki2(_) => by_crate.to_string(),
         other => {
             let detected = detect_encoding(bytes);
@@ -574,6 +610,124 @@ mod tests {
         assert!(
             message.contains("UTF-16BE"),
             "バイト順を取り違えている: {message}"
+        );
+        assert!(
+            message.contains("パス"),
+            "読めなかった語を指していない: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `detect_encoding` は「印」だけを見る。**推測しない。**
+    ///
+    /// 呼び出し経路（`read_path_to_jkf`）越しにしか見ていないと、
+    /// どの入力で何を返すかが分からないまま条件だけが増える。
+    #[test]
+    fn only_a_real_marker_names_an_encoding() {
+        let kif = hirate_kif();
+        let sjis = SHIFT_JIS.encode(&kif).0.into_owned();
+        let utf16le: Vec<u8> = kif.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        let utf16be: Vec<u8> = kif.encode_utf16().flat_map(u16::to_be_bytes).collect();
+
+        let cases: [(&str, Vec<u8>, Option<&'static Encoding>); 10] = [
+            ("空", vec![], None),
+            ("1バイト", vec![b'a'], None),
+            // NUL しか無いと、どちら側に寄っているかを言えない
+            ("NUL だけ", vec![0, 0], None),
+            (
+                "UTF-8 の BOM",
+                vec![0xEF, 0xBB, 0xBF, b'a'],
+                Some(encoding_rs::UTF_8),
+            ),
+            ("UTF-16LE の BOM", vec![0xFF, 0xFE, b'a', 0], Some(UTF_16LE)),
+            ("UTF-16BE の BOM", vec![0xFE, 0xFF, 0, b'a'], Some(UTF_16BE)),
+            (
+                "ISO-2022-JP のエスケープ",
+                ISO_2022_JP.encode(&kif).0.into_owned(),
+                Some(ISO_2022_JP),
+            ),
+            ("UTF-16LE の本文", utf16le, Some(UTF_16LE)),
+            ("UTF-16BE の本文", utf16be, Some(UTF_16BE)),
+            // ここが本題。NUL が1つ混じっただけの Shift_JIS を UTF-16 と
+            // 断定すると、化けた行を「読めない行」として名指しする
+            (
+                "Shift_JIS + NUL 1つ",
+                {
+                    let mut v = sjis.clone();
+                    v.push(0);
+                    v
+                },
+                None,
+            ),
+        ];
+
+        for (label, bytes, expected) in cases {
+            assert_eq!(
+                detect_encoding(&bytes).map(|e| e.name()),
+                expected.map(|e| e.name()),
+                "{label}"
+            );
+        }
+    }
+
+    /// 名乗ってよい条件。化けていたら名乗らない。ASCII だけなら名乗らない。
+    #[test]
+    fn a_garbled_or_ascii_only_read_does_not_claim_an_encoding() {
+        let japanese = SHIFT_JIS.encode(&hirate_kif()).0.into_owned();
+        let ascii = b"V2.2\nPI\n+\n".to_vec();
+
+        // 印があっても、復号で化けていれば名乗らない
+        assert!(!can_be_named(EUC_JP, Some(EUC_JP), true, &japanese));
+        assert!(can_be_named(EUC_JP, Some(EUC_JP), false, &japanese));
+
+        // 印が無いとき名乗ってよいのは EUC-JP だけ
+        assert!(can_be_named(EUC_JP, None, false, &japanese));
+        assert!(!can_be_named(UTF_16LE, None, false, &japanese));
+        assert!(!can_be_named(ISO_2022_JP, None, false, &japanese));
+
+        // 8bit の文字が無いなら、どの日本語文字コードの証拠でもない
+        assert!(!can_be_named(EUC_JP, None, false, &ascii));
+    }
+
+    /// 棋譜でないファイルに棋譜の拡張子が付いていたら、そう言う。
+    ///
+    /// ASCII だけのファイルは EUC-JP としても誤り無く復号できるので、
+    /// 「EUC-JP としては読めた」と名乗ると**文字コードを疑わせて遠回りさせる**。
+    #[test]
+    fn a_non_kifu_ascii_file_is_not_blamed_on_an_encoding() {
+        let dir = temp_dir("ascii-not-kifu");
+        let path = dir.join("actually-csa.kif");
+        fs::write(&path, "V2.2\nPI\n+\n+7776FU\n%TORYO\n").expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            !message.contains("EUC-JP としては読めた"),
+            "文字コードのせいにしている: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Shift_JIS の棋譜に NUL が1つ混じっても、理由は棋譜の側から出す。
+    ///
+    /// NUL は末尾を詰める書き出しや、途中で切れたファイルで現に出る。
+    /// それで UTF-16 と断定すると、**クレートが正しく指していた行が消える**。
+    #[test]
+    fn one_stray_nul_does_not_turn_a_shift_jis_kifu_into_utf16() {
+        let dir = temp_dir("stray-nul");
+        let path = dir.join("trailing-nul.kif");
+        let text = format!("{}   2 パス\n", hirate_kif());
+        let mut bytes = SHIFT_JIS.encode(&text).0.into_owned();
+        bytes.push(0);
+        fs::write(&path, &bytes).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            !message.contains("UTF-16"),
+            "NUL 1つで UTF-16 と決めつけている: {message}"
         );
         assert!(
             message.contains("パス"),

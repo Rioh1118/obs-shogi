@@ -59,11 +59,12 @@ fn convert_jkf_to_string_internal(
     jkf: &mut JsonKifuFormat,
     format: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // ここに来る JKF は**パーサではなく webview 側**が組んだもの。`parse_*` が
-    // 返す JKF なら正規化済みなので呼び直しになるが、この経路の JKF は
-    // TS 側で指し手を足したあとの状態で、`same` / `promote` / `capture` /
-    // `relative` が埋まっていない（`piece` は型が必須にしているので必ず来る）。
-    // 呼ばないと書き出し側が局面を組めない
+    // ここに来る JKF はパーサではなく webview 側が組んだもの。
+    // **呼び直しかどうかは確かめていない** — `JKFPlayer` が指し手を足すときに
+    // json-kifu-format の正規化が走り、`same` / `promote` / `capture` / `relative` を
+    // 埋めると TS 側の `applyMoveWithBranch` は書いている。
+    // だとすればこの呼び出しは二重だが、外すと**書き出しがどう変わるかを
+    // 測っていない**ので外さない。どちらへ揃えるかは #322。
     jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 
     let content = match format.to_lowercase().as_str() {
@@ -193,6 +194,16 @@ mod tests {
    1 ５四歩(53)   ( 0:01/00:00:01)
 ";
 
+    /// 成る手を含む平手の棋譜
+    const PROMOTION_KIF: &str = "\
+手合割：平手
+手数----指手---------消費時間--
+   1 ７六歩(77)   ( 0:01/00:00:01)
+   2 ３四歩(33)   ( 0:01/00:00:02)
+   3 ２二角成(88)   ( 0:01/00:00:03)
+   4 同　銀(31)   ( 0:01/00:00:04)
+";
+
     fn initial_color(jkf: &JsonKifuFormat) -> Option<Color> {
         jkf.initial.as_ref()?.data.as_ref().map(|d| d.color)
     }
@@ -232,13 +243,21 @@ mod tests {
     /// ディスクへ書く経路は正規化しない。書いたものにそれが出る。
     ///
     /// `write_kifu_file_internal` は `convert_jkf_to_string_internal` と違って
-    /// `normalize()` を呼ばない（#322）。**その差が見えるのは `jkf` 形式だけ。**
-    /// KIF / KI2 / CSA の書き出しは局面を組み直して綴るので、`capture` のような
-    /// 欄を落としても出力が1バイトも変わらない（前の版のこのテストは
-    /// KIF / KI2 を見ていたので、`normalize()` を足しても緑のまま通っていた）。
+    /// `normalize()` を呼ばない（#322）。
     ///
-    /// `jkf` 形式は受け取った JKF をそのまま JSON にするので、
-    /// 正規化した側だけが `capture` を埋め直す。
+    /// **欄によって、落としたときの見え方が違う。**
+    ///
+    /// | 欄 | KIF / KI2 / CSA の本文 |
+    /// | --- | --- |
+    /// | `same` | 変わる（`同　` が座標に戻る） |
+    /// | `promote` | 変わる（`成` が消える＝**別の手になる**） |
+    /// | `capture` | 変わらない（書き出しが読まない） |
+    /// | `relative` | 変わらない（書き出しが局面から作り直す） |
+    ///
+    /// ここで見るのは `capture` を落とした場合。**本文が変わらない欄なので、
+    /// 正規化の有無が出るのは `jkf` 形式だけ**（受け取った JKF をそのまま
+    /// JSON にする）。`same` / `promote` を落とした場合は
+    /// `a_dropped_promotion_changes_the_move_that_is_written` が見る。
     #[test]
     fn the_write_path_does_not_normalize_and_the_json_shows_it() {
         let dir = temp_dir("write");
@@ -274,6 +293,52 @@ mod tests {
         assert!(
             via_convert.contains("capture"),
             "正規化する側が埋め直していない:\n{via_convert}"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `promote` が欠けた JKF を渡すと、**書かれる手が変わる**。
+    ///
+    /// KIF / KI2 / CSA の書き出しは `promote` を局面から作り直さず、
+    /// JKF の欄をそのまま読む。落ちていれば `成` を書かない。
+    /// `write_kifu_file_internal` は `normalize()` を呼ばないので、
+    /// **欠けたまま届けばそのままディスクに出る**。
+    ///
+    /// 実際にそうなるかは webview が何を送るかで決まる。TS 側の
+    /// `applyMoveWithBranch` は「正規化が `promote` を書き加える」と書いているので、
+    /// 埋まった状態で届く前提。ここはその前提が崩れたときに何が起きるかを固定する。
+    #[test]
+    fn a_dropped_promotion_changes_the_move_that_is_written() {
+        let dir = temp_dir("dropped-promotion");
+
+        let source = parse_kif_str(PROMOTION_KIF).expect("成る手のある KIF が読めること");
+        let promoted = source
+            .moves
+            .iter()
+            .filter(|mf| mf.move_.is_some_and(|mv| mv.promote == Some(true)))
+            .count();
+        assert!(promoted > 0, "成る手が題材に入っていない");
+
+        let mut stripped = source.clone();
+        for mf in stripped.moves.iter_mut().skip(1) {
+            if let Some(mv) = &mut mf.move_ {
+                mv.promote = None;
+            }
+        }
+
+        let path = dir.join("kept.kif");
+        write_kifu_file_internal(&mut source.clone(), &path, "kif").expect("書き出し");
+        let kept = std::fs::read_to_string(&path).expect("読み取り");
+        assert!(kept.contains('成'), "元の棋譜に成が無い:\n{kept}");
+
+        let path = dir.join("dropped.kif");
+        write_kifu_file_internal(&mut stripped.clone(), &path, "kif").expect("書き出し");
+        let dropped = std::fs::read_to_string(&path).expect("読み取り");
+        assert!(
+            !dropped.contains('成'),
+            "promote を落としても成が残った。書き出しが局面から作り直すようになったので、\
+             このテストと doc の表を見直すこと:\n{dropped}"
         );
 
         std::fs::remove_dir_all(&dir).ok();
