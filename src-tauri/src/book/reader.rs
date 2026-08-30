@@ -274,6 +274,34 @@ mod tests {
         assert!(check_file_size(limit, BookFormat::YaneuraouDb, "/books/a.db").is_ok());
     }
 
+    /// **`open_reader` を実際に通して、1バイトも読まないことを見る。**
+    ///
+    /// `check_file_size` を直接呼ぶテストだけだと、`open_reader` からその
+    /// 呼び出しを消す変更が緑で通る。検査を形式の分岐より前へ出した意味が
+    /// そこにあるので、呼び出し位置ごと固定する。
+    ///
+    /// sparse file なので費用は掛からない（実測で 0.3ms / ディスク 0 ブロック）。
+    /// 中身は1バイトも書いていないため、**読みに行けば必ず `InvalidContent`**。
+    /// つまりこのテストは「読まずに落ちた」ことまで見ている。
+    #[test]
+    fn an_over_sized_file_is_refused_without_reading_it() {
+        let dir = crate::book::test_paths::scratch_dir("over-sized");
+        let file = dir.join("huge.db");
+        let handle = std::fs::File::create(&file).expect("テスト用のファイルを作れない");
+        handle
+            .set_len(crate::book::yaneuraou_db::MAX_FILE_BYTES + 1)
+            .expect("大きさを設定できない");
+        drop(handle);
+
+        let result = open_reader(&file, BookFormat::YaneuraouDb);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let Err(err) = result else {
+            panic!("上限を超えたのに開けてしまった");
+        };
+        assert_eq!(err.code(), BookErrorCode::TooLarge, "{}", err.message());
+    }
+
     /// **reader がまだ無い形式は、大きさより先に「対応していない」と言うこと。**
     /// 縮めても開けないので、大きさを言われても利用者にできることが無い。
     /// 検査を形式の分岐より前へ出したときに、この順序が壊れやすい。
