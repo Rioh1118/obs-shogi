@@ -36,10 +36,7 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
     // 長さの打ち切りは BookError の with_path が持っているが、ログは
     // BookError を通らないのでここで明示的に掛ける。
     let path = validate_book_path(&input.path)?;
-    log::info!(
-        "[cmd] open_book path={}",
-        truncate_path(&path.to_string_lossy())
-    );
+    log::info!("[cmd] open_book path={}", truncate_path(&input.path));
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
