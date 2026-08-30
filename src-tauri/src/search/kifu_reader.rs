@@ -108,10 +108,13 @@ const LOSSY_DECODERS: [LossyDecoder; 2] = [
 /// | 指し手が2件以上 | 1手でも指されていれば `moves` は初期局面ぶんと合わせて2件。`投了` だけの記録もこれ |
 /// | ヘッダ | `先手：` `棋戦：` などが1つでもある |
 /// | 初期局面 | 盤面が書いてある（詰将棋・局面図）、平手以外の手合割 |
-/// | 最初の局面の注釈・終局・分岐 | `*` のコメント、本線が空で分岐だけを持つ `.jkf` |
+/// | 最初の局面の注釈 | `*` のコメントだけの棋譜（KIF / KI2 でも届く） |
+/// | 最初の局面の終局・分岐 | 手で組んだ `.jkf` だけ |
 ///
-/// 最後の欄に届くのは**手で組んだ `.jkf` だけ**。KIF / KI2 / CSA のパーサは
-/// 終局も分岐も番号付きの手順行からしか作らないので、そちらは1行目で通る。
+/// 最後の欄に届くのが `.jkf` だけなのは、KIF / KI2 / CSA のパーサが
+/// **終局も分岐も番号付きの手順行からしか作らない**から。
+/// そちらは指し手が2件以上になるので1行目で通る。
+/// 注釈（`*`）は手順行を要らないので、KIF / KI2 でもこの欄に届く。
 ///
 /// **`手合割：平手` だけの記録は、何も書かなかったものと区別できない** —
 /// 平手の初期局面は既定値と同じになる。どちらも入れる局面が無いので区別しない。
@@ -726,8 +729,13 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         error,
     }) = &by_fallback
     {
+        // **クレート経路と同じ案内を付ける。** 同じ壊れ方でも、文字コードが
+        // Shift_JIS / UTF-8 なら `unreadable_record` が案内を付け、
+        // EUC-JP / BOM 無しの UTF-16 / ISO-2022-JP はここに落ちる。
+        // 付けないと、文字コードによって案内が出たり出なかったりする
         return format!(
-            "{name} としては読めたが、棋譜として読めなかった: {}",
+            "{name} としては読めましたが、棋譜として読めない行があります。\
+             その行を直すか、拡張子が中身と合っているか確かめてください:\n{}",
             capped(error)
         );
     }
@@ -742,7 +750,8 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         other => match by_fallback {
             Some(Unparsable { error, .. }) => {
                 format!(
-                    "文字コードは特定できませんが、棋譜として読めない箇所があります: {}",
+                    "文字コードは特定できませんが、棋譜として読めない行があります。\
+                     その行を直すか、拡張子が中身と合っているか確かめてください:\n{}",
                     capped(&error)
                 )
             }
@@ -1269,6 +1278,13 @@ mod tests {
         assert!(
             !message.contains("棋譜ではないファイル"),
             "棋譜なのに棋譜でないと言っている: {message}"
+        );
+        // **文字コードを名乗れなくても、次に何をすればよいかは言う。**
+        // この腕はクレートの理由でなく総当たりの理由を使うので、
+        // `unreadable_record` を通らない。案内を入れ忘れやすい
+        assert!(
+            message.contains("その行を直すか"),
+            "次に何をすればよいかを言っていない: {message}"
         );
 
         fs::remove_dir_all(&dir).ok();
@@ -1862,7 +1878,13 @@ mod tests {
         let dir = temp_dir("not-a-kifu");
 
         // (拡張子, 中身, 文言に必ず含まれるもの)
-        let cases: [(&str, KifuKind, Vec<u8>, &str); 5] = [
+        // **クレートが読めた経路だけでは `describe` の総当たり側の腕を通らない。**
+        // Shift_JIS / UTF-8 の壊れた棋譜はクレートが `ParseError::Kif` を返すので
+        // `unreadable_record` が案内を付けるが、EUC-JP / BOM 無しの UTF-16 /
+        // ISO-2022-JP は総当たりが読んだ側に落ちる。そちらにも案内が要る
+        let broken_move = "先手：山田\n後手：田中\n手合割：平手\n\
+                           手数----指手---------消費時間--\n   1 ZZZZ\n";
+        let cases: [(&str, KifuKind, Vec<u8>, &str); 7] = [
             // Shift_JIS の CSA。ShogiGUI / Shogidokoro が書くとこうなる
             (
                 "csa",
@@ -1895,6 +1917,19 @@ mod tests {
                 "ki2",
                 KifuKind::Ki2,
                 b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\n".to_vec(),
+                "棋譜として読めない行があります",
+            ),
+            // クレートが試さない文字コード。総当たりが読んだ側に落ちる
+            (
+                "kif",
+                KifuKind::Kif,
+                EUC_JP.encode(broken_move).0.into_owned(),
+                "棋譜として読めない行があります",
+            ),
+            (
+                "kif",
+                KifuKind::Kif,
+                UTF_16LE.encode(broken_move).0.into_owned(),
                 "棋譜として読めない行があります",
             ),
         ];
