@@ -145,16 +145,6 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 `navigate` の `catch` が `set_error` に落とすが読み手が0なので、そのときは
 盤が1手も動かず画面には何も出ない。
 
-※6 `provider.test.tsx` が固定しているのは `loadGame` の2つ（読み込めた棋譜が
-`state` に入ること、盤に載せられない棋譜を弾いて `error` を残すこと）。
-**E16 の番人は `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけ**で、
-返り値を使わないので消しても tsc も lint も通る。このテストがその1行を守っている。
-
-※5 `△` は「歩き方の部品だけ固定されている」の意。`advanceWithPlan.test.ts` が
-1手ぶんの規則（壊れた計画は捨てて線をそのまま進む、線の末尾では動かない）を固定しているだけで、
-**`navigate` を通した `state.branchPlan` の遷移（G2 のまま残るか G1 に落ちるか）は
-未検証**。`provider.test.tsx` が踏むのは `loadGame` だけ（※6）。
-
 ※2 振り分けるのは `resolveForkSelection`。比較先は `PlannedCursor` で、
 `KifuCursor` は型で弾く。行のチェックとの食い違いは不変条件2 を見る。
 
@@ -168,6 +158,16 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 取得に失敗すると `kifu_closed` が来ないので、`activeKifuPath` も `persistence` も
 旧ワークスペースを指したまま残る。その状態で編集すると、新しいワークスペースを
 開いているつもりで旧ワークスペースのファイルに書き込む。→ #245
+
+※5 `△` は「歩き方の部品だけ固定されている」の意。`advanceWithPlan.test.ts` が
+1手ぶんの規則（壊れた計画は捨てて線をそのまま進む、線の末尾では動かない）を固定しているだけで、
+**`navigate` を通した `state.branchPlan` の遷移（G2 のまま残るか G1 に落ちるか）は
+未検証**。`provider.test.tsx` が踏むのは `loadGame` だけ（※6）。
+
+※6 `provider.test.tsx` が固定しているのは `loadGame` の2つ（読み込めた棋譜が
+`state` に入ること、盤に載せられない棋譜を弾いて `error` を残すこと）。
+**E16 の番人は `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけ**で、
+返り値を使わないので消しても tsc も lint も通る。このテストがその1行を守っている。
 
 ## ディスクを組で見る
 

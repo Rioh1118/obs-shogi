@@ -75,7 +75,7 @@ function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPoi
  * 要求の鍵が観測の欄に入る形を実際に止めているのは、`TesuuPointer` と
  * `CursorKey` を別の型にしてあること。
  */
-export interface KifuCursor {
+interface KifuCursorFields {
   /** 現在の手数(0=開始局面) */
   tesuu: number;
 
@@ -84,18 +84,19 @@ export interface KifuCursor {
 
   /** `JKFPlayer.getTesuuPointer()` が返した観測値。要求の鍵（`cursorKey`）を入れない */
   tesuuPointer: TesuuPointer;
-
-  /**
-   * 外から組ませないための印。値としては存在しない。
-   *
-   * 止まるのは素のオブジェクトリテラルだけ。`{ ...cursor }` のスプレッドは印ごと
-   * 写るので通る。**スプレッドで `tesuuPointer` を差し替える形を止めているのは
-   * `CursorKey` との型の違い**であって、この印ではない。
-   * `as unknown as KifuCursor` はどちらも素通りするので
-   * `src/__tests__/cursorConstruction.test.ts` が綴りで見る。
-   */
-  readonly [kifuCursorBrand]: true;
 }
+
+export type KifuCursor = KifuCursorFields & { readonly [kifuCursorBrand]: true };
+
+/**
+ * 欄を揃えた組に印を付ける。**`KifuCursor` を作れるのはこの関数を通る2つだけ。**
+ *
+ * 引数を `KifuCursorFields` で受けるのが要点。`as unknown as KifuCursor` を
+ * 作る側に直接書くと、**欄の型が入れ替わっていても tsc が何も言わない**
+ * （`tesuu` に文字列、`tesuuPointer` に数値を入れても通る）。
+ * ここを通せば欄は tsc が突き合わせ、印を付ける単段のキャストだけが残る。
+ */
+const brandCursor = (fields: KifuCursorFields): KifuCursor => fields as KifuCursor;
 
 /**
  * 盤を再生するのに要る最小の組。`KifuCursor` と `PlannedCursor` の共通部分。
@@ -177,11 +178,11 @@ export function plannedCursorFrom(
  * `tesuuPointer` だけは再生器を通さず手書きしている。書式が `cursorKey` の出力と
  * 一致することは `__tests__/cursor.test.ts` が固定している。
  */
-export const ROOT_CURSOR = {
+export const ROOT_CURSOR = brandCursor({
   tesuu: 0,
   forkPointers: [],
   tesuuPointer: "0,[]" as TesuuPointer,
-} as unknown as KifuCursor;
+});
 
 /**
  * forkPointers を正規化する。
@@ -305,11 +306,11 @@ export function makeKifuCursor(
   forkPointers: ForkPointer[],
   tesuuPointer: string,
 ): KifuCursor {
-  return {
+  return brandCursor({
     tesuu,
     forkPointers: normalizeForkPointers(forkPointers, tesuu),
     tesuuPointer: tesuuPointer as TesuuPointer,
-  } as unknown as KifuCursor;
+  });
 }
 
 /**
