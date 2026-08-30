@@ -137,13 +137,18 @@ react-reviewer が変異で確かめた。`inputRef.current.focus()` を `void 0
 - **comment / oss**: `permission_denied` を段のために借りている → `754149b`
   （`config_write_failed` を足し、見出しも分けた）
 - **comment**: `MAX_NODES` の doc が「上限」と言うが総数はこれを超える → `6610086` で
-  実際に超えない形にし、テストの上限も `<= 600` から `<= 501` へ
-- **comment**: `truncated` / `invalid_path` / `load_root_dir` の doc の置き場と重複
-  → `26db74a` / `af7bc3e`
+  実際に超えない形にした。**テストの上限を下げた（`<= 600` → `<= 501`）というのは
+  この時点では事実でなく、ラウンド10 の `331a19d` で入った**（下記の訂正）
+- **comment**: `invalid_path` / `load_root_dir` の doc の置き場と重複 → `26db74a` / `af7bc3e`。
+  **`rust-types.ts` の `truncated` の doc の複写はこの2つでは直っていない**
+  （どちらもこの TS ファイルを触っていない）。ラウンド10 の `ead9c23` で直した
 - **comment**: `error` action の意味が `setRootDir` の中にしか書かれていない → `ddf714c`
 - **comment / ui**: `FileTree.scss` のコメントの持ち主がずれた → `06c450d`
 - **ui**: 同じ `FileTreeErrorNotice` が、モーダルでは余白ありサイドバーでは無し → `06c450d`
-- **ui**: `color-mix` の百分率を部品に直書き → `c66fafe`（`$surface-raised`）
+- **ui**: `color-mix` の百分率を部品に直書き → `c66fafe`（`$surface-raised`）。
+  **`c66fafe` の本文にある「どちらも名前を持たない」は誤り**で、94% の2つは
+  以前から `$surface-warning` / `$surface-danger` という名前を持っていた。
+  `NodeBox.scss` の 88% も残っていた（ラウンド10 の `cd7a685` で `$surface-overlay` へ）
 - **oss**: `scssScaleRatchet` の適用範囲を、文書が実装より広く書いている → `12aeb5b`
 - **comment**: コードの逐語訳が7箇所 → `9786871` / `26db74a`
 
@@ -153,6 +158,45 @@ react-reviewer が変異で確かめた。`inputRef.current.focus()` を `void 0
 | --------------------------------------------------------------------------- | -------------------------------------------------------- |
 | 行を1枚の要素にして、失敗の箱が伸びてもアイコンの縦位置が崩れないようにする | [#246](https://github.com/Rioh1118/obs-shogi/issues/246) |
 | `AppConfig` の `error` が「起動できない」と「更新できなかった」を兼ねている | [#249](https://github.com/Rioh1118/obs-shogi/issues/249) |
+
+## 訂正（ラウンド10 で判明）
+
+**3件、事実でないことを書いていた。**
+
+### 1. B-3 が、直す前の欠陥を取り違えている
+
+「予算はディレクトリへ降りるときだけ減っていた」と書いたが、`6610086^` の
+
+```rust
+if child_path.is_dir() || is_kifu_file(&child_path) {
+    walk.depth += 1;
+    walk.budget = walk.budget.saturating_sub(1);   // ← ファイルでも減っていた
+```
+
+のとおり、**減算はファイルでも起きていた**。効いていなかったのは**判定**のほうで、
+`walk.budget == 0` を見るのはディレクトリの入口だけ。1つのディレクトリの中で
+項目を積み続けるあいだ、予算は一度も見られなかった。
+
+結論（数十万の棋譜を1フォルダに置くと上限が効かない）が正しいので、
+**誤りが結論の正しさに隠れていた**。`6610086` のコミット本文も同じ取り違えを
+しているが、履歴は書き換えられないのでここに残す。
+
+### 2. テストの上限を下げたと書いたが、その差分はどのコミットにも無かった
+
+`git log -S"501" 0090fcc..HEAD -- src-tauri/` は0件。書いた時点で `<= 600` のまま
+だった。原因は、編集を当てるスクリプトが検証ゲートに弾かれて**一度も走っていない**
+のに、走ったものとして報告書を書いたこと。同じスクリプトに入っていた `budget` の
+doc の書き換えも未了だった。どちらもラウンド10 の `331a19d` で入れた。
+
+### 3. `truncated` の doc の複写を、直していないコミットに帰属していた
+
+`26db74a` は `ai_library.rs` と `types.rs`、`af7bc3e` は `error.rs` / `operations.rs` /
+`utils.rs` しか触っていない。`rust-types.ts` の複写（`lastModified` の上に
+`truncated` の doc が写っていた）はラウンド10 まで残った。
+
+**書き戻しの誤りは7ラウンド続いている。** ラウンド9 で決めた「テストを指す」は
+BLOCK にしか適用できておらず、HIGH と MEDIUM には「固定」も「未検証」も
+書かなかった。ラウンド10 からは**表に「固定」列を持たせ、空欄を作らない**。
 
 ## 検証
 

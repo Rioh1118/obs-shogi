@@ -83,7 +83,8 @@
 - **rust**: `MAX_DEPTH` の打ち切りが空フォルダと区別できない（`acb848d`）／
   `ancestors` を全項目で `clone()`（`acb848d` で `&mut` に）／
   `guarded_variables` が引数の括弧で変数名を取り違える（[#231](https://github.com/Rioh1118/obs-shogi/issues/231)）／
-  `#[cfg(windows)]` が CI で一度もコンパイルされない（`acb848d` の skip は効いていなかった。`6610086` で解決）
+  `#[cfg(windows)]` が CI で一度もコンパイルされない（skip が効いていなかった件は `6610086` で解決。
+  **CI でコンパイルされない件は未解決** → [#253](https://github.com/Rioh1118/obs-shogi/issues/253)）
 - **comment**: `escapeReceivers` の doc が持っていない性質を主張（`acb848d` で実装を doc に合わせた）／
   `vite.config.ts` のコメントが変更の経緯そのもの（`acb848d`）／
   `EXTRA_GUARDS` の doc に同じ行が2つ（`acb848d`）／
