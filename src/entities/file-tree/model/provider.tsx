@@ -175,6 +175,25 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     void loadFileTree(); // async-result-ignored: 初回の読み込み。失敗は loadFileTree が積む
   }, [rootDir, loadFileTree]);
 
+  // **開いている棋譜は、いまのワークスペースの中にある。**
+  //
+  // 下の効果はツリーが取れたときにしか棋譜を閉じない。ワークスペースを変えて
+  // 取得が失敗すると `reload_failed` はツリーを残すので `activeKifuPath` も
+  // 据え置かれ、`GamePersistenceGate` はそのパスへ書き続ける。画面には前の
+  // ワークスペースの棋譜が出たまま、1手指すと**別のワークスペースのファイルが
+  // 書き換わる。**
+  //
+  // ツリーの成否を見ずに根の内側かどうかだけで決める。取得が失敗しても、
+  // 新しい根の外にあるという事実は変わらない。新しい根が前の根の親なら
+  // 棋譜は内側に残るので、そのときは開いたままでよい。
+  useEffect(() => {
+    if (!rootDir) return;
+    if (!state.activeKifuPath) return;
+    if (isSameOrDescendantPath(state.activeKifuPath, rootDir)) return;
+
+    dispatch({ type: "kifu_closed" });
+  }, [rootDir, state.activeKifuPath]);
+
   useEffect(() => {
     if (!state.fileTree) return;
 
