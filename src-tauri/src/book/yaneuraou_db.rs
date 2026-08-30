@@ -15,7 +15,8 @@
 //! 展開してしまえばファイル側のキーも [`to_book_key_in_file`] を通せるので、
 //! 綴りの揺れを吸収でき、持駒の並びの取り決めが lookup の正しさに影響しなくなる。
 //!
-//! 大きいファイルの上限・進捗・中断は #197。ここでは扱わない。
+//! 大きさの上限はここで持つ（値の根拠は [`MAX_FILE_BYTES`]）。
+//! 進捗と中断は #197。
 
 use crate::book::error::{BookError, BookErrorCode};
 use crate::book::sfen::{excerpt, to_book_key_in_file, BookKey};
@@ -47,8 +48,22 @@ impl super::reader::BookReader for YaneuraouDbReader {
 /// **1行ずつ読む。** ファイル全体を先に確保すると、そのバッファが展開の間ずっと
 /// 生きるので、ピークに入力サイズがそのまま乗る（実測でピークの 18.6%）。
 /// 展開後の map しか残らない形にすると、100MB の定跡でピークが 541MB → 316MB。
-pub(crate) fn load(path: &Path) -> Result<YaneuraouDbReader, BookError> {
+pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookError> {
     let shown = path.to_string_lossy();
+
+    if size > MAX_FILE_BYTES {
+        return Err(BookError::new(
+            BookErrorCode::TooLarge,
+            format!(
+                "この定跡は大きすぎて開けない（{} / 上限 {}）。\
+                 分割された定跡を使うか、別の定跡を開くこと",
+                mebibytes(size),
+                mebibytes(MAX_FILE_BYTES)
+            ),
+        )
+        .with_path(shown.clone()));
+    }
+
     let file = std::fs::File::open(path).map_err(|e| BookError::from_io(e, shown.clone()))?;
     let positions = parse(std::io::BufReader::new(file), &shown)?;
     Ok(YaneuraouDbReader { positions })
@@ -109,6 +124,29 @@ fn annotate_line(err: BookError, line_number: usize) -> BookError {
 
 fn invalid_content(message: &str, path: &str) -> BookError {
     BookError::new(BookErrorCode::InvalidContent, message).with_path(path)
+}
+
+/// 開けるファイルの上限。
+///
+/// **根拠は実測。** `#[global_allocator]` で確保バイトを数えた（合成定跡、
+/// 1局面 193 バイト・5手/局面。実物の行長に寄せてある）。
+///
+/// | ファイル | 展開後 | ピーク |
+/// | --- | --- | --- |
+/// | 100.4 MB | 316 MB | 316 MB（1行ずつ読むのでファイル側は乗らない） |
+///
+/// 展開後はファイルの **約 3.15 倍**。倍率は手数/局面に効き、3手で 3.2 倍、
+/// 10手で 3.9 倍。上限を 512 MiB に置くと、最悪でも展開後 2 GB 前後で収まる。
+///
+/// 公開の無償定跡は圧縮後 0.78〜72.6MB（`research/findings/L3-book-solved.md`）で、
+/// 展開してもこの上限には遠い。**弾くのは定跡でないファイルを選んだ場合が主。**
+///
+/// #96 で複数の定跡を同時に開けるようになると、この上限は1本ぶんの意味になる。
+const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
+
+/// 利用者に見せる大きさ。バイト数のままでは大小を掴めない。
+fn mebibytes(bytes: u64) -> String {
+    format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
 }
 
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
@@ -373,6 +411,7 @@ mod tests {
     use super::*;
     use crate::book::reader::BookReader;
     use crate::book::sfen::to_book_key;
+    use std::path::Path;
 
     const HIRATE: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
@@ -643,6 +682,31 @@ mod tests {
         assert!(err.message().contains("取得し直す"), "{}", err.message());
     }
 
+    /// 上限を超えるファイルは1バイトも読まずに落とす。
+    ///
+    /// `InvalidContent` に混ぜると「壊れている」と読まれ、取得し直すという
+    /// 効かない復帰操作へ誘導することになる。種別を分ける。
+    #[test]
+    fn a_file_over_the_limit_is_refused_before_reading_it() {
+        // 実在しないパスを渡す。大きさの検査が先なら open にすら来ない。
+        let Err(err) = load(Path::new("/nonexistent/huge.db"), MAX_FILE_BYTES + 1) else {
+            panic!("上限を超えたのに開けてしまった");
+        };
+
+        assert_eq!(err.code(), BookErrorCode::TooLarge);
+        assert!(err.message().contains("512.0MB"), "{}", err.message());
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
+    #[test]
+    fn a_file_at_the_limit_is_not_refused_for_its_size() {
+        let Err(err) = load(Path::new("/nonexistent/at-limit.db"), MAX_FILE_BYTES) else {
+            panic!("存在しないパスなので必ず失敗する");
+        };
+        assert_ne!(err.code(), BookErrorCode::TooLarge);
+    }
+
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
     /// 空の定跡と区別が付かず、利用者は全ての局面が未収録だと受け取る。
     #[test]
@@ -740,7 +804,8 @@ mod tests {
         bytes.extend_from_slice(sample().as_bytes());
         std::fs::write(&file, &bytes).expect("テスト用のファイルを書けない");
 
-        let result = load(&file);
+        let size = std::fs::metadata(&file).expect("テスト用のファイル").len();
+        let result = load(&file, size);
         std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
 
         let reader = result.expect("BOM 付きでも読めるはず");

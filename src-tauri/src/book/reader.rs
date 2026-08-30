@@ -84,7 +84,9 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
     // 数え上げも reader の生成もこの中（blocking プールの中）で終わらせること。
     match format {
         BookFormat::YaneuraouDb => {
-            let reader = crate::book::yaneuraou_db::load(path)?;
+            // 大きさの検査はここで済ませる。`metadata` は既に取ってあるので、
+            // 1バイトも読まずに落とせる。
+            let reader = crate::book::yaneuraou_db::load(path, meta.len())?;
             Ok(OpenedBook {
                 path: path.to_path_buf(),
                 format,
