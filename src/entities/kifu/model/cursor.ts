@@ -34,6 +34,8 @@ declare const tesuuPointerBrand: unique symbol;
  */
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
+declare const kifuCursorBrand: unique symbol;
+
 /**
  * 局面を一意に表す文字列を組む。**このファイルの中だけで使う。**
  *
@@ -52,6 +54,12 @@ function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPoi
  * `forkPointers` は `te <= tesuu` に正規化されている（組む2つが必ず通す）。
  * **`te > tesuu` を持たないのはこの型だけ。** `CursorPath` / `PlannedCursor` /
  * `BranchPlan` はいずれも持ちうる。
+ *
+ * `tesuuPointer` の型 brand だけでは、この型を組む側を縛れない。`cursorKey` は
+ * 同じ `TesuuPointer` を返して公開されているので、
+ * `{ tesuu, forkPointers, tesuuPointer: cursorKey(path) }` と直に書けば
+ * キャスト無しで**要求の鍵が観測の欄に入る**。だから型そのものにも brand を付け、
+ * 作れるのを下の2つ（`makeKifuCursor` / `ROOT_CURSOR`）に絞る。
  */
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
@@ -62,6 +70,9 @@ export interface KifuCursor {
 
   /** `JKFPlayer.getTesuuPointer()` が返した観測値。要求の鍵（`cursorKey`）を入れない */
   tesuuPointer: TesuuPointer;
+
+  /** 外でオブジェクトリテラルから組めなくするための印。値としては存在しない */
+  readonly [kifuCursorBrand]: true;
 }
 
 /**
@@ -141,11 +152,11 @@ export function plannedCursorFrom(
  * `tesuuPointer` だけは再生器を通さず手書きしている。書式が `cursorKey` の出力と
  * 一致することは `__tests__/cursor.test.ts` が固定している。
  */
-export const ROOT_CURSOR: KifuCursor = {
+export const ROOT_CURSOR = {
   tesuu: 0,
   forkPointers: [],
   tesuuPointer: "0,[]" as TesuuPointer,
-};
+} as unknown as KifuCursor;
 
 /**
  * forkPointers を正規化する。
@@ -273,7 +284,7 @@ export function makeKifuCursor(
     tesuu,
     forkPointers: normalizeForkPointers(forkPointers, tesuu),
     tesuuPointer: tesuuPointer as TesuuPointer,
-  };
+  } as unknown as KifuCursor;
 }
 
 /**
