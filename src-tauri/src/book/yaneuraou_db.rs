@@ -1988,9 +1988,7 @@ mod tests {
     /// 正しい定跡が「別の形式かもしれない」と拒否される。
     #[test]
     fn tolerates_a_utf8_bom() {
-        let dir = std::env::temp_dir().join("obs-shogi-book-bom");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let dir = crate::book::test_paths::scratch_dir("bom");
         let file = dir.join("book.db");
 
         let mut bytes = vec![0xEF, 0xBB, 0xBF];
@@ -1999,7 +1997,7 @@ mod tests {
 
         let size = std::fs::metadata(&file).expect("テスト用のファイル").len();
         let result = load(&file, size);
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         let reader = result.expect("BOM 付きでも読めるはず");
         assert_eq!(reader.position_count(), 2);

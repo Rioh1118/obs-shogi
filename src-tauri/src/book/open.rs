@@ -190,9 +190,7 @@ mod tests {
     fn opens_a_book_and_finds_the_opening_moves() {
         use crate::book::sfen::to_book_key;
 
-        let dir = std::env::temp_dir().join("obs-shogi-book-end-to-end");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let dir = crate::book::test_paths::scratch_dir("end-to-end");
         let file = dir.join("standard.db");
         std::fs::write(
             &file,
@@ -235,9 +233,7 @@ mod tests {
     /// 形式の食い違い検査自体は Windows でも本番経路として動くが、**検証していない。**
     #[cfg(unix)]
     fn linked(name: &str, target_ext: &str, link_ext: &str) -> (PathBuf, PathBuf, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("obs-shogi-book-open-at-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let dir = crate::book::test_paths::scratch_dir(name);
 
         let target = dir.join(format!("target{target_ext}"));
         let link = dir.join(format!("link{link_ext}"));
@@ -351,9 +347,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn reports_the_link_target_when_it_cannot_be_resolved() {
-        let dir = std::env::temp_dir().join("obs-shogi-book-dangling");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let dir = crate::book::test_paths::scratch_dir("dangling");
 
         let missing = dir.join("gone.db");
         let link = dir.join("link.db");

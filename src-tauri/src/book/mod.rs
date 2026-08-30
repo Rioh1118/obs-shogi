@@ -17,6 +17,8 @@ mod open;
 mod reader;
 mod session;
 mod sfen;
+#[cfg(test)]
+mod test_paths;
 mod types;
 mod yaneuraou_db;
 

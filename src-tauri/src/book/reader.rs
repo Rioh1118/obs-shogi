@@ -185,11 +185,12 @@ mod tests {
     /// 次にやれること（.db なら開ける）を出す。
     #[test]
     fn an_unsupported_format_tells_the_user_what_to_expect() {
-        let file = std::env::temp_dir().join("obs-shogi-book-unsupported.bin");
+        let dir = crate::book::test_paths::scratch_dir("unsupported");
+        let file = dir.join("a.bin");
         std::fs::write(&file, b"").expect("テスト用のファイルを作れない");
 
         let result = open_reader(&file, BookFormat::AperyBin);
-        std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         let Err(err) = result else {
             panic!("reader を持たない形式なのに開けてしまった");
@@ -213,11 +214,12 @@ mod tests {
     /// 復帰操作に辿り着けない。
     #[test]
     fn reports_a_broken_db_as_broken_content() {
-        let file = std::env::temp_dir().join("obs-shogi-book-broken.db");
+        let dir = crate::book::test_paths::scratch_dir("broken");
+        let file = dir.join("a.db");
         std::fs::write(&file, b"not a book").expect("テスト用のファイルを作れない");
 
         let result = open_reader(&file, BookFormat::YaneuraouDb);
-        std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         let Err(err) = result else {
             panic!("定跡でないファイルを開けてしまった");
@@ -230,7 +232,8 @@ mod tests {
     /// 戻すと IO が async ワーカへ漏れる。
     #[test]
     fn a_readable_book_is_counted_while_opening() {
-        let file = std::env::temp_dir().join("obs-shogi-book-counted.db");
+        let dir = crate::book::test_paths::scratch_dir("counted");
+        let file = dir.join("a.db");
         std::fs::write(
             &file,
             b"#YANEURAOU-DB2016 1.00\n              sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n              7g7f 3c3d 50 32 1\n",
@@ -238,7 +241,7 @@ mod tests {
         .expect("テスト用のファイルを作れない");
 
         let result = open_reader(&file, BookFormat::YaneuraouDb);
-        std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         let opened = result.expect("読めるはず");
         assert_eq!(opened.position_count, Some(1));
@@ -293,11 +296,9 @@ mod tests {
     /// 利用者は探し直してしまう。
     #[test]
     fn reports_a_directory_as_a_wrong_kind() {
-        let dir = std::env::temp_dir().join("obs-shogi-book-open-reader-test.db");
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
-
+        let dir = crate::book::test_paths::scratch_dir("a-directory");
         let result = open_reader(&dir, BookFormat::YaneuraouDb);
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         let Err(err) = result else {
             panic!("ディレクトリを定跡として開けてしまった");
