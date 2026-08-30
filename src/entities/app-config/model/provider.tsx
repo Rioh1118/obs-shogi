@@ -79,18 +79,17 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     // 理由は `chooseRootDir` と同じ
     try {
       const aiRoot = await chooseAiRootApi(opts);
-      if (aiRoot === null) return null;
+      if (aiRoot === null) return Ok(null);
 
       dispatch({ type: "loading" });
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
-      return aiRoot;
+      return Ok(aiRoot);
     } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `AI_ROOTの選択に失敗しました: ${String(err)}`,
-      });
-      return null;
+      // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
+      // AI フォルダを選び損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
+      dispatch({ type: "settled" });
+      return Err(`AI_ROOTの選択に失敗しました: ${String(err)}`);
     }
   }
 

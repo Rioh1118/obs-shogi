@@ -42,7 +42,14 @@ export type ConfigAction =
 export type AppConfigContextType = ConfigState & {
   updateConfig: (config: AppConfig) => Promise<void>;
   chooseRootDir: (opts?: ChooseOpts) => Promise<string | null>;
-  chooseAiRoot: (opts?: ChooseOpts) => Promise<string | null>;
+  /**
+   * AI フォルダを選ばせる。**成否を返す。**
+   *
+   * `null` は取り消し（設定は動いていない）。失敗は `Err` で返し、`error` には
+   * 積まない。積むと `RequireRootDir` が `/` へ飛ばして、選び損ねただけで
+   * ランタイムが畳まれる
+   */
+  chooseAiRoot: (opts?: ChooseOpts) => AsyncResult<string | null, string>;
   /**
    * ワークスペースを差し替える。**成否を返す。**
    *

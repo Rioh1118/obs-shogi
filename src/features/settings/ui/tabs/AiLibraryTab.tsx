@@ -5,7 +5,7 @@ import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection } from "../kit";
-import { chooseAiRoot, useAppConfig } from "@/entities/app-config";
+import { useAppConfig } from "@/entities/app-config";
 
 import {
   scanAiRoot,
@@ -40,7 +40,7 @@ type ScanState =
   | { status: "error"; error: string };
 
 export default function AiLibraryTab() {
-  const { config } = useAppConfig();
+  const { config, chooseAiRoot } = useAppConfig();
 
   const aiRoot = config?.ai_root ?? "";
   const [localAiRoot, setLocalAiRoot] = useState(aiRoot);
@@ -124,10 +124,15 @@ export default function AiLibraryTab() {
 
   const onPick = useCallback(async () => {
     const picked = await chooseAiRoot({ force: true });
-    if (!picked) return;
-    setLocalAiRoot(picked);
-    await scanNow(picked);
-  }, [scanNow]);
+    if (!picked.success) {
+      setScan({ status: "error", error: picked.error });
+      return;
+    }
+    if (picked.data === null) return; // 取り消し
+
+    setLocalAiRoot(picked.data);
+    await scanNow(picked.data);
+  }, [chooseAiRoot, scanNow]);
 
   const onEnsureEngines = useCallback(async () => {
     const root = localAiRoot.trim();
