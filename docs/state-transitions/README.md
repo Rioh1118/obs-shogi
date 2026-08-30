@@ -24,6 +24,7 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
 
 判定  book-key-failures.md     book_key_or_reason の検査の順序 × 入力の形
+判定  yaneuraou-db-parse.md    .db の読み取り。行の種類 × パーサの状態
 判定  verify-gate-decision.md  verify-gate の段 × コマンドの形
 ```
 
@@ -37,21 +38,22 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 
 ## いま何が書けているか
 
-| 表                                                 | 状態      | 備考                                                       |
-| -------------------------------------------------- | --------- | ---------------------------------------------------------- |
-| [app.md](app.md)                                   | ✅        | L0                                                         |
-| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                     |
-| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                                  |
-| [file-tree.md](file-tree.md)                       | ✅        |                                                            |
-| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                    |
-| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）             |
-| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う                  |
-| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                     |
-| [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                  |
-| [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                 |
-| `game.md`                                          | ❌ 未作成 | `set_error` が9箇所から飛ぶが読み手が0。**書く価値が高い** |
-| `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある            |
-| `study-positions.md`                               | ❌ 未作成 |                                                            |
+| 表                                                 | 状態      | 備考                                                        |
+| -------------------------------------------------- | --------- | ----------------------------------------------------------- |
+| [app.md](app.md)                                   | ✅        | L0                                                          |
+| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                      |
+| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                                   |
+| [file-tree.md](file-tree.md)                       | ✅        |                                                             |
+| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                     |
+| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）              |
+| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う                   |
+| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                      |
+| [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                   |
+| [yaneuraou-db-parse.md](yaneuraou-db-parse.md)     | ✅        | 判定表。`.db` の行の種類 × パーサの状態。一次資料の表を持つ |
+| [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                  |
+| `game.md`                                          | ❌ 未作成 | `set_error` が9箇所から飛ぶが読み手が0。**書く価値が高い**  |
+| `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある             |
+| `study-positions.md`                               | ❌ 未作成 |                                                             |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
 

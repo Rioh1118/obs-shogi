@@ -191,34 +191,44 @@ fn parse<R: BufRead>(
 ) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
     let mut buffer = String::new();
     let mut index = 0usize;
-    let mut header: Option<(usize, String)> = None;
+    let mut header: Option<usize> = None;
+    let mut declared: Option<u64> = None;
 
+    // 見出しより前にも注記は書ける。本家は `#` と `//` を位置に関係なく
+    // 読み飛ばす（`book.cpp:709-716`）ので、先頭の1行のせいで定跡を拒否しない。
     while read_line(&mut reader, &mut buffer, index == 0, path)? {
         index += 1;
-        if !buffer.trim().is_empty() {
-            header = Some((index, buffer.trim_end().to_string()));
+        let line = buffer.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(count) = declared_count(line) {
+            declared = Some(count);
+            continue;
+        }
+        if line.starts_with(HEADER_PREFIX) {
+            header = Some(index);
             break;
         }
+        if is_skippable(line) {
+            continue;
+        }
+        // 注記でも見出しでもない行に当たった。ここで見出しが無いと決まる。
+        return Err(invalid_content(
+            &format!(
+                "やねうら王テキスト定跡の見出しが無い（{index}行目: {}）。\
+                 別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
+                excerpt(line)
+            ),
+            path,
+        ));
     }
 
-    match header.as_ref().map(|(n, line)| (*n, line.as_str())) {
-        Some((_, line)) if line.starts_with(HEADER_PREFIX) => {}
-        Some((number, line)) => {
-            return Err(invalid_content(
-                &format!(
-                    "やねうら王テキスト定跡の見出しが無い（{number}行目: {}）。\
-                     別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
-                    excerpt(line)
-                ),
-                path,
-            ))
-        }
-        None => {
-            return Err(invalid_content(
-                "定跡ファイルが空。取得し直すか、別の定跡を開くこと",
-                path,
-            ))
-        }
+    if header.is_none() {
+        return Err(invalid_content(
+            "定跡ファイルが空。取得し直すか、別の定跡を開くこと",
+            path,
+        ));
     }
 
     let mut positions: HashMap<BookKey, Vec<BookMove>> = HashMap::new();
@@ -226,7 +236,6 @@ fn parse<R: BufRead>(
     // 現在の局面ぶんを溜める。行ごとに map を引くと、指し手1行につきキーの確保と
     // ハッシュ計算が1回ずつ走る（100MB の定跡で 312 万回、パース時間の 17%）。
     let mut buffered: Vec<BookMove> = Vec::new();
-    let mut declared: Option<u64> = None;
     // 申告と突き合わせるのは `sfen` 行の数。map の要素数ではない（正規化と
     // 重複の畳み込みで減るので、正常な定跡でも一致しない）。
     let mut sfen_lines: u64 = 0;
@@ -262,6 +271,12 @@ fn parse<R: BufRead>(
         }
 
         let parsed = parse_move(line);
+        // 「指し手が無い」の綴り。本家は指し手の欄でも同じ3綴りを見る
+        // （`book.cpp:118-119`）。候補手にすると、盤に適用できない綴りが
+        // 先頭＝best move の位置に座る。局面は `flush` が空でも登録する。
+        if ABSENT_MOVE.contains(&parsed.usi_move.as_str()) {
+            continue;
+        }
         if !looks_like_a_move(&parsed.usi_move) {
             return Err(invalid_content(
                 &format!(
@@ -342,7 +357,11 @@ fn flush(
         //
         // **同じ指し手は先に読んだ方を残す。** 連ねると同じ指し手が評価値違いで
         // 2度返り、「先頭がその局面の best move」という形式の約束が
-        // 2つのエントリの境目で崩れる。ShogiHome も先勝ちを採っている。
+        // 2つのエントリの境目で崩れる。
+        //
+        // 本家 `BookMoves::insert`（`book.cpp:123-149`）も、同じ指し手があれば
+        // 追加しない。ShogiHome は違う方針（手数の小さいエントリで丸ごと置換）
+        // なので、同じ入力でも候補手の数が違う。
         Entry::Occupied(mut slot) => {
             let existing = slot.get_mut();
             for candidate in buffered.drain(..) {
@@ -394,8 +413,11 @@ const MAX_MOVE_CHARS: usize = 7;
 ///
 /// **綴りの一覧は持たない。** 定跡側が使う綴りを網羅できないので、一覧で
 /// 弾くと読めるはずの定跡が開けなくなる。見るのは「短い ASCII の英数字と記号」
-/// という形だけで、これは実在する綴り（`7g7f` / `P*5e` / `resign` / `none`）を
-/// すべて通し、紛れ込んだ日本語・HTML・長いテキストを落とす。
+/// という形だけで、これは実在する綴り（`7g7f` / `7g7f+` / `P*5e`）をすべて通し、
+/// 紛れ込んだ日本語・HTML・長いテキストを落とす。
+///
+/// 「指し手が無い」の綴り（[`ABSENT_MOVE`]）もこの形は満たす。**それらを
+/// 落とすのは呼び出し側の役目**で、形の検査には入れない（形と意味は別の層）。
 fn looks_like_a_move(token: &str) -> bool {
     !token.is_empty()
         && token.chars().count() <= MAX_MOVE_CHARS
@@ -406,9 +428,9 @@ fn looks_like_a_move(token: &str) -> bool {
 
 /// 指し手が無いことを表す綴り。
 ///
-/// 出典: 本家 `source/book/book.cpp:118-119`。`move` と `ponder` の両方で
-/// 同じ3綴りを見ている。`none` だけを見ると、`None` や `resign` が
-/// **指し手として扱える形**でフロントへ渡る。
+/// 出典: 本家 `source/book/book.cpp:118-119`。**指し手の欄と応手の欄の両方**で
+/// 同じ3綴りを見る。片方だけに当てると、盤に適用できない綴りが
+/// 候補手の先頭＝best move の位置に座る。
 const ABSENT_MOVE: [&str; 3] = ["none", "None", "resign"];
 
 /// 応手の欄を読む。省略・空欄・「指し手が無い」の綴りはすべて欠損。
@@ -669,12 +691,17 @@ mod tests {
         }
     }
 
-    /// 実在する綴りは全て通す。一覧で弾くと読めるはずの定跡が開けなくなる。
+    /// 実在する綴りは全て候補手になる。一覧で弾くと読めるはずの定跡が開けなくなる。
+    ///
+    /// 「指し手が無い」の綴り（`none` / `resign`）はここに入れない。形は満たすが
+    /// 候補手にはならないので、`an_absent_move_spelling_is_not_a_candidate` が見る。
     #[test]
-    fn every_real_move_spelling_is_accepted() {
-        for spelling in ["7g7f", "7g7f+", "P*5e", "1a9i", "resign", "none"] {
+    fn every_real_move_spelling_becomes_a_candidate() {
+        for spelling in ["7g7f", "7g7f+", "P*5e", "1a9i"] {
             let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n{spelling} none 0 0 1\n");
-            assert!(parsed(&text).is_ok(), "spelling={spelling}");
+            let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+            assert_eq!(moves.len(), 1, "spelling={spelling}");
+            assert_eq!(moves[0].usi_move, spelling);
         }
     }
 
@@ -751,6 +778,92 @@ mod tests {
             panic!("存在しないパスなので必ず失敗する");
         };
         assert_ne!(err.code(), BookErrorCode::TooLarge);
+    }
+
+    /// 表の (S0, E3) / (S0, E4) / (S0, E2)。
+    ///
+    /// 本家は `#` と `//` を位置に関係なく読み飛ばす（`book.cpp:709-716`）。
+    /// 見出しより前の1行のせいで、本家が普通に読める定跡を拒否しない。
+    #[test]
+    fn notes_before_the_header_are_skipped() {
+        for lead in ["// generated 2026-08-30", "# yaneuraou", "# NOE:1", ""] {
+            let text =
+                format!("{lead}\n#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none 50 32 1\n");
+            assert!(parsed(&text).is_ok(), "lead={lead:?}");
+        }
+    }
+
+    /// 表の (S2, E6)。本家は指し手の欄でも `none` / `None` / `resign` を
+    /// 「指し手が無い」として扱う（`book.cpp:118-119`）。候補手にすると、
+    /// 盤に適用できない綴りが先頭＝best move の位置に座る。
+    #[test]
+    fn an_absent_move_spelling_is_not_a_candidate() {
+        for spelling in ["none", "None", "resign"] {
+            let text = format!(
+                "#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n{spelling} none 0 0 1\n7g7f none 50 32 1\n"
+            );
+            let positions = loaded(&text);
+            let moves = &positions[&to_book_key(HIRATE).unwrap()];
+
+            let usi: Vec<&str> = moves.iter().map(|m| m.usi_move.as_str()).collect();
+            assert_eq!(usi, ["7g7f"], "spelling={spelling}");
+            // 局面そのものは数える
+            assert_eq!(positions.len(), 1, "spelling={spelling}");
+        }
+    }
+
+    /// 表の (S1, E6) / (S1, E8)。局面より先に来た行は、指し手の形を満たすかに
+    /// かかわらず同じ枝へ落ちる。
+    #[test]
+    fn any_line_before_the_first_position_is_rejected_the_same_way() {
+        for line in [
+            "7g7f none 50 32 1",
+            "resign none 0 0 1",
+            "ここに別のテキスト",
+        ] {
+            let text = format!("#YANEURAOU-DB2016 1.00\n{line}\n");
+            let err = parsed(&text).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidContent, "line={line}");
+            assert!(
+                err.message().contains("局面より先に指し手"),
+                "line={line} message={}",
+                err.message()
+            );
+        }
+    }
+
+    /// 表の (S1, E1) / (S2, E1) / (S2, E2)。2度目の見出しと、途中の `# NOE:` は
+    /// 注記と同じ扱い。
+    #[test]
+    fn a_second_header_and_a_late_note_are_treated_as_notes() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             sfen {HIRATE}\n\
+             #YANEURAOU-DB2016 1.00\n\
+             7g7f none 50 32 1\n\
+             # NOE:1\n\
+             2g2f none 40 32 1\n"
+        );
+        let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+        let usi: Vec<&str> = moves.iter().map(|m| m.usi_move.as_str()).collect();
+        assert_eq!(usi, ["7g7f", "2g2f"]);
+    }
+
+    /// 表の F1。不正な UTF-8 は `read_line` が `InvalidData` を返す。
+    /// 「UTF-8」は利用者の言葉ではないので、形式違いの案内へ言い直していること。
+    #[test]
+    fn a_binary_file_is_reported_as_not_being_a_text_book() {
+        // 単独の 0x80 は UTF-8 として成立しない
+        let bytes: Vec<u8> = vec![b'#', 0x80, b'\n'];
+        let err = parse(std::io::Cursor::new(bytes), "/books/a.db").unwrap_err();
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(
+            err.message().contains("テキストとして読めない"),
+            "{}",
+            err.message()
+        );
+        assert!(err.message().contains("選び直すこと"), "{}", err.message());
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
