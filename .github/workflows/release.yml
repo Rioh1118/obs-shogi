@@ -74,29 +74,28 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `rust_target` は rustup と tauri の両方が読む。空なら「ホストのまま組む」で、
+        # `rustup target add` も `--target` も出さない。同じ文字列を2欄に置くと、
+        # 片方だけ変えたときに std の無いターゲットへ組む形が黙って通る
         include:
           # ── macOS ──────────────────────────────────────────────────────────
           - name: macOS-arm64
             runner: macos-latest
             rust_target: aarch64-apple-darwin
-            tauri_args: --target aarch64-apple-darwin
 
           - name: macOS-x64
             runner: macos-latest
             rust_target: x86_64-apple-darwin
-            tauri_args: --target x86_64-apple-darwin
 
           # ── Windows ────────────────────────────────────────────────────────
           - name: Windows-x64
             runner: windows-latest
             rust_target: ""
-            tauri_args: ""
 
           # ── Linux ──────────────────────────────────────────────────────────
           - name: Linux-x64
             runner: ubuntu-22.04
             rust_target: ""
-            tauri_args: ""
 
     runs-on: ${{ matrix.runner }}
 
@@ -167,7 +166,7 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ env.RELEASE_TAG }}
-          args: ${{ matrix.tauri_args }}
+          args: ${{ matrix.rust_target && format('--target {0}', matrix.rust_target) }}
 
           # Generates and uploads latest.json so the updater endpoint resolves
           includeUpdaterJson: true
