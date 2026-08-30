@@ -2,14 +2,15 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
-import { codeOf } from "./sourceText";
+import { hitsIn } from "./sourceText";
 
 /**
  * `KifuCursor` の材料を鋳造する綴りを、それを持つファイルの中に閉じる。
  *
  * 型を組む側は `KifuCursor` の brand が止める（`model/cursor.ts` 参照）。
- * ここが見るのは brand をすり抜ける綴り、つまり**キャスト**と、
- * 観測値を受け取らずに `KifuCursor` を組める `makeKifuCursor` の呼び出し。
+ * ここが見るのは brand をすり抜ける綴りで、3種類ある。
+ * **キャスト**、観測値を受け取らずに `KifuCursor` を組める `makeKifuCursor` の呼び出し、
+ * そして**観測の欄（`tesuuPointer`）へ書く綴り**（スプレッドは brand ごと写るため）。
  *
  * 要求の鍵が `state.cursor.tesuuPointer`（観測の欄）に入ると、
  * `provider.tsx` の移動前後の比較が着けもしない局面の識別子で回り、
@@ -66,7 +67,7 @@ const RULES = [
   },
 ] as const;
 
-const read = (rel: string) => codeOf(readFileSync(join(REPO_ROOT, rel), "utf8"));
+const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), "utf8");
 
 describe.each(RULES)("$name", ({ pattern, owners: ownerTuple }) => {
   // リテラル型の tuple のままだと includes / each の引数が never に狭まる
@@ -76,7 +77,7 @@ describe.each(RULES)("$name", ({ pattern, owners: ownerTuple }) => {
     const offenders = tsFiles(SRC, { includeTests: false })
       .map((path) => relative(REPO_ROOT, path))
       .filter((rel) => !owners.includes(rel))
-      .filter((rel) => pattern.test(read(rel)))
+      .flatMap((rel) => hitsIn(rel, readFileSync(join(REPO_ROOT, rel), "utf8"), pattern))
       .sort();
 
     expect(offenders).toEqual([]);
@@ -85,7 +86,7 @@ describe.each(RULES)("$name", ({ pattern, owners: ownerTuple }) => {
   // 対象が0件になって「何も見ていないのに緑」になる形を止める
   test.each(owners)("%s では実際に書いている", (rel) => {
     expect(
-      pattern.test(read(rel)),
+      hitsIn(rel, read(rel), pattern).length > 0,
       `${rel} からこの綴りが消えたなら、owners から外して番人を減らすこと`,
     ).toBe(true);
   });
