@@ -27,7 +27,18 @@ macro_rules! trace {
 }
 
 const MAGIC: [u8; 8] = *b"OBSIXv01"; // 8 bytes
-const VERSION: u32 = 1;
+
+/// 索引の中身の版。**容れ物の形だけでなく、棋譜の読み方が変わったときも上げる。**
+///
+/// 古い索引が捨てられる条件は `(size, mtime_ms)` の一致だけ（`fs_scan`）。
+/// ファイルに触っていなければ読み直さないので、**棋譜の解釈が変わっても
+/// 古い解釈のまま残り続ける**。上げないと、索引と現在の読み手が食い違ったまま
+/// 検索が当たる（#296 と同じ壊れ方をする）。
+///
+/// 2: `shogi-kifu-converter` v0.4.0（#318）。1 で作った索引には
+///    手合割の棋譜が1件も入っておらず（`initial_position` が弾いていた）、
+///    KI2 の終局が1手ぶん欠けていた。読める棋譜の集合そのものが変わる。
+const VERSION: u32 = 2;
 
 pub struct RestoredCache {
     pub file_table: FileTable,
@@ -650,5 +661,43 @@ impl<'a> Reader<'a> {
         out.copy_from_slice(&self.b[self.i..self.i + N]);
         self.i += N;
         Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 前の版で書かれた索引は読まない。
+    ///
+    /// 読んでしまうと、棋譜の解釈が変わったあとも古い索引が残る。
+    /// `try_restore` が `Err` を返すと呼び手（`api.rs` の `open_project`）は
+    /// 全件の作り直しへ落ちるので、捨てて損はない。
+    #[test]
+    fn an_index_written_by_an_older_version_is_rejected() {
+        let mut blob = Vec::new();
+        blob.extend_from_slice(&MAGIC);
+        write_u32(&mut blob, VERSION - 1);
+
+        // RestoredCache は Debug を実装していないので expect_err は使えない
+        let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
+            panic!("前の版の索引を読んでしまった");
+        };
+        assert!(err.contains("bad version"), "理由が版でない: {err}");
+    }
+
+    /// 今の版で書いたものは、版の検査を通り抜ける。
+    ///
+    /// 上のテストだけだと、`VERSION` をいくつにしても通る。
+    #[test]
+    fn the_current_version_passes_the_version_check() {
+        let mut blob = Vec::new();
+        blob.extend_from_slice(&MAGIC);
+        write_u32(&mut blob, VERSION);
+
+        let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
+            panic!("本体が無いので失敗するはず");
+        };
+        assert!(!err.contains("bad version"), "今の版が弾かれている: {err}");
     }
 }
