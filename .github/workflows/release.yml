@@ -168,11 +168,16 @@ jobs:
           tagName: ${{ env.RELEASE_TAG }}
           args: ${{ matrix.rust_target && format('--target {0}', matrix.rust_target) }}
 
-          # Generates and uploads latest.json so the updater endpoint resolves
-          includeUpdaterJson: true
+          # 名前は tauri-action v1 のもの。v0 の `includeUpdaterJson` /
+          # `assetNamePattern` は存在しない入力になっていて、渡しても
+          # `Unexpected input(s)` の warning が出るだけでジョブは緑のまま通る。
+          # 届かないと updater の json が出ず、資産名も CLI の既定へ落ちる
 
-          # Human-readable asset names:
+          # updater の endpoint が解決できるように latest.json を出す
+          uploadUpdaterJson: true
+
+          # 人が読める資産名:
           # ObsShogi-v0.2.0-darwin-aarch64.dmg
           # ObsShogi-v0.2.0-windows-x86_64-setup.exe
           # ObsShogi-v0.2.0-linux-x86_64.AppImage
-          assetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
+          releaseAssetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
