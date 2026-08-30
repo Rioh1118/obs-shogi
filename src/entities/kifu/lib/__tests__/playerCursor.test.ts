@@ -3,6 +3,7 @@ import { JKFPlayer } from "json-kifu-format";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import { cursorKey } from "@/entities/kifu/model/cursor";
 import { cursorFromPlayer, reachedCursor } from "../playerCursor";
+import { buildPlayer } from "../buildPlayer";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
   forks ? { comments: [tag], forks } : { comments: [tag] };
@@ -60,8 +61,18 @@ describe("reachedCursor", () => {
     expect(reachedCursor(player, path)).toBe(true);
   });
 
+  // 届かなかった側。getTesuuPointer(tesuu) は引数をそのまま埋めるだけで
+  // player.tesuu を見ないので、観測を cursorFromPlayer から取らないと true になる。
+  test("線の長さを超える tesuu を要求すると false", () => {
+    const path = { tesuu: 40, forkPointers: [] };
+    const player = buildPlayer(kifu(), path);
+
+    expect(player.tesuu).toBe(3);
+    expect(reachedCursor(player, path)).toBe(false);
+  });
+
   // goto は実在しない変化を黙って捨てるので、tesuu は一致したまま別の線に着く。
-  // tesuu の比較では検出できないのがこの関数の存在理由。
+  // tesuu の比較では検出できないのがこの関数のもう1つの存在理由。
   test("実在しない変化を要求すると、同じ tesuu でも false", () => {
     const player = new JKFPlayer(kifu());
     const path = { tesuu: 3, forkPointers: [{ te: 2, forkIndex: 9 }] };

@@ -18,14 +18,21 @@ export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
 }
 
 /**
- * 要求した局面に本当に着いたか。
+ * 要求した局面に本当に着いたか。**`buildPlayer` が挙げる2つのずれの両方を見る。**
  *
- * `goto` は実在しない変化を黙って捨て、**要求した `tesuu` ちょうどで別の線に着く**ので、
- * `tesuu` の比較では検出できない（`buildPlayer` の doc）。観測値と要求の鍵を突き合わせる。
+ * - 届かずに手前で止まった（`tesuu` がずれる）
+ * - 要求した `tesuu` ちょうどで別の線に着いた（`tesuu` は一致する）
+ *
+ * 観測を `cursorFromPlayer` から取るのが要点。`player.getTesuuPointer(tesuu)` は
+ * **引数の `tesuu` をそのまま文字列に埋めるだけで `player.tesuu` を見ない**ので、
+ * 手前で止まっていても要求どおりの鍵が返り、1つ目を素通りする。
+ *
+ * **いま本番でこれを呼ぶ側は無い。** 検索ヒットからの移動（`usePositionHitNavigation`）で
+ * 突き合わせる作業は → #296。
  *
  * この比較を呼び出し側で書くと `getTesuuPointer` の直呼びになり、
  * `src/__tests__/playerAccess.test.ts` のラチェットに掛かる。ここを通すこと。
  */
 export function reachedCursor(player: JKFPlayer, path: CursorPath): boolean {
-  return player.getTesuuPointer(path.tesuu) === cursorKey(path);
+  return cursorFromPlayer(player).tesuuPointer === cursorKey(path);
 }
