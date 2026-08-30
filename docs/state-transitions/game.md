@@ -160,7 +160,7 @@ throw の前提が消える。
 進めてしまうと `dirty` が落ちて autosave も閉じるときの保存も走らず、
 **画面には「保存済み」だけが出て本文が消える**。盤で1手指したときの失敗は
 依然としてどこにも出ない（`selectSquare` の2箇所に `async-result-ignored` の印）。
-→ [failure-surfacing.md](failure-surfacing.md) の F-12a。出口を作るのは #186
+→ [failure-surfacing.md](failure-surfacing.md) の F-12a。出口を作るのは #277
 
 ※6 コメントの保存は、**ノートを開いた時点の棋譜と `state.loadedAbsPath` が同じときだけ**書く。
 `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、棋譜が差し替わったあとに

@@ -502,7 +502,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
               state.selectedPosition.kind,
               state.selectedPosition.color,
             );
-            await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #186
+            await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #277
           } else {
             dispatch({ type: "clear_selection" });
           }
@@ -521,7 +521,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             const fromPiece = shogi.get(state.selectedPosition.x, state.selectedPosition.y);
             if (fromPiece) {
               const standardMove = fromIMove(move, fromPiece.kind, fromPiece.color, promote);
-              await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #186
+              await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #277
             }
             return;
           }

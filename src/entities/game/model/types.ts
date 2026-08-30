@@ -160,7 +160,7 @@ export interface GameContextType {
 
   // 棋譜を書き換える操作。**どれも throw しない。** 失敗は `Err` で返る。
   //
-  // `state.error` にも積むが、それを描いている場所はまだ無い（#186）。
+  // `state.error` にも積むが、それを描いている場所はまだ無い（#277）。
   // 戻り値を捨てると、書けなかったことが利用者にも呼び出し側にも届かない。
   // 捨てるのが正しい呼び出しは `// async-result-ignored: <理由>` を付けること
   // （`src/__tests__/asyncResultUse.test.ts`）。

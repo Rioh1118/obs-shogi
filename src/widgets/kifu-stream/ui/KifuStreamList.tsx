@@ -7,6 +7,7 @@ import { useGame } from "@/entities/game";
 import { plannedCursorFrom, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import {
   branchLabel,
+  forkIndexOrNull,
   neighborBranchIndex,
   MAIN_LINE,
   type BranchIndex,
@@ -49,6 +50,8 @@ type PendingDelete = {
   firstMove: string;
   /** 消える手数。数えられなければ null（数を伏せて確認だけ出す） */
   moveCount: number | null;
+  /** 削除に失敗した理由。出るまで確認は閉じない */
+  error?: string;
 };
 type OpenCommentNote = {
   cursor: KifuCursor;
@@ -56,6 +59,20 @@ type OpenCommentNote = {
   /** 開いた時点の棋譜。ここが今の棋譜と違うなら、書き込み先と中身が食い違っている */
   absPath: string | null;
 };
+
+/**
+ * 確認に出す一文。
+ *
+ * **主語を空にしない。** 1手目も手数も欠けたときに
+ * `.filter(Boolean).join()` で組むと「が消えます。」で始まる文になり、
+ * **何が消えるのか1つも書かれていない確認**を取り消せない操作に出すことになる。
+ */
+function describeDelete(pending: PendingDelete): string {
+  const what = pending.firstMove ? `${pending.firstMove} から先` : pending.label;
+  const size = pending.moveCount === null ? "手数は数えられませんでした" : `${pending.moveCount}手`;
+  const head = `${what}（${size}）が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
+  return pending.error ? `${head}\n削除できませんでした: ${pending.error}` : head;
+}
 
 export default function KifuStreamList() {
   const { state, view, goToIndex, getTotalMoves, applyCursor, deleteBranch, swapBranches } =
@@ -170,7 +187,7 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      await swapBranches(q); // async-result-ignored: 失敗を出す口がまだ無い → #198
+      await swapBranches(q); // async-result-ignored: 失敗を出す口がまだ無い → #277
     },
     [swapBranches],
   );
@@ -189,10 +206,12 @@ export default function KifuStreamList() {
       };
 
       const row = rows.find((r) => r.te === te);
-      const forkIndex = branchIndex === MAIN_LINE ? undefined : branchIndex - 1;
+      const forkIndex = forkIndexOrNull(branchIndex) ?? undefined;
 
-      // 数えるのは実際に消す関数と同じ経路。解決できないクエリはここで throw するが、
-      // それは削除自体も通らないということなので、数を伏せて確認だけ出す（#198 の担当）。
+      // 数えるのは実際に消す関数と同じ経路。`q` を解決できないクエリはここで throw する。
+      // そのときは数を伏せて確認だけ出す（**数が出ないことを理由に確認を飛ばさない**）。
+      // ただし throw の有無は削除が通るかの保証ではない。`cursor` 由来の失敗は
+      // ここでは起こしようがないので、数が出ても削除が落ちる経路は残る → #277
       let moveCount: number | null = null;
       if (state.jkf) {
         try {
@@ -214,10 +233,18 @@ export default function KifuStreamList() {
     [rows, state.jkf],
   );
 
+  // **閉じるのは書けたときだけ。** 先に閉じると `isLoading` も「削除中...」も
+  // 一度も描かれず、失敗しても画面からは枝が消えたように見える（ファイルには残る）。
+  // 確認文で「棋譜ファイルもすぐ書き換わります」と断言している以上、破れたら伝える。
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
+
+    const res = await deleteBranch(pendingDelete.query);
+    if (!res.success) {
+      setPendingDelete({ ...pendingDelete, error: res.error });
+      return;
+    }
     setPendingDelete(null);
-    await deleteBranch(pendingDelete.query); // async-result-ignored: 失敗を出す口がまだ無い → #198
   }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
@@ -386,13 +413,7 @@ export default function KifuStreamList() {
       {pendingDelete && (
         <ConfirmDialog
           title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
-          subtitle={[
-            pendingDelete.firstMove && `${pendingDelete.firstMove} から先`,
-            pendingDelete.moveCount !== null && `${pendingDelete.moveCount}手`,
-            "が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。",
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          subtitle={describeDelete(pendingDelete)}
           isLoading={state.isLoading}
           onConfirm={() => void confirmDelete()}
           onCancel={() => setPendingDelete(null)}
