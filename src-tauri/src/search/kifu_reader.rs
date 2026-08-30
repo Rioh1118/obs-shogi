@@ -256,7 +256,13 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
 /// **行番号と読めなかった行の本文**を持っていて役に立つので捨てないが、
 /// `KIF Error: 0: at line 2, in cannot read this` は `nom` の語彙で、
 /// 利用者の言葉ではない。前に1文を置いて、何をすればよいかを言う。
+///
+/// **埋め込む前に [`capped`] を通す。** クレートの文言は
+/// 「読めなかった位置から行末まで」を引用するので、改行の無いファイルでは
+/// ファイルの中身がまるごと1本の `String` になる。
+/// 刈るのを [`parse_failed`] まで遅らせると、刈る対象が先に出来上がる。
 fn unreadable_record(e: ParseError) -> String {
+    let by_crate = capped(&e);
     match e {
         // `parse_csa_file` は `read_to_string` するので、UTF-8 でない CSA は
         // 必ずここに来る。**ShogiGUI / Shogidokoro が書く CSA は対局者名を
@@ -269,25 +275,44 @@ fn unreadable_record(e: ParseError) -> String {
         ParseError::Io(io) => unreadable_reason(&io),
         ParseError::Csa(_) | ParseError::CsaConvert(_) => format!(
             "CSA として読めません。V2.2 のヘッダと手番行（+ か -）があるか\
-             確かめてください（{e}）"
+             確かめてください（{by_crate}）"
         ),
         ParseError::Serde(_) => format!(
-            "JKF（JSON）として壊れています（{e}）。\
+            "JKF（JSON）として壊れています（{by_crate}）。\
              元のアプリで書き出し直してください"
         ),
         ParseError::Kif(_) | ParseError::Ki2(_) => format!(
             "棋譜として読めない行があります。その行を直すか、\
-             拡張子が中身と合っているか確かめてください:\n{e}"
+             拡張子が中身と合っているか確かめてください:\n{by_crate}"
         ),
         // 文字コードの話。KIF / KI2 は [`describe`] が先に扱うので、
         // ここに来るのは総当たりを掛けない形式だけ
         ParseError::Decode | ParseError::FileExtension => format!(
-            "{e}: 文字として読めませんでした。\
+            "{by_crate}: 文字として読めませんでした。\
              棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください"
         ),
-        // 局面に合わない手。文字コードとは関係が無いので、そのまま出す
-        ParseError::Normalize(_) => e.to_string(),
+        // 局面に合わない手。手合割の名前がクレートの表に無い、書き写しを誤った、
+        // 駒がいない升から動かした、など。文字コードとは関係が無い。
+        // **クレートの本文は何手目・どの升を名指しするので捨てない**
+        ParseError::Normalize(_) => format!(
+            "書かれている手が局面に合いません。手合割の名前がこのアプリの知っている\
+             ものか、その手数のところで指し手が書き写せているか確かめてください\
+             （{by_crate}）"
+        ),
     }
+}
+
+/// クレートの文言を、埋め込む前に [`MESSAGE_LIMIT`] 文字で刈る。
+///
+/// **刈るのを最後まで遅らせると、刈る対象が先に出来上がる。**
+/// `ParseError` の `Display` は読めなかった位置から行末までを引用するので、
+/// 改行の無い 8 MiB のファイルでは 8 MiB の `String` が1本できる。
+/// [`Capped`] に直に書き取れば、その1本を作らずに済む。
+fn capped(e: &dyn std::fmt::Display) -> String {
+    use std::fmt::Write as _;
+    let mut sink = Capped::default();
+    let _ = write!(sink, "{e}");
+    sink.finish()
 }
 
 /// 読めなかった理由を、利用者に出せる形にして包む。
@@ -297,8 +322,8 @@ fn unreadable_record(e: ParseError) -> String {
 ///
 /// **上限は組みながら掛ける。** `to_string()` を先に呼ぶと、
 /// クレートが引用する「読めなかった位置から行末まで」が丸ごと確保される。
-/// 16MB の1行ファイルで文言は 300 文字に縮んでも、その手前で
-/// 16MB の文字列を2本作っていた。
+/// クレートの文言を文中に埋める側（[`unreadable_record`] / [`describe`]）も
+/// 同じ理由で [`capped`] を通す。ここだけで刈ると、刈る対象が先に出来上がる。
 fn parse_failed(e: impl std::fmt::Display) -> KifuReadError {
     use std::fmt::Write as _;
 
@@ -310,6 +335,9 @@ fn parse_failed(e: impl std::fmt::Display) -> KifuReadError {
 }
 
 /// [`MESSAGE_LIMIT`] 文字まで書き取る受け皿。**超えたぶんは組み立てない。**
+///
+/// 上限に達したら `Err` を返して書き手を止めるので、
+/// **`Display` の実装が引用しようとしている残りは `String` にならない。**
 #[derive(Default)]
 struct Capped {
     out: String,
@@ -645,7 +673,7 @@ fn line_count(decoded: &str) -> usize {
 /// 切れた ISO-2022-JP のファイルが「この行が読めない」と**化けた行を名指し**する。
 fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unparsable>) -> String {
     if let ParseError::Normalize(_) = by_crate {
-        return by_crate.to_string();
+        return unreadable_record(by_crate);
     }
 
     if let (Some(enc), true) = (evidence.declared, evidence.declared_but_garbled) {
@@ -661,7 +689,10 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         error,
     }) = &by_fallback
     {
-        return format!("{name} としては読めたが、棋譜として読めなかった: {error}");
+        return format!(
+            "{name} としては読めたが、棋譜として読めなかった: {}",
+            capped(error)
+        );
     }
 
     match by_crate {
@@ -673,7 +704,10 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         // 名前は伏せて理由だけ使う
         other => match by_fallback {
             Some(Unparsable { error, .. }) => {
-                format!("文字コードは特定できませんが、棋譜として読めない箇所があります: {error}")
+                format!(
+                    "文字コードは特定できませんが、棋譜として読めない箇所があります: {}",
+                    capped(&error)
+                )
             }
             None => {
                 let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
@@ -682,8 +716,9 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
                     .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
                     .collect();
                 format!(
-                    "{other}: {} のどれでも文字として読めませんでした。\
+                    "{}: {} のどれでも文字として読めませんでした。\
                          棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください",
+                    capped(&other),
                     tried.join(" / ")
                 )
             }
@@ -1249,9 +1284,16 @@ mod tests {
 
         let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
         let message = err.to_string();
+        // クレートの本文（何手目・どの升）は捨てない
         assert!(
-            message.contains("failed to normalize"),
-            "正規化の失敗として出ていない: {message}"
+            message.contains("ply") || message.contains("手目"),
+            "何手目かが消えている: {message}"
+        );
+        // **そのうえで、次に何をすればよいかを言う。** クレートの文言だけを
+        // そのまま出すと、利用者に届くのは `failed to normalize` という関数名になる
+        assert!(
+            message.contains("局面に合いません"),
+            "利用者の言葉になっていない: {message}"
         );
         assert!(
             !message.contains("文字コード"),
@@ -1482,6 +1524,43 @@ mod tests {
 +---------------------------+
 先手の持駒：金二
 ";
+
+    /// 文言の受け皿そのものの境界。
+    ///
+    /// 通し経路のテストは「出てきた文言が短いこと」しか見ないので、
+    /// **上限ちょうどで1文字余計に落とす / 1文字余計に通す**を区別できない。
+    /// `write_str` が複数回に分かれる呼ばれ方も、通し経路では起きないことがある。
+    #[test]
+    fn the_message_sink_stops_exactly_at_the_limit() {
+        use std::fmt::Write as _;
+
+        // 上限ちょうどは省略記号を付けない
+        let mut sink = Capped::default();
+        write!(sink, "{}", "あ".repeat(MESSAGE_LIMIT)).expect("上限ちょうどで止められた");
+        let out = sink.finish();
+        assert_eq!(out.chars().count(), MESSAGE_LIMIT);
+        assert!(!out.ends_with('…'), "上限ちょうどで省略している");
+
+        // 1文字超えたら省略記号が付き、本文は上限で止まる
+        let mut sink = Capped::default();
+        let _ = write!(sink, "{}", "あ".repeat(MESSAGE_LIMIT + 1));
+        let out = sink.finish();
+        assert_eq!(out.chars().count(), MESSAGE_LIMIT + 1);
+        assert!(out.ends_with('…'), "省略記号が無い");
+
+        // **書き込みが分かれても、通算で数える。**
+        // 1回ぶんで数えていると、`format!` の引数の切れ目で上限が甘くなる
+        let mut sink = Capped::default();
+        for _ in 0..10 {
+            let _ = write!(sink, "{}", "い".repeat(MESSAGE_LIMIT));
+        }
+        assert_eq!(sink.finish().chars().count(), MESSAGE_LIMIT + 1);
+
+        // 制御文字は空白に置き換える。生の NUL やエスケープが画面に出ない
+        let mut sink = Capped::default();
+        write!(sink, "a\0b\x1bc\nd").expect("書けること");
+        assert_eq!(sink.finish(), "a b c\nd");
+    }
 
     /// **このアプリが作った棋譜を、このアプリが「壊れている」と言わない。**
     ///
