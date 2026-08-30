@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { relative } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
@@ -19,6 +20,11 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  * **見るのは `"Escape"` を含む関数本体。** JSX の属性の字面で切ると
  * `onKeyDown={handleKeyDown}` のように本体を外へ出した形が丸ごと外れる。
  * `window.addEventListener("keydown", ...)` の形も同じ理由で入れる。
+ *
+ * **本体の切り出しは TypeScript の parser に任せる。** 自前で字句を数えると、
+ * 文字列・テンプレート・正規表現・JSX の `</` を1つずつ手当てすることになり、
+ * 落とした1つが「その範囲の受け口が黙って走査から外れる」形で効く。
+ * 偽陰性は件数が増えないだけなので、下限のガードでも拾えない。
  */
 
 /** モーダルの外にいて、上位の受け口を持たないもの */
@@ -29,71 +35,66 @@ const ALLOWED = new Map([
   ],
 ]);
 
-/** コメントの中の言及を呼び出しと数えない */
-function stripComments(code: string): string {
-  return code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+function parse(file: string, source: string): ts.SourceFile {
+  return ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+}
+
+/** `"Escape"` そのもの。コメントや識別子の中の言及は parser が除く */
+function escapeLiterals(root: ts.SourceFile): ts.Node[] {
+  const found: ts.Node[] = [];
+
+  const visit = (node: ts.Node) => {
+    if (ts.isStringLiteral(node) && node.text === "Escape") found.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+
+  return found;
 }
 
 /**
- * 文字列・テンプレートリテラルの中身を空白に潰す。
+ * `node` を含む、最も内側の関数の本体。
  *
- * 潰さないと、`const brace = "}"` の1行で波括弧の対応がずれ、
- * その先の `stopPropagation()` が本体から外れて**違反が緑で通る**
+ * 関数の外（モジュールの直下の表など）に書かれた `"Escape"` は受け口ではないので
+ * `null` を返す。`const KEYS = { close: "Escape" }` がそれに当たる
  */
-function blankStrings(code: string): string {
-  const out = code.split("");
-  let quote: string | null = null;
-  for (let i = 0; i < out.length; i += 1) {
-    const c = out[i];
-    if (quote) {
-      if (c === "\\") {
-        out[i] = " ";
-        if (i + 1 < out.length) out[i + 1] = " ";
-        i += 1;
-        continue;
-      }
-      if (c === quote) quote = null;
-      else if (c !== "\n") out[i] = " ";
-      continue;
-    }
-    if (c === '"' || c === "'" || c === "`") quote = c;
-  }
-  return out.join("");
-}
-
-/**
- * `at` を含む、最も内側の `{ ... }` の中身。
- *
- * 前へ向かって対応の取れていない `{` を探し、そこから対応する `}` まで取る。
- * 数える対象は `blankStrings` を通した文字列なので、リテラルの中の括弧は数えない
- */
-function enclosingBlock(code: string, at: number): string | null {
-  const scan = blankStrings(code);
-  let depth = 0;
-  let open = -1;
-  for (let i = at; i >= 0; i -= 1) {
-    const c = scan[i];
-    if (c === "}") depth += 1;
-    else if (c === "{") {
-      if (depth === 0) {
-        open = i;
-        break;
-      }
-      depth -= 1;
-    }
-  }
-  if (open < 0) return null;
-
-  depth = 0;
-  for (let i = open; i < scan.length; i += 1) {
-    const c = scan[i];
-    if (c === "{") depth += 1;
-    else if (c === "}") {
-      depth -= 1;
-      if (depth === 0) return code.slice(open + 1, i);
-    }
+function enclosingFunctionBody(node: ts.Node): ts.Node | null {
+  for (let cur = node.parent; cur; cur = cur.parent) {
+    if (!ts.isFunctionLike(cur)) continue;
+    // 本体を持つのは宣言の側だけ（`type F = () => void` のような
+    // 署名だけの節点は `isFunctionLike` に入るが body を持たない）
+    const body = (cur as ts.FunctionLikeDeclaration).body;
+    if (body) return body;
   }
   return null;
+}
+
+/**
+ * `x.stopPropagation()` を呼んでいるか。
+ *
+ * **字面で探さない。** 本体の字面にはコメントが含まれるので、
+ * 「`stopPropagation()` にすると上位が死ぬので使わない」と**理由を書いた**
+ * ハンドラが違反として挙がる。実際にこの検査を parser へ移した時点で、
+ * 規約どおりに書かれた2件が偽陽性になった
+ */
+function callsStopPropagation(body: ts.Node): boolean {
+  let found = false;
+
+  const visit = (node: ts.Node) => {
+    if (found) return;
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "stopPropagation"
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(body);
+
+  return found;
 }
 
 describe("Escape の受け口", () => {
@@ -106,21 +107,23 @@ describe("Escape の受け口", () => {
 
     for (const file of files) {
       const name = relative(REPO_ROOT, file);
-      const source = stripComments(readFileSync(file, "utf8"));
+      const root = parse(name, readFileSync(file, "utf8"));
 
-      for (const match of source.matchAll(/"Escape"/g)) {
-        const body = enclosingBlock(source, match.index);
+      for (const literal of escapeLiterals(root)) {
+        const body = enclosingFunctionBody(literal);
         if (body === null) continue;
         receivers += 1;
-        if (ALLOWED.has(name) || !body.includes("stopPropagation")) continue;
-        const line = source.slice(0, match.index).split("\n").length;
-        offenders.push(`${name}:${line}`);
+        if (ALLOWED.has(name) || !callsStopPropagation(body)) continue;
+
+        const { line } = root.getLineAndCharacterOfPosition(literal.getStart());
+        offenders.push(`${name}:${line + 1}`);
       }
     }
 
-    // 切り出しが壊れると0件で緑になる。実測に近い下限を置く
+    // 切り出しが壊れると0件で緑になる。**下限は壊れ検出**なので現在値と
+    // 一致させない。一致させると、受け口を正当に減らしたときにここが落ちる
     expect(receivers, `Escape の受け口を ${receivers} 件しか拾えていない`).toBeGreaterThanOrEqual(
-      8,
+      5,
     );
 
     expect(
@@ -134,22 +137,58 @@ describe("Escape の受け口", () => {
     ).toEqual([]);
   });
 
-  // 切り出しが壊れると、件数は増えたまま違反だけが消える。
-  // 既知の違反の形を渡して、拾えることを直に見る
-  it("文字列の中の波括弧で切り口がずれない", () => {
+  /**
+   * 切り出しが壊れると、件数は増えたまま違反だけが消える。既知の違反の形を
+   * 直に渡して拾えることを見る。
+   *
+   * 並べたのは、自前の字句解析で1つずつ落ちていった形。
+   * 文字列の中の `}`、正規表現の中の引用符、JSX の `</`。
+   */
+  it("リテラルや JSX の字面で切り口がずれない", () => {
+    const source = [
+      "function Row() {",
+      "  const handleKeyDown = (e) => {",
+      '    const brace = "}";',
+      '    const escaped = path.replace(/\\\\/g, "x").replace(/"/g, \'y\');',
+      '    if (e.key !== "Escape") return;',
+      "    e.stopPropagation();",
+      "  };",
+      "  return <div onKeyDown={handleKeyDown} />;",
+      "}",
+    ].join("\n");
+
+    const root = parse("sample.tsx", source);
+    const literals = escapeLiterals(root);
+
+    expect(literals.length, "Escape を拾えていない").toBe(1);
+    const body = enclosingFunctionBody(literals[0]);
+    expect(body, "本体を切り出せていない").not.toBeNull();
+    expect(callsStopPropagation(body!)).toBe(true);
+  });
+
+  /** コメントに書いた `stopPropagation()` を呼び出しと数えない */
+  it("理由として書かれた stopPropagation を違反にしない", () => {
     const source = [
       "const handleKeyDown = (e) => {",
-      '  if (e.key !== "Escape") return;',
-      '  const brace = "}";',
-      "  e.stopPropagation();",
+      "  // stopPropagation() にすると document まで届かないので使わない",
+      '  if (e.key === "Escape") e.preventDefault();',
       "};",
     ].join("\n");
 
-    const at = source.indexOf('"Escape"');
-    const body = enclosingBlock(source, at);
+    const root = parse("sample.ts", source);
+    const body = enclosingFunctionBody(escapeLiterals(root)[0]);
 
-    expect(body, "本体を切り出せていない").not.toBeNull();
-    expect(body).toContain("stopPropagation");
+    expect(body).not.toBeNull();
+    expect(callsStopPropagation(body!)).toBe(false);
+  });
+
+  /** 関数の外にある表の値は受け口ではない。数えると下限が意味を失う */
+  it("関数の外の Escape は受け口と数えない", () => {
+    const root = parse("sample.ts", 'const KEYS = { close: "Escape" };');
+    const literals = escapeLiterals(root);
+
+    expect(literals.length).toBe(1);
+    expect(enclosingFunctionBody(literals[0])).toBeNull();
   });
 
   it("ALLOWED に並ぶファイルが実在する", () => {
