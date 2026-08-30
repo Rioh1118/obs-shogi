@@ -96,6 +96,10 @@ jobs:
     name: Build · ${{ matrix.name }}
     needs: create-release
     strategy:
+      # 1つの OS が落ちても残りは上げる。**リリースは公開されたまま残るので、
+      # 資産の欠けたリリースが `latest` として外から見える。** 直すのは
+      # 「同じタグで撃ち直す」ではなく（組むのはタグの木なので同じ失敗が再現する）、
+      # タグを付け替えて push し直すか、新しいバージョンを切ること。
       fail-fast: false
       matrix:
         # ターゲットを決めるのは `rust_target` だけ。空は「ホストのまま組む」で、
