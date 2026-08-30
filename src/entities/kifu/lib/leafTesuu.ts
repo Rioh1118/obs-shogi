@@ -1,5 +1,5 @@
 import type { JKFData } from "../model/jkf";
-import type { CursorPath } from "../model/cursor";
+import type { PlannedCursor } from "../model/cursor";
 import { buildPlayer } from "./buildPlayer";
 
 /** `JKFPlayer.goto` が内部で使う上限と同じ。片方だけ先に打ち切ると値が食い違う。 */
@@ -17,7 +17,7 @@ const LEAF_TESUU_LIMIT = 10000;
  * @throws {TypeError} `cursor.tesuu` までの `forkIndex` が負・非整数のとき（同上）
  * @throws {Error} `LEAF_TESUU_LIMIT` 手進んでも葉に着かないとき
  */
-export function computeLeafTesuu(jkf: JKFData, cursor: CursorPath | null): number {
+export function computeLeafTesuu(jkf: JKFData, cursor: PlannedCursor | null): number {
   const sim = buildPlayer(jkf, cursor);
 
   const plannedMap = new Map<number, number>();

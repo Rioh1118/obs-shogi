@@ -1,15 +1,19 @@
 import { describe, expect, test } from "vitest";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
-import type { KifuCursor, ForkPointer } from "@/entities/kifu/model/cursor";
-import { buildTesuuPointer } from "@/entities/kifu/model/branch";
+import {
+  ROOT_CURSOR,
+  asBranchPlan,
+  plannedCursorFrom,
+  type ForkPointer,
+} from "@/entities/kifu/model/cursor";
 import { computeLeafTesuu } from "../leafTesuu";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
   forks ? { comments: [tag], forks } : { comments: [tag] };
 
-function cursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
-  return { tesuu, forkPointers, tesuuPointer: buildTesuuPointer(tesuu, forkPointers) };
-}
+/** 開始局面から計画だけを載せたカーソル。実物と同じく `plannedCursorFrom` を通す */
+const planFrom = (branchPlan: ForkPointer[]) =>
+  plannedCursorFrom(ROOT_CURSOR, asBranchPlan(branchPlan));
 
 /**
  * 本譜3手。te=2 に**1手だけ**の変化がぶら下がる。
@@ -31,7 +35,7 @@ describe("computeLeafTesuu", () => {
   });
 
   test("計画どおり変化へ降りた先の末尾", () => {
-    const cursor = cursorAt(0, [{ te: 2, forkIndex: 0 }]);
+    const cursor = planFrom([{ te: 2, forkIndex: 0 }]);
     expect(computeLeafTesuu(kifu(), cursor)).toBe(2);
   });
 
@@ -40,7 +44,7 @@ describe("computeLeafTesuu", () => {
     // いまの線に存在しない te を指すことがある。手が無いのに forkAndForward を
     // 呼ぶと「N手目に有効な棋譜がありません」を投げ、手数表示が実際より小さく出る。
     // 本譜は te=3 で終わる。計画が te=4 を指していると forkAndForward が呼ばれる。
-    const cursor = cursorAt(0, [{ te: 4, forkIndex: 0 }]);
+    const cursor = planFrom([{ te: 4, forkIndex: 0 }]);
     expect(() => computeLeafTesuu(kifu(), cursor)).not.toThrow();
     expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
   });
@@ -49,7 +53,7 @@ describe("computeLeafTesuu", () => {
     // 範囲外・負・非整数のいずれでも同じ。forkAndForward は範囲外なら false を返すが、
     // 負や非整数は forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
     for (const forkIndex of [5, -1, 0.5, NaN]) {
-      const cursor = cursorAt(0, [{ te: 2, forkIndex }]);
+      const cursor = planFrom([{ te: 2, forkIndex }]);
       expect(computeLeafTesuu(kifu(), cursor)).toBe(3);
     }
   });

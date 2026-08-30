@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { buildTesuuPointer } from "@/entities/kifu/model/branch";
 import {
+  asBranchPlan,
   normalizeForkPointers,
   plannedCursorFrom,
   type ForkPointer,
@@ -18,7 +19,7 @@ import { resolveForkSelection } from "../cursorSelection";
 const plannedCursor = (tesuu: number, branchPlan: ForkPointer[]) => {
   const traced = normalizeForkPointers(branchPlan, tesuu);
   const cursor = { tesuu, forkPointers: traced, tesuuPointer: buildTesuuPointer(tesuu, traced) };
-  const planned = plannedCursorFrom(cursor, branchPlan);
+  const planned = plannedCursorFrom(cursor, asBranchPlan(branchPlan));
   if (!planned) throw new Error("plannedCursorFrom returned null for a non-null cursor");
   return planned;
 };
@@ -111,14 +112,15 @@ describe("resolveForkSelection", () => {
     });
 
     test("押した te より手前の壊れた計画は持ち越す", () => {
-      // 壊れた値が残りうるのは te > tesuu の側だけ。te <= tesuu は cursorFromPlayer 由来で、
-      // 壊れていれば cursorView の buildPlayer が先に落ちて棋譜ペインが出ない。
+      // 壊れた値が残りうるのは te > tesuu の側だけ。te <= tesuu の分は
+      // navigate / applyCursor / edit / swap / delete のどの経路も cursorFromPlayer で
+      // 引き直すので、player が実際に辿った選択しか入らない。
       //
       // 負・非整数を捨てる検査は computeLeafTesuu と buildStreamRowsFromCursor にある。
-      // ここで3箇所目を書くと寄せ先が増えるだけなので書かない。この値は goto まで届き、
-      // その te に forks があれば JKFPlayer の内部で TypeError になって applyCursor の
-      // catch が受ける。**forks が無ければ forkAndForward が false を返し、goto は
-      // 返り値を見ないので、例外も出ないまま別の線に着く。** → #213
+      // ここで3箇所目を書くと寄せ先が増えるだけなので書かない。この値は goto まで届く。
+      // forkIndex が forks の範囲内で負・非整数なら JKFPlayer の内部で TypeError になり
+      // applyCursor の catch が受ける。**範囲外の正の整数なら forkAndForward が false を
+      // 返し、goto は返り値を見ないので、例外も出ないまま別の線に着く。** → #213
       for (const forkIndex of [7, -1, 0.5, NaN]) {
         const plan = [
           { te: 3, forkIndex },

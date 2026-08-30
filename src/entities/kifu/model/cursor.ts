@@ -41,6 +41,30 @@ export interface KifuCursor {
   tesuuPointer: TesuuPointer;
 }
 
+/**
+ * 盤を再生するのに要る最小の組。`KifuCursor` と `PlannedCursor` の共通部分。
+ *
+ * `goto` に渡すのに要るのは `tesuu` と `forkPointers` だけで、`te > tesuu` は
+ * `normalizeForkPointers` が落とす。だから辿ったカーソルと計画カーソルのどちらも受けられる。
+ * 局面が一致したかを確かめたい側は `KifuCursor` を自分で保持すること。この型には
+ * `tesuuPointer` が無い。
+ */
+export type CursorPath = Pick<KifuCursor, "tesuu" | "forkPointers">;
+
+declare const branchPlanBrand: unique symbol;
+
+/**
+ * 「これから降りるつもりの変化」の一覧。`state.branchPlan` の型。
+ *
+ * `te > cursor.tesuu` の `ForkPointer` を持ちうる点が `cursor.forkPointers` と違う。
+ * 素の `ForkPointer[]` と取り違えると、カーソルより先の選択が黙って空になるので brand を付ける。
+ * **この型を作ってよいのは `asBranchPlan` だけ**、というのは規約。
+ */
+export type BranchPlan = ForkPointer[] & { readonly [branchPlanBrand]: true };
+
+/** 分岐計画として確定した配列に印を付ける。呼んでよいのは `gameReducer` だけ */
+export const asBranchPlan = (forkPointers: ForkPointer[]) => forkPointers as BranchPlan;
+
 declare const plannedCursorBrand: unique symbol;
 
 /**
@@ -54,32 +78,25 @@ declare const plannedCursorBrand: unique symbol;
  * brand が無いと `state.cursor` がそのまま代入できる。`state.cursor.forkPointers` は
  * `cursorFromSource` が `te <= tesuu` に正規化して作るので、
  * **カーソルより先の選択が黙って空になる**。
- *
- * **brand が塞ぐのはここまで。** `plannedCursorOf(state.cursor, state.cursor.forkPointers)` は
- * 型を通り、中身は同じく計画の抜けた値になる。第2引数には必ず `state.branchPlan` を渡す。
  */
-export interface PlannedCursor {
-  tesuu: number;
-  forkPointers: ForkPointer[];
+export interface PlannedCursor extends CursorPath {
   readonly [plannedCursorBrand]: true;
 }
 
-/** 現在局面と分岐計画から `PlannedCursor` を組む。**この型を作ってよいのはここだけ** */
+/**
+ * 現在局面と分岐計画から `PlannedCursor` を組む。**この型を作ってよいのはここだけ**
+ *
+ * 第2引数が `BranchPlan` なのは、`cursor.forkPointers`（素の `ForkPointer[]`）を
+ * 渡せてしまうと計画の抜けた値が brand 付きで通ってしまうため。
+ */
 export function plannedCursorFrom(
   cursor: KifuCursor | null,
-  branchPlan: ForkPointer[],
+  branchPlan: BranchPlan,
 ): PlannedCursor | null {
   if (!cursor) return null;
-  return { tesuu: cursor.tesuu, forkPointers: branchPlan } as PlannedCursor;
+  const path: CursorPath = { tesuu: cursor.tesuu, forkPointers: branchPlan };
+  return path as PlannedCursor;
 }
-
-/**
- * 盤を再生するのに要る最小の組。`KifuCursor` と `PlannedCursor` の共通部分。
- *
- * 再生する側は `tesuuPointer` を読まない（`normalizeForkPointers` で `te <= tesuu` に
- * 絞ってから `goto` に渡す）ので、辿ったカーソルと計画カーソルのどちらも受けられる。
- */
-export type CursorPath = Pick<KifuCursor, "tesuu" | "forkPointers">;
 
 /**
  * 開始局面のカーソル。

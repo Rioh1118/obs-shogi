@@ -19,6 +19,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   ROOT_CURSOR,
   normalizeForkPointers,
+  plannedCursorFrom,
   type ForkPointer,
   type KifuCursor,
 } from "@/entities/kifu/model/cursor";
@@ -70,12 +71,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     try {
       const player = buildPlayer(state.jkf, state.cursor);
 
-      const plannedCursor = state.cursor
-        ? {
-            ...state.cursor,
-            forkPointers: state.branchPlan,
-          }
-        : null;
+      const plannedCursor = plannedCursorFrom(state.cursor, state.branchPlan);
 
       let totalMoves = 0;
       try {
