@@ -372,6 +372,20 @@
     min-width: 120px;
   }
 
+  // 名前を直せば通る失敗を、欄のそばに出す。
+  //
+  // **領域は常設する**（空でも DOM に置く）。中身と同時に入れると VoiceOver が
+  // live region の変化として読まない。`:empty { display: none }` も使わない
+  // （支援技術から領域ごと消えるので同じことになる）。空のときは行が無いので
+  // 高さも取らない
+  // 面も宣言する。宣言しないと `contrastRatchet` は「面が決まらない」として
+  // 測れない枠へ落とし、合格も不合格も分からないまま件数だけが増える
+  &__createError {
+    background: index.$surface-danger;
+    color: index.$color-danger-text;
+    font-size: index.$font-aux;
+  }
+
   // ── Warnings ──────────────────────────────────────────────────────────
 
   &__warnings {

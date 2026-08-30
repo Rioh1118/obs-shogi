@@ -155,19 +155,21 @@ export default function AiLibraryTab() {
 
   const enginesDirOk = !!(data?.engines_dir?.exists && isDir(data.engines_dir.kind));
 
+  /**
+   * AI フォルダを作る。**失敗は投げ返す。**
+   *
+   * `scan` の状態へ移すと、見出しが「フォルダを確認できませんでした」、主動作が
+   * 「再スキャン」になる。読み取りは成功しているので嘘だし、名前を直さない限り
+   * 再スキャンは何も変えない。名前を直せば通る失敗は名前の欄のそばに出す
+   */
   const onCreateAiFolder = useCallback(
     async (aiName: string) => {
       const root = localAiRoot.trim();
       const name = aiName.trim();
       if (!root || !name) return;
-      setScan({ status: "loading" });
-      try {
-        await createAiProfileDirs(root, name);
 
-        await scanNow(root);
-      } catch (e) {
-        setScan({ status: "error", error: e instanceof Error ? e.message : String(e) });
-      }
+      await createAiProfileDirs(root, name);
+      await scanNow(root);
     },
     [localAiRoot, scanNow],
   );

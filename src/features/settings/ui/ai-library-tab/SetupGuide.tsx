@@ -127,6 +127,8 @@ export default function SetupGuide({
 }: Props) {
   const [aiNameDraft, setAiNameDraft] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  // 名前を直せば通る失敗。**欄のそばに出し、打った文字列は残す**
+  const [createError, setCreateError] = useState<string | null>(null);
   const aiNameRef = useRef<HTMLInputElement | null>(null);
 
   const handleCreateFolder = async () => {
@@ -137,8 +139,13 @@ export default function SetupGuide({
     }
     try {
       setIsCreatingFolder(true);
+      setCreateError(null);
       await onCreateAiFolder(name);
       setAiNameDraft("");
+    } catch (e) {
+      // 打った名前は消さない。消すと、直すのではなく打ち直しになる
+      setCreateError(e instanceof Error ? e.message : String(e));
+      aiNameRef.current?.focus();
     } finally {
       setIsCreatingFolder(false);
     }
@@ -391,7 +398,11 @@ export default function SetupGuide({
                 <SInput
                   ref={aiNameRef}
                   value={aiNameDraft}
-                  onChange={(e) => setAiNameDraft(e.target.value)}
+                  aria-invalid={createError ? true : undefined}
+                  onChange={(e) => {
+                    setAiNameDraft(e.target.value);
+                    setCreateError(null);
+                  }}
                   placeholder="AI名を入力"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void handleCreateFolder();
@@ -408,6 +419,11 @@ export default function SetupGuide({
                 作成
               </Button>
             </div>
+            {/* 領域は常設する。中身と同時に DOM へ入れると、VoiceOver が
+                live region の変化として読まない */}
+            <p className="setupGuide__createError" role="alert">
+              {createError ?? ""}
+            </p>
           </SField>
         </SSection>
       )}
