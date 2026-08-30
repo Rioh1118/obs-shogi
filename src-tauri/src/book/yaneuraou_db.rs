@@ -23,6 +23,7 @@ use crate::book::sfen::{excerpt, to_book_key_in_file, BookKey};
 use crate::book::types::BookMove;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::BufRead;
 use std::path::Path;
 
@@ -404,10 +405,17 @@ fn flush(
     buffered: &mut Vec<BookMove>,
 ) {
     let Some(key) = current.take() else {
+        // `current` が `None` なら `buffered` も空。局面より先の指し手は
+        // `parse` が先にエラーにしている。破ると溜めた指し手が黙って消える。
+        debug_assert!(buffered.is_empty());
         return;
     };
 
+    // 同じブロックの中の重複も畳む。ブロックを跨ぐときだけ畳んでいると、
+    // 手で編集した定跡で同じ指し手が評価値違いに2行並ぶ。
+    keep_first_of_each_move(buffered);
     buffered.shrink_to_fit();
+
     match positions.entry(key) {
         Entry::Vacant(slot) => {
             slot.insert(std::mem::take(buffered));
@@ -425,13 +433,42 @@ fn flush(
         // なので、同じ入力でも候補手の数が違う。
         Entry::Occupied(mut slot) => {
             let existing = slot.get_mut();
-            for candidate in buffered.drain(..) {
-                if !existing.iter().any(|m| m.usi_move == candidate.usi_move) {
-                    existing.push(candidate);
-                }
-            }
+            existing.append(buffered);
+            keep_first_of_each_move(existing);
         }
     }
+}
+
+/// 同じ綴りの指し手を、先に来た方だけ残す。
+///
+/// **走査で畳むのは短い列のときだけ。** 1局面の候補手は普通10手前後なので、
+/// そこで `HashSet` を作ると確保が局面の数だけ増える（実物の定跡で 225 万回）。
+/// 一方、同じ局面が延々と繰り返されるファイルでは列が伸びて走査が二乗になる。
+/// 実測で 6.22MB のファイルに 16 秒かかり、100MB なら 70 分を超える
+/// （`open_book` は `spawn_blocking` の中で進捗も中断も持たないので、
+/// アプリは無反応のまま戻らない）。長い列だけ `HashSet` へ切り替える。
+fn keep_first_of_each_move(moves: &mut Vec<BookMove>) {
+    /// 走査と `HashSet` の切り替え点。1局面の候補手がこれを超えるのは異常な形。
+    const SCAN_LIMIT: usize = 32;
+
+    if moves.len() <= SCAN_LIMIT {
+        let mut kept = 0usize;
+        for i in 0..moves.len() {
+            if moves[..kept]
+                .iter()
+                .any(|m| m.usi_move == moves[i].usi_move)
+            {
+                continue;
+            }
+            moves.swap(kept, i);
+            kept += 1;
+        }
+        moves.truncate(kept);
+        return;
+    }
+
+    let mut seen: HashSet<String> = HashSet::with_capacity(moves.len());
+    moves.retain(|m| seen.insert(m.usi_move.clone()));
 }
 
 /// 指し手の行を1つ読む。
@@ -1072,6 +1109,43 @@ mod tests {
         let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\nsfen {HIRATE}\n2g2f\n");
         let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
         assert_eq!(moves.len(), 2);
+    }
+
+    /// 同じブロックの中の重複も畳む。ブロックを跨ぐときだけ畳んでいると、
+    /// 手で編集した定跡で同じ指し手が評価値違いに2行並ぶ。
+    #[test]
+    fn a_move_written_twice_in_the_same_block_is_kept_once() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             sfen {HIRATE}\n\
+             7g7f none 50 32 100\n\
+             7g7f none 40 32 80\n\
+             2g2f none 30 32 10\n"
+        );
+        let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+
+        let usi: Vec<&str> = moves.iter().map(|m| m.usi_move.as_str()).collect();
+        assert_eq!(usi, ["7g7f", "2g2f"]);
+        assert_eq!(moves[0].value, Some(50), "先に読んだ方が残る");
+    }
+
+    /// 走査で畳む形のままだと、同じ局面が延々と繰り返されるファイルで二乗になる
+    /// （実測 6.22MB で16秒、100MB なら70分超）。`SCAN_LIMIT` を超える列でも
+    /// 畳めていること。
+    #[test]
+    fn a_position_with_very_many_moves_is_still_deduped() {
+        let mut text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n");
+        // 相異なる 200 手を2回ずつ書く
+        for _ in 0..2 {
+            for file in 1..=9 {
+                for rank in b'a'..=b'i' {
+                    let rank = rank as char;
+                    text.push_str(&format!("{file}{rank}1a none 0 0 1\n"));
+                }
+            }
+        }
+        let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+        assert_eq!(moves.len(), 81, "重複が残っている: {}", moves.len());
     }
 
     /// 手数を落とすので `... b - 1` と `... b - 31` は同じキーになる。
