@@ -27,7 +27,6 @@ impl fmt::Debug for BookSession {
 ///
 /// 同じ局面を複数の定跡で引き比べたい（#96）ので、1つに畳まずハンドルで並べて持つ。
 /// 同じパスを2回開けば別のハンドルになる。
-#[derive(Default)]
 pub struct BookState {
     books: DashMap<BookHandle, Arc<BookSession>>,
     next_handle: AtomicU64,
@@ -38,7 +37,15 @@ pub struct BookState {
 
 impl BookState {
     pub(crate) fn new() -> Self {
-        Self::default()
+        // `Default` は derive しない。`BookState` は crate 外へ再公開しているので、
+        // derive すると `BookState::default()` が公開の生成口として残り、
+        // 「操作は全て pub(crate)」という mod.rs の宣言が成り立たなくなる。
+        Self {
+            books: DashMap::new(),
+            next_handle: AtomicU64::new(0),
+            #[cfg(test)]
+            get_calls: AtomicU64::new(0),
+        }
     }
 
     /// reader を預かってハンドルを振る。
