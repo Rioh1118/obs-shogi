@@ -75,6 +75,19 @@ function InlineNameEditor({
     });
   }, [initialName, selectMode]);
 
+  /**
+   * 打った名前を確定する。Enter と blur の両方から来る。
+   *
+   * **失敗しても閉じない。** 閉じると打った文字列ごと消え、「直すための入力欄が、
+   * 直せという知らせに巻き込まれて消える」形になる（`isNameInputError` の TSDoc）。
+   *
+   * **焦点も動かさない。** blur を起こしたのが「別の行をクリックした」なら、
+   * 確定は click より前のマイクロタスクで返るので、`focus()` は利用者が移った先から
+   * 焦点を奪い返す。押した行は開くのにキーボードはここに残り、この欄は `onKeyDown` を
+   * 全て `stopPropagation()` するので Escape が他の受け口にも届かなくなる。
+   *
+   * 閉じるのは、欄そのものが無くなったとき（呼び出し側が畳んだ）だけ。
+   */
   const commit = async () => {
     const next = draft.trim();
 
@@ -101,14 +114,6 @@ function InlineNameEditor({
         onCancel();
         return;
       }
-
-      // 欄が残っているなら**閉じずに箱を出すだけ**にする。閉じると打った文字列ごと
-      // 消え、「直すための入力欄が、直せという知らせに巻き込まれて消える」形になる
-      // （`isNameInputError` の TSDoc）。
-      //
-      // **焦点は動かさない。** blur を起こしたのが「別の行をクリックした」なら、
-      // 確定は click より前のマイクロタスクで返るので、`focus()` は利用者が
-      // 移った先から焦点を奪い返す。押した行は開くのにキーボードはここに残る
 
       // 通らなかったなら、ここに出さない失敗でも送り直さない
       rejectedRef.current = outcome.ok ? null : next;
