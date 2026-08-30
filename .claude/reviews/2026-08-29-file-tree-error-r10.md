@@ -2,7 +2,8 @@
 
 - 日付: 2026-08-30
 - ブランチ: `fix/169-file-tree-error`
-- 範囲: ラウンド9 の対応（`6610086..ada0725`）以降に動いた全て
+- 範囲: `095e765..ada0725`（ラウンド9 の対応を**含む**。`A..B` は A 自身を含まないので、
+  起点は1つ手前を書く）
 - 観点: architecture / react / ui / robustness / rust / comment / oss-hygiene（7観点、並列）
 - 前のラウンド: [r9](./2026-08-29-file-tree-error-r9.md)
 
@@ -13,7 +14,8 @@
 何も書かなかった。書かなかった行に、実際に3件の誤りがあった
 （[r9 の訂正節](./2026-08-29-file-tree-error-r9.md)）。
 
-結果、**BLOCK 5 / HIGH 9 / MEDIUM 13**。うち**7件がラウンド9 で私が入れた退行**。
+結果、**BLOCK 5 / HIGH 9 / MEDIUM 13**。導入元の内訳は下の「訂正」を参照
+（ここに書いていた「7件がラウンド9 の退行」は誤り）。
 
 ---
 
@@ -46,17 +48,17 @@ pathname を数える回帰テストを置いた（`<FolderSelect />` に戻す�
 
 ## HIGH
 
-| #   | 検出                       | 内容                                                                     | 対応                      | 固定                                                     |
-| --- | -------------------------- | ------------------------------------------------------------------------ | ------------------------- | -------------------------------------------------------- |
-| H-1 | architecture               | 衝突の対話が開いている間、`config_write_failed` を reducer が捨てる      | `420188b`                 | **未検証**（この経路を覆うテストが無い → #254 と一緒に） |
-| H-2 | react / architecture / oss | `deleteNode` に同じ stale closure が残っていた（**私の退行**）           | `e9862dd`                 | `model/__tests__/staleClosure.test.tsx`                  |
-| H-3 | rust                       | `engines` の拒否が大文字小文字を見ない。macOS 既定では素通り（**退行**） | `bc4f255`                 | `the_engines_directory_is_not_a_profile_name`            |
-| H-4 | robustness                 | 「すでにあります」が作りかけのやり直しを塞ぐ（**私の退行**）             | `bc4f255`                 | `a_half_made_profile_can_be_completed`                   |
-| H-5 | robustness / rust          | 名前の失敗が開発者向けの英文のまま画面に出る                             | `bc4f255`                 | `a_rejected_name_is_explained_in_the_users_language`     |
-| H-6 | robustness                 | AI フォルダ作成の失敗が「フォルダを確認できませんでした／再スキャン」    | `f50feb1`                 | **未検証**（`SetupGuide` にテストが1本も無い）           |
-| H-7 | ui                         | `__content` の `align-items` が残り、縦中心が4通りに割れた（**退行**）   | `bfcdcb7`                 | **未検証**（実測は headless Chrome。回帰検査は未整備）   |
-| H-8 | ui / react / robustness    | 打ち切りの行が押せる見た目・当たり判定を持つ（**私の退行**）             | `bfcdcb7`                 | **未検証**（`cursor` は静的検査で見ていない）            |
-| H-9 | comment / oss              | r9.md の「テストの上限を `<= 501` へ」がどのコミットにも無い             | `331a19d` ＋ r9.md に訂正 | `a_web_of_symlinks_does_not_blow_up_the_node_count`      |
+| #   | 検出                       | 内容                                                                               | 対応                      | 固定                                                     |
+| --- | -------------------------- | ---------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------- |
+| H-1 | architecture               | 衝突の対話が開いている間、`config_write_failed` を reducer が捨てる                | `420188b`                 | **未検証**（この経路を覆うテストが無い → #254 と一緒に） |
+| H-2 | react / architecture / oss | `deleteNode` に同じ stale closure が残っていた（既存。`f5dbebf` 2026-03-07）       | `e9862dd`                 | `model/__tests__/staleClosure.test.tsx`                  |
+| H-3 | rust                       | `engines` の拒否が大文字小文字を見ない。macOS 既定では素通り（**退行**）           | `bc4f255`                 | `the_engines_directory_is_not_a_profile_name`            |
+| H-4 | robustness                 | 「すでにあります」が作りかけのやり直しを塞ぐ（**私の退行**）                       | `bc4f255`                 | `a_half_made_profile_can_be_completed`                   |
+| H-5 | robustness / rust          | 名前の失敗が開発者向けの英文のまま画面に出る                                       | `bc4f255`                 | `a_rejected_name_is_explained_in_the_users_language`     |
+| H-6 | robustness                 | AI フォルダ作成の失敗が「フォルダを確認できませんでした／再スキャン」              | `f50feb1`                 | **未検証**（`SetupGuide` にテストが1本も無い）           |
+| H-7 | ui                         | `__content` の `align-items` が残り、縦中心が4通りに割れた（`571b6d3`＝ラウンド7） | `bfcdcb7`                 | **未検証**（実測は headless Chrome。回帰検査は未整備）   |
+| H-8 | ui / react / robustness    | 打ち切りの行が押せる見た目・当たり判定を持つ（**私の退行**）                       | `bfcdcb7`                 | **未検証**（`cursor` は静的検査で見ていない）            |
+| H-9 | comment / oss              | r9.md の「テストの上限を `<= 501` へ」がどのコミットにも無い                       | `331a19d` ＋ r9.md に訂正 | `a_web_of_symlinks_does_not_blow_up_the_node_count`      |
 
 ### H-9: 編集を当てるスクリプトが一度も走っていなかった
 
@@ -112,6 +114,42 @@ architecture は「code を一切見ずに落とすのは広すぎる」とし�
 対話で直せない失敗は先に `conflict_closed` を送ってから積む、という契約にした。
 `not_found` の既存の扱いと同じ形。
 
+## 訂正（ラウンド11 で判明）
+
+**3件、事実でないことを書いていた。**
+
+### 1. 「7件がラウンド9 で私が入れた退行」が現物と合わない
+
+導入元を1件ずつ `git log -S` で当たると、ラウンド9 起因は**6件**。
+
+| 行              | 導入コミット            | いつ          |
+| --------------- | ----------------------- | ------------- |
+| B-1             | `ddf714c`               | ラウンド9     |
+| H-2             | `f5dbebf`（2026-03-07） | **既存**      |
+| H-3 / H-4       | `7eb83a4`               | ラウンド9     |
+| H-7             | `571b6d3`               | **ラウンド7** |
+| H-8             | `095e765`               | ラウンド9     |
+| MEDIUM read_dir | `6610086`               | ラウンド9     |
+| MEDIUM $TMPDIR  | `7eb83a4`               | ラウンド9     |
+
+**H-2 は「入れた」ではなく「片方だけ直して残した」。** `c3ac21c` が
+`reconcilePathMutation` を直したときに、同じ形の `deleteNode` を残した。
+誤った自己帰属は、後続に「ラウンド9 の変更を疑え」という誤った探索先を与える。
+
+ラウンド11 からは、表の欄を「退行か否か」でなく**導入コミットの sha** にする。
+sha を書くには `git log -S` を叩くことになるので、印だけを付ける形より強い。
+
+### 2. 反論節の「移した」が、書いた時点では未了だった
+
+`commit` の doc を移したのは `51ab042` で、この報告書（`f2a9929`）より後。
+自分で `51ab042` のメッセージにそう書いたが、報告書側には残していなかった。
+**受け入れた指摘は反論節でなく対応表に行を作る**（sha の欄があれば書けない）。
+
+### 3. 検証の範囲が最後のコード変更を含んでいない
+
+「`ada0725` から `cd7a685` まで」と書いたが、`51ab042` がそのあとにある。
+正しくは `ada0725..51ab042`。
+
 ## 範囲の外へ送ったもの
 
 | 内容                                                               | 送り先                                                   |
@@ -123,7 +161,7 @@ architecture は「code を一切見ずに落とすのは広すぎる」とし�
 
 ## 検証
 
-`ada0725` から `cd7a685` まで、各コミットの時点で通している。
+`ada0725` から `51ab042` まで、各コミットの時点で通している。
 
 - `npm run verify` — 緑
 - `npm run build` — 緑
