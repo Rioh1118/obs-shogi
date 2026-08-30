@@ -1,9 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { cursorFromLite } from "../cursorAdapter";
-import { buildTesuuPointer } from "@/entities/kifu/model/cursor";
 
 describe("cursorFromLite", () => {
-  test("並び順が違うだけの入力は同じ tesuuPointer になる", () => {
+  test("並び順が違うだけの入力は同じ経路になる", () => {
     const a = cursorFromLite({
       tesuu: 5,
       forkPointers: [
@@ -19,13 +18,15 @@ describe("cursorFromLite", () => {
       ],
     });
 
-    expect(a.tesuuPointer).toBe(b.tesuuPointer);
+    expect(a).toEqual(b);
     expect(a.forkPointers).toEqual([
       { te: 1, forkIndex: 0 },
       { te: 3, forkIndex: 1 },
     ]);
   });
 
+  // 索引のカーソルは辿った経路なので te > tesuu を含まないはずだが、
+  // 壊れた索引を計画として扱わないよう入口で落とす。
   test("tesuu より先の pointer は落とす", () => {
     const c = cursorFromLite({
       tesuu: 2,
@@ -36,12 +37,9 @@ describe("cursorFromLite", () => {
     });
 
     expect(c.forkPointers).toEqual([{ te: 2, forkIndex: 0 }]);
-    expect(c.tesuuPointer).toBe(buildTesuuPointer(2, [{ te: 2, forkIndex: 0 }]));
   });
 
-  test("tesuuPointer は buildTesuuPointer が組むものと一致する", () => {
-    const c = cursorFromLite({ tesuu: 7, forkPointers: [{ te: 3, forkIndex: 0 }] });
-
-    expect(c.tesuuPointer).toBe(buildTesuuPointer(7, [{ te: 3, forkIndex: 0 }]));
+  test("tesuu はそのまま通す", () => {
+    expect(cursorFromLite({ tesuu: 7, forkPointers: [{ te: 3, forkIndex: 0 }] }).tesuu).toBe(7);
   });
 });
