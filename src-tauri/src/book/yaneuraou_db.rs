@@ -55,10 +55,10 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
         return Err(BookError::new(
             BookErrorCode::TooLarge,
             format!(
-                "この定跡は大きすぎて開けない（{} / 上限 {}）。\
-                 分割された定跡を使うか、別の定跡を開くこと",
-                mebibytes(size),
-                mebibytes(MAX_FILE_BYTES)
+                "この定跡はこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
+                 より小さい定跡を開くこと",
+                megabytes(size),
+                megabytes(MAX_FILE_BYTES)
             ),
         )
         .with_path(shown.clone()));
@@ -128,40 +128,42 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 
 /// 展開して持つ指し手の上限。
 ///
-/// **ファイルサイズの上限だけではメモリは有界にならない。** 倍率は行数に効くので、
-/// 最短の指し手行（`7g7f` の5バイト）だけで [`MAX_FILE_BYTES`] まで埋めた
-/// ファイルは1億行になり、`BookMove` 80 バイト × 1億で 8.6 GB を確保しにいく。
-/// 上限を置いても SIGKILL の経路が残る。
+/// **ファイルサイズの上限ではメモリは有界にならない。** `BookMove` は 80 バイト
+/// 固定なので、倍率はバイト数ではなく行数に効く。実測（`#[global_allocator]` で
+/// 確保バイトを数えた）:
 ///
-/// 実測の形（1局面 193 バイト・5手/局面）だと 512MiB は約 1,330 万手なので、
-/// 2,000 万手なら実在する定跡を弾かずに、確保を 2 GB 前後で頭打ちにできる。
+/// | 中身 | ファイル | ピーク確保 | 比 |
+/// | --- | --- | --- | --- |
+/// | 実物 `user_book1.db`（5欄すべて） | 470.3 MiB | 1.85 GB | 3.76 |
+/// | 指し手だけの定跡（形式として正当） | 10 MiB | 92 MB | 8.79 |
+/// | 1字の指し手行だけ | 64 MiB | 2.72 GB | 40.5 |
+///
+/// 最後の形は [`MAX_FILE_BYTES`] を通り抜けて 21 GB 前後を確保しにいく。
+///
+/// 実物は 470.3 MiB / 2,252,118 局面で約 1,125 万手。2,000 万手なら実在する
+/// 定跡を弾かず、確保を 2 GB 前後で頭打ちにできる。
 const MAX_MOVES: usize = 20_000_000;
 
 /// 開けるファイルの上限。
 ///
-/// **根拠は実測。** `#[global_allocator]` で確保バイトを数えた（合成定跡、
-/// 1局面 193 バイト・5手/局面。実物の行長に寄せてある）。
+/// **メモリの上界はここではなく [`MAX_MOVES`] が持つ。** ここは「明らかに定跡で
+/// ないものを1バイトも読まずに落とす」ための粗い前段。`.db` は SQLite でも使う
+/// 拡張子なので、数 GB のデータベースを選んだときに読み進めないためにある。
 ///
-/// | ファイル | 展開後 | ピーク |
-/// | --- | --- | --- |
-/// | 100.4 MB | 316 MB | 316 MB（1行ずつ読むのでファイル側は乗らない） |
-///
-/// 展開後はファイルの **約 3.15 倍**。倍率は手数/局面に効き、3手で 3.2 倍、
-/// 10手で 3.9 倍。
-///
-/// **この倍率はバイト数ではなく行数に効く。** 実測に使った形（1行 21 バイト前後）
-/// を外れると成り立たないので、確保の上界は [`MAX_MOVES`] の側で持つ。
-/// ここはファイル1本の大きさとして妥当かだけを見る。
-///
-/// 公開の無償定跡は圧縮後 0.78〜72.6MB（`research/findings/L3-book-solved.md`）で、
-/// 展開してもこの上限には遠い。**弾くのは定跡でないファイルを選んだ場合が主。**
-///
-/// #96 で複数の定跡を同時に開けるようになると、この上限は1本ぶんの意味になる。
-const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
+/// 値は実物から決めた。**配布されている最大の無償定跡 `user_book1.db`
+/// （peta_shock 系）が 470.3 MiB / 2,252,118 局面。** その4倍を置く。
+/// 512 MiB では実物の 91.9% しかなく、版が重なった時点で実利用者が弾かれる。
+/// そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
+/// 分割機能が無い）ので、近い値を置いてはいけない。
+const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 
-/// 利用者に見せる大きさ。バイト数のままでは大小を掴めない。
-fn mebibytes(bytes: u64) -> String {
-    format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
+/// 利用者に見せる大きさ。
+///
+/// **10進で数える。** 上限そのものは 2 の冪で持っているが、利用者が見比べる
+/// 相手は Finder / エクスプローラのファイル情報で、そちらは 10 進。
+/// 1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
+fn megabytes(bytes: u64) -> String {
+    format!("{:.1}MB", bytes as f64 / 1_000_000.0)
 }
 
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
@@ -315,7 +317,7 @@ fn parse_limited<R: BufRead>(
                 BookErrorCode::TooLarge,
                 format!(
                     "この定跡は指し手が多すぎて開けない（上限 {max_moves} 手）。\
-                     分割された定跡を使うか、別の定跡を開くこと"
+                     より小さい定跡を開くこと"
                 ),
             )
             .with_path(path));
@@ -800,8 +802,23 @@ mod tests {
         };
 
         assert_eq!(err.code(), BookErrorCode::TooLarge);
-        assert!(err.message().contains("512.0MB"), "{}", err.message());
+        assert!(
+            err.message().contains(&megabytes(MAX_FILE_BYTES)),
+            "{}",
+            err.message()
+        );
         assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 利用者が見比べる相手は Finder / エクスプローラのファイル情報で、そちらは
+    /// 10 進。1024 で割った値に `MB` と書くと、同じファイルの数字が食い違う。
+    ///
+    /// 定数と突き合わせない。`megabytes(MAX_FILE_BYTES)` と比べると、関数を
+    /// 変えたときに両辺が同じだけ動いて、食い違いを見逃す。
+    #[test]
+    fn sizes_are_shown_in_the_same_unit_as_the_file_manager() {
+        assert_eq!(megabytes(1_000_000), "1.0MB");
+        assert_eq!(megabytes(493_157_464), "493.2MB");
     }
 
     /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
@@ -921,17 +938,17 @@ mod tests {
         assert!(parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2).is_ok());
     }
 
-    /// 実測の形（1局面 193 バイト・5手）で `MAX_FILE_BYTES` に収まる定跡は、
-    /// 手数の上限にも収まること。片方だけ動かすと、実在する定跡が弾かれる。
-    #[test]
-    fn the_two_limits_do_not_contradict_each_other() {
-        // 512MiB / 193 バイト × 5手 ≒ 1,330 万手
-        let moves_at_file_limit = (MAX_FILE_BYTES as usize / 193) * 5;
-        assert!(
-            moves_at_file_limit < MAX_MOVES,
-            "手数の上限が先に当たる: {moves_at_file_limit} >= {MAX_MOVES}"
-        );
-    }
+    /// **実在する最大の定跡が、どちらの上限にも余裕を持って収まること。**
+    ///
+    /// 上限を実物に近づけると、版が重なった時点で実利用者が弾かれる。そのとき
+    /// 出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも分割機能が無い）。
+    ///
+    /// 数字の出どころは配布されている `user_book1.db`（peta_shock 系）の実測。
+    /// 実行時ではなくコンパイル時に見るので、上限を実物へ近づけた時点で止まる。
+    const REAL_BOOK_BYTES: u64 = 493_157_464; // 470.3 MiB
+    const REAL_BOOK_MOVES: usize = 11_250_000; // 2,252,118 局面 × 約5手
+    const _: () = assert!(REAL_BOOK_BYTES * 2 < MAX_FILE_BYTES);
+    const _: () = assert!(REAL_BOOK_MOVES < MAX_MOVES);
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
     /// 空の定跡と区別が付かず、利用者は全ての局面が未収録だと受け取る。
