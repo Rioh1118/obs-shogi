@@ -64,7 +64,7 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 
 ## 既知の落とし穴
 
-- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。パースは `indexOf(",")` で分割し後半を `JSON.parse`。この手書きパースが複数箇所に重複しているので、触るなら共通化を検討する
+- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。**組むのは `buildTesuuPointer` だけで、解く経路はリポジトリに1つも無い。** 分解したくなったら、それは `KifuCursor` の `tesuu` / `forkPointers` を直接見るべき合図（規約は `entities/kifu/model/cursor.ts`）
 - `JKFPlayer.goto(tesuu, forkPointers)` は goto 後に `tesuu` が一致しなければ stale として扱う
 - JSX 内の全角スペースは `no-irregular-whitespace` で lint エラーになる → `{"　"}` で囲む
 - SCSS トークンは `@use "@/index.scss" as index;` で読み込む
