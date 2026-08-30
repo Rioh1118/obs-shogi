@@ -323,9 +323,14 @@ fn first_token(line: &str) -> &str {
 ///
 /// **2箇所から出る**（局面行に一度も当たらずに読み終わった場合と、注記だけの
 /// 場合）。利用者から見れば同じ状況なので、同じ文面にする。
-const EMPTY_OF_POSITIONS: &str = "定跡ファイルに局面が1つも書かれていない。\
-                                  途中で切れているかもしれない。\
-                                  取得し直すか、別の定跡を開くこと";
+///
+/// **原因を1つに断定しない。復帰操作に「取得し直す」を置かない。** ShogiHome は
+/// 空の定跡を見出し1行だけのファイルとして書き出す（`storeYaneuraOuBook`。
+/// 指し手が0の項目は書かないので、全ての指し手を消した定跡も同じ形になる）。
+/// 利用者が自分で作ったばかりのファイルには取得元が無い。
+const EMPTY_OF_POSITIONS: &str = "この定跡には局面が1つも入っていない\
+                                  （まだ何も登録されていないか、途中で切れている）。\
+                                  別の定跡を開くこと";
 
 /// UTF-8 の BOM。付いたまま配られている定跡がある。
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
@@ -1231,11 +1236,19 @@ mod tests {
     }
 
     /// 申告の無い定跡もある。そのときは「局面が1つも無い」を保険にする。
+    ///
+    /// **見出し1行だけのファイルは利用者が自分で作れる。** ShogiHome は空の定跡を
+    /// この形で書き出す（`storeYaneuraOuBook`。指し手が0の項目は書かないので、
+    /// 全ての指し手を消した定跡も同じ 23 バイトになる）。そこへ「取得し直す」と
+    /// 案内すると、取得元が無いので実行できない。
     #[test]
-    fn a_book_without_positions_is_rejected() {
+    fn a_book_without_positions_does_not_tell_the_user_to_download_it_again() {
         let err = parsed("#YANEURAOU-DB2016 1.00\n").unwrap_err();
         assert_eq!(err.code(), BookErrorCode::InvalidContent);
-        assert!(err.message().contains("取得し直す"), "{}", err.message());
+        let message = err.message();
+        assert!(message.contains("局面が1つも"), "{message}");
+        assert!(!message.contains("取得し直す"), "{message}");
+        assert!(message.ends_with("こと"), "{message}");
     }
 
     /// 利用者が見比べる相手は Finder / エクスプローラのファイル情報で、そちらは
