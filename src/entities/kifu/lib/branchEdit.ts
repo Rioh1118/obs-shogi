@@ -38,9 +38,13 @@ function normalizeRef<T extends BranchPointRef>(ref: T): T {
 /**
  * te より前の stream が同じか（`forkPointers` の prefix 同一判定）
  *
- * 境界を `normalizeForkPointers` に任せるのは、`te` より前だけ残す判断が
- * `<` か `<=` かでこのリポジトリが繰り返し事故を起こしているため。
- * `normalizeForkPointers` の境界は `te <= 第2引数` なので1引いて渡す。
+ * `sameForkPointers` は**並び順つきの列比較**なので、比べる前に両側を
+ * 整列・重複除去しておく必要がある。`normalizeForkPointers` はそれを
+ * `te` の絞りと同時にやる。境界は `te <= 第2引数` なので1引いて渡す。
+ *
+ * **`truncatePlanFrom` に置き換えないこと。** あちらは絞るだけで整列しないので、
+ * `[{te:4},{te:2}]` と `[{te:2},{te:4}]` が別物になる。`cursor` は
+ * 任意の呼び出し側から `CursorPath` として渡るので、正規化済みとは限らない。
  */
 function sameStreamPrefix(a: ForkPointer[], b: ForkPointer[], te: number): boolean {
   return sameForkPointers(normalizeForkPointers(a, te - 1), normalizeForkPointers(b, te - 1));
