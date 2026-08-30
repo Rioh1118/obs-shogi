@@ -1,3 +1,4 @@
+import type { JKFPlayer } from "json-kifu-format";
 import {
   asBranchPlan,
   cursorFromSource,
@@ -5,22 +6,20 @@ import {
   type BranchPlan,
   type ForkPointer,
   type KifuCursor,
-} from "@/entities/kifu/model/cursor";
-import type { JKFPlayer } from "json-kifu-format";
+} from "../model/cursor";
 
+/**
+ * 再生し終えた player から `KifuCursor` を作る。
+ *
+ * `model/cursor.ts` の `cursorFromSource` に `JKFPlayer` を差す口。型の側が
+ * `JKFPlayer` クラスに依存しないよう、具体の依存はこちらに寄せてある。
+ */
 export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
   return cursorFromSource({
     tesuu: player.tesuu,
     getForkPointers: (tesuu?: number) => player.getForkPointers(tesuu),
     getTesuuPointer: (tesuu?: number) => player.getTesuuPointer(tesuu),
   });
-}
-
-export function lastMovePlayer(jkf: JKFPlayer) {
-  if (jkf.tesuu === 0) return null;
-  const mv = jkf.getMove();
-  if (!mv || !mv.to) return null;
-  return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
 }
 
 /**
