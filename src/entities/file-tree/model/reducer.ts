@@ -99,7 +99,12 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     case "error":
       // 衝突の解決中に失敗したときは、そのダイアログの中で伝える（`submitError`）。
       // ここで積むと対話の裏に別の失敗の箱が重なり、解決操作の続きが
-      // どちらの箱に属するか読めなくなる
+      // どちらの箱に属するか読めなくなる。
+      //
+      // **これは code を見ない。落とすかどうかを決めるのは積む側。** その対話では
+      // 直せない失敗（対象が消えた、ディスクは通ったが設定が書けなかった）は、
+      // 積む前に `conflict_closed` を送ること。ここで code を見て振り分けると、
+      // 対話が「自分で出す」と決めた失敗まで裏に重なる
       if (state.conflict) {
         return { ...state, isLoading: false };
       }

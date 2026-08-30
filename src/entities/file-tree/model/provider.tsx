@@ -434,11 +434,16 @@ export function FileTreeProvider({ rootDir, children }: Props) {
           // **段のために別の code を借りない。** code は tier だけでなく利用者に
           // 見せる一文も決めるので、借りると原因を偽ることになる。`setRootDir` が
           // 落ちる理由は権限とは限らない（ディスク満杯・直列化・IPC 断）
-          return failWithNotice(makeFsError("config_write_failed", saved.error, nextPath), {
-            kind: "rename_directory",
-            path: node.path,
-            newName,
-          });
+          const error = makeFsError("config_write_failed", saved.error, nextPath);
+
+          // **対話を先に閉じてから積む。** 衝突の対話の中から改名し直した経路でも
+          // ここへ来る。開いている間は reducer が `error` を落とすので、閉じずに
+          // 積むと「ディスクは新しい名前・設定は古い名前」がどこにも出ないまま、
+          // 対話を閉じた時点で痕跡ごと消える。
+          // 別名は通っている（ディスク上の改名は済んだ）ので、この対話に用は無い
+          dispatch({ type: "conflict_closed" });
+          pushError(error);
+          return Err(error);
         }
         reconcilePathMutation(node.path, nextPath);
         return Ok(undefined);
@@ -449,14 +454,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
-    [
-      failToNameInput,
-      failWithNotice,
-      loadFileTree,
-      reconcilePathMutation,
-      setRootDir,
-      state.fileTree,
-    ],
+    [failToNameInput, loadFileTree, pushError, reconcilePathMutation, setRootDir, state.fileTree],
   );
 
   const moveNode = useCallback(
