@@ -108,7 +108,23 @@ pub async fn open_project(
     );
 
     // 1) try restore (cache)
-    match crate::search::index_cache::try_restore(&app, &root_dir) {
+    //
+    // 復元はファイルの全読み + zstd の伸長 + 総当たりの復号で、
+    // 5万ファイルの索引なら数百ミリ秒 CPU を握る。`async fn` の中で直に呼ぶと
+    // その間 tokio のワーカースレッドが1本止まり、同じスレッドに載っている
+    // 他のコマンド（`cancel_search` など）が動かない。書き出し側
+    // （`save_checkpoint`）は既に逃がしてあるので、読み込み側も揃える
+    let restored = {
+        let app2 = app.clone();
+        let root2 = root_dir.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::search::index_cache::try_restore(&app2, &root2)
+        })
+        .await
+        .map_err(|e| format!("索引の復元を実行できませんでした: {e}"))?
+    };
+
+    match restored {
         Ok(mut restored) => {
             // 念のため（decode側でroot_dirを入れてるなら不要だが安全）
             restored.scan.root_dir = root_dir.clone();
