@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create.outputs.release_id }}
-      # 4本の build が組む木。ここで1度だけ解決して配る（下の `sha` の節）
+      # 4本の build が組む commit。タグから1度だけ解決して配る
       sha: ${{ steps.create.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -57,39 +57,53 @@ jobs:
             const { owner, repo } = context.repo;
 
             // タグが指す commit。annotated tag は object が tag なのでもう一段引く。
+            // 無ければ null。**404 をここで閉じる**（下の try へ混ぜると、タグが無いことが
+            // 「リリースが無い」と読み替えられて createRelease に落ち、422 で死ぬ）。
             async function shaOfTag(tag) {
-              const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
-              if (ref.data.object.type !== 'tag') return ref.data.object.sha;
-              const t = await github.rest.git.getTag({ owner, repo, tag_sha: ref.data.object.sha });
-              return t.data.object.sha;
+              try {
+                const ref = await github.rest.git.getRef({ owner, repo, ref: `tags/${tag}` });
+                if (ref.data.object.type !== 'tag') return ref.data.object.sha;
+                const t = await github.rest.git.getTag({ owner, repo, tag_sha: ref.data.object.sha });
+                return t.data.object.sha;
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                return null;
+              }
             }
 
+            // **タグの有無とリリースの有無は別。** createRelease はリリースを作るだけで、
+            // タグが既にあれば触らない。混ぜると「タグはあるがリリースを消して撃ち直す」経路で、
+            // タグの commit ではなく dispatch した ref の先端を配ってしまう。
+            const tagSha = await shaOfTag(tag);
+
             // Reuse if already exists (idempotent re-run)
+            let releaseId = null;
             try {
               const r = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
-              core.setOutput('release_id', String(r.data.id));
-              core.setOutput('sha', await shaOfTag(tag));
-              return;
+              releaseId = String(r.data.id);
             } catch (e) {
               if (e.status !== 404) throw e;
             }
 
-            // タグがまだ無ければ createRelease が作る。**target_commitish が効くのはこの経路だけ**で、
-            // タグが既にあるときは無視される。省くとリポジトリの既定ブランチの上に作られるので、
-            // ブランチから workflow_dispatch を撃つとブランチの修正が入らないリリースが出る。
-            const r = await github.rest.repos.createRelease({
-              owner, repo,
-              tag_name:         tag,
-              target_commitish: context.sha,
-              name:             `ObsShogi ${tag}`,
-              body:             `## What's new\n\n*See the assets below to download and install.*`,
-              draft:            false,   // must be false for latest/download/ URL to resolve
-              prerelease:       isPrerel,
-            });
-            core.setOutput('release_id', String(r.data.id));
-            // いま作ったので `context.sha` がそのままタグの commit。ここで getRef を
-            // 撃つと作成直後の伝播を待つ窓が開くだけで、得るものが無い。
-            core.setOutput('sha', context.sha);
+            if (releaseId === null) {
+              // **target_commitish が効くのはタグをこれから作るときだけ**で、既にあれば無視される。
+              // 省くとリポジトリの既定ブランチの上に作られるので、ブランチから
+              // workflow_dispatch を撃つとブランチの修正が入らないリリースが出る。
+              const r = await github.rest.repos.createRelease({
+                owner, repo,
+                tag_name:         tag,
+                target_commitish: context.sha,
+                name:             `ObsShogi ${tag}`,
+                body:             `## What's new\n\n*See the assets below to download and install.*`,
+                draft:            false,   // must be false for latest/download/ URL to resolve
+                prerelease:       isPrerel,
+              });
+              releaseId = String(r.data.id);
+            }
+
+            core.setOutput('release_id', releaseId);
+            // タグが無かったなら、いま createRelease が context.sha の上に作った
+            core.setOutput('sha', tagSha ?? context.sha);
 
   # 2. Build, sign and upload bundles for every target platform
   build:
