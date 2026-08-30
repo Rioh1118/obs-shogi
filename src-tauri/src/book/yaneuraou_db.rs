@@ -278,6 +278,26 @@ pub(crate) const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
 const HEADER_PREFIX: &str = "#YANEURAOU-DB";
 
+/// 局面より先に指し手が来たときの診断。
+///
+/// **見出しの有無で変えない。** 見出しは要求しないので、先頭の局面行を失った
+/// 切れかけの定跡は、見出しがあれば本体のループで、無ければ見出し探索のループで
+/// 同じ形に当たる。診断が割れると、利用者は同じ壊れ方に別の説明を受ける。
+fn moves_before_any_position(line_number: usize, path: &str) -> BookError {
+    invalid_content(
+        &format!(
+            "局面より先に指し手が書かれている（{line_number}行目）。\
+             途中で切れたファイルかもしれない。取得し直すか、別の定跡を開くこと"
+        ),
+        path,
+    )
+}
+
+/// 行の先頭のトークン。区切りは空白1つ（`parse_move` と同じ数え方）。
+fn first_token(line: &str) -> &str {
+    line.split(' ').next().unwrap_or(line)
+}
+
 /// 局面が1つも書かれていないファイルの文面。
 ///
 /// **2箇所から出る**（局面行に一度も当たらずに読み終わった場合と、注記だけの
@@ -447,7 +467,14 @@ fn parse_limited<R: BufRead>(
             unread = true;
             break;
         }
-        // 局面でも注記でも見出しでもない行に当たった。ここで定跡ではないと決まる。
+        // **指し手なら、見出しがある場合と同じ診断にする。** 見出しは要求しないので、
+        // 先頭の局面行を失った切れかけの定跡が、見出しの有無だけで違う診断を
+        // 受けることになる。指し手行を引用して「別の形式かもしれない」と言うのは、
+        // 局面行でそれをやったのと同じ自己矛盾。
+        if looks_like_a_move(first_token(line)) {
+            return Err(moves_before_any_position(index, path));
+        }
+        // 局面でも指し手でも注記でも見出しでもない行。ここで定跡ではないと決まる。
         return Err(invalid_content(
             &format!(
                 "やねうら王テキスト定跡として読めない（{index}行目: {}）。\
@@ -530,13 +557,7 @@ fn parse_limited<R: BufRead>(
         }
 
         if current.is_none() {
-            return Err(invalid_content(
-                &format!(
-                    "局面より先に指し手が書かれている（{index}行目）。\
-                     途中で切れたファイルかもしれない。取得し直すか、別の定跡を開くこと"
-                ),
-                path,
-            ));
+            return Err(moves_before_any_position(index, path));
         }
 
         let parsed = parse_move(line, &mut dropped);
@@ -1251,17 +1272,28 @@ mod tests {
         }
     }
 
-    /// 表の (S0, E6) / (S0, E7)。局面より先に来た指し手は、見出しの有無に
-    /// かかわらず落ちる。
+    /// 表の (S0, E6) / (S0, E7)。局面より先に来た指し手は落ちる。
+    ///
+    /// **診断は見出しの有無で変えない。** 見出しは要求しないので、先頭の局面行を
+    /// 失った切れかけの定跡は、見出しがあれば本体のループで、無ければ見出し探索の
+    /// ループで同じ形に当たる。診断が割れると、利用者は同じ壊れ方に別の説明を受ける。
     #[test]
-    fn a_move_before_any_position_is_rejected_without_a_header() {
+    fn a_move_before_any_position_reads_the_same_with_or_without_a_header() {
         for line in ["resign none 0 0 1", "7g7f 3c3d 50 32 1"] {
-            let err = parsed(&format!("{line}\n")).unwrap_err();
-            assert_eq!(err.code(), BookErrorCode::InvalidContent, "line={line}");
+            let without = parsed(&format!("{line}\n")).unwrap_err();
+            let with = parsed(&format!("#YANEURAOU-DB2016 1.00\n{line}\n")).unwrap_err();
+
+            assert_eq!(without.code(), BookErrorCode::InvalidContent, "line={line}");
             assert!(
-                err.message().contains("読めない"),
+                without.message().contains("局面より先に指し手"),
                 "line={line} message={}",
-                err.message()
+                without.message()
+            );
+            // 違ってよいのは行番号だけ
+            assert_eq!(
+                without.message().replace("1行目", ""),
+                with.message().replace("2行目", ""),
+                "line={line}"
             );
         }
     }
