@@ -9,6 +9,13 @@ export interface FileSystemNode {
   path: string;
   isDirectory: boolean;
   children?: FileTreeNode[];
+  /**
+   * 走査を途中で打ち切った。**`children` の少なさを鵜呑みにできない印。**
+   *
+   * これを見ないと、上限に当たったフォルダが「空のフォルダ」と同じに描かれる。
+   * 中身は Finder では見えるのに、何度読み直しても一覧には出ない
+   */
+  truncated?: boolean;
   lastModified?: Date;
   size?: number;
 }

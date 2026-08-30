@@ -34,6 +34,13 @@
   font-size: index.$font-aux;
 }
 
+// 走査を打ち切ったフォルダの末尾に出る行。押せる行と同じ大きさにすると
+// 「開けば続きが出る」と読めるので、注記の段まで落とす。
+// 文字色は器（`.node-box`）から継ぐ。ここで薄めると `rgba` の段が1つ増える（#184）
+.file-tree__truncated {
+  font-size: index.$font-hint;
+}
+
 // ツリーが無いときの空状態。同じ枠に出る `FileTreeErrorNotice` と骨格を揃える
 // （素の2行だと `global.scss` の `margin: 0` で左上端に貼り付く）
 .file-tree__empty {

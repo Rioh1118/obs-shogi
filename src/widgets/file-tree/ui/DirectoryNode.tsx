@@ -4,6 +4,7 @@ import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import { useState, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import TruncatedNotice from "./TruncatedNotice";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -150,6 +151,7 @@ function DirectoryNode({
           {!node.children?.length
             ? null
             : node.children.map((child) => renderChild(child, level + 1))}
+          {node.truncated && <TruncatedNotice level={level + 1} />}
         </>
       )}
     </>

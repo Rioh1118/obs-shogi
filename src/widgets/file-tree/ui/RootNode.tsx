@@ -5,6 +5,7 @@ import TreeNode from "./TreeNode";
 import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import TruncatedNotice from "./TruncatedNotice";
 import FileIcon from "./FileIcon";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
@@ -119,6 +120,7 @@ function RootNode({
           {!node.children?.length
             ? null
             : node.children.map((child) => <TreeNode key={child.path} node={child} level={1} />)}
+          {node.truncated && <TruncatedNotice level={1} />}
         </>
       )}
     </>
