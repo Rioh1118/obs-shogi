@@ -7,6 +7,8 @@ import { useGame } from "../useGame";
 import type { GamePersistence } from "../types";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { Ok, type AsyncResult } from "@/shared/lib/result";
+import { branchGenerationOf } from "@/entities/kifu/lib/branchGeneration";
+import { branchIndexFromForkIndex } from "@/entities/kifu/model/branch";
 
 /**
  * 書き込みは `persistIfPossible` で1列に流す。Rust 側は並行に走らせるので、
@@ -50,6 +52,16 @@ function Harness({ onReady }: { onReady: (game: ReturnType<typeof useGame>) => v
 
 const JKF_A: JKFData = { header: { WHO: "A" }, moves: [{}] };
 const JKF_B: JKFData = { header: { WHO: "B" }, moves: [{}] };
+
+/** te=2 に変化が2本ぶら下がった棋譜。分岐編集は `forks` の形しか見ない */
+const JKF_FORKED: JKFData = {
+  header: {},
+  moves: [
+    { comments: ["root"] },
+    { comments: ["t1"] },
+    { comments: ["main2"], forks: [[{ comments: ["f0"] }], [{ comments: ["f1"] }]] },
+  ],
+};
 
 afterEach(() => {
   cleanup();
@@ -157,5 +169,38 @@ describe("書き込みの列", () => {
 
     expect(written).toHaveLength(1);
     await expect(second).resolves.toMatchObject({ success: false });
+  });
+
+  /**
+   * 分岐の番号は `jkf_replaced` の時点でメモリ上もう詰まっている。
+   * 世代を書き込みの成否まで待って進めると、**その間に走る書き込みが
+   * 「詰まった配列に、詰める前の番号」を当てる**。門番は一度も発火しない。
+   */
+  it("分岐を消したら、書き込みの成否を待たずに番号の世代が進む", async () => {
+    const written: { path: string; jkf: JKFData }[] = [];
+    const a = makePersistence("/ws/a.kif", written);
+
+    let game!: ReturnType<typeof useGame>;
+    render(
+      <GameProvider persistence={a.persistence}>
+        <Harness onReady={(g) => (game = g)} />
+      </GameProvider>,
+    );
+
+    await act(async () => {
+      await game.loadGame(JKF_FORKED, "/ws/a.kif");
+    });
+
+    const before = branchGenerationOf("/ws/a.kif");
+
+    // 削除を撃つ。書き込みは握ったまま返さない
+    await act(async () => {
+      const q = { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) };
+      void game.deleteBranch(q); // async-result-ignored: 握ったまま返さない書き込み
+      await Promise.resolve();
+    });
+
+    expect(written).toHaveLength(1);
+    expect(branchGenerationOf("/ws/a.kif")).toBe(before + 1);
   });
 });

@@ -30,6 +30,7 @@ import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
+import { bumpBranchGeneration } from "@/entities/kifu/lib/branchGeneration";
 import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
@@ -498,13 +499,19 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
+        // **番号が動いたのはここ。** 書き込みの成否を待たない。
+        // 待つと、列で走っている書き込みが「詰まった配列に、詰める前の番号」を当てる。
+        bumpBranchGeneration(state.loadedAbsPath);
 
         const saved = await persistIfPossible(nextJkf);
         // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
         // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
         // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
-        if (!saved.success && saved.error !== NO_RESPONSE)
+        if (!saved.success && saved.error !== NO_RESPONSE) {
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
+          // 番号がもう一度動いたので、もう一度進める
+          bumpBranchGeneration(state.loadedAbsPath);
+        }
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to swap branches";
@@ -514,7 +521,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
-    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, state.loadedAbsPath, persistIfPossible],
   );
 
   const deleteBranch = useCallback(
@@ -548,13 +555,19 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
             branchPlan: asBranchPlan([...nextCursor.forkPointers]),
           },
         });
+        // **番号が動いたのはここ。** 書き込みの成否を待たない。
+        // 待つと、列で走っている書き込みが「詰まった配列に、詰める前の番号」を当てる。
+        bumpBranchGeneration(state.loadedAbsPath);
 
         const saved = await persistIfPossible(nextJkf);
         // **応答が無かったときは戻さない。** 書けたかどうかが分からないので、
         // 戻すと「書けていたのに画面から消える」、戻さないと「書けていないのに残る」。
         // 後者を採る（残っていれば次の書き込みがディスクを合わせる）。
-        if (!saved.success && saved.error !== NO_RESPONSE)
+        if (!saved.success && saved.error !== NO_RESPONSE) {
           dispatch({ type: "jkf_restored", payload: { ...before, expectedJkf: nextJkf } });
+          // 番号がもう一度動いたので、もう一度進める
+          bumpBranchGeneration(state.loadedAbsPath);
+        }
         return saved;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to delete branch";
@@ -564,7 +577,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "write_ended", payload: { blocking: true } });
       }
     },
-    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
+    [state.jkf, state.cursor, state.branchPlan, state.loadedAbsPath, persistIfPossible],
   );
 
   const getCommentsByCursor = useCallback(

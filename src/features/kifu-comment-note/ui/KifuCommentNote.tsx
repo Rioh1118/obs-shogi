@@ -6,10 +6,10 @@ import { editorTextToLines, linesToEditorText } from "../lib/commentText";
 import {
   dropUnsavedDraft,
   dropUnsavedDraftIfUnchanged,
-  generationOf,
   getUnsavedDraft,
   putUnsavedDraft,
 } from "../lib/unsavedDrafts";
+import { branchGenerationOf } from "@/entities/kifu/lib/branchGeneration";
 import FloatingNote from "@/shared/ui/floating-note/FloatingNote";
 import LiveMarkdownNote from "@/shared/ui/live-markdown-note/LiveMarkdownNote";
 import "./KifuCommentNote.scss";
@@ -119,10 +119,13 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       // 分岐が削除・入れ替えされると、同じ番号は**別の変化**を指す。そのまま書くと
       // 打っていない変化に本文が入り、**その変化に元からあったコメントが消える**。
       // 書き込みは成功するので画面には何も出ない。
-      const bornAt = generationOf(target.absPath);
-      const stillValid = () => bornAt === generationOf(target.absPath);
+      const bornAt = branchGenerationOf(target.absPath);
+      const stillValid = () => bornAt === branchGenerationOf(target.absPath);
       const stash = (value: { draft: string; error: string; told: boolean }) =>
-        putUnsavedDraft(target.key, value, { absPath: target.absPath, generation: bornAt });
+        putUnsavedDraft(target.key, value, {
+          at: bornAt,
+          now: () => branchGenerationOf(target.absPath),
+        });
 
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
         const showing = () => faceRef.current?.key === target.key;
@@ -290,7 +293,38 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
     // 書き込めない場所に置いた棋譜ではノートを閉じる手段が1つも無くなる
     // （失敗を伝えるより悪い行き止まり）。2回目は諦めて閉じる。
     if (editing && dirty) {
-      const told = getUnsavedDraft(editing.face.key)?.told === true;
+      const target = editing;
+      const told = getUnsavedDraft(target.face.key)?.told === true;
+
+      /**
+       * 閉じ切る。`result` が `"failed"` なら諦めて閉じる側。
+       *
+       * **下書きも一緒に落とす。** 落とさないと、この直後に面が消える効果が
+       * もう1本書きに行き、いま捨てた預かりを積み直す。
+       * 画面には「閉じると、この本文は失われます」と出しているので、失わせる。
+       *
+       * `leavingRef` は**同期で**書く。`setEditing` は `onClose()` と同じバッチに
+       * まとまるので、効果が読む前のコミットに載らない。ref なら巻き込まれない。
+       *
+       * **2つの経路（待つ／待たない）から呼ぶ。** 片方にだけ後始末を付けると、
+       * 「閉じると失われます」がその経路でだけ嘘になり、`told` も false へ巻き戻って
+       * 次は2回押さないと閉じなくなる。
+       */
+      const finish = (result: "saved" | "failed" | "skipped") => {
+        // 待っている間に別の面へ移っていたら、その面を閉じない。
+        // `onClose` はどの面を閉じるかを引数に取らないので、そのまま呼ぶと
+        // **入力中の別の手のノートが勝手に畳まれる**。
+        if (faceRef.current?.key !== target.face.key) return;
+
+        if (result === "failed") {
+          dropUnsavedDraft(target.face.key);
+          const settled = { ...target, draft: target.baseText, error: null };
+          leavingRef.current = settled;
+          setEditing(settled);
+        }
+        // `"skipped"`（宛先が消えた）は捨てない。元の棋譜へ戻れば出し直せる
+        onClose();
+      };
 
       // **列が動いているなら待たない。** 待つと、他の書き込みが返ってこない間
       // 閉じるが効かなくなる（押しても何も起きず、押せない見た目にもならない）。
@@ -299,27 +333,17 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       // 失敗する環境ほど確実にこの分岐を通るのに、失敗が一度も画面に出ない。
       // 押した瞬間から「保存中」が出ているので、押せない見た目にはならない。
       if (inFlightRef.current > 0) {
-        void save(editing.face, editing.draft).then((r) => {
-          if (r !== "failed" || told) onClose();
+        void save(target.face, target.draft).then((r) => {
+          if (r === "failed" && !told) return;
+          finish(r);
         });
         return;
       }
 
-      const result = await save(editing.face, editing.draft);
-      if (result === "failed") {
-        if (!told) return;
-        // 諦めて閉じる。**下書きも一緒に落とす。** 落とさないと、この直後に
-        // 面が消える効果がもう1本書きに行き、いま捨てた預かりを積み直す。
-        // 画面には「閉じると、この本文は失われます」と出しているので、失わせる。
-        //
-        // `leavingRef` は**同期で**書く。`setEditing` は `onClose()` と同じバッチに
-        // まとまるので、効果が読む前のコミットに載らない。ref なら巻き込まれない。
-        dropUnsavedDraft(editing.face.key);
-        const settled = { ...editing, draft: editing.baseText, error: null };
-        leavingRef.current = settled;
-        setEditing(settled);
-      }
-      // `"skipped"`（宛先が消えた）は捨てない。元の棋譜へ戻れば出し直せる
+      const result = await save(target.face, target.draft);
+      if (result === "failed" && !told) return;
+      finish(result);
+      return;
     }
     onClose();
   }, [editing, dirty, save, onClose]);

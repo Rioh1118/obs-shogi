@@ -18,42 +18,29 @@ export type UnsavedDraft = {
 
 const store = new Map<string, UnsavedDraft>();
 
-/**
- * 棋譜ごとの世代。**分岐の番号が振り直されるたびに進む。**
- *
- * 鍵に入っている `forkIndex` は `forks` 配列の位置で、分岐の削除・入れ替えが
- * その配列を詰めたり入れ替えたりする。番号が動いたあとに、動く前の鍵で預かりを
- * 積み直すと、**別の変化のノートに前の変化の下書きが出て、そこへ書き込まれる**。
- *
- * 書き込みを撃つ側は世代を掴んでおき、預けるときに突き合わせる。
- * 合わなければ**預けずに捨てる**。捨てると本文は失われるが、
- * 残すと利用者が打った覚えのない変化へ本文が入る。**失うほうを採る。**
- */
-const generations = new Map<string, number>();
-
-function generationKey(absPath: string | null): string {
-  return absPath ?? "";
-}
-
-export function generationOf(absPath: string | null): number {
-  return generations.get(generationKey(absPath)) ?? 0;
-}
-
 export function getUnsavedDraft(key: string): UnsavedDraft | undefined {
   return store.get(key);
 }
 
 /**
- * 預ける。`at` を渡した場合、その世代がもう古ければ**何もしない**。
+ * 預ける。
  *
- * `at` を渡さないのは、番号を跨がないことがその場で分かる呼び出し（unmount の後始末）。
+ * `generation` を渡した場合、掴んだときの値（`at`）と**いまの値**（`now()`）が違えば
+ * 何もしない。鍵に入っている `forkIndex` は `forks` 配列の位置で、分岐の削除・入れ替えが
+ * その配列を詰めたり入れ替えたりする。番号が動いたあとに、動く前の鍵で積み直すと、
+ * **別の変化のノートに前の変化の下書きが出て、そこへ書き込まれる**。
+ * 合わなければ**預けずに捨てる**。捨てると本文は失われるが、
+ * 残すと利用者が打った覚えのない変化へ本文が入る。**失うほうを採る。**
+ *
+ * 世代の持ち主は `entities/kifu/lib/branchGeneration.ts`。番号を動かした側が進める。
+ * 渡さないのは、番号を跨がないことがその場で分かる呼び出し（unmount の後始末）。
  */
 export function putUnsavedDraft(
   key: string,
   value: UnsavedDraft,
-  at?: { absPath: string | null; generation: number },
+  generation?: { at: number; now: () => number },
 ): void {
-  if (at && at.generation !== generationOf(at.absPath)) return;
+  if (generation && generation.at !== generation.now()) return;
   store.set(key, value);
 }
 
@@ -79,7 +66,7 @@ function tesuuOf(key: string, prefix: string): number | null {
 }
 
 /**
- * 分岐の番号が振り直されたので、影響を受ける預かりを捨てて世代を進める。
+ * 分岐の番号が振り直されたので、影響を受ける預かりを捨てる。
  *
  * **`fromTesuu` より前の手は落とさない。** そこの `forkIndex` は動かないので、
  * 落とすと「書いた本文はこのまま残っています」という断言が
@@ -87,6 +74,9 @@ function tesuuOf(key: string, prefix: string): number | null {
  *
  * **番号を動かす書き込みが成功したあとに呼ぶこと。** 先に呼ぶと、
  * 失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
+ *
+ * 番号そのものの世代は `entities/kifu/lib/branchGeneration.ts` が持ち、
+ * **番号が動いた瞬間**に進む（成否を待たない）。この掃除とは時刻が違う。
  */
 export function dropUnsavedDraftsFor(absPath: string | null, fromTesuu: number): void {
   const prefix = `${absPath ?? ""}__`;
@@ -95,12 +85,9 @@ export function dropUnsavedDraftsFor(absPath: string | null, fromTesuu: number):
     const tesuu = tesuuOf(key, prefix);
     if (tesuu === null || tesuu >= fromTesuu) store.delete(key);
   }
-  const gk = generationKey(absPath);
-  generations.set(gk, (generations.get(gk) ?? 0) + 1);
 }
 
 /** テスト用。実行時に呼ぶ場所は無い */
 export function clearUnsavedDrafts(): void {
   store.clear();
-  generations.clear();
 }
