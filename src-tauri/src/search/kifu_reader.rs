@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    panic::catch_unwind,
-    path::{Path, PathBuf},
-};
+use std::{fs, panic::catch_unwind, path::Path};
 
 use thiserror::Error;
 
@@ -29,10 +25,10 @@ pub enum KifuReadError {
     /// 設定のワークスペースへ）。内部の識別子ではなく、
     /// 何が読めなかったかと次に何をすればよいかを入れること。
     ///
-    /// **`path` は Display に出さない。** 呼び手が `IndexWarnPayload` の別の欄で
+    /// **どのファイルかは持たない。** 呼び手が `IndexWarnPayload` の別の欄で
     /// 持っており、画面はその欄と本文を並べて描くので、入れると同じパスが2回出る。
-    #[error("{message}")]
-    ParseFailed { path: PathBuf, message: String },
+    #[error("{0}")]
+    ParseFailed(String),
 }
 
 /// 走査で見つけたファイルを JKF に読む
@@ -58,7 +54,7 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
         KifuKind::Csa => parse_csa_guarded(path),
-        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| parse_failed(path, e)),
+        KifuKind::Jkf => parse_jkf_file(path).map_err(parse_failed),
     }
 }
 
@@ -88,7 +84,7 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
 /// 揃えるかどうかは #325 で決める。
 fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
     match catch_unwind(|| parse_csa_file(path)) {
-        Ok(result) => result.map_err(|e| parse_failed(path, e)),
+        Ok(result) => result.map_err(parse_failed),
         // パニックの中身を捨てない。上の表は実測した2件だが、`csa` には
         // 他にも `unwrap` があり、原因を決め打ちすると**違う理由を名指しする**
         Err(payload) => {
@@ -97,22 +93,16 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
                 .copied()
                 .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
                 .unwrap_or("理由不明");
-            Err(parse_failed(
-                path,
-                format!(
-                    "CSA の値が規格外です。$START_TIME の日付と T 行の消費時間を\
+            Err(parse_failed(format!(
+                "CSA の値が規格外です。$START_TIME の日付と T 行の消費時間を\
                      確かめてください（内部の理由: {what}）"
-                ),
-            ))
+            )))
         }
     }
 }
 
-fn parse_failed(path: &Path, e: impl std::fmt::Display) -> KifuReadError {
-    KifuReadError::ParseFailed {
-        path: path.to_path_buf(),
-        message: e.to_string(),
-    }
+fn parse_failed(e: impl std::fmt::Display) -> KifuReadError {
+    KifuReadError::ParseFailed(e.to_string())
 }
 
 // -------------------------
@@ -158,18 +148,12 @@ where
     let evidence = Evidence::of(&bytes);
     match try_other_encodings(&bytes, &evidence, from_str) {
         Ok(jkf) => Ok(jkf),
-        Err(by_fallback) => Err(parse_failed(
-            path,
-            describe(by_crate, &evidence, by_fallback),
-        )),
+        Err(by_fallback) => Err(parse_failed(describe(by_crate, &evidence, by_fallback))),
     }
 }
 
 fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
-    fs::read(path).map_err(|e| KifuReadError::ParseFailed {
-        path: path.to_path_buf(),
-        message: format!("io error: {e}"),
-    })
+    fs::read(path).map_err(|e| parse_failed(format!("io error: {e}")))
 }
 
 /// クレートが試さない文字コード
@@ -213,9 +197,12 @@ fn declared_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
     if bytes.starts_with(&[0xFE, 0xFF]) {
         return Some(UTF_16BE);
     }
-    if bytes
-        .windows(3)
-        .any(|w| w == b"\x1b$B" || w == b"\x1b(B" || w == b"\x1b(J")
+    // ISO-2022-JP は定義上 7bit。0x80 以上があれば、エスケープの並びが
+    // たまたま現れただけ（バイナリに `.kif` が付いている場合など）
+    if bytes.iter().all(|b| *b < 0x80)
+        && bytes
+            .windows(3)
+            .any(|w| w == b"\x1b$B" || w == b"\x1b(B" || w == b"\x1b(J")
     {
         return Some(ISO_2022_JP);
     }
@@ -268,11 +255,7 @@ impl Evidence {
 /// ASCII だけのファイル（`.kif` に改名した CSA、SFEN のメモ）は EUC-JP としても
 /// 誤り無く復号できてしまうので、名乗らせない。
 ///
-/// 名乗れなくても、**化けずに読めた**なら理由は残す。[`Unparsable::encoding`] を
-/// `None` にして「文字コードは特定できないが、この行で止まった」と出す。
-///
-/// **化けた試行は理由ごと捨てる。** 化けた復号が指す行番号は実在しないので、
-/// 出すと利用者を無関係な行へ送る。
+/// 名乗れなかった試行をどう扱うかは [`try_other_encodings`] が決める。
 fn can_be_named(enc: &'static Encoding, evidence: &Evidence, had_errors: bool) -> bool {
     if had_errors {
         return false;
@@ -297,6 +280,7 @@ struct Unparsable {
 ///
 /// 読めなければ、**誤り無く復号できた試行**の理由を返す。名乗ってよい文字コード
 /// （[`can_be_named`]）があればそれを優先し、無ければ名前を伏せて理由だけ返す。
+/// 名乗れない候補が複数あるときは、**行数が一番多いもの**（[`line_count`]）。
 ///
 /// 「どの文字コードでも読めなかった」と「4行目が棋譜として読めない」は
 /// 利用者にとって別の話で、後者には直す手がある。
@@ -309,28 +293,35 @@ where
     F: FnMut(&str) -> Result<Jkf, ParseError>,
 {
     let mut named = None;
-    let mut anonymous = None;
+    // 名乗れない候補は**行数が一番多いもの**を採る。並び順で決めると、
+    // バイト順を取り違えた UTF-16（1行にまとまる）が先にあるだけで勝ってしまう
+    let mut anonymous: Option<(usize, Unparsable)> = None;
 
     for enc in ENCODINGS_THE_CRATE_SKIPS {
         let (cow, _, had_errors) = enc.decode(bytes);
+        let lines = line_count(&cow);
         let error = match parse(&cow) {
             Ok(jkf) => return Ok(jkf),
             Err(error) => error,
         };
 
         if can_be_named(enc, evidence, had_errors) {
+            // `can_be_named` は1つのバイト列について高々1つの文字コードにしか
+            // 真を返さない（印があればその1つ、無ければ EUC-JP だけ）ので、
+            // ここが2度通ることはない
             named = Some(Unparsable {
                 encoding: Some(enc.name()),
                 error,
             });
-        } else if !had_errors && looks_like_text(&cow) {
-            // 名乗れないが文字にはできた。行番号だけでも利用者の役に立つ。
-            // 先に当たったものを採る（`looks_like_text` を通ったものは
-            // どれも「文字として成立している」ので、順位を付ける根拠が無い）
-            anonymous.get_or_insert(Unparsable {
-                encoding: None,
-                error,
-            });
+        } else if !had_errors && anonymous.as_ref().map_or(true, |(best, _)| lines > *best) {
+            // 名乗れないが文字にはできた。行番号だけでも利用者の役に立つ
+            anonymous = Some((
+                lines,
+                Unparsable {
+                    encoding: None,
+                    error,
+                },
+            ));
         }
     }
 
@@ -339,23 +330,22 @@ where
     match parse(&String::from_utf8_lossy(bytes)) {
         Ok(jkf) => Ok(jkf),
         // lossy はどんなバイト列でも「読めた」ことになるので、理由の候補にしない
-        Err(_) => Err(named.or(anonymous)),
+        Err(_) => Err(named.or_else(|| anonymous.map(|(_, u)| u))),
     }
 }
 
-/// 復号した結果がテキストとして成立しているか。
+/// 復号した結果が何行になったか。**候補どうしを比べるためだけに使う。**
 ///
-/// **バイト順を取り違えた UTF-16 を弾くためにある。** UTF-16 は LE と BE の
-/// どちらで読んでも誤りが出ないので、`had_errors` では区別が付かない。
-/// 取り違えると改行 `U+000A` が `U+0A00` になり、**改行が1つも無い1行**になる。
+/// バイト順を取り違えた UTF-16 を弾くのが目的。UTF-16 は LE と BE のどちらで
+/// 読んでも誤りが出ないので `had_errors` では区別が付かないが、取り違えると
+/// 改行 `U+000A` が `U+0A00` になり、**行が1つにまとまる**。
+/// 正しい読み方のほうが必ず行数が多い。
 ///
-/// 棋譜はどの形式も行で区切る。改行が1つも無いものは、
-/// その文字コードで読むのが間違っているか、そもそもテキストではない。
-///
-/// これは「中身の統計」ではない。**行があるかどうか**という、
-/// 棋譜の書式そのものが要求する構造を見ている。
-fn looks_like_text(decoded: &str) -> bool {
-    decoded.contains('\n')
+/// **「改行があること」を通過条件にはしない。** 1行しかない KI2 も、
+/// CR だけで行を区切る古い棋譜も正当な入力で、候補が1つならそれを採る。
+/// 落とすのは「他にもっと行数の多い読み方があるとき」だけ。
+fn line_count(decoded: &str) -> usize {
+    decoded.lines().count()
 }
 
 /// 読めなかった理由を利用者に出す文言にする。
@@ -403,30 +393,24 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
         // `ENCODINGS_THE_CRATE_SKIPS` の4つだけで、Shift_JIS も UTF-8 もそこに無い。
         // BOM で UTF-8 と分かっていても絞り込む先が無いので、そのまま出す
         ParseError::Kif(_) | ParseError::Ki2(_) => by_crate.to_string(),
-        other => match evidence.declared {
-            Some(enc) => format!(
-                "{} を名乗っているが、その文字コードでも棋譜として読めなかった",
-                enc.name()
-            ),
-            // 名乗れる文字コードが無く、クレートも文字にできなかった。
-            // 誤り無く復号できた試行があれば、名前は伏せて理由だけ使う
-            None => match by_fallback {
-                Some(Unparsable { error, .. }) => format!(
-                    "文字コードは特定できませんが、棋譜として読めない箇所があります: {error}"
-                ),
-                None => {
-                    let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
-                        .iter()
-                        .copied()
-                        .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
-                        .collect();
-                    format!(
-                        "{other}: {} のどれでも文字として読めませんでした。\
+        // クレートも文字にできなかった。誤り無く復号できた試行があれば、
+        // 名前は伏せて理由だけ使う
+        other => match by_fallback {
+            Some(Unparsable { error, .. }) => {
+                format!("文字コードは特定できませんが、棋譜として読めない箇所があります: {error}")
+            }
+            None => {
+                let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
+                    .iter()
+                    .copied()
+                    .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
+                    .collect();
+                format!(
+                    "{other}: {} のどれでも文字として読めませんでした。\
                          棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください",
-                        tried.join(" / ")
-                    )
-                }
-            },
+                    tried.join(" / ")
+                )
+            }
         },
     }
 }
@@ -753,6 +737,13 @@ mod tests {
                     .into_owned(),
                 Some(ISO_2022_JP),
             ),
+            // ISO-2022-JP は定義上 7bit。0x80 以上があれば、
+            // エスケープの並びがたまたま現れただけ（`.kif` に改名したバイナリ）
+            (
+                "ESC はあるが 8bit の文字がある",
+                b"\x1b(B\xFF\xFE\n".to_vec(),
+                None,
+            ),
             // 3つの節を1つずつ。**その節でしか当たらない題材にする** —
             // `ESC $ B` を混ぜると、他の節を消しても通ってしまう
             (
@@ -1017,7 +1008,7 @@ mod tests {
 
     /// `describe` の優先順を直接見る。
     ///
-    /// 壊れ方が3度ともこの順序だった（クレートの一語が総当たりの理由を押しのける /
+    /// 壊れ方はどれもこの順序で起きる（クレートの一語が総当たりの理由を押しのける /
     /// 化けた復号が正しい行を押しのける / 切れている判定が `Kif` の後ろにあって
     /// 到達しない）。ファイル越しのテストは「その題材が通る腕」しか見ないので、
     /// **上の段と競合させた入力**をここで並べる。
@@ -1078,6 +1069,29 @@ mod tests {
             message.contains("UTF-16LE"),
             "6 が使われていない: {message}"
         );
+    }
+
+    /// 改行の無い棋譜を「棋譜ではない」と言わない。
+    ///
+    /// 1行しかない KI2 も、CR だけで行を区切る古い棋譜も正当な入力。
+    /// 「改行があること」を通過条件にすると、**中身が正しい棋譜に対して
+    /// 『棋譜ではないファイルに拡張子が付いていないか』と出る**。
+    #[test]
+    fn a_kifu_without_newlines_is_not_called_a_non_kifu() {
+        let dir = temp_dir("no-newline");
+        let path = dir.join("one-line.ki2");
+        // 改行が1つも無い KI2。「パス」は KI2 の語彙に無い
+        let text = "▲７六歩 △３四歩 ▲パス";
+        fs::write(&path, to_utf16(text, true)).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Ki2).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            !message.contains("棋譜ではないファイル"),
+            "棋譜なのに棋譜でないと言っている: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
     }
 
     /// 手合割つきの棋譜が読める。
