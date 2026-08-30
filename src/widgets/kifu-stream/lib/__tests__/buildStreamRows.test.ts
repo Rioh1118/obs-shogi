@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { ROOT_CURSOR, plannedCursorOf, type ForkPointer } from "@/entities/kifu/model/cursor";
+import { ROOT_CURSOR, plannedCursorFrom, type ForkPointer } from "@/entities/kifu/model/cursor";
 import { buildStreamRowsFromCursor } from "../buildStreamRows";
 
 /** 本譜3手。te=2 に変化が1本。 */
@@ -15,7 +15,7 @@ const KIF = `手合割：平手
 `;
 
 const rowsFor = (branchPlan: ForkPointer[]) => {
-  const cursor = plannedCursorOf(ROOT_CURSOR, branchPlan);
+  const cursor = plannedCursorFrom(ROOT_CURSOR, branchPlan);
   return buildStreamRowsFromCursor(new JKFPlayer(parseKifuContentToJKF(KIF, "kif")), cursor);
 };
 

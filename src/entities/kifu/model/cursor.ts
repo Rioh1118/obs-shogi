@@ -46,13 +46,17 @@ declare const plannedCursorBrand: unique symbol;
 /**
  * 「これから降りるつもりの変化」まで載せたカーソル
  *
- * `KifuCursor` との違いは2つ。`te > tesuu` の `ForkPointer` を持つことと、
- * 局面を一意に指さないので `tesuuPointer` を持たないこと。
- * 盤の再生（`buildPlayer` / `goto`）にはそのまま渡せない。
+ * `KifuCursor` との違いは、局面を一意に指さないので `tesuuPointer` を持たないこと。
+ * `te > tesuu` の `ForkPointer` を持ちうるが、それは `KifuCursor` も同じ
+ * （`PositionNavigationModal` が `tesuu` だけ戻したカーソルを作る）。
  *
  * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
- * brand が無いと `KifuCursor` がそのまま代入でき、`cursor.forkPointers` は
- * `te <= tesuu` に正規化済みなので、**カーソルより先の選択が黙って空になる**。
+ * brand が無いと `state.cursor` がそのまま代入できる。`state.cursor.forkPointers` は
+ * `cursorFromSource` が `te <= tesuu` に正規化して作るので、
+ * **カーソルより先の選択が黙って空になる**。
+ *
+ * **brand が塞ぐのはここまで。** `plannedCursorOf(state.cursor, state.cursor.forkPointers)` は
+ * 型を通り、中身は同じく計画の抜けた値になる。第2引数には必ず `state.branchPlan` を渡す。
  */
 export interface PlannedCursor {
   tesuu: number;
@@ -61,13 +65,21 @@ export interface PlannedCursor {
 }
 
 /** 現在局面と分岐計画から `PlannedCursor` を組む。**この型を作ってよいのはここだけ** */
-export function plannedCursorOf(
+export function plannedCursorFrom(
   cursor: KifuCursor | null,
   branchPlan: ForkPointer[],
 ): PlannedCursor | null {
   if (!cursor) return null;
   return { tesuu: cursor.tesuu, forkPointers: branchPlan } as PlannedCursor;
 }
+
+/**
+ * 盤を再生するのに要る最小の組。`KifuCursor` と `PlannedCursor` の共通部分。
+ *
+ * 再生する側は `tesuuPointer` を読まない（`normalizeForkPointers` で `te <= tesuu` に
+ * 絞ってから `goto` に渡す）ので、辿ったカーソルと計画カーソルのどちらも受けられる。
+ */
+export type CursorPath = Pick<KifuCursor, "tesuu" | "forkPointers">;
 
 /**
  * 開始局面のカーソル。

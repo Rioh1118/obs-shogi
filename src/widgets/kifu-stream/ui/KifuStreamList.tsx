@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import { plannedCursorOf, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
+import { plannedCursorFrom, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import {
   neighborBranchIndex,
   MAIN_LINE,
@@ -46,7 +46,7 @@ export default function KifuStreamList() {
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
   const plannedCursor = useMemo(
-    () => plannedCursorOf(state.cursor, state.branchPlan),
+    () => plannedCursorFrom(state.cursor, state.branchPlan),
     [state.cursor, state.branchPlan],
   );
 

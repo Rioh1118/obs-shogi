@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { buildTesuuPointer } from "@/entities/kifu/model/branch";
 import {
   normalizeForkPointers,
-  plannedCursorOf,
+  plannedCursorFrom,
   type ForkPointer,
 } from "@/entities/kifu/model/cursor";
 import { resolveForkSelection } from "../cursorSelection";
@@ -18,8 +18,8 @@ import { resolveForkSelection } from "../cursorSelection";
 const plannedCursor = (tesuu: number, branchPlan: ForkPointer[]) => {
   const traced = normalizeForkPointers(branchPlan, tesuu);
   const cursor = { tesuu, forkPointers: traced, tesuuPointer: buildTesuuPointer(tesuu, traced) };
-  const planned = plannedCursorOf(cursor, branchPlan);
-  if (!planned) throw new Error("plannedCursorOf returned null for a non-null cursor");
+  const planned = plannedCursorFrom(cursor, branchPlan);
+  if (!planned) throw new Error("plannedCursorFrom returned null for a non-null cursor");
   return planned;
 };
 
