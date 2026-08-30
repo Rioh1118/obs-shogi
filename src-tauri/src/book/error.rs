@@ -103,13 +103,27 @@ pub(crate) const MAX_PATH_CHARS: usize = 4096;
 
 /// エラーやログに載せるパスを打ち切る。切れていることが分かるように印を付ける。
 pub(crate) fn truncate_path(raw: &str) -> String {
-    // 制御文字を潰す。パスの検査は空 / NUL / 絶対パスしか見ないので、改行を
-    // 含むパスがそのまま通る。1回の log! が2行になり、後ろの行が本物の
-    // コマンドログと見分けが付かなくなる（報告を受けてログから切り分ける、
-    // というこの層の目的が直接壊れる）。
+    visible_and_truncated(raw, MAX_PATH_CHARS)
+}
+
+/// message とログに載せる文字列を、見える形にして予算まで切る。
+///
+/// **予算ごとに書き分けない。** パスと引用は上限が違うだけで、やることは同じ。
+/// 分けて書くと、片方だけ直した状態が生まれる。
+///
+/// 制御文字を潰すのは、`\n` を含む値がそのまま通ると1回の `log!` が2行になり、
+/// 後ろの行が本物のコマンドログと見分けが付かなくなるため（報告を受けてログから
+/// 切り分ける、というこの層の目的が直接壊れる）。message では、引用が
+/// 「どこも壊れて見えない」と利用者が正しいファイルを拒否されたと判断して、
+/// 案内された復帰操作を何度も繰り返すことになる。
+///
+/// **切ってから組む。** 先に `replace` で全体を作ると、120 字に切る前に入力全体
+/// （制御文字だらけなら3倍）を確保する。`to_book_key` の入力はコマンド境界から
+/// 来る任意長の文字列で、しかも `spawn_blocking` の外を通る。
+fn visible_and_truncated(raw: &str, budget: usize) -> String {
     let mut out: String = raw
         .chars()
-        .take(MAX_PATH_CHARS)
+        .take(budget)
         .map(|c| if c.is_control() { '\u{2423}' } else { c })
         .collect();
     if out.chars().count() < raw.chars().count() {
@@ -132,22 +146,16 @@ const MESSAGE_EXCERPT_CHARS: usize = 120;
 /// その上限もこの予算の 34 倍なので、そちらを使うと失敗1回でログの予算を
 /// 食い潰す。
 ///
-/// **制御文字は見える形に置き換える。** 引用が「どこも壊れて見えない」と、
-/// 利用者は正しいファイルを拒否されたと判断して、案内された復帰操作を
-/// 何度も繰り返すことになる。タブで欄を区切った定跡がその形
-/// （`8c8d\tnone\t1\t1\t1` が `8c8d none 1 1 1` に見える）。
-/// パス用の [`truncate_path`] が同じ理由で同じことをしている。
+/// 制御文字は見える形に置き換える（理由は [`visible_and_truncated`]）。
+/// タブで欄を区切った定跡がその形（`8c8d\tnone\t1\t1\t1` が
+/// `8c8d none 1 1 1` に見える）。
 pub(crate) fn excerpt(input: &str) -> String {
-    truncate_for_message(&input.trim().replace(|c: char| c.is_control(), "\u{2423}"))
+    truncate_for_message(input.trim())
 }
 
 /// message に載せる引用を打ち切る。
 pub(crate) fn truncate_for_message(excerpt: &str) -> String {
-    let mut out: String = excerpt.chars().take(MESSAGE_EXCERPT_CHARS).collect();
-    if out.chars().count() < excerpt.chars().count() {
-        out.push('…');
-    }
-    out
+    visible_and_truncated(excerpt, MESSAGE_EXCERPT_CHARS)
 }
 
 /// 利用者に見せる大きさ。
@@ -257,5 +265,36 @@ mod tests {
         );
         assert_eq!(err.code(), BookErrorCode::PermissionDenied);
         assert_eq!(err.path(), Some("/books/a.db"));
+    }
+
+    /// 引用は予算に収まること。制御文字を含む入力でも同じ。
+    ///
+    /// **確保の順序はここでは見られない。** 切ってから組んでも先に全体を
+    /// 置き換えても出力は同じで、違うのは確保量だけ。順序を守っているのは
+    /// [`visible_and_truncated`] に両方を通す形そのもので、テストではない。
+    #[test]
+    fn an_excerpt_stays_within_its_budget() {
+        for input in ["\u{7}".repeat(10_000), "a".repeat(10_000)] {
+            let out = excerpt(&input);
+            // 予算 + 打ち切りの跡
+            assert_eq!(out.chars().count(), MESSAGE_EXCERPT_CHARS + 1, "{out:.40}");
+            assert!(out.ends_with('…'), "{out:.40}");
+        }
+    }
+
+    /// 制御文字は見える形にする。タブで欄を区切った定跡の引用が
+    /// 「どこも壊れて見えない」と、利用者は正しいファイルを拒否されたと判断する。
+    #[test]
+    fn an_excerpt_shows_control_characters() {
+        let out = excerpt("8c8d\tnone\t1");
+
+        assert!(!out.contains('\t'), "{out}");
+        assert_eq!(out.matches('\u{2423}').count(), 2, "{out}");
+    }
+
+    /// 予算に収まる入力には打ち切りの跡を付けない。
+    #[test]
+    fn a_short_excerpt_is_not_marked_as_truncated() {
+        assert_eq!(excerpt("  7g7f  "), "7g7f");
     }
 }
