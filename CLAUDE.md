@@ -64,7 +64,7 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 
 ## 既知の落とし穴
 
-- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。**解く経路はリポジトリに1つも無い。** 分解したくなったら、それは `KifuCursor` の `tesuu` / `forkPointers` を直接見るべき合図。鍵を組む側は `cursorKey`（`entities/kifu/model/cursor.ts`）に寄せる。正規化を通すのはこれだけで、素の `buildTesuuPointer` は同ファイルの非公開。`KifuCursor` を作る口も同ファイルの2つ（`makeKifuCursor` / `ROOT_CURSOR`）に閉じてある。**触る前に `grep -rn "as TesuuPointer" src/` で現在地を数えること**（ここに件数を書くと腐る）
+- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。**解く経路はリポジトリに1つも無い。** 分解したくなったら、それは `KifuCursor` の `tesuu` / `forkPointers` を直接見るべき合図。鍵を組む側は `cursorKey`（`entities/kifu/model/cursor.ts`）に寄せる。正規化を通すのはこれだけで、素の `buildTesuuPointer` は同ファイルの非公開。`KifuCursor` を本番で作る口は `cursorFromPlayer`（`entities/kifu/lib/playerCursor.ts`）と定数の `ROOT_CURSOR` だけ。`makeKifuCursor` はその内部の組み立てで、**第3引数に要求の鍵（`cursorKey`）を渡さない**（着けもしない局面の識別子が `state.cursor` に入り、移動前後の比較が「動いていない」と誤判定して盤が止まる）。外に `as TesuuPointer` を書かないこと
 - **要求した局面に着いたかは `tesuu` では判定できない。** `goto` は届かなければ黙って止まり、実在しない変化は黙って捨てて同じ `tesuu` の別の線に着く。突き合わせは `reachedCursor`（`entities/kifu/lib/playerCursor.ts`）を通す
 - JSX 内の全角スペースは `no-irregular-whitespace` で lint エラーになる → `{"　"}` で囲む
 - SCSS トークンは `@use "@/index.scss" as index;` で読み込む
