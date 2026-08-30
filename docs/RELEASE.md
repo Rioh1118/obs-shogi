@@ -24,10 +24,12 @@ git tag v0.3.0 && git push origin v0.3.0
 
 資産が揃ったらリリースノートを書く。yml が置くのは
 `## What's new` の1行だけで、**既存のリリースの本文を書き換える経路は yml に無い**。
-`v0.1.3` 以降は全て人手で書いている。雛形は前回のものを引く。
+`v0.1.3` 以降は全て人手で書いている。雛形は前回のものを引き、書いたら反映する。
 
 ```
 gh release view v0.2.1 --json body -q .body > notes.md
+# notes.md を書き換えてから
+gh release edit v0.3.0 --notes-file notes.md
 ```
 
 ダウンロードの表を書くなら、資産名は下の「資産名」から取る。
@@ -84,14 +86,24 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 
    ジョブのログに `Unexpected input(s)` が出ていないことも見る。
 
-3. **`latest.json` の url が `api.github.com/repos/.../releases/assets/<id>` 形式で、実際に引ける**
+3. **`latest.json` の鍵が11個そろい、url を全部引ける**
 
    ```
-   curl -sL https://github.com/Rioh1118/obs-shogi/releases/download/v0.0.1-1/latest.json | jq '.platforms[].url'
-   curl -s -o /dev/null -w '%{http_code}\n' -H "Accept: application/octet-stream" -L "<上の url の1つ>"
+   URL=https://github.com/Rioh1118/obs-shogi/releases/download/v0.0.1-1/latest.json
+   curl -sL "$URL" | jq -r '.platforms | keys | length'
+   curl -sL "$URL" | jq -r '.platforms[].url' | while read -r u; do
+     curl -s -o /dev/null -w "%{http_code} $u\n" -H "Accept: application/octet-stream" -L "$u"
+   done
    ```
 
-   2本目が `200` を返すこと（`curl -I -L … | head -1` は途中の 302 を出すので使わない）。未認証の `api.github.com` は IP あたり 60 req/h の制限下にあるので、
+   1本目が `11`、2本目が**全行 `200`**（`curl -I -L … | head -1` は途中の 302 を出すので使わない）。
+
+   **1本だけ叩いて済ませない。** 4ジョブが同じ `latest.json` を read-modify-write するので、
+   競り負けたときの結果は「url が壊れる」ではなく**「鍵が丸ごと落ちる」**（下の「同時に走らせない」）。
+   落ちた側のプラットフォームでは更新の確認が「更新なし」を返すだけで、
+   **エラーはどこにも出ない**。先頭の1本だけ見ると、Windows の鍵が落ちていても受入が通る。
+
+   未認証の `api.github.com` は IP あたり 60 req/h の制限下にあるので、
    ここで詰まると「手動ダウンロードは通るのに自動更新だけ静かに失敗する」形になる。
 
 終わったらリリースとタグを消す。空打ちのリリースには書いた本文が無いので、
@@ -168,6 +180,14 @@ gh release delete v0.3.0 -y
 リリースを消してもタグは残るので、消したあと同じタグで撃てば
 `createRelease` の経路に戻り、残骸の無い状態から組み直せる。
 
+**資産が揃ったら、退避した本文を戻すこと。**
+
+```
+gh release edit v0.3.0 --notes-file notes.md
+```
+
+戻すまでの間、リリースの本文は yml が置く placeholder のままで公開されている。
+
 ## 同時に走らせない
 
 `concurrency` の group はタグ（`github.event.inputs.tag || github.ref_name`）。
@@ -177,7 +197,11 @@ push と dispatch を同じタグに対して撃つと、group が無ければ2�
 同じ `latest.json` を read-modify-write して後勝ちになる。group はそれを止める。
 **1つの run の中の4ジョブが同じ `latest.json` を触ることへの保護は無い。**
 `tauri-action` は既存の `latest.json` を読んで自分の欄だけ差し替える read-modify-write で、
-排他は無い。実害は観測していない（v0.2.1 には4プラットフォーム全部が載っている）。
+排他は無い。**競り負けると鍵が丸ごと落ちる**ので、空打ちでは鍵の数を数えること（「出し方」の3）。
+
+実害は観測していない。ただし**根拠にできる実績は空打ちの1回だけ**で、
+公開済みのリリースは `v0.2.1` まで `tauri-action@v0` で作られており、
+いま走る v1 とは `latest.json` を書く実装が違う（url の形も違う）。
 
 ## 関連
 
