@@ -17,7 +17,7 @@ import { buildPlayer } from "./buildPlayer";
  * @throws {Error} `PLAN_WALK_LIMIT` 手進んでも葉に着かないとき
  */
 export function computeLeafTesuu(jkf: JKFData, cursor: PlannedCursor | null): number {
-  const sim = buildPlayer(jkf, cursor);
-  advanceToLeafWithPlan(sim, planByTe(cursor?.forkPointers));
-  return sim.tesuu;
+  const player = buildPlayer(jkf, cursor);
+  advanceToLeafWithPlan(player, planByTe(cursor?.forkPointers));
+  return player.tesuu;
 }

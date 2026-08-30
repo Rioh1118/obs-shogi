@@ -7,7 +7,7 @@ export interface NavigationState {
    * `tesuu` より先の `ForkPointer` を持ちうる。`handlePrevious` は `tesuu` だけ戻して
    * 計画を残すので、戻ってから確定すると先の選択が `branchPlan` に引き継がれる。
    */
-  PreviewCursor: CursorPath;
+  previewCursor: CursorPath;
   /**
    * `buildNextOptions` が返した候補配列の添字。
    *

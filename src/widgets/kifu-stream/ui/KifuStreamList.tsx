@@ -65,8 +65,8 @@ export default function KifuStreamList() {
     if (!view.player) return [];
     // 一覧を組むための再生用に、盤の player とは別の player を立てる。
     // buildStreamRowsFromCursor は棋譜を書き換えない契約なので、棋譜は共有してよい。
-    const viewer = new JKFPlayer(view.player.kifu);
-    return buildStreamRowsFromCursor(viewer, plannedCursor);
+    const viewerPlayer = new JKFPlayer(view.player.kifu);
+    return buildStreamRowsFromCursor(viewerPlayer, plannedCursor);
   }, [view.player, plannedCursor]);
 
   const totalMoves = view.player ? getTotalMoves() : 0;

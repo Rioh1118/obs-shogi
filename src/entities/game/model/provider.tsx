@@ -35,7 +35,7 @@ import {
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
-import { fromIMove, lastMovePlayer, toIMoveMoveFormat } from "../lib/moveConverter";
+import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import {
@@ -124,7 +124,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
       return {
         player,
-        lastMove: lastMovePlayer(player),
+        lastMove: lastMoveHighlight(player),
         currentMove,
         currentComments,
         currentTurn,
@@ -610,23 +610,23 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const helpers = useMemo<JKFPlayerHelpers>(
     () => ({
-      isLegalMove: (jkfPlayer, move) => {
+      isLegalMove: (player, move) => {
         try {
-          return moveValidator.isLegalMove(jkfPlayer.shogi, move);
+          return moveValidator.isLegalMove(player.shogi, move);
         } catch {
           return false;
         }
       },
-      canPromoteMove: (jkfPlayer, move) => {
+      canPromoteMove: (player, move) => {
         try {
-          return moveValidator.canPromote(jkfPlayer.shogi, move);
+          return moveValidator.canPromote(player.shogi, move);
         } catch {
           return false;
         }
       },
-      mustPromoteMove: (jkfPlayer, move) => {
+      mustPromoteMove: (player, move) => {
         try {
-          return moveValidator.mustPromote(jkfPlayer.shogi, move);
+          return moveValidator.mustPromote(player.shogi, move);
         } catch {
           return false;
         }

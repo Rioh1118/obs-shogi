@@ -118,9 +118,9 @@ export const initialGameState: GameContextState = {
 };
 
 export interface JKFPlayerHelpers {
-  isLegalMove: (jkfPlayer: JKFPlayer, move: ShogiMove) => boolean;
-  canPromoteMove: (jkfPlayer: JKFPlayer, move: ShogiMove) => boolean;
-  mustPromoteMove: (jkfPlayer: JKFPlayer, move: ShogiMove) => boolean;
+  isLegalMove: (player: JKFPlayer, move: ShogiMove) => boolean;
+  canPromoteMove: (player: JKFPlayer, move: ShogiMove) => boolean;
+  mustPromoteMove: (player: JKFPlayer, move: ShogiMove) => boolean;
 }
 
 export interface StandardMoveFormat {

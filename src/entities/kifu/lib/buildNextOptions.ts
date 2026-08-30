@@ -9,9 +9,9 @@ import { isUsableFork } from "../model/jkf";
  * `options[0]` は必ず本譜。以降は `forks` の並び順で、`forkIndex` は `forks` の添字と一致する。
  * 投了・中断だけの変化も落とさない。落とすと棋譜ストリームの分岐メニューと項目数が食い違う。
  */
-export function buildNextOptions(sim: JKFPlayer): BranchOption[] {
-  const cur = sim.tesuu;
-  const next: IMoveFormat | undefined = sim.currentStream?.[cur + 1];
+export function buildNextOptions(player: JKFPlayer): BranchOption[] {
+  const cur = player.tesuu;
+  const next: IMoveFormat | undefined = player.currentStream?.[cur + 1];
   if (!next) return [];
 
   const options: BranchOption[] = [];
