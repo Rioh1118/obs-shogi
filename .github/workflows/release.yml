@@ -126,7 +126,11 @@ jobs:
       # この action の targets: は stable に対して効いてしまい、固定版には付かないので使わない。
       - uses: dtolnay/rust-toolchain@stable
 
+      # 追加が要るのはクロスコンパイルする macOS の2本だけ。Windows と Linux は
+      # ホストと同じターゲットを組むので `rust_target` が空で、ガードが無いと
+      # 引数の無い `rustup target add` になって exit 1 する。
       - name: Add build target (rust-toolchain.toml のツールチェーンに対して)
+        if: matrix.rust_target != ''
         run: rustup target add ${{ matrix.rust_target }}
 
       - uses: swatinem/rust-cache@v2
