@@ -10,7 +10,7 @@ use super::utils::{get_file_extension, is_kifu_file};
 use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
     error::ConvertError,
-    jkf::{Color, JsonKifuFormat, Preset},
+    jkf::JsonKifuFormat,
 };
 use std::{fs::OpenOptions, path::PathBuf};
 use tauri::{command, AppHandle, Runtime};
@@ -80,54 +80,8 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
     read_text_portable(&path)
 }
 
-/// 初期局面が後手番（preset: OTHER, color: White）かどうか判定する
-pub(crate) fn is_initial_gote(jkf: &JsonKifuFormat) -> bool {
-    if let Some(initial) = &jkf.initial {
-        if initial.preset == Preset::PresetOther {
-            if let Some(data) = &initial.data {
-                return data.color == Color::White;
-            }
-        }
-    }
-    false
-}
-
-/// KIF/KI2 形式の出力に「後手番」行を挿入する。
-/// converter crate が後手番情報を出力しないための補正。
-/// 「手数----指手---------」行の直前に挿入する（KIF）。
-/// KI2 の場合は末尾の盤面出力の後に追加する。
-pub(crate) fn patch_gote_start(mut content: String, is_gote: bool) -> String {
-    if !is_gote {
-        return content;
-    }
-    // KIF 形式: 「手数----指手---------消費時間--」の直前に挿入
-    if let Some(pos) = content.find("手数----指手---------") {
-        content.insert_str(pos, "後手番\n");
-    } else {
-        // KI2 形式など: 盤面出力の後、指し手の前に追加
-        // 「+---------------------------+」の最後の出現の次の行末の後に挿入
-        if let Some(pos) = content.rfind("+---------------------------+") {
-            if let Some(newline) = content[pos..].find('\n') {
-                let insert_at = pos + newline + 1;
-                // 持駒行をスキップ（「先手の持駒：...」行の後）
-                if let Some(teban_pos) = content[insert_at..].find('\n') {
-                    content.insert_str(insert_at + teban_pos + 1, "後手番\n");
-                } else {
-                    content.push_str("後手番\n");
-                }
-            }
-        } else {
-            // フォールバック: 先頭に追加
-            content.insert_str(0, "後手番\n");
-        }
-    }
-    content
-}
-
 /// JKF データをファイル拡張子に応じた形式に変換する
 fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
-    let is_gote = is_initial_gote(jkf_data);
-
     // 綴れなかった理由は ConvertError の Display が言う（何手目の何の手か）。
     // ここで潰すと、利用者に出るのは「変換に失敗」だけになる
     let spell = |r: Result<String, ConvertError>| {
@@ -135,14 +89,8 @@ fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<
     };
 
     match get_file_extension(file_path).as_deref() {
-        Some("kif") => Ok(patch_gote_start(
-            spell(jkf_data.try_to_kif_owned())?,
-            is_gote,
-        )),
-        Some("ki2") => Ok(patch_gote_start(
-            spell(jkf_data.try_to_ki2_owned())?,
-            is_gote,
-        )),
+        Some("kif") => spell(jkf_data.try_to_kif_owned()),
+        Some("ki2") => spell(jkf_data.try_to_ki2_owned()),
         Some("csa") => spell(jkf_data.try_to_csa_owned()),
         Some("jkf") => serde_json::to_string_pretty(jkf_data)
             .map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string())),
