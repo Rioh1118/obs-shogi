@@ -37,7 +37,7 @@ pub struct BookState {
 }
 
 impl BookState {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
