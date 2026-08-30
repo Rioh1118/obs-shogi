@@ -126,6 +126,17 @@ fn invalid_content(message: &str, path: &str) -> BookError {
     BookError::new(BookErrorCode::InvalidContent, message).with_path(path)
 }
 
+/// 展開して持つ指し手の上限。
+///
+/// **ファイルサイズの上限だけではメモリは有界にならない。** 倍率は行数に効くので、
+/// 最短の指し手行（`7g7f` の5バイト）だけで [`MAX_FILE_BYTES`] まで埋めた
+/// ファイルは1億行になり、`BookMove` 80 バイト × 1億で 8.6 GB を確保しにいく。
+/// 上限を置いても SIGKILL の経路が残る。
+///
+/// 実測の形（1局面 193 バイト・5手/局面）だと 512MiB は約 1,330 万手なので、
+/// 2,000 万手なら実在する定跡を弾かずに、確保を 2 GB 前後で頭打ちにできる。
+const MAX_MOVES: usize = 20_000_000;
+
 /// 開けるファイルの上限。
 ///
 /// **根拠は実測。** `#[global_allocator]` で確保バイトを数えた（合成定跡、
@@ -136,7 +147,11 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 /// | 100.4 MB | 316 MB | 316 MB（1行ずつ読むのでファイル側は乗らない） |
 ///
 /// 展開後はファイルの **約 3.15 倍**。倍率は手数/局面に効き、3手で 3.2 倍、
-/// 10手で 3.9 倍。上限を 512 MiB に置くと、最悪でも展開後 2 GB 前後で収まる。
+/// 10手で 3.9 倍。
+///
+/// **この倍率はバイト数ではなく行数に効く。** 実測に使った形（1行 21 バイト前後）
+/// を外れると成り立たないので、確保の上界は [`MAX_MOVES`] の側で持つ。
+/// ここはファイル1本の大きさとして妥当かだけを見る。
 ///
 /// 公開の無償定跡は圧縮後 0.78〜72.6MB（`research/findings/L3-book-solved.md`）で、
 /// 展開してもこの上限には遠い。**弾くのは定跡でないファイルを選んだ場合が主。**
@@ -185,9 +200,15 @@ fn declared_count(line: &str) -> Option<u64> {
 ///
 /// ヘッダを検査するのは、別形式のファイルに `.db` を付けただけのものを
 /// 「0局面の定跡」として開かないため。空の定跡と見分けが付かなくなる。
-fn parse<R: BufRead>(
+fn parse<R: BufRead>(reader: R, path: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
+    parse_limited(reader, path, MAX_MOVES)
+}
+
+/// 指し手の上限を差し替えられる形。テストが 2,000 万行を組まずに済むように分ける。
+fn parse_limited<R: BufRead>(
     mut reader: R,
     path: &str,
+    max_moves: usize,
 ) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
     let mut buffer = String::new();
     let mut index = 0usize;
@@ -239,6 +260,7 @@ fn parse<R: BufRead>(
     // 申告と突き合わせるのは `sfen` 行の数。map の要素数ではない（正規化と
     // 重複の畳み込みで減るので、正常な定跡でも一致しない）。
     let mut sfen_lines: u64 = 0;
+    let mut total_moves: usize = 0;
 
     while read_line(&mut reader, &mut buffer, false, path)? {
         index += 1;
@@ -286,6 +308,17 @@ fn parse<R: BufRead>(
                 ),
                 path,
             ));
+        }
+        total_moves += 1;
+        if total_moves > max_moves {
+            return Err(BookError::new(
+                BookErrorCode::TooLarge,
+                format!(
+                    "この定跡は指し手が多すぎて開けない（上限 {max_moves} 手）。\
+                     分割された定跡を使うか、別の定跡を開くこと"
+                ),
+            )
+            .with_path(path));
         }
         buffered.push(parsed);
     }
@@ -864,6 +897,40 @@ mod tests {
             err.message()
         );
         assert!(err.message().contains("選び直すこと"), "{}", err.message());
+    }
+
+    /// 表の不変条件4の行数側。
+    ///
+    /// ファイルサイズの上限だけでは有界にならない。最短の指し手行だけで
+    /// 512MiB を埋めたファイルは1億行になり、`BookMove` 80 バイト × 1億で
+    /// 8.6 GB を確保しにいく（上限を置いても SIGKILL の経路が残る）。
+    #[test]
+    fn a_book_with_too_many_moves_is_refused() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n3g3f\n");
+        let err = parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2)
+            .expect_err("上限を超えている");
+
+        assert_eq!(err.code(), BookErrorCode::TooLarge);
+        assert!(err.message().contains("こと"), "{}", err.message());
+    }
+
+    /// 上限ちょうどは通す。境界で1手間違えると、上限近くの定跡が開けなくなる。
+    #[test]
+    fn a_book_at_the_move_limit_is_accepted() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f\n2g2f\n");
+        assert!(parse_limited(std::io::Cursor::new(text.as_bytes()), "/books/a.db", 2).is_ok());
+    }
+
+    /// 実測の形（1局面 193 バイト・5手）で `MAX_FILE_BYTES` に収まる定跡は、
+    /// 手数の上限にも収まること。片方だけ動かすと、実在する定跡が弾かれる。
+    #[test]
+    fn the_two_limits_do_not_contradict_each_other() {
+        // 512MiB / 193 バイト × 5手 ≒ 1,330 万手
+        let moves_at_file_limit = (MAX_FILE_BYTES as usize / 193) * 5;
+        assert!(
+            moves_at_file_limit < MAX_MOVES,
+            "手数の上限が先に当たる: {moves_at_file_limit} >= {MAX_MOVES}"
+        );
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
