@@ -189,7 +189,12 @@ jobs:
           # ジョブは緑のまま資産名が CLI の既定へ落ちる。
 
           # 既定が true なので値としては再掲。updater の endpoint がこの json に
-          # 依存していることを、消してよい入力に見えないよう明示しておく
+          # 依存していることを、消してよい入力に見えないよう明示しておく。
+          #
+          # **v1 が書く `latest.json` の url は `api.github.com/.../releases/assets/<id>` 形式。**
+          # v0 が書いていた `github.com/.../releases/download/<tag>/<name>` とは別のホストで、
+          # 未認証だと IP あたり 60 req/h の制限に当たる。詰まったときの症状は
+          # 「ブラウザからの手動 DL は通るのに自動更新だけ静かに失敗する」になる
           uploadUpdaterJson: true
 
           # 人が読める資産名にする。
