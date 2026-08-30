@@ -1487,6 +1487,30 @@ mod tests {
         assert!(message.contains("こと"), "{message}");
     }
 
+    /// **引用の中の不可視文字は見える形にすること。**
+    ///
+    /// 欄をタブで区切った定跡は、本家なら読める（`peek_text` は空白だけで割るので
+    /// 1トークンとして読み進む）が、こちらは指し手として読めず**ファイル全体を
+    /// 拒否する**。そのとき引用がタブのままだと、画面には
+    /// `8c8d none 1 1 1` と出て**どこも壊れて見えない**。利用者は正しいファイルを
+    /// 拒否されたと判断し、案内された「取得し直す」を何度も繰り返すことになる。
+    #[test]
+    fn an_invisible_character_in_the_excerpt_is_shown() {
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n8c8d\tnone\t1\t1\t1\n");
+        let err = parsed(&text).unwrap_err();
+        let message = err.message();
+
+        assert!(message.contains("指し手として読めない"), "{message}");
+        assert!(
+            !message.contains('\t'),
+            "タブがそのまま出ている（壊れて見えない）: {message}"
+        );
+        assert!(
+            message.contains('\u{2423}'),
+            "置き換えの跡が無い: {message}"
+        );
+    }
+
     /// `sfen` 行の途中で切れたファイルでは、形式のキーワードが指し手の位置に来る。
     /// 形は満たすので、綴りで外さないと候補手に入る。
     #[test]

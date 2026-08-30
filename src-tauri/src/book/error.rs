@@ -131,8 +131,14 @@ const MESSAGE_EXCERPT_CHARS: usize = 120;
 /// 引用の予算（120字）の 34 倍ある。1行の長さは読み込みの側が頭打ちにするが、
 /// その上限もこの予算の 34 倍なので、そちらを使うと失敗1回でログの予算を
 /// 食い潰す。
+///
+/// **制御文字は見える形に置き換える。** 引用が「どこも壊れて見えない」と、
+/// 利用者は正しいファイルを拒否されたと判断して、案内された復帰操作を
+/// 何度も繰り返すことになる。タブで欄を区切った定跡がその形
+/// （`8c8d\tnone\t1\t1\t1` が `8c8d none 1 1 1` に見える）。
+/// パス用の [`truncate_path`] が同じ理由で同じことをしている。
 pub(crate) fn excerpt(input: &str) -> String {
-    truncate_for_message(input.trim())
+    truncate_for_message(&input.trim().replace(|c: char| c.is_control(), "\u{2423}"))
 }
 
 /// message に載せる引用を打ち切る。
