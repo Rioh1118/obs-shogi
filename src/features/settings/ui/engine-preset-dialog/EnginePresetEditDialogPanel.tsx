@@ -504,9 +504,9 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   return (
     <Modal
       onClose={onClose}
+      label={title}
       theme="dark"
       size="lg"
-      padding="none"
       variant="dialog"
       chrome="card"
       scroll="none"
@@ -524,7 +524,12 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             errors={errors}
             setErrors={setErrors}
             aiRoot={aiRoot}
-            chooseAiRoot={chooseAiRoot}
+            chooseAiRoot={() => {
+              void chooseAiRoot({ force: true }).then((picked) => {
+                // 失敗を捨てると、押しても何も起きない画面になる
+                if (!picked.success) setErrors((prev) => ({ ...prev, aiName: picked.error }));
+              });
+            }}
             rescan={rescan}
             indexStatus={indexStatus}
             indexError={indexError}

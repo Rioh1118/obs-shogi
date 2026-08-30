@@ -9,11 +9,11 @@ pub mod search;
 pub mod study_positions;
 
 pub use crate::engine::bridge::AppState;
-pub use ai_library::{ensure_engines_dir, scan_ai_root};
+pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
 pub use book::{
     close_all_books, close_book, get_book_info, list_books, lookup_book_moves, open_book, BookState,
 };
-pub use config_dir::{load_config, save_config};
+pub use config_dir::{backup_broken_config, load_config, save_config};
 pub use engine::bridge::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
     get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
@@ -55,6 +55,7 @@ pub fn run() {
         .manage(AppState::new())
         .manage(BookState::new())
         .invoke_handler(tauri::generate_handler![
+            backup_broken_config,
             load_config,
             save_config,
             get_file_tree,
@@ -70,6 +71,7 @@ pub fn run() {
             write_kifu_to_file,
             mv_directory,
             ensure_engines_dir,
+            create_ai_profile_dirs,
             scan_ai_root,
             mv_kifu_file,
             rename_directory,

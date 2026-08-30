@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { REPO_ROOT, SRC, scssFiles } from "./walk";
 import type { Bucket, Finding } from "./scssScale";
 import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
 
@@ -12,28 +13,18 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * 2行を同じコミットで動かすことになる。
  */
 const BASELINE: Record<Bucket, number> = {
-  "font-size": 251,
-  "border-radius": 178,
-  spacing: 528,
-  elevation: 79,
-  motion: 79,
-  family: 18,
-  indirect: 53,
+  "font-size": 216,
+  "border-radius": 153,
+  spacing: 471,
+  elevation: 51,
+  motion: 68,
+  family: 15,
+  indirect: 52,
   exempt: 3,
 };
 
-const SRC = join(process.cwd(), "src");
-
 /** トークンの定義そのものなので、直値があって当然のファイル */
 const TOKEN_SOURCE = join(SRC, "index.scss");
-
-function scssFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return scssFiles(path);
-    return entry.name.endsWith(".scss") ? [path] : [];
-  });
-}
 
 function emptyCounts(): Record<Bucket, number> {
   return Object.fromEntries(BUCKETS.map((bucket) => [bucket, 0])) as Record<Bucket, number>;
@@ -60,13 +51,13 @@ beforeAll(() => {
         from: file,
       });
     } catch (error) {
-      throw new Error(`${relative(process.cwd(), file)} を解析できない: ${String(error)}`);
+      throw new Error(`${relative(REPO_ROOT, file)} を解析できない: ${String(error)}`);
     }
 
     for (const { bucket, line, text } of findings) {
       counts[bucket] += 1;
       if (samples[bucket].length < 5) {
-        samples[bucket].push(`${relative(process.cwd(), file)}:${line}  ${text}`);
+        samples[bucket].push(`${relative(REPO_ROOT, file)}:${line}  ${text}`);
       }
     }
   }
@@ -91,7 +82,7 @@ describe("SCSS のトークン名", () => {
       .flatMap((file) =>
         [...definedIn(file)]
           .filter((name) => tokens.has(name))
-          .map((name) => `${relative(process.cwd(), file)}  $${name}`),
+          .map((name) => `${relative(REPO_ROOT, file)}  $${name}`),
       );
 
     expect(

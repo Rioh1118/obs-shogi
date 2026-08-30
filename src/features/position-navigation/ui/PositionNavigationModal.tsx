@@ -46,30 +46,14 @@ function PositionNavigationModal() {
     selectedOptionIndex: 0,
   });
 
-  useEffect(() => {
-    // 棋譜が切り替わったら、前棋譜の nav を捨てる
-    if (!gameView.player) {
-      setNav({
-        PreviewCursor: { tesuu: 0, forkPointers: [] },
-        selectedOptionIndex: 0,
-      });
-      return;
-    }
-
-    const cur = gameState.cursor;
-    setNav({
-      PreviewCursor: {
-        tesuu: cur?.tesuu ?? 0,
-        forkPointers: cur?.forkPointers ?? [],
-      },
-      selectedOptionIndex: 0,
-    });
-  }, [gameView.player, gameState.cursor]);
-
+  // 盤の位置から nav を作り直す。**閉じている間は何もしない。**
+  // この component は `AppModalLayer` から常時マウントされているので、
+  // 閉じていても走らせると盤を1手進めるたびに `setNav` が呼ばれる
+  // （`nav` は閉じている間は誰も読まない）
   useEffect(() => {
     if (!isOpen) return;
 
-    const cur = gameState.cursor;
+    const cur = gameView.player ? gameState.cursor : null;
     setNav({
       PreviewCursor: {
         tesuu: cur?.tesuu ?? 0,
@@ -77,7 +61,7 @@ function PositionNavigationModal() {
       },
       selectedOptionIndex: 0,
     });
-  }, [isOpen, gameState.cursor]);
+  }, [isOpen, gameView.player, gameState.cursor]);
 
   const { previewData, options, unreachable } = useMemo(() => {
     if (!isOpen || !gameView.player) {
@@ -172,9 +156,10 @@ function PositionNavigationModal() {
   useEffect(() => {
     if (!isOpen) return;
 
+    // **扱った鍵だけ止める。** 無条件に止めると Tab の既定動作まで消え、
+    // `Modal` の閉じ込めが「端での折り返し」しか効かないダイアログになる。
+    // Escape は `Modal` が扱うので、ここでは拾わない（受け口を2つ持たない）
     const onKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
-
       switch (e.key) {
         case "l":
         case "ArrowRight":
@@ -195,15 +180,15 @@ function PositionNavigationModal() {
         case "Enter":
           handleConfirm();
           break;
-        case "Escape":
-          closeModal();
-          break;
+        default:
+          return;
       }
+      e.preventDefault();
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm, closeModal]);
+  }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm]);
 
   // ---- render ----
   if (!isOpen) return null;
@@ -211,11 +196,13 @@ function PositionNavigationModal() {
   return (
     <Modal
       onClose={closeModal}
+      label="局面ナビゲーション"
+      // 既定の暗い面ではなく明るい面に載る唯一のモーダル。中の分岐カードが
+      // 明るい面を前提に組んであり、寄せるには作り直しが要る → issue #183
       theme="light"
       variant="workspace"
       size="xl"
       chrome="none"
-      padding="none"
       scroll="none"
     >
       <div className="position-navigation-modal">

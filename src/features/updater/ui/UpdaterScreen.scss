@@ -163,39 +163,3 @@
   gap: 0.5rem;
   padding: 0.7rem 1.1rem 1.1rem;
 }
-
-.updater-card__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  height: 2.8rem;
-  padding: 0 1.1rem;
-  border: none;
-  border-radius: 999px;
-  font-size: 1.2rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 120ms ease,
-    color 120ms ease,
-    opacity 120ms ease;
-}
-
-.updater-card__btn--primary {
-  background: index.$color-secondary-dark;
-  color: index.$color-white;
-}
-
-.updater-card__btn--primary:hover {
-  opacity: 0.88;
-}
-
-.updater-card__btn--secondary {
-  background: rgba(index.$color-white, 0.06);
-  color: rgba(index.$color-text-primary, 0.7);
-}
-
-.updater-card__btn--secondary:hover {
-  background: rgba(index.$color-white, 0.1);
-  color: index.$color-text-primary;
-}

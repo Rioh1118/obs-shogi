@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useOverlayLayer } from "@/shared/lib/overlayStack";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { keepInViewport } from "@/shared/lib/keepInViewport";
 import "./ContextMenu.scss";
 
 type ContextMenuItem = {
@@ -19,6 +21,16 @@ type ContextMenuProps = {
 
 function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // 開いている間だけマウントされる。Escape は最上位の1枚だけ → `overlayStack`
+  const isTop = useOverlayLayer(true);
+  // 自分の大きさが決まってからでないと丸められないので、まず開いた場所へ出す
+  const [box, setBox] = useState({ left: x, top: y });
+
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    setBox(keepInViewport({ x, y }, { width: el.offsetWidth, height: el.offsetHeight }));
+  }, [x, y]);
 
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
@@ -30,7 +42,7 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && isTop()) {
         onClose();
       }
     };
@@ -48,7 +60,7 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
       });
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, isTop]);
 
   const handleItemClick = async (item: ContextMenuItem) => {
     if (item.disabled) return;
@@ -66,8 +78,8 @@ function ContextMenu({ x, y, items, onClose, minWidth = 180 }: ContextMenuProps)
       role="menu"
       style={{
         position: "fixed",
-        left: x,
-        top: y,
+        left: box.left,
+        top: box.top,
         minWidth,
         zIndex: 9999,
       }}

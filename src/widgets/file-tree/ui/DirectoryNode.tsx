@@ -4,11 +4,13 @@ import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import { useState, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import TruncatedNotice from "./TruncatedNotice";
+
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, type DragData, type DropData } from "@/widgets/file-tree/lib/dnd";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import type { FileTreeNode } from "@/entities/file-tree";
+import { commitName, useFileTree } from "@/entities/file-tree";
 
 // TreeNode を import し返すと import/no-cycle に落ちる。子の描画は renderChild で受ける。
 function DirectoryNode({
@@ -32,6 +34,7 @@ function DirectoryNode({
     renamingNodeId,
     renameNode,
     cancelInlineRename,
+    pushError,
     createNewDirectory,
   } = useFileTree();
 
@@ -86,19 +89,11 @@ function DirectoryNode({
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  const handleCommit = async (nextName: string) => {
-    const res = await renameNode(node, nextName);
-    if (res.success) {
-      cancelInlineRename();
-    }
-  };
+  const handleCommitRename = (nextName: string) =>
+    commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
-  const handleCommitCreate = async (name: string) => {
-    const next = name.trim();
-    cancelCreateDirectory();
-    if (!next) return;
-    await createNewDirectory(node.path, next);
-  };
+  const handleCommitCreate = (nextName: string) =>
+    commitName(nextName, (name) => createNewDirectory(node.path, name), cancelCreateDirectory);
 
   const isExternalOver = externalHoverDir && externalHoverDir === node.path;
 
@@ -129,11 +124,11 @@ function DirectoryNode({
         <FileIcon isOpen={isOpen} type={node.displayInfo.iconType} />
         {isRenaming ? (
           <InlineNameEditor
-            isEditting={isRenaming}
             initialName={node.name}
             selectMode="all"
             onCancel={cancelInlineRename}
-            onCommit={handleCommit}
+            onCommit={handleCommitRename}
+            onUnshowable={pushError}
           />
         ) : (
           <span>{node.name}</span>
@@ -145,17 +140,18 @@ function DirectoryNode({
             <NodeBox level={level + 1} handleClick={() => {}}>
               <FileIcon type="folder" />
               <InlineNameEditor
-                isEditting={showCreateRow}
                 initialName=""
                 selectMode="all"
                 onCancel={cancelCreateDirectory}
                 onCommit={handleCommitCreate}
+                onUnshowable={pushError}
               />
             </NodeBox>
           )}
           {!node.children?.length
             ? null
             : node.children.map((child) => renderChild(child, level + 1))}
+          {node.truncated && <TruncatedNotice level={level + 1} />}
         </>
       )}
     </>

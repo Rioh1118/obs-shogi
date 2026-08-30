@@ -19,7 +19,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  // 5: エラーをコンソールに記録
+  // 落ちた原因はここでしか見られない。表示側は詳細を出さない
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("[AppErrorBoundary] Uncaught error:", error, info.componentStack);
   }
@@ -34,7 +34,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }
-      // 4: インラインスタイルで最低限のフォールバック表示を保証
+      // SCSS が読めていない場合でも出せるよう、ここだけ直値で書く
       return (
         <div
           style={{

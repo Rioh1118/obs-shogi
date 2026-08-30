@@ -3,19 +3,20 @@ import "./AiLibraryTab.scss";
 
 import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
-import { SButton, SField, SInput, SSection } from "../kit";
+import Button from "@/shared/ui/Button/Button";
+import { SField, SInput, SSection } from "../kit";
 import { useAppConfig } from "@/entities/app-config";
-import { chooseAiRoot } from "@/entities/app-config/api/directories";
 
 import {
   scanAiRoot,
+  createAiProfileDirs,
   ensureEnginesDir,
   type AiRootIndex,
   type FsKind,
   type ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
 
-import { createDir } from "@/entities/file-tree/api/service";
+import { describeFsError, isNameInputError, type FsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { copyText } from "@/shared/api/clipboard/copyText";
 import SetupGuide, { type SetupGuideProfile } from "../ai-library-tab/SetupGuide";
@@ -39,7 +40,7 @@ type ScanState =
   | { status: "error"; error: string };
 
 export default function AiLibraryTab() {
-  const { config } = useAppConfig();
+  const { config, chooseAiRoot } = useAppConfig();
 
   const aiRoot = config?.ai_root ?? "";
   const [localAiRoot, setLocalAiRoot] = useState(aiRoot);
@@ -123,10 +124,15 @@ export default function AiLibraryTab() {
 
   const onPick = useCallback(async () => {
     const picked = await chooseAiRoot({ force: true });
-    if (!picked) return;
-    setLocalAiRoot(picked);
-    await scanNow(picked);
-  }, [scanNow]);
+    if (!picked.success) {
+      setScan({ status: "error", error: picked.error });
+      return;
+    }
+    if (picked.data === null) return; // 取り消し
+
+    setLocalAiRoot(picked.data);
+    await scanNow(picked.data);
+  }, [chooseAiRoot, scanNow]);
 
   const onEnsureEngines = useCallback(async () => {
     const root = localAiRoot.trim();
@@ -155,22 +161,34 @@ export default function AiLibraryTab() {
 
   const enginesDirOk = !!(data?.engines_dir?.exists && isDir(data.engines_dir.kind));
 
+  /**
+   * AI フォルダを作る。**名前の失敗だけを呼び出し元へ返す。**
+   *
+   * 全部を `scan` の状態へ移すと、見出しが「フォルダを確認できませんでした」、
+   * 主動作が「再スキャン」になる。読み取りは成功しているので嘘だし、名前を
+   * 直さない限り再スキャンは何も変えない。
+   *
+   * 逆に全部を名前の欄へ出すと、AI ルートが消えている（外付けを外した等）
+   * ときに「名前が悪い」という位置に出る。利用者は名前を打ち直し続ける。
+   * 振り分けは code で決める（`file-tree` の `failToNameInput` と同じ形）
+   */
   const onCreateAiFolder = useCallback(
-    async (aiName: string) => {
+    async (aiName: string): Promise<FsError | null> => {
       const root = localAiRoot.trim();
       const name = aiName.trim();
-      if (!root || !name) return;
-      setScan({ status: "loading" });
-      try {
-        const profileRes = await createDir(root, name);
-        if (!profileRes.success) throw new Error(String(profileRes.error));
-        const profilePath = profileRes.data;
-        await createDir(profilePath, "eval");
-        await createDir(profilePath, "book");
-        await scanNow(root);
-      } catch (e) {
-        setScan({ status: "error", error: e instanceof Error ? e.message : String(e) });
+      if (!root || !name) return null;
+
+      const created = await createAiProfileDirs(root, name);
+      if (!created.success) {
+        if (isNameInputError(created.error.code)) return created.error;
+
+        // 名前では直せない。AI ルートの診断側へ回す
+        setScan({ status: "error", error: describeFsError(created.error.code) });
+        return null;
       }
+
+      await scanNow(root);
+      return null;
     },
     [localAiRoot, scanNow],
   );
@@ -208,28 +226,26 @@ export default function AiLibraryTab() {
               description="決めたルールのフォルダ構成でファイルを置くと自動検出します。"
               right={
                 <div className="aiLibraryTab__fieldActions">
-                  <SButton variant="primary" size="sm" onClick={onPick}>
+                  <Button tone="primary" size="sm" onClick={onPick}>
                     <FolderOpen size={16} style={{ marginRight: 6 }} />
                     選択…
-                  </SButton>
-                  <SButton
-                    variant="ghost"
+                  </Button>
+                  <Button
                     size="sm"
                     onClick={onOpenAiRoot}
                     disabled={!canOperate}
                     title="Finder/Explorer で開く"
                   >
                     開く
-                  </SButton>
-                  <SButton
-                    variant="ghost"
+                  </Button>
+                  <Button
                     size="sm"
                     onClick={() => copyText(localAiRoot)}
                     disabled={!canOperate}
                     title="パスをコピー"
                   >
                     <Copy size={16} />
-                  </SButton>
+                  </Button>
                 </div>
               }
             >
@@ -242,25 +258,23 @@ export default function AiLibraryTab() {
 
             <div className="aiLibraryTab__rowActions">
               {!enginesDirOk && (
-                <SButton
-                  variant="subtle"
+                <Button
                   size="sm"
                   onClick={onEnsureEngines}
                   disabled={!canOperate || scan.status === "loading"}
                 >
                   <Sparkles size={16} style={{ marginRight: 6 }} />
                   engines/ を作成
-                </SButton>
+                </Button>
               )}
-              <SButton
-                variant="ghost"
+              <Button
                 size="sm"
                 onClick={onOpenEnginesDir}
                 disabled={!canOperate}
                 title="engines/ を開く"
               >
                 engines/ を開く
-              </SButton>
+              </Button>
             </div>
 
             {scan.status === "error" && (

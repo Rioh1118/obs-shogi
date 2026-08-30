@@ -2,7 +2,7 @@ import { FilePlus2, FolderPlus } from "lucide-react";
 import IconButton from "@/shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { getParentPath } from "@/shared/lib/path";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useFileTree } from "@/entities/file-tree";
 
 interface TreeNodeActionsProps {
   nodePath: string;

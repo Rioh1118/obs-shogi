@@ -76,6 +76,8 @@ fn convert_jkf_to_string_internal(
     Ok(content)
 }
 
+// TODO(#215): この経路は FsError の外にあり、io::Error の生の英文がそのまま画面に出る。
+// 整えた save_kifu_file の方は呼び出し元が1つも無い
 #[command]
 pub async fn write_kifu_to_file<R: Runtime>(
     app: AppHandle<R>,

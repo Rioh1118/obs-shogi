@@ -1,0 +1,43 @@
+import { isNameInputError, type FsError } from "@/entities/file-tree/api/error";
+import { validateBasename } from "@/entities/file-tree/lib/validateBasename";
+import type { AsyncResult } from "@/shared/lib/result";
+
+export type CommitOutcome =
+  /** 通った */
+  | { ok: true }
+  /** 通らなかった。`shown` があれば入力欄の下に出す */
+  | { ok: false; shown?: FsError };
+
+/**
+ * インライン編集の確定。**`InlineNameEditor` を使う経路はすべてこれを通る。**
+ *
+ * 通す理由は3つ。
+ *
+ * 1. **手前の検証を1箇所に置く。** `validateBasename` は Rust と同じ4規則を持つが、
+ *    呼ぶ場所が経路ごとに違うと、規則を足したとき経路によって挙動が変わる。
+ *    モーダル側のファイル名欄はまだ通っていない → issue #224
+ * 2. **入力欄に出す失敗を絞る。** 名前を直せば通る失敗だけを `shown` に載せる。
+ *    名前を直しても通らない失敗は provider が振り分け（`already_exists` は衝突の対話、
+ *    残りは通知）、reducer が編集行ごと畳む。ここでも出すと、消える直前の入力欄に
+ *    同じ失敗が一瞬だけ二重に出る
+ * 3. **通ったら閉じる、を1箇所に置く。** 呼び出し側は3つの widget に5経路あり、
+ *    そこに書くと1つ書き忘れても型検査もテストも落ちない。書き忘れると
+ *    改名が成功しているのに入力欄が開いたままになり、blur のたびに同じ名前が
+ *    送り直されて2回目は `already_exists` に当たる
+ */
+export async function commitName(
+  raw: string,
+  run: (name: string) => AsyncResult<void, FsError>,
+  onCommitted: () => void,
+): Promise<CommitOutcome> {
+  const validated = validateBasename(raw);
+  if (!validated.success) return { ok: false, shown: validated.error };
+
+  const res = await run(validated.data);
+  if (res.success) {
+    onCommitted();
+    return { ok: true };
+  }
+
+  return { ok: false, shown: isNameInputError(res.error.code) ? res.error : undefined };
+}

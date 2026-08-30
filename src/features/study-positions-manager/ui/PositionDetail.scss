@@ -107,31 +107,5 @@
     gap: 0.6rem;
   }
 
-  .form__btn {
-    min-height: 3.4rem;
-    font-size: 1.25rem;
-  }
-
   // --- delete button (left side, danger outline) ---
-  &__deleteBtn {
-    min-height: 3.4rem;
-    padding: 0 1.2rem;
-    border-radius: 0.6rem;
-    border: 1px solid rgba(#e57373, 0.4);
-    background: transparent;
-    color: rgba(#e57373, 0.7);
-    font-size: 1.15rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition:
-      background-color 100ms ease,
-      border-color 100ms ease,
-      color 100ms ease;
-
-    &:hover {
-      background: rgba(#e57373, 0.1);
-      border-color: rgba(#e57373, 0.6);
-      color: #e57373;
-    }
-  }
 }

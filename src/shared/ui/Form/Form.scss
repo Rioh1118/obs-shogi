@@ -1,5 +1,7 @@
 @use "@/index.scss" as index;
 
+// 面は暗い側だけ（ADR-0005 決定3）。明暗の2系統は持たない。
+// 明るい面が要る画面が出たら、そのときに軸を足す
 .form {
   display: flex;
   flex-direction: column;
@@ -37,9 +39,9 @@
     font-size: 1.5rem;
     font-weight: 400;
     font-family: inherit;
-    color: index.$color-primary-dark;
+    color: index.$color-text-light-1;
     padding: 1.2rem 1.6rem;
-    background-color: rgba(index.$color-secondary-light, 0.5);
+    background-color: rgba(index.$color-white, 0.08);
     border: none;
     border-bottom: 0.2rem solid transparent;
     border-radius: 0.4rem;
@@ -47,13 +49,14 @@
 
     &:focus {
       outline: none;
-      background-color: rgba(255, 255, 255, 0.65);
-      border-color: index.$color-secondary-dark-2;
-      box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.08);
+      background-color: rgba(index.$color-white, 0.12);
+      border-color: index.$color-secondary-dark;
+      box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
     }
 
+    // 0.35 だと、この面（暗いカードの上の白 8%）に対して 2.80:1 で本文の基準を割る
     &::placeholder {
-      color: #888;
+      color: rgba(index.$color-text-light-1, 0.6);
     }
   }
 
@@ -61,8 +64,8 @@
     cursor: pointer;
 
     option {
-      background-color: index.$color-white;
-      color: index.$color-primary-dark;
+      background-color: index.$color-primary-black;
+      color: index.$color-text-light-1;
     }
   }
 
@@ -74,7 +77,7 @@
   &__label {
     font-size: 1.4rem;
     font-weight: 600;
-    color: index.$color-primary-dark;
+    color: rgba(index.$color-text-light-1, 0.7);
     margin-left: 0;
     margin-top: 0;
     margin-bottom: 0.5rem;
@@ -85,7 +88,7 @@
   &__subheading {
     font-size: 1.6rem;
     font-weight: 600;
-    color: index.$color-primary-dark;
+    color: index.$color-text-light-1;
     margin-bottom: 1rem;
   }
 
@@ -112,7 +115,7 @@
     font-size: 1.4rem;
     font-weight: 500;
     font-family: inherit;
-    color: index.$color-primary-dark;
+    color: rgba(index.$color-text-light-1, 0.85);
     cursor: pointer;
     user-select: none;
     padding: 0.5rem;
@@ -120,7 +123,7 @@
     transition: background-color 0.2s ease;
 
     &:hover {
-      background-color: rgba(index.$color-secondary-light, 0.3);
+      background-color: rgba(index.$color-white, 0.06);
     }
   }
 
@@ -129,7 +132,7 @@
     height: 2rem;
     width: 2rem;
     border-radius: 50%;
-    border: 0.3rem solid index.$color-secondary-dark-2;
+    border: 0.3rem solid rgba(index.$color-secondary-dark, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -140,7 +143,7 @@
       height: 1rem;
       width: 1rem;
       border-radius: 50%;
-      background-color: index.$color-secondary-dark-2;
+      background-color: index.$color-secondary-dark;
       opacity: 0;
       transition: opacity 0.2s ease;
     }
@@ -155,141 +158,15 @@
     }
   }
 
-  &__btn {
-    padding: 1rem 2rem;
-    border-radius: 0.5rem;
-    font-size: 1.4rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: background-color 0.3s;
-    border: none;
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    &--primary {
-      background-color: index.$color-secondary-dark;
-      color: index.$color-white;
-
-      &:hover:not(:disabled) {
-        background-color: index.$color-secondary-dark-2;
-        box-shadow: 0 0.4rem 0.8rem rgba(0, 0, 0, 0.15);
-      }
-
-      &:active:not(:disabled) {
-        transform: translateY(0.1rem);
-        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
-      }
-    }
-
-    &--ghost {
-      background-color: transparent;
-      border: 0.2rem solid index.$color-secondary-dark;
-      color: index.$color-secondary-dark;
-      &:hover:not(:disabled) {
-        background-color: rgba(index.$color-secondary-dark, 0.1);
-      }
-      &:active:not(:disabled) {
-        background-color: rgba(index.$color-secondary-dark, 0.2);
-        transform: translateY(0.1rem);
-      }
-    }
-  }
-
   &__heading-secondary {
     font-size: 2.2rem;
     font-weight: 500;
-    color: index.$color-primary-dark;
+    color: index.$color-text-light-1;
     line-height: 1.4;
     letter-spacing: 0.05rem;
     margin-bottom: 1.5rem;
     text-transform: none;
 
     padding-left: 1rem;
-
-    text-shadow: 0 0.1rem 0.1rem rgba(index.$color-text-dark-1, 0.03);
-  }
-
-  /* ========== theme: dark ========== */
-  &--dark {
-    .form__input,
-    .form__textarea,
-    .form__select {
-      color: index.$color-text-light-1;
-      background-color: rgba(index.$color-white, 0.08);
-      border-bottom-color: transparent;
-
-      &:focus {
-        background-color: rgba(index.$color-white, 0.12);
-        border-color: index.$color-secondary-dark;
-        box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
-      }
-
-      &::placeholder {
-        color: rgba(index.$color-text-light-1, 0.35);
-      }
-    }
-
-    .form__select option {
-      background-color: index.$color-primary-black;
-      color: index.$color-text-light-1;
-    }
-
-    .form__label {
-      color: rgba(index.$color-text-light-1, 0.7);
-    }
-
-    .form__subheading {
-      color: index.$color-text-light-1;
-    }
-
-    .form__heading-secondary {
-      color: index.$color-text-light-1;
-      text-shadow: none;
-    }
-
-    .form__radio-label {
-      color: rgba(index.$color-text-light-1, 0.85);
-
-      &:hover {
-        background-color: rgba(index.$color-white, 0.06);
-      }
-    }
-
-    .form__radio-button {
-      border-color: rgba(index.$color-secondary-dark, 0.6);
-
-      &::after {
-        background-color: index.$color-secondary-dark;
-      }
-    }
-
-    .form__btn {
-      &--primary {
-        background-color: index.$color-secondary-dark;
-        color: index.$color-white;
-
-        &:hover:not(:disabled) {
-          background-color: index.$color-secondary-dark-2;
-          box-shadow: 0 0.4rem 1rem rgba(0, 0, 0, 0.3);
-        }
-      }
-
-      &--ghost {
-        border-color: rgba(index.$color-secondary-dark, 0.5);
-        color: rgba(index.$color-text-light-1, 0.7);
-
-        &:hover:not(:disabled) {
-          background-color: rgba(index.$color-white, 0.06);
-          border-color: index.$color-secondary-dark;
-          color: index.$color-text-light-1;
-        }
-
-        &:active:not(:disabled) {
-          background-color: rgba(index.$color-white, 0.1);
-        }
-      }
-    }
   }
 }

@@ -1,4 +1,6 @@
-mod error;
+// `ai_library` が名前の失敗を利用者向けの一文へ直すのに `FsErrorCode` が要る。
+// あちらの戻り値は `String` なので code が落ちる → TODO(#231)
+pub(crate) mod error;
 mod mv;
 mod operations;
 mod tree;

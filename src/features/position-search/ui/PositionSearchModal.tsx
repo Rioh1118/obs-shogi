@@ -92,7 +92,7 @@ export default function PositionSearchModal() {
   const lastQueryKeyRef = useRef<string | null>(null);
 
   // 進行中の rid を ref で追跡し、 queryKey が変わったタイミングや unmount で
-  // cancelSearch を投げる (C-H2)。 setRequestId とは別経路にして、 invoke の
+  // cancelSearch を投げる。 setRequestId とは別経路にして、 invoke の
   // 解決前に乱発される再検索でも確実に直前の rid をキャンセルできるようにする。
   const inFlightRidRef = useRef<number | null>(null);
 
@@ -179,13 +179,8 @@ export default function PositionSearchModal() {
     closeModal({ skipReturn: true });
   };
 
+  // Escape は `Modal` が扱う。ここで拾うと受け口が2つになる
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      closeModal();
-      return;
-    }
-
     if (e.key === "Enter") {
       e.preventDefault();
       if (isSearching) return;
@@ -221,11 +216,11 @@ export default function PositionSearchModal() {
   return (
     <Modal
       onClose={closeModal}
+      label="局面検索"
       theme="dark"
       variant="workspace"
       size="xl"
       chrome="card"
-      padding="none"
       scroll="none"
       closeOnEsc
       closeOnOverlay

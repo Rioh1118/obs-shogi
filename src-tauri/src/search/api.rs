@@ -80,6 +80,9 @@ pub async fn cancel_search(
 }
 
 #[tauri::command]
+// TODO(#215): `input.root_dir` を無検証で受け、その下を歩いて棋譜を読む。
+// ワークスペースの root を決める前に呼ばれるので `validate_under_root` を掛けられない。
+// 免除は `tests/root_guard.rs` の EXEMPT に理由つきで並べてある
 pub async fn open_project(
     app: AppHandle,
     state: State<'_, crate::search::api::SearchState>,
@@ -121,7 +124,7 @@ pub async fn open_project(
             // restore 直後は Updating として install する。
             // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
             // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
-            // Updating で開示する (C-M3)。
+            // Updating で開示する。
             store.install_restored(
                 StoreIndexState::Updating,
                 restored.file_table,
@@ -397,7 +400,7 @@ async fn build_full_index_task(
 
     store.set_state(StoreIndexState::Ready);
 
-    // 最終 progress を必ず 1 回 emit する (C-M2)。 EMIT_INTERVAL の谷で
+    // 最終 progress を必ず 1 回 emit する。 EMIT_INTERVAL の谷で
     // 取りこぼした場合、 reducer の doneFiles が total_files に達しないまま
     // Ready に飛ぶことを防ぐ。
     let _ = app.emit(

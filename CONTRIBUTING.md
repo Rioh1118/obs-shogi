@@ -139,7 +139,7 @@ npm run tauri dev
 - 経緯は `git log` と PR に残ります。コードには**いま何がどうあるべきか**だけを書いてください
 
 > AI 支援で書かれたコードでは、この違反が特に出やすいです。
-> 修正作業の文脈がそのままコメントに残ることがあるので、レビュー時に確認してください。
+> 修正作業の文脈がそのままコメントに残ることがあるので、`npm run test` の `commentHistory` が機械で止めます。
 
 ### 置き場所
 
@@ -203,8 +203,13 @@ gap: 0.75rem;
 
 ### 直値は増やせません
 
-`src/__tests__/scssScaleRatchet.test.ts` が `src/**/*.scss` の直値を数えます。
+`src/__tests__/scssScaleRatchet.test.ts` が `src/**/*.scss` を走査し、
+**スケールに載るプロパティ**の直値を数えます（`font-size` / `border-radius` /
+余白 / 影 / モーション / フォント。枠の全体は [ADR-0003](docs/decisions/0003-scss-scale-tokens.md) を参照）。
 **件数が基準値と一致しないと `npm run test` が落ちます。** 増えたときも減ったときも落ちます。
+
+**枠の外のプロパティは数えません。** `min-height` / `width` / `top` などの直値は
+検査を素通りします。緑で通ったことは「規約に沿っている」を意味しません。
 
 既存の直値はまだ大量に残っていて、基準値として許容されています。
 直値をトークンへ寄せたら、その分だけ基準値を下げてください。**`exempt` 以外の枠は下げる方向にだけ動かします。**
@@ -226,11 +231,92 @@ gap: 0.75rem;
 なお、この検査が見るのは `.scss` だけです。`.tsx` の `style={{ fontSize: "1.3rem" }}` は
 対象外なので、インライン style で寸法を書かないでください。
 
-### まだ決まっていないもの
+### 意味色
 
-**warning / danger / success / info の意味色はトークンにありません。** 段数が通知の分類に従属するため、
-分類が決まるまで置いていません。エラー表示を触るときは
-[OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md) の Q-005 を先に見てください。
+失敗や注意を表す色は `src/index.scss` の4つから選びます。**新しく発明しないでください。**
+
+| トークン         | 段             | いつ使うか                                     |
+| ---------------- | -------------- | ---------------------------------------------- |
+| `$color-info`    | 伝えるだけ     | 利用者は何もしなくてよい                       |
+| `$color-warning` | 再試行で直る   | 同じ操作をもう一度で直る見込みがある           |
+| `$color-danger`  | 別の操作が要る | 繰り返しでは直らない。危険な操作の確認にも使う |
+| `$color-fatal`   | アプリ再起動   | アプリの中では直せない                         |
+
+**軸は「復帰に何が要るか」で、深刻度ではありません。** 見た目の派手さで選ばないでください。
+根拠は [ADR-0004](docs/decisions/0004-notification-taxonomy.md)。
+
+`success` は置いていません。成功を通知する場面が現物に1件も無いためです。必要になったら足します。
+
+**面と文字で使うトークンは分かれています。**
+
+| 用途                   | トークン                                      |
+| ---------------------- | --------------------------------------------- |
+| 枠・薄い面・アイコン   | `$color-warning` / `$color-danger` ほか意味色 |
+| 押せる面（確認の実行） | `$color-danger-solid` / `-hover`              |
+| 暗い面の上に置く文字   | `$color-danger-text`                          |
+| 失敗を伝える箱の面     | `$surface-warning` / `$surface-danger`        |
+
+失敗の箱を新しく作るときは `$surface-*` を使ってください。
+`color-mix(...)` を手で書くと、同じ式が複数のファイルに散ります。
+
+危険な操作の色は、まだ全部が寄り切っていません
+（[#180](https://github.com/Rioh1118/obs-shogi/issues/180)）。
+
+| 場所                   | いまの値                                          | 状態                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IconButton`           | `#dc3545` を CSS 変数の既定値として直書き         | 自前の値のまま                                                                                                                                                               |
+| `KifuForkActions`      | `rgba(215, 96, 96, …)` / `rgba(235, 160, 160, …)` | 自前の値のまま                                                                                                                                                               |
+| `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                                                                                                               |
+| `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**。比の話は [#185](https://github.com/Rioh1118/obs-shogi/issues/185)、意味の取り違えは [#180](https://github.com/Rioh1118/obs-shogi/issues/180) |
+| `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                                                                                                     |
+
+### 機械で止めているもの
+
+`npm run test` に、人の注意では止まらなかったものを検査として置いてあります。
+落ちたときの逃げ道はそれぞれ違います。
+
+| 検査                   | 何を止めるか                                           | 逃げ道                                                                                                                                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scssScaleRatchet`     | スケールに載るプロパティの直値が増えること             | `// scale-exempt` の印（上の節）。`BASELINE` は減る方向だけ                                                                                                                                                                                                              |
+| `contrastRatchet`      | 文字と面の比が基準を割ること／測れる対が減ること       | 面か文字の値を直す。`BASELINE` は減る方向、`MEASURED_COUNT` は増える方向、`UNMEASURED_COUNT` は減る方向。`:not(...)` を外したうえで `:disabled` / `[disabled]` / `aria-disabled` が残る段は**測らない**（WCAG 1.4.3 の対象外）。`:not(:disabled)` は有効時の段なので測る |
+| `asyncResultUse`       | `AsyncResult` の戻り値を捨てること                     | その行に `// async-result-ignored: <理由>`                                                                                                                                                                                                                               |
+| `commentHistory`       | コメントに変更の経緯が入ること                         | 無し。いま何がどうあるべきかだけを書く                                                                                                                                                                                                                                   |
+| `sliceBarrels`         | barrel を通さずスライスの中を読むこと                  | `vi.mock("...")` は素通し。それ以外は barrel から読む                                                                                                                                                                                                                    |
+| `modalTypes`           | 誰も描かない `ModalType` が残ること                    | 無し。描くものを足すか値を落とす。読む側は `params.modal === "<値>"` の綴りで書く                                                                                                                                                                                        |
+| `fsErrorCodes`         | Rust の `FsErrorCode` が TS の union を外れること      | TS 側だけの code は検査の `TS_ONLY` に理由と一緒に                                                                                                                                                                                                                       |
+| `fileTreeWire`         | Rust の `FileTreeNode` の欄が TS に届かないこと        | 受け口（`rust-types.ts`）に足して `adapter` で写す。写さないと決めた欄は検査の `DROPPED` に理由と一緒に                                                                                                                                                                  |
+| `modalOverlayTitlebar` | モーダルの overlay がタイトルバーの帯を覆うこと        | 無し。器に対する頭打ちを持たせる                                                                                                                                                                                                                                         |
+| `turnGlyphLiterals`    | ☗ / ☖ の直書き                                         | `shared/lib/turn.ts` の定数を使う                                                                                                                                                                                                                                        |
+| `testsLayerBoundary`   | `src/__tests__` がアプリのコードを import すること     | 無し。ソースを文字列として読む                                                                                                                                                                                                                                           |
+| `escapeReceivers`      | Escape を扱うハンドラで `stopPropagation()` を呼ぶこと | `ALLOWED` に相対パスと理由（モーダルの外にいて、上位の受け口を持たないものだけ）                                                                                                                                                                                         |
+| `stateTransitionIndex` | 状態遷移表を足して索引に載せ忘れること                 | 無し。`docs/state-transitions/README.md` の在庫表に足す                                                                                                                                                                                                                  |
+| `root_guard`（Rust）   | パスを受けるコマンドが root 検査を飛ばすこと           | `EXEMPT` に名前と理由。パスを型の中で受けるものは `STRUCT_CARRIED_PATH` に                                                                                                                                                                                               |
+
+走査の対象と起点は `src/__tests__/walk.ts` が1箇所で決めます。ファイルの中身を
+読む走査で `readdirSync` を書かないでください（除外を足すとき直す場所が散り、
+1つ直し忘れても違反が減るだけなので緑のまま通ります）。
+
+例外はディレクトリ名そのものを数える場合（`sliceBarrels` がスライスを、
+`testsLayerBoundary` がレイヤを、`stateTransitionIndex` が表を数えます）。
+起点（`REPO_ROOT` / `SRC` / `RUST_SRC`）はその場合も `walk.ts` から引きます。
+
+Rust のテストの置き場は2つに分かれます。crate の内部（private / `pub(crate)`）を
+見るものは `src` の `#[cfg(test)]`。crate の公開面か、ソースを文字列として読む
+リポジトリ横断の検査は `src-tauri/tests/`。
+
+### 並行作業の worktree
+
+置き場は `.claude/worktrees/<slug>`（`.gitignore` 済み）。
+
+```bash
+git worktree add .claude/worktrees/<slug> -b issue-<番号>/<slug> main
+npm ci   # worktree ごとに要る
+```
+
+終わったら `git worktree remove .claude/worktrees/<slug>`。
+Rust のビルドキャッシュは共有されません。
+
+### まだ決まっていないもの
 
 命名（ブロック / エレメント / モディファイア）の規則は未決です。
 `@use` は上の1通りに揃えてください（別の書き方が残っていますが、新規は合わせてください）。

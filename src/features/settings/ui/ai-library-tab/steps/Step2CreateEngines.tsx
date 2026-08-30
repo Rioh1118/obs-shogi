@@ -1,5 +1,5 @@
 import { Sparkles } from "lucide-react";
-import { SButton } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
 import { StepShell, type StepState } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
@@ -22,10 +22,10 @@ export function Step2CreateEngines({ state, isScanning, onCreateEnginesDir }: Pr
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <SButton variant="subtle" size="sm" onClick={onCreateEnginesDir} disabled={isScanning}>
+        <Button size="sm" onClick={onCreateEnginesDir} disabled={isScanning}>
           <Sparkles size={14} style={{ marginRight: 6 }} />
           engines/ を作成
-        </SButton>
+        </Button>
       </div>
     </StepShell>
   );

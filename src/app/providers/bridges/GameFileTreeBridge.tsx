@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 
 export function GameFileTreeBridge() {

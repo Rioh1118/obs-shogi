@@ -12,7 +12,7 @@
     // z-index を上げて競う手もあるが、それだと帯を守れるかが2つの値の大小に戻り、
     // タイトルバーと同じ値のまま DOM 順に頼る形を次に足す人が再現できてしまう。
     // 加えて、`inset: 0` に戻して z-index で競う形にすると、カードが内容ボックスを
-    // 埋める構成（下の `@media` の配下、`--size-full`、内容ボックスが 760px を切ったときの
+    // 埋める構成（下の `@media` の配下、内容ボックスが 760px を切ったときの
     // `--workspace.modal--size-xl`）でカード上端が `padding` の 20px になり、
     // 帯の 26px に潜って上端が隠れる。いまの `top` があるのでどの構成でも 46px に留まる
     top: index.$titlebar-height;
@@ -162,31 +162,6 @@
     }
   }
 
-  &--pad-none {
-    .modal__card--scroll-card {
-      padding: 0;
-    }
-    .modal__body {
-      padding: 0;
-    }
-  }
-  &--pad-sm {
-    .modal__card--scroll-card {
-      padding: 12px;
-    }
-    .modal__body {
-      padding: 12px;
-    }
-  }
-  &--pad-md {
-    .modal__card--scroll-card {
-      padding: 20px;
-    }
-    .modal__body {
-      padding: 20px;
-    }
-  }
-
   // ---------- sizes ----------
   // 高さの上限は必ず `100%`（= overlay の内容ボックス）で挟む。`vh` だけで書くと
   // overlay がタイトルバーの分だけ低いことを無視して、カードが内容ボックスから
@@ -229,12 +204,6 @@
   &--workspace.modal--size-xl .modal__card {
     width: min(1100px, 92vw);
     height: min(760px, 100%);
-  }
-
-  &--size-full .modal__card {
-    width: 96vw;
-    height: 100%;
-    border-radius: 14px;
   }
 
   @media (max-width: 640px), (max-height: 720px) {

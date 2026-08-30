@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { SButton } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
 import { StepShell, type StepState } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
@@ -28,10 +28,10 @@ export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: P
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <SButton variant="subtle" size="sm" onClick={onScan} disabled={isScanning}>
+        <Button size="sm" onClick={onScan} disabled={isScanning}>
           <RefreshCw size={14} style={{ marginRight: 6 }} />
           スキャン
-        </SButton>
+        </Button>
       </div>
     </StepShell>
   );

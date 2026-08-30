@@ -1,5 +1,5 @@
-import type { FsError } from "@/entities/file-tree/api/error";
-import type { FileConflictState } from "@/entities/file-tree/model/types";
+import type { FsError } from "@/entities/file-tree";
+import type { FileConflictState } from "@/entities/file-tree";
 import type { AsyncResult } from "@/shared/lib/result";
 
 export type { FileConflictState };
@@ -10,8 +10,7 @@ export type ConflictCopy = {
   title: string;
   description: string;
   cancelLabel: string;
-  renameLabel?: string;
-  canRename: boolean;
+  renameLabel: string;
 };
 
 export type FileConflictDialogProps = {

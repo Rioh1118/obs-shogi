@@ -89,8 +89,9 @@
     outline: none;
     min-width: 0;
 
+    // 0.3 だと、この面（暗いカードの上の白 6%）に対して 2.49:1 で本文の基準を割る
     &::placeholder {
-      color: rgba(index.$color-text-light-1, 0.3);
+      color: rgba(index.$color-text-light-1, 0.6);
     }
   }
 

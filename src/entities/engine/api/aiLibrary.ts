@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { asFsError, type FsError } from "@/entities/file-tree";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 
 export type FsKind = "file" | "dir" | "symlink" | "unknown";
 
@@ -44,4 +46,28 @@ export async function scanAiRoot(aiRoot: string): Promise<AiRootIndex> {
 
 export async function ensureEnginesDir(aiRoot: string): Promise<string> {
   return await invoke("ensure_engines_dir", { aiRoot });
+}
+
+/**
+ * AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。
+ *
+ * ワークスペース配下かの関門を通るコマンドでは作れない。
+ * 理由は Rust の `create_ai_profile_dirs` の doc
+ */
+/**
+ * AI プロファイルのフォルダを作る。
+ *
+ * **失敗は `FsError` で返す。** 呼び出し元は code を見て、名前の欄のそばに出すか
+ * （名前を直せば通る失敗）、AI ルートの診断側へ回すかを決める。`string` に潰すと
+ * 「AI ルートが無い」まで名前が悪いという位置に出る
+ */
+export async function createAiProfileDirs(
+  aiRoot: string,
+  name: string,
+): AsyncResult<string, FsError> {
+  try {
+    return Ok(await invoke<string>("create_ai_profile_dirs", { aiRoot, name }));
+  } catch (e) {
+    return Err(asFsError(e));
+  }
 }
