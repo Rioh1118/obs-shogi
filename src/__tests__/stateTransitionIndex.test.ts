@@ -66,15 +66,17 @@ const headingSlugs = (body: string) => {
  * 開きと対になり、**例として書いたリンクが本文として残る**。未閉じも同じ側に倒れる。
  */
 function stripFences(body: string): string {
-  let fence: string | null = null;
+  let fence: { mark: string; indent: number } | null = null;
   const out: string[] = [];
 
   for (const line of body.split("\n")) {
-    const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    // 箇条書きの中のフェンスは4スペース以上字下げされる。開きの字下げを覚えて、
+    // 閉じはそれ以上の字下げまで許す（CommonMark は開きより深い閉じを認める）。
+    const m = /^( *)(`{3,}|~{3,})(.*)$/.exec(line);
 
     if (fence == null) {
       if (m) {
-        fence = m[1]!;
+        fence = { mark: m[2]!, indent: m[1]!.length };
         out.push("");
         continue;
       }
@@ -82,9 +84,13 @@ function stripFences(body: string): string {
       continue;
     }
 
-    if (m && m[1]![0] === fence[0] && m[1]!.length >= fence.length && !m[2]!.trim()) {
-      fence = null;
-    }
+    const closes =
+      m != null &&
+      m[2]![0] === fence.mark[0] &&
+      m[2]!.length >= fence.mark.length &&
+      m[1]!.length >= fence.indent &&
+      !m[3]!.trim();
+    if (closes) fence = null;
     out.push("");
   }
   return out.join("\n");
@@ -137,9 +143,12 @@ describe("状態遷移表の索引", () => {
    * 表を書いたあと、他の表や索引に残った「未作成」を消し忘れる。書き方は階層図・在庫表・
    * 本文中の3通りあるので、ファイル名と「未作成」が同じ行にあることを見る。
    *
-   * リンクになっている名前は除く。表が書けたら README はその名前を
-   * `[search.md](search.md)` に変えるので、そこで「まだ無い名前」と「もう書けた名前」が
-   * 分かれる。除かないと「`search.md` は未作成。`game.md` は書けている」の1行で落ちる。
+   * 文（`。`）で区切ってから共起を見る。行ごと見ると
+   * 「`search.md` は未作成。`game.md` は書けている」で落ちるが、区切れば落ちない。
+   *
+   * 表のセル（`|`）では区切らない。在庫表は名前と状態が別のセルにあり、
+   * `| [game.md](game.md) | ❌ 未作成 |`（リンクを張ってから状態欄を直し忘れる）が
+   * 実際の腐り方だから。同じ理由で、リンクになっている名前を除くのも駄目。
    */
   test("実在する表を「未作成」と書いている行が無い", () => {
     const stale: string[] = [];
@@ -149,12 +158,13 @@ describe("状態遷移表の索引", () => {
 
       lines.forEach((line, i) => {
         if (!line.includes("未作成")) return;
-        const linked = new Set([...line.matchAll(/\]\(([\w-]+\.md)\)/g)].map((m) => m[1]));
 
-        for (const m of line.matchAll(/([\w-]+\.md)/g)) {
-          const name = m[1] ?? "";
-          if (linked.has(name)) continue;
-          if (existsSync(join(TABLES_DIR, name))) stale.push(`${file}:${i + 1}  ${name}`);
+        for (const segment of line.split("。")) {
+          if (!segment.includes("未作成")) continue;
+          const names = new Set([...segment.matchAll(/([\w-]+\.md)/g)].map((m) => m[1] ?? ""));
+          for (const name of names) {
+            if (existsSync(join(TABLES_DIR, name))) stale.push(`${file}:${i + 1}  ${name}`);
+          }
         }
       });
     }
@@ -183,6 +193,32 @@ describe("headingSlug", () => {
   });
 });
 
+describe("実在する表を「未作成」と書いている行", () => {
+  // 在庫表の腐り方は「リンクを張ってから状態欄を直し忘れる」なので、リンク形も拾う。
+  // 一方で、1行に未作成のものと書けたものを並べただけでは落ちてはいけない。
+  const staleNames = (line: string, exists: (name: string) => boolean) => {
+    const out: string[] = [];
+    if (!line.includes("未作成")) return out;
+    for (const segment of line.split("。")) {
+      if (!segment.includes("未作成")) continue;
+      const names = new Set([...segment.matchAll(/([\w-]+\.md)/g)].map((m) => m[1] ?? ""));
+      for (const name of names) if (exists(name)) out.push(name);
+    }
+    return out;
+  };
+  const exists = (name: string) => name === "game.md";
+
+  test.each([
+    ["| [game.md](game.md) | ❌ 未作成 | L1 |", ["game.md"]],
+    ["| `game.md` | ❌ 未作成 | L1 |", ["game.md"]],
+    ["…は [game.md](game.md)（未作成）が持つ。", ["game.md"]],
+    ["`search.md` は未作成。`game.md` は書けている", []],
+    ["| `search.md` | ❌ 未作成 | まだ |", []],
+  ])("%s", (line, expected) => {
+    expect(staleNames(line, exists)).toEqual(expected);
+  });
+});
+
 describe("stripFences", () => {
   test("入れ子のフェンスを外側で閉じる", () => {
     const body = [
@@ -201,5 +237,20 @@ describe("stripFences", () => {
 
   test("閉じていないフェンスは末尾まで飲み込む", () => {
     expect(stripFences("```\n[例](nope.md)\n")).not.toContain("nope.md");
+  });
+
+  test("箇条書きの中の字下げフェンスも落とす", () => {
+    const body = [
+      "- 例:",
+      "",
+      "    ```",
+      "    [例](nope.md)",
+      "    ```",
+      "",
+      "[本物](real.md)",
+    ].join("\n");
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
   });
 });
