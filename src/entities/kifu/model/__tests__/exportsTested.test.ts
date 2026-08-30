@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as cursorModule from "../cursor";
 import * as branchModule from "../branch";
+import * as jkfModule from "../jkf";
+import * as kifuModule from "../kifu";
 
 /**
  * `entities/kifu/model` の各関数 export に、対応する `describe` があるかを見る。
@@ -26,6 +28,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const TARGETS = [
   { name: "cursor.ts", module: cursorModule, test: "cursor.test.ts" },
   { name: "branch.ts", module: branchModule, test: "branch.test.ts" },
+  { name: "jkf.ts", module: jkfModule, test: "jkf.test.ts" },
+  { name: "kifu.ts", module: kifuModule, test: "kifu.test.ts" },
 ];
 
 const exportedFunctions = (mod: Record<string, unknown>) =>
@@ -34,15 +38,37 @@ const exportedFunctions = (mod: Record<string, unknown>) =>
     .map(([k]) => k)
     .sort();
 
+// 一覧を手で写すと、model/ にファイルが増えたときこちらだけ古いまま緑になる。
+// 「見ている」と言う範囲が現物とずれるのが、この検査がいちばん避けたい形。
+describe("検査の範囲", () => {
+  test("model/ の全ファイルを対象にしている", () => {
+    const files = readdirSync(join(HERE, ".."))
+      .filter((n) => n.endsWith(".ts"))
+      .sort();
+
+    expect(TARGETS.map((t) => t.name).sort()).toEqual(files);
+  });
+});
+
+// 全体で0件を見て緑になる形を止める。型だけのファイル（`kifu.ts`）は関数を
+// 持たないので、下限は個別でなく合計に掛ける
+describe("検査の範囲", () => {
+  test("関数の export を拾えている", () => {
+    const total = TARGETS.reduce(
+      (n, t) => n + exportedFunctions(t.module as Record<string, unknown>).length,
+      0,
+    );
+    expect(total).toBeGreaterThan(5);
+  });
+});
+
 describe.each(TARGETS)("$name の関数 export", ({ module, test: testFile }) => {
   const names = exportedFunctions(module as Record<string, unknown>);
 
-  // 0件を見て緑になる形を止める
-  test("関数の export を拾えている", () => {
-    expect(names.length).toBeGreaterThan(0);
-  });
-
   test("すべてに describe がある", () => {
+    // 型だけのファイルはテストファイル自体を持たない
+    if (names.length === 0) return;
+
     const body = readFileSync(join(HERE, testFile), "utf8");
     // 閉じ引用符まで見る。前方一致だと `describe("cursorKeyOld")` が `cursorKey` を満たす
     const missing = names.filter((n) => !body.includes(`describe("${n}"`));

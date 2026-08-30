@@ -11,8 +11,13 @@ export type ForkPointer = {
 declare const tesuuPointerBrand: unique symbol;
 
 /**
- * JKFPlayer.getTesuuPointer() が返す「局面を一意に復元できる文字列」
+ * 局面を指す `"<tesuu>,[{te,forkIndex}]"` 形式の文字列
  * 例: `7,[{"te":3,"forkIndex":0}]`
+ *
+ * **出どころは2つあり、書式だけが同じ。** 再生器が返した観測値
+ * （`JKFPlayer.getTesuuPointer`）と、要求から組んだ鍵（`cursorKey`）。
+ * **`KifuCursor.tesuuPointer` に入れてよいのは観測の側だけ。**
+ * 要求の鍵を入れると、着けもしない局面の識別子で停止判定やキャッシュが回る。
  *
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
@@ -49,7 +54,7 @@ export interface KifuCursor {
   /** 現在ルートを決める分岐選択履歴 */
   forkPointers: ForkPointer[];
 
-  /** JKFPlayer.getTesuuPonter()の結果(局面一意識別子) */
+  /** `JKFPlayer.getTesuuPointer()` が返した観測値。要求の鍵（`cursorKey`）を入れない */
   tesuuPointer: TesuuPointer;
 }
 
@@ -125,8 +130,10 @@ export function plannedCursorFrom(
 }
 
 /**
- * 開始局面のカーソル。
- * ここでは「空の分岐履歴」を表す最小形として定義する。
+ * 開始局面のカーソル。「空の分岐履歴」を表す最小形。
+ *
+ * `tesuuPointer` だけは再生器を通さず手書きしている。書式が `cursorKey` の出力と
+ * 一致することは `__tests__/cursor.test.ts` が固定している。
  */
 export const ROOT_CURSOR: KifuCursor = {
   tesuu: 0,
@@ -271,8 +278,9 @@ export function makeKifuCursor(
  * **ただし落ちるのはこの戻り値の中だけ。** `state.branchPlan` に残っている分は
  * `mergeBranchPlan` が復活させる（線を乗り換えても深い計画は残る → #306）。
  *
- * `path` が `null` のときは選択の履歴が無いものとして、`te` の選択だけを持つ
- * カーソルを組む（棋譜を開いた直後で `state.cursor` がまだ無い行から呼ばれる）。
+ * `path` が `null` を取るのは、行を描く側が `PlannedCursor | null` を持つため
+ * （`KifuStreamList`）。`view.player` の番人が先に返すので現物では通らないが、
+ * 呼び出し側に `!` を書かせる代わりに「選択の履歴が無い」の意味を決めてある。
  */
 export function descendTo(
   path: CursorPath | null,
