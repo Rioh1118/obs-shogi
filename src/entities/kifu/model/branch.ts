@@ -1,4 +1,4 @@
-import type { CursorPath, ForkPointer, TesuuPointer } from "./cursor";
+import type { CursorPath, ForkPointer } from "./cursor";
 import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 declare const branchIndexBrand: unique symbol;
@@ -149,15 +149,4 @@ export function neighborBranchIndex(b: BranchIndex, dir: "up" | "down"): BranchI
  */
 export function branchIndexAfterRemoval(b: BranchIndex): BranchIndex {
   return (b - 1) as BranchIndex;
-}
-
-/**
- * 局面を一意に表す文字列を組む
- *
- * `forkPointers` は正規化してから渡すこと。並びが違うだけで別の文字列になり、
- * 同じ局面が別のキーとして扱われる。
- */
-export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
-  // JKFPlayer の "N,[{te,forkIndex}]" と揃える
-  return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
 }

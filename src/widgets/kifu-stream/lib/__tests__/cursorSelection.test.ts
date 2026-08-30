@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
-import { buildTesuuPointer } from "@/entities/kifu/model/branch";
+import { buildTesuuPointer } from "@/entities/kifu/model/cursor";
 import {
   asBranchPlan,
   normalizeForkPointers,

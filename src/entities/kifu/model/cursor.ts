@@ -17,8 +17,20 @@ declare const tesuuPointerBrand: unique symbol;
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
  * **この型を作ってよいのは `buildTesuuPointer` だけ**、というのは規約。
+ * だからこのファイルの中に置いてある。外に `as TesuuPointer` を書かないこと。
  */
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
+
+/**
+ * 局面を一意に表す文字列を組む
+ *
+ * `forkPointers` は正規化してから渡すこと。並びが違うだけで別の文字列になり、
+ * 同じ局面が別のキーとして扱われる。
+ */
+export function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPointer {
+  // JKFPlayer の "N,[{te,forkIndex}]" と揃える
+  return `${tesuu},${JSON.stringify(forkPointers)}` as TesuuPointer;
+}
 
 /**
  * アプリ側で保持する「公式カーソル」

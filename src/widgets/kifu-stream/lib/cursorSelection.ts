@@ -1,14 +1,11 @@
 import {
+  buildTesuuPointer,
   normalizeForkPointers,
   type ForkPointer,
   type KifuCursor,
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
-import {
-  branchIndexFromSelection,
-  buildTesuuPointer,
-  type BranchIndex,
-} from "@/entities/kifu/model/branch";
+import { branchIndexFromSelection, type BranchIndex } from "@/entities/kifu/model/branch";
 import type { RowModel } from "../ui/KifuMoveCard";
 
 export const branchIndexFromRow = (r: RowModel): BranchIndex => {

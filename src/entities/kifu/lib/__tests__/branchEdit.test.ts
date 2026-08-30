@@ -3,10 +3,9 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import {
   MAIN_LINE,
   branchIndexFromForkIndex,
-  buildTesuuPointer,
   neighborBranchIndex,
 } from "@/entities/kifu/model/branch";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
+import { buildTesuuPointer, type ForkPointer, type KifuCursor } from "@/entities/kifu/model/cursor";
 import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**

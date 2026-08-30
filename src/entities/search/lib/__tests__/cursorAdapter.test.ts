@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { cursorFromLite } from "../cursorAdapter";
-import { buildTesuuPointer } from "@/entities/kifu/model/branch";
+import { buildTesuuPointer } from "@/entities/kifu/model/cursor";
 
 describe("cursorFromLite", () => {
   test("並び順が違うだけの入力は同じ tesuuPointer になる", () => {

@@ -1,5 +1,5 @@
 import { normalizeForkPointers, type KifuCursor } from "@/entities/kifu/model/cursor";
-import { buildTesuuPointer } from "@/entities/kifu/model/branch";
+import { buildTesuuPointer } from "@/entities/kifu/model/cursor";
 import type { CursorLite } from "../api/ids";
 
 /**
