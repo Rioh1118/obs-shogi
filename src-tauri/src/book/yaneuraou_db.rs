@@ -68,6 +68,19 @@ fn invalid_content(message: &str, path: &str) -> BookError {
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
 const HEADER_PREFIX: &str = "#YANEURAOU-DB";
 
+/// 読み飛ばす行。
+///
+/// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:710-715` が
+/// `#` と `//` の両方を読み飛ばす）。落とさないと2通りに壊れる。
+///
+/// - `sfen` 行の後ろにあると候補手として登録され、しかも先頭に来る。
+///   形式は「先頭がその局面の best move」と約束しているので、`//` が推奨手になる
+/// - 最初の `sfen` 行より前にあると「局面より先に指し手」の枝に落ち、
+///   本家が普通に読める定跡が丸ごと開けなくなる
+fn is_skippable(line: &str) -> bool {
+    line.is_empty() || line.starts_with('#') || line.starts_with("//")
+}
+
 /// 本文を局面ごとに畳む。
 ///
 /// ヘッダを検査するのは、別形式のファイルに `.db` を付けただけのものを
@@ -105,8 +118,7 @@ fn parse(text: &str, path: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, Book
 
     for (index, line) in lines {
         let line = line.trim();
-        // `# NOE:N` のような注記。局面数は展開後の実数を使うので読まない。
-        if line.is_empty() || line.starts_with('#') {
+        if is_skippable(line) {
             continue;
         }
 
@@ -279,6 +291,35 @@ mod tests {
         let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
         assert_eq!(moves[0].usi_move, "7g7f");
         assert_eq!(moves[0].count, Some(1234));
+    }
+
+    /// `//` は形式の一部のコメント（本家 `book.cpp:710-715`）。
+    /// 読み飛ばさないと、先頭の候補手＝best move の位置に `//` が入る。
+    #[test]
+    fn skips_slash_comments_between_moves() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             sfen {HIRATE}\n\
+             // この定跡は floodgate 由来\n\
+             7g7f 3c3d 50 32 1\n"
+        );
+        let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+
+        assert_eq!(moves.len(), 1);
+        assert_eq!(moves[0].usi_move, "7g7f");
+    }
+
+    /// 最初の `sfen` 行より前の `//` を読み飛ばさないと、本家が普通に読める定跡が
+    /// 「局面より先に指し手」として丸ごと開けなくなる。
+    #[test]
+    fn a_slash_comment_before_the_first_position_does_not_break_the_file() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             // 生成: 2026-08-30\n\
+             sfen {HIRATE}\n\
+             7g7f 3c3d 50 32 1\n"
+        );
+        assert!(parse(&text, "/books/a.db").is_ok());
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
