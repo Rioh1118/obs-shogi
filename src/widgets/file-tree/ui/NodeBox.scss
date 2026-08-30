@@ -49,20 +49,16 @@
 
   &__main {
     display: flex;
-    // 失敗の箱で入力欄が伸びたとき、中央に置くとアイコンと chevron が
-    // 箱の横まで落ちる。上端で揃え、行の高さは下の `min-height` が持つ
-    align-items: flex-start;
+    // **子に `display` を書かない。** `.file-name` の内側がフレックスになると
+    // `text-overflow: ellipsis` が効かず、長い名前が「…」無しで断ち切られる。
+    // 「まだ続いている」という手掛かりが画面から消える。
+    //
+    // 失敗の箱で行が伸びるとアイコンがその中央へ落ちる。行を1枚の要素にしないと
+    // 解けないので、ここでは通常の行の揃いを取る → TODO(#246)
+    align-items: center;
     gap: 0.03rem;
     flex: 1;
     min-width: 0;
-
-    // 伸びない側に行の高さを持たせる。持たせないと、通常の行で
-    // アイコンと名前の縦位置が数 px ずれる
-    > * {
-      min-height: 2.4rem;
-      display: inline-flex;
-      align-items: center;
-    }
   }
 
   .file-name {
@@ -77,8 +73,6 @@
     display: flex;
     margin-right: 1.5rem;
     align-items: center;
-    // `__content` が上端で揃えるので、通常の行では `__main` と同じ高さにする
-    min-height: 2.4rem;
     gap: 0.2rem;
     pointer-events: auto;
     opacity: 0;
