@@ -35,11 +35,15 @@ describe("buildStreamRowsFromCursor", () => {
   });
 
   test("行が言う選択は、実際に降りた分岐だけ", () => {
-    // 計画をそのまま載せると、本譜を歩いている行が「変化1」を選んでいると言う。
+    // 計画をそのまま載せると、本譜を歩いている行が変化を選んでいると言う。
     // バッジとメニューの ✓ が食い違い、branchIndexFromRow が使えない値を投げる。
     const selected = (plan: ForkPointer[]) => rowsFor(plan).map((r) => r.selectedForkIndex);
 
     expect(selected([{ te: 2, forkIndex: 0 }])).toEqual([null, null, 0]);
+
+    // 変化を持たない手数。forkAndForward は forks が無ければ false を返す。
+    expect(selected([{ te: 1, forkIndex: 0 }])).toEqual([null, null, null, null]);
+
     for (const forkIndex of [5, -1, 0.5, NaN]) {
       expect(selected([{ te: 2, forkIndex }])).toEqual([null, null, null, null]);
     }
