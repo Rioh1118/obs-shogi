@@ -84,7 +84,11 @@ jobs:
               if (e.status !== 404) throw e;
             }
 
-            if (releaseId === null) {
+            // `createRelease` を通ったかどうかは、通す**前**に覚える。
+            // 後から `releaseId` を見ると必ず非 null なので、下のガードが恒真になる。
+            const hadRelease = releaseId !== null;
+
+            if (!hadRelease) {
               // **target_commitish が効くのはタグをこれから作るときだけ**で、既にあれば無視される。
               // 省くと、新しいタグが撃った ref ではなく既定ブランチの上に作られる。
               const r = await github.rest.repos.createRelease({
@@ -105,12 +109,16 @@ jobs:
             // 通らないので、`context.sha`（撃った ref の先端）を配ることになる。
             // それは「タグの木を組む」という前提そのものが崩れた状態で、
             // 資産だけ既存のリリースへ上がる。
-            if (releaseId !== null && tagSha === null) {
+            //
+            // **`hadRelease` で見る。** `releaseId` は `createRelease` のあとでは必ず非 null なので、
+            // そちらで見ると「タグもリリースも無い」セル（dispatch で新しいタグを切る正当な経路）
+            // まで落ち、リリースとタグを作った直後に偽のメッセージで止まる。
+            if (hadRelease && tagSha === null) {
               throw new Error(`release ${tag} exists but the tag does not. delete the release, or push the tag`);
             }
 
             // ここへ来る `tagSha === null` は「タグもリリースも無く、いま createRelease が
-            // `context.sha` の上に作った」場合だけ
+            // `context.sha` の上にタグごと作った」場合だけ
             const sha = tagSha ?? context.sha;
             // 空を配らない。`actions/checkout` は空の `ref` を未指定と同じに扱い、
             // **黙って `github.ref` へ戻る**。ここで止めないと気づけない
