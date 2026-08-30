@@ -219,6 +219,7 @@ jobs:
           # 既定が true なので値としては再掲。消してよい入力に見せない
           uploadUpdaterJson: true
 
-          # `[arch]` を固定の綴りに書き換えると、tauri-action が資産と署名を
-          # 突き合わせられず latest.json から落ちる（綴りの一覧は docs/RELEASE.md）
+          # `[arch]` を固定の綴りにすると、`[platform]` が同じ macOS の2本が
+          # **同名の資産を出す**。後から走った方が先の資産を消すので、
+          # latest.json はその欄を落とすか消えた asset を指す（綴りは docs/RELEASE.md）
           releaseAssetNamePattern: "ObsShogi-v[version]-[platform]-[arch][setup][ext]"
