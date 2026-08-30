@@ -36,10 +36,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const pendingSelectedPathRef = useRef<string | null>(null);
   const selectedNodeRef = useRef(state.selectedNode);
   selectedNodeRef.current = state.selectedNode;
-  // **`reconcilePathMutation` は ref から読む。** 呼ばれるのは IPC を2〜3往復
-  // したあとで、その間に利用者は別の棋譜を開ける。closure に閉じ込めた古い値で
-  // 付け替えると、`jkfData` は新しい棋譜・`activeKifuPath` は古い棋譜になり、
-  // 保存が**別のファイルへ書かれる**（`GamePersistenceGate` は path で書く）
+  // **IPC を跨いだあとの読み出しは ref から。** `renameNode` / `moveNode` /
+  // `deleteNode` はどれも IPC を2〜3往復してから選択と開いている棋譜を見る。
+  // その間に利用者は別の棋譜を開けるので、closure に閉じ込めた古い値で判断すると
+  //
+  // - 付け替え: `jkfData` は新しい棋譜・`activeKifuPath` は古い棋譜になり、
+  //   保存が**別のファイルへ書かれる**（`GamePersistenceGate` は path で書く）
+  // - 削除: 消したフォルダの中に**無い**棋譜を「中にある」と判定して閉じる
   const activeKifuPathRef = useRef(state.activeKifuPath);
   activeKifuPathRef.current = state.activeKifuPath;
   const kifuOpenGenerationRef = useRef(0);
@@ -381,19 +384,19 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Err(res.error);
       }
 
-      if (isSameOrDescendantPath(state.selectedNode?.path, node.path)) {
+      if (isSameOrDescendantPath(selectedNodeRef.current?.path, node.path)) {
         pendingSelectedPathRef.current = null;
         dispatch({ type: "node_selected", payload: null });
       }
 
-      if (isSameOrDescendantPath(state.activeKifuPath, node.path)) {
+      if (isSameOrDescendantPath(activeKifuPathRef.current, node.path)) {
         dispatch({ type: "kifu_closed" });
       }
 
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
-    [loadFileTree, pushError, state.selectedNode, state.activeKifuPath],
+    [loadFileTree, pushError],
   );
 
   const renameNode = useCallback(
