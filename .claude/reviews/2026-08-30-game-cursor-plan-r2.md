@@ -55,7 +55,7 @@
 
 | #   | 所見                                                                                                                               | reviewer                                          | 結果                         |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------- |
-| N1  | `computeLeafTesuu` / `buildPlayer` が `KifuCursor` を要求するので、`plannedCursorOf` の戻り値を渡せない。R1 だけ型が分かれていない | architecture / comment / robustness               | 対応済み（provider は #246） |
+| N1  | `computeLeafTesuu` / `buildPlayer` が `KifuCursor` を要求するので、`plannedCursorOf` の戻り値を渡せない。R1 だけ型が分かれていない | architecture / comment / robustness               | 対応済み（provider は #247） |
 | N2  | brand は `plannedCursorOf(cursor, cursor.forkPointers)` を塞げない。テスト自身がそれを実演している                                 | architecture                                      | 一部対応（TSDoc に明記）※    |
 | N3  | 「未作成」検査の正規表現が README の2つの書き方（階層図・在庫表）を拾わない                                                        | architecture / robustness / comment / oss-hygiene | 対応済み                     |
 | N4  | 見出しアンカーの slug が github-slugger と食い違い、正しいリンクを落とす（`—` を挟む見出しで `-` vs `--`）                         | robustness                                        | 対応済み                     |
@@ -69,7 +69,7 @@
 | N12 | 「規則が6箇所に散る」と `branch-index.md` の「3箇所」が食い違う。数の出所が二重                                                    | oss-hygiene                                       | 対応済み                     |
 | N13 | #245 / #227 に送った宿題が docs 側に番号として残っていない                                                                         | oss-hygiene                                       | 対応済み                     |
 | N14 | `failure-surfacing.md:6` は実測コミットを固定しているのに、宣言を更新せず行だけ書き換えた                                          | oss-hygiene                                       | 対応済み                     |
-| N15 | `openFork` が `rows` と同期しておらず、分岐を消すと開いたままの state が残る（この差分の退行ではない）                             | react                                             | 見送り → #247                |
+| N15 | `openFork` が `rows` と同期しておらず、分岐を消すと開いたままの state が残る（この差分の退行ではない）                             | react                                             | 見送り → #248                |
 | N16 | リンク検査がコードフェンスを除外していない（今は該当0件）                                                                          | robustness / oss-hygiene                          | 対応済み                     |
 | N17 | リンク検査は `docs/` 全体へ広げてよい（実測で壊れ0件）                                                                             | oss-hygiene                                       | 対応済み                     |
 
@@ -87,7 +87,7 @@ reviewer 自身が代案として挙げた「TSDoc に残る穴を書く」を�
 - **G1 は react が HIGH、robustness が MEDIUM。** 同じ経路を指しているので HIGH に寄せた。
 - **矛盾**: architecture は N1 の直し方として「`provider.tsx:73-77` も `plannedCursorOf` に寄せる。この行は
   wt-227 が触る保存経路とは別の `useMemo` なので競合しない」と主張。ラウンド1で「競合するので見送る」と
-  書いた判断への反論になっている。**型を広げるところまでは採り、`provider.tsx` の書き換えは #246 に送った。**
+  書いた判断への反論になっている。**型を広げるところまでは採り、`provider.tsx` の書き換えは #247 に送った。**
   同一ファイルへの変更を増やすほど wt-227 のマージが重くなるという判断は変えていない。
 - **矛盾**: comment は `game.md` の R5 / R6 が両方 `KifuStreamList.tsx:48` を指す点を「実際の呼び出しは
   `:58` / `:127` / `:277`」としつつ所見にしていない。oss-hygiene は N12 で「数の出所を一本化せよ」と言う。
@@ -122,5 +122,5 @@ reviewer 自身が代案として挙げた「TSDoc に残る穴を書く」を�
 ## 次ラウンドの対象
 
 - G1〜G5、N1〜N14、N16、N17 を直す
-- N15 は #247 へ
+- N15 は #248 へ
 - ラウンド3を回す
