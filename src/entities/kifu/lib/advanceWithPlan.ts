@@ -1,5 +1,5 @@
 import type { JKFPlayer } from "json-kifu-format";
-import type { ForkPointer } from "../model/cursor";
+import type { BranchPlan } from "../model/cursor";
 
 /**
  * 計画を手数で引ける形にしたもの（`te` → `forkIndex`）
@@ -12,8 +12,15 @@ import type { ForkPointer } from "../model/cursor";
  */
 export type PlanByTe = ReadonlyMap<number, number>;
 
-/** `ForkPointer[]` を `PlanByTe` にする。同じ te が重なれば後勝ち。 */
-export function planByTe(forkPointers: readonly ForkPointer[] | undefined): PlanByTe {
+/**
+ * `BranchPlan` を `PlanByTe` にする。同じ te が重なれば後勝ち。
+ *
+ * 素の `ForkPointer[]` を受けないのは、`cursor.forkPointers`（`te <= tesuu` に
+ * 正規化済み＝計画を持たない）を渡せてしまうと、引く te が `tesuu + 1` 以降なので
+ * **1度も当たらないまま黙って線を進む**ため。計画を持たないことを言いたい側は
+ * `advanceCurrentLine` を使う。
+ */
+export function planByTe(forkPointers: BranchPlan | undefined): PlanByTe {
   const byTe = new Map<number, number>();
   for (const p of forkPointers ?? []) byTe.set(p.te, p.forkIndex);
   return byTe;

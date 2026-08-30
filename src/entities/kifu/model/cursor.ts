@@ -93,11 +93,16 @@ declare const plannedCursorBrand: unique symbol;
  * **`te > tesuu` の `ForkPointer` を持てるのはこちらだけ**であること。
  *
  * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
- * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` を組む2つ
- * （`makeKifuCursor` / `requestedCursorAt`）はどちらも `te <= tesuu` に正規化するので、
- * **カーソルより先の選択が黙って空になる**。
+ * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` は
+ * `te <= tesuu` に正規化されているので、**カーソルより先の選択が黙って空になる**。
+ *
+ * 素の `CursorPath`（`previewCursor` など）は `te > tesuu` を持ちうる。
+ * brand が止めるのは `KifuCursor` を計画として渡すことだけ。
  */
-export interface PlannedCursor extends CursorPath {
+export interface PlannedCursor {
+  tesuu: number;
+  /** `te > tesuu` を持ちうる。brand はここまで通す（`planByTe` が `BranchPlan` を要求する）。 */
+  forkPointers: BranchPlan;
   readonly [plannedCursorBrand]: true;
 }
 

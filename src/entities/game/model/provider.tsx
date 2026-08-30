@@ -23,7 +23,7 @@ import {
   normalizeForkPointers,
   plannedCursorFrom,
   sameForkPointers,
-  type ForkPointer,
+  type BranchPlan,
   type CursorPath,
 } from "@/entities/kifu/model/cursor";
 import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
@@ -158,10 +158,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const view = useMemo<GameView>(() => ({ ...cursorView, legalMoves }), [cursorView, legalMoves]);
 
   const navigate = useCallback(
-    (
-      run: (player: JKFPlayer, branchPlan: ForkPointer[]) => boolean | void,
-      errorMessage: string,
-    ) => {
+    (run: (player: JKFPlayer, branchPlan: BranchPlan) => boolean | void, errorMessage: string) => {
       if (!state.jkf) return;
 
       try {

@@ -7,6 +7,7 @@ import {
   planByTe,
   PLAN_WALK_LIMIT,
 } from "../advanceWithPlan";
+import { asBranchPlan } from "@/entities/kifu/model/cursor";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
   forks ? { comments: [tag], forks } : { comments: [tag] };
@@ -33,19 +34,25 @@ const playerAt = (tesuu: number) => {
 describe("advanceWithPlan", () => {
   test("計画が無ければ線をそのまま1手進む", () => {
     const player = playerAt(1);
-    expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: true, forkIndex: null });
+    expect(advanceWithPlan(player, planByTe(asBranchPlan([])))).toEqual({
+      moved: true,
+      forkIndex: null,
+    });
     expect(player.tesuu).toBe(2);
   });
 
   test("計画どおり変化に降りると、降りた forkIndex を返す", () => {
     const player = playerAt(1);
-    expect(advanceWithPlan(player, planByTe([{ te: 2, forkIndex: 0 }]))).toEqual({
+    expect(advanceWithPlan(player, planByTe(asBranchPlan([{ te: 2, forkIndex: 0 }])))).toEqual({
       moved: true,
       forkIndex: 0,
     });
     expect(player.tesuu).toBe(2);
     // 変化は1手で終わるので、本譜（3手）と葉の位置が違う
-    expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: false, forkIndex: null });
+    expect(advanceWithPlan(player, planByTe(asBranchPlan([])))).toEqual({
+      moved: false,
+      forkIndex: null,
+    });
   });
 
   test("計画が実在しない変化を指せば捨てて線を進み、forkIndex は null", () => {
@@ -53,7 +60,7 @@ describe("advanceWithPlan", () => {
     // forks[-1] を掴んで JKFPlayer の内部で TypeError になる。
     for (const forkIndex of [5, -1, 0.5, NaN]) {
       const player = playerAt(1);
-      expect(advanceWithPlan(player, planByTe([{ te: 2, forkIndex }]))).toEqual({
+      expect(advanceWithPlan(player, planByTe(asBranchPlan([{ te: 2, forkIndex }])))).toEqual({
         moved: true,
         forkIndex: null,
       });
@@ -76,7 +83,7 @@ describe("advanceWithPlan", () => {
     expect(player.currentStream[2]?.comments).toEqual(["f2"]);
 
     // te=3 に実在しない変化の計画を置く
-    expect(advanceWithPlan(player, planByTe([{ te: 3, forkIndex: 99 }]))).toEqual({
+    expect(advanceWithPlan(player, planByTe(asBranchPlan([{ te: 3, forkIndex: 99 }])))).toEqual({
       moved: true,
       forkIndex: null,
     });
@@ -90,27 +97,36 @@ describe("advanceWithPlan", () => {
   test("線の末尾より先に計画が残っていても throw せず、1手も動かない", () => {
     // 手が無いのに forkAndForward を呼ぶと「N手目に有効な棋譜がありません」を投げる。
     const player = playerAt(3);
-    expect(() => advanceWithPlan(player, planByTe([{ te: 4, forkIndex: 0 }]))).not.toThrow();
+    expect(() =>
+      advanceWithPlan(player, planByTe(asBranchPlan([{ te: 4, forkIndex: 0 }]))),
+    ).not.toThrow();
     expect(player.tesuu).toBe(3);
-    expect(advanceWithPlan(playerAt(3), planByTe([{ te: 4, forkIndex: 0 }]))).toEqual({
-      moved: false,
-      forkIndex: null,
-    });
+    expect(advanceWithPlan(playerAt(3), planByTe(asBranchPlan([{ te: 4, forkIndex: 0 }])))).toEqual(
+      {
+        moved: false,
+        forkIndex: null,
+      },
+    );
   });
 
   test("葉では進まない", () => {
     const player = playerAt(3);
-    expect(advanceWithPlan(player, planByTe([]))).toEqual({ moved: false, forkIndex: null });
+    expect(advanceWithPlan(player, planByTe(asBranchPlan([])))).toEqual({
+      moved: false,
+      forkIndex: null,
+    });
     expect(player.tesuu).toBe(3);
   });
 });
 
 describe("planByTe", () => {
   test("同じ te が重なれば後勝ち", () => {
-    const byTe = planByTe([
-      { te: 2, forkIndex: 0 },
-      { te: 2, forkIndex: 1 },
-    ]);
+    const byTe = planByTe(
+      asBranchPlan([
+        { te: 2, forkIndex: 0 },
+        { te: 2, forkIndex: 1 },
+      ]),
+    );
     expect(byTe.get(2)).toBe(1);
   });
 
@@ -122,13 +138,13 @@ describe("planByTe", () => {
 describe("advanceToLeafWithPlan", () => {
   test("計画が無ければ本譜の末尾まで", () => {
     const player = playerAt(0);
-    advanceToLeafWithPlan(player, planByTe([]));
+    advanceToLeafWithPlan(player, planByTe(asBranchPlan([])));
     expect(player.tesuu).toBe(3);
   });
 
   test("計画どおり降りた変化の末尾まで", () => {
     const player = playerAt(0);
-    advanceToLeafWithPlan(player, planByTe([{ te: 2, forkIndex: 0 }]));
+    advanceToLeafWithPlan(player, planByTe(asBranchPlan([{ te: 2, forkIndex: 0 }])));
     expect(player.tesuu).toBe(2);
   });
 
@@ -140,14 +156,14 @@ describe("advanceToLeafWithPlan", () => {
 
   test("上限ちょうどの線は葉まで進める", () => {
     const player = lineOf(PLAN_WALK_LIMIT);
-    expect(() => advanceToLeafWithPlan(player, planByTe([]))).not.toThrow();
+    expect(() => advanceToLeafWithPlan(player, planByTe(asBranchPlan([])))).not.toThrow();
     expect(player.tesuu).toBe(PLAN_WALK_LIMIT);
   });
 
   test("上限を超える線では throw する", () => {
-    expect(() => advanceToLeafWithPlan(lineOf(PLAN_WALK_LIMIT + 1), planByTe([]))).toThrow(
-      /overflows/,
-    );
+    expect(() =>
+      advanceToLeafWithPlan(lineOf(PLAN_WALK_LIMIT + 1), planByTe(asBranchPlan([]))),
+    ).toThrow(/overflows/);
   });
 
   // PLAN_WALK_LIMIT の doc が「goto と足並みは揃わない」と言っている根拠。
