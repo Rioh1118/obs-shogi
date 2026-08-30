@@ -60,13 +60,11 @@ pub(crate) struct OpenedBook {
 ///
 /// - `NotFound` / `PermissionDenied` / `Io` — metadata が取れない
 /// - `InvalidType` — ディレクトリなどファイルでないもの
+/// - `InvalidContent` — 形式の中身が読めない
 /// - `UnsupportedFormat` — 形式は分かるが reader をまだ持っていない
 ///
 /// `NotFound` は、呼び出し側が解決を終えたあとに実体が消えた場合にだけ届く。
 /// 選ぶ時点で存在しないパスは、解決の側が先に弾く。
-///
-// TODO(#91): やねうら王テキスト定跡 (.db) の reader を足すまで、この関数は
-// 成功する経路を持たない。#[tauri::command] の open_book は必ず失敗する。
 pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook, BookError> {
     // `Path::is_file` は metadata が取れない理由を全て false に潰す。権限が無い
     // ファイルまで「見つからない」と案内されると、利用者は Finder でそれを見ながら
@@ -82,14 +80,29 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         .with_path(path.to_string_lossy()));
     }
 
-    Err(BookError::new(
-        BookErrorCode::UnsupportedFormat,
-        format!(
-            "{}はまだ開けない。他の形式もまだ開けないので、別のファイルを試しても同じ結果になる",
-            format.display_name()
-        ),
-    )
-    .with_path(path.to_string_lossy()))
+    // 読める形式が増えたら、ここに枝を足す。
+    // 数え上げも reader の生成もこの中（blocking プールの中）で終わらせること。
+    match format {
+        BookFormat::YaneuraouDb => {
+            let reader = crate::book::yaneuraou_db::load(path)?;
+            Ok(OpenedBook {
+                path: path.to_path_buf(),
+                format,
+                position_count: Some(reader.position_count()),
+                reader: Box::new(reader),
+            })
+        }
+        BookFormat::AperyBin | BookFormat::ShogiGuiSbk | BookFormat::YaneuraouYbb => {
+            Err(BookError::new(
+                BookErrorCode::UnsupportedFormat,
+                format!(
+                    "{}はまだ開けない。やねうら王テキスト定跡 (.db) なら開ける",
+                    format.display_name()
+                ),
+            )
+            .with_path(path.to_string_lossy()))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -114,14 +127,17 @@ mod tests {
         assert_eq!(err.path(), Some("/nonexistent/book.db"));
     }
 
-    /// `open_reader` は成功経路を持たないので、これが今この機能を触った利用者に
-    /// 届く唯一の文面。種別だけを見るテストでは、案内を空にしても緑のまま通る。
+    /// まだ読めない形式に当たった利用者へ届く唯一の文面。種別だけを見るテストでは、
+    /// 案内を空にしても緑のまま通る。
+    ///
+    /// **読める形式が1つある状態では「別のファイルを試しても同じ」ではない。**
+    /// 次にやれること（.db なら開ける）を出す。
     #[test]
     fn an_unsupported_format_tells_the_user_what_to_expect() {
-        let file = std::env::temp_dir().join("obs-shogi-book-unsupported.db");
+        let file = std::env::temp_dir().join("obs-shogi-book-unsupported.bin");
         std::fs::write(&file, b"").expect("テスト用のファイルを作れない");
 
-        let result = open_reader(&file, BookFormat::YaneuraouDb);
+        let result = open_reader(&file, BookFormat::AperyBin);
         std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
 
         let Err(err) = result else {
@@ -129,16 +145,53 @@ mod tests {
         };
         assert_eq!(err.code(), BookErrorCode::UnsupportedFormat);
         assert!(
-            err.message()
-                .contains(BookFormat::YaneuraouDb.display_name()),
-            "形式名が出ていない: {}",
+            err.message().contains(BookFormat::AperyBin.display_name()),
+            "開けなかった形式の名前が出ていない: {}",
             err.message()
         );
         assert!(
-            err.message().contains("同じ結果になる"),
-            "他を試しても無駄だと書かれていない: {}",
+            err.message()
+                .contains(BookFormat::YaneuraouDb.display_name()),
+            "代わりに何が開けるか書かれていない: {}",
             err.message()
         );
+    }
+
+    /// 中身が読めない `.db` は、形式が未対応なのではなくファイルが壊れている。
+    /// `UnsupportedFormat` にすると「このアプリでは無理」と読まれ、取得し直すという
+    /// 復帰操作に辿り着けない。
+    #[test]
+    fn reports_a_broken_db_as_broken_content() {
+        let file = std::env::temp_dir().join("obs-shogi-book-broken.db");
+        std::fs::write(&file, b"not a book").expect("テスト用のファイルを作れない");
+
+        let result = open_reader(&file, BookFormat::YaneuraouDb);
+        std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
+
+        let Err(err) = result else {
+            panic!("定跡でないファイルを開けてしまった");
+        };
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+    }
+
+    /// 読める形式は、開いた時点で収録局面数まで確定していること。
+    /// `BookState::register` は async ランタイム上で走るので、そこで数える形に
+    /// 戻すと IO が async ワーカへ漏れる。
+    #[test]
+    fn a_readable_book_is_counted_while_opening() {
+        let file = std::env::temp_dir().join("obs-shogi-book-counted.db");
+        std::fs::write(
+            &file,
+            b"#YANEURAOU-DB2016 1.00\n              sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n              7g7f 3c3d 50 32 1\n",
+        )
+        .expect("テスト用のファイルを作れない");
+
+        let result = open_reader(&file, BookFormat::YaneuraouDb);
+        std::fs::remove_file(&file).expect("テスト用のファイルを消せない");
+
+        let opened = result.expect("読めるはず");
+        assert_eq!(opened.position_count, Some(1));
+        assert_eq!(opened.format, BookFormat::YaneuraouDb);
     }
 
     /// ディレクトリは存在するので NotFound ではない。「見つからない」と言われると

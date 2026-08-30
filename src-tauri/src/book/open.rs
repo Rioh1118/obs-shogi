@@ -180,6 +180,48 @@ mod tests {
     use super::*;
     use crate::book::error::MAX_PATH_CHARS;
 
+    /// 開いてから引くまでを、実物と同じ形の定跡ファイルで通す。
+    ///
+    /// 各段の unit test は自分の担当だけを見るので、**繋ぎ目がずれても全部緑のまま
+    /// 通る。** 実際 `open_reader` は #90 の間ずっと成功経路を持たず、
+    /// 「開ける」と言えるテストが1本も無かった。
+    #[test]
+    fn opens_a_book_and_finds_the_opening_moves() {
+        use crate::book::sfen::to_book_key;
+
+        let dir = std::env::temp_dir().join("obs-shogi-book-end-to-end");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let file = dir.join("standard.db");
+        std::fs::write(
+            &file,
+            "#YANEURAOU-DB2016 1.00\n\
+             # NOE:1\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n\
+             7g7f 3c3d 50 32 1234\n\
+             2g2f 8c8d -10 32 567\n",
+        )
+        .expect("テスト用のファイルを書けない");
+
+        let result = open_at(&validated(&file));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let opened = result.expect("開けるはず");
+        assert_eq!(opened.format, BookFormat::YaneuraouDb);
+        assert_eq!(opened.position_count, Some(1));
+
+        // フロントが渡す綴り（前置き付き・手数違い）でも当たること
+        let key = to_book_key(
+            "position sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 7",
+        )
+        .expect("正当な局面");
+        let moves = opened.reader.lookup(&key).expect("引けるはず");
+
+        let usi: Vec<&str> = moves.iter().map(|m| m.usi_move.as_str()).collect();
+        assert_eq!(usi, ["7g7f", "2g2f"]);
+        assert_eq!(moves[0].ponder.as_deref(), Some("3c3d"));
+    }
+
     /// テストからも本番と同じ関門を通す。`open_at` は形を検査したパスしか
     /// 受け取らないので、ここを迂回する道はテストにも無い。
     fn validated(path: &Path) -> ValidatedBookPath {
