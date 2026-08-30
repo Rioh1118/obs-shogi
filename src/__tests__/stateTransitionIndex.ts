@@ -96,18 +96,15 @@ export function staleUncreatedNames(line: string, exists: (name: string) => bool
  * 開きと対になり、**例として書いたリンクが本文として残る**。未閉じも同じ側に倒れる。
  */
 export function stripFences(body: string): string {
-  let fence: string | null = null;
+  let fence: { mark: string; indent: number } | null = null;
   const out: string[] = [];
 
   for (const line of body.split("\n")) {
-    // 箇条書きの中のフェンスは字下げされるので、字下げ幅は見ない。CommonMark は
-    // 閉じの字下げを開きに一致させることを求めないので、一致を要求すると有効な閉じを
-    // 取りこぼし、そのファイルの残り全部を飲み込む。
-    const m = /^ *(`{3,}|~{3,})(.*)$/.exec(line);
+    const m = /^( *)(`{3,}|~{3,})(.*)$/.exec(line);
 
     if (fence == null) {
       if (m) {
-        fence = m[1]!;
+        fence = { mark: m[2]!, indent: m[1]!.length };
         out.push("");
         continue;
       }
@@ -115,8 +112,16 @@ export function stripFences(body: string): string {
       continue;
     }
 
+    // CommonMark の閉じは開きに字下げを合わせなくてよいが、字下げは3スペースまで。
+    // 一致を要求すると有効な閉じを取りこぼし、上限を外すとフェンスの**中身**である
+    // 字下げされたフェンスで閉じてしまう。どちらもファイルの残り全部を飲み込む。
+    // 包含ブロック（箇条書き）の字下げは追っていないので、開きの字下げで代用する。
     const closes =
-      m != null && m[1]![0] === fence[0] && m[1]!.length >= fence.length && !m[2]!.trim();
+      m != null &&
+      m[2]![0] === fence.mark[0] &&
+      m[2]!.length >= fence.mark.length &&
+      m[1]!.length <= fence.indent + 3 &&
+      !m[3]!.trim();
     if (closes) fence = null;
     out.push("");
   }

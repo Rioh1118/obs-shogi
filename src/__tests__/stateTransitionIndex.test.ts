@@ -149,6 +149,25 @@ describe("stripFences", () => {
     expect(stripFences(body)).toContain("real.md");
   });
 
+  test("フェンスの中の字下げされたフェンスでは閉じない", () => {
+    // 箇条書きの中のフェンスの書き方を、markdown フェンスで囲んで説明する形。
+    // 字下げ幅に上限を置かないと4行目が閉じになり、中身が本文として漏れたうえで
+    // 本物の閉じが新しい開きになり、そのファイルの残り全部を飲み込む。
+    const body = [
+      "```markdown",
+      "- 例:",
+      "",
+      "    ```",
+      "    [例](nope.md)",
+      "```",
+      "",
+      "[本物](real.md)",
+    ].join("\n");
+
+    expect(stripFences(body)).not.toContain("nope.md");
+    expect(stripFences(body)).toContain("real.md");
+  });
+
   test("箇条書きの中の字下げフェンスも落とす", () => {
     const body = [
       "- 例:",
