@@ -726,13 +726,16 @@ struct DroppedFields {
 
 /// 指し手の行を1つ読む。
 ///
-/// 並びは `指し手 応手 評価値 深さ 選択回数`。後ろの3つは形式として optional で、
-/// 同じファイルの中でも行によって欠ける。
+/// 並びは `指し手 応手 評価値 深さ 選択回数`。**先頭以外は行によって欠ける**
+/// （欠かし方は [`ABSENT_MOVE`] と空欄の2通りで、同じファイルの中で混ざる）。
 ///
-/// **区切りは1つの空白で数える**（`split_whitespace` ではない）。ShogiHome は
-/// score と depth を省くとき空文字を書き出すので、連続した空白を畳むと欄が
-/// 1つずつずれ、`深さ 32` が `評価値 +32` として画面に出る。エラーにならないので
-/// 誰も気づけない。
+/// **区切りは1つの空白で数える**（`split_whitespace` ではない）。空欄で省いた
+/// 定跡で連続した空白を畳むと欄が1つずつずれ、`深さ 32` が `評価値 +32` として
+/// 画面に出る。エラーにならないので誰も気づけない。
+///
+/// 本家は畳む側（一次資料の表の `LineScanner::peek_text` の行）なので、
+/// **ここは本家と一致しない。** 差が出るのは空欄で省いた定跡だけで、
+/// そこでは書いた側の意図が「欄を空けた」なので畳まない方が合う。
 ///
 /// 呼び出し側が空行と注記を除いてから渡すので、先頭のトークンは必ず存在する。
 /// 指し手として成立しているかは呼び出し側が [`looks_like_a_move`] で見る。
@@ -784,11 +787,18 @@ fn looks_like_a_move(token: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '*' || c == '+')
 }
 
-/// 指し手が無いことを表す綴り。
+/// 欄が省略されていることを表す綴り。
 ///
 /// 出典: 本家 `source/book/book.cpp:118-119`。**指し手の欄と応手の欄の両方**で
 /// 同じ3綴りを見る。片方だけに当てると、盤に適用できない綴りが
 /// 候補手の先頭＝best move の位置に座る。
+///
+/// **評価値と深さの欄にも当てる。** ShogiHome はこの2つを省くとき `none` を
+/// 書き出す（`src/background/book/yaneuraou.ts` の `SCORE_NONE` / `DEPTH_NONE`。
+/// 空文字は v1.20.0 までの書き方で、「やねうら王や BookConv は連続するスペースを
+/// まとめて読み込む」ため非推奨になった）。当てないと `7g7f none none none 103`
+/// という**現行の標準的な行**が数値欄2つぶんの欠損として数えられ、正常な定跡が
+/// 指し手の数より多い欠損を報告する。
 const ABSENT_MOVE: [&str; 3] = ["none", "None", "resign"];
 
 /// 応手の欄を読む。省略・空欄・「指し手が無い」の綴りはすべて欠損。
@@ -819,7 +829,9 @@ fn optional_number<T: std::str::FromStr>(
     dropped: &mut DroppedFields,
 ) -> Option<T> {
     let token = token?.trim();
-    if token.is_empty() {
+    // 省略の綴りは「読めなかった」ではないので数えない。数えると、正常な定跡が
+    // 毎回ログを出し、本当に読めなかった場合と区別が付かなくなる。
+    if token.is_empty() || ABSENT_MOVE.contains(&token) {
         return None;
     }
     match token.parse() {
@@ -1355,15 +1367,27 @@ mod tests {
         assert_eq!(dropped.numbers, 1);
     }
 
-    /// 空欄は「読めなかった」ではないので数えない。数えると、正常な定跡で
+    /// 省略された欄は「読めなかった」ではないので数えない。数えると、正常な定跡で
     /// 毎回ログが出て、本当に読めなかった場合と区別が付かなくなる。
+    ///
+    /// **`none` を含めること。** 空欄だけを見ていると、ShogiHome が書き出す
+    /// 現行の綴り（`7g7f none none none 103`）が数値欄2つぶんの欠損として
+    /// 数えられる。実物の `yaneuraou.db`（指し手19行）で欠損 20件という、
+    /// 指し手より多い件数が出ていた。
     #[test]
-    fn an_empty_field_is_not_counted_as_dropped() {
-        let mut dropped = DroppedFields::default();
-        parse_move("7g7f none  32 5", &mut dropped);
+    fn an_omitted_field_is_not_counted_as_dropped() {
+        for line in [
+            // v1.20.0 までの ShogiHome
+            "7g7f none  32 5",
+            // 現行の ShogiHome
+            "7g7f none none none 103",
+        ] {
+            let mut dropped = DroppedFields::default();
+            parse_move(line, &mut dropped);
 
-        assert_eq!(dropped.ponder, 0);
-        assert_eq!(dropped.numbers, 0);
+            assert_eq!(dropped.ponder, 0, "line={line}");
+            assert_eq!(dropped.numbers, 0, "line={line}");
+        }
     }
 
     /// **実在する最大の定跡が、どちらの上限にも余裕を持って収まること。**
