@@ -1,4 +1,5 @@
-use crate::book::error::{BookError, BookErrorCode};
+use crate::book::error::{excerpt, truncate_for_message, BookError, BookErrorCode};
+use std::fmt::Write;
 
 /// 正規化を通した定跡のキー。
 ///
@@ -16,10 +17,12 @@ use crate::book::error::{BookError, BookErrorCode};
 pub(crate) struct BookKey(String);
 
 impl BookKey {
-    // ファイル上を探索する reader は、これで取り出した綴りをファイルの中身と
-    // 突き合わせる。#[cfg(test)] で塞ぐとその reader が書けなくなるので、
-    // 呼び手がテストしか居ない間も本番ビルドに残す。
-    // TODO(#91): やねうら王 .db の reader が最初の呼び手になる。
+    // 本番の呼び手はまだ無い。メモリへ展開する reader はキーどうしを突き合わせる
+    // ので、綴りを取り出す必要が無い。
+    //
+    // #[cfg(test)] で塞がないのは、キーから局面を復元する reader（Apery の
+    // ハッシュキーなど）がこれを入口にするため。塞ぐとその reader が書けない。
+    // TODO(#275): 復元に必要な形を決めるとき、この口の形も一緒に決める。
     #[allow(dead_code)]
     pub(crate) fn as_str(&self) -> &str {
         &self.0
@@ -54,7 +57,7 @@ const PIECE_LIMITS: [(char, u32); 8] = [
 /// 並びは USI の SFEN のもの。この repo が既に依存している `shogi_core` が
 /// 同じ順で書き出すことを `the_key_matches_what_a_usi_implementation_writes`
 /// が固定している。
-// TODO(#91): 実物の定跡を fixture に置くとき、やねうら王が USI 標準どおりに
+// TODO(#291): 実物の定跡を fixture に置くとき、やねうら王が USI 標準どおりに
 // 書いていることまで確かめる（並び自体はここで閉じている）。
 const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 
@@ -121,9 +124,7 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     let reject_rest = |tokens: &mut dyn Iterator<Item = &str>| -> Result<(), String> {
         match tokens.next() {
             None => Ok(()),
-            Some("moves") => Err(invalid(
-                "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
-            )),
+            Some("moves") => Err(invalid(MOVES_IN_SFEN)),
             Some(extra) => Err(invalid(&format!(
                 "局面の後ろに余分なトークン {extra} がある"
             ))),
@@ -157,9 +158,7 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     if let Some(ply) = tokens.next() {
         // 手数の位置に来た moves は、後ろの reject_rest まで届かないのでここで見る。
         if ply == "moves" {
-            return Err(invalid(
-                "指し手列付きの局面は定跡キーにできない。進めた局面の SFEN を渡すこと",
-            ));
+            return Err(invalid(MOVES_IN_SFEN));
         }
         // 手数はキーから落とすが、数値でないものを黙って落とすと、書き間違えた
         // 局面が正しいキーとして通ってしまう。
@@ -185,7 +184,18 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     let hands = normalize_hands(hands, &mut counts).map_err(|reason| invalid(&reason))?;
     counts.validate().map_err(|reason| invalid(&reason))?;
 
-    Ok(BookKey(format!("{board} {side} {hands}")))
+    // **`format!` を使わない。** `format!` は途中で `reserve` を呼ぶので容量が
+    // 倍化し、綴りの長さの 1.8 倍前後を確保したまま返る。`BookKey` は定跡を
+    // 開いている間ずっと保持され、縮める箇所が無いので、その余りがそのまま
+    // 常駐する（実物の定跡で 76 字のキーが 138 バイト確保、225 万局面で 144 MB）。
+    // 見積もりの単価（`BYTES_PER_POSITION`）も、この余りを含んだ値になる。
+    let mut key = String::with_capacity(board.len() + side.len() + hands.len() + 2);
+    key.push_str(&board);
+    key.push(' ');
+    key.push_str(side);
+    key.push(' ');
+    key.push_str(&hands);
+    Ok(BookKey(key))
 }
 
 /// 定跡ファイルに書かれている局面をキーにする。
@@ -195,18 +205,27 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
 /// 付け替えても、人が読むのは message なので「渡した局面が読めない」のままになる。
 ///
 /// 元の理由は括弧に入れて残す。理由文の側の打ち切りは [`book_key_or_reason`] の中で済むが、
-/// **行そのものを切るのはここの [`excerpt`] だけ。** `.db` の1行は、途中で切れた
-/// ファイルや別形式のファイルでは数 MB になりうる。ここを外すと message が
-/// そのままログへ流れ、失敗1回でそれまでの記録が押し流される。
-// TODO(#91): 最初の呼び手はやねうら王 .db の reader。行番号を添えられるように
-// するかは、そこで決める。
-#[allow(dead_code)]
+/// **行そのものは [`excerpt`] を通してから載せる。** 予算と理由は `error.rs`。
+/// 通さないと message がそのままログへ流れ、失敗1回でそれまでの記録が押し流される
+/// （掛ける責任は呼び手ごとにある。ここが唯一の呼び手ではない）。
+/// 行番号は添えない。呼び出し側が行を数えているので、位置を足すのはそちら
+/// （`yaneuraou_db` の `annotate_line`）。ここへ持たせると、行の概念が無い
+/// 形式の reader が意味の無い番号を渡すことになる。
+/// 局面の後ろに指し手列が付いている、の理由文。
+///
+/// **復帰操作は書かない。** 理由文は呼び出し元が文脈に応じて包む（`sfen.rs` の
+/// 冒頭の宣言）。「進めた局面の SFEN を渡すこと」はフロントの実装者への指示で、
+/// 定跡ファイルの中身が同じ形だったときには実行できる操作が対応しない。
+const MOVES_IN_SFEN: &str = "局面の後ろに指し手列が付いている";
+
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(line).map_err(|reason| {
         BookError::new(
             BookErrorCode::InvalidContent,
+            // **並びは「何が起きたか（引用）。次にやること」。** 引用で終わると、
+            // 利用者は行番号と引用だけを読んで復帰操作を読み飛ばす。
             format!(
-                "定跡ファイルに読めない行がある。取得し直すか、別の定跡を開くこと（{reason}: {}）",
+                "定跡ファイルに読めない行がある（{reason}: {}）。取得し直すか、別の定跡を開くこと",
                 excerpt(line)
             ),
         )
@@ -243,26 +262,6 @@ fn measured_len(input: &str) -> usize {
 /// 194 に余裕を持たせ、2 の冪へ丸めて 256。
 /// これを超えるものは局面ではないので、数え上げにも理由文にも進ませない。
 const MAX_INPUT_CHARS: usize = 256;
-
-/// message に載せる引用の上限。
-///
-/// 「持駒が無い: <局面>」のような理由が読み取れる長さで、なおかつ失敗1件が
-/// ログ（200KB でローテート）の予算を食い潰さない上限として選んだ。
-const MESSAGE_EXCERPT_CHARS: usize = 120;
-
-/// message に載せる引用。前後の空白は落とし、長さを打ち切る。
-fn excerpt(input: &str) -> String {
-    truncate_for_message(input.trim())
-}
-
-/// message に載せる引用を打ち切る。
-fn truncate_for_message(excerpt: &str) -> String {
-    let mut out: String = excerpt.chars().take(MESSAGE_EXCERPT_CHARS).collect();
-    if out.chars().count() < excerpt.chars().count() {
-        out.push('…');
-    }
-    out
-}
 
 /// 持駒の枚数を、検査を通さずに作れないようにするための囲い。
 ///
@@ -430,9 +429,13 @@ fn normalize_board(board: &str, counts: &mut PieceCounts) -> Result<String, Stri
 ///
 /// 段の列数が9かを見るのは呼び出し側で、それはこの関数を呼んだ後なので、
 /// ここには 9 を超える値も来る（`"99"` という段など）。1桁を前提にしないこと。
+/// **確保しない。** `to_string()` は毎回ヒープを取り、呼ばれる回数は盤の空きマスの
+/// run の数（局面あたり実測 17 回）。実物の定跡（225 万局面）では 3,800 万回の
+/// 短命な確保になる。
 fn flush_empty(out: &mut String, empty: &mut u32) {
     if *empty > 0 {
-        out.push_str(&empty.to_string());
+        // `String` への `write!` は失敗しない
+        let _ = write!(out, "{empty}");
         *empty = 0;
     }
 }
@@ -485,7 +488,8 @@ fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, Stri
                 continue;
             }
             if count > 1 {
-                out.push_str(&count.to_string());
+                // 確保しない（理由は `flush_empty`）
+                let _ = write!(out, "{count}");
             }
             let piece = HAND_PIECES[index];
             out.push(if side == 0 {
@@ -647,11 +651,59 @@ mod tests {
         }
     }
 
+    /// **理由文に復帰操作を書かないこと。**
+    ///
+    /// 理由文は呼び出し元が文脈に応じて包む。利用者が操作した局面なら
+    /// 「盤面を操作し直せ」、定跡ファイルの中身なら「取得し直せ」で、出すべき
+    /// 復帰操作が違う。理由文の中に書くと、**ファイル由来の失敗で
+    /// フロントの実装者向けの指示が利用者に出る。**
+    #[test]
+    fn a_reason_does_not_carry_a_recovery_step() {
+        let broken = [
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 moves 7g7f",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - x",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL x - 1",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b K 1",
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 x",
+        ];
+        for sfen in broken {
+            let reason = book_key_or_reason(sfen).expect_err("読めないはず");
+            assert!(
+                !reason.contains("こと"),
+                "理由文に復帰操作が入っている: {reason}"
+            );
+        }
+    }
+
+    /// キーは余分な容量を抱えないこと。
+    ///
+    /// **`format!` は途中で `reserve` を呼ぶので容量が倍化する。** 実測で
+    /// 76 字のキーが 138 バイト確保になり、`BookKey` は定跡を開いている間ずっと
+    /// 保持されるので、その余りがそのまま常駐する（225 万局面で 144 MB）。
+    /// `BYTES_PER_POSITION` の見積もりも、その余りを含んだ値になる。
+    ///
+    /// 持駒の有無で綴りの組み方が変わるので、両方を見る。
+    #[test]
+    fn a_book_key_does_not_carry_slack_capacity() {
+        for sfen in [
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1",
+            "lnsgkgsnl/1r5b1/pppppppp1/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w p 5",
+        ] {
+            let key = to_book_key(sfen).expect("読めるはず");
+            assert_eq!(
+                key.0.capacity(),
+                key.0.len(),
+                "余分な容量を抱えている: {sfen}"
+            );
+        }
+    }
+
     /// 理由文に入力の断片を埋める枝を、実際に通して打ち切りを見る。
     ///
     /// 入力全体を長くすると入口の長さ検査に落ちてこの枝へ来ないので、
     /// **全体は `MAX_INPUT_CHARS` 以下のまま、1トークンだけを長くする。**
-    /// 上限は絶対値で見る。`MESSAGE_EXCERPT_CHARS` から導くと、その定数を
+    /// 上限は絶対値で見る。[`crate::book::error::excerpt`] の予算 から導くと、その定数を
     /// 緩めたときにテストも一緒に緩む。
     ///
     /// 長さだけを見ると、理由文と引用のどちらか一方を打ち切っただけでも通る。

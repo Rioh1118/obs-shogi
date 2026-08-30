@@ -11,7 +11,8 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 `git commit` は `.claude/hooks/verify-gate.sh` が横取りし、変更ファイルの種類に応じて
 上を自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
-docs や `.claude/` だけの変更は素通しする。
+docs や `.claude/` だけの変更は素通しする。**ただし `docs/state-transitions/*.md` は
+`state_table_terms.rs` が実装と突き合わせるので Rust 側が走る。**
 
 作業を「完了」と報告する前に該当する方を必ず通すこと。通していないなら「未検証」と明示すること。
 

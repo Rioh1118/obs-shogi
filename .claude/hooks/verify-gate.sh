@@ -3,7 +3,7 @@
 #
 # 変更ファイルの種類だけを見て、必要な verify を選んで走らせる。
 # どの種類がどれを呼ぶかは `gate_kinds_for_path` が唯一の出典（ここに写さない。
-# 2箇所に書くと必ず片方が腐る）。当たらない変更（docs/ など）は素通しする。
+# 2箇所に書くと必ず片方が腐る）。どの種類にも当たらない変更は素通しする。
 #
 # 落ちたら permissionDecision: deny を返してコミット自体を止める。
 # 逃げ道は用意しない。逃げ道を用意した時点でゲートではなくなる。
@@ -203,12 +203,21 @@ gate_target_dir() {
 gate_kinds_for_path() {
   local path=$1 kinds=""
 
+  # `.rs` がここにも入るのは、`src/__tests__/` の規約の検査のうち
+  # **Rust のソースを走査するもの**（コメントに経緯を書かない、など）が
+  # vitest でしか走らないため。rust だけに分類すると、Rust しか触らない
+  # コミットでその検査が一度も走らない。
   case "$path" in
-    *.ts|*.tsx|*.scss|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
+    *.ts|*.tsx|*.scss|*.rs|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
   esac
   case "$path" in
     *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
       kinds="$kinds rust" ;;
+  esac
+  # 状態遷移表は `state_table_terms.rs` が実装と突き合わせる。表だけを直した
+  # コミットで走らないと、その検査が仕事をしない。
+  case "$path" in
+    docs/state-transitions/*.md) kinds="$kinds rust" ;;
   esac
   case "$path" in
     .claude/hooks/*.sh) kinds="$kinds gate" ;;

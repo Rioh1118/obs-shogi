@@ -1,0 +1,165 @@
+//! 状態遷移表が、実在しない定数を仕様として書いていないことを見る。
+//!
+//! **表は仕様として読まれる。** `docs/state-transitions/yaneuraou-db-parse.md` は
+//! 冒頭で「仕様の突き合わせのために置く」と宣言していて、実装より表を信じる
+//! 読み方を前提にしている。そこに消した定数が残っていると、次に触る人は
+//! 存在しない検査を前提に設計する。
+//!
+//! 見るのは大文字の定数名だけ。表には `book.cpp:709-716` のような外部の出典も
+//! 関数名も出るので、それらまで実在を要求すると表が書けなくなる。定数は
+//! 綴りが一意で、腐ったときに読み手が最も強く誤解する。
+//!
+//! ✓ の正しさ（そのセルを踏むテストが本当にあるか）はここでは見られない。
+//! 表の全セルにテスト名を書く規約が要るので、それは別の話。
+
+mod common;
+use common::without_comments;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// 表と、その表が指している実装。
+const TABLES: [(&str, &[&str]); 2] = [
+    (
+        "docs/state-transitions/yaneuraou-db-parse.md",
+        &["src/book/yaneuraou_db.rs", "src/book/sfen.rs"],
+    ),
+    (
+        "docs/state-transitions/book-key-failures.md",
+        &["src/book/sfen.rs"],
+    ),
+];
+
+/// Rust の実装を指していない表。**理由を書かずに足さない。**
+///
+/// 対応表を手で書く以上、足し忘れは必ず起きる。`root_guard.rs` と同じで、
+/// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
+const NOT_RUST: [(&str, &str); 9] = [
+    ("analysis.md", "解析パネル。TS 側の reducer"),
+    ("app.md", "アプリ全体の起動と終了。TS 側"),
+    ("branch-index.md", "分岐の索引。TS 側"),
+    ("engine-position-sync.md", "局面の送信。TS 側のフック"),
+    ("engine.md", "エンジンの生存。TS 側から見た状態"),
+    ("failure-surfacing.md", "失敗の見せ方。TS 側"),
+    ("file-tree.md", "ファイル木。TS 側"),
+    ("inline-name-editor.md", "名前の編集。TS 側"),
+    ("verify-gate-decision.md", "検証ゲート。shell スクリプト"),
+];
+
+/// 表に出るが実装の識別子ではないもの。
+///
+/// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
+const NOT_IDENTIFIERS: [&str; 4] = [
+    // ShogiHome（TypeScript）の識別子。この crate の定数ではない
+    "SCORE_NONE",
+    "DEPTH_NONE",
+    // やねうら王の定跡フォーマットの見出し。文字列であって定数名ではない
+    "YANEURAOU",
+    // 局面数の注記。`# NOE:` の綴りの一部
+    "NOE",
+];
+
+fn repo_file(relative: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join(relative)
+}
+
+/// バッククォートで囲まれた大文字の定数名を集める。
+fn constants_in(text: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    // バッククォートの中は式のこともある（`a * B + c > D`）ので、語ごとに切る。
+    for chunk in text.split('`').skip(1).step_by(2) {
+        for word in chunk.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
+            let is_constant = word.len() >= 3
+                && word
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+                && word.chars().any(|c| c.is_ascii_uppercase());
+            if is_constant && !NOT_IDENTIFIERS.contains(&word) {
+                found.insert(word.to_string());
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn every_constant_named_in_a_table_exists_in_the_source() {
+    for (table, sources) in TABLES {
+        let text = fs::read_to_string(repo_file(table)).expect("表を読めない");
+        let code: String = sources
+            .iter()
+            .map(|s| {
+                fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(s))
+                    .expect("実装を読めない")
+            })
+            .collect();
+
+        // **コメントを落としてから見る。** 定数を消しても doc の言及は残りやすい。
+        // 落とさないと、その1行だけで「実装にある」と読んでしまう。
+        let code = without_comments(&code);
+
+        // 部分文字列で見ない。`MAX_MOVE` は `MAX_MOVE_CHARS` に含まれるので、
+        // 消した定数の接頭辞が別の定数に残っているだけで通ってしまう。
+        let declared: BTreeSet<&str> = code
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .collect();
+
+        let missing: Vec<String> = constants_in(&text)
+            .into_iter()
+            .filter(|name| !declared.contains(name.as_str()))
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "{table} が実装に無い定数を書いている: {missing:?}\n\
+             消した定数なら表も直すこと。表は仕様として読まれるので、\n\
+             存在しない検査を前提に設計する人が出る。",
+        );
+    }
+}
+
+/// 表を足したときに、この検査へ取り込み忘れないこと。
+///
+/// **対応表を手で書いている以上、これが無いと表を1つ足すだけで検査を抜けられる。**
+/// 抜けた表は、定数を書いていても誰にも見られない。
+#[test]
+fn every_table_is_either_checked_or_declared_not_rust() {
+    let dir = repo_file("docs/state-transitions");
+    let mut unregistered = Vec::new();
+
+    for entry in fs::read_dir(&dir).expect("表の置き場を読めない") {
+        let name = entry.expect("表を読めない").file_name();
+        let name = name.to_string_lossy().to_string();
+        if !name.ends_with(".md") || name == "README.md" {
+            continue;
+        }
+        let checked = TABLES.iter().any(|(path, _)| path.ends_with(&name));
+        let excused = NOT_RUST.iter().any(|(excused, _)| *excused == name);
+        if !checked && !excused {
+            unregistered.push(name);
+        }
+    }
+
+    assert!(
+        unregistered.is_empty(),
+        "この検査に登録されていない表がある: {unregistered:?}\n\
+         Rust の実装を指す表なら TABLES へ、そうでないなら理由を添えて NOT_RUST へ。",
+    );
+}
+
+/// 検査そのものが空振りしていないこと。
+///
+/// 表から定数を1つも拾えていなければ、上のテストは何を消しても通る。
+#[test]
+fn the_check_actually_finds_constants() {
+    let text = fs::read_to_string(repo_file(TABLES[0].0)).expect("表を読めない");
+    let found = constants_in(&text);
+
+    assert!(
+        found.len() >= 5,
+        "表から拾えた定数が少なすぎる（{}件）。綴りの規則が変わったかもしれない: {found:?}",
+        found.len()
+    );
+}

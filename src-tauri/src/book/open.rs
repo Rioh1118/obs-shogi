@@ -1,7 +1,9 @@
 //! 定跡を開くまでの検査。
 //!
 //! **検査の順序を語るのはここ1箇所。** パスの形 → 拡張子から形式 → 実体の解決 →
-//! 指定と実体の形式の一致 → ファイルであること、の順に落ちる。
+//! 指定と実体の形式の一致 → ファイルであること → 形式ごとの大きさの上限 →
+//! 中身、の順に落ちる。後ろの3つの実装は [`crate::book::reader::open_reader`] に
+//! ある（`metadata` を1度しか取らないため）。
 //!
 //! 最初の「パスの形」だけは [`validate_book_path`] という別の関門で、
 //! 呼び手が先に通す。通した証拠が [`ValidatedBookPath`] で、[`open_at`] は
@@ -11,9 +13,9 @@
 //! 起動時に前回の定跡を開き直す、reader の結合テストを書く、といった呼び手が
 //! `tauri::State` を経由せずにここへ来られる。
 //!
-//! 形式そのものの検査（拡張子は `.db` だが中身が別形式、など）を足すときも
-//! ここに置く。`reader` 側は「解決済みのパスと確定済みの形式を受け取って
-//! reader を作る」だけに保つこと。
+//! パスと形式から決まる検査（綴り・実在・種別）を足すときはここに置く。
+//! **ファイルの中身を読まないと決まらない検査は `reader` 側**（大きさの上限と
+//! 中身の検査がそこにあるのはそのため）。境目は「`metadata` より先か後か」。
 
 use crate::book::error::{BookError, BookErrorCode};
 use crate::book::reader::{open_reader, OpenedBook};
@@ -180,6 +182,45 @@ mod tests {
     use super::*;
     use crate::book::error::MAX_PATH_CHARS;
 
+    /// 開いてから引くまでを、実物と同じ形の定跡ファイルで通す。
+    ///
+    /// 各段の unit test は自分の担当だけを見るので、**繋ぎ目がずれても全部緑のまま
+    /// 通る。** ここだけが「開いて引ける」を言える。
+    #[test]
+    fn opens_a_book_and_finds_the_opening_moves() {
+        use crate::book::sfen::to_book_key;
+
+        let dir = crate::book::test_paths::scratch_dir("end-to-end");
+        let file = dir.join("standard.db");
+        std::fs::write(
+            &file,
+            "#YANEURAOU-DB2016 1.00\n\
+             # NOE:1\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n\
+             7g7f 3c3d 50 32 1234\n\
+             2g2f 8c8d -10 32 567\n",
+        )
+        .expect("テスト用のファイルを書けない");
+
+        let result = open_at(&validated(&file));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let opened = result.expect("開けるはず");
+        assert_eq!(opened.format, BookFormat::YaneuraouDb);
+        assert_eq!(opened.position_count, Some(1));
+
+        // フロントが渡す綴り（前置き付き・手数違い）でも当たること
+        let key = to_book_key(
+            "position sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 7",
+        )
+        .expect("正当な局面");
+        let moves = opened.reader.lookup(&key).expect("引けるはず");
+
+        let usi: Vec<&str> = moves.iter().map(|m| m.usi_move.as_str()).collect();
+        assert_eq!(usi, ["7g7f", "2g2f"]);
+        assert_eq!(moves[0].ponder.as_deref(), Some("3c3d"));
+    }
+
     /// テストからも本番と同じ関門を通す。`open_at` は形を検査したパスしか
     /// 受け取らないので、ここを迂回する道はテストにも無い。
     fn validated(path: &Path) -> ValidatedBookPath {
@@ -192,9 +233,7 @@ mod tests {
     /// 形式の食い違い検査自体は Windows でも本番経路として動くが、**検証していない。**
     #[cfg(unix)]
     fn linked(name: &str, target_ext: &str, link_ext: &str) -> (PathBuf, PathBuf, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("obs-shogi-book-open-at-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let dir = crate::book::test_paths::scratch_dir(name);
 
         let target = dir.join(format!("target{target_ext}"));
         let link = dir.join(format!("link{link_ext}"));
@@ -308,9 +347,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn reports_the_link_target_when_it_cannot_be_resolved() {
-        let dir = std::env::temp_dir().join("obs-shogi-book-dangling");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let dir = crate::book::test_paths::scratch_dir("dangling");
 
         let missing = dir.join("gone.db");
         let link = dir.join("link.db");

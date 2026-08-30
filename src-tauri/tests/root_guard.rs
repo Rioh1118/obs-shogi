@@ -15,6 +15,8 @@
 //! 関門そのものは `root_dir` が未設定のときに無条件で開く
 //! （`utils.rs` の `validate_under_root`）。
 
+mod common;
+use common::without_comments;
 use std::fs;
 use std::path::Path;
 
@@ -91,41 +93,6 @@ const EXEMPT: [(&str, &str); 7] = [
         "(2) root_dir を決める側。関門を掛けると root を設定できなくなる → TODO(#215)",
     ),
 ];
-
-/// `/* */` と `//` を落とす。関数名をコメントに書く習慣があるので、
-/// 落とさないと「呼んでいない」を「呼んでいる」と読み違える。
-///
-/// 文字列リテラルの中の `//` は、その行の残りが落ちるだけ（偽陽性）。
-/// **`/*` は違う。** 文字列の中にあると次の `*/` までが丸ごと落ち、その範囲の
-/// `#[command]` が走査から消える（偽陰性）。いまソースに `/*` を含む文字列は無い
-fn without_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let bytes = source.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i..].starts_with(b"/*") {
-            match source[i + 2..].find("*/") {
-                Some(at) => i += 2 + at + 2,
-                None => break,
-            }
-            continue;
-        }
-        if bytes[i..].starts_with(b"//") {
-            match source[i..].find('\n') {
-                Some(at) => i += at,
-                None => break,
-            }
-            continue;
-        }
-        out.push(source[i..].chars().next().expect("境界がずれている"));
-        i += source[i..]
-            .chars()
-            .next()
-            .map(|c| c.len_utf8())
-            .expect("境界がずれている");
-    }
-    out
-}
 
 /// 属性から**その関数の閉じ括弧まで**を1つのコマンドとして切り出す。
 ///

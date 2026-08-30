@@ -17,7 +17,10 @@ mod open;
 mod reader;
 mod session;
 mod sfen;
+#[cfg(test)]
+mod test_paths;
 mod types;
+mod yaneuraou_db;
 
 pub use api::{
     close_all_books, close_book, get_book_info, list_books, lookup_book_moves, open_book,
