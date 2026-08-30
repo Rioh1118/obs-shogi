@@ -13,7 +13,7 @@ git tag v0.3.0 && git push origin v0.3.0
 ```
 
 `create-release` がリリースを作り（`draft: false`。`/releases/latest/download/` を
-解決させるため）、`build` が4本（macOS arm64 / macOS x64 / Windows x64 / Linux x64）
+解決させるため）、`build` が4ジョブ（macOS arm64 / macOS x64 / Windows x64 / Linux x64）
 走って資産を上げる。
 
 `workflow_dispatch` でも撃てる。**組むソースはタグの木**だが、
@@ -82,7 +82,7 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 
 ## 資産が欠けたリリースの直し方
 
-`fail-fast: false` なので、1つの OS が落ちても残りは上がる。**リリースは公開されたまま残る。**
+`fail-fast: false` なので、1つのジョブが落ちても残りは上がる。**リリースは公開されたまま残る。**
 
 直し方は**失敗した場所**で分かれる。
 
@@ -91,9 +91,16 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 | ビルドの手順（`release.yml` 自身） | 直したブランチから**同じタグで `workflow_dispatch`**。手順は撃った ref から来る |
 | タグの木（ソース側のコンパイル等） | 撃ち直しても再現する。**タグを付け替える**か新しいバージョンを切る              |
 
+```
+gh workflow run release.yml --ref <直したブランチ> -f tag=v0.3.0
+```
+
+**`--ref` を省くと既定ブランチの `release.yml` が走る。** UI の "Run workflow" の
+ブランチ選択も既定ブランチが初期値。直したブランチを指さないと、同じジョブが同じ理由で落ちる。
+
 **撃ち直す前に、前の run が終わっているか見ること。** `concurrency` の group は
 タグなので、走っている run があると dispatch は **pending のまま起動しない**。
-`fail-fast: false` なので1つの leg が赤くなっても run は続いている。止めるならキャンセルする。
+`fail-fast: false` なので1つのジョブが赤くなっても run は続いている。止めるならキャンセルする。
 
 **どちらでも、先にリリースを資産ごと消すこと。**
 撃ち直しは既存のリリースを再利用し、`tauri-action` は**同じ名前の資産しか差し替えない**。
@@ -106,11 +113,11 @@ bundler の bail で落ちる。`fail-fast: false` なので他の OS の資産�
 ## 同時に走らせない
 
 `concurrency` の group はタグ（`github.event.inputs.tag || github.ref_name`）。
-group が直列化するのは **run** で、1つの run の中の4本は並行に走ったまま。
+group が直列化するのは **run** で、1つの run の中の4ジョブは並行に走ったまま。
 
-push と dispatch を同じタグに対して撃つと、group が無ければ2つの run（計8本の leg）が
+push と dispatch を同じタグに対して撃つと、group が無ければ2つの run（計8ジョブ）が
 同じ `latest.json` を read-modify-write して後勝ちになる。group はそれを止める。
-**1つの run の中の4本が同じ `latest.json` を触ることへの保護は無い。**
+**1つの run の中の4ジョブが同じ `latest.json` を触ることへの保護は無い。**
 `tauri-action` は既存の `latest.json` を読んで自分の欄だけ差し替える read-modify-write で、
 排他は無い。実害は観測していない（v0.2.1 には4プラットフォーム全部が載っている）。
 
