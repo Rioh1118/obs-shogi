@@ -92,8 +92,11 @@ export function advanceCurrentLine(player: JKFPlayer): AdvanceResult {
  * `__tests__/advanceWithPlan.test.ts` が固定している）。上限ではなく等値判定なので、
  * 「どちらが先に打ち切るか」を揃えようとしても揃わない。
  *
- * 実際には `computeLeafTesuu` が `buildPlayer` の `goto` を先に通すので、
- * この値が先に効く場面は無い。
+ * どちらが先に効くかは呼び出し側による。`goto` を通ってから歩く経路
+ * （`computeLeafTesuu` にカーソルを渡した場合）は `goto` の等値判定が先に当たりうるが、
+ * `goto` を通らない経路——`goToEnd`（いまの player をそのまま歩かせる）と
+ * `cursor` が `null` の `computeLeafTesuu`（`buildPlayer` が `goto` を呼ばない）——では
+ * この上限が先に効く。
  */
 export const PLAN_WALK_LIMIT = 10000;
 
