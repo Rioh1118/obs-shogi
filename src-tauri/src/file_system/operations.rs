@@ -1,6 +1,8 @@
 use crate::file_system::{
     error::{FsError, FsErrorCode},
-    utils::{atomic_write, ensure_not_exists, validate_basename, validate_under_root},
+    utils::{
+        atomic_write, ensure_not_exists, is_project_root, validate_basename, validate_under_root,
+    },
 };
 use std::io::Write;
 
@@ -55,30 +57,24 @@ fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
 #[command]
 pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<String, FsError> {
     let path = PathBuf::from(&file_path);
+    validate_under_root(&app, &path)?;
 
     if !path.exists() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "ファイルが存在しません").with_path(file_path),
-        );
+        return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
 
     if !path.is_file() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはファイルではありません",
-        )
-        .with_path(path.to_string_lossy().to_string()));
+        return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
+            .with_path(path.to_string_lossy().to_string()));
     }
 
     // 棋譜ファイルのみ読み込み許可
     if !is_kifu_file(&path) {
         return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "棋譜ファイルではありません")
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
                 .with_path(path.to_string_lossy().to_string()),
         );
     }
-
-    validate_under_root(&app, &path)?;
 
     read_text_portable(&path)
 }
@@ -136,9 +132,9 @@ fn convert_jkf_to_format(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<
         Some("ki2") => Ok(patch_gote_start(jkf_data.to_ki2_owned(), is_gote)),
         Some("csa") => Ok(jkf_data.to_csa_owned()),
         Some("jkf") => serde_json::to_string_pretty(jkf_data)
-            .map_err(|e| FsError::new(FsErrorCode::InvalidType, e.to_string())),
+            .map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string())),
         _ => Err(
-            FsError::new(FsErrorCode::InvalidExtension, "未対応の形式です")
+            FsError::new(FsErrorCode::InvalidExtension, "unsupported kifu format")
                 .with_path(file_path.to_string_lossy().to_string()),
         ),
     }
@@ -152,32 +148,35 @@ pub fn create_kifu_file<R: Runtime>(
     mut jkf_data: JsonKifuFormat,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが存在しません")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
 
-    validate_basename(&file_name)?;
+    let file_name = validate_basename(&file_name)?;
 
     let file_path = parent_path.join(&file_name);
 
     if !is_kifu_file(&file_path) {
-        return Err(FsError::new(
-            FsErrorCode::InvalidExtension,
-            "棋譜ファイルの拡張子ではありません",
-        )
-        .with_path(file_path.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
+                .with_path(file_path.to_string_lossy().to_string()),
+        );
     }
 
     validate_under_root(&app, &file_path)?;
 
     // JKFデータを正規化
-    jkf_data
-        .normalize()
-        .map_err(|e| FsError::new(FsErrorCode::InvalidType, format!("正規化エラー: {:?}", e)))?;
+    jkf_data.normalize().map_err(|e| {
+        FsError::new(
+            FsErrorCode::KifuConversionFailed,
+            format!("normalize failed: {:?}", e),
+        )
+    })?;
 
     // ファイル拡張子に応じて適切な形式に変換
     let content = convert_jkf_to_format(&jkf_data, &file_path)?;
@@ -197,24 +196,24 @@ pub fn import_kifu_file<R: Runtime>(
     jkf_data: JsonKifuFormat,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが存在しません")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
 
-    validate_basename(&file_name)?;
+    let file_name = validate_basename(&file_name)?;
 
     let file_path = parent_path.join(&file_name);
 
     if !is_kifu_file(&file_path) {
-        return Err(FsError::new(
-            FsErrorCode::InvalidExtension,
-            "棋譜ファイルの拡張子ではありません",
-        )
-        .with_path(file_path.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
+                .with_path(file_path.to_string_lossy().to_string()),
+        );
     }
 
     validate_under_root(&app, &file_path)?;
@@ -237,24 +236,26 @@ pub fn save_kifu_file<R: Runtime>(
     content: String,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
-    let file_path = parent_path.join(&file_name);
+    validate_under_root(&app, &parent_path)?;
 
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが存在しません")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
 
-    validate_basename(&file_name)?;
+    // パスは検証を通した名前から組む。生の名前で先に組むと、検証した文字列と
+    // 実際に書き込む先が別のものになる
+    let file_name = validate_basename(&file_name)?;
+    let file_path = parent_path.join(&file_name);
 
     if !is_kifu_file(&file_path) {
-        return Err(FsError::new(
-            FsErrorCode::InvalidExtension,
-            "棋譜ファイルの拡張子ではありません",
-        )
-        .with_path(file_path.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
+                .with_path(file_path.to_string_lossy().to_string()),
+        );
     }
 
     validate_under_root(&app, &file_path)?;
@@ -273,20 +274,21 @@ pub fn create_directory<R: Runtime>(
     dir_name: String,
 ) -> Result<String, FsError> {
     let parent_path = PathBuf::from(&parent_dir);
+    validate_under_root(&app, &parent_path)?;
 
     // 親ディレクトリの存在確認
     if !parent_path.exists() || !parent_path.is_dir() {
         return Err(
-            FsError::new(FsErrorCode::InvalidPath, "親ディレクトリが存在しません")
+            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
                 .with_path(parent_dir),
         );
     }
 
-    validate_basename(&dir_name)?;
+    let dir_name = validate_basename(&dir_name)?;
 
     let new_dir_path = parent_path.join(&dir_name);
-    ensure_not_exists(&new_dir_path)?;
     validate_under_root(&app, &new_dir_path)?;
+    ensure_not_exists(&new_dir_path)?;
 
     fs::create_dir(&new_dir_path).map_err(FsError::from)?;
 
@@ -297,30 +299,24 @@ pub fn create_directory<R: Runtime>(
 #[command]
 pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&file_path);
+    validate_under_root(&app, &path)?;
 
     if !path.exists() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "ファイルが存在しません").with_path(file_path),
-        );
+        return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
     }
 
     if !path.is_file() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはファイルではありません",
-        )
-        .with_path(path.to_string_lossy().to_string()));
+        return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
+            .with_path(path.to_string_lossy().to_string()));
     }
 
     // 棋譜ファイルのみ削除許可
     if !is_kifu_file(&path) {
         return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "棋譜ファイルではありません")
+            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
                 .with_path(path.to_string_lossy().to_string()),
         );
     }
-
-    validate_under_root(&app, &path)?;
 
     fs::remove_file(path).map_err(FsError::from)
 }
@@ -328,22 +324,32 @@ pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(
 #[command]
 pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&dir_path);
+    validate_under_root(&app, &path)?;
+
+    // ワークスペースそのものは消させない。`remove_dir_all` は中身ごと消し、
+    // 取り消す手段が無い。UI 側にも判定はあるが、**取り消せない操作を UI の判定だけに
+    // 預けない**。webview から直に invoke されても、UI の判定を消す変更が入っても
+    // 壊れない層に置く
+    if is_project_root(&app, &path)? {
+        return Err(FsError::new(
+            FsErrorCode::RootNotDeletable,
+            "cannot delete the project root",
+        )
+        .with_path(dir_path));
+    }
 
     if !path.exists() {
         return Err(
-            FsError::new(FsErrorCode::NotFound, "ディレクトリが存在しません").with_path(dir_path),
+            FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
         );
     }
 
     if !path.is_dir() {
-        return Err(FsError::new(
-            FsErrorCode::InvalidType,
-            "指定されたパスはディレクトリではありません",
-        )
-        .with_path(path.to_string_lossy().to_string()));
+        return Err(
+            FsError::new(FsErrorCode::InvalidType, "path is not a directory")
+                .with_path(path.to_string_lossy().to_string()),
+        );
     }
-
-    validate_under_root(&app, &path)?;
 
     fs::remove_dir_all(path).map_err(FsError::from)
 }

@@ -37,7 +37,8 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 | [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                                  |
 | [file-tree.md](file-tree.md)                       | ✅        |                                                            |
 | [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                    |
-| [failure-surfacing.md](failure-surfacing.md)       | ✅        | Q-005 の材料                                               |
+| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）             |
+| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う                  |
 | [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                     |
 | `game.md`                                          | ❌ 未作成 | `set_error` が9箇所から飛ぶが読み手が0。**書く価値が高い** |
 | `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある            |

@@ -20,7 +20,13 @@ function CreateFileModal() {
   if (!isOpen) return null;
 
   return (
-    <Modal onClose={() => closeModal()} theme="light" variant="dialog" size="md" scroll="card">
+    <Modal
+      onClose={() => closeModal()}
+      label="ファイルを作成"
+      variant="dialog"
+      size="md"
+      scroll="card"
+    >
       <div className="create-file-modal">
         <div className="create-file-modal__tabs" role="tablist" aria-label="ファイル作成">
           <button

@@ -295,11 +295,11 @@ export default function StudyPositionsManagerModal() {
   return (
     <Modal
       onClose={closeModal}
+      label="課題局面"
       theme="dark"
       variant="workspace"
       size="xl"
       chrome="card"
-      padding="none"
       scroll="none"
       closeOnEsc
       closeOnOverlay
@@ -345,9 +345,11 @@ export default function StudyPositionsManagerModal() {
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="ラベル・メモを検索"
                   onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                      e.stopPropagation();
-                      if (query) setQuery("");
+                    // 消すものがあるときだけ消費する。`stopPropagation()` にすると
+                    // `document` まで届かず、消すものが無いときも Escape が死ぬ
+                    if (e.key === "Escape" && query) {
+                      e.preventDefault();
+                      setQuery("");
                     }
                   }}
                 />

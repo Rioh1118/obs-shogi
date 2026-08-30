@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
+import { SRC, tsFiles } from "./walk";
 
 /**
  * 先後の記号（☗ / ☖）の直書きを禁じる
@@ -9,19 +10,8 @@ import { describe, expect, it } from "vitest";
  * oxlint に `no-restricted-syntax` が無いので、ここで文字列として拾う。
  */
 
-const SRC = join(process.cwd(), "src");
-
 /** 定義元。ここだけが記号のリテラルを持ってよい。 */
 const DEFINITION = join("shared", "lib", "turn.ts");
-
-/** テストは期待値として記号を書くので対象外。 */
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) return entry.name === "__tests__" ? [] : sourceFiles(full);
-    return /\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
 
 /** コメント中の例は対象外。禁じたいのは画面に出るリテラル。 */
 function stripComments(code: string): string {
@@ -30,7 +20,11 @@ function stripComments(code: string): string {
 
 describe("先後の記号の直書き", () => {
   it("shared/lib/turn.ts 以外に無い", () => {
-    const offenders = sourceFiles(SRC)
+    // テストは期待値として記号を書くので外す
+    const scanned = tsFiles(SRC, { includeTests: false });
+    expect(scanned.length, "走査できていない").toBeGreaterThan(100);
+
+    const offenders = scanned
       .map((file) => relative(SRC, file))
       .filter((file) => file !== DEFINITION)
       .filter((file) => /[☗☖]/.test(stripComments(readFileSync(join(SRC, file), "utf8"))));

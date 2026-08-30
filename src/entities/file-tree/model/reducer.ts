@@ -93,8 +93,40 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
           action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
       };
 
+    // 編集中の行とメニューは畳む。**畳んでよいのは、ここへ来た時点で欄がもう
+    // 無いから。** 欄が生きているうちは `failToNameInput` が入力欄へ返すので、
+    // ここへ届く名前の失敗は `InlineNameEditor` の `onUnshowable` 経由だけ
+    // （＝欄が unmount されたあと）。`conflict_opened` が畳んでいるのと同じ理由
     case "error":
-      return { ...state, isLoading: false, error: action.payload };
+      // 衝突の解決中に失敗したときは、そのダイアログの中で伝える（`submitError`）。
+      // ここで積むと対話の裏に別の失敗の箱が重なり、解決操作の続きが
+      // どちらの箱に属するか読めなくなる。
+      //
+      // **これは code を見ない。落とすかどうかを決めるのは積む側。** その対話では
+      // 直せない失敗（対象が消えた、ディスクは通ったが設定が書けなかった）は、
+      // 積む前に `conflict_closed` を送ること。ここで code を見て振り分けると、
+      // 対話が「自分で出す」と決めた失敗まで裏に重なる
+      if (state.conflict) {
+        return { ...state, isLoading: false };
+      }
+      return {
+        ...state,
+        isLoading: false,
+        menu: null,
+        renamingNodeId: null,
+        creatingDirParentPath: null,
+        error: { from: "operation", error: action.payload },
+      };
+
+    // 読み直しの失敗は**対話が開いていても捨てない**。捨てると、別名で解決した直後の
+    // 読み直しが落ちたときに「ファイルはできている・ツリーは古いまま・失敗はどこにも
+    // 出ない」で終わる。操作は `Ok` を返しているので対話は成功として閉じ、
+    // 利用者は「作られていない」と読んで押し直し、`already_exists` に当たる。
+    //
+    // 畳まないのは、これが操作の失敗ではなく**そのあとの読み直しの失敗**だから。
+    // 開いている入力欄は、読み直しが直れば意味を持ち続ける
+    case "reload_failed":
+      return { ...state, isLoading: false, error: { from: "reload", error: action.payload } };
 
     case "error_cleared":
       return { ...state, error: null };

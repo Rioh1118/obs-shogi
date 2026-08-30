@@ -1,4 +1,4 @@
-import { SButton } from "../kit";
+import Button from "@/shared/ui/Button/Button";
 import "./PresetDialogFooter.scss";
 
 export default function PresetDialogFooter({
@@ -15,12 +15,10 @@ export default function PresetDialogFooter({
       </div>
 
       <div className="presetDialog__footerRight">
-        <SButton variant="ghost" onClick={onClose}>
-          キャンセル
-        </SButton>
-        <SButton variant="primary" onClick={onSave}>
+        <Button onClick={onClose}>キャンセル</Button>
+        <Button tone="primary" onClick={onSave}>
           保存
-        </SButton>
+        </Button>
       </div>
     </footer>
   );

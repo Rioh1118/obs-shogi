@@ -11,6 +11,7 @@ import {
   setRootDir as setRootDirApi,
 } from "../api/directories";
 import type { PresetId } from "@/entities/engine-presets/model/types";
+import { Err, Ok } from "@/shared/lib/result";
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(configReducer, initialState);
@@ -52,9 +53,16 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }
 
   async function chooseRootDir(opts = {}) {
-    dispatch({ type: "loading" });
+    // **ピッカーを開く前に `loading` を立てない。** `loading` は `error` も消すので、
+    // 立てると「選ぶのをやめた」だけで直前の失敗の理由が画面から消える。
+    // ネイティブのピッカーは自分で画面を止めるので、待たせる表示も要らない
     try {
       const rootDir = await chooseRootDirApi(opts);
+
+      // 取り消し。設定は1バイトも動いていないので、`config` も `error` も触らない
+      if (rootDir === null) return null;
+
+      dispatch({ type: "loading" });
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
       return rootDir;
@@ -68,18 +76,20 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }
 
   async function chooseAiRoot(opts = {}) {
-    dispatch({ type: "loading" });
+    // 理由は `chooseRootDir` と同じ
     try {
       const aiRoot = await chooseAiRootApi(opts);
+      if (aiRoot === null) return Ok(null);
+
+      dispatch({ type: "loading" });
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
-      return aiRoot;
+      return Ok(aiRoot);
     } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `AI_ROOTの選択に失敗しました: ${String(err)}`,
-      });
-      return null;
+      // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
+      // AI フォルダを選び損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
+      dispatch({ type: "settled" });
+      return Err(`AI_ROOTの選択に失敗しました: ${String(err)}`);
     }
   }
 
@@ -89,11 +99,16 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       await setRootDirApi(rootDir);
       const updated = await loadConfig();
       dispatch({ type: "updated", payload: updated });
+      return Ok(undefined);
     } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `ルートディレクトリの更新に失敗しました: ${String(err)}`,
-      });
+      // **`dispatch({type:"error"})` はしない。** `RequireRootDir` がそれを見て
+      // `/` へ飛ばすので、ランタイムごと unmount され、呼び出し元が出そうとした
+      // 失敗が画面に出る前に消える。設定の**更新**が落ちただけで、
+      // すでに読めている `config` は生きている。
+      // ただし `loading` は降ろす。降ろさないと `isLoading` が `true` で固定され、
+      // 呼び出し元が案内する先（設定 → ワークスペース）のボタンが押せなくなる
+      dispatch({ type: "settled" });
+      return Err(`ルートディレクトリの更新に失敗しました: ${String(err)}`);
     }
   }
 

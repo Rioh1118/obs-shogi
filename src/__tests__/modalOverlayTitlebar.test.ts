@@ -1,9 +1,9 @@
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join, relative } from "node:path";
+import { pathToFileURL } from "node:url";
 import postcss from "postcss";
 import * as sass from "sass";
 import { describe, expect, it } from "vitest";
+import { SRC, scssFiles } from "./walk";
 
 /**
  * モーダルの overlay がタイトルバーの帯を覆わないことの検査。
@@ -28,13 +28,6 @@ import { describe, expect, it } from "vitest";
  *
  * 判定は末尾の `describe("検査の判定")` で固定してある。
  */
-
-/**
- * このファイル自身の位置から辿る。`process.cwd()` にすると、ランナーの起動場所が
- * 別の作業ツリーだったときにテスト本体とは違う木の SCSS を読み、
- * 何を検査したのかが起動場所で変わる
- */
-const SRC = fileURLToPath(new URL("..", import.meta.url));
 
 /** `@use "@/index.scss"` を解決する。vite の alias はここには効かない */
 const importer = {
@@ -201,9 +194,7 @@ const VIEWPORT_UNIT = /(?<![\w.])[\d.]+(?:d|s|l)?v(?:h|w|i|b|min|max)\b/;
 const FORCING_HEIGHT = new Set(["height", "min-height", "block-size", "min-block-size"]);
 
 function scssUnder(directory: string): string[] {
-  return readdirSync(join(SRC, directory), { recursive: true, encoding: "utf8" })
-    .filter((name) => name.endsWith(".scss"))
-    .map((name) => join(directory, name));
+  return scssFiles(join(SRC, directory)).map((file) => relative(SRC, file));
 }
 
 /**

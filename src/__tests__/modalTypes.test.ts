@@ -1,0 +1,58 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { SRC, tsFiles } from "./walk";
+
+/**
+ * `ModalType` の各値に、それを読んで描くものが1つある。
+ *
+ * `CLAUDE.md` が「モーダルを追加したら `ModalType` を更新する」と名指ししている
+ * 唯一の union。片側だけ動くと、`openModal("x")` が型検査を通って URL は変わるのに
+ * 誰も描かない。`returnTo` に積まれた場合は「戻る」先が無く、URL を直に編集する
+ * まで抜けられない。
+ *
+ * 逆向き（描くものがあるのに union に無い）は `params.modal === "x"` が
+ * 型検査で落ちるので、ここでは見ない。
+ *
+ * **読む側は `params.modal === "<値>"` の形で書く。** この検査はその綴りを
+ * 文字列として探すので、`switch (params.modal)` や定数経由にすると、
+ * 描いていても落ちる。
+ */
+
+const ROUTER = join(SRC, "shared", "lib", "router", "useURLParams.ts");
+
+/** `export type ModalType =` に並ぶ文字列リテラル */
+function modalTypes(): string[] {
+  const source = readFileSync(ROUTER, "utf8");
+  const start = source.indexOf("export type ModalType =");
+  expect(start, "ModalType の定義が見つからない。検査が空振りしている").toBeGreaterThan(-1);
+
+  const body = source.slice(start, source.indexOf(";", start));
+  return [...body.matchAll(/"([\w-]+)"/g)].map((match) => match[1]);
+}
+
+describe("ModalType", () => {
+  it("どの値にも、それを読んで描くものがある", () => {
+    const types = modalTypes();
+    expect(types.length, "ModalType の値を1つも拾えていない").toBeGreaterThan(3);
+
+    // テストの中の言及を「描いている」と数えない
+    const sources = tsFiles(SRC, { includeTests: false })
+      .filter((file) => file !== ROUTER)
+      .map((file) => readFileSync(file, "utf8"))
+      .join("\n");
+
+    const orphans = types.filter((type) => !sources.includes(`=== "${type}"`));
+
+    expect(
+      orphans,
+      [
+        "ModalType にあるのに、params.modal === でそれを読む場所が無い。",
+        "openModal でその値へ遷移すると、URL だけ変わって誰も描かない。",
+        "描くものを足すか、値を落とすこと。",
+        '描いているのに落ちたなら、読む側を params.modal === "<値>" の形に直すこと。',
+        ...orphans,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+});

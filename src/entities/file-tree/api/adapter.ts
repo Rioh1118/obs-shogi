@@ -10,6 +10,7 @@ export class RustFileTreeAdapter {
       path: r.path,
       isDirectory: r.isDir,
       children: r.children?.map((c) => this.fromRust(c)),
+      truncated: r.truncated,
       lastModified:
         typeof r.lastModified === "number" ? new Date(r.lastModified * 1000) : undefined,
       size: r.size,

@@ -3,8 +3,13 @@ import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
+import {
+  FsErrorView,
+  isResolvedByConflictDialog,
+  useFileTree,
+  type FileTreeNode,
+  type FsError,
+} from "@/entities/file-tree";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
@@ -15,8 +20,7 @@ import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
-import Button from "@/shared/ui/Form/Button";
-import Spinner from "@/shared/ui/Spinner";
+import Button from "@/shared/ui/Button/Button";
 
 import "./SfenKifuCreateModal.scss";
 
@@ -50,7 +54,7 @@ export default function SfenKifuCreateModal() {
   const [whitePlayer, setWhitePlayer] = useState("");
   const [selectedDir, setSelectedDir] = useState(fileTree?.path ?? "");
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   const sfenInitial = useMemo(() => (sfen ? sfenToJkfInitial(sfen) : null), [sfen]);
 
@@ -82,20 +86,19 @@ export default function SfenKifuCreateModal() {
     setBlackPlayer("");
     setWhitePlayer("");
     setSelectedDir(rootPathRef.current);
-    setErrorMsg(null);
+    setSubmitError(null);
   }, [isOpen]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!fileName.trim() || !sfenInitial) return;
+      if (!fileName.trim() || !sfenInitial || isLoading) return;
 
-      if (!selectedDir) {
-        setErrorMsg("保存先フォルダが選択されていません");
-        return;
-      }
+      // `selectedDir` が空になるのはツリーが1本も無いときだけで、
+      // そのとき送信ボタンは押せない。理由は Select の下に出している
+      if (dirOptions.length === 0) return;
 
-      setErrorMsg(null);
+      setSubmitError(null);
       setIsLoading(true);
       const result = await createNewFile(selectedDir, {
         fileName: `${fileName.trim()}.${format}`,
@@ -110,8 +113,12 @@ export default function SfenKifuCreateModal() {
 
       if (result.success) {
         closeModal();
-      } else {
-        setErrorMsg(result.error.message ?? "ファイルの作成に失敗しました");
+        return;
+      }
+
+      // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
+      if (!isResolvedByConflictDialog(result.error.code)) {
+        setSubmitError(result.error);
       }
     },
     [
@@ -120,7 +127,9 @@ export default function SfenKifuCreateModal() {
       blackPlayer,
       whitePlayer,
       selectedDir,
+      dirOptions.length,
       sfenInitial,
+      isLoading,
       createNewFile,
       closeModal,
     ],
@@ -136,87 +145,101 @@ export default function SfenKifuCreateModal() {
   if (!isOpen || !sfen) return null;
 
   return (
-    <Modal onClose={closeModal} theme="dark" variant="dialog" size="md" scroll="none">
+    <Modal
+      onClose={closeModal}
+      label="課題局面から棋譜を作成"
+      theme="dark"
+      variant="dialog"
+      size="md"
+      scroll="none"
+    >
       <div className="sfen-kifu-create">
-        {isLoading ? (
-          <Spinner />
-        ) : (
-          <>
-            <div className="sfen-kifu-create__preview">
-              <PreviewPane previewData={previewData} />
-              {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
-            </div>
+        <div className="sfen-kifu-create__preview">
+          <PreviewPane previewData={previewData} />
+          {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
+        </div>
 
-            <Form handleSubmit={handleSubmit} theme="dark">
-              <FormField>
-                <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
-              </FormField>
+        <Form handleSubmit={handleSubmit}>
+          <FormField>
+            <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
+          </FormField>
 
-              {errorMsg && (
-                <FormField>
-                  <div className="sfen-kifu-create__error">{errorMsg}</div>
-                </FormField>
-              )}
+          <FormField>
+            <Select
+              label="保存先フォルダ"
+              id="saveDir"
+              options={dirOptions}
+              value={selectedDir}
+              onChange={(v) => {
+                setSelectedDir(v);
+                setSubmitError(null);
+              }}
+            />
+            {dirOptions.length === 0 && (
+              <p className="sfen-kifu-create__hint">
+                保存先がありません。先にワークスペースを開いてください
+              </p>
+            )}
+          </FormField>
 
-              <FormField>
-                <Select
-                  label="保存先フォルダ"
-                  id="saveDir"
-                  options={dirOptions}
-                  value={selectedDir}
-                  onChange={(v) => {
-                    setSelectedDir(v);
-                    setErrorMsg(null);
-                  }}
-                />
-              </FormField>
+          <FormField horizontal>
+            <TextInput
+              label="ファイル名"
+              id="sfenFileName"
+              placeholder="45角戦法"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              required
+            />
+            <Select
+              label="フォーマット"
+              id="sfenFormat"
+              options={formatOptions}
+              value={format}
+              onChange={(v) => setFormat(v as KifuFormat)}
+            />
+          </FormField>
 
-              <FormField horizontal>
-                <TextInput
-                  label="ファイル名"
-                  id="sfenFileName"
-                  placeholder="45角戦法"
-                  value={fileName}
-                  onChange={(e) => setFileName(e.target.value)}
-                  required
-                />
-                <Select
-                  label="フォーマット"
-                  id="sfenFormat"
-                  options={formatOptions}
-                  value={format}
-                  onChange={(v) => setFormat(v as KifuFormat)}
-                />
-              </FormField>
+          <FormField horizontal>
+            <TextInput
+              label="先手名"
+              id="sfenBlack"
+              placeholder="Player1"
+              value={blackPlayer}
+              onChange={(e) => setBlackPlayer(e.target.value)}
+            />
+            <TextInput
+              label="後手名"
+              id="sfenWhite"
+              placeholder="Player2"
+              value={whitePlayer}
+              onChange={(e) => setWhitePlayer(e.target.value)}
+            />
+          </FormField>
 
-              <FormField horizontal>
-                <TextInput
-                  label="先手名"
-                  id="sfenBlack"
-                  placeholder="Player1"
-                  value={blackPlayer}
-                  onChange={(e) => setBlackPlayer(e.target.value)}
-                />
-                <TextInput
-                  label="後手名"
-                  id="sfenWhite"
-                  placeholder="Player2"
-                  value={whitePlayer}
-                  onChange={(e) => setWhitePlayer(e.target.value)}
-                />
-              </FormField>
+          {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+          {submitError && (
+            <FormField>
+              <FsErrorView error={submitError} />
+            </FormField>
+          )}
 
-              <ButtonGroup>
-                <Button type="submit" variant="primary" disabled={!fileName.trim() || !selectedDir}>
-                  作成
-                </Button>
-                <Button type="button" variant="ghost" onClick={() => closeModal()}>
-                  キャンセル
-                </Button>
-              </ButtonGroup>
-            </Form>
-          </>
-        )}
+          {/* フォームは出したままにする。差し替えると入力欄が消え、
+                  失敗して戻ったときキーボードの利用者はどこにいるか分からなくなる */}
+          <ButtonGroup>
+            <Button
+              type="submit"
+              tone="primary"
+              isLoading={isLoading}
+              disabled={!fileName.trim() || !selectedDir}
+            >
+              {isLoading ? "作成中..." : "作成"}
+            </Button>
+            <Button type="button" onClick={() => closeModal()} disabled={isLoading}>
+              キャンセル
+            </Button>
+          </ButtonGroup>
+        </Form>
       </div>
     </Modal>
   );

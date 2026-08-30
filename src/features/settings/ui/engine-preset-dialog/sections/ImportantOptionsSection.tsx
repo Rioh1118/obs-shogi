@@ -1,12 +1,6 @@
 import type { SRadioOption } from "@/features/settings/ui/kit/SRadioGroup";
-import {
-  SButton,
-  SField,
-  SInput,
-  SRadioGroup,
-  SSection,
-  SSelect,
-} from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
+import { SField, SInput, SRadioGroup, SSection, SSelect } from "@/features/settings/ui/kit";
 import {
   cx,
   HASH_CHOICES,
@@ -94,26 +88,26 @@ export default function ImportantOptionsSection(props: {
               ))}
             </div>
 
-            <SButton
-              variant="ghost"
+            <Button
               size="sm"
               onClick={() => setShowMultiPvCustom(!showMultiPvCustom)}
               className="presetDialog__segRight"
             >
               カスタム…
-            </SButton>
+            </Button>
           </div>
 
           {showMultiPvCustom && (
             <div className="presetDialog__stepper">
-              <SButton
-                variant="ghost"
+              {/* 数を合わせるまで連続で押す場所。押すたびに浮き沈みすると目が疲れる */}
+              <Button
                 size="sm"
+                motion={false}
                 onClick={() => onChangeMultiPv(multiPv - 1)}
                 disabled={multiPv <= MULTIPV_MIN}
               >
                 −
-              </SButton>
+              </Button>
 
               <SInput
                 className="presetDialog__stepperInput"
@@ -125,14 +119,14 @@ export default function ImportantOptionsSection(props: {
                 onChange={(e) => onChangeMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))}
               />
 
-              <SButton
-                variant="ghost"
+              <Button
                 size="sm"
+                motion={false}
                 onClick={() => onChangeMultiPv(multiPv + 1)}
                 disabled={multiPv >= MULTIPV_MAX}
               >
                 ＋
-              </SButton>
+              </Button>
 
               <div className="presetDialog__stepperHint">
                 範囲: {MULTIPV_MIN}〜{MULTIPV_MAX}

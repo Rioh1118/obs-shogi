@@ -9,7 +9,9 @@ import {
   Sparkles,
   Wrench,
 } from "lucide-react";
-import { SButton, SField, SInput, SSection } from "../kit";
+import Button from "@/shared/ui/Button/Button";
+import { describeFsError, type FsError } from "@/entities/file-tree";
+import { SField, SInput, SSection } from "../kit";
 import SettingsBadge from "../kit/SettingsBadge";
 import type { StepState } from "./steps/StepShell";
 import { Step1SelectRoot } from "./steps/Step1SelectRoot";
@@ -57,7 +59,8 @@ type Props = {
   onCreateEnginesDir: () => void;
   onOpenAiRoot: () => void;
   onOpenEnginesDir: () => void;
-  onCreateAiFolder: (aiName: string) => Promise<void>;
+  /** 名前を直せば通る失敗だけを返す。それ以外は呼び出し元が診断側へ回す */
+  onCreateAiFolder: (aiName: string) => Promise<FsError | null>;
 };
 
 function StatusCard({
@@ -126,19 +129,36 @@ export default function SetupGuide({
 }: Props) {
   const [aiNameDraft, setAiNameDraft] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const inFlightRef = useRef(false);
+  // 名前を直せば通る失敗。**欄のそばに出し、打った文字列は残す**
+  const [createError, setCreateError] = useState<string | null>(null);
   const aiNameRef = useRef<HTMLInputElement | null>(null);
 
   const handleCreateFolder = async () => {
+    // **`useState` では取りこぼす。** Enter のキーリピートはレンダより速いので、
+    // 同じ名前で並走して「作れたのに『すでにあります』が出る」になる
+    if (inFlightRef.current) return;
+
     const name = aiNameDraft.trim();
     if (!name) {
       aiNameRef.current?.focus();
       return;
     }
+
+    inFlightRef.current = true;
+    setIsCreatingFolder(true);
+    setCreateError(null);
     try {
-      setIsCreatingFolder(true);
-      await onCreateAiFolder(name);
+      const nameError = await onCreateAiFolder(name);
+      if (nameError) {
+        // 打った名前は消さない。消すと、直すのではなく打ち直しになる
+        setCreateError(describeFsError(nameError.code));
+        aiNameRef.current?.focus();
+        return;
+      }
       setAiNameDraft("");
     } finally {
+      inFlightRef.current = false;
       setIsCreatingFolder(false);
     }
   };
@@ -283,20 +303,20 @@ export default function SetupGuide({
         </div>
         <div className="setupGuide__heroActions">
           {nextAction.primaryLabel && (
-            <SButton
-              variant="primary"
+            <Button
+              tone="primary"
               size="sm"
               onClick={nextAction.onPrimary}
               disabled={!nextAction.onPrimary}
               isLoading={nextAction.primaryLoading}
             >
               {nextAction.primaryLabel}
-            </SButton>
+            </Button>
           )}
           {nextAction.secondaryLabel && nextAction.onSecondary && (
-            <SButton variant="ghost" size="sm" onClick={nextAction.onSecondary}>
+            <Button size="sm" onClick={nextAction.onSecondary}>
               {nextAction.secondaryLabel}
-            </SButton>
+            </Button>
           )}
         </div>
       </div>
@@ -390,15 +410,18 @@ export default function SetupGuide({
                 <SInput
                   ref={aiNameRef}
                   value={aiNameDraft}
-                  onChange={(e) => setAiNameDraft(e.target.value)}
+                  invalid={!!createError}
+                  onChange={(e) => {
+                    setAiNameDraft(e.target.value);
+                    setCreateError(null);
+                  }}
                   placeholder="AI名を入力"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void handleCreateFolder();
                   }}
                 />
               </div>
-              <SButton
-                variant="subtle"
+              <Button
                 size="sm"
                 onClick={() => void handleCreateFolder()}
                 isLoading={isCreatingFolder}
@@ -406,8 +429,13 @@ export default function SetupGuide({
               >
                 <Sparkles size={14} style={{ marginRight: 6 }} />
                 作成
-              </SButton>
+              </Button>
             </div>
+            {/* 領域は常設する。中身と同時に DOM へ入れると、VoiceOver が
+                live region の変化として読まない */}
+            <p className="setupGuide__createError" role="alert">
+              {createError ?? ""}
+            </p>
           </SField>
         </SSection>
       )}

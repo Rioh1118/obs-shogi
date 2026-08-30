@@ -26,7 +26,7 @@ export type IndexUiState = {
 
 /**
  * セッション。chunks に到着したチャンクを配列のまま保持し、reducer は
- * `[...hits, ...chunk]` の O(n²) を回避する (C-M1)。フラット化は provider 側で
+ * `[...hits, ...chunk]` の O(n²) を回避する。フラット化は provider 側で
  * 償却 O(n) のキャッシュにして返す。
  */
 export type SearchSession = {

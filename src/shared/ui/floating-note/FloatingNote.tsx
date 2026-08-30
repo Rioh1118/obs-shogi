@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import "./FloatingNote.scss";
 
 type Placement = "top" | "bottom";
@@ -82,6 +83,7 @@ export default function FloatingNote({
   children,
 }: FloatingNoteProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const isTop = useOverlayLayer(open);
   const [anchoredPos, setAnchoredPos] = useState<AnchoredPos | null>(null);
   const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -111,18 +113,20 @@ export default function FloatingNote({
     }
   }, [open, anchorEl]);
 
+  // 重なりの順序に載る。載せないと、上のモーダルを Escape で閉じたとき
+  // 同じイベントがここまで届いて付箋も一緒に閉じる
   useEffect(() => {
     if (!open) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || !isTop()) return;
       e.preventDefault();
       onClose();
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, isTop]);
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {

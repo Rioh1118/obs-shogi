@@ -5,18 +5,12 @@ import TreeNode from "./TreeNode";
 import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import TruncatedNotice from "./TruncatedNotice";
 import FileIcon from "./FileIcon";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
-import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
-
-function validateBasename(name: string): string {
-  const next = name.trim();
-  if (!next) throw new Error("空の名前にはできません");
-  if (/[/\\]/.test(next)) throw new Error("名前に / や \\ は使えません");
-  return next;
-}
+import type { FileTreeNode } from "@/entities/file-tree";
+import { commitName, useFileTree } from "@/entities/file-tree";
 
 function RootNode({
   node,
@@ -33,6 +27,7 @@ function RootNode({
     renamingNodeId,
     renameNode,
     cancelInlineRename,
+    pushError,
     creatingDirParentPath,
     cancelCreateDirectory,
     createNewDirectory,
@@ -48,40 +43,11 @@ function RootNode({
     openContextMenu(node, e.clientX, e.clientY);
   };
 
-  const handleCommitRename = async (nextNameRaw: string) => {
-    let nextName: string;
-    try {
-      nextName = validateBasename(nextNameRaw);
-    } catch (e) {
-      console.error(e);
-      return;
-    }
+  const handleCommitRename = (nextName: string) =>
+    commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
-    if (nextName === node.name) {
-      cancelInlineRename();
-      return;
-    }
-
-    const res = await renameNode(node, nextName);
-
-    if (!res.success) {
-      return;
-    }
-
-    cancelInlineRename();
-  };
-
-  const handleCommitCreate = async (name: string) => {
-    const next = name.trim();
-    if (!next) return;
-
-    const res = await createNewDirectory(node.path, next);
-    if (!res.success) {
-      return;
-    }
-
-    cancelCreateDirectory();
-  };
+  const handleCommitCreate = (nextName: string) =>
+    commitName(nextName, (name) => createNewDirectory(node.path, name), cancelCreateDirectory);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -92,6 +58,9 @@ function RootNode({
   };
 
   const handleClick = () => {
+    // 改名中は畳まない。失敗の箱は行を押し広げて出るので、その文を読もうとした
+    // クリックがここに来る。畳むと打った名前と理由が同時に消える
+    if (isRenaming) return;
     setIsOpen(!isOpen);
   };
 
@@ -122,11 +91,11 @@ function RootNode({
         <DirectoryToggleIcon isExpanded={isOpen} />
         {isRenaming ? (
           <InlineNameEditor
-            isEditting={isRenaming}
             initialName={node.name}
             selectMode="all"
             onCancel={cancelInlineRename}
             onCommit={handleCommitRename}
+            onUnshowable={pushError}
           />
         ) : (
           <span className="file-tree__rootdir--name">{node.name}</span>
@@ -139,11 +108,11 @@ function RootNode({
             <NodeBox level={1} handleClick={() => {}}>
               <FileIcon type="folder" />
               <InlineNameEditor
-                isEditting
                 initialName=""
                 selectMode="all"
                 onCancel={cancelCreateDirectory}
                 onCommit={handleCommitCreate}
+                onUnshowable={pushError}
               />
             </NodeBox>
           )}
@@ -151,6 +120,7 @@ function RootNode({
           {!node.children?.length
             ? null
             : node.children.map((child) => <TreeNode key={child.path} node={child} level={1} />)}
+          {node.truncated && <TruncatedNotice level={1} />}
         </>
       )}
     </>

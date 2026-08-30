@@ -46,7 +46,7 @@ impl QueryService {
     }
 
     /// Tauri コマンド: 検索を spawn し、request_id を即座に return する。
-    /// 旧 search_position_impl と違い invoke はブロックしない (C-H1)。
+    /// invoke はブロックしない。結果はイベントで届く。
     pub async fn start_search(
         self: Arc<Self>,
         input: SearchPositionInput,
@@ -68,7 +68,7 @@ impl QueryService {
         Ok(SearchPositionOutput { request_id })
     }
 
-    /// 進行中の検索をキャンセル (C-H2)。
+    /// 進行中の検索をキャンセル。
     pub fn cancel(&self, request_id: RequestId) {
         if let Some(token) = self.cancellations.lock().remove(&request_id) {
             token.cancel();

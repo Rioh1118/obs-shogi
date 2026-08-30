@@ -1,7 +1,12 @@
 import { useState } from "react";
 import type { InitialPresetString } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
-import { useFileTree } from "@/entities/file-tree/model/useFileTree";
+import {
+  FsErrorView,
+  isResolvedByConflictDialog,
+  useFileTree,
+  type FsError,
+} from "@/entities/file-tree";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";
@@ -9,8 +14,7 @@ import Select from "@/shared/ui/Form/Select";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
-import Button from "@/shared/ui/Form/Button";
-import Spinner from "@/shared/ui/Spinner";
+import Button from "@/shared/ui/Button/Button";
 
 function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dirPath: string }) {
   const [fileName, setFileName] = useState("");
@@ -21,14 +25,16 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const [note, setNote] = useState("");
   const [preset, setPreset] = useState<InitialPresetString>("HIRATE");
   const [isLoading, setIsLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   const { createNewFile } = useFileTree();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fileName.trim()) return;
+    if (!fileName.trim() || isLoading) return;
 
+    setSubmitError(null);
     setIsLoading(true);
     const result = await createNewFile(dirPath, {
       fileName: `${fileName.trim()}.${format}`,
@@ -45,6 +51,12 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     if (result.success) {
       toggleModal();
+      return;
+    }
+
+    // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
+    if (!isResolvedByConflictDialog(result.error.code)) {
+      setSubmitError(result.error);
     }
   };
 
@@ -70,10 +82,6 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     { value: "8", label: "八枚落ち" },
     { value: "10", label: "十枚落ち" },
   ];
-
-  if (isLoading) {
-    return <Spinner />;
-  }
 
   return (
     <Form handleSubmit={handleSubmit}>
@@ -141,11 +149,20 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
         />
       </FormField>
 
+      {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+      {submitError && (
+        <FormField>
+          <FsErrorView error={submitError} />
+        </FormField>
+      )}
+
       <ButtonGroup>
-        <Button type="submit" variant="primary" disabled={!fileName.trim()}>
-          作成
+        {/* フォームは出したままにする。差し替えると入力欄が消え、
+            失敗して戻ったときキーボードの利用者はどこにいるか分からなくなる */}
+        <Button type="submit" tone="primary" isLoading={isLoading} disabled={!fileName.trim()}>
+          {isLoading ? "作成中..." : "作成"}
         </Button>
-        <Button type="button" variant="ghost" onClick={toggleModal}>
+        <Button type="button" onClick={toggleModal} disabled={isLoading}>
           キャンセル
         </Button>
       </ButtonGroup>

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { REPO_ROOT } from "./walk";
 
 /**
  * 状態遷移表の在庫と索引を突き合わせる
@@ -9,7 +10,9 @@ import { join } from "node:path";
  * 使うことを宣言している。表を足したのに索引に書き忘れると、次に書く人が
  * 既存の表に気づかず重複した表を作る。実際に1件そうなった。
  */
-const DIR = join(process.cwd(), "docs/state-transitions");
+// 起点は `walk.ts` が決める。`process.cwd()` にすると、ランナーの起動場所が
+// 別の作業ツリーだったときに違う木の docs を読む
+const DIR = join(REPO_ROOT, "docs/state-transitions");
 
 describe("状態遷移表の索引", () => {
   test("README がすべての表を列挙している", () => {

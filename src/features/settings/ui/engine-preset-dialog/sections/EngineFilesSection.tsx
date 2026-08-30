@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 
-import { SButton, SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
+import { SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { AiRootIndex, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
@@ -69,12 +70,12 @@ export default function EngineFilesSection(props: {
         <div className="presetDialog__hintWarn" style={{ marginBottom: 12 }}>
           engines/ ディレクトリが存在しません（{enginesDirPath}）。
           <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
-            <SButton variant="primary" size="sm" onClick={onCreateEnginesDir}>
+            <Button tone="primary" size="sm" onClick={onCreateEnginesDir}>
               engines/ を作成
-            </SButton>
-            <SButton variant="ghost" size="sm" onClick={rescan}>
+            </Button>
+            <Button size="sm" onClick={rescan}>
               再スキャン
-            </SButton>
+            </Button>
           </div>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
@@ -33,6 +34,8 @@ export default function KifuStreamList() {
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
+  // Escape は最上位の1枚だけ → `overlayStack`
+  const isTop = useOverlayLayer(openFork !== null);
   const [openComment, setOpenComment] = useState<OpenCommentNote | null>(null);
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
@@ -158,7 +161,7 @@ export default function KifuStreamList() {
     };
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && isTop()) {
         e.preventDefault();
         closeForkMenu(true);
       }
@@ -171,7 +174,7 @@ export default function KifuStreamList() {
       document.removeEventListener("pointerdown", onDocPointerDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [openFork, closeForkMenu]);
+  }, [openFork, closeForkMenu, isTop]);
 
   useEffect(() => {
     const scroller = listRef.current;

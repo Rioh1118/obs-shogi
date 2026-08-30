@@ -9,7 +9,7 @@ import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
-import type { AnalysisCandidate } from "@/entities/engine/api/rust-types";
+import type { AnalysisCandidate } from "@/entities/engine";
 import { pickTopCandidate } from "../lib/candidates";
 import { AnalysisContext } from "./context";
 

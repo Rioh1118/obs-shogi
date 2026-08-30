@@ -32,7 +32,6 @@ function NodeBox({
       className={`node-box ${isSelected ? "node-box__selected" : ""} ${className ?? ""}`}
       style={{
         paddingLeft: `${2 + level * 1.3}rem`,
-        cursor: "pointer",
         ...style,
       }}
       onClick={handleClick}
