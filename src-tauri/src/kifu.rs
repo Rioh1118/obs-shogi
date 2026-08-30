@@ -163,29 +163,33 @@ pub async fn normalize_jkf(mut jkf: JsonKifuFormat) -> ConvertKifuResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::temp_dir;
     use shogi_kifu_converter_obsshogi::error::ParseError;
     use shogi_kifu_converter_obsshogi::jkf::Color;
     use shogi_kifu_converter_obsshogi::parser::{parse_ki2_str, parse_kif_str};
 
-    /// 後手番の任意局面。`手合割：その他` + 盤面 + 「後手番」で手番が決まる
+    /// 後手番の任意局面。`手合割：その他` + 盤面 + 「後手番」で手番が決まる。
+    ///
+    /// 駒を取る手にしてあるのは、`normalize()` が `capture` を埋めるため。
+    /// 埋まる欄が無いと「正規化していない JKF」を作れない
     const GOTE_START_KIF: &str = "\
 後手の持駒：なし
   ９ ８ ７ ６ ５ ４ ３ ２ １
 +---------------------------+
-| ・ ・ ・ ・ ・ ・ ・ ・ ・|一
+| ・ ・ ・ ・ ・ ・ ・ ・v玉|一
 | ・ ・ ・ ・ ・ ・ ・ ・ ・|二
 | ・ ・ ・ ・v歩 ・ ・ ・ ・|三
-| ・ ・ ・ ・v玉 ・ ・ ・ ・|四
+| ・ ・ ・ ・ 歩 ・ ・ ・ ・|四
 | ・ ・ ・ ・ ・ ・ ・ ・ ・|五
-| ・ ・ ・ ・ 歩 ・ ・ ・ ・|六
+| ・ ・ ・ ・ ・ ・ ・ ・ ・|六
 | ・ ・ ・ ・ ・ ・ ・ ・ ・|七
 | ・ ・ ・ ・ ・ ・ ・ ・ ・|八
-| ・ ・ ・ ・ 玉 ・ ・ ・ ・|九
+| 玉 ・ ・ ・ ・ ・ ・ ・ ・|九
 +---------------------------+
 先手の持駒：なし
 後手番
 手数----指手---------消費時間--
-   1 ５五玉(54)   ( 0:01/00:00:01)
+   1 ５四歩(53)   ( 0:01/00:00:01)
 ";
 
     fn initial_color(jkf: &JsonKifuFormat) -> Option<Color> {
@@ -224,24 +228,39 @@ mod tests {
         }
     }
 
-    /// ディスクへ書く経路で、書いたものが読み戻せる。
+    /// ディスクへ書く経路が、**正規化していない JKF** を書けて読み戻せる。
     ///
-    /// `write_kifu_file_internal` は `convert_jkf_to_string_internal` と別の関数で、
-    /// **`normalize()` を呼ばない**（#322）。上のテストが通るのは呼ばない側なので、
-    /// `atomic_write` に届く文字列を見ているのはここだけ。
+    /// `write_kifu_file_internal` は `convert_jkf_to_string_internal` と違って
+    /// `normalize()` を呼ばない（#322）。webview はここへ、指し手を足したあとの
+    /// `piece` / `same` / `capture` が埋まっていない JKF を送ってくる。
+    ///
+    /// `parse_kif_str` の戻り値は正規化済みなので、そのまま渡すとこの経路の
+    /// 特徴を1つも通らない。**埋まっている欄を落としてから渡す。**
     #[test]
-    fn what_the_write_path_puts_on_disk_can_be_read_back() {
-        let dir = std::env::temp_dir().join(format!(
-            "obs-shogi-write-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("一時ディレクトリ");
+    fn the_write_path_handles_a_jkf_that_was_never_normalized() {
+        let dir = temp_dir("write");
 
-        // normalize を通していない JKF を渡す。この経路の実態に合わせる
-        let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
+        let mut source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
         let moves = source.moves.len();
+        // webview が組む形に戻す。`normalize()` が局面から計算し直す欄を落とす。
+        // 落とす前に埋まっていたことを確かめる — パーサが埋めなくなったら
+        // このテストは何も落とさなくなり、狙った経路を通らなくなる
+        let mut stripped = 0;
+        for mf in source.moves.iter_mut().skip(1) {
+            if let Some(mv) = &mut mf.move_ {
+                stripped += usize::from(
+                    mv.same.is_some()
+                        || mv.promote.is_some()
+                        || mv.capture.is_some()
+                        || mv.relative.is_some(),
+                );
+                mv.same = None;
+                mv.promote = None;
+                mv.capture = None;
+                mv.relative = None;
+            }
+        }
+        assert!(stripped > 0, "落とす欄が1つも埋まっていない");
 
         type Reparse = fn(&str) -> Result<JsonKifuFormat, ParseError>;
         for (format, reparse) in [

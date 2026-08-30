@@ -6,6 +6,8 @@ pub mod file_system;
 pub mod kifu;
 pub mod search;
 pub mod study_positions;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 pub use crate::engine::bridge::AppState;
 pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};

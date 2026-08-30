@@ -23,6 +23,9 @@ pub type Jkf = JsonKifuFormat;
 /// 作らないが、`.jkf` は外部の JSON をそのまま信じている。盤面が書いてあるのに
 /// 平手として索引に入れると、**その局面で検索しても当たらず、平手の検索結果に紛れる**。
 ///
+/// **TS 側（tsshogi）は逆に `preset` を採り `data` を捨てる。** つまりこの形の `.jkf`
+/// では、索引が指す局面と画面に出る局面が食い違う。どちらへ揃えるかは #330。
+///
 /// # Errors
 ///
 /// [`ConvertError`] を返すのは3つ。`preset` が `OTHER` なのに盤面が無い、
@@ -96,7 +99,7 @@ mod tests {
     /// 平手の検索結果に紛れる。
     #[test]
     fn a_board_wins_over_a_preset_that_disagrees_with_it() {
-        // 5五に先手玉、9五に後手玉だけの盤面を preset HIRATE で名乗る JKF
+        // 玉2枚だけの盤面を preset HIRATE で名乗る JKF
         let json = r#"{"header":{},"initial":{"preset":"HIRATE","data":{"color":0,
           "board":[[{},{},{},{},{},{},{},{},{}],[{},{},{},{},{},{},{},{},{}],
                    [{},{},{},{},{},{},{},{},{}],[{},{},{},{},{},{},{},{},{}],
