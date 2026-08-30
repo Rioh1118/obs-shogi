@@ -162,12 +162,20 @@ throw の前提が消える。
 依然としてどこにも出ない（`selectSquare` の2箇所に `async-result-ignored` の印）。
 → [failure-surfacing.md](failure-surfacing.md) の F-12a。出口を作るのは #277
 
+**✓※4 が固定しているのは file-tree の側だけ。** `workspaceGuard.test.tsx` は
+`activeKifuPath` が落ちることまでを見る。そこから `resetGame` へ渡る橋渡し
+（`GameFileTreeBridge`）と、G2 で計画も消えることは**未検証**。
+
 ※6 コメントの保存は、**ノートを開いた時点の棋譜と `state.loadedAbsPath` が同じときだけ**書く。
 `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、棋譜が差し替わったあとに
 autosave が撃つと、前のファイルの本文が**次のファイルの同じ手数へ**入る。
 `KifuStreamList` が棋譜の変化で開いている面を閉じ、`editorKey` に棋譜の識別子を混ぜて
 Lexical を作り直すが、**エディタを作り直す前に autosave が撃つ競合が残る**ので
 この突き合わせが要る。→ #204
+
+**✓※6 が固定しているのはこの突き合わせだけ。** `KifuCommentNote.test.tsx` は
+`entities/game` を丸ごとモックしているので、`forceCommit` で局面が動かないことも
+G2 で計画が消えること（#226）も**見ていない**。
 
 ## ディスクを組で見る
 
