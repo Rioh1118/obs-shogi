@@ -23,7 +23,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import ScrollDropZone from "./ScrollDropZone";
-import { isProjectRoot, useFileTree } from "@/entities/file-tree";
+import { isOperationAlreadyCommitted, isProjectRoot, useFileTree } from "@/entities/file-tree";
 import Spinner from "@/shared/ui/Spinner";
 import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
@@ -50,7 +50,7 @@ const collisionDetection: CollisionDetection = (args) => {
  * 利用者は見出しを読んで「改名されなかった」と受け取り、食い違いに気づけない。
  */
 function failureHeading(failure: FileTreeFailure, operationCompleted: boolean): string {
-  if (failure.error.code === "config_write_failed") return "設定に保存できませんでした";
+  if (isOperationAlreadyCommitted(failure.error.code)) return "設定に保存できませんでした";
   return operationCompleted ? "一覧を取り直せませんでした" : "ファイル操作に失敗しました";
 }
 

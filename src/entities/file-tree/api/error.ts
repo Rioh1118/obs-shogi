@@ -197,6 +197,41 @@ export function fsErrorTier(code: FsErrorCode): "warning" | "danger" {
 }
 
 /**
+ * ディスク側の変更は済んでいて、そのあとの処理だけが落ちた失敗か。
+ *
+ * 見出しを「ファイル操作に失敗しました」にすると、通っている操作まで失敗したと
+ * 読める。**網羅にしてあるので、`FsErrorCode` を増やすと型検査がここへ連れてくる。**
+ * 呼び出し側で `if (code === "...")` と書くと、次に足した code は黙って
+ * 「失敗した」側へ落ちる。
+ */
+export function isOperationAlreadyCommitted(code: FsErrorCode): boolean {
+  switch (code) {
+    // ディスク上の改名は通り、`app.json` の書き戻しだけが落ちた
+    case "config_write_failed":
+      return true;
+
+    case "already_exists":
+    case "not_found":
+    case "invalid_name_empty":
+    case "invalid_name_reserved":
+    case "invalid_name_separator":
+    case "invalid_name_control":
+    case "invalid_path":
+    case "invalid_type":
+    case "invalid_extension":
+    case "invalid_destination":
+    case "root_not_deletable":
+    case "kifu_conversion_failed":
+    case "permission_denied":
+    case "io":
+    case "kifu_format_unknown":
+    case "kifu_parse_failed":
+    case "unknown":
+      return false;
+  }
+}
+
+/**
  * 利用者に見せる一文。**ここが利用者向けの文言の唯一の置き場。**
  * 網羅にしてあるので、`FsErrorCode` を増やすと型検査がここへ連れてくる。
  */

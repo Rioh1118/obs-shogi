@@ -26,9 +26,7 @@ const TS_ADAPTER = join(SRC, "entities", "file-tree", "api", "adapter.ts");
  * 誰も読まないと決めた欄だけ。使う予定があるなら写して未使用にしておくほうが、
  * 次に必要になった人が Rust まで遡らずに済む
  */
-const DROPPED: Record<string, string> = {
-  extension: "棋譜の形式へ畳んでから持つ（adapter の kifuInfo）。生の拡張子は使わない",
-};
+const DROPPED: Record<string, string> = {};
 
 function block(source: string, open: RegExp, from: string): string {
   const start = source.match(open);
@@ -107,6 +105,22 @@ describe("FileTreeNode の受け渡し", () => {
     const stale = Object.keys(DROPPED).filter((field) => !wire.has(field));
 
     expect(stale, ["DROPPED に無い欄が並んでいる。消すこと。", ...stale].join("\n")).toEqual([]);
+  });
+
+  /**
+   * `DROPPED` に並べた欄は adapter の中身を見ないので、**その欄の検査が切れる**。
+   * 実際に読んでいる欄を並べると、宣言が現状を表さないうえに検査だけが消える
+   * （`extension` がそうなっていた。`kifuInfo` が読んでいるのに「使わない」と
+   * 書いてあり、`kifuInfo` を丸ごと消しても緑のままだった）
+   */
+  it("捨てると書いた欄を、adapter が実は読んでいる、が起きない", () => {
+    const adapter = readFileSync(TS_ADAPTER, "utf8");
+    const lying = Object.keys(DROPPED).filter((field) => adapter.includes(`r.${field}`));
+
+    expect(
+      lying,
+      ["DROPPED に並んでいるのに adapter が読んでいる。行を消すこと。", ...lying].join("\n"),
+    ).toEqual([]);
   });
 
   it("欄を1つも読めていないなら、切り出しが壊れている", () => {

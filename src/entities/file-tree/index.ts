@@ -10,7 +10,12 @@
  * 増やすときは、外から使う場所と一緒に足すこと。
  */
 export type { FsError, FsErrorCode } from "./api/error";
-export { describeFsError, fsErrorTier, isResolvedByConflictDialog } from "./api/error";
+export {
+  describeFsError,
+  fsErrorTier,
+  isOperationAlreadyCommitted,
+  isResolvedByConflictDialog,
+} from "./api/error";
 export { commitName, type CommitOutcome } from "./lib/commitName";
 export { isProjectRoot } from "./lib/isProjectRoot";
 export type {
