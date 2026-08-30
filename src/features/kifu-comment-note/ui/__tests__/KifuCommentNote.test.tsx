@@ -83,8 +83,6 @@ vi.mock("@/shared/ui/floating-note/FloatingNote", () => ({
 }));
 
 const { default: KifuCommentNote } = await import("../KifuCommentNote");
-const { clearUnsavedDrafts, getUnsavedDraft, unsavedDraftKey } =
-  await import("../../lib/unsavedDrafts");
 
 const CURSOR: KifuCursor = {
   tesuu: 5,
@@ -123,9 +121,6 @@ beforeEach(() => {
   gameState.loadedAbsPath = "/ws/a.kif";
   comments = [];
   setCommentsByCursor.mockResolvedValue(Ok(undefined));
-  // 預かりはモジュールに置いてある（ノートが unmount しても消えないため）ので、
-  // テストの間で持ち越さないように毎回空にする
-  clearUnsavedDrafts();
 });
 
 describe("保存の失敗", () => {
@@ -251,11 +246,6 @@ describe("面が入れ替わるとき", () => {
     forkPointers: [],
     tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
   };
-  const THIRD: KifuCursor = {
-    tesuu: 9,
-    forkPointers: [],
-    tesuuPointer: "9,[]" as KifuCursor["tesuuPointer"],
-  };
 
   function show(
     view: ReturnType<typeof open>,
@@ -316,76 +306,6 @@ describe("面が入れ替わるとき", () => {
     expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["メモ"]);
   });
 
-  // 閉じている間は失敗を出す場所が無い（FloatingNote は DOM ごと消える）。
-  // 捨てると、利用者は**書いたことも失敗したことも知らないまま**本文を失う。
-  it("書けなかった本文は、同じ手を開き直したときに出し直す", async () => {
-    setCommentsByCursor.mockResolvedValue(Err("boom"));
-    const view = open("/ws/a.kif");
-    await type("消えては困るメモ");
-
-    await act(async () => {
-      view.rerender(
-        <KifuCommentNote
-          open={false}
-          cursor={CURSOR}
-          absPath="/ws/a.kif"
-          anchorEl={null}
-          onClose={() => {}}
-        />,
-      );
-    });
-    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      view.rerender(
-        <KifuCommentNote
-          open
-          cursor={CURSOR}
-          absPath="/ws/a.kif"
-          anchorEl={null}
-          onClose={() => {}}
-        />,
-      );
-    });
-
-    expect(screen.getByRole("alert").textContent).toContain("boom");
-
-    // 出し直した本文で書き直せる（下書きが残っていなければ dirty が落ちて撃たれない）
-    setCommentsByCursor.mockResolvedValue(Ok(undefined));
-    await act(async () => {
-      screen.getByTestId("close").click();
-    });
-
-    expect(setCommentsByCursor).toHaveBeenCalledTimes(2);
-    expect(setCommentsByCursor.mock.calls[1][1]).toEqual(["消えては困るメモ"]);
-  });
-
-  // **書かずに戻る出口も本文を預ける。** 棋譜を切り替えると `loadedAbsPath` が先に
-  // 進むので、書き切りの呼び出しは宛先の門番で**必ず**落ちる。預けないと、ここが
-  // 「書いた本文がどこにも残らない」唯一の穴になる。
-  it("別の棋譜へ切り替えても、書きかけの本文は預かって出し直す", async () => {
-    const view = open("/ws/a.kif");
-    await type("消えては困るメモ");
-
-    // ツリーで別の棋譜を押すと loadedAbsPath が先に進み、続けてノートが畳まれる
-    gameState.loadedAbsPath = "/ws/b.kif";
-    await show(view, { open: false });
-
-    expect(setCommentsByCursor).not.toHaveBeenCalled();
-
-    // 元の棋譜へ戻って同じ手を開く
-    gameState.loadedAbsPath = "/ws/a.kif";
-    await show(view, { open: true });
-
-    expect(screen.getByRole("alert").textContent).toContain("棋譜が切り替わった");
-
-    await act(async () => {
-      screen.getByTestId("close").click();
-    });
-    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
-    expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["消えては困るメモ"]);
-  });
-
   // 面の入れ替えは書き切りを await せずに撃つので、返る頃には別の面が描かれている。
   // 突き合わせずに書き戻すと、**打っていない手のノートに失敗の箱が出る**。
   it("出ていく面の失敗を、移った先の面に出さない", async () => {
@@ -417,33 +337,6 @@ describe("面が入れ替わるとき", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // 失敗の原因はその棋譜に対して持続するので、2手目のコメントも必ず失敗する。
-  // 1枠だと2つ目の失敗が1つ目の本文を消し、「書いた本文はこのまま残っています」
-  // という断言が**次のコメントを書いただけで破れる**。
-  it("2つの手で続けて失敗しても、どちらの本文も出し直せる", async () => {
-    setCommentsByCursor.mockResolvedValue(Err("boom"));
-    const view = open("/ws/a.kif");
-    await type("5手目のメモ");
-
-    await show(view, { cursor: OTHER });
-    await type("7手目のメモ");
-
-    await show(view, { cursor: THIRD });
-    await show(view, { cursor: CURSOR });
-
-    expect(screen.getByRole("alert").textContent).toContain("boom");
-
-    setCommentsByCursor.mockResolvedValue(Ok(undefined));
-    await act(async () => {
-      screen.getByTestId("close").click();
-    });
-
-    const calls = setCommentsByCursor.mock.calls;
-    const last = calls[calls.length - 1];
-    expect(last[0]).toBe(CURSOR);
-    expect(last[1]).toEqual(["5手目のメモ"]);
-  });
-
   // エディタを作り直す鍵と中身が別々の出どころだと1レンダずれ、
   // **移った先のエディタが前の手の本文で mount される**。
   // Lexical は初期値しか読まないので、そのまま最後まで残る。
@@ -454,32 +347,6 @@ describe("面が入れ替わるとき", () => {
     await show(view, { cursor: OTHER });
 
     expect(mountedWith()).toBe("");
-  });
-
-  // 預かりを本文の一致で捨てると、続きを書いて保存に成功したときに一致せず、
-  // 預かりが永久に残る。次にその手を開くと古い本文が出て、
-  // **保存済みの本文をディスク上で巻き戻す**。失敗は1度も起きていない経路。
-  it("預かりのあとで保存に成功したら、同じ手へ戻っても古い本文は出てこない", async () => {
-    const view = open("/ws/a.kif");
-    await type("aaa");
-
-    // 別の棋譜を開く → 宛先が変わるので預かりに入る
-    gameState.loadedAbsPath = "/ws/b.kif";
-    await show(view, { open: false });
-    gameState.loadedAbsPath = "/ws/a.kif";
-    await show(view, { open: true });
-    expect(mountedWith()).toBe("aaa");
-
-    // 続きを書いて保存が通る
-    await typeAndAutosave("aaa と続き");
-    expect(screen.getByText("保存済み")).toBeTruthy();
-
-    // 別の手へ行って戻る
-    await show(view, { cursor: OTHER });
-    await show(view, { cursor: CURSOR });
-
-    expect(mountedWith()).toBe("");
-    expect(screen.getByRole("alert").textContent).toBe("");
   });
 
   // 撃てないぶんを捨てると、利用者から見えるのは「保存済み」だけで、
@@ -504,34 +371,6 @@ describe("面が入れ替わるとき", () => {
 
     const written = setCommentsByCursor.mock.calls.map((c) => c[1]);
     expect(written).toContainEqual(["あい"]);
-  });
-
-  // **打ち直して元へ戻したら、預かるものは無い。** 撃った時点で固定した本文を
-  // そのまま預けると、次に開き直したときに**利用者が消した本文が出て、
-  // 900ms 後にファイルへ入る**。赤い箱も画面に無い本文について語ることになる。
-  it("打ち直して元へ戻したら、消した本文を預からない", async () => {
-    let release!: (v: unknown) => void;
-    setCommentsByCursor.mockImplementationOnce(
-      () => new Promise((r) => (release = () => r(Err("Permission denied")))),
-    );
-
-    const view = open("/ws/a.kif");
-    await typeAndAutosave("打ち間違い");
-    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
-
-    // 気づいて全部消す（元の本文＝空に戻るので、再保存は撃たれない）
-    await type("");
-
-    await act(async () => {
-      release(null);
-    });
-
-    // 開き直しても、消した本文は出てこない
-    await show(view, { open: false });
-    await show(view, { open: true });
-
-    expect(mountedWith()).toBe("");
-    expect(screen.getByRole("alert").textContent).toBe("");
   });
 });
 
@@ -585,28 +424,6 @@ describe("走っている保存の面を組み直したとき", () => {
   }
 
   /**
-   * **`baseText` が楽観的更新の写しで固まると、`stash` が「利用者が打ち直して
-   * 元へ戻した」と読み違えて本文を捨てる。** 棋譜のほうは失敗で巻き戻るので、
-   * 本文はメモリにもディスクにも預かりにも残らない。
-   */
-  it("走っている保存の面へ戻ってから失敗が返っても、書いた本文を捨てない", async () => {
-    const fail = holdFirstFailure("Permission denied (os error 13)");
-    const view = open("/ws/a.kif");
-
-    await typeAndAutosave("消えては困るメモ");
-    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
-
-    // 楽観的更新。書き込みはまだ返っていない
-    comments = ["消えては困るメモ"];
-    await show(view, { cursor: OTHER });
-    await show(view, {});
-
-    await fail();
-
-    expect(getUnsavedDraft(unsavedDraftKey(CURSOR, "/ws/a.kif"))?.draft).toBe("消えては困るメモ");
-  });
-
-  /**
    * 失敗の書き戻しで基準も戻さないと `dirty` が落ちたままになり、
    * 閉じるときの再試行も「この面で初めての失敗なら閉じない」も**どちらも発火しない**。
    */
@@ -629,77 +446,5 @@ describe("走っている保存の面を組み直したとき", () => {
     const calls = setCommentsByCursor.mock.calls;
     expect(calls.length).toBeGreaterThan(before);
     expect(calls[calls.length - 1][1]).toEqual(["消えては困るメモ"]);
-  });
-});
-
-/**
- * **面が画面から外れる出口は4つある**（閉じる／別の手のコメントへ移る／
- * 棋譜が差し替わる／unmount）。走っている保存が返るのはそのあとなので、
- * 「打ち直して元へ戻したなら預からない」を画面に出たままの1つだけに掛けると、
- * 残りの出口では**利用者が消した本文が預かりに入る**。
- *
- * 入ると、開き直したときにその本文がエディタに戻り、900ms 後にファイルへ書かれて
- * 「保存済み」が出る。コメントの無い手では「書いたけどやっぱり全部消す」が
- * `draft === baseText === ""` になるので、特別な操作ではなく普通の使い方で踏む。
- */
-describe("打ち直して元へ戻したまま面が外れたとき", () => {
-  const OTHER: KifuCursor = {
-    tesuu: 7,
-    forkPointers: [],
-    tesuuPointer: "7,[]" as KifuCursor["tesuuPointer"],
-  };
-
-  function show(view: ReturnType<typeof open>, props: { cursor?: KifuCursor; open?: boolean }) {
-    return act(async () => {
-      view.rerender(
-        <KifuCommentNote
-          open={props.open ?? true}
-          cursor={props.cursor ?? CURSOR}
-          absPath="/ws/a.kif"
-          anchorEl={null}
-          onClose={() => {}}
-        />,
-      );
-    });
-  }
-
-  /** 打って、保存を撃って、返る前に全部消す。`dirty` が落ちるので再保存は撃たれない */
-  async function typeThenRevert() {
-    let release!: () => void;
-    const held = new Promise((r) => {
-      release = () => r(Err("Permission denied (os error 13)"));
-    });
-    setCommentsByCursor.mockReturnValue(held);
-
-    await typeAndAutosave("打ち間違い");
-    expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
-    await type("");
-
-    return async () => {
-      await act(async () => {
-        release();
-        await held;
-      });
-    };
-  }
-
-  it("ノートを閉じたあとに失敗が返っても、消した本文を預からない", async () => {
-    const view = open("/ws/a.kif");
-    const fail = await typeThenRevert();
-
-    await show(view, { open: false });
-    await fail();
-
-    expect(getUnsavedDraft(unsavedDraftKey(CURSOR, "/ws/a.kif"))).toBeUndefined();
-  });
-
-  it("別の手のコメントへ移ったあとに失敗が返っても、消した本文を預からない", async () => {
-    const view = open("/ws/a.kif");
-    const fail = await typeThenRevert();
-
-    await show(view, { cursor: OTHER });
-    await fail();
-
-    expect(getUnsavedDraft(unsavedDraftKey(CURSOR, "/ws/a.kif"))).toBeUndefined();
   });
 });

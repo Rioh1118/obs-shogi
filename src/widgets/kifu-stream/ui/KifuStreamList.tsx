@@ -26,11 +26,6 @@ import {
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
-import {
-  branchNumberingForDelete,
-  branchNumberingForSwap,
-  dropUnsavedDraftsFor,
-} from "@/features/kifu-comment-note/lib/unsavedDrafts";
 
 /**
  * 連続移動とみなす間隔（ミリ秒）。これ以内の再入なら、譲る側は撃たず、
@@ -206,22 +201,10 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      const res = await swapBranches(q);
-      // **番号が動いたあとに、影響を受ける預かりを捨てる。**
-      // コメントの預かりは `forkIndex`（`forks` 配列の位置）を鍵に持つので、
-      // 入れ替えたあとの同じ番号は**別の変化**を指す。残すと、そこのノートに
-      // 前の変化の下書きが本文として出て、900ms 後にそこへ書き込まれる。
-      //
-      // 先に捨てると、書き込みが失敗して棋譜が巻き戻ったときに預かりだけが戻らない。
-      // 落とす範囲は `dropUnsavedDraftsFor` が決める（この分岐点を通る面と、
-      // 本譜が動いたときの `te` 以降だけ）。
-      if (res.success)
-        dropUnsavedDraftsFor(
-          state.loadedAbsPath,
-          branchNumberingForSwap(te, branchForkPointers, a, b),
-        );
+      // 失敗しても画面に出す場所がまだ無い。巻き戻しはメモリの側で効く → #277
+      await swapBranches(q); // async-result-ignored: 出口が無い（#277）
     },
-    [swapBranches, state.loadedAbsPath],
+    [swapBranches],
   );
 
   // 押した瞬間には消さない。**確認を挟む。**
@@ -283,17 +266,6 @@ export default function KifuStreamList() {
     const res = await deleteBranch(query).finally(() =>
       setDeleting((cur) => (cur === query ? null : cur)),
     );
-    // 入れ替えと同じ理由。消すと、その分岐点の `forkIndex` が1つずつ詰まる
-    if (res.success)
-      dropUnsavedDraftsFor(
-        state.loadedAbsPath,
-        branchNumberingForDelete(
-          pendingDelete.query.te,
-          pendingDelete.query.forkPointers,
-          pendingDelete.query.target,
-        ),
-      );
-
     // **閉じられていても失敗は出す。**
     //
     // 待つのが長いと利用者は Escape で確認を閉じる。そこで失敗を捨てると、
@@ -317,7 +289,7 @@ export default function KifuStreamList() {
       return;
     }
     setPendingDelete((prev) => (prev?.query === query ? null : prev));
-  }, [deleteBranch, pendingDelete, state.loadedAbsPath]);
+  }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
     (row: RowModel, anchorEl: HTMLButtonElement) => {
