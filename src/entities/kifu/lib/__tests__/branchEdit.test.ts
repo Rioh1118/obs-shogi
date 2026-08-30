@@ -27,8 +27,8 @@ function kifuWithTwoForks(): JKFData {
 const tags = (moves: JKFMove[] | undefined) => moves?.map((m) => m.comments?.[0]);
 
 // swapBranchesInKifu / deleteBranchInKifu が読むのは tesuu と forkPointers だけ
-// （引数の型も CursorPath）。tesuuPointer を組むと、この PR が本番から落とした
-// 「誰も読まない値」をテスト側で作り直すことになる。
+// （引数の型も CursorPath）。tesuuPointer を組むと、誰も読まない値を
+// テスト側だけで持つことになる。
 function cursorAt(tesuu: number, forkPointers: ForkPointer[]): CursorPath {
   return { tesuu, forkPointers };
 }

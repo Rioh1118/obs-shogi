@@ -72,7 +72,7 @@ describe("advanceWithPlan", () => {
 
   // 落ちる先は「本譜」ではなく「いま辿っている線」。変化の中で壊れた計画に当たっても
   // 本譜へは戻らず、変化の続きを進む（forward が読む currentStream は
-  // player.forkPointers を降りた先の線）。doc がここを何度も取り違えた。
+  // player.forkPointers を降りた先の線）。
   test("変化の中で計画を捨てたときは、本譜ではなく変化の続きを進む", () => {
     const branching: JKFData = {
       header: {},

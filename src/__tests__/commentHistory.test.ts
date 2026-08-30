@@ -26,6 +26,7 @@ const ROOTS = [SRC, RUST_SRC, join(REPO_ROOT, "src-tauri", "tests")];
 const HISTORY_WORDS = [
   "今回",
   "PR #",
+  "この PR",
   "で対応",
   "ラウンド",
   "この差分",
