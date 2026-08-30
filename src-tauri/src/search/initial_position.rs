@@ -28,8 +28,13 @@ pub type Jkf = JsonKifuFormat;
 ///
 /// # Errors
 ///
-/// [`ConvertError`] を返すのは3つ。`preset` が `OTHER` なのに盤面が無い、
-/// 盤の座標が 1〜9 を外れる、持駒が1組に収まらない。
+/// [`ConvertError::InitialBoardNoDataWithPresetOTHER`] だけ。`preset` が `OTHER`
+/// なのに `data` が無い JKF で起きる。
+///
+/// **盤の座標も持駒の枚数もここでは検査されない。** 座標は `data.board` の型が
+/// `[[Piece; 9]; 9]` なので serde が先に弾く。持駒の枚数は `Hand::added` が
+/// 黙って受けるので、**歩30枚の JKF はそのまま索引に入る**。
+///
 /// ここで失敗したファイルは索引に入らない（`index_builder`）。
 pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, ConvertError> {
     let Some(initial) = &jkf.initial else {

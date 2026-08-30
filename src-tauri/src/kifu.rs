@@ -61,7 +61,8 @@ fn convert_jkf_to_string_internal(
 ) -> Result<String, Box<dyn std::error::Error>> {
     // ここに来る JKF は**パーサではなく webview 側**が組んだもの。`parse_*` が
     // 返す JKF なら正規化済みなので呼び直しになるが、この経路の JKF は
-    // TS 側で指し手を足したあとの状態で、`piece` や `same` が埋まっていない。
+    // TS 側で指し手を足したあとの状態で、`same` / `promote` / `capture` /
+    // `relative` が埋まっていない（`piece` は型が必須にしているので必ず来る）。
     // 呼ばないと書き出し側が局面を組めない
     jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 
@@ -228,39 +229,64 @@ mod tests {
         }
     }
 
-    /// ディスクへ書く経路が、**正規化していない JKF** を書けて読み戻せる。
+    /// ディスクへ書く経路は正規化しない。書いたものにそれが出る。
     ///
     /// `write_kifu_file_internal` は `convert_jkf_to_string_internal` と違って
-    /// `normalize()` を呼ばない（#322）。webview はここへ、指し手を足したあとの
-    /// `piece` / `same` / `capture` が埋まっていない JKF を送ってくる。
+    /// `normalize()` を呼ばない（#322）。**その差が見えるのは `jkf` 形式だけ。**
+    /// KIF / KI2 / CSA の書き出しは局面を組み直して綴るので、`capture` のような
+    /// 欄を落としても出力が1バイトも変わらない（前の版のこのテストは
+    /// KIF / KI2 を見ていたので、`normalize()` を足しても緑のまま通っていた）。
     ///
-    /// `parse_kif_str` の戻り値は正規化済みなので、そのまま渡すとこの経路の
-    /// 特徴を1つも通らない。**埋まっている欄を落としてから渡す。**
+    /// `jkf` 形式は受け取った JKF をそのまま JSON にするので、
+    /// 正規化した側だけが `capture` を埋め直す。
     #[test]
-    fn the_write_path_handles_a_jkf_that_was_never_normalized() {
+    fn the_write_path_does_not_normalize_and_the_json_shows_it() {
         let dir = temp_dir("write");
 
-        let mut source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
-        let moves = source.moves.len();
-        // webview が組む形に戻す。`normalize()` が局面から計算し直す欄を落とす。
-        // 落とす前に埋まっていたことを確かめる — パーサが埋めなくなったら
-        // このテストは何も落とさなくなり、狙った経路を通らなくなる
-        let mut stripped = 0;
-        for mf in source.moves.iter_mut().skip(1) {
+        let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
+        // webview が組む形に戻す。`normalize()` が局面から計算し直す欄を落とす
+        let mut stripped = source.clone();
+        let mut dropped = 0;
+        for mf in stripped.moves.iter_mut().skip(1) {
             if let Some(mv) = &mut mf.move_ {
-                stripped += usize::from(
-                    mv.same.is_some()
-                        || mv.promote.is_some()
-                        || mv.capture.is_some()
-                        || mv.relative.is_some(),
-                );
+                dropped += usize::from(mv.capture.is_some());
                 mv.same = None;
                 mv.promote = None;
                 mv.capture = None;
                 mv.relative = None;
             }
         }
-        assert!(stripped > 0, "落とす欄が1つも埋まっていない");
+        assert!(dropped > 0, "落とす欄が1つも埋まっていない");
+
+        // 書かない側: 落としたまま出る
+        let mut written_jkf = stripped.clone();
+        let path = dir.join("gote.jkf");
+        write_kifu_file_internal(&mut written_jkf, &path, "jkf").expect("書き出し");
+        let on_disk = std::fs::read_to_string(&path).expect("読み取り");
+        assert!(
+            !on_disk.contains("capture"),
+            "書き込み経路が正規化している:\n{on_disk}"
+        );
+
+        // 呼ぶ側: 埋め直される。両者が同じなら、この非対称は消えている
+        let mut converted = stripped.clone();
+        let via_convert = convert_jkf_to_string_internal(&mut converted, "jkf").expect("変換");
+        assert!(
+            via_convert.contains("capture"),
+            "正規化する側が埋め直していない:\n{via_convert}"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// ディスクへ書いたものが読み戻せる。
+    ///
+    /// `atomic_write` に届くバイト列を見ているのはこのテストだけ。
+    #[test]
+    fn what_the_write_path_puts_on_disk_can_be_read_back() {
+        let dir = temp_dir("write-roundtrip");
+        let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
+        let moves = source.moves.len();
 
         type Reparse = fn(&str) -> Result<JsonKifuFormat, ParseError>;
         for (format, reparse) in [

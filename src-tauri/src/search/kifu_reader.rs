@@ -16,21 +16,39 @@ use shogi_kifu_converter_obsshogi::parser::{
 use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, UTF_16BE, UTF_16LE};
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
+/// 棋譜1つ分。クレートの JKF をそのまま使う
 pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
+/// 棋譜を読めなかった理由
 #[derive(Debug, Error)]
 pub enum KifuReadError {
-    #[error("unsupported kifu kind: {0:?}")]
-    UnsupportedKind(KifuKind),
-
+    /// どの文字コードでも、あるいは棋譜としても読めなかった。
+    ///
+    /// **`message` はそのまま利用者の画面に出る**（`index_builder` →
+    /// `EVT_INDEX_WARN` → 設定のワークスペース）。内部の識別子ではなく、
+    /// 何が読めなかったかと次に何をすればよいかを入れること。
     #[error("parse failed: {path}: {message}")]
     ParseFailed { path: PathBuf, message: String },
 }
 
+/// 走査で見つけたファイルを JKF に読む
 pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
     read_path_to_jkf(&rec.path, rec.kind)
 }
 
+/// 棋譜ファイルを JKF に読む。**形式ごとに手当てが違う。**
+///
+/// | 形式 | 文字コードの総当たり | パニックを捕まえる |
+/// | --- | --- | --- |
+/// | KIF / KI2 | する（`read_portable`） | しない |
+/// | CSA | しない（クレートが UTF-8 のみ・#325） | **する**（`parse_csa_guarded`） |
+/// | JKF | しない（JSON なので UTF-8） | しない |
+///
+/// 非対称の理由はそれぞれの関数の doc にある。
+///
+/// # Errors
+///
+/// [`KifuReadError::ParseFailed`] のみ。読めなかったファイルは索引に入らない。
 pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
     match kind {
         KifuKind::Kif => parse_kif_portable(path),
@@ -58,7 +76,8 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
 ///
 /// 呼び口は `spawn_blocking` の中なのでプロセスは落ちないが、
 /// 捕まえずに落ちると利用者に届くのが `spawn_blocking join error: task N panicked`
-/// になり、どのファイルのどこが悪いのかが消える。
+/// になり、**どこが悪いのかが消える**（ファイル名は `IndexWarnPayload` が
+/// 別の欄で持つので残る）。
 ///
 /// **文字コードの総当たりは掛けない。** クレートの `parse_csa_file` は
 /// `read_to_string` するので UTF-8 以外は `Io` エラーになる。KIF / KI2 と揃っていないが、
@@ -76,7 +95,10 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
                 .unwrap_or("理由不明");
             Err(parse_failed(
                 path,
-                format!("CSA パーサが異常終了した: {what}"),
+                format!(
+                    "CSA の値が規格外です。$START_TIME の日付と T 行の消費時間を\
+                     確かめてください（内部の理由: {what}）"
+                ),
             ))
         }
     }
@@ -128,7 +150,7 @@ where
     let bytes = read_bytes(path)?;
     match try_other_encodings(&bytes, from_str) {
         Ok(jkf) => Ok(jkf),
-        Err(by_fallback) => Err(parse_failed(path, describe(by_crate, by_fallback))),
+        Err(by_fallback) => Err(parse_failed(path, describe(by_crate, &bytes, by_fallback))),
     }
 }
 
@@ -139,28 +161,88 @@ fn read_bytes(path: &Path) -> Result<Vec<u8>, KifuReadError> {
     })
 }
 
-/// クレートが試さない文字コード。上から順に試す
+/// クレートが試さない文字コード
 const ENCODINGS_THE_CRATE_SKIPS: [&Encoding; 4] = [UTF_16LE, UTF_16BE, EUC_JP, ISO_2022_JP];
 
 /// クレートが自分で試す文字コード。利用者に「何を試したか」を出すときに使う
 const ENCODINGS_THE_CRATE_TRIES: [&str; 2] = ["Shift_JIS", "UTF-8"];
 
-/// `bytes` をこの文字コードとして読むのが筋の通る話か。
+/// バイト列が名乗っている文字コード。分からなければ `None`。
 ///
-/// **UTF-16 は「読めてしまう」ので選り分けが要る。** 16bit の値はほとんどが有効な
-/// 文字なので、Shift_JIS や EUC-JP のバイト列を UTF-16 として decode しても
-/// 誤りが出ない。出てくるのは漢字の羅列で、棋譜としては1行目で落ちる。
-/// それを「文字としては読めた」候補に数えると、**本当に読めた文字コードの
-/// 理由を押しのける**（EUC-JP の4行目が読めない、が UTF-16 の1行目が読めない、になる）。
+/// **「decode が誤りを出さなかった」を文字コードの判定に使ってはいけない。**
+/// 8bit の文字コードどうしは互いのバイト列をたいてい誤り無く読めてしまい、
+/// UTF-16 に至ってはほぼ何でも読める。それを判定に使うと、
+/// 先に試したほうが勝つだけの順番の問題になり、**利用者に違う文字コード名と
+/// 違う行番号を出す**（ISO-2022-JP のファイルを「EUC-JP として読めた」と言う、
+/// UTF-16BE のファイルを「UTF-16LE として読めた」と言う）。
 ///
-/// 本物の UTF-16 はどのバイト列よりも NUL を多く含む。ASCII と全角の混じった棋譜なら
-/// 半分近くが NUL になるので、1つも無ければ UTF-16 ではない。
-/// 8bit の文字コードに NUL は現れないので、この条件で取り違えない。
-fn is_plausible(enc: &'static Encoding, bytes: &[u8]) -> bool {
-    if enc == UTF_16LE || enc == UTF_16BE {
-        return bytes.contains(&0);
+/// ここで見るのは**そのバイト列にしか現れない印**だけ。
+///
+/// | 印 | 文字コード |
+/// | --- | --- |
+/// | BOM | UTF-8 / UTF-16LE / UTF-16BE |
+/// | エスケープ `ESC $ B` / `ESC ( B` / `ESC ( J` | ISO-2022-JP |
+/// | NUL があり、偶数番地に偏る | UTF-16BE |
+/// | NUL があり、奇数番地に偏る | UTF-16LE |
+///
+/// 印が無ければ `None`。Shift_JIS と EUC-JP はどちらも印を持たないので、
+/// **この関数では見分けない**。見分けたふりをするより、名乗らないほうがよい。
+fn detect_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
+    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        return Some(encoding_rs::UTF_8);
     }
-    true
+    if bytes.starts_with(&[0xFF, 0xFE]) {
+        return Some(UTF_16LE);
+    }
+    if bytes.starts_with(&[0xFE, 0xFF]) {
+        return Some(UTF_16BE);
+    }
+    if bytes
+        .windows(3)
+        .any(|w| w == b"\x1b$B" || w == b"\x1b(B" || w == b"\x1b(J")
+    {
+        return Some(ISO_2022_JP);
+    }
+
+    // UTF-16 は ASCII の隣が必ず NUL になる。どちら側に寄るかでバイト順が決まる
+    let (even, odd) = bytes.iter().enumerate().filter(|(_, b)| **b == 0).fold(
+        (0usize, 0usize),
+        |(e, o), (i, _)| {
+            if i % 2 == 0 {
+                (e + 1, o)
+            } else {
+                (e, o + 1)
+            }
+        },
+    );
+    match even.cmp(&odd) {
+        std::cmp::Ordering::Greater => Some(UTF_16BE),
+        std::cmp::Ordering::Less => Some(UTF_16LE),
+        // NUL が無い（0 と 0）か、綺麗に半々。どちらも UTF-16 の証拠にならない
+        std::cmp::Ordering::Equal => None,
+    }
+}
+
+/// この文字コードで読めた理由を、利用者に**その名前で**出してよいか。
+///
+/// 名乗る印があればそれだけを使う。印が無いときに名前を出してよいのは
+/// **EUC-JP だけ**で、消去法で決まる。
+///
+/// - UTF-16 は印（BOM か NUL の偏り）が無ければ候補にしない。
+///   印の無いバイト列でもほぼ必ず誤り無く復号でき、`had_errors` では弾けない
+/// - ISO-2022-JP は必ずエスケープを持つので、印が無いなら ISO-2022-JP ではない
+/// - Shift_JIS と UTF-8 はクレートが先に試しており、ここには来ない
+///
+/// 残るのが EUC-JP 1つなので、誤り無く復号できたなら名前を出してよい。
+fn can_be_named(
+    enc: &'static Encoding,
+    detected: Option<&'static Encoding>,
+    had_errors: bool,
+) -> bool {
+    match detected {
+        Some(named) => named == enc,
+        None => enc == EUC_JP && !had_errors,
+    }
 }
 
 /// 文字として読めたのに棋譜として読めなかった試行
@@ -171,25 +253,24 @@ struct Unparsable {
 
 /// クレートが見ない文字コードで decode → parse を試す。
 ///
-/// 読めなければ、**文字としては読めた試行**があればそれを返す。
-/// 「どの文字コードでも読めなかった」と「EUC-JP としては読めたが4行目が棋譜でない」は
+/// 読めなければ、**バイト列が名乗っている文字コード**で読んだときの理由を返す。
+/// 「どの文字コードでも読めなかった」と「ISO-2022-JP としては読めたが4行目が棋譜でない」は
 /// 利用者にとって別の話で、後者には直す手がある。
+///
+/// 名乗っていない（`detect_encoding` が `None`）なら理由は返さない。
+/// **どれで読めたかを言えないのに文字コード名を出すと、嘘になる。**
 fn try_other_encodings<F>(bytes: &[u8], mut parse: F) -> Result<Jkf, Option<Unparsable>>
 where
     F: FnMut(&str) -> Result<Jkf, ParseError>,
 {
+    let detected = detect_encoding(bytes);
     let mut unparsable = None;
 
     for enc in ENCODINGS_THE_CRATE_SKIPS {
-        if !is_plausible(enc, bytes) {
-            continue;
-        }
         let (cow, _, had_errors) = enc.decode(bytes);
         match parse(cow.as_ref()) {
             Ok(jkf) => return Ok(jkf),
-            // 化けた文字列がたまたま棋譜として読めなかっただけかもしれないので、
-            // **decode が誤りを出さなかった試行だけ**を理由の候補にする
-            Err(error) if !had_errors && unparsable.is_none() => {
+            Err(error) if can_be_named(enc, detected, had_errors) => {
                 unparsable = Some(Unparsable {
                     encoding: enc.name(),
                     error,
@@ -210,33 +291,45 @@ where
 
 /// 読めなかった理由を利用者に出す文言にする。
 ///
-/// クレートの理由をそのまま使えるのは、クレートが**文字としては読めていた**とき
-/// （`Kif` / `Ki2` / `Normalize`）。`Kif` / `Ki2` は何行目で止まったかを言い、
-/// `Normalize` は何手目のどの手が局面に合わないかを言う。
+/// **クレートが `Kif` / `Ki2` を返したことは「正しい文字コードで読めた」を意味しない。**
+/// ISO-2022-JP の本文はすべて 0x80 未満なので、クレートの Shift_JIS 復号は誤りを出さず、
+/// 化けたままの行を「読めない行」として名指しする。だから
+/// **バイト列が別の文字コードを名乗っているなら、そちらの理由を先に採る。**
 ///
-/// `Decode` / `FileExtension` / `Io` のときはクレートが一語しか返さない
-/// （`Decode` の Display は `Decode Error` だけ）ので、
-/// 総当たりのほうが持っている理由を使う。どちらも無ければ試した文字コードを並べる。
-fn describe(by_crate: ParseError, by_fallback: Option<Unparsable>) -> String {
+/// `Normalize` は文字コードと関係が無い（局面に合わない手）ので常にそのまま使う。
+fn describe(by_crate: ParseError, bytes: &[u8], by_fallback: Option<Unparsable>) -> String {
+    if let ParseError::Normalize(_) = by_crate {
+        return by_crate.to_string();
+    }
+
+    // バイト列が名乗った文字コードで読んだ理由があれば、それが一番確か
+    if let Some(Unparsable { encoding, error }) = by_fallback {
+        return format!("{encoding} としては読めたが、棋譜として読めなかった: {error}");
+    }
+
     match by_crate {
-        ParseError::Kif(_) | ParseError::Ki2(_) | ParseError::Normalize(_) => by_crate.to_string(),
-        other => match by_fallback {
-            Some(Unparsable { encoding, error }) => {
-                format!("{encoding} としては読めたが、棋譜として読めなかった: {error}")
-            }
-            None => {
-                let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
-                    .iter()
-                    .copied()
-                    .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
-                    .collect();
-                format!(
+        // クレートが文字にできていた。Shift_JIS か UTF-8 のどちらかで、
+        // 名乗る印が無かった以上これ以上の絞り込みはできない
+        ParseError::Kif(_) | ParseError::Ki2(_) => by_crate.to_string(),
+        other => {
+            let detected = detect_encoding(bytes);
+            let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
+                .iter()
+                .copied()
+                .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
+                .collect();
+            match detected {
+                Some(enc) => format!(
+                    "{other}: {} を名乗っているが、その文字コードでも棋譜として読めなかった",
+                    enc.name()
+                ),
+                None => format!(
                     "{other}: {} のどれでも文字として読めなかった。\
                      棋譜ではないファイルに棋譜の拡張子が付いていないか確かめること",
                     tried.join(" / ")
-                )
+                ),
             }
-        },
+        }
     }
 }
 
@@ -343,7 +436,9 @@ mod tests {
         let dir = temp_dir("undecodable");
         let path = dir.join("binary.kif");
         // どの日本語文字コードとしても解釈できず、棋譜としても読めないバイト列
-        fs::write(&path, [0xC0u8, 0xC1, 0xF5, 0xFF, 0xFE, 0x00, 0x80]).expect("書き出し");
+        // 0xFD / 0xFF は Shift_JIS / EUC-JP / UTF-8 のどれでも不正。
+        // NUL も BOM もエスケープも含めない（含めると文字コードを名乗ったことになる）
+        fs::write(&path, [0xFDu8, 0xFF, 0xFD, 0xFF, 0xFD]).expect("書き出し");
 
         let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
         let message = err.to_string();
@@ -433,12 +528,68 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    /// ISO-2022-JP の棋譜は、Shift_JIS として「読めて」しまう。
+    ///
+    /// 本文が全て 0x80 未満なので、クレートの Shift_JIS 復号は誤りを出さず、
+    /// **化けた行を「読めない行」として名指しする**。エスケープを見て
+    /// ISO-2022-JP と分かるので、そちらの理由を採る。
+    #[test]
+    fn an_iso2022jp_file_is_not_explained_by_the_shift_jis_garbage() {
+        let dir = temp_dir("iso2022-bad");
+        let path = dir.join("bad-line.kif");
+        let text = format!("{}   2 パス\n", hirate_kif());
+        let (bytes, _, had_errors) = ISO_2022_JP.encode(&text);
+        assert!(!had_errors, "ISO-2022-JP へ encode できること");
+        fs::write(&path, &bytes).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            message.contains("ISO-2022-JP"),
+            "ISO-2022-JP と分かっていない: {message}"
+        );
+        assert!(
+            message.contains("パス"),
+            "化けた行のほうを名指ししている: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// UTF-16BE を UTF-16LE と取り違えない。
+    ///
+    /// バイト順を入れ替えた復号は UTF-16 ではまず誤りを出さないので、
+    /// 先に試したほうが勝つ形にすると**常に UTF-16LE を名乗る**。
+    /// NUL がどちら側の番地に寄るかで決める。
+    #[test]
+    fn a_utf16be_file_is_not_called_utf16le() {
+        let dir = temp_dir("utf16be-bad");
+        let path = dir.join("bad-line.kif");
+        let text = format!("{}   2 パス\n", hirate_kif());
+        let bytes: Vec<u8> = text.encode_utf16().flat_map(u16::to_be_bytes).collect();
+        fs::write(&path, &bytes).expect("書き出し");
+
+        let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
+        let message = err.to_string();
+        assert!(
+            message.contains("UTF-16BE"),
+            "バイト順を取り違えている: {message}"
+        );
+        assert!(
+            message.contains("パス"),
+            "読めなかった語を指していない: {message}"
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
     /// 手合割つきの棋譜が読める。
     ///
-    /// 手合割の盤面はクレートの表（`handicap.rs`）が持つ。表に無い手合割は
-    /// `ConvertError::UnknownPreset` になり、`normalize()` 経由で
-    /// `ParseError::Normalize` として返る。**その棋譜だけが索引から漏れる**ので、
-    /// 全種が読めることをここで固定する。
+    /// 手合割の盤面はクレートの表（`handicap.rs`）が持つ。表に無い名前は
+    /// **平手として素通しされ**（`Preset` の enum に無い名前は値にならない）、
+    /// 上手の初手が指せずに `ParseError::Normalize(MakeMoveFailed)` で落ちる。
+    /// **不正な手を記録した棋譜と見分けが付かない**ので、全種が読めることを
+    /// ここで固定する。
     #[test]
     fn every_handicap_is_readable() {
         let dir = temp_dir("handicap");
