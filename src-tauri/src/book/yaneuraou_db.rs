@@ -142,10 +142,7 @@ fn parse(text: &str, path: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, Book
             ));
         };
 
-        positions
-            .entry(key)
-            .or_default()
-            .push(parse_move(line, index + 1, path)?);
+        positions.entry(key).or_default().push(parse_move(line));
     }
 
     Ok(positions)
@@ -154,40 +151,39 @@ fn parse(text: &str, path: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, Book
 /// 指し手の行を1つ読む。
 ///
 /// 並びは `指し手 応手 評価値 深さ 選択回数`。後ろの3つは形式として optional で、
-/// 同じファイルの中でも行によって欠ける。空文字が置かれていることもある。
+/// 同じファイルの中でも行によって欠ける。
 ///
-/// **指し手そのものは検証しない。** USI の綴りを判定する実装をここに持つと、
-/// 定跡側が使う綴り（`resign` など）を知らずに弾いてしまい、読めるはずの定跡が
-/// 開けなくなる。壊れたファイルは見出しの検査で落とす。
-fn parse_move(line: &str, line_number: usize, path: &str) -> Result<BookMove, BookError> {
-    let mut tokens = line.split_whitespace();
+/// **区切りは1つの空白で数える**（`split_whitespace` ではない）。ShogiHome は
+/// score と depth を省くとき空文字を書き出すので、連続した空白を畳むと欄が
+/// 1つずつずれ、`深さ 32` が `評価値 +32` として画面に出る。エラーにならないので
+/// 誰も気づけない。
+///
+/// 呼び出し側が空行と注記を除いてから渡すので、先頭のトークンは必ず存在する。
+fn parse_move(line: &str) -> BookMove {
+    // 6つ目以降は形式に無い。畳んでおけば、末尾に何か付いていても欄がずれない。
+    let mut tokens = line.splitn(6, ' ');
 
     let usi_move = tokens
         .next()
-        .ok_or_else(|| {
-            invalid_content(
-                &format!(
-                    "指し手の無い行がある（{line_number}行目）。取得し直すか、別の定跡を開くこと"
-                ),
-                path,
-            )
-        })?
+        .expect("splitn は必ず1つ返す。呼び出し側が空行を除いている")
         .to_string();
 
-    let ponder = match tokens.next() {
-        // 応手が無いことを示す綴り。文字列 "none" のまま返すと、フロントは
-        // それを指し手として扱える形で受け取ってしまう。
-        None | Some("none") | Some("") => None,
-        Some(value) => Some(value.to_string()),
-    };
-
-    Ok(BookMove {
+    BookMove {
         usi_move,
-        ponder,
+        ponder: optional_move(tokens.next()),
         value: optional_number(tokens.next()),
         depth: optional_number(tokens.next()),
         count: optional_number(tokens.next()),
-    })
+    }
+}
+
+/// 応手の欄を読む。省略・空欄・「指し手が無い」の綴りはすべて欠損。
+fn optional_move(token: Option<&str>) -> Option<String> {
+    let token = token?.trim();
+    if token.is_empty() || token == "none" {
+        return None;
+    }
+    Some(token.to_string())
 }
 
 /// 数値として読めない綴りは、行ごと落とさずに欠損として扱う。
@@ -195,7 +191,7 @@ fn parse_move(line: &str, line_number: usize, path: &str) -> Result<BookMove, Bo
 /// 評価値や深さは付加情報で、無くても候補手としては使える。1つの綴りのために
 /// その局面の定跡を丸ごと失う方が損。
 fn optional_number<T: std::str::FromStr>(token: Option<&str>) -> Option<T> {
-    token.and_then(|t| t.parse().ok())
+    token.and_then(|t| t.trim().parse().ok())
 }
 
 #[cfg(test)]
@@ -320,6 +316,27 @@ mod tests {
              7g7f 3c3d 50 32 1\n"
         );
         assert!(parse(&text, "/books/a.db").is_ok());
+    }
+
+    /// ShogiHome は score と depth を省くとき空文字を書き出す。連続した空白を
+    /// 畳むと欄が1つずつずれ、深さが評価値として画面に出る。
+    #[test]
+    fn an_empty_field_does_not_shift_the_columns() {
+        let text = format!(
+            "#YANEURAOU-DB2016 1.00\n\
+             sfen {HIRATE}\n\
+             7g7f none  32 5\n\
+             2g2f none   1234\n"
+        );
+        let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
+
+        assert_eq!(moves[0].value, None, "空欄を詰めて深さを評価値にしている");
+        assert_eq!(moves[0].depth, Some(32));
+        assert_eq!(moves[0].count, Some(5));
+
+        assert_eq!(moves[1].value, None);
+        assert_eq!(moves[1].depth, None);
+        assert_eq!(moves[1].count, Some(1234));
     }
 
     /// 見出しを検査しないと、別形式のファイルが「0局面の定跡」として開ける。
