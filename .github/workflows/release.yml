@@ -83,9 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # `rust_target` は rustup と tauri の両方が読む。空なら「ホストのまま組む」で、
-        # `rustup target add` も `--target` も出さない。同じ文字列を2欄に置くと、
-        # 片方だけ変えたときに std の無いターゲットへ組む形が黙って通る
+        # ターゲットを決めるのは `rust_target` だけ。空は「ホストのまま組む」で、
+        # `rustup target add` のステップも tauri への `--target` も出なくなる。
         include:
           # ── macOS ──────────────────────────────────────────────────────────
           - name: macOS-arm64
@@ -134,9 +133,7 @@ jobs:
       # この action の targets: は stable に対して効いてしまい、固定版には付かないので使わない。
       - uses: dtolnay/rust-toolchain@stable
 
-      # `rust_target` が入っている行は tauri へ `--target` を渡すので、その std を
-      # 先に入れておく（ホストと同じ側は no-op）。Windows と Linux はホストのまま
-      # 組むので空で、ガードが無いと引数の無い `rustup target add` になって exit 1 する。
+      # ガードが無いと、空の行が引数の無い `rustup target add` に展開されて exit 1 する。
       - name: Add build target (rust-toolchain.toml のツールチェーンに対して)
         if: matrix.rust_target != ''
         run: rustup target add ${{ matrix.rust_target }}
