@@ -94,6 +94,15 @@ export default function KifuStreamList() {
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  /**
+   * この削除自身が書いている最中か。
+   *
+   * **`state.isLoading` を使わない。** あれは「棋譜への書き込みが1つ以上走っている」で、
+   * 誰の書き込みかを区別しない。コメントの自動保存が並行して終わると
+   * 「削除中...」が解け、まだ書いている最中に「削除する」を押し直せる。
+   * そのとき候補列は既に1つ減っているので、**確認していない枝が消える。**
+   */
+  const [deleting, setDeleting] = useState(false);
 
   const plannedCursor = useMemo(
     () => plannedCursorFrom(state.cursor, state.branchPlan),
@@ -239,7 +248,8 @@ export default function KifuStreamList() {
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
 
-    const res = await deleteBranch(pendingDelete.query);
+    setDeleting(true);
+    const res = await deleteBranch(pendingDelete.query).finally(() => setDeleting(false));
 
     // **待っている間に確認が閉じていたら、開き直さない。**
     // Escape で閉じた／棋譜が変わって上の効果が畳んだ、のどちらでも
@@ -421,7 +431,7 @@ export default function KifuStreamList() {
         <ConfirmDialog
           title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
           subtitle={describeDelete(pendingDelete)}
-          isLoading={state.isLoading}
+          isLoading={deleting}
           onConfirm={() => void confirmDelete()}
           onCancel={() => setPendingDelete(null)}
         />

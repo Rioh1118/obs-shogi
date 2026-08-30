@@ -32,7 +32,17 @@ export interface GameContextState {
   /** 現在ロードしている棋譜ファイル（未選択なら null） */
   loadedAbsPath: string | null;
 
+  /**
+   * 走っている書き込みが1つ以上あるか。`pendingWrites > 0` の射影。
+   *
+   * **真偽値のまま `finally` で降ろさない。** 書き込みは並行しうる
+   * （コメントの自動保存は 900ms 後に、開いた面や確認ダイアログとは無関係に撃つ）。
+   * 先に終わった1つが false を撃つと、まだ走っている書き込みの最中に
+   * 「操作中」が解け、確認ダイアログが押し直せる状態へ戻る。
+   */
   isLoading: boolean;
+  /** 走っている書き込みの本数。`isLoading` を導くためだけに持つ */
+  pendingWrites: number;
   error: string | null;
 }
 
@@ -103,9 +113,14 @@ export type GameAction =
   | {
       type: "clear_selection";
     }
+  // 数える。**真偽値を撃たない。** 並行する書き込みのうち先に終わった1つが
+  // 「操作中」を解いてしまうため（`isLoading` の doc を参照）。
+  // 撃った回数と同じだけ `write_ended` を撃つこと（`finally` で1回）。
   | {
-      type: "set_loading";
-      payload: boolean;
+      type: "write_started";
+    }
+  | {
+      type: "write_ended";
     }
   | {
       type: "set_error";
@@ -125,6 +140,7 @@ export const initialGameState: GameContextState = {
   selectedPosition: null,
   loadedAbsPath: null,
   isLoading: false,
+  pendingWrites: 0,
   error: null,
 };
 

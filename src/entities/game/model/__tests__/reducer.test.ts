@@ -17,11 +17,6 @@ describe("gameReducer", () => {
     expect(gameReducer(state, { type: "clear_error" })).toBe(state);
   });
 
-  it("isLoading が同値なら set_loading で同じ state を返す", () => {
-    const state = { ...initialGameState, isLoading: false };
-    expect(gameReducer(state, { type: "set_loading", payload: false })).toBe(state);
-  });
-
   it("値が変わるときは新しい state を返す", () => {
     const selected = {
       ...initialGameState,
@@ -33,9 +28,46 @@ describe("gameReducer", () => {
 
     const errored = { ...initialGameState, error: "boom" };
     expect(gameReducer(errored, { type: "clear_error" }).error).toBeNull();
+  });
+});
 
-    const idle = { ...initialGameState, isLoading: false };
-    expect(gameReducer(idle, { type: "set_loading", payload: true }).isLoading).toBe(true);
+// 書き込みは並行しうる。コメントの自動保存は 900ms 後に、開いている面や
+// 確認ダイアログとは無関係に撃つ。真偽値で持つと、先に終わった1つが
+// **まだ書いている最中に「操作中」を解く**。
+describe("走っている書き込みを数える", () => {
+  it("先に終わった1つでは isLoading が解けない", () => {
+    const one = gameReducer(initialGameState, { type: "write_started" });
+    const two = gameReducer(one, { type: "write_started" });
+    expect(two.isLoading).toBe(true);
+
+    const oneLeft = gameReducer(two, { type: "write_ended" });
+    expect(oneLeft.isLoading).toBe(true);
+
+    expect(gameReducer(oneLeft, { type: "write_ended" }).isLoading).toBe(false);
+  });
+
+  // 失敗したのは撃った1本であって、並行して走っている他の書き込みではない。
+  it("set_error は走っている書き込みを終わらせない", () => {
+    const writing = gameReducer(initialGameState, { type: "write_started" });
+    const errored = gameReducer(writing, { type: "set_error", payload: "boom" });
+    expect(errored.error).toBe("boom");
+    expect(errored.isLoading).toBe(true);
+  });
+
+  // 0 に戻すと、走っている書き込みの write_ended が負へ落として
+  // 以後 isLoading が二度と立たなくなる。
+  it("棋譜を読み込み直しても、走っている書き込みの本数は持ち越す", () => {
+    const writing = gameReducer(initialGameState, { type: "write_started" });
+    const loaded = gameReducer(writing, {
+      type: "game_loaded",
+      payload: {
+        jkf: { header: {}, moves: [{}] },
+        absPath: "/ws/a.kif",
+        cursor: { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" } as never,
+      },
+    });
+    expect(loaded.isLoading).toBe(true);
+    expect(gameReducer(loaded, { type: "write_ended" }).isLoading).toBe(false);
   });
 });
 

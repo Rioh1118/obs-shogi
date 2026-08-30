@@ -229,7 +229,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "write_started" });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -268,7 +268,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({ type: "write_ended" });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
@@ -277,7 +277,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   const loadGame = useCallback(async (jkf: JKFData, absPath: string | null) => {
     try {
       dispatch({ type: "clear_error" });
-      dispatch({ type: "set_loading", payload: true });
+      dispatch({ type: "write_started" });
 
       const nextJkf = cloneJkf(jkf);
       const player = new JKFPlayer(nextJkf);
@@ -291,7 +291,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       const msg = e instanceof Error ? e.message : "Failed to load game";
       dispatch({ type: "set_error", payload: msg });
     } finally {
-      dispatch({ type: "set_loading", payload: false });
+      dispatch({ type: "write_ended" });
     }
   }, []);
 
@@ -375,7 +375,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "write_started" });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -411,7 +411,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({ type: "write_ended" });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
@@ -422,7 +422,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       if (!state.jkf) return Ok(undefined);
 
       try {
-        dispatch({ type: "set_loading", payload: true });
+        dispatch({ type: "write_started" });
         dispatch({ type: "clear_error" });
 
         const nextJkf = cloneJkf(state.jkf);
@@ -458,7 +458,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
-        dispatch({ type: "set_loading", payload: false });
+        dispatch({ type: "write_ended" });
       }
     },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],

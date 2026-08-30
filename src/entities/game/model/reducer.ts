@@ -4,6 +4,8 @@ import { initialGameState } from "./types";
 
 export function gameReducer(state: GameContextState, action: GameAction): GameContextState {
   switch (action.type) {
+    // `pendingWrites` を持ち越す。ここで 0 に戻すと、走っている書き込みの
+    // `write_ended` が負の数へ落として以後 `isLoading` が二度と立たなくなる。
     case "game_loaded":
       return {
         jkf: action.payload.jkf,
@@ -11,7 +13,8 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         branchPlan: asBranchPlan([...action.payload.cursor.forkPointers]),
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
-        isLoading: false,
+        isLoading: state.pendingWrites > 0,
+        pendingWrites: state.pendingWrites,
         error: null,
       };
 
@@ -73,14 +76,23 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     case "clear_selection":
       return state.selectedPosition === null ? state : { ...state, selectedPosition: null };
 
-    case "set_loading":
-      return state.isLoading === action.payload ? state : { ...state, isLoading: action.payload };
+    case "write_started": {
+      const pendingWrites = state.pendingWrites + 1;
+      return { ...state, pendingWrites, isLoading: true };
+    }
 
+    case "write_ended": {
+      const pendingWrites = Math.max(0, state.pendingWrites - 1);
+      return { ...state, pendingWrites, isLoading: pendingWrites > 0 };
+    }
+
+    // **`isLoading` を触らない。** 失敗したのは撃った1本であって、
+    // 並行して走っている他の書き込みではない。ここで落とすと、
+    // まだ書いている最中に確認ダイアログの「削除中...」が解ける。
     case "set_error":
       return {
         ...state,
         error: action.payload,
-        isLoading: false,
       };
 
     case "clear_error":
