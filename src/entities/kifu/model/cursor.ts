@@ -34,6 +34,20 @@ declare const tesuuPointerBrand: unique symbol;
  */
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
+declare const cursorKeyBrand: unique symbol;
+
+/**
+ * 要求から組んだ鍵。`TesuuPointer` と**書式は同じで型が違う**。
+ *
+ * 分けてあるのは、観測の欄（`KifuCursor.tesuuPointer`）に要求の鍵を入れる形を
+ * 型で止めるため。同じ型にしていると `{ ...cursor, tesuuPointer: cursorKey(path) }`
+ * がそのまま通り、着けもしない局面の識別子で停止判定が回る。
+ *
+ * 文字列としては使える（キャッシュ鍵や React の `key`）。
+ * 観測値と突き合わせてよいのは `pointsAtSame` を通す場合だけ。
+ */
+export type CursorKey = string & { readonly [cursorKeyBrand]: true };
+
 declare const kifuCursorBrand: unique symbol;
 
 /**
@@ -55,11 +69,10 @@ function buildTesuuPointer(tesuu: number, forkPointers: ForkPointer[]): TesuuPoi
  * **`te > tesuu` を持たないのはこの型だけ。** `CursorPath` / `PlannedCursor` /
  * `BranchPlan` はいずれも持ちうる。
  *
- * `tesuuPointer` の型 brand だけでは、この型を組む側を縛れない。`cursorKey` は
- * 同じ `TesuuPointer` を返して公開されているので、
- * `{ tesuu, forkPointers, tesuuPointer: cursorKey(path) }` と直に書けば
- * キャスト無しで**要求の鍵が観測の欄に入る**。だから型そのものにも brand を付け、
- * 作れるのを下の2つ（`makeKifuCursor` / `ROOT_CURSOR`）に絞る。
+ * 作るのは `makeKifuCursor` と `ROOT_CURSOR` の2つ。brand はそれを支える印だが、
+ * **止まるのは素のオブジェクトリテラルだけ**（スプレッドと二重キャストは通る）。
+ * 要求の鍵が観測の欄に入る形を実際に止めているのは、`TesuuPointer` と
+ * `CursorKey` を別の型にしてあること。
  */
 export interface KifuCursor {
   /** 現在の手数(0=開始局面) */
@@ -71,7 +84,15 @@ export interface KifuCursor {
   /** `JKFPlayer.getTesuuPointer()` が返した観測値。要求の鍵（`cursorKey`）を入れない */
   tesuuPointer: TesuuPointer;
 
-  /** 外でオブジェクトリテラルから組めなくするための印。値としては存在しない */
+  /**
+   * 外から組ませないための印。値としては存在しない。
+   *
+   * 止まるのは素のオブジェクトリテラルだけ。`{ ...cursor }` のスプレッドは印ごと
+   * 写るので通る。**スプレッドで `tesuuPointer` を差し替える形を止めているのは
+   * `CursorKey` との型の違い**であって、この印ではない。
+   * `as unknown as KifuCursor` はどちらも素通りするので
+   * `src/__tests__/cursorConstruction.test.ts` が綴りで見る。
+   */
   readonly [kifuCursorBrand]: true;
 }
 
@@ -120,8 +141,11 @@ declare const plannedCursorBrand: unique symbol;
  * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` は
  * `te <= tesuu` に正規化されているので、**カーソルより先の選択が黙って空になる**。
  *
- * **通せるのは `plannedCursorFrom` の返り値だけ。** 素の `CursorPath` も `KifuCursor` も
- * 型で弾かれる。`te > tesuu` を持つ素の `CursorPath`（`previewCursor`）を計画として
+ * **通すのは `plannedCursorFrom` の返り値だけ**、というのは規約。型が弾くのは
+ * `KifuCursor` からの代入（自分の brand が邪魔をする）で、素の `CursorPath` に
+ * `as PlannedCursor` と書けば通る。綴りのほうは
+ * `src/__tests__/cursorConstruction.test.ts` が見る。
+ * `te > tesuu` を持つ素の `CursorPath`（`previewCursor`）を計画として
  * 使いたい側は、`asBranchPlan` を通して `plannedCursorFrom` で組み直すこと。
  */
 export interface PlannedCursor {
@@ -324,6 +348,17 @@ export function descendTo(
  *
  * 着いた先の同一性が要る側は `state.cursor.tesuuPointer`（再生器が返した値）を見ること。
  */
-export function cursorKey(path: CursorPath): TesuuPointer {
-  return buildTesuuPointer(path.tesuu, normalizeForkPointers(path.forkPointers, path.tesuu));
+export function cursorKey(path: CursorPath): CursorKey {
+  const key = buildTesuuPointer(path.tesuu, normalizeForkPointers(path.forkPointers, path.tesuu));
+  return key as string as CursorKey;
+}
+
+/**
+ * 観測値と要求の鍵が同じ局面を指しているか。**2つの鍵が出会ってよい唯一の場所。**
+ *
+ * 書式が同じなので文字列としては比べられるが、型を分けてあるぶん `===` が通らない。
+ * 突き合わせたい側はここを通す（呼ぶのは `reachedCursor`）。
+ */
+export function pointsAtSame(observed: TesuuPointer, requested: CursorKey): boolean {
+  return (observed as string) === (requested as string);
 }

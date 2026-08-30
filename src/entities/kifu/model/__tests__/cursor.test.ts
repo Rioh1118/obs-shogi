@@ -8,6 +8,7 @@ import {
   normalizeBefore,
   normalizeForkPointers,
   plannedCursorFrom,
+  pointsAtSame,
   sameForkPointers,
   forkIndexAt,
   makeKifuCursor,
@@ -298,5 +299,46 @@ describe("plannedCursorFrom", () => {
 
   test("cursor が null なら null", () => {
     expect(plannedCursorFrom(null, asBranchPlan([]))).toBeNull();
+  });
+});
+
+describe("pointsAtSame", () => {
+  // 観測値と要求の鍵は型が違う。書式が同じでも `===` は tsc が通さないので、
+  // 突き合わせたい側が通る唯一の口。ここが緩むと「着いていないのに着いた」に戻る。
+  test("同じ局面を指していれば true", () => {
+    const cursor = cursorAt(3, [fp(2, 0)]);
+
+    expect(
+      pointsAtSame(cursor.tesuuPointer, cursorKey({ tesuu: 3, forkPointers: [fp(2, 0)] })),
+    ).toBe(true);
+  });
+
+  test("手数が違えば false", () => {
+    const cursor = cursorAt(3, []);
+
+    expect(pointsAtSame(cursor.tesuuPointer, cursorKey({ tesuu: 4, forkPointers: [] }))).toBe(
+      false,
+    );
+  });
+
+  test("同じ手数でも選んだ変化が違えば false", () => {
+    const cursor = cursorAt(3, [fp(2, 0)]);
+
+    expect(
+      pointsAtSame(cursor.tesuuPointer, cursorKey({ tesuu: 3, forkPointers: [fp(2, 1)] })),
+    ).toBe(false);
+  });
+
+  // 要求の側は te > tesuu を落としてから鍵にする。落とさずに比べると、
+  // 先の計画を持つ要求が「別の局面」に見えて到達判定が常に false になる
+  test("カーソルより先の計画は鍵に載らないので true のまま", () => {
+    const cursor = cursorAt(3, [fp(2, 0)]);
+
+    expect(
+      pointsAtSame(
+        cursor.tesuuPointer,
+        cursorKey({ tesuu: 3, forkPointers: [fp(2, 0), fp(7, 1)] }),
+      ),
+    ).toBe(true);
   });
 });

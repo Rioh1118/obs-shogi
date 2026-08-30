@@ -1,5 +1,11 @@
 import type { JKFPlayer } from "json-kifu-format";
-import { cursorKey, makeKifuCursor, type CursorPath, type KifuCursor } from "../model/cursor";
+import {
+  cursorKey,
+  makeKifuCursor,
+  pointsAtSame,
+  type CursorPath,
+  type KifuCursor,
+} from "../model/cursor";
 
 /**
  * 再生し終えた player から `KifuCursor` を作る。
@@ -34,5 +40,5 @@ export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
  * `src/__tests__/playerAccess.test.ts` のラチェットに掛かる。ここを通すこと。
  */
 export function reachedCursor(player: JKFPlayer, path: CursorPath): boolean {
-  return cursorFromPlayer(player).tesuuPointer === cursorKey(path);
+  return pointsAtSame(cursorFromPlayer(player).tesuuPointer, cursorKey(path));
 }
