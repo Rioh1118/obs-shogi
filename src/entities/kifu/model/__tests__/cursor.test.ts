@@ -1,8 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import {
+  asBranchPlan,
   cursorKey,
   descendTo,
+  normalizeForkPointers,
+  plannedCursorFrom,
+  sameForkPointers,
   forkIndexAt,
   makeKifuCursor,
   mergeBranchPlan,
@@ -13,6 +17,10 @@ import {
 } from "../cursor";
 
 const fp = (te: number, forkIndex: number): ForkPointer => ({ te, forkIndex });
+
+// 手で組むと、makeKifuCursor の正規化を変えても fixture が旧挙動を再現し続ける。
+const cursorAt = (tesuu: number, forkPointers: ForkPointer[]): KifuCursor =>
+  makeKifuCursor(tesuu, forkPointers, cursorKey({ tesuu, forkPointers }));
 
 describe("selectAt", () => {
   test("te の選択を上書きする", () => {
@@ -34,6 +42,7 @@ describe("selectAt", () => {
 
   test("返りは te 昇順", () => {
     expect(selectAt([fp(5, 0), fp(1, 0)], 3, 1)).toEqual([fp(1, 0), fp(3, 1), fp(5, 0)]);
+    expect(selectAt([fp(3, 0), fp(1, 0)], 3, 2)).toEqual([fp(1, 0), fp(3, 2)]);
   });
 });
 
@@ -57,17 +66,7 @@ describe("truncateFrom", () => {
   });
 });
 
-describe("selectAt の並び", () => {
-  test("同じ te は上書きし、te 昇順で返す", () => {
-    expect(selectAt([fp(3, 0), fp(1, 0)], 3, 2)).toEqual([fp(1, 0), fp(3, 2)]);
-  });
-});
-
 describe("mergeBranchPlan", () => {
-  // 手で組むと、makeKifuCursor の正規化を変えても fixture が旧挙動を再現し続ける。
-  const cursorAt = (tesuu: number, forkPointers: ForkPointer[]): KifuCursor =>
-    makeKifuCursor(tesuu, forkPointers, cursorKey({ tesuu, forkPointers }));
-
   // 不変条件1: te <= cursor.tesuu の範囲は cursor.forkPointers からしか取らない
   test("カーソル以下の範囲は cursor が勝ち、計画側は無視される", () => {
     const merged = mergeBranchPlan(cursorAt(3, [fp(2, 0)]), [fp(2, 9)]);
@@ -170,5 +169,89 @@ describe("descendTo", () => {
 
   test("te より手前の選択は残す", () => {
     expect(descendTo(at(1, [fp(1, 0)]), 3, 1).forkPointers).toEqual([fp(1, 0), fp(3, 1)]);
+  });
+});
+
+describe("normalizeForkPointers", () => {
+  test("te 昇順に並べ替える", () => {
+    expect(normalizeForkPointers([fp(5, 0), fp(1, 1), fp(3, 0)])).toEqual([
+      fp(1, 1),
+      fp(3, 0),
+      fp(5, 0),
+    ]);
+  });
+
+  test("同じ te は後勝ちで1つに畳む", () => {
+    expect(normalizeForkPointers([fp(2, 0), fp(2, 1)])).toEqual([fp(2, 1)]);
+  });
+
+  test("tesuu を渡すと te <= tesuu だけ残す", () => {
+    expect(normalizeForkPointers([fp(2, 0), fp(5, 1)], 3)).toEqual([fp(2, 0)]);
+  });
+
+  // 境界は te <= tesuu。< にすると、いま入っている変化そのものが落ちる
+  test("te === tesuu は残す", () => {
+    expect(normalizeForkPointers([fp(3, 0)], 3)).toEqual([fp(3, 0)]);
+  });
+
+  test("tesuu を渡さなければ絞らない", () => {
+    expect(normalizeForkPointers([fp(9, 0)])).toEqual([fp(9, 0)]);
+  });
+
+  test("入力を書き換えない", () => {
+    const input = [fp(5, 0), fp(1, 0)];
+    normalizeForkPointers(input);
+    expect(input).toEqual([fp(5, 0), fp(1, 0)]);
+  });
+});
+
+describe("sameForkPointers", () => {
+  test("同じ並びなら true", () => {
+    expect(sameForkPointers([fp(1, 0), fp(3, 1)], [fp(1, 0), fp(3, 1)])).toBe(true);
+  });
+
+  // 並び順つきの列比較。比べる前に normalizeForkPointers を通すのが前提
+  test("並び順が違えば false", () => {
+    expect(sameForkPointers([fp(3, 1), fp(1, 0)], [fp(1, 0), fp(3, 1)])).toBe(false);
+  });
+
+  test("長さが違えば false", () => {
+    expect(sameForkPointers([fp(1, 0)], [fp(1, 0), fp(3, 1)])).toBe(false);
+  });
+
+  test("forkIndex が違えば false", () => {
+    expect(sameForkPointers([fp(1, 0)], [fp(1, 1)])).toBe(false);
+  });
+
+  test("どちらも空なら true", () => {
+    expect(sameForkPointers([], [])).toBe(true);
+  });
+});
+
+describe("asBranchPlan", () => {
+  // brand を付けるだけ。中身は触らない（正規化する側は mergeBranchPlan）
+  test("渡した配列をそのまま返す", () => {
+    const fps = [fp(5, 0), fp(1, 0)];
+    expect(asBranchPlan(fps)).toBe(fps);
+  });
+});
+
+describe("plannedCursorFrom", () => {
+  test("cursor の tesuu と、渡した計画を組む", () => {
+    const planned = plannedCursorFrom(cursorAt(3, [fp(2, 0)]), asBranchPlan([fp(2, 0), fp(7, 1)]));
+
+    expect(planned?.tesuu).toBe(3);
+    expect(planned?.forkPointers).toEqual([fp(2, 0), fp(7, 1)]);
+  });
+
+  // forkPointers は cursor 側ではなく計画側から取る。cursor から取ると
+  // te > tesuu が落ちて「カーソルより先の選択が黙って空になる」
+  test("forkPointers は cursor でなく計画から取る", () => {
+    const planned = plannedCursorFrom(cursorAt(3, []), asBranchPlan([fp(7, 1)]));
+    expect(planned?.forkPointers).toEqual([fp(7, 1)]);
+  });
+
+  test("cursor が null なら null", () => {
+    expect(plannedCursorFrom(null, asBranchPlan([]))).toBeNull();
   });
 });
