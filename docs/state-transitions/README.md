@@ -17,8 +17,8 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
       ├─ game.md              棋譜の読み込み・移動・編集（カーソルと分岐計画）
       ├─ search.md            （未作成）インデックスと検索セッション
       └─ study-positions.md   （未作成）研究局面の読み書き
-            │
-L2          └─ engine-position-sync.md   局面の送信（L1 の analysis / engine をまたぐ）
+
+L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
