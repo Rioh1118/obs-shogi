@@ -173,7 +173,9 @@ describe("descendTo", () => {
     expect(descendTo(at(1, [fp(1, 0)]), 3, 1).forkPointers).toEqual([fp(1, 0), fp(3, 1)]);
   });
 
-  // 棋譜を開いた直後で state.cursor がまだ無い行から呼ばれる
+  // 型の上でだけ通る経路。KifuStreamList が PlannedCursor | null を持つので受けるが、
+  // view.player の番人が先に返すので現物では走らない。意味を決めておかないと
+  // 呼び出し側が ! を書く。
   test("path が null なら te の選択だけを持つ", () => {
     expect(descendTo(null, 3, 1)).toEqual({ tesuu: 3, forkPointers: [fp(3, 1)] });
   });

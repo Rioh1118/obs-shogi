@@ -86,7 +86,7 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | **E13** | `swapBranches` / `deleteBranch` | 行メニュー                                                                                                  |
 | **E14** | 保存の失敗                      | `persistence.save`（Rust の書き込み）                                                                       |
 | **E15** | ワークスペース変更              | `GameFileTreeBridge` / `GamePersistenceGate`                                                                |
-| **E16** | 棋譜を載せられない              | パース済み JKF の複製・`JKFPlayer` 構築の失敗（`loadGame` の `catch`）                                      |
+| **E16** | 棋譜を載せられない              | `JKFPlayer` 構築の失敗（`loadGame` の `catch`）。`cloneJkf` は `structuredClone` なので実質到達しない       |
 | **E17** | 編集の失敗                      | `applyMoveWithBranch` / `assertBranchIndex` の throw（`edit` / `swapBranches` / `deleteBranch` の `catch`） |
 
 `selectSquare` / `selectHand` の失敗は `selectedPosition` の話で、

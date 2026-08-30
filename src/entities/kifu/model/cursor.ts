@@ -16,8 +16,9 @@ declare const tesuuPointerBrand: unique symbol;
  *
  * **出どころは2つあり、書式だけが同じ。** 再生器が返した観測値
  * （`JKFPlayer.getTesuuPointer`）と、要求から組んだ鍵（`cursorKey`）。
- * **`KifuCursor.tesuuPointer` に入れてよいのは観測の側だけ。**
+ * **本番の経路で `KifuCursor.tesuuPointer` に入れてよいのは観測の側だけ。**
  * 要求の鍵を入れると、着けもしない局面の識別子で停止判定やキャッシュが回る。
+ * テストの fixture は `cursorKey` で埋めてよい（`tesuuPointer` の読み手がテストの中に居ない）。
  *
  * 素の文字列と取り違えないよう brand を付けてある。
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
@@ -214,7 +215,8 @@ export function mergeBranchPlan(
  * **分岐点を指す `BranchPointRef.forkPointers` を組む側**（`buildStreamRows`）は、
  * `te` の分岐そのものを選び直すための prefix にする（規約「すべて `p.te < te`」）。
  *
- * 並べ替えはしない。順序も揃えたいなら `normalizeForkPointers` を使うこと。
+ * 並べ替えはしない。順序も揃えたいなら `normalizeBefore`（境界が同じ `p.te < te` のまま
+ * 整列する）。`normalizeForkPointers` は境界が `p.te <= te` になるので置き換えにならない。
  */
 export function truncateFrom(fps: ForkPointer[], te: number): ForkPointer[] {
   return fps.filter((p) => p.te < te);

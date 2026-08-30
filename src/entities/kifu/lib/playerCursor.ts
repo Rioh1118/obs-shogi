@@ -1,5 +1,5 @@
 import type { JKFPlayer } from "json-kifu-format";
-import { makeKifuCursor, type KifuCursor } from "../model/cursor";
+import { cursorKey, makeKifuCursor, type CursorPath, type KifuCursor } from "../model/cursor";
 
 /**
  * 再生し終えた player から `KifuCursor` を作る。
@@ -15,4 +15,17 @@ import { makeKifuCursor, type KifuCursor } from "../model/cursor";
 export function cursorFromPlayer(player: JKFPlayer): KifuCursor {
   const tesuu = player.tesuu;
   return makeKifuCursor(tesuu, player.getForkPointers(tesuu), player.getTesuuPointer(tesuu));
+}
+
+/**
+ * 要求した局面に本当に着いたか。
+ *
+ * `goto` は実在しない変化を黙って捨て、**要求した `tesuu` ちょうどで別の線に着く**ので、
+ * `tesuu` の比較では検出できない（`buildPlayer` の doc）。観測値と要求の鍵を突き合わせる。
+ *
+ * この比較を呼び出し側で書くと `getTesuuPointer` の直呼びになり、
+ * `src/__tests__/playerAccess.test.ts` のラチェットに掛かる。ここを通すこと。
+ */
+export function reachedCursor(player: JKFPlayer, path: CursorPath): boolean {
+  return player.getTesuuPointer(path.tesuu) === cursorKey(path);
 }

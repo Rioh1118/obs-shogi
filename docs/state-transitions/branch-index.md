@@ -82,11 +82,13 @@
    （`src/entities/kifu/lib/advanceWithPlan.ts`）の1本で、壊れた値はそこで捨てる。
    **捨てていないのは `goto` に渡す経路**（`buildPlayer` / `goToIndex`。`goto` は
    `forkAndForward` の返り値すら見ない）**と `descendTo`** の2つ。
-   この2つは値を検査せず、`cursor.forkPointers` に載せたまま先へ運ぶ → #310
+   この2つは値を検査せず、`branchPlan`（と `descendTo` が返す `CursorPath`）に
+   載せたまま先へ運ぶ → #310。**`state.cursor.forkPointers` には入らない。**
+   あれを作るのは `cursorFromPlayer` だけで、値は `forkAndForward` が成功したときの実測。
 
 2. **要求した局面に着いたかは `tesuu` では判定できない。**
    `goto` は実在しない変化を黙って捨て、そこまでに降りた線を進むので、**要求した `tesuu` ちょうどで
-   別の線に着く**。比べるなら `player.getTesuuPointer(tesuu)` と `cursorKey(cursor)`。
+   別の線に着く**。比べるなら `reachedCursor(player, cursor)`（`src/entities/kifu/lib/playerCursor.ts`）。
 3. **範囲外の値は、黙って別の候補に丸められない。**
    `splice` は `NaN` も小数も0方向へ丸めるので、大小比較だけの検査では
    `NaN` が「本譜を消す」に化ける。整数であることを先に見る。

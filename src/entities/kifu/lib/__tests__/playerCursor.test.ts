@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { JKFPlayer } from "json-kifu-format";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import { cursorKey } from "@/entities/kifu/model/cursor";
-import { cursorFromPlayer } from "../playerCursor";
+import { cursorFromPlayer, reachedCursor } from "../playerCursor";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
   forks ? { comments: [tag], forks } : { comments: [tag] };
@@ -48,5 +48,26 @@ describe("cursorFromPlayer", () => {
 
     const c = cursorFromPlayer(player);
     expect(c.tesuuPointer).toBe(cursorKey({ tesuu: c.tesuu, forkPointers: c.forkPointers }));
+  });
+});
+
+describe("reachedCursor", () => {
+  test("要求どおりの局面に着いていれば true", () => {
+    const player = new JKFPlayer(kifu());
+    const path = { tesuu: 3, forkPointers: [{ te: 2, forkIndex: 0 }] };
+    player.goto(path.tesuu, path.forkPointers);
+
+    expect(reachedCursor(player, path)).toBe(true);
+  });
+
+  // goto は実在しない変化を黙って捨てるので、tesuu は一致したまま別の線に着く。
+  // tesuu の比較では検出できないのがこの関数の存在理由。
+  test("実在しない変化を要求すると、同じ tesuu でも false", () => {
+    const player = new JKFPlayer(kifu());
+    const path = { tesuu: 3, forkPointers: [{ te: 2, forkIndex: 9 }] };
+    player.goto(path.tesuu, path.forkPointers);
+
+    expect(player.tesuu).toBe(path.tesuu);
+    expect(reachedCursor(player, path)).toBe(false);
   });
 });
