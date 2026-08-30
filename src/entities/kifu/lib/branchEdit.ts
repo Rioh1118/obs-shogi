@@ -3,7 +3,6 @@ import { isUsableFork } from "@/entities/kifu/model/jkf";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import {
   branchIndexFromSelection,
-  buildTesuuPointer,
   forkIndexFromBranchIndex,
   MAIN_LINE,
   branchIndexAfterRemoval,
@@ -13,7 +12,7 @@ import {
   type DeleteQuery,
   type SwapQuery,
 } from "../model/branch";
-import { normalizeForkPointers, type ForkPointer, type KifuCursor } from "../model/cursor";
+import { normalizeForkPointers, type CursorPath, type ForkPointer } from "../model/cursor";
 
 /**
  * `BranchPointRef` の規約「すべて `p.te < te`」を満たす形にする
@@ -243,16 +242,15 @@ function patchForkPointersForDeleteNonReloc(
  * 本譜を消したか変化を消したかで退避先は変わらない。変わるのは「候補が残っているか」だけ。
  */
 function relocateCursorOnDelete(
-  cursor: KifuCursor,
+  cursor: CursorPath,
   ref: BranchPointRef,
   candidatesAfter: Candidates,
-): KifuCursor {
+): CursorPath {
   // 退避時は te 以降の pointer を落とす
   const kept = cursor.forkPointers.filter((p) => p.te < ref.te);
   // 候補が全部消えたら te の手前へ。残っていれば繰り上がった候補の te 適用後へ。
   const tesuu = candidatesAfter.length === 0 ? Math.max(0, ref.te - 1) : ref.te;
-  const fps = normalizeForkPointers(kept, tesuu);
-  return { tesuu, forkPointers: fps, tesuuPointer: buildTesuuPointer(tesuu, fps) };
+  return { tesuu, forkPointers: normalizeForkPointers(kept, tesuu) };
 }
 
 /**
@@ -276,7 +274,7 @@ function relocateCursorOnDelete(
 export function swapBranchesInKifu(
   kifu: JKFData,
   q0: SwapQuery,
-  cursor: KifuCursor | null,
+  cursor: CursorPath | null,
 ): BranchEditResult {
   const q = normalizeRef(q0);
   const h = resolveBranchPoint(kifu, q);
@@ -304,11 +302,9 @@ export function swapBranchesInKifu(
     q.te,
     chosen === q.a ? q.b : chosen === q.b ? q.a : chosen,
   );
-  const nextFps = normalizeForkPointers(fps);
-  const next: KifuCursor = {
+  const next: CursorPath = {
     tesuu: cursor.tesuu,
-    forkPointers: nextFps,
-    tesuuPointer: buildTesuuPointer(cursor.tesuu, nextFps),
+    forkPointers: normalizeForkPointers(fps),
   };
   return { changed: true, nextCursor: next };
 }
@@ -334,7 +330,7 @@ export function swapBranchesInKifu(
 export function deleteBranchInKifu(
   kifu: JKFData,
   q0: DeleteQuery,
-  cursor: KifuCursor | null,
+  cursor: CursorPath | null,
 ): BranchEditResult {
   const q = normalizeRef(q0);
   const h = resolveBranchPoint(kifu, q);
@@ -366,24 +362,20 @@ export function deleteBranchInKifu(
 
     // 予定していた選択が消えた
     const fps = setBranchIndex(cursor.forkPointers, q.te, MAIN_LINE);
-    const nextFps = normalizeForkPointers(fps);
     return {
       changed: true,
       nextCursor: {
         tesuu: cursor.tesuu,
-        forkPointers: nextFps,
-        tesuuPointer: buildTesuuPointer(cursor.tesuu, nextFps),
+        forkPointers: normalizeForkPointers(fps),
       },
     };
   }
 
   // それ以外は pointer の詰めだけ
   const fps = patchForkPointersForDeleteNonReloc(cursor.forkPointers, q.te, q.target);
-  const nextFps = normalizeForkPointers(fps);
-  const next: KifuCursor = {
+  const next: CursorPath = {
     tesuu: cursor.tesuu,
-    forkPointers: nextFps,
-    tesuuPointer: buildTesuuPointer(cursor.tesuu, nextFps),
+    forkPointers: normalizeForkPointers(fps),
   };
   return { changed: true, nextCursor: next };
 }
