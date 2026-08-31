@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use shogi_core::{Color, Hand, PartialPosition, Piece, PieceKind, Square};
+use shogi_core::{Color, Hand, Move, PartialPosition, Piece, PieceKind, Square};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PositionKey {
@@ -97,6 +97,107 @@ fn splitmix64(x: &mut u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// 1手ぶん進めた鍵を作る。**盤を舐め直さない。**
+///
+/// 鍵は XOR の積なので、変わった項だけ XOR し直せば
+/// [`key_from_partial_position`] と同じ値になる。1手で変わるのは高々5つ。
+///
+/// | 指し手 | 変わる項 |
+/// | --- | --- |
+/// | `Normal` | 動いた駒を `from` から落とす / 置いた駒を `to` に入れる / 取った駒を `to` から落とす + 取った側の持駒を1つ増やす / 手番 |
+/// | `Drop` | 打った駒を `to` に入れる / 打った側の持駒を1つ減らす / 手番 |
+///
+/// **`pos` は指す前の局面。** `make_move` を呼ぶ前に渡すこと。
+///
+/// # 読めない形は `None` を返す
+///
+/// `from` に駒がいない、成れない駒を成る、持駒が0枚なのに打つ、といった
+/// `make_move` が `None` を返す形では、こちらも `None` を返して**呼び手を
+/// フル計算へ落とす**。黙って違う鍵を作ると、**索引に入る値が静かに壊れる** —
+/// 検索が当たらなくなるだけで、エラーも警告も出ない。
+///
+/// 持駒の枚数の頭打ち（`min(HAND_MAX - 1)`）はフル計算と同じにしてある。
+/// ずらすと同じ局面から別の鍵が出る。
+pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<PositionKey> {
+    let tbl = ZOBRIST.get_or_init(ZobristTable::new);
+    let mut key = key;
+
+    // 手番。古い色を落として新しい色を入れる
+    let mover = pos.side_to_move();
+    key.xor_assign(tbl.side[cidx(mover)]);
+    key.xor_assign(tbl.side[cidx(mover.flip())]);
+
+    match mv {
+        Move::Normal { from, to, promote } => {
+            let piece = pos.piece_at(from)?;
+            if piece.color() != mover {
+                return None;
+            }
+            let placed = if promote { piece.promote()? } else { piece };
+
+            // 取った駒があれば、盤から落として持駒を1つ進める
+            if let Some(taken) = pos.piece_at(to) {
+                if taken.color() == mover {
+                    return None;
+                }
+                key.xor_assign(key_for_piece_on_square(tbl, taken, to));
+
+                // 成駒は成る前の駒として持駒に入る（`make_move` と同じ）
+                let kind = taken.piece_kind();
+                let obtained = kind.unpromote().unwrap_or(kind);
+                key.xor_assign(hand_step(tbl, pos, mover, obtained, 1)?);
+            }
+
+            key.xor_assign(key_for_piece_on_square(tbl, piece, from));
+            key.xor_assign(key_for_piece_on_square(tbl, placed, to));
+        }
+        Move::Drop { piece, to } => {
+            if piece.color() != mover {
+                return None;
+            }
+            // 成駒は打てない（`make_move` が弾く）
+            if piece.unpromote().is_some() {
+                return None;
+            }
+            if pos.piece_at(to).is_some() {
+                return None;
+            }
+            key.xor_assign(hand_step(tbl, pos, mover, piece.piece_kind(), -1)?);
+            key.xor_assign(key_for_piece_on_square(tbl, piece, to));
+        }
+    }
+
+    Some(key)
+}
+
+/// 持駒の枚数が1つ動いたぶんの差分。**古い枚数を落として新しい枚数を入れる。**
+///
+/// 枚数そのものを鍵に持っているので、増減は「2つの項の入れ替え」になる。
+#[inline]
+fn hand_step(
+    tbl: &ZobristTable,
+    pos: &PartialPosition,
+    color: Color,
+    kind: PieceKind,
+    delta: i8,
+) -> Option<PositionKey> {
+    // 持駒に出ない駒種（玉・成駒）は表を持たない。
+    // `make_move` は成駒を成る前に戻してから入れるので、ここに来るのは7種のはず
+    let hk = HAND_KINDS.iter().position(|k| *k == kind)?;
+
+    let before = pos.hand_of_a_player(color).count(kind)? as i16;
+    let after = before + i16::from(delta);
+    if after < 0 {
+        return None;
+    }
+
+    // 頭打ちはフル計算と同じ位置で掛ける
+    let clamp = |n: i16| (n as usize).min(HAND_MAX - 1);
+    let mut k = tbl.hand[cidx(color)][hk][clamp(before)];
+    k.xor_assign(tbl.hand[cidx(color)][hk][clamp(after)]);
+    Some(k)
+}
+
 /// PartialPosition から SFEN3 相当の PositionKey を作る（フル計算）
 pub fn key_from_partial_position(pos: &PartialPosition) -> PositionKey {
     let tbl = ZOBRIST.get_or_init(ZobristTable::new);
@@ -148,4 +249,86 @@ fn key_for_hand(tbl: &ZobristTable, color: Color, hand: Hand) -> PositionKey {
     }
 
     k
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::position_apply::{apply_node_action, ApplyStatus};
+    use crate::search::traverse::NodeAction;
+    use shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
+
+    /// 棋譜を1本歩いて、差分とフル計算が**全ノードで一致する**ことを見る。
+    ///
+    /// 一致しないと、同じ棋譜から別の `PositionKey` が出る。索引の値が
+    /// 静かに変わるだけなので、**検索が当たらなくなること以外に症状が無い**。
+    fn walk_and_compare(label: &str, jkf: &JsonKifuFormat) -> usize {
+        let mut pos = crate::search::initial_position::initial_partial_position(jkf)
+            .unwrap_or_else(|e| panic!("{label}: 初期局面が作れない: {e}"));
+        let mut key = key_from_partial_position(&pos);
+        assert_eq!(key, key_from_partial_position(&pos), "{label}: 初期局面");
+
+        let mut checked = 0usize;
+        for (i, node) in jkf.moves.iter().enumerate().skip(1) {
+            let Some(m) = node.move_ else {
+                // special / None のノードは局面を動かさない
+                continue;
+            };
+            let before = pos.clone();
+            let action = NodeAction::Move(m);
+            let Ok(ApplyStatus::Applied) = apply_node_action(&mut pos, action) else {
+                break;
+            };
+
+            let mv = crate::search::position_apply::jkf_move_to_core_move(m)
+                .unwrap_or_else(|e| panic!("{label}: {i}手目を core の手にできない: {e}"));
+            let stepped = advance_key(key, &before, mv)
+                .unwrap_or_else(|| panic!("{label}: {i}手目で差分が None を返した"));
+            let full = key_from_partial_position(&pos);
+            assert_eq!(stepped, full, "{label}: {i}手目で差分とフル計算がずれた");
+
+            key = full;
+            checked += 1;
+        }
+        checked
+    }
+
+    fn parse(text: &str) -> JsonKifuFormat {
+        shogi_kifu_converter_obsshogi::parser::parse_kif_str(text).expect("題材の KIF が読めること")
+    }
+
+    /// 手合割15種すべてで一致する。
+    ///
+    /// **初期局面が違えば持駒も盤も違う。** 平手だけで測ると、
+    /// 落とした駒のぶんの項がずれても気付けない。
+    #[test]
+    fn every_handicap_steps_the_same_as_a_full_recompute() {
+        use crate::search::test_kifu::{one_move_kif, HANDICAPS};
+
+        for h in HANDICAPS.iter().chain(std::iter::once(&"平手")) {
+            let jkf = parse(&one_move_kif(h));
+            assert!(walk_and_compare(h, &jkf) > 0, "{h}: 1手も見ていない");
+        }
+    }
+
+    /// 1手で変わりうる項を全部通す。
+    ///
+    /// **取る / 成る / 打つ / 成駒を取る**は、それぞれ差分の別の腕を通る。
+    /// どれかを落とすと、その形の棋譜だけが静かに別の鍵になる。
+    #[test]
+    fn capture_promotion_and_drop_all_step_the_same() {
+        // 角交換から角を打ち合う。成る・取る・打つ・成駒を取るが全部出る
+        let text = "手合割：平手\n\
+手数----指手---------消費時間--\n   \
+1 ７六歩(77)   ( 0:01/00:00:01)\n   \
+2 ３四歩(33)   ( 0:01/00:00:02)\n   \
+3 ２二角成(88)   ( 0:01/00:00:03)\n   \
+4 同　銀(31)   ( 0:01/00:00:04)\n   \
+5 ８八銀(79)   ( 0:01/00:00:05)\n   \
+6 ３三銀(22)   ( 0:01/00:00:06)\n   \
+7 ５五角打   ( 0:01/00:00:07)\n";
+        let jkf = parse(text);
+        let n = walk_and_compare("capture-promote-drop", &jkf);
+        assert!(n >= 5, "題材が短すぎる: {n}手しか見ていない");
+    }
 }

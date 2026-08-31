@@ -8,8 +8,8 @@ use shogi_kifu_converter_obsshogi::jkf::{JsonKifuFormat, MoveFormat};
 use super::{
     initial_position::initial_partial_position,
     node_table::{NodeTable, NodeTableBuilder},
-    position_apply::{apply_node_action, ApplyError, ApplyStatus},
-    position_key::{key_from_partial_position, PositionKey},
+    position_apply::{apply_node_action, jkf_move_to_core_move, ApplyError, ApplyStatus},
+    position_key::{advance_key, key_from_partial_position, PositionKey},
     traverse::NodeAction,
     types::{CursorLite, FileId, ForkPointer, Gen, NodeId, Occurrence},
 };
@@ -78,9 +78,7 @@ impl IndexBuilder {
     }
 
     #[inline]
-    fn push_entry(&mut self, tesuu: u32, fork_path: &[ForkPointer], pos: &PartialPosition) {
-        let key = key_from_partial_position(pos);
-
+    fn push_entry(&mut self, tesuu: u32, fork_path: &[ForkPointer], key: PositionKey) {
         let node_id: NodeId = self.node_table.push_node(tesuu, fork_path);
 
         let occ = Occurrence {
@@ -97,11 +95,13 @@ impl IndexBuilder {
         seq: &[MoveFormat],
         start_tesuu: u32,
         mut pos: PartialPosition,
+        mut key: PositionKey,
         fork_path: Vec<ForkPointer>,
     ) -> Result<(), BuildError> {
         for (offset, node) in seq.iter().enumerate() {
             let tesuu = start_tesuu + offset as u32;
             let parent_pos = pos.clone();
+            let parent_key = key;
 
             // forks
             if let Some(forks) = &node.forks {
@@ -112,16 +112,34 @@ impl IndexBuilder {
                     let mut fork_path2 = fork_path.clone();
                     push_or_replace_fork(&mut fork_path2, tesuu, i as u32);
 
-                    self.walk_sequence(fork_line, tesuu, parent_pos.clone(), fork_path2)?;
+                    self.walk_sequence(
+                        fork_line,
+                        tesuu,
+                        parent_pos.clone(),
+                        parent_key,
+                        fork_path2,
+                    )?;
                 }
             }
 
             // mainline
             let action = node_action(node);
 
+            // 差分は**指す前の局面**から取る。`apply_node_action` が
+            // 局面を進めてしまうので、手を core の形にするのも先
+            let stepped = match action {
+                NodeAction::Move(m) => jkf_move_to_core_move(m)
+                    .ok()
+                    .and_then(|mv| advance_key(key, &pos, mv)),
+                // 局面が動かない腕は鍵も動かない
+                NodeAction::Special(_) | NodeAction::None => Some(key),
+            };
+
             match apply_node_action(&mut pos, action) {
                 Ok(status) => {
-                    self.push_entry(tesuu, &fork_path, &pos);
+                    // **差分が読めなかったら盤を舐め直す。** 黙って違う鍵を作らない
+                    key = stepped.unwrap_or_else(|| key_from_partial_position(&pos));
+                    self.push_entry(tesuu, &fork_path, key);
                     if status == ApplyStatus::Terminal {
                         break;
                     }
@@ -162,14 +180,16 @@ pub fn build_index_for_jkf(
     policy: BuildPolicy,
 ) -> Result<FileIndexBuild, BuildError> {
     let init_pos = initial_partial_position(jkf)?;
+    // 初期局面だけはフル計算。ここから先は差分で進める
+    let init_key = key_from_partial_position(&init_pos);
 
     let mut b = IndexBuilder::new(file_id, gen, policy);
 
     // root
-    b.push_entry(0, &[], &init_pos);
+    b.push_entry(0, &[], init_key);
 
     if jkf.moves.len() > 1 {
-        b.walk_sequence(&jkf.moves[1..], 1, init_pos, vec![])?;
+        b.walk_sequence(&jkf.moves[1..], 1, init_pos, init_key, vec![])?;
     }
 
     Ok(b.finish())
