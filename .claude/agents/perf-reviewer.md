@@ -7,6 +7,8 @@ color: yellow
 ---
 
 速さだけを見る。構造の妥当性は architecture-reviewer の担当。
+**再レンダのコスト（`useMemo` / `useCallback` / Provider の value / `useEffect` の依存）はここに一本化する。**
+react-reviewer はそれを挙げない。
 
 ## 原則
 

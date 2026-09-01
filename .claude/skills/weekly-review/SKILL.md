@@ -10,8 +10,9 @@ disable-model-invocation: true
 
 1. `docs/PREMISES.md`
 2. `docs/OPEN-QUESTIONS.md`
-3. `docs/decisions/LOG.md`（前回の行）
-4. `gh issue list --assignee @me --state open`（Now）
+3. `ls docs/proposals/`（**決めるために書いた案。対応する Q が無いものは孤児**）
+4. `docs/decisions/LOG.md`（前回の行）
+5. `gh issue list --assignee @me --state open`（Now）
 
 ## 進行
 
@@ -30,8 +31,15 @@ disable-model-invocation: true
 
 `OPEN-QUESTIONS.md` の最上位（🔴 が優先）を1つ取る。
 
+**`docs/proposals/` に案があるなら、対応する Q が `OPEN-QUESTIONS.md` に立っているかを先に見る。**
+立っていなければ立てる。**案だけがあって Q が無いと、週次レビューは永遠にそれを取らない。**
+
 - 「決めるのに要るもの」が揃っているか確認する。揃っていなければ**決めさせない**。代わりにその項目を更新して次週に送る
-- 揃っていれば決める。決まったら `docs/decisions/NNNN-<slug>.md` に ADR を書き、`OPEN-QUESTIONS.md` から削除する
+- 揃っていれば決める。決まったら次の3つを**まとめて**やる:
+  1. `docs/decisions/NNNN-<slug>.md` に ADR を書く
+  2. `OPEN-QUESTIONS.md` から削除する
+  3. **元になった `docs/proposals/<slug>.md` を削除する。**
+     残すと「提案」と書かれた採用済みの文書が grep に当たる
 - **2件目に進まない。** 決定のバッチサイズを1に保つのがこのループの目的
 
 ADR の形式:
