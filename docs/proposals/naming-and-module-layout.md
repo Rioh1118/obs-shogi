@@ -1,7 +1,8 @@
 # 提案: 名前と置き場を揃える
 
 - 日付: 2026-09-01
-- 状態: **提案。**合意できたら `docs/decisions/` へ ADR として起こす（番号はそのとき採る）
+- 状態: **提案。**対応する問いは `docs/OPEN-QUESTIONS.md` **Q-006**。
+  合意できたら `docs/decisions/` へ ADR として起こし、この案と Q-006 の両方を消す
 - 関連: `research/shogihome/05-usi-engine.md`（比較対象）、`docs/IDEAS.md`（#120 の積み残し）、
   ADR-0003（SCSS のスケール — 「段を欠くと寄せ先が2つに割れる」という同じ論法）
 
@@ -44,7 +45,7 @@ ls src-tauri/src/search | wc -l                            # 18
 | `import_kifu_file`   | `file_system/operations.rs:192` | `parent_dir, file_name, jkf_data: JsonKifuFormat` | **JKF** を新しいパスへ書く   |
 | `write_kifu_to_file` | `kifu.rs:82`                    | `request: WriteKifuRequest { jkf, file_path }`    | **JKF** を既存のパスへ書く   |
 
-**領域のプレフィックスが無いので、43 本がフラットな1つの名前空間に並んでいる。**
+**領域のプレフィックスが無いので、41 本がフラットな1つの名前空間に並んでいる。**
 `read_file` と `set_position` と `get_last_result` が同じ平面にある。
 
 ### Rust のモジュール
@@ -108,7 +109,22 @@ ShogiHome は同じ場所を `name`（利用者が付けた名前）/ `defaultNa
 
 ### 決定2: コマンド名は `<領域>_<動詞>[_<対象>]`
 
-領域は9つ。`lib.rs` の `mod` と一致させる。
+領域は9つ。**ただしこれはコマンドの語彙であって、いまの `mod` 名とは一致しない。**
+
+基準を「**領域名と同じ名前の `mod` が `src/` 直下にあり、そこに実装がある**」と置くと、
+実測で **41本中20本が食い違う**。
+
+| 領域                                                            | 本数 | いまの置き場                                                                               | 一致するか                       |
+| --------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------ | -------------------------------- |
+| `analysis_*`                                                    | 8    | `engine/bridge.rs`                                                                         | ✗ `analysis` という `mod` が無い |
+| `kifu_*` のうち                                                 | 5    | `file_system/operations.rs` と `file_system/mv.rs`                                         | ✗                                |
+| `tree_*`                                                        | 7    | `file_system/`（`tree` は **その内側**の `mod`）                                           | ✗                                |
+| `engine_*`                                                      | 5    | `engine/`                                                                                  | ✓                                |
+| `search_*`                                                      | 3    | `search/`                                                                                  | ✓                                |
+| `config_*` / `ai_*` / `preset_*` / `study_*` / `kifu_*` の残り3 | 13   | `config_dir.rs` / `ai_library.rs` / `engine_presets.rs` / `study_positions.rs` / `kifu.rs` | △ 直置きのファイル名が対応する   |
+
+**△ は「`mod` ではなく直置きファイルだが名前は対応する」もの。** 決定3 でディレクトリにすれば ✓ になる。
+**✗ の20本は名前を変えるだけでは一致しない。** 決定3 で移動もセットにする。
 
 `config` / `tree` / `kifu` / `preset` / `ai` / `engine` / `analysis` / `search` / `study`
 
@@ -164,30 +180,87 @@ ShogiHome は同じ場所を `name`（利用者が付けた名前）/ `defaultNa
 src-tauri/src/
   lib.rs  main.rs
   config/       mod.rs  dir.rs                 ← config_dir.rs から
-  ai/           mod.rs  library.rs  profile.rs ← ai_library.rs(523行) を割る
+  ai/           mod.rs  profile.rs  engines.rs  scan.rs   ← ai_library.rs(523行) を割る
   kifu/         mod.rs  write.rs  convert.rs   ← kifu.rs から
+                create.rs                     ← file_system/operations.rs の *_kifu_file 3本
+                mv.rs                         ← file_system/mv.rs の kifu 2本
+  analysis/     mod.rs                        ← engine/bridge.rs のコマンド層8本
   preset/       mod.rs                         ← engine_presets.rs から
   study/        mod.rs                         ← study_positions.rs から
   engine/       （変えない）
   file_system/  → tree/ へ改名                 ← コマンドの領域名と合わせる
-  search/       （変えない。16ファイルは割る余地があるが別の話）
+  search/       （変えない。18ファイルを割る余地はあるが別の話）
 ```
 
 **規則: `src/` 直下に置いてよいのは `lib.rs` と `main.rs` だけ。**
 
-`file_system` → `tree` の改名は、**コマンドの領域名（`tree_*`）と一致させる**ため。
-一致していないと「どのファイルを開けばいいか」を毎回考えることになる。
+### 改名だけでなく、移動が要る
+
+決定2 で数えた ✗ の20本のうち13本は、動かさないと「名前から開くファイルが決まる」が成立しない
+（`tree_*` 7本は `file_system` → `tree` の改名で解決するので移動は要らない）。
+
+| 動かすもの                                                 | いま                        | 移す先              |
+| ---------------------------------------------------------- | --------------------------- | ------------------- |
+| `analysis_*` 8本のコマンド層                               | `engine/bridge.rs`          | `analysis/`（新設） |
+| `create_kifu_file` / `save_kifu_file` / `import_kifu_file` | `file_system/operations.rs` | `kifu/`             |
+| `rename_kifu_file` / `mv_kifu_file`                        | `file_system/mv.rs`         | `kifu/`             |
+
+`analysis/` はコマンド層（`engine/bridge.rs:445-543` の99行。全て `*_impl` への一行委譲）
+だけを持ち、**実体は `engine/` に残す**。セッションの寿命を持っているのは
+`EngineBridge` の `active_sessions` と `AppState`（どちらも `engine/bridge.rs`）で、
+**実体まで動かすと所有が壊れる。**
+
+### `file_system` → `tree` の改名には条件が付く
+
+`file_system/` の中には**既に `tree.rs` がある**（`mod.rs:6` の `mod tree;`、
+`mod.rs:18` の `pub use tree::get_file_tree;`）。そのまま改名すると
+`tree/tree.rs` になり、パスが `crate::tree::tree::get_file_tree` になる。
+clippy の `module_inception` に当たるし、「`tree` を開け」と言われた読み手が
+`tree/mod.rs` と `tree/tree.rs` のどちらを開くか毎回考えることになる。
+**これは改名が消そうとしていた問題そのもの。**
+
+改名するなら**内側の `tree.rs` も同時に改名する**（この版は `get_file_tree` 1本だけを
+公開しているので、動詞の語彙に合わせて `tree/read.rs`）。
+条件を満たせないなら、改名は落とす。
+
+### 決定3-2: `ai_library.rs` は動詞でなく概念で割る
+
+**走査／作成で割ってはいけない。** 現物のコメントが、その境界を跨ぐことを
+不変条件として書いている。
+
+```
+ai_library.rs:14  `read_profiles` がこの名前を一覧から除くので、作れても出てこない。
+ai_library.rs:15  除く側と弾く側で綴りが分かれると、作成は通るのに一覧に出ないフォルダができる
+ai_library.rs:23  **一覧に出す側と作成を拒否する側で、同じ述語を使う。**
+```
+
+走査側（`read_profiles`）と作成側（`create_ai_profile_dirs`）が**両方から使うのは3つ**
+（`ENGINES_DIR` / `is_listed_profile` / その内側の `PROFILE_SUBS`）。
+しかも**意図的に非対称**（除く側は綴りで比べず、断る側は `eq_ignore_ascii_case`）。
+動詞で割ると、この規約は同居でしか強制されていないので消える。
+
+`has_any_content` は作成側だけ、`validate_dir` は `scan_ai_root` /
+`create_ai_profile_dirs` / `ensure_engines_dir` の3つから使う（走査側は呼んでいない）。
+
+| 置き場          | 持つもの                                                                                              |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| `ai/profile.rs` | `PROFILE_SUBS` / `is_listed_profile` / `has_any_content` / `read_profiles` / `create_ai_profile_dirs` |
+| `ai/engines.rs` | `ENGINES_DIR` / エンジンの走査と作成                                                                  |
+| `ai/scan.rs`    | `kind_of` / `list_file_candidates` / `AiRootIndex` / `scan_ai_root`                                   |
+| `ai/mod.rs`     | `validate_dir`（3ファイルから使う）                                                                   |
+
+依存は `scan → {profile, engines}` の一方向。
 
 ### 決定4: 名前を実態に合わせる
 
-| いま                  | 案              | 理由                                                        |
-| --------------------- | --------------- | ----------------------------------------------------------- |
-| `EnginePreset.aiName` | `aiProfileName` | **AI プロファイルのディレクトリ名**であることを名前に出す   |
-| `EnginePreset.label`  | `displayName`   | 何の label か言っていない                                   |
-| （無い）              | `engineName`    | **エンジンが `id name` で名乗った名前。**対局で要る。→ D-04 |
-| （無い）              | `engineAuthor`  | 同上                                                        |
-| `AppConfig.root_dir`  | `workspace_dir` | UI が「ワークスペース」と呼んでいるものと一致させる         |
-| `AppConfig.ai_root`   | `ai_dir`        | `_root` と `_dir` の2語を1つに                              |
+| いま                  | 案              | 理由                                                      |
+| --------------------- | --------------- | --------------------------------------------------------- |
+| `EnginePreset.aiName` | `aiProfileName` | **AI プロファイルのディレクトリ名**であることを名前に出す |
+| `EnginePreset.label`  | `displayName`   | 何の label か言っていない                                 |
+| （無い）              | `engineName`    | **エンジンが `id name` で名乗った名前。**対局で要る       |
+| （無い）              | `engineAuthor`  | 同上                                                      |
+| `AppConfig.root_dir`  | `workspace_dir` | UI が「ワークスペース」と呼んでいるものと一致させる       |
+| `AppConfig.ai_root`   | `ai_dir`        | `_root` と `_dir` の2語を1つに                            |
 
 **`root_dir` / `ai_root` のルール自体は正しい**（ワークスペース1つ、AI置き場1つ）。
 直すのは名前だけで、意味は変えない。
@@ -230,8 +303,6 @@ src-tauri/src/
 - **一度にやるか、触るたびに直すか。** 提案は**一度にやる**。
   半分だけ揃っている状態は、揃っていない状態より悪い（どちらの規則か毎回考える）
 - **`search/` の18ファイルを割るか。** ここでは触らない。別の関心事
-- **`ai_library.rs`(523行) の割り方。** `library`（`ai_root` の走査）と
-  `profile`（プロファイルの作成）で割れそうだが、読んで確かめていない
 - **`file_system` → `tree` の改名を含めるか。** 含めると差分がさらに増える
 
 ## やらないこと
