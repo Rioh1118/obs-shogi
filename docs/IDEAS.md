@@ -39,7 +39,7 @@
 
 「この棋譜の山場」を手にマークする機能。課題局面（study positions）とは別物。
 判断: 注釈機能（marks / file-meta）の設計が未決着なので、それを決めるまで着手しない。
-（「2系統に分裂」は誤りと判明している → `research/lanes/L0-annotation-implementations.md`）
+（「2系統に分裂」は誤りと判明している → `research/findings/L0-annotation-implementations.md`）
 
 ## #120 の積み残し（構造）
 
