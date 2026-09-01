@@ -56,7 +56,8 @@ export enum TabPaneType {
 **タブ帯を1本にするか2本にするかが設定。** 2本にすると
 同時に2つのタブの内容が見られる。
 
-`export const headerHeight = 30;` — タブ帯の高さは 30px 固定。
+`export const headerHeight = 30;`（**`view/main/TabPane.vue:66`**。`settings/app.ts` ではない）
+— タブ帯の高さは 30px 固定。
 
 ## 2. レイアウトは「標準」と「カスタム」の2系統
 
@@ -102,14 +103,24 @@ export type LayoutProfile = {
 ### 画面サイズへの追従は「全体を1つの倍率で縮める」
 
 ```ts
-export function calculateLayoutScale(components, width, height): number {
-  const x0 = max(min(...left), 0);
-  const y0 = max(min(...top), 0);
-  const maxX = max(...(left + width));
-  const maxY = max(...(top + height));
-  const horizontalScale = width / (maxX + x0);
-  const verticalScale = height / (maxY + y0);
-  return max(min(horizontalScale, verticalScale), 0);
+export function calculateLayoutScale(
+  components: UIComponent[],
+  width: number,
+  height: number,
+): number {
+  if (components.length === 0) {
+    return 1;
+  }
+  const x0 = Math.max(Math.min(...components.map((c) => c.left)), 0);
+  const y0 = Math.max(Math.min(...components.map((c) => c.top)), 0);
+  const maxX = Math.max(...components.map((c) => c.left + c.width));
+  const maxY = Math.max(...components.map((c) => c.top + c.height));
+  const horizontalExtent = maxX + x0;
+  const verticalExtent = maxY + y0;
+  const horizontalScale =
+    horizontalExtent > 0 ? width / horizontalExtent : Number.POSITIVE_INFINITY;
+  const verticalScale = verticalExtent > 0 ? height / verticalExtent : Number.POSITIVE_INFINITY;
+  return Math.max(Math.min(horizontalScale, verticalScale), 0);
 }
 ```
 
@@ -142,7 +153,13 @@ type Analytics = {
 type Chart = { type: "Chart"; chartType: EvaluationChartType; showLegend? };
 type Board = { type: "Board"; rightControlBox?; leftControlBox?; layoutType?: BoardLayoutType };
 type Comment = { type: "Comment"; showBookmark? };
-type SimpleBoard = { type: "SimpleBoard"; fontWeight?; fontScale?; bookmark? };
+type SimpleBoard = {
+  type: "SimpleBoard";
+  fontWeight?;
+  fontScale?;
+  characterY /* Deprecated */?;
+  bookmark?;
+};
 type ElapsedTimeChart = { type: "ElapsedTimeChart"; showLegend? };
 ```
 
@@ -161,7 +178,7 @@ type ElapsedTimeChart = { type: "ElapsedTimeChart"; showLegend? };
 
 ## 3. 集約したアウトプット（グラフ類）
 
-obs-shogi 側で「評価値グラフと一致率は役に立たない」という論点があるので、
+obs-shogi 側で「評価値グラフと一致率は役に立たない」という見立てが出ている（**未文書化。出典なし**）ので、
 ShogiHome が持っているものを列挙しておく。
 
 | 部品                         | 出典                                           | 何を出すか                                        |
@@ -196,7 +213,7 @@ ShogiHome が持っているものを列挙しておく。
 - **「対局タブが無い」は積極的な設計判断に見える。**
   対局中に見たいもの（時計・手番・対局者名）は盤の枠内にあり、
   ドックは「棋譜に対する情報」だけを持っている。
-  obs-shogi 側の「時計ってそこにいらなくね？」という直感と一致する。
+  obs-shogi 側の「時計はドックに要らないのでは」という見立て（**出典なし**）と一致する。
 - **評価値バーを常設にしていない**のも同じ理屈。ShogiHome では評価値はタブ。
   obs-shogi の「評価値バーは要る／要らないを設定できて欲しい、
   要らない人は多そう」という読みは、ShogiHome の構成では既定で満たされている。
@@ -207,5 +224,5 @@ ShogiHome が持っているものを列挙しておく。
 - 画面追従を「リフローせず1倍率で縮小」に倒しているのは、
   盤の比率保持と同じ思想の一貫した適用。obs-shogi は既に
   リフローする方（`clamp` ＋ グリッド）に投資しているので、
-  **盤クラスタだけスカラ方式、外側はリフロー**という混成になる。
+  **`.game-board__cluster` だけスカラ方式、外側はリフロー**という混成になる。
   境界をどこに置くかは決めておいた方がいい。

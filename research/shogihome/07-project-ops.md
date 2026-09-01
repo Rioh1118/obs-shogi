@@ -21,7 +21,7 @@ ybb-format.md
 - **機能仕様**（`position-editing-mode` / `record-branch-tree` /
   `batch-analysis` / `wasm-engine` / `webapp-update` / `settings-file-recovery`）
 
-`position-editing-mode.md` は 30 行ほど（[04](04-position-editing.md) に全文要旨）。
+`position-editing-mode.md` は 44 行（[04](04-position-editing.md) に全文要旨）。
 **短い。** 「どう作るか」でなく「何がどうあるべきか」だけを書いていて、
 実装の詳細もファイル名も出てこない。
 
@@ -66,9 +66,8 @@ ybb-format.md
 
 - **日英併記。** 見出しも本文のガイドも両方。
 - HTML コメントで書き方の指示を入れ、投稿時には消える。
-- 冒頭に3つのチェックボックス。**`I am human` と
-  `do not remove following sections` が入っている**のが実践的
-  （テンプレートを丸ごと消して1行だけ書く投稿への対策）。
+- 冒頭に3つのチェックボックス。うち2つが `I am human` と
+  `do not remove following sections`。
 - **`assignees` が固定**でメンテナ本人。
 - 「メンテナ専用」テンプレートがあり、タイトルに `管理者以外使用禁止` と書いてある。
 
@@ -83,7 +82,7 @@ ybb-format.md
 - 継続的な翻訳活動
 - コントリビューションに必要な質問
 
-歓迎しないもの:
+控えて欲しいもの（原文の見出しは「控えて欲しいもの」）:
 
 - **機能要望**（「要求されたものを作ることは望んでいません」）
 - 運用や機能開発への意見・不満
@@ -152,6 +151,7 @@ CLI（`src/command/usi-csa-bridge`）は本体と**別のワークフローで t
   欠けているのは `specs/` 相当の層と CHANGELOG。
 - ShogiHome の `CONTRIBUTING.md` は**個人開発の境界防衛**に振り切っていて、
   「標準的な OSS の作法」としてそのまま真似る対象ではない。
-  ただし「歓迎するもの／歓迎しないもの」を明示する形式そのものは
+  ただし「歓迎するもの／控えて欲しいもの」を明示する形式そのものは
   一般的な良い作法（GitHub の Open Source Guides も推奨している）。
-- `I am human` チェックボックスは 2026 年時点の実務として現実的。
+- `I am human` と `do not remove following sections` のチェックボックスは、
+  テンプレートを丸ごと消して1行だけ書く投稿への対策として実践的。2026 年時点では現実的だと思う。

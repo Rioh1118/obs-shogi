@@ -22,6 +22,12 @@
      あちらの `次回確認` を直すまでこの取り消しは片方にしか書かれていない** → issue
 6. **引用元のライセンスと著作権者を、各ディレクトリの README に書く。**
    他プロジェクトのコードを逐語で載せる場所なので、判断した形跡を残す。
+7. **obs-shogi 側の要望や論点を鉤括弧で引くなら、出典を書く。**
+   書けないなら鉤括弧を外し、**（出典なし）**と明示する。
+   口頭の発言をそのまま引くと、次に読む人が確かめられない。
+8. **語を ShogiHome の機能名と一般語で二重に使わない。**
+   とくに **`検討`** は ShogiHome の `ResearchState`（エンジンに読ませ続ける機能）を指す。
+   設計の議論の意味では使わず、`案` / `検討中の設計` と書く。
 
 ## 置き場
 
@@ -32,16 +38,14 @@
 
 ### `findings/` について
 
-L0〜L4 は 2026-07 の調査ループの成果で、**一次情報の引用と URL を持っている**
+L0〜L4 は 2026-07 の調査で出したもので、**一次情報の引用と URL を持っている**
 （注釈実装の実地確認・人口統計・ダウンロード数・ShogiHome の issue 集計）。
-中身は今も有効なので消していない。ただし当時の**手順の器**（`ROSTER.md` / `STATE.md` /
-`lanes/` / `_TEMPLATE-lane.md`）は落とした。あれは調査でなく調査の進め方の記述だった。
 
-`lanes/L0` は「調査の進め方」ではなく**判定結果**だったので、`findings/L0` へ移してある。
+**次の3ファイルから参照されている。消すならこの3つも直すこと。**
 
-`findings/` は次の2か所から参照されている。**消すならこの2つも直すこと。**
-
-- `docs/PREMISES.md` P-006 と `docs/decisions/0002-drop-book-read-write.md` → `findings/L3-book-solved.md`
+- `docs/PREMISES.md` P-006 → `findings/L3-book-solved.md`
+- `docs/decisions/0002-drop-book-read-write.md` → 同上。
+  **`docs/decisions/` は append-only なので、ここのリンクを切ると直すのが一番高い**
 - `docs/IDEAS.md` 棋譜内しおり → `findings/L0-annotation-implementations.md`
 
 ## 再取得

@@ -29,7 +29,7 @@ NEXT_MOVE_GENERATION_DIALOG / NEXT_MOVE_GENERATION
 
 ### 入口は全て `AppState.NORMAL` でガードされている
 
-`src/renderer/store/index.ts` の各 `show*Dialog()` が、例外なく
+`src/renderer/store/index.ts` の `show*Dialog()` のうち **18個**が
 
 ```ts
 if (this.appState === AppState.NORMAL) {
@@ -37,22 +37,34 @@ if (this.appState === AppState.NORMAL) {
 }
 ```
 
-の形をしている。**以下は抜粋（全数は `grep -n "show.*Dialog()" src/renderer/store/index.ts` で数える）**:
+の形をしている。**全数は `grep -n 'show[A-Za-z]*Dialog' src/renderer/store/index.ts` で数える**
+（`show.*Dialog()` は `()` が literal なので `showPasteDialog(mode: ...)` を落とす）。以下は抜粋:
 `showGameDialog` / `showCSAGameDialog` / `showAnalysisDialog` /
-`showMateSearchDialog` / `showUSIEnginesDialog` / `showRecordFileHistoryDialog` /
-`showBatchConversionDialog` / `showExportPositionImageDialog` /
+`showMateSearchDialog` / `showUsiEngineManagementDialog` / `showRecordFileHistoryDialog` /
+`showBatchConversionDialog` / `showExportBoardImageDialog` /
 `showLaunchUSIEngineDialog` / `showConnectToCSAServerDialog` /
 `showLoadRemoteFileDialog` / `showShareDialog` / `showAddBookMovesDialog` /
 `showResetBookDialog` / `showBookPropertiesDialog` /
 `showSearchDuplicatePositionsDialog` / `showElapsedTimeChartDialog`）。
 
-`showPasteDialog` だけは `if (this.appState !== AppState.NORMAL) return` の形で、
-判定は同じ。
+`showPasteDialog` と `showPositionEditingDialog` は
+`if (this.appState !== AppState.NORMAL) return` の形で、判定は同じ。
 
-**帰結: `AppState.GAME`（対局中）では、上記のダイアログが1つも開けない。**
+**ただし「NORMAL 以外は全部禁止」は全数としては成立しない。** ガードを持たないものが2つある。
+
+| メソッド                | 場所                 | ガード                                                             |
+| ----------------------- | -------------------- | ------------------------------------------------------------------ |
+| `showAppSettingsDialog` | `store/index.ts:563` | **無し。**`AppState` を見ずに `_isAppSettingsDialogVisible = true` |
+| `showPVPreviewDialog`   | `store/index.ts:398` | **無し。**`_pvPreview` を入れるだけ                                |
+
+**対局中でもアプリ設定と読み筋プレビューは開ける。**
+
+**帰結: `AppState.GAME`（対局中）では、ガードを持つ18個が1つも開けない。**
 局面編集も、エンジン管理も、棋譜の変換も、共有も開けない。
 「対局中に何を禁止するか」を個別に決めるのではなく、
-**NORMAL 以外は全部禁止**という1本の規則で落としている。
+**NORMAL でないなら開かない**という1本の規則をほぼ全ての入口に貼って落としている。
+**例外は上の2つ**（アプリ設定・読み筋プレビュー）で、
+どちらも「棋譜の状態を変えない」ものだという線引きに見える。
 
 ### 検討（research）だけは直交する別の enum
 

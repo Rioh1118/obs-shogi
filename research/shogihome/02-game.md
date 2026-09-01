@@ -24,11 +24,11 @@ export interface Player {
 
 実装は3つ（`src/renderer/players/`）。
 
-| 実装          | ファイル   | 中身                                                        |
-| ------------- | ---------- | ----------------------------------------------------------- |
-| `HumanPlayer` | `human.ts` | 全メソッドが空。`startSearch` は handler を**保持するだけ** |
-| `USIPlayer`   | `usi.ts`   | USI プロセスを持つ                                          |
-| `BasicPlayer` | `basic.ts` | 内蔵の簡易エンジン（16.5KB）                                |
+| 実装          | ファイル   | 中身                                                                      |
+| ------------- | ---------- | ------------------------------------------------------------------------- |
+| `HumanPlayer` | `human.ts` | ほぼ空。`startSearch` は handler を**保持するだけ**、`close` は捨てるだけ |
+| `USIPlayer`   | `usi.ts`   | USI プロセスを持つ                                                        |
+| `BasicPlayer` | `basic.ts` | 内蔵の簡易エンジン（16.5KB）                                              |
 
 `HumanPlayer` の核はここ。
 
@@ -56,6 +56,8 @@ else if (uri.isUSIEngine(...) && playerSettings.usi) { const p = new USIPlayer(.
 
 **これが「人対人・人対エンジン・エンジン対エンジン・同じエンジン同士」を
 全部同じコードで回せる理由。** 対局の進行側は相手が何かを知らない。
+
+**空でないのは3つだけ**（`isEngine()` が `false` を返す、`startSearch` が handler を持つ、`close` が捨てる）。
 
 `readyNewGame` / `gameover` / `close` が `Player` に入っているので、
 USI の `usinewgame` / `gameover` / `quit` は人間相手のときは空実装で素通りする。

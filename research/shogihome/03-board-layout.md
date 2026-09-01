@@ -4,12 +4,19 @@
 `src/common/settings/layout.ts`
 版: `de27f0c1c352`
 
-**obs-shogi の「盤の比率は絶対に変えない」「駒台は盤と同じ長さの長方形にして、
-狭くなったら駒を縦に並べる」という要求に、そのまま対応する実装がある。**
+obs-shogi 側に「盤の比率は変えない」「駒台は盤と同じ長さの長方形にして、
+狭くなったら駒を縦に並べる」という要望が出ている（**未文書化。出典なし**）。
+**それに対応する実装が ShogiHome にある。**
+
+以下で **盤クラスタ** と書くのは、obs-shogi の
+`src/widgets/game-board/ui/GameBoard.scss` の `.game-board__cluster`
+（盤＋左右の駒台をまとめた矩形）を指す。
 
 ## 1. 比率の保ち方 —— 全部を1つのスカラで割る
 
-`params.ts` に**設計上の固定座標**が px で書いてある。実行時にやるのはこれだけ。
+`params.ts` に**設計上の固定座標**が px で書いてある（**定数だけ。関数は1つも無い**）。
+実行時にやるのはこれだけで、`standard.ts` / `compact.ts` / `portrait.ts` の
+**3か所に同じ形で複製されている**（見る `*ViewParams` だけが違う）。
 
 ```ts
 get ratio(): number {
@@ -26,8 +33,8 @@ get ratio(): number {
 （`standard.ts` / `compact.ts` / `portrait.ts` の `build()` が
 `params.x * ratio + "px"` を組み立てて style に流す）。
 
-**比率が崩れる余地が構造的に無い。** CSS の `aspect-ratio` も
-コンテナクエリも使っていない。**設計座標 × スカラ、それだけ。**
+**比率が崩れる余地が構造的に無い。** 盤のプリミティブ（`view/primitive/board/`）では
+CSS の `aspect-ratio` もコンテナクエリも使っていない。**設計座標 × スカラ、それだけ。**
 
 `config.upperSizeLimit` は `RectSize`。呼び出し側が使える矩形を渡す。
 
@@ -63,7 +70,8 @@ export enum BoardLayoutType {
   高さ 728 = 104 × 7 → **7段。7種類の駒がちょうど縦に1列に並ぶ。**
 - `portraitHandParams`: `squareWidth: 94.85, squareHeight: 104`、幅 664 ≒ 94.85 × 7 →
   **7列 × 1段。横一列。**
-- `standardViewParams.hand`: 288 × 360。288 ≒ 94.85 × 3、360 = 104 × 3.5 弱で、
+- 駒台の寸法は `handParams.width` / `.height` が持つ（`standardViewParams.hand` は座標だけ）。
+  288 × 360。288 ≒ 94.85 × 3、360 = 104 × 3.5 弱で、
   `handParams` の `row`/`column` 表を見ると **2列 × 4段**（歩だけ `width: 2` で2列ぶん）。
 
 ### 駒の並び順は表で持っている
@@ -75,8 +83,8 @@ black: 飛(0,0) 角(0,1) / 金(1,0) 銀(1,1) / 桂(2,0) 香(2,1) / 歩(3,0,width
 white: 歩(0,0,width:2) / 香(1,0) 桂(1,1) / 銀(2,0) 金(2,1) / 角(3,0) 飛(3,1)
 ```
 
-**先手と後手で表が別。** 後手は上下が逆になるので、行番号を反転した表を
-そのまま持っている（計算で出していない）。
+**先手と後手で表が別。** 後手は盤ごと逆向きなので、**行と列の両方を入れ替えた**
+（＝180° 回転した）表をそのまま持っている。計算で出していない。
 
 コメント:
 
@@ -119,7 +127,8 @@ STANDARD の座標（`standardViewParams`）:
   clock.black    y=535  (288×55, fontSize 40)   ← 時計
   hand.black     y=600                          ← 駒台
 左の帯 x=0
-  white 側が上下対称に並び、control.left が y=547 (288×412)
+  white 側は hand(0) → playerName(370) → clock(425) → turn(495)。
+  **厳密な鏡像ではない**（playerName と clock の順が黒と同じ）。control.left が y=547 (288×412)
 ```
 
 **駒台のすぐ上に時計、その上に対局者名、その上に手番。** 縦一列。
@@ -134,10 +143,20 @@ turn.black:       y=425 → y2=490
 playerName.black: y=480 → y2=545
 ```
 
-**時計の 55px ぶんを詰めて下へ寄せる**。空白が残らない。
+**どちらも +65px 下がる**（時計の高さ 55 ＋ 間隔 10）。空白が残らない。
 `PositionEditingDialog` は `:hide-clock="true"` で開いている。
 
-COMPACT / PORTRAIT には `y2` が無く、`hideClock` を見ていない。
+**COMPACT / PORTRAIT には `y2` が無いが、`hideClock` は見ている。しかも使い方が逆。**
+
+```ts
+// compact.ts:113 / portrait.ts:113
+turn: this.config.hideClock ? buildTurnLayout() : undefined,
+// :116-117  blackClock / whiteClock を hideClock で undefined にする
+```
+
+STANDARD は「時計を消して手番を繰り上げる」だが、
+**COMPACT / PORTRAIT は「時計を消したときだけ手番表示を出す」**。
+局面編集ダイアログ（PORTRAIT ＋ `hide-clock`）で手番が出るのはこれ。
 
 ## 4. 局面編集は PORTRAIT で開く
 
@@ -166,10 +185,13 @@ COMPACT / PORTRAIT には `y2` が無く、`hideClock` を見ていない。
 `Config`（`config.ts`）が持つもの:
 
 ```
-boardImageType / pieceStandImageType / customBoardImageURL / customPieceStandImageURL
-boardImageOpacity / pieceStandImageOpacity / boardGridColor / boardTextureImage
+boardImageType / pieceStandImageType / boardTextureImage / pieceStandImage
+boardImageOpacity / pieceStandImageOpacity / boardGridColor
 pieceImages（駒画像の URL テンプレート） / kingPieceType / handPieceOrder
 promotionSelectorStyle / boardLabelType / upperSizeLimit / flip / hideClock
+
+（`customBoardImageURL` / `customPieceStandImageURL` は `Config` のフィールドではなく
+`newConfig()` の引数。テクスチャの URL に解決してから `Config` に入る）
 ```
 
 - 駒画像は `template.replaceAll("${piece}", ...)` で URL を組む。**差し替え可能。**
@@ -184,7 +206,7 @@ promotionSelectorStyle / boardLabelType / upperSizeLimit / flip / hideClock
 
 |                | ShogiHome                              | obs-shogi（`main`）                                                                           |
 | -------------- | -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 比率の保ち方   | 設計座標 × スカラ `ratio`              | `aspect-ratio` ＋ `100cqh` から逆算。**盤クラスタは正しい**                                   |
+| 比率の保ち方   | 設計座標 × スカラ `ratio`              | `aspect-ratio` ＋ `100cqh` から逆算（`.game-board__cluster`）                                 |
 | 駒台の形       | **3種（矩形 / 縦1列 / 横1列）**        | `aspect-ratio: 20/22` の**1種のみ**                                                           |
 | 駒台の中身     | 駒種ごとの `{row, column, width}` 表   | `useHandLayout.ts` が枚数で4段に分配。**`containerWidth = 18`(rem) が直値で実寸を見ていない** |
 | 駒の並び順     | 先後で別の表。左右の向きは設定         | `pieceOrder` 配列1本。向きの設定なし                                                          |
@@ -194,7 +216,9 @@ promotionSelectorStyle / boardLabelType / upperSizeLimit / flip / hideClock
 
 ## 所感
 
-- **`ratio` 1本方式は、obs-shogi の「比率は絶対に変えない」要求に対する
+- **`.game-board__cluster` の `aspect-ratio` ＋ `100cqh` は、比率の保持としては正しく動いている。**
+  崩れているのは駒台の中身だけ（`useHandLayout.ts:163`）。
+- **`ratio` 1本方式は、「比率を変えない」という要望に対する
   一番強い答え。** CSS に任せると `min-height` のような
   スケールに載らないプロパティから崩れる（ADR-0003 が既に踏んでいる問題）。
   設計座標を1か所に集めて掛け算だけするなら、崩れる場所が存在しない。
@@ -207,5 +231,5 @@ promotionSelectorStyle / boardLabelType / upperSizeLimit / flip / hideClock
   ただし ShogiHome は**利用者が選ぶ設定**であって、幅で自動的に切り替えてはいない。
   「あるwidthより低くなると縦長」を自動でやるなら、それは ShogiHome より一歩先になる。
 - **時計を盤の枠内に置いている**のは、obs-shogi 側の
-  「時計ってドックにいらなくね？」という直感を裏付ける。
+  「時計はドックに要らないのでは」という obs-shogi 側の見立て（**出典なし**）を裏付ける。
   盤・駒台・時計・手番・対局者名は1つの視線の中に置くもの、という判断。

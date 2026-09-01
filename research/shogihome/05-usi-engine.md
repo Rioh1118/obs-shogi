@@ -46,7 +46,7 @@ export type USIEngineExtraBookConfig = {
 
 ## 2. USI オプションを**型付きで**持っている
 
-ここが obs-shogi との一番大きい差。
+obs-shogi との差が最も大きいのがここ。
 
 ```ts
 export type USIEngineOptionType = "check" | "spin" | "combo" | "button" | "string" | "filename";
@@ -151,7 +151,7 @@ export type EnginePreset = {
 - **`options: Record<string, string>` は将来必ず詰まる。**
   USI の `option` 行は型・既定・範囲・選択肢を運んでくるのに、
   obs-shogi はそれを文字列へ潰して捨てている。
-  「強さの調整を対局ダイアログに出すか」（D-04）が難しいのは、
+  「強さの調整を対局ダイアログに出せるか」が難しいのは、
   そもそも `NodesLimit` が spin なのか string なのかを型が知らないため。
   **ここを直すのは対局の前提工事に入ると思う。**
 - **`aiName` は名前が嘘をついている**（USI のエンジン名ではなく
