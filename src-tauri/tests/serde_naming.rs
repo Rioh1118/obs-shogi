@@ -12,6 +12,10 @@
 //! **見ているのは属性の字面だけ。** 実際に出る JSON までは見ない
 //! （そちらは境界の型ごとに `#[test]` を書く。`engine/game/types.rs` が例）。
 
+mod scanning;
+
+use scanning::{blank_out_comments, blank_out_noncode};
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -90,7 +94,14 @@ fn collect(dir: &Path, out: &mut Vec<SerdeType>) {
 }
 
 fn parse(file: &str, text: &str, out: &mut Vec<SerdeType>) {
-    let lines: Vec<&str> = text.lines().collect();
+    // **属性の中身は読むので、コメントだけを潰した側で見る。**
+    // 括弧を数える側は文字列も潰す——素で数えると `'{'` の文字リテラルや
+    // `"http://..."` で深さがずれ、enum の後半が「値を持たない」と判定されて
+    // ADR-0007 の検査を素通りする。どちらも行数を保つので添字は共通
+    let readable = blank_out_comments(text);
+    let countable = blank_out_noncode(text);
+    let lines: Vec<&str> = readable.lines().collect();
+    let code_lines: Vec<&str> = countable.lines().collect();
     let mut i = 0;
 
     while i < lines.len() {
@@ -138,7 +149,7 @@ fn parse(file: &str, text: &str, out: &mut Vec<SerdeType>) {
             name,
             attrs: attrs.clone(),
             is_enum,
-            carries_data: is_enum && enum_carries_data(&lines, decl_line),
+            carries_data: is_enum && enum_carries_data(&code_lines, decl_line),
         });
         i = j + 1;
     }
@@ -154,13 +165,17 @@ fn name_of(rest: &str) -> String {
 /// `Variant(` か `Variant {` の形を探す。
 ///
 /// **中括弧の数を数える。** 行数で打ち切ると、長い enum の後半が読まれずに
-/// 「値を持たない」と判定されて素通りする
+/// 「値を持たない」と判定されて素通りする。
+///
+/// 数える前にコメントと文字列を潰してある（`parse` が `blank_out_noncode` を
+/// 通す）。`split("//")` だけだと文字列の中の `//` や `{` で深さがずれ、
+/// 後半のバリアントが「値を持たない」に落ちる。
 fn enum_carries_data(lines: &[&str], decl_line: usize) -> bool {
     let mut depth = 0usize;
     let mut started = false;
 
     for line in &lines[decl_line..] {
-        let code = line.split("//").next().unwrap_or("");
+        let code = *line;
         for c in code.chars() {
             match c {
                 '{' => {

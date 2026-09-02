@@ -17,7 +17,7 @@
 
 mod scanning;
 
-use scanning::matching;
+use scanning::{blank_out_comments, matching};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -108,39 +108,15 @@ const EXEMPT: [(&str, &str); 8] = [
     ),
 ];
 
-/// `/* */` と `//` を落とす。関数名をコメントに書く習慣があるので、
+/// `/* */` と `//` を空白に潰す。関数名をコメントに書く習慣があるので、
 /// 落とさないと「呼んでいない」を「呼んでいる」と読み違える。
 ///
-/// 文字列リテラルの中の `//` は、その行の残りが落ちるだけ（偽陽性）。
-/// **`/*` は違う。** 文字列の中にあると次の `*/` までが丸ごと落ち、その範囲の
-/// `#[command]` が走査から消える（偽陰性）。いまソースに `/*` を含む文字列は無い
+/// **文字列は残す。** 引数名と型を見るので消せない。数えるのは `scanning` 側で、
+/// そちらは文字列・raw 文字列・文字リテラルを読み飛ばす——素で数えると
+/// 文字列の中の `/*` を見つけた時点で**ファイルの残りを丸ごと捨てる**
+/// （そこから後ろのコマンドが全部走査から消える）。
 fn without_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let bytes = source.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i..].starts_with(b"/*") {
-            match source[i + 2..].find("*/") {
-                Some(at) => i += 2 + at + 2,
-                None => break,
-            }
-            continue;
-        }
-        if bytes[i..].starts_with(b"//") {
-            match source[i..].find('\n') {
-                Some(at) => i += at,
-                None => break,
-            }
-            continue;
-        }
-        out.push(source[i..].chars().next().expect("境界がずれている"));
-        i += source[i..]
-            .chars()
-            .next()
-            .map(|c| c.len_utf8())
-            .expect("境界がずれている");
-    }
-    out
+    blank_out_comments(source)
 }
 
 /// 属性から**その関数の閉じ括弧まで**を1つのコマンドとして切り出す。
@@ -193,7 +169,24 @@ fn commands(source: &str) -> Vec<(String, String)> {
 fn signature_of(chunk: &str) -> Option<&str> {
     let start = chunk.find("fn ")?;
     let chunk = &chunk[start..];
-    let open = chunk.find('(')?;
+
+    // **ジェネリクスを先に飛ばす。** `fn f<F: Fn() -> String>(path: String)` だと
+    // 最初の `(` は `Fn()` のもので、そこを署名だと決めると**以降の引数が
+    // 1つも見えなくなる**（生パスを受けるコマンドが走査から丸ごと消える）
+    let after_name = chunk.find(char::is_whitespace).map_or(0, |at| at + 1);
+    let rest = &chunk[after_name..];
+    let head = match rest.find('<') {
+        Some(angle)
+            if rest[..angle]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_') =>
+        {
+            after_name + angle + matching(&rest[angle..], '<', '>')?
+        }
+        _ => after_name,
+    };
+
+    let open = head + chunk[head..].find('(')?;
     let len = matching(&chunk[open..], '(', ')')?;
     Some(&chunk[open + 1..open + len - 1])
 }
@@ -501,7 +494,7 @@ fn every_path_taking_command_checks_the_root() {
 
     // 0件で緑になる形を作らない。切り出しが壊れたらここで気づく
     assert!(
-        all >= 30,
+        all >= 45,
         "コマンドを {all} 件しか見つけられていない。切り出しが壊れている"
     );
     // 下限は**壊れ検出**。現在値と一致させない（正当に減らしたとき、
@@ -584,6 +577,11 @@ fn helper(app: &AppHandle, p: &Path) -> () {
 fn only_signatures_that_carry_a_path_are_checked() {
     let takes =
         |signature: &str| takes_a_path(&format!("#[command]\npub fn f({signature}) {{\n}}"));
+    let takes_generic = |generics: &str, signature: &str| {
+        takes_a_path(&format!(
+            "#[command]\npub fn f<{generics}>({signature}) {{\n}}"
+        ))
+    };
 
     assert!(takes("app: AppHandle, file_path: String"));
     assert!(takes("app: AppHandle, dest_dir: String"));
@@ -599,6 +597,14 @@ fn only_signatures_that_carry_a_path_are_checked() {
     // `AppConfig` は中に root_dir を持つが署名からは見えない。
     // 署名で拾えないものは `STRUCT_CARRIED_PATH` の側で名指しする
     assert!(!takes("app: AppHandle, config: AppConfig"));
+
+    // **ジェネリクスを署名と取り違えない。** `fn f<F: Fn() -> String>(..)` だと
+    // 最初の `(` は `Fn()` のもので、そこで切ると引数が1つも見えなくなる
+    assert!(takes_generic(
+        "F: Fn() -> String",
+        "app: AppHandle, file_path: String"
+    ));
+    assert!(takes_generic("T: Into<String>", "dest_dir: String"));
 
     // 型を辿る側も同じ括弧の取り方を使う
     let types =

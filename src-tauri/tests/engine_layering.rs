@@ -27,6 +27,10 @@
 //! は `engine::types` ではなく `engine::game::types` なので、段の名前空間に
 //! 混ぜない（`game` の中は段を割らないので、辺として意味を持たない）。
 
+mod scanning;
+
+use scanning::blank_out_noncode;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -174,6 +178,11 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
 /// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
 /// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
 fn use_statements(source: &str) -> Vec<(String, usize)> {
+    // **コメントも文字列も潰してから数える。** 潰さないと、`// mod tests {` や
+    // `const A: &str = "mod x {";` の1行が幻の module を積み、閉じないので
+    // 以降すべての `use super::` が1段ずれる——**辺が1本も立たなくなる**。
+    // `use` の中に文字列は現れないので、潰して困らない。
+    let source = &blank_out_noncode(source);
     let mut found = Vec::new();
     let mut buffer = String::new();
     // **`mod` の入れ子を数える。** `super` が指す先はファイルの位置ではなく
@@ -401,6 +410,21 @@ fn the_scanner_reads_every_spelling_of_use() {
         ["state"].map(String::from).into(),
         "`mod` の中から段を跨ぐ形が取れていない"
     );
+
+    // **コメントの中の `mod {` を module として数えない。**
+    // 数えると幻の module が積まれ、閉じないので以降の `use` が全部ずれる
+    let source = "// 置き場の例: `mod tests {` のような形\nuse super::registry::EngineId;\n";
+    let (edges, _) = scan_file(source, 1);
+    assert_eq!(
+        edges,
+        ["registry"].map(String::from).into(),
+        "コメントの中の `mod {{` を module として数えている"
+    );
+
+    // 文字列の中の括弧も同じ
+    let source = "const A: &str = \"mod x {\";\nuse super::registry::EngineId;\n";
+    let (edges, _) = scan_file(source, 1);
+    assert_eq!(edges, ["registry"].map(String::from).into());
 
     // `fn` の中の塊は `super` の意味を変えない
     let source = "fn f() {\n    use super::super::state::AppState;\n}\n";

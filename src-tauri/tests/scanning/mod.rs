@@ -1,13 +1,23 @@
 //! ソースを文字列として読む検査が共有する、括弧の対応取り。
 //!
-//! **3つの検査が同じ前提で括弧を数える。** 別々に書くと、同じ穴が3つできる——
-//! `'{'` や `br#"{"header":"#` を開き括弧として数える、`Channel<()>` の `)` を
-//! 署名の終わりと読む、`[&str; 3]` の `;` で item を切る。
-//! 数える場所を1つにして、文字列・文字・コメントを読み飛ばす。
+//! **手書きで括弧を数えると、毎回同じ穴が開く。** `'{'` や `br#"{"header":"#` を
+//! 開き括弧として数える、`Channel<()>` の `)` を署名の終わりと読む、
+//! `[&str; 3]` の `;` で item を切る、コメントの中の `mod tests {` を
+//! module として数える、文字列の中の `/*` でファイルの残りを捨てる——
+//! どれも実際に起きた。数える場所を1つにして、文字列・文字・コメントを読み飛ばす。
+//!
+//! **書けなくするところまでやる。** 1つに寄せても、次に走査を書く人が
+//! 手で数え直せば同じ穴が戻る。`no_test_counts_delimiters_by_hand` が
+//! `tests/` の中の手書きの数えを落とす。
 //!
 //! **見つからないことを黙って通さない。** 走査が壊れたときに「違反0」を返すと、
 //! 検査は緑のまま何も見ていない状態になる。呼び出し側は `None` を
 //! 故障として扱うこと（`expect` でファイル名を出す）。
+//!
+//! **`dead_code` を許す。** 結合テストは1ファイル1クレートで、この module は
+//! それぞれに別々にコンパイルされる。どのクレートも使うのは一部だけなので、
+//! 許さないと「使っていないほうのクレート」でビルドが落ちる。
+#![allow(dead_code)]
 
 /// 文字列・文字・コメントの先頭なら、その長さ（バイト）。
 ///
@@ -81,6 +91,73 @@ fn char_literal(inner: &str) -> Option<usize> {
     None
 }
 
+/// コメントを空白に潰す。**文字列は残し、行数も保つ。**
+///
+/// `//` の中に `#[cfg(test)]` や `mod tests {` を書いた行が、走査に item や
+/// module として拾われるのを止める。文字列を消さないのは、`root_guard` が
+/// 引数名を、`serde_naming` が属性の中身を見るため。
+pub fn blank_out_comments(source: &str) -> String {
+    blank_out(source, false)
+}
+
+/// コメントに加えて**文字列・文字リテラルも**空白に潰す。
+///
+/// 括弧やキーワードを数えるだけで、中身を読まない走査に使う。
+/// 残すと `const A: &str = "mod x {";` の1行が module を開いたことになる。
+pub fn blank_out_noncode(source: &str) -> String {
+    blank_out(source, true)
+}
+
+fn blank_out(source: &str, literals_too: bool) -> String {
+    let mut out = String::with_capacity(source.len());
+    let mut at = 0;
+
+    while at < source.len() {
+        let rest = &source[at..];
+        let is_comment = rest.starts_with("//") || rest.starts_with("/*");
+        if let Some(len) = skip_literal_or_comment(rest) {
+            if is_comment || literals_too {
+                // 行数を保つ。潰すと違反の `path:line` が現物とずれる
+                for ch in rest[..len].chars() {
+                    out.push(if ch == '\n' { '\n' } else { ' ' });
+                }
+            } else {
+                out.push_str(&rest[..len]);
+            }
+            at += len;
+            continue;
+        }
+        let ch = rest.chars().next().expect("残りがあれば1文字は取れる");
+        out.push(ch);
+        at += ch.len_utf8();
+    }
+    out
+}
+
+/// コードの中の `needle` の位置。**文字列とコメントの中は数えない。**
+///
+/// `find` を素で使うと、doc コメントに `#[cfg(test)]` と書いた行から
+/// 走査が始まり、その直後の**本番の item が丸ごと落ちる**。
+pub fn find_in_code(source: &str, needle: &str) -> Option<usize> {
+    let mut at = 0;
+    while at < source.len() {
+        let rest = &source[at..];
+        if let Some(len) = skip_literal_or_comment(rest) {
+            at += len;
+            continue;
+        }
+        if rest.starts_with(needle) {
+            return Some(at);
+        }
+        at += rest
+            .chars()
+            .next()
+            .expect("残りがあれば1文字は取れる")
+            .len_utf8();
+    }
+    None
+}
+
 /// 先頭の `open` に釣り合う `close` の直後までの長さ。
 ///
 /// 先頭が `open` でない、または釣り合わないなら `None`。
@@ -147,6 +224,50 @@ pub fn item_end(after: &str) -> Option<usize> {
     None
 }
 
+/// **手書きで括弧を数える走査を、新しく書けなくする。**
+///
+/// 1つに寄せるだけでは足りない。次に走査を書く人が手で数え直せば、
+/// 同じ穴（文字列の中の `{`、コメントの中の `mod {`、文字列の中の `/*`）が
+/// そのまま戻る。
+///
+/// `tests/` の中で区切り文字を数えている形を探し、この module を使っていない
+/// ファイルを落とす。**免除を置かない**——数えたいなら `scanning` に足すこと。
+#[test]
+fn no_test_counts_delimiters_by_hand() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let mut offenders = Vec::new();
+
+    // 区切りを数えている形。`scanning` の中身は当然当たるので、そこは見ない
+    let smells = [
+        "matches('{')",
+        "matches('}')",
+        "find(')')",
+        "find('}')",
+        "split(\"//\")",
+        "starts_with(b\"/*\")",
+    ];
+
+    for entry in std::fs::read_dir(&dir).expect("tests を読めない").flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "rs") {
+            let source = std::fs::read_to_string(&path).unwrap_or_default();
+            let uses_scanning = source.contains("mod scanning;");
+            for smell in smells {
+                if source.contains(smell) && !uses_scanning {
+                    offenders.push(format!("{}: {smell}", path.display()));
+                }
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "`tests/` で区切り文字を手書きで数えている。`scanning` を使うこと\
+         （文字列・文字・コメントを読み飛ばさないと、同じ穴がまた開く）:\n{}",
+        offenders.join("\n")
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,6 +302,39 @@ mod tests {
         let len = matching(source, '(', ')').expect("釣り合わない");
         assert_eq!(len, source.len());
         assert!(source[..len].contains("file_path"));
+    }
+
+    #[test]
+    fn comments_do_not_look_like_code() {
+        // doc コメントの中の `#[cfg(test)]`。素の `find` はここから走ってしまう
+        let source = "/// `#[cfg(test)] mod tests` からは見られない\npub const X: u8 = 1;\n";
+        assert_eq!(find_in_code(source, "#[cfg(test)]"), None);
+
+        // 文字列の中の `/*`。素の走査はここから残りを捨てる
+        let source = "const A: &str = \"パターンは /* を含める\";\npub fn real() {}\n";
+        let blanked = blank_out_comments(source);
+        assert!(
+            blanked.contains("pub fn real"),
+            "文字列の中の `/*` で残りを捨てている: {blanked:?}"
+        );
+        assert_eq!(
+            blanked.lines().count(),
+            source.lines().count(),
+            "行数が変わっている"
+        );
+
+        // コメントは空白になる。中の `mod {` は module として数えられない
+        let blanked = blank_out_comments("// mod tests {\nuse a::b;\n");
+        assert!(
+            !blanked.contains("mod"),
+            "コメントが残っている: {blanked:?}"
+        );
+        assert!(blanked.contains("use a::b;"), "コードまで潰している");
+
+        // 文字列は残す
+        let blanked = blank_out_comments("let s = \"keep me\"; // drop me\n");
+        assert!(blanked.contains("keep me"));
+        assert!(!blanked.contains("drop me"));
     }
 
     #[test]

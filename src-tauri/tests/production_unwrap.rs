@@ -15,7 +15,7 @@
 
 mod scanning;
 
-use scanning::item_end;
+use scanning::{find_in_code, item_end};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -55,7 +55,11 @@ fn strip_test_modules(source: &str, path: &Path) -> String {
     let mut out = String::new();
     let mut rest = source;
 
-    while let Some(at) = rest.find("#[cfg(test)]") {
+    // **コードの中のものだけを item の始まりとみなす。** 素の `find` だと、
+    // doc コメントに `#[cfg(test)]` と書いた行から走査が始まり、その直後の
+    // **本番の item が丸ごと落ちる**（`lib.rs` の `CLOSE_TIMEOUT` がそうなっていた）。
+    // この壊れ方は `item_end` が `None` を返さないので、下の panic には掛からない
+    while let Some(at) = find_in_code(rest, "#[cfg(test)]") {
         out.push_str(&rest[..at]);
         let after = &rest[at..];
 
@@ -159,6 +163,14 @@ fn the_scanner_still_sees_production_code() {
     assert!(
         file_system.contains("pub use mv::"),
         "`#[cfg(test)] use` の後ろにある本番の再エクスポートまで落としている"
+    );
+
+    // **doc コメントの中の `#[cfg(test)]` から走り出していないこと。**
+    // `lib.rs` の `CLOSE_TIMEOUT` の doc がその綴りを含む
+    let root = production_code(&src_dir().join("lib.rs"));
+    assert!(
+        root.contains("pub const CLOSE_TIMEOUT"),
+        "コメントの中の `#[cfg(test)]` を item の始まりとして数えている"
     );
 }
 
