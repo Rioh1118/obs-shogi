@@ -1854,6 +1854,26 @@ mod tests {
         );
     }
 
+    /// 終局後も時計が止まっていること（不変条件4 の `G2` 側）。
+    ///
+    /// `running_clock` の `Phase` 判定を消すと、`snapshot` が終局後も
+    /// 動いている時計を出す。裁定待ち側のテストだけでは、その変異が通る
+    #[tokio::test]
+    async fn no_clock_is_running_after_the_game_is_over() {
+        let game = start(two_humans(vec![])).await;
+        game.resign(Side::Black).await.unwrap();
+
+        let snapshot = game.snapshot().await.unwrap();
+        assert!(
+            matches!(phase_of(&snapshot), GamePhaseView::Over { .. }),
+            "終局していない"
+        );
+        assert!(
+            snapshot.clocks.running.is_none(),
+            "終局後なのに動いている時計が出ている"
+        );
+    }
+
     /// 手番の間は、動いている側と尽きる時刻が出ること。
     /// 上の1本だけだと「常に出さない」でも通る
     #[tokio::test]

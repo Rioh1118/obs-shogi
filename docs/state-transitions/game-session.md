@@ -120,8 +120,8 @@
 
 ### 注
 
-※1 `decide_move`。**時計を締めてから** `G1` へ入る（`elapsed_ms` は `Thinking` の
-間しか動かないので、順序が逆だと 0 になる）。締めた結果が時間切れで、かつ
+※1 `decide_move`。**時計を締めてから** `G1` へ入る（`running_clock()` は
+`G0` の間しか値を返さないので、順序が逆だと 0 になる）。締めた結果が時間切れで、かつ
 その側の時間切れが成立するなら（※11）、裁定を待たずに直接 `G2`（`Timeout`）へ落とし、
 `MoveDecided` も出さない。**その手は指されなかったものとして扱う。**
 
@@ -286,11 +286,12 @@ ClocksView {
    探索中だったエンジンには `bestmove` が返ってから送る（※6）。
    `A4` は探索中とみなしているので送らない。
 
-4. **時計が動くのは `G0` の間だけ。**
-   守っているのは `clocks_view`（`Thinking` 以外は `running: None`）と
-   `on_tick`（`AwaitingRuling` / `Over` では時計を見ない）の2箇所。
-   `elapsed_ms` の `Thinking` 以外の枝は**到達しない**（呼び出し3箇所すべてが
-   `Thinking` の中）ので、そこを番人と読まないこと。
+4. **時計が動くのは `G0` かつ `turn_clock` が `Running` のときだけ。**
+   守っているのは `running_clock()` 1本。`Phase::Thinking` と
+   `TurnClock::Running` の両方が揃わなければ `None` を返す。
+   `on_tick` / `clocks_view` / `decide_move` の3箇所はこれを呼ぶだけで、
+   **独立した番人ではない。** ここの `Phase` 判定を「到達しない枝」と読んで
+   消すと、`snapshot` と `finish` が終局後も動いている時計を出す。
 
 5. **`close_game` を呼ぶまでエンジンプロセスは落ちない。** 終局は落とさない
    （`gameover` の後に `usinewgame` で指し直せる形にしてあるため）。
