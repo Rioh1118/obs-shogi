@@ -259,6 +259,19 @@ enum Activity {
     },
 }
 
+/// 手番を渡すときに、そのエンジンをどう扱うか。
+///
+/// **`StartNow` と `StopThenStart` を1つに潰さない。** 潰すと、走っている探索の
+/// 上から `go` を出す経路ができる（USI は探索中の `position` / `go` を認めない）。
+enum Handover {
+    /// 先読みが当たった。`ponderhit` を送って続けさせる
+    PonderHit,
+    /// 走っているものを止め、捨てる `bestmove` が返ってから始める
+    StopThenStart,
+    /// 何も走っていない。そのまま `go`
+    StartNow,
+}
+
 enum Phase {
     /// `side` が考えている。時計が動いている
     Thinking {
@@ -648,25 +661,37 @@ impl Runner {
 
     /// 手番を渡す。相手が先読み中なら、当たったか外れたかで分かれる
     async fn hand_turn_to(&mut self, side: Side, last_move: &str) {
-        let hit = match &self.player(side).activity {
+        let handover = match &self.player(side).activity {
             Activity::Busy {
                 kind: SearchKind::Ponder { ponder_move },
                 ..
-            } => Some(ponder_move == last_move),
+            } => {
+                if ponder_move == last_move {
+                    Handover::PonderHit
+                } else {
+                    Handover::StopThenStart
+                }
+            }
             Activity::Busy {
                 kind: SearchKind::Search,
                 ..
             } => {
-                // 手番でない側が本番の思考をしている。組み立てを間違えている
+                // 手番でない側が本番の思考をしている。組み立てを間違えている。
+                //
+                // **`Idle` と同じ扱いにしない。** そのまま `go` を出すと
+                // 探索中のエンジンへ `position` / `go` を送ることになり（USI 違反）、
+                // `spawn_search` が `activity` を上書きするので前の探索の
+                // `CancellationToken` も失われて、`stop` すら送られない探索が残る。
+                // 先読みが外れたときと同じく、止めてから始め直す
                 log::warn!(target: LOGT, "unexpected live search on idle side={side:?}");
-                None
+                Handover::StopThenStart
             }
-            Activity::Idle => None,
+            Activity::Idle => Handover::StartNow,
         };
 
-        match hit {
+        match handover {
             // 読み当たり。エンジンはそのまま考え続ける。ここから時計が動く
-            Some(true) => {
+            Handover::PonderHit => {
                 if let Some(protocol) = self.protocol(side) {
                     if let Err(e) = protocol.send_command(&GuiCommand::Ponderhit).await {
                         log::warn!(target: LOGT, "ponderhit failed side={side:?}: {e}");
@@ -676,14 +701,14 @@ impl Runner {
                     *kind = SearchKind::Search;
                 }
             }
-            // 外れ。止めて、捨てる `bestmove` が返ってから改めて考えさせる
-            Some(false) => {
+            // 止めて、捨てる `bestmove` が返ってから改めて考えさせる
+            Handover::StopThenStart => {
                 if let Activity::Busy { cancel, .. } = &self.player(side).activity {
                     cancel.cancel();
                 }
                 self.player_mut(side).restart_after_abort = true;
             }
-            None => self.start_search(side),
+            Handover::StartNow => self.start_search(side),
         }
     }
 
@@ -734,6 +759,14 @@ impl Runner {
             ponder,
             cancel: cancel.clone(),
         };
+
+        // 走っている探索の上から始めない。上書きすると、その
+        // `CancellationToken` がどこからも参照されなくなり、`stop` すら
+        // 送られない探索が `info` を出し続ける（2つの読み筋が交互に出る）
+        if let Activity::Busy { cancel, .. } = &self.player(side).activity {
+            log::warn!(target: LOGT, "spawn_search: cancelling a live search side={side:?}");
+            cancel.cancel();
+        }
 
         // 対局が捨てられた後に投げた探索は、行き先が無いので走らせない。
         // 黙って消すと原因の分からない停止になるので、消したことを残す
