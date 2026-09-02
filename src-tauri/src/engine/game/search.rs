@@ -36,8 +36,14 @@ pub enum SearchOutcome {
     Resign,
     /// `bestmove win`（入玉宣言）
     DeclareWin,
-    /// 打ち切られた。着手として採らない
+    /// 打ち切って、捨てる `bestmove` も受け取れた。エンジンは idle に戻っている
     Aborted,
+    /// **`stop` を送っても `bestmove` が返らなかった。**
+    ///
+    /// エンジンはまだ探索中で、次の `go` は受け付けられない。しかも遅れて
+    /// 届く `bestmove` は**前の局面に対する答え**なのに、そのとき登録されている
+    /// リスナー（＝次の探索のもの）が受け取ってしまう。話し続けてはいけない
+    StopTimedOut,
     Failed(String),
 }
 
@@ -160,16 +166,17 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
             })
             .await;
 
-            if drained != Ok(true) {
-                // エンジンは探索中のまま。次の `go` は受け付けられない可能性が高い
+            if drained == Ok(true) {
+                SearchOutcome::Aborted
+            } else {
                 log::warn!(
                     target: LOGT,
                     "stop: no bestmove within grace side={:?} req={}",
                     side,
                     req
                 );
+                SearchOutcome::StopTimedOut
             }
-            SearchOutcome::Aborted
         }
     };
 

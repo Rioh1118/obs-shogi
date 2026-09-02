@@ -524,16 +524,29 @@ impl Runner {
             return;
         }
 
-        if std::mem::take(&mut self.player_mut(side).restart_after_abort) {
-            // 先読みが外れて止めた分。改めていまの局面で考えさせる
-            if self.is_to_move(side) {
-                self.start_search(side);
-            }
-            return;
-        }
+        // 印は結果に関わらず消す。残すと、次にこの側の探索が終わったときに
+        // 身に覚えのない `go` が出る
+        let restart = std::mem::take(&mut self.player_mut(side).restart_after_abort);
 
         match outcome {
-            SearchOutcome::Aborted => {}
+            SearchOutcome::Aborted => {
+                // 先読みが外れて止めた分。改めていまの局面で考えさせる
+                if restart && self.is_to_move(side) {
+                    self.start_search(side);
+                }
+            }
+            SearchOutcome::StopTimedOut => {
+                // ここで `go` を出し直すと、遅れて届く前の局面の `bestmove` を
+                // 新しい探索のものとして採る。**その手は今の局面では非合法**で、
+                // エンジンが身に覚えのない反則負けになる
+                log::error!(target: LOGT, "engine did not stop searching side={side:?}");
+                self.finish(GameResult {
+                    winner: Some(side.opponent()),
+                    reason: GameOverReason::EngineFailure,
+                    detail: Some("engine did not stop searching in time".to_string()),
+                })
+                .await;
+            }
             SearchOutcome::Failed(message) => {
                 log::error!(target: LOGT, "engine failed side={side:?}: {message}");
                 self.finish(GameResult {
