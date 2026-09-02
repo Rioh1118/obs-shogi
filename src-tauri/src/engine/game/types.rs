@@ -151,8 +151,11 @@ pub struct GameSettings {
 /// 終局の理由。
 ///
 /// **将棋のルールで決まるものを Rust は判定しない。** 詰み・千日手・持将棋・
-/// 最大手数はフロントが判定して `Rule` として渡す。Rust が自分で決めるのは
-/// 投了・入玉宣言・時間切れ・エンジンの異常・利用者の中断の5つ。
+/// 最大手数はフロントが判定して `Rule` として渡す。
+///
+/// フロントの呼び出しから入るのは `Rule` / `Resign`（人間の投了）/
+/// `Aborted`（中断）の3つ。残りは Rust が決める。
+/// **`Aborted` だけは両方から入る**（利用者の中断と、裁定が返らなかったとき）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GameOverReason {
@@ -165,7 +168,11 @@ pub enum GameOverReason {
     EngineFailure,
     /// フロントが将棋のルールで終局と判定した
     Rule,
-    /// 利用者が対局を中断した
+    /// 利用者の中断（`abort`）。
+    ///
+    /// **裁定が `RULING_TIMEOUT` 返らなかったときも同じ値**になる。
+    /// 区別できるのは `detail` だけ（アプリが落としたほうには文言が入る）。
+    /// 受け手の対処は正反対なので、型で分けたい → r4
     Aborted,
 }
 
