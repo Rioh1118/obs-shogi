@@ -3,7 +3,9 @@
 //! 1コマンド = 1つの意図。USI のコマンドと1対1にはしない
 //! （`position` も `go` も `isready` もここには出てこない）。
 
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
 
@@ -119,6 +121,21 @@ impl GameEventSink for TauriEvents {
     }
 }
 
+/// 断りのログを絞る間隔。**`op` ごとに枠を分ける。**
+///
+/// 枠を1つにすると、投了が断られた1行が直前の `close` の連打に食われる。
+const REJECTION_WARN_INTERVAL: Duration = Duration::from_secs(1);
+
+/// `op` ごとの絞り。
+///
+/// **静的に持つ。** `log_rejection` はコマンドの入口から直に呼ぶ自由関数で、
+/// `AppState` を通していない。通す形にすると、断りを記録するためだけに
+/// 全コマンドの署名が増える。
+fn rejection_throttles() -> &'static Mutex<HashMap<&'static str, LogThrottle>> {
+    static THROTTLES: OnceLock<Mutex<HashMap<&'static str, LogThrottle>>> = OnceLock::new();
+    THROTTLES.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 /// 断ったことをログに残す。
 ///
 /// 断り文句は `Err` でフロントへ返るが、**受けた側が捨てると記録がどこにも残らない**。
@@ -127,10 +144,29 @@ impl GameEventSink for TauriEvents {
 /// 断った事実がログに無いと、**呼ばなかったのか断られたのかが区別できない**
 /// （→ 台帳の F-28）。
 ///
-/// 絞らない。ここを通るのは利用者の操作かフロントの裁定で、1手に数回しか出ない。
-fn log_rejection<T>(op: &str, game_id: &GameId, result: Result<T, String>) -> Result<T, String> {
+/// **絞る。** 断り方のうち `the game is busy` は「そのまま呼び直すこと」と
+/// 案内してあり（`closeGame` の doc）、その busy 判定はミリ秒で返る。
+/// 案内どおりに呼び直す実装は毎秒数百行を書く。ログは 200KB で `KeepOne`
+/// なので、**壊れた理由を説明していた `error` の行が数秒で消える**——
+/// `clock_warn` を絞っているのと同じ理由。
+///
+/// 静かなときの1件は必ず残る（`LogThrottle` は枠の先頭を通す）。
+/// **連打の中で理由が変わったことは分からない。**
+fn log_rejection<T>(
+    op: &'static str,
+    game_id: &GameId,
+    result: Result<T, String>,
+) -> Result<T, String> {
     if let Err(e) = &result {
-        log::warn!(target: "obs_shogi::engine::game", "{op} rejected game={game_id}: {e}");
+        let allowed = rejection_throttles().lock().is_ok_and(|mut throttles| {
+            throttles
+                .entry(op)
+                .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
+                .allow()
+        });
+        if allowed {
+            log::warn!(target: "obs_shogi::engine::game", "{op} rejected game={game_id}: {e}");
+        }
     }
     result
 }
