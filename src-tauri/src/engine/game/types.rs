@@ -316,6 +316,32 @@ pub enum GamePhaseView {
         result: GameResult,
     },
 }
+impl GameEvent {
+    /// ログに出す種別名。**中身は出さない**（読み筋がログを埋める）。
+    ///
+    /// **`_` を足さないこと。** バリアントが増えたらここがコンパイルで落ちる。
+    pub fn kind(&self) -> &'static str {
+        match self {
+            GameEvent::TurnChanged { .. } => "turnChanged",
+            GameEvent::SearchInfo { .. } => "searchInfo",
+            GameEvent::MoveDecided { .. } => "moveDecided",
+            GameEvent::ClockUpdated { .. } => "clockUpdated",
+            GameEvent::Over { .. } => "over",
+        }
+    }
+
+    /// 1手に何度も出るか。**絞りの枠を分ける基準。**
+    ///
+    /// 高頻度のものと1手1回のものが同じ枠を奪い合うと、読み筋の失敗で枠を
+    /// 使い切った直後の `moveDecided` の失敗が黙って捨てられる。
+    /// **その1行が、なぜ対局が止まったかを説明する唯一の記録になる。**
+    pub fn is_frequent(&self) -> bool {
+        matches!(
+            self,
+            GameEvent::SearchInfo { .. } | GameEvent::ClockUpdated { .. }
+        )
+    }
+}
 
 /// 対局がいまどうなっているか。`get_game_state` の戻り値。
 #[derive(Debug, Clone, Serialize, Deserialize)]

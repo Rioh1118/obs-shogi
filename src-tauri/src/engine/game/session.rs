@@ -22,7 +22,7 @@
 //!
 //! 表は `docs/state-transitions/game-session.md`。
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::sync::mpsc::WeakUnboundedSender;
@@ -33,6 +33,7 @@ use usi::{GameOverKind, GuiCommand};
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::types::AnalysisResult;
+use crate::engine::utils::LogThrottle;
 use crate::engine::{READY_TIMEOUT, USI_OK_TIMEOUT};
 
 use super::clock::{ClockOutcome, GameClocks};
@@ -45,6 +46,12 @@ const LOGT: &str = "obs_shogi::engine::game";
 
 /// 時計を見る間隔。時間切れの検出はこの粒度になる
 const TICK: Duration = Duration::from_millis(100);
+
+/// 壁時計が取れないことを記録する最短間隔。
+///
+/// `clocks_view` は `CLOCK_EMIT_INTERVAL` ごとに通るので、絞らないと
+/// 毎秒2行出続ける。5秒は `commands::game` の `EMIT_WARN_INTERVAL` と同じ。
+const CLOCK_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
 /// 時計だけの更新を送る最短間隔。
 /// tick ごとに送ると1秒に10回 IPC を叩くが、秒の表示にその分解能は要らない
@@ -241,8 +248,11 @@ impl GameSession {
     /// **最初の `position` / `go` は待たない。** 別タスクで走るので、その失敗は
     /// 戻り値ではなく `game-event` の `over { reason: engineFailure }` で届く。
     /// `Ok` は「エンジンが `usinewgame` まで応じた」であって
-    /// 「考え始めた」ではない。`Ok` を受け取ったら `game-event` を購読してから
-    /// 盤を出すこと。
+    /// 「考え始めた」ではない。
+    ///
+    /// **購読は呼ぶ前に張ること。** 最初の `TurnChanged` と `start_search` は
+    /// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす
+    /// （`bestmove resign` を即返すエンジンでは `MoveDecided` と `Over` も落ちる）。
     pub async fn start(
         registry: Arc<EngineRegistry>,
         events: Arc<dyn GameEventSink>,
@@ -270,6 +280,7 @@ impl GameSession {
             phase: Phase::Thinking { side: side_to_move },
             turn_clock: TurnClock::Running(Instant::now()),
             last_progress: Instant::now(),
+            clock_warn: Mutex::new(LogThrottle::new(CLOCK_WARN_INTERVAL)),
             next_req: 0,
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
@@ -577,6 +588,12 @@ struct Runner {
     last_progress: Instant,
     next_req: u64,
     last_clock_emit: Instant,
+    /// 壁時計が取れないことを記録する枠。
+    ///
+    /// **周期的に呼ばれる場所の warn は絞る。** `emit` の失敗と違い、
+    /// 条件が満たされている間ずっと出続ける。
+    clock_warn: Mutex<LogThrottle>,
+
     /// 探索タスクへ渡す、自分あての口。
     ///
     /// **weak であることが要る。** strong を持つと `run_loop` が所有する
@@ -1386,8 +1403,15 @@ impl Runner {
     fn clocks_view(&self) -> ClocksView {
         // 動いていないときは時刻を出さない。**受け手が減らす余地そのものを消す**
         let Some(now) = now_epoch_ms() else {
-            // 壁時計が取れない。嘘の 00:00 を出すより、止まっている値だけを見せる
-            log::warn!(target: LOGT, "clocks: wall clock is before the epoch");
+            // 壁時計が取れない。嘘の 00:00 を出すより、止まっている値だけを見せる。
+            //
+            // **絞る。** ここは `on_tick` から `CLOCK_EMIT_INTERVAL` ごとに通る。
+            // 条件が満たされている間（RTC が死んだ端末、時刻同期前の起動）
+            // 毎秒2行出続けるので、絞らないとログが十数分で一周し、
+            // それより前の記録が全部消える（`KeepOne` なので戻せない）
+            if self.clock_warn.lock().is_ok_and(|mut w| w.allow()) {
+                log::warn!(target: LOGT, "clocks: wall clock is before the epoch");
+            }
             return self.clocks.view(None, 0);
         };
         self.clocks.view(self.running_clock(), now)
@@ -1741,6 +1765,7 @@ mod tests {
             phase: Phase::Thinking { side: Side::Black },
             turn_clock: TurnClock::Running(Instant::now()),
             last_progress: Instant::now(),
+            clock_warn: Mutex::new(LogThrottle::new(CLOCK_WARN_INTERVAL)),
             next_req: 0,
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),

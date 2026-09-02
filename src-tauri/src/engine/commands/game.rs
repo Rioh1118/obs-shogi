@@ -20,8 +20,9 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 ///
 /// エンジンの起動と `usinewgame` までを待って返る。**最初の `go` は待たない**
 /// ——その失敗は `game-event` の `over { reason: engineFailure }` で届くので、
-/// `Ok` を受け取ったら `game-event` を購読してから盤を出すこと。評価関数の読み込みが重いエンジンでは
-/// ここで数十秒かかる。
+/// **購読は呼ぶ前に張ること。** 最初の `TurnChanged` と最初の `go` は
+/// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす。
+/// 評価関数の読み込みが重いエンジンではここで数十秒かかる。
 #[tauri::command]
 pub async fn start_game(
     state: tauri::State<'_, AppState>,
@@ -34,7 +35,8 @@ pub async fn start_game(
             state.registry.clone(),
             Arc::new(TauriEvents {
                 app,
-                warn: Mutex::new(LogThrottle::new(EMIT_WARN_INTERVAL)),
+                frequent_warn: Mutex::new(LogThrottle::new(EMIT_WARN_INTERVAL)),
+                rare_warn: Mutex::new(LogThrottle::new(EMIT_WARN_INTERVAL)),
             }),
             settings,
         )
@@ -57,12 +59,21 @@ const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 /// 口（`GameEventSink`）は下が決め、それに合わせるのは上、という向き。
 struct TauriEvents {
     app: tauri::AppHandle,
-    /// **絞る。** `emit` が失敗する理由（payload、宛先の消失）は
-    /// イベントごとに独立ではないので、一度失敗し始めると全件失敗する。
-    /// `SearchInfo` は `info` 行ごと、`ClockUpdated` は `CLOCK_EMIT_INTERVAL` ごとに
-    /// 出るので、絞らないと同じ1行がログを一周させ、**原因が書かれた最初の
-    /// warn ごと消える**。解析側（`bridge`）が同じ判断を同じ間隔でしている。
-    warn: Mutex<LogThrottle>,
+    /// 読み筋と時計の失敗を記録する枠。
+    ///
+    /// **絞る。** `emit` が失敗する理由（payload、宛先の消失）はイベントごとに
+    /// 独立ではないので、一度失敗し始めると全件失敗する。`SearchInfo` は
+    /// `info` 行ごと、`ClockUpdated` は `CLOCK_EMIT_INTERVAL` ごとに出るので、
+    /// 絞らないと同じ1行がログを一周させ、**原因が書かれた最初の warn ごと消える**。
+    frequent_warn: Mutex<LogThrottle>,
+
+    /// 手番・着手・終局の失敗を記録する枠。**高頻度のものと分ける。**
+    ///
+    /// 1枠を共有すると、読み筋の失敗で枠を使い切った直後の `moveDecided` の
+    /// 失敗が黙って捨てられる。**その1行が、なぜ対局が止まったかを説明する
+    /// 唯一の記録**（→ 台帳の F-19）。1手に1回なので絞らなくても洪水にならないが、
+    /// 宛先が消えた後も出続けるので枠は持つ。
+    rare_warn: Mutex<LogThrottle>,
 }
 
 impl GameEventSink for TauriEvents {
@@ -72,9 +83,18 @@ impl GameEventSink for TauriEvents {
     /// ただし**黙って捨てると原因が追えない**（届かなかった裁定要求が
     /// `RULING_TIMEOUT` で「アプリが答えなかった」に化ける → 台帳の F-19）。
     fn emit(&self, event: GameEvent) {
+        let kind = event.kind();
+        let throttle = if event.is_frequent() {
+            &self.frequent_warn
+        } else {
+            &self.rare_warn
+        };
+
         if let Err(e) = self.app.emit(GAME_EVENT, event) {
-            if self.warn.lock().is_ok_and(|mut w| w.allow()) {
-                log::warn!(target: "obs_shogi::engine::game", "emit failed: {e}");
+            // **種別を出す。** 出さないと、届かなかったのが読み筋なのか
+            // 終局なのかが分からず、対局が止まった理由を追えない
+            if throttle.lock().is_ok_and(|mut w| w.allow()) {
+                log::warn!(target: "obs_shogi::engine::game", "emit failed kind={kind}: {e}");
             }
         }
     }

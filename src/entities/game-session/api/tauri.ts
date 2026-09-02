@@ -18,9 +18,10 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * あって「考え始めた」ではない。最初の `position` / `go` は別タスクで走り、
  * その失敗は戻り値ではなく `game-event` の `over { reason: engineFailure }` で届く。
  *
- * **`Ok` を受け取ったら、盤を出す前に `listenToGameEvents` を張ること。**
- * 順序を逆にすると、起動直後に終局した対局のイベントを取りこぼし、
- * 初期局面が出たまま何も起きない。
+ * **`startGame` を呼ぶ前に `listenToGameEvents` を張ること。**
+ * 最初の `turnChanged` と最初の `go` は、`start_game` が返る**前に**走る。
+ * `Ok` を待ってから張ると必ず取りこぼし、`bestmove resign` を即返すエンジンでは
+ * `moveDecided` と `over` も落ちる——初期局面が出たまま何も起きない。
  */
 export async function startGame(settings: GameSettings): Promise<GameId> {
   return await invoke("start_game", { settings });
