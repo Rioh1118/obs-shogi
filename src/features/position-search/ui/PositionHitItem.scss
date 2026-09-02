@@ -35,13 +35,6 @@
     box-shadow: index.$shadow-press;
   }
 
-  &:disabled,
-  &--disabled {
-    cursor: default;
-    opacity: 0.75;
-    transform: none;
-  }
-
   &__top {
     display: flex;
     align-items: center;

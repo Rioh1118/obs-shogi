@@ -51,7 +51,6 @@ export default function PositionSearchHitList({
     () => ({
       hits,
       activeIndex,
-      isSearching,
       rootDir,
       currentAbs,
       relCache: relCacheRef.current,
@@ -59,16 +58,7 @@ export default function PositionSearchHitList({
       onActiveIndexChange,
       onAccept,
     }),
-    [
-      hits,
-      activeIndex,
-      isSearching,
-      rootDir,
-      currentAbs,
-      resolveAbsPath,
-      onActiveIndexChange,
-      onAccept,
-    ],
+    [hits, activeIndex, rootDir, currentAbs, resolveAbsPath, onActiveIndexChange, onAccept],
   );
 
   if (hits.length === 0) {

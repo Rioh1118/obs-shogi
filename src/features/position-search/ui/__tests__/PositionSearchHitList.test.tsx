@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import type { ComponentProps } from "react";
 
 import type { PositionHit } from "@/entities/search";
 import PositionSearchHitList from "../PositionSearchHitList";
@@ -32,7 +33,7 @@ function hitAt(tesuu: number): PositionHit {
 
 const HITS = Array.from({ length: 12 }, (_, i) => hitAt(i + 1));
 
-function renderList(hits: PositionHit[]) {
+function renderList(hits: PositionHit[], overrides: Partial<ListProps> = {}) {
   return render(
     <PositionSearchHitList
       hits={hits}
@@ -42,9 +43,12 @@ function renderList(hits: PositionHit[]) {
       isSearching={false}
       error={null}
       resolveAbsPath={(h) => `/root/${h.cursor.tesuu}.kif`}
+      {...overrides}
     />,
   );
 }
+
+type ListProps = ComponentProps<typeof PositionSearchHitList>;
 
 afterEach(() => cleanup());
 
@@ -63,20 +67,24 @@ describe("PositionSearchHitList", () => {
   });
 
   test("ヒットが無いときはカードを出さず、理由を1つだけ出す", () => {
-    const { container, rerender } = renderList([]);
+    const { container } = renderList([], { isSearching: true });
     expect(container.querySelectorAll(".pos-hit")).toHaveLength(0);
-
-    rerender(
-      <PositionSearchHitList
-        hits={[]}
-        activeIndex={0}
-        onActiveIndexChange={() => {}}
-        onAccept={() => {}}
-        isSearching
-        error={null}
-        resolveAbsPath={() => null}
-      />,
-    );
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(1);
+  });
+
+  /**
+   * 結果はチャンクで届くので `isSearching` は一覧が育っている間ずっと真。
+   * ここで行を殺すと、利用者から見ると「ずっと押せない」になる。
+   */
+  test("検索中でも、届いたヒットは選べる", () => {
+    const onActiveIndexChange = vi.fn();
+    const { container } = renderList(HITS, { isSearching: true, onActiveIndexChange });
+
+    const cards = [...container.querySelectorAll<HTMLButtonElement>(".pos-hit")];
+    expect(cards.length).toBeGreaterThan(1);
+    expect(cards.some((c) => c.disabled)).toBe(false);
+
+    fireEvent.click(cards[1]);
+    expect(onActiveIndexChange).toHaveBeenCalledWith(1);
   });
 });

@@ -7,7 +7,6 @@ import type { ListProps } from "react-window";
 export type HitRowProps = {
   hits: PositionHit[];
   activeIndex: number;
-  isSearching: boolean;
 
   rootDir: string | null;
   currentAbs: string | null;
@@ -62,7 +61,6 @@ export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
         tesuu={hit.cursor.tesuu}
         forks={hit.cursor.forkPointers.length}
         isActive={isActive}
-        disabled={props.isSearching}
         onSelect={() => {
           if (index !== props.activeIndex) props.onActiveIndexChange(index);
         }}

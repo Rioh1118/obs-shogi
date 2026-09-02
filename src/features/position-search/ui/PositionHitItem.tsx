@@ -13,7 +13,6 @@ type Props = {
   forks: number;
 
   isActive: boolean;
-  disabled: boolean;
 
   onSelect: () => void;
   onAccept: () => void;
@@ -26,7 +25,6 @@ function PositionHitItemBase({
   tesuu,
   forks,
   isActive,
-  disabled,
   onSelect,
   onAccept,
 }: Props) {
@@ -35,12 +33,7 @@ function PositionHitItemBase({
       type="button"
       role="option"
       aria-selected={isActive}
-      className={[
-        "pos-hit",
-        isActive ? "pos-hit--active" : "",
-        disabled ? "pos-hit--disabled" : "",
-      ].join(" ")}
-      disabled={disabled}
+      className={["pos-hit", isActive ? "pos-hit--active" : ""].join(" ")}
       onClick={onSelect}
       onDoubleClick={onAccept}
     >

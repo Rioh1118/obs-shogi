@@ -181,9 +181,11 @@ export default function PositionSearchModal() {
 
   // Escape は `Modal` が扱う。ここで拾うと受け口が2つになる
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // 検索中でも開ける。結果はチャンクで届くので `isSearching` は一覧が育っている間
+    // ずっと真であり、ここで弾くと事実上「全件届くまで何も押せない」になる。
+    // 届いたヒットは行き先を決めるのに足りる情報を持っている。
     if (e.key === "Enter") {
       e.preventDefault();
-      if (isSearching) return;
       if (activeHit) accept(activeHit);
       return;
     }
