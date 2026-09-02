@@ -86,9 +86,10 @@ const MAX_OPTIONS: usize = 128;
 /// 渡さないと、締切が尽きかけていても段は自前の上限を丸ごと使える。
 ///
 /// **厳密な上限ではない。** 段に入る前に残りを見るので、入った段が
-/// 締切を跨ぐぶんは超える。跨ぎうるのは `setoption` 1件の書き込み
-/// （`WRITE_TIMEOUT`）と、失敗したときの後始末（`registry::shutdown`）。
-/// `spawn` と `usiok` は残りを引き直して渡すので跨がない。
+/// 締切を跨ぐぶんは超える。**どの段も入口で残りを見る**ので、跨ぎうるのは
+/// 書き込み1件ぶん（`WRITE_TIMEOUT`）と、失敗したときの後始末
+/// （`registry::shutdown`）。どのコマンドかは書かない——`send_setup` に
+/// 1行足すたびに離れたここが嘘になる。
 ///
 /// 90秒にしたのは、評価関数の読み込みが重いエンジン（数十秒）を通し、
 /// かつ人が「反応が無い」と判断する前に返るため。
@@ -1802,6 +1803,10 @@ async fn send_setup(
         .await
         .map_err(|e| e.to_string())?;
 
+    // **ここも残りを見る。** 見ないと、`ensure_ready` が残りを使い切った直後でも
+    // 無条件に書きに行く。しかもその `usinewgame` は、直後に2体目の
+    // `prepare_engine` が締切で断って**落とすエンジン**へ送っていることがある
+    remaining(deadline, "usinewgame was sent")?;
     protocol
         .send_command(&GuiCommand::UsiNewGame)
         .await

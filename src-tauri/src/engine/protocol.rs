@@ -1102,18 +1102,25 @@ impl UsiProtocol {
     /// 既に ready なら何も送らない。対局の開始前と、局面を送る前にこれを通す。
     /// 待たずに `position` / `go` を送っても `send_command` が ready まで
     /// 積んでくれるが、**積まれたまま返ってこないことを呼び出し側が知れない。**
+    ///
+    /// **`timeout` は待ちだけでなく `isready` の書き込みも含む。** 待ちにしか
+    /// 掛けないと、締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で
+    /// 書き込みぶんが締切の外に出る。書き込みは `WRITE_TIMEOUT` で切れるので、
+    /// この関数が返るまでは `max(timeout, WRITE_TIMEOUT)` で抑えられる。
     pub async fn ensure_ready(&self, timeout: Duration) -> Result<(), EngineError> {
         if self.is_ready() {
             return Ok(());
         }
 
+        let deadline = tokio::time::Instant::now() + timeout;
         // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
         // 出力が終わった場合に `Closed` を見落として上限まで待つ
         let mut rx = self.ready.subscribe();
         self.send_command(&GuiCommand::IsReady).await?;
 
+        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
         let settled =
-            tokio::time::timeout(timeout, rx.wait_for(|state| *state != ReadyState::Waiting))
+            tokio::time::timeout(left, rx.wait_for(|state| *state != ReadyState::Waiting))
                 .await
                 .map_err(|_| {
                     EngineError::Timeout("engine did not return readyok in time".to_string())
