@@ -22,6 +22,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter};
+use tokio::sync::mpsc::WeakUnboundedSender;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use usi::{GameOverKind, GuiCommand};
@@ -99,7 +100,7 @@ impl GameSession {
             turn_started: Instant::now(),
             next_req: 0,
             last_clock_emit: Instant::now(),
-            tx: tx.clone(),
+            tx: tx.downgrade(),
         };
 
         runner.emit(GameEvent::TurnChanged {
@@ -110,7 +111,7 @@ impl GameSession {
         runner.start_search(side_to_move);
 
         tokio::spawn(run_loop(runner, rx));
-        tokio::spawn(tick_loop(tx.clone()));
+        tokio::spawn(tick_loop(tx.downgrade()));
 
         Ok(GameSession { id, tx, engine_ids })
     }
@@ -289,7 +290,12 @@ struct Runner {
     turn_started: Instant,
     next_req: u64,
     last_clock_emit: Instant,
-    tx: mpsc::UnboundedSender<Command>,
+    /// 探索タスクへ渡す、自分あての口。
+    ///
+    /// **weak であることが要る。** strong を持つと `run_loop` が所有する
+    /// `Runner` が自分のチャンネルを生かし続け、`rx.recv()` が永久に
+    /// `None` を返さない。`GameSession` を捨てても対局のタスクが残る。
+    tx: WeakUnboundedSender<Command>,
 }
 
 async fn run_loop(mut runner: Runner, mut rx: mpsc::UnboundedReceiver<Command>) {
@@ -299,11 +305,18 @@ async fn run_loop(mut runner: Runner, mut rx: mpsc::UnboundedReceiver<Command>) 
     log::debug!(target: LOGT, "run_loop: ended game_id={}", runner.id);
 }
 
-async fn tick_loop(tx: mpsc::UnboundedSender<Command>) {
+/// 時計を見るための拍。
+///
+/// **weak で持つ。** strong を持つと、この拍自身が対局のチャンネルを
+/// 生かし続けて `run_loop` が終わらなくなる。
+async fn tick_loop(tx: WeakUnboundedSender<Command>) {
     let mut interval = tokio::time::interval(TICK);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         interval.tick().await;
+        let Some(tx) = tx.upgrade() else {
+            return;
+        };
         if tx.send(Command::Tick).is_err() {
             return;
         }
@@ -722,7 +735,15 @@ impl Runner {
             cancel: cancel.clone(),
         };
 
-        let tx = self.tx.clone();
+        // 対局が捨てられた後に投げた探索は、行き先が無いので走らせない。
+        // 黙って消すと原因の分からない停止になるので、消したことを残す
+        let Some(tx) = self.tx.upgrade() else {
+            log::warn!(
+                target: LOGT,
+                "spawn_search: session already dropped side={side:?} req={req}"
+            );
+            return;
+        };
         tokio::spawn(async move {
             let (search_tx, mut search_rx) = mpsc::unbounded_channel();
             let forward = tokio::spawn(async move {
@@ -1337,6 +1358,28 @@ mod tests {
         let result = result.expect("持ち時間が尽きても終局しなかった");
         assert_eq!(result.reason, GameOverReason::Timeout);
         assert_eq!(result.winner, Some(Side::White));
+    }
+
+    /// 対局を捨てたら、走っているタスクが自分を生かし続けないこと。
+    ///
+    /// `Runner` と `tick_loop` が strong sender を持つと `rx.recv()` が永久に
+    /// `None` を返さず、`run_loop` と拍が対局ごとに残り続ける。
+    /// **strong が1本でも残っていれば `upgrade` が `Some` を返す**ので、
+    /// ここが輪の有無をそのまま映す。
+    #[tokio::test]
+    async fn dropping_a_game_leaves_no_one_holding_its_channel() {
+        let game = start(two_humans(vec![])).await;
+        let weak = game.tx.downgrade();
+        assert!(weak.upgrade().is_some(), "生きている間は掴めるはず");
+
+        drop(game);
+        // 拍が起きて `upgrade` に失敗するまでの間を空ける
+        tokio::time::sleep(Duration::from_millis(250)).await;
+
+        assert!(
+            weak.upgrade().is_none(),
+            "対局を捨てた後も誰かがチャンネルを掴んでいる"
+        );
     }
 
     #[test]
