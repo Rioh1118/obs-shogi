@@ -207,7 +207,7 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: GameId) -> R
 ///
 /// # エラー
 ///
-/// 断り方は3つあり、**後始末が要るのは1つだけ**。分類は `GameManager::close`。
+/// **後始末が要るのは `busy` のときだけ。** 断り方の分類は `GameManager::close`。
 ///
 /// 中断が `CLOSE_ABORT_TIMEOUT` を超えた場合は `Err` にならない（畳めなくても
 /// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。
@@ -220,7 +220,7 @@ pub async fn close_game(state: tauri::State<'_, AppState>, game_id: GameId) -> R
 ///
 /// 進行は `game-event` で届くので、常用しない。返る `moves` は Rust が持つ
 /// 写しで、**権威はフロントの棋譜**（食い違いの検出に使う）。
-/// `clocks.running` が `null` になる理由は `ClocksView::running` に4つ挙げてある。
+/// `clocks.running` が `null` になる理由は `ClocksView::running` に挙げてある。
 #[tauri::command]
 pub async fn get_game_state(
     state: tauri::State<'_, AppState>,

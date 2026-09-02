@@ -99,7 +99,7 @@ export async function abortGame(gameId: GameId): Promise<void> {
  * **終局しただけでは落ちない**（`gameover` の後に指し直せる形にしてあるため）。
  * 呼ばないとプロセスが残る。
  *
- * **失敗しうる。断り方は3つあり、呼び直す意味があるのは1つだけ。**
+ * **失敗しうる。呼び直す意味があるのは `busy` のときだけ。**
  *
  * - `the game is busy` → 他の操作が同じ対局を掴んでいる。**中断は試みたが通ったかは
  *   保証しない**（詰まっていれば探索も時計も続いている）。**エンジンは生きたまま**残る。
@@ -118,7 +118,7 @@ export async function closeGame(gameId: GameId): Promise<void> {
  *
  * 進行は `listenToGameEvents` で届くので、常用しない。返る `moves` は Rust が持つ
  * 写しで、**権威はこちら側の棋譜**。`clocks.running` が `null` になる理由は
- * `ClocksView.running` に4つ挙げてある（うち2つは `phase: "thinking"` でも起きる）。
+ * `ClocksView.running` に挙げてある（**`phase: "thinking"` のままでも起きる**）。
  */
 export async function getGameState(gameId: GameId): Promise<GameSnapshot> {
   return await invoke("get_game_state", { gameId });
