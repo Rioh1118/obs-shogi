@@ -17,7 +17,7 @@
 
 mod scanning;
 
-use scanning::{blank_out_comments, matching};
+use scanning::{blank_out_comments, blank_out_noncode, matching};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -124,8 +124,14 @@ fn without_comments(source: &str) -> String {
 /// 次の属性までにすると、あいだに挟まった別の関数の中身が本体に混ざる。
 /// 関門をその別の関数が呼んでいるだけで、コマンド側は呼び忘れたまま緑になる。
 /// rustfmt が最上位の `}` を列0に置くので、それを終端に使う（構文解析はしない）
-fn commands(source: &str) -> Vec<(String, String)> {
+/// 属性から**その関数の閉じ括弧まで**を1つのコマンドとして切り出す。
+///
+/// 返るのは `(名前, 本体, 文字列も潰した本体)`。**関門を呼んだかは3つ目で見る**——
+/// 2つ目は引数名と型を読むために文字列を残してあるので、
+/// `log::debug!("... validate_under_root ...")` の1行が「呼んだ」と数えられる。
+fn commands(source: &str) -> Vec<(String, String, String)> {
     let cleaned = without_comments(source);
+    let code_only = blank_out_noncode(source);
     let mut marks: Vec<usize> = Vec::new();
     for attribute in ATTRIBUTES {
         let mut from = 0;
@@ -143,6 +149,9 @@ fn commands(source: &str) -> Vec<(String, String)> {
             .map(|at| start + at + 2)
             .unwrap_or(cleaned.len());
         let chunk = &cleaned[start..end];
+        // **同じ範囲を、文字列も潰した写しから取る。** 位置は `blank_out` が
+        // 行数も長さも保つので一致する
+        let code_chunk = &code_only[start..end.min(code_only.len())];
         // `pub` / `pub(crate)` / `async` のどれが付いていても名前を取れるようにする
         let name = chunk
             .split("fn ")
@@ -153,7 +162,7 @@ fn commands(source: &str) -> Vec<(String, String)> {
             })
             .unwrap_or("")
             .to_string();
-        found.push((name, chunk.to_string()));
+        found.push((name, chunk.to_string(), code_chunk.to_string()));
     }
     found
 }
@@ -388,7 +397,7 @@ fn no_path_carrying_command_is_missing_from_the_list() {
 
     let mut missing = Vec::new();
     for (file, source) in &files {
-        for (name, body) in commands(source) {
+        for (name, body, _code) in commands(source) {
             if STRUCT_CARRIED_PATH.contains(&name.as_str()) || takes_a_path(&body) {
                 continue;
             }
@@ -424,13 +433,13 @@ fn every_path_taking_command_checks_the_root() {
     let mut missing: Vec<String> = Vec::new();
 
     for (file, source) in &files {
-        for (name, body) in commands(source) {
+        for (name, body, code) in commands(source) {
             all += 1;
             if !takes_a_path(&body) && !STRUCT_CARRIED_PATH.contains(&name.as_str()) {
                 continue;
             }
             path_taking.push(name.clone());
-            if EXEMPT.iter().any(|(exempt, _)| *exempt == name) || body.contains(GUARD) {
+            if EXEMPT.iter().any(|(exempt, _)| *exempt == name) || code.contains(GUARD) {
                 continue;
             }
             missing.push(format!("{file}: {name}"));
@@ -448,7 +457,7 @@ fn every_path_taking_command_checks_the_root() {
     // 存在確認・種類の判定が関門より前に無いかを見る
     let mut wrong_order: Vec<String> = Vec::new();
     for (file, source) in &files {
-        for (name, body) in commands(source) {
+        for (name, body, _code) in commands(source) {
             for (guard_at, variable) in guarded_variables(&body) {
                 for probe in [".exists()", ".is_dir()", ".is_file()", ".symlink_metadata("] {
                     let call = format!("{variable}{probe}");
@@ -479,7 +488,7 @@ fn every_path_taking_command_checks_the_root() {
 
     let mut missing_extra: Vec<String> = Vec::new();
     for (_, source) in &files {
-        for (name, body) in commands(source) {
+        for (name, body, _code) in commands(source) {
             for (command, guard) in EXTRA_GUARDS {
                 if name == command && !body.contains(guard) {
                     missing_extra.push(format!("{command} が {guard} を呼んでいない"));
@@ -531,6 +540,25 @@ pub async fn b(app: AppHandle, dir_path: String) -> () {
 }
 
 #[test]
+fn a_string_mentioning_the_guard_does_not_count_as_calling_it() {
+    // **文字列は残す走査で本体を読むので、綴りだけで「呼んだ」と数えうる。**
+    // 「なぜ関門を掛けないか」をログに書く習慣はこの repo にあるので、踏み方も現実的
+    let source = r#"
+#[tauri::command]
+pub fn open_thing(app: AppHandle, file_path: String) -> Result<(), String> {
+    log::debug!("open_thing: validate_under_root is handled by the caller");
+    Ok(())
+}
+"#;
+    let (name, _, code) = commands(source).remove(0);
+    assert_eq!(name, "open_thing");
+    assert!(
+        !code.contains(GUARD),
+        "文字列の中の綴りを「関門を呼んだ」と数えている"
+    );
+}
+
+#[test]
 fn a_comment_mentioning_the_guard_does_not_count_as_calling_it() {
     for source in [
         r#"
@@ -546,7 +574,7 @@ pub fn a(app: AppHandle, file_path: String) -> () {
 }
 "#,
     ] {
-        let (_, body) = commands(source).remove(0);
+        let (_, body, _) = commands(source).remove(0);
         assert!(
             !body.contains(GUARD),
             "コメントの中の関数名を、呼び出しとして数えている:\n{source}"
@@ -566,7 +594,7 @@ fn helper(app: &AppHandle, p: &Path) -> () {
 }
 "#;
 
-    let (name, body) = commands(source).remove(0);
+    let (name, body, _) = commands(source).remove(0);
     assert_eq!(name, "a");
     assert!(
         !body.contains(GUARD),
@@ -639,7 +667,7 @@ fn every_listed_name_is_a_real_command() {
     let names: Vec<String> = rust_files(Path::new("src"))
         .iter()
         .flat_map(|(_, source)| commands(source))
-        .map(|(name, _)| name)
+        .map(|(name, _, _)| name)
         .collect();
 
     for (listed, _) in EXEMPT {

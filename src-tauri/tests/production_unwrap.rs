@@ -15,7 +15,7 @@
 
 mod scanning;
 
-use scanning::{find_in_code, item_end};
+use scanning::{blank_out_comments, find_in_code, item_end};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -48,9 +48,8 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
 /// 落とした行は改行に置き換える。**行番号を保つため**——詰めると、
 /// 塊より後ろで見つかった違反の `path:line` が現物とずれ、開いても何も無い。
 ///
-/// 波括弧を数えるだけなので、文字列リテラルの中の括弧までは見ていない。
-/// **釣り合いが崩れると余分に落ちる＝検査が緩くなる**ので、崩れたら
-/// `the_scanner_still_sees_production_code` が先に落ちる。
+/// 括弧の対応取りは `scanning::item_end` が持つ（文字列・文字・コメントは読み飛ばす）。
+/// **釣り合わなければ `panic` で落とす**——黙って余分に落として検査を緩めないため。
 fn strip_test_modules(source: &str, path: &Path) -> String {
     let mut out = String::new();
     let mut rest = source;
@@ -81,21 +80,11 @@ fn strip_test_modules(source: &str, path: &Path) -> String {
     out
 }
 
-/// 行コメントを落とす。`.unwrap()` を説明している文が違反に数えられないように
-fn strip_line_comments(source: &str) -> String {
-    source
-        .lines()
-        .map(|line| match line.find("//") {
-            Some(at) => &line[..at],
-            None => line,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 fn production_code(path: &Path) -> String {
     let source = fs::read_to_string(path).unwrap_or_default();
-    strip_line_comments(&strip_test_modules(&source, path))
+    // **`//` を手で探さない。** 文字列の中の `//`（URL、`format!("{a}//{b}")`）で
+    // 行を切ると、そこから右にある `.unwrap()` が全部見えなくなる
+    blank_out_comments(&strip_test_modules(&source, path))
 }
 
 fn src_dir() -> PathBuf {
@@ -212,6 +201,15 @@ pub enum Real {
     let stripped = strip_test_modules(source, Path::new("<テスト>"));
     assert!(!stripped.contains("unwrap"), "塊の中が残っている");
     assert!(stripped.contains("pub fn real"), "塊の後ろまで落としている");
+
+    // **文字列の中の `//` で行を切らないこと。** 切ると、そこから右にある
+    // `.unwrap()` が全部見えなくなる（URL は本番コードに普通に書く）
+    let source = "let doc = \"https://example.org\"; let x = v.unwrap();\n";
+    let kept = blank_out_comments(source);
+    assert!(
+        kept.contains("v.unwrap()"),
+        "文字列の中の `//` で行を切っている: {kept:?}"
+    );
 
     // **行番号が保たれること。** 詰めると違反の `path:line` が現物とずれる
     let source = "pub fn a() {}\n#[cfg(test)]\nmod t {\n}\npub fn b() {}\n";

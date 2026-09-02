@@ -16,6 +16,10 @@
 //! 5. 綴りが在るかしか見ない。種類（関数か定数か欄名か）は見ていない
 
 use std::collections::BTreeSet;
+mod scanning;
+
+use scanning::blank_out_comments;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -93,9 +97,17 @@ fn comment_lines(source: &str) -> Vec<(usize, &str)> {
         .enumerate()
         .filter_map(|(index, line)| {
             let trimmed = line.trim_start();
-            trimmed.starts_with("//").then_some((index + 1, trimmed))
+            is_comment_line(trimmed).then_some((index + 1, trimmed))
         })
         .collect()
+}
+
+/// 行全体がコメントか。
+///
+/// **`//` を手で探す代わりに、潰した結果と見比べる。** 文字列の中の `//` を
+/// コメントの始まりと読むと、その行が丸ごとコメント扱いになる。
+fn is_comment_line(trimmed: &str) -> bool {
+    !trimmed.is_empty() && blank_out_comments(trimmed).trim().is_empty()
 }
 
 /// バッククォートの中の、下線を1つ以上含む綴りを拾う。
@@ -142,15 +154,11 @@ fn is_identifier(text: &str) -> bool {
 }
 
 /// コメントを落としたソース。**コメントどうしで名前を生き返らせない。**
+///
+/// `//` を手で探さない——文字列の中の `//`（URL）で行を切ると、
+/// そこから右にある本物の綴りが「実在しない」に化ける。
 fn code_only(source: &str) -> String {
-    source
-        .lines()
-        .map(|line| match line.find("//") {
-            Some(at) => &line[..at],
-            None => line,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    blank_out_comments(source)
 }
 
 #[test]

@@ -28,18 +28,48 @@ pub fn skip_literal_or_comment(rest: &str) -> Option<usize> {
         let len = body.find('\n').map_or(body.len(), |at| at + 1);
         return Some(2 + len);
     }
-    if let Some(body) = rest.strip_prefix("/*") {
-        let len = body.find("*/").map_or(body.len(), |at| at + 2);
-        return Some(2 + len);
+    // **入れ子を数える。** Rust のブロックコメントは入れ子になるので、最初の `*/` で
+    // 切り上げると**外側のコメントの残りがコードとして走査される**——中に
+    // `#[cfg(test)]` があれば、そこから続く本番の関数が1つの item として落ちる。
+    // 塊を丸ごとコメントアウトする（中に既に `/* */` がある）は普通の操作
+    if rest.starts_with("/*") {
+        let mut depth = 0usize;
+        let mut at = 0;
+        while at < rest.len() {
+            if rest[at..].starts_with("/*") {
+                depth += 1;
+                at += 2;
+                continue;
+            }
+            if rest[at..].starts_with("*/") {
+                depth -= 1;
+                at += 2;
+                if depth == 0 {
+                    return Some(at);
+                }
+                continue;
+            }
+            at += rest[at..]
+                .chars()
+                .next()
+                .expect("残りがあれば1文字は取れる")
+                .len_utf8();
+        }
+        return Some(rest.len());
     }
 
     // `b` / `br` の接頭辞を剥がしてから見る
-    let (prefix, body) = ["br", "r", "b", ""]
+    let (marker, body) = ["br", "r", "b", ""]
         .into_iter()
-        .find_map(|p| rest.strip_prefix(p).map(|body| (p.len(), body)))
+        .find_map(|p| rest.strip_prefix(p).map(|body| (p, body)))
         .expect("空文字列は必ず剥がせる");
+    let prefix = marker.len();
 
-    if body.starts_with('#') || (prefix > 0 && body.starts_with('"') && rest.starts_with('r')) {
+    // **`br"..."` も raw。** `rest` の先頭が `r` かで見ると `br` が落ち、
+    // `\` をエスケープとして食って閉じ引用符を見失う——そこから先の
+    // 文字列とコードの区別が反転する。`br#"..."#` は通るので、読んで気付けない
+    let is_raw = marker.contains('r');
+    if is_raw && (body.starts_with('#') || body.starts_with('"')) {
         return raw_string(body).map(|len| prefix + len);
     }
     if let Some(inner) = body.strip_prefix('"') {
@@ -224,39 +254,35 @@ pub fn item_end(after: &str) -> Option<usize> {
     None
 }
 
-/// **手書きで括弧を数える走査を、新しく書けなくする。**
+/// **手書きで区切り文字を数える走査を、新しく書けなくする。**
 ///
 /// 1つに寄せるだけでは足りない。次に走査を書く人が手で数え直せば、
-/// 同じ穴（文字列の中の `{`、コメントの中の `mod {`、文字列の中の `/*`）が
-/// そのまま戻る。
+/// 同じ穴（文字列の中の `{`、コメントの中の `mod {`、文字列の中の `/*`、
+/// 文字列の中の `//`）がそのまま戻る。
 ///
-/// `tests/` の中で区切り文字を数えている形を探し、この module を使っていない
-/// ファイルを落とす。**免除を置かない**——数えたいなら `scanning` に足すこと。
+/// **免除を置かない。** 数えたいなら `scanning` に足すこと。
+/// 「置かない」を成り立たせるために、次の3つを塞いである。
+///
+/// - **判定はコメントを潰してから。** 生の `contains` だと、
+///   「`mod scanning;` に寄せたい」と**コメントに書くだけ**でファイルが対象外になる
+/// - **サブディレクトリも歩く。** `read_dir` は再帰しないので、
+///   共有ヘルパの既定の置き場（`tests/scanning/` がまさにそれ）が丸ごと死角になる
+/// - **形は一覧でなく述語で見る。** 一覧は必ず漏れる（`find("//")` が漏れていた）
 #[test]
 fn no_test_counts_delimiters_by_hand() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let mut offenders = Vec::new();
 
-    // 区切りを数えている形。`scanning` の中身は当然当たるので、そこは見ない
-    let smells = [
-        "matches('{')",
-        "matches('}')",
-        "find(')')",
-        "find('}')",
-        "split(\"//\")",
-        "starts_with(b\"/*\")",
-    ];
-
-    for entry in std::fs::read_dir(&dir).expect("tests を読めない").flatten() {
-        let path = entry.path();
-        if path.extension().is_some_and(|e| e == "rs") {
-            let source = std::fs::read_to_string(&path).unwrap_or_default();
-            let uses_scanning = source.contains("mod scanning;");
-            for smell in smells {
-                if source.contains(smell) && !uses_scanning {
-                    offenders.push(format!("{}: {smell}", path.display()));
-                }
-            }
+    for path in test_sources(&dir) {
+        let source = std::fs::read_to_string(&path).unwrap_or_default();
+        // **コメントを潰してから見る。** 生のソースだと、コメントで言及するだけで
+        // 免除になる（この module 自身が `blank_out_comments` を持っているのに）
+        let code = blank_out_comments(&source);
+        if code.contains("mod scanning;") {
+            continue;
+        }
+        for smell in counting_by_hand(&code) {
+            offenders.push(format!("{}: {smell}", path.display()));
         }
     }
 
@@ -266,6 +292,62 @@ fn no_test_counts_delimiters_by_hand() {
          （文字列・文字・コメントを読み飛ばさないと、同じ穴がまた開く）:\n{}",
         offenders.join("\n")
     );
+}
+
+/// `tests/` の `.rs` を**再帰で**集める
+fn test_sources(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            found.extend(test_sources(&path));
+        } else if path.extension().is_some_and(|e| e == "rs") {
+            found.push(path);
+        }
+    }
+    found.sort();
+    found
+}
+
+/// 区切り文字を手で数えている形。
+///
+/// **一覧でなく述語。** `matches` / `find` / `split` / `starts_with` の引数が
+/// 区切り文字だけのリテラルなら、それは字句解析を手でやっている。
+/// 一覧にすると必ず漏れる。
+fn counting_by_hand(code: &str) -> Vec<String> {
+    const DELIMITERS: &str = "{}()[]<>/*\"'";
+    let mut found = Vec::new();
+
+    for method in ["matches(", "find(", "split(", "starts_with(", "rfind("] {
+        let mut from = 0;
+        while let Some(at) = code[from..].find(method) {
+            let start = from + at + method.len();
+            from = start;
+            let rest = &code[start..];
+            let Some(len) = literal_argument(rest) else {
+                continue;
+            };
+            let argument = &rest[..len];
+            let inner = argument
+                .trim_matches(|c| c == '\'' || c == '"' || c == 'b')
+                .trim_start_matches("r#")
+                .trim_end_matches('#');
+            if !inner.is_empty() && inner.chars().all(|c| DELIMITERS.contains(c)) {
+                found.push(format!("{method}{argument})"));
+            }
+        }
+    }
+    found
+}
+
+/// 引数が文字／文字列リテラル1つだけなら、その長さ
+fn literal_argument(rest: &str) -> Option<usize> {
+    let len = skip_literal_or_comment(rest)?;
+    // リテラルの直後が `)` か `,` のときだけ（`find('a').unwrap()` のような形）
+    rest[len..].starts_with([')', ',']).then_some(len)
 }
 
 #[cfg(test)]
@@ -293,6 +375,24 @@ mod tests {
         // ライフタイムを文字リテラルと読まない
         let source = "{ &'static str }";
         assert_eq!(matching(source, '{', '}'), Some(source.len()));
+
+        // **入れ子のブロックコメント。** 最初の `*/` で切り上げると、外側の
+        // 残りがコードとして走査される
+        let source = "{ /* 外 /* 内 */ mod x { */ }";
+        assert_eq!(matching(source, '{', '}'), Some(source.len()));
+        assert_eq!(
+            skip_literal_or_comment("/* /* */ mod x { */"),
+            Some(19),
+            "入れ子のブロックコメントを最初の `*/` で切り上げている"
+        );
+
+        // **`br"..."`（ハッシュ無しの raw バイト列）。** `\` はエスケープではない
+        let source = "{ let p = br\"C:\\\"; let q = \"}\"; }";
+        assert_eq!(
+            matching(source, '{', '}'),
+            Some(source.len()),
+            "`br\"..\"` を普通の文字列として読み、閉じ引用符を見失っている"
+        );
     }
 
     #[test]

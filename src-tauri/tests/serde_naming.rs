@@ -106,12 +106,25 @@ fn parse(file: &str, text: &str, out: &mut Vec<SerdeType>) {
 
     while i < lines.len() {
         let line = lines[i].trim();
-        if !(line.starts_with("#[derive")
-            && (line.contains("Serialize") || line.contains("Deserialize")))
-        {
+        if !line.starts_with("#[derive") {
             i += 1;
             continue;
         }
+
+        // **`#[derive(..)]` は折り返される。** rustfmt は100桁を超えると
+        // 1トレイト1行に折るので、1行に `#[derive` と `Serialize` の両方を
+        // 求めると**その型は走査に一度も現れない**。折るだけで ADR-0007 の
+        // 検査が無効になる。`]` まで連結してから見る
+        let derive_end = lines[i..]
+            .iter()
+            .position(|l| l.trim_end().ends_with(']'))
+            .map_or(i, |at| i + at);
+        let derive: String = lines[i..=derive_end].join(" ");
+        if !(derive.contains("Serialize") || derive.contains("Deserialize")) {
+            i = derive_end + 1;
+            continue;
+        }
+        i = derive_end;
 
         // derive の次から、宣言に当たるまでの間に serde 属性が並ぶ。
         // 属性は複数行に折り返されることがあるので、宣言まで全部つなげて読む
