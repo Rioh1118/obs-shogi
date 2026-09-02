@@ -81,6 +81,16 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 ///
 /// `search.rs` の `STOP_GRACE` より少し長い。
 const CLOSE_SETTLE_TIMEOUT: Duration = Duration::from_secs(6);
+
+/// 畳まれたかを聞き直す間隔。
+///
+/// **聞きに行くのは、畳まれたことを知らせる口が無いため。** `Activity` が
+/// `Idle` に戻るのは `run_loop` の中で、そこから外へ通知する経路を持っていない。
+///
+/// 50ms は `TICK`（100ms）より細かく、`close_game` の応答に足す遅れが
+/// 人に分からない範囲。細かくするほど `SearchesSettled` が `Tick` と同じ
+/// キューに並ぶので、`run_loop` を要求で埋めない上限でもある
+/// （6秒で最大120回）。
 const CLOSE_POLL: Duration = Duration::from_millis(50);
 
 /// フロントへ流すイベントの名前
@@ -337,7 +347,13 @@ enum Activity {
         restart: bool,
     },
     /// 止めたのに `bestmove` が返らなかった。**エンジンは探索中とみなす。**
-    /// `gameover` を送らないのはそのため（探索中の `gameover` はプロトコル違反）
+    /// `gameover` を送らないのはそのため（探索中の `gameover` はプロトコル違反）。
+    ///
+    /// **`Phase::Thinking` と同時には立たない。** これを立てるのは
+    /// `on_search_outcome` が `StopTimedOut` を受けたときだけで、その同じ
+    /// 呼び出しの中で `finish` が `Phase::Over` に入れる。`AwaitingRuling` から
+    /// しか来ない `accept_continue` は、この値を見ることがない。
+    /// `finish` を条件付きに変えると、その経路が生き返る
     Unresponsive,
 }
 
@@ -880,8 +896,7 @@ impl Runner {
             }
             // 前に止めた分がまだ返っていない。`restart` を立てるだけ
             Activity::Stopping { .. } => Handover::StopThenStart,
-            // いまは到達しない（`Activity::Unresponsive` の doc）。
-            // 到達するようになったら、`accept_continue` の `is_over()` が受ける
+            // 到達しない理由は `Activity::Unresponsive` の doc
             Activity::Unresponsive => Handover::Unusable,
             Activity::Idle => Handover::StartNow,
         };
@@ -1897,8 +1912,8 @@ mod tests {
 
     /// 手番の時計が尽きたら終局すること（表の E14）。
     ///
-    /// **人間の手番が返らないまま止まった対局を畳む唯一の仕掛け**で、
     /// `AwaitingRuling` の `RULING_TIMEOUT` に対応する `Thinking` 側の番人。
+    /// 時計が動いている間の打ち切りはこれ、止まっている間は `SETTLE_TIMEOUT`
     #[tokio::test]
     async fn running_out_of_time_ends_the_game() {
         let mut settings = two_humans(vec![]);
