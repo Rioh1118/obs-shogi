@@ -232,8 +232,6 @@ struct Player {
     /// 人間なら `None`
     engine: Option<Arc<EngineProcess>>,
     activity: Activity,
-    /// 先読みを打ち切った。捨てる `bestmove` が返ったら本番の思考を始める
-    restart_after_abort: bool,
 }
 
 impl Player {
@@ -242,7 +240,6 @@ impl Player {
             spec,
             engine,
             activity: Activity::Idle,
-            restart_after_abort: false,
         }
     }
 
@@ -257,11 +254,22 @@ impl Player {
 /// 起きるかは `docs/state-transitions/game-session.md` の不変条件2。
 enum Activity {
     Idle,
-    Busy {
+    /// `go` / `go ponder` を送って `bestmove` を待っている
+    Searching {
         req: u64,
         kind: SearchKind,
         cancel: CancellationToken,
     },
+    /// 止めた。**この `req` の結果は着手として採らない。**
+    /// 止めた探索の答えは別の局面に対するもので、いまの局面では非合法になりうる。
+    /// 捨てる `bestmove` が返ったら、`restart` なら本番の思考を始める
+    Stopping {
+        req: u64,
+        restart: bool,
+    },
+    /// 止めたのに `bestmove` が返らなかった。**エンジンは探索中とみなす。**
+    /// `gameover` を送らないのはそのため（探索中の `gameover` はプロトコル違反）
+    Unresponsive,
 }
 
 /// 手番を渡すときに、そのエンジンをどう扱うか。
@@ -275,6 +283,8 @@ enum Handover {
     StopThenStart,
     /// 何も走っていない。そのまま `go`
     StartNow,
+    /// 止めたのに応答しないエンジン。この側は指せない
+    Unusable,
 }
 
 enum Phase {
@@ -324,7 +334,7 @@ struct Runner {
 impl Drop for Runner {
     fn drop(&mut self) {
         for player in &self.players {
-            if let Activity::Busy { cancel, .. } = &player.activity {
+            if let Activity::Searching { cancel, .. } = &player.activity {
                 cancel.cancel();
             }
         }
@@ -525,40 +535,46 @@ impl Runner {
     }
 
     async fn on_search_outcome(&mut self, side: Side, req: u64, outcome: SearchOutcome) {
-        match &self.player(side).activity {
-            Activity::Busy { req: current, .. } if *current == req => {}
+        // 世代の照合と「この結果を着手として採ってよいか」を1箇所で決める。
+        //
+        // **`Stopping` の間に返ってきたものは採らない。** 止めた探索の答えは
+        // 別の局面に対するもので、いまの局面では非合法になりうる。
+        // 採る／採らないを `Activity` から引くので、別のフラグと食い違わない
+        let (accept, restart) = match &self.player(side).activity {
+            Activity::Searching { req: current, .. } if *current == req => (true, false),
+            Activity::Stopping {
+                req: current,
+                restart,
+            } if *current == req => (false, *restart),
             _ => {
                 // 世代が合わない。前の `go` の後始末が遅れて届いただけ
                 log::debug!(target: LOGT, "stale search outcome side={side:?} req={req}");
                 return;
             }
-        }
-        self.player_mut(side).activity = Activity::Idle;
+        };
+
+        // `StopTimedOut` は「エンジンはまだ探索中」という意味なので `Idle` に
+        // 戻さない。戻すと `finish` が「idle だから送ってよい」と判断して
+        // 探索中のエンジンへ `gameover` を送る（不変条件3 を破る）
+        self.player_mut(side).activity = match outcome {
+            SearchOutcome::StopTimedOut => Activity::Unresponsive,
+            _ => Activity::Idle,
+        };
 
         // 終局後に返ってきた `bestmove` は、`gameover` を送るための合図にだけ使う。
         // 探索中のエンジンへ `gameover` を送るのはプロトコル違反なので、
         // idle に戻ったここまで待つ
         if let Phase::Over { result } = &self.phase {
             let result = result.clone();
-            self.send_gameover(side, &result).await;
+            if !matches!(self.player(side).activity, Activity::Unresponsive) {
+                self.send_gameover(side, &result).await;
+            }
             return;
         }
 
-        // 印は結果に関わらず消す。残すと、次にこの側の探索が終わったときに
-        // 身に覚えのない `go` が出る
-        let restart = std::mem::take(&mut self.player_mut(side).restart_after_abort);
-
+        // エンジンの故障は、採る採らないに関わらず終局にする
         match outcome {
-            SearchOutcome::Aborted => {
-                // 先読みが外れて止めた分。改めていまの局面で考えさせる
-                if restart && self.is_to_move(side) {
-                    self.start_search(side);
-                }
-            }
             SearchOutcome::StopTimedOut => {
-                // ここで `go` を出し直すと、遅れて届く前の局面の `bestmove` を
-                // 新しい探索のものとして採る。**その手は今の局面では非合法**で、
-                // エンジンが身に覚えのない反則負けになる
                 log::error!(target: LOGT, "engine did not stop searching side={side:?}");
                 self.finish(GameResult {
                     winner: Some(side.opponent()),
@@ -566,6 +582,7 @@ impl Runner {
                     detail: Some("engine did not stop searching in time".to_string()),
                 })
                 .await;
+                return;
             }
             SearchOutcome::Failed(message) => {
                 log::error!(target: LOGT, "engine failed side={side:?}: {message}");
@@ -575,6 +592,23 @@ impl Runner {
                     detail: Some(message),
                 })
                 .await;
+                return;
+            }
+            _ => {}
+        }
+
+        if !accept {
+            // 止めた探索の結果。捨てて、必要なら改めていまの局面で考えさせる
+            if restart && self.is_to_move(side) {
+                self.start_search(side);
+            }
+            return;
+        }
+
+        match outcome {
+            SearchOutcome::Aborted | SearchOutcome::StopTimedOut | SearchOutcome::Failed(_) => {
+                // 上で処理済み。`Aborted` は `Stopping` からしか来ないので
+                // ここには落ちない
             }
             SearchOutcome::Move { usi, ponder } => {
                 // 先読みが自分から終わることがある（詰みを見つけた等）。
@@ -695,7 +729,7 @@ impl Runner {
     /// 手番を渡す。相手が先読み中なら、当たったか外れたかで分かれる
     async fn hand_turn_to(&mut self, side: Side, last_move: &str) {
         let handover = match &self.player(side).activity {
-            Activity::Busy {
+            Activity::Searching {
                 kind: SearchKind::Ponder { ponder_move },
                 ..
             } => {
@@ -705,43 +739,78 @@ impl Runner {
                     Handover::StopThenStart
                 }
             }
-            Activity::Busy {
+            Activity::Searching {
                 kind: SearchKind::Search,
                 ..
             } => {
                 // 手番でない側が本番の思考をしている。組み立てを間違えている。
                 //
                 // **`Idle` と同じ扱いにしない。** そのまま `go` を出すと
-                // 探索中のエンジンへ `position` / `go` を送ることになり（USI 違反）、
-                // `spawn_search` が `activity` を上書きするので前の探索の
-                // `CancellationToken` も失われて、`stop` すら送られない探索が残る。
-                // 先読みが外れたときと同じく、止めてから始め直す
+                // 探索中のエンジンへ `position` / `go` を送ることになる（USI 違反）
                 log::warn!(target: LOGT, "unexpected live search on idle side={side:?}");
                 Handover::StopThenStart
             }
+            // 前に止めた分がまだ返っていない。`restart` を立てるだけ
+            Activity::Stopping { .. } => Handover::StopThenStart,
+            Activity::Unresponsive => Handover::Unusable,
             Activity::Idle => Handover::StartNow,
         };
 
         match handover {
             // 読み当たり。エンジンはそのまま考え続ける。ここから時計が動く
             Handover::PonderHit => {
-                if let Some(protocol) = self.protocol(side) {
-                    if let Err(e) = protocol.send_command(&GuiCommand::Ponderhit).await {
+                let sent = match self.protocol(side) {
+                    Some(protocol) => protocol.send_command(&GuiCommand::Ponderhit).await,
+                    None => Ok(()),
+                };
+                match sent {
+                    Ok(()) => {
+                        if let Activity::Searching { kind, .. } =
+                            &mut self.player_mut(side).activity
+                        {
+                            *kind = SearchKind::Search;
+                        }
+                    }
+                    Err(e) => {
+                        // 送れていないのでエンジンは `go ponder` のまま。
+                        // `Search` に書き換えると「考えている」と誤認したまま
+                        // 時計だけが進む。止めて始め直す側へ倒す
                         log::warn!(target: LOGT, "ponderhit failed side={side:?}: {e}");
+                        self.stop_then_start(side);
                     }
                 }
-                if let Activity::Busy { kind, .. } = &mut self.player_mut(side).activity {
-                    *kind = SearchKind::Search;
-                }
             }
-            // 止めて、捨てる `bestmove` が返ってから改めて考えさせる
-            Handover::StopThenStart => {
-                if let Activity::Busy { cancel, .. } = &self.player(side).activity {
-                    cancel.cancel();
-                }
-                self.player_mut(side).restart_after_abort = true;
-            }
+            Handover::StopThenStart => self.stop_then_start(side),
             Handover::StartNow => self.start_search(side),
+            Handover::Unusable => {
+                log::error!(target: LOGT, "handing the turn to an unresponsive engine side={side:?}");
+                self.finish(GameResult {
+                    winner: Some(side.opponent()),
+                    reason: GameOverReason::EngineFailure,
+                    detail: Some("engine did not stop searching in time".to_string()),
+                })
+                .await;
+            }
+        }
+    }
+
+    /// 走っているものを止め、捨てる `bestmove` が返ってから始めることにする。
+    ///
+    /// 実際の `go` は `on_search_outcome` が出す。ここで出すと、遅れて届く
+    /// 前の局面の `bestmove` を新しい探索のものとして採る
+    fn stop_then_start(&mut self, side: Side) {
+        match &mut self.player_mut(side).activity {
+            Activity::Searching { req, cancel, .. } => {
+                cancel.cancel();
+                let req = *req;
+                self.player_mut(side).activity = Activity::Stopping { req, restart: true };
+            }
+            Activity::Stopping { restart, .. } => *restart = true,
+            // 何も走っていない。そのまま始めてよい
+            Activity::Idle => self.start_search(side),
+            Activity::Unresponsive => {
+                log::error!(target: LOGT, "cannot restart an unresponsive engine side={side:?}");
+            }
         }
     }
 
@@ -793,12 +862,13 @@ impl Runner {
             cancel: cancel.clone(),
         };
 
-        // 走っている探索の上から始めない。上書きすると、その
-        // `CancellationToken` がどこからも参照されなくなり、`stop` すら
-        // 送られない探索が `info` を出し続ける（2つの読み筋が交互に出る）
-        if let Activity::Busy { cancel, .. } = &self.player(side).activity {
-            log::warn!(target: LOGT, "spawn_search: cancelling a live search side={side:?}");
-            cancel.cancel();
+        // **`Idle` の側にだけ呼ぶ。** 走っているものの上から始めると、
+        // 探索中のエンジンへ `position` / `go` を送ることになる（USI 違反）。
+        // 止めてから始めるのは `stop_then_start` の責務
+        if !matches!(self.player(side).activity, Activity::Idle) {
+            log::error!(target: LOGT, "spawn_search: the side is not idle side={side:?}");
+            debug_assert!(false, "spawn_search は Idle の側にだけ呼ぶ");
+            return;
         }
 
         // **weak のまま渡す。** ここで `upgrade()` して strong を持たせると、
@@ -823,7 +893,7 @@ impl Runner {
             let _ = forward.await;
         });
 
-        self.player_mut(side).activity = Activity::Busy { req, kind, cancel };
+        self.player_mut(side).activity = Activity::Searching { req, kind, cancel };
     }
 
     async fn finish(&mut self, result: GameResult) {
@@ -835,11 +905,14 @@ impl Runner {
         // （`on_search_outcome` の Over 分岐）送る
         let mut idle_sides = Vec::new();
         for side in [Side::Black, Side::White] {
-            match &self.player(side).activity {
-                Activity::Busy { cancel, .. } => cancel.cancel(),
+            match &mut self.player_mut(side).activity {
+                Activity::Searching { cancel, .. } => cancel.cancel(),
+                // 既に止めてある。`bestmove` を待っている間に始め直さない
+                Activity::Stopping { restart, .. } => *restart = false,
+                // 探索中とみなす側。`gameover` を送らない（不変条件3）
+                Activity::Unresponsive => {}
                 Activity::Idle => idle_sides.push(side),
             }
-            self.player_mut(side).restart_after_abort = false;
         }
 
         self.phase = Phase::Over {
@@ -1215,7 +1288,7 @@ mod tests {
         let cancel = CancellationToken::new();
 
         let mut runner = test_runner(&tx);
-        runner.players[Side::Black.index()].activity = Activity::Busy {
+        runner.players[Side::Black.index()].activity = Activity::Searching {
             req: 1,
             kind: SearchKind::Search,
             cancel: cancel.clone(),
@@ -1224,6 +1297,117 @@ mod tests {
         assert!(!cancel.is_cancelled());
         drop(runner);
         assert!(cancel.is_cancelled(), "対局を畳んでも探索が止まっていない");
+    }
+
+    fn searching(cancel: &CancellationToken) -> Activity {
+        Activity::Searching {
+            req: 1,
+            kind: SearchKind::Search,
+            cancel: cancel.clone(),
+        }
+    }
+
+    /// 止めた探索から返ってきた手を着手として採らないこと。
+    ///
+    /// 採ると、**別の局面に対する答えが現局面の着手として `MoveDecided` に載る**。
+    /// フロントは非合法として反則にするので、エンジンが身に覚えのない負けを負う
+    #[tokio::test]
+    async fn a_move_from_a_stopped_search_is_not_taken() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = Activity::Stopping {
+            req: 1,
+            restart: true,
+        };
+
+        runner
+            .on_search_outcome(
+                Side::Black,
+                1,
+                SearchOutcome::Move {
+                    usi: "2g2f".to_string(),
+                    ponder: None,
+                },
+            )
+            .await;
+
+        assert!(
+            matches!(runner.phase, Phase::Thinking { side: Side::Black }),
+            "止めた探索の bestmove を着手として採った"
+        );
+    }
+
+    /// 投了も同じ。**起きていない局面での投了で終局してはいけない**
+    #[tokio::test]
+    async fn a_resign_from_a_stopped_search_does_not_end_the_game() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = Activity::Stopping {
+            req: 1,
+            restart: false,
+        };
+
+        runner
+            .on_search_outcome(Side::Black, 1, SearchOutcome::Resign)
+            .await;
+
+        assert!(
+            matches!(runner.phase, Phase::Thinking { .. }),
+            "止めた探索の投了で終局した"
+        );
+    }
+
+    /// 走っている探索の結果は採ること。
+    /// これが無いと「常に採らない」でも上の2本が通ってしまう
+    #[tokio::test]
+    async fn a_move_from_a_live_search_is_taken() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+
+        runner
+            .on_search_outcome(
+                Side::Black,
+                1,
+                SearchOutcome::Move {
+                    usi: "7g7f".to_string(),
+                    ponder: None,
+                },
+            )
+            .await;
+
+        assert!(
+            matches!(runner.phase, Phase::AwaitingRuling { .. }),
+            "走っている探索の bestmove を採らなかった"
+        );
+    }
+
+    /// `stop` に応じないエンジンは `Idle` に戻さないこと。
+    /// 戻すと `finish` が「idle だから送ってよい」と判断して、
+    /// 探索中のエンジンへ `gameover` を送る（不変条件3 を破る）
+    #[tokio::test]
+    async fn an_engine_that_will_not_stop_is_not_marked_idle() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+
+        runner
+            .on_search_outcome(Side::Black, 1, SearchOutcome::StopTimedOut)
+            .await;
+
+        assert!(matches!(
+            runner.players[Side::Black.index()].activity,
+            Activity::Unresponsive
+        ));
+        match &runner.phase {
+            Phase::Over { result } => {
+                assert_eq!(result.reason, GameOverReason::EngineFailure);
+                assert_eq!(result.winner, Some(Side::White));
+            }
+            _ => panic!("終局していない"),
+        }
     }
 
     #[tokio::test]
@@ -1358,7 +1542,7 @@ mod tests {
                 assert_eq!(result.reason, GameOverReason::Rule);
                 assert_eq!(result.detail.as_deref(), Some("詰み"));
             }
-            other => panic!("終局していない: {other:?}"),
+            _ => panic!("終局していない"),
         }
         // 終局後は二度と受け付けない
         assert!(game.end_by_rule(None, None).await.is_err());
@@ -1374,7 +1558,7 @@ mod tests {
                 assert_eq!(result.winner, Some(Side::White));
                 assert_eq!(result.reason, GameOverReason::Resign);
             }
-            other => panic!("終局していない: {other:?}"),
+            _ => panic!("終局していない"),
         }
     }
 
@@ -1388,7 +1572,7 @@ mod tests {
                 assert_eq!(result.winner, None);
                 assert_eq!(result.reason, GameOverReason::Aborted);
             }
-            other => panic!("終局していない: {other:?}"),
+            _ => panic!("終局していない"),
         }
     }
 
