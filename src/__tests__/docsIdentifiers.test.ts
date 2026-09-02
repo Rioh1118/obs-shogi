@@ -9,7 +9,7 @@ import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers"
  *
  * 表は「現物を引くための索引」として書かれている。書いてある名前で grep して
  * 空振りすると、読み手は「表が古い」以上のことを判断できない。
- * 改名すると腐るのに、パスと違って `docsSourcePaths` は見ていなかった。
+ * パスは `docsSourcePaths` が見る。名前はこちらが見る。
  *
  * **止められるのは「綴りが1つも残っていない名前」だけ。** 限界は3つあり、
  * どれも `docsIdentifiers.ts` の doc に書いてある。要約すると、
@@ -72,7 +72,8 @@ describe("identifiersIn", () => {
 });
 
 describe("コメントを落としてから数える", () => {
-  // この検査は自分の doc に腐った名前を引いていて、それで空回りしていた
+  // コメントの中の言及を「実在」と数えない。数えると、腐った名前を説明した
+  // 1行がその名前を生き返らせる
   test("行コメントの中の名前は数に入らない", () => {
     expect(missingIn(["DEAD_NAME"], codeOf("let x = 1; // DEAD_NAME のこと"))).toEqual([
       "DEAD_NAME",

@@ -121,19 +121,23 @@ impl Stall {
 /// 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ。
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// `close` が「走っている探索が畳まれた」のを待つ上限。
+/// `close` が「両側の `Activity` が `Idle` に戻る」のを待つ上限。
+///
+/// **`SETTLE_TIMEOUT` とは別物。** あちらは `TurnClock::Settling`（手番に入ったが
+/// `go` をまだ出していない）を見る番人で、こちらは探索が畳まれたかを見る待ち。
+/// 見ている述語も所有者も違うので、片方の値をもう片方に合わせないこと。
 ///
 /// **待つ**理由: 待たずに落とすと、`stop` を送ろうとしている探索の足元で
 /// プロセスが消える。チャンネルが閉じて `Failed` が上がり、正常に閉じただけなのに
 /// 「エンジンが応答しない」というログが毎回出て、本物の故障と区別が付かなくなる。
 ///
-/// **上限を置く**理由: `abort` も `searches_settled` も `run_loop` が1件ずつ
+/// **上限を置く**理由: `abort` も `searches_idle` も `run_loop` が1件ずつ
 /// 処理し、その中で `send_command` を待つ。エンジンが stdin を読まなくなると
 /// パイプが埋まって書き込みが止まり、応答が返らない。上限が無いと
 /// `close_game` が無期限に返らなくなる。
 ///
 /// `search.rs` の `STOP_GRACE` より少し長い。
-pub(super) const CLOSE_SETTLE_TIMEOUT: Duration = Duration::from_secs(6);
+pub(super) const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
 ///
@@ -141,7 +145,7 @@ pub(super) const CLOSE_SETTLE_TIMEOUT: Duration = Duration::from_secs(6);
 /// `Idle` に戻るのは `run_loop` の中で、そこから外へ通知する経路を持っていない。
 ///
 /// 50ms は `TICK`（100ms）より細かく、`close_game` の応答に足す遅れが
-/// 人に分からない範囲。細かくするほど `SearchesSettled` が `Tick` と同じ
+/// 人に分からない範囲。細かくするほど `SearchesIdle` が `Tick` と同じ
 /// キューに並ぶので、`run_loop` を要求で埋めない上限でもある
 /// （6秒で最大120回）。
 const CLOSE_POLL: Duration = Duration::from_millis(50);
@@ -266,9 +270,9 @@ impl GameSession {
     /// 呼ばないとプロセスが残る。
     pub async fn close(self, registry: &EngineRegistry) {
         // 「止める → 畳まれるのを**待つ** → 落とす」の順。
-        // 待つ理由と上限の理由はどちらも `CLOSE_SETTLE_TIMEOUT` に書いてある
-        let deadline = Instant::now() + CLOSE_SETTLE_TIMEOUT;
-        let _ = tokio::time::timeout(CLOSE_SETTLE_TIMEOUT, self.abort()).await;
+        // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
+        let deadline = Instant::now() + CLOSE_IDLE_TIMEOUT;
+        let _ = tokio::time::timeout(CLOSE_IDLE_TIMEOUT, self.abort()).await;
 
         let mut settled = false;
         while !settled {
@@ -276,7 +280,7 @@ impl GameSession {
             if left.is_zero() {
                 break;
             }
-            match tokio::time::timeout(left, self.searches_settled()).await {
+            match tokio::time::timeout(left, self.searches_idle()).await {
                 // 畳まれた、またはセッションのタスクがもう無い
                 Ok(Ok(true)) | Ok(Err(_)) => settled = true,
                 Ok(Ok(false)) => tokio::time::sleep(CLOSE_POLL).await,
@@ -303,10 +307,10 @@ impl GameSession {
     }
 
     /// 走っている探索が無いか。
-    async fn searches_settled(&self) -> Result<bool, String> {
+    async fn searches_idle(&self) -> Result<bool, String> {
         let (reply, rx) = oneshot::channel();
         self.tx
-            .send(Command::SearchesSettled { reply })
+            .send(Command::SearchesIdle { reply })
             .map_err(|_| ENDED.to_string())?;
         rx.await.map_err(|_| ENDED.to_string())
     }
@@ -350,7 +354,7 @@ enum Command {
     Snapshot {
         reply: oneshot::Sender<GameSnapshot>,
     },
-    SearchesSettled {
+    SearchesIdle {
         reply: oneshot::Sender<bool>,
     },
     Search(SearchMessage),
@@ -562,8 +566,8 @@ impl Runner {
             Command::Snapshot { reply } => {
                 let _ = reply.send(self.snapshot());
             }
-            Command::SearchesSettled { reply } => {
-                let _ = reply.send(self.searches_settled());
+            Command::SearchesIdle { reply } => {
+                let _ = reply.send(self.searches_idle());
             }
             Command::Search(SearchMessage::Info { side, result }) => {
                 self.on_search_info(side, result)
@@ -721,12 +725,19 @@ impl Runner {
             }
         };
 
-        // `StopTimedOut` は「エンジンはまだ探索中」という意味なので `Idle` に
-        // 戻さない。戻すと `finish` が「idle だから送ってよい」と判断して
-        // 探索中のエンジンへ `gameover` を送る（不変条件3 を破る）
+        // **バリアントを1つずつ書く。** `_ =>` にすると、後から足した変種が
+        // 黙って `Idle` へ落ちる。`Idle` は `finish` に「`gameover` を送ってよい」
+        // と読まれるので、まだ探索しているエンジンへ送ることになる（不変条件3）。
+        // 足したときにここを数え直させるために網羅で書く
         self.player_mut(side).activity = match outcome {
+            // まだ探索中。`gameover` を送らない
             SearchOutcome::StopTimedOut => Activity::Unresponsive,
-            _ => Activity::Idle,
+            // どれも「エンジンは止まっている」。`Failed` は出力が終わった側
+            SearchOutcome::Move { .. }
+            | SearchOutcome::Resign
+            | SearchOutcome::DeclareWin
+            | SearchOutcome::StoppedCleanly
+            | SearchOutcome::Failed(_) => Activity::Idle,
         };
 
         // 終局後に返ってきた `bestmove` は、`gameover` を送るための合図にだけ使う。
@@ -1176,7 +1187,7 @@ impl Runner {
     ///
     /// `Unresponsive` は**畳まれたものとして数える**。`stop` に応じないと
     /// 分かっている側なので、待ち続けても返らない。
-    fn searches_settled(&self) -> bool {
+    fn searches_idle(&self) -> bool {
         [Side::Black, Side::White].into_iter().all(|side| {
             !matches!(
                 self.player(side).activity,

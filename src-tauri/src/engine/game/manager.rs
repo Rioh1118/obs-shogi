@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 
 use crate::engine::registry::EngineRegistry;
 
-use super::session::{GameSession, CLOSE_SETTLE_TIMEOUT};
+use super::session::{GameSession, CLOSE_IDLE_TIMEOUT};
 use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
 const LOGT: &str = "obs_shogi::engine::game::manager";
@@ -72,9 +72,9 @@ impl GameManager {
                 //
                 // 上限を通す。`abort` は `run_loop` の応答を待つので、
                 // そこが書き込みで詰まっていると返らない。`Ok` 側
-                // （`GameSession::close`）は同じ待ちを `CLOSE_SETTLE_TIMEOUT` で
+                // （`GameSession::close`）は同じ待ちを `CLOSE_IDLE_TIMEOUT` で
                 // 包んでいるので、こちらだけ裸にしない
-                let _ = tokio::time::timeout(CLOSE_SETTLE_TIMEOUT, session.abort()).await;
+                let _ = tokio::time::timeout(CLOSE_IDLE_TIMEOUT, session.abort()).await;
                 self.sessions
                     .write()
                     .await
