@@ -1186,6 +1186,15 @@ impl Runner {
             return;
         }
 
+        // **その手に使った時間を締める。** `consume` を呼ぶのは `decide_move` だけで、
+        // ここを通る終わり方（時間切れ・投了・中断・裁定・故障）は通らない。
+        // 締めないと、`Phase::Over` にした瞬間に `running` が消えて
+        // 手番開始時点の残り時間が出る——画面が使ったぶんだけ巻き戻り、
+        // 時間切れ負けなのに残り時間が正の値で並ぶ
+        if let Some((side, elapsed)) = self.running_clock() {
+            self.clocks.get_mut(side).charge(elapsed);
+        }
+
         // 走っている思考を止める。`gameover` はエンジンが idle に戻ってから
         // （`on_search_outcome` の Over 分岐）送る
         let mut idle_sides = Vec::new();
@@ -1204,15 +1213,18 @@ impl Runner {
             result: result.clone(),
         };
 
+        // **`gameover` より先に知らせる。** `send_command` は1件あたり
+        // `WRITE_TIMEOUT` ＋ 列の待ちなので、後に回すと終局からイベント到着まで
+        // 数秒空く。その間フロントは減り続ける時計を描いたままになる
+        self.emit(GameEvent::Over {
+            game_id: self.id.clone(),
+            result: result.clone(),
+            clocks: self.clocks_view(),
+        });
+
         for side in idle_sides {
             self.send_gameover(side, &result).await;
         }
-
-        self.emit(GameEvent::Over {
-            game_id: self.id.clone(),
-            result,
-            clocks: self.clocks_view(),
-        });
     }
 
     async fn send_gameover(&self, side: Side, result: &GameResult) {
@@ -2066,18 +2078,27 @@ mod tests {
         let game = start(settings).await;
 
         // tick は 100ms ごと。実時間で待つので余裕を取る
-        let mut result = None;
+        let mut over = None;
         for _ in 0..40 {
             tokio::time::sleep(Duration::from_millis(50)).await;
-            if let GamePhaseView::Over { result: r } = phase_of(&game.snapshot().await.unwrap()) {
-                result = Some(r.clone());
+            let snapshot = game.snapshot().await.unwrap();
+            if let GamePhaseView::Over { result: r } = phase_of(&snapshot) {
+                over = Some((r.clone(), snapshot.clocks));
                 break;
             }
         }
 
-        let result = result.expect("持ち時間が尽きても終局しなかった");
+        let (result, clocks) = over.expect("持ち時間が尽きても終局しなかった");
         assert_eq!(result.reason, GameOverReason::Timeout);
         assert_eq!(result.winner, Some(Side::White));
+
+        // **負けた側の残り時間は 0。** その手に使った時間を締めないと、
+        // 手番開始時点の値が出る——時間切れ負けなのに残り時間が正のまま並ぶ
+        assert_eq!(
+            clocks.black.main_ms, 0,
+            "時間切れで負けた側の残り時間が 0 になっていない"
+        );
+        assert!(clocks.running.is_none(), "終局後に動いている時計がある");
     }
 
     /// 番人が2つの止まり方を分けること。**どちらも `Thinking` の中。**

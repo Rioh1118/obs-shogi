@@ -75,6 +75,19 @@ impl SideClock {
         elapsed_ms > self.budget_ms()
     }
 
+    /// 着手せずに、使った時間だけを引く。
+    ///
+    /// **加算を足さない。** フィッシャーの増加は着手できたときの報酬なので、
+    /// 中断や終局で締めるときに足すと持ち時間が増える。
+    ///
+    /// 終局のときに要る。`finish` を通る終わり方（時間切れ・投了・中断・裁定）は
+    /// `consume` を通らないので、これが無いと**その手に使った時間が
+    /// 一度も時計に反映されない**。画面の残り時間が終局の瞬間に
+    /// 使ったぶんだけ巻き戻り、時間切れ負けなのに残り時間が正の値で出る。
+    pub fn charge(&mut self, elapsed_ms: u64) {
+        self.remaining_ms = self.remaining_ms.saturating_sub(elapsed_ms);
+    }
+
     /// 1手ぶんの消費を反映する。
     ///
     /// 時間切れなら時計は据え置く（`Expired` を返した後の残り時間に意味は無い）。
@@ -339,6 +352,30 @@ mod tests {
 
         // 使い切ると加算する前に切れる。**その手の加算では延命できない**
         assert_eq!(clock.consume(12_001), ClockOutcome::Expired);
+    }
+
+    /// 着手せずに締めるときは加算を足さないこと。
+    ///
+    /// 足すと、投了や中断で終わった対局の残り時間が**増える**。
+    /// フィッシャーの増加は着手できたときの報酬で、締めるのは着手していない手。
+    #[test]
+    fn charging_a_move_that_never_landed_does_not_pay_the_increment() {
+        let mut clock = SideClock::new(fischer(10_000, 3_000));
+        assert_eq!(clock.remaining_ms(), 13_000);
+
+        clock.charge(4_000);
+        assert_eq!(clock.remaining_ms(), 9_000, "加算が足されている");
+    }
+
+    /// 使い切っていても 0 で止まること。
+    ///
+    /// 時間切れで終局するとき、締める時間は残りより長い。引き算が
+    /// 巻き戻ると残り時間が莫大な値になる
+    #[test]
+    fn charging_more_than_what_is_left_settles_at_zero() {
+        let mut clock = SideClock::new(minutes_ms(1));
+        clock.charge(90_000);
+        assert_eq!(clock.remaining_ms(), 0);
     }
 
     /// 動いている側は「尽きる時刻」で出す。持ち時間が残っている間は
