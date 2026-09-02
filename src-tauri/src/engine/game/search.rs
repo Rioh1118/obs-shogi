@@ -27,7 +27,7 @@ const LOGT: &str = "obs_shogi::engine::game::search";
 ///
 /// 待つのは礼儀ではなく必要。USI は探索中の `position` / `go` を認めないので、
 /// 次の思考を始める前にエンジンを idle に戻さないといけない。
-const STOP_GRACE: Duration = Duration::from_secs(5);
+pub(super) const STOP_GRACE: Duration = Duration::from_secs(5);
 
 /// 1回の探索がどう終わったか。
 #[derive(Debug, Clone)]

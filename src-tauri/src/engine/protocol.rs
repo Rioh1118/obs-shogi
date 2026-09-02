@@ -165,7 +165,7 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 /// 完走してコマンドをワイヤへ出す。分かるのは「上限内に書き終わらなかった」だけ。
 /// 後続を全部断る（`fail_writes`）のはそのため——**後から1件だけ届く**ことは
 /// 避けられないが、その後ろに何も並ばないようにはできる。
-const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+pub(crate) const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 書き込みの列に流す1件。
 struct WriteJob {

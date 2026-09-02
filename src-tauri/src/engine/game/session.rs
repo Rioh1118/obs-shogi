@@ -2048,6 +2048,34 @@ mod tests {
         );
     }
 
+    /// 上限どうしの大小を固定する。
+    ///
+    /// **数を散文で書かない。** 「`STOP_GRACE`（5秒）＋書き込みの上限（2秒）より
+    /// 長く取る」のような文は、どちらかを動かすと黙って偽になる。
+    /// 関係そのものをここで見る。
+    #[test]
+    fn the_watchdogs_are_ordered() {
+        use crate::engine::game::search::STOP_GRACE;
+        use crate::engine::protocol::WRITE_TIMEOUT;
+
+        // 畳み待ちの番人は、`stop` を書いて返事を待ち切るより長い。
+        // 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ
+        assert!(
+            SETTLE_TIMEOUT > WRITE_TIMEOUT + STOP_GRACE,
+            "SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) が WRITE_TIMEOUT + STOP_GRACE 以下"
+        );
+
+        // 閉じるときの待ちも、畳み終わるのに要る時間より長い
+        assert!(
+            CLOSE_IDLE_TIMEOUT > STOP_GRACE,
+            "CLOSE_IDLE_TIMEOUT({CLOSE_IDLE_TIMEOUT:?}) が STOP_GRACE 以下"
+        );
+
+        // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
+        // 畳み待ちより先に故障扱いになる
+        assert!(SEARCH_GRACE >= SETTLE_TIMEOUT);
+    }
+
     /// 畳み待ちのまま `SETTLE_TIMEOUT` を過ぎたら終局にすること。
     ///
     /// 畳み待ちの間は時計が動かないので、時間切れの番人には掛からない。

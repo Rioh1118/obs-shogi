@@ -55,6 +55,7 @@ function existingChecks(): Set<string> {
  * 片方だけ人が覚える形にすると、忘れても何も起きない。
  */
 const RUST_CHECKS = new Set([
+  "comment_history",
   "comment_identifiers",
   "production_unwrap",
   "root_guard",
