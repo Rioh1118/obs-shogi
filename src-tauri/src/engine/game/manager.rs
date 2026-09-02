@@ -62,7 +62,7 @@ impl GameManager {
     /// 他の操作が同じ対局を掴んでいると閉じられず `Err` を返す。そのとき
     /// **対局は中断済みだが、エンジンは生きたまま台帳に残る。**
     /// そのまま呼び直せる。呼び直さないとプロセスが残る。
-    pub async fn close(&self, game_id: &str) -> Result<(), String> {
+    pub async fn close(&self, game_id: &GameId) -> Result<(), String> {
         let session = self.sessions.write().await.remove(game_id);
         let Some(session) = session else {
             return Err(format!("unknown game: {game_id}"));
@@ -81,10 +81,7 @@ impl GameManager {
                 //
                 // 中断の上限と失敗の分類は `GameSession` が1箇所で持つ
                 session.abort_within_budget().await;
-                self.sessions
-                    .write()
-                    .await
-                    .insert(game_id.to_string(), session);
+                self.sessions.write().await.insert(game_id.clone(), session);
                 log::warn!(
                     target: LOGT,
                     "close: session still borrowed, kept in the ledger game_id={}",
@@ -117,35 +114,35 @@ impl GameManager {
 
     pub async fn submit_move(
         &self,
-        game_id: &str,
+        game_id: &GameId,
         side: Side,
         usi_move: String,
     ) -> Result<(), String> {
         self.get(game_id).await?.submit_move(side, usi_move).await
     }
 
-    pub async fn continue_game(&self, game_id: &str, moves: Vec<String>) -> Result<(), String> {
+    pub async fn continue_game(&self, game_id: &GameId, moves: Vec<String>) -> Result<(), String> {
         self.get(game_id).await?.continue_game(moves).await
     }
 
     pub async fn end_by_rule(
         &self,
-        game_id: &str,
+        game_id: &GameId,
         winner: Option<Side>,
         detail: Option<String>,
     ) -> Result<(), String> {
         self.get(game_id).await?.end_by_rule(winner, detail).await
     }
 
-    pub async fn resign(&self, game_id: &str, side: Side) -> Result<(), String> {
+    pub async fn resign(&self, game_id: &GameId, side: Side) -> Result<(), String> {
         self.get(game_id).await?.resign(side).await
     }
 
-    pub async fn abort(&self, game_id: &str) -> Result<(), String> {
+    pub async fn abort(&self, game_id: &GameId) -> Result<(), String> {
         self.get(game_id).await?.abort().await
     }
 
-    pub async fn snapshot(&self, game_id: &str) -> Result<GameSnapshot, String> {
+    pub async fn snapshot(&self, game_id: &GameId) -> Result<GameSnapshot, String> {
         self.get(game_id).await?.snapshot().await
     }
 
@@ -153,7 +150,7 @@ impl GameManager {
         self.sessions.read().await.keys().cloned().collect()
     }
 
-    async fn get(&self, game_id: &str) -> Result<Arc<GameSession>, String> {
+    async fn get(&self, game_id: &GameId) -> Result<Arc<GameSession>, String> {
         self.sessions
             .read()
             .await

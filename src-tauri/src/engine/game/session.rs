@@ -313,7 +313,7 @@ impl GameSession {
         let deadline = Instant::now() + START_TIMEOUT;
         let (engine_ids, engines) = spawn_players(registry, &settings, deadline).await?;
 
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = GameId::new(uuid::Uuid::new_v4().to_string());
         let (tx, rx) = mpsc::unbounded_channel();
         let [black_engine, white_engine] = engines;
 
@@ -1909,7 +1909,7 @@ mod tests {
     ) -> Runner {
         let settings = two_humans(vec![]);
         Runner {
-            id: "test".to_string(),
+            id: GameId::new("test".to_string()),
             events,
             clocks: GameClocks::new(settings.black_time, settings.white_time),
             players: [

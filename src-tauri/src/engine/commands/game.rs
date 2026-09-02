@@ -127,7 +127,7 @@ impl GameEventSink for TauriEvents {
 /// （→ 台帳の F-28）。
 ///
 /// 絞らない。ここを通るのは利用者の操作かフロントの裁定で、1手に数回しか出ない。
-fn log_rejection<T>(op: &str, game_id: &str, result: Result<T, String>) -> Result<T, String> {
+fn log_rejection<T>(op: &str, game_id: &GameId, result: Result<T, String>) -> Result<T, String> {
     if let Err(e) = &result {
         log::warn!(target: "obs_shogi::engine::game", "{op} rejected game={game_id}: {e}");
     }
@@ -138,7 +138,7 @@ fn log_rejection<T>(op: &str, game_id: &str, result: Result<T, String>) -> Resul
 #[tauri::command]
 pub async fn submit_game_move(
     state: tauri::State<'_, AppState>,
-    game_id: String,
+    game_id: GameId,
     side: Side,
     usi_move: String,
 ) -> Result<(), String> {
@@ -157,7 +157,7 @@ pub async fn submit_game_move(
 #[tauri::command]
 pub async fn continue_game(
     state: tauri::State<'_, AppState>,
-    game_id: String,
+    game_id: GameId,
     moves: Vec<String>,
 ) -> Result<(), String> {
     log_rejection(
@@ -171,7 +171,7 @@ pub async fn continue_game(
 #[tauri::command]
 pub async fn end_game_by_rule(
     state: tauri::State<'_, AppState>,
-    game_id: String,
+    game_id: GameId,
     winner: Option<Side>,
     detail: Option<String>,
 ) -> Result<(), String> {
@@ -186,7 +186,7 @@ pub async fn end_game_by_rule(
 #[tauri::command]
 pub async fn resign_game(
     state: tauri::State<'_, AppState>,
-    game_id: String,
+    game_id: GameId,
     side: Side,
 ) -> Result<(), String> {
     log_rejection("resign", &game_id, state.games.resign(&game_id, side).await)
@@ -194,7 +194,7 @@ pub async fn resign_game(
 
 /// 対局の中断。勝敗を付けずに終局にする
 #[tauri::command]
-pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: String) -> Result<(), String> {
+pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: GameId) -> Result<(), String> {
     log_rejection("abort", &game_id, state.games.abort(&game_id).await)
 }
 
@@ -212,7 +212,7 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: String) -> R
 /// 中断が `CLOSE_ABORT_TIMEOUT` を超えた場合は `Err` にならない（畳めなくても
 /// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。
 #[tauri::command]
-pub async fn close_game(state: tauri::State<'_, AppState>, game_id: String) -> Result<(), String> {
+pub async fn close_game(state: tauri::State<'_, AppState>, game_id: GameId) -> Result<(), String> {
     log_rejection("close", &game_id, state.games.close(&game_id).await)
 }
 
@@ -224,7 +224,7 @@ pub async fn close_game(state: tauri::State<'_, AppState>, game_id: String) -> R
 #[tauri::command]
 pub async fn get_game_state(
     state: tauri::State<'_, AppState>,
-    game_id: String,
+    game_id: GameId,
 ) -> Result<GameSnapshot, String> {
     state.games.snapshot(&game_id).await
 }

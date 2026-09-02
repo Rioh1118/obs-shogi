@@ -13,7 +13,20 @@
  */
 import type { AnalysisResult } from "@/entities/engine";
 
-export type GameId = string;
+declare const gameIdBrand: unique symbol;
+
+/**
+ * 対局セッションを指す値。
+ *
+ * **素の `string` にしない。** 素だと `submitGameMove(usiMove, side, gameId)` と
+ * 引数を並べ替えても tsc が通る。通ると Rust は `unknown game: 7g7f` を返し、
+ * 盤は裁定待ちのまま30秒後に「アプリが裁定を返さなかった」で畳まれる。
+ *
+ * 作る口は `startGame` の戻り値と `listGames` だけ。brand が止めるのは
+ * 暗黙の代入で、`as GameId` は通る（`entities/kifu` の `TesuuPointer` と同じ流儀）。
+ * Rust 側も `GameId` は newtype で、線に出る形は文字列のまま。
+ */
+export type GameId = string & { readonly [gameIdBrand]: true };
 
 /** SFEN の2番目のフィールド（`b` / `w`）と対応する */
 export type Side = "black" | "white";

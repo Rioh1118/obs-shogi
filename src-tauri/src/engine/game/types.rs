@@ -9,7 +9,34 @@ use serde::{Deserialize, Serialize};
 use crate::engine::types::AnalysisResult;
 
 /// 対局セッションを指す値。
-pub type GameId = String;
+///
+/// **`String` の別名にしない。** 別名だと、`EngineId` とも指し手とも入れ替えられる。
+/// 実際に起きる形は2つ。フロントで `submitGameMove(usiMove, side, gameId)` と
+/// 引数を並べ替えても tsc が通り、Rust は `unknown game: 7g7f` を返して
+/// **盤が裁定待ちのまま30秒後に「アプリが答えなかった」で畳まれる**。
+/// Rust 側では `registry.shutdown(game_id)` が型検査を通り、知らない ID として
+/// `debug` を1行出して成功で返る（プロセスは残る）。
+///
+/// 線に出る形は文字列のまま（`serde(transparent)`）。
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct GameId(String);
+
+impl GameId {
+    pub fn new(value: String) -> Self {
+        Self(value)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for GameId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 /// 手番。SFEN の 2 番目のフィールド（`b` / `w`）と対応する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -472,7 +499,7 @@ mod tests {
         assert!(!json.contains('_'), "snake_case が残っている: {json}");
 
         let event = GameEvent::MoveDecided {
-            game_id: "g".to_string(),
+            game_id: GameId::new("g".to_string()),
             side: Side::Black,
             usi_move: "7g7f".to_string(),
             elapsed_ms: 5,
@@ -539,28 +566,28 @@ mod tests {
         };
         vec![
             GameEvent::TurnChanged {
-                game_id: "g".to_string(),
+                game_id: GameId::new("g".to_string()),
                 side: Side::Black,
                 clocks,
             },
             GameEvent::SearchInfo {
-                game_id: "g".to_string(),
+                game_id: GameId::new("g".to_string()),
                 side: Side::Black,
                 result: AnalysisResult::default(),
             },
             GameEvent::MoveDecided {
-                game_id: "g".to_string(),
+                game_id: GameId::new("g".to_string()),
                 side: Side::Black,
                 usi_move: "7g7f".to_string(),
                 elapsed_ms: 1,
                 clocks,
             },
             GameEvent::ClockUpdated {
-                game_id: "g".to_string(),
+                game_id: GameId::new("g".to_string()),
                 clocks,
             },
             GameEvent::Over {
-                game_id: "g".to_string(),
+                game_id: GameId::new("g".to_string()),
                 result: GameResult {
                     winner: None,
                     reason: GameOverReason::Aborted,
@@ -569,6 +596,136 @@ mod tests {
                 clocks,
             },
         ]
+    }
+
+    /// TS 側の写しに、Rust が線に出す欄が**全部**あること。
+    ///
+    /// `src/entities/game-session/api/rust-types.ts` は手で写した245行で、
+    /// **tsc からも vitest からも `cargo test` からも触られていない**
+    /// （`src/` に import しているファイルが1つも無い）。
+    /// Rust に `#[serde(default)]` の無い欄を1つ足すと、この写しは古いまま緑で通り、
+    /// 初めて画面を繋いだ人が `start_game` の実行時 deserialize エラーで詰まる。
+    ///
+    /// **見るのは Rust → TS の向きだけ。** 逆（TS にあって Rust に無い欄）は
+    /// serde が黙って捨てるので、ここでは見ていない。
+    #[test]
+    fn the_typescript_copy_has_every_field() {
+        // `include_str!` はコンパイル時に解決されるので、写しを移したらビルドで落ちる。
+        // `AnalysisResult` はこの写しが宣言せず `entities/engine` から取るので、
+        // その写しも一緒に見る（片方だけ見ると `candidates` が「無い」に見える）
+        let copy = concat!(
+            include_str!("../../../../src/entities/game-session/api/rust-types.ts"),
+            include_str!("../../../../src/entities/engine/api/rust-types.ts"),
+        );
+
+        fn keys(value: &serde_json::Value, into: &mut std::collections::BTreeSet<String>) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    for (k, v) in map {
+                        into.insert(k.clone());
+                        keys(v, into);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for v in items {
+                        keys(v, into);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut wire = std::collections::BTreeSet::new();
+        for event in sample_of_every_event() {
+            keys(
+                &serde_json::to_value(&event).expect("出来事を JSON にできない"),
+                &mut wire,
+            );
+        }
+        keys(
+            &serde_json::to_value(sample_settings()).expect("設定を JSON にできない"),
+            &mut wire,
+        );
+        keys(
+            &serde_json::to_value(sample_snapshot()).expect("状態を JSON にできない"),
+            &mut wire,
+        );
+        assert!(
+            wire.len() > 20,
+            "欄を {} 個しか集められていない",
+            wire.len()
+        );
+
+        // `type` は判別子で、TS 側では文字列リテラルの union として書かれる
+        let missing: Vec<&String> = wire
+            .iter()
+            .filter(|k| k.as_str() != "type")
+            .filter(|k| !copy.contains(&format!("{k}:")) && !copy.contains(&format!("{k}?:")))
+            .collect();
+
+        assert!(
+            missing.is_empty(),
+            "Rust が線に出す欄が TS の写しに無い。写しを直すこと:\n{missing:?}"
+        );
+    }
+
+    fn sample_settings() -> GameSettings {
+        GameSettings {
+            black: PlayerSpec::Human {
+                name: "me".to_string(),
+            },
+            white: PlayerSpec::Engine {
+                name: "engine".to_string(),
+                engine_path: "/path".to_string(),
+                work_dir: Some("/dir".to_string()),
+                options: vec![SetOptionValue {
+                    name: "USI_Hash".to_string(),
+                    value: "256".to_string(),
+                }],
+                ponder: true,
+            },
+            black_time: TimeLimit {
+                main_ms: 1,
+                byoyomi_ms: 0,
+                increment_ms: 0,
+            },
+            white_time: TimeLimit {
+                main_ms: 1,
+                byoyomi_ms: 0,
+                increment_ms: 0,
+            },
+            start_sfen: "sfen b - 1".to_string(),
+            initial_moves: vec!["7g7f".to_string()],
+            enforce_engine_timeout: false,
+        }
+    }
+
+    fn sample_snapshot() -> GameSnapshot {
+        GameSnapshot {
+            game_id: GameId::new("g".to_string()),
+            black_name: "me".to_string(),
+            white_name: "engine".to_string(),
+            phase: GamePhaseView::AwaitingRuling {
+                last_mover: Side::Black,
+                usi_move: "7g7f".to_string(),
+            },
+            moves: vec!["7g7f".to_string()],
+            clocks: ClocksView {
+                black: ClockView {
+                    main_ms: 1,
+                    byoyomi_ms: 0,
+                },
+                white: ClockView {
+                    main_ms: 1,
+                    byoyomi_ms: 0,
+                },
+                running: Some(RunningClock {
+                    side: Side::Black,
+                    main_zero_at: 1,
+                    byoyomi_zero_at: 1,
+                }),
+            },
+        }
     }
 
     /// 出来事の分類が、バリアントを足したときに黙って既定へ落ちないこと。

@@ -4,8 +4,7 @@
 //!
 //! **人の注意では続かない形の食い違いだから機械で見る。** 綴りがずれても
 //! Rust も TS もコンパイルが通り、TS 側は `undefined` を読むだけになる。
-//! 実際に `AnalysisUpdate` が `session_id` で出しているのに
-//! `events.ts` が `payload.sessionId` を読んでいる（読み手が増えるまで無害）。
+//! 気付くのは、その欄を読む画面ができた後。
 //!
 //! `src/` を再帰で列挙する。ファイルを手書きにすると、置き場を変えただけで
 //! 検査の対象から外れて緑のまま通る。
@@ -238,6 +237,10 @@ fn camel_case_violations_only_go_down() {
     let violations: BTreeSet<String> = all_types()
         .into_iter()
         .filter(|t| !is_exempt(&t.name))
+        // `transparent` は中身をそのまま線に出す。**欄の名前が1つも出ない**ので、
+        // `rename_all` を付ける先が無い（付けても何も起きない）。
+        // 免除の一覧に入れると、newtype を1つ足すたびに一覧が伸びる
+        .filter(|t| !t.attrs.contains("transparent"))
         .filter(|t| !t.attrs.contains(r#"rename_all = "camelCase""#))
         .map(|t| format!("{}::{}", t.file, t.name))
         .collect();
