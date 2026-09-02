@@ -90,13 +90,6 @@ impl std::fmt::Display for StopListening {
 
 impl std::error::Error for StopListening {}
 
-fn now_nanos() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-}
-
 fn requires_ready(cmd: &GuiCommand) -> bool {
     matches!(
         cmd,
@@ -365,7 +358,7 @@ impl UsiProtocol {
         *self.init_cancel.lock().await = Some(cancel.clone());
 
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let listener_name = format!("ready_wait_{}_{}", gen, now_nanos());
+        let listener_name = format!("ready_wait_{}_{}", gen, uuid::Uuid::new_v4());
         self.register_listener(listener_name.clone(), tx).await?;
 
         {
@@ -452,7 +445,7 @@ impl UsiProtocol {
         }
 
         let (tx, rx) = mpsc::unbounded_channel();
-        let listener_name = format!("info_collection_{}", now_nanos());
+        let listener_name = format!("info_collection_{}", uuid::Uuid::new_v4());
 
         self.register_listener(listener_name.clone(), tx).await?;
         let sent = self.send_command(&GuiCommand::Usi).await;
