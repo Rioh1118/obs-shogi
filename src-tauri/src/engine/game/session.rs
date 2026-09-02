@@ -3387,6 +3387,88 @@ mod tests {
         );
     }
 
+    /// `hand_turn_to` の振り分けを、先読み以外の腕でも見ること。
+    ///
+    /// ※2 の表は5行あるが、当たり／外れの2行しか踏んでいなかった。残りは
+    /// 手番でない側が本番の思考をしている（`A1`）、前に止めた分がまだ
+    /// 返っていない（`A3`）、止めたのに応答しない（`A4`）、
+    /// 何も走っていない（`A0`）。
+    ///
+    /// `A1` を `A0` と同じ扱いにすると、**探索中のエンジンへ `position` /
+    /// `go` を送る**（USI 違反）。`A4` へ渡せることにすると、応答しない
+    /// エンジンに手番が渡って対局が黙って止まる。
+    #[tokio::test]
+    async fn handing_the_turn_covers_every_activity() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        // `A1` — 手番でない側が本番の思考をしている。止めてから始め直す
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::White.index()].activity = Activity::Searching {
+            req: 1,
+            kind: SearchKind::Search,
+            cancel: cancel.clone(),
+        };
+        runner.turn_clock = TurnClock::Settling(Instant::now());
+        runner.hand_turn_to(Side::White, "7g7f").await;
+
+        assert!(
+            matches!(
+                runner.players[Side::White.index()].activity,
+                Activity::Stopping { restart: true, .. }
+            ),
+            "本番の思考をしている側に、止めずに手番を渡した"
+        );
+        assert!(cancel.is_cancelled(), "本番の思考を止めていない");
+        assert!(
+            matches!(runner.turn_clock, TurnClock::Settling(_)),
+            "まだ `go` を出していないのに時計が動いている"
+        );
+
+        // `A3` — 既に止めてある。`restart` を立てるだけ
+        let mut runner = test_runner(&tx);
+        runner.players[Side::White.index()].activity = Activity::Stopping {
+            req: 1,
+            restart: false,
+        };
+        runner.turn_clock = TurnClock::Settling(Instant::now());
+        runner.hand_turn_to(Side::White, "7g7f").await;
+
+        assert!(
+            matches!(
+                runner.players[Side::White.index()].activity,
+                Activity::Stopping { restart: true, .. }
+            ),
+            "止め終わった後に `go` を出し直す印が立っていない"
+        );
+
+        // `A4` — 渡せない。その場で終局させる
+        let mut runner = test_runner(&tx);
+        runner.players[Side::White.index()].activity = Activity::Unresponsive;
+        runner.hand_turn_to(Side::White, "7g7f").await;
+
+        let Phase::Over { result } = &runner.phase else {
+            panic!("応答しないエンジンに手番を渡した");
+        };
+        assert_eq!(result.reason, GameOverReason::EngineFailure);
+        assert_eq!(
+            result.winner,
+            Some(Side::Black),
+            "勝ちが相手側になっていない"
+        );
+
+        // `A0` — その場で `go`。`engine` が無いので走り出さないが、時計は動く
+        let mut runner = test_runner(&tx);
+        runner.players[Side::White.index()].activity = Activity::Idle;
+        runner.turn_clock = TurnClock::Settling(Instant::now());
+        runner.hand_turn_to(Side::White, "7g7f").await;
+
+        assert!(
+            matches!(runner.turn_clock, TurnClock::Running(_)),
+            "何も走っていない側に渡したのに時計が動き出していない"
+        );
+    }
+
     /// 終局は1回しか流れないこと。
     ///
     /// 呼び出し側は全部ガードしているが、その多重が消えたことに気付く経路が無い。
