@@ -7,7 +7,7 @@ use crate::engine::{types::*, utils::cmd_summary};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, watch, Mutex, RwLock};
-use usi::{EngineCommand, Error as UsiError, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
+use usi::{EngineCommand, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 /// USI プロトコル処理層
@@ -52,6 +52,21 @@ struct ProtocolState {
     engine_info: Option<EngineInfo>,
     last_command: Option<String>,
 }
+
+/// エンジンの出力が閉じたことを `usi` crate の `listen` へ伝えるためだけの型。
+///
+/// `listen` は hook が `Err` を返したときにだけ読み取りスレッドを終わらせる
+/// （`usi::UsiEngineHandler::listen`）。**返さない限り回り続ける。**
+#[derive(Debug)]
+struct EngineClosed;
+
+impl std::fmt::Display for EngineClosed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "engine output closed")
+    }
+}
+
+impl std::error::Error for EngineClosed {}
 
 fn now_nanos() -> u128 {
     std::time::SystemTime::now()
@@ -131,17 +146,28 @@ impl UsiProtocol {
         let runtime_handler = self.runtime_handle.clone();
 
         let mut handler_guard = self.handler.lock().await;
-        let result = handler_guard.listen(move |output| -> Result<(), UsiError> {
-            //  ポイント：クロージャー内でクローンしてからtokio::spawnに渡す
-            if let Some(cmd) = output.response() {
-                let cmd_owned = cmd.clone(); // ここでクローン
-                let listeners = Arc::clone(&listeners);
+        let result = handler_guard.listen(move |output| -> Result<(), EngineClosed> {
+            let Some(cmd) = output.response() else {
+                // `response` が `None` になるのは**プロセスの出力が閉じたときだけ**。
+                // `usi` crate はそれを `Err` ではなく `Ok(response: None)` で返すので、
+                // ここで拾わないと読み取りスレッドが EOF を延々読む busy loop になる。
+                //
+                // リスナーを全部落とすのは、待っている側へ「もう来ない」を届けるため。
+                // 落とさないと `raw_rx.recv()` が永久に返らず、対局は手番のまま止まる。
+                //
+                // このクロージャは `listen` が立てた **std のスレッド**の上で走るので、
+                // 非同期の実行文脈ではない。`blocking_write` が使えるし、
+                // ランタイムの停止中でも取りこぼさない。
+                listeners.blocking_write().clear();
+                log::warn!(target: LOGT, "listen: engine output closed");
+                return Err(EngineClosed);
+            };
 
-                runtime_handler.spawn(async move {
-                    Self::broadcast_to_listeners(listeners, cmd_owned).await;
-                });
-            }
-            // エラーが発生しても継続（Okを返す）
+            let cmd_owned = cmd.clone();
+            let listeners = Arc::clone(&listeners);
+            runtime_handler.spawn(async move {
+                Self::broadcast_to_listeners(listeners, cmd_owned).await;
+            });
             Ok(())
         });
 
