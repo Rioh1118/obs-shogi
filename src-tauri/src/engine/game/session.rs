@@ -286,7 +286,8 @@ impl Player {
 /// エンジンプロセスが USI 上でいまどの状態にあるか。
 ///
 /// **セッションの段（`Phase`）と別に持つ。** 一致させ損ねたときに何が
-/// 起きるかは `docs/state-transitions/game-session.md` の不変条件2。
+/// 起きるかは `docs/state-transitions/game-session.md` の不変条件1
+/// （`G0` の間、本番の `go` が出ているのは手番側だけ）。
 enum Activity {
     Idle,
     /// `go` / `go ponder` を送って `bestmove` を待っている

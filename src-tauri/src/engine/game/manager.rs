@@ -45,7 +45,8 @@ impl GameManager {
     /// 対局を閉じ、使っていたエンジンを落とす。
     ///
     /// **終局しただけでは落ちない。** 呼ばないとプロセスが残る
-    /// （→ `docs/state-transitions/game-session.md` の不変条件4）。
+    /// （→ `docs/state-transitions/game-session.md` の不変条件5
+    /// 「`close_game` を呼ぶまでエンジンプロセスは落ちない」）。
     pub async fn close(&self, registry: &EngineRegistry, game_id: &str) -> Result<(), String> {
         let session = self.sessions.write().await.remove(game_id);
         let Some(session) = session else {
