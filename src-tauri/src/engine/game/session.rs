@@ -1040,6 +1040,19 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         .validate()
         .map_err(|e| format!("white: {e}"))?;
 
+    // `TimeLimit::validate` は片側の中しか見ない。**対局をまたぐ組み合わせは
+    // ここでしか弾けない。** 先後で流儀が違うと、`go` に `byoyomi` と `winc` が
+    // 同時に載る（`GameClocks::think_params` は手番側の秒読みと、両者の加算を
+    // それぞれ載せるため）。どちらを優先するかはエンジンごとに割れる。
+    //
+    // 長さが違うのは通す（駒落ちのハンデなど）。弾くのは流儀が違うときだけ。
+    let uses_byoyomi = settings.black_time.byoyomi_ms > 0 || settings.white_time.byoyomi_ms > 0;
+    let uses_increment =
+        settings.black_time.increment_ms > 0 || settings.white_time.increment_ms > 0;
+    if uses_byoyomi && uses_increment {
+        return Err("byoyomi and increment cannot be mixed between the two sides".to_string());
+    }
+
     if contains_usi_breaking_char(&settings.start_sfen) {
         return Err("start_sfen contains a forbidden control character".to_string());
     }
@@ -1426,6 +1439,81 @@ mod tests {
             weak.upgrade().is_none(),
             "対局を捨てた後も誰かがチャンネルを掴んでいる"
         );
+    }
+
+    #[test]
+    fn settings_accept_every_pair_of_time_limits_we_want_to_support() {
+        // 弾く方向の門番なので、通したいものを先に並べる（/implement 手順5）
+        let allowed: [(&str, TimeLimit, TimeLimit); 5] = [
+            ("先後とも切れ負け", minutes(10), minutes(10)),
+            ("先後で持ち時間が違う（ハンデ）", minutes(10), minutes(5)),
+            (
+                "先後とも秒読み。長さは違う",
+                TimeLimit {
+                    main_ms: 0,
+                    byoyomi_ms: 60_000,
+                    increment_ms: 0,
+                },
+                TimeLimit {
+                    main_ms: 0,
+                    byoyomi_ms: 30_000,
+                    increment_ms: 0,
+                },
+            ),
+            (
+                "先後ともフィッシャー。加算が違う",
+                TimeLimit {
+                    main_ms: 300_000,
+                    byoyomi_ms: 0,
+                    increment_ms: 10_000,
+                },
+                TimeLimit {
+                    main_ms: 300_000,
+                    byoyomi_ms: 0,
+                    increment_ms: 5_000,
+                },
+            ),
+            (
+                "片側だけ秒読み付き（もう片方は秒読み0）",
+                TimeLimit {
+                    main_ms: 600_000,
+                    byoyomi_ms: 30_000,
+                    increment_ms: 0,
+                },
+                minutes(10),
+            ),
+        ];
+
+        for (label, black, white) in allowed {
+            let mut settings = two_humans(vec![]);
+            settings.black_time = black;
+            settings.white_time = white;
+            assert!(
+                validate_settings(&settings).is_ok(),
+                "{label} が弾かれた: {:?}",
+                validate_settings(&settings)
+            );
+        }
+    }
+
+    #[test]
+    fn settings_reject_mixing_byoyomi_and_increment_across_the_two_sides() {
+        // 片側ずつは `TimeLimit::validate` を通るので、ここでしか弾けない。
+        // 通すと `go` に `byoyomi` と `winc` が同時に載る
+        let mut settings = two_humans(vec![]);
+        settings.black_time = TimeLimit {
+            main_ms: 0,
+            byoyomi_ms: 30_000,
+            increment_ms: 0,
+        };
+        settings.white_time = TimeLimit {
+            main_ms: 300_000,
+            byoyomi_ms: 0,
+            increment_ms: 5_000,
+        };
+        assert!(settings.black_time.validate().is_ok());
+        assert!(settings.white_time.validate().is_ok());
+        assert!(validate_settings(&settings).is_err());
     }
 
     #[test]

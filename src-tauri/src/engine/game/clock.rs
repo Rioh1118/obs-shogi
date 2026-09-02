@@ -128,8 +128,9 @@ impl GameClocks {
         if byoyomi > 0 {
             params = params.byoyomi(Duration::from_millis(byoyomi));
         }
-        // 秒読みと加算は `TimeLimit::validate` が排他にしているので、
-        // 両方が載ることは無い
+        // 秒読みと加算が同じ `go` に載らないのは、**`validate_settings` が
+        // 先後をまたいで排他にしている**ため（`session.rs`）。
+        // `TimeLimit::validate` は片側の中しか見ないので、そちらでは足りない。
         if black.limit.increment_ms > 0 {
             params = params.binc(Duration::from_millis(black.limit.increment_ms));
         }
