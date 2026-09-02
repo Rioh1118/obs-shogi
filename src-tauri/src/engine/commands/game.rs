@@ -67,12 +67,14 @@ struct TauriEvents {
     /// 絞らないと同じ1行がログを一周させ、**原因が書かれた最初の warn ごと消える**。
     frequent_warn: Mutex<LogThrottle>,
 
-    /// 手番・着手・終局の失敗を記録する枠。**高頻度のものと分ける。**
+    /// 手番と着手の失敗を記録する枠。**高頻度のものと分ける。**
     ///
     /// 1枠を共有すると、読み筋の失敗で枠を使い切った直後の `moveDecided` の
     /// 失敗が黙って捨てられる。**その1行が、なぜ対局が止まったかを説明する
     /// 唯一の記録**（→ 台帳の F-19）。1手に1回なので絞らなくても洪水にならないが、
     /// 宛先が消えた後も出続けるので枠は持つ。
+    ///
+    /// 終局はここを通らない（`GameEvent::is_terminal`）。
     rare_warn: Mutex<LogThrottle>,
 }
 
@@ -84,18 +86,32 @@ impl GameEventSink for TauriEvents {
     /// `RULING_TIMEOUT` で「アプリが答えなかった」に化ける → 台帳の F-19）。
     fn emit(&self, event: GameEvent) {
         let kind = event.kind();
+        let terminal = event.is_terminal();
         let throttle = if event.is_frequent() {
             &self.frequent_warn
         } else {
             &self.rare_warn
         };
 
-        if let Err(e) = self.app.emit(GAME_EVENT, event) {
-            // **種別を出す。** 出さないと、届かなかったのが読み筋なのか
-            // 終局なのかが分からず、対局が止まった理由を追えない
-            if throttle.lock().is_ok_and(|mut w| w.allow()) {
-                log::warn!(target: "obs_shogi::engine::game", "emit failed kind={kind}: {e}");
-            }
+        let Err(e) = self.app.emit(GAME_EVENT, event) else {
+            return;
+        };
+
+        // 立て直しに要るのは「どの局が終わったことになっているか」なので、
+        // 絞らず、段も上げて出す。1局に1回しか通らない
+        if terminal {
+            log::error!(
+                target: "obs_shogi::engine::game",
+                "emit failed kind={kind}: {e}; the game is over on this side. \
+                 the app must resync with get_game_state"
+            );
+            return;
+        }
+
+        // **種別を出す。** 出さないと、届かなかったのが読み筋なのか
+        // 手番なのかが分からず、対局が止まった理由を追えない
+        if throttle.lock().is_ok_and(|mut w| w.allow()) {
+            log::warn!(target: "obs_shogi::engine::game", "emit failed kind={kind}: {e}");
         }
     }
 }

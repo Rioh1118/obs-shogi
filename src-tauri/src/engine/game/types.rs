@@ -335,11 +335,35 @@ impl GameEvent {
     /// 高頻度のものと1手1回のものが同じ枠を奪い合うと、読み筋の失敗で枠を
     /// 使い切った直後の `moveDecided` の失敗が黙って捨てられる。
     /// **その1行が、なぜ対局が止まったかを説明する唯一の記録になる。**
+    ///
+    /// **`_` を書かない。** 書くと、足したバリアントが黙って「1手1回」に落ちる。
     pub fn is_frequent(&self) -> bool {
-        matches!(
-            self,
-            GameEvent::SearchInfo { .. } | GameEvent::ClockUpdated { .. }
-        )
+        match self {
+            GameEvent::SearchInfo { .. } | GameEvent::ClockUpdated { .. } => true,
+            GameEvent::TurnChanged { .. }
+            | GameEvent::MoveDecided { .. }
+            | GameEvent::Over { .. } => false,
+        }
+    }
+
+    /// これが届かなかったとき、**後から気付く手立てが無い**か。
+    ///
+    /// 他のイベントは、届かなくても次のイベントか番人が状況を動かす。
+    /// `Over` だけは違う——`Phase::Over` に入った後の `on_tick` は即 return なので
+    /// 中断も来ない。落とすと、盤は最後に受けた期限で 00:00 まで描いてから静止し、
+    /// **時間切れなのに何も起きない画面**が残る（→ 台帳の F-19）。
+    ///
+    /// 立て直せるのは `get_game_state` を叩く側だけなので、ここは絞らずに出す。
+    ///
+    /// **`_` を書かない。** 書くと、足したバリアントが黙って「後から気付ける」側に落ちる。
+    pub fn is_terminal(&self) -> bool {
+        match self {
+            GameEvent::Over { .. } => true,
+            GameEvent::TurnChanged { .. }
+            | GameEvent::SearchInfo { .. }
+            | GameEvent::MoveDecided { .. }
+            | GameEvent::ClockUpdated { .. } => false,
+        }
     }
 }
 
@@ -497,6 +521,110 @@ mod tests {
             json,
             r#"{"winner":"black","reason":"declareWin","detail":null}"#
         );
+    }
+
+    /// 全バリアントの見本。**`every_event_is_classified` が宣言と突き合わせる**ので、
+    /// 足し忘れるとテストが落ちる
+    fn sample_of_every_event() -> Vec<GameEvent> {
+        let clocks = ClocksView {
+            black: ClockView {
+                main_ms: 1,
+                byoyomi_ms: 0,
+            },
+            white: ClockView {
+                main_ms: 1,
+                byoyomi_ms: 0,
+            },
+            running: None,
+        };
+        vec![
+            GameEvent::TurnChanged {
+                game_id: "g".to_string(),
+                side: Side::Black,
+                clocks,
+            },
+            GameEvent::SearchInfo {
+                game_id: "g".to_string(),
+                side: Side::Black,
+                result: AnalysisResult::default(),
+            },
+            GameEvent::MoveDecided {
+                game_id: "g".to_string(),
+                side: Side::Black,
+                usi_move: "7g7f".to_string(),
+                elapsed_ms: 1,
+                clocks,
+            },
+            GameEvent::ClockUpdated {
+                game_id: "g".to_string(),
+                clocks,
+            },
+            GameEvent::Over {
+                game_id: "g".to_string(),
+                result: GameResult {
+                    winner: None,
+                    reason: GameOverReason::Aborted,
+                    detail: None,
+                },
+                clocks,
+            },
+        ]
+    }
+
+    /// 出来事の分類が、バリアントを足したときに黙って既定へ落ちないこと。
+    ///
+    /// **見本は宣言から突き合わせる。** 手で並べた見本は、バリアントを足した
+    /// 時点で古くなり、足したものが分類されていないことに誰も気付かない。
+    /// `include_str!` で自分の宣言を読み、見本が全バリアントを覆っているかを見る。
+    #[test]
+    fn every_event_is_classified() {
+        let source = include_str!("types.rs");
+        let body = source
+            .split_once("pub enum GameEvent {")
+            .expect("GameEvent の宣言が見つからない")
+            .1;
+        let declared: Vec<&str> = body
+            .lines()
+            .take_while(|line| *line != "}")
+            .map(|line| line.trim().split([' ', '{', ',']).next().unwrap_or(""))
+            .filter(|token| token.starts_with(char::is_uppercase))
+            .collect();
+        assert!(!declared.is_empty(), "宣言を1つも拾えていない");
+
+        let samples = sample_of_every_event();
+        let covered: Vec<String> = samples
+            .iter()
+            .map(|e| {
+                let kind = e.kind();
+                let mut chars = kind.chars();
+                match chars.next() {
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                    None => String::new(),
+                }
+            })
+            .collect();
+        for name in &declared {
+            assert!(
+                covered.iter().any(|c| c == name),
+                "{name} の見本が無い。分類（is_frequent / is_terminal）も見られていない"
+            );
+        }
+        assert_eq!(declared.len(), samples.len(), "見本が余っている");
+
+        // 終局は「後から気付けない」側なので、絞る枠に載せてはいけない
+        let terminal: Vec<&str> = samples
+            .iter()
+            .filter(|e| e.is_terminal())
+            .map(|e| e.kind())
+            .collect();
+        assert_eq!(terminal, vec!["over"], "終局として扱う出来事が変わっている");
+        for event in &samples {
+            assert!(
+                !(event.is_terminal() && event.is_frequent()),
+                "{} が終局かつ高頻度になっている",
+                event.kind()
+            );
+        }
     }
 
     /// フロントから届く形をそのまま読めること。
