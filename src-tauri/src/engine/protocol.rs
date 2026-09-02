@@ -38,9 +38,28 @@ pub struct UsiProtocol {
     runtime_handle: tokio::runtime::Handle,
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     init_cancel: Arc<Mutex<Option<CancellationToken>>>,
-    generation: Arc<tokio::sync::RwLock<u64>>,
-    pending_after_ready: Arc<Mutex<HashMap<u64, VecDeque<GuiCommand>>>>,
+    pending: Arc<Mutex<Pending>>,
 }
+
+/// `readyok` を待つ間に積んだコマンドと、その世代。
+///
+/// **世代とキューを同じロックの下に置く。** 別々に持つと、世代を読んでから
+/// 積むまでの間に次の `isready` が挟まり、**消された直後の世代へ入れる**ことになる。
+/// そこに入ったコマンドを掃く者はいないので、呼び出し側に `Ok` を返したまま消える。
+///
+/// 1つにまとめたので、積む側は世代を読む必要が無い。キューは常に現在の世代のもの。
+struct Pending {
+    generation: u64,
+    queue: VecDeque<GuiCommand>,
+}
+
+/// 積み置きの上限。
+///
+/// `readyok` を返さないエンジンでは、`position` と `go` が来るたびに積み続ける。
+/// 上限を超えたら断る側に倒す。**積んで `Ok` を返すより、断ったほうが呼び出し側が気付ける。**
+/// 32 は「1局面ぶんの `position` + `go` が十数回入っても足りる」から。
+/// 正常な流れでこの数に届くことはない
+const PENDING_LIMIT: usize = 32;
 
 impl Clone for UsiProtocol {
     fn clone(&self) -> Self {
@@ -53,8 +72,7 @@ impl Clone for UsiProtocol {
             runtime_handle: self.runtime_handle.clone(),
             init_task: Arc::clone(&self.init_task),
             init_cancel: Arc::clone(&self.init_cancel),
-            generation: Arc::clone(&self.generation),
-            pending_after_ready: Arc::clone(&self.pending_after_ready),
+            pending: Arc::clone(&self.pending),
         }
     }
 }
@@ -88,6 +106,20 @@ fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
     match current {
         ReadyState::Closed => ReadyState::Closed,
         _ => requested,
+    }
+}
+
+/// flush が途中で折れたときに、書けなかったぶんを残す。
+///
+/// `failed` を含めるのは、**書き込みに失敗したコマンドも届いていない**ため。
+/// 残りだけ挙げると、折れた1件が届いたように読める
+fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
+    for cmd in std::iter::once(failed).chain(rest.iter()) {
+        log::warn!(
+            target: LOGT,
+            "ready: dropping queued cmd={} (the flush could not continue)",
+            cmd_summary(cmd)
+        );
     }
 }
 
@@ -172,8 +204,10 @@ impl UsiProtocol {
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
             init_cancel: Arc::new(Mutex::new(None)),
-            generation: Arc::new(tokio::sync::RwLock::new(0)),
-            pending_after_ready: Arc::new(Mutex::new(HashMap::new())),
+            pending: Arc::new(Mutex::new(Pending {
+                generation: 0,
+                queue: VecDeque::new(),
+            })),
         }
     }
 
@@ -345,16 +379,25 @@ impl UsiProtocol {
             }
             Dispatch::Send => {}
             Dispatch::Queue => {
-                let gen = *self.generation.read().await;
-                let mut map = self.pending_after_ready.lock().await;
-                let q = map.entry(gen).or_default();
-                q.push_back(command.clone());
+                let mut pending = self.pending.lock().await;
+                if pending.queue.len() >= PENDING_LIMIT {
+                    log::warn!(
+                        target: LOGT,
+                        "send_command: pending queue is full cmd={} gen={}",
+                        cmd_summary(command),
+                        pending.generation
+                    );
+                    return Err(EngineError::CommunicationFailed(format!(
+                        "the engine has not returned readyok; {PENDING_LIMIT} commands are already queued"
+                    )));
+                }
+                pending.queue.push_back(command.clone());
                 log::debug!(
                     target: LOGT,
                     "send_command: queued cmd={} gen={} qlen={}",
                     cmd_summary(command),
-                    gen,
-                    q.len()
+                    pending.generation,
+                    pending.queue.len()
                 );
                 return Ok(());
             }
@@ -379,11 +422,7 @@ impl UsiProtocol {
     async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
         self.abort_init().await;
 
-        let gen = {
-            let mut g = self.generation.write().await;
-            *g += 1;
-            *g
-        };
+        let gen = self.begin_generation().await;
 
         // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
         // 呼び出し側の順序に依存させると、手前に分岐が1つ増えただけで穴が開く
@@ -438,8 +477,8 @@ impl UsiProtocol {
             // 確認を通過済みのこのタスクは構わず `Ready` を書く。
             // 結果、`readyok` が返っていないエンジンに対して `ensure_ready` が
             // 即 `Ok` を返し、まだ評価関数を読んでいる相手へ `position` / `go` が流れる
-            let gen_guard = protocol.generation.read().await;
-            if *gen_guard != gen {
+            let mut pending = protocol.pending.lock().await;
+            if pending.generation != gen {
                 return;
             }
 
@@ -447,16 +486,17 @@ impl UsiProtocol {
                 set_ready_state(&protocol.ready, ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
-                // 掃くのは自分の世代のキューだけなので、ここから先は手放してよい
-                drop(gen_guard);
-
-                let mut map = protocol.pending_after_ready.lock().await;
-                let mut q = map.remove(&gen).unwrap_or_default();
-                drop(map);
+                // キューを引き取ってから手放す。持ったまま書くと、
+                // 書き込みが詰まっている間じゅう `send_command` が待たされる
+                let mut q = std::mem::take(&mut pending.queue);
+                drop(pending);
 
                 while let Some(cmd) = q.pop_front() {
                     let mut guard = protocol.handler.lock().await;
                     let Some(h) = guard.as_mut() else {
+                        log::warn!(target: LOGT, "ready: flush stopped, the process is gone");
+                        drop(guard);
+                        report_dropped(&cmd, &q);
                         break;
                     };
                     if let Err(e) = h.send_command(&cmd) {
@@ -466,14 +506,22 @@ impl UsiProtocol {
                             cmd_summary(&cmd),
                             e
                         );
+                        drop(guard);
+                        report_dropped(&cmd, &q);
                         break;
                     }
                 }
             } else {
-                drop(gen_guard);
                 log::warn!(target: LOGT, "ready: ended without readyok gen={}", gen);
-                let mut map = protocol.pending_after_ready.lock().await;
-                map.remove(&gen);
+                let q = std::mem::take(&mut pending.queue);
+                drop(pending);
+                for cmd in &q {
+                    log::warn!(
+                        target: LOGT,
+                        "ready: dropping queued cmd={} (readyok never came)",
+                        cmd_summary(cmd)
+                    );
+                }
             }
         });
 
@@ -613,7 +661,46 @@ impl UsiProtocol {
             h.abort();
         }
 
-        self.pending_after_ready.lock().await.clear();
+        self.discard_pending("the ready wait was aborted").await;
+    }
+
+    /// 世代を上げ、前の世代の積み置きを捨てる。**同じロックの中で行う。**
+    ///
+    /// 別々にすると、上げてから捨てるまでの間に積まれたぶんが、
+    /// 新しい世代のキューに前の世代のコマンドとして残る
+    async fn begin_generation(&self) -> u64 {
+        let mut pending = self.pending.lock().await;
+        pending.generation += 1;
+        let gen = pending.generation;
+        let dropped = std::mem::take(&mut pending.queue);
+        drop(pending);
+
+        for cmd in &dropped {
+            log::warn!(
+                target: LOGT,
+                "ready: dropping queued cmd={} (a new isready started)",
+                cmd_summary(cmd)
+            );
+        }
+        gen
+    }
+
+    /// 積み置きを捨てる。**捨てるものがあったら必ず1行残す。**
+    ///
+    /// 積んだ時点で呼び出し側には `Ok` が返っているので、ここで黙ると
+    /// 「送ったつもりのコマンドがどこにも書かれない」が痕跡なしに起きる
+    async fn discard_pending(&self, why: &str) {
+        let dropped = {
+            let mut pending = self.pending.lock().await;
+            std::mem::take(&mut pending.queue)
+        };
+        for cmd in &dropped {
+            log::warn!(
+                target: LOGT,
+                "ready: dropping queued cmd={} ({why})",
+                cmd_summary(cmd)
+            );
+        }
     }
 
     pub async fn quit(&self) {
