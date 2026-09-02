@@ -60,11 +60,17 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// `close` が「走っている探索が畳まれた」のを待つ上限。
 ///
-/// 待たずに落とすと、`stop` を送ろうとしている探索の足元でプロセスが消える。
-/// チャンネルが閉じて `Failed` が上がり、**正常に閉じただけなのに
-/// 「エンジンが応答しない」というログが毎回出る**。本物の故障と区別が付かなくなる。
+/// **待つ**理由: 待たずに落とすと、`stop` を送ろうとしている探索の足元で
+/// プロセスが消える。チャンネルが閉じて `Failed` が上がり、正常に閉じただけなのに
+/// 「エンジンが応答しない」というログが毎回出て、本物の故障と区別が付かなくなる。
+///
+/// **上限を置く**理由: `abort` も `searches_settled` も `run_loop` が1件ずつ
+/// 処理し、その中で `send_command` を待つ。エンジンが stdin を読まなくなると
+/// パイプが埋まって書き込みが止まり、応答が返らない。上限が無いと
+/// `close_game` が無期限に返らなくなる。
+///
 /// `search.rs` の `STOP_GRACE` より少し長い。
-const CLOSE_QUIET_TIMEOUT: Duration = Duration::from_secs(6);
+const CLOSE_SETTLE_TIMEOUT: Duration = Duration::from_secs(6);
 const CLOSE_POLL: Duration = Duration::from_millis(50);
 
 /// フロントへ流すイベントの名前
@@ -186,18 +192,33 @@ impl GameSession {
     /// `usinewgame` で指し直せるようにしてある（USI がそういう作りのため）。
     /// 呼ばないとプロセスが残る。
     pub async fn close(self, registry: &EngineRegistry) {
-        // 止める → **畳まれるのを待つ** → 落とす、の順。
-        // 待たずに落とす理由は `CLOSE_QUIET_TIMEOUT` に書いてある
-        let _ = self.abort().await;
+        // 「止める → 畳まれるのを**待つ** → 落とす」の順。
+        // 待つ理由と上限の理由はどちらも `CLOSE_SETTLE_TIMEOUT` に書いてある
+        let deadline = Instant::now() + CLOSE_SETTLE_TIMEOUT;
+        let _ = tokio::time::timeout(CLOSE_SETTLE_TIMEOUT, self.abort()).await;
 
-        let deadline = Instant::now() + CLOSE_QUIET_TIMEOUT;
-        while Instant::now() < deadline {
-            match self.is_quiet().await {
-                Ok(true) => break,
-                // セッションのタスクがもう無い。待っても変わらない
-                Err(_) => break,
-                Ok(false) => tokio::time::sleep(CLOSE_POLL).await,
+        let mut settled = false;
+        while !settled {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                break;
             }
+            match tokio::time::timeout(left, self.searches_settled()).await {
+                // 畳まれた、またはセッションのタスクがもう無い
+                Ok(Ok(true)) | Ok(Err(_)) => settled = true,
+                Ok(Ok(false)) => tokio::time::sleep(CLOSE_POLL).await,
+                // 期限切れ。応答そのものが返らない
+                Err(_) => break,
+            }
+        }
+
+        if !settled {
+            // 待った意味が無かったことを残す。**本当に畳めなかったときだけ出る**
+            log::warn!(
+                target: LOGT,
+                "close: searches did not settle in time game_id={}",
+                self.id
+            );
         }
 
         for id in &self.engine_ids {
@@ -205,12 +226,11 @@ impl GameSession {
         }
     }
 
-    /// 走っている探索が無いか。`Unresponsive` は**畳まれたものとして数える**
-    /// （待っても返らないと分かっている側なので、待ち続ける意味が無い）
-    async fn is_quiet(&self) -> Result<bool, String> {
+    /// 走っている探索が無いか。
+    async fn searches_settled(&self) -> Result<bool, String> {
         let (reply, rx) = oneshot::channel();
         self.tx
-            .send(Command::IsQuiet { reply })
+            .send(Command::SearchesSettled { reply })
             .map_err(|_| ENDED.to_string())?;
         rx.await.map_err(|_| ENDED.to_string())
     }
@@ -254,7 +274,7 @@ enum Command {
     Snapshot {
         reply: oneshot::Sender<GameSnapshot>,
     },
-    IsQuiet {
+    SearchesSettled {
         reply: oneshot::Sender<bool>,
     },
     Search(SearchMessage),
@@ -448,14 +468,8 @@ impl Runner {
             Command::Snapshot { reply } => {
                 let _ = reply.send(self.snapshot());
             }
-            Command::IsQuiet { reply } => {
-                let quiet = [Side::Black, Side::White].into_iter().all(|side| {
-                    !matches!(
-                        self.player(side).activity,
-                        Activity::Searching { .. } | Activity::Stopping { .. }
-                    )
-                });
-                let _ = reply.send(quiet);
+            Command::SearchesSettled { reply } => {
+                let _ = reply.send(self.searches_settled());
             }
             Command::Search(SearchMessage::Info { side, result }) => {
                 self.on_search_info(side, result)
@@ -1026,6 +1040,19 @@ impl Runner {
 
     fn protocol(&self, side: Side) -> Option<Arc<UsiProtocol>> {
         self.player(side).engine.as_ref().map(|e| e.protocol())
+    }
+
+    /// 走っている探索が無いか。
+    ///
+    /// `Unresponsive` は**畳まれたものとして数える**。`stop` に応じないと
+    /// 分かっている側なので、待ち続けても返らない。
+    fn searches_settled(&self) -> bool {
+        [Side::Black, Side::White].into_iter().all(|side| {
+            !matches!(
+                self.player(side).activity,
+                Activity::Searching { .. } | Activity::Stopping { .. }
+            )
+        })
     }
 
     fn is_over(&self) -> bool {
