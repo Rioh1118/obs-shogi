@@ -282,7 +282,8 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 出来事の宛先は trait なので観測できる（`game::events` の `RecordedEvents`）。
 残っているのは**エンジンへ送ったコマンド**を観測する継ぎ目。
 
-`(G2, E1)` は踏めていない（E1 / E4 の `is_engine` の枝は踏んである）。
+`(G2, E1)` も、E1 / E4 の「エンジン側を人間として撃つ」枝も踏めていない
+（`this side is played by an engine` を確かめるテストが無い）。
 
 ※12 `Thinking` の番人は `stalled_turn` 1本。締切は3つあり、どれかに当たれば落とす。
 
@@ -458,7 +459,9 @@ ClocksView {
 起動する作りなので、**プロセスを差し替える口が無い**。
 
 固定できているのは、人間だけで踏める経路（※10）と、`Runner` を直に組んで
-`activity` を置いた単体。`manager.rs` と `commands/game.rs` にはテストが無い。
+`activity` を置いた単体、そして台帳の出し入れ（`manager.rs`）。
+`engine/commands/game.rs` にはテストが無い——`AppHandle` を要求するので、
+実機を起こさずに呼ぶ口が無い。
 
 とくに危ないもの:
 
@@ -468,7 +471,7 @@ ClocksView {
 | `GameManager::close` の `Arc::try_unwrap` 失敗     | 中断だけ通して台帳へ戻り `Err` が返る（※4）。終了時は `close_all` が拾うが、**画面から呼び直す導線が無い**（対局 UI が未着手）                                                                                                                               |
 | `(G0, E13)` `info` の間引き                        | Rust は対局も解析も1行ごとに `emit` する。間引きは**受け手側**にあり、解析は `entities/analysis` の provider が持つ（`RESULT_FLUSH_MS`）。対局は受け手そのものが無い。**`run_loop` は単一キューなので、`emit` が詰まると `bestmove` の処理がその後ろに並ぶ** |
 | `(G0, E10)` 出力が終わった                         | 実プロセスを落とす手段がテストに無い                                                                                                                                                                                                                         |
-| `ponderhit` の**送信失敗**                         | 当たり／外れの振り分けと `A1` / `A3` / `A4` は `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                          |
+| `ponderhit` の**送信失敗**                         | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                                                 |
 | `(G0, E9)` `bestmove win`                          | 入玉宣言。踏むテストが無い                                                                                                                                                                                                                                   |
 | `(G0, E1)` エンジン側を人間として撃つ / `(G2, E1)` | `accept_human_move` の `is_engine` の枝と終局後の着手                                                                                                                                                                                                        |
 | `enforce_engine_timeout` が true のとき            | ※11 の分岐。既定 false 側しか通していない                                                                                                                                                                                                                    |
