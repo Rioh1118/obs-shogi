@@ -305,6 +305,7 @@ TS 側は `npm run test`、**`（Rust）` の付いた行は `npm run verify:rus
 | `playerAccess`         | `JKFPlayer` を直に組む・動かす・観測すること            | `ALLOWED` に相対パスを1行。理由はモジュール冒頭の doc にまとめて書く                                                                                                                                                                                                     |
 | `exportsTested`        | `entities/kifu` の export にテストが付かないこと        | 無し。`describe("<関数名>")` を足す                                                                                                                                                                                                                                      |
 | `docsSourcePaths`      | doc が実在しないソースのパスを指すこと                  | 無し。パスを直す。接頭辞（`src/` / `src-tauri/src/`）を省いた書き方も拾う                                                                                                                                                                                                |
+| `docsIdentifiers`      | 状態遷移表が実在しない識別子を指すこと                  | `EXEMPT` に1行。ただし**なぜソースに無くてよいか**を書けるときだけ。書けないなら doc が腐っている                                                                                                                                                                        |
 
 走査の対象と起点は `src/__tests__/walk.ts` が1箇所で決めます。ファイルの中身を
 読む走査で `readdirSync` を書かないでください（除外を足すとき直す場所が散り、
