@@ -3975,8 +3975,8 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "shogi-kifu-converter"
-version = "0.4.0"
-source = "git+https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git?tag=v0.4.0#dbc436a0061cec1947404f2bdb73d2c938ff1619"
+version = "0.5.0"
+source = "git+https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git?tag=v0.5.0#b19a57e49803c2feb3c8ad4f97c8b5f5290e8e2d"
 dependencies = [
  "csa",
  "encoding_rs",
