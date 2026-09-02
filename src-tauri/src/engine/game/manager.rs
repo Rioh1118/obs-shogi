@@ -224,12 +224,22 @@ struct ClosingGuard<'a> {
 
 impl Drop for ClosingGuard<'_> {
     fn drop(&mut self) {
-        // `Drop` は async になれないので、ロックが取れなければ諦める。
-        // 取れないのは他が握っている一瞬だけで、そこは `blocking_lock` が
-        // ランタイムの中で使えないぶんの妥協
+        // `Drop` は async になれないので `try_lock` しかできない。
+        //
+        // **失敗したら黙って諦めない。** 外せなかった ID を消す口はどこにも無く、
+        // その対局は以後ずっと `the game is being closed` を返し続ける——
+        // `close_all` も `close` を通るので拾えず、落とす口が終了時の掃除だけになる。
+        // せめて追える形で残す
         if let Ok(mut closing) = self.closing.try_lock() {
             closing.remove(&self.game_id);
+            return;
         }
+        log::error!(
+            target: LOGT,
+            "close: could not clear the closing mark game_id={}; \
+             the game will keep reporting `being closed`",
+            self.game_id
+        );
     }
 }
 

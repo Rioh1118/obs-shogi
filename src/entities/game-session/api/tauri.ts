@@ -29,6 +29,15 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * 最初の `turnChanged` と最初の `go` は、`start_game` が返る**前に**走る。
  * `Ok` を待ってから張ると必ず取りこぼし、`bestmove resign` を即返すエンジンでは
  * `moveDecided` と `over` も落ちる——初期局面が出たまま何も起きない。
+ *
+ * **それだけでは足りない。** `gameId` はここが解決するまで手に入らないので、
+ * 解決前に届いたイベントは**どの対局のものか判定できない**。素直な
+ * `if (e.gameId !== myGameId) return;` は、起動直後に終局した対局の `over` を必ず捨てる
+ * （評価関数のパスを間違えたエンジンは `readyok` まで応じるので、起動段は通過して
+ * 最初の `go` で落ちる）。捨てると `Phase::Over` の対局が画面に残り、
+ * `on_tick` は即 return なので中断も時計も来ない。
+ *
+ * **解決するまでのイベントは溜め、解決した `gameId` で振り分け直すこと。**
  */
 export async function startGame(settings: GameSettings): Promise<GameId> {
   return await invoke("start_game", { settings });
