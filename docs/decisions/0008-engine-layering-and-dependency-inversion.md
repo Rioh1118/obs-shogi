@@ -65,8 +65,8 @@
 同じ判断を2箇所に書かない。書いた時点で、片方だけ直る経路ができる。
 
 - 「先読みの `info` を落とすか」→ `on_search_info` の `is_to_move` 1本
-- 「`stop` の後に `bestmove` を待つか」→ `verdict_of_stop` 1本
-- 「届かない理由の文言」→ `cannot_reach_text` 1本
+- 「USI の行を壊す文字か」→ `protocol::contains_usi_breaking_char` 1本
+- 「先読みの `info` を落とすか」の対として、「届かない理由の文言」→ `cannot_reach_text` 1本
 
 一覧が要るときは**宣言から生やす**（`Kind::ALL` / `ReadyState::ALL`）。
 手で書き写した一覧は、写しであるかぎり必ずずれる。
@@ -84,7 +84,8 @@
 - モジュールを足すときに段を決めることになる。「置き場の都合」で足せなくなる
 - `game` にテストの継ぎ目ができた。状態遷移表が「テストあり」の印を付けながら
   実体を持てなかったセルを、実際に埋められる
-- `AppState` を受け取るのは `commands` だけ。下の段は Tauri を知らない
+- `AppState` を受け取るのは `commands` だけ。**`game` は Tauri を知らない**
+  （`bridge` はまだ知っている——下の「まだ逆転していない境界」を見ること）
 
 ### 引き受けるコスト
 
@@ -99,6 +100,9 @@
   これがあるので、探索の待ち方を実プロセス無しでテストできない
   （レビューで2度、継ぎ目が無いことが所見として出ている → #371）
 - `EngineRegistry` が `usi::UsiEngineHandler` に直に依存する
+- `EngineBridge` が `tauri::AppHandle` を持つ（解析の emit 経路）。
+  `GameEventSink` と同じ形で逆転できる。実装は `commands::analysis` に置く。
+  **踏める経路はある**（解析はフロントが使っている）ので、次に効くのはここ
 
 どちらも「口を決めてから逆転する」で直せるが、
 **踏める経路が無いうちは足さない**（→ `/implement` の「対象を疑う」）。

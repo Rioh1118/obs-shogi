@@ -11,6 +11,15 @@ use usi::{EngineCommand, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
+/// USI の行を壊す文字を含むか。
+///
+/// **判断はここ1本。** USI は行指向なので、改行を混ぜられると別のコマンドを
+/// 注入できる。禁止集合を各層に写すと、片方を厚くしたときにもう片方が薄いまま
+/// 残る（`\u{85}` や `\u{2028}` を足す動機が出たとき、直すのは踏んだ側だけになる）。
+pub fn contains_usi_breaking_char(s: &str) -> bool {
+    s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+}
+
 /// `kill` を待つ上限。
 ///
 /// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、

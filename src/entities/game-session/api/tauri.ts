@@ -11,9 +11,16 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
 /**
  * 対局を始める。
  *
- * エンジンの起動と `usinewgame` までを済ませて返るので、**返ったときには
- * 手番側が既に考えている**。評価関数の読み込みが重いエンジンではここで
- * 数十秒かかるので、呼び出し側は待っている表示を出すこと。
+ * エンジンの起動と `usinewgame` **まで**を待って返る。評価関数の読み込みが
+ * 重いエンジンではここで数十秒かかるので、待っている表示を出すこと。
+ *
+ * **最初の `go` は待たない。** `Ok` は「エンジンが `usinewgame` まで応じた」で
+ * あって「考え始めた」ではない。最初の `position` / `go` は別タスクで走り、
+ * その失敗は戻り値ではなく `game-event` の `over { reason: engineFailure }` で届く。
+ *
+ * **`Ok` を受け取ったら、盤を出す前に `listenToGameEvents` を張ること。**
+ * 順序を逆にすると、起動直後に終局した対局のイベントを取りこぼし、
+ * 初期局面が出たまま何も起きない。
  */
 export async function startGame(settings: GameSettings): Promise<GameId> {
   return await invoke("start_game", { settings });

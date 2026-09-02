@@ -35,25 +35,27 @@ impl GameEventSink for DiscardEvents {
     fn emit(&self, _event: GameEvent) {}
 }
 
-/// 流れた出来事を溜める宛先。**テスト用。**
+/// 流れた出来事を溜める宛先。
 ///
 /// これが無いと、対局が何を出したかを確かめられない。状態遷移表が
 /// `(G2, E7)` `(G2, E8)` `(G2, E12)` に「テストあり」の印を付けながら
 /// 実体を持てなかったのは、宛先が `tauri::AppHandle` の具象だったため。
-#[cfg(test)]
+///
+/// **`DiscardEvents` と同じく `cfg` で切らない。** 切ると
+/// `src-tauri/tests/` の結合テストから使えず、継ぎ目がユニットテストの中だけに
+/// 閉じる。宛先を trait にした目的は「印だけだったセルを埋める」ことなので、
+/// 埋める場所を狭めない。
 #[derive(Default)]
 pub struct RecordedEvents {
     events: std::sync::Mutex<Vec<GameEvent>>,
 }
 
-#[cfg(test)]
 impl RecordedEvents {
     pub fn take(&self) -> Vec<GameEvent> {
         std::mem::take(&mut self.events.lock().expect("宛先の記録が毒されている"))
     }
 }
 
-#[cfg(test)]
 impl GameEventSink for RecordedEvents {
     fn emit(&self, event: GameEvent) {
         self.events

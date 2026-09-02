@@ -2,7 +2,7 @@ use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
 use serde::Serialize;
 
-use super::protocol::{StopEffect, UsiProtocol};
+use super::protocol::{contains_usi_breaking_char, StopEffect, UsiProtocol};
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
 use super::USI_OK_TIMEOUT;
@@ -57,10 +57,6 @@ fn now_nanos() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos()
-}
-
-fn contains_usi_breaking_char(s: &str) -> bool {
-    s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
 }
 
 /// 深度指定の解析が返すもの。

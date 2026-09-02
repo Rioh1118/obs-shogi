@@ -39,6 +39,7 @@ use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;
 use super::search::{run_search, SearchKind, SearchMessage, SearchOutcome, SearchRequest};
 use super::types::*;
+use crate::engine::protocol::contains_usi_breaking_char;
 
 const LOGT: &str = "obs_shogi::engine::game";
 
@@ -210,9 +211,6 @@ pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
 /// キューに並ぶので、`run_loop` を要求で埋めない上限でもある
 /// （6秒で最大120回）。
 const CLOSE_POLL: Duration = Duration::from_millis(50);
-
-/// フロントへ流すイベントの名前
-pub(crate) const GAME_EVENT: &str = "game-event";
 
 // ===== 外から呼ぶ口 =====
 
@@ -1644,10 +1642,6 @@ fn now_epoch_ms() -> Option<u64> {
         .duration_since(std::time::UNIX_EPOCH)
         .ok()
         .map(|d| d.as_millis() as u64)
-}
-
-fn contains_usi_breaking_char(s: &str) -> bool {
-    s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
 }
 
 #[cfg(test)]

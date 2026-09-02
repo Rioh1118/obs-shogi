@@ -17,6 +17,19 @@ use crate::engine::types::{EngineError, EngineInfo};
 
 const LOGT: &str = "obs_shogi::engine::registry";
 
+/// プロセスが起き上がるまでに待つ上限。
+///
+/// **`usiok` を待つ上限（`info_timeout`）とは別。** こちらはパスの解決と
+/// `fork`/`exec` だけで、応答しないネットワークボリューム上の `engine_path` に
+/// 対する `canonicalize` は割り込み不能でブロックする。
+///
+/// 包まないと `start_game` の future が返らず、フロントの `invoke` は永久に
+/// 解決しない（押しても何も起きず、ログにも何も出ない）。
+///
+/// 超えてもブロッキングのスレッドは残る。`timeout` は `spawn_blocking` を
+/// 取り消せないので、そのぶんワーカが1本減ったままになる → #353 と同じ形。
+const SPAWN_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// `quit` を送ってからプロセスを落とすまでの猶予。
 ///
 /// USI は `quit` で自発的に終わることを求めるが、終わらないエンジンは実在する。
@@ -119,17 +132,32 @@ impl EngineRegistry {
                 EngineError::StartupFailed(format!("Failed to spawn engine: {}", e))
             })?;
             Ok((engine_path, work_dir, handler))
-        })
-        .await;
+        });
 
-        let (engine_path, work_dir, handler) = match started {
-            Ok(Ok(started)) => started,
-            Ok(Err(e)) => return Err(e),
+        // **上限を掛ける。** `spawn_blocking` は上限を効かせるための前提で、
+        // 上限そのものではない（`protocol.rs` の `KILL_TIMEOUT` と対）。
+        // 応答しないネットワークボリューム上の `engine_path` に対する
+        // `canonicalize` は割り込み不能でブロックするので、包まないと
+        // `start_game` の future が返らず、フロントの `invoke` は永久に解決しない。
+        //
+        // 超えてもブロッキングのスレッドは残る（`timeout` は取り消せない）。
+        // そのぶんワーカが1本減ったままになる → #353 と同じ形。
+        let (engine_path, work_dir, handler) = match tokio::time::timeout(SPAWN_TIMEOUT, started)
+            .await
+        {
+            Ok(Ok(Ok(started))) => started,
+            Ok(Ok(Err(e))) => return Err(e),
             // 専用スレッドが落ちた。プロセスは起きていない
-            Err(e) => {
+            Ok(Err(e)) => {
                 return Err(EngineError::StartupFailed(format!(
                     "failed to run the spawn task: {e}"
                 )))
+            }
+            Err(_) => {
+                log::error!(target: LOGT, "spawn: timed out before the process started");
+                return Err(EngineError::Timeout(
+                    "the engine did not start in time; check the path and the volume".to_string(),
+                ));
             }
         };
 

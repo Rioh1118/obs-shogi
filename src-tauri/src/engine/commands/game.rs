@@ -3,12 +3,14 @@
 //! 1コマンド = 1つの意図。USI のコマンドと1対1にはしない
 //! （`position` も `go` も `isready` もここには出てこない）。
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use crate::engine::utils::LogThrottle;
 
 use tauri::Emitter;
 
 use crate::engine::game::events::GameEventSink;
-use crate::engine::game::session::GAME_EVENT;
 use crate::engine::game::types::GameEvent;
 use crate::engine::state::AppState;
 
@@ -30,11 +32,24 @@ pub async fn start_game(
         .games
         .start(
             state.registry.clone(),
-            Arc::new(TauriEvents { app }),
+            Arc::new(TauriEvents {
+                app,
+                warn: Mutex::new(LogThrottle::new(EMIT_WARN_INTERVAL)),
+            }),
             settings,
         )
         .await
 }
+
+/// `game-event` のチャンネル名。
+///
+/// **宛先の語彙なので `game` に置かない。** `DiscardEvents` にとって
+/// この綴りは意味を持たない。下に置くと、次に宛先を増やす人が
+/// 「チャンネル名は `game` にある」を根拠に、宛先ごとの分岐を状態機械へ書き始める。
+const GAME_EVENT: &str = "game-event";
+
+/// `emit` の失敗を記録する最短間隔。解析側（`bridge`）と同じ。
+const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
 /// `game-event` へ流す宛先。**実装はここ（上の段）に置く。**
 ///
@@ -42,6 +57,12 @@ pub async fn start_game(
 /// 口（`GameEventSink`）は下が決め、それに合わせるのは上、という向き。
 struct TauriEvents {
     app: tauri::AppHandle,
+    /// **絞る。** `emit` が失敗する理由（payload、宛先の消失）は
+    /// イベントごとに独立ではないので、一度失敗し始めると全件失敗する。
+    /// `SearchInfo` は `info` 行ごと、`ClockUpdated` は `CLOCK_EMIT_INTERVAL` ごとに
+    /// 出るので、絞らないと同じ1行がログを一周させ、**原因が書かれた最初の
+    /// warn ごと消える**。解析側（`bridge`）が同じ判断を同じ間隔でしている。
+    warn: Mutex<LogThrottle>,
 }
 
 impl GameEventSink for TauriEvents {
@@ -52,7 +73,9 @@ impl GameEventSink for TauriEvents {
     /// `RULING_TIMEOUT` で「アプリが答えなかった」に化ける → 台帳の F-19）。
     fn emit(&self, event: GameEvent) {
         if let Err(e) = self.app.emit(GAME_EVENT, event) {
-            log::warn!(target: "obs_shogi::engine::game", "emit failed: {e}");
+            if self.warn.lock().is_ok_and(|mut w| w.allow()) {
+                log::warn!(target: "obs_shogi::engine::game", "emit failed: {e}");
+            }
         }
     }
 }
