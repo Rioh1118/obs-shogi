@@ -17,8 +17,6 @@ type Props = {
 
   onSelect: () => void;
   onAccept: () => void;
-
-  acceptOnClick?: boolean;
 };
 
 function PositionHitItemBase({
@@ -31,7 +29,6 @@ function PositionHitItemBase({
   disabled,
   onSelect,
   onAccept,
-  acceptOnClick = false,
 }: Props) {
   return (
     <button
@@ -44,13 +41,8 @@ function PositionHitItemBase({
         disabled ? "pos-hit--disabled" : "",
       ].join(" ")}
       disabled={disabled}
-      onClick={() => {
-        if (acceptOnClick) onAccept();
-        else onSelect();
-      }}
-      onDoubleClick={() => {
-        if (!acceptOnClick) onAccept();
-      }}
+      onClick={onSelect}
+      onDoubleClick={onAccept}
     >
       <div className="pos-hit__top">
         <div className="pos-hit__file" title={fileName}>

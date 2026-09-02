@@ -15,7 +15,6 @@ type Props = {
   isSearching: boolean;
   error: string | null;
   resolveAbsPath: (hit: PositionHit) => string | null;
-  acceptOnClick?: boolean;
 };
 
 export default function PositionSearchHitList({
@@ -26,7 +25,6 @@ export default function PositionSearchHitList({
   isSearching,
   error,
   resolveAbsPath,
-  acceptOnClick = false,
 }: Props) {
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
@@ -60,7 +58,6 @@ export default function PositionSearchHitList({
       resolveAbsPath,
       onActiveIndexChange,
       onAccept,
-      acceptOnClick,
     }),
     [
       hits,
@@ -71,7 +68,6 @@ export default function PositionSearchHitList({
       resolveAbsPath,
       onActiveIndexChange,
       onAccept,
-      acceptOnClick,
     ],
   );
 

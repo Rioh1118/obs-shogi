@@ -17,8 +17,6 @@ export type HitRowProps = {
 
   onActiveIndexChange: (next: number) => void;
   onAccept: (hit: PositionHit) => void;
-
-  acceptOnClick: boolean;
 };
 
 function fileNameFromRel(rel: string) {
@@ -65,7 +63,6 @@ export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
         forks={hit.cursor.forkPointers.length}
         isActive={isActive}
         disabled={props.isSearching}
-        acceptOnClick={props.acceptOnClick}
         onSelect={() => {
           if (index !== props.activeIndex) props.onActiveIndexChange(index);
         }}
