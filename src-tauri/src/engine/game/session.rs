@@ -72,8 +72,13 @@ pub const START_TIMEOUT: Duration = Duration::from_secs(90);
 /// **そのエンジンは以後何も受け付けなくなる**——出るのは
 /// 「stdin を読まなくなった」で、長すぎたことは分からない。
 ///
-/// 2000 にしたのは、公式戦の最長手数（1985年の 420 手）に対して十分な余裕があり、
-/// かつ相入玉の長手数の棋譜も通る幅だから。足りなくなったら上げてよい。
+/// **盤に載る手数の上限**として読むこと。入口2箇所で意味を揃える——
+/// `initial_moves` はここから最低1手は指せる必要があるので `>=` で弾き、
+/// 裁定で受け取る列はちょうど `MAX_PLIES` まで通す。揃えないと、
+/// **`start_game` が通した設定で1手も指せない**局ができる（そして裁定の
+/// やり直しは接頭辞と長さで一意に固定されているので、必ず同じ `Err` になる）。
+///
+/// 2000 にしたのは、相入玉の長手数の棋譜が通る幅だから。足りなくなったら上げてよい。
 const MAX_PLIES: usize = 2000;
 
 /// 壁時計が取れないことを記録する最短間隔。
@@ -1730,10 +1735,13 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         return Err("start_sfen contains a forbidden control character".to_string());
     }
     validate_start_sfen(&settings.start_sfen)?;
-    if settings.initial_moves.len() > MAX_PLIES {
+    // **`>=` で弾く。** ちょうど `MAX_PLIES` を通すと、最初の手の裁定が
+    // 必ず断られる対局ができる（フロントが返せる列は1つに固定されている）
+    if settings.initial_moves.len() >= MAX_PLIES {
         return Err(format!(
-            "initial_moves has {} moves; the limit is {MAX_PLIES}",
-            settings.initial_moves.len()
+            "initial_moves has {} moves; the limit is {} (one move must be playable)",
+            settings.initial_moves.len(),
+            MAX_PLIES - 1
         ));
     }
     for mv in &settings.initial_moves {
@@ -1927,6 +1935,80 @@ mod tests {
         }
     }
 
+    /// 入口2箇所の手数の上限が、**1手指せる関係**になっていること。
+    ///
+    /// 揃っていないと、`start_game` が `Ok` を返した対局で最初の手の裁定が
+    /// 必ず断られる。フロントが返せる列は接頭辞と長さで一意に固定されているので、
+    /// やり直しても同じ `Err` になり、30秒後に
+    /// 「アプリが裁定を返さなかった」で畳まれる——**返しているのに。**
+    #[tokio::test]
+    async fn the_longest_startable_game_can_still_take_a_move() {
+        let longest = MAX_PLIES - 1;
+
+        let mut settings = two_humans(vec![]);
+        settings.initial_moves = vec!["7g7f".to_string(); longest];
+        validate_settings(&settings).expect("1手指せる長さを断っている");
+
+        settings.initial_moves.push("7g7f".to_string());
+        validate_settings(&settings).expect_err("1手も指せない長さを通している");
+
+        // その対局の最初の裁定が通ること
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.moves = vec!["7g7f".to_string(); longest];
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::White,
+            usi_move: "7g7f".to_string(),
+            ponder_move: None,
+            since: Instant::now(),
+        };
+        runner
+            .accept_continue(vec!["7g7f".to_string(); longest + 1])
+            .await
+            .expect("起動できた対局の最初の裁定を断っている");
+    }
+
+    /// `on_tick` が `stalled_turn` へ渡す2つの `bool` の配線。
+    ///
+    /// **型が同じで隣り合っているので、入れ替えてもコンパイルが通る。**
+    /// 入れ替えると、`info` を出していないエンジンで `thinking_is_an_engine` が
+    /// 偽になり、`Running` の枝に一切入らない——沈黙の腕だけでなく
+    /// **`budget + HARD_TURN_LIMIT` の最後の上限も消える。**
+    ///
+    /// `stalled_turn` を直に叩くテストは、この配線を1本も見ていない。
+    #[tokio::test]
+    async fn the_last_resort_limit_reaches_an_engine_that_never_spoke() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].spec = PlayerSpec::Engine {
+            name: "黙ったエンジン".to_string(),
+            engine_path: "/nonexistent".to_string(),
+            work_dir: None,
+            options: Vec::new(),
+            ponder: false,
+        };
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+        // 一度も `info` を出していない
+        assert!(!runner.players[Side::Black.index()].has_spoken);
+
+        let budget = Duration::from_millis(runner.clocks.budget_ms(Side::Black));
+        runner.turn_clock =
+            TurnClock::Running(long_ago(budget + HARD_TURN_LIMIT + Duration::from_secs(1)));
+        runner.last_progress = long_ago(budget + HARD_TURN_LIMIT + Duration::from_secs(1));
+
+        runner.on_tick().await;
+
+        match &runner.phase {
+            Phase::Over { result } => assert_eq!(
+                result.reason,
+                GameOverReason::EngineFailure,
+                "上限で落ちていない"
+            ),
+            _ => panic!("上限を超えたエンジンが落ちていない"),
+        }
+    }
+
     /// 対局の起動が、締切を過ぎたら**プロセスを起こす前に**断ること。
     ///
     /// 段ごとの上限しか無いと、2体ぶんで5分を超えるあいだ `start_game` が返らない。
@@ -1969,7 +2051,9 @@ mod tests {
         let (tx, _rx) = mpsc::unbounded_channel();
         let events = Arc::new(RecordedEvents::default());
         let mut runner = runner_with_events(&tx, events.clone());
-        runner.settings.enforce_engine_timeout = true;
+        // **`enforce_engine_timeout` は置かない。** 手番は人間なので
+        // `timeout_enforced` は左辺だけで真になり、置いても効かない
+        // （置くと「エンジン側の時間切れを踏んでいる」と読める）。
         // 持ち時間を尽きた状態にして、手番に入った時刻を十分前に置く
         runner.clocks = GameClocks::new(
             TimeLimit {

@@ -463,6 +463,9 @@ pub enum GameEvent {
 mod tests {
     use super::*;
 
+    use crate::engine::types::{AnalysisCandidate, Evaluation, EvaluationKind};
+    use std::collections::{BTreeMap, BTreeSet};
+
     /// 境界に出る JSON の形を固定する。
     ///
     /// **`rename_all` は enum のバリアント名にしか効かない。** 中のフィールドを
@@ -604,75 +607,249 @@ mod tests {
         ]
     }
 
-    /// TS 側の写しに、Rust が線に出す欄が**全部**あること。
+    /// TS 側の写しに、Rust が線に出す欄が**型ごとに**あること。
     ///
-    /// `src/entities/game-session/api/rust-types.ts` は手で写した245行で、
-    /// **tsc からも vitest からも `cargo test` からも触られていない**
-    /// （`src/` に import しているファイルが1つも無い）。
-    /// Rust に `#[serde(default)]` の無い欄を1つ足すと、この写しは古いまま緑で通り、
-    /// 初めて画面を繋いだ人が `start_game` の実行時 deserialize エラーで詰まる。
+    /// `src/entities/game-session/api/rust-types.ts` は手で写した型で、
+    /// **TS 側が見るのは綴りだけ。** Rust に `#[serde(default)]` の無い欄を
+    /// 1つ足しても、写しが古いまま tsc は緑で通り、初めて画面を繋いだ人が
+    /// `start_game` の実行時 deserialize エラーで詰まる。
+    ///
+    /// **全部のキーを1つの集合に潰さない。** 潰すと「どの型のどの欄か」が消え、
+    /// 別の型やコメントに同じ綴りがあるだけで通る（`GameSnapshot` に `detail` を
+    /// 足しても `GameResult` の側にあるので緑、という形）。
     ///
     /// **見るのは Rust → TS の向きだけ。** 逆（TS にあって Rust に無い欄）は
     /// serde が黙って捨てるので、ここでは見ていない。
     #[test]
     fn the_typescript_copy_has_every_field() {
         // `include_str!` はコンパイル時に解決されるので、写しを移したらビルドで落ちる。
-        // `AnalysisResult` はこの写しが宣言せず `entities/engine` から取るので、
-        // その写しも一緒に見る（片方だけ見ると `candidates` が「無い」に見える）
-        let copy = concat!(
-            include_str!("../../../../src/entities/game-session/api/rust-types.ts"),
-            include_str!("../../../../src/entities/engine/api/rust-types.ts"),
+        // `AnalysisResult` はこの写しが宣言せず `entities/engine` から取る
+        let game_copy = include_str!("../../../../src/entities/game-session/api/rust-types.ts");
+        let engine_copy = include_str!("../../../../src/entities/engine/api/rust-types.ts");
+        let declared = typescript_fields(&format!("{game_copy}\n{engine_copy}"));
+
+        assert!(
+            declared.contains_key("GameSettings") && declared.contains_key("AnalysisCandidate"),
+            "写しを読めていない。宣言を {} 個しか拾えていない",
+            declared.len()
         );
 
-        fn keys(value: &serde_json::Value, into: &mut std::collections::BTreeSet<String>) {
-            match value {
-                serde_json::Value::Object(map) => {
-                    for (k, v) in map {
-                        into.insert(k.clone());
-                        keys(v, into);
-                    }
+        // **見本が写しの宣言を覆っていること。** 覆っていない型は
+        // 足しても誰も突き合わせないので、見本の足し忘れをここで拾う
+        let sampled: BTreeSet<&str> = wire_samples().iter().map(|(name, _)| *name).collect();
+        let unchecked: Vec<&String> = declared
+            .keys()
+            .filter(|name| !sampled.contains(name.as_str()))
+            // 欄を持たない型（判別子だけの union）と、解析側だけが使う型は対象外
+            .filter(|name| game_copy.contains(&format!("export interface {name} ")))
+            .collect();
+        assert!(
+            unchecked.is_empty(),
+            "写しにあるのに見本が無い型がある。`wire_samples` に足すこと:\n{unchecked:?}"
+        );
+
+        let mut missing = Vec::new();
+        for (name, value) in wire_samples() {
+            let Some(fields) = declared.get(name) else {
+                missing.push(format!("{name}（写しにこの型が無い）"));
+                continue;
+            };
+            let serde_json::Value::Object(map) = value else {
+                panic!("{name} の見本が object でない");
+            };
+            for key in map.keys() {
+                // 判別子は TS では文字列リテラルの union として書かれる
+                if ["type", "kind", "phase"].contains(&key.as_str()) {
+                    continue;
                 }
-                serde_json::Value::Array(items) => {
-                    for v in items {
-                        keys(v, into);
-                    }
+                if !fields.contains(key.as_str()) {
+                    missing.push(format!("{name}.{key}"));
                 }
-                _ => {}
             }
         }
-
-        let mut wire = std::collections::BTreeSet::new();
-        for event in sample_of_every_event() {
-            keys(
-                &serde_json::to_value(&event).expect("出来事を JSON にできない"),
-                &mut wire,
-            );
-        }
-        keys(
-            &serde_json::to_value(sample_settings()).expect("設定を JSON にできない"),
-            &mut wire,
-        );
-        keys(
-            &serde_json::to_value(sample_snapshot()).expect("状態を JSON にできない"),
-            &mut wire,
-        );
-        assert!(
-            wire.len() > 20,
-            "欄を {} 個しか集められていない",
-            wire.len()
-        );
-
-        // `type` は判別子で、TS 側では文字列リテラルの union として書かれる
-        let missing: Vec<&String> = wire
-            .iter()
-            .filter(|k| k.as_str() != "type")
-            .filter(|k| !copy.contains(&format!("{k}:")) && !copy.contains(&format!("{k}?:")))
-            .collect();
 
         assert!(
             missing.is_empty(),
             "Rust が線に出す欄が TS の写しに無い。写しを直すこと:\n{missing:?}"
         );
+    }
+
+    /// TS の宣言 → その型が持つ欄の名前。
+    ///
+    /// `export interface X { .. }` と `export type X = { .. } | { .. }` の両方を
+    /// 拾う（後者は全バリアントの欄をまとめて1つにする）。
+    ///
+    /// **空行で切らない。** 切ると、宣言の途中に空行を入れただけで
+    /// その後ろの欄が検査から消える。波括弧の深さと `;` で切る。
+    fn typescript_fields(source: &str) -> BTreeMap<String, BTreeSet<String>> {
+        let mut found: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        let mut current: Option<(String, bool)> = None;
+        let mut depth = 0i32;
+
+        for line in source.lines() {
+            let trimmed = line.trim();
+            let opened = trimmed.matches('{').count() as i32;
+            let closed = trimmed.matches('}').count() as i32;
+
+            if current.is_none() {
+                let declaration = trimmed
+                    .strip_prefix("export interface ")
+                    .map(|rest| (rest, true))
+                    .or_else(|| {
+                        trimmed
+                            .strip_prefix("export type ")
+                            .map(|rest| (rest, false))
+                    });
+                if let Some((rest, is_interface)) = declaration {
+                    let name = rest
+                        .split(|c: char| !c.is_alphanumeric() && c != '_')
+                        .next()
+                        .unwrap_or("");
+                    if !name.is_empty() {
+                        found.entry(name.to_string()).or_default();
+                        current = Some((name.to_string(), is_interface));
+                        depth = 0;
+                    }
+                }
+            }
+
+            let Some((name, is_interface)) = current.clone() else {
+                continue;
+            };
+            for field in fields_in(trimmed) {
+                found.entry(name.clone()).or_default().insert(field);
+            }
+
+            depth += opened - closed;
+            // **`interface` と union で終わり方が違う。** `interface` は塊が閉じたら
+            // 終わり。union は途中のバリアントが `}` で閉じるので、`;` まで続ける
+            let ended = if is_interface {
+                depth <= 0 && closed > 0
+            } else {
+                depth <= 0 && trimmed.ends_with(';')
+            };
+            if ended {
+                current = None;
+            }
+        }
+        found
+    }
+
+    /// 1行に現れる `名前:` / `名前?:` の名前。union の1行書き（`{ a: X; b: Y }`）も拾う
+    fn fields_in(line: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        for (at, _) in line.match_indices(':') {
+            let head = line[..at].trim_end();
+            let head = head.strip_suffix('?').unwrap_or(head);
+            let name: String = head
+                .chars()
+                .rev()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            // 直前が識別子の一部でない（`a.b:` のような形を拾わない）
+            let before = head[..head.len() - name.len()].chars().next_back();
+            if name.is_empty() || matches!(before, Some('.') | Some('"')) {
+                continue;
+            }
+            found.push(name);
+        }
+        found
+    }
+
+    /// 線に出る型ごとの見本。**空のコレクションを置かない**
+    /// ——空だと中身の欄が1つも JSON に現れず、その型は突き合わせから消える。
+    fn wire_samples() -> Vec<(&'static str, serde_json::Value)> {
+        let candidate = AnalysisCandidate {
+            rank: 1,
+            first_move: Some("7g7f".to_string()),
+            pv_line: vec!["7g7f".to_string()],
+            evaluation: Some(Evaluation {
+                value: 42,
+                kind: EvaluationKind::Centipawn,
+            }),
+            depth: Some(12),
+            nodes: Some(1000),
+            time_ms: Some(500),
+        };
+        let result = AnalysisResult {
+            candidates: vec![candidate.clone()],
+            mate_sequence: Some(vec!["7g7f".to_string()]),
+        };
+        let clocks = sample_snapshot().clocks;
+
+        let mut samples: Vec<(&'static str, serde_json::Value)> = vec![
+            (
+                "GameSettings",
+                serde_json::to_value(sample_settings()).expect("設定"),
+            ),
+            (
+                "GameSnapshot",
+                serde_json::to_value(sample_snapshot()).expect("状態"),
+            ),
+            ("ClocksView", serde_json::to_value(clocks).expect("時計")),
+            (
+                "ClockView",
+                serde_json::to_value(clocks.black).expect("片側の時計"),
+            ),
+            (
+                "RunningClock",
+                serde_json::to_value(clocks.running.expect("見本は動いている"))
+                    .expect("動いている時計"),
+            ),
+            (
+                "TimeLimit",
+                serde_json::to_value(sample_settings().black_time).expect("持ち時間"),
+            ),
+            (
+                "SetOptionValue",
+                serde_json::to_value(SetOptionValue {
+                    name: "USI_Hash".to_string(),
+                    value: "256".to_string(),
+                })
+                .expect("option"),
+            ),
+            (
+                "GameResult",
+                serde_json::to_value(GameResult {
+                    winner: Some(Side::Black),
+                    reason: GameOverReason::Resign,
+                    detail: Some("投了".to_string()),
+                })
+                .expect("結果"),
+            ),
+            (
+                "PlayerSpec",
+                serde_json::to_value(sample_settings().black).expect("人"),
+            ),
+            (
+                "PlayerSpec",
+                serde_json::to_value(sample_settings().white).expect("エンジン"),
+            ),
+            (
+                "GamePhaseView",
+                serde_json::to_value(sample_snapshot().phase).expect("段"),
+            ),
+            (
+                "AnalysisResult",
+                serde_json::to_value(&result).expect("解析結果"),
+            ),
+            (
+                "AnalysisCandidate",
+                serde_json::to_value(&candidate).expect("候補手"),
+            ),
+            (
+                "Evaluation",
+                serde_json::to_value(candidate.evaluation.expect("見本は評価を持つ"))
+                    .expect("評価"),
+            ),
+        ];
+        for event in sample_of_every_event() {
+            samples.push(("GameEvent", serde_json::to_value(&event).expect("出来事")));
+        }
+        samples
     }
 
     fn sample_settings() -> GameSettings {
