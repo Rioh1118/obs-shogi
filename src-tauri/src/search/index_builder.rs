@@ -120,17 +120,28 @@ pub struct FileIndexBuild {
 /// **`Display` がそのまま利用者の画面に出る**（呼び手が `map_err(|e| e.to_string())`
 /// で `EVT_INDEX_WARN` に流す）。`ParseFailed` のような文字数の刈り込みも通らない。
 ///
-/// **いまある2つは、その基準を満たしていない。** `failed to apply move at
-/// CursorLite { tesuu: 30, .. }: side-to-move mismatch` が素のテキストで出る。
-/// 直っていないのは、本番の呼び手が [`BuildPolicy::Loose`] しか使わず
-/// この型が返らないから。[`BuildPolicy::Strict`] を使う呼び手を足すなら、
-/// 文言を [`BuildWarn::to_user_message`] と同じ水準にするのが先。
+/// **[`BuildPolicy::Loose`] でも `Initial` は返る。** `build_index_for_jkf` が
+/// 開始局面を組むのは `policy` を見るより前なので、`Loose` が受け止めるのは
+/// `Apply` だけ。`.jkf` は外部の JSON をそのまま信じるうえ、
+/// `kifu_reader.rs` の `says_nothing` は `preset != PresetHirate` を
+/// 「中身がある」と見るので、`{"initial":{"preset":"OTHER"}}` はここまで届く。
+///
+/// 内部の理由を括弧に残すのは、利用者の言葉だけにすると報告を受けた側が
+/// 原因を絞れないから（`ParseFailed` と同じ形）。
 #[derive(Debug, Error)]
 pub enum BuildError {
-    #[error("failed to create initial position: {0}")]
+    #[error(
+        "開始局面を組み立てられませんでした。このファイルの局面は検索に出ません。\
+         書き出し元のアプリで保存し直してください（内部の理由: {0}）"
+    )]
     Initial(#[from] shogi_kifu_converter_obsshogi::error::ConvertError),
 
-    #[error("failed to apply move at {cursor:?}: {source}")]
+    #[error(
+        "{}手目に、その局面では指せない手があります。\
+         このファイルの局面は検索に出ません。\
+         棋譜を開いてその手を確かめてください（内部の理由: {source}）",
+        cursor.tesuu
+    )]
     Apply {
         cursor: CursorLite,
         #[source]
@@ -364,6 +375,40 @@ mod tests {
             "内部の理由が画面に出る: {message}"
         );
         // 場所だけ言って終わらない。`EVT_INDEX_WARN` に載る他の文言と揃える
+        assert!(
+            message.contains("ください"),
+            "次に何をすればよいかが無い: {message}"
+        );
+    }
+
+    /// `Loose` でも開始局面の失敗は返る。**そのときの文言も利用者の言葉であること。**
+    ///
+    /// `build_index_for_jkf` は `initial_partial_position` を `policy` より前で
+    /// 呼ぶので、`Loose` はこの失敗を受け止めない。`.jkf` は外部の JSON を
+    /// そのまま信じ、`says_nothing` も `preset != PresetHirate` を通すので、
+    /// **`{"initial":{"preset":"OTHER"}}` だけでここへ届く**。
+    ///
+    /// `BuildError` の `Display` は呼び手の `map_err(|e| e.to_string())` を通って
+    /// `EVT_INDEX_WARN` に素のテキストで出る（`api.rs` / `project_manager.rs`）。
+    #[test]
+    fn a_jkf_without_an_initial_board_fails_in_the_users_words() {
+        // `preset: OTHER` は「盤面を書く」の意味なのに `data` が無い
+        let jkf: JsonKifuFormat =
+            serde_json::from_str(r#"{"header":{},"initial":{"preset":"OTHER"},"moves":[{}]}"#)
+                .expect("題材の JKF が読めること");
+
+        let err = build_index_for_jkf(1, 1, &jkf, BuildPolicy::Loose)
+            .expect_err("開始局面が組めない棋譜が通った");
+        let message = err.to_string();
+
+        assert!(
+            !message.starts_with("failed to"),
+            "内部の英語がそのまま画面に出る: {message}"
+        );
+        assert!(
+            message.contains("検索に出ません"),
+            "何を失ったかを言っていない: {message}"
+        );
         assert!(
             message.contains("ください"),
             "次に何をすればよいかが無い: {message}"
