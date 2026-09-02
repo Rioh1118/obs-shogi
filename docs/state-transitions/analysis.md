@@ -96,8 +96,10 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 ただし**すでに `startInfiniteAnalysisCore` が Rust 側でセッションを作っていた場合、
 その後に `stop_analysis` が撃たれるかは表で追えていない** → **未検証**
 
-※11 `ensure_no_active_session` が `Err("Analysis already running")` を返す（`bridge.rs:105-112`）。
-**エンジンを再起動するまで解析が二度と始まらない。** これが #120 の BLOCK の形
+※11 `take_session` が `Err("Analysis already running")` を返す（`engine/bridge.rs`）。
+席は `release_session` でしか空かず、それを呼ぶのは解析の開始に失敗した口と `stop_session` だけ。
+**`stop_analysis` が届かないまま席が残ると、エンジンを再起動するまで解析が二度と始まらない。**
+これが #120 の BLOCK の形
 
 ## この表が満たすべき不変条件
 

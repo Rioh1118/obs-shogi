@@ -59,13 +59,28 @@ struct AnalysisUpdate {
     result: AnalysisResult,
 }
 
+/// 走っている解析の種類。**席の名前の接頭辞になる。**
+///
+/// `#[allow(dead_code)]` を付けないこと。付けると「この種類の席を誰も取らない」
+/// ——どの入口も席を取らずに解析を始めている——が黙って通る。
 #[derive(Debug, Clone)]
 enum SessionType {
     Infinite,
-    #[allow(dead_code)]
     Timed(Duration),
-    #[allow(dead_code)]
     Depth(u32),
+}
+
+/// 席の名前。**種類と打ち切り条件が接頭辞に出る**ので、ログでどの解析かが分かる。
+///
+/// 条件まで出すのは、同じ局面に対する `timed` と `depth` の解析が
+/// ログ上で見分けられないと、どちらの席が残ったのかを後から追えないため。
+fn new_session_id(session_type: &SessionType) -> String {
+    let prefix = match session_type {
+        SessionType::Infinite => "infinite".to_string(),
+        SessionType::Timed(limit) => format!("timed{}s", limit.as_secs()),
+        SessionType::Depth(depth) => format!("depth{depth}"),
+    };
+    format!("{}_{}", prefix, uuid::Uuid::new_v4())
 }
 
 impl EngineBridge {
@@ -108,18 +123,36 @@ impl EngineBridge {
         }
     }
 
-    /// 既に解析が走っていないこと。
+    /// 解析の席を取る。**空いていなければ断る。**
     ///
-    /// **3つの入口が全部これを通る。** 通らない入口があると、探索中のエンジンへ
-    /// 2本目の `go` が出る（USI は探索中の `position` / `go` を認めない）。
+    /// 検査と登録を同じロック区間でやる。分けると、2本の `invoke` が
+    /// 両方とも「空いている」を見てから両方とも席を取る窓ができ、
+    /// **探索中のエンジンへ2本目の `go` が出る**
+    /// （USI は探索中の `position` / `go` を認めない）。
     /// 対局側が `Activity` と `Handover` で守っているのと同じ不変条件。
-    async fn ensure_no_active_session(&self) -> Result<(), String> {
-        let sessions = self.active_sessions.read().await;
-        let has_active = sessions.values().any(|s| s.is_active);
-        if has_active {
+    ///
+    /// 解析を始める口は全部ここを通ること。通らない口があると、
+    /// その口が走っている間、席が空いているように見える。
+    async fn take_session(&self, session_type: SessionType) -> Result<String, String> {
+        let mut sessions = self.active_sessions.write().await;
+        if sessions.values().any(|s| s.is_active) {
             return Err("Analysis already running".to_string());
         }
-        Ok(())
+
+        let session_id = new_session_id(&session_type);
+        sessions.insert(
+            session_id.clone(),
+            AnalysisSession {
+                last_result: None,
+                is_active: true,
+            },
+        );
+        Ok(session_id)
+    }
+
+    /// 席を返す。**失敗した口も必ず通ること。** 返さないと以後の解析が全部断られる
+    async fn release_session(&self, session_id: &str) {
+        self.active_sessions.write().await.remove(session_id);
     }
 
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
@@ -160,23 +193,30 @@ impl EngineBridge {
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
-        if let Err(e) = self.ensure_no_active_session().await {
-            log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
-            return Err(e);
-        }
+        // **席を先に取る。** 後で取ると、走らせている間だけ席が空いて見える
+        let session_id = self
+            .take_session(SessionType::Infinite)
+            .await
+            .map_err(|e| {
+                log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
+                e
+            })?;
 
         log::debug!(target: LOGT, "start_infinite_analysis: requested");
 
-        let result_rx = self.analyzer.start_infinite_analysis().await.map_err(|e| {
-            log::error!(
-                target: LOGT,
-                "start_infinite_analysis: analyzer failed: {:?}",
-                e
-            );
-            format!("Failed to start infinite analysis: {:?}", e)
-        })?;
+        let result_rx = match self.analyzer.start_infinite_analysis().await {
+            Ok(rx) => rx,
+            Err(e) => {
+                log::error!(
+                    target: LOGT,
+                    "start_infinite_analysis: analyzer failed: {:?}",
+                    e
+                );
+                self.release_session(&session_id).await;
+                return Err(format!("Failed to start infinite analysis: {:?}", e));
+            }
+        };
 
-        let session_id = self.create_session(SessionType::Infinite).await;
         log::info!(
             target: LOGT,
             "start_infinite_analysis: ok session_id={}",
@@ -284,23 +324,30 @@ impl EngineBridge {
         &self,
         time_seconds: u64,
     ) -> Result<AnalysisResult, String> {
-        self.ensure_no_active_session().await?;
-
         let duration = Duration::from_secs(time_seconds);
+        let session_id = self.take_session(SessionType::Timed(duration)).await?;
 
-        self.analyzer
+        let result = self
+            .analyzer
             .analyze_with_time(duration)
             .await
-            .map_err(|e| format!("Timed analysis failed: {:?}", e))
+            .map_err(|e| format!("Timed analysis failed: {:?}", e));
+
+        self.release_session(&session_id).await;
+        result
     }
 
     pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<AnalysisResult, String> {
-        self.ensure_no_active_session().await?;
+        let session_id = self.take_session(SessionType::Depth(depth)).await?;
 
-        self.analyzer
+        let result = self
+            .analyzer
             .analyze_with_depth(depth)
             .await
-            .map_err(|e| format!("Depth analysis failed: {:?}", e))
+            .map_err(|e| format!("Depth analysis failed: {:?}", e));
+
+        self.release_session(&session_id).await;
+        result
     }
 
     pub async fn stop_analysis_impl(&self, session_id: Option<String>) -> Result<(), String> {
@@ -384,31 +431,6 @@ impl EngineBridge {
     }
 
     // ===  session === //
-
-    async fn create_session(&self, session_type: SessionType) -> String {
-        let prefix = match session_type {
-            SessionType::Infinite => "infinite",
-            SessionType::Timed(_) => "timed",
-            SessionType::Depth(_) => "depth",
-        };
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        let session_id = format!("{}_{}", prefix, nanos);
-
-        let session = AnalysisSession {
-            last_result: None,
-            is_active: true,
-        };
-
-        self.active_sessions
-            .write()
-            .await
-            .insert(session_id.clone(), session);
-
-        session_id
-    }
 
     async fn stop_session(&self, session_id: &str) -> Result<(), String> {
         log::info!(
