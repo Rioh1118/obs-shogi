@@ -69,25 +69,6 @@ impl Default for EngineSettings {
     }
 }
 
-/// エンジン状態情報
-#[derive(Debug, Clone)]
-pub struct EngineStatus {
-    pub is_initialized: bool,
-    pub is_ready: bool,
-    pub engine_path: Option<String>,
-    pub work_dir: Option<String>,
-    pub restart_count: u32,
-    pub listener_count: usize,
-}
-
-/// ヘルスチェック結果
-#[derive(Debug, Clone)]
-pub struct HealthCheckResult {
-    pub is_healthy: bool,
-    pub message: String,
-    pub details: Option<String>,
-}
-
 #[derive(Error, Debug)]
 pub enum EngineError {
     #[error("Engine not initialized: {0}")]
@@ -125,13 +106,6 @@ pub struct AnalysisConfig {
     pub node_limit: Option<u64>,
     pub mate_search: bool,
     pub multi_pv: Option<u32>,
-}
-
-// 最善手情報
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InitializeEngineResponse {
-    pub engine_info: EngineInfo,
-    pub success: bool,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

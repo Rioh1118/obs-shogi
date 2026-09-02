@@ -1,6 +1,7 @@
 use crate::engine::utils::LogThrottle;
 
 use super::analyzer::EngineAnalyzer;
+use super::registry::EngineRegistry;
 use super::types::*;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -13,16 +14,25 @@ use tauri::Emitter;
 const LOGT: &str = "obs_shogi::engine::bridge";
 
 // グローバルブリッジの代わりにTauri Stateを使用
-#[derive(Default)]
 pub struct AppState {
     pub bridge: Arc<EngineBridge>,
+    /// 解析と対局が同じ台帳を使う。分けると同じ実行ファイルを二重に起動する
+    pub registry: Arc<EngineRegistry>,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        let registry = Arc::new(EngineRegistry::new());
         Self {
-            bridge: Arc::new(EngineBridge::new()),
+            bridge: Arc::new(EngineBridge::new(Arc::clone(&registry))),
+            registry,
         }
+    }
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -56,9 +66,9 @@ enum SessionType {
 }
 
 impl EngineBridge {
-    pub fn new() -> Self {
+    pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
-            analyzer: EngineAnalyzer::new(),
+            analyzer: EngineAnalyzer::new(registry),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
             settings: Arc::new(RwLock::new(EngineSettings::default())),
             app_handle: Arc::new(RwLock::new(None)),
@@ -77,15 +87,8 @@ impl EngineBridge {
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
 
-        // engine_path は絶対パスかつ既存ファイルであることを要求する。
-        // 攻撃者が /bin/sh などの任意バイナリを起動させる経路を塞ぐ最低限のガード。
-        let resolved = std::fs::canonicalize(&engine_path)
-            .map_err(|e| format!("engine_path is not a valid existing path: {e}"))?;
-        if !resolved.is_file() {
-            return Err("engine_path must point to an existing file".to_string());
-        }
-        let engine_path = resolved.to_string_lossy().to_string();
-
+        // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
+        // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
         match self
             .analyzer
             .initialize_engine(engine_path, working_dir)
@@ -433,12 +436,6 @@ impl EngineBridge {
 
         log::info!(target: LOGT, "stop_all_sessions: ok");
         Ok(())
-    }
-}
-
-impl Default for EngineBridge {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

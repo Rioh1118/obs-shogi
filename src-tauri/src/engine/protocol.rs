@@ -1,11 +1,12 @@
 use std::collections::VecDeque;
+use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::engine::{types::*, utils::cmd_summary};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, watch, Mutex, RwLock};
 use usi::{EngineCommand, Error as UsiError, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
@@ -15,6 +16,12 @@ pub struct UsiProtocol {
     state: Arc<RwLock<ProtocolState>>,
     listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
     listen_active: Arc<Mutex<bool>>,
+
+    /// `readyok` を受け取ったかどうか。
+    ///
+    /// `RwLock<bool>` ではなく watch なのは、**待つ側がポーリングしないで済む**ため。
+    /// `ensure_ready` はこの受信側で待つ。
+    ready: Arc<watch::Sender<bool>>,
 
     runtime_handle: tokio::runtime::Handle,
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -30,6 +37,7 @@ impl Clone for UsiProtocol {
             state: Arc::clone(&self.state),
             listeners: Arc::clone(&self.listeners),
             listen_active: Arc::clone(&self.listen_active),
+            ready: Arc::clone(&self.ready),
             runtime_handle: self.runtime_handle.clone(),
             init_task: Arc::clone(&self.init_task),
             init_cancel: Arc::clone(&self.init_cancel),
@@ -41,7 +49,6 @@ impl Clone for UsiProtocol {
 
 #[derive(Debug, Clone)]
 struct ProtocolState {
-    is_ready: bool,
     engine_info: Option<EngineInfo>,
     last_command: Option<String>,
 }
@@ -65,12 +72,12 @@ impl UsiProtocol {
         Self {
             handler: Arc::new(Mutex::new(handler)),
             state: Arc::new(RwLock::new(ProtocolState {
-                is_ready: false,
                 engine_info: None,
                 last_command: None,
             })),
             listeners: Arc::new(RwLock::new(HashMap::new())),
             listen_active: Arc::new(Mutex::new(false)),
+            ready: Arc::new(watch::channel(false).0),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
             init_cancel: Arc::new(Mutex::new(None)),
@@ -193,7 +200,7 @@ impl UsiProtocol {
         }
 
         // ready 前で ready 必須のコマンドなら enqueue
-        let is_ready = self.state.read().await.is_ready;
+        let is_ready: bool = *self.ready.borrow();
         if !is_ready && requires_ready(command) {
             let gen = *self.generation.read().await;
             let mut map = self.pending_after_ready.lock().await;
@@ -227,7 +234,7 @@ impl UsiProtocol {
             *g
         };
 
-        self.state.write().await.is_ready = false;
+        let _ = self.ready.send(false);
 
         let cancel = CancellationToken::new();
         *self.init_cancel.lock().await = Some(cancel.clone());
@@ -271,7 +278,7 @@ impl UsiProtocol {
             }
 
             if ready {
-                protocol.state.write().await.is_ready = true;
+                let _ = protocol.ready.send(true);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
                 let mut map = protocol.pending_after_ready.lock().await;
@@ -301,9 +308,11 @@ impl UsiProtocol {
         Ok(())
     }
 
-    /// エンジン情報取得（タイムアウト付き）
-    pub async fn get_engine_info(&self) -> Result<EngineInfo, EngineError> {
-        // キャッシュチェック
+    /// `usi` を送り `usiok` までを読み取る。2回目以降はキャッシュを返す。
+    ///
+    /// `usiok` を返さないエンジンでここが返らないと、呼び出し元の起動処理ごと
+    /// 止まったまま利用者に何も出ない。`timeout` はそのための打ち切り。
+    pub async fn get_engine_info(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
         {
             let state = self.state.read().await;
             if let Some(info) = &state.engine_info {
@@ -311,17 +320,33 @@ impl UsiProtocol {
             }
         }
 
-        // 情報収集用チャンネル（バッファ付きで高頻度対応）
-        let (tx, mut rx) = mpsc::unbounded_channel();
-
-        // 一時的なリスナー登録
+        let (tx, rx) = mpsc::unbounded_channel();
         let listener_name = format!("info_collection_{}", now_nanos());
 
         self.register_listener(listener_name.clone(), tx).await?;
-        // USIコマンド送信
-        self.send_command(&GuiCommand::Usi).await?;
+        let sent = self.send_command(&GuiCommand::Usi).await;
+        let collected = match sent {
+            Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
+                .await
+                .unwrap_or(Err(EngineError::Timeout(
+                    "engine did not return usiok in time".to_string(),
+                ))),
+            Err(e) => Err(e),
+        };
 
-        // 情報収集（高頻度対応）
+        // 打ち切ったときもリスナーを外す。残すと、以降の `info` が
+        // 誰も読まないチャンネルへ配られ続ける。
+        self.remove_listener(&listener_name).await;
+
+        let engine_info = collected?;
+        self.state.write().await.engine_info = Some(engine_info.clone());
+
+        Ok(engine_info)
+    }
+
+    async fn collect_engine_info(
+        mut rx: mpsc::UnboundedReceiver<EngineCommand>,
+    ) -> Result<EngineInfo, EngineError> {
         let mut name = String::new();
         let mut author = String::new();
         let mut options = Vec::new();
@@ -338,65 +363,43 @@ impl UsiProtocol {
             }
         }
 
-        // リスナー削除
-        self.remove_listener(&listener_name).await;
-
         if name.is_empty() {
             return Err(EngineError::CommunicationFailed(
                 "did not receive id name before usiok (or channel closed)".to_string(),
             ));
         }
 
-        let engine_info = EngineInfo {
+        Ok(EngineInfo {
             name,
             author,
             options,
-        };
-
-        // キャッシュ
-        self.state.write().await.engine_info = Some(engine_info.clone());
-
-        Ok(engine_info)
+        })
     }
 
-    /// プロトコル状態取得
-    pub async fn is_ready(&self) -> bool {
-        self.state.read().await.is_ready
+    /// `readyok` を受け取り済みか
+    pub fn is_ready(&self) -> bool {
+        *self.ready.borrow()
     }
 
-    /// 軽量な基本情報取得（USI通信なし）
-    pub async fn get_basic_info(&self) -> Result<EngineInfo, EngineError> {
-        let listen_active = *self.listen_active.lock().await;
-
-        if listen_active {
-            // listen開始後は詳細情報取得を使用
-            self.get_engine_info().await
-        } else {
-            // listen開始前のみ直接取得
-            let mut handler = self.handler.lock().await;
-            let info = handler
-                .get_info()
-                .map_err(|e| EngineError::StartupFailed(e.to_string()))?;
-
-            let engine_options: Vec<EngineOption> = info
-                .options()
-                .iter()
-                .map(|(name, value)| EngineOption {
-                    name: name.clone(),
-                    option_type: EngineOptionType::String {
-                        default: Some(value.clone()),
-                    },
-                    default_value: Some(value.clone()),
-                    current_value: None,
-                })
-                .collect();
-
-            Ok(EngineInfo {
-                name: info.name().to_string(),
-                author: "Unknown".to_string(),
-                options: engine_options,
-            })
+    /// `isready` を送り、`readyok` が返るまで待つ。
+    ///
+    /// 既に ready なら何も送らない。対局の開始前と、局面を送る前にこれを通す。
+    /// 待たずに `position` / `go` を送っても `send_command` が ready まで
+    /// 積んでくれるが、**積まれたまま返ってこないことを呼び出し側が知れない。**
+    pub async fn ensure_ready(&self, timeout: Duration) -> Result<(), EngineError> {
+        if self.is_ready() {
+            return Ok(());
         }
+
+        self.send_command(&GuiCommand::IsReady).await?;
+
+        let mut rx = self.ready.subscribe();
+        tokio::time::timeout(timeout, rx.wait_for(|ready| *ready))
+            .await
+            .map_err(|_| EngineError::Timeout("engine did not return readyok in time".to_string()))?
+            .map_err(|_| EngineError::CommunicationFailed("ready channel closed".to_string()))?;
+
+        Ok(())
     }
 
     /// 現在のリスナー数取得（デバッグ用）

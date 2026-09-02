@@ -2,8 +2,10 @@ use crate::engine::utils::{
     extract_rank, get_depth_of_rank, get_or_create_candidate, map_score_to_evaluation, LogThrottle,
 };
 
-use super::manager::EngineManager;
+use super::protocol::UsiProtocol;
+use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
+use super::USI_OK_TIMEOUT;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -24,16 +26,14 @@ fn contains_usi_breaking_char(s: &str) -> bool {
 }
 
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
+///
+/// 解析が使うエンジンは、対局が使うものと同じ台帳（`EngineRegistry`）に載る。
+/// ここが持つのは「そのうちどれが解析用か」だけ。
 pub struct EngineAnalyzer {
-    manager: Arc<Mutex<EngineManager>>,
+    registry: Arc<EngineRegistry>,
+    engine_id: Arc<RwLock<Option<EngineId>>>,
     state: Arc<RwLock<AnalyzerState>>,
     infinite_stop_requested: Arc<Mutex<Option<Arc<AtomicBool>>>>,
-}
-
-impl Default for EngineAnalyzer {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -50,34 +50,51 @@ enum StreamMode {
 }
 
 impl EngineAnalyzer {
-    pub fn new() -> Self {
-        let manager = Arc::new(Mutex::new(EngineManager::new()));
+    pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
-            manager,
+            registry,
+            engine_id: Arc::new(RwLock::new(None)),
             state: Arc::new(RwLock::new(AnalyzerState::default())),
             infinite_stop_requested: Arc::new(Mutex::new(None)),
         }
     }
 
+    /// 解析用のエンジンを起動する。既に持っていれば先に落とす。
     pub async fn initialize_engine(
         &self,
         engine_path: String,
         working_dir: Option<String>,
     ) -> Result<(), EngineError> {
-        let mut manager = self.manager.lock().await;
-        let work_dir = working_dir.unwrap_or_else(|| {
-            std::path::Path::new(&engine_path)
-                .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or(".".to_string())
-        });
+        self.shutdown().await?;
 
-        manager.initialize(engine_path, work_dir).await.map(|_| ())
+        let process = self
+            .registry
+            .spawn(&engine_path, working_dir.as_deref(), USI_OK_TIMEOUT)
+            .await?;
+
+        *self.engine_id.write().await = Some(process.id.clone());
+        Ok(())
+    }
+
+    /// 解析用エンジンのプロトコル層。起動していなければ `NotInitialized`。
+    async fn protocol(&self) -> Result<Arc<UsiProtocol>, EngineError> {
+        let id = self
+            .engine_id
+            .read()
+            .await
+            .clone()
+            .ok_or_else(|| EngineError::NotInitialized("Engine not initialized".to_string()))?;
+
+        // 台帳から消えている＝落とされた後。ID を持っているだけでは起動を意味しない
+        let process = self.registry.get(&id).await.ok_or_else(|| {
+            EngineError::NotInitialized("Engine is no longer running".to_string())
+        })?;
+
+        Ok(process.protocol())
     }
 
     pub async fn apply_settings(&self, settings: EngineSettings) -> Result<(), EngineError> {
-        let manager = self.manager.lock().await;
-        let protocol = manager.protocol()?;
+        let protocol = self.protocol().await?;
 
         for (name, value) in &settings.options {
             // USI プロトコルは行指向なので、name/value への改行注入を拒否する
@@ -96,13 +113,16 @@ impl EngineAnalyzer {
     }
 
     pub async fn shutdown(&self) -> Result<(), EngineError> {
-        let mut manager = self.manager.lock().await;
-        manager.shutdown().await
+        let id = self.engine_id.write().await.take();
+        if let Some(id) = id {
+            self.registry.shutdown(&id).await;
+        }
+        Ok(())
     }
 
     pub async fn get_engine_info(&self) -> Result<EngineInfo, EngineError> {
-        let manager = self.manager.lock().await;
-        manager.get_detailed_info().await
+        let protocol = self.protocol().await?;
+        protocol.get_engine_info(USI_OK_TIMEOUT).await
     }
 
     /// 局面を設定
@@ -114,14 +134,7 @@ impl EngineAnalyzer {
             ));
         }
 
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
+        let protocol = self.protocol().await?;
 
         let position_command = GuiCommand::Position(position.to_string());
         protocol.send_command(&position_command).await?;
@@ -141,16 +154,7 @@ impl EngineAnalyzer {
         let stop_flag = Arc::new(AtomicBool::new(false));
         *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
 
-        // initialized check
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
+        let protocol = self.protocol().await?;
 
         // channel
         let (result_tx, result_rx) = mpsc::unbounded_channel();
@@ -239,14 +243,7 @@ impl EngineAnalyzer {
         &self,
         time_limit: Duration,
     ) -> Result<AnalysisResult, EngineError> {
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
+        let protocol = self.protocol().await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
@@ -283,14 +280,7 @@ impl EngineAnalyzer {
         &self,
         depth_limit: u32,
     ) -> Result<AnalysisResult, EngineError> {
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
+        let protocol = self.protocol().await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
@@ -328,14 +318,7 @@ impl EngineAnalyzer {
 
     /// 解析停止
     pub async fn stop_analysis(&self) -> Result<(), EngineError> {
-        let manager_guard = self.manager.lock().await;
-        if !manager_guard.is_initialized().await {
-            return Err(EngineError::NotInitialized(
-                "Engine not initialized".to_string(),
-            ));
-        }
-        let protocol = manager_guard.protocol()?;
-        drop(manager_guard);
+        let protocol = self.protocol().await?;
 
         if let Some(flag) = self.infinite_stop_requested.lock().await.as_ref() {
             flag.store(true, Ordering::SeqCst);
@@ -353,11 +336,6 @@ impl EngineAnalyzer {
     /// 分析統計取得
     pub async fn get_analysis_stats(&self) -> u64 {
         self.state.read().await.analysis_count
-    }
-
-    /// 現在の局面取得
-    pub async fn get_current_position(&self) -> Option<String> {
-        self.state.read().await.current_position.clone()
     }
 
     // === 内部ヘルパーメソッド ===
@@ -567,7 +545,8 @@ impl EngineAnalyzer {
 impl Clone for EngineAnalyzer {
     fn clone(&self) -> Self {
         Self {
-            manager: Arc::clone(&self.manager),
+            registry: Arc::clone(&self.registry),
+            engine_id: Arc::clone(&self.engine_id),
             state: Arc::clone(&self.state),
             infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
         }
