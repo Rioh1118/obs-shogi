@@ -373,42 +373,95 @@ fn parse_csa_file_tidied(path: &Path) -> Result<Jkf, ParseError> {
 /// （クレートの `parse_csa_file` と同じ順）
 const ENCODINGS_THE_CRATE_TRIES_FOR_CSA: [&Encoding; 2] = [UTF_8, SHIFT_JIS];
 
-/// 行の綴りだけを整える。**中身は足さない。**
+/// 行の綴りを整える。**指し手や局面は足さない。**
 ///
-/// 落とすのは、CSA の文法が意味を持たせていないものだけ。
+/// # 揃える先は「もう一方の読み手が受ける範囲」
 ///
-/// | 落とすもの | クレートがそこで止まる理由 |
-/// | --- | --- |
-/// | 行末の `\r` / 空白 / タブ | `move_record` の直後に `line_sep` を要求する |
-/// | アポストロフィだけの行 | `comment` が `'` の後ろに1文字以上を要求する |
-/// | 末尾に改行が無いこと | 最後の指し手が `terminated(.., line_sep)` に掛からない |
+/// 棋譜を画面に開くのは `tsshogi` の `importCSA` で、そちらは行ごとに
+/// 正規表現を当て、**どれにも当たらない行は読み飛ばす**。だから索引側は
+/// 原理的につねに tsshogi 以下しか読めない。揃えられるのは
+/// **tsshogi も受ける形に直せる行**だけで、それ以外を直すと
+/// **索引だけが読めて画面では開けない**という逆向きのずれを作る。
+///
+/// | 行 | tsshogi の型 | 末尾の空白 | ここでの扱い |
+/// | --- | --- | --- | --- |
+/// | `P1`〜`P9` | `^P[1-9]( \* ?|[-+][A-Z][A-Z]){9}$` | 最後の升のぶんだけ任意 | **升9つぶんに揃える**（足りなければ補い、余れば切る） |
+/// | `P+` / `P-` | `^P[-+]([0-9]{2}[A-Z]{2})*` | 末尾は見ない | 落とす |
+/// | 指し手 / `%` / `T` / `V` / `N` / `$` / `'` | いずれも末尾を見ない、または値に含む | 受ける | 落とす |
+/// | 手番行 `+` / `-` | `^[-+]$` | **受けない** | **触らない** |
+/// | `PI…` | `^PI([1-9]{2}[A-Z]{2})*$` | **受けない** | **触らない** |
+///
+/// 下2つを触らないのは、直すと索引だけが先へ進むから。
+/// tsshogi が断る形は索引でも断って、**両方で同じものが読めない**状態に保つ。
+///
+/// # 補うもの
+///
+/// 最後の行に改行が無いと、クレートは最後の指し手を取り込まない
+/// （`terminated(move_record, line_sep)`）。全行に `'\n'` を付けるので、
+/// 元から改行で終わるファイルでは空行が1つ増えるが、`line_sep` は `is_a` で
+/// 連続を1つに畳むので読みには効かない。
+///
+/// # 落とすもの
+///
+/// アポストロフィだけの行は、クレートの `comment` が `'` の後ろに1文字以上を
+/// 要求するのでそこで止まる（tsshogi も `^'(.+)$` に当たらず読み飛ばす）。
+/// コメントは JKF に写らないので、落としても記録は変わらない。
+///
+/// `\r` を先に落とすのは、クレートの `line_sep` が受けないからではない
+/// （`is_a("\r\n,")` は受ける）。**先に落とさないと末尾の空白の削りが
+/// 行末に届かない**（CRLF のとき）。
 ///
 /// **壊れた棋譜は救わない。** 指し手の形をしていない行はそのまま残るので、
-/// クレートはそこで止まる（実測: 棋譜でない行を挟んだ CSA は整形しても
-/// 読める手数が増えない）。整形で増えるのは、綴りの揺れだけが原因だったぶん。
+/// クレートはそこで止まる。
 fn tidy_csa(text: &str) -> String {
+    /// 升は3文字（` * ` / `+OU`）× 9
+    const RANK_CELLS_LEN: usize = 27;
+
     let mut out = String::with_capacity(text.len() + 1);
     for line in text.split('\n') {
-        // `\r` はどの行でも意味を持たない
         let line = line.strip_suffix('\r').unwrap_or(line);
+        let trimmed = line.trim_end_matches([' ', '\t']);
 
-        // **盤面の行は末尾の空白まで意味がある。** 升は必ず3文字で
-        // （` * ` / `+OU`）、最後の升が空マスなら行は空白で終わる。
-        // 削ると升が8個半になり、盤面ごと読めなくなる
-        let line = if line.starts_with('P') {
-            line
-        } else {
-            line.trim_end_matches([' ', '\t'])
-        };
-
-        // 空のコメントは何も伝えないので、落としても記録は変わらない
-        if line == "'" {
+        if let Some(cells) = rank_cells(line) {
+            // 升の数を揃える。エディタの trim で最後の空升が半端になった盤面が
+            // ここで直る。余っている側も同じ長さに切る
+            out.push_str(&line[..2]);
+            for (i, c) in cells.chars().chain(std::iter::repeat(' ')).enumerate() {
+                if i >= RANK_CELLS_LEN {
+                    break;
+                }
+                out.push(c);
+            }
+            out.push('\n');
             continue;
         }
-        out.push_str(line);
+
+        // tsshogi が末尾の空白を受けない行。**直さない**
+        if trimmed == "+" || trimmed == "-" || trimmed.starts_with("PI") {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+
+        // 空のコメントは何も伝えない
+        if trimmed == "'" {
+            continue;
+        }
+
+        out.push_str(trimmed);
         out.push('\n');
     }
     out
+}
+
+/// 盤面の段（`P1`〜`P9`）なら、`P` と段番号を除いた升の部分を返す
+fn rank_cells(line: &str) -> Option<&str> {
+    let rest = line.strip_prefix('P')?;
+    let rank = rest.chars().next()?;
+    if !rank.is_ascii_digit() || rank == '0' {
+        return None;
+    }
+    Some(&rest[1..])
 }
 
 /// CSA が途中で読むのをやめていたら、そのことを伝える文言を返す。
@@ -2223,13 +2276,88 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 盤面図だけを書いた CSA の盤面部。`initial.data` を埋める唯一の書き方で、
-    /// これがあると [`says_nothing`] は「中身がある」と判定する
+    /// 盤面図だけを書いた CSA の盤面部。これがあると [`says_nothing`] は
+    /// 「中身がある」と判定する。`initial.data` は `PI`（駒落ち）や
+    /// `P+` / `P-`（駒別）でも埋まるので、書き方はこれだけではない
     const BOARD_ONLY_CSA: &str = "P1 *  *  *  *  * -OU *  *  * \nP2 *  *  *  *  *  *  *  *  * \n\
 P3 *  *  *  *  *  *  *  *  * \nP4 *  *  *  *  *  *  *  *  * \n\
 P5 *  *  *  *  *  *  *  *  * \nP6 *  *  *  *  *  *  *  *  * \n\
 P7 *  *  *  *  *  *  *  *  * \nP8 *  *  *  *  *  *  *  *  * \n\
 P9 *  *  *  * +OU *  *  *  * ";
+
+    /// 整形は**画面に開くほうが受ける範囲を出ない**。
+    ///
+    /// [`tidy_csa`] が直しすぎると、索引には入るのに開けない棋譜ができる。
+    /// 「読めません」と言われて開けたのと、検索に出たのに開けないのとでは、
+    /// **後者のほうが悪い**（検索結果から辿れる先が行き止まりになる）。
+    ///
+    /// tsshogi 側の正規表現は `node_modules/tsshogi/dist/esm/csa.mjs` にあり、
+    /// 行を trim せずそのまま当てる。だから `$` で閉じている行型は
+    /// **末尾に空白があるだけで型に当たらない**。
+    ///
+    /// | 行 | tsshogi | ここでの期待 |
+    /// | --- | --- | --- |
+    /// | 手番行 `+` の末尾に空白 | `^[-+]$` に当たらず断る | **断る**（揃えない） |
+    /// | `PI` の末尾に空白 | `^PI(…)*$` に当たらず断る | **断る**（揃えない） |
+    /// | `P+` の末尾に空白 | `$` で閉じていないので受ける | 読める |
+    /// | 盤面の段の最後の空白が消えている | ` \* ?` で最後の空白は任意、受ける | **読める**（補う） |
+    ///
+    /// 3行目と4行目は「tsshogi が受けるのに索引が読めない」側、
+    /// 1行目と2行目は「索引が読めてしまうと tsshogi が開けない」側。
+    /// **整形はこの2つの間にしか置けない。**
+    ///
+    /// 題材は**すべて合成**。
+    #[test]
+    fn tidying_stops_where_the_viewer_stops() {
+        let dir = temp_dir("csa-viewer-bound");
+        let whole = "V2.2\nN+山田\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
+
+        // tsshogi も断る形。**索引でも断つ**。読めてしまうと開けない棋譜になる
+        for (name, body) in [
+            ("手番行の末尾に空白", whole.replace("\n+\n", "\n+ \n")),
+            ("PI の末尾に空白", whole.replace("PI\n", "PI \n")),
+        ] {
+            let path = dir.join(format!("{name}.csa").replace('/', "_"));
+            fs::write(&path, &body).expect("書き出し");
+
+            let read = read_path_inner(&path, KifuKind::Csa);
+            assert!(
+                matches!(read, Err(KifuReadError::ParseFailed(_))),
+                "{name}: 画面で開けない形を索引に入れた"
+            );
+        }
+
+        // tsshogi が受ける形。**索引でも読める**
+        let mut board_trimmed = String::new();
+        for line in BOARD_ONLY_CSA.split('\n') {
+            board_trimmed.push_str(line.trim_end());
+            board_trimmed.push('\n');
+        }
+        for (name, body) in [
+            (
+                "駒別の持駒行の末尾に空白",
+                "V2.2\nPI\nP+00FU\nP-00KY\n+\n+7776FU\n%TORYO\n".replace("P+00FU\n", "P+00FU \n"),
+            ),
+            (
+                "盤面の段の末尾の空白が消えている",
+                format!("V2.2\n{}+\n+5958OU\n%TORYO\n", board_trimmed),
+            ),
+        ] {
+            let path = dir.join(format!("{name}.csa").replace('/', "_"));
+            fs::write(&path, &body).expect("書き出し");
+
+            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+                .unwrap_or_else(|e| panic!("{name}: 画面で開ける形を索引が断った: {e}"));
+            assert!(
+                jkf.moves.len() >= 2,
+                "{name}: 手が読めていない: {}",
+                jkf.moves.len()
+            );
+            assert!(warns.is_empty(), "{name}: 直しようの無い警告: {warns:?}");
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
 
     /// 綴りの揺れは整えて読み、本当に切れているときだけ伝える。
     ///
@@ -2250,6 +2378,11 @@ P9 *  *  *  * +OU *  *  *  * ";
     /// **整形で救えないものだけが警告になる。** 最後の行が要で、
     /// 整形が壊れた棋譜を「読めた」ことにしていないことを見ている。
     ///
+    /// ただし最後の題材（棋譜でない行）は、**tsshogi は読み飛ばして最後まで読む**。
+    /// つまりこれは「壊れた棋譜」ではなく「索引側だけが読めない棋譜」で、
+    /// 警告はいまも出る。整形の対象にしないのは、指し手でない行を捨てると
+    /// **本当に指し手が欠けている棋譜まで黙って通る**ため。
+    ///
     /// # 警告が出るときの戻り
     ///
     /// 戻りを決めるのは [`says_nothing`] だけで、読み残しの検査は関わらない。
@@ -2258,7 +2391,7 @@ P9 *  *  *  * +OU *  *  *  * ";
     ///
     /// 題材は**すべて合成**。実在の CSA で誤報しないことは確かめていない。
     #[test]
-    fn csa_spelling_is_tidied_and_only_real_breakage_is_warned() {
+    fn csa_spelling_is_tidied_and_what_tidying_cannot_reach_is_warned() {
         let dir = temp_dir("csa-cut");
         let whole = "V2.2\nN+山田\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
         // アプリが対局者名なしで書き出す形（`try_to_csa_owned` は空のヘッダを書かない）
