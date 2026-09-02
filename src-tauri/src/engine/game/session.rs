@@ -81,7 +81,7 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 /// 解析側の `MAX_THINK_TIME` と同じ10分。**片方だけ動かさないこと**——
 /// どちらも「1手にこれ以上は待たない」で、利用者から見て同じ約束。
 /// 等値は `engine_timeouts.rs` が見る。
-const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
+pub const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 
 /// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
 ///
@@ -192,13 +192,13 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 ///
 /// `abort` はこれとは別枠。合計の予算にすると、`abort` が使い切ったぶんだけ
 /// 畳み待ちが縮む（`abort` は `finish` の中で `gameover` を最大2回通す）。
-pub(super) const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
+pub const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `close` が `abort` の応答を待つ上限。
 ///
 /// **畳み待ちと分ける。** 1つの予算を分け合うと、`abort` に時間を取られた
 /// ぶんだけ畳み待ちが縮み、正常な畳みを待ち切れなくなる。
-pub(super) const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
+pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
 ///
@@ -2421,26 +2421,16 @@ mod tests {
             CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT,
             "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が書き込み1件ぶんも無い"
         );
-    }
-
-    /// 終了時の予算が、1局を閉じ切る値より**短い**こと。
-    ///
-    /// これは意図した関係で、合わせに行かない（合わせると終了が十数秒待たされる）。
-    /// **式で持たないと、片方を動かしたときに何も落ちない。**
-    /// 切り上げたぶんは `registry.shutdown_all` の掃除が拾う。
-    #[test]
-    fn the_close_budget_is_deliberately_short() {
-        use crate::CLOSE_TIMEOUT;
-
-        assert!(
-            CLOSE_TIMEOUT < CLOSE_ABORT_TIMEOUT + CLOSE_IDLE_TIMEOUT,
-            "CLOSE_TIMEOUT({CLOSE_TIMEOUT:?}) が1局を閉じ切る値以上。\
-             合わせに行くなら、終了が何秒待たされるかを測ってから決めること"
-        );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
         // 畳み待ちより先に故障扱いになる
         assert!(SEARCH_GRACE >= SETTLE_TIMEOUT);
+
+        // 上限が沈黙の猶予より短いと、沈黙の腕が一度も届かない
+        assert!(
+            HARD_TURN_LIMIT > SEARCH_GRACE,
+            "HARD_TURN_LIMIT({HARD_TURN_LIMIT:?}) が SEARCH_GRACE 以下"
+        );
     }
 
     /// 畳み待ちのまま `SETTLE_TIMEOUT` を過ぎたら終局にすること。

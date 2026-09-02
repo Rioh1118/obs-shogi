@@ -13,29 +13,96 @@
 //! 1. モジュール間に環が無いこと
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
 //!
-//! 走査は `use super::` と `use crate::engine::` の行だけ。関数の中で
-//! 完全修飾で書けば素通りするが、**それは `use` を書くより目立つ**ので
-//! 走査を厚くするより読み手に任せる。
+//! ## 走査の限界
+//!
+//! 拾うのは `use` の行だけ。関数の中で完全修飾に書けば素通りするが、
+//! **それは `use` を書くより目立つ**ので走査を厚くするより読み手に任せる。
+//!
+//! 拾う形は3つ。`use super::x`、`use crate::engine::x`、そして
+//! **波括弧で並べた形**（`use crate::engine::{a::A, b::B}`）。
+//! **波括弧を落とすと、書き方ひとつで段を跨げる**——`use crate::engine::state::X`
+//! は落ちるのに `use crate::engine::{state::X}` は通る、という形になる。
+//! 走査が空振りしていないことは `the_scanner_actually_walks_the_engine` が見る。
+//!
+//! `use super::` は**そのファイルの親**を指す。`game/*.rs` の `use super::types`
+//! は `engine::types` ではなく `engine::game::types` なので、段の名前空間に
+//! 混ぜない（`game` の中は段を割らないので、辺として意味を持たない）。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// 段。**下ほど土台。** 同じ段の中の依存は許す（環でなければよい）。
+/// 段。**「何を決める場所か」と「何を使ってよいか」を並べる。**
+///
+/// 全順序にしない。順序を付けた分だけ**許可が生まれる**——`game` と
+/// `analyzer` に上下を付けると、解析のファサードが対局の台帳を持つ形
+/// （もともと環になっていた辺）が「上から下」として通ってしまう。
+/// 上下が言えない2つは**同位**として持つ。
 ///
 /// 増やすときは、その段が「何を決める場所か」を1行で言えるときだけ。
 /// 言えないなら、それは段ではなく置き場の都合。
-const LAYERS: &[(&str, &str)] = &[
-    ("types", "線に出す形と失敗の型。何も決めない"),
-    ("utils", "USI の行を値に写す。何も決めない"),
-    ("protocol", "1本のプロセスへ何を送れるか"),
-    ("registry", "どのプロセスが生きているか"),
-    ("game", "対局の状態機械と持ち時間"),
-    ("analyzer", "解析の探索1回ぶん"),
-    ("bridge", "解析のファサード"),
-    ("state", "Tauri が持つ持ち物"),
-    ("commands", "Tauri コマンドの入口"),
+struct Layer {
+    name: &'static str,
+    /// 何を決める場所か
+    decides: &'static str,
+    /// `use` してよい段
+    may_use: &'static [&'static str],
+}
+
+const LAYERS: &[Layer] = &[
+    Layer {
+        name: "types",
+        decides: "線に出す形と失敗の型。何も決めない",
+        may_use: &[],
+    },
+    Layer {
+        name: "utils",
+        decides: "USI の行を値に写す変換と、ログの間引き・伏字",
+        may_use: &["types"],
+    },
+    Layer {
+        name: "protocol",
+        decides: "1本のプロセスへ何を送れるか",
+        may_use: &["types", "utils"],
+    },
+    Layer {
+        name: "registry",
+        decides: "どのプロセスが生きているか",
+        may_use: &["types", "utils", "protocol"],
+    },
+    // `game` と `analyzer` は同位。互いを知らない
+    Layer {
+        name: "game",
+        decides: "対局の状態機械と持ち時間",
+        may_use: &["types", "utils", "protocol", "registry"],
+    },
+    Layer {
+        name: "analyzer",
+        decides: "解析の探索1回ぶん",
+        may_use: &["types", "utils", "protocol", "registry"],
+    },
+    Layer {
+        name: "bridge",
+        decides: "解析のファサード",
+        may_use: &["types", "utils", "protocol", "registry", "analyzer"],
+    },
+    Layer {
+        name: "state",
+        decides: "Tauri が持つ持ち物",
+        may_use: &["types", "registry", "game", "analyzer", "bridge"],
+    },
+    Layer {
+        name: "commands",
+        decides: "Tauri コマンドの入口",
+        may_use: &[
+            "types", "utils", "protocol", "registry", "game", "analyzer", "bridge", "state",
+        ],
+    },
 ];
+
+fn layer(name: &str) -> Option<&'static Layer> {
+    LAYERS.iter().find(|l| l.name == name)
+}
 
 fn engine_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/engine")
@@ -71,25 +138,72 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// `use super::x` と `use crate::engine::x` から `x` を拾う。
-fn imports_of(source: &str) -> BTreeSet<String> {
+/// 先頭の識別子を1つ取る。`{` や `*` で始まっていれば `None`。
+fn leading_name(rest: &str) -> Option<String> {
+    let name: String = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    (!name.is_empty()).then_some(name)
+}
+
+/// `use crate::engine::x` から `x` を拾う。**波括弧で並べた形も開く。**
+///
+/// `use super::` は `game/*.rs` では `engine::game::*` を指すので、
+/// この走査では扱わない（段を割っていない場所への辺は意味を持たない）。
+/// ただし `engine/` 直下のファイルでは `super` = `engine` なので、
+/// そちらは呼び出し側が `crate::engine::` と同じに扱う。
+fn imports_from(rest: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+
+    let Some(inner) = rest.strip_prefix('{') else {
+        // `use crate::engine::protocol::UsiProtocol;`
+        found.extend(leading_name(rest));
+        return found;
+    };
+
+    // `use crate::engine::{types::*, utils::cmd_summary};`
+    // 入れ子の波括弧はこの repo に無いので、深さは数えない。
+    // 出たら `every_module_is_placed_on_a_layer` が拾えない名前として現れる
+    let inner = inner.trim_end_matches([';', '}']);
+    for part in inner.split(',') {
+        found.extend(leading_name(part.trim()));
+    }
+    found
+}
+
+/// そのファイルが `use` している `engine` 直下のモジュール名。
+fn imports_of(source: &str, is_top_level: bool) -> BTreeSet<String> {
     let mut found = BTreeSet::new();
     for line in source.lines() {
         let line = line.trim_start();
-        let rest = line
-            .strip_prefix("use super::")
-            .or_else(|| line.strip_prefix("use crate::engine::"));
-        let Some(rest) = rest else { continue };
 
-        let name: String = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        if !name.is_empty() {
-            found.insert(name);
+        if let Some(rest) = line.strip_prefix("use crate::engine::") {
+            found.extend(imports_from(rest));
+            continue;
+        }
+        // `engine/` 直下なら `super` は `engine` そのもの
+        if is_top_level {
+            if let Some(rest) = line.strip_prefix("use super::") {
+                found.extend(imports_from(rest));
+            }
         }
     }
     found
+}
+
+/// `engine/` の外（`crate::` の他の枝）へ伸びる `use` があるか。
+///
+/// **段の一番上より、さらに上。** `engine` は crate の他の部分を知らない、が
+/// 保てているかを見る。`the_close_budget_is_deliberately_short` が
+/// `crate::CLOSE_TIMEOUT` を引いていたのがこれ。
+fn reaches_outside(source: &str) -> Vec<String> {
+    source
+        .lines()
+        .map(str::trim_start)
+        .filter(|l| l.starts_with("use crate::") && !l.starts_with("use crate::engine::"))
+        .map(|l| l.trim_end_matches(';').to_string())
+        .collect()
 }
 
 /// モジュール名 → そのモジュールが `use` しているモジュール名。
@@ -104,8 +218,9 @@ fn graph() -> BTreeMap<String, BTreeSet<String>> {
             continue;
         }
         let source = fs::read_to_string(&path).unwrap_or_default();
+        let is_top_level = relative.components().count() == 1;
         let edges = graph.entry(module.clone()).or_default();
-        for target in imports_of(&source) {
+        for target in imports_of(&source, is_top_level) {
             if target != module {
                 edges.insert(target);
             }
@@ -122,12 +237,52 @@ fn the_scanner_actually_walks_the_engine() {
         "モジュールを {} 個しか拾えていない",
         graph.len()
     );
-    for (name, _) in LAYERS {
+    for Layer { name, .. } in LAYERS {
         assert!(
             graph.contains_key(*name),
             "段に挙げた `{name}` が現物に無い。消したなら段からも消すこと"
         );
     }
+
+    // **辺が1本も取れていなくてもモジュール名は並ぶ。** 走査が空振りすると
+    // 「違反0」で緑になるので、既知の辺を名指しで固定する。
+    // `protocol.rs` は波括弧で `use` しているので、そこが取れていれば
+    // 波括弧を開けている
+    for (from, to) in [
+        ("registry", "protocol"),
+        ("protocol", "types"),
+        ("state", "game"),
+    ] {
+        assert!(
+            graph.get(from).is_some_and(|e| e.contains(to)),
+            "既知の辺 `{from} -> {to}` が取れていない。走査が空振りしている"
+        );
+    }
+}
+
+/// `engine/` が crate の他の枝を知らないこと。
+///
+/// **段の一番上より、さらに上。** ここを見ないと、`engine` の中から
+/// `crate::CLOSE_TIMEOUT` のように上を引く行が素通りする
+/// （`use crate::engine::` で始まらないので、段の走査には現れない）。
+#[test]
+fn the_engine_does_not_reach_out_of_itself() {
+    let root = engine_dir();
+    let mut outside = Vec::new();
+
+    for path in rust_files(&root) {
+        let relative = path.strip_prefix(&root).unwrap_or(&path).to_path_buf();
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        for line in reaches_outside(&source) {
+            outside.push(format!("{}  {}", relative.display(), line));
+        }
+    }
+
+    assert!(
+        outside.is_empty(),
+        "`engine/` の外を `use` している。共有したいものは `engine` の中へ下ろすこと:\n{}",
+        outside.join("\n")
+    );
 }
 
 /// 段に載っていないモジュールを残さない。
@@ -136,7 +291,15 @@ fn the_scanner_actually_walks_the_engine() {
 /// それが何を決める場所かを `LAYERS` に1行で書くことになる。
 #[test]
 fn every_module_is_placed_on_a_layer() {
-    let placed: BTreeSet<&str> = LAYERS.iter().map(|(n, _)| *n).collect();
+    // 「何を決める場所か」を空にしない。空で置けるなら、それは段ではなく置き場の都合
+    for Layer { name, decides, .. } in LAYERS {
+        assert!(
+            !decides.trim().is_empty(),
+            "段 `{name}` に「何を決める場所か」が書かれていない"
+        );
+    }
+
+    let placed: BTreeSet<&str> = LAYERS.iter().map(|l| l.name).collect();
     let stray: Vec<String> = graph()
         .keys()
         .filter(|m| !placed.contains(m.as_str()))
@@ -174,33 +337,30 @@ fn no_module_depends_on_something_that_depends_back() {
     );
 }
 
-/// 下の段が上の段を `use` しないこと。
+/// 許していない段を `use` していないこと。
 #[test]
 fn dependencies_only_point_downwards() {
-    let rank: BTreeMap<&str, usize> = LAYERS
-        .iter()
-        .enumerate()
-        .map(|(i, (name, _))| (*name, i))
-        .collect();
-
     let mut upward = Vec::new();
     for (from, targets) in graph() {
-        let Some(&from_rank) = rank.get(from.as_str()) else {
+        let Some(from_layer) = layer(&from) else {
             continue;
         };
         for to in targets {
-            let Some(&to_rank) = rank.get(to.as_str()) else {
+            if layer(&to).is_none() {
                 continue;
-            };
-            if to_rank > from_rank {
-                upward.push(format!("{from} -> {to}"));
+            }
+            if !from_layer.may_use.contains(&to.as_str()) {
+                upward.push(format!(
+                    "{from} -> {to}（{} が使ってよいのは {:?}）",
+                    from_layer.name, from_layer.may_use
+                ));
             }
         }
     }
 
     assert!(
         upward.is_empty(),
-        "下の段が上の段を使っている。共有したいものは共有できる段まで下げること:\n{}",
+        "許していない段を使っている。共有したいものは共有できる段まで下げること:\n{}",
         upward.join("\n")
     );
 }

@@ -43,11 +43,12 @@ use tauri::Manager;
 /// 積み上げた値も下限でしかない。
 ///
 /// **式で持つ。** 内訳を散文で数えると、上限を1つ増やしたときに数え直す口が無い。
-/// 「合わせに行かない」ことは `the_close_budget_is_deliberately_short` が固定する。
+/// 「合わせに行かない」ことは `src-tauri/tests/engine_timeouts.rs` が固定する
+/// （モジュールを跨ぐ関係なので、`#[cfg(test)] mod tests` からは見られない）。
 ///
 /// **合わせに行かない。** 合わせると終了が十数秒待たされる。
 /// ここで切り上げた分は下の掃除が拾う。
-pub(crate) const CLOSE_TIMEOUT: Duration = Duration::from_secs(4);
+pub const CLOSE_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// 台帳に残ったプロセスを落とすのに使える時間。
 ///

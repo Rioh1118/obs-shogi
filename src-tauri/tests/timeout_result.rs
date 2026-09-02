@@ -47,14 +47,16 @@ const WINDOW: usize = 6;
 
 /// 上限を超えたか**だけ**を見たい呼び出し。中身が `()` なので捨てる `Result` が無い。
 ///
+/// **待つ相手の綴りで持つ。** 行番号で持つと、無関係な1行を足すだけで赤くなり、
+/// 直す作業が「番号を書き換える」だけになる——**免除の中身は誰も読み直さない**。
+/// 綴りなら、その `timeout` を動かしても消しても意味のある形で落ちる。
+///
 /// 増やすときは、その `timeout` の内側が `Result` を返さないことを確かめること。
-/// 位置は `src` からの相対パスと行番号。行がずれたら赤くなるので、
-/// **動かしたときに必ず読み直すことになる**（それが狙い）。
 const EXEMPT: &[&str] = &[
     // `EngineRegistry::shutdown_all` は戻り値を持たない
-    "lib.rs:208",
+    "registry.shutdown_all()",
     // `Notify::notified` は `()` を返す。畳まれたか超えたかの2値しかない
-    "engine/analyzer.rs:597",
+    "settled.notified()",
 ];
 
 /// `timeout(` が現れる位置を、`src` からの相対パスと行番号で並べる
@@ -76,21 +78,21 @@ fn timeout_sites() -> Vec<String> {
 
 /// 免除が現物を指していること。
 ///
-/// **行番号で書いてある以上、行がずれた免除は誰も見ない。** 免除された側は
-/// 免除のつもりのまま検査を受け、免除の行だけが化石として残る。
-/// 免除を消し忘れたことにも、免除の位置がずれたことにも、ここで気付く
+/// **効いていない免除は誰も見ない。** 免除された側は免除のつもりのまま
+/// 検査を受け、免除の行だけが化石として残る。消し忘れにここで気付く。
 #[test]
 fn the_exempt_list_points_at_real_lines() {
-    let sites = timeout_sites();
-    let dead: Vec<&&str> = EXEMPT
+    let all: String = rust_files(&src_dir())
         .iter()
-        .filter(|e| !sites.contains(&e.to_string()))
-        .collect();
+        .map(|p| fs::read_to_string(p).unwrap_or_default())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let dead: Vec<&&str> = EXEMPT.iter().filter(|e| !all.contains(**e)).collect();
 
     assert!(
         dead.is_empty(),
-        "免除が指す行に `timeout(` が無い。動かしたなら行番号を直し、\
-         消したなら免除も消すこと:\n{dead:?}"
+        "免除が指す綴りがソースに無い。消したなら免除も消すこと:\n{dead:?}"
     );
 }
 
@@ -108,7 +110,12 @@ fn a_timeout_never_swallows_the_inner_result() {
             }
             let relative = path.strip_prefix(src_dir()).unwrap_or(&path);
             let here = format!("{}:{}", relative.display(), index + 1);
-            if EXEMPT.contains(&here.as_str()) {
+
+            // 免除は待つ相手の綴りで見る。`timeout(` の行から数行のうちに
+            // その綴りがあれば、同じ式だとみなす
+            let end = (index + WINDOW).min(lines.len());
+            let window = lines[index..end].join("\n");
+            if EXEMPT.iter().any(|e| window.contains(e)) {
                 continue;
             }
 
@@ -119,8 +126,6 @@ fn a_timeout_never_swallows_the_inner_result() {
                 continue;
             }
 
-            let end = (index + WINDOW).min(lines.len());
-            let window = lines[index..end].join("\n");
             if window.contains(".is_ok()") || window.contains(".is_err()") {
                 offenders.push(format!("{}  {}", here, line.trim()));
             }
