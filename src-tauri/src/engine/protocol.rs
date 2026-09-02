@@ -1127,25 +1127,77 @@ mod tests {
     const ALL_READY_STATES: [ReadyState; 3] =
         [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed];
 
-    /// 写像のループが回すコマンド。
+    /// `GuiCommand` の全バリアントに名前を付ける。
     ///
-    /// **`requires_ready` と `bypasses_draining` が真を返すものを全部含める。**
-    /// 含めているかは `every_ready_gated_command_is_covered` と
-    /// `every_draining_bypass_is_covered` が見る。
-    /// それ以外（`Usi` / `SetOption` / `Debug` / `Register`）は
-    /// どちらの述語にも掛からず `Send` になるだけなので、代表として `Usi` を1つ入れる。
+    /// **`_` を足さないこと。** `usi` crate がバリアントを増やしたら、
+    /// この `match` がコンパイルで落ちる。そこが「新しいコマンドを
+    /// `commands()` に足す」を思い出す唯一の場所。
+    fn kind_of(cmd: &GuiCommand) -> &'static str {
+        match cmd {
+            GuiCommand::Usi => "usi",
+            GuiCommand::IsReady => "isready",
+            GuiCommand::SetOption(..) => "setoption",
+            GuiCommand::UsiNewGame => "usinewgame",
+            GuiCommand::Position(_) => "position",
+            GuiCommand::Go(_) => "go",
+            GuiCommand::Stop => "stop",
+            GuiCommand::Ponderhit => "ponderhit",
+            GuiCommand::GameOver(_) => "gameover",
+            GuiCommand::Quit => "quit",
+        }
+    }
+
+    /// 写像のループが回すコマンド。**`GuiCommand` の全バリアントを1つずつ。**
+    ///
+    /// 述語（`requires_ready` / `bypasses_draining`）にバリアントを足したとき、
+    /// ここに無いと写像のループがその組み合わせを試さない。
+    /// 全部あることは `commands_covers_every_gui_command` が見る。
     fn commands() -> Vec<GuiCommand> {
         vec![
-            GuiCommand::UsiNewGame,
-            GuiCommand::Go(usi::ThinkParams::new()),
-            GuiCommand::Position("sfen".to_string()),
-            GuiCommand::Stop,
-            GuiCommand::IsReady,
-            GuiCommand::Quit,
-            GuiCommand::GameOver(usi::GameOverKind::Win),
-            GuiCommand::Ponderhit,
             GuiCommand::Usi,
+            GuiCommand::IsReady,
+            GuiCommand::SetOption("name".to_string(), None),
+            GuiCommand::UsiNewGame,
+            GuiCommand::Position("sfen".to_string()),
+            GuiCommand::Go(usi::ThinkParams::new()),
+            GuiCommand::Stop,
+            GuiCommand::Ponderhit,
+            GuiCommand::GameOver(usi::GameOverKind::Win),
+            GuiCommand::Quit,
         ]
+    }
+
+    /// `commands()` が `GuiCommand` の全バリアントを持つこと。
+    ///
+    /// **数を書かない。** `kind_of` の `match` が全域なので、
+    /// そこに現れる名前が全部 `commands()` にあれば足りている。
+    /// バリアントが増えたら `kind_of` がコンパイルで落ちて、ここへ辿り着く
+    #[test]
+    fn commands_covers_every_gui_command() {
+        let mut kinds: Vec<&str> = commands().iter().map(kind_of).collect();
+        kinds.sort_unstable();
+        let before = kinds.len();
+        kinds.dedup();
+
+        assert_eq!(before, kinds.len(), "`commands()` に同じ種類が2つある");
+
+        // `kind_of` の腕を1つずつ書き出したものと突き合わせる。
+        // ここも `_` を使わないので、増えたバリアントは両方に現れる
+        let mut all = [
+            "usi",
+            "isready",
+            "setoption",
+            "usinewgame",
+            "position",
+            "go",
+            "stop",
+            "ponderhit",
+            "gameover",
+            "quit",
+        ];
+        all.sort_unstable();
+
+        assert_eq!(kinds, all, "`commands()` が `GuiCommand` を網羅していない");
     }
 
     /// 写像の全域を回す。**行を手で選ばない。**
@@ -1173,48 +1225,26 @@ mod tests {
 
     /// `dispatch_for` と**独立に**期待値を組む。
     ///
-    /// 条件を箇条書きの順に素直に並べる。`dispatch_for` は `match` の1本に
-    /// 畳んであるので、こちらは `if` を並べる形にして書き方を変えてある。
+    /// **述語（`requires_ready` / `bypasses_draining`）を呼ばない。** 呼ぶと、
+    /// 述語の中身を変えたときに両辺が同じだけ動いて絶対に落ちない。
+    /// ここではコマンドを `kind_of` の名前で数え上げる——
+    /// 述語にバリアントを足す変異は、この列挙と食い違って落ちる。
     fn expected_dispatch(state: ReadyState, draining: bool, cmd: &GuiCommand) -> Dispatch {
         if state == ReadyState::Closed {
             return Dispatch::Refuse;
         }
-        if draining && !bypasses_draining(cmd) {
+
+        let kind = kind_of(cmd);
+
+        // 掃きの最中でも列の後ろへ回さないもの
+        if draining && !matches!(kind, "stop" | "isready" | "quit") {
             return Dispatch::Queue;
         }
-        if state == ReadyState::Waiting && requires_ready(cmd) {
+        // `readyok` が返るまで送れないもの
+        if state == ReadyState::Waiting && matches!(kind, "usinewgame" | "position" | "go") {
             return Dispatch::Queue;
         }
         Dispatch::Send
-    }
-
-    /// `requires_ready` が真を返すコマンドが、全部ループに載っていること。
-    ///
-    /// **載っていないと、`requires_ready` からバリアントを落としても緑のまま通る。**
-    /// `usinewgame` が表に1行も無かったのがそれ
-    #[test]
-    fn every_ready_gated_command_is_covered() {
-        let covered: Vec<GuiCommand> = commands().into_iter().filter(requires_ready).collect();
-
-        assert_eq!(
-            covered.len(),
-            3,
-            "`requires_ready` が真を返すコマンドが {} 個しかループに載っていない: {covered:?}",
-            covered.len()
-        );
-    }
-
-    /// `draining` の例外が全部ループに載っていること
-    #[test]
-    fn every_draining_bypass_is_covered() {
-        let covered: Vec<GuiCommand> = commands().into_iter().filter(bypasses_draining).collect();
-
-        assert_eq!(
-            covered.len(),
-            3,
-            "例外が {} 個しか載っていない",
-            covered.len()
-        );
     }
 
     /// `Closed` から戻す口を作らないこと。
