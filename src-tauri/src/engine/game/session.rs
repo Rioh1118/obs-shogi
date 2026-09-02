@@ -729,7 +729,9 @@ impl Runner {
         }
 
         match outcome {
-            SearchOutcome::Aborted | SearchOutcome::StopTimedOut | SearchOutcome::Failed(_) => {
+            SearchOutcome::StoppedCleanly
+            | SearchOutcome::StopTimedOut
+            | SearchOutcome::Failed(_) => {
                 // 上で処理済み。
                 //
                 // `Aborted` は `Searching` からも来る（`finish` は `Stopping` へ

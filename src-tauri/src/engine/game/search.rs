@@ -49,8 +49,12 @@ pub enum SearchOutcome {
     Resign,
     /// `bestmove win`（入玉宣言）
     DeclareWin,
-    /// 打ち切って、捨てる `bestmove` も受け取れた。エンジンは idle に戻っている
-    Aborted,
+    /// 打ち切って、捨てる `bestmove` も受け取れた。エンジンは idle に戻っている。
+    ///
+    /// **`GameOverReason::Aborted` と名前を分けてある。** あちらは
+    /// 「勝敗なしで対局が終わった」で、こちらは「探索が正常に止まった」。
+    /// 意味が正反対なのに `on_search_outcome` の中で同居する
+    StoppedCleanly,
     /// **`stop` を送っても `bestmove` が返らなかった。**
     ///
     /// エンジンはまだ探索中で、次の `go` は受け付けられない。しかも遅れて
@@ -229,7 +233,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
 /// 捨てる `bestmove` を受け取れたこと、`Some(false)` がチャンネルの閉塞。
 fn outcome_after_stop(drained: Option<bool>) -> SearchOutcome {
     match drained {
-        Some(true) => SearchOutcome::Aborted,
+        Some(true) => SearchOutcome::StoppedCleanly,
         Some(false) => SearchOutcome::Failed("engine stopped responding".to_string()),
         None => SearchOutcome::StopTimedOut,
     }
@@ -252,7 +256,7 @@ mod tests {
         // 打ち切りに応じた。エンジンは idle に戻っている
         assert!(matches!(
             outcome_after_stop(Some(true)),
-            SearchOutcome::Aborted
+            SearchOutcome::StoppedCleanly
         ));
         // チャンネルが閉じた＝プロセスが落ちた。**「stop に応じない」ではない**
         assert!(matches!(
