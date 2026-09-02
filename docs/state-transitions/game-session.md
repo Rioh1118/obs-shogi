@@ -231,9 +231,10 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 「持ち時間を使い切ってから秒読みが減り始める」という規則が**境界の両側に生える**。
 時刻なら受け手は `deadline - now` をクランプするだけで済み、その規則は Rust から出ない。
 
-**Rust の中では2箇所にある。** 表示側が `GameClocks::view`、消費と時間切れの
-判定側が `SideClock::budget_ms` / `consume`。片方だけ変えると、画面に秒読みが
-残っているのに時間切れになる。
+**Rust の中では3箇所にある。** 表示側が `GameClocks::view`、消費と時間切れの
+判定側が `SideClock::budget_ms` と `SideClock::consume`。
+`SideClock::has_expired` は `budget_ms` に委譲しているので数に入らない。
+1つだけ変えると、画面に秒読みが残っているのに時間切れになる。
 
 ```
 ClocksView {
