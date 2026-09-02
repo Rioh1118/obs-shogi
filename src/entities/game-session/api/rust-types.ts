@@ -91,15 +91,42 @@ export interface GameResult {
   detail: string | null;
 }
 
+/** 片側の時計。**止まっている値**で、動いている側の表示には使わない */
 export interface ClockView {
-  remainingMs: number;
-  /** 持ち時間が残っている間は秒読みの設定値のまま */
-  byoyomiLeftMs: number;
+  /** 持ち時間の残り */
+  mainMs: number;
+  /** 秒読みの設定値。1手ごとに与え直されるので、手番の頭では常にこの値 */
+  byoyomiMs: number;
+}
+
+/**
+ * 動いている側と、その表示が 0 になる時刻（UNIX epoch のミリ秒）。
+ *
+ * **減っていく値ではなく、尽きる時刻が来る。** こちら側は
+ * `deadline - Date.now()` をクランプして出すだけで、
+ * 減らすループも「持ち時間の後に秒読み」の規則も持たない。
+ * 規則は Rust の `GameClocks::view` にだけある。
+ *
+ * ```ts
+ * const main = Math.max(0, running.mainZeroAt - Date.now());
+ * const byoyomi = Math.min(clock.byoyomiMs, Math.max(0, running.byoyomiZeroAt - Date.now()));
+ * ```
+ *
+ * **時間切れの判定には使わないこと。** それは Rust が単調時計で測って
+ * `over` を出す。ここの時刻は表示のためだけで、壁時計が飛べばずれる
+ * （次の更新で入れ直る）。
+ */
+export interface RunningClock {
+  side: Side;
+  mainZeroAt: number;
+  byoyomiZeroAt: number;
 }
 
 export interface ClocksView {
   black: ClockView;
   white: ClockView;
+  /** 両方止まっているなら null（裁定待ちと終局後） */
+  running: RunningClock | null;
 }
 
 export type GamePhaseView =

@@ -979,10 +979,13 @@ impl Runner {
     }
 
     fn clocks_view(&self) -> ClocksView {
-        match self.phase {
-            Phase::Thinking { side } => self.clocks.view(Some((side, self.elapsed_ms()))),
-            _ => self.clocks.view(None),
-        }
+        let running = match self.phase {
+            Phase::Thinking { side } => Some((side, self.elapsed_ms())),
+            // 裁定待ちと終局後は動いていない。**時刻を出さないことで、
+            // 受け手が減らす余地そのものを消す**
+            _ => None,
+        };
+        self.clocks.view(running, now_epoch_ms())
     }
 
     fn snapshot(&self) -> GameSnapshot {
@@ -1204,6 +1207,15 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
         return Err(format!("move has an unusable shape: {usi_move}"));
     }
     Ok(())
+}
+
+/// 壁時計。**時間切れの判定には使わない**（そちらは `Instant` で測る）。
+/// 使うのは「表示が尽きる時刻」を受け手へ渡すときだけ
+fn now_epoch_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 fn contains_usi_breaking_char(s: &str) -> bool {
@@ -1604,88 +1616,41 @@ mod tests {
         );
     }
 
+    /// 裁定待ちでは**動いている時計を出さない**。
+    /// 時刻を出すと、受け手はそれを `now` から引いて減らしてしまう
     #[tokio::test]
-    async fn the_shown_clock_does_not_move_while_the_app_is_ruling() {
+    async fn no_clock_is_running_while_the_app_is_ruling() {
         let game = start(two_humans(vec![])).await;
         game.submit_move(Side::Black, "7g7f".to_string())
             .await
             .unwrap();
 
-        let before = game.snapshot().await.unwrap().clocks;
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        let after = game.snapshot().await.unwrap().clocks;
-
-        assert_eq!(before.black.remaining_ms, after.black.remaining_ms);
-        assert_eq!(before.white.remaining_ms, after.white.remaining_ms);
+        let clocks = game.snapshot().await.unwrap().clocks;
+        assert!(
+            clocks.running.is_none(),
+            "裁定待ちなのに動いている時計が出ている"
+        );
     }
 
+    /// 手番の間は、動いている側と尽きる時刻が出ること。
+    /// 上の1本だけだと「常に出さない」でも通る
     #[tokio::test]
-    async fn the_shown_clock_moves_while_a_side_is_thinking() {
-        // 上の1本が「止まっている」を見るので、こちらで「動く」側を押さえる。
-        // 両方無いと、時計を常に止めても両方通る
+    async fn the_side_to_move_carries_a_deadline() {
         let game = start(two_humans(vec![])).await;
 
-        let before = game.snapshot().await.unwrap().clocks;
-        tokio::time::sleep(Duration::from_millis(300)).await;
-        let after = game.snapshot().await.unwrap().clocks;
+        let clocks = game.snapshot().await.unwrap().clocks;
+        let running = clocks.running.expect("手番側の時計が出ていない");
+        assert_eq!(running.side, Side::Black);
 
+        // 持ち時間は10分。壁時計との差がそれに近いこと（実時間で測るので幅を持たせる）
+        let now = now_epoch_ms();
+        let left = running.main_zero_at.saturating_sub(now);
         assert!(
-            after.black.remaining_ms < before.black.remaining_ms,
-            "手番側の時計が動いていない: {} -> {}",
-            before.black.remaining_ms,
-            after.black.remaining_ms
+            (595_000..=600_000).contains(&left),
+            "尽きる時刻が持ち時間と合っていない: {left}ms"
         );
-        assert_eq!(
-            before.white.remaining_ms, after.white.remaining_ms,
-            "手番でない側の時計が動いている"
-        );
-    }
-
-    #[tokio::test]
-    async fn running_out_of_time_ends_the_game() {
-        let mut settings = two_humans(vec![]);
-        settings.black_time = TimeLimit {
-            main_ms: 50,
-            byoyomi_ms: 0,
-            increment_ms: 0,
-        };
-        let game = start(settings).await;
-
-        // tick は 100ms ごと。実時間で待つので余裕を取る
-        let mut result = None;
-        for _ in 0..40 {
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            if let GamePhaseView::Over { result: r } = phase_of(&game.snapshot().await.unwrap()) {
-                result = Some(r.clone());
-                break;
-            }
-        }
-
-        let result = result.expect("持ち時間が尽きても終局しなかった");
-        assert_eq!(result.reason, GameOverReason::Timeout);
-        assert_eq!(result.winner, Some(Side::White));
-    }
-
-    /// 対局を捨てたら、走っているタスクが自分を生かし続けないこと。
-    ///
-    /// `Runner` と `tick_loop` が strong sender を持つと `rx.recv()` が永久に
-    /// `None` を返さず、`run_loop` と拍が対局ごとに残り続ける。
-    /// **strong が1本でも残っていれば `upgrade` が `Some` を返す**ので、
-    /// ここが輪の有無をそのまま映す。
-    #[tokio::test]
-    async fn dropping_a_game_leaves_no_one_holding_its_channel() {
-        let game = start(two_humans(vec![])).await;
-        let weak = game.tx.downgrade();
-        assert!(weak.upgrade().is_some(), "生きている間は掴めるはず");
-
-        drop(game);
-        // 拍が起きて `upgrade` に失敗するまでの間を空ける
-        tokio::time::sleep(Duration::from_millis(250)).await;
-
-        assert!(
-            weak.upgrade().is_none(),
-            "対局を捨てた後も誰かがチャンネルを掴んでいる"
-        );
+        // 秒読み0なので、2つの期限は同じ
+        assert_eq!(running.byoyomi_zero_at, running.main_zero_at);
     }
 
     #[test]

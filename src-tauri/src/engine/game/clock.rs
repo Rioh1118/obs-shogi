@@ -6,7 +6,7 @@
 use std::time::Duration;
 use usi::ThinkParams;
 
-use super::types::{ClockView, ClocksView, Side, TimeLimit};
+use super::types::{ClockView, ClocksView, RunningClock, Side, TimeLimit};
 
 /// 片側の時計。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +36,10 @@ impl SideClock {
         self.remaining_ms
     }
 
+    pub fn byoyomi_ms(&self) -> u64 {
+        self.limit.byoyomi_ms
+    }
+
     /// この手に使い切れる上限。持ち時間の残り＋秒読み。
     ///
     /// 加算（フィッシャー）は**着手できてから**足すので、ここには入らない。
@@ -44,13 +48,11 @@ impl SideClock {
         self.remaining_ms + self.limit.byoyomi_ms
     }
 
-    /// 思考中の見え方。`elapsed_ms` はその手に既に使った時間。
-    pub fn view(&self, elapsed_ms: u64) -> ClockView {
-        let from_main = elapsed_ms.min(self.remaining_ms);
-        let overflow = elapsed_ms - from_main;
+    /// 止まっている値。動いている側の表示には使わない（`GameClocks::view` を見る）
+    pub fn view(&self) -> ClockView {
         ClockView {
-            remaining_ms: self.remaining_ms - from_main,
-            byoyomi_left_ms: self.limit.byoyomi_ms.saturating_sub(overflow),
+            main_ms: self.remaining_ms,
+            byoyomi_ms: self.limit.byoyomi_ms,
         }
     }
 
@@ -100,15 +102,37 @@ impl GameClocks {
         &mut self.clocks[side.index()]
     }
 
-    /// 画面へ出す形。`thinking` が `Some` なら、その側だけ経過分を引いて見せる
-    pub fn view(&self, thinking: Option<(Side, u64)>) -> ClocksView {
-        let elapsed_of = |side: Side| match thinking {
-            Some((s, ms)) if s == side => ms,
-            _ => 0,
-        };
+    /// 画面へ出す形。
+    ///
+    /// **動いている側は「尽きる時刻」で渡す。** 減っていく値を渡すと、
+    /// 滑らかに見せたい側がそれを自分で減らすことになり、
+    /// 「持ち時間を使い切ってから秒読みが減り始める」という規則が両側に生える。
+    /// 時刻なら受け手は `deadline - now` をクランプするだけで済む。
+    ///
+    /// `running` はその手に既に使った時間、`now_epoch_ms` は壁時計。
+    /// **どちらも外から渡す**（この型は時刻を測らない）。
+    pub fn view(&self, running: Option<(Side, u64)>, now_epoch_ms: u64) -> ClocksView {
+        let running = running.map(|(side, elapsed_ms)| {
+            let clock = &self.clocks[side.index()];
+
+            // 持ち時間を使い切ってから秒読みが減る。この規則はここだけにある
+            let main_left = clock.remaining_ms.saturating_sub(elapsed_ms);
+            let into_byoyomi = elapsed_ms.saturating_sub(clock.remaining_ms);
+            let byoyomi_left = clock.limit.byoyomi_ms.saturating_sub(into_byoyomi);
+
+            RunningClock {
+                side,
+                main_zero_at: now_epoch_ms.saturating_add(main_left),
+                byoyomi_zero_at: now_epoch_ms
+                    .saturating_add(main_left)
+                    .saturating_add(byoyomi_left),
+            }
+        });
+
         ClocksView {
-            black: self.clocks[Side::Black.index()].view(elapsed_of(Side::Black)),
-            white: self.clocks[Side::White.index()].view(elapsed_of(Side::White)),
+            black: self.clocks[Side::Black.index()].view(),
+            white: self.clocks[Side::White.index()].view(),
+            running,
         }
     }
 
@@ -160,6 +184,10 @@ mod tests {
             byoyomi_ms,
             increment_ms: 0,
         }
+    }
+
+    fn minutes_ms(n: u64) -> TimeLimit {
+        sudden_death(n * 60_000)
     }
 
     fn fischer(main_ms: u64, increment_ms: u64) -> TimeLimit {
@@ -251,17 +279,39 @@ mod tests {
         assert_eq!(clock.consume(9_001), ClockOutcome::Expired);
     }
 
+    /// 動いている側は「尽きる時刻」で出す。持ち時間が残っている間は
+    /// 秒読みの期限が `持ち時間の期限 + 秒読み` になるので、
+    /// 受け手が `byoyomi_ms` でクランプすれば満額に見える
     #[test]
-    fn view_counts_down_byoyomi_only_after_main_time_is_gone() {
-        let clock = SideClock::new(byoyomi(10_000, 30_000));
+    fn a_running_clock_is_published_as_deadlines() {
+        let clocks = GameClocks::new(byoyomi(10_000, 30_000), minutes_ms(10));
+        const NOW: u64 = 1_700_000_000_000;
 
-        let during_main = clock.view(4_000);
-        assert_eq!(during_main.remaining_ms, 6_000);
-        assert_eq!(during_main.byoyomi_left_ms, 30_000);
+        let during_main = clocks
+            .view(Some((Side::Black, 4_000)), NOW)
+            .running
+            .unwrap();
+        assert_eq!(during_main.main_zero_at, NOW + 6_000);
+        assert_eq!(during_main.byoyomi_zero_at, NOW + 6_000 + 30_000);
 
-        let into_byoyomi = clock.view(15_000);
-        assert_eq!(into_byoyomi.remaining_ms, 0);
-        assert_eq!(into_byoyomi.byoyomi_left_ms, 25_000);
+        // 持ち時間を使い切った後は、秒読みだけが減る
+        let into_byoyomi = clocks
+            .view(Some((Side::Black, 15_000)), NOW)
+            .running
+            .unwrap();
+        assert_eq!(into_byoyomi.main_zero_at, NOW);
+        assert_eq!(into_byoyomi.byoyomi_zero_at, NOW + 25_000);
+    }
+
+    /// 止まっている側は時刻を持たない。**受け手が減らす余地を作らない**
+    #[test]
+    fn a_stopped_clock_carries_no_deadline() {
+        let clocks = GameClocks::new(byoyomi(10_000, 30_000), minutes_ms(10));
+
+        let view = clocks.view(None, 1_700_000_000_000);
+        assert!(view.running.is_none());
+        assert_eq!(view.black.main_ms, 10_000);
+        assert_eq!(view.black.byoyomi_ms, 30_000);
     }
 
     #[test]

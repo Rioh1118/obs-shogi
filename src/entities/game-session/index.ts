@@ -25,6 +25,7 @@ export { GAME_EVENT, listenToGameEvents } from "./api/events";
 export type {
   ClocksView,
   ClockView,
+  RunningClock,
   GameEvent,
   GameId,
   GameOverReason,

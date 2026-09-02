@@ -179,21 +179,44 @@ pub struct GameResult {
     pub detail: Option<String>,
 }
 
-/// 片側の時計の見え方。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+/// 片側の時計。**止まっている値**で、動いている側の表示には使わない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockView {
     /// 持ち時間の残り
-    pub remaining_ms: u64,
-    /// 秒読みの残り。持ち時間が残っている間は秒読みの設定値のまま
-    pub byoyomi_left_ms: u64,
+    pub main_ms: u64,
+    /// 秒読みの設定値。1手ごとに与え直されるので、手番の頭では常にこの値
+    pub byoyomi_ms: u64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+/// 動いている側と、その表示が 0 になる時刻。
+///
+/// **減っていく値ではなく、尽きる時刻を渡す。** 減る値を渡すと、滑らかに
+/// 見せたい側がそれを自分で減らすことになり、「持ち時間を使い切ってから
+/// 秒読みが減り始める」という規則が両側に生える。時刻なら
+/// `deadline - now` のクランプだけで済み、規則は Rust に1つだけ残る。
+///
+/// 時刻は壁時計（UNIX epoch のミリ秒）。**時間切れの判定には使わない**
+/// （そちらは単調時計で測る）。壁時計が飛んでも狂うのは表示だけで、
+/// 次の更新で入れ直る。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunningClock {
+    pub side: Side,
+    /// 持ち時間の表示が 0 になる時刻
+    pub main_zero_at: u64,
+    /// 秒読みの表示が 0 になる時刻。持ち時間が残っている間は
+    /// `main_zero_at + byoyomi_ms` なので、`byoyomi_ms` でクランプすれば満額に見える
+    pub byoyomi_zero_at: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClocksView {
     pub black: ClockView,
     pub white: ClockView,
+    /// 両方止まっているなら `None`（裁定待ちと終局後）
+    pub running: Option<RunningClock>,
 }
 
 /// 対局がいまどの段にいるか。
@@ -326,13 +349,18 @@ mod tests {
             elapsed_ms: 5,
             clocks: ClocksView {
                 black: ClockView {
-                    remaining_ms: 1,
-                    byoyomi_left_ms: 0,
+                    main_ms: 1,
+                    byoyomi_ms: 0,
                 },
                 white: ClockView {
-                    remaining_ms: 1,
-                    byoyomi_left_ms: 0,
+                    main_ms: 1,
+                    byoyomi_ms: 0,
                 },
+                running: Some(RunningClock {
+                    side: Side::Black,
+                    main_zero_at: 1_700_000_000_000,
+                    byoyomi_zero_at: 1_700_000_000_000,
+                }),
             },
         };
         let json = serde_json::to_string(&event).unwrap();
@@ -340,7 +368,9 @@ mod tests {
         assert!(json.contains(r#""gameId":"g""#), "{json}");
         assert!(json.contains(r#""usiMove":"7g7f""#), "{json}");
         assert!(json.contains(r#""elapsedMs":5"#), "{json}");
-        assert!(json.contains(r#""byoyomiLeftMs""#), "{json}");
+        assert!(json.contains(r#""byoyomiMs""#), "{json}");
+        assert!(json.contains(r#""mainZeroAt""#), "{json}");
+        assert!(json.contains(r#""byoyomiZeroAt""#), "{json}");
         assert!(!json.contains('_'), "snake_case が残っている: {json}");
 
         let phase = GamePhaseView::AwaitingRuling {
