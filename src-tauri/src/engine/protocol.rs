@@ -432,13 +432,23 @@ impl UsiProtocol {
 
             protocol.remove_listener(&listener_name).await;
 
-            if *protocol.generation.read().await != gen {
+            // **世代の確認と `Ready` の書き込みを同じロック区間に入れる。**
+            // 確認だけして手放すと、その隙に次の `isready` が世代を上げて
+            // `Waiting` に落とせる。`abort()` は次の await 点までしか効かないので、
+            // 確認を通過済みのこのタスクは構わず `Ready` を書く。
+            // 結果、`readyok` が返っていないエンジンに対して `ensure_ready` が
+            // 即 `Ok` を返し、まだ評価関数を読んでいる相手へ `position` / `go` が流れる
+            let gen_guard = protocol.generation.read().await;
+            if *gen_guard != gen {
                 return;
             }
 
             if ready {
                 set_ready_state(&protocol.ready, ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
+
+                // 掃くのは自分の世代のキューだけなので、ここから先は手放してよい
+                drop(gen_guard);
 
                 let mut map = protocol.pending_after_ready.lock().await;
                 let mut q = map.remove(&gen).unwrap_or_default();
@@ -460,6 +470,7 @@ impl UsiProtocol {
                     }
                 }
             } else {
+                drop(gen_guard);
                 log::warn!(target: LOGT, "ready: ended without readyok gen={}", gen);
                 let mut map = protocol.pending_after_ready.lock().await;
                 map.remove(&gen);
