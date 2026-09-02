@@ -257,6 +257,13 @@ fn stalled_turn(
     None
 }
 
+/// 先後。
+///
+/// **数を式に直書きしない。** 「`gameover` を最大2回通す」のような
+/// 見積もりが散文にしか無いと、番人の上限を式で固定するときに
+/// 1件ぶんしか見ない値が通る（実際にそうなっていた）。
+const SIDES: [Side; 2] = [Side::Black, Side::White];
+
 /// 手番が進まない理由。**エンジンの状態が違うので潰さない。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stall {
@@ -316,13 +323,16 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 /// **上と同じ関係を `the_watchdogs_are_ordered` が固定する。**
 ///
 /// `abort` はこれとは別枠。合計の予算にすると、`abort` が使い切ったぶんだけ
-/// 畳み待ちが縮む（`abort` は `finish` の中で `gameover` を最大2回通す）。
+/// 畳み待ちが縮む（`abort` は `finish` の中で、探索していない側それぞれへ
+/// `gameover` を書く——`SIDES` ぶん直列に待ちうる）。
 pub const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `close` が `abort` の応答を待つ上限。
 ///
 /// **畳み待ちと分ける。** 1つの予算を分け合うと、`abort` に時間を取られた
 /// ぶんだけ畳み待ちが縮み、正常な畳みを待ち切れなくなる。
+///
+/// 下限は `SIDES` ぶんの書き込み。`the_watchdogs_are_ordered` が式で持つ。
 pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
@@ -1487,7 +1497,7 @@ impl Runner {
         // 走っている思考を止める。`gameover` はエンジンが idle に戻ってから
         // （`on_search_outcome` の Over 分岐）送る
         let mut idle_sides = Vec::new();
-        for side in [Side::Black, Side::White] {
+        for side in SIDES {
             match &mut self.player_mut(side).activity {
                 Activity::Searching { cancel, .. } => cancel.cancel(),
                 // 既に止めてある。`bestmove` を待っている間に始め直さない
@@ -1683,7 +1693,7 @@ async fn spawn_players(
     let mut ids = Vec::new();
     let mut engines: [Option<Arc<EngineProcess>>; 2] = [None, None];
 
-    for side in [Side::Black, Side::White] {
+    for side in SIDES {
         let spec = settings.spec(side);
         let PlayerSpec::Engine {
             engine_path,
@@ -1841,7 +1851,7 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
             settings.start_sfen.len()
         ));
     }
-    for side in [Side::Black, Side::White] {
+    for side in SIDES {
         let PlayerSpec::Engine { options, .. } = settings.spec(side) else {
             continue;
         };
@@ -3209,9 +3219,13 @@ mod tests {
 
         // `abort` の予算は畳み待ちと別枠。合計にすると、`abort` が使ったぶんだけ
         // 畳み待ちが縮む。**別枠であることを式で持つ**
+        //
+        // **1件ぶんでは足りない。** `abort` は `finish` を通り、`finish` は
+        // 探索していない側それぞれへ `gameover` を書く。先後は別プロセス＝
+        // 別の書き込み列なので、最悪はその件数ぶん**直列に**待つ
         assert!(
-            CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT,
-            "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が書き込み1件ぶんも無い"
+            CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT * SIDES.len() as u32,
+            "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が `gameover` を書き切れる長さに足りない"
         );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
