@@ -44,9 +44,13 @@ pub struct BuildWarn {
     /// `tesuu = N` なら N 手目が指せず、**その手は指されていない**ので
     /// N 手目以降の局面は索引に無い（N-1 手目までは入っている）。
     ///
-    /// 番号が合う根拠は2つ。本譜は `build_index_for_jkf` が `moves[1..]` を
-    /// `start_tesuu = 1` で渡すこと、変化は `push_or_replace_fork` が
-    /// `te = tesuu` を使う（変化の1手目は元の N 手目の代わり）こと。
+    /// 番号が合う根拠は、どちらも `walk_sequence` の `start_tesuu`。
+    /// 本譜は `build_index_for_jkf` が `moves[1..]` を `1` で渡し、
+    /// 変化は `walk_sequence` が `fork_line` を**分岐点と同じ `tesuu`** で
+    /// 再帰する（変化の1手目は元の N 手目の代わり）。
+    ///
+    /// `push_or_replace_fork` が決めるのは `fork_pointers[].te`（どこで分かれたか）
+    /// であって、変化の中の `tesuu` ではない。
     pub cursor: CursorLite,
     /// `ApplyError` の英語。**画面には出さない**（内部の理由）
     pub message: String,
@@ -448,9 +452,14 @@ mod tests {
 
     /// `tesuu` の起点を、組み立ての側から固定する。
     ///
-    /// 上のテストは `CursorLite` を手で組むので、**`walk_sequence` が
-    /// 起点を変えても緑のまま**になる。1手指した棋譜の1手目が `tesuu = 1` で
-    /// 索引に入ることを、実際に組み立てて見る。
+    /// `to_user_message` だけを見る2本（`the_warning_names_the_move_that_could_not_be_played`
+    /// と `the_warning_names_the_innermost_variation`）は `CursorLite` を手で組むので、
+    /// **`walk_sequence` が起点を変えても緑のまま**になる。
+    ///
+    /// `the_warning_names_the_move_the_builder_stopped_at` も組み立てを通るが、
+    /// **あちらが見るのは指せなかった手の番号**。成功した手が `tesuu = 1` から
+    /// 始まることは見ていない（打ち切った先は索引に入らないので、見ようがない）。
+    /// 1手指した棋譜を最後まで組んで、入った側の起点を見る。
     #[test]
     fn the_first_move_is_tesuu_one() {
         let jkf = shogi_kifu_converter_obsshogi::parser::parse_kif_str(&one_move_kif("平手"))

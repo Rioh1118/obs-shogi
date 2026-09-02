@@ -408,8 +408,8 @@ mod tests {
             assert!(!text.is_empty(), "{ext} が空になっている");
         }
 
-        // KI2 が名乗るのは手合割。空になりうる唯一の形式だったので、
-        // 何を書いて空でなくなったのかを見る
+        // KI2 が名乗るのは手合割。4形式のうち書くものがいちばん少ないので、
+        // ここが空でなければ他の3つも空にならない
         let ki2 = spell_for_extension(&blank, Path::new("新規.ki2")).expect("綴れること");
         assert!(
             ki2.contains("手合割"),
