@@ -67,6 +67,17 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// 短くすると、正常に長考しているエンジンを故障と呼ぶ。
 const SEARCH_GRACE: Duration = Duration::from_secs(30);
 
+/// 1手に許す絶対の上限。
+///
+/// **黙っていなくても超えたら落とす。** 沈黙だけを条件にすると、
+/// `info` を出し続けながら `bestmove` を返さないエンジンに上限が1つも残らない
+/// （`enforce_engine_timeout` が偽なら時間切れも掛からず、`run_search` にも締切は無い）。
+/// フロントには読み筋だけが流れ続け、利用者が中断を押すまで対局が終わらない。
+///
+/// 解析側の `MAX_THINK_TIME` と同じ10分。**片方だけ動かさないこと**——
+/// どちらも「1手にこれ以上は待たない」で、利用者から見て同じ約束。
+const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
+
 /// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
 ///
 /// 見るのは「**いまどうなっているか**」（`TurnClock` と持ち時間）で、
@@ -89,6 +100,12 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 fn stalled_turn(clock: TurnClock, budget_ms: u64, silent_for: Duration) -> Option<Stall> {
     match clock {
         TurnClock::Settling(since) if since.elapsed() >= SETTLE_TIMEOUT => Some(Stall::NotStopping),
+        // **絶対の上限。** 喋り続けていても超えたら落とす。
+        // これが無いと、`info` を出しながら `bestmove` を返さないエンジンに
+        // 上限が1つも残らない（→ `HARD_TURN_LIMIT`）
+        TurnClock::Running(since) if since.elapsed() >= HARD_TURN_LIMIT => {
+            Some(Stall::NotAnswering)
+        }
         // **両方が要る。** 持ち時間を過ぎただけなら、まだ読んでいるだけかもしれない。
         // 黙っただけなら、`info` を出さずに短く考えるエンジンを落としてしまう
         TurnClock::Running(since)
@@ -522,10 +539,15 @@ struct Runner {
     moves: Vec<String>,
     phase: Phase,
     turn_clock: TurnClock,
-    /// エンジンから最後に便りがあった時刻。
+    /// エンジンから最後に便りがあった時刻。**進むのは2箇所。**
     ///
-    /// **`turn_clock` と対で動かす。** 別々に代入する形にすると、片方だけ
-    /// 更新する経路ができる。動かす口は `begin_turn` の1つ（→ `stalled_turn`）。
+    /// - `begin_turn`: 手番が始まった。`turn_clock` と対で動かす
+    /// - `on_search_info`: 手番側から `info` が届いた
+    ///
+    /// **どちらも消せない。** `begin_turn` だけだと手番開始からの経過に
+    /// なり、`stalled_turn` の沈黙条件が意味を失う（正常に読んでいるエンジンが
+    /// 持ち時間切れの `SEARCH_GRACE` 後に落ちる）。`on_search_info` だけだと、
+    /// 前の手番の便りが残って締切がずれる。
     last_progress: Instant,
     next_req: u64,
     last_clock_emit: Instant,
@@ -1289,9 +1311,10 @@ impl Runner {
 
     /// 手番の時計を動かし始める。
     ///
-    /// **`turn_clock` と `last_progress` を対で動かす唯一の口。**
-    /// 別々に代入する形にすると、片方だけ更新する経路ができ、
+    /// **`turn_clock` を `Running` に動かすときは必ずここを通す。**
+    /// `last_progress` を別に代入する形にすると、片方だけ更新する経路ができ、
     /// `stalled_turn` が前の手番の便りを見たまま締切を測る。
+    /// （`Settling` への遷移は手番の開始ではないので、ここは通らない）
     fn begin_turn(&mut self) {
         let now = Instant::now();
         self.turn_clock = TurnClock::Running(now);
@@ -2218,6 +2241,42 @@ mod tests {
                 SEARCH_GRACE
             ),
             Some(Stall::NotAnswering)
+        );
+    }
+
+    /// **喋り続けても絶対の上限は超えられないこと。**
+    ///
+    /// 沈黙だけを条件にすると、`info` を出しながら `bestmove` を返さない
+    /// エンジンに上限が1つも残らない。`enforce_engine_timeout` が偽（既定）なら
+    /// 時間切れも掛からず、`run_search` にも締切は無い。フロントには読み筋だけが
+    /// 流れ続け、利用者が中断を押すまで対局が終わらない。
+    #[test]
+    fn talking_forever_still_hits_the_hard_limit() {
+        let long_ago = |d: Duration| {
+            Instant::now()
+                .checked_sub(d)
+                .expect("起動直後で `Instant` を遡れない")
+        };
+
+        // 持ち時間は満額、いま便りがあった。それでも絶対の上限は超えられない
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
+                24 * 60 * 60 * 1000,
+                Duration::ZERO
+            ),
+            Some(Stall::NotAnswering),
+            "喋り続けるエンジンに上限が残っていない"
+        );
+
+        // 上限の手前では落とさない
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(HARD_TURN_LIMIT / 2)),
+                24 * 60 * 60 * 1000,
+                Duration::ZERO
+            ),
+            None
         );
     }
 
