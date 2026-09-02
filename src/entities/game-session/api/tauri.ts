@@ -60,6 +60,15 @@ export async function abortGame(gameId: GameId): Promise<void> {
  * **終局しただけでは落ちない**（`gameover` の後に指し直せる形にしてあるため）。
  * 呼ばないとプロセスが残る。
  */
+/**
+ * 対局を閉じ、使っていたエンジンを落とす。
+ *
+ * **終局しただけでは落ちない。** 呼ばないとプロセスが残る。
+ *
+ * **失敗しうる。** 他の操作が同じ対局を掴んでいると reject する。そのとき
+ * 対局は中断済みだが、**エンジンは生きたまま**残っている。
+ * そのまま呼び直すこと。握り潰すとプロセスが残る。
+ */
 export async function closeGame(gameId: GameId): Promise<void> {
   return await invoke("close_game", { gameId });
 }

@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 
 use crate::engine::registry::EngineRegistry;
 
-use super::session::GameSession;
+use super::session::{GameSession, CLOSE_SETTLE_TIMEOUT};
 use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
 const LOGT: &str = "obs_shogi::engine::game::manager";
@@ -47,6 +47,12 @@ impl GameManager {
     /// **終局しただけでは落ちない。** 呼ばないとプロセスが残る
     /// （→ `docs/state-transitions/game-session.md` の不変条件5
     /// 「`close_game` を呼ぶまでエンジンプロセスは落ちない」）。
+    ///
+    /// # エラー
+    ///
+    /// 他の操作が同じ対局を掴んでいると閉じられず `Err` を返す。そのとき
+    /// **対局は中断済みだが、エンジンは生きたまま台帳に残る。**
+    /// そのまま呼び直せる。呼び直さないとプロセスが残る。
     pub async fn close(&self, registry: &EngineRegistry, game_id: &str) -> Result<(), String> {
         let session = self.sessions.write().await.remove(game_id);
         let Some(session) = session else {
@@ -62,8 +68,13 @@ impl GameManager {
                 // 戻さないと、この `Arc` を最後に手放した者がセッションごと
                 // drop してエンジンの ID が消え、プロセスを落とす手掛かりが
                 // どこにも残らない。`close_all` も台帳しか見ないので拾えない。
-                // 戻しておけば、次の `close_game` か `close_all` で落とせる
-                let _ = session.abort().await;
+                // 戻しておけば、次の `close_game` か `close_all` で落とせる。
+                //
+                // 上限を通す。`abort` は `run_loop` の応答を待つので、
+                // そこが書き込みで詰まっていると返らない。`Ok` 側
+                // （`GameSession::close`）は同じ待ちを `CLOSE_SETTLE_TIMEOUT` で
+                // 包んでいるので、こちらだけ裸にしない
+                let _ = tokio::time::timeout(CLOSE_SETTLE_TIMEOUT, session.abort()).await;
                 self.sessions
                     .write()
                     .await
@@ -81,11 +92,21 @@ impl GameManager {
         Ok(())
     }
 
-    pub async fn close_all(&self, registry: &EngineRegistry) {
+    /// 台帳の全部を閉じる。**閉じられなかったものは残り、1行残す。**
+    ///
+    /// `close` は操作中の対局を閉じられずに台帳へ戻すので、ここで潰すと
+    /// 「一括で閉じたのにエンジンが残っている」が痕跡なしに起きる。
+    /// 戻る `Vec` は閉じられなかった対局の ID
+    pub async fn close_all(&self, registry: &EngineRegistry) -> Vec<GameId> {
         let ids: Vec<GameId> = self.sessions.read().await.keys().cloned().collect();
+        let mut left = Vec::new();
         for id in ids {
-            let _ = self.close(registry, &id).await;
+            if let Err(e) = self.close(registry, &id).await {
+                log::warn!(target: LOGT, "close_all: could not close {id}: {e}");
+                left.push(id);
+            }
         }
+        left
     }
 
     pub async fn submit_move(

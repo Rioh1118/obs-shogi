@@ -133,7 +133,7 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 /// `close_game` が無期限に返らなくなる。
 ///
 /// `search.rs` の `STOP_GRACE` より少し長い。
-const CLOSE_SETTLE_TIMEOUT: Duration = Duration::from_secs(6);
+pub(super) const CLOSE_SETTLE_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
 ///
