@@ -79,3 +79,29 @@ export function sourcePathsIn(markdown: string): string[] {
 export function missingPaths(paths: string[]): string[] {
   return paths.filter((p) => !existsSync(join(REPO_ROOT, p)));
 }
+
+/**
+ * バッククォートの中に書かれた行番号を拾う。
+ *
+ * **行番号は誰も検査していない。** ファイルの実在は上で見ているが、
+ * その中の何行目かは、1行足すだけで無言でずれる。読み手はそこを開いて
+ * 別のものを読み、doc が指していたはずのものは自力で探すことになる。
+ * ずれたことは誰にも分からないので、腐り方としては死んだパスより悪い。
+ *
+ * 指したいものがあるなら識別子で指すこと。`docsIdentifiers` がそちらは見る。
+ *
+ * 拾う形は `provider.tsx:19-24` / `bridge.rs:117` / `AnalysisPaneHeader:84` と、
+ * 続けて並べた `provider.tsx:38, 49`。**このファイル自身は走査の対象外**
+ * （`src/__tests__` は状態遷移表ではない）なので、ここに例を書いてよい。
+ */
+export function lineNumberRefsIn(markdown: string): string[] {
+  const found = new Set<string>();
+
+  for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
+    if (/^[A-Za-z_][A-Za-z0-9_./-]*:\d+(-\d+)?(,\s*\d+)*$/.test(inline)) {
+      found.add(inline);
+    }
+  }
+
+  return [...found].sort();
+}

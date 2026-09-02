@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { docsPath, markdownFiles } from "./stateTransitionIndex";
-import { missingPaths, sourcePathsIn } from "./docsSourcePaths";
+import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths";
 
 /**
  * 状態遷移表がバッククォートで指すソースのパスが実在するかを見る。
@@ -31,6 +31,24 @@ describe("状態遷移表が指すソースのパス", () => {
     });
 
     expect(broken).toEqual([]);
+  });
+
+  /**
+   * 行番号で指さないこと。
+   *
+   * パスの実在は上の検査が見るが、**その中の何行目かは誰も見ていない。**
+   * 1行足すだけで無言でずれ、読み手はそこを開いて別のものを読む。
+   * ずれたことに気付く者がいないので、死んだパスより始末が悪い。
+   *
+   * 指したいものがあるなら識別子で指すこと（`docsIdentifiers` がそちらを見る）。
+   */
+  test("行番号で指していない", () => {
+    const refs = tableFiles().flatMap((relative) => {
+      const body = readFileSync(docsPath(relative), "utf8");
+      return lineNumberRefsIn(body).map((r) => `${relative}: ${r}`);
+    });
+
+    expect(refs, "行番号は無言でずれる。識別子で指すこと").toEqual([]);
   });
 });
 

@@ -16,7 +16,7 @@
 | **S3** | 失敗     | `phase === "error"`、`error !== null`、`activeRuntime === null` |
 
 `isReady` は S2 と同義ではない。`desiredRuntime` と `activeRuntime` の一致まで見る
-（`provider.tsx:19-24`）。**設定を変えた直後は S2 のまま `isReady === false`。**
+（`provider.tsx`）。**設定を変えた直後は S2 のまま `isReady === false`。**
 
 ## 外部の状態（Rust プロセス）
 
@@ -54,32 +54,32 @@
 
 ### 注
 
-※1 `initialize()` は `state.phase === "initializing"` で早期 return する（`provider.tsx:29`）
+※1 `initialize()` は `state.phase === "initializing"` で早期 return する（`provider.tsx`）
 
 ※2 **`YaneuraOuInitializer.initialize` は `inFlight` があれば引数を無視して前の promise を返す**
-（`initializer.ts:15`）。起動中に別のプリセットへ切り替えると、
+（`initializer.ts`）。起動中に別のプリセットへ切り替えると、
 **前の runtime の起動結果を新しい runtime のものとして `activeRuntime` に書く**
-（`provider.tsx:38, 49` の `snap` は新しい方）。
+（`provider.tsx` の `snap` は新しい方）。
 → **未検証。テストが無い。** 実機で踏めるかは未確認
 
 ※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で必ず走る**
-（`provider.tsx:68-70`）。フロントは S0（未起動）になるが、Rust のプロセスは残りうる。
-呼び出し元は `shutdown().catch(() => {})`（`provider.tsx:86`）なので**誰にも届かない**。
+（`provider.tsx`）。フロントは S0（未起動）になるが、Rust のプロセスは残りうる。
+呼び出し元は `shutdown().catch(() => {})`（`provider.tsx`）なので**誰にも届かない**。
 issue #120 と同型の行き止まり
 → [failure-surfacing.md](failure-surfacing.md) F-8
 
-※4 `equalRuntime` が同値と判定すれば再起動しない（`provider.tsx:107`）。
+※4 `equalRuntime` が同値と判定すれば再起動しない（`provider.tsx`）。
 ただし `engineKey` は `selectedPresetVersion` を含むので、
 **プリセットを編集すると engineKey だけ変わってエンジンは再起動しない**組み合わせがある。
 そのための「同じ engineKey での再起動」の扱いが
 [engine-position-sync.md](engine-position-sync.md) の E3
 
-※5 S3 では**同じ runtime なら再トライしない**（`provider.tsx:92-96`）。
+※5 S3 では**同じ runtime なら再トライしない**（`provider.tsx`）。
 無限リトライを避けるため。**再トライの導線は `clearError()` だが、UI からの呼び出し元が0。**
 利用者は別のプリセットを選ぶ以外に復帰できない
 → [failure-surfacing.md](failure-surfacing.md) F-9
 
-※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs:117`）
+※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
 
 ## この表が満たすべき不変条件
 
