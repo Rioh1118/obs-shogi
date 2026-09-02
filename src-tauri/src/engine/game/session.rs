@@ -67,7 +67,11 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// 短くすると、正常に長考しているエンジンを故障と呼ぶ。
 const SEARCH_GRACE: Duration = Duration::from_secs(30);
 
-/// 1手に許す絶対の上限。
+/// 持ち時間を使い切った**後**に、エンジンへさらに許す上限。
+///
+/// **持ち時間に足す。** 絶対の値にすると、持ち時間が長い対局で
+/// **時計より先に**発火する——60分の持ち時間で15分の長考をしたエンジンが
+/// 故障扱いになる。
 ///
 /// **黙っていなくても超えたら落とす。** 沈黙だけを条件にすると、
 /// `info` を出し続けながら `bestmove` を返さないエンジンに上限が1つも残らない
@@ -76,6 +80,7 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 ///
 /// 解析側の `MAX_THINK_TIME` と同じ10分。**片方だけ動かさないこと**——
 /// どちらも「1手にこれ以上は待たない」で、利用者から見て同じ約束。
+/// 等値は `engine_timeouts.rs` が見る。
 const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 
 /// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
@@ -97,25 +102,42 @@ const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 ///
 /// 先読み中は `TurnClock` が相手側の手番を指しているので、ここには掛からない
 /// （先読みは `ponderhit` か `stop` が来るまで走ってよい）。
-fn stalled_turn(clock: TurnClock, budget_ms: u64, silent_for: Duration) -> Option<Stall> {
-    match clock {
-        TurnClock::Settling(since) if since.elapsed() >= SETTLE_TIMEOUT => Some(Stall::NotStopping),
-        // **絶対の上限。** 喋り続けていても超えたら落とす。
-        // これが無いと、`info` を出しながら `bestmove` を返さないエンジンに
-        // 上限が1つも残らない（→ `HARD_TURN_LIMIT`）
-        TurnClock::Running(since) if since.elapsed() >= HARD_TURN_LIMIT => {
-            Some(Stall::NotAnswering)
-        }
-        // **両方が要る。** 持ち時間を過ぎただけなら、まだ読んでいるだけかもしれない。
-        // 黙っただけなら、`info` を出さずに短く考えるエンジンを落としてしまう
-        TurnClock::Running(since)
-            if since.elapsed() >= Duration::from_millis(budget_ms) + SEARCH_GRACE
-                && silent_for >= SEARCH_GRACE =>
-        {
-            Some(Stall::NotAnswering)
-        }
-        _ => None,
+fn stalled_turn(
+    clock: TurnClock,
+    budget_ms: u64,
+    silent_for: Duration,
+    thinking_is_an_engine: bool,
+) -> Option<Stall> {
+    // 畳み待ちは探索を止めた側の話なので、対局者の種別に関わらず見る
+    if let TurnClock::Settling(since) = clock {
+        return (since.elapsed() >= SETTLE_TIMEOUT).then_some(Stall::NotStopping);
     }
+
+    // **人間には掛けない。** 人間が長考しても「応答しない」ではないし、
+    // `info` を出さないので沈黙条件は常に満たされる。人間の手番を締めるのは
+    // 時計（`has_expired`）で、そちらは種別に関わらず成立する
+    if !thinking_is_an_engine {
+        return None;
+    }
+
+    let TurnClock::Running(since) = clock else {
+        return None;
+    };
+    let budget = Duration::from_millis(budget_ms);
+
+    // 持ち時間を使い切った後の上限。**喋り続けていても超えたら落とす。**
+    // これが無いと、`info` を出しながら `bestmove` を返さないエンジンに
+    // 上限が1つも残らない（`enforce_engine_timeout` は既定で偽）
+    if since.elapsed() >= budget + HARD_TURN_LIMIT {
+        return Some(Stall::NotAnswering);
+    }
+
+    // **両方が要る。** 持ち時間を過ぎただけなら、まだ読んでいるだけかもしれない。
+    // 黙っただけなら、`info` を出さずに短く考えるエンジンを落としてしまう
+    if since.elapsed() >= budget + SEARCH_GRACE && silent_for >= SEARCH_GRACE {
+        return Some(Stall::NotAnswering);
+    }
+    None
 }
 
 /// 手番が進まない理由。**エンジンの状態が違うので潰さない。**
@@ -947,6 +969,7 @@ impl Runner {
                     self.turn_clock,
                     self.clocks.budget_ms(side),
                     self.last_progress.elapsed(),
+                    self.player(side).spec.is_engine(),
                 ) {
                     self.finish(GameResult {
                         winner: Some(side.opponent()),
@@ -1680,6 +1703,13 @@ mod tests {
 
     /// `Runner` を直に組む。`GameSession::start` を通さないので、
     /// エンジン無しでも `Activity` を好きな状態にできる
+    /// `d` だけ前の時刻。番人の締切を跨がせるのに使う
+    fn long_ago(d: Duration) -> Instant {
+        Instant::now()
+            .checked_sub(d)
+            .expect("起動直後で `Instant` を遡れない")
+    }
+
     fn test_runner(tx: &mpsc::UnboundedSender<Command>) -> Runner {
         runner_with_events(tx, Arc::new(DiscardEvents))
     }
@@ -2190,24 +2220,22 @@ mod tests {
     ///
     /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
     /// 潰すと `detail` が原因を取り違える
+    /// 番人が2つの止まり方を分けること。**どちらも `Thinking` の中。**
+    ///
+    /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
+    /// 潰すと `detail` が原因を取り違える
     #[test]
     fn a_stalled_turn_says_which_kind_of_stall_it_is() {
-        let long_ago = |d: Duration| {
-            Instant::now()
-                .checked_sub(d)
-                .expect("起動直後で `Instant` を遡れない")
-        };
-
         let silent = SEARCH_GRACE;
         let just_spoke = Duration::ZERO;
 
         // まだどちらも上限に達していない
         assert_eq!(
-            stalled_turn(TurnClock::Settling(Instant::now()), 0, silent),
+            stalled_turn(TurnClock::Settling(Instant::now()), 0, silent, true),
             None
         );
         assert_eq!(
-            stalled_turn(TurnClock::Running(Instant::now()), 0, silent),
+            stalled_turn(TurnClock::Running(Instant::now()), 0, silent, true),
             None
         );
 
@@ -2215,7 +2243,8 @@ mod tests {
             stalled_turn(
                 TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
                 600_000,
-                just_spoke
+                just_spoke,
+                true
             ),
             Some(Stall::NotStopping),
             "畳み待ちの上限は持ち時間とも便りとも無関係"
@@ -2223,12 +2252,73 @@ mod tests {
 
         // 思考中の上限は持ち時間ぶんだけ伸びる
         assert_eq!(
-            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 600_000, silent),
+            stalled_turn(
+                TurnClock::Running(long_ago(SEARCH_GRACE)),
+                600_000,
+                silent,
+                true
+            ),
             None
         );
         assert_eq!(
-            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0, silent),
+            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0, silent, true),
             Some(Stall::NotAnswering)
+        );
+    }
+
+    /// **人間の手番には掛けないこと。**
+    ///
+    /// 人間が長考しても「応答しない」ではない。しかも `info` を出さないので
+    /// 沈黙条件は常に満たされる。掛けると、30分切れ負けで11分考えた人間が
+    /// **残り19分あるのに `EngineFailure` で負ける**——相手に勝ちが付き、
+    /// 棋譜に「the engine did not answer in time」が残る。
+    ///
+    /// 人間の手番を締めるのは時計（`has_expired`）で、そちらは種別に関わらず成立する。
+    #[test]
+    fn a_human_taking_a_long_think_is_never_called_unresponsive() {
+        let half_an_hour = 30 * 60 * 1000;
+        let budget = Duration::from_millis(half_an_hour);
+
+        // **どの締切も跨いだ値で見る。** 跨がない値だと、人間かどうかを
+        // 見ていない実装でも通ってしまう（変異が落ちない）
+        for elapsed in [
+            budget + SEARCH_GRACE + Duration::from_secs(1),
+            budget + HARD_TURN_LIMIT + Duration::from_secs(1),
+            budget + HARD_TURN_LIMIT * 3,
+        ] {
+            assert_eq!(
+                stalled_turn(
+                    TurnClock::Running(long_ago(elapsed)),
+                    half_an_hour,
+                    // 人間は `info` を出さないので、沈黙は常に満たされる
+                    elapsed,
+                    false
+                ),
+                None,
+                "長考した人間を「応答しない」と呼んでいる: {elapsed:?}"
+            );
+        }
+
+        // 同じ値でエンジンなら落ちる。**種別を見ていることの裏取り**
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(budget + HARD_TURN_LIMIT + Duration::from_secs(1))),
+                half_an_hour,
+                Duration::ZERO,
+                true
+            ),
+            Some(Stall::NotAnswering)
+        );
+
+        // 畳み待ちは種別に関わらず見る（止めた探索の話なので）
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
+                half_an_hour,
+                Duration::ZERO,
+                false
+            ),
+            Some(Stall::NotStopping)
         );
     }
 
@@ -2237,22 +2327,15 @@ mod tests {
     /// `enforce_engine_timeout` が偽のまま持ち時間が尽きると `budget_ms` は
     /// 0 に張り付く。持ち時間だけを見ると締切が `SEARCH_GRACE` ちょうどになり、
     /// 正常に読み続けているエンジンが30秒で「応答しない」と呼ばれる。
-    /// 利用者は「時間切れを成立させない」と指定したのに、時計が尽きた30秒後に
-    /// 必ず負けることになる。
     #[test]
     fn an_engine_that_keeps_talking_is_not_called_unresponsive() {
-        let long_ago = |d: Duration| {
-            Instant::now()
-                .checked_sub(d)
-                .expect("起動直後で `Instant` を遡れない")
-        };
-
         // 持ち時間は尽きている（budget 0）が、いま便りがあった
         assert_eq!(
             stalled_turn(
                 TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
                 0,
-                Duration::ZERO
+                Duration::ZERO,
+                true
             ),
             None,
             "読み続けているエンジンを「応答しない」と呼んでいる"
@@ -2263,45 +2346,45 @@ mod tests {
             stalled_turn(
                 TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
                 0,
-                SEARCH_GRACE
+                SEARCH_GRACE,
+                true
             ),
             Some(Stall::NotAnswering)
         );
     }
 
-    /// **喋り続けても絶対の上限は超えられないこと。**
+    /// **喋り続けても上限は超えられないこと。ただし持ち時間より先には来ない。**
     ///
     /// 沈黙だけを条件にすると、`info` を出しながら `bestmove` を返さない
-    /// エンジンに上限が1つも残らない。`enforce_engine_timeout` が偽（既定）なら
-    /// 時間切れも掛からず、`run_search` にも締切は無い。フロントには読み筋だけが
-    /// 流れ続け、利用者が中断を押すまで対局が終わらない。
+    /// エンジンに上限が1つも残らない。逆に絶対の値にすると、持ち時間の長い
+    /// 対局で**時計より先に**発火する（60分の持ち時間で15分の長考が故障扱い）。
+    /// だから持ち時間に**足す**。
     #[test]
     fn talking_forever_still_hits_the_hard_limit() {
-        let long_ago = |d: Duration| {
-            Instant::now()
-                .checked_sub(d)
-                .expect("起動直後で `Instant` を遡れない")
-        };
+        let an_hour = 60 * 60 * 1000;
 
-        // 持ち時間は満額、いま便りがあった。それでも絶対の上限は超えられない
+        // 持ち時間が尽きた後は、そこから `HARD_TURN_LIMIT` で落ちる
         assert_eq!(
             stalled_turn(
                 TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
-                24 * 60 * 60 * 1000,
-                Duration::ZERO
+                0,
+                Duration::ZERO,
+                true
             ),
             Some(Stall::NotAnswering),
             "喋り続けるエンジンに上限が残っていない"
         );
 
-        // 上限の手前では落とさない
+        // **持ち時間が残っているうちは落とさない。** 長考は故障ではない
         assert_eq!(
             stalled_turn(
-                TurnClock::Running(long_ago(HARD_TURN_LIMIT / 2)),
-                24 * 60 * 60 * 1000,
-                Duration::ZERO
+                TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
+                an_hour,
+                Duration::ZERO,
+                true
             ),
-            None
+            None,
+            "持ち時間が残っているエンジンを上限で落としている"
         );
     }
 
