@@ -344,7 +344,12 @@ async fn build_full_index_task(
                         .into_iter()
                         .chain(built.warns.into_iter().map(|w| {
                             // 内部の理由は画面に出さない。追えるようログへ残す
-                            log::warn!("[index] {:?}: {}", w.cursor, w.message);
+                            log::warn!(
+                                "[index] {}: {:?}: {}",
+                                rec2.path.display(),
+                                w.cursor,
+                                w.message
+                            );
                             w.to_user_message()
                         }))
                         .collect::<Vec<_>>();

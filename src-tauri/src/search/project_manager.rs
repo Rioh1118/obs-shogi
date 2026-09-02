@@ -352,7 +352,12 @@ impl ProjectManager {
                     .into_iter()
                     .chain(b.warns.into_iter().map(|w| {
                         // 内部の理由は画面に出さない。追えるようログへ残す
-                        log::warn!("[index] {:?}: {}", w.cursor, w.message);
+                        log::warn!(
+                            "[index] {}: {:?}: {}",
+                            rec_cloned.path.display(),
+                            w.cursor,
+                            w.message
+                        );
                         w.to_user_message()
                     }))
                     .collect::<Vec<_>>();

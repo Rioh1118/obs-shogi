@@ -14,13 +14,24 @@ use super::{
     types::{CursorLite, FileId, ForkPointer, Gen, NodeId, Occurrence},
 };
 
+/// 指せない手に当たったとき、その1手順を捨てるか、ファイルごと諦めるか。
+///
+/// **索引に何が入るかを決める最大のスイッチ。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildPolicy {
+    /// その手順だけ打ち切って [`BuildWarn`] を積む。**本番はこちらだけを使う。**
+    /// 打ち切られるのは当の手順で、本線や他の変化は続く
     Loose,
+    /// ファイルごと [`BuildError`] にする。**本番の呼び手は無い。**
+    /// 使うなら、`Display` が画面に出ることを先に手当てすること
     Strict,
 }
 
-/// 索引を組む途中で打ち切った手順。**利用者に出すのは [`BuildWarn::to_user_message`] だけ。**
+/// 索引を組む途中で打ち切った手順。
+///
+/// **これを画面に出す口は [`BuildWarn::to_user_message`] だけ。**
+/// ただし警告の口そのものは1つではない — [`BuildError`] が返ったときは
+/// その `Display` が呼び手の `map_err` を通って同じ `EVT_INDEX_WARN` に出る。
 #[derive(Debug, Clone)]
 pub struct BuildWarn {
     /// 打ち切った場所。**`tesuu` は指せなかった手そのものの番号。**
@@ -44,7 +55,10 @@ impl BuildWarn {
     /// 何が起きたかが利用者の言葉になっておらず、次に何をすればよいかも無い。
     ///
     /// **内部の理由（`message`）はここで捨てる。** 呼び手がログへ回す。
-    /// `fork_pointers` は画面で使い道が無いので出さない。
+    ///
+    /// **変化の中なら、そう言う。** 本線が最後まで正しく変化にだけ反則手がある棋譜で
+    /// 「30手目」とだけ言うと、利用者は本線の30手目を見に行って何も見つけられない。
+    /// 同じ手数で本線と変化の両方が打ち切られたときに、文言が同じにならない意味もある。
     ///
     /// **`tesuu` に足さない。** `walk_sequence` は `moves[1..]` を `start_tesuu = 1` で
     /// 歩くので、`tesuu` はそのまま「何手目が指せなかったか」。足すと、
@@ -52,8 +66,13 @@ impl BuildWarn {
     /// 検索結果の `手数` 表示（`PositionHitItem`）も `tesuu` を素で描くので、
     /// ずらすとアプリの中で数え方が2つになる。
     pub fn to_user_message(&self) -> String {
+        let where_ = if self.cursor.fork_pointers.is_empty() {
+            "本線の".to_owned()
+        } else {
+            format!("{}手目から分かれた変化の", self.cursor.fork_pointers[0].te)
+        };
         format!(
-            "{}手目に、その局面では指せない手があります。\
+            "{where_}{}手目に、その局面では指せない手があります。\
              この手順はそこで打ち切られるので、より先の局面は検索に出ません",
             self.cursor.tesuu
         )
@@ -72,6 +91,11 @@ pub struct FileIndexBuild {
     pub warns: Vec<BuildWarn>,
 }
 
+/// 索引を組めなかった理由。
+///
+/// **`Display` がそのまま利用者の画面に出る**（呼び手が `map_err(|e| e.to_string())`
+/// で `EVT_INDEX_WARN` に流す）。`ParseFailed` のような文字数の刈り込みも通らない。
+/// 腕を足すときは、その文言が利用者の言葉になっているかを見ること。
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error("failed to create initial position: {0}")]
@@ -297,13 +321,57 @@ mod tests {
         let message = warn.to_user_message();
 
         assert!(
-            message.starts_with("30手目"),
+            message.contains("30手目"),
             "指せなかった手そのものを言っていない: {message}"
+        );
+        // 変化でないなら本線と言う。同じ手数で2件出たときに区別が付く
+        assert!(
+            message.contains("本線"),
+            "どの手順かを言っていない: {message}"
         );
         // 内部の理由は出さない。`WorkspaceTab` は素のテキストで描く
         assert!(
             !message.contains("side-to-move"),
             "内部の理由が画面に出る: {message}"
+        );
+    }
+
+    /// **組み立てから警告までを1本の題材で繋ぐ。**
+    ///
+    /// 上の2本は `CursorLite` を手で組む側と、成功したノードを見る側に分かれていて、
+    /// **`BuildWarn` を作る行（`walk_sequence` の `Loose` の腕）をどちらも通らない**。
+    /// そこを `tesuu + 1` に書き換えると2本とも緑のまま文言だけがずれるので、
+    /// 実際に指せない手を通して番号を見る。
+    ///
+    /// 題材は同じ歩を2回動かす。2手目は動かす駒がいないので `make_move` が断る。
+    #[test]
+    fn the_warning_names_the_move_the_builder_stopped_at() {
+        use shogi_kifu_converter_obsshogi::parser::parse_kif_str;
+
+        let one = parse_kif_str(&one_move_kif("平手")).expect("題材の KIF が読めること");
+        let mut jkf = one.clone();
+        // 1手目をもう1度繰り返す。7七の歩はもう居ないので2手目で必ず失敗する
+        jkf.moves.push(one.moves[1].clone());
+
+        let built =
+            build_index_for_jkf(1, 1, &jkf, BuildPolicy::Loose).expect("Loose は Err にしない");
+
+        assert_eq!(built.warns.len(), 1, "警告が1件でない: {:?}", built.warns);
+        assert_eq!(
+            built.warns[0].cursor.tesuu, 2,
+            "指せなかったのは2手目なのに {} と言っている",
+            built.warns[0].cursor.tesuu
+        );
+        assert!(
+            built.warns[0].to_user_message().contains("2手目"),
+            "文言が2手目を指していない: {}",
+            built.warns[0].to_user_message()
+        );
+        // 指せなかった手は索引に入らない。入るのは初期局面と1手目だけ
+        let tesuu: Vec<u32> = built.node_table.nodes.iter().map(|n| n.tesuu).collect();
+        assert!(
+            !tesuu.contains(&2),
+            "指せなかった手が索引に入っている: {tesuu:?}"
         );
     }
 
