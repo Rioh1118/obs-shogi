@@ -10,9 +10,14 @@ use tokio::sync::{mpsc, watch, Mutex, RwLock};
 use usi::{EngineCommand, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
+
+/// プロセスを落とした後に送ろうとしたときの文言
+const GONE: &str = "engine process has been shut down";
 /// USI プロトコル処理層
 pub struct UsiProtocol {
-    handler: Arc<Mutex<UsiEngineHandler>>,
+    /// `Option` なのは、落とした後に **`Drop` を走らせない**ため。
+    /// `UsiEngineHandler::Drop` は `kill().unwrap()` を呼ぶ（`usi` crate）。
+    handler: Arc<Mutex<Option<UsiEngineHandler>>>,
     state: Arc<RwLock<ProtocolState>>,
     listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
     listen_active: Arc<Mutex<bool>>,
@@ -85,7 +90,7 @@ fn requires_ready(cmd: &GuiCommand) -> bool {
 impl UsiProtocol {
     pub fn new(handler: UsiEngineHandler) -> Self {
         Self {
-            handler: Arc::new(Mutex::new(handler)),
+            handler: Arc::new(Mutex::new(Some(handler))),
             state: Arc::new(RwLock::new(ProtocolState {
                 engine_info: None,
                 last_command: None,
@@ -162,7 +167,10 @@ impl UsiProtocol {
         });
 
         let mut handler_guard = self.handler.lock().await;
-        let result = handler_guard.listen(move |output| -> Result<(), EngineClosed> {
+        let Some(handler) = handler_guard.as_mut() else {
+            return Err(EngineError::NotInitialized(GONE.to_string()));
+        };
+        let result = handler.listen(move |output| -> Result<(), EngineClosed> {
             let Some(cmd) = output.response() else {
                 // `response` が `None` になるのは**プロセスの出力が閉じたときだけ**。
                 // `usi` crate はそれを `Err` ではなく `Ok(response: None)` で返すので、
@@ -258,7 +266,10 @@ impl UsiProtocol {
         }
 
         // 通常送信
-        let mut handler = self.handler.lock().await;
+        let mut guard = self.handler.lock().await;
+        let Some(handler) = guard.as_mut() else {
+            return Err(EngineError::NotInitialized(GONE.to_string()));
+        };
         handler
             .send_command(command)
             .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
@@ -285,7 +296,10 @@ impl UsiProtocol {
         self.register_listener(listener_name.clone(), tx).await?;
 
         {
-            let mut handler = self.handler.lock().await;
+            let mut guard = self.handler.lock().await;
+            let Some(handler) = guard.as_mut() else {
+                return Err(EngineError::NotInitialized(GONE.to_string()));
+            };
             handler
                 .send_command(&GuiCommand::IsReady)
                 .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
@@ -327,7 +341,10 @@ impl UsiProtocol {
                 drop(map);
 
                 while let Some(cmd) = q.pop_front() {
-                    let mut h = protocol.handler.lock().await;
+                    let mut guard = protocol.handler.lock().await;
+                    let Some(h) = guard.as_mut() else {
+                        break;
+                    };
                     if let Err(e) = h.send_command(&cmd) {
                         log::warn!(
                             target: LOGT,
@@ -466,12 +483,30 @@ impl UsiProtocol {
         let _ = self.send_command(&GuiCommand::Quit).await;
     }
 
+    /// プロセスを落とす。2度目以降は何もしない。
+    ///
+    /// **落とした handler を drop させない。** `usi` crate の
+    /// `UsiEngineHandler::Drop` は `kill().unwrap()` を呼び、`kill` は先に
+    /// `quit` を書く（`process/engine.rs:73-77, 176-180`）。既に死んだプロセスへの
+    /// 書き込みは EPIPE で失敗するので、**2度目の `kill` は必ずパニックする**。
+    ///
+    /// `forget` で漏れるのはパイプの fd。子プロセスの回収はどちらにせよ
+    /// 起きない（Rust の `Child::drop` は `wait` しない）。→ #353
     pub async fn kill_engine(&self) {
         log::info!(target: LOGT, "kill_engine: start");
         self.abort_init().await;
 
-        let mut h = self.handler.lock().await;
-        let _ = h.kill();
+        let taken = self.handler.lock().await.take();
+        let Some(mut handler) = taken else {
+            log::debug!(target: LOGT, "kill_engine: already gone");
+            return;
+        };
+
+        // 戻り値に用は無い。目的は「死んでいること」で、
+        // 既に死んでいれば `quit` の書き込みが失敗するだけ
+        let _ = handler.kill();
+        std::mem::forget(handler);
+
         log::info!(target: LOGT, "kill_engine: done");
     }
 }
