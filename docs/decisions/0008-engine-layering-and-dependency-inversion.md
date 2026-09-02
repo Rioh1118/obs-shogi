@@ -65,7 +65,9 @@
 同じ判断を2箇所に書かない。書いた時点で、片方だけ直る経路ができる。
 
 - 「先読みの `info` を落とすか」→ `on_search_info` の `is_to_move` 1本
-- 「USI の行を壊す文字か」→ `protocol::contains_usi_breaking_char` 1本
+- 「USI の行を壊す文字か」→ `protocol::contains_usi_breaking_char` 1本。
+  **強制も1本**（`check_writable` が書き込みの列へ入る唯一の口で見る）。
+  入口ごとの検証は残してよいが、それだけだと5箇所目を足した人が素通りする
 - 「先読みの `info` を落とすか」の対として、「届かない理由の文言」→ `cannot_reach_text` 1本
 
 一覧が要るときは**宣言から生やす**（`Kind::ALL` / `ReadyState::ALL`）。

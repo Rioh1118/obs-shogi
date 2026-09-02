@@ -20,6 +20,21 @@ pub fn contains_usi_breaking_char(s: &str) -> bool {
     s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
 }
 
+/// 線に出したときに USI の行を壊さないか。
+///
+/// **組み立てた1行を見る。** `usi` クレートが書くのは `Display` の結果そのもの
+/// （`format!("{}\n", command)`）なので、バリアントやフィールドが増えても
+/// この検査は追随する。フィールドを数え上げる書き方だと増えない。
+fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
+    if contains_usi_breaking_char(&command.to_string()) {
+        return Err(EngineError::InvalidState(format!(
+            "refusing to write a command that breaks the USI line format: {}",
+            cmd_summary(command)
+        )));
+    }
+    Ok(())
+}
+
 /// `kill` を待つ上限。
 ///
 /// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
@@ -523,6 +538,15 @@ impl UsiProtocol {
         &self,
         command: GuiCommand,
     ) -> Result<oneshot::Receiver<Result<(), EngineError>>, EngineError> {
+        // **最後の砦。** 呼び出し側でも弾いているが、そちらは入口ごとに書く
+        // 検証なので、5箇所目を足した人が素通りするのを止めるものが無い。
+        // ここは書き込みの列へ入る唯一の口。
+        //
+        // **組み立てた1行を見る。** `usi` クレートが線に出すのは `Display` の
+        // 結果そのもの（`format!("{}\n", command)`）なので、バリアントや
+        // フィールドが増えても検査は追随する。フィールドを数え上げると増えない
+        check_writable(&command)?;
+
         let (reply, rx) = oneshot::channel();
         let job = WriteJob { command, reply };
         if self.writer.send(job).is_err() {
@@ -681,34 +705,34 @@ impl UsiProtocol {
         })
     }
 
-    /// リスナーへのブロードキャスト処理を分離
+    /// エンジンの出力1行を、購読している全員へ配る。
+    ///
+    /// 送れなかった相手は表から外す。`UnboundedSender::send` が失敗するのは
+    /// 受け手が落ちたときだけなので、外して困ることはない。
     async fn broadcast_to_listeners(
         listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
         cmd: EngineCommand,
     ) {
-        // 失敗したリスナーを記録（削除用）
-        let mut failed_listeners = Vec::new();
-
-        // リスナーのスナップショットを取得（長時間ロックしない）
-        let listeners_snapshot = {
+        // **読み取りロックを握ったまま配る。** ループの中は同期の `send` だけで
+        // await 点が無く、手放す理由が無い。手放すために表を写すと、
+        // **エンジンの出力1行ごと**に表を丸ごと clone することになる
+        // （深い読み筋を吐くエンジンでは毎秒数十回）
+        let mut gone = Vec::new();
+        {
             let guard = listeners.read().await;
-            guard.clone()
-        };
-
-        // 各リスナーに配信
-        for (name, sender) in listeners_snapshot.iter() {
-            if sender.send(cmd.clone()).is_err() {
-                // 送信失敗 = チャンネルクローズ済み
-                failed_listeners.push(name.clone());
+            for (name, sender) in guard.iter() {
+                if sender.send(cmd.clone()).is_err() {
+                    gone.push(name.clone());
+                }
             }
         }
 
-        // 失敗したリスナーを削除（自動クリーンアップ）
-        if !failed_listeners.is_empty() {
-            let mut guard = listeners.write().await;
-            for name in failed_listeners {
-                guard.remove(&name);
-            }
+        if gone.is_empty() {
+            return;
+        }
+        let mut guard = listeners.write().await;
+        for name in gone {
+            guard.remove(&name);
         }
     }
 
@@ -1263,6 +1287,52 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 線に出る直前の門番が、`contains_usi_breaking_char` とずれないこと。
+    ///
+    /// **文字を列挙しない。** 列挙すると、禁止集合を厚くしたときに門番だけが
+    /// 薄いまま残る（この repo で2回起きた形）。ASCII を端から流して、
+    /// 断る／通すの答えが判断そのものと一致することを見る。
+    ///
+    /// 見るのは文字列を持つバリアント全部。持たないもの（`Usi` / `Stop` …）は
+    /// 混ぜようが無いので通ることだけ確かめる。
+    #[test]
+    fn the_queue_refuses_what_would_break_the_line() {
+        for code in 0u32..=0x7F {
+            let ch = char::from_u32(code).expect("ASCII は必ず char になる");
+            let poisoned = format!("7g7f{ch}7c7d");
+            let should_refuse = contains_usi_breaking_char(&poisoned);
+
+            let carriers = [
+                GuiCommand::Position(poisoned.clone()),
+                GuiCommand::SetOption(poisoned.clone(), None),
+                GuiCommand::SetOption("USI_Hash".to_string(), Some(poisoned.clone())),
+            ];
+            for command in carriers {
+                assert_eq!(
+                    check_writable(&command).is_err(),
+                    should_refuse,
+                    "U+{code:04X} の扱いが `contains_usi_breaking_char` とずれている: {}",
+                    cmd_summary(&command)
+                );
+            }
+        }
+
+        for command in [
+            GuiCommand::Usi,
+            GuiCommand::IsReady,
+            GuiCommand::UsiNewGame,
+            GuiCommand::Stop,
+            GuiCommand::Ponderhit,
+            GuiCommand::Quit,
+        ] {
+            assert!(
+                check_writable(&command).is_ok(),
+                "文字列を持たないコマンドが断られている: {}",
+                cmd_summary(&command)
+            );
+        }
+    }
 
     /// コマンドの種類を**1回だけ**書く。
     ///
