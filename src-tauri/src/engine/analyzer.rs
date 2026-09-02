@@ -1,6 +1,4 @@
-use crate::engine::utils::{
-    extract_rank, get_depth_of_rank, get_or_create_candidate, map_score_to_evaluation, LogThrottle,
-};
+use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
 use super::protocol::UsiProtocol;
 use super::registry::{EngineId, EngineRegistry};
@@ -10,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, InfoParams, ThinkParams};
+use usi::{EngineCommand, GuiCommand, ThinkParams};
 
 const LOGT: &str = "obs_shogi::engine::analyzer";
 
@@ -359,7 +357,7 @@ impl EngineAnalyzer {
 
             match cmd {
                 EngineCommand::Info(info_params) => {
-                    Self::process_info_params(&info_params, &mut current_result);
+                    apply_info_params(&info_params, &mut current_result);
                     // 更新された結果を送信
                     if result_tx.send(current_result.clone()).is_err() {
                         log::debug!(target: LOGT, "stream: result channel closed");
@@ -420,7 +418,7 @@ impl EngineAnalyzer {
             match tokio::time::timeout(Duration::from_millis(100), raw_rx.recv()).await {
                 Ok(Some(cmd)) => match cmd {
                     EngineCommand::Info(info_params) => {
-                        Self::process_info_params(&info_params, &mut result);
+                        apply_info_params(&info_params, &mut result);
                     }
                     EngineCommand::Checkmate(checkmate_params) => {
                         Self::process_checkmate(&checkmate_params, &mut result);
@@ -457,7 +455,7 @@ impl EngineAnalyzer {
                 Ok(Some(cmd)) => {
                     match cmd {
                         EngineCommand::Info(info_params) => {
-                            Self::process_info_params(&info_params, &mut result);
+                            apply_info_params(&info_params, &mut result);
 
                             // 目標深度に達したら停止
                             if let Some(depth) = get_depth_of_rank(&result, 1) {
@@ -485,41 +483,6 @@ impl EngineAnalyzer {
         }
 
         Err(EngineError::Timeout("Analysis timeout".to_string()))
-    }
-
-    /// InfoParams処理
-    fn process_info_params(info_params: &[InfoParams], result: &mut AnalysisResult) {
-        let rank = extract_rank(info_params);
-
-        for info in info_params {
-            match info {
-                InfoParams::MultiPv(_) => {}
-                InfoParams::Depth(depth, _seldepth) => {
-                    let c = get_or_create_candidate(result, rank);
-                    c.depth = Some(*depth as u32);
-                }
-                InfoParams::Nodes(nodes) => {
-                    let c = get_or_create_candidate(result, rank);
-                    c.nodes = Some(*nodes as u64);
-                }
-                InfoParams::Time(time) => {
-                    let c = get_or_create_candidate(result, rank);
-                    c.time_ms = Some(time.as_millis() as u64);
-                }
-                InfoParams::Pv(moves) => {
-                    let c = get_or_create_candidate(result, rank);
-                    c.pv_line = moves.clone();
-                    c.first_move = moves.first().cloned();
-                }
-                InfoParams::Score(value, kind) => {
-                    let eval = map_score_to_evaluation(*value, kind);
-                    let c = get_or_create_candidate(result, rank);
-                    c.evaluation = Some(eval);
-                }
-                _ => {}
-            }
-        }
-        result.candidates.sort_by_key(|c| c.rank);
     }
 
     fn process_checkmate(params: &usi::CheckmateParams, result: &mut AnalysisResult) {

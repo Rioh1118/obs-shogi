@@ -3,6 +3,44 @@ use usi::{GuiCommand, InfoParams, ScoreKind};
 
 use crate::engine::types::{AnalysisCandidate, AnalysisResult, Evaluation, EvaluationKind};
 
+/// `info` 行を解析結果へ畳み込む。
+///
+/// 解析と対局で同じ形の読み筋を出す。**2箇所で別々に組み立てない。**
+/// 片方だけ直すと、同じエンジンの同じ出力が画面の場所によって違って見える。
+pub fn apply_info_params(info_params: &[InfoParams], result: &mut AnalysisResult) {
+    let rank = extract_rank(info_params);
+
+    for info in info_params {
+        match info {
+            InfoParams::MultiPv(_) => {}
+            InfoParams::Depth(depth, _seldepth) => {
+                let c = get_or_create_candidate(result, rank);
+                c.depth = Some(*depth as u32);
+            }
+            InfoParams::Nodes(nodes) => {
+                let c = get_or_create_candidate(result, rank);
+                c.nodes = Some(*nodes as u64);
+            }
+            InfoParams::Time(time) => {
+                let c = get_or_create_candidate(result, rank);
+                c.time_ms = Some(time.as_millis() as u64);
+            }
+            InfoParams::Pv(moves) => {
+                let c = get_or_create_candidate(result, rank);
+                c.pv_line = moves.clone();
+                c.first_move = moves.first().cloned();
+            }
+            InfoParams::Score(value, kind) => {
+                let eval = map_score_to_evaluation(*value, kind);
+                let c = get_or_create_candidate(result, rank);
+                c.evaluation = Some(eval);
+            }
+            _ => {}
+        }
+    }
+    result.candidates.sort_by_key(|c| c.rank);
+}
+
 pub fn get_depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
     result
         .candidates
