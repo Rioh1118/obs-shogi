@@ -83,6 +83,9 @@ export default function PositionSearchHitList({
         className="pos-search__listVirtual"
         role="listbox"
         aria-label="検索結果"
+        // 選択している行が画面外へ出て消えるあいだ、焦点を預かる先。
+        // ここが無いと焦点が <body> へ落ち、`Modal` の引き戻しが別の行を掴む
+        tabIndex={-1}
         rowCount={hits.length}
         rowHeight={rowHeight}
         rowComponent={VirtualHitRow}

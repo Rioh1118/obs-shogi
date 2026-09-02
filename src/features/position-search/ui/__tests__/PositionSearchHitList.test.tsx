@@ -98,6 +98,18 @@ describe("PositionSearchHitList", () => {
     expect(tabbable[0].getAttribute("aria-selected")).toBe("true");
   });
 
+  /**
+   * 焦点と選択が割れると、リングと面が別の行を指し、Enter で開くのは面のほうになる。
+   * 読み上げは焦点を追うので、選択していない行を読む。
+   */
+  test("選択している行が焦点を持つ", () => {
+    const { container } = renderList(HITS, { activeIndex: 3 });
+
+    const options = [...container.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(document.activeElement).toBe(options[3]);
+    expect(options[3].getAttribute("aria-selected")).toBe("true");
+  });
+
   test("ヒットが無いときはカードを出さず、理由を1つだけ出す", () => {
     const { container } = renderList([], { isSearching: true });
     expect(container.querySelectorAll(".pos-hit")).toHaveLength(0);

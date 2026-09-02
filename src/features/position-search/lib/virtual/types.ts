@@ -13,6 +13,7 @@ export type VirtualListBaseProps<RowProps extends object> = {
   // listbox のような「子を数える」役割は包む側でなくここに置く必要がある
   role?: string;
   "aria-label"?: string;
+  tabIndex?: number;
 
   rowCount: number;
   rowHeight: ListProps<RowProps>["rowHeight"];

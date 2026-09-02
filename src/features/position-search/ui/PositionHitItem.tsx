@@ -1,4 +1,4 @@
-import { memo, type CSSProperties, type Ref } from "react";
+import { memo, useEffect, useRef, type CSSProperties } from "react";
 import "./PositionHitItem.scss";
 
 type Props = {
@@ -17,7 +17,6 @@ type Props = {
 
   /** 仮想リストが行を置く位置。行そのものなので、包まずにここへ当てる */
   style: CSSProperties;
-  ref?: Ref<HTMLButtonElement>;
 
   onSelect: () => void;
   onAccept: () => void;
@@ -33,10 +32,35 @@ function PositionHitItemBase({
   posInSet,
   setSize,
   style,
-  ref,
   onSelect,
   onAccept,
 }: Props) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+
+  // 焦点を選択に追従させる。両者が割れると、銅のリングと銅の面が別の行を指し、
+  // Enter で開くのは面のほう（＝読み上げが読んだ行とは別）になる。
+  //
+  // このモーダルで焦点を取れるのはヒットの行だけなので、奪う相手がいない。
+  // 開いた直後は行が0件で `Modal` の引き戻しが器そのものを掴んでおり、
+  // その器はキーの受け口より**上**にあるので矢印も Enter も届かない。
+  // 最初の1件が着いた時点でここが引き取ることで、その行き止まりも閉じる。
+  useEffect(() => {
+    const el = ref.current;
+    if (!isActive || !el) return;
+
+    const listbox = el.closest<HTMLElement>('[role="listbox"]');
+    if (document.activeElement !== el) el.focus({ preventScroll: true });
+
+    return () => {
+      // 仮想リストは画面外の行を外すので、選択している行が焦点を持ったまま消える。
+      // 放っておくと焦点が <body> へ落ち、`Modal` の引き戻しが「最初に見つかった行」を
+      // 掴む——つまり選択していない行にリングが移る。器へ預けておけば、
+      // 行が戻ってきたときに上の focus() が拾い直す
+      if (document.activeElement !== el) return;
+      listbox?.focus({ preventScroll: true });
+    };
+  }, [isActive]);
+
   return (
     <button
       ref={ref}

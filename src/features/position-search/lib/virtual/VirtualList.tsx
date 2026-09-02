@@ -7,6 +7,7 @@ export function VirtualList<RowProps extends object>({
   style,
   role,
   "aria-label": ariaLabel,
+  tabIndex,
   rowCount,
   rowHeight,
   rowComponent,
@@ -34,6 +35,7 @@ export function VirtualList<RowProps extends object>({
       // ここで渡した role が勝つ
       role={role}
       aria-label={ariaLabel}
+      tabIndex={tabIndex}
       style={{ height: "100%", ...style }}
       rowCount={rowCount}
       rowHeight={rowHeight}
