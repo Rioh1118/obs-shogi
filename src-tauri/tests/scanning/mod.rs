@@ -6,9 +6,10 @@
 //! module として数える、文字列の中の `/*` でファイルの残りを捨てる——
 //! どれも実際に起きた。数える場所を1つにして、文字列・文字・コメントを読み飛ばす。
 //!
-//! **書けなくするところまでやる。** 1つに寄せても、次に走査を書く人が
-//! 手で数え直せば同じ穴が戻る。`no_test_counts_delimiters_by_hand` が
-//! `tests/` の中の手書きの数えを落とす。
+//! **`no_test_counts_delimiters_by_hand` が、走査でもないファイルが
+//! ついでに数え始める形を落とす。** 走査を組み立てるファイル自体は対象外
+//! （そこは数えるのが仕事）なので、**手書きの数えが書けなくなるわけではない**。
+//! 走査を触る人は、その doc を読んでから数えること。
 //!
 //! **見つからないことを黙って通さない。** 走査が壊れたときに「違反0」を返すと、
 //! 検査は緑のまま何も見ていない状態になる。呼び出し側は `None` を
@@ -308,11 +309,18 @@ pub fn item_end(after: &str) -> Option<usize> {
 /// 同じ穴（文字列の中の `{`、コメントの中の `mod {`、文字列の中の `/*`、
 /// 文字列の中の `//`）がそのまま戻る。
 ///
-/// **免除を置かない。** 数えたいなら `scanning` に足すこと。
-/// 「置かない」を成り立たせるために、次の3つを塞いである。
+/// **守るのは「走査を組み立てないファイル」だけ。** `mod scanning;` を書いた
+/// ファイルは丸ごと対象外にする——そこは区切り文字を数えるのが仕事で、
+/// `matching(rest, '(', ')')` のような行が必ず出るため。
 ///
-/// - **判定はコメントを潰してから。** 生の `contains` だと、
-///   「`mod scanning;` に寄せたい」と**コメントに書くだけ**でファイルが対象外になる
+/// **つまり「手書きの数えは書けなくなる」わけではない。** 走査を書く人は
+/// `mod scanning;` を足したうえで手で数え直せる。そこは人が見るしかない。
+/// この検査が止めるのは「走査でもないファイルが、ついでに区切り文字を数え始める」形。
+///
+/// 免除を狭く保つために、次の3つを塞いである。
+///
+/// - **判定は文字列も潰してから。** `let _ = "mod scanning;";` の1行や
+///   コメントでの言及で免除を取られない
 /// - **サブディレクトリも歩く。** `read_dir` は再帰しないので、
 ///   共有ヘルパの既定の置き場（`tests/scanning/` がまさにそれ）が丸ごと死角になる
 /// - **形は一覧でなく述語で見る。** 一覧にすると `contains` のような形を漏らす
@@ -329,8 +337,10 @@ fn no_test_counts_delimiters_by_hand() {
         }
 
         let source = std::fs::read_to_string(&path).unwrap_or_default();
-        // **免除の判定は文字列も潰した側で。** コメントだけ潰すと、
-        // `let _ = "mod scanning;";` の1行で免除を取れる
+        // **走査を組み立てているファイルは対象外。** そこは区切り文字を数えるのが
+        // 仕事なので、`matching(rest, '(', ')')` のような行が必ず出る。
+        // 判定は文字列も潰した側で——`let _ = "mod scanning;";` の1行で
+        // 免除を取られないため
         if blank_out_noncode(&source).contains("mod scanning;") {
             continue;
         }
@@ -391,7 +401,17 @@ fn counting_by_hand(code: &str) -> Vec<String> {
         let Some(inner) = body.trim_end_matches('#').strip_suffix(['\'', '"']) else {
             return false;
         };
-        !inner.is_empty() && inner.chars().all(|c| DELIMITERS.contains(c))
+        if inner.is_empty() {
+            return false;
+        }
+        // **エスケープで書いた区切り文字も同じ。** `'\u{7b}'` は `'{'`
+        if let Some(hex) = inner.strip_prefix("\\u{").and_then(|r| r.strip_suffix('}')) {
+            return u32::from_str_radix(hex, 16)
+                .ok()
+                .and_then(char::from_u32)
+                .is_some_and(|c| DELIMITERS.contains(c));
+        }
+        inner.chars().all(|c| DELIMITERS.contains(c))
     };
 
     let mut found = Vec::new();
@@ -404,30 +424,37 @@ fn counting_by_hand(code: &str) -> Vec<String> {
             continue;
         }
 
-        // **引数はどの位置でもよい。** `splitn(2, '{')` のように区切り文字が
-        // 2つ目に来る形がある。
-        // **折り返しも跨ぐ。** rustfmt は長い呼び出しの引数を次の行へ折るので、
-        // `(` の直後だけを見ると、名前が分かっている呼び出しでも素通りする
-        if rest.starts_with('(') || rest.starts_with(',') {
-            let head = rest[1..].trim_start();
-            if let Some(len) = skip_literal_or_comment(head) {
-                let argument = &head[..len];
-                if is_delimiter_literal(argument) {
-                    let name = enclosing_call(&code[..at]).unwrap_or_else(|| "?".to_string());
-                    found.push(format!("{name}({argument})"));
+        // **リテラルが置かれうる位置を全部見る。**
+        //
+        // - `(` / `,` — 引数。`splitn(2, '{')` のように2つ目に来る形がある
+        // - `[` — 配列。`s.split(['{'])` は要素が1つでも配列
+        // - `=` — 束縛。`const OPEN: char = '{';` で名前を付けてから使う形
+        // - `==` / `!=` — 比較。`c == '{'` はメソッド呼び出しの形を取らない
+        //
+        // どれも**折り返しを跨ぐ**。rustfmt は長い呼び出しの引数を次の行へ折るので、
+        // 直後だけを見ると、名前が分かっている呼び出しでも素通りする
+        let opener = ["(", ",", "[", "==", "!=", "=>", "="]
+            .into_iter()
+            .find(|token| rest.starts_with(token));
+        if let Some(token) = opener {
+            // `=>` は腕の区切りで、リテラルは左側にある。`==` / `!=` と取り違えない
+            if token != "=>" {
+                let head = rest[token.len()..].trim_start();
+                if let Some(len) = skip_literal_or_comment(head) {
+                    let argument = &head[..len];
+                    if is_delimiter_literal(argument) {
+                        let name = match token {
+                            "(" | "," => {
+                                enclosing_call(&code[..at]).unwrap_or_else(|| "?".to_string())
+                            }
+                            other => other.to_string(),
+                        };
+                        found.push(format!("{name}({argument})"));
+                    }
                 }
             }
-        }
-
-        // `c == '{'` / `b == b'{'`
-        if rest.starts_with("==") || rest.starts_with("!=") {
-            let head = rest[2..].trim_start();
-            if let Some(len) = skip_literal_or_comment(head) {
-                let argument = &head[..len];
-                if is_delimiter_literal(argument) {
-                    found.push(format!("== {argument}"));
-                }
-            }
+            at += token.len();
+            continue;
         }
 
         at += rest
@@ -543,6 +570,12 @@ mod tests {
             // 文字リテラルとの比較
             "if c == '{' { }",
             "if b != b'{' { }",
+            // **束縛。** 名前を付けてから使う形
+            "const OPEN: char = '{';",
+            // **配列。** 要素が1つでも配列
+            "s.split(['{'])",
+            // エスケープで書いた区切り文字
+            "s.find('\\u{7b}')",
         ] {
             assert!(caught(code), "手書きの数え方を拾えていない: {code}");
         }
