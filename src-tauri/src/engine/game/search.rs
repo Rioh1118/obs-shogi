@@ -162,21 +162,21 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
                         return true;
                     }
                 }
+                // チャンネルが閉じた。エンジンの出力が終わっている
                 false
             })
-            .await;
+            .await
+            .ok();
 
-            if drained == Ok(true) {
-                SearchOutcome::Aborted
-            } else {
+            if drained.is_none() {
                 log::warn!(
                     target: LOGT,
                     "stop: no bestmove within grace side={:?} req={}",
                     side,
                     req
                 );
-                SearchOutcome::StopTimedOut
             }
+            outcome_after_stop(drained)
         }
     };
 
@@ -184,10 +184,51 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
 }
 
+/// `stop` の後始末がどう終わったかを、探索の結果へ写す。
+///
+/// **3つを潰さない。** 打ち切りに応じたのか、まだ探索中なのか、プロセスが
+/// 落ちたのかで、次にできることが違う。とくに `None`（＝チャンネルが閉じた）を
+/// `StopTimedOut` に潰すと、**落ちたエンジンに「stop に応じなかった」という
+/// 説明が付く**。第1相は同じ死因を `Failed` と呼ぶので、相によって説明が変わる。
+///
+/// `drained` は `None` が打ち切りの待ちのタイムアウト、`Some(true)` が
+/// 捨てる `bestmove` を受け取れたこと、`Some(false)` がチャンネルの閉塞。
+fn outcome_after_stop(drained: Option<bool>) -> SearchOutcome {
+    match drained {
+        Some(true) => SearchOutcome::Aborted,
+        Some(false) => SearchOutcome::Failed("engine stopped responding".to_string()),
+        None => SearchOutcome::StopTimedOut,
+    }
+}
+
 fn outcome_of(params: BestMoveParams) -> SearchOutcome {
     match params {
         BestMoveParams::MakeMove(usi, ponder) => SearchOutcome::Move { usi, ponder },
         BestMoveParams::Resign => SearchOutcome::Resign,
         BestMoveParams::Win => SearchOutcome::DeclareWin,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_three_ways_a_stop_can_end_are_not_collapsed() {
+        // 打ち切りに応じた。エンジンは idle に戻っている
+        assert!(matches!(
+            outcome_after_stop(Some(true)),
+            SearchOutcome::Aborted
+        ));
+        // チャンネルが閉じた＝プロセスが落ちた。**「stop に応じない」ではない**
+        assert!(matches!(
+            outcome_after_stop(Some(false)),
+            SearchOutcome::Failed(_)
+        ));
+        // 待ち切れなかった。エンジンはまだ探索中
+        assert!(matches!(
+            outcome_after_stop(None),
+            SearchOutcome::StopTimedOut
+        ));
     }
 }
