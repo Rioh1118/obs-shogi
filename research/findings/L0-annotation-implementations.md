@@ -41,10 +41,12 @@ OSINT レーンではない。**リポジトリ内の事実確認。** ループ
 - 実体は commit `023e62e "claude first"`（**2026-03-02 12:36:09 +0900**）
 - `git branch -a --contains 023e62e` → **出力が空**。ローカル・リモートいずれのブランチからも到達不可
 - `refs/stash` 経由でのみ生存していた（だから `git log --all` の走査から漏れていた）
-- その上に未コミットの `stash@{2}`（2026-03-02 15:56:43、19ファイル **+1190 / −530**、`CommentPopover` 新規追加を含む）
+- その上に未コミットの stash（**コミット `7b95aaf`**）（2026-03-02 15:56:43、19ファイル **+1190 / −530**、`CommentPopover` 新規追加を含む）
 
 **保全済み**: `git tag -a archive/annotation-marks-2026-03 023e62e` を作成し、到達可能にした。
-**stash@{2} は依然として stash のまま。`git stash clear` / `drop` で消える。**
+**この stash は依然として stash のまま。`git stash clear` / `drop` で消える。**
+**添字（`stash@{N}`）で書かない。** 新しい stash が積まれるたびにずれる。実際に 2026-09-02 時点で
+執筆時の `stash@{2}` は `stash@{1}` になっており、`stash@{2}` は無関係な release 設定の WIP を指す。
 
 コミット済み系統Aの規模（`git ls-tree -r 023e62e`）:
 
@@ -76,7 +78,7 @@ Q-001 の表にある「fileId の持ち方＝外部レジストリ（`file-regi
 ## 出た作業
 
 - [ ] **人間レーン**: 他マシンに `feature/zettelkasten` が無いか確認（系統Bの実在の最終判定）
-- [ ] `stash@{2}` をブランチに退避する（`git stash branch <name> stash@{2}`）。stash のままにしない
+- [ ] この stash をブランチに退避する（`git stash branch <name> 7b95aaf`。**添字では引かない**）。stash のままにしない
 - [ ] `docs/OPEN-QUESTIONS.md` Q-001 を書き直す（2実装の比較 → 系統Aの復帰可否 + fileId 設計の新規決定）
 - [ ] `CLAUDE.md` の「未マージブランチの識別子」記述を修正（`normalizedTree` は**どこにも存在しない**）
 - [ ] メモリ `unmerged-branch-work.md` を修正（「競合する2実装あり」は誤り）

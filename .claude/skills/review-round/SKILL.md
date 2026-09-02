@@ -25,16 +25,16 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 
 範囲に含まれるものだけを選ぶ。関係ない reviewer を走らせない。
 
-| reviewer                | 走らせる条件                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| `architecture-reviewer` | 常に（ファイルの追加・移動・import の変更があれば必ず）                                 |
-| `react-reviewer`        | `.tsx` またはフック・Context の変更                                                     |
-| `ui-reviewer`           | `.scss` またはレイアウトを持つコンポーネントの変更                                      |
-| `rust-reviewer`         | `src-tauri/` の変更                                                                     |
-| `perf-reviewer`         | ループ・データ変換・描画・IO を含む変更                                                 |
-| `robustness-reviewer`   | エラー処理・IO・外部入力・パースを含む変更                                              |
-| `comment-reviewer`      | 常に（コメントと命名は全ての変更に付いてくる）                                          |
-| `oss-hygiene-reviewer`  | `README` / `CONTRIBUTING` / `docs/` / `.github/` / ライセンス周りの変更、または明示指定 |
+| reviewer                | 走らせる条件                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `architecture-reviewer` | 常に（ファイルの追加・移動・import の変更があれば必ず）                                               |
+| `react-reviewer`        | `.tsx` またはフック・Context の変更                                                                   |
+| `ui-reviewer`           | `.scss` またはレイアウトを持つコンポーネントの変更                                                    |
+| `rust-reviewer`         | `src-tauri/` の変更                                                                                   |
+| `perf-reviewer`         | ループ・データ変換・描画・IO を含む変更                                                               |
+| `robustness-reviewer`   | エラー処理・IO・外部入力・パースを含む変更                                                            |
+| `comment-reviewer`      | 常に（コメントと命名は全ての変更に付いてくる）                                                        |
+| `oss-hygiene-reviewer`  | `README` / `CONTRIBUTING` / `docs/` / `.github/` / `research/` / ライセンス周りの変更、または明示指定 |
 
 ## 手順3: 並列で起動する
 
