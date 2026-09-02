@@ -47,10 +47,13 @@ pub struct EngineBridge {
     app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
+/// 解析1本ぶんの席。
+///
+/// **「解析中か」を表す欄を持たない。** 持たせると、偽を書く口を誰も通らないまま
+/// 定数になる。席が在ること自体が「走っている」で、終わったら項目ごと消す。
 #[derive(Debug)]
 struct AnalysisSession {
     last_result: Option<AnalysisResult>,
-    is_active: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -136,18 +139,12 @@ impl EngineBridge {
     /// その口が走っている間、席が空いているように見える。
     async fn take_session(&self, session_type: SessionType) -> Result<String, String> {
         let mut sessions = self.active_sessions.write().await;
-        if sessions.values().any(|s| s.is_active) {
+        if !sessions.is_empty() {
             return Err("Analysis already running".to_string());
         }
 
         let session_id = new_session_id(&session_type);
-        sessions.insert(
-            session_id.clone(),
-            AnalysisSession {
-                last_result: None,
-                is_active: true,
-            },
-        );
+        sessions.insert(session_id.clone(), AnalysisSession { last_result: None });
         Ok(session_id)
     }
 
@@ -271,7 +268,7 @@ impl EngineBridge {
                 let mut sessions_guard = sessions.write().await;
                 if let Some(session) = sessions_guard.get_mut(&session_id) {
                     session.last_result = Some(result.clone());
-                    emit = session.is_active;
+                    emit = true;
                 } else {
                     session_exists = false;
                     if !session_missing_logged {
@@ -307,10 +304,13 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // **席ごと消す。** `is_active` を落とすだけだと項目が残り続ける。
-        // `AnalysisSession.last_result` は候補手と PV を丸ごと持つので、
-        // エンジンが落ちるたびに1件ずつ溜まる（上限は無い）。
-        // 最後の結果を後から引きたいなら `EngineAnalyzer::get_last_result` が持つ
+        // **席ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
+        // 丸ごと持ったまま溜まる（上限は無い）。席が在ること自体が「走っている」なので、
+        // 終わった席を残すと `take_session` が以後ずっと断ることにもなる。
+        //
+        // ここを通っても**フロントには何も飛ばない**。`sessionId` を握ったままの
+        // 画面から「停止」が来るので、`stop_session` はそれを失敗にしない。
+        // 最後の結果は `EngineAnalyzer::get_last_result` が1本だけ持つ
         sessions.write().await.remove(&session_id);
         log::debug!(
             target: LOGT,
@@ -422,9 +422,10 @@ impl EngineBridge {
         let sessions = self.active_sessions.read().await;
 
         let statuses = sessions
-            .iter()
-            .map(|(id, session)| AnalysisStatus {
-                is_analyzing: session.is_active,
+            .keys()
+            // 席が在る＝走っている。項目が消えたら終わっている
+            .map(|id| AnalysisStatus {
+                is_analyzing: true,
                 session_id: Some(id.clone()),
                 elapsed_time: None,
                 config: None,
@@ -457,21 +458,31 @@ impl EngineBridge {
             session_id
         );
 
-        // **知らない ID では止めない。** `session_id` はフロントから来る
-        // 任意の文字列で、フロントはエラーの後も `sessionId` を握り続ける
-        // （`docs/state-transitions/analysis.md` の ※1）。
-        // 照合しないと、前の解析の ID を握ったままの画面が「停止」を撃ったときに
-        // **いま走っている別の解析が止まって `Ok` が返る**。撃った側は
-        // 自分のものを止めたと読む
-        if self
-            .active_sessions
-            .write()
-            .await
-            .remove(session_id)
-            .is_none()
+        // **他人の席は止めない。** `session_id` はフロントから来る任意の文字列で、
+        // フロントはエラーの後も `sessionId` を握り続ける
+        // （`docs/state-transitions/analysis.md` の ※1）。照合しないと、
+        // 前の解析の ID を握ったままの画面が「停止」を撃ったときに
+        // **いま走っている別の解析が止まって `Ok` が返る**。
+        //
+        // **「もう無い」は失敗にしない。** エンジンが落ちると
+        // `forward_results_to_ui` が席を消すが、フロントへは何も飛ばないので
+        // `sessionId` を握ったまま「停止」が来る。ここで `Err` にすると
+        // 呼び出し側の再開が `catch` に落ち、**解析が始まり直さない**。
+        // 要求は「止まっていること」で、席が無いならその要求は満たせている
+        // （`EngineAnalyzer::stop_analysis` と同じ立場）。
         {
-            log::warn!(target: LOGT, "stop_session: unknown session_id={session_id}");
-            return Err(format!("unknown analysis session: {session_id}"));
+            let mut sessions = self.active_sessions.write().await;
+            match sessions.remove(session_id) {
+                Some(_) => {}
+                None if sessions.is_empty() => {
+                    log::debug!(target: LOGT, "stop_session: already gone id={session_id}");
+                }
+                // 別の席が走っている。撃った側のものではないので触らない
+                None => {
+                    log::warn!(target: LOGT, "stop_session: not the running one id={session_id}");
+                    return Err(format!("unknown analysis session: {session_id}"));
+                }
+            }
         }
 
         self.analyzer.stop_analysis().await.map_err(|e| {
@@ -486,14 +497,7 @@ impl EngineBridge {
     async fn stop_all_sessions(&self) -> Result<(), String> {
         log::info!(target: LOGT, "stop_all_sessions: start");
 
-        {
-            let mut sessions = self.active_sessions.write().await;
-
-            for session in sessions.values_mut() {
-                session.is_active = false;
-            }
-            sessions.clear();
-        }
+        self.active_sessions.write().await.clear();
 
         self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
@@ -675,6 +679,27 @@ mod tests {
         assert!(
             id.starts_with("depth24_"),
             "席の名前が条件を持っていない: {id}"
+        );
+    }
+
+    /// 席がもう無いときの「停止」を失敗にしないこと。
+    ///
+    /// エンジンが落ちると `forward_results_to_ui` が席を消すが、フロントへは
+    /// 何も飛ばないので `sessionId` を握ったまま「停止」が来る。ここで `Err` に
+    /// すると、呼び出し側の再開が `catch` に落ちて**解析が始まり直さない**。
+    /// 利用者から見ると「解析中」の表示が無言で「停止中」に変わる。
+    ///
+    /// 要求は「止まっていること」で、席が無いならその要求は満たせている。
+    #[tokio::test]
+    async fn stopping_a_session_that_is_already_gone_succeeds() {
+        let bridge = bridge();
+
+        let id = bridge.take_session(SessionType::Infinite).await.unwrap();
+        bridge.release_session(&id).await;
+
+        assert!(
+            bridge.stop_session(&id).await.is_ok(),
+            "もう無い席の停止が失敗している。再開の経路が catch に落ちる"
         );
     }
 
