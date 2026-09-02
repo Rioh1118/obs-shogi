@@ -18,10 +18,9 @@ use crate::search::{
 };
 
 use super::{
+    file_build::build_file_index,
     fs_scan::{scan_kifu_files, ScanOptions},
-    index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{IndexState as StoreIndexState, IndexStore},
-    kifu_reader::{read_to_jkf, KifuReadError},
     types::{
         FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
         OpenProjectInput, OpenProjectOutput, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -317,44 +316,8 @@ async fn build_full_index_task(
 
             let res = tokio::task::spawn_blocking(
                 move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
-                    let outcome = match read_to_jkf(&rec2) {
-                        Ok(outcome) => outcome,
-                        // 読めた。ただし入れる局面が無い。局面を持たない項目として登録する。
-                        // **`warn` があるときだけ出す** — このアプリの新規作成で
-                        // 対局者名を入れずに作った棋譜も同じ形になるので、
-                        // 無条件に出すと直しようの無いことを告げることになる
-                        Err(KifuReadError::NothingToIndex { warn }) => {
-                            return Ok((
-                                std::array::from_fn(|_| Vec::new()),
-                                Arc::new(NodeTable::empty()),
-                                warn.into_iter().collect(),
-                            ))
-                        }
-                        Err(e) => return Err(e.to_string()),
-                    };
-                    let built = build_index_for_jkf(file_id, gen, &outcome.jkf, BuildPolicy::Loose)
-                        .map_err(|e| e.to_string())?;
-
-                    let by_bucket: BucketEntries = bucketize_entries(built.entries);
-
-                    // 読み手の警告（読めたが一部を採れなかった）と、
-                    // 索引を組む側の警告（指せない手）を同じ口へ流す
-                    let warns = outcome
-                        .warns
-                        .into_iter()
-                        .chain(built.warns.into_iter().map(|w| {
-                            // 内部の理由は画面に出さない。追えるようログへ残す
-                            log::warn!(
-                                "[index] {}: {:?}: {}",
-                                rec2.path.display(),
-                                w.cursor,
-                                w.message
-                            );
-                            w.to_user_message()
-                        }))
-                        .collect::<Vec<_>>();
-
-                    Ok((by_bucket, built.node_table, warns))
+                    let built = build_file_index(&rec2, file_id, gen)?;
+                    Ok((built.by_bucket, built.node_table, built.warns))
                 },
             )
             .await;

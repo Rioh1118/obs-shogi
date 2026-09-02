@@ -24,7 +24,7 @@ use app_lib::search::{
     fs_scan::{diff_snapshot, scan_kifu_files, snapshot_from_records, ScanOptions},
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{IndexSnapshot, IndexState, NodeTables},
-    kifu_reader::{read_to_jkf, KifuReadError},
+    kifu_reader::{read_to_jkf, ReadOutcome},
     position_key::{key_from_partial_position, PositionKey},
     segment::{Segment, SegmentArc},
     sfen_position::partial_position_from_sfen,
@@ -78,12 +78,12 @@ fn do_full_build(records: &[app_lib::search::fs_scan::FileRecord]) -> BuildResul
         let gen = 1u32;
 
         let t_parse = Instant::now();
-        let jkf = match read_to_jkf(rec).map(|o| o.jkf) {
-            Ok(j) => j,
-            // 本番（`api` / `project_manager`）はこれを成功として扱い、
-            // 局面を持たない項目を登録する。ベンチが SKIP に落とすと
-            // **本番と違う数を数えたまま「変わらない」と報告できてしまう**
-            Err(KifuReadError::NothingToIndex { .. }) => {
+        let jkf = match read_to_jkf(rec) {
+            Ok(ReadOutcome::Indexable { jkf, .. }) => jkf,
+            // 局面を持たない項目として登録されるので、SKIP ではない。
+            // ここを SKIP に落とすと**本番と違う数を数えたまま
+            // 「変わらない」と報告できてしまう**
+            Ok(ReadOutcome::NothingToIndex { .. }) => {
                 empty_count += 1;
                 continue;
             }
@@ -201,13 +201,13 @@ fn bench_02_parse_all() {
 
     let t = Instant::now();
     for rec in &records {
-        match read_to_jkf(rec).map(|o| o.jkf) {
-            Ok(jkf) => {
+        match read_to_jkf(rec) {
+            Ok(ReadOutcome::Indexable { jkf, .. }) => {
                 ok_count += 1;
                 total_nodes += jkf.moves.len();
             }
-            // 本番は成功として登録するので、ERR に混ぜない
-            Err(KifuReadError::NothingToIndex { .. }) => {
+            // 登録はされるので ERR に混ぜない
+            Ok(ReadOutcome::NothingToIndex { .. }) => {
                 empty_count += 1;
             }
             Err(_) => {
@@ -235,7 +235,10 @@ fn bench_02_parse_all() {
             .unwrap_or(false)
     }) {
         let t2 = Instant::now();
-        let jkf = read_to_jkf(mega).unwrap().jkf;
+        let jkf = match read_to_jkf(mega).unwrap() {
+            ReadOutcome::Indexable { jkf, .. } => *jkf,
+            ReadOutcome::NothingToIndex { .. } => panic!("題材に局面が無い"),
+        };
         let d2 = t2.elapsed();
         println!(
             "\nbug_mega.kif: size={:.1} KB, moves={}, parse={:.3} ms",
@@ -688,7 +691,10 @@ fn bench_09_bug_mega_detail() {
 
     // parse
     let t_parse = Instant::now();
-    let jkf = read_to_jkf(mega).unwrap().jkf;
+    let jkf = match read_to_jkf(mega).unwrap() {
+        ReadOutcome::Indexable { jkf, .. } => *jkf,
+        ReadOutcome::NothingToIndex { .. } => panic!("題材に局面が無い"),
+    };
     let d_parse = t_parse.elapsed();
     println!(
         "parse: {:.3} ms (moves.len={})",

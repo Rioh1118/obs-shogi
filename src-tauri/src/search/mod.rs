@@ -1,4 +1,5 @@
 pub mod api;
+pub mod file_build;
 pub mod file_table;
 pub mod fs_scan;
 pub mod index_builder;

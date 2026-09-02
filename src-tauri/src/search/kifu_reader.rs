@@ -35,44 +35,48 @@ pub enum KifuReadError {
     /// 持っており、画面はその欄と本文を並べて描くので、入れると同じパスが2回出る。
     #[error("{0}")]
     ParseFailed(String),
+}
 
+/// 読めた記録と、読めたけれど伝えたいこと。
+///
+/// **`warns` は失敗ではない。** 呼び手は `build_index_for_jkf` の `warns` と
+/// 同じ口（`EVT_INDEX_WARN`）へ流すこと。
+///
+/// # 「入れる局面が無い」を `Err` に置かない
+///
+/// **読めているので失敗ではない。** `Err` に置くと、全呼び手が
+/// 「この `Err` だけは `Err` ではない」を各自で覚えることになり、
+/// 忘れた側は利用者に「読めません」と告げる。同じ形になるのは
+/// 「保存が途中で終わった跡」だけではない — **このアプリの新規作成で
+/// 対局者名を入れずに作ったファイルがちょうどこの形**になる
+/// （`create_kifu_file` → `try_to_*_owned`）ので、それは嘘になる。
+pub enum ReadOutcome {
+    /// 読めた。索引に入れる局面がある
+    Indexable {
+        /// `Box` なのは、この腕だけが 280 バイト超で
+        /// **入れる局面が無い側にも同じ大きさを背負わせる**ため
+        /// （`clippy::large_enum_variant`）
+        jkf: Box<Jkf>,
+        /// 利用者に出す文言。空なら何も出さない
+        warns: Vec<String>,
+    },
     /// **読めた。ただし索引に入れる局面が無い。**
     ///
     /// 中身の無いファイルを索引に入れると、平手の初期局面で検索したときに
     /// 全部ヒットし、開いても初期局面しか出ないので「そういう棋譜」と誤解される。
     /// だから局面は入れない。
     ///
-    /// **入れる局面が無いこと自体は失敗ではない。** 同じ形になるのは
-    /// 「保存が途中で終わった跡」だけではない — **このアプリの新規作成で
-    /// 対局者名を入れずに作ったファイルがちょうどこの形**になる
-    /// （`create_kifu_file` → `try_to_*_owned`）。それを「壊れている」と
-    /// 告げるのは嘘で、しかも利用者は直しようが無い。
-    ///
-    /// **ただし `warn` があれば出すこと。** 中身が空に見える記録には
-    /// 「本当に空」と「読めなかったせいで空に見える」の2つがあり、後者は
-    /// 利用者に伝えないと**指し手のある棋譜が黙って索引から消える**
-    /// （対局者名を書かない CSA が1手目で切れると、`says_nothing` が真になる）。
-    /// 空なら何も出さない。
-    ///
-    /// **登録するかどうかはこの腕が決めていない**（[`KifuReadError::ParseFailed`] でも
-    /// 同じ「局面を持たない項目」が積まれる）。登録そのものが要る理由は別で、
-    /// **`file_table` の gen が上がらないと前の世代のセグメントが索引に残る**
-    /// （`project_manager` の `build_one_file` が `None` を返したときの腕）。
-    #[error("索引に入れる局面がありません")]
+    /// **それでも項目は登録する。** `file_table` の `gen` が上がらないと
+    /// 前の世代のセグメントが索引に残る。
     NothingToIndex {
-        /// 空に見える理由が利用者に関係あるなら、その文言。無ければ `None`
-        warn: Option<String>,
+        /// 空に見える理由が利用者に関係あるなら、その文言。
+        ///
+        /// 中身が空に見える記録には「本当に空」と「読めなかったせいで空に見える」の
+        /// 2つがあり、後者は伝えないと**指し手のある棋譜が黙って索引から消える**
+        /// （対局者名を書かない CSA が1手目で切れると `says_nothing` が真になる）。
+        /// 本当に空なら空の `Vec`。
+        warns: Vec<String>,
     },
-}
-
-/// 読めた記録と、読めたけれど伝えたいこと。
-///
-/// **`warns` は失敗ではない。** 記録は索引に入る。呼び手は `build_index_for_jkf` の
-/// `warns` と同じ口（`EVT_INDEX_WARN`）へ流すこと。
-pub struct ReadOutcome {
-    pub jkf: Jkf,
-    /// 利用者に出す文言。空なら何も出さない
-    pub warns: Vec<String>,
 }
 
 /// 走査で見つけたファイルを読む。**索引を作る経路はこちらを呼ぶ。**
@@ -108,8 +112,7 @@ pub struct ReadOutcome {
 /// **`Ok` でも `warns` が空とは限らない。** 5つの戻りを並べた表は
 /// `docs/state-transitions/search.md`（この関数を主語にしている）。
 pub fn read_to_jkf(rec: &FileRecord) -> Result<ReadOutcome, KifuReadError> {
-    let (jkf, warns) = read_path_inner(&rec.path, rec.kind)?;
-    Ok(ReadOutcome { jkf, warns })
+    read_path_inner(&rec.path, rec.kind)
 }
 
 /// 誤りを落とす復号1つ
@@ -234,13 +237,36 @@ fn too_large_to_be_a_kifu(len: u64) -> bool {
 /// 題材を1本ずつ確かめるテストのために残してある。
 #[cfg(test)]
 fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
-    read_path_inner(path, kind).map(|(jkf, _)| jkf)
+    match read_path_inner(path, kind)? {
+        ReadOutcome::Indexable { jkf, .. } => Ok(*jkf),
+        // **`Err` に混ぜない。** 混ぜると「読めなかった」と区別が付かなくなり、
+        // 題材が空になったテストが「読めない」の assert で緑のまま通る。
+        // 空になりうる題材は `read_path_inner` で受けること
+        ReadOutcome::NothingToIndex { warns } => panic!(
+            "題材に索引へ入れる局面が無い。`read_path_inner` で受けること（warns: {warns:?}）"
+        ),
+    }
+}
+
+/// **索引に入る題材**を、記録と警告の組で受ける。
+///
+/// 入る局面が無い題材は `read_path_inner` で受けること。ここへ流すと落ちる —
+/// 組で受けられるようにすると、題材が空になったテストが
+/// **警告の assert を素通りして緑のまま**になる。
+#[cfg(test)]
+fn read_indexable(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), KifuReadError> {
+    match read_path_inner(path, kind)? {
+        ReadOutcome::Indexable { jkf, warns } => Ok((*jkf, warns)),
+        ReadOutcome::NothingToIndex { warns } => panic!(
+            "題材に索引へ入れる局面が無い。`read_path_inner` で受けること（warns: {warns:?}）"
+        ),
+    }
 }
 
 /// 棋譜ファイルを JKF に読み、伝えたいことも返す。**読み手の本体。**
 ///
 /// 表と腕ごとの義務は [`read_to_jkf`] の doc にある。
-fn read_path_inner(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), KifuReadError> {
+fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadError> {
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
     // `Permission denied (os error 13)` が生のまま画面に出る
@@ -284,10 +310,15 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), Ki
     };
 
     if says_nothing(&jkf) {
-        return Err(KifuReadError::NothingToIndex { warn });
+        return Ok(ReadOutcome::NothingToIndex {
+            warns: warn.into_iter().collect(),
+        });
     }
 
-    Ok((jkf, warn.into_iter().collect()))
+    Ok(ReadOutcome::Indexable {
+        jkf: Box::new(jkf),
+        warns: warn.into_iter().collect(),
+    })
 }
 
 /// CSA を読む。**パニックを捕まえるのはこの形式だけ。**
@@ -1796,14 +1827,16 @@ mod tests {
         for (label, body) in cases {
             let path = dir.join(format!("{label}.kif"));
             fs::write(&path, &body).expect("書き出し");
-            let err = read_path_to_jkf(&path, KifuKind::Kif)
-                .err()
-                .unwrap_or_else(|| panic!("{label} を弾いていない"));
-            // **黙って弾くこと。** `{ .. }` で受けると `warn` が付いても緑になる
-            let KifuReadError::NothingToIndex { warn } = err else {
-                panic!("{label} が読めなかった扱いになっている: {err}");
+            let outcome = read_path_inner(&path, KifuKind::Kif)
+                .unwrap_or_else(|e| panic!("{label} が読めなかった扱いになっている: {e}"));
+            // **黙って弾くこと。** `{ .. }` で受けると警告が付いても緑になる
+            let ReadOutcome::NothingToIndex { warns } = outcome else {
+                panic!("{label} を弾いていない");
             };
-            assert!(warn.is_none(), "{label} が警告つきで弾かれている: {warn:?}");
+            assert!(
+                warns.is_empty(),
+                "{label} が警告つきで弾かれている: {warns:?}"
+            );
         }
 
         // 中身のある記録は、指し手が0手でも通る。
@@ -1902,7 +1935,7 @@ mod tests {
                 serde_json::to_string(&jkf).expect("JKF に綴れること"),
             )
             .expect("書き出し");
-            let Err(KifuReadError::NothingToIndex { .. }) = read_path_to_jkf(&path, KifuKind::Jkf)
+            let Ok(ReadOutcome::NothingToIndex { .. }) = read_path_inner(&path, KifuKind::Jkf)
             else {
                 panic!("{label}: 誰も歩かない変化を索引に入れている");
             };
@@ -2012,14 +2045,14 @@ mod tests {
             // **警告も出させない。** 出しても利用者に直しようが無い。
             // `{ .. }` で受けると `warn` が付いても緑になるので、中身まで見る
             match read_path_inner(&path, kind) {
-                Ok((_, warns)) => {
+                // 入れる局面があるかは形式で変わるが、**どちらでも警告は出させない**
+                Ok(
+                    ReadOutcome::Indexable { warns, .. } | ReadOutcome::NothingToIndex { warns },
+                ) => {
                     assert!(
                         warns.is_empty(),
                         "{ext}: 直しようの無い警告が出た: {warns:?}"
                     );
-                }
-                Err(KifuReadError::NothingToIndex { warn }) => {
-                    assert!(warn.is_none(), "{ext}: 直しようの無い警告が出た: {warn:?}");
                 }
                 Err(e) => panic!("{ext}: 作ったばかりの棋譜を壊れていると言っている: {e}"),
             }
@@ -2349,7 +2382,7 @@ P9 *  *  *  * +OU *  *  *  * ";
             fs::write(&path, enc.encode(kifu).0.as_ref()).expect("書き出し");
 
             // 索引が読める
-            let (jkf, _) = read_path_inner(&path, KifuKind::Csa)
+            let (jkf, _) = read_indexable(&path, KifuKind::Csa)
                 .unwrap_or_else(|e| panic!("{name}: 索引が読めない: {e}"));
             assert_eq!(jkf.moves.len(), 4, "{name}: 索引の手数が違う");
 
@@ -2673,7 +2706,7 @@ P9 *  *  *  * +OU *  *  *  * ";
             let path = dir.join(format!("{name}.csa").replace('/', "_"));
             fs::write(&path, &body).expect("書き出し");
 
-            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+            let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
                 .unwrap_or_else(|e| panic!("{name}: 画面で開ける形を索引が断った: {e}"));
             assert!(
                 jkf.moves.len() >= 2,
@@ -2751,7 +2784,7 @@ P9 *  *  *  * +OU *  *  *  * ";
             let ok_path = dir.join(format!("whole-{base_name}.csa"));
             fs::write(&ok_path, base).expect("書き出し");
             let (jkf, warns) =
-                read_path_inner(&ok_path, KifuKind::Csa).expect("健全な CSA が読めること");
+                read_indexable(&ok_path, KifuKind::Csa).expect("健全な CSA が読めること");
             assert_eq!(jkf.moves.len(), 4, "{base_name}: 題材が想定の手数でない");
             assert!(
                 warns.is_empty(),
@@ -2763,7 +2796,7 @@ P9 *  *  *  * +OU *  *  *  * ";
                 let path = dir.join(format!("{name}.csa").replace('/', "_"));
                 fs::write(&path, apply(base)).expect("書き出し");
 
-                let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+                let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
                     .unwrap_or_else(|e| panic!("{name}: 整えれば読めるものを断った: {e}"));
                 assert_eq!(jkf.moves.len(), 4, "{name}: 整形しても全部読めていない");
                 assert!(warns.is_empty(), "{name}: 直しようの無い警告: {warns:?}");
@@ -2774,7 +2807,7 @@ P9 *  *  *  * +OU *  *  *  * ";
         for (base_name, base) in [("ヘッダあり", whole), ("ヘッダなし", headerless)] {
             let path = dir.join(format!("no-final-newline-{base_name}.csa"));
             fs::write(&path, base.trim_end()).expect("書き出し");
-            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+            let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
                 .unwrap_or_else(|e| panic!("{base_name}: 末尾の改行が無いだけで断った: {e}"));
             assert_eq!(jkf.moves.len(), 4, "{base_name}: 最後の手が落ちている");
             assert!(
@@ -2794,8 +2827,9 @@ P9 *  *  *  * +OU *  *  *  * ";
 
             // 戻りは `says_nothing` が決める。**警告はどちらでも出る**
             let warns = match read_path_inner(&path, KifuKind::Csa) {
-                Ok((_, warns)) => warns,
-                Err(KifuReadError::NothingToIndex { warn }) => warn.into_iter().collect(),
+                Ok(
+                    ReadOutcome::Indexable { warns, .. } | ReadOutcome::NothingToIndex { warns },
+                ) => warns,
                 Err(e) => panic!("{base_name}: 読めた記録を断った: {e}"),
             };
             assert_eq!(warns.len(), 1, "{base_name}: 警告が1件でない: {warns:?}");
@@ -2829,7 +2863,7 @@ P9 *  *  *  * +OU *  *  *  * ";
             let path = dir.join(format!("{name}.csa"));
             fs::write(&path, &body).expect("書き出し");
 
-            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+            let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
                 .unwrap_or_else(|e| panic!("{name}: 初期局面ごと落とした: {e}"));
             assert!(jkf.initial.is_some(), "{name}: 初期局面が消えている");
             assert_eq!(warns.len(), 1, "{name}: 警告が1件でない: {warns:?}");
@@ -2883,7 +2917,7 @@ P9 *  *  *  * +OU *  *  *  * ";
             let path = dir.join(format!("{name}.csa"));
             fs::write(&path, &body).expect("書き出し");
 
-            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+            let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
                 .unwrap_or_else(|e| panic!("{name}: 読めている CSA を断った: {e}"));
             assert!(
                 jkf.moves.iter().any(|m| m.move_.is_some()),
