@@ -1,6 +1,6 @@
 use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
-use super::protocol::UsiProtocol;
+use super::protocol::{StopEffect, UsiProtocol};
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
 use super::USI_OK_TIMEOUT;
@@ -32,6 +32,12 @@ pub struct EngineAnalyzer {
     engine_id: Arc<RwLock<Option<EngineId>>>,
     state: Arc<RwLock<AnalyzerState>>,
     infinite_stop_requested: Arc<Mutex<Option<Arc<AtomicBool>>>>,
+    /// 走っている無限解析のリスナー名。
+    ///
+    /// **`stop` が積み置きの `go` を落としただけのときに要る。** その場合
+    /// `bestmove` は来ないので、`process_analysis_stream` は自分では抜けられない。
+    /// 名前を持っていないと外せない
+    infinite_listener: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -54,6 +60,7 @@ impl EngineAnalyzer {
             engine_id: Arc::new(RwLock::new(None)),
             state: Arc::new(RwLock::new(AnalyzerState::default())),
             infinite_stop_requested: Arc::new(Mutex::new(None)),
+            infinite_listener: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -160,6 +167,8 @@ impl EngineAnalyzer {
 
         // 壁時計に依存しない。一意でありさえすればよい
         let listener_id = format!("infinite_analysis_{}", uuid::Uuid::new_v4());
+
+        *self.infinite_listener.lock().await = Some(listener_id.clone());
 
         log::debug!(
             target: LOGT,
@@ -329,7 +338,14 @@ impl EngineAnalyzer {
             flag.store(true, Ordering::SeqCst);
         }
 
-        protocol.send_command(&GuiCommand::Stop).await?;
+        // 積み置きの `go` を落としただけなら `bestmove` は来ない。
+        // `process_analysis_stream` は `bestmove` でしか抜けないので、
+        // リスナーを外して畳む（外さないと死んだストリームへ配り続ける）
+        if protocol.stop().await? == StopEffect::CancelledQueued {
+            if let Some(id) = self.infinite_listener.lock().await.take() {
+                protocol.remove_listener(&id).await;
+            }
+        }
         Ok(())
     }
 
@@ -519,6 +535,7 @@ impl Clone for EngineAnalyzer {
             engine_id: Arc::clone(&self.engine_id),
             state: Arc::clone(&self.state),
             infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
+            infinite_listener: Arc::clone(&self.infinite_listener),
         }
     }
 }

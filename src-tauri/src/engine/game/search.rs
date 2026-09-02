@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use usi::{BestMoveParams, EngineCommand, GuiCommand, ThinkParams};
 
-use crate::engine::protocol::UsiProtocol;
+use crate::engine::protocol::{StopEffect, UsiProtocol};
 use crate::engine::types::{AnalysisResult, EngineError};
 use crate::engine::utils::apply_info_params;
 
@@ -168,17 +168,17 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     let outcome = match settled {
         Some(outcome) => outcome,
         None => {
-            // 書き込みが終わらなかった／失敗したら、返事を待つ意味は無い。
-            // 上限は `send_command` の中（`protocol.rs` の `WRITE_TIMEOUT`）
-            let write = protocol.send_command(&GuiCommand::Stop).await;
+            // 書き込みが終わらなかった／失敗した／そもそも書く必要が無かったら、
+            // 返事を待つ意味は無い。上限は `stop` の中（`WRITE_TIMEOUT`）
+            let stopped = protocol.stop().await;
 
-            if let Some(outcome) = outcome_of_stop_write(&write) {
-                log::warn!(
+            if let Some(outcome) = outcome_of_stop(&stopped) {
+                log::debug!(
                     target: LOGT,
-                    "stop: not written side={:?} req={} reason={}",
+                    "stop: not waiting side={:?} req={} reason={}",
                     side,
                     req,
-                    stop_write_reason(&write)
+                    stop_reason(&stopped)
                 );
                 protocol.remove_listener(&listener).await;
                 let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
@@ -213,19 +213,19 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
 }
 
-/// `stop` の**書き込み**がどう終わったかを、探索の結果へ写す。
+/// `stop` がどう終わったかを、探索の結果へ写す。
 ///
 /// `Some` を返したら `bestmove` を待たずに戻る。`None` なら書けたので待ちへ進む。
 ///
-/// **書けなかったことを「書けた」に潰さない。** 潰すと、1バイトも出ていないのに
-/// `STOP_GRACE` を待ち、「エンジンが `stop` に応じなかった」という説明が
-/// 棋譜と画面に残る。
-///
-/// 詰まり（`Timeout`）と失敗（その他）を分けるのは、エンジンの状態が違うため。
-/// 前者はまだ探索中の見込みが高く、後者は落ちているか届く口が無い。
-fn outcome_of_stop_write(write: &Result<(), EngineError>) -> Option<SearchOutcome> {
-    match write {
-        Ok(()) => None,
+/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `STOP_GRACE` を待ち、
+/// 来ない `bestmove` の後に「エンジンが `stop` に応じなかった」という説明が
+/// 棋譜と画面に残る。理由は4つあり、エンジンの状態が全部違う。
+fn outcome_of_stop(stopped: &Result<StopEffect, EngineError>) -> Option<SearchOutcome> {
+    match stopped {
+        // 書けた。この後 `bestmove` が来る
+        Ok(StopEffect::Written) => None,
+        // まだ書かれていなかった `go` を落とした。エンジンは考え始めていない
+        Ok(StopEffect::CancelledQueued) => Some(SearchOutcome::StoppedCleanly),
         // 上限まで返らなかった。エンジンは探索中とみなす
         Err(EngineError::Timeout(_)) => Some(SearchOutcome::StopTimedOut),
         // 送る口が無い。探索中とは限らない
@@ -233,10 +233,10 @@ fn outcome_of_stop_write(write: &Result<(), EngineError>) -> Option<SearchOutcom
     }
 }
 
-/// ログに出す理由。`outcome_of_stop_write` と同じ3分岐を1箇所で言葉にする
-fn stop_write_reason(write: &Result<(), EngineError>) -> String {
-    match write {
-        Ok(()) => "written".to_string(),
+/// ログに出す理由。`outcome_of_stop` と同じ分岐を1箇所で言葉にする
+fn stop_reason(stopped: &Result<StopEffect, EngineError>) -> String {
+    match stopped {
+        Ok(effect) => format!("{effect:?}"),
         Err(e) => e.to_string(),
     }
 }
@@ -295,21 +295,28 @@ mod tests {
     /// 「書けた」になり、1バイトも出ていないのに「エンジンが `stop` に
     /// 応じなかった」という説明が残る
     #[test]
-    fn the_three_ways_a_stop_write_can_end_are_not_collapsed() {
+    fn the_four_ways_a_stop_can_end_are_not_collapsed() {
         // 書けた。待ちへ進む
-        assert!(outcome_of_stop_write(&Ok(())).is_none());
+        assert!(outcome_of_stop(&Ok(StopEffect::Written)).is_none());
+
+        // 積み置きを落とした。**`bestmove` は来ないので待たない。**
+        // エンジンは `go` を受け取っていないので、正常に止まったのと同じ
+        assert!(matches!(
+            outcome_of_stop(&Ok(StopEffect::CancelledQueued)),
+            Some(SearchOutcome::StoppedCleanly)
+        ));
 
         // 送る口が無い。**探索中とは限らないので `StopTimedOut` にしない**
         let refused = Err(EngineError::CommunicationFailed("closed".to_string()));
         assert!(matches!(
-            outcome_of_stop_write(&refused),
+            outcome_of_stop(&refused),
             Some(SearchOutcome::Failed(_))
         ));
 
         // 上限まで返らなかった。エンジンは探索中とみなす
         let blocked = Err(EngineError::Timeout("blocked".to_string()));
         assert!(matches!(
-            outcome_of_stop_write(&blocked),
+            outcome_of_stop(&blocked),
             Some(SearchOutcome::StopTimedOut)
         ));
     }

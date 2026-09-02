@@ -250,6 +250,15 @@ fn dispatch_for(state: ReadyState, cmd: &GuiCommand) -> Dispatch {
     }
 }
 
+/// `stop` が何をしたか。**待ち手の次の動きが変わるので潰さない。**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StopEffect {
+    /// エンジンへ `stop` を書いた。この後 `bestmove` が来る
+    Written,
+    /// まだ書かれていなかった `go` を落とした。**`bestmove` は来ない**
+    CancelledQueued,
+}
+
 /// 積み置きから `go` を落とす。落とした数を返す。
 ///
 /// **`stop` は積まれないのに `go` は積まれる**ので、`readyok` を待っている間は
@@ -482,24 +491,7 @@ impl UsiProtocol {
             Dispatch::Refuse => {
                 return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
             }
-            Dispatch::Send => {
-                // `stop` だけは、書きに行く前に積み置きの `go` を取り消す。
-                // 取り消さないと順序が入れ替わり、止めたはずの探索が後から始まる
-                if matches!(command, GuiCommand::Stop) {
-                    let cancelled = {
-                        let mut pending = self.pending.lock().await;
-                        cancel_queued_go(&mut pending.queue)
-                    };
-                    if cancelled > 0 {
-                        log::info!(
-                            target: LOGT,
-                            "send_command: stop cancelled {cancelled} queued go"
-                        );
-                        // エンジンはまだ探索していない。`stop` を書く相手が居ない
-                        return Ok(());
-                    }
-                }
-            }
+            Dispatch::Send => {}
             Dispatch::Queue => {
                 let mut pending = self.pending.lock().await;
 
@@ -546,6 +538,34 @@ impl UsiProtocol {
         }
 
         self.write(command.clone()).await
+    }
+
+    /// 探索を止める。**「書いた」と「書く必要が無かった」を分けて返す。**
+    ///
+    /// `readyok` を待っている間は `go` が積まれて `stop` は素通りするので、
+    /// そのまま書くと順序が入れ替わる（`stop` が先に届き、まだ探索していない
+    /// エンジンがそれを無視し、後から flush された `go` で
+    /// **利用者が止めたはずの探索が始まる**）。
+    ///
+    /// 積み置きの `go` を落とせたときに `Ok(())` を返すと、待ち手が
+    /// 「この後 `bestmove` が来る」と読んで永久に待つ。だから戻り値で分ける。
+    pub async fn stop(&self) -> Result<StopEffect, EngineError> {
+        let state: ReadyState = *self.ready.borrow();
+        if dispatch_for(state, &GuiCommand::Stop) == Dispatch::Refuse {
+            return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+        }
+
+        let cancelled = {
+            let mut pending = self.pending.lock().await;
+            cancel_queued_go(&mut pending.queue)
+        };
+        if cancelled > 0 {
+            log::info!(target: LOGT, "stop: cancelled {cancelled} queued go");
+            return Ok(StopEffect::CancelledQueued);
+        }
+
+        self.send_command(&GuiCommand::Stop).await?;
+        Ok(StopEffect::Written)
     }
 
     async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
