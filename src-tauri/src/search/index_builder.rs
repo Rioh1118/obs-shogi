@@ -56,9 +56,17 @@ impl BuildWarn {
     ///
     /// **内部の理由（`message`）はここで捨てる。** 呼び手がログへ回す。
     ///
-    /// **変化の中なら、そう言う。** 本線が最後まで正しく変化にだけ反則手がある棋譜で
-    /// 「30手目」とだけ言うと、利用者は本線の30手目を見に行って何も見つけられない。
-    /// 同じ手数で本線と変化の両方が打ち切られたときに、文言が同じにならない意味もある。
+    /// **変化の中なら、そう言う。** 本譜が最後まで正しく変化にだけ反則手がある棋譜で
+    /// 「30手目」とだけ言うと、利用者は本譜の30手目を見に行って何も見つけられない。
+    /// 同じ手数で本譜と変化の両方が打ち切られたときに、文言が同じにならない意味もある。
+    ///
+    /// **言葉は画面に合わせる。** `branchLabel`（`entities/kifu/model/branch.ts`）が
+    /// 「本譜」「変化N」で、N は `forkIndex + 1`。ここだけ「本線」「変化」と呼ぶと、
+    /// 警告に出た変化を棋譜欄で探すときに名前で突き合わせられない。
+    ///
+    /// **見るのは `fork_pointers` の末尾。** 変化の中の変化では先頭が一番外側で、
+    /// 打ち切られた手が乗っている線を決めるのは**一番内側の選択**。
+    /// 先頭を見ると、外側の分岐点を名指して利用者を別の場所へ送る。
     ///
     /// **`tesuu` に足さない。** `walk_sequence` は `moves[1..]` を `start_tesuu = 1` で
     /// 歩くので、`tesuu` はそのまま「何手目が指せなかったか」。足すと、
@@ -66,10 +74,9 @@ impl BuildWarn {
     /// 検索結果の `手数` 表示（`PositionHitItem`）も `tesuu` を素で描くので、
     /// ずらすとアプリの中で数え方が2つになる。
     pub fn to_user_message(&self) -> String {
-        let where_ = if self.cursor.fork_pointers.is_empty() {
-            "本線の".to_owned()
-        } else {
-            format!("{}手目から分かれた変化の", self.cursor.fork_pointers[0].te)
+        let where_ = match self.cursor.fork_pointers.last() {
+            None => "本譜の".to_owned(),
+            Some(fork) => format!("{}手目から分かれた変化{}の", fork.te, fork.fork_index + 1),
         };
         format!(
             "{where_}{}手目に、その局面では指せない手があります。\
@@ -324,9 +331,9 @@ mod tests {
             message.contains("30手目"),
             "指せなかった手そのものを言っていない: {message}"
         );
-        // 変化でないなら本線と言う。同じ手数で2件出たときに区別が付く
+        // 変化でないなら本譜と言う。同じ手数で2件出たときに区別が付く
         assert!(
-            message.contains("本線"),
+            message.contains("本譜"),
             "どの手順かを言っていない: {message}"
         );
         // 内部の理由は出さない。`WorkspaceTab` は素のテキストで描く
@@ -336,14 +343,60 @@ mod tests {
         );
     }
 
+    /// 変化の中の変化では、**一番内側の分岐点**を名指す。
+    ///
+    /// `fork_pointers` は外側から並ぶので、先頭を見ると
+    /// 「10手目から分かれた変化」と言ってしまう。打ち切られた手が乗っているのは
+    /// **20手目から分かれた線**で、利用者が開くべきはそちら。
+    ///
+    /// 番号は `branchLabel`（`entities/kifu/model/branch.ts`）に合わせて
+    /// `fork_index + 1`。画面が「変化2」と描いているものを
+    /// ここが「変化1」と呼ぶと、名前で突き合わせられない。
+    #[test]
+    fn the_warning_names_the_innermost_variation() {
+        let warn = BuildWarn {
+            cursor: CursorLite {
+                tesuu: 25,
+                fork_pointers: vec![
+                    ForkPointer {
+                        te: 10,
+                        fork_index: 0,
+                    },
+                    ForkPointer {
+                        te: 20,
+                        fork_index: 1,
+                    },
+                ],
+            },
+            message: "side-to-move mismatch".to_owned(),
+        };
+        let message = warn.to_user_message();
+
+        assert!(
+            message.contains("20手目から分かれた変化2"),
+            "一番内側の分岐点を言っていない: {message}"
+        );
+        assert!(
+            !message.contains("10手目"),
+            "外側の分岐点で利用者を別の場所へ送っている: {message}"
+        );
+        assert!(
+            message.contains("25手目"),
+            "指せなかった手を言っていない: {message}"
+        );
+    }
+
     /// **組み立てから警告までを1本の題材で繋ぐ。**
     ///
-    /// 上の2本は `CursorLite` を手で組む側と、成功したノードを見る側に分かれていて、
-    /// **`BuildWarn` を作る行（`walk_sequence` の `Loose` の腕）をどちらも通らない**。
-    /// そこを `tesuu + 1` に書き換えると2本とも緑のまま文言だけがずれるので、
+    /// [`BuildWarn::to_user_message`] を見る他のテストは `CursorLite` を手で組むので、
+    /// **`BuildWarn` を作る行（`walk_sequence` の `Loose` の腕）を通らない**。
+    /// そこを `tesuu + 1` に書き換えると他は緑のまま文言だけがずれるので、
     /// 実際に指せない手を通して番号を見る。
     ///
-    /// 題材は同じ歩を2回動かす。2手目は動かす駒がいないので `make_move` が断る。
+    /// 題材は先手の1手目を2回並べる。断るのは `make_move` ではなく
+    /// **`apply_node_action` の手番の照合**で、盤に触る前に返る
+    /// （`position_apply.rs` の `SideToMoveMismatch`）。
+    /// 2手目は先手の手なのに、そこでの手番は後手。
     #[test]
     fn the_warning_names_the_move_the_builder_stopped_at() {
         use shogi_kifu_converter_obsshogi::parser::parse_kif_str;
@@ -366,6 +419,13 @@ mod tests {
             built.warns[0].to_user_message().contains("2手目"),
             "文言が2手目を指していない: {}",
             built.warns[0].to_user_message()
+        );
+        // 断った理由を固定する。題材を変えて別の理由で落ちるようになると、
+        // 上の doc が指している経路を通らないまま緑になる
+        assert!(
+            built.warns[0].message.contains("side-to-move"),
+            "手番の照合で断っていない: {}",
+            built.warns[0].message
         );
         // 指せなかった手は索引に入らない。入るのは初期局面と1手目だけ
         let tesuu: Vec<u32> = built.node_table.nodes.iter().map(|n| n.tesuu).collect();
