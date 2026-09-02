@@ -2429,44 +2429,52 @@ P9 *  *  *  * +OU *  *  *  * ";
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 画面に開くほうの行パターンを、**その実装から読む**。
+    /// 画面に開くほうの行パターン。
     ///
     /// `tidy_csa` の doc には tsshogi のパターンを写した表があるが、
-    /// **写した表は、写した時点の tsshogi しか知らない**。ここでは `csa.mjs` を
-    /// 読んでパターンを取り出し、Rust の `regex` で当てる。
-    /// 表がずれても、この関数がずれることは無い。
+    /// **写した表は、写した時点の tsshogi しか知らない**。ここでは
+    /// `tests/fixtures/tsshogi_csa_patterns.json` を読んで当てる。
     ///
-    /// パターンは `pattern: /…/,` の形で並んでいる。取り出せなければ
-    /// **黙って通さずに落とす** — 形が変わったなら、それはそれで知りたい。
+    /// # なぜ `node_modules` を直接読まないか
+    ///
+    /// **`cargo test` がクレートの外に依存しなくなるから。** 直接読むと
+    /// `npm ci` 済みの作業ツリーでしか通らず、しかも読む先は npm が配る
+    /// **ビルド成果物**なので、tsshogi がバンドラを変えて1行に畳んだだけで
+    /// **obs-shogi と無関係な理由で Rust のテストが赤くなる**。
+    ///
+    /// fixture が古くなっていないかを見るのは TS 側
+    /// （`src/__tests__/tsshogiCsaPatterns.test.ts`）。tsshogi を上げるのは
+    /// あちらの仕事なので、ずれたときに落ちるのもあちら。
+    /// **正しい持ち主が落ちる**ようにしてある。
     fn viewer_line_patterns() -> Vec<regex::Regex> {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../node_modules/tsshogi/dist/esm/csa.mjs");
-        let src = fs::read_to_string(&path).unwrap_or_else(|e| {
-            panic!(
-                "画面側の実装を読めない（{}）: {e}\n\
-                 `npm ci` を先に走らせること。ここを飛ばすと、\n\
-                 整形が画面の受ける範囲を出ていないかを誰も見なくなる",
-                path.display()
-            )
-        });
+        #[derive(serde::Deserialize)]
+        struct Fixture {
+            patterns: Vec<String>,
+        }
 
-        let patterns: Vec<regex::Regex> = src
-            .lines()
-            .filter_map(|line| {
-                let body = line.trim().strip_prefix("pattern: /")?;
-                let body = body.strip_suffix("/,")?;
-                Some(regex::Regex::new(body).unwrap_or_else(|e| {
-                    panic!("`csa.mjs` のパターンを Rust の regex にできない: /{body}/: {e}")
-                }))
-            })
-            .collect();
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/tsshogi_csa_patterns.json");
+        let raw = fs::read_to_string(&path).unwrap_or_else(|e| {
+            panic!("行パターンの fixture を読めない（{}）: {e}", path.display())
+        });
+        let fixture: Fixture = serde_json::from_str(&raw)
+            .unwrap_or_else(|e| panic!("行パターンの fixture が読めない形になっている: {e}"));
 
         assert!(
-            patterns.len() > 8,
-            "`csa.mjs` からパターンを {} 個しか取り出せなかった。書き方が変わった可能性がある",
-            patterns.len()
+            fixture.patterns.len() > 8,
+            "fixture のパターンが {} 個しかない。作り直すこと",
+            fixture.patterns.len()
         );
-        patterns
+
+        fixture
+            .patterns
+            .iter()
+            .map(|body| {
+                regex::Regex::new(body).unwrap_or_else(|e| {
+                    panic!("fixture のパターンを Rust の regex にできない: /{body}/: {e}")
+                })
+            })
+            .collect()
     }
 
     /// **整形は、画面の判定を変えない。**
