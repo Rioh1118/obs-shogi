@@ -4,16 +4,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: index.$space-6;
   border-bottom: 1px solid index.$stroke-weak;
-  padding: 1.5rem 1.2rem;
+  padding: index.$space-8 index.$space-6;
 }
 
 .pos-search__title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 1.4rem;
+  gap: index.$space-4;
+  font-size: index.$font-title;
   color: index.$color-text-light-1;
 }
 
@@ -23,6 +23,7 @@
 }
 
 .pos-search__spinIcon {
+  // 反復するローディングは秒単位の別系統で、$duration-* の段には載らない（index.scss）
   animation: posSearchSpin 900ms linear infinite;
 }
 
