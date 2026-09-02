@@ -68,18 +68,45 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// 短くすると、正常に長考しているエンジンを故障と呼ぶ。
 const SEARCH_GRACE: Duration = Duration::from_secs(30);
 
-/// `bestmove` を待つ上限。**先読みには置かない。**
+/// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
 ///
-/// 本番の思考は「使い切れる持ち時間 ＋ `SEARCH_GRACE`」で切る。
-/// 先読みは `ponderhit` か `stop` が来るまで走ってよいので `None`。
-/// ここで `Some` を返すと、先読みが長引いただけで対局が故障終了する。
+/// 見るのは「**いまどうなっているか**」（`TurnClock` と持ち時間）で、
+/// 「いつ探索を起動したか」ではない。探索タスクの中に締切を置くと、
+/// `ponderhit` で先読みから本番へ昇格した探索を観測できない
+/// （タスクは起動時の値を握ったまま走るため）。
 ///
 /// **時間切れ負けの判定とは別物。** `enforce_engine_timeout` を見ないのは、
-/// これが「黙ったエンジンを見つける」ためにあるため。
-fn search_deadline(kind: &SearchKind, budget_ms: u64) -> Option<Duration> {
-    match kind {
-        SearchKind::Search => Some(Duration::from_millis(budget_ms) + SEARCH_GRACE),
-        SearchKind::Ponder { .. } => None,
+/// これが「黙ったエンジンを見つける」ためにあるから。
+///
+/// 先読み中は `TurnClock` が相手側の手番を指しているので、ここには掛からない
+/// （先読みは `ponderhit` か `stop` が来るまで走ってよい）。
+fn stalled_turn(clock: TurnClock, budget_ms: u64) -> Option<Stall> {
+    match clock {
+        TurnClock::Settling(since) if since.elapsed() >= SETTLE_TIMEOUT => Some(Stall::NotStopping),
+        TurnClock::Running(since)
+            if since.elapsed() >= Duration::from_millis(budget_ms) + SEARCH_GRACE =>
+        {
+            Some(Stall::NotAnswering)
+        }
+        _ => None,
+    }
+}
+
+/// 手番が進まない理由。**エンジンの状態が違うので潰さない。**
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Stall {
+    /// `stop` を出したのに畳み終わらない
+    NotStopping,
+    /// `go` を出したのに `bestmove` が返らない
+    NotAnswering,
+}
+
+impl Stall {
+    fn detail(self) -> &'static str {
+        match self {
+            Stall::NotStopping => "the engine did not stop searching in time",
+            Stall::NotAnswering => "the engine did not answer in time",
+        }
     }
 }
 
@@ -811,19 +838,19 @@ impl Runner {
         match &self.phase {
             Phase::Thinking { side } => {
                 let side = *side;
-                // 畳み待ち。時計は動かないので時間切れの番人には掛からない。
-                // ここで見ないと、`stop` の書き込みが詰まったときに
-                // 無音のまま固まる（`close_game` を押すまで気付けない）
-                if let TurnClock::Settling(since) = self.turn_clock {
-                    if since.elapsed() >= SETTLE_TIMEOUT {
-                        self.finish(GameResult {
-                            winner: Some(side.opponent()),
-                            reason: GameOverReason::EngineFailure,
-                            detail: Some("the engine did not stop searching in time".to_string()),
-                        })
-                        .await;
-                        return;
-                    }
+
+                // 手番が進まないことの番人。**`Settling` も `Running` もここで見る。**
+                // 探索タスクの中に置くと `ponderhit` の昇格を観測できず、
+                // 終局させても `Activity` が `Idle` に戻ってしまう
+                // （探索中のエンジンへ `gameover` が飛ぶ）
+                if let Some(stall) = stalled_turn(self.turn_clock, self.clocks.budget_ms(side)) {
+                    self.finish(GameResult {
+                        winner: Some(side.opponent()),
+                        reason: GameOverReason::EngineFailure,
+                        detail: Some(stall.detail().to_string()),
+                    })
+                    .await;
+                    return;
                 }
 
                 if let Some((side, elapsed)) = self.running_clock() {
@@ -1046,7 +1073,6 @@ impl Runner {
             position: position_argument(&self.settings.start_sfen, &moves),
             params,
             ponder,
-            deadline: search_deadline(&kind, self.clocks.budget_ms(side)),
             cancel: cancel.clone(),
         };
 
@@ -1971,30 +1997,36 @@ mod tests {
         assert_eq!(result.winner, Some(Side::White));
     }
 
-    /// 本番の思考には締切が付き、先読みには付かないこと。
+    /// 番人が2つの止まり方を分けること。**どちらも `Thinking` の中。**
     ///
-    /// 締切が無いと、黙ったエンジンを第1相で永久に待つ。時計は
-    /// `enforce_engine_timeout` が既定 `false` なのでエンジン側では止まらず、
-    /// `SETTLE_TIMEOUT` は畳み待ち専用なので当たらない。
-    /// 逆に先読みへ置くと、長引いただけで対局が故障終了する
+    /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
+    /// 潰すと `detail` が原因を取り違える
     #[test]
-    fn only_a_real_search_carries_a_deadline() {
+    fn the_two_ways_a_turn_can_stall_are_not_collapsed() {
+        let long_ago = |d: Duration| {
+            Instant::now()
+                .checked_sub(d)
+                .expect("起動直後で `Instant` を遡れない")
+        };
+
+        // まだどちらも上限に達していない
+        assert_eq!(stalled_turn(TurnClock::Settling(Instant::now()), 0), None);
+        assert_eq!(stalled_turn(TurnClock::Running(Instant::now()), 0), None);
+
         assert_eq!(
-            search_deadline(&SearchKind::Search, 600_000),
-            Some(Duration::from_secs(600) + SEARCH_GRACE)
+            stalled_turn(TurnClock::Settling(long_ago(SETTLE_TIMEOUT)), 600_000),
+            Some(Stall::NotStopping),
+            "畳み待ちの上限は持ち時間と無関係"
         );
 
-        // 持ち時間を使い切っていても、猶予のぶんは待つ
-        assert_eq!(search_deadline(&SearchKind::Search, 0), Some(SEARCH_GRACE));
-
+        // 思考中の上限は持ち時間ぶんだけ伸びる
         assert_eq!(
-            search_deadline(
-                &SearchKind::Ponder {
-                    ponder_move: "7g7f".to_string()
-                },
-                600_000
-            ),
+            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 600_000),
             None
+        );
+        assert_eq!(
+            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0),
+            Some(Stall::NotAnswering)
         );
     }
 

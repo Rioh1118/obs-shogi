@@ -86,7 +86,7 @@
 | **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                                                                 |
 | **E15** | tick: 裁定が 30 秒返らない     | `on_tick` の `RULING_TIMEOUT`                                                                              |
 | **E17** | tick: 畳み待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`（10秒）                                                                      |
-| **E18** | 思考が締切を過ぎた             | `run_search` 第1相の `search_deadline`（持ち時間＋`SEARCH_GRACE` 30秒）                                    |
+| **E18** | 思考が長すぎる                 | `on_tick` の `stalled_turn`（持ち時間＋`SEARCH_GRACE` 30秒）                                               |
 | **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                                                           |
 
 **E7〜E12 は「そのとき `activity` が何だったか」で意味が変わる。**
@@ -119,7 +119,7 @@
 | **E14** 時計が尽きた                  | 成立するなら → G2（`Timeout`）※11                                          | 起きない（時計が止まっている）        | —                          | ✓※10   |
 | **E15** 裁定が返らない                | —                                                                          | → G2（`Aborted`、`detail` 付き）      | —                          | ✗      |
 | **E17** 畳み待ちが長すぎる            | → G2（`EngineFailure`）                                                    | 起きない（畳み待ちは `G0` だけ）      | —                          | ✓      |
-| **E18** 思考が締切を過ぎた            | → G2（`EngineFailure`）                                                    | 起きない                              | —                          | △※12   |
+| **E18** 思考が長すぎる                | → G2（`EngineFailure`）※12                                                 | 起きない                              | —                          | ✓      |
 | **E16** 世代違い                      | 捨てる                                                                     | 捨てる                                | 捨てる                     | ✗      |
 
 ### 注
@@ -213,14 +213,21 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 `△` は「その行のうち人間で踏める列だけ」の意。E1 の `is_engine` の枝と
 `(G2, E1)` は踏めていない。
 
-※12 `Thinking` の番人は2つあり、見ている部分状態が違う。
-`SETTLE_TIMEOUT` は `TurnClock::Settling`（`go` をまだ出していない）、
-`search_deadline` は `TurnClock::Running`（`go` を出した後）。
-後者は**先読みには置かない**（`ponderhit` か `stop` まで走ってよいため）。
-どちらも `enforce_engine_timeout` を見ない。時間切れ負けではなく、
+※12 `Thinking` の番人は `stalled_turn` 1本。`TurnClock` の2つの枝を見て、
+止まり方を分ける（`Settling` は `SETTLE_TIMEOUT`、`Running` は
+持ち時間＋`SEARCH_GRACE`）。
+
+**探索タスクの中には置かない。** あのタスクは起動時の値を握ったまま走るので、
+`ponderhit` で先読みから本番へ昇格したことを観測できない。`on_tick` は
+`TurnClock` を毎回読み直すので、昇格した手番も同じ番人が覆う。
+
+`on_tick` から終局させると `Activity` は `Searching` のままなので、
+`finish` の `idle_sides` に入らない＝**探索中のエンジンへ `gameover` を送らない**
+（不変条件3）。打ち切りは `cancel` を通って探索タスクへ届き、
+そちらが `stop` を出す。
+
+どちらの枝も `enforce_engine_timeout` を見ない。時間切れ負けではなく、
 **黙ったエンジンを見つける**ためにある。
-`search_deadline` の判断は純関数として固定してあるが、
-締切が実際に第1相を切ることは実プロセスが要るので未検証（→ #360）。
 
 ※11 `timeout_enforced`。**エンジンの時間切れは既定で成立しない**
 （`GameSettings.enforce_engine_timeout` の既定が false）。この打ち切りが
@@ -238,15 +245,15 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 | 1   | `position` → `go` を送り、`bestmove` か打ち切りのどちらかを待つ                  |
 | 2   | 打ち切られたなら `stop` を送り、捨てる `bestmove` を `STOP_GRACE`（5秒）まで待つ |
 
-第2相の終わり方は**4つに分かれる**。潰すと、落ちたエンジンに
-「stop に応じなかった」という説明が付く。
+第2相の終わり方は、書き込みで返る**2つ**と、書けた後の**3つ**。
+潰すと、落ちたエンジンに「stop に応じなかった」という説明が付く。
 
 書き込みの側が2つ（`outcome_of_stop_write`）。ここで返ると `bestmove` を待たない。
 
-| 書き込みの結果   | 意味                     | `SearchOutcome` |
-| ---------------- | ------------------------ | --------------- |
-| 上限まで返らない | **stdin を読んでいない** | `StopTimedOut`  |
-| `Err`            | **送る口が無い**         | `Failed`        |
+| 書き込みの結果 | 意味                     | `SearchOutcome` |
+| -------------- | ------------------------ | --------------- |
+| `Timeout`      | **stdin を読んでいない** | `StopTimedOut`  |
+| `Err`          | **送る口が無い**         | `Failed`        |
 
 書けたら待ちへ進み、その終わり方が3つ（`outcome_after_stop`）。
 
