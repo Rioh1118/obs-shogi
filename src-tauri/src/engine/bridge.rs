@@ -1,6 +1,7 @@
 use crate::engine::utils::LogThrottle;
 
 use super::analyzer::EngineAnalyzer;
+use super::game::manager::GameManager;
 use super::registry::EngineRegistry;
 use super::types::*;
 use serde::Serialize;
@@ -18,6 +19,7 @@ pub struct AppState {
     pub bridge: Arc<EngineBridge>,
     /// 解析と対局が同じ台帳を使う。分けると同じ実行ファイルを二重に起動する
     pub registry: Arc<EngineRegistry>,
+    pub games: Arc<GameManager>,
 }
 
 impl AppState {
@@ -26,6 +28,7 @@ impl AppState {
         Self {
             bridge: Arc::new(EngineBridge::new(Arc::clone(&registry))),
             registry,
+            games: Arc::new(GameManager::new()),
         }
     }
 }

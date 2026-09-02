@@ -15,6 +15,10 @@ pub use engine::bridge::{
     get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
     set_position, shutdown_engine, start_infinite_analysis, stop_analysis,
 };
+pub use engine::game::bridge::{
+    abort_game, close_game, continue_game, end_game_by_rule, get_game_state, list_games,
+    resign_game, start_game, submit_game_move,
+};
 pub use engine_presets::{load_presets, save_presets};
 pub use file_system::{
     create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree,
@@ -86,6 +90,15 @@ pub fn run() {
             get_engine_settings,
             get_analysis_status,
             get_engine_info,
+            start_game,
+            submit_game_move,
+            continue_game,
+            end_game_by_rule,
+            resign_game,
+            abort_game,
+            close_game,
+            get_game_state,
+            list_games,
             open_project,
             search_position,
             cancel_search,
