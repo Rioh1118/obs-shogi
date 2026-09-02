@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 use usi::{BestMoveParams, EngineCommand, GuiCommand, ThinkParams};
 
 use crate::engine::protocol::UsiProtocol;
-use crate::engine::types::AnalysisResult;
+use crate::engine::types::{AnalysisResult, EngineError};
 use crate::engine::utils::apply_info_params;
 
 use super::types::Side;
@@ -172,25 +172,21 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     let outcome = match settled {
         Some(outcome) => outcome,
         None => {
-            // 書き込みが詰まったら、返事を待つ意味は無い。**送れていない**
-            let written =
+            // 書き込みが終わらなかった／失敗したら、返事を待つ意味は無い
+            let write =
                 tokio::time::timeout(STOP_WRITE_TIMEOUT, protocol.send_command(&GuiCommand::Stop))
-                    .await
-                    .is_ok();
+                    .await;
 
-            if !written {
+            if let Some(outcome) = outcome_of_stop_write(&write) {
                 log::warn!(
                     target: LOGT,
-                    "stop: write blocked side={:?} req={} — the engine is not reading stdin",
-                    side,
-                    req
-                );
-                protocol.remove_listener(&listener).await;
-                let _ = tx.send(SearchMessage::Outcome {
+                    "stop: not written side={:?} req={} reason={}",
                     side,
                     req,
-                    outcome: SearchOutcome::StopTimedOut,
-                });
+                    stop_write_reason(&write)
+                );
+                protocol.remove_listener(&listener).await;
+                let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
                 return;
             }
 
@@ -220,6 +216,40 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
 
     protocol.remove_listener(&listener).await;
     let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
+}
+
+/// `stop` の**書き込み**がどう終わったかを、探索の結果へ写す。
+///
+/// `Some` を返したら `bestmove` を待たずに戻る。`None` なら書けたので待ちへ進む。
+///
+/// **`timeout` の戻りは二重の `Result`。** 外側だけ見ると、`Closed` への `Refuse` も
+/// handler が `None` のときの `NotInitialized` も EPIPE も「書けた」になり、
+/// 1バイトも出ていないのに `STOP_GRACE` を待って
+/// 「エンジンが `stop` に応じなかった」という説明が残る。
+///
+/// 詰まり（`Elapsed`）と失敗（`Err`）を分けるのは、エンジンの状態が違うため。
+/// 前者はまだ探索中の見込みが高く、後者は落ちているか届く口が無い。
+fn outcome_of_stop_write(
+    write: &Result<Result<(), EngineError>, tokio::time::error::Elapsed>,
+) -> Option<SearchOutcome> {
+    match write {
+        // 上限まで返らなかった。エンジンは探索中とみなす
+        Err(_) => Some(SearchOutcome::StopTimedOut),
+        // 送る口が無い。探索中とは限らない
+        Ok(Err(e)) => Some(SearchOutcome::Failed(format!("could not send stop: {e}"))),
+        Ok(Ok(())) => None,
+    }
+}
+
+/// ログに出す理由。`outcome_of_stop_write` と同じ3分岐を1箇所で言葉にする
+fn stop_write_reason(
+    write: &Result<Result<(), EngineError>, tokio::time::error::Elapsed>,
+) -> String {
+    match write {
+        Err(_) => "write blocked; the engine is not reading stdin".to_string(),
+        Ok(Err(e)) => e.to_string(),
+        Ok(Ok(())) => "written".to_string(),
+    }
 }
 
 /// `stop` の後始末がどう終わったかを、探索の結果へ写す。
@@ -267,6 +297,35 @@ mod tests {
         assert!(matches!(
             outcome_after_stop(None),
             SearchOutcome::StopTimedOut
+        ));
+    }
+
+    /// 書き込み側も3つに分かれること。上の関数の対。
+    ///
+    /// **`timeout` の戻りは二重の `Result`。** 外側だけ見ると、送る口が無い場合まで
+    /// 「書けた」になり、1バイトも出ていないのに「エンジンが `stop` に
+    /// 応じなかった」という説明が残る
+    #[tokio::test]
+    async fn the_three_ways_a_stop_write_can_end_are_not_collapsed() {
+        // 書けた。待ちへ進む
+        assert!(outcome_of_stop_write(&Ok(Ok(()))).is_none());
+
+        // 送る口が無い。**探索中とは限らないので `StopTimedOut` にしない**
+        let refused = Ok(Err(EngineError::CommunicationFailed("closed".to_string())));
+        assert!(matches!(
+            outcome_of_stop_write(&refused),
+            Some(SearchOutcome::Failed(_))
+        ));
+
+        // 上限まで返らなかった。エンジンは探索中とみなす
+        let blocked = tokio::time::timeout(Duration::from_millis(1), async {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            Ok(())
+        })
+        .await;
+        assert!(matches!(
+            outcome_of_stop_write(&blocked),
+            Some(SearchOutcome::StopTimedOut)
         ));
     }
 }
