@@ -51,7 +51,7 @@ function existingChecks(): Set<string> {
  * Rust 側の検査。TS のファイル名では見つからないので、名前で持つ。
  * ここに書いたものは `src-tauri/` に同名の検査があることを別途確かめている。
  */
-const RUST_CHECKS = new Set(["root_guard"]);
+const RUST_CHECKS = new Set(["root_guard", "serde_naming"]);
 
 /**
  * ラチェットではなく、**ラチェットが使う走査器の単体テスト**。表には載せない。
