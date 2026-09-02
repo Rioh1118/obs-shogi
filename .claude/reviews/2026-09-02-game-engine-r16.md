@@ -146,4 +146,41 @@ IPC の往復中に飛ぶ。
 
 ## 結果
 
-（`/review-fix` で書き戻す）
+| 所見   | 直したか | どう直したか                                                                                                                                         |
+| ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R16-B1 | ✅       | `SPAWN_TIMEOUT` の超過で `JoinHandle` を落とさず、`dispose_late_spawn` へ渡す（`kill` + `mem::forget` を `spawn_blocking` の中でやる）               |
+| R16-H1 | ✅       | 沈黙の腕から `budget +` を外し、`SEARCH_GRACE` の両条件で見る                                                                                        |
+| R16-H2 | ✅       | Rust 3箇所と TS の doc を「**`startGame` を呼ぶ前に購読を張る**」に直す                                                                              |
+| R16-H3 | ⚠️ 半分  | `GameEvent::is_terminal` を足し、`over` の emit 失敗は絞らず `error` で出し、立て直しに要る `get_game_state` を文面に入れた。**画面側の導線は #374** |
+| R16-H4 | ✅       | 枠を高頻度／1手1回で分け、warn に `kind=` を載せた。終局はどちらの枠も通らない                                                                       |
+
+### 台帳
+
+F-19 / F-20 / F-22 / F-24 / F-27 / F-28 を現物と突き合わせて直した。
+行の無かった出口2つ（`not_searching` / `DepthOutcome { reached: false }`）は
+**F-29 / F-30 として置いた**——「出方が無い」を行にしないと、無い出口は表からも消える。
+
+### その他（MEDIUM）
+
+| 所見                                | 直したか | どう直したか                                                                              |
+| ----------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `broadcast_to_listeners` の clone   | ✅       | 読み取りロックを握ったまま配る。ループの中に await 点は無い                               |
+| 環の検査が長さ2まで                 | ✅       | 深さ優先で任意長を拾う。**表そのものの環**も見る（`the_declared_layers_are_not_a_cycle`） |
+| 免除の綴りが現場を指していない      | ✅       | 走査が実際に使った免除だけを生きているとみなす（`every_exemption_is_actually_used`）      |
+| `contains_usi_breaking_char` の強制 | ✅       | `check_writable` を `enqueue_write` に置き、組み立てた1行を見る                           |
+| `clocks_view` の warn が絞られない  | ✅       | `CLOCK_WARN_INTERVAL` で絞る                                                              |
+| `continue_game` の拒否が残らない    | ✅       | `log_rejection` に集約し、6コマンドで断った事実を残す                                     |
+| `session.rs` テストの doc 壊れ      | ✅       | `long_ago` の doc を `test_runner` へ戻し、重複した4行を落とした                          |
+
+### 変異で確かめたもの
+
+- `GameEvent` に `Probe` を足す → `every_event_is_classified` が落ちる
+- `MoveDecided` を終局に含める → 同上
+- `may_use` に長さ3の環を書く → `the_declared_layers_are_not_a_cycle` が落ちる
+- `protocol.rs` に `use crate::engine::state::AppState` → 長さ4の環として落ちる
+- doc コメントにしか無い綴りを `EXEMPT` に足す → `every_exemption_is_actually_used` が落ちる
+- `check_writable` の条件を `false` に潰す → `the_queue_refuses_what_would_break_the_line` が落ちる
+
+### 検証
+
+`npm run verify`（660 tests）/ `npm run verify:rust` ともに green。
