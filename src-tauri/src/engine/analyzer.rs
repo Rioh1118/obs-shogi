@@ -98,6 +98,18 @@ enum StopVerdict {
     Failed(EngineError),
 }
 
+/// `stop` の後に `bestmove` を待つべきか。
+///
+/// **判定は `verdict_of_stop` の1本を通す。** 書き写すと片方だけ直る形になる。
+/// 送れなかったときに待たないのは、待っても畳まれないため——エンジンは
+/// `stop` を受け取っていない。
+fn should_wait_for_bestmove(stopped: &Result<StopEffect, EngineError>) -> bool {
+    match stopped {
+        Ok(effect) => matches!(verdict_of_stop(Ok(*effect)), StopVerdict::Wait),
+        Err(_) => false,
+    }
+}
+
 fn verdict_of_stop(stopped: Result<StopEffect, EngineError>) -> StopVerdict {
     match stopped {
         Ok(StopEffect::Written) => StopVerdict::Wait,
@@ -174,6 +186,17 @@ pub struct EngineAnalyzer {
     /// flush の失敗、`readyok` が来なかった場合）ので、
     /// `process_analysis_stream` が自分では抜けられないことがある
     infinite_listener: Arc<Mutex<Option<String>>>,
+
+    /// 探索が畳まれたことを知らせる口。
+    ///
+    /// **`stop` を書けただけでは畳まれていない。** エンジンは `stop` を受け取ってから
+    /// `bestmove` を書くまでの間、`info` を吐き続ける。次の `go` をその前に出すと、
+    /// 古い `info` が新しいセッションのリスナーへ配られる
+    /// （`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
+    ///
+    /// `Notify` なのは、待つ側より先に畳まれても取りこぼさないため
+    /// （`notify_one` は permit を1つ残す）。
+    infinite_settled: Arc<Mutex<Option<Arc<tokio::sync::Notify>>>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -204,6 +227,7 @@ impl EngineAnalyzer {
             state: Arc::new(RwLock::new(AnalyzerState::default())),
             infinite_stop_requested: Arc::new(Mutex::new(None)),
             infinite_listener: Arc::new(Mutex::new(None)),
+            infinite_settled: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -302,11 +326,14 @@ impl EngineAnalyzer {
         let stop_flag = Arc::new(AtomicBool::new(false));
         *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
 
+        let settled = Arc::new(tokio::sync::Notify::new());
+        *self.infinite_settled.lock().await = Some(Arc::clone(&settled));
+
         let protocol = self.protocol().await?;
 
         // channel
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-        let (raw_tx, raw_rx) = mpsc::unbounded_channel();
+        let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
         // 壁時計に依存しない。一意でありさえすればよい
         let listener_id = format!("infinite_analysis_{}", uuid::Uuid::new_v4());
@@ -344,6 +371,13 @@ impl EngineAnalyzer {
             return Err(e);
         }
 
+        // **書き終えてから捨てる。** 前の探索が畳まりきる前に始まった場合、
+        // その `info` と `bestmove` がこのリスナーに積まれている
+        let stale = drain_stale(&mut raw_rx);
+        if stale > 0 {
+            log::debug!(target: LOGT, "analysis.infinite: dropped {stale} stale line(s)");
+        }
+
         // 結果処理タスク開始前にログ
         log::info!(
             target: LOGT,
@@ -373,6 +407,12 @@ impl EngineAnalyzer {
             protocol_for_task
                 .remove_listener(&listener_id_for_task)
                 .await;
+
+            // **抜けたことを知らせる。** 待っている `stop_analysis` はこれを見て
+            // 次の `go` を出してよいと判断する。抜ける理由は `bestmove` を受けたか、
+            // チャンネルが閉じたか、外からリスナーを外されたか——どれでも
+            // 「このリスナーにはもう配られない」なので、待ち手にとっては同じ
+            settled.notify_one();
             log::debug!(
                 target: LOGT,
                 "analysis.infinite.stream: end listener_id={}",
@@ -516,6 +556,19 @@ impl EngineAnalyzer {
         // `remove_listener` は冪等
         let stopped = protocol.stop().await;
 
+        // **畳まれるまで待つ。** `stop` を書けただけでは探索は終わっていない。
+        // エンジンは `stop` を受け取ってから `bestmove` を書くまでの間 `info` を
+        // 吐き続ける。ここで待たずに返すと、呼び出し側は次の `go` をその前に出し、
+        // **古い局面の `info` が新しいセッションのリスナーへ配られる**
+        // （`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
+        // 利用者には、前の局面の評価値と読み筋が現在の盤面の解析結果として見える。
+        //
+        // 待つのは書けたときだけ。積み置きを落としたのなら探索は始まっていないし、
+        // 送れなかったのなら待っても畳まれない（→ `verdict_of_stop`）。
+        if should_wait_for_bestmove(&stopped) {
+            self.wait_until_settled().await;
+        }
+
         if let Some(id) = self.infinite_listener.lock().await.take() {
             log::debug!(target: LOGT, "stop_analysis: closing stream id={id}");
             protocol.remove_listener(&id).await;
@@ -523,6 +576,27 @@ impl EngineAnalyzer {
 
         stopped?;
         Ok(())
+    }
+
+    /// 探索が畳まれるのを待つ。**上限つき。**
+    ///
+    /// 超えても進む。ここで返らないと `stop_analysis` が返らず、
+    /// 停止ボタンも棋譜を閉じる操作も固まる。畳めていないまま次の `go` を
+    /// 出すことになるが、待ち続けて操作を失うよりましだという判断。
+    async fn wait_until_settled(&self) {
+        let Some(settled) = self.infinite_settled.lock().await.clone() else {
+            return;
+        };
+
+        if tokio::time::timeout(ANALYSIS_STOP_GRACE, settled.notified())
+            .await
+            .is_err()
+        {
+            log::warn!(
+                target: LOGT,
+                "stop_analysis: no bestmove within {ANALYSIS_STOP_GRACE:?}; the engine may still be searching"
+            );
+        }
     }
 
     /// 最後の分析結果取得
@@ -717,6 +791,7 @@ impl Clone for EngineAnalyzer {
             state: Arc::clone(&self.state),
             infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
             infinite_listener: Arc::clone(&self.infinite_listener),
+            infinite_settled: Arc::clone(&self.infinite_settled),
         }
     }
 }
@@ -821,6 +896,27 @@ mod tests {
             not_searching().to_string(),
             EngineError::Timeout("engine did not answer after stop".to_string()).to_string()
         );
+    }
+
+    /// `stop` を書けたときだけ `bestmove` を待つこと。
+    ///
+    /// **待たずに返すと、次の `go` が古い探索の途中で出る。** エンジンは
+    /// `stop` を受け取ってから `bestmove` を書くまで `info` を吐き続けるので、
+    /// その `info` が新しいセッションのリスナーへ配られる。利用者には
+    /// 前の局面の評価値と読み筋が現在の盤面の解析結果として見える。
+    ///
+    /// 逆に、積み置きを落としたときや送れなかったときに待つと、
+    /// 来ない `bestmove` を `ANALYSIS_STOP_GRACE` ぶん待って停止が遅れる。
+    #[test]
+    fn only_a_written_stop_is_worth_waiting_for() {
+        assert!(should_wait_for_bestmove(&Ok(StopEffect::Written)));
+        assert!(!should_wait_for_bestmove(&Ok(StopEffect::CancelledQueued)));
+        assert!(!should_wait_for_bestmove(&Err(EngineError::Timeout(
+            "blocked".to_string()
+        ))));
+        assert!(!should_wait_for_bestmove(&Err(
+            EngineError::CommunicationFailed("gone".to_string())
+        )));
     }
 
     /// 積まれていた古い出力を捨てること。

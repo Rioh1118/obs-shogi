@@ -56,7 +56,14 @@ struct AnalysisSession {
     last_result: Option<AnalysisResult>,
 }
 
+/// `analysis-update` の payload。
+///
+/// **`session_id` を載せるのは、受け手が自分のものか照合するため。**
+/// 前の探索が畳まりきる前に次の `go` が出ると、古い `info` が新しい
+/// リスナーへ配られる（`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
+/// 照合しないと、前の局面の読み筋が現在の盤面の解析結果として画面に出る。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AnalysisUpdate {
     session_id: String,
     result: AnalysisResult,

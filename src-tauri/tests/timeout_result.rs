@@ -53,6 +53,8 @@ const WINDOW: usize = 6;
 const EXEMPT: &[&str] = &[
     // `EngineRegistry::shutdown_all` は戻り値を持たない
     "lib.rs:204",
+    // `Notify::notified` は `()` を返す。畳まれたか超えたかの2値しかない
+    "engine/analyzer.rs:591",
 ];
 
 /// `timeout(` が現れる位置を、`src` からの相対パスと行番号で並べる
