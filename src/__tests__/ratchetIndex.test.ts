@@ -61,6 +61,7 @@ const RUST_CHECKS = new Set([
   "production_unwrap",
   "root_guard",
   "serde_naming",
+  "state_transition_cells",
   "timeout_result",
 ]);
 

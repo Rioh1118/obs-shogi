@@ -128,7 +128,7 @@ fn char_literal(inner: &str) -> Option<usize> {
 /// module として拾われるのを止める。文字列を消さないのは、`root_guard` が
 /// 引数名を、`serde_naming` が属性の中身を見るため。
 pub fn blank_out_comments(source: &str) -> String {
-    blank_out(source, false)
+    blank_out(source, true, false)
 }
 
 /// コメントに加えて**文字列・文字リテラルも**空白に潰す。
@@ -136,10 +136,18 @@ pub fn blank_out_comments(source: &str) -> String {
 /// 括弧やキーワードを数えるだけで、中身を読まない走査に使う。
 /// 残すと `const A: &str = "mod x {";` の1行が module を開いたことになる。
 pub fn blank_out_noncode(source: &str) -> String {
-    blank_out(source, true)
+    blank_out(source, true, true)
 }
 
-fn blank_out(source: &str, literals_too: bool) -> String {
+/// **文字列・文字リテラルだけ**を空白に潰す。コメントは残す。
+///
+/// コメントの中身が読みたい走査に使う。生文字列に doc コメントの形を
+/// 書いた行（`r#"/// 説明"#`）を、本物の doc として拾うのを止める。
+pub fn blank_out_strings(source: &str) -> String {
+    blank_out(source, false, true)
+}
+
+fn blank_out(source: &str, comments_too: bool, literals_too: bool) -> String {
     let mut out = String::with_capacity(source.len());
     let mut at = 0;
 
@@ -147,7 +155,12 @@ fn blank_out(source: &str, literals_too: bool) -> String {
         let rest = &source[at..];
         let is_comment = rest.starts_with("//") || rest.starts_with("/*");
         if let Some(len) = skip_literal_or_comment(rest) {
-            if is_comment || literals_too {
+            let blank = if is_comment {
+                comments_too
+            } else {
+                literals_too
+            };
+            if blank {
                 // **行数もバイト長も保つ。** 行数は違反の `path:line` を現物と
                 // 合わせるため。バイト長は、2つの写し（コメントだけ潰した側と
                 // 文字列も潰した側）に**同じ添字を打つ**ため——多バイト文字を
@@ -640,6 +653,20 @@ mod tests {
             source.len(),
             "潰すと元よりバイト長が縮んでいる"
         );
+
+        // **`blank_out_strings` は向きが逆。** 生文字列の中に doc コメントの
+        // 形を書いても、本物の doc として読まれないこと
+        let source = "let s = r#\"/// 説明（表の E1）\"#;\n/// 本物（表の E4）\nfn f() {}\n";
+        let blanked = blank_out_strings(source);
+        assert!(
+            !blanked.contains("E1"),
+            "文字列の中の doc を残している: {blanked:?}"
+        );
+        assert!(
+            blanked.contains("E4"),
+            "本物の doc まで潰している: {blanked:?}"
+        );
+        assert_eq!(blanked.len(), source.len(), "バイト長が変わっている");
     }
 
     #[test]
