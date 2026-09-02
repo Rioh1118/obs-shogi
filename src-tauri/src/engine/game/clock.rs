@@ -25,10 +25,20 @@ pub enum ClockOutcome {
 }
 
 impl SideClock {
+    /// **初手ぶんの加算を先に積む。**
+    ///
+    /// `consume` は着手できてから加算するので、積まないと初手だけ加算が無い。
+    /// 「持ち時間0のフィッシャー」（`TimeLimit::validate` が通す形）では
+    /// 初手の使える時間が 0 になり、**対局開始から 100ms 後の tick で
+    /// 時間切れ負け**になる。
+    ///
+    /// 引き換えに、`3分＋2秒` のような設定では開始時の持ち時間が
+    /// チェスの慣例より加算1回ぶん多い。加算を「1手指すごとに与えられる分」と
+    /// 読むならこちらが揃っている（初手にも1手ぶんある）。
     pub fn new(limit: TimeLimit) -> Self {
         Self {
             limit,
-            remaining_ms: limit.main_ms,
+            remaining_ms: limit.main_ms + limit.increment_ms,
         }
     }
 
@@ -282,15 +292,29 @@ mod tests {
         assert_eq!(clock.consume(1), ClockOutcome::Expired);
     }
 
+    /// 持ち時間0のフィッシャーで、初手に使える時間があること。
+    ///
+    /// 積まないと `budget_ms` が 0 になり、`on_tick` の2回目（≈100ms）で
+    /// 時間切れ負けになる。`validate` はこの形を通すので、通す以上は指せること
+    #[test]
+    fn a_fischer_game_without_main_time_can_play_its_first_move() {
+        let clock = SideClock::new(fischer(0, 10_000));
+        assert_eq!(clock.remaining_ms(), 10_000);
+        assert!(!clock.has_expired(100), "開始直後に時間切れになっている");
+        assert!(clock.has_expired(10_001));
+    }
+
     #[test]
     fn increment_is_added_only_after_a_move_lands() {
+        // 開始時は持ち時間＋初手ぶんの加算
         let mut clock = SideClock::new(fischer(10_000, 3_000));
+        assert_eq!(clock.remaining_ms(), 13_000);
 
         assert_eq!(clock.consume(4_000), ClockOutcome::Ok);
-        assert_eq!(clock.remaining_ms(), 9_000);
+        assert_eq!(clock.remaining_ms(), 12_000);
 
-        // 使い切ると加算する前に切れる。加算を先に足すと1手ぶん延命してしまう
-        assert_eq!(clock.consume(9_001), ClockOutcome::Expired);
+        // 使い切ると加算する前に切れる。**その手の加算では延命できない**
+        assert_eq!(clock.consume(12_001), ClockOutcome::Expired);
     }
 
     /// 動いている側は「尽きる時刻」で出す。持ち時間が残っている間は
@@ -346,9 +370,10 @@ mod tests {
     #[test]
     fn go_carries_increments_for_both_sides() {
         let clocks = GameClocks::new(fischer(40_000, 10_000), fischer(50_000, 10_000));
+        // `btime` / `wtime` は初手ぶんの加算を積んだ後の残り
         assert_eq!(
             usi::GuiCommand::Go(clocks.think_params(Side::Black)).to_string(),
-            "go btime 40000 wtime 50000 binc 10000 winc 10000"
+            "go btime 50000 wtime 60000 binc 10000 winc 10000"
         );
     }
 }
