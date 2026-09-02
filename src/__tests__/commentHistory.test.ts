@@ -27,6 +27,8 @@ const ROOTS = [SRC, RUST_SRC, join(REPO_ROOT, "src-tauri", "tests")];
  * 増やすときは、これ無しでは書けない「なぜ」が本当に無いかを確かめること
  */
 const HISTORY_WORDS = [
+  "ようになった",
+  "ようにした",
   "今回",
   "PR #",
   "この PR",
