@@ -308,10 +308,98 @@ robustness の側（HIGH）を採る。
 
 ---
 
-## 修正計画
+## 修正計画と結果
 
-（`/review-plan` が書く）
+7コミット＋ issue 6件。`npm run verify` / `npm run verify:rust` とも green。
 
-## 結果
+### 直した（22件）
 
-（`/review-fix` で書き戻す）
+| 所見       | 直した内容                                                                                                                                                | コミット  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **R11-H6** | 門番が「何を見ているか」で verify を選ぶ。テストも足す                                                                                                    | `687b226` |
+| **R11-M1** | 行番号の綴りを `LINE_SUFFIX` の1つに寄せる                                                                                                                | `99c48a7` |
+| **R11-M3** | `protocol.rs` の外部 crate 参照を識別子＋版に                                                                                                             | `99c48a7` |
+| **R11-M4** | 行番号の検査を `docs/` 全体へ。ADR-0004 の死んだ識別子も直す                                                                                              | `99c48a7` |
+| **R11-H1** | 収集ループが `protocol.stop()` を直に呼ぶ                                                                                                                 | `480d17b` |
+| **R11-H2** | `StopVerdict` で `StopEffect` を潰さない                                                                                                                  | `480d17b` |
+| **R11-H4** | `drain_stale` で古い `bestmove` を捨てる                                                                                                                  | `480d17b` |
+| **R11-H5** | `DepthOutcome` で届いたかを返す                                                                                                                           | `8de43e7` |
+| **R11-B1** | ※11 を `is_active` を指す形に                                                                                                                             | `6c50c03` |
+| **R11-B2** | `ReadyState::Waiting` の doc を現物に                                                                                                                     | `6c50c03` |
+| **R11-B3** | `ReadyState::ALL` を宣言から生やす                                                                                                                        | `6c50c03` |
+| **R11-H8** | `MAX_THINK_TIME` の帰結から対局を外す                                                                                                                     | `6c50c03` |
+| **R11-H9** | `Duration` の shadow の向きを直す                                                                                                                         | `6c50c03` |
+| **R11-M2** | `Kind::ALL` を宣言から生やす                                                                                                                              | `6c50c03` |
+| その他     | `send_command` のエラー種、`cannot_reach_text` の因果                                                                                                     | `6c50c03` |
+| MEDIUM     | `stop_session` の照合、席の残留、`STOP_GRACE` の改名、`{:?}` 9箇所、`bridge.rs` のテスト4本                                                               | `d0d2b04` |
+| MEDIUM     | `await_write` の副作用、`#[allow]` の嘘、`Finite` の理由、`new_session_id` の理由、`CLOSE_IDLE_TIMEOUT` の兼務、`Runner.app` の保証、`game.md` の「全て」 | `1a773dc` |
+
+### issue へ送った（6件）
+
+**直し方に設計の選択が絡むもの。** その場で決めずに出す。
+
+| 所見                                                           | issue |
+| -------------------------------------------------------------- | ----- |
+| R11-H3 席を返す側が「席は1つ」を破る                           | #365  |
+| R11-H7 `set_position` / `apply_engine_settings` が席を通らない | #366  |
+| `initialize_engine` の二重起動                                 | #367  |
+| 掃除の後に始まった `spawn`                                     | #368  |
+| 解析側 Tauri コマンドの doc と、丸めるか断るか                 | #369  |
+| barrel の流儀の割れ                                            | #370  |
+
+### 直し方を変えたもの
+
+**R11-M2** は「`all` のリテラルを消す」だけでは足りない。`Kind` を宣言する小さな
+マクロを置き、`Kind::ALL` が宣言から生えるようにした。同じ形で `ReadyState::ALL` も。
+**手書きの写しは、写しであるかぎり必ずずれる**——ラウンド5から10まで毎回それで落ちている。
+
+**R11-H2** の直し方は所見どおりだが、写す先の型は `game::search` と共有しなかった。
+あちらは対局の結果（`SearchOutcome`）へ写し、こちらは待ち方へ写す。写す先が違うので
+1本にすると、どちらかの分岐が相手の都合で動く。
+
+### 変異で確かめたもの
+
+| テスト                                                       | 当てた変異                            | 落ちた   |
+| ------------------------------------------------------------ | ------------------------------------- | -------- |
+| `verify-gate.test.sh`                                        | 拡張子の二分に戻す                    | ✓（5件） |
+| `lineNumberRefsIn`                                           | `LINE_SUFFIX` を `:\d+` に狭める      | ✓        |
+| `the_ways_a_stop_can_end_are_not_collapsed_into_waiting`     | `CancelledQueued` を `Wait` に潰す    | ✓        |
+| `stale_output_is_dropped_before_collecting`                  | `while` を `if` に                    | ✓        |
+| `commands_covers_every_gui_command`                          | `Kind` に足して `commands()` を忘れる | ✓        |
+| `a_second_analysis_is_refused_while_one_holds_the_seat`      | 席の検査を落とす                      | ✓        |
+| `stopping_an_unknown_session_does_not_touch_the_running_one` | 知らない ID を通す                    | ✓        |
+| `the_seat_name_carries_what_kind_of_analysis_it_is`          | 席の名前から条件を落とす              | ✓        |
+
+`ReadyState::ALL` は変異を書けない——一覧が宣言から生えるので、
+「一覧だけを縮める」編集が存在しない。それがこの直し方の狙い。
+
+### 自分が作った退行
+
+- **`comment_history.rs` を落として TS へ寄せた結果、Rust 専用コミットで
+  Rust のコメント規約が1本も走らなくなっていた**（R11-H6）。ラウンド10の報告書は
+  「1つの規約は1本の検査に持たせる」とだけ書き、この帰結を記録していない。
+  同じ穴が `docsIdentifiers` / `docsSourcePaths` にも掛かっていた
+- **ラウンド10で足した行番号の検査が `#L42` と `:L42` を素通しした**（R11-M1）。
+  同じファイルの5行上でパス側が3通りを知っているのに、新しく書いた側は1通りしか見ない
+- **ラウンド10の報告書が「行番号を機械で止めた」と書いたが、範囲は
+  `docs/state-transitions/` だけ**。同じ改名で腐った ADR-0004 は範囲外だった
+- **R10-M2 を半分しか直していない**。「`shutdown_all` の後に `spawn` が始まる経路も、
+  落とす者が居ない」と自分で書きながら、直さなかったことを記録していない（→ #368）
+- ラウンド10で畳んだ `collect_until_bestmove` に、無限解析側にはある
+  stale `bestmove` の番人が落ちていた（R11-H4）
+
+門番を直した直後から、`.rs` だけのコミットで `commentHistory` が2回、
+`comment_identifiers` が1回、自分のコメントを止めた。
+
+### 範囲について
+
+`/implement` の「5ラウンドを超えたら直す対象を疑う」に当たったので、範囲を見直した。
+
+このブランチの目的は**対局の Rust API**。`analyzer.rs` と `bridge.rs` の解析側は
+ラウンド10で「触った範囲の中にある既存の問題」として直し始めたもので、
+そこがラウンド11の所見の半分を占めた。しかも `analyzeWithTime` /
+`analyzeWithDepth` には**フロントの呼び出し側が0件**で、踏める経路が無い。
+
+**踏めない経路の設計をこの PR で決めない。** 実害として説明できるもの（潰した
+`StopEffect`、stale な `bestmove`、届かない深度、知らない ID での停止）は直し、
+形を変える判断が要るものは issue に出した。
