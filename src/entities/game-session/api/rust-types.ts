@@ -10,6 +10,10 @@
  *
  * `entities/game` の型とは別物。あちらは「棋譜を読んでいる状態」で、
  * ここは「対局が進んでいる状態」。
+ *
+ * **Rust の欄が全部ここにあることは機械が見る**
+ * （`engine::game::types::tests::the_typescript_copy_has_every_field`）。
+ * 逆向き（ここにあって Rust に無い欄）は serde が黙って捨てるので見ていない。
  */
 import type { AnalysisResult } from "@/entities/engine";
 

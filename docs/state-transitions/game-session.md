@@ -1,7 +1,8 @@
 # 状態遷移表: game-session（L1）
 
 対象: `src-tauri/src/engine/game/session.rs`（状態機械）、`search.rs`（1回の `go`）、
-`clock.rs`（持ち時間）、`manager.rs`（台帳）、`bridge.rs`（Tauri コマンド）。
+`clock.rs`（持ち時間）、`manager.rs`（台帳）、`events.rs`（出来事の宛先）、
+`src-tauri/src/engine/commands/game.rs`（Tauri コマンド）。
 エンジンの出力を読む側は `src-tauri/src/engine/protocol.rs`。
 
 上位は [app.md](app.md)。エンジンプロセスの生死は [engine.md](engine.md)、
@@ -19,7 +20,8 @@
 合法手判定が2実装になる。ルールをフロント側に寄せるのはそのため。
 
 **詰み・千日手・持将棋・最大手数の判定は、まだどちらにも無い** → #354。
-`shogiMoveValidator.ts` が持つのは合法手と成りの6メソッドだけで、`src/` を
+`shogiMoveValidator.ts` が持つのは合法手と成りだけで（`isLegalMove` から
+`getLegalMovesWithPromotionOptions` まで）、`src/` を
 `千日手|repetition|持将棋|jishogi|最大手数` で引いても当たるのは
 `entities/kifu/model/jkf.ts` の**棋譜の特殊手の文字列定数**だけ。
 
@@ -84,7 +86,7 @@
 | **E12** | **`stop` に応じない**          | `SearchOutcome::StopTimedOut`。`SEARCH_STOP_GRACE`超過か、書き込みが `WRITE_TIMEOUT`で返らない |
 | **E13** | `info`                         | `SearchMessage::Info`                                                                          |
 | **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                                                     |
-| **E15** | tick: 裁定が 30 秒返らない     | `on_tick` の `RULING_TIMEOUT`                                                                  |
+| **E15** | tick: 裁定が返らない           | `on_tick` の `RULING_TIMEOUT`                                                                  |
 | **E17** | tick: 畳み待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`                                                                  |
 | **E18** | 思考が長すぎる                 | `on_tick` の `stalled_turn`。**3つの締切のどれか**（※12）                                      |
 | **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                                               |
@@ -148,7 +150,7 @@
 `moves.len()` の偶奇が次の手番と合うこと、各手の形が通ること。
 **権威はフロントだが、受け取ったものが直前の手の続きであることは確かめる。**
 確かめないと、食い違いに気付く経路がどこにも無くなる。
-落ちると `G1` のまま留まるので、フロントが直さなければ E15 の 30 秒で中断される。
+落ちると `G1` のまま留まるので、フロントが直さなければ E15（`RULING_TIMEOUT`）で中断される。
 
 ※4 `GameSession::close` は「止める（`CLOSE_ABORT_TIMEOUT`） →
 **畳まれるのを待つ**（`CLOSE_IDLE_TIMEOUT`） → 落とす」の順。
@@ -228,20 +230,30 @@ async のタスクの中で同期 write を直に呼ぶと `poll` が返らず�
 読み取り自体の `Err`＝非 UTF-8 の行や数値のパース失敗では `usi` crate が
 hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line_tx` は落ちるので、
 そこ1箇所で全部を拾う。同じ場所で `ready` にも `Closed` を立てる
-（そうしないと `ensure_ready` が `READY_TIMEOUT` の 120 秒まで待つ）。
+（そうしないと `ensure_ready` が `READY_TIMEOUT` まで待つ）。
 
 ※10 **踏めているのは先後とも人間の1局と、`Runner` を直に組んだ単体のみ。**
 `spawn_players` は人間側を飛ばすので、その設定なら**エンジンを1つも起動せずに
 状態機械を通せる**。`Runner` はテストと同じモジュールにあるので、
 `activity` を好きな状態にして `on_search_outcome` を直接呼べる。
 
-**`△` が意味するのは「`G0` 列だけ固定している」。** `(G2, E7)` `(G2, E7')`
-`(G2, E12)` ——終局後に返ってきた `bestmove` で `gameover` を送る経路——は
-まだ踏んでいない。ここは不変条件3 の要で、`on_search_outcome` の
-`Phase::Over` 早期 return を動かす変更が、テストにもレビューにも引っ掛からない。
+**`△` が意味するのは「`G0` 列だけ固定している」。**
 
-`(G2, E8)` は踏めている。**出来事の宛先を trait にして観測できるようにした**
-（`game::events` の `RecordedEvents`）ので、残りも同じ形で埋まる。
+`(G2, E7)`（終局後に届いた `bestmove`）は
+`a_bestmove_after_the_game_ended_still_gets_a_gameover` が `Phase::Over` を置いて
+踏んでいる。**ただし表明は `activity` が `A0` に戻ることだけ。** `gameover` が
+実際に飛ぶことは見ていない——`send_gameover` の宛先が `UsiProtocol` の具象で、
+観測する継ぎ目が無いため。`Phase::Over` の早期 return を `match` より後ろへ
+動かしても、`activity` の代入はその手前にあるので落ちない。
+**つまりセルは踏んでいるが、不変条件3 は依然として守られていない。**
+
+`(G2, E7')` `(G2, E8)` `(G2, E12)` は踏めていない。`(G2, E8)` を名乗るテストは
+`Phase::Thinking` から始まるので、実際に踏んでいるのは `(G0, E8)`
+（その固有の価値は※6 の順序——`Over` の emit が `send_gameover` より先——であって、
+セルではない）。
+
+出来事の宛先は trait なので観測できる（`game::events` の `RecordedEvents`）。
+残っているのは**エンジンへ送ったコマンド**を観測する継ぎ目。
 
 `△` は「その行のうち人間で踏める列だけ」の意。E1 の `is_engine` の枝と
 `(G2, E1)` は踏めていない。
@@ -253,7 +265,7 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 2. `Running` が持ち時間＋`HARD_TURN_LIMIT` を超えた。**喋っていても落とす**
 3. `Running` が `SEARCH_GRACE` を超え、**かつ**その間 `info` が1行も来ていない。
    **ここは持ち時間を見ない**——黙っているかどうかは持ち時間と無関係の信号で、
-   足すと60分の対局で初手から固まったエンジンが60分30秒検出されない
+   足すと、持ち時間が長い対局で初手から固まったエンジンが持ち時間ぶん検出されない
 
 **2 と 3 は手番側がエンジンのときだけ。** 人間は長考しても「応答しない」ではないし、
 `info` を出さないので沈黙条件は常に満たされる。掛けると、30分切れ負けで11分考えた
@@ -416,7 +428,7 @@ ClocksView {
 起動する作りなので、**プロセスを差し替える口が無い**。
 
 固定できているのは、人間だけで踏める経路（※10）と、`Runner` を直に組んで
-`activity` を置いた単体。`manager.rs` / `bridge.rs` には `#[test]` が0個。
+`activity` を置いた単体。`manager.rs` と `commands/game.rs` にはテストが無い。
 
 とくに危ないもの:
 
@@ -441,6 +453,7 @@ ClocksView {
 - 1回の `go`: `src-tauri/src/engine/game/search.rs`
 - 持ち時間: `src-tauri/src/engine/game/clock.rs`
 - 走っている対局の台帳: `src-tauri/src/engine/game/manager.rs`
+- 出来事の宛先（`GameEventSink`）: `src-tauri/src/engine/game/events.rs`
 - Tauri コマンド: `src-tauri/src/engine/commands/game.rs`
 - 境界に出る型: `src-tauri/src/engine/game/types.rs`
 - エンジンの出力を読む側: `src-tauri/src/engine/protocol.rs`

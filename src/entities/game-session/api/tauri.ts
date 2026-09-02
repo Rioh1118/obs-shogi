@@ -1,9 +1,12 @@
 /**
  * 対局の Tauri コマンド。
  *
- * **USI の語彙はここに出てこない。** `isready` / `position` / `go` /
- * `ponderhit` / `gameover` は Rust の中で完結する。ここが扱うのは
- * 対局者・持ち時間・手番・決まった手・終局だけ。
+ * **進行の段取りはここに出てこない。** `usiok` / `readyok` / `isready` /
+ * `position` / `go` / `ponderhit` / `gameover` は Rust の中で完結する。
+ * ここが扱うのは対局者・持ち時間・手番・決まった手・終局。
+ *
+ * **エンジンを起こすための設定は越える**（`setOption` の値、`ponder`、根の SFEN、
+ * USI の指し手文字列）。どれを渡すかを決めるのはこちら側なので、内側に閉じようがない。
  */
 import { invoke } from "@tauri-apps/api/core";
 import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";

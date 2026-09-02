@@ -1900,9 +1900,8 @@ mod tests {
 
     /// 出来事を観測したいときの `Runner`。
     ///
-    /// **宛先が具象（`tauri::AppHandle`）だったころは書けなかった。**
-    /// 表が `(G2, E7)` などに「テストあり」の印を付けながら実体を持てなかったのは
-    /// これが理由（→ `game::events`）。
+    /// 宛先を差し替えられるので、出た出来事をそのまま確かめられる
+    /// （→ `game::events`）。
     fn runner_with_events(
         tx: &mpsc::UnboundedSender<Command>,
         events: Arc<dyn GameEventSink>,
@@ -2849,8 +2848,15 @@ mod tests {
         );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
-        // 畳み待ちより先に故障扱いになる
-        assert!(SEARCH_GRACE >= SETTLE_TIMEOUT);
+        // 畳み待ちより先に故障扱いになる。
+        //
+        // **等値を許さない。** 同じなら両方の番人が同じ tick に当たりうるので、
+        // `NotStopping` と `NotAnswering` のどちらが付くかが `stalled_turn` の
+        // 腕の順序で決まる——`detail` が原因を取り違える
+        assert!(
+            SEARCH_GRACE > SETTLE_TIMEOUT,
+            "SEARCH_GRACE({SEARCH_GRACE:?}) が SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) 以下"
+        );
 
         // 上限が沈黙の猶予より短いと、沈黙の腕が一度も届かない
         assert!(
@@ -2916,14 +2922,16 @@ mod tests {
         }
     }
 
-    /// 終局を知らせてから `gameover` を送ること（表の `(G2, E8)` 側）。
+    /// 終局を知らせること（※6 の順序。`(G0, E8)` の経路で確かめる）。
     ///
     /// **`Over` が出ないと、フロントは対局が終わったことを知らない。**
     /// `send_gameover` は書き込みの列を通るので、後に回すと終局から
     /// イベント到着まで数秒空き、その間フロントは減り続ける時計を描く。
     ///
-    /// 表はこのセルに「テストあり」の印を付けていたが、宛先が具象だったころは
-    /// `emit` が黙って捨てるので**実体を持てなかった**。
+    /// **見ているのは `Over` が出たことだけ。** `gameover` が実際に飛ぶことも、
+    /// それが `Over` より後であることも見ていない——`send_gameover` の宛先は
+    /// `UsiProtocol` の具象で、観測する継ぎ目が無い（→ #375）。
+    /// 順序を入れ替える変異ではここは落ちない。
     #[tokio::test]
     async fn ending_the_game_tells_the_app_before_it_tells_the_engines() {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -2987,12 +2995,14 @@ mod tests {
         );
     }
 
-    /// 終局後に返ってきた `bestmove` で `gameover` を送ること
+    /// 終局後に返ってきた `bestmove` で `Activity` が `A0` に戻ること
     /// （表の `(G2, E7)`）。
     ///
-    /// **`Phase::Over` の早期 return を `match` より後ろへ動かすと、
-    /// 終局時の `bestmove` が空アームに吸われてここが飛ばなくなる。**
-    /// 探索していたエンジンは対局中のまま `close_game` を待つ（不変条件3 の違反）。
+    /// **見ているのはそこまで。** `gameover` が実際に飛ぶことは見ていない
+    /// ——`send_gameover` の宛先が `UsiProtocol` の具象で、観測する継ぎ目が
+    /// 無いため（→ #375）。`Phase::Over` の早期 return を `match` より後ろへ
+    /// 動かす変異でも、`activity` の代入はその手前にあるのでここは落ちない。
+    /// **セルは踏んでいるが、不変条件3 はまだ守られていない。**
     #[tokio::test]
     async fn a_bestmove_after_the_game_ended_still_gets_a_gameover() {
         let (tx, _rx) = mpsc::unbounded_channel();
