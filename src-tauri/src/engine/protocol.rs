@@ -11,6 +11,18 @@ use usi::{EngineCommand, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
+/// `kill` を待つ上限。
+///
+/// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
+/// 列に掛かる `WRITE_TIMEOUT` は効かない。上限はここに要る。
+///
+/// **この上限が効くのは、`kill` が `spawn_blocking` の中にあるから。**
+/// async のタスクの中で同期 write を直に呼ぶと `poll` が返らず、
+/// `timeout` は発火する機会そのものを持たない。
+///
+/// 超えるとプロセスが残る。回収する仕掛けは無い → #353
+const KILL_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// プロセスを落とした後に送ろうとしたときの文言
 const GONE: &str = "engine process has been shut down";
 /// 出力が終わったプロセスへ送ろうとしたときの文言
@@ -1051,6 +1063,15 @@ impl UsiProtocol {
 
     /// プロセスを落とす。2度目以降は何もしない。
     ///
+    /// **待つ上限はここに閉じてある。** `handler` の Mutex を書き込みの
+    /// `spawn_blocking` が握ったままだと、取りに行くスレッドは返らない（→ #353）。
+    /// 呼び出し側に上限を任せると、裸で呼ぶ口が1つできただけで
+    /// そこが終了処理の行き止まりになる。
+    ///
+    /// 超えたときプロセスは走ったまま残る。待ち続けてアプリが終われないより
+    /// ましだという判断。`tokio::time::timeout` は `spawn_blocking` を
+    /// 取り消さないので、詰まったスレッドはそのまま残る。
+    ///
     /// **落とした handler を drop させない。** `usi` crate の
     /// `UsiEngineHandler::Drop` は `kill().unwrap()` を呼び、`kill` は先に
     /// `quit` を書く（`process/engine.rs:73-77, 176-180`）。既に死んだプロセスへの
@@ -1086,13 +1107,16 @@ impl UsiProtocol {
             let _ = handler.kill();
             std::mem::forget(handler);
             true
-        })
-        .await;
+        });
 
-        match killed {
-            Ok(true) => log::info!(target: LOGT, "kill_engine: done"),
-            Ok(false) => log::debug!(target: LOGT, "kill_engine: already gone"),
-            Err(e) => log::warn!(target: LOGT, "kill_engine: task failed: {e}"),
+        match tokio::time::timeout(KILL_TIMEOUT, killed).await {
+            Ok(Ok(true)) => log::info!(target: LOGT, "kill_engine: done"),
+            Ok(Ok(false)) => log::debug!(target: LOGT, "kill_engine: already gone"),
+            Ok(Err(e)) => log::warn!(target: LOGT, "kill_engine: task failed: {e}"),
+            Err(_) => log::error!(
+                target: LOGT,
+                "kill_engine: timed out — the process is left running"
+            ),
         }
     }
 }

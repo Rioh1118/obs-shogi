@@ -51,11 +51,46 @@ const WINDOW: usize = 6;
 /// 位置は `src` からの相対パスと行番号。行がずれたら赤くなるので、
 /// **動かしたときに必ず読み直すことになる**（それが狙い）。
 const EXEMPT: &[&str] = &[
-    // `UsiProtocol::kill_engine` は戻り値を持たない
-    "engine/registry.rs:229",
     // `EngineRegistry::shutdown_all` は戻り値を持たない
     "lib.rs:202",
 ];
+
+/// `timeout(` が現れる位置を、`src` からの相対パスと行番号で並べる
+fn timeout_sites() -> Vec<String> {
+    let mut sites = Vec::new();
+
+    for path in rust_files(&src_dir()) {
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let relative = path.strip_prefix(src_dir()).unwrap_or(&path).to_path_buf();
+
+        for (index, line) in source.lines().enumerate() {
+            if line.contains("timeout(") {
+                sites.push(format!("{}:{}", relative.display(), index + 1));
+            }
+        }
+    }
+    sites
+}
+
+/// 免除が現物を指していること。
+///
+/// **行番号で書いてある以上、行がずれた免除は誰も見ない。** 免除された側は
+/// 免除のつもりのまま検査を受け、免除の行だけが化石として残る。
+/// 免除を消し忘れたことにも、免除の位置がずれたことにも、ここで気付く
+#[test]
+fn the_exempt_list_points_at_real_lines() {
+    let sites = timeout_sites();
+    let dead: Vec<&&str> = EXEMPT
+        .iter()
+        .filter(|e| !sites.contains(&e.to_string()))
+        .collect();
+
+    assert!(
+        dead.is_empty(),
+        "免除が指す行に `timeout(` が無い。動かしたなら行番号を直し、\
+         消したなら免除も消すこと:\n{dead:?}"
+    );
+}
 
 #[test]
 fn a_timeout_never_swallows_the_inner_result() {
@@ -102,15 +137,7 @@ fn a_timeout_never_swallows_the_inner_result() {
 /// 走査が空振りしても違反0になる。`timeout` を実際に拾えていることを固定する
 #[test]
 fn the_scanner_finds_the_timeouts() {
-    let hits: usize = rust_files(&src_dir())
-        .iter()
-        .map(|p| {
-            fs::read_to_string(p)
-                .unwrap_or_default()
-                .matches("timeout(")
-                .count()
-        })
-        .sum();
+    let hits = timeout_sites().len();
 
     assert!(hits > 3, "`timeout(` を {hits} 件しか拾えていない");
 }

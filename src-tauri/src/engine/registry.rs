@@ -23,19 +23,6 @@ const LOGT: &str = "obs_shogi::engine::registry";
 /// 待ち切らずに `kill` する側に倒してあるのは、**閉じられないほうが害が大きい**ため。
 const QUIT_GRACE: Duration = Duration::from_millis(300);
 
-/// `kill` に置く上限。
-///
-/// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
-/// ここに上限が要る。`quit` のほうは列の中で `WRITE_TIMEOUT` が掛かる
-/// （`protocol.rs` の `run_writer`）。
-///
-/// **この上限が効くのは、`kill` が `spawn_blocking` の中にあるから。**
-/// async のタスクの中で同期 write を直に呼ぶと `poll` が返らず、
-/// `timeout` は発火する機会そのものを持たない。
-///
-/// 超えるとプロセスが残る。回収する仕掛けは無い → #353
-const KILL_TIMEOUT: Duration = Duration::from_secs(2);
-
 /// 台帳の中でプロセスを指す値。
 pub type EngineId = String;
 
@@ -136,7 +123,6 @@ impl EngineRegistry {
                 return Err(e);
             }
         };
-        self.forget_starting(&protocol).await;
 
         let id = Uuid::new_v4().to_string();
         let process = Arc::new(EngineProcess {
@@ -147,10 +133,15 @@ impl EngineRegistry {
             protocol,
         });
 
+        // **本台帳へ載せてから起動中の置き場を外す。** 逆にすると、
+        // その間このプロセスはどちらの置き場にも居ない。並行する `shutdown_all` が
+        // 素通りして孤児になる。両方に居る側は二度落とすだけで、
+        // `kill_engine` は handler を `take` するので2回目は空振りする
         self.processes
             .write()
             .await
             .insert(id.clone(), Arc::clone(&process));
+        self.forget_starting(&process.protocol).await;
 
         log::info!(
             target: LOGT,
@@ -213,7 +204,7 @@ impl EngineRegistry {
 
     /// 落とす。**返らない経路を作らない。**
     ///
-    /// `quit` の上限は書き込みの列の中、`kill` の上限はここ。
+    /// `quit` の上限は書き込みの列の中、`kill` の上限は `kill_engine` の中。
     /// `quit` が超えても `kill` へ進むので、プロセスが残るのは
     /// **`kill` の上限を超えたときだけ**。待ち続けるよりましだという判断。
     async fn terminate(process: &EngineProcess) {
@@ -226,15 +217,6 @@ impl EngineRegistry {
 
         tokio::time::sleep(QUIT_GRACE).await;
 
-        if tokio::time::timeout(KILL_TIMEOUT, protocol.kill_engine())
-            .await
-            .is_err()
-        {
-            log::error!(
-                target: LOGT,
-                "shutdown: kill timed out id={} — the process is left running",
-                process.id
-            );
-        }
+        protocol.kill_engine().await;
     }
 }
