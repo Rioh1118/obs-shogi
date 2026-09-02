@@ -183,6 +183,13 @@ struct AnalyzerState {
     analysis_count: u64,
 }
 
+/// ストリームの畳み方。
+///
+/// `Finite` は**まだ誰も構築しない**。有限の解析（時間／深度）は
+/// `collect_until_bestmove` が自前で待つので、このストリームを通らない。
+/// 落とさずに残してあるのは、`process_analysis_stream` の分岐が
+/// 「無限だからこう畳む」を明示するため——腕が1つだと、その条件が
+/// 無限解析に固有であることがコードから読めない。
 enum StreamMode {
     Infinite(Arc<AtomicBool>),
     #[allow(dead_code)]
@@ -534,7 +541,7 @@ impl EngineAnalyzer {
     async fn process_analysis_stream(
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
         result_tx: mpsc::UnboundedSender<AnalysisResult>,
-        #[allow(unused_variables)] state: Arc<RwLock<AnalyzerState>>,
+        state: Arc<RwLock<AnalyzerState>>,
         mode: StreamMode,
     ) {
         log::debug!(target: LOGT, "stream: start");

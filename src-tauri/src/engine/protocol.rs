@@ -524,7 +524,13 @@ impl UsiProtocol {
 
     /// 列に入れた1件が書けたかを待つ。
     ///
-    /// **待つだけ。** 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
+    /// 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
+    ///
+    /// **待つだけではない。** 上限に当たったら `fail_writes` を撃つ——
+    /// `Closed` が立ち、積み置きが捨てられ、以後この `UsiProtocol` へは
+    /// 何も送れなくなる。戻り値を捨ててもこの副作用は起きる。
+    /// 掃き出しループが1件ごとにここを通るので、flush の途中で1件が
+    /// 上限に当たると残りは `report_dropped` を通らずに消える。
     async fn await_write(
         &self,
         rx: oneshot::Receiver<Result<(), EngineError>>,

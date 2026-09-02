@@ -137,6 +137,11 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 /// `close_game` が無期限に返らなくなる。
 ///
 /// `search.rs` の `SEARCH_STOP_GRACE` より少し長い。
+///
+/// **掛かる先が2つある。** `GameSession::close` では「`abort` ＋ 畳み待ち」の
+/// **合計**の予算で、`GameManager::close` では `abort` **だけ**の上限。
+/// 前者では `abort` が予算を使い切ると畳み待ちに何も残らないので、
+/// 値を下げるときはそちらの縮み方も見ること。
 pub(super) const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
@@ -476,10 +481,13 @@ struct Runner {
     id: GameId,
     /// イベントの宛先。**`None` はテストのときだけ。**
     ///
-    /// 本番は `GameManager` が必ず `Some` を渡す。`None` にすると
-    /// `emit` が黙って捨てるので、フロントは時計も指し手も終局も受け取らない。
-    /// テストが `None` を使うのは、`AppHandle` を作るのに Tauri の
-    /// ランタイムが要るため。
+    /// 本番の入口は `start_game`（`game/bridge.rs` の `#[tauri::command]`）
+    /// 1本で、そこが `Some(app)` を渡す。`GameManager::start` は受け取った
+    /// ものを素通しするだけなので、保証はそちらには無い。
+    ///
+    /// `None` にすると `emit` が黙って捨て、フロントは時計も指し手も
+    /// 終局も受け取らない。テストが `None` を使うのは、`AppHandle` を
+    /// 作るのに Tauri のランタイムが要るため。
     app: Option<AppHandle>,
     settings: GameSettings,
     players: [Player; 2],
