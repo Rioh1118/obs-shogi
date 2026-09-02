@@ -358,56 +358,6 @@ pub enum GamePhaseView {
         result: GameResult,
     },
 }
-impl GameEvent {
-    /// ログに出す種別名。**中身は出さない**（読み筋がログを埋める）。
-    ///
-    /// **`_` を足さないこと。** バリアントが増えたらここがコンパイルで落ちる。
-    pub fn kind(&self) -> &'static str {
-        match self {
-            GameEvent::TurnChanged { .. } => "turnChanged",
-            GameEvent::SearchInfo { .. } => "searchInfo",
-            GameEvent::MoveDecided { .. } => "moveDecided",
-            GameEvent::ClockUpdated { .. } => "clockUpdated",
-            GameEvent::Over { .. } => "over",
-        }
-    }
-
-    /// 1手に何度も出るか。**絞りの枠を分ける基準。**
-    ///
-    /// 高頻度のものと1手1回のものが同じ枠を奪い合うと、読み筋の失敗で枠を
-    /// 使い切った直後の `moveDecided` の失敗が黙って捨てられる。
-    /// **その1行が、なぜ対局が止まったかを説明する唯一の記録になる。**
-    ///
-    /// **`_` を書かない。** 書くと、足したバリアントが黙って「1手1回」に落ちる。
-    pub fn is_frequent(&self) -> bool {
-        match self {
-            GameEvent::SearchInfo { .. } | GameEvent::ClockUpdated { .. } => true,
-            GameEvent::TurnChanged { .. }
-            | GameEvent::MoveDecided { .. }
-            | GameEvent::Over { .. } => false,
-        }
-    }
-
-    /// これが届かなかったとき、**後から気付く手立てが無い**か。
-    ///
-    /// 他のイベントは、届かなくても次のイベントか番人が状況を動かす。
-    /// `Over` だけは違う——`Phase::Over` に入った後の `on_tick` は即 return なので
-    /// 中断も来ない。落とすと、盤は最後に受けた期限で 00:00 まで描いてから静止し、
-    /// **時間切れなのに何も起きない画面**が残る（→ 台帳の F-19）。
-    ///
-    /// 立て直せるのは `get_game_state` を叩く側だけなので、ここは絞らずに出す。
-    ///
-    /// **`_` を書かない。** 書くと、足したバリアントが黙って「後から気付ける」側に落ちる。
-    pub fn is_terminal(&self) -> bool {
-        match self {
-            GameEvent::Over { .. } => true,
-            GameEvent::TurnChanged { .. }
-            | GameEvent::SearchInfo { .. }
-            | GameEvent::MoveDecided { .. }
-            | GameEvent::ClockUpdated { .. } => false,
-        }
-    }
-}
 
 /// 対局がいまどうなっているか。`get_game_state` の戻り値。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -466,6 +416,57 @@ pub enum GameEvent {
         result: GameResult,
         clocks: ClocksView,
     },
+}
+
+impl GameEvent {
+    /// ログに出す種別名。**中身は出さない**（読み筋がログを埋める）。
+    ///
+    /// **`_` を足さないこと。** バリアントが増えたらここがコンパイルで落ちる。
+    pub fn kind(&self) -> &'static str {
+        match self {
+            GameEvent::TurnChanged { .. } => "turnChanged",
+            GameEvent::SearchInfo { .. } => "searchInfo",
+            GameEvent::MoveDecided { .. } => "moveDecided",
+            GameEvent::ClockUpdated { .. } => "clockUpdated",
+            GameEvent::Over { .. } => "over",
+        }
+    }
+
+    /// 1手に何度も出るか。**絞りの枠を分ける基準。**
+    ///
+    /// 高頻度のものと1手1回のものが同じ枠を奪い合うと、読み筋の失敗で枠を
+    /// 使い切った直後の `moveDecided` の失敗が黙って捨てられる。
+    /// **その1行が、なぜ対局が止まったかを説明する唯一の記録になる。**
+    ///
+    /// **`_` を書かない。** 書くと、足したバリアントが黙って「1手1回」に落ちる。
+    pub fn is_frequent(&self) -> bool {
+        match self {
+            GameEvent::SearchInfo { .. } | GameEvent::ClockUpdated { .. } => true,
+            GameEvent::TurnChanged { .. }
+            | GameEvent::MoveDecided { .. }
+            | GameEvent::Over { .. } => false,
+        }
+    }
+
+    /// これが届かなかったとき、**後から気付く手立てが無い**か。
+    ///
+    /// 他のイベントは、届かなくても次のイベントか番人が状況を動かす。
+    /// `Over` だけは違う——`Phase::Over` に入った後の `on_tick` は即 return なので
+    /// 中断も来ない。落とすと、盤は最後に受けた期限で 00:00 まで描いてから静止し、
+    /// **時間切れなのに何も起きない画面**が残る（→ 台帳の F-19）。
+    ///
+    /// 立て直せるのは `get_game_state` を叩く側だけなので、ここは絞らずに出す。
+    ///
+    /// **`_` を書かない。** 書くと、足したバリアントが黙って「後から気付ける」側に落ちる。
+    pub fn is_terminal(&self) -> bool {
+        match self {
+            GameEvent::Over { .. } => true,
+            GameEvent::TurnChanged { .. }
+            | GameEvent::SearchInfo { .. }
+            | GameEvent::MoveDecided { .. }
+            | GameEvent::ClockUpdated { .. } => false,
+        }
+    }
 }
 
 #[cfg(test)]
