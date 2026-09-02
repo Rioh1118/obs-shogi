@@ -68,6 +68,9 @@ export type PlayerSpec =
        * エンジンがあるため（`EvalDir` を変えてから `EvalFile` を指す、
        * `Threads` を上げてから `USI_Hash` を割り当てる）。
        * 順序が保たれないと、同じ設定なのに実行のたびに棋力が変わる。
+       *
+       * **件数は Rust の `MAX_OPTIONS`、名前と値の長さは `MAX_WIRE_FIELD` まで。**
+       * どちらも線に出る1行の長さを縛るためのもの（超えると `startGame` が reject）。
        */
       options?: SetOptionValue[];
       /** 相手の手番の間も読ませるか */
@@ -84,12 +87,9 @@ export type PlayerSpec =
  * - フィッシャー: `incrementMs > 0`。`mainMs` は 0 でもよい
  * - 秒読み付きの持ち時間: `mainMs > 0 && byoyomiMs > 0`
  *
- * **弾かれる形**（`startGame` が英文の `Err` で reject する）。
- *
- * - 秒読みと加算を同時に指定した（どちらを優先するかがエンジンごとに割れる）
- * - 3つとも 0（初手で必ず時間切れになる）
- * - どれか1つが24時間を超えた
- * - 先手と後手で、片方が秒読み・もう片方が加算（`go` に両方は載せられない）
+ * **弾かれる形は写さない。** Rust 側（`TimeLimit::validate` と `validate_settings`）が
+ * 「数も一覧もここには書かない」を決めている——`if` を1つ足すたびに離れたところが
+ * 嘘になるから。`startGame` の `Err` の文言がそのまま理由。
  */
 export interface TimeLimit {
   mainMs: number;
@@ -113,10 +113,17 @@ export interface GameSettings {
   whiteTime: TimeLimit;
   /**
    * 根の局面の SFEN。**`startpos` は受け付けない**
-   * （Rust 側が `position sfen` を前置するので壊れた行になる）
+   * （Rust 側が `position sfen` を前置するので壊れた行になる）。
+   *
+   * 長さの上限は Rust の `MAX_WIRE_FIELD`。毎手 `position` の1行に載るため。
    */
   startSfen: string;
-  /** 根から対局開始局面までに既に指されている手 */
+  /**
+   * 根から対局開始局面までに既に指されている手。
+   *
+   * **上限は Rust の `MAX_PLIES`。** ここから最低1手は指せる必要があるので、
+   * 上限そのものは弾かれる（相入玉の長手数の棋譜から始めるときに当たりうる）。
+   */
   initialMoves?: string[];
   /**
    * エンジンの時間切れを GUI 側で成立させるか。既定 false。

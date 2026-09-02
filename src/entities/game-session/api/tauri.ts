@@ -55,6 +55,11 @@ export async function submitGameMove(gameId: GameId, side: Side, usiMove: string
  * **`moves` は根からの全手。** 対局開始局面が途中局面でも、`startGame` に渡した
  * `initialMoves` を含めて渡すこと。直前に決まった手までを丸ごと突き合わせるので、
  * 途中を落とした列や過去の手が入れ替わった列は reject する。
+ *
+ * **手数が Rust の `MAX_PLIES` を超えると、reject ではなく終局する**
+ * （`over { reason: "rule" }`、`detail` に上限に当たったことが載る）。
+ * 断ると、返せる列が1つに固定されているので裁定をやり直しても同じ結果になり、
+ * 対局が「アプリが裁定を返さなかった」として畳まれてしまうため。
  */
 export async function continueGame(gameId: GameId, moves: string[]): Promise<void> {
   return await invoke("continue_game", { gameId, moves });

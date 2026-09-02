@@ -37,6 +37,10 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
+fn tests_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
 fn src_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
 }
@@ -152,7 +156,13 @@ fn code_only(source: &str) -> String {
 #[test]
 fn comments_do_not_point_at_names_that_are_gone() {
     let files = rust_files(&src_dir());
-    let code: String = files
+    // **`tests/` も干し草に入れる。** `src/` の doc は、その関係を式で固定している
+    // ラチェットのテスト名を指すことがある（`the_watchdogs_are_ordered` の形）。
+    // 入れないと、正しい参照が「実在しない識別子」として落ちる。
+    // **違反を探すのは `src/` の中だけ**——テストのコメントは別の検査が見る
+    let mut haystack = files.clone();
+    haystack.extend(rust_files(&tests_dir()));
+    let code: String = haystack
         .iter()
         .map(|p| code_only(&fs::read_to_string(p).unwrap_or_default()))
         .collect::<Vec<_>>()
