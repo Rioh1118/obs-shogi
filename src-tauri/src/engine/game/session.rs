@@ -58,6 +58,15 @@ const CLOCK_EMIT_INTERVAL: Duration = Duration::from_millis(500);
 /// 打ち切りが対局者の持ち時間を削ることはない。
 const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// `close` が「走っている探索が畳まれた」のを待つ上限。
+///
+/// 待たずに落とすと、`stop` を送ろうとしている探索の足元でプロセスが消える。
+/// チャンネルが閉じて `Failed` が上がり、**正常に閉じただけなのに
+/// 「エンジンが応答しない」というログが毎回出る**。本物の故障と区別が付かなくなる。
+/// `search.rs` の `STOP_GRACE` より少し長い。
+const CLOSE_QUIET_TIMEOUT: Duration = Duration::from_secs(6);
+const CLOSE_POLL: Duration = Duration::from_millis(50);
+
 /// フロントへ流すイベントの名前
 const EVENT: &str = "game-event";
 
@@ -177,10 +186,33 @@ impl GameSession {
     /// `usinewgame` で指し直せるようにしてある（USI がそういう作りのため）。
     /// 呼ばないとプロセスが残る。
     pub async fn close(self, registry: &EngineRegistry) {
+        // 止める → **畳まれるのを待つ** → 落とす、の順。
+        // 待たずに落とす理由は `CLOSE_QUIET_TIMEOUT` に書いてある
         let _ = self.abort().await;
+
+        let deadline = Instant::now() + CLOSE_QUIET_TIMEOUT;
+        while Instant::now() < deadline {
+            match self.is_quiet().await {
+                Ok(true) => break,
+                // セッションのタスクがもう無い。待っても変わらない
+                Err(_) => break,
+                Ok(false) => tokio::time::sleep(CLOSE_POLL).await,
+            }
+        }
+
         for id in &self.engine_ids {
             registry.shutdown(id).await;
         }
+    }
+
+    /// 走っている探索が無いか。`Unresponsive` は**畳まれたものとして数える**
+    /// （待っても返らないと分かっている側なので、待ち続ける意味が無い）
+    async fn is_quiet(&self) -> Result<bool, String> {
+        let (reply, rx) = oneshot::channel();
+        self.tx
+            .send(Command::IsQuiet { reply })
+            .map_err(|_| ENDED.to_string())?;
+        rx.await.map_err(|_| ENDED.to_string())
     }
 
     async fn request<F>(&self, build: F) -> Result<(), String>
@@ -221,6 +253,9 @@ enum Command {
     },
     Snapshot {
         reply: oneshot::Sender<GameSnapshot>,
+    },
+    IsQuiet {
+        reply: oneshot::Sender<bool>,
     },
     Search(SearchMessage),
     Tick,
@@ -406,6 +441,15 @@ impl Runner {
             }
             Command::Snapshot { reply } => {
                 let _ = reply.send(self.snapshot());
+            }
+            Command::IsQuiet { reply } => {
+                let quiet = [Side::Black, Side::White].into_iter().all(|side| {
+                    !matches!(
+                        self.player(side).activity,
+                        Activity::Searching { .. } | Activity::Stopping { .. }
+                    )
+                });
+                let _ = reply.send(quiet);
             }
             Command::Search(SearchMessage::Info { side, result }) => {
                 self.on_search_info(side, result)
