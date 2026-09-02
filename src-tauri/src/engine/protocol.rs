@@ -262,6 +262,18 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 /// 避けられないが、その後ろに何も並ばないようにはできる。
 pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// `usi` を送ってから `usiok` を待つ上限。
+///
+/// ここに掛かるのは実行ファイルの起動直後だけで、評価関数の読み込みは
+/// `isready` の側に来る。長く取る理由が無い。
+pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// `isready` を送ってから `readyok` を待つ上限。
+///
+/// `usiok` より桁で長いのは、評価関数やハッシュの確保がここで走るため。
+/// 短く切ると、重い設定のエンジンが起動できないという形で出る。
+pub const READY_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// 書き込みの列に流す1件。
 struct WriteJob {
     command: GuiCommand,

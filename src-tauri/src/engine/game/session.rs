@@ -31,10 +31,10 @@ use tokio_util::sync::CancellationToken;
 use usi::{GameOverKind, GuiCommand};
 
 use crate::engine::protocol::UsiProtocol;
+use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::types::AnalysisResult;
 use crate::engine::utils::LogThrottle;
-use crate::engine::{READY_TIMEOUT, USI_OK_TIMEOUT};
 
 use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;

@@ -2,10 +2,10 @@ use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
 use serde::Serialize;
 
+use super::protocol::USI_OK_TIMEOUT;
 use super::protocol::{contains_usi_breaking_char, StopEffect, UsiProtocol};
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
-use super::USI_OK_TIMEOUT;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};

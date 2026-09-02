@@ -68,7 +68,7 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "registry",
         decides: "どのプロセスが生きているか",
-        may_use: &["types", "utils", "protocol"],
+        may_use: &["types", "protocol"],
     },
     // `game` と `analyzer` は同位。互いを知らない
     Layer {
@@ -84,19 +84,17 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "bridge",
         decides: "解析のファサード",
-        may_use: &["types", "utils", "protocol", "registry", "analyzer"],
+        may_use: &["types", "utils", "registry", "analyzer"],
     },
     Layer {
         name: "state",
         decides: "Tauri が持つ持ち物",
-        may_use: &["types", "registry", "game", "analyzer", "bridge"],
+        may_use: &["registry", "game", "bridge"],
     },
     Layer {
         name: "commands",
         decides: "Tauri コマンドの入口",
-        may_use: &[
-            "types", "utils", "protocol", "registry", "game", "analyzer", "bridge", "state",
-        ],
+        may_use: &["types", "utils", "game", "analyzer", "state"],
     },
 ];
 
@@ -257,6 +255,8 @@ fn graph() -> BTreeMap<String, BTreeSet<String>> {
     for path in rust_files(&root) {
         let relative = path.strip_prefix(&root).unwrap_or(&path);
         let module = module_of(relative);
+        // `engine/mod.rs` は段に載せない（`pub mod` を並べるだけの場所）。
+        // 何も置かないことは `the_engine_root_only_declares_modules` が見る
         if module == "mod" {
             continue;
         }
@@ -387,6 +387,37 @@ fn the_engine_does_not_reach_out_of_itself() {
         outside.is_empty(),
         "`engine/` の外を `use` している。共有したいものは `engine` の中へ下ろすこと:\n{}",
         outside.join("\n")
+    );
+}
+
+/// `engine/mod.rs` が `pub mod` を並べるだけであること。
+///
+/// **ここは段の表の外にある**（`graph()` が飛ばす）ので、置いたものは
+/// どの検査にも掛からない。`pub const` を置けば、上下の言えない2つが
+/// そこを共有の置き場にできる。`pub fn` を置いて `use super::f;` で呼べば、
+/// 段3から段8へ届く経路が4つの検査すべて緑のまま通る。
+///
+/// 何か置きたくなったら、それは**段を1つ足す合図**（`LAYERS` に
+/// 「何を決める場所か」を1行で書けるなら足してよい）。
+#[test]
+fn the_engine_root_only_declares_modules() {
+    let source = fs::read_to_string(engine_dir().join("mod.rs")).unwrap_or_default();
+    let stray: Vec<&str> = source
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            !line.is_empty()
+                && !line.starts_with("//")
+                && !line.starts_with("pub mod ")
+                && !line.starts_with("mod ")
+        })
+        .collect();
+
+    assert!(
+        stray.is_empty(),
+        "`engine/mod.rs` に宣言以外のものがある。ここは段の表の外なので、\
+         置いたものはどの検査にも掛からない。決める場所が要るなら段を足すこと:\n{}",
+        stray.join("\n")
     );
 }
 
@@ -522,6 +553,39 @@ fn the_declared_layers_are_not_a_cycle() {
         cycle.is_none(),
         "段の表が環になっている。上下が言えない2つは同位にする（どちらの may_use にも書かない）:\n{}",
         cycle.unwrap_or_default().join(" -> ")
+    );
+}
+
+/// **使っていない許可を残さない。**
+///
+/// `may_use` は手で書く。実体の無い辺を残すと、表は「いま何がどう分かれているか」の
+/// 記述ではなく願望になり、そのぶんだけ**先回りで許可が置かれる**。
+/// `commands → protocol` が残っていれば、`send_usi(state, engine_id, line)` を
+/// `commands/game.rs` に足して `registry.get()` → `send_command()` と書く形が
+/// 全部の検査を緑で通る——`commands/mod.rs` の「判断を書かない」に反しているのに。
+///
+/// 辺を1本増やすたびに表を触ることになる。それが ADR-0008 の
+/// 「モジュールを足すときに段を決めることになる」。
+#[test]
+fn no_permission_is_granted_without_a_real_edge() {
+    let graph = graph();
+    let mut unused = Vec::new();
+
+    for layer in LAYERS {
+        for target in layer.may_use {
+            let used = graph
+                .get(layer.name)
+                .is_some_and(|edges| edges.contains(*target));
+            if !used {
+                unused.push(format!("{} -> {target}", layer.name));
+            }
+        }
+    }
+
+    assert!(
+        unused.is_empty(),
+        "`may_use` に実体の無い辺がある。使うようになってから足すこと:\n{}",
+        unused.join("\n")
     );
 }
 

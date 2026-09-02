@@ -10,8 +10,8 @@
 use app_lib::engine::game::session::{
     CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
 };
-use app_lib::engine::protocol::{KILL_TIMEOUT, WRITE_TIMEOUT};
-use app_lib::engine::{READY_TIMEOUT, USI_OK_TIMEOUT};
+use app_lib::engine::protocol::{KILL_TIMEOUT, READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
+
 use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
 
 /// 対局で1手に待ちうる猶予が、終了時の予算より**長い**こと。
