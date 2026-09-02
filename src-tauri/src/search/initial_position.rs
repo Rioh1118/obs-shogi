@@ -37,7 +37,7 @@ pub type Jkf = JsonKifuFormat;
 /// 黙って受けるので、**歩30枚の JKF はそのまま索引に入る**。
 ///
 /// ここで失敗した棋譜の局面は検索に出てこない。索引の項目自体がどう残るかは
-/// `read_path_to_jkf` の `# Errors` を見ること（呼び口で違う・#333）。
+/// `read_to_jkf` の `# Errors` を見ること（呼び口で違う・#333）。
 pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, ConvertError> {
     let Some(initial) = &jkf.initial else {
         return Ok(PartialPosition::startpos());

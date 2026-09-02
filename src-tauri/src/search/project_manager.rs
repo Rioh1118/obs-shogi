@@ -327,27 +327,30 @@ impl ProjectManager {
 
         let built = task::spawn_blocking(
             move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
-                let jkf = match read_to_jkf(&rec_cloned) {
-                    Ok(jkf) => jkf,
-                    // 読めた。ただし入れる局面が無い。**警告は出さない** —
-                    // このアプリの新規作成で対局者名を入れずに作った棋譜が
-                    // ちょうどこの形になる。局面を持たない項目として登録する
-                    Err(KifuReadError::NothingToIndex) => {
+                let outcome = match read_to_jkf(&rec_cloned) {
+                    Ok(outcome) => outcome,
+                    // 読めた。ただし入れる局面が無い。局面を持たない項目として登録する。
+                    // **`warn` があるときだけ出す** — このアプリの新規作成で
+                    // 対局者名を入れずに作った棋譜も同じ形になるので、
+                    // 無条件に出すと直しようの無いことを告げることになる
+                    Err(KifuReadError::NothingToIndex { warn }) => {
                         return Ok((
                             std::array::from_fn(|_| Vec::new()),
                             Arc::new(NodeTable::empty()),
-                            Vec::new(),
+                            warn.into_iter().collect(),
                         ))
                     }
                     Err(e) => return Err(e.to_string()),
                 };
-                let b = build_index_for_jkf(file_id, new_gen, &jkf, BuildPolicy::Loose)
+                let b = build_index_for_jkf(file_id, new_gen, &outcome.jkf, BuildPolicy::Loose)
                     .map_err(|e| e.to_string())?;
                 let by_bucket: BucketEntries = bucketize_entries(b.entries);
-                let warns = b
+                // 読み手の警告（読めたが一部を採れなかった）と、
+                // 索引を組む側の警告（指せない手）を同じ口へ流す
+                let warns = outcome
                     .warns
                     .into_iter()
-                    .map(|w| format!("{:?}: {}", w.cursor, w.message))
+                    .chain(b.warns.into_iter().map(|w| w.to_user_message()))
                     .collect::<Vec<_>>();
                 Ok((by_bucket, b.node_table, warns))
             },

@@ -1,4 +1,9 @@
-use std::{borrow::Cow, fs, panic::catch_unwind, path::Path};
+use std::{
+    borrow::Cow,
+    fs,
+    panic::{catch_unwind, AssertUnwindSafe},
+    path::Path,
+};
 
 use thiserror::Error;
 
@@ -6,7 +11,8 @@ use crate::search::fs_scan::{FileRecord, KifuKind};
 
 // shogi-kifu-converter
 use shogi_kifu_converter_obsshogi::parser::{
-    parse_csa_file, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file, parse_kif_str,
+    parse_csa_file, parse_csa_str, parse_jkf_file, parse_ki2_file, parse_ki2_str, parse_kif_file,
+    parse_kif_str,
 };
 
 use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE};
@@ -36,29 +42,71 @@ pub enum KifuReadError {
     /// 全部ヒットし、開いても初期局面しか出ないので「そういう棋譜」と誤解される。
     /// だから局面は入れない。
     ///
-    /// **これは失敗ではないので、警告を出してはいけない。** 同じ形になるのは
+    /// **入れる局面が無いこと自体は失敗ではない。** 同じ形になるのは
     /// 「保存が途中で終わった跡」だけではない — **このアプリの新規作成で
     /// 対局者名を入れずに作ったファイルがちょうどこの形**になる
     /// （`create_kifu_file` → `try_to_*_owned`）。それを「壊れている」と
     /// 告げるのは嘘で、しかも利用者は直しようが無い。
     ///
-    /// **呼び手のすることは1つだけ — 警告を出さない。**
-    /// 登録するかどうかはこの腕が決めていない（[`KifuReadError::ParseFailed`] でも
+    /// **ただし `warn` があれば出すこと。** 中身が空に見える記録には
+    /// 「本当に空」と「読めなかったせいで空に見える」の2つがあり、後者は
+    /// 利用者に伝えないと**指し手のある棋譜が黙って索引から消える**
+    /// （対局者名を書かない CSA が1手目で切れると、`says_nothing` が真になる）。
+    /// 空なら何も出さない。
+    ///
+    /// **登録するかどうかはこの腕が決めていない**（[`KifuReadError::ParseFailed`] でも
     /// 同じ「局面を持たない項目」が積まれる）。登録そのものが要る理由は別で、
     /// **`file_table` の gen が上がらないと前の世代のセグメントが索引に残る**
     /// （`project_manager` の `build_one_file` が `None` を返したときの腕）。
     #[error("索引に入れる局面がありません")]
-    NothingToIndex,
+    NothingToIndex {
+        /// 空に見える理由が利用者に関係あるなら、その文言。無ければ `None`
+        warn: Option<String>,
+    },
 }
 
-/// 走査で見つけたファイルを JKF に読む。
+/// 読めた記録と、読めたけれど伝えたいこと。
+///
+/// **`warns` は失敗ではない。** 記録は索引に入る。呼び手は `build_index_for_jkf` の
+/// `warns` と同じ口（`EVT_INDEX_WARN`）へ流すこと。
+pub struct ReadOutcome {
+    pub jkf: Jkf,
+    /// 利用者に出す文言。空なら何も出さない
+    pub warns: Vec<String>,
+}
+
+/// 走査で見つけたファイルを読む。**索引を作る経路はこちらを呼ぶ。**
+///
+/// # 形式ごとに手当てが違う
+///
+/// | 形式 | 文字コードの総当たり | パニックを捕まえる | 読み残し |
+/// | --- | --- | --- | --- |
+/// | KIF / KI2 | する（[`read_portable`]） | しない | クレートが断る |
+/// | CSA | する（[`read_portable`]） | **する**（[`parse_csa_portable`]） | **こちらが見つけて `warns` に積む**（[`warn_if_moves_were_dropped`]） |
+/// | JKF | しない（JSON なので UTF-8） | しない | — |
+///
+/// 非対称の理由はそれぞれの関数の doc にある。
+/// `.csa` が `Err` になる経路は、クレートが断った／パニックを捕まえた、の2つ。
 ///
 /// # Errors
 ///
-/// [`read_path_to_jkf`] と同じ。**呼び手はこちらを呼ぶ**ので、
-/// 腕ごとの義務はそちらの表を見ること。
-pub fn read_to_jkf(rec: &FileRecord) -> Result<Jkf, KifuReadError> {
-    read_path_to_jkf(&rec.path, rec.kind)
+/// 2つある。**どちらを返すかで、呼び手のすることが変わる。**
+///
+/// | 腕 | 何が起きたか | 呼び手のすること |
+/// | --- | --- | --- |
+/// | [`KifuReadError::ParseFailed`] | 読めなかった | 文言を警告として出す |
+/// | [`KifuReadError::NothingToIndex`] | 読めたが入れる局面が無い | **`warn` があればそれだけ出す** |
+///
+/// **項目の登録はどちらも同じ。** 全件構築（`api`）も差分更新（`project_manager`）も、
+/// 局面を1つも持たない項目として登録する（`project_manager` は
+/// `build_one_file` が `None` を返したときに呼び手側で積む）。
+/// どちらの経路でも、その棋譜の局面は検索に出てこない。
+///
+/// **`Ok` でも `warns` が空とは限らない。** 4つの戻りを並べた表は
+/// `docs/state-transitions/search.md`（この関数を主語にしている）。
+pub fn read_to_jkf(rec: &FileRecord) -> Result<ReadOutcome, KifuReadError> {
+    let (jkf, warns) = read_path_inner(&rec.path, rec.kind)?;
+    Ok(ReadOutcome { jkf, warns })
 }
 
 /// 誤りを落とす復号1つ
@@ -67,7 +115,7 @@ type LossyDecoder = fn(&[u8]) -> Cow<'_, str>;
 /// 誤りを落として読む復号。**上から順に試す。**
 ///
 /// クレートは誤りが1つでもある復号を捨てて `Decode` を返す
-/// （`parser.rs` の `parse_kif_file` / `parse_ki2_file` は `!had_errors` のときしか採らない）ので、
+/// （`parser.rs` の `decode_kifu` は `!had_errors` のときしか採らない）ので、
 /// **Shift_JIS も UTF-8 もここで試し直す**。KIF の既定は Shift_JIS なので、
 /// 1バイト壊れただけの棋譜がここに来る。
 ///
@@ -99,9 +147,9 @@ const LOSSY_DECODERS: [LossyDecoder; 2] = [
 ///
 /// # 見る欄は [`index_builder`] が歩く欄と揃える
 ///
-/// [`crate::search::index_builder`] は本線と `forks` の両方を歩く。
-/// **こちらが見る欄がそれより狭いと、局面を持つ記録を落とす。**
-/// 1つでも埋まっていれば通す。
+/// **どちらかが広いと索引が狂う。** 狭すぎれば局面を持つ記録を落とし、
+/// 広すぎれば局面を1つも持たない記録を通して**平手の初期局面だけを索引に入れる**
+/// （この判定が防ぐはずの当のもの）。1つでも埋まっていれば通す。
 ///
 /// | 欄 | 埋まる例 |
 /// | --- | --- |
@@ -109,12 +157,25 @@ const LOSSY_DECODERS: [LossyDecoder; 2] = [
 /// | ヘッダ | `先手：` `棋戦：` などが1つでもある |
 /// | 初期局面 | 盤面が書いてある（詰将棋・局面図）、平手以外の手合割 |
 /// | 最初の局面の注釈 | `*` のコメントだけの棋譜（KIF / KI2 でも届く） |
-/// | 最初の局面の終局・分岐 | 手で組んだ `.jkf` だけ |
+/// | 最初の局面の終局 | 手で組んだ `.jkf` だけ |
 ///
-/// 最後の欄に届くのが `.jkf` だけなのは、KIF / KI2 / CSA のパーサが
-/// **終局も分岐も番号付きの手順行からしか作らない**から。
+/// 最後の欄に届くのが `.jkf` だけなのは、**3形式とも終局を初期局面より後ろに積む**から。
+/// KIF / KI2 は番号付きの手順行からしか作らず、CSA は番号を持たないが
+/// クレートが `moves` を既定値1件から始めて以降を `push` する（`csa.rs`）。
 /// そちらは指し手が2件以上になるので1行目で通る。
 /// 注釈（`*`）は手順行を要らないので、KIF / KI2 でもこの欄に届く。
+///
+/// # `moves[0].forks` は数に入れない
+///
+/// **[`crate::search::index_builder`] がその欄を歩かない。** `forks` を読むのは
+/// `walk_sequence` の中だけで、そこへ渡るのは `moves[1..]`。
+/// `moves[0]` の変化は誰も見ない。
+///
+/// ここで数えると、その記録は登録されるのに**入る局面は平手の初期局面1件だけ**になる。
+/// 歩く側を広げないのは、`moves[0]` に指し手が無いので**その変化が「何の代わり」なのかが
+/// 決まらない**ため。再生器も同じ理由でそこへ入れない。
+///
+/// 変化を持つ普通の棋譜は `moves[1]` 以降に付くので、指し手が2件以上になって1行目で通る。
 ///
 /// **`手合割：平手` だけの記録は、何も書かなかったものと区別できない** —
 /// 平手の初期局面は既定値と同じになる。どちらも入れる局面が無いので区別しない。
@@ -129,17 +190,9 @@ fn says_nothing(jkf: &Jkf) -> bool {
             return false;
         }
     }
-    jkf.moves.first().map_or(true, |m| {
-        m.comments.is_none()
-            && m.special.is_none()
-            // **空の変化行は無いのと同じ。** `index_builder` が
-            // `if fork_line.is_empty() { continue; }` で飛ばすので、
-            // 外側の Vec が空かどうかだけを見ると、歩かれない変化を
-            // 「中身あり」と数えて平手の初期局面を索引に入れてしまう
-            && m.forks
-                .as_ref()
-                .map_or(true, |f| f.iter().all(|line| line.is_empty()))
-    })
+    jkf.moves
+        .first()
+        .map_or(true, |m| m.comments.is_none() && m.special.is_none())
 }
 
 /// 利用者に出す文言の上限。
@@ -152,7 +205,7 @@ const MESSAGE_LIMIT: usize = 300;
 
 /// これを超えるファイルは棋譜として読まない。
 ///
-/// **読めないファイルほど高くつく。** 読み通せなかった KIF / KI2 は、
+/// **読めないファイルほど高くつく。** 読み通せなかった KIF / KI2 / CSA は、
 /// クレート・[`read_bytes`]・[`ENCODINGS_THE_CRATE_SKIPS`] の4つ・
 /// [`LOSSY_DECODERS`] の2つで同じ中身を何度も持つ。実測で 50MB の
 /// 1行ファイル1つが 3.3 秒・常駐 500MB（クレート単体の 6.6 倍）。
@@ -172,31 +225,19 @@ fn too_large_to_be_a_kifu(len: u64) -> bool {
     len > SIZE_LIMIT
 }
 
-/// 棋譜ファイルを JKF に読む。**形式ごとに手当てが違う。**
+/// **`warns` を捨てる。** 索引を作る経路は [`read_to_jkf`] を通ること。
 ///
-/// | 形式 | 文字コードの総当たり | パニックを捕まえる |
-/// | --- | --- | --- |
-/// | KIF / KI2 | する（`read_portable`） | しない |
-/// | CSA | しない（クレートが UTF-8 のみ・#325） | **する**（`parse_csa_guarded`） |
-/// | JKF | しない（JSON なので UTF-8） | しない |
+/// 公開していないのは、**捨ててよい呼び手が本番に1つも無い**から。
+/// 題材を1本ずつ確かめるテストのために残してある。
+#[cfg(test)]
+fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
+    read_path_inner(path, kind).map(|(jkf, _)| jkf)
+}
+
+/// 棋譜ファイルを JKF に読み、伝えたいことも返す。**読み手の本体。**
 ///
-/// 非対称の理由はそれぞれの関数の doc にある。
-///
-/// # Errors
-///
-/// 2つある。**どちらを返すかで、呼び手が警告を出すかどうかが変わる。**
-///
-/// | 腕 | 何が起きたか | 呼び手のすること |
-/// | --- | --- | --- |
-/// | [`KifuReadError::ParseFailed`] | 読めなかった | 文言を警告として出す |
-/// | [`KifuReadError::NothingToIndex`] | 読めたが入れる局面が無い | **警告を出さない** |
-///
-/// **項目の登録はどちらも同じ。** 全件構築（`api`）も差分更新（`project_manager`）も、
-/// 局面を1つも持たない項目として登録する（`project_manager` は
-/// `build_one_file` が `None` を返したときに呼び手側で積む）。
-/// どちらの経路でも、その棋譜の局面は検索に出てこない。
-/// 表は `docs/state-transitions/search.md` にもある。
-pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
+/// 表と腕ごとの義務は [`read_to_jkf`] の doc にある。
+fn read_path_inner(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), KifuReadError> {
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
     // `Permission denied (os error 13)` が生のまま画面に出る
@@ -221,14 +262,29 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
     let jkf = match kind {
         KifuKind::Kif => parse_kif_portable(path),
         KifuKind::Ki2 => parse_ki2_portable(path),
-        KifuKind::Csa => parse_csa_guarded(path),
+        KifuKind::Csa => parse_csa_portable(path),
         KifuKind::Jkf => parse_jkf_file(path).map_err(|e| parse_failed(unreadable_record(e))),
     }?;
 
-    if says_nothing(&jkf) {
-        return Err(KifuReadError::NothingToIndex);
+    // **`says_nothing` より先に見る。** 後ろに置くと、対局者名を書かない CSA が
+    // 1手目で切れたときに `says_nothing` が真になって、警告を作る前に抜けてしまう
+    // （読み残しを伝えるためにこの検査があるのに、いちばん失うものが多い形で黙る）。
+    // 理由は [`warn_if_moves_were_dropped`]
+    let warn = match kind {
+        KifuKind::Csa => warn_if_moves_were_dropped(&file, &jkf),
+        _ => None,
+    };
+
+    // 指し手を1つも採れていないなら、局面は入れない。**入れると平手の初期局面だけが
+    // 索引に入り**、その局面で検索すると切れた棋譜が並んで「そういう棋譜」に見える
+    // （[`KifuReadError::NothingToIndex`] が防ごうとしている当のもの）。
+    // 警告は別で、`warn` に載せて呼び手へ渡す
+    let no_move_was_read = !jkf.moves.iter().any(|m| m.move_.is_some());
+    if says_nothing(&jkf) || (warn.is_some() && no_move_was_read) {
+        return Err(KifuReadError::NothingToIndex { warn });
     }
-    Ok(jkf)
+
+    Ok((jkf, warn.into_iter().collect()))
 }
 
 /// CSA を読む。**パニックを捕まえるのはこの形式だけ。**
@@ -252,12 +308,24 @@ pub fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadErro
 /// になり、**どこが悪いのかが消える**（ファイル名は `IndexWarnPayload` が
 /// 別の欄で持つので残る）。
 ///
-/// **文字コードの総当たりは掛けない。** クレートの `parse_csa_file` は
-/// `read_to_string` するので UTF-8 以外は `Io` エラーになる。KIF / KI2 と揃っていないが、
-/// 揃えるかどうかは #325 で決める。
-fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
-    match catch_unwind(|| parse_csa_file(path)) {
-        Ok(result) => result.map_err(|e| parse_failed(unreadable_record(e))),
+/// # 総当たりの外側で捕まえる
+///
+/// 候補ごとに包むと、パニックした候補だけを飛ばして次を試せる。そうしていないのは、
+/// **パニックを起こす値が候補によって変わらない**から。落ちるのは `$START_TIME` の
+/// 日付と `T` 行の桁数で、どちらも ASCII。
+///
+/// ASCII をそのまま通す候補は、クレートが試す2つ（[`ENCODINGS_THE_CRATE_TRIES`]）と、
+/// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ（EUC-JP / ISO-2022-JP）、
+/// [`LOSSY_DECODERS`] の2つ。**そのどれで復号しても同じ位置で落ちる**
+/// （実測: ISO-2022-JP で書いた `2004/02/30` は UTF-8 / Shift_JIS /
+/// EUC-JP / ISO-2022-JP のどれで復号してもパニックする）。
+/// UTF-16 の2つは本文が CSA の形にならないので、パニックの手前で読めずに終わる。
+fn parse_csa_portable(path: &Path) -> Result<Jkf, KifuReadError> {
+    // `read_portable` はローカルに確保して返すだけで、パニックの向こうへ
+    // 壊れた不変条件を持ち越す状態を持たない
+    let attempt = AssertUnwindSafe(|| read_portable(path, |p| parse_csa_file(p), parse_csa_str));
+    match catch_unwind(attempt) {
+        Ok(result) => result,
         // パニックの中身を捨てない。上の表は実測した2件だが、`csa` には
         // 他にも `unwrap` があり、原因を決め打ちすると**違う理由を名指しする**
         Err(payload) => {
@@ -274,16 +342,120 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
     }
 }
 
+/// CSA が途中で読むのをやめていたら、そのことを伝える文言を返す。
+///
+/// **断らない。** 読めたところまでの局面は索引に入れる価値があるので、
+/// 記録は通して警告だけを出す。断ると**そのファイルの局面が1件も入らなくなり**
+/// （`ParseFailed` は `api` / `project_manager` の両方で空の bucket に落ちる）、
+/// 誤検知したときに失うものが大きすぎる。数え方の判定が外れても、
+/// この形なら余計な警告が1つ出るだけで済む。
+///
+/// **CSA には読み残しの番人が無い。** KIF / KI2 はクレートが読み残りを
+/// `ParseError::Kif` / `Ki2` にし（`parser.rs` の `stopped_at`）、何も認識できなければ
+/// `recognised_nothing` で断るが、**`parse_csa_str` はどちらも通らない** —
+/// `csa` クレートの `parse_csa` が `game_record` の残り入力を `_` で捨てて `Ok` を返す。
+///
+/// 実測すると、指し手行の末尾に半角スペースが1つ入っただけで
+/// **そこから後ろの全部が消えたまま `Ok`** になる。対局者名が無ければ
+/// [`says_nothing`] が真になって警告すら出ない。
+///
+/// # 数え方は当てにいかない
+///
+/// この数え方は**クレートの文法を写していない**ので、外れることがある。
+///
+/// - `%MATTA` や `%CHUDAN` の後ろに指し手が続く記録では、`%` の行で数を打ち切るので
+///   落ちた手を**数え落とす**（＝黙る）
+/// - 終局行を持たない記録が2つ繋がっていると、2局目の指し手を**数えすぎる**
+///   （＝余計な警告が出る）
+///
+/// どちらも索引の中身は変わらない。**外れる方向を選べないので、
+/// 外れても害の無い出口（警告）にしてある。**
+///
+/// # バイト列で数える
+///
+/// 復号したあとの文字列ではなくファイルのバイト列を見るのは、**CSA の指し手行が
+/// ASCII だから**。ASCII をそのまま通す候補（[`ENCODINGS_THE_CRATE_TRIES`] の2つ、
+/// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ、[`LOSSY_DECODERS`] の2つ）は
+/// どれも同じ数を出すので、どの候補で読めたかに関わらず結果が変わらない。
+/// UTF-16 はバイト列に NUL が挟まって指し手行の形にならず0件と数える（＝黙る）。
+///
+/// # なぜもう一度読むのか
+///
+/// クレートが一発で読めた経路にはバイト列が手元に無い（`parse_csa_file` が
+/// 自分で開いて読み、文字列だけを返す）。**[`read_path_inner`] が大きさを見るために
+/// 開いた `File` を使い回す**ので、`open` は増えない。
+/// ただし**読みは増える** — 切れていない CSA も含め、`.csa` は全件が2度読まれる
+/// （クレートが1回、ここで1回）。`SIZE_LIMIT` までのバイト列を
+/// もう1つ確保することになる。
+///
+/// `file` は `jkf` を作った当のファイルを開いたものであること
+/// （[`read_path_inner`] が開いた `File` をそのまま渡す）。**別のファイルを渡すと突き合わせが
+/// 成立しない**（型は止めない）。読み直しとパースの間にそのファイルが保存されると
+/// 数える側とパース側で中身が違うが、出口が警告なので実害は「余計な警告が1つ」だけ。
+fn warn_if_moves_were_dropped(file: &fs::File, jkf: &Jkf) -> Option<String> {
+    use std::io::{Read as _, Seek as _, SeekFrom};
+
+    let mut handle = file.try_clone().ok()?;
+    handle.seek(SeekFrom::Start(0)).ok()?;
+    let mut bytes = Vec::new();
+    handle.read_to_end(&mut bytes).ok()?;
+
+    let read = jkf.moves.iter().filter(|m| m.move_.is_some()).count();
+    let mut moves_seen = 0usize;
+    for (line_no, line) in bytes.split(|b| *b == b'\n').enumerate() {
+        // `%` の行から先は数えない。**終局とは限らない** — `%MATTA` や `%CHUDAN` の
+        // 後ろにも指し手は続き、クレートはそれを読む。どこまでがこの記録かを
+        // バイト列だけからは決められないので、最初の `%` で打ち切って
+        // 数え落とす側（＝黙る側）に倒す。
+        // クレートが `special` にしない終局理由（`%TIME_UP` など）もここで止まる
+        if line.starts_with(b"%") {
+            break;
+        }
+        if !is_csa_move_line(line) {
+            continue;
+        }
+        moves_seen += 1;
+        if moves_seen > read {
+            // `enumerate` は0始まり。利用者が数えるのはファイルの行番号なので1を足す
+            return Some(format!(
+                "CSA を {read} 手までしか読めませんでした。\
+                 ファイルの {} 行目（{moves_seen} 手目）から先の指し手は検索に出ません。\
+                 その行と手前の行に、余分な空白やカンマ、\
+                 アポストロフィだけの行が無いか、\
+                 ファイルの最後に改行があるかを確かめてください",
+                line_no + 1
+            ));
+        }
+    }
+
+    None
+}
+
+/// その行が CSA の指し手か。**`+7776FU` の形だけを数える。**
+///
+/// 手番だけの `+` / `-`、`P` で始まる盤面、`T` の消費時間、`%` の終局、
+/// `'` のコメント、`$` や `N` のヘッダはどれも形が違うので数に入らない。
+/// 終局（`%TORYO`）を数えないのは、`jkf` 側で `special` に入って
+/// `move_` にならないため — 数える側と数えられる側を揃える。
+fn is_csa_move_line(line: &[u8]) -> bool {
+    // 行末の `\r` は落とす。CRLF のファイルで全行が外れる
+    let line = line.strip_suffix(b"\r").unwrap_or(line);
+    line.len() >= 7
+        && matches!(line[0], b'+' | b'-')
+        && line[1..5].iter().all(u8::is_ascii_digit)
+        && line[5..7].iter().all(u8::is_ascii_uppercase)
+}
+
 /// クレートの理由を、そのまま利用者に出せる文言にする。
 ///
-/// **文字コードの総当たりを掛けない形式（CSA / JKF）はここを通る。**
-/// KIF / KI2 は候補が複数あるので [`describe`] が選んでから、
-/// 棋譜として読めなかった腕でここを呼ぶ。
+/// **形式ごとの案内を持つのはここだけ。** 総当たりを掛けない JKF は
+/// [`read_path_inner`] から直に、掛ける3形式は候補を選んだあとの
+/// [`describe`] から呼ばれる。どちらの経路でも同じ案内が出る。
 ///
 /// [`KifuReadError::ParseFailed`] の doc が定めた「何が読めなかったかと
 /// 次に何をすればよいか」を満たすのはこの関数の仕事。クレートの文言は
 /// **行番号と読めなかった行の本文**を持っていて役に立つので捨てないが、
-/// `KIF Error: 0: at line 2, in cannot read this` は `nom` の語彙で、
+/// `KIF Error: 0: at line 2, in this move cannot be read` は `nom` の語彙で、
 /// 利用者の言葉ではない。前に1文を置いて、何をすればよいかを言う。
 ///
 /// **埋め込む前に [`capped`] を通す。** クレートの文言は
@@ -293,9 +465,10 @@ fn parse_csa_guarded(path: &Path) -> Result<Jkf, KifuReadError> {
 fn unreadable_record(e: ParseError) -> String {
     let by_crate = capped(&e);
     match e {
-        // `parse_csa_file` は `read_to_string` するので、UTF-8 でない CSA は
-        // 必ずここに来る。**ShogiGUI / Shogidokoro が書く CSA は対局者名を
-        // Shift_JIS で書くのが普通**なので、事故ではなく既定に近い（#325）
+        // `parse_jkf_file` は `read_to_string` するので、UTF-8 でない `.jkf` は
+        // 必ずここに来る。**総当たりを掛ける3形式はここに来ない** —
+        // クレートがバイト列から文字コードを決め、決められなければ
+        // `Decode` を返す
         ParseError::Io(io) if io.kind() == std::io::ErrorKind::InvalidData => {
             "UTF-8 として読めませんでした。Shift_JIS で保存されている可能性があります。\
              UTF-8 で保存し直してください"
@@ -314,8 +487,8 @@ fn unreadable_record(e: ParseError) -> String {
             "棋譜として読めない行があります。その行を直すか、\
              拡張子が中身と合っているか確かめてください:\n{by_crate}"
         ),
-        // 文字コードの話。KIF / KI2 は [`describe`] が先に扱うので、
-        // ここに来るのは総当たりを掛けない形式だけ
+        // 文字コードの話。総当たりを掛ける3形式（KIF / KI2 / CSA）は
+        // [`describe`] が先に扱うので、ここに来るのは JKF だけ
         ParseError::Decode | ParseError::FileExtension => format!(
             "{by_crate}: 文字として読めませんでした。\
              棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください"
@@ -407,10 +580,12 @@ impl std::fmt::Write for Capped {
     }
 }
 
-// -------------------------
-// Portable parsers (KIF/KI2)
-// -------------------------
+// -------------------------------------
+// Portable parsers (KIF / KI2 / CSA)
+// -------------------------------------
 
+// `parse_*_file` は `P: AsRef<Path>` で総称化されているので、そのまま渡すと
+// 高階の寿命を満たさない。閉包で `&Path` に固定する
 fn parse_kif_portable(path: &Path) -> Result<Jkf, KifuReadError> {
     read_portable(path, |p| parse_kif_file(p), parse_kif_str)
 }
@@ -421,17 +596,34 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 
 /// クレートで読み、だめなら他の文字コードで読み直す。
 ///
-/// クレートが試すのは拡張子が名乗る文字コードと Shift_JIS / UTF-8 のもう一方だけ
-/// （`parser.rs` の `parse_kif_file` / `parse_ki2_file`）。ただし復号に `Encoding::decode` を使うので、
-/// **BOM があればそれに従う**（BOM 付きの UTF-8 / UTF-16 はクレート単体で読める）。
+/// クレートが試すのは2つだけ。KIF / KI2 は拡張子が名乗るほうと Shift_JIS / UTF-8 の
+/// もう一方、CSA は UTF-8 と Shift_JIS（`parser.rs` の `decode_kifu`）。
+/// ただし復号に `Encoding::decode` を使うので、**BOM があればそれに従う**
+/// （BOM 付きの UTF-8 / UTF-16 はクレート単体で読める）。
 ///
 /// 残るのは次の3つ。実測で確かめてある。
 ///
 /// | 文字コード | クレート単体 |
 /// | --- | --- |
 /// | EUC-JP | `Decode Error` |
-/// | **BOM の無い** UTF-16LE / UTF-16BE | `Decode Error` |
-/// | ISO-2022-JP | Shift_JIS として解釈が通ってしまい、指し手行で落ちる |
+/// | **BOM の無い** UTF-16LE / UTF-16BE | `Decode Error`（CSA は本文が形にならず `Csa` エラー） |
+/// | ISO-2022-JP | 7bit なので UTF-8 / Shift_JIS の復号が誤り無く通る |
+///
+/// # 総当たりはクレートが失敗したときにしか動かない
+///
+/// **クレートが化けたまま `Ok` を返す入力には届かない。** 届かない形が2つある。
+/// どちらも「指し手行が ASCII で済む CSA」に効く — KIF / KI2 は化けた本文が
+/// 指し手行の形にならずクレートが落ちるので、総当たりが動く。
+///
+/// - **ISO-2022-JP。** 7bit なので UTF-8 の復号が誤り無く通る。
+///   対局者名にエスケープが残ったまま索引に入る
+/// - **EUC-JP のうち、Shift_JIS としても誤り無く復号できるバイト列。**
+///   EUC-JP は 0xA1〜0xFE、Shift_JIS はそのうち 0xA1〜0xDF を半角カナに割り当てる。
+///   本文が短いと全部が半角カナに落ちて Shift_JIS が勝つ
+///   （`N+山田太郎` だけの CSA は `ｻｳﾅﾄﾂﾀﾏｺ` になる）
+///
+/// 直すならクレートの側 — 復号の候補を増やすか、化けを疑う手掛かりを
+/// 復号の結果から採るか（#325）。
 fn read_portable<File, Str>(
     path: &Path,
     from_file: File,
@@ -659,9 +851,10 @@ where
 
     // 最終手段。誤りを落として読み進める（[`LOSSY_DECODERS`]）。
     //
-    // TODO(#335): クレートは**行末の改行が化けると、その行以降を黙って捨てて
-    // `Ok` を返す**。誤りを落とした復号ではその形が出やすく、
-    // 欠けたことを利用者に告げないまま索引へ入れている
+    // **中身を認識できなかった復号はクレートが断る**（`parser.rs` の
+    // `recognised_nothing`）ので、まるごと化けた読み方が「0手の棋譜」として
+    // ここで勝つことはない。残る危うさは、化けたヘッダ行が下の行を飲み込む形
+    // ——指し手は残るが `手合割` が消えて平手として索引に入る（#335）
     for decode in LOSSY_DECODERS {
         if let Ok(jkf) = parse(&decode(bytes)) {
             return Ok(jkf);
@@ -700,7 +893,7 @@ fn line_count(decoded: &str) -> usize {
 /// 2. 名乗った文字コードで復号が化けた — バイト列そのものが欠けている印。
 ///    **クレートが `Kif` を返していても、こちらを先に採る**（下）
 /// 3. 総当たりが**名乗れる文字コード**で読んだ理由 — 何行目で止まったかを言う
-/// 4. クレートが文字にできていた（`Kif` / `Ki2`）— その理由をそのまま出す
+/// 4. クレートが文字にできていた（`Kif` / `Ki2` / `Csa` / `CsaConvert`）— その理由をそのまま出す
 /// 5. 総当たりが名乗れない文字コードで読んだ理由 — 名前を伏せて行番号だけ出す
 /// 6. どれでもない — 試した文字コードを並べる
 ///
@@ -743,8 +936,12 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
     match by_crate {
         // クレートが文字にできていた。総当たりの対象は
         // `ENCODINGS_THE_CRATE_SKIPS` の4つだけで、Shift_JIS も UTF-8 もそこに無い。
-        // BOM で UTF-8 と分かっていても絞り込む先が無いので、そのまま出す
-        ParseError::Kif(_) | ParseError::Ki2(_) => unreadable_record(by_crate),
+        // BOM で UTF-8 と分かっていても絞り込む先が無いので、そのまま出す。
+        // **形式ごとの案内は `unreadable_record` が持つ**ので、3形式とも通す
+        ParseError::Kif(_)
+        | ParseError::Ki2(_)
+        | ParseError::Csa(_)
+        | ParseError::CsaConvert(_) => unreadable_record(by_crate),
         // クレートも文字にできなかった。誤り無く復号できた試行があれば、
         // 名前は伏せて理由だけ使う
         other => match by_fallback {
@@ -898,7 +1095,7 @@ mod tests {
     ///
     /// CSA の本文を読むのは `csa` クレートで、そちらは `unwrap` を残している。
     /// `shogi-kifu-converter` の lint はそこへ届かないので、
-    /// `parse_csa_guarded` が捕まえる。
+    /// [`parse_csa_portable`] が捕まえる。
     #[test]
     fn a_csa_with_broken_values_is_an_error_not_a_panic() {
         let dir = temp_dir("csa");
@@ -1469,7 +1666,7 @@ mod tests {
                 .err()
                 .unwrap_or_else(|| panic!("{label} を弾いていない"));
             assert!(
-                matches!(err, KifuReadError::NothingToIndex),
+                matches!(err, KifuReadError::NothingToIndex { .. }),
                 "{label} が警告つきで弾かれている: {err}"
             );
         }
@@ -1538,42 +1735,42 @@ mod tests {
             ..Jkf::default()
         };
 
-        let forks_only = Jkf {
-            moves: vec![MoveFormat {
-                forks: Some(vec![vec![one_move.moves[1].clone()]]),
-                ..MoveFormat::default()
-            }],
-            ..Jkf::default()
-        };
-
-        // **中身の無い変化行は「あり」に数えない。** `index_builder` が飛ばすので、
-        // 数えると平手の初期局面だけが索引に入る（この判定が防ぐはずの当のもの）
-        let empty_fork_line = Jkf {
-            moves: vec![MoveFormat {
-                forks: Some(vec![vec![]]),
-                ..MoveFormat::default()
-            }],
-            ..Jkf::default()
-        };
-        let path = dir.join("empty-fork-line.jkf");
+        let path = dir.join("special-only.jkf");
         fs::write(
             &path,
-            serde_json::to_string(&empty_fork_line).expect("JKF に綴れること"),
+            serde_json::to_string(&special_only).expect("JKF に綴れること"),
         )
         .expect("書き出し");
-        let Err(KifuReadError::NothingToIndex) = read_path_to_jkf(&path, KifuKind::Jkf) else {
-            panic!("空の変化行だけの .jkf を索引に入れている");
-        };
+        read_path_to_jkf(&path, KifuKind::Jkf).expect("special-only を落としている");
 
-        for (label, jkf) in [("special-only", special_only), ("forks-only", forks_only)] {
+        // **`moves[0].forks` は中身があっても数えない。** `index_builder` は
+        // `moves[1..]` しか歩かないので、数えると登録されるのに入る局面は
+        // 平手の初期局面1件だけになる（この判定が防ぐはずの当のもの）。
+        // 中身の有無で割れないことを、両方置いて見る
+        for (label, forks) in [
+            (
+                "fork-line-with-a-move",
+                vec![vec![one_move.moves[1].clone()]],
+            ),
+            ("empty-fork-line", vec![vec![]]),
+        ] {
+            let jkf = Jkf {
+                moves: vec![MoveFormat {
+                    forks: Some(forks),
+                    ..MoveFormat::default()
+                }],
+                ..Jkf::default()
+            };
             let path = dir.join(format!("{label}.jkf"));
             fs::write(
                 &path,
                 serde_json::to_string(&jkf).expect("JKF に綴れること"),
             )
             .expect("書き出し");
-            read_path_to_jkf(&path, KifuKind::Jkf)
-                .unwrap_or_else(|e| panic!("{label} を落としている: {e}"));
+            let Err(KifuReadError::NothingToIndex { .. }) = read_path_to_jkf(&path, KifuKind::Jkf)
+            else {
+                panic!("{label}: 誰も歩かない変化を索引に入れている");
+            };
         }
 
         fs::remove_dir_all(&dir).ok();
@@ -1670,17 +1867,16 @@ mod tests {
             ("jkf", KifuKind::Jkf),
         ] {
             let path = dir.join(format!("新規.{ext}"));
-            // **綴れないなら綴れないでよい。0バイトのファイルを置くことだけが駄目。**
-            // `.ki2` は平手・ヘッダ空・0手を空文字列に綴るので、ここで断られる
-            let Ok(content) = spell(&blank, &path) else {
-                continue;
-            };
+            // **4形式とも綴れる。** 綴れなくなったら気付きたいので、
+            // 飛ばさずに落とす。`Err` になるのは拡張子が対象外のときだけ
+            let content = spell(&blank, &path)
+                .unwrap_or_else(|e| panic!("{ext}: 新規作成の既定を綴れない: {e:?}"));
             assert!(!content.is_empty(), "{ext}: 0バイトのファイルを作っている");
             fs::write(&path, &content).expect("書き出し");
 
             match read_path_to_jkf(&path, kind) {
                 Ok(_) => {}
-                Err(KifuReadError::NothingToIndex) => {}
+                Err(KifuReadError::NothingToIndex { .. }) => {}
                 Err(e) => panic!("{ext}: 作ったばかりの棋譜を壊れていると言っている: {e}"),
             }
         }
@@ -1866,11 +2062,289 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    /// Shift_JIS の CSA が読める。
+    ///
+    /// **ShogiGUI / Shogidokoro が書き出す CSA は Shift_JIS が普通**なので、
+    /// これが読めないと同じ対局が KIF なら索引に入って CSA なら入らない。
+    /// クレートは拡張子を見ず、バイト列で UTF-8 → Shift_JIS の順に決める。
+    #[test]
+    fn a_shift_jis_csa_is_read() {
+        let dir = temp_dir("sjis-csa");
+        let path = dir.join("対局.csa");
+        let (bytes, _, _) = SHIFT_JIS.encode("V2.2\nN+山田太郎\nPI\n+\n+7776FU\n");
+        fs::write(&path, &bytes).expect("書き出し");
+
+        let jkf = read_path_to_jkf(&path, KifuKind::Csa).expect("Shift_JIS の CSA が読めること");
+        assert!(
+            jkf.header.values().any(|v| v == "山田太郎"),
+            "Shift_JIS の対局者名が化けている: {:?}",
+            jkf.header
+        );
+        assert_eq!(jkf.moves.len(), 2, "指し手が読めていない");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// CSA も、クレートが試さない文字コードで読める。
+    ///
+    /// CSA は KIF / KI2 と同じ [`read_portable`] を通る。通らないと、
+    /// **同じ対局が KIF なら索引に入って CSA なら入らない**（#325）。
+    ///
+    /// ISO-2022-JP を並べていないのは、そこに届かないから — 7bit なので
+    /// クレートの UTF-8 復号が誤り無く通り、CSA の指し手行は ASCII なので
+    /// そのまま `Ok` になる。[`read_portable`] の doc にある。
+    ///
+    /// **EUC-JP は本文しだいで届かない。** 題材に名前を2つと棋戦名を置いてあるのは、
+    /// 短い本文だと EUC-JP のバイト列が丸ごと Shift_JIS の半角カナとして
+    /// 誤り無く復号できてしまい、クレートが化けたまま `Ok` を返すため
+    /// （`N+山田太郎` だけだと `ｻｳﾅﾄﾂﾀﾏｺ` になる）。ここで固定するのは
+    /// **総当たりに届いた場合に読めること**で、届くこと自体ではない。
+    #[test]
+    fn a_csa_is_read_in_the_encodings_the_crate_skips() {
+        let dir = temp_dir("csa-encodings");
+        let body = "V2.2\nN+山田太郎\nN-田中一郎\n$EVENT:研究会\nPI\n+\n+7776FU\n";
+
+        // BOM の無い UTF-16 は `encoding_rs` では綴れないので手で組む
+        let utf16 = |big: bool| -> Vec<u8> {
+            body.encode_utf16()
+                .flat_map(|u| {
+                    let [a, b] = if big {
+                        u.to_be_bytes()
+                    } else {
+                        u.to_le_bytes()
+                    };
+                    [a, b]
+                })
+                .collect()
+        };
+
+        let cases: [(&str, Vec<u8>); 3] = [
+            ("euc-jp", EUC_JP.encode(body).0.into_owned()),
+            ("utf16le", utf16(false)),
+            ("utf16be", utf16(true)),
+        ];
+
+        for (name, bytes) in cases {
+            let path = dir.join(format!("{name}.csa"));
+            fs::write(&path, &bytes).expect("書き出し");
+
+            let jkf = read_path_to_jkf(&path, KifuKind::Csa)
+                .unwrap_or_else(|e| panic!("{name} の CSA が読めない: {e}"));
+            assert!(
+                jkf.header.values().any(|v| v == "山田太郎"),
+                "{name}: 対局者名が化けている: {:?}",
+                jkf.header
+            );
+            assert_eq!(jkf.moves.len(), 2, "{name}: 指し手が読めていない");
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 途中で読むのをやめた CSA について、**黙らない**。
+    ///
+    /// `csa` クレートは読み残しを捨てて `Ok` を返すので、**指し手行の末尾に
+    /// 半角スペースが1つ入っただけで、そこから後ろが全部消える**。
+    ///
+    /// # ヘッダの有無で2軸に割る
+    ///
+    /// **対局者名を書かない CSA は `says_nothing` の門に掛かる。**
+    /// アプリ自身が対局者名なしで作る `.csa` は `V2.2\nPI\n+\n` なので、
+    /// その形が1手目で切れると「中身の無い棋譜」と見分けが付かない。
+    /// **検査が門より後ろにあると、いちばん失うものが多い形だけが黙る。**
+    /// 題材をヘッダあり／なしの2通りで回すのはそのため。
+    ///
+    /// | ヘッダ | 戻り | 局面 | 警告 |
+    /// | --- | --- | --- | --- |
+    /// | あり・1手以上読めた | `Ok` | 読めたぶん | 出る |
+    /// | あり・1手も読めなかった | `NothingToIndex` | 入らない | 出る |
+    /// | なし | `NothingToIndex` | 入らない | 出る |
+    ///
+    /// **1手も読めていないのに局面を入れない**のは、入れると平手の初期局面だけが
+    /// 索引に入り、その局面の検索が切れた棋譜で埋まるから。
+    ///
+    /// 題材は**すべて合成**。実在の CSA でこの検査が誤報しないことは確かめていない。
+    #[test]
+    fn a_csa_that_stops_early_is_warned_about_not_rejected() {
+        let dir = temp_dir("csa-cut");
+        let whole = "V2.2\nN+山田\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
+        // アプリが対局者名なしで書き出す形（`try_to_csa_owned` は空のヘッダを書かない）
+        let headerless = "V2.2\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
+
+        // まず健全な題材が黙って通ることを見る。通らなければ以下の assert は無意味
+        for (name, body) in [("ヘッダあり", whole), ("ヘッダなし", headerless)] {
+            let ok_path = dir.join(format!("whole-{name}.csa"));
+            fs::write(&ok_path, body).expect("書き出し");
+            let (jkf, warns) =
+                read_path_inner(&ok_path, KifuKind::Csa).expect("健全な CSA が読めること");
+            assert_eq!(jkf.moves.len(), 4, "{name}: 題材が想定の手数でない");
+            assert!(
+                warns.is_empty(),
+                "{name}: 健全な CSA に警告が出た: {warns:?}"
+            );
+        }
+
+        // 読むのをやめさせる壊れ方。どれもクレートは `Ok` を返す。
+        // **ヘッダあり／なしの両方で回す** — なし側は `says_nothing` の門に掛かる
+        /// 健全な CSA を、クレートが途中で読むのをやめる形に壊す
+        type Breakage = (&'static str, &'static dyn Fn(&str) -> String);
+
+        let breakages: [Breakage; 4] = [
+            ("1手目の末尾に空白", &|s: &str| {
+                s.replace("+7776FU\n", "+7776FU \n")
+            }),
+            ("2手目の末尾に空白", &|s: &str| {
+                s.replace("-3334FU\n", "-3334FU \n")
+            }),
+            ("手のあとにタブ", &|s: &str| {
+                s.replace("+7776FU\n", "+7776FU\t\n")
+            }),
+            ("最終行の改行が無い", &|s: &str| {
+                s.trim_end_matches("%TORYO\n").trim_end().to_owned()
+            }),
+        ];
+
+        for (base_name, base) in [("ヘッダあり", whole), ("ヘッダなし", headerless)] {
+            for (breakage, apply) in &breakages {
+                let name = format!("{base_name}/{breakage}");
+                let path = dir.join(format!("{name}.csa").replace('/', "_"));
+                fs::write(&path, apply(base)).expect("書き出し");
+
+                // 局面が入るかは題材で変わるが、**警告はどちらでも出る**
+                let warns = match read_path_inner(&path, KifuKind::Csa) {
+                    Ok((_, warns)) => warns,
+                    Err(KifuReadError::NothingToIndex { warn }) => warn.into_iter().collect(),
+                    Err(e) => panic!("{name}: 読めた記録を断った: {e}"),
+                };
+                assert_eq!(warns.len(), 1, "{name}: 警告が1件でない: {warns:?}");
+                assert!(
+                    warns[0].contains("しか読めませんでした"),
+                    "{name}: 読み残しを言っていない: {}",
+                    warns[0]
+                );
+                // **利用者に出る文言に Markdown を入れない。** 素のテキストで描かれる
+                assert!(
+                    !warns[0].contains("**") && !warns[0].contains('`'),
+                    "{name}: 文言に記法が混ざっている: {}",
+                    warns[0]
+                );
+            }
+        }
+
+        // 1手も読めていない題材では、局面を入れない
+        let path = dir.join("no-move-read.csa");
+        fs::write(&path, whole.replace("+7776FU\n", "+7776FU \n")).expect("書き出し");
+        let Err(KifuReadError::NothingToIndex { warn }) = read_path_inner(&path, KifuKind::Csa)
+        else {
+            panic!("1手も読めていないのに局面を入れようとしている");
+        };
+        assert!(warn.is_some(), "局面を入れないうえに黙っている");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 最後まで読めた CSA に、余計な警告を出さない。
+    ///
+    /// 指し手行を数えるだけだと、**記録が終わったあとの行まで数に入る**。
+    /// 2局を1ファイルに置く形（CSA は `/` だけの行で区切る）と、
+    /// 感想戦の書き起こしを終局の後ろに置く形が実際にそうなる。
+    /// どちらもクレートは1局目を最後まで読めていて、言うことは何も無い。
+    ///
+    /// **題材が何を固定しているかは1つずつ違う。**
+    ///
+    /// | 題材 | 黙る理由 |
+    /// | --- | --- |
+    /// | 2局を連結 / 区切りで分ける | `%` の打ち切り。外すと2局目まで数えて警告が出る |
+    /// | 終局の後ろに解説行 | `%` の打ち切り。行の形は指し手だが数に入れない |
+    /// | 終局の後ろに指し手の形の行 | **打ち切りに依らない** — クレートもその行を1手として読むので数が揃う |
+    /// | special にしない終局のあとに2局目 | `%` の打ち切りだけ。`%TIME_UP` は `special` にならない |
+    ///
+    /// **4件目は打ち切りを外しても黙る。** そこだけは腕を固定していない。
+    /// 5件目に2局目を置いてあるのは、置かないと数が `read` を超えず、
+    /// 打ち切りを外しても通ってしまうため（この行が無いと変異が生き残る）。
+    ///
+    /// 題材は**すべて合成**。
+    #[test]
+    fn a_csa_that_reached_its_end_gets_no_warning() {
+        let dir = temp_dir("csa-not-cut");
+        let whole = "V2.2\nN+山田\nPI\n+\n+7776FU\n-3334FU\n+2726FU\n-8384FU\n%TORYO\n";
+        let timed_out = "V2.2\nN+山田\nPI\n+\n+7776FU\n%TIME_UP\n";
+
+        let cases: [(&str, String); 5] = [
+            ("2局を連結", format!("{whole}{whole}")),
+            ("2局を区切りで分ける", format!("{whole}/\n{whole}")),
+            (
+                "終局の後ろに解説行",
+                format!("{whole}-3122GI が敗着だった\n"),
+            ),
+            ("終局の後ろに指し手の形の行", format!("{whole}-3122GI\n")),
+            (
+                "special にしない終局のあとに2局目",
+                format!("{timed_out}{whole}"),
+            ),
+        ];
+
+        for (name, body) in cases {
+            let path = dir.join(format!("{name}.csa"));
+            fs::write(&path, &body).expect("書き出し");
+
+            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+                .unwrap_or_else(|e| panic!("{name}: 読めている CSA を断った: {e}"));
+            assert!(
+                jkf.moves.iter().any(|m| m.move_.is_some()),
+                "{name}: 指し手が1つも入っていない"
+            );
+            assert!(warns.is_empty(), "{name}: 余計な警告が出た: {warns:?}");
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 数える側と数えられる側が揃っている。**誤報を出さない側を固定する。**
+    ///
+    /// 指し手ではない行を指し手と数えると、健全な棋譜が「途中で切れている」と
+    /// 断られる。CSA のヘッダ・盤面・消費時間・終局・コメントを1つずつ置いて、
+    /// どれも数に入らないことを見る。
+    #[test]
+    fn only_move_lines_are_counted_as_moves() {
+        // 数える対象（`+7776FU` の形）
+        for line in ["+7776FU", "-3334FU", "+2726FU\r"] {
+            assert!(
+                is_csa_move_line(line.as_bytes()),
+                "指し手行を数えていない: {line:?}"
+            );
+        }
+        // 数えない対象
+        for line in [
+            "+",
+            "-",
+            "V2.2",
+            "PI",
+            "P1-KY-KE",
+            "P+00FU",
+            "N+山田",
+            "$EVENT:研究会",
+            "T60",
+            "%TORYO",
+            "%CHUDAN",
+            "'コメント",
+            "",
+            "+7776F",
+            "+777FU",
+            "+7776fu",
+        ] {
+            assert!(
+                !is_csa_move_line(line.as_bytes()),
+                "指し手行でないものを数えた: {line:?}"
+            );
+        }
+    }
+
     /// 棋譜として読めなかった理由も、4形式とも利用者の言葉で出す。
     ///
     /// **ファイルを開けない経路とは別。** こちらはファイルが開けたあと、
-    /// 中身が棋譜でなかったときの話で、`describe` を通らない CSA / JKF は
-    /// クレートの英語がそのまま画面に出ていた。
+    /// 中身が棋譜でなかったときの話。案内を付けないと、`describe` を通らない
+    /// JKF はクレートの英語がそのまま画面に出る。
     /// `KifuReadError::ParseFailed` の doc が定めた「次に何をすればよいか」を、
     /// **`describe` を通る形式だけが満たしている**状態になりやすい。
     #[test]
@@ -1884,17 +2358,7 @@ mod tests {
         // ISO-2022-JP は総当たりが読んだ側に落ちる。そちらにも案内が要る
         let broken_move = "先手：山田\n後手：田中\n手合割：平手\n\
                            手数----指手---------消費時間--\n   1 ZZZZ\n";
-        let cases: [(&str, KifuKind, Vec<u8>, &str); 7] = [
-            // Shift_JIS の CSA。ShogiGUI / Shogidokoro が書くとこうなる
-            (
-                "csa",
-                KifuKind::Csa,
-                {
-                    let (bytes, _, _) = SHIFT_JIS.encode("V2.2\nN+先手\nPI\n+\n");
-                    bytes.into_owned()
-                },
-                "Shift_JIS",
-            ),
+        let cases: [(&str, KifuKind, Vec<u8>, &str); 6] = [
             (
                 "csa",
                 KifuKind::Csa,
