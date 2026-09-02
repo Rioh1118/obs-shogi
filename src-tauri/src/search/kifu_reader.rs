@@ -1967,6 +1967,24 @@ mod tests {
             else {
                 panic!("{label}: 誰も歩かない変化を索引に入れている");
             };
+
+            // **「誰も歩かない」を組み立ての側からも見る。** ここを見ないと、
+            // `walk_sequence` が `moves[0].forks` を降りるようになっても
+            // 上の assert は緑のままで、**この判定が索引の穴になる**。
+            // 逆に狭めれば `says_nothing` が通した記録が初期局面1件だけになる
+            let built = crate::search::index_builder::build_index_for_jkf(
+                1,
+                1,
+                &jkf,
+                crate::search::index_builder::BuildPolicy::Loose,
+            )
+            .expect("組めること");
+            assert_eq!(
+                built.node_table.nodes.len(),
+                1,
+                "{label}: `moves[0].forks` を歩く側が増えている。\
+                 `says_nothing` の見る欄も一緒に広げること"
+            );
         }
 
         fs::remove_dir_all(&dir).ok();
