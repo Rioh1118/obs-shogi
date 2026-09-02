@@ -137,11 +137,26 @@ export interface RunningClock {
 export interface ClocksView {
   black: ClockView;
   white: ClockView;
-  /** 両方止まっているなら null（裁定待ちと終局後） */
+  /**
+   * 動いている時計。**null を「対局が止まった」と読まないこと。**
+   *
+   * null になるのは4つ。
+   *
+   * 1. 裁定待ち（`awaitingRuling`）
+   * 2. 終局後（`over`）
+   * 3. **手番だが Rust がまだエンジンに考え始めさせていない**（前の思考の畳み待ち）。
+   *    `phase` は `thinking` のまま。通常は数百ミリ秒、長くて10秒
+   * 4. **Rust 側の壁時計が取れない**。`phase` は何でもありうる
+   *
+   * 3 は毎手通る。`turnChanged` を null で受け取ってから、
+   * 次の `clockUpdated` で動き出す。**そこで時計を止めて描くと、
+   * 相手の手番の頭で毎回止まって見える。**
+   */
   running: RunningClock | null;
 }
 
 export type GamePhaseView =
+  /** 着手を待っている。**時計が動いているとは限らない**（`ClocksView.running` の 3） */
   | { phase: "thinking"; side: Side }
   /** `continueGame` か `endGameByRule` を呼ぶまで進まない。時計は止まっている */
   | { phase: "awaitingRuling"; lastMover: Side; usiMove: string }

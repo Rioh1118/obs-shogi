@@ -357,7 +357,8 @@ enum Handover {
 }
 
 enum Phase {
-    /// `side` が考えている。時計が動いている
+    /// `side` の着手待ち。**時計が動いているとは限らない。**
+    /// 動くのは `turn_clock` が `Running` のときだけ（`running_clock`）
     Thinking {
         side: Side,
     },
@@ -1128,8 +1129,9 @@ impl Runner {
 
     /// いま時計が動いている側と、その手に既に使った時間。
     ///
-    /// **時計の番人はここ1箇所。** 動くのは「手番であり、かつ思考が始まっている」
-    /// ときだけで、裁定待ち・終局後・畳み待ちのどれでも `None` になる。
+    /// **時計が動くかを決めるのはここ1本。** `on_tick` も `clocks_view` も
+    /// `decide_move` もこれを呼ぶだけで、独立した判定を持たない。
+    /// `Some` を返すのは `Phase::Thinking` かつ `TurnClock::Running` のときだけ
     fn running_clock(&self) -> Option<(Side, u64)> {
         let Phase::Thinking { side } = self.phase else {
             return None;

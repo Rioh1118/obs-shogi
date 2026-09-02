@@ -208,7 +208,8 @@ pub struct ClockView {
 ///
 /// 時刻は壁時計（UNIX epoch のミリ秒）。**時間切れの判定には使わない**
 /// （そちらは単調時計で測る）。壁時計が飛んでも狂うのは表示だけで、
-/// 次の更新で入れ直る。
+/// 次の更新で入れ直る。ただし epoch より前を指している間は入れ直らず、
+/// `ClocksView::running` が `None` のままになる（同 4）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunningClock {
@@ -225,7 +226,18 @@ pub struct RunningClock {
 pub struct ClocksView {
     pub black: ClockView,
     pub white: ClockView,
-    /// 両方止まっているなら `None`（裁定待ちと終局後）
+    /// 動いている時計。**`None` は「対局が止まった」ではない。**
+    ///
+    /// `None` になるのは4つ。
+    ///
+    /// 1. 裁定待ち（`AwaitingRuling`）
+    /// 2. 終局後（`Over`）
+    /// 3. **手番だが `go` をまだ出していない**（止めた探索の畳み待ち）。
+    ///    `phase` は `thinking` のまま。通常は数百ミリ秒、長くて `SETTLE_TIMEOUT`
+    /// 4. **壁時計が取れない**（epoch より前を指している）。`phase` は何でもありうる
+    ///
+    /// 区別できるのは `phase` だけで、3 と 4 は `phase` でも分けられない。
+    /// 手番中に `None` が続いても、対局は進んでいる
     pub running: Option<RunningClock>,
 }
 
@@ -237,7 +249,10 @@ pub struct ClocksView {
     rename_all_fields = "camelCase"
 )]
 pub enum GamePhaseView {
-    /// `side` の着手を待っている。時計が動いている
+    /// `side` の着手を待っている。
+    ///
+    /// **時計が動いているとは限らない。** 畳み待ちの間は `clocks.running` が
+    /// `null` になる（`ClocksView::running` の 3）
     Thinking {
         side: Side,
     },
@@ -274,7 +289,11 @@ pub struct GameSnapshot {
     rename_all_fields = "camelCase"
 )]
 pub enum GameEvent {
-    /// 手番が変わり、時計が動き出した
+    /// 手番が変わった。
+    ///
+    /// **`clocks.running` が `null` のことがある。** 前の探索を畳んでいる間は
+    /// `go` をまだ出しておらず、時計はそこからは動かない。動き出したら
+    /// 次の `clockUpdated` に載る
     TurnChanged {
         game_id: GameId,
         side: Side,
