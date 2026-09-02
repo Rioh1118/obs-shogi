@@ -9,23 +9,19 @@
 }
 
 .pos-search__empty {
-  padding: 16px 12px;
+  padding: index.$space-8 index.$space-6;
   border: 1px dashed index.$stroke;
-  border-radius: 10px;
+  border-radius: index.$radius-5;
+  font-size: index.$font-aux;
   color: rgba(index.$color-text-light-1, 0.7);
 }
 
-.pos-search__rowWrap {
-  padding: 6px 0;
-}
-
+// 行を実際に収めてスクロールする器。`overflow` と `position` は react-window が
+// 自分で当てるので、ここでは器としての収まり方だけを決める
 .pos-search__listVirtual {
   flex: 1;
   min-height: 0;
 
-  overflow: auto;
-
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
 }

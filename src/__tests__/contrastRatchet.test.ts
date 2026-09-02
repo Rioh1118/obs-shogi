@@ -64,7 +64,7 @@ const MEASURED_COUNT = 57;
  * それ以外で増やさない。面が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 406;
+const UNMEASURED_COUNT = 404;
 
 const rows: Row[] = [];
 let measured = 0;

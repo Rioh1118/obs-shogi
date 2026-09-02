@@ -56,7 +56,8 @@ describe("PositionSearchHitList", () => {
   test("行の高さを決め打たない（カードがスロットからはみ出せる形を作らない）", () => {
     const { container } = renderList(HITS);
 
-    const rows = [...container.querySelectorAll<HTMLElement>(".pos-search__rowWrap")];
+    // 行そのものがカード（`option`）。仮想リストの style は直接ここへ当たる
+    const rows = [...container.querySelectorAll<HTMLElement>(".pos-hit")];
     expect(rows.length).toBeGreaterThan(0);
 
     // 高さを決め打つと `react-window` が行の style に height を書く。
@@ -64,6 +65,37 @@ describe("PositionSearchHitList", () => {
     for (const row of rows) {
       expect(row.style.height).toBe("");
     }
+  });
+
+  /**
+   * `listbox` と `option` のあいだに要素を挟むと、支援技術から見て option が
+   * listbox の子でなくなり、件数も現在位置も伝わらない。仮想化で行が歯抜けになるぶん、
+   * 位置は `aria-posinset` / `aria-setsize` が各行に持つ必要もある。
+   */
+  test("option が listbox の直接の子で、位置と総数を持つ", () => {
+    const { container } = renderList(HITS);
+
+    const listbox = container.querySelector<HTMLElement>('[role="listbox"]');
+    expect(listbox).not.toBeNull();
+
+    const options = [...container.querySelectorAll<HTMLElement>('[role="option"]')];
+    expect(options.length).toBeGreaterThan(1);
+
+    for (const option of options) {
+      expect(option.parentElement).toBe(listbox);
+      expect(option.getAttribute("aria-setsize")).toBe(String(HITS.length));
+      expect(option.getAttribute("aria-posinset")).not.toBeNull();
+    }
+  });
+
+  test("Tab の止まり場は選択している行だけ", () => {
+    const { container } = renderList(HITS, { activeIndex: 2 });
+
+    const options = [...container.querySelectorAll<HTMLElement>('[role="option"]')];
+    const tabbable = options.filter((o) => o.tabIndex === 0);
+
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0].getAttribute("aria-selected")).toBe("true");
   });
 
   test("ヒットが無いときはカードを出さず、理由を1つだけ出す", () => {

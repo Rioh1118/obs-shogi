@@ -5,6 +5,8 @@ import type { VirtualListBaseProps } from "./types";
 export function VirtualList<RowProps extends object>({
   className,
   style,
+  role,
+  "aria-label": ariaLabel,
   rowCount,
   rowHeight,
   rowComponent,
@@ -28,6 +30,10 @@ export function VirtualList<RowProps extends object>({
   return (
     <List<RowProps>
       className={className}
+      // `List` は自前の role="list" より後ろで残りの props を展開するので、
+      // ここで渡した role が勝つ
+      role={role}
+      aria-label={ariaLabel}
       style={{ height: "100%", ...style }}
       rowCount={rowCount}
       rowHeight={rowHeight}

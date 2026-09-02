@@ -51,21 +51,24 @@ export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
 
   const isSame = abs && props.currentAbs ? abs === props.currentAbs : false;
 
+  // 包まずに行そのものを返す。`listbox` と `option` のあいだに要素を挟むと、
+  // 支援技術から見て option が listbox の子でなくなり、件数も現在位置も伝わらない。
+  // `ariaAttributes.role` は `listitem` なので使わない（option を上書きしてしまう）
   return (
-    <div style={style} className="pos-search__rowWrap">
-      <PositionHitItem
-        hit={hit}
-        relPath={rel}
-        fileName={fileNameFromRel(rel)}
-        isSameFile={isSame}
-        tesuu={hit.cursor.tesuu}
-        forks={hit.cursor.forkPointers.length}
-        isActive={isActive}
-        onSelect={() => {
-          if (index !== props.activeIndex) props.onActiveIndexChange(index);
-        }}
-        onAccept={() => props.onAccept(hit)}
-      />
-    </div>
+    <PositionHitItem
+      style={style}
+      posInSet={props.ariaAttributes["aria-posinset"]}
+      setSize={props.ariaAttributes["aria-setsize"]}
+      relPath={rel}
+      fileName={fileNameFromRel(rel)}
+      isSameFile={isSame}
+      tesuu={hit.cursor.tesuu}
+      forks={hit.cursor.forkPointers.length}
+      isActive={isActive}
+      onSelect={() => {
+        if (index !== props.activeIndex) props.onActiveIndexChange(index);
+      }}
+      onAccept={() => props.onAccept(hit)}
+    />
   );
 };

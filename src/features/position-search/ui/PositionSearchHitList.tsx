@@ -77,18 +77,21 @@ export default function PositionSearchHitList({
 
   return (
     <section className="pos-search__results" aria-label="検索結果">
-      <div className="pos-search__listVirtual" role="listbox">
-        <VirtualList<HitRowProps>
-          rowCount={hits.length}
-          rowHeight={rowHeight}
-          rowComponent={VirtualHitRow}
-          rowProps={rowProps}
-          followIndex={activeIndex}
-          followAlign="auto"
-          followBehavior="instant"
-          overscanCount={8}
-        />
-      </div>
+      {/* listbox は行を実際に収めている器（＝スクロールする要素）に置く。
+          包む div に置くと、行とのあいだに要素が挟まって option の持ち主でなくなる */}
+      <VirtualList<HitRowProps>
+        className="pos-search__listVirtual"
+        role="listbox"
+        aria-label="検索結果"
+        rowCount={hits.length}
+        rowHeight={rowHeight}
+        rowComponent={VirtualHitRow}
+        rowProps={rowProps}
+        followIndex={activeIndex}
+        followAlign="auto"
+        followBehavior="instant"
+        overscanCount={8}
+      />
     </section>
   );
 }
