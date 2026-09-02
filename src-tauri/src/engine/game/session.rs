@@ -1090,7 +1090,12 @@ impl Runner {
 
     fn clocks_view(&self) -> ClocksView {
         // 動いていないときは時刻を出さない。**受け手が減らす余地そのものを消す**
-        self.clocks.view(self.running_clock(), now_epoch_ms())
+        let Some(now) = now_epoch_ms() else {
+            // 壁時計が取れない。嘘の 00:00 を出すより、止まっている値だけを見せる
+            log::warn!(target: LOGT, "clocks: wall clock is before the epoch");
+            return self.clocks.view(None, 0);
+        };
+        self.clocks.view(self.running_clock(), now)
     }
 
     fn snapshot(&self) -> GameSnapshot {
@@ -1315,12 +1320,18 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
 }
 
 /// 壁時計。**時間切れの判定には使わない**（そちらは `Instant` で測る）。
-/// 使うのは「表示が尽きる時刻」を受け手へ渡すときだけ
-fn now_epoch_ms() -> u64 {
+/// 使うのは「表示が尽きる時刻」を受け手へ渡すときだけ。
+///
+/// 取れないのは壁時計が 1970 年より前を指しているとき。**0 で埋めない。**
+/// 埋めると尽きる時刻がほぼ 0 になり、受け手は契約どおり
+/// `deadline - now` をクランプして**両者の残り 00:00** を出す。
+/// 対局は `Instant` で進んでいるので手は指せるし時間切れにもならず、
+/// 利用者からは時計が壊れたのか対局が壊れたのかが区別できない。
+fn now_epoch_ms() -> Option<u64> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
+        .ok()
         .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
 }
 
 fn contains_usi_breaking_char(s: &str) -> bool {
@@ -1800,7 +1811,7 @@ mod tests {
         assert_eq!(running.side, Side::Black);
 
         // 持ち時間は10分。壁時計との差がそれに近いこと（実時間で測るので幅を持たせる）
-        let now = now_epoch_ms();
+        let now = now_epoch_ms().expect("テストの実行中に壁時計が epoch より前になった");
         let left = running.main_zero_at.saturating_sub(now);
         assert!(
             (595_000..=600_000).contains(&left),
