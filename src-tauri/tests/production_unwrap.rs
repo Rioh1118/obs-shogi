@@ -38,7 +38,7 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
 ///
 /// 波括弧を数えるだけ。文字列リテラルの中の括弧までは見ていないので、
 /// テストの中に `"{"` だけを含む文字列があると釣り合いが崩れる。
-/// **崩れると余分に落ちる＝検査が緩くなる**ので、そうなったら
+/// **崩れると余分に落ちる＝検査が緩くなる**ので、崩れたら
 /// `the_scanner_still_sees_production_code` が先に落ちる。
 fn strip_test_modules(source: &str) -> String {
     let mut out = String::new();

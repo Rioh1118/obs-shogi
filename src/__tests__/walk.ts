@@ -60,6 +60,12 @@ export function scssFiles(root: string, options: WalkOptions = {}): string[] {
   return walk(root, (name) => name.endsWith(".scss"), options);
 }
 
+/**
+ * コメントを持つファイル。**`.sh` も含む。**
+ *
+ * 検査そのものを書いたシェルスクリプトにも「なぜ」は要り、経緯も入りうる。
+ * 拡張子で外すと、機械の doc にだけ規約が掛からない場所ができる。
+ */
 export function sourceFiles(root: string, options: WalkOptions = {}): string[] {
-  return walk(root, (name) => /\.(tsx?|rs|scss)$/.test(name), options);
+  return walk(root, (name) => /\.(tsx?|rs|scss|sh)$/.test(name), options);
 }

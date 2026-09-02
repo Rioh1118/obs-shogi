@@ -1325,7 +1325,11 @@ mod tests {
     /// `usi` crate のバリアントが増えたときは
     /// 「`kind_of` がコンパイルで落ちる → `kinds!` に足す →
     /// `Kind::ALL` が伸びる → ここが落ちる → `commands()` に足す」の順に辿れる。
-    /// どこか1つを忘れても、数が揃って緑になることがない。
+    ///
+    /// **辿れるのは、新しいバリアントを新しい `Kind` へ写したときだけ。**
+    /// 既存の `Kind` へ写すとコンパイルも通り、3つとも数が変わらず緑になる。
+    /// そこは型では止まらないので、`kind_of` が単射であること
+    /// （2つの `GuiCommand` が同じ `Kind` を指さないこと）を下で見る。
     #[test]
     fn commands_covers_every_gui_command() {
         let mut kinds: Vec<Kind> = commands().iter().map(kind_of).collect();
@@ -1333,6 +1337,8 @@ mod tests {
         let before = kinds.len();
         kinds.dedup();
 
+        // `commands()` の各要素が別々の種類であること。同じ `Kind` へ2つ写ると、
+        // 片方の組み合わせが写像のループから静かに落ちる
         assert_eq!(before, kinds.len(), "`commands()` に同じ種類が2つある");
 
         let mut all = Kind::ALL.to_vec();
@@ -1344,7 +1350,7 @@ mod tests {
     /// 写像の全域を回す。**行を手で選ばない。**
     ///
     /// 手書きの表にすると、書いた人が選んだ組み合わせしか当たらない。
-    /// `ReadyState` にバリアントを足したときも、`COMMANDS` に足したときも、
+    /// `ReadyState` にバリアントを足したときも、`commands()` に足したときも、
     /// このループが自動で広がる。
     ///
     /// 期待値は `expected_dispatch` が別の書き方で作る。**同じ式を写さない**

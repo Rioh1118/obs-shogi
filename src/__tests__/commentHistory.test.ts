@@ -20,13 +20,21 @@ import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
  * `REVIEW_TAG` に**リテラルとして**書くこと。文章で例示すると自分で落ちる。
  */
 
-const ROOTS = [SRC, RUST_SRC, join(REPO_ROOT, "src-tauri", "tests")];
+const ROOTS = [
+  SRC,
+  RUST_SRC,
+  join(REPO_ROOT, "src-tauri", "tests"),
+  // 検査そのものを置く場所。**ここを外すと、機械の doc にだけ経緯が溜まる**
+  join(REPO_ROOT, ".claude", "hooks"),
+];
 
 /**
  * 経緯にしか出てこない語。**「なぜ」を書くのに要らないものだけ**を並べる。
  * 増やすときは、これ無しでは書けない「なぜ」が本当に無いかを確かめること
  */
 const HISTORY_WORDS = [
+  "そうなった",
+  "通り抜けた",
   "ようになった",
   "ようにした",
   "今回",
@@ -78,7 +86,19 @@ const REVIEW_TAG = /^\s*\/\/\s*\d+:|\([A-Z]-[A-Z]?\d+\)|→\s*r\d+|\br\d+\s*→\
 const BRANCH_NAME = /(?:\b(?:fix|feat|chore|docs|refactor|perf|ci)\/\d|\bissue-\d+\/)/;
 
 /** `//` 行コメントと `/* *\/` ブロックコメント。文字列の中は見ない（誤検出しても直せる形で出す） */
-const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+const SLASH_COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+
+/**
+ * `#` 行コメント。シェルスクリプト用。
+ *
+ * **形をファイルごとに選ぶ。** 全部に `#` を掛けると、Rust の `#[derive(...)]` と
+ * TS の文字列が丸ごとコメント扱いになり、誤検出で埋まる。
+ */
+const HASH_COMMENT = /#[^\n]*/g;
+
+function commentsOf(file: string): RegExp {
+  return file.endsWith(".sh") ? HASH_COMMENT : SLASH_COMMENT;
+}
 
 describe("コメント", () => {
   it("変更の経緯を書いていない", () => {
@@ -92,7 +112,7 @@ describe("コメント", () => {
         const source = readFileSync(file, "utf8");
         const name = relative(REPO_ROOT, file);
 
-        for (const match of source.matchAll(COMMENT)) {
+        for (const match of source.matchAll(commentsOf(file))) {
           const text = match[0];
           const hit = HISTORY_WORDS.find((word) => text.includes(word));
           const branch = text.match(BRANCH_NAME)?.[0];
