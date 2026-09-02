@@ -70,8 +70,11 @@ pub struct SearchRequest {
     pub req: u64,
     /// `position sfen` の後ろに続ける文字列
     pub position: String,
+    /// `go` に載せる時間と `ponder`。**先読みかどうかはここにしか無い。**
+    ///
+    /// 別に `bool` で持たない。持つと、`ponderhit` で本番へ昇格したときに
+    /// 片方だけ古いままになる（このタスクは起動時の値を握って走る）。
     pub params: ThinkParams,
-    pub ponder: bool,
     pub cancel: CancellationToken,
 }
 
@@ -95,7 +98,6 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         req,
         position,
         params,
-        ponder,
         cancel,
     } = request;
 
@@ -146,10 +148,12 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
             command = raw_rx.recv() => match command {
                 Some(EngineCommand::Info(params)) => {
                     apply_info_params(&params, &mut result);
-                    // 先読み中の読み筋は相手の手番の画面に出てしまうので流さない
-                    if !ponder {
-                        let _ = tx.send(SearchMessage::Info { side, result: result.clone() });
-                    }
+                    // **ここで間引かない。** このタスクは起動時の `ponder` を握ったまま
+                    // 走るので、`ponderhit` で本番へ昇格しても先読み扱いのまま。
+                    // 間引くと、先読みが当たった手番だけ読み筋が1行も出ない
+                    // （当たる率はエンジンが強いほど高い）。
+                    // 落とす判断は `on_search_info` の `is_to_move` 1本に寄せてある
+                    let _ = tx.send(SearchMessage::Info { side, result: result.clone() });
                 }
                 Some(EngineCommand::BestMove(params)) => {
                     settled = Some(outcome_of(params));

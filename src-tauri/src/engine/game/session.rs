@@ -78,13 +78,23 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 /// **時間切れ負けの判定とは別物。** `enforce_engine_timeout` を見ないのは、
 /// これが「黙ったエンジンを見つける」ためにあるから。
 ///
+/// **持ち時間を過ぎたことだけでは落とさない。** `enforce_engine_timeout` が
+/// 偽のまま持ち時間が尽きると `budget_ms` は 0 に張り付くので、それだけを見ると
+/// 締切が `SEARCH_GRACE` ちょうどになり、**正常に読み続けているエンジンが
+/// 30秒で「応答しない」と呼ばれる**。利用者は「時間切れを成立させない」と
+/// 指定したのに、時計が尽きた30秒後に必ず負けることになる。
+/// 黙っていること（`silent_for`）を条件に足す。
+///
 /// 先読み中は `TurnClock` が相手側の手番を指しているので、ここには掛からない
 /// （先読みは `ponderhit` か `stop` が来るまで走ってよい）。
-fn stalled_turn(clock: TurnClock, budget_ms: u64) -> Option<Stall> {
+fn stalled_turn(clock: TurnClock, budget_ms: u64, silent_for: Duration) -> Option<Stall> {
     match clock {
         TurnClock::Settling(since) if since.elapsed() >= SETTLE_TIMEOUT => Some(Stall::NotStopping),
+        // **両方が要る。** 持ち時間を過ぎただけなら、まだ読んでいるだけかもしれない。
+        // 黙っただけなら、`info` を出さずに短く考えるエンジンを落としてしまう
         TurnClock::Running(since)
-            if since.elapsed() >= Duration::from_millis(budget_ms) + SEARCH_GRACE =>
+            if since.elapsed() >= Duration::from_millis(budget_ms) + SEARCH_GRACE
+                && silent_for >= SEARCH_GRACE =>
         {
             Some(Stall::NotAnswering)
         }
@@ -136,13 +146,21 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 /// パイプが埋まって書き込みが止まり、応答が返らない。上限が無いと
 /// `close_game` が無期限に返らなくなる。
 ///
-/// `search.rs` の `SEARCH_STOP_GRACE` より少し長い。
+/// **1回の畳みの最悪値より長く取る。** 畳みは `stop` の書き込み
+/// （列の中で `WRITE_TIMEOUT`）＋ 捨てる `bestmove` を待つ `SEARCH_STOP_GRACE`。
+/// 短いと、`stop` の直後に1秒ほど stdin を吸わなかっただけの正常な対局で
+/// 待ち切れず、「エンジンが応答しない」の警告が出て探索の足元でプロセスが落ちる。
+/// **上と同じ関係を `the_watchdogs_are_ordered` が固定する。**
 ///
-/// **掛かる先が2つある。** `GameSession::close` では「`abort` ＋ 畳み待ち」の
-/// **合計**の予算で、`GameManager::close` では `abort` **だけ**の上限。
-/// 前者では `abort` が予算を使い切ると畳み待ちに何も残らないので、
-/// 値を下げるときはそちらの縮み方も見ること。
-pub(super) const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(6);
+/// `abort` はこれとは別枠。合計の予算にすると、`abort` が使い切ったぶんだけ
+/// 畳み待ちが縮む（`abort` は `finish` の中で `gameover` を最大2回通す）。
+pub(super) const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// `close` が `abort` の応答を待つ上限。
+///
+/// **畳み待ちと分ける。** 1つの予算を分け合うと、`abort` に時間を取られた
+/// ぶんだけ畳み待ちが縮み、正常な畳みを待ち切れなくなる。
+pub(super) const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
 ///
@@ -200,6 +218,7 @@ impl GameSession {
             settings,
             phase: Phase::Thinking { side: side_to_move },
             turn_clock: TurnClock::Running(Instant::now()),
+            last_progress: Instant::now(),
             next_req: 0,
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
@@ -276,15 +295,18 @@ impl GameSession {
     pub async fn close(self, registry: &EngineRegistry) {
         // 「止める → 畳まれるのを**待つ** → 落とす」の順。
         // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
-        let deadline = Instant::now() + CLOSE_IDLE_TIMEOUT;
         // `abort` の失敗は2通りで、意味が正反対。潰すとログから区別が付かない
-        match tokio::time::timeout(CLOSE_IDLE_TIMEOUT, self.abort()).await {
+        match tokio::time::timeout(CLOSE_ABORT_TIMEOUT, self.abort()).await {
             Ok(Ok(())) => {}
             // セッションのタスクが先に居なくなった。もう止まっている
             Ok(Err(e)) => log::debug!(target: LOGT, "close: nothing to abort: {e}"),
             // `run_loop` が詰まっている。止められていない
             Err(_) => log::warn!(target: LOGT, "close: abort timed out; the session is stuck"),
         }
+
+        // **`abort` の後から測る。** 前から測ると、`abort` に使ったぶんだけ
+        // 畳み待ちが縮み、正常に畳んでいるエンジンを待ち切れなくなる
+        let deadline = Instant::now() + CLOSE_IDLE_TIMEOUT;
 
         let mut idle = false;
         while !idle {
@@ -496,6 +518,11 @@ struct Runner {
     moves: Vec<String>,
     phase: Phase,
     turn_clock: TurnClock,
+    /// エンジンから最後に便りがあった時刻。
+    ///
+    /// **`turn_clock` と対で動かす。** 別々に代入する形にすると、片方だけ
+    /// 更新する経路ができる。動かす口は `begin_turn` の1つ（→ `stalled_turn`）。
+    last_progress: Instant,
     next_req: u64,
     last_clock_emit: Instant,
     /// 探索タスクへ渡す、自分あての口。
@@ -715,11 +742,20 @@ impl Runner {
 
     // --- 探索タスクからの通知 ---
 
+    /// 探索の途中経過。**先読みを落とすのはここ1本。**
+    ///
+    /// 探索タスク側で落とすと、`ponderhit` で本番へ昇格した探索が
+    /// 先読み扱いのまま残る（タスクは起動時の値を握って走る）。
+    /// 手番かどうかはこちらが常に持っているので、判断はここに置く。
     fn on_search_info(&mut self, side: Side, result: AnalysisResult) {
-        // 手番が変わった後に届いた読み筋は、いまの局面のものではない
+        // 先読み中の側は手番ではない。手番が変わった後に届いた読み筋も同じで、
+        // どちらも「いまの局面のものではない」で落ちる
         if !self.is_to_move(side) {
             return;
         }
+
+        // 便りがあった。黙っていないので `stalled_turn` の締切を先送りする
+        self.last_progress = Instant::now();
         self.emit(GameEvent::SearchInfo {
             game_id: self.id.clone(),
             side,
@@ -807,7 +843,7 @@ impl Runner {
                 // 画面の残り時間とエンジンに伝えた残り時間も食い違う。
                 //
                 // 引き直すぶん、止めている間は**どちらの持ち時間にも入らない**
-                self.turn_clock = TurnClock::Running(Instant::now());
+                self.begin_turn();
                 self.start_search(side);
             }
             return;
@@ -875,7 +911,11 @@ impl Runner {
                 // 探索タスクの中に置くと `ponderhit` の昇格を観測できず、
                 // 終局させても `Activity` が `Idle` に戻ってしまう
                 // （探索中のエンジンへ `gameover` が飛ぶ）
-                if let Some(stall) = stalled_turn(self.turn_clock, self.clocks.budget_ms(side)) {
+                if let Some(stall) = stalled_turn(
+                    self.turn_clock,
+                    self.clocks.budget_ms(side),
+                    self.last_progress.elapsed(),
+                ) {
                     self.finish(GameResult {
                         winner: Some(side.opponent()),
                         reason: GameOverReason::EngineFailure,
@@ -1003,7 +1043,7 @@ impl Runner {
                             *kind = SearchKind::Search;
                         }
                         // 先読みの時間は無料。時計はここから動く
-                        self.turn_clock = TurnClock::Running(Instant::now());
+                        self.begin_turn();
                     }
                     Err(e) => {
                         // 送れていないのでエンジンは `go ponder` のまま。
@@ -1016,7 +1056,7 @@ impl Runner {
             }
             Handover::StopThenStart => self.stop_then_start(side),
             Handover::StartNow => {
-                self.turn_clock = TurnClock::Running(Instant::now());
+                self.begin_turn();
                 self.start_search(side);
             }
             Handover::Unusable => {
@@ -1051,7 +1091,7 @@ impl Runner {
             Activity::Stopping { restart, .. } => *restart = true,
             // 何も走っていない。そのまま始めてよい
             Activity::Idle => {
-                self.turn_clock = TurnClock::Running(Instant::now());
+                self.begin_turn();
                 self.start_search(side);
             }
             Activity::Unresponsive => {
@@ -1104,7 +1144,6 @@ impl Runner {
             req,
             position: position_argument(&self.settings.start_sfen, &moves),
             params,
-            ponder,
             cancel: cancel.clone(),
         };
 
@@ -1227,6 +1266,17 @@ impl Runner {
 
     fn timeout_enforced(&self, side: Side) -> bool {
         !self.player(side).spec.is_engine() || self.settings.enforce_engine_timeout
+    }
+
+    /// 手番の時計を動かし始める。
+    ///
+    /// **`turn_clock` と `last_progress` を対で動かす唯一の口。**
+    /// 別々に代入する形にすると、片方だけ更新する経路ができ、
+    /// `stalled_turn` が前の手番の便りを見たまま締切を測る。
+    fn begin_turn(&mut self) {
+        let now = Instant::now();
+        self.turn_clock = TurnClock::Running(now);
+        self.last_progress = now;
     }
 
     /// いま時計が動いている側と、その手に既に使った時間。
@@ -1559,6 +1609,7 @@ mod tests {
             settings,
             phase: Phase::Thinking { side: Side::Black },
             turn_clock: TurnClock::Running(Instant::now()),
+            last_progress: Instant::now(),
             next_req: 0,
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
@@ -2041,23 +2092,73 @@ mod tests {
                 .expect("起動直後で `Instant` を遡れない")
         };
 
+        let silent = SEARCH_GRACE;
+        let just_spoke = Duration::ZERO;
+
         // まだどちらも上限に達していない
-        assert_eq!(stalled_turn(TurnClock::Settling(Instant::now()), 0), None);
-        assert_eq!(stalled_turn(TurnClock::Running(Instant::now()), 0), None);
+        assert_eq!(
+            stalled_turn(TurnClock::Settling(Instant::now()), 0, silent),
+            None
+        );
+        assert_eq!(
+            stalled_turn(TurnClock::Running(Instant::now()), 0, silent),
+            None
+        );
 
         assert_eq!(
-            stalled_turn(TurnClock::Settling(long_ago(SETTLE_TIMEOUT)), 600_000),
+            stalled_turn(
+                TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
+                600_000,
+                just_spoke
+            ),
             Some(Stall::NotStopping),
-            "畳み待ちの上限は持ち時間と無関係"
+            "畳み待ちの上限は持ち時間とも便りとも無関係"
         );
 
         // 思考中の上限は持ち時間ぶんだけ伸びる
         assert_eq!(
-            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 600_000),
+            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 600_000, silent),
             None
         );
         assert_eq!(
-            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0),
+            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0, silent),
+            Some(Stall::NotAnswering)
+        );
+    }
+
+    /// **持ち時間を過ぎただけで落とさないこと。**
+    ///
+    /// `enforce_engine_timeout` が偽のまま持ち時間が尽きると `budget_ms` は
+    /// 0 に張り付く。持ち時間だけを見ると締切が `SEARCH_GRACE` ちょうどになり、
+    /// 正常に読み続けているエンジンが30秒で「応答しない」と呼ばれる。
+    /// 利用者は「時間切れを成立させない」と指定したのに、時計が尽きた30秒後に
+    /// 必ず負けることになる。
+    #[test]
+    fn an_engine_that_keeps_talking_is_not_called_unresponsive() {
+        let long_ago = |d: Duration| {
+            Instant::now()
+                .checked_sub(d)
+                .expect("起動直後で `Instant` を遡れない")
+        };
+
+        // 持ち時間は尽きている（budget 0）が、いま便りがあった
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
+                0,
+                Duration::ZERO
+            ),
+            None,
+            "読み続けているエンジンを「応答しない」と呼んでいる"
+        );
+
+        // 黙ったなら落とす
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
+                0,
+                SEARCH_GRACE
+            ),
             Some(Stall::NotAnswering)
         );
     }
@@ -2082,10 +2183,18 @@ mod tests {
             "SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) が WRITE_TIMEOUT + SEARCH_STOP_GRACE 以下"
         );
 
-        // 閉じるときの待ちも、畳み終わるのに要る時間より長い
+        // 閉じるときの畳み待ちも、**同じ最悪値**より長い。
+        // `SEARCH_STOP_GRACE` だけと比べると、書き込みぶんが抜けて足りない値が通る
         assert!(
-            CLOSE_IDLE_TIMEOUT > SEARCH_STOP_GRACE,
-            "CLOSE_IDLE_TIMEOUT({CLOSE_IDLE_TIMEOUT:?}) が SEARCH_STOP_GRACE 以下"
+            CLOSE_IDLE_TIMEOUT > WRITE_TIMEOUT + SEARCH_STOP_GRACE,
+            "CLOSE_IDLE_TIMEOUT({CLOSE_IDLE_TIMEOUT:?}) が WRITE_TIMEOUT + SEARCH_STOP_GRACE 以下"
+        );
+
+        // `abort` の予算は畳み待ちと別枠。合計にすると、`abort` が使ったぶんだけ
+        // 畳み待ちが縮む。**別枠であることを式で持つ**
+        assert!(
+            CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT,
+            "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が書き込み1件ぶんも無い"
         );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
