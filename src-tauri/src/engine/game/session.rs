@@ -316,6 +316,21 @@ struct Runner {
     tx: WeakUnboundedSender<Command>,
 }
 
+/// 対局が畳まれたら、走っている探索も止める。
+///
+/// **`CancellationToken` は drop では cancel しない**（`tokio_util`）。
+/// `run_loop` が終わって `Runner` が落ちても、`go ponder` を投げた探索タスクは
+/// `bestmove` も cancel も来ないまま残り続ける。ここで明示的に落とす。
+impl Drop for Runner {
+    fn drop(&mut self) {
+        for player in &self.players {
+            if let Activity::Busy { cancel, .. } = &player.activity {
+                cancel.cancel();
+            }
+        }
+    }
+}
+
 async fn run_loop(mut runner: Runner, mut rx: mpsc::UnboundedReceiver<Command>) {
     while let Some(command) = rx.recv().await {
         runner.handle(command).await;
@@ -786,19 +801,19 @@ impl Runner {
             cancel.cancel();
         }
 
-        // 対局が捨てられた後に投げた探索は、行き先が無いので走らせない。
-        // 黙って消すと原因の分からない停止になるので、消したことを残す
-        let Some(tx) = self.tx.upgrade() else {
-            log::warn!(
-                target: LOGT,
-                "spawn_search: session already dropped side={side:?} req={req}"
-            );
-            return;
-        };
+        // **weak のまま渡す。** ここで `upgrade()` して strong を持たせると、
+        // その探索が終わるまで対局のチャンネルが生き続け、
+        // B-2 で切った輪が探索1本ごとに戻る。`go ponder` は `ponderhit` か
+        // `stop` が来るまで `bestmove` を返さないので、輪は永久に残りうる
+        let tx = self.tx.clone();
         tokio::spawn(async move {
             let (search_tx, mut search_rx) = mpsc::unbounded_channel();
             let forward = tokio::spawn(async move {
                 while let Some(message) = search_rx.recv().await {
+                    let Some(tx) = tx.upgrade() else {
+                        // 対局はもう無い。走らせ続ける意味が無い
+                        return;
+                    };
                     if tx.send(Command::Search(message)).is_err() {
                         return;
                     }
@@ -1166,6 +1181,49 @@ mod tests {
 
     fn phase_of(snapshot: &GameSnapshot) -> &GamePhaseView {
         &snapshot.phase
+    }
+
+    /// `Runner` を直に組む。`GameSession::start` を通さないので、
+    /// エンジン無しでも `Activity` を好きな状態にできる
+    fn test_runner(tx: &mpsc::UnboundedSender<Command>) -> Runner {
+        let settings = two_humans(vec![]);
+        Runner {
+            id: "test".to_string(),
+            app: None,
+            clocks: GameClocks::new(settings.black_time, settings.white_time),
+            players: [
+                Player::new(settings.black.clone(), None),
+                Player::new(settings.white.clone(), None),
+            ],
+            moves: Vec::new(),
+            settings,
+            phase: Phase::Thinking { side: Side::Black },
+            turn_started: Instant::now(),
+            next_req: 0,
+            last_clock_emit: Instant::now(),
+            tx: tx.downgrade(),
+        }
+    }
+
+    /// 走っている探索は、対局が畳まれたら止まること。
+    ///
+    /// `CancellationToken` は drop では cancel しないので、`Drop` を書かないと
+    /// `go ponder` を投げた探索タスクが `bestmove` も cancel も来ないまま残る
+    #[tokio::test]
+    async fn dropping_the_runner_cancels_live_searches() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = Activity::Busy {
+            req: 1,
+            kind: SearchKind::Search,
+            cancel: cancel.clone(),
+        };
+
+        assert!(!cancel.is_cancelled());
+        drop(runner);
+        assert!(cancel.is_cancelled(), "対局を畳んでも探索が止まっていない");
     }
 
     #[tokio::test]
