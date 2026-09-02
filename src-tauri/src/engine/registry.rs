@@ -53,6 +53,8 @@ pub struct EngineProcess {
 }
 
 impl EngineProcess {
+    /// このプロセスへ送る口。**`Arc` を複製して返す**——`EngineProcess` を
+    /// 握ったままにすると台帳から外せなくなる。
     pub fn protocol(&self) -> Arc<UsiProtocol> {
         Arc::clone(&self.protocol)
     }
@@ -81,6 +83,8 @@ pub struct EngineRegistry {
 }
 
 impl EngineRegistry {
+    /// 空の台帳。**アプリに1つ**（`AppState` が持ち、対局と解析で共有する）。
+    /// 分けると同じ実行ファイルを二重に起動し、どちらの台帳にも載らないプロセスができる。
     pub fn new() -> Self {
         Self::default()
     }
@@ -265,6 +269,7 @@ async fn dispose_late_spawn(
 }
 
 impl EngineRegistry {
+    /// 台帳から1本引く。**`starting` は見ない**（握手が済むまでは載らない）。
     pub async fn get(&self, id: &str) -> Option<Arc<EngineProcess>> {
         self.processes.read().await.get(id).cloned()
     }
@@ -311,6 +316,13 @@ impl EngineRegistry {
             .retain(|p| !Arc::ptr_eq(p, protocol));
     }
 
+    /// 台帳に載っているプロセスの ID。
+    ///
+    /// **`starting`（`usiok` を待っている最中）は含めない。** `GameManager::ids` は
+    /// 同じ「途中の集合を含めるか」を逆に決めているので、揃っていると読まないこと——
+    /// あちらは「閉じ忘れを拾う」ための口で、こちらは「いま握手が済んでいるプロセス」。
+    ///
+    /// 起動の途中で終了フックが走ったときにどう拾うかは `starting` の doc。
     pub async fn ids(&self) -> Vec<EngineId> {
         self.processes.read().await.keys().cloned().collect()
     }

@@ -110,7 +110,8 @@ pub const START_TIMEOUT: Duration = Duration::from_secs(90);
 ///   指せる必要がある。揃えないと `start_game` が通した設定で1手も指せない局ができる
 /// - 裁定（`accept_continue`）で超えたら**終局にする**（`Rule`）。断ると、
 ///   フロントは一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
-///   30秒後に「アプリが裁定を返さなかった」で畳まれる——返しているのに
+///   `RULING_TIMEOUT` 後に「アプリが裁定を返さなかった」で畳まれる——
+///   **返しているのに「返さなかった」と棋譜に残る。**
 ///
 /// 2000 にしたのは、相入玉の長手数の棋譜が通る幅だから。足りなくなったら上げてよい。
 const MAX_PLIES: usize = 2000;
@@ -142,7 +143,7 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// **時間切れ負けの判定とは別物**で、こちらは**エンジンが黙ったことを見つける**
 /// ためにある。`enforce_engine_timeout` が `false`（既定）でも必ず効く。
 ///
-/// 30秒あるのは、持ち時間を使い切った後もエンジンは1手指すまで返らないため。
+/// これだけの幅があるのは、持ち時間を使い切った後もエンジンは1手指すまで返らないため。
 /// 短くすると、正常に長考しているエンジンを故障と呼ぶ。
 const SEARCH_GRACE: Duration = Duration::from_secs(30);
 
@@ -227,7 +228,7 @@ fn stalled_turn(
     }
 
     // **黙っていることは持ち時間と無関係の信号。** ここに持ち時間を足すと、
-    // 60分の対局で初手から固まったエンジンが60分30秒のあいだ検出されない
+    // 持ち時間の長い対局で初手から固まったエンジンが、持ち時間ぶん検出されない
     // （フロントには時計だけが流れ続け、正常な長考と区別が付かない）。
     //
     // ただし**喋る実装だと分かっているエンジンにだけ掛ける。** USI は `info` を
@@ -407,6 +408,9 @@ impl GameSession {
     }
 
     /// 裁定の結果「まだ続く」。**`moves` が指し手列の権威**で、Rust の写しを上書きする。
+    ///
+    /// **`Ok` は「次の手番が始まった」とは限らない。** 手数が `MAX_PLIES` を
+    /// 超えていたら終局にして `Ok` を返す（理由は `MAX_PLIES` の doc）。
     pub async fn continue_game(&self, moves: Vec<String>) -> Result<(), String> {
         self.request(|reply| Command::Continue { moves, reply })
             .await
@@ -836,7 +840,8 @@ impl Runner {
         Err("the clock ran out before the move landed".to_string())
     }
 
-    /// 裁定「続く」。`moves` で写しを上書きし、次の手番を始める
+    /// 裁定「続く」。`moves` で写しを上書きして次の手番を始める。
+    /// **ただし手数が `MAX_PLIES` を超えていたら終局にして `Ok` を返す。**
     async fn accept_continue(&mut self, moves: Vec<String>) -> Result<(), String> {
         let Phase::AwaitingRuling {
             last_mover,
@@ -2081,7 +2086,7 @@ mod tests {
     ///
     /// 揃っていないと、`start_game` が `Ok` を返した対局で最初の手の裁定が
     /// 必ず断られる。フロントが返せる列は接頭辞と長さで一意に固定されているので、
-    /// やり直しても同じ `Err` になり、30秒後に
+    /// やり直しても同じ `Err` になり、`RULING_TIMEOUT` 後に
     /// 「アプリが裁定を返さなかった」で畳まれる——**返しているのに。**
     #[tokio::test]
     async fn the_longest_startable_game_can_still_take_a_move() {
@@ -2326,7 +2331,7 @@ mod tests {
 
         // 上限を超えたら**断らずに終局にする**。断ると、フロントは一意に固定された
         // 列しか返せないのでやり直しても同じ `Err` になり、`RULING_TIMEOUT` 後に
-        // 「アプリが裁定を返さなかった」で畳まれる——返しているのに
+        // 「アプリが裁定を返さなかった」で畳まれる——返しているのに、と記録される
         let full = vec!["7g7f".to_string(); MAX_PLIES];
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut runner = test_runner(&tx);
@@ -2873,7 +2878,7 @@ mod tests {
 
         // **黙っているなら持ち時間が残っていても落とす。**
         // 持ち時間を足すと、60分の対局で初手から固まったエンジンが
-        // 60分30秒のあいだ検出されない
+        // 持ち時間ぶん検出されない
         assert_eq!(
             stalled_turn(
                 TurnClock::Running(long_ago(SEARCH_GRACE)),
@@ -2957,7 +2962,7 @@ mod tests {
     ///
     /// 60分切れ負け・`enforce_engine_timeout` は既定の偽・初手のエンジンが
     /// `go` の後にデッドロックして `info` を1行も出さない、を置く。
-    /// 沈黙の腕に持ち時間を足すと、**60分30秒のあいだ何も起きない**。
+    /// 沈黙の腕に持ち時間を足すと、**持ち時間ぶん何も起きない**。
     /// フロントには時計が500msごとに流れ続けるので、正常な長考と区別が付かない。
     #[test]
     fn a_silent_engine_is_caught_without_waiting_out_the_clock() {
@@ -3051,7 +3056,7 @@ mod tests {
     ///
     /// `enforce_engine_timeout` が偽のまま持ち時間が尽きると `budget_ms` は
     /// 0 に張り付く。持ち時間だけを見ると締切が `SEARCH_GRACE` ちょうどになり、
-    /// 正常に読み続けているエンジンが30秒で「応答しない」と呼ばれる。
+    /// 正常に読み続けているエンジンが `SEARCH_GRACE` で「応答しない」と呼ばれる。
     #[test]
     fn an_engine_that_keeps_talking_is_not_called_unresponsive() {
         // 持ち時間は尽きている（budget 0）が、いま便りがあった

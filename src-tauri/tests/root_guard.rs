@@ -167,8 +167,6 @@ fn commands(source: &str) -> Vec<(String, String, String)> {
     found
 }
 
-/// 署名がパスらしきものを受け取っているか。
-/// 引数名の末尾が `path` / `dir` / `root` のもの、および `Path` / `PathBuf` を見る
 /// 署名の丸括弧の中身。
 ///
 /// **最初の `)` で切らない。** 引数の型に `()` が現れると——`Channel<()>` は
@@ -200,6 +198,10 @@ fn signature_of(chunk: &str) -> Option<&str> {
     Some(&chunk[open + 1..open + len - 1])
 }
 
+/// 署名がパスらしきものを受け取っているか。
+///
+/// 引数名の末尾が `path` / `dir` / `root` のもの、および `Path` / `PathBuf` を見る。
+/// 型の中で受けるものは署名に出ないので、`STRUCT_CARRIED_PATH` の側で名指しする。
 fn takes_a_path(chunk: &str) -> bool {
     // 属性の括弧（`#[tauri::command(async)]` や `#[allow(...)]`）を署名と取り違えない
     let Some(signature) = signature_of(chunk) else {

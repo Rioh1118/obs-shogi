@@ -231,12 +231,13 @@ pub struct GameSettings {
 
 /// 終局の理由。
 ///
-/// **将棋のルールで決まるものを Rust は判定しない。** 詰み・千日手・持将棋・
-/// 最大手数はフロントが判定して `Rule` として渡す。
+/// **将棋のルールを Rust は判定しない。** 詰み・千日手・持将棋・最大手数は
+/// フロントが判定して `Rule` として渡す。
 ///
 /// フロントの呼び出しから入るのは `Rule` / `Resign`（人間の投了）/
 /// `Aborted`（中断）の3つ。残りは Rust が決める。
-/// **`Aborted` だけは両方から入る**（利用者の中断と、裁定が返らなかったとき）。
+/// **`Rule` と `Aborted` は両方から入る**——`Rule` は盤に載る手数の上限
+/// （`MAX_PLIES`）、`Aborted` は裁定が返らなかったとき。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GameOverReason {
@@ -247,7 +248,11 @@ pub enum GameOverReason {
     Timeout,
     /// エンジンが応答しない、落ちた、コマンドを送れない
     EngineFailure,
-    /// フロントが将棋のルールで終局と判定した
+    /// 将棋のルールで終局と判定した。
+    ///
+    /// **フロントの裁定と、Rust の手数上限（`MAX_PLIES`）の両方から入る。**
+    /// 後者は `endGameByRule` を呼んでいないのに届くので、
+    /// 「自分が投げた終局のこだま」として捨てないこと。
     Rule,
     /// 利用者の中断（`abort`）。
     ///
@@ -264,7 +269,10 @@ pub struct GameResult {
     /// 勝者。引き分けなら `None`
     pub winner: Option<Side>,
     pub reason: GameOverReason,
-    /// 棋譜や画面に残す説明。`Rule` のときの文言はフロントが持つ
+    /// 棋譜や画面に残す説明。
+    ///
+    /// `Rule` のときは、フロントが渡した文言か Rust の手数上限の説明のどちらか。
+    /// **`Some` なら捨てないこと**——なぜ終わったかを説明する唯一の文字列になる。
     pub detail: Option<String>,
 }
 

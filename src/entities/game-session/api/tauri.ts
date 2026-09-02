@@ -92,7 +92,8 @@ export async function abortGame(gameId: GameId): Promise<void> {
  *
  * **失敗しうる。断り方は3つあり、呼び直す意味があるのは1つだけ。**
  *
- * - `the game is busy` → 他の操作が同じ対局を掴んでいる。**エンジンは生きたまま**残る。
+ * - `the game is busy` → 他の操作が同じ対局を掴んでいる。**中断は試みたが通ったかは
+ *   保証しない**（詰まっていれば探索も時計も続いている）。**エンジンは生きたまま**残る。
  *   そのまま呼び直すこと。握り潰すとプロセスが残る
  * - `the game is being closed` → 別の呼び出しがいま閉じている最中。待つこと
  * - `unknown game:` → その `gameId` は台帳に無い。何も起きていない

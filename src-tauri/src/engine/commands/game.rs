@@ -123,7 +123,7 @@ impl GameEventSink for TauriEvents {
 ///
 /// 断り文句は `Err` でフロントへ返るが、**受けた側が捨てると記録がどこにも残らない**。
 /// 裁定（`continue_game` / `end_game_by_rule`）を断ると次の手番が始まらず、
-/// 30秒後に `RULING_TIMEOUT` が「アプリが裁定を返さなかった」で畳む。
+/// `RULING_TIMEOUT` を過ぎると「アプリが裁定を返さなかった」で畳まれる。
 /// 断った事実がログに無いと、**呼ばなかったのか断られたのかが区別できない**
 /// （→ 台帳の F-28）。
 ///
@@ -155,6 +155,9 @@ pub async fn submit_game_move(
 /// `game-event` の `moveDecided` を受けたら、合法性と終局（詰み・千日手・
 /// 持将棋・最大手数）を判定して、これか `end_game_by_rule` のどちらかを呼ぶ。
 /// **どちらも呼ばないと対局は進まない。**
+///
+/// **`Ok` は「次の手番が始まった」とは限らない。** 手数が `MAX_PLIES` を
+/// 超えていたら終局する（`over { reason: rule }`）。
 #[tauri::command]
 pub async fn continue_game(
     state: tauri::State<'_, AppState>,
