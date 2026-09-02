@@ -249,10 +249,29 @@ impl std::fmt::Display for StopListening {
 
 impl std::error::Error for StopListening {}
 
+/// `readyok` が返るまで送れないコマンド。
+///
+/// USI は `isready` の返事より前の `usinewgame` / `position` / `go` を認めない。
+/// 送っても評価関数の読み込み中に握り潰される。
 fn requires_ready(cmd: &GuiCommand) -> bool {
     matches!(
         cmd,
         GuiCommand::UsiNewGame | GuiCommand::Go(_) | GuiCommand::Position(_)
+    )
+}
+
+/// 積み置きを掃いている最中でも列の後ろへ回さないコマンド。
+///
+/// - `Stop`: 止めるのに列の後ろへ並ばせては意味が無い
+/// - `IsReady`: 掃く側は `write` を直に呼ぶので、積むと
+///   `start_ready_watch_and_send` の後処理（世代の更新、`readyok` の購読）が飛ぶ
+/// - `Quit`: 積むと直後の `kill_engine` が捨てる。落とす前に1行も書かれない
+///
+/// どれも `position` / `go` の順序には関わらない。
+fn bypasses_draining(cmd: &GuiCommand) -> bool {
+    matches!(
+        cmd,
+        GuiCommand::Stop | GuiCommand::IsReady | GuiCommand::Quit
     )
 }
 
@@ -267,32 +286,28 @@ enum Dispatch {
     Refuse,
 }
 
-/// 送る／積む／断るを決める。**判断はここ1本。**
+/// `send_command` の入口で、送る／積む／断るを決める。
 ///
-/// 引数を3つとも取るのは、**送る順に関わる条件を全部この写像に載せるため**。
-/// 1つでも本文側に残すと、その条件だけテストが当たらない。
+/// **入口の判断はこれで全部。** ただし断る口はここだけではない。
+/// 書き込みの列が詰まった後は `run_writer` が `STALLED` で断り、
+/// 列そのものが閉じていれば `write` が `NotInitialized` を返す。
+///
+/// 早期 return を使わず1つの `match` にしてあるのは、
+/// **どの枝も他の枝に隠れていないことを目で数えられるようにする**ため。
 ///
 /// - `Closed` を `Waiting` と同じ扱いにしない。積み置きは「まだ `readyok` が
 ///   来ていない」ための仕組みで、「**もう来ない**」ときの置き場ではない。
 ///   積むと呼び出し側へ `Ok` が返り、待つ側は永久に返らない
 /// - `draining`（積み置きを掃いている最中）は `Ready` でも積む。掃きは1件ごとに
 ///   書き込みの返事を待つので、直書きが入るとその隙に追い越す。
-///   **`Stop` だけは通す。** 止めるのに列の後ろへ並ばせては意味が無い
-///   （`stop` は `cancel_queued_go` が先に積み置きの `go` を落とす）
+///   例外は `bypasses_draining` の3つ
 fn dispatch_for(state: ReadyState, draining: bool, cmd: &GuiCommand) -> Dispatch {
-    if state == ReadyState::Closed {
-        return Dispatch::Refuse;
-    }
-    // 掃いている最中は、順序に関わるコマンドを全部列の後ろへ回す。
-    // `requires_ready` の3つだけにすると `gameover` / `ponderhit` が追い越す
-    if draining && !matches!(cmd, GuiCommand::Stop) {
-        return Dispatch::Queue;
-    }
-    match state {
-        ReadyState::Closed => Dispatch::Refuse,
-        ReadyState::Ready => Dispatch::Send,
-        ReadyState::Waiting if requires_ready(cmd) => Dispatch::Queue,
-        ReadyState::Waiting => Dispatch::Send,
+    match (state, draining) {
+        (ReadyState::Closed, _) => Dispatch::Refuse,
+        (_, true) if !bypasses_draining(cmd) => Dispatch::Queue,
+        (ReadyState::Ready, _) => Dispatch::Send,
+        (ReadyState::Waiting, _) if requires_ready(cmd) => Dispatch::Queue,
+        (ReadyState::Waiting, _) => Dispatch::Send,
     }
 }
 
@@ -1036,67 +1051,99 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
 mod tests {
     use super::*;
 
-    /// 写像の全域を表で固定する。
+    /// `ReadyState` の全バリアント。**足したらここにも足す。**
+    /// `closed_absorbs_every_later_transition` と写像のループが両方これを回す
+    const ALL_READY_STATES: [ReadyState; 3] =
+        [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed];
+
+    /// 写像のループが回すコマンド。
     ///
-    /// **`send_command` の判断はこの関数が全部持つ**ので、ここが写像の仕様。
-    /// バリアントやコマンドを足したら、この表に行が増える。
+    /// **`requires_ready` と `bypasses_draining` が真を返すものを全部含める。**
+    /// 含めているかは `every_ready_gated_command_is_covered` と
+    /// `every_draining_bypass_is_covered` が見る。
+    /// それ以外（`Usi` / `SetOption` / `Debug` / `Register`）は
+    /// どちらの述語にも掛からず `Send` になるだけなので、代表として `Usi` を1つ入れる。
+    fn commands() -> Vec<GuiCommand> {
+        vec![
+            GuiCommand::UsiNewGame,
+            GuiCommand::Go(usi::ThinkParams::new()),
+            GuiCommand::Position("sfen".to_string()),
+            GuiCommand::Stop,
+            GuiCommand::IsReady,
+            GuiCommand::Quit,
+            GuiCommand::GameOver(usi::GameOverKind::Win),
+            GuiCommand::Ponderhit,
+            GuiCommand::Usi,
+        ]
+    }
+
+    /// 写像の全域を回す。**行を手で選ばない。**
     ///
-    /// `GameOver` と `Ponderhit` を入れているのは、**`requires_ready` が
-    /// false を返す側**だから。掃いている最中にそれらを通すと、
-    /// 積み置きの `position` / `go` を追い越して先にワイヤへ出る。
+    /// 手書きの表にすると、書いた人が選んだ組み合わせしか当たらない。
+    /// `ReadyState` にバリアントを足したときも、`COMMANDS` に足したときも、
+    /// このループが自動で広がる。
+    ///
+    /// 期待値は `expected_dispatch` が別の書き方で作る。**同じ式を写さない**
+    /// （写すと `dispatch_for` を壊しても両方が同じように壊れる）。
     #[test]
-    fn the_dispatch_table_is_fixed() {
-        use Dispatch::{Queue, Refuse, Send};
-        use ReadyState::{Closed, Ready, Waiting};
-
-        let go = GuiCommand::Go(usi::ThinkParams::new());
-        let position = GuiCommand::Position("sfen".to_string());
-        let stop = GuiCommand::Stop;
-        let isready = GuiCommand::IsReady;
-        let gameover = GuiCommand::GameOver(usi::GameOverKind::Win);
-        let ponderhit = GuiCommand::Ponderhit;
-
-        // (状態, 掃いているか, コマンド) → 判断
-        let table: &[(ReadyState, bool, &GuiCommand, Dispatch)] = &[
-            // 出力が終わっている。**積むと呼び出し側に `Ok` が返り、待ち手が永久に返らない**
-            (Closed, false, &go, Refuse),
-            (Closed, false, &position, Refuse),
-            (Closed, false, &stop, Refuse),
-            (Closed, false, &isready, Refuse),
-            (Closed, true, &stop, Refuse),
-            // `readyok` 待ち。局面と思考だけ積む
-            (Waiting, false, &go, Queue),
-            (Waiting, false, &position, Queue),
-            (Waiting, false, &stop, Send),
-            (Waiting, false, &isready, Send),
-            (Waiting, false, &gameover, Send),
-            (Waiting, false, &ponderhit, Send),
-            // ready。掃いていなければ全部そのまま
-            (Ready, false, &go, Send),
-            (Ready, false, &position, Send),
-            (Ready, false, &stop, Send),
-            (Ready, false, &isready, Send),
-            (Ready, false, &gameover, Send),
-            (Ready, false, &ponderhit, Send),
-            // **掃いている最中は `Stop` 以外を全部積む。**
-            // `gameover` / `ponderhit` を通すと積み置きを追い越す
-            (Ready, true, &go, Queue),
-            (Ready, true, &position, Queue),
-            (Ready, true, &isready, Queue),
-            (Ready, true, &gameover, Queue),
-            (Ready, true, &ponderhit, Queue),
-            // 止めるのに列の後ろへ並ばせては意味が無い
-            (Ready, true, &stop, Send),
-            (Waiting, true, &stop, Send),
-        ];
-
-        for (state, draining, cmd, want) in table {
-            assert_eq!(
-                &dispatch_for(*state, *draining, cmd),
-                want,
-                "({state:?}, draining={draining}, {cmd})"
-            );
+    fn the_dispatch_map_is_total() {
+        for state in ALL_READY_STATES {
+            for draining in [false, true] {
+                for cmd in commands() {
+                    assert_eq!(
+                        dispatch_for(state, draining, &cmd),
+                        expected_dispatch(state, draining, &cmd),
+                        "({state:?}, draining={draining}, {cmd})"
+                    );
+                }
+            }
         }
+    }
+
+    /// `dispatch_for` と**独立に**期待値を組む。
+    ///
+    /// 条件を箇条書きの順に素直に並べる。`dispatch_for` は `match` の1本に
+    /// 畳んであるので、こちらは `if` を並べる形にして書き方を変えてある。
+    fn expected_dispatch(state: ReadyState, draining: bool, cmd: &GuiCommand) -> Dispatch {
+        if state == ReadyState::Closed {
+            return Dispatch::Refuse;
+        }
+        if draining && !bypasses_draining(cmd) {
+            return Dispatch::Queue;
+        }
+        if state == ReadyState::Waiting && requires_ready(cmd) {
+            return Dispatch::Queue;
+        }
+        Dispatch::Send
+    }
+
+    /// `requires_ready` が真を返すコマンドが、全部ループに載っていること。
+    ///
+    /// **載っていないと、`requires_ready` からバリアントを落としても緑のまま通る。**
+    /// `usinewgame` が表に1行も無かったのがそれ
+    #[test]
+    fn every_ready_gated_command_is_covered() {
+        let covered: Vec<GuiCommand> = commands().into_iter().filter(requires_ready).collect();
+
+        assert_eq!(
+            covered.len(),
+            3,
+            "`requires_ready` が真を返すコマンドが {} 個しかループに載っていない: {covered:?}",
+            covered.len()
+        );
+    }
+
+    /// `draining` の例外が全部ループに載っていること
+    #[test]
+    fn every_draining_bypass_is_covered() {
+        let covered: Vec<GuiCommand> = commands().into_iter().filter(bypasses_draining).collect();
+
+        assert_eq!(
+            covered.len(),
+            3,
+            "例外が {} 個しか載っていない",
+            covered.len()
+        );
     }
 
     /// `Closed` から戻す口を作らないこと。
