@@ -27,7 +27,13 @@ export async function startGame(settings: GameSettings): Promise<GameId> {
   return await invoke("start_game", { settings });
 }
 
-/** 人間の着手。合法性を確かめてから呼ぶ */
+/**
+ * 人間の着手。合法性を確かめてから呼ぶ。
+ *
+ * **解決したことは「採られた」の意味。** 着手が届くのと持ち時間が尽きるのが
+ * 同じ tick に入ると reject する（`moveDecided` は出ず、代わりに
+ * `over { reason: "timeout" }` が届く）。棋譜へ積むのは解決してからにすること。
+ */
 export async function submitGameMove(gameId: GameId, side: Side, usiMove: string): Promise<void> {
   return await invoke("submit_game_move", { gameId, side, usiMove });
 }
@@ -38,6 +44,10 @@ export async function submitGameMove(gameId: GameId, side: Side, usiMove: string
  * `moveDecided` を受けたら、合法性と終局（詰み・千日手・持将棋・最大手数）を
  * 判定して、これか `endGameByRule` のどちらかを呼ぶ。
  * **どちらも呼ばないと対局は進まない。**
+ *
+ * **`moves` は根からの全手。** 対局開始局面が途中局面でも、`startGame` に渡した
+ * `initialMoves` を含めて渡すこと。直前に決まった手までを丸ごと突き合わせるので、
+ * 途中を落とした列や過去の手が入れ替わった列は reject する。
  */
 export async function continueGame(gameId: GameId, moves: string[]): Promise<void> {
   return await invoke("continue_game", { gameId, moves });
@@ -68,9 +78,14 @@ export async function abortGame(gameId: GameId): Promise<void> {
  * **終局しただけでは落ちない**（`gameover` の後に指し直せる形にしてあるため）。
  * 呼ばないとプロセスが残る。
  *
- * **失敗しうる。** 他の操作が同じ対局を掴んでいると reject する。そのとき
- * 対局は中断済みだが、**エンジンは生きたまま**残っている。
- * そのまま呼び直すこと。握り潰すとプロセスが残る。
+ * **失敗しうる。断り方は2つあり、呼び直す意味があるのは片方だけ。**
+ *
+ * - 他の操作が同じ対局を掴んでいる → **エンジンは生きたまま**残る。
+ *   そのまま呼び直すこと。握り潰すとプロセスが残る
+ * - `unknown game:` で始まる文言 → その `gameId` は台帳に無い。何も起きていないので、
+ *   呼び直しても同じ結果になる
+ *
+ * 文言で区別することになる。型で割るのは #362 と同じ形の話。
  */
 export async function closeGame(gameId: GameId): Promise<void> {
   return await invoke("close_game", { gameId });

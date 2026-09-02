@@ -749,8 +749,14 @@ impl Runner {
         }
         validate_usi_move(&usi_move)?;
 
-        self.decide_move(side, usi_move, None).await;
-        Ok(())
+        // **`Ok` は「`MoveDecided` が出た」の意味にする。** 採らなかったのに
+        // `Ok` を返すと、`await` の後に棋譜へ積む素直な実装が、終局後の棋譜に
+        // 指されていない手を1手足す。しかも `finish` は `Over` を先に流すので、
+        // フロントには終局が先に届き、その後で `Ok` が解決する
+        if self.decide_move(side, usi_move, None).await {
+            return Ok(());
+        }
+        Err("the clock ran out before the move landed".to_string())
     }
 
     /// 裁定「続く」。`moves` で写しを上書きし、次の手番を始める
@@ -1022,7 +1028,9 @@ impl Runner {
                     return;
                 }
                 let ponder = ponder.filter(|m| validate_usi_move(m).is_ok());
-                self.decide_move(side, usi, ponder).await;
+                // エンジン側には返す相手が居ない。採らなかったときは `finish` が
+                // `Over` を流しているので、ここで足すことは無い
+                let _taken = self.decide_move(side, usi, ponder).await;
             }
             SearchOutcome::Resign => {
                 if self.is_to_move(side) {
@@ -1110,7 +1118,17 @@ impl Runner {
     // --- 進行 ---
 
     /// 手が決まった。**ここでは進めない。** 時計を締めて裁定を待つ
-    async fn decide_move(&mut self, mover: Side, usi_move: String, ponder_move: Option<String>) {
+    /// 手を採る。**採らなかったら `false`。**
+    ///
+    /// 戻り値を捨てると、`submit_game_move` が指されなかった手に `Ok` を返す。
+    /// 呼び出し側は `MoveDecided` が出たものとして棋譜に積むので、
+    /// **終局後の棋譜に指されていない手が1手増える。**
+    async fn decide_move(
+        &mut self,
+        mover: Side,
+        usi_move: String,
+        ponder_move: Option<String>,
+    ) -> bool {
         let elapsed = self.running_clock().map_or(0, |(_, ms)| ms);
         let expired = self.clocks.get_mut(mover).consume(elapsed) == ClockOutcome::Expired;
 
@@ -1125,7 +1143,7 @@ impl Runner {
                 detail: None,
             })
             .await;
-            return;
+            return false;
         }
 
         self.phase = Phase::AwaitingRuling {
@@ -1142,6 +1160,7 @@ impl Runner {
             elapsed_ms: elapsed,
             clocks: self.clocks_view(),
         });
+        true
     }
 
     /// 手番を渡す。相手が先読み中なら、当たったか外れたかで分かれる
@@ -1843,6 +1862,49 @@ mod tests {
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
         }
+    }
+
+    /// 時計が尽きて採られなかった手に `Ok` を返さないこと。
+    ///
+    /// 人間の着手が届くのと持ち時間が尽きるのが同じ tick に入ると、
+    /// `MoveDecided` は出ずに `Over { Timeout }` が出る。ここで `Ok` を返すと、
+    /// `await submitGameMove(...)` の後に棋譜へ積む素直な実装が、
+    /// **終局後の棋譜に指されていない手を1手足す**。しかも `finish` は `Over` を
+    /// 先に流すので、フロントには終局が先に届いてから `Ok` が解決する。
+    #[tokio::test]
+    async fn a_move_that_the_clock_beat_is_not_reported_as_taken() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+        runner.settings.enforce_engine_timeout = true;
+        // 持ち時間を尽きた状態にして、手番に入った時刻を十分前に置く
+        runner.clocks = GameClocks::new(
+            TimeLimit {
+                main_ms: 1,
+                byoyomi_ms: 0,
+                increment_ms: 0,
+            },
+            minutes(10),
+        );
+        runner.turn_clock = TurnClock::Running(long_ago(Duration::from_secs(5)));
+
+        let error = runner
+            .accept_human_move(Side::Black, "7g7f".to_string())
+            .await
+            .expect_err("採られなかった手に Ok を返している");
+        assert!(error.contains("clock"), "断る理由が変わっている: {error}");
+
+        let seen = events.take();
+        assert!(
+            !seen
+                .iter()
+                .any(|e| matches!(e, GameEvent::MoveDecided { .. })),
+            "採らなかったのに `moveDecided` を流している"
+        );
+        assert!(
+            seen.iter().any(|e| matches!(e, GameEvent::Over { .. })),
+            "終局が流れていない"
+        );
     }
 
     /// 裁定で渡された指し手列が、いまの写しの続きであること。
