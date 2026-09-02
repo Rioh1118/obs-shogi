@@ -4,9 +4,8 @@
 //! （`position` も `go` も `isready` もここには出てこない）。
 
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
-use crate::engine::utils::LogThrottle;
+use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
 
 use tauri::Emitter;
 
@@ -55,9 +54,6 @@ pub async fn start_game(
 /// この綴りは意味を持たない。下に置くと、次に宛先を増やす人が
 /// 「チャンネル名は `game` にある」を根拠に、宛先ごとの分岐を状態機械へ書き始める。
 const GAME_EVENT: &str = "game-event";
-
-/// `emit` の失敗を記録する最短間隔。解析側（`bridge`）と同じ。
-const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
 /// `game-event` へ流す宛先。**実装はここ（上の段）に置く。**
 ///

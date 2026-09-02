@@ -103,6 +103,13 @@ pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
     }
 }
 
+/// 宛先へ流せなかったことを記録する最短間隔。
+///
+/// **1つに寄せる。** 解析と対局で別々に持つと、片方を動かしたときに
+/// もう片方が古いまま残る。同じ判断（emit の失敗は洪水になるので絞る）なので、
+/// 両方が使える段に置く。
+pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
+
 #[derive(Debug, Clone)]
 pub struct LogThrottle {
     interval: Duration,

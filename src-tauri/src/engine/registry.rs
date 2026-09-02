@@ -75,7 +75,7 @@ pub struct EngineRegistry {
     /// 起動したが、まだ `usiok` を取り切っていないもの。
     ///
     /// **子プロセスは既に走っている。** `spawn` から `processes` への登録まで
-    /// `USI_OK_TIMEOUT`（30秒）の窓があり、その間ここに居ないと
+    /// `USI_OK_TIMEOUT` の窓があり、その間ここに居ないと
     /// 終了時の掃除から見えない（起動を待たずにアプリを閉じると孤児になる）。
     starting: RwLock<Vec<Arc<UsiProtocol>>>,
 }

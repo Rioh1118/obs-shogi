@@ -1,4 +1,4 @@
-use crate::engine::utils::LogThrottle;
+use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
 
 use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
@@ -238,8 +238,8 @@ impl EngineBridge {
         // session が消えたら emit/保存をやめるためのフラグ
         let mut session_exists = true;
 
-        // emit失敗は5秒に1回だけwarn
-        let mut emit_warn = LogThrottle::new(Duration::from_secs(5));
+        // emit の失敗は洪水になるので絞る。間隔は対局側と1つ（`EMIT_WARN_INTERVAL`）
+        let mut emit_warn = LogThrottle::new(EMIT_WARN_INTERVAL);
         // session消失も1回だけdebug
         let mut session_missing_logged = false;
 

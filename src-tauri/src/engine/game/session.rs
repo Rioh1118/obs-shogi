@@ -50,7 +50,7 @@ const TICK: Duration = Duration::from_millis(100);
 /// 壁時計が取れないことを記録する最短間隔。
 ///
 /// `clocks_view` は `CLOCK_EMIT_INTERVAL` ごとに通るので、絞らないと
-/// 毎秒2行出続ける。5秒は `commands::game` の `EMIT_WARN_INTERVAL` と同じ。
+/// 毎秒2行出続ける。
 const CLOCK_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
 /// 時計だけの更新を送る最短間隔。
@@ -86,11 +86,17 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 /// （`enforce_engine_timeout` が偽なら時間切れも掛からず、`run_search` にも締切は無い）。
 /// フロントには読み筋だけが流れ続け、利用者が中断を押すまで対局が終わらない。
 ///
-/// **これは「1手に待つ上限」ではない。** 持ち時間に足すので、実際に待つのは
-/// 最大で `MAX_TIME_MS`（24時間）＋これ。24時間切れ負けで
-/// `enforce_engine_timeout` が偽なら、固まったエンジンはその間落ちない。
-/// それを短くしたいなら、ここではなく持ち時間の上限（`MAX_TIME_MS`）か
-/// `enforce_engine_timeout` の既定を変えること。
+/// **これは「1手に待つ上限」ではない。** 実際に待つのは `budget_ms`＋これで、
+/// `budget_ms` は `remaining_ms + byoyomi_ms`（`clock.rs`）。
+///
+/// **`remaining_ms` は育つ。** フィッシャーでは着手のたびに `increment_ms` が
+/// 積まれる（`SideClock::consume`）ので、「10分＋10秒加算」でも300手指せば
+/// 45分近くまで伸びる。`TimeLimit::validate` が見るのは1欄ずつの上限だけで、
+/// 合計も累積も見ない。つまり**待つ長さは設定と手数で動く**。
+///
+/// `enforce_engine_timeout` が偽なら時間切れも掛からないので、その間
+/// 固まったエンジンは落ちない。短くしたいなら `enforce_engine_timeout` の既定を
+/// 変えるか、ここを短くすること（`MAX_TIME_MS` は1欄ごとの上限なので効かない）。
 ///
 /// 解析側の `MAX_THINK_TIME` とは**別の約束**。あちらは席を握る時間の上限で、
 /// こちらは持ち時間を使い切った後の猶予。値が同じなのは偶然なので縛らない。
@@ -183,7 +189,8 @@ impl Stall {
 /// 畳み待ちの間は時計が動かないので、時間切れの判定には掛からない。
 /// ここが無いと、`stop` の書き込みが詰まったときに対局が無音のまま固まる。
 ///
-/// `search.rs` の `SEARCH_STOP_GRACE`（5秒）＋書き込みの上限（2秒）より長く取る。
+/// `search.rs` の `SEARCH_STOP_GRACE` ＋書き込みの上限（`WRITE_TIMEOUT`）より長く取る
+/// （関係は `the_watchdogs_are_ordered` が式で見る）。
 /// 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ。
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -226,7 +233,8 @@ pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
 /// 50ms は `TICK`（100ms）より細かく、`close_game` の応答に足す遅れが
 /// 人に分からない範囲。細かくするほど `SearchesIdle` が `Tick` と同じ
 /// キューに並ぶので、`run_loop` を要求で埋めない上限でもある
-/// （6秒で最大120回）。
+/// （回数は `CLOSE_IDLE_TIMEOUT` をこれで割ったぶん。**数を書かない**——
+/// 予算を動かしたときに、離れたところが嘘になる）。
 const CLOSE_POLL: Duration = Duration::from_millis(50);
 
 // ===== 外から呼ぶ口 =====
@@ -1907,7 +1915,7 @@ mod tests {
     /// 止めた探索を畳んでいる間は、時計が動かないこと。
     ///
     /// 手番に入った時刻で数えると、`go` を一度も受け取っていないエンジンの
-    /// 消費として最大 `SEARCH_STOP_GRACE`（5秒）が計上され、`enforce_engine_timeout` が
+    /// 消費として最大 `SEARCH_STOP_GRACE` が計上され、`enforce_engine_timeout` が
     /// 真なら**それだけで時間切れ負けする**。画面の残り時間も畳み終わりに巻き戻る。
     #[tokio::test]
     async fn the_clock_does_not_run_while_a_stopped_search_is_settling() {
@@ -2451,7 +2459,7 @@ mod tests {
 
     /// 上限どうしの大小を固定する。
     ///
-    /// **数を散文で書かない。** 「`SEARCH_STOP_GRACE`（5秒）＋書き込みの上限（2秒）より
+    /// **数を散文で書かない。** 「`SEARCH_STOP_GRACE` ＋書き込みの上限より
     /// 長く取る」のような文は、どちらかを動かすと黙って偽になる。
     /// 関係そのものをここで見る。
     #[test]

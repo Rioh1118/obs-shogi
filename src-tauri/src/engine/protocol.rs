@@ -45,7 +45,7 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
 /// `timeout` は発火する機会そのものを持たない。
 ///
 /// 超えるとプロセスが残る。回収する仕掛けは無い → #353
-const KILL_TIMEOUT: Duration = Duration::from_secs(2);
+pub const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// プロセスを落とした後に送ろうとしたときの文言
 const GONE: &str = "engine process has been shut down";
@@ -260,7 +260,7 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 /// 完走してコマンドをワイヤへ出す。分かるのは「上限内に書き終わらなかった」だけ。
 /// 後続を全部断る（`fail_writes`）のはそのため——**後から1件だけ届く**ことは
 /// 避けられないが、その後ろに何も並ばないようにはできる。
-pub(crate) const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 書き込みの列に流す1件。
 struct WriteJob {

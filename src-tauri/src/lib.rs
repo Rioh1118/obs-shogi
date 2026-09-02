@@ -58,7 +58,7 @@ pub const CLOSE_TIMEOUT: Duration = Duration::from_secs(4);
 /// **`CLOSE_TIMEOUT` と分ける。** 1つの `timeout` で包むと、対局を閉じるのに
 /// 使い切ったときに掃除の future が1度も poll されない。
 /// **解析用エンジンは掃除からしか届かない**ので、それだけで必ず残る。
-const SWEEP_TIMEOUT: Duration = Duration::from_secs(4);
+pub const SWEEP_TIMEOUT: Duration = Duration::from_secs(4);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
