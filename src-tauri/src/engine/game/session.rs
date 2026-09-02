@@ -1036,3 +1036,359 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
 fn contains_usi_breaking_char(s: &str) -> bool {
     s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 平手。`GuiCommand::Position` が `position sfen` を前置するので、
+    /// `startpos` ではなく完全な SFEN を持つ
+    const HIRATE: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+
+    fn minutes(n: u64) -> TimeLimit {
+        TimeLimit {
+            main_ms: n * 60_000,
+            byoyomi_ms: 0,
+            increment_ms: 0,
+        }
+    }
+
+    /// 先後とも人間の設定。
+    ///
+    /// **エンジンを1つも起動しないので、実プロセス無しで状態機械を踏める。**
+    /// `spawn_players` は人間側を飛ばすため、`registry` は空のまま使われない。
+    fn two_humans(initial_moves: Vec<&str>) -> GameSettings {
+        GameSettings {
+            black: PlayerSpec::Human {
+                name: "先手".to_string(),
+            },
+            white: PlayerSpec::Human {
+                name: "後手".to_string(),
+            },
+            black_time: minutes(10),
+            white_time: minutes(10),
+            start_sfen: HIRATE.to_string(),
+            initial_moves: initial_moves.into_iter().map(String::from).collect(),
+            enforce_engine_timeout: false,
+        }
+    }
+
+    async fn start(settings: GameSettings) -> GameSession {
+        GameSession::start(Arc::new(EngineRegistry::new()), None, settings)
+            .await
+            .expect("人間だけの対局は起動できるはず")
+    }
+
+    fn phase_of(snapshot: &GameSnapshot) -> &GamePhaseView {
+        &snapshot.phase
+    }
+
+    #[tokio::test]
+    async fn side_to_move_comes_from_the_sfen() {
+        let game = start(two_humans(vec![])).await;
+        let snapshot = game.snapshot().await.unwrap();
+        assert!(matches!(
+            phase_of(&snapshot),
+            GamePhaseView::Thinking { side: Side::Black }
+        ));
+    }
+
+    #[tokio::test]
+    async fn initial_moves_flip_the_side_to_move() {
+        let game = start(two_humans(vec!["7g7f"])).await;
+        let snapshot = game.snapshot().await.unwrap();
+        assert!(matches!(
+            phase_of(&snapshot),
+            GamePhaseView::Thinking { side: Side::White }
+        ));
+        assert_eq!(snapshot.moves, vec!["7g7f".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn a_decided_move_stops_the_game_until_the_app_rules_on_it() {
+        let game = start(two_humans(vec![])).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+
+        let snapshot = game.snapshot().await.unwrap();
+        match phase_of(&snapshot) {
+            GamePhaseView::AwaitingRuling {
+                last_mover,
+                usi_move,
+            } => {
+                assert_eq!(*last_mover, Side::Black);
+                assert_eq!(usi_move, "7g7f");
+            }
+            other => panic!("裁定待ちに入っていない: {other:?}"),
+        }
+
+        // 裁定が返るまでは次の手を受け付けない
+        assert!(game
+            .submit_move(Side::White, "3c3d".to_string())
+            .await
+            .is_err());
+
+        // 指し手列は裁定を通るまで増えない。権威はフロント側
+        assert!(snapshot.moves.is_empty());
+    }
+
+    #[tokio::test]
+    async fn continue_hands_the_turn_over_and_takes_the_app_move_list() {
+        let game = start(two_humans(vec![])).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+        game.continue_game(vec!["7g7f".to_string()]).await.unwrap();
+
+        let snapshot = game.snapshot().await.unwrap();
+        assert!(matches!(
+            phase_of(&snapshot),
+            GamePhaseView::Thinking { side: Side::White }
+        ));
+        assert_eq!(snapshot.moves, vec!["7g7f".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn continue_is_refused_when_the_list_does_not_end_with_the_decided_move() {
+        let game = start(two_humans(vec![])).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+
+        // 直前に決まった手で終わっていない
+        assert!(game.continue_game(vec!["2g2f".to_string()]).await.is_err());
+        // 裁定待ちのまま留まる
+        assert!(matches!(
+            phase_of(&game.snapshot().await.unwrap()),
+            GamePhaseView::AwaitingRuling { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn continue_is_refused_when_the_move_count_does_not_match_the_next_side() {
+        let game = start(two_humans(vec![])).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+
+        // 末尾は合っているが手数が偶数なので、次の手番が先手になってしまう
+        assert!(game
+            .continue_game(vec![
+                "2g2f".to_string(),
+                "3c3d".to_string(),
+                "2f2e".to_string(),
+                "7g7f".to_string()
+            ])
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn continue_is_refused_outside_a_ruling() {
+        let game = start(two_humans(vec![])).await;
+        assert!(game.continue_game(vec!["7g7f".to_string()]).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_move_from_the_side_not_to_move_is_refused() {
+        let game = start(two_humans(vec![])).await;
+        assert!(game
+            .submit_move(Side::White, "3c3d".to_string())
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn end_by_rule_finishes_and_records_who_won() {
+        let game = start(two_humans(vec![])).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+        game.end_by_rule(Some(Side::Black), Some("詰み".to_string()))
+            .await
+            .unwrap();
+
+        match phase_of(&game.snapshot().await.unwrap()) {
+            GamePhaseView::Over { result } => {
+                assert_eq!(result.winner, Some(Side::Black));
+                assert_eq!(result.reason, GameOverReason::Rule);
+                assert_eq!(result.detail.as_deref(), Some("詰み"));
+            }
+            other => panic!("終局していない: {other:?}"),
+        }
+        // 終局後は二度と受け付けない
+        assert!(game.end_by_rule(None, None).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn resign_gives_the_win_to_the_opponent() {
+        let game = start(two_humans(vec![])).await;
+        game.resign(Side::Black).await.unwrap();
+
+        match phase_of(&game.snapshot().await.unwrap()) {
+            GamePhaseView::Over { result } => {
+                assert_eq!(result.winner, Some(Side::White));
+                assert_eq!(result.reason, GameOverReason::Resign);
+            }
+            other => panic!("終局していない: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn abort_finishes_without_a_winner() {
+        let game = start(two_humans(vec![])).await;
+        game.abort().await.unwrap();
+
+        match phase_of(&game.snapshot().await.unwrap()) {
+            GamePhaseView::Over { result } => {
+                assert_eq!(result.winner, None);
+                assert_eq!(result.reason, GameOverReason::Aborted);
+            }
+            other => panic!("終局していない: {other:?}"),
+        }
+    }
+
+    /// 固定しているのは `on_tick` が裁定待ちで時計を見ないこと。
+    /// **時計そのものが止まることは別のテストが見る**（下の1本）。
+    /// 2つを1本にすると、片方を壊しても通ってしまう
+    #[tokio::test]
+    async fn ruling_never_runs_the_clock_out() {
+        let mut settings = two_humans(vec![]);
+        // 100ms しか無い持ち時間で裁定待ちに入れる。時計を見ていれば必ず尽きる
+        settings.black_time = TimeLimit {
+            main_ms: 100,
+            byoyomi_ms: 0,
+            increment_ms: 0,
+        };
+        let game = start(settings).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
+        assert!(
+            matches!(
+                phase_of(&game.snapshot().await.unwrap()),
+                GamePhaseView::AwaitingRuling { .. }
+            ),
+            "裁定待ちの間に時間切れにしてはいけない"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_shown_clock_does_not_move_while_the_app_is_ruling() {
+        let game = start(two_humans(vec![])).await;
+        game.submit_move(Side::Black, "7g7f".to_string())
+            .await
+            .unwrap();
+
+        let before = game.snapshot().await.unwrap().clocks;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let after = game.snapshot().await.unwrap().clocks;
+
+        assert_eq!(before.black.remaining_ms, after.black.remaining_ms);
+        assert_eq!(before.white.remaining_ms, after.white.remaining_ms);
+    }
+
+    #[tokio::test]
+    async fn the_shown_clock_moves_while_a_side_is_thinking() {
+        // 上の1本が「止まっている」を見るので、こちらで「動く」側を押さえる。
+        // 両方無いと、時計を常に止めても両方通る
+        let game = start(two_humans(vec![])).await;
+
+        let before = game.snapshot().await.unwrap().clocks;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let after = game.snapshot().await.unwrap().clocks;
+
+        assert!(
+            after.black.remaining_ms < before.black.remaining_ms,
+            "手番側の時計が動いていない: {} -> {}",
+            before.black.remaining_ms,
+            after.black.remaining_ms
+        );
+        assert_eq!(
+            before.white.remaining_ms, after.white.remaining_ms,
+            "手番でない側の時計が動いている"
+        );
+    }
+
+    #[tokio::test]
+    async fn running_out_of_time_ends_the_game() {
+        let mut settings = two_humans(vec![]);
+        settings.black_time = TimeLimit {
+            main_ms: 50,
+            byoyomi_ms: 0,
+            increment_ms: 0,
+        };
+        let game = start(settings).await;
+
+        // tick は 100ms ごと。実時間で待つので余裕を取る
+        let mut result = None;
+        for _ in 0..40 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            if let GamePhaseView::Over { result: r } = phase_of(&game.snapshot().await.unwrap()) {
+                result = Some(r.clone());
+                break;
+            }
+        }
+
+        let result = result.expect("持ち時間が尽きても終局しなかった");
+        assert_eq!(result.reason, GameOverReason::Timeout);
+        assert_eq!(result.winner, Some(Side::White));
+    }
+
+    #[test]
+    fn settings_reject_startpos_because_position_sfen_is_prepended() {
+        let mut settings = two_humans(vec![]);
+        settings.start_sfen = "startpos".to_string();
+        assert!(validate_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn settings_reject_an_sfen_without_a_side_field() {
+        let mut settings = two_humans(vec![]);
+        settings.start_sfen =
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL".to_string();
+        assert!(validate_settings(&settings).is_err());
+    }
+
+    #[test]
+    fn position_is_built_as_sfen_plus_moves() {
+        assert_eq!(position_argument(HIRATE, &[]), HIRATE);
+        assert_eq!(
+            position_argument(HIRATE, &["7g7f".to_string(), "3c3d".to_string()]),
+            format!("{HIRATE} moves 7g7f 3c3d")
+        );
+    }
+
+    #[test]
+    fn move_shape_is_checked_but_legality_is_not() {
+        // 通したい形
+        for mv in ["7g7f", "8h2b+", "P*5e", "5a5b"] {
+            assert!(validate_usi_move(mv).is_ok(), "{mv} が弾かれた");
+        }
+        // 合法かどうかは見ない。盤の上でありえない手でも形が通れば通す
+        assert!(validate_usi_move("1a1a").is_ok());
+
+        // 形が壊れているもの
+        assert!(validate_usi_move("").is_err());
+        assert!(validate_usi_move("7g 7f").is_err());
+        assert!(validate_usi_move("7g7f\nquit").is_err());
+        assert!(validate_usi_move("７六歩").is_err());
+        assert!(validate_usi_move("aaaaaaaaa").is_err());
+    }
+
+    #[test]
+    fn control_characters_are_rejected_across_the_whole_range() {
+        // 列挙で書くと必ず漏れる。範囲を回す（/implement 手順5）
+        for code in 0x00u8..=0x1F {
+            let mv = format!("7g7{}", code as char);
+            assert!(
+                validate_usi_move(&mv).is_err(),
+                "制御文字 {code:#04x} が通った"
+            );
+        }
+    }
+}

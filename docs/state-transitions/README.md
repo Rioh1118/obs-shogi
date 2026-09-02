@@ -15,6 +15,7 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
       ├─ analysis.md          解析セッション（Rust 側のセッションを列に持つ）
       ├─ file-tree.md         ツリーとファイル操作
       ├─ game.md              棋譜の読み込み・移動・編集（カーソルと分岐計画）
+      ├─ game-session.md      対局の進行（Rust。エンジンの USI 状態を列に持つ）
       ├─ search.md            （未作成）インデックスと検索セッション
       └─ study-positions.md   （未作成）研究局面の読み書き
 
@@ -41,6 +42,7 @@ L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の�
 | [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う            |
 | [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない               |
 | [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸 |
+| [game-session.md](game-session.md)                 | ✅        | Rust 側。**セルを固定したテストは1つも無い**         |
 | `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある      |
 | `study-positions.md`                               | ❌ 未作成 |                                                      |
 
