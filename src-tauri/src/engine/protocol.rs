@@ -266,7 +266,7 @@ fn dispatch_for(state: ReadyState, cmd: &GuiCommand) -> Dispatch {
 pub enum StopEffect {
     /// エンジンへ `stop` を書いた。この後 `bestmove` が来る
     Written,
-    /// まだ書かれていなかった `go` を落とした。**`bestmove` は来ない**
+    /// まだ書いていない `go` を落とした。**`bestmove` は来ない**
     CancelledQueued,
 }
 

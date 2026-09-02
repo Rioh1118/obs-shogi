@@ -224,7 +224,7 @@ fn outcome_of_stop(stopped: &Result<StopEffect, EngineError>) -> Option<SearchOu
     match stopped {
         // 書けた。この後 `bestmove` が来る
         Ok(StopEffect::Written) => None,
-        // まだ書かれていなかった `go` を落とした。エンジンは考え始めていない
+        // まだ書いていない `go` を落とした。エンジンは考え始めていない
         Ok(StopEffect::CancelledQueued) => Some(SearchOutcome::StoppedCleanly),
         // 上限まで返らなかった。エンジンは探索中とみなす
         Err(EngineError::Timeout(_)) => Some(SearchOutcome::StopTimedOut),
@@ -289,11 +289,11 @@ mod tests {
         ));
     }
 
-    /// 書き込み側も3つに分かれること。上の関数の対。
+    /// `stop` の側も4つに分かれること。上の関数の対。
     ///
-    /// **`timeout` の戻りは二重の `Result`。** 外側だけ見ると、送る口が無い場合まで
-    /// 「書けた」になり、1バイトも出ていないのに「エンジンが `stop` に
-    /// 応じなかった」という説明が残る
+    /// **潰すと、送れていない失敗に「エンジンが `stop` に応じなかった」という
+    /// 説明が付く。** 上限は `protocol.rs` の `WRITE_TIMEOUT` にあり、
+    /// ここへは `EngineError::Timeout` として届く
     #[test]
     fn the_four_ways_a_stop_can_end_are_not_collapsed() {
         // 書けた。待ちへ進む

@@ -36,15 +36,19 @@ const EXEMPT = new Set([
  *
  * **コメントを落としてから数える**（`codeOf`）。落とさないと、腐った名前を
  * 説明のために引いたコメント1行が、その名前を「実在する」に戻す。
- * **この検査自身の doc も走査の対象**なので、ここで消えた名前を例に挙げると
- * 検査が自分の文章を根拠に緑を返す。
+ *
+ * **`__tests__` を外す。** テストの期待値には「消えた名前」を書くのが正当な用途で
+ * （改名を捕まえられることを固定するため）、それは文字列リテラルなので
+ * `codeOf` では落ちない。外さないと、検査が自分の固定値を根拠に緑を返す。
+ * `walk.ts` が「テスト中の言及を実装として数えると答えが変わる検査だけ外す」と
+ * 書いている、その一例。
  */
 let corpus: string | null = null;
 
 function sourceCorpus(): string {
   if (corpus !== null) return corpus;
 
-  corpus = [...sourceFiles(SRC), ...sourceFiles(RUST_SRC)]
+  corpus = [...sourceFiles(SRC, { includeTests: false }), ...sourceFiles(RUST_SRC)]
     .map((path) => codeOf(readFileSync(path, "utf8")))
     .join("\n");
   return corpus;
@@ -68,7 +72,7 @@ export function identifiersIn(markdown: string): string[] {
  * ソースに1度も現れないものだけを返す。
  *
  * **見るのは綴りが在るかだけ。** 種類（関数か定数か欄名か）も、指している対象が
- * 合っているかも見ていない。**限界は3つある。**
+ * 合っているかも見ていない。**限界は4つある。**
  *
  * 1. **別の場所に同じ綴りが在る改名は素通りする。** 関数名を変えても、
  *    その綴りが構造体の欄名として残っていれば緑になる
@@ -76,6 +80,7 @@ export function identifiersIn(markdown: string): string[] {
  *    `ClocksView` や `Aborted` は候補にすら入らない
  * 3. 語境界で照合するので接尾辞を足す改名（`FOO` → `STOP_FOO`）は拾えるが、
  *    `Foo::Bar` の `Bar` 側は 2 の理由で拾えない
+ * 4. **Rust のコメントが指す識別子は見ていない。** 見るのは `docs/**` だけ
  */
 export function missingIdentifiers(identifiers: string[]): string[] {
   return missingIn(identifiers, sourceCorpus());

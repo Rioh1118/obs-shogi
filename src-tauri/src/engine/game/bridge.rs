@@ -83,7 +83,8 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: String) -> R
 ///
 /// 他の操作が同じ対局を掴んでいると閉じられず `Err` を返す。そのとき
 /// **対局は中断済みだが、エンジンは生きたまま台帳に残る。**
-/// そのまま呼び直せる。呼び直さないとプロセスが残る（→ 台帳の F-24）。
+/// そのまま呼び直せる。呼び直さないとプロセスが残る
+/// （→ `docs/state-transitions/failure-surfacing.md` の F-24）。
 #[tauri::command]
 pub async fn close_game(state: tauri::State<'_, AppState>, game_id: String) -> Result<(), String> {
     state.games.close(&state.registry, &game_id).await

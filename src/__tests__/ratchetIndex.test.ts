@@ -54,7 +54,13 @@ function existingChecks(): Set<string> {
  * **ここと `CONTRIBUTING.md` の表の両方に載っていないと落ちる。**
  * 片方だけ人が覚える形にすると、忘れても何も起きない。
  */
-const RUST_CHECKS = new Set(["production_unwrap", "root_guard", "serde_naming", "timeout_result"]);
+const RUST_CHECKS = new Set([
+  "comment_identifiers",
+  "production_unwrap",
+  "root_guard",
+  "serde_naming",
+  "timeout_result",
+]);
 
 /** `src-tauri/tests/*.rs` のファイル名（拡張子を落としたもの） */
 function rustChecks(): string[] {

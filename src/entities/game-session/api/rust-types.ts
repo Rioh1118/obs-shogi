@@ -47,7 +47,14 @@ export interface TimeLimit {
   mainMs: number;
   /** 1手ごとに与え直される */
   byoyomiMs: number;
-  /** 着手できたときに持ち時間へ加算する量 */
+  /**
+   * 着手できたときに持ち時間へ加算する量。
+   *
+   * **開始時の残り時間には初手ぶんが既に積まれている**
+   * （`ClockView.mainMs` は `mainMs + incrementMs` から始まる）。
+   * 積まないと「持ち時間0のフィッシャー」で初手に使える時間が 0 になる。
+   * 設定した値をそのまま画面に出したいなら `GameSettings` 側を見ること
+   */
   incrementMs: number;
 }
 
@@ -105,7 +112,12 @@ export interface GameResult {
  * `byoyomiMs` は設定値で常に正しく、**動いている側のクランプに要る**。
  */
 export interface ClockView {
-  /** 持ち時間の残り。動いている側は `RunningClock.mainZeroAt` を使う */
+  /**
+   * 持ち時間の残り。動いている側は `RunningClock.mainZeroAt` を使う。
+   *
+   * 開始時は `TimeLimit.mainMs + incrementMs`。
+   * **利用者が設定した持ち時間そのものではない**（→ `TimeLimit.incrementMs`）
+   */
   mainMs: number;
   /** 秒読みの設定値。1手ごとに与え直されるので常にこの値 */
   byoyomiMs: number;

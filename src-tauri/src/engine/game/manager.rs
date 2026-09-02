@@ -74,7 +74,16 @@ impl GameManager {
                 // そこが書き込みで詰まっていると返らない。`Ok` 側
                 // （`GameSession::close`）は同じ待ちを `CLOSE_IDLE_TIMEOUT` で
                 // 包んでいるので、こちらだけ裸にしない
-                let _ = tokio::time::timeout(CLOSE_IDLE_TIMEOUT, session.abort()).await;
+                // `abort` の失敗は2通りで、意味が正反対。潰すとログから区別が付かない
+                match tokio::time::timeout(CLOSE_IDLE_TIMEOUT, session.abort()).await {
+                    Ok(Ok(())) => {}
+                    // セッションのタスクが先に居なくなった。もう止まっている
+                    Ok(Err(e)) => log::debug!(target: LOGT, "close: nothing to abort: {e}"),
+                    // `run_loop` が詰まっている。止められていない
+                    Err(_) => {
+                        log::warn!(target: LOGT, "close: abort timed out; the session is stuck")
+                    }
+                }
                 self.sessions
                     .write()
                     .await

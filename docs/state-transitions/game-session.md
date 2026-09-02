@@ -68,26 +68,26 @@
 
 ## イベント
 
-| 記号    | イベント                       | 発生源                                                                                                     |
-| ------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| **E1**  | `submit_move(side, mv)`        | 人間の着手（フロントが合法性を確かめてから呼ぶ）                                                           |
-| **E2**  | `continue_game(moves)`         | 裁定「続く」                                                                                               |
-| **E3**  | `end_by_rule(winner, detail)`  | 裁定「終局」（詰み・千日手・持将棋・最大手数・反則）                                                       |
-| **E4**  | `resign(side)`                 | 人間の投了                                                                                                 |
-| **E5**  | `abort()`                      | 利用者の中断                                                                                               |
-| **E6**  | `close()`                      | 対局を閉じてエンジンを落とす                                                                               |
-| **E7**  | `bestmove <手>`                | `SearchOutcome::Move`                                                                                      |
-| **E8**  | `bestmove resign`              | `SearchOutcome::Resign`                                                                                    |
-| **E9**  | `bestmove win`（入玉宣言）     | `SearchOutcome::DeclareWin`                                                                                |
-| **E10** | エンジンの出力が終わった       | `SearchOutcome::Failed`。発生源は `protocol.rs` の EOF 検出※9                                              |
-| **E11** | 打ち切りに応じた `bestmove`    | `SearchOutcome::StoppedCleanly`（`GameOverReason::Aborted` とは別物）                                      |
-| **E12** | **`stop` に応じない**          | `SearchOutcome::StopTimedOut`。`STOP_GRACE`（5秒）超過か、書き込みが `STOP_WRITE_TIMEOUT`（2秒）で返らない |
-| **E13** | `info`                         | `SearchMessage::Info`                                                                                      |
-| **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                                                                 |
-| **E15** | tick: 裁定が 30 秒返らない     | `on_tick` の `RULING_TIMEOUT`                                                                              |
-| **E17** | tick: 畳み待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`（10秒）                                                                      |
-| **E18** | 思考が長すぎる                 | `on_tick` の `stalled_turn`（持ち時間＋`SEARCH_GRACE` 30秒）                                               |
-| **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                                                           |
+| 記号    | イベント                       | 発生源                                                                                                |
+| ------- | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| **E1**  | `submit_move(side, mv)`        | 人間の着手（フロントが合法性を確かめてから呼ぶ）                                                      |
+| **E2**  | `continue_game(moves)`         | 裁定「続く」                                                                                          |
+| **E3**  | `end_by_rule(winner, detail)`  | 裁定「終局」（詰み・千日手・持将棋・最大手数・反則）                                                  |
+| **E4**  | `resign(side)`                 | 人間の投了                                                                                            |
+| **E5**  | `abort()`                      | 利用者の中断                                                                                          |
+| **E6**  | `close()`                      | 対局を閉じてエンジンを落とす                                                                          |
+| **E7**  | `bestmove <手>`                | `SearchOutcome::Move`                                                                                 |
+| **E8**  | `bestmove resign`              | `SearchOutcome::Resign`                                                                               |
+| **E9**  | `bestmove win`（入玉宣言）     | `SearchOutcome::DeclareWin`                                                                           |
+| **E10** | エンジンの出力が終わった       | `SearchOutcome::Failed`。発生源は `protocol.rs` の EOF 検出※9                                         |
+| **E11** | 打ち切りに応じた `bestmove`    | `SearchOutcome::StoppedCleanly`（`GameOverReason::Aborted` とは別物）                                 |
+| **E12** | **`stop` に応じない**          | `SearchOutcome::StopTimedOut`。`STOP_GRACE`（5秒）超過か、書き込みが `WRITE_TIMEOUT`（2秒）で返らない |
+| **E13** | `info`                         | `SearchMessage::Info`                                                                                 |
+| **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                                                            |
+| **E15** | tick: 裁定が 30 秒返らない     | `on_tick` の `RULING_TIMEOUT`                                                                         |
+| **E17** | tick: 畳み待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`（10秒）                                                                 |
+| **E18** | 思考が長すぎる                 | `on_tick` の `stalled_turn`（持ち時間＋`SEARCH_GRACE` 30秒）                                          |
+| **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                                                      |
 
 **E7〜E12 は「そのとき `activity` が何だったか」で意味が変わる。**
 `A1` / `A2` なら採る候補、`A3` なら捨てる、それ以外なら世代違い（E16）。

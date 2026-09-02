@@ -155,7 +155,7 @@ impl GameClocks {
     /// その側がこの手に使い切れる上限。持ち時間の残り＋秒読み。
     ///
     /// 時間切れの判定ではなく、**エンジンが黙ったことを見つける**ために使う
-    /// （`session.rs` の `search_deadline`）。
+    /// （`session.rs` の `stalled_turn`）。
     pub fn budget_ms(&self, side: Side) -> u64 {
         self.clocks[side.index()].budget_ms()
     }

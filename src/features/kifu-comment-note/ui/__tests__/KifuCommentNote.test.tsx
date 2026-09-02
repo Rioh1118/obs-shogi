@@ -338,8 +338,7 @@ describe("面が入れ替わるとき", () => {
   /**
    * **止め続けない側も固定する。** 止め続けると、書き込めない場所に置いた棋譜では
    * ノートを閉じる手段が1つも無くなる（失敗を伝えるより悪い行き止まり）。
-   * `ConfirmDialog` の同じ判断には「閉じる道は塞がない」が付いているのに、
-   * こちらには付いていなかった。
+   * `ConfirmDialog` の同じ判断と揃えてある（「閉じる道は塞がない」）。
    */
   it("同じ失敗が2回続いたら、ノートは閉じる", async () => {
     setCommentsByCursor.mockResolvedValue(Err("Permission denied (os error 13)"));

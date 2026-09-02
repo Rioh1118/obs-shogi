@@ -8,6 +8,10 @@
 //!
 //! 分けたいなら `match` で3分岐にすること。潰してよいと判断したなら、
 //! `let _ = ...` ではなく理由をコメントに書いたうえで `matches!` を使う。
+//!
+//! `let _ = timeout(...)` も同じ穴として止める。上限超過と内側の `Err` が
+//! どちらも捨てられ、ログを読んでも「詰まった」のか「相手が先に居なくなった」
+//! のかが分からない。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -66,6 +70,13 @@ fn a_timeout_never_swallows_the_inner_result() {
             let relative = path.strip_prefix(src_dir()).unwrap_or(&path);
             let here = format!("{}:{}", relative.display(), index + 1);
             if EXEMPT.contains(&here.as_str()) {
+                continue;
+            }
+
+            // `let _ = timeout(...)` も同じ穴。上限超過と内側の `Err` が
+            // どちらも捨てられ、ログを読んでも区別が付かない
+            if line.trim_start().starts_with("let _ =") {
+                offenders.push(format!("{}  {}", here, line.trim()));
                 continue;
             }
 

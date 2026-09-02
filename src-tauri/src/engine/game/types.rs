@@ -94,7 +94,12 @@ pub struct TimeLimit {
     pub main_ms: u64,
     /// 1手ごとに与え直される秒読み
     pub byoyomi_ms: u64,
-    /// 着手できたときに持ち時間へ加算する量（フィッシャー）
+    /// 着手できたときに持ち時間へ加算する量（フィッシャー）。
+    ///
+    /// **開始時の残り時間には初手ぶんが既に積まれている**
+    /// （`ClockView::main_ms` は `main_ms + increment_ms` から始まる）。
+    /// 積まないと「持ち時間0のフィッシャー」で初手に使える時間が 0 になる。
+    /// 設定した値をそのまま出したいなら `GameSettings` 側を見ること
     pub increment_ms: u64,
 }
 
@@ -192,7 +197,10 @@ pub struct GameResult {
 #[serde(rename_all = "camelCase")]
 pub struct ClockView {
     /// 持ち時間の残り。**止まっている値。**
-    /// 動いている側の表示には `RunningClock::main_zero_at` を使う
+    /// 動いている側の表示には `RunningClock::main_zero_at` を使う。
+    ///
+    /// 開始時は `TimeLimit::main_ms + increment_ms`。
+    /// **利用者が設定した持ち時間そのものではない**（→ `TimeLimit::increment_ms`）
     pub main_ms: u64,
     /// 秒読みの設定値。1手ごとに与え直されるので**常にこの値**。
     /// 動いている側でも、これで `byoyomi_zero_at` をクランプする

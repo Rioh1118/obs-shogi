@@ -112,8 +112,8 @@ impl Stall {
 
 /// 手番に入ったまま `go` を出せずにいられる上限。
 ///
-/// **見るのは `TurnClock::Settling` だけ。** `go` を出した後
-/// （`Running`）の番人は `search_deadline` のほうで、こちらは畳み待ち専用。
+/// **`stalled_turn` の `Settling` の枝だけが使う。** `Running` の枝は
+/// 同じ関数が「持ち時間＋`SEARCH_GRACE`」で見る。番人は分かれていない。
 /// 畳み待ちの間は時計が動かないので、時間切れの判定には掛からない。
 /// ここが無いと、`stop` の書き込みが詰まったときに対局が無音のまま固まる。
 ///
@@ -272,29 +272,36 @@ impl GameSession {
         // 「止める → 畳まれるのを**待つ** → 落とす」の順。
         // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
         let deadline = Instant::now() + CLOSE_IDLE_TIMEOUT;
-        let _ = tokio::time::timeout(CLOSE_IDLE_TIMEOUT, self.abort()).await;
+        // `abort` の失敗は2通りで、意味が正反対。潰すとログから区別が付かない
+        match tokio::time::timeout(CLOSE_IDLE_TIMEOUT, self.abort()).await {
+            Ok(Ok(())) => {}
+            // セッションのタスクが先に居なくなった。もう止まっている
+            Ok(Err(e)) => log::debug!(target: LOGT, "close: nothing to abort: {e}"),
+            // `run_loop` が詰まっている。止められていない
+            Err(_) => log::warn!(target: LOGT, "close: abort timed out; the session is stuck"),
+        }
 
-        let mut settled = false;
-        while !settled {
+        let mut idle = false;
+        while !idle {
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 break;
             }
             match tokio::time::timeout(left, self.searches_idle()).await {
                 // 畳まれた、またはセッションのタスクがもう無い
-                Ok(Ok(true)) | Ok(Err(_)) => settled = true,
+                Ok(Ok(true)) | Ok(Err(_)) => idle = true,
                 Ok(Ok(false)) => tokio::time::sleep(CLOSE_POLL).await,
                 // 期限切れ。応答そのものが返らない
                 Err(_) => break,
             }
         }
 
-        if !settled {
+        if !idle {
             // 「畳まれなかった」と「畳まれたか**尋ねられなかった**」の両方でここに来る。
             // `abort` が上限を使い切ると `left` が 0 になり、1度も尋ねずに抜ける
             log::warn!(
                 target: LOGT,
-                "close: could not confirm searches settled game_id={}",
+                "close: could not confirm searches idle game_id={}",
                 self.id
             );
         }
