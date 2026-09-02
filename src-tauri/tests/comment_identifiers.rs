@@ -19,7 +19,7 @@
 use std::collections::BTreeSet;
 mod scanning;
 
-use scanning::blank_out_comments;
+use scanning::{blank_out_comments, doc_above, is_test_attribute};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -176,23 +176,29 @@ fn a_url_in_a_string_is_not_a_comment() {
     assert!(!is_comment_line("let s = \"a\"; // 後ろのコメント"));
 }
 
-/// `#[test]` の doc ブロックに、要約が2つ並んでいないこと。
+/// テストの doc ブロックに、要約が2つ並んでいないこと。
 ///
 /// **関数を挿入すると、既存の doc がそこで引き剥がされる。** 新しい要約を
 /// 前の doc の途中へ落とすと、`cargo doc` では2つの文が連結されて読める形になり、
 /// **前の関数の説明が後の関数のものとして残る**（`pub` から `///` が消えることもある）。
 ///
-/// 要約と見るのは「**「〜こと。」で終わる**行」。ブロックの1行目以外に
-/// 現れたら引き剥がしとする。
+/// 要約と見るのは「**「〜こと。」で終わる**行」。それが**2本以上あったら**
+/// 引き剥がしとする。
 ///
 /// **句点だけで見ると本文を巻き込む。** 「捨てないと、〜。」のように条件から
 /// 始まる段落が句点で終わるのは普通で、実測で7件が偽陽性になった。この repo の
 /// テストの doc は「何を固定しているか」を「〜こと。」で言う形に揃っているので、
-/// そこで区別する。**`#[test]` の直前に絞る**のも同じ理由で、`pub fn` の doc は
+/// そこで区別する。**テストの直前に絞る**のも同じ理由で、`pub fn` の doc は
 /// この形に揃っていない。
 ///
 /// **空行の直後という条件は付けない。** 挿入された要約は前の doc の本文の
 /// 途中に落ちるので、空行を挟むとは限らない。
+///
+/// **拾えるのはここまで**——**元から要約行を持つブロック**に、2本目が
+/// 落ちた形だけ。要約行を1本も持たないブロックへの挿入は、落ちてきた要約が
+/// そのブロックで唯一の「〜こと。」になるので通る。
+/// 「1行目以外に現れたら」まで広げると、要約が2行に折り返している doc と、
+/// 本文の段落が「〜すること。」で終わる doc を巻き込む（実測で2件）。
 #[test]
 fn no_doc_block_has_two_summaries() {
     let mut offenders = Vec::new();
@@ -206,28 +212,13 @@ fn no_doc_block_has_two_summaries() {
         let lines: Vec<&str> = source.lines().collect();
 
         for (index, line) in lines.iter().enumerate() {
-            if line.trim() != "#[test]" {
+            if !is_test_attribute(line) {
                 continue;
             }
-            // その `#[test]` の上に続く `///` を、上へ遡って集める
-            let mut block: Vec<(usize, &str)> = Vec::new();
-            let mut at = index;
-            while at > 0 {
-                let previous = lines[at - 1].trim();
-                let Some(text) = previous.strip_prefix("///") else {
-                    break;
-                };
-                block.push((at, text.trim()));
-                at -= 1;
-            }
-            block.reverse();
-
-            let summaries: Vec<&(usize, &str)> = block
-                .iter()
-                .filter(|(_, text)| text.ends_with("こと。"))
-                .collect();
-
-            for (number, text) in summaries.iter().skip(1) {
+            let summaries = doc_above(&lines, index)
+                .into_iter()
+                .filter(|(_, text)| text.ends_with("こと。"));
+            for (number, text) in summaries.skip(1) {
                 offenders.push(format!("{}:{}  {}", relative.display(), number, text));
             }
         }
@@ -235,7 +226,7 @@ fn no_doc_block_has_two_summaries() {
 
     assert!(
         offenders.is_empty(),
-        "`#[test]` の doc ブロックに要約が2つある。関数を挿入したとき、\
+        "テストの doc ブロックに要約が2つある。関数を挿入したとき、\
          新しい要約を前の doc の途中へ落としていないか見ること:\n{}",
         offenders.join("\n")
     );

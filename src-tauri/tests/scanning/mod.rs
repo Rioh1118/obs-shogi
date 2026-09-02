@@ -186,6 +186,33 @@ fn blank_out(source: &str, comments_too: bool, literals_too: bool) -> String {
     out
 }
 
+/// `#[test]` と `#[tokio::test]` のどちらか。
+///
+/// **属性の綴りで絞ると片方が丸ごと死角になる。** 対局の状態機械のテストは
+/// ほとんどが非同期なので、`#[test]` だけを見る走査は `session.rs` を
+/// 1本も読まないまま緑になる。
+pub fn is_test_attribute(line: &str) -> bool {
+    let line = line.trim();
+    line == "#[test]" || (line.starts_with("#[tokio::test") && line.ends_with(']'))
+}
+
+/// その行の直前に続く `///` を、上から順に返す。
+///
+/// 返すのは `(1始まりの行番号, `///` を外した中身)`。
+pub fn doc_above(lines: &[&str], at: usize) -> Vec<(usize, String)> {
+    let mut block = Vec::new();
+    let mut cursor = at;
+    while cursor > 0 {
+        let Some(text) = lines[cursor - 1].trim().strip_prefix("///") else {
+            break;
+        };
+        block.push((cursor, text.trim().to_string()));
+        cursor -= 1;
+    }
+    block.reverse();
+    block
+}
+
 /// コードの中の `needle` の位置。**文字列とコメントの中は数えない。**
 ///
 /// `find` を素で使うと、doc コメントに `#[cfg(test)]` と書いた行から

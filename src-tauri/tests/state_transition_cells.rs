@@ -20,7 +20,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 mod scanning;
-use scanning::blank_out_strings;
+use scanning::{blank_out_strings, doc_above, is_test_attribute};
 
 /// 表のテスト列で「踏むテストが無い」を意味する印
 const UNTESTED: char = '✗';
@@ -55,31 +55,6 @@ fn table_source() -> String {
         .expect("src-tauri の親")
         .join("docs/state-transitions/game-session.md");
     fs::read_to_string(&path).expect("状態遷移表を読めない")
-}
-
-/// `#[test]` と `#[tokio::test]` の両方を対象にする。
-///
-/// **属性の綴りで絞ると片方が丸ごと死角になる。** 対局の状態機械の
-/// テストはほとんどが非同期なので、`#[test]` だけを見る形はこの表に
-/// とって役に立たない。
-fn is_test_attribute(line: &str) -> bool {
-    let line = line.trim();
-    line == "#[test]" || (line.starts_with("#[tokio::test") && line.ends_with(']'))
-}
-
-/// 直前に続く `///` の行を、上から順に返す
-fn doc_above(lines: &[&str], at: usize) -> Vec<String> {
-    let mut block = Vec::new();
-    let mut cursor = at;
-    while cursor > 0 {
-        let Some(text) = lines[cursor - 1].trim().strip_prefix("///") else {
-            break;
-        };
-        block.push(text.trim().to_string());
-        cursor -= 1;
-    }
-    block.reverse();
-    block
 }
 
 /// `（表の E1 / E4）` のような名乗りから、セルの記号だけを取り出す。
@@ -148,7 +123,7 @@ fn claims() -> BTreeMap<String, Vec<String>> {
             if !is_test_attribute(line) {
                 continue;
             }
-            for text in doc_above(&lines, index) {
+            for (_, text) in doc_above(&lines, index) {
                 for cell in cells_named(&text) {
                     found.entry(cell).or_default().push(format!(
                         "{}:{}",
