@@ -20,7 +20,13 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildPolicy {
     /// その手順だけ打ち切って [`BuildWarn`] を積む。**本番はこちらだけを使う。**
-    /// 打ち切られるのは当の手順で、本線や他の変化は続く
+    ///
+    /// **「その手順だけ」は、その線の残り全部を含む。** `walk_sequence` は
+    /// `break` でその線の `for` を抜けるので、**指せなかった手より後ろのノードに
+    /// ぶら下がる変化も歩かない**。歩き終わっているのは、その手までの本譜と、
+    /// そこまでの各ノードから分かれた変化（`forks` は手を指す前に降りる）。
+    /// [`BuildWarn::to_user_message`] が「より先の局面は検索に出ません」と言うのは
+    /// この範囲を指す
     Loose,
     /// ファイルごと [`BuildError`] にする。**本番の呼び手は無い。**
     /// 使うなら、`Display` が画面に出ることを先に手当てすること
@@ -38,7 +44,7 @@ pub struct BuildWarn {
     /// `tesuu = N` なら N 手目が指せず、**その手は指されていない**ので
     /// N 手目以降の局面は索引に無い（N-1 手目までは入っている）。
     ///
-    /// 番号が合う根拠は2つ。本線は `build_index_for_jkf` が `moves[1..]` を
+    /// 番号が合う根拠は2つ。本譜は `build_index_for_jkf` が `moves[1..]` を
     /// `start_tesuu = 1` で渡すこと、変化は `push_or_replace_fork` が
     /// `te = tesuu` を使う（変化の1手目は元の N 手目の代わり）こと。
     pub cursor: CursorLite,
@@ -102,7 +108,12 @@ pub struct FileIndexBuild {
 ///
 /// **`Display` がそのまま利用者の画面に出る**（呼び手が `map_err(|e| e.to_string())`
 /// で `EVT_INDEX_WARN` に流す）。`ParseFailed` のような文字数の刈り込みも通らない。
-/// 腕を足すときは、その文言が利用者の言葉になっているかを見ること。
+///
+/// **いまある2つは、その基準を満たしていない。** `failed to apply move at
+/// CursorLite { tesuu: 30, .. }: side-to-move mismatch` が素のテキストで出る。
+/// 直っていないのは、本番の呼び手が [`BuildPolicy::Loose`] しか使わず
+/// この型が返らないから。[`BuildPolicy::Strict`] を使う呼び手を足すなら、
+/// 文言を [`BuildWarn::to_user_message`] と同じ水準にするのが先。
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error("failed to create initial position: {0}")]

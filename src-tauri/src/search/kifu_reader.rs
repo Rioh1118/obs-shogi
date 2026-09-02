@@ -316,7 +316,7 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), Ki
 /// **パニックを起こす値が候補によって変わらない**から。落ちるのは `$START_TIME` の
 /// 日付と `T` 行の桁数で、どちらも ASCII。
 ///
-/// ASCII をそのまま通す候補は、クレートが試す2つ（[`ENCODINGS_THE_CRATE_TRIES`]）と、
+/// ASCII をそのまま通す候補は、クレートが試す2つ（[`CRATE_ENCODING_NAMES`]）と、
 /// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ（EUC-JP / ISO-2022-JP）、
 /// [`LOSSY_DECODERS`] の2つ。**そのどれで復号しても同じ位置で落ちる**
 /// （実測: ISO-2022-JP で書いた `2004/02/30` は UTF-8 / Shift_JIS /
@@ -361,7 +361,7 @@ fn parse_csa_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 /// [`read_portable`] の総当たりへ渡す。
 fn parse_csa_file_tidied(path: &Path) -> Result<Jkf, ParseError> {
     let bytes = fs::read(path)?;
-    for enc in ENCODINGS_THE_CRATE_TRIES_FOR_CSA {
+    for enc in CRATE_CSA_DECODE_ORDER {
         let (text, _, had_errors) = enc.decode(&bytes);
         if !had_errors {
             return parse_csa_str(&tidy_csa(&text));
@@ -370,9 +370,11 @@ fn parse_csa_file_tidied(path: &Path) -> Result<Jkf, ParseError> {
     Err(ParseError::Decode)
 }
 
-/// CSA が UTF-8 → Shift_JIS の順で試されるのは、拡張子が文字コードを名乗らないから
-/// （クレートの `parse_csa_file` と同じ順）
-const ENCODINGS_THE_CRATE_TRIES_FOR_CSA: [&Encoding; 2] = [UTF_8, SHIFT_JIS];
+/// CSA を復号する順。**クレートの `parse_csa_file` に合わせてある。**
+///
+/// 自分で復号する以上、順が違えば同じファイルが違う文字コードで読まれうる。
+/// [`CRATE_ENCODING_NAMES`] とは並びが違うが、あちらは表示用で読ませる順ではない。
+const CRATE_CSA_DECODE_ORDER: [&Encoding; 2] = [UTF_8, SHIFT_JIS];
 
 /// 行の綴りを整える。**指し手や局面は足さない。**
 ///
@@ -506,7 +508,7 @@ fn rank_cells(line: &str) -> Option<&str> {
 /// # バイト列で数える
 ///
 /// 復号したあとの文字列ではなくファイルのバイト列を見るのは、**CSA の指し手行が
-/// ASCII だから**。ASCII をそのまま通す候補（[`ENCODINGS_THE_CRATE_TRIES`] の2つ、
+/// ASCII だから**。ASCII をそのまま通す候補（[`CRATE_ENCODING_NAMES`] の2つ、
 /// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ、[`LOSSY_DECODERS`] の2つ）は
 /// どれも同じ数を出すので、どの候補で読めたかに関わらず結果が変わらない。
 /// UTF-16 はバイト列に NUL が挟まって指し手行の形にならず0件と数える（＝黙る）。
@@ -812,8 +814,12 @@ fn cannot_open_reason(e: &std::io::Error) -> String {
 /// クレートが試さない文字コード
 const ENCODINGS_THE_CRATE_SKIPS: [&Encoding; 4] = [UTF_16LE, UTF_16BE, EUC_JP, ISO_2022_JP];
 
-/// クレートが自分で試す文字コード。利用者に「何を試したか」を出すときに使う
-const ENCODINGS_THE_CRATE_TRIES: [&str; 2] = ["Shift_JIS", "UTF-8"];
+/// クレートが自分で試す文字コードの名前。**利用者に見せる文字列でしかない。**
+///
+/// 並びは読ませる順ではなく、[`ENCODINGS_THE_CRATE_SKIPS`] と繋いで
+/// 「何を試したか」を並べるためのもの。実際に復号を試す順は形式ごとに違う
+/// （CSA は [`CRATE_CSA_DECODE_ORDER`]）。**この定数を復号に使わないこと。**
+const CRATE_ENCODING_NAMES: [&str; 2] = ["Shift_JIS", "UTF-8"];
 
 /// バイト列が名乗っている文字コード。分からなければ `None`。
 ///
@@ -1085,7 +1091,7 @@ fn describe(by_crate: ParseError, evidence: &Evidence, by_fallback: Option<Unpar
                 )
             }
             None => {
-                let tried: Vec<&str> = ENCODINGS_THE_CRATE_TRIES
+                let tried: Vec<&str> = CRATE_ENCODING_NAMES
                     .iter()
                     .copied()
                     .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
