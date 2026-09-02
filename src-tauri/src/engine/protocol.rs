@@ -410,26 +410,42 @@ impl UsiProtocol {
             Dispatch::Send => {}
             Dispatch::Queue => {
                 let mut pending = self.pending.lock().await;
-                if pending.queue.len() >= PENDING_LIMIT {
-                    log::warn!(
-                        target: LOGT,
-                        "send_command: pending queue is full cmd={} gen={}",
-                        cmd_summary(command),
-                        pending.generation
-                    );
-                    return Err(EngineError::CommunicationFailed(format!(
-                        "the engine has not returned readyok; {PENDING_LIMIT} commands are already queued"
-                    )));
+
+                // **ロックを取った後に状態を読み直す。** 取るまでの間に
+                // `readyok` が着地すると、flush は既にキューを空にして去っている。
+                // 読み直さないと、**もう誰も掃かないキューへ積んで `Ok` を返す**
+                // ことになる（`position` だけが消えて `go` が届く、が起きる）。
+                match dispatch_for(*self.ready.borrow(), command) {
+                    Dispatch::Refuse => {
+                        return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+                    }
+                    // 間に合った。そのまま書きに行く
+                    Dispatch::Send => {
+                        drop(pending);
+                    }
+                    Dispatch::Queue => {
+                        if pending.queue.len() >= PENDING_LIMIT {
+                            log::warn!(
+                                target: LOGT,
+                                "send_command: pending queue is full cmd={} gen={}",
+                                cmd_summary(command),
+                                pending.generation
+                            );
+                            return Err(EngineError::CommunicationFailed(format!(
+                                "the engine has not returned readyok; {PENDING_LIMIT} commands are already queued"
+                            )));
+                        }
+                        pending.queue.push_back(command.clone());
+                        log::debug!(
+                            target: LOGT,
+                            "send_command: queued cmd={} gen={} qlen={}",
+                            cmd_summary(command),
+                            pending.generation,
+                            pending.queue.len()
+                        );
+                        return Ok(());
+                    }
                 }
-                pending.queue.push_back(command.clone());
-                log::debug!(
-                    target: LOGT,
-                    "send_command: queued cmd={} gen={} qlen={}",
-                    cmd_summary(command),
-                    pending.generation,
-                    pending.queue.len()
-                );
-                return Ok(());
             }
         }
 
@@ -741,6 +757,12 @@ impl UsiProtocol {
     /// 起きない（Rust の `Child::drop` は `wait` しない）。→ #353
     pub async fn kill_engine(&self) {
         log::info!(target: LOGT, "kill_engine: start");
+
+        // **落とす前に `Closed` を立てる。** 立てないと、`handler` を `take` した
+        // 後も `ready` が `Waiting` のまま残り、死んだプロセス向けに
+        // `position` / `go` が積める（`Ok` が返り、掃く者は永久に来ない）
+        set_ready_state(&self.ready, ReadyState::Closed);
+
         self.abort_init().await;
 
         // `kill` も `quit` を書くので、書き込みと同じ理由で専用スレッドへ出す
