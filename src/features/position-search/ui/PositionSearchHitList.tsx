@@ -15,6 +15,11 @@ type Props = {
   isSearching: boolean;
   error: string | null;
   resolveAbsPath: (hit: PositionHit) => string | null;
+
+  /** 検索する局面があるか。無ければ検索はそもそも走らない */
+  hasQuery: boolean;
+  /** 索引が更新中で、結果が最新とは限らない */
+  stale: boolean;
 };
 
 export default function PositionSearchHitList({
@@ -25,6 +30,8 @@ export default function PositionSearchHitList({
   isSearching,
   error,
   resolveAbsPath,
+  hasQuery,
+  stale,
 }: Props) {
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
@@ -64,12 +71,23 @@ export default function PositionSearchHitList({
   if (hits.length === 0) {
     return (
       <section className="pos-search__results" aria-label="検索結果">
-        <div className="pos-search__empty" role="status" aria-live="polite">
-          {isSearching
-            ? "検索結果を受信中…"
-            : error
-              ? "検索に失敗しました"
-              : "一致する棋譜がありません"}
+        <div
+          className={["pos-search__empty", error ? "pos-search__empty--error" : ""].join(" ")}
+          role="status"
+          aria-live="polite"
+        >
+          {/* 「検索していない」と「検索して0件だった」を同じ文言にしない。
+              状態行が「待機中」と言っているのに一覧が「一致しない」と言うと、
+              どちらが起きたのか読み手が決められない */}
+          {!hasQuery
+            ? "検索する局面がありません"
+            : isSearching
+              ? "検索結果を受信中…"
+              : error
+                ? `検索に失敗しました: ${error}`
+                : stale
+                  ? "一致する棋譜がありません（索引の更新中なので、増える場合があります）"
+                  : "一致する棋譜がありません"}
         </div>
       </section>
     );
@@ -77,6 +95,14 @@ export default function PositionSearchHitList({
 
   return (
     <section className="pos-search__results" aria-label="検索結果">
+      {/* 途中で失敗しても、届いたぶんは出したまま残す。ただし黙って残すと
+          「これで全部」と読めるので、打ち切られたことをここで言う */}
+      {error && (
+        <div className="pos-search__notice" role="status" aria-live="polite">
+          途中で失敗したので、これで全部とは限りません: {error}
+        </div>
+      )}
+
       {/* listbox は行を実際に収めている器（＝スクロールする要素）に置く。
           包む div に置くと、行とのあいだに要素が挟まって option の持ち主でなくなる */}
       <VirtualList<HitRowProps>

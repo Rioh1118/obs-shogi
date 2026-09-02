@@ -257,6 +257,8 @@ export default function PositionSearchModal() {
                 isSearching={isSearching}
                 error={error}
                 resolveAbsPath={resolveHitAbsPath}
+                hasQuery={queryKey != null}
+                stale={resultStale}
               />
             </section>
 

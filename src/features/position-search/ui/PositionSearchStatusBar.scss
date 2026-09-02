@@ -12,7 +12,8 @@
     color: rgba(index.$color-secondary-dark, 0.95);
   }
 
+  // 暗いカードの上に載るので、$color-danger のままだと 3.75:1 で本文の基準を割る
   &__item--error {
-    color: rgba(#ff6b6b, 0.95);
+    color: index.$color-danger-text;
   }
 }

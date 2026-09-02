@@ -12,8 +12,30 @@
   padding: index.$space-8 index.$space-6;
   border: 1px dashed index.$stroke;
   border-radius: index.$radius-5;
+  // 不透明にするのは、載る面（半透明のペイン）が確定しないと文字との比を
+  // 測れないため。ここは理由を伝える箱なので、読めることが一番要る
+  background: index.$surface-raised;
   font-size: index.$font-aux;
   color: rgba(index.$color-text-light-1, 0.7);
+
+  // $color-danger-text は暗いカード向けの色なので、持ち上げた面の上では 3.64:1 まで落ちる。
+  // 失敗を伝える箱には意味色の面を敷いて、色の設計どおりの明るさの上に載せる
+  &--error {
+    background: index.$surface-danger;
+    border-color: index.$color-danger-text;
+    color: index.$color-danger-text;
+  }
+}
+
+// 結果が届いたあとで検索が失敗した知らせ。行は残すので、一覧の外側に置く
+.pos-search__notice {
+  flex-shrink: 0;
+  margin-bottom: index.$space-3;
+  padding: index.$space-3 index.$space-5;
+  border-radius: index.$radius-3;
+  background: index.$surface-warning;
+  font-size: index.$font-hint;
+  color: rgba(index.$color-text-light-1, 0.85);
 }
 
 // 行を実際に収めてスクロールする器。`overflow` と `position` は react-window が
