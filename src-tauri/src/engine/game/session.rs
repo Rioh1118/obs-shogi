@@ -117,7 +117,7 @@ impl Stall {
 /// 畳み待ちの間は時計が動かないので、時間切れの判定には掛からない。
 /// ここが無いと、`stop` の書き込みが詰まったときに対局が無音のまま固まる。
 ///
-/// `search.rs` の `STOP_GRACE`（5秒）＋書き込みの上限（2秒）より長く取る。
+/// `search.rs` の `SEARCH_STOP_GRACE`（5秒）＋書き込みの上限（2秒）より長く取る。
 /// 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ。
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -136,7 +136,7 @@ const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 /// パイプが埋まって書き込みが止まり、応答が返らない。上限が無いと
 /// `close_game` が無期限に返らなくなる。
 ///
-/// `search.rs` の `STOP_GRACE` より少し長い。
+/// `search.rs` の `SEARCH_STOP_GRACE` より少し長い。
 pub(super) const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// 畳まれたかを聞き直す間隔。
@@ -465,7 +465,7 @@ enum TurnClock {
     Running(Instant),
     /// 手番だが、まだ `go` を出していない。止めた探索を畳んでいる間
     /// （`Activity::Stopping`）がこれで、**その間は時計を動かさない**。
-    /// 手番に入った時刻で数えると、エンジンが1手も読んでいない最大 `STOP_GRACE` が
+    /// 手番に入った時刻で数えると、エンジンが1手も読んでいない最大 `SEARCH_STOP_GRACE` が
     /// 消費に入り、画面の残り時間も畳み終わりに巻き戻る。
     ///
     /// 持つのは**待ち始めた**時刻で、`on_tick` の番人がこれを見る
@@ -794,7 +794,7 @@ impl Runner {
             if restart && self.is_to_move(side) {
                 // **時計をここで引き直す。** `accept_continue` が手番を渡した
                 // 時点から数えると、止めた探索が畳まれるのを待っていた時間
-                // （最大 `STOP_GRACE`）が、1手も読んでいないエンジンの
+                // （最大 `SEARCH_STOP_GRACE`）が、1手も読んでいないエンジンの
                 // 消費として計上される。`go` に載せる `btime` は満額なので、
                 // 画面の残り時間とエンジンに伝えた残り時間も食い違う。
                 //
@@ -1692,7 +1692,7 @@ mod tests {
     /// 止めた探索を畳んでいる間は、時計が動かないこと。
     ///
     /// 手番に入った時刻で数えると、`go` を一度も受け取っていないエンジンの
-    /// 消費として最大 `STOP_GRACE`（5秒）が計上され、`enforce_engine_timeout` が
+    /// 消費として最大 `SEARCH_STOP_GRACE`（5秒）が計上され、`enforce_engine_timeout` が
     /// 真なら**それだけで時間切れ負けする**。画面の残り時間も畳み終わりに巻き戻る。
     #[tokio::test]
     async fn the_clock_does_not_run_while_a_stopped_search_is_settling() {
@@ -2056,12 +2056,12 @@ mod tests {
 
     /// 上限どうしの大小を固定する。
     ///
-    /// **数を散文で書かない。** 「`STOP_GRACE`（5秒）＋書き込みの上限（2秒）より
+    /// **数を散文で書かない。** 「`SEARCH_STOP_GRACE`（5秒）＋書き込みの上限（2秒）より
     /// 長く取る」のような文は、どちらかを動かすと黙って偽になる。
     /// 関係そのものをここで見る。
     #[test]
     fn the_watchdogs_are_ordered() {
-        use crate::engine::game::search::STOP_GRACE;
+        use crate::engine::game::search::SEARCH_STOP_GRACE;
         use crate::engine::protocol::WRITE_TIMEOUT;
 
         // 畳み待ちの番人は、`stop` の書き込み1件ぶんと `bestmove` の猶予を
@@ -2070,14 +2070,14 @@ mod tests {
         // （列に先客が居れば、その処理時間が足される）。
         // 下限を割ると、正常に畳んでいる最中のエンジンを必ず故障と呼ぶ
         assert!(
-            SETTLE_TIMEOUT > WRITE_TIMEOUT + STOP_GRACE,
-            "SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) が WRITE_TIMEOUT + STOP_GRACE 以下"
+            SETTLE_TIMEOUT > WRITE_TIMEOUT + SEARCH_STOP_GRACE,
+            "SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) が WRITE_TIMEOUT + SEARCH_STOP_GRACE 以下"
         );
 
         // 閉じるときの待ちも、畳み終わるのに要る時間より長い
         assert!(
-            CLOSE_IDLE_TIMEOUT > STOP_GRACE,
-            "CLOSE_IDLE_TIMEOUT({CLOSE_IDLE_TIMEOUT:?}) が STOP_GRACE 以下"
+            CLOSE_IDLE_TIMEOUT > SEARCH_STOP_GRACE,
+            "CLOSE_IDLE_TIMEOUT({CLOSE_IDLE_TIMEOUT:?}) が SEARCH_STOP_GRACE 以下"
         );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが

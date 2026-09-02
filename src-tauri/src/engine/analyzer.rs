@@ -25,7 +25,12 @@ const BESTMOVE_GRACE: Duration = Duration::from_secs(3);
 ///
 /// これを過ぎたら `Timeout` を返して席を返す。エンジンはまだ探索中かもしれないが、
 /// 待ち続けても席が空かないので、利用者にエンジンの再起動を選ばせるほうが早い。
-const STOP_GRACE: Duration = Duration::from_secs(3);
+///
+/// **対局側の `game::search::SEARCH_STOP_GRACE` とは別物。** 値も違う（あちらは5秒）。
+/// 同じ綴りにすると `grep` で2つ当たり、doc がどちらを指すのか読み手に分からない。
+/// あちらは捨てる `bestmove` を待つ猶予で、`SETTLE_TIMEOUT` との大小が
+/// `the_watchdogs_are_ordered` に固定してある。こちらは誰とも突き合わせていない。
+const ANALYSIS_STOP_GRACE: Duration = Duration::from_secs(3);
 
 /// 深度指定の解析に掛ける考慮時間。
 ///
@@ -77,7 +82,7 @@ pub struct DepthOutcome {
 
 /// `stop` を撃った後、`bestmove` を待ってよいか。
 ///
-/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `STOP_GRACE` を待ち切り、
+/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `ANALYSIS_STOP_GRACE` を待ち切り、
 /// 来るはずのない `bestmove` の後に「エンジンが `stop` に応じなかった」という
 /// 説明が残る。エンジンは `go` を1バイトも受け取っていないことがある。
 ///
@@ -625,7 +630,7 @@ impl EngineAnalyzer {
                 }
                 stop_sent = true;
                 match self.stop_for_collection(protocol).await {
-                    StopVerdict::Wait => deadline = Instant::now() + STOP_GRACE,
+                    StopVerdict::Wait => deadline = Instant::now() + ANALYSIS_STOP_GRACE,
                     StopVerdict::NothingToWait => return Err(not_searching()),
                     StopVerdict::Failed(e) => return Err(e),
                 }
@@ -639,7 +644,7 @@ impl EngineAnalyzer {
                     if !stop_sent && reached_depth(&result, target_depth) {
                         stop_sent = true;
                         match self.stop_for_collection(protocol).await {
-                            StopVerdict::Wait => deadline = Instant::now() + STOP_GRACE,
+                            StopVerdict::Wait => deadline = Instant::now() + ANALYSIS_STOP_GRACE,
                             // 深度には届いている。`go` が積み置きのままだったなら
                             // その `info` は別の探索のもの——ここへは来ない
                             StopVerdict::NothingToWait => return Ok(result),
@@ -762,7 +767,7 @@ mod tests {
     /// `stop` の終わり方4通りを、待ち方へ潰さずに写すこと。
     ///
     /// **`CancelledQueued` を `Wait` に潰すのが一番の穴。** 潰すと
-    /// `STOP_GRACE` を待ち切り、来るはずのない `bestmove` の後に
+    /// `ANALYSIS_STOP_GRACE` を待ち切り、来るはずのない `bestmove` の後に
     /// 「エンジンが `stop` に応じなかった」という説明が残る。
     /// エンジンは `go` を1バイトも受け取っていない。
     #[tokio::test]

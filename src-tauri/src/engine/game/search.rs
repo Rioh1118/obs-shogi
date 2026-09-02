@@ -27,7 +27,7 @@ const LOGT: &str = "obs_shogi::engine::game::search";
 ///
 /// 待つのは礼儀ではなく必要。USI は探索中の `position` / `go` を認めないので、
 /// 次の思考を始める前にエンジンを idle に戻さないといけない。
-pub(super) const STOP_GRACE: Duration = Duration::from_secs(5);
+pub(super) const SEARCH_STOP_GRACE: Duration = Duration::from_secs(5);
 
 /// 1回の探索がどう終わったか。
 #[derive(Debug, Clone)]
@@ -187,7 +187,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
                 return;
             }
 
-            let drained = tokio::time::timeout(STOP_GRACE, async {
+            let drained = tokio::time::timeout(SEARCH_STOP_GRACE, async {
                 while let Some(command) = raw_rx.recv().await {
                     if matches!(command, EngineCommand::BestMove(_)) {
                         return true;
@@ -219,7 +219,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
 ///
 /// `Some` を返したら `bestmove` を待たずに戻る。`None` なら書けたので待ちへ進む。
 ///
-/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `STOP_GRACE` を待ち、
+/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `SEARCH_STOP_GRACE` を待ち、
 /// 来ない `bestmove` の後に「エンジンが `stop` に応じなかった」という説明が
 /// 棋譜と画面に残る。理由は4つあり、エンジンの状態が全部違う。
 fn outcome_of_stop(stopped: &Result<StopEffect, EngineError>) -> Option<SearchOutcome> {
