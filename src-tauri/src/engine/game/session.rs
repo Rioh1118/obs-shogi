@@ -889,10 +889,16 @@ impl Runner {
         }
     }
 
-    /// 走っているものを止め、捨てる `bestmove` が返ってから始めることにする。
+    /// 手番を渡す先の `activity` に応じて、思考を始める段取りを決める。
     ///
-    /// 実際の `go` は `on_search_outcome` が出す。ここで出すと、遅れて届く
-    /// 前の局面の `bestmove` を新しい探索のものとして採る
+    /// 分岐で振る舞いが違う。
+    ///
+    /// - `Searching` / `Stopping` — 止めて `A3 { restart }` にする。
+    ///   **実際の `go` は `on_search_outcome` が出す。** ここで出すと、
+    ///   遅れて届く前の局面の `bestmove` を新しい探索のものとして採る
+    /// - `Idle` — **その場で `go` を出す**。時計もここから動く
+    /// - `Unresponsive` — 何もできない。**対局はここで進まなくなる**ので、
+    ///   呼び出し側が終局させること（`hand_turn_to` の `Unusable` がそれ）
     fn stop_then_start(&mut self, side: Side) {
         match &mut self.player_mut(side).activity {
             Activity::Searching { req, cancel, .. } => {
