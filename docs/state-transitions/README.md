@@ -19,6 +19,7 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
       └─ study-positions.md   （未作成）研究局面の読み書き
 
 L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
+L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -30,19 +31,20 @@ L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の�
 
 ## いま何が書けているか
 
-| 表                                                 | 状態      | 備考                                                 |
-| -------------------------------------------------- | --------- | ---------------------------------------------------- |
-| [app.md](app.md)                                   | ✅        | L0                                                   |
-| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                               |
-| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                            |
-| [file-tree.md](file-tree.md)                       | ✅        |                                                      |
-| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                              |
-| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）       |
-| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う            |
-| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない               |
-| [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸 |
-| [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ          |
-| `study-positions.md`                               | ❌ 未作成 |                                                      |
+| 表                                                 | 状態      | 備考                                                  |
+| -------------------------------------------------- | --------- | ----------------------------------------------------- |
+| [app.md](app.md)                                   | ✅        | L0                                                    |
+| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                |
+| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                             |
+| [file-tree.md](file-tree.md)                       | ✅        |                                                       |
+| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                               |
+| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）        |
+| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う             |
+| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                |
+| [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸  |
+| [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ           |
+| [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える |
+| `study-positions.md`                               | ❌ 未作成 |                                                       |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
 
