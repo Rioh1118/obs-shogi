@@ -111,20 +111,22 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         return;
     }
 
-    let sent = async {
-        protocol
-            .send_command(&GuiCommand::Position(position))
-            .await?;
-        protocol.send_command(&GuiCommand::Go(params)).await
-    }
-    .await;
+    // **どちらで折れたかを分けて言う。** まとめると `position` の失敗が
+    // `go` の名前で説明され、ログを読んだ人が詰まった側を見ない
+    let sent = match protocol.send_command(&GuiCommand::Position(position)).await {
+        Err(e) => Err(format!("failed to send position: {e}")),
+        Ok(()) => protocol
+            .send_command(&GuiCommand::Go(params))
+            .await
+            .map_err(|e| format!("failed to send go: {e}")),
+    };
 
-    if let Err(e) = sent {
+    if let Err(message) = sent {
         protocol.remove_listener(&listener).await;
         let _ = tx.send(SearchMessage::Outcome {
             side,
             req,
-            outcome: SearchOutcome::Failed(format!("failed to send go: {e}")),
+            outcome: SearchOutcome::Failed(message),
         });
         return;
     }

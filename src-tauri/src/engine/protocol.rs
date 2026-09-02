@@ -15,6 +15,10 @@ const LOGT: &str = "obs_shogi::engine::protocol";
 const GONE: &str = "engine process has been shut down";
 /// 出力が終わったプロセスへ送ろうとしたときの文言
 const CLOSED: &str = "engine output has ended; the process cannot be reached";
+/// 書き込みが詰まったプロセスへ送ろうとしたときの文言。
+/// **`CLOSED` と分ける。** あちらは読み取りが終わった状態で、こちらは
+/// 出力は続いているのに stdin を読まなくなった状態。原因も直し方も違う
+const STALLED: &str = "the engine stopped reading stdin; the process cannot be reached";
 /// USI プロトコル処理層
 pub struct UsiProtocol {
     /// `Option` なのは、落とした後に **`Drop` を走らせない**ため。
@@ -139,13 +143,10 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 /// **`send_command` の全ての呼び出しにここ1箇所で掛かる。** 呼び出し側に
 /// 上限を書かせると、包み忘れた口が上限なしで残る。
 ///
-/// 2秒あれば足りる。1回に書くのは `position sfen ... moves ...` でも数百バイトで、
-/// パイプに空きがあればミリ秒未満で終わる。ここに達するのは
-/// **エンジンが stdin を読んでいない**ときだけ。
-///
-/// 超えたら接続が壊れたものとして扱う（`fail_writes`）。**「書けなかった」と
-/// 言ったものが後から書かれる状態を残さない**ため。残すと、送れなかったと
-/// 判断して終局させた側の `gameover` が、その `go` の後ろに並ぶ。
+/// **測るのは列に入った後の書き込みだけ**（`run_writer` の中で包む）。
+/// 待っている側で包むと、前のジョブの処理時間が入る。1回に書くのは
+/// `position sfen ... moves ...` でも数百バイトなので、そちらだと
+/// 「自分の書き込みが1バイトも始まっていないのに切れる」が起きる。
 const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 書き込みの列に流す1件。
@@ -169,23 +170,46 @@ async fn run_writer(
     handler: Arc<Mutex<Option<UsiEngineHandler>>>,
     mut jobs: mpsc::UnboundedReceiver<WriteJob>,
 ) {
+    // 1件でも上限に達したら、**それ以降は書かずに断る。**
+    //
+    // 詰まっているジョブは `spawn_blocking` の中なので取り消せない。後ろを
+    // 通すと、「送れなかった」と判断した側が出した `gameover` が、その `go` の
+    // 後ろに並ぶ（探索中のエンジンへ `gameover`＝不変条件3 の違反）。
+    // `Closed` を立てるだけでは、**既に列にあるジョブ**は止まらない。
+    let mut stalled = false;
+
     while let Some(WriteJob { command, reply }) = jobs.recv().await {
-        let handler = Arc::clone(&handler);
         let summary = cmd_summary(&command);
-        let written = tokio::task::spawn_blocking(move || {
+
+        if stalled {
+            let _ = reply.send(Err(EngineError::CommunicationFailed(STALLED.to_string())));
+            log::warn!(target: LOGT, "write: refused after a stall cmd={summary}");
+            continue;
+        }
+
+        let handler = Arc::clone(&handler);
+        let write = tokio::task::spawn_blocking(move || {
             let mut guard = handler.blocking_lock();
             let Some(h) = guard.as_mut() else {
                 return Err(EngineError::NotInitialized(GONE.to_string()));
             };
             h.send_command(&command)
                 .map_err(|e| EngineError::CommunicationFailed(e.to_string()))
-        })
-        .await
-        .unwrap_or_else(|e| {
-            Err(EngineError::CommunicationFailed(format!(
-                "write task failed: {e}"
-            )))
         });
+
+        // **上限はここ。** 待っている側で包むと、前のジョブの処理時間が入る
+        let written = match tokio::time::timeout(WRITE_TIMEOUT, write).await {
+            Ok(Ok(result)) => result,
+            Ok(Err(e)) => Err(EngineError::CommunicationFailed(format!(
+                "write task failed: {e}"
+            ))),
+            Err(_) => {
+                stalled = true;
+                Err(EngineError::Timeout(
+                    "the engine is not reading stdin".to_string(),
+                ))
+            }
+        };
 
         if let Err(e) = &written {
             log::warn!(target: LOGT, "write: failed cmd={summary} err={e}");
@@ -243,16 +267,27 @@ enum Dispatch {
     Refuse,
 }
 
-/// `ReadyState` とコマンドから、送る／積む／断るを決める。
+/// 送る／積む／断るを決める。**判断はここ1本。**
 ///
-/// **`Closed` を `Waiting` と同じ扱いにしない。** 積み置きは
-/// 「まだ `readyok` が来ていない」ための仕組みで、「**もう来ない**」ときの
-/// 置き場ではない。積むと呼び出し側へ `Ok` が返り、`bestmove` を待つ側は
-/// 永久に返らないまま対局が無音で止まる。
+/// 引数を3つとも取るのは、**送る順に関わる条件を全部この写像に載せるため**。
+/// 1つでも本文側に残すと、その条件だけテストが当たらない。
 ///
-/// 純関数にしてあるのは、`UsiProtocol` が実プロセスを要るので
-/// この写像だけを固定したいため。
-fn dispatch_for(state: ReadyState, cmd: &GuiCommand) -> Dispatch {
+/// - `Closed` を `Waiting` と同じ扱いにしない。積み置きは「まだ `readyok` が
+///   来ていない」ための仕組みで、「**もう来ない**」ときの置き場ではない。
+///   積むと呼び出し側へ `Ok` が返り、待つ側は永久に返らない
+/// - `draining`（積み置きを掃いている最中）は `Ready` でも積む。掃きは1件ごとに
+///   書き込みの返事を待つので、直書きが入るとその隙に追い越す。
+///   **`Stop` だけは通す。** 止めるのに列の後ろへ並ばせては意味が無い
+///   （`stop` は `cancel_queued_go` が先に積み置きの `go` を落とす）
+fn dispatch_for(state: ReadyState, draining: bool, cmd: &GuiCommand) -> Dispatch {
+    if state == ReadyState::Closed {
+        return Dispatch::Refuse;
+    }
+    // 掃いている最中は、順序に関わるコマンドを全部列の後ろへ回す。
+    // `requires_ready` の3つだけにすると `gameover` / `ponderhit` が追い越す
+    if draining && !matches!(cmd, GuiCommand::Stop) {
+        return Dispatch::Queue;
+    }
     match state {
         ReadyState::Closed => Dispatch::Refuse,
         ReadyState::Ready => Dispatch::Send,
@@ -353,19 +388,20 @@ impl UsiProtocol {
             return Err(EngineError::NotInitialized(GONE.to_string()));
         }
 
-        match tokio::time::timeout(WRITE_TIMEOUT, rx).await {
-            Ok(Ok(result)) => result,
+        // **ここでは待つだけ。** 上限は `run_writer` の中で、
+        // 実際の書き込みに掛かっている。ここで包むと前のジョブの処理時間が入る
+        let result = match rx.await {
+            Ok(result) => result,
             // 列のタスクが落ちた
-            Ok(Err(_)) => Err(EngineError::CommunicationFailed(
+            Err(_) => Err(EngineError::CommunicationFailed(
                 "the writer stopped".to_string(),
             )),
-            Err(_) => {
-                self.fail_writes().await;
-                Err(EngineError::Timeout(
-                    "the engine is not reading stdin".to_string(),
-                ))
-            }
+        };
+
+        if matches!(result, Err(EngineError::Timeout(_))) {
+            self.fail_writes().await;
         }
+        result
     }
 
     /// リスナー登録
@@ -527,42 +563,23 @@ impl UsiProtocol {
         // コマンド履歴更新
         self.state.write().await.last_command = Some(cmd_summary(command));
 
-        // **`IsReady` もここを通す。** 手前で分岐すると、`dispatch_for` が
-        // `Closed` に対して返している `Refuse` を誰も聞かないことになる
-        let state: ReadyState = *self.ready.borrow();
-        match dispatch_for(state, command) {
-            Dispatch::Refuse => {
-                return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
-            }
-            Dispatch::Send => {
-                // 掃いている最中は、`Ready` でも列の後ろに並ばせる
-                let mut pending = self.pending.lock().await;
-                if pending.draining && requires_ready(command) {
-                    return push_pending(&mut pending, command);
+        // **判断は `dispatch_for` が全部持つ。** 本文で条件を足すと、
+        // 足したぶんだけ写像のテストが当たらない範囲が増える。
+        //
+        // `pending` のロックを取ってから引くのは、`draining` と `ReadyState` を
+        // **同じ瞬間の値**で見るため。別々に読むと、取るまでの間に
+        // `readyok` が着地して flush が掃き終わり、もう誰も掃かないキューへ
+        // 積んで `Ok` を返すことになる。
+        //
+        // `IsReady` もここを通す。手前で分岐すると `Refuse` を誰も聞かない
+        {
+            let mut pending = self.pending.lock().await;
+            match dispatch_for(*self.ready.borrow(), pending.draining, command) {
+                Dispatch::Refuse => {
+                    return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
                 }
-            }
-            Dispatch::Queue => {
-                let mut pending = self.pending.lock().await;
-
-                // **ロックを取った後に状態を読み直す。** 取るまでの間に
-                // `readyok` が着地して flush が掃き終わっていると、
-                // **もう誰も掃かないキューへ積んで `Ok` を返す**ことになる。
-                //
-                // 掃いている最中（`draining`）なら、`Ready` でも積み続ける。
-                // 積まないと直書きが flush の残りを追い越す
-                if pending.draining {
-                    return push_pending(&mut pending, command);
-                }
-                match dispatch_for(*self.ready.borrow(), command) {
-                    Dispatch::Refuse => {
-                        return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
-                    }
-                    // 間に合った。そのまま書きに行く
-                    Dispatch::Send => {
-                        drop(pending);
-                    }
-                    Dispatch::Queue => return push_pending(&mut pending, command),
-                }
+                Dispatch::Queue => return push_pending(&mut pending, command),
+                Dispatch::Send => {}
             }
         }
 
@@ -573,23 +590,21 @@ impl UsiProtocol {
         self.write(command.clone()).await
     }
 
-    /// 書き込みが詰まった。**この先の書き込みを全部断る。**
+    /// 書き込みが詰まった後の後始末。
     ///
-    /// 詰まっているジョブは `spawn_blocking` の中なので取り消せない。いつか
-    /// 書かれるかもしれないし、書かれないかもしれない。**後続を通してしまうと、
-    /// 「送れなかった」と判断した側が出した `gameover` が、その `go` の後ろに
-    /// 並ぶ**（探索中のエンジンへ `gameover`＝不変条件3 の違反）。
+    /// **後続を断るのは `run_writer` の `stalled` の側**（既に列にあるジョブは
+    /// `Closed` では止まらないため）。ここでやるのは2つだけ。
     ///
-    /// `Closed` を立てると `dispatch_for` が以後を `Refuse` するので、
-    /// **「書けなかった」と言ったものより後は本当に書かれない**。
-    /// 積み置きも同じ理由で捨てる。復帰はプロセスの再起動。
+    /// - `Closed` を立てて、これから `send_command` に入る呼び出しを断る
+    /// - 積み置きを捨てる。掃く者がもう居ない
+    ///
+    /// 復帰はプロセスの再起動。
     async fn fail_writes(&self) {
-        if set_ready_state(&self.ready, ReadyState::Closed) == ReadyState::Closed {
-            log::error!(
-                target: LOGT,
-                "write: timed out; refusing every later write on this process"
-            );
-        }
+        set_ready_state(&self.ready, ReadyState::Closed);
+        log::error!(
+            target: LOGT,
+            "write: stalled; refusing every later write on this process"
+        );
         self.discard_pending("the engine stopped reading stdin")
             .await;
     }
@@ -605,7 +620,8 @@ impl UsiProtocol {
     /// 「この後 `bestmove` が来る」と読んで永久に待つ。だから戻り値で分ける。
     pub async fn stop(&self) -> Result<StopEffect, EngineError> {
         let state: ReadyState = *self.ready.borrow();
-        if dispatch_for(state, &GuiCommand::Stop) == Dispatch::Refuse {
+        let draining = self.pending.lock().await.draining;
+        if dispatch_for(state, draining, &GuiCommand::Stop) == Dispatch::Refuse {
             return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
         }
 
@@ -718,6 +734,11 @@ impl UsiProtocol {
                         );
                         let rest = {
                             let mut pending = protocol.pending.lock().await;
+                            // **自分の世代のキューしか触らない。** 世代が
+                            // 変わっていたら、そこにあるのは次の世代の積み置き
+                            if pending.generation != gen {
+                                break;
+                            }
                             pending.draining = false;
                             std::mem::take(&mut pending.queue)
                         };
@@ -1015,38 +1036,66 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
 mod tests {
     use super::*;
 
-    /// `ReadyState` にバリアントを足したら、書き込み側の分岐をここで数え直す。
+    /// 写像の全域を表で固定する。
     ///
-    /// **`send_command` の全分岐がこの写像を通ること**が前提。通らない分岐が
-    /// 1つでもあると、ここが緑でも現物は違う。`IsReady` を含めてあるのはそのため。
+    /// **`send_command` の判断はこの関数が全部持つ**ので、ここが写像の仕様。
+    /// バリアントやコマンドを足したら、この表に行が増える。
+    ///
+    /// `GameOver` と `Ponderhit` を入れているのは、**`requires_ready` が
+    /// false を返す側**だから。掃いている最中にそれらを通すと、
+    /// 積み置きの `position` / `go` を追い越して先にワイヤへ出る。
     #[test]
-    fn a_closed_engine_is_refused_instead_of_queued() {
+    fn the_dispatch_table_is_fixed() {
+        use Dispatch::{Queue, Refuse, Send};
+        use ReadyState::{Closed, Ready, Waiting};
+
         let go = GuiCommand::Go(usi::ThinkParams::new());
         let position = GuiCommand::Position("sfen".to_string());
         let stop = GuiCommand::Stop;
         let isready = GuiCommand::IsReady;
+        let gameover = GuiCommand::GameOver(usi::GameOverKind::Win);
+        let ponderhit = GuiCommand::Ponderhit;
 
-        // 出力が終わっている。**積むと呼び出し側に `Ok` が返り、待ち手が永久に返らない**
-        for cmd in [&go, &position, &stop, &isready] {
+        // (状態, 掃いているか, コマンド) → 判断
+        let table: &[(ReadyState, bool, &GuiCommand, Dispatch)] = &[
+            // 出力が終わっている。**積むと呼び出し側に `Ok` が返り、待ち手が永久に返らない**
+            (Closed, false, &go, Refuse),
+            (Closed, false, &position, Refuse),
+            (Closed, false, &stop, Refuse),
+            (Closed, false, &isready, Refuse),
+            (Closed, true, &stop, Refuse),
+            // `readyok` 待ち。局面と思考だけ積む
+            (Waiting, false, &go, Queue),
+            (Waiting, false, &position, Queue),
+            (Waiting, false, &stop, Send),
+            (Waiting, false, &isready, Send),
+            (Waiting, false, &gameover, Send),
+            (Waiting, false, &ponderhit, Send),
+            // ready。掃いていなければ全部そのまま
+            (Ready, false, &go, Send),
+            (Ready, false, &position, Send),
+            (Ready, false, &stop, Send),
+            (Ready, false, &isready, Send),
+            (Ready, false, &gameover, Send),
+            (Ready, false, &ponderhit, Send),
+            // **掃いている最中は `Stop` 以外を全部積む。**
+            // `gameover` / `ponderhit` を通すと積み置きを追い越す
+            (Ready, true, &go, Queue),
+            (Ready, true, &position, Queue),
+            (Ready, true, &isready, Queue),
+            (Ready, true, &gameover, Queue),
+            (Ready, true, &ponderhit, Queue),
+            // 止めるのに列の後ろへ並ばせては意味が無い
+            (Ready, true, &stop, Send),
+            (Waiting, true, &stop, Send),
+        ];
+
+        for (state, draining, cmd, want) in table {
             assert_eq!(
-                dispatch_for(ReadyState::Closed, cmd),
-                Dispatch::Refuse,
-                "{cmd} を断っていない"
+                &dispatch_for(*state, *draining, cmd),
+                want,
+                "({state:?}, draining={draining}, {cmd})"
             );
-        }
-
-        // `readyok` 待ち。局面と思考だけ積む
-        assert_eq!(dispatch_for(ReadyState::Waiting, &go), Dispatch::Queue);
-        assert_eq!(
-            dispatch_for(ReadyState::Waiting, &position),
-            Dispatch::Queue
-        );
-        assert_eq!(dispatch_for(ReadyState::Waiting, &stop), Dispatch::Send);
-        assert_eq!(dispatch_for(ReadyState::Waiting, &isready), Dispatch::Send);
-
-        // ready。全部そのまま
-        for cmd in [&go, &position, &stop, &isready] {
-            assert_eq!(dispatch_for(ReadyState::Ready, cmd), Dispatch::Send);
         }
     }
 

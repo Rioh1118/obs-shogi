@@ -34,12 +34,21 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::Manager;
 
-/// 終了時にエンジンを落とすのに使える時間の合計。
+/// 終了時に対局を閉じるのに使える時間。
 ///
-/// 1本あたりの上限は `registry` 側（`KILL_TIMEOUT`）と書き込みの列
-/// （`WRITE_TIMEOUT`）にあるが、**エンジンは複数走りうる**ので全体にも要る。
-/// 超えたらプロセスを残したまま終わる。終了が止まるよりましだという判断
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+/// **内訳の合計より小さい。** 対局1つの最悪値は
+/// `CLOSE_IDLE_TIMEOUT`（6秒）＋ エンジン2本 ×（`WRITE_TIMEOUT` 2秒 ＋
+/// `QUIT_GRACE` 0.3秒 ＋ `KILL_TIMEOUT` 2秒）＝ 14.6秒 で、対局が増えれば伸びる。
+/// **合わせに行かない。** 合わせると終了が15秒以上待たされる。
+/// ここで切り上げた分は下の掃除が拾う。
+const CLOSE_BUDGET: Duration = Duration::from_secs(4);
+
+/// 台帳に残ったプロセスを落とすのに使える時間。
+///
+/// **`CLOSE_BUDGET` と分ける。** 1つの `timeout` で包むと、対局を閉じるのに
+/// 使い切ったときに掃除の future が1度も poll されない。
+/// **解析用エンジンは掃除からしか届かない**ので、それだけで必ず残る。
+const SWEEP_BUDGET: Duration = Duration::from_secs(4);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -137,37 +146,62 @@ pub fn run() {
         .run(|app, event| {
             // **終了時にエンジンを落とす。** 呼ばないとプロセスが残る
             // （不変条件5）。対局は `close_game` を呼ぶまで落ちない作りなので、
-            // ウィンドウを閉じただけでは先手・後手のエンジンが探索したまま残り、
+            // 閉じただけでは先手・後手のエンジンが探索したまま残り、
             // 利用者にはアクティビティモニタ以外に手掛かりが無い。
             //
-            // `ExitRequested` は「終わる直前」で、まだ非同期を回せる。
-            // 全体に上限を置くのは、詰まったエンジン1本で終了が止まらないため
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                let state = app.state::<AppState>();
-                let games = Arc::clone(&state.games);
-                let registry = Arc::clone(&state.registry);
-
-                tauri::async_runtime::block_on(async move {
-                    let left = tokio::time::timeout(SHUTDOWN_TIMEOUT, async {
-                        let left = games.close_all(&registry).await;
-                        registry.shutdown_all().await;
-                        left
-                    })
-                    .await;
-
-                    match left {
-                        Ok(left) if left.is_empty() => {}
-                        Ok(left) => log::warn!(
-                            target: "obs_shogi::lib",
-                            "shutdown: {} game(s) could not be closed: {left:?}",
-                            left.len()
-                        ),
-                        Err(_) => log::error!(
-                            target: "obs_shogi::lib",
-                            "shutdown: timed out; engine processes may be left running"
-                        ),
-                    }
-                });
+            // **2つのイベントを両方受ける。** macOS の Cmd+Q は
+            // `NSApp terminate:` で、ウィンドウに close を送らずに
+            // `applicationWillTerminate:` へ進むので `ExitRequested` が出ない。
+            // 届くのは `Exit` だけ。ウィンドウの × は逆に `ExitRequested` を通る。
+            // `match` にしてあるのは、バリアントが増えたときに数え直させるため
+            match event {
+                tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+                    shut_down_engines(app);
+                }
+                _ => {}
             }
         });
+}
+
+/// 起動しているエンジンを全部落とす。**2回目以降は何もしない。**
+///
+/// `ExitRequested` と `Exit` は片方だけのことも両方来ることもあるので、
+/// 1回に絞る。2回走らせても台帳が空なので害は無いが、
+/// `Exit` は `applicationWillTerminate:` の中で、OS が待つ時間が短い。
+fn shut_down_engines(app: &tauri::AppHandle) {
+    static DONE: std::sync::Once = std::sync::Once::new();
+
+    DONE.call_once(|| {
+        let state = app.state::<AppState>();
+        let games = Arc::clone(&state.games);
+        let registry = Arc::clone(&state.registry);
+
+        tauri::async_runtime::block_on(async move {
+            // 対局を閉じる。**切り上げてもよい。** 残りは下の掃除が拾う
+            match tokio::time::timeout(CLOSE_BUDGET, games.close_all(&registry)).await {
+                Ok(left) if left.is_empty() => {}
+                Ok(left) => log::warn!(
+                    target: "obs_shogi::lib",
+                    "shutdown: {} game(s) could not be closed: {left:?}",
+                    left.len()
+                ),
+                Err(_) => log::warn!(
+                    target: "obs_shogi::lib",
+                    "shutdown: closing games timed out; falling through to the sweep"
+                ),
+            }
+
+            // **対局の閉じ方に関わらず必ず走らせる。**
+            // 解析用エンジンはここからしか届かない
+            if tokio::time::timeout(SWEEP_BUDGET, registry.shutdown_all())
+                .await
+                .is_err()
+            {
+                log::error!(
+                    target: "obs_shogi::lib",
+                    "shutdown: sweep timed out; engine processes are left running"
+                );
+            }
+        });
+    });
 }

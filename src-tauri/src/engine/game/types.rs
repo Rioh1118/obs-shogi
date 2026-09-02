@@ -103,6 +103,16 @@ pub struct TimeLimit {
     pub increment_ms: u64,
 }
 
+/// 1つの欄に置ける上限。24時間。
+///
+/// **入口で弾く。** `SideClock` は `main_ms + increment_ms` を持つので、
+/// 上限が無いと `u64` の加算が溢れる。debug では panic して `invoke` が
+/// 返らなくなり、release では 0 に巻き戻って開始直後に時間切れ負けになる。
+///
+/// 24時間にしたのは、これを超える持ち時間の対局が将棋に無いから。
+/// 足りなくなったら上げてよい（溢れない範囲であることだけ保つ）。
+const MAX_TIME_MS: u64 = 24 * 60 * 60 * 1000;
+
 impl TimeLimit {
     /// 通したい組み合わせは4つ。
     ///
@@ -121,6 +131,16 @@ impl TimeLimit {
         // 3つとも 0 は「持ち時間が無い」であって、初手で必ず時間切れになる
         if self.main_ms == 0 && self.byoyomi_ms == 0 && self.increment_ms == 0 {
             return Err("time limit must set at least one of main/byoyomi/increment".to_string());
+        }
+        // 溢れる値を入口で断る。値はフロントから来る任意の `u64`
+        for (name, value) in [
+            ("main", self.main_ms),
+            ("byoyomi", self.byoyomi_ms),
+            ("increment", self.increment_ms),
+        ] {
+            if value > MAX_TIME_MS {
+                return Err(format!("{name} time must not exceed {MAX_TIME_MS} ms"));
+            }
         }
         Ok(())
     }

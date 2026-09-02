@@ -38,7 +38,10 @@ impl SideClock {
     pub fn new(limit: TimeLimit) -> Self {
         Self {
             limit,
-            remaining_ms: limit.main_ms + limit.increment_ms,
+            // `validate` が上限を掛けているので溢れないが、**入口を1つに
+            // 頼らない**。`SideClock::new` は `validate` を通らない経路
+            // （テスト）からも呼ばれる
+            remaining_ms: limit.main_ms.saturating_add(limit.increment_ms),
         }
     }
 
@@ -55,7 +58,7 @@ impl SideClock {
     /// 加算（フィッシャー）は**着手できてから**足すので、ここには入らない。
     /// 入れると、使い切ったのに指せていない状態を「まだ余裕がある」と読む。
     fn budget_ms(&self) -> u64 {
-        self.remaining_ms + self.limit.byoyomi_ms
+        self.remaining_ms.saturating_add(self.limit.byoyomi_ms)
     }
 
     /// `main_ms` は止まっている値、`byoyomi_ms` は設定値。
@@ -86,7 +89,7 @@ impl SideClock {
 
         // 秒読みで賄った分は持ち時間から引かない。秒読みは毎手与え直される。
         // 加算はここでだけ足す。中断では足さない（着手していないため）
-        self.remaining_ms += self.limit.increment_ms;
+        self.remaining_ms = self.remaining_ms.saturating_add(self.limit.increment_ms);
 
         ClockOutcome::Ok
     }
@@ -235,6 +238,27 @@ mod tests {
         for (label, limit) in allowed {
             assert!(limit.validate().is_ok(), "{label} が弾かれた: {limit:?}");
         }
+    }
+
+    /// 溢れる値を入口で断ること。
+    ///
+    /// `SideClock` は `main_ms + increment_ms` を持つので、通すと
+    /// debug で panic（`invoke` が返らない）、release で 0 に巻き戻る
+    /// （開始直後に時間切れ負け）。値はフロントから来る任意の `u64`
+    #[test]
+    fn validate_rejects_times_that_would_overflow() {
+        let huge = TimeLimit {
+            main_ms: u64::MAX,
+            byoyomi_ms: 0,
+            increment_ms: 1,
+        };
+        assert!(huge.validate().is_err(), "溢れる持ち時間を通している");
+
+        // 上限ちょうどは通す。1つ超えたら断る
+        let at_limit = sudden_death(24 * 60 * 60 * 1000);
+        assert!(at_limit.validate().is_ok());
+        let over = sudden_death(24 * 60 * 60 * 1000 + 1);
+        assert!(over.validate().is_err());
     }
 
     #[test]

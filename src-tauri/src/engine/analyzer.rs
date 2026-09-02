@@ -39,7 +39,8 @@ pub struct EngineAnalyzer {
     /// 「解析中か」の判定にこれを使わないこと。
     ///
     /// 要るのは、`bestmove` が来ない経路があるため。積み置きの `go` は
-    /// `stop` / `begin_generation` / `discard_pending` の3つの口から落ちるので、
+    /// 複数の口から落ちる（`stop` の取り消し、`isready` のやり直し、破棄、
+    /// flush の失敗、`readyok` が来なかった場合）ので、
     /// `process_analysis_stream` が自分では抜けられないことがある
     infinite_listener: Arc<Mutex<Option<String>>>,
 }
@@ -342,22 +343,27 @@ impl EngineAnalyzer {
             flag.store(true, Ordering::SeqCst);
         }
 
-        let effect = protocol.stop().await?;
-
-        // **`StopEffect` を見ずに必ず外す。** `bestmove` が来ることを
-        // 畳む条件にすると、来ない経路を全部数え上げることになる。
-        // 積み置きの `go` は `stop` 以外に `begin_generation`（次の `isready`）と
-        // `discard_pending`（`kill_engine`）も落とすので、`CancelledQueued` だけを
-        // 見ていると、そちらで落ちたときにリスナーが残る。
+        // **`stop` の結果を待たずに外す。** `?` を先に置くと、
+        // `Refuse` と書き込みの詰まりの2経路でリスナーが残る。
+        // しかも `fail_writes` が `Closed` を立てるようになったので、
+        // `Refuse` は起きやすい。
+        //
+        // 「`bestmove` が来たら畳む」を条件にしないのは、来ない口が複数あるため
+        // （`stop` の取り消し、`isready` のやり直し、破棄、flush の失敗、
+        // `readyok` が来なかった場合）。数え上げると必ず1つ漏れる。
         //
         // 外すと `process_analysis_stream` の `raw_rx.recv()` が `None` を返して
         // 抜け、`result_tx` の drop が `forward_results_to_ui` を終わらせる。
-        // `Written` の場合も同じ場所で終わるので、外して困らない。
+        // 正常に止めた場合も同じ場所で終わるので、外して困らない。
         // `remove_listener` は冪等
+        let stopped = protocol.stop().await;
+
         if let Some(id) = self.infinite_listener.lock().await.take() {
-            log::debug!(target: LOGT, "stop_analysis: closing stream id={id} effect={effect:?}");
+            log::debug!(target: LOGT, "stop_analysis: closing stream id={id}");
             protocol.remove_listener(&id).await;
         }
+
+        stopped?;
         Ok(())
     }
 

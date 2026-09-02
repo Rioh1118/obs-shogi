@@ -7,9 +7,13 @@
 //! そのコメントが「番人は別の場所にある」のような構造の説明を含んでいると、
 //! grep が空振りしたうえで「探しても無いから足そう」まで進む。
 //!
-//! **止められるのは綴りが1つも残っていない名前だけ。** 別の場所に同じ綴りが
-//! 在る改名（関数名 → 欄名として生存）は素通りする。型名・バリアント名は
-//! 下線を含まないので候補にすら入らない。
+//! **止められるのは綴りが1つも残っていない名前だけ。** 限界は5つ。
+//!
+//! 1. 別の場所に同じ綴りが在る改名（関数名 → 欄名として生存）は素通りする
+//! 2. 型名・バリアント名は下線を含まないので候補にすら入らない
+//! 3. 見るのは `src-tauri/src` だけ。**`src-tauri/tests` のコメントは見ていない**
+//! 4. 行頭が `//` の行だけ。**行末コメントは見ていない**
+//! 5. 綴りが在るかしか見ない。種類（関数か定数か欄名か）は見ていない
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -37,26 +41,23 @@ fn src_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
 }
 
-/// ソースに無くて当然の綴り。
+/// ソースに無くて当然の綴り。**いまは空。**
 ///
 /// 増やすときは**なぜソースに無くてよいか**を1件ずつ書くこと。
 /// 書けないなら、それは腐ったコメントであって除外の対象ではない。
-const EXEMPT: &[&str] = &[
-    // USI の語。エンジンとの取り決めであって、こちらの識別子ではない
-    "go_ponder",
-    "position_sfen",
-    "go_infinite",
-    // `usi` crate の中の名前
-    "process_engine",
-    "gui_command",
-    // 他リポジトリ（ShogiHome）の識別子
-    "enable_engine_timeout",
-];
-
-/// コメントの行だけを返す。`///` `//!` `//` を拾う。
 ///
-/// ブロックコメントは追わない。この repo の Rust は行コメントで書かれていて、
-/// 追うと文字列リテラルの中の `/*` を拾い始める。
+/// 先回りして入れないこと。使われていない除外が並んでいると、
+/// 「これだけ除外が要るほど拾う」という誤った印象を与え、
+/// 検査がどれだけ緩いかを読み手が測れなくなる。
+/// `the_exempt_list_is_not_dead` が空振りを止める。
+const EXEMPT: &[&str] = &[];
+
+/// コメントの**行頭から**の行だけを返す。`///` `//!` `//` を拾う。
+///
+/// ブロックコメントは追わない。`src-tauri/src` に `/*` は、コメントとしても
+/// 文字列リテラルとしても1つも無いため。書かれ始めたらここを直す。
+///
+/// 行末コメントも拾わない（現物にバッククォート付きの識別子は0件）。
 fn comment_lines(source: &str) -> Vec<(usize, &str)> {
     source
         .lines()
@@ -73,6 +74,14 @@ fn comment_lines(source: &str) -> Vec<(usize, &str)> {
 /// 下線を要求するのは、頭字語（`USI` / `SFEN`）と型名を除くため。
 /// 型名も見られると嬉しいが、一語の型は地の文の英単語と区別できない。
 fn identifiers_in(line: &str) -> Vec<String> {
+    raw_identifiers_in(line)
+        .into_iter()
+        .filter(|name| !EXEMPT.contains(&name.as_str()))
+        .collect()
+}
+
+/// `EXEMPT` を通す前の綴り。**`EXEMPT` が死んでいないかを見るのに要る**
+fn raw_identifiers_in(line: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut rest = line;
 
@@ -83,7 +92,7 @@ fn identifiers_in(line: &str) -> Vec<String> {
         rest = &after[close + 1..];
 
         let bare = inline.strip_suffix("()").unwrap_or(inline);
-        if is_identifier(bare) && !EXEMPT.contains(&bare) {
+        if is_identifier(bare) {
             found.push(bare.to_string());
         }
     }
@@ -187,6 +196,34 @@ fn the_scanner_finds_identifiers_in_comments() {
         .sum();
 
     assert!(found > 100, "コメントから {found} 件しか拾えていない");
+}
+
+/// `EXEMPT` に死んだ項目を残さない。
+///
+/// 使われていない除外は、検査がどれだけ緩いかの見積もりを狂わせる。
+/// 足したのに1つも参照されていないなら、それは要らなかった項目
+#[test]
+fn the_exempt_list_is_not_dead() {
+    let mentioned: BTreeSet<String> = rust_files(&src_dir())
+        .iter()
+        .flat_map(|p| {
+            let source = fs::read_to_string(p).unwrap_or_default();
+            comment_lines(&source)
+                .iter()
+                .flat_map(|(_, line)| raw_identifiers_in(line))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    let dead: Vec<&&str> = EXEMPT
+        .iter()
+        .filter(|name| !mentioned.contains(**name))
+        .collect();
+
+    assert!(
+        dead.is_empty(),
+        "`EXEMPT` にコメントから1度も参照されていない項目がある。落とすこと: {dead:?}"
+    );
 }
 
 #[test]

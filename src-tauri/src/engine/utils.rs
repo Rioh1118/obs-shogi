@@ -113,7 +113,12 @@ impl LogThrottle {
     pub fn new(interval: Duration) -> Self {
         Self {
             interval,
-            last: Instant::now() - interval,
+            // `Instant::now() - interval` は起動直後に panic する
+            // （`Instant` は単調時計で、ブートより前へは遡れない）。
+            // 遡れなかったときは初回の `allow` が `false` になるだけ
+            last: Instant::now()
+                .checked_sub(interval)
+                .unwrap_or_else(Instant::now),
         }
     }
 
