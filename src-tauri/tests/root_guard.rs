@@ -123,8 +123,10 @@ fn without_comments(source: &str) -> String {
 ///
 /// **`body` を関門の判定に使わせない。** `body` は引数名と型を読むために
 /// 文字列を残してあるので、`log::debug!("... validate_under_root ...")` の1行が
-/// 「関門を呼んだ」と数えられる。判定は `calls` だけを通す——
+/// 「関門を呼んだ」と数えられる。有無は `calls`、順序は `code` を見る——
 /// 消費側が写しを取り違えてもコンパイルが通る形（タプル）にしない。
+///
+/// 2つの写しは**同じ範囲を同じ長さで**持つので、位置をそのまま比べられる。
 struct Command {
     name: String,
     /// 署名と引数名を読む側。文字列は残っている
@@ -249,10 +251,18 @@ fn takes_a_path(chunk: &str) -> bool {
 ///
 /// 位置だけで比べると、パスを2本受けるコマンドの正しい並びを違反として拾ってしまう。
 /// 守りたいのは「**その変数**を関門へ通す前に、その変数の存在や種類を見ない」
-fn guarded_variables(body: &str) -> Vec<(usize, String)> {
+///
+/// **`Command::code` を渡すこと。** 文字列を残した写しを渡すと、
+/// `log::debug!("... validate_under_root(&app, &path) ...")` のような1行が
+/// 2つ目の関門として数えられ、**順序が正しいコマンドが違反として出る**
+/// （綴りが `(&app, &変数)` まで一致したときだけ。実測で確認した）。
+///
+/// 見逃す側には倒れない。囮を足しても本物の関門の位置は一覧に残るので、
+/// 存在確認がそれより前にあれば拾える。関門が1つも無い場合は `calls` が拾う。
+fn guarded_variables(code: &str) -> Vec<(usize, String)> {
     let mut found = Vec::new();
-    for (at, _) in body.match_indices(GUARD) {
-        let rest = &body[at..];
+    for (at, _) in code.match_indices(GUARD) {
+        let rest = &code[at..];
         let Some(open) = rest.find('(') else { continue };
         let Some(len) = matching(&rest[open..], '(', ')') else {
             continue;
@@ -487,11 +497,11 @@ fn every_path_taking_command_checks_the_root() {
     let mut wrong_order: Vec<String> = Vec::new();
     for (file, source) in &files {
         for command in commands(source) {
-            let (name, body) = (&command.name, &command.body);
-            for (guard_at, variable) in guarded_variables(body) {
+            let (name, code) = (&command.name, &command.code);
+            for (guard_at, variable) in guarded_variables(code) {
                 for probe in [".exists()", ".is_dir()", ".is_file()", ".symlink_metadata("] {
                     let call = format!("{variable}{probe}");
-                    if let Some(at) = body.find(&call) {
+                    if let Some(at) = code.find(&call) {
                         if at < guard_at {
                             wrong_order.push(format!(
                                 "{file}: {name} が {call} を {variable} の関門より前に呼んでいる"
@@ -500,7 +510,7 @@ fn every_path_taking_command_checks_the_root() {
                     }
                 }
                 let ensure = format!("ensure_not_exists(&{variable})");
-                if let Some(at) = body.find(&ensure) {
+                if let Some(at) = code.find(&ensure) {
                     if at < guard_at {
                         wrong_order.push(format!(
                             "{file}: {name} が {ensure} を {variable} の関門より前に呼んでいる"
