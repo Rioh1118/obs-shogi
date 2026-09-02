@@ -186,6 +186,17 @@ fn hand_step(
     let hk = HAND_KINDS.iter().position(|k| *k == kind)?;
 
     let before = pos.hand_of_a_player(color).count(kind)? as i16;
+
+    // `shogi_core` の `Hand::added` は `wrapping_add` なので **255 の次は 0**。
+    // 頭打ちで数えるこちらは 255 も 256 も同じ枠に落として差分を打ち消すので、
+    // フル計算が `0` を採るのに差分は「変わらない」と答えて**鍵が食い違う**。
+    // 枚数を検査する経路が無く（`jkf::Hand` の欄は `u8` なので `.jkf` が
+    // `"KA":255` を名乗れる）、盤から来る値ではないので折り返しは実際に届く。
+    // 諦めてフル計算に落とす — 呼び手はそのために `None` を見ている
+    if before >= i16::from(u8::MAX) && delta > 0 {
+        return None;
+    }
+
     let after = before + i16::from(delta);
     if after < 0 {
         return None;
@@ -330,5 +341,52 @@ mod tests {
         let jkf = parse(text);
         let n = walk_and_compare("capture-promote-drop", &jkf);
         assert!(n >= 5, "題材が短すぎる: {n}手しか見ていない");
+    }
+
+    /// 持駒が `u8` の上限にいるとき、差分は答えずにフル計算へ譲る。
+    ///
+    /// `shogi_core` の `Hand::added` は `wrapping_add` なので **255 の次は 0**。
+    /// 頭打ちで数える差分は 255 も 256 も同じ枠に落として打ち消すので、
+    /// 答えると**フル計算と違う鍵**になる。枚数を検査する経路は無く、
+    /// `jkf::Hand` の欄は `u8` なので `.jkf` が `"KA":255` を名乗れる。
+    ///
+    /// **`walk_and_compare` では届かない。** あちらは KIF を読んで歩くので、
+    /// 持駒が 255 枚になる局面を作れない。ここは `hand_step` を直に見る。
+    #[test]
+    fn a_hand_at_the_byte_limit_falls_back_to_a_full_recompute() {
+        use shogi_core::{Color, Hand, PartialPosition, PieceKind};
+
+        let tbl = ZOBRIST.get_or_init(ZobristTable::new);
+        let mut pos = PartialPosition::startpos();
+
+        // 上限の1つ下までは差分が答える。境界がずれたらここが落ちる
+        let mut hand = Hand::default();
+        for _ in 0..u8::MAX - 1 {
+            hand = hand.added(PieceKind::Bishop).expect("持てること");
+        }
+        *pos.hand_of_a_player_mut(Color::Black) = hand;
+        assert!(
+            hand_step(tbl, &pos, Color::Black, PieceKind::Bishop, 1).is_some(),
+            "上限の1つ下で差分が諦めた"
+        );
+
+        // 上限では諦める。答えると `wrapping_add` で 0 に戻る側とずれる
+        let hand = hand.added(PieceKind::Bishop).expect("持てること");
+        *pos.hand_of_a_player_mut(Color::Black) = hand;
+        assert_eq!(
+            hand.count(PieceKind::Bishop),
+            Some(u8::MAX),
+            "題材が上限に届いていない"
+        );
+        assert!(
+            hand_step(tbl, &pos, Color::Black, PieceKind::Bishop, 1).is_none(),
+            "上限で差分が答えてしまった"
+        );
+
+        // 減る側は折り返さないので、上限にいても答えてよい
+        assert!(
+            hand_step(tbl, &pos, Color::Black, PieceKind::Bishop, -1).is_some(),
+            "減る側まで諦めた"
+        );
     }
 }
