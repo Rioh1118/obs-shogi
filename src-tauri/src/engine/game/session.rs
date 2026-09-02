@@ -2930,7 +2930,7 @@ mod tests {
     ///
     /// **見ているのは `Over` が出たことだけ。** `gameover` が実際に飛ぶことも、
     /// それが `Over` より後であることも見ていない——`send_gameover` の宛先は
-    /// `UsiProtocol` の具象で、観測する継ぎ目が無い（→ #375）。
+    /// `UsiProtocol` の具象で、観測する継ぎ目が無い（→ #377）。
     /// 順序を入れ替える変異ではここは落ちない。
     #[tokio::test]
     async fn ending_the_game_tells_the_app_before_it_tells_the_engines() {
@@ -3000,7 +3000,7 @@ mod tests {
     ///
     /// **見ているのはそこまで。** `gameover` が実際に飛ぶことは見ていない
     /// ——`send_gameover` の宛先が `UsiProtocol` の具象で、観測する継ぎ目が
-    /// 無いため（→ #375）。`Phase::Over` の早期 return を `match` より後ろへ
+    /// 無いため（→ #377）。`Phase::Over` の早期 return を `match` より後ろへ
     /// 動かす変異でも、`activity` の代入はその手前にあるのでここは落ちない。
     /// **セルは踏んでいるが、不変条件3 はまだ守られていない。**
     #[tokio::test]
