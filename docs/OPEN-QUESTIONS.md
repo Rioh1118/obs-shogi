@@ -53,7 +53,7 @@
 決まっていないのは範囲。
 
 - 定跡（#84 #90–#101）— read/write/変換/UI。**`.db.bin` は実在しないので仕様の訂正が要る**
-- 対局 — エンジン同士 / 人対エンジン / 持ち時間管理
+- 対局 — エンジン同士 / 人対エンジン / 持ち時間管理。**Rust 側の API としては入った**（`docs/state-transitions/game-session.md`。人対エンジン・エンジン同士・持ち時間・先読み）。UI と終局判定（#354）は未着手。floodgate も未着手
 - floodgate — 接続、棋譜の取得、結果の追跡
 - CSA プロトコル — 対局と floodgate の前提
 - 棋力測定まわり — `~/zermelo` は SPRT・pentanomial・独立審判を**自前で持っている**。

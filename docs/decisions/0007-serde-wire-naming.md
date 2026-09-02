@@ -9,17 +9,49 @@ Rust と TS の間に出る型の綴りに規則が無い。TS 側は Rust の�
 いるだけなので（`src/entities/*/api/rust-types.ts`）、綴りがずれても
 **Rust も TS もコンパイルが通り、実行時に `undefined` を読む**。
 
-実測（`src-tauri/src/**/*.rs`、2026-09-02。数え方は
-`src-tauri/tests/serde_naming.rs` が持つ）:
+実測（2026-09-02）。**再現できる形で書く。**
 
-|                                                  |                                                       |
-| ------------------------------------------------ | ----------------------------------------------------- |
-| `Serialize` / `Deserialize` を導出する型         | 67                                                    |
-| うち `rename_all = "camelCase"` が付いていない型 | **26**（保存ファイルと境界外の11型を除く）            |
-| 値なし enum の綴りの流儀                         | **3通り**（`camelCase` / `lowercase` / `snake_case`） |
-| 値つき enum で internally tagged でないもの      | **2**（`EngineOptionType` / `EvaluationKind`）        |
+```sh
+# Serialize / Deserialize を導出する型の数
+grep -rn '^\s*#\[derive' --include='*.rs' src-tauri/src/ | grep -Ec 'Serialize|Deserialize'
+# => 68
 
-揃っているのは `search/` だけ（18型中16が camelCase）。
+# search/types.rs の derive 数と camelCase の数
+grep -c '^#\[derive' src-tauri/src/search/types.rs                 # => 20
+grep -c 'rename_all = "camelCase"' src-tauri/src/search/types.rs    # => 18
+
+# 綴りの流儀ごとの数
+grep -rn 'rename_all = "camelCase"' src-tauri/src | wc -l   # => 35
+grep -rn 'rename_all = "lowercase"' src-tauri/src | wc -l   # => 2
+grep -rn 'rename_all = "snake_case"' src-tauri/src | wc -l  # => 1
+```
+
+**`26` と `2` だけは `src-tauri/tests/serde_naming.rs` が持つ**
+（`BASELINE` と `UNTAGGED_ENUM_BASELINE`。`cargo test --test serde_naming` の
+`assert_eq!` が現物と突き合わせる）。上の数はテストからは出ないので、
+コマンドを併記した。
+
+|                                                  |                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------ |
+| `Serialize` / `Deserialize` を導出する型         | 68                                                                 |
+| うち `rename_all = "camelCase"` が付いていない型 | **26**（保存ファイルと境界外の11型を除く）                         |
+| 値なし enum の綴りの流儀                         | **4通り**（`camelCase` / `lowercase` / `snake_case` / **無指定**） |
+| 値つき enum で internally tagged でないもの      | **2**（`EngineOptionType` / `EvaluationKind`）                     |
+
+**4通り目の「無指定」が一番危ない。** rename が無い enum は Rust の
+バリアント名がそのまま（PascalCase で）線に出て、TS 側がその綴りを写している。
+
+- `src/search/types.rs` の `IndexState` → TS は `"Empty" | "Restoring" | …`
+- 同 `Consistency` → `src/entities/search/api/contract.ts` の
+  `"BestEffort" | "WaitForClean"`。呼び出しは
+  `src/features/position-search/ui/PositionSearchModal.tsx` の
+  `consistency: "BestEffort"`
+
+決定1 を既存に当てると**この文字列リテラルが黙って外れる**。移行の対象を
+数えるときに、rename 済みの側へ数え落としやすい。
+
+揃っているのは `search/types.rs` だけ（20型中18が camelCase。残る2つが上の
+`IndexState` と `Consistency`）。`search/` 全体では 24 型中 18。
 `engine/types.rs` は11型すべてに rename が無く、`pv_line` / `first_move` /
 `option_type` がそのまま線に出ている。`file_system/types.rs` の `FileTreeNode` は
 規則が無いので `#[serde(rename = "isDir")]` と**1欄ずつ手で**当てている。
@@ -48,8 +80,14 @@ interface EngineOptionType {
 }
 ```
 
-`research/shogihome/05-usi-engine.md` が「obs-shogi は USI オプションの型情報を
-捨てているので強さのスライダは原理的に作れない」と書いた原因はここにある。
+`research/shogihome/05-usi-engine.md` が「型情報を捨てている」と評しているのは
+obs-shogi の `EnginePreset.options`（`src-tauri/src/engine_presets.rs` の
+`HashMap<String, String>`）で、**そちらはこの ADR の対象外**（保存ファイルの形。
+下の 4 の EXEMPT）。
+
+ここで直すのは `EngineOptionType`（`engine/types.rs`）が TS 側で絞り込めない点だけ。
+`min` / `max` / `vars` は保持しているのに、externally tagged なせいで
+判別可能ユニオンにならない。
 
 ### `rename_all` は enum のバリアント名にしか効かない
 
@@ -74,8 +112,10 @@ Tauri はコマンドの**引数名**を既に camelCase で受ける（`invoke(
 ```
 
 TS 側が `switch (o.kind)` で絞り込める形になる。
-**タプル型のバリアントは serde が internally tagged にできない**ので、
-`MateInMoves(i32)` は `MateInMoves { moves: i32 }` へ直す。
+**タプル型のバリアントは serde が internally tagged にできない。**
+`engine/types.rs` の `MateInMoves(i32)` / `MateUnknown(bool)` がそれで、
+移行するときは `MateInMoves { moves: i32 }` の形へ直す必要がある。
+**この ADR では直さない**（5 のとおり既存は据え置く）。
 
 ### 3. `tag` を付けたら `rename_all_fields` も必ず付ける
 
@@ -92,6 +132,12 @@ TS 側が `switch (o.kind)` で絞り込める形になる。
 
 一覧は `src-tauri/tests/serde_naming.rs` の `EXEMPT`。
 **「まだ直していない」は理由にならない。** それは 5 のラチェットが数える側。
+
+`docs/proposals/naming-and-module-layout.md`（**未採用**）の決定5 は
+`AppConfig.root_dir` → `workspace_dir` を `#[serde(alias)]` で移行する案を持つ。
+採用されると、ここの「保存ファイルは綴りを変えられない」という理由が一部否定される。
+綴りの規則（この ADR）と欄の意味の改名（あちら）は別の話だが、同じファイルに
+掛かるので、**あちらを採るときにこの節を見直すこと。**
 
 ### 5. 既存はラチェットで守り、移行は別に切る
 
