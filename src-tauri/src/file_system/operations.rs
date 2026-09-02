@@ -85,6 +85,12 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
 /// **`kifu.rs` の `convert_jkf_to_format` とは別物。** あちらは Tauri コマンドで、
 /// 形式名を文字列で受け取り `normalize()` を呼ぶ。同じ名前にしていると、
 /// #322（どの経路が正規化するか）のコメントがどちらを指すか決められない。
+///
+/// **0バイトにはならない。** 綴りは4形式とも開始局面を名乗る
+/// （KIF / KI2 は `手合割`、CSA は `PI`、JKF は JSON の器）ので、
+/// ヘッダも指し手も無い JKF でも骨組みが残る。
+/// 空を書かせない番人は要らない — 空が作れない。
+/// 固定するのは `no_format_spells_a_blank_record_as_nothing`。
 fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
     // `ConvertError` の Display は綴れなかったものを名指しする（書き分けられない手、
     // 綴りの無い枚数、盤面の無い手合割）。何手目かは言わない — ply を持つのは
@@ -94,7 +100,7 @@ fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<St
         r.map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string()))
     };
 
-    let text = match get_file_extension(file_path).as_deref() {
+    match get_file_extension(file_path).as_deref() {
         Some("kif") => to_fs_error(jkf_data.try_to_kif_owned()),
         Some("ki2") => to_fs_error(jkf_data.try_to_ki2_owned()),
         Some("csa") => to_fs_error(jkf_data.try_to_csa_owned()),
@@ -104,24 +110,7 @@ fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<St
             FsError::new(FsErrorCode::InvalidExtension, "unsupported kifu format")
                 .with_path(file_path.to_string_lossy().to_string()),
         ),
-    }?;
-
-    // **0バイトのファイルを置かせない。**
-    // `try_to_ki2_owned` は「平手・ヘッダ空・0手」の JKF を空文字列に綴る。
-    // 新規作成フォームはファイル名以外すべて任意なので、`.ki2` を選ぶと
-    // 既定の操作でこれに当たる。書いてしまうと `Ok` が返って作成は成功に見えるが、
-    // 次に開くと「空の棋譜です。」で行き止まりになり、
-    // アプリの中で中身を入れる手段が無い（削除して作り直すしかない）。
-    // 索引側は中身の無い記録を黙って通すので、警告もどこにも出ない
-    if text.is_empty() {
-        return Err(FsError::new(
-            FsErrorCode::KifuConversionFailed,
-            "この形式では書き出す中身がありません。対局者名か手合割を入れてください",
-        )
-        .with_path(file_path.to_string_lossy().to_string()));
     }
-
-    Ok(text)
 }
 
 #[command]
@@ -392,16 +381,18 @@ mod tests {
 
     /// 0バイトのファイルを作らない。
     ///
-    /// `try_to_ki2_owned` は「平手・ヘッダ空・0手」の JKF を空文字列に綴る。
-    /// 新規作成フォームはファイル名以外すべて任意なので、`.ki2` を選ぶと
-    /// **既定の操作でこれに当たる**（他の3形式は骨組みを書くので当たらない）。
+    /// 新規作成フォームはファイル名以外すべて任意なので、何も入れずに作ると
+    /// 「平手・ヘッダ空・0手」の JKF が来る。**既定の操作でここに当たる。**
     ///
-    /// 書いてしまうと `Ok` が返って作成は成功に見えるのに、次に開くと
+    /// 0バイトで書いてしまうと `Ok` が返って作成は成功に見えるのに、次に開くと
     /// 「空の棋譜です。」で行き止まりになる。そのダイアログは再読み込みも出さないので、
     /// **アプリの中で中身を入れる手段が無い**（削除して作り直すしかない）。
     /// 索引側は中身の無い記録を黙って通すので、警告もどこにも出ない。
+    ///
+    /// **どの形式も開始局面を名乗る**ので、4形式とも骨組みを書く。
+    /// KI2 が `手合割：平手` を書くのはそのため。
     #[test]
-    fn an_empty_spelling_is_refused_instead_of_written() {
+    fn no_format_spells_a_blank_record_as_nothing() {
         let blank = JsonKifuFormat {
             initial: Some(Initial {
                 preset: Preset::PresetHirate,
@@ -411,26 +402,19 @@ mod tests {
             ..JsonKifuFormat::default()
         };
 
-        let err = spell_for_extension(&blank, Path::new("新規.ki2"))
-            .expect_err("空に綴れる形式は断ること");
-        assert!(
-            matches!(err.code, FsErrorCode::KifuConversionFailed),
-            "{:?}",
-            err.code
-        );
-
-        // 他の3形式は骨組みを書くので通る。**通る側も0バイトでないことを見る**
-        for ext in ["kif", "csa", "jkf"] {
+        for ext in ["kif", "ki2", "csa", "jkf"] {
             let text = spell_for_extension(&blank, Path::new(&format!("新規.{ext}")))
                 .unwrap_or_else(|e| panic!("{ext} を綴れない: {}", e.message));
             assert!(!text.is_empty(), "{ext} が空になっている");
         }
 
-        // 対局者名が1つでもあれば `.ki2` も中身を持つ
-        let mut named = blank;
-        named.header.insert("先手".to_owned(), "山田".to_owned());
-        let text = spell_for_extension(&named, Path::new("新規.ki2")).expect("綴れること");
-        assert!(!text.is_empty());
+        // KI2 が名乗るのは手合割。空になりうる唯一の形式だったので、
+        // 何を書いて空でなくなったのかを見る
+        let ki2 = spell_for_extension(&blank, Path::new("新規.ki2")).expect("綴れること");
+        assert!(
+            ki2.contains("手合割"),
+            "KI2 が開始局面を名乗っていない: {ki2:?}"
+        );
     }
 
     /// 綴れなかったときに、クレートが名指ししたものを消さない。
