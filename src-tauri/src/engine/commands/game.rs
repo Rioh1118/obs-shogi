@@ -3,6 +3,13 @@
 //! 1コマンド = 1つの意図。USI のコマンドと1対1にはしない
 //! （`position` も `go` も `isready` もここには出てこない）。
 
+use std::sync::Arc;
+
+use tauri::Emitter;
+
+use crate::engine::game::events::GameEventSink;
+use crate::engine::game::session::GAME_EVENT;
+use crate::engine::game::types::GameEvent;
 use crate::engine::state::AppState;
 
 use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
@@ -21,8 +28,33 @@ pub async fn start_game(
 ) -> Result<GameId, String> {
     state
         .games
-        .start(state.registry.clone(), Some(app), settings)
+        .start(
+            state.registry.clone(),
+            Arc::new(TauriEvents { app }),
+            settings,
+        )
         .await
+}
+
+/// `game-event` へ流す宛先。**実装はここ（上の段）に置く。**
+///
+/// `game` 側に置くと、対局の状態機械が `tauri` を知ることになる。
+/// 口（`GameEventSink`）は下が決め、それに合わせるのは上、という向き。
+struct TauriEvents {
+    app: tauri::AppHandle,
+}
+
+impl GameEventSink for TauriEvents {
+    /// **失敗しても対局を止めない。** 届かないのはフロントの都合で、
+    /// エンジンは指し続ける。ここで折ると、画面が落ちただけで対局が壊れる。
+    ///
+    /// ただし**黙って捨てると原因が追えない**（届かなかった裁定要求が
+    /// `RULING_TIMEOUT` で「アプリが答えなかった」に化ける → 台帳の F-19）。
+    fn emit(&self, event: GameEvent) {
+        if let Err(e) = self.app.emit(GAME_EVENT, event) {
+            log::warn!(target: "obs_shogi::engine::game", "emit failed: {e}");
+        }
+    }
 }
 
 /// 人間の着手。合法性はフロントが確かめてから呼ぶ

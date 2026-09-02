@@ -6,11 +6,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tauri::AppHandle;
 use tokio::sync::RwLock;
 
 use crate::engine::registry::EngineRegistry;
 
+use super::events::GameEventSink;
 use super::session::{GameSession, CLOSE_ABORT_TIMEOUT};
 use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
@@ -29,10 +29,10 @@ impl GameManager {
     pub async fn start(
         &self,
         registry: Arc<EngineRegistry>,
-        app: Option<AppHandle>,
+        events: Arc<dyn GameEventSink>,
         settings: GameSettings,
     ) -> Result<GameId, String> {
-        let session = GameSession::start(registry, app, settings).await?;
+        let session = GameSession::start(registry, events, settings).await?;
         let id = session.id.clone();
         self.sessions
             .write()

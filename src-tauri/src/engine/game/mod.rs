@@ -5,6 +5,7 @@
 //! 責任の切れ目は [`session`] の冒頭。
 
 pub mod clock;
+pub mod events;
 pub mod manager;
 pub mod search;
 pub mod session;

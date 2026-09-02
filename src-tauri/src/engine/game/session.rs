@@ -25,7 +25,6 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::WeakUnboundedSender;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
@@ -37,6 +36,7 @@ use crate::engine::types::AnalysisResult;
 use crate::engine::{READY_TIMEOUT, USI_OK_TIMEOUT};
 
 use super::clock::{ClockOutcome, GameClocks};
+use super::events::GameEventSink;
 use super::search::{run_search, SearchKind, SearchMessage, SearchOutcome, SearchRequest};
 use super::types::*;
 
@@ -190,7 +190,7 @@ pub(super) const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
 const CLOSE_POLL: Duration = Duration::from_millis(50);
 
 /// フロントへ流すイベントの名前
-const EVENT: &str = "game-event";
+pub(crate) const GAME_EVENT: &str = "game-event";
 
 // ===== 外から呼ぶ口 =====
 
@@ -215,7 +215,7 @@ impl GameSession {
     /// 盤を出すこと。
     pub async fn start(
         registry: Arc<EngineRegistry>,
-        app: Option<AppHandle>,
+        events: Arc<dyn GameEventSink>,
         settings: GameSettings,
     ) -> Result<GameSession, String> {
         validate_settings(&settings)?;
@@ -229,7 +229,7 @@ impl GameSession {
 
         let mut runner = Runner {
             id: id.clone(),
-            app,
+            events,
             clocks: GameClocks::new(settings.black_time, settings.white_time),
             players: [
                 Player::new(settings.black.clone(), black_engine),
@@ -522,16 +522,12 @@ enum TurnClock {
 
 struct Runner {
     id: GameId,
-    /// イベントの宛先。**`None` はテストのときだけ。**
+    /// 出来事の宛先。**具象（`tauri::AppHandle`）に依存しない。**
     ///
-    /// 本番の入口は `start_game`（`game/bridge.rs` の `#[tauri::command]`）
-    /// 1本で、そこが `Some(app)` を渡す。`GameManager::start` は受け取った
-    /// ものを素通しするだけなので、保証はそちらには無い。
-    ///
-    /// `None` にすると `emit` が黙って捨て、フロントは時計も指し手も
-    /// 終局も受け取らない。テストが `None` を使うのは、`AppHandle` を
-    /// 作るのに Tauri のランタイムが要るため。
-    app: Option<AppHandle>,
+    /// 依存すると、対局の状態機械を回すのに Tauri のランタイムが要る。
+    /// テストは宛先を持てず、`Over` を出したか `TurnChanged` に何を載せたかを
+    /// 確かめられない（→ `game::events`）。
+    events: Arc<dyn GameEventSink>,
     settings: GameSettings,
     players: [Player; 2],
     clocks: GameClocks,
@@ -1376,12 +1372,7 @@ impl Runner {
     }
 
     fn emit(&self, event: GameEvent) {
-        let Some(app) = &self.app else {
-            return;
-        };
-        if let Err(e) = app.emit(EVENT, event) {
-            log::warn!(target: LOGT, "emit failed game_id={}: {e}", self.id);
-        }
+        self.events.emit(event);
     }
 }
 
@@ -1621,6 +1612,7 @@ fn contains_usi_breaking_char(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::super::events::{DiscardEvents, RecordedEvents};
     use super::*;
 
     /// 平手。`GuiCommand::Position` が `position sfen` を前置するので、
@@ -1656,9 +1648,13 @@ mod tests {
     }
 
     async fn start(settings: GameSettings) -> GameSession {
-        GameSession::start(Arc::new(EngineRegistry::new()), None, settings)
-            .await
-            .expect("人間だけの対局は起動できるはず")
+        GameSession::start(
+            Arc::new(EngineRegistry::new()),
+            Arc::new(DiscardEvents),
+            settings,
+        )
+        .await
+        .expect("人間だけの対局は起動できるはず")
     }
 
     fn phase_of(snapshot: &GameSnapshot) -> &GamePhaseView {
@@ -1668,10 +1664,22 @@ mod tests {
     /// `Runner` を直に組む。`GameSession::start` を通さないので、
     /// エンジン無しでも `Activity` を好きな状態にできる
     fn test_runner(tx: &mpsc::UnboundedSender<Command>) -> Runner {
+        runner_with_events(tx, Arc::new(DiscardEvents))
+    }
+
+    /// 出来事を観測したいときの `Runner`。
+    ///
+    /// **宛先が具象（`tauri::AppHandle`）だったころは書けなかった。**
+    /// 表が `(G2, E7)` などに「テストあり」の印を付けながら実体を持てなかったのは
+    /// これが理由（→ `game::events`）。
+    fn runner_with_events(
+        tx: &mpsc::UnboundedSender<Command>,
+        events: Arc<dyn GameEventSink>,
+    ) -> Runner {
         let settings = two_humans(vec![]);
         Runner {
             id: "test".to_string(),
-            app: None,
+            events,
             clocks: GameClocks::new(settings.black_time, settings.white_time),
             players: [
                 Player::new(settings.black.clone(), None),
@@ -2374,6 +2382,43 @@ mod tests {
             }
             _ => panic!("投了で終局していない"),
         }
+    }
+
+    /// 終局を知らせてから `gameover` を送ること（表の `(G2, E8)` 側）。
+    ///
+    /// **`Over` が出ないと、フロントは対局が終わったことを知らない。**
+    /// `send_gameover` は書き込みの列を通るので、後に回すと終局から
+    /// イベント到着まで数秒空き、その間フロントは減り続ける時計を描く。
+    ///
+    /// 表はこのセルに「テストあり」の印を付けていたが、宛先が具象だったころは
+    /// `emit` が黙って捨てるので**実体を持てなかった**。
+    #[tokio::test]
+    async fn ending_the_game_tells_the_app_before_it_tells_the_engines() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+
+        runner
+            .on_search_outcome(Side::Black, 1, SearchOutcome::Resign)
+            .await;
+
+        let seen = events.take();
+        let over = seen
+            .iter()
+            .find(|e| matches!(e, GameEvent::Over { .. }))
+            .expect("終局を知らせていない");
+
+        let GameEvent::Over { result, clocks, .. } = over else {
+            unreachable!("`Over` を探して当てている");
+        };
+        assert_eq!(result.reason, GameOverReason::Resign);
+        assert_eq!(result.winner, Some(Side::White));
+        assert!(
+            clocks.running.is_none(),
+            "終局を知らせる時点で動いている時計がある"
+        );
     }
 
     #[test]
