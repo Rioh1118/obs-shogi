@@ -2020,7 +2020,7 @@ mod tests {
     /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
     /// 潰すと `detail` が原因を取り違える
     #[test]
-    fn the_two_ways_a_turn_can_stall_are_not_collapsed() {
+    fn a_stalled_turn_says_which_kind_of_stall_it_is() {
         let long_ago = |d: Duration| {
             Instant::now()
                 .checked_sub(d)
@@ -2058,8 +2058,11 @@ mod tests {
         use crate::engine::game::search::STOP_GRACE;
         use crate::engine::protocol::WRITE_TIMEOUT;
 
-        // 畳み待ちの番人は、`stop` を書いて返事を待ち切るより長い。
-        // 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ
+        // 畳み待ちの番人は、`stop` の書き込み1件ぶんと `bestmove` の猶予を
+        // 足したより長い。**これは下限でしかない。** `WRITE_TIMEOUT` は列の
+        // 1件に掛かる上限で、`send_command` が返るまでの実時間ではない
+        // （列に先客が居れば、その処理時間が足される）。
+        // 下限を割ると、正常に畳んでいる最中のエンジンを必ず故障と呼ぶ
         assert!(
             SETTLE_TIMEOUT > WRITE_TIMEOUT + STOP_GRACE,
             "SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) が WRITE_TIMEOUT + STOP_GRACE 以下"

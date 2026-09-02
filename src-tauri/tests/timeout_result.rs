@@ -52,7 +52,7 @@ const WINDOW: usize = 6;
 /// **動かしたときに必ず読み直すことになる**（それが狙い）。
 const EXEMPT: &[&str] = &[
     // `EngineRegistry::shutdown_all` は戻り値を持たない
-    "lib.rs:202",
+    "lib.rs:204",
 ];
 
 /// `timeout(` が現れる位置を、`src` からの相対パスと行番号で並べる

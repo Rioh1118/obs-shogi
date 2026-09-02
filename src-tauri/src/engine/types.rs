@@ -108,6 +108,12 @@ pub struct AnalysisConfig {
     pub multi_pv: Option<u32>,
 }
 
+/// 線に出す経過時間。**`std::time::Duration` とは別物。**
+///
+/// 同名なのは、TypeScript 側に `{ secs, nanos }` として出る形をそのまま
+/// 名前にしているため。`use` した側では `std::time::Duration` を隠すので、
+/// このモジュールを `use super::types::*` で取り込むファイルでは
+/// 時間の計算に `std::time::Duration` を明示すること。
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Duration {
     pub secs: u64,

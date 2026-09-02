@@ -273,7 +273,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_three_ways_a_stop_can_end_are_not_collapsed() {
+    fn waiting_for_bestmove_does_not_collapse_its_endings() {
         // 打ち切りに応じた。エンジンは idle に戻っている
         assert!(matches!(
             outcome_after_stop(Some(true)),
@@ -291,13 +291,13 @@ mod tests {
         ));
     }
 
-    /// `stop` の側も4つに分かれること。上の関数の対。
+    /// `stop` を**送る**側の分かれ方。上の関数の対。
     ///
     /// **潰すと、送れていない失敗に「エンジンが `stop` に応じなかった」という
     /// 説明が付く。** 上限は `protocol.rs` の `WRITE_TIMEOUT` にあり、
     /// ここへは `EngineError::Timeout` として届く
     #[test]
-    fn the_four_ways_a_stop_can_end_are_not_collapsed() {
+    fn sending_stop_does_not_collapse_its_outcomes() {
         // 書けた。待ちへ進む
         assert!(outcome_of_stop(&Ok(StopEffect::Written)).is_none());
 

@@ -131,7 +131,11 @@ struct ProtocolState {
 /// `isready` に対する応答の状態。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReadyState {
-    /// `isready` を送ったが、まだ `readyok` が返っていない
+    /// `readyok` が返っていない。
+    ///
+    /// **生成直後もこれ。** `isready` を1度も送っていない状態と、送って
+    /// 待っている状態を区別しない。区別しても `position` / `go` を積むという
+    /// 扱いが同じで、`isready` は `dispatch_for` を素通りする（`bypasses_draining`）。
     Waiting,
     Ready,
     /// エンジンの出力が終わった。**もう `readyok` は返らない**
@@ -154,12 +158,12 @@ fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
     }
 }
 
-/// 届かなくなった理由を選ぶ。**印の優先順はここだけ。**
+/// 届かなくなった理由の文言を選ぶ。**印の優先順はここだけ。**
 ///
 /// こちらが落としたことを最優先で見る。落としたプロセスは書き込みも詰まるので、
 /// `stalled` を先に見ると「エンジンが stdin を読まなくなった」と説明してしまう。
 /// 利用者にとっては「自分が終了させた」と「エンジンが応じなくなった」で次の手が違う。
-fn unreachable_text(killed: bool, stalled: bool) -> &'static str {
+fn cannot_reach_text(killed: bool, stalled: bool) -> &'static str {
     if killed {
         GONE
     } else if stalled {
@@ -316,8 +320,11 @@ fn requires_ready(cmd: &GuiCommand) -> bool {
 /// 積み置きを掃いている最中でも列の後ろへ回さないコマンド。
 ///
 /// - `Stop`: 止めるのに列の後ろへ並ばせては意味が無い
-/// - `IsReady`: 掃く側は `write` を直に呼ぶので、積むと
-///   `start_ready_watch_and_send` の後処理（世代の更新、`readyok` の購読）が飛ぶ
+/// - `IsReady`: 掃く側は書き込みの列を直に使うので、積むと
+///   `start_ready_watch_and_send` の後処理（世代の更新、`readyok` の購読）が飛ぶ。
+///   **通すと、掃いている最中の積み置きが捨てられる。** `begin_generation` が
+///   世代を上げ、掃きループは世代違いで抜けるので、残りは `Ok` を返したまま消える
+///   （落ちたぶんは `report_dropped` がログに残す）
 /// - `Quit`: 積むと直後の `kill_engine` が捨てる。落とす前に1行も書かれない
 ///
 /// どれも `position` / `go` の順序には関わらない。
@@ -517,7 +524,7 @@ impl UsiProtocol {
         // 入れても誰も配らないので、`raw_rx.recv()` が永久に返らない待ちができる
         let state: ReadyState = *self.ready.borrow();
         if state == ReadyState::Closed {
-            return Err(self.unreachable());
+            return Err(self.cannot_reach());
         }
 
         self.listeners.write().await.insert(name.clone(), sender);
@@ -691,7 +698,7 @@ impl UsiProtocol {
             // 置くと全アームの間じゅう読み取りロックを握り、`set_ready_state` が待つ
             let state: ReadyState = *self.ready.borrow();
             match dispatch_for(state, pending.draining, command) {
-                Dispatch::Refuse => return Err(self.unreachable()),
+                Dispatch::Refuse => return Err(self.cannot_reach()),
                 Dispatch::Queue => return push_pending(&mut pending, command),
                 Dispatch::Send => {}
             }
@@ -709,11 +716,11 @@ impl UsiProtocol {
     /// **`Closed` は複数の理由で立つ**（`set_ready_state(_, Closed)` の呼び出しを見ること）。
     /// 読み取りが終わった、書き込みが詰まった、こちらが落とした。
     /// 利用者に見せる説明も次の手も違うので、`Closed` の一語に潰さない。
-    fn unreachable(&self) -> EngineError {
+    fn cannot_reach(&self) -> EngineError {
         use std::sync::atomic::Ordering::Relaxed;
 
         EngineError::CommunicationFailed(
-            unreachable_text(self.killed.load(Relaxed), self.stalled.load(Relaxed)).to_string(),
+            cannot_reach_text(self.killed.load(Relaxed), self.stalled.load(Relaxed)).to_string(),
         )
     }
 
@@ -752,7 +759,7 @@ impl UsiProtocol {
         let state: ReadyState = *self.ready.borrow();
         let draining = self.pending.lock().await.draining;
         if dispatch_for(state, draining, &GuiCommand::Stop) == Dispatch::Refuse {
-            return Err(self.unreachable());
+            return Err(self.cannot_reach());
         }
 
         let cancelled = {
@@ -776,7 +783,7 @@ impl UsiProtocol {
         // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
         // 呼び出し側の順序に依存させない。手前に分岐が1つ増えるだけで穴が開く
         if set_ready_state(&self.ready, ReadyState::Waiting) == ReadyState::Closed {
-            return Err(self.unreachable());
+            return Err(self.cannot_reach());
         }
 
         let cancel = CancellationToken::new();
@@ -1332,10 +1339,10 @@ mod tests {
     /// 「エンジンが stdin を読まなくなった」と説明することになる。
     #[test]
     fn who_stopped_the_engine_is_not_flattened_into_one_message() {
-        assert_eq!(unreachable_text(false, false), CLOSED);
-        assert_eq!(unreachable_text(false, true), STALLED);
-        assert_eq!(unreachable_text(true, false), GONE);
-        assert_eq!(unreachable_text(true, true), GONE);
+        assert_eq!(cannot_reach_text(false, false), CLOSED);
+        assert_eq!(cannot_reach_text(false, true), STALLED);
+        assert_eq!(cannot_reach_text(true, false), GONE);
+        assert_eq!(cannot_reach_text(true, true), GONE);
 
         // 3つとも別の文言であること。同じなら上の突き合わせは何も見ていない
         let mut texts = [CLOSED, STALLED, GONE];
