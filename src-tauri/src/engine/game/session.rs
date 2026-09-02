@@ -644,6 +644,14 @@ impl Runner {
         if !accept {
             // 止めた探索の結果。捨てて、必要なら改めていまの局面で考えさせる
             if restart && self.is_to_move(side) {
+                // **時計をここで引き直す。** `accept_continue` が手番を渡した
+                // 時点から数えると、止めた探索が畳まれるのを待っていた時間
+                // （最大 `STOP_GRACE`）が、1手も読んでいないエンジンの
+                // 消費として計上される。`go` に載せる `btime` は満額なので、
+                // 画面の残り時間とエンジンに伝えた残り時間も食い違う。
+                //
+                // 引き直すぶん、止めている間は**どちらの持ち時間にも入らない**
+                self.turn_started = Instant::now();
                 self.start_search(side);
             }
             return;
