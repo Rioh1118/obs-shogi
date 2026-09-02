@@ -134,13 +134,16 @@ pub const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 /// 黙っていること（`silent_for`）を条件に足す。**持ち時間とは無関係に見る**
 /// ——黙っているかどうかは、持ち時間が残っているかとは別の話。
 ///
-/// 先読み中は `TurnClock` が相手側の手番を指しているので、ここには掛からない
+/// **先読み中の側はここへ来ない。** `on_tick` が渡すのは
+/// `Phase::Thinking { side }` の側だけで、先読みしている側は評価の対象に入らない
 /// （先読みは `ponderhit` か `stop` が来るまで走ってよい）。
+/// `TurnClock` は側を持たないので、外しているのは渡す側。
 fn stalled_turn(
     clock: TurnClock,
     budget_ms: u64,
     silent_for: Duration,
     thinking_is_an_engine: bool,
+    has_spoken: bool,
 ) -> Option<Stall> {
     // 畳み待ちは探索を止めた側の話なので、対局者の種別に関わらず見る
     if let TurnClock::Settling(since) = clock {
@@ -170,9 +173,15 @@ fn stalled_turn(
     // 60分の対局で初手から固まったエンジンが60分30秒のあいだ検出されない
     // （フロントには時計だけが流れ続け、正常な長考と区別が付かない）。
     //
+    // ただし**喋る実装だと分かっているエンジンにだけ掛ける。** USI は `info` を
+    // 義務にしていないので、1行も出さない実装は正常に読んでいても黙って見える。
+    // 区別せずに掛けると、そういうエンジンは**正常な31秒目に必ず負ける**
+    // ——棋譜に英文の故障理由が残り、利用者に無効化する手段が無い。
+    // 出したことが無いエンジンを押さえるのは上の `budget + HARD_TURN_LIMIT` だけになる。
+    //
     // 手番に入って `SEARCH_GRACE` 経ってから見るのは、`go` を出した直後の
     // 一瞬を「黙っている」と数えないため。
-    if since.elapsed() >= SEARCH_GRACE && silent_for >= SEARCH_GRACE {
+    if has_spoken && since.elapsed() >= SEARCH_GRACE && silent_for >= SEARCH_GRACE {
         return Some(Stall::NotAnswering);
     }
     None
@@ -485,6 +494,13 @@ struct Player {
     /// 人間なら `None`
     engine: Option<Arc<EngineProcess>>,
     activity: Activity,
+    /// このエンジンが `info` を1行でも出したことがあるか。**局を通じて残る。**
+    ///
+    /// **沈黙を信号として使ってよいかの判定に要る。** USI は `info` を義務に
+    /// していないので、1行も出さない実装（詰将棋ソルバを対局者に挿す、
+    /// 深さが変わったときだけ出すエンジン）は正常に読んでいても黙って見える。
+    /// 出したことがあるエンジンについてだけ、黙ったことを故障と読む。
+    has_spoken: bool,
 }
 
 impl Player {
@@ -493,6 +509,7 @@ impl Player {
             spec,
             engine,
             activity: Activity::Idle,
+            has_spoken: false,
         }
     }
 
@@ -861,6 +878,11 @@ impl Runner {
     /// 先読み扱いのまま残る（タスクは起動時の値を握って走る）。
     /// 手番かどうかはこちらが常に持っているので、判断はここに置く。
     fn on_search_info(&mut self, side: Side, req: u64, result: AnalysisResult) {
+        // **落とす前に記録する。** 見たいのは「このエンジンは `info` を出す実装か」
+        // で、その行がいまの局面のものかとは別の話。先読み中の1行でも、
+        // 打ち切った探索の1行でも、出す実装であることの証拠になる
+        self.player_mut(side).has_spoken = true;
+
         // 先読み中の側は手番ではない。手番が変わった後に届いた読み筋も同じで、
         // どちらも「いまの局面のものではない」で落ちる
         if !self.is_to_move(side) {
@@ -1039,6 +1061,7 @@ impl Runner {
                     self.clocks.budget_ms(side),
                     self.last_progress.elapsed(),
                     self.player(side).spec.is_engine(),
+                    self.player(side).has_spoken,
                 ) {
                     self.finish(GameResult {
                         winner: Some(side.opponent()),
@@ -2369,11 +2392,11 @@ mod tests {
 
         // まだどちらも上限に達していない
         assert_eq!(
-            stalled_turn(TurnClock::Settling(Instant::now()), 0, silent, true),
+            stalled_turn(TurnClock::Settling(Instant::now()), 0, silent, true, true),
             None
         );
         assert_eq!(
-            stalled_turn(TurnClock::Running(Instant::now()), 0, silent, true),
+            stalled_turn(TurnClock::Running(Instant::now()), 0, silent, true, true),
             None
         );
 
@@ -2382,6 +2405,7 @@ mod tests {
                 TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
                 600_000,
                 just_spoke,
+                true,
                 true
             ),
             Some(Stall::NotStopping),
@@ -2396,14 +2420,77 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE)),
                 600_000,
                 silent,
+                true,
                 true
             ),
             Some(Stall::NotAnswering),
             "黙っているのに持ち時間が残っているから待っている"
         );
         assert_eq!(
-            stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0, silent, true),
+            stalled_turn(
+                TurnClock::Running(long_ago(SEARCH_GRACE)),
+                0,
+                silent,
+                true,
+                true
+            ),
             Some(Stall::NotAnswering)
+        );
+    }
+
+    /// `info` を1行も出さないエンジンを、正常なのに落とさないこと。
+    ///
+    /// USI は `info` を義務にしていない。1行も出さない実装（詰将棋ソルバを
+    /// 対局者に挿す、深さが変わったときだけ出すエンジン）を沈黙で落とすと、
+    /// **正常に読んでいる31秒目に必ず負ける**——棋譜に英文の故障理由が残り、
+    /// 利用者に無効化する手段が無い（`enforce_engine_timeout` はこの番人を見ない）。
+    ///
+    /// 押さえるのは `budget + HARD_TURN_LIMIT` だけになる。**それは残す。**
+    #[test]
+    fn an_engine_that_never_prints_info_is_not_called_unresponsive() {
+        let an_hour = 60 * 60 * 1000;
+        let never_spoke = false;
+
+        for elapsed in [SEARCH_GRACE, SEARCH_GRACE * 4, HARD_TURN_LIMIT] {
+            assert_eq!(
+                stalled_turn(
+                    TurnClock::Running(long_ago(elapsed)),
+                    an_hour,
+                    elapsed,
+                    true,
+                    never_spoke
+                ),
+                None,
+                "`info` を出さないエンジンを {elapsed:?} で故障扱いにしている"
+            );
+        }
+
+        // 上限そのものは残る
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(
+                    Duration::from_millis(an_hour) + HARD_TURN_LIMIT + Duration::from_secs(1)
+                )),
+                an_hour,
+                Duration::ZERO,
+                true,
+                never_spoke
+            ),
+            Some(Stall::NotAnswering),
+            "`info` を出さないエンジンに上限が1つも残っていない"
+        );
+
+        // 一度でも出したエンジンには、黙ったことが信号として効く
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(SEARCH_GRACE)),
+                an_hour,
+                SEARCH_GRACE,
+                true,
+                true
+            ),
+            Some(Stall::NotAnswering),
+            "喋っていたエンジンが黙ったのに待っている"
         );
     }
 
@@ -2422,6 +2509,7 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE + Duration::from_secs(1))),
                 an_hour,
                 SEARCH_GRACE,
+                true,
                 true
             ),
             Some(Stall::NotAnswering),
@@ -2434,6 +2522,7 @@ mod tests {
                 TurnClock::Running(long_ago(Duration::from_secs(1))),
                 an_hour,
                 Duration::from_secs(1),
+                true,
                 true
             ),
             None
@@ -2466,7 +2555,8 @@ mod tests {
                     half_an_hour,
                     // 人間は `info` を出さないので、沈黙は常に満たされる
                     elapsed,
-                    false
+                    false,
+                    true
                 ),
                 None,
                 "長考した人間を「応答しない」と呼んでいる: {elapsed:?}"
@@ -2479,6 +2569,7 @@ mod tests {
                 TurnClock::Running(long_ago(budget + HARD_TURN_LIMIT + Duration::from_secs(1))),
                 half_an_hour,
                 Duration::ZERO,
+                true,
                 true
             ),
             Some(Stall::NotAnswering)
@@ -2490,7 +2581,8 @@ mod tests {
                 TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
                 half_an_hour,
                 Duration::ZERO,
-                false
+                false,
+                true
             ),
             Some(Stall::NotStopping)
         );
@@ -2509,6 +2601,7 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
                 0,
                 Duration::ZERO,
+                true,
                 true
             ),
             None,
@@ -2521,6 +2614,7 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
                 0,
                 SEARCH_GRACE,
+                true,
                 true
             ),
             Some(Stall::NotAnswering)
@@ -2543,6 +2637,7 @@ mod tests {
                 TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
                 0,
                 Duration::ZERO,
+                true,
                 true
             ),
             Some(Stall::NotAnswering),
@@ -2555,6 +2650,7 @@ mod tests {
                 TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
                 an_hour,
                 Duration::ZERO,
+                true,
                 true
             ),
             None,
@@ -2717,6 +2813,13 @@ mod tests {
         // いま走っている探索の `req` は 1（`searching` が立てる）
         runner.on_search_info(Side::Black, 2, AnalysisResult::default());
         assert!(events.take().is_empty(), "世代の合わない読み筋を流している");
+
+        // **落とした行でも「喋る実装だ」の証拠にはなる。**
+        // ここを落とすと、`info` を出すエンジンでも沈黙の番人が二度と掛からない
+        assert!(
+            runner.players[Side::Black.index()].has_spoken,
+            "落とした `info` を、喋った証拠として数えていない"
+        );
 
         runner.on_search_info(Side::Black, 1, AnalysisResult::default());
         assert!(
