@@ -23,9 +23,13 @@ pub enum BuildPolicy {
 /// 索引を組む途中で打ち切った手順。**利用者に出すのは [`BuildWarn::to_user_message`] だけ。**
 #[derive(Debug, Clone)]
 pub struct BuildWarn {
-    /// どこで打ち切ったか。`tesuu` は**その手を指したあとの手数**で、
-    /// `tesuu = N` は「N手目が指せなかった」を意味する（`walk_sequence` は
-    /// `moves[1..]` を `start_tesuu = 1` で歩く）
+    /// 打ち切った場所。**`tesuu` は指せなかった手そのものの番号。**
+    /// `tesuu = N` なら N 手目が指せず、**その手は指されていない**ので
+    /// N 手目以降の局面は索引に無い（N-1 手目までは入っている）。
+    ///
+    /// 番号が合う根拠は2つ。本線は `build_index_for_jkf` が `moves[1..]` を
+    /// `start_tesuu = 1` で渡すこと、変化は `push_or_replace_fork` が
+    /// `te = tesuu` を使う（変化の1手目は元の N 手目の代わり）こと。
     pub cursor: CursorLite,
     /// `ApplyError` の英語。**画面には出さない**（内部の理由）
     pub message: String,
