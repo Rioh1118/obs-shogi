@@ -278,8 +278,15 @@ gap: 0.75rem;
 ### 機械で止めているもの
 
 人の注意では止まらなかったものを検査として置いてあります。
-TS 側は `npm run test`、**`（Rust）` の付いた行は `npm run verify:rust`** で走ります
-（`.rs` を触ったときに走る検証がそちらだからです。`ADR-0007` の決定5）。
+
+**「何を見ているか」と「どこで走るか」は別です。** `（Rust）` の付いた行は
+`src-tauri/tests/` に置いた `#[test]` で、`npm run verify:rust` で走ります。
+それ以外は vitest で、`npm run verify` で走ります。ただし**vitest の検査の
+いくつかは `src-tauri/**`と`docs/**` も歩きます**（コメントの経緯、表の識別子、
+表が指すパス）。`.rs` や `docs/` だけを触ったコミットでもそれらが走るよう、
+`.claude/hooks/verify-gate.sh` は種類で二分せずに選びます
+（何を選ぶかは `verify-gate.test.sh` が固定しています）。
+
 落ちたときの逃げ道はそれぞれ違います。
 
 | 検査                          | 何を止めるか                                                   | 逃げ道                                                                                                                                                                                                                                                                   |
@@ -369,9 +376,12 @@ git switch -c issue-123/short-description
 ### 検証を通してから出してください
 
 ```bash
-npm run verify        # TypeScript を触った場合
+npm run verify        # TypeScript / SCSS / docs / CONTRIBUTING.md を触った場合
 npm run verify:rust   # Rust を触った場合
 ```
+
+**Rust を触ったときは両方が要ります。** コメントの経緯と、表が指す識別子・パスを
+見ている検査は vitest 側にあって、`src-tauri/**` を歩いているからです。
 
 Rust のツールチェーンは `rust-toolchain.toml` で固定しています。手元と CI で同じ結果になります。
 
