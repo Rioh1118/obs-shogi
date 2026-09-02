@@ -49,6 +49,11 @@ struct Layer {
     decides: &'static str,
     /// `use` してよい段
     may_use: &'static [&'static str],
+    /// **`use` してはいけない外部クレート。**
+    ///
+    /// 許可制にしない（`tokio` / `usi` / `serde` を全部書くことになる）。
+    /// ここに挙げるのは、**逆転させた境界を戻させない**ためだけ。
+    forbids: &'static [&'static str],
 }
 
 const LAYERS: &[Layer] = &[
@@ -56,47 +61,56 @@ const LAYERS: &[Layer] = &[
         name: "types",
         decides: "線に出す形と失敗の型。何も決めない",
         may_use: &[],
+        forbids: &[],
     },
     Layer {
         name: "utils",
         decides: "USI の行を値に写す変換と、ログの間引き・伏字",
         may_use: &["types"],
+        forbids: &[],
     },
     Layer {
         name: "protocol",
         decides: "1本のプロセスへ何を送れるか",
         may_use: &["types", "utils"],
+        forbids: &[],
     },
     Layer {
         name: "registry",
         decides: "どのプロセスが生きているか",
         may_use: &["types", "protocol"],
+        forbids: &[],
     },
     // `game` と `analyzer` は同位。互いを知らない
     Layer {
         name: "game",
         decides: "対局の状態機械と持ち時間",
         may_use: &["types", "utils", "protocol", "registry"],
+        forbids: &["tauri"],
     },
     Layer {
         name: "analyzer",
         decides: "解析の探索1回ぶん",
         may_use: &["types", "utils", "protocol", "registry"],
+        forbids: &[],
     },
     Layer {
         name: "bridge",
         decides: "解析のファサード",
         may_use: &["types", "utils", "registry", "analyzer"],
+        forbids: &[],
     },
     Layer {
         name: "state",
         decides: "Tauri が持つ持ち物",
         may_use: &["registry", "game", "bridge"],
+        forbids: &[],
     },
     Layer {
         name: "commands",
         decides: "Tauri コマンドの入口",
         may_use: &["types", "utils", "game", "analyzer", "state"],
+        forbids: &[],
     },
 ];
 
@@ -177,6 +191,23 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
 /// rustfmt は100桁を超える `use` を波括弧で折る。行単位で見ていると、
 /// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
 /// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
+/// `use` の行なら、`use ` から後ろを返す。
+///
+/// **`pub` と可視性の括弧を落としてから見る。** `pub(crate) use` は
+/// `"use "` でも `"pub use "` でも始まらないので、綴りを直に比べると
+/// **走査に一度も入らない**。1行足すだけで段を跨げる形になる。
+fn use_body(line: &str) -> Option<&str> {
+    let line = line.trim_start();
+    let line = match line.strip_prefix("pub") {
+        Some(rest) => match rest.strip_prefix('(') {
+            Some(inner) => inner.split_once(')').map(|(_, after)| after)?.trim_start(),
+            None => rest.trim_start(),
+        },
+        None => line,
+    };
+    line.strip_prefix("use ")
+}
+
 fn use_statements(source: &str) -> Vec<(String, usize)> {
     // **コメントも文字列も潰してから数える。** 潰さないと、`// mod tests {` や
     // `const A: &str = "mod x {";` の1行が幻の module を積み、閉じないので
@@ -196,7 +227,7 @@ fn use_statements(source: &str) -> Vec<(String, usize)> {
     for line in source.lines() {
         let line = line.trim();
 
-        if buffer.is_empty() && !line.starts_with("use ") && !line.starts_with("pub use ") {
+        if buffer.is_empty() && use_body(line).is_none() {
             // `mod x {` は開いた塊がモジュールであることの印
             for ch in line.chars() {
                 match ch {
@@ -236,18 +267,18 @@ fn use_statements(source: &str) -> Vec<(String, usize)> {
 ///
 /// `super` が足りなければ `engine` の中の枝（`game::types` など）で、段の辺にならない。
 /// 多ければ `engine` の外へ出ている。
-fn resolve(statement: &str, depth: usize) -> (BTreeSet<String>, Option<String>) {
-    let body = statement
-        .trim_start_matches("pub ")
-        .trim_start_matches("use ")
-        .trim();
+fn resolve(statement: &str, depth: usize) -> Resolved {
+    let body = use_body(statement).unwrap_or(statement).trim();
     let outside = || Some(statement.trim_end_matches(';').to_string());
 
     if let Some(rest) = body.strip_prefix("crate::engine::") {
-        return (imports_from(rest), None);
+        return Resolved::edges(imports_from(rest));
     }
     if body.starts_with("crate::") {
-        return (BTreeSet::new(), outside());
+        return Resolved {
+            outside: outside(),
+            ..Resolved::default()
+        };
     }
 
     let mut levels = 0usize;
@@ -256,25 +287,72 @@ fn resolve(statement: &str, depth: usize) -> (BTreeSet<String>, Option<String>) 
         levels += 1;
         rest = next;
     }
+
+    // **`crate::` でも `super::` でも `self::` でもないなら外部クレート。**
+    // ここを素通りさせていたので、`use tauri::AppHandle;` を書いても
+    // 辺も「外への参照」も1つも立たなかった
+    if levels == 0 && !body.starts_with("self::") {
+        return Resolved {
+            crates: body
+                .split(|c: char| !c.is_alphanumeric() && c != '_')
+                .next()
+                .filter(|name| !name.is_empty())
+                .map(str::to_string)
+                .into_iter()
+                .collect(),
+            ..Resolved::default()
+        };
+    }
+
     match levels.cmp(&depth) {
-        std::cmp::Ordering::Equal => (imports_from(rest), None),
-        std::cmp::Ordering::Greater => (BTreeSet::new(), outside()),
+        std::cmp::Ordering::Equal => Resolved::edges(imports_from(rest)),
+        std::cmp::Ordering::Greater => Resolved {
+            outside: outside(),
+            ..Resolved::default()
+        },
         // `engine` の中の枝。段を割っていないので辺として意味を持たない
-        std::cmp::Ordering::Less => (BTreeSet::new(), None),
+        std::cmp::Ordering::Less => Resolved::default(),
+    }
+}
+
+/// 1つの `use` が指す先。**3つは同時に立たない。**
+#[derive(Default)]
+struct Resolved {
+    /// `engine` 直下の段
+    edges: BTreeSet<String>,
+    /// `engine` の外（crate の他の枝）への参照
+    outside: Option<String>,
+    /// 外部クレートの名前
+    crates: BTreeSet<String>,
+}
+
+impl Resolved {
+    fn edges(edges: BTreeSet<String>) -> Self {
+        Self {
+            edges,
+            ..Self::default()
+        }
     }
 }
 
 /// そのファイルが `use` している `engine` 直下のモジュール名と、外への参照。
 fn scan_file(source: &str, depth: usize) -> (BTreeSet<String>, Vec<String>) {
+    let (edges, outside, _) = scan_file_all(source, depth);
+    (edges, outside)
+}
+
+fn scan_file_all(source: &str, depth: usize) -> (BTreeSet<String>, Vec<String>, BTreeSet<String>) {
     let mut edges = BTreeSet::new();
     let mut outside = Vec::new();
+    let mut crates = BTreeSet::new();
 
     for (statement, inside_modules) in use_statements(source) {
-        let (names, out) = resolve(&statement, depth + inside_modules);
-        edges.extend(names);
-        outside.extend(out);
+        let found = resolve(&statement, depth + inside_modules);
+        edges.extend(found.edges);
+        outside.extend(found.outside);
+        crates.extend(found.crates);
     }
-    (edges, outside)
+    (edges, outside, crates)
 }
 
 /// モジュール名 → そのモジュールが `use` しているモジュール名。
@@ -360,6 +438,18 @@ fn the_scanner_reads_every_spelling_of_use() {
     // 1行に収まる波括弧
     let (edges, _) = scan_file("use crate::engine::{types::*, utils::cmd_summary};\n", 1);
     assert_eq!(edges, ["types", "utils"].map(String::from).into());
+
+    // **可視性が付いた形。** `pub use` を特別扱いする以上、その兄弟も要る。
+    // `pub(crate) use` は `"use "` でも `"pub use "` でも始まらないので、
+    // 綴りを直に比べる形だと**走査に一度も入らない**——1行足すだけで段を跨げる
+    for spelling in ["pub use", "pub(crate) use", "pub(super) use"] {
+        let (edges, _) = scan_file(&format!("{spelling} crate::engine::state::AppState;\n"), 2);
+        assert_eq!(
+            edges,
+            ["state"].map(String::from).into(),
+            "`{spelling}` から辺が取れていない"
+        );
+    }
 
     // **`super` を数えた数が深さと一致すれば `engine` 直下。**
     // `game/session.rs`（深さ2）の `super::super::state` は `crate::engine::state` と同じ
@@ -462,6 +552,73 @@ fn the_engine_does_not_reach_out_of_itself() {
         "`engine/` の外を `use` している。共有したいものは `engine` の中へ下ろすこと:\n{}",
         outside.join("\n")
     );
+}
+
+/// 段が「使わない」と決めた外部クレートを `use` していないこと。
+///
+/// **ADR-0008 決定2 の核はここにある。** `game/` から `tauri` への `use` が
+/// 1本も無いから、対局の状態機械はプロセスもランタイムも無しで回せる
+/// （`test_runner` / `runner_with_events` / `manager.rs` の3本がその形）。
+///
+/// 決定を書いただけだと、`Runner` に `AppHandle` を1本引いても
+/// `verify:rust` は全部緑のまま通る。壊れるのは上の継ぎ目で、それを直す
+/// 一番素直な形が `app: Option<AppHandle>`——**ADR が「背景」として名指しした
+/// 改修前の状態そのもの**。だから決定と一緒に機械を置く。
+///
+/// **許可制にしない。** `tokio` / `usi` / `serde` を全部書くことになり、
+/// 段を足すたびに写経が増える。挙げるのは逆転させた境界だけ。
+#[test]
+fn no_layer_uses_a_crate_it_must_not() {
+    let root = engine_dir();
+    let mut offenders = Vec::new();
+
+    for path in rust_files(&root) {
+        let relative = path.strip_prefix(&root).unwrap_or(&path).to_path_buf();
+        let Some(layer) = layer(&module_of(&relative)) else {
+            continue;
+        };
+        if layer.forbids.is_empty() {
+            continue;
+        }
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let (_, _, crates) = scan_file_all(&source, relative.components().count());
+        for name in layer.forbids {
+            if crates.contains(*name) {
+                offenders.push(format!(
+                    "{}  {name} を `use` している（{} は {}）",
+                    relative.display(),
+                    layer.name,
+                    layer.decides
+                ));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "段が使わないと決めたクレートを `use` している:\n{}",
+        offenders.join("\n")
+    );
+}
+
+/// 走査が外部クレートを見分けていること。
+///
+/// **`use tauri::AppHandle;` は `crate::` でも `super::` でも始まらない。**
+/// そこを素通りさせていたので、辺も「外への参照」も1つも立たなかった。
+#[test]
+fn the_scanner_tells_an_outside_crate_from_a_sibling() {
+    let (edges, outside, crates) = scan_file_all("use tauri::AppHandle;\n", 2);
+    assert!(edges.is_empty() && outside.is_empty());
+    assert!(crates.contains("tauri"), "外部クレートを見分けていない");
+
+    // `self::` は自分の中。外ではない
+    let (_, _, crates) = scan_file_all("use self::inner::X;\n", 2);
+    assert!(crates.is_empty(), "`self::` を外部クレートと数えている");
+
+    // 段の辺は今までどおり立つ
+    let (edges, _, crates) = scan_file_all("use crate::engine::registry::X;\n", 2);
+    assert!(edges.contains("registry"), "段の辺を落としている");
+    assert!(crates.is_empty());
 }
 
 /// `engine/mod.rs` が `pub mod` を並べるだけであること。
