@@ -54,6 +54,13 @@ pub struct UsiProtocol {
 struct Pending {
     generation: u64,
     queue: VecDeque<GuiCommand>,
+    /// 積み置きを掃いている最中か。
+    ///
+    /// **立っている間は、`Ready` でも直書きさせずに積ませる。** flush は
+    /// 1件ごとに書き込みの返事を待つので、その隙に直書きが列へ入ると
+    /// `position(旧) → position(新) → go(旧)` の順でエンジンへ届く。
+    /// エンジンは新しい局面に対して古い `go` を受け取る。
+    draining: bool,
 }
 
 /// 積み置きの上限。
@@ -130,11 +137,15 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 /// 書き込み1回に置く上限。
 ///
 /// **`send_command` の全ての呼び出しにここ1箇所で掛かる。** 呼び出し側に
-/// `tokio::time::timeout` を書かせると、18箇所のうち1箇所しか包まれていない、
-/// という状態になる（実際そうなっていた）。
+/// 上限を書かせると、包み忘れた口が上限なしで残る。
 ///
-/// 超えても**列から降りるのは待っている側だけ**で、書き込み自体は続く。
-/// 順番を飛ばして次を書くと、エンジンが受け取る順序が呼び出し順と変わる。
+/// 2秒あれば足りる。1回に書くのは `position sfen ... moves ...` でも数百バイトで、
+/// パイプに空きがあればミリ秒未満で終わる。ここに達するのは
+/// **エンジンが stdin を読んでいない**ときだけ。
+///
+/// 超えたら接続が壊れたものとして扱う（`fail_writes`）。**「書けなかった」と
+/// 言ったものが後から書かれる状態を残さない**ため。残すと、送れなかったと
+/// 判断して終局させた側の `gameover` が、その `go` の後ろに並ぶ。
 const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 書き込みの列に流す1件。
@@ -259,6 +270,34 @@ pub enum StopEffect {
     CancelledQueued,
 }
 
+/// 積み置きへ1件入れる。**積む判断はここ1本を通す。**
+///
+/// 上限を超えたら断る側に倒す。積んで `Ok` を返すより、断ったほうが
+/// 呼び出し側が気付ける。
+fn push_pending(pending: &mut Pending, command: &GuiCommand) -> Result<(), EngineError> {
+    if pending.queue.len() >= PENDING_LIMIT {
+        log::warn!(
+            target: LOGT,
+            "send_command: pending queue is full cmd={} gen={}",
+            cmd_summary(command),
+            pending.generation
+        );
+        return Err(EngineError::CommunicationFailed(format!(
+            "the engine has not returned readyok; {PENDING_LIMIT} commands are already queued"
+        )));
+    }
+    pending.queue.push_back(command.clone());
+    log::debug!(
+        target: LOGT,
+        "send_command: queued cmd={} gen={} qlen={} draining={}",
+        cmd_summary(command),
+        pending.generation,
+        pending.queue.len(),
+        pending.draining
+    );
+    Ok(())
+}
+
 /// 積み置きから `go` を落とす。落とした数を返す。
 ///
 /// **`stop` は積まれないのに `go` は積まれる**ので、`readyok` を待っている間は
@@ -295,6 +334,7 @@ impl UsiProtocol {
             pending: Arc::new(Mutex::new(Pending {
                 generation: 0,
                 queue: VecDeque::new(),
+                draining: false,
             })),
             writer,
         }
@@ -319,9 +359,12 @@ impl UsiProtocol {
             Ok(Err(_)) => Err(EngineError::CommunicationFailed(
                 "the writer stopped".to_string(),
             )),
-            Err(_) => Err(EngineError::Timeout(
-                "the engine is not reading stdin".to_string(),
-            )),
+            Err(_) => {
+                self.fail_writes().await;
+                Err(EngineError::Timeout(
+                    "the engine is not reading stdin".to_string(),
+                ))
+            }
         }
     }
 
@@ -491,14 +534,25 @@ impl UsiProtocol {
             Dispatch::Refuse => {
                 return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
             }
-            Dispatch::Send => {}
+            Dispatch::Send => {
+                // 掃いている最中は、`Ready` でも列の後ろに並ばせる
+                let mut pending = self.pending.lock().await;
+                if pending.draining && requires_ready(command) {
+                    return push_pending(&mut pending, command);
+                }
+            }
             Dispatch::Queue => {
                 let mut pending = self.pending.lock().await;
 
                 // **ロックを取った後に状態を読み直す。** 取るまでの間に
-                // `readyok` が着地すると、flush は既にキューを空にして去っている。
-                // 読み直さないと、**もう誰も掃かないキューへ積んで `Ok` を返す**
-                // ことになる（`position` だけが消えて `go` が届く、が起きる）。
+                // `readyok` が着地して flush が掃き終わっていると、
+                // **もう誰も掃かないキューへ積んで `Ok` を返す**ことになる。
+                //
+                // 掃いている最中（`draining`）なら、`Ready` でも積み続ける。
+                // 積まないと直書きが flush の残りを追い越す
+                if pending.draining {
+                    return push_pending(&mut pending, command);
+                }
                 match dispatch_for(*self.ready.borrow(), command) {
                     Dispatch::Refuse => {
                         return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
@@ -507,28 +561,7 @@ impl UsiProtocol {
                     Dispatch::Send => {
                         drop(pending);
                     }
-                    Dispatch::Queue => {
-                        if pending.queue.len() >= PENDING_LIMIT {
-                            log::warn!(
-                                target: LOGT,
-                                "send_command: pending queue is full cmd={} gen={}",
-                                cmd_summary(command),
-                                pending.generation
-                            );
-                            return Err(EngineError::CommunicationFailed(format!(
-                                "the engine has not returned readyok; {PENDING_LIMIT} commands are already queued"
-                            )));
-                        }
-                        pending.queue.push_back(command.clone());
-                        log::debug!(
-                            target: LOGT,
-                            "send_command: queued cmd={} gen={} qlen={}",
-                            cmd_summary(command),
-                            pending.generation,
-                            pending.queue.len()
-                        );
-                        return Ok(());
-                    }
+                    Dispatch::Queue => return push_pending(&mut pending, command),
                 }
             }
         }
@@ -538,6 +571,27 @@ impl UsiProtocol {
         }
 
         self.write(command.clone()).await
+    }
+
+    /// 書き込みが詰まった。**この先の書き込みを全部断る。**
+    ///
+    /// 詰まっているジョブは `spawn_blocking` の中なので取り消せない。いつか
+    /// 書かれるかもしれないし、書かれないかもしれない。**後続を通してしまうと、
+    /// 「送れなかった」と判断した側が出した `gameover` が、その `go` の後ろに
+    /// 並ぶ**（探索中のエンジンへ `gameover`＝不変条件3 の違反）。
+    ///
+    /// `Closed` を立てると `dispatch_for` が以後を `Refuse` するので、
+    /// **「書けなかった」と言ったものより後は本当に書かれない**。
+    /// 積み置きも同じ理由で捨てる。復帰はプロセスの再起動。
+    async fn fail_writes(&self) {
+        if set_ready_state(&self.ready, ReadyState::Closed) == ReadyState::Closed {
+            log::error!(
+                target: LOGT,
+                "write: timed out; refusing every later write on this process"
+            );
+        }
+        self.discard_pending("the engine stopped reading stdin")
+            .await;
     }
 
     /// 探索を止める。**「書いた」と「書く必要が無かった」を分けて返す。**
@@ -626,6 +680,10 @@ impl UsiProtocol {
                 set_ready_state(&protocol.ready, ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
+                // **掃き始めから掃き終わりまで印を立てる。** 立てないと、
+                // 1件書くごとの待ちの隙に直書きが列へ入り、
+                // `position(旧) → position(新) → go(旧)` の順で届く
+                pending.draining = true;
                 drop(pending);
 
                 // **キューをローカルへ移さない。** 移すと、書いている途中に
@@ -637,10 +695,17 @@ impl UsiProtocol {
                     let next = {
                         let mut pending = protocol.pending.lock().await;
                         if pending.generation != gen {
-                            // 次の `isready` が来た。残りは `begin_generation` が残す
+                            // 次の `isready` が来た。残りは `begin_generation` が残す。
+                            // 印はそちらが降ろす
                             break;
                         }
-                        pending.queue.pop_front()
+                        let next = pending.queue.pop_front();
+                        if next.is_none() {
+                            // 掃き終わり。**印を降ろすのは列が空になった瞬間**で、
+                            // 同じロック区間でないと最後の1件を追い越される
+                            pending.draining = false;
+                        }
+                        next
                     };
                     let Some(cmd) = next else { break };
 
@@ -653,6 +718,7 @@ impl UsiProtocol {
                         );
                         let rest = {
                             let mut pending = protocol.pending.lock().await;
+                            pending.draining = false;
                             std::mem::take(&mut pending.queue)
                         };
                         report_dropped(&cmd, &rest);
@@ -819,6 +885,7 @@ impl UsiProtocol {
     async fn begin_generation(&self) -> u64 {
         let mut pending = self.pending.lock().await;
         pending.generation += 1;
+        pending.draining = false;
         let gen = pending.generation;
         let dropped = std::mem::take(&mut pending.queue);
         drop(pending);
@@ -840,6 +907,7 @@ impl UsiProtocol {
     async fn discard_pending(&self, why: &str) {
         let dropped = {
             let mut pending = self.pending.lock().await;
+            pending.draining = false;
             std::mem::take(&mut pending.queue)
         };
         for cmd in &dropped {
@@ -1025,6 +1093,33 @@ mod tests {
 
         // 2度目は何も落とさない
         assert_eq!(cancel_queued_go(&mut queue), 0);
+    }
+
+    fn empty_pending() -> Pending {
+        Pending {
+            generation: 1,
+            queue: VecDeque::new(),
+            draining: false,
+        }
+    }
+
+    /// 積み置きが上限で断られること。**積んで `Ok` を返さない。**
+    ///
+    /// 積み続けると、`readyok` を返さないエンジン相手に無限に伸びる。
+    /// 断れば呼び出し側が気付ける
+    #[test]
+    fn a_full_pending_queue_is_refused() {
+        let mut pending = empty_pending();
+        let position = GuiCommand::Position("sfen".to_string());
+
+        for i in 0..PENDING_LIMIT {
+            assert!(
+                push_pending(&mut pending, &position).is_ok(),
+                "{i} 件目で断られた"
+            );
+        }
+        assert!(push_pending(&mut pending, &position).is_err());
+        assert_eq!(pending.queue.len(), PENDING_LIMIT);
     }
 
     /// 落ち着いた値を返すこと。呼び出し側はこれを見て「戻せなかった」を知る

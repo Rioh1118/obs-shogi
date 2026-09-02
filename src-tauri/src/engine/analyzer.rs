@@ -1,6 +1,6 @@
 use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
-use super::protocol::{StopEffect, UsiProtocol};
+use super::protocol::UsiProtocol;
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
 use super::USI_OK_TIMEOUT;
@@ -32,11 +32,15 @@ pub struct EngineAnalyzer {
     engine_id: Arc<RwLock<Option<EngineId>>>,
     state: Arc<RwLock<AnalyzerState>>,
     infinite_stop_requested: Arc<Mutex<Option<Arc<AtomicBool>>>>,
-    /// 走っている無限解析のリスナー名。
+    /// 無限解析のストリームを外から畳むための名前。
     ///
-    /// **`stop` が積み置きの `go` を落としただけのときに要る。** その場合
-    /// `bestmove` は来ないので、`process_analysis_stream` は自分では抜けられない。
-    /// 名前を持っていないと外せない
+    /// **`Some` は「走っている」を意味しない。** ストリームが自分で終わったときも
+    /// 名前は残る（外す側が誰かを増やすと、取り合いになる）。
+    /// 「解析中か」の判定にこれを使わないこと。
+    ///
+    /// 要るのは、`bestmove` が来ない経路があるため。積み置きの `go` は
+    /// `stop` / `begin_generation` / `discard_pending` の3つの口から落ちるので、
+    /// `process_analysis_stream` が自分では抜けられないことがある
     infinite_listener: Arc<Mutex<Option<String>>>,
 }
 
@@ -338,13 +342,21 @@ impl EngineAnalyzer {
             flag.store(true, Ordering::SeqCst);
         }
 
-        // 積み置きの `go` を落としただけなら `bestmove` は来ない。
-        // `process_analysis_stream` は `bestmove` でしか抜けないので、
-        // リスナーを外して畳む（外さないと死んだストリームへ配り続ける）
-        if protocol.stop().await? == StopEffect::CancelledQueued {
-            if let Some(id) = self.infinite_listener.lock().await.take() {
-                protocol.remove_listener(&id).await;
-            }
+        let effect = protocol.stop().await?;
+
+        // **`StopEffect` を見ずに必ず外す。** `bestmove` が来ることを
+        // 畳む条件にすると、来ない経路を全部数え上げることになる。
+        // 積み置きの `go` は `stop` 以外に `begin_generation`（次の `isready`）と
+        // `discard_pending`（`kill_engine`）も落とすので、`CancelledQueued` だけを
+        // 見ていると、そちらで落ちたときにリスナーが残る。
+        //
+        // 外すと `process_analysis_stream` の `raw_rx.recv()` が `None` を返して
+        // 抜け、`result_tx` の drop が `forward_results_to_ui` を終わらせる。
+        // `Written` の場合も同じ場所で終わるので、外して困らない。
+        // `remove_listener` は冪等
+        if let Some(id) = self.infinite_listener.lock().await.take() {
+            log::debug!(target: LOGT, "stop_analysis: closing stream id={id} effect={effect:?}");
+            protocol.remove_listener(&id).await;
         }
         Ok(())
     }
