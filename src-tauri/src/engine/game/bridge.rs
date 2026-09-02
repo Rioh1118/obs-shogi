@@ -83,6 +83,11 @@ pub async fn close_game(state: tauri::State<'_, AppState>, game_id: String) -> R
     state.games.close(&state.registry, &game_id).await
 }
 
+/// いまの対局の状態を取る。**イベントを取りこぼした後の突き合わせ用。**
+///
+/// 進行は `game-event` で届くので、常用しない。返る `moves` は Rust が持つ
+/// 写しで、**権威はフロントの棋譜**（食い違いの検出に使う）。
+/// `clocks.running` が `null` になる理由は `ClocksView::running` に4つ挙げてある。
 #[tauri::command]
 pub async fn get_game_state(
     state: tauri::State<'_, AppState>,
@@ -91,6 +96,10 @@ pub async fn get_game_state(
     state.games.snapshot(&game_id).await
 }
 
+/// 開いている対局の ID。**閉じ忘れを拾うためにある。**
+///
+/// 終局してもプロセスは落ちない（不変条件5）ので、`close_game` を呼ばずに
+/// 画面を離れた対局はここに残る。
 #[tauri::command]
 pub async fn list_games(state: tauri::State<'_, AppState>) -> Result<Vec<GameId>, String> {
     Ok(state.games.ids().await)

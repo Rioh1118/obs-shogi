@@ -64,10 +64,23 @@ export async function closeGame(gameId: GameId): Promise<void> {
   return await invoke("close_game", { gameId });
 }
 
+/**
+ * いまの対局の状態を取る。**イベントを取りこぼした後の突き合わせ用。**
+ *
+ * 進行は `listenToGameEvents` で届くので、常用しない。返る `moves` は Rust が持つ
+ * 写しで、**権威はこちら側の棋譜**。`clocks.running` が `null` になる理由は
+ * `ClocksView.running` に4つ挙げてある（うち2つは `phase: "thinking"` でも起きる）。
+ */
 export async function getGameState(gameId: GameId): Promise<GameSnapshot> {
   return await invoke("get_game_state", { gameId });
 }
 
+/**
+ * 開いている対局の ID。**閉じ忘れを拾うためにある。**
+ *
+ * 終局してもエンジンのプロセスは落ちない。`closeGame` を呼ばずに画面を離れた
+ * 対局はここに残る。
+ */
 export async function listGames(): Promise<GameId[]> {
   return await invoke("list_games");
 }
