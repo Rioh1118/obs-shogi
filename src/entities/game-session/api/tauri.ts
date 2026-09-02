@@ -13,6 +13,8 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  *
  * エンジンの起動と `usinewgame` **まで**を待って返る。評価関数の読み込みが
  * 重いエンジンではここで数十秒かかるので、待っている表示を出すこと。
+ * **上限は Rust の `START_TIMEOUT`（90秒）。** 超えると reject する。
+ * 取り消す口は無いので、それまでは待つことになる。
  *
  * **最初の `go` は待たない。** `Ok` は「エンジンが `usinewgame` まで応じた」で
  * あって「考え始めた」ではない。最初の `position` / `go` は別タスクで走り、

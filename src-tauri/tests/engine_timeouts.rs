@@ -7,8 +7,11 @@
 //! 同じ段の中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
 //! **散文で「同じ10分」と書かない**——書くと、片方を動かしたときに何も落ちない。
 
-use app_lib::engine::game::session::{CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT};
+use app_lib::engine::game::session::{
+    CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
+};
 use app_lib::engine::protocol::{KILL_TIMEOUT, WRITE_TIMEOUT};
+use app_lib::engine::{READY_TIMEOUT, USI_OK_TIMEOUT};
 use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
 
 /// 対局で1手に待ちうる猶予が、終了時の予算より**長い**こと。
@@ -65,5 +68,27 @@ fn the_sweep_can_finish_at_least_one_kill() {
         SWEEP_TIMEOUT > KILL_TIMEOUT,
         "SWEEP_TIMEOUT({SWEEP_TIMEOUT:?}) が1本を落とす上限({KILL_TIMEOUT:?})以下。\
          1本も落とし切れないまま予算が尽きる"
+    );
+}
+
+/// 対局の起動にかける上限が、**段ごとの上限より短い**こと。
+///
+/// 段ごとの上限（`SPAWN_TIMEOUT` + `USI_OK_TIMEOUT` + `READY_TIMEOUT`）を素直に
+/// 足すと1体で160秒、2体で5分を超える。その間 `start_game` は返らず、
+/// フロントには進捗も残り時間も無く、取り消す口も無い。
+///
+/// **`READY_TIMEOUT` 単体より短いことを見る。** ここがいちばん長い段で、
+/// 逆転していると全体の締切が意味を持たない。
+#[test]
+fn starting_a_game_is_bounded_below_the_slowest_step() {
+    assert!(
+        START_TIMEOUT < READY_TIMEOUT,
+        "START_TIMEOUT({START_TIMEOUT:?}) が `readyok` を待つ上限({READY_TIMEOUT:?})以上。\
+         全体の締切が段ごとの上限に飲まれている"
+    );
+    assert!(
+        START_TIMEOUT > USI_OK_TIMEOUT,
+        "START_TIMEOUT({START_TIMEOUT:?}) が `usiok` を待つ上限({USI_OK_TIMEOUT:?})以下。\
+         最初の段を待ち切る前に全体が切れる"
     );
 }

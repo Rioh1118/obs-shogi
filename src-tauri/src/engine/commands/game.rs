@@ -28,6 +28,7 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 /// **購読は呼ぶ前に張ること。** 最初の `TurnChanged` と最初の `go` は
 /// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす。
 /// 評価関数の読み込みが重いエンジンではここで数十秒かかる。
+/// **上限は `START_TIMEOUT`。** 取り消す口は無いので、それまでは返らない。
 #[tauri::command]
 pub async fn start_game(
     state: tauri::State<'_, AppState>,

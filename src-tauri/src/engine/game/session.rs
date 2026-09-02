@@ -47,6 +47,21 @@ const LOGT: &str = "obs_shogi::engine::game";
 /// 時計を見る間隔。時間切れの検出はこの粒度になる
 const TICK: Duration = Duration::from_millis(100);
 
+/// `start_game` が返るまでの上限。**1局ぶん全体で見る。**
+///
+/// 段ごとの上限（`SPAWN_TIMEOUT` / `USI_OK_TIMEOUT` / `READY_TIMEOUT`）を
+/// 素直に足すと、2体ぶんで5分を超える。その間 `start_game` は返らず、
+/// **フロントには進捗も残り時間も無く、取り消す口も無い**。
+/// `EvalDir` を1文字間違えて `readyok` を返さなくなったエンジン——F-27 が
+/// 「最も起きやすい」と書いている形——がそこに落ちる。
+///
+/// **段ごとの上限を消さない。** ここは全体の締切で、段ごとの上限は
+/// 「そこで待つのが妥当な長さ」。どちらか一方だと、片方の段が全部を食う。
+///
+/// 90秒にしたのは、評価関数の読み込みが重いエンジン（数十秒）を通し、
+/// かつ人が「反応が無い」と判断する前に返るため。
+pub const START_TIMEOUT: Duration = Duration::from_secs(90);
+
 /// 1局に積める手数の上限。
 ///
 /// **入口で弾く側の防御。** 溢れはしないが、線に出る1行の長さがここで決まる。
@@ -284,6 +299,9 @@ impl GameSession {
     /// **購読は呼ぶ前に張ること。** 最初の `TurnChanged` と `start_search` は
     /// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす
     /// （`bestmove resign` を即返すエンジンでは `MoveDecided` と `Over` も落ちる）。
+    ///
+    /// **返るまでの上限は `START_TIMEOUT`。** 2体ぶんの段ごとの上限を足した値では
+    /// ない。取り消す口は無いので、待たせる長さはここで決まる。
     pub async fn start(
         registry: Arc<EngineRegistry>,
         events: Arc<dyn GameEventSink>,
@@ -292,7 +310,8 @@ impl GameSession {
         validate_settings(&settings)?;
         let side_to_move = derive_side_after(&settings, settings.initial_moves.len());
 
-        let (engine_ids, engines) = spawn_players(&registry, &settings).await?;
+        let deadline = Instant::now() + START_TIMEOUT;
+        let (engine_ids, engines) = spawn_players(&registry, &settings, deadline).await?;
 
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::unbounded_channel();
@@ -1538,9 +1557,24 @@ impl Runner {
 
 /// エンジン側の対局者を全部起動する。
 /// 途中で失敗したら、それまでに起動したものを道連れに落とす
+/// 締切までの残り。尽きていたら `Err`。
+///
+/// **`timeout` で包まない。** 包むと、上限に当たったときに中の future ごと
+/// 落ちる——`registry.spawn` が返した直後だと、台帳に載ったプロセスの ID を
+/// 誰も知らないまま消える。残りを渡して各段に自分で締めさせれば、
+/// `Err` は普通に返り、起こしたぶんの後始末が走る。
+fn remaining(deadline: Instant, what: &str) -> Result<Duration, String> {
+    let left = deadline.saturating_duration_since(Instant::now());
+    if left.is_zero() {
+        return Err(format!("timed out before {what}"));
+    }
+    Ok(left)
+}
+
 async fn spawn_players(
     registry: &EngineRegistry,
     settings: &GameSettings,
+    deadline: Instant,
 ) -> Result<(Vec<EngineId>, [Option<Arc<EngineProcess>>; 2]), String> {
     let mut ids = Vec::new();
     let mut engines: [Option<Arc<EngineProcess>>; 2] = [None, None];
@@ -1557,7 +1591,15 @@ async fn spawn_players(
             continue;
         };
 
-        match prepare_engine(registry, engine_path, work_dir.as_deref(), options).await {
+        match prepare_engine(
+            registry,
+            engine_path,
+            work_dir.as_deref(),
+            options,
+            deadline,
+        )
+        .await
+        {
             Ok(process) => {
                 ids.push(process.id.clone());
                 engines[side.index()] = Some(process);
@@ -1579,13 +1621,21 @@ async fn prepare_engine(
     engine_path: &str,
     work_dir: Option<&str>,
     options: &[SetOptionValue],
+    deadline: Instant,
 ) -> Result<Arc<EngineProcess>, String> {
     let process = registry
-        .spawn(engine_path, work_dir, USI_OK_TIMEOUT)
+        .spawn(
+            engine_path,
+            work_dir,
+            USI_OK_TIMEOUT.min(remaining(deadline, "the engine said usiok")?),
+        )
         .await
         .map_err(|e| e.to_string())?;
 
-    let prepared = send_setup(&process, options).await;
+    let prepared = match remaining(deadline, "the engine said readyok") {
+        Ok(left) => send_setup(&process, options, READY_TIMEOUT.min(left)).await,
+        Err(e) => Err(e),
+    };
     if let Err(e) = prepared {
         registry.shutdown(&process.id).await;
         return Err(e);
@@ -1593,7 +1643,11 @@ async fn prepare_engine(
     Ok(process)
 }
 
-async fn send_setup(process: &EngineProcess, options: &[SetOptionValue]) -> Result<(), String> {
+async fn send_setup(
+    process: &EngineProcess,
+    options: &[SetOptionValue],
+    ready_timeout: Duration,
+) -> Result<(), String> {
     let protocol = process.protocol();
 
     // **並べた順にそのまま送る。** 値の解釈が前の `setoption` に依存する
@@ -1614,7 +1668,7 @@ async fn send_setup(process: &EngineProcess, options: &[SetOptionValue]) -> Resu
     // `readyok` まで待ってから `usinewgame` を出す。待たずに積むと、
     // 呼び出し側は「対局が始まった」と思ったまま何も起きない状態になりうる
     protocol
-        .ensure_ready(READY_TIMEOUT)
+        .ensure_ready(ready_timeout)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1862,6 +1916,36 @@ mod tests {
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
         }
+    }
+
+    /// 対局の起動が、締切を過ぎたら**プロセスを起こす前に**断ること。
+    ///
+    /// 段ごとの上限しか無いと、2体ぶんで5分を超えるあいだ `start_game` が返らない。
+    /// フロントには進捗も残り時間も無く、取り消す口も無い。
+    ///
+    /// **`timeout` で包まないので、後始末が普通に走る。** 包むと、上限に当たった
+    /// ときに中の future ごと落ちて、台帳に載ったプロセスの ID を誰も知らないまま消える。
+    #[tokio::test]
+    async fn starting_a_game_stops_at_the_deadline() {
+        let mut settings = two_humans(vec![]);
+        settings.black = PlayerSpec::Engine {
+            name: "存在しないエンジン".to_string(),
+            engine_path: "/nonexistent/engine".to_string(),
+            work_dir: None,
+            options: Vec::new(),
+            ponder: false,
+        };
+
+        let registry = EngineRegistry::new();
+        let error = spawn_players(&registry, &settings, Instant::now())
+            .await
+            .expect_err("締切を過ぎているのに起動している");
+
+        // 起こそうとして失敗したのではなく、起こす前に締切で断ったこと
+        assert!(
+            error.contains("timed out before"),
+            "締切ではなく起動の失敗で断っている: {error}"
+        );
     }
 
     /// 時計が尽きて採られなかった手に `Ok` を返さないこと。
