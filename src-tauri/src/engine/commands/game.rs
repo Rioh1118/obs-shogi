@@ -204,11 +204,7 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: GameId) -> R
 ///
 /// # エラー
 ///
-/// 断り方は2つあり、**後始末が要るのは片方だけ**。
-///
-/// - 他の操作が同じ対局を掴んでいる → **エンジンは生きたまま台帳に残る**。
-///   そのまま呼び直せる。呼び直さないとプロセスが残る
-/// - `game_id` が台帳に無い → 何もしていない。呼び直しても同じ `Err`
+/// 断り方は3つあり、**後始末が要るのは1つだけ**。分類は `GameManager::close`。
 ///
 /// 中断が `CLOSE_ABORT_TIMEOUT` を超えた場合は `Err` にならない（畳めなくても
 /// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。

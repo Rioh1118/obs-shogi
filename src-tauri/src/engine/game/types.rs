@@ -16,14 +16,15 @@ use crate::engine::types::AnalysisResult;
 
 /// 対局セッションを指す値。
 ///
-/// **`String` の別名にしない。** 別名だと、`EngineId` とも指し手とも入れ替えられる。
-/// 実際に起きる形は2つ。フロントで `submitGameMove(usiMove, side, gameId)` と
-/// 引数を並べ替えても tsc が通り、Rust は `unknown game: 7g7f` を返して
-/// **盤が裁定待ちのまま30秒後に「アプリが答えなかった」で畳まれる**。
-/// Rust 側では `registry.shutdown(game_id)` が型検査を通り、知らない ID として
-/// `debug` を1行出して成功で返る（プロセスは残る）。
+/// **`String` の別名に戻さない。** 戻すと `registry.shutdown(&game_id)` が
+/// 型検査を通り、`EngineRegistry` は知らない ID として `debug` を1行出して
+/// **成功で返る**——プロセスは残り、`Result` も `warn` も出ない。
 ///
-/// 線に出る形は文字列のまま（`serde(transparent)`）。
+/// `EngineId`（`registry.rs`）はまだ別名のまま。`analyzer` / `bridge` に
+/// 波及するので別に扱う → #379。
+///
+/// 線に出る形は文字列のまま（`serde(transparent)`）。TS 側は brand
+/// （`entities/game-session/api/rust-types.ts`）で、そちらは引数の並べ替えを止める。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct GameId(String);

@@ -3,10 +3,10 @@
 //! 対局は同時に複数走りうる（検討しながら指す、エンジン同士を2組回す）。
 //! ID で引ける形にしてあるのはそのため。
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::engine::registry::EngineRegistry;
 
@@ -18,6 +18,11 @@ const LOGT: &str = "obs_shogi::engine::game::manager";
 
 pub struct GameManager {
     sessions: RwLock<HashMap<GameId, Arc<GameSession>>>,
+    /// いま閉じている最中の対局。
+    ///
+    /// **台帳から外れている窓を埋める。** 無いと、その窓の `close_game` が
+    /// 「知らない対局」として返り、呼び出し側は「何も起きていない」と読む。
+    closing: Mutex<BTreeSet<GameId>>,
     /// 対局のエンジンを起こす／落とす台帳。
     ///
     /// **持つ。** 渡してもらう形にすると、`engine_ids` が「起こしたときの台帳の
@@ -32,6 +37,7 @@ impl GameManager {
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
             sessions: RwLock::default(),
+            closing: Mutex::default(),
             registry,
         }
     }
@@ -59,10 +65,35 @@ impl GameManager {
     ///
     /// # エラー
     ///
-    /// 他の操作が同じ対局を掴んでいると閉じられず `Err` を返す。そのとき
-    /// **対局は中断済みだが、エンジンは生きたまま台帳に残る。**
-    /// そのまま呼び直せる。呼び直さないとプロセスが残る。
+    /// 断り方は3つあり、**呼び直す意味があるのは1つだけ**。
+    ///
+    /// - `the game is busy` — 他の操作が同じ対局を掴んでいる。中断は通したが
+    ///   **エンジンは生きたまま台帳に残る**。そのまま呼び直せる。
+    ///   呼び直さないとプロセスが残る
+    /// - `the game is being closed` — 別の呼び出しがいま閉じている最中。待つこと
+    /// - `unknown game` — 台帳に無い。何も起きていない
     pub async fn close(&self, game_id: &GameId) -> Result<(), String> {
+        // **「知らない」と「いま閉じている」を分ける。** `close` は台帳から
+        // 外してから最大十数秒待つので、その窓に2本目が入ると `unknown game` を
+        // 受け取る。受けた側が「何も起きていない」と読むと、直後に台帳へ戻る
+        // セッション（エンジンは生きている）を誰も閉じないまま置き去りにする。
+        {
+            let mut closing = self.closing.lock().await;
+            if closing.contains(game_id) {
+                return Err(format!("the game is being closed: {game_id}"));
+            }
+            if !self.sessions.read().await.contains_key(game_id) {
+                return Err(format!("unknown game: {game_id}"));
+            }
+            closing.insert(game_id.clone());
+        }
+
+        let result = self.take_and_close(game_id).await;
+        self.closing.lock().await.remove(game_id);
+        result
+    }
+
+    async fn take_and_close(&self, game_id: &GameId) -> Result<(), String> {
         let session = self.sessions.write().await.remove(game_id);
         let Some(session) = session else {
             return Err(format!("unknown game: {game_id}"));

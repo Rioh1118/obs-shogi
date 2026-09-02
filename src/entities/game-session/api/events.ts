@@ -14,7 +14,7 @@ export const GAME_EVENT = "game-event";
  * 対局の出来事を受け取る。
  *
  * **`moveDecided` を受けたら必ず `continueGame` か `endGameByRule` を返すこと。**
- * どちらも呼ばないと対局はその場で止まり、30秒後に中断される。
+ * どちらも呼ばないと対局はその場で止まり、`RULING_TIMEOUT` で中断される。
  */
 export async function listenToGameEvents(
   callback: (event: GameEvent) => void,

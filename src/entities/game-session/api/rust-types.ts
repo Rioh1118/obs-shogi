@@ -24,10 +24,11 @@ declare const gameIdBrand: unique symbol;
  *
  * **素の `string` にしない。** 素だと `submitGameMove(usiMove, side, gameId)` と
  * 引数を並べ替えても tsc が通る。通ると Rust は `unknown game: 7g7f` を返し、
- * 盤は裁定待ちのまま30秒後に「アプリが裁定を返さなかった」で畳まれる。
+ * 盤は裁定待ちのまま `RULING_TIMEOUT` 後に「アプリが裁定を返さなかった」で畳まれる。
  *
- * 作る口は `startGame` の戻り値と `listGames` だけ。brand が止めるのは
- * 暗黙の代入で、`as GameId` は通る（`entities/kifu` の `TesuuPointer` と同じ流儀）。
+ * 手に入る口は `startGame` の戻り値・`listGames`・`getGameState` の `gameId`・
+ * `game-event` の `gameId`。**手で `as GameId` すると brand の意味が消える**
+ * （brand が止めるのは暗黙の代入だけ。`entities/kifu` の `TesuuPointer` と同じ流儀）。
  * Rust 側も `GameId` は newtype で、線に出る形は文字列のまま。
  */
 export type GameId = string & { readonly [gameIdBrand]: true };
@@ -132,7 +133,7 @@ export interface GameSettings {
  * - `rule` — `endGameByRule`。詰み・千日手・持将棋・最大手数・反則。
  *   **その判定はまだ実装されていない** → #354
  * - `resign` — `resignGame`（人間の投了）。エンジンの投了は Rust が決める
- * - `aborted` — `abortGame`。**ただし「裁定を30秒返さなかった」ときも
+ * - `aborted` — `abortGame`。**ただし「裁定を `RULING_TIMEOUT` の間返さなかった」ときも
  *   同じ値になる。** いまの型では区別できない
  *
  * `timeout` / `engineFailure` / `declareWin` は Rust が決める。
@@ -204,7 +205,7 @@ export interface ClocksView {
    * 1. 裁定待ち（`awaitingRuling`）
    * 2. 終局後（`over`）
    * 3. **手番だが Rust がまだエンジンに考え始めさせていない**（前の思考の畳み待ち）。
-   *    `phase` は `thinking` のまま。通常は数百ミリ秒、長くて10秒
+   *    `phase` は `thinking` のまま。通常は数百ミリ秒、長くて `SETTLE_TIMEOUT`
    * 4. **Rust 側の壁時計が取れない**。`phase` は何でもありうる
    *
    * **3 が起きるのは、渡す先に畳む探索があったときだけ。** 先読みが外れた、
@@ -213,7 +214,7 @@ export interface ClocksView {
    * `ponder` の既定は false なので、既定の設定では 3 は起きない。
    *
    * **`running` の有無で分岐すること。** 「毎手 null が来る」と決め打つと、
-   * 期限を捨てて次の `clockUpdated`（最短500ms）まで持たないことになり、
+   * 期限を捨てて次の `clockUpdated`（最短 `CLOCK_EMIT_INTERVAL`）まで持たないことになり、
    * 相手の手番の頭で毎回止まって見える。
    */
   running: RunningClock | null;
@@ -248,7 +249,7 @@ export type GameEvent =
    *
    * この手の合法性と、指した後の局面が終局かどうか（詰み・千日手・持将棋・
    * 最大手数）を判定して、`continueGame` か `endGameByRule` を呼ぶこと。
-   * どちらも呼ばないと次の手番は始まらない（30秒で中断される）。
+   * どちらも呼ばないと次の手番は始まらない（`RULING_TIMEOUT` で中断される）。
    */
   | {
       type: "moveDecided";
