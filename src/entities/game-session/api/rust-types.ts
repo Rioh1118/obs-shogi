@@ -1,7 +1,9 @@
 /**
- * `src-tauri/src/engine/game/types.ts` の写し。
+ * `src-tauri/src/engine/game/types.rs` の写し。
  *
  * 綴りは ADR-0007（境界に出る型は camelCase、値つき enum は internally tagged）。
+ * **ただし `searchInfo` が運ぶ `AnalysisResult` だけは snake_case のまま**
+ * （`engine/types.rs` は ADR-0007 の移行対象外として据え置かれている）。
  * 線に出る実際の形は Rust 側の
  * `engine::game::types::tests::the_wire_shape_is_camel_case_all_the_way_down`
  * が固定している。**この写しを直したらあちらも見ること。**
@@ -71,10 +73,15 @@ export interface GameSettings {
 /**
  * 終局の理由。
  *
- * **`rule` だけがフロント発**。詰み・千日手・持将棋・最大手数・反則は
- * すべて `endGameByRule` から入る。残りは Rust が自分で決める。
+ * **こちらの呼び出しから入るのは3つ。**
  *
- * その判定はまだ実装されていない → #354。
+ * - `rule` — `endGameByRule`。詰み・千日手・持将棋・最大手数・反則。
+ *   **その判定はまだ実装されていない** → #354
+ * - `resign` — `resignGame`（人間の投了）。エンジンの投了は Rust が決める
+ * - `aborted` — `abortGame`。**ただし「裁定を30秒返さなかった」ときも
+ *   同じ値になる。** いまの型では区別できない
+ *
+ * `timeout` / `engineFailure` / `declareWin` は Rust が決める。
  */
 export type GameOverReason =
   | "resign"
