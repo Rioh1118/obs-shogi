@@ -30,10 +30,16 @@ pub struct UsiProtocol {
 
     /// 書き込みが詰まったか。
     ///
-    /// `ReadyState::Closed` は「もう届かない」を1つの値で表すが、**理由が2つある**。
+    /// `ReadyState::Closed` は「もう届かない」を1つの値で表すが、**理由が分かれる**。
     /// 読み取りが終わった（EOF）のと、stdin を読まなくなったのとでは、
     /// 利用者にとっての意味も次の手も違う。`Refuse` を返すときに文言を選ぶのに使う。
     stalled: Arc<std::sync::atomic::AtomicBool>,
+
+    /// こちらが落としたか。
+    ///
+    /// `kill_engine` も `Closed` を立てるので、印が無いと
+    /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
+    killed: Arc<std::sync::atomic::AtomicBool>,
 
     /// `isready` に対してエンジンがどう応じたか。
     ///
@@ -93,6 +99,7 @@ impl Clone for UsiProtocol {
             listeners: Arc::clone(&self.listeners),
             listen_active: Arc::clone(&self.listen_active),
             stalled: Arc::clone(&self.stalled),
+            killed: Arc::clone(&self.killed),
             ready: Arc::clone(&self.ready),
             runtime_handle: self.runtime_handle.clone(),
             init_task: Arc::clone(&self.init_task),
@@ -135,10 +142,26 @@ fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
     }
 }
 
-/// flush が途中で折れたときに、書けなかったぶんを残す。
+/// 届かなくなった理由を選ぶ。**印の優先順はここだけ。**
 ///
-/// `failed` を含めるのは、**書き込みに失敗したコマンドも届いていない**ため。
-/// 残りだけ挙げると、折れた1件が届いたように読める
+/// こちらが落としたことを最優先で見る。落としたプロセスは書き込みも詰まるので、
+/// `stalled` を先に見ると「エンジンが stdin を読まなくなった」と説明してしまう。
+/// 利用者にとっては「自分が終了させた」と「エンジンが応じなくなった」で次の手が違う。
+fn unreachable_text(killed: bool, stalled: bool) -> &'static str {
+    if killed {
+        GONE
+    } else if stalled {
+        STALLED
+    } else {
+        CLOSED
+    }
+}
+
+/// flush が途中で折れたときに、書けたか分からないぶんを残す。
+///
+/// `failed` も挙げるのは、**届いたか分からない**ため（`Timeout` は
+/// 「上限内に書き終わらなかった」で、後から届きうる）。
+/// 落ちた1件だけ黙ると、flush が最後まで通ったように読める
 fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
     for cmd in std::iter::once(failed).chain(rest.iter()) {
         log::warn!(
@@ -403,6 +426,7 @@ impl UsiProtocol {
             listeners: Arc::new(RwLock::new(HashMap::new())),
             listen_active: Arc::new(Mutex::new(false)),
             stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             ready: Arc::new(watch::channel(ReadyState::Waiting).0),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
@@ -418,7 +442,8 @@ impl UsiProtocol {
 
     /// 書き込みの列へ入れて、書けたかを待つ。
     ///
-    /// **上限はここだけ。** 超えたときに返るのは `Timeout` で、
+    /// **待つだけ。** 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
+    /// 超えたときに返るのは `Timeout` で、
     /// 「送る口が無い」（`NotInitialized` / `CommunicationFailed`）とは別物。
     /// 前者はエンジンが stdin を読んでいない、後者は届く先が無い。
     /// 次に何ができるかが違うので潰さない。
@@ -429,8 +454,6 @@ impl UsiProtocol {
             return Err(EngineError::NotInitialized(GONE.to_string()));
         }
 
-        // **ここでは待つだけ。** 上限は `run_writer` の中で、
-        // 実際の書き込みに掛かっている。ここで包むと前のジョブの処理時間が入る
         let result = match rx.await {
             Ok(result) => result,
             // 列のタスクが落ちた
@@ -458,7 +481,7 @@ impl UsiProtocol {
         // 入れても誰も配らないので、`raw_rx.recv()` が永久に返らない待ちができる
         let state: ReadyState = *self.ready.borrow();
         if state == ReadyState::Closed {
-            return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+            return Err(self.unreachable());
         }
 
         self.listeners.write().await.insert(name.clone(), sender);
@@ -612,7 +635,7 @@ impl UsiProtocol {
     /// - `CommunicationFailed`: 届く口が無い。出力が終わったか、書き込みが詰まった
     ///   （文言で分かれる）。プロセスを起動し直すしかない
     /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**
-    /// - `NotInitialized`: プロセスを落とした後
+    /// - `NotInitialized`: 書き込みの列そのものが無くなった（通常は起きない）
     pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
         // コマンド履歴更新
         self.state.write().await.last_command = Some(cmd_summary(command));
@@ -645,34 +668,29 @@ impl UsiProtocol {
         self.write(command.clone()).await
     }
 
+    /// 届かなくなった理由を文言にする。
+    ///
+    /// **`Closed` は複数の理由で立つ**（`set_ready_state(_, Closed)` の呼び出しを見ること）。
+    /// 読み取りが終わった、書き込みが詰まった、こちらが落とした。
+    /// 利用者に見せる説明も次の手も違うので、`Closed` の一語に潰さない。
+    fn unreachable(&self) -> EngineError {
+        use std::sync::atomic::Ordering::Relaxed;
+
+        EngineError::CommunicationFailed(
+            unreachable_text(self.killed.load(Relaxed), self.stalled.load(Relaxed)).to_string(),
+        )
+    }
+
     /// 書き込みが詰まった後の後始末。
     ///
     /// 断る口は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
     /// **これから `send_command` に入る呼び出し**はここで立てる `Closed` が断る。
     ///
-    /// ここでやるのは3つ。
-    ///
-    /// - 詰まった印を立てて、断るときの文言を `STALLED` 側に切り替える
-    /// - `Closed` を立てる
-    /// - 積み置きを捨てる。掃く者がもう居ない
+    /// やることは、詰まった印を立てる・`Closed` を立てる・積み置きを捨てるの3つ。
     ///
     /// **このプロセスは落とせない。** 詰まった `spawn_blocking` のスレッドが
     /// `handler` の Mutex を握ったままなので、`kill_engine` も返らない（→ #353）。
     /// 復帰は新しいプロセスを起動し直すこと。
-    /// 届かなくなった理由を文言にする。
-    ///
-    /// **`Closed` は2つの理由で立つ。** 読み取りが終わった（EOF）のと、
-    /// 書き込みが詰まったの。前者はプロセスが死んでいる見込みが高く、
-    /// 後者は生きていて出力も続いている。利用者に見せる説明が違う。
-    fn unreachable(&self) -> EngineError {
-        let text = if self.stalled.load(std::sync::atomic::Ordering::Relaxed) {
-            STALLED
-        } else {
-            CLOSED
-        };
-        EngineError::CommunicationFailed(text.to_string())
-    }
-
     async fn fail_writes(&self) {
         self.stalled
             .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -722,7 +740,7 @@ impl UsiProtocol {
         // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
         // 呼び出し側の順序に依存させない。手前に分岐が1つ増えるだけで穴が開く
         if set_ready_state(&self.ready, ReadyState::Waiting) == ReadyState::Closed {
-            return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+            return Err(self.unreachable());
         }
 
         let cancel = CancellationToken::new();
@@ -1045,7 +1063,12 @@ impl UsiProtocol {
 
         // **落とす前に `Closed` を立てる。** 立てないと、`handler` を `take` した
         // 後も `ready` が `Waiting` のまま残り、死んだプロセス向けに
-        // `position` / `go` が積める（`Ok` が返り、掃く者は永久に来ない）
+        // `position` / `go` が積める（`Ok` が返り、掃く者は永久に来ない）。
+        //
+        // 印も一緒に立てる。立てないと、以後の `Refuse` が
+        // 「エンジンの出力が終わった」と説明する（落としたのはこちら）
+        self.killed
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         set_ready_state(&self.ready, ReadyState::Closed);
 
         self.abort_init().await;
@@ -1245,6 +1268,28 @@ mod tests {
             return Dispatch::Queue;
         }
         Dispatch::Send
+    }
+
+    /// 届かない理由を、印の組み合わせ4通り全部で確かめる。
+    ///
+    /// **`killed` と `stalled` が両方立つ組み合わせを外さないこと。**
+    /// 落としたプロセスは書き込みも詰まるので、この組み合わせは実際に起きる。
+    /// ここで `STALLED` が出ると、利用者が終了させた直後に
+    /// 「エンジンが stdin を読まなくなった」と説明することになる。
+    #[test]
+    fn who_stopped_the_engine_is_not_flattened_into_one_message() {
+        assert_eq!(unreachable_text(false, false), CLOSED);
+        assert_eq!(unreachable_text(false, true), STALLED);
+        assert_eq!(unreachable_text(true, false), GONE);
+        assert_eq!(unreachable_text(true, true), GONE);
+
+        // 3つとも別の文言であること。同じなら上の突き合わせは何も見ていない
+        let mut texts = [CLOSED, STALLED, GONE];
+        texts.sort_unstable();
+        let before = texts.len();
+        let mut unique = texts.to_vec();
+        unique.dedup();
+        assert_eq!(before, unique.len(), "届かない理由の文言が重なっている");
     }
 
     /// `Closed` から戻す口を作らないこと。
