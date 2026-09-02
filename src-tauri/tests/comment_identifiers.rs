@@ -50,7 +50,41 @@ fn src_dir() -> PathBuf {
 /// 「これだけ除外が要るほど拾う」という誤った印象を与え、
 /// 検査がどれだけ緩いかを読み手が測れなくなる。
 /// `the_exempt_list_is_not_dead` が空振りを止める。
-const EXEMPT: &[&str] = &[];
+/// このリポジトリの外にある綴り。
+///
+/// **この検査が見るのは `src-tauri/src` だけ。** 外の識別子は当然見つからないので、
+/// 免除しないと「改名し忘れ」と同じ形で落ちる。
+///
+/// 増やすときは、**なぜ `src-tauri/src` に無くてよいか**を1行で書けるときだけ。
+/// 書けないなら、それは腐ったコメント。
+/// 使われなくなった項目は `the_exempt_list_is_not_dead` が落とす。
+const EXEMPT: &[&str] = &[
+    // --- `std` ---
+    // 確保に失敗したときの挙動を説明している
+    "handle_alloc_error",
+    // MSRV では使えないことを書いている
+    "repeat_n",
+    // --- `nom` ---
+    // パースの失敗をそのまま引用できることの根拠
+    "convert_error",
+    // 空行の扱いを説明している
+    "is_a",
+    "line_sep",
+    // --- `csa` ---
+    // 残り入力を捨てて `Ok` を返すこと（自前で読む理由）
+    "parse_csa",
+    "parse_csa_file",
+    "game_record",
+    // 段の読み方（短い段を補わない理由）
+    "board_row",
+    "grid_piece",
+    // --- `shogi_kifu_converter` ---
+    // 手合割の盤面の畳み込み
+    "normalize_initial",
+    // 読めなかったことの表し方
+    "recognised_nothing",
+    "stopped_at",
+];
 
 /// コメントの**行頭から**の行だけを返す。`///` `//!` `//` を拾う。
 ///

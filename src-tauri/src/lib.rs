@@ -4,8 +4,11 @@ pub mod engine;
 pub mod engine_presets;
 pub mod file_system;
 pub mod kifu;
+pub mod kifu_text;
 pub mod search;
 pub mod study_positions;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 pub use crate::engine::state::AppState;
 pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};

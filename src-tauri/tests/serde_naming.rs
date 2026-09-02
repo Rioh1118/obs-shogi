@@ -25,7 +25,11 @@ use std::path::Path;
 /// 2. **Tauri の境界に出ない**。TS が読まないので揃える相手がいない
 ///
 /// 「まだ直していない」は理由にならない。それは下の `BASELINE` が数える側。
-const EXEMPT: [(&str, &str); 11] = [
+const EXEMPT: [(&str, &str); 12] = [
+    (
+        "Fixture",
+        "境界に出ない: テストの入力（`#[cfg(test)]` の中で fixture を読むだけ）",
+    ),
     ("AppConfig", "保存ファイル: アプリ設定"),
     ("PresetsFile", "保存ファイル: エンジンプリセット"),
     (

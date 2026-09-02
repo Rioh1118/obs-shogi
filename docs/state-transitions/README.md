@@ -16,7 +16,7 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
       ├─ file-tree.md         ツリーとファイル操作
       ├─ game.md              棋譜の読み込み・移動・編集（カーソルと分岐計画）
       ├─ game-session.md      対局の進行（Rust。エンジンの USI 状態を列に持つ）
-      ├─ search.md            （未作成）インデックスと検索セッション
+      ├─ search.md            インデックスと検索（**Rust 側**。ディスクのキャッシュを列に持つ）
       └─ study-positions.md   （未作成）研究局面の読み書き
 
 L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
@@ -43,7 +43,7 @@ L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の�
 | [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                                          |
 | [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸                            |
 | [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証** |
-| `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある                                 |
+| [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                     |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                 |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
