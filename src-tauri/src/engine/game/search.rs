@@ -29,6 +29,15 @@ const LOGT: &str = "obs_shogi::engine::game::search";
 /// 次の思考を始める前にエンジンを idle に戻さないといけない。
 const STOP_GRACE: Duration = Duration::from_secs(5);
 
+/// `stop` の**書き込み**に置く上限。
+///
+/// `STOP_GRACE` が包んでいるのは返事の待ちだけで、書き込みはその外にある。
+/// `send_command` はブロッキング write を `handler` の Mutex 越しに行うので、
+/// エンジンが stdin を読まなくなるとここで止まり、`STOP_GRACE` に辿り着かない。
+///
+/// `registry::WRITE_TIMEOUT` と同じ値。同じ詰まり方に対する同じ上限
+const STOP_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// 1回の探索がどう終わったか。
 #[derive(Debug, Clone)]
 pub enum SearchOutcome {
@@ -159,7 +168,28 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     let outcome = match settled {
         Some(outcome) => outcome,
         None => {
-            let _ = protocol.send_command(&GuiCommand::Stop).await;
+            // 書き込みが詰まったら、返事を待つ意味は無い。**送れていない**
+            let written =
+                tokio::time::timeout(STOP_WRITE_TIMEOUT, protocol.send_command(&GuiCommand::Stop))
+                    .await
+                    .is_ok();
+
+            if !written {
+                log::warn!(
+                    target: LOGT,
+                    "stop: write blocked side={:?} req={} — the engine is not reading stdin",
+                    side,
+                    req
+                );
+                protocol.remove_listener(&listener).await;
+                let _ = tx.send(SearchMessage::Outcome {
+                    side,
+                    req,
+                    outcome: SearchOutcome::StopTimedOut,
+                });
+                return;
+            }
+
             let drained = tokio::time::timeout(STOP_GRACE, async {
                 while let Some(command) = raw_rx.recv().await {
                     if matches!(command, EngineCommand::BestMove(_)) {

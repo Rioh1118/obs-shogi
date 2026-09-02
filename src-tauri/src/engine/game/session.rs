@@ -58,6 +58,16 @@ const CLOCK_EMIT_INTERVAL: Duration = Duration::from_millis(500);
 /// 打ち切りが対局者の持ち時間を削ることはない。
 const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// 手番に入ったまま `go` を出せずにいられる上限。
+///
+/// `AwaitingRuling` の `RULING_TIMEOUT` と対になる、`Thinking` 側の番人。
+/// 畳み待ちの間は時計が動かないので、時間切れの判定には掛からない。
+/// ここが無いと、`stop` の書き込みが詰まったときに対局が無音のまま固まる。
+///
+/// `search.rs` の `STOP_GRACE`（5秒）＋書き込みの上限（2秒）より長く取る。
+/// 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ。
+const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
+
 /// `close` が「走っている探索が畳まれた」のを待つ上限。
 ///
 /// **待つ**理由: 待たずに落とすと、`stop` を送ろうとしている探索の足元で
@@ -117,7 +127,7 @@ impl GameSession {
             moves: settings.initial_moves.clone(),
             settings,
             phase: Phase::Thinking { side: side_to_move },
-            turn_started: Some(Instant::now()),
+            turn_clock: TurnClock::Running(Instant::now()),
             next_req: 0,
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
@@ -364,6 +374,24 @@ enum Phase {
     },
 }
 
+/// 手番の中で、時計が動いているか止まっているか。
+///
+/// **どちらの枝も時刻を持つ。** `Option<Instant>` だと「止まっている」側に
+/// 時刻が無く、いつから止まっているかを誰も知らない。`AwaitingRuling` に
+/// `RULING_TIMEOUT` が居るのに対して、こちら側には番人を置けなかった。
+#[derive(Debug, Clone, Copy)]
+enum TurnClock {
+    /// `go` を出した時刻。時計はここから動く
+    Running(Instant),
+    /// 手番だが、まだ `go` を出していない。止めた探索を畳んでいる間
+    /// （`Activity::Stopping`）がこれで、**その間は時計を動かさない**。
+    /// 手番に入った時刻で数えると、エンジンが1手も読んでいない最大 `STOP_GRACE` が
+    /// 消費に入り、画面の残り時間も畳み終わりに巻き戻る。
+    ///
+    /// 持つのは**待ち始めた**時刻で、`on_tick` の番人がこれを見る
+    Settling(Instant),
+}
+
 struct Runner {
     id: GameId,
     app: Option<AppHandle>,
@@ -373,13 +401,7 @@ struct Runner {
     /// 指し手列の**写し**。権威はフロントにあり、`continue_game` が上書きする
     moves: Vec<String>,
     phase: Phase,
-    /// この手の思考が**実際に始まった**時刻。
-    ///
-    /// `None` は「手番だが、まだ `go` を出していない」。止めた探索を畳んでいる間
-    /// （`Activity::Stopping`）がそれで、**その間は時計を動かさない**。
-    /// 手番に入った時刻で数えると、エンジンが1手も読んでいない最大5秒が
-    /// 消費に入り、画面の残り時間も畳み終わりに巻き戻る。
-    turn_started: Option<Instant>,
+    turn_clock: TurnClock,
     next_req: u64,
     last_clock_emit: Instant,
     /// 探索タスクへ渡す、自分あての口。
@@ -538,7 +560,7 @@ impl Runner {
         self.phase = Phase::Thinking { side: next };
         // 思考が始まった時点で入れる。`hand_turn_to` が畳み待ちへ倒したら
         // `None` のままになり、その間は時計が動かない
-        self.turn_started = None;
+        self.turn_clock = TurnClock::Settling(Instant::now());
 
         self.hand_turn_to(next, &usi_move).await;
 
@@ -683,7 +705,7 @@ impl Runner {
                 // 画面の残り時間とエンジンに伝えた残り時間も食い違う。
                 //
                 // 引き直すぶん、止めている間は**どちらの持ち時間にも入らない**
-                self.turn_started = Some(Instant::now());
+                self.turn_clock = TurnClock::Running(Instant::now());
                 self.start_search(side);
             }
             return;
@@ -742,19 +764,33 @@ impl Runner {
 
     async fn on_tick(&mut self) {
         match &self.phase {
-            Phase::Thinking { .. } => {
-                // 畳み待ちの間は `running_clock` が `None` を返すので当たらない
-                let Some((side, elapsed)) = self.running_clock() else {
-                    return;
-                };
-                if self.clocks.get(side).has_expired(elapsed) && self.timeout_enforced(side) {
-                    self.finish(GameResult {
-                        winner: Some(side.opponent()),
-                        reason: GameOverReason::Timeout,
-                        detail: None,
-                    })
-                    .await;
-                    return;
+            Phase::Thinking { side } => {
+                let side = *side;
+                // 畳み待ち。時計は動かないので時間切れの番人には掛からない。
+                // ここで見ないと、`stop` の書き込みが詰まったときに
+                // 無音のまま固まる（`close_game` を押すまで気付けない）
+                if let TurnClock::Settling(since) = self.turn_clock {
+                    if since.elapsed() >= SETTLE_TIMEOUT {
+                        self.finish(GameResult {
+                            winner: Some(side.opponent()),
+                            reason: GameOverReason::EngineFailure,
+                            detail: Some("the engine did not stop searching in time".to_string()),
+                        })
+                        .await;
+                        return;
+                    }
+                }
+
+                if let Some((side, elapsed)) = self.running_clock() {
+                    if self.clocks.get(side).has_expired(elapsed) && self.timeout_enforced(side) {
+                        self.finish(GameResult {
+                            winner: Some(side.opponent()),
+                            reason: GameOverReason::Timeout,
+                            detail: None,
+                        })
+                        .await;
+                        return;
+                    }
                 }
             }
             Phase::AwaitingRuling { since, .. } => {
@@ -864,7 +900,7 @@ impl Runner {
                             *kind = SearchKind::Search;
                         }
                         // 先読みの時間は無料。時計はここから動く
-                        self.turn_started = Some(Instant::now());
+                        self.turn_clock = TurnClock::Running(Instant::now());
                     }
                     Err(e) => {
                         // 送れていないのでエンジンは `go ponder` のまま。
@@ -877,7 +913,7 @@ impl Runner {
             }
             Handover::StopThenStart => self.stop_then_start(side),
             Handover::StartNow => {
-                self.turn_started = Some(Instant::now());
+                self.turn_clock = TurnClock::Running(Instant::now());
                 self.start_search(side);
             }
             Handover::Unusable => {
@@ -912,7 +948,7 @@ impl Runner {
             Activity::Stopping { restart, .. } => *restart = true,
             // 何も走っていない。そのまま始めてよい
             Activity::Idle => {
-                self.turn_started = Some(Instant::now());
+                self.turn_clock = TurnClock::Running(Instant::now());
                 self.start_search(side);
             }
             Activity::Unresponsive => {
@@ -1098,7 +1134,9 @@ impl Runner {
         let Phase::Thinking { side } = self.phase else {
             return None;
         };
-        let started = self.turn_started?;
+        let TurnClock::Running(started) = self.turn_clock else {
+            return None;
+        };
         Some((side, started.elapsed().as_millis() as u64))
     }
 
@@ -1413,7 +1451,7 @@ mod tests {
             moves: Vec::new(),
             settings,
             phase: Phase::Thinking { side: Side::Black },
-            turn_started: Some(Instant::now()),
+            turn_clock: TurnClock::Running(Instant::now()),
             next_req: 0,
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
@@ -1561,7 +1599,7 @@ mod tests {
     async fn the_clock_does_not_run_while_a_stopped_search_is_settling() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut runner = test_runner(&tx);
-        runner.turn_started = None;
+        runner.turn_clock = TurnClock::Settling(Instant::now());
         runner.players[Side::Black.index()].activity = Activity::Stopping {
             req: 1,
             restart: true,
@@ -1589,7 +1627,7 @@ mod tests {
                 byoyomi_ms: 0,
                 increment_ms: 0,
             });
-        runner.turn_started = None;
+        runner.turn_clock = TurnClock::Settling(Instant::now());
         runner.players[Side::Black.index()].activity = Activity::Stopping {
             req: 1,
             restart: true,
@@ -1862,6 +1900,40 @@ mod tests {
         let result = result.expect("持ち時間が尽きても終局しなかった");
         assert_eq!(result.reason, GameOverReason::Timeout);
         assert_eq!(result.winner, Some(Side::White));
+    }
+
+    /// 畳み待ちのまま `SETTLE_TIMEOUT` を過ぎたら終局にすること。
+    ///
+    /// 畳み待ちの間は時計が動かないので、時間切れの番人には掛からない。
+    /// ここが無いと `stop` の書き込みが詰まったときに無音で固まる
+    #[tokio::test]
+    async fn settling_forever_ends_the_game() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = Activity::Stopping {
+            req: 1,
+            restart: false,
+        };
+        runner.turn_clock = TurnClock::Settling(
+            Instant::now()
+                .checked_sub(SETTLE_TIMEOUT)
+                .expect("起動直後で `Instant` を遡れない"),
+        );
+        drop(cancel);
+
+        // 時計は動いていない。時間切れの番人は掛からない
+        assert!(runner.running_clock().is_none());
+
+        runner.on_tick().await;
+
+        match &runner.phase {
+            Phase::Over { result } => {
+                assert_eq!(result.reason, GameOverReason::EngineFailure);
+                assert_eq!(result.winner, Some(Side::White));
+            }
+            _ => panic!("畳み待ちのまま固まっている"),
+        }
     }
 
     /// 走っている探索からの投了は終局にすること（表の E8 の `A1` 側）。
