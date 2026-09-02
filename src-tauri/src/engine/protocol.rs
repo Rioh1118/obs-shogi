@@ -22,11 +22,15 @@ pub struct UsiProtocol {
     listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
     listen_active: Arc<Mutex<bool>>,
 
-    /// `readyok` を受け取ったかどうか。
+    /// `isready` に対してエンジンがどう応じたか。
     ///
-    /// `RwLock<bool>` ではなく watch なのは、**待つ側がポーリングしないで済む**ため。
-    /// `ensure_ready` はこの受信側で待つ。
-    ready: Arc<watch::Sender<bool>>,
+    /// **3値であることが要る。** `bool` だと「まだ返っていない」と
+    /// 「もう返らない（プロセスが終わった）」が同じ値になり、`ensure_ready` が
+    /// 上限まで待たされる。評価関数を読めずに即死するエンジンで
+    /// `start_game` が2分返らなかった。
+    ///
+    /// watch なのは、**待つ側がポーリングしないで済む**ため。
+    ready: Arc<watch::Sender<ReadyState>>,
 
     runtime_handle: tokio::runtime::Handle,
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -56,6 +60,16 @@ impl Clone for UsiProtocol {
 struct ProtocolState {
     engine_info: Option<EngineInfo>,
     last_command: Option<String>,
+}
+
+/// `isready` に対する応答の状態。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReadyState {
+    /// `isready` を送ったが、まだ `readyok` が返っていない
+    Waiting,
+    Ready,
+    /// エンジンの出力が終わった。**もう `readyok` は返らない**
+    Closed,
 }
 
 /// 読み取りを終わらせる合図。`usi` crate の `listen` へ返すためだけの型。
@@ -98,7 +112,7 @@ impl UsiProtocol {
             })),
             listeners: Arc::new(RwLock::new(HashMap::new())),
             listen_active: Arc::new(Mutex::new(false)),
-            ready: Arc::new(watch::channel(false).0),
+            ready: Arc::new(watch::channel(ReadyState::Waiting).0),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
             init_cancel: Arc::new(Mutex::new(None)),
@@ -159,6 +173,7 @@ impl UsiProtocol {
         // ロックを待つのは配る側の1本に閉じる。
         let (line_tx, mut line_rx) = mpsc::unbounded_channel::<EngineCommand>();
         let listeners = Arc::clone(&self.listeners);
+        let ready = Arc::clone(&self.ready);
         self.runtime_handle.spawn(async move {
             while let Some(cmd) = line_rx.recv().await {
                 Self::broadcast_to_listeners(Arc::clone(&listeners), cmd).await;
@@ -178,6 +193,11 @@ impl UsiProtocol {
             // `bestmove` を書いた直後に終了するエンジンでは、その手が
             // 誰にも届かないまま「応答しない」と判定される。
             listeners.write().await.clear();
+
+            // `readyok` を待っている側にも届ける。listeners を落とすだけでは
+            // `ensure_ready` は watch を見ているので気付かず、上限まで待つ
+            let _ = ready.send(ReadyState::Closed);
+
             log::warn!(target: LOGT, "listen: engine output ended");
         });
 
@@ -257,7 +277,7 @@ impl UsiProtocol {
         }
 
         // ready 前で ready 必須のコマンドなら enqueue
-        let is_ready: bool = *self.ready.borrow();
+        let is_ready = self.is_ready();
         if !is_ready && requires_ready(command) {
             let gen = *self.generation.read().await;
             let mut map = self.pending_after_ready.lock().await;
@@ -294,7 +314,7 @@ impl UsiProtocol {
             *g
         };
 
-        let _ = self.ready.send(false);
+        let _ = self.ready.send(ReadyState::Waiting);
 
         let cancel = CancellationToken::new();
         *self.init_cancel.lock().await = Some(cancel.clone());
@@ -341,7 +361,7 @@ impl UsiProtocol {
             }
 
             if ready {
-                let _ = protocol.ready.send(true);
+                let _ = protocol.ready.send(ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
                 let mut map = protocol.pending_after_ready.lock().await;
@@ -416,6 +436,7 @@ impl UsiProtocol {
         let mut name = String::new();
         let mut author = String::new();
         let mut options = Vec::new();
+        let mut saw_usiok = false;
 
         while let Some(cmd) = rx.recv().await {
             match cmd {
@@ -424,15 +445,22 @@ impl UsiProtocol {
                 EngineCommand::Option(option_params) => {
                     options.push(convert_option_params(&option_params));
                 }
-                EngineCommand::UsiOk => break,
+                EngineCommand::UsiOk => {
+                    saw_usiok = true;
+                    break;
+                }
                 _ => {} // 他のコマンドは無視（高頻度でくる可能性）
             }
         }
 
         if name.is_empty() {
-            return Err(EngineError::CommunicationFailed(
-                "did not receive id name before usiok (or channel closed)".to_string(),
-            ));
+            // 出力が終わったのか、`usiok` までに `id name` が無かったのかで
+            // 呼び出し側の対処が違う。潰さない
+            return Err(EngineError::CommunicationFailed(if saw_usiok {
+                "engine did not send `id name` before `usiok`".to_string()
+            } else {
+                "engine output ended before `usiok`".to_string()
+            }));
         }
 
         Ok(EngineInfo {
@@ -444,7 +472,8 @@ impl UsiProtocol {
 
     /// `readyok` を受け取り済みか
     pub fn is_ready(&self) -> bool {
-        *self.ready.borrow()
+        let state: ReadyState = *self.ready.borrow();
+        state == ReadyState::Ready
     }
 
     /// `isready` を送り、`readyok` が返るまで待つ。
@@ -460,10 +489,22 @@ impl UsiProtocol {
         self.send_command(&GuiCommand::IsReady).await?;
 
         let mut rx = self.ready.subscribe();
-        tokio::time::timeout(timeout, rx.wait_for(|ready| *ready))
-            .await
-            .map_err(|_| EngineError::Timeout("engine did not return readyok in time".to_string()))?
-            .map_err(|_| EngineError::CommunicationFailed("ready channel closed".to_string()))?;
+        let settled =
+            tokio::time::timeout(timeout, rx.wait_for(|state| *state != ReadyState::Waiting))
+                .await
+                .map_err(|_| {
+                    EngineError::Timeout("engine did not return readyok in time".to_string())
+                })?
+                .map_err(|_| {
+                    EngineError::CommunicationFailed("ready channel closed".to_string())
+                })?;
+
+        // **上限まで待たずに返る。** 出力が終わっているなら `readyok` は来ない
+        if *settled == ReadyState::Closed {
+            return Err(EngineError::CommunicationFailed(
+                "engine exited before it became ready".to_string(),
+            ));
+        }
 
         Ok(())
     }
