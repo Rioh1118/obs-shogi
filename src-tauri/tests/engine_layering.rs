@@ -173,23 +173,46 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
 /// rustfmt は100桁を超える `use` を波括弧で折る。行単位で見ていると、
 /// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
 /// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
-fn use_statements(source: &str) -> Vec<String> {
+fn use_statements(source: &str) -> Vec<(String, usize)> {
     let mut found = Vec::new();
     let mut buffer = String::new();
+    // **`mod` の入れ子を数える。** `super` が指す先はファイルの位置ではなく
+    // その `use` を囲む**モジュール**の数で決まる。`#[cfg(test)] mod tests` の
+    // 中の `use super::super::events::..` は `engine::game::events` を指すのに、
+    // ファイルの深さだけで見ると `engine::events` という**存在しない辺**が立つ。
+    // `fn` の中の塊は数えない（`super` の意味を変えないので）。
+    let mut modules = 0usize;
+    let mut nesting: Vec<bool> = Vec::new();
 
     for line in source.lines() {
         let line = line.trim();
-        if buffer.is_empty() {
-            if !line.starts_with("use ") && !line.starts_with("pub use ") {
-                continue;
+
+        if buffer.is_empty() && !line.starts_with("use ") && !line.starts_with("pub use ") {
+            // `mod x {` は開いた塊がモジュールであることの印
+            for ch in line.chars() {
+                match ch {
+                    '{' => {
+                        let is_module = line.contains("mod ") && nesting.is_empty();
+                        nesting.push(is_module);
+                        if is_module {
+                            modules += 1;
+                        }
+                    }
+                    '}' if nesting.pop() == Some(true) => modules -= 1,
+                    _ => {}
+                }
             }
+            continue;
+        }
+
+        if buffer.is_empty() {
             buffer.push_str(line);
         } else {
             buffer.push(' ');
             buffer.push_str(line);
         }
         if buffer.contains(';') {
-            found.push(std::mem::take(&mut buffer));
+            found.push((std::mem::take(&mut buffer), modules));
         }
     }
     found
@@ -237,8 +260,8 @@ fn scan_file(source: &str, depth: usize) -> (BTreeSet<String>, Vec<String>) {
     let mut edges = BTreeSet::new();
     let mut outside = Vec::new();
 
-    for statement in use_statements(source) {
-        let (names, out) = resolve(&statement, depth);
+    for (statement, inside_modules) in use_statements(source) {
+        let (names, out) = resolve(&statement, depth + inside_modules);
         edges.extend(names);
         outside.extend(out);
     }
@@ -358,6 +381,35 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     let (_, out) = scan_file("use crate::file_system::open;\n", 1);
     assert_eq!(out.len(), 1, "`crate::` の他の枝が外への参照になっていない");
+
+    // **`mod` の入れ子は `super` の意味を変える。**
+    // `game/session.rs`（深さ2）の `mod tests` の中では、`engine::game` へ戻るのに
+    // `super::super` が要る——そこは段の辺ではない
+    let source = "#[cfg(test)]\nmod tests {\n    use super::super::events::RecordedEvents;\n}\n";
+    let (edges, out) = scan_file(source, 2);
+    assert!(
+        edges.is_empty(),
+        "`mod tests` の中の `super::super::` を段の辺として数えている: {edges:?}"
+    );
+    assert!(out.is_empty(), "外への参照として数えている: {out:?}");
+
+    // その中から本当に `engine::state` を指す形は、段の辺として取れること
+    let source = "#[cfg(test)]\nmod tests {\n    use super::super::super::state::AppState;\n}\n";
+    let (edges, _) = scan_file(source, 2);
+    assert_eq!(
+        edges,
+        ["state"].map(String::from).into(),
+        "`mod` の中から段を跨ぐ形が取れていない"
+    );
+
+    // `fn` の中の塊は `super` の意味を変えない
+    let source = "fn f() {\n    use super::super::state::AppState;\n}\n";
+    let (edges, _) = scan_file(source, 2);
+    assert_eq!(
+        edges,
+        ["state"].map(String::from).into(),
+        "`fn` の塊を `mod` として数えている"
+    );
 }
 
 /// `engine/` が crate の他の枝を知らないこと。
@@ -596,7 +648,12 @@ fn dependencies_only_point_downwards() {
             continue;
         };
         for to in targets {
+            // **段に無い行き先を黙って飛ばさない。** 飛ばすと、走査が名前を
+            // 取り違えて存在しないモジュールへ辺を立てても誰も気付かない。
             if layer(&to).is_none() {
+                upward.push(format!(
+                    "{from} -> {to}（{to} は段に無い。走査の取り違えか、段への載せ忘れ）"
+                ));
                 continue;
             }
             if !from_layer.may_use.contains(&to.as_str()) {

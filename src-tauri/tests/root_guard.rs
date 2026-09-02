@@ -15,6 +15,10 @@
 //! 関門そのものは `root_dir` が未設定のときに無条件で開く
 //! （`utils.rs` の `validate_under_root`）。
 
+mod scanning;
+
+use scanning::matching;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
@@ -180,22 +184,25 @@ fn commands(source: &str) -> Vec<(String, String)> {
 
 /// 署名がパスらしきものを受け取っているか。
 /// 引数名の末尾が `path` / `dir` / `root` のもの、および `Path` / `PathBuf` を見る
+/// 署名の丸括弧の中身。
+///
+/// **最初の `)` で切らない。** 引数の型に `()` が現れると——`Channel<()>` は
+/// Tauri v2 で進捗を流す普通の形——そこが署名の終わりだと読まれ、
+/// **以降の引数が1つも見えなくなる**。生のパスを後ろに置いたコマンドが
+/// 走査から丸ごと消える。
+fn signature_of(chunk: &str) -> Option<&str> {
+    let start = chunk.find("fn ")?;
+    let chunk = &chunk[start..];
+    let open = chunk.find('(')?;
+    let len = matching(&chunk[open..], '(', ')')?;
+    Some(&chunk[open + 1..open + len - 1])
+}
+
 fn takes_a_path(chunk: &str) -> bool {
     // 属性の括弧（`#[tauri::command(async)]` や `#[allow(...)]`）を署名と取り違えない
-    let Some(signature_start) = chunk.find("fn ") else {
+    let Some(signature) = signature_of(chunk) else {
         return false;
     };
-    let chunk = &chunk[signature_start..];
-    let Some(open) = chunk.find('(') else {
-        return false;
-    };
-    let Some(close) = chunk.find(')') else {
-        return false;
-    };
-    if close < open {
-        return false;
-    }
-    let signature = &chunk[open..close];
 
     if signature.contains("PathBuf") || signature.contains("Path") {
         return true;
@@ -218,13 +225,10 @@ fn guarded_variables(body: &str) -> Vec<(usize, String)> {
     for (at, _) in body.match_indices(GUARD) {
         let rest = &body[at..];
         let Some(open) = rest.find('(') else { continue };
-        let Some(close) = rest.find(')') else {
+        let Some(len) = matching(&rest[open..], '(', ')') else {
             continue;
         };
-        if close < open {
-            continue;
-        }
-        let Some(last) = rest[open + 1..close].split(',').next_back() else {
+        let Some(last) = rest[open + 1..open + len - 1].split(',').next_back() else {
             continue;
         };
         found.push((at, last.trim().trim_start_matches('&').to_string()));
@@ -289,7 +293,7 @@ fn type_graph(files: &[(String, String)]) -> TypeGraph {
                 if rest[..open].contains(';') {
                     continue;
                 }
-                let Some(len) = matching_brace(&rest[open..]) else {
+                let Some(len) = matching(&rest[open..], '{', '}') else {
                     continue;
                 };
                 let body = &rest[open..open + len];
@@ -353,37 +357,12 @@ struct TypeGraph {
     from_the_webview: BTreeSet<String>,
 }
 
-/// 先頭の `{` に釣り合う `}` の直後までの長さ
-fn matching_brace(from: &str) -> Option<usize> {
-    let mut depth = 0usize;
-    for (offset, ch) in from.char_indices() {
-        match ch {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(offset + 1);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
 /// コマンドの引数に現れる型の名前
 fn parameter_types(chunk: &str) -> BTreeSet<String> {
-    let Some(start) = chunk.find("fn ") else {
+    let Some(signature) = signature_of(chunk) else {
         return BTreeSet::new();
     };
-    let chunk = &chunk[start..];
-    let (Some(open), Some(close)) = (chunk.find('('), chunk.find(')')) else {
-        return BTreeSet::new();
-    };
-    if close < open {
-        return BTreeSet::new();
-    }
-    chunk[open + 1..close]
+    signature
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .filter(|t| t.starts_with(char::is_uppercase))
         .map(str::to_string)
@@ -611,10 +590,20 @@ fn only_signatures_that_carry_a_path_are_checked() {
     assert!(takes("ai_root: String"));
     assert!(takes("p: &Path"));
 
+    // **`()` を含む型の後ろも見る。** 最初の `)` で切ると、`Channel<()>` を
+    // 1つ挟むだけで生のパスを受けるコマンドが走査から丸ごと消える
+    assert!(takes("app: AppHandle, ch: Channel<()>, file_path: String"));
+    assert!(takes("f: Box<dyn Fn()>, dest_dir: String"));
+
     assert!(!takes("state: State<'_, AppState>, depth: u32"));
     // `AppConfig` は中に root_dir を持つが署名からは見えない。
     // 署名で拾えないものは `STRUCT_CARRIED_PATH` の側で名指しする
     assert!(!takes("app: AppHandle, config: AppConfig"));
+
+    // 型を辿る側も同じ括弧の取り方を使う
+    let types =
+        |signature: &str| parameter_types(&format!("#[command]\npub fn f({signature}) {{\n}}"));
+    assert!(types("ch: Channel<()>, settings: GameSettings").contains("GameSettings"));
 }
 
 #[test]

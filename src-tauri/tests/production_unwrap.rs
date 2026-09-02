@@ -13,6 +13,10 @@
 //! 「唯一」と書けてしまい、同じ形の兄弟が別のファイルに残る。
 //! 件数を言いたくなったらこの検査を走らせること。
 
+mod scanning;
+
+use scanning::item_end;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -47,7 +51,7 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
 /// 波括弧を数えるだけなので、文字列リテラルの中の括弧までは見ていない。
 /// **釣り合いが崩れると余分に落ちる＝検査が緩くなる**ので、崩れたら
 /// `the_scanner_still_sees_production_code` が先に落ちる。
-fn strip_test_modules(source: &str) -> String {
+fn strip_test_modules(source: &str, path: &Path) -> String {
     let mut out = String::new();
     let mut rest = source;
 
@@ -55,60 +59,22 @@ fn strip_test_modules(source: &str) -> String {
         out.push_str(&rest[..at]);
         let after = &rest[at..];
 
-        let Some(end) = item_end(after) else {
-            // 閉じない塊。以降は全部テストとみなす
-            return out;
-        };
+        // **黙って打ち切らない。** 「以降は全部テスト」で `return` すると、
+        // 括弧を数え違えた瞬間にその後ろの本番コードが検査から消え、
+        // `.unwrap()` を書いても緑で通る。走査の故障はここで落とす
+        let end = item_end(after).unwrap_or_else(|| {
+            panic!(
+                "{}: `#[cfg(test)]` の item の終わりを見つけられない。\
+                 走査が壊れている（括弧の数え違い）",
+                path.display()
+            )
+        });
         out.push_str(&"\n".repeat(after[..end].matches('\n').count()));
         rest = &after[end..];
     }
 
     out.push_str(rest);
     out
-}
-
-/// 属性から始まる item 1つぶんの長さ。
-///
-/// **`{` と `;` のどちらが先に来るかで決まる。** `;` が先なら塊を持たない item
-/// （`use` / `const` / `type` / `static`）で、そこで終わる。`{` が先なら
-/// 釣り合う `}` まで（`use a::{b, c};` のように後ろに `;` が続くなら、それも食う）。
-fn item_end(after: &str) -> Option<usize> {
-    let brace = after.find('{');
-    let semi = after.find(';');
-
-    match (brace, semi) {
-        (None, None) => None,
-        (None, Some(s)) => Some(s + 1),
-        (Some(b), Some(s)) if s < b => Some(s + 1),
-        (Some(b), _) => {
-            let end = b + matching_brace(&after[b..])?;
-            // `use a::{b};` の `;`。`mod tests { ... }` には続かない
-            let gap = after[end..].len() - after[end..].trim_start().len();
-            if after[end + gap..].starts_with(';') {
-                Some(end + gap + 1)
-            } else {
-                Some(end)
-            }
-        }
-    }
-}
-
-/// 先頭の `{` に釣り合う `}` の直後までの長さ
-fn matching_brace(from: &str) -> Option<usize> {
-    let mut depth = 0usize;
-    for (offset, ch) in from.char_indices() {
-        match ch {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(offset + 1);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }
 
 /// 行コメントを落とす。`.unwrap()` を説明している文が違反に数えられないように
@@ -125,7 +91,7 @@ fn strip_line_comments(source: &str) -> String {
 
 fn production_code(path: &Path) -> String {
     let source = fs::read_to_string(path).unwrap_or_default();
-    strip_line_comments(&strip_test_modules(&source))
+    strip_line_comments(&strip_test_modules(&source, path))
 }
 
 fn src_dir() -> PathBuf {
@@ -210,7 +176,7 @@ pub enum Real {
     A,
 }
 ";
-    let stripped = strip_test_modules(source);
+    let stripped = strip_test_modules(source, Path::new("<テスト>"));
     assert!(
         !stripped.contains("const ALL"),
         "テスト用の const が残っている"
@@ -222,7 +188,7 @@ pub enum Real {
 
     // 波括弧を持つ `use`。`;` まで食う
     let source = "#[cfg(test)]\nuse a::{b, c};\npub fn real() {}\n";
-    let stripped = strip_test_modules(source);
+    let stripped = strip_test_modules(source, Path::new("<テスト>"));
     assert!(!stripped.contains("use a::"), "テスト用の use が残っている");
     assert!(
         stripped.contains("pub fn real"),
@@ -231,13 +197,13 @@ pub enum Real {
 
     // 塊。中身ごと落ちる
     let source = "#[cfg(test)]\nmod tests {\n    fn t() { x.unwrap(); }\n}\npub fn real() {}\n";
-    let stripped = strip_test_modules(source);
+    let stripped = strip_test_modules(source, Path::new("<テスト>"));
     assert!(!stripped.contains("unwrap"), "塊の中が残っている");
     assert!(stripped.contains("pub fn real"), "塊の後ろまで落としている");
 
     // **行番号が保たれること。** 詰めると違反の `path:line` が現物とずれる
     let source = "pub fn a() {}\n#[cfg(test)]\nmod t {\n}\npub fn b() {}\n";
-    let stripped = strip_test_modules(source);
+    let stripped = strip_test_modules(source, Path::new("<テスト>"));
     let at = stripped
         .lines()
         .position(|l| l.contains("pub fn b"))
