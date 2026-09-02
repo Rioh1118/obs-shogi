@@ -47,6 +47,20 @@ const LOGT: &str = "obs_shogi::engine::game";
 /// 時計を見る間隔。時間切れの検出はこの粒度になる
 const TICK: Duration = Duration::from_millis(100);
 
+/// 1局に積める手数の上限。
+///
+/// **入口で弾く側の防御。** 溢れはしないが、線に出る1行の長さがここで決まる。
+/// `position` は指し手を1行に並べるので、10万手なら1行が 900KB を超え、
+/// 組み立てで写しが2本（`check_writable` の `to_string` と `push_pending` の
+/// `clone`）作られ、積み置きは `PENDING_LIMIT` 件まで滞留しうる。
+/// 書き込みは `WRITE_TIMEOUT` で切れて `fail_writes` が走り、
+/// **そのエンジンは以後何も受け付けなくなる**——出るのは
+/// 「stdin を読まなくなった」で、長すぎたことは分からない。
+///
+/// 2000 にしたのは、公式戦の最長手数（1985年の 420 手）に対して十分な余裕があり、
+/// かつ相入玉の長手数の棋譜も通る幅だから。足りなくなったら上げてよい。
+const MAX_PLIES: usize = 2000;
+
 /// 壁時計が取れないことを記録する最短間隔。
 ///
 /// `clocks_view` は `CLOCK_EMIT_INTERVAL` ごとに通るので、絞らないと
@@ -737,22 +751,44 @@ impl Runner {
             (*last_mover, usi_move.clone(), ponder_move.clone());
 
         // 権威はフロントだが、**受け取ったものが直前の手の続きであることは確かめる。**
-        // 確かめないと、食い違いに気付く経路がどこにも無くなる
+        // 確かめないと、食い違いに気付く経路がどこにも無くなる。
+        //
+        // **末尾だけを見ても足りない。** 手が決まった直後という文脈では、
+        // 正しい列は「いまの写し＋決まった手」の1つに定まる。末尾と長さの偶奇だけを
+        // 見ていると、`initial_moves` を偶数個持つ途中局面で「対局開始以降の手だけ」を
+        // 渡された場合が全部通り、写しが黙って短い列に差し替わる。次の `go` は
+        // **根の局面に途中の手を継ぎ足した別局面**を送ることになり、エンジンは
+        // そこの合法手を返し、フロントは現局面で非合法と裁定する——
+        // エンジンが指してもいない手で反則負けする。
+        if moves.len() > MAX_PLIES {
+            return Err(format!(
+                "move list has {} moves; the limit is {MAX_PLIES}",
+                moves.len()
+            ));
+        }
+        if moves.len() != self.moves.len() + 1 || moves[..self.moves.len()] != self.moves[..] {
+            return Err(format!(
+                "move list is not the current one plus {usi_move} \
+                 (have {} moves, got {})",
+                self.moves.len(),
+                moves.len()
+            ));
+        }
         if moves.last() != Some(&usi_move) {
             return Err(format!(
                 "move list does not end with the move just decided ({usi_move})"
             ));
         }
         let next = last_mover.opponent();
+        // 接頭辞まで見た後なので、これは冗長。**残す。** 手番の導出
+        // （`derive_side_after`）が壊れたときに、ここが先に落ちる
         if derive_side_after(&self.settings, moves.len()) != next {
             return Err(format!(
                 "move list length {} does not put {next:?} to move",
                 moves.len()
             ));
         }
-        for mv in &moves {
-            validate_usi_move(mv)?;
-        }
+        validate_usi_move(&usi_move)?;
 
         self.moves = moves;
         self.phase = Phase::Thinking { side: next };
@@ -1584,6 +1620,12 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         return Err("start_sfen contains a forbidden control character".to_string());
     }
     validate_start_sfen(&settings.start_sfen)?;
+    if settings.initial_moves.len() > MAX_PLIES {
+        return Err(format!(
+            "initial_moves has {} moves; the limit is {MAX_PLIES}",
+            settings.initial_moves.len()
+        ));
+    }
     for mv in &settings.initial_moves {
         validate_usi_move(mv)?;
     }
@@ -1778,6 +1820,69 @@ mod tests {
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
         }
+    }
+
+    /// 裁定で渡された指し手列が、いまの写しの続きであること。
+    ///
+    /// **通したい形を先に並べる。** 途中局面から始めた対局でも、フロントは
+    /// 根からの全手を渡す。ここを緩めると、`initial_moves` を偶数個持つ局面で
+    /// 「対局開始以降の手だけ」を渡した列が全部通る——末尾は決まった手のままで、
+    /// 長さの偶奇も変わらないので。写しが黙って短くなると、次の `go` は
+    /// **根の局面に途中の手を継ぎ足した別局面**を送る。
+    #[tokio::test]
+    async fn a_ruling_must_carry_the_whole_move_list() {
+        let opening = ["7g7f", "3c3d", "2g2f", "8c8d"];
+
+        let awaiting = |moves: &[&str]| {
+            let (tx, _rx) = mpsc::unbounded_channel();
+            let mut runner = test_runner(&tx);
+            runner.moves = moves.iter().map(|m| m.to_string()).collect();
+            runner.phase = Phase::AwaitingRuling {
+                last_mover: Side::White,
+                usi_move: "8c8d".to_string(),
+                ponder_move: None,
+                since: Instant::now(),
+            };
+            (runner, tx)
+        };
+
+        // 通る: 根からの全手（写し3手 + 決まった1手）
+        let (mut runner, _tx) = awaiting(&opening[..3]);
+        assert!(
+            runner
+                .accept_continue(opening.iter().map(|m| m.to_string()).collect())
+                .await
+                .is_ok(),
+            "根からの全手を断っている"
+        );
+
+        // 断る: 対局開始以降の手だけ（偶数個を落としたので偶奇は合ったまま）
+        let (mut runner, _tx) = awaiting(&opening[..3]);
+        let error = runner
+            .accept_continue(vec!["2g2f".to_string(), "8c8d".to_string()])
+            .await
+            .expect_err("途中を落とした列を通している");
+        assert!(error.contains("plus"), "断る理由が変わっている: {error}");
+
+        // 断る: 過去の手が入れ替わっている（長さも末尾も合っている）
+        let (mut runner, _tx) = awaiting(&opening[..3]);
+        runner
+            .accept_continue(vec![
+                "7g7f".to_string(),
+                "8c8d".to_string(),
+                "2g2f".to_string(),
+                "8c8d".to_string(),
+            ])
+            .await
+            .expect_err("過去の手が入れ替わった列を通している");
+
+        // 断る: 長すぎる列。`position` の1行がそのまま伸びる
+        let (mut runner, _tx) = awaiting(&opening[..3]);
+        let error = runner
+            .accept_continue(vec!["7g7f".to_string(); MAX_PLIES + 1])
+            .await
+            .expect_err("上限を超えた列を通している");
+        assert!(error.contains("limit"), "断る理由が変わっている: {error}");
     }
 
     /// 走っている探索は、対局が畳まれたら止まること。
