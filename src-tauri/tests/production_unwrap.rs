@@ -42,8 +42,8 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
 ///
 /// **塊とは限らない。** `#[cfg(test)] use ...;` `#[cfg(test)] const ...;` は
 /// 波括弧を持たない。「次の `{` から釣り合うまで」で落とすと、**その先にある
-/// 本番コードを丸ごと飲む**——`protocol.rs` では `enum ReadyState` の宣言ごと
-/// 消えていた。消えた範囲に `.unwrap()` を書いても検査は緑で通る。
+/// 本番コードを丸ごと飲む**——`protocol.rs` の `#[cfg(test)] const ALL` の直後には
+/// 本番の `enum ReadyState` がある。飲まれた範囲に `.unwrap()` を書いても緑で通る。
 ///
 /// 落とした行は改行に置き換える。**行番号を保つため**——詰めると、
 /// 塊より後ろで見つかった違反の `path:line` が現物とずれ、開いても何も無い。
@@ -56,7 +56,7 @@ fn strip_test_modules(source: &str, path: &Path) -> String {
 
     // **コードの中のものだけを item の始まりとみなす。** 素の `find` だと、
     // doc コメントに `#[cfg(test)]` と書いた行から走査が始まり、その直後の
-    // **本番の item が丸ごと落ちる**（`lib.rs` の `CLOSE_TIMEOUT` がそうなっていた）。
+    // **本番の item が丸ごと落ちる**（`lib.rs` の `CLOSE_TIMEOUT` の doc がその綴りを含む）。
     // この壊れ方は `item_end` が `None` を返さないので、下の panic には掛からない
     while let Some(at) = find_in_code(rest, "#[cfg(test)]") {
         out.push_str(&rest[..at]);

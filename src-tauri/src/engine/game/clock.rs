@@ -147,7 +147,8 @@ impl GameClocks {
             // **この規則の式は3箇所にある**（ここを含む）。`GameClocks::view` /
             // `SideClock::budget_ms` / `SideClock::consume`。`has_expired` は
             // `budget_ms` に委譲しているので数に入らない。
-            // 1つだけ変えると、画面に秒読みが残っているのに時間切れになる
+            // 1つだけ変えると、画面に秒読みが残っているのに時間切れになる。
+            // **数を書くのはここだけ**（表からはこの doc を指す）
             let main_left = clock.remaining_ms.saturating_sub(elapsed_ms);
             let into_byoyomi = elapsed_ms.saturating_sub(clock.remaining_ms);
             let byoyomi_left = clock.limit.byoyomi_ms.saturating_sub(into_byoyomi);

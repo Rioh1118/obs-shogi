@@ -1358,8 +1358,9 @@ impl Runner {
     ///   **実際の `go` は `on_search_outcome` が出す。** ここで出すと、
     ///   遅れて届く前の局面の `bestmove` を新しい探索のものとして採る
     /// - `Idle` — **その場で `go` を出す**。時計もここから動く
-    /// - `Unresponsive` — 何もできない。**対局はここで進まなくなる**ので、
-    ///   呼び出し側が終局させること（`hand_turn_to` の `Unusable` がそれ）
+    /// - `Unresponsive` — **ここへは来ない。** `hand_turn_to` が `Handover::Unusable` で
+    ///   先に終局させる。網羅のために腕を残してあり、`log::error!` が出たら
+    ///   振り分けのほうが壊れている
     fn stop_then_start(&mut self, side: Side) {
         match &mut self.player_mut(side).activity {
             Activity::Searching { req, cancel, .. } => {
@@ -1848,6 +1849,15 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
                     name.chars().take(40).collect::<String>()
                 ));
             }
+            // **入口で断る。** `send_setup` も同じことを見るが、そちらは
+            // 起動を始めた後——プロセスを起こしてから断ることになる。
+            // `start_sfen` の制御文字は入口で見ているので、非対称にしない
+            if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
+                return Err(format!(
+                    "option '{}' contains a forbidden control character",
+                    name.chars().take(40).collect::<String>()
+                ));
+            }
         }
     }
     validate_start_sfen(&settings.start_sfen)?;
@@ -2096,6 +2106,17 @@ mod tests {
         let mut settings = two_humans(vec![]);
         settings.black = engine(vec![option("x".repeat(MAX_WIRE_FIELD + 1))]);
         validate_settings(&settings).expect_err("長すぎる option の値を通している");
+
+        // **制御文字も入口で断る。** `send_setup` も見るが、そちらは
+        // プロセスを起こした後——起こしてから断ることになる
+        let mut settings = two_humans(vec![]);
+        settings.black = engine(vec![option("/eval\ninjected".to_string())]);
+        let error =
+            validate_settings(&settings).expect_err("改行を含む option の値を入口で通している");
+        assert!(
+            error.contains("control character"),
+            "断る理由が変わっている: {error}"
+        );
     }
 
     /// 入口2箇所の手数の上限が、**1手指せる関係**になっていること。

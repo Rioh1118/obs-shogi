@@ -526,7 +526,7 @@ fn every_module_is_placed_on_a_layer() {
 ///
 /// **長さ2で打ち切らない。** `a → b → c → a` は「互いに `use` し合う2つ」を
 /// 探すだけの検査には映らないのに、上下が言えないことは同じ。
-/// 段を全順序にしていたころは順序が環を消していたが、同位を許した今は消えない。
+/// 段は同位を許すので、順序では環を消せない。
 fn find_cycle(graph: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<String>> {
     #[derive(Clone, Copy, PartialEq)]
     enum Mark {

@@ -275,7 +275,7 @@ pub fn item_end(after: &str) -> Option<usize> {
 ///   「`mod scanning;` に寄せたい」と**コメントに書くだけ**でファイルが対象外になる
 /// - **サブディレクトリも歩く。** `read_dir` は再帰しないので、
 ///   共有ヘルパの既定の置き場（`tests/scanning/` がまさにそれ）が丸ごと死角になる
-/// - **形は一覧でなく述語で見る。** 一覧は必ず漏れる（`find("//")` が漏れていた）
+/// - **形は一覧でなく述語で見る。** 一覧にすると `contains` のような形を漏らす
 #[test]
 fn no_test_counts_delimiters_by_hand() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
@@ -330,9 +330,12 @@ fn test_sources(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
 /// 区切り文字を手で数えている形。
 ///
 /// **メソッド名を並べない。** 並べると `contains` / `trim_matches` / `position` /
-/// `split_once` が漏れる（実際に20通り中17通りが素通りした）。
-/// 見るのは**引数の形**——`(` の直後が区切り文字だけのリテラルなら、
+/// `split_once` が漏れ、一覧に載っているものでも rustfmt が引数を折れば通る。
+/// 見るのは**引数の形**だけ——`(` や `,` の直後が区切り文字だけのリテラルなら、
 /// それが何のメソッドでも字句解析を手でやっている。
+///
+/// 拾える形と拾ってはいけない形は `counting_by_hand_is_caught_whatever_the_method_is`
+/// に並べてある。そこに無い形が出たら、doc ではなくその表を足すこと。
 ///
 /// 文字リテラルとの `==` 比較（`c == '{'` / `b == b'{'`）も同じ。
 /// メソッド呼び出しの形を取らないので、別の腕で見る。
