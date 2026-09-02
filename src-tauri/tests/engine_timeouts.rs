@@ -11,6 +11,7 @@ use app_lib::engine::game::session::{
     CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
 };
 use app_lib::engine::protocol::{KILL_TIMEOUT, READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
+use app_lib::engine::registry::SPAWN_TIMEOUT;
 
 use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
 
@@ -90,5 +91,23 @@ fn starting_a_game_is_bounded_below_the_slowest_step() {
         START_TIMEOUT > USI_OK_TIMEOUT,
         "START_TIMEOUT({START_TIMEOUT:?}) が `usiok` を待つ上限({USI_OK_TIMEOUT:?})以下。\
          最初の段を待ち切る前に全体が切れる"
+    );
+}
+
+/// 段ごとの上限を素直に足した値が、全体の締切より**長い**こと。
+///
+/// **これが逆転したら締切は要らない。** 締切を置いた理由は「段を足すと2体ぶんで
+/// 5分を超える」なので、足しても締切に収まるなら、締切は何も縮めていないことになる。
+///
+/// 逆に、この式が成り立つ限り**各段は締切で縮めないと意味がない**
+/// （`prepare_engine` が `SPAWN_TIMEOUT.min(left)` を渡しているのはそのため）。
+#[test]
+fn the_steps_alone_would_overrun_the_start_budget() {
+    let one_engine = SPAWN_TIMEOUT + USI_OK_TIMEOUT + READY_TIMEOUT;
+
+    assert!(
+        one_engine > START_TIMEOUT,
+        "1体ぶんの段({one_engine:?})が全体の締切({START_TIMEOUT:?})以下。\
+         締切が何も縮めていない"
     );
 }

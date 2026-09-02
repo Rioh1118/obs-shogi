@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use super::protocol::USI_OK_TIMEOUT;
 use super::protocol::{contains_usi_breaking_char, StopEffect, UsiProtocol};
+use super::registry::SPAWN_TIMEOUT;
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -243,7 +244,12 @@ impl EngineAnalyzer {
 
         let process = self
             .registry
-            .spawn(&engine_path, working_dir.as_deref(), USI_OK_TIMEOUT)
+            .spawn(
+                &engine_path,
+                working_dir.as_deref(),
+                SPAWN_TIMEOUT,
+                USI_OK_TIMEOUT,
+            )
             .await?;
 
         *self.engine_id.write().await = Some(process.id.clone());

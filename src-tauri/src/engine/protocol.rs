@@ -35,6 +35,17 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
     Ok(())
 }
 
+/// プロセスを落とし切れたか。
+///
+/// **「落とした」と「落とせなかった」を分ける。** 潰すと、`quit` の書き込みで
+/// 折り返して `process.kill()` に一度も届かなかった場合が「done」と記録され、
+/// プロセスが残ったことを知る手掛かりが1つも無くなる（→ #353）。
+enum KillOutcome {
+    AlreadyGone,
+    Killed,
+    Failed(String),
+}
+
 /// `kill` を待つ上限。
 ///
 /// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
@@ -1230,19 +1241,32 @@ impl UsiProtocol {
         let killed = tokio::task::spawn_blocking(move || {
             let taken = handler.blocking_lock().take();
             let Some(mut handler) = taken else {
-                return false;
+                return KillOutcome::AlreadyGone;
             };
 
-            // 戻り値に用は無い。目的は「死んでいること」で、
-            // 既に死んでいれば `quit` の書き込みが失敗するだけ
-            let _ = handler.kill();
+            // **失敗を捨てない。** `usi` の `kill` は `quit` を書いてから
+            // `process.kill()` を呼ぶので、書き込みが `?` で返ると
+            // **プロセスは一度も落とされない**。ここは `terminate` の後段で、
+            // `quit` は必ず2通目——stdin を閉じたエンジンでは普通に失敗する。
+            // 捨てると「done」と記録され、残ったことを知る手掛かりが1つも無くなる
+            let outcome = match handler.kill() {
+                Ok(()) => KillOutcome::Killed,
+                Err(e) => KillOutcome::Failed(e.to_string()),
+            };
             std::mem::forget(handler);
-            true
+            outcome
         });
 
         match tokio::time::timeout(KILL_TIMEOUT, killed).await {
-            Ok(Ok(true)) => log::info!(target: LOGT, "kill_engine: done"),
-            Ok(Ok(false)) => log::debug!(target: LOGT, "kill_engine: already gone"),
+            Ok(Ok(KillOutcome::Killed)) => log::info!(target: LOGT, "kill_engine: done"),
+            Ok(Ok(KillOutcome::AlreadyGone)) => {
+                log::debug!(target: LOGT, "kill_engine: already gone")
+            }
+            // `quit` の書き込みで折り返したので `process.kill()` へ届いていない
+            Ok(Ok(KillOutcome::Failed(e))) => log::error!(
+                target: LOGT,
+                "kill_engine: could not kill the process; it may still be running: {e}"
+            ),
             Ok(Err(e)) => log::warn!(target: LOGT, "kill_engine: task failed: {e}"),
             Err(_) => log::error!(
                 target: LOGT,

@@ -16,7 +16,9 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  *
  * エンジンの起動と `usinewgame` **まで**を待って返る。評価関数の読み込みが
  * 重いエンジンではここで数十秒かかるので、待っている表示を出すこと。
- * **上限は Rust の `START_TIMEOUT`（90秒）。** 超えると reject する。
+ * **待たせる長さは Rust の `START_TIMEOUT` で決まる。** 超えると reject するが、
+ * 締切は段に入る前に見るので、跨いだ段のぶん（`setoption` 1件の書き込み、
+ * 失敗したときの後始末）は少し超える。**厳密な上限として待ち UI を組まないこと。**
  * 取り消す口は無いので、それまでは待つことになる。
  *
  * **最初の `go` は待たない。** `Ok` は「エンジンが `usinewgame` まで応じた」で

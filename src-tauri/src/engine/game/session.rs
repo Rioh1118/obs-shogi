@@ -32,6 +32,7 @@ use usi::{GameOverKind, GuiCommand};
 
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
+use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::types::AnalysisResult;
 use crate::engine::utils::LogThrottle;
@@ -47,6 +48,28 @@ const LOGT: &str = "obs_shogi::engine::game";
 /// 時計を見る間隔。時間切れの検出はこの粒度になる
 const TICK: Duration = Duration::from_millis(100);
 
+/// 線に出る1行の長さの上限。
+///
+/// **`MAX_PLIES` と同じ理由で、同じ経路を守る。** `position` も `setoption` も
+/// 1行にまとめて出るので、長さを見ないと `check_writable` の `to_string` で
+/// 写しが1本、`push_pending` の `clone` でもう1本作られ、積み置きは
+/// `PENDING_LIMIT` 件まで滞留する。書き込みは `WRITE_TIMEOUT` で切れて
+/// `fail_writes` が走り、**そのエンジンは以後何も受け付けなくなる**——
+/// 出るのは「stdin を読まなくなった」で、長すぎたことは分からない。
+///
+/// 手数は `MAX_PLIES` が見るが、**同じ1行を伸ばせる経路が他に2つある**
+/// （盤面欄に詰め物を入れた `start_sfen`、件数も長さも無制限の `setoption`）。
+///
+/// 8KB にしたのは、平手の SFEN が 60 バイト前後、最長の駒落ちでも 100 バイト未満で、
+/// `setoption` の値（評価関数のパス、`USI_Hash` の数値）も収まる幅だから。
+const MAX_WIRE_FIELD: usize = 8 * 1024;
+
+/// `setoption` で送れる件数の上限。
+///
+/// 1件ごとに `WRITE_TIMEOUT` が積まれるので、件数がそのまま起動の待ち時間になる。
+/// 実在するエンジンの option は多くて数十件。
+const MAX_OPTIONS: usize = 128;
+
 /// `start_game` が返るまでの上限。**1局ぶん全体で見る。**
 ///
 /// 段ごとの上限（`SPAWN_TIMEOUT` / `USI_OK_TIMEOUT` / `READY_TIMEOUT`）を
@@ -57,6 +80,11 @@ const TICK: Duration = Duration::from_millis(100);
 ///
 /// **段ごとの上限を消さない。** ここは全体の締切で、段ごとの上限は
 /// 「そこで待つのが妥当な長さ」。どちらか一方だと、片方の段が全部を食う。
+/// 各段には残りを渡して縮めさせる（`SPAWN_TIMEOUT.min(left)` の形）——
+/// 渡さないと、締切が尽きかけていても段は自前の上限を丸ごと使える。
+///
+/// **厳密な上限ではない。** 段に入る前に残りを見るので、入った段が
+/// 締切を跨ぐぶんは超える（`setoption` 1件の書き込み、失敗したときの後始末）。
 ///
 /// 90秒にしたのは、評価関数の読み込みが重いエンジン（数十秒）を通し、
 /// かつ人が「反応が無い」と判断する前に返るため。
@@ -305,8 +333,9 @@ impl GameSession {
     /// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす
     /// （`bestmove resign` を即返すエンジンでは `MoveDecided` と `Over` も落ちる）。
     ///
-    /// **返るまでの上限は `START_TIMEOUT`。** 2体ぶんの段ごとの上限を足した値では
-    /// ない。取り消す口は無いので、待たせる長さはここで決まる。
+    /// **待たせる長さは `START_TIMEOUT` で決まる。** 2体ぶんの段ごとの上限を
+    /// 足した値ではない。取り消す口は無いので、ここが唯一の歯止め。
+    /// 段に入る前に残りを見る作りなので、跨いだ段のぶんは少し超える。
     pub async fn start(
         registry: &EngineRegistry,
         events: Arc<dyn GameEventSink>,
@@ -1642,19 +1671,21 @@ async fn prepare_engine(
     options: &[SetOptionValue],
     deadline: Instant,
 ) -> Result<Arc<EngineProcess>, String> {
+    // **段ごとの上限を締切で縮める。** 縮めないと、`start_game` 全体の締切が
+    // 尽きかけていても各段は自前の上限を丸ごと使えるので、`START_TIMEOUT` は
+    // 「返るまでの上限」にならない（2体ぶんで `SPAWN_TIMEOUT` の20秒が外に積まれる）
+    let left = remaining(deadline, "the engine started")?;
     let process = registry
         .spawn(
             engine_path,
             work_dir,
-            USI_OK_TIMEOUT.min(remaining(deadline, "the engine said usiok")?),
+            SPAWN_TIMEOUT.min(left),
+            USI_OK_TIMEOUT.min(left),
         )
         .await
         .map_err(|e| e.to_string())?;
 
-    let prepared = match remaining(deadline, "the engine said readyok") {
-        Ok(left) => send_setup(&process, options, READY_TIMEOUT.min(left)).await,
-        Err(e) => Err(e),
-    };
+    let prepared = send_setup(&process, options, deadline).await;
     if let Err(e) = prepared {
         registry.shutdown(&process.id).await;
         return Err(e);
@@ -1662,10 +1693,15 @@ async fn prepare_engine(
     Ok(process)
 }
 
+/// `setoption` を送ってから `readyok` を待つ。
+///
+/// **締切を引き直しながら進む。** `setoption` の件数はフロントから来るので、
+/// 1件あたり `WRITE_TIMEOUT` が積まれる。前もって計算した残りを
+/// `ensure_ready` に渡すと、書き込みに食われたぶんだけ全体の締切を超える。
 async fn send_setup(
     process: &EngineProcess,
     options: &[SetOptionValue],
-    ready_timeout: Duration,
+    deadline: Instant,
 ) -> Result<(), String> {
     let protocol = process.protocol();
 
@@ -1678,6 +1714,7 @@ async fn send_setup(
                 "option '{name}' contains a forbidden control character"
             ));
         }
+        remaining(deadline, "the options were sent")?;
         protocol
             .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
             .await
@@ -1687,7 +1724,7 @@ async fn send_setup(
     // `readyok` まで待ってから `usinewgame` を出す。待たずに積むと、
     // 呼び出し側は「対局が始まった」と思ったまま何も起きない状態になりうる
     protocol
-        .ensure_ready(ready_timeout)
+        .ensure_ready(READY_TIMEOUT.min(remaining(deadline, "the engine said readyok")?))
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1733,6 +1770,31 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
 
     if contains_usi_breaking_char(&settings.start_sfen) {
         return Err("start_sfen contains a forbidden control character".to_string());
+    }
+    if settings.start_sfen.len() > MAX_WIRE_FIELD {
+        return Err(format!(
+            "start_sfen is {} bytes; the limit is {MAX_WIRE_FIELD}",
+            settings.start_sfen.len()
+        ));
+    }
+    for side in [Side::Black, Side::White] {
+        let PlayerSpec::Engine { options, .. } = settings.spec(side) else {
+            continue;
+        };
+        if options.len() > MAX_OPTIONS {
+            return Err(format!(
+                "{side:?} has {} options; the limit is {MAX_OPTIONS}",
+                options.len()
+            ));
+        }
+        for SetOptionValue { name, value } in options {
+            if name.len() > MAX_WIRE_FIELD || value.len() > MAX_WIRE_FIELD {
+                return Err(format!(
+                    "option '{}' is longer than {MAX_WIRE_FIELD} bytes",
+                    name.chars().take(40).collect::<String>()
+                ));
+            }
+        }
     }
     validate_start_sfen(&settings.start_sfen)?;
     // **`>=` で弾く。** ちょうど `MAX_PLIES` を通すと、最初の手の裁定が
@@ -1933,6 +1995,53 @@ mod tests {
             last_clock_emit: Instant::now(),
             tx: tx.downgrade(),
         }
+    }
+
+    /// 線に出る1行を伸ばせる経路を、入口で全部見ていること。
+    ///
+    /// **手数だけ見ても足りない。** 同じ1行は `start_sfen` の盤面欄からも
+    /// `setoption` の値からも伸ばせる。どれも `check_writable` の `to_string` と
+    /// `push_pending` の `clone` を通り、`WRITE_TIMEOUT` で切れて `fail_writes` が
+    /// 走ると**そのエンジンは以後何も受け付けなくなる**——出るのは
+    /// 「stdin を読まなくなった」で、長すぎたことは分からない。
+    #[test]
+    fn every_way_to_stretch_the_wire_is_checked_at_the_door() {
+        // 通したい形: 平手も、最長の駒落ちも、実在するエンジンの option の件数も
+        validate_settings(&two_humans(vec![])).expect("平手を断っている");
+
+        let engine = |options: Vec<SetOptionValue>| PlayerSpec::Engine {
+            name: "エンジン".to_string(),
+            engine_path: "/path".to_string(),
+            work_dir: None,
+            options,
+            ponder: false,
+        };
+        let option = |value: String| SetOptionValue {
+            name: "EvalDir".to_string(),
+            value,
+        };
+
+        let mut settings = two_humans(vec![]);
+        settings.black = engine(vec![option("/very/long/path/to/eval".to_string()); 32]);
+        validate_settings(&settings).expect("32件の option を断っている");
+
+        // 断る形
+        let mut settings = two_humans(vec![]);
+        settings.start_sfen = format!(
+            "{}{} b - 1",
+            HIRATE.split(' ').next().expect("盤面欄がある"),
+            "1".repeat(MAX_WIRE_FIELD)
+        );
+        let error = validate_settings(&settings).expect_err("長すぎる SFEN を通している");
+        assert!(error.contains("bytes"), "断る理由が変わっている: {error}");
+
+        let mut settings = two_humans(vec![]);
+        settings.black = engine(vec![option("x".to_string()); MAX_OPTIONS + 1]);
+        validate_settings(&settings).expect_err("多すぎる option を通している");
+
+        let mut settings = two_humans(vec![]);
+        settings.black = engine(vec![option("x".repeat(MAX_WIRE_FIELD + 1))]);
+        validate_settings(&settings).expect_err("長すぎる option の値を通している");
     }
 
     /// 入口2箇所の手数の上限が、**1手指せる関係**になっていること。

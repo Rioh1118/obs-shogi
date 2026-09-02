@@ -28,7 +28,7 @@ const LOGT: &str = "obs_shogi::engine::registry";
 ///
 /// 超えてもブロッキングのスレッドは残る。`timeout` は `spawn_blocking` を
 /// 取り消せないので、そのぶんワーカが1本減ったままになる → #353 と同じ形。
-const SPAWN_TIMEOUT: Duration = Duration::from_secs(10);
+pub const SPAWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `quit` を送ってからプロセスを落とすまでの猶予。
 ///
@@ -89,10 +89,16 @@ impl EngineRegistry {
     ///
     /// `engine_path` は絶対パスに解決できる既存ファイルであることを要求する。
     /// `/bin/sh` のような任意バイナリを起動させる経路を塞ぐ最低限のガード。
+    /// エンジンを起こす。
+    ///
+    /// `spawn_timeout` はプロセスが立ち上がるまで、`info_timeout` は `usiok` まで。
+    /// **どちらも呼び出し側が縮められる。** 対局は全体の締切（`START_TIMEOUT`）を
+    /// 持つので、段ごとの上限をそのまま使うと**締切の外で待つ時間**ができる。
     pub async fn spawn(
         &self,
         engine_path: &str,
         work_dir: Option<&str>,
+        spawn_timeout: Duration,
         info_timeout: Duration,
     ) -> Result<Arc<EngineProcess>, EngineError> {
         // **同期の口をまとめて専用スレッドへ出す。** `canonicalize` も
@@ -161,7 +167,7 @@ impl EngineRegistry {
         // そのぶんワーカが1本減ったままになる → #353 と同じ形。
         let mut started = started;
         let (engine_path, work_dir, handler) =
-            match tokio::time::timeout(SPAWN_TIMEOUT, &mut started).await {
+            match tokio::time::timeout(spawn_timeout, &mut started).await {
                 Ok(Ok(Ok(started))) => started,
                 Ok(Ok(Err(e))) => return Err(e),
                 // 専用スレッドが落ちた。プロセスは起きていない
