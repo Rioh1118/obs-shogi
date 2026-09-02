@@ -43,7 +43,7 @@ const MAGIC: [u8; 8] = *b"OBSIXv01";
 /// 入った棋譜からどの `PositionKey` が出るか、のどちらかが変われば上げる。
 /// 棋譜を読むクレートを上げた、読み口の判定を変えた、初期局面の組み立てを変えた、
 /// 指し手の適用を変えた、はいずれも該当する。
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 pub struct RestoredCache {
     pub file_table: FileTable,
@@ -776,20 +776,46 @@ mod tests {
         assert!(!err.contains("bad version"), "今の版が弾かれている: {err}");
     }
 
-    /// ディスクに書く版の値を**リテラルで**留める。
+    /// 退役した版の最大値。**[`VERSION`] のすぐ下の値をリテラルで持つ。**
     ///
-    /// 上の2本は `VERSION` そのものを使って blob を組むので、値がいくつでも通る。
-    /// **[`VERSION`] を留めるものが他に無い。** 1 に戻ると v0.3.1 が書いた索引が
-    /// そのまま読まれ、`(size, mtime_ms)` が変わっていない棋譜は
-    /// 古い解釈のまま検索に当たり続ける。警告も出ない。
-    #[test]
-    fn version_one_is_never_accepted_again() {
-        let blob = [b'O', b'B', b'S', b'I', b'X', b'v', b'0', b'1', 1, 0, 0, 0];
+    /// この2つの関係は下の `const _` がコンパイル時に見ているので、
+    /// **どちらかだけを動かすと `cargo test` / `cargo clippy --all-targets` が落ちる**
+    /// （`const _` が `#[cfg(test)]` の中にあるので、`cargo build` だけでは通る）。
+    /// 留めているのは言語ではなく、Rust を触ったら `verify:rust` を必ず走らせる
+    /// `verify-gate.sh` のほう。
+    const LATEST_RETIRED_VERSION: u32 = 2;
 
-        let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
-            panic!("v0.3.1 が書いた索引を読んでしまった");
-        };
-        assert!(err.contains("bad version"), "理由が版でない: {err}");
+    /// 過ぎた版の索引を、二度と受け入れない。
+    ///
+    /// `the_current_version_passes_the_version_check` と
+    /// `a_file_that_is_not_an_index_is_rejected` は `VERSION` そのものを使って
+    /// blob を組むので、値がいくつでも通る。**[`VERSION`] を留めるものが他に無い。**
+    /// 前の版に戻ると、その版が書いた索引がそのまま読まれ、
+    /// `(size, mtime_ms)` が変わっていない棋譜は古い解釈のまま検索に当たり続ける。
+    /// 警告も出ない。
+    #[test]
+    fn superseded_versions_are_never_accepted_again() {
+        // **等号で留める。** 不等号（`VERSION > LATEST_RETIRED_VERSION`）だと
+        // 下げたときしか落ちない — 版を上げて `LATEST_RETIRED_VERSION` を
+        // 据え置くと、間の版を一度も試さないまま緑で通る。
+        // 実行時の `assert!` は定数なので clippy が断る。コンパイル時に見る
+        const _: () = assert!(
+            VERSION == LATEST_RETIRED_VERSION + 1,
+            "`VERSION` と `LATEST_RETIRED_VERSION` は一緒に動かすこと"
+        );
+
+        for old in 1..=LATEST_RETIRED_VERSION {
+            let mut blob = MAGIC.to_vec();
+            write_u32(&mut blob, old);
+
+            let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
+                panic!("版 {old} が書いた索引を読んでしまった");
+            };
+            assert!(
+                err.contains("bad version"),
+                "版 {old}: 理由が版でない: {err}"
+            );
+        }
     }
 
     /// 索引でないファイルを索引として読まない。
