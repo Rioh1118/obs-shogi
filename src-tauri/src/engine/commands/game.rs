@@ -18,6 +18,12 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 
 /// 対局を始める。
 ///
+/// `settings` は**実行ファイルのパスを運ぶ**（`PlayerSpec::Engine` の
+/// `engine_path` / `work_dir`）。エンジンはワークスペースの外にあるので
+/// root 配下の関門は掛からない（→ `tests/root_guard.rs` の `EXEMPT`）。
+/// 起こしてよいかを見ているのは `EngineRegistry::spawn` の `canonicalize` と
+/// `is_file` / `is_dir` だけ。
+///
 /// エンジンの起動と `usinewgame` までを待って返る。**最初の `go` は待たない**
 /// ——その失敗は `game-event` の `over { reason: engineFailure }` で届くので、
 /// **購読は呼ぶ前に張ること。** 最初の `TurnChanged` と最初の `go` は

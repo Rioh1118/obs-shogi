@@ -15,6 +15,7 @@
 //! 関門そのものは `root_dir` が未設定のときに無条件で開く
 //! （`utils.rs` の `validate_under_root`）。
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -44,8 +45,18 @@ const EXTRA_GUARDS: [(&str, &str); 3] = [
 ];
 
 /// パスを引数の**型の中**で受け取るコマンド。署名の字面には出ないので手で並べる。
-/// 構造体でパスを受けるコマンドを足したら、ここにも足すこと
-const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "save_config"];
+///
+/// **載せ忘れは静かに効く。** 載っていないコマンドは
+/// `every_path_taking_command_checks_the_root` の対象に一度も入らないので、
+/// 関門を呼んでいなくても、免除の理由が無くても緑で通る。
+/// `no_path_carrying_command_is_missing_from_the_list` が載せ忘れを拾う。
+const STRUCT_CARRIED_PATH: [&str; 5] = [
+    "write_kifu_to_file",
+    "open_project",
+    "save_config",
+    "start_game",
+    "save_presets",
+];
 
 /// 関門を通さないコマンドと、その理由。
 ///
@@ -55,7 +66,7 @@ const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "s
 /// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
-const EXEMPT: [(&str, &str); 6] = [
+const EXEMPT: [(&str, &str); 8] = [
     (
         "scan_ai_root",
         "(1) ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",
@@ -71,6 +82,17 @@ const EXEMPT: [(&str, &str); 6] = [
     (
         "initialize_engine",
         "(1) engine_path は思考エンジンの実行ファイル。ワークスペースの外にある",
+    ),
+    (
+        "save_presets",
+        "(1) EnginePreset の engine_path / eval_file_path / book_file_path は \
+         思考エンジンと評価関数。ワークスペースの外にあり、ここでは開かず保存するだけ \
+         （書き込み先は presets_path で、フロントは指定できない）",
+    ),
+    (
+        "start_game",
+        "(1) 同上。`GameSettings` の中の engine_path / work_dir が同じもの \
+         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る）",
     ),
     (
         "open_project",
@@ -227,6 +249,192 @@ fn rust_files(dir: &Path) -> Vec<(String, String)> {
         ));
     }
     found
+}
+
+/// 宣言された型 → その中に現れる型の名前。`struct` も `enum` も同じ扱い。
+///
+/// バリアントの中の欄も本体の欄も、`名前: 型` の形は同じなので割らない。
+fn type_graph(files: &[(String, String)]) -> TypeGraph {
+    let mut fields: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut carries_path: BTreeSet<String> = BTreeSet::new();
+    let mut from_the_webview: BTreeSet<String> = BTreeSet::new();
+
+    for (_, source) in files {
+        let cleaned = without_comments(source);
+        for keyword in ["struct ", "enum "] {
+            let mut from = 0;
+            while let Some(at) = cleaned[from..].find(keyword) {
+                let start = from + at;
+                from = start + keyword.len();
+
+                let rest = &cleaned[from..];
+                let Some(name) = rest
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .next()
+                    .filter(|n| !n.is_empty())
+                else {
+                    continue;
+                };
+                // **webview から来る型だけを見る。** `tauri::State` で注入される
+                // `AppState` は台帳を通って engine_path に届くが、値を渡すのは
+                // フロントではない。混ぜると、注入される型を持つコマンドが全部並ぶ
+                let head = &cleaned[..start];
+                let attributes = &head[head.rfind(['}', ';']).map(|i| i + 1).unwrap_or(0)..];
+                if attributes.contains("Deserialize") {
+                    from_the_webview.insert(name.to_string());
+                }
+
+                let Some(open) = rest.find('{') else { continue };
+                // 宣言の頭と `{` の間に `;` があれば、それはタプル構造体か別の item
+                if rest[..open].contains(';') {
+                    continue;
+                }
+                let Some(len) = matching_brace(&rest[open..]) else {
+                    continue;
+                };
+                let body = &rest[open..open + len];
+
+                let entry = fields.entry(name.to_string()).or_default();
+                for line in body.lines() {
+                    let Some((field, ty)) = line.trim().split_once(':') else {
+                        continue;
+                    };
+                    let field = field.trim().trim_start_matches("pub ").trim();
+                    if !field.chars().all(|c| c.is_alphanumeric() || c == '_') || field.is_empty() {
+                        continue;
+                    }
+                    if field == "path"
+                        || field == "dir"
+                        || field.ends_with("_path")
+                        || field.ends_with("_dir")
+                        || ty.contains("PathBuf")
+                        || ty.contains("&Path")
+                    {
+                        carries_path.insert(name.to_string());
+                    }
+                    entry.extend(
+                        ty.split(|c: char| !c.is_alphanumeric() && c != '_')
+                            .filter(|t| t.starts_with(char::is_uppercase))
+                            .map(str::to_string),
+                    );
+                }
+                from += open + len;
+            }
+        }
+    }
+
+    // **含む型もパスを運ぶ。** `GameSettings` は `PlayerSpec` を持ち、
+    // その中に `engine_path` がある。1段しか見ないと `start_game` は拾えない
+    loop {
+        let mut grew = false;
+        for (name, referenced) in &fields {
+            if carries_path.contains(name) {
+                continue;
+            }
+            if referenced.iter().any(|r| carries_path.contains(r)) {
+                carries_path.insert(name.clone());
+                grew = true;
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+
+    TypeGraph {
+        carries_path,
+        from_the_webview,
+    }
+}
+
+/// 型の名前 → その型がパスを運ぶか / webview から来るか
+struct TypeGraph {
+    carries_path: BTreeSet<String>,
+    from_the_webview: BTreeSet<String>,
+}
+
+/// 先頭の `{` に釣り合う `}` の直後までの長さ
+fn matching_brace(from: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, ch) in from.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(offset + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// コマンドの引数に現れる型の名前
+fn parameter_types(chunk: &str) -> BTreeSet<String> {
+    let Some(start) = chunk.find("fn ") else {
+        return BTreeSet::new();
+    };
+    let chunk = &chunk[start..];
+    let (Some(open), Some(close)) = (chunk.find('('), chunk.find(')')) else {
+        return BTreeSet::new();
+    };
+    if close < open {
+        return BTreeSet::new();
+    }
+    chunk[open + 1..close]
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .filter(|t| t.starts_with(char::is_uppercase))
+        .map(str::to_string)
+        .collect()
+}
+
+/// **`STRUCT_CARRIED_PATH` の載せ忘れを拾う。**
+///
+/// 手で並べる一覧は、足す人が忘れた時点で静かに緩む。忘れられたコマンドは
+/// `every_path_taking_command_checks_the_root` の対象にすら入らないので、
+/// 関門も免除の理由も無いまま緑で通る。
+///
+/// 引数の型を辿り、`*_path` / `*_dir` / `PathBuf` の欄に届くものを拾って
+/// 一覧と突き合わせる。**含む型も運ぶ**ものとして数える
+/// （`GameSettings` → `PlayerSpec` → `engine_path`）。
+#[test]
+fn no_path_carrying_command_is_missing_from_the_list() {
+    let files = rust_files(Path::new("src"));
+    let types = type_graph(&files);
+    assert!(
+        types.carries_path.contains("GameSettings"),
+        "型を辿れていない。`GameSettings` が `engine_path` に届いていない"
+    );
+    assert!(
+        types.from_the_webview.contains("GameSettings")
+            && !types.from_the_webview.contains("AppState"),
+        "webview から来る型の判定が壊れている"
+    );
+
+    let mut missing = Vec::new();
+    for (file, source) in &files {
+        for (name, body) in commands(source) {
+            if STRUCT_CARRIED_PATH.contains(&name.as_str()) || takes_a_path(&body) {
+                continue;
+            }
+            let carried: Vec<String> = parameter_types(&body)
+                .into_iter()
+                .filter(|t| types.carries_path.contains(t) && types.from_the_webview.contains(t))
+                .collect();
+            if !carried.is_empty() {
+                missing.push(format!("{file}: {name}（{}）", carried.join(", ")));
+            }
+        }
+    }
+
+    assert!(
+        missing.is_empty(),
+        "引数の型がパスを運んでいるのに `STRUCT_CARRIED_PATH` に無い。\
+         このままだと root の検査から丸ごと外れる:\n{}",
+        missing.join("\n")
+    );
 }
 
 #[test]

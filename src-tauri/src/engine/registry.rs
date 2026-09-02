@@ -117,8 +117,25 @@ impl EngineRegistry {
             }
 
             let engine_path = resolved.to_string_lossy().to_string();
+            // **`work_dir` も解決する。** 素通しにすると、`Command::current_dir` は
+            // 存在しないディレクトリを渡されたときにだけ失敗し、それ以外——
+            // 途中に `..` を挟んだ経路、シンボリックリンクの先——は黙って通る。
+            // 子プロセスの cwd は、相対パスで書かれた設定（`EvalDir` など）が
+            // 解決される基点になるので、どこを指しているかを解決してから渡す
             let work_dir = match dir_for_task {
-                Some(dir) => dir,
+                Some(dir) => {
+                    let resolved = std::fs::canonicalize(&dir).map_err(|e| {
+                        EngineError::StartupFailed(format!(
+                            "work_dir is not a valid existing path: {e}"
+                        ))
+                    })?;
+                    if !resolved.is_dir() {
+                        return Err(EngineError::StartupFailed(
+                            "work_dir must point to an existing directory".to_string(),
+                        ));
+                    }
+                    resolved.to_string_lossy().to_string()
+                }
                 None => resolved
                     .parent()
                     .map(|p| p.to_string_lossy().to_string())
