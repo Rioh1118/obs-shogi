@@ -13,6 +13,7 @@
 //! どちらも捨てられ、ログを読んでも「詰まった」のか「相手が先に居なくなった」
 //! のかが分からない。
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -76,29 +77,31 @@ fn timeout_sites() -> Vec<String> {
     sites
 }
 
-/// 免除が現物を指していること。
+/// 免除が**実際に効いていること**。
 ///
 /// **効いていない免除は誰も見ない。** 免除された側は免除のつもりのまま
-/// 検査を受け、免除の行だけが化石として残る。消し忘れにここで気付く。
+/// 検査を受け、免除の行だけが化石として残る。
+///
+/// ソース全体への `contains` では足りない。その `timeout` を消しても、
+/// 綴りが doc コメントや別の関数に残っていれば緑で通る——
+/// **免除の根拠（内側が `Result` を返さないこと）は消えているのに。**
+/// 走査が実際にその免除を使ったかで見る。
 #[test]
-fn the_exempt_list_points_at_real_lines() {
-    let all: String = rust_files(&src_dir())
-        .iter()
-        .map(|p| fs::read_to_string(p).unwrap_or_default())
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let dead: Vec<&&str> = EXEMPT.iter().filter(|e| !all.contains(**e)).collect();
+fn every_exemption_is_actually_used() {
+    let (_, used) = scan();
+    let dead: Vec<&&str> = EXEMPT.iter().filter(|e| !used.contains(**e)).collect();
 
     assert!(
         dead.is_empty(),
-        "免除が指す綴りがソースに無い。消したなら免除も消すこと:\n{dead:?}"
+        "免除が1件も使われていない。その `timeout` を消したなら免除も消すこと。\
+         綴りがソースに残っていても、`timeout(` の {WINDOW} 行内に無ければ効いていない:\n{dead:?}"
     );
 }
 
-#[test]
-fn a_timeout_never_swallows_the_inner_result() {
+/// 走査の本体。違反と、**実際に使った免除**を返す
+fn scan() -> (Vec<String>, BTreeSet<&'static str>) {
     let mut offenders = Vec::new();
+    let mut used = BTreeSet::new();
 
     for path in rust_files(&src_dir()) {
         let source = fs::read_to_string(&path).unwrap_or_default();
@@ -115,7 +118,8 @@ fn a_timeout_never_swallows_the_inner_result() {
             // その綴りがあれば、同じ式だとみなす
             let end = (index + WINDOW).min(lines.len());
             let window = lines[index..end].join("\n");
-            if EXEMPT.iter().any(|e| window.contains(e)) {
+            if let Some(hit) = EXEMPT.iter().find(|e| window.contains(**e)) {
+                used.insert(*hit);
                 continue;
             }
 
@@ -131,6 +135,13 @@ fn a_timeout_never_swallows_the_inner_result() {
             }
         }
     }
+
+    (offenders, used)
+}
+
+#[test]
+fn a_timeout_never_swallows_the_inner_result() {
+    let (offenders, _) = scan();
 
     assert!(
         offenders.is_empty(),

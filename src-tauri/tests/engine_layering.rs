@@ -312,28 +312,111 @@ fn every_module_is_placed_on_a_layer() {
     );
 }
 
+/// 環を1つ探す。見つかれば辿った順に返す。
+///
+/// **長さ2で打ち切らない。** `a → b → c → a` は「互いに `use` し合う2つ」を
+/// 探すだけの検査には映らないのに、上下が言えないことは同じ。
+/// 段を全順序にしていたころは順序が環を消していたが、同位を許した今は消えない。
+fn find_cycle(graph: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<String>> {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Mark {
+        Walking,
+        Done,
+    }
+
+    fn walk(
+        node: &str,
+        graph: &BTreeMap<String, BTreeSet<String>>,
+        marks: &mut BTreeMap<String, Mark>,
+        path: &mut Vec<String>,
+    ) -> Option<Vec<String>> {
+        marks.insert(node.to_string(), Mark::Walking);
+        path.push(node.to_string());
+
+        for next in graph.get(node).into_iter().flatten() {
+            match marks.get(next.as_str()) {
+                Some(Mark::Done) => continue,
+                // いま辿っている道の上に戻った = 環
+                Some(Mark::Walking) => {
+                    let head = path.iter().position(|n| n == next).unwrap_or(0);
+                    let mut cycle = path[head..].to_vec();
+                    cycle.push(next.clone());
+                    return Some(cycle);
+                }
+                None => {
+                    if let Some(cycle) = walk(next, graph, marks, path) {
+                        return Some(cycle);
+                    }
+                }
+            }
+        }
+
+        path.pop();
+        marks.insert(node.to_string(), Mark::Done);
+        None
+    }
+
+    let mut marks = BTreeMap::new();
+    for node in graph.keys() {
+        if marks.contains_key(node.as_str()) {
+            continue;
+        }
+        if let Some(cycle) = walk(node, graph, &mut marks, &mut Vec::new()) {
+            return Some(cycle);
+        }
+    }
+    None
+}
+
 /// 環が無いこと。
 ///
 /// 環は「上下が言えない」そのものなので、段の違反より重い。
-/// 先に見つけて、どの2つが噛み合っているかを名指しで出す。
+/// 先に見つけて、どこが噛み合っているかを名指しで出す。
 #[test]
 fn no_module_depends_on_something_that_depends_back() {
-    let graph = graph();
-    let mut cycles = Vec::new();
+    let cycle = find_cycle(&graph());
 
-    for (from, targets) in &graph {
-        for to in targets {
-            let Some(back) = graph.get(to) else { continue };
-            if back.contains(from) && from < to {
-                cycles.push(format!("{from} ⇄ {to}"));
-            }
+    assert!(
+        cycle.is_none(),
+        "モジュールが環になっている。どちらが土台かが言えない:\n{}",
+        cycle.unwrap_or_default().join(" -> ")
+    );
+}
+
+/// **宣言そのものが環でないこと。**
+///
+/// `may_use` は手で書く。全順序をやめて同位を許した結果、
+/// `a` が `b` を、`b` が `c` を、`c` が `a` を使ってよい、と**書けてしまう**。
+/// そう書くと `dependencies_only_point_downwards` は全部通り、
+/// 実際に環を作っても `no_module_depends_on_something_that_depends_back` が
+/// 落ちるまで気付けない。**表のほうが先に壊れる**ので、表を先に見る。
+#[test]
+fn the_declared_layers_are_not_a_cycle() {
+    let declared: BTreeMap<String, BTreeSet<String>> = LAYERS
+        .iter()
+        .map(|l| {
+            (
+                l.name.to_string(),
+                l.may_use.iter().map(|m| m.to_string()).collect(),
+            )
+        })
+        .collect();
+
+    for layer in LAYERS {
+        for target in layer.may_use {
+            assert!(
+                declared.contains_key(*target),
+                "{} の may_use にある {target} が段に無い",
+                layer.name
+            );
         }
     }
 
+    let cycle = find_cycle(&declared);
     assert!(
-        cycles.is_empty(),
-        "モジュールが環になっている。どちらが土台かが言えない:\n{}",
-        cycles.join("\n")
+        cycle.is_none(),
+        "段の表が環になっている。上下が言えない2つは同位にする（どちらの may_use にも書かない）:\n{}",
+        cycle.unwrap_or_default().join(" -> ")
     );
 }
 
