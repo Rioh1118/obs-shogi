@@ -85,6 +85,9 @@ Rust: 次の手番へ進む
 - 持将棋（27点法 / 24点法 / トライルール。**どれを採るかは設定**）
 - 最大手数（既定 1000）
 
+設定として持つ値の形は `research/shogihome/02-game.md`
+（`jishogiRule` / `maxMoves` / `enableEngineTimeout`）を参照している。
+
 `shogi_legality_lite`（既に依存にある）は詰みと「同一局面4回」を返すが、
 連続王手の区別・持将棋・最大手数は持たない。**どのみち全部は賄えない。**
 
