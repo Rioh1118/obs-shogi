@@ -72,7 +72,38 @@ enum ReadyState {
     Waiting,
     Ready,
     /// エンジンの出力が終わった。**もう `readyok` は返らない**
+    ///
+    /// **ここから戻る道は無い。** `usi` crate の `listen` は reader を `take` するので
+    /// 読み取りは1回きりで、二度と始まらない。復帰の手段はプロセスの再起動しかない。
     Closed,
+}
+
+/// `ready` の次の値を決める。**`Closed` は吸収状態。**
+///
+/// 書き込み側（`dispatch_for` の `Refuse`）と `register_listener` の拒否は、
+/// どちらも `Closed` を見て断っている。戻す口があると、`isready` を1本送るだけで
+/// 両方が同時に無効になり、`position` も `go` も `Queue` に落ちて `Ok` が返る。
+/// 待っている側は永久に返らない。
+fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
+    match current {
+        ReadyState::Closed => ReadyState::Closed,
+        _ => requested,
+    }
+}
+
+/// `ready` への書き込みはここ1本を通す。返すのは実際に落ち着いた値。
+fn set_ready_state(ready: &watch::Sender<ReadyState>, requested: ReadyState) -> ReadyState {
+    let mut settled = requested;
+    ready.send_if_modified(|current| {
+        settled = next_ready_state(*current, requested);
+        if settled == *current {
+            false
+        } else {
+            *current = settled;
+            true
+        }
+    });
+    settled
 }
 
 /// 読み取りを終わらせる合図。`usi` crate の `listen` へ返すためだけの型。
@@ -230,7 +261,7 @@ impl UsiProtocol {
 
             // `readyok` を待っている側にも届ける。listeners を落とすだけでは
             // `ensure_ready` は watch を見ているので気付かず、上限まで待つ
-            let _ = ready.send(ReadyState::Closed);
+            set_ready_state(&ready, ReadyState::Closed);
 
             log::warn!(target: LOGT, "listen: engine output ended");
         });
@@ -305,11 +336,8 @@ impl UsiProtocol {
         // コマンド履歴更新
         self.state.write().await.last_command = Some(cmd_summary(command));
 
-        if matches!(command, GuiCommand::IsReady) {
-            self.start_ready_watch_and_send().await?;
-            return Ok(());
-        }
-
+        // **`IsReady` もここを通す。** 手前で分岐すると、`dispatch_for` が
+        // `Closed` に対して返している `Refuse` を誰も聞かないことになる
         let state: ReadyState = *self.ready.borrow();
         match dispatch_for(state, command) {
             Dispatch::Refuse => {
@@ -330,6 +358,10 @@ impl UsiProtocol {
                 );
                 return Ok(());
             }
+        }
+
+        if matches!(command, GuiCommand::IsReady) {
+            return self.start_ready_watch_and_send().await;
         }
 
         // 通常送信
@@ -353,7 +385,12 @@ impl UsiProtocol {
             *g
         };
 
-        let _ = self.ready.send(ReadyState::Waiting);
+        // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
+        // 呼び出し側の順序に依存させると、手前に分岐が1つ増えただけで穴が開く
+        // （`IsReady` だけ `dispatch_for` を通らない時期があった）
+        if set_ready_state(&self.ready, ReadyState::Waiting) == ReadyState::Closed {
+            return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+        }
 
         let cancel = CancellationToken::new();
         *self.init_cancel.lock().await = Some(cancel.clone());
@@ -400,7 +437,7 @@ impl UsiProtocol {
             }
 
             if ready {
-                let _ = protocol.ready.send(ReadyState::Ready);
+                set_ready_state(&protocol.ready, ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
                 let mut map = protocol.pending_after_ready.lock().await;
@@ -525,9 +562,11 @@ impl UsiProtocol {
             return Ok(());
         }
 
+        // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
+        // 出力が終わった場合に `Closed` を見落として上限まで待つ
+        let mut rx = self.ready.subscribe();
         self.send_command(&GuiCommand::IsReady).await?;
 
-        let mut rx = self.ready.subscribe();
         let settled =
             tokio::time::timeout(timeout, rx.wait_for(|state| *state != ReadyState::Waiting))
                 .await
@@ -647,16 +686,19 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
 mod tests {
     use super::*;
 
-    /// `ReadyState` を足したときに、**書き込み側の分岐を数え直さなかった**のが
-    /// r2 → r3 の退行だった。写像をここで固定する。
+    /// `ReadyState` にバリアントを足したら、書き込み側の分岐をここで数え直す。
+    ///
+    /// `IsReady` を含めているのは、`send_command` がこの写像を通さずに
+    /// 分岐していた時期があるため。**通さない分岐があると、ここが緑でも現物は違う。**
     #[test]
     fn a_closed_engine_is_refused_instead_of_queued() {
         let go = GuiCommand::Go(usi::ThinkParams::new());
         let position = GuiCommand::Position("sfen".to_string());
         let stop = GuiCommand::Stop;
+        let isready = GuiCommand::IsReady;
 
         // 出力が終わっている。**積むと呼び出し側に `Ok` が返り、待ち手が永久に返らない**
-        for cmd in [&go, &position, &stop] {
+        for cmd in [&go, &position, &stop, &isready] {
             assert_eq!(
                 dispatch_for(ReadyState::Closed, cmd),
                 Dispatch::Refuse,
@@ -671,10 +713,54 @@ mod tests {
             Dispatch::Queue
         );
         assert_eq!(dispatch_for(ReadyState::Waiting, &stop), Dispatch::Send);
+        assert_eq!(dispatch_for(ReadyState::Waiting, &isready), Dispatch::Send);
 
         // ready。全部そのまま
-        for cmd in [&go, &position, &stop] {
+        for cmd in [&go, &position, &stop, &isready] {
             assert_eq!(dispatch_for(ReadyState::Ready, cmd), Dispatch::Send);
         }
+    }
+
+    /// `Closed` から戻す口を作らないこと。
+    ///
+    /// 戻せると `dispatch_for` の `Refuse` も `register_listener` の拒否も、
+    /// `isready` 1本で同時に無効になる。
+    #[test]
+    fn closed_absorbs_every_later_transition() {
+        for requested in [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed] {
+            assert_eq!(
+                next_ready_state(ReadyState::Closed, requested),
+                ReadyState::Closed,
+                "Closed から {requested:?} へ戻している"
+            );
+        }
+
+        // `Closed` 以外は要求どおりに動く
+        for current in [ReadyState::Waiting, ReadyState::Ready] {
+            for requested in [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed] {
+                assert_eq!(next_ready_state(current, requested), requested);
+            }
+        }
+    }
+
+    /// 落ち着いた値を返すこと。呼び出し側はこれを見て「戻せなかった」を知る
+    #[test]
+    fn set_ready_state_reports_what_it_settled_on() {
+        let ready = watch::channel(ReadyState::Waiting).0;
+
+        assert_eq!(
+            set_ready_state(&ready, ReadyState::Ready),
+            ReadyState::Ready
+        );
+        assert_eq!(
+            set_ready_state(&ready, ReadyState::Closed),
+            ReadyState::Closed
+        );
+        assert_eq!(
+            set_ready_state(&ready, ReadyState::Waiting),
+            ReadyState::Closed,
+            "Closed の後に Waiting を通している"
+        );
+        assert_eq!(*ready.borrow(), ReadyState::Closed);
     }
 }
