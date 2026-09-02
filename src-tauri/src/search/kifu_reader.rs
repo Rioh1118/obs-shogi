@@ -288,12 +288,21 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
         }
     }
 
-    let jkf = match kind {
-        KifuKind::Kif => parse_kif_portable(path),
-        KifuKind::Ki2 => parse_ki2_portable(path),
-        KifuKind::Csa => parse_csa_portable(path),
-        KifuKind::Jkf => parse_jkf_file(path).map_err(|e| parse_failed(unreadable_record(e))),
-    }?;
+    // **CSA だけバイト列を手元に残す。** 読み残しの検査が、パースしたのと
+    // 同じバイト列を要る。path を渡して別々に読ませると、
+    // 「同じものを見ているか」を型で表せない
+    let (jkf, csa_bytes) = match kind {
+        KifuKind::Kif => (parse_kif_portable(path)?, None),
+        KifuKind::Ki2 => (parse_ki2_portable(path)?, None),
+        KifuKind::Csa => {
+            let bytes = read_bytes(path)?;
+            (parse_csa_portable(&bytes)?, Some(bytes))
+        }
+        KifuKind::Jkf => (
+            parse_jkf_file(path).map_err(|e| parse_failed(unreadable_record(e)))?,
+            None,
+        ),
+    };
 
     // 2つの問いを別々に答えさせ、ここでは**受け取るだけ**にする。
     // 権限の割り振りと、そう分けた理由は `docs/state-transitions/search.md`。
@@ -304,10 +313,9 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
     // 読めたかを先に見るのは、`says_nothing` が真の記録でも
     // **なぜ空に見えるのかを伝えたい**から。対局者名を書かない CSA が
     // 1手目で切れると `says_nothing` は真になるが、それは「本当に空」ではない。
-    let warn = match kind {
-        KifuKind::Csa => warn_if_moves_were_dropped(&file, &jkf),
-        _ => None,
-    };
+    let warn = csa_bytes
+        .as_deref()
+        .and_then(|bytes| warn_if_moves_were_dropped(bytes, &jkf));
 
     if says_nothing(&jkf) {
         return Ok(ReadOutcome::NothingToIndex {
@@ -354,11 +362,11 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
 /// （実測: ISO-2022-JP で書いた `2004/02/30` は UTF-8 / Shift_JIS /
 /// EUC-JP / ISO-2022-JP のどれで復号してもパニックする）。
 /// UTF-16 の2つは本文が CSA の形にならないので、パニックの手前で読めずに終わる。
-fn parse_csa_portable(path: &Path) -> Result<Jkf, KifuReadError> {
-    // `read_portable` はローカルに確保して返すだけで、パニックの向こうへ
+fn parse_csa_portable(bytes: &[u8]) -> Result<Jkf, KifuReadError> {
+    // `read_portable_bytes` はローカルに確保して返すだけで、パニックの向こうへ
     // 壊れた不変条件を持ち越す状態を持たない
     let attempt = AssertUnwindSafe(|| {
-        read_portable(path, parse_csa_file_tidied, |s| parse_csa_str(&tidy_csa(s)))
+        read_portable_bytes(bytes, parse_csa_tidied, |s| parse_csa_str(&tidy_csa(s)))
     });
     match catch_unwind(attempt) {
         Ok(result) => result,
@@ -388,13 +396,13 @@ fn parse_csa_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 ///
 /// クレートの `parse_csa_file` を通さず自分で読むのは、そちらが
 /// ファイルを開いて復号まで済ませてしまい、間に整形を挟めないから。
+/// バイト列で受けるのは、読み残しの検査と**同じものを見ていることを型で示す**ため。
 /// 復号の順（UTF-8 → Shift_JIS）はクレートの `decode_kifu` と同じにしてある。
 /// どちらでも誤りが出るなら [`ParseError::Decode`] を返し、
 /// [`read_portable`] の総当たりへ渡す。
-fn parse_csa_file_tidied(path: &Path) -> Result<Jkf, ParseError> {
-    let bytes = fs::read(path)?;
+fn parse_csa_tidied(bytes: &[u8]) -> Result<Jkf, ParseError> {
     for enc in CRATE_CSA_DECODE_ORDER {
-        let (text, _, had_errors) = enc.decode(&bytes);
+        let (text, _, had_errors) = enc.decode(bytes);
         if !had_errors {
             return parse_csa_str(&tidy_csa(&text));
         }
@@ -563,27 +571,14 @@ fn rank_cells(line: &str) -> Option<&str> {
 /// どれも同じ数を出すので、どの候補で読めたかに関わらず結果が変わらない。
 /// UTF-16 はバイト列に NUL が挟まって指し手行の形にならず0件と数える（＝黙る）。
 ///
-/// # なぜもう一度読むのか
+/// # バイト列を受け取る
 ///
-/// クレートが一発で読めた経路にはバイト列が手元に無い（`parse_csa_file` が
-/// 自分で開いて読み、文字列だけを返す）。**[`read_path_inner`] が大きさを見るために
-/// 開いた `File` を使い回す**ので、`open` は増えない。
-/// ただし**読みは増える** — 切れていない CSA も含め、`.csa` は全件が2度読まれる
-/// （クレートが1回、ここで1回）。`SIZE_LIMIT` までのバイト列を
-/// もう1つ確保することになる。
+/// **パースしたのと同じバイト列であることを型で示すため。** `Path` を受けて
+/// 自分で読み直す形だと、渡し間違いをコンパイラが止められない
+/// （読み直しとパースの間に保存されると、数える側とパース側で中身が違う）。
+/// [`read_path_inner`] が1度読んで、パースと検査の両方へ同じものを渡す。
 ///
-/// `file` は `jkf` を作った当のファイルを開いたものであること
-/// （[`read_path_inner`] が開いた `File` をそのまま渡す）。**別のファイルを渡すと突き合わせが
-/// 成立しない**（型は止めない）。読み直しとパースの間にそのファイルが保存されると
-/// 数える側とパース側で中身が違うが、出口が警告なので実害は「余計な警告が1つ」だけ。
-fn warn_if_moves_were_dropped(file: &fs::File, jkf: &Jkf) -> Option<String> {
-    use std::io::{Read as _, Seek as _, SeekFrom};
-
-    let mut handle = file.try_clone().ok()?;
-    handle.seek(SeekFrom::Start(0)).ok()?;
-    let mut bytes = Vec::new();
-    handle.read_to_end(&mut bytes).ok()?;
-
+fn warn_if_moves_were_dropped(bytes: &[u8], jkf: &Jkf) -> Option<String> {
     let read = jkf.moves.iter().filter(|m| m.move_.is_some()).count();
     let mut moves_seen = 0usize;
     for (line_no, line) in bytes.split(|b| *b == b'\n').enumerate() {
@@ -839,8 +834,41 @@ where
     };
 
     let bytes = read_bytes(path)?;
-    let evidence = Evidence::of(&bytes);
-    match try_other_encodings(&bytes, &evidence, from_str) {
+    try_the_rest(&bytes, by_crate, from_str)
+}
+
+/// [`read_portable`] のバイト列版。**CSA はこちらを通る。**
+///
+/// CSA だけ別なのは、読み残しの検査（[`warn_if_moves_were_dropped`]）が
+/// **同じバイト列**を要るから。path を渡す形だと、パースと検査が別々に読んで
+/// 「同じファイルを見ているか」を型で表せない。
+fn read_portable_bytes<First, Str>(
+    bytes: &[u8],
+    first: First,
+    from_str: Str,
+) -> Result<Jkf, KifuReadError>
+where
+    First: Fn(&[u8]) -> Result<Jkf, ParseError>,
+    Str: FnMut(&str) -> Result<Jkf, ParseError>,
+{
+    let by_crate = match first(bytes) {
+        Ok(jkf) => return Ok(jkf),
+        Err(e) => e,
+    };
+    try_the_rest(bytes, by_crate, from_str)
+}
+
+/// クレートが読めなかったあとの総当たり。両方の入口から使う
+fn try_the_rest<Str>(
+    bytes: &[u8],
+    by_crate: ParseError,
+    from_str: Str,
+) -> Result<Jkf, KifuReadError>
+where
+    Str: FnMut(&str) -> Result<Jkf, ParseError>,
+{
+    let evidence = Evidence::of(bytes);
+    match try_other_encodings(bytes, &evidence, from_str) {
         Ok(jkf) => Ok(jkf),
         Err(by_fallback) => Err(parse_failed(describe(by_crate, &evidence, by_fallback))),
     }
