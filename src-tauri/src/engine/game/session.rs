@@ -3298,6 +3298,129 @@ mod tests {
         );
     }
 
+    /// 先読みの当たり／外れの振り分け。**実プロセスは要らない。**
+    ///
+    /// `Handover::PonderHit` の送信は `protocol(side)` が `None` のとき
+    /// `Ok(())` に落ちるので、`engine: None` の `Runner` でも成功側が走る。
+    ///
+    /// 当たりに潰すと、**外れた先読みの上から `ponderhit` を送ったことにして**
+    /// 時計を動かす。エンジンは指されなかった手の後の局面を読み続け、返る
+    /// `bestmove` は現局面で非合法——※7 の「身に覚えのない負け」がそのまま起きる。
+    #[tokio::test]
+    async fn a_ponder_that_missed_is_stopped_and_restarted() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        // 当たり: そのまま考え続け、時計はここから動く
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::White.index()].activity = Activity::Searching {
+            req: 1,
+            kind: SearchKind::Ponder {
+                ponder_move: "7g7f".to_string(),
+            },
+            cancel: cancel.clone(),
+        };
+        runner.turn_clock = TurnClock::Settling(Instant::now());
+        runner.hand_turn_to(Side::White, "7g7f").await;
+
+        assert!(
+            matches!(
+                runner.players[Side::White.index()].activity,
+                Activity::Searching {
+                    kind: SearchKind::Search,
+                    ..
+                }
+            ),
+            "読み当たりなのに本番の思考へ昇格していない"
+        );
+        assert!(
+            matches!(runner.turn_clock, TurnClock::Running(_)),
+            "読み当たりなのに時計が動き出していない"
+        );
+        assert!(!cancel.is_cancelled(), "読み当たりなのに探索を止めた");
+
+        // 外れ: 止めて始め直す。時計はまだ動かない
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::White.index()].activity = Activity::Searching {
+            req: 1,
+            kind: SearchKind::Ponder {
+                ponder_move: "7g7f".to_string(),
+            },
+            cancel: cancel.clone(),
+        };
+        runner.turn_clock = TurnClock::Settling(Instant::now());
+        runner.hand_turn_to(Side::White, "2g2f").await;
+
+        assert!(
+            matches!(
+                runner.players[Side::White.index()].activity,
+                Activity::Stopping { restart: true, .. }
+            ),
+            "読み外れなのに止めて始め直していない"
+        );
+        assert!(cancel.is_cancelled(), "読み外れなのに探索を止めていない");
+        assert!(
+            matches!(runner.turn_clock, TurnClock::Settling(_)),
+            "まだ `go` を出していないのに時計が動いている"
+        );
+    }
+
+    /// 終局は1回しか流れないこと。
+    ///
+    /// 呼び出し側は全部ガードしているが、その多重が消えたことに気付く経路が無い。
+    /// 再入すると `Over` が**2回、別々の `result` で**流れ、受け手は
+    /// 最後に受けたほうを採る（`Timeout` の後に届いた `Aborted` が棋譜に残る）。
+    #[tokio::test]
+    async fn finishing_twice_only_tells_the_app_once() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+
+        for reason in [GameOverReason::Timeout, GameOverReason::Aborted] {
+            runner
+                .finish(GameResult {
+                    winner: None,
+                    reason,
+                    detail: None,
+                })
+                .await;
+        }
+
+        let overs = events
+            .take()
+            .into_iter()
+            .filter(|e| matches!(e, GameEvent::Over { .. }))
+            .count();
+        assert_eq!(overs, 1, "終局が {overs} 回流れた");
+    }
+
+    /// エンジンの側に人間の操作を通さないこと（表の E1 / E4）。
+    ///
+    /// 通すと、エンジンが考えている最中に人間の手が採られ、返ってきた
+    /// `bestmove` は別の局面のものになる。
+    #[tokio::test]
+    async fn a_seat_played_by_an_engine_refuses_human_moves_and_resignations() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].spec = PlayerSpec::Engine {
+            name: "エンジン".to_string(),
+            engine_path: "/nonexistent".to_string(),
+            work_dir: None,
+            options: Vec::new(),
+            ponder: false,
+        };
+
+        runner
+            .accept_human_move(Side::Black, "7g7f".to_string())
+            .await
+            .expect_err("エンジンの席に人間の着手を通している");
+        runner
+            .accept_resign(Side::Black)
+            .await
+            .expect_err("エンジンの席に人間の投了を通している");
+    }
+
     /// 先読み中の側が自分から返した `bestmove` を、着手として採らないこと。
     ///
     /// **先読みは自分から終わることがある**（詰みを見つけた等）。採ると

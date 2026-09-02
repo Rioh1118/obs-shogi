@@ -307,8 +307,43 @@ mod tests {
             "閉じ忘れを拾う口から、閉じ損ねている対局が消えている"
         );
 
+        // **`close` 側の事前チェックも見る。** `snapshot` だけだと、2本目の
+        // `close_game` が「知らない対局」を受け取る経路が固定されない——
+        // そのとき doc の契約に従うと、閉じ損ねている対局を誰も呼び直さない
+        let error = games
+            .close(&id)
+            .await
+            .expect_err("閉じている最中にもう一度閉じられている");
+        assert!(
+            error.contains("being closed"),
+            "「知らない対局」と言っている: {error}"
+        );
+
         // 後始末
         games.closing.lock().await.remove(&id);
         games.sessions.write().await.insert(id, session);
+    }
+
+    /// 閉じている印が、番人を落とせば必ず外れること。
+    ///
+    /// 外れないと、その対局は以後ずっと `the game is being closed` を返し続ける
+    /// ——`close_all` も `close` を通るので拾えず、落とす口が終了時の掃除だけになる。
+    #[tokio::test]
+    async fn dropping_the_guard_clears_the_closing_mark() {
+        let games = GameManager::new(Arc::new(EngineRegistry::new()));
+        let id = GameId::new("g".to_string());
+        games.closing.lock().await.insert(id.clone());
+
+        {
+            let _guard = ClosingGuard {
+                closing: &games.closing,
+                game_id: id.clone(),
+            };
+        }
+
+        assert!(
+            !games.closing.lock().await.contains(&id),
+            "番人を落としても閉じている印が残っている"
+        );
     }
 }
