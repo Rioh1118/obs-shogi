@@ -88,7 +88,13 @@ impl GameManager {
             closing.insert(game_id.clone());
         }
 
+        let guard = ClosingGuard {
+            closing: &self.closing,
+            game_id: game_id.clone(),
+        };
         let result = self.take_and_close(game_id).await;
+        drop(guard);
+        // `Drop` が `try_lock` に失敗していても、ここで確実に外す
         self.closing.lock().await.remove(game_id);
         result
     }
@@ -177,16 +183,121 @@ impl GameManager {
         self.get(game_id).await?.snapshot().await
     }
 
+    /// 開いている対局の ID。**閉じている最中のものも含める。**
+    ///
+    /// 含めないと、`close` が台帳から外している数秒のあいだ、
+    /// 「閉じ忘れを拾う」ためのこの口から、まさに閉じ損ねようとしている対局が消える。
     pub async fn ids(&self) -> Vec<GameId> {
-        self.sessions.read().await.keys().cloned().collect()
+        let mut ids: BTreeSet<GameId> = self.sessions.read().await.keys().cloned().collect();
+        ids.extend(self.closing.lock().await.iter().cloned());
+        ids.into_iter().collect()
     }
 
+    /// **「知らない」と「いま閉じている」を分ける。**
+    ///
+    /// `close` は台帳から外してから最大十数秒待つ。その窓で `unknown game` を返すと、
+    /// 生きている対局への `get_game_state`（取りこぼし後の突き合わせ）や
+    /// `submit_game_move` が「無い対局」として断られる。
     async fn get(&self, game_id: &GameId) -> Result<Arc<GameSession>, String> {
-        self.sessions
-            .read()
+        if let Some(session) = self.sessions.read().await.get(game_id).cloned() {
+            return Ok(session);
+        }
+        if self.closing.lock().await.contains(game_id) {
+            return Err(format!("the game is being closed: {game_id}"));
+        }
+        Err(format!("unknown game: {game_id}"))
+    }
+}
+
+/// `closing` から必ず外すための番人。
+///
+/// **戻り値に頼らない。** `insert` と `remove` の間で future が drop されるか
+/// panic すると ID が残り続け、以後その対局は `the game is being closed` を
+/// 返し続ける——`close_all` も `close` を通るので拾えず、落とす口が
+/// 終了時の `shutdown_all` だけになる。このコードベースは待ちを `timeout` で
+/// 包む習慣なので、`close_game` 側に包みが1つ増えた時点で本番の穴になる。
+struct ClosingGuard<'a> {
+    closing: &'a Mutex<BTreeSet<GameId>>,
+    game_id: GameId,
+}
+
+impl Drop for ClosingGuard<'_> {
+    fn drop(&mut self) {
+        // `Drop` は async になれないので、ロックが取れなければ諦める。
+        // 取れないのは他が握っている一瞬だけで、そこは `blocking_lock` が
+        // ランタイムの中で使えないぶんの妥協
+        if let Ok(mut closing) = self.closing.try_lock() {
+            closing.remove(&self.game_id);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::game::events::DiscardEvents;
+    use crate::engine::game::types::{PlayerSpec, TimeLimit};
+
+    fn two_humans() -> GameSettings {
+        let limit = TimeLimit {
+            main_ms: 60_000,
+            byoyomi_ms: 0,
+            increment_ms: 0,
+        };
+        GameSettings {
+            black: PlayerSpec::Human {
+                name: "先手".to_string(),
+            },
+            white: PlayerSpec::Human {
+                name: "後手".to_string(),
+            },
+            black_time: limit,
+            white_time: limit,
+            start_sfen: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+                .to_string(),
+            initial_moves: Vec::new(),
+            enforce_engine_timeout: false,
+        }
+    }
+
+    /// 閉じている最中の対局を「知らない対局」と言わないこと。
+    ///
+    /// **`close` は台帳から外してから待つ。** その窓で `unknown game` を返すと、
+    /// 生きている対局への `get_game_state`（取りこぼし後の突き合わせ）が
+    /// 「無い対局」として断られ、`list_games`（閉じ忘れを拾う口）からも消える。
+    #[tokio::test]
+    async fn a_game_being_closed_is_not_reported_as_unknown() {
+        let registry = Arc::new(EngineRegistry::new());
+        let games = GameManager::new(registry);
+        let id = games
+            .start(Arc::new(DiscardEvents), two_humans())
             .await
-            .get(game_id)
-            .cloned()
-            .ok_or_else(|| format!("unknown game: {game_id}"))
+            .expect("人間だけの対局は起動できるはず");
+
+        // 台帳から外した状態を作る（`take_and_close` の中の窓）
+        let session = games
+            .sessions
+            .write()
+            .await
+            .remove(&id)
+            .expect("台帳にある");
+        games.closing.lock().await.insert(id.clone());
+
+        let error = games
+            .snapshot(&id)
+            .await
+            .expect_err("閉じている最中に状態を返している");
+        assert!(
+            error.contains("being closed"),
+            "「知らない対局」と言っている: {error}"
+        );
+        assert!(
+            games.ids().await.contains(&id),
+            "閉じ忘れを拾う口から、閉じ損ねている対局が消えている"
+        );
+
+        // 後始末
+        games.closing.lock().await.remove(&id);
+        games.sessions.write().await.insert(id, session);
     }
 }

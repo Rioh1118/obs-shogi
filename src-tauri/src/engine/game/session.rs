@@ -84,7 +84,9 @@ const MAX_OPTIONS: usize = 128;
 /// 渡さないと、締切が尽きかけていても段は自前の上限を丸ごと使える。
 ///
 /// **厳密な上限ではない。** 段に入る前に残りを見るので、入った段が
-/// 締切を跨ぐぶんは超える（`setoption` 1件の書き込み、失敗したときの後始末）。
+/// 締切を跨ぐぶんは超える。跨ぎうるのは `setoption` 1件の書き込み
+/// （`WRITE_TIMEOUT`）と、失敗したときの後始末（`registry::shutdown`）。
+/// `spawn` と `usiok` は残りを引き直して渡すので跨がない。
 ///
 /// 90秒にしたのは、評価関数の読み込みが重いエンジン（数十秒）を通し、
 /// かつ人が「反応が無い」と判断する前に返るため。
@@ -100,11 +102,13 @@ pub const START_TIMEOUT: Duration = Duration::from_secs(90);
 /// **そのエンジンは以後何も受け付けなくなる**——出るのは
 /// 「stdin を読まなくなった」で、長すぎたことは分からない。
 ///
-/// **盤に載る手数の上限**として読むこと。入口2箇所で意味を揃える——
-/// `initial_moves` はここから最低1手は指せる必要があるので `>=` で弾き、
-/// 裁定で受け取る列はちょうど `MAX_PLIES` まで通す。揃えないと、
-/// **`start_game` が通した設定で1手も指せない**局ができる（そして裁定の
-/// やり直しは接頭辞と長さで一意に固定されているので、必ず同じ `Err` になる）。
+/// **盤に載る手数の上限**として読むこと。当たり方は入口と裁定で違う。
+///
+/// - `initial_moves`（`validate_settings`）は `>=` で**断る**。ここから最低1手は
+///   指せる必要がある。揃えないと `start_game` が通した設定で1手も指せない局ができる
+/// - 裁定（`accept_continue`）で超えたら**終局にする**（`Rule`）。断ると、
+///   フロントは一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
+///   30秒後に「アプリが裁定を返さなかった」で畳まれる——返しているのに
 ///
 /// 2000 にしたのは、相入玉の長手数の棋譜が通る幅だから。足りなくなったら上げてよい。
 const MAX_PLIES: usize = 2000;
@@ -850,11 +854,19 @@ impl Runner {
         // **根の局面に途中の手を継ぎ足した別局面**を送ることになり、エンジンは
         // そこの合法手を返し、フロントは現局面で非合法と裁定する——
         // エンジンが指してもいない手で反則負けする。
+        // **上限に達したら終局にする。断らない。** 断ると、フロントは
+        // 接頭辞と長さで一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
+        // 30秒後に `Aborted { "no ruling came back from the app" }` で畳まれる——
+        // **返しているのに「返さなかった」と棋譜に残る。**
+        // 上限は GUI 側の都合なので、理由も GUI 側のもの（`Rule`）として持つ。
         if moves.len() > MAX_PLIES {
-            return Err(format!(
-                "move list has {} moves; the limit is {MAX_PLIES}",
-                moves.len()
-            ));
+            self.finish(GameResult {
+                winner: None,
+                reason: GameOverReason::Rule,
+                detail: Some(format!("the game reached the {MAX_PLIES} ply limit")),
+            })
+            .await;
+            return Ok(());
         }
         if moves.len() != self.moves.len() + 1 || moves[..self.moves.len()] != self.moves[..] {
             return Err(format!(
@@ -1675,14 +1687,14 @@ async fn prepare_engine(
     // **段ごとの上限を締切で縮める。** 縮めないと、`start_game` 全体の締切が
     // 尽きかけていても各段は自前の上限を丸ごと使えるので、`START_TIMEOUT` は
     // 「返るまでの上限」にならない（2体ぶんで `SPAWN_TIMEOUT` の20秒が外に積まれる）
-    let left = remaining(deadline, "the engine started")?;
+    // **段ごとに残りを引き直す。** 1回だけ読むと、`spawn` が `spawn_timeout` を
+    // 使い切ってから `usiok` を待つので、2段の合計が `left + SPAWN_TIMEOUT` になる
+    // ——締切を最大10秒はみ出す。`spawn` はこの2つを順に使う
+    let for_spawn = SPAWN_TIMEOUT.min(remaining(deadline, "the engine started")?);
+    let for_usiok =
+        USI_OK_TIMEOUT.min(remaining(deadline, "the engine said usiok")?.saturating_sub(for_spawn));
     let process = registry
-        .spawn(
-            engine_path,
-            work_dir,
-            SPAWN_TIMEOUT.min(left),
-            USI_OK_TIMEOUT.min(left),
-        )
+        .spawn(engine_path, work_dir, for_spawn, for_usiok)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -2248,13 +2260,28 @@ mod tests {
             .await
             .expect_err("過去の手が入れ替わった列を通している");
 
-        // 断る: 長すぎる列。`position` の1行がそのまま伸びる
+        // 上限を超えたら**断らずに終局にする**。断ると、フロントは一意に固定された
+        // 列しか返せないのでやり直しても同じ `Err` になり、30秒後に
+        // 「アプリが裁定を返さなかった」で畳まれる——返しているのに
         let (mut runner, _tx) = awaiting(&opening[..3]);
-        let error = runner
+        runner
             .accept_continue(vec!["7g7f".to_string(); MAX_PLIES + 1])
             .await
-            .expect_err("上限を超えた列を通している");
-        assert!(error.contains("limit"), "断る理由が変わっている: {error}");
+            .expect("上限を超えた列を断っている");
+        match &runner.phase {
+            Phase::Over { result } => {
+                assert_eq!(result.reason, GameOverReason::Rule, "終局の理由が違う");
+                assert!(
+                    result
+                        .detail
+                        .as_deref()
+                        .is_some_and(|d| d.contains("ply limit")),
+                    "上限に当たったことが `detail` に残っていない: {:?}",
+                    result.detail
+                );
+            }
+            _ => panic!("上限に当たっても終局していない"),
+        }
     }
 
     /// 走っている探索は、対局が畳まれたら止まること。
