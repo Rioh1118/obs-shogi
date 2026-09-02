@@ -48,6 +48,11 @@ tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 
+[dev-dependencies]
+# `tidy_csa` の整形が tsshogi の受ける範囲を出ていないかを、
+# tsshogi 自身の正規表現を読んで確かめるために使う（`kifu_reader.rs` のテスト）
+regex = "1.11"
+
 [[test]]
 name = "search_bench"
 path = "benches/search_bench.rs"

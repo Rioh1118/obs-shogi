@@ -82,6 +82,7 @@ dependencies = [
  "notify",
  "parking_lot",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "shogi-kifu-converter",

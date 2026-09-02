@@ -2332,6 +2332,166 @@ P5 *  *  *  *  *  *  *  *  * \nP6 *  *  *  *  *  *  *  *  * \n\
 P7 *  *  *  *  *  *  *  *  * \nP8 *  *  *  *  *  *  *  *  * \n\
 P9 *  *  *  * +OU *  *  *  * ";
 
+    /// 画面に開くほうの行パターンを、**その実装から読む**。
+    ///
+    /// `tidy_csa` の doc には tsshogi のパターンを写した表があるが、
+    /// **写した表は、写した時点の tsshogi しか知らない**。ここでは `csa.mjs` を
+    /// 読んでパターンを取り出し、Rust の `regex` で当てる。
+    /// 表がずれても、この関数がずれることは無い。
+    ///
+    /// パターンは `pattern: /…/,` の形で並んでいる。取り出せなければ
+    /// **黙って通さずに落とす** — 形が変わったなら、それはそれで知りたい。
+    fn viewer_line_patterns() -> Vec<regex::Regex> {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../node_modules/tsshogi/dist/esm/csa.mjs");
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| {
+            panic!(
+                "画面側の実装を読めない（{}）: {e}\n\
+                 `npm ci` を先に走らせること。ここを飛ばすと、\n\
+                 整形が画面の受ける範囲を出ていないかを誰も見なくなる",
+                path.display()
+            )
+        });
+
+        let patterns: Vec<regex::Regex> = src
+            .lines()
+            .filter_map(|line| {
+                let body = line.trim().strip_prefix("pattern: /")?;
+                let body = body.strip_suffix("/,")?;
+                Some(regex::Regex::new(body).unwrap_or_else(|e| {
+                    panic!("`csa.mjs` のパターンを Rust の regex にできない: /{body}/: {e}")
+                }))
+            })
+            .collect();
+
+        assert!(
+            patterns.len() > 8,
+            "`csa.mjs` からパターンを {} 個しか取り出せなかった。書き方が変わった可能性がある",
+            patterns.len()
+        );
+        patterns
+    }
+
+    /// **整形は、画面の判定を変えない。**
+    ///
+    /// 画面（`tsshogi`）は**元のファイル**を読み、索引は**整形したもの**を読む。
+    /// だから整形が画面の判定をまたぐと、その行について2つの読み手が違うものを見る。
+    ///
+    /// | 元の行 | 整形後 | |
+    /// | --- | --- | --- |
+    /// | 画面が受ける | 受ける | よい（末尾の空白を落とす・段の最後の空升を補う） |
+    /// | 画面が断る | 断る | よい（`ZZZZ …` の末尾を削っても何も変わらない） |
+    /// | 画面が断る | **受ける** | **索引だけが読む**。検索に出るのに開けない |
+    /// | 画面が受ける | **断る** | **索引だけが読めない**。開けるのに読めませんと言われる |
+    ///
+    /// 行ごと落とすのは別扱い。読める範囲が減るだけで、食い違いは作らない。
+    ///
+    /// # 判定が両方「断る」でも足してはいけない
+    ///
+    /// クレートは画面より緩い。段の升は `grid_piece` が中身を見ずに3文字取るので、
+    /// **升7つで切れた段を空白で埋めると「空升9つ」として通る**。画面は
+    /// 埋める前も後も断つので、上の表だけでは捕まらない。
+    ///
+    /// **画面が断ったままの行には足さない。** 削るだけなら、
+    /// クレートに新しく読めるものは生まれない。
+    ///
+    /// # 過去の3件で確かめてある
+    ///
+    /// 見つかった穴を戻す変異を当てると、いずれもここで落ちる。
+    ///
+    /// | 入れてしまった整形 | どちらの規則で落ちるか |
+    /// | --- | --- |
+    /// | 手番行と `PI` の末尾の空白を削る | 判定をまたぐ（断る→受ける） |
+    /// | 升の数が合わない段を27文字に均す | 判定をまたぐ（断る→受ける） |
+    /// | カンマで畳んだ盤面を `P1` で切る | 判定をまたぐ（断る→受ける） |
+    /// | 升7つの段を空白で埋める | 断る行に足している |
+    ///
+    /// 題材は**すべて合成**。実在の CSA を舐めてはいない。
+    #[test]
+    fn tidying_never_crosses_the_viewers_verdict() {
+        let patterns = viewer_line_patterns();
+        let accepted = |line: &str| patterns.iter().any(|re| re.is_match(line));
+
+        let rank = "P1 *  *  *  *  * -OU *  *  * ";
+        let bases = [
+            "V2.2",
+            "N+山田",
+            "N-田中",
+            "$EVENT:テスト",
+            "'コメント",
+            "'",
+            "PI",
+            "PI82HI22KA",
+            "P+00FU",
+            "P-00KY",
+            "+",
+            "-",
+            "+7776FU",
+            "-3334FU",
+            "T60",
+            "%TORYO",
+            "ZZZZ 棋譜でない行",
+            rank,
+            // 升が足りない／余る／カンマで畳んだ段
+            "P1 *  *  *  *  *  *  *",
+            "P1",
+            &BOARD_ONLY_CSA.replace('\n', ","),
+        ];
+
+        /// 綴りの揺れ1つ。名前と、健全な行を揺らす手続き
+        type Wobble = (&'static str, fn(&str) -> String);
+
+        // **整形が触りたくなる形を網羅する**
+        let wobbles: [Wobble; 5] = [
+            ("そのまま", |s: &str| s.to_owned()),
+            ("末尾に空白", |s: &str| format!("{s} ")),
+            ("末尾に空白2つ", |s: &str| format!("{s}  ")),
+            ("末尾にタブ", |s: &str| format!("{s}\t")),
+            ("末尾の空白を削る", |s: &str| {
+                s.trim_end_matches(' ').to_owned()
+            }),
+        ];
+
+        for base in bases {
+            for (wobble, apply) in wobbles {
+                let line = apply(base);
+                let tidied = tidy_csa(&line);
+                let Some(after) = tidied.strip_suffix('\n') else {
+                    // 行ごと落とした。読める範囲が減るだけなので画面と食い違わない
+                    assert!(tidied.is_empty(), "整形が改行で終わっていない: {tidied:?}");
+                    continue;
+                };
+                if after == line {
+                    continue;
+                }
+                let verdict = |ok: bool| if ok { "受ける" } else { "断る" };
+                assert_eq!(
+                    accepted(&line),
+                    accepted(after),
+                    "整形が画面の判定をまたいだ（{wobble}）\n  \
+                     前: {line:?}（画面: {}）\n  \
+                     後: {after:?}（画面: {}）",
+                    verdict(accepted(&line)),
+                    verdict(accepted(after)),
+                );
+
+                // 画面が断ったままの行に**足さない**。判定が両方「断る」でも、
+                // クレートは画面より緩いので足したぶんを読んでしまう
+                //（升7つの段を空白で埋めると「空升9つ」として通る）。
+                // 削るだけなら、クレートに新しく読めるものは生まれない
+                if !accepted(after) {
+                    assert!(
+                        line.starts_with(after)
+                            && line[after.len()..].chars().all(char::is_whitespace),
+                        "画面が断る行に足した（{wobble}）\n  \
+                         前: {line:?}\n  \
+                         後: {after:?}",
+                    );
+                }
+            }
+        }
+    }
+
     /// 読めなかったと言うときは、**何を失ったかも言う**。
     ///
     /// 理由だけを出すと「読めない行が1つある」と受け取られる。実際にはその
