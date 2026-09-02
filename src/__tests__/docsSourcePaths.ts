@@ -49,12 +49,24 @@ function tracked(inline: string, resolved: string): boolean {
 }
 
 /**
+ * 行番号の綴り。**この1つを両方の検査が使う。**
+ *
+ * 綴りの知識が2つに割れると、片方だけが狭くなる。狭いほうを通り抜けた綴りは
+ * 両方の検査を素通りする——パス側は「行番号なので落とす」と判断し、
+ * 行番号側は「知らない形」として見逃すため。
+ *
+ * 拾う形は `:42` / `:19-24` / `#L42` / `:L42` と、続けて並べた `:38, 49`。
+ */
+const LINE_SUFFIX = /[#:]L?\d+(-\d+)?(,\s*\d+)*$/;
+
+/**
  * バッククォートで囲まれたソースのパスを拾う。
  *
  * 拾うのはバッククォートの中だけ。地の文の「src/entities あたり」まで拾うと、
  * 説明のために書いたディレクトリ名で落ちる。
  *
- * 末尾の `#L12` や `:42` は落とす。行番号は腐っても検査したいのはファイルの実在。
+ * 末尾の行番号は落とす。行番号は腐っても、ここで検査したいのはファイルの実在。
+ * 行番号そのものは `lineNumberRefsIn` が別に止める。
  */
 export function sourcePathsIn(markdown: string): string[] {
   const found = new Set<string>();
@@ -62,7 +74,7 @@ export function sourcePathsIn(markdown: string): string[] {
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
     if (!/^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.#:-]*)+$/.test(inline)) continue;
 
-    const bare = inline.replace(/[#:]L?\d+$/, "");
+    const bare = inline.replace(LINE_SUFFIX, "");
     const path = resolve(bare);
     if (!tracked(bare, path)) continue;
     // 拡張子か末尾のスラッシュがあるものだけ。`src/entities/kifu` のような
@@ -83,24 +95,23 @@ export function missingPaths(paths: string[]): string[] {
 /**
  * バッククォートの中に書かれた行番号を拾う。
  *
- * **行番号は誰も検査していない。** ファイルの実在は上で見ているが、
+ * **行番号は誰も検査していない。** ファイルの実在は `missingPaths` が見ているが、
  * その中の何行目かは、1行足すだけで無言でずれる。読み手はそこを開いて
  * 別のものを読み、doc が指していたはずのものは自力で探すことになる。
  * ずれたことは誰にも分からないので、腐り方としては死んだパスより悪い。
  *
  * 指したいものがあるなら識別子で指すこと。`docsIdentifiers` がそちらは見る。
  *
- * 拾う形は `provider.tsx:19-24` / `bridge.rs:117` / `AnalysisPaneHeader:84` と、
- * 続けて並べた `provider.tsx:38, 49`。**このファイル自身は走査の対象外**
+ * 綴りは `LINE_SUFFIX` の1つだけを使う。**このファイル自身は走査の対象外**
  * （`src/__tests__` は状態遷移表ではない）なので、ここに例を書いてよい。
  */
 export function lineNumberRefsIn(markdown: string): string[] {
   const found = new Set<string>();
 
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
-    if (/^[A-Za-z_][A-Za-z0-9_./-]*:\d+(-\d+)?(,\s*\d+)*$/.test(inline)) {
-      found.add(inline);
-    }
+    // 前が識別子かパスであること。`03:00` のような綴りを巻き込まない
+    if (!/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
+    if (LINE_SUFFIX.test(inline)) found.add(inline);
   }
 
   return [...found].sort();

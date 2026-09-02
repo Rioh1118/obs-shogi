@@ -106,7 +106,7 @@ Rust 側のテストはごく少数で（現在値は `cargo test` の末尾。�
 - `area:` を4つから8つへ増やすか（増やすなら open 60件に付け直す作業が要る）
 - `wontfix` / `duplicate` / `invalid` を消すか（消すと過去の close 理由が読めなくなる）
 - `blank_issues_enabled: true` のまま「種類・領域を必須」にできるか
-- 外向けの必須項目を Issue Forms に一本化し、`CONTRIBUTING.md:47-59` をリンクに置き換えてよいか
+- 外向けの必須項目を Issue Forms に一本化し、`CONTRIBUTING.md` をリンクに置き換えてよいか
 
 **期限**: 無し。ただし `.claude/skills/write-issue/SKILL.md` が
 「実在するラベルから選ぶ」で暫定運用しているので、決まるまでその状態が続く。

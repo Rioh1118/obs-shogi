@@ -1109,10 +1109,13 @@ impl UsiProtocol {
     /// ましだという判断。`tokio::time::timeout` は `spawn_blocking` を
     /// 取り消さないので、詰まったスレッドはそのまま残る。
     ///
-    /// **落とした handler を drop させない。** `usi` crate の
-    /// `UsiEngineHandler::Drop` は `kill().unwrap()` を呼び、`kill` は先に
-    /// `quit` を書く（`process/engine.rs:73-77, 176-180`）。既に死んだプロセスへの
-    /// 書き込みは EPIPE で失敗するので、**2度目の `kill` は必ずパニックする**。
+    /// **落とした handler を drop させない。** `usi 0.6` の
+    /// `UsiEngineHandler` は `Drop` で `kill().unwrap()` を呼び、その `kill` は
+    /// 先に `quit` を書く。既に死んだプロセスへの書き込みは EPIPE で失敗するので、
+    /// **2度目の `kill` は必ずパニックする**。
+    ///
+    /// 行番号で指さないのは、版を上げた瞬間に無言でずれるため。
+    /// 確かめるときは `Cargo.lock` の版で crate を開き、`Drop` と `kill` を読む。
     ///
     /// `forget` で漏れるのはパイプの fd。子プロセスの回収はどちらにせよ
     /// 起きない（Rust の `Child::drop` は `wait` しない）。→ #353

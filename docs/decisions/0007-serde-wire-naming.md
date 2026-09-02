@@ -57,7 +57,7 @@ grep -rn 'rename_all = "snake_case"' src-tauri/src | wc -l  # => 1
 規則が無いので `#[serde(rename = "isDir")]` と**1欄ずつ手で**当てている。
 
 食い違いは既に1つ在る。`AnalysisUpdate` は `session_id` で出しているのに
-`src/entities/engine/api/events.ts:23` は `payload.sessionId` を読む。
+`src/entities/engine/api/events.ts` は `payload.sessionId` を読む。
 **いまは無害**で、読んでいるのが `analysis-complete` のハンドラであり、
 Rust はそのイベントを一度も emit していない（実測0箇所）。読み手が増えた瞬間に
 `undefined` になる形で残っている。

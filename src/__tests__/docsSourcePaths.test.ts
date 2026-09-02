@@ -32,21 +32,49 @@ describe("状態遷移表が指すソースのパス", () => {
 
     expect(broken).toEqual([]);
   });
+});
 
+/**
+ * `docs/` の**全部**が行番号で指さないこと。
+ *
+ * パスの実在は状態遷移表だけに絞ってよい（ADR は別リポジトリのパスを引くので、
+ * 実在を要求できない）。**行番号のほうは絞る理由が無い。** 自リポジトリを
+ * 行番号で指せば、どこに書いてあっても無言でずれる。
+ *
+ * 実際、状態遷移表の32件を落とした同じ変更で、ADR-0004 が
+ * 消えた関数名と行番号を指したまま残った。あの ADR は「どの失敗がどの段か」の
+ * 唯一の持ち主で、`failure-surfacing.md` がそこへ委譲している。
+ *
+ * 指したいものがあるなら識別子で指すこと（`docsIdentifiers` がそちらを見る）。
+ */
+describe("docs が行番号で指していないこと", () => {
   /**
-   * 行番号で指さないこと。
+   * 別リポジトリの行番号を引くファイル。
    *
-   * パスの実在は上の検査が見るが、**その中の何行目かは誰も見ていない。**
-   * 1行足すだけで無言でずれ、読み手はそこを開いて別のものを読む。
-   * ずれたことに気付く者がいないので、死んだパスより始末が悪い。
+   * **こちらの変更ではずれない**ので、腐り方が違う。引く側が版を書いて
+   * 追えるようにする約束にすれば、この免除は外せる。
    *
-   * 指したいものがあるなら識別子で指すこと（`docsIdentifiers` がそちらを見る）。
+   * 増やすときは「なぜ自リポジトリを指していないか」を書けるときだけ。
    */
+  const EXEMPT = new Map([
+    ["PREMISES.md", "YaneuraOu の `source/book/book.h` を根拠として引く"],
+    ["decisions/0002-drop-book-read-write.md", "同上。定跡の実装を捨てた根拠"],
+  ]);
+
+  test("免除が現物を指している", () => {
+    const all = new Set(markdownFiles());
+    const dead = [...EXEMPT.keys()].filter((f) => !all.has(f));
+
+    expect(dead, "免除が実在しないファイルを指している。消したなら免除も消すこと").toEqual([]);
+  });
+
   test("行番号で指していない", () => {
-    const refs = tableFiles().flatMap((relative) => {
-      const body = readFileSync(docsPath(relative), "utf8");
-      return lineNumberRefsIn(body).map((r) => `${relative}: ${r}`);
-    });
+    const refs = markdownFiles()
+      .filter((relative) => !EXEMPT.has(relative))
+      .flatMap((relative) => {
+        const body = readFileSync(docsPath(relative), "utf8");
+        return lineNumberRefsIn(body).map((r) => `${relative}: ${r}`);
+      });
 
     expect(refs, "行番号は無言でずれる。識別子で指すこと").toEqual([]);
   });
@@ -115,5 +143,33 @@ describe("接頭辞の扱い", () => {
     expect(missingPaths(sourcePathsIn("`src/entities/kifu/model/GONE.ts`"))).toEqual([
       "src/entities/kifu/model/GONE.ts",
     ]);
+  });
+});
+
+describe("lineNumberRefsIn", () => {
+  /**
+   * 綴りはパス側と1つを共有する。
+   *
+   * 割れると片方だけが狭くなる。実際、パス側が `#L12` を落としているのに
+   * 行番号側は `:42` しか見ておらず、`#L` の形は両方を通り抜けた。
+   */
+  test.each([
+    ["`bridge.rs:117`", "コロンと数字"],
+    ["`provider.tsx:19-24`", "範囲"],
+    ["`provider.tsx:38, 49`", "並べたもの"],
+    ["`protocol.rs#L24`", "GitHub 由来の #L"],
+    ["`protocol.rs:L24`", "コロンと L"],
+    ["`AnalysisPaneHeader:84`", "拡張子の無い識別子"],
+  ])("%s を拾う（%s）", (markdown) => {
+    expect(lineNumberRefsIn(markdown)).toHaveLength(1);
+  });
+
+  test.each([
+    ["`src/entities/kifu/model/cursor.ts`", "行番号の無いパス"],
+    ["`cursorFromPlayer`", "識別子だけ"],
+    ["`03:00`", "時刻"],
+    ["バッククォートの外の bridge.rs:117", "囲まれていない"],
+  ])("%s は拾わない（%s）", (markdown, _why) => {
+    expect(lineNumberRefsIn(markdown)).toEqual([]);
   });
 });
