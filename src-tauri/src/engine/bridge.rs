@@ -1,6 +1,6 @@
 use crate::engine::utils::LogThrottle;
 
-use super::analyzer::EngineAnalyzer;
+use super::analyzer::{EngineAnalyzer, MAX_THINK_TIME};
 use super::game::manager::GameManager;
 use super::registry::EngineRegistry;
 use super::types::*;
@@ -320,11 +320,25 @@ impl EngineBridge {
         );
     }
 
+    /// 時間指定の解析。
+    ///
+    /// **考慮時間に上限を掛ける。** `time_seconds` はフロントから来るので、
+    /// そのまま渡すと席を握ったまま何時間でも戻らない解析を作れてしまう。
+    /// 断らずに丸めるのは、上限が「安全のための天井」であって
+    /// 利用者の指定が誤りだったわけではないため。
     pub async fn analyze_with_time_impl(
         &self,
         time_seconds: u64,
     ) -> Result<AnalysisResult, String> {
-        let duration = Duration::from_secs(time_seconds);
+        let duration = Duration::from_secs(time_seconds).min(MAX_THINK_TIME);
+        if duration != Duration::from_secs(time_seconds) {
+            log::warn!(
+                target: LOGT,
+                "analyze_with_time: {}s は上限の {}s に丸めた",
+                time_seconds,
+                MAX_THINK_TIME.as_secs()
+            );
+        }
         let session_id = self.take_session(SessionType::Timed(duration)).await?;
 
         let result = self

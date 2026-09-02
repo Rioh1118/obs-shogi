@@ -12,6 +12,31 @@ use usi::{EngineCommand, GuiCommand, ThinkParams};
 
 const LOGT: &str = "obs_shogi::engine::analyzer";
 
+/// 考慮時間が尽きてから `bestmove` を待つ猶予。
+///
+/// **`byoyomi` と同じ締切で待たない。** エンジンは指定した時間だけ考えてから
+/// `bestmove` を書くので、同じ締切だと必ず先にこちらが折れる。
+/// そのときの `Timeout` は「エンジンが遅い」ではなく「待ち方が短い」でしかない。
+const BESTMOVE_GRACE: Duration = Duration::from_secs(3);
+
+/// `stop` を撃ってから `bestmove` を待つ上限。
+///
+/// これを過ぎたら `Timeout` を返して席を返す。エンジンはまだ探索中かもしれないが、
+/// 待ち続けても席が空かないので、利用者にエンジンの再起動を選ばせるほうが早い。
+const STOP_GRACE: Duration = Duration::from_secs(3);
+
+/// 深度指定の解析に掛ける考慮時間。
+///
+/// 深度だけでは止まらない局面がある（`go depth` を持たないエンジンにも
+/// `byoyomi` は効く）ので、深度と時間の両方で打ち切る。
+const DEPTH_ANALYSIS_BUDGET: Duration = Duration::from_secs(60);
+
+/// 1回の解析に許す考慮時間の上限。
+///
+/// 上限が無いと、`analyze_with_time` は席を握ったまま何時間でも戻らない。
+/// 席が空かない間は解析も対局も始められない（→ `bridge::take_session`）。
+pub const MAX_THINK_TIME: Duration = Duration::from_secs(600);
+
 fn now_nanos() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -21,6 +46,17 @@ fn now_nanos() -> u128 {
 
 fn contains_usi_breaking_char(s: &str) -> bool {
     s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+}
+
+/// 目標深度に届いたか。
+///
+/// `None`（時間だけで打ち切る解析）では**常に偽**。ここが真を返すと `stop` が飛ぶので、
+/// 深度を指定していない解析まで途中で畳んでしまう。
+fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
+    let Some(target) = target else {
+        return false;
+    };
+    get_depth_of_rank(result, 1).is_some_and(|depth| depth >= target)
 }
 
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
@@ -265,7 +301,9 @@ impl EngineAnalyzer {
         protocol.send_command(&go_command).await?;
 
         // 結果収集
-        let result = self.collect_single_result(&mut raw_rx, time_limit).await;
+        let result = self
+            .collect_until_bestmove(&mut raw_rx, time_limit, None)
+            .await;
 
         // クリーンアップ
         protocol.remove_listener(&listener_id).await;
@@ -297,15 +335,12 @@ impl EngineAnalyzer {
             .register_listener(listener_id.clone(), raw_tx)
             .await?;
 
-        // 深度制限解析 - 時間制限も併用
-        let go_command = GuiCommand::Go(
-            ThinkParams::new().byoyomi(Duration::from_secs(60)), // 最大60秒
-        );
+        // 深度だけでは止まらない局面があるので、時間でも打ち切る
+        let go_command = GuiCommand::Go(ThinkParams::new().byoyomi(DEPTH_ANALYSIS_BUDGET));
         protocol.send_command(&go_command).await?;
 
-        // 結果収集（深度チェック付き）
         let result = self
-            .collect_result_with_depth(&mut raw_rx, depth_limit)
+            .collect_until_bestmove(&mut raw_rx, DEPTH_ANALYSIS_BUDGET, Some(depth_limit))
             .await;
 
         // クリーンアップ
@@ -445,94 +480,78 @@ impl EngineAnalyzer {
         log::debug!(target: LOGT, "stream: end processed={}", processed);
     }
 
-    /// 単一結果収集
-    async fn collect_single_result(
+    /// `bestmove` が返るまで応答を集める。
+    ///
+    /// **締切で黙って抜けない。** 抜けるだけだとエンジンの探索は走ったままで、
+    /// こちらは席を返してしまう。次の `go` は「探索中」で断られ、
+    /// エンジンを再起動するまで解析が始まらない。締切に当たったら `stop` を撃ち、
+    /// `bestmove` をもう一度だけ待つ。
+    ///
+    /// `target_depth` を渡すと、その深度に届いた時点でも `stop` を撃つ。
+    /// 深度と時間で入口は分かれるが、**待ち方と後始末は同じ**なのでここに畳んである。
+    async fn collect_until_bestmove(
         &self,
         raw_rx: &mut mpsc::UnboundedReceiver<EngineCommand>,
-        timeout: Duration,
+        budget: Duration,
+        target_depth: Option<u32>,
     ) -> Result<AnalysisResult, EngineError> {
         let mut result = AnalysisResult::default();
-        let start_time = Instant::now();
+        let mut deadline = Instant::now() + budget + BESTMOVE_GRACE;
 
-        while start_time.elapsed() < timeout {
-            match tokio::time::timeout(Duration::from_millis(100), raw_rx.recv()).await {
-                Ok(Some(cmd)) => match cmd {
-                    EngineCommand::Info(info_params) => {
-                        apply_info_params(&info_params, &mut result);
-                    }
-                    EngineCommand::Checkmate(checkmate_params) => {
-                        Self::process_checkmate(&checkmate_params, &mut result);
-                    }
-                    EngineCommand::BestMove(_) => {
-                        return Ok(result);
-                    }
-                    _ => {}
-                },
-                Ok(None) => {
-                    return Err(EngineError::CommunicationFailed(
-                        "Channel closed".to_string(),
-                    ));
-                }
-                Err(_) => continue, // タイムアウト継続
-            }
-        }
-
-        Err(EngineError::Timeout("Analysis timeout".to_string()))
-    }
-
-    /// 深度制限付き結果収集
-    async fn collect_result_with_depth(
-        &self,
-        raw_rx: &mut mpsc::UnboundedReceiver<EngineCommand>,
-        target_depth: u32,
-    ) -> Result<AnalysisResult, EngineError> {
-        let mut result = AnalysisResult::default();
-        let timeout = Duration::from_secs(60);
-        let start_time = Instant::now();
-
+        // `stop` は1回だけ撃つ。`info` は毎秒何十行も来るので、印を持たないと
+        // `bestmove` が返るまで撃ち続ける。書き込みの列が `stop` で埋まるうえ、
+        // `stop_analysis` は無限解析のリスナーも外すので、走っている解析が畳まれる
         let mut stop_sent = false;
 
-        while start_time.elapsed() < timeout {
-            match tokio::time::timeout(Duration::from_millis(100), raw_rx.recv()).await {
-                Ok(Some(cmd)) => {
-                    match cmd {
-                        EngineCommand::Info(info_params) => {
-                            apply_info_params(&info_params, &mut result);
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                if stop_sent {
+                    return Err(EngineError::Timeout(
+                        "engine did not answer after stop".to_string(),
+                    ));
+                }
+                stop_sent = true;
+                deadline = Instant::now() + STOP_GRACE;
+                self.request_stop_for_collection().await;
+                continue;
+            }
 
-                            // 目標深度に達したら停止。**1回だけ。**
-                            //
-                            // `info` は毎秒何十行も来るので、印を持たないと
-                            // `bestmove` が返るまで `stop` を撃ち続ける。
-                            // 書き込みの列が `stop` で埋まるうえ、`stop_analysis` は
-                            // 無限解析のリスナーも外すので、走っている解析が畳まれる
-                            if !stop_sent {
-                                if let Some(depth) = get_depth_of_rank(&result, 1) {
-                                    if depth >= target_depth {
-                                        stop_sent = true;
-                                        self.stop_analysis().await?;
-                                    }
-                                }
-                            }
-                        }
-                        EngineCommand::Checkmate(checkmate_params) => {
-                            Self::process_checkmate(&checkmate_params, &mut result);
-                        }
-                        EngineCommand::BestMove(_) => {
-                            return Ok(result);
-                        }
-                        _ => {}
+            match tokio::time::timeout(left, raw_rx.recv()).await {
+                Ok(Some(EngineCommand::Info(info_params))) => {
+                    apply_info_params(&info_params, &mut result);
+
+                    if !stop_sent && reached_depth(&result, target_depth) {
+                        stop_sent = true;
+                        deadline = Instant::now() + STOP_GRACE;
+                        self.request_stop_for_collection().await;
                     }
                 }
+                Ok(Some(EngineCommand::Checkmate(checkmate_params))) => {
+                    Self::process_checkmate(&checkmate_params, &mut result);
+                }
+                Ok(Some(EngineCommand::BestMove(_))) => return Ok(result),
+                Ok(Some(_)) => {}
                 Ok(None) => {
                     return Err(EngineError::CommunicationFailed(
                         "Channel closed".to_string(),
                     ));
                 }
-                Err(_) => continue, // タイムアウト継続
+                // 締切。次の周回の頭が扱う
+                Err(_) => continue,
             }
         }
+    }
 
-        Err(EngineError::Timeout("Analysis timeout".to_string()))
+    /// 集めている途中で探索を止める。
+    ///
+    /// **失敗しても呼び出し側を折らない。** ここで `?` を使うと、
+    /// それまでに集めた `info` を捨てて返ることになる。止まらなかったことは
+    /// 締切の側（`STOP_GRACE`）が `Timeout` として拾う
+    async fn request_stop_for_collection(&self) {
+        if let Err(e) = self.stop_analysis().await {
+            log::warn!(target: LOGT, "collect: stop failed: {e:?}");
+        }
     }
 
     fn process_checkmate(params: &usi::CheckmateParams, result: &mut AnalysisResult) {
@@ -564,5 +583,56 @@ impl Clone for EngineAnalyzer {
             infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
             infinite_listener: Arc::clone(&self.infinite_listener),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn result_with_depth(depth: u32) -> AnalysisResult {
+        AnalysisResult {
+            candidates: vec![AnalysisCandidate {
+                rank: 1,
+                first_move: None,
+                pv_line: Vec::new(),
+                evaluation: None,
+                depth: Some(depth),
+                nodes: None,
+                time_ms: None,
+            }],
+            ..Default::default()
+        }
+    }
+
+    /// 深度を指定していない解析を、深度で止めないこと。
+    ///
+    /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの解析が、
+    /// エンジンが最初の `info depth` を出した時点で畳まれる
+    #[tokio::test]
+    async fn a_time_only_analysis_is_never_cut_short_by_depth() {
+        for depth in [0, 1, 20, u32::MAX] {
+            assert!(
+                !reached_depth(&result_with_depth(depth), None),
+                "深度 {depth} で止めてはいけない"
+            );
+        }
+    }
+
+    /// 届いたかの境目。**「以上」であること。**
+    ///
+    /// `>` にすると、目標ちょうどで止まらずに次の深度まで探索が続く。
+    /// 深度を指定した意味が無くなる
+    #[tokio::test]
+    async fn the_target_depth_itself_counts_as_reached() {
+        assert!(!reached_depth(&result_with_depth(9), Some(10)));
+        assert!(reached_depth(&result_with_depth(10), Some(10)));
+        assert!(reached_depth(&result_with_depth(11), Some(10)));
+    }
+
+    /// 候補がまだ1つも来ていない段階で止めないこと
+    #[tokio::test]
+    async fn nothing_is_reached_before_the_first_info() {
+        assert!(!reached_depth(&AnalysisResult::default(), Some(1)));
     }
 }
