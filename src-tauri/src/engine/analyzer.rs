@@ -1,6 +1,6 @@
 use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
-use super::protocol::UsiProtocol;
+use super::protocol::{StopEffect, UsiProtocol};
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
 use super::USI_OK_TIMEOUT;
@@ -46,6 +46,69 @@ fn now_nanos() -> u128 {
 
 fn contains_usi_breaking_char(s: &str) -> bool {
     s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+}
+
+/// `stop` を撃った後、`bestmove` を待ってよいか。
+///
+/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `STOP_GRACE` を待ち切り、
+/// 来るはずのない `bestmove` の後に「エンジンが `stop` に応じなかった」という
+/// 説明が残る。エンジンは `go` を1バイトも受け取っていないことがある。
+///
+/// `game::search` の `outcome_of_stop` と同じ4分岐。あちらは対局の結果へ写し、
+/// こちらは待ち方へ写す。写す先が違うので型は分かれるが、**分岐は同じ**。
+#[derive(Debug)]
+enum StopVerdict {
+    /// 書けた。この後 `bestmove` が来る
+    Wait,
+    /// まだ書いていない `go` を落とした。**`bestmove` は来ない**
+    NothingToWait,
+    /// 送れなかった。待っても意味が無い
+    Failed(EngineError),
+}
+
+fn verdict_of_stop(stopped: Result<StopEffect, EngineError>) -> StopVerdict {
+    match stopped {
+        Ok(StopEffect::Written) => StopVerdict::Wait,
+        Ok(StopEffect::CancelledQueued) => StopVerdict::NothingToWait,
+        // 上限まで返らなかった。エンジンは探索中とみなす——書き込みは
+        // 取り消せないので、後から届いて `bestmove` が返る目はまだある
+        Err(e @ EngineError::Timeout(_)) => StopVerdict::Failed(e),
+        Err(e) => StopVerdict::Failed(e),
+    }
+}
+
+/// ログに出す理由。`verdict_of_stop` と同じ分岐を1箇所で言葉にする
+fn stop_reason(stopped: &Result<StopEffect, EngineError>) -> String {
+    match stopped {
+        Ok(effect) => format!("{effect:?}"),
+        Err(e) => e.to_string(),
+    }
+}
+
+/// `go` が1度も書かれなかったときの失敗。
+///
+/// `Timeout` と分ける。あちらは「エンジンが答えない」で、こちらは
+/// 「エンジンはまだ何も聞いていない」。次の手が違う（前者は再起動、
+/// 後者は `isready` を待ってからやり直す）。
+fn not_searching() -> EngineError {
+    EngineError::InvalidState(
+        "the engine never received the go command; it was still getting ready".to_string(),
+    )
+}
+
+/// 積まれていた古い出力を捨てる。
+///
+/// **`go` を書き終えてから呼ぶこと。** その前にエンジンが出した行は、
+/// この `go` への応答ではありえない（エンジンはまだ受け取っていない）。
+/// 前の探索が `Timeout` で見捨てられた後も走り続けている場合、その
+/// `bestmove` がこちらのリスナーに届く。捨てないと、それを自分の答えとして
+/// 採り——候補手0件の空の結果が `Ok` で返る。
+fn drain_stale(raw_rx: &mut mpsc::UnboundedReceiver<EngineCommand>) -> usize {
+    let mut dropped = 0;
+    while raw_rx.try_recv().is_ok() {
+        dropped += 1;
+    }
+    dropped
 }
 
 /// 目標深度に届いたか。
@@ -300,9 +363,14 @@ impl EngineAnalyzer {
         let go_command = GuiCommand::Go(ThinkParams::new().byoyomi(time_limit));
         protocol.send_command(&go_command).await?;
 
-        // 結果収集
+        // **書き終えてから捨てる。** それより前の出力はこの `go` への応答ではない
+        let stale = drain_stale(&mut raw_rx);
+        if stale > 0 {
+            log::debug!(target: LOGT, "timed: dropped {stale} stale line(s)");
+        }
+
         let result = self
-            .collect_until_bestmove(&mut raw_rx, time_limit, None)
+            .collect_until_bestmove(&protocol, &mut raw_rx, time_limit, None)
             .await;
 
         // クリーンアップ
@@ -339,8 +407,18 @@ impl EngineAnalyzer {
         let go_command = GuiCommand::Go(ThinkParams::new().byoyomi(DEPTH_ANALYSIS_BUDGET));
         protocol.send_command(&go_command).await?;
 
+        let stale = drain_stale(&mut raw_rx);
+        if stale > 0 {
+            log::debug!(target: LOGT, "depth: dropped {stale} stale line(s)");
+        }
+
         let result = self
-            .collect_until_bestmove(&mut raw_rx, DEPTH_ANALYSIS_BUDGET, Some(depth_limit))
+            .collect_until_bestmove(
+                &protocol,
+                &mut raw_rx,
+                DEPTH_ANALYSIS_BUDGET,
+                Some(depth_limit),
+            )
             .await;
 
         // クリーンアップ
@@ -491,6 +569,7 @@ impl EngineAnalyzer {
     /// 深度と時間で入口は分かれるが、**待ち方と後始末は同じ**なのでここに畳んである。
     async fn collect_until_bestmove(
         &self,
+        protocol: &UsiProtocol,
         raw_rx: &mut mpsc::UnboundedReceiver<EngineCommand>,
         budget: Duration,
         target_depth: Option<u32>,
@@ -499,8 +578,7 @@ impl EngineAnalyzer {
         let mut deadline = Instant::now() + budget + BESTMOVE_GRACE;
 
         // `stop` は1回だけ撃つ。`info` は毎秒何十行も来るので、印を持たないと
-        // `bestmove` が返るまで撃ち続ける。書き込みの列が `stop` で埋まるうえ、
-        // `stop_analysis` は無限解析のリスナーも外すので、走っている解析が畳まれる
+        // `bestmove` が返るまで撃ち続け、書き込みの列が `stop` で埋まる
         let mut stop_sent = false;
 
         loop {
@@ -512,8 +590,11 @@ impl EngineAnalyzer {
                     ));
                 }
                 stop_sent = true;
-                deadline = Instant::now() + STOP_GRACE;
-                self.request_stop_for_collection().await;
+                match self.stop_for_collection(protocol).await {
+                    StopVerdict::Wait => deadline = Instant::now() + STOP_GRACE,
+                    StopVerdict::NothingToWait => return Err(not_searching()),
+                    StopVerdict::Failed(e) => return Err(e),
+                }
                 continue;
             }
 
@@ -523,8 +604,13 @@ impl EngineAnalyzer {
 
                     if !stop_sent && reached_depth(&result, target_depth) {
                         stop_sent = true;
-                        deadline = Instant::now() + STOP_GRACE;
-                        self.request_stop_for_collection().await;
+                        match self.stop_for_collection(protocol).await {
+                            StopVerdict::Wait => deadline = Instant::now() + STOP_GRACE,
+                            // 深度には届いている。`go` が積み置きのままだったなら
+                            // その `info` は別の探索のもの——ここへは来ない
+                            StopVerdict::NothingToWait => return Ok(result),
+                            StopVerdict::Failed(e) => return Err(e),
+                        }
                     }
                 }
                 Ok(Some(EngineCommand::Checkmate(checkmate_params))) => {
@@ -532,11 +618,10 @@ impl EngineAnalyzer {
                 }
                 Ok(Some(EngineCommand::BestMove(_))) => return Ok(result),
                 Ok(Some(_)) => {}
-                Ok(None) => {
-                    return Err(EngineError::CommunicationFailed(
-                        "Channel closed".to_string(),
-                    ));
-                }
+                // 出力が終わったプロセス。**「Channel closed」と言わない。**
+                // 落としたのか、詰まったのか、エンジンが終わったのかで
+                // 次の手が違う（→ `UsiProtocol::cannot_reach`）
+                Ok(None) => return Err(protocol.cannot_reach()),
                 // 締切。次の周回の頭が扱う
                 Err(_) => continue,
             }
@@ -545,13 +630,17 @@ impl EngineAnalyzer {
 
     /// 集めている途中で探索を止める。
     ///
-    /// **失敗しても呼び出し側を折らない。** ここで `?` を使うと、
-    /// それまでに集めた `info` を捨てて返ることになる。止まらなかったことは
-    /// 締切の側（`STOP_GRACE`）が `Timeout` として拾う
-    async fn request_stop_for_collection(&self) {
-        if let Err(e) = self.stop_analysis().await {
-            log::warn!(target: LOGT, "collect: stop failed: {e:?}");
-        }
+    /// **`stop_analysis` を通さない。** あちらは無限解析の後始末
+    /// （`infinite_stop_requested` を立てる・`infinite_listener` を外す）も持つ。
+    /// 収集ループが呼ぶと、**別に走っている無限解析のストリームを畳む**。
+    /// フロントには `analysis-update` が止まるだけで、エラーも完了も飛ばない。
+    ///
+    /// 猶予を測り始めるのは `stop()` が返ってから。先に測ると、書き込みの列に
+    /// 先客が居たぶん（最大 `WRITE_TIMEOUT`）が猶予から引かれる。
+    async fn stop_for_collection(&self, protocol: &UsiProtocol) -> StopVerdict {
+        let stopped = protocol.stop().await;
+        log::debug!(target: LOGT, "collect: stop -> {}", stop_reason(&stopped));
+        verdict_of_stop(stopped)
     }
 
     fn process_checkmate(params: &usi::CheckmateParams, result: &mut AnalysisResult) {
@@ -634,5 +723,73 @@ mod tests {
     #[tokio::test]
     async fn nothing_is_reached_before_the_first_info() {
         assert!(!reached_depth(&AnalysisResult::default(), Some(1)));
+    }
+
+    /// `stop` の終わり方4通りを、待ち方へ潰さずに写すこと。
+    ///
+    /// **`CancelledQueued` を `Wait` に潰すのが一番の穴。** 潰すと
+    /// `STOP_GRACE` を待ち切り、来るはずのない `bestmove` の後に
+    /// 「エンジンが `stop` に応じなかった」という説明が残る。
+    /// エンジンは `go` を1バイトも受け取っていない。
+    #[tokio::test]
+    async fn the_ways_a_stop_can_end_are_not_collapsed_into_waiting() {
+        assert!(matches!(
+            verdict_of_stop(Ok(StopEffect::Written)),
+            StopVerdict::Wait
+        ));
+        assert!(matches!(
+            verdict_of_stop(Ok(StopEffect::CancelledQueued)),
+            StopVerdict::NothingToWait
+        ));
+        assert!(matches!(
+            verdict_of_stop(Err(EngineError::Timeout("blocked".to_string()))),
+            StopVerdict::Failed(EngineError::Timeout(_))
+        ));
+        assert!(matches!(
+            verdict_of_stop(Err(EngineError::CommunicationFailed("gone".to_string()))),
+            StopVerdict::Failed(EngineError::CommunicationFailed(_))
+        ));
+    }
+
+    /// 送れなかった理由を潰さないこと。
+    ///
+    /// `Timeout`（詰まった）と `CommunicationFailed`（届く先が無い）で
+    /// 利用者の次の手が違う。`Failed` に包むときに文言を作り直さない
+    #[tokio::test]
+    async fn a_failed_stop_keeps_which_failure_it_was() {
+        let StopVerdict::Failed(e) = verdict_of_stop(Err(EngineError::Timeout("x".to_string())))
+        else {
+            panic!("Failed が返っていない");
+        };
+        assert_eq!(
+            e.to_string(),
+            EngineError::Timeout("x".to_string()).to_string()
+        );
+    }
+
+    /// `go` が書かれなかった失敗と、答えが返らなかった失敗を分けること
+    #[tokio::test]
+    async fn never_sent_is_not_the_same_as_never_answered() {
+        assert!(matches!(not_searching(), EngineError::InvalidState(_)));
+        assert_ne!(
+            not_searching().to_string(),
+            EngineError::Timeout("engine did not answer after stop".to_string()).to_string()
+        );
+    }
+
+    /// 積まれていた古い出力を捨てること。
+    ///
+    /// 捨てないと、前の探索の `bestmove` を自分の答えとして採る。
+    /// `bestmove` が先に届けば**候補手0件の空の結果が `Ok` で返る**
+    #[tokio::test]
+    async fn stale_output_is_dropped_before_collecting() {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        tx.send(EngineCommand::BestMove(usi::BestMoveParams::Resign))
+            .unwrap();
+        tx.send(EngineCommand::BestMove(usi::BestMoveParams::Resign))
+            .unwrap();
+
+        assert_eq!(drain_stale(&mut rx), 2);
+        assert_eq!(drain_stale(&mut rx), 0, "2度目は何も残っていない");
     }
 }

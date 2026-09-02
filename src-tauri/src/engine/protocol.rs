@@ -716,7 +716,7 @@ impl UsiProtocol {
     /// **`Closed` は複数の理由で立つ**（`set_ready_state(_, Closed)` の呼び出しを見ること）。
     /// 読み取りが終わった、書き込みが詰まった、こちらが落とした。
     /// 利用者に見せる説明も次の手も違うので、`Closed` の一語に潰さない。
-    fn cannot_reach(&self) -> EngineError {
+    pub(crate) fn cannot_reach(&self) -> EngineError {
         use std::sync::atomic::Ordering::Relaxed;
 
         EngineError::CommunicationFailed(
