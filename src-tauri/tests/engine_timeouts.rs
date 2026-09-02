@@ -7,20 +7,29 @@
 //! 同じ段の中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
 //! **散文で「同じ10分」と書かない**——書くと、片方を動かしたときに何も落ちない。
 
-use app_lib::engine::analyzer::MAX_THINK_TIME;
+use std::time::Duration;
+
 use app_lib::engine::game::session::{CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT};
+use app_lib::engine::game::types::MAX_TIME_MS;
 use app_lib::CLOSE_TIMEOUT;
 
-/// 「1手にこれ以上は待たない」を、対局と解析で同じ値にする。
+/// 対局で1手に待ちうる最大が、終了時の予算より**長い**こと。
 ///
-/// 利用者から見れば同じ約束なのに、片方だけ動かすと
-/// 「対局では10分待つが解析では5分で切られる」のような食い違いが出る。
-/// どちらが正かを決める根拠がどこにも無いので、等値で縛る。
+/// これは意図した関係。固まったエンジンを待つ時間と、アプリを閉じるときに
+/// 待つ時間は別の話で、後者を前者に合わせると終了が何時間も待たされる。
+/// 閉じるときは畳めていなくても落とす（→ `CLOSE_TIMEOUT` の doc）。
+///
+/// **等値で縛らない。** `HARD_TURN_LIMIT` と `MAX_THINK_TIME` は値が同じだが、
+/// 約束が違う（前者は持ち時間を使い切った後の猶予、後者は解析の席を握る上限）。
+/// 縛ると、解析の席を緩めただけで固まった対局エンジンの猶予まで伸びる。
 #[test]
-fn the_game_and_the_analysis_wait_the_same_for_one_move() {
-    assert_eq!(
-        HARD_TURN_LIMIT, MAX_THINK_TIME,
-        "1手の上限が対局と解析で違う。片方だけ動かしていないか"
+fn closing_never_waits_as_long_as_a_stuck_engine() {
+    let longest_turn = Duration::from_millis(MAX_TIME_MS) + HARD_TURN_LIMIT;
+
+    assert!(
+        CLOSE_TIMEOUT < longest_turn,
+        "終了時の予算({CLOSE_TIMEOUT:?})が、1手に待ちうる最大({longest_turn:?})以上。\
+         アプリを閉じるのに対局の番人と同じだけ待つことになる"
     );
 }
 

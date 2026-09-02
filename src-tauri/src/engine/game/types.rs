@@ -129,7 +129,7 @@ pub struct TimeLimit {
 ///
 /// 24時間にしたのは、これを超える持ち時間の対局が将棋に無いから。
 /// 足りなくなったら上げてよい。
-const MAX_TIME_MS: u64 = 24 * 60 * 60 * 1000;
+pub const MAX_TIME_MS: u64 = 24 * 60 * 60 * 1000;
 
 impl TimeLimit {
     /// 通したい組み合わせ。

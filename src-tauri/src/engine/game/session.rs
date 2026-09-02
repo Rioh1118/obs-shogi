@@ -79,9 +79,14 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 /// （`enforce_engine_timeout` が偽なら時間切れも掛からず、`run_search` にも締切は無い）。
 /// フロントには読み筋だけが流れ続け、利用者が中断を押すまで対局が終わらない。
 ///
-/// 解析側の `MAX_THINK_TIME` と同じ10分。**片方だけ動かさないこと**——
-/// どちらも「1手にこれ以上は待たない」で、利用者から見て同じ約束。
-/// 等値は `engine_timeouts.rs` が見る。
+/// **これは「1手に待つ上限」ではない。** 持ち時間に足すので、実際に待つのは
+/// 最大で `MAX_TIME_MS`（24時間）＋これ。24時間切れ負けで
+/// `enforce_engine_timeout` が偽なら、固まったエンジンはその間落ちない。
+/// それを短くしたいなら、ここではなく持ち時間の上限（`MAX_TIME_MS`）か
+/// `enforce_engine_timeout` の既定を変えること。
+///
+/// 解析側の `MAX_THINK_TIME` とは**別の約束**。あちらは席を握る時間の上限で、
+/// こちらは持ち時間を使い切った後の猶予。値が同じなのは偶然なので縛らない。
 pub const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 
 /// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
@@ -99,7 +104,8 @@ pub const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 /// 締切が `SEARCH_GRACE` ちょうどになり、**正常に読み続けているエンジンが
 /// 30秒で「応答しない」と呼ばれる**。利用者は「時間切れを成立させない」と
 /// 指定したのに、時計が尽きた30秒後に必ず負けることになる。
-/// 黙っていること（`silent_for`）を条件に足す。
+/// 黙っていること（`silent_for`）を条件に足す。**持ち時間とは無関係に見る**
+/// ——黙っているかどうかは、持ち時間が残っているかとは別の話。
 ///
 /// 先読み中は `TurnClock` が相手側の手番を指しているので、ここには掛からない
 /// （先読みは `ponderhit` か `stop` が来るまで走ってよい）。
@@ -133,9 +139,13 @@ fn stalled_turn(
         return Some(Stall::NotAnswering);
     }
 
-    // **両方が要る。** 持ち時間を過ぎただけなら、まだ読んでいるだけかもしれない。
-    // 黙っただけなら、`info` を出さずに短く考えるエンジンを落としてしまう
-    if since.elapsed() >= budget + SEARCH_GRACE && silent_for >= SEARCH_GRACE {
+    // **黙っていることは持ち時間と無関係の信号。** ここに持ち時間を足すと、
+    // 60分の対局で初手から固まったエンジンが60分30秒のあいだ検出されない
+    // （フロントには時計だけが流れ続け、正常な長考と区別が付かない）。
+    //
+    // 手番に入って `SEARCH_GRACE` 経ってから見るのは、`go` を出した直後の
+    // 一瞬を「黙っている」と数えないため。
+    if since.elapsed() >= SEARCH_GRACE && silent_for >= SEARCH_GRACE {
         return Some(Stall::NotAnswering);
     }
     None
@@ -2244,7 +2254,9 @@ mod tests {
             "畳み待ちの上限は持ち時間とも便りとも無関係"
         );
 
-        // 思考中の上限は持ち時間ぶんだけ伸びる
+        // **黙っているなら持ち時間が残っていても落とす。**
+        // 持ち時間を足すと、60分の対局で初手から固まったエンジンが
+        // 60分30秒のあいだ検出されない
         assert_eq!(
             stalled_turn(
                 TurnClock::Running(long_ago(SEARCH_GRACE)),
@@ -2252,11 +2264,45 @@ mod tests {
                 silent,
                 true
             ),
-            None
+            Some(Stall::NotAnswering),
+            "黙っているのに持ち時間が残っているから待っている"
         );
         assert_eq!(
             stalled_turn(TurnClock::Running(long_ago(SEARCH_GRACE)), 0, silent, true),
             Some(Stall::NotAnswering)
+        );
+    }
+
+    /// **黙って固まったエンジンを、持ち時間ぶん待たないこと。**
+    ///
+    /// 60分切れ負け・`enforce_engine_timeout` は既定の偽・初手のエンジンが
+    /// `go` の後にデッドロックして `info` を1行も出さない、を置く。
+    /// 沈黙の腕に持ち時間を足すと、**60分30秒のあいだ何も起きない**。
+    /// フロントには時計が500msごとに流れ続けるので、正常な長考と区別が付かない。
+    #[test]
+    fn a_silent_engine_is_caught_without_waiting_out_the_clock() {
+        let an_hour = 60 * 60 * 1000;
+
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(SEARCH_GRACE + Duration::from_secs(1))),
+                an_hour,
+                SEARCH_GRACE,
+                true
+            ),
+            Some(Stall::NotAnswering),
+            "黙って固まったエンジンを持ち時間ぶん待っている"
+        );
+
+        // `go` を出した直後の一瞬は「黙っている」と数えない
+        assert_eq!(
+            stalled_turn(
+                TurnClock::Running(long_ago(Duration::from_secs(1))),
+                an_hour,
+                Duration::from_secs(1),
+                true
+            ),
+            None
         );
     }
 

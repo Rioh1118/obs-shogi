@@ -142,24 +142,33 @@ impl EngineRegistry {
         //
         // 超えてもブロッキングのスレッドは残る（`timeout` は取り消せない）。
         // そのぶんワーカが1本減ったままになる → #353 と同じ形。
-        let (engine_path, work_dir, handler) = match tokio::time::timeout(SPAWN_TIMEOUT, started)
-            .await
-        {
-            Ok(Ok(Ok(started))) => started,
-            Ok(Ok(Err(e))) => return Err(e),
-            // 専用スレッドが落ちた。プロセスは起きていない
-            Ok(Err(e)) => {
-                return Err(EngineError::StartupFailed(format!(
-                    "failed to run the spawn task: {e}"
-                )))
-            }
-            Err(_) => {
-                log::error!(target: LOGT, "spawn: timed out before the process started");
-                return Err(EngineError::Timeout(
-                    "the engine did not start in time; check the path and the volume".to_string(),
-                ));
-            }
-        };
+        let mut started = started;
+        let (engine_path, work_dir, handler) =
+            match tokio::time::timeout(SPAWN_TIMEOUT, &mut started).await {
+                Ok(Ok(Ok(started))) => started,
+                Ok(Ok(Err(e))) => return Err(e),
+                // 専用スレッドが落ちた。プロセスは起きていない
+                Ok(Err(e)) => {
+                    return Err(EngineError::StartupFailed(format!(
+                        "failed to run the spawn task: {e}"
+                    )))
+                }
+                Err(_) => {
+                    log::error!(target: LOGT, "spawn: timed out before the process started");
+                    // **待ち手を捨てない。** 捨てると、遅れて起き上がった
+                    // `UsiEngineHandler` をランタイムが drop する。`usi` crate の
+                    // `Drop` は `kill().unwrap()` を呼び、既に死んだプロセスへの
+                    // 書き込みは EPIPE で失敗するので**パニックする**——
+                    // このコードベースが `Option` + `mem::forget` で避けている唯一の形
+                    // （→ `UsiProtocol::kill_engine`）。
+                    // 起き上がるのを別のタスクで待って、同じ手順で畳む
+                    tokio::spawn(dispose_late_spawn(started));
+                    return Err(EngineError::Timeout(
+                        "the engine did not start in time; check the path and the volume"
+                            .to_string(),
+                    ));
+                }
+            };
 
         let protocol = Arc::new(UsiProtocol::new(handler));
 
@@ -205,7 +214,34 @@ impl EngineRegistry {
         );
         Ok(process)
     }
+}
 
+/// 上限を超えた後に起き上がったプロセスを畳む。
+///
+/// **`Drop` に任せない。** `usi` crate の `UsiEngineHandler::Drop` は
+/// `kill().unwrap()` を呼び、`kill` は先に `quit` を書く。既に死んだプロセスへの
+/// 書き込みは EPIPE で失敗するのでパニックする（`UsiProtocol` が
+/// `Option` + `mem::forget` を持っているのと同じ理由）。
+///
+/// 落とせたかは見ない。目的は「死んでいること」で、既に死んでいれば
+/// `quit` の書き込みが失敗するだけ。
+async fn dispose_late_spawn(
+    started: tokio::task::JoinHandle<Result<(String, String, UsiEngineHandler), EngineError>>,
+) {
+    let Ok(Ok((path, _, mut handler))) = started.await else {
+        return;
+    };
+    log::warn!(target: LOGT, "spawn: disposing a late engine path='{path}'");
+
+    // `kill` も同期の書き込みを含むので専用スレッドへ出す
+    let _ = tokio::task::spawn_blocking(move || {
+        let _ = handler.kill();
+        std::mem::forget(handler);
+    })
+    .await;
+}
+
+impl EngineRegistry {
     pub async fn get(&self, id: &str) -> Option<Arc<EngineProcess>> {
         self.processes.read().await.get(id).cloned()
     }
