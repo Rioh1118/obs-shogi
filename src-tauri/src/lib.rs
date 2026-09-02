@@ -4,6 +4,7 @@ pub mod engine;
 pub mod engine_presets;
 pub mod file_system;
 pub mod kifu;
+pub mod kifu_text;
 pub mod search;
 pub mod study_positions;
 #[cfg(test)]

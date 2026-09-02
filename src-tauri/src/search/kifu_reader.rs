@@ -7,6 +7,7 @@ use std::{
 
 use thiserror::Error;
 
+use crate::kifu_text::declared_encoding;
 use crate::search::fs_scan::{FileRecord, KifuKind};
 
 // shogi-kifu-converter
@@ -845,7 +846,13 @@ fn cannot_open_reason(e: &std::io::Error) -> String {
     }
 }
 
-/// クレートが試さない文字コード
+/// クレートが試さない文字コード。**[`KIFU_ENCODINGS`] から
+/// クレートの2つ（UTF-8 / Shift_JIS）を除いたもの。**
+///
+/// 並びは [`KIFU_ENCODINGS`] と揃える必要が無い — ここを通るのは
+/// **クレートが読めなかったバイト列だけ**で、どれで読めても
+/// パーサが通ったものを採るため。揃っていることは
+/// `the_skipped_encodings_are_the_shared_list_minus_the_crates_two` が見る。
 const ENCODINGS_THE_CRATE_SKIPS: [&Encoding; 4] = [UTF_16LE, UTF_16BE, EUC_JP, ISO_2022_JP];
 
 /// クレートが自分で試す文字コードの名前。**利用者に見せる文字列でしかない。**
@@ -854,51 +861,6 @@ const ENCODINGS_THE_CRATE_SKIPS: [&Encoding; 4] = [UTF_16LE, UTF_16BE, EUC_JP, I
 /// 「何を試したか」を並べるためのもの。実際に復号を試す順は形式ごとに違う
 /// （CSA は [`CRATE_CSA_DECODE_ORDER`]）。**この定数を復号に使わないこと。**
 const CRATE_ENCODING_NAMES: [&str; 2] = ["Shift_JIS", "UTF-8"];
-
-/// バイト列が名乗っている文字コード。分からなければ `None`。
-///
-/// **推測しない。そのバイト列にしか現れない印だけを見る。**
-///
-/// | 印 | 文字コード |
-/// | --- | --- |
-/// | BOM | UTF-8 / UTF-16LE / UTF-16BE |
-/// | エスケープ `ESC $ B` | ISO-2022-JP |
-///
-/// # NUL の数や偏りで UTF-16 を当てにいかないこと
-///
-/// 素直に見えるが、どれも棋譜の中身の統計に依存していて反例がある。
-///
-/// | 規則 | 反例 |
-/// | --- | --- |
-/// | NUL が多いほうの番地でバイト順を決める | NUL が1バイト混じった Shift_JIS が UTF-16 になる |
-/// | NUL が全体の 1/4 以上なら UTF-16 | 全角の多い KI2 が UTF-16 と認められない |
-/// | 反対側の番地の NUL が 1/8 未満なら UTF-16 | `一` `　` は低位バイトが `0x00` なので反対側に NUL を置く。一段目へ指す KI2 が落ちる |
-///
-/// 当てられなくても**読めなくなるわけではない**（読むのは
-/// [`try_other_encodings`] の総当たり）。効くのは読めなかったときの文言だけなので、
-/// 当てにいって嘘の文字コード名を出す側の害のほうが大きい。
-///
-/// BOM の無い UTF-16 は名乗らない。総当たりが読むので開ける。
-/// 読めなかったときに `UTF-16LE として…` と言えないだけ。
-fn declared_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
-    // BOM の並びは手で書かない。`encoding_rs` が同じ表を持っており、
-    // 写すと片方だけ動かしたときに黙って食い違う
-    if let Some((encoding, _)) = Encoding::for_bom(bytes) {
-        return Some(encoding);
-    }
-    // 見るのは `ESC $ B`（JIS X 0208 へ切り替える）だけ。
-    // `ESC ( B` / `ESC ( J` は ASCII へ戻す指示で、**ASCII のファイルにも現れうる**ので
-    // ISO-2022-JP である証拠にならない。
-    //
-    // 7bit かどうかはここでは見ない。ISO-2022-JP は定義上 7bit なので、
-    // 0x80 以上があれば**そのファイルが壊れている**（途中で切れた、別の文字コードが
-    // 混ざった）。それは `Evidence::declared_but_garbled` が拾って、
-    // 「切れていないか」と案内する側の話になる。
-    if bytes.windows(3).any(|w| w == b"\x1b$B") {
-        return Some(ISO_2022_JP);
-    }
-    None
-}
 
 /// バイト列から一度だけ読み取る手掛かり。
 ///
@@ -2331,6 +2293,80 @@ P3 *  *  *  *  *  *  *  *  * \nP4 *  *  *  *  *  *  *  *  * \n\
 P5 *  *  *  *  *  *  *  *  * \nP6 *  *  *  *  *  *  *  *  * \n\
 P7 *  *  *  *  *  *  *  *  * \nP8 *  *  *  *  *  *  *  *  * \n\
 P9 *  *  *  * +OU *  *  *  * ";
+
+    /// 総当たりの候補が、共有の一覧からずれていない。
+    ///
+    /// [`ENCODINGS_THE_CRATE_SKIPS`] を手で足すと、**画面が試さない文字コードを
+    /// 索引だけが読む**ことになる。増やすなら [`KIFU_ENCODINGS`] のほうを増やして、
+    /// 画面（`file_system::operations`）も一緒に読めるようにすること。
+    #[test]
+    fn the_skipped_encodings_are_the_shared_list_minus_the_crates_two() {
+        use crate::kifu_text::KIFU_ENCODINGS;
+
+        let crate_tries = [UTF_8, SHIFT_JIS];
+
+        for enc in ENCODINGS_THE_CRATE_SKIPS {
+            assert!(
+                KIFU_ENCODINGS.contains(&enc),
+                "{} が共有の一覧に無い。画面はこの文字コードを試さない",
+                enc.name()
+            );
+        }
+        for enc in KIFU_ENCODINGS {
+            assert!(
+                ENCODINGS_THE_CRATE_SKIPS.contains(&enc) || crate_tries.contains(&enc),
+                "{} を索引が試していない",
+                enc.name()
+            );
+        }
+    }
+
+    /// **索引が読めた棋譜は、画面も同じ文字列として読める。**
+    ///
+    /// 索引（ここ）と画面（`file_system::operations` の `read_text_portable`）は
+    /// 別々の入口だが、**文字コードの判断は `kifu_text` が1人で持つ**。
+    /// 持ち主が2人いると、同じファイルについて片方が化けた文字列を見る。
+    /// 化けた文字列は `tsshogi` が0手の棋譜にするので、利用者からは
+    /// 「検索には出るのに、開くと中身が無い」に見える。
+    ///
+    /// ここで見るのは**両者が同じ文字列に着く**ことだけ。索引側は誤りを落とす
+    /// 復号まで持っているので読める範囲は広いが、その差は
+    /// [`LOSSY_DECODERS`] を通った棋譜だけに閉じる。
+    ///
+    /// 題材は**すべて合成**。
+    #[test]
+    fn the_index_and_the_viewer_decode_a_kifu_to_the_same_text() {
+        use crate::kifu_text::decode_kifu;
+
+        let dir = temp_dir("same-text");
+        // `山田太郎` は EUC-JP で全バイトが 0xA1〜0xDF に入るので、
+        // Shift_JIS でも誤り無く読めてしまう。順序が効いていないと化ける
+        let kifu = "V2.2\nN+山田太郎\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
+
+        for enc in [UTF_8, EUC_JP, SHIFT_JIS, ISO_2022_JP, UTF_16LE, UTF_16BE] {
+            let name = enc.name();
+            let path = dir.join(format!("{name}.csa"));
+            fs::write(&path, enc.encode(kifu).0.as_ref()).expect("書き出し");
+
+            // 索引が読める
+            let (jkf, _) = read_path_inner(&path, KifuKind::Csa)
+                .unwrap_or_else(|e| panic!("{name}: 索引が読めない: {e}"));
+            assert_eq!(jkf.moves.len(), 4, "{name}: 索引の手数が違う");
+
+            // 画面も同じ文字列に着く
+            let bytes = fs::read(&path).expect("読み直し");
+            let decoded = decode_kifu(&bytes)
+                .unwrap_or_else(|| panic!("{name}: 索引は読めたのに画面が断った"));
+            assert_eq!(
+                decoded.text.trim_start_matches('\u{feff}'),
+                kifu,
+                "{name}: 画面が違う文字列を見ている（{} として読まれた）",
+                decoded.encoding.name()
+            );
+        }
+
+        fs::remove_dir_all(&dir).ok();
+    }
 
     /// 画面に開くほうの行パターンを、**その実装から読む**。
     ///

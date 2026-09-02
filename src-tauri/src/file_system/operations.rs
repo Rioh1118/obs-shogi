@@ -6,6 +6,8 @@ use crate::file_system::{
 };
 use std::io::Write;
 
+use crate::kifu_text::decode_kifu;
+
 use super::utils::{get_file_extension, is_kifu_file};
 use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
@@ -15,7 +17,6 @@ use shogi_kifu_converter_obsshogi::{
 use std::{fs::OpenOptions, path::PathBuf};
 use tauri::{command, AppHandle, Runtime};
 
-use encoding_rs::SHIFT_JIS;
 use std::{fs, path::Path};
 
 fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
@@ -30,29 +31,39 @@ fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     file.write_all(content.as_bytes()).map_err(FsError::from)
 }
 
+/// 棋譜を画面に開くために読む。
+///
+/// **文字コードの判断は [`crate::kifu_text`] が持つ。** ここで別に決めると、
+/// 索引（`search::kifu_reader`）と**同じファイルについて違う文字列を見る**。
+///
+/// # 化けた文字列を返さない
+///
+/// 誤りを無視して復号すると、返るのは化けた文字列でも `Ok`。それを webview へ渡すと
+/// `tsshogi` のインポータは **`Error` ではなく0手の棋譜**を返す
+/// （`entities/kifu/api/parse.ts` の doc が明記している）ので、
+/// 利用者には「開いたのに中身が無い」としか見えず、原因に辿り着けない。
+/// 読めないなら読めないと言う。
 fn read_text_portable(path: &Path) -> Result<String, FsError> {
     let bytes = fs::read(path).map_err(FsError::from)?;
-    let bytes = strip_utf8_bom(&bytes);
 
-    // 1) UTF-8
-    if let Ok(s) = std::str::from_utf8(bytes) {
-        return Ok(s.to_string());
-    }
-
-    // 2) Shift_JIS
-    {
-        let (cow, _, _had_errors) = SHIFT_JIS.decode(bytes);
-        Ok(cow.into_owned())
+    // BOM は復号のあとに落とす。落としてから渡すと、
+    // `declared_encoding` が BOM を見られなくなって UTF-16 を名乗れない
+    match decode_kifu(&bytes) {
+        Some(decoded) => Ok(strip_utf8_bom_str(&decoded.text).to_owned()),
+        None => Err(FsError::new(
+            FsErrorCode::KifuParseFailed,
+            "no candidate encoding decodes this file without errors",
+        )
+        .with_path(path.to_string_lossy().to_string())),
     }
 }
 
-fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
-    const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
-    if bytes.starts_with(&BOM) {
-        &bytes[3..]
-    } else {
-        bytes
-    }
+/// 復号後の文字列の先頭に残る BOM（`U+FEFF`）を落とす。
+///
+/// `encoding_rs` は UTF-16 の BOM を消費するが、**UTF-8 の BOM は文字として残す**。
+/// 残したまま `tsshogi` に渡すと1行目がどの行パターンにも当たらない
+fn strip_utf8_bom_str(text: &str) -> &str {
+    text.strip_prefix('\u{feff}').unwrap_or(text)
 }
 
 #[command]
@@ -340,6 +351,47 @@ mod tests {
         jkf::{Initial, Preset},
         parser::{parse_csa_str, parse_jkf_str, parse_ki2_str, parse_kif_str},
     };
+
+    /// **画面に開く経路が、化けた文字列を返さない。**
+    ///
+    /// 誤りを無視して復号すると、返るのは化けた文字列でも `Ok`。webview へ渡すと
+    /// `tsshogi` は `Error` ではなく0手の棋譜を返すので、利用者には
+    /// 「開いたのに中身が無い」としか見えない。索引には入っているので、
+    /// **検索から辿った先が行き止まりになる**。
+    ///
+    /// EUC-JP を題材にするのは、`山田太郎` が Shift_JIS としても誤り無く
+    /// 復号できるから（半角カナの羅列になる）。UTF-8 → Shift_JIS の順で
+    /// 決め打つと、ここが黙って `ｻｳﾅﾄﾂﾀﾏｺ` になる。
+    #[test]
+    fn opening_a_kifu_never_returns_mojibake() {
+        use encoding_rs::{EUC_JP, UTF_8};
+
+        let dir = std::env::temp_dir().join(format!("obs-shogi-read-{}", std::process::id()));
+        fs::create_dir_all(&dir).expect("作業場所");
+
+        let kifu = "V2.2\nN+山田太郎\nPI\n+\n+7776FU\n%TORYO\n";
+
+        for enc in [UTF_8, EUC_JP] {
+            let path = dir.join(format!("{}.csa", enc.name()));
+            fs::write(&path, enc.encode(kifu).0.as_ref()).expect("書き出し");
+
+            let text = read_text_portable(&path)
+                .unwrap_or_else(|e| panic!("{}: 読めない: {}", enc.name(), e.message));
+            assert_eq!(text, kifu, "{} の棋譜が化けた", enc.name());
+        }
+
+        // どの候補でも誤りが出るバイト列は、読めたことにしない
+        let broken = dir.join("broken.csa");
+        fs::write(&broken, [0x81u8, 0xFF, 0xFE, 0x81, 0xFF]).expect("書き出し");
+        let err = read_text_portable(&broken).expect_err("化けた文字列を返した");
+        assert!(
+            matches!(err.code, FsErrorCode::KifuParseFailed),
+            "読めなかった理由が違う: {:?}",
+            err.code
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
 
     /// 拡張子が指す形式で書く。
     ///
