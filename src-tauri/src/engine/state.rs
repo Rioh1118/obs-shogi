@@ -16,8 +16,7 @@ use super::registry::EngineRegistry;
 
 /// Tauri の `State` に載せる持ち物。
 ///
-/// **台帳は1つ。** 解析と対局で分けると、同じ実行ファイルを二重に起動する
-/// （どちらの台帳にも載らないプロセスができ、掃除が届かない）。
+/// **`registry` は1つを対局と解析で共有する。** 理由は `EngineRegistry::new`。
 pub struct AppState {
     pub bridge: Arc<EngineBridge>,
     pub registry: Arc<EngineRegistry>,
