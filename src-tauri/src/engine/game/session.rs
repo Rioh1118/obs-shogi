@@ -1821,6 +1821,58 @@ mod tests {
         assert_eq!(running.byoyomi_zero_at, running.main_zero_at);
     }
 
+    /// 手番の時計が尽きたら終局すること（表の E14）。
+    ///
+    /// **人間の手番が返らないまま止まった対局を畳む唯一の仕掛け**で、
+    /// `AwaitingRuling` の `RULING_TIMEOUT` に対応する `Thinking` 側の番人。
+    #[tokio::test]
+    async fn running_out_of_time_ends_the_game() {
+        let mut settings = two_humans(vec![]);
+        settings.black_time = TimeLimit {
+            main_ms: 50,
+            byoyomi_ms: 0,
+            increment_ms: 0,
+        };
+        let game = start(settings).await;
+
+        // tick は 100ms ごと。実時間で待つので余裕を取る
+        let mut result = None;
+        for _ in 0..40 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            if let GamePhaseView::Over { result: r } = phase_of(&game.snapshot().await.unwrap()) {
+                result = Some(r.clone());
+                break;
+            }
+        }
+
+        let result = result.expect("持ち時間が尽きても終局しなかった");
+        assert_eq!(result.reason, GameOverReason::Timeout);
+        assert_eq!(result.winner, Some(Side::White));
+    }
+
+    /// 走っている探索からの投了は終局にすること（表の E8 の `A1` 側）。
+    /// `a_resign_from_a_stopped_search_does_not_end_the_game` の対で、
+    /// これが無いと「常に採らない」でも通る
+    #[tokio::test]
+    async fn a_resign_from_a_live_search_ends_the_game() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+
+        runner
+            .on_search_outcome(Side::Black, 1, SearchOutcome::Resign)
+            .await;
+
+        match &runner.phase {
+            Phase::Over { result } => {
+                assert_eq!(result.reason, GameOverReason::Resign);
+                assert_eq!(result.winner, Some(Side::White));
+            }
+            _ => panic!("投了で終局していない"),
+        }
+    }
+
     #[test]
     fn settings_accept_every_pair_of_time_limits_we_want_to_support() {
         // 弾く方向の門番なので、通したいものを先に並べる（/implement 手順5）
