@@ -116,6 +116,22 @@ impl GameEventSink for TauriEvents {
     }
 }
 
+/// 断ったことをログに残す。
+///
+/// 断り文句は `Err` でフロントへ返るが、**受けた側が捨てると記録がどこにも残らない**。
+/// 裁定（`continue_game` / `end_game_by_rule`）を断ると次の手番が始まらず、
+/// 30秒後に `RULING_TIMEOUT` が「アプリが裁定を返さなかった」で畳む。
+/// 断った事実がログに無いと、**呼ばなかったのか断られたのかが区別できない**
+/// （→ 台帳の F-28）。
+///
+/// 絞らない。ここを通るのは利用者の操作かフロントの裁定で、1手に数回しか出ない。
+fn log_rejection<T>(op: &str, game_id: &str, result: Result<T, String>) -> Result<T, String> {
+    if let Err(e) = &result {
+        log::warn!(target: "obs_shogi::engine::game", "{op} rejected game={game_id}: {e}");
+    }
+    result
+}
+
 /// 人間の着手。合法性はフロントが確かめてから呼ぶ
 #[tauri::command]
 pub async fn submit_game_move(
@@ -124,7 +140,11 @@ pub async fn submit_game_move(
     side: Side,
     usi_move: String,
 ) -> Result<(), String> {
-    state.games.submit_move(&game_id, side, usi_move).await
+    log_rejection(
+        "submit_move",
+        &game_id,
+        state.games.submit_move(&game_id, side, usi_move).await,
+    )
 }
 
 /// 裁定「まだ続く」。`moves` が指し手列の権威になる。
@@ -138,7 +158,11 @@ pub async fn continue_game(
     game_id: String,
     moves: Vec<String>,
 ) -> Result<(), String> {
-    state.games.continue_game(&game_id, moves).await
+    log_rejection(
+        "continue_game",
+        &game_id,
+        state.games.continue_game(&game_id, moves).await,
+    )
 }
 
 /// 裁定「終局」。詰み・千日手・持将棋・最大手数・反則はすべてここから入る
@@ -149,7 +173,11 @@ pub async fn end_game_by_rule(
     winner: Option<Side>,
     detail: Option<String>,
 ) -> Result<(), String> {
-    state.games.end_by_rule(&game_id, winner, detail).await
+    log_rejection(
+        "end_by_rule",
+        &game_id,
+        state.games.end_by_rule(&game_id, winner, detail).await,
+    )
 }
 
 /// 人間の投了。エンジンの投了は `bestmove resign` から入るのでここは通らない
@@ -159,13 +187,13 @@ pub async fn resign_game(
     game_id: String,
     side: Side,
 ) -> Result<(), String> {
-    state.games.resign(&game_id, side).await
+    log_rejection("resign", &game_id, state.games.resign(&game_id, side).await)
 }
 
 /// 対局の中断。勝敗を付けずに終局にする
 #[tauri::command]
 pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: String) -> Result<(), String> {
-    state.games.abort(&game_id).await
+    log_rejection("abort", &game_id, state.games.abort(&game_id).await)
 }
 
 /// 対局を閉じ、使っていたエンジンを落とす。
@@ -173,13 +201,21 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: String) -> R
 ///
 /// # エラー
 ///
-/// 他の操作が同じ対局を掴んでいると閉じられず `Err` を返す。そのとき
-/// **対局は中断済みだが、エンジンは生きたまま台帳に残る。**
-/// そのまま呼び直せる。呼び直さないとプロセスが残る
-/// （→ `docs/state-transitions/failure-surfacing.md` の F-24）。
+/// 断り方は2つあり、**後始末が要るのは片方だけ**。
+///
+/// - 他の操作が同じ対局を掴んでいる → **エンジンは生きたまま台帳に残る**。
+///   そのまま呼び直せる。呼び直さないとプロセスが残る
+/// - `game_id` が台帳に無い → 何もしていない。呼び直しても同じ `Err`
+///
+/// 中断が `CLOSE_ABORT_TIMEOUT` を超えた場合は `Err` にならない（畳めなくても
+/// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。
 #[tauri::command]
 pub async fn close_game(state: tauri::State<'_, AppState>, game_id: String) -> Result<(), String> {
-    state.games.close(&state.registry, &game_id).await
+    log_rejection(
+        "close",
+        &game_id,
+        state.games.close(&state.registry, &game_id).await,
+    )
 }
 
 /// いまの対局の状態を取る。**イベントを取りこぼした後の突き合わせ用。**

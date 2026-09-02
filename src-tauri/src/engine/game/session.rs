@@ -1729,8 +1729,6 @@ mod tests {
         &snapshot.phase
     }
 
-    /// `Runner` を直に組む。`GameSession::start` を通さないので、
-    /// エンジン無しでも `Activity` を好きな状態にできる
     /// `d` だけ前の時刻。番人の締切を跨がせるのに使う
     fn long_ago(d: Duration) -> Instant {
         Instant::now()
@@ -1738,6 +1736,8 @@ mod tests {
             .expect("起動直後で `Instant` を遡れない")
     }
 
+    /// `Runner` を直に組む。`GameSession::start` を通さないので、
+    /// エンジン無しでも `Activity` を好きな状態にできる
     fn test_runner(tx: &mpsc::UnboundedSender<Command>) -> Runner {
         runner_with_events(tx, Arc::new(DiscardEvents))
     }
@@ -2245,10 +2245,6 @@ mod tests {
         assert!(clocks.running.is_none(), "終局後に動いている時計がある");
     }
 
-    /// 番人が2つの止まり方を分けること。**どちらも `Thinking` の中。**
-    ///
-    /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
-    /// 潰すと `detail` が原因を取り違える
     /// 番人が2つの止まり方を分けること。**どちらも `Thinking` の中。**
     ///
     /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
