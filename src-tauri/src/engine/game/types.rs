@@ -51,7 +51,11 @@ impl Side {
 /// 「相手が人かエンジンか」を至る所で見ることになり、
 /// 人対人・人対エンジン・エンジン対エンジンを同じ経路で回せなくなる。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum PlayerSpec {
     Human {
         name: String,
@@ -194,7 +198,11 @@ pub struct ClocksView {
 
 /// 対局がいまどの段にいるか。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "phase", rename_all = "camelCase")]
+#[serde(
+    tag = "phase",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum GamePhaseView {
     /// `side` の着手を待っている。時計が動いている
     Thinking {
@@ -227,7 +235,11 @@ pub struct GameSnapshot {
 
 /// フロントへ流す対局の出来事。`game-event` で emit する。
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum GameEvent {
     /// 手番が変わり、時計が動き出した
     TurnChanged {
@@ -260,4 +272,121 @@ pub enum GameEvent {
         result: GameResult,
         clocks: ClocksView,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 境界に出る JSON の形を固定する。
+    ///
+    /// **`rename_all` は enum のバリアント名にしか効かない。** 中のフィールドは
+    /// `rename_all_fields` を足すまで snake_case のまま出ていた
+    /// （`engine_path` / `game_id` / `usi_move`）。型を書き写した TS 側が
+    /// 静かに `undefined` を読むだけなので、コンパイルでは気付けない。
+    #[test]
+    fn the_wire_shape_is_camel_case_all_the_way_down() {
+        let settings = GameSettings {
+            black: PlayerSpec::Human {
+                name: "me".to_string(),
+            },
+            white: PlayerSpec::Engine {
+                name: "engine".to_string(),
+                engine_path: "/path".to_string(),
+                work_dir: None,
+                options: HashMap::new(),
+                ponder: true,
+            },
+            black_time: TimeLimit {
+                main_ms: 1,
+                byoyomi_ms: 0,
+                increment_ms: 0,
+            },
+            white_time: TimeLimit {
+                main_ms: 1,
+                byoyomi_ms: 0,
+                increment_ms: 0,
+            },
+            start_sfen: "sfen b - 1".to_string(),
+            initial_moves: Vec::new(),
+            enforce_engine_timeout: false,
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains(r#""kind":"engine""#), "{json}");
+        assert!(json.contains(r#""enginePath":"/path""#), "{json}");
+        assert!(json.contains(r#""workDir":null"#), "{json}");
+        assert!(json.contains(r#""blackTime""#), "{json}");
+        assert!(json.contains(r#""enforceEngineTimeout""#), "{json}");
+        assert!(!json.contains('_'), "snake_case が残っている: {json}");
+
+        let event = GameEvent::MoveDecided {
+            game_id: "g".to_string(),
+            side: Side::Black,
+            usi_move: "7g7f".to_string(),
+            elapsed_ms: 5,
+            clocks: ClocksView {
+                black: ClockView {
+                    remaining_ms: 1,
+                    byoyomi_left_ms: 0,
+                },
+                white: ClockView {
+                    remaining_ms: 1,
+                    byoyomi_left_ms: 0,
+                },
+            },
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""type":"moveDecided""#), "{json}");
+        assert!(json.contains(r#""gameId":"g""#), "{json}");
+        assert!(json.contains(r#""usiMove":"7g7f""#), "{json}");
+        assert!(json.contains(r#""elapsedMs":5"#), "{json}");
+        assert!(json.contains(r#""byoyomiLeftMs""#), "{json}");
+        assert!(!json.contains('_'), "snake_case が残っている: {json}");
+
+        let phase = GamePhaseView::AwaitingRuling {
+            last_mover: Side::White,
+            usi_move: "7g7f".to_string(),
+        };
+        let json = serde_json::to_string(&phase).unwrap();
+        assert!(json.contains(r#""phase":"awaitingRuling""#), "{json}");
+        assert!(json.contains(r#""lastMover":"white""#), "{json}");
+        assert!(!json.contains('_'), "snake_case が残っている: {json}");
+
+        let result = GameResult {
+            winner: Some(Side::Black),
+            reason: GameOverReason::DeclareWin,
+            detail: None,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert_eq!(
+            json,
+            r#"{"winner":"black","reason":"declareWin","detail":null}"#
+        );
+    }
+
+    /// フロントから届く形をそのまま読めること。
+    /// 省略できる項目（`workDir` / `options` / `ponder` / `initialMoves` /
+    /// `enforceEngineTimeout`）を落としても通る
+    #[test]
+    fn settings_parse_with_every_optional_field_omitted() {
+        let json = r#"{
+            "black": { "kind": "human", "name": "me" },
+            "white": { "kind": "engine", "name": "e", "enginePath": "/p" },
+            "blackTime": { "mainMs": 600000, "byoyomiMs": 0, "incrementMs": 0 },
+            "whiteTime": { "mainMs": 600000, "byoyomiMs": 0, "incrementMs": 0 },
+            "startSfen": "sfen b - 1"
+        }"#;
+        let settings: GameSettings = serde_json::from_str(json).unwrap();
+        assert!(settings.initial_moves.is_empty());
+        assert!(!settings.enforce_engine_timeout);
+        match settings.white {
+            PlayerSpec::Engine {
+                ponder, work_dir, ..
+            } => {
+                assert!(!ponder);
+                assert_eq!(work_dir, None);
+            }
+            _ => panic!("engine として読めていない"),
+        }
+    }
 }
