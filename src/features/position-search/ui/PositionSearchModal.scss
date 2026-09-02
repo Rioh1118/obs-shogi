@@ -1,5 +1,7 @@
 @use "@/index.scss" as index;
 
+// 面は3段。器（左右のペイン）だけが枠と面を持ち、中の箱は面だけ、行は何も持たない。
+// 段が名前を持たないまま増えると、どれが一段上なのかコードから読めなくなる
 .pos-search {
   display: flex;
   flex-direction: column;
@@ -12,7 +14,7 @@
     flex: 1;
 
     overflow: hidden;
-    padding: 1.5rem;
+    padding: index.$space-8;
   }
 
   &__grid {
@@ -21,31 +23,27 @@
     height: 100%;
 
     display: grid;
-    grid-template-columns: 1fr 420px;
-    gap: 14px;
+    grid-template-columns: 1fr 42rem;
+    gap: index.$space-7;
   }
 
   &__left,
   &__right {
     min-height: 0;
     border: 1px solid index.$stroke;
-    border-radius: 12px;
+    border-radius: index.$radius-6;
     background: rgba(index.$color-primary-light, 0.06);
 
     display: flex;
     flex-direction: column;
     overflow: hidden;
     backdrop-filter: blur(8px);
-  }
 
-  &__left {
-    padding: 12px;
-    gap: 10px;
+    padding: index.$space-6;
+    gap: index.$space-5;
   }
 
   &__right {
-    padding: 12px;
-    gap: 10px;
     .pos-search__preview {
       flex: 1 1 auto;
       min-height: 0;
@@ -58,12 +56,12 @@
       overflow: hidden;
 
       display: grid;
-      gap: 10px;
+      gap: index.$space-5;
     }
   }
 
   &__paneTitle {
-    font-size: 1.2rem;
+    font-size: index.$font-aux;
     color: rgba(index.$color-text-light-1, 0.7);
   }
 }
