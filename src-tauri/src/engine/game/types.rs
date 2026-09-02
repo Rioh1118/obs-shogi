@@ -179,13 +179,15 @@ pub struct GameResult {
     pub detail: Option<String>,
 }
 
-/// 片側の時計。**止まっている値**で、動いている側の表示には使わない。
+/// 片側の時計。**2つの欄で性質が違う。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClockView {
-    /// 持ち時間の残り
+    /// 持ち時間の残り。**止まっている値。**
+    /// 動いている側の表示には `RunningClock::main_zero_at` を使う
     pub main_ms: u64,
-    /// 秒読みの設定値。1手ごとに与え直されるので、手番の頭では常にこの値
+    /// 秒読みの設定値。1手ごとに与え直されるので**常にこの値**。
+    /// 動いている側でも、これで `byoyomi_zero_at` をクランプする
     pub byoyomi_ms: u64,
 }
 

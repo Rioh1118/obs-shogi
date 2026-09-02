@@ -98,11 +98,16 @@ export interface GameResult {
   detail: string | null;
 }
 
-/** 片側の時計。**止まっている値**で、動いている側の表示には使わない */
+/**
+ * 片側の時計。**2つの欄で性質が違う。**
+ *
+ * `mainMs` は止まっている値なので、動いている側では手番開始時の古い値。
+ * `byoyomiMs` は設定値で常に正しく、**動いている側のクランプに要る**。
+ */
 export interface ClockView {
-  /** 持ち時間の残り */
+  /** 持ち時間の残り。動いている側は `RunningClock.mainZeroAt` を使う */
   mainMs: number;
-  /** 秒読みの設定値。1手ごとに与え直されるので、手番の頭では常にこの値 */
+  /** 秒読みの設定値。1手ごとに与え直されるので常にこの値 */
   byoyomiMs: number;
 }
 

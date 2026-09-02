@@ -48,7 +48,8 @@ impl SideClock {
         self.remaining_ms + self.limit.byoyomi_ms
     }
 
-    /// 止まっている値。動いている側の表示には使わない（`GameClocks::view` を見る）
+    /// `main_ms` は止まっている値、`byoyomi_ms` は設定値。
+    /// 動いている側の持ち時間は `GameClocks::view` の `running` を見る
     pub fn view(&self) -> ClockView {
         ClockView {
             main_ms: self.remaining_ms,
