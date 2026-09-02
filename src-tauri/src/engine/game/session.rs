@@ -58,6 +58,31 @@ const CLOCK_EMIT_INTERVAL: Duration = Duration::from_millis(500);
 /// 打ち切りが対局者の持ち時間を削ることはない。
 const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// `go` を出してから `bestmove` を待つ上限に足す猶予。
+///
+/// 締切は「その手に使い切れる持ち時間 ＋ これ」。**時間切れ負けの判定とは別物**で、
+/// こちらは**エンジンが黙ったことを見つける**ためにある。`enforce_engine_timeout`
+/// が `false`（既定）でも必ず効く。
+///
+/// 30秒あるのは、持ち時間を使い切った後もエンジンは1手指すまで返らないため。
+/// 短くすると、正常に長考しているエンジンを故障と呼ぶ。
+const SEARCH_GRACE: Duration = Duration::from_secs(30);
+
+/// `bestmove` を待つ上限。**先読みには置かない。**
+///
+/// 本番の思考は「使い切れる持ち時間 ＋ `SEARCH_GRACE`」で切る。
+/// 先読みは `ponderhit` か `stop` が来るまで走ってよいので `None`。
+/// ここで `Some` を返すと、先読みが長引いただけで対局が故障終了する。
+///
+/// **時間切れ負けの判定とは別物。** `enforce_engine_timeout` を見ないのは、
+/// これが「黙ったエンジンを見つける」ためにあるため。
+fn search_deadline(kind: &SearchKind, budget_ms: u64) -> Option<Duration> {
+    match kind {
+        SearchKind::Search => Some(Duration::from_millis(budget_ms) + SEARCH_GRACE),
+        SearchKind::Ponder { .. } => None,
+    }
+}
+
 /// 手番に入ったまま `go` を出せずにいられる上限。
 ///
 /// `AwaitingRuling` の `RULING_TIMEOUT` と対になる、`Thinking` 側の番人。
@@ -1020,6 +1045,7 @@ impl Runner {
             position: position_argument(&self.settings.start_sfen, &moves),
             params,
             ponder,
+            deadline: search_deadline(&kind, self.clocks.budget_ms(side)),
             cancel: cancel.clone(),
         };
 
@@ -1939,6 +1965,33 @@ mod tests {
         let result = result.expect("持ち時間が尽きても終局しなかった");
         assert_eq!(result.reason, GameOverReason::Timeout);
         assert_eq!(result.winner, Some(Side::White));
+    }
+
+    /// 本番の思考には締切が付き、先読みには付かないこと。
+    ///
+    /// 締切が無いと、黙ったエンジンを第1相で永久に待つ。時計は
+    /// `enforce_engine_timeout` が既定 `false` なのでエンジン側では止まらず、
+    /// `SETTLE_TIMEOUT` は畳み待ち専用なので当たらない。
+    /// 逆に先読みへ置くと、長引いただけで対局が故障終了する
+    #[test]
+    fn only_a_real_search_carries_a_deadline() {
+        assert_eq!(
+            search_deadline(&SearchKind::Search, 600_000),
+            Some(Duration::from_secs(600) + SEARCH_GRACE)
+        );
+
+        // 持ち時間を使い切っていても、猶予のぶんは待つ
+        assert_eq!(search_deadline(&SearchKind::Search, 0), Some(SEARCH_GRACE));
+
+        assert_eq!(
+            search_deadline(
+                &SearchKind::Ponder {
+                    ponder_move: "7g7f".to_string()
+                },
+                600_000
+            ),
+            None
+        );
     }
 
     /// 畳み待ちのまま `SETTLE_TIMEOUT` を過ぎたら終局にすること。

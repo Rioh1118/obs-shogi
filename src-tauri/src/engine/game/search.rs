@@ -81,6 +81,11 @@ pub struct SearchRequest {
     pub position: String,
     pub params: ThinkParams,
     pub ponder: bool,
+    /// `bestmove` を待つ上限。**`None` は「待ち続ける」。**
+    ///
+    /// 先読みは `ponderhit` か `stop` が来るまで走ってよいので `None`。
+    /// 本番の思考には必ず入れる（`session.rs` の `search_deadline`）
+    pub deadline: Option<Duration>,
     pub cancel: CancellationToken,
 }
 
@@ -105,6 +110,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         position,
         params,
         ponder,
+        deadline,
         cancel,
     } = request;
 
@@ -138,13 +144,36 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         return;
     }
 
-    // 第1相: `bestmove` が来るか、打ち切られるかのどちらか。
+    // 第1相: `bestmove` が来るか、打ち切られるか、締切を過ぎるか。
+    //
+    // **締切が無いと、黙ったエンジンをここで永久に待つ。** 時計は
+    // `enforce_engine_timeout` が既定 `false` なのでエンジン側では止まらず、
+    // `SETTLE_TIMEOUT` は畳み待ち専用なので当たらない。画面は 00:00 に
+    // 張り付いたまま、エラーが1行も出ない状態になる。
     let mut settled: Option<SearchOutcome> = None;
     let mut result = AnalysisResult::default();
+    let expires_at = deadline.map(|d| tokio::time::Instant::now() + d);
 
     loop {
         tokio::select! {
             _ = cancel.cancelled() => break,
+            _ = async {
+                match expires_at {
+                    Some(at) => tokio::time::sleep_until(at).await,
+                    // 締切が無いなら、この枝は永久に選ばれない
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
+                let waited = deadline.unwrap_or_default().as_millis();
+                log::error!(
+                    target: LOGT,
+                    "search: no bestmove within deadline side={side:?} req={req} waited={waited}ms"
+                );
+                settled = Some(SearchOutcome::Failed(format!(
+                    "the engine did not answer within {waited}ms"
+                )));
+                break;
+            }
             command = raw_rx.recv() => match command {
                 Some(EngineCommand::Info(params)) => {
                     apply_info_params(&params, &mut result);
