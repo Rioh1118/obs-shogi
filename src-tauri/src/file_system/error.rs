@@ -34,6 +34,10 @@ pub enum FsErrorCode {
     /// 棋譜を保存する形へ直せなかった。正規化と直列化の失敗をここへ載せる。
     /// InvalidType に載せると「ファイルとフォルダを取り違えています」と表示される
     KifuConversionFailed,
+    /// 棋譜を読めなかった。**いまはどの文字コードでも復号できなかったとき**
+    /// （ の `read_text_portable`）。
+    /// TS 側は同じ code を自分でも作る（tsshogi が断ったとき）
+    KifuParseFailed,
     PermissionDenied,
     Io,
     Unknown,
@@ -102,6 +106,7 @@ mod tests {
             FsErrorCode::InvalidDestination => "invalid_destination",
             FsErrorCode::RootNotDeletable => "root_not_deletable",
             FsErrorCode::KifuConversionFailed => "kifu_conversion_failed",
+            FsErrorCode::KifuParseFailed => "kifu_parse_failed",
             FsErrorCode::PermissionDenied => "permission_denied",
             FsErrorCode::Io => "io",
             FsErrorCode::Unknown => "unknown",
@@ -129,6 +134,7 @@ mod tests {
             FsErrorCode::InvalidDestination,
             FsErrorCode::RootNotDeletable,
             FsErrorCode::KifuConversionFailed,
+            FsErrorCode::KifuParseFailed,
             FsErrorCode::PermissionDenied,
             FsErrorCode::Io,
             FsErrorCode::Unknown,

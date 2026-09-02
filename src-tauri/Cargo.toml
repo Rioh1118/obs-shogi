@@ -19,7 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.2.0", features = [] }
 
 [dependencies]
-shogi_kifu_converter_obsshogi = { git = "https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git", tag = "v0.3.1", package = "shogi-kifu-converter" }
+shogi_kifu_converter_obsshogi = { git = "https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git", tag = "v0.5.0", package = "shogi-kifu-converter" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
@@ -47,6 +47,11 @@ blake3 = "1.8"
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+[dev-dependencies]
+# `tidy_csa` の整形が tsshogi の受ける範囲を出ていないかを、
+# tsshogi 自身の正規表現を読んで確かめるために使う（`kifu_reader.rs` のテスト）
+regex = "1.11"
 
 [[test]]
 name = "search_bench"

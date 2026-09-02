@@ -10,13 +10,12 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
 use crate::search::{
+    file_build::build_file_index,
     fs_scan::{
         diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions,
         ScanSnapshot,
     },
-    index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{FileBucketEntries, IndexState as StoreIndexState, IndexStore},
-    kifu_reader::read_to_jkf,
     node_table::NodeTable,
     position_key::PositionKey,
     types::{
@@ -327,16 +326,8 @@ impl ProjectManager {
 
         let built = task::spawn_blocking(
             move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
-                let jkf = read_to_jkf(&rec_cloned).map_err(|e| e.to_string())?;
-                let b = build_index_for_jkf(file_id, new_gen, &jkf, BuildPolicy::Loose)
-                    .map_err(|e| e.to_string())?;
-                let by_bucket: BucketEntries = bucketize_entries(b.entries);
-                let warns = b
-                    .warns
-                    .into_iter()
-                    .map(|w| format!("{:?}: {}", w.cursor, w.message))
-                    .collect::<Vec<_>>();
-                Ok((by_bucket, b.node_table, warns))
+                let built = build_file_index(&rec_cloned, file_id, new_gen)?;
+                Ok((built.by_bucket, built.node_table, built.warns))
             },
         )
         .await;
