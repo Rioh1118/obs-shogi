@@ -115,7 +115,11 @@ impl GameClocks {
         let running = running.map(|(side, elapsed_ms)| {
             let clock = &self.clocks[side.index()];
 
-            // 持ち時間を使い切ってから秒読みが減る。この規則はここだけにある
+            // 持ち時間を使い切ってから秒読みが減る。
+            //
+            // **同じ規則が `budget_ms` と `consume` にもある**（表示と消費で
+            // 式が別々に書いてある）。片方だけ変えると、画面に秒読みが
+            // 残っているのに `has_expired` が真になる。両方を一緒に動かすこと
             let main_left = clock.remaining_ms.saturating_sub(elapsed_ms);
             let into_byoyomi = elapsed_ms.saturating_sub(clock.remaining_ms);
             let byoyomi_left = clock.limit.byoyomi_ms.saturating_sub(into_byoyomi);

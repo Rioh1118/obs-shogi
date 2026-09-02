@@ -112,7 +112,7 @@ export interface ClockView {
  * **減っていく値ではなく、尽きる時刻が来る。** こちら側は
  * `deadline - Date.now()` をクランプして出すだけで、
  * 減らすループも「持ち時間の後に秒読み」の規則も持たない。
- * 規則は Rust の `GameClocks::view` にだけある。
+ * その規則は Rust の中で完結する。
  *
  * ```ts
  * const main = Math.max(0, running.mainZeroAt - Date.now());
