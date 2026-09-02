@@ -158,13 +158,8 @@ impl EngineAnalyzer {
         let (result_tx, result_rx) = mpsc::unbounded_channel();
         let (raw_tx, raw_rx) = mpsc::unbounded_channel();
 
-        let listener_id = format!(
-            "infinite_analysis_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
+        // 壁時計に依存しない。一意でありさえすればよい
+        let listener_id = format!("infinite_analysis_{}", uuid::Uuid::new_v4());
 
         log::debug!(
             target: LOGT,
