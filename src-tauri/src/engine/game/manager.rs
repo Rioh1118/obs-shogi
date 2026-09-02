@@ -215,8 +215,9 @@ impl GameManager {
 /// **戻り値に頼らない。** `insert` と `remove` の間で future が drop されるか
 /// panic すると ID が残り続け、以後その対局は `the game is being closed` を
 /// 返し続ける——`close_all` も `close` を通るので拾えず、落とす口が
-/// 終了時の `shutdown_all` だけになる。このコードベースは待ちを `timeout` で
-/// 包む習慣なので、`close_game` 側に包みが1つ増えた時点で本番の穴になる。
+/// 終了時の `shutdown_all` だけになる。**その経路は既にある**——`lib.rs` の
+/// 終了フックが `close_all` を `CLOSE_TIMEOUT` で包んでいて、`close_all` は
+/// `close` を順に呼ぶので、締切が切れた瞬間にどれかの future が途中で落ちる。
 struct ClosingGuard<'a> {
     closing: &'a Mutex<BTreeSet<GameId>>,
     game_id: GameId,

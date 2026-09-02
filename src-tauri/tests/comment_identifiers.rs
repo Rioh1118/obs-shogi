@@ -90,8 +90,8 @@ const EXEMPT: &[&str] = &[
 
 /// コメントの**行頭から**の行だけを返す。`///` `//!` `//` を拾う。
 ///
-/// ブロックコメントは追わない。`src-tauri/src` に `/*` は、コメントとしても
-/// 文字列リテラルとしても1つも無いため。書かれ始めたらここを直す。
+/// ブロックコメントは追わない。`src-tauri/src` に**ブロックコメントは1つも無い**
+/// （`/*` の綴りは文字列リテラルと行コメントの中にだけ在る）。書かれ始めたらここを直す。
 ///
 /// 行末コメントも拾わない（現物にバッククォート付きの識別子は0件）。
 fn comment_lines(source: &str) -> Vec<(usize, &str)> {
@@ -162,6 +162,62 @@ fn is_identifier(text: &str) -> bool {
 /// そこから右にある本物の綴りが「実在しない」に化ける。
 fn code_only(source: &str) -> String {
     blank_out_comments(source)
+}
+
+/// 1つの doc ブロックに同じ行が2回現れないこと。
+///
+/// **関数を挿入すると、既存の doc がそこで引き剥がされる。** 新しい要約を
+/// 前の doc の途中へ落とすと、`cargo doc` では2つの文が連結されて読める形になり、
+/// **前の関数の説明が後の関数のものとして残る**（`pub` から `///` が消えることもある）。
+///
+/// **拾えるのは、同じ要約を書き足した形だけ。** 別の言い回しで足したものは
+/// 文の意味を読まないと分からないので、ここでは止まらない——
+/// 誤検出を出さないことを優先する。
+#[test]
+fn no_doc_block_repeats_a_line() {
+    let mut offenders = Vec::new();
+
+    for path in rust_files(&src_dir())
+        .into_iter()
+        .chain(rust_files(&tests_dir()))
+    {
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let relative = path.strip_prefix(src_dir()).unwrap_or(&path).to_path_buf();
+
+        let mut block: Vec<(usize, String)> = Vec::new();
+        let flush = |block: &mut Vec<(usize, String)>, offenders: &mut Vec<String>| {
+            let mut seen = BTreeSet::new();
+            for (number, text) in block.iter() {
+                // 空行と短い行、そして表の罫線は数えない（同じ形が並んで当然）
+                let is_rule = text
+                    .chars()
+                    .all(|c| c == '|' || c == '-' || c == ' ' || c == ':');
+                if text.len() < 8 || is_rule {
+                    continue;
+                }
+                if !seen.insert(text.clone()) {
+                    offenders.push(format!("{}:{}  {}", relative.display(), number, text));
+                }
+            }
+            block.clear();
+        };
+
+        for (number, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            match trimmed.strip_prefix("///").or(trimmed.strip_prefix("//!")) {
+                Some(text) => block.push((number + 1, text.trim().to_string())),
+                None => flush(&mut block, &mut offenders),
+            }
+        }
+        flush(&mut block, &mut offenders);
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "1つの doc ブロックに同じ行が2回ある。関数を挿入したとき、\
+         新しい要約を前の doc の途中へ落としていないか見ること:\n{}",
+        offenders.join("\n")
+    );
 }
 
 #[test]
