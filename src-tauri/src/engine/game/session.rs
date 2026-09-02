@@ -474,6 +474,12 @@ enum TurnClock {
 
 struct Runner {
     id: GameId,
+    /// イベントの宛先。**`None` はテストのときだけ。**
+    ///
+    /// 本番は `GameManager` が必ず `Some` を渡す。`None` にすると
+    /// `emit` が黙って捨てるので、フロントは時計も指し手も終局も受け取らない。
+    /// テストが `None` を使うのは、`AppHandle` を作るのに Tauri の
+    /// ランタイムが要るため。
     app: Option<AppHandle>,
     settings: GameSettings,
     players: [Player; 2],
