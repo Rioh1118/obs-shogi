@@ -54,18 +54,28 @@ impl GameManager {
         };
 
         // `close` はセッションを消費するので、他に持たれていたら落とせない。
-        // 台帳から外した直後のここでは自分しか持っていない
         match Arc::try_unwrap(session) {
             Ok(session) => session.close(registry).await,
             Err(session) => {
-                // 誰かが操作中。中断だけ通してエンジンは残す。
-                // 残ったプロセスは `close_all` が拾う
+                // 誰かが操作中。中断だけ通して、**台帳へ戻す。**
+                //
+                // 戻さないと、この `Arc` を最後に手放した者がセッションごと
+                // drop してエンジンの ID が消え、プロセスを落とす手掛かりが
+                // どこにも残らない。`close_all` も台帳しか見ないので拾えない。
+                // 戻しておけば、次の `close_game` か `close_all` で落とせる
                 let _ = session.abort().await;
+                self.sessions
+                    .write()
+                    .await
+                    .insert(game_id.to_string(), session);
                 log::warn!(
                     target: LOGT,
-                    "close: session still borrowed, engines left running game_id={}",
+                    "close: session still borrowed, kept in the ledger game_id={}",
                     game_id
                 );
+                return Err(format!(
+                    "the game is busy and could not be closed: {game_id}"
+                ));
             }
         }
         Ok(())
