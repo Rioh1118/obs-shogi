@@ -976,8 +976,8 @@ impl Runner {
         }
 
         // **weak のまま渡す。** ここで `upgrade()` して strong を持たせると、
-        // その探索が終わるまで対局のチャンネルが生き続け、
-        // B-2 で切った輪が探索1本ごとに戻る。`go ponder` は `ponderhit` か
+        // その探索が終わるまで対局のチャンネルが生き続け、`GameSession` を
+        // 捨てても `run_loop` が終わらない。`go ponder` は `ponderhit` か
         // `stop` が来るまで `bestmove` を返さないので、輪は永久に残りうる
         let tx = self.tx.clone();
         tokio::spawn(async move {

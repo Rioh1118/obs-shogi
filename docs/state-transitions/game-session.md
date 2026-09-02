@@ -49,7 +49,7 @@
 
 ## 外部の状態（エンジンプロセス）
 
-**この列を忘れたことが issue #120 の BLOCK だった**（→ [engine.md](engine.md)）。
+外部プロセスの状態を列に入れる理由は [engine.md](engine.md)。
 `Player.activity` を先後それぞれが持つ。
 
 | 記号   | 状態                                     | 判定                                                         |
@@ -61,10 +61,8 @@
 | **A4** | 止めたのに応答しない。**探索中とみなす** | `Activity::Unresponsive`                                     |
 
 **「走っている探索をどう扱うか」はこの enum が全部持つ。**
-以前は `restart_after_abort` という bool と割れており、立てる場所
-（`hand_turn_to`）と消費する場所（`on_search_outcome`）も別だった。
-2ラウンドで8件の所見がその割れから出たので、型に畳んだ
-（`.claude/reviews/2026-09-02-game-engine-r2.md` の「対象そのものを疑ったか」）。
+別のフラグと併せ持たないこと。持つと「立てる場所」と「読む場所」が割れ、
+どちらか一方しか見ない枝ができる。
 
 人間側の `activity` は常に `A0`（`engine` が `None` なので `spawn_search` を通らない）。
 
