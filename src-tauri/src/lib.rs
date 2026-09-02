@@ -31,7 +31,15 @@ pub use search::index_store::IndexStore;
 pub use study_positions::{load_study_positions, save_study_positions};
 
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::Manager;
+
+/// 終了時にエンジンを落とすのに使える時間の合計。
+///
+/// 1本あたりの上限は `registry` 側（`KILL_TIMEOUT`）と書き込みの列
+/// （`WRITE_TIMEOUT`）にあるが、**エンジンは複数走りうる**ので全体にも要る。
+/// 超えたらプロセスを残したまま終わる。終了が止まるよりましだという判断
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -124,6 +132,42 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // **終了時にエンジンを落とす。** 呼ばないとプロセスが残る
+            // （不変条件5）。対局は `close_game` を呼ぶまで落ちない作りなので、
+            // ウィンドウを閉じただけでは先手・後手のエンジンが探索したまま残り、
+            // 利用者にはアクティビティモニタ以外に手掛かりが無い。
+            //
+            // `ExitRequested` は「終わる直前」で、まだ非同期を回せる。
+            // 全体に上限を置くのは、詰まったエンジン1本で終了が止まらないため
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                let state = app.state::<AppState>();
+                let games = Arc::clone(&state.games);
+                let registry = Arc::clone(&state.registry);
+
+                tauri::async_runtime::block_on(async move {
+                    let left = tokio::time::timeout(SHUTDOWN_TIMEOUT, async {
+                        let left = games.close_all(&registry).await;
+                        registry.shutdown_all().await;
+                        left
+                    })
+                    .await;
+
+                    match left {
+                        Ok(left) if left.is_empty() => {}
+                        Ok(left) => log::warn!(
+                            target: "obs_shogi::lib",
+                            "shutdown: {} game(s) could not be closed: {left:?}",
+                            left.len()
+                        ),
+                        Err(_) => log::error!(
+                            target: "obs_shogi::lib",
+                            "shutdown: timed out; engine processes may be left running"
+                        ),
+                    }
+                });
+            }
+        });
 }
