@@ -82,6 +82,12 @@ pub struct SearchRequest {
 pub enum SearchMessage {
     Info {
         side: Side,
+        /// どの `go` に対する読み筋か。
+        ///
+        /// **`Outcome` と同じく世代を持つ。** 持たないと、打ち切った探索が
+        /// cancel と同時に吐いた `info` が新しい手番の読み筋として流れる。
+        /// 盤に無い局面（外れた先読み手を指した後）の評価値が一瞬出る。
+        req: u64,
         result: AnalysisResult,
     },
     Outcome {
@@ -153,7 +159,11 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
                     // 間引くと、先読みが当たった手番だけ読み筋が1行も出ない
                     // （当たる率はエンジンが強いほど高い）。
                     // 落とす判断は `on_search_info` の `is_to_move` 1本に寄せてある
-                    let _ = tx.send(SearchMessage::Info { side, result: result.clone() });
+                    let _ = tx.send(SearchMessage::Info {
+                        side,
+                        req,
+                        result: result.clone(),
+                    });
                 }
                 Some(EngineCommand::BestMove(params)) => {
                     settled = Some(outcome_of(params));

@@ -52,7 +52,7 @@ const WINDOW: usize = 6;
 /// **動かしたときに必ず読み直すことになる**（それが狙い）。
 const EXEMPT: &[&str] = &[
     // `EngineRegistry::shutdown_all` は戻り値を持たない
-    "lib.rs:204",
+    "lib.rs:208",
     // `Notify::notified` は `()` を返す。畳まれたか超えたかの2値しかない
     "engine/analyzer.rs:597",
 ];

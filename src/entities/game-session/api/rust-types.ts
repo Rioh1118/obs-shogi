@@ -19,17 +19,22 @@ export type GameId = string;
 export type Side = "black" | "white";
 
 /**
+ * `setoption` で送る値1件。**並べた順にそのまま送られる。**
+ *
+ * **`entities/engine` の `EngineOption` とは別物。** あちらはエンジンが
+ * 宣言してくる option の定義（型・既定値・現在値）で、向きが逆。
+ */
+export interface SetOptionValue {
+  name: string;
+  value: string;
+}
+
+/**
  * 対局者。人とエンジンが同じ型に入る。
  *
  * 分けると、進行側が「相手が人かエンジンか」を至る所で見ることになり、
  * 人対人・人対エンジン・エンジン対エンジンを同じ経路で回せなくなる。
  */
-/** `setoption` 1件 */
-export interface EngineOption {
-  name: string;
-  value: string;
-}
-
 export type PlayerSpec =
   | { kind: "human"; name: string }
   | {
@@ -46,7 +51,7 @@ export type PlayerSpec =
        * `Threads` を上げてから `USI_Hash` を割り当てる）。
        * 順序が保たれないと、同じ設定なのに実行のたびに棋力が変わる。
        */
-      options?: EngineOption[];
+      options?: SetOptionValue[];
       /** 相手の手番の間も読ませるか */
       ponder?: boolean;
     };

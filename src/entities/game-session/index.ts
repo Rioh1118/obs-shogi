@@ -35,6 +35,7 @@ export type {
   GameSettings,
   GameSnapshot,
   PlayerSpec,
+  SetOptionValue,
   Side,
   TimeLimit,
 } from "./api/rust-types";

@@ -639,8 +639,8 @@ impl Runner {
             Command::SearchesIdle { reply } => {
                 let _ = reply.send(self.searches_idle());
             }
-            Command::Search(SearchMessage::Info { side, result }) => {
-                self.on_search_info(side, result)
+            Command::Search(SearchMessage::Info { side, req, result }) => {
+                self.on_search_info(side, req, result)
             }
             Command::Search(SearchMessage::Outcome { side, req, outcome }) => {
                 self.on_search_outcome(side, req, outcome).await
@@ -769,10 +769,17 @@ impl Runner {
     /// 探索タスク側で落とすと、`ponderhit` で本番へ昇格した探索が
     /// 先読み扱いのまま残る（タスクは起動時の値を握って走る）。
     /// 手番かどうかはこちらが常に持っているので、判断はここに置く。
-    fn on_search_info(&mut self, side: Side, result: AnalysisResult) {
+    fn on_search_info(&mut self, side: Side, req: u64, result: AnalysisResult) {
         // 先読み中の側は手番ではない。手番が変わった後に届いた読み筋も同じで、
         // どちらも「いまの局面のものではない」で落ちる
         if !self.is_to_move(side) {
+            return;
+        }
+
+        // **世代も見る。** 手番は合っていても、打ち切った探索が cancel と
+        // 同時に吐いた `info` は別の局面のもの。採ると、盤に無い局面
+        // （外れた先読み手を指した後）の評価値と読み筋が一瞬出る
+        if !self.is_current_search(side, req) {
             return;
         }
 
@@ -1301,6 +1308,16 @@ impl Runner {
         matches!(self.phase, Phase::Thinking { side: s } if s == side)
     }
 
+    /// その `req` が、いまその側で走っている探索のものか。
+    ///
+    /// `Stopping` の `req` も弾く——打ち切りを待っている探索の結果は採らない。
+    fn is_current_search(&self, side: Side, req: u64) -> bool {
+        matches!(
+            self.player(side).activity,
+            Activity::Searching { req: current, .. } if current == req
+        )
+    }
+
     fn timeout_enforced(&self, side: Side) -> bool {
         !self.player(side).spec.is_engine() || self.settings.enforce_engine_timeout
     }
@@ -1420,7 +1437,7 @@ async fn prepare_engine(
     registry: &EngineRegistry,
     engine_path: &str,
     work_dir: Option<&str>,
-    options: &[EngineOption],
+    options: &[SetOptionValue],
 ) -> Result<Arc<EngineProcess>, String> {
     let process = registry
         .spawn(engine_path, work_dir, USI_OK_TIMEOUT)
@@ -1435,12 +1452,12 @@ async fn prepare_engine(
     Ok(process)
 }
 
-async fn send_setup(process: &EngineProcess, options: &[EngineOption]) -> Result<(), String> {
+async fn send_setup(process: &EngineProcess, options: &[SetOptionValue]) -> Result<(), String> {
     let protocol = process.protocol();
 
     // **並べた順にそのまま送る。** 値の解釈が前の `setoption` に依存する
     // エンジンがあるので、ここで並べ替えない（→ `PlayerSpec::Engine::options`）
-    for EngineOption { name, value } in options {
+    for SetOptionValue { name, value } in options {
         // USI は行指向なので、改行を混ぜられると別のコマンドを注入できる
         if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
             return Err(format!(
@@ -2321,6 +2338,22 @@ mod tests {
             CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT,
             "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が書き込み1件ぶんも無い"
         );
+    }
+
+    /// 終了時の予算が、1局を閉じ切る値より**短い**こと。
+    ///
+    /// これは意図した関係で、合わせに行かない（合わせると終了が十数秒待たされる）。
+    /// **式で持たないと、片方を動かしたときに何も落ちない。**
+    /// 切り上げたぶんは `registry.shutdown_all` の掃除が拾う。
+    #[test]
+    fn the_close_budget_is_deliberately_short() {
+        use crate::CLOSE_TIMEOUT;
+
+        assert!(
+            CLOSE_TIMEOUT < CLOSE_ABORT_TIMEOUT + CLOSE_IDLE_TIMEOUT,
+            "CLOSE_TIMEOUT({CLOSE_TIMEOUT:?}) が1局を閉じ切る値以上。\
+             合わせに行くなら、終了が何秒待たされるかを測ってから決めること"
+        );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
         // 畳み待ちより先に故障扱いになる
@@ -2418,6 +2451,72 @@ mod tests {
         assert!(
             clocks.running.is_none(),
             "終局を知らせる時点で動いている時計がある"
+        );
+    }
+
+    /// 打ち切った探索の `info` を採らないこと（表の E16 が `Info` にも掛かる）。
+    ///
+    /// 手番は合っていても、cancel と同時に吐かれた `info` は別の局面のもの。
+    /// 採ると、盤に無い局面（外れた先読み手を指した後）の評価値と読み筋が
+    /// 一瞬出る。**世代を持たないと照合できない。**
+    #[test]
+    fn info_from_a_stopped_search_is_not_shown() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+
+        // いま走っている探索の `req` は 1（`searching` が立てる）
+        runner.on_search_info(Side::Black, 2, AnalysisResult::default());
+        assert!(events.take().is_empty(), "世代の合わない読み筋を流している");
+
+        runner.on_search_info(Side::Black, 1, AnalysisResult::default());
+        assert!(
+            events
+                .take()
+                .iter()
+                .any(|e| matches!(e, GameEvent::SearchInfo { .. })),
+            "いまの探索の読み筋が流れていない"
+        );
+    }
+
+    /// 終局後に返ってきた `bestmove` で `gameover` を送ること
+    /// （表の `(G2, E7)`）。
+    ///
+    /// **`Phase::Over` の早期 return を `match` より後ろへ動かすと、
+    /// 終局時の `bestmove` が空アームに吸われてここが飛ばなくなる。**
+    /// 探索していたエンジンは対局中のまま `close_game` を待つ（不変条件3 の違反）。
+    #[tokio::test]
+    async fn a_bestmove_after_the_game_ended_still_gets_a_gameover() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+        runner.phase = Phase::Over {
+            result: GameResult {
+                winner: Some(Side::White),
+                reason: GameOverReason::Resign,
+                detail: None,
+            },
+        };
+
+        runner
+            .on_search_outcome(
+                Side::Black,
+                1,
+                SearchOutcome::Move {
+                    usi: "7g7f".to_string(),
+                    ponder: None,
+                },
+            )
+            .await;
+
+        // 送れたかは protocol が要るので見られないが、**`A0` に戻ること**は
+        // 見られる。戻らないと `close` の畳み待ちが必ず上限まで走る
+        assert!(
+            matches!(runner.players[Side::Black.index()].activity, Activity::Idle),
+            "終局後の `bestmove` で `A0` に戻っていない"
         );
     }
 

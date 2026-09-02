@@ -36,14 +36,18 @@ use tauri::Manager;
 
 /// 終了時に対局を閉じるのに使える時間。
 ///
-/// **1局を閉じ切る最悪値より短い。** 最悪値は `CLOSE_IDLE_TIMEOUT` に、
-/// エンジン1本ごとの `WRITE_TIMEOUT`（`quit` を列に通す1件ぶん）＋
-/// `QUIT_GRACE` ＋ `KILL_TIMEOUT` が積まれ、対局が増えれば伸びる。
-/// 書き込みの列に先客が居ればさらに伸びるので、積み上げた値も下限でしかない。
+/// **1局を閉じ切る最悪値より短い。** 最悪値は `CLOSE_ABORT_TIMEOUT`
+/// ＋ `CLOSE_IDLE_TIMEOUT` に、エンジン1本ごとの `WRITE_TIMEOUT`
+/// （`quit` を列に通す1件ぶん）＋ `QUIT_GRACE` ＋ `KILL_TIMEOUT` が積まれ、
+/// 対局が増えれば伸びる。書き込みの列に先客が居ればさらに伸びるので、
+/// 積み上げた値も下限でしかない。
+///
+/// **式で持つ。** 内訳を散文で数えると、上限を1つ増やしたときに数え直す口が無い。
+/// 「合わせに行かない」ことは `the_close_budget_is_deliberately_short` が固定する。
 ///
 /// **合わせに行かない。** 合わせると終了が十数秒待たされる。
 /// ここで切り上げた分は下の掃除が拾う。
-const CLOSE_TIMEOUT: Duration = Duration::from_secs(4);
+pub(crate) const CLOSE_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// 台帳に残ったプロセスを落とすのに使える時間。
 ///

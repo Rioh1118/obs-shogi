@@ -44,10 +44,14 @@ impl Side {
     }
 }
 
-/// `setoption` 1件。**並べた順にそのまま送る。**
+/// `setoption` で送る値1件。**並べた順にそのまま送る。**
+///
+/// **`engine::types::EngineOption` とは別物。** あちらはエンジンが `usi` の
+/// 応答で宣言してくる option の**定義**（型・既定値・現在値）で、向きが逆。
+/// 同じ綴りにすると、コメントや報告書で名前を書いた瞬間にどちらか分からなくなる。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EngineOption {
+pub struct SetOptionValue {
     pub name: String,
     pub value: String,
 }
@@ -81,7 +85,7 @@ pub enum PlayerSpec {
         /// **同じ設定なのに片方の実行だけ棋力が変わる**。ログに残るのは1行ずつなので、
         /// 再現しない差の原因として最後まで疑われない。
         #[serde(default)]
-        options: Vec<EngineOption>,
+        options: Vec<SetOptionValue>,
         /// 相手の手番の間も読ませるか
         #[serde(default)]
         ponder: bool,

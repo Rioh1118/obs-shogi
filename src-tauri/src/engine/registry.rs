@@ -82,30 +82,56 @@ impl EngineRegistry {
         work_dir: Option<&str>,
         info_timeout: Duration,
     ) -> Result<Arc<EngineProcess>, EngineError> {
-        let resolved = std::fs::canonicalize(engine_path).map_err(|e| {
-            EngineError::StartupFailed(format!("engine_path is not a valid existing path: {e}"))
-        })?;
-        if !resolved.is_file() {
-            return Err(EngineError::StartupFailed(
-                "engine_path must point to an existing file".to_string(),
-            ));
-        }
+        // **同期の口をまとめて専用スレッドへ出す。** `canonicalize` も
+        // `is_file` も `UsiEngineHandler::spawn`（`Command::spawn`）も同期の
+        // システムコールで、`.await` を1つも挟まない。async のタスクの中で
+        // 直に呼ぶと `poll` が返らず、同じスレッドに載っている他の対局の
+        // `run_loop` / `tick_loop` / `run_writer` が進まない
+        // （`protocol.rs` が `kill` と書き込みを逃がしているのと同じ理由）。
+        //
+        // ネットワークボリューム上のエンジンや、`fork` が重い状況で効く。
+        // 対局はこれを2本ぶん直列に通る。
+        let path_for_task = engine_path.to_string();
+        let dir_for_task = work_dir.map(|d| d.to_string());
+        let started = tokio::task::spawn_blocking(move || {
+            let resolved = std::fs::canonicalize(&path_for_task).map_err(|e| {
+                EngineError::StartupFailed(format!("engine_path is not a valid existing path: {e}"))
+            })?;
+            if !resolved.is_file() {
+                return Err(EngineError::StartupFailed(
+                    "engine_path must point to an existing file".to_string(),
+                ));
+            }
 
-        let engine_path = resolved.to_string_lossy().to_string();
-        let work_dir = match work_dir {
-            Some(dir) => dir.to_string(),
-            None => resolved
-                .parent()
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|| ".".to_string()),
+            let engine_path = resolved.to_string_lossy().to_string();
+            let work_dir = match dir_for_task {
+                Some(dir) => dir,
+                None => resolved
+                    .parent()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|| ".".to_string()),
+            };
+
+            log::info!(target: LOGT, "spawn: start path='{}'", engine_path);
+
+            let handler = UsiEngineHandler::spawn(&engine_path, &work_dir).map_err(|e| {
+                log::error!(target: LOGT, "spawn: failed: {}", e);
+                EngineError::StartupFailed(format!("Failed to spawn engine: {}", e))
+            })?;
+            Ok((engine_path, work_dir, handler))
+        })
+        .await;
+
+        let (engine_path, work_dir, handler) = match started {
+            Ok(Ok(started)) => started,
+            Ok(Err(e)) => return Err(e),
+            // 専用スレッドが落ちた。プロセスは起きていない
+            Err(e) => {
+                return Err(EngineError::StartupFailed(format!(
+                    "failed to run the spawn task: {e}"
+                )))
+            }
         };
-
-        log::info!(target: LOGT, "spawn: start path='{}'", engine_path);
-
-        let handler = UsiEngineHandler::spawn(&engine_path, &work_dir).map_err(|e| {
-            log::error!(target: LOGT, "spawn: failed: {}", e);
-            EngineError::StartupFailed(format!("Failed to spawn engine: {}", e))
-        })?;
 
         let protocol = Arc::new(UsiProtocol::new(handler));
 
