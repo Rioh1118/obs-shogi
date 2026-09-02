@@ -213,14 +213,17 @@ impl GameSession {
         }
 
         if !settled {
-            // 待った意味が無かったことを残す。**本当に畳めなかったときだけ出る**
+            // 「畳まれなかった」と「畳まれたか**尋ねられなかった**」の両方でここに来る。
+            // `abort` が上限を使い切ると `left` が 0 になり、1度も尋ねずに抜ける
             log::warn!(
                 target: LOGT,
-                "close: searches did not settle in time game_id={}",
+                "close: could not confirm searches settled game_id={}",
                 self.id
             );
         }
 
+        // 上限は `registry::terminate` の中にある。ここで包み直さないこと。
+        // 二重に上限を置くと、どちらが効いたかがログから読めなくなる
         for id in &self.engine_ids {
             registry.shutdown(id).await;
         }

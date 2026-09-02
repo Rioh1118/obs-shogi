@@ -23,6 +23,17 @@ const LOGT: &str = "obs_shogi::engine::registry";
 /// 待ち切らずに `kill` する側に倒してあるのは、**閉じられないほうが害が大きい**ため。
 const QUIT_GRACE: Duration = Duration::from_millis(300);
 
+/// `quit` と `kill` の書き込み1回分に置く上限。
+///
+/// **どちらもブロッキング書き込みで、`handler` の Mutex を握ったまま行う**
+/// （`usi` crate の `GuiCommandWriter::send` は `ChildStdin` への `write_all` + `flush`）。
+/// エンジンが stdin を読まなくなるとパイプが埋まって返らず、上限が無いと
+/// `close_game` も `shutdown_engine` も無期限に返らない。
+///
+/// 上限は `QUIT_GRACE` より長い。書き込み自体は普通ミリ秒未満で終わるので、
+/// ここに達するのは詰まっているときだけ。
+const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// 台帳の中でプロセスを指す値。
 pub type EngineId = String;
 
@@ -167,11 +178,39 @@ impl EngineRegistry {
         self.processes.read().await.keys().cloned().collect()
     }
 
+    /// 落とす。**返らない経路を残さない。**
+    ///
+    /// `quit` も `kill` も詰まりうるので、どちらにも上限を通す。超えたときは
+    /// プロセスが残るが、それは呼び出し側が待ち続けるよりましだという判断。
+    /// 残ったプロセスを回収する仕掛けは無い → #353
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
         let protocol = process.protocol();
-        protocol.quit().await;
+
+        if tokio::time::timeout(WRITE_TIMEOUT, protocol.quit())
+            .await
+            .is_err()
+        {
+            // 書き込みが詰まっている。`kill` も同じ Mutex を待つので、
+            // ここまで来たら下も落ちる見込みが高い
+            log::warn!(
+                target: LOGT,
+                "shutdown: quit timed out id={} — the engine is not reading stdin",
+                process.id
+            );
+        }
+
         tokio::time::sleep(QUIT_GRACE).await;
-        protocol.kill_engine().await;
+
+        if tokio::time::timeout(WRITE_TIMEOUT, protocol.kill_engine())
+            .await
+            .is_err()
+        {
+            log::error!(
+                target: LOGT,
+                "shutdown: kill timed out id={} — the process is left running",
+                process.id
+            );
+        }
     }
 }
