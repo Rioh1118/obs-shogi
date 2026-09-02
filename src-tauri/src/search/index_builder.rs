@@ -26,9 +26,32 @@ pub struct BuildWarn {
     pub message: String,
 }
 
+impl BuildWarn {
+    /// 利用者に出す文言にする。**`EVT_INDEX_WARN` に載るのはこれ。**
+    ///
+    /// `cursor` の `Debug` と `message`（`ApplyError` の英語）をそのまま並べると、
+    /// 画面に `CursorLite { tesuu: 30, fork_pointers: [] }: side-to-move mismatch: …`
+    /// が素のテキストで出る（`WorkspaceTab` は Markdown を解釈しない）。
+    /// 何が起きたかが利用者の言葉になっておらず、次に何をすればよいかも無い。
+    ///
+    /// **内部の理由はここで捨てる。** 要るならログへ回すこと。
+    /// `fork_pointers` は画面で使い道が無いので出さない。
+    pub fn to_user_message(&self) -> String {
+        format!(
+            "{}手目に、その局面では指せない手があります。\
+             この手順はそこで打ち切られるので、より先の局面は検索に出ません",
+            self.cursor.tesuu + 1
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct FileIndexBuild {
-    /// (PositionKey, PositionHit)
+    /// 局面の鍵と、それが出た場所（どのファイルのどのノードか）の対。
+    ///
+    /// **[`crate::search::types::PositionHit`] ではない。** あちらは検索が返す形で、
+    /// `cursor` を伴う。ここではまだ解決していない — `NodeTable` を引いて
+    /// `cursor_lite` を通すのは `query_service` の仕事。
     pub entries: Vec<(PositionKey, Occurrence)>,
     pub node_table: Arc<NodeTable>,
     pub warns: Vec<BuildWarn>,
