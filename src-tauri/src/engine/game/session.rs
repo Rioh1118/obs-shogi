@@ -174,6 +174,17 @@ const SEARCH_GRACE: Duration = Duration::from_secs(30);
 /// こちらは持ち時間を使い切った後の猶予。値が同じなのは偶然なので縛らない。
 pub const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 
+/// 手番側がエンジンか。**`bool` を裸で渡さない。**
+///
+/// `stalled_turn` は同じ型の真偽を2つ並べて受けるので、裸だと**入れ替えても
+/// コンパイルが通る**。入れ替えると、`info` を出していないエンジンで
+/// 「エンジンである」が偽になり、`Running` の枝に一切入らない——
+/// 沈黙の腕だけでなく `budget + HARD_TURN_LIMIT` の最後の上限も消える。
+struct IsEngine(bool);
+
+/// そのエンジンがこの局で `info` を1行でも出したことがあるか。→ `IsEngine`
+struct HasSpoken(bool);
+
 /// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
 ///
 /// 見るのは「**いまどうなっているか**」（`TurnClock` と持ち時間）で、
@@ -200,9 +211,10 @@ fn stalled_turn(
     clock: TurnClock,
     budget_ms: u64,
     silent_for: Duration,
-    thinking_is_an_engine: bool,
-    has_spoken: bool,
+    thinking_is_an_engine: IsEngine,
+    has_spoken: HasSpoken,
 ) -> Option<Stall> {
+    let (thinking_is_an_engine, has_spoken) = (thinking_is_an_engine.0, has_spoken.0);
     // 畳み待ちは探索を止めた側の話なので、対局者の種別に関わらず見る
     if let TurnClock::Settling(since) = clock {
         return (since.elapsed() >= SETTLE_TIMEOUT).then_some(Stall::NotStopping);
@@ -1168,8 +1180,8 @@ impl Runner {
                     self.turn_clock,
                     self.clocks.budget_ms(side),
                     self.last_progress.elapsed(),
-                    self.player(side).spec.is_engine(),
-                    self.player(side).has_spoken,
+                    IsEngine(self.player(side).spec.is_engine()),
+                    HasSpoken(self.player(side).has_spoken),
                 ) {
                     self.finish(GameResult {
                         winner: Some(side.opponent()),
@@ -2860,11 +2872,23 @@ mod tests {
 
         // まだどちらも上限に達していない
         assert_eq!(
-            stalled_turn(TurnClock::Settling(Instant::now()), 0, silent, true, true),
+            stalled_turn(
+                TurnClock::Settling(Instant::now()),
+                0,
+                silent,
+                IsEngine(true),
+                HasSpoken(true)
+            ),
             None
         );
         assert_eq!(
-            stalled_turn(TurnClock::Running(Instant::now()), 0, silent, true, true),
+            stalled_turn(
+                TurnClock::Running(Instant::now()),
+                0,
+                silent,
+                IsEngine(true),
+                HasSpoken(true)
+            ),
             None
         );
 
@@ -2873,8 +2897,8 @@ mod tests {
                 TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
                 600_000,
                 just_spoke,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotStopping),
             "畳み待ちの上限は持ち時間とも便りとも無関係"
@@ -2888,8 +2912,8 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE)),
                 600_000,
                 silent,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering),
             "黙っているのに持ち時間が残っているから待っている"
@@ -2899,8 +2923,8 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE)),
                 0,
                 silent,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering)
         );
@@ -2925,8 +2949,8 @@ mod tests {
                     TurnClock::Running(long_ago(elapsed)),
                     an_hour,
                     elapsed,
-                    true,
-                    never_spoke
+                    IsEngine(true),
+                    HasSpoken(never_spoke)
                 ),
                 None,
                 "`info` を出さないエンジンを {elapsed:?} で故障扱いにしている"
@@ -2941,8 +2965,8 @@ mod tests {
                 )),
                 an_hour,
                 Duration::ZERO,
-                true,
-                never_spoke
+                IsEngine(true),
+                HasSpoken(never_spoke)
             ),
             Some(Stall::NotAnswering),
             "`info` を出さないエンジンに上限が1つも残っていない"
@@ -2954,8 +2978,8 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE)),
                 an_hour,
                 SEARCH_GRACE,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering),
             "喋っていたエンジンが黙ったのに待っている"
@@ -2977,8 +3001,8 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE + Duration::from_secs(1))),
                 an_hour,
                 SEARCH_GRACE,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering),
             "黙って固まったエンジンを持ち時間ぶん待っている"
@@ -2990,8 +3014,8 @@ mod tests {
                 TurnClock::Running(long_ago(Duration::from_secs(1))),
                 an_hour,
                 Duration::from_secs(1),
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             None
         );
@@ -3023,8 +3047,8 @@ mod tests {
                     half_an_hour,
                     // 人間は `info` を出さないので、沈黙は常に満たされる
                     elapsed,
-                    false,
-                    true
+                    IsEngine(false),
+                    HasSpoken(true)
                 ),
                 None,
                 "長考した人間を「応答しない」と呼んでいる: {elapsed:?}"
@@ -3037,8 +3061,8 @@ mod tests {
                 TurnClock::Running(long_ago(budget + HARD_TURN_LIMIT + Duration::from_secs(1))),
                 half_an_hour,
                 Duration::ZERO,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering)
         );
@@ -3049,8 +3073,8 @@ mod tests {
                 TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),
                 half_an_hour,
                 Duration::ZERO,
-                false,
-                true
+                IsEngine(false),
+                HasSpoken(true)
             ),
             Some(Stall::NotStopping)
         );
@@ -3069,8 +3093,8 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
                 0,
                 Duration::ZERO,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             None,
             "読み続けているエンジンを「応答しない」と呼んでいる"
@@ -3082,8 +3106,8 @@ mod tests {
                 TurnClock::Running(long_ago(SEARCH_GRACE * 10)),
                 0,
                 SEARCH_GRACE,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering)
         );
@@ -3105,8 +3129,8 @@ mod tests {
                 TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
                 0,
                 Duration::ZERO,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             Some(Stall::NotAnswering),
             "喋り続けるエンジンに上限が残っていない"
@@ -3118,8 +3142,8 @@ mod tests {
                 TurnClock::Running(long_ago(HARD_TURN_LIMIT)),
                 an_hour,
                 Duration::ZERO,
-                true,
-                true
+                IsEngine(true),
+                HasSpoken(true)
             ),
             None,
             "持ち時間が残っているエンジンを上限で落としている"
@@ -3271,6 +3295,212 @@ mod tests {
         assert!(
             clocks.running.is_none(),
             "終局を知らせる時点で動いている時計がある"
+        );
+    }
+
+    /// 先読み中の側が自分から返した `bestmove` を、着手として採らないこと。
+    ///
+    /// **先読みは自分から終わることがある**（詰みを見つけた等）。採ると
+    /// `decide_move` の `elapsed` は**相手の手番の経過**なので、
+    /// 先読み側の時計から相手の消費時間が引かれ、`MoveDecided { side: 先読み側 }` が
+    /// フロントへ飛ぶ——**手番の側が指す前に、相手の手が1手積まれる。**
+    #[tokio::test]
+    async fn a_bestmove_from_the_side_that_is_only_pondering_is_not_taken() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+        // 手番は先手。後手は先読み中
+        runner.players[Side::White.index()].activity = searching(&cancel);
+
+        runner
+            .on_search_outcome(
+                Side::White,
+                1,
+                SearchOutcome::Move {
+                    usi: "8c8d".to_string(),
+                    ponder: None,
+                },
+            )
+            .await;
+
+        assert!(
+            matches!(runner.phase, Phase::Thinking { side: Side::Black }),
+            "先読み側の `bestmove` を着手として採った"
+        );
+        assert!(
+            !events
+                .take()
+                .iter()
+                .any(|e| matches!(e, GameEvent::MoveDecided { .. })),
+            "先読み側の手を `moveDecided` として流している"
+        );
+    }
+
+    /// 畳み待ち（`Stopping`）を「走っていない」と数えないこと。
+    ///
+    /// 数えると `close` が待たずに `registry.shutdown` へ進み、**`stop` を
+    /// 送っている最中にプロセスが消える**。チャンネル閉塞が
+    /// 「エンジンが応答しない」になるので、**正常に閉じるたびに故障のログが出て**
+    /// 本物の故障と区別が付かなくなる。
+    #[test]
+    fn a_search_that_is_still_settling_is_not_idle() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = Activity::Stopping {
+            req: 1,
+            restart: false,
+        };
+
+        assert!(
+            !runner.searches_idle(),
+            "畳み待ちの探索を「走っていない」と数えた"
+        );
+    }
+
+    /// `enforce_engine_timeout` の**既定（偽）**が、エンジンの手番で効くこと。
+    ///
+    /// 既存の時間切れテストは両者とも人間で、`timeout_enforced` は
+    /// `!is_engine` で常に真になる経路しか通っていない。外すと、
+    /// **「エンジンの時間切れを成立させない」と指定したのに時間切れ負けする。**
+    #[tokio::test]
+    async fn an_engine_never_loses_on_time_unless_the_app_asked_for_it() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].spec = PlayerSpec::Engine {
+            name: "長考するエンジン".to_string(),
+            engine_path: "/nonexistent".to_string(),
+            work_dir: None,
+            options: Vec::new(),
+            ponder: false,
+        };
+        runner.players[Side::Black.index()].has_spoken = true;
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+        assert!(!runner.settings.enforce_engine_timeout, "既定は偽のはず");
+
+        let budget = runner.clocks.budget_ms(Side::Black);
+        runner.turn_clock = TurnClock::Running(long_ago(
+            Duration::from_millis(budget) + Duration::from_secs(1),
+        ));
+        runner.last_progress = Instant::now();
+
+        runner.on_tick().await;
+        assert!(!runner.is_over(), "持ち時間を過ぎただけで終局している");
+
+        // 遅れて返ってきた手も採る
+        runner
+            .on_search_outcome(
+                Side::Black,
+                1,
+                SearchOutcome::Move {
+                    usi: "7g7f".to_string(),
+                    ponder: None,
+                },
+            )
+            .await;
+        assert!(
+            matches!(runner.phase, Phase::AwaitingRuling { .. }),
+            "持ち時間を過ぎた後の手を捨てている"
+        );
+    }
+
+    /// 応答しないエンジンへ手番を渡したら終局し、そこから先へ進まないこと。
+    ///
+    /// 終局させないと、対局はそのまま止まって拾うのは `SETTLE_TIMEOUT` だけになる。
+    /// 終局した後にガードが無いと、`Over` の直後に `TurnChanged` が流れ、
+    /// `gameover` を送った側へ `go ponder` を投げにいく（不変条件1 と ※6 の両方）。
+    #[tokio::test]
+    async fn handing_the_turn_to_an_unresponsive_engine_ends_the_game_and_stops_there() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+        runner.players[Side::White.index()].activity = Activity::Unresponsive;
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::Black,
+            usi_move: "7g7f".to_string(),
+            ponder_move: Some("8c8d".to_string()),
+            since: Instant::now(),
+        };
+
+        runner
+            .accept_continue(vec!["7g7f".to_string()])
+            .await
+            .expect("正しい列を断っている");
+
+        assert!(
+            runner.is_over(),
+            "応答しないエンジンへ手番を渡して進めている"
+        );
+        assert!(
+            !events
+                .take()
+                .iter()
+                .any(|e| matches!(e, GameEvent::TurnChanged { .. })),
+            "終局した後に手番が変わったことにしている"
+        );
+    }
+
+    /// 止めるときは `cancel` を撃ち、`restart` の向きを揃えること。
+    ///
+    /// `cancel` を撃たないと `Activity` だけ `Stopping` になり、探索タスクには
+    /// 何も届かない——`stop` すら送られず、時計は `Settling` で止まったまま
+    /// `SETTLE_TIMEOUT` で故障扱いになる。
+    /// `finish` 側の `restart` を落とし損ねると、終局後に `go` が出る。
+    #[tokio::test]
+    async fn stopping_a_search_cancels_it_and_sets_the_right_restart() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        // 止めて始め直す: cancel して `restart: true`
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+        runner.stop_then_start(Side::Black);
+        assert!(cancel.is_cancelled(), "止めるのに cancel を撃っていない");
+        assert!(
+            matches!(
+                runner.players[Side::Black.index()].activity,
+                Activity::Stopping { restart: true, .. }
+            ),
+            "始め直す印が立っていない"
+        );
+
+        // 既に畳み待ちなら印を立てるだけ
+        runner.players[Side::Black.index()].activity = Activity::Stopping {
+            req: 5,
+            restart: false,
+        };
+        runner.stop_then_start(Side::Black);
+        assert!(matches!(
+            runner.players[Side::Black.index()].activity,
+            Activity::Stopping {
+                req: 5,
+                restart: true
+            }
+        ));
+
+        // 終局: cancel して `restart: false`
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        runner.players[Side::Black.index()].activity = searching(&cancel);
+        runner.players[Side::White.index()].activity = Activity::Stopping {
+            req: 9,
+            restart: true,
+        };
+        runner
+            .finish(GameResult {
+                winner: None,
+                reason: GameOverReason::Aborted,
+                detail: None,
+            })
+            .await;
+        assert!(cancel.is_cancelled(), "終局で探索を止めていない");
+        assert!(
+            matches!(
+                runner.players[Side::White.index()].activity,
+                Activity::Stopping { restart: false, .. }
+            ),
+            "終局したのに始め直す印が立ったまま"
         );
     }
 
