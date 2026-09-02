@@ -860,20 +860,6 @@ impl Runner {
         // **根の局面に途中の手を継ぎ足した別局面**を送ることになり、エンジンは
         // そこの合法手を返し、フロントは現局面で非合法と裁定する——
         // エンジンが指してもいない手で反則負けする。
-        // **上限に達したら終局にする。断らない。** 断ると、フロントは
-        // 接頭辞と長さで一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
-        // 30秒後に `Aborted { "no ruling came back from the app" }` で畳まれる——
-        // **返しているのに「返さなかった」と棋譜に残る。**
-        // 上限は GUI 側の都合なので、理由も GUI 側のもの（`Rule`）として持つ。
-        if moves.len() > MAX_PLIES {
-            self.finish(GameResult {
-                winner: None,
-                reason: GameOverReason::Rule,
-                detail: Some(format!("the game reached the {MAX_PLIES} ply limit")),
-            })
-            .await;
-            return Ok(());
-        }
         if moves.len() != self.moves.len() + 1 || moves[..self.moves.len()] != self.moves[..] {
             return Err(format!(
                 "move list is not the current one plus {usi_move} \
@@ -897,6 +883,26 @@ impl Runner {
             ));
         }
         validate_usi_move(&usi_move)?;
+
+        // **上限に達したら終局にする。断らない。** 断ると、フロントは
+        // 接頭辞と長さで一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
+        // `RULING_TIMEOUT` 後に `Aborted { "no ruling came back from the app" }` で
+        // 畳まれる——**返しているのに「返さなかった」と棋譜に残る。**
+        // 上限は GUI 側の都合なので、理由も GUI 側のもの（`Rule`）として持つ。
+        //
+        // **検算の後に置く。** 前に置くと、食い違った長い列——別の対局の指し手を
+        // 渡してしまった、など——が接頭辞を1手も見られないまま「上限に当たった」として
+        // 終局する。4手で終わった対局に「最大手数で終局」と棋譜が残り、
+        // `Err` も出ないので食い違いに気付く経路が無くなる。
+        if moves.len() > MAX_PLIES {
+            self.finish(GameResult {
+                winner: None,
+                reason: GameOverReason::Rule,
+                detail: Some(format!("the game reached the {MAX_PLIES} ply limit")),
+            })
+            .await;
+            return Ok(());
+        }
 
         self.moves = moves;
         self.phase = Phase::Thinking { side: next };
@@ -1693,12 +1699,20 @@ async fn prepare_engine(
     // **段ごとの上限を締切で縮める。** 縮めないと、`start_game` 全体の締切が
     // 尽きかけていても各段は自前の上限を丸ごと使えるので、`START_TIMEOUT` は
     // 「返るまでの上限」にならない（2体ぶんで `SPAWN_TIMEOUT` の20秒が外に積まれる）
-    // **段ごとに残りを引き直す。** 1回だけ読むと、`spawn` が `spawn_timeout` を
-    // 使い切ってから `usiok` を待つので、2段の合計が `left + SPAWN_TIMEOUT` になる
-    // ——締切を最大10秒はみ出す。`spawn` はこの2つを順に使う
-    let for_spawn = SPAWN_TIMEOUT.min(remaining(deadline, "the engine started")?);
-    let for_usiok =
-        USI_OK_TIMEOUT.min(remaining(deadline, "the engine said usiok")?.saturating_sub(for_spawn));
+    // **残りを2段に配る。** 1つの `min` で済ませると、`spawn` の取り分が残りを
+    // 丸ごと食って `usiok` の取り分が 0 になる——プロセスは実際に起こしたうえで
+    // 1回 poll しただけで殺し、フロントには「エンジンが `usiok` を返さない」と返る。
+    // 利用者は起こしたばかりのエンジンのパスと評価関数を疑うが、
+    // **そのエンジンには1ナノ秒も与えていない。**
+    //
+    // `spawn` は fork/exec だけで普通は数ミリ秒しか使わないので、取り分を先に
+    // 決めてから引く。`usiok` に何も残らないなら**起こす前に締切として断る。**
+    let left = remaining(deadline, "the engine started")?;
+    let for_spawn = SPAWN_TIMEOUT.min(left);
+    let for_usiok = USI_OK_TIMEOUT.min(left.saturating_sub(for_spawn));
+    if for_usiok.is_zero() {
+        return Err("timed out before the engine said usiok".to_string());
+    }
     let process = registry
         .spawn(engine_path, work_dir, for_spawn, for_usiok)
         .await
@@ -2137,6 +2151,36 @@ mod tests {
         }
     }
 
+    /// 締切が細ったとき、`usiok` の取り分を 0 にしないこと。
+    ///
+    /// **0 にすると、プロセスは実際に起こしたうえで1回 poll しただけで殺される。**
+    /// フロントに返るのは「エンジンが `usiok` を返さない」で、利用者は起こしたばかりの
+    /// エンジンのパスと評価関数を疑う——**そのエンジンには1ナノ秒も与えていないのに。**
+    /// 与えられないなら、起こす前に締切として断る。
+    #[tokio::test]
+    async fn a_thin_budget_never_starts_an_engine_it_cannot_wait_for() {
+        let mut settings = two_humans(vec![]);
+        settings.black = PlayerSpec::Engine {
+            name: "後手番のエンジン".to_string(),
+            engine_path: "/nonexistent/engine".to_string(),
+            work_dir: None,
+            options: Vec::new(),
+            ponder: false,
+        };
+
+        let registry = EngineRegistry::new();
+        // `spawn` の取り分（`SPAWN_TIMEOUT`）は残っているが、`usiok` に回らない幅
+        let deadline = Instant::now() + SPAWN_TIMEOUT;
+        let error = spawn_players(&registry, &settings, deadline)
+            .await
+            .expect_err("`usiok` を待てない締切で起動している");
+
+        assert!(
+            error.contains("timed out before"),
+            "エンジンのせいとして断っている: {error}"
+        );
+    }
+
     /// 対局の起動が、締切を過ぎたら**プロセスを起こす前に**断ること。
     ///
     /// 段ごとの上限しか無いと、それを足したぶんのあいだ `start_game` が返らない。
@@ -2266,12 +2310,38 @@ mod tests {
             .await
             .expect_err("過去の手が入れ替わった列を通している");
 
-        // 上限を超えたら**断らずに終局にする**。断ると、フロントは一意に固定された
-        // 列しか返せないのでやり直しても同じ `Err` になり、30秒後に
-        // 「アプリが裁定を返さなかった」で畳まれる——返しているのに
+        // **上限は検算の後。** 食い違った長い列は「上限に当たった」ではなく
+        // 食い違いとして断る——前に置くと、4手で終わった対局に
+        // 「最大手数で終局」と棋譜が残り、`Err` も出ないので気付く経路が無くなる
         let (mut runner, _tx) = awaiting(&opening[..3]);
-        runner
+        let error = runner
             .accept_continue(vec!["7g7f".to_string(); MAX_PLIES + 1])
+            .await
+            .expect_err("食い違った長い列を終局として飲んでいる");
+        assert!(error.contains("plus"), "断る理由が変わっている: {error}");
+        assert!(
+            !matches!(runner.phase, Phase::Over { .. }),
+            "食い違いで終局している"
+        );
+
+        // 上限を超えたら**断らずに終局にする**。断ると、フロントは一意に固定された
+        // 列しか返せないのでやり直しても同じ `Err` になり、`RULING_TIMEOUT` 後に
+        // 「アプリが裁定を返さなかった」で畳まれる——返しているのに
+        let full = vec!["7g7f".to_string(); MAX_PLIES];
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.moves = full.clone();
+        // 写しが偶数手なので、決まったばかりの手は先手のもの
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::Black,
+            usi_move: "7g7f".to_string(),
+            ponder_move: None,
+            since: Instant::now(),
+        };
+        let mut over_the_limit = full;
+        over_the_limit.push("7g7f".to_string());
+        runner
+            .accept_continue(over_the_limit)
             .await
             .expect("上限を超えた列を断っている");
         match &runner.phase {
@@ -2558,21 +2628,28 @@ mod tests {
 
     #[tokio::test]
     async fn continue_is_refused_when_the_move_count_does_not_match_the_next_side() {
-        let game = start(two_humans(vec![])).await;
-        game.submit_move(Side::Black, "7g7f".to_string())
-            .await
-            .unwrap();
+        // **接頭辞の検算を通る列でないと、この分岐に届かない。**
+        // 長さも接頭辞も末尾も合っていて、偶奇だけが合わない列を作る——
+        // 平手（先手番）で2手目まで進んだなら次は先手だが、`last_mover` が先手なので
+        // `last_mover.opponent()` は後手を指す。`derive_side_after` と食い違う
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.moves = vec!["3c3d".to_string()];
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::Black,
+            usi_move: "7g7f".to_string(),
+            ponder_move: None,
+            since: Instant::now(),
+        };
 
-        // 末尾は合っているが手数が偶数なので、次の手番が先手になってしまう
-        assert!(game
-            .continue_game(vec![
-                "2g2f".to_string(),
-                "3c3d".to_string(),
-                "2f2e".to_string(),
-                "7g7f".to_string()
-            ])
+        let error = runner
+            .accept_continue(vec!["3c3d".to_string(), "7g7f".to_string()])
             .await
-            .is_err());
+            .expect_err("手番の導出と食い違う列を通している");
+        assert!(
+            error.contains("to move"),
+            "偶奇の検算ではないところで断っている: {error}"
+        );
     }
 
     #[tokio::test]
@@ -3186,6 +3263,101 @@ mod tests {
             clocks.running.is_none(),
             "終局を知らせる時点で動いている時計がある"
         );
+    }
+
+    /// 先読み中のエンジンの `info` を画面へ流さないこと（表の ※8）。
+    ///
+    /// **`is_to_move` の1行がいま守っている唯一のもの。** 冗長と読んで消すと、
+    /// 相手の手番中に走っている先読みの読み筋が `searchInfo` として流れ、
+    /// **まだ指されていない手の後の評価値**が現局面のものとして画面に出る。
+    ///
+    /// 既存の `info_from_a_stopped_search_is_not_shown` が見ているのは世代（`req`）だけで、
+    /// 手番のほうは見ていない。
+    #[test]
+    fn info_from_the_side_that_is_only_pondering_is_not_shown() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
+        // 手番は先手。後手は先読み中
+        runner.players[Side::White.index()].activity = searching(&cancel);
+
+        runner.on_search_info(Side::White, 1, AnalysisResult::default());
+
+        assert!(
+            !events
+                .take()
+                .iter()
+                .any(|e| matches!(e, GameEvent::SearchInfo { .. })),
+            "先読み中の読み筋を現局面のものとして流している"
+        );
+    }
+
+    /// 裁定を通した直後は時計が動いていないこと（表の ※5）。
+    ///
+    /// **`turn_clock = Settling` を書く本番の唯一の口が `accept_continue`。**
+    /// 消えると `turn_clock` は前の手番の `Running(t0)` のまま残り、
+    /// `running_clock()` は**前の手番の開始からの経過**を新しい手番側の消費として返す。
+    /// 先読みが外れた局面で手番を受け取ったエンジンが、1ノードも読まないうちに
+    /// 相手の長考ぶんを丸ごと請求される。
+    ///
+    /// 既存の2本はどちらも手で `Settling` を代入しているので、この口は踏んでいない。
+    #[tokio::test]
+    async fn taking_a_ruling_stops_the_clock_until_the_search_starts() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let cancel = CancellationToken::new();
+        let mut runner = test_runner(&tx);
+        // **`Idle` に渡す形だと `begin_turn` が上書きするので隠れる。**
+        // 止めてから始め直す側（`StopThenStart`）は `begin_turn` を通らないので、
+        // `accept_continue` が置いた `Settling` がそのまま残るはず
+        runner.players[Side::White.index()].activity = searching(&cancel);
+        runner.turn_clock = TurnClock::Running(long_ago(Duration::from_secs(30)));
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::Black,
+            usi_move: "7g7f".to_string(),
+            ponder_move: None,
+            since: Instant::now(),
+        };
+
+        runner
+            .accept_continue(vec!["7g7f".to_string()])
+            .await
+            .expect("正しい列を断っている");
+
+        assert!(
+            runner.running_clock().is_none(),
+            "裁定を通した直後に時計が動いている（前の手番の経過が新しい手番へ請求される）"
+        );
+    }
+
+    /// 裁定が返らないまま `RULING_TIMEOUT` を過ぎたら中断すること（表の `(G1, E15)`）。
+    ///
+    /// **上限に当たった裁定を「断らずに終局」にした根拠がこの番人。**
+    /// 断ると同じ `Err` を返し続けてここに落ち、`detail` は「アプリが裁定を
+    /// 返さなかった」と書く——返しているのに。その番人自体に検査が無かった。
+    #[tokio::test]
+    async fn a_ruling_that_never_comes_back_aborts_the_game() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::Black,
+            usi_move: "7g7f".to_string(),
+            ponder_move: None,
+            since: long_ago(RULING_TIMEOUT),
+        };
+
+        runner.on_tick().await;
+
+        match &runner.phase {
+            Phase::Over { result } => {
+                assert_eq!(result.reason, GameOverReason::Aborted, "終局の理由が違う");
+                assert!(
+                    result.winner.is_none(),
+                    "裁定が返らないのに勝敗が付いている"
+                );
+            }
+            _ => panic!("裁定が返らないまま留まっている"),
+        }
     }
 
     /// 打ち切った探索の `info` を採らないこと（表の E16 が `Info` にも掛かる）。
