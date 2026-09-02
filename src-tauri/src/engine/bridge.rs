@@ -120,7 +120,15 @@ impl EngineBridge {
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
         log::info!(target: LOGT, "shutdown_engine: start");
 
-        self.stop_all_sessions().await?;
+        // **止められなくても台帳の掃除まで進む。** `?` で折れると
+        // `engine_id` が `Some` のまま残り、以降どのコマンドも
+        // 「Engine is no longer running」を返すだけになる（終了ボタンが直せない）
+        if let Err(e) = self.stop_all_sessions().await {
+            log::warn!(
+                target: LOGT,
+                "shutdown_engine: could not stop sessions, continuing: {e}"
+            );
+        }
 
         match self.analyzer.shutdown().await {
             Ok(_) => {

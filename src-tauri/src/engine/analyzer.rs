@@ -314,9 +314,21 @@ impl EngineAnalyzer {
         Ok(analysis_result)
     }
 
-    /// 解析停止
+    /// 解析停止。
+    ///
+    /// **エンジンが既に居なくても成功にする。** 要求は「止まっていること」で、
+    /// 落ちているならその要求は満たせている。`Err` を返すと、後片付けの途中に
+    /// 置かれた呼び出し（`stop_all_sessions`）が `?` で折れて、
+    /// その先の台帳の掃除まで走らなくなる
     pub async fn stop_analysis(&self) -> Result<(), EngineError> {
-        let protocol = self.protocol().await?;
+        let protocol = match self.protocol().await {
+            Ok(protocol) => protocol,
+            Err(EngineError::NotInitialized(reason)) => {
+                log::debug!(target: LOGT, "stop_analysis: nothing to stop ({reason})");
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
 
         if let Some(flag) = self.infinite_stop_requested.lock().await.as_ref() {
             flag.store(true, Ordering::SeqCst);
