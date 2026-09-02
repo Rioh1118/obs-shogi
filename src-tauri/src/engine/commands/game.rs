@@ -38,7 +38,6 @@ pub async fn start_game(
     state
         .games
         .start(
-            state.registry.clone(),
             Arc::new(TauriEvents {
                 app,
                 frequent_warn: Mutex::new(LogThrottle::new(EMIT_WARN_INTERVAL)),
@@ -214,11 +213,7 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: String) -> R
 /// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。
 #[tauri::command]
 pub async fn close_game(state: tauri::State<'_, AppState>, game_id: String) -> Result<(), String> {
-    log_rejection(
-        "close",
-        &game_id,
-        state.games.close(&state.registry, &game_id).await,
-    )
+    log_rejection("close", &game_id, state.games.close(&game_id).await)
 }
 
 /// いまの対局の状態を取る。**イベントを取りこぼした後の突き合わせ用。**

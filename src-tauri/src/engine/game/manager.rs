@@ -11,28 +11,37 @@ use tokio::sync::RwLock;
 use crate::engine::registry::EngineRegistry;
 
 use super::events::GameEventSink;
-use super::session::{GameSession, CLOSE_ABORT_TIMEOUT};
+use super::session::GameSession;
 use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
 const LOGT: &str = "obs_shogi::engine::game::manager";
 
-#[derive(Default)]
 pub struct GameManager {
     sessions: RwLock<HashMap<GameId, Arc<GameSession>>>,
+    /// 対局のエンジンを起こす／落とす台帳。
+    ///
+    /// **持つ。** 渡してもらう形にすると、`engine_ids` が「起こしたときの台帳の
+    /// 中でだけ意味を持つ値」なのに、その台帳との対応が呼び出し側の記憶だけに
+    /// なる。別の台帳を渡すと対局は消え、`shutdown` は知らない ID として
+    /// `debug` を1行出して**成功で返り**、プロセスは誰からも参照されずに残る。
+    /// `Result` も `warn` も出ないので、アクティビティモニタ以外に手掛かりが無い。
+    registry: Arc<EngineRegistry>,
 }
 
 impl GameManager {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(registry: Arc<EngineRegistry>) -> Self {
+        Self {
+            sessions: RwLock::default(),
+            registry,
+        }
     }
 
     pub async fn start(
         &self,
-        registry: Arc<EngineRegistry>,
         events: Arc<dyn GameEventSink>,
         settings: GameSettings,
     ) -> Result<GameId, String> {
-        let session = GameSession::start(registry, events, settings).await?;
+        let session = GameSession::start(&self.registry, events, settings).await?;
         let id = session.id.clone();
         self.sessions
             .write()
@@ -53,7 +62,7 @@ impl GameManager {
     /// 他の操作が同じ対局を掴んでいると閉じられず `Err` を返す。そのとき
     /// **対局は中断済みだが、エンジンは生きたまま台帳に残る。**
     /// そのまま呼び直せる。呼び直さないとプロセスが残る。
-    pub async fn close(&self, registry: &EngineRegistry, game_id: &str) -> Result<(), String> {
+    pub async fn close(&self, game_id: &str) -> Result<(), String> {
         let session = self.sessions.write().await.remove(game_id);
         let Some(session) = session else {
             return Err(format!("unknown game: {game_id}"));
@@ -61,7 +70,7 @@ impl GameManager {
 
         // `close` はセッションを消費するので、他に持たれていたら落とせない。
         match Arc::try_unwrap(session) {
-            Ok(session) => session.close(registry).await,
+            Ok(session) => session.close(&self.registry).await,
             Err(session) => {
                 // 誰かが操作中。中断だけ通して、**台帳へ戻す。**
                 //
@@ -70,20 +79,8 @@ impl GameManager {
                 // どこにも残らない。`close_all` も台帳しか見ないので拾えない。
                 // 戻しておけば、次の `close_game` か `close_all` で落とせる。
                 //
-                // 上限を通す。`abort` は `run_loop` の応答を待つので、
-                // そこが書き込みで詰まっていると返らない。`Ok` 側
-                // （`GameSession::close`）は同じ待ちを `CLOSE_ABORT_TIMEOUT` で
-                // 包んでいるので、こちらだけ裸にしない
-                // `abort` の失敗は2通りで、意味が正反対。潰すとログから区別が付かない
-                match tokio::time::timeout(CLOSE_ABORT_TIMEOUT, session.abort()).await {
-                    Ok(Ok(())) => {}
-                    // セッションのタスクが先に居なくなった。もう止まっている
-                    Ok(Err(e)) => log::debug!(target: LOGT, "close: nothing to abort: {e}"),
-                    // `run_loop` が詰まっている。止められていない
-                    Err(_) => {
-                        log::warn!(target: LOGT, "close: abort timed out; the session is stuck")
-                    }
-                }
+                // 中断の上限と失敗の分類は `GameSession` が1箇所で持つ
+                session.abort_within_budget().await;
                 self.sessions
                     .write()
                     .await
@@ -106,11 +103,11 @@ impl GameManager {
     /// `close` は操作中の対局を閉じられずに台帳へ戻すので、ここで潰すと
     /// 「一括で閉じたのにエンジンが残っている」が痕跡なしに起きる。
     /// 戻る `Vec` は閉じられなかった対局の ID
-    pub async fn close_all(&self, registry: &EngineRegistry) -> Vec<GameId> {
+    pub async fn close_all(&self) -> Vec<GameId> {
         let ids: Vec<GameId> = self.sessions.read().await.keys().cloned().collect();
         let mut left = Vec::new();
         for id in ids {
-            if let Err(e) = self.close(registry, &id).await {
+            if let Err(e) = self.close(&id).await {
                 log::warn!(target: LOGT, "close_all: could not close {id}: {e}");
                 left.push(id);
             }

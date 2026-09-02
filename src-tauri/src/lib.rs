@@ -194,7 +194,7 @@ fn shut_down_engines(app: &tauri::AppHandle) {
 
         tauri::async_runtime::block_on(async move {
             // 対局を閉じる。**切り上げてもよい。** 残りは下の掃除が拾う
-            match tokio::time::timeout(CLOSE_TIMEOUT, games.close_all(&registry)).await {
+            match tokio::time::timeout(CLOSE_TIMEOUT, games.close_all()).await {
                 Ok(left) if left.is_empty() => {}
                 Ok(left) => log::warn!(
                     target: "obs_shogi::lib",

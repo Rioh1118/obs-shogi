@@ -303,7 +303,7 @@ impl GameSession {
     /// **返るまでの上限は `START_TIMEOUT`。** 2体ぶんの段ごとの上限を足した値では
     /// ない。取り消す口は無いので、待たせる長さはここで決まる。
     pub async fn start(
-        registry: Arc<EngineRegistry>,
+        registry: &EngineRegistry,
         events: Arc<dyn GameEventSink>,
         settings: GameSettings,
     ) -> Result<GameSession, String> {
@@ -311,7 +311,7 @@ impl GameSession {
         let side_to_move = derive_side_after(&settings, settings.initial_moves.len());
 
         let deadline = Instant::now() + START_TIMEOUT;
-        let (engine_ids, engines) = spawn_players(&registry, &settings, deadline).await?;
+        let (engine_ids, engines) = spawn_players(registry, &settings, deadline).await?;
 
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::unbounded_channel();
@@ -404,10 +404,18 @@ impl GameSession {
     /// **終局しただけではプロセスは落ちない。** `gameover` の後に
     /// `usinewgame` で指し直せるようにしてある（USI がそういう作りのため）。
     /// 呼ばないとプロセスが残る。
-    pub async fn close(self, registry: &EngineRegistry) {
-        // 「止める → 畳まれるのを**待つ** → 落とす」の順。
-        // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
-        // `abort` の失敗は2通りで、意味が正反対。潰すとログから区別が付かない
+    /// 上限を掛けて中断する。**閉じる経路はどちらもここを通る。**
+    ///
+    /// `abort` は `run_loop` の応答を待つので、そこが書き込みで詰まっていると
+    /// 返らない。上限が要るのはそのため。
+    ///
+    /// **失敗は2通りで、意味が正反対。** 潰すとログから区別が付かない——
+    /// 「もう止まっている」と「止められていない」が同じ1行になる。
+    ///
+    /// 分類を2箇所に書かない。書くと、`abort` の失敗の種類を増やしたときに
+    /// 片方だけ増える。古いまま残るのは `GameManager::close` の側で、
+    /// そこは `Arc` が2本要るのでテストが踏みにくい。
+    pub(super) async fn abort_within_budget(&self) {
         match tokio::time::timeout(CLOSE_ABORT_TIMEOUT, self.abort()).await {
             Ok(Ok(())) => {}
             // セッションのタスクが先に居なくなった。もう止まっている
@@ -415,6 +423,12 @@ impl GameSession {
             // `run_loop` が詰まっている。止められていない
             Err(_) => log::warn!(target: LOGT, "close: abort timed out; the session is stuck"),
         }
+    }
+
+    pub async fn close(self, registry: &EngineRegistry) {
+        // 「止める → 畳まれるのを**待つ** → 落とす」の順。
+        // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
+        self.abort_within_budget().await;
 
         // **`abort` の後から測る。** 前から測ると、`abort` に使ったぶんだけ
         // 畳み待ちが縮み、正常に畳んでいるエンジンを待ち切れなくなる
@@ -1862,13 +1876,9 @@ mod tests {
     }
 
     async fn start(settings: GameSettings) -> GameSession {
-        GameSession::start(
-            Arc::new(EngineRegistry::new()),
-            Arc::new(DiscardEvents),
-            settings,
-        )
-        .await
-        .expect("人間だけの対局は起動できるはず")
+        GameSession::start(&EngineRegistry::new(), Arc::new(DiscardEvents), settings)
+            .await
+            .expect("人間だけの対局は起動できるはず")
     }
 
     fn phase_of(snapshot: &GameSnapshot) -> &GamePhaseView {

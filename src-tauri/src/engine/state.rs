@@ -29,8 +29,8 @@ impl AppState {
         let registry = Arc::new(EngineRegistry::new());
         Self {
             bridge: Arc::new(EngineBridge::new(Arc::clone(&registry))),
+            games: Arc::new(GameManager::new(Arc::clone(&registry))),
             registry,
-            games: Arc::new(GameManager::new()),
         }
     }
 }
