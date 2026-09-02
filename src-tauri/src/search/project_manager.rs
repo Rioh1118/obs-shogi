@@ -350,7 +350,11 @@ impl ProjectManager {
                 let warns = outcome
                     .warns
                     .into_iter()
-                    .chain(b.warns.into_iter().map(|w| w.to_user_message()))
+                    .chain(b.warns.into_iter().map(|w| {
+                        // 内部の理由は画面に出さない。追えるようログへ残す
+                        log::warn!("[index] {:?}: {}", w.cursor, w.message);
+                        w.to_user_message()
+                    }))
                     .collect::<Vec<_>>();
                 Ok((by_bucket, b.node_table, warns))
             },

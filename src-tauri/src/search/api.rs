@@ -342,7 +342,11 @@ async fn build_full_index_task(
                     let warns = outcome
                         .warns
                         .into_iter()
-                        .chain(built.warns.into_iter().map(|w| w.to_user_message()))
+                        .chain(built.warns.into_iter().map(|w| {
+                            // 内部の理由は画面に出さない。追えるようログへ残す
+                            log::warn!("[index] {:?}: {}", w.cursor, w.message);
+                            w.to_user_message()
+                        }))
                         .collect::<Vec<_>>();
 
                     Ok((by_bucket, built.node_table, warns))

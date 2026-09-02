@@ -86,7 +86,9 @@ pub struct ReadOutcome {
 /// | JKF | しない（JSON なので UTF-8） | しない | — |
 ///
 /// 非対称の理由はそれぞれの関数の doc にある。
-/// `.csa` が `Err` になる経路は、クレートが断った／パニックを捕まえた、の2つ。
+/// `.csa` が [`KifuReadError::ParseFailed`] になる経路は、クレートが断った／
+/// パニックを捕まえた、の2つ。**読み残しはここに入らない** — `warns` に積むだけで、
+/// 記録を落とすかどうかは [`says_nothing`] だけが決める。
 ///
 /// # Errors
 ///
@@ -102,7 +104,7 @@ pub struct ReadOutcome {
 /// `build_one_file` が `None` を返したときに呼び手側で積む）。
 /// どちらの経路でも、その棋譜の局面は検索に出てこない。
 ///
-/// **`Ok` でも `warns` が空とは限らない。** 4つの戻りを並べた表は
+/// **`Ok` でも `warns` が空とは限らない。** 5つの戻りを並べた表は
 /// `docs/state-transitions/search.md`（この関数を主語にしている）。
 pub fn read_to_jkf(rec: &FileRecord) -> Result<ReadOutcome, KifuReadError> {
     let (jkf, warns) = read_path_inner(&rec.path, rec.kind)?;
@@ -266,21 +268,26 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), Ki
         KifuKind::Jkf => parse_jkf_file(path).map_err(|e| parse_failed(unreadable_record(e))),
     }?;
 
-    // **`says_nothing` より先に見る。** 後ろに置くと、対局者名を書かない CSA が
-    // 1手目で切れたときに `says_nothing` が真になって、警告を作る前に抜けてしまう
-    // （読み残しを伝えるためにこの検査があるのに、いちばん失うものが多い形で黙る）。
-    // 理由は [`warn_if_moves_were_dropped`]
+    // 2つの問いを別々に答えさせ、ここでは**受け取るだけ**にする。
+    //
+    // | 問い | 持ち主 | 権限 |
+    // | --- | --- | --- |
+    // | 索引に入れる局面があるか | [`says_nothing`] | 記録を落とせる |
+    // | 最後まで読めたか | [`warn_if_moves_were_dropped`] | **警告だけ。落とせない** |
+    //
+    // **どちらの判断もここで再導出しない。** 片方の条件をもう片方へ書き写すと、
+    // 写し落としがそのまま索引の穴になる（`preset` を見落として駒落ちの
+    // 初期局面を落とした例がある）。
+    //
+    // 読めたかを先に見るのは、`says_nothing` が真の記録でも
+    // **なぜ空に見えるのかを伝えたい**から。対局者名を書かない CSA が
+    // 1手目で切れると `says_nothing` は真になるが、それは「本当に空」ではない。
     let warn = match kind {
         KifuKind::Csa => warn_if_moves_were_dropped(&file, &jkf),
         _ => None,
     };
 
-    // 指し手を1つも採れていないなら、局面は入れない。**入れると平手の初期局面だけが
-    // 索引に入り**、その局面で検索すると切れた棋譜が並んで「そういう棋譜」に見える
-    // （[`KifuReadError::NothingToIndex`] が防ごうとしている当のもの）。
-    // 警告は別で、`warn` に載せて呼び手へ渡す
-    let no_move_was_read = !jkf.moves.iter().any(|m| m.move_.is_some());
-    if says_nothing(&jkf) || (warn.is_some() && no_move_was_read) {
+    if says_nothing(&jkf) {
         return Err(KifuReadError::NothingToIndex { warn });
     }
 
@@ -357,7 +364,9 @@ fn parse_csa_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 ///
 /// 実測すると、指し手行の末尾に半角スペースが1つ入っただけで
 /// **そこから後ろの全部が消えたまま `Ok`** になる。対局者名が無ければ
-/// [`says_nothing`] が真になって警告すら出ない。
+/// [`says_nothing`] も真になるが、**この文言は
+/// [`KifuReadError::NothingToIndex`] の `warn` に載せて呼び手へ渡す**
+/// （`read_path_inner` がこの検査を門より前に置いているのはそのため）。
 ///
 /// # 数え方は当てにいかない
 ///
@@ -525,8 +534,9 @@ fn capped(e: &dyn std::fmt::Display) -> String {
 /// 読めなかった理由を、利用者に出せる形にして包む。
 ///
 /// **[`KifuReadError::ParseFailed`] を作る口はここだけ。** 長さと制御文字を落とすのを
-/// 各所でやると必ず漏れる。文言を持たない [`KifuReadError::NothingToIndex`] は
-/// 刈るものが無いので、ここを通らず直に組む。
+/// 各所でやると必ず漏れる。[`KifuReadError::NothingToIndex`] の `warn` は
+/// **数だけを埋める定型文**なので刈る対象が無く、ここを通らず直に組む。
+/// **クレート由来の文言を混ぜるなら、ここか [`capped`] を通すこと。**
 ///
 /// **上限は組みながら掛ける。** `to_string()` を先に呼ぶと、
 /// クレートが引用する「読めなかった位置から行末まで」が丸ごと確保される。
@@ -1665,10 +1675,11 @@ mod tests {
             let err = read_path_to_jkf(&path, KifuKind::Kif)
                 .err()
                 .unwrap_or_else(|| panic!("{label} を弾いていない"));
-            assert!(
-                matches!(err, KifuReadError::NothingToIndex { .. }),
-                "{label} が警告つきで弾かれている: {err}"
-            );
+            // **黙って弾くこと。** `{ .. }` で受けると `warn` が付いても緑になる
+            let KifuReadError::NothingToIndex { warn } = err else {
+                panic!("{label} が読めなかった扱いになっている: {err}");
+            };
+            assert!(warn.is_none(), "{label} が警告つきで弾かれている: {warn:?}");
         }
 
         // 中身のある記録は、指し手が0手でも通る。
@@ -1874,9 +1885,18 @@ mod tests {
             assert!(!content.is_empty(), "{ext}: 0バイトのファイルを作っている");
             fs::write(&path, &content).expect("書き出し");
 
-            match read_path_to_jkf(&path, kind) {
-                Ok(_) => {}
-                Err(KifuReadError::NothingToIndex { .. }) => {}
+            // **警告も出させない。** 出しても利用者に直しようが無い。
+            // `{ .. }` で受けると `warn` が付いても緑になるので、中身まで見る
+            match read_path_inner(&path, kind) {
+                Ok((_, warns)) => {
+                    assert!(
+                        warns.is_empty(),
+                        "{ext}: 直しようの無い警告が出た: {warns:?}"
+                    );
+                }
+                Err(KifuReadError::NothingToIndex { warn }) => {
+                    assert!(warn.is_none(), "{ext}: 直しようの無い警告が出た: {warn:?}");
+                }
                 Err(e) => panic!("{ext}: 作ったばかりの棋譜を壊れていると言っている: {e}"),
             }
         }
@@ -2154,14 +2174,18 @@ mod tests {
     /// **検査が門より後ろにあると、いちばん失うものが多い形だけが黙る。**
     /// 題材をヘッダあり／なしの2通りで回すのはそのため。
     ///
-    /// | ヘッダ | 戻り | 局面 | 警告 |
-    /// | --- | --- | --- | --- |
-    /// | あり・1手以上読めた | `Ok` | 読めたぶん | 出る |
-    /// | あり・1手も読めなかった | `NothingToIndex` | 入らない | 出る |
-    /// | なし | `NothingToIndex` | 入らない | 出る |
+    /// **戻りを決めるのは [`says_nothing`] だけ**で、読み残しの検査は関わらない。
+    /// ヘッダの有無で回すのは、`says_nothing` の門に掛かる側と掛からない側の
+    /// **両方で警告が出る**ことを見るため。
     ///
-    /// **1手も読めていないのに局面を入れない**のは、入れると平手の初期局面だけが
-    /// 索引に入り、その局面の検索が切れた棋譜で埋まるから。
+    /// | 題材 | `says_nothing` | 戻り | 局面 | 警告 |
+    /// | --- | --- | --- | --- | --- |
+    /// | ヘッダあり | 偽（ヘッダが中身） | `Ok` | 入る | 出る |
+    /// | ヘッダなし・1手以上読めた | 偽（`moves.len() > 1`） | `Ok` | 入る | 出る |
+    /// | ヘッダなし・1手も読めなかった | 真 | `NothingToIndex` | 入らない | 出る |
+    ///
+    /// **ヘッダなしでも1手読めれば `Ok`**（2手目で切れる／最終行の改行なし が
+    /// これに当たる）。ヘッダの有無は戻りを決めていない。
     ///
     /// 題材は**すべて合成**。実在の CSA でこの検査が誤報しないことは確かめていない。
     #[test]
@@ -2231,14 +2255,28 @@ mod tests {
             }
         }
 
-        // 1手も読めていない題材では、局面を入れない
-        let path = dir.join("no-move-read.csa");
-        fs::write(&path, whole.replace("+7776FU\n", "+7776FU \n")).expect("書き出し");
-        let Err(KifuReadError::NothingToIndex { warn }) = read_path_inner(&path, KifuKind::Csa)
-        else {
-            panic!("1手も読めていないのに局面を入れようとしている");
-        };
-        assert!(warn.is_some(), "局面を入れないうえに黙っている");
+        // **読み残しの検査は記録を落とせない。** 落とすかどうかを決めるのは
+        // `says_nothing` だけで、駒落ちや盤面図は「中身がある」側に入る。
+        // 1手目で切れていても、その初期局面は索引に入れる
+        for (name, body) in [
+            ("駒落ち", "V2.2\nPI82HI22KA\n-\n-3334FU \n+7776FU\n%TORYO\n"),
+            (
+                "盤面図",
+                "V2.2\nN+山田\nP1 *  *  *  *  * -OU *  *  * \nP2 *  *  *  *  *  *  *  *  * \n\
+                 P3 *  *  *  *  *  *  *  *  * \nP4 *  *  *  *  *  *  *  *  * \n\
+                 P5 *  *  *  *  *  *  *  *  * \nP6 *  *  *  *  *  *  *  *  * \n\
+                 P7 *  *  *  *  *  *  *  *  * \nP8 *  *  *  *  *  *  *  *  * \n\
+                 P9 *  *  *  * +OU *  *  *  * \n+\n+5958OU \n-5152OU\n%TORYO\n",
+            ),
+        ] {
+            let path = dir.join(format!("{name}.csa"));
+            fs::write(&path, body).expect("書き出し");
+
+            let (jkf, warns) = read_path_inner(&path, KifuKind::Csa)
+                .unwrap_or_else(|e| panic!("{name}: 初期局面ごと落とした: {e}"));
+            assert!(jkf.initial.is_some(), "{name}: 初期局面が消えている");
+            assert_eq!(warns.len(), 1, "{name}: 警告が1件でない: {warns:?}");
+        }
 
         fs::remove_dir_all(&dir).ok();
     }

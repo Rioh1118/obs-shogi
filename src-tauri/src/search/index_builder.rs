@@ -20,9 +20,14 @@ pub enum BuildPolicy {
     Strict,
 }
 
+/// 索引を組む途中で打ち切った手順。**利用者に出すのは [`BuildWarn::to_user_message`] だけ。**
 #[derive(Debug, Clone)]
 pub struct BuildWarn {
+    /// どこで打ち切ったか。`tesuu` は**その手を指したあとの手数**で、
+    /// `tesuu = N` は「N手目が指せなかった」を意味する（`walk_sequence` は
+    /// `moves[1..]` を `start_tesuu = 1` で歩く）
     pub cursor: CursorLite,
+    /// `ApplyError` の英語。**画面には出さない**（内部の理由）
     pub message: String,
 }
 
@@ -34,13 +39,19 @@ impl BuildWarn {
     /// が素のテキストで出る（`WorkspaceTab` は Markdown を解釈しない）。
     /// 何が起きたかが利用者の言葉になっておらず、次に何をすればよいかも無い。
     ///
-    /// **内部の理由はここで捨てる。** 要るならログへ回すこと。
+    /// **内部の理由（`message`）はここで捨てる。** 呼び手がログへ回す。
     /// `fork_pointers` は画面で使い道が無いので出さない。
+    ///
+    /// **`tesuu` に足さない。** `walk_sequence` は `moves[1..]` を `start_tesuu = 1` で
+    /// 歩くので、`tesuu` はそのまま「何手目が指せなかったか」。足すと、
+    /// 索引に入っていない1つ先の手を名指しすることになる。
+    /// 検索結果の `手数` 表示（`PositionHitItem`）も `tesuu` を素で描くので、
+    /// ずらすとアプリの中で数え方が2つになる。
     pub fn to_user_message(&self) -> String {
         format!(
             "{}手目に、その局面では指せない手があります。\
              この手順はそこで打ち切られるので、より先の局面は検索に出ません",
-            self.cursor.tesuu + 1
+            self.cursor.tesuu
         )
     }
 }
@@ -257,4 +268,57 @@ pub fn bucketize_entries(
     }
 
     buckets
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::test_kifu::one_move_kif;
+
+    /// 警告の手数が、指せなかった手そのものを指す。
+    ///
+    /// `tesuu` の起点は `walk_sequence(&moves[1..], 1, ..)` で決まっていて、
+    /// 1手目が `tesuu = 1`。**足すと索引に入っていない1つ先を名指しする**
+    /// （打ち切るので、その手より先は入らない）。
+    /// 検索結果の `手数` 表示も `tesuu` を素で描くので、ずらすと数え方が2つになる。
+    #[test]
+    fn the_warning_names_the_move_that_could_not_be_played() {
+        let warn = BuildWarn {
+            cursor: CursorLite {
+                tesuu: 30,
+                fork_pointers: vec![],
+            },
+            message: "side-to-move mismatch".to_owned(),
+        };
+        let message = warn.to_user_message();
+
+        assert!(
+            message.starts_with("30手目"),
+            "指せなかった手そのものを言っていない: {message}"
+        );
+        // 内部の理由は出さない。`WorkspaceTab` は素のテキストで描く
+        assert!(
+            !message.contains("side-to-move"),
+            "内部の理由が画面に出る: {message}"
+        );
+    }
+
+    /// `tesuu` の起点を、組み立ての側から固定する。
+    ///
+    /// 上のテストは `CursorLite` を手で組むので、**`walk_sequence` が
+    /// 起点を変えても緑のまま**になる。1手指した棋譜の1手目が `tesuu = 1` で
+    /// 索引に入ることを、実際に組み立てて見る。
+    #[test]
+    fn the_first_move_is_tesuu_one() {
+        let jkf = shogi_kifu_converter_obsshogi::parser::parse_kif_str(&one_move_kif("平手"))
+            .expect("題材の KIF が読めること");
+        let built =
+            build_index_for_jkf(1, 1, &jkf, BuildPolicy::Loose).expect("1手の棋譜が組めること");
+
+        let tesuu: Vec<u32> = built.node_table.nodes.iter().map(|n| n.tesuu).collect();
+        assert!(
+            tesuu.contains(&0) && tesuu.contains(&1),
+            "初期局面が 0、1手目が 1 になっていない: {tesuu:?}"
+        );
+    }
 }
