@@ -82,9 +82,11 @@ enum SessionType {
 
 /// 席の名前。**種類と打ち切り条件が接頭辞に出る。**
 ///
-/// 条件まで出すのは、`SessionType` の payload をここで必ず読ませるため。
-/// 読まないと `Timed` と `Depth` の中身が dead code になり、
-/// 「席の種類を誰も区別していない」が黙って通る。ログで見分けられるのは副次。
+/// 条件まで出すのは、同じ局面に対する `timed` と `depth` の席がログ上で
+/// 見分けられないと、どちらが残ったのかを後から追えないため。
+///
+/// 副産物として `SessionType` の payload をここで必ず読むので、
+/// `Timed` と `Depth` の中身が dead code に戻らない（→ `SessionType` の doc）。
 fn new_session_id(session_type: &SessionType) -> String {
     let prefix = match session_type {
         SessionType::Infinite => "infinite".to_string(),

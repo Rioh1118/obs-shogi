@@ -86,15 +86,21 @@ pub struct DepthOutcome {
 /// 来るはずのない `bestmove` の後に「エンジンが `stop` に応じなかった」という
 /// 説明が残る。エンジンは `go` を1バイトも受け取っていないことがある。
 ///
-/// `game::search` の `outcome_of_stop` と同じ4分岐。あちらは対局の結果へ写し、
-/// こちらは待ち方へ写す。写す先が違うので型は分かれるが、**分岐は同じ**。
+/// `game::search` の `outcome_of_stop` と写す元は同じだが、**写す先の粒度が違う**。
+/// あちらは `Timeout` を `StopTimedOut` という別の状態へ落とし、対局を続ける／
+/// 話しかけるのをやめる、の判断に使う。こちらは待ち方しか決めないので、
+/// 送れなかったものは理由を問わず「待たない」に落ちる。
 #[derive(Debug)]
 enum StopVerdict {
     /// 書けた。この後 `bestmove` が来る
     Wait,
     /// まだ書いていない `go` を落とした。**`bestmove` は来ない**
     NothingToWait,
-    /// 送れなかった。待っても意味が無い
+    /// 送れなかった。待っても意味が無い。
+    ///
+    /// `Timeout` もここに来る。**`await_write` が `fail_writes` を撃った後**なので、
+    /// `Closed` が立って以後のリスナー登録は断られる。「待てば届くかも」ではなく、
+    /// そのプロセスはもう使えない。
     Failed(EngineError),
 }
 
@@ -114,9 +120,9 @@ fn verdict_of_stop(stopped: Result<StopEffect, EngineError>) -> StopVerdict {
     match stopped {
         Ok(StopEffect::Written) => StopVerdict::Wait,
         Ok(StopEffect::CancelledQueued) => StopVerdict::NothingToWait,
-        // 上限まで返らなかった。エンジンは探索中とみなす——書き込みは
-        // 取り消せないので、後から届いて `bestmove` が返る目はまだある
-        Err(e @ EngineError::Timeout(_)) => StopVerdict::Failed(e),
+        // 理由で分けない。**分けても待ち方が変わらない。**
+        // 分けたい判断があるなら `StopVerdict` にバリアントを足すこと——
+        // コメントだけで分けると、腕が同じ値を返すまま残る
         Err(e) => StopVerdict::Failed(e),
     }
 }
@@ -681,8 +687,8 @@ impl EngineAnalyzer {
     /// `bestmove` が返るまで応答を集める。
     ///
     /// **締切で黙って抜けない。** 抜けるだけだとエンジンの探索は走ったままで、
-    /// こちらは席を返してしまう。次の `go` は「探索中」で断られ、
-    /// エンジンを再起動するまで解析が始まらない。締切に当たったら `stop` を撃ち、
+    /// こちらは席を返す。席は空くので**次の解析は始まってしまい**、
+    /// 同じエンジンへ2本目の `go` が出る（→ #365）。締切に当たったら `stop` を撃ち、
     /// `bestmove` をもう一度だけ待つ。
     ///
     /// `target_depth` を渡すと、その深度に届いた時点でも `stop` を撃つ。
@@ -819,8 +825,8 @@ mod tests {
     ///
     /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの解析が、
     /// エンジンが最初の `info depth` を出した時点で畳まれる
-    #[tokio::test]
-    async fn a_time_only_analysis_is_never_cut_short_by_depth() {
+    #[test]
+    fn a_time_only_analysis_is_never_cut_short_by_depth() {
         for depth in [0, 1, 20, u32::MAX] {
             assert!(
                 !reached_depth(&result_with_depth(depth), None),
@@ -833,27 +839,27 @@ mod tests {
     ///
     /// `>` にすると、目標ちょうどで止まらずに次の深度まで探索が続く。
     /// 深度を指定した意味が無くなる
-    #[tokio::test]
-    async fn the_target_depth_itself_counts_as_reached() {
+    #[test]
+    fn the_target_depth_itself_counts_as_reached() {
         assert!(!reached_depth(&result_with_depth(9), Some(10)));
         assert!(reached_depth(&result_with_depth(10), Some(10)));
         assert!(reached_depth(&result_with_depth(11), Some(10)));
     }
 
     /// 候補がまだ1つも来ていない段階で止めないこと
-    #[tokio::test]
-    async fn nothing_is_reached_before_the_first_info() {
+    #[test]
+    fn nothing_is_reached_before_the_first_info() {
         assert!(!reached_depth(&AnalysisResult::default(), Some(1)));
     }
 
-    /// `stop` の終わり方4通りを、待ち方へ潰さずに写すこと。
+    /// `stop` の終わり方を、待ち方へ潰さずに写すこと。
     ///
     /// **`CancelledQueued` を `Wait` に潰すのが一番の穴。** 潰すと
     /// `ANALYSIS_STOP_GRACE` を待ち切り、来るはずのない `bestmove` の後に
     /// 「エンジンが `stop` に応じなかった」という説明が残る。
     /// エンジンは `go` を1バイトも受け取っていない。
-    #[tokio::test]
-    async fn the_ways_a_stop_can_end_are_not_collapsed_into_waiting() {
+    #[test]
+    fn the_ways_a_stop_can_end_are_not_collapsed_into_waiting() {
         assert!(matches!(
             verdict_of_stop(Ok(StopEffect::Written)),
             StopVerdict::Wait
@@ -876,8 +882,8 @@ mod tests {
     ///
     /// `Timeout`（詰まった）と `CommunicationFailed`（届く先が無い）で
     /// 利用者の次の手が違う。`Failed` に包むときに文言を作り直さない
-    #[tokio::test]
-    async fn a_failed_stop_keeps_which_failure_it_was() {
+    #[test]
+    fn a_failed_stop_keeps_which_failure_it_was() {
         let StopVerdict::Failed(e) = verdict_of_stop(Err(EngineError::Timeout("x".to_string())))
         else {
             panic!("Failed が返っていない");
@@ -889,8 +895,8 @@ mod tests {
     }
 
     /// `go` が書かれなかった失敗と、答えが返らなかった失敗を分けること
-    #[tokio::test]
-    async fn never_sent_is_not_the_same_as_never_answered() {
+    #[test]
+    fn never_sent_is_not_the_same_as_never_answered() {
         assert!(matches!(not_searching(), EngineError::InvalidState(_)));
         assert_ne!(
             not_searching().to_string(),
@@ -923,8 +929,8 @@ mod tests {
     ///
     /// 捨てないと、前の探索の `bestmove` を自分の答えとして採る。
     /// `bestmove` が先に届けば**候補手0件の空の結果が `Ok` で返る**
-    #[tokio::test]
-    async fn stale_output_is_dropped_before_collecting() {
+    #[test]
+    fn stale_output_is_dropped_before_collecting() {
         let (tx, mut rx) = mpsc::unbounded_channel();
         tx.send(EngineCommand::BestMove(usi::BestMoveParams::Resign))
             .unwrap();

@@ -9,11 +9,15 @@ import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
  * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
  *
- * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と `IDEAS.md` / `PREMISES.md` が
- * **別リポジトリ（ShogiHome）のパス**を根拠として引くため（3件。`src/background/book/` ほか）。
+ * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と提案と `IDEAS.md` /
+ * `PREMISES.md` が**別リポジトリ（ShogiHome / YaneuraOu）のパス**を根拠として
+ * 引くため。件数は書かない（引く側が増えると嘘になる）。
  * このリポジトリの現物を指す約束があるのは状態遷移表だけなので、
  * そこだけが「実在しなければ腐っている」と言える。
- * 他リポジトリのパスを外部リンクの形で書く規約にすれば `docs/` 全体へ広げられる。
+ *
+ * **絞っている間、`docs/` の他のファイルには自リポジトリの腐ったパスも混ざる。**
+ * 他リポジトリのパスを外部リンクの形で書く規約にするか、免除に挙げ切れば
+ * `docs/` 全体へ広げられる（行番号のほうは既に全体へ掛けてある）。
  */
 describe("状態遷移表が指すソースのパス", () => {
   const tableFiles = () => markdownFiles().filter((f) => f.startsWith("state-transitions/"));

@@ -5,10 +5,10 @@
 #
 #   npm run verify:rust  ... cargo が見るもの（*.rs / Cargo.*）
 #   npm run verify       ... tsc と lint と vitest が見るもの。
-#                            vitest のラチェットは `src/` だけでなく
-#                            `src-tauri/**` と `docs/**` も歩く
-#                            （commentHistory / docsIdentifiers /
-#                             docsSourcePaths / stateTransitionIndex）
+#                            **`src/__tests__` の検査のいくつかは
+#                            `src-tauri/src` と `docs/` を直に読む。**
+#                            どれがそうかを列挙しない（数え上げると必ず1つ漏れる）。
+#                            一覧が要るなら CONTRIBUTING.md の表を見ること
 #
 # **種類で二分しない。** 二分すると、`.rs` だけのコミットで Rust のコメント規約が
 # 走らず、`docs/` だけのコミットで表の識別子とパスが誰にも見られない。

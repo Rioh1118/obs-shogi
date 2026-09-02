@@ -714,10 +714,15 @@ impl UsiProtocol {
     /// 呼び出し側の次の手が違うので、`EngineError` のどれが返るかを挙げる。
     /// **数は書かない**（`isready` の経路が増えるたびにずれる）。
     ///
-    /// - `CommunicationFailed`: 届く口が無い。出力が終わったか、書き込みが詰まった
-    ///   （文言で分かれる → `cannot_reach`）。プロセスを起動し直すしかない
-    /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**
-    /// - `NotInitialized`: 書き込みの列そのものが無くなった（通常は起きない）
+    /// - `CommunicationFailed`: **2つの意味がある。** 届く口が無い（出力が終わったか、
+    ///   書き込みが詰まった。文言で分かれる → `cannot_reach`）ならプロセスを
+    ///   起動し直すしかない。積み置きが上限（`PENDING_LIMIT`）に達したのなら
+    ///   プロセスは生きていて `readyok` を待っているだけで、**やり直せる**。
+    ///   文言で見分けること
+    /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**。
+    ///   ただしこの時点で `fail_writes` が走っているので、後続は全部断られる
+    /// - `NotInitialized`: 送る先が無い。列が消えたか、`kill_engine` が
+    ///   `handler` を取った後に書き込みが列を抜けた
     /// - `AlreadyListening`: `isready` のときだけ。読み取りが二重に始まった。
     ///   プロセスは生きているので落とさないこと
     pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
