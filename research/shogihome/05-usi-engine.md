@@ -7,6 +7,8 @@
 
 ## 1. `USIEngine` 型
 
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
+
 ```ts
 export type USIEngine = {
   uri: string; // 同一性のキー
@@ -34,6 +36,8 @@ export type USIEngine = {
   **タグに色が付く**。
 - `extraBook` は**エンジンとは別に GUI 側が持つ定跡**。
 
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
+
 ```ts
 export type USIEngineExtraBookConfig = {
   enabled: boolean;
@@ -47,6 +51,8 @@ export type USIEngineExtraBookConfig = {
 ## 2. USI オプションを**型付きで**持っている
 
 obs-shogi との差が最も大きいのがここ。
+
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
 
 ```ts
 export type USIEngineOptionType = "check" | "spin" | "combo" | "button" | "string" | "filename";

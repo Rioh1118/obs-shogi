@@ -68,6 +68,8 @@ export enum TabPaneType {
 
 `src/common/settings/layout.ts`:
 
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
+
 ```ts
 type UIComponentCommon = { left: number; top: number; width: number; height: number };
 
@@ -111,10 +113,10 @@ export function calculateLayoutScale(
   if (components.length === 0) {
     return 1;
   }
-  const x0 = Math.max(Math.min(...components.map((c) => c.left)), 0);
-  const y0 = Math.max(Math.min(...components.map((c) => c.top)), 0);
-  const maxX = Math.max(...components.map((c) => c.left + c.width));
-  const maxY = Math.max(...components.map((c) => c.top + c.height));
+  const x0 = Math.max(Math.min(...components.map((component) => component.left)), 0);
+  const y0 = Math.max(Math.min(...components.map((component) => component.top)), 0);
+  const maxX = Math.max(...components.map((component) => component.left + component.width));
+  const maxY = Math.max(...components.map((component) => component.top + component.height));
   const horizontalExtent = maxX + x0;
   const verticalExtent = maxY + y0;
   const horizontalScale =
@@ -128,6 +130,8 @@ export function calculateLayoutScale(
 リフローしない。配置は固定で、まるごと拡大縮小する。
 
 ### 部品ごとに細かい表示切替を持つ
+
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
 
 ```ts
 type Record = {

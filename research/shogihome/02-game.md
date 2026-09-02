@@ -9,6 +9,8 @@
 
 **対局の中核。** `src/renderer/players/player.ts` に1つのインターフェースがある。
 
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
+
 ```ts
 export interface Player {
   isEngine(): boolean;
@@ -32,6 +34,8 @@ export interface Player {
 
 `HumanPlayer` の核はここ。
 
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
+
 ```ts
 doMove(move: Move) {
   const searchHandler = this.searchHandler;
@@ -47,6 +51,8 @@ win()     { ... searchHandler?.onWin(); }
 シングルトン（`export const humanPlayer = new HumanPlayer()`）。
 
 生成は `src/renderer/players/builder.ts`。
+
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
 
 ```ts
 if (playerSettings.uri === uri.ES_HUMAN)          return humanPlayer;
@@ -65,6 +71,8 @@ USI の `usinewgame` / `gameover` / `quit` は人間相手のときは空実装�
 ## 2. 設定の型は3層に重ねてある
 
 `src/common/settings/game.ts`。
+
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
 
 ```ts
 type SingleGameSettings = {
@@ -155,6 +163,8 @@ obs-shogi 側の要件整理に入っていなかったもの。
 
 ## 5. 連続対局・並列対局・SPRT
 
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
+
 ```ts
 type SPRTSettings = { elo0; elo1; alpha; beta; maxGames };
 // 既定 { elo0: 0.5, elo1: 2.5, alpha: 0.05, beta: 0.05, maxGames: 100000 }
@@ -175,6 +185,8 @@ type SPRTSettings = { elo0; elo1; alpha; beta; maxGames };
 型で表そうとすると `PlayerSettings` を分岐させることになり、1 の設計が壊れる。
 
 ## 6. 開始局面
+
+**要約。原文ではない**（型注釈・コメント・一部のフィールドを落としてある）。
 
 ```ts
 type SingleGameStartPositionType = InitialPositionType | "current" | "sfen";

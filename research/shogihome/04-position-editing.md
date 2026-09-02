@@ -67,23 +67,30 @@
 
 ## 3. その他のダイアログ要素
 
+原文どおりの抜粋（`PositionEditingDialog.vue:73-87`。**5本の兄弟 `<button>` のうち先頭2本**）:
+
 ```html
-<button data-hotkey="Mod+z" :disabled="!canUndo" @click="undo">
-  <!-- 元に戻す -->
-  <button data-hotkey="Mod+Shift+z" :disabled="!canRedo" @click="redo">
-    <!-- やり直し -->
-    <button @click="isInitialPositionMenuVisible = true">
-      初期局面（プリセット）
-      <button @click="onChangeTurn">
-        手番変更
-        <button @click="onCopySFEN">
-          コピー(SFEN) <button @click="onCopyBOD">コピー(BOD)</button>
-        </button>
-      </button>
+<div class="form-group icon-buttons">
+  <div class="icon-button-row">
+    <button class="icon-button" data-hotkey="Mod+z" :disabled="!canUndo" @click="undo">
+      <Icon :icon="IconType.UNDO" />
+      <div class="label">{{ t.undo }}</div>
     </button>
-  </button>
-</button>
+    <button class="icon-button" data-hotkey="Mod+Shift+z" :disabled="!canRedo" @click="redo">
+      <Icon :icon="IconType.REDO" />
+      <div class="label">{{ t.redo }}</div>
+    </button>
+  </div>
+</div>
 ```
+
+残る3本も同じ形で、それぞれ次を呼ぶ。
+
+| ボタン                 | ハンドラ                              | ラベル                 |
+| ---------------------- | ------------------------------------- | ---------------------- |
+| 初期局面（プリセット） | `isInitialPositionMenuVisible = true` | `t.initializePosition` |
+| 手番変更               | `onChangeTurn`                        | `t.changeTurn`         |
+| コピー                 | `onCopySFEN` / `onCopyBOD`            | `t.copy`               |
 
 - **Undo / Redo がある**（`Mod+Z` / `Mod+Shift+Z`）。
 - プリセットは `InitialPositionMenu.vue` を共有（対局ダイアログと同じ部品）。
