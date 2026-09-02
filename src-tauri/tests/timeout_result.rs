@@ -54,7 +54,7 @@ const EXEMPT: &[&str] = &[
     // `UsiProtocol::kill_engine` は戻り値を持たない
     "engine/registry.rs:198",
     // `EngineRegistry::shutdown_all` は戻り値を持たない
-    "lib.rs:196",
+    "lib.rs:201",
 ];
 
 #[test]

@@ -603,7 +603,7 @@ impl UsiProtocol {
         set_ready_state(&self.ready, ReadyState::Closed);
         log::error!(
             target: LOGT,
-            "write: stalled; refusing every later write on this process"
+            "write: stalled; refusing every later write on this process (→ F-26)"
         );
         self.discard_pending("the engine stopped reading stdin")
             .await;
