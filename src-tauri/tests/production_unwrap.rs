@@ -34,11 +34,18 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// `#[cfg(test)]` が付いた塊を落とす。
+/// `#[cfg(test)]` が付いた item を落とす。
 ///
-/// 波括弧を数えるだけ。文字列リテラルの中の括弧までは見ていないので、
-/// テストの中に `"{"` だけを含む文字列があると釣り合いが崩れる。
-/// **崩れると余分に落ちる＝検査が緩くなる**ので、崩れたら
+/// **塊とは限らない。** `#[cfg(test)] use ...;` `#[cfg(test)] const ...;` は
+/// 波括弧を持たない。「次の `{` から釣り合うまで」で落とすと、**その先にある
+/// 本番コードを丸ごと飲む**——`protocol.rs` では `enum ReadyState` の宣言ごと
+/// 消えていた。消えた範囲に `.unwrap()` を書いても検査は緑で通る。
+///
+/// 落とした行は改行に置き換える。**行番号を保つため**——詰めると、
+/// 塊より後ろで見つかった違反の `path:line` が現物とずれ、開いても何も無い。
+///
+/// 波括弧を数えるだけなので、文字列リテラルの中の括弧までは見ていない。
+/// **釣り合いが崩れると余分に落ちる＝検査が緩くなる**ので、崩れたら
 /// `the_scanner_still_sees_production_code` が先に落ちる。
 fn strip_test_modules(source: &str) -> String {
     let mut out = String::new();
@@ -46,37 +53,62 @@ fn strip_test_modules(source: &str) -> String {
 
     while let Some(at) = rest.find("#[cfg(test)]") {
         out.push_str(&rest[..at]);
+        let after = &rest[at..];
 
-        let Some(open) = rest[at..].find('{') else {
-            break;
-        };
-        let open = at + open;
-
-        let mut depth = 0usize;
-        let mut end = None;
-        for (offset, ch) in rest[open..].char_indices() {
-            match ch {
-                '{' => depth += 1,
-                '}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = Some(open + offset + 1);
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        match end {
-            Some(end) => rest = &rest[end..],
+        let Some(end) = item_end(after) else {
             // 閉じない塊。以降は全部テストとみなす
-            None => return out,
-        }
+            return out;
+        };
+        out.push_str(&"\n".repeat(after[..end].matches('\n').count()));
+        rest = &after[end..];
     }
 
     out.push_str(rest);
     out
+}
+
+/// 属性から始まる item 1つぶんの長さ。
+///
+/// **`{` と `;` のどちらが先に来るかで決まる。** `;` が先なら塊を持たない item
+/// （`use` / `const` / `type` / `static`）で、そこで終わる。`{` が先なら
+/// 釣り合う `}` まで（`use a::{b, c};` のように後ろに `;` が続くなら、それも食う）。
+fn item_end(after: &str) -> Option<usize> {
+    let brace = after.find('{');
+    let semi = after.find(';');
+
+    match (brace, semi) {
+        (None, None) => None,
+        (None, Some(s)) => Some(s + 1),
+        (Some(b), Some(s)) if s < b => Some(s + 1),
+        (Some(b), _) => {
+            let end = b + matching_brace(&after[b..])?;
+            // `use a::{b};` の `;`。`mod tests { ... }` には続かない
+            let gap = after[end..].len() - after[end..].trim_start().len();
+            if after[end + gap..].starts_with(';') {
+                Some(end + gap + 1)
+            } else {
+                Some(end)
+            }
+        }
+    }
+}
+
+/// 先頭の `{` に釣り合う `}` の直後までの長さ
+fn matching_brace(from: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, ch) in from.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(offset + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// 行コメントを落とす。`.unwrap()` を説明している文が違反に数えられないように
@@ -148,4 +180,67 @@ fn the_scanner_still_sees_production_code() {
         session.contains("async fn on_tick"),
         "本番の関数まで落としている"
     );
+
+    // **塊を持たない `#[cfg(test)]` の後ろが飲まれていないこと。**
+    // 総文字数では落ちない（`protocol.rs` の26行が消えても10万文字は残る）ので、
+    // 消えたら落ちる綴りを名指しで置く
+    let protocol = production_code(&src_dir().join("engine").join("protocol.rs"));
+    assert!(
+        protocol.contains("enum ReadyState"),
+        "`#[cfg(test)] const ALL` の後ろにある本番の宣言まで落としている"
+    );
+    let file_system = production_code(&src_dir().join("file_system").join("mod.rs"));
+    assert!(
+        file_system.contains("pub use mv::"),
+        "`#[cfg(test)] use` の後ろにある本番の再エクスポートまで落としている"
+    );
+}
+
+/// 走査そのものを、文字列を直に食わせて確かめる。
+///
+/// **現物を食わせて違反0、では走査が壊れても緑になる。** 落とすべきものと
+/// 残すべきものを1つずつ並べて、境目を固定する。
+#[test]
+fn the_stripper_drops_the_item_and_nothing_more() {
+    // 塊を持たない item。**次の `{` まで飲まない**
+    let source = "\
+#[cfg(test)]
+const ALL: &[u8] = &[];
+pub enum Real {
+    A,
+}
+";
+    let stripped = strip_test_modules(source);
+    assert!(
+        !stripped.contains("const ALL"),
+        "テスト用の const が残っている"
+    );
+    assert!(
+        stripped.contains("pub enum Real"),
+        "後ろの本番コードまで落としている: {stripped:?}"
+    );
+
+    // 波括弧を持つ `use`。`;` まで食う
+    let source = "#[cfg(test)]\nuse a::{b, c};\npub fn real() {}\n";
+    let stripped = strip_test_modules(source);
+    assert!(!stripped.contains("use a::"), "テスト用の use が残っている");
+    assert!(
+        stripped.contains("pub fn real"),
+        "後ろの本番コードまで落としている: {stripped:?}"
+    );
+
+    // 塊。中身ごと落ちる
+    let source = "#[cfg(test)]\nmod tests {\n    fn t() { x.unwrap(); }\n}\npub fn real() {}\n";
+    let stripped = strip_test_modules(source);
+    assert!(!stripped.contains("unwrap"), "塊の中が残っている");
+    assert!(stripped.contains("pub fn real"), "塊の後ろまで落としている");
+
+    // **行番号が保たれること。** 詰めると違反の `path:line` が現物とずれる
+    let source = "pub fn a() {}\n#[cfg(test)]\nmod t {\n}\npub fn b() {}\n";
+    let stripped = strip_test_modules(source);
+    let at = stripped
+        .lines()
+        .position(|l| l.contains("pub fn b"))
+        .expect("本番の関数が消えている");
+    assert_eq!(at, 4, "行番号がずれている: {stripped:?}");
 }

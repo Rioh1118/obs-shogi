@@ -172,38 +172,81 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
     found
 }
 
-/// そのファイルが `use` している `engine` 直下のモジュール名。
-fn imports_of(source: &str, is_top_level: bool) -> BTreeSet<String> {
-    let mut found = BTreeSet::new();
-    for line in source.lines() {
-        let line = line.trim_start();
+/// `use ...;` を1つずつ返す。**行で切らない。**
+///
+/// rustfmt は100桁を超える `use` を波括弧で折る。行単位で見ていると、
+/// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
+/// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
+fn use_statements(source: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut buffer = String::new();
 
-        if let Some(rest) = line.strip_prefix("use crate::engine::") {
-            found.extend(imports_from(rest));
-            continue;
-        }
-        // `engine/` 直下なら `super` は `engine` そのもの
-        if is_top_level {
-            if let Some(rest) = line.strip_prefix("use super::") {
-                found.extend(imports_from(rest));
+    for line in source.lines() {
+        let line = line.trim();
+        if buffer.is_empty() {
+            if !line.starts_with("use ") && !line.starts_with("pub use ") {
+                continue;
             }
+            buffer.push_str(line);
+        } else {
+            buffer.push(' ');
+            buffer.push_str(line);
+        }
+        if buffer.contains(';') {
+            found.push(std::mem::take(&mut buffer));
         }
     }
     found
 }
 
-/// `engine/` の外（`crate::` の他の枝）へ伸びる `use` があるか。
+/// 1つの `use` が指す先。段の名前と、`engine/` の外への参照。
 ///
-/// **段の一番上より、さらに上。** `engine` は crate の他の部分を知らない、が
-/// 保てているかを見る。`the_close_budget_is_deliberately_short` が
-/// `crate::CLOSE_TIMEOUT` を引いていたのがこれ。
-fn reaches_outside(source: &str) -> Vec<String> {
-    source
-        .lines()
-        .map(str::trim_start)
-        .filter(|l| l.starts_with("use crate::") && !l.starts_with("use crate::engine::"))
-        .map(|l| l.trim_end_matches(';').to_string())
-        .collect()
+/// `depth` は `engine/` からの相対パスの要素数（`protocol.rs` なら1、
+/// `game/session.rs` なら2）。**`super` を数えた数が `depth` と一致したとき、
+/// そこは `engine` 直下**——`game/session.rs` の `super::super::state::AppState` は
+/// `crate::engine::state::AppState` と同じものを指す。
+///
+/// `super` が足りなければ `engine` の中の枝（`game::types` など）で、段の辺にならない。
+/// 多ければ `engine` の外へ出ている。
+fn resolve(statement: &str, depth: usize) -> (BTreeSet<String>, Option<String>) {
+    let body = statement
+        .trim_start_matches("pub ")
+        .trim_start_matches("use ")
+        .trim();
+    let outside = || Some(statement.trim_end_matches(';').to_string());
+
+    if let Some(rest) = body.strip_prefix("crate::engine::") {
+        return (imports_from(rest), None);
+    }
+    if body.starts_with("crate::") {
+        return (BTreeSet::new(), outside());
+    }
+
+    let mut levels = 0usize;
+    let mut rest = body;
+    while let Some(next) = rest.strip_prefix("super::") {
+        levels += 1;
+        rest = next;
+    }
+    match levels.cmp(&depth) {
+        std::cmp::Ordering::Equal => (imports_from(rest), None),
+        std::cmp::Ordering::Greater => (BTreeSet::new(), outside()),
+        // `engine` の中の枝。段を割っていないので辺として意味を持たない
+        std::cmp::Ordering::Less => (BTreeSet::new(), None),
+    }
+}
+
+/// そのファイルが `use` している `engine` 直下のモジュール名と、外への参照。
+fn scan_file(source: &str, depth: usize) -> (BTreeSet<String>, Vec<String>) {
+    let mut edges = BTreeSet::new();
+    let mut outside = Vec::new();
+
+    for statement in use_statements(source) {
+        let (names, out) = resolve(&statement, depth);
+        edges.extend(names);
+        outside.extend(out);
+    }
+    (edges, outside)
 }
 
 /// モジュール名 → そのモジュールが `use` しているモジュール名。
@@ -218,9 +261,9 @@ fn graph() -> BTreeMap<String, BTreeSet<String>> {
             continue;
         }
         let source = fs::read_to_string(&path).unwrap_or_default();
-        let is_top_level = relative.components().count() == 1;
+        let (targets, _) = scan_file(&source, relative.components().count());
         let edges = graph.entry(module.clone()).or_default();
-        for target in imports_of(&source, is_top_level) {
+        for target in targets {
             if target != module {
                 edges.insert(target);
             }
@@ -260,11 +303,72 @@ fn the_scanner_actually_walks_the_engine() {
     }
 }
 
+/// 走査そのものを、文字列を直に食わせて確かめる。
+///
+/// **現物を食わせて「既知の辺が取れている」では、取れていない綴りが増えても気付けない。**
+/// 拾うべき形と拾ってはいけない形を1つずつ並べて、境目を固定する。
+#[test]
+fn the_scanner_reads_every_spelling_of_use() {
+    // 1行に収まる形
+    let (edges, out) = scan_file("use crate::engine::state::AppState;\n", 2);
+    assert_eq!(
+        edges,
+        ["state"].map(String::from).into(),
+        "素の形が取れていない"
+    );
+    assert!(out.is_empty());
+
+    // **折り返された波括弧。** rustfmt が100桁を超えると自動でこう折る
+    let source = "use crate::engine::{\n    protocol::UsiProtocol,\n    state::AppState,\n};\n";
+    let (edges, _) = scan_file(source, 1);
+    assert_eq!(
+        edges,
+        ["protocol", "state"].map(String::from).into(),
+        "折り返した `use` から辺が取れていない"
+    );
+
+    // 1行に収まる波括弧
+    let (edges, _) = scan_file("use crate::engine::{types::*, utils::cmd_summary};\n", 1);
+    assert_eq!(edges, ["types", "utils"].map(String::from).into());
+
+    // **`super` を数えた数が深さと一致すれば `engine` 直下。**
+    // `game/session.rs`（深さ2）の `super::super::state` は `crate::engine::state` と同じ
+    let (edges, _) = scan_file("use super::super::state::AppState;\n", 2);
+    assert_eq!(
+        edges,
+        ["state"].map(String::from).into(),
+        "`super::super::` が段の辺として取れていない"
+    );
+
+    // 足りなければ `engine` の中の枝。段を割っていないので辺にならない
+    let (edges, out) = scan_file("use super::types::Side;\n", 2);
+    assert!(edges.is_empty(), "`game` の中への辺を段として数えている");
+    assert!(out.is_empty());
+
+    // `engine/` 直下（深さ1）の `super` は `engine` そのもの
+    let (edges, _) = scan_file("use super::protocol::UsiProtocol;\n", 1);
+    assert_eq!(edges, ["protocol"].map(String::from).into());
+
+    // **多すぎれば `engine` の外。** `crate::CLOSE_TIMEOUT` と同じものを指す
+    let (edges, out) = scan_file("use super::super::CLOSE_TIMEOUT;\n", 1);
+    assert!(edges.is_empty());
+    assert_eq!(
+        out.len(),
+        1,
+        "`super` を数えすぎた形が外への参照になっていない"
+    );
+
+    let (_, out) = scan_file("use crate::file_system::open;\n", 1);
+    assert_eq!(out.len(), 1, "`crate::` の他の枝が外への参照になっていない");
+}
+
 /// `engine/` が crate の他の枝を知らないこと。
 ///
 /// **段の一番上より、さらに上。** ここを見ないと、`engine` の中から
 /// `crate::CLOSE_TIMEOUT` のように上を引く行が素通りする
 /// （`use crate::engine::` で始まらないので、段の走査には現れない）。
+///
+/// `super` を数えすぎた形（`analyzer.rs` の `use super::super::X`）も同じところを指す。
 #[test]
 fn the_engine_does_not_reach_out_of_itself() {
     let root = engine_dir();
@@ -273,7 +377,8 @@ fn the_engine_does_not_reach_out_of_itself() {
     for path in rust_files(&root) {
         let relative = path.strip_prefix(&root).unwrap_or(&path).to_path_buf();
         let source = fs::read_to_string(&path).unwrap_or_default();
-        for line in reaches_outside(&source) {
+        let (_, reaching) = scan_file(&source, relative.components().count());
+        for line in reaching {
             outside.push(format!("{}  {}", relative.display(), line));
         }
     }
