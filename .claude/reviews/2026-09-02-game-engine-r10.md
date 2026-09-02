@@ -224,4 +224,57 @@ runtime は multi_thread。flush が `pending` を手放してから `writer.sen
 
 ## 結果
 
-（`/review-fix` で書き戻す）
+11コミット。`npm run verify` / `npm run verify:rust` とも green。
+
+| 所見       | 直した内容                                                                         | コミット  |
+| ---------- | ---------------------------------------------------------------------------------- | --------- |
+| **R10-B1** | `take_session` / `release_session` が検査と登録を1つの write ロックで済ませる      | `7f9ee22` |
+| **R10-B2** | `expected_dispatch` を述語から切り離し、`kind_of` の `_` 無し `match` で被覆を型へ | `af23ba6` |
+| **R10-B3** | `fail_writes` へ doc を戻し、`cannot_reach` に自前の doc を付けた                  | `db5b4de` |
+| **R10-B4** | `killed` を分けて立て、優先順を `cannot_reach_text` に集約。文言をテストで固定     | `db5b4de` |
+| **R10-H1** | 締切を「与えた時間＋猶予」に。当たったら `stop` を撃つ。考慮時間に上限             | `5285ea1` |
+| **R10-H2** | 上限を `kill_engine` の中へ閉じ、裸で呼ぶ口を無くした                              | `568e22b` |
+| **R10-M1** | `enqueue_write`（同期）を切り出し、キューのロックを握ったまま列へ入れる            | `7be845c` |
+| **R10-M2** | `processes.insert` → `forget_starting` の順へ                                      | `568e22b` |
+| 棚卸し     | 偽の5件を含む散文の数を、落とすか、数を持つ側を指す形にした                        | `4047862` |
+| 検査の整理 | `comment_history.rs` を落とし、語を TS 側へ移した                                  | `09b6cec` |
+| doc        | 状態遷移表の行番号32件を落とし、同じ形が入らないよう機械で止めた                   | `13b1d51` |
+| doc        | `Runner.app` の `None` はテストのときだけ、と書いた                                | `e1b3d00` |
+
+### 直し方を変えたもの
+
+**R10-H2** は所見が「2箇所に `KILL_TIMEOUT` を掛ける」だったが、掛けなかった。
+呼び出し側に上限を置く形は、包み忘れた口が1つできるだけでそこが行き止まりになる。
+上限を `kill_engine` の中へ移し、裸で呼ぶ口を作れなくした。
+
+**R10-M1** も「`pending` のロックを跨いで持つ」ではなく、`enqueue_write` を
+**同期の関数**に切り出した。同期の関数の中には await 点を作れないので、
+順序が保たれる理由が規律から型へ移る。
+
+### 足した機械
+
+- `the_exempt_list_points_at_real_lines`（`timeout_result.rs`）——
+  行番号で書いた免除がずれても誰も見ない。実際 `engine/registry.rs:229` が
+  死んだまま残っていた
+- `行番号で指していない`（`docsSourcePaths.test.ts`）——
+  行番号は無言でずれる。ずれたことに気付く者がいないので死んだパスより悪い
+
+### 変異で確かめたもの
+
+| テスト                                                     | 当てた変異                               | 落ちた |
+| ---------------------------------------------------------- | ---------------------------------------- | ------ |
+| `the_dispatch_map_is_total`                                | `requires_ready` に `SetOption` を足す   | ✓      |
+| `who_stopped_the_engine_is_not_flattened_into_one_message` | `killed` と `stalled` の優先順を入れ替え | ✓      |
+| `a_time_only_analysis_is_never_cut_short_by_depth`         | `reached_depth(_, None)` を真に          | ✓      |
+| `the_target_depth_itself_counts_as_reached`                | `>=` を `>` に                           | ✓      |
+| `the_exempt_list_points_at_real_lines`                     | 免除の行番号をずらす                     | ✓      |
+| `行番号で指していない`                                     | doc に行番号を1つ戻す                    | ✓      |
+
+### 自分で作った退行
+
+- `take_session` を入れたとき、`analysis.md` が `ensure_no_active_session` を
+  指したまま残った。`docsIdentifiers` がコミットを止めた
+- `lib.rs` のコメントを1行増やしたとき、`timeout_result` の免除の行番号がずれた。
+  これも機械が止めた
+- `new_session_id` が種類しか見ていなかったので `Timed` / `Depth` の payload が
+  dead code になり、clippy が2件警告した。席の名前に条件まで出す形にして解消
