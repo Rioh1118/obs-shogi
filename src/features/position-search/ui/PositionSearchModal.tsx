@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
@@ -42,8 +42,6 @@ export default function PositionSearchModal() {
   const [requestId, setRequestId] = useState<number | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
-
-  const rootRef = useRef<HTMLElement | null>(null);
 
   const session = getSessionByRequestId(requestId);
   const hits = getHitsByRequestId(requestId);
@@ -179,6 +177,8 @@ export default function PositionSearchModal() {
     closeModal({ skipReturn: true });
   };
 
+  // 焦点は選択している行が持つ（`PositionHitItem`）ので、キーはそこから
+  // ここまで上がってくる。この節自体は焦点を取らない。
   // Escape は `Modal` が扱う。ここで拾うと受け口が2つになる
   const onKeyDown = (e: React.KeyboardEvent) => {
     // 検索中でも開ける。結果はチャンクで届くので `isSearching` は一覧が育っている間
@@ -203,14 +203,6 @@ export default function PositionSearchModal() {
     }
   };
 
-  useLayoutEffect(() => {
-    if (!isOpen) return;
-    const el = rootRef.current;
-    if (!el) return;
-
-    el.focus({ preventScroll: true });
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
@@ -228,15 +220,7 @@ export default function PositionSearchModal() {
       closeOnOverlay
       showCloseButton={false}
     >
-      <section
-        ref={(el) => {
-          rootRef.current = el;
-        }}
-        className="pos-search"
-        onKeyDown={onKeyDown}
-        tabIndex={-1}
-        aria-label="局面検索"
-      >
+      <section className="pos-search" onKeyDown={onKeyDown} aria-label="局面検索">
         <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
 
         <main className="pos-search__main" aria-label="検索とプレビュー">
