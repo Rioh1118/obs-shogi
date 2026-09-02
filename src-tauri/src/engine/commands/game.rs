@@ -3,9 +3,9 @@
 //! 1コマンド = 1つの意図。USI のコマンドと1対1にはしない
 //! （`position` も `go` も `isready` もここには出てこない）。
 
-use crate::engine::bridge::AppState;
+use crate::engine::state::AppState;
 
-use super::types::{GameId, GameSettings, GameSnapshot, Side};
+use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 
 /// 対局を始める。
 ///

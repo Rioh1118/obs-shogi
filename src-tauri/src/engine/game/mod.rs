@@ -4,7 +4,6 @@
 //! `readyok` / `usiok` / `position` / `go` はこの中に閉じている。
 //! 責任の切れ目は [`session`] の冒頭。
 
-pub mod bridge;
 pub mod clock;
 pub mod manager;
 pub mod search;

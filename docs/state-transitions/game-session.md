@@ -394,7 +394,7 @@ ClocksView {
 - 1回の `go`: `src-tauri/src/engine/game/search.rs`
 - 持ち時間: `src-tauri/src/engine/game/clock.rs`
 - 走っている対局の台帳: `src-tauri/src/engine/game/manager.rs`
-- Tauri コマンド: `src-tauri/src/engine/game/bridge.rs`
+- Tauri コマンド: `src-tauri/src/engine/commands/game.rs`
 - 境界に出る型: `src-tauri/src/engine/game/types.rs`
 - エンジンの出力を読む側: `src-tauri/src/engine/protocol.rs`
 - エンジンプロセスの台帳: `src-tauri/src/engine/registry.rs` → [engine.md](engine.md)

@@ -1,7 +1,6 @@
 use crate::engine::utils::LogThrottle;
 
 use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
-use super::game::manager::GameManager;
 use super::registry::EngineRegistry;
 use super::types::*;
 use serde::Serialize;
@@ -13,31 +12,6 @@ use tokio::sync::{mpsc, RwLock};
 use tauri::Emitter;
 
 const LOGT: &str = "obs_shogi::engine::bridge";
-
-// グローバルブリッジの代わりにTauri Stateを使用
-pub struct AppState {
-    pub bridge: Arc<EngineBridge>,
-    /// 解析と対局が同じ台帳を使う。分けると同じ実行ファイルを二重に起動する
-    pub registry: Arc<EngineRegistry>,
-    pub games: Arc<GameManager>,
-}
-
-impl AppState {
-    pub fn new() -> Self {
-        let registry = Arc::new(EngineRegistry::new());
-        Self {
-            bridge: Arc::new(EngineBridge::new(Arc::clone(&registry))),
-            registry,
-            games: Arc::new(GameManager::new()),
-        }
-    }
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Tauriコマンドとエンジン機能の橋渡し
 pub struct EngineBridge {
@@ -520,106 +494,6 @@ impl EngineBridge {
         log::info!(target: LOGT, "stop_all_sessions: ok");
         Ok(())
     }
-}
-
-// === Tauriコマンド定義 ===
-
-#[tauri::command]
-pub async fn initialize_engine(
-    state: tauri::State<'_, AppState>,
-    engine_path: String,
-    working_dir: Option<String>,
-) -> Result<(), String> {
-    state
-        .bridge
-        .initialize_engine_impl(engine_path, working_dir)
-        .await
-}
-
-#[tauri::command]
-pub async fn shutdown_engine(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    state.bridge.shutdown_engine_impl().await
-}
-
-#[tauri::command]
-pub async fn set_position(
-    state: tauri::State<'_, AppState>,
-    position: String,
-) -> Result<(), String> {
-    state.bridge.set_position_impl(position).await
-}
-
-#[tauri::command]
-pub async fn start_infinite_analysis(state: tauri::State<'_, AppState>) -> Result<String, String> {
-    state.bridge.start_infinite_analysis_impl().await
-}
-
-#[tauri::command]
-pub async fn analyze_with_time(
-    state: tauri::State<'_, AppState>,
-    time_seconds: u64,
-) -> Result<AnalysisResult, String> {
-    state.bridge.analyze_with_time_impl(time_seconds).await
-}
-
-#[tauri::command]
-pub async fn analyze_with_depth(
-    state: tauri::State<'_, AppState>,
-    depth: u32,
-) -> Result<DepthOutcome, String> {
-    state.bridge.analyze_with_depth_impl(depth).await
-}
-
-#[tauri::command]
-pub async fn stop_analysis(
-    state: tauri::State<'_, AppState>,
-    session_id: Option<String>,
-) -> Result<(), String> {
-    state.bridge.stop_analysis_impl(session_id).await
-}
-
-#[tauri::command]
-pub async fn get_analysis_result(
-    state: tauri::State<'_, AppState>,
-    session_id: String,
-) -> Result<Option<AnalysisResult>, String> {
-    state.bridge.get_analysis_result_impl(session_id).await
-}
-
-#[tauri::command]
-pub async fn get_last_result(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<AnalysisResult>, String> {
-    state.bridge.get_last_result_impl().await
-}
-
-#[tauri::command]
-pub async fn apply_engine_settings(
-    state: tauri::State<'_, AppState>,
-    settings: EngineSettings,
-) -> Result<(), String> {
-    state.bridge.apply_engine_settings_impl(settings).await
-}
-
-#[tauri::command]
-pub async fn get_engine_settings(
-    state: tauri::State<'_, AppState>,
-) -> Result<EngineSettings, String> {
-    state.bridge.get_engine_settings_impl().await
-}
-
-#[tauri::command]
-pub async fn get_analysis_status(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<AnalysisStatus>, String> {
-    state.bridge.get_analysis_status_impl().await
-}
-
-#[tauri::command]
-pub async fn get_engine_info(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<EngineInfo>, String> {
-    state.bridge.get_engine_info_impl().await
 }
 
 #[cfg(test)]
