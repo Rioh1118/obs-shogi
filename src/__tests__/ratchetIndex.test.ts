@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { REPO_ROOT, SRC, tsFiles } from "./walk";
+import { readdirSync } from "node:fs";
+import { REPO_ROOT, RUST_CHECKS_DIR, SRC, tsFiles } from "./walk";
 
 /**
  * `CONTRIBUTING.md` の「機械で止めているもの」の表と、実在する検査を突き合わせる。
@@ -48,10 +49,20 @@ function existingChecks(): Set<string> {
 }
 
 /**
- * Rust 側の検査。TS のファイル名では見つからないので、名前で持つ。
- * ここに書いたものは `src-tauri/` に同名の検査があることを別途確かめている。
+ * Rust 側の検査。`listedChecks` と突き合わせるために名前で持つ。
+ *
+ * **ここと `CONTRIBUTING.md` の表の両方に載っていないと落ちる。**
+ * 片方だけ人が覚える形にすると、忘れても何も起きない。
  */
 const RUST_CHECKS = new Set(["root_guard", "serde_naming"]);
+
+/** `src-tauri/tests/*.rs` のファイル名（拡張子を落としたもの） */
+function rustChecks(): string[] {
+  return readdirSync(RUST_CHECKS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".rs"))
+    .map((entry) => entry.name.replace(/\.rs$/, ""))
+    .sort();
+}
 
 /**
  * ラチェットではなく、**ラチェットが使う走査器の単体テスト**。表には載せない。
@@ -72,6 +83,28 @@ describe("CONTRIBUTING.md の検査の索引", () => {
     const missing = listedChecks().filter((n) => !existing.has(n) && !RUST_CHECKS.has(n));
 
     expect(missing, "表にあるが検査が無い。名前を直すか行を落とすこと").toEqual([]);
+  });
+
+  // 0件を見て緑になる形を止める
+  test("Rust 側の検査を読めている", () => {
+    expect(rustChecks().length).toBeGreaterThan(0);
+  });
+
+  test("`src-tauri/tests` の検査は表と RUST_CHECKS の両方に載っている", () => {
+    const listed = new Set(listedChecks());
+    const missing = rustChecks().filter((name) => !listed.has(name) || !RUST_CHECKS.has(name));
+
+    expect(
+      missing,
+      "Rust の検査を足したら CONTRIBUTING.md の表（`（Rust）` 付き）と RUST_CHECKS の両方に足すこと",
+    ).toEqual([]);
+  });
+
+  test("RUST_CHECKS に書いた名前は実在する", () => {
+    const existing = new Set(rustChecks());
+    const phantom = [...RUST_CHECKS].filter((name) => !existing.has(name)).sort();
+
+    expect(phantom, "`src-tauri/tests/` に無い名前が RUST_CHECKS に残っている").toEqual([]);
   });
 
   test("`src/__tests__` の検査は表に載っている", () => {

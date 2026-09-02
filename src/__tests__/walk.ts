@@ -28,6 +28,14 @@ export const SRC = join(REPO_ROOT, "src");
 /** Rust のソース */
 export const RUST_SRC = join(REPO_ROOT, "src-tauri", "src");
 
+/**
+ * Rust 側の**リポジトリ横断の検査**の置き場。
+ *
+ * crate をリンクせずソースを文字列として読む検査がここに入る
+ * （crate の内部を見るものは `src-tauri/src` の `#[cfg(test)]`）。
+ */
+export const RUST_CHECKS_DIR = join(REPO_ROOT, "src-tauri", "tests");
+
 export type WalkOptions = {
   /** `__tests__` 配下を含めるか。既定は含める */
   includeTests?: boolean;
