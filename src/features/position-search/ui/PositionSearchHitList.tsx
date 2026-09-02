@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useDynamicRowHeight } from "react-window";
 import { useAppConfig } from "@/entities/app-config";
 import "./PositionSearchHitList.scss";
 import { useGame } from "@/entities/game";
@@ -29,6 +30,16 @@ export default function PositionSearchHitList({
 }: Props) {
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
+
+  // 行の高さは `PositionHitItem.scss` だけが決める。ここで固定値を持つと、
+  // 文字サイズや余白を動かしたときに**カードだけが伸びてスロットからはみ出し**、
+  // 次の行が上のカードの裾を覆う（行は絶対配置なので、はみ出しても押しのけない）。
+  // 実測に任せておけば、両者がずれるという状態自体が作れない。
+  //
+  // `defaultRowHeight` は実測が付くまでの見積もりにしか使われないので、
+  // 現物とぴったり合っている必要はない。スクロールバーの長さが最初の1フレームだけ
+  // ずれる以外の影響は無い。
+  const rowHeight = useDynamicRowHeight({ defaultRowHeight: 72 });
 
   const rootDir = config?.root_dir ?? null;
   const currentAbs = gameState.loadedAbsPath ?? null;
@@ -83,7 +94,7 @@ export default function PositionSearchHitList({
       <div className="pos-search__listVirtual" role="listbox">
         <VirtualList<HitRowProps>
           rowCount={hits.length}
-          rowHeight={78}
+          rowHeight={rowHeight}
           rowComponent={VirtualHitRow}
           rowProps={rowProps}
           followIndex={activeIndex}
