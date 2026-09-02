@@ -267,6 +267,13 @@ enum Stall {
 }
 
 impl Stall {
+    /// 棋譜と画面に残す説明。
+    ///
+    /// **この文字列を書く場所はここ1箇所。** 同じ物理状態を別の検出器で
+    /// 見た側（`SearchOutcome::StopTimedOut` と `Handover::Unusable`）も
+    /// ここを通す。手で写すと、どちらの番人が先に当たったかで綴りが変わり、
+    /// `GameOverReason` が5経路を1値に潰している以上、**残る差が冠詞だけ**に
+    /// なる。腕を足したときに写しを数え直させられないのも同じ理由。
     fn detail(self) -> &'static str {
         match self {
             Stall::NotStopping => "the engine did not stop searching in time",
@@ -1075,7 +1082,7 @@ impl Runner {
                 self.finish(GameResult {
                     winner: Some(side.opponent()),
                     reason: GameOverReason::EngineFailure,
-                    detail: Some("engine did not stop searching in time".to_string()),
+                    detail: Some(Stall::NotStopping.detail().to_string()),
                 })
                 .await;
                 return;
@@ -1340,10 +1347,12 @@ impl Runner {
             }
             Handover::Unusable => {
                 log::error!(target: LOGT, "handing the turn to an unresponsive engine side={side:?}");
+                // `Activity::Unresponsive` を立てるのは `StopTimedOut` の枝だけなので、
+                // ここへ来た側の物理状態は「`stop` に応じなかった」で同じ
                 self.finish(GameResult {
                     winner: Some(side.opponent()),
                     reason: GameOverReason::EngineFailure,
-                    detail: Some("engine did not stop searching in time".to_string()),
+                    detail: Some(Stall::NotStopping.detail().to_string()),
                 })
                 .await;
             }
