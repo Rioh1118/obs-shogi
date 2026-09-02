@@ -539,6 +539,13 @@ impl Runner {
 
         self.hand_turn_to(next, &usi_move).await;
 
+        // `hand_turn_to` は終局させることがある（渡す先が応答しないエンジンだったとき）。
+        // 見ないと、`Over` を出した直後に `TurnChanged` を出し、
+        // `gameover` を送ったエンジンへ `go ponder` を投げる
+        if self.is_over() {
+            return Ok(());
+        }
+
         // 指した側は、相手が考えている間に先読みへ入る。
         // 裁定が通った後に始めるので、**指せない手の上で読ませることが無い**
         if let Some(ponder_move) = ponder_move {
@@ -828,6 +835,8 @@ impl Runner {
             }
             // 前に止めた分がまだ返っていない。`restart` を立てるだけ
             Activity::Stopping { .. } => Handover::StopThenStart,
+            // いまは到達しない（`Activity::Unresponsive` の doc）。
+            // 到達するようになったら、`accept_continue` の `is_over()` が受ける
             Activity::Unresponsive => Handover::Unusable,
             Activity::Idle => Handover::StartNow,
         };
