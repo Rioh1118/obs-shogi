@@ -123,6 +123,36 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
     }
 }
 
+/// エンジンへの書き込み。**専用スレッドへ出す。**
+///
+/// `usi` crate の書き込みは `ChildStdin` への `write_all` + `flush` で、
+/// **同期のブロッキング呼び出し**（`usi-0.6.2/src/process/writer.rs`）。
+/// これを async のタスクの中で直に呼ぶと、エンジンが stdin を読まなくなって
+/// パイプが埋まったときに `poll` が返らず、次の2つが同時に起きる。
+///
+/// 1. ワーカースレッドが1本、そのタスクに固定される
+/// 2. **そのタスクを包んだ `tokio::time::timeout` が発火できない。**
+///    タイマーが満了しても `Timeout` を `poll` する者が居ないため
+///
+/// 2 のせいで、上限を置いたつもりの `close_game` が返らなくなる。
+/// `spawn_blocking` に出せば詰まるのは専用スレッドだけになり、
+/// `JoinHandle` を待つ側は普通に打ち切れる。
+async fn write_command(
+    handler: Arc<Mutex<Option<UsiEngineHandler>>>,
+    command: GuiCommand,
+) -> Result<(), EngineError> {
+    tokio::task::spawn_blocking(move || {
+        let mut guard = handler.blocking_lock();
+        let Some(h) = guard.as_mut() else {
+            return Err(EngineError::NotInitialized(GONE.to_string()));
+        };
+        h.send_command(&command)
+            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))
+    })
+    .await
+    .map_err(|e| EngineError::CommunicationFailed(format!("write task failed: {e}")))?
+}
+
 /// `ready` への書き込みはここ1本を通す。返すのは実際に落ち着いた値。
 fn set_ready_state(ready: &watch::Sender<ReadyState>, requested: ReadyState) -> ReadyState {
     let mut settled = requested;
@@ -407,16 +437,7 @@ impl UsiProtocol {
             return self.start_ready_watch_and_send().await;
         }
 
-        // 通常送信
-        let mut guard = self.handler.lock().await;
-        let Some(handler) = guard.as_mut() else {
-            return Err(EngineError::NotInitialized(GONE.to_string()));
-        };
-        handler
-            .send_command(command)
-            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
-
-        Ok(())
+        write_command(Arc::clone(&self.handler), command.clone()).await
     }
 
     async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
@@ -438,15 +459,7 @@ impl UsiProtocol {
         let listener_name = format!("ready_wait_{}_{}", gen, uuid::Uuid::new_v4());
         self.register_listener(listener_name.clone(), tx).await?;
 
-        {
-            let mut guard = self.handler.lock().await;
-            let Some(handler) = guard.as_mut() else {
-                return Err(EngineError::NotInitialized(GONE.to_string()));
-            };
-            handler
-                .send_command(&GuiCommand::IsReady)
-                .map_err(|e| EngineError::CommunicationFailed(e.to_string()))?;
-        }
+        write_command(Arc::clone(&self.handler), GuiCommand::IsReady).await?;
 
         // 非ブロッキングに readyok 待ち
         let protocol = Arc::new(self.clone());
@@ -486,28 +499,37 @@ impl UsiProtocol {
                 set_ready_state(&protocol.ready, ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
-                // キューを引き取ってから手放す。持ったまま書くと、
-                // 書き込みが詰まっている間じゅう `send_command` が待たされる
-                let mut q = std::mem::take(&mut pending.queue);
                 drop(pending);
 
-                while let Some(cmd) = q.pop_front() {
-                    let mut guard = protocol.handler.lock().await;
-                    let Some(h) = guard.as_mut() else {
-                        log::warn!(target: LOGT, "ready: flush stopped, the process is gone");
-                        drop(guard);
-                        report_dropped(&cmd, &q);
-                        break;
+                // **キューをローカルへ移さない。** 移すと、書いている途中に
+                // `abort_init` が入ったときに `pending.queue` が空なので
+                // `discard_pending` が何も見つけられず、まだ書いていないぶんが
+                // 1行も残さずに消える（積んだ側には `Ok` が返っている）。
+                // 1件ずつ取り出して、残りは常に `pending` の側に置いておく
+                loop {
+                    let next = {
+                        let mut pending = protocol.pending.lock().await;
+                        if pending.generation != gen {
+                            // 次の `isready` が来た。残りは `begin_generation` が残す
+                            break;
+                        }
+                        pending.queue.pop_front()
                     };
-                    if let Err(e) = h.send_command(&cmd) {
+                    let Some(cmd) = next else { break };
+
+                    if let Err(e) = write_command(Arc::clone(&protocol.handler), cmd.clone()).await
+                    {
                         log::warn!(
                             target: LOGT,
                             "ready: flush failed cmd={} err={}",
                             cmd_summary(&cmd),
                             e
                         );
-                        drop(guard);
-                        report_dropped(&cmd, &q);
+                        let rest = {
+                            let mut pending = protocol.pending.lock().await;
+                            std::mem::take(&mut pending.queue)
+                        };
+                        report_dropped(&cmd, &rest);
                         break;
                     }
                 }
@@ -721,18 +743,27 @@ impl UsiProtocol {
         log::info!(target: LOGT, "kill_engine: start");
         self.abort_init().await;
 
-        let taken = self.handler.lock().await.take();
-        let Some(mut handler) = taken else {
-            log::debug!(target: LOGT, "kill_engine: already gone");
-            return;
-        };
+        // `kill` も `quit` を書くので、書き込みと同じ理由で専用スレッドへ出す
+        let handler = Arc::clone(&self.handler);
+        let killed = tokio::task::spawn_blocking(move || {
+            let taken = handler.blocking_lock().take();
+            let Some(mut handler) = taken else {
+                return false;
+            };
 
-        // 戻り値に用は無い。目的は「死んでいること」で、
-        // 既に死んでいれば `quit` の書き込みが失敗するだけ
-        let _ = handler.kill();
-        std::mem::forget(handler);
+            // 戻り値に用は無い。目的は「死んでいること」で、
+            // 既に死んでいれば `quit` の書き込みが失敗するだけ
+            let _ = handler.kill();
+            std::mem::forget(handler);
+            true
+        })
+        .await;
 
-        log::info!(target: LOGT, "kill_engine: done");
+        match killed {
+            Ok(true) => log::info!(target: LOGT, "kill_engine: done"),
+            Ok(false) => log::debug!(target: LOGT, "kill_engine: already gone"),
+            Err(e) => log::warn!(target: LOGT, "kill_engine: task failed: {e}"),
+        }
     }
 }
 
