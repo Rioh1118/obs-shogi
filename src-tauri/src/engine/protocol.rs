@@ -128,14 +128,42 @@ struct ProtocolState {
     last_command: Option<String>,
 }
 
+/// バリアントと全一覧を1回だけ書く。
+///
+/// 一覧を手で並べると、バリアントを足したときに片方だけ直せる。逆に
+/// 一覧から落とすと、回す側は静かに回数が減るだけで**何も落ちない**。
+/// 「全部回している」と読める検査が、実際には一部しか回していない形になる。
+macro_rules! closed_set_enum {
+    (
+        $(#[$enum_meta:meta])*
+        enum $name:ident { $($(#[$meta:meta])* $variant:ident),* $(,)? }
+    ) => {
+        $(#[$enum_meta])*
+        enum $name { $($(#[$meta])* $variant),* }
+
+        impl $name {
+            /// 全バリアント。**手で書かない。** 宣言から生える。
+            ///
+            /// 使うのは「全部の状態を回す」検査だけなので `cfg(test)` に置く。
+            /// `#[allow(dead_code)]` で通さないこと——本番で誰かが使い始めたら、
+            /// そのときに属性を外して意図を書くほうが読める。
+            #[cfg(test)]
+            const ALL: &'static [$name] = &[$($name::$variant),*];
+        }
+    };
+}
+
+closed_set_enum! {
 /// `isready` に対する応答の状態。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReadyState {
     /// `readyok` が返っていない。
     ///
     /// **生成直後もこれ。** `isready` を1度も送っていない状態と、送って
-    /// 待っている状態を区別しない。区別しても `position` / `go` を積むという
-    /// 扱いが同じで、`isready` は `dispatch_for` を素通りする（`bypasses_draining`）。
+    /// 待っている状態を区別しない。どちらでも `position` / `go` を積む、で扱いが同じ。
+    ///
+    /// `isready` 自身は `dispatch_for` を**通る**（`Closed` なら断られる）。
+    /// 素通りするのは `draining` の腕だけで、それが `bypasses_draining` の意味。
     Waiting,
     Ready,
     /// エンジンの出力が終わった。**もう `readyok` は返らない**
@@ -143,6 +171,7 @@ enum ReadyState {
     /// **ここから戻る道は無い。** `usi` crate の `listen` は reader を `take` するので
     /// 読み取りは1回きりで、二度と始まらない。復帰の手段はプロセスの再起動しかない。
     Closed,
+}
 }
 
 /// `ready` の次の値を決める。**`Closed` は吸収状態。**
@@ -160,9 +189,12 @@ fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
 
 /// 届かなくなった理由の文言を選ぶ。**印の優先順はここだけ。**
 ///
-/// こちらが落としたことを最優先で見る。落としたプロセスは書き込みも詰まるので、
-/// `stalled` を先に見ると「エンジンが stdin を読まなくなった」と説明してしまう。
-/// 利用者にとっては「自分が終了させた」と「エンジンが応じなくなった」で次の手が違う。
+/// こちらが落としたことを最優先で見る。両方立つのは**詰まったプロセスを利用者が
+/// 後から終了させたとき**で、そのとき見せるべきは自分の操作の結果のほう。
+/// 「自分で終了させた」と「エンジンが応じなくなった」では次の手が違う。
+///
+/// 逆順（落としてから詰まる）は起きない。`kill_engine` が `handler` を `take` した
+/// 後の書き込みは `run_writer` が即 `NotInitialized` にするので、`Timeout` にならない。
 fn cannot_reach_text(killed: bool, stalled: bool) -> &'static str {
     if killed {
         GONE
@@ -673,12 +705,15 @@ impl UsiProtocol {
     ///
     /// # エラー
     ///
-    /// 3種あり、呼び出し側の次の手が違う。
+    /// 呼び出し側の次の手が違うので、`EngineError` のどれが返るかを挙げる。
+    /// **数は書かない**（`isready` の経路が増えるたびにずれる）。
     ///
     /// - `CommunicationFailed`: 届く口が無い。出力が終わったか、書き込みが詰まった
-    ///   （文言で分かれる）。プロセスを起動し直すしかない
+    ///   （文言で分かれる → `cannot_reach`）。プロセスを起動し直すしかない
     /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**
     /// - `NotInitialized`: 書き込みの列そのものが無くなった（通常は起きない）
+    /// - `AlreadyListening`: `isready` のときだけ。読み取りが二重に始まった。
+    ///   プロセスは生きているので落とさないこと
     pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
         // コマンド履歴更新
         self.state.write().await.last_command = Some(cmd_summary(command));
@@ -1209,28 +1244,52 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
 mod tests {
     use super::*;
 
-    /// `ReadyState` の全バリアント。**足したらここにも足す。**
-    /// `closed_absorbs_every_later_transition` と写像のループが両方これを回す
-    const ALL_READY_STATES: [ReadyState; 3] =
-        [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed];
+    /// コマンドの種類を**1回だけ**書く。
+    ///
+    /// 種類の一覧が手書きの写しだと、バリアントを足したときに片方だけ直せる。
+    /// 数が揃ってしまえば緑で通るので、忘れたことに誰も気付かない。
+    /// ここで宣言すれば `Kind::ALL` は列から生えるので、写しにならない。
+    macro_rules! kinds {
+        ($($name:ident),* $(,)?) => {
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+            enum Kind { $($name),* }
 
-    /// `GuiCommand` の全バリアントに名前を付ける。
+            impl Kind {
+                /// **手で書かない。** 上の列から生える
+                const ALL: &'static [Kind] = &[$(Kind::$name),*];
+            }
+        };
+    }
+
+    kinds! {
+        Usi,
+        IsReady,
+        SetOption,
+        UsiNewGame,
+        Position,
+        Go,
+        Stop,
+        Ponderhit,
+        GameOver,
+        Quit,
+    }
+
+    /// `GuiCommand` の全バリアントを `Kind` へ写す。
     ///
     /// **`_` を足さないこと。** `usi` crate がバリアントを増やしたら、
-    /// この `match` がコンパイルで落ちる。そこが「新しいコマンドを
-    /// `commands()` に足す」を思い出す唯一の場所。
-    fn kind_of(cmd: &GuiCommand) -> &'static str {
+    /// この `match` がコンパイルで落ちる。そこから `kinds!` の列へ辿り着く。
+    fn kind_of(cmd: &GuiCommand) -> Kind {
         match cmd {
-            GuiCommand::Usi => "usi",
-            GuiCommand::IsReady => "isready",
-            GuiCommand::SetOption(..) => "setoption",
-            GuiCommand::UsiNewGame => "usinewgame",
-            GuiCommand::Position(_) => "position",
-            GuiCommand::Go(_) => "go",
-            GuiCommand::Stop => "stop",
-            GuiCommand::Ponderhit => "ponderhit",
-            GuiCommand::GameOver(_) => "gameover",
-            GuiCommand::Quit => "quit",
+            GuiCommand::Usi => Kind::Usi,
+            GuiCommand::IsReady => Kind::IsReady,
+            GuiCommand::SetOption(..) => Kind::SetOption,
+            GuiCommand::UsiNewGame => Kind::UsiNewGame,
+            GuiCommand::Position(_) => Kind::Position,
+            GuiCommand::Go(_) => Kind::Go,
+            GuiCommand::Stop => Kind::Stop,
+            GuiCommand::Ponderhit => Kind::Ponderhit,
+            GuiCommand::GameOver(_) => Kind::GameOver,
+            GuiCommand::Quit => Kind::Quit,
         }
     }
 
@@ -1256,32 +1315,21 @@ mod tests {
 
     /// `commands()` が `GuiCommand` の全バリアントを持つこと。
     ///
-    /// **数を書かない。** `kind_of` の `match` が全域なので、
-    /// そこに現れる名前が全部 `commands()` にあれば足りている。
-    /// バリアントが増えたら `kind_of` がコンパイルで落ちて、ここへ辿り着く
+    /// 突き合わせる相手は `Kind::ALL`。**手書きの写しではない**ので、
+    /// `usi` crate のバリアントが増えたときは
+    /// 「`kind_of` がコンパイルで落ちる → `kinds!` に足す →
+    /// `Kind::ALL` が伸びる → ここが落ちる → `commands()` に足す」の順に辿れる。
+    /// どこか1つを忘れても、数が揃って緑になることがない。
     #[test]
     fn commands_covers_every_gui_command() {
-        let mut kinds: Vec<&str> = commands().iter().map(kind_of).collect();
+        let mut kinds: Vec<Kind> = commands().iter().map(kind_of).collect();
         kinds.sort_unstable();
         let before = kinds.len();
         kinds.dedup();
 
         assert_eq!(before, kinds.len(), "`commands()` に同じ種類が2つある");
 
-        // `kind_of` の腕を1つずつ書き出したものと突き合わせる。
-        // ここも `_` を使わないので、増えたバリアントは両方に現れる
-        let mut all = [
-            "usi",
-            "isready",
-            "setoption",
-            "usinewgame",
-            "position",
-            "go",
-            "stop",
-            "ponderhit",
-            "gameover",
-            "quit",
-        ];
+        let mut all = Kind::ALL.to_vec();
         all.sort_unstable();
 
         assert_eq!(kinds, all, "`commands()` が `GuiCommand` を網羅していない");
@@ -1297,7 +1345,7 @@ mod tests {
     /// （写すと `dispatch_for` を壊しても両方が同じように壊れる）。
     #[test]
     fn the_dispatch_map_is_total() {
-        for state in ALL_READY_STATES {
+        for &state in ReadyState::ALL {
             for draining in [false, true] {
                 for cmd in commands() {
                     assert_eq!(
@@ -1324,11 +1372,13 @@ mod tests {
         let kind = kind_of(cmd);
 
         // 掃きの最中でも列の後ろへ回さないもの
-        if draining && !matches!(kind, "stop" | "isready" | "quit") {
+        if draining && !matches!(kind, Kind::Stop | Kind::IsReady | Kind::Quit) {
             return Dispatch::Queue;
         }
         // `readyok` が返るまで送れないもの
-        if state == ReadyState::Waiting && matches!(kind, "usinewgame" | "position" | "go") {
+        if state == ReadyState::Waiting
+            && matches!(kind, Kind::UsiNewGame | Kind::Position | Kind::Go)
+        {
             return Dispatch::Queue;
         }
         Dispatch::Send
@@ -1362,7 +1412,7 @@ mod tests {
     /// `isready` 1本で同時に無効になる。
     #[test]
     fn closed_absorbs_every_later_transition() {
-        for requested in [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed] {
+        for &requested in ReadyState::ALL {
             assert_eq!(
                 next_ready_state(ReadyState::Closed, requested),
                 ReadyState::Closed,
@@ -1371,8 +1421,11 @@ mod tests {
         }
 
         // `Closed` 以外は要求どおりに動く
-        for current in [ReadyState::Waiting, ReadyState::Ready] {
-            for requested in [ReadyState::Waiting, ReadyState::Ready, ReadyState::Closed] {
+        for &current in ReadyState::ALL {
+            if current == ReadyState::Closed {
+                continue;
+            }
+            for &requested in ReadyState::ALL {
                 assert_eq!(next_ready_state(current, requested), requested);
             }
         }

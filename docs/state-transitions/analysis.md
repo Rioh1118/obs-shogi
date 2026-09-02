@@ -97,8 +97,14 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 その後に `stop_analysis` が撃たれるかは表で追えていない** → **未検証**
 
 ※11 `take_session` が `Err("Analysis already running")` を返す（`engine/bridge.rs`）。
-席は `release_session` でしか空かず、それを呼ぶのは解析の開始に失敗した口と `stop_session` だけ。
-**`stop_analysis` が届かないまま席が残ると、エンジンを再起動するまで解析が二度と始まらない。**
+
+**席が空く条件は `is_active` が偽になるか、その項目が `active_sessions` から消えること。**
+落とす口を数え上げない（数えると、口を1つ足したときに嘘になる）。追うときは
+`active_sessions` への write を全部見ること。`release_session` だけを追うと足りない
+——`stop_session` は `remove` を直に叩き、`forward_results_to_ui` は終端で
+`is_active` を落とす。
+
+**どの口も通らないまま席が残ると、エンジンを再起動するまで解析が二度と始まらない。**
 これが #120 の BLOCK の形
 
 ## この表が満たすべき不変条件

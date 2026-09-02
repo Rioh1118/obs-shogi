@@ -41,7 +41,10 @@ const DEPTH_ANALYSIS_BUDGET: Duration = Duration::from_secs(60);
 /// 1回の解析に許す考慮時間の上限。
 ///
 /// 上限が無いと、`analyze_with_time` は席を握ったまま何時間でも戻らない。
-/// 席が空かない間は解析も対局も始められない（→ `bridge::take_session`）。
+/// 席が空かない間は**解析の入口が全部断られる**（→ `bridge::take_session`）。
+///
+/// 対局は止まらない。あちらは `GameManager` が別のプロセスを起こすので、
+/// 解析の席を一度も見ない。
 pub const MAX_THINK_TIME: Duration = Duration::from_secs(600);
 
 fn now_nanos() -> u128 {
