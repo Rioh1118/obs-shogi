@@ -73,6 +73,8 @@ export interface GameSettings {
  *
  * **`rule` だけがフロント発**。詰み・千日手・持将棋・最大手数・反則は
  * すべて `endGameByRule` から入る。残りは Rust が自分で決める。
+ *
+ * その判定はまだ実装されていない → #354。
  */
 export type GameOverReason =
   | "resign"

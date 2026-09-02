@@ -5,6 +5,10 @@
  * 進行の権威は Rust（手番・時計・エンジン）。こちら側が持つのは
  * 局面と指し手列（棋譜）とルールの判定で、`continueGame` が毎手それを渡す。
  * 表は `docs/state-transitions/game-session.md`。
+ *
+ * **詰み・千日手・持将棋・最大手数の判定はまだ無い** → #354。
+ * `entities/game` にあるのは合法手と成りだけなので、`moveDecided` に対して
+ * `continueGame` しか返せない。入るまで対局は終局に辿り着かない。
  */
 export {
   abortGame,
