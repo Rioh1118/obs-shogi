@@ -26,8 +26,8 @@ const QUIT_GRACE: Duration = Duration::from_millis(300);
 /// `kill` に置く上限。
 ///
 /// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
-/// ここに上限が要る。`quit` のほうは `send_command` の中で上限が掛かっている
-/// （`protocol.rs` の `WRITE_TIMEOUT`）。
+/// ここに上限が要る。`quit` のほうは列の中で `WRITE_TIMEOUT` が掛かる
+/// （`protocol.rs` の `run_writer`）。
 ///
 /// **この上限が効くのは、`kill` が `spawn_blocking` の中にあるから。**
 /// async のタスクの中で同期 write を直に呼ぶと `poll` が返らず、
@@ -71,6 +71,13 @@ impl std::fmt::Debug for EngineProcess {
 #[derive(Default)]
 pub struct EngineRegistry {
     processes: RwLock<HashMap<EngineId, Arc<EngineProcess>>>,
+
+    /// 起動したが、まだ `usiok` を取り切っていないもの。
+    ///
+    /// **子プロセスは既に走っている。** `spawn` から `processes` への登録まで
+    /// `USI_OK_TIMEOUT`（30秒）の窓があり、その間ここに居ないと
+    /// 終了時の掃除から見えない（起動を待たずにアプリを閉じると孤児になる）。
+    starting: RwLock<Vec<Arc<UsiProtocol>>>,
 }
 
 impl EngineRegistry {
@@ -115,15 +122,21 @@ impl EngineRegistry {
 
         let protocol = Arc::new(UsiProtocol::new(handler));
 
-        // `usiok` を取り切るまでは台帳に載せない。載せてから失敗すると、
+        // **起動中の置き場へ先に載せる。** `usiok` を待つ間に終了されると、
+        // ここに居ないプロセスは掃除から見えず孤児になる
+        self.starting.write().await.push(Arc::clone(&protocol));
+
+        // `usiok` を取り切るまでは本台帳に載せない。載せてから失敗すると、
         // 誰も参照していないプロセスが残る。
         let info = match protocol.get_engine_info(info_timeout).await {
             Ok(info) => info,
             Err(e) => {
+                self.forget_starting(&protocol).await;
                 protocol.kill_engine().await;
                 return Err(e);
             }
         };
+        self.forget_starting(&protocol).await;
 
         let id = Uuid::new_v4().to_string();
         let process = Arc::new(EngineProcess {
@@ -163,7 +176,17 @@ impl EngineRegistry {
         Self::terminate(&process).await;
     }
 
+    /// 台帳と**起動中の置き場**の両方を落とす。
+    ///
+    /// 起動中のぶんを忘れると、`usiok` を待っている最中に終了されたプロセスが
+    /// 孤児として残る。対局の開始は数十秒かかるので、待ち切れずに閉じるのは普通の操作。
     pub async fn shutdown_all(&self) {
+        let starting: Vec<Arc<UsiProtocol>> = self.starting.write().await.drain(..).collect();
+        for protocol in starting {
+            log::info!(target: LOGT, "shutdown: killing an engine that was still starting");
+            protocol.kill_engine().await;
+        }
+
         let processes: Vec<Arc<EngineProcess>> = self
             .processes
             .write()
@@ -176,15 +199,23 @@ impl EngineRegistry {
         }
     }
 
+    /// 起動中の置き場から外す。**成否に関わらず通す。**
+    async fn forget_starting(&self, protocol: &Arc<UsiProtocol>) {
+        self.starting
+            .write()
+            .await
+            .retain(|p| !Arc::ptr_eq(p, protocol));
+    }
+
     pub async fn ids(&self) -> Vec<EngineId> {
         self.processes.read().await.keys().cloned().collect()
     }
 
     /// 落とす。**返らない経路を作らない。**
     ///
-    /// `quit` の上限は `send_command` の中、`kill` の上限はここ。
-    /// どちらを超えてもプロセスが残るが、それは呼び出し側が待ち続けるより
-    /// ましだという判断。
+    /// `quit` の上限は書き込みの列の中、`kill` の上限はここ。
+    /// `quit` が超えても `kill` へ進むので、プロセスが残るのは
+    /// **`kill` の上限を超えたときだけ**。待ち続けるよりましだという判断。
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
         let protocol = process.protocol();

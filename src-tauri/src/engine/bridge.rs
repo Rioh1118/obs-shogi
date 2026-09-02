@@ -108,6 +108,11 @@ impl EngineBridge {
         }
     }
 
+    /// 既に解析が走っていないこと。
+    ///
+    /// **3つの入口が全部これを通る。** 通らない入口があると、探索中のエンジンへ
+    /// 2本目の `go` が出る（USI は探索中の `position` / `go` を認めない）。
+    /// 対局側が `Activity` と `Handover` で守っているのと同じ不変条件。
     async fn ensure_no_active_session(&self) -> Result<(), String> {
         let sessions = self.active_sessions.read().await;
         let has_active = sessions.values().any(|s| s.is_active);
@@ -279,6 +284,8 @@ impl EngineBridge {
         &self,
         time_seconds: u64,
     ) -> Result<AnalysisResult, String> {
+        self.ensure_no_active_session().await?;
+
         let duration = Duration::from_secs(time_seconds);
 
         self.analyzer
@@ -288,6 +295,8 @@ impl EngineBridge {
     }
 
     pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<AnalysisResult, String> {
+        self.ensure_no_active_session().await?;
+
         self.analyzer
             .analyze_with_depth(depth)
             .await

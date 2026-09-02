@@ -28,6 +28,13 @@ pub struct UsiProtocol {
     listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
     listen_active: Arc<Mutex<bool>>,
 
+    /// 書き込みが詰まったか。
+    ///
+    /// `ReadyState::Closed` は「もう届かない」を1つの値で表すが、**理由が2つある**。
+    /// 読み取りが終わった（EOF）のと、stdin を読まなくなったのとでは、
+    /// 利用者にとっての意味も次の手も違う。`Refuse` を返すときに文言を選ぶのに使う。
+    stalled: Arc<std::sync::atomic::AtomicBool>,
+
     /// `isready` に対してエンジンがどう応じたか。
     ///
     /// **3値であることが要る。** `bool` だと「まだ返っていない」と
@@ -48,7 +55,10 @@ pub struct UsiProtocol {
     writer: mpsc::UnboundedSender<WriteJob>,
 }
 
-/// `readyok` を待つ間に積んだコマンドと、その世代。
+/// 順番待ちのコマンドと、その世代。
+///
+/// 積まれる理由は2つ。`readyok` をまだ待っている（`requires_ready`）のと、
+/// 掃いている最中に来た（`draining`）の。
 ///
 /// **世代とキューを同じロックの下に置く。** 別々に持つと、世代を読んでから
 /// 積むまでの間に次の `isready` が挟まり、**消された直後の世代へ入れる**ことになる。
@@ -82,6 +92,7 @@ impl Clone for UsiProtocol {
             state: Arc::clone(&self.state),
             listeners: Arc::clone(&self.listeners),
             listen_active: Arc::clone(&self.listen_active),
+            stalled: Arc::clone(&self.stalled),
             ready: Arc::clone(&self.ready),
             runtime_handle: self.runtime_handle.clone(),
             init_task: Arc::clone(&self.init_task),
@@ -140,13 +151,20 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 
 /// 書き込み1回に置く上限。
 ///
-/// **`send_command` の全ての呼び出しにここ1箇所で掛かる。** 呼び出し側に
-/// 上限を書かせると、包み忘れた口が上限なしで残る。
+/// **1件の書き込みに掛かる。** `send_command` が返るまでの実時間ではない
+/// （列に先客が居ればその処理時間が足される）。呼び出し側に上限を書かせると
+/// 包み忘れた口が上限なしで残るので、置き場はここ1つ。
 ///
-/// **測るのは列に入った後の書き込みだけ**（`run_writer` の中で包む）。
-/// 待っている側で包むと、前のジョブの処理時間が入る。1回に書くのは
+/// 待っている側ではなく `run_writer` の中で包むのは、待つ側だと
+/// 前のジョブの処理時間が入るため。1回に書くのは
 /// `position sfen ... moves ...` でも数百バイトなので、そちらだと
 /// 「自分の書き込みが1バイトも始まっていないのに切れる」が起きる。
+///
+/// **超えても「書けなかった」とは言えない。** `timeout` は `spawn_blocking` を
+/// 中断しないので、詰まっていた `write_all` はエンジンが stdin を吸った瞬間に
+/// 完走してコマンドをワイヤへ出す。分かるのは「上限内に書き終わらなかった」だけ。
+/// 後続を全部断る（`fail_writes`）のはそのため——**後から1件だけ届く**ことは
+/// 避けられないが、その後ろに何も並ばないようにはできる。
 const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 書き込みの列に流す1件。
@@ -206,7 +224,7 @@ async fn run_writer(
             Err(_) => {
                 stalled = true;
                 Err(EngineError::Timeout(
-                    "the engine is not reading stdin".to_string(),
+                    "the engine did not accept the write in time; it may still arrive".to_string(),
                 ))
             }
         };
@@ -280,7 +298,7 @@ fn bypasses_draining(cmd: &GuiCommand) -> bool {
 enum Dispatch {
     /// そのまま書く
     Send,
-    /// `readyok` まで積む
+    /// 列の後ろへ回す。**掃かれるのは `readyok` の後か、掃きが終わった後。**
     Queue,
     /// 断る。出力が終わっているので、書いても待っても何も返らない
     Refuse,
@@ -332,8 +350,15 @@ fn push_pending(pending: &mut Pending, command: &GuiCommand) -> Result<(), Engin
             cmd_summary(command),
             pending.generation
         );
+        // **理由で文言を分ける。** `readyok` が既に返っているのに
+        // 「まだ返っていない」と言うと、原因を誤って説明することになる
+        let why = if pending.draining {
+            "the engine is still catching up on queued commands"
+        } else {
+            "the engine has not returned readyok"
+        };
         return Err(EngineError::CommunicationFailed(format!(
-            "the engine has not returned readyok; {PENDING_LIMIT} commands are already queued"
+            "{why}; {PENDING_LIMIT} commands are already queued"
         )));
     }
     pending.queue.push_back(command.clone());
@@ -377,6 +402,7 @@ impl UsiProtocol {
             })),
             listeners: Arc::new(RwLock::new(HashMap::new())),
             listen_active: Arc::new(Mutex::new(false)),
+            stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             ready: Arc::new(watch::channel(ReadyState::Waiting).0),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
@@ -573,7 +599,20 @@ impl UsiProtocol {
         }
     }
 
-    /// コマンド送信（スレッドセーフ）
+    /// コマンドを送る。
+    ///
+    /// **`Ok` は受理であって「書けた」ではない。** `readyok` 待ちや掃きの最中は
+    /// 積むだけで返る。積んだぶんは、次の `isready` / `kill_engine` / 掃きの失敗で
+    /// 1行も書かれずに消えることがある（そのときログに1行ずつ残る）。
+    ///
+    /// # エラー
+    ///
+    /// 3種あり、呼び出し側の次の手が違う。
+    ///
+    /// - `CommunicationFailed`: 届く口が無い。出力が終わったか、書き込みが詰まった
+    ///   （文言で分かれる）。プロセスを起動し直すしかない
+    /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**
+    /// - `NotInitialized`: プロセスを落とした後
     pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
         // コマンド履歴更新
         self.state.write().await.last_command = Some(cmd_summary(command));
@@ -589,10 +628,11 @@ impl UsiProtocol {
         // `IsReady` もここを通す。手前で分岐すると `Refuse` を誰も聞かない
         {
             let mut pending = self.pending.lock().await;
-            match dispatch_for(*self.ready.borrow(), pending.draining, command) {
-                Dispatch::Refuse => {
-                    return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
-                }
+            // `watch::Ref` を `match` のスクルーティニに置かない。
+            // 置くと全アームの間じゅう読み取りロックを握り、`set_ready_state` が待つ
+            let state: ReadyState = *self.ready.borrow();
+            match dispatch_for(state, pending.draining, command) {
+                Dispatch::Refuse => return Err(self.unreachable()),
                 Dispatch::Queue => return push_pending(&mut pending, command),
                 Dispatch::Send => {}
             }
@@ -607,14 +647,35 @@ impl UsiProtocol {
 
     /// 書き込みが詰まった後の後始末。
     ///
-    /// **後続を断るのは `run_writer` の `stalled` の側**（既に列にあるジョブは
-    /// `Closed` では止まらないため）。ここでやるのは2つだけ。
+    /// 断る口は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
+    /// **これから `send_command` に入る呼び出し**はここで立てる `Closed` が断る。
     ///
-    /// - `Closed` を立てて、これから `send_command` に入る呼び出しを断る
+    /// ここでやるのは3つ。
+    ///
+    /// - 詰まった印を立てて、断るときの文言を `STALLED` 側に切り替える
+    /// - `Closed` を立てる
     /// - 積み置きを捨てる。掃く者がもう居ない
     ///
-    /// 復帰はプロセスの再起動。
+    /// **このプロセスは落とせない。** 詰まった `spawn_blocking` のスレッドが
+    /// `handler` の Mutex を握ったままなので、`kill_engine` も返らない（→ #353）。
+    /// 復帰は新しいプロセスを起動し直すこと。
+    /// 届かなくなった理由を文言にする。
+    ///
+    /// **`Closed` は2つの理由で立つ。** 読み取りが終わった（EOF）のと、
+    /// 書き込みが詰まったの。前者はプロセスが死んでいる見込みが高く、
+    /// 後者は生きていて出力も続いている。利用者に見せる説明が違う。
+    fn unreachable(&self) -> EngineError {
+        let text = if self.stalled.load(std::sync::atomic::Ordering::Relaxed) {
+            STALLED
+        } else {
+            CLOSED
+        };
+        EngineError::CommunicationFailed(text.to_string())
+    }
+
     async fn fail_writes(&self) {
+        self.stalled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         set_ready_state(&self.ready, ReadyState::Closed);
         log::error!(
             target: LOGT,
@@ -637,7 +698,7 @@ impl UsiProtocol {
         let state: ReadyState = *self.ready.borrow();
         let draining = self.pending.lock().await.draining;
         if dispatch_for(state, draining, &GuiCommand::Stop) == Dispatch::Refuse {
-            return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+            return Err(self.unreachable());
         }
 
         let cancelled = {
@@ -723,6 +784,12 @@ impl UsiProtocol {
                 // 1行も残さずに消える（積んだ側には `Ok` が返っている）。
                 // 1件ずつ取り出して、残りは常に `pending` の側に置いておく
                 loop {
+                    // **`pop_front` から `write` の `writer.send` までに
+                    // await 点を作らないこと。** 作ると、その隙に走った `stop` が
+                    // `cancel_queued_go` で空のキューを見て 0 を返し、
+                    // 取り出し済みの `go` を追い越してワイヤへ出る。
+                    // `write` は最初の poll で `writer.send` を済ませる作りなので、
+                    // いまは `.await` を挟んでも投入順は保たれている
                     let next = {
                         let mut pending = protocol.pending.lock().await;
                         if pending.generation != gen {
@@ -955,6 +1022,10 @@ impl UsiProtocol {
         }
     }
 
+    /// `quit` を送る。**送れたとは限らない。**
+    ///
+    /// 戻り値を持たないのは、これが礼儀であって保証ではないため。
+    /// 落とすことの保証は `kill_engine` の側にある。
     pub async fn quit(&self) {
         log::debug!(target: LOGT, "quit: sending");
         let _ = self.send_command(&GuiCommand::Quit).await;

@@ -52,9 +52,9 @@ const WINDOW: usize = 6;
 /// **動かしたときに必ず読み直すことになる**（それが狙い）。
 const EXEMPT: &[&str] = &[
     // `UsiProtocol::kill_engine` は戻り値を持たない
-    "engine/registry.rs:198",
+    "engine/registry.rs:229",
     // `EngineRegistry::shutdown_all` は戻り値を持たない
-    "lib.rs:201",
+    "lib.rs:202",
 ];
 
 #[test]

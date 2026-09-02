@@ -344,9 +344,8 @@ impl EngineAnalyzer {
         }
 
         // **`stop` の結果を待たずに外す。** `?` を先に置くと、
-        // `Refuse` と書き込みの詰まりの2経路でリスナーが残る。
-        // しかも `fail_writes` が `Closed` を立てるようになったので、
-        // `Refuse` は起きやすい。
+        // `Refuse` と書き込みの詰まりの経路でリスナーが残る。
+        // `fail_writes` が `Closed` を立てるので、`Refuse` は例外的な経路ではない。
         //
         // 「`bestmove` が来たら畳む」を条件にしないのは、来ない口が複数あるため
         // （`stop` の取り消し、`isready` のやり直し、破棄、flush の失敗、
@@ -491,6 +490,8 @@ impl EngineAnalyzer {
         let timeout = Duration::from_secs(60);
         let start_time = Instant::now();
 
+        let mut stop_sent = false;
+
         while start_time.elapsed() < timeout {
             match tokio::time::timeout(Duration::from_millis(100), raw_rx.recv()).await {
                 Ok(Some(cmd)) => {
@@ -498,10 +499,18 @@ impl EngineAnalyzer {
                         EngineCommand::Info(info_params) => {
                             apply_info_params(&info_params, &mut result);
 
-                            // 目標深度に達したら停止
-                            if let Some(depth) = get_depth_of_rank(&result, 1) {
-                                if depth >= target_depth {
-                                    self.stop_analysis().await?;
+                            // 目標深度に達したら停止。**1回だけ。**
+                            //
+                            // `info` は毎秒何十行も来るので、印を持たないと
+                            // `bestmove` が返るまで `stop` を撃ち続ける。
+                            // 書き込みの列が `stop` で埋まるうえ、`stop_analysis` は
+                            // 無限解析のリスナーも外すので、走っている解析が畳まれる
+                            if !stop_sent {
+                                if let Some(depth) = get_depth_of_rank(&result, 1) {
+                                    if depth >= target_depth {
+                                        stop_sent = true;
+                                        self.stop_analysis().await?;
+                                    }
                                 }
                             }
                         }

@@ -175,10 +175,12 @@ async のタスクの中で同期 write を直に呼ぶと `poll` が返らず�
 **`RunEvent` を2つとも受ける。** macOS の Cmd+Q は `NSApp terminate:` で
 `ExitRequested` を出さず、届くのは `Exit` だけ（ウィンドウの × は逆）。
 
-上限は2つに分けてある（`CLOSE_BUDGET` / `SWEEP_BUDGET`、各4秒）。
+上限は2つに分けてある（`CLOSE_TIMEOUT` / `SWEEP_TIMEOUT`、各4秒）。
 1つで包むと、対局を閉じるのに使い切ったときに掃除の future が1度も poll されず、
 **解析用エンジンは掃除からしか届かない**ので必ず残る。
-どちらを超えてもプロセスが残る（→ 台帳の F-25）。
+
+`CLOSE_TIMEOUT` を超えても掃除が拾う。プロセスが残るのは `SWEEP_TIMEOUT` か
+`KILL_TIMEOUT` を超えたときだけ（→ 台帳の F-25）。
 
 ※5 `G1` に入るのは手番側の探索が終わった直後なので、その側は既に `A0`。
 

@@ -41,14 +41,14 @@ use tauri::Manager;
 /// `QUIT_GRACE` 0.3秒 ＋ `KILL_TIMEOUT` 2秒）＝ 14.6秒 で、対局が増えれば伸びる。
 /// **合わせに行かない。** 合わせると終了が15秒以上待たされる。
 /// ここで切り上げた分は下の掃除が拾う。
-const CLOSE_BUDGET: Duration = Duration::from_secs(4);
+const CLOSE_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// 台帳に残ったプロセスを落とすのに使える時間。
 ///
-/// **`CLOSE_BUDGET` と分ける。** 1つの `timeout` で包むと、対局を閉じるのに
+/// **`CLOSE_TIMEOUT` と分ける。** 1つの `timeout` で包むと、対局を閉じるのに
 /// 使い切ったときに掃除の future が1度も poll されない。
 /// **解析用エンジンは掃除からしか届かない**ので、それだけで必ず残る。
-const SWEEP_BUDGET: Duration = Duration::from_secs(4);
+const SWEEP_TIMEOUT: Duration = Duration::from_secs(4);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -166,13 +166,14 @@ pub fn run() {
 /// 起動しているエンジンを全部落とす。**2回目以降は何もしない。**
 ///
 /// **利用者にはこの待ちが見えない。** イベントループを止めて回すので、
-/// その間ウィンドウは何も応答しない。上限を短く取ってあるのはそのため
-/// （合計で最大8秒）。落としきれなかったことは `error` ログにしか出ない
-/// （→ 台帳の F-25）。
+/// その間ウィンドウは何も応答しない（合計で最大8秒）。進捗も取り消しも出ない。
+/// 落としきれなかったことは `warn` と `error` のログにしか出ない（→ 台帳の F-25）。
 ///
 /// `ExitRequested` と `Exit` は片方だけのことも両方来ることもあるので、
 /// 1回に絞る。2回走らせても台帳が空なので害は無いが、
-/// `Exit` は `applicationWillTerminate:` の中で、OS が待つ時間が短い。
+/// **`Exit` の経路では上限を丸ごと使う。** macOS の Cmd+Q は
+/// `applicationWillTerminate:` の中でここへ来るので、OS の猶予を超えると
+/// 強制終了されうる。`Once` は二重実行を避けるためだけで、この懸念には効かない。
 fn shut_down_engines(app: &tauri::AppHandle) {
     static DONE: std::sync::Once = std::sync::Once::new();
 
@@ -183,7 +184,7 @@ fn shut_down_engines(app: &tauri::AppHandle) {
 
         tauri::async_runtime::block_on(async move {
             // 対局を閉じる。**切り上げてもよい。** 残りは下の掃除が拾う
-            match tokio::time::timeout(CLOSE_BUDGET, games.close_all(&registry)).await {
+            match tokio::time::timeout(CLOSE_TIMEOUT, games.close_all(&registry)).await {
                 Ok(left) if left.is_empty() => {}
                 Ok(left) => log::warn!(
                     target: "obs_shogi::lib",
@@ -198,7 +199,7 @@ fn shut_down_engines(app: &tauri::AppHandle) {
 
             // **対局の閉じ方に関わらず必ず走らせる。**
             // 解析用エンジンはここからしか届かない
-            if tokio::time::timeout(SWEEP_BUDGET, registry.shutdown_all())
+            if tokio::time::timeout(SWEEP_TIMEOUT, registry.shutdown_all())
                 .await
                 .is_err()
             {

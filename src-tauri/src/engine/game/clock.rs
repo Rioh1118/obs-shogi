@@ -240,13 +240,13 @@ mod tests {
         }
     }
 
-    /// 溢れる値を入口で断ること。
+    /// 常識の外れた持ち時間を入口で断ること。
     ///
-    /// `SideClock` は `main_ms + increment_ms` を持つので、通すと
-    /// debug で panic（`invoke` が返らない）、release で 0 に巻き戻る
-    /// （開始直後に時間切れ負け）。値はフロントから来る任意の `u64`
+    /// 算術は `saturating_add` で守ってあるので溢れはしないが、
+    /// `u64::MAX` に張り付いた値が画面と `go` の `btime` に出る。
+    /// 値はフロントから来る任意の `u64`
     #[test]
-    fn validate_rejects_times_that_would_overflow() {
+    fn validate_rejects_times_beyond_the_cap() {
         let huge = TimeLimit {
             main_ms: u64::MAX,
             byoyomi_ms: 0,
