@@ -11,12 +11,10 @@ import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers"
  * 空振りすると、読み手は「表が古い」以上のことを判断できない。
  * 改名すると腐るのに、パスと違って `docsSourcePaths` は見ていなかった。
  *
- * 実際に腐った例が2つある。`CLOSE_QUIET_TIMEOUT`（`CLOSE_SETTLE_TIMEOUT` へ改名）と
- * `elapsed_ms`（`running_clock` へ改名）で、どちらも改名した本人が同じ日に書いた表。
- *
- * **後者はこの検査では止まらない。** `elapsed_ms` は別の場所（イベントの欄名、
- * `clock.rs` の引数名）に綴りとして在るので、「在るか」しか見ないここは緑になる。
- * 止められるのは**綴りごと消えた名前**だけ。
+ * **止められるのは「綴りが1つも残っていない名前」だけ。** 限界は3つあり、
+ * どれも `docsIdentifiers.ts` の doc に書いてある。要約すると、
+ * 別の場所に同じ綴りが在る改名・接尾辞を足す改名・型名やバリアント名は
+ * すべて素通りする。**この検査が緑でも、doc の識別子は保証されない。**
  *
  * 範囲を状態遷移表に絞る理由は `docsSourcePaths.test.ts` と同じ。
  * ADR と `IDEAS.md` は別リポジトリの識別子を根拠として引く。
@@ -93,6 +91,13 @@ describe("コメントを落としてから数える", () => {
 describe("missingIn", () => {
   test("在るものは返さない", () => {
     expect(missingIn(["running_clock"], "fn running_clock(&self)")).toEqual([]);
+  });
+
+  // 接尾辞を足す改名は最も普通の形。部分一致で見ると素通りする
+  test("別の識別子の一部としては数えない", () => {
+    expect(missingIn(["WRITE_TIMEOUT"], "const STOP_WRITE_TIMEOUT: Duration")).toEqual([
+      "WRITE_TIMEOUT",
+    ]);
   });
 
   test("無いものだけ返す", () => {

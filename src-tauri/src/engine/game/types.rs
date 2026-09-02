@@ -332,10 +332,10 @@ mod tests {
 
     /// 境界に出る JSON の形を固定する。
     ///
-    /// **`rename_all` は enum のバリアント名にしか効かない。** 中のフィールドは
-    /// `rename_all_fields` を足すまで snake_case のまま出ていた
-    /// （`engine_path` / `game_id` / `usi_move`）。型を書き写した TS 側が
-    /// 静かに `undefined` を読むだけなので、コンパイルでは気付けない。
+    /// **`rename_all` は enum のバリアント名にしか効かない。** 中のフィールドを
+    /// camelCase にするには `rename_all_fields` が要る（`engine_path` /
+    /// `game_id` / `usi_move`）。抜けても型を書き写した TS 側が静かに
+    /// `undefined` を読むだけなので、コンパイルでは気付けない。
     #[test]
     fn the_wire_shape_is_camel_case_all_the_way_down() {
         let settings = GameSettings {

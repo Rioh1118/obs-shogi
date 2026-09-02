@@ -35,9 +35,9 @@ const EXEMPT = new Set([
  * ソースを1つの文字列として持つ。識別子が現れるかだけを見るので、構文解析はしない。
  *
  * **コメントを落としてから数える**（`codeOf`）。落とさないと、腐った名前を
- * 説明のために引いたコメント1行が、その名前を「実在する」に戻してしまう。
- * **この検査自身がそれで空回りした。** テスト側の doc が改名で消えた名前を
- * 例として引いていたので、検査は自分の文章を根拠に緑を返していた。
+ * 説明のために引いたコメント1行が、その名前を「実在する」に戻す。
+ * **この検査自身の doc も走査の対象**なので、ここで消えた名前を例に挙げると
+ * 検査が自分の文章を根拠に緑を返す。
  */
 let corpus: string | null = null;
 
@@ -68,17 +68,28 @@ export function identifiersIn(markdown: string): string[] {
  * ソースに1度も現れないものだけを返す。
  *
  * **見るのは綴りが在るかだけ。** 種類（関数か定数か欄名か）も、指している対象が
- * 合っているかも見ていない。改名で消えた名前は捕まえられるが、
- * 「欄名として在る綴りを関数として説明している」は素通りする。
+ * 合っているかも見ていない。**限界は3つある。**
+ *
+ * 1. **別の場所に同じ綴りが在る改名は素通りする。** 関数名を変えても、
+ *    その綴りが構造体の欄名として残っていれば緑になる
+ * 2. **型名・バリアント名は1つも見ていない。** `IDENTIFIER` が下線を要求するので
+ *    `ClocksView` や `Aborted` は候補にすら入らない
+ * 3. 語境界で照合するので接尾辞を足す改名（`FOO` → `STOP_FOO`）は拾えるが、
+ *    `Foo::Bar` の `Bar` 側は 2 の理由で拾えない
  */
 export function missingIdentifiers(identifiers: string[]): string[] {
-  const source = sourceCorpus();
-  return identifiers.filter((name) => !source.includes(name));
+  return missingIn(identifiers, sourceCorpus());
 }
 
-/** テスト用。任意のソース文字列に対して引く */
+/**
+ * 判定の本体。テストからも直に引ける。
+ *
+ * **部分一致では見ない。** `includes` だと、消えた `FOO` が生きている
+ * `STOP_FOO` の一部として見つかって緑になる。接尾辞や接頭辞を足す改名は
+ * 最も普通の形なので、そこが抜けると検査の意味が大きく減る。
+ */
 export function missingIn(identifiers: string[], source: string): string[] {
-  return identifiers.filter((name) => !source.includes(name));
+  return identifiers.filter((name) => !new RegExp(`\\b${name}\\b`).test(source));
 }
 
 export function docsPath(relative: string): string {

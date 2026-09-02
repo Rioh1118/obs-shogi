@@ -494,8 +494,7 @@ impl UsiProtocol {
         let gen = self.begin_generation().await;
 
         // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
-        // 呼び出し側の順序に依存させると、手前に分岐が1つ増えただけで穴が開く
-        // （`IsReady` だけ `dispatch_for` を通らない時期があった）
+        // 呼び出し側の順序に依存させない。手前に分岐が1つ増えるだけで穴が開く
         if set_ready_state(&self.ready, ReadyState::Waiting) == ReadyState::Closed {
             return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
         }
@@ -871,8 +870,8 @@ mod tests {
 
     /// `ReadyState` にバリアントを足したら、書き込み側の分岐をここで数え直す。
     ///
-    /// `IsReady` を含めているのは、`send_command` がこの写像を通さずに
-    /// 分岐していた時期があるため。**通さない分岐があると、ここが緑でも現物は違う。**
+    /// **`send_command` の全分岐がこの写像を通ること**が前提。通らない分岐が
+    /// 1つでもあると、ここが緑でも現物は違う。`IsReady` を含めてあるのはそのため。
     #[test]
     fn a_closed_engine_is_refused_instead_of_queued() {
         let go = GuiCommand::Go(usi::ThinkParams::new());
