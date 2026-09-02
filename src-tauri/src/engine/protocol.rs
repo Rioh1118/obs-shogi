@@ -58,20 +58,21 @@ struct ProtocolState {
     last_command: Option<String>,
 }
 
-/// エンジンの出力が閉じたことを `usi` crate の `listen` へ伝えるためだけの型。
+/// 読み取りを終わらせる合図。`usi` crate の `listen` へ返すためだけの型。
 ///
-/// `listen` は hook が `Err` を返したときにだけ読み取りスレッドを終わらせる
-/// （`usi::UsiEngineHandler::listen`）。**返さない限り回り続ける。**
+/// `listen` のループは、hook が `Err` を返すか、**読み取り自体が `Err` になった**
+/// ときに終わる（`usi::UsiEngineHandler::listen`）。後者では hook が呼ばれない。
+/// EOF だけは `Ok(response: None)` で来るので、hook がこれを返さないと終わらない。
 #[derive(Debug)]
-struct EngineClosed;
+struct StopListening;
 
-impl std::fmt::Display for EngineClosed {
+impl std::fmt::Display for StopListening {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "engine output closed")
+        write!(f, "stop listening")
     }
 }
 
-impl std::error::Error for EngineClosed {}
+impl std::error::Error for StopListening {}
 
 fn now_nanos() -> u128 {
     std::time::SystemTime::now()
@@ -147,8 +148,6 @@ impl UsiProtocol {
     async fn start_listening(&self) -> Result<(), EngineError> {
         log::debug!(target: LOGT, "start_listening: begin");
 
-        let listeners = Arc::clone(&self.listeners);
-
         // 読み取りスレッドと配布の間をチャンネル1本で繋ぐ。
         //
         // 行ごとに `spawn` して配ると、**どのタスクが先に `send` するかが
@@ -159,37 +158,46 @@ impl UsiProtocol {
         // 読み取り側は `send` するだけで、`unbounded` なので詰まらない。
         // ロックを待つのは配る側の1本に閉じる。
         let (line_tx, mut line_rx) = mpsc::unbounded_channel::<EngineCommand>();
-        let listeners_for_fanout = Arc::clone(&listeners);
+        let listeners = Arc::clone(&self.listeners);
         self.runtime_handle.spawn(async move {
             while let Some(cmd) = line_rx.recv().await {
-                Self::broadcast_to_listeners(Arc::clone(&listeners_for_fanout), cmd).await;
+                Self::broadcast_to_listeners(Arc::clone(&listeners), cmd).await;
             }
+
+            // 読み取りが終わった。**溜まっていた行を配り切ってから**
+            // 「もう来ない」を届ける。落とさないと `raw_rx.recv()` が永久に
+            // 返らず、対局は手番のまま無音で止まる。
+            //
+            // **ここが唯一の置き場。** 読み取りの終わり方は1つではない。
+            // EOF は下の hook が `Err` を返して終わらせるが、`usi` crate は
+            // 読み取り自体の `Err`（非 UTF-8 の行、数値のパース失敗）では
+            // **hook を呼ばずに**スレッドを抜ける。どの終わり方でも `line_tx` は
+            // 落ちるので、この1箇所で全部を拾える。
+            //
+            // hook の中で落とすと、まだ配っていない行を捨てることになる。
+            // `bestmove` を書いた直後に終了するエンジンでは、その手が
+            // 誰にも届かないまま「応答しない」と判定される。
+            listeners.write().await.clear();
+            log::warn!(target: LOGT, "listen: engine output ended");
         });
 
         let mut handler_guard = self.handler.lock().await;
         let Some(handler) = handler_guard.as_mut() else {
             return Err(EngineError::NotInitialized(GONE.to_string()));
         };
-        let result = handler.listen(move |output| -> Result<(), EngineClosed> {
+        let result = handler.listen(move |output| -> Result<(), StopListening> {
             let Some(cmd) = output.response() else {
-                // `response` が `None` になるのは**プロセスの出力が閉じたときだけ**。
+                // `response` が `None` になるのは**出力が閉じたときだけ**。
                 // `usi` crate はそれを `Err` ではなく `Ok(response: None)` で返すので、
-                // ここで拾わないと読み取りスレッドが EOF を延々読む busy loop になる。
+                // ここで `Err` を返さないと EOF を延々読む busy loop になる。
                 //
-                // リスナーを全部落とすのは、待っている側へ「もう来ない」を届けるため。
-                // 落とさないと `raw_rx.recv()` が永久に返らず、対局は手番のまま止まる。
-                //
-                // このクロージャは `listen` が立てた **std のスレッド**の上で走るので、
-                // 非同期の実行文脈ではない。`blocking_write` が使えるし、
-                // ランタイムの停止中でも取りこぼさない。
-                listeners.blocking_write().clear();
-                log::warn!(target: LOGT, "listen: engine output closed");
-                return Err(EngineClosed);
+                // 待っている側への通知はここではしない（上の転送タスクが行う）
+                return Err(StopListening);
             };
 
             if line_tx.send(cmd.clone()).is_err() {
                 // 配る側が落ちている。読み続けても届け先が無い
-                return Err(EngineClosed);
+                return Err(StopListening);
             }
             Ok(())
         });
