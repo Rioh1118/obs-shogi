@@ -13,6 +13,8 @@ const LOGT: &str = "obs_shogi::engine::protocol";
 
 /// プロセスを落とした後に送ろうとしたときの文言
 const GONE: &str = "engine process has been shut down";
+/// 出力が終わったプロセスへ送ろうとしたときの文言
+const CLOSED: &str = "engine output has ended; the process cannot be reached";
 /// USI プロトコル処理層
 pub struct UsiProtocol {
     /// `Option` なのは、落とした後に **`Drop` を走らせない**ため。
@@ -102,6 +104,35 @@ fn requires_ready(cmd: &GuiCommand) -> bool {
     )
 }
 
+/// 送ろうとしているコマンドをどう扱うか。
+#[derive(Debug, PartialEq, Eq)]
+enum Dispatch {
+    /// そのまま書く
+    Send,
+    /// `readyok` まで積む
+    Queue,
+    /// 断る。出力が終わっているので、書いても待っても何も返らない
+    Refuse,
+}
+
+/// `ReadyState` とコマンドから、送る／積む／断るを決める。
+///
+/// **`Closed` を `Waiting` と同じ扱いにしない。** 積み置きは
+/// 「まだ `readyok` が来ていない」ための仕組みで、「**もう来ない**」ときの
+/// 置き場ではない。積むと呼び出し側へ `Ok` が返り、`bestmove` を待つ側は
+/// 永久に返らないまま対局が無音で止まる。
+///
+/// 純関数にしてあるのは、`UsiProtocol` が実プロセスを要るので
+/// この写像だけを固定したいため。
+fn dispatch_for(state: ReadyState, cmd: &GuiCommand) -> Dispatch {
+    match state {
+        ReadyState::Closed => Dispatch::Refuse,
+        ReadyState::Ready => Dispatch::Send,
+        ReadyState::Waiting if requires_ready(cmd) => Dispatch::Queue,
+        ReadyState::Waiting => Dispatch::Send,
+    }
+}
+
 impl UsiProtocol {
     pub fn new(handler: UsiEngineHandler) -> Self {
         Self {
@@ -127,7 +158,16 @@ impl UsiProtocol {
         name: String,
         sender: mpsc::UnboundedSender<EngineCommand>,
     ) -> Result<(), EngineError> {
-        // リスナー追加
+        // 出力が終わったプロセスには登録させない。
+        //
+        // `listen_active` は `true` のまま戻らず、読み取りは二度と始まらない
+        // （`usi` crate の `listen` は reader を `take` するので1回きり）。
+        // 入れても誰も配らないので、`raw_rx.recv()` が永久に返らない待ちができる
+        let state: ReadyState = *self.ready.borrow();
+        if state == ReadyState::Closed {
+            return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+        }
+
         self.listeners.write().await.insert(name.clone(), sender);
 
         // await をまたがないように「必要かどうか」だけ決める
@@ -276,21 +316,26 @@ impl UsiProtocol {
             return Ok(());
         }
 
-        // ready 前で ready 必須のコマンドなら enqueue
-        let is_ready = self.is_ready();
-        if !is_ready && requires_ready(command) {
-            let gen = *self.generation.read().await;
-            let mut map = self.pending_after_ready.lock().await;
-            let q = map.entry(gen).or_default();
-            q.push_back(command.clone());
-            log::debug!(
-                target: LOGT,
-                "send_command: queued cmd={} gen={} qlen={}",
-                cmd_summary(command),
-                gen,
-                q.len()
-            );
-            return Ok(());
+        let state: ReadyState = *self.ready.borrow();
+        match dispatch_for(state, command) {
+            Dispatch::Refuse => {
+                return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
+            }
+            Dispatch::Send => {}
+            Dispatch::Queue => {
+                let gen = *self.generation.read().await;
+                let mut map = self.pending_after_ready.lock().await;
+                let q = map.entry(gen).or_default();
+                q.push_back(command.clone());
+                log::debug!(
+                    target: LOGT,
+                    "send_command: queued cmd={} gen={} qlen={}",
+                    cmd_summary(command),
+                    gen,
+                    q.len()
+                );
+                return Ok(());
+            }
         }
 
         // 通常送信
@@ -601,5 +646,41 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
         option_type,
         default_value,
         current_value: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `ReadyState` を足したときに、**書き込み側の分岐を数え直さなかった**のが
+    /// r2 → r3 の退行だった。写像をここで固定する。
+    #[test]
+    fn a_closed_engine_is_refused_instead_of_queued() {
+        let go = GuiCommand::Go(usi::ThinkParams::new());
+        let position = GuiCommand::Position("sfen".to_string());
+        let stop = GuiCommand::Stop;
+
+        // 出力が終わっている。**積むと呼び出し側に `Ok` が返り、待ち手が永久に返らない**
+        for cmd in [&go, &position, &stop] {
+            assert_eq!(
+                dispatch_for(ReadyState::Closed, cmd),
+                Dispatch::Refuse,
+                "{cmd} を断っていない"
+            );
+        }
+
+        // `readyok` 待ち。局面と思考だけ積む
+        assert_eq!(dispatch_for(ReadyState::Waiting, &go), Dispatch::Queue);
+        assert_eq!(
+            dispatch_for(ReadyState::Waiting, &position),
+            Dispatch::Queue
+        );
+        assert_eq!(dispatch_for(ReadyState::Waiting, &stop), Dispatch::Send);
+
+        // ready。全部そのまま
+        for cmd in [&go, &position, &stop] {
+            assert_eq!(dispatch_for(ReadyState::Ready, cmd), Dispatch::Send);
+        }
     }
 }
