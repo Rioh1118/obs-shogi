@@ -17,7 +17,7 @@
 
 mod scanning;
 
-use scanning::{blank_out_comments, blank_out_noncode, matching, matching_angle};
+use scanning::{blank_out_noncode, matching, matching_angle};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -108,30 +108,18 @@ const EXEMPT: [(&str, &str); 8] = [
     ),
 ];
 
-/// `/* */` と `//` を空白に潰す。関数名をコメントに書く習慣があるので、
-/// 落とさないと「呼んでいない」を「呼んでいる」と読み違える。
-///
-/// **文字列は残す。** 引数名と型を見るので消せない。数えるのは `scanning` 側で、
-/// そちらは文字列・raw 文字列・文字リテラルを読み飛ばす——素で数えると
-/// 文字列の中の `/*` を見つけた時点で**ファイルの残りを丸ごと捨てる**
-/// （そこから後ろのコマンドが全部走査から消える）。
-fn without_comments(source: &str) -> String {
-    blank_out_comments(source)
-}
-
 /// 切り出した1コマンド。
 ///
-/// **`body` を関門の判定に使わせない。** `body` は引数名と型を読むために
-/// 文字列を残してあるので、`log::debug!("... validate_under_root ...")` の1行が
-/// 「関門を呼んだ」と数えられる。有無は `calls`、順序は `code` を見る——
-/// 消費側が写しを取り違えてもコンパイルが通る形（タプル）にしない。
+/// **写しは1つだけ持つ。** 文字列を残した写しも持たせると、
+/// `log::debug!("... validate_under_root ...")` の1行を「関門を呼んだ」と
+/// 数える書き方が**書けてしまう**——それで実際に、ワークスペースを丸ごと
+/// 消させない関門が消えたまま緑で通ったことがある。
 ///
-/// 2つの写しは**同じ範囲を同じ長さで**持つので、位置をそのまま比べられる。
+/// 残さなくても困らない。読みたいのは署名と呼び出しだけで、
+/// **Rust の署名に文字列リテラルは現れない。**
 struct Command {
     name: String,
-    /// 署名と引数名を読む側。文字列は残っている
-    body: String,
-    /// 呼び出しを探す側。文字列もコメントも潰してある
+    /// 文字列もコメントも潰してある写し
     code: String,
 }
 
@@ -148,12 +136,14 @@ impl Command {
 /// 関門をその別の関数が呼んでいるだけで、コマンド側は呼び忘れたまま緑になる。
 /// rustfmt が最上位の `}` を列0に置くので、それを終端に使う（構文解析はしない）。
 fn commands(source: &str) -> Vec<Command> {
-    let cleaned = without_comments(source);
+    // **属性も終端も、文字列を潰した写しの上で探す。** 素のソースで探すと、
+    // 文字列の中の `#[tauri::command` が幻のコマンドを作り、
+    // 文字列の中の `\n}` が本体を途中で切る（切った先の関門が見えなくなる）
     let code_only = blank_out_noncode(source);
     let mut marks: Vec<usize> = Vec::new();
     for attribute in ATTRIBUTES {
         let mut from = 0;
-        while let Some(at) = cleaned[from..].find(attribute) {
+        while let Some(at) = code_only[from..].find(attribute) {
             marks.push(from + at);
             from += at + attribute.len();
         }
@@ -162,14 +152,11 @@ fn commands(source: &str) -> Vec<Command> {
 
     let mut found = Vec::new();
     for &start in &marks {
-        let end = cleaned[start..]
+        let end = code_only[start..]
             .find("\n}")
             .map(|at| start + at + 2)
-            .unwrap_or(cleaned.len());
-        let chunk = &cleaned[start..end];
-        // **同じ範囲を、文字列も潰した写しから取る。** 位置は `blank_out` が
-        // 行数も長さも保つので一致する
-        let code_chunk = &code_only[start..end.min(code_only.len())];
+            .unwrap_or(code_only.len());
+        let chunk = &code_only[start..end];
         // `pub` / `pub(crate)` / `async` のどれが付いていても名前を取れるようにする
         let name = chunk
             .split("fn ")
@@ -182,8 +169,7 @@ fn commands(source: &str) -> Vec<Command> {
             .to_string();
         found.push(Command {
             name,
-            body: chunk.to_string(),
-            code: code_chunk.to_string(),
+            code: chunk.to_string(),
         });
     }
     found
@@ -303,7 +289,8 @@ fn type_graph(files: &[(String, String)]) -> TypeGraph {
     let mut from_the_webview: BTreeSet<String> = BTreeSet::new();
 
     for (_, source) in files {
-        let cleaned = without_comments(source);
+        // 属性の中の文字列（`#[serde(rename = "..")]`）を型の綴りと取り違えない
+        let cleaned = blank_out_noncode(source);
         for keyword in ["struct ", "enum "] {
             let mut from = 0;
             while let Some(at) = cleaned[from..].find(keyword) {
@@ -435,11 +422,11 @@ fn no_path_carrying_command_is_missing_from_the_list() {
     let mut missing = Vec::new();
     for (file, source) in &files {
         for command in commands(source) {
-            let (name, body) = (&command.name, &command.body);
-            if STRUCT_CARRIED_PATH.contains(&name.as_str()) || takes_a_path(body) {
+            let (name, code) = (&command.name, &command.code);
+            if STRUCT_CARRIED_PATH.contains(&name.as_str()) || takes_a_path(code) {
                 continue;
             }
-            let carried: Vec<String> = parameter_types(body)
+            let carried: Vec<String> = parameter_types(code)
                 .into_iter()
                 .filter(|t| types.carries_path.contains(t) && types.from_the_webview.contains(t))
                 .collect();
@@ -472,9 +459,9 @@ fn every_path_taking_command_checks_the_root() {
 
     for (file, source) in &files {
         for command in commands(source) {
-            let (name, body) = (&command.name, &command.body);
+            let (name, code) = (&command.name, &command.code);
             all += 1;
-            if !takes_a_path(body) && !STRUCT_CARRIED_PATH.contains(&name.as_str()) {
+            if !takes_a_path(code) && !STRUCT_CARRIED_PATH.contains(&name.as_str()) {
                 continue;
             }
             path_taking.push(name.clone());
@@ -529,10 +516,8 @@ fn every_path_taking_command_checks_the_root() {
     let mut missing_extra: Vec<String> = Vec::new();
     for (_, source) in &files {
         for command in commands(source) {
-            let (name, _body) = (&command.name, &command.body);
+            let name = &command.name;
             for (needs, guard) in EXTRA_GUARDS {
-                // **`code` で見る。** `body` は文字列を残してあるので、
-                // ログに綴りを書くだけで「呼んだ」と数えられる
                 if name == needs && !command.calls(guard) {
                     missing_extra.push(format!("{needs} が {guard} を呼んでいない"));
                 }
@@ -595,15 +580,18 @@ pub fn open_thing(app: AppHandle, file_path: String) -> Result<(), String> {
 "#;
     let command = commands(source).remove(0);
     assert_eq!(command.name, "open_thing");
-    // **判定の口そのものを見る。** 写しが作れていることだけを見ると、
-    // 消費側が `body` を見る形に戻しても落ちない
     assert!(
         !command.calls(GUARD),
         "文字列の中の綴りを「関門を呼んだ」と数えている"
     );
     assert!(
-        command.body.contains(GUARD),
+        source.contains(GUARD),
         "見本が想定の形になっていない（綴りが本体に無い）"
+    );
+    // **写しは1つしか無い。** 取り違えようが型に無いことを、ここで示しておく
+    assert!(
+        !command.code.contains(GUARD),
+        "文字列を潰していない写しが残っている"
     );
 }
 
@@ -623,9 +611,9 @@ pub fn a(app: AppHandle, file_path: String) -> () {
 }
 "#,
     ] {
-        let body = commands(source).remove(0).body;
+        let code = commands(source).remove(0).code;
         assert!(
-            !body.contains(GUARD),
+            !code.contains(GUARD),
             "コメントの中の関数名を、呼び出しとして数えている:\n{source}"
         );
     }
@@ -644,10 +632,10 @@ fn helper(app: &AppHandle, p: &Path) -> () {
 "#;
 
     let command = commands(source).remove(0);
-    let (name, body) = (&command.name, &command.body);
+    let (name, code) = (&command.name, &command.code);
     assert_eq!(name, "a");
     assert!(
-        !body.contains(GUARD),
+        !code.contains(GUARD),
         "コマンドの後ろにある別の関数の呼び出しを、本体として数えている"
     );
 }
@@ -715,7 +703,7 @@ pub async fn a(app: AppHandle, file_path: String) -> () {
     assert_eq!(found.len(), 1, "引数付きの属性を拾えていない");
     assert_eq!(found[0].name, "a");
     assert!(
-        takes_a_path(&found[0].body),
+        takes_a_path(&found[0].code),
         "属性の括弧を署名と取り違えている"
     );
 }
