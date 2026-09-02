@@ -1,6 +1,6 @@
 use crate::engine::utils::LogThrottle;
 
-use super::analyzer::{EngineAnalyzer, MAX_THINK_TIME};
+use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
 use super::game::manager::GameManager;
 use super::registry::EngineRegistry;
 use super::types::*;
@@ -351,7 +351,12 @@ impl EngineBridge {
         result
     }
 
-    pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<AnalysisResult, String> {
+    /// 深度指定の解析。
+    ///
+    /// **目標に届かなくても `Ok` が返る。** 届いたかは `DepthOutcome::reached` にある。
+    /// `go depth` は送れない（`usi` crate に手段が無い）ので、届くかは
+    /// `DEPTH_ANALYSIS_BUDGET` の中で `info depth` がそこまで伸びるか次第。
+    pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<DepthOutcome, String> {
         let session_id = self.take_session(SessionType::Depth(depth)).await?;
 
         let result = self
@@ -539,7 +544,7 @@ pub async fn analyze_with_time(
 pub async fn analyze_with_depth(
     state: tauri::State<'_, AppState>,
     depth: u32,
-) -> Result<AnalysisResult, String> {
+) -> Result<DepthOutcome, String> {
     state.bridge.analyze_with_depth_impl(depth).await
 }
 

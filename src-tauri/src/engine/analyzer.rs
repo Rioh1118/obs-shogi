@@ -1,5 +1,7 @@
 use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
+use serde::Serialize;
+
 use super::protocol::{StopEffect, UsiProtocol};
 use super::registry::{EngineId, EngineRegistry};
 use super::types::*;
@@ -27,8 +29,13 @@ const STOP_GRACE: Duration = Duration::from_secs(3);
 
 /// 深度指定の解析に掛ける考慮時間。
 ///
-/// 深度だけでは止まらない局面がある（`go depth` を持たないエンジンにも
-/// `byoyomi` は効く）ので、深度と時間の両方で打ち切る。
+/// **`go depth` は送っていない。** `usi 0.6` の `ThinkParams` が組めるのは
+/// `ponder` / `btime` / `wtime` / `byoyomi` / `binc` / `winc` / `infinite` / `mate` で、
+/// 深度を載せる手段が無い。深度の打ち切りは `info depth` を見てこちらから
+/// `stop` を撃つ側（`reached_depth`）が持つ。
+///
+/// この定数はその見張りが空振りしたときの時間側の打ち切り。**届かないまま
+/// ここに当たることがある**ので、届いたかは呼び出し側へ返す（→ `DepthOutcome`）。
 const DEPTH_ANALYSIS_BUDGET: Duration = Duration::from_secs(60);
 
 /// 1回の解析に許す考慮時間の上限。
@@ -46,6 +53,23 @@ fn now_nanos() -> u128 {
 
 fn contains_usi_breaking_char(s: &str) -> bool {
     s.chars().any(|c| c == '\n' || c == '\r' || c == '\0')
+}
+
+/// 深度指定の解析が返すもの。
+///
+/// **`AnalysisResult` だけを返さない。** 返すと「届かなかった」が消え、
+/// 深度22の結果が深度40の解析として読まれる。呼び出し側に見分ける手段が要る。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DepthOutcome {
+    pub result: AnalysisResult,
+    /// 要求した深度
+    pub requested: u32,
+    /// 実際に届いた深度（`info depth` の最善手のもの）。`info` が1行も
+    /// 来なければ `None`
+    pub deepest: Option<u32>,
+    /// `requested` に届いたか
+    pub reached: bool,
 }
 
 /// `stop` を撃った後、`bestmove` を待ってよいか。
@@ -388,11 +412,12 @@ impl EngineAnalyzer {
         Ok(analysis_result)
     }
 
-    /// 深度制限解析
-    pub async fn analyze_with_depth(
-        &self,
-        depth_limit: u32,
-    ) -> Result<AnalysisResult, EngineError> {
+    /// 深度指定の解析。
+    ///
+    /// **目標に届かなくても結果は返る。** 届いたかは `DepthOutcome::reached` を見ること。
+    /// 届かない理由は `DEPTH_ANALYSIS_BUDGET` に当たったときで、
+    /// 深度22の結果を深度40の解析として読ませないためにこの欄がある。
+    pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
         let protocol = self.protocol().await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
@@ -403,7 +428,7 @@ impl EngineAnalyzer {
             .register_listener(listener_id.clone(), raw_tx)
             .await?;
 
-        // 深度だけでは止まらない局面があるので、時間でも打ち切る
+        // 深度は載せられないので、時間だけを渡して `info depth` を見張る
         let go_command = GuiCommand::Go(ThinkParams::new().byoyomi(DEPTH_ANALYSIS_BUDGET));
         protocol.send_command(&go_command).await?;
 
@@ -433,7 +458,13 @@ impl EngineAnalyzer {
             state.analysis_count += 1;
         }
 
-        Ok(analysis_result)
+        let deepest = get_depth_of_rank(&analysis_result, 1);
+        Ok(DepthOutcome {
+            reached: reached_depth(&analysis_result, Some(depth_limit)),
+            deepest,
+            requested: depth_limit,
+            result: analysis_result,
+        })
     }
 
     /// 解析停止。
