@@ -220,6 +220,21 @@ fn dispatch_for(state: ReadyState, cmd: &GuiCommand) -> Dispatch {
     }
 }
 
+/// 積み置きから `go` を落とす。落とした数を返す。
+///
+/// **`stop` は積まれないのに `go` は積まれる**ので、`readyok` を待っている間は
+/// 順序が入れ替わる。そのまま書くと `stop` が先にエンジンへ届き、まだ探索して
+/// いないので何も起きず、後から flush された `go` で**利用者が止めたはずの探索が
+/// 始まる**。画面は「停止」のままエンジンだけが回り続ける。
+///
+/// `position` は落とさない。局面を送っただけでは何も起きないうえ、
+/// 次の `go` の前提になる。
+fn cancel_queued_go(queue: &mut VecDeque<GuiCommand>) -> usize {
+    let before = queue.len();
+    queue.retain(|cmd| !matches!(cmd, GuiCommand::Go(_)));
+    before - queue.len()
+}
+
 impl UsiProtocol {
     pub fn new(handler: UsiEngineHandler) -> Self {
         Self {
@@ -407,7 +422,24 @@ impl UsiProtocol {
             Dispatch::Refuse => {
                 return Err(EngineError::CommunicationFailed(CLOSED.to_string()));
             }
-            Dispatch::Send => {}
+            Dispatch::Send => {
+                // `stop` だけは、書きに行く前に積み置きの `go` を取り消す。
+                // 取り消さないと順序が入れ替わり、止めたはずの探索が後から始まる
+                if matches!(command, GuiCommand::Stop) {
+                    let cancelled = {
+                        let mut pending = self.pending.lock().await;
+                        cancel_queued_go(&mut pending.queue)
+                    };
+                    if cancelled > 0 {
+                        log::info!(
+                            target: LOGT,
+                            "send_command: stop cancelled {cancelled} queued go"
+                        );
+                        // エンジンはまだ探索していない。`stop` を書く相手が居ない
+                        return Ok(());
+                    }
+                }
+            }
             Dispatch::Queue => {
                 let mut pending = self.pending.lock().await;
 
@@ -892,6 +924,29 @@ mod tests {
                 assert_eq!(next_ready_state(current, requested), requested);
             }
         }
+    }
+
+    /// `stop` が積み置きの `go` を取り消すこと。
+    ///
+    /// `stop` は積まれないのに `go` は積まれるので、`readyok` を待っている間は
+    /// 順序が入れ替わる。取り消さないと、**利用者が止めた後に探索が始まる**
+    #[test]
+    fn a_stop_cancels_queued_go() {
+        let mut queue = VecDeque::from(vec![
+            GuiCommand::UsiNewGame,
+            GuiCommand::Position("sfen".to_string()),
+            GuiCommand::Go(usi::ThinkParams::new()),
+        ]);
+
+        assert_eq!(cancel_queued_go(&mut queue), 1);
+
+        // `position` は残す。送っただけでは何も起きず、次の `go` の前提になる
+        assert_eq!(queue.len(), 2);
+        assert!(matches!(queue[0], GuiCommand::UsiNewGame));
+        assert!(matches!(queue[1], GuiCommand::Position(_)));
+
+        // 2度目は何も落とさない
+        assert_eq!(cancel_queued_go(&mut queue), 0);
     }
 
     /// 落ち着いた値を返すこと。呼び出し側はこれを見て「戻せなかった」を知る
