@@ -226,6 +226,46 @@ pub fn matching(from: &str, open: char, close: char) -> Option<usize> {
     None
 }
 
+/// 先頭の `<` に釣り合う `>` の直後までの長さ。**`->` と `=>` は数えない。**
+///
+/// `matching` で素に数えると、`fn f<F: FnMut() -> (String, u32)>(..)` の
+/// `->` の `>` で深さが 0 に戻り、**ジェネリクスの途中で打ち切る**。
+/// 打ち切った先の `(` を署名と読むので、生パスを受ける引数が走査から消える。
+pub fn matching_angle(from: &str) -> Option<usize> {
+    if !from.starts_with('<') {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut at = 0;
+
+    while at < from.len() {
+        let rest = &from[at..];
+        if let Some(skip) = skip_literal_or_comment(rest) {
+            at += skip;
+            continue;
+        }
+        // 矢印は1つの記号として読み飛ばす
+        if rest.starts_with("->") || rest.starts_with("=>") {
+            at += 2;
+            continue;
+        }
+        // `>>` は入れ子の閉じ2つぶん
+        let ch = rest.chars().next().expect("残りがあれば1文字は取れる");
+        match ch {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(at + 1);
+                }
+            }
+            _ => {}
+        }
+        at += ch.len_utf8();
+    }
+    None
+}
+
 /// 属性から始まる item 1つぶんの長さ。
 ///
 /// **`;` は角括弧と丸括弧の外でだけ数える。** `const S: [&str; 3] = [..];` の
@@ -460,6 +500,16 @@ mod tests {
 
     #[test]
     fn a_paren_scan_survives_a_unit_type_argument() {
+        // **`->` の `>` でジェネリクスを切らない**
+        let source = "<F: FnMut() -> (String, u32)>";
+        assert_eq!(
+            matching_angle(source),
+            Some(source.len()),
+            "`->` の `>` でジェネリクスを切っている"
+        );
+        let source = "<F: Fn() -> Vec<(u8, u8)>>";
+        assert_eq!(matching_angle(source), Some(source.len()));
+
         // `Channel<()>` の `)` で署名が切れない
         let source = "(app: AppHandle, ch: Channel<()>, file_path: String)";
         let len = matching(source, '(', ')').expect("釣り合わない");

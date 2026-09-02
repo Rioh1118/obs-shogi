@@ -81,10 +81,17 @@ fn strip_test_modules(source: &str, path: &Path) -> String {
 }
 
 fn production_code(path: &Path) -> String {
-    let source = fs::read_to_string(path).unwrap_or_default();
+    production_code_of(&fs::read_to_string(path).unwrap_or_default(), path)
+}
+
+/// 走査の合成。**テストから直に食わせられる形にしておく。**
+///
+/// 現物だけを食わせていると、いまその形が無いだけの穴を「直した」と読んでしまう
+/// （`//` を含む文字列の右にある `.unwrap()` は、書いた人が現れるまで差が出ない）。
+fn production_code_of(source: &str, path: &Path) -> String {
     // **`//` を手で探さない。** 文字列の中の `//`（URL、`format!("{a}//{b}")`）で
     // 行を切ると、そこから右にある `.unwrap()` が全部見えなくなる
-    blank_out_comments(&strip_test_modules(&source, path))
+    blank_out_comments(&strip_test_modules(source, path))
 }
 
 fn src_dir() -> PathBuf {
@@ -203,9 +210,11 @@ pub enum Real {
     assert!(stripped.contains("pub fn real"), "塊の後ろまで落としている");
 
     // **文字列の中の `//` で行を切らないこと。** 切ると、そこから右にある
-    // `.unwrap()` が全部見えなくなる（URL は本番コードに普通に書く）
+    // `.unwrap()` が全部見えなくなる（URL は本番コードに普通に書く）。
+    // **合成を食わせる**——ヘルパ単体を見ても、`production_code` が
+    // そのヘルパを使っているかは分からない
     let source = "let doc = \"https://example.org\"; let x = v.unwrap();\n";
-    let kept = blank_out_comments(source);
+    let kept = production_code_of(source, Path::new("<テスト>"));
     assert!(
         kept.contains("v.unwrap()"),
         "文字列の中の `//` で行を切っている: {kept:?}"

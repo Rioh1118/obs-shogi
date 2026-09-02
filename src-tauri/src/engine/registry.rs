@@ -345,3 +345,52 @@ impl EngineRegistry {
         protocol.kill_engine().await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `engine_path` が**実在するファイル**であることを要求すること。
+    ///
+    /// **`start_game` を root の関門から免除する理由がこの関門。**
+    /// `root_guard.rs` の `EXEMPT` は「起こしてよいかは `EngineRegistry::spawn` の
+    /// canonicalize + is_file が見る」と書いているので、ここが抜けると
+    /// **免除の根拠ごと消える**——`engine_path` はフロントから来る任意の文字列で、
+    /// これが `start_game` と OS の間にある唯一の判定。
+    #[tokio::test]
+    async fn spawn_refuses_anything_that_is_not_an_existing_file() {
+        let registry = EngineRegistry::new();
+        let quick = Duration::from_millis(200);
+
+        // ディレクトリ
+        let error = registry
+            .spawn(env!("CARGO_MANIFEST_DIR"), None, quick, quick)
+            .await
+            .expect_err("ディレクトリを実行ファイルとして起こしている");
+        assert!(
+            format!("{error}").contains("existing file"),
+            "断る理由が変わっている: {error}"
+        );
+
+        // 存在しないパス
+        registry
+            .spawn("/nonexistent/engine", None, quick, quick)
+            .await
+            .expect_err("存在しないパスを起こしている");
+
+        // `work_dir` も見る。子プロセスの cwd は相対パスの解決の基点になる
+        let error = registry
+            .spawn(
+                concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"),
+                Some("/nonexistent/dir"),
+                quick,
+                quick,
+            )
+            .await
+            .expect_err("存在しない work_dir を通している");
+        assert!(
+            format!("{error}").contains("work_dir"),
+            "断る理由が変わっている: {error}"
+        );
+    }
+}

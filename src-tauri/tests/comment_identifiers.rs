@@ -173,6 +173,18 @@ fn code_only(source: &str) -> String {
 /// **拾えるのは、同じ要約を書き足した形だけ。** 別の言い回しで足したものは
 /// 文の意味を読まないと分からないので、ここでは止まらない——
 /// 誤検出を出さないことを優先する。
+/// コメント行の判定が、文字列の中の `//` に反応しないこと。
+///
+/// **現物だけを食わせていると差が出ない**（`src/` に該当する形がまだ無い）。
+/// 反応すると、その行が丸ごとコメント扱いになって本物の綴りが消える。
+#[test]
+fn a_url_in_a_string_is_not_a_comment() {
+    assert!(is_comment_line("// 説明"));
+    assert!(is_comment_line("/* 説明 */"));
+    assert!(!is_comment_line("let u = \"https://example.org\";"));
+    assert!(!is_comment_line("let s = \"a\"; // 後ろのコメント"));
+}
+
 #[test]
 fn no_doc_block_repeats_a_line() {
     let mut offenders = Vec::new();

@@ -260,6 +260,39 @@ fn the_scanner_actually_finds_types() {
     assert!(!side.carries_data);
 }
 
+/// 折り返された `#[derive(..)]` を持つ型が走査に載ること。
+///
+/// **現物だけを食わせていると差が出ない。** いまその形が無いだけで、
+/// rustfmt は100桁を超えると1トレイト1行に折る——折るだけで ADR-0007 の検査が
+/// 無効になる形なので、`parse` に直に食わせて固定する。
+#[test]
+fn a_folded_derive_is_still_scanned() {
+    let source = "\
+#[derive(
+    Debug,
+    Clone,
+    serde::Serialize,
+)]
+#[serde(tag = \"type\", rename_all = \"camelCase\")]
+pub enum Folded {
+    Alpha,
+    Beta { some_field: u32 },
+}
+";
+    let mut found = Vec::new();
+    parse("<テスト>", source, &mut found);
+
+    let folded = found
+        .iter()
+        .find(|t| t.name == "Folded")
+        .expect("折られた derive の型を拾えていない");
+    assert!(folded.carries_data, "値つきのバリアントを見落としている");
+    assert!(
+        !folded.attrs.contains("rename_all_fields"),
+        "見本が想定の形になっていない"
+    );
+}
+
 #[test]
 fn camel_case_violations_only_go_down() {
     let violations: BTreeSet<String> = all_types()

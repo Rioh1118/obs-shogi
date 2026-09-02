@@ -17,7 +17,7 @@
 
 mod scanning;
 
-use scanning::{blank_out_comments, blank_out_noncode, matching};
+use scanning::{blank_out_comments, blank_out_noncode, matching, matching_angle};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -196,6 +196,7 @@ fn commands(source: &str) -> Vec<Command> {
 fn signature_of(chunk: &str) -> Option<&str> {
     let start = chunk.find("fn ")?;
     let chunk = &chunk[start..];
+    let name = chunk.lines().next().unwrap_or(chunk);
 
     // **ジェネリクスを先に飛ばす。** `fn f<F: Fn() -> String>(path: String)` だと
     // 最初の `(` は `Fn()` のもので、そこを署名だと決めると**以降の引数が
@@ -208,7 +209,11 @@ fn signature_of(chunk: &str) -> Option<&str> {
                 .chars()
                 .all(|c| c.is_alphanumeric() || c == '_') =>
         {
-            after_name + angle + matching(&rest[angle..], '<', '>')?
+            after_name
+                + angle
+                + matching_angle(&rest[angle..]).unwrap_or_else(|| {
+                    panic!("{name}: ジェネリクスの `<>` が釣り合わない。走査が壊れている")
+                })
         }
         _ => after_name,
     };
@@ -669,6 +674,16 @@ fn only_signatures_that_carry_a_path_are_checked() {
         "app: AppHandle, file_path: String"
     ));
     assert!(takes_generic("T: Into<String>", "dest_dir: String"));
+    // **`->` の `>` でジェネリクスを切らない。** 切ると署名が `String, u32` になり、
+    // 生パスを受ける引数が走査から丸ごと消える
+    assert!(takes_generic(
+        "F: FnMut() -> (String, u32)",
+        "dir_path: String"
+    ));
+    assert!(takes_generic(
+        "F: Fn() -> Vec<(u8, u8)>",
+        "dir_path: String"
+    ));
 
     // 型を辿る側も同じ括弧の取り方を使う
     let types =

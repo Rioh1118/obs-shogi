@@ -325,6 +325,47 @@ mod tests {
         games.sessions.write().await.insert(id, session);
     }
 
+    /// 掴まれている対局は閉じられず、**台帳に残ること**。
+    ///
+    /// 戻さないと、この `Arc` を最後に手放した者がセッションごと drop して
+    /// `engine_ids` が消え、**プロセスを落とす手掛かりがどこにも残らない**。
+    /// `close_all` も台帳しか見ないので拾えない。
+    #[tokio::test]
+    async fn a_borrowed_game_is_refused_and_kept_in_the_ledger() {
+        let games = GameManager::new(Arc::new(EngineRegistry::new()));
+        let id = games
+            .start(Arc::new(DiscardEvents), two_humans())
+            .await
+            .expect("人間だけの対局は起動できるはず");
+
+        // 誰かが掴んでいる状態を作る
+        let held = games
+            .sessions
+            .read()
+            .await
+            .get(&id)
+            .cloned()
+            .expect("台帳にある");
+
+        let error = games
+            .close(&id)
+            .await
+            .expect_err("掴まれている対局を閉じている");
+        assert!(error.contains("busy"), "断る理由が変わっている: {error}");
+        assert!(
+            games.sessions.read().await.contains_key(&id),
+            "閉じられなかった対局を台帳から落としている"
+        );
+        assert_eq!(
+            games.close_all().await,
+            vec![id.clone()],
+            "閉じられなかった対局が `close_all` の戻りに出ていない"
+        );
+
+        drop(held);
+        games.close(&id).await.expect("手放した後も閉じられない");
+    }
+
     /// 閉じている印が、番人を落とせば必ず外れること。
     ///
     /// 外れないと、その対局は以後ずっと `the game is being closed` を返し続ける
