@@ -688,8 +688,13 @@ impl Runner {
 
         match outcome {
             SearchOutcome::Aborted | SearchOutcome::StopTimedOut | SearchOutcome::Failed(_) => {
-                // 上で処理済み。`Aborted` は `Stopping` からしか来ないので
-                // ここには落ちない
+                // 上で処理済み。
+                //
+                // `Aborted` は `Searching` からも来る（`finish` は `Stopping` へ
+                // 移さずに cancel するため）。それがここへ落ちないのは、
+                // **`Phase::Over` の早期 return が先にある**から。
+                // `Over` の判定をこの `match` より後ろへ動かすと、終局時の
+                // `Aborted` がこの空アームに吸われて `gameover` が飛ばなくなる
             }
             SearchOutcome::Move { usi, ponder } => {
                 // 先読みが自分から終わることがある（詰みを見つけた等）。
