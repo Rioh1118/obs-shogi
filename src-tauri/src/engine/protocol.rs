@@ -460,12 +460,36 @@ impl UsiProtocol {
     /// 前者はエンジンが stdin を読んでいない、後者は届く先が無い。
     /// 次に何ができるかが違うので潰さない。
     async fn write(&self, command: GuiCommand) -> Result<(), EngineError> {
+        let rx = self.enqueue_write(command)?;
+        self.await_write(rx).await
+    }
+
+    /// 書き込みの列へ入れる。**同期。await 点を持たない。**
+    ///
+    /// 入れた順がそのままワイヤ上の順になる（→ `run_writer`）。順番を守る責任が
+    /// ある側——積み置きの掃き出し——は、**キューのロックを握ったまま**ここを呼ぶ。
+    /// `write` しか無いと、ロックを離してから列へ入るまでの隙に
+    /// 別の書き込みが割り込めるかどうかが `write` の内側の作りに依存する。
+    /// 同期の関数に分けてあれば、依存するのは型のほうになる。
+    fn enqueue_write(
+        &self,
+        command: GuiCommand,
+    ) -> Result<oneshot::Receiver<Result<(), EngineError>>, EngineError> {
         let (reply, rx) = oneshot::channel();
         let job = WriteJob { command, reply };
         if self.writer.send(job).is_err() {
             return Err(EngineError::NotInitialized(GONE.to_string()));
         }
+        Ok(rx)
+    }
 
+    /// 列に入れた1件が書けたかを待つ。
+    ///
+    /// **待つだけ。** 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
+    async fn await_write(
+        &self,
+        rx: oneshot::Receiver<Result<(), EngineError>>,
+    ) -> Result<(), EngineError> {
         let result = match rx.await {
             Ok(result) => result,
             // 列のタスクが落ちた
@@ -814,12 +838,11 @@ impl UsiProtocol {
                 // 1行も残さずに消える（積んだ側には `Ok` が返っている）。
                 // 1件ずつ取り出して、残りは常に `pending` の側に置いておく
                 loop {
-                    // **`pop_front` から `write` の `writer.send` までに
-                    // await 点を作らないこと。** 作ると、その隙に走った `stop` が
-                    // `cancel_queued_go` で空のキューを見て 0 を返し、
-                    // 取り出し済みの `go` を追い越してワイヤへ出る。
-                    // `write` は最初の poll で `writer.send` を済ませる作りなので、
-                    // いまは `.await` を挟んでも投入順は保たれている
+                    // **キューから引くのと書き込みの列へ入れるのを、同じロック区間で。**
+                    // 離すと、その隙に走った `stop` が `cancel_queued_go` で
+                    // 空のキューを見て 0 を返し、取り出し済みの `go` を追い越して
+                    // ワイヤへ出る。`enqueue_write` は await 点を持たないので、
+                    // ロックを握ったまま呼べる
                     let next = {
                         let mut pending = protocol.pending.lock().await;
                         if pending.generation != gen {
@@ -827,17 +850,24 @@ impl UsiProtocol {
                             // 印はそちらが降ろす
                             break;
                         }
-                        let next = pending.queue.pop_front();
-                        if next.is_none() {
-                            // 掃き終わり。**印を降ろすのは列が空になった瞬間**で、
-                            // 同じロック区間でないと最後の1件を追い越される
-                            pending.draining = false;
+                        match pending.queue.pop_front() {
+                            Some(cmd) => Some((cmd.clone(), protocol.enqueue_write(cmd))),
+                            None => {
+                                // 掃き終わり。**印を降ろすのは列が空になった瞬間**で、
+                                // 同じロック区間でないと最後の1件を追い越される
+                                pending.draining = false;
+                                None
+                            }
                         }
-                        next
                     };
-                    let Some(cmd) = next else { break };
+                    let Some((cmd, enqueued)) = next else { break };
 
-                    if let Err(e) = protocol.write(cmd.clone()).await {
+                    let written = match enqueued {
+                        Ok(rx) => protocol.await_write(rx).await,
+                        Err(e) => Err(e),
+                    };
+
+                    if let Err(e) = written {
                         log::warn!(
                             target: LOGT,
                             "ready: flush failed cmd={} err={}",
