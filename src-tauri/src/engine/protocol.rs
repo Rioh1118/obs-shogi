@@ -143,7 +143,23 @@ impl UsiProtocol {
         log::debug!(target: LOGT, "start_listening: begin");
 
         let listeners = Arc::clone(&self.listeners);
-        let runtime_handler = self.runtime_handle.clone();
+
+        // 読み取りスレッドと配布の間をチャンネル1本で繋ぐ。
+        //
+        // 行ごとに `spawn` して配ると、**どのタスクが先に `send` するかが
+        // ランタイム任せ**になる。`id name` と `usiok` が入れ替わると
+        // `collect_engine_info` が `usiok` で抜けて名前が空になり、
+        // エンジンの起動が偶発的に失敗する。
+        //
+        // 読み取り側は `send` するだけで、`unbounded` なので詰まらない。
+        // ロックを待つのは配る側の1本に閉じる。
+        let (line_tx, mut line_rx) = mpsc::unbounded_channel::<EngineCommand>();
+        let listeners_for_fanout = Arc::clone(&listeners);
+        self.runtime_handle.spawn(async move {
+            while let Some(cmd) = line_rx.recv().await {
+                Self::broadcast_to_listeners(Arc::clone(&listeners_for_fanout), cmd).await;
+            }
+        });
 
         let mut handler_guard = self.handler.lock().await;
         let result = handler_guard.listen(move |output| -> Result<(), EngineClosed> {
@@ -163,11 +179,10 @@ impl UsiProtocol {
                 return Err(EngineClosed);
             };
 
-            let cmd_owned = cmd.clone();
-            let listeners = Arc::clone(&listeners);
-            runtime_handler.spawn(async move {
-                Self::broadcast_to_listeners(listeners, cmd_owned).await;
-            });
+            if line_tx.send(cmd.clone()).is_err() {
+                // 配る側が落ちている。読み続けても届け先が無い
+                return Err(EngineClosed);
+            }
             Ok(())
         });
 
