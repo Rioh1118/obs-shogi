@@ -9,8 +9,9 @@ use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
 /// 対局を始める。
 ///
-/// エンジンの起動と `usinewgame` までを済ませて返るので、**返ったときには
-/// 手番側が既に考えている**。評価関数の読み込みが重いエンジンでは
+/// エンジンの起動と `usinewgame` までを待って返る。**最初の `go` は待たない**
+/// ——その失敗は `game-event` の `over { reason: engineFailure }` で届くので、
+/// `Ok` を受け取ったら `game-event` を購読してから盤を出すこと。評価関数の読み込みが重いエンジンでは
 /// ここで数十秒かかる。
 #[tauri::command]
 pub async fn start_game(

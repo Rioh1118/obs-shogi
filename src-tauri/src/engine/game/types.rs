@@ -5,7 +5,6 @@
 //! 「いま誰の手番か」「どの手が決まったか」「時計がどうなっているか」だけ。
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::engine::types::AnalysisResult;
 
@@ -45,6 +44,14 @@ impl Side {
     }
 }
 
+/// `setoption` 1件。**並べた順にそのまま送る。**
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineOption {
+    pub name: String,
+    pub value: String,
+}
+
 /// 対局者。
 ///
 /// **人とエンジンを1つの型にまとめてある。** 分岐させると、進行側が
@@ -65,9 +72,16 @@ pub enum PlayerSpec {
         engine_path: String,
         /// 省略時は実行ファイルの置き場
         work_dir: Option<String>,
-        /// `setoption` で送る値。型は持たない（→ `research/shogihome/05-usi-engine.md`）
+        /// `setoption` で送る値。型は持たない（→ `research/shogihome/05-usi-engine.md`）。
+        ///
+        /// **順序を持つ。** 連想配列にすると反復順がプロセスごとに変わり、
+        /// 同じ設定で起動しても `setoption` の並びが実行のたびに違う。
+        /// 値の解釈が前の `setoption` に依存するエンジン（`EvalDir` を変えてから
+        /// `EvalFile` を指す、`Threads` を上げてから `USI_Hash` を割り当てる）では、
+        /// **同じ設定なのに片方の実行だけ棋力が変わる**。ログに残るのは1行ずつなので、
+        /// 再現しない差の原因として最後まで疑われない。
         #[serde(default)]
-        options: HashMap<String, String>,
+        options: Vec<EngineOption>,
         /// 相手の手番の間も読ませるか
         #[serde(default)]
         ponder: bool,
@@ -378,7 +392,7 @@ mod tests {
                 name: "engine".to_string(),
                 engine_path: "/path".to_string(),
                 work_dir: None,
-                options: HashMap::new(),
+                options: Vec::new(),
                 ponder: true,
             },
             black_time: TimeLimit {
@@ -479,5 +493,45 @@ mod tests {
             }
             _ => panic!("engine として読めていない"),
         }
+    }
+
+    /// `setoption` の順序が線を往復しても変わらないこと。
+    ///
+    /// **連想配列にすると壊れる。** 反復順がプロセスごとに変わるので、
+    /// 同じ設定で起動しても `setoption` の並びが実行のたびに違う。
+    /// 値の解釈が前の `setoption` に依存するエンジンでは、
+    /// 同じ設定なのに片方の実行だけ棋力が変わる。
+    #[test]
+    fn engine_options_keep_the_order_the_app_put_them_in() {
+        let json = r#"{
+            "black": { "kind": "human", "name": "me" },
+            "white": {
+                "kind": "engine", "name": "e", "enginePath": "/p",
+                "options": [
+                    { "name": "EvalDir", "value": "/eval" },
+                    { "name": "EvalFile", "value": "nn.bin" },
+                    { "name": "Threads", "value": "4" }
+                ]
+            },
+            "blackTime": { "mainMs": 600000, "byoyomiMs": 0, "incrementMs": 0 },
+            "whiteTime": { "mainMs": 600000, "byoyomiMs": 0, "incrementMs": 0 },
+            "startSfen": "sfen b - 1"
+        }"#;
+        let settings: GameSettings = serde_json::from_str(json).unwrap();
+
+        let PlayerSpec::Engine { options, .. } = &settings.white else {
+            panic!("engine として読めていない");
+        };
+        let names: Vec<&str> = options.iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(names, ["EvalDir", "EvalFile", "Threads"]);
+
+        // 書き戻しても崩れないこと。片道だけ順序を持っても意味が無い
+        let back = serde_json::to_string(&settings).unwrap();
+        let round: GameSettings = serde_json::from_str(&back).unwrap();
+        let PlayerSpec::Engine { options, .. } = &round.white else {
+            panic!("engine として読めていない");
+        };
+        let names: Vec<&str> = options.iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(names, ["EvalDir", "EvalFile", "Threads"]);
     }
 }

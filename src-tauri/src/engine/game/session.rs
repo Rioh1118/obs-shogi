@@ -22,7 +22,6 @@
 //!
 //! 表は `docs/state-transitions/game-session.md`。
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -189,9 +188,14 @@ pub struct GameSession {
 impl GameSession {
     /// 対局を始める。
     ///
-    /// `setoption` → `isready` → `readyok` → `usinewgame` → 最初の `go` までを
-    /// ここで済ませる。**呼び出し側は USI の段取りを知らない。**
-    /// 返ったときには、手番がエンジンなら既に考え始めている。
+    /// `setoption` → `isready` → `readyok` → `usinewgame` **まで**を待つ。
+    /// **呼び出し側は USI の段取りを知らない。**
+    ///
+    /// **最初の `position` / `go` は待たない。** 別タスクで走るので、その失敗は
+    /// 戻り値ではなく `game-event` の `over { reason: engineFailure }` で届く。
+    /// `Ok` は「エンジンが `usinewgame` まで応じた」であって
+    /// 「考え始めた」ではない。`Ok` を受け取ったら `game-event` を購読してから
+    /// 盤を出すこと。
     pub async fn start(
         registry: Arc<EngineRegistry>,
         app: Option<AppHandle>,
@@ -855,11 +859,14 @@ impl Runner {
             | SearchOutcome::Failed(_) => {
                 // 上で処理済み。
                 //
-                // `Aborted` は `Searching` からも来る（`finish` は `Stopping` へ
-                // 移さずに cancel するため）。それがここへ落ちないのは、
+                // `SearchOutcome::StoppedCleanly` は `Searching` からも来る
+                // （`finish` は `Stopping` へ移さずに cancel するため）。
+                // **`GameOverReason::Aborted` とは別物。**
+                // それがここへ落ちないのは、
                 // **`Phase::Over` の早期 return が先にある**から。
-                // `Over` の判定をこの `match` より後ろへ動かすと、終局時の
-                // `Aborted` がこの空アームに吸われて `gameover` が飛ばなくなる
+                // `Over` の判定をこの `match` より後ろへ動かすと、終局時に
+                // 返ってきた `bestmove` がこの空アームに吸われ、探索していた
+                // エンジンへ `gameover` が飛ばなくなる（不変条件3 の違反）
             }
             SearchOutcome::Move { usi, ponder } => {
                 // 先読みが自分から終わることがある（詰みを見つけた等）。
@@ -1399,7 +1406,7 @@ async fn prepare_engine(
     registry: &EngineRegistry,
     engine_path: &str,
     work_dir: Option<&str>,
-    options: &HashMap<String, String>,
+    options: &[EngineOption],
 ) -> Result<Arc<EngineProcess>, String> {
     let process = registry
         .spawn(engine_path, work_dir, USI_OK_TIMEOUT)
@@ -1414,13 +1421,12 @@ async fn prepare_engine(
     Ok(process)
 }
 
-async fn send_setup(
-    process: &EngineProcess,
-    options: &HashMap<String, String>,
-) -> Result<(), String> {
+async fn send_setup(process: &EngineProcess, options: &[EngineOption]) -> Result<(), String> {
     let protocol = process.protocol();
 
-    for (name, value) in options {
+    // **並べた順にそのまま送る。** 値の解釈が前の `setoption` に依存する
+    // エンジンがあるので、ここで並べ替えない（→ `PlayerSpec::Engine::options`）
+    for EngineOption { name, value } in options {
         // USI は行指向なので、改行を混ぜられると別のコマンドを注入できる
         if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
             return Err(format!(
@@ -1483,17 +1489,48 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
     if contains_usi_breaking_char(&settings.start_sfen) {
         return Err("start_sfen contains a forbidden control character".to_string());
     }
-    // `startpos` は受け取らない。`GuiCommand::Position` が `position sfen` を
-    // 前置するので、`position sfen startpos moves ...` という壊れた行になる
-    let mut fields = settings.start_sfen.split_whitespace();
-    if fields.next() == Some("startpos") {
-        return Err("start_sfen must be a full SFEN, not \"startpos\"".to_string());
-    }
-    if fields.next().and_then(Side::from_sfen_token).is_none() {
-        return Err("start_sfen must have \"b\" or \"w\" as its second field".to_string());
-    }
+    validate_start_sfen(&settings.start_sfen)?;
     for mv in &settings.initial_moves {
         validate_usi_move(mv)?;
+    }
+    Ok(())
+}
+
+/// SFEN が**書式として**送れる形か。
+///
+/// **将棋のルールは見ない**（合法性の判定はフロントが持つ、がこの層の切れ目）。
+/// 見るのはワイヤに出せる形かどうかだけ。
+///
+/// ここが緩いと、壊れた SFEN が `position sfen <それ> moves ...` として
+/// そのままエンジンへ出る。エンジンの反応は実装ごとに割れる（無視する／
+/// エラー行を返す／落ちる）が、**どれになっても原因が `start_sfen` にあることは
+/// 利用者にもログにも出ない**。無視された場合は前の局面のまま `go` を受けるので、
+/// 返る `bestmove` は別の局面に対する手になり、フロントは反則と裁定する
+/// ——エンジンが身に覚えのない負けを負う。
+fn validate_start_sfen(sfen: &str) -> Result<(), String> {
+    let fields: Vec<&str> = sfen.split_whitespace().collect();
+
+    // `startpos` は受け取らない。`GuiCommand::Position` が `position sfen` を
+    // 前置するので、`position sfen startpos moves ...` という壊れた行になる
+    if fields.first() == Some(&"startpos") {
+        return Err("start_sfen must be a full SFEN, not \"startpos\"".to_string());
+    }
+    // 盤面 / 手番 / 持ち駒 / 手数 の4つ。欠けたまま送ると解釈が実装依存になる
+    if fields.len() != 4 {
+        return Err(format!(
+            "start_sfen must have 4 fields (board, side, hands, ply), got {}",
+            fields.len()
+        ));
+    }
+    // 段は9つ。`/` の数だけを見る（駒の綴りはルール側の話）
+    if fields[0].split('/').count() != 9 {
+        return Err("start_sfen board must have 9 ranks separated by '/'".to_string());
+    }
+    if Side::from_sfen_token(fields[1]).is_none() {
+        return Err("start_sfen must have \"b\" or \"w\" as its second field".to_string());
+    }
+    if fields[3].parse::<u32>().is_err() {
+        return Err("start_sfen ply must be a number".to_string());
     }
     Ok(())
 }
@@ -2368,6 +2405,54 @@ mod tests {
         settings.start_sfen =
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL".to_string();
         assert!(validate_settings(&settings).is_err());
+    }
+
+    /// 通したい形と弾きたい形を並べる。
+    ///
+    /// **見るのは書式だけ。** 駒の綴りも局面の妥当性もルール側の話で、
+    /// この層は「ワイヤに出せる形か」しか見ない（→ `validate_start_sfen`）。
+    /// 緩いと、壊れた SFEN が `position sfen <それ>` としてエンジンへ出る。
+    #[test]
+    fn start_sfen_is_checked_as_a_wire_format() {
+        // 通す
+        for ok in [
+            HIRATE,
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL w - 42",
+            // 持ち駒あり・途中局面
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b P2p 7",
+        ] {
+            assert!(validate_start_sfen(ok).is_ok(), "通らない: {ok}");
+        }
+
+        // 弾く
+        for (ng, why) in [
+            ("startpos", "`position sfen startpos` という壊れた行になる"),
+            (
+                "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b -",
+                "手数が無い（3フィールド）",
+            ),
+            (
+                "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1 extra",
+                "余分なフィールド",
+            ),
+            (
+                "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1 b - 1",
+                "段が8つしかない",
+            ),
+            (
+                "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL x - 1",
+                "手番が `b` でも `w` でもない",
+            ),
+            (
+                "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - one",
+                "手数が数でない",
+            ),
+        ] {
+            assert!(
+                validate_start_sfen(ng).is_err(),
+                "弾けていない（{why}）: {ng}"
+            );
+        }
     }
 
     #[test]

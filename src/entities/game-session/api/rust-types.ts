@@ -24,6 +24,12 @@ export type Side = "black" | "white";
  * 分けると、進行側が「相手が人かエンジンか」を至る所で見ることになり、
  * 人対人・人対エンジン・エンジン対エンジンを同じ経路で回せなくなる。
  */
+/** `setoption` 1件 */
+export interface EngineOption {
+  name: string;
+  value: string;
+}
+
 export type PlayerSpec =
   | { kind: "human"; name: string }
   | {
@@ -32,7 +38,15 @@ export type PlayerSpec =
       enginePath: string;
       /** 省略時は実行ファイルの置き場 */
       workDir?: string | null;
-      options?: Record<string, string>;
+      /**
+       * `setoption` で送る値。**並べた順にそのまま送られる。**
+       *
+       * 連想配列にしないのは、値の解釈が前の `setoption` に依存する
+       * エンジンがあるため（`EvalDir` を変えてから `EvalFile` を指す、
+       * `Threads` を上げてから `USI_Hash` を割り当てる）。
+       * 順序が保たれないと、同じ設定なのに実行のたびに棋力が変わる。
+       */
+      options?: EngineOption[];
       /** 相手の手番の間も読ませるか */
       ponder?: boolean;
     };
