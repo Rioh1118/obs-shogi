@@ -25,13 +25,17 @@ const QUIT_GRACE: Duration = Duration::from_millis(300);
 
 /// `quit` と `kill` の書き込み1回分に置く上限。
 ///
-/// **どちらもブロッキング書き込みで、`handler` の Mutex を握ったまま行う**
-/// （`usi` crate の `GuiCommandWriter::send` は `ChildStdin` への `write_all` + `flush`）。
-/// エンジンが stdin を読まなくなるとパイプが埋まって返らず、上限が無いと
-/// `close_game` も `shutdown_engine` も無期限に返らない。
+/// どちらもブロッキング書き込み（`usi` crate の `GuiCommandWriter::send` は
+/// `ChildStdin` への `write_all` + `flush`）。エンジンが stdin を読まなくなると
+/// パイプが埋まって返らないので、上限が無いと `close_game` も
+/// `shutdown_engine` も無期限に返らない。
+///
+/// **この上限が効くのは、書き込みが `spawn_blocking` の中にあるから**
+/// （`protocol.rs` の `write_command`）。async のタスクの中で直に呼ぶと、
+/// `poll` が返らないので `timeout` は発火する機会そのものを持たない。
 ///
 /// 上限は `QUIT_GRACE` より長い。書き込み自体は普通ミリ秒未満で終わるので、
-/// ここに達するのは詰まっているときだけ。
+/// ここに達するのは詰まっているときだけ。超えるとプロセスが残る。
 const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 台帳の中でプロセスを指す値。
@@ -178,11 +182,10 @@ impl EngineRegistry {
         self.processes.read().await.keys().cloned().collect()
     }
 
-    /// 落とす。**返らない経路を残さない。**
+    /// 落とす。`quit` も `kill` も詰まりうるので、どちらにも上限を通す。
     ///
-    /// `quit` も `kill` も詰まりうるので、どちらにも上限を通す。超えたときは
-    /// プロセスが残るが、それは呼び出し側が待ち続けるよりましだという判断。
-    /// 残ったプロセスを回収する仕掛けは無い → #353
+    /// 超えたときはプロセスが残るが、それは呼び出し側が待ち続けるより
+    /// ましだという判断。残ったプロセスを回収する仕掛けは無い → #353
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
         let protocol = process.protocol();

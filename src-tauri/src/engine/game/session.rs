@@ -85,7 +85,8 @@ fn search_deadline(kind: &SearchKind, budget_ms: u64) -> Option<Duration> {
 
 /// 手番に入ったまま `go` を出せずにいられる上限。
 ///
-/// `AwaitingRuling` の `RULING_TIMEOUT` と対になる、`Thinking` 側の番人。
+/// **見るのは `TurnClock::Settling` だけ。** `go` を出した後
+/// （`Running`）の番人は `search_deadline` のほうで、こちらは畳み待ち専用。
 /// 畳み待ちの間は時計が動かないので、時間切れの判定には掛からない。
 /// ここが無いと、`stop` の書き込みが詰まったときに対局が無音のまま固まる。
 ///
@@ -418,9 +419,8 @@ enum Phase {
 
 /// 手番の中で、時計が動いているか止まっているか。
 ///
-/// **どちらの枝も時刻を持つ。** `Option<Instant>` だと「止まっている」側に
-/// 時刻が無く、いつから止まっているかを誰も知らない。`AwaitingRuling` に
-/// `RULING_TIMEOUT` が居るのに対して、こちら側には番人を置けなかった。
+/// **どちらの枝も時刻を持つ。** 止まっている側にも時刻が要るのは、
+/// `on_tick` の `SETTLE_TIMEOUT` が「いつから畳み待ちか」を見るため。
 #[derive(Debug, Clone, Copy)]
 enum TurnClock {
     /// `go` を出した時刻。時計はここから動く
@@ -600,8 +600,9 @@ impl Runner {
 
         self.moves = moves;
         self.phase = Phase::Thinking { side: next };
-        // 思考が始まった時点で入れる。`hand_turn_to` が畳み待ちへ倒したら
-        // `None` のままになり、その間は時計が動かない
+        // 手番に入った時点では `go` をまだ出していない。`hand_turn_to` が
+        // `Running` に上書きするまで時計は動かず、`on_tick` の `SETTLE_TIMEOUT`
+        // がここからの経過を見る
         self.turn_clock = TurnClock::Settling(Instant::now());
 
         self.hand_turn_to(next, &usi_move).await;
@@ -1172,9 +1173,12 @@ impl Runner {
 
     /// いま時計が動いている側と、その手に既に使った時間。
     ///
-    /// **時計が動くかを決めるのはここ1本。** `on_tick` も `clocks_view` も
-    /// `decide_move` もこれを呼ぶだけで、独立した判定を持たない。
-    /// `Some` を返すのは `Phase::Thinking` かつ `TurnClock::Running` のときだけ
+    /// **`Phase` と `TurnClock` から時計の走行を決めるのはここ1本。**
+    /// `Some` を返すのは `Phase::Thinking` かつ `TurnClock::Running` のときだけ。
+    ///
+    /// `clocks_view` はこれに加えて、**壁時計が取れないときも `None` にする**
+    /// （`ClocksView::running` の 4）。そちらは別の判定なので、
+    /// 「重複した番人」と読んで消さないこと。消すと 1970 年基準の期限が出る
     fn running_clock(&self) -> Option<(Side, u64)> {
         let Phase::Thinking { side } = self.phase else {
             return None;

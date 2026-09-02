@@ -68,24 +68,26 @@
 
 ## イベント
 
-| 記号    | イベント                       | 発生源                                                                |
-| ------- | ------------------------------ | --------------------------------------------------------------------- |
-| **E1**  | `submit_move(side, mv)`        | 人間の着手（フロントが合法性を確かめてから呼ぶ）                      |
-| **E2**  | `continue_game(moves)`         | 裁定「続く」                                                          |
-| **E3**  | `end_by_rule(winner, detail)`  | 裁定「終局」（詰み・千日手・持将棋・最大手数・反則）                  |
-| **E4**  | `resign(side)`                 | 人間の投了                                                            |
-| **E5**  | `abort()`                      | 利用者の中断                                                          |
-| **E6**  | `close()`                      | 対局を閉じてエンジンを落とす                                          |
-| **E7**  | `bestmove <手>`                | `SearchOutcome::Move`                                                 |
-| **E8**  | `bestmove resign`              | `SearchOutcome::Resign`                                               |
-| **E9**  | `bestmove win`（入玉宣言）     | `SearchOutcome::DeclareWin`                                           |
-| **E10** | エンジンの出力が終わった       | `SearchOutcome::Failed`。発生源は `protocol.rs` の EOF 検出※9         |
-| **E11** | 打ち切りに応じた `bestmove`    | `SearchOutcome::StoppedCleanly`（`GameOverReason::Aborted` とは別物） |
-| **E12** | **`stop` に応じない**          | `SearchOutcome::StopTimedOut`。`STOP_GRACE`（5秒）を超えた            |
-| **E13** | `info`                         | `SearchMessage::Info`                                                 |
-| **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                            |
-| **E15** | tick: 裁定が 30 秒返らない     | `on_tick` の `RULING_TIMEOUT`                                         |
-| **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                      |
+| 記号    | イベント                       | 発生源                                                                                                     |
+| ------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **E1**  | `submit_move(side, mv)`        | 人間の着手（フロントが合法性を確かめてから呼ぶ）                                                           |
+| **E2**  | `continue_game(moves)`         | 裁定「続く」                                                                                               |
+| **E3**  | `end_by_rule(winner, detail)`  | 裁定「終局」（詰み・千日手・持将棋・最大手数・反則）                                                       |
+| **E4**  | `resign(side)`                 | 人間の投了                                                                                                 |
+| **E5**  | `abort()`                      | 利用者の中断                                                                                               |
+| **E6**  | `close()`                      | 対局を閉じてエンジンを落とす                                                                               |
+| **E7**  | `bestmove <手>`                | `SearchOutcome::Move`                                                                                      |
+| **E8**  | `bestmove resign`              | `SearchOutcome::Resign`                                                                                    |
+| **E9**  | `bestmove win`（入玉宣言）     | `SearchOutcome::DeclareWin`                                                                                |
+| **E10** | エンジンの出力が終わった       | `SearchOutcome::Failed`。発生源は `protocol.rs` の EOF 検出※9                                              |
+| **E11** | 打ち切りに応じた `bestmove`    | `SearchOutcome::StoppedCleanly`（`GameOverReason::Aborted` とは別物）                                      |
+| **E12** | **`stop` に応じない**          | `SearchOutcome::StopTimedOut`。`STOP_GRACE`（5秒）超過か、書き込みが `STOP_WRITE_TIMEOUT`（2秒）で返らない |
+| **E13** | `info`                         | `SearchMessage::Info`                                                                                      |
+| **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                                                                 |
+| **E15** | tick: 裁定が 30 秒返らない     | `on_tick` の `RULING_TIMEOUT`                                                                              |
+| **E17** | tick: 畳み待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`（10秒）                                                                      |
+| **E18** | 思考が締切を過ぎた             | `run_search` 第1相の `search_deadline`（持ち時間＋`SEARCH_GRACE` 30秒）                                    |
+| **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                                                           |
 
 **E7〜E12 は「そのとき `activity` が何だったか」で意味が変わる。**
 `A1` / `A2` なら採る候補、`A3` なら捨てる、それ以外なら世代違い（E16）。
@@ -116,6 +118,8 @@
 | **E13** `info`                        | 手番側のものだけ流す※8                                                     | 流さない※8                            | 流さない                   | ✗      |
 | **E14** 時計が尽きた                  | 成立するなら → G2（`Timeout`）※11                                          | 起きない（時計が止まっている）        | —                          | ✓※10   |
 | **E15** 裁定が返らない                | —                                                                          | → G2（`Aborted`、`detail` 付き）      | —                          | ✗      |
+| **E17** 畳み待ちが長すぎる            | → G2（`EngineFailure`）                                                    | 起きない（畳み待ちは `G0` だけ）      | —                          | ✓      |
+| **E18** 思考が締切を過ぎた            | → G2（`EngineFailure`）                                                    | 起きない                              | —                          | △※12   |
 | **E16** 世代違い                      | 捨てる                                                                     | 捨てる                                | 捨てる                     | ✗      |
 
 ### 注
@@ -154,6 +158,10 @@
 上限を置くのは、`send_command` が詰まると `close_game` が無期限に返らないため。
 **超えたら、畳めていなくても落とす**（警告を1行残す）。落とす側にも上限があり
 （`registry.rs` の `WRITE_TIMEOUT`）、そちらを超えるとプロセスが残る。
+
+**これらの上限が効くのは、エンジンへの書き込みが `spawn_blocking` の中にあるから**
+（`protocol.rs` の `write_command`）。async のタスクの中で同期 write を直に呼ぶと、
+`poll` が返らないので `timeout` は発火する機会そのものを持たない。
 
 なお `GameManager::close` は `Arc::try_unwrap` が通らないと、中断だけ通して
 セッションを**台帳へ戻し** `Err` を返す。戻すのは、手掛かりを残さずに
@@ -201,6 +209,15 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 `△` は「その行のうち人間で踏める列だけ」の意。E1 の `is_engine` の枝と
 `(G2, E1)` は踏めていない。
 
+※12 `Thinking` の番人は2つあり、見ている部分状態が違う。
+`SETTLE_TIMEOUT` は `TurnClock::Settling`（`go` をまだ出していない）、
+`search_deadline` は `TurnClock::Running`（`go` を出した後）。
+後者は**先読みには置かない**（`ponderhit` か `stop` まで走ってよいため）。
+どちらも `enforce_engine_timeout` を見ない。時間切れ負けではなく、
+**黙ったエンジンを見つける**ためにある。
+`search_deadline` の判断は純関数として固定してあるが、
+締切が実際に第1相を切ることは実プロセスが要るので未検証（→ #360）。
+
 ※11 `timeout_enforced`。**エンジンの時間切れは既定で成立しない**
 （`GameSettings.enforce_engine_timeout` の既定が false）。この打ち切りが
 当たるのはたいてい GUI 側の取りこぼしだから
@@ -217,14 +234,23 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 | 1   | `position` → `go` を送り、`bestmove` か打ち切りのどちらかを待つ                  |
 | 2   | 打ち切られたなら `stop` を送り、捨てる `bestmove` を `STOP_GRACE`（5秒）まで待つ |
 
-第2相の終わり方は**3つに分かれる**（`outcome_after_stop`）。潰すと、落ちたエンジンに
+第2相の終わり方は**4つに分かれる**。潰すと、落ちたエンジンに
 「stop に応じなかった」という説明が付く。
 
-| 待ちの結果          | 意味                 | `SearchOutcome` |
-| ------------------- | -------------------- | --------------- |
-| `bestmove` を受けた | 打ち切りに応じた     | `Aborted`       |
-| チャンネルが閉じた  | **プロセスが落ちた** | `Failed`        |
-| 待ち切れなかった    | **まだ探索中**       | `StopTimedOut`  |
+書き込みの側が2つ（`outcome_of_stop_write`）。ここで返ると `bestmove` を待たない。
+
+| 書き込みの結果   | 意味                     | `SearchOutcome` |
+| ---------------- | ------------------------ | --------------- |
+| 上限まで返らない | **stdin を読んでいない** | `StopTimedOut`  |
+| `Err`            | **送る口が無い**         | `Failed`        |
+
+書けたら待ちへ進み、その終わり方が3つ（`outcome_after_stop`）。
+
+| 待ちの結果          | 意味                 | `SearchOutcome`  |
+| ------------------- | -------------------- | ---------------- |
+| `bestmove` を受けた | 打ち切りに応じた     | `StoppedCleanly` |
+| チャンネルが閉じた  | **プロセスが落ちた** | `Failed`         |
+| 待ち切れなかった    | **まだ探索中**       | `StopTimedOut`   |
 
 ## 時計
 

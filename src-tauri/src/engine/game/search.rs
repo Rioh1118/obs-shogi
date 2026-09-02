@@ -32,7 +32,6 @@ const STOP_GRACE: Duration = Duration::from_secs(5);
 /// `stop` の**書き込み**に置く上限。
 ///
 /// `STOP_GRACE` が包んでいるのは返事の待ちだけで、書き込みはその外にある。
-/// `send_command` はブロッキング write を `handler` の Mutex 越しに行うので、
 /// エンジンが stdin を読まなくなるとここで止まり、`STOP_GRACE` に辿り着かない。
 ///
 /// `registry::WRITE_TIMEOUT` と同じ値。同じ詰まり方に対する同じ上限
