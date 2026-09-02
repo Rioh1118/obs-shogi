@@ -37,12 +37,13 @@
 ## Q-002 🟡 棋譜内の枝構造を木のままにするか、DAG にするか
 
 横断検索インデックスは `PositionKey`（SFEN由来）でキーを張っており**合流に強い**。
-一方、棋譜内の枝表現（`normalizedTree.ts` の `PositionNode`）は `tesuuPointer` キーの**木**。この非対称がある。
+一方、棋譜内の枝表現は `tesuuPointer` キーの**木**。この非対称がある。
+（`normalizedTree.ts` は `main` に**存在しない**。未マージの `feature/26-Zettelkasten` 系統にある）
 
 - 木のまま = KIF/KI2/CSA の仕様に忠実、既存実装の延長
 - DAG = ShogiHome #236 が要求し続けている未解決領域（→ P-004）。**差別化の最有力候補**だが、注釈の紐付け先が「手」から「局面」に変わるため Q-001 と連動する
 
-**決めるのに要るもの**: 現行 `normalizedTree` を読み、DAG 化のコストを見積もる。ドッグフーディングで合流に遭遇する頻度を数える（→ P-004）
+**決めるのに要るもの**: `main` の枝表現（`src/entities/kifu/model/cursor.ts` の `KifuCursor`）を読み、DAG 化のコストを見積もる。ドッグフーディングで合流に遭遇する頻度を数える（→ P-004）
 
 ## Q-003 🔴 AI開発者向けの装置をどこまで作るか（製品定義の変更）
 

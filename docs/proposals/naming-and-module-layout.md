@@ -205,8 +205,11 @@ src-tauri/src/
 | `create_kifu_file` / `save_kifu_file` / `import_kifu_file` | `file_system/operations.rs` | `kifu/`             |
 | `rename_kifu_file` / `mv_kifu_file`                        | `file_system/mv.rs`         | `kifu/`             |
 
-`analysis/` はコマンド層（`engine/bridge.rs:445-543` の99行。全て `*_impl` への一行委譲）
-だけを持ち、**実体は `engine/` に残す**。セッションの寿命を持っているのは
+`analysis/` は `bridge.rs` 末尾のコマンド層のうち **`analysis_*` 8本だけ**を持つ。
+同じ範囲に `engine_*` 5本（`initialize_engine` / `shutdown_engine` / `apply_engine_settings` /
+`get_engine_settings` / `get_engine_info`）が**行番号順に交互に並んでいる**ので、
+**行範囲では切り出せない。この5本は `engine/` に残す**（決定2 で ✓ と数えたもの）。
+実体も `engine/` に残す。セッションの寿命を持っているのは
 `EngineBridge` の `active_sessions` と `AppState`（どちらも `engine/bridge.rs`）で、
 **実体まで動かすと所有が壊れる。**
 

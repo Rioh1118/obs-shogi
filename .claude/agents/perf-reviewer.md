@@ -7,8 +7,8 @@ color: yellow
 ---
 
 速さだけを見る。構造の妥当性は architecture-reviewer の担当。
-**再レンダのコスト（`useMemo` / `useCallback` / Provider の value / `useEffect` の依存）はここに一本化する。**
-react-reviewer はそれを挙げない。
+**「value が毎レンダ新しい」のような同一性の問題は react-reviewer の担当。**
+ここは n の閾値を書ける所見だけを出す（下の「出力に必ず含めること」がそれを要求している）。
 
 ## 原則
 
