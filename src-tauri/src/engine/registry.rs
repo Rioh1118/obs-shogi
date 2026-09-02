@@ -23,20 +23,18 @@ const LOGT: &str = "obs_shogi::engine::registry";
 /// 待ち切らずに `kill` する側に倒してあるのは、**閉じられないほうが害が大きい**ため。
 const QUIT_GRACE: Duration = Duration::from_millis(300);
 
-/// `quit` と `kill` の書き込み1回分に置く上限。
+/// `kill` に置く上限。
 ///
-/// どちらもブロッキング書き込み（`usi` crate の `GuiCommandWriter::send` は
-/// `ChildStdin` への `write_all` + `flush`）。エンジンが stdin を読まなくなると
-/// パイプが埋まって返らないので、上限が無いと `close_game` も
-/// `shutdown_engine` も無期限に返らない。
+/// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
+/// ここに上限が要る。`quit` のほうは `send_command` の中で上限が掛かっている
+/// （`protocol.rs` の `WRITE_TIMEOUT`）。
 ///
-/// **この上限が効くのは、書き込みが `spawn_blocking` の中にあるから**
-/// （`protocol.rs` の `write_command`）。async のタスクの中で直に呼ぶと、
-/// `poll` が返らないので `timeout` は発火する機会そのものを持たない。
+/// **この上限が効くのは、`kill` が `spawn_blocking` の中にあるから。**
+/// async のタスクの中で同期 write を直に呼ぶと `poll` が返らず、
+/// `timeout` は発火する機会そのものを持たない。
 ///
-/// 上限は `QUIT_GRACE` より長い。書き込み自体は普通ミリ秒未満で終わるので、
-/// ここに達するのは詰まっているときだけ。超えるとプロセスが残る。
-const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+/// 超えるとプロセスが残る。回収する仕掛けは無い → #353
+const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 台帳の中でプロセスを指す値。
 pub type EngineId = String;
@@ -182,30 +180,22 @@ impl EngineRegistry {
         self.processes.read().await.keys().cloned().collect()
     }
 
-    /// 落とす。`quit` も `kill` も詰まりうるので、どちらにも上限を通す。
+    /// 落とす。**返らない経路を作らない。**
     ///
-    /// 超えたときはプロセスが残るが、それは呼び出し側が待ち続けるより
-    /// ましだという判断。残ったプロセスを回収する仕掛けは無い → #353
+    /// `quit` の上限は `send_command` の中、`kill` の上限はここ。
+    /// どちらを超えてもプロセスが残るが、それは呼び出し側が待ち続けるより
+    /// ましだという判断。
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
         let protocol = process.protocol();
 
-        if tokio::time::timeout(WRITE_TIMEOUT, protocol.quit())
-            .await
-            .is_err()
-        {
-            // 書き込みが詰まっている。`kill` も同じ Mutex を待つので、
-            // ここまで来たら下も落ちる見込みが高い
-            log::warn!(
-                target: LOGT,
-                "shutdown: quit timed out id={} — the engine is not reading stdin",
-                process.id
-            );
-        }
+        // 戻り値は見ない。既に死んでいれば書けなくて当然で、
+        // 目的は「死んでいること」。失敗の記録は `run_writer` が残す
+        protocol.quit().await;
 
         tokio::time::sleep(QUIT_GRACE).await;
 
-        if tokio::time::timeout(WRITE_TIMEOUT, protocol.kill_engine())
+        if tokio::time::timeout(KILL_TIMEOUT, protocol.kill_engine())
             .await
             .is_err()
         {

@@ -47,10 +47,8 @@ const WINDOW: usize = 6;
 /// 位置は `src` からの相対パスと行番号。行がずれたら赤くなるので、
 /// **動かしたときに必ず読み直すことになる**（それが狙い）。
 const EXEMPT: &[&str] = &[
-    // `UsiProtocol::quit` は戻り値を持たない
-    "engine/registry.rs:193",
-    // `UsiProtocol::kill_engine` も戻り値を持たない
-    "engine/registry.rs:208",
+    // `UsiProtocol::kill_engine` は戻り値を持たない
+    "engine/registry.rs:198",
 ];
 
 #[test]

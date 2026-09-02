@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 use crate::engine::{types::*, utils::cmd_summary};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, watch, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
 use usi::{EngineCommand, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
@@ -39,6 +39,9 @@ pub struct UsiProtocol {
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     init_cancel: Arc<Mutex<Option<CancellationToken>>>,
     pending: Arc<Mutex<Pending>>,
+
+    /// 書き込みの列。**投入順がそのままワイヤ上の順になる**
+    writer: mpsc::UnboundedSender<WriteJob>,
 }
 
 /// `readyok` を待つ間に積んだコマンドと、その世代。
@@ -73,6 +76,7 @@ impl Clone for UsiProtocol {
             init_task: Arc::clone(&self.init_task),
             init_cancel: Arc::clone(&self.init_cancel),
             pending: Arc::clone(&self.pending),
+            writer: self.writer.clone(),
         }
     }
 }
@@ -123,34 +127,60 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
     }
 }
 
-/// エンジンへの書き込み。**専用スレッドへ出す。**
+/// 書き込み1回に置く上限。
 ///
-/// `usi` crate の書き込みは `ChildStdin` への `write_all` + `flush` で、
-/// **同期のブロッキング呼び出し**（`usi-0.6.2/src/process/writer.rs`）。
-/// これを async のタスクの中で直に呼ぶと、エンジンが stdin を読まなくなって
-/// パイプが埋まったときに `poll` が返らず、次の2つが同時に起きる。
+/// **`send_command` の全ての呼び出しにここ1箇所で掛かる。** 呼び出し側に
+/// `tokio::time::timeout` を書かせると、18箇所のうち1箇所しか包まれていない、
+/// という状態になる（実際そうなっていた）。
 ///
-/// 1. ワーカースレッドが1本、そのタスクに固定される
-/// 2. **そのタスクを包んだ `tokio::time::timeout` が発火できない。**
-///    タイマーが満了しても `Timeout` を `poll` する者が居ないため
-///
-/// 2 のせいで、上限を置いたつもりの `close_game` が返らなくなる。
-/// `spawn_blocking` に出せば詰まるのは専用スレッドだけになり、
-/// `JoinHandle` を待つ側は普通に打ち切れる。
-async fn write_command(
-    handler: Arc<Mutex<Option<UsiEngineHandler>>>,
+/// 超えても**列から降りるのは待っている側だけ**で、書き込み自体は続く。
+/// 順番を飛ばして次を書くと、エンジンが受け取る順序が呼び出し順と変わる。
+const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// 書き込みの列に流す1件。
+struct WriteJob {
     command: GuiCommand,
-) -> Result<(), EngineError> {
-    tokio::task::spawn_blocking(move || {
-        let mut guard = handler.blocking_lock();
-        let Some(h) = guard.as_mut() else {
-            return Err(EngineError::NotInitialized(GONE.to_string()));
-        };
-        h.send_command(&command)
-            .map_err(|e| EngineError::CommunicationFailed(e.to_string()))
-    })
-    .await
-    .map_err(|e| EngineError::CommunicationFailed(format!("write task failed: {e}")))?
+    reply: oneshot::Sender<Result<(), EngineError>>,
+}
+
+/// 書き込みを1本の列にする理由。
+///
+/// **投入順＝ワイヤ上の順**であることを、この列だけで保証する。
+/// 呼び出しごとに `spawn_blocking` を投げると、どのスレッドが先に
+/// `handler` の Mutex を取るかは**投入順と無関係**になる。
+/// `stop` が `go` を追い越す／flush が直書きに追い越される、が両方そこから出る。
+///
+/// 書き込み自体を `spawn_blocking` に出すのは、`usi` crate の書き込みが
+/// `ChildStdin` への `write_all` + `flush`（同期）だから。async のタスクの中で
+/// 直に呼ぶと `poll` が返らず、**それを包んだ `tokio::time::timeout` が
+/// 発火する機会そのものを失う**（タイマーが鳴っても poll する者が居ない）。
+async fn run_writer(
+    handler: Arc<Mutex<Option<UsiEngineHandler>>>,
+    mut jobs: mpsc::UnboundedReceiver<WriteJob>,
+) {
+    while let Some(WriteJob { command, reply }) = jobs.recv().await {
+        let handler = Arc::clone(&handler);
+        let summary = cmd_summary(&command);
+        let written = tokio::task::spawn_blocking(move || {
+            let mut guard = handler.blocking_lock();
+            let Some(h) = guard.as_mut() else {
+                return Err(EngineError::NotInitialized(GONE.to_string()));
+            };
+            h.send_command(&command)
+                .map_err(|e| EngineError::CommunicationFailed(e.to_string()))
+        })
+        .await
+        .unwrap_or_else(|e| {
+            Err(EngineError::CommunicationFailed(format!(
+                "write task failed: {e}"
+            )))
+        });
+
+        if let Err(e) = &written {
+            log::warn!(target: LOGT, "write: failed cmd={summary} err={e}");
+        }
+        let _ = reply.send(written);
+    }
 }
 
 /// `ready` への書き込みはここ1本を通す。返すのは実際に落ち着いた値。
@@ -237,8 +267,12 @@ fn cancel_queued_go(queue: &mut VecDeque<GuiCommand>) -> usize {
 
 impl UsiProtocol {
     pub fn new(handler: UsiEngineHandler) -> Self {
+        let handler = Arc::new(Mutex::new(Some(handler)));
+        let (writer, jobs) = mpsc::unbounded_channel();
+        tokio::spawn(run_writer(Arc::clone(&handler), jobs));
+
         Self {
-            handler: Arc::new(Mutex::new(Some(handler))),
+            handler,
             state: Arc::new(RwLock::new(ProtocolState {
                 engine_info: None,
                 last_command: None,
@@ -253,6 +287,32 @@ impl UsiProtocol {
                 generation: 0,
                 queue: VecDeque::new(),
             })),
+            writer,
+        }
+    }
+
+    /// 書き込みの列へ入れて、書けたかを待つ。
+    ///
+    /// **上限はここだけ。** 超えたときに返るのは `Timeout` で、
+    /// 「送る口が無い」（`NotInitialized` / `CommunicationFailed`）とは別物。
+    /// 前者はエンジンが stdin を読んでいない、後者は届く先が無い。
+    /// 次に何ができるかが違うので潰さない。
+    async fn write(&self, command: GuiCommand) -> Result<(), EngineError> {
+        let (reply, rx) = oneshot::channel();
+        let job = WriteJob { command, reply };
+        if self.writer.send(job).is_err() {
+            return Err(EngineError::NotInitialized(GONE.to_string()));
+        }
+
+        match tokio::time::timeout(WRITE_TIMEOUT, rx).await {
+            Ok(Ok(result)) => result,
+            // 列のタスクが落ちた
+            Ok(Err(_)) => Err(EngineError::CommunicationFailed(
+                "the writer stopped".to_string(),
+            )),
+            Err(_) => Err(EngineError::Timeout(
+                "the engine is not reading stdin".to_string(),
+            )),
         }
     }
 
@@ -485,7 +545,7 @@ impl UsiProtocol {
             return self.start_ready_watch_and_send().await;
         }
 
-        write_command(Arc::clone(&self.handler), command.clone()).await
+        self.write(command.clone()).await
     }
 
     async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
@@ -506,7 +566,7 @@ impl UsiProtocol {
         let listener_name = format!("ready_wait_{}_{}", gen, uuid::Uuid::new_v4());
         self.register_listener(listener_name.clone(), tx).await?;
 
-        write_command(Arc::clone(&self.handler), GuiCommand::IsReady).await?;
+        self.write(GuiCommand::IsReady).await?;
 
         // 非ブロッキングに readyok 待ち
         let protocol = Arc::new(self.clone());
@@ -564,8 +624,7 @@ impl UsiProtocol {
                     };
                     let Some(cmd) = next else { break };
 
-                    if let Err(e) = write_command(Arc::clone(&protocol.handler), cmd.clone()).await
-                    {
+                    if let Err(e) = protocol.write(cmd.clone()).await {
                         log::warn!(
                             target: LOGT,
                             "ready: flush failed cmd={} err={}",

@@ -29,14 +29,6 @@ const LOGT: &str = "obs_shogi::engine::game::search";
 /// 次の思考を始める前にエンジンを idle に戻さないといけない。
 const STOP_GRACE: Duration = Duration::from_secs(5);
 
-/// `stop` の**書き込み**に置く上限。
-///
-/// `STOP_GRACE` が包んでいるのは返事の待ちだけで、書き込みはその外にある。
-/// エンジンが stdin を読まなくなるとここで止まり、`STOP_GRACE` に辿り着かない。
-///
-/// `registry::WRITE_TIMEOUT` と同じ値。同じ詰まり方に対する同じ上限
-const STOP_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
-
 /// 1回の探索がどう終わったか。
 #[derive(Debug, Clone)]
 pub enum SearchOutcome {
@@ -200,10 +192,9 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     let outcome = match settled {
         Some(outcome) => outcome,
         None => {
-            // 書き込みが終わらなかった／失敗したら、返事を待つ意味は無い
-            let write =
-                tokio::time::timeout(STOP_WRITE_TIMEOUT, protocol.send_command(&GuiCommand::Stop))
-                    .await;
+            // 書き込みが終わらなかった／失敗したら、返事を待つ意味は無い。
+            // 上限は `send_command` の中（`protocol.rs` の `WRITE_TIMEOUT`）
+            let write = protocol.send_command(&GuiCommand::Stop).await;
 
             if let Some(outcome) = outcome_of_stop_write(&write) {
                 log::warn!(
@@ -250,33 +241,27 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
 ///
 /// `Some` を返したら `bestmove` を待たずに戻る。`None` なら書けたので待ちへ進む。
 ///
-/// **`timeout` の戻りは二重の `Result`。** 外側だけ見ると、`Closed` への `Refuse` も
-/// handler が `None` のときの `NotInitialized` も EPIPE も「書けた」になり、
-/// 1バイトも出ていないのに `STOP_GRACE` を待って
-/// 「エンジンが `stop` に応じなかった」という説明が残る。
+/// **書けなかったことを「書けた」に潰さない。** 潰すと、1バイトも出ていないのに
+/// `STOP_GRACE` を待ち、「エンジンが `stop` に応じなかった」という説明が
+/// 棋譜と画面に残る。
 ///
-/// 詰まり（`Elapsed`）と失敗（`Err`）を分けるのは、エンジンの状態が違うため。
+/// 詰まり（`Timeout`）と失敗（その他）を分けるのは、エンジンの状態が違うため。
 /// 前者はまだ探索中の見込みが高く、後者は落ちているか届く口が無い。
-fn outcome_of_stop_write(
-    write: &Result<Result<(), EngineError>, tokio::time::error::Elapsed>,
-) -> Option<SearchOutcome> {
+fn outcome_of_stop_write(write: &Result<(), EngineError>) -> Option<SearchOutcome> {
     match write {
+        Ok(()) => None,
         // 上限まで返らなかった。エンジンは探索中とみなす
-        Err(_) => Some(SearchOutcome::StopTimedOut),
+        Err(EngineError::Timeout(_)) => Some(SearchOutcome::StopTimedOut),
         // 送る口が無い。探索中とは限らない
-        Ok(Err(e)) => Some(SearchOutcome::Failed(format!("could not send stop: {e}"))),
-        Ok(Ok(())) => None,
+        Err(e) => Some(SearchOutcome::Failed(format!("could not send stop: {e}"))),
     }
 }
 
 /// ログに出す理由。`outcome_of_stop_write` と同じ3分岐を1箇所で言葉にする
-fn stop_write_reason(
-    write: &Result<Result<(), EngineError>, tokio::time::error::Elapsed>,
-) -> String {
+fn stop_write_reason(write: &Result<(), EngineError>) -> String {
     match write {
-        Err(_) => "write blocked; the engine is not reading stdin".to_string(),
-        Ok(Err(e)) => e.to_string(),
-        Ok(Ok(())) => "written".to_string(),
+        Ok(()) => "written".to_string(),
+        Err(e) => e.to_string(),
     }
 }
 
@@ -333,24 +318,20 @@ mod tests {
     /// **`timeout` の戻りは二重の `Result`。** 外側だけ見ると、送る口が無い場合まで
     /// 「書けた」になり、1バイトも出ていないのに「エンジンが `stop` に
     /// 応じなかった」という説明が残る
-    #[tokio::test]
-    async fn the_three_ways_a_stop_write_can_end_are_not_collapsed() {
+    #[test]
+    fn the_three_ways_a_stop_write_can_end_are_not_collapsed() {
         // 書けた。待ちへ進む
-        assert!(outcome_of_stop_write(&Ok(Ok(()))).is_none());
+        assert!(outcome_of_stop_write(&Ok(())).is_none());
 
         // 送る口が無い。**探索中とは限らないので `StopTimedOut` にしない**
-        let refused = Ok(Err(EngineError::CommunicationFailed("closed".to_string())));
+        let refused = Err(EngineError::CommunicationFailed("closed".to_string()));
         assert!(matches!(
             outcome_of_stop_write(&refused),
             Some(SearchOutcome::Failed(_))
         ));
 
         // 上限まで返らなかった。エンジンは探索中とみなす
-        let blocked = tokio::time::timeout(Duration::from_millis(1), async {
-            tokio::time::sleep(Duration::from_secs(3600)).await;
-            Ok(())
-        })
-        .await;
+        let blocked = Err(EngineError::Timeout("blocked".to_string()));
         assert!(matches!(
             outcome_of_stop_write(&blocked),
             Some(SearchOutcome::StopTimedOut)
