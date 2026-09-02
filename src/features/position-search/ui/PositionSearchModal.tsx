@@ -235,9 +235,7 @@ export default function PositionSearchModal() {
         tabIndex={-1}
         aria-label="局面検索"
       >
-        <header className="pos-search__header">
-          <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
-        </header>
+        <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
 
         <main className="pos-search__main" aria-label="検索とプレビュー">
           <div className="pos-search__grid">
