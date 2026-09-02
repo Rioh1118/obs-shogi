@@ -717,7 +717,10 @@ mod tests {
             let Some((name, is_interface)) = current.clone() else {
                 continue;
             };
-            for field in fields_in(trimmed) {
+            // **コメントの中の `名前:` を欄として数えない。** 数えると、写しの側で
+            // 欄をコメントへ退避しただけの形（`/** いずれ clocks: .. を足す */`）が
+            // 素通りする。この写しは日本語の doc が本体より長い
+            for field in fields_in(strip_ts_comment(trimmed)) {
                 found.entry(name.clone()).or_default().insert(field);
             }
 
@@ -734,6 +737,24 @@ mod tests {
             }
         }
         found
+    }
+
+    /// 行からコメントを落とす。`//` 以降と、`/*`〜`*/`、行頭の `*`（複数行 doc の続き）。
+    ///
+    /// **潰さないと、コメントに書いた `名前:` が欄として数えられる。**
+    fn strip_ts_comment(line: &str) -> &str {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            // `/** a: X */ b: Y;` のように後ろにコードが続く形だけ拾う
+            return match trimmed.find("*/") {
+                Some(at) if !trimmed.starts_with("//") => &trimmed[at + 2..],
+                _ => "",
+            };
+        }
+        match line.find("//") {
+            Some(at) => &line[..at],
+            None => line,
+        }
     }
 
     /// 1行に現れる `名前:` / `名前?:` の名前。union の1行書き（`{ a: X; b: Y }`）も拾う
@@ -831,7 +852,22 @@ mod tests {
             ),
             (
                 "GamePhaseView",
+                serde_json::to_value(GamePhaseView::Thinking { side: Side::Black }).expect("段"),
+            ),
+            (
+                "GamePhaseView",
                 serde_json::to_value(sample_snapshot().phase).expect("段"),
+            ),
+            (
+                "GamePhaseView",
+                serde_json::to_value(GamePhaseView::Over {
+                    result: GameResult {
+                        winner: None,
+                        reason: GameOverReason::Aborted,
+                        detail: None,
+                    },
+                })
+                .expect("段"),
             ),
             (
                 "AnalysisResult",

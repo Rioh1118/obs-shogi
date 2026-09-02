@@ -286,9 +286,10 @@ fn type_graph(files: &[(String, String)]) -> TypeGraph {
                 if rest[..open].contains(';') {
                     continue;
                 }
-                let Some(len) = matching(&rest[open..], '{', '}') else {
-                    continue;
-                };
+                // 走査の故障を「その型は欄を持たない」に写さない
+                let len = matching(&rest[open..], '{', '}').unwrap_or_else(|| {
+                    panic!("{name} の宣言の括弧が釣り合わない。走査が壊れている")
+                });
                 let body = &rest[open..open + len];
 
                 let entry = fields.entry(name.to_string()).or_default();
