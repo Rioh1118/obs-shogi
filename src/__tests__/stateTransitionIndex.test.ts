@@ -43,9 +43,14 @@ describe("状態遷移表の索引", () => {
    */
   test("README の階層図がすべての表を挙げている", () => {
     const files = tables().filter((f) => f !== "README.md");
-    const figure = insideFences(readFileSync(join(TABLES_DIR, "README.md"), "utf8"));
+    // 図は `text` で開いたフェンス。規約の節の `markdown` の例まで読むと、
+    // 例に名前が1つ出るだけで「図にある」と判定される
+    const figure = insideFences(readFileSync(join(TABLES_DIR, "README.md"), "utf8"), "text");
+    // **名前の集合で比べる。** 部分一致だと `view.md` が `position-search-view.md` に
+    // 当たって、図に1文字も書いていない表が素通りする
+    const named = new Set([...figure.matchAll(/[\w-]+\.md/g)].map((m) => m[0]));
 
-    const missing = files.filter((f) => !figure.includes(f));
+    const missing = files.filter((f) => !named.has(f));
     expect(missing, ["階層図に無い表:", ...missing].join("\n")).toEqual([]);
   });
 
@@ -173,6 +178,32 @@ describe("brokenLinksInBody", () => {
     expect(find("[隣](b.md#相手の見出し)\n[隣](b.md#無い見出し)")).toEqual([
       { href: "b.md#無い見出し", reason: "no-heading" },
     ]);
+  });
+});
+
+describe("insideFences", () => {
+  const BODY = ["外の行", "```text", "図の行", "```", "外", "```markdown", "例の行", "```"].join(
+    "\n",
+  );
+
+  test("フェンスの外と開閉の記号を落とす", () => {
+    expect(insideFences(BODY).split("\n").filter(Boolean)).toEqual(["図の行", "例の行"]);
+  });
+
+  // 例に名前が1つ出るだけで「図にある」と判定されるのを防ぐ
+  test("情報文字列でフェンスを選べる", () => {
+    expect(insideFences(BODY, "text").split("\n").filter(Boolean)).toEqual(["図の行"]);
+    expect(insideFences(BODY, "markdown").split("\n").filter(Boolean)).toEqual(["例の行"]);
+  });
+
+  // 行の位置で突き合わせる呼び手が居るので、行数は入力と同じでなければならない
+  test("行数を変えない", () => {
+    expect(insideFences(BODY).split("\n")).toHaveLength(BODY.split("\n").length);
+    expect(stripFences(BODY).split("\n")).toHaveLength(BODY.split("\n").length);
+  });
+
+  test("未閉じのフェンスは残り全部を中身として扱う", () => {
+    expect(insideFences("外\n```\n中\n").split("\n").filter(Boolean)).toEqual(["中"]);
   });
 });
 
