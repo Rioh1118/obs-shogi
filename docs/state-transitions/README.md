@@ -80,10 +80,15 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 囲むと「実在しないパスを指している」で落ちる。
 
 ```markdown
-[ShogiHome src/background/book/yaneuraou.ts][sh-yaneuraou]
+[ShogiHome src/background/book/yaneuraou.ts][shogihome-yaneuraou]
 
-[sh-yaneuraou]: https://github.com/sunfish-shogi/shogihome/blob/v1.29.0/src/...
+[shogihome-yaneuraou]: https://github.com/sunfish-shogi/shogihome/blob/v1.29.0/src/...
 ```
+
+**参照名は `<リポジトリ名>-<対象>`。** 略すと、同じ表が複数の他リポジトリを引いたときに
+参照名から出典が読めなくなる（この表は ShogiHome とやねうら王の両方を引いている）。
+定義は使うファイルの末尾に置く。使用と定義の対応は
+`src/__tests__/stateTransitionIndex.test.ts` が見る。
 
 **やねうら王は `source/` から始まるので、この検査には当たらない。囲んでよい。**
 当たらないのは綴りが重なっていないからであって、腐らないからではない。
