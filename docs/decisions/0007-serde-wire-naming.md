@@ -56,11 +56,11 @@ grep -rn 'rename_all = "snake_case"' src-tauri/src | wc -l  # => 1
 `option_type` がそのまま線に出ている。`file_system/types.rs` の `FileTreeNode` は
 規則が無いので `#[serde(rename = "isDir")]` と**1欄ずつ手で**当てている。
 
-食い違いは既に1つ在る。`AnalysisUpdate` は `session_id` で出しているのに
-`src/entities/engine/api/events.ts` は `payload.sessionId` を読む。
-**いまは無害**で、読んでいるのが `analysis-complete` のハンドラであり、
-Rust はそのイベントを一度も emit していない（実測0箇所）。読み手が増えた瞬間に
-`undefined` になる形で残っている。
+`AnalysisUpdate` には決定1を当ててあるので、`analysis-update` の綴りは
+両側で揃っている。残っているのは `listenToAnalysisComplete`
+（`src/entities/engine/api/events.ts`）で、**Rust は `analysis-complete` を
+一度も emit していない**（`grep -rn 'analysis-complete' src-tauri/src` が0箇所）。
+綴りではなく**読み手だけがある**形なので、この決定の対象ではない。
 
 ### 値つき enum は TS 側で絞り込めない
 
