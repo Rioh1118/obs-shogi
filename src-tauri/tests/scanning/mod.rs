@@ -20,12 +20,12 @@
 //! 許さないと「使っていないほうのクレート」でビルドが落ちる。
 #![allow(dead_code)]
 
+use std::path::Path;
+
 /// 文字列・文字・コメントの先頭なら、その長さ（バイト）。
 ///
 /// 中の括弧を数えないために要る。`'{'` は1文字の文字リテラル、
 /// `br#"{"header":"#` は raw バイト列で、どちらも `{` を含む。
-use std::path::Path;
-
 pub fn skip_literal_or_comment(rest: &str) -> Option<usize> {
     if let Some(body) = rest.strip_prefix("//") {
         let len = body.find('\n').map_or(body.len(), |at| at + 1);

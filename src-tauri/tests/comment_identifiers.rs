@@ -236,6 +236,50 @@ fn no_doc_block_has_two_summaries() {
     );
 }
 
+/// doc ブロックの直後が `use` になっていないこと。
+///
+/// **`use` を足す位置で doc が剥がれる。** 既存の doc と関数の間へ入れると、
+/// `cargo doc` ではその関数が**説明の無い `pub fn`** になり、doc は
+/// どの item にも着かない `use` の飾りとして残る。剥がれたまま読んだ人は
+/// 「なぜこの関数が要るのか」に辿り着けない。
+///
+/// doc の引き剥がし自体は7回起きているが、機械で拾えるのはこの形だけ
+/// （`use` は item ではないので、`///` の直後に来ることが構文上ありえない）。
+/// 関数の挿入で剥がれる形は `no_doc_block_has_two_summaries` が別の鍵で見る。
+#[test]
+fn no_doc_block_is_followed_by_a_use() {
+    let mut offenders = Vec::new();
+
+    for path in rust_files(&src_dir())
+        .into_iter()
+        .chain(rust_files(&tests_dir()))
+    {
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let relative = path.strip_prefix(src_dir()).unwrap_or(&path).to_path_buf();
+        let lines: Vec<&str> = source.lines().collect();
+
+        for (index, line) in lines.iter().enumerate() {
+            if !line.trim_start().starts_with("///") {
+                continue;
+            }
+            let Some(next) = lines.get(index + 1) else {
+                continue;
+            };
+            let next = next.trim_start();
+            if next.starts_with("use ") || next.starts_with("pub use ") {
+                offenders.push(format!("{}:{}  {next}", relative.display(), index + 2));
+            }
+        }
+    }
+
+    assert!(
+        offenders.is_empty(),
+        "doc ブロックの直後に `use` がある。剥がれた doc は `cargo doc` で\
+         どの item にも着かない:\n{}",
+        offenders.join("\n")
+    );
+}
+
 #[test]
 fn comments_do_not_point_at_names_that_are_gone() {
     let files = rust_files(&src_dir());
