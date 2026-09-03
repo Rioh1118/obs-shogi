@@ -168,7 +168,7 @@ impl EngineRegistry {
                     .unwrap_or_else(|| ".".to_string()),
             };
 
-            log::info!(target: LOGT, "spawn: start path='{}'", engine_path);
+            log::info!(target: LOGT, "{}", spawn_start_line(&engine_path));
 
             let handler = UsiEngineHandler::spawn(&engine_path, &work_dir).map_err(|e| {
                 log::error!(target: LOGT, "spawn: failed: {}", e);
@@ -265,6 +265,30 @@ fn spawn_ok_line(id: &EngineId, name: &str) -> String {
     format!("spawn: ok id={id} name='{}'", shown(name, MAX_SUMMARY_LEN))
 }
 
+/// ログに載せるパスの上限（文字数）。
+///
+/// **`MAX_SUMMARY_LEN` では足りない。** 実運用のパスは要約の上限を普通に超えるので、
+/// そちらで切ると毎回 `…` で終わって、どの実行ファイルを起こしたのかが読めない。
+///
+/// **長さは元から頭打ち。** `canonicalize` を通った値なので PATH_MAX で止まり、
+/// これ1行で予算を一周させることはできない。**潰したいのは制御文字のほう**——
+/// `canonicalize` も `is_file` も改行を含むファイル名を通すので、素で載せると
+/// `eng\n2026-09-03 ERROR ...` という名前の実行ファイル1つで**偽のログ行を作れる**。
+const MAX_PATH_IN_LOG: usize = 256;
+
+/// 起動を始めたことを記録する1行。**成功しても失敗してもここを通る。**
+fn spawn_start_line(path: &str) -> String {
+    format!("spawn: start path='{}'", shown(path, MAX_PATH_IN_LOG))
+}
+
+/// 上限を超えた後に起き上がったプロセスを畳むことを記録する1行。
+fn disposing_line(path: &str) -> String {
+    format!(
+        "spawn: disposing a late engine path='{}'",
+        shown(path, MAX_PATH_IN_LOG)
+    )
+}
+
 /// 上限を超えた後に起き上がったプロセスを畳む。
 ///
 /// **`Drop` に任せない。** `usi` crate の `UsiEngineHandler::Drop` は
@@ -280,7 +304,7 @@ async fn dispose_late_spawn(
     let Ok(Ok((path, _, mut handler))) = started.await else {
         return;
     };
-    log::warn!(target: LOGT, "spawn: disposing a late engine path='{path}'");
+    log::warn!(target: LOGT, "{}", disposing_line(&path));
 
     // `kill` も同期の書き込みを含むので専用スレッドへ出す
     let _ = tokio::task::spawn_blocking(move || {
@@ -374,32 +398,54 @@ mod tests {
 
     use crate::engine::utils::LOG_FILE_BUDGET;
 
-    /// 起動の1行が、エンジンの名乗りでログの予算を一周させられないこと。
+    /// 台帳が書く3つの1行が、外から来た文字列でログを壊せないこと。
     ///
-    /// **`id name` はエンジンが決める。** 台帳は長さも中身も見ずに保持するので、
-    /// 素で載せると1行で診断の履歴が全部飛ぶ。webview から来る文字列は
-    /// どれも入口で上限を通るが、**エンジンから来る文字列はここだけ**が
-    /// ログに素で出ていた。
+    /// **産地が2つある。** `id name` はエンジンが名乗った値、`path` は
+    /// webview が選んだ値。どちらも台帳は長さも中身も見ずに保持する。
+    ///
+    /// 見るのは2つ。**予算を一周させられないこと**（素で載せると1行で診断の
+    /// 履歴が全部飛ぶ）と、**改行を通さないこと**（`canonicalize` も `is_file` も
+    /// 改行を含むファイル名を通すので、素で載せると偽のログ行を1本作れる）。
     #[test]
-    fn a_spawn_line_cannot_rotate_the_log() {
+    fn the_registry_lines_cannot_rotate_the_log_or_forge_a_line() {
         /// 1行が予算のうち占めてよい割合の逆数
         const SHARE: u128 = 50;
 
-        // **入口に上限が無いので、それだけで予算を使い切る名前を渡す。**
+        // **入口に上限が無いので、それだけで予算を使い切る値を渡す。**
         // 上限の倍で試すと、切っていなくても予算に収まってしまい何も測れない。
         // 潰されず（制御文字ではない）、UTF-8 でいちばん重い4バイト文字
-        let name = "\u{10ffff}".repeat(LOG_FILE_BUDGET as usize / 4);
-        let line = spawn_ok_line(&Uuid::new_v4().to_string(), &name);
+        let heavy = "\u{10ffff}".repeat(LOG_FILE_BUDGET as usize / 4);
+        let id = Uuid::new_v4().to_string();
 
-        assert!(
-            line.chars().filter(|c| c.len_utf8() == 4).count() >= MAX_SUMMARY_LEN,
-            "最悪の文字が潰されている。詰める文字を選び直すこと"
-        );
-        assert!(
-            line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
-            "起動の1行が予算の1/{SHARE} を超える（{} バイト）",
-            line.len()
-        );
+        for (line, floor) in [
+            (spawn_ok_line(&id, &heavy), MAX_SUMMARY_LEN),
+            (spawn_start_line(&heavy), MAX_PATH_IN_LOG),
+            (disposing_line(&heavy), MAX_PATH_IN_LOG),
+        ] {
+            assert!(
+                line.chars().filter(|c| c.len_utf8() == 4).count() >= floor,
+                "最悪の文字が潰されている。詰める文字を選び直すこと: {line:.40}"
+            );
+            assert!(
+                line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+                "台帳の1行が予算の1/{SHARE} を超える（{} バイト）",
+                line.len()
+            );
+        }
+
+        // **短い値で改行を見る。** 重い値の後ろに付けると、切り詰めで
+        // 改行ごと落ちて「通していない」が空振りする
+        let forged = "/x/eng\n2026-09-03 ERROR forged line";
+        for line in [
+            spawn_ok_line(&id, forged),
+            spawn_start_line(forged),
+            disposing_line(forged),
+        ] {
+            assert!(
+                !line.contains('\n'),
+                "改行をそのまま通している。この後ろに好きなログ行を作れる: {line:?}"
+            );
+        }
     }
 
     /// `engine_path` が**実在するファイル**であることを要求すること。
