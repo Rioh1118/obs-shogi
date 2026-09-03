@@ -144,6 +144,10 @@ const PENDING_LIMIT: usize = 32;
 /// 通るので、1行の大きさがそのまま予算に効く。書式が2つあると、テストは片方しか
 /// 測らないまま「式で縛った」と読める——**長いほうが予算を超えても緑で通る**。
 ///
+/// **捨てる口は全部ここを通す**（`begin_generation` / `discard_pending` も）。
+/// どれも `std::mem::take` で最大 `PENDING_LIMIT` 件をまとめて出す、
+/// 測る側とまったく同じ形の突発。
+///
 /// 理由（`why`）は分けたまま持つ。「`readyok` が来なかった」と「flush が折れた」は
 /// 後から届きうるかが違う。取りうる値は `DropReason`。
 fn dropped_line(cmd: &GuiCommand, why: DropReason) -> String {
@@ -238,6 +242,12 @@ enum DropReason {
     /// 掃き出しの途中で書き込みが失敗した。**届いたかは分からない**
     /// （`Timeout` は「上限内に書き終わらなかった」で、後から届きうる）
     FlushBroke,
+    /// 新しい `isready` が始まった。積んでいたのは前の世代のもの
+    NewIsready,
+    /// エンジンが stdin を読まなくなった
+    StdinStalled,
+    /// `readyok` を待つのをやめた
+    ReadyWaitAborted,
 }
 }
 
@@ -246,6 +256,9 @@ impl DropReason {
         match self {
             DropReason::NoReadyok => "readyok never came",
             DropReason::FlushBroke => "the flush could not continue",
+            DropReason::NewIsready => "a new isready started",
+            DropReason::StdinStalled => "the engine stopped reading stdin",
+            DropReason::ReadyWaitAborted => "the ready wait was aborted",
         }
     }
 }
@@ -886,8 +899,7 @@ impl UsiProtocol {
             target: LOGT,
             "write: stalled; refusing every later write on this process (→ F-26)"
         );
-        self.discard_pending("the engine stopped reading stdin")
-            .await;
+        self.discard_pending(DropReason::StdinStalled).await;
     }
 
     /// 探索を止める。**「書いた」と「書く必要が無かった」を分けて返す。**
@@ -1209,7 +1221,7 @@ impl UsiProtocol {
             h.abort();
         }
 
-        self.discard_pending("the ready wait was aborted").await;
+        self.discard_pending(DropReason::ReadyWaitAborted).await;
     }
 
     /// 世代を上げ、前の世代の積み置きを捨てる。**同じロックの中で行う。**
@@ -1225,11 +1237,7 @@ impl UsiProtocol {
         drop(pending);
 
         for cmd in &dropped {
-            log::warn!(
-                target: LOGT,
-                "ready: dropping queued cmd={} (a new isready started)",
-                cmd_summary(cmd)
-            );
+            log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::NewIsready));
         }
         gen
     }
@@ -1238,18 +1246,14 @@ impl UsiProtocol {
     ///
     /// 積んだ時点で呼び出し側には `Ok` が返っているので、ここで黙ると
     /// 「送ったつもりのコマンドがどこにも書かれない」が痕跡なしに起きる
-    async fn discard_pending(&self, why: &str) {
+    async fn discard_pending(&self, why: DropReason) {
         let dropped = {
             let mut pending = self.pending.lock().await;
             pending.draining = false;
             std::mem::take(&mut pending.queue)
         };
         for cmd in &dropped {
-            log::warn!(
-                target: LOGT,
-                "ready: dropping queued cmd={} ({why})",
-                cmd_summary(cmd)
-            );
+            log::warn!(target: LOGT, "{}", dropped_line(cmd, why));
         }
     }
 
