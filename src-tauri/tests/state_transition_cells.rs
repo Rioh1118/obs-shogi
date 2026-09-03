@@ -14,6 +14,10 @@
 //! **散文は見ていない。** 注（`※N`）の本文が「踏めていない」と書いていても
 //! ここは落ちない。テストの有無を言うのは表のテスト列と
 //! 「埋まっていないセル」節だけ、という約束の上に立っている。
+//! 注については**番号が実在するか**だけを見る。
+//!
+//! **`△` の行も突き合わせない。** 一部の列だけ固定している形は普通にあり、
+//! どの列かを表が持てないので、名乗りの有無から何も言えない。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -147,11 +151,35 @@ fn row_cells(line: &str) -> Vec<&str> {
         .collect()
 }
 
-/// イベントの記号 → テスト列。表の本体だけを読む
+/// その見出しから次の `## ` までの行。
+///
+/// **節で区切らないと、同じ形の表が2つある文書で後ろ勝ちになる。**
+/// この文書には「## イベント」の一覧も `| **E1** | …` の形で並んでいて、
+/// 節を見ないと本体の行と混ざる。混ざったまま `insert` で上書きしていると、
+/// 節を並べ替えただけでテスト列が**発生源の説明文**に化ける——`✗` でも `✓` でも
+/// 始まらないので、下の検査は何も言わずに通る。
+fn section(heading: &str) -> Vec<String> {
+    let source = table_source();
+    let mut found = Vec::new();
+    let mut inside = false;
+
+    for line in source.lines() {
+        if line.starts_with("## ") {
+            inside = line.starts_with(heading);
+            continue;
+        }
+        if inside {
+            found.push(line.to_string());
+        }
+    }
+    found
+}
+
+/// イベントの記号 → テスト列。**「## 表」の中だけを読む。**
 fn test_column() -> BTreeMap<String, String> {
     let mut found = BTreeMap::new();
-    for line in table_source().lines() {
-        let cells = row_cells(line);
+    for line in section("## 表") {
+        let cells = row_cells(&line);
         if cells.len() < 2 {
             continue;
         }
@@ -171,25 +199,24 @@ fn test_column() -> BTreeMap<String, String> {
 
 /// 「埋まっていないセル」節の1列目が名乗っている記号
 fn listed_as_uncovered() -> BTreeSet<String> {
-    let source = table_source();
     let mut found = BTreeSet::new();
-    let mut inside = false;
-
-    for line in source.lines() {
-        if line.starts_with("## ") {
-            inside = line.starts_with("## 埋まっていないセル");
-            continue;
-        }
-        if !inside {
-            continue;
-        }
-        let cells = row_cells(line);
+    for line in section("## 埋まっていないセル") {
+        let cells = row_cells(&line);
         if cells.len() < 2 {
             continue;
         }
         found.extend(symbols_in(cells[0]));
     }
     found
+}
+
+/// 文書が定義している注（`※N`）
+fn notes() -> BTreeSet<String> {
+    table_source()
+        .lines()
+        .filter(|line| line.starts_with('※'))
+        .filter_map(|line| symbols_in(line).into_iter().next())
+        .collect()
 }
 
 /// 走査が何も拾えていない状態で緑にならないこと。
@@ -265,36 +292,62 @@ fn no_uncovered_cell_is_marked_as_covered() {
     );
 }
 
-/// テストが名乗る注（`※N`）が実在すること。
+/// テストが名乗る記号が実在すること。**イベントも注も同じに扱う。**
 ///
-/// 注を消したり番号を振り直したりしたとき、テストの doc は黙って
-/// 存在しない注を指し続ける。
+/// 行や注を消したり番号を振り直したりしたとき、テストの doc は黙って
+/// 存在しない先を指し続ける。**そうなると、上の2本はそのセルについて
+/// 永久に空振りする**——`columns.get()` が `None` を返して読み飛ばすので、
+/// 表とテストが反対を言っていても何も出ない。
+///
+/// **記号で分けない。** `※` だけを見ていたとき、`E` の名乗り7件が
+/// この検査の外にあった。番号の振り直しはイベントの側で起きる。
 #[test]
-fn every_note_a_test_names_exists() {
-    let source = table_source();
-    let notes: BTreeSet<String> = source
-        .lines()
-        .filter_map(|line| {
-            symbols_in(line)
-                .into_iter()
-                .next()
-                .filter(|_| line.starts_with('※'))
-        })
-        .collect();
+fn every_symbol_a_test_names_exists() {
+    let columns = test_column();
+    let notes = notes();
 
     let mut missing = Vec::new();
     for (cell, sites) in claims() {
-        if !cell.starts_with('※') {
-            continue;
-        }
-        if !notes.contains(&cell) {
+        let known = if cell.starts_with('※') {
+            notes.contains(&cell)
+        } else {
+            columns.contains_key(&cell)
+        };
+        if !known {
             missing.push(format!("{cell}  テスト: {}", sites.join(" ")));
         }
     }
 
     assert!(
         missing.is_empty(),
-        "テストが実在しない注を指している:\n{}",
+        "テストが実在しない行／注を指している:\n{}",
         missing.join("\n")
+    );
+}
+
+/// 表が「固定するテストがある」と言う行を、どれかのテストが名乗っていること。
+///
+/// **上の2本と向きが逆。** あちらは「表が未検証と言うのに名乗りがある」を見る。
+/// こちらが無いと、`{TESTED}` の行の実体が消えても表は `{TESTED}` のまま
+/// 4本とも緑になる——次の人はその枝が固定済みだと信じて落とせる。
+///
+/// **`△` は対象外。** 一部の列だけ固定している形は名乗りが無くても成り立つ
+/// （どの列かを表が持てない）。
+#[test]
+fn every_covered_row_is_named_by_a_test() {
+    let claims = claims();
+    let mut unnamed = Vec::new();
+
+    for (cell, column) in test_column() {
+        if column.starts_with(TESTED) && !claims.contains_key(&cell) {
+            unnamed.push(format!("{cell}  表: {column}"));
+        }
+    }
+
+    assert!(
+        unnamed.is_empty(),
+        "表が固定済みと言う行を、どのテストも名乗っていない。\
+         テストの doc に `（表の <記号>）` を書くこと:\n{}",
+        unnamed.join("\n")
     );
 }
