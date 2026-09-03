@@ -79,8 +79,11 @@ expect "Rust を触ったら両方（TS 側のラチェットが src-tauri を�
 expect "Cargo.toml も両方" \
   "src-tauri/Cargo.toml" "$(printf 'run verify\nrun verify:rust')"
 
-expect "docs を触ったら verify（表の識別子とパスを見る検査がある）" \
-  "docs/state-transitions/a.md" "run verify"
+expect "状態遷移表は両方（表とテストの名乗りを突き合わせるのは Rust 側）" \
+  "docs/state-transitions/a.md" "$(printf 'run verify\nrun verify:rust')"
+
+expect "その他の docs は verify だけ" \
+  "docs/decisions/a.md" "run verify"
 
 expect "CONTRIBUTING.md も verify（ラチェットの索引と突き合わせる）" \
   "CONTRIBUTING.md" "run verify"

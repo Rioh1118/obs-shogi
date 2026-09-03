@@ -40,8 +40,13 @@ needs_rust=0
 while IFS= read -r line; do
   path=${line:3}
   path=${path##* -> }
+  # `npm run verify:rust` の対象。**状態遷移表もここに入る。**
+  # `state_transition_cells` が表とテストの名乗りを突き合わせていて、
+  # **それが壊れる改変は表だけを触るコミットで来る**（実測: 表1ファイルだけの
+  # コミットで、実在するテストを「無い」と書いた回が2度ある）
   case "$path" in
     *.rs|*Cargo.toml|*Cargo.lock) needs_rust=1 ;;
+    docs/state-transitions/*) needs_rust=1 ;;
   esac
   # `npm run verify` の対象。**`.rs` と `docs/` もここに入る。**
   # vitest のラチェットが `src-tauri/**` と `docs/**` を歩いているので、
