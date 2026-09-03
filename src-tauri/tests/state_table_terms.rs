@@ -144,6 +144,20 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
     }
 }
 
+/// その表が [`TABLES`] か [`NOT_RUST`] のどちらかに載っているか。
+///
+/// **ファイル名で厳密に比べる。** 接尾辞で見ると
+/// `"docs/state-transitions/search.md".ends_with("arch.md")` が真になり、
+/// **登録していない表が登録済みとして素通りする。**
+fn is_registered(name: &str) -> bool {
+    let checked = TABLES
+        .iter()
+        .any(|(path, _)| Path::new(path).file_name().and_then(|f| f.to_str()) == Some(name));
+    let excused = NOT_RUST.iter().any(|(excused, _)| *excused == name);
+
+    checked || excused
+}
+
 /// 表を足したときに、この検査へ取り込み忘れないこと。
 ///
 /// **対応表を手で書いている以上、これが無いと表を1つ足すだけで検査を抜けられる。**
@@ -159,9 +173,7 @@ fn every_table_is_either_checked_or_declared_not_rust() {
         if !name.ends_with(".md") || name == "README.md" {
             continue;
         }
-        let checked = TABLES.iter().any(|(path, _)| path.ends_with(&name));
-        let excused = NOT_RUST.iter().any(|(excused, _)| *excused == name);
-        if !checked && !excused {
+        if !is_registered(&name) {
             unregistered.push(name);
         }
     }
@@ -186,6 +198,21 @@ fn the_check_actually_finds_constants() {
         "表から拾えた定数が少なすぎる（{}件）。綴りの規則が変わったかもしれない: {found:?}",
         found.len()
     );
+}
+
+/// 登録の判定が、接尾辞の一致で素通りしないこと。
+///
+/// 実在するファイルを見る [`every_table_is_either_checked_or_declared_not_rust`] では、
+/// **素通りする形（登録していない表）をそもそも置けない**ので踏めない。
+#[test]
+fn a_table_is_not_registered_by_being_a_suffix_of_another() {
+    assert!(is_registered("search.md"), "TABLES に載っている表");
+    assert!(is_registered("game.md"), "NOT_RUST に載っている表");
+
+    // `search.md` / `yaneuraou-db-parse.md` の接尾辞。どれも登録していない
+    assert!(!is_registered("arch.md"));
+    assert!(!is_registered("db-parse.md"));
+    assert!(!is_registered("e.md"));
 }
 
 /// 綴りの規則の境界。**実データの件数を見るテストでは踏めない。**
