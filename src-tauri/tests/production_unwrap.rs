@@ -15,7 +15,7 @@
 
 mod scanning;
 
-use scanning::{blank_out_comments, find_in_code, item_end};
+use scanning::{production_code_of, strip_test_modules};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,60 +38,8 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// `#[cfg(test)]` が付いた item を落とす。
-///
-/// **塊とは限らない。** `#[cfg(test)] use ...;` `#[cfg(test)] const ...;` は
-/// 波括弧を持たない。「次の `{` から釣り合うまで」で落とすと、**その先にある
-/// 本番コードを丸ごと飲む**——`protocol.rs` の `#[cfg(test)] const ALL` の直後には
-/// 本番の `enum ReadyState` がある。飲まれた範囲に `.unwrap()` を書いても緑で通る。
-///
-/// 落とした行は改行に置き換える。**行番号を保つため**——詰めると、
-/// 塊より後ろで見つかった違反の `path:line` が現物とずれ、開いても何も無い。
-///
-/// 括弧の対応取りは `scanning::item_end` が持つ（文字列・文字・コメントは読み飛ばす）。
-/// **釣り合わなければ `panic` で落とす**——黙って余分に落として検査を緩めないため。
-fn strip_test_modules(source: &str, path: &Path) -> String {
-    let mut out = String::new();
-    let mut rest = source;
-
-    // **コードの中のものだけを item の始まりとみなす。** 素の `find` だと、
-    // doc コメントに `#[cfg(test)]` と書いた行から走査が始まり、その直後の
-    // **本番の item が丸ごと落ちる**（`lib.rs` の `CLOSE_TIMEOUT` の doc がその綴りを含む）。
-    // この壊れ方は `item_end` が `None` を返さないので、下の panic には掛からない
-    while let Some(at) = find_in_code(rest, "#[cfg(test)]") {
-        out.push_str(&rest[..at]);
-        let after = &rest[at..];
-
-        // **黙って打ち切らない。** 「以降は全部テスト」で `return` すると、
-        // 括弧を数え違えた瞬間にその後ろの本番コードが検査から消え、
-        // `.unwrap()` を書いても緑で通る。走査の故障はここで落とす
-        let end = item_end(after).unwrap_or_else(|| {
-            panic!(
-                "{}: `#[cfg(test)]` の item の終わりを見つけられない。\
-                 走査が壊れている（括弧の数え違い）",
-                path.display()
-            )
-        });
-        out.push_str(&"\n".repeat(after[..end].matches('\n').count()));
-        rest = &after[end..];
-    }
-
-    out.push_str(rest);
-    out
-}
-
 fn production_code(path: &Path) -> String {
     production_code_of(&fs::read_to_string(path).unwrap_or_default(), path)
-}
-
-/// 走査の合成。**テストから直に食わせられる形にしておく。**
-///
-/// 現物だけを食わせていると、いまその形が無いだけの穴を「直した」と読んでしまう
-/// （`//` を含む文字列の右にある `.unwrap()` は、書いた人が現れるまで差が出ない）。
-fn production_code_of(source: &str, path: &Path) -> String {
-    // **`//` を手で探さない。** 文字列の中の `//`（URL、`format!("{a}//{b}")`）で
-    // 行を切ると、そこから右にある `.unwrap()` が全部見えなくなる
-    blank_out_comments(&strip_test_modules(source, path))
 }
 
 fn src_dir() -> PathBuf {

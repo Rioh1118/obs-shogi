@@ -307,8 +307,9 @@ gap: 0.75rem;
 | `sourceText`                     | 検査が自前のコメント除去を持つこと                                                                                                                                                                                                          | 無し。`sourceText.ts` の `codeOf` を使う                                                                                                                                                                                                                                 |
 | `escapeReceivers`                | Escape を扱うハンドラで `stopPropagation()` を呼ぶこと                                                                                                                                                                                      | `ALLOWED` に相対パスと理由（モーダルの外にいて、上位の受け口を持たないものだけ）                                                                                                                                                                                         |
 | `stateTransitionIndex`           | 状態遷移表を足して索引に載せ忘れること                                                                                                                                                                                                      | 無し。`docs/state-transitions/README.md` の在庫表に足す                                                                                                                                                                                                                  |
-| `engine_layering`（Rust）        | `engine/` のモジュールが環になること／下の段が上の段を使うこと                                                                                                                                                                              | 無し。共有したいものは共有できる段まで下げる。新しいモジュールは `LAYERS` に「何を決める場所か」を1行で書く                                                                                                                                                              |
+| `engine_layering`（Rust）        | 4つ。`engine/` のモジュールが環になること／下の段が上の段を使うこと／`engine/` が crate の他の枝を `use` すること／**段が「使わない」と決めた外部クレートを本文に書くこと**（`use` だけでなく型の位置の完全修飾も見る）                     | 環と段と外への `use` は逃げ道なし。共有したいものは共有できる段まで下げる。新しいモジュールは `LAYERS` に「何を決める場所か」を1行で書く。**外部クレートは `LAYERS` の `forbids` から外すのが唯一の道**で、外すには ADR-0008 決定2 を書き換えること                      |
 | `engine_timeouts`（Rust）        | モジュールを跨ぐ上限どうしの関係が崩れること                                                                                                                                                                                                | 無し。値を戻すか、関係そのものを変えるなら式を書き直す（散文で「同じN分」と書かない）                                                                                                                                                                                    |
+| `timeout_marker`（Rust）         | 時間切れの `Err` が `TIMED_OUT` の目印を持たないこと                                                                                                                                                                                        | 無し。目印が無いと `startGame` の失敗が「設定の誤り」に分類され、再試行で通る失敗が行き止まりとして案内される。見ているのは `EngineError::Timeout(` の実引数の綴りだけで、変数を1つ挟めば素通りする                                                                      |
 | `root_guard`（Rust）             | パスを受けるコマンドが root 検査を飛ばすこと                                                                                                                                                                                                | `EXEMPT` に名前と理由。パスを型の中で受けるものは `STRUCT_CARRIED_PATH` に                                                                                                                                                                                               |
 | `serde_naming`（Rust）           | 線に出る型が ADR-0007 の綴りから外れること                                                                                                                                                                                                  | 保存ファイルの形か境界に出ないなら `EXEMPT` に名前と理由。`BASELINE` は減る方向だけ。`tag` を付けたら `rename_all_fields` も要る（こちらは逃げ道なし）                                                                                                                   |
 | `production_unwrap`（Rust）      | 本番コードに `.unwrap()` が入ること                                                                                                                                                                                                         | 無し。理由を書けるなら `.expect("理由")`、書けないなら `?` か `unwrap_or_default()` に。`#[cfg(test)]` の中は数えない                                                                                                                                                    |
@@ -381,11 +382,15 @@ git switch -c issue-123/short-description
 
 ```bash
 npm run verify        # TypeScript / SCSS / docs / CONTRIBUTING.md を触った場合
-npm run verify:rust   # Rust を触った場合
+npm run verify:rust   # Rust / docs/state-transitions/ を触った場合
 ```
 
 **Rust を触ったときは両方が要ります。** コメントの経緯と、表が指す識別子・パスを
 見ている検査は vitest 側にあって、`src-tauri/**` を歩いているからです。
+
+**`docs/state-transitions/` も両方です。** 表のテスト列と、テストの doc が名乗る
+セル（`（表の E1 / E4）`）を突き合わせる検査は Rust 側にあります。表だけを直す
+コミットでそれを飛ばすと、**実在するテストを「無い」と書いた表**がそのまま入ります。
 
 Rust のツールチェーンは `rust-toolchain.toml` で固定しています。手元と CI で同じ結果になります。
 

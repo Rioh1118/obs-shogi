@@ -1035,9 +1035,9 @@ impl UsiProtocol {
         let collected = match sent {
             Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
                 .await
-                .unwrap_or(Err(EngineError::Timeout(
-                    "engine did not return usiok in time".to_string(),
-                ))),
+                .unwrap_or(Err(EngineError::Timeout(format!(
+                    "{TIMED_OUT} waiting for usiok"
+                )))),
             Err(e) => Err(e),
         };
 

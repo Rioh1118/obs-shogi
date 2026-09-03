@@ -713,9 +713,9 @@ impl EngineAnalyzer {
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 if stop_sent {
-                    return Err(EngineError::Timeout(
-                        "engine did not answer after stop".to_string(),
-                    ));
+                    return Err(EngineError::Timeout(format!(
+                        "{TIMED_OUT} waiting for a bestmove after stop"
+                    )));
                 }
                 stop_sent = true;
                 match self.stop_for_collection(protocol).await {
@@ -902,7 +902,8 @@ mod tests {
         assert!(matches!(not_searching(), EngineError::InvalidState(_)));
         assert_ne!(
             not_searching().to_string(),
-            EngineError::Timeout("engine did not answer after stop".to_string()).to_string()
+            EngineError::Timeout(format!("{TIMED_OUT} waiting for a bestmove after stop"))
+                .to_string()
         );
     }
 
