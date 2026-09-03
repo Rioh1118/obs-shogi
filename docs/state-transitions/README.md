@@ -3,6 +3,9 @@
 **状態 × イベント**を先に列挙し、空のセルを未検証の経路として残す。手順は
 `.claude/skills/state-transition-table/SKILL.md`。
 
+**画面から入るなら `docs/spec/` が先。** あちらは「その画面で何ができて、何ができないか」を
+書いた読み物で、状態の網羅はこちらへリンクしている。この表は網羅を担い、画面の説明を持たない。
+
 ## 表の階層
 
 上の表ほど粒度が粗く、セルから下の表を参照する。**セルの中身を書ききれないと感じたら、
@@ -20,6 +23,7 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
       └─ study-positions.md   （未作成）研究局面の読み書き
 
 L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
+L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -44,6 +48,7 @@ L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の�
 | [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸                            |
 | [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証** |
 | [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                     |
+| [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                           |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                 |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
