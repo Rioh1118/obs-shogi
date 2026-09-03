@@ -147,23 +147,41 @@ export type BrokenReference = { label: string; reason: "no-definition" | "unused
  * 残った定義は次に同じラベルを別の意味で使った人を黙って誤った URL へ送る。
  *
  * ラベルの大小文字は CommonMark が同一視するので、こちらも畳んで比べる。
+ *
+ * **`[ラベル]` 単体（shortcut）も使用として数える。** 同じ出典を2度目に引く人が
+ * 最も自然に書く形で、リンクとして正しく描画される。数えないと定義が
+ * 「使われていない」になり、**その案内どおり定義を消すと1度目のリンクが地の文に落ちる。**
+ * ただし裸の角括弧は地の文にも出るので、**定義済みのラベルと一致するものだけ**を数える。
+ * 綴りを間違えた shortcut は、定義が使われていない側で赤くなる。
+ *
+ * `[a][b]` の形は、地の文でも参照リンクとして数える。CommonMark 上も定義が無ければ
+ * 地の文に落ちるだけで、**書き手の意図が区別できない**。角括弧を2つ並べたいなら
+ * 行内コードで囲むこと。
  */
 export function brokenReferencesInBody(body: string): BrokenReference[] {
   // 行内コードも落とす。`ObsShogi-v[version]-[platform]-[arch][setup][ext]` のような
-  // **命名パターン**が `[…][…]` の形を踏む。空文字ではなく空白へ置き換えるのは、
-  // 落とした跡で `[a]` と `[b]` が隣り合って参照リンクに見えるのを防ぐため。
-  const text = stripFences(body).replace(/`[^`\n]*`/g, " ");
+  // **命名パターン**が `[…][…]` の形を踏む。開きと同じ数のバッククォートで閉じる形
+  // （`` `x` ``）まで見ないと、2連で囲った例が素通りする。
+  // 空文字ではなく空白へ置き換えるのは、落とした跡で `[a]` と `[b]` が
+  // 隣り合って参照リンクに見えるのを防ぐため。
+  const text = stripFences(body).replace(/(`+)[^`\n]*?\1/g, " ");
 
   const defined = new Map<string, string>();
-  for (const m of text.matchAll(/^ {0,3}\[([^\]]+)\]:\s*\S+/gm)) {
+  // ラベルは行を跨がない。`[^\]]+` にすると、閉じない `[` が後続行の定義を飲み込む。
+  for (const m of text.matchAll(/^ {0,3}\[([^\]\n]+)\]:\s*\S+/gm)) {
     defined.set(m[1]!.toLowerCase(), m[1]!);
   }
 
   const used = new Set<string>();
-  // `[表示][ラベル]`。ラベルが空なら表示そのものがラベル（省略形）
+  // `[表示][ラベル]`。ラベルが空なら表示そのものがラベル（collapsed）
   for (const m of text.matchAll(/\[([^\]\n]*)\]\[([^\]\n]*)\]/g)) {
     const label = (m[2] || m[1] || "").toLowerCase();
     if (label) used.add(label);
+  }
+  // `[ラベル]` 単体（shortcut）。定義と一致するものだけ
+  for (const m of text.matchAll(/\[([^\]\n]+)\](?![[(:])/g)) {
+    const label = m[1]!.toLowerCase();
+    if (defined.has(label)) used.add(label);
   }
 
   const broken: BrokenReference[] = [];

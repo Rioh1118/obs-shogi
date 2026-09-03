@@ -202,6 +202,31 @@ describe("brokenReferencesInBody", () => {
     expect(brokenReferencesInBody(`[sh][]\n\n${DEF}`)).toEqual([]);
   });
 
+  // 同じ出典を2度目に引く人が最も自然に書く形。数えないと定義が「使われていない」になり、
+  // その案内どおり定義を消すと1度目のリンクが地の文に落ちる
+  test("ラベル単体も使用として数える", () => {
+    expect(brokenReferencesInBody(`本文 [sh] を見る\n\n${DEF}`)).toEqual([]);
+  });
+
+  // 裸の角括弧は地の文にも出る。全部拾うと docs が書けなくなる
+  test("定義の無いラベル単体は数えない", () => {
+    expect(brokenReferencesInBody("本文 [まだ書いていない] を見る\n")).toEqual([]);
+  });
+
+  test("定義の行そのものを使用として数えない", () => {
+    expect(brokenReferencesInBody(DEF)).toEqual([{ label: "sh", reason: "unused-definition" }]);
+  });
+
+  // 開きと同じ数で閉じる形まで見ないと、2連で囲った例が素通りする
+  test("2連バッククォートの行内コードも落とす", () => {
+    expect(brokenReferencesInBody("パターンは ``x-[a][b]`` 。\n")).toEqual([]);
+  });
+
+  // ラベルは行を跨がない。`[^\]]+` だと閉じない `[` が後続行の定義を飲み込む
+  test("閉じない角括弧が後続行の定義を飲み込まない", () => {
+    expect(brokenReferencesInBody(`本文に [ が1つ\n\n${DEF}\n\n[表示][sh]\n`)).toEqual([]);
+  });
+
   // 規約の書き方を例として載せる文書がある。例まで解決すると規約が書けなくなる
   test("フェンスの中の例は数えない", () => {
     expect(brokenReferencesInBody("```markdown\n[表示][sh]\n\n[sh]: https://x/\n```\n")).toEqual(
