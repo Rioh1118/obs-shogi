@@ -191,8 +191,9 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
             })
             .collect();
 
-        // **コメントを落としてから見る。** 定数を消しても doc の言及は残りやすい。
-        // 落とさないと、その1行だけで「実装にある」と読んでしまう。
+        // **コメントアウトされた宣言を、宣言と読まないため**に落とす。
+        // doc の言及（`/// 旧 `FOO` は…`）は `declared_constants` が宣言行しか
+        // 見ないので元から入らない。
         let missing = missing_in(&text, &without_comments(&code));
 
         assert!(
@@ -362,6 +363,25 @@ fn only_declarations_count_as_constants() {
 
     // 定数の名前を引用した assert のメッセージ。実装から const を消しても残る
     assert!(declared("assert!(ok, \"VERSION と一緒に動かすこと\");").is_empty());
+
+    // 行コメントは行頭が `//` なので、剥がさなくても宣言に見えない
+    assert!(declared("// const OLD_NAME: u8 = 1;").is_empty());
+}
+
+/// `without_comments` を通す理由。
+///
+/// **ブロックコメントで囲った宣言だけが、剥がさないと宣言に見える。**
+/// doc の言及（`/// 旧 `FOO` は…`）は宣言行しか見ない時点で元から入らないので、
+/// 剥がしの理由にならない。
+#[test]
+fn a_declaration_inside_a_block_comment_is_not_a_declaration() {
+    let code = "/*\nconst OLD_NAME: u8 = 1;\n*/\n";
+
+    assert_eq!(
+        declared_constants(code).into_iter().collect::<Vec<_>>(),
+        ["OLD_NAME"]
+    );
+    assert!(declared_constants(&without_comments(code)).is_empty());
 }
 
 /// 照合が接頭辞で通らないこと。
