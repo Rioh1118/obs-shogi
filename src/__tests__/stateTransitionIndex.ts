@@ -132,6 +132,50 @@ export function brokenLinksInBody(
   return broken;
 }
 
+export type BrokenReference = { label: string; reason: "no-definition" | "unused-definition" };
+
+/**
+ * 1つの文書の中で、定義の無い参照リンクと、使われていない定義を返す。
+ *
+ * **参照名を間違えても markdown はエラーを出さない。** `[表示][ラベル]` は
+ * 角括弧つきの地の文としてそのまま描画されるだけで、リンクにならなかったことに
+ * 目視でしか気づけない。他リポジトリのパスを外部リンクで書く規約
+ * （`docs/state-transitions/README.md`）がこの2部構成を標準にしたので、
+ * 使用と定義の結合は機械で見る。定義は使用箇所から遠く離れて置かれる。
+ *
+ * 使われていない定義も返すのは、表の行を消したときに定義だけが残るため。
+ * 残った定義は次に同じラベルを別の意味で使った人を黙って誤った URL へ送る。
+ *
+ * ラベルの大小文字は CommonMark が同一視するので、こちらも畳んで比べる。
+ */
+export function brokenReferencesInBody(body: string): BrokenReference[] {
+  // 行内コードも落とす。`ObsShogi-v[version]-[platform]-[arch][setup][ext]` のような
+  // **命名パターン**が `[…][…]` の形を踏む。空文字ではなく空白へ置き換えるのは、
+  // 落とした跡で `[a]` と `[b]` が隣り合って参照リンクに見えるのを防ぐため。
+  const text = stripFences(body).replace(/`[^`\n]*`/g, " ");
+
+  const defined = new Map<string, string>();
+  for (const m of text.matchAll(/^ {0,3}\[([^\]]+)\]:\s*\S+/gm)) {
+    defined.set(m[1]!.toLowerCase(), m[1]!);
+  }
+
+  const used = new Set<string>();
+  // `[表示][ラベル]`。ラベルが空なら表示そのものがラベル（省略形）
+  for (const m of text.matchAll(/\[([^\]\n]*)\]\[([^\]\n]*)\]/g)) {
+    const label = (m[2] || m[1] || "").toLowerCase();
+    if (label) used.add(label);
+  }
+
+  const broken: BrokenReference[] = [];
+  for (const label of used) {
+    if (!defined.has(label)) broken.push({ label, reason: "no-definition" });
+  }
+  for (const [key, label] of defined) {
+    if (!used.has(key)) broken.push({ label, reason: "unused-definition" });
+  }
+  return broken;
+}
+
 /**
  * 1つの文書の中で「実在する表を未作成と書いている」箇所を、1始まりの行番号とともに返す。
  *

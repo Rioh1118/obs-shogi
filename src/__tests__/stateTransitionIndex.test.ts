@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   brokenLinksInBody,
+  brokenReferencesInBody,
   docsPath,
   headingSlug,
   headingSlugs,
@@ -20,6 +21,11 @@ import {
  * 重複した表を作る。ずれ方は3つあり、それぞれ別のテストで見る。
  */
 const REASON = { "no-file": "ファイルが無い", "no-heading": "見出しが無い" } as const;
+
+const REFERENCE_REASON = {
+  "no-definition": "定義が無い。リンクにならず角括弧のまま出る",
+  "unused-definition": "使われていない定義。消し忘れ",
+} as const;
 
 describe("状態遷移表の索引", () => {
   test("README がすべての表を列挙している", () => {
@@ -42,6 +48,20 @@ describe("状態遷移表の索引", () => {
     });
 
     expect(broken, ["docs のリンクが切れている:", ...broken].join("\n")).toEqual([]);
+  });
+
+  /**
+   * 参照リンクは定義が離れて置かれるので、片方だけ消してもエラーにならない。
+   * 判定は `brokenReferencesInBody` が持つ。
+   */
+  test("参照リンクの使用と定義が対応している", () => {
+    const broken = markdownFiles().flatMap((file) =>
+      brokenReferencesInBody(readFileSync(docsPath(file), "utf8")).map(
+        (hit) => `${file}  [${hit.label}]  （${REFERENCE_REASON[hit.reason]}）`,
+      ),
+    );
+
+    expect(broken, ["参照リンクが繋がっていない:", ...broken].join("\n")).toEqual([]);
   });
 
   /**
@@ -140,6 +160,49 @@ describe("brokenLinksInBody", () => {
     expect(find("[隣](b.md#相手の見出し)\n[隣](b.md#無い見出し)")).toEqual([
       { href: "b.md#無い見出し", reason: "no-heading" },
     ]);
+  });
+});
+
+describe("brokenReferencesInBody", () => {
+  const DEF = "[sh]: https://example.com/a.ts\n";
+
+  test("定義のある参照は返さない", () => {
+    expect(brokenReferencesInBody(`[表示][sh]\n\n${DEF}`)).toEqual([]);
+  });
+
+  test("定義の無い参照を返す", () => {
+    expect(brokenReferencesInBody("[表示][sh]\n")).toEqual([
+      { label: "sh", reason: "no-definition" },
+    ]);
+  });
+
+  test("使われていない定義を返す", () => {
+    expect(brokenReferencesInBody(DEF)).toEqual([{ label: "sh", reason: "unused-definition" }]);
+  });
+
+  // CommonMark はラベルの大小文字を同一視する。ここで割ると、描画されるのに落ちる
+  test("ラベルの大小文字は同一視する", () => {
+    expect(brokenReferencesInBody(`[表示][SH]\n\n${DEF}`)).toEqual([]);
+  });
+
+  test("省略形は表示そのものがラベル", () => {
+    expect(brokenReferencesInBody(`[sh][]\n\n${DEF}`)).toEqual([]);
+  });
+
+  // 規約の書き方を例として載せる文書がある。例まで解決すると規約が書けなくなる
+  test("フェンスの中の例は数えない", () => {
+    expect(brokenReferencesInBody("```markdown\n[表示][sh]\n\n[sh]: https://x/\n```\n")).toEqual(
+      [],
+    );
+  });
+
+  // 命名パターン（`ObsShogi-v[version]-[arch][setup]`）が `[…][…]` の形を踏む
+  test("行内コードの中は数えない", () => {
+    expect(brokenReferencesInBody("パターンは `x-[arch][setup][ext]`。\n")).toEqual([]);
+  });
+
+  test("行内コードを落とした跡で参照リンクが生まれない", () => {
+    expect(brokenReferencesInBody("[表示]`x`[別]\n")).toEqual([]);
   });
 });
 
