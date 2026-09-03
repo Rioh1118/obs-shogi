@@ -28,6 +28,9 @@ const LOGT: &str = "obs_shogi::engine::registry";
 ///
 /// 超えてもブロッキングのスレッドは残る。`timeout` は `spawn_blocking` を
 /// 取り消せないので、そのぶんワーカが1本減ったままになる → #353 と同じ形。
+///
+/// **超えた後の子プロセスはどの台帳にも居ない。** 唯一の参照は
+/// `dispose_late_spawn` のタスクで、`shutdown_all` はそれを見つけられない → #381。
 pub const SPAWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `quit` を送ってからプロセスを落とすまでの猶予。
@@ -76,9 +79,14 @@ pub struct EngineRegistry {
 
     /// 起動したが、まだ `usiok` を取り切っていないもの。
     ///
-    /// **子プロセスは既に走っている。** `spawn` から `processes` への登録まで
-    /// `USI_OK_TIMEOUT` の窓があり、その間ここに居ないと
+    /// **子プロセスは既に走っている。** ここに載ってから `processes` への
+    /// 登録まで `USI_OK_TIMEOUT` の窓があり、その間ここに居ないと
     /// 終了時の掃除から見えない（起動を待たずにアプリを閉じると孤児になる）。
+    ///
+    /// **窓はここより手前から開いている。** 載せるのは `spawn_blocking` が
+    /// 解けた後で、子プロセスが走り出すのはその中。そこから載るまでの区間と、
+    /// `SPAWN_TIMEOUT` を超えて `dispose_late_spawn` へ渡した後は、
+    /// **どちらの台帳にも居ない** → #368 / #381。
     starting: RwLock<Vec<Arc<UsiProtocol>>>,
 }
 
