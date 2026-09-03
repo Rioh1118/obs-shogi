@@ -250,7 +250,8 @@ fn stalled_turn(
     //
     // ただし**喋る実装だと分かっているエンジンにだけ掛ける。** USI は `info` を
     // 義務にしていないので、1行も出さない実装は正常に読んでいても黙って見える。
-    // 区別せずに掛けると、そういうエンジンは**正常な31秒目に必ず負ける**
+    // 区別せずに掛けると、そういうエンジンは**`SEARCH_GRACE` を過ぎた最初の tick で
+    // 必ず負ける**
     // ——棋譜に英文の故障理由が残り、利用者に無効化する手段が無い。
     // 出したことが無いエンジンを押さえるのは上の `budget + HARD_TURN_LIMIT` だけになる。
     //
@@ -456,7 +457,11 @@ impl GameSession {
             .await
     }
 
-    /// 裁定の結果「終局」。詰み・千日手・持将棋・最大手数・反則はどれもここから入る
+    /// 裁定の結果「終局」。詰み・千日手・持将棋・最大手数・反則はどれもここから入る。
+    ///
+    /// **終局済みなら `Err(ALREADY_OVER)`**（投了・中断と同じ形）。
+    /// 説明が長すぎるのは断らずに切る——断ると `RULING_TIMEOUT` が
+    /// 別の結末で畳み、勝敗が消える
     pub async fn end_by_rule(
         &self,
         winner: Option<Side>,
@@ -2057,9 +2062,9 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
     if usi_move.is_empty() {
         return Err("move is empty".to_string());
     }
-    if usi_move.len() > MAX_USI_MOVE_LEN {
+    if usi_move.len() > MAX_USI_MOVE_BYTES {
         return Err(format!(
-            "move is too long: {} bytes; the limit is {MAX_USI_MOVE_LEN}",
+            "move is too long: {} bytes; the limit is {MAX_USI_MOVE_BYTES}",
             usi_move.len()
         ));
     }
@@ -2070,9 +2075,9 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
     {
         return Err(format!(
             "move has an unusable shape: {}",
-            // 長さは既に上限を通った後（8バイト以下なら8文字以下）なので、
+            // 長さは既に上限を通った後で、指し手は ASCII なので
             // ここで切れることはない。渡すのは制御文字を潰すため
-            shown(usi_move, MAX_USI_MOVE_LEN)
+            shown(usi_move, MAX_USI_MOVE_BYTES)
         ));
     }
     Ok(())
@@ -2101,7 +2106,11 @@ fn over_line(id: &GameId, result: &GameResult) -> String {
 ///
 /// 一番長いのは成りを伴う**移動**（`7g7f+` の5バイト）。打ちは `P*7f` の4バイトで、
 /// **打った駒は成れない**ので `+` は付かない。余裕を見て8。
-const MAX_USI_MOVE_LEN: usize = 8;
+///
+/// **文字数の上限としても使える。** 指し手は ASCII しか通らない
+/// （`validate_usi_move` が `is_ascii` を見る）ので、この値を `shown` の
+/// 第2引数（文字数）に渡してよい。ASCII の縛りを緩めたら、この兼用も外すこと。
+const MAX_USI_MOVE_BYTES: usize = 8;
 
 /// 終局済みの対局への操作を断る文言。
 ///
@@ -3175,7 +3184,8 @@ mod tests {
     ///
     /// USI は `info` を義務にしていない。1行も出さない実装（詰将棋ソルバを
     /// 対局者に挿す、深さが変わったときだけ出すエンジン）を沈黙で落とすと、
-    /// **正常に読んでいる31秒目に必ず負ける**——棋譜に英文の故障理由が残り、
+    /// **正常に読んでいるのに `SEARCH_GRACE` を過ぎた最初の tick で必ず負ける**
+    /// ——棋譜に英文の故障理由が残り、
     /// 利用者に無効化する手段が無い（`enforce_engine_timeout` はこの番人を見ない）。
     ///
     /// 押さえるのは `budget + HARD_TURN_LIMIT` だけになる。**それは残す。**

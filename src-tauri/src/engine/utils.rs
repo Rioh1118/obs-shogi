@@ -123,6 +123,13 @@ pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 /// **潰すのは制御文字だけ。** 改行を通すと、その後ろに好きなログ行を作れる。
 /// 潰した後は1文字あたり最大4バイト（UTF-8）で収まる。
 ///
+/// **`is_control()` は `Cc` だけ。** U+2028 / U+2029（行区切り）も
+/// 双方向制御（U+202A–U+202E / U+2066–U+2069）も BOM も**通す**。通すのは意図で、
+/// 根拠は上と同じ——棋譜と画面に出る値なので、化けた理由を調べる手掛かりを消さない。
+/// ログの行を偽造する力は無い（`tail` も `grep` も U+2028 で分割しない）。
+/// **産地が増えたら見直すこと**——いまの `detail` の出どころは自分のフロントだけで、
+/// 棋譜ファイル由来の文字列が流れ込む口ができたら判断が変わる（#354）。
+///
 /// **通した値を `{:?}` で書かないこと。** `{:?}` は制御文字のほかに
 /// `Cf`（BOM）/ `Cn`（未割り当て）も `\u{XXXX}` へ展開するので、
 /// 1文字が10バイトに膨らんで上の見積もりが外れる。
@@ -148,11 +155,18 @@ pub fn shown(text: &str, max: usize) -> String {
 /// 利用者がエンジンのパスを直そうとして「開始」を繰り返すと、
 /// **直そうとしている当のエラーの説明が消える**。
 ///
-/// **掃き出しは32行まとめて出る**（`readyok` が来ないまま終わったとき）。
-/// 1回の掃き出しがログの予算（`LOG_FILE_BUDGET`）の1/10を超えないところで取る。
-/// 式は `engine::protocol` の `flushing_the_queue_cannot_rotate_the_log`。
+/// **エンジンの名乗り（`id name`）も同じ上限で切る**（`engine::registry` の
+/// `spawn_ok_line`）。そちらも `collect_engine_info` が長さを見ずに保持する。
 ///
-/// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わない。
+/// 縛っている式は2本。掃き出しは `PENDING_LIMIT` 件がまとめて出るので
+/// 1回ぶんで測る（`engine::protocol` の
+/// `flushing_the_queue_cannot_rotate_the_log`）。起動の1行は1行で測る
+/// （`engine::registry` の `the_registry_lines_cannot_rotate_the_log_or_forge_a_line`）。
+/// **どちらも上限の不等式なので、縮める側は止まらない。**
+///
+/// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わないが、
+/// **縮める根拠にはならない**——実在するエンジンの名乗り
+/// （`YaneuraOu NNUE 7.0.0 64ZEN2`）が収まる幅でもある。縮めるならそちらを測ること。
 pub const MAX_SUMMARY_LEN: usize = 64;
 
 /// ログファイル1本ぶんの予算。**`KeepOne` なので、一周すると前の記録は消える。**
@@ -168,7 +182,7 @@ pub const MAX_SUMMARY_LEN: usize = 64;
 /// **広げると予算のほうが先に落ちる**ので、落ちたテストを
 /// 「関係の無いラチェット」と読まないこと。
 ///
-/// **ここから来ていないのは1つ。** `MAX_USI_MOVE_LEN` は「一番長い指し手が
+/// **ここから来ていないのは1つ。** `MAX_USI_MOVE_BYTES` は「一番長い指し手が
 /// 収まる」が根拠で、断り文句はこの上限を通った後の値しか載せない。
 ///
 /// **数字を離れた場所へ写さない。** 写すと、ここを動かしたときに
@@ -238,7 +252,8 @@ pub fn cmd_summary(cmd: &GuiCommand) -> String {
         GuiCommand::Position(_) => "Position(<redacted>)".to_string(),
         GuiCommand::Go(_) => "Go(...)".to_string(),
         // **名前は webview から来る。** `MAX_WIRE_FIELD`（8KB）までは通るので、
-        // 素で載せると1行8KBの `warn` になる。積み置きの掃き出しでは32行まとめて出る
+        // 素で載せると1行8KBの `warn` になる。積み置きの掃き出しでは
+        // `PENDING_LIMIT` 件まとめて出る
         GuiCommand::SetOption(name, _v) => {
             format!("SetOption({})", shown(name, MAX_SUMMARY_LEN))
         }

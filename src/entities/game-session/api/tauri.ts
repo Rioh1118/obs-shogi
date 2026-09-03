@@ -98,6 +98,10 @@ export async function continueGame(gameId: GameId, moves: string[]): Promise<voi
  * **化けるのはこの2つだけ。** 全角空白も結合文字も絵文字もそのまま返る。
  *
  * 人が読む文言（「千日手」「二歩」）は上限に遠く届かない。
+ *
+ * **既に終局していたら reject する**（`game is already over`）。投了・中断と同じ形。
+ * **呼び直しても変わらない**——`Phase::Over` は吸収状態なので、同じ `Err` が返り続ける。
+ * 結末の権威は `over` イベント。
  */
 export async function endGameByRule(
   gameId: GameId,
@@ -107,7 +111,13 @@ export async function endGameByRule(
   return await invoke("end_game_by_rule", { gameId, winner, detail });
 }
 
-/** 人間の投了。エンジンの投了は `bestmove resign` から入るのでここは通らない */
+/**
+ * 人間の投了。エンジンの投了は `bestmove resign` から入るのでここは通らない。
+ *
+ * **既に終局していたら reject する**（`game is already over`）。裁定・中断と同じ形。
+ * 押したのと時間切れが同じ拍に入ると起きる。**`Ok` を「投了として記録された」
+ * として棋譜へ書かないこと**——結末の権威は `over` イベント。
+ */
 export async function resignGame(gameId: GameId, side: Side): Promise<void> {
   return await invoke("resign_game", { gameId, side });
 }
@@ -157,6 +167,15 @@ export async function closeGame(gameId: GameId): Promise<void> {
  * 進行は `listenToGameEvents` で届くので、常用しない。返る `moves` は Rust が持つ
  * 写しで、**権威はこちら側の棋譜**。`clocks.running` が `null` になる理由は
  * `ClocksView.running` に挙げてある（**`phase: "thinking"` のままでも起きる**）。
+ *
+ * **失敗しうる。立て直しの途中で諦めないこと。**
+ *
+ * - `the game is being closed` → 別の呼び出しがいま閉じている最中。待って呼び直す。
+ *   `over` を取りこぼした直後にいちばん踏みやすい（閉じる側と競合する）
+ * - `unknown game:` → その対局はもう台帳に無い。**呼び直しても変わらない。**
+ *   結末が分からないまま終わったことを利用者に見せること
+ *
+ * 文言で区別することになる（`closeGame` と同じ形）。
  */
 export async function getGameState(gameId: GameId): Promise<GameSnapshot> {
   return await invoke("get_game_state", { gameId });

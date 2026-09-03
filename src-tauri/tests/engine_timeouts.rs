@@ -21,8 +21,9 @@ use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
 /// 待つ時間は別の話で、後者を前者に合わせると終了が10分待たされる。
 /// 閉じるときは畳めていなくても落とす（→ `CLOSE_TIMEOUT` の doc）。
 ///
-/// **持ち時間を足さない。** `MAX_TIME_MS` を足すと 4秒 < 24時間 になり、
-/// どちらの定数をどう動かしても落ちなくなる（`HARD_TURN_LIMIT` を3秒にしても通る）。
+/// **持ち時間を足さない。** `MAX_TIME_MS` を足すと `CLOSE_TIMEOUT` < `MAX_TIME_MS`
+/// が桁で成り立ってしまい、どちらの定数をどう動かしても落ちなくなる
+/// （`HARD_TURN_LIMIT` を `CLOSE_TIMEOUT` より短くしても通る）。
 /// ここで守りたいのは持ち時間の話ではなく、**番人の猶予と終了の予算の関係**。
 #[test]
 fn closing_never_waits_as_long_as_a_stuck_engine() {
