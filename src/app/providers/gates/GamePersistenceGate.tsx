@@ -14,6 +14,7 @@ export function GamePersistenceGate({ children }: { children: ReactNode }) {
     if (!kifuFormat) return undefined;
 
     return {
+      absPath: activeKifuPath,
       save: (jkf: JKFData) => saveKifuToFile(jkf, activeKifuPath, kifuFormat),
     };
   }, [activeKifuPath, kifuFormat]);

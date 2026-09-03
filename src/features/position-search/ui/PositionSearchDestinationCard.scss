@@ -1,13 +1,13 @@
 @use "@/index.scss" as index;
 
+// 器の中の箱。`pos-search-cont` と同じ段に載るので、面も角丸も同じ値を採る
 .pos-search-dest {
-  border: 1px solid index.$stroke;
-  border-radius: 12px;
-  background: rgba(index.$color-primary-light, 0.04);
-  padding: 10px;
+  border-radius: index.$radius-6;
+  background: rgba(index.$color-primary-black, 0.24);
+  padding: index.$space-5;
 
   display: grid;
-  gap: 8px;
+  gap: index.$space-4;
   min-height: 0;
   overflow: hidden;
 
@@ -15,16 +15,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: index.$space-5;
   }
 
   &__title {
-    font-size: 1.15rem;
+    font-size: index.$font-hint;
     color: rgba(index.$color-text-light-1, 0.7);
   }
 
   &__path {
-    font-size: 1.2rem;
+    font-size: index.$font-aux;
     color: index.$color-text-primary;
     word-break: break-all;
     user-select: text;
@@ -37,7 +37,7 @@
 
   &__current {
     display: block;
-    font-size: 1.1rem;
+    font-size: index.$font-hint;
     color: rgba(index.$color-text-light-1, 0.62);
     word-break: break-all;
     user-select: text;
@@ -47,21 +47,14 @@
     text-overflow: ellipsis;
   }
 
+  // 見出しの側を退かせる。値（パス）は `__current` の段のまま読ませたいので触らない
   &__currentLabel {
-    color: rgba(index.$color-text-light-1, 0.5);
-    margin-right: 6px;
-  }
-
-  &__currentPath {
-    color: rgba(index.$color-text-light-1, 0.7);
-  }
-
-  &__meta {
-    color: rgba(index.$color-text-light-1, 0.55);
+    margin-right: index.$space-3;
+    color: rgba(index.$color-text-light-1, 0.45);
   }
 
   &__empty {
-    font-size: 1.2rem;
+    font-size: index.$font-aux;
     color: rgba(index.$color-text-light-1, 0.6);
   }
 }

@@ -1,4 +1,5 @@
 pub mod api;
+pub mod file_build;
 pub mod file_table;
 pub mod fs_scan;
 pub mod index_builder;
@@ -13,5 +14,7 @@ pub mod project_manager;
 pub mod query_service;
 pub mod segment;
 pub mod sfen_position;
+#[cfg(test)]
+pub(crate) mod test_kifu;
 pub mod traverse;
 pub mod types;

@@ -1,8 +1,8 @@
 import type { PreviewData } from "@/entities/position/model/preview";
 import type { JKFPlayer } from "json-kifu-format";
 
-export function buildPreviewData(jkf: JKFPlayer, nodeId: string): PreviewData {
-  const shogi = jkf.shogi;
+export function buildPreviewData(player: JKFPlayer, nodeId: string): PreviewData {
+  const shogi = player.shogi;
 
   const toKindList = (color: 0 | 1): string[] => {
     const pieces = shogi.hands?.[color] ?? [];
@@ -15,7 +15,7 @@ export function buildPreviewData(jkf: JKFPlayer, nodeId: string): PreviewData {
       0: toKindList(0),
       1: toKindList(1),
     },
-    tesuu: jkf.tesuu,
+    tesuu: player.tesuu,
     turn: shogi.turn,
     nodeId,
   };

@@ -25,16 +25,16 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 
 範囲に含まれるものだけを選ぶ。関係ない reviewer を走らせない。
 
-| reviewer                | 走らせる条件                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| `architecture-reviewer` | 常に（ファイルの追加・移動・import の変更があれば必ず）                                 |
-| `react-reviewer`        | `.tsx` またはフック・Context の変更                                                     |
-| `ui-reviewer`           | `.scss` またはレイアウトを持つコンポーネントの変更                                      |
-| `rust-reviewer`         | `src-tauri/` の変更                                                                     |
-| `perf-reviewer`         | ループ・データ変換・描画・IO を含む変更                                                 |
-| `robustness-reviewer`   | エラー処理・IO・外部入力・パースを含む変更                                              |
-| `comment-reviewer`      | 常に（コメントと命名は全ての変更に付いてくる）                                          |
-| `oss-hygiene-reviewer`  | `README` / `CONTRIBUTING` / `docs/` / `.github/` / ライセンス周りの変更、または明示指定 |
+| reviewer                | 走らせる条件                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `architecture-reviewer` | 常に（ファイルの追加・移動・import の変更があれば必ず）                                               |
+| `react-reviewer`        | `.tsx` またはフック・Context の変更                                                                   |
+| `ui-reviewer`           | `.scss` またはレイアウトを持つコンポーネントの変更                                                    |
+| `rust-reviewer`         | `src-tauri/` の変更                                                                                   |
+| `perf-reviewer`         | ループ・データ変換・描画・IO を含む変更                                                               |
+| `robustness-reviewer`   | エラー処理・IO・外部入力・パースを含む変更                                                            |
+| `comment-reviewer`      | 常に（コメントと命名は全ての変更に付いてくる）                                                        |
+| `oss-hygiene-reviewer`  | `README` / `CONTRIBUTING` / `docs/` / `.github/` / `research/` / ライセンス周りの変更、または明示指定 |
 
 ## 手順3: 並列で起動する
 
@@ -45,6 +45,8 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 - 見るファイルの具体的な一覧（「変更点を見て」で済ませない）
 - この変更が**何をしようとしているか**の1〜2行
 - 直前のラウンドがある場合は、その報告書のパスと「同じ所見を再掲しないこと」
+- **直前のラウンドの修正計画にある「次ラウンドの焦点」**（`/review-plan` 手順5）。
+  前のラウンドの修正が何を壊しうると書いたか。そこを見に行かせる
 
 ## 手順4: 報告書を書く
 
@@ -73,9 +75,9 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 
 （人の注意ではなく機械で防げるもの。ここが増えるほどレビューは軽くなる）
 
-## 次ラウンドの対象
+## 修正計画
 
-（今回直すもの / 見送るもの と、その理由）
+（`/review-plan` が書く。ここでは見出しだけ置いて空欄にする）
 ```
 
 ## 手順5: まとめる
@@ -83,8 +85,9 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 BLOCK と HIGH の件数、最も重い所見3件、そして
 「lint / hook で強制できるもの」に何が挙がったかを述べる。
 
-**実装の一部として回しているなら、ここで止まらない。** そのまま `/review-fix` へ進む
-（`/implement` 手順5「ループの途中で止まらない」）。順序は報告書の「次ラウンドの対象」で決める。
+**実装の一部として回しているなら、ここで止まらない。** そのまま `/review-plan` へ進む
+（`/implement` 手順5「ループの途中で止まらない」）。**何をどの順で直すかはここで決めない。**
+深刻度は「見つけた側の重さ」であって直す順ではない。順は `/review-plan` が決める。
 
 単独で呼ばれたときだけ、何から直すかをユーザーに委ねる。
 

@@ -16,7 +16,8 @@ export type FsErrorCode =
   | "kifu_conversion_failed"
   | "permission_denied"
   | "io"
-  // 棋譜の読み込み。Rust は返さない。TS 側で作る
+  // 棋譜の読み込み。`kifu_format_unknown` は TS 側だけで作る。
+  // `kifu_parse_failed` は Rust も返す（どの文字コードでも復号できなかったとき）
   | "kifu_format_unknown"
   | "kifu_parse_failed"
   // ディスク側の操作は通ったが、設定を書き戻せなかった。Rust は返さない。

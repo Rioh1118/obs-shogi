@@ -53,3 +53,38 @@
   color: rgba(index.$color-text-primary, 0.28);
   pointer-events: none;
 }
+
+// 保存に失敗したことを本文のすぐ下に出す。
+//
+// **画面隅の toast にしない**（ADR-0004 決定4）。直すべき本文から目が離れる。
+// 面も宣言する。宣言しないと `contrastRatchet` が「面が決まらない」として
+// 測れない枠へ落とし、合格も不合格も分からないまま件数だけが増える。
+//
+// 文をコピーできるようにするので `pointer-events` は切らない。
+// エラーの原因は OS の文言がそのまま入るので、検索に貼れないと調べようがない。
+.kifu-comment-note__error {
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-1;
+  background: index.$surface-danger;
+  color: index.$color-danger-text;
+  font-size: index.$font-aux;
+
+  &:not(:empty) {
+    padding: index.$space-2 index.$space-3;
+    border-radius: index.$radius-3;
+  }
+}
+
+.kifu-comment-note__errorHead {
+  font-weight: 600;
+}
+
+.kifu-comment-note__errorCause {
+  font-size: index.$font-hint;
+  word-break: break-word;
+}
+
+.kifu-comment-note__errorHint {
+  font-size: index.$font-hint;
+}

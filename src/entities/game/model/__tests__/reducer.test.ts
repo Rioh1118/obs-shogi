@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { gameReducer } from "../reducer";
 import { initialGameState } from "../types";
+import { asBranchPlan } from "@/entities/kifu/model/cursor";
 
 describe("gameReducer", () => {
   // 同じ参照を返さないと state の identity が変わり、それだけで contextValue が
@@ -16,11 +17,6 @@ describe("gameReducer", () => {
     expect(gameReducer(state, { type: "clear_error" })).toBe(state);
   });
 
-  it("isLoading が同値なら set_loading で同じ state を返す", () => {
-    const state = { ...initialGameState, isLoading: false };
-    expect(gameReducer(state, { type: "set_loading", payload: false })).toBe(state);
-  });
-
   it("値が変わるときは新しい state を返す", () => {
     const selected = {
       ...initialGameState,
@@ -32,8 +28,220 @@ describe("gameReducer", () => {
 
     const errored = { ...initialGameState, error: "boom" };
     expect(gameReducer(errored, { type: "clear_error" }).error).toBeNull();
+  });
+});
 
-    const idle = { ...initialGameState, isLoading: false };
-    expect(gameReducer(idle, { type: "set_loading", payload: true }).isLoading).toBe(true);
+// 書き込みは並行しうる。コメントの自動保存は 900ms 後に、開いている面や
+// 確認ダイアログとは無関係に撃つ。真偽値で持つと、先に終わった1つが
+// **まだ書いている最中に「操作中」を解く**。
+describe("走っている書き込みを数える", () => {
+  it("先に終わった1つでは isLoading が解けない", () => {
+    const one = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    const two = gameReducer(one, { type: "write_started", payload: { blocking: true } });
+    expect(two.isLoading).toBe(true);
+
+    const oneLeft = gameReducer(two, { type: "write_ended", payload: { blocking: true } });
+    expect(oneLeft.isLoading).toBe(true);
+
+    expect(
+      gameReducer(oneLeft, { type: "write_ended", payload: { blocking: true } }).isLoading,
+    ).toBe(false);
+  });
+
+  // 自動保存は行を止めない（利用者が起動していない）。
+  // **同じ参照を返す**ので、それだけで useGame() の消費者が描き直されることも無い。
+  it("止めない書き込みは isLoading も state の identity も動かさない", () => {
+    const bg = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: false },
+    });
+    expect(bg).toBe(initialGameState);
+
+    const blocking = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    expect(blocking.isLoading).toBe(true);
+
+    // 止めない側が終わっても、止めている側は解けない
+    const bgDone = gameReducer(blocking, { type: "write_ended", payload: { blocking: false } });
+    expect(bgDone).toBe(blocking);
+  });
+
+  // A の保存が失敗して返ってきたときに B が読み込まれていると、
+  // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
+  // 別のファイルの失敗が新しく開いたファイルの上に出る。
+  it("書こうとした棋譜がもう別物なら、失敗を積まない", () => {
+    const placed = { header: {}, moves: [{}] };
+    const other = { header: {}, moves: [{}, {}] };
+
+    const onPlaced = gameReducer(
+      { ...initialGameState, jkf: placed },
+      { type: "write_failed", payload: { error: "boom", expectedJkf: placed } },
+    );
+    expect(onPlaced.error).toBe("boom");
+
+    const moved = { ...initialGameState, jkf: other };
+    expect(
+      gameReducer(moved, { type: "write_failed", payload: { error: "boom", expectedJkf: placed } }),
+    ).toBe(moved);
+  });
+
+  // 失敗したのは撃った1本であって、並行して走っている他の書き込みではない。
+  it("set_error は走っている書き込みを終わらせない", () => {
+    const writing = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    const errored = gameReducer(writing, { type: "set_error", payload: "boom" });
+    expect(errored.error).toBe("boom");
+    expect(errored.isLoading).toBe(true);
+  });
+
+  // 0 に戻すと、走っている書き込みの write_ended が負へ落として
+  // 以後 isLoading が二度と立たなくなる。
+  it("棋譜を読み込み直しても、走っている書き込みの本数は持ち越す", () => {
+    const writing = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    const loaded = gameReducer(writing, {
+      type: "game_loaded",
+      payload: {
+        jkf: { header: {}, moves: [{}] },
+        absPath: "/ws/a.kif",
+        cursor: { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" } as never,
+      },
+    });
+    expect(loaded.isLoading).toBe(true);
+    expect(
+      gameReducer(loaded, { type: "write_ended", payload: { blocking: true } }).isLoading,
+    ).toBe(false);
+  });
+
+  // 棋譜を閉じるのも書き込みが走っている最中に起こる（ワークスペースの切り替え）。
+  // 0 に戻すと、次の書き込みが 1 に上げたところへ古い1本の finally が着地して
+  // **まだ書いている最中に isLoading が解ける**。
+  it("棋譜を閉じても、走っている書き込みの本数は持ち越す", () => {
+    const writing = gameReducer(initialGameState, {
+      type: "write_started",
+      payload: { blocking: true },
+    });
+    const reset = gameReducer(writing, { type: "reset_state" });
+    expect(reset.jkf).toBeNull();
+    expect(reset.isLoading).toBe(true);
+    expect(gameReducer(reset, { type: "write_ended", payload: { blocking: true } }).isLoading).toBe(
+      false,
+    );
+  });
+});
+
+describe("jkf_restored", () => {
+  const jkfA = { header: {}, moves: [{}] };
+  const jkfB = { header: {}, moves: [{}, {}] };
+  const cursorA = { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" } as never;
+  const cursorB = { tesuu: 1, forkPointers: [], tesuuPointer: "1,[]" } as never;
+
+  // 書き込みに失敗したときに、置き換える前へ戻す。戻さないとメモリとディスクが
+  // 食い違ったまま次の操作が積み上がり、分岐の削除では**別の枝が消える**。
+  it("棋譜・カーソル・計画をまとめて戻す", () => {
+    const replaced = gameReducer(
+      { ...initialGameState, jkf: jkfA, cursor: cursorA, branchPlan: asBranchPlan([]) },
+      {
+        type: "jkf_replaced",
+        payload: {
+          jkf: jkfB,
+          cursor: cursorB,
+          branchPlan: asBranchPlan([{ te: 1, forkIndex: 0 }]),
+        },
+      },
+    );
+    expect(replaced.jkf).toBe(jkfB);
+
+    const restored = gameReducer(replaced, {
+      type: "jkf_restored",
+      payload: {
+        jkf: jkfA,
+        cursor: cursorA,
+        branchPlan: asBranchPlan([]),
+        expectedJkf: jkfB,
+        restoreCursor: true,
+      },
+    });
+
+    expect(restored.jkf).toBe(jkfA);
+    expect(restored.cursor).toBe(cursorA);
+    expect(restored.branchPlan).toEqual([]);
+  });
+
+  // 戻したことと、戻した理由は別々に伝わる必要がある。
+  // ここで error を消すと、失敗を出した直後に自分で消すことになる。
+  it("error は消さない", () => {
+    const restored = gameReducer(
+      { ...initialGameState, jkf: jkfB, error: "書き込みに失敗しました" },
+      {
+        type: "jkf_restored",
+        payload: {
+          jkf: jkfA,
+          cursor: null,
+          branchPlan: asBranchPlan([]),
+          expectedJkf: jkfB,
+          restoreCursor: true,
+        },
+      },
+    );
+
+    expect(restored.error).toBe("書き込みに失敗しました");
+  });
+
+  // 書き込みを待っている間に、別のファイルが読み込まれたり次の手が指されたりする。
+  // 無条件に戻すと、その編集や読み込みを**巻き戻しが消す**。
+  it("置いた棋譜がもう別物なら戻さない", () => {
+    const jkfC = { header: {}, moves: [{}, {}, {}] };
+    const now = { ...initialGameState, jkf: jkfC, cursor: cursorB };
+
+    const restored = gameReducer(now, {
+      type: "jkf_restored",
+      // 置いたのは jkfB だったが、いまは jkfC（誰かが差し替えた）
+      payload: {
+        jkf: jkfA,
+        cursor: cursorA,
+        branchPlan: asBranchPlan([]),
+        expectedJkf: jkfB,
+        restoreCursor: true,
+      },
+    });
+
+    expect(restored).toBe(now);
+  });
+
+  // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が手を進めている
+  // ことがある。局面を動かさなかった書き込みの巻き戻しで**盤と一覧まで戻すと**、
+  // 何も起きていないのに手数が黙って戻る。
+  it("局面を動かさなかった書き込みでは、カーソルも計画も戻さない", () => {
+    const placed = {
+      ...initialGameState,
+      jkf: jkfB,
+      cursor: cursorB,
+      branchPlan: asBranchPlan([{ te: 1, forkIndex: 0 }]),
+    };
+
+    const restored = gameReducer(placed, {
+      type: "jkf_restored",
+      payload: {
+        jkf: jkfA,
+        cursor: cursorA,
+        branchPlan: asBranchPlan([]),
+        expectedJkf: jkfB,
+        restoreCursor: false,
+      },
+    });
+
+    expect(restored.jkf).toBe(jkfA);
+    expect(restored.cursor).toBe(cursorB);
+    expect(restored.branchPlan).toEqual([{ te: 1, forkIndex: 0 }]);
   });
 });

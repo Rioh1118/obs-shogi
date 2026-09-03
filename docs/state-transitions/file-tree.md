@@ -2,7 +2,8 @@
 
 対象: `src/entities/file-tree/model/provider.tsx` と `src/widgets/file-tree/ui/FileTree.tsx`。
 
-上位は [app.md](app.md)。棋譜そのものの読み込みは `game.md`（未作成）が持つ。
+上位は [app.md](app.md)。棋譜の読み取りとパースはこの表（E11 / S5）が持ち、
+読み込めた JKF をどう扱うかは [game.md](game.md) が持つ。境界は `JKFPlayer` の構築。
 
 ## 状態
 

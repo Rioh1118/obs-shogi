@@ -12,18 +12,18 @@ import { newGoldToTheSameSquarePlayer, newHiratePlayer } from "./fixtures";
  * 手は必ず複製して渡す。applyMoveWithBranch / inputMove は渡された手をそのまま棋譜に
  * 収め、正規化がそれを書き換えるため、共有した定数を渡すと後続のテストが汚れる。
  */
-function play(jkf: JKFPlayer, moves: IMoveMoveFormat[]): void {
+function play(player: JKFPlayer, moves: IMoveMoveFormat[]): void {
   for (const move of moves) {
-    const ok = jkf.inputMove({ ...move });
+    const ok = player.inputMove({ ...move });
     if (!ok) {
-      throw new Error(`inputMove failed at tesuu=${jkf.tesuu} for ${JSON.stringify(move)}`);
+      throw new Error(`inputMove failed at tesuu=${player.tesuu} for ${JSON.stringify(move)}`);
     }
   }
 }
 
 /** 手を複製してから適用する。理由は {@link play} と同じ。 */
-function apply(jkf: JKFPlayer, move: IMoveMoveFormat) {
-  return applyMoveWithBranch(jkf, { ...move });
+function apply(player: JKFPlayer, move: IMoveMoveFormat) {
+  return applyMoveWithBranch(player, { ...move });
 }
 
 const FU_27_TO_26: IMoveMoveFormat = {
@@ -78,22 +78,22 @@ const KI_DROP_39: IMoveMoveFormat = {
 describe("applyMoveWithBranch", () => {
   describe("A. 本線合流", () => {
     test("A1. 次手と完全一致 → forward(), 分岐なし", () => {
-      const jkf = newHiratePlayer();
-      play(jkf, [FU_27_TO_26]);
-      jkf.goto(0);
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
+      player.goto(0);
 
-      const result = apply(jkf, { ...FU_27_TO_26 });
+      const result = apply(player, { ...FU_27_TO_26 });
 
       expect(result.usedExisting).toBe(true);
       expect(result.createdNew).toBe(false);
       expect(result.tesuu).toBe(1);
-      expect(jkf.kifu.moves[1].forks).toBeUndefined();
+      expect(player.kifu.moves[1].forks).toBeUndefined();
     });
 
     test("A4. promote 違い (不成 既存 / 成り 入力) → 新規 fork", () => {
-      const jkf = newHiratePlayer();
+      const player = newHiratePlayer();
       // 2四歩交換まで進めて 2五歩 / 8五歩 の局面を作る
-      play(jkf, [
+      play(player, [
         FU_27_TO_26,
         FU_83_TO_84,
         FU_26_TO_25,
@@ -113,92 +113,92 @@ describe("applyMoveWithBranch", () => {
         color: Color.Black,
         promote: false,
       };
-      const r1 = apply(jkf, ascend);
+      const r1 = apply(player, ascend);
       expect(r1.createdNew).toBe(true);
 
       // 同位置で promote=true → 別 fork
-      jkf.backward();
-      const r2 = apply(jkf, { ...ascend, promote: true });
+      player.backward();
+      const r2 = apply(player, { ...ascend, promote: true });
 
       expect(r2.createdNew).toBe(true);
       expect(r2.usedExisting).toBe(false);
-      expect(jkf.kifu.moves[5].forks?.length).toBe(1);
+      expect(player.kifu.moves[5].forks?.length).toBe(1);
     });
   });
 
   describe("B. 既存変化合流", () => {
     test("B1. forks[0] と一致 → forkAndForward, fork は増えない", () => {
-      const jkf = newHiratePlayer();
-      play(jkf, [FU_27_TO_26]);
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
 
-      jkf.goto(0);
-      const r1 = apply(jkf, FU_77_TO_76);
+      player.goto(0);
+      const r1 = apply(player, FU_77_TO_76);
       expect(r1.createdNew).toBe(true);
-      expect(jkf.kifu.moves[1].forks?.length).toBe(1);
+      expect(player.kifu.moves[1].forks?.length).toBe(1);
 
-      jkf.goto(0);
-      const r2 = apply(jkf, { ...FU_77_TO_76 });
+      player.goto(0);
+      const r2 = apply(player, { ...FU_77_TO_76 });
 
       expect(r2.usedExisting).toBe(true);
       expect(r2.createdNew).toBe(false);
-      expect(jkf.tesuu).toBe(1);
-      expect(jkf.kifu.moves[1].forks?.length).toBe(1);
+      expect(player.tesuu).toBe(1);
+      expect(player.kifu.moves[1].forks?.length).toBe(1);
     });
 
     test("B2. 複数 fork のうち 2 番目 forks[1] に合流", () => {
-      const jkf = newHiratePlayer();
-      play(jkf, [FU_27_TO_26]);
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
 
-      jkf.goto(0);
-      apply(jkf, FU_77_TO_76);
-      jkf.goto(0);
-      apply(jkf, FU_57_TO_56);
-      expect(jkf.kifu.moves[1].forks?.length).toBe(2);
+      player.goto(0);
+      apply(player, FU_77_TO_76);
+      player.goto(0);
+      apply(player, FU_57_TO_56);
+      expect(player.kifu.moves[1].forks?.length).toBe(2);
 
-      jkf.goto(0);
-      const r = apply(jkf, { ...FU_57_TO_56 });
+      player.goto(0);
+      const r = apply(player, { ...FU_57_TO_56 });
       expect(r.usedExisting).toBe(true);
-      expect(jkf.kifu.moves[1].forks?.length).toBe(2);
-      expect(jkf.tesuu).toBe(1);
+      expect(player.kifu.moves[1].forks?.length).toBe(2);
+      expect(player.tesuu).toBe(1);
     });
   });
 
   describe("C. 新規分岐追加 (#74 回帰テスト)", () => {
     test("C1. 末端で新規追加 → 本線末尾に追加 (forks ではない)", () => {
-      const jkf = newHiratePlayer();
-      const r = apply(jkf, FU_27_TO_26);
+      const player = newHiratePlayer();
+      const r = apply(player, FU_27_TO_26);
 
       expect(r.createdNew).toBe(true);
-      expect(jkf.tesuu).toBe(1);
-      expect(jkf.kifu.moves.length).toBe(2);
-      expect(jkf.kifu.moves[1].forks).toBeUndefined();
+      expect(player.tesuu).toBe(1);
+      expect(player.kifu.moves.length).toBe(2);
+      expect(player.kifu.moves[1].forks).toBeUndefined();
     });
 
     test("C2. 次手存在 / forks 未定義 → forks[0] を作って追加", () => {
-      const jkf = newHiratePlayer();
-      play(jkf, [FU_27_TO_26]);
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
 
-      jkf.goto(0);
-      const r = apply(jkf, FU_77_TO_76);
+      player.goto(0);
+      const r = apply(player, FU_77_TO_76);
 
       expect(r.createdNew).toBe(true);
       expect(r.usedExisting).toBe(false);
-      expect(jkf.kifu.moves[1].forks?.length).toBe(1);
-      expect(jkf.tesuu).toBe(1);
+      expect(player.kifu.moves[1].forks?.length).toBe(1);
+      expect(player.tesuu).toBe(1);
     });
 
     test("C3. 次手存在 / forks 既存 → 末尾に追加", () => {
-      const jkf = newHiratePlayer();
-      play(jkf, [FU_27_TO_26]);
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
 
-      jkf.goto(0);
-      apply(jkf, FU_77_TO_76); // fork[0]
-      jkf.goto(0);
-      const r = apply(jkf, FU_57_TO_56); // fork[1]
+      player.goto(0);
+      apply(player, FU_77_TO_76); // fork[0]
+      player.goto(0);
+      const r = apply(player, FU_57_TO_56); // fork[1]
 
       expect(r.createdNew).toBe(true);
-      expect(jkf.kifu.moves[1].forks?.length).toBe(2);
-      expect(jkf.kifu.moves[1].forks?.[1][0].move?.from).toEqual({ x: 5, y: 7 });
+      expect(player.kifu.moves[1].forks?.length).toBe(2);
+      expect(player.kifu.moves[1].forks?.[1][0].move?.from).toEqual({ x: 5, y: 7 });
     });
 
     test("C4. ★ 既存=指し手 (from 有り) / 入力=打ち (from 無し) → 別 fork", () => {
@@ -243,17 +243,17 @@ describe("applyMoveWithBranch", () => {
     });
 
     test("C6. 既存 fork[0] と別 from の指し手は別 fork として追加", () => {
-      const jkf = newHiratePlayer();
-      play(jkf, [FU_27_TO_26]);
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
 
-      jkf.goto(0);
-      apply(jkf, FU_77_TO_76);
-      jkf.goto(0);
-      apply(jkf, FU_57_TO_56);
+      player.goto(0);
+      apply(player, FU_77_TO_76);
+      player.goto(0);
+      apply(player, FU_57_TO_56);
 
-      expect(jkf.kifu.moves[1].forks?.length).toBe(2);
-      expect(jkf.kifu.moves[1].forks?.[0][0].move?.from).toEqual({ x: 7, y: 7 });
-      expect(jkf.kifu.moves[1].forks?.[1][0].move?.from).toEqual({ x: 5, y: 7 });
+      expect(player.kifu.moves[1].forks?.length).toBe(2);
+      expect(player.kifu.moves[1].forks?.[0][0].move?.from).toEqual({ x: 7, y: 7 });
+      expect(player.kifu.moves[1].forks?.[1][0].move?.from).toEqual({ x: 5, y: 7 });
     });
   });
 });

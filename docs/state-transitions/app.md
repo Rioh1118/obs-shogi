@@ -45,7 +45,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 | ------ | ----------- | ---------------- | ---------------------------------------- | -------------------------------------------- | --------------- | -------------------------------- | ------------------------------ | --------------------- | ---------------------------------- | --------------------------- |
 | **A0** | → A1/A2     | **`/` に戻す**※1 | —                                        | —                                            | —               | —                                | —                              | —                     | —                                  | —                           |
 | **A1** | —           | —                | → A2                                     | —                                            | —               | 設定は保存される                 | —                              | —                     | —                                  | —                           |
-| **A2** | —           | —                | ツリー再読込 → [file-tree](file-tree.md) | → A3 → [game](#未作成の表)                   | —               | → [engine](engine.md)            | → A2（棋譜が無くても起動する） | → [engine](engine.md) | —                                  | → [file-tree](file-tree.md) |
+| **A2** | —           | —                | ツリー再読込 → [file-tree](file-tree.md) | → A3 → [game](game.md)                       | —               | → [engine](engine.md)            | → A2（棋譜が無くても起動する） | → [engine](engine.md) | —                                  | → [file-tree](file-tree.md) |
 | **A3** | —           | —                | → A2（棋譜を閉じる）※2                   | 別の棋譜へ                                   | → A2            | → [engine](engine.md)            | → **A4**                       | —                     | 開始できない※3                     | → [file-tree](file-tree.md) |
 | **A4** | —           | —                | → A2                                     | 別の棋譜へ → [sync](engine-position-sync.md) | → A3            | 再起動 → [engine](engine.md)     | —                              | → **A3**              | → **A5** → [analysis](analysis.md) | → [file-tree](file-tree.md) |
 | **A5** | —           | —                | → A2※4                                   | 局面が変わる → [analysis](analysis.md)       | → A3※4          | 再起動 → [analysis](analysis.md) | —                              | → A3※4                | → A4                               | → [file-tree](file-tree.md) |
@@ -57,8 +57,8 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 → [failure-surfacing.md](failure-surfacing.md) F-1
 
 ※2 ワークスペースを変えたときに開いている棋譜がどうなるかは
-`GamePersistenceGate` / `GameFileTreeBridge` が決めている。**この表では追えていない。**
-`game.md` を書くときに埋める
+[game.md](game.md) の E15 と ※4 が持つ。取得に失敗しても、棋譜が新しい根の外なら閉じる（`game.md` の ※4）。
+**読み込み中の窓は未検証** — 取得の途中で編集が走った場合の順序は決めていない
 
 ※3 `startInfiniteAnalysis` が `throw new Error("Engine not ready")` を投げるが、
 呼び出し元（`AnalysisPaneHeader:84`）は `console.error` で終わる。**押しても何も起きない**

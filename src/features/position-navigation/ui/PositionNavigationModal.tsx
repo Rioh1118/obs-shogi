@@ -7,12 +7,12 @@ import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
 import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
-import { truncatePlanFrom, upsertForkPointer } from "@/features/position-navigation/lib/kifuPlan";
+import { descendTo } from "@/entities/kifu/model/cursor";
 import PositionNavigationHeader from "./PositionNavigationHeader";
 import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
-import { normalizeForkPointers } from "@/entities/kifu/model/cursor";
-import type { KifuCursor, TesuuPointer } from "@/entities/kifu/model/cursor";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import type { CursorPath } from "@/entities/kifu/model/cursor";
 import type { BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
 
@@ -20,16 +20,16 @@ import type { NavigationState } from "@/features/position-navigation/model/types
  * プレビュー用に棋譜を辿る。辿れなければ null。
  *
  * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
- * `goto` が throw する。呼び出し側はレンダ中なので、ここで拾わないと画面が消える。
+ * `goto` が throw する。呼び出し側はレンダ中なので、拾わないと
+ * `AppModalLayer` を包む `AppErrorBoundary`（`pages/AppLayout.tsx`）が受け、
+ * モーダルが丸ごと「表示中にエラーが発生しました」に置き換わる。
+ * **ここで拾うのは、どの手が再現できないかを名指しした文言を出すため。**
+ *
+ * 棋譜を複製せず共有してよいのは、ここが読むだけで `player.kifu` を書かないため。
  */
-function gotoPreview(
-  player: JKFPlayer,
-  cursor: NavigationState["PreviewCursor"],
-): JKFPlayer | null {
-  const sim = new JKFPlayer(player.kifu);
+function buildPreviewPlayer(player: JKFPlayer, cursor: CursorPath): JKFPlayer | null {
   try {
-    sim.goto(cursor.tesuu, normalizeForkPointers(cursor.forkPointers, cursor.tesuu));
-    return sim;
+    return buildPlayer(player.kifu, cursor);
   } catch {
     return null;
   }
@@ -42,7 +42,7 @@ function PositionNavigationModal() {
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
   const [nav, setNav] = useState<NavigationState>({
-    PreviewCursor: { tesuu: 0, forkPointers: [] },
+    previewCursor: { tesuu: 0, forkPointers: [] },
     selectedOptionIndex: 0,
   });
 
@@ -55,7 +55,7 @@ function PositionNavigationModal() {
 
     const cur = gameView.player ? gameState.cursor : null;
     setNav({
-      PreviewCursor: {
+      previewCursor: {
         tesuu: cur?.tesuu ?? 0,
         forkPointers: cur?.forkPointers ?? [],
       },
@@ -68,10 +68,8 @@ function PositionNavigationModal() {
       return { previewData: null, options: [] as BranchOption[], unreachable: false };
     }
 
-    // 盤上で再生できない手を含む棋譜では goto が throw する。ここはレンダ中なので、
-    // 拾わないと React が root ごと unmount してウィンドウが白紙になる。
-    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
-    if (!sim) {
+    const player = buildPreviewPlayer(gameView.player, nav.previewCursor);
+    if (!player) {
       return {
         previewData: null,
         options: [] as BranchOption[],
@@ -80,11 +78,11 @@ function PositionNavigationModal() {
     }
 
     return {
-      previewData: buildPreviewData(sim, sim.getTesuuPointer(nav.PreviewCursor.tesuu)),
-      options: buildNextOptions(sim),
+      previewData: buildPreviewData(player, player.getTesuuPointer(nav.previewCursor.tesuu)),
+      options: buildNextOptions(player),
       unreachable: false,
     };
-  }, [isOpen, gameView.player, nav.PreviewCursor]);
+  }, [isOpen, gameView.player, nav.previewCursor]);
 
   const handleSelectBranch = useCallback(
     (delta: number) => {
@@ -103,21 +101,12 @@ function PositionNavigationModal() {
     if (options.length === 0) return;
 
     setNav((prev) => {
-      const nextTe = prev.PreviewCursor.tesuu + 1;
+      const nextTe = prev.previewCursor.tesuu + 1;
       const sel = options[prev.selectedOptionIndex];
       if (!sel) return prev;
 
-      // nextTe の選択を変える以上、その先の計画は捨てる。捨てないと、
-      // 変化を見て戻って選び直したあとに、見ていない枝へ盤が進む。
-      const fps = sel.isMainLine
-        ? truncatePlanFrom(prev.PreviewCursor.forkPointers, nextTe)
-        : upsertForkPointer(
-            truncatePlanFrom(prev.PreviewCursor.forkPointers, nextTe),
-            nextTe,
-            sel.forkIndex,
-          );
       return {
-        PreviewCursor: { tesuu: nextTe, forkPointers: fps },
+        previewCursor: descendTo(prev.previewCursor, nextTe, sel.isMainLine ? null : sel.forkIndex),
         selectedOptionIndex: 0,
       };
     });
@@ -125,11 +114,11 @@ function PositionNavigationModal() {
 
   const handlePrevious = useCallback(() => {
     setNav((prev) => {
-      if (prev.PreviewCursor.tesuu <= 0) return prev;
+      if (prev.previewCursor.tesuu <= 0) return prev;
       return {
-        PreviewCursor: {
-          ...prev.PreviewCursor,
-          tesuu: prev.PreviewCursor.tesuu - 1,
+        previewCursor: {
+          ...prev.previewCursor,
+          tesuu: prev.previewCursor.tesuu - 1,
         },
         selectedOptionIndex: 0,
       };
@@ -137,20 +126,15 @@ function PositionNavigationModal() {
   }, []);
 
   const handleConfirm = useCallback(() => {
-    if (!gameView.player) return;
+    // 辿れない棋譜では `applyCursor` が catch してエラーを残すだけになる。閉じずにここで止める。
+    // 判定は上の memo が出した `unreachable` を使う。ここで辿り直すと、
+    // 「辿り着けるか」の答えが2箇所にでき、画面には「再現できません」と出ているのに
+    // Enter だけ通る、という食い違いが起きうる。
+    if (!gameView.player || unreachable) return;
 
-    const sim = gotoPreview(gameView.player, nav.PreviewCursor);
-    if (!sim) return;
-
-    const cursor: KifuCursor = {
-      tesuu: nav.PreviewCursor.tesuu,
-      forkPointers: nav.PreviewCursor.forkPointers,
-      tesuuPointer: sim.getTesuuPointer(nav.PreviewCursor.tesuu) as TesuuPointer,
-    };
-
-    applyCursor(cursor);
+    applyCursor(nav.previewCursor);
     closeModal();
-  }, [applyCursor, closeModal, gameView.player, nav.PreviewCursor]);
+  }, [applyCursor, closeModal, gameView.player, nav.previewCursor, unreachable]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -220,7 +204,7 @@ function PositionNavigationModal() {
                 <div className="branch-selector">
                   <div className="branch-selector__empty">
                     <p>
-                      この棋譜は{nav.PreviewCursor.tesuu}
+                      この棋譜は{nav.previewCursor.tesuu}
                       手目を盤上で再現できません。ここから先へは進めません。
                     </p>
                   </div>

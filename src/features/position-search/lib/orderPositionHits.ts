@@ -1,9 +1,15 @@
+import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
+import { cursorKey } from "@/entities/kifu/model/cursor";
 
+/**
+ * ヒットの同一性。索引の位置（file / gen / node）とカーソルの組。
+ *
+ * カーソル側の直列化は `cursorFromLite` → `cursorKey` に任せる。ここで自前に
+ * 組み直すと、鍵の書式が2つになる。
+ */
 export const hitKey = (h: PositionHit) =>
-  `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${h.cursor.tesuu}:${h.cursor.forkPointers
-    .map((p) => `${p.te}-${p.forkIndex}`)
-    .join(",")}`;
+  `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${cursorKey(cursorFromLite(h.cursor))}`;
 
 export function orderPositionHits(
   hits: PositionHit[],

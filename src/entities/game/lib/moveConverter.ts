@@ -1,4 +1,5 @@
 import type { Color, IMove, Kind } from "shogi.js";
+import type { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { StandardMoveFormat } from "@/entities/game/model/types";
 
@@ -26,4 +27,16 @@ export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFo
     color: standardMove.color,
     ...(standardMove.promote !== undefined ? { promote: standardMove.promote } : {}),
   };
+}
+
+/**
+ * 直前の手を、盤の着手表示が要る形にする。
+ *
+ * `to` を持たない手（投了・中断などの `special`）は指す升が無いので `null`。
+ */
+export function lastMoveHighlight(player: JKFPlayer) {
+  if (player.tesuu === 0) return null;
+  const mv = player.getMove();
+  if (!mv || !mv.to) return null;
+  return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
 }

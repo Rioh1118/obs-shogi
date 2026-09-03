@@ -82,6 +82,7 @@ dependencies = [
  "notify",
  "parking_lot",
  "rayon",
+ "regex",
  "serde",
  "serde_json",
  "shogi-kifu-converter",
@@ -3975,8 +3976,8 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "shogi-kifu-converter"
-version = "0.3.0"
-source = "git+https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git?tag=v0.3.1#83bf1388de14ed8ab8a759b4888e9bb59f446d4c"
+version = "0.5.0"
+source = "git+https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git?tag=v0.5.0#b19a57e49803c2feb3c8ad4f97c8b5f5290e8e2d"
 dependencies = [
  "csa",
  "encoding_rs",

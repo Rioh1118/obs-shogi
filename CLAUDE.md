@@ -22,9 +22,13 @@ docs や `.claude/` だけの変更は素通しする。**ただし `docs/state-
 途中で見つけた既存の問題の扱い・PR までの順序をそこに置いてある。
 
 - `/review-round` — 観点ごとの reviewer を並列で走らせ `.claude/reviews/` に報告書を書く
-- `/review-fix` — 報告書の所見を1件1コミットで直し、結果を報告書に書き戻す
+- `/review-plan` — 1ラウンド分の所見を読み切り、直す順と「その修正が壊しうるもの」を報告書に書く
+- `/review-fix` — 計画の順に所見を1件1コミットで直し、結果を報告書に書き戻す
 
 指摘がゼロのラウンドが1回出るまでこのループを終わらせない。
+
+**画面に触る前に `docs/spec/` を読む。** 画面ごとに「いま何ができて、何ができないか」が
+書いてある。触った画面の仕様が現物と違うようになったら、同じ PR で直す。
 
 ## コメント
 
@@ -65,8 +69,9 @@ lint が強制する。`vite.config.ts` の `no-restricted-imports` をレイヤ
 
 ## 既知の落とし穴
 
-- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。パースは `indexOf(",")` で分割し後半を `JSON.parse`。この手書きパースが複数箇所に重複しているので、触るなら共通化を検討する
-- `JKFPlayer.goto(tesuu, forkPointers)` は goto 後に `tesuu` が一致しなければ stale として扱う
+- **`KifuCursor` を作る口は `cursorFromPlayer`（`entities/kifu/lib/playerCursor.ts`）と定数の `ROOT_CURSOR` だけ。** `tesuuPointer` の欄に入れてよいのは再生器が返した**観測値**で、要求の鍵（`cursorKey`）を入れない。入れると着けもしない局面の識別子が `state.cursor` に入り、移動前後の比較が「動いていない」と誤判定して**盤が止まるのにエラーも出ない**。要求の鍵は `CursorKey` という別の型なので、観測の欄に入れると tsc が落とす。キャストとスプレッドは `src/__tests__/cursorConstruction.test.ts` が見る
+- `tesuuPointer` は `"7,[{\"te\":3,\"forkIndex\":0}]"` 形式。**解く経路はリポジトリに1つも無い。** 分解したくなったら、それは `KifuCursor` の `tesuu` / `forkPointers` を直接見るべき合図。鍵を組む側は `cursorKey`（`entities/kifu/model/cursor.ts`）に寄せる。正規化を通すのはこれだけで、整形だけを担う `formatPointer` は同ファイルの非公開
+- **要求した局面に着いたかは `tesuu` では判定できない。** `goto` は届かなければ黙って止まり、実在しない変化は黙って捨てて同じ `tesuu` の別の線に着く。突き合わせは `reachedCursor`（`entities/kifu/lib/playerCursor.ts`）を通す
 - JSX 内の全角スペースは `no-irregular-whitespace` で lint エラーになる → `{"　"}` で囲む
 - SCSS トークンは `@use "@/index.scss" as index;` で読み込む
 - SCSS の寸法は直値を書かず `src/index.scss` のトークンから選ぶ。**文字サイズはサイズ名でなく用途名**

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { useDynamicRowHeight } from "react-window";
 import { useAppConfig } from "@/entities/app-config";
 import "./PositionSearchHitList.scss";
 import { useGame } from "@/entities/game";
@@ -14,7 +15,11 @@ type Props = {
   isSearching: boolean;
   error: string | null;
   resolveAbsPath: (hit: PositionHit) => string | null;
-  acceptOnClick?: boolean;
+
+  /** 検索する局面があるか。無ければ検索はそもそも走らない */
+  hasQuery: boolean;
+  /** 索引が更新中で、結果が最新とは限らない */
+  stale: boolean;
 };
 
 export default function PositionSearchHitList({
@@ -25,10 +30,21 @@ export default function PositionSearchHitList({
   isSearching,
   error,
   resolveAbsPath,
-  acceptOnClick = false,
+  hasQuery,
+  stale,
 }: Props) {
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
+
+  // 行の高さは `PositionHitItem.scss` だけが決める。ここで固定値を持つと、
+  // 文字サイズや余白を動かしたときに**カードだけが伸びてスロットからはみ出し**、
+  // 次の行が上のカードの裾を覆う（行は絶対配置なので、はみ出しても押しのけない）。
+  // 実測に任せておけば、両者がずれるという状態自体が作れない。
+  //
+  // `defaultRowHeight` は実測が付くまでの見積もりにしか使われないので、
+  // 現物とぴったり合っている必要はない。スクロールバーの長さが最初の1フレームだけ
+  // ずれる以外の影響は無い。
+  const rowHeight = useDynamicRowHeight({ defaultRowHeight: 72 });
 
   const rootDir = config?.root_dir ?? null;
   const currentAbs = gameState.loadedAbsPath ?? null;
@@ -42,37 +58,36 @@ export default function PositionSearchHitList({
     () => ({
       hits,
       activeIndex,
-      isSearching,
       rootDir,
       currentAbs,
       relCache: relCacheRef.current,
       resolveAbsPath,
       onActiveIndexChange,
       onAccept,
-      acceptOnClick,
     }),
-    [
-      hits,
-      activeIndex,
-      isSearching,
-      rootDir,
-      currentAbs,
-      resolveAbsPath,
-      onActiveIndexChange,
-      onAccept,
-      acceptOnClick,
-    ],
+    [hits, activeIndex, rootDir, currentAbs, resolveAbsPath, onActiveIndexChange, onAccept],
   );
 
   if (hits.length === 0) {
     return (
       <section className="pos-search__results" aria-label="検索結果">
-        <div className="pos-search__empty" role="status" aria-live="polite">
-          {isSearching
-            ? "検索結果を受信中…"
-            : error
-              ? "検索に失敗しました"
-              : "一致する棋譜がありません"}
+        <div
+          className={["pos-search__empty", error ? "pos-search__empty--error" : ""].join(" ")}
+          role="status"
+          aria-live="polite"
+        >
+          {/* 「検索していない」と「検索して0件だった」を同じ文言にしない。
+              状態行が「待機中」と言っているのに一覧が「一致しない」と言うと、
+              どちらが起きたのか読み手が決められない */}
+          {!hasQuery
+            ? "検索する局面がありません"
+            : isSearching
+              ? "検索結果を受信中…"
+              : error
+                ? `検索に失敗しました: ${error}`
+                : stale
+                  ? "一致する棋譜がありません（索引の更新中なので、増える場合があります）"
+                  : "一致する棋譜がありません"}
         </div>
       </section>
     );
@@ -80,18 +95,32 @@ export default function PositionSearchHitList({
 
   return (
     <section className="pos-search__results" aria-label="検索結果">
-      <div className="pos-search__listVirtual" role="listbox">
-        <VirtualList<HitRowProps>
-          rowCount={hits.length}
-          rowHeight={78}
-          rowComponent={VirtualHitRow}
-          rowProps={rowProps}
-          followIndex={activeIndex}
-          followAlign="auto"
-          followBehavior="instant"
-          overscanCount={8}
-        />
-      </div>
+      {/* 途中で失敗しても、届いたぶんは出したまま残す。ただし黙って残すと
+          「これで全部」と読めるので、打ち切られたことをここで言う */}
+      {error && (
+        <div className="pos-search__notice" role="status" aria-live="polite">
+          途中で失敗したので、これで全部とは限りません: {error}
+        </div>
+      )}
+
+      {/* listbox は行を実際に収めている器（＝スクロールする要素）に置く。
+          包む div に置くと、行とのあいだに要素が挟まって option の持ち主でなくなる */}
+      <VirtualList<HitRowProps>
+        className="pos-search__listVirtual"
+        role="listbox"
+        aria-label="検索結果"
+        // 選択している行が画面外へ出て消えるあいだ、焦点を預かる先。
+        // ここが無いと焦点が <body> へ落ち、`Modal` の引き戻しが別の行を掴む
+        tabIndex={-1}
+        rowCount={hits.length}
+        rowHeight={rowHeight}
+        rowComponent={VirtualHitRow}
+        rowProps={rowProps}
+        followIndex={activeIndex}
+        followAlign="auto"
+        followBehavior="instant"
+        overscanCount={8}
+      />
     </section>
   );
 }

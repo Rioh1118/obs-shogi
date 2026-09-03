@@ -1,36 +1,87 @@
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
-import { JKFPlayer } from "json-kifu-format";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
 import {
+  cursorKey,
+  descendTo,
+  plannedCursorFrom,
+  type CursorPath,
+  type ForkPointer,
+} from "@/entities/kifu/model/cursor";
+import {
+  branchLabel,
+  forkIndexOrNull,
   neighborBranchIndex,
   MAIN_LINE,
   type BranchIndex,
   type DeleteQuery,
   type SwapQuery,
 } from "@/entities/kifu/model/branch";
+import { countMovesToDelete } from "@/entities/kifu/lib/branchEdit";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
-import { branchIndexFromRow, buildCursorWithForkSelection } from "../lib/cursorSelection";
+import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
+import { kifuRowId } from "../lib/rowId";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
+
+/**
+ * 連続移動とみなす間隔（ミリ秒）。これ以内の再入なら、譲る側は撃たず、
+ * 撃つ側も smooth をやめて追従を優先する。`revealRow` の2つの判断がこれを共有する。
+ * 値の根拠は未測定の経験則。
+ */
+const RECENT_SCROLL_MS = 120;
 
 type OpenMoveMenu = { te: number; anchorRect: DOMRect };
 type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
-type OpenCommentNote = {
-  cursor: KifuCursor;
-  anchorEl: HTMLButtonElement;
+/**
+ * 削除の確認に出すもの。
+ *
+ * クエリをそのまま持つ。確認のあとで組み直すと、押した行と実際に消える枝が
+ * 食い違いうる（間に棋譜が変わる）。
+ */
+type PendingDelete = {
+  query: DeleteQuery;
+  /** 押した時点の棋譜。ここが今の棋譜と違うなら、この確認はもう別のファイルの話 */
+  absPath: string | null;
+  /** 「本譜」か「変化N」 */
+  label: string;
+  /** 消える線の1手目。読めなければ空 */
+  firstMove: string;
+  /** 消える手数。数えられなければ null（数を伏せて確認だけ出す） */
+  moveCount: number | null;
+  /** 削除に失敗した理由。出るまで確認は閉じない */
+  error?: string;
 };
+type OpenCommentNote = {
+  cursor: CursorPath;
+  anchorEl: HTMLButtonElement;
+  /** 開いた時点の棋譜。ここが今の棋譜と違うなら、書き込み先と中身が食い違っている */
+  absPath: string | null;
+};
+
+/**
+ * 確認に出す一文。
+ *
+ * **主語を空にしない。** 1手目も手数も欠けたときに
+ * `.filter(Boolean).join()` で組むと「が消えます。」で始まる文になり、
+ * **何が消えるのか1つも書かれていない確認**を取り消せない操作に出すことになる。
+ */
+function describeDelete(pending: PendingDelete): string {
+  const what = pending.firstMove ? `${pending.firstMove} から先` : pending.label;
+  const size = pending.moveCount === null ? "手数は数えられませんでした" : `${pending.moveCount}手`;
+  return `${what}（${size}）が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
+}
 
 export default function KifuStreamList() {
   const { state, view, goToIndex, getTotalMoves, applyCursor, deleteBranch, swapBranches } =
     useGame();
 
   const listRef = useRef<HTMLDivElement | null>(null);
-  const activeRowRef = useRef<HTMLDivElement | null>(null);
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
@@ -40,24 +91,39 @@ export default function KifuStreamList() {
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const lastForkTeRef = useRef<number | null>(null);
 
   const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const plannedCursor = useMemo(() => {
-    if (!state.cursor) return null;
-    return {
-      ...state.cursor,
-      forkPointers: state.branchPlan,
-    };
-  }, [state.cursor, state.branchPlan]);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+  /**
+   * いま書いている最中の削除。**どの削除かまで持つ。**
+   *
+   * **`state.isLoading` を使わない。** あれは「棋譜への書き込みが1つ以上走っている」で、
+   * 誰の書き込みかを区別しない。コメントの自動保存が並行して終わると
+   * 「削除中...」が解け、まだ書いている最中に「削除する」を押し直せる。
+   * そのとき候補列は既に1つ減っているので、**確認していない枝が消える。**
+   *
+   * 真偽値1つでも足りない。実行中でも確認は閉じられる（塞ぐと出口ゼロの
+   * 行き止まりになる）ので、閉じてから**別の枝**の確認を開ける。
+   * 誰の書き込みかを持たないと、その新しい確認が最初から「削除中...」で出る。
+   */
+  const [deleting, setDeleting] = useState<DeleteQuery | null>(null);
 
+  const plannedCursor = useMemo(
+    () => plannedCursorFrom(state.cursor, state.branchPlan),
+    [state.cursor, state.branchPlan],
+  );
+
+  // TODO(#295): buildStreamRowsFromCursor は盤上で再生できない手で投げる。ここは
+  // レンダ中なので AppErrorBoundary が受けて棋譜ペインが行き止まりになる。
+  // try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
   const rows = useMemo(() => {
     if (!view.player) return [];
     // 一覧を組むための再生用に、盤の player とは別の player を立てる。
     // buildStreamRowsFromCursor は棋譜を書き換えない契約なので、棋譜は共有してよい。
-    const viewer = new JKFPlayer(view.player.kifu);
-    return buildStreamRowsFromCursor(viewer, plannedCursor);
+    return buildStreamRowsFromCursor(buildPlayer(view.player.kifu, null), plannedCursor);
   }, [view.player, plannedCursor]);
 
   const totalMoves = view.player ? getTotalMoves() : 0;
@@ -67,13 +133,50 @@ export default function KifuStreamList() {
     setOpenComment(null);
   }, []);
 
-  const closeForkMenu = useCallback((focusAnchor: boolean) => {
-    const anchor = lastAnchorRef.current;
-    setOpenFork(null);
-    if (focusAnchor) {
-      requestAnimationFrame(() => anchor?.focus());
-    }
+  /**
+   * 行を見える位置へ戻す。位置合わせの入口はここ1つで、幾何の計算は
+   * `scrollToRowSafeZone` が持つ。
+   *
+   * 行は scroller の中を id で引く。`closest` で親を辿ると unmount 済みの行を掴み、
+   * 切り離された要素の `offsetTop` は 0 なのでリストが先頭まで飛ぶ。
+   *
+   * `yieldToRecent` は「直前に誰かが位置を決めていたら譲る」。局面が変わる経路では
+   * カーソル変化の effect が先に走っており、同じ行へ撃ち直すと effect が選んだ
+   * smooth を開始直後に打ち切ってしまう。
+   */
+  const revealRow = useCallback((te: number, yieldToRecent: boolean) => {
+    const scroller = listRef.current;
+    const rowEl = scroller?.querySelector<HTMLElement>(`#${kifuRowId(te)}`);
+    if (!scroller || !rowEl) return;
+
+    const now = performance.now();
+    const dt = now - lastScrollAtRef.current;
+    if (yieldToRecent && dt < RECENT_SCROLL_MS) return;
+    lastScrollAtRef.current = now;
+
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    scrollToRowSafeZone(scroller, rowEl, reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth");
   }, []);
+
+  const closeForkMenu = useCallback(
+    (focusAnchor: boolean) => {
+      const anchor = lastAnchorRef.current;
+      const te = lastForkTeRef.current;
+      setOpenFork(null);
+      if (!focusAnchor) return;
+
+      requestAnimationFrame(() => {
+        // focus 既定のスクロールは「見えるところまで」で、セーフゾーン寄せを上書きするので切る。
+        anchor?.focus({ preventScroll: true });
+
+        // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
+        // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
+        // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
+        if (te != null) revealRow(te, true);
+      });
+    },
+    [revealRow],
+  );
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
   // インラインのアロー関数を挟むと全行の memo が外れる。
@@ -102,35 +205,122 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      await swapBranches(q);
+      // 失敗しても画面に出す場所がまだ無い。巻き戻しはメモリの側で効く → #277
+      await swapBranches(q); // async-result-ignored: 出口が無い（#277）
     },
     [swapBranches],
   );
 
+  // 押した瞬間には消さない。**確認を挟む。**
+  //
+  // 分岐メニューの「削除」は「上へ」「下へ」と同じポップオーバーの中にあり、
+  // 区切り線1本しか隔てていない。取り消しは無く（ADR-0004 決定8 は undo を採らない）、
+  // `deleteBranch` は消したうえで元のファイルへ即書き込む。誤クリックでも同じ結果になる。
   const onDeleteBranch = useCallback(
-    async (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
-      const q: DeleteQuery = {
+    (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => {
+      const query: DeleteQuery = {
         te,
         forkPointers: branchForkPointers,
         target: branchIndex,
       };
-      await deleteBranch(q);
+
+      const row = rows.find((r) => r.te === te);
+      const forkIndex = forkIndexOrNull(branchIndex) ?? undefined;
+
+      // 数えるのは実際に消す関数と同じ経路。`q` を解決できないクエリはここで throw する。
+      // そのときは数を伏せて確認だけ出す（**数が出ないことを理由に確認を飛ばさない**）。
+      // ただし throw の有無は削除が通るかの保証ではない。`cursor` 由来の失敗は
+      // ここでは起こしようがないので、数が出ても削除が落ちる経路は残る → #277
+      let moveCount: number | null = null;
+      if (state.jkf) {
+        try {
+          moveCount = countMovesToDelete(state.jkf, query);
+        } catch {
+          moveCount = null;
+        }
+      }
+
+      setOpenFork(null);
+      setOpenMoveMenu(null);
+      setPendingDelete({
+        query,
+        absPath: state.loadedAbsPath,
+        label: branchLabel(forkIndex),
+        firstMove: (forkIndex === undefined ? row?.mainText : row?.forkTexts[forkIndex]) ?? "",
+        moveCount,
+      });
     },
-    [deleteBranch],
+    [rows, state.jkf, state.loadedAbsPath],
   );
+
+  // 失敗が返るのを待っている間に棋譜が変わりうるので、突き合わせは**返った時点**の値で行う
+  const loadedAbsPathRef = useRef(state.loadedAbsPath);
+  useEffect(() => {
+    loadedAbsPathRef.current = state.loadedAbsPath;
+  });
+
+  // **閉じるのは書けたときだけ。** 先に閉じると `isLoading` も「削除中...」も
+  // 一度も描かれず、失敗しても画面からは枝が消えたように見える（ファイルには残る）。
+  // 確認文で「棋譜ファイルもすぐ書き換わります」と断言している以上、破れたら伝える。
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+
+    const query = pendingDelete.query;
+    setDeleting(query);
+    const res = await deleteBranch(query).finally(() =>
+      setDeleting((cur) => (cur === query ? null : cur)),
+    );
+    // **閉じられていても失敗は出す。**
+    //
+    // 待つのが長いと利用者は Escape で確認を閉じる。そこで失敗を捨てると、
+    // 見えるのは「削除したはずの変化が勝手に生き返った」だけになる
+    // （巻き戻しがメモリを戻すため）。確認文で「棋譜ファイルもすぐ書き換わります」と
+    // 断言している以上、破れたことは伝える。
+    //
+    // 開き直しても危険ではない。`error` があるとき実行ボタンは押せないので、
+    // 「利用者が閉じた確認が復活して、古いクエリのまま再実行される」形にはならない。
+    // ただし**棋譜が変わっていたら開き直さない**。別のファイルを見ている画面に、
+    // 前のファイルの枝についての確認を出しても読めない。
+    if (!res.success) {
+      const stillHere = pendingDelete.absPath === loadedAbsPathRef.current;
+      setPendingDelete((prev) => {
+        if (prev?.query === query) return { ...prev, error: res.error };
+        // **別の確認が開いていたら、そちらを押し退けない。** 押し退けると、
+        // 利用者がいま読んでいる確認が、閉じたはずの別の枝の確認に黙って化ける。
+        if (prev) return prev;
+        return stillHere ? { ...pendingDelete, error: res.error } : prev;
+      });
+      return;
+    }
+    setPendingDelete((prev) => (prev?.query === query ? null : prev));
+  }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
     (row: RowModel, anchorEl: HTMLButtonElement) => {
       if (!plannedCursor) return;
 
-      const cursor = buildCursorWithForkSelection(plannedCursor, row.te, row.selectedForkIndex);
+      const cursor = descendTo(plannedCursor, row.te, row.selectedForkIndex);
 
       setOpenFork(null);
       setOpenMoveMenu(null);
-      setOpenComment({ cursor, anchorEl });
+      setOpenComment({ cursor, anchorEl, absPath: state.loadedAbsPath });
     },
-    [plannedCursor],
+    [plannedCursor, state.loadedAbsPath],
   );
+
+  // 棋譜が変わったら、開いている面を全部閉じる。
+  //
+  // 行は `key={r.te}` なので DOM のボタンは再利用され、`anchorEl` も生き残る。
+  // 棋譜の差し替えでは `view.player` が null になる瞬間も無い（`kifu_loading` は
+  // `jkfData` を保持する）ので、**ノートは同じ位置に開いたまま前の棋譜の本文を出し続ける。**
+  // 見出しは手数しか出さないので、どのファイルのものかは画面から読めない。
+  useEffect(() => {
+    setOpenComment(null);
+    setOpenFork(null);
+    setOpenMoveMenu(null);
+    // 確認を出したまま棋譜が変わると、押した瞬間に**別のファイルの枝**が消える
+    setPendingDelete(null);
+  }, [state.loadedAbsPath]);
 
   useEffect(() => {
     if (!openMoveMenu) return;
@@ -176,21 +366,23 @@ export default function KifuStreamList() {
     };
   }, [openFork, closeForkMenu, isTop]);
 
+  // tesuu は本文が読む値なので dep に要る。tesuuPointer は "<tesuu>,[...]" 形式で
+  // tesuu を含むため、足しても発火は増えない。
+  //
+  // 逆は成り立たない。同じ手数のまま分岐だけを選び直すと tesuuPointer だけが変わるので、
+  // tesuuPointer を「冗長だから」と落とすとその経路で追従が止まる。
+  //
+  // どの棋譜を読み込んだかも見る。tesuuPointer が一意なのは1つの棋譜の中だけで、
+  // どの棋譜でも開始局面は "0,[]" になる。棋譜を切り替えても一覧は unmount されないので、
+  // カーソルを動かさずに切り替えると scrollTop だけが前の棋譜の位置に残る。
+  //
+  // ここで見るのは読み込んだファイルであって、棋譜の中身ではない。`state.jkf` は
+  // コメントの保存でも別オブジェクトになるので、それを見ると入力中に一覧が
+  // カーソル行へ飛ぶ。同じパスを読み直したときは、読み直す前のカーソルも0だった場合に
+  // 限って3つとも変わらないので戻さない。
   useEffect(() => {
-    const scroller = listRef.current;
-    const rowEl = activeRowRef.current;
-    if (!scroller || !rowEl) return;
-
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-
-    const now = performance.now();
-    const dt = now - lastScrollAtRef.current;
-    lastScrollAtRef.current = now;
-
-    const behavior: ScrollBehavior = reduced ? "auto" : dt < 120 ? "auto" : "smooth";
-
-    scrollToRowSafeZone(scroller, rowEl, behavior);
-  }, [state.cursor?.tesuuPointer]);
+    revealRow(state.cursor?.tesuu ?? 0, false);
+  }, [state.loadedAbsPath, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {
@@ -203,6 +395,7 @@ export default function KifuStreamList() {
 
   const onToggleForkMenu = useCallback((te: number, anchorEl: HTMLButtonElement) => {
     lastAnchorRef.current = anchorEl;
+    lastForkTeRef.current = te;
     setOpenComment(null);
     setOpenMoveMenu(null);
     setOpenFork((prev) => {
@@ -215,19 +408,13 @@ export default function KifuStreamList() {
     (te: number, forkIndex: number | null) => {
       if (!plannedCursor) return;
 
-      const currentIdx = state.cursor?.forkPointers?.find((p) => p.te === te)?.forkIndex ?? null;
-
-      if (currentIdx === forkIndex) {
-        closeForkMenu(true);
-        goToIndex(te);
-        return;
-      }
-
-      const nextCursor = buildCursorWithForkSelection(plannedCursor, te, forkIndex);
+      const next = resolveForkSelection(plannedCursor, te, forkIndex);
       closeForkMenu(true);
-      applyCursor(nextCursor);
+
+      if (next.kind === "goToIndex") goToIndex(next.te);
+      else applyCursor(next.cursor);
     },
-    [state.cursor, plannedCursor, applyCursor, goToIndex, closeForkMenu],
+    [plannedCursor, applyCursor, goToIndex, closeForkMenu],
   );
 
   if (!view.player) {
@@ -259,17 +446,28 @@ export default function KifuStreamList() {
           if (!r) return;
 
           const branchIndex = branchIndexFromRow(r);
-          void onDeleteBranch(te, r.branchForkPointers, branchIndex);
-          setOpenMoveMenu(null);
+          onDeleteBranch(te, r.branchForkPointers, branchIndex);
         }}
       />
 
       <KifuCommentNote
         open={!!openComment}
         cursor={openComment?.cursor ?? null}
+        absPath={openComment?.absPath ?? null}
         anchorEl={openComment?.anchorEl ?? null}
         onClose={closeCommentNote}
       />
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title={`${pendingDelete.query.te}手目の${pendingDelete.label}を削除しますか？`}
+          subtitle={describeDelete(pendingDelete)}
+          error={pendingDelete.error}
+          isLoading={deleting === pendingDelete.query}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
 
       <div className="kifu__list" ref={listRef}>
         {rows.map((r) => {
@@ -278,13 +476,12 @@ export default function KifuStreamList() {
           // カーソル組み立て（JSON.stringify を含む）を走らせない。
           const isCommentOpen =
             openComment != null &&
-            openComment.cursor.tesuuPointer ===
-              buildCursorWithForkSelection(plannedCursor, r.te, r.selectedForkIndex).tesuuPointer;
+            cursorKey(openComment.cursor) ===
+              cursorKey(descendTo(plannedCursor, r.te, r.selectedForkIndex));
 
           return (
             <KifuMoveCard
               key={r.te}
-              ref={r.isActive ? activeRowRef : undefined}
               row={r}
               busy={state.isLoading}
               isForkMenuOpen={isForkOpen}

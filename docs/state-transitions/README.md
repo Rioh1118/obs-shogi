@@ -3,6 +3,9 @@
 **状態 × イベント**を先に列挙し、空のセルを未検証の経路として残す。手順は
 `.claude/skills/state-transition-table/SKILL.md`。
 
+**画面から入るなら `docs/spec/` が先。** あちらは「その画面で何ができて、何ができないか」を
+書いた読み物で、状態の網羅はこちらへリンクしている。この表は網羅を担い、画面の説明を持たない。
+
 ## 表の階層
 
 上の表ほど粒度が粗く、セルから下の表を参照する。**セルの中身を書ききれないと感じたら、
@@ -14,11 +17,12 @@ L0  app.md                    アプリ全体。どのスライスに委譲さ�
 L1    ├─ engine.md            エンジンプロセスの起動・停止（外部プロセスを列に持つ）
       ├─ analysis.md          解析セッション（Rust 側のセッションを列に持つ）
       ├─ file-tree.md         ツリーとファイル操作
-      ├─ game.md              （未作成）棋譜の読み込み・移動・編集
-      ├─ search.md            （未作成）インデックスと検索セッション
+      ├─ game.md              棋譜の読み込み・移動・編集（カーソルと分岐計画）
+      ├─ search.md            インデックスと検索（**Rust 側**。ディスクのキャッシュを列に持つ）
       └─ study-positions.md   （未作成）研究局面の読み書き
-            │
-L2          └─ engine-position-sync.md   局面の送信（L1 の analysis / engine をまたぐ）
+
+L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
+L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -29,8 +33,8 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 ```
 
 `branch-index.md` だけ粒度が違う。スライスの状態ではなく**1つの値が取りうる形**を軸にしている。
-`game.md` を書くときは「棋譜がどの状態にあるか」をそちらへ、
-「`BranchIndex` にどの値が入りうるか」は `branch-index.md` に置く。
+「棋譜がどの状態にあるか」は [game.md](game.md)、
+「`BranchIndex` にどの値が入りうるか」は `branch-index.md` が持つ。
 
 「判定」の2つはさらに粒度が違う。アプリの状態ではなく、**1つの関数 / 1つの hook が
 入力をどの枝へ落とすか**を軸にしている。先に置いた検査が後ろの枝を覆い隠す形の穴を、
@@ -51,11 +55,28 @@ L2          └─ engine-position-sync.md   局面の送信（L1 の analysis /
 | [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                   |
 | [yaneuraou-db-parse.md](yaneuraou-db-parse.md)     | ✅        | 判定表。`.db` の行の種類 × パーサの状態。一次資料の表を持つ |
 | [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                  |
-| `game.md`                                          | ❌ 未作成 | `set_error` が9箇所から飛ぶが読み手が0。**書く価値が高い**  |
-| `search.md`                                        | ❌ 未作成 | インデックスと検索セッションで状態機械が2つある             |
+| [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸        |
+| [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                 |
+| [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える       |
 | `study-positions.md`                               | ❌ 未作成 |                                                             |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
+
+## 他リポジトリのパスの書き方
+
+**バッククォートで囲まない。外部リンクで書く。** これらの表が指すパスは
+`src/__tests__/docsSourcePaths.test.ts` が実在を要求するが、ShogiHome もやねうら王も
+`src/` から始まるので、綴りだけでは自リポジトリと区別が付かない。囲むと
+「実在しないパスを指している」で落ちる。
+
+```markdown
+[ShogiHome src/background/book/yaneuraou.ts][sh-yaneuraou]
+
+[sh-yaneuraou]: https://github.com/sunfish-shogi/shogihome/blob/v1.29.0/src/...
+```
+
+**リンク先はタグで固定する。** 一次資料として引いた行が、あちらの `main` の移動で
+別のものを指すようになる。
 
 ## 表を書くときに毎回忘れるもの
 

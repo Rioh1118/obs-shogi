@@ -47,6 +47,12 @@ export {
   listenSearchEvents,
 } from "./api/tauri";
 
+/**
+ * 索引のカーソルを `CursorPath` に直す唯一の関門。**素の `CursorLite` を
+ * 自分で組み直さないこと**（並びと `te <= tesuu` の前提をここで揃えている）。
+ */
+export { cursorFromLite } from "./lib/cursorAdapter";
+
 export { PositionSearchProvider } from "./model/provider";
 export { usePositionSearch } from "./model/usePositionSearch";
 

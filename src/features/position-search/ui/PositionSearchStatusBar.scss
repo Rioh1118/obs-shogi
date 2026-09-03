@@ -2,17 +2,18 @@
 
 .pos-search-status {
   display: flex;
-  gap: 10px;
+  gap: index.$space-5;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 1.2rem;
+  font-size: index.$font-aux;
   color: rgba(index.$color-text-light-1, 0.72);
 
   &__item--warn {
     color: rgba(index.$color-secondary-dark, 0.95);
   }
 
+  // 暗いカードの上に載るので、$color-danger のままだと 3.75:1 で本文の基準を割る
   &__item--error {
-    color: rgba(#ff6b6b, 0.95);
+    color: index.$color-danger-text;
   }
 }

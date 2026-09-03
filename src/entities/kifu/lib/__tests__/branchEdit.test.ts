@@ -3,11 +3,11 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import {
   MAIN_LINE,
   branchIndexFromForkIndex,
-  buildTesuuPointer,
   neighborBranchIndex,
+  type DeleteQuery,
 } from "@/entities/kifu/model/branch";
-import type { ForkPointer, KifuCursor } from "@/entities/kifu/model/cursor";
-import { deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
+import type { CursorPath, ForkPointer } from "@/entities/kifu/model/cursor";
+import { countMovesToDelete, deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**
  * 分岐編集は `forks` の形しか見ないので、指し手の中身は区別が付く印で足りる。
@@ -27,8 +27,11 @@ function kifuWithTwoForks(): JKFData {
 
 const tags = (moves: JKFMove[] | undefined) => moves?.map((m) => m.comments?.[0]);
 
-function cursorAt(tesuu: number, forkPointers: ForkPointer[]): KifuCursor {
-  return { tesuu, forkPointers, tesuuPointer: buildTesuuPointer(tesuu, forkPointers) };
+// swapBranchesInKifu / deleteBranchInKifu が読むのは tesuu と forkPointers だけ
+// （引数の型も CursorPath）。tesuuPointer を組むと、誰も読まない値を
+// テスト側だけで持つことになる。
+function cursorAt(tesuu: number, forkPointers: ForkPointer[]): CursorPath {
+  return { tesuu, forkPointers };
 }
 
 describe("swapBranchesInKifu", () => {
@@ -311,5 +314,136 @@ describe("同じ手数の入れ子の変化", () => {
 
     expect(tags(kifu.moves)).toEqual(["root", "t1", "main2"]);
     expect(kifu.moves[2].forks?.map(tags)).toEqual([["g0"], ["f0"]]);
+  });
+});
+
+describe("cursor の forkPointers が正規化されていないとき", () => {
+  /**
+   * te=1 と te=2 で変化に降り、その先の te=3 にも分岐がある棋譜。
+   * 編集する te より手前に**2つ**選択があるので、並び順の違いが表に出る。
+   */
+  function nestedKifu(): JKFData {
+    return {
+      header: {},
+      moves: [
+        mv("root"),
+        mv("m1", [[mv("v1"), mv("v2", [[mv("w2"), mv("w3", [[mv("x3")]])]])]]),
+        mv("m2"),
+      ],
+    };
+  }
+
+  const prefix: ForkPointer[] = [
+    { te: 1, forkIndex: 0 },
+    { te: 2, forkIndex: 0 },
+  ];
+
+  // `swapBranchesInKifu` は cursor が同じ stream を辿っているときだけ選択を patch する。
+  // 判定は並び順つきの列比較なので、比べる前に両側を整列しないと、同じ経路を
+  // 並び順の違いだけで「別の stream」と読み、patch を取りこぼす。
+  // cursor は `CursorPath` として任意の呼び出し側から渡るので、整列済みとは限らない。
+  test("並び順が崩れていても同じ stream と判定して選択を patch する", () => {
+    const swapAt3 = (forkPointers: ForkPointer[]) =>
+      swapBranchesInKifu(
+        nestedKifu(),
+        { te: 3, forkPointers: prefix, a: MAIN_LINE, b: branchIndexFromForkIndex(0) },
+        { tesuu: 3, forkPointers },
+      );
+
+    const sorted = swapAt3([...prefix, { te: 3, forkIndex: 0 }]);
+    const unsorted = swapAt3([{ te: 3, forkIndex: 0 }, prefix[1], prefix[0]]);
+
+    // 本譜と変化1を入れ替えたので、te=3 の選択は「変化1 → 本譜」へ patch される
+    expect(sorted.nextCursor?.forkPointers).toEqual(prefix);
+    expect(unsorted.nextCursor?.forkPointers).toEqual(sorted.nextCursor?.forkPointers);
+  });
+});
+
+/** JKF 全体の手数。`forks` の中も数える。照合側が1段しか見ないと入れ子の差を見逃す */
+function countAll(moves: JKFMove[] | undefined): number {
+  return (moves ?? []).reduce(
+    (n, m) => n + 1 + (m.forks ?? []).reduce((s, f) => s + countAll(f), 0),
+    0,
+  );
+}
+
+describe("countMovesToDelete", () => {
+  // 確認に出す数が実際に消える数と食い違うと、確認の意味が無くなる。
+  // **同じ棋譜に対して、数えた数と削除後の減りぶんが一致すること**を固定する。
+  test("数えた手数と、実際に消える手数が一致する", () => {
+    const q: DeleteQuery = { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) };
+
+    const counted = countMovesToDelete(kifuWithTwoForks(), q);
+
+    const kifu = kifuWithTwoForks();
+    const before = countAll(kifu.moves);
+    deleteBranchInKifu(kifu, q, null);
+
+    expect(counted).toBe(before - countAll(kifu.moves));
+  });
+
+  // **これが確認ダイアログの本題。** 研究の棋譜は変化の中に変化を持つのが普通で、
+  // 深いほど失うものが大きい。`candidates[target].length` は線の長さしか見ないので、
+  // いちばん過少に出るのが**いちばん消えるとき**になる。
+  test("消える線の中にぶら下がる変化も数える", () => {
+    // 変化1 = [f0a, f0b]。f0b の下にさらに3手の変化。消えるのは 2 + 3 = 5手
+    const nested = (): JKFData => ({
+      header: {},
+      moves: [
+        mv("root"),
+        mv("t1"),
+        mv("main2", [[mv("f0a"), mv("f0b", [[mv("g0"), mv("g1"), mv("g2")]])]]),
+        mv("main3"),
+      ],
+    });
+    const q: DeleteQuery = { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) };
+
+    const counted = countMovesToDelete(nested(), q);
+    expect(counted).toBe(5);
+
+    const kifu = nested();
+    const before = countAll(kifu.moves);
+    deleteBranchInKifu(kifu, q, null);
+
+    expect(counted).toBe(before - countAll(kifu.moves));
+  });
+
+  test("本譜は te 以降の手数を数える", () => {
+    // moves = [root, t1, main2, main3] なので te=2 以降は2手。
+    // 変化ではなく本譜を指したときに 0 や undefined を返さないことを見る。
+    expect(
+      countMovesToDelete(kifuWithTwoForks(), { te: 2, forkPointers: [], target: MAIN_LINE }),
+    ).toBe(2);
+  });
+
+  test("数えるだけで棋譜を書き換えない", () => {
+    const kifu = kifuWithTwoForks();
+    const snapshot = JSON.stringify(kifu);
+
+    countMovesToDelete(kifu, { te: 2, forkPointers: [], target: branchIndexFromForkIndex(0) });
+
+    expect(JSON.stringify(kifu)).toBe(snapshot);
+  });
+
+  // 文言まで見る。`candidates[99].length` の TypeError でも `toThrow()` は通るので、
+  // 範囲検査を外す変異がそれだけでは落ちない。
+  test("範囲外の target は範囲の検査で落ちる（削除と同じ条件）", () => {
+    expect(() =>
+      countMovesToDelete(kifuWithTwoForks(), {
+        te: 2,
+        forkPointers: [],
+        target: 99 as never,
+      }),
+    ).toThrow(/out of range/);
+  });
+
+  test("整数でない target も落ちる", () => {
+    expect(() =>
+      countMovesToDelete(kifuWithTwoForks(), {
+        te: 2,
+        forkPointers: [],
+        target: 0.5 as never,
+      }),
+    ).toThrow(/not an integer/);
   });
 });

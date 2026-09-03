@@ -20,6 +20,36 @@
     color: rgba(index.$color-text-light-1, 0.55);
   }
 
+  // 失敗を確認文と同じ段落に足さない。押した直後に注意が向いているのはボタンで、
+  // 段落末尾の追記は視覚的に何の合図も持たない。面を宣言するのは
+  // `contrastRatchet` が「面が決まらない」として測れない枠へ落とさないため。
+  &__error {
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-1;
+    background: index.$surface-danger;
+    color: index.$color-danger-text;
+    font-size: index.$font-aux;
+
+    &:not(:empty) {
+      padding: index.$space-2 index.$space-3;
+      border-radius: index.$radius-3;
+    }
+  }
+
+  &__errorHead {
+    font-weight: 600;
+  }
+
+  &__errorCause {
+    font-size: index.$font-hint;
+    word-break: break-word;
+  }
+
+  &__errorHint {
+    font-size: index.$font-hint;
+  }
+
   &__actions {
     display: flex;
     justify-content: flex-end;

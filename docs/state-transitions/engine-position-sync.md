@@ -37,7 +37,7 @@ issue #120 のレビュー3ラウンドで見つかった不具合は、**すべ
 
 ## 表
 
-`T` は固定しているテスト（`__tests__/useEnginePositionSync.test.tsx`）。
+`T` は固定しているテスト（`src/features/engine-position-sync/model/__tests__/useEnginePositionSync.test.tsx`）。
 `—` はそのイベントがその状態で起きないか、状態が変わらないことが自明なもの。
 
 |        | E1 局面変化      | E2 エンジン切替            | E3 ready                   | E4 not ready | E5 棋譜を閉じる    | E6 成功              | E7 失敗            |

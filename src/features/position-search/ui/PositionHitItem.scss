@@ -1,99 +1,96 @@
 @use "@/index.scss" as index;
 
+// 行は一覧の中で「面」ではなく「並び」として読ませる。素の状態では枠も面も持たず、
+// ホバーと選択だけが面を足す。枠・面・影・浮き上がりを全部使うと、
+// 選択とホバーとフォーカスが視覚的に競合して、どれが「いまの行」か読めなくなる。
 .pos-hit {
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-1;
+
   width: 100%;
   text-align: left;
+  font: inherit;
 
-  border: 1px solid rgba(index.$color-white, 0.08);
-  border-radius: 12px;
-  background: rgba(index.$color-primary-light, 0.06);
-
-  padding: 10px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: index.$radius-3;
+  padding: index.$space-3 index.$space-5;
   cursor: pointer;
 
+  // 行は絶対配置なので、浮かせる表現（transform）は隣の行へ食い込む。段は面の濃さで作る
   transition:
-    transform 120ms ease,
-    background-color 120ms ease,
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+    background-color index.$duration-2 index.$ease,
+    box-shadow index.$duration-2 index.$ease;
 
-  &:hover {
-    background: rgba(index.$color-primary-light, 0.1);
-    transform: translateY(-1px);
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow:
-      0 0 0 2px rgba(index.$color-secondary-dark, 0.55) inset,
-      index.$shadow-press;
+  // `:hover` は詳細度 (0,2,0) で `--active` の (0,1,0) に勝つ。除外しないと、
+  // 選択中の行にポインタを乗せた瞬間に選択の面が消えて「選択が外れた」ように見える
+  &:hover:not(.pos-hit--active) {
+    background: rgba(index.$color-white, 0.04);
   }
 
   &--active {
-    border-color: rgba(index.$color-secondary-dark, 0.45);
-    background: rgba(index.$color-secondary-dark, 0.12);
-    box-shadow: index.$shadow-press;
+    background: rgba(index.$color-secondary-dark, 0.18);
+    // 面の濃さに頼らずに選択を読めるようにする帯。ホバーで面が動いても消えない
+    box-shadow: inset index.$space-1 0 0 index.$color-secondary-dark;
+
+    // ホバーは常に「足す」側。選択を置き換えず、濃くする
+    &:hover {
+      background: rgba(index.$color-secondary-dark, 0.24);
+    }
   }
 
-  &:disabled,
-  &--disabled {
-    cursor: default;
-    opacity: 0.75;
-    transform: none;
+  // 面を触らないので、選択とフォーカスを重ねて読める
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
-  &__top {
+  // 控えめな段はこの2行で一度だけ決め、中の欄はそれを継ぐ。
+  // 目立たせるのはファイル名と「切替」だけ
+  &__top,
+  &__bottom {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+    align-items: baseline;
+    gap: index.$space-4;
+    min-width: 0;
+    color: rgba(index.$color-text-light-1, 0.45);
   }
 
   &__file {
-    font-size: 1.3rem;
-    color: rgba(index.$color-text-light-1, 0.92);
+    flex: 1;
+    min-width: 0;
+    font-size: index.$font-body;
+    color: index.$color-text-light-1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  // 「同一」と「切替」は行き先が変わるかどうかの別。枠や面を与えず、色の差だけで置く
+  &__badge {
+    flex-shrink: 0;
+    font-size: index.$font-hint;
+    font-weight: 600;
+    white-space: nowrap;
+
+    &.is-switch {
+      color: index.$color-secondary-dark;
+    }
+  }
+
   &__path {
-    margin-top: 2px;
-    font-size: 1.15rem;
-    color: rgba(index.$color-text-light-1, 0.6);
+    flex: 1;
+    min-width: 0;
+    font-size: index.$font-hint;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   &__meta {
-    margin-top: 6px;
-    display: flex;
-    gap: 8px;
-  }
-
-  &__chip {
-    font-size: 1.1rem;
-    padding: 3px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    color: rgba(index.$color-text-light-1, 0.75);
-  }
-
-  &__badge {
-    font-size: 1.05rem;
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid rgba(index.$color-white, 0.1);
-    color: rgba(index.$color-text-light-1, 0.72);
-    &.is-switch {
-      border-color: rgba(index.$color-secondary-dark, 0.3);
-      background: rgba(index.$color-secondary-dark, 0.1);
-      color: rgba(index.$color-text-primary, 0.95);
-    }
-
-    &.is-same {
-      border-color: rgba(index.$color-secondary-dark, 0.35);
-    }
+    flex-shrink: 0;
+    font-size: index.$font-hint;
+    font-variant-numeric: tabular-nums;
   }
 }

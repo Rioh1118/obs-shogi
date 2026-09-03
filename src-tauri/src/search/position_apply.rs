@@ -61,7 +61,12 @@ pub fn apply_node_action(
     }
 }
 
-fn jkf_move_to_core_move(m: MoveMoveFormat) -> Result<CoreMove, ApplyError> {
+/// JKF の指し手を `shogi_core` の指し手にする。
+///
+/// **`apply_node_action` と鍵の差分更新（`position_key::advance_key`）が
+/// 同じ手を見る**ために公開している。別々に組み直すと、組み直しの誤りが
+/// 「局面は進んだが鍵は別の手で進んだ」という形で静かに入る。
+pub(super) fn jkf_move_to_core_move(m: MoveMoveFormat) -> Result<CoreMove, ApplyError> {
     let to = to_square(m.to)?;
 
     if let Some(from) = m.from {

@@ -1,20 +1,20 @@
 @use "@/index.scss" as index;
 
+// 器の中の箱。枠は持たず、面だけで一段沈める（面の段は PositionSearchModal.scss）
 .pos-search-cont {
-  border: 1px solid index.$stroke;
-  border-radius: 12px;
-  background: rgba(index.$color-primary-light, 0.04);
-  padding: 10px;
+  border-radius: index.$radius-6;
+  background: rgba(index.$color-primary-black, 0.24);
+  padding: index.$space-5;
 
   &__head {
-    font-size: 1.15rem;
+    font-size: index.$font-hint;
     color: rgba(index.$color-text-light-1, 0.7);
-    margin-bottom: 6px;
+    margin-bottom: index.$space-3;
   }
 
   &__body {
     display: flex;
-    gap: 10px;
+    gap: index.$space-5;
     flex-wrap: nowrap;
     overflow: hidden;
     white-space: nowrap;
@@ -26,7 +26,7 @@
   }
 
   &__mv {
-    font-size: 1.25rem;
+    font-size: index.$font-body;
     color: rgba(index.$color-text-light-1, 0.9);
   }
 }

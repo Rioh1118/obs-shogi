@@ -24,7 +24,7 @@ use app_lib::search::{
     fs_scan::{diff_snapshot, scan_kifu_files, snapshot_from_records, ScanOptions},
     index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{IndexSnapshot, IndexState, NodeTables},
-    kifu_reader::read_to_jkf,
+    kifu_reader::{read_to_jkf, ReadOutcome},
     position_key::{key_from_partial_position, PositionKey},
     segment::{Segment, SegmentArc},
     sfen_position::partial_position_from_sfen,
@@ -48,6 +48,8 @@ struct BuildResult {
     total_entries: usize,
     total_nodes: usize,
     file_count: usize,
+    /// 読めたが索引に入れる局面が無かった件数。**本番では成功として登録される**
+    empty_count: u32,
     per_file_stats: Vec<FileStats>,
 }
 
@@ -68,6 +70,8 @@ fn do_full_build(records: &[app_lib::search::fs_scan::FileRecord]) -> BuildResul
     let mut total_entries = 0usize;
     let mut total_nodes = 0usize;
     let mut per_file: Vec<FileStats> = Vec::new();
+    // 読めたが索引に入れる局面が無かった件数。本番では成功として登録される
+    let mut empty_count = 0u32;
 
     for (i, rec) in records.iter().enumerate() {
         let file_id = (i as u32) + 1;
@@ -75,7 +79,14 @@ fn do_full_build(records: &[app_lib::search::fs_scan::FileRecord]) -> BuildResul
 
         let t_parse = Instant::now();
         let jkf = match read_to_jkf(rec) {
-            Ok(j) => j,
+            Ok(ReadOutcome::Indexable { jkf, .. }) => jkf,
+            // 局面を持たない項目として登録されるので、SKIP ではない。
+            // ここを SKIP に落とすと**本番と違う数を数えたまま
+            // 「変わらない」と報告できてしまう**
+            Ok(ReadOutcome::NothingToIndex { .. }) => {
+                empty_count += 1;
+                continue;
+            }
             Err(e) => {
                 eprintln!("  SKIP {}: {e}", rec.path.display());
                 continue;
@@ -131,6 +142,7 @@ fn do_full_build(records: &[app_lib::search::fs_scan::FileRecord]) -> BuildResul
         total_entries,
         total_nodes,
         file_count: per_file.len(),
+        empty_count,
         per_file_stats: per_file,
     }
 }
@@ -184,14 +196,19 @@ fn bench_02_parse_all() {
     let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
     let mut ok_count = 0u32;
     let mut err_count = 0u32;
+    let mut empty_count = 0u32;
     let mut total_nodes = 0usize;
 
     let t = Instant::now();
     for rec in &records {
         match read_to_jkf(rec) {
-            Ok(jkf) => {
+            Ok(ReadOutcome::Indexable { jkf, .. }) => {
                 ok_count += 1;
                 total_nodes += jkf.moves.len();
+            }
+            // 登録はされるので ERR に混ぜない
+            Ok(ReadOutcome::NothingToIndex { .. }) => {
+                empty_count += 1;
             }
             Err(_) => {
                 err_count += 1;
@@ -200,7 +217,7 @@ fn bench_02_parse_all() {
     }
     let elapsed = t.elapsed();
 
-    println!("parsed OK: {ok_count}, ERR: {err_count}");
+    println!("parsed OK: {ok_count}, EMPTY: {empty_count}, ERR: {err_count}");
     println!("total JKF nodes (moves array len): {total_nodes}");
     println!("elapsed: {:.3} ms", elapsed.as_secs_f64() * 1000.0);
     if ok_count > 0 {
@@ -218,7 +235,10 @@ fn bench_02_parse_all() {
             .unwrap_or(false)
     }) {
         let t2 = Instant::now();
-        let jkf = read_to_jkf(mega).unwrap();
+        let jkf = match read_to_jkf(mega).unwrap() {
+            ReadOutcome::Indexable { jkf, .. } => *jkf,
+            ReadOutcome::NothingToIndex { .. } => panic!("題材に局面が無い"),
+        };
         let d2 = t2.elapsed();
         println!(
             "\nbug_mega.kif: size={:.1} KB, moves={}, parse={:.3} ms",
@@ -250,6 +270,7 @@ fn bench_03_full_build() {
     let elapsed = t.elapsed();
 
     println!("indexed files: {}", result.file_count);
+    println!("empty (no positions to index): {}", result.empty_count);
     println!("total nodes: {}", result.total_nodes);
     println!("total index entries: {}", result.total_entries);
     println!(
@@ -670,7 +691,10 @@ fn bench_09_bug_mega_detail() {
 
     // parse
     let t_parse = Instant::now();
-    let jkf = read_to_jkf(mega).unwrap();
+    let jkf = match read_to_jkf(mega).unwrap() {
+        ReadOutcome::Indexable { jkf, .. } => *jkf,
+        ReadOutcome::NothingToIndex { .. } => panic!("題材に局面が無い"),
+    };
     let d_parse = t_parse.elapsed();
     println!(
         "parse: {:.3} ms (moves.len={})",

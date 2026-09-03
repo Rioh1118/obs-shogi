@@ -18,10 +18,9 @@ use crate::search::{
 };
 
 use super::{
+    file_build::build_file_index,
     fs_scan::{scan_kifu_files, ScanOptions},
-    index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
     index_store::{IndexState as StoreIndexState, IndexStore},
-    kifu_reader::read_to_jkf,
     types::{
         FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
         OpenProjectInput, OpenProjectOutput, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -108,7 +107,29 @@ pub async fn open_project(
     );
 
     // 1) try restore (cache)
-    match crate::search::index_cache::try_restore(&app, &root_dir) {
+    //
+    // 復元はファイルの全読み + zstd の伸長 + 総当たりの復号で、
+    // 5万ファイルの索引なら数百ミリ秒 CPU を握る。`async fn` の中で直に呼ぶと
+    // その間 tokio のワーカースレッドが1本止まり、同じスレッドに載っている
+    // 他のコマンド（`cancel_search` など）が動かない。書き出し側
+    // （`save_checkpoint`）は既に逃がしてあるので、読み込み側も揃える
+    //
+    // 逃がした先が落ちても `open_project` は失敗させない。復元は元来
+    // 「だめなら全件作り直す」設計で、**作り直せる以上プロジェクトは開ける**
+    let restored = {
+        let app2 = app.clone();
+        let root2 = root_dir.clone();
+        match tauri::async_runtime::spawn_blocking(move || {
+            crate::search::index_cache::try_restore(&app2, &root2)
+        })
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => Err(format!("索引の復元を実行できませんでした: {e}")),
+        }
+    };
+
+    match restored {
         Ok(mut restored) => {
             // 念のため（decode側でroot_dirを入れてるなら不要だが安全）
             restored.scan.root_dir = root_dir.clone();
@@ -295,19 +316,8 @@ async fn build_full_index_task(
 
             let res = tokio::task::spawn_blocking(
                 move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
-                    let jkf = read_to_jkf(&rec2).map_err(|e| e.to_string())?;
-                    let built = build_index_for_jkf(file_id, gen, &jkf, BuildPolicy::Loose)
-                        .map_err(|e| e.to_string())?;
-
-                    let by_bucket: BucketEntries = bucketize_entries(built.entries);
-
-                    let warns = built
-                        .warns
-                        .into_iter()
-                        .map(|w| format!("{:?}: {}", w.cursor, w.message))
-                        .collect::<Vec<_>>();
-
-                    Ok((by_bucket, built.node_table, warns))
+                    let built = build_file_index(&rec2, file_id, gen)?;
+                    Ok((built.by_bucket, built.node_table, built.warns))
                 },
             )
             .await;

@@ -19,7 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 表と、その表が指している実装。
-const TABLES: [(&str, &[&str]); 2] = [
+const TABLES: [(&str, &[&str]); 3] = [
     (
         "docs/state-transitions/yaneuraou-db-parse.md",
         &["src/book/yaneuraou_db.rs", "src/book/sfen.rs"],
@@ -28,13 +28,24 @@ const TABLES: [(&str, &[&str]); 2] = [
         "docs/state-transitions/book-key-failures.md",
         &["src/book/sfen.rs"],
     ),
+    (
+        "docs/state-transitions/search.md",
+        &[
+            "src/search/api.rs",
+            "src/search/index_builder.rs",
+            "src/search/index_cache.rs",
+            "src/search/kifu_reader.rs",
+            "src/search/project_manager.rs",
+            "src/search/types.rs",
+        ],
+    ),
 ];
 
 /// Rust の実装を指していない表。**理由を書かずに足さない。**
 ///
 /// 対応表を手で書く以上、足し忘れは必ず起きる。`root_guard.rs` と同じで、
 /// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
-const NOT_RUST: [(&str, &str); 9] = [
+const NOT_RUST: [(&str, &str); 11] = [
     ("analysis.md", "解析パネル。TS 側の reducer"),
     ("app.md", "アプリ全体の起動と終了。TS 側"),
     ("branch-index.md", "分岐の索引。TS 側"),
@@ -42,14 +53,19 @@ const NOT_RUST: [(&str, &str); 9] = [
     ("engine.md", "エンジンの生存。TS 側から見た状態"),
     ("failure-surfacing.md", "失敗の見せ方。TS 側"),
     ("file-tree.md", "ファイル木。TS 側"),
+    ("game.md", "棋譜のカーソルと分岐計画。TS 側"),
     ("inline-name-editor.md", "名前の編集。TS 側"),
+    (
+        "position-search-view.md",
+        "局面検索の画面側。TS 側（引く方は search.md）",
+    ),
     ("verify-gate-decision.md", "検証ゲート。shell スクリプト"),
 ];
 
 /// 表に出るが実装の識別子ではないもの。
 ///
 /// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
-const NOT_IDENTIFIERS: [&str; 4] = [
+const NOT_IDENTIFIERS: [&str; 6] = [
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
     "DEPTH_NONE",
@@ -57,6 +73,11 @@ const NOT_IDENTIFIERS: [&str; 4] = [
     "YANEURAOU",
     // 局面数の注記。`# NOE:` の綴りの一部
     "NOE",
+    // CSA の棋譜に書かれる語。特殊手（`%MATTA`）と、駒の綴りが壊れた指し手
+    // （`-3334XX`）。**大文字と数字だけなので定数と見分けが付かない。**
+    // 表が棋譜の中身を引用するたびにここへ来るので、増えたら綴りの規則を疑うこと
+    "MATTA",
+    "3334XX",
 ];
 
 fn repo_file(relative: &str) -> PathBuf {
