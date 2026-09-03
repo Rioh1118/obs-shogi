@@ -186,11 +186,6 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
     found
 }
 
-/// `use ...;` を1つずつ返す。**行で切らない。**
-///
-/// rustfmt は100桁を超える `use` を波括弧で折る。行単位で見ていると、
-/// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
-/// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
 /// `use` の行なら、`use ` から後ろを返す。
 ///
 /// **`pub` と可視性の括弧を落としてから見る。** `pub(crate) use` は
@@ -208,6 +203,11 @@ fn use_body(line: &str) -> Option<&str> {
     line.strip_prefix("use ")
 }
 
+/// `use ...;` を1つずつ返す。**行で切らない。**
+///
+/// rustfmt は100桁を超える `use` を波括弧で折る。行単位で見ていると、
+/// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
+/// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
 fn use_statements(source: &str) -> Vec<(String, usize)> {
     // **コメントも文字列も潰してから数える。** 潰さないと、`// mod tests {` や
     // `const A: &str = "mod x {";` の1行が幻の module を積み、閉じないので
