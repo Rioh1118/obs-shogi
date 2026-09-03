@@ -232,11 +232,15 @@ pub const MAX_SUMMARY_LEN: usize = 64;
 /// （`engine::game::session` の `MAX_DETAIL_LEN`）、ログの1行に載せる要約の長さ
 /// （`MAX_SUMMARY_LEN`）。3つとも式で縛ってあるので、ここを動かすと落ちる。
 ///
-/// **根拠は別だが、予算にも乗っている値が1つ。** `GameId` の `MAX_ID_BYTES`
-/// （根拠は「本物の UUID が収まる」）。断りの1行は同じ ID を2回載せるので、
-/// `the_log_keeps_a_minimum_of_history_under_rejections` の式に一次で乗る。
-/// **動かすと2つの表明が見る**——予算の式と、`Display` が上限まで埋まることを
-/// 留める等式（`a_game_id_in_text_is_bounded_and_has_no_control_characters`）。
+/// **根拠は別だが、予算にも乗っている値が2つ。**
+///
+/// - `GameId` の `MAX_ID_BYTES`（根拠は「本物の UUID が収まる」）。断りの1行は
+///   同じ ID を2回載せるので、`the_log_keeps_a_minimum_of_history_under_rejections`
+///   の式に一次で乗る。**動かすともう1つの表明も見る**——`Display` が上限まで
+///   埋まることを留める等式（`a_game_id_in_text_is_bounded_and_has_no_control_characters`）
+/// - `engine::registry` の `MAX_PATH_IN_LOG_LEN`（根拠は「実運用のパスが読める」）。
+///   上は `the_registry_lines_cannot_rotate_the_log_or_forge_a_line` が止める
+///
 /// どちらが赤くなっても「関係の無いラチェット」と読まないこと。
 ///
 /// **ここから来ていないのは1つ。** `MAX_USI_MOVE_BYTES` は「一番長い指し手が

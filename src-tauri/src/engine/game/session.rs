@@ -1165,7 +1165,8 @@ impl Runner {
         self.player_mut(side).activity = match outcome {
             // まだ探索中。`gameover` を送らない
             SearchOutcome::StopTimedOut => Activity::Unresponsive,
-            // どれも「エンジンは止まっている」。`Failed` は出力が終わった側
+            // どれも「エンジンは止まっている」。`Failed` は**探索が終わったか、
+            // そもそも始められなかったか**（産地は `SearchOutcome::Failed` の doc）
             SearchOutcome::Move { .. }
             | SearchOutcome::Resign
             | SearchOutcome::DeclareWin
@@ -3880,12 +3881,8 @@ mod tests {
 
     /// 終局の説明が、**断られずに切り詰められる**こと。
     ///
-    /// **`finish` はこれを絞らずにログへ書く。** webview から来る値なので、
-    /// 縛らないと1回の `end_game_by_rule` でログの予算を一周させられる。
-    ///
-    /// **断ってはいけない。** 裁定を拒否すると、フロントが呼び直さない限り
-    /// `RULING_TIMEOUT` が `Aborted { winner: None }` で畳む——
-    /// 「先手の勝ち・詰み」が「中断・勝者なし」に化ける。
+    /// 切り詰める理由と上限の根拠は `MAX_DETAIL_LEN` の doc。
+    /// **ここが見るのは「断らずに切る」ことだけ。**
     #[tokio::test]
     async fn a_long_detail_is_trimmed_instead_of_refused() {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -3916,9 +3913,10 @@ mod tests {
     /// （`SearchOutcome::Failed`）は `EngineError` の文言を運ぶので、通し忘れれば
     /// ログ・`Over` イベント・`snapshot` の3つへそのまま流れる。
     ///
-    /// **ログを式で見るのが要**。切る行が `over_line` より**後ろ**にあっても
-    /// `phase` と `Over` イベントは切り詰め済みなので、そちらだけ見ると緑で通る
-    /// ——順序を留めるのはこの表明だけ。
+    /// **順序は留めない。** `over_line` が自分でも切るので、切る行の位置は
+    /// 結果を変えない（根拠は `over_line` の doc）。ここが見るのは
+    /// 「3つに同じ値が届くこと」で、`over_line` 自身の切り詰めを見るのは
+    /// `an_over_line_cannot_rotate_the_log`。
     #[tokio::test]
     async fn every_way_into_finish_trims_the_detail() {
         /// 終局の1行が予算のうち占めてよい割合の逆数（`an_over_line_cannot_rotate_the_log` と同じ）
@@ -3947,7 +3945,7 @@ mod tests {
             detail.chars().count()
         );
 
-        // 2. ログの1行。**切る行が `over_line` より後ろだと、ここだけが赤くなる**
+        // 2. ログの1行
         let line = over_line(&runner.id, result);
         assert!(
             line.len() as u128 * SHARE <= LOG_FILE_BUDGET,

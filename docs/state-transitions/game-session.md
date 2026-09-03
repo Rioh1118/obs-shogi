@@ -104,10 +104,10 @@
 
 | イベント                              | G0 思考中                                                                  | G1 裁定待ち                                                                   | G2 終局                      | テスト |
 | ------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------- | ------ |
-| **E1** 人間の着手                     | 手番かつ人間なら → G1※1。手番でない／エンジン側／形が壊れた手は `Err`      | `Err` "not waiting for a move"                                                | `Err`                        | △※10   |
-| **E2** 裁定「続く」                   | `Err` "not awaiting a ruling"                                              | 検算を通れば → G0※2。上限を超えたら → G2（`Rule`）で `Ok`※3。落ちたら `Err`※3 | `Err`                        | △※10   |
+| **E1** 人間の着手                     | 手番かつ人間なら → G1※1。手番でない／エンジン側／形が壊れた手は `Err`      | `Err`（`PENDING_RULING`。一時的）                                             | `Err`（`ALREADY_OVER`）      | △※10   |
+| **E2** 裁定「続く」                   | `Err` "not awaiting a ruling"                                              | 検算を通れば → G0※2。上限を超えたら → G2（`Rule`）で `Ok`※3。落ちたら `Err`※3 | `Err`（`ALREADY_OVER`）      | △※10   |
 | **E3** 裁定「終局」                   | → G2（`reason: Rule`）                                                     | → G2                                                                          | `Err` "game is already over" | △※10   |
-| **E4** 人間の投了                     | → G2（`winner` は相手）。エンジン側を指定したら `Err`                      | → G2                                                                          | `Err`                        | △※10   |
+| **E4** 人間の投了                     | → G2（`winner` は相手）。エンジン側を指定したら `Err`                      | → G2                                                                          | `Err`（`ALREADY_OVER`）      | △※10   |
 | **E5** 中断                           | → G2（`reason: Aborted`、`winner: None`）                                  | → G2                                                                          | `Err` "game is already over" | △※10   |
 | **E6** 閉じる                         | E5 を通し、**探索が畳まれるのを待ってから**エンジンを落とす※4              | 同左                                                                          | 同左                         | ✗      |
 | **E7** `A1` からの `bestmove`         | 形が通れば → G1※1。通らなければ → G2（`EngineFailure`）                    | 起きない※5                                                                    | `gameover` を送って `A0`※6   | △※10   |
@@ -285,7 +285,9 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 出来事の宛先は trait なので観測できる（`game::events` の `RecordedEvents`）。
 残っているのは**エンジンへ送ったコマンド**を観測する継ぎ目。
 
-`(G2, E1)`（終局後の着手）は踏めていない。E1 / E4 の「エンジン側を人間として撃つ」枝は
+`(G2, E1)`（終局後の着手）は `a_finished_game_refuses_every_move_and_verdict_the_same_way` が
+踏んでいる（着手・裁定・投了・中断の4つを同じループで見る）。
+E1 / E4 の「エンジン側を人間として撃つ」枝は
 `a_seat_played_by_an_engine_refuses_human_moves_and_resignations` が踏んでいる。
 
 ※12 `Thinking` の番人は `stalled_turn` 1本。締切は3つあり、どれかに当たれば落とす。
@@ -480,7 +482,6 @@ ClocksView {
 | `(G0, E10)` 出力が終わった                     | 実プロセスを落とす手段がテストに無い                                                                                                                                                                                                                         |
 | `ponderhit` の**送信失敗**                     | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                                                 |
 | `(G0, E9)` `bestmove win`                      | 入玉宣言。踏むテストが無い                                                                                                                                                                                                                                   |
-| `(G2, E1)` 終局後の着手                        | `accept_human_move` の `Phase::Over` の枝。`(G0, E1)` のエンジン側は踏んである（※10）                                                                                                                                                                        |
 | `enforce_engine_timeout` が true のとき        | ※11 の分岐。既定 false 側しか通していない                                                                                                                                                                                                                    |
 | `E16` 世代違いの `SearchOutcome`               | `req` の照合。`Info` 側は `info_from_a_stopped_search_is_not_shown` が踏んでいる。`SearchOutcome` 側は `Runner` を直に組んで `req` をずらせば踏める（実機は要らない）。未検証                                                                                |
 | 終了フックがエンジンを落とすこと               | `ExitRequested` / `Exit` のどちらでも走る形にしたが、**実機で確かめていない**（Cmd+Q とウィンドウの × で経路が違う）                                                                                                                                         |
