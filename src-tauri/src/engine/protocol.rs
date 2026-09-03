@@ -1082,6 +1082,11 @@ impl UsiProtocol {
     ///
     /// `usiok` を返さないエンジンでここが返らないと、呼び出し元の起動処理ごと
     /// 止まったまま利用者に何も出ない。`timeout` はそのための打ち切り。
+    ///
+    /// **打ち切っても `EngineError::Timeout` を名乗らない。** 起動できて `usi` にも
+    /// 答えない実行ファイルは、待ち直しても同じ時間を使って同じ結果になる。
+    /// `TIMED_OUT`（`engine/types.rs`）で始まる文言は「遅かっただけで設定は正しい」
+    /// という意味に受け手が使う（F-27）ので、ここが名乗ると**パスを直す導線が出ない**。
     pub async fn get_engine_info(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
         {
             let state = self.state.read().await;
@@ -1098,8 +1103,9 @@ impl UsiProtocol {
         let collected = match sent {
             Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
                 .await
-                .unwrap_or(Err(EngineError::Timeout(format!(
-                    "{TIMED_OUT} waiting for usiok"
+                .unwrap_or(Err(EngineError::StartupFailed(format!(
+                    "the engine did not answer `usi` with `usiok` in {}s; the file may not be a USI engine",
+                    timeout.as_secs()
                 )))),
             Err(e) => Err(e),
         };

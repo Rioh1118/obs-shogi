@@ -402,6 +402,7 @@ impl EngineRegistry {
 mod tests {
     use super::*;
 
+    use crate::engine::types::engine_error_text;
     use crate::engine::utils::LOG_FILE_BUDGET;
 
     /// 台帳が書く3つの1行が、外から来た文字列でログを壊せないこと。
@@ -515,6 +516,36 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 起動できて `usi` に答えない実行ファイルが、**時間切れを名乗らないこと。**
+    ///
+    /// `/bin/cat` は入口の関門を全部通る（`canonicalize` も `is_file` も
+    /// `Command::spawn` も成功する）が、`usi` を送っても `usiok` は来ない。
+    /// zip から取り違えた実行ファイル、ラッパースクリプトで起きる形。
+    ///
+    /// **ここが `Timeout` を名乗ると F-27 の導線が消える。** 時間切れ側は
+    /// 「遅かっただけで設定は正しい」の意味に使われるので、受け手は再試行を出す。
+    /// 待ち直しても同じ上限を使って同じ結果になり、**パスを直す案内は一度も出ない。**
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_file_that_is_not_a_usi_engine_does_not_claim_the_retry_marker() {
+        // 起こす側は普通に通るので短くてよい。`usiok` の側だけ、
+        // 待ってから諦めたと言える程度に取る
+        let error = EngineRegistry::new()
+            .spawn("/bin/cat", None, SPAWN_TIMEOUT, Duration::from_millis(400))
+            .await
+            .expect_err("`usiok` を返さない実行ファイルで起動が成功している");
+
+        let text = engine_error_text(&error);
+        assert!(
+            !text.starts_with(TIMED_OUT),
+            "設定の誤りが再試行の目印を名乗っている: {text}"
+        );
+        assert!(
+            text.contains("usiok"),
+            "何に答えなかったのかが断り文句から読めない: {text}"
+        );
     }
 
     /// `engine_path` が**実在するファイル**であることを要求すること。
