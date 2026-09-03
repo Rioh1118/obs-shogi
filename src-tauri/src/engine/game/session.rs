@@ -520,9 +520,21 @@ impl GameSession {
             // - 終局済み（`ALREADY_OVER`）——**正常系**。閉じるのは終局の後なので
             //   ほとんどがこれ
             // - セッションのタスクが先に居なくなった（`ENDED`）
-            Ok(Err(e)) => log::debug!(target: LOGT, "close: nothing to abort: {e}"),
-            // `run_loop` が詰まっている。止められていない
-            Err(_) => log::warn!(target: LOGT, "close: abort timed out; the session is stuck"),
+            //
+            // **1行も書かない。** ほとんどがここに落ちるうえ、`close_game` は
+            // `busy` のとき呼び直すよう案内してある（`closeGame` の TSDoc）。
+            // 絞りを通らない行をここに置くと、案内どおりの呼び直しだけで
+            // ログの予算を一周させられる——伝えたいことは `log_rejection` の
+            // 1行が既に持っている
+            Ok(Err(_)) => {}
+            // `run_loop` が詰まっている。止められていない。
+            // **`game_id` を載せる。** 対局は同時に複数走るので、
+            // どのセッションが刺さったのかを後から追えない
+            Err(_) => log::warn!(
+                target: LOGT,
+                "close: abort timed out; the session is stuck game_id={}",
+                self.id
+            ),
         }
     }
 
@@ -1952,9 +1964,12 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         // 状態を引くたびにその複製と直列化が走る
         let name = settings.spec(side).name();
         if name.len() > MAX_NAME_BYTES {
+            // **文字数も出す。** 利用者が数えられるのは文字で、日本語なら
+            // 1文字3バイト。バイトだけ返すと、どこまで削れば通るかが導けない
             return Err(format!(
-                "{side:?} name is {} bytes; the limit is {MAX_NAME_BYTES}",
-                name.len()
+                "{side:?} name is {} bytes ({} chars); the limit is {MAX_NAME_BYTES} bytes",
+                name.len(),
+                name.chars().count()
             ));
         }
 

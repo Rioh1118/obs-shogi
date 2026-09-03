@@ -54,9 +54,24 @@ export interface SetOptionValue {
  * 人対人・人対エンジン・エンジン対エンジンを同じ経路で回せなくなる。
  */
 export type PlayerSpec =
-  | { kind: "human"; name: string }
+  | {
+      kind: "human";
+      /**
+       * 画面と棋譜に出る名前。**上限は Rust の `MAX_NAME_BYTES`**（超えると
+       * `startGame` が reject。切り詰めない）。**バイトで数える**ので、
+       * 日本語なら上限の約 1/3 の文字数。
+       */
+      name: string;
+    }
   | {
       kind: "engine";
+      /**
+       * 画面と棋譜に出る名前。**上限は Rust の `MAX_NAME_BYTES`**（`human` と同じ）。
+       *
+       * **エンジンが名乗った `id name` をそのまま入れないこと。** そちらは
+       * 長さを見ずに保持される値で、長い名乗りを返す実行ファイルを選ぶと
+       * **利用者が1文字も入力していないのに `startGame` が落ちる**。
+       */
       name: string;
       enginePath: string;
       /** 省略時は実行ファイルの置き場 */

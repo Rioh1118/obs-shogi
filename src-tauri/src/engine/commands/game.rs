@@ -272,7 +272,7 @@ pub async fn submit_game_move(
     usi_move: String,
 ) -> Result<(), String> {
     log_rejection(
-        "submit_move",
+        "submit_game_move",
         &game_id,
         state.games.submit_move(&game_id, side, usi_move).await,
     )
@@ -308,7 +308,7 @@ pub async fn end_game_by_rule(
     detail: Option<String>,
 ) -> Result<(), String> {
     log_rejection(
-        "end_by_rule",
+        "end_game_by_rule",
         &game_id,
         state.games.end_by_rule(&game_id, winner, detail).await,
     )
@@ -321,13 +321,17 @@ pub async fn resign_game(
     game_id: GameId,
     side: Side,
 ) -> Result<(), String> {
-    log_rejection("resign", &game_id, state.games.resign(&game_id, side).await)
+    log_rejection(
+        "resign_game",
+        &game_id,
+        state.games.resign(&game_id, side).await,
+    )
 }
 
 /// 対局の中断。勝敗を付けずに終局にする
 #[tauri::command]
 pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: GameId) -> Result<(), String> {
-    log_rejection("abort", &game_id, state.games.abort(&game_id).await)
+    log_rejection("abort_game", &game_id, state.games.abort(&game_id).await)
 }
 
 /// 対局を閉じ、使っていたエンジンを落とす。
@@ -341,7 +345,7 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: GameId) -> R
 /// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。
 #[tauri::command]
 pub async fn close_game(state: tauri::State<'_, AppState>, game_id: GameId) -> Result<(), String> {
-    log_rejection("close", &game_id, state.games.close(&game_id).await)
+    log_rejection("close_game", &game_id, state.games.close(&game_id).await)
 }
 
 /// いまの対局の状態を取る。**イベントを取りこぼした後の突き合わせ用。**
@@ -358,7 +362,11 @@ pub async fn get_game_state(
     state: tauri::State<'_, AppState>,
     game_id: GameId,
 ) -> Result<GameSnapshot, String> {
-    log_rejection("get_state", &game_id, state.games.snapshot(&game_id).await)
+    log_rejection(
+        "get_game_state",
+        &game_id,
+        state.games.snapshot(&game_id).await,
+    )
 }
 
 /// 開いている対局の ID。**閉じ忘れを拾うためにある。**
@@ -420,11 +428,14 @@ mod tests {
         );
     }
 
-    /// `log_rejection` に渡している `op` の数を、**このファイルから数える**。
+    /// `log_rejection` に渡している `op` を、**このファイルから拾う**。
     ///
     /// 手で書くと、口を1つ足したときに数え直されない。`per_op` の枠は
     /// この数だけ上乗せされるので、上限の式に直に効く。
-    fn rejection_ops() -> usize {
+    ///
+    /// **綴りも返す。** 1行の長さは `op` の長さで変わるので、
+    /// 予算を測る側は**いちばん長い綴り**で組む必要がある。
+    fn rejection_ops() -> std::collections::BTreeSet<&'static str> {
         // **走査自身に当たらないように綴りを割る。** 素の文字列で持つと、
         // この行自身が呼び出しとして数えられる
         const CALL: &str = concat!("log_rejection", "(");
@@ -444,7 +455,7 @@ mod tests {
                 .unwrap_or_else(|| panic!("`{CALL}` の実引数が文字列リテラルでない"));
             found.insert(op);
         }
-        found.len()
+        found
     }
 
     /// 断りが出続けても、ログが**一定の時間ぶん**は残ること。
@@ -469,23 +480,27 @@ mod tests {
         const MIN_HISTORY: Duration = Duration::from_secs(30);
 
         let ops = rejection_ops();
-        assert!(ops >= 5, "`log_rejection` の口を数えられていない: {ops}");
+        assert!(
+            ops.len() >= 5,
+            "`log_rejection` の口を数えられていない: {ops:?}"
+        );
 
-        // 台帳に無い ID は文言にもう一度載るので、1行に2回出る
+        // 台帳に無い ID は文言にもう一度載るので、1行に2回出る。
+        // **`op` はいちばん長い綴りで組む**——長さがそのまま1行に効く
         let game_id = worst_game_id();
         let worst = rejection_line(
-            "continue_game",
+            ops.iter().max_by_key(|op| op.len()).expect("口がある"),
             &game_id,
             &format!("unknown game: {game_id}"),
         );
 
         let intervals = MIN_HISTORY.as_nanos() / REJECTION_WARN_INTERVAL.as_nanos();
-        let per_interval = (MAX_TRACKED_GAMES + ops) as u128 * worst.len() as u128;
+        let per_interval = (MAX_TRACKED_GAMES + ops.len()) as u128 * worst.len() as u128;
         assert!(
             per_interval * intervals <= LOG_FILE_BUDGET,
             "断りが出続けると {MIN_HISTORY:?} もたない\
              （1間隔 {per_interval} バイト、{} 行 × {} バイト）",
-            MAX_TRACKED_GAMES + ops,
+            MAX_TRACKED_GAMES + ops.len(),
             worst.len()
         );
     }
