@@ -542,14 +542,20 @@ mod tests {
         }
 
         // **等式で留める。** 不等式だけだと、測る側を軽い入力に差し替えても通る
-        // ——`worst_game_id` を `"x".repeat(48)` にすると、`Display` が入力の
-        // バイト数を数える形に戻しても13スイート全部が緑になる（複合変異で実測）。
-        // 予算の式（`the_log_keeps_a_minimum_of_history_under_rejections`）は
-        // この値を最悪として組んでいるので、届かなくなったことを知らせる
+        // ——`worst_game_id` を `"x".repeat(MAX_ID_BYTES)` にすると、`Display` が
+        // 入力のバイト数を数える形に戻しても全部が緑になる。予算の式
+        // （`the_log_keeps_a_minimum_of_history_under_rejections`）はこの値を
+        // 最悪として組んでいるので、届かなくなったことを知らせる。
+        //
+        // **`cap` とは比べない。** 置換文字は3バイトなので、埋まるのは3の倍数まで。
+        // `cap` で留めると `MAX_ID_BYTES` が3の倍数でないときに落ち、しかも
+        // 直す先は `Display` でも `worst_game_id` でもない——読んだ人は
+        // 最悪ケースを弱めるか、表明を消すことになる
+        let filled = MAX_ID_BYTES / '\u{fffd}'.len_utf8() * '\u{fffd}'.len_utf8();
         assert_eq!(
             worst_game_id().to_string().len(),
-            cap,
-            "最悪の ID が上限に届いていない。制御文字が置換文字へ広がる形を選び直すこと"
+            filled + '…'.len_utf8(),
+            "最悪の ID が埋まり切っていない。制御文字が置換文字へ広がる形を選び直すこと"
         );
 
         let sneaky = GameId::new("a\nERROR fake line".to_string());

@@ -179,8 +179,9 @@ pub const MAX_SUMMARY_LEN: usize = 64;
 /// **根拠は別だが、予算にも乗っている値が1つ。** `GameId` の `MAX_ID_BYTES`
 /// （根拠は「本物の UUID が収まる」）。断りの1行は同じ ID を2回載せるので、
 /// `the_log_keeps_a_minimum_of_history_under_rejections` の式に一次で乗る。
-/// **広げると予算のほうが先に落ちる**ので、落ちたテストを
-/// 「関係の無いラチェット」と読まないこと。
+/// **動かすと2つの表明が見る**——予算の式と、`Display` が上限まで埋まることを
+/// 留める等式（`a_game_id_in_text_is_bounded_and_has_no_control_characters`）。
+/// どちらが赤くなっても「関係の無いラチェット」と読まないこと。
 ///
 /// **ここから来ていないのは1つ。** `MAX_USI_MOVE_BYTES` は「一番長い指し手が
 /// 収まる」が根拠で、断り文句はこの上限を通った後の値しか載せない。
