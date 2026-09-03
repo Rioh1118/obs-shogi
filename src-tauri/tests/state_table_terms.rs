@@ -19,6 +19,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 表と、その表が指している実装。
+///
+/// **表がバッククォートで名指した識別子の定義元を全部並べる。** いまの定数が
+/// どのファイルにあるかで選ばない。定数だけを見て選ぶと、表の主題のモジュールが
+/// 抜けたまま緑になり、**そのモジュールの定数を表に1つ書いた瞬間に、実在するのに
+/// 「実装に無い」と誤って落ちる。** 落ちた人は実在する行を表から消しにいく。
 const TABLES: [(&str, &[&str]); 3] = [
     (
         "docs/state-transitions/yaneuraou-db-parse.md",
@@ -32,10 +37,14 @@ const TABLES: [(&str, &[&str]); 3] = [
         "docs/state-transitions/search.md",
         &[
             "src/search/api.rs",
+            "src/search/file_table.rs",
+            "src/search/fs_scan.rs",
             "src/search/index_builder.rs",
             "src/search/index_cache.rs",
+            "src/search/index_store.rs",
             "src/search/kifu_reader.rs",
             "src/search/project_manager.rs",
+            "src/search/query_service.rs",
             "src/search/types.rs",
         ],
     ),
