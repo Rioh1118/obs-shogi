@@ -263,7 +263,8 @@ fn every_registration_points_at_something_that_exists() {
     assert!(
         stale.is_empty(),
         "登録が実在しないものを指している: {stale:?}\n\
-         消したなら登録の行も消すこと。残っていると「見られている」と読める。",
+         消したなら登録の行も消すこと。残っていると「見られている」と読める。\n\
+         **綴り違いなら直すこと。消すと、その sources は誰にも見られなくなる。**",
     );
 }
 
@@ -279,7 +280,9 @@ fn every_table_yields_at_least_one_constant() {
 
         assert!(
             !constants_in(&text).is_empty(),
-            "{table} から定数を1つも拾えていない。この表の周回は何を書いても通る",
+            "{table} から定数を1つも拾えていない。この表の周回は何を書いても通る。\n\
+             定数を書き戻すか、この表が Rust の定数を1つも名指さないなら\n\
+             理由を添えて NOT_RUST へ移すこと。",
         );
     }
 }
