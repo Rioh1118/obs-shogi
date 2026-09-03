@@ -14,7 +14,9 @@
 # 走らず、`docs/` だけのコミットで表の識別子とパスが誰にも見られない。
 # 落ちるのは次に `.ts` を1文字触った人で、その人は自分が書いていない赤を踏む。
 #
-# どの検査にも当たらない変更（`.claude/` など）は素通しする。
+# どの検査にも当たらない変更は素通しする。`.claude/` は**一括では素通しできない**
+# ——`.claude/hooks/` はこのファイル自身とその検査（`npm run test:hooks`）を
+# 持つので、そこを触ったら `npm run verify` を通す。
 #
 # 落ちたら permissionDecision: deny を返してコミット自体を止める。
 # 逃げ道は用意しない。逃げ道を用意した時点でゲートではなくなる。
@@ -56,6 +58,11 @@ while IFS= read -r line; do
     *.rs|*Cargo.toml|*Cargo.lock) needs_ts=1 ;;
     docs/*) needs_ts=1 ;;
     *.scss|CONTRIBUTING.md) needs_ts=1 ;;
+    # **門番自身とその検査。** `npm run verify` は `test:hooks` を含むので、
+    # ここを外すと**門番を書き換えるコミットでその検査が1度も走らない**
+    # ——選び損ねても何も落ちない、というこの門番の一番危ない壊れ方が、
+    # 門番自身の変更に対してだけ成立する
+    .claude/hooks/*) needs_ts=1 ;;
   esac
 done < <(git status --porcelain --untracked-files=no)
 

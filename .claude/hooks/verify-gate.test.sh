@@ -91,8 +91,14 @@ expect "CONTRIBUTING.md も verify（ラチェットの索引と突き合わせ�
 expect "SCSS も verify（寸法と対比のラチェットがある）" \
   "src/a.scss" "run verify"
 
-expect ".claude/ だけなら素通し" \
+expect ".claude/reviews/ は素通し" \
   ".claude/reviews/a.md" ""
+
+expect "門番自身は verify（test:hooks がこの検査を走らせる）" \
+  ".claude/hooks/verify-gate.sh" "run verify"
+
+expect "門番の検査も verify" \
+  ".claude/hooks/verify-gate.test.sh" "run verify"
 
 expect "README だけなら素通し" \
   "README.md" ""
