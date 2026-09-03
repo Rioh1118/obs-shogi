@@ -72,8 +72,11 @@ fn timeout_arguments(source: &str, path: &Path) -> Vec<String> {
         });
         let argument = code[open + 1..open + len - 1].trim().to_string();
         // **パターンは構築ではない。** `matches!(e, EngineError::Timeout(_))` の
-        // `_` まで要求すると、時間切れを**見分ける**側に綴りを書かせることになる
-        if argument != "_" {
+        // `_` まで要求すると、時間切れを**見分ける**側に綴りを書かせることになる。
+        // 中身を取り出す腕（`EngineError::Timeout(why) => …`）も同じ——
+        // 閉じ括弧の後ろが `=>` なら分解であって構築ではない
+        let is_arm = code[open + len..].trim_start().starts_with("=>");
+        if argument != "_" && !is_arm {
             found.push(argument);
         }
         from = open + len;
@@ -86,6 +89,11 @@ fn timeout_arguments(source: &str, path: &Path) -> Vec<String> {
 /// **含まないと「再試行してよい」と分からない。** プロセスは正常に起き、
 /// パスも設定も正しいのに、フロントはそれを見分けられない——
 /// もう一度押せば通ったはずの起動を、利用者はそこで捨てる。
+///
+/// **先頭でなければならない。** 途中に在ることを条件にすると、外から同じ綴りを
+/// 持ち込める——対局者の表示名でも、OS の文言（macOS の `ETIMEDOUT` は
+/// `Operation timed out`）でも「遅かっただけ」を名乗れてしまい、
+/// パスを直す導線が出なくなる。
 #[test]
 fn every_timeout_carries_the_marker() {
     let mut offenders = Vec::new();
@@ -97,7 +105,13 @@ fn every_timeout_carries_the_marker() {
             .unwrap_or(&path)
             .to_path_buf();
         for argument in timeout_arguments(&source, &path) {
-            if !argument.contains(MARKER) && !argument.contains("TIMED_OUT") {
+            // **書式リテラルの中の先頭を見る。** 実引数は `format!(` で始まり
+            // 改行も挟むので、最初の `"` の後ろから読む
+            let head = argument
+                .split_once('"')
+                .map(|(_, rest)| rest)
+                .unwrap_or(&argument);
+            if !head.starts_with(MARKER) && !head.starts_with("{TIMED_OUT}") {
                 offenders.push(format!("{}  {argument}", relative.display()));
             }
         }

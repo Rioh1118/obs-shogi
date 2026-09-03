@@ -69,20 +69,45 @@ impl Default for EngineSettings {
     }
 }
 
-/// 時間切れの目印。
+/// 時間切れの目印。**先頭に置く。**
 ///
-/// **入っていれば「遅かっただけ」。** 起動段の失敗のうち、再試行で通るものを
+/// **先頭にあれば「遅かっただけ」。** 起動段の失敗のうち、再試行で通るものを
 /// フロントが見分けられるようにする（→ `failure-surfacing.md` の F-27）。
 /// 返るのはフラットな文字列なので、目印を綴りで持つしかない。
 ///
-/// **片側だけの保証。** 入っていなければ設定の誤り、とは言えない——
+/// **部分一致で見ない。** 文字列のどこかに在ることを条件にすると、
+/// 外から同じ綴りを持ち込める——対局者の表示名（`failed to start {name}: …` に
+/// 素で載る）でも、OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）でも、
+/// 「遅かっただけ。設定は誤っていない」を名乗れてしまう。
+/// そうなると、パスを直す導線（F-27 の唯一の導線）が出ない。
+///
+/// **片側だけの保証。** 先頭に無ければ設定の誤り、とは言えない——
 /// 内部の取り落とし（ブロッキングタスクが落ちた、通知の経路が閉じた）も
 /// 目印を持たずに届く。断言しているのは `startGame` の TSDoc ではなく
 /// ここだけ、という状態にしないこと。
 ///
-/// `tests/timeout_marker.rs` が `EngineError::Timeout(` の実引数を走査して要求する。
+/// `tests/timeout_marker.rs` が `EngineError::Timeout(` の実引数を走査して、
+/// **書式の先頭にあること**を要求する。
 /// **実引数に直接置くこと**——変数へ括り出すと、目印が入っていても落ちる。
 pub const TIMED_OUT: &str = "timed out";
+
+/// `EngineError` を、フロントへ返す1本の文字列にする。
+///
+/// **時間切れだけは包まない。** `Display` は `Operation timeout: …` を前置するので、
+/// 素で文字列にすると `TIMED_OUT` が先頭から外れる。中身は必ず目印で始まる
+/// （`tests/timeout_marker.rs` が要求する）ので、そのまま返せばよい。
+pub fn engine_error_text(error: &EngineError) -> String {
+    match error {
+        EngineError::Timeout(why) => why.clone(),
+        EngineError::NotInitialized(_)
+        | EngineError::StartupFailed(_)
+        | EngineError::CommunicationFailed(_)
+        | EngineError::InvalidState(_)
+        | EngineError::ProtocolViolation(_)
+        | EngineError::AnalysisFailed(_)
+        | EngineError::AlreadyListening(_) => error.to_string(),
+    }
+}
 
 #[derive(Error, Debug)]
 pub enum EngineError {
@@ -102,6 +127,34 @@ pub enum EngineError {
     AnalysisFailed(String),
     #[error("Already listening: {0}")]
     AlreadyListening(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 時間切れの目印が、文字列にしたときも**先頭**に残ること。
+    ///
+    /// `Display` は `Operation timeout: …` を前置するので、素で文字列にすると
+    /// 目印が中へ潜る。潜ると、フロントは部分一致で見るしかなくなり、
+    /// 対局者の表示名や OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）に
+    /// 同じ綴りが入っただけで「遅かっただけ。設定は誤っていない」を名乗れる。
+    #[test]
+    fn a_timeout_keeps_the_marker_at_the_front() {
+        let text = engine_error_text(&EngineError::Timeout(format!(
+            "{TIMED_OUT} waiting for usiok"
+        )));
+        assert!(text.starts_with(TIMED_OUT), "目印が先頭に無い: {text}");
+
+        // 時間切れ以外は名乗らない
+        let other = engine_error_text(&EngineError::StartupFailed(
+            "engine_path must point to an existing file".to_string(),
+        ));
+        assert!(
+            !other.starts_with(TIMED_OUT),
+            "時間切れでない失敗が目印を名乗っている: {other}"
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

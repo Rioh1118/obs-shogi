@@ -34,9 +34,9 @@ use crate::engine::protocol::UsiProtocol;
 use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
-use crate::engine::types::{AnalysisResult, TIMED_OUT};
-use crate::engine::utils::shown;
+use crate::engine::types::{engine_error_text, AnalysisResult, TIMED_OUT};
 use crate::engine::utils::LogThrottle;
+use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
 
 use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;
@@ -1824,7 +1824,16 @@ async fn spawn_players(
                 for id in &ids {
                     registry.shutdown(id).await;
                 }
-                return Err(format!("failed to start {}: {e}", spec.name()));
+                // **目印を先頭から外さない。** 包むと `TIMED_OUT` が中へ潜り、
+                // フロントが「遅かっただけ」を見分けられなくなる。
+                // **名前も潰す。** webview から来る値なので、素で載せると
+                // 断り文句に制御文字が入る（利用者にそのまま見せる契約）
+                let name = shown(spec.name(), MAX_SUMMARY_LEN);
+                return Err(if e.starts_with(TIMED_OUT) {
+                    format!("{e} (while starting {name})")
+                } else {
+                    format!("failed to start {name}: {e}")
+                });
             }
         }
     }
@@ -1859,7 +1868,7 @@ async fn prepare_engine(
     let process = registry
         .spawn(engine_path, work_dir, for_spawn, for_usiok)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| engine_error_text(&e))?;
 
     let prepared = send_setup(&process, options, deadline).await;
     if let Err(e) = prepared {
@@ -1894,7 +1903,7 @@ async fn send_setup(
         protocol
             .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| engine_error_text(&e))?;
     }
 
     // `readyok` まで待ってから `usinewgame` を出す。待たずに積むと、
@@ -1902,7 +1911,7 @@ async fn send_setup(
     protocol
         .ensure_ready(READY_TIMEOUT.min(remaining(deadline, "the engine said readyok")?))
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| engine_error_text(&e))?;
 
     // **ここも残りを見る。** 見ないと、`ensure_ready` が残りを使い切った直後でも
     // 無条件に書きに行く。しかもその `usinewgame` は、直後に2体目の
@@ -1911,7 +1920,7 @@ async fn send_setup(
     protocol
         .send_command(&GuiCommand::UsiNewGame)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| engine_error_text(&e))?;
 
     Ok(())
 }
@@ -2504,7 +2513,58 @@ mod tests {
     fn a_startup_timeout_always_carries_the_marker() {
         let past = Instant::now() - Duration::from_secs(1);
         let error = remaining(past, "the options were sent").expect_err("締切を過ぎている");
-        assert!(error.contains(TIMED_OUT), "目印が無い: {error}");
+        assert!(error.starts_with(TIMED_OUT), "先頭に目印が無い: {error}");
+    }
+
+    /// 時間切れ**でない**失敗が、目印を名乗れないこと。
+    ///
+    /// **部分一致で見ると、外から同じ綴りを持ち込める。** 断り文句には
+    /// 対局者の表示名が素で載り、OS の文言も連なる（macOS の `ETIMEDOUT` は
+    /// `Operation timed out`）。フロントは目印を見て「遅かっただけ。設定は
+    /// 誤っていない」と表示するので、名乗られると**パスを直す導線が出ない**
+    /// ——F-27 が挙げている唯一の導線。何度再試行しても通らない。
+    #[tokio::test]
+    async fn a_setup_failure_cannot_claim_the_retry_marker() {
+        let registry = EngineRegistry::new();
+        let mut settings = two_humans(vec![]);
+        settings.black = PlayerSpec::Engine {
+            // 目印を名乗る表示名
+            name: TIMED_OUT.to_string(),
+            engine_path: "/nonexistent/engine".to_string(),
+            work_dir: None,
+            options: vec![],
+            ponder: false,
+        };
+
+        // **締切は十分に残す。** 残りが `SPAWN_TIMEOUT` を切ると
+        // `prepare_engine` が本物の時間切れで断り、測りたいものが測れない
+        let error = spawn_players(
+            &registry,
+            &settings,
+            Instant::now() + SPAWN_TIMEOUT + USI_OK_TIMEOUT,
+        )
+        .await
+        .expect_err("実在しないエンジンで起動している");
+
+        assert!(
+            !error.starts_with(TIMED_OUT),
+            "設定の誤りが「遅かっただけ」を名乗っている: {error}"
+        );
+
+        // **本物の時間切れは、包んでも先頭に残ること。** 包み方を素に戻すと
+        // 目印が中へ潜り、再試行で通る失敗を行き止まりとして案内することになる
+        let timed_out = spawn_players(
+            &registry,
+            &settings,
+            Instant::now() - Duration::from_secs(1),
+        )
+        .await
+        .expect_err("締切を過ぎている");
+
+        assert!(
+            timed_out.starts_with(TIMED_OUT),
+            "包んだせいで目印が先頭から外れている: {timed_out}"
+        );
     }
 
     /// 対局の起動が、締切を過ぎたら**プロセスを起こす前に**断ること。
