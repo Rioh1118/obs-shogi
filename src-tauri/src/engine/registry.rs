@@ -13,7 +13,7 @@ use usi::UsiEngineHandler;
 use uuid::Uuid;
 
 use crate::engine::protocol::UsiProtocol;
-use crate::engine::types::{EngineError, EngineInfo};
+use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
 
 const LOGT: &str = "obs_shogi::engine::registry";
 
@@ -197,10 +197,9 @@ impl EngineRegistry {
                     // （→ `UsiProtocol::kill_engine`）。
                     // 起き上がるのを別のタスクで待って、同じ手順で畳む
                     tokio::spawn(dispose_late_spawn(started));
-                    return Err(EngineError::Timeout(
-                        "the engine did not start in time; check the path and the volume"
-                            .to_string(),
-                    ));
+                    return Err(EngineError::Timeout(format!(
+                        "{TIMED_OUT} before the process started; check the path and the volume"
+                    )));
                 }
             };
 

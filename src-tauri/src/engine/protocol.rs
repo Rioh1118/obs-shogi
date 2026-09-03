@@ -341,9 +341,9 @@ async fn run_writer(
             ))),
             Err(_) => {
                 stalled = true;
-                Err(EngineError::Timeout(
-                    "the engine did not accept the write in time; it may still arrive".to_string(),
-                ))
+                Err(EngineError::Timeout(format!(
+                    "{TIMED_OUT} accepting the write; it may still arrive"
+                )))
             }
         };
 
@@ -1129,17 +1129,15 @@ impl UsiProtocol {
         // 段の取り分が 0 なら段に入る前に断る（`prepare_engine` の `for_usiok` と同じ形）
         let left = deadline.saturating_duration_since(tokio::time::Instant::now());
         if left.is_zero() {
-            return Err(EngineError::Timeout(
-                "timed out before waiting for readyok".to_string(),
-            ));
+            return Err(EngineError::Timeout(format!(
+                "{TIMED_OUT} before waiting for readyok"
+            )));
         }
 
         let settled =
             tokio::time::timeout(left, rx.wait_for(|state| *state != ReadyState::Waiting))
                 .await
-                .map_err(|_| {
-                    EngineError::Timeout("engine did not return readyok in time".to_string())
-                })?
+                .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
                 .map_err(|_| {
                     EngineError::CommunicationFailed("ready channel closed".to_string())
                 })?;

@@ -34,7 +34,7 @@ use crate::engine::protocol::UsiProtocol;
 use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
-use crate::engine::types::AnalysisResult;
+use crate::engine::types::{AnalysisResult, TIMED_OUT};
 use crate::engine::utils::LogThrottle;
 
 use super::clock::{ClockOutcome, GameClocks};
@@ -93,6 +93,9 @@ const MAX_OPTIONS: usize = 128;
 ///
 /// 90秒にしたのは、評価関数の読み込みが重いエンジン（数十秒）を通し、
 /// かつ人が「反応が無い」と判断する前に返るため。
+///
+/// **この締切で断るときは `TIMED_OUT` の綴りを入れる。** フロントは
+/// それだけで「再試行してよい失敗」と「設定の誤り」を分ける（→ 台帳の F-27）。
 pub const START_TIMEOUT: Duration = Duration::from_secs(90);
 
 /// 1局に積める手数の上限。
@@ -1679,7 +1682,7 @@ impl Runner {
 fn remaining(deadline: Instant, what: &str) -> Result<Duration, String> {
     let left = deadline.saturating_duration_since(Instant::now());
     if left.is_zero() {
-        return Err(format!("timed out before {what}"));
+        return Err(format!("{TIMED_OUT} before {what}"));
     }
     Ok(left)
 }
@@ -1753,7 +1756,7 @@ async fn prepare_engine(
     let for_spawn = SPAWN_TIMEOUT.min(left);
     let for_usiok = USI_OK_TIMEOUT.min(left.saturating_sub(for_spawn));
     if for_usiok.is_zero() {
-        return Err("timed out before the engine said usiok".to_string());
+        return Err(format!("{TIMED_OUT} before the engine said usiok"));
     }
     let process = registry
         .spawn(engine_path, work_dir, for_spawn, for_usiok)
@@ -2242,9 +2245,25 @@ mod tests {
             .expect_err("`usiok` を待てない締切で起動している");
 
         assert!(
-            error.contains("timed out before"),
+            error.contains(TIMED_OUT),
             "エンジンのせいとして断っている: {error}"
         );
+    }
+
+    /// 起動段の時間切れが、`TIMED_OUT` の綴りを必ず持つこと。
+    ///
+    /// **`startGame` の `Err` を分類する唯一の鍵。** フロントはこの綴りで
+    /// 「設定が誤っている」と「遅かっただけ」を分ける（→ 台帳の F-27）。
+    /// 綴りが揃っていないと、**再試行で通る失敗が直しようのない設定の誤りとして
+    /// 案内される**。
+    ///
+    /// 見ているのは `remaining` と `prepare_engine` の2つだけ。実プロセスを
+    /// 要する側（`registry::spawn` / `ensure_ready` / 書き込み）は踏めない。
+    #[test]
+    fn a_startup_timeout_always_carries_the_marker() {
+        let past = Instant::now() - Duration::from_secs(1);
+        let error = remaining(past, "the options were sent").expect_err("締切を過ぎている");
+        assert!(error.contains(TIMED_OUT), "目印が無い: {error}");
     }
 
     /// 対局の起動が、締切を過ぎたら**プロセスを起こす前に**断ること。
@@ -2272,7 +2291,7 @@ mod tests {
 
         // 起こそうとして失敗したのではなく、起こす前に締切で断ったこと
         assert!(
-            error.contains("timed out before"),
+            error.contains(TIMED_OUT),
             "締切ではなく起動の失敗で断っている: {error}"
         );
     }

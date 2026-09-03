@@ -25,6 +25,12 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * あって「考え始めた」ではない。最初の `position` / `go` は別タスクで走り、
  * その失敗は戻り値ではなく `game-event` の `over { reason: engineFailure }` で届く。
  *
+ * **失敗の分け方は文言。** `Err` の中に `timed out` が入っていたら**遅かっただけ**
+ * なので、そのまま再試行してよい（設定は誤っていない。ネットワークボリューム上の
+ * エンジンや評価関数の読み込みが重いエンジンで当たる）。入っていなければ設定側の
+ * 問題で、再試行しても同じ結果になる——エンジンのパスや `setoption` を直させること。
+ * **型で割るのは #362 と同じ形の話。**
+ *
  * **`startGame` を呼ぶ前に `listenToGameEvents` を張ること。**
  * 最初の `turnChanged` と最初の `go` は、`start_game` が返る**前に**走る。
  * `Ok` を待ってから張ると必ず取りこぼし、`bestmove resign` を即返すエンジンでは

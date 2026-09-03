@@ -69,6 +69,16 @@ impl Default for EngineSettings {
     }
 }
 
+/// 時間切れの目印。
+///
+/// **`startGame` の `Err` を分類する唯一の鍵。** 起動段の失敗は
+/// 「設定が誤っている」と「遅かっただけ」に分かれ、前者は直させ、後者は
+/// 再試行させたい（→ `failure-surfacing.md` の F-27）。返るのはフラットな
+/// 文字列なので、時間切れ側にこの綴りを必ず入れて区別できるようにする。
+///
+/// **機械は見ていない。** 新しい時間切れを足すときは、この綴りを入れること。
+pub const TIMED_OUT: &str = "timed out";
+
 #[derive(Error, Debug)]
 pub enum EngineError {
     #[error("Engine not initialized: {0}")]
