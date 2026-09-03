@@ -285,9 +285,19 @@ fn every_table_yields_at_least_one_constant() {
 /// 上のテストは1件でも拾えれば通るので、規則が大幅に狭まっても気づけない。
 /// 件数で見るのは定数を最も多く書いている表1つだけ。**表ごとの件数には幅があり、
 /// 共通の下限は置けない**（2件しか書いていない表がある）。
+///
+/// **添字で引かない。** [`TABLES`] を並べ替えただけで対象が変わり、
+/// 「綴りの規則が変わったかもしれない」という**嘘の理由**で落ちる。
 #[test]
 fn the_check_actually_finds_constants() {
-    let text = fs::read_to_string(repo_file(TABLES[0].0)).expect("表を読めない");
+    const RICHEST: &str = "docs/state-transitions/yaneuraou-db-parse.md";
+
+    assert!(
+        TABLES.iter().any(|(table, _)| *table == RICHEST),
+        "{RICHEST} が TABLES から消えた。件数の下限を見る表を選び直すこと",
+    );
+
+    let text = fs::read_to_string(repo_file(RICHEST)).expect("表を読めない");
     let found = constants_in(&text);
 
     assert!(
