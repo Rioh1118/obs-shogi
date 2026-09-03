@@ -471,9 +471,8 @@ impl GameEvent {
 
     /// 1手に何度も出るか。**絞りの枠を分ける基準。**
     ///
-    /// 高頻度のものと1手1回のものが同じ枠を奪い合うと、読み筋の失敗で枠を
-    /// 使い切った直後の `moveDecided` の失敗が黙って捨てられる。
-    /// **その1行が、なぜ対局が止まったかを説明する唯一の記録になる。**
+    /// 絞る側は2枠。高頻度のもの（読み筋・時計）と、1手1回のもの。
+    /// 絞らない側は `is_terminal` と `needs_every_line`。
     ///
     /// **`_` を書かない。** 書くと、足したバリアントが黙って「1手1回」に落ちる。
     pub fn is_frequent(&self) -> bool {
@@ -481,6 +480,26 @@ impl GameEvent {
             GameEvent::SearchInfo { .. } | GameEvent::ClockUpdated { .. } => true,
             GameEvent::TurnChanged { .. }
             | GameEvent::MoveDecided { .. }
+            | GameEvent::Over { .. } => false,
+        }
+    }
+
+    /// これが落ちると、**後の失敗が別の原因を指す**か。
+    ///
+    /// `MoveDecided` が落ちると、フロントは裁定を返せない。すると
+    /// `RULING_TIMEOUT` が `over { aborted, "アプリが裁定を返さなかった" }` を出す
+    /// ——**実際に止めたのは `emit` の失敗なのに、ログに残る理由は別のもの**
+    /// （→ 台帳の F-19）。その1行が唯一の手掛かりなので、絞りの枠に入れない。
+    ///
+    /// 1手に1回しか出ないので、絞らなくても洪水にならない。
+    ///
+    /// **`_` を書かない。** 書くと、足したバリアントが黙って「絞ってよい」側に落ちる。
+    pub fn needs_every_line(&self) -> bool {
+        match self {
+            GameEvent::MoveDecided { .. } => true,
+            GameEvent::TurnChanged { .. }
+            | GameEvent::SearchInfo { .. }
+            | GameEvent::ClockUpdated { .. }
             | GameEvent::Over { .. } => false,
         }
     }
@@ -1069,6 +1088,26 @@ mod tests {
             assert!(
                 !(event.is_terminal() && event.is_frequent()),
                 "{} が終局かつ高頻度になっている",
+                event.kind()
+            );
+        }
+
+        // **着手も絞る枠に載せてはいけない。** 落とすと裁定が返せず、
+        // `RULING_TIMEOUT` が別の理由（アプリが答えなかった）で終局させる
+        let every_line: Vec<&str> = samples
+            .iter()
+            .filter(|e| e.needs_every_line())
+            .map(|e| e.kind())
+            .collect();
+        assert_eq!(
+            every_line,
+            vec!["moveDecided"],
+            "落とすと後の失敗が別の原因を指す出来事が変わっている"
+        );
+        for event in &samples {
+            assert!(
+                !(event.needs_every_line() && event.is_frequent()),
+                "{} が「1行も落とせない」かつ高頻度になっている",
                 event.kind()
             );
         }
