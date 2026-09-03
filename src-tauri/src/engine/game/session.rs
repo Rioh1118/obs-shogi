@@ -1489,6 +1489,22 @@ impl Runner {
             return;
         }
 
+        // **終わり方をここで1行残す。** 番人が決めた終局（時間切れ・畳み待ち・
+        // 裁定が返らない）はどこにもログを書かないので、**どちらの検出器が先に
+        // 当たったかで痕跡の有無が変わる**。ログを根拠に「正常に終わった」と
+        // 読めるようにするには、全部の終わり方が同じ1行を通る必要がある。
+        //
+        // 絞らない。`is_over` の早期 return があるので1局に1回しか通らない。
+        // `detail` は Rust が入れた英文か、フロントが渡した文言（`Rule` のとき）
+        log::info!(
+            target: LOGT,
+            "over game_id={} reason={:?} winner={:?} detail={:?}",
+            self.id,
+            result.reason,
+            result.winner,
+            result.detail
+        );
+
         // **その手に使った時間を締める。** `consume` を呼ぶのは `decide_move` だけで、
         // ここを通る終わり方（時間切れ・投了・中断・裁定・故障）は通らない。
         // 締めないと、`Phase::Over` にした瞬間に `running` が消えて
