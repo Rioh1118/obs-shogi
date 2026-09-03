@@ -121,18 +121,34 @@ impl GameEventSink for TauriEvents {
     }
 }
 
-/// 断りのログを絞る間隔。**`op` ごとに枠を分ける。**
+/// 断りのログを絞る間隔。
 ///
-/// 枠を1つにすると、投了が断られた1行が直前の `close` の連打に食われる。
+/// **`EMIT_WARN_INTERVAL` と揃えない。** あちらはエンジンの出力に付いて出る
+/// もので、絞りたいのは秒に何十回という流量。こちらは人の操作か裁定に付いて
+/// 出るので、**操作ごとの最初の断りは体感で即座に残ってほしい**。
+/// 1秒あれば、案内どおりに呼び直す実装（`closeGame` の doc）の連打は潰せる。
 const REJECTION_WARN_INTERVAL: Duration = Duration::from_secs(1);
 
-/// `op` ごとの絞り。
+/// 枠を持てる対局の数。
+///
+/// **溢れたら枠ごと捨てる。** `game_id` は webview から来る文字列なので、
+/// 知らない ID を撃ち続ければ枠はいくらでも増える。捨てた直後は各枠の
+/// 先頭が1行余分に出るだけで、絞りの目的（ログの予算を守る）は崩れない。
+const MAX_TRACKED_GAMES: usize = 64;
+
+/// `(op, 対局)` ごとの絞り。
+///
+/// **対局まで鍵に入れる。** `op` だけで割ると、断られ続けている対局が
+/// **他の対局の断りを食う**——A局の裁定が毎回断られている裏で B局が1回
+/// 断られても、その1行はどこにも残らない。B局は `RULING_TIMEOUT` で
+/// `aborted` になり、ログにその `game_id` が一度も出ない。
 ///
 /// **静的に持つ。** `log_rejection` はコマンドの入口から直に呼ぶ自由関数で、
 /// `AppState` を通していない。通す形にすると、断りを記録するためだけに
 /// 全コマンドの署名が増える。
-fn rejection_throttles() -> &'static Mutex<HashMap<&'static str, LogThrottle>> {
-    static THROTTLES: OnceLock<Mutex<HashMap<&'static str, LogThrottle>>> = OnceLock::new();
+fn rejection_throttles() -> &'static Mutex<HashMap<(&'static str, GameId), LogThrottle>> {
+    static THROTTLES: OnceLock<Mutex<HashMap<(&'static str, GameId), LogThrottle>>> =
+        OnceLock::new();
     THROTTLES.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -159,8 +175,12 @@ fn log_rejection<T>(
 ) -> Result<T, String> {
     if let Err(e) = &result {
         let allowed = rejection_throttles().lock().is_ok_and(|mut throttles| {
+            let key = (op, game_id.clone());
+            if throttles.len() >= MAX_TRACKED_GAMES && !throttles.contains_key(&key) {
+                throttles.clear();
+            }
             throttles
-                .entry(op)
+                .entry(key)
                 .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
                 .allow()
         });
