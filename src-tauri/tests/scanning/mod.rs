@@ -213,6 +213,27 @@ pub fn doc_above(lines: &[&str], at: usize) -> Vec<(usize, String)> {
     block
 }
 
+/// そのクレートの綴り（`name::`）が現れるか。
+///
+/// **語の境目を見る。** `contains("tauri::")` だけだと `not_tauri::MARK` に
+/// 当たる。`game/` にランタイム無しで回すための身代わり（`mock_tauri` /
+/// `fake_tauri`）を置いたとき、**事実と逆のメッセージで commit が止まる**。
+///
+/// 先頭の `::` は名前の一部ではないので境目として通す（`use ::tauri::X;`）。
+pub fn mentions_crate(code: &str, name: &str) -> bool {
+    let needle = format!("{name}::");
+    let mut from = 0;
+    while let Some(at) = code[from..].find(&needle) {
+        let at = from + at;
+        let before = code[..at].chars().next_back();
+        if !before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+            return true;
+        }
+        from = at + needle.len();
+    }
+    false
+}
+
 /// コードの中の `needle` の位置。**文字列とコメントの中は数えない。**
 ///
 /// `find` を素で使うと、doc コメントに `#[cfg(test)]` と書いた行から
@@ -694,6 +715,27 @@ mod tests {
             "本物の doc まで潰している: {blanked:?}"
         );
         assert_eq!(blanked.len(), source.len(), "バイト長が変わっている");
+    }
+
+    /// クレートの綴りを語の境目で見ていること。
+    ///
+    /// 部分一致にすると、`game/` に置いた身代わり（`mock_tauri`）が
+    /// 「`tauri` を参照している」として commit を止める。
+    #[test]
+    fn a_crate_name_is_matched_at_a_word_boundary() {
+        assert!(mentions_crate("fn f(app: tauri::AppHandle) {}", "tauri"));
+        assert!(mentions_crate("use ::tauri::AppHandle;", "tauri"));
+        assert!(mentions_crate("tauri::Emitter", "tauri"));
+
+        assert!(!mentions_crate(
+            "mod not_tauri { }\nnot_tauri::MARK;",
+            "tauri"
+        ));
+        assert!(!mentions_crate("mock_tauri::AppHandle", "tauri"));
+        assert!(!mentions_crate("let tauri = 1;", "tauri"));
+
+        // 途中に紛れ物があっても、本物が別の場所にあれば拾う
+        assert!(mentions_crate("mock_tauri::X; tauri::Y;", "tauri"));
     }
 
     #[test]

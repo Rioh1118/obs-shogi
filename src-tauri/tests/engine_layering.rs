@@ -7,15 +7,21 @@
 //! 片方を差し替えるともう片方が壊れる。テストの継ぎ目も作れない
 //! （下の層だけを組んで回す、ができない）。
 //!
-//! ここで見るのは2つ。
+//! ここで見るのは4つ。
 //!
 //! 1. モジュール間に環が無いこと
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
+//! 3. `engine/` が crate の他の枝を `use` していないこと
+//! 4. 段が「使わない」と決めた外部クレートを**参照していない**こと（`Layer::forbids`）
 //!
 //! ## 走査の限界
 //!
-//! 拾うのは `use` の行だけ。関数の中で完全修飾に書けば素通りするが、
+//! **1〜3 が拾うのは `use` の行だけ。** 関数の中で完全修飾に書けば素通りするが、
 //! **それは `use` を書くより目立つ**ので走査を厚くするより読み手に任せる。
+//!
+//! **4 は違う。** 文字列とコメントを潰した本文全体で綴りを探す——この repo は
+//! `AppHandle` を1度も `use` で書かず、`app: tauri::AppHandle` と型の位置に
+//! 完全修飾で置くので、`use` だけを見ると**実際に書かれる形を1つも見ない**。
 //!
 //! 拾う形は3つ。`use super::x`、`use crate::engine::x`、そして
 //! **波括弧で並べた形**（`use crate::engine::{a::A, b::B}`）。
@@ -29,7 +35,7 @@
 
 mod scanning;
 
-use scanning::blank_out_noncode;
+use scanning::{blank_out_noncode, mentions_crate};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -49,7 +55,9 @@ struct Layer {
     decides: &'static str,
     /// `use` してよい段
     may_use: &'static [&'static str],
-    /// **`use` してはいけない外部クレート。**
+    /// **本文に綴りが現れてはいけない外部クレート。**
+    ///
+    /// `use` の行だけでなく、型の位置の完全修飾も見る（`mentions_crate`）。
     ///
     /// 許可制にしない（`tokio` / `usi` / `serde` を全部書くことになる）。
     /// ここに挙げるのは、**逆転させた境界を戻させない**ためだけ。
@@ -595,7 +603,7 @@ fn no_layer_uses_a_crate_it_must_not() {
         let source = fs::read_to_string(&path).unwrap_or_default();
         let code = blank_out_noncode(&source);
         for name in layer.forbids {
-            if !code.contains(&format!("{name}::")) {
+            if !mentions_crate(&code, name) {
                 continue;
             }
             offenders.push(format!(
