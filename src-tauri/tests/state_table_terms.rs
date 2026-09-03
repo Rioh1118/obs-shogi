@@ -131,9 +131,14 @@ fn constants_in(text: &str) -> BTreeSet<String> {
 /// - `const VERSION` を消しても、その名前を引用した assert のメッセージが残っていれば
 ///   `` `VERSION` `` を書いた表は緑のまま
 ///
-/// 名前は語の区切りまでで切る。部分文字列で見ると `MAX_MOVE` が
-/// `MAX_MOVE_CHARS` に含まれてしまい、消した定数の接頭辞が別の定数に残っている
-/// だけで通る。
+/// **`#[cfg(test)]` の中の `const` も数える。** 表は照合の相手としてテスト側の定数を
+/// 名指すことがあり、`book-key-failures.md` の `LONGEST_VALID_INPUT_CHARS`
+/// （`sfen.rs` の `mod tests`）が実例 —— コンパイル時 assert の根拠なので、
+/// 落とすと**正当に書かれている行が赤くなる**。代価は、本番の `const` を
+/// テストモジュールへ移しても表が緑のままになること。
+///
+/// 名前は語の区切りまでで切る。切らないと `MAX_MOVE` を書いた表が
+/// `MAX_MOVE_CHARS` の宣言行で通ってしまう（照合の側は [`missing_in`]）。
 fn declared_constants(code: &str) -> BTreeSet<&str> {
     code.lines()
         .filter_map(|line| {
