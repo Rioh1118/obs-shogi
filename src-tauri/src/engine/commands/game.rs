@@ -220,9 +220,8 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
 /// 断りを記録する1行。
 ///
 /// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
-/// 測っている量と実際に書く量がずれる——`game_id` は `Display` が
-/// **文字数**で切るのでバイト数は4倍になりうるし、`unknown game: {id}` の
-/// ように**同じ ID が1行に2回載る**こともある。
+/// 測っている量と実際に書く量がずれる——`unknown game: {id}` のように
+/// **同じ ID が1行に2回載る**ことがあるし、欄も増減する。
 fn rejection_line(op: &str, game_id: &GameId, error: &str) -> String {
     format!("{op} rejected game={game_id}: {error}")
 }
@@ -373,6 +372,7 @@ mod tests {
 
     use std::time::Instant;
 
+    use crate::engine::game::types::worst_game_id;
     use crate::engine::utils::LOG_FILE_BUDGET;
 
     fn id(value: &str) -> GameId {
@@ -467,9 +467,8 @@ mod tests {
         let ops = rejection_ops();
         assert!(ops >= 5, "`log_rejection` の口を数えられていない: {ops}");
 
-        // 台帳に無い ID は文言にもう一度載る。`GameId::Display` は文字数で切るので、
-        // 4バイト文字を詰めた ID がいちばん重い
-        let game_id = GameId::new("😀".repeat(64));
+        // 台帳に無い ID は文言にもう一度載るので、1行に2回出る
+        let game_id = worst_game_id();
         let worst = rejection_line(
             "continue_game",
             &game_id,

@@ -2055,11 +2055,19 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
 /// 終局を記録する1行。
 ///
 /// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
-/// `{:?}` の展開ぶんや欄の増減で**測っている量と実際に書く量がずれる**。
+/// 欄の増減で**測っている量と実際に書く量がずれる**。
+///
+/// **外来の欄を `{:?}` で書かない。** `detail` は `shown` を通っていて
+/// 制御文字が残っていないので `{}` で足りる。`{:?}` に戻すと BOM や
+/// 未割り当ての1文字が `\u{XXXX}` の10バイトへ膨らみ、
+/// `MAX_DETAIL_LEN` を決めている式が外れる。`reason` と `winner` は
+/// バリアント名しか出ないので `{:?}` でよい。
 fn over_line(id: &GameId, result: &GameResult) -> String {
     format!(
-        "over game_id={id} reason={:?} winner={:?} detail={:?}",
-        result.reason, result.winner, result.detail
+        "over game_id={id} reason={:?} winner={:?} detail={}",
+        result.reason,
+        result.winner,
+        result.detail.as_deref().unwrap_or("-")
     )
 }
 
@@ -2110,9 +2118,6 @@ mod tests {
     use super::*;
 
     use crate::engine::utils::LOG_FILE_BUDGET;
-
-    /// `GameId::Display` が切る文字数より広く取る。切る側の値は `game::types` にある
-    const MAX_ID_LEN_FOR_TEST: usize = 64;
 
     /// 平手。`GuiCommand::Position` が `position sfen` を前置するので、
     /// `startpos` ではなく完全な SFEN を持つ
@@ -3707,16 +3712,20 @@ mod tests {
         /// 終局の1行が予算のうち占めてよい割合の逆数
         const SHARE: u128 = 50;
 
-        // **潰した後にいちばん重い文字**を上限ぶん詰めた `detail`。
-        // 潰される文字（U+FFFD は3バイト）より、潰されない4バイト文字のほうが重い
-        let detail = shown(&"😀".repeat(MAX_DETAIL_LEN * 2), MAX_DETAIL_LEN);
+        // **最悪の入力はリテラルで持つ。** `shown` の出力を入れると
+        // 「`shown` が通す文字」しか詰められず、`shown` を緩めても測る値が
+        // 変わらない——緩めた側を1つも落とせないテストになる。
+        //
+        // 未割り当ての4バイト文字。潰されず（制御文字ではない）、UTF-8 で
+        // いちばん重く、`{:?}` に戻せば10バイトへ膨らむ
+        let detail = shown(&"\u{10ffff}".repeat(MAX_DETAIL_LEN * 2), MAX_DETAIL_LEN);
         assert!(
             // 末尾には切ったことを示す1文字が付く
             detail.chars().rev().skip(1).all(|c| c.len_utf8() == 4),
-            "最悪の文字を詰められていない（潰されている）"
+            "最悪の文字が入口で潰されている。詰める文字を選び直すこと"
         );
         let line = over_line(
-            &GameId::new("超".repeat(MAX_ID_LEN_FOR_TEST)),
+            &worst_game_id(),
             &GameResult {
                 winner: Some(Side::White),
                 reason: GameOverReason::EngineFailure,

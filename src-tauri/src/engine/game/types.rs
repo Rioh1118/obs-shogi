@@ -54,6 +54,10 @@ impl GameId {
 /// 静的な写像が抱える領域で、どちらもバイトで効く。48文字の4バイト文字を
 /// 通すと、1行が192バイトになるうえ同じ ID が文言にもう一度載る。
 ///
+/// **数えるのは出す側のバイト数。** 入力を数えると、制御文字だらけの ID が
+/// ここの3倍を出す（1バイトが3バイトの置換文字になる）。しかもその ID は
+/// 入力が1バイト/文字なので `is_safe_to_retain` も通る。
+///
 /// **同じ数にしてある。** どちらも根拠は「本物（UUID の36バイト）が収まる」の
 /// 1つで、片方だけ動かす理由が無い。片方を広げたくなったら、
 /// もう片方に何が起きるかを見てから割ること。
@@ -69,21 +73,34 @@ const MAX_ID_BYTES: usize = 48;
 /// 台帳を引く側は `as_str` を使うので、切り詰めが照合に効くことはない。
 impl std::fmt::Display for GameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // **文字の途中で割らない。** バイトで数えつつ、入り切る文字までを出す
+        // **数えるのは出す側のバイト数。** 制御文字は1バイトの入力が3バイトの
+        // 置換文字になるので、入力を数えると上限を3倍まで超える。
+        // 文字の途中で割らないよう、入り切る文字までを出す
         let mut used = 0;
         for ch in self.0.chars() {
-            if used + ch.len_utf8() > MAX_ID_BYTES {
+            let out = if ch.is_control() { '\u{fffd}' } else { ch };
+            if used + out.len_utf8() > MAX_ID_BYTES {
                 return f.write_str("…");
             }
-            used += ch.len_utf8();
-            if ch.is_control() {
-                f.write_str("\u{fffd}")?;
-            } else {
-                write!(f, "{ch}")?;
-            }
+            used += out.len_utf8();
+            write!(f, "{out}")?;
         }
         Ok(())
     }
+}
+
+/// 文章に出したとき**いちばん重くなる** ID。測る側はこれを使う。
+///
+/// **重いのは長い ID ではなく制御文字の ID。** `Display` は1文字を3バイトの
+/// 置換文字へ広げるので、入力が上限より短くても出力は上限まで届く。しかも
+/// 入力は1バイト/文字なので `is_safe_to_retain` を通り、静的な写像の鍵としても
+/// 正規に入ってくる。「長い ASCII」や「4バイト文字を詰めた ID」で測ると、
+/// 広がるぶんを丸ごと見落とす。
+///
+/// **1箇所で持つ。** 最悪の形を測る側それぞれが選ぶと、片方だけ古くなる。
+#[cfg(test)]
+pub fn worst_game_id() -> GameId {
+    GameId::new("\n".repeat(MAX_ID_BYTES))
 }
 
 /// 手番。SFEN の 2 番目のフィールド（`b` / `w`）と対応する。
@@ -508,13 +525,21 @@ mod tests {
     /// 改行を通せば、その後ろに好きなログ行も作れる。
     #[test]
     fn a_game_id_in_text_is_bounded_and_has_no_control_characters() {
-        let long = GameId::new("x".repeat(10_000));
-        let shown = long.to_string();
-        assert!(
-            shown.chars().count() <= MAX_ID_BYTES + 1,
-            "長い ID を切り詰めていない: {} 文字",
-            shown.chars().count()
-        );
+        // 末尾には切ったことを示す1文字が付く
+        let cap = MAX_ID_BYTES + '…'.len_utf8();
+
+        for long in [
+            GameId::new("x".repeat(10_000)),
+            // 置換文字へ広がるので、入力が短くても出力は上限に届く
+            worst_game_id(),
+        ] {
+            let shown = long.to_string();
+            assert!(
+                shown.len() <= cap,
+                "長い ID を切り詰めていない: {} バイト（上限 {cap}）",
+                shown.len()
+            );
+        }
 
         let sneaky = GameId::new("a\nERROR fake line".to_string());
         let shown = sneaky.to_string();
