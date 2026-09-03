@@ -84,7 +84,13 @@ export async function continueGame(gameId: GameId, moves: string[]): Promise<voi
   return await invoke("continue_game", { gameId, moves });
 }
 
-/** 裁定「終局」。詰み・千日手・持将棋・最大手数・反則はすべてここから入る */
+/**
+ * 裁定「終局」。詰み・千日手・持将棋・最大手数・反則はすべてここから入る。
+ *
+ * `detail` は棋譜と画面に残る説明で、**長さの上限がある**（Rust の
+ * `MAX_DETAIL_LEN`）。超えると reject するので、エンジンの出力や利用者の入力を
+ * そのまま渡さないこと。人が読む文言（「千日手」「二歩」）は上限の1/10も使わない。
+ */
 export async function endGameByRule(
   gameId: GameId,
   winner: Side | null,

@@ -1000,6 +1000,14 @@ impl Runner {
         if self.is_over() {
             return Err("game is already over".to_string());
         }
+        if let Some(detail) = &detail {
+            if detail.len() > MAX_DETAIL_LEN {
+                return Err(format!(
+                    "detail is too long: {} bytes; the limit is {MAX_DETAIL_LEN}",
+                    detail.len()
+                ));
+            }
+        }
         self.finish(GameResult {
             winner,
             reason: GameOverReason::Rule,
@@ -2011,8 +2019,8 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
     }
     if usi_move.len() > MAX_USI_MOVE_LEN {
         return Err(format!(
-            "move is too long: {} bytes",
-            usi_move.len().min(MAX_WIRE_FIELD)
+            "move is too long: {} bytes; the limit is {MAX_USI_MOVE_LEN}",
+            usi_move.len()
         ));
     }
     if !usi_move.is_ascii()
@@ -2038,8 +2046,19 @@ fn shown(usi_move: &str) -> String {
 
 /// USI の指し手として通す最大のバイト数。
 ///
-/// 一番長いのは成りを伴う打ち込み（`7g7f+` の5バイト）で、余裕を見て8。
+/// 一番長いのは成りを伴う**移動**（`7g7f+` の5バイト）。打ちは `P*7f` の4バイトで、
+/// **打った駒は成れない**ので `+` は付かない。余裕を見て8。
 const MAX_USI_MOVE_LEN: usize = 8;
+
+/// 終局の説明として受け取る最大のバイト数。
+///
+/// **`finish` がこれを絞らずにログへ書く。** webview から来る値なので、
+/// 縛らないと1回の `end_game_by_rule` でログの予算（`LOG_FILE_BUDGET`）を
+/// 一周させられる——診断の履歴が全部飛ぶ。
+///
+/// 1行が予算の1/100を超えないところで切る。人が読む文言（「千日手」「二歩」）は
+/// この1/10も使わない。
+const MAX_DETAIL_LEN: usize = 1024;
 
 /// 壁時計。**時間切れの判定には使わない**（そちらは `Instant` で測る）。
 /// 使うのは「表示が尽きる時刻」を受け手へ渡すときだけ。
@@ -3605,6 +3624,37 @@ mod tests {
         assert!(runner.over.is_cancelled(), "終局したのに拍が畳まれていない");
     }
 
+    /// 終局の説明が、長さの検査を通ること。
+    ///
+    /// **`finish` はこれを絞らずにログへ書く。** webview から来る値なので、
+    /// 縛らないと1回の `end_game_by_rule` でログの予算を一周させられる
+    /// ——実測で1行が 300,057 バイトになった。
+    ///
+    /// 断るほうに倒す。ログだけ切り詰めても、`Over` イベントと `snapshot` に
+    /// 載る経路が残る。
+    #[tokio::test]
+    async fn a_long_detail_is_refused_before_it_reaches_the_log() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+
+        let error = runner
+            .accept_rule_end(None, Some("x".repeat(300_000)))
+            .await
+            .expect_err("長すぎる説明を通している");
+        assert!(
+            error.contains("300000"),
+            "実際の長さを報告していない: {error}"
+        );
+        assert!(error.len() < 100, "断り文句が長さに引きずられている");
+        assert!(!runner.is_over(), "断ったのに終局している");
+
+        // 人が読む文言は通る
+        runner
+            .accept_rule_end(None, Some("千日手".to_string()))
+            .await
+            .expect("普通の文言を弾いている");
+    }
+
     /// 終局は1回しか流れないこと。
     ///
     /// 呼び出し側は全部ガードしているが、その多重が消えたことに気付く経路が無い。
@@ -4213,6 +4263,11 @@ mod tests {
             error.len() < 100,
             "断り文句が渡された値の長さに引きずられている: {} バイト",
             error.len()
+        );
+
+        assert!(
+            error.contains("300000"),
+            "実際の長さを報告していない: {error}"
         );
 
         let sneaky = validate_usi_move("7g\nERROR").expect_err("改行を含む手を通している");
