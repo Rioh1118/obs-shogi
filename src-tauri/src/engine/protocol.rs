@@ -138,6 +138,18 @@ struct Pending {
 /// 正常な流れでこの数に届くことはない
 const PENDING_LIMIT: usize = 32;
 
+/// 積み置きを捨てたことを記録する1行。
+///
+/// **テストから同じ関数で組めるようにしておく。** 掃き出しはここを
+/// `PENDING_LIMIT` 回まとめて通るので、1行の大きさがそのまま予算に効く。
+/// 書式を別に写して測ると、測っている量と実際に書く量がずれる。
+fn dropped_line(cmd: &GuiCommand) -> String {
+    format!(
+        "ready: dropping queued cmd={} (readyok never came)",
+        cmd_summary(cmd)
+    )
+}
+
 impl Clone for UsiProtocol {
     fn clone(&self) -> Self {
         Self {
@@ -1002,11 +1014,7 @@ impl UsiProtocol {
                 let q = std::mem::take(&mut pending.queue);
                 drop(pending);
                 for cmd in &q {
-                    log::warn!(
-                        target: LOGT,
-                        "ready: dropping queued cmd={} (readyok never came)",
-                        cmd_summary(cmd)
-                    );
+                    log::warn!(target: LOGT, "{}", dropped_line(cmd));
                 }
             }
         });
@@ -1344,6 +1352,8 @@ fn convert_option_params(params: &OptionParams) -> EngineOption {
 mod tests {
     use super::*;
 
+    use crate::engine::utils::{LOG_FILE_BUDGET, MAX_SUMMARY_LEN};
+
     /// 線に出る直前の門番が、`contains_usi_breaking_char` とずれないこと。
     ///
     /// **文字を列挙しない。** 列挙すると、禁止集合を厚くしたときに門番だけが
@@ -1631,6 +1641,44 @@ mod tests {
         }
         assert!(push_pending(&mut pending, &position).is_err());
         assert_eq!(pending.queue.len(), PENDING_LIMIT);
+    }
+
+    /// 積み置きの掃き出しが、ログの予算を一周させられないこと。
+    ///
+    /// **`MAX_SUMMARY_LEN` はここから決まる。** 上限があるだけでは足りない
+    /// ——上限を大きくしても「上限を超える名前は切られる」テストは通るので、
+    /// 予算との関係を式で持つ。
+    ///
+    /// **1行ではなく掃き出し1回で測る。** `readyok` が来なかったときは
+    /// `PENDING_LIMIT` 件がまとめて出るので、1行だけを見ると32倍見落とす。
+    ///
+    /// **見積もらずに、最悪の入力で実際の1行を組んで測る。**
+    ///
+    /// **測る側を小さくする間違いは、この形の表明では落ちない。**
+    /// 上限の不等式なので、`PENDING_LIMIT` を掛け忘れても左辺が小さくなるだけで
+    /// 通ってしまう（どんな `SHARE` を選んでも同じ）。掛ける数を増やすなら、
+    /// 緩む側に倒れるのを承知で増やす必要がある。
+    #[test]
+    fn flushing_the_queue_cannot_rotate_the_log() {
+        /// 掃き出し1回が予算のうち占めてよい割合の逆数
+        const SHARE: u128 = 10;
+
+        // `setoption` の名前は webview から来る。潰されず（制御文字ではない）、
+        // UTF-8 でいちばん重い4バイト文字を上限の倍だけ詰める
+        let name = "\u{10ffff}".repeat(MAX_SUMMARY_LEN * 2);
+        let line = dropped_line(&GuiCommand::SetOption(name, Some("1".to_string())));
+        assert!(
+            line.chars().filter(|c| c.len_utf8() == 4).count() >= MAX_SUMMARY_LEN,
+            "最悪の文字が入口で潰されている。詰める文字を選び直すこと"
+        );
+
+        let burst = PENDING_LIMIT as u128 * line.len() as u128;
+        assert!(
+            burst * SHARE <= LOG_FILE_BUDGET,
+            "積み置きの掃き出しが予算の1/{SHARE} を超える\
+             （{PENDING_LIMIT} 行 × {} バイト = {burst} バイト）",
+            line.len()
+        );
     }
 
     /// 落ち着いた値を返すこと。呼び出し側はこれを見て「戻せなかった」を知る
