@@ -247,8 +247,9 @@ fn no_doc_block_has_two_summaries() {
 /// doc はそこに着いてしまう。剥がれ方は他にもあるが、この形は綴りで一意に拾える。
 /// 関数の挿入で剥がれる形は `no_doc_block_has_two_summaries` が別の鍵で見る。
 ///
-/// **次の非空行を見る。** `use` を足す人は前後に空行を入れるほうが自然なので、
-/// 直後の1行だけを見る形だと**いちばん起きやすい置き方が死角**になる。
+/// **次の非空行を見る。属性も跨ぐ。** `use` を足す人は前後に空行を入れるほうが
+/// 自然で、`#[allow(...)]` を挟む形も正しい並び（doc → 属性 → item）なので、
+/// 直後の1行だけを見ると**いちばん起きやすい置き方が死角**になる。
 #[test]
 fn no_doc_block_is_followed_by_a_use() {
     let mut offenders = Vec::new();
@@ -265,19 +266,20 @@ fn no_doc_block_is_followed_by_a_use() {
             if !line.trim_start().starts_with("///") {
                 continue;
             }
+            // 空行・doc の続き・属性を跨いで、**最初に来る item の行**を探す。
+            // 属性で止めると、`/// …` `#[allow(...)]` `use …;` の並び
+            // （Rust として正しい並び）が素通りする
             let Some((at, next)) = lines
                 .iter()
                 .enumerate()
                 .skip(index + 1)
-                .find(|(_, line)| !line.trim().is_empty())
+                .map(|(at, line)| (at, line.trim_start()))
+                .find(|(_, line)| {
+                    !line.is_empty() && !line.starts_with("///") && !line.starts_with("#[")
+                })
             else {
                 continue;
             };
-            let next = next.trim_start();
-            // 次が `///` なら doc が続いているだけ
-            if next.starts_with("///") {
-                continue;
-            }
             if next.starts_with("use ") || next.starts_with("pub use ") {
                 offenders.push(format!("{}:{}  {next}", relative.display(), at + 1));
             }
