@@ -214,11 +214,14 @@ gate_kinds_for_path() {
     *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
       kinds="$kinds rust" ;;
   esac
-  # `docs/` は ts 側の検査が丸ごと見る（相対リンク・参照リンク・指すパスの実在）。
+  # `docs/` は ts 側の検査が丸ごと見る（リンク・索引・指すパスの実在）。
   # `case` の `*` は `/` にも当たるので、この1つで深さを問わず拾う。
   #
   # **doc だけのコミットは、これらの検査を破れる唯一の形。** 分類から外すと、
   # 落ちるのは PR を上げた後の CI になる。
+  #
+  # **どの検査が掛かるかを数えて書かない。** ts 側の検査は増える。件数や名前を
+  # ここに書くと、1本畳んだ人が「もう ts は要らない」と読んで分類ごと戻す。
   case "$path" in
     docs/*.md) kinds="$kinds ts" ;;
   esac
