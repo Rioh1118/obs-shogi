@@ -9,9 +9,13 @@ npm run verify          # tsc -b + lint + vitest      （約8秒）
 npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 ```
 
-`git commit` は `.claude/hooks/verify-gate.sh` が横取りし、変更ファイルの種類に応じて
-上を自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
-docs や `.claude/` だけの変更は素通しする。
+`git commit` は `.claude/hooks/verify-gate.sh` が横取りし、**その変更を見る検査がある側**を
+自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
+
+**種類で二分しない。** `docs/` も `CONTRIBUTING.md` も `.claude/hooks/` も `verify` を通り、
+`docs/state-transitions/` は `verify:rust` まで通る（表とテストの名乗りを突き合わせる
+ラチェットが Rust 側にある）。どれがどちらを通るかは
+`.claude/hooks/verify-gate.test.sh` が固定している。
 
 作業を「完了」と報告する前に該当する方を必ず通すこと。通していないなら「未検証」と明示すること。
 
