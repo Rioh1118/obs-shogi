@@ -112,10 +112,15 @@ pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
 /// ログファイル1本ぶんの予算。**`KeepOne` なので、一周すると前の記録は消える。**
 ///
-/// **絞りの根拠になっている。** 診断の行をどれだけ出してよいかは全部この値から
-/// 逆算していて（`engine::commands::game` の `MAX_TRACKED_GAMES` /
-/// `MAX_LINES_PER_INTERVAL`）、外来の文字列を切り詰める上限
-/// （`GameId` の `MAX_ID_LEN`、`validate_usi_move`）も同じところから来る。
+/// **これを根拠に決めた値が2つある。** 断りの行をどれだけ出してよいか
+/// （`engine::commands::game` の `MAX_TRACKED_GAMES`）と、終局の説明の長さ
+/// （`engine::game::session` の `MAX_DETAIL_LEN`）。どちらも式で縛ってあるので、
+/// ここを動かすと落ちる。
+///
+/// **外来の文字列を切り詰める他の上限はここから来ていない。**
+/// `GameId` の `MAX_ID_LEN` は「本物の UUID が収まる」、`MAX_USI_MOVE_LEN` は
+/// 「一番長い指し手が収まる」が根拠。緩めても予算とは関係が無く、
+/// 別の性質（静的写像の鍵の大きさ、指し手の形）が壊れる。
 ///
 /// **数字を離れた場所へ写さない。** 写すと、ここを動かしたときに
 /// 逆算した側がまとめて静かに嘘になる。指すときはこの名前で指すこと。
