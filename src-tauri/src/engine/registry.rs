@@ -266,7 +266,7 @@ fn spawn_ok_line(id: &EngineId, name: &str) -> String {
     format!("spawn: ok id={id} name='{}'", shown(name, MAX_SUMMARY_LEN))
 }
 
-/// ログに載せるパスの上限（文字数）。
+/// ログに載せるパスの上限。**文字数**（`shown` の第2引数）。
 ///
 /// **`MAX_SUMMARY_LEN` では足りない。** 実運用のパスは要約の上限を普通に超えるので、
 /// そちらで切ると毎回 `…` で終わって、どの実行ファイルを起こしたのかが読めない。
@@ -275,18 +275,23 @@ fn spawn_ok_line(id: &EngineId, name: &str) -> String {
 /// これ1行で予算を一周させることはできない。**潰したいのは制御文字のほう**——
 /// `canonicalize` も `is_file` も改行を含むファイル名を通すので、素で載せると
 /// `eng\n2026-09-03 ERROR ...` という名前の実行ファイル1つで**偽のログ行を作れる**。
-const MAX_PATH_IN_LOG: usize = 256;
+///
+/// **上は予算の式が止める**（`the_registry_lines_cannot_rotate_the_log_or_forge_a_line`）。
+/// 下は同じテストが「実運用の長さのパスが `…` で終わらないこと」で押さえる
+/// ——縮めると、この doc が名指しで避けた状態（毎回 `…` で終わって
+/// どの実行ファイルを起こしたのか読めない）にそのまま戻る。
+const MAX_PATH_IN_LOG_LEN: usize = 256;
 
 /// 起動を始めたことを記録する1行。**成功しても失敗してもここを通る。**
 fn spawn_start_line(path: &str) -> String {
-    format!("spawn: start path='{}'", shown(path, MAX_PATH_IN_LOG))
+    format!("spawn: start path='{}'", shown(path, MAX_PATH_IN_LOG_LEN))
 }
 
 /// 上限を超えた後に起き上がったプロセスを畳むことを記録する1行。
 fn disposing_line(path: &str) -> String {
     format!(
         "spawn: disposing a late engine path='{}'",
-        shown(path, MAX_PATH_IN_LOG)
+        shown(path, MAX_PATH_IN_LOG_LEN)
     )
 }
 
@@ -420,8 +425,8 @@ mod tests {
 
         for (line, floor) in [
             (spawn_ok_line(&id, &heavy), MAX_SUMMARY_LEN),
-            (spawn_start_line(&heavy), MAX_PATH_IN_LOG),
-            (disposing_line(&heavy), MAX_PATH_IN_LOG),
+            (spawn_start_line(&heavy), MAX_PATH_IN_LOG_LEN),
+            (disposing_line(&heavy), MAX_PATH_IN_LOG_LEN),
         ] {
             assert!(
                 line.chars().filter(|c| c.len_utf8() == 4).count() >= floor,
@@ -431,6 +436,30 @@ mod tests {
                 line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
                 "台帳の1行が予算の1/{SHARE} を超える（{} バイト）",
                 line.len()
+            );
+        }
+
+        // **実運用の長さのパスが `…` で終わらないこと。** 上限を縮めると、
+        // 定数の doc が名指しで避けた状態（どの実行ファイルを起こしたのか
+        // 読めない）に戻る。自分の実行ファイルが取れないマシンでは、
+        // 代表的な深さのパスで見る
+        // 代表的な深さは固定で持つ（マシンによって短い場所に置かれても下がらない）。
+        // 走っているマシンの実行ファイルも、取れれば併せて見る
+        let representative =
+            "/Users/someone/Library/Application Support/obs-shogi/engines/YaneuraOu/YaneuraOu"
+                .to_string();
+        for real in [
+            Some(representative),
+            std::env::current_exe()
+                .ok()
+                .map(|p| p.to_string_lossy().into_owned()),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            assert!(
+                !spawn_start_line(&real).ends_with("…'"),
+                "実運用の長さのパスが切れている: {real}"
             );
         }
 

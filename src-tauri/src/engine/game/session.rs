@@ -2155,8 +2155,12 @@ const PENDING_RULING: &str = "a ruling is still pending; retry after continue_ga
 ///
 /// **断る。** 名前は対局が始まる前に決まっていて、切り詰めると利用者は
 /// 「なぜ短くなったのか」を知る手立てが無い。ここで断れば `startGame` の
-/// `Err` として理由が出る。実在するエンジンの名乗り
-/// （`YaneuraOu NNUE 7.0.0 64ZEN2`）も人名も、この1/4に収まる。
+/// `Err` として理由が出る。
+///
+/// **縮める根拠を doc に置かない。** 通したい実例は
+/// `a_name_that_only_goes_back_to_the_app_is_checked_too` が持っていて、
+/// そちらは日本語の棋戦名を含む（日本語は1文字3バイトなので、
+/// バイトで見ると余裕は見た目より小さい）。縮めるならその一覧を見ること。
 const MAX_NAME_BYTES: usize = 128;
 
 /// 終局の説明として残す最大の**文字数**。
@@ -2346,8 +2350,15 @@ mod tests {
     /// 対局の寿命ぶん任意の大きさを抱える。
     #[test]
     fn a_name_that_only_goes_back_to_the_app_is_checked_too() {
-        // 通したい形: 実在するエンジンの名乗りと、日本語の人名
-        for name in ["YaneuraOu NNUE 7.0.0 64ZEN2", "先手（わたし）"] {
+        // **通したい形の一覧。** 上限を縮める人はここを見る。
+        // 日本語は1文字3バイトなので、いちばん効くのは棋戦名を含む長い形
+        for name in [
+            "YaneuraOu NNUE 7.0.0 64ZEN2",
+            "Kristallweizen-Kai-Ultimate-2021 (YaneuraOu NNUE 6.00 64AVX2)",
+            "先手（わたし）",
+            "第4期叡王戦本戦 佐々木大地七段",
+            "水匠5改（やねうら王 7.6.1）",
+        ] {
             let mut settings = two_humans(vec![]);
             settings.black = PlayerSpec::Human {
                 name: name.to_string(),
