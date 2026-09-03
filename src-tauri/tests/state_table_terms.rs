@@ -27,11 +27,15 @@ use std::path::{Path, PathBuf};
 const TABLES: &[(&str, &[&str])] = &[
     (
         "docs/state-transitions/yaneuraou-db-parse.md",
-        &["src/book/yaneuraou_db.rs", "src/book/sfen.rs"],
+        &[
+            "src/book/reader.rs",
+            "src/book/sfen.rs",
+            "src/book/yaneuraou_db.rs",
+        ],
     ),
     (
         "docs/state-transitions/book-key-failures.md",
-        &["src/book/sfen.rs"],
+        &["src/book/api.rs", "src/book/error.rs", "src/book/sfen.rs"],
     ),
     (
         "docs/state-transitions/search.md",
