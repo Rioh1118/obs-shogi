@@ -521,12 +521,23 @@ impl GameSession {
             //   ほとんどがこれ
             // - セッションのタスクが先に居なくなった（`ENDED`）
             //
-            // **1行も書かない。** ほとんどがここに落ちるうえ、`close_game` は
-            // `busy` のとき呼び直すよう案内してある（`closeGame` の TSDoc）。
-            // 絞りを通らない行をここに置くと、案内どおりの呼び直しだけで
-            // ログの予算を一周させられる——伝えたいことは `log_rejection` の
-            // 1行が既に持っている
-            Ok(Err(_)) => {}
+            // **終局済みだけを黙らせる。** ほとんどがここに落ちるうえ、
+            // `close_game` は `busy` のとき呼び直すよう案内してある
+            // （`closeGame` の TSDoc）。絞りを通らない行をここに置くと、
+            // 案内どおりの呼び直しだけでログの予算を一周させられる。
+            Ok(Err(e)) if e == ALREADY_OVER => {}
+            // **`ENDED` は握り潰さない。** `abort` がこれを返すのは
+            // `run_loop` のタスクが消えているときだけで、正常終了なら1行残すので
+            // 消えかたは巻き戻り。このとき `searches_idle` も `ENDED` を返して
+            // 下の `idle` が立ち、`close_game` は `Ok` で返るので `log_rejection` も
+            // 書かない——**`Over` が一度も出ないまま盤が静止するのに、
+            // ログには1行も残らない**。panic hook も張っていないので、
+            // 配布ビルドでは stderr にしか出ない
+            Ok(Err(e)) => log::error!(
+                target: LOGT,
+                "close: the session task is gone game_id={} ({e})",
+                self.id
+            ),
             // `run_loop` が詰まっている。止められていない。
             // **`game_id` を載せる。** 対局は同時に複数走るので、
             // どのセッションが刺さったのかを後から追えない
@@ -559,8 +570,10 @@ impl GameSession {
                 break;
             }
             match tokio::time::timeout(left, self.searches_idle()).await {
-                // 畳まれた、またはセッションのタスクがもう無い
-                Ok(Ok(true)) | Ok(Err(_)) => idle = true,
+                Ok(Ok(true)) => idle = true,
+                // **タスクが消えている。** 畳まれたことは確認できていないので
+                // `idle` にしない。上の枝が既に1行残しているので、ここは黙って抜ける
+                Ok(Err(_)) => break,
                 Ok(Ok(false)) => tokio::time::sleep(CLOSE_POLL).await,
                 // 期限切れ。応答そのものが返らない
                 Err(_) => break,
@@ -883,8 +896,8 @@ impl Runner {
                 // ——実際の結末（時間切れ・勝者あり）と食い違い、`Err` でないので
                 // `log_rejection` の1行も残らない。
                 //
-                // 閉じる経路（`abort_within_budget`）は `Err` を `debug` で
-                // 受け流すので、ここを断っても後始末は壊れない
+                // 閉じる経路（`abort_within_budget`）は終局済みの `Err` を
+                // 黙って受け流すので、ここを断っても後始末は壊れない
                 let result = if self.is_over() {
                     Err(ALREADY_OVER.to_string())
                 } else {
