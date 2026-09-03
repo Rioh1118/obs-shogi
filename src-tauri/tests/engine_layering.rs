@@ -268,7 +268,12 @@ fn use_statements(source: &str) -> Vec<(String, usize)> {
 /// `super` が足りなければ `engine` の中の枝（`game::types` など）で、段の辺にならない。
 /// 多ければ `engine` の外へ出ている。
 fn resolve(statement: &str, depth: usize) -> Resolved {
-    let body = use_body(statement).unwrap_or(statement).trim();
+    // **先頭の `::` を落とす。** `use ::tauri::AppHandle;` は Rust として正当な形で、
+    // 落とさないと最初の分割片が空文字列になり、外部クレートとして数えられない
+    let body = use_body(statement)
+        .unwrap_or(statement)
+        .trim()
+        .trim_start_matches("::");
     let outside = || Some(statement.trim_end_matches(';').to_string());
 
     if let Some(rest) = body.strip_prefix("crate::engine::") {
@@ -567,6 +572,14 @@ fn the_engine_does_not_reach_out_of_itself() {
 ///
 /// **許可制にしない。** `tokio` / `usi` / `serde` を全部書くことになり、
 /// 段を足すたびに写経が増える。挙げるのは逆転させた境界だけ。
+///
+/// **`use` の行だけでは足りない。** この repo は `AppHandle` を1度も `use` で
+/// 書いていない——`bridge.rs` も `commands/game.rs` も `app: tauri::AppHandle` と
+/// 型の位置に完全修飾で置く。`use` しか見ない検査は、**実際に書かれる綴りを
+/// 1つも見ていない**ことになる。だから本文も見る。
+///
+/// 見るのは文字列とコメントを潰した写しなので、`session.rs` や `events.rs` の
+/// doc が `tauri::AppHandle` に言及していても当たらない。
 #[test]
 fn no_layer_uses_a_crate_it_must_not() {
     let root = engine_dir();
@@ -581,22 +594,23 @@ fn no_layer_uses_a_crate_it_must_not() {
             continue;
         }
         let source = fs::read_to_string(&path).unwrap_or_default();
-        let (_, _, crates) = scan_file_all(&source, relative.components().count());
+        let code = blank_out_noncode(&source);
         for name in layer.forbids {
-            if crates.contains(*name) {
-                offenders.push(format!(
-                    "{}  {name} を `use` している（{} は {}）",
-                    relative.display(),
-                    layer.name,
-                    layer.decides
-                ));
+            if !code.contains(&format!("{name}::")) {
+                continue;
             }
+            offenders.push(format!(
+                "{}  {name} を参照している（{} は {}）",
+                relative.display(),
+                layer.name,
+                layer.decides
+            ));
         }
     }
 
     assert!(
         offenders.is_empty(),
-        "段が使わないと決めたクレートを `use` している:\n{}",
+        "段が使わないと決めたクレートを参照している:\n{}",
         offenders.join("\n")
     );
 }
@@ -610,6 +624,13 @@ fn the_scanner_tells_an_outside_crate_from_a_sibling() {
     let (edges, outside, crates) = scan_file_all("use tauri::AppHandle;\n", 2);
     assert!(edges.is_empty() && outside.is_empty());
     assert!(crates.contains("tauri"), "外部クレートを見分けていない");
+
+    // **先頭に `::` が付いた形。** ローカルの同名モジュールと区別したいときに書く
+    let (_, _, crates) = scan_file_all("use ::tauri::AppHandle;\n", 2);
+    assert!(
+        crates.contains("tauri"),
+        "`::` から始まる形を外部クレートと数えていない"
+    );
 
     // `self::` は自分の中。外ではない
     let (_, _, crates) = scan_file_all("use self::inner::X;\n", 2);
