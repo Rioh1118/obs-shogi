@@ -26,17 +26,17 @@ grep -rn 'rename_all = "lowercase"' src-tauri/src | wc -l   # => 2
 grep -rn 'rename_all = "snake_case"' src-tauri/src | wc -l  # => 1
 ```
 
-**`26` と `2` だけは `src-tauri/tests/serde_naming.rs` が持つ**
-（`BASELINE` と `UNTAGGED_ENUM_BASELINE`。`cargo test --test serde_naming` の
-`assert_eq!` が現物と突き合わせる）。上の数はテストからは出ないので、
-コマンドを併記した。
+**下の2行の現在値はここに書かない。** `src-tauri/tests/serde_naming.rs` の
+`BASELINE` と `UNTAGGED_ENUM_BASELINE` が持ち、`cargo test --test serde_naming` の
+`assert_eq!` が現物と突き合わせる。**写すとずれる**（ADR-0008 決定3）。
+上の grep の数はテストからは出ないので、コマンドを併記した。
 
-|                                                  |                                                                    |
-| ------------------------------------------------ | ------------------------------------------------------------------ |
-| `Serialize` / `Deserialize` を導出する型         | 68                                                                 |
-| うち `rename_all = "camelCase"` が付いていない型 | **26**（保存ファイルと境界外の11型を除く）                         |
-| 値なし enum の綴りの流儀                         | **4通り**（`camelCase` / `lowercase` / `snake_case` / **無指定**） |
-| 値つき enum で internally tagged でないもの      | **2**（`EngineOptionType` / `EvaluationKind`）                     |
+|                                                  |                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| `Serialize` / `Deserialize` を導出する型         | 68                                                                    |
+| うち `rename_all = "camelCase"` が付いていない型 | **`BASELINE`**（保存ファイルと境界外の `EXEMPT` を除く）              |
+| 値なし enum の綴りの流儀                         | **4通り**（`camelCase` / `lowercase` / `snake_case` / **無指定**）    |
+| 値つき enum で internally tagged でないもの      | **`UNTAGGED_ENUM_BASELINE`**（`EngineOptionType` / `EvaluationKind`） |
 
 **4通り目の「無指定」が一番危ない。** rename が無い enum は Rust の
 バリアント名がそのまま（PascalCase で）線に出て、TS 側がその綴りを写している。
@@ -142,9 +142,10 @@ TS 側が `switch (o.kind)` で絞り込める形になる。
 ### 5. 既存はラチェットで守り、移行は別に切る
 
 `src-tauri/tests/serde_naming.rs` が違反の件数を数え、**増えたら落ちる**。
-26 と 2 が現在値で、減らしたら定数も同じコミットで下げる。
+現在値は `BASELINE` と `UNTAGGED_ENUM_BASELINE` にあり、減らしたら
+同じコミットで下げる。
 
-既存の26型をこの ADR の中で移行しない。`engine/types.rs` の11型は
+既存の違反をこの ADR の中で移行しない。`engine/types.rs` の11型は
 `pv_line` → `pvLine` のように TS 側の読み手（解析ペイン・棋譜ストリーム）へ
 広く及ぶので、対局の差分と混ぜると**どちらも読めなくなる**。
 
@@ -156,7 +157,7 @@ Rust 側に置いたのは、`.rs` を触ったときに走る検証が `npm run
 
 - 新しく境界に出す型は必ず camelCase になる。忘れると `cargo test` が落ちる
 - 値つき enum を新しく足すときは internally tagged が既定になる
-- **既存の26型は当面ずれたまま残る。** ラチェットは「増えないこと」しか保証しない
+- **既存の違反は当面ずれたまま残る。** ラチェットは「増えないこと」しか保証しない
 - 綴りが合っていることは保証されるが、**実際に出る JSON の形までは見ていない**。
   そこは境界の型ごとに `#[test]` を書く（`engine/game/types.rs` の
   `the_wire_shape_is_camel_case_all_the_way_down` が例）
