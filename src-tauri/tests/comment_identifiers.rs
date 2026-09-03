@@ -243,9 +243,12 @@ fn no_doc_block_has_two_summaries() {
 /// どの item にも着かない `use` の飾りとして残る。剥がれたまま読んだ人は
 /// 「なぜこの関数が要るのか」に辿り着けない。
 ///
-/// doc の引き剥がし自体は7回起きているが、機械で拾えるのはこの形だけ
-/// （`use` は item ではないので、`///` の直後に来ることが構文上ありえない）。
+/// **コンパイラは何も言わない。** `use` は item なので `///` を付けるのは合法で、
+/// doc はそこに着いてしまう。剥がれ方は他にもあるが、この形は綴りで一意に拾える。
 /// 関数の挿入で剥がれる形は `no_doc_block_has_two_summaries` が別の鍵で見る。
+///
+/// **次の非空行を見る。** `use` を足す人は前後に空行を入れるほうが自然なので、
+/// 直後の1行だけを見る形だと**いちばん起きやすい置き方が死角**になる。
 #[test]
 fn no_doc_block_is_followed_by_a_use() {
     let mut offenders = Vec::new();
@@ -262,12 +265,21 @@ fn no_doc_block_is_followed_by_a_use() {
             if !line.trim_start().starts_with("///") {
                 continue;
             }
-            let Some(next) = lines.get(index + 1) else {
+            let Some((at, next)) = lines
+                .iter()
+                .enumerate()
+                .skip(index + 1)
+                .find(|(_, line)| !line.trim().is_empty())
+            else {
                 continue;
             };
             let next = next.trim_start();
+            // 次が `///` なら doc が続いているだけ
+            if next.starts_with("///") {
+                continue;
+            }
             if next.starts_with("use ") || next.starts_with("pub use ") {
-                offenders.push(format!("{}:{}  {next}", relative.display(), index + 2));
+                offenders.push(format!("{}:{}  {next}", relative.display(), at + 1));
             }
         }
     }
