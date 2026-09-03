@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
+use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
 
 const LOGT: &str = "obs_shogi::engine::registry";
 
@@ -247,14 +248,21 @@ impl EngineRegistry {
             .insert(id.clone(), Arc::clone(&process));
         self.forget_starting(&process.protocol).await;
 
-        log::info!(
-            target: LOGT,
-            "spawn: ok id={} name='{}'",
-            id,
-            process.info.name
-        );
+        log::info!(target: LOGT, "{}", spawn_ok_line(&id, &process.info.name));
         Ok(process)
     }
+}
+
+/// 起動できたことを記録する1行。
+///
+/// **名乗りはエンジンが決める。** `collect_engine_info` は `id name` の行を
+/// 長さも中身も見ずに保持するので、素で載せると長い行を返す実行ファイル
+/// ひとつでログの予算（`LOG_FILE_BUDGET`）を一周させられる。
+///
+/// **切るのは載せるときだけ。** `EngineInfo::name` は画面にも出るので、
+/// 入口で切ると利用者が見る名前が変わる。
+fn spawn_ok_line(id: &EngineId, name: &str) -> String {
+    format!("spawn: ok id={id} name='{}'", shown(name, MAX_SUMMARY_LEN))
 }
 
 /// 上限を超えた後に起き上がったプロセスを畳む。
@@ -363,6 +371,36 @@ impl EngineRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::engine::utils::LOG_FILE_BUDGET;
+
+    /// 起動の1行が、エンジンの名乗りでログの予算を一周させられないこと。
+    ///
+    /// **`id name` はエンジンが決める。** 台帳は長さも中身も見ずに保持するので、
+    /// 素で載せると1行で診断の履歴が全部飛ぶ。webview から来る文字列は
+    /// どれも入口で上限を通るが、**エンジンから来る文字列はここだけ**が
+    /// ログに素で出ていた。
+    #[test]
+    fn a_spawn_line_cannot_rotate_the_log() {
+        /// 1行が予算のうち占めてよい割合の逆数
+        const SHARE: u128 = 50;
+
+        // **入口に上限が無いので、それだけで予算を使い切る名前を渡す。**
+        // 上限の倍で試すと、切っていなくても予算に収まってしまい何も測れない。
+        // 潰されず（制御文字ではない）、UTF-8 でいちばん重い4バイト文字
+        let name = "\u{10ffff}".repeat(LOG_FILE_BUDGET as usize / 4);
+        let line = spawn_ok_line(&Uuid::new_v4().to_string(), &name);
+
+        assert!(
+            line.chars().filter(|c| c.len_utf8() == 4).count() >= MAX_SUMMARY_LEN,
+            "最悪の文字が潰されている。詰める文字を選び直すこと"
+        );
+        assert!(
+            line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+            "起動の1行が予算の1/{SHARE} を超える（{} バイト）",
+            line.len()
+        );
+    }
 
     /// `engine_path` が**実在するファイル**であることを要求すること。
     ///

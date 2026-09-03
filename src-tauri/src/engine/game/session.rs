@@ -470,14 +470,24 @@ impl GameSession {
         .await
     }
 
+    /// 投了させる。**終局済みなら `Err(ALREADY_OVER)`。**
+    ///
+    /// 押したのと時間切れが同じ拍に入ると起きる。結末の権威は `Over` イベントで、
+    /// `Ok` は「投了として記録された」を意味しない
     pub async fn resign(&self, side: Side) -> Result<(), String> {
         self.request(|reply| Command::Resign { side, reply }).await
     }
 
+    /// 勝敗を付けずに終局にする。**終局済みなら `Err(ALREADY_OVER)`。**
+    ///
+    /// 投了・裁定と同じ形。`Ok` を「中断が成立した」として扱わないこと
     pub async fn abort(&self) -> Result<(), String> {
         self.request(|reply| Command::Abort { reply }).await
     }
 
+    /// いまの状態の写し。**`Err` は `ENDED` だけ**——タスクが既に畳まれていて、
+    /// この対局はもう進まない。上の3つと違い、終局済みでも `Ok` を返す
+    /// （`Phase::Over` を載せて返る）。
     pub async fn snapshot(&self) -> Result<GameSnapshot, String> {
         let (reply, rx) = oneshot::channel();
         self.tx

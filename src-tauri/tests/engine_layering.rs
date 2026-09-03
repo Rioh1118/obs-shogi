@@ -86,7 +86,7 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "registry",
         decides: "どのプロセスが生きているか",
-        may_use: &["types", "protocol"],
+        may_use: &["types", "utils", "protocol"],
         forbids: &[],
     },
     // `game` と `analyzer` は同位。互いを知らない

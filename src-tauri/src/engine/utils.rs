@@ -242,6 +242,11 @@ pub fn cmd_summary(cmd: &GuiCommand) -> String {
         GuiCommand::IsReady => "IsReady".to_string(),
         GuiCommand::UsiNewGame => "UsiNewGame".to_string(),
         GuiCommand::Quit => "Quit".to_string(),
-        other => format!("{other:?}"), // それ以外はDebugでOK
+        // **`_ =>` を置かない。** 外来の文字列を運ぶ腕が `usi` に増えたとき、
+        // catch-all があるとコンパイルが通ったまま生の値がログへ出る。
+        // 書き切っておけば、上げた人が1つずつ数え直すことになる
+        GuiCommand::GameOver(kind) => format!("GameOver({kind:?})"),
+        GuiCommand::Ponderhit => "Ponderhit".to_string(),
+        GuiCommand::Stop => "Stop".to_string(),
     }
 }
