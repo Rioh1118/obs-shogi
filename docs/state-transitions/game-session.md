@@ -463,8 +463,9 @@ ClocksView {
 
 固定できているのは、人間だけで踏める経路（※10）と、`Runner` を直に組んで
 `activity` を置いた単体、そして台帳の出し入れ（`manager.rs`）。
-`engine/commands/game.rs` にはテストが無い——`AppHandle` を要求するので、
-実機を起こさずに呼ぶ口が無い。
+`engine/commands/game.rs` は、Tauri コマンドの本体が `AppHandle` を要求するので
+実機無しに呼べない。**純関数として切り出した部分**（断りの絞り）は
+同ファイルの `mod tests` が踏んでいる。
 
 とくに危ないもの:
 
