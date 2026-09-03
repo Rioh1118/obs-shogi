@@ -1545,13 +1545,14 @@ impl Runner {
             return;
         }
 
-        // **切るのはここ1箇所。** `detail` は呼び出し側が組む欄で、外来の文字列を
-        // 運ぶ経路がある（裁定は webview から、故障はエンジンの応答から）。
+        // **保持する値をここで切る。** `detail` は呼び出し側が組む欄で、外来の
+        // 文字列を運ぶ経路がある（裁定は webview から、故障はエンジンの応答から）。
         // 「通してから渡すこと」を呼び出し側の心得にすると、終わり方を1つ足すたびに
         // 数え直しが要る。
         //
-        // ここを通せば、3つの吸い口（下のログ・`Over` イベント・`snapshot`）が
-        // まとめて収まる。二度通っても結果は変わらない
+        // ここを通せば `Over` イベントと `snapshot` が収まる。**ログは順序に
+        // 頼らない**——`over_line` が自分でも切る（この行を下へ動かしても、
+        // ログだけが無防備になることはない）。二度通っても結果は変わらない
         result.detail = result.detail.map(|d| shown(&d, MAX_DETAIL_LEN));
 
         // **終わり方をここで1行残す。** 番人が決めた終局（時間切れ・畳み待ち・
@@ -2088,17 +2089,25 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
 /// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
 /// 欄の増減で**測っている量と実際に書く量がずれる**。
 ///
-/// **外来の欄を `{:?}` で書かない。** `detail` は `finish` が `shown` を通すので
-/// 制御文字が残っておらず、`{}` で足りる。`{:?}` に戻すと BOM や
-/// 未割り当ての1文字が `\u{XXXX}` の10バイトへ膨らみ、
-/// `MAX_DETAIL_LEN` を決めている式が外れる。`reason` と `winner` は
-/// バリアント名しか出ないので `{:?}` でよい。
+/// **渡された値の順序に頼らない。** `finish` も `detail` を切るが、
+/// ここが自分で切らないと「切る行がこの1行より後ろにある」形にしたときに
+/// **ログだけが無防備**になる——写しもイベントも切り詰め済みなので、
+/// そちらを見るテストは全部緑で通る。二度通っても結果は変わらない。
+///
+/// **外来の欄を `{:?}` で書かない。** `shown` を通した後は制御文字が
+/// 残っていないので `{}` で足りる。`{:?}` に戻すと BOM や未割り当ての1文字が
+/// `\u{XXXX}` の10バイトへ膨らみ、`MAX_DETAIL_LEN` を決めている式が外れる。
+/// `reason` と `winner` はバリアント名しか出ないので `{:?}` でよい。
 fn over_line(id: &GameId, result: &GameResult) -> String {
     format!(
         "over game_id={id} reason={:?} winner={:?} detail={}",
         result.reason,
         result.winner,
-        result.detail.as_deref().unwrap_or("-")
+        result
+            .detail
+            .as_deref()
+            .map(|d| shown(d, MAX_DETAIL_LEN))
+            .unwrap_or_else(|| "-".to_string())
     )
 }
 
@@ -3772,16 +3781,25 @@ mod tests {
         );
     }
 
-    /// **どの終わり方から入っても**説明が切られること。
+    /// **どの終わり方から入っても**説明が切られ、**3つの吸い口すべて**に
+    /// 切った後の値が届くこと。
     ///
-    /// 上のテストは裁定の口だけを見る。切る場所を入口ごとに置くと**通し忘れた入口が
-    /// できる**——エンジンの故障（`SearchOutcome::Failed`）は `EngineError` の文言を
-    /// 運ぶので、通し忘れればログ・`Over` イベント・`snapshot` の3つへそのまま流れる。
-    /// `finish` の1箇所で切る形を固定する。
+    /// 上のテストは裁定の口だけを、しかも `snapshot`（＝`phase`）だけを見る。
+    /// 切る場所を入口ごとに置くと**通し忘れた入口ができる**——エンジンの故障
+    /// （`SearchOutcome::Failed`）は `EngineError` の文言を運ぶので、通し忘れれば
+    /// ログ・`Over` イベント・`snapshot` の3つへそのまま流れる。
+    ///
+    /// **ログを式で見るのが要**。切る行が `over_line` より**後ろ**にあっても
+    /// `phase` と `Over` イベントは切り詰め済みなので、そちらだけ見ると緑で通る
+    /// ——順序を留めるのはこの表明だけ。
     #[tokio::test]
     async fn every_way_into_finish_trims_the_detail() {
+        /// 終局の1行が予算のうち占めてよい割合の逆数（`an_over_line_cannot_rotate_the_log` と同じ）
+        const SHARE: u128 = 50;
+
         let (tx, _rx) = mpsc::unbounded_channel();
-        let mut runner = test_runner(&tx);
+        let events = Arc::new(RecordedEvents::default());
+        let mut runner = runner_with_events(&tx, events.clone());
 
         runner
             .finish(GameResult {
@@ -3791,15 +3809,36 @@ mod tests {
             })
             .await;
 
+        // 1. `snapshot` が写す先
         let Phase::Over { result } = &runner.phase else {
             panic!("終局していない");
         };
         let detail = result.detail.as_deref().expect("説明が消えている");
         assert!(
             detail.chars().count() <= MAX_DETAIL_LEN + 1,
-            "切り詰めていない: {} 文字",
+            "`phase` の説明を切り詰めていない: {} 文字",
             detail.chars().count()
         );
+
+        // 2. ログの1行。**切る行が `over_line` より後ろだと、ここだけが赤くなる**
+        let line = over_line(&runner.id, result);
+        assert!(
+            line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+            "終局の1行が予算の1/{SHARE} を超える（{} バイト）",
+            line.len()
+        );
+
+        // 3. フロントへ出る `Over`
+        let over = events
+            .take()
+            .into_iter()
+            .find_map(|event| match event {
+                GameEvent::Over { result, .. } => Some(result),
+                _ => None,
+            })
+            .expect("`Over` が出ていない");
+        let emitted = over.detail.as_deref().expect("説明が消えている");
+        assert_eq!(emitted, detail, "イベントと写しで説明が食い違っている");
     }
 
     /// 終局の1行が、ログの予算を一周させられないこと。
@@ -3815,17 +3854,19 @@ mod tests {
         /// 終局の1行が予算のうち占めてよい割合の逆数
         const SHARE: u128 = 50;
 
-        // **最悪の入力はリテラルで持つ。** `shown` の出力を入れると
-        // 「`shown` が通す文字」しか詰められず、`shown` を緩めても測る値が
-        // 変わらない——緩めた側を1つも落とせないテストになる。
+        // **切っていない値を渡す。** `over_line` は渡された値の順序に頼らず
+        // 自分で切るので、切った後の値を渡すとその表明が空振りする。
         //
         // 未割り当ての4バイト文字。潰されず（制御文字ではない）、UTF-8 で
         // いちばん重く、`{:?}` に戻せば10バイトへ膨らむ
-        let detail = shown(&"\u{10ffff}".repeat(MAX_DETAIL_LEN * 2), MAX_DETAIL_LEN);
+        let detail = "\u{10ffff}".repeat(MAX_DETAIL_LEN * 2);
         assert!(
-            // 末尾には切ったことを示す1文字が付く
-            detail.chars().rev().skip(1).all(|c| c.len_utf8() == 4),
-            "最悪の文字が入口で潰されている。詰める文字を選び直すこと"
+            shown(&detail, MAX_DETAIL_LEN)
+                .chars()
+                .rev()
+                .skip(1)
+                .all(|c| c.len_utf8() == 4),
+            "最悪の文字が潰されている。詰める文字を選び直すこと"
         );
         let line = over_line(
             &worst_game_id(),
