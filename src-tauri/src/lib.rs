@@ -71,7 +71,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .max_file_size(200_000)
+                .max_file_size(engine::utils::LOG_FILE_BUDGET)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
                 .level(log::LevelFilter::Info)
                 .level_for("obs_shogi::engine", log::LevelFilter::Debug)

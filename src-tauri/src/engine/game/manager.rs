@@ -158,7 +158,7 @@ impl GameManager {
                 // **ここでログを書かない。** 案内（`closeGame` の doc）は間隔を
                 // 空けろと書いているが、守らせる手立ては無い——待たずに呼び直す
                 // 実装ではこの枝がミリ秒で回る。絞りを通らない行を1本でも置くと、`log_rejection`
-                // が守っているログの予算（`lib.rs` の 200KB ＋ `KeepOne`）を
+                // が守っているログの予算（`LOG_FILE_BUDGET` ＋ `KeepOne`）を
                 // その1本だけで一周させられる。伝えたいこと（台帳へ戻した）は
                 // `Rejection::Busy` の doc と、絞りを通る `commands::game` の
                 // 1行が持つ

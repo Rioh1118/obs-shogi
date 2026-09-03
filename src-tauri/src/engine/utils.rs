@@ -110,6 +110,17 @@ pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
 /// 両方が使える段に置く。
 pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
+/// ログファイル1本ぶんの予算。**`KeepOne` なので、一周すると前の記録は消える。**
+///
+/// **絞りの根拠になっている。** 診断の行をどれだけ出してよいかは全部この値から
+/// 逆算していて（`engine::commands::game` の `MAX_TRACKED_GAMES` /
+/// `MAX_LINES_PER_INTERVAL`）、外来の文字列を切り詰める上限
+/// （`GameId` の `MAX_ID_LEN`、`validate_usi_move`）も同じところから来る。
+///
+/// **数字を離れた場所へ写さない。** 写すと、ここを動かしたときに
+/// 逆算した側がまとめて静かに嘘になる。指すときはこの名前で指すこと。
+pub const LOG_FILE_BUDGET: u128 = 200_000;
+
 #[derive(Debug, Clone)]
 pub struct LogThrottle {
     interval: Duration,

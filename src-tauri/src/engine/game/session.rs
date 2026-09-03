@@ -2003,7 +2003,7 @@ pub(super) fn position_argument(start_sfen: &str, moves: &[String]) -> String {
 ///
 /// **断り文句に生の値を載せない。** ここへ来るのは webview から来た文字列か
 /// エンジンが吐いた行で、どちらも長さも改行も無検査。載せると、断り1回で
-/// ログの予算（`lib.rs` の 200KB ＋ `KeepOne`）を一周させられ、改行を混ぜれば
+/// ログの予算（`LOG_FILE_BUDGET` ＋ `KeepOne`）を一周させられ、改行を混ぜれば
 /// その後ろに好きなログ行も作れる（`GameId::Display` が同じ理由で切っている）。
 pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
     if usi_move.is_empty() {

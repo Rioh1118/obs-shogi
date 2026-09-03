@@ -120,15 +120,19 @@ const REJECTION_WARN_INTERVAL: Duration = Duration::from_secs(1);
 /// 対局ごとの枠を持てる `(操作, 対局)` の組の数。
 ///
 /// 操作は6つあるので、同時に追える対局は最悪でこの1/6。
-const MAX_TRACKED_GAMES: usize = 120;
-
-/// 1間隔に通す断りの行数。
 ///
-/// **枠の数と揃えない。** 揃えると、鍵が毎回違う連打で枠の数だけ通る。
-/// ここは「1行あたり約170バイト × これ × 3600秒」がログの予算に対して
-/// 十分小さいことだけを見て決める（8行/秒で約5MB/時。200KB の `KeepOne` は
-/// 数分ぶんを保つ）。
-const MAX_LINES_PER_INTERVAL: u32 = 8;
+/// **ここが1間隔に出る行数の一次の上限。** 枠は1間隔に1行しか通さないので、
+/// 出る行は最悪で「枠の数 ＋ 操作の数」。**枠を増やすほど連打が通る**ので、
+/// 実際に同時に見たい対局の数に見合うところで止める。
+const MAX_TRACKED_GAMES: usize = 24;
+
+/// 1間隔に通す断りの行数の**背押さえ**。
+///
+/// **一次の上限ではない**（それは `MAX_TRACKED_GAMES`）。ここは
+/// 「枠の数 ＋ 操作の数」を上回る値にして、**実運用では当たらない**ようにする。
+/// 当たる値にすると、断られ続けている鍵が予算を食い切って
+/// **別の対局の1件目が枠すら作られずに落ちる**——枠を対局ごとに割った理由が消える。
+const MAX_LINES_PER_INTERVAL: u32 = 48;
 
 /// 断りの絞り。**2段で持つ。**
 ///
@@ -174,13 +178,14 @@ impl RejectionThrottles {
         self.interval.unwrap_or(REJECTION_WARN_INTERVAL)
     }
 
-    /// 1間隔に通す行数の上限。**枠を分けるだけでは足りない。**
+    /// 1間隔に出る行数を「枠の数 ＋ 操作の数」で頭打ちにする。
     ///
     /// 枠ごとの絞りは「同じ鍵が続けて通らない」しか言わない。鍵が毎回違えば
-    /// 新しい枠が次々にでき、`LogThrottle` は新しい枠の先頭を必ず通すので、
-    /// **1間隔あたり枠の数だけ通る**（実測で121行/秒）。ログの予算
-    /// （`lib.rs` の 200KB ＋ `KeepOne`）を守るには、通す行数そのものに
-    /// 上限が要る。
+    /// 新しい枠が次々にできるので、**枠の数がそのまま1間隔の行数になる**
+    /// （枠が120あった時点の実測で121行/秒）。
+    ///
+    /// `MAX_LINES_PER_INTERVAL` はその上に置く背押さえで、
+    /// **実運用では当たらない値**にしてある。
     fn allow(&mut self, op: &'static str, game_id: &GameId) -> bool {
         let interval = self.interval();
         let opened = self
@@ -190,14 +195,18 @@ impl RejectionThrottles {
         if opened {
             self.spent = 0;
         }
+
+        // **予算より先に鍵を通す。** 手前で切ると `allow_by_key` に入らないので、
+        // 枠が予算の数までしか挿さらず、**満杯のときに空いた枠を落とす枝が
+        // どのテストからも踏めなくなる**（消しても緑で通る状態になる）。
+        if !self.allow_by_key(op, game_id) {
+            return false;
+        }
         if self.spent >= MAX_LINES_PER_INTERVAL {
             return false;
         }
-        let passed = self.allow_by_key(op, game_id);
-        if passed {
-            self.spent += 1;
-        }
-        passed
+        self.spent += 1;
+        true
     }
 
     fn allow_by_key(&mut self, op: &'static str, game_id: &GameId) -> bool {
@@ -253,7 +262,7 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
 /// **絞る。** 断り方のうち `the game is busy` は呼び直しを案内してあり
 /// （`closeGame` の doc）、その busy 判定はミリ秒で返る。案内は間隔を空けろと
 /// 書いているが、**守らせる手立ては無い**——待たずに呼び直す実装は毎秒数百行を
-/// 書く。ログは 200KB で `KeepOne` なので、**壊れた理由を説明していた `error` の
+/// 書く。ログは `LOG_FILE_BUDGET` で `KeepOne` なので、**壊れた理由を説明していた `error` の
 /// 行が数秒で消える**——`clock_warn` を絞っているのと同じ理由。
 ///
 /// つまりここが守るのは**案内に従わない実装から**であって、従う実装からではない。
@@ -389,6 +398,8 @@ mod tests {
 
     use std::time::Instant;
 
+    use crate::engine::utils::LOG_FILE_BUDGET;
+
     fn id(value: &str) -> GameId {
         GameId::new(value.to_string())
     }
@@ -430,12 +441,55 @@ mod tests {
         );
     }
 
+    /// 絞りの2つの数が、ログの予算と噛み合っていること。
+    ///
+    /// **どちらも `LOG_FILE_BUDGET` から逆算した値。** 片方だけ動かすと、
+    /// 逆算の根拠が静かに崩れる。式で持って、動かした人に数え直させる。
+    #[test]
+    fn the_limits_are_derived_from_the_log_budget() {
+        /// 断りの1行のおおよそのバイト数（`op` ＋ ID ＋ 文言 ＋ ログの接頭辞）
+        const APPROX_LINE: u128 = 200;
+        /// 操作の数ぶんの余裕。`per_op` の枠がこれだけ上乗せされる
+        const OPS_HEADROOM: usize = 8;
+
+        // 1間隔ぶんを出し切っても、予算の1/10を超えない
+        let worst = u128::from(MAX_LINES_PER_INTERVAL) * APPROX_LINE;
+        assert!(
+            worst * 10 <= LOG_FILE_BUDGET,
+            "1間隔で予算の1/10を超える（{worst} バイト）。ログが数十秒で一周する"
+        );
+
+        // 予算は背押さえ。**実運用で当たると、枠を対局ごとに割った意味が消える**
+        assert!(
+            MAX_LINES_PER_INTERVAL as usize >= MAX_TRACKED_GAMES + OPS_HEADROOM,
+            "予算が枠の数に届いていない。断られ続けている鍵が予算を食い切ると、\
+             別の対局の1件目が枠すら作られずに落ちる"
+        );
+    }
+
+    /// 枠が実際に満杯まで埋まること。
+    ///
+    /// **満杯にならないと、空いた枠を落とす枝がどのテストからも踏めない。**
+    /// 予算を鍵の判定より手前に置いていたときは枠が予算の数までしか挿さらず、
+    /// その枝を丸ごと消しても全部緑で通った。
+    #[test]
+    fn the_frames_actually_fill_up() {
+        let mut throttles = quick();
+        flood(&mut throttles, "submit_move");
+
+        assert_eq!(
+            throttles.per_game.len(),
+            MAX_TRACKED_GAMES,
+            "枠が満杯まで埋まっていない。空いた枠を落とす枝が踏めない"
+        );
+    }
+
     /// 連打が**続いて**も、1間隔に通る行数が上限を超えないこと。
     ///
     /// 枠ごとの絞りは「同じ鍵が続けて通らない」しか言わない。鍵が毎回違えば
     /// 新しい枠が次々にでき、`LogThrottle` は新しい枠の先頭を必ず通すので、
     /// **1間隔あたり枠の数だけ通る**（この上限を外した実測で121行/秒）。
-    /// 1行は約170バイトなので、200KB の `KeepOne` は10秒前後で一周する。
+    /// 1行は約170バイトなので、`LOG_FILE_BUDGET` の `KeepOne` は10秒前後で一周する。
     ///
     /// **窓の数で割って見る。** 遅いマシンでは窓が余分に開くぶん通る行が増えるが、
     /// その増え方も式に入っているので、遅さで落ちることはない。
@@ -452,7 +506,9 @@ mod tests {
         }
 
         let windows = started.elapsed().as_secs_f64() / REJECTION_WARN_INTERVAL.as_secs_f64();
-        let budget = MAX_LINES_PER_INTERVAL as f64 * (windows + 1.0);
+        // 一次の上限は枠の数。操作は1つしか使っていないので `per_op` は1枠
+        let per_window = MAX_TRACKED_GAMES as f64 + 1.0;
+        let budget = per_window * (windows + 1.0);
         assert!(
             f64::from(passed) <= budget,
             "1間隔の上限を超えて {passed} 行通っている（予算 {budget:.0}）"
