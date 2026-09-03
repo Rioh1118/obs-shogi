@@ -63,6 +63,9 @@ function tracked(inline: string, resolved: string): boolean {
  * 説明のために書いたディレクトリ名で落ちる。
  *
  * 末尾の `#L12` や `:42` は落とす。行番号は腐っても検査したいのはファイルの実在。
+ * **範囲（`:42-50`）も落とす。** 落とさないと拡張子の検査に当たらず、
+ * 拾われも赤くもならない —— 規約が「行番号を引いたら版を残す」と勧めている以上、
+ * 範囲で書いた人ほど検査の外へ出ることになる。
  */
 export function sourcePathsIn(markdown: string): string[] {
   const found = new Set<string>();
@@ -70,7 +73,7 @@ export function sourcePathsIn(markdown: string): string[] {
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
     if (!/^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.#:-]*)+$/.test(inline)) continue;
 
-    const bare = inline.replace(/[#:]L?\d+$/, "");
+    const bare = inline.replace(/[#:]L?\d+(-L?\d+)?$/, "");
     const path = resolve(bare);
     if (!tracked(bare, path)) continue;
     // 拡張子か末尾のスラッシュがあるものだけ。`src/entities/kifu` のような

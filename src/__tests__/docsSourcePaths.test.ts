@@ -60,6 +60,20 @@ describe("sourcePathsIn", () => {
     ]);
   });
 
+  // 落とさないと拡張子の検査に当たらず、拾われも赤くもならない
+  test("行番号の範囲も落として拾う", () => {
+    expect(sourcePathsIn("`src/entities/kifu/lib/comment.ts:42-50`")).toEqual([
+      "src/entities/kifu/lib/comment.ts",
+    ]);
+    expect(sourcePathsIn("`src/entities/kifu/lib/comment.ts#L42-L50`")).toEqual([
+      "src/entities/kifu/lib/comment.ts",
+    ]);
+  });
+
+  test("範囲つきでも実在しなければ missing に出る", () => {
+    expect(missingPaths(sourcePathsIn("`src/book/GONE.rs:1-2`"))).toEqual(["src/book/GONE.rs"]);
+  });
+
   // 地の文まで拾うと、説明のために書いたディレクトリ名で落ちる
   test("バッククォートの外は拾わない", () => {
     expect(sourcePathsIn("src/entities/kifu あたりに置く")).toEqual([]);
