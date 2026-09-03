@@ -107,7 +107,13 @@ export async function resignGame(gameId: GameId, side: Side): Promise<void> {
   return await invoke("resign_game", { gameId, side });
 }
 
-/** 勝敗を付けずに終局にする */
+/**
+ * 勝敗を付けずに終局にする。
+ *
+ * **既に終局していたら reject する**（`game is already over`）。投了・裁定と同じ形。
+ * 中断を押したのと時間切れが同じ拍に入ると起きるので、**`Ok` を「中断が成立した」
+ * として棋譜へ書かないこと**——結末の権威は `over` イベント。
+ */
 export async function abortGame(gameId: GameId): Promise<void> {
   return await invoke("abort_game", { gameId });
 }

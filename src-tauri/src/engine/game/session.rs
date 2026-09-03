@@ -845,15 +845,26 @@ impl Runner {
                 let _ = reply.send(result);
             }
             Command::Abort { reply } => {
-                if !self.is_over() {
+                // **終局済みなら断る。** 投了・裁定と同じ形にする。
+                // `Ok` を返すと、中断を押したのと `on_tick` の時間切れが同じ拍に
+                // 入ったとき、呼び出し側は「中断が成立した」と読んで棋譜へ書く
+                // ——実際の結末（時間切れ・勝者あり）と食い違い、`Err` でないので
+                // `log_rejection` の1行も残らない。
+                //
+                // 閉じる経路（`abort_within_budget`）は `Err` を `debug` で
+                // 受け流すので、ここを断っても後始末は壊れない
+                let result = if self.is_over() {
+                    Err(ALREADY_OVER.to_string())
+                } else {
                     self.finish(GameResult {
                         winner: None,
                         reason: GameOverReason::Aborted,
                         detail: None,
                     })
                     .await;
-                }
-                let _ = reply.send(Ok(()));
+                    Ok(())
+                };
+                let _ = reply.send(result);
             }
             Command::Snapshot { reply } => {
                 let _ = reply.send(self.snapshot());
@@ -1000,7 +1011,7 @@ impl Runner {
         detail: Option<String>,
     ) -> Result<(), String> {
         if self.is_over() {
-            return Err("game is already over".to_string());
+            return Err(ALREADY_OVER.to_string());
         }
         // **断らない。** 裁定を拒否すると、フロントが呼び直さない限り
         // `RULING_TIMEOUT` が `Aborted { winner: None }` で畳む——
@@ -1020,7 +1031,7 @@ impl Runner {
 
     async fn accept_resign(&mut self, side: Side) -> Result<(), String> {
         if self.is_over() {
-            return Err("game is already over".to_string());
+            return Err(ALREADY_OVER.to_string());
         }
         if self.player(side).spec.is_engine() {
             return Err("this side is played by an engine".to_string());
@@ -2065,6 +2076,12 @@ fn shown(text: &str, max: usize) -> String {
 /// 一番長いのは成りを伴う**移動**（`7g7f+` の5バイト）。打ちは `P*7f` の4バイトで、
 /// **打った駒は成れない**ので `+` は付かない。余裕を見て8。
 const MAX_USI_MOVE_LEN: usize = 8;
+
+/// 終局済みの対局への操作を断る文言。
+///
+/// **3つの口（投了・裁定・中断）で同じにする。** 綴りが割れると、
+/// 呼び出し側は操作ごとに別の分類を書くことになる。
+const ALREADY_OVER: &str = "game is already over";
 
 /// 終局の説明として残す最大の**文字数**。
 ///
@@ -3716,6 +3733,41 @@ mod tests {
             "文字の途中で割っている: {trimmed}"
         );
         assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
+    }
+
+    /// 終局済みの対局への操作が、3つとも同じ形で断られること。
+    ///
+    /// **`abort` だけ `Ok` を返していた。** 中断を押したのと `on_tick` の
+    /// 時間切れが同じ拍に入ると、呼び出し側は「中断が成立した」と読んで
+    /// 棋譜へ書く——実際の結末（時間切れ・勝者あり）と食い違い、`Err` でないので
+    /// `log_rejection` の1行も残らない。
+    #[tokio::test]
+    async fn every_operation_on_a_finished_game_is_refused_the_same_way() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        for command in ["abort", "resign", "end_by_rule"] {
+            let mut runner = test_runner(&tx);
+            runner
+                .finish(GameResult {
+                    winner: Some(Side::Black),
+                    reason: GameOverReason::Timeout,
+                    detail: None,
+                })
+                .await;
+
+            let error = match command {
+                "abort" => {
+                    let (reply, rx) = oneshot::channel();
+                    runner.handle(Command::Abort { reply }).await;
+                    rx.await.expect("返事が来ない")
+                }
+                "resign" => runner.accept_resign(Side::Black).await,
+                _ => runner.accept_rule_end(None, None).await,
+            }
+            .expect_err("終局済みの対局で {command} が通っている");
+
+            assert_eq!(error, ALREADY_OVER, "{command} の断り方が揃っていない");
+        }
     }
 
     /// 終局は1回しか流れないこと。
