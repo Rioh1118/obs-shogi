@@ -333,8 +333,9 @@ pub const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 /// **畳み待ちと分ける。** 1つの予算を分け合うと、`abort` に時間を取られた
 /// ぶんだけ畳み待ちが縮み、正常な畳みを待ち切れなくなる。
 ///
-/// 下限は `SIDES` ぶんの書き込み。`the_watchdogs_are_ordered` が式で持つ。
-pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(6);
+/// 下限は「列の先客1件＋`SIDES` ぶんの `gameover`」。
+/// `the_watchdogs_are_ordered` が式で持つ。
+pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(8);
 
 /// 畳まれたかを聞き直す間隔。
 ///
@@ -3227,10 +3228,17 @@ mod tests {
         //
         // **1件ぶんでは足りない。** `abort` は `finish` を通り、`finish` は
         // 探索していない側それぞれへ `gameover` を書く。先後は別プロセス＝
-        // 別の書き込み列なので、最悪はその件数ぶん**直列に**待つ
+        // 別の書き込み列なので、最悪はその件数ぶん**直列に**待つ。
+        //
+        // **さらに列の先客が1件乗る。** `abort_within_budget` が包むのは
+        // `run_loop` の単一キューへ入れてから返るまでで、`take_and_close` が
+        // それを呼ぶのは `Arc::try_unwrap` が失敗したとき——つまり
+        // **別の操作が掴んでいることが確定している**とき。
+        //
+        // **これも下限でしかない。** 先客の処理が書き込み1件で終わるとは限らない
         assert!(
-            CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT * SIDES.len() as u32,
-            "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が `gameover` を書き切れる長さに足りない"
+            CLOSE_ABORT_TIMEOUT > WRITE_TIMEOUT * (SIDES.len() as u32 + 1),
+            "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が、列の先客と `gameover` を書き切れる長さに足りない"
         );
 
         // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
