@@ -38,20 +38,25 @@ impl GameId {
         &self.0
     }
 
-    /// 本物の形（UUID）に収まる長さか。
+    /// 静的な写像の鍵として持ってよいか。
     ///
-    /// **静的な写像の鍵として持ってよいかの判定に使う。** 中身は webview から
-    /// 来る無検証の文字列なので、長い値をそのまま持つとプロセスが終わるまで
-    /// 解放されない領域になる。`Display` の切り詰めは表示にしか効かない。
-    pub fn fits_in_text(&self) -> bool {
-        self.0.chars().count() <= MAX_ID_IN_TEXT
+    /// 中身は webview から来る無検証の文字列で、長い値をそのまま持つと
+    /// プロセスが終わるまで解放されない領域になる。`Display` の切り詰めは
+    /// 表示にしか効かない。
+    ///
+    /// **全長を数えない。** 長さは呼び出し側が選べるので、
+    /// 上限の1つ先を見るだけで打ち切る。
+    pub fn is_safe_to_retain(&self) -> bool {
+        self.0.chars().nth(MAX_ID_LEN).is_none()
     }
 }
 
-/// 文章に出すときの長さの上限。
+/// 文章に出すときと、静的な写像の鍵として持つときの上限。
 ///
-/// UUID は36文字なので、本物は必ず収まる。
-const MAX_ID_IN_TEXT: usize = 48;
+/// **同じ数にしてある。** どちらも根拠は「本物（UUID の36文字）が収まる」の
+/// 1つで、片方だけ動かす理由が無い。片方を広げたくなったら、
+/// もう片方に何が起きるかを見てから割ること。
+const MAX_ID_LEN: usize = 48;
 
 /// **文章に出す形は切り詰める。** 中身は webview から来る無検証の文字列で、
 /// 長さも制御文字も見ていない。
@@ -63,14 +68,14 @@ const MAX_ID_IN_TEXT: usize = 48;
 /// 台帳を引く側は `as_str` を使うので、切り詰めが照合に効くことはない。
 impl std::fmt::Display for GameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for ch in self.0.chars().take(MAX_ID_IN_TEXT) {
+        for ch in self.0.chars().take(MAX_ID_LEN) {
             if ch.is_control() {
                 f.write_str("\u{fffd}")?;
             } else {
                 write!(f, "{ch}")?;
             }
         }
-        if self.0.chars().nth(MAX_ID_IN_TEXT).is_some() {
+        if self.0.chars().nth(MAX_ID_LEN).is_some() {
             f.write_str("…")?;
         }
         Ok(())
@@ -518,7 +523,7 @@ mod tests {
         let long = GameId::new("x".repeat(10_000));
         let shown = long.to_string();
         assert!(
-            shown.chars().count() <= MAX_ID_IN_TEXT + 1,
+            shown.chars().count() <= MAX_ID_LEN + 1,
             "長い ID を切り詰めていない: {} 文字",
             shown.chars().count()
         );

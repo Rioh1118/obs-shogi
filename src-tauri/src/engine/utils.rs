@@ -139,6 +139,15 @@ impl LogThrottle {
         }
     }
 
+    /// 枠が空いているか（次の `allow` が必ず通るか）。
+    ///
+    /// **空いた枠は何も覚えていない。** 捨てても失われる情報が無いので、
+    /// 上限のある写像から落とす判断に使える。
+    #[inline]
+    pub fn is_open(&self) -> bool {
+        self.last.elapsed() >= self.interval
+    }
+
     #[inline]
     pub fn reset(&mut self) {
         self.last = Instant::now();

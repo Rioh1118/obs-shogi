@@ -149,29 +149,61 @@ const MAX_TRACKED_GAMES: usize = 120;
 /// 知らない ID の連打は操作ごとに1秒1行へ収まる。
 ///
 /// **長い ID は最初から操作ごとの枠へ。** 鍵に入れると、その文字列は
-/// プロセスが終わるまで解放されない（`GameId::fits_in_text`）。
+/// プロセスが終わるまで解放されない（`GameId::is_safe_to_retain`）。
+///
+/// **満杯になったら、空いた枠から落とす。** 落とす口が無いと、知らない ID を
+/// `MAX_TRACKED_GAMES` 回撃つだけで——対局を1つも開かずに数十ミリ秒で済む——
+/// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠に落ちる。
+/// 空いた枠（`LogThrottle::is_open`）は何も覚えていないので、落としても
+/// 失われる情報が無い。
+///
+/// **落とせる枠が無ければ操作ごとの枠へ。** 連打の最中は枠がどれも新しいので
+/// 誰も落とせず、その間だけ知らない ID と同じ扱いになる。枠が空く
+/// （`REJECTION_WARN_INTERVAL`）と自分の枠を取り戻す。
 #[derive(Default)]
 struct RejectionThrottles {
     per_game: HashMap<(&'static str, GameId), LogThrottle>,
     per_op: HashMap<&'static str, LogThrottle>,
+    /// 枠の長さ。**テストから縮められるようにしておく**——
+    /// 「枠が空けば取り戻せる」は時間が経たないと見えない
+    interval: Option<Duration>,
 }
 
 impl RejectionThrottles {
+    fn interval(&self) -> Duration {
+        self.interval.unwrap_or(REJECTION_WARN_INTERVAL)
+    }
+
     fn allow(&mut self, op: &'static str, game_id: &GameId) -> bool {
+        // **長さを先に見る。** 照合より前に弾かないと、呼び出し側が選んだ
+        // 長さの文字列を毎回複製することになる
+        if !game_id.is_safe_to_retain() {
+            return self.allow_by_op(op);
+        }
+
         let key = (op, game_id.clone());
         if let Some(throttle) = self.per_game.get_mut(&key) {
             return throttle.allow();
         }
-        if game_id.fits_in_text() && self.per_game.len() < MAX_TRACKED_GAMES {
+        if self.per_game.len() >= MAX_TRACKED_GAMES {
+            self.per_game.retain(|_, throttle| !throttle.is_open());
+        }
+        if self.per_game.len() < MAX_TRACKED_GAMES {
+            let interval = self.interval();
             return self
                 .per_game
                 .entry(key)
-                .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
+                .or_insert_with(|| LogThrottle::new(interval))
                 .allow();
         }
+        self.allow_by_op(op)
+    }
+
+    fn allow_by_op(&mut self, op: &'static str) -> bool {
+        let interval = self.interval();
         self.per_op
             .entry(op)
-            .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
+            .or_insert_with(|| LogThrottle::new(interval))
             .allow()
     }
 }
@@ -202,9 +234,10 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
 ///
 /// 静かなときの1件は必ず残る（`LogThrottle` は枠の先頭を通す）。
 ///
-/// **拾えないもの**: 連打の中で理由が変わったこと。追える対局が
-/// `MAX_TRACKED_GAMES` を超えた後の、新しい対局の1件目
-/// （操作ごとの枠へ落ちるので、同じ秒に他の対局が取っていれば消える）。
+/// **拾えないもの**: 連打の中で理由が変わったこと。枠が満杯で、どれも
+/// まだ空いていない間に来た新しい対局の断り（操作ごとの枠へ落ちるので、
+/// 同じ枠を他の対局が取っていれば消える）。**この状態は続かない**——
+/// `REJECTION_WARN_INTERVAL` で枠が空き、そこから取り戻せる。
 fn log_rejection<T>(
     op: &'static str,
     game_id: &GameId,
@@ -332,6 +365,20 @@ mod tests {
         GameId::new(value.to_string())
     }
 
+    /// 枠の長さを縮めた絞り。「空けば取り戻せる」は時間が経たないと見えない
+    fn quick() -> RejectionThrottles {
+        RejectionThrottles {
+            interval: Some(Duration::from_millis(20)),
+            ..RejectionThrottles::default()
+        }
+    }
+
+    fn flood(throttles: &mut RejectionThrottles, op: &'static str) {
+        for n in 0..MAX_TRACKED_GAMES {
+            throttles.allow(op, &id(&format!("junk{n}")));
+        }
+    }
+
     /// 断られ続けている対局が、他の対局の1件目を食わないこと。
     ///
     /// 食うと、B局は `RULING_TIMEOUT` で `aborted` になるのに、
@@ -382,6 +429,38 @@ mod tests {
             throttles.per_game.len() <= MAX_TRACKED_GAMES,
             "枠が上限を超えて増えている: {}",
             throttles.per_game.len()
+        );
+    }
+
+    /// 知らない ID の連打で枠が満杯になっても、**枠が空けば取り戻せる**こと。
+    ///
+    /// 落とす口が無いと、対局を1つも開かずに数十ミリ秒で満杯にでき、
+    /// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠へ
+    /// 落ちる。A局が毎秒断られている裏で B局が1回断られても、その行はどこにも
+    /// 残らない——`RULING_TIMEOUT` で `aborted` になった B局を、ログから追えない。
+    #[test]
+    fn a_flood_does_not_lock_real_games_out_forever() {
+        let mut throttles = quick();
+        flood(&mut throttles, "submit_move");
+
+        // 連打の直後は誰も落とせないので、操作ごとの枠へ落ちる
+        assert!(throttles.allow("submit_move", &id("real-a")));
+        assert!(
+            !throttles.allow("submit_move", &id("real-b")),
+            "満杯の直後に、対局ごとの枠を取れてしまっている"
+        );
+
+        std::thread::sleep(Duration::from_millis(40));
+
+        // 枠が空いたので、両方とも自分の枠を取れる
+        assert!(throttles.allow("submit_move", &id("real-a")));
+        assert!(
+            throttles.allow("submit_move", &id("real-b")),
+            "枠が空いても取り戻せていない"
+        );
+        assert!(
+            !throttles.allow("submit_move", &id("real-b")),
+            "自分の枠で絞れていない（まだ共有枠に落ちている）"
         );
     }
 
