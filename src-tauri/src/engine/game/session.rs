@@ -3326,7 +3326,7 @@ mod tests {
     /// `UsiProtocol` の具象で、観測する継ぎ目が無い（→ #377）。
     /// 順序を入れ替える変異ではここは落ちない。
     #[tokio::test]
-    async fn ending_the_game_tells_the_app_before_it_tells_the_engines() {
+    async fn ending_the_game_emits_over_with_the_clock_stopped() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let cancel = CancellationToken::new();
         let events = Arc::new(RecordedEvents::default());
@@ -3904,7 +3904,7 @@ mod tests {
     /// 動かす変異でも、`activity` の代入はその手前にあるのでここは落ちない。
     /// **セルは踏んでいるが、不変条件3 はまだ守られていない。**
     #[tokio::test]
-    async fn a_bestmove_after_the_game_ended_still_gets_a_gameover() {
+    async fn a_bestmove_after_the_game_ended_returns_the_engine_to_idle() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let cancel = CancellationToken::new();
         let mut runner = test_runner(&tx);

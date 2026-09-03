@@ -266,7 +266,7 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 **`△` の意味は表の冒頭にある**（一部の列だけ固定している）。ここで数え直さない。
 
 `(G2, E7)`（終局後に届いた `bestmove`）は
-`a_bestmove_after_the_game_ended_still_gets_a_gameover` が `Phase::Over` を置いて
+`a_bestmove_after_the_game_ended_returns_the_engine_to_idle` が `Phase::Over` を置いて
 踏んでいる。**ただし表明は `activity` が `A0` に戻ることだけ。** `gameover` が
 実際に飛ぶことは見ていない——`send_gameover` の宛先が `UsiProtocol` の具象で、
 観測する継ぎ目が無いため。`Phase::Over` の早期 return を `match` より後ろへ
@@ -275,7 +275,7 @@ hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line
 
 `(G2, E7')` `(G2, E8)` `(G2, E12)` は踏めていない。
 
-`(G0, E8)` は `ending_the_game_tells_the_app_before_it_tells_the_engines` が踏む。
+`(G0, E8)` は `ending_the_game_emits_over_with_the_clock_stopped` が踏む。
 **ただし見ているのは `Over` が出たことだけ**で、※6 の順序
 （`Over` の emit が `send_gameover` より先）は未検証——入れ替える変異でも落ちない（→ #377）。
 
