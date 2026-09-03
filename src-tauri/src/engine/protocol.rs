@@ -3,7 +3,7 @@ use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::engine::{types::*, utils::cmd_summary};
+use crate::engine::{types::*, utils::cmd_summary, utils::with_cause};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
@@ -367,7 +367,7 @@ async fn run_writer(
                 return Err(EngineError::NotInitialized(GONE.to_string()));
             };
             h.send_command(&command)
-                .map_err(|e| EngineError::CommunicationFailed(e.to_string()))
+                .map_err(|e| EngineError::CommunicationFailed(with_cause(&e)))
         });
 
         // **上限はここ。** 待っている側で包むと、前のジョブの処理時間が入る
@@ -755,12 +755,17 @@ impl UsiProtocol {
         drop(handler_guard);
 
         result.map_err(|e| {
-            if e.to_string().contains("already started listening") {
+            // **バリアントで見る。** 文言で照合すると、`usi` が1語直しただけで
+            // 二重 listen が `CommunicationFailed` に化け、`send_command` の doc が
+            // 契約として書いている区別（プロセスは生きているので落とさない）が
+            // 静かに入れ替わる
+            if matches!(e, usi::Error::IllegalOperation) {
                 log::debug!(target: LOGT, "start_listening: already listening");
-                EngineError::AlreadyListening(e.to_string())
+                EngineError::AlreadyListening(with_cause(&e))
             } else {
-                log::error!(target: LOGT, "start_listening: failed: {}", e);
-                EngineError::CommunicationFailed(e.to_string())
+                let why = with_cause(&e);
+                log::error!(target: LOGT, "start_listening: failed: {why}");
+                EngineError::CommunicationFailed(why)
             }
         })
     }
@@ -1308,7 +1313,7 @@ impl UsiProtocol {
             // 捨てると「done」と記録され、残ったことを知る手掛かりが1つも無くなる
             let outcome = match handler.kill() {
                 Ok(()) => KillOutcome::Killed,
-                Err(e) => KillOutcome::Failed(e.to_string()),
+                Err(e) => KillOutcome::Failed(with_cause(&e)),
             };
             std::mem::forget(handler);
             outcome

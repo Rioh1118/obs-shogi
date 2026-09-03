@@ -148,6 +148,31 @@ pub fn shown(text: &str, max: usize) -> String {
     out
 }
 
+/// 外来のエラーを文字列にする。**原因の連鎖ごと出す。**
+///
+/// `usi` crate の `Error` は `thiserror` で組んであり、`Display` は
+/// バリアントごとの定型文しか出さない——`EngineIo` は
+/// 「IO error occurred when communicating with the engine」で、
+/// 中の `std::io::Error` を**丸ごと捨てる**。
+///
+/// 実行権限の無いファイルを選ぶと（zip から展開したエンジンで最も起きる形）、
+/// `canonicalize` も `is_file` も通って `Command::spawn` が EACCES で落ちるのに、
+/// 利用者に返るのもログに残るのもその定型文だけになる。
+/// 「権限が無い」「アーキテクチャが違う」の区別が付かず、
+/// **何を直せばいいかが導けない**。
+///
+/// 潰す必要は無い。`io::Error` の `Display` は短く、外来の文字列も含まない。
+pub fn with_cause(error: &dyn std::error::Error) -> String {
+    let mut text = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        text.push_str(": ");
+        text.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    text
+}
+
 /// ログの1行に載せる要約の上限（文字数）。
 ///
 /// **`setoption` の名前は webview から来る。** `MAX_WIRE_FIELD`（8KB）までは

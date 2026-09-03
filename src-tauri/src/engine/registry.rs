@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
-use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
+use crate::engine::utils::{shown, with_cause, MAX_SUMMARY_LEN};
 
 const LOGT: &str = "obs_shogi::engine::registry";
 
@@ -171,8 +171,9 @@ impl EngineRegistry {
             log::info!(target: LOGT, "{}", spawn_start_line(&engine_path));
 
             let handler = UsiEngineHandler::spawn(&engine_path, &work_dir).map_err(|e| {
-                log::error!(target: LOGT, "spawn: failed: {}", e);
-                EngineError::StartupFailed(format!("Failed to spawn engine: {}", e))
+                let why = with_cause(&e);
+                log::error!(target: LOGT, "spawn: failed: {why}");
+                EngineError::StartupFailed(format!("Failed to spawn engine: {why}"))
             })?;
             Ok((engine_path, work_dir, handler))
         });
@@ -446,6 +447,42 @@ mod tests {
                 "改行をそのまま通している。この後ろに好きなログ行を作れる: {line:?}"
             );
         }
+    }
+
+    /// 起こせなかった理由が、OS の言葉まで残ること。
+    ///
+    /// **`usi::Error` の `Display` はバリアントごとの定型文しか出さない。**
+    /// `EngineIo` は中の `std::io::Error` を丸ごと捨てるので、素で文字列にすると
+    /// 利用者に返るのもログに残るのも
+    /// 「IO error occurred when communicating with the engine」だけになる。
+    ///
+    /// 実行権限の無いファイルは、zip から展開したエンジンで最も起きる形。
+    /// `canonicalize` も `is_file` も通るので入口の関門は素通りし、
+    /// **何を直せばいいかが断り文句から導けない**まま
+    /// 「エンジンのパスが違う」の一覧（F-27）に落ちる。
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_spawn_failure_keeps_the_reason_the_os_gave() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = crate::test_support::temp_dir("engine-not-executable");
+        let path = dir.join("engine");
+        std::fs::write(&path, b"#!/bin/sh\nexit 0\n").expect("置けている");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("権限");
+
+        let quick = Duration::from_millis(500);
+        let error = EngineRegistry::new()
+            .spawn(path.to_str().expect("パス"), None, quick, quick)
+            .await
+            .expect_err("実行権限の無いファイルを起こしている");
+
+        let text = format!("{error}");
+        assert!(
+            text.contains("os error") || text.contains("Permission denied"),
+            "OS が言った理由が消えている: {text}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// `engine_path` が**実在するファイル**であることを要求すること。
