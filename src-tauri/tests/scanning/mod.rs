@@ -661,9 +661,9 @@ mod tests {
 
     /// 手書きの数え方を、メソッド名によらず拾うこと。
     ///
-    /// **一覧で持つと必ず漏れる。** メソッド名を並べていたときは、20通り中
-    /// 17通りが素通りした——`contains` / `position` / `as_bytes()[i]` はもちろん、
-    /// **一覧に載っているメソッドでも rustfmt が引数を折れば**通った。
+    /// **一覧で持つと必ず漏れる。** メソッド名を並べる形では20通り中17通りが
+    /// 素通りする——`contains` / `position` / `as_bytes()[i]` はもちろん、
+    /// **一覧に載っているメソッドでも rustfmt が引数を折れば**通る。
     #[test]
     fn counting_by_hand_is_caught_whatever_the_method_is() {
         let caught = |code: &str| !counting_by_hand(code).is_empty();
