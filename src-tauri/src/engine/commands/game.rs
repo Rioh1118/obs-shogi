@@ -222,6 +222,10 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
 /// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
 /// 測っている量と実際に書く量がずれる——`unknown game: {id}` のように
 /// **同じ ID が1行に2回載る**ことがあるし、欄も増減する。
+///
+/// **`op` は Tauri コマンドの関数名と同じ綴りにすること。** ログを
+/// `submit_game_move rejected game=…` で引ける前提が台帳（F-28）にある。
+/// 綴りが割れると、断りが残ったか確かめる人が「1行も残っていない」と読む。
 fn rejection_line(op: &str, game_id: &GameId, error: &str) -> String {
     format!("{op} rejected game={game_id}: {error}")
 }
@@ -423,7 +427,7 @@ mod tests {
             "別の対局の1件目を食っている"
         );
         assert!(
-            throttles.allow("close", &id("a")),
+            throttles.allow("close_game", &id("a")),
             "別の操作の1件目を食っている"
         );
     }
@@ -484,6 +488,11 @@ mod tests {
             ops.len() >= 5,
             "`log_rejection` の口を数えられていない: {ops:?}"
         );
+        // **テストが使う綴りも実在する口であること。** 揃っていないと、
+        // 台帳が約束した「コマンド名で grep できる」を確かめた気になれる
+        for used in ["submit_game_move", "close_game"] {
+            assert!(ops.contains(used), "{used} という口は無い: {ops:?}");
+        }
 
         // 台帳に無い ID は文言にもう一度載るので、1行に2回出る。
         // **`op` はいちばん長い綴りで組む**——長さがそのまま1行に効く
@@ -511,7 +520,7 @@ mod tests {
     #[test]
     fn the_frames_actually_fill_up() {
         let mut throttles = quick();
-        flood(&mut throttles, "submit_move");
+        flood(&mut throttles, "submit_game_move");
 
         assert_eq!(
             throttles.per_game.len(),
@@ -536,7 +545,7 @@ mod tests {
 
         let mut passed = 0u32;
         for n in 0..20_000 {
-            if throttles.allow("submit_move", &id(&format!("flood{n}"))) {
+            if throttles.allow("submit_game_move", &id(&format!("flood{n}"))) {
                 passed += 1;
             }
         }
@@ -563,21 +572,21 @@ mod tests {
     #[test]
     fn a_flood_does_not_lock_real_games_out_forever() {
         let mut throttles = quick();
-        flood(&mut throttles, "submit_move");
+        flood(&mut throttles, "submit_game_move");
 
         std::thread::sleep(Duration::from_millis(60));
 
         // 枠が空くので、落とされたぶんも自分の枠を取り直せる
         assert!(
-            throttles.allow("submit_move", &id("real-a")),
+            throttles.allow("submit_game_move", &id("real-a")),
             "枠が空いても取り戻せていない"
         );
         assert!(
-            throttles.allow("submit_move", &id("real-b")),
+            throttles.allow("submit_game_move", &id("real-b")),
             "別の対局の1件目を食っている"
         );
         assert!(
-            !throttles.allow("submit_move", &id("real-b")),
+            !throttles.allow("submit_game_move", &id("real-b")),
             "自分の枠で絞れていない（まだ共有枠に落ちている）"
         );
     }
@@ -591,13 +600,13 @@ mod tests {
         let mut throttles = RejectionThrottles::default();
         let long = id(&"x".repeat(10_000));
 
-        assert!(throttles.allow("submit_move", &long));
+        assert!(throttles.allow("submit_game_move", &long));
         assert!(
             throttles.per_game.is_empty(),
             "長い ID を鍵として持っている"
         );
         assert!(
-            !throttles.allow("submit_move", &id(&"y".repeat(10_000))),
+            !throttles.allow("submit_game_move", &id(&"y".repeat(10_000))),
             "操作ごとの枠で絞れていない"
         );
     }

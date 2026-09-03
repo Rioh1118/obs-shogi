@@ -161,7 +161,11 @@ pub fn shown(text: &str, max: usize) -> String {
 /// 「権限が無い」「アーキテクチャが違う」の区別が付かず、
 /// **何を直せばいいかが導けない**。
 ///
-/// 潰す必要は無い。`io::Error` の `Display` は短く、外来の文字列も含まない。
+/// **潰す必要が無いのは、いまここへ渡している型に限った話。** `usi::Error` と
+/// `io::Error` の連鎖はどちらも `Display` が短く、外来の文字列を含まない。
+/// webview 由来の文字列を運ぶ型（`setoption` の名前を抱えた `StartupFailed` など）を
+/// 渡すなら、返り値を `shown` に通すこと——素で `log::error!` へ流すと
+/// 1行8KB になり、`MAX_SUMMARY_LEN` が名指しで避けている状態になる。
 pub fn with_cause(error: &dyn std::error::Error) -> String {
     let mut text = error.to_string();
     let mut source = error.source();
@@ -171,6 +175,33 @@ pub fn with_cause(error: &dyn std::error::Error) -> String {
         source = cause.source();
     }
     text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 原因の連鎖が残ること。
+    ///
+    /// `usi::Error` の `Display` はバリアントごとの定型文しか出さず、
+    /// 中の `io::Error` を丸ごと捨てる。捨てたままだと、実行権限の無い
+    /// エンジンを選んだ利用者に返るのも、対局中に stdin が壊れたときに
+    /// 棋譜へ残るのも「IO error occurred …」の1文だけになる。
+    #[test]
+    fn a_cause_survives_being_turned_into_text() {
+        // EACCES。zip から展開したエンジンで最も起きる形
+        let error = usi::Error::EngineIo(std::io::Error::from_raw_os_error(13));
+        let text = with_cause(&error);
+
+        assert!(
+            text.contains("os error") || text.contains("Permission denied"),
+            "OS が言った理由が消えている: {text}"
+        );
+        assert!(
+            text.len() > error.to_string().len(),
+            "連鎖が付いていない: {text}"
+        );
+    }
 }
 
 /// ログの1行に載せる要約の上限（文字数）。

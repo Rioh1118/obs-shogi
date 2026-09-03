@@ -3966,6 +3966,14 @@ mod tests {
             .expect("`Over` が出ていない");
         let emitted = over.detail.as_deref().expect("説明が消えている");
         assert_eq!(emitted, detail, "イベントと写しで説明が食い違っている");
+
+        // **ログも同じ値であること。** 切る上限を別々に持っているので、
+        // 片方だけ動かしても他方は緑で通る——故障終局を後から追う人は、
+        // ログの `detail` と棋譜の `detail` が一致する前提で突き合わせる
+        assert!(
+            line.ends_with(&format!("detail={detail}")),
+            "ログと写しで説明が食い違っている: {line:.80}"
+        );
     }
 
     /// 終局の1行が、ログの予算を一周させられないこと。

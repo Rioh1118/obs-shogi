@@ -138,6 +138,20 @@ struct Pending {
 /// 正常な流れでこの数に届くことはない
 const PENDING_LIMIT: usize = 32;
 
+/// `listen` の失敗を分類する。
+///
+/// **バリアントで見る。** 文言で照合すると、`usi` が1語直しただけで
+/// 二重 listen が `CommunicationFailed` に化け、`send_command` の doc が
+/// 契約として書いている区別（`AlreadyListening` は**プロセスが生きているので
+/// 落とさない**）が静かに入れ替わる。
+fn listen_error(error: &usi::Error) -> EngineError {
+    if matches!(error, usi::Error::IllegalOperation) {
+        EngineError::AlreadyListening(with_cause(error))
+    } else {
+        EngineError::CommunicationFailed(with_cause(error))
+    }
+}
+
 /// 積み置きを捨てたことを記録する1行。
 ///
 /// **理由ごとに書式を分けない。** 掃き出しはここを `PENDING_LIMIT` 回まとめて
@@ -768,18 +782,13 @@ impl UsiProtocol {
         drop(handler_guard);
 
         result.map_err(|e| {
-            // **バリアントで見る。** 文言で照合すると、`usi` が1語直しただけで
-            // 二重 listen が `CommunicationFailed` に化け、`send_command` の doc が
-            // 契約として書いている区別（プロセスは生きているので落とさない）が
-            // 静かに入れ替わる
-            if matches!(e, usi::Error::IllegalOperation) {
+            let classified = listen_error(&e);
+            if matches!(classified, EngineError::AlreadyListening(_)) {
                 log::debug!(target: LOGT, "start_listening: already listening");
-                EngineError::AlreadyListening(with_cause(&e))
             } else {
-                let why = with_cause(&e);
-                log::error!(target: LOGT, "start_listening: failed: {why}");
-                EngineError::CommunicationFailed(why)
+                log::error!(target: LOGT, "start_listening: failed: {classified}");
             }
+            classified
         })
     }
 
@@ -1679,6 +1688,30 @@ mod tests {
         }
         assert!(push_pending(&mut pending, &position).is_err());
         assert_eq!(pending.queue.len(), PENDING_LIMIT);
+    }
+
+    /// `listen` の失敗の分類が、文言ではなくバリアントで決まること。
+    ///
+    /// **`AlreadyListening` は「プロセスは生きている」の意味**（`send_command` の
+    /// doc が契約として書いている）。文言で照合していると、`usi` が1語直すだけで
+    /// 二重 listen が `CommunicationFailed` に化け、落とさなくてよいプロセスを
+    /// 落とす側の分岐へ入る。
+    #[test]
+    fn a_double_listen_is_told_apart_from_a_broken_pipe() {
+        assert!(
+            matches!(
+                listen_error(&usi::Error::IllegalOperation),
+                EngineError::AlreadyListening(_)
+            ),
+            "二重 listen を別の分類にしている"
+        );
+        assert!(
+            matches!(
+                listen_error(&usi::Error::EngineIo(std::io::Error::from_raw_os_error(32))),
+                EngineError::CommunicationFailed(_)
+            ),
+            "壊れたパイプを二重 listen として扱っている"
+        );
     }
 
     /// 積み置きの掃き出しが、ログの予算を一周させられないこと。
