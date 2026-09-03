@@ -1105,8 +1105,12 @@ impl UsiProtocol {
     ///
     /// **`timeout` は待ちだけでなく `isready` の書き込みも含む。** 待ちにしか
     /// 掛けないと、締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で
-    /// 書き込みぶんが締切の外に出る。書き込みは `WRITE_TIMEOUT` で切れるので、
-    /// この関数が返るまでは `max(timeout, WRITE_TIMEOUT)` で抑えられる。
+    /// 書き込みぶんが締切の外に出る。書き込みで使い切ったら、待たずに
+    /// `Timeout` で断る。
+    ///
+    /// **上限として使えるとは書かない。** 書き込みは列に入るので、先客が
+    /// 居ればその処理時間が足される（→ `WRITE_TIMEOUT`）。ここが覆うのは
+    /// 「書き込みを渡してから `readyok` を待ち終わるまで」で、実時間の上限ではない。
     pub async fn ensure_ready(&self, timeout: Duration) -> Result<(), EngineError> {
         if self.is_ready() {
             return Ok(());
@@ -1118,7 +1122,18 @@ impl UsiProtocol {
         let mut rx = self.ready.subscribe();
         self.send_command(&GuiCommand::IsReady).await?;
 
+        // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
+        // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
+        // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
+        // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる。
+        // 段の取り分が 0 なら段に入る前に断る（`prepare_engine` の `for_usiok` と同じ形）
         let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if left.is_zero() {
+            return Err(EngineError::Timeout(
+                "timed out before waiting for readyok".to_string(),
+            ));
+        }
+
         let settled =
             tokio::time::timeout(left, rx.wait_for(|state| *state != ReadyState::Waiting))
                 .await
