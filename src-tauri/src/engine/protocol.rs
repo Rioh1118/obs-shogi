@@ -1698,7 +1698,7 @@ mod tests {
         let cmd = GuiCommand::SetOption(name, Some("1".to_string()));
 
         // **理由を全部回して長いほうで測る。** 1つだけ測ると、もう片方の書式が
-        // 予算を超えても緑で通る（実際にそうなっていた）
+        // 予算を超えても緑で通る
         let line = DropReason::ALL
             .iter()
             .map(|why| dropped_line(&cmd, *why))

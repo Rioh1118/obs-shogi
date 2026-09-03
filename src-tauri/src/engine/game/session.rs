@@ -1548,7 +1548,7 @@ impl Runner {
         // **切るのはここ1箇所。** `detail` は呼び出し側が組む欄で、外来の文字列を
         // 運ぶ経路がある（裁定は webview から、故障はエンジンの応答から）。
         // 「通してから渡すこと」を呼び出し側の心得にすると、終わり方を1つ足すたびに
-        // 数え直しが要る——実際に `SearchOutcome::Failed` の1経路が抜けていた。
+        // 数え直しが要る。
         //
         // ここを通せば、3つの吸い口（下のログ・`Over` イベント・`snapshot`）が
         // まとめて収まる。二度通っても結果は変わらない
@@ -3774,10 +3774,10 @@ mod tests {
 
     /// **どの終わり方から入っても**説明が切られること。
     ///
-    /// 上のテストは裁定の口だけを見る。切る場所を入口ごとに置くと、
-    /// **通し忘れた入口ができる**——エンジンの故障（`SearchOutcome::Failed`）が
-    /// 実際にそうなっていて、`EngineError` の文言がそのままログ・`Over` イベント・
-    /// `snapshot` の3つへ流れていた。`finish` の1箇所で切る形を固定する。
+    /// 上のテストは裁定の口だけを見る。切る場所を入口ごとに置くと**通し忘れた入口が
+    /// できる**——エンジンの故障（`SearchOutcome::Failed`）は `EngineError` の文言を
+    /// 運ぶので、通し忘れればログ・`Over` イベント・`snapshot` の3つへそのまま流れる。
+    /// `finish` の1箇所で切る形を固定する。
     #[tokio::test]
     async fn every_way_into_finish_trims_the_detail() {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -4229,7 +4229,7 @@ mod tests {
     ///
     /// **上限に当たった裁定を「断らずに終局」にした根拠がこの番人。**
     /// 断ると同じ `Err` を返し続けてここに落ち、`detail` は「アプリが裁定を
-    /// 返さなかった」と書く——返しているのに。その番人自体に検査が無かった。
+    /// 返さなかった」と書く——返しているのに。その番人が働くことをここで固定する。
     #[tokio::test]
     async fn a_ruling_that_never_comes_back_aborts_the_game() {
         let (tx, _rx) = mpsc::unbounded_channel();
