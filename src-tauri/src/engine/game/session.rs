@@ -1560,7 +1560,7 @@ impl Runner {
     /// `Unresponsive` は**畳まれたものとして数える**。`stop` に応じないと
     /// 分かっている側なので、待ち続けても返らない。
     fn searches_idle(&self) -> bool {
-        [Side::Black, Side::White].into_iter().all(|side| {
+        SIDES.into_iter().all(|side| {
             !matches!(
                 self.player(side).activity,
                 Activity::Searching { .. } | Activity::Stopping { .. }

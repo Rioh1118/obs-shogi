@@ -33,6 +33,43 @@ pub struct GameManager {
     registry: Arc<EngineRegistry>,
 }
 
+/// 対局の操作を断る理由。
+///
+/// **文言を1箇所に集める。** `commands/game.rs` は「断り方の分類は
+/// `GameManager::close`」と1箇所を指し、`entities/game-session` の
+/// `closeGame` は3つの文言を**そのまま契約として写して**「`busy` なら
+/// 呼び直すこと」と書いている。手で書くと、直し漏れた経路だけが分類から
+/// 外れ、呼び出し側は呼び直さずにプロセスを残す。
+///
+/// 網羅の `match` を通すので、理由を1つ増やせば `Display` で数え直させられる
+/// （→ ADR-0008 決定3。`cannot_reach_text` と `Stall::detail` が同じ形）。
+///
+/// 型で割るのは #362。ここは Rust 側で1本にするところまで。
+enum Rejection<'a> {
+    /// 台帳に無い。何も起きていない
+    Unknown(&'a GameId),
+    /// 別の呼び出しがいま閉じている最中。待つこと
+    Closing(&'a GameId),
+    /// 他の操作が掴んでいる。エンジンは生きたまま台帳に残るので、呼び直せる
+    Busy(&'a GameId),
+}
+
+impl std::fmt::Display for Rejection<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Rejection::Unknown(id) => write!(f, "unknown game: {id}"),
+            Rejection::Closing(id) => write!(f, "the game is being closed: {id}"),
+            Rejection::Busy(id) => write!(f, "the game is busy and could not be closed: {id}"),
+        }
+    }
+}
+
+impl Rejection<'_> {
+    fn err<T>(self) -> Result<T, String> {
+        Err(self.to_string())
+    }
+}
+
 impl GameManager {
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
@@ -65,14 +102,13 @@ impl GameManager {
     ///
     /// # エラー
     ///
-    /// **呼び直す意味があるのは `busy` のときだけ。**
+    /// **呼び直す意味があるのは `Rejection::Busy` のときだけ。**
+    /// 文言は `Rejection` が持つ。ここでは呼び直しの要否だけを言う。
     ///
-    /// - `the game is busy` — 他の操作が同じ対局を掴んでいる。**中断は試みたが、
-    ///   通ったかは保証しない**（`CLOSE_ABORT_TIMEOUT` を超えると warn を1行残して
-    ///   先へ進む＝探索も時計も続いている）。**エンジンは生きたまま台帳に残る**。
-    ///   そのまま呼び直せる。呼び直さないとプロセスが残る
-    /// - `the game is being closed` — 別の呼び出しがいま閉じている最中。待つこと
-    /// - `unknown game` — 台帳に無い。何も起きていない
+    /// `Busy` は他の操作が同じ対局を掴んでいる。**中断は試みたが、通ったかは
+    /// 保証しない**（`CLOSE_ABORT_TIMEOUT` を超えると warn を1行残して先へ進む
+    /// ＝探索も時計も続いている）。**エンジンは生きたまま台帳に残る**ので
+    /// そのまま呼び直せる。呼び直さないとプロセスが残る。
     pub async fn close(&self, game_id: &GameId) -> Result<(), String> {
         // **「知らない」と「いま閉じている」を分ける。** `close` は台帳から
         // 外してから最大十数秒待つので、その窓に2本目が入ると `unknown game` を
@@ -81,10 +117,10 @@ impl GameManager {
         {
             let mut closing = self.closing.lock().await;
             if closing.contains(game_id) {
-                return Err(format!("the game is being closed: {game_id}"));
+                return Rejection::Closing(game_id).err();
             }
             if !self.sessions.read().await.contains_key(game_id) {
-                return Err(format!("unknown game: {game_id}"));
+                return Rejection::Unknown(game_id).err();
             }
             closing.insert(game_id.clone());
         }
@@ -103,7 +139,7 @@ impl GameManager {
     async fn take_and_close(&self, game_id: &GameId) -> Result<(), String> {
         let session = self.sessions.write().await.remove(game_id);
         let Some(session) = session else {
-            return Err(format!("unknown game: {game_id}"));
+            return Rejection::Unknown(game_id).err();
         };
 
         // `close` はセッションを消費するので、他に持たれていたら落とせない。
@@ -125,9 +161,7 @@ impl GameManager {
                     "close: session still borrowed, kept in the ledger game_id={}",
                     game_id
                 );
-                return Err(format!(
-                    "the game is busy and could not be closed: {game_id}"
-                ));
+                return Rejection::Busy(game_id).err();
             }
         }
         Ok(())
@@ -204,9 +238,9 @@ impl GameManager {
             return Ok(session);
         }
         if self.closing.lock().await.contains(game_id) {
-            return Err(format!("the game is being closed: {game_id}"));
+            return Rejection::Closing(game_id).err();
         }
-        Err(format!("unknown game: {game_id}"))
+        Rejection::Unknown(game_id).err()
     }
 }
 
