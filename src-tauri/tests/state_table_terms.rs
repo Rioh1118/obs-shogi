@@ -228,6 +228,33 @@ fn every_table_is_either_checked_or_declared_not_rust() {
     );
 }
 
+/// 逆向き —— 登録が実在しない表やソースを指していないこと。
+///
+/// 表やモジュールを消しても、登録の行は残る。残った行は「その表は見られている」と
+/// 読めるので、次に同じ名前で別のものを置いた人が**登録し直さずに済むと判断する。**
+/// 上の検査は実在するファイル側からしか見ないので、この向きは誰も見ていない。
+#[test]
+fn every_registration_points_at_something_that_exists() {
+    let dir = repo_file("docs/state-transitions");
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+
+    let stale: Vec<String> = TABLES
+        .iter()
+        .flat_map(|(table, sources)| {
+            std::iter::once(repo_file(table)).chain(sources.iter().map(|s| manifest.join(s)))
+        })
+        .chain(NOT_RUST.iter().map(|(name, _)| dir.join(name)))
+        .filter(|path| !path.exists())
+        .map(|path| path.display().to_string())
+        .collect();
+
+    assert!(
+        stale.is_empty(),
+        "登録が実在しないものを指している: {stale:?}\n\
+         消したなら登録の行も消すこと。残っていると「見られている」と読める。",
+    );
+}
+
 /// どの表も空振りしていないこと。
 ///
 /// 表から定数を1つも拾えていなければ、その表の周回は何を書いても通る。
