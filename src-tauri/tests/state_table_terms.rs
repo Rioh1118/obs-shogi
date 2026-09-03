@@ -65,7 +65,7 @@ const NOT_RUST: [(&str, &str); 11] = [
 /// 表に出るが実装の識別子ではないもの。
 ///
 /// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
-const NOT_IDENTIFIERS: [&str; 6] = [
+const NOT_IDENTIFIERS: [&str; 5] = [
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
     "DEPTH_NONE",
@@ -73,11 +73,9 @@ const NOT_IDENTIFIERS: [&str; 6] = [
     "YANEURAOU",
     // 局面数の注記。`# NOE:` の綴りの一部
     "NOE",
-    // CSA の棋譜に書かれる語。特殊手（`%MATTA`）と、駒の綴りが壊れた指し手
-    // （`-3334XX`）。**大文字と数字だけなので定数と見分けが付かない。**
-    // 表が棋譜の中身を引用するたびにここへ来るので、増えたら綴りの規則を疑うこと
+    // CSA の特殊手（`%MATTA`）。英大文字だけなので綴りの規則では落ちない。
+    // 数字で始まる指し手は `constants_in` が規則で落とすので、ここには来ない
     "MATTA",
-    "3334XX",
 ];
 
 fn repo_file(relative: &str) -> PathBuf {
@@ -92,7 +90,12 @@ fn constants_in(text: &str) -> BTreeSet<String> {
     // バッククォートの中は式のこともある（`a * B + c > D`）ので、語ごとに切る。
     for chunk in text.split('`').skip(1).step_by(2) {
         for word in chunk.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
+            // **数字で始まる語は Rust の識別子になりえない。** CSA の指し手
+            // （`-3334XX` / `+7776FU`）は大文字と数字だけなので、この条件が無いと
+            // 定数の候補に入る。表が棋譜を1つ引用するたびに除外リストが伸びるので、
+            // リストではなく綴りの規則で落とす。
             let is_constant = word.len() >= 3
+                && word.starts_with(|c: char| c.is_ascii_uppercase() || c == '_')
                 && word
                     .chars()
                     .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
@@ -183,4 +186,26 @@ fn the_check_actually_finds_constants() {
         "表から拾えた定数が少なすぎる（{}件）。綴りの規則が変わったかもしれない: {found:?}",
         found.len()
     );
+}
+
+/// 綴りの規則の境界。**実データの件数を見るテストでは踏めない。**
+///
+/// ここが緩むと、拾いすぎた語を `NOT_IDENTIFIERS` へ足す運用に倒れる。
+/// 厳しすぎると本物の定数を拾わず、表が腐っても黙る。
+#[test]
+fn the_spelling_rule_separates_constants_from_kifu() {
+    let picked = |s: &str| constants_in(s).into_iter().collect::<Vec<_>>();
+
+    assert_eq!(picked("`MAX_LINE_BYTES`"), ["MAX_LINE_BYTES"]);
+    assert_eq!(picked("`_UNUSED`"), ["_UNUSED"]);
+
+    // CSA の指し手。数字で始まるので Rust の識別子になりえない
+    assert!(picked("`-3334XX`").is_empty());
+    assert!(picked("`+7776FU`").is_empty());
+
+    // CSA の特殊手。英大文字だけなので規則では落ちず、除外リストが受け持つ
+    assert!(picked("`%MATTA`").is_empty());
+
+    // 小文字を含む綴りは定数ではない。関数名で落ちると表が書けなくなる
+    assert!(picked("`parse_move`").is_empty());
 }
