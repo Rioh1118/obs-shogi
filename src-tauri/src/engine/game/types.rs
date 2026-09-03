@@ -39,9 +39,32 @@ impl GameId {
     }
 }
 
+/// 文章に出すときの長さの上限。
+///
+/// UUID は36文字なので、本物は必ず収まる。
+const MAX_ID_IN_TEXT: usize = 48;
+
+/// **文章に出す形は切り詰める。** 中身は webview から来る無検証の文字列で、
+/// 長さも制御文字も見ていない。
+///
+/// 素で出すと、`unknown game: {game_id}` の1行だけでログの予算
+/// （`lib.rs` の 200KB ＋ `KeepOne`）を一周させられる——**壊れた理由を
+/// 説明していた行が全部消える**。改行を通せば、その後ろに好きなログ行も作れる。
+///
+/// 台帳を引く側は `as_str` を使うので、切り詰めが照合に効くことはない。
 impl std::fmt::Display for GameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        for ch in self.0.chars().take(MAX_ID_IN_TEXT) {
+            if ch.is_control() {
+                f.write_str("\u{fffd}")?;
+            } else {
+                write!(f, "{ch}")?;
+            }
+        }
+        if self.0.chars().nth(MAX_ID_IN_TEXT).is_some() {
+            f.write_str("…")?;
+        }
+        Ok(())
     }
 }
 
@@ -475,6 +498,30 @@ mod tests {
 
     use crate::engine::types::{AnalysisCandidate, Evaluation, EvaluationKind};
     use std::collections::{BTreeMap, BTreeSet};
+
+    /// `GameId` を文章に出すとき、長さと制御文字が抑えられていること（表の外）。
+    ///
+    /// 中身は webview から来る無検証の文字列。素で出すと1行でログの予算を
+    /// 一周させられ、**壊れた理由を説明していた行が全部消える**。
+    /// 改行を通せば、その後ろに好きなログ行も作れる。
+    #[test]
+    fn a_game_id_in_text_is_bounded_and_has_no_control_characters() {
+        let long = GameId::new("x".repeat(10_000));
+        let shown = long.to_string();
+        assert!(
+            shown.chars().count() <= MAX_ID_IN_TEXT + 1,
+            "長い ID を切り詰めていない: {} 文字",
+            shown.chars().count()
+        );
+
+        let sneaky = GameId::new("a\nERROR fake line".to_string());
+        let shown = sneaky.to_string();
+        assert!(!shown.contains('\n'), "改行をそのまま通している: {shown:?}");
+
+        // 本物は必ず収まる。切り詰めが照合に効かないことは `as_str` が保証する
+        let real = GameId::new(uuid::Uuid::new_v4().to_string());
+        assert_eq!(real.to_string(), real.as_str());
+    }
 
     /// 境界に出る JSON の形を固定する。
     ///
