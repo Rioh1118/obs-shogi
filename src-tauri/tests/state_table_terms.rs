@@ -156,6 +156,20 @@ fn declared_constants(code: &str) -> BTreeSet<&str> {
         .collect()
 }
 
+/// 表が名指した定数のうち、実装が宣言していないもの。
+///
+/// **部分文字列で見ない。** `MAX_MOVE` は `MAX_MOVE_CHARS` に含まれるので、
+/// 接頭辞で照合すると、消した定数の接頭辞が別の定数に残っているだけで通る。
+/// この性質を決めているのはここで、`declared_constants` ではない。
+fn missing_in(table: &str, code: &str) -> Vec<String> {
+    let declared = declared_constants(code);
+
+    constants_in(table)
+        .into_iter()
+        .filter(|name| !declared.contains(name.as_str()))
+        .collect()
+}
+
 #[test]
 fn every_constant_named_in_a_table_exists_in_the_source() {
     for &(table, sources) in TABLES {
@@ -164,19 +178,13 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
             .iter()
             .map(|s| {
                 fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(s))
-                    .expect("実装を読めない")
+                    .unwrap_or_else(|e| panic!("{s} を読めない: {e}"))
             })
             .collect();
 
         // **コメントを落としてから見る。** 定数を消しても doc の言及は残りやすい。
         // 落とさないと、その1行だけで「実装にある」と読んでしまう。
-        let code = without_comments(&code);
-        let declared = declared_constants(&code);
-
-        let missing: Vec<String> = constants_in(&text)
-            .into_iter()
-            .filter(|name| !declared.contains(name.as_str()))
-            .collect();
+        let missing = missing_in(&text, &without_comments(&code));
 
         assert!(
             missing.is_empty(),
@@ -332,12 +340,18 @@ fn only_declarations_count_as_constants() {
 
     // 定数の名前を引用した assert のメッセージ。実装から const を消しても残る
     assert!(declared("assert!(ok, \"VERSION と一緒に動かすこと\");").is_empty());
+}
 
-    // 接頭辞で通さない。`MAX_MOVE` を消しても `MAX_MOVE_CHARS` が残っていれば緑、を防ぐ
-    assert_eq!(
-        declared("const MAX_MOVE_CHARS: usize = 8;"),
-        ["MAX_MOVE_CHARS"]
-    );
+/// 照合が接頭辞で通らないこと。
+///
+/// **この性質を決めているのは `missing_in` で、`declared_constants` ではない。**
+/// 切り出す前は `contains` を `starts_with` に変えても全てのテストが緑で通っていた。
+#[test]
+fn a_prefix_of_a_declared_constant_is_still_missing() {
+    let code = "const MAX_MOVE_CHARS: usize = 8;";
+
+    assert_eq!(missing_in("`MAX_MOVE`", code), ["MAX_MOVE"]);
+    assert!(missing_in("`MAX_MOVE_CHARS`", code).is_empty());
 }
 
 /// 綴りの規則の境界。**実データの件数を見るテストでは踏めない。**
