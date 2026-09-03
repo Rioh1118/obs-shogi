@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 /// どのファイルにあるかで選ばない。定数だけを見て選ぶと、表の主題のモジュールが
 /// 抜けたまま緑になり、**そのモジュールの定数を表に1つ書いた瞬間に、実在するのに
 /// 「実装に無い」と誤って落ちる。** 落ちた人は実在する行を表から消しにいく。
-const TABLES: [(&str, &[&str]); 3] = [
+const TABLES: &[(&str, &[&str])] = &[
     (
         "docs/state-transitions/yaneuraou-db-parse.md",
         &["src/book/yaneuraou_db.rs", "src/book/sfen.rs"],
@@ -54,7 +54,7 @@ const TABLES: [(&str, &[&str]); 3] = [
 ///
 /// 対応表を手で書く以上、足し忘れは必ず起きる。`root_guard.rs` と同じで、
 /// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
-const NOT_RUST: [(&str, &str); 11] = [
+const NOT_RUST: &[(&str, &str)] = &[
     ("analysis.md", "解析パネル。TS 側の reducer"),
     ("app.md", "アプリ全体の起動と終了。TS 側"),
     ("branch-index.md", "分岐の索引。TS 側"),
@@ -74,7 +74,7 @@ const NOT_RUST: [(&str, &str); 11] = [
 /// 表に出るが実装の識別子ではないもの。
 ///
 /// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
-const NOT_IDENTIFIERS: [&str; 5] = [
+const NOT_IDENTIFIERS: &[&str] = &[
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
     "DEPTH_NONE",
@@ -158,7 +158,7 @@ fn declared_constants(code: &str) -> BTreeSet<&str> {
 
 #[test]
 fn every_constant_named_in_a_table_exists_in_the_source() {
-    for (table, sources) in TABLES {
+    for &(table, sources) in TABLES {
         let text = fs::read_to_string(repo_file(table)).expect("表を読めない");
         let code: String = sources
             .iter()
@@ -235,7 +235,7 @@ fn every_table_is_either_checked_or_declared_not_rust() {
 /// no-op になっていても気づけない。
 #[test]
 fn every_table_yields_at_least_one_constant() {
-    for (table, _) in TABLES {
+    for &(table, _) in TABLES {
         let text = fs::read_to_string(repo_file(table)).expect("表を読めない");
 
         assert!(
