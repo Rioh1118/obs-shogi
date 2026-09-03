@@ -64,16 +64,22 @@ L2    position-search-view.md  局面検索の**画面**。L1 の search の結�
 
 ## 他リポジトリのパスの書き方
 
-**バッククォートで囲まない。外部リンクで書く。** これらの表が指すパスは
-`src/__tests__/docsSourcePaths.test.ts` が実在を要求するが、ShogiHome もやねうら王も
-`src/` から始まるので、綴りだけでは自リポジトリと区別が付かない。囲むと
-「実在しないパスを指している」で落ちる。
+`src/__tests__/docsSourcePaths.test.ts` が、これらの表の中でバッククォートに囲まれた
+パスの実在を要求する。**要求されるのは自リポジトリの起点と綴りが重なるものだけ** ——
+`src/` / `src-tauri/` / `docs/` で始まるか、`src/` の直下のレイヤ名
+（`entities/` など）で始まるもの。判定を持つのは `src/__tests__/docsSourcePaths.ts`。
+
+**ShogiHome は `src/` から始まるので、ここに当たる。囲まずに外部リンクで書く。**
+囲むと「実在しないパスを指している」で落ちる。
 
 ```markdown
 [ShogiHome src/background/book/yaneuraou.ts][sh-yaneuraou]
 
 [sh-yaneuraou]: https://github.com/sunfish-shogi/shogihome/blob/v1.29.0/src/...
 ```
+
+**やねうら王は `source/` から始まるので、この検査には当たらない。囲んでよい。**
+当たらないのは綴りが重なっていないからであって、腐らないからではない。
 
 **リンク先はタグで固定する。** 一次資料として引いた行が、あちらの `main` の移動で
 別のものを指すようになる。
