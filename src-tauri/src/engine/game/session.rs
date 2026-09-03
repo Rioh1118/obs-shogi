@@ -905,8 +905,15 @@ impl Runner {
     // --- フロントからの要求 ---
 
     async fn accept_human_move(&mut self, side: Side, usi_move: String) -> Result<(), String> {
+        // **終局と裁定待ちを1つの文言にしない。** 次にすべきことが正反対になる
+        // ——終局は何をしても変わらず、裁定待ちは `continue_game` の往復が済めば
+        // 同じ手を指せる（人対人なら毎手この窓がある）。断り方は文言でしか
+        // 伝わらないので、潰すと呼び出し側は捨てるか叩き続けるかを選べない
+        if self.is_over() {
+            return Err(ALREADY_OVER.to_string());
+        }
         let Phase::Thinking { side: to_move } = self.phase else {
-            return Err("not waiting for a move".to_string());
+            return Err(PENDING_RULING.to_string());
         };
         if to_move != side {
             return Err(format!("it is not {side:?}'s turn"));
@@ -1157,8 +1164,12 @@ impl Runner {
                 return;
             }
             SearchOutcome::Failed(message) => {
-                let message = shown(&message, MAX_DETAIL_LEN);
-                log::error!(target: LOGT, "engine failed side={side:?}: {message}");
+                // **切るのはこの1行のため。** `detail` の上限は `finish` が掛ける
+                log::error!(
+                    target: LOGT,
+                    "engine failed side={side:?}: {}",
+                    shown(&message, MAX_DETAIL_LEN)
+                );
                 self.finish(GameResult {
                     winner: Some(side.opponent()),
                     reason: GameOverReason::EngineFailure,
@@ -2123,9 +2134,18 @@ const MAX_USI_MOVE_BYTES: usize = 8;
 
 /// 終局済みの対局への操作を断る文言。
 ///
-/// **3つの口（投了・裁定・中断）で同じにする。** 綴りが割れると、
+/// **4つの口（着手・投了・裁定・中断）で同じにする。** 綴りが割れると、
 /// 呼び出し側は操作ごとに別の分類を書くことになる。
 const ALREADY_OVER: &str = "game is already over";
+
+/// 裁定が返る前に着手を求められたときの文言。
+///
+/// **`ALREADY_OVER` と分ける。** どちらも「いま指せない」だが、
+/// 終局はもう変わらず、こちらは `continue_game` の往復が済めば同じ手を指せる。
+/// 人対人なら毎手この窓があるので、潰すと呼び出し側は
+/// 「捨てる」（普通に指せる局面で着手を1回落とす）か
+/// 「叩き続ける」（終局後に同じ `Err` を受け続ける）かのどちらかになる。
+const PENDING_RULING: &str = "a ruling is still pending; retry after continue_game";
 
 /// 対局者の表示名として通す最大のバイト数。
 ///
@@ -3899,20 +3919,19 @@ mod tests {
         assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
     }
 
-    /// 終局済みの対局への投了・裁定・中断が、同じ形で断られること。
+    /// 終局済みの対局への着手・投了・裁定・中断が、同じ形で断られること。
     ///
     /// **揃えないと、中断だけが黙って通る。** 中断を押したのと `on_tick` の
     /// 時間切れが同じ拍に入ったとき、`Ok` を返すと呼び出し側は「中断が成立した」と
     /// 読んで棋譜へ書く——実際の結末（時間切れ・勝者あり）と食い違い、
     /// `Err` でないので `log_rejection` の1行も残らない。
     ///
-    /// **揃えていない3つ**（`submit_move` / `continue_game` / `close`）は
-    /// 別の文言を返す。ここが見るのは投了・裁定・中断の3つだけ。
+    /// **揃えていない2つ**（`continue_game` / `close`）は別の文言を返す。
     #[tokio::test]
-    async fn resign_rule_end_and_abort_are_refused_the_same_way() {
+    async fn a_finished_game_refuses_every_move_and_verdict_the_same_way() {
         let (tx, _rx) = mpsc::unbounded_channel();
 
-        for command in ["abort", "resign", "end_by_rule"] {
+        for command in ["abort", "resign", "end_by_rule", "submit_move"] {
             let mut runner = test_runner(&tx);
             runner
                 .finish(GameResult {
@@ -3929,6 +3948,11 @@ mod tests {
                     rx.await.expect("返事が来ない")
                 }
                 "resign" => runner.accept_resign(Side::Black).await,
+                "submit_move" => {
+                    runner
+                        .accept_human_move(Side::Black, "7g7f".to_string())
+                        .await
+                }
                 _ => runner.accept_rule_end(None, None).await,
             };
 
@@ -3938,6 +3962,32 @@ mod tests {
                 "{command} の断り方が揃っていない"
             );
         }
+    }
+
+    /// 裁定を待っている間の着手が、**終局とは別の文言**で断られること。
+    ///
+    /// 潰すと、次にすべきことが正反対の2つが1つの `Err` になる。
+    /// この窓は人対人なら毎手あり（`moveDecided` から `continue_game` の往復）、
+    /// そこへ相手が駒を置くだけで踏む。呼び出し側は文言でしか分けられないので、
+    /// 潰れていると「捨てる」か「叩き続ける」かのどちらかを選ぶことになる。
+    #[tokio::test]
+    async fn a_move_during_a_pending_ruling_is_refused_differently() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        runner.phase = Phase::AwaitingRuling {
+            last_mover: Side::Black,
+            usi_move: "7g7f".to_string(),
+            ponder_move: None,
+            since: Instant::now(),
+        };
+
+        let error = runner
+            .accept_human_move(Side::White, "3c3d".to_string())
+            .await
+            .expect_err("裁定待ちの着手を通している");
+
+        assert_ne!(error, ALREADY_OVER, "終局と同じ文言で断っている");
+        assert_eq!(error, PENDING_RULING, "断り方が変わっている");
     }
 
     /// 終局は1回しか流れないこと。
