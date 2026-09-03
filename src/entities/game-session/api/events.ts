@@ -4,6 +4,10 @@ import type { GameEvent } from "./rust-types";
 /**
  * 対局の出来事はこの1本にまとまっている。
  *
+ * **綴りは Rust 側（`engine/commands/game.rs` の `GAME_EVENT`）と一致している
+ * こと。** 食い違うと `emit` は成功したまま何も届かず、症状は「購読を張り忘れた
+ * とき」と同じ形になる。突き合わせは `src/__tests__/gameEventChannel.test.ts`。
+ *
  * 種類ごとにイベント名を分けないのは、**順序を保つため**。
  * 別々の名前にすると `moveDecided` より先に `turnChanged` が届く並びを
  * 呼び出し側が自分で組み直すことになる。

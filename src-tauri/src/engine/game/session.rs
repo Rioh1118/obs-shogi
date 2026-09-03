@@ -407,7 +407,7 @@ impl GameSession {
                 Player::new(settings.white.clone(), white_engine),
             ],
             moves: settings.initial_moves.clone(),
-            over: CancellationToken::new(),
+            stop_ticks: CancellationToken::new(),
             settings,
             phase: Phase::Thinking { side: side_to_move },
             turn_clock: TurnClock::Running(Instant::now()),
@@ -425,9 +425,9 @@ impl GameSession {
         });
         runner.start_search(side_to_move);
 
-        let over = runner.over.clone();
+        let stop_ticks = runner.stop_ticks.clone();
         tokio::spawn(run_loop(runner, rx));
-        tokio::spawn(tick_loop(tx.downgrade(), over));
+        tokio::spawn(tick_loop(tx.downgrade(), stop_ticks));
 
         Ok(GameSession { id, tx, engine_ids })
     }
@@ -733,12 +733,14 @@ struct Runner {
     clocks: GameClocks,
     /// 指し手列の**写し**。権威はフロントにあり、`continue_game` が上書きする
     moves: Vec<String>,
-    /// 終局したら降ろす旗。**拍を止めるためだけにある。**
+    /// 拍を止める合図。
     ///
-    /// `Phase::Over` に入った後の `on_tick` は即 return するので、
-    /// 止めないと**何もしない拍が `close_game` まで 10Hz で回り続ける**。
-    /// 対局を閉じ忘れる形は `list_games` を置くほど普通に起きる。
-    over: CancellationToken,
+    /// **`is_over()` と別物。** 段を答えるのはあちらで、これは
+    /// `tick_loop` を畳むためだけにある。`Phase::Over` に入った後の
+    /// `on_tick` は即 return するので、止めないと**何もしない拍が
+    /// `close_game` まで 10Hz で回り続ける**。対局を閉じ忘れる形は
+    /// `list_games` を置くほど普通に起きる。
+    stop_ticks: CancellationToken,
     phase: Phase,
     turn_clock: TurnClock,
     /// エンジンから最後に便りがあった時刻。**進むのは2箇所。**
@@ -798,12 +800,12 @@ async fn run_loop(mut runner: Runner, mut rx: mpsc::UnboundedReceiver<Command>) 
 /// 畳まないと何もしない拍が `close_game` まで残る——閉じ忘れは
 /// `list_games` を置くほど普通に起きる。`run_loop` は畳まない（終局後も
 /// `Abort` / `SearchesIdle` / `Snapshot` に答える必要がある）。
-async fn tick_loop(tx: WeakUnboundedSender<Command>, over: CancellationToken) {
+async fn tick_loop(tx: WeakUnboundedSender<Command>, stop_ticks: CancellationToken) {
     let mut interval = tokio::time::interval(TICK);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         tokio::select! {
-            _ = over.cancelled() => return,
+            _ = stop_ticks.cancelled() => return,
             _ = interval.tick() => {}
         }
         let Some(tx) = tx.upgrade() else {
@@ -1555,7 +1557,7 @@ impl Runner {
         self.phase = Phase::Over {
             result: result.clone(),
         };
-        self.over.cancel();
+        self.stop_ticks.cancel();
 
         // **`gameover` より先に知らせる。** `send_command` は1件あたり
         // `WRITE_TIMEOUT` ＋ 列の待ちなので、後に回すと終局からイベント到着まで
@@ -2153,7 +2155,7 @@ mod tests {
                 Player::new(settings.white.clone(), None),
             ],
             moves: Vec::new(),
-            over: CancellationToken::new(),
+            stop_ticks: CancellationToken::new(),
             settings,
             phase: Phase::Thinking { side: Side::Black },
             turn_clock: TurnClock::Running(Instant::now()),
@@ -3611,7 +3613,10 @@ mod tests {
     async fn ending_the_game_stops_the_tick() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut runner = test_runner(&tx);
-        assert!(!runner.over.is_cancelled(), "始まる前から畳まれている");
+        assert!(
+            !runner.stop_ticks.is_cancelled(),
+            "始まる前から畳まれている"
+        );
 
         runner
             .finish(GameResult {
@@ -3621,7 +3626,10 @@ mod tests {
             })
             .await;
 
-        assert!(runner.over.is_cancelled(), "終局したのに拍が畳まれていない");
+        assert!(
+            runner.stop_ticks.is_cancelled(),
+            "終局したのに拍が畳まれていない"
+        );
     }
 
     /// 終局の説明が、長さの検査を通ること。

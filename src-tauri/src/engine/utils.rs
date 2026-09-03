@@ -121,6 +121,14 @@ pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 /// 逆算した側がまとめて静かに嘘になる。指すときはこの名前で指すこと。
 pub const LOG_FILE_BUDGET: u128 = 200_000;
 
+/// 同じ種類の1行を、`interval` に1度だけ通す枠。
+///
+/// **新しく作った枠の先頭は通る。** 呼び出し側の絞りはこれを前提に組んである
+/// （枠が無い＝その種類の1行がまだ出ていない、なので通す）。
+///
+/// **例外は起動直後だけ。** `Instant` は単調時計でブートより前へ遡れないので、
+/// 起動から `interval` 未満に作った枠は先頭が通らない。その間は
+/// `is_open` も偽を返すので、上限のある写像から落とされもしない。
 #[derive(Debug, Clone)]
 pub struct LogThrottle {
     interval: Duration,
@@ -128,18 +136,17 @@ pub struct LogThrottle {
 }
 
 impl LogThrottle {
+    /// 先頭が通る状態で作る（起動直後の例外は型の doc）
     pub fn new(interval: Duration) -> Self {
         Self {
             interval,
-            // `Instant::now() - interval` は起動直後に panic する
-            // （`Instant` は単調時計で、ブートより前へは遡れない）。
-            // 遡れなかったときは初回の `allow` が `false` になるだけ
             last: Instant::now()
                 .checked_sub(interval)
                 .unwrap_or_else(Instant::now),
         }
     }
 
+    /// 通してよければ真を返し、枠を閉じる
     #[inline]
     pub fn allow(&mut self) -> bool {
         if self.last.elapsed() >= self.interval {
@@ -159,11 +166,13 @@ impl LogThrottle {
         self.last.elapsed() >= self.interval
     }
 
+    /// 通さずに枠を閉じる。**通したことにしたくないが、間隔は数えたいとき**に使う
     #[inline]
     pub fn reset(&mut self) {
         self.last = Instant::now();
     }
 
+    /// 間隔を差し替える。**閉じている枠はそのまま**（`last` を動かさない）
     #[inline]
     pub fn set_interval(&mut self, interval: Duration) {
         self.interval = interval;
