@@ -217,6 +217,16 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
     THROTTLES.get_or_init(Mutex::default)
 }
 
+/// 断りを記録する1行。
+///
+/// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
+/// 測っている量と実際に書く量がずれる——`game_id` は `Display` が
+/// **文字数**で切るのでバイト数は4倍になりうるし、`unknown game: {id}` の
+/// ように**同じ ID が1行に2回載る**こともある。
+fn rejection_line(op: &str, game_id: &GameId, error: &str) -> String {
+    format!("{op} rejected game={game_id}: {error}")
+}
+
 /// 断ったことをログに残す。
 ///
 /// 断り文句は `Err` でフロントへ返るが、**受けた側が捨てると記録がどこにも残らない**。
@@ -248,7 +258,7 @@ fn log_rejection<T>(
             .lock()
             .is_ok_and(|mut throttles| throttles.allow(op, game_id));
         if allowed {
-            log::warn!(target: "obs_shogi::engine::game", "{op} rejected game={game_id}: {e}");
+            log::warn!(target: "obs_shogi::engine::game", "{}", rejection_line(op, game_id, e));
         }
     }
     result
@@ -411,23 +421,24 @@ mod tests {
     /// 手で書くと、口を1つ足したときに数え直されない。`per_op` の枠は
     /// この数だけ上乗せされるので、上限の式に直に効く。
     fn rejection_ops() -> usize {
-        const CALL: &str = "log_rejection(";
+        // **走査自身に当たらないように綴りを割る。** 素の文字列で持つと、
+        // この行自身が呼び出しとして数えられる
+        const CALL: &str = concat!("log_rejection", "(");
         let source = include_str!("game.rs");
         let mut found = std::collections::BTreeSet::new();
 
         for (at, _) in source.match_indices(CALL) {
             // **改行を跨ぐ呼び出しがある。** `(` の直後だけを見ると、
-            // 引数を折り返した口（3つ）が数から落ちる
+            // 引数を折り返した口が数から落ちる
             let rest = source[at + CALL.len()..].trim_start();
-            let Some(rest) = rest.strip_prefix('"') else {
-                continue;
-            };
-            let Some(end) = rest.find('"') else { continue };
-            let op = &rest[..end];
-            // 走査自身が持つ綴りは空文字になるので落ちる
-            if op.chars().all(|c| c.is_ascii_lowercase() || c == '_') && !op.is_empty() {
-                found.insert(op);
-            }
+            // **黙って落とさない。** 綴りの形で絞ると、絞りに合わない `op` を
+            // 書いた口が数から消えて上限の式が緩む——手で数えるのをやめた
+            // 理由がそのまま戻る
+            let op = rest
+                .strip_prefix('"')
+                .and_then(|rest| rest.split('"').next())
+                .unwrap_or_else(|| panic!("`{CALL}` の実引数が文字列リテラルでない"));
+            found.insert(op);
         }
         found.len()
     }
@@ -439,28 +450,40 @@ mod tests {
     /// （到達しない背押さえなど）で縛ると、**一次の上限を動かした人に
     /// 数え直させられない**。
     ///
-    /// **守れるのは時間であって履歴ではない。** 200KB を200バイトの行で割ると
-    /// 千行しか入らないので、断りが出続ければいずれ一周する。決めるのは
-    /// 「一周するまでに何間隔ぶん残るか」で、そこを式にする。
+    /// **守れるのは時間であって履歴ではない。** `LOG_FILE_BUDGET` を1行の
+    /// バイト数で割った本数しか入らないので、断りが出続ければいずれ一周する。
+    /// 決めるのは「一周するまでにどれだけの時間ぶん残るか」。
+    ///
+    /// **1行の大きさは見積もらず、最悪の入力で組んで測る。** 係数を人が数えると、
+    /// 「文字とバイト」「同じ ID が2回載る」で外れる。
     #[test]
     fn the_log_keeps_a_minimum_of_history_under_rejections() {
-        /// 断りの1行のおおよそのバイト数（`op` ＋ ID ＋ 文言 ＋ ログの接頭辞）
-        const APPROX_LINE: u128 = 200;
-        /// 断りが出続けても、これだけの間隔ぶんは残ってほしい。
+        /// 断りが出続けても、これだけの時間ぶんは残ってほしい。
         ///
-        /// 30間隔＝30秒。壊れた対局を見た人がログを開くまでの猶予として取った値で、
-        /// **これ以上は伸ばせない**——枠を減らすと、同時に追える対局が減る。
-        const MIN_HISTORY_INTERVALS: u128 = 30;
+        /// 壊れた対局を見た人がログを開くまでの猶予。**これ以上は伸ばせない**
+        /// ——枠を減らすと、同時に追える対局が減る。
+        const MIN_HISTORY: Duration = Duration::from_secs(30);
 
         let ops = rejection_ops();
         assert!(ops >= 5, "`log_rejection` の口を数えられていない: {ops}");
 
-        let per_interval = (MAX_TRACKED_GAMES + ops) as u128 * APPROX_LINE;
+        // 台帳に無い ID は文言にもう一度載る。`GameId::Display` は文字数で切るので、
+        // 4バイト文字を詰めた ID がいちばん重い
+        let game_id = GameId::new("😀".repeat(64));
+        let worst = rejection_line(
+            "continue_game",
+            &game_id,
+            &format!("unknown game: {game_id}"),
+        );
+
+        let intervals = MIN_HISTORY.as_nanos() / REJECTION_WARN_INTERVAL.as_nanos();
+        let per_interval = (MAX_TRACKED_GAMES + ops) as u128 * worst.len() as u128;
         assert!(
-            per_interval * MIN_HISTORY_INTERVALS <= LOG_FILE_BUDGET,
-            "断りが出続けると {MIN_HISTORY_INTERVALS} 間隔もたない\
-             （1間隔 {per_interval} バイト、{} 行）",
-            MAX_TRACKED_GAMES + ops
+            per_interval * intervals <= LOG_FILE_BUDGET,
+            "断りが出続けると {MIN_HISTORY:?} もたない\
+             （1間隔 {per_interval} バイト、{} 行 × {} バイト）",
+            MAX_TRACKED_GAMES + ops,
+            worst.len()
         );
     }
 
@@ -526,7 +549,7 @@ mod tests {
 
         std::thread::sleep(Duration::from_millis(60));
 
-        // 窓が開いて予算が戻り、空いた枠も落とされるので、両方が自分の枠を取れる
+        // 枠が空くので、落とされたぶんも自分の枠を取り直せる
         assert!(
             throttles.allow("submit_move", &id("real-a")),
             "枠が空いても取り戻せていない"

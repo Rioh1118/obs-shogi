@@ -110,6 +110,51 @@ pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
 /// 両方が使える段に置く。
 pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
+/// ログ・断り文句・**棋譜に残る値**に載せてよい写し。
+/// **膨らむ文字を潰し、長さを切る。**
+///
+/// **潰した結果はそのまま外へ出る。** 終局の説明（`GameResult::detail`）は
+/// これを通した値が `Over` イベントとスナップショットに載るので、
+/// 改行を含む文言を渡すと利用者の目に置換文字が見える。
+/// その断りは `endGameByRule` の TSDoc に書いてある。
+///
+/// **`is_control()` だけでは足りない。** `{:?}` は制御文字のほかに
+/// `Cf`（BOM）/ `Cn`（未割り当て）/ `Zs`（全角空白）も `\u{XXXX}` へ展開するので、
+/// 制御文字だけを見ると**1文字が10バイトに膨らむ**。展開後が2文字を超えるものを
+/// 落とす——`"` と `\` は2文字で収まるので残す。
+///
+/// **制御文字は `{}` のためにも落とす。** 改行を通すと、その後ろに好きなログ行を
+/// 作れる。潰した後は1文字あたり最大4バイト（UTF-8）で収まる。
+///
+/// **文字数で切る。** バイト数で切ると多バイト文字の途中で割れる。
+pub fn shown(text: &str, max: usize) -> String {
+    let mut out: String = text
+        .chars()
+        .take(max)
+        .map(|c| {
+            if c.is_control() || c.escape_debug().count() > 2 {
+                '\u{fffd}'
+            } else {
+                c
+            }
+        })
+        .collect();
+    if text.chars().nth(max).is_some() {
+        out.push('…');
+    }
+    out
+}
+
+/// ログの1行に載せる要約の上限（文字数）。
+///
+/// **`setoption` の名前は webview から来る。** `MAX_WIRE_FIELD`（8KB）までは
+/// 通るので、素で載せると `write: failed cmd=…` の1行が8KBになる。
+/// 利用者がエンジンのパスを直そうとして「開始」を繰り返すと、
+/// **直そうとしている当のエラーの説明が消える**。
+///
+/// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わない。
+pub const MAX_SUMMARY_LEN: usize = 64;
+
 /// ログファイル1本ぶんの予算。**`KeepOne` なので、一周すると前の記録は消える。**
 ///
 /// **これを根拠に決めた値が2つある。** 断りの行をどれだけ出してよいか
@@ -117,8 +162,11 @@ pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 /// （`engine::game::session` の `MAX_DETAIL_LEN`）。どちらも式で縛ってあるので、
 /// ここを動かすと落ちる。
 ///
+/// **これを根拠に決めた値がもう1つ。** ログの1行に載せる要約の上限
+/// （`MAX_SUMMARY_LEN`）。
+///
 /// **外来の文字列を切り詰める他の上限はここから来ていない。**
-/// `GameId` の `MAX_ID_LEN` は「本物の UUID が収まる」、`MAX_USI_MOVE_LEN` は
+/// `GameId` の `MAX_ID_BYTES` は「本物の UUID が収まる」、`MAX_USI_MOVE_LEN` は
 /// 「一番長い指し手が収まる」が根拠。緩めても予算とは関係が無く、
 /// 別の性質（静的写像の鍵の大きさ、指し手の形）が壊れる。
 ///
@@ -188,7 +236,11 @@ pub fn cmd_summary(cmd: &GuiCommand) -> String {
     match cmd {
         GuiCommand::Position(_) => "Position(<redacted>)".to_string(),
         GuiCommand::Go(_) => "Go(...)".to_string(),
-        GuiCommand::SetOption(name, _v) => format!("SetOption({})", name),
+        // **名前は webview から来る。** `MAX_WIRE_FIELD`（8KB）までは通るので、
+        // 素で載せると1行8KBの `warn` になる。積み置きの掃き出しでは32行まとめて出る
+        GuiCommand::SetOption(name, _v) => {
+            format!("SetOption({})", shown(name, MAX_SUMMARY_LEN))
+        }
         GuiCommand::Usi => "Usi".to_string(),
         GuiCommand::IsReady => "IsReady".to_string(),
         GuiCommand::UsiNewGame => "UsiNewGame".to_string(),

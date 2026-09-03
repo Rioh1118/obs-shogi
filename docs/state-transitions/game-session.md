@@ -108,7 +108,7 @@
 | **E2** 裁定「続く」                   | `Err` "not awaiting a ruling"                                              | 検算を通れば → G0※2。上限を超えたら → G2（`Rule`）で `Ok`※3。落ちたら `Err`※3 | `Err`                        | △※10   |
 | **E3** 裁定「終局」                   | → G2（`reason: Rule`）                                                     | → G2                                                                          | `Err` "game is already over" | △※10   |
 | **E4** 人間の投了                     | → G2（`winner` は相手）。エンジン側を指定したら `Err`                      | → G2                                                                          | `Err`                        | △※10   |
-| **E5** 中断                           | → G2（`reason: Aborted`、`winner: None`）                                  | → G2                                                                          | 何もしない。`Ok`             | △※10   |
+| **E5** 中断                           | → G2（`reason: Aborted`、`winner: None`）                                  | → G2                                                                          | `Err` "game is already over" | △※10   |
 | **E6** 閉じる                         | E5 を通し、**探索が畳まれるのを待ってから**エンジンを落とす※4              | 同左                                                                          | 同左                         | ✗      |
 | **E7** `A1` からの `bestmove`         | 形が通れば → G1※1。通らなければ → G2（`EngineFailure`）                    | 起きない※5                                                                    | `gameover` を送って `A0`※6   | △※10   |
 | **E7'** `A2` / `A3` からの `bestmove` | **採らない。** `A0` に落とし、`A3` で `restart` なら `go` を出し直す※7     | 採らない                                                                      | 同左※6                       | △※10   |

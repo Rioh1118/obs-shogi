@@ -35,6 +35,7 @@ use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::types::{AnalysisResult, TIMED_OUT};
+use crate::engine::utils::shown;
 use crate::engine::utils::LogThrottle;
 
 use super::clock::{ClockOutcome, GameClocks};
@@ -490,7 +491,7 @@ impl GameSession {
     /// `abort` は `run_loop` の応答を待つので、そこが書き込みで詰まっていると
     /// 返らない。上限が要るのはそのため。
     ///
-    /// **失敗は2通りで、意味が正反対。** 潰すとログから区別が付かない——
+    /// **失敗は3通り。** 潰すとログから区別が付かない——
     /// 「もう止まっている」と「止められていない」が同じ1行になる。
     ///
     /// 分類を2箇所に書かない。書くと、`abort` の失敗の種類を増やしたときに
@@ -499,7 +500,11 @@ impl GameSession {
     pub(super) async fn abort_within_budget(&self) {
         match tokio::time::timeout(CLOSE_ABORT_TIMEOUT, self.abort()).await {
             Ok(Ok(())) => {}
-            // セッションのタスクが先に居なくなった。もう止まっている
+            // **2つがここに落ちる。どちらももう止まっている。**
+            //
+            // - 終局済み（`ALREADY_OVER`）——**正常系**。閉じるのは終局の後なので
+            //   ほとんどがこれ
+            // - セッションのタスクが先に居なくなった（`ENDED`）
             Ok(Err(e)) => log::debug!(target: LOGT, "close: nothing to abort: {e}"),
             // `run_loop` が詰まっている。止められていない
             Err(_) => log::warn!(target: LOGT, "close: abort timed out; the session is stuck"),
@@ -1536,14 +1541,7 @@ impl Runner {
         // ここは絞らないので、長い値をそのまま渡すと1行でログの予算を
         // 一周させられる。webview から来る文字列を運ぶ終わり方を足すときは、
         // `accept_rule_end` と同じように `shown` を通してから渡す
-        log::info!(
-            target: LOGT,
-            "over game_id={} reason={:?} winner={:?} detail={:?}",
-            self.id,
-            result.reason,
-            result.winner,
-            result.detail
-        );
+        log::info!(target: LOGT, "{}", over_line(&self.id, &result));
 
         // **その手に使った時間を締める。** `consume` を呼ぶのは `decide_move` だけで、
         // ここを通る終わり方（時間切れ・投了・中断・裁定・故障）は通らない。
@@ -2046,29 +2044,23 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
     {
         return Err(format!(
             "move has an unusable shape: {}",
+            // 長さは既に上限を通った後（8バイト以下なら8文字以下）なので、
+            // ここで切れることはない。渡すのは制御文字を潰すため
             shown(usi_move, MAX_USI_MOVE_LEN)
         ));
     }
     Ok(())
 }
 
-/// ログや断り文句へ載せてよい写し。**制御文字を潰し、長さを切る。**
+/// 終局を記録する1行。
 ///
-/// 潰すのは改行だけのためではなく、端末や `tail` で読めない1行を作らせないため。
-/// 切るのは、webview から来る値がログの予算（`LOG_FILE_BUDGET`）を
-/// 一周させられないようにするため。
-///
-/// **文字数で切る。** バイト数で切ると多バイト文字の途中で割れる。
-fn shown(text: &str, max: usize) -> String {
-    let mut out: String = text
-        .chars()
-        .take(max)
-        .map(|c| if c.is_control() { '\u{fffd}' } else { c })
-        .collect();
-    if text.chars().nth(max).is_some() {
-        out.push('…');
-    }
-    out
+/// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
+/// `{:?}` の展開ぶんや欄の増減で**測っている量と実際に書く量がずれる**。
+fn over_line(id: &GameId, result: &GameResult) -> String {
+    format!(
+        "over game_id={id} reason={:?} winner={:?} detail={:?}",
+        result.reason, result.winner, result.detail
+    )
 }
 
 /// USI の指し手として通す最大のバイト数。
@@ -2118,6 +2110,9 @@ mod tests {
     use super::*;
 
     use crate::engine::utils::LOG_FILE_BUDGET;
+
+    /// `GameId::Display` が切る文字数より広く取る。切る側の値は `game::types` にある
+    const MAX_ID_LEN_FOR_TEST: usize = 64;
 
     /// 平手。`GuiCommand::Position` が `position sfen` を前置するので、
     /// `startpos` ではなく完全な SFEN を持つ
@@ -3705,18 +3700,34 @@ mod tests {
     /// ——上限を大きくしても「上限を超える値は切られる」テストは通るので、
     /// 予算との関係を式で持つ。
     ///
-    /// 文字数で数えるので、1文字あたり最大4バイト（UTF-8）で見積もる。
+    /// **見積もらずに、最悪の入力で実際の1行を組んで測る。** 係数を人が数えると、
+    /// `{:?}` の展開や「文字とバイト」の取り違えで外れる。
     #[test]
     fn an_over_line_cannot_rotate_the_log() {
         /// 終局の1行が予算のうち占めてよい割合の逆数
         const SHARE: u128 = 50;
-        /// UTF-8 の1文字あたり最大バイト数
-        const BYTES_PER_CHAR: u128 = 4;
 
-        let worst = MAX_DETAIL_LEN as u128 * BYTES_PER_CHAR;
+        // **潰した後にいちばん重い文字**を上限ぶん詰めた `detail`。
+        // 潰される文字（U+FFFD は3バイト）より、潰されない4バイト文字のほうが重い
+        let detail = shown(&"😀".repeat(MAX_DETAIL_LEN * 2), MAX_DETAIL_LEN);
         assert!(
-            worst * SHARE <= LOG_FILE_BUDGET,
-            "終局の1行が予算の1/{SHARE} を超える（{worst} バイト）"
+            // 末尾には切ったことを示す1文字が付く
+            detail.chars().rev().skip(1).all(|c| c.len_utf8() == 4),
+            "最悪の文字を詰められていない（潰されている）"
+        );
+        let line = over_line(
+            &GameId::new("超".repeat(MAX_ID_LEN_FOR_TEST)),
+            &GameResult {
+                winner: Some(Side::White),
+                reason: GameOverReason::EngineFailure,
+                detail: Some(detail),
+            },
+        );
+
+        assert!(
+            line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+            "終局の1行が予算の1/{SHARE} を超える（{} バイト）",
+            line.len()
         );
     }
 
@@ -3735,14 +3746,17 @@ mod tests {
         assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
     }
 
-    /// 終局済みの対局への操作が、3つとも同じ形で断られること。
+    /// 終局済みの対局への投了・裁定・中断が、同じ形で断られること。
     ///
-    /// **`abort` だけ `Ok` を返していた。** 中断を押したのと `on_tick` の
-    /// 時間切れが同じ拍に入ると、呼び出し側は「中断が成立した」と読んで
-    /// 棋譜へ書く——実際の結末（時間切れ・勝者あり）と食い違い、`Err` でないので
-    /// `log_rejection` の1行も残らない。
+    /// **揃えないと、中断だけが黙って通る。** 中断を押したのと `on_tick` の
+    /// 時間切れが同じ拍に入ったとき、`Ok` を返すと呼び出し側は「中断が成立した」と
+    /// 読んで棋譜へ書く——実際の結末（時間切れ・勝者あり）と食い違い、
+    /// `Err` でないので `log_rejection` の1行も残らない。
+    ///
+    /// **揃えていない3つ**（`submit_move` / `continue_game` / `close`）は
+    /// 別の文言を返す。ここが見るのは投了・裁定・中断の3つだけ。
     #[tokio::test]
-    async fn every_operation_on_a_finished_game_is_refused_the_same_way() {
+    async fn resign_rule_end_and_abort_are_refused_the_same_way() {
         let (tx, _rx) = mpsc::unbounded_channel();
 
         for command in ["abort", "resign", "end_by_rule"] {
@@ -3755,7 +3769,7 @@ mod tests {
                 })
                 .await;
 
-            let error = match command {
+            let result = match command {
                 "abort" => {
                     let (reply, rx) = oneshot::channel();
                     runner.handle(Command::Abort { reply }).await;
@@ -3763,10 +3777,13 @@ mod tests {
                 }
                 "resign" => runner.accept_resign(Side::Black).await,
                 _ => runner.accept_rule_end(None, None).await,
-            }
-            .expect_err("終局済みの対局で {command} が通っている");
+            };
 
-            assert_eq!(error, ALREADY_OVER, "{command} の断り方が揃っていない");
+            assert_eq!(
+                result.as_ref().err().map(String::as_str),
+                Some(ALREADY_OVER),
+                "{command} の断り方が揃っていない"
+            );
         }
     }
 

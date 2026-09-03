@@ -92,7 +92,11 @@ export async function continueGame(gameId: GameId, moves: string[]): Promise<voi
  * `detail` が渡した文字列と違うことがある（末尾に `…` が付く）。
  * **断らないのは意図。** ここで reject すると、呼び直さない限り 30 秒後に
  * `over { aborted, winner: null }` で畳まれ、**勝敗が消える**。
- * 人が読む文言（「千日手」「二歩」）は上限の1/50も使わない。
+ * **制御文字は置換文字に化ける。** 改行やタブを含む文言を渡すと、返ってくる
+ * `detail` ではそこが `\uFFFD` になる（この値はログの1行にも載るため）。
+ * 複数行を出したいなら、フロント側で組み立てて表示すること。
+ *
+ * 人が読む文言（「千日手」「二歩」）は上限に遠く届かない。
  */
 export async function endGameByRule(
   gameId: GameId,

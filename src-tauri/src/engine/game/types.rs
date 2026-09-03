@@ -43,20 +43,21 @@ impl GameId {
     /// 中身は webview から来る無検証の文字列で、長い値をそのまま持つと
     /// プロセスが終わるまで解放されない領域になる。`Display` の切り詰めは
     /// 表示にしか効かない。
-    ///
-    /// **全長を数えない。** 長さは呼び出し側が選べるので、
-    /// 上限の1つ先を見るだけで打ち切る。
     pub fn is_safe_to_retain(&self) -> bool {
-        self.0.chars().nth(MAX_ID_LEN).is_none()
+        self.0.len() <= MAX_ID_BYTES
     }
 }
 
-/// 文章に出すときと、静的な写像の鍵として持つときの上限。
+/// 文章に出すときと、静的な写像の鍵として持つときの上限。**バイト数で持つ。**
 ///
-/// **同じ数にしてある。** どちらも根拠は「本物（UUID の36文字）が収まる」の
+/// **文字数で持つと4倍外れる。** 縛りたいのはログ1行の大きさと、
+/// 静的な写像が抱える領域で、どちらもバイトで効く。48文字の4バイト文字を
+/// 通すと、1行が192バイトになるうえ同じ ID が文言にもう一度載る。
+///
+/// **同じ数にしてある。** どちらも根拠は「本物（UUID の36バイト）が収まる」の
 /// 1つで、片方だけ動かす理由が無い。片方を広げたくなったら、
 /// もう片方に何が起きるかを見てから割ること。
-const MAX_ID_LEN: usize = 48;
+const MAX_ID_BYTES: usize = 48;
 
 /// **文章に出す形は切り詰める。** 中身は webview から来る無検証の文字列で、
 /// 長さも制御文字も見ていない。
@@ -68,15 +69,18 @@ const MAX_ID_LEN: usize = 48;
 /// 台帳を引く側は `as_str` を使うので、切り詰めが照合に効くことはない。
 impl std::fmt::Display for GameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for ch in self.0.chars().take(MAX_ID_LEN) {
+        // **文字の途中で割らない。** バイトで数えつつ、入り切る文字までを出す
+        let mut used = 0;
+        for ch in self.0.chars() {
+            if used + ch.len_utf8() > MAX_ID_BYTES {
+                return f.write_str("…");
+            }
+            used += ch.len_utf8();
             if ch.is_control() {
                 f.write_str("\u{fffd}")?;
             } else {
                 write!(f, "{ch}")?;
             }
-        }
-        if self.0.chars().nth(MAX_ID_LEN).is_some() {
-            f.write_str("…")?;
         }
         Ok(())
     }
@@ -507,7 +511,7 @@ mod tests {
         let long = GameId::new("x".repeat(10_000));
         let shown = long.to_string();
         assert!(
-            shown.chars().count() <= MAX_ID_LEN + 1,
+            shown.chars().count() <= MAX_ID_BYTES + 1,
             "長い ID を切り詰めていない: {} 文字",
             shown.chars().count()
         );
