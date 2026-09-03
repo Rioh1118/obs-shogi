@@ -407,6 +407,7 @@ impl GameSession {
                 Player::new(settings.white.clone(), white_engine),
             ],
             moves: settings.initial_moves.clone(),
+            over: CancellationToken::new(),
             settings,
             phase: Phase::Thinking { side: side_to_move },
             turn_clock: TurnClock::Running(Instant::now()),
@@ -424,8 +425,9 @@ impl GameSession {
         });
         runner.start_search(side_to_move);
 
+        let over = runner.over.clone();
         tokio::spawn(run_loop(runner, rx));
-        tokio::spawn(tick_loop(tx.downgrade()));
+        tokio::spawn(tick_loop(tx.downgrade(), over));
 
         Ok(GameSession { id, tx, engine_ids })
     }
@@ -731,6 +733,12 @@ struct Runner {
     clocks: GameClocks,
     /// 指し手列の**写し**。権威はフロントにあり、`continue_game` が上書きする
     moves: Vec<String>,
+    /// 終局したら降ろす旗。**拍を止めるためだけにある。**
+    ///
+    /// `Phase::Over` に入った後の `on_tick` は即 return するので、
+    /// 止めないと**何もしない拍が `close_game` まで 10Hz で回り続ける**。
+    /// 対局を閉じ忘れる形は `list_games` を置くほど普通に起きる。
+    over: CancellationToken,
     phase: Phase,
     turn_clock: TurnClock,
     /// エンジンから最後に便りがあった時刻。**進むのは2箇所。**
@@ -785,11 +793,19 @@ async fn run_loop(mut runner: Runner, mut rx: mpsc::UnboundedReceiver<Command>) 
 ///
 /// **weak で持つ。** strong を持つと、この拍自身が対局のチャンネルを
 /// 生かし続けて `run_loop` が終わらなくなる。
-async fn tick_loop(tx: WeakUnboundedSender<Command>) {
+///
+/// **終局したら畳む。** `Phase::Over` の後の `on_tick` は即 return するので、
+/// 畳まないと何もしない拍が `close_game` まで残る——閉じ忘れは
+/// `list_games` を置くほど普通に起きる。`run_loop` は畳まない（終局後も
+/// `Abort` / `SearchesIdle` / `Snapshot` に答える必要がある）。
+async fn tick_loop(tx: WeakUnboundedSender<Command>, over: CancellationToken) {
     let mut interval = tokio::time::interval(TICK);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
-        interval.tick().await;
+        tokio::select! {
+            _ = over.cancelled() => return,
+            _ = interval.tick() => {}
+        }
         let Some(tx) = tx.upgrade() else {
             return;
         };
@@ -1531,6 +1547,7 @@ impl Runner {
         self.phase = Phase::Over {
             result: result.clone(),
         };
+        self.over.cancel();
 
         // **`gameover` より先に知らせる。** `send_command` は1件あたり
         // `WRITE_TIMEOUT` ＋ 列の待ちなので、後に回すと終局からイベント到着まで
@@ -2117,6 +2134,7 @@ mod tests {
                 Player::new(settings.white.clone(), None),
             ],
             moves: Vec::new(),
+            over: CancellationToken::new(),
             settings,
             phase: Phase::Thinking { side: Side::Black },
             turn_clock: TurnClock::Running(Instant::now()),
@@ -3560,6 +3578,31 @@ mod tests {
             matches!(runner.turn_clock, TurnClock::Running(_)),
             "何も走っていない側に渡したのに時計が動き出していない"
         );
+    }
+
+    /// 終局したら拍が畳まれること。
+    ///
+    /// `Phase::Over` に入った後の `on_tick` は即 return するので、畳まないと
+    /// **何もしない拍が `close_game` まで 10Hz で回り続ける**。対局を閉じ忘れる
+    /// 形は `list_games` を置くほど普通に起きるので、放っておくと積み上がる。
+    ///
+    /// 見ているのは旗だけ。`tick_loop` が実際に抜けることは、
+    /// `tokio::time::interval` を回す継ぎ目が無いので踏めない。
+    #[tokio::test]
+    async fn ending_the_game_stops_the_tick() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+        assert!(!runner.over.is_cancelled(), "始まる前から畳まれている");
+
+        runner
+            .finish(GameResult {
+                winner: None,
+                reason: GameOverReason::Aborted,
+                detail: None,
+            })
+            .await;
+
+        assert!(runner.over.is_cancelled(), "終局したのに拍が畳まれていない");
     }
 
     /// 終局は1回しか流れないこと。
