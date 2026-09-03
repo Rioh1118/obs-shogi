@@ -402,6 +402,7 @@ impl EngineRegistry {
 mod tests {
     use super::*;
 
+    use crate::engine::protocol::NO_USIOK;
     use crate::engine::types::engine_error_text;
     use crate::engine::utils::LOG_FILE_BUDGET;
 
@@ -527,13 +528,20 @@ mod tests {
     /// **ここが `Timeout` を名乗ると F-27 の導線が消える。** 時間切れ側は
     /// 「遅かっただけで設定は正しい」の意味に使われるので、受け手は再試行を出す。
     /// 待ち直しても同じ上限を使って同じ結果になり、**パスを直す案内は一度も出ない。**
+    ///
+    /// **どれだけ待ったのかも文言から読めること。** この文言は利用者にそのまま
+    /// 見せる契約（F-27）なので、秒で切り捨てると「0秒しか待っていないのに
+    /// ファイルのせいにしている」行が画面に出る。締切で上限を削られた側の呼び方
+    /// （`game/session.rs` の `prepare_engine`）では**1秒未満が実際に起きる**。
     #[cfg(unix)]
     #[tokio::test]
     async fn a_file_that_is_not_a_usi_engine_does_not_claim_the_retry_marker() {
         // 起こす側は普通に通るので短くてよい。`usiok` の側だけ、
-        // 待ってから諦めたと言える程度に取る
+        // 待ってから諦めたと言える程度に取る。**1秒未満で取る**——
+        // 秒に丸める書式に戻したら、下の表明がここで落ちる
+        let waited = Duration::from_millis(400);
         let error = EngineRegistry::new()
-            .spawn("/bin/cat", None, SPAWN_TIMEOUT, Duration::from_millis(400))
+            .spawn("/bin/cat", None, SPAWN_TIMEOUT, waited)
             .await
             .expect_err("`usiok` を返さない実行ファイルで起動が成功している");
 
@@ -542,9 +550,15 @@ mod tests {
             !text.starts_with(TIMED_OUT),
             "設定の誤りが再試行の目印を名乗っている: {text}"
         );
+        // **綴りは変種の中で先頭に置く。** `prepare_engine` はこれを目印に
+        // 分類し直すので、途中に在ることを条件にすると外から持ち込める
         assert!(
-            text.contains("usiok"),
+            matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_USIOK)),
             "何に答えなかったのかが断り文句から読めない: {text}"
+        );
+        assert!(
+            text.contains(&format!("{waited:?}")),
+            "待った長さが文言に載っていない（丸めて消えている）: {text}"
         );
     }
 

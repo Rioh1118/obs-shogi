@@ -343,6 +343,14 @@ pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 /// `isready` の側に来る。長く取る理由が無い。
 pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// `usi` に `usiok` で答えなかったときの断り文句の頭。
+///
+/// **呼び出し側が分類し直せるように定数で持つ。** 待てた長さが
+/// `USI_OK_TIMEOUT` 満額でないなら、答えなかったのは「そのファイルが USI では
+/// ない」ではなく「待てる時間が残っていない」——上限を締切で削る側は、
+/// この綴りを目印にして断り文句を差し替える。
+pub const NO_USIOK: &str = "the engine did not answer `usi` with `usiok`";
+
 /// `isready` を送ってから `readyok` を待つ上限。
 ///
 /// `usiok` より桁で長いのは、評価関数やハッシュの確保がここで走るため。
@@ -1104,8 +1112,7 @@ impl UsiProtocol {
             Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
                 .await
                 .unwrap_or(Err(EngineError::StartupFailed(format!(
-                    "the engine did not answer `usi` with `usiok` in {}s; the file may not be a USI engine",
-                    timeout.as_secs()
+                    "{NO_USIOK} in {timeout:?}; the file may not be a USI engine"
                 )))),
             Err(e) => Err(e),
         };
