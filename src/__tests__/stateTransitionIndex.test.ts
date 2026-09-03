@@ -7,6 +7,7 @@ import {
   docsPath,
   headingSlug,
   headingSlugs,
+  insideFences,
   markdownFiles,
   staleUncreatedInBody,
   staleUncreatedNames,
@@ -34,6 +35,18 @@ describe("状態遷移表の索引", () => {
 
     const missing = files.filter((f) => !readme.includes(`(${f})`));
     expect(missing).toEqual([]);
+  });
+
+  /**
+   * 在庫表と階層図は別々に腐る。図は「新しい表をどこに置くか」を決める唯一の案内なので、
+   * 抜けた表は前例として参照されず、同じ階層に置くべきものが別の場所へ散る。
+   */
+  test("README の階層図がすべての表を挙げている", () => {
+    const files = tables().filter((f) => f !== "README.md");
+    const figure = insideFences(readFileSync(join(TABLES_DIR, "README.md"), "utf8"));
+
+    const missing = files.filter((f) => !figure.includes(f));
+    expect(missing, ["階層図に無い表:", ...missing].join("\n")).toEqual([]);
   });
 
   /** 判定は `brokenLinksInBody` が持つ */

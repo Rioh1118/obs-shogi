@@ -23,6 +23,7 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
 
 L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
 L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
+L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だけを扱う
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -36,7 +37,7 @@ L2    position-search-view.md  局面検索の**画面**。L1 の search の結�
 「棋譜がどの状態にあるか」は [game.md](game.md)、
 「`BranchIndex` にどの値が入りうるか」は `branch-index.md` が持つ。
 
-「判定」の2つはさらに粒度が違う。アプリの状態ではなく、**1つの関数 / 1つの hook が
+「判定」の表はさらに粒度が違う。アプリの状態ではなく、**1つの関数 / 1つの hook が
 入力をどの枝へ落とすか**を軸にしている。先に置いた検査が後ろの枝を覆い隠す形の穴を、
 セルの重なりとして見るために作った。
 

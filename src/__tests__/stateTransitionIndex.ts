@@ -199,6 +199,22 @@ export function staleUncreatedInBody(
 }
 
 /**
+ * コードフェンスの**中身だけ**を返す（外は空行にする）。[`stripFences`] の裏返し。
+ *
+ * 索引の階層図はフェンスの中にあり、そこが「新しい表をどこに置くか」を決める唯一の案内。
+ * 在庫表だけを見る検査は、図から表が1本抜けても緑のまま通る。抜けた表は前例として
+ * 参照されないので、同じ階層に置くべきものが別の場所へ散る。
+ */
+export function insideFences(body: string): string {
+  const outside = stripFences(body).split("\n");
+
+  return body
+    .split("\n")
+    .map((line, i) => (outside[i] === "" ? line : ""))
+    .join("\n");
+}
+
+/**
  * コードフェンスの中身を落とす。中は説明のための例なので、リンクとしても見出しとしても
  * 数えない。
  *
