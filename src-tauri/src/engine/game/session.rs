@@ -1033,12 +1033,11 @@ impl Runner {
         // **「先手の勝ち・詰み」が「中断・勝者なし」に化ける**。
         // `MAX_PLIES` が同じ理由で「超えたら終局にする」に倒しているのと同じ。
         //
-        // 入口で切れば、3つの吸い口（`finish` のログ・`Over` イベント・
-        // `snapshot`）が同時に収まる。
+        // 切るのは `finish`。入口ごとに通すと、通し忘れた入口ができる。
         self.finish(GameResult {
             winner,
             reason: GameOverReason::Rule,
-            detail: detail.map(|detail| shown(&detail, MAX_DETAIL_LEN)),
+            detail,
         })
         .await;
         Ok(())
@@ -1153,6 +1152,7 @@ impl Runner {
                 return;
             }
             SearchOutcome::Failed(message) => {
+                let message = shown(&message, MAX_DETAIL_LEN);
                 log::error!(target: LOGT, "engine failed side={side:?}: {message}");
                 self.finish(GameResult {
                     winner: Some(side.opponent()),
@@ -1535,10 +1535,19 @@ impl Runner {
         self.player_mut(side).activity = Activity::Searching { req, kind, cancel };
     }
 
-    async fn finish(&mut self, result: GameResult) {
+    async fn finish(&mut self, mut result: GameResult) {
         if self.is_over() {
             return;
         }
+
+        // **切るのはここ1箇所。** `detail` は呼び出し側が組む欄で、外来の文字列を
+        // 運ぶ経路がある（裁定は webview から、故障はエンジンの応答から）。
+        // 「通してから渡すこと」を呼び出し側の心得にすると、終わり方を1つ足すたびに
+        // 数え直しが要る——実際に `SearchOutcome::Failed` の1経路が抜けていた。
+        //
+        // ここを通せば、3つの吸い口（下のログ・`Over` イベント・`snapshot`）が
+        // まとめて収まる。二度通っても結果は変わらない
+        result.detail = result.detail.map(|d| shown(&d, MAX_DETAIL_LEN));
 
         // **終わり方をここで1行残す。** 番人が決めた終局（時間切れ・畳み待ち・
         // 裁定が返らない）はどこにもログを書かないので、**どちらの検出器が先に
@@ -1546,11 +1555,6 @@ impl Runner {
         // 読めるようにするには、全部の終わり方が同じ1行を通る必要がある。
         //
         // 絞らない。`is_over` の早期 return があるので1局に1回しか通らない。
-        //
-        // **`detail` は `MAX_DETAIL_LEN` を通った値だけを渡すこと。**
-        // ここは絞らないので、長い値をそのまま渡すと1行でログの予算を
-        // 一周させられる。webview から来る文字列を運ぶ終わり方を足すときは、
-        // `accept_rule_end` と同じように `shown` を通してから渡す
         log::info!(target: LOGT, "{}", over_line(&self.id, &result));
 
         // **その手に使った時間を締める。** `consume` を呼ぶのは `decide_move` だけで、
@@ -1925,6 +1929,18 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         ));
     }
     for side in SIDES {
+        // **表示名も入口で見る。** これは線ではなく `GameSnapshot` に載って
+        // webview へ戻る欄で、`get_game_state` のたびに複製される。
+        // 上限が無いと、対局を1つ開くだけで対局の寿命ぶん任意の大きさを抱え、
+        // 状態を引くたびにその複製と直列化が走る
+        let name = settings.spec(side).name();
+        if name.len() > MAX_NAME_BYTES {
+            return Err(format!(
+                "{side:?} name is {} bytes; the limit is {MAX_NAME_BYTES}",
+                name.len()
+            ));
+        }
+
         let PlayerSpec::Engine { options, .. } = settings.spec(side) else {
             continue;
         };
@@ -2067,8 +2083,8 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
 /// **テストから同じ関数で組めるようにしておく。** 書式を別に写して測ると、
 /// 欄の増減で**測っている量と実際に書く量がずれる**。
 ///
-/// **外来の欄を `{:?}` で書かない。** `detail` は `shown` を通っていて
-/// 制御文字が残っていないので `{}` で足りる。`{:?}` に戻すと BOM や
+/// **外来の欄を `{:?}` で書かない。** `detail` は `finish` が `shown` を通すので
+/// 制御文字が残っておらず、`{}` で足りる。`{:?}` に戻すと BOM や
 /// 未割り当ての1文字が `\u{XXXX}` の10バイトへ膨らみ、
 /// `MAX_DETAIL_LEN` を決めている式が外れる。`reason` と `winner` は
 /// バリアント名しか出ないので `{:?}` でよい。
@@ -2092,6 +2108,18 @@ const MAX_USI_MOVE_LEN: usize = 8;
 /// **3つの口（投了・裁定・中断）で同じにする。** 綴りが割れると、
 /// 呼び出し側は操作ごとに別の分類を書くことになる。
 const ALREADY_OVER: &str = "game is already over";
+
+/// 対局者の表示名として通す最大のバイト数。
+///
+/// **線に出る値ではない。** `GameSnapshot` に載って webview へ戻り、
+/// `get_game_state` のたびに2本複製される。縛らないと、対局を1つ開くだけで
+/// 対局の寿命ぶん任意の大きさを抱え込む（`GameId::is_safe_to_retain` と同じ懸念）。
+///
+/// **断る。** 名前は対局が始まる前に決まっていて、切り詰めると利用者は
+/// 「なぜ短くなったのか」を知る手立てが無い。ここで断れば `startGame` の
+/// `Err` として理由が出る。実在するエンジンの名乗り
+/// （`YaneuraOu NNUE 7.0.0 64ZEN2`）も人名も、この1/4に収まる。
+const MAX_NAME_BYTES: usize = 128;
 
 /// 終局の説明として残す最大の**文字数**。
 ///
@@ -2270,6 +2298,31 @@ mod tests {
             error.contains("control character"),
             "断る理由が変わっている: {error}"
         );
+    }
+
+    /// webview へ戻る欄も、入口で見ていること。
+    ///
+    /// **上のテストが見ているのは線に出る値だけ。** 表示名は
+    /// エンジンへ出ないので同じ網に掛からないが、`GameSnapshot` に載って
+    /// `get_game_state` のたびに複製される。上限が無いと、対局を1つ開くだけで
+    /// 対局の寿命ぶん任意の大きさを抱える。
+    #[test]
+    fn a_name_that_only_goes_back_to_the_app_is_checked_too() {
+        // 通したい形: 実在するエンジンの名乗りと、日本語の人名
+        for name in ["YaneuraOu NNUE 7.0.0 64ZEN2", "先手（わたし）"] {
+            let mut settings = two_humans(vec![]);
+            settings.black = PlayerSpec::Human {
+                name: name.to_string(),
+            };
+            validate_settings(&settings).unwrap_or_else(|e| panic!("{name} を断っている: {e}"));
+        }
+
+        let mut settings = two_humans(vec![]);
+        settings.black = PlayerSpec::Human {
+            name: "x".repeat(MAX_NAME_BYTES + 1),
+        };
+        let error = validate_settings(&settings).expect_err("長すぎる表示名を通している");
+        assert!(error.contains("bytes"), "断る理由が変わっている: {error}");
     }
 
     /// 入口2箇所の手数の上限が、**1手指せる関係**になっていること。
@@ -3701,6 +3754,36 @@ mod tests {
             panic!("終局していない");
         };
         assert_eq!(result.winner, Some(Side::Black), "勝敗が消えている");
+        let detail = result.detail.as_deref().expect("説明が消えている");
+        assert!(
+            detail.chars().count() <= MAX_DETAIL_LEN + 1,
+            "切り詰めていない: {} 文字",
+            detail.chars().count()
+        );
+    }
+
+    /// **どの終わり方から入っても**説明が切られること。
+    ///
+    /// 上のテストは裁定の口だけを見る。切る場所を入口ごとに置くと、
+    /// **通し忘れた入口ができる**——エンジンの故障（`SearchOutcome::Failed`）が
+    /// 実際にそうなっていて、`EngineError` の文言がそのままログ・`Over` イベント・
+    /// `snapshot` の3つへ流れていた。`finish` の1箇所で切る形を固定する。
+    #[tokio::test]
+    async fn every_way_into_finish_trims_the_detail() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut runner = test_runner(&tx);
+
+        runner
+            .finish(GameResult {
+                winner: Some(Side::White),
+                reason: GameOverReason::EngineFailure,
+                detail: Some("x".repeat(300_000)),
+            })
+            .await;
+
+        let Phase::Over { result } = &runner.phase else {
+            panic!("終局していない");
+        };
         let detail = result.detail.as_deref().expect("説明が消えている");
         assert!(
             detail.chars().count() <= MAX_DETAIL_LEN + 1,
