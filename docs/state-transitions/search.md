@@ -272,7 +272,7 @@ checksum を入れるまでは残る。`(size, mtime_ms)` が変わらない限�
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
-`src-tauri/tests/` にあるのは `root_guard.rs`（パスの検証）だけで、
+`src-tauri/tests/` にあるのはパスの検証と、doc とソースの綴りを突き合わせるラチェットだけで、
 状態機械そのものを回すテストは無い。
 
 ## この表が拾ったもの
