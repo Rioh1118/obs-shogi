@@ -1982,23 +1982,47 @@ pub(super) fn position_argument(start_sfen: &str, moves: &[String]) -> String {
     }
 }
 
-/// USI の指し手として**形が**通るか。合法かどうかは見ない（ルールは持たない）
+/// USI の指し手として**形が**通るか。合法かどうかは見ない（ルールは持たない）。
+///
+/// **断り文句に生の値を載せない。** ここへ来るのは webview から来た文字列か
+/// エンジンが吐いた行で、どちらも長さも改行も無検査。載せると、断り1回で
+/// ログの予算（`lib.rs` の 200KB ＋ `KeepOne`）を一周させられ、改行を混ぜれば
+/// その後ろに好きなログ行も作れる（`GameId::Display` が同じ理由で切っている）。
 pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
     if usi_move.is_empty() {
         return Err("move is empty".to_string());
     }
-    if usi_move.len() > 8 {
-        return Err(format!("move is too long: {usi_move}"));
+    if usi_move.len() > MAX_USI_MOVE_LEN {
+        return Err(format!(
+            "move is too long: {} bytes",
+            usi_move.len().min(MAX_WIRE_FIELD)
+        ));
     }
     if !usi_move.is_ascii()
         || usi_move
             .chars()
             .any(|c| c.is_whitespace() || c.is_control())
     {
-        return Err(format!("move has an unusable shape: {usi_move}"));
+        return Err(format!("move has an unusable shape: {}", shown(usi_move)));
     }
     Ok(())
 }
+
+/// 断り文句へ載せてよい写し。**制御文字を潰す。**
+///
+/// 長さは `MAX_USI_MOVE_LEN` を通った後なので既に縛られている。
+/// 潰すのは改行だけのためではなく、端末や `tail` で読めない1行を作らせないため。
+fn shown(usi_move: &str) -> String {
+    usi_move
+        .chars()
+        .map(|c| if c.is_control() { '\u{fffd}' } else { c })
+        .collect()
+}
+
+/// USI の指し手として通す最大のバイト数。
+///
+/// 一番長いのは成りを伴う打ち込み（`7g7f+` の5バイト）で、余裕を見て8。
+const MAX_USI_MOVE_LEN: usize = 8;
 
 /// 壁時計。**時間切れの判定には使わない**（そちらは `Instant` で測る）。
 /// 使うのは「表示が尽きる時刻」を受け手へ渡すときだけ。
@@ -4133,6 +4157,28 @@ mod tests {
         assert!(validate_usi_move("7g7f\nquit").is_err());
         assert!(validate_usi_move("７六歩").is_err());
         assert!(validate_usi_move("aaaaaaaaa").is_err());
+    }
+
+    /// 断り文句が、渡された値の長さにも中身にも引きずられないこと。
+    ///
+    /// ここへ来るのは webview から来た文字列かエンジンが吐いた行で、どちらも
+    /// 無検査。載せると断り1回でログの予算を一周させられ、改行を混ぜれば
+    /// その後ろに好きなログ行も作れる（`log_rejection` が `{e}` を丸ごと書く）。
+    #[test]
+    fn a_refusal_never_carries_the_raw_move() {
+        let long = "x".repeat(300_000);
+        let error = validate_usi_move(&long).expect_err("長すぎる手を通している");
+        assert!(
+            error.len() < 100,
+            "断り文句が渡された値の長さに引きずられている: {} バイト",
+            error.len()
+        );
+
+        let sneaky = validate_usi_move("7g\nERROR").expect_err("改行を含む手を通している");
+        assert!(
+            !sneaky.contains('\n'),
+            "改行をそのまま断り文句に載せている: {sneaky:?}"
+        );
     }
 
     #[test]
