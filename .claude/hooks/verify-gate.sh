@@ -214,12 +214,17 @@ gate_kinds_for_path() {
     *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
       kinds="$kinds rust" ;;
   esac
-  # 状態遷移表は2つの検査が実装と突き合わせる。`state_table_terms.rs`（rust）が
-  # 表の書く定数の実在を、`docsSourcePaths.test.ts`（ts）が表の指すパスの実在を見る。
-  # 表だけを直したコミットで走らないと、その検査が仕事をしない。**表だけのコミットは
-  # その2つを破れる唯一の形**なので、片方だけに分類すると素通りする経路が残る。
+  # `docs/` は ts 側の検査が丸ごと見る（相対リンク・参照リンク・指すパスの実在）。
+  # `case` の `*` は `/` にも当たるので、この1つで深さを問わず拾う。
+  #
+  # **doc だけのコミットは、これらの検査を破れる唯一の形。** 分類から外すと、
+  # 落ちるのは PR を上げた後の CI になる。
   case "$path" in
-    docs/state-transitions/*.md) kinds="$kinds ts rust" ;;
+    docs/*.md) kinds="$kinds ts" ;;
+  esac
+  # 状態遷移表は rust 側も見る（表が名指す定数の実在）。
+  case "$path" in
+    docs/state-transitions/*.md) kinds="$kinds rust" ;;
   esac
   case "$path" in
     .claude/hooks/*.sh) kinds="$kinds gate" ;;
