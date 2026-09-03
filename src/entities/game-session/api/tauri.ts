@@ -88,8 +88,11 @@ export async function continueGame(gameId: GameId, moves: string[]): Promise<voi
  * 裁定「終局」。詰み・千日手・持将棋・最大手数・反則はすべてここから入る。
  *
  * `detail` は棋譜と画面に残る説明で、**長さの上限がある**（Rust の
- * `MAX_DETAIL_LEN`）。超えると reject するので、エンジンの出力や利用者の入力を
- * そのまま渡さないこと。人が読む文言（「千日手」「二歩」）は上限の1/10も使わない。
+ * `MAX_DETAIL_LEN`）。超えると**断らずに切り詰める**ので、返ってきた `over` の
+ * `detail` が渡した文字列と違うことがある（末尾に `…` が付く）。
+ * **断らないのは意図。** ここで reject すると、呼び直さない限り 30 秒後に
+ * `over { aborted, winner: null }` で畳まれ、**勝敗が消える**。
+ * 人が読む文言（「千日手」「二歩」）は上限の1/50も使わない。
  */
 export async function endGameByRule(
   gameId: GameId,

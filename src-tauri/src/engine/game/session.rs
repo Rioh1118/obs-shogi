@@ -1002,18 +1002,17 @@ impl Runner {
         if self.is_over() {
             return Err("game is already over".to_string());
         }
-        if let Some(detail) = &detail {
-            if detail.len() > MAX_DETAIL_LEN {
-                return Err(format!(
-                    "detail is too long: {} bytes; the limit is {MAX_DETAIL_LEN}",
-                    detail.len()
-                ));
-            }
-        }
+        // **断らない。** 裁定を拒否すると、フロントが呼び直さない限り
+        // `RULING_TIMEOUT` が `Aborted { winner: None }` で畳む——
+        // **「先手の勝ち・詰み」が「中断・勝者なし」に化ける**。
+        // `MAX_PLIES` が同じ理由で「超えたら終局にする」に倒しているのと同じ。
+        //
+        // 入口で切れば、3つの吸い口（`finish` のログ・`Over` イベント・
+        // `snapshot`）が同時に収まる。
         self.finish(GameResult {
             winner,
             reason: GameOverReason::Rule,
-            detail,
+            detail: detail.map(|detail| shown(&detail, MAX_DETAIL_LEN)),
         })
         .await;
         Ok(())
@@ -1521,7 +1520,11 @@ impl Runner {
         // 読めるようにするには、全部の終わり方が同じ1行を通る必要がある。
         //
         // 絞らない。`is_over` の早期 return があるので1局に1回しか通らない。
-        // `detail` は Rust が入れた英文か、フロントが渡した文言（`Rule` のとき）
+        //
+        // **`detail` は `MAX_DETAIL_LEN` を通った値だけを渡すこと。**
+        // ここは絞らないので、長い値をそのまま渡すと1行でログの予算を
+        // 一周させられる。webview から来る文字列を運ぶ終わり方を足すときは、
+        // `accept_rule_end` と同じように `shown` を通してから渡す
         log::info!(
             target: LOGT,
             "over game_id={} reason={:?} winner={:?} detail={:?}",
@@ -2030,20 +2033,31 @@ pub(super) fn validate_usi_move(usi_move: &str) -> Result<(), String> {
             .chars()
             .any(|c| c.is_whitespace() || c.is_control())
     {
-        return Err(format!("move has an unusable shape: {}", shown(usi_move)));
+        return Err(format!(
+            "move has an unusable shape: {}",
+            shown(usi_move, MAX_USI_MOVE_LEN)
+        ));
     }
     Ok(())
 }
 
-/// 断り文句へ載せてよい写し。**制御文字を潰す。**
+/// ログや断り文句へ載せてよい写し。**制御文字を潰し、長さを切る。**
 ///
-/// 長さは `MAX_USI_MOVE_LEN` を通った後なので既に縛られている。
 /// 潰すのは改行だけのためではなく、端末や `tail` で読めない1行を作らせないため。
-fn shown(usi_move: &str) -> String {
-    usi_move
+/// 切るのは、webview から来る値がログの予算（`LOG_FILE_BUDGET`）を
+/// 一周させられないようにするため。
+///
+/// **文字数で切る。** バイト数で切ると多バイト文字の途中で割れる。
+fn shown(text: &str, max: usize) -> String {
+    let mut out: String = text
         .chars()
+        .take(max)
         .map(|c| if c.is_control() { '\u{fffd}' } else { c })
-        .collect()
+        .collect();
+    if text.chars().nth(max).is_some() {
+        out.push('…');
+    }
+    out
 }
 
 /// USI の指し手として通す最大のバイト数。
@@ -2052,15 +2066,19 @@ fn shown(usi_move: &str) -> String {
 /// **打った駒は成れない**ので `+` は付かない。余裕を見て8。
 const MAX_USI_MOVE_LEN: usize = 8;
 
-/// 終局の説明として受け取る最大のバイト数。
+/// 終局の説明として残す最大の**文字数**。
 ///
 /// **`finish` がこれを絞らずにログへ書く。** webview から来る値なので、
 /// 縛らないと1回の `end_game_by_rule` でログの予算（`LOG_FILE_BUDGET`）を
 /// 一周させられる——診断の履歴が全部飛ぶ。
 ///
-/// 1行が予算の1/100を超えないところで切る。人が読む文言（「千日手」「二歩」）は
-/// この1/10も使わない。
-const MAX_DETAIL_LEN: usize = 1024;
+/// **断らずに切る。** 裁定を拒否すると `RULING_TIMEOUT` が別の結末で畳む
+/// （`accept_rule_end`）。
+///
+/// 1行がログの予算の1/50を超えないところで取る。式は
+/// `an_over_line_cannot_rotate_the_log`。人が読む文言（「千日手」「二歩」）は
+/// この1/50も使わない。
+const MAX_DETAIL_LEN: usize = 512;
 
 /// 壁時計。**時間切れの判定には使わない**（そちらは `Instant` で測る）。
 /// 使うのは「表示が尽きる時刻」を受け手へ渡すときだけ。
@@ -2081,6 +2099,8 @@ fn now_epoch_ms() -> Option<u64> {
 mod tests {
     use super::super::events::{DiscardEvents, RecordedEvents};
     use super::*;
+
+    use crate::engine::utils::LOG_FILE_BUDGET;
 
     /// 平手。`GuiCommand::Position` が `position sfen` を前置するので、
     /// `startpos` ではなく完全な SFEN を持つ
@@ -3632,35 +3652,70 @@ mod tests {
         );
     }
 
-    /// 終局の説明が、長さの検査を通ること。
+    /// 終局の説明が、**断られずに切り詰められる**こと。
     ///
     /// **`finish` はこれを絞らずにログへ書く。** webview から来る値なので、
-    /// 縛らないと1回の `end_game_by_rule` でログの予算を一周させられる
-    /// ——実測で1行が 300,057 バイトになった。
+    /// 縛らないと1回の `end_game_by_rule` でログの予算を一周させられる。
     ///
-    /// 断るほうに倒す。ログだけ切り詰めても、`Over` イベントと `snapshot` に
-    /// 載る経路が残る。
+    /// **断ってはいけない。** 裁定を拒否すると、フロントが呼び直さない限り
+    /// `RULING_TIMEOUT` が `Aborted { winner: None }` で畳む——
+    /// 「先手の勝ち・詰み」が「中断・勝者なし」に化ける。
     #[tokio::test]
-    async fn a_long_detail_is_refused_before_it_reaches_the_log() {
+    async fn a_long_detail_is_trimmed_instead_of_refused() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut runner = test_runner(&tx);
 
-        let error = runner
-            .accept_rule_end(None, Some("x".repeat(300_000)))
-            .await
-            .expect_err("長すぎる説明を通している");
-        assert!(
-            error.contains("300000"),
-            "実際の長さを報告していない: {error}"
-        );
-        assert!(error.len() < 100, "断り文句が長さに引きずられている");
-        assert!(!runner.is_over(), "断ったのに終局している");
-
-        // 人が読む文言は通る
         runner
-            .accept_rule_end(None, Some("千日手".to_string()))
+            .accept_rule_end(Some(Side::Black), Some("x".repeat(300_000)))
             .await
-            .expect("普通の文言を弾いている");
+            .expect("長すぎる説明で裁定を断っている");
+
+        let Phase::Over { result } = &runner.phase else {
+            panic!("終局していない");
+        };
+        assert_eq!(result.winner, Some(Side::Black), "勝敗が消えている");
+        let detail = result.detail.as_deref().expect("説明が消えている");
+        assert!(
+            detail.chars().count() <= MAX_DETAIL_LEN + 1,
+            "切り詰めていない: {} 文字",
+            detail.chars().count()
+        );
+    }
+
+    /// 終局の1行が、ログの予算を一周させられないこと。
+    ///
+    /// **`MAX_DETAIL_LEN` はここから決まる。** 上限があるだけでは足りない
+    /// ——上限を大きくしても「上限を超える値は切られる」テストは通るので、
+    /// 予算との関係を式で持つ。
+    ///
+    /// 文字数で数えるので、1文字あたり最大4バイト（UTF-8）で見積もる。
+    #[test]
+    fn an_over_line_cannot_rotate_the_log() {
+        /// 終局の1行が予算のうち占めてよい割合の逆数
+        const SHARE: u128 = 50;
+        /// UTF-8 の1文字あたり最大バイト数
+        const BYTES_PER_CHAR: u128 = 4;
+
+        let worst = MAX_DETAIL_LEN as u128 * BYTES_PER_CHAR;
+        assert!(
+            worst * SHARE <= LOG_FILE_BUDGET,
+            "終局の1行が予算の1/{SHARE} を超える（{worst} バイト）"
+        );
+    }
+
+    /// 制御文字を潰し、文字の途中で割らないこと。
+    #[test]
+    fn a_shown_copy_is_bounded_and_readable() {
+        assert_eq!(shown("7g7f", 8), "7g7f");
+        assert!(!shown("a\nb", 8).contains('\n'), "改行を通している");
+
+        // 多バイト文字の途中で割らない
+        let trimmed = shown("あいうえお", 3);
+        assert!(
+            trimmed.starts_with("あいう"),
+            "文字の途中で割っている: {trimmed}"
+        );
+        assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
     }
 
     /// 終局は1回しか流れないこと。
