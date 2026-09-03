@@ -961,6 +961,14 @@ impl Runner {
     /// 裁定「続く」。`moves` で写しを上書きして次の手番を始める。
     /// **ただし手数が `MAX_PLIES` を超えていたら終局にして `Ok` を返す。**
     async fn accept_continue(&mut self, moves: Vec<String>) -> Result<(), String> {
+        // **終局は別の文言で断る。** 潰すと、次にすべきことが正反対の2つが
+        // 1つの `Err` になる——`Thinking` なら裁定の二重呼び出し（呼び出し側の誤り）、
+        // `Over` なら吸収状態（何度呼んでも同じ）。台帳の復帰導線は
+        // 「操作をやり直す。ただし終局済みだけは違う」で、その例外は
+        // `ALREADY_OVER` の綴りで見分ける前提になっている
+        if self.is_over() {
+            return Err(ALREADY_OVER.to_string());
+        }
         let Phase::AwaitingRuling {
             last_mover,
             usi_move,
@@ -2171,8 +2179,8 @@ const MAX_USI_MOVE_BYTES: usize = 8;
 
 /// 終局済みの対局への操作を断る文言。
 ///
-/// **4つの口（着手・投了・裁定・中断）で同じにする。** 綴りが割れると、
-/// 呼び出し側は操作ごとに別の分類を書くことになる。
+/// **5つの口（着手・裁定「続く」・裁定「終局」・投了・中断）で同じにする。**
+/// 綴りが割れると、呼び出し側は操作ごとに別の分類を書くことになる。
 const ALREADY_OVER: &str = "game is already over";
 
 /// 裁定が返る前に着手を求められたときの文言。
@@ -4018,19 +4026,20 @@ mod tests {
         assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
     }
 
-    /// 終局済みの対局への着手・投了・裁定・中断が、同じ形で断られること。
+    /// 終局済みの対局への着手・裁定・投了・中断が、同じ形で断られること。
     ///
     /// **揃えないと、中断だけが黙って通る。** 中断を押したのと `on_tick` の
     /// 時間切れが同じ拍に入ったとき、`Ok` を返すと呼び出し側は「中断が成立した」と
     /// 読んで棋譜へ書く——実際の結末（時間切れ・勝者あり）と食い違い、
     /// `Err` でないので `log_rejection` の1行も残らない。
     ///
-    /// **揃えていない2つ**（`continue_game` / `close`）は別の文言を返す。
+    /// **揃えていないのは `close` だけ**（対局そのものではなく資源の後始末なので、
+    /// 断りの分類も別）。
     #[tokio::test]
     async fn a_finished_game_refuses_every_move_and_verdict_the_same_way() {
         let (tx, _rx) = mpsc::unbounded_channel();
 
-        for command in ["abort", "resign", "end_by_rule", "submit_move"] {
+        for command in ["abort", "resign", "end_by_rule", "submit_move", "continue"] {
             let mut runner = test_runner(&tx);
             runner
                 .finish(GameResult {
@@ -4052,6 +4061,7 @@ mod tests {
                         .accept_human_move(Side::Black, "7g7f".to_string())
                         .await
                 }
+                "continue" => runner.accept_continue(vec!["7g7f".to_string()]).await,
                 _ => runner.accept_rule_end(None, None).await,
             };
 

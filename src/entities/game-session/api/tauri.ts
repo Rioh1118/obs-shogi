@@ -92,6 +92,14 @@ export async function submitGameMove(gameId: GameId, side: Side, usiMove: string
  * （`over { reason: "rule" }`、`detail` に上限に当たったことが載る）。
  * 断ると、返せる列が1つに固定されているので裁定をやり直しても同じ結果になり、
  * 対局が「アプリが裁定を返さなかった」として畳まれてしまうため。
+ *
+ * **失敗しうる。呼び直してよいものは1つも無い。**
+ *
+ * - `game is already over` → 中断や時間切れが、判定している間に入った。
+ *   **呼び直しても同じ `Err`**（`Phase::Over` は吸収状態）。結末は `over` イベント
+ * - `not awaiting a ruling` → 裁定を待っていない（二重に呼んでいる）
+ * - それ以外（`moves` がいまの写しの続きでない／末尾が直前の手でない／
+ *   長さが手番と合わない）→ 送った列の誤り。同じ列で呼び直しても変わらない
  */
 export async function continueGame(gameId: GameId, moves: string[]): Promise<void> {
   return await invoke("continue_game", { gameId, moves });
