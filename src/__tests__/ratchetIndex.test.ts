@@ -61,17 +61,31 @@ const RUST_CHECKS = new Set([
   "production_unwrap",
   "root_guard",
   "serde_naming",
+  "scanning",
   "state_transition_cells",
   "timeout_marker",
   "timeout_result",
 ]);
 
-/** `src-tauri/tests/*.rs` のファイル名（拡張子を落としたもの） */
+/**
+ * `src-tauri/tests` にある Rust の検査の名前。
+ *
+ * **サブディレクトリも歩く。** 共有ヘルパの既定の置き場（`tests/scanning/`）に
+ * 置いた検査が、`isFile()` で止めると丸ごと索引の死角に落ちる——
+ * 「両方に載っていないと落ちる」と表と `RUST_CHECKS` の両方が書いているのに、
+ * サブディレクトリでは何も落ちない状態になる。
+ *
+ * `mod.rs` はディレクトリの名前で採る（`scanning/mod.rs` → `scanning`）。
+ */
 function rustChecks(): string[] {
-  return readdirSync(RUST_CHECKS_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".rs"))
-    .map((entry) => entry.name.replace(/\.rs$/, ""))
-    .sort();
+  const walk = (dir: string, name: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      if (entry.isDirectory()) return walk(join(dir, entry.name), entry.name);
+      if (!entry.name.endsWith(".rs")) return [];
+      return [entry.name === "mod.rs" ? name : entry.name.replace(/\.rs$/, "")];
+    });
+
+  return [...new Set(walk(RUST_CHECKS_DIR, "tests"))].sort();
 }
 
 /**
