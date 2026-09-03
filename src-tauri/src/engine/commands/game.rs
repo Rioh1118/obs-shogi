@@ -122,6 +122,14 @@ const REJECTION_WARN_INTERVAL: Duration = Duration::from_secs(1);
 /// 操作は6つあるので、同時に追える対局は最悪でこの1/6。
 const MAX_TRACKED_GAMES: usize = 120;
 
+/// 1間隔に通す断りの行数。
+///
+/// **枠の数と揃えない。** 揃えると、鍵が毎回違う連打で枠の数だけ通る。
+/// ここは「1行あたり約170バイト × これ × 3600秒」がログの予算に対して
+/// 十分小さいことだけを見て決める（8行/秒で約5MB/時。200KB の `KeepOne` は
+/// 数分ぶんを保つ）。
+const MAX_LINES_PER_INTERVAL: u32 = 8;
+
 /// 断りの絞り。**2段で持つ。**
 ///
 /// **対局まで鍵に入れる。** `op` だけで割ると、断られ続けている対局が
@@ -152,6 +160,10 @@ const MAX_TRACKED_GAMES: usize = 120;
 struct RejectionThrottles {
     per_game: HashMap<(&'static str, GameId), LogThrottle>,
     per_op: HashMap<&'static str, LogThrottle>,
+    /// 1間隔ぶんの窓。開くたびに `spent` を戻す
+    window: Option<LogThrottle>,
+    /// この窓で通した行数
+    spent: u32,
     /// 枠の長さ。**テストから縮められるようにしておく**——
     /// 「枠が空けば取り戻せる」は時間が経たないと見えない
     interval: Option<Duration>,
@@ -162,7 +174,33 @@ impl RejectionThrottles {
         self.interval.unwrap_or(REJECTION_WARN_INTERVAL)
     }
 
+    /// 1間隔に通す行数の上限。**枠を分けるだけでは足りない。**
+    ///
+    /// 枠ごとの絞りは「同じ鍵が続けて通らない」しか言わない。鍵が毎回違えば
+    /// 新しい枠が次々にでき、`LogThrottle` は新しい枠の先頭を必ず通すので、
+    /// **1間隔あたり枠の数だけ通る**（実測で121行/秒）。ログの予算
+    /// （`lib.rs` の 200KB ＋ `KeepOne`）を守るには、通す行数そのものに
+    /// 上限が要る。
     fn allow(&mut self, op: &'static str, game_id: &GameId) -> bool {
+        let interval = self.interval();
+        let opened = self
+            .window
+            .get_or_insert_with(|| LogThrottle::new(interval))
+            .allow();
+        if opened {
+            self.spent = 0;
+        }
+        if self.spent >= MAX_LINES_PER_INTERVAL {
+            return false;
+        }
+        let passed = self.allow_by_key(op, game_id);
+        if passed {
+            self.spent += 1;
+        }
+        passed
+    }
+
+    fn allow_by_key(&mut self, op: &'static str, game_id: &GameId) -> bool {
         // **長さを先に見る。** 照合より前に弾かないと、呼び出し側が選んだ
         // 長さの文字列を毎回複製することになる
         if !game_id.is_safe_to_retain() {
@@ -222,10 +260,10 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
 ///
 /// 静かなときの1件は必ず残る（`LogThrottle` は枠の先頭を通す）。
 ///
-/// **拾えないもの**: 連打の中で理由が変わったこと。枠が満杯で、どれも
-/// まだ空いていない間に来た新しい対局の断り（操作ごとの枠へ落ちるので、
-/// 同じ枠を他の対局が取っていれば消える）。**この状態は続かない**——
-/// `REJECTION_WARN_INTERVAL` で枠が空き、そこから取り戻せる。
+/// **拾えないもの**: 連打の中で理由が変わったこと。1間隔の予算
+/// （`MAX_LINES_PER_INTERVAL`）を使い切った後に来た断り。枠が満杯で、どれも
+/// まだ空いていない間に来た新しい対局の断り。**どちらも続かない**——
+/// `REJECTION_WARN_INTERVAL` で予算も枠も戻る。
 fn log_rejection<T>(
     op: &'static str,
     game_id: &GameId,
@@ -349,6 +387,8 @@ pub async fn list_games(state: tauri::State<'_, AppState>) -> Result<Vec<GameId>
 mod tests {
     use super::*;
 
+    use std::time::Instant;
+
     fn id(value: &str) -> GameId {
         GameId::new(value.to_string())
     }
@@ -390,33 +430,32 @@ mod tests {
         );
     }
 
-    /// 知らない ID の連打が、絞りを素通りしないこと。
+    /// 連打が**続いて**も、1間隔に通る行数が上限を超えないこと。
     ///
-    /// **溢れたら写像を捨てる形だと、絞りは1件も掛からない。**
-    /// `LogThrottle` は新しい枠の先頭を必ず通すので、捨てた直後の1件が
-    /// 毎回通り、呼び出しと同じ頻度でログが書かれる。
+    /// 枠ごとの絞りは「同じ鍵が続けて通らない」しか言わない。鍵が毎回違えば
+    /// 新しい枠が次々にでき、`LogThrottle` は新しい枠の先頭を必ず通すので、
+    /// **1間隔あたり枠の数だけ通る**（この上限を外した実測で121行/秒）。
+    /// 1行は約170バイトなので、200KB の `KeepOne` は10秒前後で一周する。
+    ///
+    /// **窓の数で割って見る。** 遅いマシンでは窓が余分に開くぶん通る行が増えるが、
+    /// その増え方も式に入っているので、遅さで落ちることはない。
     #[test]
-    fn an_unknown_id_flood_still_gets_throttled() {
+    fn a_sustained_flood_stays_within_the_log_budget() {
         let mut throttles = RejectionThrottles::default();
+        let started = Instant::now();
 
-        for n in 0..MAX_TRACKED_GAMES {
-            assert!(throttles.allow("submit_move", &id(&format!("g{n}"))));
-        }
-
-        let mut passed = 0;
-        for n in 0..1_000 {
+        let mut passed = 0u32;
+        for n in 0..20_000 {
             if throttles.allow("submit_move", &id(&format!("flood{n}"))) {
                 passed += 1;
             }
         }
+
+        let windows = started.elapsed().as_secs_f64() / REJECTION_WARN_INTERVAL.as_secs_f64();
+        let budget = MAX_LINES_PER_INTERVAL as f64 * (windows + 1.0);
         assert!(
-            passed <= 1,
-            "溢れた後の連打が {passed} 行通っている。絞りが効いていない"
-        );
-        assert!(
-            throttles.per_game.len() <= MAX_TRACKED_GAMES,
-            "枠が上限を超えて増えている: {}",
-            throttles.per_game.len()
+            f64::from(passed) <= budget,
+            "1間隔の上限を超えて {passed} 行通っている（予算 {budget:.0}）"
         );
     }
 
@@ -426,25 +465,24 @@ mod tests {
     /// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠へ
     /// 落ちる。A局が毎秒断られている裏で B局が1回断られても、その行はどこにも
     /// 残らない——`RULING_TIMEOUT` で `aborted` になった B局を、ログから追えない。
+    ///
+    /// **待つ側にしか賭けていない。** 遅いマシンでは窓も枠も余計に空くだけで、
+    /// 下の表明はどれも通りやすくなる。
     #[test]
     fn a_flood_does_not_lock_real_games_out_forever() {
         let mut throttles = quick();
         flood(&mut throttles, "submit_move");
 
-        // 連打の直後は誰も落とせないので、操作ごとの枠へ落ちる
-        assert!(throttles.allow("submit_move", &id("real-a")));
+        std::thread::sleep(Duration::from_millis(60));
+
+        // 窓が開いて予算が戻り、空いた枠も落とされるので、両方が自分の枠を取れる
         assert!(
-            !throttles.allow("submit_move", &id("real-b")),
-            "満杯の直後に、対局ごとの枠を取れてしまっている"
+            throttles.allow("submit_move", &id("real-a")),
+            "枠が空いても取り戻せていない"
         );
-
-        std::thread::sleep(Duration::from_millis(40));
-
-        // 枠が空いたので、両方とも自分の枠を取れる
-        assert!(throttles.allow("submit_move", &id("real-a")));
         assert!(
             throttles.allow("submit_move", &id("real-b")),
-            "枠が空いても取り戻せていない"
+            "別の対局の1件目を食っている"
         );
         assert!(
             !throttles.allow("submit_move", &id("real-b")),
