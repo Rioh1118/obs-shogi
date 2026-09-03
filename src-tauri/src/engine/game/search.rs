@@ -72,6 +72,10 @@ pub enum SearchKind {
     Ponder { ponder_move: String },
 }
 
+/// 1回の探索に渡すもの。**組むのは `GameSession`、走らせるのは `run_search`。**
+///
+/// `req` は同じ側の何本目かで、**古い探索の結果を捨てるための鍵**。
+/// 局面と `go` のパラメータは組んだ時点の値で、走り出した後は変わらない。
 pub struct SearchRequest {
     pub protocol: Arc<UsiProtocol>,
     pub side: Side,
@@ -105,6 +109,17 @@ pub enum SearchMessage {
     },
 }
 
+/// `position` と `go` を送り、`bestmove` まで見届けて `tx` へ流す。
+///
+/// **戻り値を持たない。** 起きたことは全部 `SearchMessage` として `tx` に出る
+/// （`Started` → `Outcome`）。`tx` の受け手が消えていれば黙って捨てられる。
+///
+/// **`Idle` の側にだけ呼ぶこと。** 同じ側の探索が走っている状態で重ねると、
+/// 先に走っているほうの `bestmove` が新しい `req` の結果として読まれる。
+/// 呼ぶ口を `GameSession::spawn_search` の1本に絞ってあるのはそのため。
+///
+/// 取り消しは `request.cancel`。**落とすのではなく `stop` を送る**ので、
+/// エンジンが `bestmove` を返すまでこの関数は返らない。
 pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<SearchMessage>) {
     let SearchRequest {
         protocol,

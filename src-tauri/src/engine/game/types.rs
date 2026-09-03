@@ -321,6 +321,7 @@ pub enum GameOverReason {
     Aborted,
 }
 
+/// 終局の結末。**`over` のイベントと `GameSnapshot` の両方に載る同じ値。**
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameResult {
@@ -371,6 +372,9 @@ pub struct RunningClock {
     pub byoyomi_zero_at: u64,
 }
 
+/// 両者の時計を1つにまとめた眺め。**描く側はこれだけを見る。**
+///
+/// 減っていく値ではなく「尽きる時刻」を渡す（→ `RunningClock`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClocksView {

@@ -16,6 +16,13 @@ use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
 const LOGT: &str = "obs_shogi::engine::game::manager";
 
+/// 開いている対局の台帳。**アプリに1つ**（`AppState` が持つ）。
+///
+/// 対局の規則をここには置かない。段の判定も時計も `GameSession` の中で、
+/// ここが持つのは **`GameId` から引けること**と、閉じる最中の窓を埋めることだけ。
+///
+/// **断り方は3つ**（知らない／いま閉じている最中／他の操作が掴んでいる）。
+/// 呼び直す意味があるのは3つ目だけで、文言は `Rejection` の `Display` が持つ。
 pub struct GameManager {
     sessions: RwLock<HashMap<GameId, Arc<GameSession>>>,
     /// いま閉じている最中の対局。
@@ -71,6 +78,10 @@ impl Rejection<'_> {
 }
 
 impl GameManager {
+    /// 空の台帳。`registry` は対局が使うエンジンを起こす／落とす先。
+    ///
+    /// **解析と同じ台帳を渡すこと。** 別のものを渡すと `engine_ids` の
+    /// 対応先が消え、落とせないプロセスが残る（`registry` 欄の doc）。
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
             sessions: RwLock::default(),
@@ -79,6 +90,19 @@ impl GameManager {
         }
     }
 
+    /// 対局を始め、台帳に載せて `GameId` を返す。
+    ///
+    /// **`events` の購読は呼ぶ前に張ること。** 最初の `TurnChanged` と最初の `go` は
+    /// これが返る**前に**走る。`GameId` はまだ手に入らないので、購読側は
+    /// **全部の対局を受けてから選り分ける**形になる（→ `GameSession::start`）。
+    ///
+    /// 返るまで最大 `START_TIMEOUT`。取り消す口は無い。
+    ///
+    /// # エラー
+    ///
+    /// 設定が通らなかったか、エンジンを起こせなかった。
+    /// **時間切れ側は `TIMED_OUT` の綴りで始まる**（→ 台帳の F-27）。
+    /// 台帳には何も載らず、起こした側のプロセスは落としてある。
     pub async fn start(
         &self,
         events: Arc<dyn GameEventSink>,
@@ -102,8 +126,9 @@ impl GameManager {
     ///
     /// # エラー
     ///
-    /// **呼び直す意味があるのは `Rejection::Busy` のときだけ。**
-    /// 文言は `Rejection` が持つ。ここでは呼び直しの要否だけを言う。
+    /// **断り方は3つ**（知らない対局／いま閉じている最中／他の操作が掴んでいる）。
+    /// **呼び直す意味があるのは3つ目だけ。** 文言はこのファイルの `Rejection` が
+    /// 1箇所で持つので、ここでは呼び直しの要否だけを言う。
     ///
     /// `Busy` は他の操作が同じ対局を掴んでいる。**中断は試みたが、通ったかは
     /// 保証しない**（`CLOSE_ABORT_TIMEOUT` を超えると warn を1行残して先へ進む
@@ -187,6 +212,13 @@ impl GameManager {
         left
     }
 
+    /// 人間の着手を1手預ける。**段と手番が合っているときだけ通る。**
+    ///
+    /// # エラー
+    ///
+    /// 断り方は `GameSession::submit_move` が決める（知らない対局／段が違う／
+    /// 手番が違う／その側がエンジン／書式が壊れている／終局済み／裁定待ち）。
+    /// **`Err` の文言でしか区別できない**（→ 台帳の F-28）。
     pub async fn submit_move(
         &self,
         game_id: &GameId,
@@ -196,10 +228,23 @@ impl GameManager {
         self.get(game_id).await?.submit_move(side, usi_move).await
     }
 
+    /// 裁定「続く」を返し、次の手番へ進める。`moves` は**フロントが持つ指し手列**。
+    ///
+    /// **`AwaitingRuling` でだけ通る。** Rust は将棋の規則で終局を判定しないので、
+    /// これか `end_by_rule` のどちらかが来るまで対局は進まない
+    /// （来ないと `RULING_TIMEOUT` で中断される）。
+    ///
+    /// # エラー
+    ///
+    /// 段が違う／`moves` がいまの写しの続きになっていない／終局済み。
     pub async fn continue_game(&self, game_id: &GameId, moves: Vec<String>) -> Result<(), String> {
         self.get(game_id).await?.continue_game(moves).await
     }
 
+    /// 裁定「終局」を返す。**詰み・千日手・持将棋を判定したのは呼び出し側。**
+    ///
+    /// `detail` は長すぎても断らない——切り詰める。断ると `RULING_TIMEOUT` が
+    /// 別の結末で畳んでしまい、勝敗が消える。
     pub async fn end_by_rule(
         &self,
         game_id: &GameId,
@@ -209,14 +254,23 @@ impl GameManager {
         self.get(game_id).await?.end_by_rule(winner, detail).await
     }
 
+    /// `side` の投了で終局させる。**エンジンの投了はここを通らない**
+    /// （`bestmove resign` は探索の結果として届く）。
     pub async fn resign(&self, game_id: &GameId, side: Side) -> Result<(), String> {
         self.get(game_id).await?.resign(side).await
     }
 
+    /// 利用者の中断で終局させる。**エンジンプロセスは落ちない**——落とすのは `close`。
+    ///
+    /// 結末の `Aborted` は「裁定が返らなかった」とも共用する（→ #362）。
     pub async fn abort(&self, game_id: &GameId) -> Result<(), String> {
         self.get(game_id).await?.abort().await
     }
 
+    /// いまの段・手番・時計をまとめて読む。**イベントを取りこぼした後の突き合わせ用。**
+    ///
+    /// 時計は読んだ時点で組み直すので、`RunningClock` の「尽きる時刻」は
+    /// 呼ぶたびに変わる。
     pub async fn snapshot(&self, game_id: &GameId) -> Result<GameSnapshot, String> {
         self.get(game_id).await?.snapshot().await
     }
