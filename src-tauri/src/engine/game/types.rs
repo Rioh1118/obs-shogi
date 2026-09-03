@@ -541,6 +541,17 @@ mod tests {
             );
         }
 
+        // **等式で留める。** 不等式だけだと、測る側を軽い入力に差し替えても通る
+        // ——`worst_game_id` を `"x".repeat(48)` にすると、`Display` が入力の
+        // バイト数を数える形に戻しても13スイート全部が緑になる（複合変異で実測）。
+        // 予算の式（`the_log_keeps_a_minimum_of_history_under_rejections`）は
+        // この値を最悪として組んでいるので、届かなくなったことを知らせる
+        assert_eq!(
+            worst_game_id().to_string().len(),
+            cap,
+            "最悪の ID が上限に届いていない。制御文字が置換文字へ広がる形を選び直すこと"
+        );
+
         let sneaky = GameId::new("a\nERROR fake line".to_string());
         let shown = sneaky.to_string();
         assert!(!shown.contains('\n'), "改行をそのまま通している: {shown:?}");
