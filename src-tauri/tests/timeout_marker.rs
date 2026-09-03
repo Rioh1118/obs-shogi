@@ -74,8 +74,14 @@ fn timeout_arguments(source: &str, path: &Path) -> Vec<String> {
         // **パターンは構築ではない。** `matches!(e, EngineError::Timeout(_))` の
         // `_` まで要求すると、時間切れを**見分ける**側に綴りを書かせることになる。
         // 中身を取り出す腕（`EngineError::Timeout(why) => …`）も同じ——
-        // 閉じ括弧の後ろが `=>` なら分解であって構築ではない
-        let is_arm = code[open + len..].trim_start().starts_with("=>");
+        // 閉じ括弧の後ろが `=>` なら分解であって構築ではない。
+        //
+        // **入れ子の閉じ括弧を読み飛ばしてから見る。**
+        // `Err(EngineError::Timeout(why)) => …` のように包まれていると、
+        // 直後の1文字は `)` なので `=>` に届かない。免除されないまま
+        // **満たしようのない要求**になる（分解した名前に綴りは入れられない）
+        let after = code[open + len..].trim_start();
+        let is_arm = after.trim_start_matches(')').trim_start().starts_with("=>");
         if argument != "_" && !is_arm {
             found.push(argument);
         }
@@ -170,4 +176,27 @@ mod tests {
         "見本まで拾っている、または本番を落としている: {found:?}"
     );
     assert!(found[0].contains(MARKER));
+}
+
+/// 分解する腕が、**包まれていても**要求から外れること。
+///
+/// **現物だけを食わせても差が出ない。** いま `Err(EngineError::Timeout(why))` で
+/// 受ける腕がリポジトリに1つも無いので、免除が閉じ括弧の1文字しか見ていなくても
+/// 緑のまま通る。書いた瞬間に、**満たしようのない要求**として落ちる——
+/// 分解した名前は変数であって、そこに目印の綴りは入れられない。
+#[test]
+fn a_wrapped_arm_that_takes_the_reason_apart_is_not_a_construction() {
+    let source = "\
+fn log_it(e: Result<(), EngineError>) {
+    match e {
+        Err(EngineError::Timeout(why)) => log(why),
+        _ => {}
+    }
+}
+";
+    let found = timeout_arguments(source, Path::new("<テスト>"));
+    assert!(
+        found.is_empty(),
+        "包まれた腕を構築として拾っている: {found:?}"
+    );
 }
