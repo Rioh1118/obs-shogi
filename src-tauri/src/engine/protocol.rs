@@ -140,13 +140,17 @@ const PENDING_LIMIT: usize = 32;
 
 /// 積み置きを捨てたことを記録する1行。
 ///
-/// **テストから同じ関数で組めるようにしておく。** 掃き出しはここを
-/// `PENDING_LIMIT` 回まとめて通るので、1行の大きさがそのまま予算に効く。
-/// 書式を別に写して測ると、測っている量と実際に書く量がずれる。
-fn dropped_line(cmd: &GuiCommand) -> String {
+/// **理由ごとに書式を分けない。** 掃き出しはここを `PENDING_LIMIT` 回まとめて
+/// 通るので、1行の大きさがそのまま予算に効く。書式が2つあると、テストは片方しか
+/// 測らないまま「式で縛った」と読める——**長いほうが予算を超えても緑で通る**。
+///
+/// 理由（`why`）は分けたまま持つ。「`readyok` が来なかった」と「flush が折れた」は
+/// 後から届きうるかが違う。取りうる値は `DropReason`。
+fn dropped_line(cmd: &GuiCommand, why: DropReason) -> String {
     format!(
-        "ready: dropping queued cmd={} (readyok never came)",
-        cmd_summary(cmd)
+        "ready: dropping queued cmd={} ({})",
+        cmd_summary(cmd),
+        why.text()
     )
 }
 
@@ -221,6 +225,31 @@ enum ReadyState {
 }
 }
 
+closed_set_enum! {
+/// 積み置きを捨てた理由。**文言を素の文字列で渡させない。**
+///
+/// 理由ごとに書式を分けると、予算を測るテストは片方しか測らないまま
+/// 「式で縛った」と読める——長いほうが予算を超えても緑で通る。
+/// 型にしておくと、理由を増やす人は `ALL` を通って測る側に載る。
+#[derive(Debug, Clone, Copy)]
+enum DropReason {
+    /// `readyok` を待たずにエンジンの出力が終わった。**もう届かない**
+    NoReadyok,
+    /// 掃き出しの途中で書き込みが失敗した。**届いたかは分からない**
+    /// （`Timeout` は「上限内に書き終わらなかった」で、後から届きうる）
+    FlushBroke,
+}
+}
+
+impl DropReason {
+    fn text(self) -> &'static str {
+        match self {
+            DropReason::NoReadyok => "readyok never came",
+            DropReason::FlushBroke => "the flush could not continue",
+        }
+    }
+}
+
 /// `ready` の次の値を決める。**`Closed` は吸収状態。**
 ///
 /// 書き込み側（`dispatch_for` の `Refuse`）と `register_listener` の拒否は、
@@ -259,11 +288,7 @@ fn cannot_reach_text(killed: bool, stalled: bool) -> &'static str {
 /// 落ちた1件だけ黙ると、flush が最後まで通ったように読める
 fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
     for cmd in std::iter::once(failed).chain(rest.iter()) {
-        log::warn!(
-            target: LOGT,
-            "ready: dropping queued cmd={} (the flush could not continue)",
-            cmd_summary(cmd)
-        );
+        log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::FlushBroke));
     }
 }
 
@@ -1014,7 +1039,11 @@ impl UsiProtocol {
                 let q = std::mem::take(&mut pending.queue);
                 drop(pending);
                 for cmd in &q {
-                    log::warn!(target: LOGT, "{}", dropped_line(cmd));
+                    log::warn!(
+                        target: LOGT,
+                        "{}",
+                        dropped_line(cmd, DropReason::NoReadyok)
+                    );
                 }
             }
         });
@@ -1666,7 +1695,15 @@ mod tests {
         // `setoption` の名前は webview から来る。潰されず（制御文字ではない）、
         // UTF-8 でいちばん重い4バイト文字を上限の倍だけ詰める
         let name = "\u{10ffff}".repeat(MAX_SUMMARY_LEN * 2);
-        let line = dropped_line(&GuiCommand::SetOption(name, Some("1".to_string())));
+        let cmd = GuiCommand::SetOption(name, Some("1".to_string()));
+
+        // **理由を全部回して長いほうで測る。** 1つだけ測ると、もう片方の書式が
+        // 予算を超えても緑で通る（実際にそうなっていた）
+        let line = DropReason::ALL
+            .iter()
+            .map(|why| dropped_line(&cmd, *why))
+            .max_by_key(String::len)
+            .expect("理由が1つも無い");
         assert!(
             line.chars().filter(|c| c.len_utf8() == 4).count() >= MAX_SUMMARY_LEN,
             "最悪の文字が入口で潰されている。詰める文字を選び直すこと"
