@@ -30,6 +30,8 @@ use scanning::{blank_out_strings, doc_above, is_test_attribute};
 const UNTESTED: char = '✗';
 /// 表のテスト列で「そのセルを固定するテストがある」を意味する印
 const TESTED: char = '✓';
+/// 表のテスト列で「一部の列だけ固定している」を意味する印
+const PARTIAL: char = '△';
 
 fn rust_files(dir: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
@@ -175,12 +177,25 @@ fn section(heading: &str) -> Vec<String> {
     found
 }
 
+/// テスト列の見出し
+const TEST_COLUMN: &str = "テスト";
+
 /// イベントの記号 → テスト列。**「## 表」の中だけを読む。**
+///
+/// **列は見出しから引く。** 末尾を採ると、表に列を1本足しただけで
+/// 別の欄を読み、`✓` でも `✗` でも始まらない値になる——下の検査は
+/// 3本とも何も言わずに通る。
 fn test_column() -> BTreeMap<String, String> {
+    let rows = section("## 表");
+    let at = rows
+        .iter()
+        .find_map(|line| row_cells(line).iter().position(|cell| *cell == TEST_COLUMN))
+        .unwrap_or_else(|| panic!("`## 表` に `{TEST_COLUMN}` 列が無い"));
+
     let mut found = BTreeMap::new();
-    for line in section("## 表") {
-        let cells = row_cells(&line);
-        if cells.len() < 2 {
+    for line in &rows {
+        let cells = row_cells(line);
+        if cells.len() <= at {
             continue;
         }
         let Some(name) = cells[0].strip_prefix("**") else {
@@ -192,7 +207,7 @@ fn test_column() -> BTreeMap<String, String> {
         if symbols_in(name).first().map(String::as_str) != Some(name) {
             continue;
         }
-        found.insert(name.to_string(), cells[cells.len() - 1].to_string());
+        found.insert(name.to_string(), cells[at].to_string());
     }
     found
 }
@@ -233,10 +248,20 @@ fn the_scanner_finds_the_claims() {
         claims.len(),
         claims.keys().collect::<Vec<_>>()
     );
+    let columns = test_column();
+    assert!(columns.len() >= 10, "表の本体を読めていない: {columns:?}");
+
+    // **列がずれていないこと。** 行数だけでは、別の欄を読んでいる状態を
+    // 見分けられない（読んだ値が印で始まらないので、下の検査は静かに通る）
+    let strays: Vec<String> = columns
+        .iter()
+        .filter(|(_, column)| !column.starts_with([TESTED, UNTESTED, PARTIAL]))
+        .map(|(cell, column)| format!("{cell}  {column}"))
+        .collect();
     assert!(
-        test_column().len() >= 10,
-        "表の本体を読めていない: {:?}",
-        test_column()
+        strays.is_empty(),
+        "テスト列に印以外の値がある。列がずれているか、印を増やした:\n{}",
+        strays.join("\n")
     );
 }
 
