@@ -294,8 +294,7 @@ fn resolve(statement: &str, depth: usize) -> Resolved {
     }
 
     // **`crate::` でも `super::` でも `self::` でもないなら外部クレート。**
-    // ここを素通りさせていたので、`use tauri::AppHandle;` を書いても
-    // 辺も「外への参照」も1つも立たなかった
+    // ここで分けないと、`use tauri::AppHandle;` から辺も「外への参照」も立たない
     if levels == 0 && !body.starts_with("self::") {
         return Resolved {
             crates: body
@@ -618,7 +617,7 @@ fn no_layer_uses_a_crate_it_must_not() {
 /// 走査が外部クレートを見分けていること。
 ///
 /// **`use tauri::AppHandle;` は `crate::` でも `super::` でも始まらない。**
-/// そこを素通りさせていたので、辺も「外への参照」も1つも立たなかった。
+/// そこを分けないと、辺も「外への参照」も立たないまま通る。
 #[test]
 fn the_scanner_tells_an_outside_crate_from_a_sibling() {
     let (edges, outside, crates) = scan_file_all("use tauri::AppHandle;\n", 2);
