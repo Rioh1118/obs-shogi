@@ -68,8 +68,9 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 **`docs/` の他の場所には掛からない。** `IDEAS.md` / `PREMISES.md` / `decisions/` /
 `proposals/` は ShogiHome のパスをバッククォートのまま書いている。検査が
 `docs/state-transitions/` にしか掛かっていないので、そちらは落ちない。
-**広げるなら、まず検査の範囲を広げて、そのとき落ちるものを直す。** 規約だけ先に
-広げても、守られているかを誰も見ていない状態が増えるだけになる。
+
+**広げるときの手順はこの節が持たない。** 落ちるものには外部リンクで片付かない種類が
+あり、その一覧と順序は `src/__tests__/docsSourcePaths.test.ts` の doc にある。
 
 `src/__tests__/docsSourcePaths.test.ts` が、これらの表の中でバッククォートに囲まれた
 パスの実在を要求する。**要求されるのは自リポジトリの起点と綴りが重なるものだけ** ——
