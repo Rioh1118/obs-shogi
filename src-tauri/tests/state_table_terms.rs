@@ -185,9 +185,28 @@ fn every_table_is_either_checked_or_declared_not_rust() {
     );
 }
 
-/// 検査そのものが空振りしていないこと。
+/// どの表も空振りしていないこと。
 ///
-/// 表から定数を1つも拾えていなければ、上のテストは何を消しても通る。
+/// 表から定数を1つも拾えていなければ、その表の周回は何を書いても通る。
+/// **表ごとに見る。** 1つの表だけを見ていると、後から足した表が
+/// no-op になっていても気づけない。
+#[test]
+fn every_table_yields_at_least_one_constant() {
+    for (table, _) in TABLES {
+        let text = fs::read_to_string(repo_file(table)).expect("表を読めない");
+
+        assert!(
+            !constants_in(&text).is_empty(),
+            "{table} から定数を1つも拾えていない。この表の周回は何を書いても通る",
+        );
+    }
+}
+
+/// 綴りの規則が丸ごと壊れていないこと。
+///
+/// 上のテストは1件でも拾えれば通るので、規則が大幅に狭まっても気づけない。
+/// 件数で見るのは定数を最も多く書いている表1つだけ。**表ごとの件数には幅があり、
+/// 共通の下限は置けない**（2件しか書いていない表がある）。
 #[test]
 fn the_check_actually_finds_constants() {
     let text = fs::read_to_string(repo_file(TABLES[0].0)).expect("表を読めない");
