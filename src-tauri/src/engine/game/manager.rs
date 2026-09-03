@@ -154,13 +154,15 @@ impl GameManager {
                 // 戻しておけば、次の `close_game` か `close_all` で落とせる。
                 //
                 // 中断の上限と失敗の分類は `GameSession` が1箇所で持つ
+                //
+                // **ここでログを書かない。** 案内どおりに呼び直すと、この枝は
+                // ミリ秒で回る。絞りを通らない行を1本でも置くと、`log_rejection`
+                // が守っているログの予算（`lib.rs` の 200KB ＋ `KeepOne`）を
+                // その1本だけで一周させられる。伝えたいこと（台帳へ戻した）は
+                // `Rejection::Busy` の doc と、絞りを通る `commands::game` の
+                // 1行が持つ
                 session.abort_within_budget().await;
                 self.sessions.write().await.insert(game_id.clone(), session);
-                log::warn!(
-                    target: LOGT,
-                    "close: session still borrowed, kept in the ledger game_id={}",
-                    game_id
-                );
                 return Rejection::Busy(game_id).err();
             }
         }

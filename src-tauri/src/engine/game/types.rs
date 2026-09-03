@@ -37,6 +37,15 @@ impl GameId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// 本物の形（UUID）に収まる長さか。
+    ///
+    /// **静的な写像の鍵として持ってよいかの判定に使う。** 中身は webview から
+    /// 来る無検証の文字列なので、長い値をそのまま持つとプロセスが終わるまで
+    /// 解放されない領域になる。`Display` の切り詰めは表示にしか効かない。
+    pub fn fits_in_text(&self) -> bool {
+        self.0.chars().count() <= MAX_ID_IN_TEXT
+    }
 }
 
 /// 文章に出すときの長さの上限。

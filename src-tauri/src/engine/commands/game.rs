@@ -129,27 +129,59 @@ impl GameEventSink for TauriEvents {
 /// 1秒あれば、案内どおりに呼び直す実装（`closeGame` の doc）の連打は潰せる。
 const REJECTION_WARN_INTERVAL: Duration = Duration::from_secs(1);
 
-/// 枠を持てる対局の数。
+/// 対局ごとの枠を持てる `(操作, 対局)` の組の数。
 ///
-/// **溢れたら枠ごと捨てる。** `game_id` は webview から来る文字列なので、
-/// 知らない ID を撃ち続ければ枠はいくらでも増える。捨てた直後は各枠の
-/// 先頭が1行余分に出るだけで、絞りの目的（ログの予算を守る）は崩れない。
-const MAX_TRACKED_GAMES: usize = 64;
+/// 操作は6つあるので、同時に追える対局は最悪でこの1/6。
+const MAX_TRACKED_GAMES: usize = 120;
 
-/// `(op, 対局)` ごとの絞り。
+/// 断りの絞り。**2段で持つ。**
 ///
 /// **対局まで鍵に入れる。** `op` だけで割ると、断られ続けている対局が
 /// **他の対局の断りを食う**——A局の裁定が毎回断られている裏で B局が1回
 /// 断られても、その1行はどこにも残らない。B局は `RULING_TIMEOUT` で
 /// `aborted` になり、ログにその `game_id` が一度も出ない。
 ///
+/// **溢れたぶんは操作ごとの枠へ落とす。** `game_id` は webView から来る
+/// 無検証の文字列なので、知らない ID を撃ち続ければ組はいくらでも増える。
+/// 溢れたときに写像を捨てる形にすると**絞りが1件も掛からなくなる**——
+/// `LogThrottle` は新しい枠の先頭を必ず通すので、捨てた直後の1件が毎回
+/// 通り、呼び出しと同じ頻度でログが書かれる。落とす先を用意すれば、
+/// 知らない ID の連打は操作ごとに1秒1行へ収まる。
+///
+/// **長い ID は最初から操作ごとの枠へ。** 鍵に入れると、その文字列は
+/// プロセスが終わるまで解放されない（`GameId::fits_in_text`）。
+#[derive(Default)]
+struct RejectionThrottles {
+    per_game: HashMap<(&'static str, GameId), LogThrottle>,
+    per_op: HashMap<&'static str, LogThrottle>,
+}
+
+impl RejectionThrottles {
+    fn allow(&mut self, op: &'static str, game_id: &GameId) -> bool {
+        let key = (op, game_id.clone());
+        if let Some(throttle) = self.per_game.get_mut(&key) {
+            return throttle.allow();
+        }
+        if game_id.fits_in_text() && self.per_game.len() < MAX_TRACKED_GAMES {
+            return self
+                .per_game
+                .entry(key)
+                .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
+                .allow();
+        }
+        self.per_op
+            .entry(op)
+            .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
+            .allow()
+    }
+}
+
 /// **静的に持つ。** `log_rejection` はコマンドの入口から直に呼ぶ自由関数で、
 /// `AppState` を通していない。通す形にすると、断りを記録するためだけに
 /// 全コマンドの署名が増える。
-fn rejection_throttles() -> &'static Mutex<HashMap<(&'static str, GameId), LogThrottle>> {
-    static THROTTLES: OnceLock<Mutex<HashMap<(&'static str, GameId), LogThrottle>>> =
-        OnceLock::new();
-    THROTTLES.get_or_init(|| Mutex::new(HashMap::new()))
+fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
+    static THROTTLES: OnceLock<Mutex<RejectionThrottles>> = OnceLock::new();
+    THROTTLES.get_or_init(Mutex::default)
 }
 
 /// 断ったことをログに残す。
@@ -167,23 +199,19 @@ fn rejection_throttles() -> &'static Mutex<HashMap<(&'static str, GameId), LogTh
 /// `clock_warn` を絞っているのと同じ理由。
 ///
 /// 静かなときの1件は必ず残る（`LogThrottle` は枠の先頭を通す）。
-/// **連打の中で理由が変わったことは分からない。**
+///
+/// **拾えないもの**: 連打の中で理由が変わったこと。追える対局が
+/// `MAX_TRACKED_GAMES` を超えた後の、新しい対局の1件目
+/// （操作ごとの枠へ落ちるので、同じ秒に他の対局が取っていれば消える）。
 fn log_rejection<T>(
     op: &'static str,
     game_id: &GameId,
     result: Result<T, String>,
 ) -> Result<T, String> {
     if let Err(e) = &result {
-        let allowed = rejection_throttles().lock().is_ok_and(|mut throttles| {
-            let key = (op, game_id.clone());
-            if throttles.len() >= MAX_TRACKED_GAMES && !throttles.contains_key(&key) {
-                throttles.clear();
-            }
-            throttles
-                .entry(key)
-                .or_insert_with(|| LogThrottle::new(REJECTION_WARN_INTERVAL))
-                .allow()
-        });
+        let allowed = rejection_throttles()
+            .lock()
+            .is_ok_and(|mut throttles| throttles.allow(op, game_id));
         if allowed {
             log::warn!(target: "obs_shogi::engine::game", "{op} rejected game={game_id}: {e}");
         }
@@ -292,4 +320,86 @@ pub async fn get_game_state(
 #[tauri::command]
 pub async fn list_games(state: tauri::State<'_, AppState>) -> Result<Vec<GameId>, String> {
     Ok(state.games.ids().await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id(value: &str) -> GameId {
+        GameId::new(value.to_string())
+    }
+
+    /// 断られ続けている対局が、他の対局の1件目を食わないこと。
+    ///
+    /// 食うと、B局は `RULING_TIMEOUT` で `aborted` になるのに、
+    /// ログにその `game_id` が一度も出ない。
+    #[test]
+    fn a_noisy_game_does_not_eat_another_games_first_line() {
+        let mut throttles = RejectionThrottles::default();
+
+        assert!(throttles.allow("continue_game", &id("a")));
+        assert!(
+            !throttles.allow("continue_game", &id("a")),
+            "同じ組を絞れていない"
+        );
+        assert!(
+            throttles.allow("continue_game", &id("b")),
+            "別の対局の1件目を食っている"
+        );
+        assert!(
+            throttles.allow("close", &id("a")),
+            "別の操作の1件目を食っている"
+        );
+    }
+
+    /// 知らない ID の連打が、絞りを素通りしないこと。
+    ///
+    /// **溢れたら写像を捨てる形だと、絞りは1件も掛からない。**
+    /// `LogThrottle` は新しい枠の先頭を必ず通すので、捨てた直後の1件が
+    /// 毎回通り、呼び出しと同じ頻度でログが書かれる。
+    #[test]
+    fn an_unknown_id_flood_still_gets_throttled() {
+        let mut throttles = RejectionThrottles::default();
+
+        for n in 0..MAX_TRACKED_GAMES {
+            assert!(throttles.allow("submit_move", &id(&format!("g{n}"))));
+        }
+
+        let mut passed = 0;
+        for n in 0..1_000 {
+            if throttles.allow("submit_move", &id(&format!("flood{n}"))) {
+                passed += 1;
+            }
+        }
+        assert!(
+            passed <= 1,
+            "溢れた後の連打が {passed} 行通っている。絞りが効いていない"
+        );
+        assert!(
+            throttles.per_game.len() <= MAX_TRACKED_GAMES,
+            "枠が上限を超えて増えている: {}",
+            throttles.per_game.len()
+        );
+    }
+
+    /// 長い ID を鍵として抱え込まないこと。
+    ///
+    /// 抱えると、その文字列はプロセスが終わるまで解放されない。
+    /// `Display` の切り詰めは表示にしか効かない。
+    #[test]
+    fn a_long_id_is_never_kept_as_a_key() {
+        let mut throttles = RejectionThrottles::default();
+        let long = id(&"x".repeat(10_000));
+
+        assert!(throttles.allow("submit_move", &long));
+        assert!(
+            throttles.per_game.is_empty(),
+            "長い ID を鍵として持っている"
+        );
+        assert!(
+            !throttles.allow("submit_move", &id(&"y".repeat(10_000))),
+            "操作ごとの枠で絞れていない"
+        );
+    }
 }
