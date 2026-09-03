@@ -108,6 +108,45 @@ fn constants_in(text: &str) -> BTreeSet<String> {
     found
 }
 
+/// ソースが**宣言している**定数の名前。
+///
+/// **全トークンから作らない。** 文字列リテラルと `assert!` のメッセージが
+/// そのまま入るので、2つの向きで抜ける。
+///
+/// - 棋譜の fixture を持つファイルを sources に足すと、表が `%TORYO` と書いても
+///   「実装に `TORYO` という定数がある」と読まれて緑になる
+/// - `const VERSION` を消しても、その名前を引用した assert のメッセージが残っていれば
+///   `` `VERSION` `` を書いた表は緑のまま
+///
+/// 名前は語の区切りまでで切る。部分文字列で見ると `MAX_MOVE` が
+/// `MAX_MOVE_CHARS` に含まれてしまい、消した定数の接頭辞が別の定数に残っている
+/// だけで通る。
+fn declared_constants(code: &str) -> BTreeSet<&str> {
+    code.lines()
+        .filter_map(|line| {
+            let mut rest = line.trim_start();
+            // `pub` / `pub(crate)` / `pub(super)`
+            if let Some(after) = rest.strip_prefix("pub") {
+                rest = match after.strip_prefix('(') {
+                    Some(scoped) => scoped.split_once(')')?.1,
+                    None => after,
+                }
+                .trim_start();
+            }
+            let rest = rest
+                .strip_prefix("const ")
+                .or_else(|| rest.strip_prefix("static "))?;
+            let name = rest
+                .strip_prefix("mut ")
+                .unwrap_or(rest)
+                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                .next()?;
+
+            (!name.is_empty()).then_some(name)
+        })
+        .collect()
+}
+
 #[test]
 fn every_constant_named_in_a_table_exists_in_the_source() {
     for (table, sources) in TABLES {
@@ -123,12 +162,7 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
         // **コメントを落としてから見る。** 定数を消しても doc の言及は残りやすい。
         // 落とさないと、その1行だけで「実装にある」と読んでしまう。
         let code = without_comments(&code);
-
-        // 部分文字列で見ない。`MAX_MOVE` は `MAX_MOVE_CHARS` に含まれるので、
-        // 消した定数の接頭辞が別の定数に残っているだけで通ってしまう。
-        let declared: BTreeSet<&str> = code
-            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-            .collect();
+        let declared = declared_constants(&code);
 
         let missing: Vec<String> = constants_in(&text)
             .into_iter()
@@ -232,6 +266,42 @@ fn a_table_is_not_registered_by_being_a_suffix_of_another() {
     assert!(!is_registered("arch.md"));
     assert!(!is_registered("db-parse.md"));
     assert!(!is_registered("e.md"));
+}
+
+/// 宣言だけを拾い、ソースの中の**文字列**を拾わないこと。
+///
+/// ここが緩むと検査は両向きに抜ける。棋譜の fixture を持つファイルが sources に
+/// 入っただけで表の綴りが通り、定数を消しても assert のメッセージが残っていれば緑になる。
+#[test]
+fn only_declarations_count_as_constants() {
+    fn declared(code: &str) -> Vec<&str> {
+        declared_constants(code).into_iter().collect()
+    }
+
+    assert_eq!(
+        declared("const MAX_LINE_BYTES: usize = 4096;"),
+        ["MAX_LINE_BYTES"]
+    );
+    assert_eq!(
+        declared("pub const EVT_INDEX_WARN: &str = \"warn\";"),
+        ["EVT_INDEX_WARN"]
+    );
+    assert_eq!(
+        declared("    pub(crate) static REGISTRY: u8 = 0;"),
+        ["REGISTRY"]
+    );
+
+    // 棋譜の fixture。これを拾うと、表が `%TORYO` と書いても緑になる
+    assert!(declared("let csa = \"+7776FU\\n%TORYO\\n\";").is_empty());
+
+    // 定数の名前を引用した assert のメッセージ。実装から const を消しても残る
+    assert!(declared("assert!(ok, \"VERSION と一緒に動かすこと\");").is_empty());
+
+    // 接頭辞で通さない。`MAX_MOVE` を消しても `MAX_MOVE_CHARS` が残っていれば緑、を防ぐ
+    assert_eq!(
+        declared("const MAX_MOVE_CHARS: usize = 8;"),
+        ["MAX_MOVE_CHARS"]
+    );
 }
 
 /// 綴りの規則の境界。**実データの件数を見るテストでは踏めない。**
