@@ -5,7 +5,7 @@
 //! 知らない）。ここに置くのはそのため。
 //!
 //! 同じ段の中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
-//! **散文で「同じ10分」と書かない**——書くと、片方を動かしたときに何も落ちない。
+//! **散文で「どちらも同じ長さ」と書かない**——書くと、片方を動かしたときに何も落ちない。
 
 use app_lib::engine::game::session::{
     CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
@@ -18,7 +18,7 @@ use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
 /// 対局で1手に待ちうる猶予が、終了時の予算より**長い**こと。
 ///
 /// これは意図した関係。固まったエンジンを待つ猶予と、アプリを閉じるときに
-/// 待つ時間は別の話で、後者を前者に合わせると終了が10分待たされる。
+/// 待つ時間は別の話で、後者を前者に合わせると終了が `HARD_TURN_LIMIT` ぶん待たされる。
 /// 閉じるときは畳めていなくても落とす（→ `CLOSE_TIMEOUT` の doc）。
 ///
 /// **持ち時間を足さない。** `MAX_TIME_MS` を足すと `CLOSE_TIMEOUT` < `MAX_TIME_MS`
