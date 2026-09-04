@@ -242,7 +242,7 @@ impl IndexBuilder {
                     // **差分が読めなかったら盤を舐め直す。** 黙って違う鍵を作らない
                     key = stepped.unwrap_or_else(|| key_from_partial_position(&pos));
                     self.push_entry(tesuu, &fork_path, key);
-                    if status == ApplyStatus::Terminal {
+                    if status == ApplyStatus::Special {
                         break;
                     }
                 }
