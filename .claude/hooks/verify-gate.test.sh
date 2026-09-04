@@ -241,7 +241,7 @@ expect_kinds "rust" "src-tauri/capabilities/default.json"
 expect_kinds "rust" "rust-toolchain.toml"
 expect_kinds "gate" ".claude/hooks/verify-gate.sh"
 expect_kinds "" "README.md"
-# docs の中は深さを問わず ts。リンクとパスの検査が docs 全体に掛かっている
+# docs の中は深さを問わず ts。リンクの検査が docs 全体に掛かっている
 expect_kinds "ts" "docs/decisions/0002-drop-book-read-write.md"
 expect_kinds "ts" "docs/spec/screens/board.md"
 expect_kinds "ts" "docs/IDEAS.md"
