@@ -20,7 +20,7 @@ pub use engine::commands::game::{
     abort_game, close_game, continue_game, end_game_by_rule, get_game_state, list_games,
     resign_game, start_game, submit_game_move,
 };
-pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
+pub use kifu::commands::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
 pub use search::api::{cancel_search, open_project, search_position, SearchState};
 pub use search::index_store::IndexStore;
 pub use settings::commands::{
