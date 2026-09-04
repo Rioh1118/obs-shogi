@@ -67,11 +67,15 @@ struct ZobristTable {
     hand: [[[ZobristValue; HAND_COUNT_SLOTS]; HAND_KINDS.len()]; Color::NUM],
 }
 
-/// 表は起動ごとに一度だけ作る。約7万項あるので使う側で持ち回らない。
+/// 表は起動ごとに一度だけ作る。
 ///
 /// **乱数だが、毎回同じ値でなければならない。** 鍵はディスクの索引に書かれるので、
 /// 次の起動で表が変われば、書いてある鍵が全部別の局面を指すことになる。
 /// 乱数源に環境や時刻を混ぜず、固定の種から決まった手順で作るのはそのため。
+///
+/// `OnceLock` にするのは大きさのためではない（`Color::NUM * (1 + PieceKind::NUM *
+/// Square::NUM) + Color::NUM * HAND_KINDS.len() * HAND_COUNT_SLOTS` = 2,536項、
+/// 16バイト/項で約40 KB）。**どこから引いても同じ表でなければ鍵が変わる**から。
 static ZOBRIST: OnceLock<ZobristTable> = OnceLock::new();
 
 impl ZobristTable {
