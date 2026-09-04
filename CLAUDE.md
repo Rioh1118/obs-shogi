@@ -61,14 +61,8 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 **件数をここに書かない。** 書くと必ず腐る。TS 側の現在値は `npm run test` の末尾。
 **Rust 側は末尾では取れない** —— `cargo test` はテストバイナリごとに集計を出すだけで
-総計を印字せず、末尾に出るのは doc-test の `0 passed`。数えるなら
-
-```bash
-cargo test 2>&1 | awk '/^test result:/ {n+=$4} END {print n}'
-```
-
-**`src-tauri/tests/test_count_ratchet.rs` の `EXPECTED_MIN` も現在値ではない** ——
-床で、`DRIFT_ALLOWANCE` のぶんだけ下にずれたまま緑で通る。
+総計を印字せず、末尾に出るのは doc-test の `0 passed`。
+**`src-tauri/tests/test_count_ratchet.rs` の `EXPECTED_MIN` も現在値ではない**（床）。
 
 **`cargo test` の green は「Rust が壊れていない」を意味しない。**
 「テストが通ったので安全」と書いてはいけない。新規ロジックには実際にテストを足すこと。
