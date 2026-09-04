@@ -4,7 +4,7 @@
 観点: rust / robustness / comment / perf
 基点: `c8992e7`（R7 の報告書）
 
-所見17件（BLOCK 1 / HIGH 3 / MEDIUM 13）。**このラウンドで、上限の見積もりが実物と
+所見15件（BLOCK 1 / HIGH 4 / MEDIUM 10）。**このラウンドで、上限の見積もりが実物と
 同じ形で破れていることが分かった。**
 
 ---

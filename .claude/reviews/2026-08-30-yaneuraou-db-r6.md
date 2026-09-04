@@ -4,7 +4,7 @@
 観点: rust / robustness / comment / architecture
 基点: `a68a88f`（R5 の報告書）
 
-所見15件（BLOCK 0 / HIGH 3 / MEDIUM 10 / LOW 2）。**このラウンドは外部の一次資料に
+所見21件（BLOCK 0 / HIGH 3 / MEDIUM 15 / LOW 3）。**このラウンドは外部の一次資料に
 当たったものが強かった。** robustness が ShogiHome の実物 fixture を、rust が
 `/usr/bin/time -l` の実測を持ってきた。
 

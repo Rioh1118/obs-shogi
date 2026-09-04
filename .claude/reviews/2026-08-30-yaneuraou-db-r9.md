@@ -4,7 +4,7 @@
 観点: rust / robustness / comment / architecture
 基点: `fb1f948`（R8 の報告書）
 
-所見17件（BLOCK 0 / HIGH 4 / MEDIUM 13）。**このラウンドで PR を出す。**
+所見13件（BLOCK 0 / HIGH 4 / MEDIUM 9）。**`G-03` は欠番。\*\***このラウンドで PR を出す。\*\*
 
 ---
 
