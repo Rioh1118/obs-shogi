@@ -154,7 +154,7 @@ R8-C / R8-E は**同じ形**（数字が陳腐化する）。3ラウンド続け
 - **`tests/scanning` の免除が広すぎる。** `blank_out_noncode(&source).contains("mod scanning;")`
   で免除するので、**走査を組み立てていないファイルでも `mod scanning;` を書けば免除される**。
   今回そうなった。免除の意図は「字句解析そのものを書くファイル」なので、
-  パスで明示する形が正しい。**この範囲の外なので issue へ**
+  パスで明示する形が正しい。**#417**
 - `lib.rs:52` の `level_for("obs_shogi::engine", ...)` が lib 名（`app_lib`）と
   合っているか（r7 から持ち越し）
 - `checked_file_id` が `>` で `file_id == ft_len` を通すこと
