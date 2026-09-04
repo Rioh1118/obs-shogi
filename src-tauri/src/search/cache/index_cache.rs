@@ -1219,7 +1219,8 @@ mod tests {
     /// **`min_bytes` を守れるのはこのテストだけ**。
     #[test]
     fn an_index_of_a_realistic_size_can_be_read_back() {
-        use crate::search::store::node_table::{ForkPtr, NodeCursor};
+        use crate::search::store::node_table::NodeTableBuilder;
+        use crate::search::types::ForkPointer;
 
         const FILES: u32 = 300;
         const NODES_PER_FILE: u32 = 40;
@@ -1251,21 +1252,20 @@ mod tests {
                 mtime_ms: 1_700_000_000_000,
             });
 
-            let mut nt = NodeTable::empty();
+            // **本番の口を通す。** 手で `NodeCursor` を組むと
+            // `push_node` が保つ `fork_off + fork_len <= forks.len()` を
+            // 迂回してしまい、書き側の門番が本番の形で試されない
+            let mut b = NodeTableBuilder::new();
             for n in 0..NODES_PER_FILE {
-                nt.nodes.push(NodeCursor {
-                    tesuu: n,
-                    fork_off: n % 3,
-                    fork_len: (n % 2) as u16,
-                });
+                let path: Vec<ForkPointer> = (0..(n % 3))
+                    .map(|f| ForkPointer {
+                        te: f,
+                        fork_index: f,
+                    })
+                    .collect();
+                b.push_node(n, &path);
             }
-            for f in 0..3u32 {
-                nt.forks.push(ForkPtr {
-                    te: f,
-                    fork_index: f,
-                });
-            }
-            nts.upsert(i, Arc::new(nt));
+            nts.upsert(i, Arc::new(b.finish()));
         }
 
         let mut buckets: BucketEntries = empty_buckets();
