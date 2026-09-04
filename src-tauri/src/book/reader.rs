@@ -101,8 +101,9 @@ fn check_file_size(size: u64, limit: Option<u64>, path: &str) -> Result<(), Book
     Err(BookError::new(
         BookErrorCode::TooLarge,
         format!(
-            "この定跡はこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
-             より小さい定跡を開くこと",
+            "このファイルはこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
+             定跡ファイルでないかもしれない。\
+             別のファイルを選び直すか、より小さい定跡を開くこと",
             format_size(size),
             format_size(limit)
         ),
@@ -284,6 +285,15 @@ mod tests {
         // 上限がいくつかを伝えないと、どれくらい小さくすればよいか分からない
         assert!(err.message().contains("2.1GB"), "{}", err.message());
         assert!(err.message().contains("こと"), "{}", err.message());
+        // **形式違いの可能性を先に置く。** この上限は `MAX_EXPANDED_BYTES` と違って
+        // 「明らかに定跡でないものを1バイトも読まずに落とす」ための前段で、
+        // `.db` は SQLite でも使う拡張子。定跡と決めつけて案内すると、
+        // データベースを選んだ人が小さい定跡を探しに行く
+        assert!(
+            err.message().contains("定跡ファイルでないかもしれない"),
+            "{}",
+            err.message()
+        );
     }
 
     /// 上限ちょうどは通す。境界で1バイト間違えると、上限近くの定跡が開けなくなる。
