@@ -1,9 +1,10 @@
 # レビュー book-to-main ラウンド36
 
 - 日付: 2026-09-05
-- 範囲: r35 の所見11件を直した5コミット＋報告書（`git diff d0e24021 e7ee403f`）
+- 範囲: r35 の所見11件を直した5コミット＋報告書（`git diff d0e24021 5e153f82`）
 - 走らせた reviewer: architecture / oss-hygiene
-- 対象コミット: `e7ee403f`
+- 対象コミット: `5e153f82`
+  （レビューが読んだのは amend 前の `e7ee403f`。差は r35 の「3つ誤っていた」→「5つ」の1文）
 - 前ラウンド: `.claude/reviews/2026-09-05-book-to-main-r35.md`
 
 所見 **8件**（BLOCK 0 / HIGH 0 / MEDIUM 8）。
