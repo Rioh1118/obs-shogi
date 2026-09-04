@@ -45,6 +45,8 @@ const TABLES: &[(&str, &[&str])] = &[
             "src/engine/protocol.rs",
             "src/engine/registry.rs",
             "src/engine/commands/game.rs",
+            "src/engine/game/clock.rs",
+            "src/engine/game/events.rs",
             "src/engine/game/manager.rs",
             "src/engine/game/search.rs",
             "src/engine/game/session.rs",
@@ -95,10 +97,10 @@ const NOT_RUST: &[(&str, &str)] = &[
 const NOT_IDENTIFIERS: &[&str] = &[
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
+    "DEPTH_NONE",
     // このリポジトリの TS 側の定数（`entities/analysis` の provider）。
     // 表はそれを「間引きは受け手側にある」の出典として引いている
     "RESULT_FLUSH_MS",
-    "DEPTH_NONE",
     // やねうら王の定跡フォーマットの見出し。文字列であって定数名ではない
     "YANEURAOU",
     // 局面数の注記。`# NOE:` の綴りの一部
@@ -445,4 +447,12 @@ fn the_spelling_rule_separates_constants_from_kifu() {
 
     // 小文字を含む綴りは定数ではない。関数名で落ちると表が書けなくなる
     assert!(picked("`parse_move`").is_empty());
+
+    // 表のセルの記号。英字1文字＋数字なので、除外リストではなく規則で落ちる
+    assert!(picked("`E13`").is_empty());
+    assert!(picked("`(G0, E16)`").is_empty());
+
+    // **記号の形に見えても、下線が続けば定数。** 規則を「英字で始まり数字を含む」
+    // まで広げると、この綴りが表から消える
+    assert_eq!(picked("`E1_TIMEOUT`"), ["E1_TIMEOUT"]);
 }
