@@ -753,8 +753,7 @@ fn flush(
         // 2つのエントリの境目で崩れる。
         //
         // 畳み方と本家との差は `keep_first_of_each_move_everywhere` の doc。
-        // ShogiHome との差（重複局面を minPly 側で丸ごと置換するので、置換の単位も
-        // 勝ち方も違う）は `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表。
+        // ShogiHome との差は `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表。
         Entry::Occupied(mut slot) => slot.get_mut().append(buffered),
     }
 }
