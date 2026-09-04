@@ -434,7 +434,7 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
 /// 足りなければ `resize` する。** つまり検査せずに通すと、**壊れたキャッシュの
 /// 4バイトが確保量を決める**。`0xFFFFFFFF` が1つ入っているだけで
 /// 100GB 超を確保しにいき、`Err` ではなく OOM でプロセスごと落ちる。
-/// 呼び手（`api.rs` の `open_project`）は `Err` なら全件作り直しへ落ちられるが、
+/// 呼び手（`commands.rs` の `open_project`）は `Err` なら全件作り直しへ落ちられるが、
 /// 落ちたプロセスは何も選べない。
 ///
 /// 上限に `ft_len` を使えるのは、`file_id` が1から詰めて振られ、
@@ -739,7 +739,7 @@ mod tests {
     /// 前の版で書かれた索引は読まない。
     ///
     /// 読んでしまうと、棋譜の解釈が変わったあとも古い索引が残る。
-    /// `try_restore` が `Err` を返すと呼び手（`api.rs` の `open_project`）は
+    /// `try_restore` が `Err` を返すと呼び手（`commands.rs` の `open_project`）は
     /// 全件の作り直しへ落ちるので、捨てて損はない。
     #[test]
     fn an_index_written_by_an_older_version_is_rejected() {

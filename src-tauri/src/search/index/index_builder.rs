@@ -246,7 +246,7 @@ mod tests {
     /// **`{"initial":{"preset":"OTHER"}}` だけでここへ届く**。
     ///
     /// `BuildError` の `Display` は呼び手の `map_err(|e| e.to_string())` を通って
-    /// `EVT_INDEX_WARN` に素のテキストで出る（`api.rs` / `project_manager.rs`）。
+    /// `EVT_INDEX_WARN` に素のテキストで出る（`build.rs` / `project_manager.rs`）。
     #[test]
     fn a_jkf_without_an_initial_board_fails_in_the_users_words() {
         // `preset: OTHER` は「盤面を書く」の意味なのに `data` が無い

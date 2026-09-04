@@ -40,19 +40,19 @@ let stale = snap.state != StoreIndexState::Ready;
 
 ## イベント
 
-| 記号          | 発生源                             | 何が起きるか                                                                                                                 |
-| ------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                        |
-| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `set_state(Ready)` を**無条件で**呼ぶ（`api.rs`） |
-| `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                        |
-| `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / zstd の失敗 / ファイルが無い                           |
-| `build-done`  | 全件構築の完了                     | `insert_many_file_segments` を最後まで流し終えた                                                                             |
-| `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                    |
-| `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                 |
-| `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                  |
-| `apply-done`  | 差分適用の完了                     |                                                                                                                              |
-| `search`      | webview（`search_position`）       | いまの `snap` を読むだけ。状態は動かさない                                                                                   |
-| `cancel`      | webview（`cancel_search`）         | 同上                                                                                                                         |
+| 記号          | 発生源                             | 何が起きるか                                                                                                                      |
+| ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                             |
+| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `set_state(Ready)` を**無条件で**呼ぶ（`commands.rs`） |
+| `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                             |
+| `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / zstd の失敗 / ファイルが無い                                |
+| `build-done`  | 全件構築の完了                     | `insert_many_file_segments` を最後まで流し終えた                                                                                  |
+| `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                         |
+| `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                      |
+| `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                       |
+| `apply-done`  | 差分適用の完了                     |                                                                                                                                   |
+| `search`      | webview（`search_position`）       | いまの `snap` を読むだけ。状態は動かさない                                                                                        |
+| `cancel`      | webview（`cancel_search`）         | 同上                                                                                                                              |
 
 **否定方向の遷移**（`Y` から `U` へ戻る）は `fs-event` → `diff-dirty` だけ。
 
@@ -80,7 +80,7 @@ let stale = snap.state != StoreIndexState::Ready;
 `run_rescan_diff_apply` は `root_dir` が `None` のときと `scan_kifu_files` が
 `Err` のときに、`set_state(Updating)` へ届く前に `return` する。
 **`run_rescan_diff_apply` は成否を返さない**（戻り値が `()`）ので、
-呼び手（`api.rs`）には失敗と「差分0」を区別する手段が無い。
+呼び手（`commands.rs`）には失敗と「差分0」を区別する手段が無い。
 
 ワークスペースが外付けディスクごと消えている・権限が無い、といった理由で
 走査が1件もできなくても **`Y`（準備完了）になる**。`query_service` が見るのは
@@ -103,7 +103,7 @@ TS 側が二重に呼ばないことに依存している。**Rust 側に守り�
 
 ### ⚠️ `B`（全件構築中）に `fs-event` が来る
 
-watcher の起動は2箇所（`api.rs` の復元成功側と、全件構築の**最後**）。
+watcher の起動は2箇所（`commands.rs` の復元成功側と、全件構築の**最後**）。
 **全件構築中はまだ起動していない**ので、構築の最中に変わったファイルは
 イベントとして拾われない。
 
@@ -179,7 +179,7 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 
 **「警告が出ない」＝「何も出ない」ではない。** 読めた棋譜でも、
 `build_index_for_jkf` が `BuildPolicy::Loose` で指せない手に当たると
-`BuildWarn` を積み、呼び手（`api.rs` / `project_manager.rs`）がそれを
+`BuildWarn` を積み、呼び手（`build.rs` / `project_manager.rs`）がそれを
 `EVT_INDEX_WARN` に流す。反則手を記録した棋譜（クレートの R-RULE-002 が
 正当な入力と明言している形）は、`Ok` で読めて登録されるのに警告が出る。
 この表が言っているのは**読み手が出す警告**だけで、索引を組む側の警告は別。

@@ -22,7 +22,7 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
 - インデックス構築（横断検索の土台、`search/index_builder` ほか）
   - 構造：`file_table`（fileId 採番）/ `node_table` / `segment` / `position_key`
   - 世代管理（`Gen`）でファイル更新を追跡
-  - 分岐（fork）込みで全ノードを走査（`traverse`）、初期局面対応（`initial_position`）
+  - 分岐（fork）込みで全ノードを走査（`index_builder`）、初期局面対応（`initial_position`）
   - ファイルシステム走査（`fs_scan`）、インデックスのキャッシュ／復元（`index_cache`、状態 `Restoring`）
   - 状態（`IndexState`）：Empty / Restoring / Building / Ready / Updating（`IndexStatePayload`: dirty_count / indexed_files / total_files）
   - 進捗通知（`IndexProgress`: current_path / done_files / total_files）、警告通知（`IndexWarn`: path / message）
