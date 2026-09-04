@@ -10,7 +10,7 @@ pub(crate) mod test_support;
 pub mod workspace;
 
 pub use crate::engine::state::AppState;
-pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
+pub use ai_library::commands::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
 pub use engine::commands::analysis::{
     analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
     get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
