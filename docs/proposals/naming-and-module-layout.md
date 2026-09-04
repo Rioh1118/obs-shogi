@@ -5,6 +5,8 @@
   残っているのは決定1・2・4・5、つまり**コマンド名と字面**の話だけ。
   対応する問いは `docs/OPEN-QUESTIONS.md` **Q-006**。
   合意できたら `docs/decisions/` へ ADR として起こし、この案と Q-006 の両方を消す
+- 関連: `research/shogihome/05-usi-engine.md`（比較対象）、`docs/IDEAS.md`（#120 の積み残し）、
+  ADR-0003（SCSS のスケール — 「段を欠くと寄せ先が2つに割れる」という同じ論法）
 
 ## ADR-0009 との関係
 
@@ -18,9 +20,6 @@
 **決定1・2・4・5 はそのまま残っている。** 下の記述のうちモジュールの構成
 （`### Rust のモジュール` と `### 決定3`）は ADR-0009 より前の姿なので、
 現在値は `src-tauri/Cargo.toml` の `members` と `tests/layering.rs` の `LAYERS` を見ること。
-
-- 関連: `research/shogihome/05-usi-engine.md`（比較対象）、`docs/IDEAS.md`（#120 の積み残し）、
-  ADR-0003（SCSS のスケール — 「段を欠くと寄せ先が2つに割れる」という同じ論法）
 
 ## 文脈
 
