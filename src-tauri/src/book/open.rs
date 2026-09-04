@@ -285,7 +285,8 @@ mod tests {
         let (dir, target, link) = linked("path", ".db", ".db");
         let mismatch = linked("path-mismatch", ".bin", ".db");
 
-        // reader 由来（UnsupportedFormat）と食い違い由来（InvalidPath）の両方
+        // reader 由来（空のファイルなので `InvalidContent`）と
+        // 食い違い由来（`InvalidPath`）の両方
         let from_reader = open_at(&validated(&link))
             .err()
             .and_then(|err| err.path().map(str::to_owned));
