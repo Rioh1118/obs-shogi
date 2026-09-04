@@ -83,6 +83,13 @@ describe("codeOf（shell）", () => {
     expect(codeOf("sed -E 's/x//' | tr a b\n", "shell")).toContain("tr a b");
   });
 
+  // 行末は落とせない（`${kinds# }` と区別が付かない）。**落とせないことを固定する** ——
+  // 落とせるつもりで書くと、行末に名前を書いた1行が実在の証拠に戻る
+  test("行末の `#` は落とさない", () => {
+    expect(codeOf("needs_ts=1  # OLD_NAME のこと\n", "shell")).toContain("OLD_NAME");
+    expect(codeOf('kinds="${kinds# }"\n', "shell")).toContain("kinds");
+  });
+
   // 検査の期待値が実装に見えると、消したものが「実在する」に戻る
   test("引用符の中の名前は数えない", () => {
     const line = 'expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"\n';
