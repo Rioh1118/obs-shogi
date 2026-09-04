@@ -15,7 +15,7 @@
 
 ## 所見
 
-### R-01 [BLOCK] 積んだ操作を畳む呼び出しを、ゲートが全て塞いでいる
+### R-01 [BLOCK] 積んだ操作を畳む呼び出しが、検証の対象に入っている
 
 robustness / comment。`.claude/hooks/verify-gate.sh:65,314-316`、`verify-gate.test.sh:73`、
 `docs/state-transitions/verify-gate-decision.md:68`。
