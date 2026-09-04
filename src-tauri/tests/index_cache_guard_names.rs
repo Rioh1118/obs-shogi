@@ -10,7 +10,7 @@
 //!
 //! 見るのは2つ。
 //!
-//! 1. 規約の外の綴りでテストが名乗っていないか
+//! 1. 規約の外の綴りとして**知られているもの**で、テストが名乗っていないか
 //! 2. `encode_all` が断る文言それぞれに、書く側を名乗るテストが
 //!    **その文言の最長の固定部分**を `contains` で見ているか
 //!
@@ -24,6 +24,9 @@
 //! `_neither_written_nor_read` のテストは本体に読む側の assert も持ち、
 //! そこに同じ句があると照合が当たってしまう。**それは人が見ること。**
 //!
+//! **綴りは既知の3語でしか見ない。** `_rejected` / `_denied` / `_not_read` 以外の
+//! 同義語（`_is_declined` など）は素通りする。見つけたら `OUTSIDE` に足すこと。
+//!
 //! **文言の固定部分が短いと恒真になる。** `bucket {b} ...` の `bucket` は
 //! テストの題材にも出るので、`contains` が当たっても assert を見た証拠にならない。
 //! だから [`MIN_PHRASE`] より短い固定部分しか持たない門番は**素通りさせずに落とす。**
@@ -33,12 +36,15 @@ use std::path::PathBuf;
 
 mod roots;
 mod scanning;
-use scanning::{blank_out_noncode, item_end, skip_literal_or_comment};
+use scanning::{
+    blank_out_comments, blank_out_noncode, find_in_code, item_end, skip_literal_or_comment,
+};
 
 /// 門番の文言に要る固定部分の最小の長さ（バイト）。
 ///
-/// **短いと `contains` が題材に当たって恒真になる。** 実際 `bucket` の6バイトは
-/// 書き側テストの本体に43回出る。1語では足りず、句の長さが要る。
+/// **短いと `contains` が題材に当たって恒真になる。** `bucket` や `file` は
+/// 書き側テストの題材そのもの（`buckets[..]` / `file_id: 1`）なので、
+/// 当たっても assert を見た証拠にならない。1語では足りず、句の長さが要る。
 const MIN_PHRASE: usize = 10;
 
 /// `refusing to write: ` の前に付く引用符まで含めた目印。
@@ -51,9 +57,11 @@ fn index_cache_src() -> String {
 
 /// `fn <名前>` を**行頭一致で**集める。
 ///
-/// `///` で始まる doc の中の `fn foo()` は前置詞が外れるので落ちる。
-/// 文字列を潰すのは、複数行の文字列リテラルの中の行が `fn ` で始まる形のため。
-/// **コメントは潰していない**ので、行頭一致をやめると `/* */` の中を拾い始める。
+/// コメントも文字列も潰した写しから読む（`blank_out_noncode`）——
+/// `///` や `/* */` の中の `fn foo()` と、複数行の文字列リテラルの中で
+/// `fn ` から始まる行を、名前として拾わないため。
+///
+/// 行頭一致にするのは `impl Fn` などの途中一致を避けるため。
 fn fn_names(src: &str) -> Vec<String> {
     blank_out_noncode(src)
         .lines()
@@ -68,15 +76,21 @@ fn fn_names(src: &str) -> Vec<String> {
         .collect()
 }
 
-/// `fn <name>` から item の終わりまでを返す。
+/// `fn <name>` から item の終わりまでを、**コメントを潰した写し**で返す。
+///
+/// 位置決めは `find_in_code`。素の `find` だと doc コメントに書いた綴りから
+/// 走査が始まり、その先の item を丸ごと取り違える（`scanning` の doc が名指しする形）。
+///
+/// **返す実体からコメントを落とす。** 残すと、テストの直上に句を日本語で
+/// 引いただけで照合が当たり、`assert!(..)` を弱めても緑になる。
+/// 2つの写しはバイト長が同じなので、添字はそのまま使える（`scanning` のテストが固定）。
 fn body_of(src: &str, name: &str) -> String {
     let head = format!("fn {name}");
-    let Some(i) = src.find(&head) else {
+    let Some(i) = find_in_code(src, &head) else {
         panic!("`{head}` が無い");
     };
-    let after = &src[i..];
-    let len = item_end(after).unwrap_or(after.len());
-    after[..len].to_owned()
+    let len = item_end(&src[i..]).unwrap_or(src.len() - i);
+    blank_out_comments(src)[i..i + len].to_owned()
 }
 
 /// 書式指定を外した固定部分のうち、**最長のもの**。
@@ -86,7 +100,7 @@ fn body_of(src: &str, name: &str) -> String {
 ///
 /// `\` で行を継いだ文言は、継続の直後の字下げごと詰める（Rust の意味論と同じ）。
 fn longest_fixed_part(literal: &str) -> String {
-    let joined = join_line_continuations(literal);
+    let joined = fold_escapes(&join_line_continuations(literal));
     let mut best = String::new();
     for (i, seg) in joined.split('{').enumerate() {
         let fixed = if i == 0 {
@@ -99,7 +113,27 @@ fn longest_fixed_part(literal: &str) -> String {
             best = fixed.to_owned();
         }
     }
-    best
+    unfold_escapes(&best)
+}
+
+/// 書式の `{{` / `}}` と、エスケープした `"` を1文字に畳む。
+///
+/// **畳んだ `{` を書式指定と読ませない。** 畳まずに割ると
+/// `{{node}}` が空セグメントと `}` に割れ、句の先頭に `}` が残る。
+/// 番兵は Rust の識別子にも文言にも出ない制御文字を使う。
+fn fold_escapes(s: &str) -> String {
+    s.replace("{{", &OPEN.to_string())
+        .replace("}}", &CLOSE.to_string())
+        .replace("\\\"", "\"")
+}
+
+/// 畳んだ `{{` / `}}` の番兵。Rust の識別子にも文言にも出ない制御文字。
+const OPEN: char = '\u{1}';
+const CLOSE: char = '\u{2}';
+
+/// 番兵を波括弧へ戻す。**割り終わってから**呼ぶ。
+fn unfold_escapes(s: &str) -> String {
+    s.replace(OPEN, "{").replace(CLOSE, "}")
 }
 
 /// `\` + 改行 + 字下げ を詰める。
@@ -125,6 +159,9 @@ fn join_line_continuations(s: &str) -> String {
 fn refusal_phrases(encode_all_body: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut rest = encode_all_body;
+    // **接頭辞を踏まない門番は1文字も見えない。** `return Err` の数と
+    // 目印の数が合わなければ、綴りの違う門番が増えている
+    let exits = count_in_code(encode_all_body, "return Err");
     while let Some(at) = rest.find(MARK) {
         let from_quote = &rest[at..];
         let len = skip_literal_or_comment(from_quote)
@@ -137,7 +174,25 @@ fn refusal_phrases(encode_all_body: &str) -> Vec<String> {
         found.push(longest_fixed_part(body));
         rest = &from_quote[len..];
     }
+    assert_eq!(
+        found.len(),
+        exits,
+        "`encode_all` の `return Err` が {exits} に対し、`refusing to write: ` で\
+         始まる文言は {}。書き側の門番の文言はこの接頭辞で始めること",
+        found.len()
+    );
     found
+}
+
+/// コードの中に `needle` が出る回数。文字列とコメントの中は数えない。
+fn count_in_code(src: &str, needle: &str) -> usize {
+    let mut n = 0;
+    let mut at = 0;
+    while let Some(i) = find_in_code(&src[at..], needle) {
+        n += 1;
+        at += i + needle.len();
+    }
+    n
 }
 
 /// **規約の外の綴りで名乗っているテストが無いこと。**
@@ -209,6 +264,34 @@ fn every_refusal_to_write_is_named_by_a_test() {
     );
 }
 
+/// **ヘッダの検査は構造の門番の綴りを名乗らないこと。**
+///
+/// 版 / magic / root hash を見るテストは「blob を読めるか」の族で、
+/// `encode_all` / `decode_all` の本体の構造の門番とは別。同じ綴りを持つと、
+/// 綴りで数えたときに構造の門番の本数が合わなくなる。
+#[test]
+fn no_header_check_is_named_like_a_structural_guard() {
+    const CONVENTION: [&str; 3] = ["_not_written", "_refused", "_neither_written_nor_read"];
+    const HEADER: [&str; 3] = ["MAGIC", "VERSION", "root_hash"];
+
+    let src = index_cache_src();
+    let offenders: Vec<String> = fn_names(&src)
+        .into_iter()
+        .filter(|n| CONVENTION.iter().any(|w| n.ends_with(w)))
+        .filter(|n| {
+            let body = body_of(&src, n);
+            HEADER.iter().any(|h| body.contains(h))
+        })
+        .collect();
+
+    assert!(
+        offenders.is_empty(),
+        "ヘッダの検査が構造の門番の綴りを名乗っている。何を守っているかを\
+         名前に持たせること（`..._cannot_be_read` など）:\n{}",
+        offenders.join("\n")
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,6 +316,24 @@ mod tests {
     fn a_message_that_is_all_format_holes_yields_nothing() {
         assert_eq!(longest_fixed_part("{n} {b}"), "");
         assert!("".len() < MIN_PHRASE);
+    }
+
+    /// **`{{` / `}}` は書式指定でなく波括弧そのもの。**
+    #[test]
+    fn escaped_braces_are_not_format_holes() {
+        assert_eq!(
+            longest_fixed_part("the shape {{node}} is not writable here"),
+            "the shape {node} is not writable here"
+        );
+    }
+
+    /// **エスケープした `"` は畳んでから割る。**
+    #[test]
+    fn an_escaped_quote_is_folded_before_splitting() {
+        assert_eq!(
+            longest_fixed_part("file \\\"{}\\\" has no node table at all"),
+            "\" has no node table at all"
+        );
     }
 
     /// **`\` で継いだ行は、字下げごと詰める。**

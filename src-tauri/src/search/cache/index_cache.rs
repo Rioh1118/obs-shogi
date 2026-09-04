@@ -898,9 +898,14 @@ impl<'a> Reader<'a> {
 /// 読む側に本数を見る機械は無い。
 ///
 /// **ヘッダの検査は対象外。** 版 / magic / root hash / 長さ / `file_id` を見る
-/// テストは、何を守っているかを名前に持つ方が読みやすい
-/// （`a_corrupt_length_cannot_decide_how_much_to_allocate` など）。
+/// テストは、何を守っているかを名前に持つ（`..._cannot_be_read` /
+/// `a_corrupt_length_cannot_decide_how_much_to_allocate`）。
 /// あれらは blob を読めるかどうかの検査で、構造の門番とは別の族。
+/// **`tests/index_cache_guard_names.rs` が、ヘッダの検査が上の3つの綴りを
+/// 名乗らないことを見る。**
+///
+/// **書き側の門番の文言は `refusing to write: ` で始める。**
+/// 綴りが違うと、あのラチェットが文言を1つも拾えない。
 ///
 /// `is_err()` で終わらせないこと。**別の門番を踏んでも緑になる。**
 /// 実例: 桶の所属の検査を殺すと、いまのテストは `bucket 17 is not sorted` で落ちる。
@@ -914,7 +919,7 @@ mod tests {
     /// `try_restore` が `Err` を返すと呼び手（`commands.rs` の `open_project`）は
     /// 全件の作り直しへ落ちるので、捨てて損はない。
     #[test]
-    fn an_index_written_by_an_older_version_is_refused() {
+    fn an_index_written_by_an_older_version_cannot_be_read() {
         let mut blob = Vec::new();
         blob.extend_from_slice(&MAGIC);
         write_u32(&mut blob, VERSION - 1);
@@ -953,7 +958,7 @@ mod tests {
     /// 過ぎた版の索引を、二度と受け入れない。
     ///
     /// `the_current_version_passes_the_version_check` と
-    /// `a_file_that_is_not_an_index_is_refused` は `VERSION` そのものを使って
+    /// `a_file_that_is_not_an_index_cannot_be_read` は `VERSION` そのものを使って
     /// blob を組むので、値がいくつでも通る。**[`VERSION`] を留めるものが他に無い。**
     /// 前の版に戻ると、その版が書いた索引がそのまま読まれ、
     /// `(size, mtime_ms)` が変わっていない棋譜は古い解釈のまま検索に当たり続ける。
@@ -987,7 +992,7 @@ mod tests {
     ///
     /// キャッシュの置き場に別のものが入っていても、中身を信じて進まない。
     #[test]
-    fn a_file_that_is_not_an_index_is_refused() {
+    fn a_file_that_is_not_an_index_cannot_be_read() {
         let mut blob = b"PK\x03\x04....".to_vec();
         write_u32(&mut blob, VERSION);
 
@@ -1002,7 +1007,7 @@ mod tests {
     /// 通してしまうと、検索結果に**別のフォルダの棋譜のパス**が並ぶ。
     /// 開こうとしても無いので、利用者から見ると「検索が壊れている」になる。
     #[test]
-    fn an_index_built_for_another_project_is_refused() {
+    fn an_index_built_for_another_project_cannot_be_read() {
         let mut blob = header_for(Path::new("/tmp/project-a"));
         write_u32(&mut blob, 0);
 
@@ -2314,10 +2319,8 @@ mod tests {
             ],
         );
 
-        // 出現は file 1 に1件だけ。**壊す対象の file 3 が出現ゼロであることが要る** ——
-        // 出現があると `checked_file_id` や `node_id` の検査が先に落ちて
-        // `is not after` を踏まない。削除された棋譜・読めなかった棋譜がこの形
-        // （`search.md` の節表の行）
+        // 出現は file 1 に1件だけ。**節表の段は桶の段より先に読み切る**ので、
+        // 出現の有無はこの門番に届かない。file 3 に置かないのは題材を小さく保つため
         let key = PositionKey {
             z0: 0x7700_0000_0000_0001,
             z1: 0,
