@@ -1,7 +1,7 @@
 # レビュー book-to-main ラウンド10
 
 - 日付: 2026-09-04
-- 範囲: r9 の所見6件を直した5コミット（`git diff b138443a HEAD -- . ':!.claude/reviews'`、29行追加 / 18行削除）
+- 範囲: r9 の所見6件を直した分（`git diff b138443a HEAD -- . ':!.claude/reviews'`、29行追加 / 18行削除）
 - 走らせた reviewer: comment / rust / robustness / oss-hygiene
 - 対象コミット: `4806095a`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r9.md`
