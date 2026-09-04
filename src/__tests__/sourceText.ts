@@ -9,6 +9,35 @@
 const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, "");
 
 /**
+ * シェルのコメントを落とす。
+ *
+ * **`//` を落とさない。** `sed -E 's/\\$//'` のような本物のコード行が消える。
+ * 逆に `#` は `//` を使う言語では文字列や属性に出るので、こちらも混ぜない。
+ * 言語ごとに落とすものが違う、というだけの分岐に留める。
+ *
+ * 行頭の `#!`（shebang）は残す。落としても困らないが、落とす理由も無い。
+ */
+const stripShellComments = (text: string): string =>
+  text.replace(/(^|\n)([ \t]*)#(?!!)[^\n]*/g, "$1$2");
+
+/**
+ * シェルの文字列リテラルを落とす。
+ *
+ * **検査の期待値がソースになるのを止める。** `verify-gate.test.sh` は
+ * `expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"` のように、
+ * 検査したい名前を引用符の中に持つ。落とさないと、`root_guard.rs` を消しても
+ * その名前が「実在する」に戻る（`__tests__` を外すのと同じ理由）。
+ *
+ * **関数の定義は残る。** 落とすのは引用符の中だけなので、
+ * `expect_kinds() {` のような定義はコードとして数えられる。
+ *
+ * 1行に閉じるものだけを見る。複数行にまたがる引用は落とさないが、
+ * 落とし過ぎて本物のコードを消すより見逃す側へ倒している。
+ */
+const stripShellStrings = (text: string): string =>
+  text.replace(/"[^"\n]*"/g, '""').replace(/'[^'\n]*'/g, "''");
+
+/**
  * ブロックコメントの開始位置。**行頭で開くものだけ**を開始と見なす。
  *
  * 行の途中に現れる同じ並び（グロブを含む文字列リテラルなど）では開かないので、
@@ -38,7 +67,9 @@ function openIndex(text: string): number {
  * その継続行の `*` はコードとして数える。説明文に綴りを書くと**赤くなる**が、
  * 黙って見逃すよりこちらに倒している。落ちた場所は `hitsIn` が行番号で示す。
  */
-export const codeOf = (body: string): string => {
+export const codeOf = (body: string, lang: "c-like" | "shell" = "c-like"): string => {
+  if (lang === "shell") return stripShellStrings(stripShellComments(body));
+
   let out = "";
   let rest = body;
 

@@ -62,13 +62,21 @@ function sourceCorpus(): string {
   // **シェルもソースに数える。** `verify-gate-decision.md` は門番の関数名
   // （`gate_kinds_for_path` ほか）を仕様として引く。`.claude/hooks/` を外すと、
   // 表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
+  //
+  // **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の
+  // 定義で、外すと表が実在する関数を指しているのに落ちる。代わりに
+  // `codeOf` の shell の枝が引用符の中を落とすので、期待値に書いた名前は入らない。
   const hooks = readdirSync(HOOKS, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".sh"))
     .map((entry) => join(HOOKS, entry.name));
 
-  corpus = [...sourceFiles(SRC, { includeTests: false }), ...sourceFiles(RUST_SRC), ...hooks]
-    .map((path) => codeOf(readFileSync(path, "utf8")))
-    .join("\n");
+  corpus = [
+    ...[...sourceFiles(SRC, { includeTests: false }), ...sourceFiles(RUST_SRC)].map((path) =>
+      codeOf(readFileSync(path, "utf8")),
+    ),
+    // シェルの行コメントは `#`。`codeOf` の既定（`//`）では落ちない
+    ...hooks.map((path) => codeOf(readFileSync(path, "utf8"), "shell")),
+  ].join("\n");
   return corpus;
 }
 

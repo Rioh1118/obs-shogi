@@ -65,6 +65,33 @@ describe("codeOf", () => {
   });
 });
 
+describe("codeOf（shell）", () => {
+  // `docsIdentifiers` が `.claude/hooks/*.sh` を走査する。既定の `//` では
+  // シェルのコメントが1つも落ちないので、綴りを説明した行が実装に見える
+  test("`#` のコメントを落とす", () => {
+    expect(
+      codeOf("# CLAUDE_PROJECT_DIR は使っていない\ngate_flatten() {\n", "shell"),
+    ).not.toContain("CLAUDE_PROJECT_DIR");
+  });
+
+  test("行頭が `#` でないコード行は残す", () => {
+    expect(codeOf("gate_kinds_for_path() {\n", "shell")).toContain("gate_kinds_for_path");
+  });
+
+  // `//` を落とすと本物のコードが消える
+  test("`//` を含むコード行を切らない", () => {
+    expect(codeOf("sed -E 's/x//' | tr a b\n", "shell")).toContain("tr a b");
+  });
+
+  // 検査の期待値が実装に見えると、消したものが「実在する」に戻る
+  test("引用符の中の名前は数えない", () => {
+    const line = 'expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"\n';
+
+    expect(codeOf(line, "shell")).not.toContain("root_guard");
+    expect(codeOf(line, "shell")).toContain("expect_kinds");
+  });
+});
+
 /** コメント除去を自前で書いている検査を見つける綴り */
 const HAND_ROLLED = /replace\(\s*\/\\\/\\\*/;
 
