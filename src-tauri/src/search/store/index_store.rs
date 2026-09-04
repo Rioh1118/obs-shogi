@@ -50,97 +50,34 @@ impl IndexSnapshot {
         }
     }
 
-    /// 1 件検索 (完全一致): PositionKey から全 Occurrence を返す。
+    /// 鍵に完全一致する出現を、**生きているものだけ**返す。
     ///
-    /// - alive 判定は file_table の O(1) 配列アクセス
-    /// - segments が 2 本以上のときは k-way merge で `(file_id, node_id)` 昇順に出す
+    /// 並びは `(file_id, gen, node_id)` 昇順。**桶の中のセグメントが何本に
+    /// 割れていても同じ順で出る。** 割れ方は取り込みの刻み方（`COMPACT_THRESHOLD`）で
+    /// 決まる内部の都合なので、利用者の一覧の順がそれで変わってはいけない。
+    ///
+    /// **並べ替えが要る。** セグメントの中は鍵の昇順でしか並んでおらず
+    /// （`store/bucket.rs` が鍵だけで安定ソートする）、同じ鍵の区間の中は
+    /// 取り込んだ順のまま。合流だけでは順序を作れない。
+    ///
+    /// 生存判定は `FileTable::is_occ_alive`。削除された棋譜と、
+    /// 作り直されて世代が上がった棋譜の古い出現がここで落ちる。
     pub fn search_occurrences_by_key(&self, key: PositionKey) -> Vec<Occurrence> {
-        let bucket = key.bucket() as usize;
-        let segs = &self.buckets[bucket];
+        let segs = &self.buckets[key.bucket() as usize];
 
-        let mut ranges: Vec<(SegmentArc, usize, usize)> = Vec::with_capacity(segs.len());
-        let mut estimated = 0usize;
+        let mut out: Vec<Occurrence> = Vec::new();
         for seg in segs {
             let (lo, hi) = seg.range_by_key(key);
-            if lo < hi {
-                estimated += hi - lo;
-                ranges.push((seg.clone(), lo, hi));
-            }
-        }
-
-        let mut out: Vec<Occurrence> = Vec::with_capacity(estimated);
-
-        if ranges.len() <= 1 {
-            for (seg, lo, hi) in &ranges {
-                for i in *lo..*hi {
-                    let occ = seg.occ_at(i);
-                    if self.file_table.is_occ_alive(occ.file_id, occ.r#gen) {
-                        out.push(occ);
-                    }
+            out.reserve(hi - lo);
+            for i in lo..hi {
+                let occ = seg.occ_at(i);
+                if self.file_table.is_occ_alive(occ.file_id, occ.r#gen) {
+                    out.push(occ);
                 }
             }
-            return out;
         }
 
-        #[derive(Clone, Copy)]
-        struct HeapItem {
-            file_id: u32,
-            node_id: u32,
-            occ: Occurrence,
-            ri: usize,
-            idx: usize,
-        }
-        impl Ord for HeapItem {
-            fn cmp(&self, other: &Self) -> Ordering {
-                (other.file_id, other.node_id).cmp(&(self.file_id, self.node_id))
-            }
-        }
-        impl PartialOrd for HeapItem {
-            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                Some(self.cmp(other))
-            }
-        }
-        impl PartialEq for HeapItem {
-            fn eq(&self, other: &Self) -> bool {
-                self.file_id == other.file_id && self.node_id == other.node_id
-            }
-        }
-        impl Eq for HeapItem {}
-
-        let mut heap: BinaryHeap<HeapItem> = BinaryHeap::with_capacity(ranges.len());
-
-        let push_first_alive = |heap: &mut BinaryHeap<HeapItem>,
-                                ri: usize,
-                                seg: &SegmentArc,
-                                mut idx: usize,
-                                hi: usize,
-                                ft: &FileTable| {
-            while idx < hi {
-                let occ = seg.occ_at(idx);
-                if ft.is_occ_alive(occ.file_id, occ.r#gen) {
-                    heap.push(HeapItem {
-                        file_id: occ.file_id,
-                        node_id: occ.node_id,
-                        occ,
-                        ri,
-                        idx,
-                    });
-                    return;
-                }
-                idx += 1;
-            }
-        };
-
-        for (ri, (seg, lo, hi)) in ranges.iter().enumerate() {
-            push_first_alive(&mut heap, ri, seg, *lo, *hi, &self.file_table);
-        }
-
-        while let Some(item) = heap.pop() {
-            out.push(item.occ);
-            let (seg, _lo, hi) = &ranges[item.ri];
-            push_first_alive(&mut heap, item.ri, seg, item.idx + 1, *hi, &self.file_table);
-        }
-
+        out.sort_unstable_by_key(|o| (o.file_id, o.r#gen, o.node_id));
         out
     }
 }
@@ -361,5 +298,79 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
         None
     } else {
         Some(Segment::from_soa(z0, z1, file_ids, gens, node_ids))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::types::{FileEntry, Occurrence};
+
+    /// **同じ検索の結果が、セグメントの本数によらず同じ順で出ること。**
+    ///
+    /// 桶が何本に割れるかは取り込みの刻み方で決まる内部の都合。
+    /// **利用者の一覧の順がそれで変わってはいけない。**
+    ///
+    /// 題材は `file_id` の降順で詰める —— 昇順で詰めると、
+    /// 並べ替えを消しても偶然通る。
+    #[test]
+    fn the_order_of_a_hit_list_does_not_depend_on_how_the_bucket_is_split() {
+        let key = PositionKey { z0: 1, z1: 1 };
+        let occ = |f: u32, n: u32| Occurrence {
+            file_id: f,
+            r#gen: 1,
+            node_id: n,
+        };
+
+        let mut ft = FileTable::default();
+        for f in 1..=4u32 {
+            ft.upsert(FileEntry {
+                file_id: f,
+                path: format!("{f}.kif"),
+                deleted: false,
+                r#gen: 1,
+            });
+        }
+
+        // 1本のセグメントに、同じ鍵の出現を file_id 降順で詰める
+        let one = Segment::new_sorted(vec![
+            (key, occ(4, 0)),
+            (key, occ(3, 0)),
+            (key, occ(2, 0)),
+            (key, occ(1, 0)),
+        ]);
+        let mut buckets = empty_bucket_segments();
+        buckets[key.bucket() as usize] = vec![Arc::new(one)];
+        let snap1 = IndexSnapshot {
+            state: IndexState::Ready,
+            file_table: Arc::new(ft.clone()),
+            node_tables: Arc::new(NodeTables::default()),
+            buckets,
+        };
+        let got1: Vec<u32> = snap1
+            .search_occurrences_by_key(key)
+            .iter()
+            .map(|o| o.file_id)
+            .collect();
+
+        // 同じ中身を2本に割る
+        let a = Segment::new_sorted(vec![(key, occ(4, 0)), (key, occ(3, 0))]);
+        let b = Segment::new_sorted(vec![(key, occ(2, 0)), (key, occ(1, 0))]);
+        let mut buckets = empty_bucket_segments();
+        buckets[key.bucket() as usize] = vec![Arc::new(a), Arc::new(b)];
+        let snap2 = IndexSnapshot {
+            state: IndexState::Ready,
+            file_table: Arc::new(ft),
+            node_tables: Arc::new(NodeTables::default()),
+            buckets,
+        };
+        let got2: Vec<u32> = snap2
+            .search_occurrences_by_key(key)
+            .iter()
+            .map(|o| o.file_id)
+            .collect();
+
+        assert_eq!(got2, vec![1, 2, 3, 4], "2本のとき file_id 昇順でない");
+        assert_eq!(got1, got2, "本数で並びが変わる");
     }
 }
