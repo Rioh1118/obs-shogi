@@ -114,7 +114,9 @@ describe("コメント", () => {
 
     let scanned = 0;
     let shells = 0;
-    let shellComments = 0;
+    // **形ごとに数える。** 1つにまとめると、片方の枝だけを落とす変異が
+    // もう片方の数に隠れて素通りする
+    const read = { hash: 0, line: 0, block: 0 };
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
         scanned += 1;
@@ -125,7 +127,15 @@ describe("コメント", () => {
 
         for (const match of source.matchAll(commentsOf(file))) {
           const text = match[0];
-          if (file.endsWith(".sh")) shellComments += 1;
+          // **本文が取れたものだけ数える。** 回数だけだと、`#` や `//` に当たるが
+          // 行末まで読まない形（`[^\n]*` を落とす変異）が同じ回数を返して素通りする。
+          // 形は `commentsOf` の戻り値で判別する —— ここで拡張子を見ると、
+          // 分岐が壊れても数える側が独立に正しい形を名乗ってしまう
+          if (text.length > 2) {
+            if (commentsOf(file) === HASH_COMMENT) read.hash += 1;
+            else if (text.startsWith("//")) read.line += 1;
+            else read.block += 1;
+          }
           const hit = HISTORY_WORDS.find((word) => text.includes(word));
           const branch = text.match(BRANCH_NAME)?.[0];
           const tag = text.match(REVIEW_TAG)?.[0];
@@ -147,8 +157,12 @@ describe("コメント", () => {
     // 止めるためで、そこが拾うのは `.sh` だけ
     expect(shells, "hooks の `.sh` を1本も歩けていない").toBeGreaterThan(0);
 
-    // 歩けていても、`#` の枝が壊れていれば読んだコメントは0になる
-    expect(shellComments, "`.sh` から `#` コメントを1つも読めていない").toBeGreaterThan(0);
+    // 歩けていても、コメントを読む形が壊れていれば違反は見つからない。
+    // **床は実測から取る**（`#` 227 / `//` と `/* */` はソース全体）。
+    // 0 と比べるだけだと、当たる文字が1つでも残っていれば通ってしまう
+    expect(read.hash, "`.sh` から `#` コメントを読めていない").toBeGreaterThan(100);
+    expect(read.line, "`//` コメントを読めていない").toBeGreaterThan(1000);
+    expect(read.block, "`/* */` コメントを読めていない").toBeGreaterThan(500);
 
     expect(
       offenders,
