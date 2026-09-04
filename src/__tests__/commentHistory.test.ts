@@ -123,6 +123,10 @@ describe("コメント", () => {
     // **形ごとに数える。** 1つにまとめると、片方の枝だけを落とす変異が
     // もう片方の数に隠れて素通りする
     const read = { hash: 0, line: 0, block: 0 };
+    // **文字数も数える。** 本数だけだと、`#` や `//` に当たるが行末まで読まない形
+    // （`[^\n]*` を `[^\n]` に落とす変異）が同じ本数を返して素通りする ——
+    // 本文が数文字に切られると `HISTORY_WORDS` も `REVIEW_TAG` も何も拾えない
+    const chars = { hash: 0, line: 0, block: 0 };
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
         scanned += 1;
@@ -138,9 +142,10 @@ describe("コメント", () => {
           // 形は `commentsOf` の戻り値で判別する —— ここで拡張子を見ると、
           // 分岐が壊れても数える側が独立に正しい形を名乗ってしまう
           if (text.length > 2) {
-            if (commentsOf(file) === HASH_COMMENT) read.hash += 1;
-            else if (text.startsWith("//")) read.line += 1;
-            else read.block += 1;
+            const kind =
+              commentsOf(file) === HASH_COMMENT ? "hash" : text.startsWith("//") ? "line" : "block";
+            read[kind] += 1;
+            chars[kind] += text.length;
           }
           const hit = HISTORY_WORDS.find((word) => text.includes(word));
           const branch = text.match(BRANCH_NAME)?.[0];
@@ -178,8 +183,14 @@ describe("コメント", () => {
     // - `#` に空白を許す形（`^\s*#` / `^[ \t]*#`）。行頭だけに絞る形は床が取る
     // - `//` を行頭に限る形。本当の行末コメントは全体の2%しかない
     expect(read.hash, "`.sh` から `#` コメントを読めていない").toBeGreaterThan(175);
-    expect(read.line, "`//` コメントを読めていない").toBeGreaterThan(10000);
-    expect(read.block, "`/* */` コメントを読めていない").toBeGreaterThan(650);
+    expect(read.line, "`//` コメントを読めていない").toBeGreaterThan(9800);
+    expect(read.block, "`/* */` コメントを読めていない").toBeGreaterThan(620);
+
+    // 本数が保たれていても、1件あたりが数文字なら中身は読めていない。
+    // 切り詰める変異は本数をほとんど変えずに文字数を1桁落とす
+    expect(chars.hash, "`#` コメントの中身が読めていない").toBeGreaterThan(6900);
+    expect(chars.line, "`//` コメントの中身が読めていない").toBeGreaterThan(330000);
+    expect(chars.block, "`/* */` コメントの中身が読めていない").toBeGreaterThan(99000);
 
     expect(
       offenders,
