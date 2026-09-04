@@ -36,7 +36,6 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill, Agent
   **落ちたら直す。飛ばさない**
 
 `npm run verify` は**ビルドを含まない**。SCSS を触ったら `npm run build` も通す。
-`Cargo.lock` だけの変更は gate の Rust 判定に掛からないので手で `npm run verify:rust`。
 
 **verify を通してから `git commit` する。** コミットが gate で止まると lint-staged が
 ワークツリーを復元し、**その巻き戻しで直前の編集が消える**。「直したはずの値が戻っている」

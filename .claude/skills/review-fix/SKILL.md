@@ -37,7 +37,8 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 
 ## 手順4: 検証してコミットする
 
-`npm run verify`（TS を触ったなら）/ `npm run verify:rust`（Rust を触ったなら）を通す。
+`npm run verify` / `npm run verify:rust` を通す。**種類で二分しない**（`.rs` だけでも
+ts が走る。対応は `CLAUDE.md` の検証の節）。
 PreToolUse フックが commit 時に自動で走るので、落ちればコミットは止まる。**止まったら直す。飛ばさない。**
 
 コミットメッセージ:
