@@ -20,7 +20,9 @@
 //! `AwaitingRuling` で止まり、フロントが `continue_game` を返してはじめて進む。
 //! 指し手列の権威もフロント側にあり、`continue_game` が毎手それを運んでくる。
 //!
-//! 表は `docs/state-transitions/game-session.md`。
+//! 表は `docs/state-transitions/game-session.md`。**このファイルの `G` / `A` / `E` は
+//! その表の記号。** 記号は表ごとに閉じていて、`G0`〜`G2` は `game.md` の、
+//! `A0`〜`A4` は `app.md`（上位の表）の同じ綴りと完全に重なる。どちらも別物。
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -690,7 +692,7 @@ impl Player {
 ///
 /// **セッションの段（`Phase`）と別に持つ。** 一致させ損ねたときに何が
 /// 起きるかは `docs/state-transitions/game-session.md` の不変条件1
-/// （`game-session.md` の `G0` の間、本番の `go` が出ているのは手番側だけ）。
+/// （`G0` の間、本番の `go` が出ているのは手番側だけ）。
 enum Activity {
     Idle,
     /// `go` / `go ponder` を送って `bestmove` を待っている
@@ -3734,7 +3736,7 @@ mod tests {
         }
     }
 
-    /// 終局を知らせ、そのとき時計が止まっていること（`game-session.md` の `(G0, E8)` の経路）。
+    /// 終局を知らせ、そのとき時計が止まっていること（`(G0, E8)` の経路）。
     ///
     /// **`Over` が出ないと、フロントは対局が終わったことを知らない。**
     /// `send_gameover` は書き込みの列を通るので、後に回すと終局から
