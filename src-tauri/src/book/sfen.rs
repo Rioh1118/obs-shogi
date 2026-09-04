@@ -198,6 +198,13 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
     Ok(BookKey(key))
 }
 
+/// 局面の後ろに指し手列が付いている、の理由文。
+///
+/// **復帰操作は書かない。** 理由文は呼び出し元が文脈に応じて包む（`sfen.rs` の
+/// 冒頭の宣言）。「進めた局面の SFEN を渡すこと」はフロントの実装者への指示で、
+/// 定跡ファイルの中身が同じ形だったときには実行できる操作が対応しない。
+const MOVES_IN_SFEN: &str = "局面の後ろに指し手列が付いている";
+
 /// 定跡ファイルに書かれている局面をキーにする。
 ///
 /// 読めない行は利用者の入力の誤りではなくファイルの破損なので、`InvalidSfen`
@@ -211,13 +218,6 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
 /// 行番号は添えない。呼び出し側が行を数えているので、位置を足すのはそちら
 /// （`yaneuraou_db` の `annotate_line`）。ここへ持たせると、行の概念が無い
 /// 形式の reader が意味の無い番号を渡すことになる。
-/// 局面の後ろに指し手列が付いている、の理由文。
-///
-/// **復帰操作は書かない。** 理由文は呼び出し元が文脈に応じて包む（`sfen.rs` の
-/// 冒頭の宣言）。「進めた局面の SFEN を渡すこと」はフロントの実装者への指示で、
-/// 定跡ファイルの中身が同じ形だったときには実行できる操作が対応しない。
-const MOVES_IN_SFEN: &str = "局面の後ろに指し手列が付いている";
-
 pub(crate) fn to_book_key_in_file(line: &str, path: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(line).map_err(|reason| {
         BookError::new(
