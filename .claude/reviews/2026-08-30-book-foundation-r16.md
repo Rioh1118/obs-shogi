@@ -20,10 +20,9 @@
 robustness / comment。`.claude/hooks/verify-gate.sh:65,314-316`、`verify-gate.test.sh:73`、
 `docs/state-transitions/verify-gate-decision.md:68`。
 
-`--abort` / `--quit` / `--skip` / `--edit-todo` はコミットを1つも作らないのに、動詞が
-語彙に当たるというだけで検証へ載っていた。これらを使うのは競合を抱えた状態に限られ、
-そこでは `package.json` に競合マーカが入って `npm run verify` が必ず落ちる。
-**競合を畳む唯一の手段が deny され、行き止まりになる。** 案内文は「再度コミットすること」で、
+`--abort` / `--quit` / `--skip` / `--edit-todo` が、動詞が語彙に当たるというだけで
+検証へ載っていた。競合を抱えたツリーで検証が落ちるなら、
+**競合を畳む手段そのものが deny され、行き止まりになる。** 案内文は「再度コミットすること」で、
 利用者はコミットしようとしていない。指示に従える操作が1つも無い。
 
 robustness の実測では6形すべて同じ deny。
