@@ -349,10 +349,15 @@ mod tests {
         );
     }
 
-    /// **reader を足すときに上限も決めること。** 上限と reader を別々の `match` に
-    /// 分けていると、reader を足して上限の枝を直し忘れた状態がコンパイルを通る。
+    /// **上限を置くなら現実的な値にすること。**
+    ///
+    /// `None`（上限を掛けない）は許す —— [`Support::max_file_bytes`] が
+    /// `Option` なのは、on-the-fly で読む形式のために意図して残してある枝で、
+    /// ここで落とすと doc が許した設計を「書き忘れ」と読ませることになる。
+    /// **書き忘れは元から起きない**（`Support` は構造体リテラルなので、
+    /// フィールドを省くとコンパイルが止まる）。
     #[test]
-    fn every_readable_format_has_a_size_limit() {
+    fn a_size_limit_is_a_realistic_number() {
         for format in [
             BookFormat::YaneuraouDb,
             BookFormat::AperyBin,
@@ -362,9 +367,9 @@ mod tests {
             let Some(support) = support(format) else {
                 continue;
             };
-            let limit = support
-                .max_file_bytes
-                .unwrap_or_else(|| panic!("{format:?} に上限が無い"));
+            let Some(limit) = support.max_file_bytes else {
+                continue;
+            };
             assert!(
                 (100_000_000..100_000_000_000).contains(&limit),
                 "上限が現実的な範囲に無い: {format:?} {limit}"
