@@ -13,7 +13,8 @@ use std::sync::Arc;
 use crate::search::index::index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy};
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::FileRecord;
-use crate::search::read::kifu_reader::{read_to_jkf, ReadOutcome};
+use crate::search::read::kifu_reader::read_to_jkf;
+use crate::search::read::outcome::ReadOutcome;
 use crate::search::store::node_table::NodeTable;
 use crate::search::types::{FileId, Gen, Occurrence};
 
