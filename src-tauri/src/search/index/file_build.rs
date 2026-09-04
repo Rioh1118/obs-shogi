@@ -14,7 +14,7 @@ use crate::search::index::index_builder::{build_index_for_jkf, BuildPolicy};
 use crate::search::read::fs_scan::FileRecord;
 use crate::search::read::kifu_reader::read_to_jkf;
 use crate::search::read::outcome::ReadOutcome;
-use crate::search::store::bucket::{bucketize_entries, BucketEntries};
+use crate::search::store::bucket::{bucketize_entries, empty_buckets, BucketEntries};
 use crate::search::store::node_table::NodeTable;
 use crate::search::types::{FileId, Gen};
 
@@ -38,7 +38,7 @@ impl FileBuild {
     /// 局面を持たない項目。**登録はするが検索には出ない。**
     fn empty(warns: Vec<String>) -> Self {
         Self {
-            by_bucket: std::array::from_fn(|_| Vec::new()),
+            by_bucket: empty_buckets(),
             node_table: Arc::new(NodeTable::empty()),
             warns,
         }

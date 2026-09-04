@@ -10,8 +10,9 @@ use crate::search::store::file_table::FileTable;
 use crate::search::store::segment::{Segment, SegmentArc};
 use crate::search::types::{FileEntry, FileId};
 
-pub use crate::search::store::bucket::{BucketEntries, FileBucketEntries};
-use crate::search::store::bucket::{BucketSegments, BUCKET_COUNT};
+use crate::search::store::bucket::{
+    empty_bucket_segments, BucketEntries, BucketSegments, FileBucketEntries, BUCKET_COUNT,
+};
 
 /// bucket 内のセグメント数がこれを超えたら k-way merge で 1 本に圧縮する。
 const COMPACT_THRESHOLD: usize = 64;
@@ -68,7 +69,7 @@ impl IndexSnapshot {
             state: IndexState::Empty,
             file_table: Arc::new(FileTable::default()),
             node_tables: Arc::new(NodeTables::default()),
-            buckets: std::array::from_fn(|_| Vec::new()),
+            buckets: empty_bucket_segments(),
         }
     }
 
@@ -189,7 +190,7 @@ impl IndexStore {
             state: IndexState::Restoring,
             file_table: Arc::new(FileTable::default()),
             node_tables: Arc::new(NodeTables::default()),
-            buckets: std::array::from_fn(|_| Vec::new()),
+            buckets: empty_bucket_segments(),
         })
     }
 
@@ -224,7 +225,7 @@ impl IndexStore {
             state: IndexState::Building,
             file_table: Arc::new(FileTable::default()),
             node_tables: Arc::new(NodeTables::default()),
-            buckets: std::array::from_fn(|_| Vec::new()),
+            buckets: empty_bucket_segments(),
         });
     }
 

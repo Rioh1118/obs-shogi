@@ -27,10 +27,10 @@ use app_lib::search::read::fs_scan::{
 };
 use app_lib::search::read::kifu_reader::read_to_jkf;
 use app_lib::search::read::outcome::ReadOutcome;
-use app_lib::search::store::bucket::bucketize_entries;
+use app_lib::search::store::bucket::{bucketize_entries, empty_bucket_segments, BucketSegments};
 use app_lib::search::store::file_table::FileTable;
 use app_lib::search::store::index_store::{IndexSnapshot, IndexState, NodeTables};
-use app_lib::search::store::segment::{Segment, SegmentArc};
+use app_lib::search::store::segment::Segment;
 use app_lib::search::types::{FileEntry, Occurrence};
 
 const ROOT: &str = env!("HOME");
@@ -46,7 +46,7 @@ fn root_dir() -> PathBuf {
 struct BuildResult {
     file_table: FileTable,
     node_tables: NodeTables,
-    buckets: [Vec<SegmentArc>; 256],
+    buckets: BucketSegments,
     total_entries: usize,
     total_nodes: usize,
     file_count: usize,
@@ -67,7 +67,7 @@ struct FileStats {
 fn do_full_build(records: &[app_lib::search::read::fs_scan::FileRecord]) -> BuildResult {
     let mut ft = FileTable::default();
     let mut nts = NodeTables::default();
-    let mut buckets: [Vec<SegmentArc>; 256] = std::array::from_fn(|_| Vec::new());
+    let mut buckets: BucketSegments = empty_bucket_segments();
 
     let mut total_entries = 0usize;
     let mut total_nodes = 0usize;
@@ -486,7 +486,7 @@ fn bench_06_compaction() {
     // compaction (same logic as index_cache::compact_all_buckets, inlined here)
     let t = Instant::now();
     let mut compacted_entries = 0usize;
-    let mut compacted_buckets: [Vec<SegmentArc>; 256] = std::array::from_fn(|_| Vec::new());
+    let mut compacted_buckets: BucketSegments = empty_bucket_segments();
     for (b, segs) in snap.buckets.iter().enumerate() {
         if segs.is_empty() {
             continue;

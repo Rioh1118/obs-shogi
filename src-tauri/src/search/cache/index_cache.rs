@@ -12,7 +12,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
-use crate::search::store::bucket::BucketEntries;
+use crate::search::store::bucket::{empty_buckets, BucketEntries};
 use crate::search::store::file_table::FileTable;
 use crate::search::store::index_store::{IndexSnapshot, NodeTables};
 use crate::search::store::node_table::NodeTable;
@@ -573,7 +573,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     }
 
     // ---- buckets ----
-    let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
+    let mut buckets: BucketEntries = empty_buckets();
     for bucket in buckets.iter_mut() {
         let n = r.read_len(min_bytes::OCCURRENCE)?;
         let mut v = Vec::with_capacity(n);
@@ -1150,7 +1150,7 @@ mod tests {
             nts.upsert(i, Arc::new(nt));
         }
 
-        let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
+        let mut buckets: BucketEntries = empty_buckets();
         for i in 0..OCCS {
             let z0 = u64::from(i).wrapping_mul(0x9E37_79B9_7F4A_7C15);
             let key = PositionKey { z0, z1: !z0 };
@@ -1280,7 +1280,7 @@ mod tests {
         };
         assert_ne!(k1.bucket(), k2.bucket(), "題材が同じ桶に落ちている");
 
-        let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
+        let mut buckets: BucketEntries = empty_buckets();
         buckets[k1.bucket() as usize].push((
             k1,
             Occurrence {

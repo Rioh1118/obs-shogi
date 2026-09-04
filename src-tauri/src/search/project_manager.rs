@@ -13,10 +13,8 @@ use crate::search::index::file_build::build_file_index;
 use crate::search::read::fs_scan::{
     diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
 };
-use crate::search::store::bucket::BucketEntries;
-use crate::search::store::index_store::{
-    FileBucketEntries, IndexState as StoreIndexState, IndexStore,
-};
+use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
+use crate::search::store::index_store::{IndexState as StoreIndexState, IndexStore};
 use crate::search::store::node_table::NodeTable;
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
@@ -262,7 +260,7 @@ impl ProjectManager {
                 None => {
                     // build error: still record a tombstone-ish entry so file_table
                     // gets updated and stale segments from the old gen are excluded.
-                    let empty: BucketEntries = crate::search::store::bucket::empty_buckets();
+                    let empty: BucketEntries = empty_buckets();
                     batch.push((
                         FileEntry {
                             file_id: pb.file_id,

@@ -32,8 +32,16 @@ pub type BucketSegments = [Vec<crate::search::store::segment::SegmentArc>; BUCKE
 /// （`Gen` が上がらないと前の世代のセグメントが残る）。
 pub type FileBucketEntries = (FileEntry, NodeTableArc, BucketEntries);
 
-/// 空の桶を作る。
+/// 空の桶を作る。**桶を作る口はこの2つだけ。**
+///
+/// `std::array::from_fn(|_| Vec::new())` を各所で書くと、桶の数を変えたときに
+/// 追随しない箇所が残る。
 pub fn empty_buckets() -> BucketEntries {
+    std::array::from_fn(|_| Vec::new())
+}
+
+/// 空の桶（セグメント側）を作る。
+pub fn empty_bucket_segments() -> BucketSegments {
     std::array::from_fn(|_| Vec::new())
 }
 
