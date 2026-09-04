@@ -114,6 +114,7 @@ describe("コメント", () => {
 
     let scanned = 0;
     let shells = 0;
+    let shellComments = 0;
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
         scanned += 1;
@@ -124,6 +125,7 @@ describe("コメント", () => {
 
         for (const match of source.matchAll(commentsOf(file))) {
           const text = match[0];
+          if (file.endsWith(".sh")) shellComments += 1;
           const hit = HISTORY_WORDS.find((word) => text.includes(word));
           const branch = text.match(BRANCH_NAME)?.[0];
           const tag = text.match(REVIEW_TAG)?.[0];
@@ -144,6 +146,9 @@ describe("コメント", () => {
     // `.claude/hooks` を根に入れているのは「機械の doc にだけ経緯が溜まる」のを
     // 止めるためで、そこが拾うのは `.sh` だけ
     expect(shells, "hooks の `.sh` を1本も歩けていない").toBeGreaterThan(0);
+
+    // 歩けていても、`#` の枝が壊れていれば読んだコメントは0になる
+    expect(shellComments, "`.sh` から `#` コメントを1つも読めていない").toBeGreaterThan(0);
 
     expect(
       offenders,
