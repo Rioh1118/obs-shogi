@@ -753,7 +753,7 @@ fn flush(
         // 2つのエントリの境目で崩れる。
         //
         // 畳み方と本家との差は `keep_first_of_each_move_everywhere` の doc。
-        // ShogiHome との差は `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表。
+        // 本家・ShogiHome との差は `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表。
         Entry::Occupied(mut slot) => slot.get_mut().append(buffered),
     }
 }
@@ -809,8 +809,8 @@ const LONG_MOVE_LIST: usize = 32;
 /// 先勝ちでも後勝ちでも同じ 81 が通る）、`count` が `Option` なので合算の規則を先に決めること、
 /// 先勝ちを名乗る綴りが名前とコメントに散っていること。
 /// **どれも現物を開かないと正しい手順にならないので、ここには置かない。**
-/// ただし1つだけ現物に出てこないものがある —— `docs/state-transitions/yaneuraou-db-parse.md`
-/// の一次資料の表が、この差を本家との差として記録している。**Rust を grep しても届かない。**
+/// ただし1つだけ Rust のツリーの外にある —— `docs/state-transitions/yaneuraou-db-parse.md`
+/// の一次資料の表が、この差を本家との差として記録している。**`cargo` は落とさない。**
 ///
 /// **併合のたびに畳んではいけない。** 1回の仕事が `existing.len()` に比例するので、
 /// 同じキーが N ブロックに分かれた定跡で総計が二乗になる。実測（同じキーを
