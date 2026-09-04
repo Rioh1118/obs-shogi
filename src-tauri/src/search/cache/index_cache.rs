@@ -12,6 +12,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
+use crate::search::store::bucket::BucketEntries;
 use crate::search::store::file_table::FileTable;
 use crate::search::store::index_store::{IndexSnapshot, NodeTables};
 use crate::search::store::node_table::NodeTable;
@@ -46,7 +47,7 @@ const VERSION: u32 = 3;
 pub struct RestoredCache {
     pub file_table: FileTable,
     pub node_tables: NodeTables,
-    pub buckets: [Vec<(PositionKey, Occurrence)>; 256], // compacted
+    pub buckets: BucketEntries, // compacted
     pub scan: ScanSnapshot,
     pub path_to_id: HashMap<String, FileId>,
     pub next_file_id: FileId,
@@ -260,7 +261,7 @@ fn read_decode(path: &Path, root_dir: &Path) -> Result<RestoredCache, String> {
 // compaction
 // --------------------
 
-fn compact_all_buckets(snap: &IndexSnapshot) -> [Vec<(PositionKey, Occurrence)>; 256] {
+fn compact_all_buckets(snap: &IndexSnapshot) -> BucketEntries {
     std::array::from_fn(|b| compact_bucket(b, &snap.buckets[b], snap.file_table.as_ref()))
 }
 
@@ -353,11 +354,7 @@ fn compact_bucket(
 // --------------------
 // binary encode/decode
 // --------------------
-fn encode_all(
-    w: &mut Vec<u8>,
-    ctx: &EncodeCtx<'_>,
-    buckets: &[Vec<(PositionKey, Occurrence)>; 256],
-) -> Result<(), String> {
+fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> Result<(), String> {
     w.extend_from_slice(&MAGIC);
     write_u32(w, VERSION);
     write_u64(w, now_ms());
@@ -579,7 +576,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     }
 
     // ---- buckets ----
-    let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] = std::array::from_fn(|_| Vec::new());
+    let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
     for bucket in buckets.iter_mut() {
         let n = r.read_len(min_bytes::OCCURRENCE)?;
         let mut v = Vec::with_capacity(n);
@@ -1156,8 +1153,7 @@ mod tests {
             nts.upsert(i, Arc::new(nt));
         }
 
-        let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] =
-            std::array::from_fn(|_| Vec::new());
+        let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
         for i in 0..OCCS {
             let z0 = u64::from(i).wrapping_mul(0x9E37_79B9_7F4A_7C15);
             let key = PositionKey { z0, z1: !z0 };
@@ -1275,8 +1271,7 @@ mod tests {
                 .collect();
 
         // 別々の bucket に落ちる鍵を選ぶ（bucket は z0 の下位8ビットで決まる）
-        let mut buckets: [Vec<(PositionKey, Occurrence)>; 256] =
-            std::array::from_fn(|_| Vec::new());
+        let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
         buckets[0x11].push((
             PositionKey {
                 z0: 0x1111,
@@ -1360,7 +1355,7 @@ mod tests {
             vec![(3, 0), (5, 1)],
         );
 
-        let flat = |bs: &[Vec<(PositionKey, Occurrence)>; 256]| {
+        let flat = |bs: &BucketEntries| {
             bs.iter()
                 .flatten()
                 .map(|(k, o)| (k.z0, k.z1, o.file_id, o.r#gen, o.node_id))

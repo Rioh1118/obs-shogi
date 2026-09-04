@@ -15,14 +15,14 @@ use tokio::{sync::Semaphore, task::JoinSet};
 
 use crate::search::cache::index_cache;
 use crate::search::index::file_build::build_file_index;
-use crate::search::position::position_key::PositionKey;
 use crate::search::project_manager::ProjectManager;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord};
+use crate::search::store::bucket::BucketEntries;
 use crate::search::store::index_store::{IndexState as StoreIndexState, IndexStore};
 use crate::search::store::node_table::NodeTable;
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-    Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
+    EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
 
 pub async fn build_full_index_task(
@@ -33,7 +33,6 @@ pub async fn build_full_index_task(
     mut records: Vec<FileRecord>,
     total_files: u32,
 ) {
-    type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
     type BuildItem = (
         FileId,
         u32,
@@ -99,7 +98,7 @@ pub async fn build_full_index_task(
             )
             .await;
 
-            let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
+            let empty: BucketEntries = crate::search::store::bucket::empty_buckets();
             let empty_nt = Arc::new(NodeTable::empty());
 
             let out: BuildItem = match res {

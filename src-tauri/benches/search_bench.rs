@@ -19,7 +19,6 @@ use std::{
     time::Instant,
 };
 
-use app_lib::search::index::file_build::bucketize_entries;
 use app_lib::search::index::index_builder::{build_index_for_jkf, BuildPolicy};
 use app_lib::search::position::position_key::{key_from_partial_position, PositionKey};
 use app_lib::search::position::sfen_position::partial_position_from_sfen;
@@ -28,6 +27,7 @@ use app_lib::search::read::fs_scan::{
 };
 use app_lib::search::read::kifu_reader::read_to_jkf;
 use app_lib::search::read::outcome::ReadOutcome;
+use app_lib::search::store::bucket::bucketize_entries;
 use app_lib::search::store::file_table::FileTable;
 use app_lib::search::store::index_store::{IndexSnapshot, IndexState, NodeTables};
 use app_lib::search::store::segment::{Segment, SegmentArc};

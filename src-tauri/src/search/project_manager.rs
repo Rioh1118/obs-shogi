@@ -10,20 +10,18 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
 use crate::search::index::file_build::build_file_index;
-use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{
     diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
 };
+use crate::search::store::bucket::BucketEntries;
 use crate::search::store::index_store::{
     FileBucketEntries, IndexState as StoreIndexState, IndexStore,
 };
 use crate::search::store::node_table::NodeTable;
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-    Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
+    EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
-
-type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -264,7 +262,7 @@ impl ProjectManager {
                 None => {
                     // build error: still record a tombstone-ish entry so file_table
                     // gets updated and stale segments from the old gen are excluded.
-                    let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
+                    let empty: BucketEntries = crate::search::store::bucket::empty_buckets();
                     batch.push((
                         FileEntry {
                             file_id: pb.file_id,

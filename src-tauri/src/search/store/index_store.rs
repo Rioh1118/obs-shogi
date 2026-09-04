@@ -10,8 +10,8 @@ use crate::search::store::file_table::FileTable;
 use crate::search::store::segment::{Segment, SegmentArc};
 use crate::search::types::{FileEntry, FileId};
 
-pub type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
-pub type FileBucketEntries = (FileEntry, NodeTableArc, BucketEntries);
+pub use crate::search::store::bucket::{BucketEntries, FileBucketEntries};
+use crate::search::store::bucket::{BucketSegments, BUCKET_COUNT};
 
 /// bucket 内のセグメント数がこれを超えたら k-way merge で 1 本に圧縮する。
 const COMPACT_THRESHOLD: usize = 64;
@@ -53,7 +53,7 @@ pub struct IndexSnapshot {
     pub state: IndexState,
     pub file_table: Arc<FileTable>,
     pub node_tables: Arc<NodeTables>,
-    pub buckets: [Vec<SegmentArc>; 256],
+    pub buckets: BucketSegments,
 }
 
 impl Default for IndexSnapshot {
@@ -198,9 +198,9 @@ impl IndexStore {
         state: IndexState,
         file_table: FileTable,
         node_tables: NodeTables,
-        mut buckets_entries: [Vec<(PositionKey, Occurrence)>; 256],
+        mut buckets_entries: BucketEntries,
     ) {
-        let buckets: [Vec<SegmentArc>; 256] = std::array::from_fn(|i| {
+        let buckets: BucketSegments = std::array::from_fn(|i| {
             let v = std::mem::take(&mut buckets_entries[i]);
             if v.is_empty() {
                 Vec::new()
@@ -260,7 +260,7 @@ impl IndexStore {
         let mut ft = (*old.file_table).clone();
         let mut nts = (*old.node_tables).clone();
         let mut buckets = old.buckets.clone();
-        let mut touched: Vec<bool> = vec![false; 256];
+        let mut touched: Vec<bool> = vec![false; BUCKET_COUNT];
 
         for (file_entry, nt, by_bucket) in items {
             ft.upsert(file_entry.clone());
