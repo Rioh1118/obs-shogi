@@ -64,7 +64,7 @@
     "knip": "^5.88.1",
     "postcss": "^8.5.26",
     "postcss-scss": "^4.0.9",
-    "typescript": "~5.8.3",
+    "typescript": "~7.0.2",
     "typescript-eslint": "^8.68.0",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
     "vite-plus": "0.1.24"
