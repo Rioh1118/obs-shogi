@@ -573,18 +573,40 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     }
 
     // ---- buckets ----
+    //
+    // **読んだ並びがそのまま索引の並びになる。** `install_restored` は並び替えず
+    // `Segment::new_sorted` へ渡し、`Segment` は昇順を前提に二分探索する。
+    // ここで検査しないと、崩れた並びが黙って通って**検索が0件になる** —
+    // エラーも警告もログも出ず、`(size, mtime)` が変わらないので再起動しても直らない。
+    //
+    // `Err` を返せば呼び手が全件作り直しへ落ちられる（`commands.rs`）。
+    // `checked_file_id` の doc が言うとおり、化けた値がここに届くのは前提でよい。
     let mut buckets: BucketEntries = empty_buckets();
-    for bucket in buckets.iter_mut() {
+    for (b, bucket) in buckets.iter_mut().enumerate() {
         let n = r.read_len(min_bytes::OCCURRENCE)?;
         let mut v = Vec::with_capacity(n);
+        let mut prev: Option<PositionKey> = None;
         for _ in 0..n {
             let z0 = r.read_u64()?;
             let z1 = r.read_u64()?;
             let file_id = checked_file_id(r.read_u32()?, ft_len)?;
             let gen_val = r.read_u32()?;
             let node_id = r.read_u32()?;
+
+            let key = PositionKey { z0, z1 };
+            if key.bucket() as usize != b {
+                return Err(format!(
+                    "key belongs to bucket {} but was stored in {b}",
+                    key.bucket()
+                ));
+            }
+            if prev.is_some_and(|p| key < p) {
+                return Err(format!("bucket {b} is not sorted"));
+            }
+            prev = Some(key);
+
             v.push((
-                PositionKey { z0, z1 },
+                key,
                 Occurrence {
                     file_id,
                     r#gen: gen_val,
@@ -1163,6 +1185,12 @@ mod tests {
                 },
             ));
         }
+        // **本番は必ず整列済みの桶を書く**（`bucketize_entries` も
+        // `compact_bucket` の k-way マージも昇順を出す）。題材もそれに揃える —
+        // 揃えないと `decode_all` の並びの検査が「壊れたキャッシュ」として弾く
+        for b in buckets.iter_mut() {
+            b.sort_by_key(|(k, _)| *k);
+        }
         let written: usize = buckets.iter().map(Vec::len).sum();
 
         let mut blob = Vec::new();
@@ -1365,5 +1393,93 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(flat(&back.buckets), flat(&buckets));
+    }
+    /// **崩れた桶は読まずに `Err` にする。**
+    ///
+    /// 読んだ並びがそのまま索引の並びになり、`Segment` は昇順を前提に二分探索する。
+    /// 通してしまうと検索が0件になるだけで、エラーも警告もログも出ない。
+    /// `(size, mtime)` が変わらないので再起動しても直らない。
+    ///
+    /// `Err` なら呼び手が全件作り直しへ落ちられる（`commands.rs`）。
+    /// `checked_file_id` の doc が言うとおり、`zstd` は checksum を書いていないので
+    /// 化けた値がここに届くのは前提でよい。
+    #[test]
+    fn a_bucket_that_is_out_of_order_or_in_the_wrong_place_is_refused() {
+        let root = Path::new("/tmp/obs-shogi-bucket-guard");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+        let nts = NodeTables::default();
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+
+        let encode = |buckets: &BucketEntries| {
+            let records = vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-bucket-guard/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }];
+            let mut blob = Vec::new();
+            encode_all(
+                &mut blob,
+                &EncodeCtx {
+                    root_dir: root,
+                    scan: &snapshot_from_records(root, records),
+                    path_to_id: &path_to_id,
+                    next_file_id: 2,
+                    ft: &ft,
+                    nts: &nts,
+                },
+                buckets,
+            )
+            .expect("書けない");
+            blob
+        };
+        let occ = Occurrence {
+            file_id: 1,
+            r#gen: 1,
+            node_id: 0,
+        };
+
+        // 同じ桶に落ちる2つ。降順で並べる
+        let lo = PositionKey {
+            z0: 0x1100_0000_0000_0001,
+            z1: 0,
+        };
+        let hi = PositionKey {
+            z0: 0x1100_0000_0000_0009,
+            z1: 0,
+        };
+        assert_eq!(lo.bucket(), hi.bucket(), "題材が同じ桶に落ちていない");
+
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[hi.bucket() as usize].push((hi, occ));
+        buckets[hi.bucket() as usize].push((lo, occ));
+        assert!(
+            decode_all(&encode(&buckets), root).is_err(),
+            "降順の桶が通った"
+        );
+
+        // 鍵が別の桶に置かれている
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[hi.bucket() as usize + 1].push((hi, occ));
+        assert!(
+            decode_all(&encode(&buckets), root).is_err(),
+            "別の桶に置かれた鍵が通った"
+        );
+
+        // 正しく並んでいれば通る
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[lo.bucket() as usize].push((lo, occ));
+        buckets[hi.bucket() as usize].push((hi, occ));
+        assert!(
+            decode_all(&encode(&buckets), root).is_ok(),
+            "正しい桶を弾いている"
+        );
     }
 }
