@@ -5,9 +5,9 @@ use std::{
 };
 use tauri::command;
 
-use crate::file_system::error::{FsError, FsErrorCode};
+use crate::fs::error::{FsError, FsErrorCode};
 
-use crate::file_system::utils::validate_basename;
+use crate::fs::path::validate_basename;
 
 /// エンジンの置き場。**AI のプロファイル名として使えない。**
 ///

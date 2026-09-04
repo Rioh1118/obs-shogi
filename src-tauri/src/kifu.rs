@@ -6,7 +6,9 @@ use shogi_kifu_converter_obsshogi::{
 use std::path::Path;
 use tauri::{command, AppHandle, Runtime};
 
-use crate::file_system::utils::{atomic_write, is_kifu_file, validate_under_root};
+use crate::file_system::utils::validate_under_root;
+use crate::fs::path::is_kifu_file;
+use crate::fs::write::atomic_write;
 
 #[derive(Serialize, Deserialize)]
 pub struct WriteKifuRequest {

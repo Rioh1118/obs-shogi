@@ -2,10 +2,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle, Runtime};
 
-use crate::file_system::error::{FsError, FsErrorCode};
+use crate::file_system::utils::validate_under_root;
+use crate::fs::error::{FsError, FsErrorCode};
+use crate::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under};
 
 use super::types::FileTreeNode;
-use super::utils::{generate_id, get_file_extension, is_kifu_file, is_under, validate_under_root};
 
 /// 降りてよい深さの上限。**再帰のフレーム数を止める。**
 ///

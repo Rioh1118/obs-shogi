@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
-use crate::file_system::utils::atomic_write;
+use crate::fs::write::atomic_write;
 
 pub(crate) const CONFIG_FILE: &str = "app.json";
 

@@ -3,6 +3,7 @@ pub mod config_dir;
 pub mod engine;
 pub mod engine_presets;
 pub mod file_system;
+pub mod fs;
 pub mod kifu;
 pub mod kifu_text;
 pub mod search;

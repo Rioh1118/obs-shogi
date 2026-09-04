@@ -39,7 +39,7 @@ describe("validateBasename", () => {
    * 利用者に見せる文は code から引く。原因を1つの code に潰すと、
    * 「その名前は使えません」しか出せなくなって直しようがなくなる。
    *
-   * 規則と code は Rust 側（`file_system/utils.rs`）と同じ4つ。片方だけ
+   * 規則と code は Rust 側（`fs/path.rs`）と同じ4つ。片方だけ
    * 増やすと、ここを通ってから向こうで落ちる名前ができる
    */
   test("原因ごとに違う code を返す", () => {

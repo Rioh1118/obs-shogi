@@ -14,7 +14,7 @@ import { RUST_SRC, SRC } from "./walk";
  * （`testsLayerBoundary.test.ts`）ので import では読めない。
  */
 
-const RUST_ENUM = join(RUST_SRC, "file_system", "error.rs");
+const RUST_ENUM = join(RUST_SRC, "fs", "error.rs");
 const TS_CODES = join(SRC, "entities", "file-tree", "api", "error.ts");
 
 /**

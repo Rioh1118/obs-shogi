@@ -1,14 +1,10 @@
-use crate::file_system::{
-    error::{FsError, FsErrorCode},
-    utils::{
-        atomic_write, ensure_not_exists, is_project_root, validate_basename, validate_under_root,
-    },
-};
+use crate::file_system::utils::{is_project_root, validate_under_root};
+use crate::fs::error::{FsError, FsErrorCode};
+use crate::fs::path::{ensure_not_exists, get_file_extension, is_kifu_file, validate_basename};
+use crate::fs::write::atomic_write;
 use std::io::Write;
 
 use crate::kifu_text::decode_kifu;
-
-use super::utils::{get_file_extension, is_kifu_file};
 use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
     error::ConvertError,
