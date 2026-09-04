@@ -8,7 +8,7 @@ use std::{
 use thiserror::Error;
 
 use crate::kifu_text::declared_encoding;
-use crate::search::fs_scan::{FileRecord, KifuKind};
+use crate::search::read::fs_scan::{FileRecord, KifuKind};
 
 // shogi-kifu-converter
 use shogi_kifu_converter_obsshogi::parser::{
@@ -173,7 +173,7 @@ const LOSSY_DECODERS: [LossyDecoder; 2] = [
 ///
 /// # `moves[0].forks` は数に入れない
 ///
-/// **[`crate::search::index_builder`] がその欄を歩かない。** `forks` を読むのは
+/// **[`crate::search::index::index_builder`] がその欄を歩かない。** `forks` を読むのは
 /// `walk_sequence` の中だけで、そこへ渡るのは `moves[1..]`。
 /// `moves[0]` の変化は誰も見ない。
 ///
@@ -1972,11 +1972,11 @@ mod tests {
             // `walk_sequence` が `moves[0].forks` を降りるようになっても
             // 上の assert は緑のままで、**この判定が索引の穴になる**。
             // 逆に狭めれば `says_nothing` が通した記録が初期局面1件だけになる
-            let built = crate::search::index_builder::build_index_for_jkf(
+            let built = crate::search::index::index_builder::build_index_for_jkf(
                 1,
                 1,
                 &jkf,
-                crate::search::index_builder::BuildPolicy::Loose,
+                crate::search::index::index_builder::BuildPolicy::Loose,
             )
             .expect("組めること");
             assert_eq!(

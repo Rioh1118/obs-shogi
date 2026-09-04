@@ -13,14 +13,12 @@ use tokio_util::sync::CancellationToken;
 
 use crate::search::types::{CursorLite, FileId, PositionHit, RequestId};
 
-use super::{
-    index_store::{IndexState as StoreIndexState, IndexStore},
-    sfen_position::position_key_from_sfen,
-    types::{
-        SearchBeginPayload, SearchChunkPayload, SearchEndPayload, SearchErrorPayload,
-        SearchPositionInput, SearchPositionOutput, EVT_SEARCH_BEGIN, EVT_SEARCH_CHUNK,
-        EVT_SEARCH_END, EVT_SEARCH_ERROR,
-    },
+use crate::search::position::sfen_position::position_key_from_sfen;
+use crate::search::store::index_store::{IndexState as StoreIndexState, IndexStore};
+use crate::search::types::{
+    SearchBeginPayload, SearchChunkPayload, SearchEndPayload, SearchErrorPayload,
+    SearchPositionInput, SearchPositionOutput, EVT_SEARCH_BEGIN, EVT_SEARCH_CHUNK, EVT_SEARCH_END,
+    EVT_SEARCH_ERROR,
 };
 
 #[derive(Debug)]

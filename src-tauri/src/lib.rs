@@ -21,8 +21,9 @@ pub use engine::commands::game::{
     resign_game, start_game, submit_game_move,
 };
 pub use kifu::commands::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
-pub use search::api::{cancel_search, open_project, search_position, SearchState};
-pub use search::index_store::IndexStore;
+pub use search::commands::{cancel_search, open_project, search_position};
+pub use search::state::SearchState;
+pub use search::store::index_store::IndexStore;
 pub use settings::commands::{
     backup_broken_config, load_config, load_presets, load_study_positions, save_config,
     save_presets, save_study_positions,

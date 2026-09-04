@@ -1,4 +1,4 @@
-use super::position_key::{key_from_partial_position, PositionKey};
+use crate::search::position::position_key::{key_from_partial_position, PositionKey};
 use shogi_core::{Color, Hand, PartialPosition, Piece, PieceKind, Square};
 use thiserror::Error;
 

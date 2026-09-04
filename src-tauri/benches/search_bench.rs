@@ -19,17 +19,17 @@ use std::{
     time::Instant,
 };
 
-use app_lib::search::{
-    file_table::FileTable,
-    fs_scan::{diff_snapshot, scan_kifu_files, snapshot_from_records, ScanOptions},
-    index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
-    index_store::{IndexSnapshot, IndexState, NodeTables},
-    kifu_reader::{read_to_jkf, ReadOutcome},
-    position_key::{key_from_partial_position, PositionKey},
-    segment::{Segment, SegmentArc},
-    sfen_position::partial_position_from_sfen,
-    types::{FileEntry, Occurrence},
+use app_lib::search::index::index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy};
+use app_lib::search::position::position_key::{key_from_partial_position, PositionKey};
+use app_lib::search::position::sfen_position::partial_position_from_sfen;
+use app_lib::search::read::fs_scan::{
+    diff_snapshot, scan_kifu_files, snapshot_from_records, ScanOptions,
 };
+use app_lib::search::read::kifu_reader::{read_to_jkf, ReadOutcome};
+use app_lib::search::store::file_table::FileTable;
+use app_lib::search::store::index_store::{IndexSnapshot, IndexState, NodeTables};
+use app_lib::search::store::segment::{Segment, SegmentArc};
+use app_lib::search::types::{FileEntry, Occurrence};
 
 const ROOT: &str = env!("HOME");
 
@@ -62,7 +62,7 @@ struct FileStats {
     size_bytes: u64,
 }
 
-fn do_full_build(records: &[app_lib::search::fs_scan::FileRecord]) -> BuildResult {
+fn do_full_build(records: &[app_lib::search::read::fs_scan::FileRecord]) -> BuildResult {
     let mut ft = FileTable::default();
     let mut nts = NodeTables::default();
     let mut buckets: [Vec<SegmentArc>; 256] = std::array::from_fn(|_| Vec::new());

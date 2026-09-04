@@ -9,19 +9,18 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
-use crate::search::{
-    file_build::build_file_index,
-    fs_scan::{
-        diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions,
-        ScanSnapshot,
-    },
-    index_store::{FileBucketEntries, IndexState as StoreIndexState, IndexStore},
-    node_table::NodeTable,
-    position_key::PositionKey,
-    types::{
-        FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-        Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
-    },
+use crate::search::index::file_build::build_file_index;
+use crate::search::position::position_key::PositionKey;
+use crate::search::read::fs_scan::{
+    diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
+};
+use crate::search::store::index_store::{
+    FileBucketEntries, IndexState as StoreIndexState, IndexStore,
+};
+use crate::search::store::node_table::NodeTable;
+use crate::search::types::{
+    FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
+    Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
 
 type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
@@ -223,7 +222,7 @@ impl ProjectManager {
         let mut pending: Vec<PendingBuild> = Vec::new();
 
         for rec in &diff.modified {
-            let path_key = crate::search::fs_scan::path_key(&rec.path);
+            let path_key = crate::search::read::fs_scan::path_key(&rec.path);
             let file_id = match path_to_id.get(&path_key).copied() {
                 Some(id) => id,
                 None => {
@@ -243,7 +242,7 @@ impl ProjectManager {
         }
 
         for rec in &diff.added {
-            let path_key = crate::search::fs_scan::path_key(&rec.path);
+            let path_key = crate::search::read::fs_scan::path_key(&rec.path);
             let file_id = next_file_id;
             next_file_id = next_file_id.wrapping_add(1);
             path_to_id.insert(path_key.clone(), file_id);

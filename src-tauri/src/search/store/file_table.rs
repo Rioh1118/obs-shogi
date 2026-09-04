@@ -1,4 +1,4 @@
-use super::types::{FileEntry, FileId, Gen};
+use crate::search::types::{FileEntry, FileId, Gen};
 
 /// SoA-backed file metadata. `is_occ_alive` は検索ホットパスなので O(1) 配列
 /// アクセスにする。`file_id` はフルビルドで 1 から密に振られるので、そのまま

@@ -2,14 +2,13 @@ use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
 
 use parking_lot::RwLock;
 
-use crate::search::{node_table::NodeTableArc, types::Occurrence};
+use crate::search::store::node_table::NodeTableArc;
+use crate::search::types::Occurrence;
 
-use super::{
-    file_table::FileTable,
-    position_key::PositionKey,
-    segment::{Segment, SegmentArc},
-    types::{FileEntry, FileId},
-};
+use crate::search::position::position_key::PositionKey;
+use crate::search::store::file_table::FileTable;
+use crate::search::store::segment::{Segment, SegmentArc};
+use crate::search::types::{FileEntry, FileId};
 
 pub type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
 pub type FileBucketEntries = (FileEntry, NodeTableArc, BucketEntries);

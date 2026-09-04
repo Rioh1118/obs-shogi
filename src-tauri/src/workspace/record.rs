@@ -29,7 +29,7 @@ pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
 /// 棋譜を画面に開くために読む。
 ///
 /// **文字コードの判断は [`crate::kifu_text`] が持つ。** ここで別に決めると、
-/// 索引（`search::kifu_reader`）と**同じファイルについて違う文字列を見る**。
+/// 索引（`search::read::kifu_reader`）と**同じファイルについて違う文字列を見る**。
 ///
 /// # 化けた文字列を返さない
 ///

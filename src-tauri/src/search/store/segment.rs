@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use super::{position_key::PositionKey, types::Occurrence};
+use crate::search::position::position_key::PositionKey;
+use crate::search::types::Occurrence;
 
 pub type SegmentArc = Arc<Segment>;
 

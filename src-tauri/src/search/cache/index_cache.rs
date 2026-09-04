@@ -10,15 +10,13 @@ use std::{
 
 use tauri::{AppHandle, Manager};
 
-use super::{
-    file_table::FileTable,
-    fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot},
-    index_store::{IndexSnapshot, NodeTables},
-    node_table::NodeTable,
-    position_key::PositionKey,
-    segment::SegmentArc,
-    types::{FileEntry, FileId, Occurrence},
-};
+use crate::search::position::position_key::PositionKey;
+use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
+use crate::search::store::file_table::FileTable;
+use crate::search::store::index_store::{IndexSnapshot, NodeTables};
+use crate::search::store::node_table::NodeTable;
+use crate::search::store::segment::SegmentArc;
+use crate::search::types::{FileEntry, FileId, Occurrence};
 
 macro_rules! trace {
     ($($t:tt)*) => {
@@ -564,7 +562,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             let fork_off = r.read_u32()?;
             let fork_len = r.read_u16()?;
             let _pad = r.read_u16()?;
-            nt.nodes.push(super::node_table::NodeCursor {
+            nt.nodes.push(crate::search::store::node_table::NodeCursor {
                 tesuu,
                 fork_off,
                 fork_len,
@@ -573,7 +571,8 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
         for _ in 0..forks_len {
             let te = r.read_u32()?;
             let fork_index = r.read_u32()?;
-            nt.forks.push(super::node_table::ForkPtr { te, fork_index });
+            nt.forks
+                .push(crate::search::store::node_table::ForkPtr { te, fork_index });
         }
 
         nts.upsert(file_id, Arc::new(nt));
@@ -1108,7 +1107,7 @@ mod tests {
     /// **`min_bytes` を守れるのはこのテストだけ**。
     #[test]
     fn an_index_of_a_realistic_size_can_be_read_back() {
-        use super::super::node_table::{ForkPtr, NodeCursor};
+        use crate::search::store::node_table::{ForkPtr, NodeCursor};
 
         const FILES: u32 = 300;
         const NODES_PER_FILE: u32 = 40;
@@ -1218,7 +1217,7 @@ mod tests {
     /// **`VERSION` を上げた版に更新した利用者は、次の起動で必ず1回ここを通る。**
     #[test]
     fn what_is_written_to_the_cache_is_what_is_read_back() {
-        use super::super::node_table::{ForkPtr, NodeCursor};
+        use crate::search::store::node_table::{ForkPtr, NodeCursor};
 
         let root = Path::new("/tmp/obs-shogi-roundtrip");
 

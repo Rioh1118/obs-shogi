@@ -10,14 +10,12 @@
 
 use std::sync::Arc;
 
-use crate::search::{
-    fs_scan::FileRecord,
-    index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy},
-    kifu_reader::{read_to_jkf, ReadOutcome},
-    node_table::NodeTable,
-    position_key::PositionKey,
-    types::{FileId, Gen, Occurrence},
-};
+use crate::search::index::index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy};
+use crate::search::position::position_key::PositionKey;
+use crate::search::read::fs_scan::FileRecord;
+use crate::search::read::kifu_reader::{read_to_jkf, ReadOutcome};
+use crate::search::store::node_table::NodeTable;
+use crate::search::types::{FileId, Gen, Occurrence};
 
 /// 局面の鍵を先頭バイトで振り分けた 256 の桶
 pub type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];

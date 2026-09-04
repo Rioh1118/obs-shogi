@@ -265,8 +265,8 @@ fn key_for_hand(tbl: &ZobristTable, color: Color, hand: Hand) -> PositionKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::position_apply::{apply_node_action, ApplyStatus};
-    use crate::search::traverse::NodeAction;
+    use crate::search::position::position_apply::{apply_node_action, ApplyStatus};
+    use crate::search::position::traverse::NodeAction;
     use shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
     /// 棋譜を1本歩いて、差分とフル計算が**全ノードで一致する**ことを見る。
@@ -274,7 +274,7 @@ mod tests {
     /// 一致しないと、同じ棋譜から別の `PositionKey` が出る。索引の値が
     /// 静かに変わるだけなので、**検索が当たらなくなること以外に症状が無い**。
     fn walk_and_compare(label: &str, jkf: &JsonKifuFormat) -> usize {
-        let mut pos = crate::search::initial_position::initial_partial_position(jkf)
+        let mut pos = crate::search::position::initial_position::initial_partial_position(jkf)
             .unwrap_or_else(|e| panic!("{label}: 初期局面が作れない: {e}"));
         let mut key = key_from_partial_position(&pos);
         assert_eq!(key, key_from_partial_position(&pos), "{label}: 初期局面");
@@ -291,7 +291,7 @@ mod tests {
                 break;
             };
 
-            let mv = crate::search::position_apply::jkf_move_to_core_move(m)
+            let mv = crate::search::position::position_apply::jkf_move_to_core_move(m)
                 .unwrap_or_else(|e| panic!("{label}: {i}手目を core の手にできない: {e}"));
             let stepped = advance_key(key, &before, mv)
                 .unwrap_or_else(|| panic!("{label}: {i}手目で差分が None を返した"));

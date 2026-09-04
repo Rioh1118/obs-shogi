@@ -1,6 +1,6 @@
 use shogi_kifu_converter_obsshogi::jkf::{MoveMoveFormat, MoveSpecial};
 
-use super::types::{CursorLite, ForkPointer};
+use crate::search::types::{CursorLite, ForkPointer};
 
 impl CursorLite {
     pub fn root() -> Self {

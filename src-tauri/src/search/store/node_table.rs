@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::types::{CursorLite, ForkPointer};
+use crate::search::types::{CursorLite, ForkPointer};
 
 pub type NodeTableArc = Arc<NodeTable>;
 
