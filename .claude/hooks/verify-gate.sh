@@ -225,7 +225,8 @@ gate_kinds_for_path() {
   case "$path" in
     docs/*.md) kinds="$kinds ts" ;;
   esac
-  # 状態遷移表は rust 側も見る。
+  # 状態遷移表は rust 側も見る。表のセルが名乗る定数との突き合わせが Rust 側にあり、
+  # 表だけを直したコミットで飛ばすと、実在しない定数を仕様として書いた表が入る。
   case "$path" in
     docs/state-transitions/*.md) kinds="$kinds rust" ;;
   esac
