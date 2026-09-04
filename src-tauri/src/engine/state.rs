@@ -6,7 +6,7 @@
 //! 片方を読むのにもう片方が要る。
 //!
 //! **ここは段の上のほう**（`bridge` / `game` / `registry` を束ねる）。
-//! 下の段からここを参照しないこと（→ `tests/engine_layering.rs`）。
+//! 下の段からここを参照しないこと（→ `tests/layering.rs`）。
 
 use std::sync::Arc;
 
