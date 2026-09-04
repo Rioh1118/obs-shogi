@@ -37,8 +37,9 @@ pub enum SfenParseError {
     #[error("invalid ply: {0}")]
     InvalidPly(String),
 
-    #[error("invalid hand construction")]
-    InvalidHand,
+    /// 持駒の枚数が多すぎる。**綴りが1本で盤を止めるのを防ぐ門番。**
+    #[error("too many pieces in hand: {0}")]
+    InvalidHand(String),
 }
 
 /// 綴りを局面にする。
@@ -58,6 +59,12 @@ pub enum SfenParseError {
 ///
 /// **`src/` からの呼び手はいない。** 製品経路は [`position_key_from_sfen`] だけを通る。
 /// `pub` なのは `benches/search_bench.rs` が綴りを解く時間だけを測るため。
+/// 1つの駒種で持てる最大の枚数。**歩の18枚。**
+///
+/// 綴りはここを超える数を書けてしまうので、読む側で弾く。
+/// `shogi_core` の `Hand` は枚数を検査しない（`wrapping_add` で折り返す）。
+const MAX_HAND_COUNT: u32 = 18;
+
 pub fn partial_position_from_sfen(input: &str) -> Result<PartialPosition, SfenParseError> {
     let s = input.trim();
     if s.is_empty() {
@@ -197,10 +204,17 @@ fn parse_hands_into(pos: &mut PartialPosition, hand: &str) -> Result<(), SfenPar
     let mut hb = Hand::new();
     let mut hw = Hand::new();
 
-    let mut num: usize = 0;
+    let mut num: u32 = 0;
     for ch in hand.chars() {
         if ch.is_ascii_digit() {
-            num = num * 10 + (ch.to_digit(10).expect("is_ascii_digit checked") as usize);
+            // **桁を読むだけで上限を見ないと、綴り1本で盤が止まる。**
+            // 駒を置くのは1枚ずつのループなので、`999...9P` を受けると
+            // その回数だけ回る。読む側は非同期の外（`query_service`）なので、
+            // 待ち受けているタスクが返らなくなる
+            num = num * 10 + ch.to_digit(10).expect("is_ascii_digit checked");
+            if num > MAX_HAND_COUNT {
+                return Err(SfenParseError::InvalidHand(hand.to_string()));
+            }
             continue;
         }
 
@@ -230,9 +244,17 @@ fn parse_hands_into(pos: &mut PartialPosition, hand: &str) -> Result<(), SfenPar
     Ok(())
 }
 
-fn add_n(mut h: Hand, pk: PieceKind, n: usize) -> Result<Hand, SfenParseError> {
+/// 同じ駒種を `n` 枚持たせる。
+///
+/// **`n` は呼び手が [`MAX_HAND_COUNT`] 以下に絞っていること。** `Hand::added` は
+/// 持駒に出る7種なら枚数を見ずに必ず `Some` を返す（`wrapping_add`）ので、
+/// この関数は枚数の門番にならない。
+fn add_n(mut h: Hand, pk: PieceKind, n: u32) -> Result<Hand, SfenParseError> {
+    debug_assert!(n <= MAX_HAND_COUNT, "呼ぶ前に枚数を絞ること");
     for _ in 0..n {
-        h = h.added(pk).ok_or(SfenParseError::InvalidHand)?;
+        h = h
+            .added(pk)
+            .ok_or_else(|| SfenParseError::InvalidHand(format!("{pk:?}")))?;
     }
     Ok(h)
 }
@@ -303,4 +325,47 @@ fn hand_piecekind_from_letter(ch: char) -> Result<(Color, PieceKind), SfenParseE
     };
 
     Ok((color, pk))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 持駒の枚数に上限がある。**無いと綴り1本で盤が止まる。**
+    ///
+    /// 駒を置くのは1枚ずつのループなので、上限が無いと `999...9P` の回数だけ回る。
+    /// この綴りを読むのは `query_service` の非同期タスクの中で、しかも
+    /// `EVT_SEARCH_BEGIN` を出した後。返らないと画面は「検索中…」のまま残り、
+    /// 取り消しも効かない（取り消しの検査はこれより後ろにしか無い）。
+    ///
+    /// **枚数を検査する経路は他に無い。** `shogi_core` の `Hand::added` は
+    /// 持駒に出る7種なら枚数を見ずに必ず `Some` を返す。
+    #[test]
+    fn a_hand_count_beyond_the_limit_is_rejected_instead_of_looping() {
+        let hirate = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL";
+
+        // 歩は18枚まで持てる
+        assert!(
+            partial_position_from_sfen(&format!("{hirate} b 18P 1")).is_ok(),
+            "上限ちょうどを弾いている"
+        );
+
+        // 19枚は弾く
+        assert!(
+            matches!(
+                partial_position_from_sfen(&format!("{hirate} b 19P 1")),
+                Err(SfenParseError::InvalidHand(_))
+            ),
+            "上限を超えた枚数が通った"
+        );
+
+        // 桁を読み切る前に弾く。読み切ってから弾くと、この綴りで止まる
+        assert!(
+            matches!(
+                partial_position_from_sfen(&format!("{hirate} b 99999999999999999999P 1")),
+                Err(SfenParseError::InvalidHand(_))
+            ),
+            "巨大な枚数が通った"
+        );
+    }
 }
