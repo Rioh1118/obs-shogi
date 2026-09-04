@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { docsPath, markdownFiles } from "./stateTransitionIndex";
-import { missingPaths, sourcePathsIn } from "./docsSourcePaths";
+import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths";
 
 /**
  * 状態遷移表がバッククォートで指すソースのパスが実在するかを見る。
@@ -9,11 +9,15 @@ import { missingPaths, sourcePathsIn } from "./docsSourcePaths";
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
  * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
  *
- * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と `IDEAS.md` / `PREMISES.md` が
- * **別リポジトリ（ShogiHome）のパス**を根拠として引くため（3件。`src/background/book/` ほか）。
+ * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と提案と `IDEAS.md` /
+ * `PREMISES.md` が**別リポジトリ（ShogiHome / YaneuraOu）のパス**を根拠として
+ * 引くため。件数は書かない（引く側が増えると嘘になる）。
  * このリポジトリの現物を指す約束があるのは状態遷移表だけなので、
  * そこだけが「実在しなければ腐っている」と言える。
- * 他リポジトリのパスを外部リンクの形で書く規約にすれば `docs/` 全体へ広げられる。
+ *
+ * **絞っている間、`docs/` の他のファイルには自リポジトリの腐ったパスも混ざる。**
+ * 他リポジトリのパスを外部リンクの形で書く規約にするか、免除に挙げ切れば
+ * `docs/` 全体へ広げられる（行番号のほうは既に全体へ掛けてある）。
  */
 describe("状態遷移表が指すソースのパス", () => {
   const tableFiles = () => markdownFiles().filter((f) => f.startsWith("state-transitions/"));
@@ -31,6 +35,52 @@ describe("状態遷移表が指すソースのパス", () => {
     });
 
     expect(broken).toEqual([]);
+  });
+});
+
+/**
+ * `docs/` の**全部**が行番号で指さないこと。
+ *
+ * パスの実在は状態遷移表だけに絞ってよい（ADR は別リポジトリのパスを引くので、
+ * 実在を要求できない）。**行番号のほうは絞る理由が無い。** 自リポジトリを
+ * 行番号で指せば、どこに書いてあっても無言でずれる。
+ *
+ * ADR も同じ。`decisions/0004-notification-taxonomy.md` は「どの失敗がどの段か」の
+ * 唯一の持ち主で、`failure-surfacing.md` がそこへ委譲している。状態遷移表だけを
+ * 見ると、委譲した先が腐っていても誰も気付かない。
+ *
+ * 指したいものがあるなら識別子で指すこと（`docsIdentifiers` がそちらを見る）。
+ */
+describe("docs が行番号で指していないこと", () => {
+  /**
+   * 別リポジトリの行番号を引くファイル。
+   *
+   * **こちらの変更ではずれない**ので、腐り方が違う。引く側が版を書いて
+   * 追えるようにする約束にすれば、この免除は外せる。
+   *
+   * 増やすときは「なぜ自リポジトリを指していないか」を書けるときだけ。
+   */
+  const EXEMPT = new Map([
+    ["PREMISES.md", "YaneuraOu の `source/book/book.h` を根拠として引く"],
+    ["decisions/0002-drop-book-read-write.md", "同上。定跡の実装を捨てた根拠"],
+  ]);
+
+  test("免除が現物を指している", () => {
+    const all = new Set(markdownFiles());
+    const dead = [...EXEMPT.keys()].filter((f) => !all.has(f));
+
+    expect(dead, "免除が実在しないファイルを指している。消したなら免除も消すこと").toEqual([]);
+  });
+
+  test("行番号で指していない", () => {
+    const refs = markdownFiles()
+      .filter((relative) => !EXEMPT.has(relative))
+      .flatMap((relative) => {
+        const body = readFileSync(docsPath(relative), "utf8");
+        return lineNumberRefsIn(body).map((r) => `${relative}: ${r}`);
+      });
+
+    expect(refs, "行番号は無言でずれる。識別子で指すこと").toEqual([]);
   });
 });
 
@@ -97,5 +147,34 @@ describe("接頭辞の扱い", () => {
     expect(missingPaths(sourcePathsIn("`src/entities/kifu/model/GONE.ts`"))).toEqual([
       "src/entities/kifu/model/GONE.ts",
     ]);
+  });
+});
+
+describe("lineNumberRefsIn", () => {
+  /**
+   * 綴りはパス側と1つを共有する。
+   *
+   * 割れると片方だけが狭くなる。狭いほうが知らない綴りは両方を素通りする
+   * ——パス側は「行番号なので落とす」と判断し、行番号側は「知らない形」として見逃す。
+   */
+  test.each([
+    ["`bridge.rs:117`", "コロンと数字"],
+    ["`provider.tsx:19-24`", "範囲"],
+    ["`provider.tsx:38, 49`", "並べたもの"],
+    ["`protocol.rs#L24`", "GitHub 由来の #L"],
+    ["`protocol.rs:L24`", "コロンと L"],
+    ["`AnalysisPaneHeader:84`", "拡張子の無い識別子"],
+    ["`engine.rs:73-77, 176-180`", "範囲を並べたもの"],
+  ])("%s を拾う（%s）", (markdown) => {
+    expect(lineNumberRefsIn(markdown)).toHaveLength(1);
+  });
+
+  test.each([
+    ["`src/entities/kifu/model/cursor.ts`", "行番号の無いパス"],
+    ["`cursorFromPlayer`", "識別子だけ"],
+    ["`03:00`", "時刻"],
+    ["バッククォートの外の bridge.rs:117", "囲まれていない"],
+  ])("%s は拾わない（%s）", (markdown, _why) => {
+    expect(lineNumberRefsIn(markdown)).toEqual([]);
   });
 });

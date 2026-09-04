@@ -98,7 +98,9 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 
 `selectSquare` / `selectHand` の失敗は `selectedPosition` の話で、
 この表が持つ `cursor` / `branchPlan` / `jkf` を動かさないので扱わない。
-`set_error` の9箇所はこの2つを引いた7つが E14 / E16 / E17 と E3〜E10 に対応する。
+`persistIfPossible` の2つ（保存先が無い／保存先が切り替わった）は P0 と
+宛先の食い違いの話で、E ではなく P の側で扱う。**残りは** E14 / E16 / E17 と
+E3〜E10 のどれかに対応する。
 
 **棋譜の読み取り失敗とパース失敗はこの表に来ない。** `GameFileTreeBridge` は
 `activeKifuPath` / `jkfData` / `kifuFormat` が揃ったときだけ `loadGame` を呼ぶので、

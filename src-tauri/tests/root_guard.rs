@@ -15,6 +15,11 @@
 //! 関門そのものは `root_dir` が未設定のときに無条件で開く
 //! （`utils.rs` の `validate_under_root`）。
 
+mod scanning;
+
+use scanning::{blank_out_noncode, matching, matching_angle};
+
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -44,8 +49,18 @@ const EXTRA_GUARDS: [(&str, &str); 3] = [
 ];
 
 /// パスを引数の**型の中**で受け取るコマンド。署名の字面には出ないので手で並べる。
-/// 構造体でパスを受けるコマンドを足したら、ここにも足すこと
-const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "save_config"];
+///
+/// **載せ忘れは静かに効く。** 載っていないコマンドは
+/// `every_path_taking_command_checks_the_root` の対象に一度も入らないので、
+/// 関門を呼んでいなくても、免除の理由が無くても緑で通る。
+/// `no_path_carrying_command_is_missing_from_the_list` が載せ忘れを拾う。
+const STRUCT_CARRIED_PATH: [&str; 5] = [
+    "write_kifu_to_file",
+    "open_project",
+    "save_config",
+    "start_game",
+    "save_presets",
+];
 
 /// 関門を通さないコマンドと、その理由。
 ///
@@ -55,7 +70,7 @@ const STRUCT_CARRIED_PATH: [&str; 3] = ["write_kifu_to_file", "open_project", "s
 /// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
-const EXEMPT: [(&str, &str); 6] = [
+const EXEMPT: [(&str, &str); 8] = [
     (
         "scan_ai_root",
         "(1) ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",
@@ -73,6 +88,17 @@ const EXEMPT: [(&str, &str); 6] = [
         "(1) engine_path は思考エンジンの実行ファイル。ワークスペースの外にある",
     ),
     (
+        "save_presets",
+        "(1) EnginePreset の engine_path / eval_file_path / book_file_path は \
+         思考エンジンと評価関数。ワークスペースの外にあり、ここでは開かず保存するだけ \
+         （書き込み先は presets_path で、フロントは指定できない）",
+    ),
+    (
+        "start_game",
+        "(1) 同上。`GameSettings` の中の engine_path / work_dir が同じもの \
+         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る）",
+    ),
+    (
         "open_project",
         "(2) 索引を張る対象の root を受け取る側。root を決める前に呼ばれる → TODO(#215)",
     ),
@@ -82,52 +108,42 @@ const EXEMPT: [(&str, &str); 6] = [
     ),
 ];
 
-/// `/* */` と `//` を落とす。関数名をコメントに書く習慣があるので、
-/// 落とさないと「呼んでいない」を「呼んでいる」と読み違える。
+/// 切り出した1コマンド。
 ///
-/// 文字列リテラルの中の `//` は、その行の残りが落ちるだけ（偽陽性）。
-/// **`/*` は違う。** 文字列の中にあると次の `*/` までが丸ごと落ち、その範囲の
-/// `#[command]` が走査から消える（偽陰性）。いまソースに `/*` を含む文字列は無い
-fn without_comments(source: &str) -> String {
-    let mut out = String::with_capacity(source.len());
-    let bytes = source.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i..].starts_with(b"/*") {
-            match source[i + 2..].find("*/") {
-                Some(at) => i += 2 + at + 2,
-                None => break,
-            }
-            continue;
-        }
-        if bytes[i..].starts_with(b"//") {
-            match source[i..].find('\n') {
-                Some(at) => i += at,
-                None => break,
-            }
-            continue;
-        }
-        out.push(source[i..].chars().next().expect("境界がずれている"));
-        i += source[i..]
-            .chars()
-            .next()
-            .map(|c| c.len_utf8())
-            .expect("境界がずれている");
+/// **写しは1つだけ持つ。** 文字列を残した写しも持たせると、
+/// `log::debug!("... validate_under_root ...")` の1行を「関門を呼んだ」と
+/// 数える書き方が**書けてしまう**。そう書かれると、ワークスペースを丸ごと
+/// 消させない関門が消えても緑で通る。
+///
+/// 残さなくても困らない。読みたいのは署名と呼び出しだけで、
+/// **Rust の署名に文字列リテラルは現れない。**
+struct Command {
+    name: String,
+    /// 文字列もコメントも潰してある写し
+    code: String,
+}
+
+impl Command {
+    /// その名前を**コードとして**呼んでいるか
+    fn calls(&self, needle: &str) -> bool {
+        self.code.contains(needle)
     }
-    out
 }
 
 /// 属性から**その関数の閉じ括弧まで**を1つのコマンドとして切り出す。
 ///
 /// 次の属性までにすると、あいだに挟まった別の関数の中身が本体に混ざる。
 /// 関門をその別の関数が呼んでいるだけで、コマンド側は呼び忘れたまま緑になる。
-/// rustfmt が最上位の `}` を列0に置くので、それを終端に使う（構文解析はしない）
-fn commands(source: &str) -> Vec<(String, String)> {
-    let cleaned = without_comments(source);
+/// rustfmt が最上位の `}` を列0に置くので、それを終端に使う（構文解析はしない）。
+fn commands(source: &str) -> Vec<Command> {
+    // **属性も終端も、文字列を潰した写しの上で探す。** 素のソースで探すと、
+    // 文字列の中の `#[tauri::command` が幻のコマンドを作り、
+    // 文字列の中の `\n}` が本体を途中で切る（切った先の関門が見えなくなる）
+    let code_only = blank_out_noncode(source);
     let mut marks: Vec<usize> = Vec::new();
     for attribute in ATTRIBUTES {
         let mut from = 0;
-        while let Some(at) = cleaned[from..].find(attribute) {
+        while let Some(at) = code_only[from..].find(attribute) {
             marks.push(from + at);
             from += at + attribute.len();
         }
@@ -136,11 +152,11 @@ fn commands(source: &str) -> Vec<(String, String)> {
 
     let mut found = Vec::new();
     for &start in &marks {
-        let end = cleaned[start..]
+        let end = code_only[start..]
             .find("\n}")
             .map(|at| start + at + 2)
-            .unwrap_or(cleaned.len());
-        let chunk = &cleaned[start..end];
+            .unwrap_or(code_only.len());
+        let chunk = &code_only[start..end];
         // `pub` / `pub(crate)` / `async` のどれが付いていても名前を取れるようにする
         let name = chunk
             .split("fn ")
@@ -151,29 +167,59 @@ fn commands(source: &str) -> Vec<(String, String)> {
             })
             .unwrap_or("")
             .to_string();
-        found.push((name, chunk.to_string()));
+        found.push(Command {
+            name,
+            code: chunk.to_string(),
+        });
     }
     found
 }
 
+/// 署名の丸括弧の中身。
+///
+/// **最初の `)` で切らない。** 引数の型に `()` が現れると——`Channel<()>` は
+/// Tauri v2 で進捗を流す普通の形——そこが署名の終わりだと読まれ、
+/// **以降の引数が1つも見えなくなる**。生のパスを後ろに置いたコマンドが
+/// 走査から丸ごと消える。
+fn signature_of(chunk: &str) -> Option<&str> {
+    let start = chunk.find("fn ")?;
+    let chunk = &chunk[start..];
+    let name = chunk.lines().next().unwrap_or(chunk);
+
+    // **ジェネリクスを先に飛ばす。** `fn f<F: Fn() -> String>(path: String)` だと
+    // 最初の `(` は `Fn()` のもので、そこを署名だと決めると**以降の引数が
+    // 1つも見えなくなる**（生パスを受けるコマンドが走査から丸ごと消える）
+    let after_name = chunk.find(char::is_whitespace).map_or(0, |at| at + 1);
+    let rest = &chunk[after_name..];
+    let head = match rest.find('<') {
+        Some(angle)
+            if rest[..angle]
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_') =>
+        {
+            after_name
+                + angle
+                + matching_angle(&rest[angle..]).unwrap_or_else(|| {
+                    panic!("{name}: ジェネリクスの `<>` が釣り合わない。走査が壊れている")
+                })
+        }
+        _ => after_name,
+    };
+
+    let open = head + chunk[head..].find('(')?;
+    let len = matching(&chunk[open..], '(', ')')?;
+    Some(&chunk[open + 1..open + len - 1])
+}
+
 /// 署名がパスらしきものを受け取っているか。
-/// 引数名の末尾が `path` / `dir` / `root` のもの、および `Path` / `PathBuf` を見る
+///
+/// 引数名の末尾が `path` / `dir` / `root` のもの、および `Path` / `PathBuf` を見る。
+/// 型の中で受けるものは署名に出ないので、`STRUCT_CARRIED_PATH` の側で名指しする。
 fn takes_a_path(chunk: &str) -> bool {
     // 属性の括弧（`#[tauri::command(async)]` や `#[allow(...)]`）を署名と取り違えない
-    let Some(signature_start) = chunk.find("fn ") else {
+    let Some(signature) = signature_of(chunk) else {
         return false;
     };
-    let chunk = &chunk[signature_start..];
-    let Some(open) = chunk.find('(') else {
-        return false;
-    };
-    let Some(close) = chunk.find(')') else {
-        return false;
-    };
-    if close < open {
-        return false;
-    }
-    let signature = &chunk[open..close];
 
     if signature.contains("PathBuf") || signature.contains("Path") {
         return true;
@@ -191,18 +237,23 @@ fn takes_a_path(chunk: &str) -> bool {
 ///
 /// 位置だけで比べると、パスを2本受けるコマンドの正しい並びを違反として拾ってしまう。
 /// 守りたいのは「**その変数**を関門へ通す前に、その変数の存在や種類を見ない」
-fn guarded_variables(body: &str) -> Vec<(usize, String)> {
+///
+/// **`Command::code` を渡すこと。** 文字列を残した写しを渡すと、
+/// `log::debug!("... validate_under_root(&app, &path) ...")` のような1行が
+/// 2つ目の関門として数えられ、**順序が正しいコマンドが違反として出る**
+/// （綴りが `(&app, &変数)` まで一致したときだけ。実測で確認した）。
+///
+/// 見逃す側には倒れない。囮を足しても本物の関門の位置は一覧に残るので、
+/// 存在確認がそれより前にあれば拾える。関門が1つも無い場合は `calls` が拾う。
+fn guarded_variables(code: &str) -> Vec<(usize, String)> {
     let mut found = Vec::new();
-    for (at, _) in body.match_indices(GUARD) {
-        let rest = &body[at..];
+    for (at, _) in code.match_indices(GUARD) {
+        let rest = &code[at..];
         let Some(open) = rest.find('(') else { continue };
-        let Some(close) = rest.find(')') else {
+        let Some(len) = matching(&rest[open..], '(', ')') else {
             continue;
         };
-        if close < open {
-            continue;
-        }
-        let Some(last) = rest[open + 1..close].split(',').next_back() else {
+        let Some(last) = rest[open + 1..open + len - 1].split(',').next_back() else {
             continue;
         };
         found.push((at, last.trim().trim_start_matches('&').to_string()));
@@ -229,6 +280,170 @@ fn rust_files(dir: &Path) -> Vec<(String, String)> {
     found
 }
 
+/// 宣言された型 → その中に現れる型の名前。`struct` も `enum` も同じ扱い。
+///
+/// バリアントの中の欄も本体の欄も、`名前: 型` の形は同じなので割らない。
+fn type_graph(files: &[(String, String)]) -> TypeGraph {
+    let mut fields: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut carries_path: BTreeSet<String> = BTreeSet::new();
+    let mut from_the_webview: BTreeSet<String> = BTreeSet::new();
+
+    for (_, source) in files {
+        // 属性の中の文字列（`#[serde(rename = "..")]`）を型の綴りと取り違えない
+        let cleaned = blank_out_noncode(source);
+        for keyword in ["struct ", "enum "] {
+            let mut from = 0;
+            while let Some(at) = cleaned[from..].find(keyword) {
+                let start = from + at;
+                from = start + keyword.len();
+
+                let rest = &cleaned[from..];
+                let Some(name) = rest
+                    .split(|c: char| !c.is_alphanumeric() && c != '_')
+                    .next()
+                    .filter(|n| !n.is_empty())
+                else {
+                    continue;
+                };
+                // **webview から来る型だけを見る。** `tauri::State` で注入される
+                // `AppState` は台帳を通って engine_path に届くが、値を渡すのは
+                // フロントではない。混ぜると、注入される型を持つコマンドが全部並ぶ
+                let head = &cleaned[..start];
+                let attributes = &head[head.rfind(['}', ';']).map(|i| i + 1).unwrap_or(0)..];
+                if attributes.contains("Deserialize") {
+                    from_the_webview.insert(name.to_string());
+                }
+
+                let Some(open) = rest.find('{') else { continue };
+                // 宣言の頭と `{` の間に `;` があれば、それはタプル構造体か別の item
+                if rest[..open].contains(';') {
+                    continue;
+                }
+                // 走査の故障を「その型は欄を持たない」に写さない
+                let len = matching(&rest[open..], '{', '}').unwrap_or_else(|| {
+                    panic!("{name} の宣言の括弧が釣り合わない。走査が壊れている")
+                });
+                let body = &rest[open..open + len];
+
+                let entry = fields.entry(name.to_string()).or_default();
+                for line in body.lines() {
+                    let Some((field, ty)) = line.trim().split_once(':') else {
+                        continue;
+                    };
+                    let field = field.trim().trim_start_matches("pub ").trim();
+                    if !field.chars().all(|c| c.is_alphanumeric() || c == '_') || field.is_empty() {
+                        continue;
+                    }
+                    if field == "path"
+                        || field == "dir"
+                        || field.ends_with("_path")
+                        || field.ends_with("_dir")
+                        || ty.contains("PathBuf")
+                        || ty.contains("&Path")
+                    {
+                        carries_path.insert(name.to_string());
+                    }
+                    entry.extend(
+                        ty.split(|c: char| !c.is_alphanumeric() && c != '_')
+                            .filter(|t| t.starts_with(char::is_uppercase))
+                            .map(str::to_string),
+                    );
+                }
+                from += open + len;
+            }
+        }
+    }
+
+    // **含む型もパスを運ぶ。** `GameSettings` は `PlayerSpec` を持ち、
+    // その中に `engine_path` がある。1段しか見ないと `start_game` は拾えない
+    loop {
+        let mut grew = false;
+        for (name, referenced) in &fields {
+            if carries_path.contains(name) {
+                continue;
+            }
+            if referenced.iter().any(|r| carries_path.contains(r)) {
+                carries_path.insert(name.clone());
+                grew = true;
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+
+    TypeGraph {
+        carries_path,
+        from_the_webview,
+    }
+}
+
+/// 型の名前 → その型がパスを運ぶか / webview から来るか
+struct TypeGraph {
+    carries_path: BTreeSet<String>,
+    from_the_webview: BTreeSet<String>,
+}
+
+/// コマンドの引数に現れる型の名前
+fn parameter_types(chunk: &str) -> BTreeSet<String> {
+    let Some(signature) = signature_of(chunk) else {
+        return BTreeSet::new();
+    };
+    signature
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .filter(|t| t.starts_with(char::is_uppercase))
+        .map(str::to_string)
+        .collect()
+}
+
+/// **`STRUCT_CARRIED_PATH` の載せ忘れを拾う。**
+///
+/// 手で並べる一覧は、足す人が忘れた時点で静かに緩む。忘れられたコマンドは
+/// `every_path_taking_command_checks_the_root` の対象にすら入らないので、
+/// 関門も免除の理由も無いまま緑で通る。
+///
+/// 引数の型を辿り、`*_path` / `*_dir` / `PathBuf` の欄に届くものを拾って
+/// 一覧と突き合わせる。**含む型も運ぶ**ものとして数える
+/// （`GameSettings` → `PlayerSpec` → `engine_path`）。
+#[test]
+fn no_path_carrying_command_is_missing_from_the_list() {
+    let files = rust_files(Path::new("src"));
+    let types = type_graph(&files);
+    assert!(
+        types.carries_path.contains("GameSettings"),
+        "型を辿れていない。`GameSettings` が `engine_path` に届いていない"
+    );
+    assert!(
+        types.from_the_webview.contains("GameSettings")
+            && !types.from_the_webview.contains("AppState"),
+        "webview から来る型の判定が壊れている"
+    );
+
+    let mut missing = Vec::new();
+    for (file, source) in &files {
+        for command in commands(source) {
+            let (name, code) = (&command.name, &command.code);
+            if STRUCT_CARRIED_PATH.contains(&name.as_str()) || takes_a_path(code) {
+                continue;
+            }
+            let carried: Vec<String> = parameter_types(code)
+                .into_iter()
+                .filter(|t| types.carries_path.contains(t) && types.from_the_webview.contains(t))
+                .collect();
+            if !carried.is_empty() {
+                missing.push(format!("{file}: {name}（{}）", carried.join(", ")));
+            }
+        }
+    }
+
+    assert!(
+        missing.is_empty(),
+        "引数の型がパスを運んでいるのに `STRUCT_CARRIED_PATH` に無い。\
+         このままだと root の検査から丸ごと外れる:\n{}",
+        missing.join("\n")
+    );
+}
+
 #[test]
 fn every_path_taking_command_checks_the_root() {
     let files = rust_files(Path::new("src"));
@@ -243,13 +458,14 @@ fn every_path_taking_command_checks_the_root() {
     let mut missing: Vec<String> = Vec::new();
 
     for (file, source) in &files {
-        for (name, body) in commands(source) {
+        for command in commands(source) {
+            let (name, code) = (&command.name, &command.code);
             all += 1;
-            if !takes_a_path(&body) && !STRUCT_CARRIED_PATH.contains(&name.as_str()) {
+            if !takes_a_path(code) && !STRUCT_CARRIED_PATH.contains(&name.as_str()) {
                 continue;
             }
             path_taking.push(name.clone());
-            if EXEMPT.iter().any(|(exempt, _)| *exempt == name) || body.contains(GUARD) {
+            if EXEMPT.iter().any(|(exempt, _)| *exempt == name) || command.calls(GUARD) {
                 continue;
             }
             missing.push(format!("{file}: {name}"));
@@ -267,11 +483,12 @@ fn every_path_taking_command_checks_the_root() {
     // 存在確認・種類の判定が関門より前に無いかを見る
     let mut wrong_order: Vec<String> = Vec::new();
     for (file, source) in &files {
-        for (name, body) in commands(source) {
-            for (guard_at, variable) in guarded_variables(&body) {
+        for command in commands(source) {
+            let (name, code) = (&command.name, &command.code);
+            for (guard_at, variable) in guarded_variables(code) {
                 for probe in [".exists()", ".is_dir()", ".is_file()", ".symlink_metadata("] {
                     let call = format!("{variable}{probe}");
-                    if let Some(at) = body.find(&call) {
+                    if let Some(at) = code.find(&call) {
                         if at < guard_at {
                             wrong_order.push(format!(
                                 "{file}: {name} が {call} を {variable} の関門より前に呼んでいる"
@@ -280,7 +497,7 @@ fn every_path_taking_command_checks_the_root() {
                     }
                 }
                 let ensure = format!("ensure_not_exists(&{variable})");
-                if let Some(at) = body.find(&ensure) {
+                if let Some(at) = code.find(&ensure) {
                     if at < guard_at {
                         wrong_order.push(format!(
                             "{file}: {name} が {ensure} を {variable} の関門より前に呼んでいる"
@@ -298,10 +515,11 @@ fn every_path_taking_command_checks_the_root() {
 
     let mut missing_extra: Vec<String> = Vec::new();
     for (_, source) in &files {
-        for (name, body) in commands(source) {
-            for (command, guard) in EXTRA_GUARDS {
-                if name == command && !body.contains(guard) {
-                    missing_extra.push(format!("{command} が {guard} を呼んでいない"));
+        for command in commands(source) {
+            let name = &command.name;
+            for (needs, guard) in EXTRA_GUARDS {
+                if name == needs && !command.calls(guard) {
+                    missing_extra.push(format!("{needs} が {guard} を呼んでいない"));
                 }
             }
         }
@@ -314,7 +532,7 @@ fn every_path_taking_command_checks_the_root() {
 
     // 0件で緑になる形を作らない。切り出しが壊れたらここで気づく
     assert!(
-        all >= 30,
+        all >= 45,
         "コマンドを {all} 件しか見つけられていない。切り出しが壊れている"
     );
     // 下限は**壊れ検出**。現在値と一致させない（正当に減らしたとき、
@@ -345,8 +563,36 @@ pub async fn b(app: AppHandle, dir_path: String) -> () {
 
     let found = commands(source);
     assert_eq!(found.len(), 2, "属性の表記が違うと拾えていない");
-    assert_eq!(found[0].0, "a");
-    assert_eq!(found[1].0, "b", "async が付くと名前を取れていない");
+    assert_eq!(found[0].name, "a");
+    assert_eq!(found[1].name, "b", "async が付くと名前を取れていない");
+}
+
+#[test]
+fn a_string_mentioning_the_guard_does_not_count_as_calling_it() {
+    // **文字列は残す走査で本体を読むので、綴りだけで「呼んだ」と数えうる。**
+    // 「なぜ関門を掛けないか」をログに書く習慣はこの repo にあるので、踏み方も現実的
+    let source = r#"
+#[tauri::command]
+pub fn open_thing(app: AppHandle, file_path: String) -> Result<(), String> {
+    log::debug!("open_thing: validate_under_root is handled by the caller");
+    Ok(())
+}
+"#;
+    let command = commands(source).remove(0);
+    assert_eq!(command.name, "open_thing");
+    assert!(
+        !command.calls(GUARD),
+        "文字列の中の綴りを「関門を呼んだ」と数えている"
+    );
+    assert!(
+        source.contains(GUARD),
+        "見本が想定の形になっていない（綴りが本体に無い）"
+    );
+    // **写しは1つしか無い。** 取り違えようが型に無いことを、ここで示しておく
+    assert!(
+        !command.code.contains(GUARD),
+        "文字列を潰していない写しが残っている"
+    );
 }
 
 #[test]
@@ -365,9 +611,9 @@ pub fn a(app: AppHandle, file_path: String) -> () {
 }
 "#,
     ] {
-        let (_, body) = commands(source).remove(0);
+        let code = commands(source).remove(0).code;
         assert!(
-            !body.contains(GUARD),
+            !code.contains(GUARD),
             "コメントの中の関数名を、呼び出しとして数えている:\n{source}"
         );
     }
@@ -385,10 +631,11 @@ fn helper(app: &AppHandle, p: &Path) -> () {
 }
 "#;
 
-    let (name, body) = commands(source).remove(0);
+    let command = commands(source).remove(0);
+    let (name, code) = (&command.name, &command.code);
     assert_eq!(name, "a");
     assert!(
-        !body.contains(GUARD),
+        !code.contains(GUARD),
         "コマンドの後ろにある別の関数の呼び出しを、本体として数えている"
     );
 }
@@ -397,16 +644,49 @@ fn helper(app: &AppHandle, p: &Path) -> () {
 fn only_signatures_that_carry_a_path_are_checked() {
     let takes =
         |signature: &str| takes_a_path(&format!("#[command]\npub fn f({signature}) {{\n}}"));
+    let takes_generic = |generics: &str, signature: &str| {
+        takes_a_path(&format!(
+            "#[command]\npub fn f<{generics}>({signature}) {{\n}}"
+        ))
+    };
 
     assert!(takes("app: AppHandle, file_path: String"));
     assert!(takes("app: AppHandle, dest_dir: String"));
     assert!(takes("ai_root: String"));
     assert!(takes("p: &Path"));
 
+    // **`()` を含む型の後ろも見る。** 最初の `)` で切ると、`Channel<()>` を
+    // 1つ挟むだけで生のパスを受けるコマンドが走査から丸ごと消える
+    assert!(takes("app: AppHandle, ch: Channel<()>, file_path: String"));
+    assert!(takes("f: Box<dyn Fn()>, dest_dir: String"));
+
     assert!(!takes("state: State<'_, AppState>, depth: u32"));
     // `AppConfig` は中に root_dir を持つが署名からは見えない。
     // 署名で拾えないものは `STRUCT_CARRIED_PATH` の側で名指しする
     assert!(!takes("app: AppHandle, config: AppConfig"));
+
+    // **ジェネリクスを署名と取り違えない。** `fn f<F: Fn() -> String>(..)` だと
+    // 最初の `(` は `Fn()` のもので、そこで切ると引数が1つも見えなくなる
+    assert!(takes_generic(
+        "F: Fn() -> String",
+        "app: AppHandle, file_path: String"
+    ));
+    assert!(takes_generic("T: Into<String>", "dest_dir: String"));
+    // **`->` の `>` でジェネリクスを切らない。** 切ると署名が `String, u32` になり、
+    // 生パスを受ける引数が走査から丸ごと消える
+    assert!(takes_generic(
+        "F: FnMut() -> (String, u32)",
+        "dir_path: String"
+    ));
+    assert!(takes_generic(
+        "F: Fn() -> Vec<(u8, u8)>",
+        "dir_path: String"
+    ));
+
+    // 型を辿る側も同じ括弧の取り方を使う
+    let types =
+        |signature: &str| parameter_types(&format!("#[command]\npub fn f({signature}) {{\n}}"));
+    assert!(types("ch: Channel<()>, settings: GameSettings").contains("GameSettings"));
 }
 
 #[test]
@@ -421,9 +701,9 @@ pub async fn a(app: AppHandle, file_path: String) -> () {
 
     let found = commands(source);
     assert_eq!(found.len(), 1, "引数付きの属性を拾えていない");
-    assert_eq!(found[0].0, "a");
+    assert_eq!(found[0].name, "a");
     assert!(
-        takes_a_path(&found[0].1),
+        takes_a_path(&found[0].code),
         "属性の括弧を署名と取り違えている"
     );
 }
@@ -435,7 +715,7 @@ fn every_listed_name_is_a_real_command() {
     let names: Vec<String> = rust_files(Path::new("src"))
         .iter()
         .flat_map(|(_, source)| commands(source))
-        .map(|(name, _)| name)
+        .map(|command| command.name)
         .collect();
 
     for (listed, _) in EXEMPT {

@@ -22,10 +22,10 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 ## 外部の状態（Rust の解析セッション）
 
-| 記号   | 状態           | 判定                                                                                                     |
-| ------ | -------------- | -------------------------------------------------------------------------------------------------------- |
-| **P0** | セッション無し | `active_sessions` が空、または全て `is_active === false`                                                 |
-| **P1** | 解析中         | `is_active` なセッションあり。この間 `start_infinite_analysis` は**必ず弾かれる**（`bridge.rs:105-112`） |
+| 記号   | 状態           | 判定                                                                                |
+| ------ | -------------- | ----------------------------------------------------------------------------------- |
+| **P0** | セッション無し | `active_sessions` が空                                                              |
+| **P1** | 解析中         | `active_sessions` に項目がある。この間 `take_session` は**必ず弾く**（`bridge.rs`） |
 
 ## イベント
 
@@ -59,45 +59,54 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 ### 注
 
-※1 `set_error` は `isAnalyzing: false` にするが **`sessionId` を残す**（`reducer.ts:42-43`）。
-`stop_analysis` を続けて撃たない経路（E9 の `onError`、`provider.tsx:142-144`）では
-**フロントが「停止」、Rust が `is_active` のまま**になる。以降 E1 は※11 に落ちる
+※1 `set_error` は `isAnalyzing: false` にするが **`sessionId` を残す**（`reducer.ts`）。
+`stop_analysis` を続けて撃たない経路（E9 の `onError`、`provider.tsx`）では
+**フロントが「停止」、Rust に席が残ったまま**になる。以降 E1 は※11 に落ちる
 
 ※2 `startInfiniteAnalysis` は `syncPosition()` → `waitUntil(syncedSfen === currentSfen, 2000)`
-→ `startInfiniteAnalysisCore()` の順（`provider.tsx:296-323`）。
+→ `startInfiniteAnalysisCore()` の順（`provider.tsx`）。
 `isReady` でなければ `throw new Error("Engine not ready")`
 
-※3 `flushLatest` が `analyzingRef.current` を見て捨てる（`provider.tsx:48`）
+※3 `flushLatest` が `analyzingRef.current` を見て捨てる（`provider.tsx`）
 
-※4 `startInfiniteAnalysis` の throw は `AnalysisPaneHeader:84` の `console.error` で終わる。
+※4 `startInfiniteAnalysis` の throw は `AnalysisPaneHeader` の `console.error` で終わる。
 **押しても何も起きない。** 同期タイムアウトのときだけ `set_error` が飛ぶが、その `error` の読み手が0
 → [failure-surfacing.md](failure-surfacing.md) F-6 / F-2
 
 ※5 **`isReady` が false になっても解析は止まらない。** 自動再開の effect が
-`if (!isReady) return` で黙って抜けるだけ（`provider.tsx:260, 280`）。
+`if (!isReady) return` で黙って抜けるだけ（`provider.tsx`）。
 `isAnalyzing` は true のまま、結果だけが来なくなる。
 **「解析中」の表示のまま何も更新されない**状態が残る → **未検証**
 
 ※6 `onComplete` は `stop_analysis` を dispatch するが、Rust 側でセッションが
 片付いているかはイベントの契約に依存する。**表で追えていない**
 
-※7 `stopAnalysis` は `finally` で必ず `stop_analysis` を dispatch する（`provider.tsx:338-342`）。
+※7 `stopAnalysis` は `finally` で必ず `stop_analysis` を dispatch する（`provider.tsx`）。
 `stopAnalysisCore` が reject してもフロントは S0 になる。**issue #120 の再発経路**
 → [failure-surfacing.md](failure-surfacing.md) F-7
 
 ※8 `syncWaitRef` は `{seq, want, startedAt}` を持つ。
-**時刻だけを持つと前回の経過時間を引き継いで即座に打ち切る**ため（`provider.tsx:91-94`）
+**時刻だけを持つと前回の経過時間を引き継いで即座に打ち切る**ため（`provider.tsx`）
 
 ※9 タイムアウト時は `stopAnalysisCore` を撃ってから `set_error` + `stop_analysis`
-（`provider.tsx:185-197`）。**ここは P を片付けている。**
+（`provider.tsx`）。**ここは P を片付けている。**
 `.catch(() => {})` が付いているが、直後に `set_error` が飛ぶので握り潰しではない
 
 ※10 `stopAnalysis` は `restartSeqRef` を上げるので、in-flight の再起動は世代ガードで無効化される。
 ただし**すでに `startInfiniteAnalysisCore` が Rust 側でセッションを作っていた場合、
 その後に `stop_analysis` が撃たれるかは表で追えていない** → **未検証**
 
-※11 `ensure_no_active_session` が `Err("Analysis already running")` を返す（`bridge.rs:105-112`）。
-**エンジンを再起動するまで解析が二度と始まらない。** これが #120 の BLOCK の形
+※11 `take_session` が `Err("Analysis already running")` を返す（`engine/bridge.rs`）。
+
+**席が在るかどうかしか見ない。** `AnalysisSession` は「解析中か」を表す欄を持たない
+（持たせると、偽を書く口を誰も通らないまま定数になる）。席が在ること自体が
+「走っている」で、終わったら項目ごと消える。
+
+空ける口を数え上げない（数えると、口を1つ足したときに嘘になる）。追うときは
+`active_sessions` への write を全部見ること。
+
+**どの口も通らないまま席が残ると、エンジンを再起動するまで解析が二度と始まらない。**
+これが #120 の BLOCK の形。席を返す側が不変条件を破る経路は → #365
 
 ## この表が満たすべき不変条件
 
@@ -115,7 +124,7 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 - **`(S1〜S5, E6)` エンジンが ready でなくなる（※5）。** 全行にまたがる未検証
 - **`(S6/P1, E1)` セッションが残った状態での再開（※11）。** #120 の BLOCK そのものだが、
-  Rust 側を `is_active` にしたままフロントを S6 にする再現手段がテストに無い
+  Rust 側に席を残したままフロントを S6 にする再現手段がテストに無い
 - `(S1, E11)` / `(S4, E10)` 停止・開始の失敗（※7）
 - `(S4/S5, E2)` 再起動中の停止（※10）
 - `(S0, E12)` リスナ登録の失敗。**踏むと解析結果が二度と届かないが、画面には何も出ない**

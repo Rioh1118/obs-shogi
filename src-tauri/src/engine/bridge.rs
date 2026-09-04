@@ -1,6 +1,7 @@
-use crate::engine::utils::LogThrottle;
+use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
 
-use super::analyzer::EngineAnalyzer;
+use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
+use super::registry::EngineRegistry;
 use super::types::*;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -12,20 +13,6 @@ use tauri::Emitter;
 
 const LOGT: &str = "obs_shogi::engine::bridge";
 
-// グローバルブリッジの代わりにTauri Stateを使用
-#[derive(Default)]
-pub struct AppState {
-    pub bridge: Arc<EngineBridge>,
-}
-
-impl AppState {
-    pub fn new() -> Self {
-        Self {
-            bridge: Arc::new(EngineBridge::new()),
-        }
-    }
-}
-
 /// Tauriコマンドとエンジン機能の橋渡し
 pub struct EngineBridge {
     analyzer: EngineAnalyzer,
@@ -34,31 +21,64 @@ pub struct EngineBridge {
     app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
+/// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
+///
+/// 持っているのは、そのセッションで最後に受け取った結果だけ。
+///
+/// **「解析中か」を表す欄は無い。** 走っているかどうかは
+/// **`active_sessions` に居るかどうか**で表す。欄にすると同じことを2通りで
+/// 表すことになり、片方だけ動いたとき（居るのに `false`、消えたのに `true`）を
+/// 誰も検出できない。終わったセッションは項目ごと消す。
 #[derive(Debug)]
 struct AnalysisSession {
     last_result: Option<AnalysisResult>,
-    is_active: bool,
 }
 
+/// `analysis-update` の payload。
+///
+/// **`session_id` を載せるのは、受け手が自分のものか照合するため。**
+/// 前の探索が畳まりきる前に次の `go` が出ると、古い `info` が新しい
+/// リスナーへ配られる（`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
+/// 照合しないと、前の局面の読み筋が現在の盤面の解析結果として画面に出る。
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct AnalysisUpdate {
     session_id: String,
     result: AnalysisResult,
 }
 
+/// 走っている解析の種類。**`session_id` の接頭辞になる。**
+///
+/// `#[allow(dead_code)]` を付けないこと。付けると「この種類でセッションを
+/// 開く口が1つも無い」——どこかの入口がセッションを登録せずに解析を
+/// 始めている——が黙って通る。
 #[derive(Debug, Clone)]
 enum SessionType {
     Infinite,
-    #[allow(dead_code)]
     Timed(Duration),
-    #[allow(dead_code)]
     Depth(u32),
 }
 
+/// `session_id` を作る。**種類と打ち切り条件が接頭辞に出る。**
+///
+/// 条件まで出すのは、同じ局面に対する `timed` と `depth` のセッションが
+/// ログ上で見分けられないと、どちらが残ったのかを後から追えないため。
+///
+/// 副産物として `SessionType` の payload をここで必ず読むので、
+/// `Timed` と `Depth` の中身が dead code に戻らない（→ `SessionType` の doc）。
+fn new_session_id(session_type: &SessionType) -> String {
+    let prefix = match session_type {
+        SessionType::Infinite => "infinite".to_string(),
+        SessionType::Timed(limit) => format!("timed{}s", limit.as_secs()),
+        SessionType::Depth(depth) => format!("depth{depth}"),
+    };
+    format!("{}_{}", prefix, uuid::Uuid::new_v4())
+}
+
 impl EngineBridge {
-    pub fn new() -> Self {
+    pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
-            analyzer: EngineAnalyzer::new(),
+            analyzer: EngineAnalyzer::new(registry),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
             settings: Arc::new(RwLock::new(EngineSettings::default())),
             app_handle: Arc::new(RwLock::new(None)),
@@ -77,15 +97,8 @@ impl EngineBridge {
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
 
-        // engine_path は絶対パスかつ既存ファイルであることを要求する。
-        // 攻撃者が /bin/sh などの任意バイナリを起動させる経路を塞ぐ最低限のガード。
-        let resolved = std::fs::canonicalize(&engine_path)
-            .map_err(|e| format!("engine_path is not a valid existing path: {e}"))?;
-        if !resolved.is_file() {
-            return Err("engine_path must point to an existing file".to_string());
-        }
-        let engine_path = resolved.to_string_lossy().to_string();
-
+        // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
+        // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
         match self
             .analyzer
             .initialize_engine(engine_path, working_dir)
@@ -97,24 +110,52 @@ impl EngineBridge {
             }
             Err(e) => {
                 log::error!(target: LOGT, "initialize_engine: failed: {:?}", e);
-                Err(format!("Engine initialization failed: {:?}", e))
+                Err(format!("Engine initialization failed: {e}"))
             }
         }
     }
 
-    async fn ensure_no_active_session(&self) -> Result<(), String> {
-        let sessions = self.active_sessions.read().await;
-        let has_active = sessions.values().any(|s| s.is_active);
-        if has_active {
+    /// 解析のセッションを1本登録し、その `session_id` を返す。
+    ///
+    /// **同時に走らせるのは1本まで。** 既に走っていれば断る。
+    ///
+    /// 検査と登録を同じロック区間でやる。分けると、2本の `invoke` が
+    /// 両方とも「走っていない」を見てから両方とも登録する窓ができ、
+    /// **探索中のエンジンへ2本目の `go` が出る**
+    /// （USI は探索中の `position` / `go` を認めない）。
+    /// 対局側が `Activity` と `Handover` で守っているのと同じ不変条件。
+    ///
+    /// 解析を始める口は全部ここを通ること。通らない口があると、
+    /// その解析が走っている間ずっと「走っていない」に見える。
+    async fn take_session(&self, session_type: SessionType) -> Result<String, String> {
+        let mut sessions = self.active_sessions.write().await;
+        if !sessions.is_empty() {
             return Err("Analysis already running".to_string());
         }
-        Ok(())
+
+        let session_id = new_session_id(&session_type);
+        sessions.insert(session_id.clone(), AnalysisSession { last_result: None });
+        Ok(session_id)
+    }
+
+    /// セッションを閉じる。**失敗した口も必ず通ること。**
+    /// 通らないと項目が残り、以後の解析が全部「既に走っている」で断られる
+    async fn release_session(&self, session_id: &str) {
+        self.active_sessions.write().await.remove(session_id);
     }
 
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
         log::info!(target: LOGT, "shutdown_engine: start");
 
-        self.stop_all_sessions().await?;
+        // **止められなくても台帳の掃除まで進む。** `?` で折れると
+        // `engine_id` が `Some` のまま残り、以降どのコマンドも
+        // 「Engine is no longer running」を返すだけになる（終了ボタンが直せない）
+        if let Err(e) = self.stop_all_sessions().await {
+            log::warn!(
+                target: LOGT,
+                "shutdown_engine: could not stop sessions, continuing: {e}"
+            );
+        }
 
         match self.analyzer.shutdown().await {
             Ok(_) => {
@@ -123,7 +164,7 @@ impl EngineBridge {
             }
             Err(e) => {
                 log::error!(target: LOGT, "shutdown_engine: failed: {:?}", e);
-                Err(format!("Engine shutdown failed: {:?}", e))
+                Err(format!("Engine shutdown failed: {e}"))
             }
         }
     }
@@ -133,7 +174,7 @@ impl EngineBridge {
 
         self.analyzer.set_position(&position).await.map_err(|e| {
             log::warn!(target: LOGT, "set_position: failed: {:?}", e);
-            format!("Position setting failed: {:?}", e)
+            format!("Position setting failed: {e}")
         })?;
 
         log::debug!(target: LOGT, "set_position: ok");
@@ -141,23 +182,31 @@ impl EngineBridge {
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
-        if let Err(e) = self.ensure_no_active_session().await {
-            log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
-            return Err(e);
-        }
+        // **セッションを先に登録する。** 後にすると、走らせている間だけ
+        // 「走っていない」に見える
+        let session_id = self
+            .take_session(SessionType::Infinite)
+            .await
+            .map_err(|e| {
+                log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
+                e
+            })?;
 
         log::debug!(target: LOGT, "start_infinite_analysis: requested");
 
-        let result_rx = self.analyzer.start_infinite_analysis().await.map_err(|e| {
-            log::error!(
-                target: LOGT,
-                "start_infinite_analysis: analyzer failed: {:?}",
-                e
-            );
-            format!("Failed to start infinite analysis: {:?}", e)
-        })?;
+        let result_rx = match self.analyzer.start_infinite_analysis().await {
+            Ok(rx) => rx,
+            Err(e) => {
+                log::error!(
+                    target: LOGT,
+                    "start_infinite_analysis: analyzer failed: {:?}",
+                    e
+                );
+                self.release_session(&session_id).await;
+                return Err(format!("Failed to start infinite analysis: {e}"));
+            }
+        };
 
-        let session_id = self.create_session(SessionType::Infinite).await;
         log::info!(
             target: LOGT,
             "start_infinite_analysis: ok session_id={}",
@@ -198,8 +247,8 @@ impl EngineBridge {
         // session が消えたら emit/保存をやめるためのフラグ
         let mut session_exists = true;
 
-        // emit失敗は5秒に1回だけwarn
-        let mut emit_warn = LogThrottle::new(Duration::from_secs(5));
+        // emit の失敗は洪水になるので絞る。間隔は対局側と1つ（`EMIT_WARN_INTERVAL`）
+        let mut emit_warn = LogThrottle::new(EMIT_WARN_INTERVAL);
         // session消失も1回だけdebug
         let mut session_missing_logged = false;
 
@@ -211,7 +260,7 @@ impl EngineBridge {
                 let mut sessions_guard = sessions.write().await;
                 if let Some(session) = sessions_guard.get_mut(&session_id) {
                     session.last_result = Some(result.clone());
-                    emit = session.is_active;
+                    emit = true;
                 } else {
                     session_exists = false;
                     if !session_missing_logged {
@@ -247,13 +296,14 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // receiver が閉じた（analyzer 側が終了）ので最後に状態だけ落とす
-        {
-            let mut sessions_guard = sessions.write().await;
-            if let Some(session) = sessions_guard.get_mut(&session_id) {
-                session.is_active = false;
-            }
-        }
+        // **項目ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
+        // 丸ごと持ったまま溜まる（上限は無い）。居ること自体が「走っている」なので、
+        // 終わった項目を残すと `take_session` が以後ずっと断ることにもなる。
+        //
+        // ここを通っても**フロントには何も飛ばない**。`sessionId` を握ったままの
+        // 画面から「停止」が来るので、`stop_session` はそれを失敗にしない。
+        // 最後の結果は `EngineAnalyzer::get_last_result` が1本だけ持つ
+        sessions.write().await.remove(&session_id);
         log::debug!(
             target: LOGT,
             "forward_results: ended session_id={}",
@@ -261,23 +311,53 @@ impl EngineBridge {
         );
     }
 
+    /// 時間指定の解析。
+    ///
+    /// **考慮時間に上限を掛ける。** `time_seconds` はフロントから来るので、
+    /// そのまま渡すと、セッションを1本占めたまま何時間でも戻らない解析を作れてしまう。
+    /// 断らずに丸めるのは、上限が「安全のための天井」であって
+    /// 利用者の指定が誤りだったわけではないため。
     pub async fn analyze_with_time_impl(
         &self,
         time_seconds: u64,
     ) -> Result<AnalysisResult, String> {
-        let duration = Duration::from_secs(time_seconds);
+        let duration = Duration::from_secs(time_seconds).min(MAX_THINK_TIME);
+        if duration != Duration::from_secs(time_seconds) {
+            log::warn!(
+                target: LOGT,
+                "analyze_with_time: {}s は上限の {}s に丸めた",
+                time_seconds,
+                MAX_THINK_TIME.as_secs()
+            );
+        }
+        let session_id = self.take_session(SessionType::Timed(duration)).await?;
 
-        self.analyzer
+        let result = self
+            .analyzer
             .analyze_with_time(duration)
             .await
-            .map_err(|e| format!("Timed analysis failed: {:?}", e))
+            .map_err(|e| format!("Timed analysis failed: {e}"));
+
+        self.release_session(&session_id).await;
+        result
     }
 
-    pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<AnalysisResult, String> {
-        self.analyzer
+    /// 深度指定の解析。
+    ///
+    /// **目標に届かなくても `Ok` が返る。** 届いたかは `DepthOutcome::reached` にある。
+    /// `go depth` は送れない（`usi` crate に手段が無い）ので、届くかは
+    /// `DEPTH_ANALYSIS_BUDGET` の中で `info depth` がそこまで伸びるか次第。
+    pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<DepthOutcome, String> {
+        let session_id = self.take_session(SessionType::Depth(depth)).await?;
+
+        let result = self
+            .analyzer
             .analyze_with_depth(depth)
             .await
-            .map_err(|e| format!("Depth analysis failed: {:?}", e))
+            .map_err(|e| format!("Depth analysis failed: {e}"));
+
+        self.release_session(&session_id).await;
+        result
     }
 
     pub async fn stop_analysis_impl(&self, session_id: Option<String>) -> Result<(), String> {
@@ -315,7 +395,7 @@ impl EngineBridge {
             .await
             .map_err(|e| {
                 log::error!(target: LOGT, "apply_engine_settings: failed: {:?}", e);
-                format!("Failed to apply settings: {:?}", e)
+                format!("Failed to apply settings: {e}")
             })?;
 
         // 設定を保存
@@ -334,9 +414,10 @@ impl EngineBridge {
         let sessions = self.active_sessions.read().await;
 
         let statuses = sessions
-            .iter()
-            .map(|(id, session)| AnalysisStatus {
-                is_analyzing: session.is_active,
+            .keys()
+            // 項目が在る＝走っている。消えたら終わっている
+            .map(|id| AnalysisStatus {
+                is_analyzing: true,
                 session_id: Some(id.clone()),
                 elapsed_time: None,
                 config: None,
@@ -355,37 +436,12 @@ impl EngineBridge {
             Err(EngineError::NotInitialized(_)) => Ok(None),
             Err(e) => {
                 log::warn!(target: LOGT, "get_engine_info: failed: {:?}", e);
-                Err(format!("Failed to get engine info: {:?}", e))
+                Err(format!("Failed to get engine info: {e}"))
             }
         }
     }
 
     // ===  session === //
-
-    async fn create_session(&self, session_type: SessionType) -> String {
-        let prefix = match session_type {
-            SessionType::Infinite => "infinite",
-            SessionType::Timed(_) => "timed",
-            SessionType::Depth(_) => "depth",
-        };
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        let session_id = format!("{}_{}", prefix, nanos);
-
-        let session = AnalysisSession {
-            last_result: None,
-            is_active: true,
-        };
-
-        self.active_sessions
-            .write()
-            .await
-            .insert(session_id.clone(), session);
-
-        session_id
-    }
 
     async fn stop_session(&self, session_id: &str) -> Result<(), String> {
         log::info!(
@@ -394,16 +450,36 @@ impl EngineBridge {
             session_id
         );
 
+        // **他人のセッションは止めない。** `session_id` はフロントから来る任意の文字列で、
+        // フロントはエラーの後も `sessionId` を握り続ける
+        // （`docs/state-transitions/analysis.md` の ※1）。照合しないと、
+        // 前の解析の ID を握ったままの画面が「停止」を撃ったときに
+        // **いま走っている別の解析が止まって `Ok` が返る**。
+        //
+        // **「もう無い」は失敗にしない。** エンジンが落ちると
+        // `forward_results_to_ui` が項目を消すが、フロントへは何も飛ばないので
+        // `sessionId` を握ったまま「停止」が来る。ここで `Err` にすると
+        // 呼び出し側の再開が `catch` に落ち、**解析が始まり直さない**。
+        // 要求は「止まっていること」で、項目が無いならその要求は満たせている
+        // （`EngineAnalyzer::stop_analysis` と同じ立場）。
         {
             let mut sessions = self.active_sessions.write().await;
-            if let Some(mut session) = sessions.remove(session_id) {
-                session.is_active = false;
+            match sessions.remove(session_id) {
+                Some(_) => {}
+                None if sessions.is_empty() => {
+                    log::debug!(target: LOGT, "stop_session: already gone id={session_id}");
+                }
+                // 別のセッションが走っている。撃った側のものではないので触らない
+                None => {
+                    log::warn!(target: LOGT, "stop_session: not the running one id={session_id}");
+                    return Err(format!("unknown analysis session: {session_id}"));
+                }
             }
         }
 
         self.analyzer.stop_analysis().await.map_err(|e| {
-            log::error!(target: LOGT, "stop_session: analyzer stop failed: {:?}", e);
-            format!("Failed to stop analysis: {:?}", e)
+            log::error!(target: LOGT, "stop_session: analyzer stop failed: {e}");
+            format!("Failed to stop analysis: {e}")
         })?;
 
         log::info!(target: LOGT, "stop_session: ok session_id={}", session_id);
@@ -413,14 +489,7 @@ impl EngineBridge {
     async fn stop_all_sessions(&self) -> Result<(), String> {
         log::info!(target: LOGT, "stop_all_sessions: start");
 
-        {
-            let mut sessions = self.active_sessions.write().await;
-
-            for session in sessions.values_mut() {
-                session.is_active = false;
-            }
-            sessions.clear();
-        }
+        self.active_sessions.write().await.clear();
 
         self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
@@ -428,7 +497,7 @@ impl EngineBridge {
                 "stop_all_sessions: analyzer stop failed: {:?}",
                 e
             );
-            format!("Failed to stop all analysis: {:?}", e)
+            format!("Failed to stop all analysis: {e}")
         })?;
 
         log::info!(target: LOGT, "stop_all_sessions: ok");
@@ -436,108 +505,113 @@ impl EngineBridge {
     }
 }
 
-impl Default for EngineBridge {
-    fn default() -> Self {
-        Self::new()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// セッションの出し入れだけを見る。**エンジンのプロセスは要らない。**
+    ///
+    /// 起動しないと `analyzer` の側は動かないが、`take_session` /
+    /// `release_session` は `active_sessions` しか触らないので、
+    /// ここだけを回せる。回さないと、セッションを閉じ忘れる口が素通りする。
+    fn bridge() -> EngineBridge {
+        EngineBridge::new(Arc::new(EngineRegistry::new()))
     }
-}
 
-// === Tauriコマンド定義 ===
+    /// 2本目を断ること。
+    ///
+    /// 断らないと、探索中のエンジンへ2本目の `go` が出る
+    /// （USI は探索中の `position` / `go` を認めない）
+    #[tokio::test]
+    async fn a_second_analysis_is_refused_while_one_holds_the_seat() {
+        let bridge = bridge();
 
-#[tauri::command]
-pub async fn initialize_engine(
-    state: tauri::State<'_, AppState>,
-    engine_path: String,
-    working_dir: Option<String>,
-) -> Result<(), String> {
-    state
-        .bridge
-        .initialize_engine_impl(engine_path, working_dir)
-        .await
-}
+        let first = bridge.take_session(SessionType::Infinite).await;
+        assert!(first.is_ok());
 
-#[tauri::command]
-pub async fn shutdown_engine(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    state.bridge.shutdown_engine_impl().await
-}
+        let second = bridge
+            .take_session(SessionType::Timed(Duration::from_secs(5)))
+            .await;
+        assert!(second.is_err(), "既に走っているのに2本目を登録できている");
+    }
 
-#[tauri::command]
-pub async fn set_position(
-    state: tauri::State<'_, AppState>,
-    position: String,
-) -> Result<(), String> {
-    state.bridge.set_position_impl(position).await
-}
+    /// 返せば次が取れること。**返す口が抜けると解析が二度と始まらない**
+    #[tokio::test]
+    async fn releasing_the_seat_lets_the_next_analysis_in() {
+        let bridge = bridge();
 
-#[tauri::command]
-pub async fn start_infinite_analysis(state: tauri::State<'_, AppState>) -> Result<String, String> {
-    state.bridge.start_infinite_analysis_impl().await
-}
+        let id = bridge.take_session(SessionType::Depth(20)).await.unwrap();
+        bridge.release_session(&id).await;
 
-#[tauri::command]
-pub async fn analyze_with_time(
-    state: tauri::State<'_, AppState>,
-    time_seconds: u64,
-) -> Result<AnalysisResult, String> {
-    state.bridge.analyze_with_time_impl(time_seconds).await
-}
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_ok(),
+            "返したのに次が取れない"
+        );
+    }
 
-#[tauri::command]
-pub async fn analyze_with_depth(
-    state: tauri::State<'_, AppState>,
-    depth: u32,
-) -> Result<AnalysisResult, String> {
-    state.bridge.analyze_with_depth_impl(depth).await
-}
+    /// `session_id` が種類と条件を持つこと。
+    ///
+    /// 持たないと `SessionType` の payload を誰も読まず、
+    /// `Timed` と `Depth` の中身が dead code に戻る
+    #[tokio::test]
+    async fn the_seat_name_carries_what_kind_of_analysis_it_is() {
+        let bridge = bridge();
 
-#[tauri::command]
-pub async fn stop_analysis(
-    state: tauri::State<'_, AppState>,
-    session_id: Option<String>,
-) -> Result<(), String> {
-    state.bridge.stop_analysis_impl(session_id).await
-}
+        let id = bridge
+            .take_session(SessionType::Timed(Duration::from_secs(30)))
+            .await
+            .unwrap();
+        assert!(
+            id.starts_with("timed30s_"),
+            "`session_id` が条件を持っていない: {id}"
+        );
+        bridge.release_session(&id).await;
 
-#[tauri::command]
-pub async fn get_analysis_result(
-    state: tauri::State<'_, AppState>,
-    session_id: String,
-) -> Result<Option<AnalysisResult>, String> {
-    state.bridge.get_analysis_result_impl(session_id).await
-}
+        let id = bridge.take_session(SessionType::Depth(24)).await.unwrap();
+        assert!(
+            id.starts_with("depth24_"),
+            "`session_id` が条件を持っていない: {id}"
+        );
+    }
 
-#[tauri::command]
-pub async fn get_last_result(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<AnalysisResult>, String> {
-    state.bridge.get_last_result_impl().await
-}
+    /// セッションがもう無いときの「停止」を失敗にしないこと。
+    ///
+    /// エンジンが落ちると `forward_results_to_ui` が項目を消すが、フロントへは
+    /// 何も飛ばないので `sessionId` を握ったまま「停止」が来る。ここで `Err` に
+    /// すると、呼び出し側の再開が `catch` に落ちて**解析が始まり直さない**。
+    /// 利用者から見ると「解析中」の表示が無言で「停止中」に変わる。
+    ///
+    /// 要求は「止まっていること」で、項目が無いならその要求は満たせている。
+    #[tokio::test]
+    async fn stopping_a_session_that_is_already_gone_succeeds() {
+        let bridge = bridge();
 
-#[tauri::command]
-pub async fn apply_engine_settings(
-    state: tauri::State<'_, AppState>,
-    settings: EngineSettings,
-) -> Result<(), String> {
-    state.bridge.apply_engine_settings_impl(settings).await
-}
+        let id = bridge.take_session(SessionType::Infinite).await.unwrap();
+        bridge.release_session(&id).await;
 
-#[tauri::command]
-pub async fn get_engine_settings(
-    state: tauri::State<'_, AppState>,
-) -> Result<EngineSettings, String> {
-    state.bridge.get_engine_settings_impl().await
-}
+        assert!(
+            bridge.stop_session(&id).await.is_ok(),
+            "もう無いセッションの停止が失敗している。再開の経路が catch に落ちる"
+        );
+    }
 
-#[tauri::command]
-pub async fn get_analysis_status(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<AnalysisStatus>, String> {
-    state.bridge.get_analysis_status_impl().await
-}
+    /// 知らない ID で他人の解析を止めないこと。
+    ///
+    /// `session_id` はフロントから来る任意の文字列。照合しないと、
+    /// 前の解析の ID を握ったままの画面が「停止」を撃ったときに、
+    /// **いま走っている別の解析が止まって `Ok` が返る**
+    #[tokio::test]
+    async fn stopping_an_unknown_session_does_not_touch_the_running_one() {
+        let bridge = bridge();
+        let mine = bridge.take_session(SessionType::Infinite).await.unwrap();
 
-#[tauri::command]
-pub async fn get_engine_info(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<EngineInfo>, String> {
-    state.bridge.get_engine_info_impl().await
+        let refused = bridge.stop_session("someone-elses-id").await;
+        assert!(refused.is_err(), "知らない ID が成功している");
+
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_err(),
+            "知らない ID で走っているセッションが消えてしまった"
+        );
+        bridge.release_session(&mine).await;
+    }
 }

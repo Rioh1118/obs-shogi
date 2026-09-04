@@ -1,10 +1,24 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) ゲート: 検証を通していない `git commit` を止める。
 #
-# 変更ファイルの種類だけを見て、必要な verify を選んで走らせる。
-#   *.ts / *.tsx / tsconfig / vite.config / package.json -> npm run verify
-#   *.rs / Cargo.toml / Cargo.lock                       -> npm run verify:rust
-# どちらにも当たらない変更（docs/ や .claude/ など）は素通しする。
+# 選ぶ基準は**ファイルの種類ではなく、検査が何を見ているか**。
+#
+#   npm run verify:rust  ... cargo が見るもの。**`.rs` と `Cargo.*` だけではない**
+#                            ——`src-tauri/tests` の検査は `docs/state-transitions/` を
+#                            直に読む
+#   npm run verify       ... tsc と lint と vitest が見るもの。
+#                            **`src/__tests__` の検査のいくつかは
+#                            `src-tauri/src` と `docs/` を直に読む。**
+#                            どちらも列挙しない（数え上げると必ず1つ漏れる）。
+#                            一覧が要るなら CONTRIBUTING.md の表を見ること
+#
+# **種類で二分しない。** 二分すると、`.rs` だけのコミットで Rust のコメント規約が
+# 走らず、`docs/` だけのコミットで表の識別子とパスが誰にも見られない。
+# 落ちるのは次に `.ts` を1文字触った人で、その人は自分が書いていない赤を踏む。
+#
+# どの検査にも当たらない変更は素通しする。`.claude/` は**一括では素通しできない**
+# ——`.claude/hooks/` はこのファイル自身とその検査（`npm run test:hooks`）を
+# 持つので、そこを触ったら `npm run verify` を通す。
 #
 # 落ちたら permissionDecision: deny を返してコミット自体を止める。
 # 逃げ道は用意しない。逃げ道を用意した時点でゲートではなくなる。
@@ -30,11 +44,27 @@ needs_rust=0
 while IFS= read -r line; do
   path=${line:3}
   path=${path##* -> }
-  case "$path" in
-    *.ts|*.tsx|tsconfig*.json|vite.config.ts|package.json|package-lock.json) needs_ts=1 ;;
-  esac
+  # `npm run verify:rust` の対象。**状態遷移表もここに入る。**
+  # `state_transition_cells` が表とテストの名乗りを突き合わせていて、
+  # **それが壊れる改変は表だけを触るコミットで来る**（実測: 表1ファイルだけの
+  # コミットで、実在するテストを「無い」と書いた回が2度ある）
   case "$path" in
     *.rs|*Cargo.toml|*Cargo.lock) needs_rust=1 ;;
+    docs/state-transitions/*) needs_rust=1 ;;
+  esac
+  # `npm run verify` の対象。**`.rs` と `docs/` もここに入る。**
+  # vitest のラチェットが `src-tauri/**` と `docs/**` を歩いているので、
+  # そこを触ったコミットで走らせないと検査が素通りする
+  case "$path" in
+    *.ts|*.tsx|tsconfig*.json|vite.config.ts|package.json|package-lock.json) needs_ts=1 ;;
+    *.rs|*Cargo.toml|*Cargo.lock) needs_ts=1 ;;
+    docs/*) needs_ts=1 ;;
+    *.scss|CONTRIBUTING.md) needs_ts=1 ;;
+    # **門番自身とその検査。** `npm run verify` は `test:hooks` を含むので、
+    # ここを外すと**門番を書き換えるコミットでその検査が1度も走らない**
+    # ——選び損ねても何も落ちない、というこの門番の一番危ない壊れ方が、
+    # 門番自身の変更に対してだけ成立する
+    .claude/hooks/*) needs_ts=1 ;;
   esac
 done < <(git status --porcelain --untracked-files=no)
 
