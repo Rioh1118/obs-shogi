@@ -7,9 +7,9 @@ use std::path::Path;
 use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE};
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
-use crate::kifu_text::declared_encoding;
 use crate::search::read::diagnosis::{cannot_open, capped, parse_failed, unreadable_record};
 use crate::search::read::outcome::{Jkf, KifuReadError};
+use kifu_text::declared_encoding;
 
 /// クレートで読み、だめなら他の文字コードで読み直す。
 ///

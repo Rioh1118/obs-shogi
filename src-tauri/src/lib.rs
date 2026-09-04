@@ -1,11 +1,8 @@
 pub mod ai_library;
 pub mod engine;
 pub mod kifu;
-pub mod kifu_text;
 pub mod search;
 pub mod settings;
-#[cfg(test)]
-pub(crate) mod test_support;
 pub mod workspace;
 
 pub use crate::engine::state::AppState;

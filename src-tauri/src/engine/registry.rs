@@ -499,7 +499,7 @@ mod tests {
     async fn a_spawn_failure_keeps_the_reason_the_os_gave() {
         use std::os::unix::fs::PermissionsExt;
 
-        let dir = crate::test_support::temp_dir("engine-not-executable");
+        let dir = test_support::dir::temp_dir("engine-not-executable");
         let path = dir.join("engine");
         std::fs::write(&path, b"#!/bin/sh\nexit 0\n").expect("置けている");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).expect("権限");

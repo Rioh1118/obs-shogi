@@ -253,20 +253,20 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kifu_text::declared_encoding;
     use crate::search::read::csa::{is_csa_move_line, tidy_csa};
     use crate::search::read::diagnosis::{Capped, MESSAGE_LIMIT};
     use crate::search::read::encoding::{
         can_be_named, describe, Evidence, Unparsable, ENCODINGS_THE_CRATE_SKIPS,
     };
-    use crate::search::test_kifu::{one_move_kif, HANDICAPS};
-    use crate::test_support::temp_dir;
     use encoding_rs::Encoding;
     use encoding_rs::{EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE, UTF_8};
+    use kifu_text::declared_encoding;
     use shogi_kifu_converter_obsshogi::error::ParseError;
     use shogi_kifu_converter_obsshogi::error::{NormalizeError, NormalizeErrorKind};
     use shogi_kifu_converter_obsshogi::jkf::{Initial, MoveFormat, MoveSpecial, Preset};
     use std::fmt::Write as _;
+    use test_support::dir::temp_dir;
+    use test_support::kifu::{one_move_kif, HANDICAPS};
 
     fn hirate_kif() -> String {
         one_move_kif("平手")
@@ -1475,7 +1475,7 @@ P9 *  *  *  * +OU *  *  *  * ";
     /// 画面（`workspace::record`）も一緒に読めるようにすること。
     #[test]
     fn the_skipped_encodings_are_the_shared_list_minus_the_crates_two() {
-        use crate::kifu_text::KIFU_ENCODINGS;
+        use kifu_text::KIFU_ENCODINGS;
 
         let crate_tries = [UTF_8, SHIFT_JIS];
 
@@ -1510,7 +1510,7 @@ P9 *  *  *  * +OU *  *  *  * ";
     /// 題材は**すべて合成**。
     #[test]
     fn the_index_and_the_viewer_decode_a_kifu_to_the_same_text() {
-        use crate::kifu_text::decode_kifu;
+        use kifu_text::decode_kifu;
 
         let dir = temp_dir("same-text");
         // `山田太郎` は EUC-JP で全バイトが 0xA1〜0xDF に入るので、

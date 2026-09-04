@@ -56,12 +56,12 @@ pub fn convert_jkf_to_string_internal(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::temp_dir;
     use shogi_kifu_converter_obsshogi::error::ParseError;
     use shogi_kifu_converter_obsshogi::jkf::Color;
     use shogi_kifu_converter_obsshogi::parser::{
         parse_csa_str, parse_jkf_str, parse_ki2_str, parse_kif_str,
     };
+    use test_support::dir::temp_dir;
 
     /// 後手番の任意局面。`手合割：その他` + 盤面 + 「後手番」で手番が決まる。
     ///

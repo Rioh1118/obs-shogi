@@ -14,6 +14,4 @@ pub mod query_service;
 pub mod read;
 pub mod state;
 pub mod store;
-#[cfg(test)]
-pub(crate) mod test_kifu;
 pub mod types;

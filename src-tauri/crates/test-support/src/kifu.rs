@@ -9,7 +9,7 @@
 /// このうち **三枚落ち / 五枚落ち / 左五枚落ち / 右七枚落ち / 左七枚落ち の5件は
 /// tsshogi が知らない**。索引には入るが、KIF は画面で平手として描かれ、
 /// `.jkf` は開けない（#330）。
-pub(crate) const HANDICAPS: [&str; 15] = [
+pub const HANDICAPS: [&str; 15] = [
     "香落ち",
     "右香落ち",
     "角落ち",
@@ -31,7 +31,7 @@ pub(crate) const HANDICAPS: [&str; 15] = [
 ///
 /// 手合割つきは上手（後手）から指すので初手が平手と異なる。
 /// ３三の歩はどの手合割でも落ちないので、上手の初手として全種で使える。
-pub(crate) fn one_move_kif(handicap: &str) -> String {
+pub fn one_move_kif(handicap: &str) -> String {
     let first = if handicap == "平手" {
         "７六歩(77)"
     } else {

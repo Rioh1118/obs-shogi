@@ -341,7 +341,7 @@ pub fn bucketize_entries(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::test_kifu::one_move_kif;
+    use test_support::kifu::one_move_kif;
 
     /// 警告の手数が、指せなかった手そのものを指す。
     ///

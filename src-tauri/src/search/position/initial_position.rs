@@ -57,8 +57,8 @@ pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, ConvertErr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::test_kifu::{one_move_kif, HANDICAPS};
     use shogi_kifu_converter_obsshogi::parser::{parse_jkf_str, parse_kif_str};
+    use test_support::kifu::{one_move_kif, HANDICAPS};
 
     fn handicap_jkf(name: &str) -> Jkf {
         parse_kif_str(&one_move_kif(name)).expect("読めること")

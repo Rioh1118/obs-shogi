@@ -10,9 +10,9 @@ use shogi_kifu_converter_obsshogi::{
     jkf::JsonKifuFormat,
 };
 
-use crate::kifu_text::decode_kifu;
 use ::fs::error::{FsError, FsErrorCode};
 use ::fs::path::{ensure_not_exists, get_file_extension};
+use kifu_text::decode_kifu;
 
 pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     ensure_not_exists(path)?;
@@ -97,11 +97,11 @@ pub fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::test_kifu::one_move_kif;
     use shogi_kifu_converter_obsshogi::{
         jkf::{Initial, Preset},
         parser::{parse_csa_str, parse_jkf_str, parse_ki2_str, parse_kif_str},
     };
+    use test_support::kifu::one_move_kif;
 
     /// **画面に開く経路が、化けた文字列を返さない。**
     ///

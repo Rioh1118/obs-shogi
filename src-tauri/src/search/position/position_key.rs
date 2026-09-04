@@ -314,7 +314,7 @@ mod tests {
     /// 落とした駒のぶんの項がずれても気付けない。
     #[test]
     fn every_handicap_steps_the_same_as_a_full_recompute() {
-        use crate::search::test_kifu::{one_move_kif, HANDICAPS};
+        use test_support::kifu::{one_move_kif, HANDICAPS};
 
         for h in HANDICAPS.iter().chain(std::iter::once(&"平手")) {
             let jkf = parse(&one_move_kif(h));
