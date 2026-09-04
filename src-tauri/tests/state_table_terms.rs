@@ -137,8 +137,9 @@ fn constants_in(text: &str) -> BTreeSet<String> {
 /// 落とすと**正当に書かれている行が赤くなる**。代価は、本番の `const` を
 /// テストモジュールへ移しても表が緑のままになること。
 ///
-/// 名前は語の区切りまでで切る。切らないと `MAX_MOVE` を書いた表が
-/// `MAX_MOVE_CHARS` の宣言行で通ってしまう（照合の側は [`missing_in`]）。
+/// 名前は語の区切りまでで切る。切らないと宣言名にコロンや型が付いたまま
+/// （`MAX_MOVE_CHARS:`）入るので、**正しく書かれた表の綴りが「実装に無い」と
+/// 誤って落ちる**。接頭辞で通らないことは [`missing_in`] が受け持つ。
 fn declared_constants(code: &str) -> BTreeSet<&str> {
     code.lines()
         .filter_map(|line| {
