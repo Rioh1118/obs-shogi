@@ -8,7 +8,7 @@ use crate::search::build::build_full_index_task;
 use crate::search::cache::index_cache;
 use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
 use crate::search::state::SearchState;
-use crate::search::store::index_store::IndexState as StoreIndexState;
+use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexState};
 use crate::search::types::{
     CancelSearchInput, IndexState, IndexStatePayload, OpenProjectInput, OpenProjectOutput,
     SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE,
@@ -55,7 +55,7 @@ pub async fn open_project(
     log::info!("[open_project] BEGIN root_dir={}", root_dir.display());
 
     // 0) Restoring state (UIに「復元中」を見せる)
-    store.start_restoring();
+    store.replace(IndexSnapshot::empty_with(StoreIndexState::Restoring));
     let _ = app.emit(
         EVT_INDEX_STATE,
         IndexStatePayload {
@@ -104,12 +104,12 @@ pub async fn open_project(
             // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
             // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
             // Updating で開示する。
-            store.install_restored(
+            store.replace(IndexSnapshot::restored(
                 StoreIndexState::Updating,
                 restored.file_table,
                 restored.node_tables,
                 restored.buckets,
-            );
+            ));
 
             project
                 .install_after_full_build(
@@ -150,7 +150,7 @@ pub async fn open_project(
                 pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
                 // 差分が無くて run_rescan_diff_apply が早期 return した場合、
                 // store の state は Updating のまま。 Ready に確実に上げ直す。
-                st.set_state(StoreIndexState::Ready);
+                st.update(|s| s.with_state(StoreIndexState::Ready));
                 let total_files = st.snapshot().file_table.len() as u32;
                 let _ = app2.emit(
                     EVT_INDEX_STATE,
@@ -173,7 +173,7 @@ pub async fn open_project(
     }
 
     // 2) restore 失敗 → full build
-    store.start_full_build();
+    store.replace(IndexSnapshot::empty_with(StoreIndexState::Building));
 
     let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
     let total_files = records.len() as u32;

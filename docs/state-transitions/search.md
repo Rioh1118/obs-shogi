@@ -15,15 +15,15 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 状態を持つのは `IndexStore` の `snap`（`RwLock<Arc<IndexSnapshot>>`）1つだけ。
 `IndexSnapshot.state` が下の記号に対応する。
 
-| 記号  | `IndexState` | 判定条件                                                  | 中身               |
-| ----- | ------------ | --------------------------------------------------------- | ------------------ |
-| **E** | `Empty`      | 初期値                                                    | 空                 |
-| **R** | `Restoring`  | `start_restoring()` を通った                              | **空にされている** |
-| **B** | `Building`   | `start_full_build()` を通った                             | **空にされている** |
-| **U** | `Updating`   | `install_restored(Updating, ..)` か `set_state(Updating)` | 前の中身が残る     |
-| **Y** | `Ready`      | `set_state(Ready)`                                        | 揃っている         |
+| 記号  | `IndexState` | 判定条件                                                    | 中身               |
+| ----- | ------------ | ----------------------------------------------------------- | ------------------ |
+| **E** | `Empty`      | 初期値                                                      | 空                 |
+| **R** | `Restoring`  | `replace(empty_with(Restoring))` を通った                   | **空にされている** |
+| **B** | `Building`   | `replace(empty_with(Building))` を通った                    | **空にされている** |
+| **U** | `Updating`   | `replace(restored(Updating, ..))` か `with_state(Updating)` | 前の中身が残る     |
+| **Y** | `Ready`      | `with_state(Ready)`                                         | 揃っている         |
 
-**`R` と `B` は中身を捨てる。** `start_restoring` / `start_full_build` は
+**`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::empty_with` で
 `FileTable::default()` と空の bucket で作り直すので、**その間に投げた検索は必ず0件になる**
 （`stale=true` は付くが、`stale` は「古いかもしれない」であって「空」とは言っていない）。
 
@@ -43,10 +43,10 @@ let stale = snap.state != StoreIndexState::Ready;
 | 記号          | 発生源                             | 何が起きるか                                                                                                                                                                                                |
 | ------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                                                                                                       |
-| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `set_state(Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                                           |
+| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `with_state(Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                                          |
 | `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
 | `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
-| `build-done`  | 全件構築の完了                     | `insert_many_file_segments` を最後まで流し終えた                                                                                                                                                            |
+| `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
 | `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                                                                                                   |
 | `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                                                                                                |
 | `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                                                                                                 |
@@ -70,7 +70,7 @@ let stale = snap.state != StoreIndexState::Ready;
 
 **`open-rescan` は復元経路にしか無い。** `restore-ok` で `U` に入った直後、
 `open_project` が spawn した1本が `run_rescan_diff_apply`（先頭で全走査する）を
-待ち、**差分が0でも `set_state(Ready)` を無条件で呼ぶ**。
+待ち、**差分が0でも `with_state(Ready)` を無条件で呼ぶ**。
 つまり**起動時のいちばん普通の経路では、`U` に留まらず必ず `Y` まで行く**。
 `U` 行の `diff-empty`（「走査だけ更新」＝ `U` のまま）はこの経路の話ではない
 ——そちらは watcher が動き出したあとに来る `fs-event` の話。
@@ -78,7 +78,7 @@ let stale = snap.state != StoreIndexState::Ready;
 ### ⚠️ 走査が失敗しても `Y` に上がる
 
 `run_rescan_diff_apply` は `root_dir` が `None` のときと `scan_kifu_files` が
-`Err` のときに、`set_state(Updating)` へ届く前に `return` する。
+`Err` のときに、`with_state(Updating)` へ届く前に `return` する。
 **`run_rescan_diff_apply` は成否を返さない**（戻り値が `()`）ので、
 呼び手（`commands.rs`）には失敗と「差分0」を区別する手段が無い。
 
@@ -95,9 +95,9 @@ let stale = snap.state != StoreIndexState::Ready;
 ### ⚠️ `open` がどの状態からでも通る
 
 `open_project` に**いまの状態を見る分岐が無い**。`R` / `B` / `U` の途中で
-もう一度呼ばれると `start_restoring()` が走って**中身が捨てられる**。
+もう一度呼ばれると `empty_with(Restoring)` が置かれて**中身が捨てられる**。
 走っている全件構築や差分適用は止まらないので、
-**古い構築が新しい `snap` に `insert_many_file_segments` で書き込む**。
+**古い構築が新しい `snap` に `with_files` で書き込む**。
 
 TS 側が二重に呼ばないことに依存している。**Rust 側に守りは無い。**
 
@@ -265,7 +265,7 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | `tesuu`                 | **通る。黙って間違った索引になる**（#336）                                                                                                                                                                          |
 | `gen`                   | **通る。**その出現が `is_occ_alive` で黙って消える                                                                                                                                                                  |
 
-**「出現ゼロの節表」は例外ではない。** 削除された棋譜は `tombstone_file` が
+**「出現ゼロの節表」は例外ではない。** 削除された棋譜は `with_tombstone` が
 ファイル表だけを差し替えて節表を持ち越し、読めなかった棋譜は `NodeTable::empty()` と
 空の桶で登録される。`encode_all` は節表を全部書くのに、`decode_all` が `file_id` を
 突き合わせるのは**出現側**なので、出現ゼロのファイルは突き合わせに掛からない。
@@ -287,7 +287,7 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | 何を見ていないか                     | どうなるか（未確認）                                       |
 | ------------------------------------ | ---------------------------------------------------------- |
 | `R` / `B` の最中に `search` を投げる | 0件が返るはず。`stale=true` は付くが「空」とは言っていない |
-| `U` の最中に `open` を投げる         | 差分適用と `start_restoring` が競合する                    |
+| `U` の最中に `open` を投げる         | 差分適用と `empty_with(Restoring)` の置き換えが競合する    |
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**

@@ -14,8 +14,9 @@ use crate::search::read::fs_scan::{
     diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
 };
 use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
-use crate::search::store::index_store::{IndexState as StoreIndexState, IndexStore};
+use crate::search::store::index_store::IndexStore;
 use crate::search::store::node_table::NodeTable;
+use crate::search::store::snapshot::IndexState as StoreIndexState;
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -180,7 +181,7 @@ impl ProjectManager {
         }
 
         // state=Updating（クエリは stale=true になる）
-        store.set_state(StoreIndexState::Updating);
+        store.update(|s| s.with_state(StoreIndexState::Updating));
         let _ = app.emit(
             EVT_INDEX_STATE,
             IndexStatePayload {
@@ -196,7 +197,7 @@ impl ProjectManager {
         // removed → tombstone (cheap, fire immediately)
         for path_key in &diff.removed {
             if let Some(file_id) = path_to_id.remove(path_key) {
-                store.tombstone_file(file_id);
+                store.update(|s| s.with_tombstone(file_id));
             }
             done_dirty += 1;
             let _ = app.emit(
@@ -285,10 +286,10 @@ impl ProjectManager {
         }
 
         if !batch.is_empty() {
-            store.insert_many_file_segments(batch);
+            store.update(|s| s.with_files(batch));
         }
 
-        store.set_state(StoreIndexState::Ready);
+        store.update(|s| s.with_state(StoreIndexState::Ready));
         let _ = app.emit(
             EVT_INDEX_STATE,
             IndexStatePayload {

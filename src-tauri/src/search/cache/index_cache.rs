@@ -14,10 +14,10 @@ use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
 use crate::search::store::file_table::FileTable;
-use crate::search::store::index_store::IndexSnapshot;
 use crate::search::store::node_table::NodeTable;
 use crate::search::store::node_table::NodeTables;
 use crate::search::store::segment::SegmentArc;
+use crate::search::store::snapshot::IndexSnapshot;
 use crate::search::types::{FileEntry, FileId, Occurrence};
 
 /// ログの接頭辞。**3つのマクロがここだけを見る。**
@@ -680,8 +680,8 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
 
     // ---- buckets ----
     //
-    // **読んだ並びがそのまま索引の並びになる。** `install_restored` は並び替えず
-    // `Segment::new_sorted` へ渡し、`Segment` は昇順を前提に二分探索する。
+    // **読んだ並びがそのまま索引の並びになる。** `IndexSnapshot::restored` は
+    // 並び替えず `Segment::new_sorted` へ渡し、`Segment` は昇順を前提に二分探索する。
     // ここで検査しないと、崩れた並びが黙って通って**検索が0件になる** —
     // エラーも警告もログも出ず、`(size, mtime)` が変わらないので再起動しても直らない。
     //
@@ -714,9 +714,9 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             // 節表はここより前に読み終わっているので、範囲を突き合わせられる。
             // **範囲内の別の節を指す化け方は通る** — 値としてあり得るので見分けられない
             // 出現を持つ `file_id` は必ず節表を持つ。対で入れるのは
-            // `store/index_store.rs` の `insert_many_file_segments` だけで、
-            // あれは `(FileEntry, NodeTableArc, BucketEntries)` の三つ組を受ける。
-            // 復元の `install_restored` は表を丸ごと別々の引数で受けるので対を
+            // `store/snapshot.rs` の `with_files` だけで、あれは
+            // `(FileEntry, NodeTableArc, BucketEntries)` の三つ組を受ける。
+            // 復元の `restored` は表を丸ごと別々の引数で受けるので対を
             // 担保しない —— **復元の経路でこの不変条件を保つのはこの検査自身。**
             //
             // **表が無いことも壊れている合図。**

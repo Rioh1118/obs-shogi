@@ -37,7 +37,7 @@ pub const SWEEP_TIMEOUT: Duration = Duration::from_secs(4);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let store = Arc::new(IndexStore::new());
+    let store = Arc::new(IndexStore::default());
     let search_state = SearchState::new(store);
 
     tauri::Builder::default()

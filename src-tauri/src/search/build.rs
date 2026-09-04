@@ -18,8 +18,9 @@ use crate::search::index::file_build::build_file_index;
 use crate::search::project_manager::ProjectManager;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
-use crate::search::store::index_store::{IndexState as StoreIndexState, IndexStore};
+use crate::search::store::index_store::IndexStore;
 use crate::search::store::node_table::NodeTable;
+use crate::search::store::snapshot::IndexState as StoreIndexState;
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -61,7 +62,7 @@ pub async fn build_full_index_task(
     let sem = Arc::new(Semaphore::new(conc));
     let mut join: JoinSet<BuildItem> = JoinSet::new();
 
-    store.set_state(StoreIndexState::Building);
+    store.update(|s| s.with_state(StoreIndexState::Building));
 
     const COMMIT_BATCH: usize = 64;
     const EMIT_INTERVAL: Duration = Duration::from_millis(100);
@@ -155,7 +156,8 @@ pub async fn build_full_index_task(
         batch.push((file_entry, node_table, by_bucket));
 
         if batch.len() >= COMMIT_BATCH {
-            store.insert_many_file_segments(std::mem::take(&mut batch));
+            let items = std::mem::take(&mut batch);
+            store.update(|s| s.with_files(items));
         }
 
         if last_emit.elapsed() >= EMIT_INTERVAL {
@@ -181,10 +183,10 @@ pub async fn build_full_index_task(
     }
 
     if !batch.is_empty() {
-        store.insert_many_file_segments(batch);
+        store.update(|s| s.with_files(batch));
     }
 
-    store.set_state(StoreIndexState::Ready);
+    store.update(|s| s.with_state(StoreIndexState::Ready));
 
     // 最終 progress を必ず 1 回 emit する。 EMIT_INTERVAL の谷で
     // 取りこぼした場合、 reducer の doneFiles が total_files に達しないまま
