@@ -275,7 +275,7 @@ expect_teardown YES 'git am --abort'
 expect_teardown YES 'git revert --quit'
 expect_teardown YES '  git   merge   --abort  '
 
-# --continue は競合を解いた後の続行で、検証が通る状態で打てるので免除しない
+# --continue が作るコミットの中身は手元のツリーそのものなので、免除しない
 expect_teardown NO 'git rebase --continue'
 expect_teardown NO 'git cherry-pick --continue'
 
