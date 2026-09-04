@@ -80,6 +80,15 @@ describe("コメントを落としてから数える", () => {
     ]);
   });
 
+  // **2行目以降も落ちることを見る。** 1本しか置かないと、最初の1本だけを消す形でも
+  // 通ってしまう。実 corpus はほぼ全ファイルが行コメントを複数持つので、
+  // 取りこぼす側に倒れると「無い」はずの名前がまとめて「実在する」へ戻る
+  test("行コメントは2本目以降も落とす", () => {
+    const src = "let x = 1; // 説明\nlet y = 2; // DEAD_NAME のこと\n";
+
+    expect(missingIn(["DEAD_NAME"], codeOf(src))).toEqual(["DEAD_NAME"]);
+  });
+
   test("ブロックコメントも落とす", () => {
     expect(missingIn(["DEAD_NAME"], codeOf("/** DEAD_NAME */ let x = 1;"))).toEqual(["DEAD_NAME"]);
   });
