@@ -74,6 +74,16 @@ describe("codeOf（shell）", () => {
     ).not.toContain("CLAUDE_PROJECT_DIR");
   });
 
+  // **2行目以降の行頭。** hooks のコメントはほぼ全てこの形（2ファイルで224行）なので、
+  // ここが落ちないと消した名前が corpus に残って「実在する」に戻る。
+  // しかも壊れる向きは「消し足りない」側で、`missingIdentifiers` は黙って緑になる
+  test("行頭の `#` は2行目以降でも落とす", () => {
+    const body = "needs_ts=1\n# OLD_NAME のこと\nneeds_rust=1\n";
+
+    expect(codeOf(body, "shell")).not.toContain("OLD_NAME");
+    expect(codeOf(body, "shell")).toContain("needs_rust=1");
+  });
+
   test("行頭が `#` でないコード行は残す", () => {
     expect(codeOf("gate_kinds_for_path() {\n", "shell")).toContain("gate_kinds_for_path");
   });
