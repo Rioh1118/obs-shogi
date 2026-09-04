@@ -818,9 +818,11 @@ const LONG_MOVE_LIST: usize = 32;
 /// - 採択回数の合算は [`BookMove`] の `count` が `Option<u64>` なので、`None` を含む組を
 ///   どうするかを決める必要がある。**本家は欠けた欄を `1` と読む**（`book.cpp:94` の
 ///   `u64 move_count = 1` と `misc.cpp:1677-1680` の `get_number`）。`none` と書かれていれば `0`
-/// - **先勝ちを名乗る綴りが、このファイルに4箇所ある** —— [`keep_first_of_each_move`] と
-///   この関数の名前、`keep_first_of_each_move` の doc、`flush_position` のコメント。
-///   名前は勝ち方を含まない形へ替えるか、揃えること
+/// - **先勝ちを名乗る綴りを、このファイルから洗い出すこと。**
+///   `keep_first` を含む識別子と、`先に来た方` / `先に読んだ` の2語で当たる
+///   （関数の名前、doc、[`flush`] のコメント、テストの assert メッセージ）。
+///   **コンパイラと `cargo test` が落とすのは呼び出しと期待値だけで、
+///   コメントに写した名前もメッセージも残る**
 /// - `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表が「先勝ち」に
 ///   触れている行を、同時に書き換えること
 ///
