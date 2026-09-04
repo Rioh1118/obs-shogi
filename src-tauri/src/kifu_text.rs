@@ -8,7 +8,7 @@
 //!
 //! | 経路 | 入口 | 使い道 |
 //! | --- | --- | --- |
-//! | 画面に開く | `file_system::operations` の `read_text_portable` | webview に渡して `tsshogi` が読む |
+//! | 画面に開く | `workspace::record` の `read_text_portable` | webview に渡して `tsshogi` が読む |
 //! | 索引を組む | `search::kifu_reader` の `read_portable` | Rust 側のクレートが読む |
 //!
 //! 索引側は**読めるまでパーサに掛ける**という強い手を持っている（どの復号なら

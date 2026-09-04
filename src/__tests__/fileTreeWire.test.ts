@@ -15,7 +15,7 @@ import { RUST_SRC, SRC } from "./walk";
  * （`src/__tests__` はレイヤに依存しないので import では読めない）。
  */
 
-const RUST_STRUCT = join(RUST_SRC, "file_system", "types.rs");
+const RUST_STRUCT = join(RUST_SRC, "workspace", "types.rs");
 const TS_WIRE = join(SRC, "entities", "file-tree", "api", "rust-types.ts");
 const TS_ADAPTER = join(SRC, "entities", "file-tree", "api", "adapter.ts");
 

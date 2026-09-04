@@ -1,9 +1,9 @@
+//! ワークスペースを歩いて、画面に出すツリーを組む。
+
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{command, AppHandle, Runtime};
 
-use crate::file_system::utils::validate_under_root;
-use crate::fs::error::{FsError, FsErrorCode};
+use crate::fs::error::FsError;
 use crate::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under};
 
 use super::types::FileTreeNode;
@@ -185,34 +185,11 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
     Ok(node)
 }
 
-/// ツリーの取得。**`root_dir` は呼び出し側から来るので、設定値と突き合わせる。**
+/// 渡されたディレクトリを根としてツリーを組む。
 ///
-/// 突き合わせないと `invoke("get_file_tree", { rootDir: "/Users/x" })` で
-/// ホーム以下の全ディレクトリ名・棋譜のフルパス・サイズ・更新時刻が返る。
-/// 中身は `read_file` が `validate_under_root` で守っているが、一覧は素通りになる。
-/// 走査の側で root の外へ出ないことは `build_file_tree_recursive` が受け持つ
-/// （関門は引数1点しか見ない）。
-#[command]
-pub fn get_file_tree<R: Runtime>(
-    app: AppHandle<R>,
-    root_dir: String,
-) -> Result<FileTreeNode, FsError> {
-    let root_path = PathBuf::from(&root_dir);
-    validate_under_root(&app, &root_path)?;
-
-    if !root_path.exists() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(root_dir),
-        );
-    }
-
-    if !root_path.is_dir() {
-        return Err(
-            FsError::new(FsErrorCode::InvalidType, "path is not a directory")
-                .with_path(root_path.to_string_lossy().to_string()),
-        );
-    }
-
+/// **root の外へ出ないことはここが受け持つ。** 呼び出し側の関門は引数1点しか
+/// 見ないので、走査の途中で symlink が外へ出るかどうかは見られない。
+pub fn walk_from(root_path: &Path) -> Result<FileTreeNode, FsError> {
     // symlink まで解決しておく。解決前のパスを `canonical_root` にすると、
     // 配下かどうかの判定が解決後のパスと噛み合わない
     let canonical_path = root_path.canonicalize().map_err(FsError::from)?;

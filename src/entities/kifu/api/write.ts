@@ -13,7 +13,7 @@ import type { JKFData } from "../model/jkf";
  *
  * この関数が呼ぶ `write_kifu_to_file` は正規化しない（`src-tauri/src/kifu.rs`）。
  * 一方、新規作成の `create_kifu_file` は書く前に Rust 側で正規化する
- * （`src-tauri/src/file_system/operations.rs`）。同じ JKF でも、作った時と
+ * （`src-tauri/src/workspace/commands/kifu.rs`）。同じ JKF でも、作った時と
  * 保存し直した時でファイルの中身が揃わない。
  *
  * KIF / KI2 / CSA への変換は非可逆なので、いずれにせよ書いたファイルを読み直した JKF は

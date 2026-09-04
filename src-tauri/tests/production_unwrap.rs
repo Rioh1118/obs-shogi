@@ -103,15 +103,14 @@ fn the_scanner_still_sees_production_code() {
         protocol.contains("enum ReadyState"),
         "`#[cfg(test)] const ALL` の後ろにある本番の宣言まで落としている"
     );
-    let file_system = production_code(&src_dir().join("file_system").join("mod.rs"));
+    let root = production_code(&src_dir().join("lib.rs"));
     assert!(
-        file_system.contains("pub use mv::"),
-        "`#[cfg(test)] use` の後ろにある本番の再エクスポートまで落としている"
+        root.contains("pub mod workspace"),
+        "`#[cfg(test)] mod` の後ろにある本番の宣言まで落としている"
     );
 
     // **doc コメントの中の `#[cfg(test)]` から走り出していないこと。**
     // `lib.rs` の `CLOSE_TIMEOUT` の doc がその綴りを含む
-    let root = production_code(&src_dir().join("lib.rs"));
     assert!(
         root.contains("pub const CLOSE_TIMEOUT"),
         "コメントの中の `#[cfg(test)]` を item の始まりとして数えている"

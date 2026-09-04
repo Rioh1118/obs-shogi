@@ -1,24 +1,23 @@
-use crate::file_system::utils::{is_project_root, validate_under_root};
-use crate::fs::error::{FsError, FsErrorCode};
-use crate::fs::path::{ensure_not_exists, get_file_extension, is_kifu_file, validate_basename};
-use crate::fs::write::atomic_write;
-use std::io::Write;
+//! ワークスペースの中の棋譜ファイルを読み、拡張子が指す形式で綴る。
 
-use crate::kifu_text::decode_kifu;
+use std::fs;
+use std::io::Write;
+use std::path::Path;
+
 use shogi_kifu_converter_obsshogi::{
     converter::{ToCsa, ToKi2, ToKif},
     error::ConvertError,
     jkf::JsonKifuFormat,
 };
-use std::{fs::OpenOptions, path::PathBuf};
-use tauri::{command, AppHandle, Runtime};
 
-use std::{fs, path::Path};
+use crate::fs::error::{FsError, FsErrorCode};
+use crate::fs::path::{ensure_not_exists, get_file_extension};
+use crate::kifu_text::decode_kifu;
 
-fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
+pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     ensure_not_exists(path)?;
 
-    let mut file = OpenOptions::new()
+    let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
@@ -39,7 +38,7 @@ fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
 /// （`entities/kifu/api/parse.ts` の doc が明記している）ので、
 /// 利用者には「開いたのに中身が無い」としか見えず、原因に辿り着けない。
 /// 読めないなら読めないと言う。
-fn read_text_portable(path: &Path) -> Result<String, FsError> {
+pub fn read_text_portable(path: &Path) -> Result<String, FsError> {
     let bytes = fs::read(path).map_err(FsError::from)?;
 
     // BOM は復号のあとに落とす。落としてから渡すと、
@@ -62,31 +61,6 @@ fn strip_utf8_bom_str(text: &str) -> &str {
     text.strip_prefix('\u{feff}').unwrap_or(text)
 }
 
-#[command]
-pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<String, FsError> {
-    let path = PathBuf::from(&file_path);
-    validate_under_root(&app, &path)?;
-
-    if !path.exists() {
-        return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
-    }
-
-    if !path.is_file() {
-        return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
-            .with_path(path.to_string_lossy().to_string()));
-    }
-
-    // 棋譜ファイルのみ読み込み許可
-    if !is_kifu_file(&path) {
-        return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
-                .with_path(path.to_string_lossy().to_string()),
-        );
-    }
-
-    read_text_portable(&path)
-}
-
 /// JKF を、拡張子が指す形式の文字列に綴る。
 ///
 /// **`kifu.rs` の `convert_jkf_to_format` とは別物。** あちらは Tauri コマンドで、
@@ -98,7 +72,7 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
 /// ヘッダも指し手も無い JKF でも骨組みが残る。
 /// 空を書かせない番人は要らない — 空が作れない。
 /// 固定するのは `no_format_spells_a_blank_record_as_nothing`。
-fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
+pub fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
     // `ConvertError` の Display は綴れなかったものを名指しする（書き分けられない手、
     // 綴りの無い枚数、盤面の無い手合割）。何手目かは言わない — ply を持つのは
     // `Normalize` だけで、KIF / KI2 / CSA の書き出しはそれを作らない。
@@ -118,225 +92,6 @@ fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<St
                 .with_path(file_path.to_string_lossy().to_string()),
         ),
     }
-}
-
-#[command]
-pub fn create_kifu_file<R: Runtime>(
-    app: AppHandle<R>,
-    parent_dir: String,
-    file_name: String,
-    mut jkf_data: JsonKifuFormat,
-) -> Result<String, FsError> {
-    let parent_path = PathBuf::from(&parent_dir);
-    validate_under_root(&app, &parent_path)?;
-
-    if !parent_path.exists() || !parent_path.is_dir() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
-                .with_path(parent_dir),
-        );
-    }
-
-    let file_name = validate_basename(&file_name)?;
-
-    let file_path = parent_path.join(&file_name);
-
-    if !is_kifu_file(&file_path) {
-        return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
-                .with_path(file_path.to_string_lossy().to_string()),
-        );
-    }
-
-    validate_under_root(&app, &file_path)?;
-
-    // ここに来る JKF は webview 側が組んだもので、パーサ由来ではない。
-    // `parse_*` の戻り値なら正規化済みだが、この経路はそうではないので呼ぶ。
-    // なお `import_kifu_file` と `write_kifu_to_file` は呼ばない（#322）
-    jkf_data.normalize().map_err(|e| {
-        FsError::new(
-            FsErrorCode::KifuConversionFailed,
-            format!("normalize failed: {e}"),
-        )
-    })?;
-
-    let content = spell_for_extension(&jkf_data, &file_path)?;
-
-    write_new_file(&file_path, &content)?;
-
-    Ok(file_path.to_string_lossy().to_string())
-}
-
-#[command]
-pub fn import_kifu_file<R: Runtime>(
-    app: AppHandle<R>,
-    parent_dir: String,
-    file_name: String,
-    jkf_data: JsonKifuFormat,
-) -> Result<String, FsError> {
-    let parent_path = PathBuf::from(&parent_dir);
-    validate_under_root(&app, &parent_path)?;
-
-    if !parent_path.exists() || !parent_path.is_dir() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
-                .with_path(parent_dir),
-        );
-    }
-
-    let file_name = validate_basename(&file_name)?;
-
-    let file_path = parent_path.join(&file_name);
-
-    if !is_kifu_file(&file_path) {
-        return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
-                .with_path(file_path.to_string_lossy().to_string()),
-        );
-    }
-
-    validate_under_root(&app, &file_path)?;
-
-    let content = spell_for_extension(&jkf_data, &file_path)?;
-
-    write_new_file(&file_path, &content)?;
-
-    Ok(file_path.to_string_lossy().to_string())
-}
-
-#[command]
-pub fn save_kifu_file<R: Runtime>(
-    app: AppHandle<R>,
-    parent_dir: String,
-    file_name: String,
-    content: String,
-) -> Result<String, FsError> {
-    let parent_path = PathBuf::from(&parent_dir);
-    validate_under_root(&app, &parent_path)?;
-
-    if !parent_path.exists() || !parent_path.is_dir() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
-                .with_path(parent_dir),
-        );
-    }
-
-    // パスは検証を通した名前から組む。生の名前で先に組むと、検証した文字列と
-    // 実際に書き込む先が別のものになる
-    let file_name = validate_basename(&file_name)?;
-    let file_path = parent_path.join(&file_name);
-
-    if !is_kifu_file(&file_path) {
-        return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
-                .with_path(file_path.to_string_lossy().to_string()),
-        );
-    }
-
-    validate_under_root(&app, &file_path)?;
-
-    // ファイル保存（atomic write でクラッシュ時の半端な状態を避ける）
-    atomic_write(&file_path, content.as_bytes()).map_err(FsError::from)?;
-
-    Ok(file_path.to_string_lossy().to_string())
-}
-
-#[command]
-pub fn create_directory<R: Runtime>(
-    app: AppHandle<R>,
-    parent_dir: String,
-    dir_name: String,
-) -> Result<String, FsError> {
-    let parent_path = PathBuf::from(&parent_dir);
-    validate_under_root(&app, &parent_path)?;
-
-    if !parent_path.exists() || !parent_path.is_dir() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "parent directory does not exist")
-                .with_path(parent_dir),
-        );
-    }
-
-    let dir_name = validate_basename(&dir_name)?;
-
-    let new_dir_path = parent_path.join(&dir_name);
-    validate_under_root(&app, &new_dir_path)?;
-    ensure_not_exists(&new_dir_path)?;
-
-    fs::create_dir(&new_dir_path).map_err(FsError::from)?;
-
-    Ok(new_dir_path.to_string_lossy().to_string())
-}
-
-#[command]
-pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), FsError> {
-    let path = PathBuf::from(&file_path);
-    validate_under_root(&app, &path)?;
-
-    if !path.exists() {
-        return Err(FsError::new(FsErrorCode::NotFound, "file does not exist").with_path(file_path));
-    }
-
-    if !path.is_file() {
-        return Err(FsError::new(FsErrorCode::InvalidType, "path is not a file")
-            .with_path(path.to_string_lossy().to_string()));
-    }
-
-    // 棋譜ファイルのみ削除許可
-    if !is_kifu_file(&path) {
-        return Err(
-            FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
-                .with_path(path.to_string_lossy().to_string()),
-        );
-    }
-
-    fs::remove_file(path).map_err(FsError::from)
-}
-
-#[command]
-pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Result<(), FsError> {
-    let path = PathBuf::from(&dir_path);
-    validate_under_root(&app, &path)?;
-
-    // ワークスペースそのものは消させない。`remove_dir_all` は中身ごと消し、
-    // 取り消す手段が無い。UI 側にも判定はあるが、**取り消せない操作を UI の判定だけに
-    // 預けない**。webview から直に invoke されても、UI の判定を消す変更が入っても
-    // 壊れない層に置く
-    if is_project_root(&app, &path)? {
-        return Err(FsError::new(
-            FsErrorCode::RootNotDeletable,
-            "cannot delete the project root",
-        )
-        .with_path(dir_path));
-    }
-
-    if !path.exists() {
-        return Err(
-            FsError::new(FsErrorCode::NotFound, "directory does not exist").with_path(dir_path),
-        );
-    }
-
-    if !path.is_dir() {
-        return Err(
-            FsError::new(FsErrorCode::InvalidType, "path is not a directory")
-                .with_path(path.to_string_lossy().to_string()),
-        );
-    }
-
-    fs::remove_dir_all(path).map_err(FsError::from)
-}
-
-/// [`spell_for_extension`] をテストから呼ぶための口。
-///
-/// **綴った結果を読み手（`search::kifu_reader`）に通すテストが要る。**
-/// 書き手と読み手を別々に見ていると、このアプリが作ったファイルを
-/// このアプリが読めない、という組み合わせを誰も見ない。
-#[cfg(test)]
-pub fn spell_for_extension_for_test(
-    jkf_data: &JsonKifuFormat,
-    file_path: &Path,
-) -> Result<String, FsError> {
-    spell_for_extension(jkf_data, file_path)
 }
 
 #[cfg(test)]

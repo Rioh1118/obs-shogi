@@ -2060,7 +2060,7 @@ mod tests {
     /// そちらが空の JKF に何かを足すよう変われば、このテストは緑のまま素通りする。
     #[test]
     fn a_kifu_this_app_just_created_is_never_called_broken() {
-        use crate::file_system::spell_for_extension_for_test as spell;
+        use crate::workspace::record::spell_for_extension as spell;
 
         let dir = temp_dir("just-created");
 
@@ -2377,7 +2377,7 @@ P9 *  *  *  * +OU *  *  *  * ";
     ///
     /// [`ENCODINGS_THE_CRATE_SKIPS`] を手で足すと、**画面が試さない文字コードを
     /// 索引だけが読む**ことになる。増やすなら [`KIFU_ENCODINGS`] のほうを増やして、
-    /// 画面（`file_system::operations`）も一緒に読めるようにすること。
+    /// 画面（`workspace::record`）も一緒に読めるようにすること。
     #[test]
     fn the_skipped_encodings_are_the_shared_list_minus_the_crates_two() {
         use crate::kifu_text::KIFU_ENCODINGS;
@@ -2402,7 +2402,7 @@ P9 *  *  *  * +OU *  *  *  * ";
 
     /// **索引が読めた棋譜は、画面も同じ文字列として読める。**
     ///
-    /// 索引（ここ）と画面（`file_system::operations` の `read_text_portable`）は
+    /// 索引（ここ）と画面（`workspace::record` の `read_text_portable`）は
     /// 別々の入口だが、**文字コードの判断は `kifu_text` が1人で持つ**。
     /// 持ち主が2人いると、同じファイルについて片方が化けた文字列を見る。
     /// 化けた文字列は `tsshogi` が0手の棋譜にするので、利用者からは

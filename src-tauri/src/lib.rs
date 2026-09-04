@@ -1,6 +1,5 @@
 pub mod ai_library;
 pub mod engine;
-pub mod file_system;
 pub mod fs;
 pub mod kifu;
 pub mod kifu_text;
@@ -8,6 +7,7 @@ pub mod search;
 pub mod settings;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub mod workspace;
 
 pub use crate::engine::state::AppState;
 pub use ai_library::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
@@ -20,11 +20,6 @@ pub use engine::commands::game::{
     abort_game, close_game, continue_game, end_game_by_rule, get_game_state, list_games,
     resign_game, start_game, submit_game_move,
 };
-pub use file_system::{
-    create_directory, create_kifu_file, delete_directory, delete_file, get_file_tree,
-    import_kifu_file, mv_directory, mv_kifu_file, read_file, rename_directory, rename_kifu_file,
-    save_kifu_file,
-};
 pub use kifu::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
 pub use search::api::{cancel_search, open_project, search_position, SearchState};
 pub use search::index_store::IndexStore;
@@ -32,6 +27,12 @@ pub use settings::commands::{
     backup_broken_config, load_config, load_presets, load_study_positions, save_config,
     save_presets, save_study_positions,
 };
+pub use workspace::commands::entry::{create_directory, delete_directory, delete_file};
+pub use workspace::commands::kifu::{
+    create_kifu_file, import_kifu_file, read_file, save_kifu_file,
+};
+pub use workspace::commands::mv::{mv_directory, mv_kifu_file, rename_directory, rename_kifu_file};
+pub use workspace::commands::tree::get_file_tree;
 
 use std::sync::Arc;
 use std::time::Duration;
