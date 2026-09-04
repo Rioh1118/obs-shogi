@@ -363,9 +363,14 @@ git switch -c issue-123/short-description
 ### 検証を通してから出してください
 
 ```bash
-npm run verify        # TypeScript を触った場合
-npm run verify:rust   # Rust を触った場合
+npm run verify        # tsc -b + lint + vitest
+npm run verify:rust   # cargo fmt + clippy + test
 ```
+
+**種類で二分しないでください。** `npm run verify` の中の検査はソースと doc を
+文字列として読むので、`.rs` だけを触っても `docs/` の `.md` だけを触っても走ります。
+どのファイルでどちらが要るかは `.claude/hooks/verify-gate.sh` の `gate_kinds_for_path` が
+決めていて、`git commit` のときに自動で走ります。
 
 Rust のツールチェーンは `rust-toolchain.toml` で固定しています。手元と CI で同じ結果になります。
 
