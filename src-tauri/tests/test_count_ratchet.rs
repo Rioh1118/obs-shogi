@@ -23,7 +23,6 @@ const EXPECTED_MIN: usize = 259;
 ///
 /// 広げるほど検出力が落ちる。ただし消す側で見逃せるのは `found - EXPECTED_MIN` 本で、
 /// **幅そのものではない**（`EXPECTED_MIN` を実測へ揃えた直後は1本消しても赤くなる）。
-/// 幅が効くのは足す側 —— ここを更新せずに足せる本数の上限。
 const DRIFT_ALLOWANCE: usize = 20;
 
 /// `#[test]` の総数を数える。
