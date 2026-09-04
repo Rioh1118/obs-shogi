@@ -21,10 +21,14 @@ pub struct EngineBridge {
     app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
-/// 解析1本ぶんの席。
+/// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
 ///
-/// **「解析中か」を表す欄を持たない。** 持たせると、偽を書く口を誰も通らないまま
-/// 定数になる。席が在ること自体が「走っている」で、終わったら項目ごと消す。
+/// 持っているのは、そのセッションで最後に受け取った結果だけ。
+///
+/// **「解析中か」を表す欄は無い。** 走っているかどうかは
+/// **`active_sessions` に居るかどうか**で表す。欄にすると同じことを2通りで
+/// 表すことになり、片方だけ動いたとき（居るのに `false`、消えたのに `true`）を
+/// 誰も検出できない。終わったセッションは項目ごと消す。
 #[derive(Debug)]
 struct AnalysisSession {
     last_result: Option<AnalysisResult>,
@@ -43,10 +47,11 @@ struct AnalysisUpdate {
     result: AnalysisResult,
 }
 
-/// 走っている解析の種類。**席の名前の接頭辞になる。**
+/// 走っている解析の種類。**`session_id` の接頭辞になる。**
 ///
-/// `#[allow(dead_code)]` を付けないこと。付けると「この種類の席を誰も取らない」
-/// ——どの入口も席を取らずに解析を始めている——が黙って通る。
+/// `#[allow(dead_code)]` を付けないこと。付けると「この種類でセッションを
+/// 開く口が1つも無い」——どこかの入口がセッションを登録せずに解析を
+/// 始めている——が黙って通る。
 #[derive(Debug, Clone)]
 enum SessionType {
     Infinite,
@@ -54,10 +59,10 @@ enum SessionType {
     Depth(u32),
 }
 
-/// 席の名前。**種類と打ち切り条件が接頭辞に出る。**
+/// `session_id` を作る。**種類と打ち切り条件が接頭辞に出る。**
 ///
-/// 条件まで出すのは、同じ局面に対する `timed` と `depth` の席がログ上で
-/// 見分けられないと、どちらが残ったのかを後から追えないため。
+/// 条件まで出すのは、同じ局面に対する `timed` と `depth` のセッションが
+/// ログ上で見分けられないと、どちらが残ったのかを後から追えないため。
 ///
 /// 副産物として `SessionType` の payload をここで必ず読むので、
 /// `Timed` と `Depth` の中身が dead code に戻らない（→ `SessionType` の doc）。
@@ -110,16 +115,18 @@ impl EngineBridge {
         }
     }
 
-    /// 解析の席を取る。**空いていなければ断る。**
+    /// 解析のセッションを1本登録し、その `session_id` を返す。
+    ///
+    /// **同時に走らせるのは1本まで。** 既に走っていれば断る。
     ///
     /// 検査と登録を同じロック区間でやる。分けると、2本の `invoke` が
-    /// 両方とも「空いている」を見てから両方とも席を取る窓ができ、
+    /// 両方とも「走っていない」を見てから両方とも登録する窓ができ、
     /// **探索中のエンジンへ2本目の `go` が出る**
     /// （USI は探索中の `position` / `go` を認めない）。
     /// 対局側が `Activity` と `Handover` で守っているのと同じ不変条件。
     ///
     /// 解析を始める口は全部ここを通ること。通らない口があると、
-    /// その口が走っている間、席が空いているように見える。
+    /// その解析が走っている間ずっと「走っていない」に見える。
     async fn take_session(&self, session_type: SessionType) -> Result<String, String> {
         let mut sessions = self.active_sessions.write().await;
         if !sessions.is_empty() {
@@ -131,7 +138,8 @@ impl EngineBridge {
         Ok(session_id)
     }
 
-    /// 席を返す。**失敗した口も必ず通ること。** 返さないと以後の解析が全部断られる
+    /// セッションを閉じる。**失敗した口も必ず通ること。**
+    /// 通らないと項目が残り、以後の解析が全部「既に走っている」で断られる
     async fn release_session(&self, session_id: &str) {
         self.active_sessions.write().await.remove(session_id);
     }
@@ -174,7 +182,8 @@ impl EngineBridge {
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
-        // **席を先に取る。** 後で取ると、走らせている間だけ席が空いて見える
+        // **セッションを先に登録する。** 後にすると、走らせている間だけ
+        // 「走っていない」に見える
         let session_id = self
             .take_session(SessionType::Infinite)
             .await
@@ -287,9 +296,9 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // **席ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
-        // 丸ごと持ったまま溜まる（上限は無い）。席が在ること自体が「走っている」なので、
-        // 終わった席を残すと `take_session` が以後ずっと断ることにもなる。
+        // **項目ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
+        // 丸ごと持ったまま溜まる（上限は無い）。居ること自体が「走っている」なので、
+        // 終わった項目を残すと `take_session` が以後ずっと断ることにもなる。
         //
         // ここを通っても**フロントには何も飛ばない**。`sessionId` を握ったままの
         // 画面から「停止」が来るので、`stop_session` はそれを失敗にしない。
@@ -305,7 +314,7 @@ impl EngineBridge {
     /// 時間指定の解析。
     ///
     /// **考慮時間に上限を掛ける。** `time_seconds` はフロントから来るので、
-    /// そのまま渡すと席を握ったまま何時間でも戻らない解析を作れてしまう。
+    /// そのまま渡すと、セッションを1本占めたまま何時間でも戻らない解析を作れてしまう。
     /// 断らずに丸めるのは、上限が「安全のための天井」であって
     /// 利用者の指定が誤りだったわけではないため。
     pub async fn analyze_with_time_impl(
@@ -406,7 +415,7 @@ impl EngineBridge {
 
         let statuses = sessions
             .keys()
-            // 席が在る＝走っている。項目が消えたら終わっている
+            // 項目が在る＝走っている。消えたら終わっている
             .map(|id| AnalysisStatus {
                 is_analyzing: true,
                 session_id: Some(id.clone()),
@@ -441,17 +450,17 @@ impl EngineBridge {
             session_id
         );
 
-        // **他人の席は止めない。** `session_id` はフロントから来る任意の文字列で、
+        // **他人のセッションは止めない。** `session_id` はフロントから来る任意の文字列で、
         // フロントはエラーの後も `sessionId` を握り続ける
         // （`docs/state-transitions/analysis.md` の ※1）。照合しないと、
         // 前の解析の ID を握ったままの画面が「停止」を撃ったときに
         // **いま走っている別の解析が止まって `Ok` が返る**。
         //
         // **「もう無い」は失敗にしない。** エンジンが落ちると
-        // `forward_results_to_ui` が席を消すが、フロントへは何も飛ばないので
+        // `forward_results_to_ui` が項目を消すが、フロントへは何も飛ばないので
         // `sessionId` を握ったまま「停止」が来る。ここで `Err` にすると
         // 呼び出し側の再開が `catch` に落ち、**解析が始まり直さない**。
-        // 要求は「止まっていること」で、席が無いならその要求は満たせている
+        // 要求は「止まっていること」で、項目が無いならその要求は満たせている
         // （`EngineAnalyzer::stop_analysis` と同じ立場）。
         {
             let mut sessions = self.active_sessions.write().await;
@@ -460,7 +469,7 @@ impl EngineBridge {
                 None if sessions.is_empty() => {
                     log::debug!(target: LOGT, "stop_session: already gone id={session_id}");
                 }
-                // 別の席が走っている。撃った側のものではないので触らない
+                // 別のセッションが走っている。撃った側のものではないので触らない
                 None => {
                     log::warn!(target: LOGT, "stop_session: not the running one id={session_id}");
                     return Err(format!("unknown analysis session: {session_id}"));
@@ -500,11 +509,11 @@ impl EngineBridge {
 mod tests {
     use super::*;
 
-    /// 席の出し入れだけを見る。**エンジンのプロセスは要らない。**
+    /// セッションの出し入れだけを見る。**エンジンのプロセスは要らない。**
     ///
     /// 起動しないと `analyzer` の側は動かないが、`take_session` /
     /// `release_session` は `active_sessions` しか触らないので、
-    /// ここだけを回せる。回さないと、席を返す口の抜けが素通りする。
+    /// ここだけを回せる。回さないと、セッションを閉じ忘れる口が素通りする。
     fn bridge() -> EngineBridge {
         EngineBridge::new(Arc::new(EngineRegistry::new()))
     }
@@ -523,7 +532,7 @@ mod tests {
         let second = bridge
             .take_session(SessionType::Timed(Duration::from_secs(5)))
             .await;
-        assert!(second.is_err(), "席が空いていないのに取れている");
+        assert!(second.is_err(), "既に走っているのに2本目を登録できている");
     }
 
     /// 返せば次が取れること。**返す口が抜けると解析が二度と始まらない**
@@ -540,7 +549,7 @@ mod tests {
         );
     }
 
-    /// 席の名前が種類と条件を持つこと。
+    /// `session_id` が種類と条件を持つこと。
     ///
     /// 持たないと `SessionType` の payload を誰も読まず、
     /// `Timed` と `Depth` の中身が dead code に戻る
@@ -554,25 +563,25 @@ mod tests {
             .unwrap();
         assert!(
             id.starts_with("timed30s_"),
-            "席の名前が条件を持っていない: {id}"
+            "`session_id` が条件を持っていない: {id}"
         );
         bridge.release_session(&id).await;
 
         let id = bridge.take_session(SessionType::Depth(24)).await.unwrap();
         assert!(
             id.starts_with("depth24_"),
-            "席の名前が条件を持っていない: {id}"
+            "`session_id` が条件を持っていない: {id}"
         );
     }
 
-    /// 席がもう無いときの「停止」を失敗にしないこと。
+    /// セッションがもう無いときの「停止」を失敗にしないこと。
     ///
-    /// エンジンが落ちると `forward_results_to_ui` が席を消すが、フロントへは
+    /// エンジンが落ちると `forward_results_to_ui` が項目を消すが、フロントへは
     /// 何も飛ばないので `sessionId` を握ったまま「停止」が来る。ここで `Err` に
     /// すると、呼び出し側の再開が `catch` に落ちて**解析が始まり直さない**。
     /// 利用者から見ると「解析中」の表示が無言で「停止中」に変わる。
     ///
-    /// 要求は「止まっていること」で、席が無いならその要求は満たせている。
+    /// 要求は「止まっていること」で、項目が無いならその要求は満たせている。
     #[tokio::test]
     async fn stopping_a_session_that_is_already_gone_succeeds() {
         let bridge = bridge();
@@ -582,7 +591,7 @@ mod tests {
 
         assert!(
             bridge.stop_session(&id).await.is_ok(),
-            "もう無い席の停止が失敗している。再開の経路が catch に落ちる"
+            "もう無いセッションの停止が失敗している。再開の経路が catch に落ちる"
         );
     }
 
@@ -601,7 +610,7 @@ mod tests {
 
         assert!(
             bridge.take_session(SessionType::Infinite).await.is_err(),
-            "知らない ID で席が空いてしまった"
+            "知らない ID で走っているセッションが消えてしまった"
         );
         bridge.release_session(&mine).await;
     }
