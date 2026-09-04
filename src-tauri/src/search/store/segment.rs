@@ -163,29 +163,73 @@ mod tests {
 
     /// **並べる側と探す側が同じ順序を使う。**
     ///
-    /// 桶へ振り分けて整列するのは `store/bucket.rs`、そこから塊を作って
+    /// 桶へ振り分けて整列するのは `store/bucket.rs`、桶ごとにセグメントを作って
     /// 二分探索するのはここ。どちらも `PositionKey` の `Ord` を通るので
     /// 一致するはずだが、片方が自前で組み直すと**黙って外す** — 検索が0件に
     /// なるか別の局面を返すかで、エラーも警告も出ない。
     ///
-    /// `z0` を揃えて `z1` だけが違う鍵を混ぜてある。上位だけで比べると
-    /// この組が見分けられなくなる。
+    /// **桶ごとに1本のセグメントを作る**（`store/index_store.rs` と同じ形）。
+    /// 全桶を1本に平らにすると、振り分けを1度も検査しないまま
+    /// 「本番と同じ経路」を名乗ることになる。
+    ///
+    /// 題材は2つの桶にまたがり、片方は `z0` を揃えて `z1` だけが違う鍵を持つ。
+    /// 上位だけで比べるとその組が見分けられなくなる。
     #[test]
     fn every_key_that_was_sorted_in_can_be_found_again() {
+        // 桶は `z0` の上位8ビット
+        let b1 = 0x11u64 << 56;
+        let b2 = 0x22u64 << 56;
         let entries: Vec<(PositionKey, Occurrence)> = vec![
-            (PositionKey { z0: 7, z1: 300 }, occ(0)),
-            (PositionKey { z0: 7, z1: 100 }, occ(1)),
-            (PositionKey { z0: 7, z1: 200 }, occ(2)),
-            (PositionKey { z0: 3, z1: 999 }, occ(3)),
-            (PositionKey { z0: 9, z1: 0 }, occ(4)),
+            (
+                PositionKey {
+                    z0: b1 | 7,
+                    z1: 300,
+                },
+                occ(0),
+            ),
+            (
+                PositionKey {
+                    z0: b1 | 7,
+                    z1: 100,
+                },
+                occ(1),
+            ),
+            (
+                PositionKey {
+                    z0: b1 | 7,
+                    z1: 200,
+                },
+                occ(2),
+            ),
+            (
+                PositionKey {
+                    z0: b1 | 3,
+                    z1: 999,
+                },
+                occ(3),
+            ),
+            (PositionKey { z0: b2 | 9, z1: 0 }, occ(4)),
         ];
 
-        // 本番と同じ経路で並べる
-        let buckets = bucketize_entries(entries.clone());
-        let sorted: Vec<(PositionKey, Occurrence)> = buckets.into_iter().flatten().collect();
-        let seg = Segment::new_sorted(sorted);
+        // 本番と同じ形。桶ごとに1本
+        let segs: Vec<(usize, Segment)> = bucketize_entries(entries.clone())
+            .into_iter()
+            .enumerate()
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(b, v)| (b, Segment::new_sorted(v)))
+            .collect();
+        assert_eq!(segs.len(), 2, "題材が1つの桶に固まっている");
+
+        let seg_of = |key: PositionKey| {
+            &segs
+                .iter()
+                .find(|(b, _)| *b == key.bucket() as usize)
+                .unwrap_or_else(|| panic!("鍵の桶にセグメントが無い: {key:?}"))
+                .1
+        };
 
         for (key, o) in &entries {
+            let seg = seg_of(*key);
             let (lo, hi) = seg.range_by_key(*key);
             assert!(lo < hi, "並べた鍵が引けない: {key:?}");
 
@@ -197,7 +241,11 @@ mod tests {
         }
 
         // 入れていない鍵は引けない
-        let (lo, hi) = seg.range_by_key(PositionKey { z0: 7, z1: 150 });
+        let absent = PositionKey {
+            z0: b1 | 7,
+            z1: 150,
+        };
+        let (lo, hi) = seg_of(absent).range_by_key(absent);
         assert_eq!(lo, hi, "入れていない鍵が引けた");
     }
 }
