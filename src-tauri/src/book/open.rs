@@ -264,7 +264,7 @@ mod tests {
     fn rejects_a_link_that_points_at_another_format() {
         let (dir, _target, link) = linked("mismatch", ".bin", ".db");
         let result = open_at(&validated(&link)).err().map(|err| err.code());
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         assert_eq!(result, Some(BookErrorCode::InvalidPath));
     }
@@ -275,7 +275,7 @@ mod tests {
     fn rejects_a_link_whose_target_extension_is_unknown() {
         let (dir, _target, link) = linked("unknown", "", ".db");
         let result = open_at(&validated(&link)).err().map(|err| err.code());
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         assert_eq!(result, Some(BookErrorCode::InvalidPath));
     }
@@ -286,7 +286,7 @@ mod tests {
     fn a_link_to_the_same_format_passes_the_format_check() {
         let (dir, _target, link) = linked("same", ".db", ".db");
         let result = open_at(&validated(&link)).err().map(|err| err.code());
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         assert_ne!(result, Some(BookErrorCode::InvalidPath));
     }
@@ -308,8 +308,8 @@ mod tests {
             .err()
             .and_then(|err| err.path().map(str::to_owned));
 
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
-        std::fs::remove_dir_all(&mismatch.0).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&mismatch.0);
 
         assert_eq!(
             from_reader.as_deref(),
@@ -369,7 +369,7 @@ mod tests {
         std::os::unix::fs::symlink(&missing, &link).expect("symlink を作れない");
 
         let err = open_at(&validated(&link)).err();
-        std::fs::remove_dir_all(&dir).expect("テスト用のディレクトリを消せない");
+        let _ = std::fs::remove_dir_all(&dir);
 
         let err = err.expect("リンク先が無いので必ず失敗する");
         assert_eq!(err.code(), BookErrorCode::NotFound);
