@@ -48,7 +48,9 @@ impl BookFormat {
             Some("ybb") => Ok(BookFormat::YaneuraouYbb),
             _ => Err(BookError::new(
                 BookErrorCode::UnknownExtension,
-                "拡張子から定跡の形式を判別できない（.db / .bin / .sbk / .ybb）",
+                "拡張子から定跡の形式を判別できない。\
+                 いま開けるのはやねうら王テキスト定跡 (.db) だけなので、\
+                 .db のファイルを選び直すこと",
             )
             .with_path(path.to_string_lossy())),
         }

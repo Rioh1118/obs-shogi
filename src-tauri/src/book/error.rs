@@ -274,6 +274,69 @@ mod tests {
         assert_eq!(err.path(), Some("/books/a.db"));
     }
 
+    /// **どの種別も「次に何をすればよいか」で終わること。**
+    ///
+    /// 経路ごとに散らすと、種別を足したときに漏れる ——
+    /// 現に `UnknownExtension` と `InvalidType` の2つが、
+    /// どの経路のテストも通らないまま動詞の無い文面で残っていた。
+    /// ここは `match` で網羅するので、**種別を足すとコンパイルが止まる。**
+    ///
+    /// `Io` と `Unknown` は上の `an_io_error_ends_with_something_the_user_can_do`
+    /// が見るので、ここでは実物を作る口のあるものだけを回す。
+    #[test]
+    fn every_code_ends_with_something_the_user_can_do() {
+        use crate::book::reader::open_reader;
+        use crate::book::types::BookFormat;
+        use std::path::Path;
+
+        // 種別を足したらここも足すこと。`_` を書かないので漏れるとコンパイルが止まる
+        fn covered(code: BookErrorCode) -> bool {
+            match code {
+                BookErrorCode::NotFound
+                | BookErrorCode::PermissionDenied
+                | BookErrorCode::InvalidType
+                | BookErrorCode::InvalidPath
+                | BookErrorCode::UnknownExtension
+                | BookErrorCode::UnsupportedFormat
+                | BookErrorCode::InvalidContent
+                | BookErrorCode::TooLarge
+                | BookErrorCode::InvalidHandle
+                | BookErrorCode::InvalidSfen => true,
+                BookErrorCode::Io | BookErrorCode::Unknown => false,
+            }
+        }
+        assert!(covered(BookErrorCode::UnknownExtension));
+
+        // 実物を作れる口から集める
+        let mut seen: Vec<BookError> = Vec::new();
+        // `OpenedBook` は `Debug` を持たないので `unwrap_err` を使わない
+        fn err_of<T>(r: Result<T, BookError>) -> BookError {
+            match r {
+                Ok(_) => panic!("失敗するはずの呼び出しが成功した"),
+                Err(e) => e,
+            }
+        }
+        seen.push(err_of(BookFormat::from_path(Path::new("/tmp/x.txt"))));
+        seen.push(err_of(open_reader(
+            Path::new("/tmp/x.bin"),
+            BookFormat::AperyBin,
+        )));
+        let dir = crate::book::test_paths::scratch_dir("ends-with-action");
+        let as_dir = dir.join("looks-like.db");
+        std::fs::create_dir_all(&as_dir).expect("ディレクトリ");
+        seen.push(err_of(open_reader(&as_dir, BookFormat::YaneuraouDb)));
+
+        for err in &seen {
+            assert!(
+                err.message().ends_with("こと"),
+                "{:?}: {}",
+                err.code(),
+                err.message()
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// **OS 由来の失敗も「次に何をすればよいか」で終わること。**
     ///
     /// 原文を末尾に置くと message が引用で終わり、利用者が復帰操作を読み飛ばす。

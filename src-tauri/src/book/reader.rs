@@ -141,7 +141,8 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
     if !meta.is_file() {
         return Err(BookError::new(
             BookErrorCode::InvalidType,
-            "定跡ファイルではないものが指定されている",
+            "フォルダなど、定跡ファイルでないものが指定されている。\
+             中の定跡ファイルを選び直すこと",
         )
         .with_path(path.to_string_lossy()));
     }
