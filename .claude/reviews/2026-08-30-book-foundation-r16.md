@@ -33,7 +33,7 @@ robustness の実測では6形すべて同じ deny。
 → 直した。1つの git 呼び出しだけに限るので免除は広がらない（`--abort && commit` は
 宛先の判定で呼び出しが2つと数えられて deny のまま）。`--continue` は対象外。
 
-### R-02 [HIGH] 別リポジトリへのコミットが、無関係な npm エラーで一律に不可能になる
+### R-02 [HIGH] 別リポジトリへのコミットが、無関係な npm エラーで deny される
 
 robustness。`.claude/hooks/verify-gate.sh:251-260,314-316`。
 
