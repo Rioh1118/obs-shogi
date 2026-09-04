@@ -59,8 +59,9 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 ## テストの現状（誇張しないこと）
 
 **件数をここに書かない。** 書くと必ず腐る。現在値は `npm run test` と
-`cargo test` の末尾で確認すること。どちらも薄い。とくに Rust 側は
-`cargo test` の大半がベンチで、`src/` の振る舞いを見ている `#[test]` は数個しかない。
+`cargo test` の末尾、および `src-tauri/tests/test_count_ratchet.rs` の
+`EXPECTED_MIN` で確認すること。
+
 **`cargo test` の green は「Rust が壊れていない」を意味しない。**
 「テストが通ったので安全」と書いてはいけない。新規ロジックには実際にテストを足すこと。
 

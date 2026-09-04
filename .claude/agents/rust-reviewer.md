@@ -49,5 +49,6 @@ color: orange
 
 ## 注意
 
-`cargo test` は `#[test]` が0個なので green でも何も保証しない。「テストが通る」を根拠にしない。
+`cargo test` の green は `src/` の振る舞いを網羅していない。「テストが通る」を根拠にしない。
+現在値は `cargo test` の末尾と `src-tauri/tests/test_count_ratchet.rs` の `EXPECTED_MIN` で見ること。
 新しく指摘した壊れやすい純関数については、**テストを足すべき場所として名指しする**。
