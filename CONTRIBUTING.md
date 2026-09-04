@@ -368,9 +368,10 @@ npm run verify:rust   # cargo fmt + clippy + test
 ```
 
 **種類で二分しないでください。** `npm run verify` の中の検査はソースと doc を
-文字列として読むので、`.rs` だけを触っても `docs/` の `.md` だけを触っても走ります。
-どのファイルでどちらが要るかは `.claude/hooks/verify-gate.sh` の `gate_kinds_for_path` が
-決めていて、`git commit` のときに自動で走ります。
+文字列として読むので、`.rs` だけを触った場合も `docs/` の `.md` だけを触った場合も、
+ここで落ちることがあります。**迷ったら両方流してください。**
+
+`git commit` で自動的に走るのは `vp check --fix`（整形）だけです。上の2つは手で流してください。
 
 Rust のツールチェーンは `rust-toolchain.toml` で固定しています。手元と CI で同じ結果になります。
 
