@@ -1359,10 +1359,10 @@ mod tests {
     fn sizes_are_shown_in_the_same_unit_as_the_file_manager() {
         assert_eq!(format_size(1_000_000), "1.0MB");
         assert_eq!(format_size(493_157_464), "493.2MB");
-        // 行長（4 KiB）から展開の上限（7 GiB）まで同じ関数に通す。MB 固定だと
+        // 行長（4 KiB）からファイルの上限（2 GiB）まで同じ関数に通す。MB 固定だと
         // 4096 バイトが 0.0MB になり、上限を1つも伝えない文面になる。
         assert_eq!(format_size(4096), "4.1KB");
-        assert_eq!(format_size(6 * 1024 * 1024 * 1024), "6.4GB");
+        assert_eq!(format_size(MAX_FILE_BYTES), "2.1GB");
     }
 
     /// 表の (S0, E3) / (S0, E4) / (S0, E2)。
