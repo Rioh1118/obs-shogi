@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-05
 - 範囲: r23 の所見8件を直した7コミット（`git diff 208d4fe2 34d5840e`）
-- 走らせた reviewer: architecture / oss-hygiene（Rust の差分が無いので2人）
+- 走らせた reviewer: architecture / oss-hygiene（Rust の差分がコメント4行だけなので2人）
 - 対象コミット: `34d5840e`
 - 前ラウンド: `.claude/reviews/2026-09-05-book-to-main-r23.md`
 
@@ -31,7 +31,7 @@ issue へ送るものは無かった。
 - `L` は `failure-surfacing.md` 自身の L0〜L2（層）と `app-layout.md` の画面状態
 - `T` は `file-tree.md` の状態と、`PREMISES.md` ほかの段階（tier）
 
-`S` / `E` の「ほぼ全ての表が使う」も外れていた（記号を持つ26表のうち8本と9本）。
+`S` / `E` の「ほぼ全ての表が使う」も外れていた（記号を定義している24文書のうち8本と10本）。
 
 **列挙は表が増えるたびに腐るし、数え落とすと「他には無い」と読まれる。**
 r23 の AO-02 が HIGH とした理由がそのまま再発していた。
