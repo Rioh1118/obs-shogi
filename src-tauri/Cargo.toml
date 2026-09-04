@@ -57,6 +57,7 @@ tauri-build = { version = "2.2.0", features = [] }
 [dependencies]
 fs = { path = "crates/fs" }
 kifu-text = { path = "crates/kifu-text" }
+settings = { path = "crates/settings" }
 
 shogi_kifu_converter_obsshogi = { workspace = true }
 serde_json = { workspace = true }

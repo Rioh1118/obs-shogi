@@ -2,34 +2,11 @@ pub mod ai_library;
 pub mod engine;
 pub mod kifu;
 pub mod search;
-pub mod settings;
 pub mod workspace;
 
 pub use crate::engine::state::AppState;
-pub use ai_library::commands::{create_ai_profile_dirs, ensure_engines_dir, scan_ai_root};
-pub use engine::commands::analysis::{
-    analyze_with_depth, analyze_with_time, apply_engine_settings, get_analysis_result,
-    get_analysis_status, get_engine_info, get_engine_settings, get_last_result, initialize_engine,
-    set_position, shutdown_engine, start_infinite_analysis, stop_analysis,
-};
-pub use engine::commands::game::{
-    abort_game, close_game, continue_game, end_game_by_rule, get_game_state, list_games,
-    resign_game, start_game, submit_game_move,
-};
-pub use kifu::commands::{convert_jkf_to_format, normalize_jkf, write_kifu_to_file};
-pub use search::commands::{cancel_search, open_project, search_position};
 pub use search::state::SearchState;
 pub use search::store::index_store::IndexStore;
-pub use settings::commands::{
-    backup_broken_config, load_config, load_presets, load_study_positions, save_config,
-    save_presets, save_study_positions,
-};
-pub use workspace::commands::entry::{create_directory, delete_directory, delete_file};
-pub use workspace::commands::kifu::{
-    create_kifu_file, import_kifu_file, read_file, save_kifu_file,
-};
-pub use workspace::commands::mv::{mv_directory, mv_kifu_file, rename_directory, rename_kifu_file};
-pub use workspace::commands::tree::get_file_tree;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -79,56 +56,56 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
-            backup_broken_config,
-            load_config,
-            save_config,
-            get_file_tree,
-            save_kifu_file,
-            create_kifu_file,
-            create_directory,
-            delete_file,
-            delete_directory,
-            load_presets,
-            save_presets,
-            import_kifu_file,
-            read_file,
-            write_kifu_to_file,
-            mv_directory,
-            ensure_engines_dir,
-            create_ai_profile_dirs,
-            scan_ai_root,
-            mv_kifu_file,
-            rename_directory,
-            rename_kifu_file,
-            convert_jkf_to_format,
-            normalize_jkf,
-            initialize_engine,
-            shutdown_engine,
-            set_position,
-            start_infinite_analysis,
-            analyze_with_time,
-            analyze_with_depth,
-            stop_analysis,
-            get_analysis_result,
-            get_last_result,
-            apply_engine_settings,
-            get_engine_settings,
-            get_analysis_status,
-            get_engine_info,
-            start_game,
-            submit_game_move,
-            continue_game,
-            end_game_by_rule,
-            resign_game,
-            abort_game,
-            close_game,
-            get_game_state,
-            list_games,
-            open_project,
-            search_position,
-            cancel_search,
-            load_study_positions,
-            save_study_positions,
+            settings::commands::backup_broken_config,
+            settings::commands::load_config,
+            settings::commands::save_config,
+            crate::workspace::commands::tree::get_file_tree,
+            crate::workspace::commands::kifu::save_kifu_file,
+            crate::workspace::commands::kifu::create_kifu_file,
+            crate::workspace::commands::entry::create_directory,
+            crate::workspace::commands::entry::delete_file,
+            crate::workspace::commands::entry::delete_directory,
+            settings::commands::load_presets,
+            settings::commands::save_presets,
+            crate::workspace::commands::kifu::import_kifu_file,
+            crate::workspace::commands::kifu::read_file,
+            crate::kifu::commands::write_kifu_to_file,
+            crate::workspace::commands::mv::mv_directory,
+            crate::ai_library::commands::ensure_engines_dir,
+            crate::ai_library::commands::create_ai_profile_dirs,
+            crate::ai_library::commands::scan_ai_root,
+            crate::workspace::commands::mv::mv_kifu_file,
+            crate::workspace::commands::mv::rename_directory,
+            crate::workspace::commands::mv::rename_kifu_file,
+            crate::kifu::commands::convert_jkf_to_format,
+            crate::kifu::commands::normalize_jkf,
+            crate::engine::commands::analysis::initialize_engine,
+            crate::engine::commands::analysis::shutdown_engine,
+            crate::engine::commands::analysis::set_position,
+            crate::engine::commands::analysis::start_infinite_analysis,
+            crate::engine::commands::analysis::analyze_with_time,
+            crate::engine::commands::analysis::analyze_with_depth,
+            crate::engine::commands::analysis::stop_analysis,
+            crate::engine::commands::analysis::get_analysis_result,
+            crate::engine::commands::analysis::get_last_result,
+            crate::engine::commands::analysis::apply_engine_settings,
+            crate::engine::commands::analysis::get_engine_settings,
+            crate::engine::commands::analysis::get_analysis_status,
+            crate::engine::commands::analysis::get_engine_info,
+            crate::engine::commands::game::start_game,
+            crate::engine::commands::game::submit_game_move,
+            crate::engine::commands::game::continue_game,
+            crate::engine::commands::game::end_game_by_rule,
+            crate::engine::commands::game::resign_game,
+            crate::engine::commands::game::abort_game,
+            crate::engine::commands::game::close_game,
+            crate::engine::commands::game::get_game_state,
+            crate::engine::commands::game::list_games,
+            crate::search::commands::open_project,
+            crate::search::commands::search_position,
+            crate::search::commands::cancel_search,
+            settings::commands::load_study_positions,
+            settings::commands::save_study_positions,
         ])
         .plugin(tauri_plugin_dialog::init())
         .manage(search_state)

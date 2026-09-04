@@ -4,10 +4,10 @@
 
 use tauri::{AppHandle, Runtime};
 
-use crate::settings::app::AppConfig;
-use crate::settings::presets::PresetsFile;
-use crate::settings::study::StudyPositionsFile;
-use crate::settings::{app, presets, study};
+use crate::app::AppConfig;
+use crate::presets::PresetsFile;
+use crate::study::StudyPositionsFile;
+use crate::{app, presets, study};
 
 #[tauri::command]
 pub fn load_config(app_handle: AppHandle) -> Result<AppConfig, String> {
