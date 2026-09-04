@@ -79,9 +79,12 @@ describe("codeOf（shell）", () => {
   // corpus に残って「実在する」に戻る。
   // しかも壊れる向きは「消し足りない」側で、`missingIdentifiers` は黙って緑になる
   test("行頭の `#` は2行目以降でも落とす", () => {
-    const body = "needs_ts=1\n# OLD_NAME のこと\nneeds_rust=1\n";
+    // **2つ置く。** 1つだと `g` を外しても最初の1つが落ちて緑になる ——
+    // その変異は `missingIdentifiers` の答えを変える（消した名前が実在に戻る）
+    const body = "needs_ts=1\n# OLD_NAME のこと\nneeds_rust=1\n# OTHER_NAME のこと\ndone\n";
 
     expect(codeOf(body, "shell")).not.toContain("OLD_NAME");
+    expect(codeOf(body, "shell")).not.toContain("OTHER_NAME");
     expect(codeOf(body, "shell")).toContain("needs_rust=1");
   });
 
@@ -115,10 +118,12 @@ describe("codeOf（shell）", () => {
   // 行の後半が corpus から消え（実在する識別子が「無い」になる）、
   // 引用符の中の名前は残る（検査の期待値がソースに見える）。両方向に壊れる
   test("引用符の中の `#` でコメントが始まらない", () => {
-    const line = "grep 'gate_x # y' file\n";
+    // 単引用も2つ置く（理由は上と同じ）
+    const line = "grep 'gate_x # y' file 'gate_z # w' tail\n";
 
-    expect(codeOf(line, "shell")).toContain("file");
+    expect(codeOf(line, "shell")).toContain("tail");
     expect(codeOf(line, "shell")).not.toContain("gate_x");
+    expect(codeOf(line, "shell")).not.toContain("gate_z");
   });
 
   // 検査の期待値が実装に見えると、消したものが「実在する」に戻る
