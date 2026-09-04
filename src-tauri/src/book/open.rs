@@ -18,7 +18,7 @@
 //! **ファイルの中身を読まないと決まらない検査は `reader` 側**（大きさの上限と
 //! 中身の検査がそこにあるのはそのため）。境目は「`metadata` より先か後か」。
 
-use crate::book::error::{BookError, BookErrorCode};
+use crate::book::error::{truncate_path, BookError, BookErrorCode};
 use crate::book::reader::{open_reader, OpenedBook};
 use crate::book::types::BookFormat;
 use std::path::{Path, PathBuf};
@@ -57,7 +57,7 @@ fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
     let canonical = std::fs::canonicalize(path).map_err(|e| {
         let err = BookError::from_io(e, path.to_string_lossy());
         match std::fs::read_link(path) {
-            Ok(target) => annotate(err, &format!("リンク先 {}", target.display())),
+            Ok(target) => annotate(err, "リンク先", &target),
             Err(_) => err,
         }
     })?;
@@ -72,7 +72,7 @@ fn resolve_book_path(path: &Path) -> Result<(PathBuf, BookFormat), BookError> {
             BookErrorCode::InvalidPath,
             format!(
                 "リンク先 {} の形式が指定と違う（指定 {} / 実体 {}）。{PATH_RECOVERY}",
-                canonical.display(),
+                truncate_path(&canonical.to_string_lossy()),
                 requested.display_name(),
                 resolved_name
             ),
@@ -92,15 +92,28 @@ fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookEr
     let err = if requested == canonical {
         err
     } else {
-        annotate(err, &format!("実体 {}", canonical.display()))
+        annotate(err, "実体", canonical)
     };
 
     err.with_path(requested.to_string_lossy())
 }
 
-/// message に注記を足す。`path` は触らない。
-fn annotate(err: BookError, note: &str) -> BookError {
-    let annotated = BookError::new(err.code(), format!("{}（{note}）", err.message()));
+/// message にパスの注記を足す。`path` は触らない。
+///
+/// **パスは必ずここで [`truncate_path`] を通す。** 呼び手が `format!` で組むと、
+/// リンク先や実体に含まれる制御文字が素通りして、1回の `log!` が2行になる ——
+/// [`BookError::with_path`] が `path` に対して掛けている関門が、`message` 側だけ
+/// 抜けている状態になる。第2引数を `&Path` に限っているのは、`&str` を取ると
+/// 呼び手が組み立てた文字列を渡せてしまい、次に注記が増えたときに取り残すため。
+fn annotate(err: BookError, label: &str, path: &Path) -> BookError {
+    let annotated = BookError::new(
+        err.code(),
+        format!(
+            "{}（{label} {}）",
+            err.message(),
+            truncate_path(&path.to_string_lossy())
+        ),
+    );
     match err.path() {
         Some(path) => annotated.with_path(path),
         None => annotated,
@@ -406,6 +419,36 @@ mod tests {
         assert!(
             rendered.contains("[cmd] open_book path=/etc/passwd"),
             "中身まで消す必要は無い: {rendered}"
+        );
+    }
+
+    /// 上のテストは呼び出し側が渡した綴りしか見ない。**リンク先と実体のパスは
+    /// 利用者が打っていない**ので同じ関門を通る保証が別に要る —— 通らないと、
+    /// 攻撃者がファイル名を作れる場所（共有ディレクトリ、展開したアーカイブ）に
+    /// 改行入りの symlink を置くだけでログを1行足せる。
+    #[test]
+    #[cfg(unix)]
+    fn a_link_target_cannot_forge_a_log_line() {
+        let dir = crate::book::test_paths::scratch_dir("forge");
+        std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
+        let link = dir.join("link.db");
+        let target = dir.join("gone\n[cmd] open_book path=/etc/passwd.db");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink を作れない");
+
+        let message = open_at(&validated(&link))
+            .err()
+            .map(|err| err.message().to_owned());
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let message = message.expect("解決できない symlink は失敗するはず");
+        assert!(
+            !message.contains('\n'),
+            "リンク先の改行が message へ素通りしている: {message}"
+        );
+        assert!(
+            message.contains("リンク先"),
+            "リンク先の注記そのものが消えている: {message}"
         );
     }
 
