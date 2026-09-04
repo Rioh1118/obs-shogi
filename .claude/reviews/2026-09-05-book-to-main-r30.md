@@ -18,12 +18,18 @@ issue へ送るものは無かった。
 
 ## 所見
 
-### AV-04 (MEDIUM, 1人が実測): 行コメントの `g` を外す変異が生き残っていて、答えを33件変える
+### AV-04 (MEDIUM, 1人が実測): 行コメントの `g` を外す変異が生き残っていた
 
 `stripLineComments` の `g` を外すと**2本目以降の `//` が残る。**
-707本すべて緑のままで、`missingIdentifiers` が「無い」と答えていた145件のうち
-**33件が「実在する」へ反転する** —— `root_guard` / `timeout_marker` /
-`engine_layering` / `production_unwrap` など、**まさにこの検査が守っている綴り。**
+当てた時点の706本すべてが緑のままだった。
+
+corpus は 1,573,727 → 1,866,272 バイトに太り、**識別子の形をした綴りが33件入り込む**
+（`root_guard` / `timeout_marker` / `engine_layering` など）。
+
+**ただし、いまの検査の答えは変わらない。** `docsIdentifiers.test.ts` が見るのは
+`docs/state-transitions/` が引く195件で、原型でも `g` 除去でも
+`missingIdentifiers` は `[]` を返す。**corpus が太る向きの破損なので、
+`[]` は `[]` のままにしかならない。**
 
 ```
 入力   : "let x = 1; // 説明\nlet y = 2; // DEAD_NAME のこと\n"
@@ -35,7 +41,10 @@ g 除去 : "let x = 1; \nlet y = 2; // DEAD_NAME のこと\n"
 **シェル側は AT-04 で同じ罠に気づいて「2つ置く」形にしてあるのに、
 c-like の行コメントだけ抜けていた。**
 
-`stripShellStrings` の `*`→`+`（3件）より**影響が大きい。**
+**塞ぐ理由は「いま赤くなる」ではない。** `stripLineComments` が何をする関数かは
+doc が宣言していて（「行コメントを落とす」）、その宣言を固定するものが1本も無かった。
+`docs/state-transitions/` が33件のどれかを引いた瞬間、
+**壊れた側だけが黙って緑になる。**
 
 - 結果: 対応済み `298a5509`（**この1本だけが落ちることを確認**）
 
