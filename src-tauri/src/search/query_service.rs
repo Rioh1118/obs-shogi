@@ -133,7 +133,7 @@ impl QueryService {
                         // 「そのファイルの0手目」として利用者の一覧に並ぶ** ——
                         // 検索の当たりに見えて、押しても違う局面が出る。
                         // 壊れた blob をここへ届かせないのは
-                        // `cache/index_cache.rs` の `decode_all` の5つの検査。
+                        // `cache/index_cache.rs` の `decode_all` の門番。
                         let cursor = nts
                             .get(occ.file_id)
                             .and_then(|nt| nt.cursor_lite(occ.node_id))

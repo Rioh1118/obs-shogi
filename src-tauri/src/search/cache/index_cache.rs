@@ -621,8 +621,10 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     // ---- node tables ----
     let nt_len = r.read_len(min_bytes::NODE_TABLE)?;
     let mut nts = NodeTables::default();
-    // 節表の `file_id` は狭義単調増加。**`encode_all` が `by_id_iter().enumerate()` で
-    // 書くので昇順かつ一意**（同じ関数の `node tables` の節）。
+    // 節表の `file_id` は狭義単調増加。根拠は `encode_all` の `node tables` の節で、
+    // `by_id` は `file_id` を添字にした `Vec<Option<_>>` なので
+    // `by_id_iter().enumerate()` の添字がそのまま `file_id` になる
+    // （`None` は飛ばすだけで、順も重複も作らない）。
     //
     // これを見ないと `NodeTables::upsert` が黙って上書きする。後の節表の `file_id` が
     // 1ビット化けて前のものに一致すると（`7 → 5`）、前のファイルの節表が差し替わり、
@@ -632,11 +634,10 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let mut prev_nt_file_id: Option<FileId> = None;
     for _ in 0..nt_len {
         let file_id = checked_file_id(r.read_u32()?, ft_len)?;
-        if prev_nt_file_id.is_some_and(|p| file_id <= p) {
-            return Err(format!(
-                "node table file_id {file_id} is not after {}",
-                prev_nt_file_id.expect("is_some_and が真なので入っている")
-            ));
+        if let Some(prev) = prev_nt_file_id {
+            if file_id <= prev {
+                return Err(format!("node table file_id {file_id} is not after {prev}"));
+            }
         }
         prev_nt_file_id = Some(file_id);
         let nodes_len = r.read_len(min_bytes::NODE)?;
@@ -885,14 +886,13 @@ impl<'a> Reader<'a> {
 /// | `..._refused` | `decode_all` だけ |
 /// | `..._neither_written_nor_read` | 両方 |
 ///
-/// **`is` / `are` を綴りに含めない。** 主語の数で決まるので規約にならない
-/// （`occurrences_..._are_...` が1本ある）。
+/// 名前の側には主語に合わせて `is` / `are` が入る
+/// （`occurrences_..._are_neither_written_nor_read`）。
+/// **数えるときは copula を挟まない綴りで引く。** 挟むと片方が落ちる。
 ///
-/// **`rejected` を使わない。** `refused` と同じ意味で綴りが割れると、
-/// 上の3つで数えたときに集合の外に落ちる。
-///
-/// **数えるときは3つ全部を足す。** 読み側6・書き側5あるので、
-/// `_not_written` だけを数えると足りない。
+/// **読む側を数えるなら `_refused` と `_neither_written_nor_read` の両方、
+/// 書く側なら `_not_written` と `_neither_written_nor_read` の両方。**
+/// 本数はここに書かない —— 数は `tests/index_cache_guard_names.rs` が見る。
 ///
 /// `is_err()` で終わらせないこと。**別の門番を踏んでも緑になる。**
 /// 実例: 桶の所属の検査を殺すと、いまのテストは `bucket 17 is not sorted` で落ちる。
@@ -1647,7 +1647,10 @@ mod tests {
         let mut blob = Vec::new();
         match encode_all(&mut blob, &ctx(), &bad) {
             Ok(()) => panic!("別の桶に置かれた鍵を書いてしまった"),
-            Err(e) => assert!(e.contains("belongs to bucket"), "別の門番で落ちている: {e}"),
+            Err(e) => assert!(
+                e.contains("key belongs to bucket"),
+                "別の門番で落ちている: {e}"
+            ),
         }
 
         // **読む側はビット化けが相手。** 書けた blob を壊して確かめる。
@@ -1670,7 +1673,10 @@ mod tests {
         swapped[z0_at + 7] ^= 0x01;
         match decode_all(&swapped, root) {
             Ok(_) => panic!("桶からはみ出た鍵を読んでしまった"),
-            Err(e) => assert!(e.contains("belongs to bucket"), "別の門番で落ちている: {e}"),
+            Err(e) => assert!(
+                e.contains("key belongs to bucket"),
+                "別の門番で落ちている: {e}"
+            ),
         }
 
         let mut unsorted = good.clone();
@@ -2235,7 +2241,7 @@ mod tests {
 
         let root = Path::new("/tmp/obs-shogi-nt-dup");
         let mut ft = FileTable::default();
-        for (id, path) in [(1u32, "a.kif"), (2u32, "b.kif")] {
+        for (id, path) in [(1u32, "a.kif"), (2u32, "b.kif"), (3u32, "c.kif")] {
             ft.upsert(FileEntry {
                 file_id: id,
                 path: path.to_owned(),
@@ -2246,7 +2252,7 @@ mod tests {
 
         // file 1 と file 2 に、長さの違う節表を持たせる
         let mut nts = NodeTables::default();
-        for (id, nodes) in [(1u32, 2usize), (2u32, 3usize)] {
+        for (id, nodes) in [(1u32, 2usize), (2u32, 3usize), (3u32, 4usize)] {
             let mut b = NodeTableBuilder::new();
             for n in 0..nodes {
                 b.push_node(
@@ -2260,10 +2266,13 @@ mod tests {
             nts.upsert(id, Arc::new(b.finish()));
         }
 
-        let path_to_id: HashMap<String, FileId> =
-            [("a.kif".to_owned(), 1u32), ("b.kif".to_owned(), 2u32)]
-                .into_iter()
-                .collect();
+        let path_to_id: HashMap<String, FileId> = [
+            ("a.kif".to_owned(), 1u32),
+            ("b.kif".to_owned(), 2u32),
+            ("c.kif".to_owned(), 3u32),
+        ]
+        .into_iter()
+        .collect();
         let scan = snapshot_from_records(
             root,
             vec![
@@ -2275,6 +2284,12 @@ mod tests {
                 },
                 FileRecord {
                     path: PathBuf::from("/tmp/obs-shogi-nt-dup/b.kif"),
+                    kind: KifuKind::Kif,
+                    size: 10,
+                    mtime_ms: 1,
+                },
+                FileRecord {
+                    path: PathBuf::from("/tmp/obs-shogi-nt-dup/c.kif"),
                     kind: KifuKind::Kif,
                     size: 10,
                     mtime_ms: 1,
@@ -2302,7 +2317,7 @@ mod tests {
             root_dir: root,
             scan: &scan,
             path_to_id: &path_to_id,
-            next_file_id: 3,
+            next_file_id: 4,
             ft: &ft,
             nts: &nts,
         };
@@ -2310,12 +2325,17 @@ mod tests {
         encode_all(&mut good, &ctx, &buckets).expect("書けない");
         assert!(decode_all(&good, root).is_ok(), "正しい blob を弾いている");
 
-        // file 2 の節表の頭（`file_id=2` / `nodes=3` / `forks=3`）を狙う
-        let head: Vec<u8> = 2u32
+        // **3つ目の節表**の頭（`file_id=3` / `nodes=4` / `forks=4`）を狙う。
+        //
+        // 直前（file 2）ではなく**その前**（file 1）と重なる形にする。
+        // 2つしか無い題材だと `prev == file_id` の腕しか通らず、門番を
+        // `file_id == p` に緩める変異が生き残る。そのとき素通りするのは
+        // 上のコメントと `search.md` が挙げている題材そのもの（`7 → 5`）
+        let head: Vec<u8> = 3u32
             .to_le_bytes()
             .iter()
-            .chain(3u32.to_le_bytes().iter())
-            .chain(3u32.to_le_bytes().iter())
+            .chain(4u32.to_le_bytes().iter())
+            .chain(4u32.to_le_bytes().iter())
             .copied()
             .collect();
         let hits = good
@@ -2328,12 +2348,21 @@ mod tests {
             .position(|w| w == head.as_slice())
             .expect("節表の頭が blob に載っている");
 
-        // 2 → 1 は1ビット反転。file 1 の節表が黙って差し替わる形
-        let mut broken = good.clone();
-        broken[at] = 1;
-        match decode_all(&broken, root) {
-            Ok(_) => panic!("同じ file_id の節表を2つ読んでしまった"),
-            Err(e) => assert!(e.contains("is not after"), "別の門番で落ちている: {e}"),
+        // **腕を2つとも通す。** `<=` の片側しか通らない題材だと、
+        // もう片方に緩める変異が生き残る
+        for (to, what) in [
+            // 3 → 1。**直前ではない前**の節表と重なる（`<` の腕）。
+            // `search.md` が挙げている `7 → 5` がこの形
+            (1u8, "前の節表を上書きする file_id"),
+            // 3 → 2。直前と同じ（`==` の腕）
+            (2u8, "直前と同じ file_id"),
+        ] {
+            let mut broken = good.clone();
+            broken[at] = to;
+            match decode_all(&broken, root) {
+                Ok(_) => panic!("{what}を読んでしまった"),
+                Err(e) => assert!(e.contains("is not after"), "別の門番で落ちている: {e}"),
+            }
         }
     }
 }
