@@ -229,8 +229,13 @@ pub struct SearchChunkPayload {
 
 /// 結果を出し終えた。`EVT_SEARCH_END` に載る。
 ///
-/// **取り消したときは届かない。** 画面は `EVT_SEARCH_ERROR` と併せて
-/// 待ちを解くこと。
+/// **「全件出し終えた」ではない。** 取り出しの途中で取り消されたときも、
+/// そこまでの chunk の後にこれが出る（`query_service` は `break` で
+/// 抜けてから emit する）。届かないのは chunk を1つも出す前に
+/// 取り消したときだけ。
+///
+/// つまり**打ち切られた検索と、出し切った検索が、これだけでは区別できない**。
+/// 区別が要るなら欄を足すこと。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchEndPayload {

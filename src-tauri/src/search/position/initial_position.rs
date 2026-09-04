@@ -26,7 +26,7 @@ pub type Jkf = JsonKifuFormat;
 /// 平手として索引に入れると、**その局面で検索しても当たらず、平手の検索結果に紛れる**。
 ///
 /// **TS 側（tsshogi）は逆に `preset` を採り `data` を捨てる。** つまりこの形の `.jkf`
-/// では、索引が指す局面と画面に出る局面が食い違う。どちらへ揃えるかは #330。
+/// では、索引が指す局面と画面に出る局面が食い違う。どちらへ揃えるかは決まっていない。
 ///
 /// # Errors
 ///
@@ -37,8 +37,10 @@ pub type Jkf = JsonKifuFormat;
 /// `[[Piece; 9]; 9]` なので serde が先に弾く。持駒の枚数は `Hand::added` が
 /// 黙って受けるので、**歩30枚の JKF はそのまま索引に入る**。
 ///
-/// ここで失敗した棋譜の局面は検索に出てこない。索引の項目自体がどう残るかは
-/// `read_to_jkf` の `# Errors` を見ること（呼び口で違う・#333）。
+/// ここで失敗した棋譜の局面は検索に出てこない。**索引の項目自体はどちらの
+/// 呼び口でも登録される** — 全件構築（`build.rs`）も差分更新（`project_manager.rs`）も、
+/// 局面を1つも持たない項目として積む。登録が要るのは `file_table` の `gen` が
+/// 上がらないと前の世代のセグメントが索引に残るため（`read_to_jkf` の `# Errors`）。
 pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, ConvertError> {
     let Some(initial) = &jkf.initial else {
         return Ok(PartialPosition::startpos());
