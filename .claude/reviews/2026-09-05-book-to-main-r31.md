@@ -52,7 +52,9 @@ doc は「接尾辞や接頭辞を足す改名は最も普通の形なので、�
 検査の意味が大きく減る」と**両方向を宣言している。**
 テストのコメントも「接尾辞を足す改名」と書きながら接頭辞を与えていた。
 
-`docs/` には現に `config_write` → `config_write_failed` の対がある。
+対は現物から採っている —— `docs/proposals/naming-and-module-layout.md` が `config_write` を挙げ、
+`src/entities/file-tree/api/error.ts` にあるのは `config_write_failed`。
+**接尾辞が付いた側だけが実在する**形そのもの。
 
 - 結果: 対応済み `548a80d5`（現物の綴りで1本足し、**この1本だけが落ちることを確認**）
 

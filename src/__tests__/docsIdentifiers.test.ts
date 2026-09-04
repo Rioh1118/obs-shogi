@@ -111,8 +111,10 @@ describe("missingIn", () => {
   });
 
   // **接尾辞側も見る。** 前置だけを与えると、語境界を片側しか要求しない形でも通る ——
-  // `\b` の後ろ側を落とす1文字の変異がそれで、`docs/` には現に
-  // `config_write` → `config_write_failed` の対がある
+  // `\b` の後ろ側を落とす1文字の変異がそれ。
+  // この対は現物から採っている: `docs/proposals/naming-and-module-layout.md` が
+  // `config_write` を挙げ、`src/entities/file-tree/api/error.ts` にあるのは
+  // `config_write_failed`。**接尾辞が付いた側だけが実在する**形そのもの
   test("接尾辞を足した別の識別子としては数えない", () => {
     expect(missingIn(["config_write"], 'case "config_write_failed":')).toEqual(["config_write"]);
   });
