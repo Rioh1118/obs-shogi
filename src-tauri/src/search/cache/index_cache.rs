@@ -1267,24 +1267,30 @@ mod tests {
                 .into_iter()
                 .collect();
 
-        // 別々の bucket に落ちる鍵を選ぶ（bucket は z0 の下位8ビットで決まる）
+        // 別々の桶に落ちる鍵を選ぶ。**桶は鍵に決めさせる** — 手で置くと
+        // `bucketize_entries` が作らない配置を題材が固定してしまい、
+        // 引く側（`index_store` は `key.bucket()` の桶しか見ない）と食い違う
+        let k1 = PositionKey {
+            z0: 0x1100_0000_0000_0000,
+            z1: 0x2222,
+        };
+        let k2 = PositionKey {
+            z0: 0x2200_0000_0000_0000,
+            z1: 0x3333,
+        };
+        assert_ne!(k1.bucket(), k2.bucket(), "題材が同じ桶に落ちている");
+
         let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
-        buckets[0x11].push((
-            PositionKey {
-                z0: 0x1111,
-                z1: 0x2222,
-            },
+        buckets[k1.bucket() as usize].push((
+            k1,
             Occurrence {
                 file_id: 1,
                 r#gen: 41,
                 node_id: 0,
             },
         ));
-        buckets[0x22].push((
-            PositionKey {
-                z0: 0x2222,
-                z1: 0x3333,
-            },
+        buckets[k2.bucket() as usize].push((
+            k2,
             Occurrence {
                 file_id: 2,
                 r#gen: 42,
