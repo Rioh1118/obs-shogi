@@ -888,6 +888,9 @@ impl<'a> Reader<'a> {
 /// **`is` / `are` を綴りに含めない。** 主語の数で決まるので規約にならない
 /// （`occurrences_..._are_...` が1本ある）。
 ///
+/// **`rejected` を使わない。** `refused` と同じ意味で綴りが割れると、
+/// 上の3つで数えたときに集合の外に落ちる。
+///
 /// **数えるときは3つ全部を足す。** 読み側6・書き側5あるので、
 /// `_not_written` だけを数えると足りない。
 ///
@@ -942,7 +945,7 @@ mod tests {
     /// 過ぎた版の索引を、二度と受け入れない。
     ///
     /// `the_current_version_passes_the_version_check` と
-    /// `a_file_that_is_not_an_index_is_rejected` は `VERSION` そのものを使って
+    /// `a_file_that_is_not_an_index_is_refused` は `VERSION` そのものを使って
     /// blob を組むので、値がいくつでも通る。**[`VERSION`] を留めるものが他に無い。**
     /// 前の版に戻ると、その版が書いた索引がそのまま読まれ、
     /// `(size, mtime_ms)` が変わっていない棋譜は古い解釈のまま検索に当たり続ける。
@@ -976,7 +979,7 @@ mod tests {
     ///
     /// キャッシュの置き場に別のものが入っていても、中身を信じて進まない。
     #[test]
-    fn a_file_that_is_not_an_index_is_rejected() {
+    fn a_file_that_is_not_an_index_is_refused() {
         let mut blob = b"PK\x03\x04....".to_vec();
         write_u32(&mut blob, VERSION);
 
@@ -991,7 +994,7 @@ mod tests {
     /// 通してしまうと、検索結果に**別のフォルダの棋譜のパス**が並ぶ。
     /// 開こうとしても無いので、利用者から見ると「検索が壊れている」になる。
     #[test]
-    fn an_index_built_for_another_project_is_rejected() {
+    fn an_index_built_for_another_project_is_refused() {
         let mut blob = header_for(Path::new("/tmp/project-a"));
         write_u32(&mut blob, 0);
 
