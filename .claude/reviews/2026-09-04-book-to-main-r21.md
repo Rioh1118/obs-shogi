@@ -125,7 +125,7 @@ comment はこれを根拠に「`docs/spec/README.md` の対局の行と `game-p
 
 ## 見ていない範囲
 
-- #386 / #342 / #290 / #351 へ送った17件（再掲しない前提）
+- #386 / #342 / #290 / #351 へ送ったもの（再掲しない前提）
 - `user_book1.db` の実測3行とピーク確保の実測（現物がリポジトリに無い）
 - `sfen.rs` の検査本体（`normalize_board` / `normalize_hands` / `PieceCounts::validate`）
 - `yaneuraou_db.rs` のテストモジュール1300行の個々の主張
