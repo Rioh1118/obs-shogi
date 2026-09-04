@@ -1,23 +1,17 @@
-//! 局面を索引で引くための鍵を作る。
+//! 局面を索引で引くための鍵。
 //!
 //! 手法は Zobrist ハッシュ。局面を「手番」「盤上の各駒」「各駒種の持駒枚数」に
 //! ばらし、項ごとに決まった乱数を XOR で畳む。XOR は自分自身が逆演算なので、
 //! **同じ項をもう一度 XOR すれば消える**。これが1手ぶんの差分更新を成り立たせる。
 //!
-//! 中身は3つに分かれる。
+//! **項を引くのは [`super::zobrist`] の仕事。** こちらは畳むだけで、表の添字を知らない。
 //!
-//! - **鍵の値** — [`PositionKey`]
-//! - **乱数表** — [`ZobristTable`] と、それを一度だけ作る [`ZOBRIST`]
-//! - **鍵の作り方** — 盤を舐める [`key_from_partial_position`] と、
-//!   1手ぶんだけ動かす [`advance_key`]
+//! 作り方は2つある。盤を丸ごと舐める [`key_from_partial_position`] と、
+//! 1手ぶんだけ動かす [`advance_key`]。**両者は必ず同じ値を出さなければならない。**
 
-use std::sync::OnceLock;
+use shogi_core::{Color, Move, PartialPosition, PieceKind, Square};
 
-use shogi_core::{Color, Hand, Move, PartialPosition, Piece, PieceKind, Square};
-
-// ---------------------------------------------------------------
-// 鍵の値
-// ---------------------------------------------------------------
+use super::zobrist::{self, ZobristValue};
 
 /// 索引が局面を指すための鍵。**128ビットを `u64` 二本に割って持つ。**
 ///
@@ -55,115 +49,46 @@ impl PositionKey {
     }
 
     /// 項を1つ畳む。**足すのも消すのも同じ操作。**
-    ///
-    /// XOR は自分自身が逆演算なので、駒を置くときと取り除くときで呼び分けない。
     #[inline]
-    fn xor_assign(&mut self, rhs: PositionKey) {
+    fn xor_assign(&mut self, rhs: ZobristValue) {
         self.z0 ^= rhs.z0;
         self.z1 ^= rhs.z1;
     }
 }
 
-// ---------------------------------------------------------------
-// 乱数表
-// ---------------------------------------------------------------
+/// 局面を丸ごと舐めて鍵を作る。
+///
+/// **読むのは手番・盤・持駒だけ。手数は入らない。** 手数の違う同じ局面は同じ鍵になる
+/// — 索引が「この局面が現れる場所」を集めるものなので、それでよい。
+///
+/// 1手進めるだけなら [`advance_key`] の方が速い。こちらは初期局面と、
+/// 差分が諦めたときの受け皿。
+pub fn key_from_partial_position(pos: &PartialPosition) -> PositionKey {
+    let mut key = PositionKey::ZERO;
 
-/// 表の添字にする手番。`Color` には添字が無いので、ここで 0 / 1 に決める。
-#[inline]
-fn color_index(c: Color) -> usize {
-    match c {
-        Color::Black => 0,
-        Color::White => 1,
+    key.xor_assign(zobrist::side(pos.side_to_move()));
+
+    for sq in Square::all() {
+        if let Some(piece) = pos.piece_at(sq) {
+            key.xor_assign(zobrist::piece_on_square(piece, sq));
+        }
     }
-}
 
-// 持ち駒に出るのは基本この7種（成駒は持てない）
-const HAND_KINDS: [PieceKind; 7] = [
-    PieceKind::Pawn,
-    PieceKind::Lance,
-    PieceKind::Knight,
-    PieceKind::Silver,
-    PieceKind::Gold,
-    PieceKind::Bishop,
-    PieceKind::Rook,
-];
-
-/// 持駒の**枚数**を表の添字にするので、枚数1つにつき1枠要る。
-///
-/// 一番多く持てるのは歩の18枚なので、`0..=18` の19枠。他の駒種も同じ枠で持つ。
-/// **これは総数ではなく、駒種ごとの枚数の値域。**
-const HAND_COUNT_SLOTS: usize = 19;
-
-/// 局面の項ごとに引く乱数の表。
-///
-/// 添字の付け方がそのまま鍵の定義になる。**ここを変えると同じ局面から別の鍵が出る**
-/// ので、既に書いた索引は読めなくなる。
-struct ZobristTable {
-    side: [PositionKey; 2],
-    // board[color][piece_kind(14)][square(81)]
-    board: [[[PositionKey; 81]; 14]; 2],
-    // hand[color][hand_kind(7)][count(0..=18)]
-    hand: [[[PositionKey; HAND_COUNT_SLOTS]; 7]; 2],
-}
-
-/// 表は起動ごとに一度だけ作る。約7万項あるので使う側で持ち回らない。
-///
-/// **乱数だが、毎回同じ値でなければならない。** 鍵はディスクの索引に書かれるので、
-/// 次の起動で表が変われば、書いてある鍵が全部別の局面を指すことになる。
-/// 乱数源に環境や時刻を混ぜず、固定の種から決まった手順で作るのはそのため。
-static ZOBRIST: OnceLock<ZobristTable> = OnceLock::new();
-
-impl ZobristTable {
-    fn new() -> Self {
-        let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
-        let mut side = [PositionKey::ZERO; 2];
-        let mut board = [[[PositionKey::ZERO; 81]; 14]; 2];
-        let mut hand = [[[PositionKey::ZERO; HAND_COUNT_SLOTS]; 7]; 2];
-
-        for c in 0..2 {
-            side[c] = next128(&mut seed);
-            for pk_row in board[c].iter_mut() {
-                for cell in pk_row.iter_mut() {
-                    *cell = next128(&mut seed);
-                }
-            }
-            for hk_row in hand[c].iter_mut() {
-                for cell in hk_row.iter_mut() {
-                    *cell = next128(&mut seed);
-                }
+    for color in [Color::Black, Color::White] {
+        let hand = pos.hand_of_a_player(color);
+        // **7種すべてを引く。0枚も1つの項。** 引かずに飛ばすと「0枚」と
+        // 「表に無い」が同じ値になり、`advance_key` が 0 枚から1枚へ動かした
+        // 差分と食い違う
+        for kind in zobrist::hand_kinds() {
+            let count = hand.count(*kind).unwrap_or(0) as usize;
+            if let Some(v) = zobrist::hand_count(color, *kind, count) {
+                key.xor_assign(v);
             }
         }
-
-        Self { side, board, hand }
     }
-}
 
-/// 表の1項ぶん、128ビットを取り出す。64ビットを2回引いて上下に充てる。
-#[inline]
-fn next128(seed: &mut u64) -> PositionKey {
-    PositionKey {
-        z0: splitmix64(seed),
-        z1: splitmix64(seed),
-    }
+    key
 }
-
-/// 種を1つ進めて64ビットを返す、決まった手順の乱数。
-///
-/// 状態が `u64` 1個だけで、同じ種からは必ず同じ列が出る。
-/// 表を毎回同じに作るという要件（[`ZOBRIST`]）を満たすのに要るのはこれだけで、
-/// 統計的な質は問わない。
-#[inline]
-fn splitmix64(x: &mut u64) -> u64 {
-    *x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let mut z = *x;
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
-
-// ---------------------------------------------------------------
-// 鍵の作り方
-// ---------------------------------------------------------------
 
 /// 1手ぶん進めた鍵を作る。**盤を舐め直さない。**
 ///
@@ -183,17 +108,13 @@ fn splitmix64(x: &mut u64) -> u64 {
 /// `make_move` が `None` を返す形では、こちらも `None` を返して**呼び手を
 /// フル計算へ落とす**。黙って違う鍵を作ると、**索引に入る値が静かに壊れる** —
 /// 検索が当たらなくなるだけで、エラーも警告も出ない。
-///
-/// 持駒の枚数の頭打ち（`min(HAND_COUNT_SLOTS - 1)`）はフル計算と同じにしてある。
-/// ずらすと同じ局面から別の鍵が出る。
 pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<PositionKey> {
-    let tbl = ZOBRIST.get_or_init(ZobristTable::new);
     let mut key = key;
 
     // 手番。古い色を落として新しい色を入れる
     let mover = pos.side_to_move();
-    key.xor_assign(tbl.side[color_index(mover)]);
-    key.xor_assign(tbl.side[color_index(mover.flip())]);
+    key.xor_assign(zobrist::side(mover));
+    key.xor_assign(zobrist::side(mover.flip()));
 
     match mv {
         Move::Normal { from, to, promote } => {
@@ -208,16 +129,16 @@ pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<
                 if taken.color() == mover {
                     return None;
                 }
-                key.xor_assign(key_for_piece_on_square(tbl, taken, to));
+                key.xor_assign(zobrist::piece_on_square(taken, to));
 
                 // 成駒は成る前の駒として持駒に入る（`make_move` と同じ）
                 let kind = taken.piece_kind();
                 let obtained = kind.unpromote().unwrap_or(kind);
-                key.xor_assign(hand_step(tbl, pos, mover, obtained, 1)?);
+                key.xor_assign(hand_step(pos, mover, obtained, 1)?);
             }
 
-            key.xor_assign(key_for_piece_on_square(tbl, piece, from));
-            key.xor_assign(key_for_piece_on_square(tbl, placed, to));
+            key.xor_assign(zobrist::piece_on_square(piece, from));
+            key.xor_assign(zobrist::piece_on_square(placed, to));
         }
         Move::Drop { piece, to } => {
             if piece.color() != mover {
@@ -230,8 +151,8 @@ pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<
             if pos.piece_at(to).is_some() {
                 return None;
             }
-            key.xor_assign(hand_step(tbl, pos, mover, piece.piece_kind(), -1)?);
-            key.xor_assign(key_for_piece_on_square(tbl, piece, to));
+            key.xor_assign(hand_step(pos, mover, piece.piece_kind(), -1)?);
+            key.xor_assign(zobrist::piece_on_square(piece, to));
         }
     }
 
@@ -243,16 +164,11 @@ pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<
 /// 枚数そのものを鍵に持っているので、増減は「2つの項の入れ替え」になる。
 #[inline]
 fn hand_step(
-    tbl: &ZobristTable,
     pos: &PartialPosition,
     color: Color,
     kind: PieceKind,
     delta: i8,
-) -> Option<PositionKey> {
-    // 持駒に出ない駒種（玉・成駒）は表を持たない。
-    // `make_move` は成駒を成る前に戻してから入れるので、ここに来るのは7種のはず
-    let hk = HAND_KINDS.iter().position(|k| *k == kind)?;
-
+) -> Option<ZobristValue> {
     let before = pos.hand_of_a_player(color).count(kind)? as i16;
 
     // `shogi_core` の `Hand::added` は `wrapping_add` なので **255 の次は 0**。
@@ -270,77 +186,11 @@ fn hand_step(
         return None;
     }
 
-    // 頭打ちはフル計算と同じ位置で掛ける
-    let clamp = |n: i16| (n as usize).min(HAND_COUNT_SLOTS - 1);
-    let mut k = tbl.hand[color_index(color)][hk][clamp(before)];
-    k.xor_assign(tbl.hand[color_index(color)][hk][clamp(after)]);
-    Some(k)
-}
-
-/// 局面を丸ごと舐めて鍵を作る。
-///
-/// **読むのは手番・盤・持駒だけ。手数は入らない。** 手数の違う同じ局面は同じ鍵になる
-/// — 索引が「この局面が現れる場所」を集めるものなので、それでよい。
-///
-/// 1手進めるだけなら [`advance_key`] の方が速い。こちらは初期局面と、
-/// 差分が諦めたときの受け皿。
-pub fn key_from_partial_position(pos: &PartialPosition) -> PositionKey {
-    let tbl = ZOBRIST.get_or_init(ZobristTable::new);
-
-    let mut key = PositionKey::ZERO;
-
-    // 手番
-    key.xor_assign(tbl.side[color_index(pos.side_to_move())]);
-
-    // 盤上の駒
-    for sq in Square::all() {
-        if let Some(piece) = pos.piece_at(sq) {
-            key.xor_assign(key_for_piece_on_square(tbl, piece, sq));
-        }
-    }
-
-    // 持ち駒（先手/後手）
-    key.xor_assign(key_for_hand(
-        tbl,
-        Color::Black,
-        pos.hand_of_a_player(Color::Black),
-    ));
-    key.xor_assign(key_for_hand(
-        tbl,
-        Color::White,
-        pos.hand_of_a_player(Color::White),
-    ));
-
-    key
-}
-
-/// 「どの色のどの駒種が、どの升にいるか」の項を1つ引く。
-///
-/// 同じ駒でも升が違えば別の項になる。だから盤の配置がそのまま鍵に効く。
-#[inline]
-fn key_for_piece_on_square(tbl: &ZobristTable, piece: Piece, sq: Square) -> PositionKey {
-    let (pk, c) = piece.to_parts();
-    // PieceKind::array_index() が 0..13 を返す想定
-    let pk_idx = pk.array_index();
-    let sq_idx = sq.array_index();
-    tbl.board[color_index(c)][pk_idx][sq_idx]
-}
-
-/// 片方の持駒ぶんの項を畳む。
-///
-/// **7種すべてを引く。0枚も1つの項。** 引かずに飛ばすと「0枚」と「表に無い」が
-/// 同じ値になり、[`advance_key`] が 0 枚から1枚へ動かした差分と食い違う。
-#[inline]
-fn key_for_hand(tbl: &ZobristTable, color: Color, hand: Hand) -> PositionKey {
-    let mut k = PositionKey::ZERO;
-
-    for (hk, pk) in HAND_KINDS.iter().enumerate() {
-        let cnt = hand.count(*pk).unwrap_or(0) as usize;
-        let cnt = cnt.min(HAND_COUNT_SLOTS - 1);
-        k.xor_assign(tbl.hand[color_index(color)][hk][cnt]);
-    }
-
-    k
+    // 枠に落とすのは `hand_count` の中。ここで数え直さないので
+    // フル計算とずれようがない。持駒に出ない駒種はそちらが `None` を返す
+    let old = zobrist::hand_count(color, kind, before as usize)?;
+    let new = zobrist::hand_count(color, kind, after as usize)?;
+    Some(old.xor(new))
 }
 
 #[cfg(test)]
@@ -387,6 +237,37 @@ mod tests {
 
     fn parse(text: &str) -> JsonKifuFormat {
         shogi_kifu_converter_obsshogi::parser::parse_kif_str(text).expect("題材の KIF が読めること")
+    }
+
+    /// 決まった局面から、決まった鍵が出る。
+    ///
+    /// **この値はディスクの索引に書かれている。** 乱数表の種・作る順・添字の付け方・
+    /// 持駒の枚数を枠へ落とす位置、どれが動いてもここが落ちる。落ちたときに
+    /// 「テストの期待値が古い」と読んで書き換えると、**既にある索引が全部
+    /// 別の局面を指すようになる**。書き換える前に、索引を作り直す算段を付けること。
+    ///
+    /// 平手と駒落ちを両方見るのは、盤だけの局面と持駒のある局面で
+    /// 通る項が違うため。
+    #[test]
+    fn the_same_position_always_yields_the_same_key() {
+        use test_support::kifu::one_move_kif;
+
+        let hirate = key_from_partial_position(&PartialPosition::startpos());
+        assert_eq!(
+            (hirate.z0, hirate.z1),
+            (0x32cc_4ccb_2c51_c541, 0x2049_872a_80d5_a95c),
+            "平手の鍵が変わった"
+        );
+
+        let jkf = parse(&one_move_kif("二枚落ち"));
+        let pos = crate::search::position::initial_position::initial_partial_position(&jkf)
+            .expect("二枚落ちの初期局面が作れること");
+        let nimai = key_from_partial_position(&pos);
+        assert_eq!(
+            (nimai.z0, nimai.z1),
+            (0x3a35_afbb_1668_d8c5, 0x7958_2b7f_482f_4368),
+            "二枚落ちの鍵が変わった"
+        );
     }
 
     /// 手合割15種すべてで一致する。
@@ -437,7 +318,6 @@ mod tests {
     fn a_hand_at_the_byte_limit_falls_back_to_a_full_recompute() {
         use shogi_core::{Color, Hand, PartialPosition, PieceKind};
 
-        let tbl = ZOBRIST.get_or_init(ZobristTable::new);
         let mut pos = PartialPosition::startpos();
 
         // 上限の1つ下までは差分が答える。境界がずれたらここが落ちる
@@ -447,7 +327,7 @@ mod tests {
         }
         *pos.hand_of_a_player_mut(Color::Black) = hand;
         assert!(
-            hand_step(tbl, &pos, Color::Black, PieceKind::Bishop, 1).is_some(),
+            hand_step(&pos, Color::Black, PieceKind::Bishop, 1).is_some(),
             "上限の1つ下で差分が諦めた"
         );
 
@@ -460,13 +340,13 @@ mod tests {
             "題材が上限に届いていない"
         );
         assert!(
-            hand_step(tbl, &pos, Color::Black, PieceKind::Bishop, 1).is_none(),
+            hand_step(&pos, Color::Black, PieceKind::Bishop, 1).is_none(),
             "上限で差分が答えてしまった"
         );
 
         // 減る側は折り返さないので、上限にいても答えてよい
         assert!(
-            hand_step(tbl, &pos, Color::Black, PieceKind::Bishop, -1).is_some(),
+            hand_step(&pos, Color::Black, PieceKind::Bishop, -1).is_some(),
             "減る側まで諦めた"
         );
     }
