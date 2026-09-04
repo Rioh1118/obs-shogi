@@ -371,7 +371,10 @@ npm run verify:rust   # cargo fmt + clippy + test
 文字列として読むので、`.rs` だけを触った場合も `docs/` の `.md` だけを触った場合も、
 ここで落ちることがあります。**迷ったら両方流してください。**
 
-`git commit` で自動的に走るのは `vp check --fix`（整形）だけです。上の2つは手で流してください。
+git の hook として `git commit` で走るのは `vp check --fix`（整形と lint。`--fix` は
+直せるものを書き換えます）だけで、**上の2つは走りません。手で流してください。**
+lint に落ちるとコミットは作られません。同じものは `npm run lint` で再現できます
+（規則は `vite.config.ts`）。
 
 Rust のツールチェーンは `rust-toolchain.toml` で固定しています。手元と CI で同じ結果になります。
 
