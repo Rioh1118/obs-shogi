@@ -6,7 +6,7 @@ use shogi_kifu_converter_obsshogi::jkf::{JsonKifuFormat, MoveFormat};
 use crate::search::index::build_report::{BuildError, BuildWarn};
 use crate::search::position::initial_position::initial_partial_position;
 use crate::search::position::position_apply::{
-    apply_node_action, jkf_move_to_core_move, ApplyStatus, NodeAction,
+    apply_node_action, jkf_move_to_core_move, ApplyError, ApplyStatus, NodeAction,
 };
 use crate::search::position::position_key::{advance_key, key_from_partial_position, PositionKey};
 use crate::search::store::node_table::{NodeTable, NodeTableBuilder};
@@ -112,23 +112,9 @@ impl IndexBuilder {
                 }
             }
 
-            // mainline
-            let action = node_action(node);
-
-            // 差分は**指す前の局面**から取る。`apply_node_action` が
-            // 局面を進めてしまうので、手を core の形にするのも先
-            let stepped = match action {
-                NodeAction::Move(m) => jkf_move_to_core_move(m)
-                    .ok()
-                    .and_then(|mv| advance_key(key, &pos, mv)),
-                // 局面が動かない腕は鍵も動かない
-                NodeAction::Special(_) | NodeAction::None => Some(key),
-            };
-
-            match apply_node_action(&mut pos, action) {
-                Ok(status) => {
-                    // **差分が読めなかったら盤を舐め直す。** 黙って違う鍵を作らない
-                    key = stepped.unwrap_or_else(|| key_from_partial_position(&pos));
+            match step(&mut pos, key, node) {
+                Ok((next_key, status)) => {
+                    key = next_key;
                     self.push_entry(tesuu, &fork_path, key);
                     if status == ApplyStatus::Special {
                         break;
@@ -183,6 +169,47 @@ pub fn build_index_for_jkf(
     }
 
     Ok(b.finish())
+}
+
+/// 節を1つ食べて、盤と鍵を進める。
+///
+/// 失敗したら `pos` は動いていない（`apply_node_action` が盤に触る前に返る）。
+///
+/// # 鍵を進める順番に前提がある
+///
+/// **差分は指す前の局面から取る。** `apply_node_action` が `pos` を進めてしまうので、
+/// 手を `shogi_core` の形にするのも `advance_key` を呼ぶのも、指す前に済ませる。
+///
+/// 順番を入れ替えても**鍵は正しいまま**。進んだ後の盤では `from` に駒がおらず
+/// （打ちなら `to` が埋まっており）`advance_key` が必ず `None` を返すので、
+/// 下のフル計算が正しい値を出す。**壊れるのは速さだけ** — 差分更新が丸ごと死んで
+/// 全ノードで盤を舐め直すようになる。**どのテストにも見えない**ので、
+/// ここを動かすときは `benches/search_bench.rs` を測ること。
+///
+/// **差分が読めなかったら盤を舐め直す。** `advance_key` が `None` を返すのは
+/// 持駒の枚数が `u8` の上限で折り返すなど、差分が答えられない形。
+/// そのとき黙って違う鍵を作らずにフル計算へ落とす。落とさないと、索引に入る値が
+/// 静かに壊れる — 検索が当たらなくなるだけで、エラーも警告も出ない。
+fn step(
+    pos: &mut PartialPosition,
+    key: PositionKey,
+    node: &MoveFormat,
+) -> Result<(PositionKey, ApplyStatus), ApplyError> {
+    let action = node_action(node);
+
+    let stepped = match action {
+        NodeAction::Move(m) => jkf_move_to_core_move(m)
+            .ok()
+            .and_then(|mv| advance_key(key, pos, mv)),
+        // 局面が動かない腕は鍵も動かない
+        NodeAction::Special(_) | NodeAction::None => Some(key),
+    };
+
+    let status = apply_node_action(pos, action)?;
+    Ok((
+        stepped.unwrap_or_else(|| key_from_partial_position(pos)),
+        status,
+    ))
 }
 
 #[inline]
