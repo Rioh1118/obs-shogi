@@ -1,7 +1,39 @@
+//! 局面を索引で引くための鍵を作る。
+//!
+//! 手法は Zobrist ハッシュ。局面を「手番」「盤上の各駒」「各駒種の持駒枚数」に
+//! ばらし、項ごとに決まった乱数を XOR で畳む。XOR は自分自身が逆演算なので、
+//! **同じ項をもう一度 XOR すれば消える**。これが1手ぶんの差分更新を成り立たせる。
+//!
+//! 中身は3つに分かれる。
+//!
+//! - **鍵の値** — [`PositionKey`]
+//! - **乱数表** — [`ZobristTable`] と、それを一度だけ作る [`ZOBRIST`]
+//! - **鍵の作り方** — 盤を舐める [`key_from_partial_position`] と、
+//!   1手ぶんだけ動かす [`advance_key`]
+
 use std::sync::OnceLock;
 
 use shogi_core::{Color, Hand, Move, PartialPosition, Piece, PieceKind, Square};
 
+// ---------------------------------------------------------------
+// 鍵の値
+// ---------------------------------------------------------------
+
+/// 索引が局面を指すための鍵。**128ビットを `u64` 二本に割って持つ。**
+///
+/// `z` は Zobrist の z。`z0` が上位側で、[`bucket`](Self::bucket) はここから取る。
+///
+/// # なぜ二本に割るか
+///
+/// 索引の本体（`store/segment.rs` の `Segment`）が列ごとに `Vec<u64>` を持つ。
+/// 二分探索が舐めるのは `z0` / `z1` の列だけなので、`u128` 一本では列に割れない。
+///
+/// # なぜ128ビット要るか
+///
+/// **衝突しても誰も気付かない。** 検索は鍵で引いた結果をそのまま hit にしていて、
+/// 局面を作り直して照合する経路が無い（`search/query_service.rs`）。
+/// 鍵がぶつかれば**別の局面の棋譜が黙って検索結果に混ざる**。
+/// 幅を削るなら、先に照合を足すこと。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PositionKey {
     pub z0: u64,
@@ -9,13 +41,22 @@ pub struct PositionKey {
 }
 
 impl PositionKey {
+    /// XOR の単位元。何も畳んでいない状態で、ここから項を足していく。
     pub const ZERO: Self = Self { z0: 0, z1: 0 };
 
+    /// この鍵が入るバケツ（256個のうちの1つ）。
+    ///
+    /// `z0` の上位8ビットをそのまま使う。ハッシュの一部を索引の物理的な配置に
+    /// 流用しているので、**256 という数は `cache/index_cache.rs` の配列の長さと組**。
+    /// 片方だけ動かすと索引が読めなくなる。
     #[inline]
     pub fn bucket(self) -> u8 {
         (self.z0 >> 56) as u8
     }
 
+    /// 項を1つ畳む。**足すのも消すのも同じ操作。**
+    ///
+    /// XOR は自分自身が逆演算なので、駒を置くときと取り除くときで呼び分けない。
     #[inline]
     fn xor_assign(&mut self, rhs: PositionKey) {
         self.z0 ^= rhs.z0;
@@ -23,8 +64,13 @@ impl PositionKey {
     }
 }
 
+// ---------------------------------------------------------------
+// 乱数表
+// ---------------------------------------------------------------
+
+/// 表の添字にする手番。`Color` には添字が無いので、ここで 0 / 1 に決める。
 #[inline]
-fn cidx(c: Color) -> usize {
+fn color_index(c: Color) -> usize {
     match c {
         Color::Black => 0,
         Color::White => 1,
@@ -42,17 +88,29 @@ const HAND_KINDS: [PieceKind; 7] = [
     PieceKind::Rook,
 ];
 
-// ざっくり最大19で確保（歩18 + 余裕1）。他の駒種もこの枠で持つ
-const HAND_MAX: usize = 19;
+/// 持駒の**枚数**を表の添字にするので、枚数1つにつき1枠要る。
+///
+/// 一番多く持てるのは歩の18枚なので、`0..=18` の19枠。他の駒種も同じ枠で持つ。
+/// **これは総数ではなく、駒種ごとの枚数の値域。**
+const HAND_COUNT_SLOTS: usize = 19;
 
+/// 局面の項ごとに引く乱数の表。
+///
+/// 添字の付け方がそのまま鍵の定義になる。**ここを変えると同じ局面から別の鍵が出る**
+/// ので、既に書いた索引は読めなくなる。
 struct ZobristTable {
     side: [PositionKey; 2],
     // board[color][piece_kind(14)][square(81)]
     board: [[[PositionKey; 81]; 14]; 2],
     // hand[color][hand_kind(7)][count(0..=18)]
-    hand: [[[PositionKey; HAND_MAX]; 7]; 2],
+    hand: [[[PositionKey; HAND_COUNT_SLOTS]; 7]; 2],
 }
 
+/// 表は起動ごとに一度だけ作る。約7万項あるので使う側で持ち回らない。
+///
+/// **乱数だが、毎回同じ値でなければならない。** 鍵はディスクの索引に書かれるので、
+/// 次の起動で表が変われば、書いてある鍵が全部別の局面を指すことになる。
+/// 乱数源に環境や時刻を混ぜず、固定の種から決まった手順で作るのはそのため。
 static ZOBRIST: OnceLock<ZobristTable> = OnceLock::new();
 
 impl ZobristTable {
@@ -60,7 +118,7 @@ impl ZobristTable {
         let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
         let mut side = [PositionKey::ZERO; 2];
         let mut board = [[[PositionKey::ZERO; 81]; 14]; 2];
-        let mut hand = [[[PositionKey::ZERO; HAND_MAX]; 7]; 2];
+        let mut hand = [[[PositionKey::ZERO; HAND_COUNT_SLOTS]; 7]; 2];
 
         for c in 0..2 {
             side[c] = next128(&mut seed);
@@ -80,6 +138,7 @@ impl ZobristTable {
     }
 }
 
+/// 表の1項ぶん、128ビットを取り出す。64ビットを2回引いて上下に充てる。
 #[inline]
 fn next128(seed: &mut u64) -> PositionKey {
     PositionKey {
@@ -88,6 +147,11 @@ fn next128(seed: &mut u64) -> PositionKey {
     }
 }
 
+/// 種を1つ進めて64ビットを返す、決まった手順の乱数。
+///
+/// 状態が `u64` 1個だけで、同じ種からは必ず同じ列が出る。
+/// 表を毎回同じに作るという要件（[`ZOBRIST`]）を満たすのに要るのはこれだけで、
+/// 統計的な質は問わない。
 #[inline]
 fn splitmix64(x: &mut u64) -> u64 {
     *x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -96,6 +160,10 @@ fn splitmix64(x: &mut u64) -> u64 {
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
 }
+
+// ---------------------------------------------------------------
+// 鍵の作り方
+// ---------------------------------------------------------------
 
 /// 1手ぶん進めた鍵を作る。**盤を舐め直さない。**
 ///
@@ -116,7 +184,7 @@ fn splitmix64(x: &mut u64) -> u64 {
 /// フル計算へ落とす**。黙って違う鍵を作ると、**索引に入る値が静かに壊れる** —
 /// 検索が当たらなくなるだけで、エラーも警告も出ない。
 ///
-/// 持駒の枚数の頭打ち（`min(HAND_MAX - 1)`）はフル計算と同じにしてある。
+/// 持駒の枚数の頭打ち（`min(HAND_COUNT_SLOTS - 1)`）はフル計算と同じにしてある。
 /// ずらすと同じ局面から別の鍵が出る。
 pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<PositionKey> {
     let tbl = ZOBRIST.get_or_init(ZobristTable::new);
@@ -124,8 +192,8 @@ pub fn advance_key(key: PositionKey, pos: &PartialPosition, mv: Move) -> Option<
 
     // 手番。古い色を落として新しい色を入れる
     let mover = pos.side_to_move();
-    key.xor_assign(tbl.side[cidx(mover)]);
-    key.xor_assign(tbl.side[cidx(mover.flip())]);
+    key.xor_assign(tbl.side[color_index(mover)]);
+    key.xor_assign(tbl.side[color_index(mover.flip())]);
 
     match mv {
         Move::Normal { from, to, promote } => {
@@ -203,20 +271,26 @@ fn hand_step(
     }
 
     // 頭打ちはフル計算と同じ位置で掛ける
-    let clamp = |n: i16| (n as usize).min(HAND_MAX - 1);
-    let mut k = tbl.hand[cidx(color)][hk][clamp(before)];
-    k.xor_assign(tbl.hand[cidx(color)][hk][clamp(after)]);
+    let clamp = |n: i16| (n as usize).min(HAND_COUNT_SLOTS - 1);
+    let mut k = tbl.hand[color_index(color)][hk][clamp(before)];
+    k.xor_assign(tbl.hand[color_index(color)][hk][clamp(after)]);
     Some(k)
 }
 
-/// PartialPosition から SFEN3 相当の PositionKey を作る（フル計算）
+/// 局面を丸ごと舐めて鍵を作る。
+///
+/// **読むのは手番・盤・持駒だけ。手数は入らない。** 手数の違う同じ局面は同じ鍵になる
+/// — 索引が「この局面が現れる場所」を集めるものなので、それでよい。
+///
+/// 1手進めるだけなら [`advance_key`] の方が速い。こちらは初期局面と、
+/// 差分が諦めたときの受け皿。
 pub fn key_from_partial_position(pos: &PartialPosition) -> PositionKey {
     let tbl = ZOBRIST.get_or_init(ZobristTable::new);
 
     let mut key = PositionKey::ZERO;
 
     // 手番
-    key.xor_assign(tbl.side[cidx(pos.side_to_move())]);
+    key.xor_assign(tbl.side[color_index(pos.side_to_move())]);
 
     // 盤上の駒
     for sq in Square::all() {
@@ -240,23 +314,30 @@ pub fn key_from_partial_position(pos: &PartialPosition) -> PositionKey {
     key
 }
 
+/// 「どの色のどの駒種が、どの升にいるか」の項を1つ引く。
+///
+/// 同じ駒でも升が違えば別の項になる。だから盤の配置がそのまま鍵に効く。
 #[inline]
 fn key_for_piece_on_square(tbl: &ZobristTable, piece: Piece, sq: Square) -> PositionKey {
     let (pk, c) = piece.to_parts();
     // PieceKind::array_index() が 0..13 を返す想定
     let pk_idx = pk.array_index();
     let sq_idx = sq.array_index();
-    tbl.board[cidx(c)][pk_idx][sq_idx]
+    tbl.board[color_index(c)][pk_idx][sq_idx]
 }
 
+/// 片方の持駒ぶんの項を畳む。
+///
+/// **7種すべてを引く。0枚も1つの項。** 引かずに飛ばすと「0枚」と「表に無い」が
+/// 同じ値になり、[`advance_key`] が 0 枚から1枚へ動かした差分と食い違う。
 #[inline]
 fn key_for_hand(tbl: &ZobristTable, color: Color, hand: Hand) -> PositionKey {
     let mut k = PositionKey::ZERO;
 
     for (hk, pk) in HAND_KINDS.iter().enumerate() {
         let cnt = hand.count(*pk).unwrap_or(0) as usize;
-        let cnt = cnt.min(HAND_MAX - 1);
-        k.xor_assign(tbl.hand[cidx(color)][hk][cnt]);
+        let cnt = cnt.min(HAND_COUNT_SLOTS - 1);
+        k.xor_assign(tbl.hand[color_index(color)][hk][cnt]);
     }
 
     k
