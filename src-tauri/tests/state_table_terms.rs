@@ -387,7 +387,8 @@ fn a_declaration_inside_a_block_comment_is_not_a_declaration() {
 /// 照合が接頭辞で通らないこと。
 ///
 /// **この性質を決めているのは `missing_in` で、`declared_constants` ではない。**
-/// 切り出す前は `contains` を `starts_with` に変えても全てのテストが緑で通っていた。
+/// 照合を `declared_constants` の側へ戻すと、`contains` を `starts_with` へ緩めても
+/// このテストは緑になる。
 #[test]
 fn a_prefix_of_a_declared_constant_is_still_missing() {
     let code = "const MAX_MOVE_CHARS: usize = 8;";
