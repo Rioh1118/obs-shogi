@@ -204,3 +204,33 @@ describe("lineNumberRefsIn", () => {
     expect(lineNumberRefsIn(markdown)).toEqual([]);
   });
 });
+
+describe("lineNumberRefsIn（版を固定した文書）", () => {
+  /**
+   * 上流の行番号は「識別子で指せ」の逃げ道が無いので、版ごと引くのが規約。
+   * **免除はこの木に無いファイルにだけ掛ける。**
+   */
+  const PIN = "このファイルが引く本家の行番号は、すべて `v9.40` 時点。\n\n";
+
+  test.each([
+    ["`book.cpp:355-357`", "上流の裸のファイル名"],
+    ["`source/misc.cpp:1677-1680`", "上流の起点つき"],
+  ])("%s は免除する（%s）", (markdown) => {
+    expect(lineNumberRefsIn(PIN + markdown)).toEqual([]);
+  });
+
+  /**
+   * **宣言は上流の綴りにしか効かない。** 形で判定すると、`README.md#L10` のような
+   * 起点直下のファイルや、`optional_number:42` のような裸の識別子まで通る
+   * ——どちらも1行足すだけで無言でずれる側で、この検査の存在理由そのもの。
+   */
+  test.each([
+    ["`AnalysisPaneHeader:84`", "拡張子の無い識別子"],
+    ["`optional_number:42`", "こちらの Rust の識別子"],
+    ["`README.md#L10`", "起点直下のファイル"],
+    ["`vite.config.ts:88`", "起点直下の設定"],
+    ["`src/entities/kifu/model/cursor.ts:42`", "起点から書いたパス"],
+  ])("%s は宣言があっても拾う（%s）", (markdown) => {
+    expect(lineNumberRefsIn(PIN + markdown)).toHaveLength(1);
+  });
+});
