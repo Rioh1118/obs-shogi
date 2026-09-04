@@ -365,7 +365,7 @@ const POSITION_PREFIX: &str = "sfen ";
 
 /// 読み飛ばす行。
 ///
-/// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:709-716` が
+/// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:314-320` が
 /// `#` と `//` の両方を読み飛ばす）。落とさないと2通りに壊れる。
 ///
 /// - `sfen` 行の後ろにあると候補手として登録され、しかも先頭に来る。
@@ -490,7 +490,7 @@ fn parse_limited<R: BufRead>(
     let mut unread = false;
 
     // 見出しより前にも注記は書ける。本家は `#` と `//` を位置に関係なく
-    // 読み飛ばす（`book.cpp:709-716`）ので、先頭の1行のせいで定跡を拒否しない。
+    // 読み飛ばす（`book.cpp:314-320`）ので、先頭の1行のせいで定跡を拒否しない。
     while let Some(terminated) = read_line(
         &mut reader,
         &mut raw,
@@ -576,7 +576,7 @@ fn parse_limited<R: BufRead>(
 
         // **データの行だけを記録する。** 上の枝が注記と空行を先に `continue` で
         // 抜けているので、ここへ来るのはデータの行だけ。本家は末尾の改行を
-        // 要求しない（`book.cpp:705`）ので、改行の無い注記が末尾に1行あるだけの
+        // 要求しない（`misc.cpp:1133-1140`）ので、改行の無い注記が末尾に1行あるだけの
         // 完全な定跡がある。そこまで数えると、正しい定跡が毎回警告される。
         last_line_terminated = terminated;
 
@@ -606,7 +606,7 @@ fn parse_limited<R: BufRead>(
 
         let parsed = parse_move(line, &mut dropped);
         // 「指し手が無い」の綴り。本家は指し手の欄でも同じ3綴りを見る
-        // （`book.cpp:118-119`）。候補手にすると、盤に適用できない綴りが
+        // （`book.cpp:114-115`）。候補手にすると、盤に適用できない綴りが
         // 先頭＝best move の位置に座る。局面は `flush` が空でも登録する。
         if ABSENT_MOVE.contains(&parsed.usi_move.as_str()) {
             continue;
@@ -793,9 +793,9 @@ const LONG_MOVE_LIST: usize = 32;
 /// 読み切った後に1回だけ、全ての局面の重複を畳む。
 ///
 /// **同じ指し手が2度出たら先に来た方を残す。本家は後勝ち。**
-/// やねうら王の `MemoryBook::insert` は `overwrite` の既定が `true` で、
-/// 既にある指し手を後の行で丸ごと置換し、採択回数だけ合算する
-/// （`source/book/book.h:215`、`book.cpp:129-138`）。
+/// やねうら王は `MemoryBook::insert`（`book.cpp:166-183`。既定引数は `book.h:215`）が
+/// `BookMoves::insert`（`book.cpp:120-145`）へ委譲する。`overwrite` の既定が `true` なので、
+/// 既にある指し手を後の行で丸ごと置換し、採択回数だけ合算する（`book.cpp:129-138`）。
 /// つまり `7g7f 8c8d 50 10` の後に `7g7f 8c8d 900 20` が並ぶ定跡で、
 /// 本家は 900 を、こちらは 50 を返す。
 ///
@@ -947,7 +947,7 @@ fn looks_like_a_move(token: &str) -> bool {
 
 /// 欄が省略されていることを表す綴り。
 ///
-/// 出典: 本家 `source/book/book.cpp:118-119`。**指し手の欄と応手の欄の両方**で
+/// 出典: 本家 `source/book/book.cpp:114-115`。**指し手の欄と応手の欄の両方**で
 /// 同じ3綴りを見る。片方だけに当てると、盤に適用できない綴りが
 /// 候補手の先頭＝best move の位置に座る。
 ///
@@ -1105,7 +1105,7 @@ mod tests {
         assert_eq!(moves[0].count, Some(1234));
     }
 
-    /// `//` は形式の一部のコメント（本家 `book.cpp:709-716`）。
+    /// `//` は形式の一部のコメント（本家 `book.cpp:314-320`）。
     /// 読み飛ばさないと、先頭の候補手＝best move の位置に `//` が入る。
     #[test]
     fn skips_slash_comments_between_moves() {
@@ -1157,7 +1157,7 @@ mod tests {
     }
 
     /// 本家は `none` / `None` / `resign` の3綴りを「指し手が無い」として扱う
-    /// （`book.cpp:118-119`）。1つでも取りこぼすと、指し手として扱える形で
+    /// （`book.cpp:114-115`）。1つでも取りこぼすと、指し手として扱える形で
     /// フロントへ渡る。
     #[test]
     fn every_spelling_of_an_absent_ponder_is_dropped() {
@@ -1363,7 +1363,7 @@ mod tests {
 
     /// 表の (S0, E3) / (S0, E4) / (S0, E2)。
     ///
-    /// 本家は `#` と `//` を位置に関係なく読み飛ばす（`book.cpp:709-716`）。
+    /// 本家は `#` と `//` を位置に関係なく読み飛ばす（`book.cpp:314-320`）。
     /// 見出しより前の1行のせいで、本家が普通に読める定跡を拒否しない。
     #[test]
     fn notes_before_the_header_are_skipped() {
@@ -1375,7 +1375,7 @@ mod tests {
     }
 
     /// 表の (S2, E6)。本家は指し手の欄でも `none` / `None` / `resign` を
-    /// 「指し手が無い」として扱う（`book.cpp:118-119`）。候補手にすると、
+    /// 「指し手が無い」として扱う（`book.cpp:114-115`）。候補手にすると、
     /// 盤に適用できない綴りが先頭＝best move の位置に座る。
     #[test]
     fn an_absent_move_spelling_is_not_a_candidate() {
@@ -1851,8 +1851,8 @@ mod tests {
         }
     }
 
-    /// **末尾の改行は要求しない。** 本家は `while (reader.ReadLine(line).is_ok())`
-    /// で読むので、改行が無いだけの完全な定跡を普通に読む。拒否すると表の
+    /// **末尾の改行は要求しない。** 本家の行読みは EOF でも溜まった分を1行として
+    /// 返す（`misc.cpp:1133-1140`）ので、改行が無いだけの完全な定跡を普通に読む。拒否すると表の
     /// 不変条件1（本家が読めるものは読める）と3（正しいファイルを拒否しない）を
     /// 同時に破る。
     ///
