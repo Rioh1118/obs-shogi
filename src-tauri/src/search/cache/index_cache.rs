@@ -1942,8 +1942,8 @@ mod tests {
 
     /// **分岐の表の外を指す `fork_off` / `fork_len` も読まない。**
     ///
-    /// `node_id` と**同じ壊れ方**をする — `cursor_lite` が `None` を返し、
-    /// `query_service` が `CursorLite::root()` にすり替えるので、
+    /// `node_id` と**同じ壊れ方**をする（すり替えの実物と理由は
+    /// `query_service.rs` の `cursor_lite` の腕）。
     /// そのヒットが「そのファイルの0手目」として並ぶ。
     #[test]
     fn a_fork_range_outside_the_table_is_refused() {
@@ -2045,7 +2045,7 @@ mod tests {
 
     /// **節表の外を指す `node_id` は読まない。**
     ///
-    /// 通すと `cursor_lite` が `None` を返して `CursorLite::root()` に落ち、
+    /// 通すと `cursor_lite` が `None` を返し、
     /// その局面のヒットが**「そのファイルの0手目」として画面に並ぶ**
     /// （`query_service`）。押すと開始局面へ跳ぶので、正常な結果に見える。
     ///
