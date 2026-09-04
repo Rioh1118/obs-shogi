@@ -18,6 +18,27 @@ use crate::search::store::node_table::NodeTables;
 use crate::search::store::segment::Segment;
 use crate::search::types::{FileId, Occurrence};
 
+/// **中身を捨ててよい段。**
+///
+/// [`IndexSnapshot::restarting`] が受ける。`IndexState` を素で受けない理由は
+/// そちらの doc に書いてある。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Restart {
+    /// キャッシュから読み戻す
+    Restoring,
+    /// 棋譜を1つずつ読んで作り直す
+    Building,
+}
+
+impl From<Restart> for IndexState {
+    fn from(at: Restart) -> Self {
+        match at {
+            Restart::Restoring => IndexState::Restoring,
+            Restart::Building => IndexState::Building,
+        }
+    }
+}
+
 /// 索引がいまどの段にいるか。**内部の段で、画面へは出ない。**
 ///
 /// ここから利用者に届くのは `search/query_service.rs` が作る `stale` の真偽1つだけ。
@@ -55,19 +76,29 @@ pub struct IndexSnapshot {
 }
 
 impl Default for IndexSnapshot {
+    /// **まだ何も無い索引。** プロジェクトを開く前だけ。
     fn default() -> Self {
-        Self::empty_with(IndexState::Empty)
+        Self {
+            state: IndexState::Empty,
+            file_table: Arc::new(FileTable::default()),
+            node_tables: Arc::new(NodeTables::default()),
+            buckets: empty_bucket_segments(),
+        }
     }
 }
 
 impl IndexSnapshot {
-    /// **中身の無い索引。** 状態だけ指定する。
+    /// **中身を捨てて、これから作り直す索引。**
     ///
-    /// 復元を始めるときと全件構築を始めるときに使う。どちらも
-    /// 「前の索引を捨てて、これから作る」なので中身は同じで状態だけ違う。
-    pub fn empty_with(state: IndexState) -> Self {
+    /// 復元を始めるときと全件構築を始めるときに使う。中身は同じで段だけ違う。
+    ///
+    /// **段を [`Restart`] に絞ってある。** `IndexState` を素で受けると
+    /// 「空にして `Ready` を名乗る」が書けてしまい、`query_service` が
+    /// `stale = false` を返して**空の結果が「新鮮で正しい」として画面に並ぶ** ——
+    /// エラーもログも出ない。捨ててよい段は2つだけ。
+    pub fn restarting(at: Restart) -> Self {
         Self {
-            state,
+            state: at.into(),
             file_table: Arc::new(FileTable::default()),
             node_tables: Arc::new(NodeTables::default()),
             buckets: empty_bucket_segments(),

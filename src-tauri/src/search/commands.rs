@@ -8,7 +8,7 @@ use crate::search::build::build_full_index_task;
 use crate::search::cache::index_cache;
 use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
 use crate::search::state::SearchState;
-use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexState};
+use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
 use crate::search::types::{
     CancelSearchInput, IndexState, IndexStatePayload, OpenProjectInput, OpenProjectOutput,
     SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE,
@@ -55,7 +55,7 @@ pub async fn open_project(
     log::info!("[open_project] BEGIN root_dir={}", root_dir.display());
 
     // 0) Restoring state (UIに「復元中」を見せる)
-    store.replace(IndexSnapshot::empty_with(StoreIndexState::Restoring));
+    store.restart(Restart::Restoring);
     let _ = app.emit(
         EVT_INDEX_STATE,
         IndexStatePayload {
@@ -104,12 +104,12 @@ pub async fn open_project(
             // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
             // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
             // Updating で開示する。
-            store.replace(IndexSnapshot::restored(
+            store.install_restored(
                 StoreIndexState::Updating,
                 restored.file_table,
                 restored.node_tables,
                 restored.buckets,
-            ));
+            );
 
             project
                 .install_after_full_build(
@@ -173,7 +173,7 @@ pub async fn open_project(
     }
 
     // 2) restore 失敗 → full build
-    store.replace(IndexSnapshot::empty_with(StoreIndexState::Building));
+    store.restart(Restart::Building);
 
     let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
     let total_files = records.len() as u32;
