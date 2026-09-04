@@ -805,7 +805,8 @@ const LONG_MOVE_LIST: usize = 32;
 ///
 /// **替えるなら、手順はここに求めず実装を読むこと。** 踏むものが複数ある ——
 /// 2つの枝で残す位置を揃えること、[`keep_first_of_each_move`] の `HashSet` の枝の借用、
-/// その枝を観測するテストが無いこと、`count` が `Option` なので合算の規則を先に決めること、
+/// その枝を踏むテストが長さしか見ていないこと（`a_position_with_very_many_moves_is_still_deduped`。
+/// 先勝ちでも後勝ちでも同じ 81 が通る）、`count` が `Option` なので合算の規則を先に決めること、
 /// 先勝ちを名乗る綴りが名前とコメントに散っていること。
 /// **どれも現物を開かないと正しい手順にならないので、ここには置かない。**
 /// ただし1つだけ現物に出てこないものがある —— `docs/state-transitions/yaneuraou-db-parse.md`
