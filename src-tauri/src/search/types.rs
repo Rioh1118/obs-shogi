@@ -99,7 +99,7 @@ pub struct IndexStatePayload {
 /// 画面が送っているのも `BestEffort` の一択で、`WaitForClean` は
 /// リポジトリのどこからも送られない。
 ///
-/// 欄を残すか、待つ側を実装するかは #392。
+/// 欄を残すか、待つ側を実装するかは #395。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Consistency {
     /// 今ある索引で引く
