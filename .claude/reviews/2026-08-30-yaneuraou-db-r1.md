@@ -5,7 +5,7 @@
 - 走らせた reviewer: rust / robustness / perf / architecture / comment
 - 基点: `feature/book`（#237 / #250 マージ済み）
 
-重複を除いて **19件**。うち **HIGH 5件**。
+重複を除いて **21件**（見出し5＋表16）。うち **HIGH 5件**。
 
 **5体のうち3体が一次資料まで降りた。** rust はやねうら王本家の
 `source/book/book.cpp` / `misc.cpp` と ShogiHome の実装を取得して読み、
