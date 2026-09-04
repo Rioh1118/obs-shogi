@@ -13,17 +13,30 @@ import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
  * 見るのは下の `ROOTS`（アプリと Rust のソース、Rust の検査）。`docs/` と
  * `.claude/` は経緯を残す場所なので入れない。設定ファイル類は入れていない。
  *
- * レビューの識別子（`// 6:` / `(C-H1)`）も止める。付いた時点では意味があるが、
+ * レビューが振った識別子も止める。付いた時点では意味があるが、
  * 指す先はレビューが終われば消える。
+ *
+ * **このファイル自身も走査の対象。** 止めたい形は下の `HISTORY_WORDS` と
+ * `REVIEW_TAG` に**リテラルとして**書くこと。文章で例示すると自分で落ちる。
  */
 
-const ROOTS = [SRC, RUST_SRC, join(REPO_ROOT, "src-tauri", "tests")];
+const ROOTS = [
+  SRC,
+  RUST_SRC,
+  join(REPO_ROOT, "src-tauri", "tests"),
+  // 検査そのものを置く場所。**ここを外すと、機械の doc にだけ経緯が溜まる**
+  join(REPO_ROOT, ".claude", "hooks"),
+];
 
 /**
  * 経緯にしか出てこない語。**「なぜ」を書くのに要らないものだけ**を並べる。
  * 増やすときは、これ無しでは書けない「なぜ」が本当に無いかを確かめること
  */
 const HISTORY_WORDS = [
+  "そうなった",
+  "通り抜けた",
+  "ようになった",
+  "ようにした",
   "今回",
   "PR #",
   "この PR",
@@ -41,23 +54,38 @@ const HISTORY_WORDS = [
   "以前",
   "かつて",
   "元々",
+  "時期があ",
+  "ていなかった",
   "る前は",
+  "そうなっていた",
+  "抜けていた",
 ];
 
 /**
- * `だった` と `元は` は入れない。前者は「読み込み中だったら」、後者は「呼び出し元は」
- * のように、いまの状態を書くのに出る。
- * `で対応` は形を問わず止める。設計の説明に使いたくなったら
- * 「〜が引き取る」「〜へ回す」と書く
+ * **止めているのは上にリテラルで並べた語だけ。言い換えは通る。**
+ * 網を広く見積もらないこと。広いと思うと、語を足す判断が働かなくなる。
  *
- * `前は` ではなく `る前は` なのは、**`名前は` が `前は` を含む**から。
- * この走査は Rust も見るので、`前は` を入れると
- * 「表に無い名前は値にならない」のような現在の説明が巻き添えになる。
- * 動詞の連体形に続く `る前は`（「乗せる前は」「変える前は」）だけを止める
+ * `だった` と `元は` を入れていないのは、前者が「読み込み中だったら」、
+ * 後者が「呼び出し元は」のように、いまの状態を書くのにも出るため。
+ *
+ * 「〜の前は」を止める語に、名詞ではなく**動詞の連体形に続く形**を選んでいるのは、
+ * `名前は` のような綴りを巻き添えにしないため。この走査は Rust も見るので、
+ * 名詞側を入れると「表に無い名前は値にならない」のような現在の説明まで落ちる。
+ * **ここに例を書かないこと**——このファイル自身が走査の対象で、書くと自分で落ちる。
+ *
+ * 設計を説明したくなったら「〜が引き取る」「〜へ回す」と現在形で書く
  */
 
-/** 指す先の消えたレビュー識別子。`// 6:` や `(C-H1)` のような形 */
-const REVIEW_TAG = /^\s*\/\/\s*\d+:|\([A-Z]-[A-Z]?\d+\)/;
+/**
+ * 指す先の消えたレビュー識別子。番号付きの箇条書き、括弧に入れた観点と番号、
+ * レビューの回次を指す矢印の3つ。
+ *
+ * どれも `.claude/reviews/` にしか存在しない採番なので、リポジトリを
+ * 読むだけの人には何も指していない。issue の `→ #123` とは衝突しない。
+ *
+ * 形は正規表現そのものを読むこと。ここに例を書くと自分で落ちる
+ */
+const REVIEW_TAG = /^\s*\/\/\s*\d+:|\([A-Z]-[A-Z]?\d+\)|→\s*r\d+|\br\d+\s*→\s*r\d+/;
 
 /**
  * ブランチ名。マージすると消えるので、コードから指してはいけない。
@@ -66,7 +94,19 @@ const REVIEW_TAG = /^\s*\/\/\s*\d+:|\([A-Z]-[A-Z]?\d+\)/;
 const BRANCH_NAME = /(?:\b(?:fix|feat|chore|docs|refactor|perf|ci)\/\d|\bissue-\d+\/)/;
 
 /** `//` 行コメントと `/* *\/` ブロックコメント。文字列の中は見ない（誤検出しても直せる形で出す） */
-const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+const SLASH_COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+
+/**
+ * `#` 行コメント。シェルスクリプト用。
+ *
+ * **形をファイルごとに選ぶ。** 全部に `#` を掛けると、Rust の `#[derive(...)]` と
+ * TS の文字列が丸ごとコメント扱いになり、誤検出で埋まる。
+ */
+const HASH_COMMENT = /#[^\n]*/g;
+
+function commentsOf(file: string): RegExp {
+  return file.endsWith(".sh") ? HASH_COMMENT : SLASH_COMMENT;
+}
 
 describe("コメント", () => {
   it("変更の経緯を書いていない", () => {
@@ -76,13 +116,11 @@ describe("コメント", () => {
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
         scanned += 1;
-        // この検査自身は、止めたい形を例として書く場所
-        if (file === __filename) continue;
 
         const source = readFileSync(file, "utf8");
         const name = relative(REPO_ROOT, file);
 
-        for (const match of source.matchAll(COMMENT)) {
+        for (const match of source.matchAll(commentsOf(file))) {
           const text = match[0];
           const hit = HISTORY_WORDS.find((word) => text.includes(word));
           const branch = text.match(BRANCH_NAME)?.[0];

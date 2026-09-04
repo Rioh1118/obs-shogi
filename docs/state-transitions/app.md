@@ -61,7 +61,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 **読み込み中の窓は未検証** — 取得の途中で編集が走った場合の順序は決めていない
 
 ※3 `startInfiniteAnalysis` が `throw new Error("Engine not ready")` を投げるが、
-呼び出し元（`AnalysisPaneHeader:84`）は `console.error` で終わる。**押しても何も起きない**
+呼び出し元（`AnalysisPaneHeader`）は `console.error` で終わる。**押しても何も起きない**
 → [failure-surfacing.md](failure-surfacing.md) F-6
 
 ※4 解析中に前提が崩れたとき、**Rust 側のセッションが残るかどうかがここでは分からない。**
@@ -73,7 +73,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
    破れると file-tree が `rootDir=null` で走る
 2. **A4 / A5 では、エンジンプロセスが生きている。** `isReady` は
    `phase === "ready"` だけでなく `desiredRuntime` と `activeRuntime` の一致も見ている
-   （`entities/engine/model/provider.tsx:19-24`）。設定だけ変わって古いプロセスが
+   （`entities/engine/model/provider.tsx`）。設定だけ変わって古いプロセスが
    生きている状態を A4 と呼ばないため
 3. **どの状態からも A1（ワークスペース未設定）に戻れる。** 戻れない状態は行き止まり
 

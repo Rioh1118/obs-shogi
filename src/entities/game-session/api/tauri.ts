@@ -1,0 +1,214 @@
+/**
+ * 対局の Tauri コマンド。
+ *
+ * **進行の段取りはここに出てこない。** `usiok` / `readyok` / `isready` /
+ * `position` / `go` / `ponderhit` / `gameover` は Rust の中で完結する。
+ * ここが扱うのは対局者・持ち時間・手番・決まった手・終局。
+ *
+ * **エンジンを起こすための設定は越える**（`setOption` の値、`ponder`、根の SFEN、
+ * USI の指し手文字列）。どれを渡すかを決めるのはこちら側なので、内側に閉じようがない。
+ */
+import { invoke } from "@tauri-apps/api/core";
+import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
+
+/**
+ * 対局を始める。
+ *
+ * エンジンの起動と `usinewgame` **まで**を待って返る。評価関数の読み込みが
+ * 重いエンジンではここで数十秒かかるので、待っている表示を出すこと。
+ * **待たせる長さは Rust の `START_TIMEOUT` で決まる。** 超えると reject するが、
+ * 締切は段に入る前に見るので、跨いだ段のぶん（書き込み1件と、失敗したときの
+ * 後始末）は少し超える。**厳密な上限として待ち UI を組まないこと。**
+ * 取り消す口は無いので、それまでは待つことになる。
+ *
+ * **最初の `go` は待たない。** `Ok` は「エンジンが `usinewgame` まで応じた」で
+ * あって「考え始めた」ではない。最初の `position` / `go` は別タスクで走り、
+ * その失敗は戻り値ではなく `game-event` の `over { reason: engineFailure }` で届く。
+ *
+ * **失敗の分け方は文言。** `Err` が `timed out` で**始まっていたら**「遅かっただけ」
+ * なので、そのまま再試行してよい（設定は誤っていない。ネットワークボリューム上の
+ * エンジンや評価関数の読み込みが重いエンジンで当たる）。
+ *
+ * **`includes` で見ないこと。** 断り文句には対局者の表示名も OS の文言も載る
+ * （macOS の `ETIMEDOUT` は `Operation timed out`）ので、途中に在ることを条件に
+ * すると、**設定の誤りが「遅かっただけ」を名乗れる**——パスを直す導線が出ない。
+ *
+ * **始まっていなければ「設定の誤り」とは限らない。** 大半は設定側
+ * （`engine_path` が無い、**選んだ実行ファイルが `usi` に `usiok` で答えない**、
+ * `setoption` が拒まれた、`startSfen` の書式）だが、
+ * 内部の取り落とし（ブロッキングタスクが落ちた、通知の経路が閉じた）も
+ * 同じ形で届く。**「エンジンのパスを直せ」と断言しないこと**——文言をそのまま
+ * 見せて、再試行の口も残すのが安全側。**型で割るのは #362 と同じ形の話。**
+ *
+ * **`startGame` を呼ぶ前に `listenToGameEvents` を張ること。**
+ * 最初の `turnChanged` と最初の `go` は、`start_game` が返る**前に**走る。
+ * `Ok` を待ってから張ると必ず取りこぼし、`bestmove resign` を即返すエンジンでは
+ * `moveDecided` と `over` も落ちる——初期局面が出たまま何も起きない。
+ *
+ * **それだけでは足りない。** `gameId` はここが解決するまで手に入らないので、
+ * 解決前に届いたイベントは**どの対局のものか判定できない**。素直な
+ * `if (e.gameId !== myGameId) return;` は、起動直後に終局した対局の `over` を必ず捨てる
+ * （評価関数のパスを間違えたエンジンは `readyok` まで応じるので、起動段は通過して
+ * 最初の `go` で落ちる）。捨てると `Phase::Over` の対局が画面に残り、
+ * `on_tick` は即 return なので中断も時計も来ない。
+ *
+ * **解決するまでのイベントは溜め、解決した `gameId` で振り分け直すこと。**
+ */
+export async function startGame(settings: GameSettings): Promise<GameId> {
+  return await invoke("start_game", { settings });
+}
+
+/**
+ * 人間の着手。合法性を確かめてから呼ぶ。
+ *
+ * **解決したことは「採られた」の意味。** 着手が届くのと持ち時間が尽きるのが
+ * 同じ tick に入ると reject する（`moveDecided` は出ず、代わりに
+ * `over { reason: "timeout" }` が届く）。棋譜へ積むのは解決してからにすること。
+ *
+ * **断り方が3つある。呼び直してよいのは1つだけ。**
+ *
+ * - `a ruling is still pending; retry after continue_game` → **一時的**。
+ *   `moveDecided` から `continueGame` が返るまでの窓で、人対人なら毎手ある。
+ *   裁定の往復が済めば同じ手を指せるので、捨てないこと
+ * - `game is already over` → もう変わらない（投了・裁定・中断と同じ文言）。
+ *   **呼び直しても同じ `Err`。** 結末は `over` イベントが持っている
+ * - それ以外（手番が違う／その側がエンジン／指し手の書式）→ 呼び出し側の誤り
+ */
+export async function submitGameMove(gameId: GameId, side: Side, usiMove: string): Promise<void> {
+  return await invoke("submit_game_move", { gameId, side, usiMove });
+}
+
+/**
+ * 裁定「まだ続く」。`moves` が指し手列の権威になる。
+ *
+ * `moveDecided` を受けたら、合法性と終局（詰み・千日手・持将棋・最大手数）を
+ * 判定して、これか `endGameByRule` のどちらかを呼ぶ。
+ * **どちらも呼ばないと対局は進まない。**
+ *
+ * **`moves` は根からの全手。** 対局開始局面が途中局面でも、`startGame` に渡した
+ * `initialMoves` を含めて渡すこと。直前に決まった手までを丸ごと突き合わせるので、
+ * 途中を落とした列や過去の手が入れ替わった列は reject する。
+ *
+ * **手数が Rust の `MAX_PLIES` を超えると、reject ではなく終局する**
+ * （`over { reason: "rule" }`、`detail` に上限に当たったことが載る）。
+ * 断ると、返せる列が1つに固定されているので裁定をやり直しても同じ結果になり、
+ * 対局が「アプリが裁定を返さなかった」として畳まれてしまうため。
+ *
+ * **失敗しうる。呼び直してよいものは1つも無い。**
+ *
+ * - `game is already over` → 中断や時間切れが、判定している間に入った。
+ *   **呼び直しても同じ `Err`**（`Phase::Over` は吸収状態）。結末は `over` イベント
+ * - `not awaiting a ruling` → 裁定を待っていない（二重に呼んでいる）
+ * - それ以外（`moves` がいまの写しの続きでない／末尾が直前の手でない／
+ *   長さが手番と合わない）→ 送った列の誤り。同じ列で呼び直しても変わらない
+ */
+export async function continueGame(gameId: GameId, moves: string[]): Promise<void> {
+  return await invoke("continue_game", { gameId, moves });
+}
+
+/**
+ * 裁定「終局」。詰み・千日手・持将棋・最大手数・反則はすべてここから入る。
+ *
+ * `detail` は棋譜と画面に残る説明で、**長さの上限がある**（Rust の
+ * `MAX_DETAIL_LEN`）。超えると**断らずに切り詰める**ので、返ってきた `over` の
+ * `detail` が渡した文字列と違うことがある（末尾に `…` が付く）。
+ * **断らないのは意図。** ここで reject すると、呼び直さない限り Rust の
+ * `RULING_TIMEOUT` が `over { aborted, winner: null }` で畳み、**勝敗が消える**。
+ * **制御文字は置換文字に化ける。** 改行やタブを含む文言を渡すと、返ってくる
+ * `detail` ではそこが `\uFFFD` になる（この値はログの1行にも載るため）。
+ * 複数行を出したいなら、フロント側で組み立てて表示すること。
+ * **化けるのはこの2つだけ。** 全角空白も結合文字も絵文字もそのまま返る。
+ *
+ * 人が読む文言（「千日手」「二歩」）は上限に遠く届かない。
+ *
+ * **既に終局していたら reject する**（`game is already over`）。投了・中断と同じ形。
+ * **呼び直しても変わらない**——`Phase::Over` は吸収状態なので、同じ `Err` が返り続ける。
+ * 結末の権威は `over` イベント。
+ */
+export async function endGameByRule(
+  gameId: GameId,
+  winner: Side | null,
+  detail: string | null,
+): Promise<void> {
+  return await invoke("end_game_by_rule", { gameId, winner, detail });
+}
+
+/**
+ * 人間の投了。エンジンの投了は `bestmove resign` から入るのでここは通らない。
+ *
+ * **既に終局していたら reject する**（`game is already over`）。裁定・中断と同じ形。
+ * 押したのと時間切れが同じ拍に入ると起きる。**`Ok` を「投了として記録された」
+ * として棋譜へ書かないこと**——結末の権威は `over` イベント。
+ */
+export async function resignGame(gameId: GameId, side: Side): Promise<void> {
+  return await invoke("resign_game", { gameId, side });
+}
+
+/**
+ * 勝敗を付けずに終局にする。
+ *
+ * **既に終局していたら reject する**（`game is already over`）。投了・裁定と同じ形。
+ * 中断を押したのと時間切れが同じ拍に入ると起きるので、**`Ok` を「中断が成立した」
+ * として棋譜へ書かないこと**——結末の権威は `over` イベント。
+ */
+export async function abortGame(gameId: GameId): Promise<void> {
+  return await invoke("abort_game", { gameId });
+}
+
+/**
+ * 対局を閉じ、使っていたエンジンを落とす。
+ *
+ * **終局しただけでは落ちない**（`gameover` の後に指し直せる形にしてあるため）。
+ * 呼ばないとプロセスが残る。
+ *
+ * **失敗しうる。呼び直す意味があるのは `busy` のときだけ。**
+ *
+ * - `the game is busy` → 他の操作が同じ対局を掴んでいる。**中断は試みたが通ったかは
+ *   保証しない**（詰まっていれば探索も時計も続いている）。**エンジンは生きたまま**残る。
+ *   呼び直すこと。握り潰すとプロセスが残る。
+ *   **間隔を空けること。** この断りはミリ秒で返るので、待たずに呼び直すと
+ *   毎秒数百回になり、台帳のロックを他のコマンドと奪い合う。
+ *   Rust 側は `(操作, 対局)` ごとに `REJECTION_WARN_INTERVAL` で絞って
+ *   ログを守っているだけで、
+ *   **連打そのものは止めない。** 数秒に1回で足りる（掴んでいる操作が
+ *   終わるまで結果は変わらない）。
+ *   **諦める条件も要る。** 掴んでいる操作が返らないと永久に `busy` のままなので、
+ *   打ち切ったら `listGames` に残っていることを利用者に見せること
+ * - `the game is being closed` → 別の呼び出しがいま閉じている最中。待つこと
+ * - `unknown game:` → その `gameId` は台帳に無い。何も起きていない
+ *
+ * 文言で区別することになる。型で割るのは #362 と同じ形の話。
+ */
+export async function closeGame(gameId: GameId): Promise<void> {
+  return await invoke("close_game", { gameId });
+}
+
+/**
+ * いまの対局の状態を取る。**イベントを取りこぼした後の突き合わせ用。**
+ *
+ * 進行は `listenToGameEvents` で届くので、常用しない。返る `moves` は Rust が持つ
+ * 写しで、**権威はこちら側の棋譜**。`clocks.running` が `null` になる理由は
+ * `ClocksView.running` に挙げてある（**`phase: "thinking"` のままでも起きる**）。
+ *
+ * **失敗しうる。立て直しの途中で諦めないこと。**
+ *
+ * - `the game is being closed` → 別の呼び出しがいま閉じている最中。待って呼び直す。
+ *   `over` を取りこぼした直後にいちばん踏みやすい（閉じる側と競合する）
+ * - `unknown game:` → その対局はもう台帳に無い。**呼び直しても変わらない。**
+ *   結末が分からないまま終わったことを利用者に見せること
+ *
+ * 文言で区別することになる（`closeGame` と同じ形）。
+ */
+export async function getGameState(gameId: GameId): Promise<GameSnapshot> {
+  return await invoke("get_game_state", { gameId });
+}
+
+/**
+ * 開いている対局の ID。**閉じ忘れを拾うためにある。**
+ *
+ * 終局してもエンジンのプロセスは落ちない。`closeGame` を呼ばずに画面を離れた
+ * 対局はここに残る。
+ */
+export async function listGames(): Promise<GameId[]> {
+  return await invoke("list_games");
+}

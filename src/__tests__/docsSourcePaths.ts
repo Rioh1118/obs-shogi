@@ -3,9 +3,14 @@ import { join } from "node:path";
 import { REPO_ROOT } from "./walk";
 
 /**
- * docs が指すソースのパスが実在するかを見る検査の本体。
- * `docsSourcePaths.test.ts` が個々の振る舞いを固定し、`docs/state-transitions/` の
- * 全ファイルへ掛ける（`docs/` 全体に掛けない理由はテスト側の doc）。
+ * docs が現物を指せているかを見る検査の本体。**掛かる範囲が2つに分かれる。**
+ *
+ * - パスの実在（`sourcePathsIn` / `missingPaths`）: `docs/state-transitions/` だけ
+ * - 行番号（`lineNumberRefsIn`）: `docs/` 全体
+ *
+ * 前者を絞るのは、他リポジトリのパスを根拠として引くファイルがあり、それを
+ * 免除に挙げ切れていないため。後者を絞らないのは、自リポジトリを行番号で
+ * 指せばどこに書いてあっても無言でずれるため。理由はテスト側の doc に書く。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
@@ -57,15 +62,27 @@ function tracked(inline: string, resolved: string): boolean {
 }
 
 /**
+ * 行番号の綴り。**この1つを両方の検査が使う。**
+ *
+ * 綴りの知識が2つに割れると、片方だけが狭くなる。狭いほうが知らない綴りは
+ * 両方の検査を素通りする——パス側は「行番号なので落とす」と判断し、
+ * 行番号側は「知らない形」として見逃すため。
+ *
+ * 拾う形は `:42` / `:19-24` / `#L42` / `:L42` と、続けて並べた `:38, 49` /
+ * `:73-77, 176-180`。**並べた側にも範囲を許すこと**——許さないと、
+ * 範囲を並べた綴りがどちらの検査も通り抜ける（パス側は空白とカンマで弾かれ、
+ * 行番号側は知らない形として見逃す）。
+ */
+const LINE_SUFFIX = /[#:]L?\d+(-L?\d+)?(,\s*L?\d+(-L?\d+)?)*$/;
+
+/**
  * バッククォートで囲まれたソースのパスを拾う。
  *
  * 拾うのはバッククォートの中だけ。地の文の「src/entities あたり」まで拾うと、
  * 説明のために書いたディレクトリ名で落ちる。
  *
- * 末尾の `#L12` や `:42` は落とす。行番号は腐っても検査したいのはファイルの実在。
- * **範囲（`:42-50`）も落とす。** 落とさないと拡張子の検査に当たらず、
- * 拾われも赤くもならない —— 規約が「行番号を引いたら版を残す」と勧めている以上、
- * 範囲で書いた人ほど検査の外へ出ることになる。
+ * 末尾の行番号は落とす。行番号は腐っても、ここで検査したいのはファイルの実在。
+ * 行番号そのものは `lineNumberRefsIn` が別に止める。
  */
 export function sourcePathsIn(markdown: string): string[] {
   const found = new Set<string>();
@@ -73,7 +90,7 @@ export function sourcePathsIn(markdown: string): string[] {
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
     if (!/^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.#:-]*)+$/.test(inline)) continue;
 
-    const bare = inline.replace(/[#:]L?\d+(-L?\d+)?$/, "");
+    const bare = inline.replace(LINE_SUFFIX, "");
     const path = resolve(bare);
     if (!tracked(bare, path)) continue;
     // 拡張子か末尾のスラッシュがあるものだけ。`src/entities/kifu` のような
@@ -89,4 +106,43 @@ export function sourcePathsIn(markdown: string): string[] {
 /** 実在しないものだけを返す */
 export function missingPaths(paths: string[]): string[] {
   return paths.filter((p) => !existsSync(join(REPO_ROOT, p)));
+}
+
+/**
+ * バッククォートの中に書かれた行番号を拾う。
+ *
+ * **行番号は誰も検査していない。** ファイルの実在は `missingPaths` が見ているが、
+ * その中の何行目かは、1行足すだけで無言でずれる。読み手はそこを開いて
+ * 別のものを読み、doc が指していたはずのものは自力で探すことになる。
+ * ずれたことは誰にも分からないので、腐り方としては死んだパスより悪い。
+ *
+ * 指したいものがあるなら識別子で指すこと。`docsIdentifiers` がそちらは見る。
+ *
+ * **版を固定すると宣言した文書では、自リポジトリで解決できない綴りを見ない。**
+ * 他リポジトリの識別子はこちらの検査が追えないので「識別子で指せ」の逃げ道が無く、
+ * 代わりに版ごと引くのが `docs/state-transitions/README.md` の規約
+ * （「…の行番号は、すべて v9.40 時点」の形）。版が書いてあれば無言ではずれない。
+ *
+ * **宣言があっても、自リポジトリのパスは今までどおり拾う。** 宣言は上流の綴りに
+ * しか効かないので、片方を許すためにもう片方まで緩まない。
+ *
+ * 綴りは `LINE_SUFFIX` の1つだけを使う。**このファイル自身は走査の対象外**
+ * （`src/__tests__` は `docs/` の外）なので、上に例を書いてよい。
+ */
+export function lineNumberRefsIn(markdown: string): string[] {
+  const found = new Set<string>();
+  const pinned = /`v?\d+(\.\d+)+`[^\n]*時点/.test(markdown);
+
+  for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
+    // 前が識別子かパスであること。`03:00` のような綴りを巻き込まない
+    if (!/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
+    if (!LINE_SUFFIX.test(inline)) continue;
+
+    const bare = inline.replace(LINE_SUFFIX, "");
+    if (pinned && !tracked(bare, resolve(bare))) continue;
+
+    found.add(inline);
+  }
+
+  return [...found].sort();
 }

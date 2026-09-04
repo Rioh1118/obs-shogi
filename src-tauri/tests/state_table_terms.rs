@@ -12,8 +12,8 @@
 //! ✓ の正しさ（そのセルを踏むテストが本当にあるか）はここでは見られない。
 //! 表の全セルにテスト名を書く規約が要るので、それは別の話。
 
-mod common;
-use common::without_comments;
+mod scanning;
+use scanning::blank_out_comments;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,6 +36,20 @@ const TABLES: &[(&str, &[&str])] = &[
     (
         "docs/state-transitions/book-key-failures.md",
         &["src/book/api.rs", "src/book/error.rs", "src/book/sfen.rs"],
+    ),
+    (
+        "docs/state-transitions/game-session.md",
+        &[
+            "src/lib.rs",
+            "src/engine/analyzer.rs",
+            "src/engine/protocol.rs",
+            "src/engine/registry.rs",
+            "src/engine/commands/game.rs",
+            "src/engine/game/manager.rs",
+            "src/engine/game/search.rs",
+            "src/engine/game/session.rs",
+            "src/engine/game/types.rs",
+        ],
     ),
     (
         "docs/state-transitions/search.md",
@@ -81,6 +95,9 @@ const NOT_RUST: &[(&str, &str)] = &[
 const NOT_IDENTIFIERS: &[&str] = &[
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
+    // このリポジトリの TS 側の定数（`entities/analysis` の provider）。
+    // 表はそれを「間引きは受け手側にある」の出典として引いている
+    "RESULT_FLUSH_MS",
     "DEPTH_NONE",
     // やねうら王の定跡フォーマットの見出し。文字列であって定数名ではない
     "YANEURAOU",
@@ -107,7 +124,17 @@ fn constants_in(text: &str) -> BTreeSet<String> {
             // （`-3334XX` / `+7776FU`）は大文字と数字だけなので、この条件が無いと
             // 定数の候補に入る。表が棋譜を1つ引用するたびに除外リストが伸びるので、
             // リストではなく綴りの規則で落とす。
+            // **表のセルの記号（`E13` / `G0` / `S4`）も落とす。** 状態と事象は
+            // どの表も「英字1文字＋数字」で名乗るので、綴りで分かる。除外リストに
+            // 入れると表が1つ増えるたびに伸びる。
+            let is_cell_label = {
+                let mut chars = word.chars();
+                chars.next().is_some_and(|c| c.is_ascii_uppercase())
+                    && chars.clone().count() > 0
+                    && chars.all(|c| c.is_ascii_digit())
+            };
             let is_constant = word.len() >= 3
+                && !is_cell_label
                 && word.starts_with(|c: char| c.is_ascii_uppercase() || c == '_')
                 && word
                     .chars()
@@ -195,7 +222,7 @@ fn every_constant_named_in_a_table_exists_in_the_source() {
         // **コメントアウトされた宣言を、宣言と読まないため**に落とす。
         // doc の言及（`/// 旧 `FOO` は…`）は `declared_constants` が宣言行しか
         // 見ないので元から入らない。
-        let missing = missing_in(&text, &without_comments(&code));
+        let missing = missing_in(&text, &blank_out_comments(&code));
 
         assert!(
             missing.is_empty(),
@@ -369,7 +396,7 @@ fn only_declarations_count_as_constants() {
     assert!(declared("// const OLD_NAME: u8 = 1;").is_empty());
 }
 
-/// `without_comments` を通す理由。
+/// `blank_out_comments` を通す理由。
 ///
 /// **ブロックコメントで囲った宣言だけが、剥がさないと宣言に見える。**
 /// doc の言及（`/// 旧 `FOO` は…`）は宣言行しか見ない時点で元から入らないので、
@@ -382,14 +409,14 @@ fn a_declaration_inside_a_block_comment_is_not_a_declaration() {
         declared_constants(code).into_iter().collect::<Vec<_>>(),
         ["OLD_NAME"]
     );
-    assert!(declared_constants(&without_comments(code)).is_empty());
+    assert!(declared_constants(&blank_out_comments(code)).is_empty());
 }
 
 /// 照合が接頭辞で通らないこと。
 ///
 /// **この性質を決めているのは `missing_in` の照合で、`declared_constants` ではない。**
 /// あちらは宣言名を語の区切りで切るだけなので、接頭辞は落ちない。
-/// ここが見ているのは、照合を接頭辞一致へ緩めたときに赤くなること。
+/// 照合を接頭辞一致へ緩めると、ここが赤くなる。
 #[test]
 fn a_prefix_of_a_declared_constant_is_still_missing() {
     let code = "const MAX_MOVE_CHARS: usize = 8;";

@@ -69,7 +69,7 @@
 | 置き場     | **Issue Forms を唯一の場所にする**（下記） | `.claude/skills/write-issue/SKILL.md`（新設） |
 
 **外向けの必須項目がいま2箇所にある。**`.github/ISSUE_TEMPLATE/bug_report.yml`（Issue Forms）と、
-`CONTRIBUTING.md:47-59` の散文の一覧（「何をしようとしたか / 何が起きたか / …」）。
+`CONTRIBUTING.md` の散文の一覧（「何をしようとしたか / 何が起きたか / …」）。
 **Issue Forms を唯一の場所にし、`CONTRIBUTING.md` 側はテンプレートへのリンクに置き換える。**
 この変更は同じ PR に含める。
 

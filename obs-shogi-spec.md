@@ -148,7 +148,7 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
   - navigation / analysis / settings / create-file / position-search / study-position-save / study-positions / sfen-kifu-create
   - tesuu / branch / dir / returnTo 等を URL パラメータで保持
 - アップデータ（`features/updater`、`tauri_plugin_updater`）
-- ログ（`tauri_plugin_log`：最大 200KB・1 ファイル保持、`engine` のみ Debug）
+- ログ（`tauri_plugin_log`：上限は `LOG_FILE_BUDGET`・1 ファイル保持、`engine` のみ Debug）
 
 ---
 

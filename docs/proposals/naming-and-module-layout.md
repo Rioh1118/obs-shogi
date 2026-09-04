@@ -39,11 +39,11 @@ ls src-tauri/src/search | wc -l                            # 18
 
 **棋譜の書き込みが3経路あり、名前からは区別が付かない。**
 
-| コマンド             | 置き場                          | 引数                                              | 実際にやること               |
-| -------------------- | ------------------------------- | ------------------------------------------------- | ---------------------------- |
-| `save_kifu_file`     | `file_system/operations.rs:232` | `parent_dir, file_name, content: String`          | **文字列**を新しいパスへ書く |
-| `import_kifu_file`   | `file_system/operations.rs:192` | `parent_dir, file_name, jkf_data: JsonKifuFormat` | **JKF** を新しいパスへ書く   |
-| `write_kifu_to_file` | `kifu.rs:82`                    | `request: WriteKifuRequest { jkf, file_path }`    | **JKF** を既存のパスへ書く   |
+| コマンド             | 置き場                      | 引数                                              | 実際にやること               |
+| -------------------- | --------------------------- | ------------------------------------------------- | ---------------------------- |
+| `save_kifu_file`     | `file_system/operations.rs` | `parent_dir, file_name, content: String`          | **文字列**を新しいパスへ書く |
+| `import_kifu_file`   | `file_system/operations.rs` | `parent_dir, file_name, jkf_data: JsonKifuFormat` | **JKF** を新しいパスへ書く   |
+| `write_kifu_to_file` | `kifu.rs`                   | `request: WriteKifuRequest { jkf, file_path }`    | **JKF** を既存のパスへ書く   |
 
 **領域のプレフィックスが無いので、41 本がフラットな1つの名前空間に並んでいる。**
 `read_file` と `set_position` と `get_last_result` が同じ平面にある。
@@ -72,12 +72,12 @@ src-tauri/src/
 
 ### 名前と実態の食い違い
 
-| 名前                  | 何だと読めるか           | 実際                                                                                                                                  |
-| --------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `EnginePreset.aiName` | USI エンジンが名乗る名前 | **`ai_root` の下の AI プロファイルのディレクトリ名。** UI のラベルも「AI名（プロファイル）」（`EnginePresetEditDialogPanel.tsx:421`） |
-| `EnginePreset.label`  | ？                       | 利用者が付けたプリセットの表示名                                                                                                      |
-| `AppConfig.ai_root`   | AI 全般の根              | エンジン本体と評価関数を置くディレクトリ                                                                                              |
-| `AppConfig.root_dir`  | 何の根か言っていない     | **棋譜のワークスペース。** UI では「ワークスペース」と呼んでいる                                                                      |
+| 名前                  | 何だと読めるか           | 実際                                                                                                                              |
+| --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `EnginePreset.aiName` | USI エンジンが名乗る名前 | **`ai_root` の下の AI プロファイルのディレクトリ名。** UI のラベルも「AI名（プロファイル）」（`EnginePresetEditDialogPanel.tsx`） |
+| `EnginePreset.label`  | ？                       | 利用者が付けたプリセットの表示名                                                                                                  |
+| `AppConfig.ai_root`   | AI 全般の根              | エンジン本体と評価関数を置くディレクトリ                                                                                          |
+| `AppConfig.root_dir`  | 何の根か言っていない     | **棋譜のワークスペース。** UI では「ワークスペース」と呼んでいる                                                                  |
 
 ShogiHome は同じ場所を `name`（利用者が付けた名前）/ `defaultName`（`id name` の応答）/
 `author`（`id author` の応答）の**3つに分けて**持っている（`src/common/settings/usi.ts`）。
@@ -215,8 +215,8 @@ src-tauri/src/
 
 ### `file_system` → `tree` の改名には条件が付く
 
-`file_system/` の中には**既に `tree.rs` がある**（`mod.rs:6` の `mod tree;`、
-`mod.rs:18` の `pub use tree::get_file_tree;`）。そのまま改名すると
+`file_system/` の中には**既に `tree.rs` がある**（`mod.rs` の `mod tree;`、
+`mod.rs` の `pub use tree::get_file_tree;`）。そのまま改名すると
 `tree/tree.rs` になり、パスが `crate::tree::tree::get_file_tree` になる。
 clippy の `module_inception` に当たるし、「`tree` を開け」と言われた読み手が
 `tree/mod.rs` と `tree/tree.rs` のどちらを開くか毎回考えることになる。

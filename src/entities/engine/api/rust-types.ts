@@ -67,6 +67,24 @@ export interface AnalysisResult {
   mate_sequence?: string[] | null;
 }
 
+/**
+ * 深度指定の解析が返すもの。
+ *
+ * **`reached` を見ること。** `go depth` は送っていない（`usi` crate に
+ * 深度を載せる手段が無い）ので、Rust 側は `info depth` を見て `stop` を撃つ。
+ * 時間の打ち切りが先に来れば、目標に届かないまま結果が返る。
+ * `result` だけを読むと、深度22の結果を深度40の解析として画面に出すことになる。
+ */
+export interface DepthOutcome {
+  result: AnalysisResult;
+  /** 要求した深度 */
+  requested: number;
+  /** 実際に届いた深度。`info` が1行も来なければ `null` */
+  deepest?: number | null;
+  /** `requested` に届いたか */
+  reached: boolean;
+}
+
 export interface AnalysisUpdateEvent {
   sessionId: string;
   result: AnalysisResult;

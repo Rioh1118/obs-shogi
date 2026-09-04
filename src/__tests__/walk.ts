@@ -28,6 +28,14 @@ export const SRC = join(REPO_ROOT, "src");
 /** Rust のソース */
 export const RUST_SRC = join(REPO_ROOT, "src-tauri", "src");
 
+/**
+ * Rust 側の**リポジトリ横断の検査**の置き場。
+ *
+ * crate をリンクせずソースを文字列として読む検査がここに入る
+ * （crate の内部を見るものは `src-tauri/src` の `#[cfg(test)]`）。
+ */
+export const RUST_CHECKS_DIR = join(REPO_ROOT, "src-tauri", "tests");
+
 export type WalkOptions = {
   /** `__tests__` 配下を含めるか。既定は含める */
   includeTests?: boolean;
@@ -52,6 +60,12 @@ export function scssFiles(root: string, options: WalkOptions = {}): string[] {
   return walk(root, (name) => name.endsWith(".scss"), options);
 }
 
+/**
+ * コメントを持つファイル。**`.sh` も含む。**
+ *
+ * 検査そのものを書いたシェルスクリプトにも「なぜ」は要り、経緯も入りうる。
+ * 拡張子で外すと、機械の doc にだけ規約が掛からない場所ができる。
+ */
 export function sourceFiles(root: string, options: WalkOptions = {}): string[] {
-  return walk(root, (name) => /\.(tsx?|rs|scss)$/.test(name), options);
+  return walk(root, (name) => /\.(tsx?|rs|scss|sh)$/.test(name), options);
 }

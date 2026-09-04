@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AnalysisResult, AnalysisStatus, EngineInfo, EngineSettings } from "./rust-types";
+import type {
+  AnalysisResult,
+  AnalysisStatus,
+  DepthOutcome,
+  EngineInfo,
+  EngineSettings,
+} from "./rust-types";
 
 // ===== エンジン初期化・管理 =====
 export async function initializeEngine(enginePath: string, workDir: string): Promise<void> {
@@ -65,7 +71,13 @@ export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResu
   return await invoke("analyze_with_time", { timeSeconds });
 }
 
-export async function analyzeWithDepth(depth: number): Promise<AnalysisResult> {
+/**
+ * 深度を指定して解析する。
+ *
+ * **目標に届かなくても解決する。** 届いたかは `reached` を見ること
+ * （`DepthOutcome` の TSDoc に理由がある）。
+ */
+export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
   return await invoke("analyze_with_depth", { depth });
 }
 

@@ -7,6 +7,9 @@
 //! **出るのは非決定的な赤。** 落ちたのが自分の変更のせいか判別できず、再実行で
 //! 消えるため誰も原因を追わない。人の注意では、テストを1本足すたびに再発する。
 
+mod scanning;
+use scanning::blank_out_comments;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -44,11 +47,14 @@ fn a_temp_dir_name_is_not_shared_between_processes() {
         if file.ends_with("temp_dir_names.rs") {
             continue;
         }
-        let text = fs::read_to_string(file).expect("読めない");
+        let raw = fs::read_to_string(file).expect("読めない");
+        // コメントの中の言及は見ない。この検査の理由を書けなくなる。
+        // **手で `//` を探さない。** 文字列の中の `//` をコメントの始まりと
+        // 読むと、その行が丸ごと死角に入る（`scanning` はそこを潰す）。
+        let text = blank_out_comments(&raw);
         let lines: Vec<&str> = text.lines().collect();
         for (number, line) in lines.iter().enumerate() {
-            // コメントの中の言及は見ない。この検査の理由を書けなくなる
-            if !line.contains("temp_dir()") || line.trim_start().starts_with("//") {
+            if !line.contains("temp_dir()") {
                 continue;
             }
             scanned += 1;

@@ -129,7 +129,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       try {
         const unlisten = await setupAnalysisEventListeners({
-          onUpdate: (result: AnalysisResult) => {
+          onUpdate: (sessionId: string, result: AnalysisResult) => {
+            // **自分のセッションのものだけ採る。** 前の探索が畳まりきる前に
+            // 次の `go` が出ると、古い局面の `info` がこちらへ配られる。
+            // 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る
+            if (sessionIdRef.current !== null && sessionId !== sessionIdRef.current) return;
             latestResultRef.current = result;
             scheduleFlush();
           },
