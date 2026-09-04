@@ -1,6 +1,7 @@
 //! 索引をメモリでどう持つか。
 
 pub mod bucket;
+mod compaction;
 pub mod file_table;
 pub mod index_store;
 pub mod node_table;

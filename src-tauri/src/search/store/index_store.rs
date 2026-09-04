@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
+use std::sync::Arc;
 
 use parking_lot::RwLock;
 
@@ -6,16 +6,14 @@ use crate::search::store::node_table::{NodeTableArc, NodeTables};
 use crate::search::types::Occurrence;
 
 use crate::search::position::position_key::PositionKey;
+use crate::search::store::compaction::{compact_bucket, COMPACT_THRESHOLD};
 use crate::search::store::file_table::FileTable;
-use crate::search::store::segment::{Segment, SegmentArc};
+use crate::search::store::segment::Segment;
 use crate::search::types::{FileEntry, FileId};
 
 use crate::search::store::bucket::{
     empty_bucket_segments, BucketEntries, BucketSegments, FileBucketEntries, BUCKET_COUNT,
 };
-
-/// 桶の中のセグメント数がこれを超えたら k-way マージで1本に畳む。
-const COMPACT_THRESHOLD: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexState {
@@ -221,83 +219,6 @@ impl IndexStore {
             node_tables: old.node_tables.clone(),
             buckets: old.buckets.clone(),
         });
-    }
-}
-
-/// 桶の中の全セグメントを k-way マージし、生きている `Occurrence` だけを残した
-/// 1本のセグメントを返す。項目が1件も無ければ `None`。
-fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
-    if segs.is_empty() {
-        return None;
-    }
-
-    /// **鍵の並びは `PositionKey` の `Ord` に任せる。** ここで組み直すと、
-    /// 並べる側と食い違ったときに畳んだ結果の順序が壊れる。
-    /// `seg` / `idx` は同じ鍵が並んだときの決定性のためだけの尾。
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    struct HeapItem {
-        key: PositionKey,
-        seg: usize,
-        idx: usize,
-    }
-    impl Ord for HeapItem {
-        fn cmp(&self, other: &Self) -> Ordering {
-            // `BinaryHeap` は最大ヒープなので、最小を取り出すために反転する
-            (other.key, other.seg, other.idx).cmp(&(self.key, self.seg, self.idx))
-        }
-    }
-    impl PartialOrd for HeapItem {
-        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-
-    let total: usize = segs.iter().map(|s| s.len()).sum();
-    let mut z0 = Vec::with_capacity(total);
-    let mut z1 = Vec::with_capacity(total);
-    let mut file_ids = Vec::with_capacity(total);
-    let mut gens = Vec::with_capacity(total);
-    let mut node_ids = Vec::with_capacity(total);
-
-    let mut heap = BinaryHeap::<HeapItem>::with_capacity(segs.len());
-    for (si, seg) in segs.iter().enumerate() {
-        if seg.is_empty() {
-            continue;
-        }
-        let key = seg.key_at(0);
-        heap.push(HeapItem {
-            key,
-            seg: si,
-            idx: 0,
-        });
-    }
-
-    while let Some(item) = heap.pop() {
-        let seg = &segs[item.seg];
-        let occ = seg.occ_at(item.idx);
-        if ft.is_occ_alive(occ.file_id, occ.r#gen) {
-            z0.push(item.key.z0);
-            z1.push(item.key.z1);
-            file_ids.push(occ.file_id);
-            gens.push(occ.r#gen);
-            node_ids.push(occ.node_id);
-        }
-
-        let next = item.idx + 1;
-        if next < seg.len() {
-            let key = seg.key_at(next);
-            heap.push(HeapItem {
-                key,
-                seg: item.seg,
-                idx: next,
-            });
-        }
-    }
-
-    if z0.is_empty() {
-        None
-    } else {
-        Some(Segment::from_soa(z0, z1, file_ids, gens, node_ids))
     }
 }
 
