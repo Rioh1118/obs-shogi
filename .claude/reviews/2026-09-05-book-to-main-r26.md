@@ -2,8 +2,7 @@
 
 - 日付: 2026-09-05
 - 範囲: r25 の所見4件を直した4コミット（`git diff 81cf3870 e55cee20`）
-- 走らせた reviewer: architecture / oss-hygiene（Rust の差分が `yaneuraou_db.rs` の
-  コメント2行だけなので2人）
+- 走らせた reviewer: architecture / oss-hygiene
 - 対象コミット: `e55cee20`
 - 前ラウンド: `.claude/reviews/2026-09-05-book-to-main-r25.md`
 
@@ -21,7 +20,7 @@ issue へ送るものは無かった。
 
 ### AR-02 (MEDIUM, 1人): 規則が「必ず添える」、手段が「省く」で正反対を宣言していた
 
-`0165bc18`（r24 の AP-04 対応）が規則「どの表かを**必ず**添えること」と
+`0165bc18`（r24 の AP-03 / AP-04 対応）が規則「どの表かを**必ず**添えること」と
 `session.rs` の module doc「**個別の注記では表名を省く**」を**同じコミットで**置き、
 `f83767e3`（r25 の AQ-04 対応）が `yaneuraou_db.rs` に同じ形を広げた。
 

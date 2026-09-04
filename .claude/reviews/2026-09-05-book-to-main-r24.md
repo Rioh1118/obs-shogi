@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-05
 - 範囲: r23 の所見8件を直した7コミット（`git diff 208d4fe2 34d5840e`）
-- 走らせた reviewer: architecture / oss-hygiene（Rust の差分がコメント4行だけなので2人）
+- 走らせた reviewer: architecture / oss-hygiene
 - 対象コミット: `34d5840e`
 - 前ラウンド: `.claude/reviews/2026-09-05-book-to-main-r23.md`
 

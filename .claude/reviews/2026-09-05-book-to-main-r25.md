@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-05
 - 範囲: r24 の所見6件を直した5コミット（`git diff 34d5840e 81cf3870`）
-- 走らせた reviewer: architecture / oss-hygiene（Rust の差分が `session.rs` のコメント5行だけなので2人）
+- 走らせた reviewer: architecture / oss-hygiene
 - 対象コミット: `81cf3870`
 - 前ラウンド: `.claude/reviews/2026-09-05-book-to-main-r24.md`
 
