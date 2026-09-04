@@ -150,8 +150,11 @@ pub fn save_checkpoint(
         nts: snap.node_tables.as_ref(),
     };
 
+    // **`trace!` は `log::debug!` で、ロガーは `Info`**（`lib.rs`）。
+    // ここで落ちるのは索引が壊れている合図なので、出荷ビルドのログに残す。
+    // 画面には出ない — 呼び手が `Err` を捨てている（#407）
     encode_all(&mut body, &ctx, &buckets).map_err(|e| {
-        trace!("encode_all FAILED: {e}");
+        log::error!("[index_cache] チェックポイントを書けない: {e}");
         e
     })?;
 
@@ -344,10 +347,7 @@ fn compact_bucket(
         }
     }
 
-    debug_assert!(
-        out.iter().all(|(k, _)| k.bucket() as usize == bucket_idx),
-        "畳んだ結果が別の桶の鍵を含む"
-    );
+    let _ = bucket_idx; // 桶の所属は `encode_all` が書く直前に見る
     out
 }
 
@@ -418,12 +418,15 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
 
     // buckets
     //
-    // **書く側でも桶の所属を見る。** 読む側だけに門番を置くと、振り分けが壊れた
-    // まま書いて次の起動で `Err` になり、作り直してまた同じものを書く —
-    // **起動のたびに全件構築を繰り返し、利用者には進捗しか出ない**。
-    // ここで止めれば、壊れた原因の場所で分かる
+    // **読む側と同じ3つを、書く側でも見る。** 読む側だけに置くと、壊れたものを
+    // 書いて次の起動で `Err` になり、作り直してまた同じものを書く。
+    //
+    // ここで `Err` にすると**キャッシュが書かれない**ので、次の起動は
+    // 「ファイルが無い」で全件構築になる。症状は同じだが、`save_checkpoint` の
+    // 失敗としてログに出る（届く先は `#407` が広げる）
     for (b, v) in buckets.iter().enumerate() {
         write_u32(w, v.len() as u32);
+        let mut prev: Option<PositionKey> = None;
         for (k, occ) in v {
             if k.bucket() as usize != b {
                 return Err(format!(
@@ -431,6 +434,27 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
                     k.bucket()
                 ));
             }
+            if prev.is_some_and(|p| *k < p) {
+                return Err(format!("refusing to write: bucket {b} is not sorted"));
+            }
+            prev = Some(*k);
+
+            let nodes = match ctx.nts.get(occ.file_id) {
+                Some(nt) => nt.nodes.len(),
+                None => {
+                    return Err(format!(
+                        "refusing to write: file {} has occurrences but no node table",
+                        occ.file_id
+                    ))
+                }
+            };
+            if occ.node_id as usize >= nodes {
+                return Err(format!(
+                    "refusing to write: node_id {} is out of range for file {} (nodes {nodes})",
+                    occ.node_id, occ.file_id
+                ));
+            }
+
             write_u64(w, k.z0);
             write_u64(w, k.z1);
             write_u32(w, occ.file_id);
@@ -571,6 +595,18 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             let fork_off = r.read_u32()?;
             let fork_len = r.read_u16()?;
             let _pad = r.read_u16()?;
+
+            // 節が指す分岐の範囲。**`node_id` と同じ壊れ方をする** —
+            // 範囲外だと `cursor_lite` が `None` を返し、`query_service` が
+            // `CursorLite::root()` にすり替えるので、そのヒットが
+            // 「そのファイルの0手目」として画面に並ぶ
+            if fork_off as usize + fork_len as usize > forks_len {
+                return Err(format!(
+                    "fork range {fork_off}+{fork_len} is out of the fork table \
+                     for file {file_id} (forks {forks_len})"
+                ));
+            }
+
             nt.nodes.push(crate::search::store::node_table::NodeCursor {
                 tesuu,
                 fork_off,
@@ -625,15 +661,21 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             // **その局面のヒットが「そのファイルの0手目」として画面に並ぶ**
             // （`query_service`）。範囲内の別の節を指す場合は `None` にすらならず、
             // 手数も分岐も違う場所へ飛ぶ
-            // **節表があるときだけ見る。** 表を持たない `file_id` は
-            // `is_occ_alive` が落とすので、ここで弾く必要が無い
-            if let Some(nt) = nts.get(file_id) {
-                if node_id as usize >= nt.nodes.len() {
-                    return Err(format!(
-                        "node_id {node_id} is out of range for file {file_id} (nodes {})",
-                        nt.nodes.len()
-                    ));
-                }
+            // 出現を持つ `file_id` は必ず節表を持つ。入れる口は
+            // `store/index_store.rs` の `insert_file_segments` だけで、
+            // ファイル表と節表を対でしか受けない。
+            //
+            // **表が無いことも壊れている合図。** 通すと `cursor_lite` が
+            // `None` を返し、`query_service` が `CursorLite::root()` に
+            // すり替えるので、そのヒットが「そのファイルの0手目」として並ぶ
+            let nodes = match nts.get(file_id) {
+                Some(nt) => nt.nodes.len(),
+                None => return Err(format!("file {file_id} has occurrences but no node table")),
+            };
+            if node_id as usize >= nodes {
+                return Err(format!(
+                    "node_id {node_id} is out of range for file {file_id} (nodes {nodes})"
+                ));
             }
 
             v.push((
@@ -1106,7 +1148,17 @@ mod tests {
                     write_u32(b, 0);
                     write_u32(b, 1);
                     write_u32(b, 0);
-                    write_u32(b, 0); // node_tables: 0件
+                    // node_tables: file_id 0 に節を1つ。
+                    // **出現を持つ file_id は節表を持つ**という不変条件を
+                    // decode が見るので、題材もそれに揃える
+                    write_u32(b, 1); // 表は1つ
+                    write_u32(b, 0); // file_id
+                    write_u32(b, 1); // nodes_len
+                    write_u32(b, 0); // forks_len
+                    write_u32(b, 0); // tesuu
+                    write_u32(b, 0); // fork_off
+                    write_u16(b, 0); // fork_len
+                    write_u16(b, 0); // pad
                 },
                 &|b: &mut Vec<u8>| {
                     write_u64(b, 0); // z0
@@ -1304,6 +1356,21 @@ mod tests {
         });
         let mut nts = NodeTables::default();
         nts.upsert(1, Arc::new(nt));
+        // 出現を持つ `file_id` は節表も持つ
+        {
+            let mut nt2 = NodeTable::empty();
+            nt2.nodes.push(NodeCursor {
+                tesuu: 0,
+                fork_off: 0,
+                fork_len: 0,
+            });
+            nt2.nodes.push(NodeCursor {
+                tesuu: 1,
+                fork_off: 0,
+                fork_len: 0,
+            });
+            nts.upsert(2, Arc::new(nt2));
+        }
 
         let records = vec![
             FileRecord {
@@ -1444,7 +1511,17 @@ mod tests {
             deleted: false,
             r#gen: 1,
         });
-        let nts = NodeTables::default();
+        // **出現を持つ `file_id` は節表も持つ**（本番の口が対でしか入れない）。
+        // 題材もそれに揃える
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(crate::search::store::node_table::NodeCursor {
+            tesuu: 0,
+            fork_off: 0,
+            fork_len: 0,
+        });
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
         let path_to_id: HashMap<String, FileId> =
             [("a.kif".to_owned(), 1u32)].into_iter().collect();
 
@@ -1526,6 +1603,354 @@ mod tests {
         assert!(
             decode_all(&unsorted, root).is_err(),
             "並びが崩れた桶を読んでしまった"
+        );
+    }
+
+    /// **出現があるのに節表が無い blob も読まない。**
+    ///
+    /// 本番の口（`store/index_store.rs` の `insert_file_segments`）は
+    /// ファイル表と節表を対でしか受けないので、この形は壊れている合図。
+    /// 通すと `cursor_lite` が `None` を返して 0手目として並ぶ。
+    ///
+    /// **`is_occ_alive` は落とさない** — あれが見るのはファイル表だけ。
+    #[test]
+    fn occurrences_without_a_node_table_are_refused() {
+        let root = Path::new("/tmp/obs-shogi-no-nt");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-no-nt/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
+        );
+
+        let key = PositionKey {
+            z0: 0x5500_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[key.bucket() as usize].push((
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 0,
+            },
+        ));
+
+        // 節表を持たせずに書こうとすると、書く側が止める
+        let nts = NodeTables::default();
+        let mut blob = Vec::new();
+        let err = encode_all(
+            &mut blob,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect_err("節表の無い出現を書いてしまった");
+        assert!(err.contains("no node table"), "断った理由が違う: {err}");
+
+        // **読む側も同じ形を断る。** 書く側が止めるので blob は作れないから、
+        // 節表を持たせて書いてから、節表の `file_id` を別の値へ壊す。
+        // ビット化けで実際に起きる形（表が別の `file_id` に載り、
+        // 元の `file_id` が表を失う）
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(crate::search::store::node_table::NodeCursor {
+            tesuu: 0,
+            fork_off: 0,
+            fork_len: 0,
+        });
+        let mut with_nt = NodeTables::default();
+        with_nt.upsert(1, Arc::new(nt));
+
+        let mut good = Vec::new();
+        encode_all(
+            &mut good,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &with_nt,
+            },
+            &buckets,
+        )
+        .expect("書けない");
+        assert!(decode_all(&good, root).is_ok(), "正しい blob を弾いている");
+
+        // 節表の欄は file_id(4) + nodes_len(4) + forks_len(4)。
+        // `file_id: 1, nodes_len: 1, forks_len: 0` の並びを探す
+        let nt_head: Vec<u8> = 1u32
+            .to_le_bytes()
+            .iter()
+            .chain(1u32.to_le_bytes().iter())
+            .chain(0u32.to_le_bytes().iter())
+            .copied()
+            .collect();
+        let at = good
+            .windows(nt_head.len())
+            .rposition(|w| w == nt_head.as_slice())
+            .expect("節表の頭が blob に載っている");
+        let mut orphan = good.clone();
+        orphan[at] = 0; // 表が file_id 0 に載る。file_id 1 は表を失う
+        assert!(
+            decode_all(&orphan, root).is_err(),
+            "節表を失った file_id の出現を読んでしまった"
+        );
+    }
+
+    /// **節表の外を指す `node_id` は書かない。** 読む側と同じ検査を書く側にも置く。
+    #[test]
+    fn a_node_id_outside_the_table_is_not_written() {
+        let root = Path::new("/tmp/obs-shogi-node-write");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(crate::search::store::node_table::NodeCursor {
+            tesuu: 0,
+            fork_off: 0,
+            fork_len: 0,
+        });
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-node-write/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
+        );
+
+        let key = PositionKey {
+            z0: 0x7700_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[key.bucket() as usize].push((
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 5, // 表は1つしか無い
+            },
+        ));
+
+        let mut blob = Vec::new();
+        let err = encode_all(
+            &mut blob,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect_err("範囲外の node_id を書いてしまった");
+        assert!(err.contains("out of range"), "断った理由が違う: {err}");
+    }
+
+    /// **並びが崩れた桶は書かない。** 読む側と同じ検査を書く側にも置く。
+    ///
+    /// 崩れるのは `compact_bucket` の k-way マージで、桶の割り当てより壊れやすい。
+    /// 書けてしまうと、次の起動で読めずに全件作り直し、作り直してまた同じものを
+    /// 書く、を繰り返す。
+    #[test]
+    fn an_unsorted_bucket_is_not_written() {
+        let root = Path::new("/tmp/obs-shogi-unsorted-write");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(crate::search::store::node_table::NodeCursor {
+            tesuu: 0,
+            fork_off: 0,
+            fork_len: 0,
+        });
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-unsorted-write/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
+        );
+        let occ = Occurrence {
+            file_id: 1,
+            r#gen: 1,
+            node_id: 0,
+        };
+
+        // 同じ桶へ降順に積む
+        let hi = PositionKey {
+            z0: 0x6600_0000_0000_0009,
+            z1: 0,
+        };
+        let lo = PositionKey {
+            z0: 0x6600_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[hi.bucket() as usize].push((hi, occ));
+        buckets[hi.bucket() as usize].push((lo, occ));
+
+        let mut blob = Vec::new();
+        let err = encode_all(
+            &mut blob,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect_err("並びが崩れた桶を書いてしまった");
+        assert!(err.contains("not sorted"), "断った理由が違う: {err}");
+    }
+
+    /// **分岐の表の外を指す `fork_off` / `fork_len` も読まない。**
+    ///
+    /// `node_id` と**同じ壊れ方**をする — `cursor_lite` が `None` を返し、
+    /// `query_service` が `CursorLite::root()` にすり替えるので、
+    /// そのヒットが「そのファイルの0手目」として並ぶ。
+    #[test]
+    fn a_fork_range_outside_the_table_is_refused() {
+        use crate::search::store::node_table::{ForkPtr, NodeCursor};
+
+        let root = Path::new("/tmp/obs-shogi-fork-guard");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+
+        // 分岐は2つ。節はその 0..2 を指す
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(NodeCursor {
+            tesuu: 3,
+            fork_off: 0,
+            fork_len: 2,
+        });
+        nt.forks.push(ForkPtr {
+            te: 1,
+            fork_index: 0,
+        });
+        nt.forks.push(ForkPtr {
+            te: 2,
+            fork_index: 1,
+        });
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-fork-guard/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
+        );
+
+        let key = PositionKey {
+            z0: 0x4400_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[key.bucket() as usize].push((
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 0,
+            },
+        ));
+
+        let mut good = Vec::new();
+        encode_all(
+            &mut good,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect("書けない");
+        assert!(
+            decode_all(&good, root).is_ok(),
+            "正しい fork の範囲を弾いている"
+        );
+
+        // 節の欄は tesuu(4) + fork_off(4) + fork_len(2) + pad(2)。
+        // `forks_len` も 2 なので、節の並びそのもので位置を決める
+        let node_rec: Vec<u8> = 3u32
+            .to_le_bytes()
+            .iter()
+            .chain(0u32.to_le_bytes().iter())
+            .chain(2u16.to_le_bytes().iter())
+            .chain(0u16.to_le_bytes().iter())
+            .copied()
+            .collect();
+        let at = good
+            .windows(node_rec.len())
+            .position(|w| w == node_rec.as_slice())
+            .expect("節の欄が blob に載っている");
+        let mut broken = good.clone();
+        broken[at + 8] = 9; // fork_len を 9 に。表は2つしか無い
+        assert!(
+            decode_all(&broken, root).is_err(),
+            "分岐の表の外を指す範囲を読んでしまった"
         );
     }
 
