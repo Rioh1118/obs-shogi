@@ -18,7 +18,11 @@ use crate::search::store::node_table::NodeTables;
 use crate::search::store::segment::Segment;
 use crate::search::types::{FileId, Occurrence};
 
-/// 索引がいまどこにいるか。**画面の出し分けに出る。**
+/// 索引がいまどの段にいるか。**内部の段で、画面へは出ない。**
+///
+/// ここから利用者に届くのは `search/query_service.rs` が作る `stale` の真偽1つだけ。
+/// 画面が読むのは同名の別型（`search/types.rs` の `IndexState`）で、
+/// そちらは payload に手で載せる。**2つは機械では突き合わされていない。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexState {
     /// まだ何も無い。プロジェクトを開く前
@@ -35,8 +39,10 @@ pub enum IndexState {
 
 /// ある瞬間の索引。
 ///
-/// **どの欄も `Arc` で共有する。** 次の値を作るとき、触っていない欄は
-/// 参照を写すだけで済む（桶は256本の配列で、触るのは差分のぶんだけ）。
+/// **`file_table` と `node_tables` は `Arc` で写すだけ。**
+/// `buckets` は違う —— `[Vec<SegmentArc>; 256]` なので、次の値を作るたびに
+/// 256本の `Vec` を確保し直し、載っているセグメントの参照数を全部触る。
+/// 遷移を細かく刻むとそのぶん効く。
 #[derive(Debug, Clone)]
 pub struct IndexSnapshot {
     pub state: IndexState,

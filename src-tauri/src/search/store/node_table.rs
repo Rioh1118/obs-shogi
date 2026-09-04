@@ -6,13 +6,16 @@ pub type NodeTableArc = Arc<NodeTable>;
 
 /// `file_id` から、その棋譜の節表を引く表。
 ///
-/// **添字がそのまま `file_id`。** `file_id` は棋譜を1つ見つけるたびに 0 から
-/// 振っていく密な番号なので、`HashMap` でなく `Vec` の穴あき配列で足りる。
-/// `None` は「その `file_id` に節表が無い」——削除された棋譜、読めなかった棋譜、
-/// まだ作っていない棋譜。
+/// **添字がそのまま `file_id`。** 添字の規約は `store/file_table.rs` と同じで、
+/// **1 から密に振る（slot 0 は未使用）**。密なので `HashMap` を使わない。
 ///
-/// **穴は普通に空く。** 出現ゼロの節表が blob に載るのはそのため
-/// （`docs/state-transitions/search.md` のビット化けの表）。
+/// `None` になるのは3つ。未使用の slot 0、構築が途中で落ちて `upsert` に
+/// 届かなかった `file_id`、まだ作っていない `file_id`。
+///
+/// **削除された棋譜と、読めなかった棋譜は `Some` のまま残る。** 前者は
+/// `store/snapshot.rs` の `with_tombstone` が節表を持ち越し、後者は
+/// 空の `NodeTable` が入る。**生死をここで判定しない** ——
+/// それを持つのは `store/file_table.rs` の `is_occ_alive` だけ。
 #[derive(Debug, Clone, Default)]
 pub struct NodeTables {
     by_id: Vec<Option<NodeTableArc>>,
