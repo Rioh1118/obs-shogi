@@ -10,13 +10,16 @@
 //! crate をリンクせずソースを文字列として読む（`root_guard.rs` と同じ形）。
 //! crate の内部を見るテストは `src` 側の `#[cfg(test)]` に置く。
 
+mod scanning;
+use scanning::is_test_attribute;
+
 use std::fs;
 use std::path::Path;
 
 /// 本数の床。**現在値ではない** —— `DRIFT_ALLOWANCE` のぶんだけ下にずれたまま緑で通るので、
 /// ここを現在値として読まないこと。**下げるときは理由をコミットメッセージに書くこと。**
 /// 上げるのは自由（足したぶんだけ上がる）。
-const EXPECTED_MIN: usize = 393;
+const EXPECTED_MIN: usize = 453;
 
 /// 取り込み忘れを許す幅。**1回の作業で足すテストの本数の目安。**
 /// これ以上ずれたら更新忘れとみなす。
@@ -25,13 +28,16 @@ const EXPECTED_MIN: usize = 393;
 /// **幅そのものではない**（`EXPECTED_MIN` を実測へ揃えた直後は1本消しても赤くなる）。
 const DRIFT_ALLOWANCE: usize = 20;
 
-/// `#[test]` の総数を数える。
+/// テストの総数を数える。
 ///
 /// **行が属性そのものであるものだけ数える。** 文字列リテラルやコメントの中の
 /// 属性の綴りを数えると、コメントを膨らませるだけで下限を水増しできる
 /// （このファイル自身、属性は2本しか無いのに綴りはそれより多く現れる）。
 ///
-/// 属性の綴りは1つしか使っていないが、`#[tokio::test]` などが増えたらここへ足す。
+/// **綴りは [`scanning::is_test_attribute`] が持つ。** ここで `#[test]` だけを
+/// 見ると、非同期のテストが丸ごと下限の外に出る —— 対局の状態機械は
+/// ほとんどが `#[tokio::test]` なので、`session.rs` を1本も数えないまま
+/// 「減っていない」と言えてしまう。
 fn count_tests(dir: &Path) -> usize {
     let mut total = 0;
     let entries = fs::read_dir(dir).expect("src/ を読めない");
@@ -48,7 +54,7 @@ fn count_tests(dir: &Path) -> usize {
         let source = fs::read_to_string(&path).expect("ソースを読めない");
         total += source
             .lines()
-            .filter(|line| line.trim_start().starts_with("#[test]"))
+            .filter(|line| is_test_attribute(line))
             .count();
     }
 
