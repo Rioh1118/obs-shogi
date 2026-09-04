@@ -6,7 +6,7 @@
 - 対象コミット: `b6a73c5b`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r2.md`
 
-所見 **23件**（BLOCK 1 / HIGH 5 / MEDIUM 17）。
+所見 **23件**（BLOCK 1 / BLOCK の一部 1 / HIGH 2 / MEDIUM 19）。
 
 **所見が減っていない。** r1 22件 → r2 18件 → r3 23件。
 `/review-plan` 手順4 の「3ラウンド続いたら直し方ではなく対象を疑う」に**到達した。**
