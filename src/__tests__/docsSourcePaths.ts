@@ -118,13 +118,18 @@ export function missingPaths(paths: string[]): string[] {
  *
  * 指したいものがあるなら識別子で指すこと。`docsIdentifiers` がそちらは見る。
  *
- * **版を固定すると宣言した文書では、自リポジトリで解決できない綴りを見ない。**
+ * **版を固定すると宣言した文書では、この木のどこにも無いファイルを見ない。**
  * 他リポジトリの識別子はこちらの検査が追えないので「識別子で指せ」の逃げ道が無く、
  * 代わりに版ごと引くのが `docs/state-transitions/README.md` の規約
  * （「…の行番号は、すべて v9.40 時点」の形）。版が書いてあれば無言ではずれない。
  *
- * **宣言があっても、自リポジトリのパスは今までどおり拾う。** 宣言は上流の綴りに
- * しか効かないので、片方を許すためにもう片方まで緩まない。
+ * **免除するかは実在で決める。綴りの形では決めない。** `tracked` は
+ * 「実在を要求してよい形か」を見る別の関門で、`README.md` のような起点直下の
+ * ファイルにも、拡張子の無い識別子にも当たらない。それを流用すると、
+ * `optional_number:42` や `README.md#L10` まで宣言1行で通ってしまう。
+ *
+ * **裸の識別子は上流でも免除しない。** スラッシュも拡張子も持たない綴りは
+ * `docsIdentifiers` が追える側で、「識別子で指せ」の逃げ道が実在する。
  *
  * 綴りは `LINE_SUFFIX` の1つだけを使う。**このファイル自身は走査の対象外**
  * （`src/__tests__` は `docs/` の外）なので、上に例を書いてよい。
@@ -139,7 +144,9 @@ export function lineNumberRefsIn(markdown: string): string[] {
     if (!LINE_SUFFIX.test(inline)) continue;
 
     const bare = inline.replace(LINE_SUFFIX, "");
-    if (pinned && !tracked(bare, resolve(bare))) continue;
+    const looksLikePath = bare.includes("/") || /\.[A-Za-z0-9]+$/.test(bare);
+    const resolvable = ROOTS.some((root) => existsSync(join(REPO_ROOT, root + bare)));
+    if (pinned && looksLikePath && !resolvable && !LAYER.test(bare)) continue;
 
     found.add(inline);
   }
