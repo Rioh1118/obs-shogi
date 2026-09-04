@@ -1,9 +1,11 @@
 //! 横断検索が画面とやり取りする形。
 //!
 //! **ここに書いた綴りがそのまま TS に出る**（`serde` の `camelCase`）。
-//! 対岸は `src/entities/search/api/contract.ts`。欄の名前を変えるときは
-//! 両方を同じ変更で直すこと。片方だけ直しても Rust も TS も緑のまま通り、
-//! 実行時に欄が `undefined` になる。
+//! 対岸は `src/entities/search/api/` の3本 — 要求と応答が `contract.ts`、
+//! イベントの payload が `events.ts`、識別子と結果の形が `ids.ts`。
+//!
+//! 欄の名前を変えるときは両方を同じ変更で直すこと。片方だけ直しても
+//! Rust も TS も緑のまま通り、実行時に欄が `undefined` になる。
 
 use serde::{Deserialize, Serialize};
 
@@ -113,8 +115,8 @@ pub enum Consistency {
 #[serde(rename_all = "camelCase")]
 pub struct SearchPositionInput {
     /// 探す局面の綴り。**受理する形は `position/sfen_position.rs` が決める**
-    /// （SFEN より広く、USI の `position` 行も通る）。`book` 側にもう1本
-    /// 別の受理集合があり、どちらへ寄せるかは #236
+    /// （SFEN より広く、USI の `position` 行も通る）。定跡側にもう1本の
+    /// 受理集合を置く予定があり、どちらへ寄せるかは #236
     pub sfen: String,
     pub consistency: Consistency,
     pub chunk_size: u32,
@@ -230,12 +232,15 @@ pub struct SearchChunkPayload {
 /// 結果を出し終えた。`EVT_SEARCH_END` に載る。
 ///
 /// **「全件出し終えた」ではない。** 取り出しの途中で取り消されたときも、
-/// そこまでの chunk の後にこれが出る（`query_service` は `break` で
-/// 抜けてから emit する）。届かないのは chunk を1つも出す前に
-/// 取り消したときだけ。
+/// そこまでの chunk の後にこれが出る。**chunk が0本でも届きうる。**
+/// 打ち切られた検索と出し切った検索は、これだけでは区別できない。
 ///
-/// つまり**打ち切られた検索と、出し切った検索が、これだけでは区別できない**。
-/// 区別が要るなら欄を足すこと。
+/// **届かない経路がある。** 綴りが読めなかったとき、検索の本体が落ちたとき、
+/// 取り出しを始める前に取り消しが観測されたとき。前の2つは
+/// [`SearchErrorPayload`] が出る。
+///
+/// **待ちを解く側は、これと `EVT_SEARCH_ERROR` の両方を見ること。**
+/// 出す側は `query_service` を読むこと。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchEndPayload {
