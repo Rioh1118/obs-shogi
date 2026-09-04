@@ -243,7 +243,8 @@ impl IndexSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::types::{FileEntry, Occurrence};
+    use crate::search::store::node_table::{NodeTableArc, NodeTableBuilder};
+    use crate::search::types::FileEntry;
 
     /// **同じ検索の結果が、セグメントの本数によらず同じ順で出ること。**
     ///
@@ -252,6 +253,151 @@ mod tests {
     ///
     /// 題材は `file_id` の降順で詰める —— 昇順で詰めると、
     /// 並べ替えを消しても偶然通る。
+    fn key_of(z0: u64) -> PositionKey {
+        PositionKey { z0, z1: 0 }
+    }
+
+    fn occ_of(file_id: u32, node_id: u32) -> Occurrence {
+        Occurrence {
+            file_id,
+            r#gen: 1,
+            node_id,
+        }
+    }
+
+    fn entry_of(file_id: u32) -> FileEntry {
+        FileEntry {
+            file_id,
+            path: format!("{file_id}.kif"),
+            deleted: false,
+            r#gen: 1,
+        }
+    }
+
+    fn node_table_of(nodes: u32) -> NodeTableArc {
+        let mut b = NodeTableBuilder::new();
+        for n in 0..nodes {
+            b.push_node(n, &[]);
+        }
+        Arc::new(b.finish())
+    }
+
+    /// 1ファイル分の取り込みの素材。桶は `key` の落ちる1本だけ。
+    fn one_file(file_id: u32, key: PositionKey, node_id: u32) -> FileBucketEntries {
+        let mut by_bucket: BucketEntries = crate::search::store::bucket::empty_buckets();
+        by_bucket[key.bucket() as usize].push((key, occ_of(file_id, node_id)));
+        (entry_of(file_id), node_table_of(node_id + 1), by_bucket)
+    }
+
+    /// **取り込みは積み増す。置き換えない。**
+    ///
+    /// `with_files` を2回呼んだあと、1回目のファイルのヒットも残ること。
+    #[test]
+    fn with_files_adds_to_what_is_already_there() {
+        let k = key_of(0x1100_0000_0000_0001);
+        let snap = IndexSnapshot::default()
+            .with_files(vec![one_file(1, k, 0)])
+            .with_files(vec![one_file(2, k, 0)]);
+
+        let got: Vec<u32> = snap
+            .search_occurrences_by_key(k)
+            .iter()
+            .map(|o| o.file_id)
+            .collect();
+
+        assert_eq!(got, vec![1, 2], "先に入れたファイルが消えている");
+        assert!(snap.node_tables.get(1).is_some(), "節表も残ること");
+        assert!(snap.node_tables.get(2).is_some());
+    }
+
+    /// **しきい値を超えるまで畳まない。超えたら1本になる。**
+    ///
+    /// 畳む条件は `> COMPACT_THRESHOLD` なので、ちょうどの本数では畳まない。
+    /// 境界を両側から見る。
+    #[test]
+    fn a_bucket_is_folded_only_after_it_passes_the_threshold() {
+        let k = key_of(0x2200_0000_0000_0001);
+        let b = k.bucket() as usize;
+
+        let mut at = IndexSnapshot::default();
+        for i in 0..COMPACT_THRESHOLD {
+            at = at.with_files(vec![one_file(i as u32 + 1, k, 0)]);
+        }
+        assert_eq!(
+            at.buckets[b].len(),
+            COMPACT_THRESHOLD,
+            "しきい値ちょうどで畳んでいる"
+        );
+
+        let over = at.with_files(vec![one_file(COMPACT_THRESHOLD as u32 + 1, k, 0)]);
+        assert_eq!(over.buckets[b].len(), 1, "しきい値を超えても畳んでいない");
+
+        // 畳んでも中身は落ちない
+        assert_eq!(
+            over.search_occurrences_by_key(k).len(),
+            COMPACT_THRESHOLD + 1,
+            "畳んだときに出現が消えた"
+        );
+    }
+
+    /// **墓標を立てても、桶と節表はそのまま残る。**
+    ///
+    /// 消えるのは検索の結果だけ。桶から実際に消えるのはその桶を畳むとき
+    /// （`store/compaction.rs`）。節表を残すのは `docs/state-transitions/search.md`
+    /// の「出現ゼロの節表」の前提になっている。
+    #[test]
+    fn a_tombstone_hides_the_hits_but_keeps_the_tables() {
+        let k = key_of(0x3300_0000_0000_0001);
+        let b = k.bucket() as usize;
+        let snap = IndexSnapshot::default().with_files(vec![one_file(1, k, 0), one_file(2, k, 0)]);
+        let segments_before = snap.buckets[b].len();
+
+        let after = snap.with_tombstone(1);
+
+        let got: Vec<u32> = after
+            .search_occurrences_by_key(k)
+            .iter()
+            .map(|o| o.file_id)
+            .collect();
+        assert_eq!(got, vec![2], "墓標を立てた棋譜のヒットが残っている");
+        assert_eq!(
+            after.buckets[b].len(),
+            segments_before,
+            "桶から消してしまっている"
+        );
+        assert!(
+            after.node_tables.get(1).is_some(),
+            "節表まで落としてしまっている"
+        );
+    }
+
+    /// **段だけ差し替えても中身は動かない。**
+    #[test]
+    fn with_state_leaves_everything_else_alone() {
+        let k = key_of(0x4400_0000_0000_0001);
+        let snap = IndexSnapshot::default().with_files(vec![one_file(1, k, 0)]);
+
+        let ready = snap.with_state(IndexState::Ready);
+
+        assert_eq!(ready.state, IndexState::Ready);
+        assert_eq!(ready.search_occurrences_by_key(k).len(), 1);
+        assert!(ready.node_tables.get(1).is_some());
+    }
+
+    /// **作り直しに入るときは中身を捨てる。**
+    #[test]
+    fn restarting_throws_the_index_away() {
+        let k = key_of(0x5500_0000_0000_0001);
+        let _ = IndexSnapshot::default().with_files(vec![one_file(1, k, 0)]);
+
+        for at in [Restart::Restoring, Restart::Building] {
+            let fresh = IndexSnapshot::restarting(at);
+            assert!(fresh.search_occurrences_by_key(k).is_empty());
+            assert!(fresh.node_tables.get(1).is_none());
+            assert_eq!(fresh.state, at.into());
+        }
+    }
+
     #[test]
     fn the_order_of_a_hit_list_does_not_depend_on_how_the_bucket_is_split() {
         let key = PositionKey { z0: 1, z1: 1 };
