@@ -15,8 +15,10 @@ use std::path::{Path, PathBuf};
 
 /// 一時ディレクトリ名に入っていればプロセスが分かれる語。
 ///
-/// `scratch_dir` は `book` の共通の置き場で、中で `process::id()` を混ぜている。
-const SEPARATORS: [&str; 2] = ["process::id()", "scratch_dir"];
+/// `temp_dir` は `test_support` の共通の置き場で、中で `process::id()` と
+/// スレッド番号と連番を混ぜている。**crate 全体から引ける**ので、
+/// 下の案内はどのモジュールでも実行できる。
+const SEPARATORS: [&str; 2] = ["process::id()", "temp_dir("];
 
 fn rust_files(dir: &Path, found: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
@@ -79,7 +81,7 @@ fn a_temp_dir_name_is_not_shared_between_processes() {
     assert!(
         offenders.is_empty(),
         "一時ディレクトリ名がプロセス間で共有されている:\n{}\n\
-         `std::process::id()` を混ぜるか、`book` の `scratch_dir` を使うこと。",
+         `std::process::id()` を混ぜるか、`test_support` の `temp_dir` を使うこと。",
         offenders.join("\n")
     );
 }

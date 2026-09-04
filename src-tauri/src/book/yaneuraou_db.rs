@@ -2316,7 +2316,7 @@ mod tests {
     /// 見えず、正しい定跡が「別の形式かもしれない」と拒否される。
     #[test]
     fn tolerates_a_utf8_bom() {
-        let dir = crate::book::test_paths::scratch_dir("bom");
+        let dir = crate::test_support::temp_dir("book-bom");
         let file = dir.join("book.db");
 
         let mut bytes = vec![0xEF, 0xBB, 0xBF];

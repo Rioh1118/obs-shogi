@@ -321,7 +321,7 @@ mod tests {
             Path::new("/tmp/x.bin"),
             BookFormat::AperyBin,
         )));
-        let dir = crate::book::test_paths::scratch_dir("ends-with-action");
+        let dir = crate::test_support::temp_dir("book-ends-with-action");
         let as_dir = dir.join("looks-like.db");
         std::fs::create_dir_all(&as_dir).expect("ディレクトリ");
         seen.push(err_of(open_reader(&as_dir, BookFormat::YaneuraouDb)));
