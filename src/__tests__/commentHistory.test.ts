@@ -113,9 +113,11 @@ describe("コメント", () => {
     const offenders: string[] = [];
 
     let scanned = 0;
+    let shells = 0;
     for (const root of ROOTS) {
       for (const file of sourceFiles(root)) {
         scanned += 1;
+        if (file.endsWith(".sh")) shells += 1;
 
         const source = readFileSync(file, "utf8");
         const name = relative(REPO_ROOT, file);
@@ -136,6 +138,12 @@ describe("コメント", () => {
 
     // 走査が空振りしても「違反0」になる。歩けていることを別に固定する
     expect(scanned, `${scanned} ファイルしか歩けていない`).toBeGreaterThan(150);
+
+    // **根ごとに見る。** 合計の床は4つの根をまとめて数えるので、`.sh` を拾う根が
+    // 丸ごと落ちても 568 → 566 にしかならず素通りする。
+    // `.claude/hooks` を根に入れているのは「機械の doc にだけ経緯が溜まる」のを
+    // 止めるためで、そこが拾うのは `.sh` だけ
+    expect(shells, "hooks の `.sh` を1本も歩けていない").toBeGreaterThan(0);
 
     expect(
       offenders,
