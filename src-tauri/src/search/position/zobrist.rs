@@ -8,8 +8,9 @@
 //! 片方だけ直したときに同じ局面から別の鍵が出る。
 //!
 //! 手番・駒種・升の添字は `shogi_core` の `array_index()` に任せる。写すと
-//! 上流が変わったときに気付く経路が無くなる。**枚数の枠だけがこちらの決めごと**
-//! （[`HAND_COUNT_SLOTS`]）。
+//! 上流が変わったときに気付く経路が無くなる。**枚数の枠だけがこちらの決めごと。**
+//! 外へ出すのは [`MAX_REPRESENTABLE_HAND_COUNT`] だけで、枠の数と頭打ちの位置は
+//! このファイルに閉じる。
 
 use std::sync::OnceLock;
 
@@ -53,7 +54,13 @@ const HAND_KINDS: [PieceKind; 7] = [
 ///
 /// 一番多く持てるのは歩の18枚なので、`0..=18` の19枠。他の駒種も同じ枠で持つ。
 /// **これは総数ではなく、駒種ごとの枚数の値域。**
-pub(super) const HAND_COUNT_SLOTS: usize = 19;
+const HAND_COUNT_SLOTS: usize = 19;
+
+/// 鍵が枚数として区別できる上限。
+///
+/// これを超える枚数は末尾の枠へ落ちるので（[`hand_count`]）、**受理する側は
+/// ここまでに絞ること**。広げると、落ちた先が同じになって別の局面が同じ鍵になる。
+pub(super) const MAX_REPRESENTABLE_HAND_COUNT: u32 = (HAND_COUNT_SLOTS - 1) as u32;
 
 /// 局面の項ごとに引く乱数の表。
 ///
