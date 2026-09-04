@@ -14,7 +14,10 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 **種類で二分しない。** `.rs` だけを触っても ts が走り、`docs/` の中の `.md` だけを
 触っても ts が走る（規約とリンクの検査が、ソースと doc を文字列として読んでいるため）。
-**素通しするのは、どの種類にも当たらないファイルだけ。**
+素通しするのは、どの種類にも当たらないファイルか、**作業ツリーに変更が無いとき**
+（`git merge` / `git rebase` / `git cherry-pick` が clean なツリーで作るコミット。
+理由は `docs/state-transitions/verify-gate-decision.md` の (D, S4)）。
+**合流の後は手で通すこと。**
 
 パスから種類への対応は `gate_kinds_for_path`（`.claude/hooks/verify-gate.sh`）が唯一の出典で、
 `verify-gate.test.sh` がその対応を固定している。**ここに写さない。**
