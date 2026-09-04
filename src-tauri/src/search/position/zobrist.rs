@@ -6,6 +6,10 @@
 //!
 //! **添字の付け方はこのファイルの外に出さない。** 出すと同じ規約が2箇所に書かれ、
 //! 片方だけ直したときに同じ局面から別の鍵が出る。
+//!
+//! 手番・駒種・升の添字は `shogi_core` の `array_index()` に任せる。写すと
+//! 上流が変わったときに気付く経路が無くなる。**枚数の枠だけがこちらの決めごと**
+//! （[`HAND_COUNT_SLOTS`]）。
 
 use std::sync::OnceLock;
 
@@ -51,25 +55,16 @@ const HAND_KINDS: [PieceKind; 7] = [
 /// **これは総数ではなく、駒種ごとの枚数の値域。**
 const HAND_COUNT_SLOTS: usize = 19;
 
-/// 表の添字にする手番。`Color` には添字が無いので、ここで 0 / 1 に決める。
-#[inline]
-fn color_index(c: Color) -> usize {
-    match c {
-        Color::Black => 0,
-        Color::White => 1,
-    }
-}
-
 /// 局面の項ごとに引く乱数の表。
 ///
 /// 添字の付け方がそのまま鍵の定義になる。**ここを変えると同じ局面から別の鍵が出る**
 /// ので、既に書いた索引は読めなくなる。
 struct ZobristTable {
-    side: [ZobristValue; 2],
-    // board[color][piece_kind(14)][square(81)]
-    board: [[[ZobristValue; 81]; 14]; 2],
-    // hand[color][hand_kind(7)][count(0..=18)]
-    hand: [[[ZobristValue; HAND_COUNT_SLOTS]; 7]; 2],
+    side: [ZobristValue; Color::NUM],
+    // board[手番][駒種][升]
+    board: [[[ZobristValue; Square::NUM]; PieceKind::NUM]; Color::NUM],
+    // hand[手番][持駒の駒種][枚数]
+    hand: [[[ZobristValue; HAND_COUNT_SLOTS]; HAND_KINDS.len()]; Color::NUM],
 }
 
 /// 表は起動ごとに一度だけ作る。約7万項あるので使う側で持ち回らない。
@@ -82,11 +77,11 @@ static ZOBRIST: OnceLock<ZobristTable> = OnceLock::new();
 impl ZobristTable {
     fn new() -> Self {
         let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
-        let mut side = [ZobristValue::ZERO; 2];
-        let mut board = [[[ZobristValue::ZERO; 81]; 14]; 2];
-        let mut hand = [[[ZobristValue::ZERO; HAND_COUNT_SLOTS]; 7]; 2];
+        let mut side = [ZobristValue::ZERO; Color::NUM];
+        let mut board = [[[ZobristValue::ZERO; Square::NUM]; PieceKind::NUM]; Color::NUM];
+        let mut hand = [[[ZobristValue::ZERO; HAND_COUNT_SLOTS]; HAND_KINDS.len()]; Color::NUM];
 
-        for c in 0..2 {
+        for c in 0..Color::NUM {
             side[c] = next128(&mut seed);
             for pk_row in board[c].iter_mut() {
                 for cell in pk_row.iter_mut() {
@@ -130,7 +125,7 @@ fn splitmix64(x: &mut u64) -> u64 {
 /// 「手番がこの色である」ことの項。
 #[inline]
 pub(super) fn side(c: Color) -> ZobristValue {
-    ZOBRIST.get_or_init(ZobristTable::new).side[color_index(c)]
+    ZOBRIST.get_or_init(ZobristTable::new).side[c.array_index()]
 }
 
 /// 「この色のこの駒種が、この升にいる」ことの項。
@@ -140,8 +135,7 @@ pub(super) fn side(c: Color) -> ZobristValue {
 pub(super) fn piece_on_square(piece: Piece, sq: Square) -> ZobristValue {
     let tbl = ZOBRIST.get_or_init(ZobristTable::new);
     let (pk, c) = piece.to_parts();
-    // PieceKind::array_index() が 0..13 を返す想定
-    tbl.board[color_index(c)][pk.array_index()][sq.array_index()]
+    tbl.board[c.array_index()][pk.array_index()][sq.array_index()]
 }
 
 /// 「この色がこの駒種を n 枚持っている」ことの項。
@@ -155,7 +149,7 @@ pub(super) fn piece_on_square(piece: Piece, sq: Square) -> ZobristValue {
 pub(super) fn hand_count(c: Color, kind: PieceKind, n: usize) -> Option<ZobristValue> {
     let tbl = ZOBRIST.get_or_init(ZobristTable::new);
     let hk = HAND_KINDS.iter().position(|k| *k == kind)?;
-    Some(tbl.hand[color_index(c)][hk][n.min(HAND_COUNT_SLOTS - 1)])
+    Some(tbl.hand[c.array_index()][hk][n.min(HAND_COUNT_SLOTS - 1)])
 }
 
 /// 持駒として数える7種。盤を舐める側が全種を引くために要る。
