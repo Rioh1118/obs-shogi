@@ -103,11 +103,11 @@ reviewer 8本が `review-protocol` から受け取る「件数を前提にしな
 
 `aed370b5` は同じ段落の1行前だけ直して、この一文を残した。現物は `kifu.rs` に2本
 （`gote_start_is_written_once_and_survives_a_round_trip` /
-`what_the_write_path_puts_on_disk_can_be_read_back`）で、どちらも kif / ki2 / csa / jkf の
-4形式で書き出し→読み戻しを回している。#372 で入っており、Q-004 が書かれた #119 より後。
+`what_the_write_path_puts_on_disk_can_be_read_back`）ある。**r12 で訂正**: 4形式を書き出して
+読み戻しているのは後者だけで、前者は kif / ki2 の2形式かつディスクを経由しない。#372 で入っており、Q-004 が書かれた #119 より後。
 
 Q-004 は `OPERATING-MODEL.md` が「未着手の宿題」として名指す唯一の項目。**「golden round-trip を
-2〜3時間で書く」を見積もる人が、既に4形式ぶん回っていることを知らないまま着手範囲を決める。**
+2〜3時間で書く」を見積もる人が、既に往復が回っていることを知らないまま着手範囲を決める。**
 
 - 結果: 対応済み `c02ae32a`（無いのは実棋譜のコーパスを通した照合の側なので、そこへ狭めた）
 
