@@ -233,7 +233,10 @@ gate_kinds_for_path() {
     docs/state-transitions/*.md) kinds="$kinds rust" ;;
   esac
   case "$path" in
-    .claude/hooks/*.sh) kinds="$kinds gate" ;;
+    # `gate` は門番自身の検査。`ts` も要る —— `docsIdentifiers` が
+    # `.claude/hooks/*.sh` を走査するので、シェルは `npm run verify` の入力でもある。
+    # 落とすと、**門番を書き換えるコミットでだけ**判定表の識別子の検査が消える。
+    .claude/hooks/*.sh) kinds="$kinds gate ts" ;;
   esac
 
   printf '%s' "${kinds# }"
