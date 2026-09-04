@@ -840,6 +840,19 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// 門番のテストは、**どちらの側を見ているかを名前で名乗る。**
+///
+/// | 綴り | 見ているもの |
+/// | --- | --- |
+/// | `..._is_not_written` | `encode_all` だけ |
+/// | `..._is_refused` | `decode_all` だけ |
+/// | `..._is_neither_written_nor_read` | 両方 |
+///
+/// **数えるときは3つ全部を足す。** 門番は読み書き5対5あるので、
+/// `_is_not_written` だけを数えると足りない。
+///
+/// `is_err()` で終わらせないこと。**別の門番を踏んでも緑になる。**
+/// 実例: 桶の所属の検査を殺すと、いまのテストは `bucket 17 is not sorted` で落ちる。
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1515,7 +1528,7 @@ mod tests {
     /// `checked_file_id` の doc が言うとおり、`zstd` は checksum を書いていないので
     /// 化けた値がここに届くのは前提でよい。
     #[test]
-    fn a_bucket_that_is_out_of_order_or_in_the_wrong_place_is_refused() {
+    fn a_bucket_that_is_out_of_order_or_in_the_wrong_place_is_neither_written_nor_read() {
         let root = Path::new("/tmp/obs-shogi-bucket-guard");
         let mut ft = FileTable::default();
         ft.upsert(FileEntry {
@@ -1633,7 +1646,7 @@ mod tests {
     ///
     /// **`is_occ_alive` は落とさない** — あれが見るのはファイル表だけ。
     #[test]
-    fn occurrences_without_a_node_table_are_refused() {
+    fn occurrences_without_a_node_table_are_neither_written_nor_read() {
         let root = Path::new("/tmp/obs-shogi-no-nt");
         let mut ft = FileTable::default();
         ft.upsert(FileEntry {
