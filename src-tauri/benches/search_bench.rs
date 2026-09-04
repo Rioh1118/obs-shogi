@@ -19,7 +19,8 @@ use std::{
     time::Instant,
 };
 
-use app_lib::search::index::index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy};
+use app_lib::search::index::file_build::bucketize_entries;
+use app_lib::search::index::index_builder::{build_index_for_jkf, BuildPolicy};
 use app_lib::search::position::position_key::{key_from_partial_position, PositionKey};
 use app_lib::search::position::sfen_position::partial_position_from_sfen;
 use app_lib::search::read::fs_scan::{

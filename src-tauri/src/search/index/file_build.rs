@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use crate::search::index::index_builder::{bucketize_entries, build_index_for_jkf, BuildPolicy};
+use crate::search::index::index_builder::{build_index_for_jkf, BuildPolicy};
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::FileRecord;
 use crate::search::read::kifu_reader::read_to_jkf;
@@ -20,6 +20,24 @@ use crate::search::types::{FileId, Gen, Occurrence};
 
 /// 局面の鍵を先頭バイトで振り分けた 256 の桶
 pub type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
+
+/// 1 ファイル分の entries を bucket に振り分け、`(z0, z1)` で stable sort する。
+///
+/// 同一ファイル内では `file_id` は一定、`node_id` も push 順 = 既にソート済みなので
+/// tie-break は不要 (stable sort で挿入順が保たれる)。
+pub fn bucketize_entries(entries: Vec<(PositionKey, Occurrence)>) -> BucketEntries {
+    let mut buckets: BucketEntries = std::array::from_fn(|_| Vec::new());
+
+    for e in entries {
+        buckets[e.0.bucket() as usize].push(e);
+    }
+
+    for b in &mut buckets {
+        b.sort_by_key(|(k, _)| (k.z0, k.z1));
+    }
+
+    buckets
+}
 
 /// 1ファイルぶんの索引の材料。
 ///
