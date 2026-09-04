@@ -4,7 +4,7 @@ import type { CursorLite } from "../api/ids";
 /**
  * Rust の索引が返すカーソルを、盤を辿るのに使える形にする。
  *
- * 索引はいま te 昇順・te 一意で組む（`src-tauri/src/search/index_builder.rs` の
+ * 索引はいま te 昇順・te 一意で組む（`src-tauri/src/search/index/index_builder.rs` の
  * `push_or_replace_fork` が push のたびに `sort_by_key` する）ので、この正規化は
  * 現物に対しては no-op。それでも通すのは、ワイヤ越しに来る `CursorLite` を
  * `CursorPath` の前提（整列済み・`te <= tesuu`）へ合わせる関門を1つに保つため。

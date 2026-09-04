@@ -14,7 +14,7 @@ use crate::search::store::bucket::{
     empty_bucket_segments, BucketEntries, BucketSegments, FileBucketEntries, BUCKET_COUNT,
 };
 
-/// bucket 内のセグメント数がこれを超えたら k-way merge で 1 本に圧縮する。
+/// 桶の中のセグメント数がこれを超えたら k-way マージで1本に畳む。
 const COMPACT_THRESHOLD: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,8 +310,8 @@ impl IndexStore {
     }
 }
 
-/// bucket 内の全 segment を k-way merge し、alive Occurrence のみ残した 1 本の
-/// Segment を返す。エントリが 1 件もなければ None。
+/// 桶の中の全セグメントを k-way マージし、生きている `Occurrence` だけを残した
+/// 1本のセグメントを返す。項目が1件も無ければ `None`。
 fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
     if segs.is_empty() {
         return None;
