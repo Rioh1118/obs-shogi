@@ -83,11 +83,16 @@ describe("codeOf（shell）", () => {
     expect(codeOf("sed -E 's/x//' | tr a b\n", "shell")).toContain("tr a b");
   });
 
-  // 行末は落とせない（`${kinds# }` と区別が付かない）。**落とせないことを固定する** ——
-  // 落とせるつもりで書くと、行末に名前を書いた1行が実在の証拠に戻る
-  test("行末の `#` は落とさない", () => {
-    expect(codeOf("needs_ts=1  # OLD_NAME のこと\n", "shell")).toContain("OLD_NAME");
-    expect(codeOf('kinds="${kinds# }"\n', "shell")).toContain("kinds");
+  // 行末に書いた名前が corpus に残ると、消したものが「実在する」に戻る
+  test("行末の `#` も落とす", () => {
+    expect(codeOf("needs_ts=1  # OLD_NAME のこと\n", "shell")).not.toContain("OLD_NAME");
+    expect(codeOf("needs_ts=1  # OLD_NAME のこと\n", "shell")).toContain("needs_ts=1");
+  });
+
+  // **語の途中の `#` は展開。** 切ると本物のコードが消える
+  test("語の途中の `#` は切らない", () => {
+    expect(codeOf("kinds=${kinds# }\n", "shell")).toContain("${kinds# }");
+    expect(codeOf("if [ $# -eq 0 ]\n", "shell")).toContain("$#");
   });
 
   // 検査の期待値が実装に見えると、消したものが「実在する」に戻る

@@ -9,21 +9,23 @@
 const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, "");
 
 /**
- * シェルの**行頭の**コメントを落とす。
+ * シェルのコメントを落とす。
  *
  * **`//` を落とさない。** `sed -E 's/\\$//'` のような本物のコード行が消える。
  * 逆に `#` は `//` を使う言語では文字列や属性に出るので、こちらも混ぜない。
  * 言語ごとに落とすものが違う、というだけの分岐に留める。
  *
- * **行末のコメントは落とさない。** シェルの `#` は展開の一部でもあるので
- * （`${kinds# }` / `$#`）、行のどこに出ても切ると本物のコードが消える。
- * C 系の `//` と挙動が違う —— あちらは行のどこでも切る。
- * 落とせないぶん、行末に書いた名前は「実在する」に数えられる。
+ * **語頭の `#` だけを切る。** シェルがコメントと読むのもそこだけで、
+ * 語の途中の `#` は展開の一部（`${kinds# }` / `$#`）。行末のコメントも切れる ——
+ * 切らないと、行末に書いた名前が corpus に残って「実在する」に戻る。
+ *
+ * **文字列を先に潰してから来ること**（[`codeOf`] がその順で呼ぶ）。
+ * 引用符の中の ` # ` を先に切ると、閉じない引用符が残って後段が壊れる。
  *
  * 行頭の `#!`（shebang）は残す。落としても困らないが、落とす理由も無い。
  */
 const stripShellComments = (text: string): string =>
-  text.replace(/(^|\n)([ \t]*)#(?!!)[^\n]*/g, "$1$2");
+  text.replace(/(^|\n|[ \t])#(?!!)[^\n]*/g, "$1");
 
 /**
  * シェルの文字列リテラルを落とす。
@@ -73,7 +75,7 @@ function openIndex(text: string): number {
  * 黙って見逃すよりこちらに倒している。落ちた場所は `hitsIn` が行番号で示す。
  */
 export const codeOf = (body: string, lang: "c-like" | "shell" = "c-like"): string => {
-  if (lang === "shell") return stripShellStrings(stripShellComments(body));
+  if (lang === "shell") return stripShellComments(stripShellStrings(body));
 
   let out = "";
   let rest = body;
