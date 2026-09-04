@@ -67,7 +67,8 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 
 **他実装のコードや綴りを引くときは、引用元ごとに著作権者・ライセンス・LICENSE への
 リンクを下の一覧へ足す。** 規律の出所は `research/README.md`（引用元のライセンスと
-著作権者を各ディレクトリの README に書く）。`docs/` の他の場所には掛かっていない。
+著作権者を各ディレクトリの README に書く）。**下の一覧が持つのはこの置き場で引いたものだけ。**
+他の場所で引くときは、そのディレクトリで同じことをすること —— 義務は `docs/` 全体に掛かる。
 
 - `yaneurao/YaneuraOu`（**GPL-3.0**、
   <https://github.com/yaneurao/YaneuraOu/blob/master/LICENSE>）。
