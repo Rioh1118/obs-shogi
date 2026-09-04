@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-04
 - 範囲: r15 の所見7件を直した分（`git diff c0bcc3c7 HEAD -- . ':!.claude/reviews'`）
-- 走らせた reviewer: comment / robustness / oss-hygiene（Rust の差分が無いので3人）
+- 走らせた reviewer: comment / robustness / oss-hygiene
 - 対象コミット: `5a6e6751`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r15.md`
 

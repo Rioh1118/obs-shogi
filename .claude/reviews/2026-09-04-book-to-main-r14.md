@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-04
 - 範囲: r13 の所見6件を直した6コミット（`git diff e1248822 HEAD -- . ':!.claude/reviews'`）
-- 走らせた reviewer: comment / robustness / oss-hygiene（Rust の差分が無いので3人）
+- 走らせた reviewer: comment / robustness / oss-hygiene
 - 対象コミット: `cfaa8251`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r13.md`
 

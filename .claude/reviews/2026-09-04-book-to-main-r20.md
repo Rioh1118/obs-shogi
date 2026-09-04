@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-04
 - 範囲: r19 の所見2件を直した分（`git diff d6336676 HEAD`）＋**未確認範囲の掘り起こし**
-- 走らせた reviewer: comment / oss-hygiene（差分が `.claude/reviews/` だけなので2人）
+- 走らせた reviewer: comment / oss-hygiene
 - 対象コミット: `3ac79afe`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r19.md`
 

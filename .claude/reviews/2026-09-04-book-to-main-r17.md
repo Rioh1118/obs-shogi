@@ -2,7 +2,7 @@
 
 - 日付: 2026-09-04
 - 範囲: r16 の所見3件を直した分（`git diff 5a6e6751 HEAD`）
-- 走らせた reviewer: comment / oss-hygiene（差分が `.claude/reviews/` だけなので2人）
+- 走らせた reviewer: comment / oss-hygiene
 - 対象コミット: `b68c2f0c`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r16.md`
 
