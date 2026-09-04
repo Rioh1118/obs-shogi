@@ -14,9 +14,10 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 **種類で二分しない。** `.rs` だけを触っても ts が走り、`docs/` の中の `.md` だけを
 触っても ts が走る（規約とリンクの検査が、ソースと doc を文字列として読んでいるため）。
-**素通しする条件は種類だけでは決まらない。** 素通しするのは、**判定した時点で
-`git status --untracked-files=no` に出る変更のどれも、種類に当たらないとき**
-（1つも出ない場合を含む）。
+**素通しする条件は種類だけでは決まらない。** ゲートが見るのは、判定した時点で
+`git status --untracked-files=no` に出る**追跡済みの変更**だけ。
+**判定の全体（免除を含む）は `docs/state-transitions/verify-gate-decision.md` が持つ。
+ここに写さない。**
 
 **追跡外のファイルはこの判定に入らない。** PreToolUse はコマンドが走る前に判定するので、
 同じ呼び出しの中で先にツリーを変える git 呼び出しを置くと（`git add -A && git commit` など）
