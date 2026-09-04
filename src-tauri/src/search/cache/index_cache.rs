@@ -19,9 +19,20 @@ use crate::search::store::node_table::NodeTable;
 use crate::search::store::segment::SegmentArc;
 use crate::search::types::{FileEntry, FileId, Occurrence};
 
+/// ログの接頭辞。**3つのマクロがここだけを見る。**
+/// 綴りが割れるとログを grep する側が行を落とすので、直書きしない。
+const LOG_PREFIX: &str = "[index_cache]";
+
 macro_rules! trace {
     ($($t:tt)*) => {
-        log::debug!("[index_cache] {}", format_args!($($t)*));
+        log::debug!("{} {}", LOG_PREFIX, format_args!($($t)*));
+    };
+}
+
+/// 出荷ビルドに残す、失敗ではない記録。いまは復元の統計だけ。
+macro_rules! info {
+    ($($t:tt)*) => {
+        log::info!("{} {}", LOG_PREFIX, format_args!($($t)*));
     };
 }
 
@@ -31,11 +42,15 @@ macro_rules! trace {
 /// 消えては困るのは `save_checkpoint` の失敗だけ —— 画面には何も出ないまま
 /// チェックポイントが残らず、次の起動が毎回全件構築になる（#407）。
 ///
+/// **数える単位は「`Err` を返す出口」で、ログ呼び出しの数ではない。**
+/// `save_checkpoint` の `?` はすべて `err!` を通ること。
+/// `err!` の側から数えると、ログを持たない出口は集合に入らない。
+///
 /// **読む側（`try_restore` / `read_decode`）では使わない。**
 /// あちらは失敗しても全件構築に落ちて画面が進むので、`Info` で消えてよい。
 macro_rules! err {
     ($($t:tt)*) => {
-        log::error!("[index_cache] {}", format_args!($($t)*));
+        log::error!("{} {}", LOG_PREFIX, format_args!($($t)*));
     };
 }
 
@@ -131,7 +146,10 @@ pub fn save_checkpoint(
     path_to_id: &HashMap<String, FileId>,
     next_file_id: FileId,
 ) -> Result<(), String> {
-    let (proj_dir, final_path, bak_path) = cache_paths(app, root_dir)?;
+    let (proj_dir, final_path, bak_path) = cache_paths(app, root_dir).map_err(|e| {
+        err!("チェックポイントを書けない（cache_paths）: {e}");
+        e
+    })?;
     trace!("save_checkpoint BEGIN root_dir={}", root_dir.display());
     trace!(
         "paths proj_dir={} final={} bak={}",
@@ -182,7 +200,10 @@ pub fn save_checkpoint(
             e.to_string()
         })?;
         // zstd level=1 (速い)
-        let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| e.to_string())?;
+        let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| {
+            err!("チェックポイントを書けない（zstd compress）: {e}");
+            e.to_string()
+        })?;
         out.write_all(&compressed).map_err(|e| {
             err!("チェックポイントを書けない（write_all）: {e}");
             e.to_string()
@@ -721,8 +742,8 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     let total_bucket_entries: usize = buckets.iter().map(|v| v.len()).sum();
     let nt_some: usize = nts.by_id_iter().filter(|x| x.is_some()).count();
 
-    log::info!(
-    "[index_cache] restored stats: file_table_len={} node_tables_some={} scan_paths={} path_to_id_len={} next_file_id={} bucket_entries_total={}",
+    info!(
+    "restored stats: file_table_len={} node_tables_some={} scan_paths={} path_to_id_len={} next_file_id={} bucket_entries_total={}",
     ft.len(),
     nt_some,
     scan.by_path.len(),
@@ -860,12 +881,15 @@ impl<'a> Reader<'a> {
 ///
 /// | 綴り | 見ているもの |
 /// | --- | --- |
-/// | `..._is_not_written` | `encode_all` だけ |
-/// | `..._is_refused` | `decode_all` だけ |
-/// | `..._is_neither_written_nor_read` | 両方 |
+/// | `..._not_written` | `encode_all` だけ |
+/// | `..._refused` | `decode_all` だけ |
+/// | `..._neither_written_nor_read` | 両方 |
 ///
-/// **数えるときは3つ全部を足す。** 門番は読み書き5対5あるので、
-/// `_is_not_written` だけを数えると足りない。
+/// **`is` / `are` を綴りに含めない。** 主語の数で決まるので規約にならない
+/// （`occurrences_..._are_...` が1本ある）。
+///
+/// **数えるときは3つ全部を足す。** 読み側6・書き側5あるので、
+/// `_not_written` だけを数えると足りない。
 ///
 /// `is_err()` で終わらせないこと。**別の門番を踏んでも緑になる。**
 /// 実例: 桶の所属の検査を殺すと、いまのテストは `bucket 17 is not sorted` で落ちる。
@@ -879,7 +903,7 @@ mod tests {
     /// `try_restore` が `Err` を返すと呼び手（`commands.rs` の `open_project`）は
     /// 全件の作り直しへ落ちるので、捨てて損はない。
     #[test]
-    fn an_index_written_by_an_older_version_is_rejected() {
+    fn an_index_written_by_an_older_version_is_refused() {
         let mut blob = Vec::new();
         blob.extend_from_slice(&MAGIC);
         write_u32(&mut blob, VERSION - 1);
@@ -1980,7 +2004,6 @@ mod tests {
     ///
     /// `node_id` と**同じ壊れ方**をする（すり替えの実物と理由は
     /// `query_service.rs` の `cursor_lite` の腕）。
-    /// そのヒットが「そのファイルの0手目」として並ぶ。
     #[test]
     fn a_fork_range_outside_the_table_is_refused() {
         use crate::search::store::node_table::{ForkPtr, NodeCursor};
@@ -2089,9 +2112,8 @@ mod tests {
 
     /// **節表の外を指す `node_id` は読まない。**
     ///
-    /// 通すと `cursor_lite` が `None` を返し、
-    /// その局面のヒットが**「そのファイルの0手目」として画面に並ぶ**
-    /// （`query_service`）。押すと開始局面へ跳ぶので、正常な結果に見える。
+    /// 通すと `cursor_lite` が `None` を返す。その先の壊れ方は
+    /// `query_service.rs` の `cursor_lite` の腕。
     ///
     /// 桶や並びと同じくビット化けが相手なので、書けた blob を壊して確かめる。
     #[test]

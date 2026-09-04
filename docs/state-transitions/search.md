@@ -291,8 +291,7 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
-`src-tauri/tests/` にあるのはリポジトリ横断の検査で、
-状態機械そのものを回すものは無い。
+状態機械そのものを回すものは `src-tauri/tests/` にも `#[cfg(test)]` にも無い。
 
 ## この表が拾ったもの
 

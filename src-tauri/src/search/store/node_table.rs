@@ -79,8 +79,12 @@ impl NodeTableBuilder {
     /// **「起動が毎回遅い」だけ**で原因を辿る手掛かりが無い。
     /// 分岐路の共通接頭辞を使い回すような最適化を入れるなら、先に `encode_all` を見ること。
     ///
-    /// `fork_path` が `u16::MAX` を超えると `fork_len` は切り捨てで**小さくなる**ので、
-    /// 不変条件そのものは破れない（`cursor_lite` が短い経路を返すだけ）。
+    /// # Panics
+    ///
+    /// `fork_path` が `u16::MAX` を超えると debug ビルドで `debug_assert!` が落とす
+    /// （`cargo test` も `npm run tauri dev` も debug）。release では `fork_len` が
+    /// 切り捨てで**小さくなる**ので不変条件そのものは破れず、
+    /// `cursor_lite` が短い経路を返すだけになる。
     pub fn push_node(&mut self, tesuu: u32, fork_path: &[ForkPointer]) -> u32 {
         let node_id = self.nodes.len() as u32;
 
