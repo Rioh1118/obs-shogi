@@ -600,8 +600,24 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     // ---- node tables ----
     let nt_len = r.read_len(min_bytes::NODE_TABLE)?;
     let mut nts = NodeTables::default();
+    // 節表の `file_id` は狭義単調増加。**`encode_all` が `by_id_iter().enumerate()` で
+    // 書くので昇順かつ一意**（同じ関数の `node tables` の節）。
+    //
+    // これを見ないと `NodeTables::upsert` が黙って上書きする。後の節表の `file_id` が
+    // 1ビット化けて前のものに一致すると（`7 → 5`）、前のファイルの節表が差し替わり、
+    // **そのファイルの全ヒットが別の棋譜の `tesuu` / `fork_path` を持つ。**
+    // 出現側の `node_id` 検査は節数が足りていれば通るので気付けない。
+    // `node_id` の化けは0手目に落ちるので気付けるが、**こちらはそれらしい局面が出る。**
+    let mut prev_nt_file_id: Option<FileId> = None;
     for _ in 0..nt_len {
         let file_id = checked_file_id(r.read_u32()?, ft_len)?;
+        if prev_nt_file_id.is_some_and(|p| file_id <= p) {
+            return Err(format!(
+                "node table file_id {file_id} is not after {}",
+                prev_nt_file_id.expect("is_some_and が真なので入っている")
+            ));
+        }
+        prev_nt_file_id = Some(file_id);
         let nodes_len = r.read_len(min_bytes::NODE)?;
         let forks_len = r.read_len(min_bytes::FORK)?;
 
@@ -2175,6 +2191,124 @@ mod tests {
         match decode_all(&broken, root) {
             Ok(_) => panic!("節表の外を指す node_id を読んでしまった"),
             Err(e) => assert!(e.contains("is out of range"), "別の門番で落ちている: {e}"),
+        }
+    }
+
+    /// **同じ `file_id` の節表が2つある blob は読まない。**
+    ///
+    /// 通すと `NodeTables::upsert` が黙って上書きし、**上書きされた側の全ヒットが
+    /// 別の棋譜の `tesuu` / `fork_path` を持つ。** 出現側の `node_id` 検査は
+    /// 節数が足りていれば通るので、`decode_all` はどこでも `Err` を返さない。
+    ///
+    /// `node_id` の化けは0手目に落ちるので気付けるが、**こちらはそれらしい局面が出る。**
+    ///
+    /// 書く側は `by_id_iter().enumerate()` で書くので重複を作れない。**読む側だけ。**
+    #[test]
+    fn a_node_table_that_is_not_after_the_previous_one_is_refused() {
+        use crate::search::store::node_table::NodeTableBuilder;
+        use crate::search::types::ForkPointer;
+
+        let root = Path::new("/tmp/obs-shogi-nt-dup");
+        let mut ft = FileTable::default();
+        for (id, path) in [(1u32, "a.kif"), (2u32, "b.kif")] {
+            ft.upsert(FileEntry {
+                file_id: id,
+                path: path.to_owned(),
+                deleted: false,
+                r#gen: 1,
+            });
+        }
+
+        // file 1 と file 2 に、長さの違う節表を持たせる
+        let mut nts = NodeTables::default();
+        for (id, nodes) in [(1u32, 2usize), (2u32, 3usize)] {
+            let mut b = NodeTableBuilder::new();
+            for n in 0..nodes {
+                b.push_node(
+                    n as u32,
+                    &[ForkPointer {
+                        te: n as u32,
+                        fork_index: 0,
+                    }],
+                );
+            }
+            nts.upsert(id, Arc::new(b.finish()));
+        }
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32), ("b.kif".to_owned(), 2u32)]
+                .into_iter()
+                .collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![
+                FileRecord {
+                    path: PathBuf::from("/tmp/obs-shogi-nt-dup/a.kif"),
+                    kind: KifuKind::Kif,
+                    size: 10,
+                    mtime_ms: 1,
+                },
+                FileRecord {
+                    path: PathBuf::from("/tmp/obs-shogi-nt-dup/b.kif"),
+                    kind: KifuKind::Kif,
+                    size: 10,
+                    mtime_ms: 1,
+                },
+            ],
+        );
+
+        // 出現は file 1 に1件だけ。**file 2 は出現ゼロ** ——
+        // 削除された棋譜・読めなかった棋譜がこの形（`search.md` の節表の行）
+        let key = PositionKey {
+            z0: 0x7700_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[key.bucket() as usize].push((
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 1,
+            },
+        ));
+
+        let ctx = EncodeCtx {
+            root_dir: root,
+            scan: &scan,
+            path_to_id: &path_to_id,
+            next_file_id: 3,
+            ft: &ft,
+            nts: &nts,
+        };
+        let mut good = Vec::new();
+        encode_all(&mut good, &ctx, &buckets).expect("書けない");
+        assert!(decode_all(&good, root).is_ok(), "正しい blob を弾いている");
+
+        // file 2 の節表の頭（`file_id=2` / `nodes=3` / `forks=3`）を狙う
+        let head: Vec<u8> = 2u32
+            .to_le_bytes()
+            .iter()
+            .chain(3u32.to_le_bytes().iter())
+            .chain(3u32.to_le_bytes().iter())
+            .copied()
+            .collect();
+        let hits = good
+            .windows(head.len())
+            .filter(|w| *w == head.as_slice())
+            .count();
+        assert_eq!(hits, 1, "節表の頭と同じ並びが blob に {hits} 箇所ある");
+        let at = good
+            .windows(head.len())
+            .position(|w| w == head.as_slice())
+            .expect("節表の頭が blob に載っている");
+
+        // 2 → 1 は1ビット反転。file 1 の節表が黙って差し替わる形
+        let mut broken = good.clone();
+        broken[at] = 1;
+        match decode_all(&broken, root) {
+            Ok(_) => panic!("同じ file_id の節表を2つ読んでしまった"),
+            Err(e) => assert!(e.contains("is not after"), "別の門番で落ちている: {e}"),
         }
     }
 }
