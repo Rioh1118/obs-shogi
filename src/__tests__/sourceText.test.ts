@@ -133,6 +133,16 @@ describe("codeOf（shell）", () => {
     expect(codeOf(line, "shell")).not.toContain("root_guard");
     expect(codeOf(line, "shell")).toContain("expect_kinds");
   });
+
+  // **空の `""` も1つの引用として食う。** 食わないと組が1つずれ、
+  // 隣の引用の中身がまるごと残る。`verify-gate.test.sh` は空を第1引数に置く形を
+  // 実際に使っているので、ずれた側が corpus に混ざって「実在する」に戻る
+  test("空の引用符も落とす", () => {
+    const line = 'expect_dir "" "GIT_DIR=$target/.git git commit -m x" "$here"\n';
+
+    expect(codeOf(line, "shell")).not.toContain("GIT_DIR");
+    expect(codeOf(line, "shell")).toContain("expect_dir");
+  });
 });
 
 /** コメント除去を自前で書いている検査を見つける綴り */
