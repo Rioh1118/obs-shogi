@@ -16,7 +16,7 @@
 | `src-tauri/tests/state_table_terms.rs`         | `TABLES` / `NOT_RUST` / `NOT_IDENTIFIERS` への登録             |
 | `src-tauri/tests/test_count_ratchet.rs`        | `EXPECTED_MIN` 190 → 259                                       |
 
-所見 **17件**（BLOCK 0 / HIGH 3 / MEDIUM 14）。
+所見 **22件**（BLOCK 0 / HIGH 3 / MEDIUM 19）。うち5件は最初の集約で落とし、後から追記した。
 
 ---
 
