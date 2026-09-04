@@ -674,9 +674,11 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
 
             // 節表はここより前に読み終わっているので、範囲を突き合わせられる。
             // **範囲内の別の節を指す化け方は通る** — 値としてあり得るので見分けられない
-            // 出現を持つ `file_id` は必ず節表を持つ。入れるのは
-            // `store/index_store.rs` の `insert_many_file_segments`（構築・更新）と
-            // `install_restored`（復元）で、どちらもファイル表と節表を対で受ける。
+            // 出現を持つ `file_id` は必ず節表を持つ。対で入れるのは
+            // `store/index_store.rs` の `insert_many_file_segments` だけで、
+            // あれは `(FileEntry, NodeTableArc, BucketEntries)` の三つ組を受ける。
+            // 復元の `install_restored` は表を丸ごと別々の引数で受けるので対を
+            // 担保しない —— **復元の経路でこの不変条件を保つのはこの検査自身。**
             //
             // **表が無いことも壊れている合図。**
             let nodes = match nts.get(file_id) {
@@ -1619,8 +1621,7 @@ mod tests {
 
     /// **出現があるのに節表が無い blob も読まない。**
     ///
-    /// 入れるのは `store/index_store.rs` の `insert_many_file_segments` と
-    /// `install_restored` で、どちらもファイル表と節表を対で受ける。
+    /// なぜ塞ぐかは `decode_all` の同じ検査に書いてある。
     /// この形は壊れている合図。
     ///
     /// **`is_occ_alive` は落とさない** — あれが見るのはファイル表だけ。
