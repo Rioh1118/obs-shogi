@@ -1,6 +1,5 @@
 use std::{
-    cmp::Ordering,
-    collections::{BinaryHeap, HashMap},
+    collections::HashMap,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -13,10 +12,10 @@ use tauri::{AppHandle, Manager};
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
+use crate::search::store::compaction::compact_bucket_entries;
 use crate::search::store::file_table::FileTable;
 use crate::search::store::node_table::NodeTable;
 use crate::search::store::node_table::NodeTables;
-use crate::search::store::segment::SegmentArc;
 use crate::search::store::snapshot::IndexSnapshot;
 use crate::search::types::{FileEntry, FileId, Occurrence};
 
@@ -299,86 +298,12 @@ fn read_decode(path: &Path, root_dir: &Path) -> Result<RestoredCache, String> {
 // compaction
 // --------------------
 
+/// 桶ごとに畳んで、書き出せる素材にする。
+///
+/// **畳み方は `store/compaction.rs` が持つ。** ここで別に組むと、
+/// 同じ鍵が並んだときの尾が食い違って、blob の並びと索引の並びがずれる。
 fn compact_all_buckets(snap: &IndexSnapshot) -> BucketEntries {
-    std::array::from_fn(|b| compact_bucket(&snap.buckets[b], snap.file_table.as_ref()))
-}
-
-#[derive(Clone, Copy)]
-struct HeapItem {
-    key: PositionKey,
-    occ: Occurrence,
-    seg: usize,
-    idx: usize,
-}
-
-impl Ord for HeapItem {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // min-heap にしたいので reverse。tie-break も固定（決定性）。
-        // **鍵の並びは `PositionKey` の `Ord`。** ここで組み直さない
-        (other.key, other.occ.file_id, other.occ.node_id).cmp(&(
-            self.key,
-            self.occ.file_id,
-            self.occ.node_id,
-        ))
-    }
-}
-impl PartialOrd for HeapItem {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl PartialEq for HeapItem {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-            && self.occ.file_id == other.occ.file_id
-            && self.occ.node_id == other.occ.node_id
-    }
-}
-impl Eq for HeapItem {}
-
-fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Vec<(PositionKey, Occurrence)> {
-    if segs.is_empty() {
-        return Vec::new();
-    }
-
-    let mut heap = BinaryHeap::<HeapItem>::new();
-
-    for (si, seg) in segs.iter().enumerate() {
-        if seg.is_empty() {
-            continue;
-        }
-        let key = seg.key_at(0);
-        let occ = seg.occ_at(0);
-        heap.push(HeapItem {
-            key,
-            occ,
-            seg: si,
-            idx: 0,
-        });
-    }
-
-    let mut out: Vec<(PositionKey, Occurrence)> = Vec::new();
-
-    while let Some(item) = heap.pop() {
-        if ft.is_occ_alive(item.occ.file_id, item.occ.r#gen) {
-            out.push((item.key, item.occ));
-        }
-
-        let next_i = item.idx + 1;
-        let seg = &segs[item.seg];
-        if next_i < seg.len() {
-            let key = seg.key_at(next_i);
-            let occ = seg.occ_at(next_i);
-            heap.push(HeapItem {
-                key,
-                occ,
-                seg: item.seg,
-                idx: next_i,
-            });
-        }
-    }
-
-    out
+    std::array::from_fn(|b| compact_bucket_entries(&snap.buckets[b], snap.file_table.as_ref()))
 }
 
 // --------------------
