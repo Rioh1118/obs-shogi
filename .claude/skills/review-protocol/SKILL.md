@@ -17,7 +17,7 @@ user-invocable: false
 
 ## このプロジェクトの実態（前提を間違えないこと）
 
-- テストは TS / Rust の両方にある。**件数を前提にしない**（現在値は `npm run test` と `cargo test` の末尾）。
+- テストは TS / Rust の両方にある。**件数を前提にしない**（現在値の取り方は `CLAUDE.md` の「テストの現状」）。
   ただし `cargo test` の green は `src/` の振る舞いを網羅していない。「テストが通るので安全」と書かない
 - 検証は `npm run verify`（tsc + oxlint + vitest、約8秒）と `npm run verify:rust`（fmt + clippy + test、約2分15秒）
 - E2E は無い。今後も作らない（`tauri-driver` が macOS 非対応のため）
