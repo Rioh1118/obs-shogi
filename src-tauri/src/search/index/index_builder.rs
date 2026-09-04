@@ -205,10 +205,10 @@ impl IndexBuilder {
     ) -> Result<(), BuildError> {
         for (offset, node) in seq.iter().enumerate() {
             let tesuu = start_tesuu + offset as u32;
-            let parent_pos = pos.clone();
-            let parent_key = key;
 
-            // forks
+            // **変化は、この節の手を指す前に降りる。** 変化はこの手の
+            // 代わりに指されるものなので、始まりの盤は指す前の局面。
+            // 指した後に降りると、変化の中の局面が全部ずれて別の鍵になる
             if let Some(forks) = &node.forks {
                 for (i, fork_line) in forks.iter().enumerate() {
                     if fork_line.is_empty() {
@@ -217,13 +217,7 @@ impl IndexBuilder {
                     let mut fork_path2 = fork_path.clone();
                     push_or_replace_fork(&mut fork_path2, tesuu, i as u32);
 
-                    self.walk_sequence(
-                        fork_line,
-                        tesuu,
-                        parent_pos.clone(),
-                        parent_key,
-                        fork_path2,
-                    )?;
+                    self.walk_sequence(fork_line, tesuu, pos.clone(), key, fork_path2)?;
                 }
             }
 
