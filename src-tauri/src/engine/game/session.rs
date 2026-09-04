@@ -23,7 +23,8 @@
 //! 表は `docs/state-transitions/game-session.md`。**このファイルの `G` / `A` / `E` は
 //! その表の記号。** 記号は表ごとに閉じていて、`G0`〜`G2` は `game.md` の、
 //! `A0`〜`A4` は `app.md`（上位の表）の同じ綴りと完全に重なる。どちらも別物。
-//! **`F-N` は別枠**で、`failure-surfacing.md` が1箇所で採番している失敗の番号。
+//! **`F-N` は別枠**で、`failure-surfacing.md` が採番している失敗の番号
+//! （`.claude/reviews/` の所見番号とは無関係）。
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
