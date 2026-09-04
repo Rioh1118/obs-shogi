@@ -38,9 +38,10 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill, Agent
 `npm run verify` は**ビルドを含まない**。SCSS を触ったら `npm run build` も通す。
 
 **verify を通してから `git commit` する。** ゲートが deny したときは `git commit` 自体が
-走らないので手元は変わらない。危ないのは**その先** —— ゲートを通った後に pre-commit
-（`vp staged`）が落ちると、そちらがワークツリーを復元する。**その巻き戻しで直前の編集が消える。**
-「直したはずの値が戻っている」という形で出るので、原因に見えにくい。
+走らないので手元は変わらない。ゲートを通った後に pre-commit（`vp staged`）が落ちると
+`Reverting to original state` が走るが、**巻き戻るのはその回に `vp check --fix` が当てた
+整形だけ。** 手元の編集（ステージ済み・未ステージ・追跡外）は残るので、
+落ちた原因を直してもう一度コミットすればよい。
 
 ## 手順4: レビューの厚さを決める
 
