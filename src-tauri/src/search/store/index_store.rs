@@ -316,16 +316,19 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
         return None;
     }
 
-    #[derive(Clone, Copy)]
+    /// **鍵の並びは `PositionKey` の `Ord` に任せる。** ここで組み直すと、
+    /// 並べる側と食い違ったときに畳んだ結果の順序が壊れる。
+    /// `seg` / `idx` は同じ鍵が並んだときの決定性のためだけの尾。
+    #[derive(Clone, Copy, PartialEq, Eq)]
     struct HeapItem {
-        z0: u64,
-        z1: u64,
+        key: PositionKey,
         seg: usize,
         idx: usize,
     }
     impl Ord for HeapItem {
         fn cmp(&self, other: &Self) -> Ordering {
-            (other.z0, other.z1, other.seg, other.idx).cmp(&(self.z0, self.z1, self.seg, self.idx))
+            // `BinaryHeap` は最大ヒープなので、最小を取り出すために反転する
+            (other.key, other.seg, other.idx).cmp(&(self.key, self.seg, self.idx))
         }
     }
     impl PartialOrd for HeapItem {
@@ -333,15 +336,6 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
             Some(self.cmp(other))
         }
     }
-    impl PartialEq for HeapItem {
-        fn eq(&self, other: &Self) -> bool {
-            self.z0 == other.z0
-                && self.z1 == other.z1
-                && self.seg == other.seg
-                && self.idx == other.idx
-        }
-    }
-    impl Eq for HeapItem {}
 
     let total: usize = segs.iter().map(|s| s.len()).sum();
     let mut z0 = Vec::with_capacity(total);
@@ -357,8 +351,7 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
         }
         let key = seg.key_at(0);
         heap.push(HeapItem {
-            z0: key.z0,
-            z1: key.z1,
+            key,
             seg: si,
             idx: 0,
         });
@@ -368,8 +361,8 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
         let seg = &segs[item.seg];
         let occ = seg.occ_at(item.idx);
         if ft.is_occ_alive(occ.file_id, occ.r#gen) {
-            z0.push(item.z0);
-            z1.push(item.z1);
+            z0.push(item.key.z0);
+            z1.push(item.key.z1);
             file_ids.push(occ.file_id);
             gens.push(occ.r#gen);
             node_ids.push(occ.node_id);
@@ -379,8 +372,7 @@ fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segment> {
         if next < seg.len() {
             let key = seg.key_at(next);
             heap.push(HeapItem {
-                z0: key.z0,
-                z1: key.z1,
+                key,
                 seg: item.seg,
                 idx: next,
             });

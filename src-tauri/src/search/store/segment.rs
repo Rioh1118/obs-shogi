@@ -75,9 +75,17 @@ impl Segment {
         self.z0.len()
     }
 
+    /// `idx` の鍵と `key` を比べる。**並びの規約は `PositionKey` の `Ord`。**
+    ///
+    /// 列に割って持っているのは二分探索のためで、順序まで自前で組むと
+    /// 並べる側（`store/bucket.rs`）と食い違ったときに黙って外す。
     #[inline]
     fn cmp_at(&self, idx: usize, key: PositionKey) -> std::cmp::Ordering {
-        (self.z0[idx], self.z1[idx]).cmp(&(key.z0, key.z1))
+        PositionKey {
+            z0: self.z0[idx],
+            z1: self.z1[idx],
+        }
+        .cmp(&key)
     }
 
     fn lower_bound(&self, key: PositionKey) -> usize {
@@ -137,5 +145,59 @@ impl Segment {
 
     pub fn iter_entries(&self) -> impl Iterator<Item = (PositionKey, Occurrence)> + '_ {
         (0..self.z0.len()).map(|i| (self.key_at(i), self.occ_at(i)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::store::bucket::bucketize_entries;
+
+    fn occ(node_id: u32) -> Occurrence {
+        Occurrence {
+            file_id: 1,
+            r#gen: 1,
+            node_id,
+        }
+    }
+
+    /// **並べる側と探す側が同じ順序を使う。**
+    ///
+    /// 桶へ振り分けて整列するのは `store/bucket.rs`、そこから塊を作って
+    /// 二分探索するのはここ。どちらも `PositionKey` の `Ord` を通るので
+    /// 一致するはずだが、片方が自前で組み直すと**黙って外す** — 検索が0件に
+    /// なるか別の局面を返すかで、エラーも警告も出ない。
+    ///
+    /// `z0` を揃えて `z1` だけが違う鍵を混ぜてある。上位だけで比べると
+    /// この組が見分けられなくなる。
+    #[test]
+    fn every_key_that_was_sorted_in_can_be_found_again() {
+        let entries: Vec<(PositionKey, Occurrence)> = vec![
+            (PositionKey { z0: 7, z1: 300 }, occ(0)),
+            (PositionKey { z0: 7, z1: 100 }, occ(1)),
+            (PositionKey { z0: 7, z1: 200 }, occ(2)),
+            (PositionKey { z0: 3, z1: 999 }, occ(3)),
+            (PositionKey { z0: 9, z1: 0 }, occ(4)),
+        ];
+
+        // 本番と同じ経路で並べる
+        let buckets = bucketize_entries(entries.clone());
+        let sorted: Vec<(PositionKey, Occurrence)> = buckets.into_iter().flatten().collect();
+        let seg = Segment::new_sorted(sorted);
+
+        for (key, o) in &entries {
+            let (lo, hi) = seg.range_by_key(*key);
+            assert!(lo < hi, "並べた鍵が引けない: {key:?}");
+
+            let found: Vec<u32> = (lo..hi).map(|i| seg.occ_at(i).node_id).collect();
+            assert!(
+                found.contains(&o.node_id),
+                "別の鍵の場所を指している: {key:?} → {found:?}"
+            );
+        }
+
+        // 入れていない鍵は引けない
+        let (lo, hi) = seg.range_by_key(PositionKey { z0: 7, z1: 150 });
+        assert_eq!(lo, hi, "入れていない鍵が引けた");
     }
 }

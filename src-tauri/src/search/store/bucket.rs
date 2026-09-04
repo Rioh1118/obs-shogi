@@ -45,7 +45,8 @@ pub fn bucketize_entries(entries: Vec<(PositionKey, Occurrence)>) -> BucketEntri
     }
 
     for b in &mut buckets {
-        b.sort_by_key(|(k, _)| (k.z0, k.z1));
+        // 並びの規約は `PositionKey` の `Ord` が持つ。ここで組み直さない
+        b.sort_by_key(|(k, _)| *k);
     }
 
     buckets

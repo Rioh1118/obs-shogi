@@ -275,15 +275,13 @@ struct HeapItem {
 
 impl Ord for HeapItem {
     fn cmp(&self, other: &Self) -> Ordering {
-        // min-heap にしたいので reverse
-        // tie-break も固定（決定性）
-        (
-            other.key.z0,
-            other.key.z1,
-            other.occ.file_id,
-            other.occ.node_id,
-        )
-            .cmp(&(self.key.z0, self.key.z1, self.occ.file_id, self.occ.node_id))
+        // min-heap にしたいので reverse。tie-break も固定（決定性）。
+        // **鍵の並びは `PositionKey` の `Ord`。** ここで組み直さない
+        (other.key, other.occ.file_id, other.occ.node_id).cmp(&(
+            self.key,
+            self.occ.file_id,
+            self.occ.node_id,
+        ))
     }
 }
 impl PartialOrd for HeapItem {
@@ -293,8 +291,7 @@ impl PartialOrd for HeapItem {
 }
 impl PartialEq for HeapItem {
     fn eq(&self, other: &Self) -> bool {
-        self.key.z0 == other.key.z0
-            && self.key.z1 == other.key.z1
+        self.key == other.key
             && self.occ.file_id == other.occ.file_id
             && self.occ.node_id == other.occ.node_id
     }
