@@ -14,8 +14,9 @@ use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
 use crate::search::store::file_table::FileTable;
-use crate::search::store::index_store::{IndexSnapshot, NodeTables};
+use crate::search::store::index_store::IndexSnapshot;
 use crate::search::store::node_table::NodeTable;
+use crate::search::store::node_table::NodeTables;
 use crate::search::store::segment::SegmentArc;
 use crate::search::types::{FileEntry, FileId, Occurrence};
 

@@ -1,8 +1,52 @@
 use std::sync::Arc;
 
-use crate::search::types::{CursorLite, ForkPointer};
+use crate::search::types::{CursorLite, FileId, ForkPointer};
 
 pub type NodeTableArc = Arc<NodeTable>;
+
+/// `file_id` から、その棋譜の節表を引く表。
+///
+/// **添字がそのまま `file_id`。** `file_id` は棋譜を1つ見つけるたびに 0 から
+/// 振っていく密な番号なので、`HashMap` でなく `Vec` の穴あき配列で足りる。
+/// `None` は「その `file_id` に節表が無い」——削除された棋譜、読めなかった棋譜、
+/// まだ作っていない棋譜。
+///
+/// **穴は普通に空く。** 出現ゼロの節表が blob に載るのはそのため
+/// （`docs/state-transitions/search.md` のビット化けの表）。
+#[derive(Debug, Clone, Default)]
+pub struct NodeTables {
+    by_id: Vec<Option<NodeTableArc>>,
+}
+
+impl NodeTables {
+    /// その棋譜の節表。無ければ `None`。
+    pub fn get(&self, file_id: FileId) -> Option<&NodeTableArc> {
+        self.by_id.get(file_id as usize)?.as_ref()
+    }
+
+    /// 足りなければ `None` で伸ばしてから入れる。**縮まない。**
+    ///
+    /// **同じ `file_id` に2度入れると黙って上書きする。** 復元の経路では
+    /// それが起きないことを `cache/index_cache.rs` の `decode_all` が
+    /// 節表の `file_id` の並びで縛っている（破れると、上書きされた側の
+    /// 全ヒットが別の棋譜の手数を持つ）。
+    pub fn upsert(&mut self, file_id: FileId, nt: NodeTableArc) {
+        let idx = file_id as usize;
+        if self.by_id.len() <= idx {
+            self.by_id.resize_with(idx + 1, || None);
+        }
+        self.by_id[idx] = Some(nt);
+    }
+
+    /// `file_id` の昇順。**穴（`None`）も含めて全部返す。**
+    ///
+    /// 添字が `file_id` なので、`enumerate()` の添字をそのまま使える。
+    /// `cache/index_cache.rs` の `encode_all` がそれを使って
+    /// 節表を昇順かつ一意に書く。
+    pub fn by_id_iter(&self) -> impl Iterator<Item = &Option<NodeTableArc>> {
+        self.by_id.iter()
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct NodeTable {

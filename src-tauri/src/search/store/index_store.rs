@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::BinaryHeap, sync::Arc};
 
 use parking_lot::RwLock;
 
-use crate::search::store::node_table::NodeTableArc;
+use crate::search::store::node_table::{NodeTableArc, NodeTables};
 use crate::search::types::Occurrence;
 
 use crate::search::position::position_key::PositionKey;
@@ -24,29 +24,6 @@ pub enum IndexState {
     Building,
     Ready,
     Updating,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct NodeTables {
-    by_id: Vec<Option<NodeTableArc>>,
-}
-
-impl NodeTables {
-    pub fn get(&self, file_id: FileId) -> Option<&NodeTableArc> {
-        self.by_id.get(file_id as usize)?.as_ref()
-    }
-
-    pub fn upsert(&mut self, file_id: FileId, nt: NodeTableArc) {
-        let idx = file_id as usize;
-        if self.by_id.len() <= idx {
-            self.by_id.resize_with(idx + 1, || None);
-        }
-        self.by_id[idx] = Some(nt);
-    }
-
-    pub fn by_id_iter(&self) -> impl Iterator<Item = &Option<NodeTableArc>> {
-        self.by_id.iter()
-    }
 }
 
 #[derive(Debug, Clone)]

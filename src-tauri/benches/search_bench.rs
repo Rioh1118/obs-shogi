@@ -29,7 +29,8 @@ use app_lib::search::read::kifu_reader::read_to_jkf;
 use app_lib::search::read::outcome::ReadOutcome;
 use app_lib::search::store::bucket::{bucketize_entries, empty_bucket_segments, BucketSegments};
 use app_lib::search::store::file_table::FileTable;
-use app_lib::search::store::index_store::{IndexSnapshot, IndexState, NodeTables};
+use app_lib::search::store::index_store::{IndexSnapshot, IndexState};
+use app_lib::search::store::node_table::NodeTables;
 use app_lib::search::store::segment::Segment;
 use app_lib::search::types::{FileEntry, Occurrence};
 
