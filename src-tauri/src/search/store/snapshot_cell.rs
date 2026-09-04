@@ -28,6 +28,7 @@ pub struct SnapshotCell<T> {
 }
 
 impl<T> SnapshotCell<T> {
+    /// 初期値を入れて作る。**本番は `Default` を通る**ので、いまの呼び手はテストだけ。
     pub fn new(value: T) -> Self {
         Self {
             inner: RwLock::new(Arc::new(value)),

@@ -12,7 +12,7 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 
 ## 状態
 
-状態を持つのは `IndexStore` の `snap`（`RwLock<Arc<IndexSnapshot>>`）1つだけ。
+状態を持つのは `IndexStore`（中身は `SnapshotCell<IndexSnapshot>`）1つだけ。
 `IndexSnapshot.state` が下の記号に対応する。
 
 | 記号  | `IndexState` | 判定条件                                                    | 中身               |

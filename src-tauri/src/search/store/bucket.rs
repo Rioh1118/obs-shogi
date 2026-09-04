@@ -1,9 +1,9 @@
 //! 索引を桶で分ける。**桶の数と、桶に分けた形の持ち主。**
 //!
 //! 引くときに開くのは `key.bucket()` の桶だけで、他は触らない
-//! （`store/index_store.rs` の `search_occurrences_by_key`）。
+//! （`store/snapshot.rs` の `search_occurrences_by_key`）。
 //!
-//! 桶ごとのセグメントが増えすぎたら1本に畳む（同ファイルの `compact_bucket`）。
+//! 桶ごとのセグメントが増えすぎたら1本に畳む（`store/compaction.rs`）。
 //!
 //! **数を決めているのは [`PositionKey::bucket`] の戻りの型。** どちらか片方を
 //! 動かすと、ディスクに書いた索引が読めなくなる。

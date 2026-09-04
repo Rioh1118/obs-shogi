@@ -307,9 +307,8 @@ impl ProjectManager {
         g.next_file_id = next_file_id;
     }
 
-    /// 1 ファイル分の build を spawn_blocking で行い、 store に直接書き込まずに
-    /// FileBucketEntries を返す。 run_rescan_diff_apply 側で batch 化して
-    /// insert_many_file_segments を 1 回呼ぶ用。
+    /// 1ファイル分の構築を `spawn_blocking` で行い、`store` に直接書かずに
+    /// `FileBucketEntries` を返す。呼び手が束ねて `with_files` を1回呼ぶ用。
     async fn build_one_file(
         &self,
         app: &AppHandle,

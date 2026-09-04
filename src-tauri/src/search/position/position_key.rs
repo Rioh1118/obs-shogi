@@ -33,7 +33,7 @@ use super::zobrist::{self, ZobristValue};
 ///
 /// **`z0` → `z1` の辞書順。** `derive` した `Ord` がその規約の唯一の持ち主で、
 /// 索引を並べる側（`store/bucket.rs`）と探す側（`store/segment.rs` の二分探索）と
-/// 束ねる側（`store/index_store.rs` / `cache/index_cache.rs`）が全部これを通る。
+/// 束ねる側（`store/compaction.rs`）が全部これを通る。
 ///
 /// **食い違うと二分探索が黙って外す** — 検索が0件になるか別の局面を返すかで、
 /// エラーも警告も出ない。欄の宣言順を変えると並びが変わるので、

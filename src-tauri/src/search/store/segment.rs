@@ -19,8 +19,21 @@ pub struct Segment {
 }
 
 impl Segment {
-    /// `entries` は (z0,z1) 昇順ソート済みであること。
+    /// `entries` は鍵の昇順であること。**並べ直さない。**
+    ///
+    /// 崩れていると二分探索が黙って外す（検索が0件になるか別の局面を返す）。
+    /// 作る側は2つ —— 取り込みは `store/bucket.rs` の `bucketize_entries`、
+    /// 畳んだ結果は `store/compaction.rs`。
+    ///
+    /// # Panics
+    ///
+    /// debug ビルドで、昇順でない `entries` を渡すと落ちる
+    /// （`cargo test` も `npm run tauri dev` も debug）。
     pub fn new_sorted(entries: Vec<(PositionKey, Occurrence)>) -> Self {
+        debug_assert!(
+            entries.windows(2).all(|w| w[0].0 <= w[1].0),
+            "鍵の昇順でない entries を Segment に詰めようとしている"
+        );
         let n = entries.len();
         let mut z0 = Vec::with_capacity(n);
         let mut z1 = Vec::with_capacity(n);
@@ -168,7 +181,7 @@ mod tests {
     /// 一致するはずだが、片方が自前で組み直すと**黙って外す** — 検索が0件に
     /// なるか別の局面を返すかで、エラーも警告も出ない。
     ///
-    /// **桶ごとに1本のセグメントを作る**（`store/index_store.rs` と同じ形）。
+    /// **桶ごとに1本のセグメントを作る**（`store/snapshot.rs` と同じ形）。
     /// 全桶を1本に平らにすると、振り分けを1度も検査しないまま
     /// 「本番と同じ経路」を名乗ることになる。
     ///

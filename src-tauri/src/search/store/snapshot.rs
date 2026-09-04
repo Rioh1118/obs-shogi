@@ -4,7 +4,7 @@
 //! ロックを知らないので、そのままテストできる。置き換えは
 //! [`SnapshotCell`](super::snapshot_cell::SnapshotCell) の仕事。
 //!
-//! **ここが変わるのは索引に何が入るかが変わるときだけ。**
+//! **ここが変わるのは、索引に何が入るかか、引いた結果の並びの規約が変わるとき。**
 
 use std::sync::Arc;
 
@@ -66,6 +66,7 @@ pub enum IndexState {
 /// 遷移を細かく刻むとそのぶん効く。
 #[derive(Debug, Clone)]
 pub struct IndexSnapshot {
+    /// いまどの段か。書き換えるのは [`Self::with_state`]
     pub state: IndexState,
     /// `file_id` → 棋譜のパスと世代。**生きているかの判定はここ**
     pub file_table: Arc<FileTable>,
@@ -146,7 +147,7 @@ impl IndexSnapshot {
         }
     }
 
-    /// 読み終えた棋譜たちを取り込んだ、次の索引。
+    /// 読み終えた棋譜たちを取り込んだ、次の索引。**積み増す。置き換えではない。**
     ///
     /// **桶にはセグメントを積み増す。** その場で畳まないのは、
     /// 取り込みが1件ずつ来るのに対して畳むのは桶の全件を舐めるため。
@@ -195,7 +196,8 @@ impl IndexSnapshot {
     ///
     /// **桶からは消さない。** 出現は残ったまま、検索のたびに
     /// `is_occ_alive` で弾かれる。実際に消えるのはその桶を畳むとき。
-    /// 節表も残す —— 消しても引く相手がいなくなるだけで、得が無い。
+    /// 節表も残す —— `file_id` は使い回さないので、消しても空きが埋まらない。
+    /// **代償はある**（`docs/state-transitions/search.md` の「出現ゼロの節表」）。
     pub fn with_tombstone(&self, file_id: FileId) -> Self {
         let mut file_table = (*self.file_table).clone();
         file_table.tombstone(file_id);
