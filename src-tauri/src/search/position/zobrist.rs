@@ -163,3 +163,68 @@ pub(super) fn hand_count(c: Color, kind: PieceKind, n: usize) -> Option<ZobristV
 pub(super) fn hand_kinds() -> &'static [PieceKind; 7] {
     &HAND_KINDS
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 枠の境目を直に見る。
+    ///
+    /// **頭打ちはこのファイルの1箇所にしか無い。** 盤を舐める側と1手ずつ動かす側が
+    /// 同じ枠を引くための集約だが、その代償として**両者を突き合わせる
+    /// `walk_and_compare` では壊れ方が見えない** — 片方だけずれることが
+    /// 起きえなくなり、壊れると両者が仲良く同じだけ間違う。
+    ///
+    /// 実際、`n.min(HAND_COUNT_SLOTS - 1)` を `n % HAND_COUNT_SLOTS` に変えても
+    /// `position_key.rs` の5本は全部通る（題材の持駒が高々1枚のため）。
+    /// 残るのは歩19枚が歩0枚と同じ鍵になる静かな衝突なので、ここで枠を直に見る。
+    #[test]
+    fn the_hand_slots_clamp_at_the_last_one() {
+        // 枠の中は1枚ごとに別の項
+        assert_ne!(
+            hand_count(Color::Black, PieceKind::Pawn, 17),
+            hand_count(Color::Black, PieceKind::Pawn, 18),
+            "枠の中で項が重なっている"
+        );
+
+        // 枠の外は末尾へ落ちる。折り返さない
+        let last = hand_count(Color::Black, PieceKind::Pawn, HAND_COUNT_SLOTS - 1);
+        assert_eq!(
+            hand_count(Color::Black, PieceKind::Pawn, HAND_COUNT_SLOTS),
+            last,
+            "枠の外が末尾へ落ちていない"
+        );
+        assert_eq!(
+            hand_count(Color::Black, PieceKind::Pawn, 255),
+            last,
+            "u8 の上限で添字が飛んでいる"
+        );
+
+        // 手番と駒種で別の項
+        assert_ne!(
+            hand_count(Color::Black, PieceKind::Pawn, 3),
+            hand_count(Color::White, PieceKind::Pawn, 3),
+            "手番が項に効いていない"
+        );
+        assert_ne!(
+            hand_count(Color::Black, PieceKind::Pawn, 3),
+            hand_count(Color::Black, PieceKind::Lance, 3),
+            "駒種が項に効いていない"
+        );
+    }
+
+    /// 持駒に出ない駒種には枠が無い。
+    ///
+    /// `hand_step` はここが `None` を返すことを頼りにしている。
+    #[test]
+    fn kinds_that_never_reach_a_hand_have_no_slot() {
+        assert!(
+            hand_count(Color::Black, PieceKind::King, 0).is_none(),
+            "玉に枠がある"
+        );
+        assert!(
+            hand_count(Color::Black, PieceKind::ProPawn, 0).is_none(),
+            "成駒に枠がある"
+        );
+    }
+}
