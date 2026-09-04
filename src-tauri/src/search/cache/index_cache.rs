@@ -344,7 +344,10 @@ fn compact_bucket(
         }
     }
 
-    let _ = bucket_idx;
+    debug_assert!(
+        out.iter().all(|(k, _)| k.bucket() as usize == bucket_idx),
+        "畳んだ結果が別の桶の鍵を含む"
+    );
     out
 }
 
@@ -414,9 +417,20 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
     }
 
     // buckets
-    for v in buckets.iter() {
+    //
+    // **書く側でも桶の所属を見る。** 読む側だけに門番を置くと、振り分けが壊れた
+    // まま書いて次の起動で `Err` になり、作り直してまた同じものを書く —
+    // **起動のたびに全件構築を繰り返し、利用者には進捗しか出ない**。
+    // ここで止めれば、壊れた原因の場所で分かる
+    for (b, v) in buckets.iter().enumerate() {
         write_u32(w, v.len() as u32);
         for (k, occ) in v {
+            if k.bucket() as usize != b {
+                return Err(format!(
+                    "refusing to write: key belongs to bucket {} but is in {b}",
+                    k.bucket()
+                ));
+            }
             write_u64(w, k.z0);
             write_u64(w, k.z1);
             write_u32(w, occ.file_id);
@@ -442,7 +456,8 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
 /// （`FileTable::iter_all` は空のスロットを飛ばすので、項目数＝最大の `file_id`）。
 /// その `ft_len` 自身は [`Reader::read_len`] が残りバイト数で縛るので、
 /// **確保量は blob の長さで頭打ちになる**。
-/// 万一 `file_id` が疎になる変更が入っても、外れる方向は「捨てて作り直す」側。
+/// **`file_id` が疎になる経路は実在する**（`build.rs` の join error）。
+/// そのとき外れる方向は「捨てて作り直す」側なので、ここは安全側に倒れる。
 ///
 /// `zstd` は checksum 無しで書いているのでビット化けを捕まえない（#336）。
 /// 化けた値がここに届くことは前提にしてよい。
@@ -604,6 +619,22 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
                 return Err(format!("bucket {b} is not sorted"));
             }
             prev = Some(key);
+
+            // 節表はここより前に読み終わっているので、範囲を突き合わせられる。
+            // 通すと `cursor_lite` が `None` を返して `CursorLite::root()` に落ち、
+            // **その局面のヒットが「そのファイルの0手目」として画面に並ぶ**
+            // （`query_service`）。範囲内の別の節を指す場合は `None` にすらならず、
+            // 手数も分岐も違う場所へ飛ぶ
+            // **節表があるときだけ見る。** 表を持たない `file_id` は
+            // `is_occ_alive` が落とすので、ここで弾く必要が無い
+            if let Some(nt) = nts.get(file_id) {
+                if node_id as usize >= nt.nodes.len() {
+                    return Err(format!(
+                        "node_id {node_id} is out of range for file {file_id} (nodes {})",
+                        nt.nodes.len()
+                    ));
+                }
+            }
 
             v.push((
                 key,
@@ -1417,27 +1448,26 @@ mod tests {
         let path_to_id: HashMap<String, FileId> =
             [("a.kif".to_owned(), 1u32)].into_iter().collect();
 
-        let encode = |buckets: &BucketEntries| {
-            let records = vec![FileRecord {
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
                 path: PathBuf::from("/tmp/obs-shogi-bucket-guard/a.kif"),
                 kind: KifuKind::Kif,
                 size: 10,
                 mtime_ms: 1,
-            }];
+            }],
+        );
+        let ctx = || EncodeCtx {
+            root_dir: root,
+            scan: &scan,
+            path_to_id: &path_to_id,
+            next_file_id: 2,
+            ft: &ft,
+            nts: &nts,
+        };
+        let encode = |buckets: &BucketEntries| {
             let mut blob = Vec::new();
-            encode_all(
-                &mut blob,
-                &EncodeCtx {
-                    root_dir: root,
-                    scan: &snapshot_from_records(root, records),
-                    path_to_id: &path_to_id,
-                    next_file_id: 2,
-                    ft: &ft,
-                    nts: &nts,
-                },
-                buckets,
-            )
-            .expect("書けない");
+            encode_all(&mut blob, &ctx(), buckets).expect("書けない");
             blob
         };
         let occ = Occurrence {
@@ -1446,7 +1476,7 @@ mod tests {
             node_id: 0,
         };
 
-        // 同じ桶に落ちる2つ。降順で並べる
+        // 同じ桶に落ちる2つ
         let lo = PositionKey {
             z0: 0x1100_0000_0000_0001,
             z1: 0,
@@ -1457,29 +1487,135 @@ mod tests {
         };
         assert_eq!(lo.bucket(), hi.bucket(), "題材が同じ桶に落ちていない");
 
-        let mut buckets: BucketEntries = empty_buckets();
-        buckets[hi.bucket() as usize].push((hi, occ));
-        buckets[hi.bucket() as usize].push((lo, occ));
-        assert!(
-            decode_all(&encode(&buckets), root).is_err(),
-            "降順の桶が通った"
-        );
-
-        // 鍵が別の桶に置かれている
-        let mut buckets: BucketEntries = empty_buckets();
-        buckets[hi.bucket() as usize + 1].push((hi, occ));
-        assert!(
-            decode_all(&encode(&buckets), root).is_err(),
-            "別の桶に置かれた鍵が通った"
-        );
-
-        // 正しく並んでいれば通る
+        // 正しく並べたものは書けるし読める
         let mut buckets: BucketEntries = empty_buckets();
         buckets[lo.bucket() as usize].push((lo, occ));
         buckets[hi.bucket() as usize].push((hi, occ));
+        let good = encode(&buckets);
+        assert!(decode_all(&good, root).is_ok(), "正しい桶を弾いている");
+
+        // **書く側が桶の取り違えを止める。** 通すと、次の起動で読めずに全件作り直し、
+        // 作り直してまた同じものを書く、を繰り返す
+        let mut bad: BucketEntries = empty_buckets();
+        bad[hi.bucket() as usize + 1].push((hi, occ));
+        let mut blob = Vec::new();
         assert!(
-            decode_all(&encode(&buckets), root).is_ok(),
-            "正しい桶を弾いている"
+            encode_all(&mut blob, &ctx(), &bad).is_err(),
+            "別の桶に置かれた鍵を書いてしまった"
+        );
+
+        // **読む側はビット化けが相手。** 書けた blob を壊して確かめる。
+        // `zstd` は checksum を書かないので、化けた値がここに届くのは前提
+        // （`checked_file_id` の doc）
+        let z0_at = good
+            .windows(8)
+            .position(|w| w == hi.z0.to_le_bytes())
+            .expect("鍵が blob に載っている");
+
+        let mut swapped = good.clone();
+        // 上位バイトを触ると桶が変わる
+        swapped[z0_at + 7] ^= 0x01;
+        assert!(
+            decode_all(&swapped, root).is_err(),
+            "桶からはみ出た鍵を読んでしまった"
+        );
+
+        let mut unsorted = good.clone();
+        // 下位バイトなら桶は同じまま、並びだけ崩れる
+        unsorted[z0_at] = 0x00;
+        assert!(
+            decode_all(&unsorted, root).is_err(),
+            "並びが崩れた桶を読んでしまった"
+        );
+    }
+
+    /// **節表の外を指す `node_id` は読まない。**
+    ///
+    /// 通すと `cursor_lite` が `None` を返して `CursorLite::root()` に落ち、
+    /// その局面のヒットが**「そのファイルの0手目」として画面に並ぶ**
+    /// （`query_service`）。押すと開始局面へ跳ぶので、正常な結果に見える。
+    ///
+    /// 桶や並びと同じくビット化けが相手なので、書けた blob を壊して確かめる。
+    #[test]
+    fn a_node_id_outside_the_table_is_refused() {
+        use crate::search::store::node_table::NodeCursor;
+
+        let root = Path::new("/tmp/obs-shogi-node-guard");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+
+        // 節を2つだけ持つ表
+        let mut nt = NodeTable::empty();
+        for tesuu in 0..2u32 {
+            nt.nodes.push(NodeCursor {
+                tesuu,
+                fork_off: 0,
+                fork_len: 0,
+            });
+        }
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-node-guard/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
+        );
+
+        let key = PositionKey {
+            z0: 0x3300_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[key.bucket() as usize].push((
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 1, // 表の中
+            },
+        ));
+
+        let mut good = Vec::new();
+        encode_all(
+            &mut good,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect("書けない");
+        assert!(
+            decode_all(&good, root).is_ok(),
+            "正しい node_id を弾いている"
+        );
+
+        // 表は2つしか持たないので、9 は外
+        let at = good
+            .windows(4)
+            .rposition(|w| w == 1u32.to_le_bytes())
+            .expect("node_id が blob に載っている");
+        let mut broken = good.clone();
+        broken[at] = 9;
+        assert!(
+            decode_all(&broken, root).is_err(),
+            "節表の外を指す node_id を読んでしまった"
         );
     }
 }
