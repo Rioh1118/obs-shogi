@@ -878,7 +878,8 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// 門番のテストは、**どちらの側を見ているかを名前で名乗る。**
+/// **`encode_all` / `decode_all` の本体で構造を見る門番**のテストは、
+/// どちらの側を見ているかを名前で名乗る。
 ///
 /// | 綴り | 見ているもの |
 /// | --- | --- |
@@ -892,7 +893,14 @@ impl<'a> Reader<'a> {
 ///
 /// **読む側を数えるなら `_refused` と `_neither_written_nor_read` の両方、
 /// 書く側なら `_not_written` と `_neither_written_nor_read` の両方。**
-/// 本数はここに書かない —— 数は `tests/index_cache_guard_names.rs` が見る。
+/// 本数はここに書かない —— **書く側の網羅は
+/// `tests/index_cache_guard_names.rs` が文言で見る。**
+/// 読む側に本数を見る機械は無い。
+///
+/// **ヘッダの検査は対象外。** 版 / magic / root hash / 長さ / `file_id` を見る
+/// テストは、何を守っているかを名前に持つ方が読みやすい
+/// （`a_corrupt_length_cannot_decide_how_much_to_allocate` など）。
+/// あれらは blob を読めるかどうかの検査で、構造の門番とは別の族。
 ///
 /// `is_err()` で終わらせないこと。**別の門番を踏んでも緑になる。**
 /// 実例: 桶の所属の検査を殺すと、いまのテストは `bucket 17 is not sorted` で落ちる。
@@ -1746,7 +1754,10 @@ mod tests {
             &buckets,
         )
         .expect_err("節表の無い出現を書いてしまった");
-        assert!(err.contains("no node table"), "断った理由が違う: {err}");
+        assert!(
+            err.contains("has occurrences but no node table"),
+            "断った理由が違う: {err}"
+        );
 
         // **読む側も同じ形を断る。** 書く側が止めるので blob は作れないから、
         // 節表を持たせて書いてから、節表の `file_id` を別の値へ壊す。
@@ -1872,7 +1883,10 @@ mod tests {
             &buckets,
         )
         .expect_err("表の外を指す範囲を書いてしまった");
-        assert!(err.contains("fork range"), "断った理由が違う: {err}");
+        assert!(
+            err.contains("is out of the fork table for file"),
+            "断った理由が違う: {err}"
+        );
     }
 
     /// **節表の外を指す `node_id` は書かない。** 読む側と同じ検査を書く側にも置く。
@@ -1935,7 +1949,10 @@ mod tests {
             &buckets,
         )
         .expect_err("範囲外の node_id を書いてしまった");
-        assert!(err.contains("out of range"), "断った理由が違う: {err}");
+        assert!(
+            err.contains("is out of range for file"),
+            "断った理由が違う: {err}"
+        );
     }
 
     /// **並びが崩れた桶は書かない。** 読む側と同じ検査を書く側にも置く。
@@ -2006,7 +2023,7 @@ mod tests {
             &buckets,
         )
         .expect_err("並びが崩れた桶を書いてしまった");
-        assert!(err.contains("not sorted"), "断った理由が違う: {err}");
+        assert!(err.contains("is not sorted"), "断った理由が違う: {err}");
     }
 
     /// **分岐の表の外を指す `fork_off` / `fork_len` も読まない。**
@@ -2250,7 +2267,7 @@ mod tests {
             });
         }
 
-        // file 1 と file 2 に、長さの違う節表を持たせる
+        // file 1〜3 に、長さの違う節表を持たせる
         let mut nts = NodeTables::default();
         for (id, nodes) in [(1u32, 2usize), (2u32, 3usize), (3u32, 4usize)] {
             let mut b = NodeTableBuilder::new();
@@ -2297,8 +2314,10 @@ mod tests {
             ],
         );
 
-        // 出現は file 1 に1件だけ。**file 2 は出現ゼロ** ——
-        // 削除された棋譜・読めなかった棋譜がこの形（`search.md` の節表の行）
+        // 出現は file 1 に1件だけ。**壊す対象の file 3 が出現ゼロであることが要る** ——
+        // 出現があると `checked_file_id` や `node_id` の検査が先に落ちて
+        // `is not after` を踏まない。削除された棋譜・読めなかった棋譜がこの形
+        // （`search.md` の節表の行）
         let key = PositionKey {
             z0: 0x7700_0000_0000_0001,
             z1: 0,
