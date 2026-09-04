@@ -5,9 +5,9 @@ use shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 use std::path::Path;
 use tauri::{command, AppHandle, Runtime};
 
-use crate::fs::path::is_kifu_file;
 use crate::kifu::convert::{convert_jkf_to_string_internal, write_kifu_file_internal};
 use crate::workspace::guard::validate_under_root;
+use ::fs::path::is_kifu_file;
 
 #[derive(Serialize, Deserialize)]
 pub struct WriteKifuRequest {

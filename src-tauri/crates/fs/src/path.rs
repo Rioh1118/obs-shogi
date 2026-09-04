@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use uuid::Uuid;
 
-use crate::fs::error::{FsError, FsErrorCode};
+use crate::error::{FsError, FsErrorCode};
 
 pub fn generate_id() -> String {
     Uuid::new_v4().to_string()

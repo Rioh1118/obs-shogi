@@ -3,8 +3,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::fs::error::FsError;
-use crate::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under};
+use ::fs::error::FsError;
+use ::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under};
 
 use super::types::FileTreeNode;
 

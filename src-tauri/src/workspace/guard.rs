@@ -7,8 +7,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::fs::error::{FsError, FsErrorCode};
-use crate::fs::path::{canonicalize_for_compare, is_under};
+use ::fs::error::{FsError, FsErrorCode};
+use ::fs::path::{canonicalize_for_compare, is_under};
 
 /// AppConfig.root_dir を取得（未設定なら None）。
 ///

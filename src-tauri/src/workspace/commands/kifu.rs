@@ -5,11 +5,11 @@ use tauri::{command, AppHandle, Runtime};
 
 use shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
-use crate::fs::error::{FsError, FsErrorCode};
-use crate::fs::path::{is_kifu_file, validate_basename};
-use crate::fs::write::atomic_write;
 use crate::workspace::guard::validate_under_root;
 use crate::workspace::record::{read_text_portable, spell_for_extension, write_new_file};
+use ::fs::error::{FsError, FsErrorCode};
+use ::fs::path::{is_kifu_file, validate_basename};
+use ::fs::write::atomic_write;
 
 #[command]
 pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<String, FsError> {

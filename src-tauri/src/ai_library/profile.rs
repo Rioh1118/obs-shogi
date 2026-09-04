@@ -3,7 +3,7 @@
 use serde::Serialize;
 use std::{fs, path::Path};
 
-use crate::fs::error::{FsError, FsErrorCode};
+use ::fs::error::{FsError, FsErrorCode};
 
 use super::dir::{kind_of, FsKind};
 use super::engines::ENGINES_DIR;

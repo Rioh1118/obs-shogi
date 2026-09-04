@@ -2,9 +2,9 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::{command, AppHandle, Runtime};
 
-use crate::fs::error::{FsError, FsErrorCode};
-use crate::fs::path::{ensure_not_exists, is_kifu_file, is_move_into_itself, validate_basename};
 use crate::workspace::guard::{is_project_root, validate_under_root};
+use ::fs::error::{FsError, FsErrorCode};
+use ::fs::path::{ensure_not_exists, is_kifu_file, is_move_into_itself, validate_basename};
 
 // 行き先を呼び出し側から受けるのは `mv_kifu_file` / `mv_directory` の2つ。
 // `rename_*` の行き先は `src.parent().join(name)` で導出する。`validate_basename` が

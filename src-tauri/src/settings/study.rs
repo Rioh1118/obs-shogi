@@ -7,7 +7,7 @@ use std::{
 };
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::fs::write::atomic_write;
+use ::fs::write::atomic_write;
 
 const STUDY_POSITIONS_FILE_NAME: &str = "study_positions.json";
 

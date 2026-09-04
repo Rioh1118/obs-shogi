@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 use tauri::command;
 
-use crate::fs::error::{FsError, FsErrorCode};
-use crate::fs::path::validate_basename;
+use ::fs::error::{FsError, FsErrorCode};
+use ::fs::path::validate_basename;
 
 use super::dir::validate_dir;
 use super::engines::ENGINES_DIR;

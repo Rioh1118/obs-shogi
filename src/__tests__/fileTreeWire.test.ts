@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { RUST_SRC, SRC } from "./walk";
+import { rustFile, SRC } from "./walk";
 
 /**
  * Rust の `FileTreeNode` の欄が、TS の受け口と写し先の両方に届いていることを見る。
@@ -15,7 +15,7 @@ import { RUST_SRC, SRC } from "./walk";
  * （`src/__tests__` はレイヤに依存しないので import では読めない）。
  */
 
-const RUST_STRUCT = join(RUST_SRC, "workspace", "types.rs");
+const RUST_STRUCT = rustFile("workspace", "types.rs");
 const TS_WIRE = join(SRC, "entities", "file-tree", "api", "rust-types.ts");
 const TS_ADAPTER = join(SRC, "entities", "file-tree", "api", "adapter.ts");
 

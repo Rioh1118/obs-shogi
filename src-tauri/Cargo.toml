@@ -1,24 +1,10 @@
-[package]
-name = "app"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
-edition = "2021"
-rust-version = "1.77.2"
-autobenches = false
+[workspace]
+members = ["crates/*"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-name = "app_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
-
-[build-dependencies]
-tauri-build = { version = "2.2.0", features = [] }
-
-[dependencies]
+# **版はここでだけ決める。** crate ごとに書くと、1つ上げ忘れた crate が
+# 別の版を引き、同じ型が2つある状態になる（`serde` の `Serialize` が
+# 別物になると、境界に出す型が繋がらない）。
+[workspace.dependencies]
 shogi_kifu_converter_obsshogi = { git = "https://github.com/Rioh1118/shogi-kifu-converter-obsshogi.git", tag = "v0.5.0", package = "shogi-kifu-converter" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -47,6 +33,57 @@ blake3 = "1.8"
 tauri-plugin-opener = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+[package]
+name = "app"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+autobenches = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.2.0", features = [] }
+
+[dependencies]
+fs = { path = "crates/fs" }
+
+shogi_kifu_converter_obsshogi = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
+log = { workspace = true }
+encoding_rs = { workspace = true }
+uuid = { workspace = true }
+tauri = { workspace = true }
+tauri-plugin-log = { workspace = true }
+tauri-plugin-dialog = { workspace = true }
+usi = { workspace = true }
+shogi_core = { workspace = true }
+tokio = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+arc-swap = { workspace = true }
+walkdir = { workspace = true }
+notify = { workspace = true }
+rayon = { workspace = true }
+tokio-util = { workspace = true }
+thiserror = { workspace = true }
+sysinfo = { workspace = true }
+tauri-plugin-fs = { workspace = true }
+zstd = { workspace = true }
+blake3 = { workspace = true }
+tauri-plugin-opener = { workspace = true }
+tauri-plugin-updater = { workspace = true }
+tauri-plugin-process = { workspace = true }
 
 [dev-dependencies]
 # `tidy_csa` の整形が tsshogi の受ける範囲を出ていないかを、

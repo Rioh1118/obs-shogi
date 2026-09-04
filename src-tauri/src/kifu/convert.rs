@@ -6,7 +6,7 @@ use shogi_kifu_converter_obsshogi::{
 };
 use std::path::Path;
 
-use crate::fs::write::atomic_write;
+use ::fs::write::atomic_write;
 
 /// JKF を指定の形式でファイルへ書き出す。
 ///

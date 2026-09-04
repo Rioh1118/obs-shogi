@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { RUST_SRC, SRC } from "./walk";
+import { rustFile, SRC } from "./walk";
 
 /**
  * `game-event` の綴りが Rust と TS で一致していることを見る。
@@ -19,7 +19,7 @@ import { RUST_SRC, SRC } from "./walk";
  * （`testsLayerBoundary.test.ts`）ので import では読めない。
  */
 
-const RUST_SITE = join(RUST_SRC, "engine", "commands", "game.rs");
+const RUST_SITE = rustFile("engine", "commands", "game.rs");
 const TS_SITE = join(SRC, "entities", "game-session", "api", "events.ts");
 
 /** `const GAME_EVENT: &str = "…";` / `export const GAME_EVENT = "…";` の中身 */

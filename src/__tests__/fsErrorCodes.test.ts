@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { RUST_SRC, SRC } from "./walk";
+import { rustFile, SRC } from "./walk";
 
 /**
  * Rust の `FsErrorCode` が TS の `FsErrorCode` に収まっていることを見る。
@@ -14,7 +14,7 @@ import { RUST_SRC, SRC } from "./walk";
  * （`testsLayerBoundary.test.ts`）ので import では読めない。
  */
 
-const RUST_ENUM = join(RUST_SRC, "fs", "error.rs");
+const RUST_ENUM = rustFile("error.rs");
 const TS_CODES = join(SRC, "entities", "file-tree", "api", "error.ts");
 
 /**

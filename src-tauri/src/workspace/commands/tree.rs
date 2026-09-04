@@ -3,10 +3,10 @@
 use std::path::PathBuf;
 use tauri::{command, AppHandle, Runtime};
 
-use crate::fs::error::{FsError, FsErrorCode};
 use crate::workspace::guard::validate_under_root;
 use crate::workspace::tree::walk_from;
 use crate::workspace::types::FileTreeNode;
+use ::fs::error::{FsError, FsErrorCode};
 
 /// ツリーの取得。**`root_dir` は呼び出し側から来るので、設定値と突き合わせる。**
 ///

@@ -10,9 +10,9 @@ use shogi_kifu_converter_obsshogi::{
     jkf::JsonKifuFormat,
 };
 
-use crate::fs::error::{FsError, FsErrorCode};
-use crate::fs::path::{ensure_not_exists, get_file_extension};
 use crate::kifu_text::decode_kifu;
+use ::fs::error::{FsError, FsErrorCode};
+use ::fs::path::{ensure_not_exists, get_file_extension};
 
 pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     ensure_not_exists(path)?;

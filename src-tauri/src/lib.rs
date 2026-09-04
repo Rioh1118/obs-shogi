@@ -1,6 +1,5 @@
 pub mod ai_library;
 pub mod engine;
-pub mod fs;
 pub mod kifu;
 pub mod kifu_text;
 pub mod search;

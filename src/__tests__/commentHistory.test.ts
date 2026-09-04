@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
+import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 
 /**
  * コメントに**変更の経緯**を書かない（`CONTRIBUTING.md` の「コメントの書き方」）。
@@ -22,7 +22,7 @@ import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
 
 const ROOTS = [
   SRC,
-  RUST_SRC,
+  ...rustRoots(),
   join(REPO_ROOT, "src-tauri", "tests"),
   // 検査そのものを置く場所。**ここを外すと、機械の doc にだけ経緯が溜まる**
   join(REPO_ROOT, ".claude", "hooks"),
