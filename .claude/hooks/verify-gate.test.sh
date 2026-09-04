@@ -251,10 +251,7 @@ expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
 # 引用符付きのパスは -z で読むので、ここへは素のまま来る
 expect_kinds "ts" "src/dir with space/a.ts"
 
-# 積んだ操作を畳む呼び出しは、検証の対象にしない。
-#
-# ここを塞ぐと、競合を抱えたツリー（＝検証が必ず落ちる状態）で競合を畳む手段が
-# 無くなる。
+# 積んだ操作を畳む呼び出しは、検証の対象にしない。理由は `gate_is_teardown` の上。
 expect_teardown() {
   local want=$1 command=$2
   local got=NO
