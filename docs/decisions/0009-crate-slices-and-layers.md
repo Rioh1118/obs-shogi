@@ -77,9 +77,24 @@
 
 - 段は `LAYERS` の `decides`。空にできない（`every_module_is_placed_on_a_layer` が見る）
 - ファイルは冒頭の `//!`
+- **crate の外に出る項目（`pub`）は doc を持つ。** 機械が見る（下）
 
 **言えないなら、それは段でもファイルでもなく置き場の都合。**
 ADR-0008 が段について書いた基準を、ファイルにも同じ形で当てる。
+
+#### `pub` の doc は `missing_docs` が見る
+
+各 library crate の入口に `#![deny(missing_docs)]` を置く。`clippy -D warnings`
+より前に rustc が落とす。
+
+**crate に割る前は掛けられなかった。** crate が1つだと `pub` は「crate の外へ出る」
+ではなく「crate の中で広く見える」の意味になり、doc を要求される範囲が
+**本来 `pub` であるべきでないもの**まで広がる。割ったあとの `pub` は
+「他の crate が使う面」そのものなので、要求する範囲と書くべき範囲が一致する。
+
+**レビュアー（`comment-reviewer` / `oss-hygiene-reviewer`）は門番ではない。**
+`/review-round` で呼んだときだけ走り、しかも差分しか見ない。
+既存の doc の無い `pub fn` には当たらないので、そこは lint が持つ。
 
 ### 6. ファイルは責務で割る。行数では割らない
 
