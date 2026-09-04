@@ -7,7 +7,7 @@
 
 ## 引用について
 
-このディレクトリの文書に含まれる引用は全て `sunfish-shogi/shogihome`（Copyright (c) sunfish-shogi、**MIT License**、
+このディレクトリの文書に含まれる引用は全て `sunfish-shogi/shogihome`（Copyright (c) 2022 Kubo Ryosuke、**MIT License**、
 <https://github.com/sunfish-shogi/shogihome/blob/main/LICENSE>）から、
 **その実装を論じる目的で必要な範囲だけ**を抜粋している。
 

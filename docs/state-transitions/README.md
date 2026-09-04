@@ -68,11 +68,12 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 **他実装のコードや綴りを引くときは、引用元ごとに著作権者・ライセンス・LICENSE への
 リンクを書く。** 規律の出所は `research/README.md`。
 
-- `yaneurao/YaneuraOu`（Copyright (c) yaneurao、**GPL-3.0**、
-  <https://github.com/yaneurao/YaneuraOu/blob/master/LICENSE>）
+- `yaneurao/YaneuraOu`（**GPL-3.0**、
+  <https://github.com/yaneurao/YaneuraOu/blob/master/LICENSE>）。
+  LICENSE は GPL-3.0 の本文だけで、個別の著作権表示を持たない
 - `yaneurao/YaneuraOu-ScriptCollection`（Copyright (c) 2025 yaneurao、MIT License、
   <https://github.com/yaneurao/YaneuraOu-ScriptCollection/blob/main/LICENSE>）
-- `sunfish-shogi/shogihome`（Copyright (c) sunfish-shogi、MIT License、
+- `sunfish-shogi/shogihome`（Copyright (c) 2022 Kubo Ryosuke、MIT License、
   <https://github.com/sunfish-shogi/shogihome/blob/main/LICENSE>）
 
 引くのは実装を論じるのに要る範囲だけで、**成果物をこのリポジトリの配布物に含めない。**
