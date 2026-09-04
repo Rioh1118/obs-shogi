@@ -39,10 +39,11 @@ pub enum SfenParseError {
 
     /// 1つの駒種の持駒が多すぎる。上限は `MAX_HAND_COUNT`（歩の18枚）。
     ///
-    /// `count` は綴りに書かれた枚数そのものとは限らない。桁は
-    /// 上限の1つ上で頭打ちにするので、それより大きい数は `19` として届く。
-    #[error("too many pieces in hand: {kind:?} x{count} (max {MAX_HAND_COUNT})")]
-    InvalidHand { kind: PieceKind, count: u32 },
+    /// **枚数は言わない。** 綴りは同じ駒種を何度でも書けて（`18P18P`）、
+    /// 桁も上限の1つ上で頭打ちにするので、**数えた値が綴りのどこにも無い**
+    /// ことがある（`18P99999999P` は 37 になる）。
+    #[error("too many pieces in hand: {kind:?} (max {MAX_HAND_COUNT})")]
+    InvalidHand { kind: PieceKind },
 }
 
 /// 1つの駒種の持駒として受ける最大の枚数。
@@ -258,12 +259,8 @@ fn add_n(mut h: Hand, pk: PieceKind, n: u32) -> Result<Hand, SfenParseError> {
     // `count` も `added` も同じ条件（持駒に出る7種か）で `None` を返す。
     // 片方を既定値ですり替えると、もう片方の `expect` を守っている前提が読めなくなる
     let before = u32::from(h.count(pk).expect("持駒に出る7種なので枚数が数えられる"));
-    let after = before + n;
-    if after > MAX_HAND_COUNT {
-        return Err(SfenParseError::InvalidHand {
-            kind: pk,
-            count: after,
-        });
+    if before + n > MAX_HAND_COUNT {
+        return Err(SfenParseError::InvalidHand { kind: pk });
     }
     for _ in 0..n {
         h = h.added(pk).expect("持駒に出る7種なので必ず持てる");
@@ -371,7 +368,7 @@ mod tests {
             "上限を超えた枚数が通った"
         );
 
-        // 桁を読み切る前に弾く。読み切ってから弾くと、この綴りで止まる
+        // 桁は上限の1つ上で頭打ちにするので、20桁でも `num * 10` が溢れない
         assert!(
             matches!(
                 partial_position_from_sfen(&format!("{hirate} b 99999999999999999999P 1")),
@@ -422,9 +419,8 @@ mod tests {
 
     /// **文言が、綴りに書いてある駒種を名指す。**
     ///
-    /// 枚数を桁の途中で弾いていた頃は駒種が未確定のまま `Err` を作っていたので、
-    /// `19R` に対して「Pawn が19枚」と言っていた。利用者は綴りのどこが悪いかを
-    /// 取り違える。`Err` を作る箇所を `add_n` の1つに畳んだので、駒種は必ず実物。
+    /// `Err` を作るのは `add_n` だけ。桁を読む段では駒種が決まっていないので、
+    /// そこで弾くと「どの駒が多すぎるか」を言えない。
     #[test]
     fn the_message_names_the_kind_that_was_written() {
         let hirate = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL";

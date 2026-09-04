@@ -12,11 +12,13 @@
 # **減らしたら BASELINE を下げること。** 下げないと、次に増えたぶんが隠れる。
 set -euo pipefail
 
-BASELINE=12
+# `cargo doc` が最後に出す `generated N warnings` の集計行は数えない。
+# 数えると画面の N と基準がずれて、直す人がまず数の食い違いを疑う。
+BASELINE=11
 
 cd "$(dirname "$0")/.."
 count=$(cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app 2>&1 |
-  grep -c '^warning' || true)
+  grep '^warning' | grep -vc 'generated' || true)
 
 if [ "$count" -gt "$BASELINE" ]; then
   echo "rustdoc の警告が増えた: ${count}（基準 ${BASELINE}）" >&2
