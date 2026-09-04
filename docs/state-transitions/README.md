@@ -63,6 +63,20 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
 
+## 引用について
+
+**他実装のコードや綴りを引くときは、引用元ごとに著作権者・ライセンス・LICENSE への
+リンクを書く。** 規律の出所は `research/README.md`。
+
+- `yaneurao/YaneuraOu`（Copyright (c) yaneurao、**GPL-3.0**、
+  <https://github.com/yaneurao/YaneuraOu/blob/master/LICENSE>）
+- `yaneurao/YaneuraOu-ScriptCollection`（Copyright (c) 2025 yaneurao、MIT License、
+  <https://github.com/yaneurao/YaneuraOu-ScriptCollection/blob/main/LICENSE>）
+- `sunfish-shogi/shogihome`（Copyright (c) sunfish-shogi、MIT License、
+  <https://github.com/sunfish-shogi/shogihome/blob/main/LICENSE>）
+
+引くのは実装を論じるのに要る範囲だけで、**成果物をこのリポジトリの配布物に含めない。**
+
 ## 他リポジトリのパスの書き方（この置き場の中だけ）
 
 **`docs/` の他の場所には掛からない。** `IDEAS.md` / `PREMISES.md` / `decisions/` /
@@ -87,7 +101,7 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 ```
 
 **参照名は `<リポジトリ名>-<対象>`。** 略すと、同じ表が複数の他リポジトリを引いたときに
-参照名から出典が読めなくなる（この表は ShogiHome とやねうら王の両方を引いている）。
+参照名から出典が読めなくなる（上のとおり、引く相手は複数ある）。
 定義は使うファイルの末尾に置く。使用と定義の対応は
 `src/__tests__/stateTransitionIndex.test.ts` が見る。
 
@@ -96,12 +110,6 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 
 **リンク先はタグで固定する。** 一次資料として引いた行が、あちらの `main` の移動で
 別のものを指すようになる。
-
-**引用元のライセンスを書く。** 規律は `research/README.md`（引用元のライセンスと
-著作権者を各ディレクトリの README に書く）。この置き場が逐語で引くのは
-`sunfish-shogi/shogihome`（MIT）、`yaneurao/YaneuraOu`（**GPL-3.0**）、
-`yaneurao/YaneuraOu-ScriptCollection`（MIT）の3つ。引くのは実装を論じるのに要る
-数行だけで、**いずれの成果物もこのリポジトリの配布物には含まない。**
 
 **行番号を引いたら、囲む・囲まないに関わらず版を残す。** 腐りやすいのは
 ファイルの参照より行番号のほうで、しかも版が無いと**どの時点で数えた行なのかを
