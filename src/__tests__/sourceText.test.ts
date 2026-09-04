@@ -95,6 +95,16 @@ describe("codeOf（shell）", () => {
     expect(codeOf("if [ $# -eq 0 ]\n", "shell")).toContain("$#");
   });
 
+  // **文字列を先に潰す順を固定する。** 逆順だと引用符の中の ` # ` を先に切るので、
+  // 行の後半が corpus から消え（実在する識別子が「無い」になる）、
+  // 引用符の中の名前は残る（検査の期待値がソースに見える）。両方向に壊れる
+  test("引用符の中の `#` でコメントが始まらない", () => {
+    const line = "grep 'gate_x # y' file\n";
+
+    expect(codeOf(line, "shell")).toContain("file");
+    expect(codeOf(line, "shell")).not.toContain("gate_x");
+  });
+
   // 検査の期待値が実装に見えると、消したものが「実在する」に戻る
   test("引用符の中の名前は数えない", () => {
     const line = 'expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"\n';
