@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/` 全7ファイル、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.sh` / `verify-gate.test.sh`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r10.md`（計142件）
+- 前ラウンド: `-r1.md`〜`-r10.md`
 
 **3体とも同じ根を指した。** R10 の O-04（打ち切りを `invalid` へ移す）が片側にしか効いていなかった。
 
@@ -97,8 +97,8 @@ comment。`sfen.rs:181`。このファイルで `reason` は「エラーの理�
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見 | 結果   | コミット  |
+| ---- | ------ | --------- |
 | P-01 | 直した | `d4b0574` |
 | P-02 | 直した | `d4b0574` |
 | P-03 | 直した | `d4b0574` |

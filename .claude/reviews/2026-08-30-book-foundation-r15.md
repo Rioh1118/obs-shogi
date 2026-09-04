@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.*`、`docs/state-transitions/`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r14.md`（計206件）
+- 前ラウンド: `-r1.md`〜`-r14.md`
 
 **R14 で「受理集合を閉じた」と書いた判断のうち、2点が誤りだった。** 片方は閉じておらず、
 もう片方はそもそも閉じるのに要らないのに正当な入力を弾いていた。

@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/` 全7ファイル、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.sh` / `verify-gate.test.sh`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r11.md`（計154件）
+- 前ラウンド: `-r1.md`〜`-r11.md`
 
 ## 所見
 
@@ -108,8 +108,8 @@ comment。`api.rs:527-551`。`too_long` は `/` 始まりの絶対パスで、�
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見       | 結果       | コミット  |
+| ---------- | ---------- | --------- |
 | Q-01〜Q-09 | 全て直した | `e48b17d` |
 
 1コミットにまとめた。表を作って空白セルを埋める作業と、そこで判明した定数の見直しが
@@ -126,11 +126,11 @@ comment。`api.rs:527-551`。`too_long` は `/` 始まりの絶対パスで、�
 
 ## 変異による確認
 
-| 壊した箇所 | 結果 |
-| ---------- | ---- |
-| `MAX_INPUT_CHARS` を 128 に詰める | `a_maximally_spelled_board_is_accepted` と `a_long_token_is_truncated_in_the_reason` が落ちた |
-| 理由文側の打ち切りを外す | `a_long_token_is_truncated_in_the_reason` が落ちた（`…` の数で見る形にした後。長さだけを見る形では落ちなかった） |
-| alias を `-z` で読むのをやめる | `expect_alias_resolution` の改行 fixture が落ちた |
+| 壊した箇所                        | 結果                                                                                                             |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `MAX_INPUT_CHARS` を 128 に詰める | `a_maximally_spelled_board_is_accepted` と `a_long_token_is_truncated_in_the_reason` が落ちた                    |
+| 理由文側の打ち切りを外す          | `a_long_token_is_truncated_in_the_reason` が落ちた（`…` の数で見る形にした後。長さだけを見る形では落ちなかった） |
+| alias を `-z` で読むのをやめる    | `expect_alias_resolution` の改行 fixture が落ちた                                                                |
 
 ## 検証
 

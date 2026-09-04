@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/` 全7ファイル、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.sh` / `verify-gate.test.sh`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r9.md`（計127件）
+- 前ラウンド: `-r1.md`〜`-r9.md`
 
 ## 所見
 
@@ -95,8 +95,8 @@ comment。`sfen.rs:172-181`。テストは無関係な `< 300` を見ている�
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見 | 結果   | コミット  |
+| ---- | ------ | --------- |
 | O-01 | 直した | `8a1b5f7` |
 | O-04 | 直した | `8a1b5f7` |
 | O-07 | 直した | `8a1b5f7` |

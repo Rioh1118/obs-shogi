@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.*`、`docs/state-transitions/`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r13.md`（計196件）
+- 前ラウンド: `-r1.md`〜`-r13.md`
 
 **3体とも同じ核心を指した。** R13 R-04 で「最長を固定した」つもりのテストが、最長を通していなかった。
 

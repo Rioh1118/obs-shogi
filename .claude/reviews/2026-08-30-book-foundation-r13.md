@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.*`、`docs/state-transitions/` の2ファイル
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r12.md`（計172件）
+- 前ラウンド: `-r1.md`〜`-r12.md`
 
 **状態遷移表を初めてレビュー対象に入れた回。表そのものが3件の嘘をついていた**（R-03 / R-06 / R-07）。
 表を作ったことで、その嘘が「✓ が付いているのに通っていないセル」として検査可能になった。
@@ -109,8 +109,8 @@ comment。テストが通す最長は 146 字、160 × 1.5 = 240。値を導け�
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見       | 結果       | コミット  |
+| ---------- | ---------- | --------- |
 | R-01〜R-12 | 全て直した | `959182f` |
 
 提案どおりに直さなかったもの:
@@ -122,10 +122,10 @@ comment。テストが通す最長は 146 字、160 × 1.5 = 240。値を導け�
 
 ## 変異による確認
 
-| 壊した箇所 | 結果 |
-| ---------- | ---- |
-| `MAX_INPUT_CHARS` を 160 に詰める | `a_long_token_is_truncated_in_the_reason` が落ちた（R-04 の修正前は 148 でも落ちなかった） |
-| `with_path` の打ち切りを外す | `an_over_long_path_is_truncated_in_the_error_but_not_rejected` と `an_over_long_path_that_passes_validation_is_truncated_downstream` の2本が落ちた |
+| 壊した箇所                        | 結果                                                                                                                                               |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MAX_INPUT_CHARS` を 160 に詰める | `a_long_token_is_truncated_in_the_reason` が落ちた（R-04 の修正前は 148 でも落ちなかった）                                                         |
+| `with_path` の打ち切りを外す      | `an_over_long_path_is_truncated_in_the_error_but_not_rejected` と `an_over_long_path_that_passes_validation_is_truncated_downstream` の2本が落ちた |
 
 ## 検証
 

@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/` 全7ファイル、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.sh` / `verify-gate.test.sh`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r8.md`（計105件）
+- 前ラウンド: `-r1.md`〜`-r8.md`
 
 ## 所見
 
@@ -120,8 +120,8 @@ comment。`api.rs:352-375`。同じ入力・同じ判定で、差は `assert_eq!
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見 | 結果   | コミット  |
+| ---- | ------ | --------- |
 | N-05 | 直した | `7f96b85` |
 | N-06 | 直した | `7f96b85` |
 | N-07 | 直した | `df1dc06` |

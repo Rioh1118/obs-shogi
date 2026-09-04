@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/` 全7ファイル、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.sh` / `verify-gate.test.sh`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r6.md`（計73件）
+- 前ラウンド: `-r1.md`〜`-r6.md`
 
 ## 所見
 
@@ -113,8 +113,8 @@ R6 K-10 と同じ形。
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見 | 結果   | コミット  |
+| ---- | ------ | --------- |
 | L-03 | 直した | `f111671` |
 | L-04 | 直した | `f111671` |
 | L-06 | 直した | `f111671` |

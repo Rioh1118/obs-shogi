@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.*`、`docs/state-transitions/`
 - 走らせた reviewer: rust / robustness / comment / architecture
-- 前ラウンド: `-r1.md`〜`-r15.md`（計216件）
+- 前ラウンド: `-r1.md`〜`-r15.md`
 
 **このラウンドの前に、main の force-push へ追随して87コミットを載せ替えた。**
 `origin/main` の履歴がマージコミット列から PR ごとの squash 列に差し替わっていたため、

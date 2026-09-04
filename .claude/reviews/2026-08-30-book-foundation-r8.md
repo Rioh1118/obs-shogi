@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/` 全7ファイル、`src-tauri/src/lib.rs` の book 登録部分、`.claude/hooks/verify-gate.sh` / `verify-gate.test.sh`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`〜`-r7.md`（計85件）
+- 前ラウンド: `-r1.md`〜`-r7.md`
 
 rust は「Rust 側は所見なし」と明示した（並行性・エラー処理・IO・所有権のいずれも、R7 の修正後に
 新しく壊れている箇所は無い）。以下はゲート2件と、robustness / comment の8件。
@@ -131,8 +131,8 @@ comment。`sfen.rs:488-503`。早期打ち切りを外しても、42.9億回回�
 
 ## 修正結果
 
-| 所見 | 結果 | コミット |
-| ---- | ---- | -------- |
+| 所見 | 結果   | コミット  |
+| ---- | ------ | --------- |
 | M-04 | 直した | `9a8dea5` |
 | M-05 | 直した | `9a8dea5` |
 | M-08 | 直した | `9a8dea5` |
