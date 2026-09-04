@@ -4,5 +4,4 @@ pub mod initial_position;
 pub mod position_apply;
 pub mod position_key;
 pub mod sfen_position;
-pub mod traverse;
 mod zobrist;

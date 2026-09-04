@@ -7,10 +7,9 @@ use shogi_kifu_converter_obsshogi::jkf::{JsonKifuFormat, MoveFormat};
 
 use crate::search::position::initial_position::initial_partial_position;
 use crate::search::position::position_apply::{
-    apply_node_action, jkf_move_to_core_move, ApplyError, ApplyStatus,
+    apply_node_action, jkf_move_to_core_move, ApplyError, ApplyStatus, NodeAction,
 };
 use crate::search::position::position_key::{advance_key, key_from_partial_position, PositionKey};
-use crate::search::position::traverse::NodeAction;
 use crate::search::store::node_table::{NodeTable, NodeTableBuilder};
 use crate::search::types::{CursorLite, FileId, ForkPointer, Gen, NodeId, Occurrence};
 

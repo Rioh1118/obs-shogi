@@ -97,6 +97,20 @@ pub struct CursorLite {
     pub fork_pointers: Vec<ForkPointer>,
 }
 
+impl CursorLite {
+    /// 開始局面。**どの分岐にも入っていない0手目。**
+    ///
+    /// 索引を引いた先の節が見つからないときの落とし所でもある
+    /// （`query_service`）。盤は必ず開始局面から始まるので、
+    /// ここへ落ちても画面は成立する。
+    pub fn root() -> Self {
+        Self {
+            tesuu: 0,
+            fork_pointers: vec![],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PositionHit {

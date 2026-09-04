@@ -196,8 +196,7 @@ fn hand_step(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::position::position_apply::{apply_node_action, ApplyStatus};
-    use crate::search::position::traverse::NodeAction;
+    use crate::search::position::position_apply::{apply_node_action, ApplyStatus, NodeAction};
     use shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
     /// 棋譜を1本歩いて、差分とフル計算が**全ノードで一致する**ことを見る。

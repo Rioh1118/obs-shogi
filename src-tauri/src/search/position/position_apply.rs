@@ -8,9 +8,22 @@
 use thiserror::Error;
 
 use shogi_core::{Color as CoreColor, Move as CoreMove, PartialPosition, PieceKind};
-use shogi_kifu_converter_obsshogi::{error::ConvertError, jkf::MoveMoveFormat};
+use shogi_kifu_converter_obsshogi::{
+    error::ConvertError,
+    jkf::{MoveMoveFormat, MoveSpecial},
+};
 
-use crate::search::position::traverse::NodeAction;
+/// 棋譜の節が何を言っているか。
+///
+/// JKF の節は3通りにしかならない。手を指す／特殊手を宣言する／どちらでもない
+/// （`moves[0]` の開始局面や、コメントだけの節）。節から取り出すのは
+/// `index/index_builder.rs` の `node_action`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeAction {
+    Move(MoveMoveFormat),
+    Special(MoveSpecial),
+    None,
+}
 
 /// ノードを1つ食べた結果、**走査を続けてよいか**。
 ///
