@@ -230,6 +230,9 @@ describe("lineNumberRefsIn（版を固定した文書）", () => {
     ["`README.md#L10`", "起点直下のファイル"],
     ["`vite.config.ts:88`", "起点直下の設定"],
     ["`src/entities/kifu/model/cursor.ts:42`", "起点から書いたパス"],
+    // **`LAYER` の枝を突く。** 実在しないので `resolvable` では拾えない ——
+    // この行が無いと、枝を「冗長」と読んで落としても緑のまま通る
+    ["`entities/kifu/model/GONE.ts:42`", "実在しないレイヤ相対のパス"],
   ])("%s は宣言があっても拾う（%s）", (markdown) => {
     expect(lineNumberRefsIn(PIN + markdown)).toHaveLength(1);
   });
