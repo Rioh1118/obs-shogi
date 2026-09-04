@@ -1589,14 +1589,21 @@ mod tests {
         let mut bad: BucketEntries = empty_buckets();
         bad[hi.bucket() as usize + 1].push((hi, occ));
         let mut blob = Vec::new();
-        assert!(
-            encode_all(&mut blob, &ctx(), &bad).is_err(),
-            "別の桶に置かれた鍵を書いてしまった"
-        );
+        match encode_all(&mut blob, &ctx(), &bad) {
+            Ok(()) => panic!("別の桶に置かれた鍵を書いてしまった"),
+            Err(e) => assert!(e.contains("belongs to bucket"), "別の門番で落ちている: {e}"),
+        }
 
         // **読む側はビット化けが相手。** 書けた blob を壊して確かめる。
         // `zstd` は checksum を書かないので、化けた値がここに届くのは前提
         // （`checked_file_id` の doc）
+        // **一致が1件であることを先に確かめる。** 同じ並びが他所にもあると
+        // `position` は狙いと別の欄を返し、`is_err()` だけでは気付けない
+        let z0_hits = good
+            .windows(8)
+            .filter(|w| *w == hi.z0.to_le_bytes())
+            .count();
+        assert_eq!(z0_hits, 1, "鍵の並びが blob に {z0_hits} 箇所ある");
         let z0_at = good
             .windows(8)
             .position(|w| w == hi.z0.to_le_bytes())
@@ -1605,18 +1612,18 @@ mod tests {
         let mut swapped = good.clone();
         // 上位バイトを触ると桶が変わる
         swapped[z0_at + 7] ^= 0x01;
-        assert!(
-            decode_all(&swapped, root).is_err(),
-            "桶からはみ出た鍵を読んでしまった"
-        );
+        match decode_all(&swapped, root) {
+            Ok(_) => panic!("桶からはみ出た鍵を読んでしまった"),
+            Err(e) => assert!(e.contains("belongs to bucket"), "別の門番で落ちている: {e}"),
+        }
 
         let mut unsorted = good.clone();
         // 下位バイトなら桶は同じまま、並びだけ崩れる
         unsorted[z0_at] = 0x00;
-        assert!(
-            decode_all(&unsorted, root).is_err(),
-            "並びが崩れた桶を読んでしまった"
-        );
+        match decode_all(&unsorted, root) {
+            Ok(_) => panic!("並びが崩れた桶を読んでしまった"),
+            Err(e) => assert!(e.contains("is not sorted"), "別の門番で落ちている: {e}"),
+        }
     }
 
     /// **出現があるのに節表が無い blob も読まない。**
@@ -2031,16 +2038,24 @@ mod tests {
             .chain(0u16.to_le_bytes().iter())
             .copied()
             .collect();
+        let hits = good
+            .windows(node_rec.len())
+            .filter(|w| *w == node_rec.as_slice())
+            .count();
+        assert_eq!(hits, 1, "節の欄と同じ並びが blob に {hits} 箇所ある");
         let at = good
             .windows(node_rec.len())
             .position(|w| w == node_rec.as_slice())
             .expect("節の欄が blob に載っている");
         let mut broken = good.clone();
         broken[at + 8] = 9; // fork_len を 9 に。表は2つしか無い
-        assert!(
-            decode_all(&broken, root).is_err(),
-            "分岐の表の外を指す範囲を読んでしまった"
-        );
+        match decode_all(&broken, root) {
+            Ok(_) => panic!("分岐の表の外を指す範囲を読んでしまった"),
+            Err(e) => assert!(
+                e.contains("out of the fork table"),
+                "別の門番で落ちている: {e}"
+            ),
+        }
     }
 
     /// **節表の外を指す `node_id` は読まない。**
@@ -2060,7 +2075,10 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
-            r#gen: 1,
+            // **1 にしない。** `file_id` / `gen` / `node_id` が揃うと
+            // 出現レコードと同じ並びが blob に3箇所でき、下の byte poke が
+            // 狙いと別の欄を壊す
+            r#gen: 7,
         });
 
         // 節を2つだけ持つ表
@@ -2096,7 +2114,7 @@ mod tests {
             key,
             Occurrence {
                 file_id: 1,
-                r#gen: 1,
+                r#gen: 7,
                 node_id: 1, // 表の中
             },
         ));
@@ -2120,16 +2138,30 @@ mod tests {
             "正しい node_id を弾いている"
         );
 
-        // 表は2つしか持たないので、9 は外
+        // **4バイトの `1` は blob に何度も出る。** 出現レコード12バイトごと
+        // 狙い、一致が1件であることを確かめてから壊す
+        let occ_rec: Vec<u8> = 1u32
+            .to_le_bytes()
+            .iter()
+            .chain(7u32.to_le_bytes().iter())
+            .chain(1u32.to_le_bytes().iter())
+            .copied()
+            .collect();
+        let hits = good
+            .windows(occ_rec.len())
+            .filter(|w| *w == occ_rec.as_slice())
+            .count();
+        assert_eq!(hits, 1, "出現と同じ並びが blob に {hits} 箇所ある");
         let at = good
-            .windows(4)
-            .rposition(|w| w == 1u32.to_le_bytes())
-            .expect("node_id が blob に載っている");
+            .windows(occ_rec.len())
+            .position(|w| w == occ_rec.as_slice())
+            .expect("出現が blob に載っている");
         let mut broken = good.clone();
-        broken[at] = 9;
-        assert!(
-            decode_all(&broken, root).is_err(),
-            "節表の外を指す node_id を読んでしまった"
-        );
+        // 表は2つしか持たないので、9 は外
+        broken[at + 8] = 9;
+        match decode_all(&broken, root) {
+            Ok(_) => panic!("節表の外を指す node_id を読んでしまった"),
+            Err(e) => assert!(e.contains("is out of range"), "別の門番で落ちている: {e}"),
+        }
     }
 }
