@@ -3,9 +3,10 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`src-tauri/tests/test_count_ratchet.rs`、`docs/state-transitions/yaneuraou-db-parse.md`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`（19件）、`-r2.md`（9件）、`-r3.md`（12件）
+- 前ラウンド: `-r1.md`（21件）、`-r2.md`（9件）、`-r3.md`（12件）
 
-重複を除いて **12件**（見出し7＋表5）。BLOCK 3件・HIGH 4件・MEDIUM 5件。
+重複を除いて **12件**（ID の異なり数）。BLOCK 3件・HIGH 4件・MEDIUM 5件。
+**`E-03` は欠番、`E-04` は表に2行ある。**
 
 **このラウンドは、私が作った退行がゼロだった初めての回。** 出たのは
 「直したときに一緒に直すべきものを直していなかった」型と、レビュアーが実測で

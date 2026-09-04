@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`docs/state-transitions/yaneuraou-db-parse.md`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`（19件）、`-r2.md`（9件）
+- 前ラウンド: `-r1.md`（21件）、`-r2.md`（9件）
 
 重複を除いて **12件**。**内訳を書かない** —— `C-02 / C-03 / C-04` の
 見出しが `[BLOCK / HIGH]` と2種を並べていて、本文でも配分が決まらない。

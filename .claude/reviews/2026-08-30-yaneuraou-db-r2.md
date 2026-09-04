@@ -3,7 +3,7 @@
 - 日付: 2026-08-30
 - 範囲: `src-tauri/src/book/`、`docs/state-transitions/yaneuraou-db-parse.md`
 - 走らせた reviewer: rust / robustness / comment
-- 前ラウンド: `-r1.md`（19件、HIGH 5件）
+- 前ラウンド: `-r1.md`（21件、HIGH 5件）
 
 重複を除いて **9件**。BLOCK 1件・HIGH 5件・MEDIUM 3件。**うち1件はラウンド1で私が作った退行。**
 
@@ -17,7 +17,7 @@
 
 ## 途中で表を書いた
 
-ラウンド1に19件、ラウンド2に9件。その大半が「形式が実際どう書かれているか」の
+ラウンド1に21件、ラウンド2に9件。その大半が「形式が実際どう書かれているか」の
 取りこぼしで、1件ずつ潰す形では次の綴りに置いていかれる。
 ユーザーの指示で `docs/state-transitions/yaneuraou-db-parse.md` を書いた。
 
