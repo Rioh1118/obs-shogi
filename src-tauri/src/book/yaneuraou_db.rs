@@ -747,9 +747,8 @@ fn flush(
         // 2度返り、「先頭がその局面の best move」という形式の約束が
         // 2つのエントリの境目で崩れる。
         //
-        // 本家 `BookMoves::insert`（`book.cpp:123-149`）も、同じ指し手があれば
-        // 追加しない。ShogiHome は違う方針（手数の小さいエントリで丸ごと置換）
-        // なので、同じ入力でも候補手の数が違う。
+        // 畳み方と、本家・ShogiHome との差は
+        // [`keep_first_of_each_move_everywhere`] の doc に1箇所だけ置いてある。
         Entry::Occupied(mut slot) => slot.get_mut().append(buffered),
     }
 }
