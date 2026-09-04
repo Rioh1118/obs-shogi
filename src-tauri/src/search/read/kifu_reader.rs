@@ -38,7 +38,7 @@ use shogi_kifu_converter_obsshogi::parser::{
 /// | [`KifuReadError::ParseFailed`] | 読めなかった | 文言を警告として出す |
 /// | [`KifuReadError::NothingToIndex`] | 読めたが入れる局面が無い | **`warn` があればそれだけ出す** |
 ///
-/// **項目の登録はどちらも同じ。** 全件構築（`api`）も差分更新（`project_manager`）も、
+/// **項目の登録はどちらも同じ。** 全件構築（`build.rs`）も差分更新（`project_manager.rs`）も、
 /// 局面を1つも持たない項目として登録する（`project_manager` は
 /// `build_one_file` が `None` を返したときに呼び手側で積む）。
 /// どちらの経路でも、その棋譜の局面は検索に出てこない。

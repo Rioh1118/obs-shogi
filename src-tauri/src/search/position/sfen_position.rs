@@ -4,8 +4,8 @@
 //! 綴りから局面に戻す口が無いので、解く経路は手で書くしかない。
 //!
 //! **受理するのは SFEN より広い。** 先頭の `position` / `startpos` / `sfen` を
-//! 剥がすので、エンジンへ送る USI の行がそのまま通る。`book` 側にもう1本
-//! 別の受理集合があり、どちらへ寄せるかは #236。
+//! 剥がすので、エンジンへ送る USI の行がそのまま通る。定跡側にもう1本の
+//! 受理集合を置く予定があり、どちらへ寄せるかは #236。
 
 use crate::search::position::position_key::{key_from_partial_position, PositionKey};
 use shogi_core::{Color, Hand, PartialPosition, Piece, PieceKind, Square};

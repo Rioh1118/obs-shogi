@@ -133,7 +133,7 @@ pub fn save_checkpoint(
     trace!("create_dir_all OK");
 
     trace!("compact_all_buckets...");
-    // 1) コンパクション（bucketごとに1本化）
+    // 1) コンパクション（桶ごとに1本化）
     let buckets = compact_all_buckets(snap);
     trace!("compact_all_buckets OK");
 

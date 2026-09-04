@@ -5,7 +5,7 @@ use crate::search::types::Occurrence;
 
 pub type SegmentArc = Arc<Segment>;
 
-/// bucket 内の不変セグメント (SoA レイアウト)。
+/// 桶の中の不変なセグメント（SoA レイアウト）。
 ///
 /// (z0, z1) が binary search のホット列なので並列 Vec にする。Occurrence 列は
 /// hit 後にしか参照しないため、binary search 中の L1 を z0/z1 が占有できる。

@@ -10,7 +10,7 @@ pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 pub enum KifuReadError {
     /// どの文字コードでも、あるいは棋譜としても読めなかった。
     ///
-    /// **これがそのまま利用者の画面に出る**（`project_manager` と `api` が
+    /// **これがそのまま利用者の画面に出る**（`project_manager.rs` と `build.rs` が
     /// `to_string()` して `IndexWarnPayload` に詰め、`EVT_INDEX_WARN` で
     /// 設定のワークスペースへ）。内部の識別子ではなく、
     /// 何が読めなかったかと次に何をすればよいかを入れること。

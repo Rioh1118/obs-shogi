@@ -202,7 +202,7 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 ///
 /// **断らない。** 読めたところまでの局面は索引に入れる価値があるので、
 /// 記録は通して警告だけを出す。断ると**そのファイルの局面が1件も入らなくなり**
-/// （`ParseFailed` は `api` / `project_manager` の両方で空の bucket に落ちる）、
+/// （`ParseFailed` は `build.rs` / `project_manager.rs` の両方で空の桶に落ちる）、
 /// 誤検知したときに失うものが大きすぎる。数え方の判定が外れても、
 /// この形なら余計な警告が1つ出るだけで済む。
 ///
