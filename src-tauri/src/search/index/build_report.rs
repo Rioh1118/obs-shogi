@@ -90,7 +90,7 @@ impl std::fmt::Display for BuildWarn {
 /// **`Display` がそのまま利用者の画面に出る**（呼び手が `map_err(|e| e.to_string())`
 /// で `EVT_INDEX_WARN` に流す）。`ParseFailed` のような文字数の刈り込みも通らない。
 ///
-/// **[`BuildPolicy::Loose`] でも `Initial` は返る。** `build_index_for_jkf` が
+/// **`BuildPolicy::Loose`（`index_builder.rs`）でも `Initial` は返る。** `build_index_for_jkf` が
 /// 開始局面を組むのは `policy` を見るより前なので、`Loose` が受け止めるのは
 /// `Apply` だけ。`.jkf` は外部の JSON をそのまま信じるうえ、
 /// `kifu_reader.rs` の `says_nothing` は `preset != PresetHirate` を
