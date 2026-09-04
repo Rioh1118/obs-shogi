@@ -24,7 +24,7 @@ pub enum BuildPolicy {
     /// `break` でその線の `for` を抜けるので、**指せなかった手より後ろのノードに
     /// ぶら下がる変化も歩かない**。歩き終わっているのは、その手までの本譜と、
     /// そこまでの各ノードから分かれた変化（`forks` は手を指す前に降りる）。
-    /// [`BuildWarn::to_user_message`] が「より先の局面は検索に出ません」と言うのは
+    /// `BuildWarn` の `Display` が「より先の局面は検索に出ません」と言うのは
     /// この範囲を指す
     Loose,
     /// ファイルごと [`BuildError`] にする。**本番の呼び手は無い。**
@@ -34,7 +34,7 @@ pub enum BuildPolicy {
 
 /// 索引を組む途中で打ち切った手順。
 ///
-/// **これを画面に出す口は [`BuildWarn::to_user_message`] だけ。**
+/// **これを画面に出す口は `BuildWarn` の `Display` だけ。**
 /// ただし警告の口そのものは1つではない — [`BuildError`] が返ったときは
 /// その `Display` が呼び手の `map_err` を通って同じ `EVT_INDEX_WARN` に出る。
 #[derive(Debug, Clone)]
@@ -55,45 +55,49 @@ pub struct BuildWarn {
     pub message: String,
 }
 
-impl BuildWarn {
-    /// 利用者に出す文言にする。**`EVT_INDEX_WARN` に載るのはこれ。**
-    ///
-    /// `cursor` の `Debug` と `message`（`ApplyError` の英語）をそのまま並べると、
-    /// 画面に `CursorLite { tesuu: 30, fork_pointers: [] }: side-to-move mismatch: …`
-    /// が素のテキストで出る（`WorkspaceTab` は Markdown を解釈しない）。
-    /// 何が起きたかが利用者の言葉になっておらず、次に何をすればよいかも無い。
-    ///
-    /// **内部の理由（`message`）はここで捨てる。** 呼び手がログへ回す。
-    ///
-    /// **次に何をすればよいかまで書く。** 場所だけ言われても、直せば索引に
-    /// 入り直すのか放っておいてよいのかが分からない。画面（`WorkspaceTab`）に
-    /// あるのは「警告をクリア」だけで、開く導線も再構築のボタンも無い。
-    /// 「直して保存すれば入り直す」が成り立つのは、読み直しを決めるのが
-    /// `fs_scan` の `(size, mtime_ms)` 比較だから。
-    ///
-    /// **変化の中なら、そう言う。** 本譜が最後まで正しく変化にだけ反則手がある棋譜で
-    /// 「30手目」とだけ言うと、利用者は本譜の30手目を見に行って何も見つけられない。
-    /// 同じ手数で本譜と変化の両方が打ち切られたときに、文言が同じにならない意味もある。
-    ///
-    /// **言葉は画面に合わせる。** `branchLabel`（`entities/kifu/model/branch.ts`）が
-    /// 「本譜」「変化N」で、N は `forkIndex + 1`。ここだけ「本線」「変化」と呼ぶと、
-    /// 警告に出た変化を棋譜欄で探すときに名前で突き合わせられない。
-    ///
-    /// **見るのは `fork_pointers` の末尾。** 変化の中の変化では先頭が一番外側で、
-    /// 打ち切られた手が乗っている線を決めるのは**一番内側の選択**。
-    /// 先頭を見ると、外側の分岐点を名指して利用者を別の場所へ送る。
-    ///
-    /// **`tesuu` に足さない。** `walk_sequence` は `moves[1..]` を `start_tesuu = 1` で
-    /// 歩くので、`tesuu` はそのまま「何手目が指せなかったか」。足すと、
-    /// 索引に入っていない1つ先の手を名指しすることになる。
-    /// 検索結果の `手数` 表示（`PositionHitItem`）も `tesuu` を素で描くので、
-    /// ずらすとアプリの中で数え方が2つになる。
-    pub fn to_user_message(&self) -> String {
+/// 利用者に出す文言。**`EVT_INDEX_WARN` に載るのはこれ。**
+///
+/// [`BuildError`] も `Display` が画面の文言なので、警告の口に載る2つが
+/// 同じ描き方で揃う。**`message`（英語の内部の理由）はここに出ない。**
+///
+/// `cursor` の `Debug` と `message`（`ApplyError` の英語）をそのまま並べると、
+/// 画面に `CursorLite { tesuu: 30, fork_pointers: [] }: side-to-move mismatch: …`
+/// が素のテキストで出る（`WorkspaceTab` は Markdown を解釈しない）。
+/// 何が起きたかが利用者の言葉になっておらず、次に何をすればよいかも無い。
+///
+/// **内部の理由（`message`）はここで捨てる。** 呼び手がログへ回す。
+///
+/// **次に何をすればよいかまで書く。** 場所だけ言われても、直せば索引に
+/// 入り直すのか放っておいてよいのかが分からない。画面（`WorkspaceTab`）に
+/// あるのは「警告をクリア」だけで、開く導線も再構築のボタンも無い。
+/// 「直して保存すれば入り直す」が成り立つのは、読み直しを決めるのが
+/// `fs_scan` の `(size, mtime_ms)` 比較だから。
+///
+/// **変化の中なら、そう言う。** 本譜が最後まで正しく変化にだけ反則手がある棋譜で
+/// 「30手目」とだけ言うと、利用者は本譜の30手目を見に行って何も見つけられない。
+/// 同じ手数で本譜と変化の両方が打ち切られたときに、文言が同じにならない意味もある。
+///
+/// **言葉は画面に合わせる。** `branchLabel`（`entities/kifu/model/branch.ts`）が
+/// 「本譜」「変化N」で、N は `forkIndex + 1`。ここだけ「本線」「変化」と呼ぶと、
+/// 警告に出た変化を棋譜欄で探すときに名前で突き合わせられない。
+///
+/// **見るのは `fork_pointers` の末尾。** 変化の中の変化では先頭が一番外側で、
+/// 打ち切られた手が乗っている線を決めるのは**一番内側の選択**。
+/// 先頭を見ると、外側の分岐点を名指して利用者を別の場所へ送る。
+///
+/// **`tesuu` に足さない。** `walk_sequence` は `moves[1..]` を `start_tesuu = 1` で
+/// 歩くので、`tesuu` はそのまま「何手目が指せなかったか」。足すと、
+/// 索引に入っていない1つ先の手を名指しすることになる。
+/// 検索結果の `手数` 表示（`PositionHitItem`）も `tesuu` を素で描くので、
+/// ずらすとアプリの中で数え方が2つになる。
+impl std::fmt::Display for BuildWarn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let where_ = match self.cursor.fork_pointers.last() {
             None => "本譜の".to_owned(),
             Some(fork) => format!("{}手目から分かれた変化{}の", fork.te, fork.fork_index + 1),
         };
-        format!(
+        write!(
+            f,
             "{where_}{}手目に、その局面では指せない手があります。\
              この手順はそこで打ち切られるので、より先の局面は検索に出ません。\
              棋譜を開いてその手を確かめてください。直して保存すれば索引に入り直します",
@@ -103,7 +107,7 @@ impl BuildWarn {
 }
 
 #[derive(Debug)]
-pub struct FileIndexBuild {
+pub struct IndexedFile {
     /// 局面の鍵と、それが出た場所（どのファイルのどのノードか）の対。
     ///
     /// **[`crate::search::types::PositionHit`] ではない。** あちらは検索が返す形で、
@@ -170,8 +174,8 @@ impl IndexBuilder {
         }
     }
 
-    fn finish(self) -> FileIndexBuild {
-        FileIndexBuild {
+    fn finish(self) -> IndexedFile {
+        IndexedFile {
             entries: self.entries,
             node_table: Arc::new(self.node_table.finish()),
             warns: self.warns,
@@ -279,7 +283,7 @@ pub fn build_index_for_jkf(
     gen: Gen,
     jkf: &JsonKifuFormat,
     policy: BuildPolicy,
-) -> Result<FileIndexBuild, BuildError> {
+) -> Result<IndexedFile, BuildError> {
     let init_pos = initial_partial_position(jkf)?;
     // 初期局面だけはフル計算。ここから先は差分で進める
     let init_key = key_from_partial_position(&init_pos);
@@ -357,7 +361,7 @@ mod tests {
             },
             message: "side-to-move mismatch".to_owned(),
         };
-        let message = warn.to_user_message();
+        let message = warn.to_string();
 
         assert!(
             message.contains("30手目"),
@@ -441,7 +445,7 @@ mod tests {
             },
             message: "side-to-move mismatch".to_owned(),
         };
-        let message = warn.to_user_message();
+        let message = warn.to_string();
 
         assert!(
             message.contains("20手目から分かれた変化2"),
@@ -459,7 +463,7 @@ mod tests {
 
     /// **組み立てから警告までを1本の題材で繋ぐ。**
     ///
-    /// [`BuildWarn::to_user_message`] を見る他のテストは `CursorLite` を手で組むので、
+    /// `BuildWarn` の `Display` を見る他のテストは `CursorLite` を手で組むので、
     /// **`BuildWarn` を作る行（`walk_sequence` の `Loose` の腕）を通らない**。
     /// そこを `tesuu + 1` に書き換えると他は緑のまま文言だけがずれるので、
     /// 実際に指せない手を通して番号を見る。
@@ -487,9 +491,9 @@ mod tests {
             built.warns[0].cursor.tesuu
         );
         assert!(
-            built.warns[0].to_user_message().contains("2手目"),
+            built.warns[0].to_string().contains("2手目"),
             "文言が2手目を指していない: {}",
-            built.warns[0].to_user_message()
+            built.warns[0]
         );
         // 断った理由を固定する。題材を変えて別の理由で落ちるようになると、
         // 上の doc が指している経路を通らないまま緑になる
@@ -508,7 +512,7 @@ mod tests {
 
     /// `tesuu` の起点を、組み立ての側から固定する。
     ///
-    /// `to_user_message` だけを見る2本（`the_warning_names_the_move_that_could_not_be_played`
+    /// `Display` だけを見る2本（`the_warning_names_the_move_that_could_not_be_played`
     /// と `the_warning_names_the_innermost_variation`）は `CursorLite` を手で組むので、
     /// **`walk_sequence` が起点を変えても緑のまま**になる。
     ///

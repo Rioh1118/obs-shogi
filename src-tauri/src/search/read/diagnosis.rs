@@ -111,7 +111,7 @@ pub(crate) fn capped(e: &dyn std::fmt::Display) -> String {
 /// 「その局面は指されていない」と読む）。
 ///
 /// 同じ `EVT_INDEX_WARN` に載る他の2つ（[`warn_if_moves_were_dropped`] と
-/// `BuildWarn::to_user_message`）はどちらも失うものを言っているので、
+/// `BuildWarn` の `Display`）はどちらも失うものを言っているので、
 /// ここだけ黙っていると画面の中で基準が2つになる。
 ///
 /// **この一文は上限の外で足す。** 中に入れるとクレートの文言が長いときに

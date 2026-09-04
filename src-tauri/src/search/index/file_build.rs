@@ -82,7 +82,7 @@ pub fn build_file_index(rec: &FileRecord, file_id: FileId, gen: Gen) -> Result<F
                 w.cursor,
                 w.message
             );
-            w.to_user_message()
+            w.to_string()
         }))
         .collect();
 
