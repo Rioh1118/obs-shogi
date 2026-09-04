@@ -533,4 +533,163 @@ mod tests {
             "初期局面が 0、1手目が 1 になっていない: {tesuu:?}"
         );
     }
+
+    // -----------------------------------------------------------
+    // 歩き方そのもの
+    //
+    // 上の群が見ているのは利用者に出す文言。こちらは歩く順・分岐に降りる
+    // 範囲・打ち切りがどこまで及ぶかを見る。**doc が主張していることを、
+    // 主張のまま置かないための群。**
+    //
+    // 節に付く `node_id` は push 順の連番（`build_index_for_jkf` の doc）なので、
+    // `node_table` を順に読めば訪問の順序がそのまま見える。
+    // -----------------------------------------------------------
+
+    /// 2手目に変化が1本ある棋譜。本譜は3手、変化は2手目から2手。
+    fn kif_with_one_variation() -> &'static str {
+        "手合割：平手\n\
+手数----指手---------消費時間--\n   \
+1 ７六歩(77)   ( 0:01/00:00:01)\n   \
+2 ３四歩(33)   ( 0:01/00:00:02)\n   \
+3 ２六歩(27)   ( 0:01/00:00:03)\n\
+\n変化：2手\n   \
+2 ８四歩(83)   ( 0:01/00:00:02)\n   \
+3 ２五歩(27)   ( 0:01/00:00:03)\n"
+    }
+
+    fn build(text: &str) -> IndexedFile {
+        let jkf = shogi_kifu_converter_obsshogi::parser::parse_kif_str(text)
+            .expect("題材の KIF が読めること");
+        build_index_for_jkf(1, 1, &jkf, BuildPolicy::Loose).expect("組めること")
+    }
+
+    /// 訪れた順に `(tesuu, fork_pointers)` を並べる。`node_id` は push 順の連番。
+    fn visits(built: &IndexedFile) -> Vec<(u32, Vec<(u32, u32)>)> {
+        (0..built.node_table.nodes.len() as u32)
+            .map(|id| {
+                let c = built
+                    .node_table
+                    .cursor_lite(id)
+                    .expect("node_id は連番なので必ず引ける");
+                (
+                    c.tesuu,
+                    c.fork_pointers
+                        .iter()
+                        .map(|p| (p.te, p.fork_index))
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    /// **変化は、それが置き換える手より先に歩かれる。**
+    ///
+    /// `walk_sequence` は節の `forks` を、その節の手を指すより前に降りる。
+    /// 逆にすると、変化の中の局面が本譜の手を指した後の盤から作られて
+    /// **全部違う鍵になる**（症状は検索が当たらないことだけ）。
+    ///
+    /// 変化の1手目は、置き換える手と**同じ手数**で始まる。
+    #[test]
+    fn a_variation_is_walked_before_the_move_it_replaces() {
+        let built = build(kif_with_one_variation());
+
+        assert_eq!(
+            visits(&built),
+            vec![
+                (0, vec![]),       // 初期局面
+                (1, vec![]),       // 本譜1手目
+                (2, vec![(2, 0)]), // 変化の1手目。本譜の2手目より先
+                (3, vec![(2, 0)]), // 変化の2手目
+                (2, vec![]),       // 本譜2手目
+                (3, vec![]),       // 本譜3手目
+            ],
+            "歩く順か分岐の印が変わった"
+        );
+    }
+
+    /// **変化の中で指せない手に当たっても、本譜は最後まで入る。**
+    ///
+    /// `BuildPolicy::Loose` の doc が言う「その手順だけ打ち切る」の範囲を見る。
+    /// 打ち切りは `break` なので**その線の残り全部**が落ちるが、
+    /// 呼び手の `for` は次へ進むので兄弟の線と本譜は生き残る。
+    #[test]
+    fn an_unplayable_move_in_a_variation_leaves_the_mainline_indexed() {
+        // 変化の2手目に、その局面では指せない手（1手目の繰り返し）を置く
+        let text = "手合割：平手\n\
+手数----指手---------消費時間--\n   \
+1 ７六歩(77)   ( 0:01/00:00:01)\n   \
+2 ３四歩(33)   ( 0:01/00:00:02)\n   \
+3 ２六歩(27)   ( 0:01/00:00:03)\n\
+\n変化：2手\n   \
+2 ８四歩(83)   ( 0:01/00:00:02)\n   \
+3 ８四歩(83)   ( 0:01/00:00:03)\n";
+        let built = build(text);
+
+        assert_eq!(built.warns.len(), 1, "警告が1件でない: {:?}", built.warns);
+        assert_eq!(
+            built.warns[0].cursor.fork_pointers.len(),
+            1,
+            "打ち切ったのが変化の中だと言っていない"
+        );
+
+        assert_eq!(
+            visits(&built),
+            vec![
+                (0, vec![]),
+                (1, vec![]),
+                (2, vec![(2, 0)]), // 変化の1手目は入る
+                // 変化の2手目は指せないので入らない
+                (2, vec![]), // 本譜は続く
+                (3, vec![]),
+            ],
+            "打ち切りが本譜まで巻き込んでいる"
+        );
+    }
+
+    /// **特殊手の節も索引に入り、そこで線が止まる。**
+    ///
+    /// 投了は局面を動かさないので鍵は直前と同じ。それでも節としては
+    /// 積まれる（`walk_sequence` は `push_entry` を済ませてから `break` する）。
+    #[test]
+    fn a_special_node_is_indexed_and_ends_the_line() {
+        let text = "手合割：平手\n\
+手数----指手---------消費時間--\n   \
+1 ７六歩(77)   ( 0:01/00:00:01)\n   \
+2 投了   ( 0:01/00:00:02)\n";
+        let built = build(text);
+
+        assert_eq!(
+            visits(&built),
+            vec![(0, vec![]), (1, vec![]), (2, vec![])],
+            "投了の節が索引に入っていない"
+        );
+
+        let keys: Vec<PositionKey> = built.entries.iter().map(|(k, _)| *k).collect();
+        assert_eq!(keys[1], keys[2], "投了で局面が動いたことになっている");
+    }
+
+    /// **同じ手数で分岐し直したら、印は増えずに置き換わる。**
+    ///
+    /// 変化の1手目にさらに変化がぶら下がると、`fork_path` に同じ `te` が
+    /// 2度来る。足してしまうと `te` が重複した経路になり、画面側の
+    /// `cursorFromLite` が解けない形が索引に入る。
+    ///
+    /// **この腕は組み立てを通るテストでは踏めない**（題材を作れない）ので、
+    /// 印を組む関数を直に見る。
+    #[test]
+    fn a_second_fork_at_the_same_move_replaces_the_pointer() {
+        let mut fps = vec![];
+        push_or_replace_fork(&mut fps, 10, 0);
+        push_or_replace_fork(&mut fps, 20, 1);
+        assert_eq!(fps.len(), 2, "別の手数なら足す");
+
+        push_or_replace_fork(&mut fps, 20, 2);
+        assert_eq!(fps.len(), 2, "同じ手数で増えた");
+        assert_eq!(fps[1].fork_index, 2, "置き換わっていない");
+
+        // 並びは手数の昇順。`cursorFromLite` が前提にしている
+        push_or_replace_fork(&mut fps, 15, 0);
+        let te: Vec<u32> = fps.iter().map(|p| p.te).collect();
+        assert_eq!(te, vec![10, 15, 20], "手数の昇順になっていない");
+    }
 }
