@@ -107,14 +107,17 @@ doc は「接尾辞や接頭辞を足す改名は最も普通の形なので、�
 
 ### AW-07 (MEDIUM, 1人が実測): 「0件を見て緑」の床が実測の 1/19 → **#351 へ送る**
 
-`docsIdentifiers.test.ts` の `toBeGreaterThan(10)` に対して実測は **195**。
-1文字の変異で範囲が **93%** 消えても緑になる。
+`docsIdentifiers.test.ts` の `toBeGreaterThan(10)` に対して、
+**その `expect` が比べる `found.length` の実測は 214**（ファイル跨ぎの重複を含む延べ。
+綴りの異なり数は195）。1文字の変異で範囲が **93%** 消えても緑になる。
 
 - ``[^`\n]``→``[^`]``（否定クラスから `\n` を落とす）: 拾い数 195 → **157**
 - `[...found].sort().slice(0, 1)`: 拾い数 195 → **13**（床10を上回るので緑）
 
 同じ形が `commentHistory.test.ts`（150 対 568）と
-`turnGlyphLiterals.test.ts`（100 対 489）にもある。
+`turnGlyphLiterals.test.ts`（100 対 **310**）にもある。
+**後者が数えるのは `tsFiles(SRC, { includeTests: false })`** で、
+`sourceFiles(SRC)` の489ではない。
 
 **送る理由。** コメントが宣言しているのは「0件を見て緑になる形を止める」で、
 床はその宣言を literally 満たしている。**書いた事が偽ではないので、案A では
