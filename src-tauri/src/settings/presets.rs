@@ -1,3 +1,5 @@
+//! エンジンのプリセットの形と置き場。
+
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
@@ -61,9 +63,8 @@ fn validate_one_preset(p: &EnginePreset) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn load_presets(app: AppHandle) -> Result<PresetsFile, String> {
-    let path = presets_path(&app)?;
+pub fn read_or_default(app: &AppHandle) -> Result<PresetsFile, String> {
+    let path = presets_path(app)?;
     if path.exists() {
         let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
         let file: PresetsFile = serde_json::from_str(&data).map_err(|e| e.to_string())?;
@@ -73,14 +74,13 @@ pub fn load_presets(app: AppHandle) -> Result<PresetsFile, String> {
     }
 }
 
-#[tauri::command]
-pub fn save_presets(app: AppHandle, file: PresetsFile) -> Result<(), String> {
+pub fn write(app: &AppHandle, file: &PresetsFile) -> Result<(), String> {
     // バリデーション（“未設定プリセットを保存したい” なら緩め推奨）
     for p in &file.presets {
         validate_one_preset(p)?;
     }
 
-    let path = presets_path(&app)?;
-    let data = serde_json::to_string_pretty(&file).map_err(|e| e.to_string())?;
+    let path = presets_path(app)?;
+    let data = serde_json::to_string_pretty(file).map_err(|e| e.to_string())?;
     atomic_write(&path, data.as_bytes()).map_err(|e| e.to_string())
 }

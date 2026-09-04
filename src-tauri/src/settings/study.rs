@@ -1,3 +1,5 @@
+//! 研究局面の形と置き場。
+
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -70,17 +72,10 @@ fn write_file(path: &Path, input: &StudyPositionsFile) -> Result<(), String> {
         .map_err(|e| format!("failed to write {}: {e}", path.display()))
 }
 
-#[tauri::command]
-pub fn load_study_positions<R: Runtime>(app: AppHandle<R>) -> Result<StudyPositionsFile, String> {
-    let path = study_positions_path(&app)?;
-    read_file_or_default(&path)
+pub fn read_or_default<R: Runtime>(app: &AppHandle<R>) -> Result<StudyPositionsFile, String> {
+    read_file_or_default(&study_positions_path(app)?)
 }
 
-#[tauri::command]
-pub fn save_study_positions<R: Runtime>(
-    app: AppHandle<R>,
-    input: StudyPositionsFile,
-) -> Result<(), String> {
-    let path = study_positions_path(&app)?;
-    write_file(&path, &input)
+pub fn write<R: Runtime>(app: &AppHandle<R>, input: &StudyPositionsFile) -> Result<(), String> {
+    write_file(&study_positions_path(app)?, input)
 }

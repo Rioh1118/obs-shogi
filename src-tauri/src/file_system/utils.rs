@@ -12,7 +12,7 @@ use crate::fs::path::{canonicalize_for_compare, is_under};
 
 /// AppConfig.root_dir を取得（未設定なら None）。
 ///
-/// **`config_dir` から型もファイル名も借りる。写さない。**
+/// **`settings::app` から型もファイル名も借りる。写さない。**
 ///
 /// 写すと、あちらの変更がこちらに当たらない。`serde` は欠けたフィールドを黙って
 /// `None` にし、`exists()` は見つからないファイルに偽を返すので、どちらの場合も
@@ -25,7 +25,7 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
         .app_config_dir()
         .map_err(|e| FsError::new(FsErrorCode::InvalidPath, e.to_string()))?
         // 置き場も借りる（理由は上）
-        .join(crate::config_dir::CONFIG_FILE);
+        .join(crate::settings::app::CONFIG_FILE);
     if !cfg_path.exists() {
         return Ok(None);
     }
@@ -36,7 +36,7 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
         FsError::new(FsErrorCode::InvalidPath, e).with_path(cfg_path.to_string_lossy().to_string())
     };
     let data = fs::read_to_string(&cfg_path).map_err(|e| named(e.to_string()))?;
-    let cfg: crate::config_dir::AppConfig =
+    let cfg: crate::settings::app::AppConfig =
         serde_json::from_str(&data).map_err(|e| named(e.to_string()))?;
     Ok(cfg.root_dir.map(PathBuf::from))
 }
