@@ -30,7 +30,6 @@ issue へ送るものは無かった。
 
 reviewer が実測 —— `README.md` だけが `UU` のツリーで免除を潰した版に `git rebase --abort` を
 食わせても標準出力0バイト・rc=0（`gate_kinds_for_path` が `README.md` をどの種類にも当てない）。
-対照として `docs/IDEAS.md` だけを `UU` にすると同じ版が deny する。
 
 免除の範囲を動かす人が最初に開くのは実装のコメントか `expect_teardown` の並び。
 **実装側だけ直したので、潰した判断材料がテスト側から次のラウンドへ渡る。**
