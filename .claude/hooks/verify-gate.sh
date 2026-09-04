@@ -233,10 +233,10 @@ gate_kinds_for_path() {
     docs/state-transitions/*.md) kinds="$kinds rust" ;;
   esac
   case "$path" in
-    # `gate` は門番自身の検査。`ts` も要る —— `docsIdentifiers` が
-    # `.claude/hooks/*.sh` を走査するので、シェルは `npm run verify` の入力でもある。
-    # 落とすと、**門番を書き換えるコミットでだけ**判定表の識別子の検査が消える。
-    .claude/hooks/*.sh) kinds="$kinds gate ts" ;;
+    # **門番自身も `ts`。** `npm run verify` は最後に `test:hooks`（門番の検査）を
+    # 走らせるうえ、`docsIdentifiers` が `.claude/hooks/*.sh` を走査する
+    # ——シェルは判定表が引く関数名の唯一の定義元。専用の種類は要らない。
+    .claude/hooks/*.sh) kinds="$kinds ts" ;;
   esac
 
   printf '%s' "${kinds# }"
@@ -355,7 +355,6 @@ cd "$project_dir" || exit 0
 # 数えられない。
 needs_ts=0
 needs_rust=0
-needs_gate=0
 while IFS= read -r -d '' record; do
   status=${record:0:2}
   paths=${record:3}
@@ -374,7 +373,6 @@ $original"
       case "$kind" in
         ts) needs_ts=1 ;;
         rust) needs_rust=1 ;;
-        gate) needs_gate=1 ;;
       esac
     done
   done <<EOF
@@ -386,10 +384,9 @@ done < <(git status --porcelain -z --untracked-files=no)
 if gate_is_teardown "$command"; then
   needs_ts=0
   needs_rust=0
-  needs_gate=0
 fi
 
-if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ] && [ "$needs_gate" -eq 0 ]; then
+if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ]; then
   exit 0
 fi
 
@@ -405,7 +402,6 @@ $(printf '%s' "$out" | tail -40)
   fi
 }
 
-[ "$needs_gate" -eq 1 ] && run_gate "verify-gate.test.sh" bash .claude/hooks/verify-gate.test.sh
 [ "$needs_ts" -eq 1 ] && run_gate "npm run verify" npm run verify
 [ "$needs_rust" -eq 1 ] && run_gate "npm run verify:rust" npm run verify:rust
 

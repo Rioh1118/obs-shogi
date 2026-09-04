@@ -239,7 +239,7 @@ expect_kinds "rust" "src-tauri/Cargo.toml"
 expect_kinds "rust" "src-tauri/tauri.conf.json"
 expect_kinds "rust" "src-tauri/capabilities/default.json"
 expect_kinds "rust" "rust-toolchain.toml"
-expect_kinds "gate ts" ".claude/hooks/verify-gate.sh"
+expect_kinds "ts" ".claude/hooks/verify-gate.sh"
 expect_kinds "" "README.md"
 # `ratchetIndex` が索引としてこの表を読むので、触ったら vitest を通す
 expect_kinds "ts" "CONTRIBUTING.md"
