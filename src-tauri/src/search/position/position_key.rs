@@ -270,6 +270,50 @@ mod tests {
         );
     }
 
+    /// **一手ごとに**、決まった鍵が出る。
+    ///
+    /// 初期局面だけでは指し手の解釈を見ていない。JKF の手を `shogi_core` の手に
+    /// する所（`position_apply::jkf_move_to_core_move`）が変わっても
+    /// [`walk_and_compare`] は気付かない — 差分もフル計算も同じ変換を通るので、
+    /// 誤っていれば両方が同じだけ誤る。**ここが唯一その外から見ている。**
+    ///
+    /// **最終局面だけでは足りない。** 3手目の成りは4手目に取られて消えるので、
+    /// 成りを落としても7手目の局面は変わらない（`CAPTURE_PROMOTE_DROP_KIF` の doc）。
+    #[test]
+    fn every_move_always_yields_the_same_key() {
+        let jkf = parse(test_support::kifu::CAPTURE_PROMOTE_DROP_KIF);
+        let mut pos = crate::search::position::initial_position::initial_partial_position(&jkf)
+            .expect("初期局面が作れること");
+
+        let mut got = Vec::new();
+        for node in jkf.moves.iter().skip(1) {
+            let Some(m) = node.move_ else { continue };
+            assert!(
+                matches!(
+                    apply_node_action(&mut pos, NodeAction::Move(m)),
+                    Ok(ApplyStatus::Applied)
+                ),
+                "題材の手が指せない"
+            );
+            let k = key_from_partial_position(&pos);
+            got.push((k.z0, k.z1));
+        }
+
+        assert_eq!(
+            got,
+            vec![
+                (0x81f2_c215_dfa8_bc3a, 0xb8e1_e9ad_d6d2_6bb6),
+                (0xe8c1_5903_ae81_863f, 0xc4d9_1aef_f082_e37d),
+                (0x2eb1_41bd_f539_edb1, 0xa18f_3693_2163_8807),
+                (0x08de_5e93_3e18_287d, 0xd6ee_1167_d628_2ff5),
+                (0x78e4_52ce_7190_eebd, 0x8f2a_c1a6_2969_421b),
+                (0xde97_7d5f_c8aa_5418, 0xc862_55cd_ab0a_db48),
+                (0x4021_f0c9_0565_a4c0, 0xec7c_1f2d_d737_26b8),
+            ],
+            "手ごとの鍵が変わった"
+        );
+    }
+
     /// 手合割15種すべてで一致する。
     ///
     /// **初期局面が違えば持駒も盤も違う。** 平手だけで測ると、
@@ -290,17 +334,7 @@ mod tests {
     /// どれかを落とすと、その形の棋譜だけが静かに別の鍵になる。
     #[test]
     fn capture_promotion_and_drop_all_step_the_same() {
-        // 角交換から角を打ち合う。成る・取る・打つ・成駒を取るが全部出る
-        let text = "手合割：平手\n\
-手数----指手---------消費時間--\n   \
-1 ７六歩(77)   ( 0:01/00:00:01)\n   \
-2 ３四歩(33)   ( 0:01/00:00:02)\n   \
-3 ２二角成(88)   ( 0:01/00:00:03)\n   \
-4 同　銀(31)   ( 0:01/00:00:04)\n   \
-5 ８八銀(79)   ( 0:01/00:00:05)\n   \
-6 ３三銀(22)   ( 0:01/00:00:06)\n   \
-7 ５五角打   ( 0:01/00:00:07)\n";
-        let jkf = parse(text);
+        let jkf = parse(test_support::kifu::CAPTURE_PROMOTE_DROP_KIF);
         let n = walk_and_compare("capture-promote-drop", &jkf);
         assert!(n >= 5, "題材が短すぎる: {n}手しか見ていない");
     }
