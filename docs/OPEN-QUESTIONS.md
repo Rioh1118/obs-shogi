@@ -70,7 +70,7 @@
 ## Q-004 🟢 検証オラクルをいつ作るか
 
 Rust 側のテストは `src/` の振る舞いを網羅しておらず、green が棋譜変換の正しさを保証しないという状態のまま T1 に着手している。
-今回 CI に typecheck は入れたので型は守られるが、棋譜変換の正しさは誰も保証していない。
+今回 CI に typecheck は入れたので型は守られる。棋譜変換は書き出し→読み戻しを4形式ぶん見るテストが2本ある（`kifu.rs` の `gote_start_is_written_once_and_survives_a_round_trip` と `what_the_write_path_puts_on_disk_can_be_read_back`）が、どちらも1つの棋譜で、**実棋譜のコーパスを通した照合は無い。**
 
 **決めるのに要るもの**: 決めるというより、いつやるかだけ。棋譜変換の golden round-trip テストは2〜3時間の作業。#113 の後に置くか、#113 の中で触る範囲だけ先に張るか
 
