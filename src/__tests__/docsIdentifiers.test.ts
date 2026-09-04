@@ -103,11 +103,18 @@ describe("missingIn", () => {
     expect(missingIn(["running_clock"], "fn running_clock(&self)")).toEqual([]);
   });
 
-  // 接尾辞を足す改名は最も普通の形。部分一致で見ると素通りする
+  // 接頭辞を足す改名。部分一致で見ると素通りする
   test("別の識別子の一部としては数えない", () => {
     expect(missingIn(["WRITE_TIMEOUT"], "const STOP_WRITE_TIMEOUT: Duration")).toEqual([
       "WRITE_TIMEOUT",
     ]);
+  });
+
+  // **接尾辞側も見る。** 前置だけを与えると、語境界を片側しか要求しない形でも通る ——
+  // `\b` の後ろ側を落とす1文字の変異がそれで、`docs/` には現に
+  // `config_write` → `config_write_failed` の対がある
+  test("接尾辞を足した別の識別子としては数えない", () => {
+    expect(missingIn(["config_write"], 'case "config_write_failed":')).toEqual(["config_write"]);
   });
 
   test("無いものだけ返す", () => {
