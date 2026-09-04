@@ -14,12 +14,18 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 **種類で二分しない。** `.rs` だけを触っても ts が走り、`docs/` の中の `.md` だけを
 触っても ts が走る（規約とリンクの検査が、ソースと doc を文字列として読んでいるため）。
-**素通しする経路は種類だけでは決まらない。** ゲートは `git status` を見るので、
-作業ツリーに追跡済みの変更が無ければ何も走らない —— `git commit` 以外でコミットを作る綴り
-（`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`）が clean なツリーで作る
-コミットと、**新規ファイルだけを `git add -A && git commit` で入れるコミット**がそれに当たる
-（`docs/state-transitions/verify-gate-decision.md` の (D, S4)）。
-**それらの後は手で通すこと。**
+**素通しする経路は種類だけでは決まらない。** ゲートが見るのは、判定した時点で
+`git status` に出る**追跡済みの変更**だけ。素通しするのは次の2つ。
+
+- どの種類にも当たらないファイルだけの変更
+- **判定した時点のツリーに、追跡済みの変更が無いとき。** PreToolUse はコマンドが走る前に
+  判定するので、同じ呼び出しの中で先にツリーを変える git 呼び出しを置くと
+  （`git add -A && git commit` など）その前の状態を見る。`git commit` 以外で
+  コミットを作る綴りが clean なツリーで作るコミットも同じ
+  （語彙は `verify-gate.sh` の `GATE_COMMIT_VERB_BASE`。表は
+  `docs/state-transitions/verify-gate-decision.md` の (B, S4) と (D, S4)）
+
+**いずれの後も手で通すこと。**
 
 パスから種類への対応は `gate_kinds_for_path`（`.claude/hooks/verify-gate.sh`）が唯一の出典で、
 `verify-gate.test.sh` がその対応を固定している。**ここに写さない。**
