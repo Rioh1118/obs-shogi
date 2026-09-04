@@ -25,6 +25,20 @@ macro_rules! trace {
     };
 }
 
+/// 出荷ビルドのログに残す失敗。
+///
+/// **`trace!` は `log::debug!` で、ロガーは `Info`**（`lib.rs`）なので出荷ビルドでは消える。
+/// 消えては困るのは `save_checkpoint` の失敗だけ —— 画面には何も出ないまま
+/// チェックポイントが残らず、次の起動が毎回全件構築になる（#407）。
+///
+/// **読む側（`try_restore` / `read_decode`）では使わない。**
+/// あちらは失敗しても全件構築に落ちて画面が進むので、`Info` で消えてよい。
+macro_rules! err {
+    ($($t:tt)*) => {
+        log::error!("[index_cache] {}", format_args!($($t)*));
+    };
+}
+
 const MAGIC: [u8; 8] = *b"OBSIXv01";
 
 /// 索引の中身の版。**容れ物の形だけでなく、棋譜の読み方が変わったときも上げる。**
@@ -127,7 +141,7 @@ pub fn save_checkpoint(
     );
 
     fs::create_dir_all(&proj_dir).map_err(|e| {
-        log::error!("[index_cache] チェックポイントを書けない（create_dir_all）: {e}");
+        err!("チェックポイントを書けない（create_dir_all）: {e}");
         e.to_string()
     })?;
     trace!("create_dir_all OK");
@@ -150,11 +164,8 @@ pub fn save_checkpoint(
         nts: snap.node_tables.as_ref(),
     };
 
-    // **`trace!` は `log::debug!` で、ロガーは `Info`**（`lib.rs`）。
-    // ここで落ちるのは索引が壊れている合図なので、出荷ビルドのログに残す。
-    // 画面には出ない — 呼び手が `Err` を捨てている（#407）
     encode_all(&mut body, &ctx, &buckets).map_err(|e| {
-        log::error!("[index_cache] チェックポイントを書けない: {e}");
+        err!("チェックポイントを書けない（encode_all）: {e}");
         e
     })?;
 
@@ -167,17 +178,17 @@ pub fn save_checkpoint(
 
     {
         let mut out = fs::File::create(&tmp_path).map_err(|e| {
-            log::error!("[index_cache] チェックポイントを書けない（create tmp）: {e}");
+            err!("チェックポイントを書けない（create tmp）: {e}");
             e.to_string()
         })?;
         // zstd level=1 (速い)
         let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| e.to_string())?;
         out.write_all(&compressed).map_err(|e| {
-            log::error!("[index_cache] チェックポイントを書けない（write_all）: {e}");
+            err!("チェックポイントを書けない（write_all）: {e}");
             e.to_string()
         })?;
         out.flush().map_err(|e| {
-            log::error!("[index_cache] チェックポイントを書けない（flush）: {e}");
+            err!("チェックポイントを書けない（flush）: {e}");
             e.to_string()
         })?;
     }
@@ -188,14 +199,14 @@ pub fn save_checkpoint(
         trace!("final exists → move to bak");
         let _ = fs::remove_file(&bak_path);
         fs::rename(&final_path, &bak_path).map_err(|e| {
-            log::error!("[index_cache] チェックポイントを書けない（rename final->bak）: {e}");
+            err!("チェックポイントを書けない（rename final->bak）: {e}");
             e.to_string()
         })?;
         trace!("rename final->bak OK");
     }
     trace!("rename tmp->final");
     fs::rename(&tmp_path, &final_path).map_err(|e| {
-        log::error!("[index_cache] チェックポイントを書けない（rename tmp->final）: {e}");
+        err!("チェックポイントを書けない（rename tmp->final）: {e}");
         e.to_string()
     })?;
     trace!("rename tmp->final OK");
@@ -255,7 +266,9 @@ fn read_decode(path: &Path, root_dir: &Path) -> Result<RestoredCache, String> {
     })?;
     trace!("zstd decode OK bytes={}", decompressed.len());
     decode_all(&decompressed, root_dir).map_err(|e| {
-        log::error!("[index_cache] チェックポイントを書けない（decode_all）: {e}");
+        // `bad version` は版を上げた初回起動で必ず通る正規の経路なので、
+        // 化けと同じ重さで記録しない。結末（全件構築）は画面に出る
+        trace!("decode_all FAILED: {e}");
         e
     })
 }
