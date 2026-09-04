@@ -808,16 +808,21 @@ const LONG_MOVE_LIST: usize = 32;
 ///   [`keep_first_of_each_move`] の走査の枝は `any` を `position` にして `swap(j, i)`
 ///   すればその形になるが、**`HashSet` の枝を逆順に回すと最後の出現位置に残って揃わない**
 ///   （`SCAN_LIMIT` を境に「先頭がその局面の best move」に別の手が座る）
-/// - `HashSet` の枝は `moves` を借りたまま `seen` を作っているので、初出の添字を持って
-///   `swap` する形は借用が通らない。**初出を集める周回をブロックに閉じてから当てること**
-/// - **どちらの重複が残ったかを見るテストが無い。**
+/// - `HashSet` の枝で、初出の添字を集める周回の中で `moves` を可変に触ると **E0502**
+///   になる（マップがその後も `moves` を借りている）。**添字の組を溜めて、周回を出てから
+///   当てること**（`retain` が同じ形で通っている）
+/// - **`HashSet` の枝には、どちらの重複が残ったかを見るテストが無い。**
 ///   `a_position_with_very_many_moves_is_still_deduped` は `SCAN_LIMIT` を超える列を
-///   通すが、全ての手の値が同じなので枝の差を見ていない。先勝ちを固定している
-///   `a_move_written_twice_*` はどちらも走査の枝しか通らない
+///   通すが、全ての手の値が同じなので枝の差を見ていない。走査の枝を固定している
+///   `a_move_written_twice_*` は期待値を書き換える側
 /// - 採択回数の合算は [`BookMove`] の `count` が `Option<u64>` なので、`None` を含む組を
-///   どうするかを決める必要がある。本家は `uint64_t` で無条件に合算する
-/// - `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表が「こちらは先勝ち」と
-///   書いているので、同時に書き換えること
+///   どうするかを決める必要がある。**本家は欠けた欄を `1` と読む**（`book.cpp:94` の
+///   `u64 move_count = 1` と `misc.cpp:1677-1680` の `get_number`）。`none` と書かれていれば `0`
+/// - **先勝ちを名乗る綴りが、このファイルに4箇所ある** —— [`keep_first_of_each_move`] と
+///   この関数の名前、`keep_first_of_each_move` の doc、`flush_position` のコメント。
+///   名前は勝ち方を含まない形へ替えるか、揃えること
+/// - `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表が「先勝ち」に
+///   触れている行を、同時に書き換えること
 ///
 /// **併合のたびに畳んではいけない。** 1回の仕事が `existing.len()` に比例するので、
 /// 同じキーが N ブロックに分かれた定跡で総計が二乗になる。実測（同じキーを
