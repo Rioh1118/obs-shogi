@@ -1,21 +1,15 @@
 # 機能要件: 定跡（book）
 
 追跡: #283（エピック）
-main にあるか: **無い。** `src-tauri/src/book/` は存在せず、`lib.rs` に `book` の
-コマンドも1本も無い（2026-09-03 に `main` `b567ed4` で確認）
+main にあるか: **ある。** `src-tauri/src/book/` と、`lib.rs` に登録した6本のコマンド。
 
-> **注意:** #283 の本文は「`main` には #90 で作った境界があるだけ」と書いているが、
-> その境界は `feature/book` にある。**`main` には無い。**
+> **注意:** #283 の本文は「`main` には #90 で作った境界があるだけ」と書いている。
+> 境界だけでなく `.db` の reader も入っている。
 > `docs/PREMISES.md` の運用と同じで、こういう食い違いは #290 の対象。
 
 ## どこに何があるか
 
-| もの                                          | 所在                                    |
-| --------------------------------------------- | --------------------------------------- |
-| `BookReader` trait と開く経路、Tauri コマンド | `feature/book`（PR #237 #250）          |
-| やねうら王テキスト定跡 `.db` の reader        | `feat/91-yaneuraou-db-reader`（作業中） |
-
-`feature/book` が持っているもの（`src-tauri/src/book/`）:
+`src-tauri/src/book/` が持っているもの:
 
 - `BookFormat` —— **拡張子で判別する4形式**
   （`.db` / `.bin` / `.sbk` / `.ybb`）。知らない拡張子は**拒否する**
@@ -25,7 +19,8 @@ main にあるか: **無い。** `src-tauri/src/book/` は存在せず、`lib.rs
 - コマンド6本 —— `open_book` / `lookup_book_moves` / `get_book_info` /
   `list_books` / `close_book` / `close_all_books`
 
-**読める形式は1つも無い。** trait と開く経路だけがある。
+**読めるのは `.db` の1つだけ。** 残る3つは `UnsupportedFormat` で落ちる
+（「やねうら王バイナリ定跡 (.ybb) はまだ開けない。やねうら王テキスト定跡 (.db) なら開ける」）。
 
 ## 形式について確定していること
 
