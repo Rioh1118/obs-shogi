@@ -53,7 +53,7 @@ const HAND_KINDS: [PieceKind; 7] = [
 ///
 /// 一番多く持てるのは歩の18枚なので、`0..=18` の19枠。他の駒種も同じ枠で持つ。
 /// **これは総数ではなく、駒種ごとの枚数の値域。**
-const HAND_COUNT_SLOTS: usize = 19;
+pub(super) const HAND_COUNT_SLOTS: usize = 19;
 
 /// 局面の項ごとに引く乱数の表。
 ///

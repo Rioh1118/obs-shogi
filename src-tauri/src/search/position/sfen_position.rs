@@ -37,10 +37,21 @@ pub enum SfenParseError {
     #[error("invalid ply: {0}")]
     InvalidPly(String),
 
-    /// 持駒の枚数が多すぎる。**綴りが1本で盤を止めるのを防ぐ門番。**
-    #[error("too many pieces in hand: {0}")]
-    InvalidHand(String),
+    /// 1つの駒種の持駒が [`MAX_HAND_COUNT`] を超えている。
+    #[error("too many pieces in hand: {kind:?} x{count} (max {MAX_HAND_COUNT})")]
+    InvalidHand { kind: PieceKind, count: u32 },
 }
+
+/// 1つの駒種の持駒として受ける最大の枚数。
+///
+/// **7種の上限のうち最も緩いもの**（歩の18枚）。駒種ごとの上限は見ないので
+/// `18R` は通る。
+///
+/// **`zobrist::HAND_COUNT_SLOTS - 1` と一致していなければならない。** 鍵は枚数を
+/// 添字にして、枠に収まらない枚数を末尾へ落とす。受理だけ広げると、
+/// 落ちた先が同じになって**別の局面が同じ鍵になる**。
+/// 一致は `the_accepted_hand_count_matches_the_key_slots` が留める。
+const MAX_HAND_COUNT: u32 = 18;
 
 /// 綴りを局面にする。
 ///
@@ -59,12 +70,6 @@ pub enum SfenParseError {
 ///
 /// **`src/` からの呼び手はいない。** 製品経路は [`position_key_from_sfen`] だけを通る。
 /// `pub` なのは `benches/search_bench.rs` が綴りを解く時間だけを測るため。
-/// 1つの駒種で持てる最大の枚数。**歩の18枚。**
-///
-/// 綴りはここを超える数を書けてしまうので、読む側で弾く。
-/// `shogi_core` の `Hand` は枚数を検査しない（`wrapping_add` で折り返す）。
-const MAX_HAND_COUNT: u32 = 18;
-
 pub fn partial_position_from_sfen(input: &str) -> Result<PartialPosition, SfenParseError> {
     let s = input.trim();
     if s.is_empty() {
@@ -207,13 +212,15 @@ fn parse_hands_into(pos: &mut PartialPosition, hand: &str) -> Result<(), SfenPar
     let mut num: u32 = 0;
     for ch in hand.chars() {
         if ch.is_ascii_digit() {
-            // **桁を読むだけで上限を見ないと、綴り1本で盤が止まる。**
-            // 駒を置くのは1枚ずつのループなので、`999...9P` を受けると
-            // その回数だけ回る。読む側は非同期の外（`query_service`）なので、
-            // 待ち受けているタスクが返らなくなる
+            // **桁を読み切る前に弾く。** 駒を置くのは1枚ずつのループなので、
+            // 読み切ってから弾くと `999...9P` でその回数だけ回る。
+            // 読む側は非同期の外（`query_service`）なので、待っているタスクが返らなくなる
             num = num * 10 + ch.to_digit(10).expect("is_ascii_digit checked");
             if num > MAX_HAND_COUNT {
-                return Err(SfenParseError::InvalidHand(hand.to_string()));
+                return Err(SfenParseError::InvalidHand {
+                    kind: PieceKind::Pawn,
+                    count: num,
+                });
             }
             continue;
         }
@@ -244,17 +251,23 @@ fn parse_hands_into(pos: &mut PartialPosition, hand: &str) -> Result<(), SfenPar
     Ok(())
 }
 
-/// 同じ駒種を `n` 枚持たせる。
+/// 同じ駒種を `n` 枚足す。**足した後の累計**が [`MAX_HAND_COUNT`] を超えたら弾く。
 ///
-/// **`n` は呼び手が [`MAX_HAND_COUNT`] 以下に絞っていること。** `Hand::added` は
-/// 持駒に出る7種なら枚数を見ずに必ず `Some` を返す（`wrapping_add`）ので、
-/// この関数は枚数の門番にならない。
+/// **1回ぶんの `n` を見るだけでは門番にならない。** 同じ駒種は綴りに何度でも書けて
+/// （`18P18P`）、`Hand::added` は持駒に出る7種なら枚数を見ずに必ず `Some` を返す
+/// （`wrapping_add` なので 255 の次は 0）。累計を見ないと、書いた枚数と
+/// 読まれた枚数が食い違ったまま通る。
 fn add_n(mut h: Hand, pk: PieceKind, n: u32) -> Result<Hand, SfenParseError> {
-    debug_assert!(n <= MAX_HAND_COUNT, "呼ぶ前に枚数を絞ること");
+    let before = u32::from(h.count(pk).unwrap_or(0));
+    let after = before + n;
+    if after > MAX_HAND_COUNT {
+        return Err(SfenParseError::InvalidHand {
+            kind: pk,
+            count: after,
+        });
+    }
     for _ in 0..n {
-        h = h
-            .added(pk)
-            .ok_or_else(|| SfenParseError::InvalidHand(format!("{pk:?}")))?;
+        h = h.added(pk).expect("持駒に出る7種なので必ず持てる");
     }
     Ok(h)
 }
@@ -354,7 +367,7 @@ mod tests {
         assert!(
             matches!(
                 partial_position_from_sfen(&format!("{hirate} b 19P 1")),
-                Err(SfenParseError::InvalidHand(_))
+                Err(SfenParseError::InvalidHand { .. })
             ),
             "上限を超えた枚数が通った"
         );
@@ -363,9 +376,62 @@ mod tests {
         assert!(
             matches!(
                 partial_position_from_sfen(&format!("{hirate} b 99999999999999999999P 1")),
-                Err(SfenParseError::InvalidHand(_))
+                Err(SfenParseError::InvalidHand { .. })
             ),
             "巨大な枚数が通った"
+        );
+    }
+
+    /// **同じ駒種を何度でも書けるので、1トークンの検査では門番にならない。**
+    ///
+    /// `Hand::added` は持駒に出る7種なら枚数を見ずに必ず `Some` を返す。
+    /// しかも `wrapping_add` なので 255 の次は 0 に戻る — 累計を見ないと、
+    /// **綴りに書いた局面と読まれた局面が違う**まま通る。
+    ///
+    /// 36枚の方も静かに壊れる。鍵は枚数を枠へ落とすので（`zobrist::hand_count`）、
+    /// 36枚は18枚と**同じ鍵**になり、盤に存在し得ない局面で検索して
+    /// 別の局面の棋譜が正常なヒットとして並ぶ。
+    #[test]
+    fn the_same_kind_written_twice_is_counted_together() {
+        let hirate = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL";
+
+        // 合わせて36枚
+        assert!(
+            matches!(
+                partial_position_from_sfen(&format!("{hirate} b 18P18P 1")),
+                Err(SfenParseError::InvalidHand { .. })
+            ),
+            "同じ駒種を2度書いて上限を超えた"
+        );
+
+        // 合わせて256枚。u8 が一周して「0枚」として読まれる形
+        let many = "18P".repeat(14) + "4P";
+        assert!(
+            matches!(
+                partial_position_from_sfen(&format!("{hirate} b {many} 1")),
+                Err(SfenParseError::InvalidHand { .. })
+            ),
+            "折り返して 0 枚になる綴りが通った"
+        );
+
+        // 分けて書いても上限までは通る
+        assert!(
+            partial_position_from_sfen(&format!("{hirate} b 9P9P 1")).is_ok(),
+            "合計が上限以内なのに弾いている"
+        );
+    }
+
+    /// 受ける枚数と、鍵が区別できる枚数が一致している。
+    ///
+    /// **片方だけ動かすと別の局面が同じ鍵になる。** 鍵は枚数を添字にして、
+    /// 枠に収まらない枚数を末尾へ落とす（`zobrist::hand_count`）。受理だけ広げると、
+    /// 落ちた先が同じになって区別が消える。
+    #[test]
+    fn the_accepted_hand_count_matches_the_key_slots() {
+        assert_eq!(
+            MAX_HAND_COUNT as usize,
+            crate::search::position::zobrist::HAND_COUNT_SLOTS - 1,
+            "受ける枚数と鍵の枠がずれた"
         );
     }
 }
