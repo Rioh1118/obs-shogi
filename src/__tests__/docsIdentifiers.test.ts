@@ -93,6 +93,16 @@ describe("コメントを落としてから数える", () => {
     expect(missingIn(["DEAD_NAME"], codeOf("/** DEAD_NAME */ let x = 1;"))).toEqual(["DEAD_NAME"]);
   });
 
+  // **ブロックの手前にある行コメントも落とす。** ブロックを持たないファイルは
+  // 1本の経路で落ちるが、実 corpus はほぼ全ファイルがブロックと行コメントを
+  // 両方持つ。そちらが通る経路を突かないと、行コメントの中の名前が
+  // まとめて「実在する」へ戻る
+  test("ブロックの手前の行コメントも落とす", () => {
+    const src = "// DEAD_NAME のこと\n/** 説明 */\nconst a = 1;\n";
+
+    expect(missingIn(["DEAD_NAME"], codeOf(src))).toEqual(["DEAD_NAME"]);
+  });
+
   test("コードは残す", () => {
     expect(missingIn(["LIVE_NAME"], codeOf("const LIVE_NAME = 1; // 説明"))).toEqual([]);
   });
