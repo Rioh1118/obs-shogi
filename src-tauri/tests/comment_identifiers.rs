@@ -17,6 +17,7 @@
 //! 5. 綴りが在るかしか見ない。種類（関数か定数か欄名か）は見ていない
 
 use std::collections::BTreeSet;
+mod roots;
 mod scanning;
 
 use scanning::{blank_out_comments, doc_above, is_test_attribute};
@@ -44,6 +45,13 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
 
 fn tests_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
+fn sources() -> Vec<PathBuf> {
+    roots::production_roots()
+        .iter()
+        .flat_map(|r| rust_files(r))
+        .collect()
 }
 
 fn src_dir() -> PathBuf {
@@ -207,10 +215,7 @@ fn a_url_in_a_string_is_not_a_comment() {
 fn no_doc_block_has_two_summaries() {
     let mut offenders = Vec::new();
 
-    for path in rust_files(&src_dir())
-        .into_iter()
-        .chain(rust_files(&tests_dir()))
-    {
+    for path in sources().into_iter().chain(rust_files(&tests_dir())) {
         let source = fs::read_to_string(&path).unwrap_or_default();
         let relative = path.strip_prefix(src_dir()).unwrap_or(&path).to_path_buf();
         let lines: Vec<&str> = source.lines().collect();
@@ -254,10 +259,7 @@ fn no_doc_block_has_two_summaries() {
 fn no_doc_block_is_followed_by_a_use() {
     let mut offenders = Vec::new();
 
-    for path in rust_files(&src_dir())
-        .into_iter()
-        .chain(rust_files(&tests_dir()))
-    {
+    for path in sources().into_iter().chain(rust_files(&tests_dir())) {
         let source = fs::read_to_string(&path).unwrap_or_default();
         let relative = path.strip_prefix(src_dir()).unwrap_or(&path).to_path_buf();
         let lines: Vec<&str> = source.lines().collect();
@@ -296,7 +298,7 @@ fn no_doc_block_is_followed_by_a_use() {
 
 #[test]
 fn comments_do_not_point_at_names_that_are_gone() {
-    let files = rust_files(&src_dir());
+    let files = sources();
     // **`tests/` も干し草に入れる。** `src/` の doc は、その関係を式で固定している
     // ラチェットのテスト名を指すことがある（`the_watchdogs_are_ordered` の形）。
     // 入れないと、正しい参照が「実在しない識別子」として落ちる。

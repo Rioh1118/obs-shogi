@@ -59,6 +59,7 @@ const RUST_CHECKS = new Set([
   "engine_timeouts",
   "layering",
   "production_unwrap",
+  "roots",
   "root_guard",
   "serde_naming",
   "scanning",

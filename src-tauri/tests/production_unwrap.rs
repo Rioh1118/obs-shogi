@@ -13,6 +13,7 @@
 //! 「唯一」と書けてしまい、同じ形の兄弟が別のファイルに残る。
 //! 件数を言いたくなったらこの検査を走らせること。
 
+mod roots;
 mod scanning;
 
 use scanning::{production_code_of, strip_test_modules};
@@ -42,15 +43,28 @@ fn production_code(path: &Path) -> String {
     production_code_of(&fs::read_to_string(path).unwrap_or_default(), path)
 }
 
-fn src_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
+/// 本番のソース。**`src/` だけでなく、割った crate も歩く。**
+fn sources() -> Vec<PathBuf> {
+    roots::production_roots()
+        .iter()
+        .flat_map(|r| rust_files(r))
+        .collect()
+}
+
+/// 目印にするファイルの実体。crate に割った先も見る
+fn anchor(relative: &str) -> PathBuf {
+    roots::production_roots()
+        .into_iter()
+        .map(|r| r.join(relative))
+        .find(|p| p.is_file())
+        .unwrap_or_else(|| panic!("目印にしているファイルが無い: {relative}"))
 }
 
 #[test]
 fn production_code_has_no_bare_unwrap() {
     let mut offenders = Vec::new();
 
-    for path in rust_files(&src_dir()) {
+    for path in sources() {
         for (number, line) in production_code(&path).lines().enumerate() {
             if line.contains(".unwrap()") {
                 offenders.push(format!(
@@ -77,7 +91,7 @@ fn production_code_has_no_bare_unwrap() {
 /// 上の検査は静かに緑になる。ここが先に落ちる
 #[test]
 fn the_scanner_still_sees_production_code() {
-    let files = rust_files(&src_dir());
+    let files = sources();
     assert!(files.len() > 10, "{} ファイルしか歩けていない", files.len());
 
     let total: usize = files.iter().map(|p| production_code(p).len()).sum();
@@ -85,7 +99,7 @@ fn the_scanner_still_sees_production_code() {
 
     // `#[cfg(test)]` の中だけにある綴りが落ちていること。
     // これが残るなら、塊を落とせていない
-    let session = production_code(&src_dir().join("engine").join("game").join("session.rs"));
+    let session = production_code(&anchor("engine/game/session.rs"));
     assert!(
         !session.contains("fn two_humans"),
         "`#[cfg(test)]` の中を落とせていない"
@@ -98,12 +112,12 @@ fn the_scanner_still_sees_production_code() {
     // **塊を持たない `#[cfg(test)]` の後ろが飲まれていないこと。**
     // 総文字数では落ちない（`protocol.rs` の26行が消えても10万文字は残る）ので、
     // 消えたら落ちる綴りを名指しで置く
-    let protocol = production_code(&src_dir().join("engine").join("protocol.rs"));
+    let protocol = production_code(&anchor("engine/protocol.rs"));
     assert!(
         protocol.contains("enum ReadyState"),
         "`#[cfg(test)] const ALL` の後ろにある本番の宣言まで落としている"
     );
-    let root = production_code(&src_dir().join("lib.rs"));
+    let root = production_code(&anchor("lib.rs"));
     assert!(
         root.contains("pub mod workspace"),
         "`#[cfg(test)] mod` の後ろにある本番の宣言まで落としている"

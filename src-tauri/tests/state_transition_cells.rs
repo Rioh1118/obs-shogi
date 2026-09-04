@@ -23,6 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod roots;
 mod scanning;
 use scanning::{blank_out_strings, doc_above, is_test_attribute};
 
@@ -49,6 +50,13 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     }
     found.sort();
     found
+}
+
+fn sources() -> Vec<PathBuf> {
+    roots::production_roots()
+        .iter()
+        .flat_map(|r| rust_files(r))
+        .collect()
 }
 
 fn src_dir() -> PathBuf {
@@ -118,7 +126,7 @@ fn symbols_in(scope: &str) -> Vec<String> {
 fn claims() -> BTreeMap<String, Vec<String>> {
     let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
-    for path in rust_files(&src_dir()) {
+    for path in sources() {
         // **文字列を潰してから読む。** 生文字列に doc コメントと `#[test]` の
         // 形を書いた行が、名乗っていないセルを名乗ったことにする
         let source = blank_out_strings(&fs::read_to_string(&path).unwrap_or_default());
