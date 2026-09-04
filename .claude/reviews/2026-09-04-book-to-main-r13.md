@@ -3,7 +3,7 @@
 - 日付: 2026-09-04
 - 範囲: r12 の所見9件を直した9コミット（`git diff d286722a HEAD -- . ':!.claude/reviews'`）
 - 走らせた reviewer: comment / rust / robustness / oss-hygiene
-- 対象コミット: `9c1eeb5c`
+- 対象コミット: `e1248822`
 - 前ラウンド: `.claude/reviews/2026-09-04-book-to-main-r12.md`
 
 所見 **6件**（BLOCK 0 / HIGH 0 / MEDIUM 6）＋範囲外1件。
