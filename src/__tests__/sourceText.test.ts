@@ -74,8 +74,9 @@ describe("codeOf（shell）", () => {
     ).not.toContain("CLAUDE_PROJECT_DIR");
   });
 
-  // **2行目以降の行頭。** hooks のコメントはほぼ全てこの形（2ファイルで224行）なので、
-  // ここが落ちないと消した名前が corpus に残って「実在する」に戻る。
+  // **2行目以降の、字下げの無い行頭。** hooks の行頭コメント224行のうち198行がこの形
+  // （残り26行は字下げがあるので `[ \t]` 枝）。ここが落ちないと消した名前が
+  // corpus に残って「実在する」に戻る。
   // しかも壊れる向きは「消し足りない」側で、`missingIdentifiers` は黙って緑になる
   test("行頭の `#` は2行目以降でも落とす", () => {
     const body = "needs_ts=1\n# OLD_NAME のこと\nneeds_rust=1\n";
@@ -97,6 +98,11 @@ describe("codeOf（shell）", () => {
   test("行末の `#` も落とす", () => {
     expect(codeOf("needs_ts=1  # OLD_NAME のこと\n", "shell")).not.toContain("OLD_NAME");
     expect(codeOf("needs_ts=1  # OLD_NAME のこと\n", "shell")).toContain("needs_ts=1");
+  });
+
+  // 落としても困らないが、落とす理由も無い。**「残す」と書いた以上は固定する**
+  test("shebang は残す", () => {
+    expect(codeOf("#!/usr/bin/env bash\nneeds_ts=1\n", "shell")).toContain("/usr/bin/env");
   });
 
   // **語の途中の `#` は展開。** 切ると本物のコードが消える
