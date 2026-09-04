@@ -59,9 +59,9 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 ## テストの現状（誇張しないこと）
 
-**件数をここに書かない。** 書くと必ず腐る。現在値は `npm run test` と
-`cargo test` の末尾、および `src-tauri/tests/test_count_ratchet.rs` の
-`EXPECTED_MIN` で確認すること。
+**件数をここに書かない。** 書くと必ず腐る。現在値は `npm run test` と `cargo test` の
+末尾で確認すること。**`src-tauri/tests/test_count_ratchet.rs` の `EXPECTED_MIN` は
+現在値ではない** —— 床で、`DRIFT_ALLOWANCE` のぶんだけ下にずれたまま緑で通る。
 
 **`cargo test` の green は「Rust が壊れていない」を意味しない。**
 「テストが通ったので安全」と書いてはいけない。新規ロジックには実際にテストを足すこと。
