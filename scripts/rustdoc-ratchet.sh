@@ -12,11 +12,14 @@
 # **減らしたら BASELINE を下げること。** 下げないと、次に増えたぶんが隠れる。
 set -euo pipefail
 
-# `cargo doc` が最後に出す `generated N warnings` の集計行は数えない。
-# 数えると画面の N と基準がずれて、直す人がまず数の食い違いを疑う。
+# `cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app` の警告数。
+# `cargo doc` が最後に出す `generated N warnings` と同じ値になる。
+# **減らしたらここを下げること。**
 BASELINE=11
 
 cd "$(dirname "$0")/.."
+# 集計行（`generated N warnings`）は数えない。数えると画面の N と基準が1ずれて、
+# 直す人がまず数の食い違いを疑うことになる
 count=$(cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app 2>&1 |
   grep '^warning' | grep -vc 'generated' || true)
 

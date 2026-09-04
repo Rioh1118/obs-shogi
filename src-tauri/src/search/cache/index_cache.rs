@@ -127,7 +127,7 @@ pub fn save_checkpoint(
     );
 
     fs::create_dir_all(&proj_dir).map_err(|e| {
-        trace!("create_dir_all FAILED: {e}");
+        log::error!("[index_cache] チェックポイントを書けない（create_dir_all）: {e}");
         e.to_string()
     })?;
     trace!("create_dir_all OK");
@@ -167,17 +167,17 @@ pub fn save_checkpoint(
 
     {
         let mut out = fs::File::create(&tmp_path).map_err(|e| {
-            trace!("create tmp FAILED: {e}");
+            log::error!("[index_cache] チェックポイントを書けない（create tmp）: {e}");
             e.to_string()
         })?;
         // zstd level=1 (速い)
         let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| e.to_string())?;
         out.write_all(&compressed).map_err(|e| {
-            trace!("write_all FAILED: {e}");
+            log::error!("[index_cache] チェックポイントを書けない（write_all）: {e}");
             e.to_string()
         })?;
         out.flush().map_err(|e| {
-            trace!("flush FAILED: {e}");
+            log::error!("[index_cache] チェックポイントを書けない（flush）: {e}");
             e.to_string()
         })?;
     }
@@ -188,14 +188,14 @@ pub fn save_checkpoint(
         trace!("final exists → move to bak");
         let _ = fs::remove_file(&bak_path);
         fs::rename(&final_path, &bak_path).map_err(|e| {
-            trace!("rename final->bak FAILED: {e}");
+            log::error!("[index_cache] チェックポイントを書けない（rename final->bak）: {e}");
             e.to_string()
         })?;
         trace!("rename final->bak OK");
     }
     trace!("rename tmp->final");
     fs::rename(&tmp_path, &final_path).map_err(|e| {
-        trace!("rename tmp->final FAILED: {e}");
+        log::error!("[index_cache] チェックポイントを書けない（rename tmp->final）: {e}");
         e.to_string()
     })?;
     trace!("rename tmp->final OK");
@@ -255,7 +255,7 @@ fn read_decode(path: &Path, root_dir: &Path) -> Result<RestoredCache, String> {
     })?;
     trace!("zstd decode OK bytes={}", decompressed.len());
     decode_all(&decompressed, root_dir).map_err(|e| {
-        trace!("decode_all FAILED: {e}");
+        log::error!("[index_cache] チェックポイントを書けない（decode_all）: {e}");
         e
     })
 }
@@ -265,7 +265,7 @@ fn read_decode(path: &Path, root_dir: &Path) -> Result<RestoredCache, String> {
 // --------------------
 
 fn compact_all_buckets(snap: &IndexSnapshot) -> BucketEntries {
-    std::array::from_fn(|b| compact_bucket(b, &snap.buckets[b], snap.file_table.as_ref()))
+    std::array::from_fn(|b| compact_bucket(&snap.buckets[b], snap.file_table.as_ref()))
 }
 
 #[derive(Clone, Copy)]
@@ -301,11 +301,7 @@ impl PartialEq for HeapItem {
 }
 impl Eq for HeapItem {}
 
-fn compact_bucket(
-    bucket_idx: usize,
-    segs: &[SegmentArc],
-    ft: &FileTable,
-) -> Vec<(PositionKey, Occurrence)> {
+fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Vec<(PositionKey, Occurrence)> {
     if segs.is_empty() {
         return Vec::new();
     }
@@ -347,7 +343,6 @@ fn compact_bucket(
         }
     }
 
-    let _ = bucket_idx; // 桶の所属は `encode_all` が書く直前に見る
     out
 }
 
@@ -405,6 +400,17 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
         write_u32(w, nt.nodes.len() as u32);
         write_u32(w, nt.forks.len() as u32);
         for n in &nt.nodes {
+            // 読む側と同じ範囲を見る。壊れたまま書くと、次の起動で読めずに
+            // 全件作り直し、作り直してまた同じものを書く
+            if n.fork_off as usize + n.fork_len as usize > nt.forks.len() {
+                return Err(format!(
+                    "refusing to write: fork range {}+{} is out of the fork table \
+                     for file {file_id} (forks {})",
+                    n.fork_off,
+                    n.fork_len,
+                    nt.forks.len()
+                ));
+            }
             write_u32(w, n.tesuu);
             write_u32(w, n.fork_off);
             write_u16(w, n.fork_len);
@@ -418,7 +424,7 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
 
     // buckets
     //
-    // **読む側と同じ3つを、書く側でも見る。** 読む側だけに置くと、壊れたものを
+    // **読む側と同じ検査を、書く側でも見る。** 読む側だけに置くと、壊れたものを
     // 書いて次の起動で `Err` になり、作り直してまた同じものを書く。
     //
     // ここで `Err` にすると**キャッシュが書かれない**ので、次の起動は
@@ -596,10 +602,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             let fork_len = r.read_u16()?;
             let _pad = r.read_u16()?;
 
-            // 節が指す分岐の範囲。**`node_id` と同じ壊れ方をする** —
-            // 範囲外だと `cursor_lite` が `None` を返し、`query_service` が
-            // `CursorLite::root()` にすり替えるので、そのヒットが
-            // 「そのファイルの0手目」として画面に並ぶ
+            // 節が指す分岐の範囲。**`node_id` と同じ壊れ方をする**
             if fork_off as usize + fork_len as usize > forks_len {
                 return Err(format!(
                     "fork range {fork_off}+{fork_len} is out of the fork table \
@@ -657,17 +660,12 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
             prev = Some(key);
 
             // 節表はここより前に読み終わっているので、範囲を突き合わせられる。
-            // 通すと `cursor_lite` が `None` を返して `CursorLite::root()` に落ち、
-            // **その局面のヒットが「そのファイルの0手目」として画面に並ぶ**
-            // （`query_service`）。範囲内の別の節を指す場合は `None` にすらならず、
-            // 手数も分岐も違う場所へ飛ぶ
-            // 出現を持つ `file_id` は必ず節表を持つ。入れる口は
-            // `store/index_store.rs` の `insert_file_segments` だけで、
-            // ファイル表と節表を対でしか受けない。
+            // **範囲内の別の節を指す化け方は通る** — 値としてあり得るので見分けられない
+            // 出現を持つ `file_id` は必ず節表を持つ。入れるのは
+            // `store/index_store.rs` の `insert_many_file_segments`（構築・更新）と
+            // `install_restored`（復元）で、どちらもファイル表と節表を対で受ける。
             //
-            // **表が無いことも壊れている合図。** 通すと `cursor_lite` が
-            // `None` を返し、`query_service` が `CursorLite::root()` に
-            // すり替えるので、そのヒットが「そのファイルの0手目」として並ぶ
+            // **表が無いことも壊れている合図。**
             let nodes = match nts.get(file_id) {
                 Some(nt) => nt.nodes.len(),
                 None => return Err(format!("file {file_id} has occurrences but no node table")),
@@ -1608,9 +1606,9 @@ mod tests {
 
     /// **出現があるのに節表が無い blob も読まない。**
     ///
-    /// 本番の口（`store/index_store.rs` の `insert_file_segments`）は
-    /// ファイル表と節表を対でしか受けないので、この形は壊れている合図。
-    /// 通すと `cursor_lite` が `None` を返して 0手目として並ぶ。
+    /// 入れるのは `store/index_store.rs` の `insert_many_file_segments` と
+    /// `install_restored` で、どちらもファイル表と節表を対で受ける。
+    /// この形は壊れている合図。
     ///
     /// **`is_occ_alive` は落とさない** — あれが見るのはファイル表だけ。
     #[test]
@@ -1697,7 +1695,8 @@ mod tests {
         assert!(decode_all(&good, root).is_ok(), "正しい blob を弾いている");
 
         // 節表の欄は file_id(4) + nodes_len(4) + forks_len(4)。
-        // `file_id: 1, nodes_len: 1, forks_len: 0` の並びを探す
+        // **同じ並びが出現レコード（file_id=1 / gen=1 / node_id=0）にも出る。**
+        // 節表は桶より前に書かれるので、前の一致を採る
         let nt_head: Vec<u8> = 1u32
             .to_le_bytes()
             .iter()
@@ -1705,16 +1704,92 @@ mod tests {
             .chain(0u32.to_le_bytes().iter())
             .copied()
             .collect();
+        let hits = good
+            .windows(nt_head.len())
+            .filter(|w| *w == nt_head.as_slice())
+            .count();
+        assert_eq!(hits, 2, "一致の数が想定と違う。位置の採り方を見直すこと");
+
         let at = good
             .windows(nt_head.len())
-            .rposition(|w| w == nt_head.as_slice())
+            .position(|w| w == nt_head.as_slice())
             .expect("節表の頭が blob に載っている");
         let mut orphan = good.clone();
         orphan[at] = 0; // 表が file_id 0 に載る。file_id 1 は表を失う
-        assert!(
-            decode_all(&orphan, root).is_err(),
-            "節表を失った file_id の出現を読んでしまった"
+        match decode_all(&orphan, root) {
+            Err(e) => assert!(
+                e.contains("no node table"),
+                "断った理由が違う（別の門番を踏んでいる）: {e}"
+            ),
+            Ok(_) => panic!("節表を失った file_id の出現を読んでしまった"),
+        }
+    }
+
+    /// **分岐の表の外を指す範囲は書かない。** 読む側と同じ検査を書く側にも置く。
+    #[test]
+    fn a_fork_range_outside_the_table_is_not_written() {
+        use crate::search::store::node_table::NodeCursor;
+
+        let root = Path::new("/tmp/obs-shogi-fork-write");
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        });
+
+        // 分岐の表は空なのに、節が 0..3 を指す
+        let mut nt = NodeTable::empty();
+        nt.nodes.push(NodeCursor {
+            tesuu: 0,
+            fork_off: 0,
+            fork_len: 3,
+        });
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(nt));
+
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: PathBuf::from("/tmp/obs-shogi-fork-write/a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
         );
+
+        let key = PositionKey {
+            z0: 0x8800_0000_0000_0001,
+            z1: 0,
+        };
+        let mut buckets: BucketEntries = empty_buckets();
+        buckets[key.bucket() as usize].push((
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 0,
+            },
+        ));
+
+        let mut blob = Vec::new();
+        let err = encode_all(
+            &mut blob,
+            &EncodeCtx {
+                root_dir: root,
+                scan: &scan,
+                path_to_id: &path_to_id,
+                next_file_id: 2,
+                ft: &ft,
+                nts: &nts,
+            },
+            &buckets,
+        )
+        .expect_err("表の外を指す範囲を書いてしまった");
+        assert!(err.contains("fork range"), "断った理由が違う: {err}");
     }
 
     /// **節表の外を指す `node_id` は書かない。** 読む側と同じ検査を書く側にも置く。
