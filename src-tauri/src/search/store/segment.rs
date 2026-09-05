@@ -57,28 +57,6 @@ impl Segment {
             node_ids,
         }
     }
-
-    pub fn from_soa(
-        z0: Vec<u64>,
-        z1: Vec<u64>,
-        file_ids: Vec<u32>,
-        gens: Vec<u32>,
-        node_ids: Vec<u32>,
-    ) -> Self {
-        debug_assert_eq!(z0.len(), z1.len());
-        debug_assert_eq!(z0.len(), file_ids.len());
-        debug_assert_eq!(z0.len(), gens.len());
-        debug_assert_eq!(z0.len(), node_ids.len());
-        Self {
-            z0,
-            z1,
-            file_ids,
-            gens,
-            node_ids,
-        }
-    }
-
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.z0.is_empty()
     }

@@ -104,12 +104,7 @@ pub async fn open_project(
             // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
             // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
             // Updating で開示する。
-            store.install_restored(
-                StoreIndexState::Updating,
-                restored.file_table,
-                restored.node_tables,
-                restored.buckets,
-            );
+            store.install_restored(restored.file_table, restored.node_tables, restored.buckets);
 
             project
                 .install_after_full_build(

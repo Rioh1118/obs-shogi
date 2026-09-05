@@ -7,9 +7,13 @@
 //! | [`snapshot`](super::snapshot) | 索引の値と、次の値を作る純関数 | 索引に何が入るか |
 //! | [`snapshot_cell`](super::snapshot_cell) | 差し替えの器。中身を知らない | 並行性の都合 |
 //!
-//! **`IndexStore` は器をそのまま公開しない。** 素の `replace` を出すと
-//! 「中身を捨てて `Ready` を名乗る」が1式で書けてしまう。置ける形は
-//! [`IndexStore::restart`] と [`IndexStore::install_restored`] の2つだけ。
+//! **`IndexStore` は器の `replace` を出さない。** 段を捨てる口は
+//! [`IndexStore::restart`] だけで、そこは [`Restart`] の2つに絞ってある。
+//!
+//! **絞りきってはいない。** [`IndexStore::update`] は戻り値に任意の
+//! `IndexSnapshot` を許すので、`update(|_| IndexSnapshot::default().with_state(Ready))`
+//! —— **空なのに `Ready` を名乗る索引** —— はいまも書ける。
+//! 型で塞ぐには `IndexSnapshot` の欄を非公開にするところまで要る。
 //!
 //! **遷移の規則を持つ場所は無い。** どの段からどの段へ動いてよいかは
 //! 呼び手（`search/commands.rs` / `build.rs` / `project_manager.rs`）に散っている。
@@ -48,15 +52,17 @@ impl IndexStore {
     }
 
     /// キャッシュから読み戻した中身を丸ごと置く。
+    ///
+    /// **段は `Updating` に決め打つ。** 復元のあとは必ず差分の取り込みが続くので、
+    /// 呼び手に選ばせる意味が無い（選べると「空にして `Ready`」が書ける）。
     pub fn install_restored(
         &self,
-        state: IndexState,
         file_table: FileTable,
         node_tables: NodeTables,
         entries: BucketEntries,
     ) {
         self.cell.replace(IndexSnapshot::restored(
-            state,
+            IndexState::Updating,
             file_table,
             node_tables,
             entries,

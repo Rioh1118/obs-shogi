@@ -245,16 +245,10 @@ impl IndexSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::store::bucket::bucketize_entries;
     use crate::search::store::node_table::{NodeTableArc, NodeTableBuilder};
     use crate::search::types::FileEntry;
 
-    /// **同じ検索の結果が、セグメントの本数によらず同じ順で出ること。**
-    ///
-    /// 桶が何本に割れるかは取り込みの刻み方で決まる内部の都合。
-    /// **利用者の一覧の順がそれで変わってはいけない。**
-    ///
-    /// 題材は `file_id` の降順で詰める —— 昇順で詰めると、
-    /// 並べ替えを消しても偶然通る。
     fn key_of(z0: u64) -> PositionKey {
         PositionKey { z0, z1: 0 }
     }
@@ -284,11 +278,27 @@ mod tests {
         Arc::new(b.finish())
     }
 
-    /// 1ファイル分の取り込みの素材。桶は `key` の落ちる1本だけ。
+    /// 1ファイル分の取り込みの素材。
+    ///
+    /// **本番の口（`bucketize_entries`）を通す。** 桶に直接 push すると
+    /// 中身が常に1件になり、`Segment::new_sorted` の昇順の検査も
+    /// `range_by_key` の二分探索も一度も効かない。
+    fn file_with(file_id: u32, keys: &[(PositionKey, u32)]) -> FileBucketEntries {
+        let entries: Vec<(PositionKey, Occurrence)> = keys
+            .iter()
+            .map(|(k, node_id)| (*k, occ_of(file_id, *node_id)))
+            .collect();
+        let max_node = keys.iter().map(|(_, n)| *n).max().unwrap_or(0);
+        (
+            entry_of(file_id),
+            node_table_of(max_node + 1),
+            bucketize_entries(entries),
+        )
+    }
+
+    /// 1鍵1出現の素材。
     fn one_file(file_id: u32, key: PositionKey, node_id: u32) -> FileBucketEntries {
-        let mut by_bucket: BucketEntries = crate::search::store::bucket::empty_buckets();
-        by_bucket[key.bucket() as usize].push((key, occ_of(file_id, node_id)));
-        (entry_of(file_id), node_table_of(node_id + 1), by_bucket)
+        file_with(file_id, &[(key, node_id)])
     }
 
     /// **取り込みは積み増す。置き換えない。**
@@ -310,6 +320,27 @@ mod tests {
         assert_eq!(got, vec![1, 2], "先に入れたファイルが消えている");
         assert!(snap.node_tables.get(1).is_some(), "節表も残ること");
         assert!(snap.node_tables.get(2).is_some());
+    }
+
+    /// **1ファイルの中で同じ桶に複数件あっても、鍵の昇順で引ける。**
+    ///
+    /// 素材を鍵の降順で渡す —— `bucketize_entries` の並べ替えを消すと
+    /// `Segment::new_sorted` の検査が落ちる。
+    #[test]
+    fn several_keys_in_one_bucket_are_ordered_by_the_maker() {
+        // 上位8ビットが同じ = 同じ桶
+        let hi = key_of(0x7700_0000_0000_0009);
+        let lo = key_of(0x7700_0000_0000_0001);
+
+        let snap = IndexSnapshot::default().with_files(vec![file_with(1, &[(hi, 1), (lo, 0)])]);
+
+        assert_eq!(snap.search_occurrences_by_key(lo).len(), 1);
+        assert_eq!(snap.search_occurrences_by_key(hi).len(), 1);
+        assert_eq!(
+            snap.search_occurrences_by_key(lo)[0].node_id,
+            0,
+            "鍵と出現の対応がずれている"
+        );
     }
 
     /// **しきい値を超えるまで畳まない。超えたら1本になる。**
@@ -386,20 +417,48 @@ mod tests {
         assert!(ready.node_tables.get(1).is_some());
     }
 
-    /// **作り直しに入るときは中身を捨てる。**
+    /// **作り直しの起点は空で、段は名乗ったとおり。**
+    ///
+    /// 段を `at.into()` と書くと `From<Restart>` を両辺が通るので、
+    /// あの impl の2本の腕を入れ替えても緑になる。**具体の段で書く。**
     #[test]
-    fn restarting_throws_the_index_away() {
+    fn restarting_starts_from_an_empty_index() {
         let k = key_of(0x5500_0000_0000_0001);
-        let _ = IndexSnapshot::default().with_files(vec![one_file(1, k, 0)]);
 
-        for at in [Restart::Restoring, Restart::Building] {
+        for (at, want) in [
+            (Restart::Restoring, IndexState::Restoring),
+            (Restart::Building, IndexState::Building),
+        ] {
             let fresh = IndexSnapshot::restarting(at);
             assert!(fresh.search_occurrences_by_key(k).is_empty());
             assert!(fresh.node_tables.get(1).is_none());
-            assert_eq!(fresh.state, at.into());
+            assert_eq!(fresh.state, want, "{at:?} が別の段を名乗っている");
         }
     }
 
+    /// **作り直しに入ると、いま持っている索引が捨てられる。**
+    ///
+    /// 捨てているのは `IndexStore::restart` の側なので、器を通して見る。
+    #[test]
+    fn restarting_the_store_throws_the_current_index_away() {
+        let k = key_of(0x6600_0000_0000_0001);
+        let store = crate::search::store::index_store::IndexStore::default();
+        store.update(|s| s.with_files(vec![one_file(1, k, 0)]));
+        assert_eq!(store.snapshot().search_occurrences_by_key(k).len(), 1);
+
+        store.restart(Restart::Building);
+
+        assert!(store.snapshot().search_occurrences_by_key(k).is_empty());
+        assert!(store.snapshot().node_tables.get(1).is_none());
+    }
+
+    /// **同じ検索の結果が、セグメントの本数によらず同じ順で出ること。**
+    ///
+    /// 桶が何本に割れるかは取り込みの刻み方で決まる内部の都合。
+    /// **利用者の一覧の順がそれで変わってはいけない。**
+    ///
+    /// 題材は `file_id` の降順で詰める —— 昇順で詰めると、
+    /// 並べ替えを消しても偶然通る。
     #[test]
     fn the_order_of_a_hit_list_does_not_depend_on_how_the_bucket_is_split() {
         let key = PositionKey { z0: 1, z1: 1 };
