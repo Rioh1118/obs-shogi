@@ -60,6 +60,13 @@ fn src_dir() -> PathBuf {
 /// 増やすときは、**なぜこの2つのどちらにも無くてよいか**を1行で書けるときだけ。
 /// 書けないなら、それは腐ったコメント。
 /// 使われなくなった項目は `the_exempt_list_is_not_dead` が落とす。
+///
+/// **他実装の綴りを免除するリストは、走査範囲ごとに3つある。**
+/// ここは Rust のコメント、`src/__tests__/docsIdentifiers.ts` の `EXEMPT` は
+/// `docs/**` のバッククォート、`state_table_terms.rs` の `NOT_IDENTIFIERS` は
+/// 状態遷移表の表本体。**同じ綴りを2つ以上へ足すことがある**（`line_buffer` は
+/// ここと1つ目）。片方にしか要らない綴りも在る（`peek_text` はここだけ ——
+/// 表の中でバッククォートに囲まれていないので `docsIdentifiers` は拾わない）。
 const EXEMPT: &[&str] = &[
     // --- `std` ---
     // 確保に失敗したときの挙動を説明している

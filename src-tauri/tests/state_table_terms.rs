@@ -94,6 +94,11 @@ const NOT_RUST: &[(&str, &str)] = &[
 /// 表に出るが実装の識別子ではないもの。
 ///
 /// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
+///
+/// **他実装の綴りを免除するリストは、走査範囲ごとに3つある。**
+/// ここは状態遷移表の表本体、`src/__tests__/docsIdentifiers.ts` の `EXEMPT` は
+/// `docs/**` のバッククォート、`comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
+/// **同じ綴りを2つ以上へ足すことがある**（`SCORE_NONE` は前2つ）。
 const NOT_IDENTIFIERS: &[&str] = &[
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
