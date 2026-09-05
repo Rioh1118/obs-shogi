@@ -19,7 +19,8 @@
 //! 中身の検査がそこにあるのはそのため）。境目は「`metadata` より先か後か」。
 
 use crate::book::error::{truncate_path, BookError, BookErrorCode};
-use crate::book::reader::{open_reader, OpenedBook};
+use crate::book::formats::open_reader;
+use crate::book::reader::OpenedBook;
 use crate::book::types::BookFormat;
 use std::path::{Path, PathBuf};
 

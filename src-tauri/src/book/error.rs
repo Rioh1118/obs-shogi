@@ -284,7 +284,7 @@ mod tests {
     /// が見るので、ここでは実物を作る口のあるものだけを回す。
     #[test]
     fn every_code_ends_with_something_the_user_can_do() {
-        use crate::book::reader::open_reader;
+        use crate::book::formats::open_reader;
         use crate::book::types::BookFormat;
         use std::path::Path;
 
