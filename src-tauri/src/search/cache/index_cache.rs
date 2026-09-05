@@ -1278,7 +1278,7 @@ mod tests {
             ));
         }
         // **本番は必ず整列済みの桶を書く**（`bucketize_entries` も
-        // `compact_bucket` の k-way マージも昇順を出す）。題材もそれに揃える —
+        // `compact_bucket_entries` の k-way マージも昇順を出す）。題材もそれに揃える —
         // 揃えないと `decode_all` の並びの検査が「壊れたキャッシュ」として弾く
         for b in buckets.iter_mut() {
             b.sort_by_key(|(k, _)| *k);
@@ -1404,7 +1404,7 @@ mod tests {
 
         // 別々の桶に落ちる鍵を選ぶ。**桶は鍵に決めさせる** — 手で置くと
         // `bucketize_entries` が作らない配置を題材が固定してしまい、
-        // 引く側（`index_store` は `key.bucket()` の桶しか見ない）と食い違う
+        // 引く側（`snapshot` は `key.bucket()` の桶しか見ない）と食い違う
         let k1 = PositionKey {
             z0: 0x1100_0000_0000_0000,
             z1: 0x2222,
@@ -1889,7 +1889,7 @@ mod tests {
 
     /// **並びが崩れた桶は書かない。** 読む側と同じ検査を書く側にも置く。
     ///
-    /// 崩れるのは `compact_bucket` の k-way マージで、桶の割り当てより壊れやすい。
+    /// 崩れるのは `compact_bucket_entries` の k-way マージで、桶の割り当てより壊れやすい。
     /// 書けてしまうと、次の起動で読めずに全件作り直し、作り直してまた同じものを
     /// 書く、を繰り返す。
     #[test]

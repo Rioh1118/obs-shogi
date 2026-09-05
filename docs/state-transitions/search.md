@@ -18,12 +18,12 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 | 記号  | `IndexState` | 判定条件                                                    | 中身               |
 | ----- | ------------ | ----------------------------------------------------------- | ------------------ |
 | **E** | `Empty`      | 初期値                                                      | 空                 |
-| **R** | `Restoring`  | `replace(empty_with(Restoring))` を通った                   | **空にされている** |
-| **B** | `Building`   | `replace(empty_with(Building))` を通った                    | **空にされている** |
+| **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                      | **空にされている** |
+| **B** | `Building`   | `restart(Restart::Building)` を通った                       | **空にされている** |
 | **U** | `Updating`   | `replace(restored(Updating, ..))` か `with_state(Updating)` | 前の中身が残る     |
 | **Y** | `Ready`      | `with_state(Ready)`                                         | 揃っている         |
 
-**`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::empty_with` で
+**`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::restarting` で
 `FileTable::default()` と空の bucket で作り直すので、**その間に投げた検索は必ず0件になる**
 （`stale=true` は付くが、`stale` は「古いかもしれない」であって「空」とは言っていない）。
 
@@ -95,7 +95,7 @@ let stale = snap.state != StoreIndexState::Ready;
 ### ⚠️ `open` がどの状態からでも通る
 
 `open_project` に**いまの状態を見る分岐が無い**。`R` / `B` / `U` の途中で
-もう一度呼ばれると `empty_with(Restoring)` が置かれて**中身が捨てられる**。
+もう一度呼ばれると `restart(Restart::Restoring)` が走って**中身が捨てられる**。
 走っている全件構築や差分適用は止まらないので、
 **古い構築が新しい `snap` に `with_files` で書き込む**。
 
@@ -287,7 +287,7 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | 何を見ていないか                     | どうなるか（未確認）                                       |
 | ------------------------------------ | ---------------------------------------------------------- |
 | `R` / `B` の最中に `search` を投げる | 0件が返るはず。`stale=true` は付くが「空」とは言っていない |
-| `U` の最中に `open` を投げる         | 差分適用と `empty_with(Restoring)` の置き換えが競合する    |
+| `U` の最中に `open` を投げる         | 差分適用と `restart(Restart::Restoring)` が競合する        |
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
