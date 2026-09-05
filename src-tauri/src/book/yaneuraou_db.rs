@@ -39,11 +39,19 @@ use std::path::Path;
 /// 展開済みの定跡。
 pub(crate) struct YaneuraouDbReader {
     positions: HashMap<BookKey, Vec<BookMove>>,
+    dropped_fields: u64,
 }
 
 impl YaneuraouDbReader {
     pub(crate) fn position_count(&self) -> u64 {
         self.positions.len() as u64
+    }
+
+    /// 読めずに捨てた欄の数。**0 でないなら、評価値や深さの `null` は
+    /// 「もともと無い」ではなく「読み損ねた」かもしれない。**
+    /// 利用者がそれを区別できるよう `BookInfo` まで運ぶ。
+    pub(crate) fn dropped_fields(&self) -> u64 {
+        self.dropped_fields
     }
 }
 
@@ -65,8 +73,11 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
     // 前で `open_reader` が当てる。形式ごとに違う値でも、そこに置けば新しい形式が
     // 検査を飛ばせない。
     let file = std::fs::File::open(path).map_err(|e| BookError::from_io(e, shown.clone()))?;
-    let positions = parse(std::io::BufReader::new(file), &shown, size)?;
-    Ok(YaneuraouDbReader { positions })
+    let (positions, dropped_fields) = parse(std::io::BufReader::new(file), &shown, size)?;
+    Ok(YaneuraouDbReader {
+        positions,
+        dropped_fields,
+    })
 }
 
 /// 行の残りを読み捨てる。確保は [`MAX_LINE_BYTES`] ずつで頭打ち。
@@ -419,7 +430,7 @@ fn parse<R: BufRead>(
     reader: R,
     path: &str,
     file_size: u64,
-) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
+) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
     parse_limited(reader, path, MAX_EXPANDED_BYTES, file_size)
 }
 
@@ -473,7 +484,7 @@ fn parse_limited<R: BufRead>(
     path: &str,
     max_bytes: usize,
     file_size: u64,
-) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
+) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
     let mut buffer = String::new();
     // 行ごとに作り直さない。実物の定跡で 1,800 万回超の確保になる
     // （局面 225 万行 + 指し手 1,610 万行）。
@@ -704,7 +715,7 @@ fn parse_limited<R: BufRead>(
         );
     }
 
-    Ok(positions)
+    Ok((positions, (dropped.ponder + dropped.numbers) as u64))
 }
 
 /// 溜めた指し手を、いまの局面のものとして確定させる。
@@ -1030,6 +1041,13 @@ mod tests {
 
     /// テストは文字列で書きたいが、本番は1行ずつ読む。同じ `parse` を通す。
     fn parsed(text: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
+        parsed_with_dropped(text).map(|(positions, _)| positions)
+    }
+
+    /// 読み飛ばした欄の数も一緒に見たいとき。
+    fn parsed_with_dropped(
+        text: &str,
+    ) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
         parse(
             std::io::Cursor::new(text.as_bytes()),
             "/books/a.db",
@@ -1174,6 +1192,33 @@ mod tests {
             assert_eq!(moves[0].ponder, None, "spelling={spelling}");
             assert_eq!(moves[0].value, Some(50), "spelling={spelling}");
         }
+    }
+
+    /// **読み飛ばした欄の数が、開いた結果と一緒に返ること。**
+    ///
+    /// 欄がずれた定跡では評価値と深さが全て `None` になるが、それが
+    /// 「もともと無い」のか「読み損ねた」のかを区別する材料が利用者に要る。
+    /// ログにしか出さないと、アプリにログを見る導線が無いので誰にも届かない。
+    #[test]
+    fn the_number_of_dropped_fields_comes_back_with_the_book() {
+        // 3行目は評価値と深さが数値でない。2つとも捨てる
+        let text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n7g7f none xx yy 1\n");
+        let (positions, dropped) = parsed_with_dropped(&text).expect("読めるはず");
+
+        assert_eq!(positions.len(), 1);
+        let moves = &positions[&to_book_key(HIRATE).unwrap()];
+        assert_eq!(moves[0].value, None);
+        assert_eq!(moves[0].depth, None);
+        // **0 と区別が付くこと。** ここが常に 0 なら、上の `None` の由来が分からない
+        assert_eq!(dropped, 2, "捨てた欄の数が返っていない");
+    }
+
+    /// 欄が全部読めている定跡では 0。**上のテストだけだと、
+    /// 常に非0を返す実装でも通る。**
+    #[test]
+    fn a_book_with_no_broken_fields_reports_zero_dropped() {
+        let (_, dropped) = parsed_with_dropped(&sample()).expect("読めるはず");
+        assert_eq!(dropped, 0);
     }
 
     /// 指し手が1つも続かない `sfen` 行も1局面として数える。
@@ -1614,7 +1659,8 @@ mod tests {
         bytes.extend_from_slice(b"\n");
         bytes.extend_from_slice(format!("sfen {HIRATE}\n7g7f none 50 32 1\n").as_bytes());
 
-        let positions = parse(std::io::Cursor::new(bytes), "/books/a.db", 0).expect("読めるはず");
+        let (positions, _) =
+            parse(std::io::Cursor::new(bytes), "/books/a.db", 0).expect("読めるはず");
         assert_eq!(positions.len(), 1);
     }
 
@@ -2298,6 +2344,7 @@ mod tests {
     #[test]
     fn an_unknown_position_is_empty_not_an_error() {
         let reader = YaneuraouDbReader {
+            dropped_fields: 0,
             positions: loaded(&sample()),
         };
         let missing = to_book_key("4k4/9/9/9/9/9/9/9/4K4 b - 1").unwrap();
@@ -2308,6 +2355,7 @@ mod tests {
     fn counts_the_positions_it_holds() {
         let reader = YaneuraouDbReader {
             positions: loaded(&sample()),
+            dropped_fields: 0,
         };
         assert_eq!(reader.position_count(), 2);
     }

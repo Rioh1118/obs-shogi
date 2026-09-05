@@ -197,6 +197,7 @@ mod tests {
             path: PathBuf::from(path),
             format: BookFormat::YaneuraouDb,
             position_count: Some(0),
+            dropped_fields: Some(0),
             reader: Box::new(FakeReader),
         }
     }

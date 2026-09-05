@@ -47,6 +47,8 @@ pub(crate) struct OpenedBook {
     pub(crate) path: PathBuf,
     pub(crate) format: BookFormat,
     pub(crate) position_count: Option<u64>,
+    /// 読めずに捨てた欄の数。数えられない形式は `None`
+    pub(crate) dropped_fields: Option<u64>,
     pub(crate) reader: Box<dyn BookReader>,
 }
 
@@ -78,6 +80,7 @@ fn support(format: BookFormat) -> Option<Support> {
                     path: path.to_path_buf(),
                     format: BookFormat::YaneuraouDb,
                     position_count: Some(reader.position_count()),
+                    dropped_fields: Some(reader.dropped_fields()),
                     reader: Box::new(reader),
                 })
             },

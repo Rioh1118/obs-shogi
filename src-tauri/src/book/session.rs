@@ -65,6 +65,7 @@ impl BookState {
             path: opened.path.to_string_lossy().into_owned(),
             format: opened.format,
             position_count: opened.position_count,
+            dropped_fields: opened.dropped_fields,
         };
 
         self.books.insert(
@@ -218,6 +219,7 @@ mod tests {
             path: PathBuf::from(path),
             format: BookFormat::YaneuraouDb,
             position_count: Some(3),
+            dropped_fields: Some(0),
             reader: FakeReader::boxed(alive),
         }
     }
