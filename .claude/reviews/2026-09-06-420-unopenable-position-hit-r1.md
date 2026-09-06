@@ -171,7 +171,7 @@
 - 根拠: 書いた内容（`run_rescan_diff_apply` は `scan_kifu_files` の失敗で墓標ループの手前に戻る）は**現物どおり**（`project_manager.rs` の `return` が `with_tombstone` のループより手前）。ただし
   - `root_dir` が `None` の腕（`search.md` が書いている）を4箇所とも落としている
   - 同じ状態を作る経路が他にもある——**watcher の静穏 800ms のデバウンス窓**（ツリーは即時、索引は最短でも 800ms 遅れる。いちばん普通に起きる形）と、**watcher の起動失敗**（`commands.rs` は warn だけで成功扱い。そのセッション中は索引が一度も更新されない）
-  - ratchet が読むのは `search.md` だけ（`src-tauri/tests/search_doc_names.rs`）なので、新しい4つの写しは Rust 側を改名しても赤くならない
+  - ratchet が読むのは `search.md` だけ（`src-tauri/tests/search_doc_names.rs`）なので、新しい4つの写しは Rust 側を改名しても赤くならない（**r2 の H-8 で訂正**: `docsIdentifiers.test.ts` が `docs/state-transitions/**` を読み、corpus に `src-tauri/src` も含むので、台帳と遷移表の綴りは守られている。無防備なのは `docs/spec/screens/**` だけ）
 - 直し方: 機構の説明は `search.md` に1つだけ置き、他は結論＋参照に縮める。根拠は「索引の更新は watcher とデバウンス越しなので窓が常にある。加えて走査の失敗と watcher の起動失敗では削除が一切取り込まれない」に書き換える
 
 - 結果: 対応済み（`58f0b2f3` 4箇所の写しを `search.md` への参照に縮め、原因を「デバウンスの窓／走査の失敗／watcher の起動失敗」に直した。走査範囲を広げるラチェットは **#445**）
@@ -232,7 +232,7 @@
 
 ## lint / hook で強制できるもの
 
-- **`docs/state-transitions/**`と`docs/spec/screens/**`を`search_doc_names.rs` の走査対象に足す。** いまは `search.md` 1枚しか読まないので、この PR が4箇所に写した `run_rescan_diff_apply` / `scan_kifu_files` は Rust 側を改名しても赤くならない（M-8 の腐りを止められる。重複そのものは防げない）
+- **`docs/spec/screens/**` を識別子の走査対象に足す。**（**r2 の H-8 で訂正**: 無防備なのはここだけ。`docs/state-transitions/\*\*`は`docsIdentifiers.test.ts` が綴りを見ている。→ #445 の本文も訂正済み）
 - **`docs/spec/screens/*.md` の `F-\d+` が台帳 §2 に実在するか＋そのファイルが台帳へのリンクを持つか**（M-12 を機械で止められる）。`docsIdentifiers.test.ts` と同じ形
 - **同じ面トークンの上に載る前景トークンが1つか。** `src/__tests__/contrast.ts` の `scanContrast` は既に面と文字の対を解いているので、`$surface-danger` などについて2種類以上の前景が現れたら落とすラチェットを足せる（M-2 の後半）
 - **`navigateToHit` の戻り値を式文として捨てる呼び出しの禁止。** `src/__tests__/asyncResultUse.test.ts` に同型の走査がある。戻り値を判別可能な型にすれば既存のラチェットに乗る
