@@ -15,7 +15,7 @@ use super::lines::{
 };
 use super::moves::{looks_like_a_move, parse_move, DroppedFields, ABSENT_MOVE};
 use crate::book::error::{excerpt, BookError};
-use crate::book::sfen::{to_book_key_in_file, BookKey};
+use crate::book::sfen::key::{to_book_key_in_file, BookKey};
 use crate::book::types::BookMove;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -77,18 +77,29 @@ fn parse<R: BufRead>(
     path: &str,
     file_size: u64,
 ) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
-    parse_limited(reader, path, MAX_EXPANDED_BYTES, file_size)
+    let (positions, dropped, _terminated) =
+        parse_limited(reader, path, MAX_EXPANDED_BYTES, file_size)?;
+    Ok((positions, dropped))
 }
 
 /// 展開後の上限（[`MAX_EXPANDED_BYTES`]）を差し替えられる形。
 /// テストが 7 GiB ぶんの入力を組まずに済むように分ける。ファイルサイズの上限
 /// （[`super::limits::MAX_FILE_BYTES`]）はここでは見ない。
+/// 走査の結果。局面ごとの候補手、読み飛ばした欄の数、
+/// **最後のデータ行が改行で終わっていたか**。
+type Scanned = (HashMap<BookKey, Vec<BookMove>>, u64, bool);
+
+/// 3つ目は「最後のデータ行が改行で終わっていたか」。
+///
+/// **注記と空行は数えない**（理由は下の記録する箇所）。呼び出し側は捨ててよいが、
+/// **テストはここを見る** —— 記録する位置が1行ずれると、正しい定跡が開くたびに
+/// 嘘の警告をログへ書き、報告を受けた側は存在しない破損を追うことになる。
 fn parse_limited<R: BufRead>(
     mut reader: R,
     path: &str,
     max_bytes: usize,
     file_size: u64,
-) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
+) -> Result<Scanned, BookError> {
     let mut buffer = String::new();
     // 行ごとに作り直さない。実物の定跡で 1,800 万回超の確保になる
     // （局面 225 万行 + 指し手 1,610 万行）。
@@ -319,7 +330,11 @@ fn parse_limited<R: BufRead>(
         );
     }
 
-    Ok((positions, (dropped.ponder + dropped.numbers) as u64))
+    Ok((
+        positions,
+        (dropped.ponder + dropped.numbers) as u64,
+        last_line_terminated,
+    ))
 }
 
 /// 溜めた指し手を、いまの局面のものとして確定させる。
@@ -384,7 +399,7 @@ mod tests {
     use super::*;
     use crate::book::error::{format_size, BookErrorCode};
     use crate::book::reader::BookReader;
-    use crate::book::sfen::to_book_key;
+    use crate::book::sfen::key::to_book_key;
     use crate::book::yaneuraou_db::dedup::MOVE_CHUNK;
     use crate::book::yaneuraou_db::limits::{BYTES_PER_MOVE, BYTES_PER_POSITION, MAX_LINE_BYTES};
     use crate::book::yaneuraou_db::lines::is_note;
@@ -406,6 +421,39 @@ mod tests {
     /// テストは文字列で書きたいが、本番は1行ずつ読む。同じ `parse` を通す。
     fn parsed(text: &str) -> Result<HashMap<BookKey, Vec<BookMove>>, BookError> {
         parsed_with_dropped(text).map(|(positions, _)| positions)
+    }
+
+    /// **注記と空行は「改行で終わっていない」に数えない。**
+    ///
+    /// 本家は末尾の改行を要求しないので、改行の無い注記が末尾に1行あるだけの
+    /// 完全な定跡がある。そこまで数えると**正しい定跡が開くたびに警告が出て**、
+    /// 報告を受けた側は存在しない破損を追う。
+    ///
+    /// `is_ok()` だけを見ても記録の位置は分からない。記録する行を
+    /// `is_skippable` の枝より上へ動かす変異はここで落ちる。
+    #[test]
+    fn a_note_or_a_blank_line_at_the_end_does_not_count_as_unterminated() {
+        let head = "#YANEURAOU-DB2016 1.00\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n\
+             7g7f none 50 32 1";
+
+        for (tail, want, why) in [
+            ("", false, "データの行が改行で終わっていない"),
+            ("\n", true, "データの行が改行で終わっている"),
+            ("\n# 生成: floodgate", true, "末尾は改行の無い注記"),
+            ("\n// 出典: x", true, "末尾は改行の無い注記"),
+            ("\n   ", true, "末尾は改行の無い空行"),
+        ] {
+            let text = format!("{head}{tail}");
+            let (_, _, terminated) = parse_limited(
+                std::io::Cursor::new(text.as_bytes()),
+                "/books/a.db",
+                MAX_EXPANDED_BYTES,
+                text.len() as u64,
+            )
+            .expect("読めるはず");
+            assert_eq!(terminated, want, "{why}: tail={tail:?}");
+        }
     }
 
     /// 読み飛ばした欄の数も一緒に見たいとき。
