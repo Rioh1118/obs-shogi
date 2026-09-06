@@ -121,15 +121,22 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 開始の応答が返った直後に畳まれた回は空のまま残り、席が在るのに「無い」と読む。
   //
   // 返せたときだけ手放す。**停止が失敗したら握ったまま**にして、次に返せる機会
-  // （畳まれたとき）へ持ち越す。手放してしまうと、席の存在を知る者が誰も居なくなる。
+  // （畳まれたとき）へ持ち越す。
+  //
+  // 失敗の大半では席はもう空いている——Rust は席を消してからエンジンを止めるので、
+  // 止まらなかったときには既に消えている（`bridge.rs` の `stop_session`）。
+  // 握り続けるのは残りの2つのため。**invoke が Rust に届かなかった回**と、
+  // **指した先が他人の席だった回**（照合に断られ、席は動かない）。
+  // そこで手放すと、席の存在を知る者が誰も居なくなる。
   const seatRef = useRef<string | null>(null);
 
   // 席を返す口をここ1つにする。散らすと、経路を1つ足すたびに返し忘れが1つ増える。
   const releaseSeat = async (sessionId?: string) => {
     await stopAnalysisCore(sessionId);
 
-    // 指した相手が既に居なくても Rust は `Ok` を返す（`bridge.rs` の `stop_session`）。
-    // ここまで来た時点で、その席は空いている。
+    // 席が空なら、指した相手が既に居なくても Rust は `Ok` を返す
+    // （`bridge.rs` の `stop_session`。**別のセッションが居れば `Err`**）。
+    // ここまで来た時点で、自分の席は空いている。
     // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
     if (sessionId === undefined || seatRef.current === sessionId) {
       seatRef.current = null;
@@ -162,8 +169,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   //
   // **セッションを指さない。** 指した ID が席の主でなければ Rust は照合して断り
   // （`bridge.rs` の `stop_session`）、席は残ったままになる。握っている ID が
-  // 主とずれる経路は在る——停止が落ちて握り続けた回と、完了通知の ID が
-  // 一致しなかった回。画面が居ない以上どの解析も要らないので、指さずに全部返す。
+  // 主とずれるのは、**古い ID を握ったまま次の席が Rust に載った回**
+  // ——停止が他人の席に断られ、その後の開始が席を取った回。
+  // 画面が居ない以上どの解析も要らないので、指さずに全部返す。
   const releaseSeatOnUnmount = () => {
     if (seatRef.current === null) return;
     releaseSeatQuietly("unmount");
@@ -269,6 +277,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }, delayMs);
   }, []);
 
+  // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
+  //
+  // やることは3つ。エンジンが望みの局面に追いつくのを待つ（追いつかなければ打ち切る）、
+  // 古い席を返して新しい席を取る、その席が要らなくなっていないかを見る。
+  //
+  // `seq` は要求の世代。**タイマーが起きた時点と、await から戻った時点の両方で見る。**
+  // 見ないと、利用者が止めた後や次の要求が始まった後に go を出す。
   runRestartRef.current = (seq: number) => {
     if (restartSeqRef.current !== seq) return;
     if (!analyzingRef.current) return;

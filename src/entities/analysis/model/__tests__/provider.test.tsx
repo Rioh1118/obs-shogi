@@ -218,7 +218,7 @@ describe("AnalysisProvider の停止", () => {
     });
     await advance(50);
 
-    // 止めたのに「解析中」へ戻り、Rust では新しい席が走り続ける——という形になる。
+    // 世代を見ないと、止めたのに「解析中」へ戻り、Rust では新しい席が走り続ける。
     // 停止ボタンが撃てるのはその時点で握っている古い席までで、この席はここでしか返せない。
     expect(view.current.state.isAnalyzing).toBe(false);
     expect(stopCore).toHaveBeenCalledWith("session-2");
