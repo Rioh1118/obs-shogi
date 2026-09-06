@@ -100,9 +100,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const POSITION_SYNC_TIMEOUT_MS = 2000;
   const POSITION_SYNC_TIMEOUT_MESSAGE = "エンジンに現在の局面を送れませんでした";
 
-  const waitUntil = async (cond: () => boolean, timeoutMs: number) => {
+  // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
+  //
+  // `abort` を取るのは、待っている理由が消えたときに回り続けないため。
+  // 畳まれた後は `syncedSfen` がもう動かないので、渡さないと必ず上限まで回る。
+  const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => boolean) => {
     const start = Date.now();
     while (!cond()) {
+      if (abort?.()) return false;
       if (Date.now() - start > timeoutMs) return false;
       await new Promise((r) => setTimeout(r, 16));
     }
@@ -338,17 +343,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           await releaseSeat(held);
         }
 
-        clearFlushTimer();
-        latestResultRef.current = null;
-
-        dispatch({ type: "clear_results" });
-
-        clearFlushTimer();
-        latestResultRef.current = null;
-
         // 停止の応答を待っている間に、畳まれたり止められたりしている。
         // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
+        //
+        // **画面に触るのは門の後ろ。** `clear_results` は `error` も消すので
+        // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に出た
+        // 打ち切りのエラーが黙って消える。
         if (supersededSince(seq)) return;
+
+        clearFlushTimer();
+        latestResultRef.current = null;
+        dispatch({ type: "clear_results" });
 
         const newSessionId = await startInfiniteAnalysisCore();
 
@@ -431,22 +436,37 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
 
-    // 局面を送って席が返るまでの世代。この間に ■ を押されると `stopAnalysis` が
-    // 世代を上げる。押した時点では席がまだ無いので、停止は Rust に何も撃てない。
+    // 局面を送って席が返るまでの世代。
+    //
+    // **この窓で動く口は畳まれることだけ。** ヘッダのボタンは `isAnalyzing` を見て
+    // 形を決めるので（`AnalysisPaneHeader`）、席が返るまでは ▶ のまま——
+    // ■ はまだ押せない。`stopAnalysis` を直に呼ぶ経路（テスト）でも同じ門が要る。
     const seq = restartSeqRef.current;
 
     await syncPosition();
 
     // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
     // 候補手が返ってきて、盤面と一致しないものが表示される。
+    //
+    // **畳まれたら待つのをやめる。** 待ち続けても `syncedSfen` はもう動かないので、
+    // 上限いっぱい（2秒）回してから抜けるだけになる。
     const synced = await waitUntil(
       () => syncedSfenRef.current === currentSfen,
       POSITION_SYNC_TIMEOUT_MS,
+      () => supersededSince(seq),
     );
     if (!synced) {
+      // 要らなくなった要求の失敗は誰にも見せない（再開側の `catch` と同じ）。
+      if (supersededSince(seq)) return;
+
       dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
       throw new Error(POSITION_SYNC_TIMEOUT_MESSAGE);
     }
+
+    // **go を出す前にも見る。** 再開側と同じ形（`runRestartRef` の中）。
+    // ここを抜かすと、止めた後・畳まれた後にエンジンへ `go` を出してから、
+    // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
+    if (supersededSince(seq)) return;
 
     const sessionId = await startInfiniteAnalysisCore();
 

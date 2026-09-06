@@ -188,6 +188,63 @@ describe("AnalysisProvider の停止", () => {
     expect(stopCore).toHaveBeenCalledWith("session-late");
   });
 
+  it("同期待ちの間に止めたら、go を出さない", async () => {
+    // 盤の局面をエンジンへ送れないまま ▶ を押した状態。`waitUntil` が回る。
+    const view = mountAnalysis(adapter("P1", null));
+
+    void view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+    expect(startCore).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+
+    // 待ちが解けても、要らなくなった要求なので go は出さない。
+    await view.setSync(adapter("P1", "P1"));
+    await advance(100);
+
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    // 止めた後に「送れませんでした」を出さない。利用者はもう待っていない。
+    expect(view.current.state.error).toBeNull();
+  });
+
+  it("打ち切りのエラーを、後から返ってきた再開が消さない", async () => {
+    const pendingStops: Array<() => void> = [];
+    stopCore.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pendingStops.push(resolve);
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 1手進む。再開は「前の席を返す」ところで止まる。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+    expect(pendingStops).toHaveLength(1);
+
+    // もう1手進むが、エンジンは追いつかない。同期待ちが2秒で打ち切られる。
+    await view.setSync(adapter("P3", "P2"));
+    await advance(2400);
+    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+
+    // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
+    // 門より前に置くと、利用者に出したばかりの断りが黙って消える。
+    await act(async () => {
+      pendingStops[0]();
+    });
+    await advance(100);
+
+    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+  });
+
   it("再開の最中に止めたら、後から返ってきた席を返して再開しない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockResolvedValueOnce("session-1");
@@ -279,6 +336,26 @@ describe("AnalysisProvider のアンマウント", () => {
     // **セッションを指さない。** 指すと、席に居るのが別のセッションだったとき
     // Rust が照合して断る（`bridge.rs` の `stop_session`）。
     expect(stopCore).toHaveBeenCalledWith(undefined);
+  });
+
+  it("同期待ちの最中に畳まれたら、待つのをやめる", async () => {
+    const view = mountAnalysis(adapter("P1", null));
+
+    let settled = false;
+    const done = () => {
+      settled = true;
+    };
+    void view.current.startInfiniteAnalysis().then(done, done);
+    await advance(50);
+
+    view.unmount();
+
+    // 上限（2000ms）よりずっと手前で見る。
+    await advance(200);
+
+    // 抜けないと、畳まれた画面のために `syncedSfen` を2秒ぶん見続ける。
+    expect(settled).toBe(true);
+    expect(startCore).not.toHaveBeenCalled();
   });
 
   it("席を受け取った直後、state に載る前に畳まれても、席を返す", async () => {
