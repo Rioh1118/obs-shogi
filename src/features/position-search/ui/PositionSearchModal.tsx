@@ -70,6 +70,7 @@ export default function PositionSearchModal() {
     getHitsByRequestId,
     isSearchingRequest,
     resolveHitAbsPath,
+    clearSearch,
   } = usePositionSearch();
 
   const { startNavigationToHit } = usePositionHitNavigation();
@@ -139,12 +140,25 @@ export default function PositionSearchModal() {
   // 解決前に乱発される再検索でも確実に直前の rid をキャンセルできるようにする。
   const inFlightRidRef = useRef<number | null>(null);
 
+  /**
+   * 進行中なら取り下げ、結果も捨てる。
+   *
+   * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
+   * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB）。捨てる口を呼ぶのは
+   * ここだけなので、呼ばないと**誰も呼ばない**。
+   */
+  const discardSearch = useCallback(() => {
+    const rid = inFlightRidRef.current;
+    if (rid == null) return;
+
+    inFlightRidRef.current = null;
+    void cancelSearch(rid);
+    clearSearch(rid);
+  }, [cancelSearch, clearSearch]);
+
   useEffect(() => {
     if (!isOpen) {
-      if (inFlightRidRef.current != null) {
-        void cancelSearch(inFlightRidRef.current);
-        inFlightRidRef.current = null;
-      }
+      discardSearch();
       lastQueryKeyRef.current = null;
       setRequestId(null);
       setLaunchError(null);
@@ -162,11 +176,8 @@ export default function PositionSearchModal() {
     if (!queryKey) return;
     if (lastQueryKeyRef.current === queryKey) return;
 
-    // queryKey が変わった: 前の rid があれば取り下げる
-    if (inFlightRidRef.current != null) {
-      void cancelSearch(inFlightRidRef.current);
-      inFlightRidRef.current = null;
-    }
+    // queryKey が変わった: 前の rid があれば取り下げて捨てる
+    discardSearch();
 
     lastQueryKeyRef.current = queryKey;
     setRequestId(null);
@@ -189,17 +200,12 @@ export default function PositionSearchModal() {
       .finally(() => {
         setIsLaunching(false);
       });
-  }, [isOpen, queryKey, searchPosition, cancelSearch]);
+  }, [isOpen, queryKey, searchPosition, discardSearch]);
 
   // unmount 時にも進行中検索を取り下げる
   useEffect(() => {
-    return () => {
-      if (inFlightRidRef.current != null) {
-        void cancelSearch(inFlightRidRef.current);
-        inFlightRidRef.current = null;
-      }
-    };
-  }, [cancelSearch]);
+    return () => discardSearch();
+  }, [discardSearch]);
 
   const activeHit = orderedHits[activeIndex];
 

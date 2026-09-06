@@ -40,6 +40,7 @@ vi.mock("@/entities/app-config", () => ({
 const REQUEST_ID = 1;
 const searchPosition = vi.fn();
 const cancelSearch = vi.fn();
+const clearSearch = vi.fn();
 
 // 差し替えるのは実体の側。barrel は再 export なので cursorFromLite は本物が通る
 //
@@ -56,6 +57,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
     getHitsByRequestId: (rid: number | null) => (rid == null ? [] : hitsState.current),
     isSearchingRequest: () => false,
     resolveHitAbsPath,
+    clearSearch,
   }),
 }));
 
@@ -118,6 +120,7 @@ beforeEach(() => {
   searchPosition.mockReset();
   searchPosition.mockResolvedValue({ requestId: REQUEST_ID });
   cancelSearch.mockReset();
+  clearSearch.mockReset();
   resolveHitAbsPath.mockReset();
   resolveHitAbsPath.mockImplementation((hit: PositionHit) => `/root/${hit.occ.fileId}.kif`);
   hitsState.current = HITS;
@@ -218,6 +221,20 @@ describe("PositionSearchModal のヒットを開く", () => {
 
     // 参照で追えば追従そのものは鍵を組まない。残るのは描画の断り判定ぶんだけ
     expect(hitKeyCalls.mock.calls.length).toBeLessThanOrEqual(8);
+  });
+
+  /**
+   * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
+   * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB）。捨てる口
+   * （`clearSearch`）を呼ぶのはこの画面だけなので、呼ばないと**誰も呼ばない**。
+   */
+  test("画面を畳むとき、進行中の検索を取り下げたうえで結果も捨てる", async () => {
+    const { unmount } = await renderWithHits();
+
+    unmount();
+
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

@@ -319,6 +319,10 @@ export function PositionSearchProvider({
       // 同じ rid のチャンクが届く。入口ごと閉じないと、消えたはずのセッションが
       // 次の吐き出しで `ensureSession` に作り直される
       chunkBuffer.stopAccepting();
+      // `open_start` は `sessions` を空にする。**平坦化の置き場も一緒に落とす**——
+      // 残すと、消えたセッションの `flat` と `snapshot` を生かしているのが
+      // この Map だけになる
+      hitsCacheRef.current.clear();
       dispatch({ type: "open_start", payload: { rootDir: rd } });
 
       openInFlightRef.current = (async () => {
