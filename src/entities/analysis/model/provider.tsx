@@ -27,6 +27,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
   const syncedSfenRef = useRef<string | null>(syncedSfen);
+
+  // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
+  // 押した瞬間の値に焼き付けると、待っている間に盤が動いたとき、
+  // もう誰も見ていない局面の同期を上限いっぱい待って断りを積む。
+  const currentSfenRef = useRef<string | null>(currentSfen);
   const analyzingRef = useRef(state.isAnalyzing);
 
   const latestResultRef = useRef<AnalysisResult | null>(null);
@@ -74,6 +79,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   useEffect(() => {
     syncedSfenRef.current = syncedSfen;
   }, [syncedSfen]);
+
+  useEffect(() => {
+    currentSfenRef.current = currentSfen;
+  }, [currentSfen]);
 
   useEffect(() => {
     analyzingRef.current = state.isAnalyzing;
@@ -440,10 +449,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
     // 候補手が返ってきて、盤面と一致しないものが表示される。
     //
-    // **畳まれたら待つのをやめる。** 待ち続けても `syncedSfen` はもう動かないので、
-    // 上限いっぱい（2秒）回してから抜けるだけになる。
+    // **待つ相手は「いま盤が見ている局面」。** 押した瞬間の値を待つと、
+    // 待っている間に盤が動いた回は条件が二度と真にならず、上限いっぱい回してから
+    // 何も失敗していないのに断りを積む（同期は新しい局面へ追いついている）。
+    //
+    // **要らなくなったら待つのをやめる**（畳まれた／止められた／読む局面が無くなった）。
+    // 待ち続けても `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
     const synced = await waitUntil(
-      () => syncedSfenRef.current === currentSfen,
+      () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
       POSITION_SYNC_TIMEOUT_MS,
       () => supersededSince(seq),
     );
@@ -460,13 +473,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
     if (supersededSince(seq)) return;
 
+    // 待ち切った局面で始める。押した瞬間の局面とは違うことがある。
+    const started = currentSfenRef.current;
+    if (!started) return;
+
     const sessionId = await startInfiniteAnalysisCore();
     if (!holdUnlessSuperseded(seq, "late-start", sessionId)) return;
 
-    dispatch({ type: "start_analysis", payload: { position: currentSfen } });
+    dispatch({ type: "start_analysis", payload: { position: started } });
 
-    lastAnalyzedSfenRef.current = currentSfen;
-    desiredSfenRef.current = currentSfen;
+    lastAnalyzedSfenRef.current = started;
+    desiredSfenRef.current = started;
   }, [
     isReady,
     state.isAnalyzing,

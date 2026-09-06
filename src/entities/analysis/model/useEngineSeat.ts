@@ -49,7 +49,7 @@ export interface EngineSeat {
    * **返せたときだけ手放す。** 停止が失敗したら握ったままにして、次に返せる機会へ持ち越す。
    * 失敗は呼び手へ投げる（出し方は呼び手が決める）。
    */
-  releaseHeld: (at: SeatReleasePoint) => Promise<void>;
+  releaseHeld: (by: SeatReleasePoint) => Promise<void>;
   /**
    * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
    *
@@ -57,7 +57,7 @@ export interface EngineSeat {
    * 落ちた席は握ったままにするので、画面が生きていれば ▶ が返し直す。
    * 畳まれた後（`unmount`）に落ちた回は、読む者が居ないので誰も返せない。
    */
-  releaseHeldQuietly: (at: SeatReleasePoint) => void;
+  releaseHeldQuietly: (by: SeatReleasePoint) => void;
   /** 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある */
   sweepOnUnmount: () => void;
   /**
@@ -67,7 +67,7 @@ export interface EngineSeat {
    * 呼んだ後に `isHeld()` が true になりうるのはこの形だけで、そうしないと
    * その席を知る者が居なくなる。畳まれた後に落ちた回は誰も返せない。
    */
-  discard: (at: SeatReleasePoint, sessionId: string) => void;
+  discard: (by: SeatReleasePoint, sessionId: string) => void;
 }
 
 export function useEngineSeat(): EngineSeat {
@@ -76,10 +76,11 @@ export function useEngineSeat(): EngineSeat {
   // 直前に返した席。**採ってはいけない `info` を見分けるためだけに持つ。**
   const retiredRef = useRef<string | null>(null);
 
-  // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を撃たないため**に持つ。
-  // 撃つ相手が同じなら2本目は無駄で、順序も保証できない（1本目の結末が返る前に
-  // 2本目の結末が返りうる）。待つ側は結末を受け取り、待てない側は
-  // **落ちたときだけ撃ち直す**（`releaseHeldQuietly`）。
+  // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
+  // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
+  // 2本目は無駄で、順序も結末も保証できない。待てる側（`releaseHeld`）は待ってから
+  // 席を見直し、待てない側（`releaseHeldQuietly` / `sweepOnUnmount`）は後ろに並んで
+  // **1本目が落ちたときだけ撃ち直す**。
   const releasingRef = useRef<Promise<void> | null>(null);
 
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
@@ -87,11 +88,11 @@ export function useEngineSeat(): EngineSeat {
   // ——畳まれてもいないのに後始末が撃たれる。
   const apiRef = useRef<EngineSeat | null>(null);
 
-  const send = async (at: SeatReleasePoint, sessionId: string | undefined) => {
+  const send = async (by: SeatReleasePoint, sessionId: string | undefined) => {
     const held = seatRef.current;
 
     try {
-      await stopAnalysisCore(sessionId, at);
+      await stopAnalysisCore(sessionId, by);
     } catch (e) {
       // **返せなかった席を、誰も知らないままにしない。** 欄が空なら握り直す。
       // 要らなくなった開始を捨てる口は欄が空のまま撃つので、書き戻さないと
@@ -134,15 +135,15 @@ export function useEngineSeat(): EngineSeat {
   // （`unmount`、および畳まれた後に返ってきた `late-*`）は握り直しても読む者が
   // 居ないので、エンジンを畳み直すしかない。画面が生きている回は握り直すので、
   // 次に畳まれたときに返し直せる（それまで ▶ は Rust に断られ続ける）。
-  const quietly = (at: SeatReleasePoint, sessionId: string | undefined) => {
-    void shootQuietly(at, sessionId);
+  const quietly = (by: SeatReleasePoint, sessionId: string | undefined) => {
+    void shootQuietly(by, sessionId);
   };
 
   // 撃って、落ちたらログだけ残す。**解決する Promise を返す**ので、
   // 後ろに並んだ返却がその結末を見られる。
-  const shootQuietly = (at: SeatReleasePoint, sessionId: string | undefined) =>
-    send(at, sessionId).catch((e) => {
-      console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId }, e);
+  const shootQuietly = (by: SeatReleasePoint, sessionId: string | undefined) =>
+    send(by, sessionId).catch((e) => {
+      console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
     });
 
   if (apiRef.current) return apiRef.current;
@@ -160,47 +161,52 @@ export function useEngineSeat(): EngineSeat {
       retiredRef.current = sessionId;
     },
 
-    releaseHeld: async (at) => {
-      // **飛んでいる返却があれば、それに相乗りする。** 同じ席へ2本撃つと、
-      // 1本目が空けた後の2本目が「知らない席」で断られる。
+    releaseHeld: async (by) => {
+      // **飛んでいる返却は待つ。ただし結末は自分で確かめる。**
+      // 相乗りしたまま返すと、その返却が落ちていても（`releaseHeldQuietly` の側は
+      // 失敗を飲む）「返せた」ことになり、呼び手は席を握ったまま `go` を出す。
       const releasing = releasingRef.current;
-      if (releasing) return releasing;
+      if (releasing) await releasing.catch(() => {});
 
       const held = seatRef.current;
       if (held === null) return;
 
-      const sending = send(at, held).finally(() => {
-        releasingRef.current = null;
+      const sending: Promise<void> = send(by, held).finally(() => {
+        // **自分がまだ枠に居るときだけ空ける。** 後ろに並んだ返却が居るのに
+        // 空けると、その返却が飛んでいる間に3本目が並列で出る。
+        if (releasingRef.current === sending) releasingRef.current = null;
       });
       releasingRef.current = sending;
       return sending;
     },
 
-    releaseHeldQuietly: (at) => {
+    releaseHeldQuietly: (by) => {
       // **飛んでいる返却があるなら、その後ろに並ぶ。** 降りてしまうと、
       // その返却が落ちたとき（席は握ったまま残る）に撃ち直す者が居ない
       // ——棋譜を閉じた回はもう画面が無いので、依存が動いて effect が
       // 再走することも無い。
       const releasing = releasingRef.current;
       if (releasing) {
-        releasingRef.current = releasing
+        const queued: Promise<void> = releasing
           .catch(() => {})
           .then(() => {
             if (seatRef.current === null) return;
-            return shootQuietly(at, seatRef.current);
+            return shootQuietly(by, seatRef.current);
           })
           .finally(() => {
-            releasingRef.current = null;
+            if (releasingRef.current === queued) releasingRef.current = null;
           });
+        releasingRef.current = queued;
         return;
       }
 
       const held = seatRef.current;
       if (held === null) return;
 
-      releasingRef.current = shootQuietly(at, held).finally(() => {
-        releasingRef.current = null;
+      const sending: Promise<void> = shootQuietly(by, held).finally(() => {
+        if (releasingRef.current === sending) releasingRef.current = null;
       });
+      releasingRef.current = sending;
     },
 
     // React の state が消えても、Rust の `active_sessions` からは席が消えない。
@@ -213,11 +219,26 @@ export function useEngineSeat(): EngineSeat {
     // 画面が居ない以上どの解析も要らないので、指さずに全部返す。
     sweepOnUnmount: () => {
       if (seatRef.current === null) return;
+
+      // 飛んでいる返却があるなら、その後ろに並ぶ。重ねて撃っても Rust は
+      // 断らない（席が空なら `Ok`）が、**指さない停止は席を全部空ける**ので、
+      // 同時に走っている別の解析があれば巻き添えにする → #463。
+      const releasing = releasingRef.current;
+      if (releasing) {
+        void releasing
+          .catch(() => {})
+          .then(() => {
+            if (seatRef.current === null) return;
+            return shootQuietly("unmount", undefined);
+          });
+        return;
+      }
+
       quietly("unmount", undefined);
     },
 
-    discard: (at, sessionId) => {
-      quietly(at, sessionId);
+    discard: (by, sessionId) => {
+      quietly(by, sessionId);
     },
   };
 
