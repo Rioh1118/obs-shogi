@@ -6,12 +6,13 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::search::build::build_full_index_task;
 use crate::search::cache::format;
+use crate::search::read::diagnosis::unreadable_places;
 use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
 use crate::search::types::{
-    CancelSearchInput, IndexState, IndexStatePayload, OpenProjectInput, OpenProjectOutput,
-    SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE,
+    CancelSearchInput, IndexState, IndexStatePayload, IndexWarnPayload, OpenProjectInput,
+    OpenProjectOutput, SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
 
 /// 局面検索コマンド（イベントで結果を返す）。
@@ -180,7 +181,19 @@ pub async fn open_project(
     // 2) restore 失敗 → full build
     let build_epoch = store.restart(Restart::Building);
 
-    let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
+    let scanned = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
+    // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
+    // その下の棋譜は索引に入らない——検索に出ないことの理由が要る
+    if scanned.is_partial() {
+        let _ = app.emit(
+            EVT_INDEX_WARN,
+            IndexWarnPayload {
+                path: scanned.unreadable.first().cloned().unwrap_or_default(),
+                message: unreadable_places(scanned.unreadable.len(), scanned.unknown_gaps),
+            },
+        );
+    }
+    let records = scanned.files;
     let total_files = records.len() as u32;
 
     log::info!(

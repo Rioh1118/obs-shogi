@@ -172,7 +172,7 @@ fn bench_01_fs_scan() {
     let mut records = Vec::new();
     for _ in 0..3 {
         let t = Instant::now();
-        records = scan_kifu_files(&root, &opts).unwrap();
+        records = scan_kifu_files(&root, &opts).unwrap().files;
         times.push(t.elapsed());
     }
 
@@ -196,7 +196,9 @@ fn bench_02_parse_all() {
 
     println!("\n========== 2. JKF PARSE (all files) ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let mut ok_count = 0u32;
     let mut err_count = 0u32;
     let mut empty_count = 0u32;
@@ -261,7 +263,9 @@ fn bench_03_full_build() {
 
     println!("\n========== 3. FULL BUILD (single-thread) ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let cpus = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1);
@@ -332,7 +336,9 @@ fn bench_04_search() {
 
     println!("\n========== 4. SEARCH ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let result = do_full_build(&records);
 
     let snap = IndexSnapshot {
@@ -407,7 +413,9 @@ fn bench_05_memory_estimate() {
 
     println!("\n========== 5. MEMORY ESTIMATE ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let result = do_full_build(&records);
 
     // Segment entries: (PositionKey=16B, Occurrence=12B) = 28 bytes/entry
@@ -465,7 +473,9 @@ fn bench_06_compaction() {
 
     println!("\n========== 6. COMPACTION ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let result = do_full_build(&records);
 
     // compaction 前のセグメント数
@@ -554,7 +564,9 @@ fn bench_07_diff_snapshot() {
 
     println!("\n========== 7. DIFF SNAPSHOT ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let snap = snapshot_from_records(&root, records.clone());
 
     // 同一スナップショット (変化なし)
@@ -615,7 +627,9 @@ fn bench_08_encode_decode_size() {
 
     println!("\n========== 8. CACHE ENCODE/DECODE SIZE ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let result = do_full_build(&records);
 
     // Compact all entries per bucket (simulating save_checkpoint logic)
@@ -675,7 +689,9 @@ fn bench_09_bug_mega_detail() {
 
     println!("\n========== 9. bug_mega.kif DETAIL ==========");
 
-    let records = scan_kifu_files(&root, &ScanOptions::default()).unwrap();
+    let records = scan_kifu_files(&root, &ScanOptions::default())
+        .unwrap()
+        .files;
     let mega = records.iter().find(|r| {
         r.path
             .file_name()
@@ -770,7 +786,7 @@ fn bench_10_summary() {
 
     // scan
     let t = Instant::now();
-    let records = scan_kifu_files(&root, &opts).unwrap();
+    let records = scan_kifu_files(&root, &opts).unwrap().files;
     let d_scan = t.elapsed();
 
     // full build

@@ -10,8 +10,10 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
 use crate::search::index::file_build::build_file_index;
+use crate::search::read::diagnosis::unreadable_places;
 use crate::search::read::fs_scan::{
-    diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
+    carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
+    ScanOptions, ScanSnapshot,
 };
 use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
 use crate::search::store::index_store::IndexStore;
@@ -187,8 +189,43 @@ impl ProjectManager {
             }
         };
 
-        let next_scan = snapshot_from_records(&root, records.clone());
-        let diff = diff_snapshot(&prev_scan, &next_scan);
+        // **読めなかった場所の下は、前回の走査から引き継ぐ。** 引き継がないと
+        // そのファイルは削除として索引から消える（読めないのと消えたのは
+        // 見分けが付かない）。捨てるだけでも足りない——次回の基準からも落ちるので、
+        // 二度と差分に現れなくなる（`carry_over_unreadable` の doc）
+        // 完全だったかは `files` を取り出す前に決める。取り出した後は
+        // 判断の元が手元に無く、写した式だけが残る（`Scanned::is_partial` の doc）
+        let partial = records.is_partial();
+        let unreadable = records.unreadable;
+        let unknown_gaps = records.unknown_gaps;
+        let mut next_scan = snapshot_from_records(&root, records.files);
+        let carried = carry_over_unreadable(&prev_scan, &mut next_scan, &unreadable);
+        let mut diff = diff_snapshot(&prev_scan, &next_scan);
+
+        if partial {
+            let _ = app.emit(
+                EVT_INDEX_WARN,
+                IndexWarnPayload {
+                    path: unreadable.first().cloned().unwrap_or_default(),
+                    message: unreadable_places(unreadable.len(), unknown_gaps),
+                },
+            );
+        }
+        if unknown_gaps {
+            // **どこが読めなかったか分からない。** 範囲を絞れないので、この回は
+            // 削除を1件も当てない。基準にも前回のものを戻す——戻さないと
+            // 次の走査で差分に出せず、二度と削除できなくなる
+            for key in &diff.removed {
+                if let Some(prev) = prev_scan.by_path.get(key) {
+                    next_scan.by_path.insert(key.clone(), prev.clone());
+                }
+            }
+            diff.removed.clear();
+        }
+        log::debug!(
+            "[rescan] 読めない場所の下から {} 件を引き継いだ",
+            carried.len()
+        );
         let snap = store.snapshot();
 
         let dirty_count = (diff.added.len() + diff.modified.len() + diff.removed.len()) as u32;
