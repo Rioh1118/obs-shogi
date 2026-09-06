@@ -101,7 +101,7 @@
 
 **残っている欠陥は `stale` のほう。** `query_service` が見るのは
 `state != Ready` だけなので、Rust から来る `SearchBeginPayload.stale` は
-上の6つを区別しない。区別を作っているのは `EVT_INDEX_STATE` の段と旗で、
+`indexHealth` の6値を区別しない。区別を作っているのは `EVT_INDEX_STATE` の段と旗で、
 **検索セッション側の `stale` は依然として4状態を畳んでいる**。→ #350
 
 ## いま満たしていないこと

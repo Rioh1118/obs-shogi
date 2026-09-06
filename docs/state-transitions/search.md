@@ -47,7 +47,7 @@ let stale = snap.state != StoreIndexState::Ready;
 | `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
 | `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
 | `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
-| `build-fail`  | 全件構築の前の走査が失敗           | root が消えた / 未マウント / 権限。**索引は空のまま**（`restart(Restart::Building)` は既に中身を捨てている）                                                                                                |
+| `build-fail`  | 全件構築の前の走査が失敗           | root が消えた / 未マウント / 権限。**索引は空のまま**（`restart(Restart::Building)` が既に中身を捨てている）。**`IndexStore` の段は動かない**——画面へ出す段だけ `Empty` にする                              |
 | `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                                                                                                   |
 | `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                                                                                                |
 | `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                                                                                                 |
@@ -61,13 +61,13 @@ let stale = snap.state != StoreIndexState::Ready;
 
 行が状態、列がイベント。`—` は起こらない組み合わせ。
 
-|       | `open`  | `restore-ok` | `restore-ng` | `build-done` | `build-fail`       | `open-rescan`      | `fs-event` → `diff-dirty` | `fs-event` → `diff-empty` | `apply-done` |
-| ----- | ------- | ------------ | ------------ | ------------ | ------------------ | ------------------ | ------------------------- | ------------------------- | ------------ |
-| **E** | → **R** | —            | —            | —            | —                  | —                  | —                         | —                         | —            |
-| **R** | ⚠️ 下記 | → **U**      | → **B**      | —            | —                  | —                  | —                         | —                         | —            |
-| **B** | ⚠️ 下記 | —            | —            | → **Y**      | → **E**（⚠️ 下記） | —                  | ⚠️ 下記                   | ⚠️ 下記                   | —            |
-| **U** | ⚠️ 下記 | —            | —            | —            | —                  | → **Y**（⚠️ 下記） | → **U**（そのまま）       | 走査だけ更新              | → **Y**      |
-| **Y** | ⚠️ 下記 | —            | —            | —            | —                  | —                  | → **U**                   | 走査だけ更新              | —            |
+|       | `open`  | `restore-ok` | `restore-ng` | `build-done` | `build-fail`     | `open-rescan`      | `fs-event` → `diff-dirty` | `fs-event` → `diff-empty` | `apply-done` |
+| ----- | ------- | ------------ | ------------ | ------------ | ---------------- | ------------------ | ------------------------- | ------------------------- | ------------ |
+| **E** | → **R** | —            | —            | —            | —                | —                  | —                         | —                         | —            |
+| **R** | ⚠️ 下記 | → **U**      | → **B**      | —            | —                | —                  | —                         | —                         | —            |
+| **B** | ⚠️ 下記 | —            | —            | → **Y**      | **B**（⚠️ 下記） | —                  | ⚠️ 下記                   | ⚠️ 下記                   | —            |
+| **U** | ⚠️ 下記 | —            | —            | —            | —                | → **Y**（⚠️ 下記） | → **U**（そのまま）       | 走査だけ更新              | → **Y**      |
+| **Y** | ⚠️ 下記 | —            | —            | —            | —                | —                  | → **U**                   | 走査だけ更新              | —            |
 
 **`open-rescan` は復元経路にしか無い。** `restore-ok` で `U` に入った直後、
 `open_project` が spawn した1本が `run_rescan_diff_apply`（先頭で全走査する）を
@@ -96,8 +96,10 @@ let stale = snap.state != StoreIndexState::Ready;
 **局面検索の画面には出ない**。この doc が答えると宣言している
 「いま検索を投げたら結果は最新か」への答えは、いまも「画面からは分からない」。
 
-出す口は `announce_state` の1つ（`search/announce.rs`）。**差分適用も全件構築も
-そこを通る**——経路ごとに組むと、旗を知らない側が伏せたまま出す。
+出す口は `search/announce.rs` の2つ——終わったことを言う `announce_state` と、
+進んでいることを言う `announce_progress`。**どの経路もそこを通る**——
+経路ごとに組むと、旗を知らない側が `IndexStatePayload::of`（全部伏せた形）で
+組んで塗り潰す。`src-tauri/tests/state_is_announced_once.rs` が綴りで固定している。
 文言も同じ段が持つ（`scan_failure` / `unreadable_places` / `build_failure`）
 ——内部の語彙は出さない。
 
@@ -105,7 +107,7 @@ let stale = snap.state != StoreIndexState::Ready;
 `into_payload` が `None` を返す。段の照合（`snapshot_if_epoch`）とは別の守り
 ——据え直しを検出した時点では、まだ照合が通ることがある。
 
-### ⚠️ 全件構築の走査が失敗したら `E` を出す（`Y` にしない）
+### ⚠️ 全件構築の走査が失敗したら、画面へ `E` を出す（`Y` にしない）
 
 `B` に入った時点で索引は空にされている。そこで走査が失敗すると入れるものが
 1件も無いので、**`Y` に上げてはいけない**——`query_service` が見るのは
@@ -117,9 +119,13 @@ let stale = snap.state != StoreIndexState::Ready;
 あるかどうか**が逆だから——あちらは最後に読めたときのまま健全で、
 こちらは空。
 
-**`store` の段は動かしていない。** 画面へ出すのは `Empty` だが、
-`IndexStore` の中は `restart(Restart::Building)` が入れた `Building` のまま。
-検索は `stale=true` を返し続ける。**この食い違いを見るテストは無い。**
+**`store` の段は動かしていない**ので、表のセルは `B` のまま。画面へ出すのは
+`Empty` だが、`IndexStore` の中は `restart(Restart::Building)` が入れた
+`Building` のまま。検索は `stale=true` を返し続ける。
+**この食い違いを見るテストは無い。**
+
+警告の文言も分ける。差分更新の失敗は「索引は最後に読めたときのまま」だが、
+ここは既に捨てた後なので**同じことを言うと嘘になる**（`IndexSurvival`）。
 
 ### ⚠️ `open` がどの状態からでも通る
 

@@ -5,8 +5,8 @@ Tauri v2 デスクトップアプリ（React 19 + TypeScript + SCSS / Rust）。
 ## 検証（変更後に必ず実行）
 
 ```bash
-npm run verify          # tsc -b + lint + vitest      （約8秒）
-npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
+npm run verify          # tsc -b + lint + vitest + 門番の検査
+npm run verify:rust     # cargo fmt + clippy + test + rustdoc のラチェット
 ```
 
 `git commit` は `.claude/hooks/verify-gate.sh` が横取りし、**その変更を見る検査がある側**を
