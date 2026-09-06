@@ -29,6 +29,11 @@ import PositionSearchContinuation from "./PositionSearchContinuation";
  * `danger`＝別の操作が要る）。索引の欠けもツリーとのずれも、次に索引が更新される
  * までは同じ結果が返る——Rust は1回の検索のあいだ同じスナップショットを使い、
  * `mergeFiles` は同じ値なら書き換えない。**「検索し直せば直る」は成り立たない。**
+ *
+ * **`describeFsError` / `fsErrorTier` を通さない。** あちらは fs を叩いた結果の
+ * `FsError` を訳す口だが、この断りは fs を1回も叩いていない——見ているのは
+ * 索引とツリーの食い違いだけで、`not_found` の `warning`（ツリーから開いたときは
+ * 読み直せば直る）とは復帰の仕方が違う。段はこの画面から直せるかで決める。
  */
 type RefusalReason = "no-path" | Exclude<NavigationOutcome, "started">;
 
