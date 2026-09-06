@@ -134,11 +134,6 @@ pub(super) fn read_line<R: BufRead>(
 /// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
 pub(super) const HEADER_PREFIX: &str = "#YANEURAOU-DB";
 
-/// 行の先頭のトークン。区切りは空白1つ（`parse_move` と同じ数え方）。
-pub(super) fn first_token(line: &str) -> &str {
-    line.split(' ').next().unwrap_or(line)
-}
-
 /// UTF-8 の BOM。付いたまま配られている定跡がある。
 const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 

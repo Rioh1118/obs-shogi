@@ -140,6 +140,11 @@ fn optional_number<T: std::str::FromStr>(
     }
 }
 
+/// 行の先頭のトークン。区切りは空白1つ（`parse_move` と同じ数え方）。
+pub(super) fn first_token(line: &str) -> &str {
+    line.split(' ').next().unwrap_or(line)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -21,6 +21,19 @@ use scanning::{blank_out_comments, matching};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// 利用者の入力を、素のまま持ち回してよい関門。
+///
+/// **どれも長さを抑える。** `validate_book_path` は形を検査してから返し、
+/// `truncate_path` はログ用に打ち切り、`join_error` は `with_path` を通し、
+/// `to_book_key` の失敗は `excerpt` が抑える。
+const ALLOWED_BEFORE_INPUT: [&str; 5] = [
+    "validate_book_path(&",
+    "truncate_path(&",
+    "join_error(",
+    "to_book_key(&",
+    "to_book_key(",
+];
+
 /// 入口に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
 const EXPECTED_LOG_LINES: usize = 5;
 
@@ -143,23 +156,27 @@ fn the_log_line_truncates_the_path() {
 
     // **ログの行だけを見ても足りない。** 生パスを一度ローカルに束縛してから
     // `{shown}` で埋め込むと、`log::` の塊には `input.path` の綴りが1つも出ない。
-    // 入口の本体ごと見て、`input.path` の出現を許す形に限る。
-    for name in ["open_book_inner", "lookup_inner", "close_book_inner"] {
-        let Some(body) = body_of(&code, name) else {
-            continue;
-        };
-        for (at, _) in body.match_indices("input.path") {
-            let before = &body[..at];
-            // 許すのは3つだけ。**検査に渡す**（`validate_book_path`）、
+    //
+    // **関数名を並べない。** `*_inner` の3つだけを見ていた版は、
+    // `#[tauri::command]` の殻（`open_book` ほか。どれも `input` がスコープに居る）を
+    // 丸ごと外していて、そこへ書けば同じ迂回が通った。入口のファイル全体を見る。
+    for field in ["input.path", "input.sfen"] {
+        for (at, _) in code.match_indices(field) {
+            let before = &code[..at];
+            // 許すのは4つ。**検査に渡す**（`validate_book_path`）、
             // **打ち切ってログへ出す**（`truncate_path`）、
-            // **失敗に添える**（`join_error`。`BookError::with_path` が打ち切る）。
-            if ["validate_book_path(&", "truncate_path(&", "join_error("]
+            // **失敗に添える**（`join_error`。`BookError::with_path` が打ち切る）、
+            // **鍵にする**（`to_book_key`。失敗は `excerpt` が抑える）。
+            if ALLOWED_BEFORE_INPUT
                 .iter()
                 .any(|allowed| before.ends_with(allowed))
             {
                 continue;
             }
-            offenders.push(format!("{name} が利用者の入力を素のまま持ち回している"));
+            let line = code[..at].matches('\n').count() + 1;
+            offenders.push(format!(
+                "src/book/commands.rs:{line}  {field} を素のまま持ち回している"
+            ));
         }
     }
 

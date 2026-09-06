@@ -76,23 +76,27 @@ fn parse<R: BufRead>(
     path: &str,
     file_size: u64,
 ) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
-    let (positions, dropped, _terminated) =
-        parse_limited(reader, path, MAX_EXPANDED_BYTES, file_size)?;
-    Ok((positions, dropped))
+    let scanned = parse_limited(reader, path, MAX_EXPANDED_BYTES, file_size)?;
+    Ok((scanned.positions, scanned.dropped))
+}
+
+/// 走査の結果。
+#[cfg_attr(test, derive(Debug))]
+struct Scanned {
+    positions: HashMap<BookKey, Vec<BookMove>>,
+    /// 読めずに捨てた欄の数。
+    dropped: u64,
+    /// 最後の**データ行**が改行で終わっていたか。
+    ///
+    /// **注記と空行は数えない**（理由は記録する箇所）。呼び出し側は捨ててよいが、
+    /// **テストはここを見る** —— 記録する位置が1行ずれると、正しい定跡が開くたびに
+    /// 嘘の警告をログへ書き、報告を受けた側は存在しない破損を追うことになる。
+    last_line_terminated: bool,
 }
 
 /// 展開後の上限（[`MAX_EXPANDED_BYTES`]）を差し替えられる形。
 /// テストが 7 GiB ぶんの入力を組まずに済むように分ける。ファイルサイズの上限
 /// （[`super::limits::MAX_FILE_BYTES`]）はここでは見ない。
-/// 走査の結果。局面ごとの候補手、読み飛ばした欄の数、
-/// **最後のデータ行が改行で終わっていたか**。
-type Scanned = (HashMap<BookKey, Vec<BookMove>>, u64, bool);
-
-/// 3つ目は「最後のデータ行が改行で終わっていたか」。
-///
-/// **注記と空行は数えない**（理由は下の記録する箇所）。呼び出し側は捨ててよいが、
-/// **テストはここを見る** —— 記録する位置が1行ずれると、正しい定跡が開くたびに
-/// 嘘の警告をログへ書き、報告を受けた側は存在しない破損を追うことになる。
 fn parse_limited<R: BufRead>(
     mut reader: R,
     path: &str,
@@ -306,14 +310,6 @@ fn parse_limited<R: BufRead>(
     //
     // 事実として記録し、判断は利用者に残す。局面数は `BookInfo` に載るので、
     // 配布元の申告と突き合わせられる。
-    if !last_line_terminated {
-        log::warn!(
-            "[book] 定跡ファイルが改行で終わっていない path={} 局面数={}",
-            crate::book::error::truncate_path(path),
-            positions.len()
-        );
-    }
-
     keep_first_of_each_move_everywhere(&mut positions);
 
     if positions.is_empty() {
@@ -329,11 +325,23 @@ fn parse_limited<R: BufRead>(
         );
     }
 
-    Ok((
+    let scanned = Scanned {
         positions,
-        (dropped.ponder + dropped.numbers) as u64,
+        dropped: (dropped.ponder + dropped.numbers) as u64,
         last_line_terminated,
-    ))
+    };
+
+    // **組み立ててから出す。** 記録した値をそのまま読むので、
+    // フィールドが本番で1度も読まれない状態にならない。
+    if !scanned.last_line_terminated {
+        log::warn!(
+            "[book] 定跡ファイルが改行で終わっていない path={} 局面数={}",
+            crate::book::error::truncate_path(path),
+            scanned.positions.len()
+        );
+    }
+
+    Ok(scanned)
 }
 
 /// 溜めた指し手を、いまの局面のものとして確定させる。
@@ -444,14 +452,14 @@ mod tests {
             ("\n   ", true, "末尾は改行の無い空行"),
         ] {
             let text = format!("{head}{tail}");
-            let (_, _, terminated) = parse_limited(
+            let scanned = parse_limited(
                 std::io::Cursor::new(text.as_bytes()),
                 "/books/a.db",
                 MAX_EXPANDED_BYTES,
                 text.len() as u64,
             )
             .expect("読めるはず");
-            assert_eq!(terminated, want, "{why}: tail={tail:?}");
+            assert_eq!(scanned.last_line_terminated, want, "{why}: tail={tail:?}");
         }
     }
 

@@ -6,8 +6,7 @@
 //!
 //! 抜粋は `excerpt` が長さと不可視文字を抑える。ここでは組み立てだけを持つ。
 
-use super::lines::first_token;
-use super::moves::looks_like_a_move;
+use super::moves::{first_token, looks_like_a_move};
 use crate::book::error::{excerpt, BookError, BookErrorCode};
 
 /// 失敗に行番号を前置する。
