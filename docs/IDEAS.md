@@ -144,3 +144,22 @@
 利用者に見える症状も無い。`listeners` を握る側が `infinite_listener` を触る日が来ると環になる。
 **文を分けて `await` の前にガードを落とすだけ**で消える。
 clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
+
+## 公開リポジトリとしての体裁が、配布物とドキュメントで揃っていない
+
+`.claude/reviews/2026-09-07-441-unmount-session-r6.md` の所見（oss-hygiene）。
+#441 の範囲外として持ち越した。**どれも `main` から在る。**
+
+- **README のトップ画像が古い。** 解析ペインのヘッダはボタン5つで、🔖（課題局面）が写っていない。
+  仕様（`docs/spec/screens/analysis-pane.md`）と実装は6つ。README の Features にも
+  課題局面が無いので、画像・機能一覧・仕様が揃って1機能を落としている
+- **PR テンプレートの検証チェックリストが CONTRIBUTING より狭い。**
+  「TypeScript を触った場合 / Rust を触った場合」の2行しかないので、
+  `docs/state-transitions/` だけを触る PR は**どちらにも当てはまらない**と読める
+  （CONTRIBUTING は両方必須と書いている）
+- **手元でビルドする前提が足りない。** Tauri の Linux 依存（`libwebkit2gtk-4.1-dev` ほか）は
+  `.github/workflows/ci.yml` にしか無い。README と CONTRIBUTING の「前提」は
+  同じ3行が二重にあり、片方だけ直すとまた食い違う
+- **第三者コードの帰属表示が配布物に無い。** `src-tauri/Cargo.toml` は
+  `license = ""` / `authors = ["you"]` / `description = "A Tauri App"` の雛形のままで、
+  `package.json` にも `license` が無い。MIT / BSD 系はバイナリ配布でも著作権表示を求める
