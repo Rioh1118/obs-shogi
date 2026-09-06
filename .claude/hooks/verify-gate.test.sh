@@ -116,8 +116,12 @@ expect_alias_resolution() {
   fixture=$(mktemp)
   printf '%s\n' "$config" > "$fixture"
 
+  # **起点をリポジトリの外へ向ける。** `git config` は local も混ぜて列挙するので、
+  # 起点がリポジトリだと手元の `.git/config` の alias が1つあるだけで答えが変わる
+  # （fixture が守りたいのは展開先を辿る動きで、環境の中身ではない）。
   got=$(
     unset GATE_EXTRA_VERBS
+    GATE_BASE=$(mktemp -d) \
     GIT_CONFIG_GLOBAL=$fixture GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 \
       bash -c 'GATE_LIB_ONLY=1 . .claude/hooks/verify-gate.sh; gate_alias_verbs'
   )
