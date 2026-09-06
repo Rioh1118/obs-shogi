@@ -43,10 +43,11 @@ let stale = snap.state != StoreIndexState::Ready;
 | 記号          | 発生源                             | 何が起きるか                                                                                                                                                                                                |
 | ------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                                                                                                       |
-| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `with_state(StoreIndexState::Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                         |
+| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `update_if_epoch(.., with_state(Ready))` を呼ぶ。差分が0でも呼ぶが、**据え直されていたら上げない**（`commands.rs`）              |
 | `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
 | `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
 | `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
+| `build-fail`  | 全件構築の前の走査が失敗           | root が消えた / 未マウント / 権限。**索引は空のまま**（`restart(Restart::Building)` は既に中身を捨てている）                                                                                                |
 | `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                                                                                                   |
 | `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                                                                                                |
 | `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                                                                                                 |
@@ -60,17 +61,18 @@ let stale = snap.state != StoreIndexState::Ready;
 
 行が状態、列がイベント。`—` は起こらない組み合わせ。
 
-|       | `open`  | `restore-ok` | `restore-ng` | `build-done` | `open-rescan`      | `fs-event` → `diff-dirty` | `fs-event` → `diff-empty` | `apply-done` |
-| ----- | ------- | ------------ | ------------ | ------------ | ------------------ | ------------------------- | ------------------------- | ------------ |
-| **E** | → **R** | —            | —            | —            | —                  | —                         | —                         | —            |
-| **R** | ⚠️ 下記 | → **U**      | → **B**      | —            | —                  | —                         | —                         | —            |
-| **B** | ⚠️ 下記 | —            | —            | → **Y**      | —                  | ⚠️ 下記                   | ⚠️ 下記                   | —            |
-| **U** | ⚠️ 下記 | —            | —            | —            | → **Y**（⚠️ 下記） | → **U**（そのまま）       | 走査だけ更新              | → **Y**      |
-| **Y** | ⚠️ 下記 | —            | —            | —            | —                  | → **U**                   | 走査だけ更新              | —            |
+|       | `open`  | `restore-ok` | `restore-ng` | `build-done` | `build-fail`       | `open-rescan`      | `fs-event` → `diff-dirty` | `fs-event` → `diff-empty` | `apply-done` |
+| ----- | ------- | ------------ | ------------ | ------------ | ------------------ | ------------------ | ------------------------- | ------------------------- | ------------ |
+| **E** | → **R** | —            | —            | —            | —                  | —                  | —                         | —                         | —            |
+| **R** | ⚠️ 下記 | → **U**      | → **B**      | —            | —                  | —                  | —                         | —                         | —            |
+| **B** | ⚠️ 下記 | —            | —            | → **Y**      | → **E**（⚠️ 下記） | —                  | ⚠️ 下記                   | ⚠️ 下記                   | —            |
+| **U** | ⚠️ 下記 | —            | —            | —            | —                  | → **Y**（⚠️ 下記） | → **U**（そのまま）       | 走査だけ更新              | → **Y**      |
+| **Y** | ⚠️ 下記 | —            | —            | —            | —                  | —                  | → **U**                   | 走査だけ更新              | —            |
 
 **`open-rescan` は復元経路にしか無い。** `restore-ok` で `U` に入った直後、
 `open_project` が spawn した1本が `run_rescan_diff_apply`（先頭で全走査する）を
-待ち、**差分が0でも `with_state(StoreIndexState::Ready)` を無条件で呼ぶ**。
+待ち、**差分が0でも `Ready` へ上げる**。上げる口は `update_if_epoch` なので、
+**その間に `open` が来ていれば上げない**（他人の索引を `Ready` にしない）。
 つまり**起動時のいちばん普通の経路では、`U` に留まらず必ず `Y` まで行く**。
 `U` 行の `diff-empty`（「走査だけ更新」＝ `U` のまま）はこの経路の話ではない
 ——そちらは watcher が動き出したあとに来る `fs-event` の話。
@@ -94,8 +96,30 @@ let stale = snap.state != StoreIndexState::Ready;
 **局面検索の画面には出ない**。この doc が答えると宣言している
 「いま検索を投げたら結果は最新か」への答えは、いまも「画面からは分からない」。
 
-出す口は `announce_rescan` の1つ（`project_manager.rs`）。文言は
-`read/diagnosis.rs` が組む——内部の語彙は出さない。
+出す口は `announce_state` の1つ（`search/announce.rs`）。**差分適用も全件構築も
+そこを通る**——経路ごとに組むと、旗を知らない側が伏せたまま出す。
+文言も同じ段が持つ（`scan_failure` / `unreadable_places` / `build_failure`）
+——内部の語彙は出さない。
+
+`Superseded` が「出さない」のは `announce_state` の中で決まっていて、
+`into_payload` が `None` を返す。段の照合（`snapshot_if_epoch`）とは別の守り
+——据え直しを検出した時点では、まだ照合が通ることがある。
+
+### ⚠️ 全件構築の走査が失敗したら `E` を出す（`Y` にしない）
+
+`B` に入った時点で索引は空にされている。そこで走査が失敗すると入れるものが
+1件も無いので、**`Y` に上げてはいけない**——`query_service` が見るのは
+`state != Ready` だけなので、空の索引を `Ready` にすると
+**0件が「最新」として並ぶ**。
+
+出すのは `IndexUiState::BuildFailed`。段は `Empty` で `scan_failed` を立てる。
+差分適用の `ScanFailed`（`Y` ＋ 旗）と逆になるのは、**残っている索引が
+あるかどうか**が逆だから——あちらは最後に読めたときのまま健全で、
+こちらは空。
+
+**`store` の段は動かしていない。** 画面へ出すのは `Empty` だが、
+`IndexStore` の中は `restart(Restart::Building)` が入れた `Building` のまま。
+検索は `stale=true` を返し続ける。**この食い違いを見るテストは無い。**
 
 ### ⚠️ `open` がどの状態からでも通る
 

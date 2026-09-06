@@ -228,7 +228,8 @@ named_tree=$(printf '%s\n' "$gate_scan" | sed -n '2p')
 trees_split=$(printf '%s\n' "$gate_scan" | sed -n '3p')
 saw_both_words=$(printf '%s\n' "$gate_scan" | sed -n '4p')
 
-# **正の綴りは2つだけ。それ以外で `git` と `commit` が語として現れたら止める。**
+# **拾えるのは `<basename が git> [オプション] commit` の形だけ。**
+# 拾えなかったのに両方の語が見えたら断る。
 #
 # ここまでの走査が拾うのは `<basename が git> [オプション] commit` の形だけ。
 # 拾えなかったのに両方の語がトークンとして見えるなら、**引用符の中に隠れた
@@ -249,10 +250,12 @@ if [ "$is_commit" != "1" ]; then
   [ "${saw_both_words:-0}" = "1" ] || exit 0
   deny "検証ゲート: コミットの綴りを読み取れない。
 
-**通る綴りは2つだけ。** どちらも木を絶対パスで名指しする。
+**木が2つ以上あるときは、木を名指しすること。**
 
   git -C <ワークツリーの絶対パス> commit -m \"...\"
   cd <ワークツリーの絶対パス> && git commit -m \"...\"
+
+相対でも構わない（コマンドの cwd を基点に解く）。
 
 `git` の手前に何が付いていても（\`timeout\` など）、絶対パスで書いても構わないが、
 **\`git\` と \`commit\` は引用符の外に、別々の語として置くこと**。
@@ -307,7 +310,7 @@ if [ -z "$project_dir" ] && [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
   project_dir=$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)
 fi
 
-# **木が2つ以上あるなら、名指しを要る。**
+# **木が2つ以上あるなら、名指しが要る。**
 #
 # 名指しが無いとき、コミットが起きるのは**シェルの cwd**。フックに届く `cwd` は
 # セッションを開いた場所で、シェルの `cd` は映らないので、木が複数あれば
