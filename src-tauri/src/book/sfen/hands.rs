@@ -56,7 +56,7 @@ pub(super) fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<S
                 continue;
             }
             if count > 1 {
-                // 確保しない（理由は `flush_empty`）
+                // `to_string()` は毎回ヒープを取る。書き先は既にあるので要らない
                 let _ = write!(out, "{count}");
             }
             let piece = HAND_PIECES[index];
