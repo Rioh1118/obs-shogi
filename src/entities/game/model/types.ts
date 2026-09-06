@@ -256,7 +256,6 @@ export interface GameContextType {
 
   clearError: () => void;
 
-  isGameLoaded: () => boolean;
   isAtStart: () => boolean;
   isAtEnd: () => boolean;
   canGoForward: () => boolean;
@@ -266,7 +265,6 @@ export interface GameContextType {
   getCurrentMoveIndex: () => number;
   getTotalMoves: () => number;
 
-  hasSelection: () => boolean;
   getCurrentMove: () => IMoveMoveFormat | undefined;
   getCurrentComments: () => string[];
 

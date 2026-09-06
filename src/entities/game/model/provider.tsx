@@ -636,8 +636,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     dispatch({ type: "clear_error" });
   }, []);
 
-  const isGameLoaded = useCallback(() => state.jkf !== null, [state.jkf]);
-
   const isAtStart = useCallback(() => {
     return (state.cursor?.tesuu ?? 0) === 0;
   }, [state.cursor]);
@@ -661,10 +659,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   }, [state.cursor]);
 
   const getTotalMoves = useCallback(() => view.totalMoves, [view.totalMoves]);
-
-  const hasSelection = useCallback(() => {
-    return state.selectedPosition !== null;
-  }, [state.selectedPosition]);
 
   const getCurrentMove = useCallback(() => {
     return view.currentMove;
@@ -749,7 +743,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       setCommentsByCursor,
       setCurrentComments,
       clearError,
-      isGameLoaded,
       isAtStart,
       isAtEnd,
       canGoForward,
@@ -757,7 +750,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
-      hasSelection,
       getCurrentMove,
       getCurrentComments,
       applyCursor,
@@ -783,7 +775,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       setCommentsByCursor,
       setCurrentComments,
       clearError,
-      isGameLoaded,
       isAtStart,
       isAtEnd,
       canGoForward,
@@ -791,7 +782,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
-      hasSelection,
       getCurrentMove,
       getCurrentComments,
       applyCursor,
