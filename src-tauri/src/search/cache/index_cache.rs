@@ -4,11 +4,11 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
+use crate::search::cache::paths::{cache_paths, now_ms, root_hash};
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
@@ -111,49 +111,6 @@ struct EncodeCtx<'a> {
     next_file_id: FileId,
     ft: &'a FileTable,
     nts: &'a NodeTables,
-}
-
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
-fn root_hash(root_dir: &Path) -> [u8; 32] {
-    let s = root_dir.to_string_lossy();
-    blake3::hash(s.as_bytes()).into()
-}
-
-fn cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    // app_cache_dir を使う（派生キャッシュなので）
-    let dir = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?
-        .join("obs-shogi")
-        .join("index");
-    Ok(dir)
-}
-
-fn cache_paths(app: &AppHandle, root_dir: &Path) -> Result<(PathBuf, PathBuf, PathBuf), String> {
-    let dir = cache_dir(app)?;
-    let h = root_hash(root_dir);
-    let hex = hex32(&h);
-    let proj = dir.join(hex);
-    let final_path = proj.join("index.v1.zst");
-    let bak_path = proj.join("index.v1.bak");
-    Ok((proj, final_path, bak_path))
-}
-
-fn hex32(h: &[u8; 32]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(64);
-    for b in h {
-        out.push(HEX[(b >> 4) as usize] as char);
-        out.push(HEX[(b & 0x0f) as usize] as char);
-    }
-    out
 }
 
 // --------------------
