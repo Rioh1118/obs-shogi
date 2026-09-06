@@ -20,8 +20,6 @@ type Props = {
   hasQuery: boolean;
   /** 索引が更新中で、結果が最新とは限らない */
   stale: boolean;
-  /** 一覧の上に断りが出ているか。器が縮むので、選んでいる行を追い直す */
-  hasNotice: boolean;
 };
 
 export default function PositionSearchHitList({
@@ -34,7 +32,6 @@ export default function PositionSearchHitList({
   resolveAbsPath,
   hasQuery,
   stale,
-  hasNotice,
 }: Props) {
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
@@ -120,7 +117,6 @@ export default function PositionSearchHitList({
         rowComponent={VirtualHitRow}
         rowProps={rowProps}
         followIndex={activeIndex}
-        followNonce={hasNotice}
         followAlign="auto"
         followBehavior="instant"
         overscanCount={8}
