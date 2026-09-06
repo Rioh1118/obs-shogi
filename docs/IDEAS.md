@@ -140,8 +140,8 @@
 （`listeners` の write ロック待ち）に入る。同時に走る `start_infinite_analysis` は
 そこで詰まる。
 
-いま環は無い（取得順は両者とも `infinite_listener` → `listeners`）ので、
-利用者に見える症状も無い。`listeners` を握る側が `infinite_listener` を触る日が来ると環になる。
+**判断: 6週間以内に着手しない。** いま環は無い（取得順は両者とも
+`infinite_listener` → `listeners`）ので、利用者に見える症状も無い。`listeners` を握る側が `infinite_listener` を触る日が来ると環になる。
 **文を分けて `await` の前にガードを落とすだけ**で消える。
 clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 
@@ -149,6 +149,10 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 
 `.claude/reviews/2026-09-07-441-unmount-session-r6.md` の所見（oss-hygiene）。
 #441 の範囲外として持ち越した。**どれも `main` から在る。**
+
+**判断: 6週間以内に着手しない。** 利用者に見える不具合ではなく、
+公開の体裁（画像・前提・帰属）は T1 の機能が落ち着いてからまとめて直す方が安い。
+帰属表示だけは配布を増やす前に要る——**Releases を人に配り始める回**が着手の合図。
 
 - **README のトップ画像が古い。** 解析ペインのヘッダはボタン5つで、🔖（課題局面）が写っていない。
   仕様（`docs/spec/screens/analysis-pane.md`）と実装は6つ。README の Features にも

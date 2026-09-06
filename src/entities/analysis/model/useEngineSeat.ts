@@ -53,12 +53,15 @@ export interface EngineSeat {
   /**
    * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
    *
-   * **落ちても利用者には出せない**（画面がもう無いか、直後に別のエラーを出す場面）。
-   * 落ちた席は握ったままにするので、画面が生きていれば ▶ が返し直す。
-   * 畳まれた後（`unmount`）に落ちた回は、読む者が居ないので誰も返せない。
+   * 撃つのは `sync-timeout` と `no-position` の2口。**落ちても利用者には出せない。**
+   * 落ちた席は握ったままにするので、`sync-timeout` は ▶ が、`no-position` は
+   * 棋譜を開き直してからの ▶ が返し直す（落ちた後の結末は `shootQuietly` に1つ置く）。
    */
   releaseHeldQuietly: (by: SeatReleasePoint) => void;
-  /** 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある */
+  /**
+   * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある。
+   * 落ちた回は誰も返せない（読む者が居ない）。
+   */
   sweepOnUnmount: () => void;
   /**
    * 要らなくなった開始が持ってきた席を捨てる。**握っている席には触らない。**
@@ -121,7 +124,9 @@ export function useEngineSeat(): EngineSeat {
     if (seatRef.current === sessionId) seatRef.current = null;
   };
 
-  // **落ちても利用者には出せない。** ここを通るのは、画面が既に無い（`unmount`）、棋譜を閉じた後で
+  // 撃って、落ちたらログだけ残す。**応答を待てない口はここを通る。**
+  //
+  // **落ちても利用者には出せない。** 画面が既に無い（`unmount`）、棋譜を閉じた後で
   // 出す場所が無い（`no-position`）、直後に `set_error` が立つ（`sync-timeout`。
   // その `error` の読み手はまだ0 → #277）、利用者が止めた直後で
   // 「停止の後始末に失敗しました」を出しても当てが無い（`late-start` / `late-restart`）。
@@ -131,16 +136,15 @@ export function useEngineSeat(): EngineSeat {
   // 「▶ を押しても何も起きない」という形でしか現れない
   // （`docs/state-transitions/analysis.md` ※4）ので、ログが無いと手掛かりが1つも無い。
   //
-  // **どの口から撃ったかを書く。** 落ちた後の結末が違う——画面が畳まれた後
-  // （`unmount`、および畳まれた後に返ってきた `late-*`）は握り直しても読む者が
-  // 居ないので、エンジンを畳み直すしかない。画面が生きている回は握り直すので、
-  // 次に畳まれたときに返し直せる（それまで ▶ は Rust に断られ続ける）。
+  // **どの口から撃ったかを書く。** 落ちた後の結末が違う。
+  // `unmount` と、畳まれた後に返ってきた `late-*` は、握り直しても読む者が居ないので
+  // エンジンを畳み直すしかない。`no-position` は棋譜を開き直してから ▶。
+  // 画面が生きている回は ▶ が返し直す（それまで ▶ は Rust に断られ続ける）。
   const quietly = (by: SeatReleasePoint, sessionId: string | undefined) => {
     void shootQuietly(by, sessionId);
   };
 
-  // 撃って、落ちたらログだけ残す。**解決する Promise を返す**ので、
-  // 後ろに並んだ返却がその結末を見られる。
+  // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: string | undefined) =>
     send(by, sessionId).catch((e) => {
       console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
