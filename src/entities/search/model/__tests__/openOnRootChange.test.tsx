@@ -76,11 +76,7 @@ describe("索引を開く合図", () => {
     expect(openedRoots()).toEqual(["/ws", "/other"]);
   });
 
-  /**
-   * `open_project` は入口で `Restoring` を emit する。購読より先に開くと、その1発を
-   * 取りこぼして `index.state` が `"Empty"` のまま止まり、復元中の検索が
-   * 「0件・完了・最新」として出る。
-   */
+  /** 順序（購読 → open）。なぜ要るかは `../provider.tsx` の `isListenSettled` の doc */
   test("購読が張り終わるまで開かない", async () => {
     let letListenFinish!: (unlisten: () => void) => void;
     listenImpl = () => new Promise((resolve) => (letListenFinish = resolve));
@@ -96,10 +92,7 @@ describe("索引を開く合図", () => {
     expect(openedRoots()).toEqual(["/ws"]);
   });
 
-  /**
-   * 購読が張れないことと索引が作られないことは別の失敗。束ねると、購読の失敗が
-   * 索引の構築まで巻き添えにする——索引はディスクにも残るので、次の起動まで効く。
-   */
+  /** 束ねない側。理由は同じ doc の「張れたか」ではなく「決着したか」の段 */
   test("購読が張れなくても索引は開く", async () => {
     listenImpl = () => Promise.reject(new Error("listen failed"));
 
