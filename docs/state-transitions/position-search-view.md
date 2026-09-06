@@ -64,9 +64,9 @@
 | **offscr**   | 仮想リスト（行が外れる）    | 選択している行が焦点を持ったまま消える                             |
 
 **`chunk` は Rust の emit そのものではない。** Rust は結果を分割して emit するが、
-画面が見るのは `CHUNK_FLUSH_MS`（`entities/search/model/provider.tsx`）ごとに
-束ねたぶん。**`done` / `fail` は待たずに吐き出す**ので、終わりが束ね待ちで遅れる
-ことはない。この表からテストを起こすときは、1つ emit しても即座には行が出ない
+画面が見るのは `CHUNK_FLUSH_MS`（`entities/search/model/chunkBuffer.ts`）ごとに
+束ねたぶん。**`done` / `fail` は待たずに吐き出す**（`entities/search/model/provider.tsx`
+の購読が `flush` を呼ぶ）ので、終わりが束ね待ちで遅れることはない。この表からテストを起こすときは、1つ emit しても即座には行が出ない
 ——時間を進めるまで出ない——ことに注意する。
 
 **選択を追うのは参照、断りを覚えるのは鍵。** `chunk` が届くと一覧は並び替わるので、
