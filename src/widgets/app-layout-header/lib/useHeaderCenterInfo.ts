@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { Color } from "shogi.js";
 import { turnGlyph, type TurnGlyph } from "@/shared/lib/turn";
-import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 
 function basename(path: string) {
@@ -37,25 +36,29 @@ export type HeaderCenterInfo = {
  *
  * **棋譜が載っているかは自分で game に訊く。** 呼び出し側から真偽値で受け取ると、
  * 同じ問いに `hasKifu` と prop の2つの綴りができる。
+ *
+ * **出どころは全部 game で、ツリーの選択は見ない。** ツリーは構文として読めた時点で
+ * 選択とパスを進めるが、そこから盤に載るまでにもう一段ある（`loadGame` の
+ * `buildPlayer`）。ツリー側を出どころにすると、載せられなかった棋譜でも見出しだけが
+ * 入れ替わり、盤には前の棋譜が残ったまま「新しい棋譜を見ている」と読める画面になる。
  */
 export function useHeaderCenterInfo(): HeaderCenterInfo {
-  const { selectedNode, jkfData } = useFileTree();
   const { state, view, getTotalMoves } = useGame();
   const hasKifu = view.hasKifu;
+  const loadedAbsPath = state.loadedAbsPath;
+  const jkf = state.jkf;
 
   return useMemo(() => {
-    const selectedFilePath = selectedNode && !selectedNode.isDirectory ? selectedNode.path : null;
-
     const fileLabel = !hasKifu
       ? "ファイル未選択"
-      : selectedFilePath
-        ? stripExt(basename(selectedFilePath))
+      : loadedAbsPath
+        ? stripExt(basename(loadedAbsPath))
         : "棋譜";
 
-    const fileTitle = selectedFilePath ?? fileLabel;
+    const fileTitle = loadedAbsPath ?? fileLabel;
 
     // 対局者
-    const header = jkfData?.header ?? {};
+    const header = jkf?.header ?? {};
     const sente = (header["先手"] ?? "").trim();
     const gote = (header["後手"] ?? "").trim();
     const senteName = sente.length ? sente : null;
@@ -107,5 +110,5 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
       totalText,
       tooltip,
     };
-  }, [hasKifu, selectedNode, jkfData, view.player, state.cursor, getTotalMoves]);
+  }, [hasKifu, loadedAbsPath, jkf, view.player, state.cursor, getTotalMoves]);
 }
