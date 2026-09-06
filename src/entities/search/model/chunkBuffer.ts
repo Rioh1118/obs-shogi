@@ -53,7 +53,16 @@ export type ChunkBufferApi = {
    * 呼び手が確かめるのに使う（rid はまだ返っていないので、線には数えられない）
    */
   generation: () => number;
-  /** この検索をまだ受け取ってよいか。**チャンク以外の口もここを通す** */
+  /**
+   * この検索をまだ受け取ってよいか。**通すのが既定**（知らない rid は通る）。
+   *
+   * ここを通すのは `search_chunk` と `search_begin` の2つだけ。
+   * `search_end` / `search_error` は**通さない**——通すのが既定である以上、
+   * セッションを作りうる口をここでは守れないので、reducer 側で
+   * 「在るセッションにしか効かない」で守る。
+   * `search_requested` はフロントが自分で出す口で、rid が返るまで溜め場から
+   * 見えないため門では守れない（`generation` のほうで見張る）。
+   */
   isAccepting: (requestId: RequestId) => boolean;
   /** 受け取りを開ける／閉じる。effect の setup と cleanup で対にする */
   activate: () => void;
