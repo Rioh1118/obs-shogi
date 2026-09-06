@@ -242,12 +242,8 @@ impl ProjectManager {
         }
         let _ = app.emit(
             EVT_INDEX_STATE,
-            IndexStatePayload {
-                state: IndexState::Updating,
-                dirty_count,
-                indexed_files: 0,
-                total_files: next_scan.by_path.len() as u32,
-            },
+            IndexStatePayload::of(IndexState::Updating, next_scan.by_path.len() as u32)
+                .dirty(dirty_count),
         );
 
         let mut done_dirty: u32 = 0;
@@ -354,12 +350,7 @@ impl ProjectManager {
         }
         let _ = app.emit(
             EVT_INDEX_STATE,
-            IndexStatePayload {
-                state: IndexState::Ready,
-                dirty_count: 0,
-                indexed_files: 0,
-                total_files: next_scan.by_path.len() as u32,
-            },
+            IndexStatePayload::of(IndexState::Ready, next_scan.by_path.len() as u32),
         );
 
         // プロジェクト状態をコミット

@@ -93,6 +93,35 @@ pub struct IndexStatePayload {
     pub total_files: u32,
 }
 
+impl IndexStatePayload {
+    /// 状態を出す。**旗はすべて伏せた形から始める。**
+    ///
+    /// **組み立てる口をここ1つに閉じてある。** 呼び手が構造体リテラルを手で
+    /// 書く形にすると、欄を足したときに全員が `false` を書き足すことになり、
+    /// **本当に渡す口がその中に埋もれる**。
+    pub fn of(state: IndexState, total_files: u32) -> Self {
+        Self {
+            state,
+            dirty_count: 0,
+            indexed_files: 0,
+            total_files,
+        }
+    }
+
+    /// 索引に入れ終えた数。既定は0
+    pub fn indexed(mut self, n: u32) -> Self {
+        self.indexed_files = n;
+        self
+    }
+
+    /// まだ当てていない差分の数。**数えられなかったときは呼ばない**
+    /// ——0 は「無い」であって「分からない」ではない。
+    pub fn dirty(mut self, n: u32) -> Self {
+        self.dirty_count = n;
+        self
+    }
+}
+
 /// 索引が組み上がるのを待つかどうか。
 ///
 /// **どちらを渡しても振る舞いは変わらない。** `query_service` はこの欄を読まず、
