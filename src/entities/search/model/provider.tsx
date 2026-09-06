@@ -112,6 +112,24 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
     [config?.root_dir],
   );
 
+  /**
+   * 根が決まったら索引を開く。**ここが唯一の再索引経路。**
+   *
+   * 呼び出し側の再描画に頼ると、索引の張り直しが「どの画面が描かれているか」と
+   * 「`openProject` の同一性が変わったか」に乗る。どちらもこのスライスの外にあって、
+   * 崩れても**索引が古いまま黙って動く**——検索は成功し、結果だけが実物と食い違う。
+   *
+   * 失敗はここでは出せない。`openError` に載るが読み手が居ない（F-17）。
+   * 握り潰しているのではなく、出口がまだ無い。
+   */
+  const rootDir = config?.root_dir ?? null;
+  useEffect(() => {
+    if (!rootDir) return;
+    void openProject(rootDir).catch(() => {
+      // `open_error` に積まれている。ここで再度投げても拾う先が無い
+    });
+  }, [rootDir, openProject]);
+
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
       const out = await searchPositionApi(input);

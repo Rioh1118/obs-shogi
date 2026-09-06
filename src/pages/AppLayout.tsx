@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Sidebar from "../widgets/sidebar/Sidebar";
 import GameBoard from "../widgets/game-board/ui/GameBoard";
 import Board from "../widgets/game-board/ui/Board";
@@ -12,7 +12,6 @@ import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
-import { usePositionSearch } from "@/entities/search";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
@@ -24,7 +23,6 @@ const AppLayout = () => {
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameView.player?.shogi;
-  const { openProject } = usePositionSearch();
 
   const onPointerDownCapture = (e: React.PointerEvent) => {
     if (!gameState.selectedPosition) return;
@@ -34,10 +32,6 @@ const AppLayout = () => {
     if (el.closest('[data-hand-area="true"]')) return;
     clearSelection();
   };
-
-  useEffect(() => {
-    openProject();
-  }, [openProject]);
 
   return (
     <div
