@@ -92,6 +92,10 @@
 - **閉じたサイドバーの `transition` が一度も走らない** — 実際に変わるのは親の
   `grid-template-columns` と登録されていないカスタムプロパティで、どちらも遷移しない。
   仕切り線もスロットと `.sidebar` の2箇所で別々の直値で引かれている
+- **`Board` の「盤面を読み込み中...」は到達しない** — `AppLayout` の `hasKifu` が
+  同じ `view` を見て門番しているので、`Board` が描かれた時点で `player?.shogi` は必ずある。
+  しかも `.board-loading` の CSS 規則はリポジトリに1つも無く、ビルド後の CSS にも出ない。
+  `docs/spec/screens/board.md` の P0 は実在する状態のように書いている
 - **メディアクエリの breakpoint が13種類の直値で散っている** — 対象幅（1280px 以上）では
   1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
   `@media` の条件部を対象外にしている
