@@ -9,8 +9,6 @@ import {
 } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
-import { useAppConfig } from "@/entities/app-config";
-
 import {
   openProject as openProjectApi,
   listenSearchEvents,
@@ -41,10 +39,22 @@ type HitsCacheEntry = {
   flat: PositionHit[];
 };
 
-export function PositionSearchProvider({ children }: { children: ReactNode }) {
+/**
+ * 局面検索の state と索引の口。
+ *
+ * **根は prop で受け取る。** 自分で `useAppConfig` を読むと、このスライスが
+ * 起動シーケンスを持つことになり、`AppConfigProvider` の下に置く制約が
+ * 呼び出し側からは prop でも型でも読めなくなる。流し込むのは
+ * `src/app/providers/gates/SearchRootGate.tsx`（`FileTreeRootGate` と同じ形）。
+ */
+export function PositionSearchProvider({
+  rootDir,
+  children,
+}: {
+  rootDir: string | null;
+  children: ReactNode;
+}) {
   const [state, dispatch] = useReducer(reducer, initialState);
-
-  const { config } = useAppConfig();
 
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
@@ -106,36 +116,30 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // --- actions ---
-  const openProject = useCallback(
-    async (rootDir?: string): Promise<OpenProjectOutput> => {
-      const rd = rootDir ?? config?.root_dir ?? null;
-      if (!rd) throw new Error("root_dir is not set");
+  const openProject = useCallback(async (rd: string): Promise<OpenProjectOutput> => {
+    if (openInFlightRef.current) return openInFlightRef.current;
 
-      if (openInFlightRef.current) return openInFlightRef.current;
+    dispatch({ type: "open_start", payload: { rootDir: rd } });
 
-      dispatch({ type: "open_start", payload: { rootDir: rd } });
+    openInFlightRef.current = (async () => {
+      try {
+        const out = await openProjectApi(rd);
+        dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
+        return out;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "open_error", payload: { message: msg } });
+        throw e;
+      } finally {
+        openInFlightRef.current = null;
+      }
+    })();
 
-      openInFlightRef.current = (async () => {
-        try {
-          const out = await openProjectApi(rd);
-          dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
-          return out;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          dispatch({ type: "open_error", payload: { message: msg } });
-          throw e;
-        } finally {
-          openInFlightRef.current = null;
-        }
-      })();
-
-      return openInFlightRef.current;
-    },
-    [config?.root_dir],
-  );
+    return openInFlightRef.current;
+  }, []);
 
   /**
-   * 根が決まったら索引を開く。**ここが唯一の再索引経路。**
+   * 根が決まったら索引を開く。**張り直しの合図は `rootDir` prop だけ。**
    *
    * 呼び出し側の再描画に頼ると、索引の張り直しが「どの画面が描かれているか」と
    * 「`openProject` の同一性が変わったか」に乗る。どちらもこのスライスの外にあって、
@@ -144,7 +148,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
    * 失敗はここでは出せない。`openError` に載るが読み手が居ない（F-17）。
    * 握り潰しているのではなく、出口がまだ無い。
    */
-  const rootDir = config?.root_dir ?? null;
   useEffect(() => {
     if (!rootDir || !isListening) return;
     void openProject(rootDir).catch(() => {

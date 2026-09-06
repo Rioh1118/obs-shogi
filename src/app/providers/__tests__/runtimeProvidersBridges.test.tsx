@@ -20,11 +20,11 @@ const passthrough = (name: string) => ({
 
 vi.mock("../gates/FileTreeRootGate", () => passthrough("FileTreeRootGate"));
 vi.mock("../gates/GamePersistenceGate", () => passthrough("GamePersistenceGate"));
+vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
 vi.mock("../bridges/EngineRuntimeBridge", () => passthrough("EngineRuntimeBridge"));
 vi.mock("../bridges/AnalysisBridge", () => passthrough("AnalysisBridge"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
-vi.mock("@/entities/search", () => passthrough("PositionSearchProvider"));
 
 const resetOrientation = vi.fn();
 vi.mock("@/features/board-orientation", () => ({
