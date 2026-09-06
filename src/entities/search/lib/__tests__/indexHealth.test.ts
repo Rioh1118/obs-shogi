@@ -48,6 +48,25 @@ describe("indexHealth", () => {
     expect(indexHealth(idx({ state: "Ready", scanFailed: true }))).toBe("notRefreshed");
   });
 
+  /**
+   * **入れ終えた数が対象より少ない回を緑にしないこと。**
+   *
+   * `partiallyUnreadable` は走査＝**場所**の話なので、棋譜1件ごとの構築失敗
+   * （壊れた KIF、読めない文字コード）は旗が1つも立たない。緑の「準備完了」を
+   * 出すと、その棋譜の局面を検索した利用者は0件を「自分の棋譜に無い」と読む。
+   */
+  it("索引に入れられなかった棋譜がある回を「準備完了」と言わない", () => {
+    expect(indexHealth(idx({ indexedFiles: 800, totalFiles: 1000 }))).toBe("partiallyIndexed");
+    expect(indexHealth(idx({ indexedFiles: 1000, totalFiles: 1000 }))).toBe("ok");
+  });
+
+  /** 構築中は数が揃っていないのが当たり前なので、そちらを先に見る。 */
+  it("構築中の数の差を「入れられなかった」と言わない", () => {
+    expect(indexHealth(idx({ state: "Building", indexedFiles: 10, totalFiles: 1000 }))).toBe(
+      "building",
+    );
+  });
+
   it("まだ作っていない索引を「更新中」と言わない", () => {
     expect(indexHealth(idx({ state: "Empty" }))).toBe("notStarted");
     expect(indexHealth(idx({ state: "Building" }))).toBe("building");

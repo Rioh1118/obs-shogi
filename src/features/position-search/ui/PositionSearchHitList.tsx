@@ -41,6 +41,8 @@ function emptyReason(health: IndexHealth, sessionStale: boolean): string {
       return "一致する棋譜がありません（索引を更新できていないので、最近の追加は反映されていません）";
     case "buildFailed":
       return "索引を作れなかったので検索できません（ワークスペースを読めるか確かめてください）";
+    case "partiallyIndexed":
+      return "一致する棋譜がありません（索引に入れられなかった棋譜があるので、そこには当たりません）";
     case "partiallyUnreadable":
       return "一致する棋譜がありません（読み取れなかった場所があるので、索引に入っていない棋譜があります）";
     case "building":

@@ -49,6 +49,12 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
         icon: <AlertTriangle size={14} />,
         label: "一部を読めていません",
       };
+    case "partiallyIndexed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "一部を索引に入れられていません",
+      };
     case "notStarted":
       return { tone: "muted" as const, icon: null, label: "未作成" };
     case "building":
@@ -172,6 +178,18 @@ export default function WorkspaceTab() {
               */}
               <div className="wsTab__miniV">
                 {idx.scanFailed ? "確認できていません" : idx.dirtyCount.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="wsTab__mini">
+              {/*
+                **入れ終えた数を出す。** 対象より少ない回は、その差がそのまま
+                「検索に出ない棋譜」の数。数を伏せると、警告欄の5件しか
+                手掛かりが無くなる
+              */}
+              <div className="wsTab__miniK">索引済み</div>
+              <div className="wsTab__miniV">
+                {idx.indexedFiles.toLocaleString()} / {idx.totalFiles.toLocaleString()}
               </div>
             </div>
 

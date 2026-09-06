@@ -14,6 +14,8 @@ export type IndexHealth =
   | "notRefreshed"
   /** 作ろうとして作れなかった。**索引が無い**ので、検索は必ず0件 */
   | "buildFailed"
+  /** 走査は完走したが、**索引に入れられなかった棋譜がある**（壊れた KIF など） */
+  | "partiallyIndexed"
   /** 一部の場所を読めなかった。**索引に入っていない棋譜がある** */
   | "partiallyUnreadable"
   /** 作成中・更新中。**待てば増える** */
@@ -41,6 +43,13 @@ export function indexHealth(index: IndexUiState): IndexHealth {
   // 畳むと、0件を「自分の棋譜に無い」と読ませる
   if (index.scanFailed) return index.state === "Empty" ? "buildFailed" : "notRefreshed";
   if (index.partiallyUnreadable) return "partiallyUnreadable";
+  // **入れ終えた数が対象より少ない回を緑にしない。** `partiallyUnreadable` は
+  // 走査＝**場所**の話なので、棋譜1件ごとの構築失敗（壊れた KIF、読めない
+  // 文字コード）はここに落ちる。緑を出すと、その棋譜の局面を検索した利用者は
+  // 0件を「自分の棋譜に無い」と読む
+  if (index.state === "Ready" && index.indexedFiles < index.totalFiles) {
+    return "partiallyIndexed";
+  }
   // **`Empty` を「作成中」と言わない。** 何も走っていないので待っても増えない
   if (index.state === "Empty") return "notStarted";
   return "ok";

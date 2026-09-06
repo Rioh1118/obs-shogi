@@ -25,6 +25,8 @@ function indexNote(health: IndexHealth): string | null {
       return "索引の更新待ち";
     case "notRefreshed":
       return "索引を更新できていません";
+    case "partiallyIndexed":
+      return "一部を索引に入れられていません";
     case "buildFailed":
       return "索引を作れませんでした";
     case "partiallyUnreadable":
