@@ -17,6 +17,13 @@ export const MAX_CACHED_CHARS = 2_000_000;
 
 export type LoadedKifu = { jkf: JKFData; sourceChars: number };
 
+type Entry = {
+  value: Promise<LoadedKifu>;
+  chars: number;
+  /** 読み終わったか。**未解決は追い出しの対象にしない**（`evict` の doc） */
+  settled: boolean;
+};
+
 function toText(content: unknown): string {
   if (typeof content === "string") return content;
   if (content instanceof Uint8Array) return new TextDecoder().decode(content);
@@ -48,7 +55,7 @@ async function loadKifu(absPath: string): Promise<LoadedKifu> {
  */
 export class KifuCache {
   /** 挿入順が「古い順」。取り出したものは末尾へ入れ直す */
-  private entries = new Map<string, { value: Promise<LoadedKifu>; chars: number }>();
+  private entries = new Map<string, Entry>();
   private chars = 0;
   private readonly maxChars: number;
 
@@ -69,7 +76,7 @@ export class KifuCache {
       return hit.value;
     }
 
-    const entry = { value: loadKifu(absPath), chars: 0 };
+    const entry: Entry = { value: loadKifu(absPath), chars: 0, settled: false };
     this.entries.set(absPath, entry);
 
     entry.value.then(
@@ -77,6 +84,7 @@ export class KifuCache {
         // 解決を待つあいだに追い出されていたら、量に数え直さない
         if (this.entries.get(absPath) !== entry) return;
         entry.chars = loaded.sourceChars;
+        entry.settled = true;
         this.chars += loaded.sourceChars;
         this.evict();
       },
@@ -90,15 +98,27 @@ export class KifuCache {
     return entry.value;
   }
 
-  /** 上限を超えたぶんを古い順に落とす。**最後の1つは残す**（1本で超える棋譜がある） */
+  /**
+   * 上限を超えたぶんを古い順に落とす。
+   *
+   * **読んでいる最中のものは飛ばす。** 量が 0 と数えられているので、落としても
+   * 総量が減らない——上限を1度超えるたびに、置き場が1件になるまで削れてしまう。
+   * 削られた読みは解決時に自分が居ないことに気づいて中身を捨てるので、その棋譜へ
+   * 戻ると**待ち時間ごと2本目の `read_file` が飛ぶ**。in-flight を1本に畳む狙いが、
+   * それが最も効く場面で消える。
+   *
+   * **最後の1つは残す**（1本で上限を超える棋譜がある）。
+   */
   private evict() {
-    while (this.chars > this.maxChars && this.entries.size > 1) {
-      const oldest = this.entries.keys().next();
-      if (oldest.done) return;
+    if (this.chars <= this.maxChars) return;
 
-      const entry = this.entries.get(oldest.value);
-      this.entries.delete(oldest.value);
-      if (entry) this.chars -= entry.chars;
+    // 挿入順＝古い順。末尾は直近に使ったものなので残す
+    const settled = [...this.entries].filter(([, entry]) => entry.settled);
+
+    for (const [absPath, entry] of settled.slice(0, -1)) {
+      if (this.chars <= this.maxChars) return;
+      this.entries.delete(absPath);
+      this.chars -= entry.chars;
     }
   }
 }
