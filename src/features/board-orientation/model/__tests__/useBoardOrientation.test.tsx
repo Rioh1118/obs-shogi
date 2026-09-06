@@ -5,12 +5,10 @@ import { MemoryRouter, useLocation } from "react-router";
 
 /**
  * 盤の向きを戻す合図は、**盤に載っている棋譜**（`loadedAbsPath`）。
- * ツリーが開いたと言っているパス（`activeKifuPath`）ではない。
+ * なぜツリー側のパスではないかは `../useResetOrientationOnKifuChange.ts` の doc にある。
+ * セルの一覧は `docs/state-transitions/board-orientation.md`。
  *
- * ツリー側を見ると、盤に載せられない棋譜をクリックしたときにも発火する。
- * `openKifuNode` は構文として読めれば通すので `activeKifuPath` は動くが、
- * その先の `loadGame` が落ちると盤は前の棋譜のまま。利用者から見ると、
- * 何も言われないのに盤が回る。
+ * ここでの決め事は2つ。
  *
  * **URL は本物を通す。** `useURLParams` を差し替えると、見たいもの（最終的に
  * `pov` が残るか）ではなく呼ばれた回数を見ることになる。同じ値の書き戻しは
