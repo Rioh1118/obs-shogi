@@ -21,8 +21,8 @@ export type SeatReleasePoint =
  * **席の識別子を書き換えるのはこのフックの中だけ。** 書ける場所を増やすと、
  * 経路を1本足すたびに「握ったまま終わる」「席は在るのに欄が空」を目で数えることになる。
  *
- * **席の在処を `state` から導かない。** 理由は `docs/state-transitions/analysis.md` の ※12。
- * どの失敗で席が本当に Rust に残るかも、同じ注に1つだけ置いてある。
+ * **席の在処を `state` から導かない。** 理由と、どの失敗で席が本当に Rust に残るかは
+ * `docs/state-transitions/analysis.md` の ※12 に1つだけ置いてある。
  */
 export interface EngineSeat {
   /** 席を握っているか */
