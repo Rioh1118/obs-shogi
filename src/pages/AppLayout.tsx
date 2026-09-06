@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Outlet } from "react-router";
 import Sidebar from "../widgets/sidebar/Sidebar";
 import GameBoard from "../widgets/game-board/ui/GameBoard";
 import Board from "../widgets/game-board/ui/Board";
@@ -51,7 +52,10 @@ const AppLayout = () => {
 
       <div className="app-layout__body">
         <aside className="app-layout__sidebar-slot">
-          <Sidebar isOpen={isSidebarOpen} />
+          {/* `panel/*` のルートがここに入る。行き先は AppRouter を見る */}
+          <Sidebar isOpen={isSidebarOpen}>
+            <Outlet />
+          </Sidebar>
         </aside>
         <main className="app-layout__main">
           {!hasFile ? (
