@@ -6,15 +6,14 @@
 // ウィンドウを動かす唯一の手段（`data-tauri-drag-region`）だから。
 // 覆うと窓を掴めなくなる（`Modal.scss` の overlay と同じ理由）。
 //
-// z-index はモーダル（9999）の1つ下。通知の上に開いたモーダルが隠れると、
-// そのモーダルを閉じる手段が画面から消える。
+// 段は `index.scss` の `$z-notification`（モーダルより上）。理由はそちらに書いてある。
 .notice-layer {
   position: fixed;
   top: index.$titlebar-height;
   right: 0;
   bottom: 0;
   left: 0;
-  z-index: 9998;
+  z-index: index.$z-notification;
 
   display: flex;
   flex-direction: column;
