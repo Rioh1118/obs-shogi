@@ -39,12 +39,15 @@ export {
   EVT_SEARCH_ERROR,
 } from "./api/events";
 
-export {
-  searchPosition,
-  searchPositionBestEffort,
-  cancelSearch,
-  listenSearchEvents,
-} from "./api/tauri";
+/**
+ * **`api/tauri` の口はここから出さない。**
+ *
+ * 検索の生死（rid の発行・取り下げ・結果の破棄）は `PositionSearchProvider` が
+ * 1人で持つ。生の `searchPosition` を barrel から出すと、その provider を通らずに
+ * 検索を起こす形が1 import で作れる——そうして立った rid は `clearSearch` の
+ * 対象にならないので、モーダルを閉じても結果が解放されない。
+ * スライスの中からは相対で読むこと。
+ */
 
 /**
  * 索引のカーソルを `CursorPath` に直す唯一の関門。**素の `CursorLite` を

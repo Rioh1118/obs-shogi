@@ -202,7 +202,7 @@ export default function PositionSearchModal() {
     // 区切りの大きさ。**実測は無い。** 大きくすると1本あたりの IPC が重くなり、
     // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
     // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、ここは件数に
-    // 影響しない。`api/tauri.ts` の `searchPositionBestEffort` が持つ既定（5000）とは別
+    // 影響しない
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
         // **自分の番でなければ、ここで取り下げる。** 待っているあいだに閉じた・
