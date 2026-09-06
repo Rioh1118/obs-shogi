@@ -56,7 +56,12 @@ export default function NotificationLayer() {
       )}
 
       {modal && (
-        <Modal onClose={() => dismiss(modal.id)} label={modal.title} size="sm" scroll="none">
+        // **中身をスクロールさせる。** 失敗の説明は切り詰めない方針で、動作は本文の下に
+        // 並ぶ。`none` のままだと本文が伸びたときに「アプリを再起動」が画面外へ落ちて
+        // 押せなくなる——閉じる手段は残るので行き止まりではないが、復帰導線だけが消える。
+        // 可変長の失敗文を出す既存のモーダル（KifuReadErrorDialog / FileConflictDialog）も
+        // 同じ選択をしている
+        <Modal onClose={() => dismiss(modal.id)} label={modal.title} size="sm" scroll="content">
           {/* **閉じる手段を目に見える形で置く。** Modal は Escape とオーバーレイでも
               閉じるが、どちらも画面に出ていない。押すものが1つも無い画面は行き止まりに見える */}
           <Notice
