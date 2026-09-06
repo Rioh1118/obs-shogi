@@ -15,7 +15,7 @@ import {
   searchPosition as searchPositionApi,
   cancelSearch as cancelSearchApi,
 } from "../api/tauri";
-import type { OpenProjectOutput, SearchPositionInput, SearchPositionOutput } from "../api/contract";
+import type { OpenProjectOutput, SearchPositionInput } from "../api/contract";
 import type {
   IndexProgressPayload,
   IndexStatePayload,
@@ -31,7 +31,7 @@ import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
 import { createChunkBuffer, type ChunkBufferApi } from "./chunkBuffer";
 import { PositionSearchContext } from "./context";
 import { initialState, reducer } from "./reducer";
-import type { Action, PositionSearchContextType, SearchSession } from "./types";
+import type { Action, PositionSearchContextType, SearchLaunch, SearchSession } from "./types";
 
 /** 検索の持ち物を落とす合図。**この2つ以外は `state.sessions` を消さない** */
 type DropSearchAction = Extract<Action, { type: "open_start" | "clear_search" }>;
@@ -251,7 +251,7 @@ export function PositionSearchProvider({
   }, [rootDir, isListenSettled, openProject]);
 
   const searchPosition = useCallback(
-    async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
+    async (input: SearchPositionInput): Promise<SearchLaunch> => {
       // **投げる前に世代を控える。** 番号が返るまでこの検索は溜め場から見えない
       // ——線は「見えている rid の最大」で引かれるので、待っている間に根が開き直ると
       // この検索は線の後ろに回り、消えたはずの根の結果が新しい state に混ざる
@@ -260,9 +260,11 @@ export function PositionSearchProvider({
       const out = await searchPositionApi(input);
 
       if (chunkBuffer.generation() !== myGeneration) {
-        // 待っている間に線が引かれた。この検索は state に一切残さない
+        // 待っている間に線が引かれた。この検索は state に一切残さないし、
+        // Rust にも走らせ続けない
         chunkBuffer.stopAccepting(out.requestId);
-        return out;
+        void cancelSearchApi(out.requestId).catch(() => {});
+        return { status: "superseded" };
       }
 
       // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
@@ -280,7 +282,7 @@ export function PositionSearchProvider({
         },
       });
 
-      return out;
+      return { status: "started", requestId: out.requestId };
     },
     [chunkBuffer],
   );

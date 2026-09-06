@@ -83,6 +83,12 @@ export default function PositionSearchModal() {
    */
   const [selectedHit, setSelectedHit] = useState<PositionHit | null>(null);
   const [requestId, setRequestId] = useState<number | null>(null);
+  /**
+   * 撃ち直しの合図。**受け付けられなかった検索の後に、同じ問い合わせでもう一度
+   * 立てる**ために要る（`queryKey` が変わっていないので、これが無いと effect が
+   * 再走しない）。
+   */
+  const [relaunchNonce, setRelaunchNonce] = useState(0);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
   // 移動を断ったヒット。**鍵で覚える**（`hitKey`）。使い分けは
@@ -203,43 +209,56 @@ export default function PositionSearchModal() {
     // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
     // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、ここは件数に
     // 影響しない
-    searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
-      .then((out) => {
+    void (async () => {
+      try {
+        // 区切りの大きさ。**実測は無い。** 大きくすると1本あたりの IPC が重くなり、
+        // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
+        // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、ここは件数に
+        // 影響しない
+        const launch = await searchPosition({
+          sfen: queryKey,
+          consistency: "BestEffort",
+          chunkSize: 300,
+        });
+
         // **自分の番でなければ、ここで取り下げる。** 待っているあいだに閉じた・
         // 撃ち直された場合、`discardSearch` は rid を知らないので何もできていない。
         // 素通りさせると Rust の検索は最後まで走り、閉じた画面が到着のたびに
         // 一覧を組み直し続ける
         if (launchSeqRef.current !== myLaunch) {
-          void cancelSearch(out.requestId);
-          clearSearch(out.requestId);
+          if (launch.status === "started") {
+            void cancelSearch(launch.requestId);
+            clearSearch(launch.requestId);
+          }
           return;
         }
 
-        inFlightRidRef.current = out.requestId;
-        setRequestId(out.requestId);
-      })
-      .catch((e) => {
+        // 索引が開き直されて受け付けられなかった回。**rid を採用せず、撃ち直す。**
+        // 採用するとセッションの無い rid を握って「待機中 / 一致する棋譜が
+        // ありません」になる（0件が完了として出る）。`isLaunching` は降ろさない
+        // ——降ろすと、撃ち直しが立つまでの1レンダで同じ画面が出る
+        if (launch.status === "superseded") {
+          lastQueryKeyRef.current = null;
+          setRelaunchNonce((n) => n + 1);
+          return;
+        }
+
+        inFlightRidRef.current = launch.requestId;
+        setRequestId(launch.requestId);
+        setIsLaunching(false);
+      } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[PositionSearchModal] search failed:", e);
 
         // **失敗も自分の番のときだけ出す。** 捨てた起動の失敗をここで載せると、
-        // 後から解決した検索の**正しい結果の上に**「検索に失敗しました」が残る。
-        // 消えるのは `queryKey` が変わるか閉じるときだけなので、同じ画面では
-        // 撃ち直せない
+        // 後から解決した検索の**正しい結果の上に**「検索に失敗しました」が残り、
+        // 同じ画面では撃ち直せない
         if (launchSeqRef.current !== myLaunch) return;
         setLaunchError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
-        // **降ろすのも自分の番のときだけ。** 捨てた起動がここを通ると、後から
-        // 撃った検索の rid がまだ返っていない一瞬に `isLaunching` が落ち、
-        // 画面が「待機中 / 一致する棋譜がありません」になる——**0件が完了として出る**。
-        //
-        // 立ちっぱなしにはならない。閉じる枝が明示的に降ろし、撃ち直しは新しい
-        // 起動が上げてから自分の `.finally` で降ろす
-        if (launchSeqRef.current !== myLaunch) return;
         setIsLaunching(false);
-      });
-  }, [isOpen, queryKey, searchPosition, cancelSearch, clearSearch, discardSearch]);
+      }
+    })();
+  }, [isOpen, queryKey, relaunchNonce, searchPosition, cancelSearch, clearSearch, discardSearch]);
 
   // unmount 時にも進行中検索を取り下げる
   useEffect(() => {

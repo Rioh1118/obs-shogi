@@ -1,9 +1,4 @@
-import type {
-  Consistency,
-  OpenProjectOutput,
-  SearchPositionInput,
-  SearchPositionOutput,
-} from "../api/contract";
+import type { Consistency, OpenProjectOutput, SearchPositionInput } from "../api/contract";
 import type {
   IndexProgressPayload,
   IndexStatePayload,
@@ -39,6 +34,9 @@ export type SearchSession = {
   startedAt: number;
   endedAt: number | null;
 };
+
+/** 検索を起こした結末。**受け付けられなかった回を成功と同じ形にしない** */
+export type SearchLaunch = { status: "started"; requestId: RequestId } | { status: "superseded" };
 
 export type FilePathById = Record<number, string>;
 
@@ -90,7 +88,18 @@ export type Action =
 export type PositionSearchContextType = {
   state: SearchState;
 
-  searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
+  /**
+   * 検索を起こす。**結末は2つあり、型で分かれる。**
+   *
+   * `"started"` なら結果はイベントで届き、`requestId` で引ける。
+   * `"superseded"` は**受け付けられなかった**回——番号が返るまでの間に索引が
+   * 開き直され、この検索は state にも溜め場にも残っていない（Rust 側も取り下げ済み）。
+   *
+   * **成功と同じ形で返さない。** 返すと呼び手は `requestId` を採用し、セッションの
+   * 無い rid を握って「待機中 / 一致する棋譜がありません」を出す——0件が完了として
+   * 出る形（`docs/state-transitions/search.md`）。分岐を書かない限り tsc が落ちる。
+   */
+  searchPosition: (input: SearchPositionInput) => Promise<SearchLaunch>;
 
   cancelSearch: (requestId: RequestId) => Promise<void>;
 

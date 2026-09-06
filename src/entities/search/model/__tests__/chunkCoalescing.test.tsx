@@ -32,7 +32,7 @@ vi.mock("../../api/tauri", () => ({
   },
   // Rust は rid を単調に増やす（`QueryService::next_request_id`）
   searchPosition: () => searchPositionImpl(),
-  cancelSearch: vi.fn(),
+  cancelSearch: () => Promise.resolve(),
 }));
 
 const { PositionSearchProvider } = await import("../provider");
@@ -52,9 +52,7 @@ let getHits: (rid: number) => PositionHit[] = () => [];
 let sessionIds: number[] = [];
 let clearSearch: (rid: number) => void = () => {};
 let isSearchingRequest: (rid: number) => boolean = () => false;
-let searchPosition: (sfen: string) => Promise<{ requestId: number }> = async () => ({
-  requestId: 0,
-});
+let searchPosition: (sfen: string) => Promise<unknown> = async () => undefined;
 
 function Probe() {
   const {
@@ -493,7 +491,7 @@ describe("消えたセッション宛のチャンク", () => {
     // 検索を投げる。まだ解決しない
     let settle!: (out: { requestId: number }) => void;
     searchPositionImpl = () => new Promise((resolve) => (settle = resolve));
-    let launched!: Promise<{ requestId: number }>;
+    let launched!: Promise<unknown>;
     act(() => {
       launched = searchPosition("dummy");
     });

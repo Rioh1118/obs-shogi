@@ -127,7 +127,7 @@ beforeEach(() => {
   closeModal.mockReset();
   startNavigationToHit.mockReset();
   searchPosition.mockReset();
-  searchPosition.mockResolvedValue({ requestId: REQUEST_ID });
+  searchPosition.mockResolvedValue({ status: "started", requestId: REQUEST_ID });
   cancelSearch.mockReset();
   clearSearch.mockReset();
   resolveHitAbsPath.mockReset();
@@ -258,7 +258,7 @@ describe("PositionSearchModal のヒットを開く", () => {
    * `.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-3）
    */
   test("rid が分かる前に畳まれても、解決した側が取り下げて捨てる", async () => {
-    let settleLaunch!: (out: { requestId: number }) => void;
+    let settleLaunch!: (out: { status: "started"; requestId: number }) => void;
     searchPosition.mockImplementation(
       () => new Promise((resolve) => (settleLaunch = resolve as typeof settleLaunch)),
     );
@@ -267,7 +267,7 @@ describe("PositionSearchModal のヒットを開く", () => {
     unmount();
 
     await act(async () => {
-      settleLaunch({ requestId: REQUEST_ID });
+      settleLaunch({ status: "started", requestId: REQUEST_ID });
     });
 
     expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
@@ -313,7 +313,7 @@ describe("PositionSearchModal のヒットを開く", () => {
    * ありません」——**0件が完了として出る**（`search.md` が核心の欠陥と呼ぶ形）。
    */
   test("捨てた起動が解決しても、走っている起動は「検索中」のまま", async () => {
-    const settlers: ((out: { requestId: number }) => void)[] = [];
+    const settlers: ((out: { status: "started"; requestId: number }) => void)[] = [];
     searchPosition.mockImplementation(
       () => new Promise((resolve) => settlers.push(resolve as (typeof settlers)[number])),
     );
@@ -326,7 +326,7 @@ describe("PositionSearchModal のヒットを開く", () => {
 
     // A がやっと解決する。B の rid はまだ返っていない
     await act(async () => {
-      settlers[0]({ requestId: 41 });
+      settlers[0]({ status: "started", requestId: 41 });
     });
 
     expect(screen.getByLabelText("局面検索").textContent).not.toContain("待機中");
@@ -349,6 +349,31 @@ describe("PositionSearchModal のヒットを開く", () => {
     });
 
     expect(screen.getByLabelText("局面検索").textContent).not.toContain("検索に失敗しました");
+  });
+
+  /**
+   * 索引が開き直されて受け付けられなかった検索。**成功と同じ扱いにしない。**
+   *
+   * rid を採用すると、セッションの無い rid を握って
+   * 「待機中 / 一致する棋譜がありません」になる——0件が完了として出る形
+   * （`docs/state-transitions/search.md`）。しかも `lastQueryKeyRef` が埋まっている
+   * ので、同じ画面では撃ち直せない。
+   */
+  test("受け付けられなかった検索は、rid を採用せず撃ち直せる状態に戻る", async () => {
+    searchPosition.mockReset();
+    searchPosition.mockResolvedValueOnce({ status: "superseded" });
+    searchPosition.mockResolvedValue({ status: "started", requestId: REQUEST_ID });
+
+    const { rerender } = render(<PositionSearchModal />);
+    await act(async () => {});
+
+    // 0件で「待機中」に落ちていない
+    expect(screen.queryByText("一致する棋譜がありません")).toBeNull();
+
+    // 覚えている問い合わせが落ちているので、次のレンダで撃ち直せる
+    rerender(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+    expect(searchPosition).toHaveBeenCalledTimes(2);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {
