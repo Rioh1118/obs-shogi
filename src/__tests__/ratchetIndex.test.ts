@@ -62,6 +62,7 @@ const RUST_CHECKS = new Set([
   "root_guard",
   "serde_naming",
   "scanning",
+  "book_entry_shape",
   "state_table_terms",
   "state_transition_cells",
   "temp_dir_names",
