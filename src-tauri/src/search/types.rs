@@ -91,6 +91,20 @@ pub struct IndexStatePayload {
     pub dirty_count: u32,
     pub indexed_files: u32,
     pub total_files: u32,
+    /// **最後の走査を最後まで通せなかった。** 索引そのものは最後に読めた
+    /// ときのまま健全なので段は `Ready` に上がるが、**それ以降の追加・変更・
+    /// 削除は1件も反映されていない**。
+    ///
+    /// このとき `dirty_count` の 0 は「当てるものが無かった」ではなく
+    /// **「分からない」**。0 をそのまま「未同期 0」と描くと、
+    /// 利用者は索引が最新だと確信する。
+    pub scan_failed: bool,
+    /// **一部の場所を読めなかった。** 走査そのものは完走している。
+    ///
+    /// `scan_failed` とは失われるものが違う——あちらは「索引が新しく
+    /// なっていない」、こちらは「**索引に入っていない棋譜がある**」。
+    /// 畳むと、検索が0件を返した理由を利用者が取り違える。
+    pub partially_unreadable: bool,
 }
 
 impl IndexStatePayload {
@@ -105,6 +119,8 @@ impl IndexStatePayload {
             dirty_count: 0,
             indexed_files: 0,
             total_files,
+            scan_failed: false,
+            partially_unreadable: false,
         }
     }
 
@@ -118,6 +134,18 @@ impl IndexStatePayload {
     /// ——0 は「無い」であって「分からない」ではない。
     pub fn dirty(mut self, n: u32) -> Self {
         self.dirty_count = n;
+        self
+    }
+
+    /// 走査が完走していない。**索引が新しくなっていない**
+    pub fn scan_failed(mut self, yes: bool) -> Self {
+        self.scan_failed = yes;
+        self
+    }
+
+    /// 読めなかった場所があった。**索引に入っていない棋譜がある**
+    pub fn partially_unreadable(mut self, yes: bool) -> Self {
+        self.partially_unreadable = yes;
         self
     }
 }

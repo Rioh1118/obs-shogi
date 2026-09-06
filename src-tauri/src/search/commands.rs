@@ -4,8 +4,9 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use tauri::{AppHandle, Emitter, State};
 
-use crate::search::build::build_full_index_task;
+use crate::search::build::{build_full_index_task, FullBuild};
 use crate::search::cache::format;
+use crate::search::project_manager::RescanOutcome;
 use crate::search::read::diagnosis::unreadable_places;
 use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
 use crate::search::state::SearchState;
@@ -140,7 +141,15 @@ pub async fn open_project(
             let app2 = app.clone();
             tauri::async_runtime::spawn(async move {
                 log::debug!("[open_project] spawn run_rescan_diff_apply");
-                pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
+                let outcome = pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
+                // **据え直されたときだけ `Ready` を止める。** 走査が失敗しただけなら
+                // 索引は最後に読めたときのまま健全で、差分が当たっていないだけ
+                // ——ここで止めると `Updating` が最後の状態になり、検索は永久に
+                // `stale`、設定はスピナーのまま。再試行の導線は無いので開き直しても同じ
+                if outcome == RescanOutcome::Superseded {
+                    log::info!("[open_project] 据え直されたので Ready を出さない");
+                    return;
+                }
                 // 差分が無くて run_rescan_diff_apply が早期 return した場合、
                 // store の state は Updating のまま。 Ready に確実に上げ直す。
                 if !st.update_if_epoch(restore_epoch, |s| s.with_state(StoreIndexState::Ready)) {
@@ -150,7 +159,17 @@ pub async fn open_project(
                 let total_files = st.snapshot().file_table.len() as u32;
                 let _ = app2.emit(
                     EVT_INDEX_STATE,
-                    IndexStatePayload::of(IndexState::Ready, total_files).indexed(total_files),
+                    // **走査が完走したかを旗に載せる。** 索引は健全でも
+                    // 「新しくなっていない」ことは利用者にしか判断できない
+                    IndexStatePayload::of(IndexState::Ready, total_files)
+                        .indexed(total_files)
+                        .scan_failed(outcome == RescanOutcome::ScanFailed)
+                        .partially_unreadable(matches!(
+                            outcome,
+                            RescanOutcome::Committed {
+                                partially_unreadable: true
+                            }
+                        )),
                 );
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
@@ -178,6 +197,7 @@ pub async fn open_project(
             },
         );
     }
+    let partial = scanned.is_partial();
     let records = scanned.files;
     let total_files = records.len() as u32;
 
@@ -188,17 +208,22 @@ pub async fn open_project(
 
     let _ = app.emit(
         EVT_INDEX_STATE,
-        IndexStatePayload::of(IndexState::Building, total_files),
+        // 読めなかった場所があったことを状態にも載せる。警告だけだと
+        // 設定タブを開かないかぎり届かず、局面検索は0件を裸で断言する
+        IndexStatePayload::of(IndexState::Building, total_files).partially_unreadable(partial),
     );
 
     tauri::async_runtime::spawn(build_full_index_task(
         app,
         store,
         Arc::clone(&project),
-        root_dir,
-        records,
-        total_files,
-        build_epoch,
+        FullBuild {
+            root_dir,
+            records,
+            total_files,
+            epoch: build_epoch,
+            partially_unreadable: partial,
+        },
     ));
 
     log::info!("[open_project] END (full build path) total_files={total_files}");

@@ -5,7 +5,49 @@
 
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
+use crate::search::read::fs_scan::ScanError;
 use crate::search::read::outcome::KifuReadError;
+
+/// 走査そのものが失敗したことを、利用者に出す一文へ組む。
+///
+/// **何が起きたか・何が失われたか・次に何をすればよいかの3つを言う。**
+/// 索引そのものは最後に読めたときのまま残っているので、
+/// 「検索できない」ではなく「新しくなっていない」が正しい。
+///
+/// **内部の語彙を出さない。** `ScanError` の `Display` は
+/// `io error: Permission denied (os error 13)` のような綴りなので、
+/// 素で流すと利用者は自分に関係のある文字列だと読んで検索する。
+///
+/// Tauri を要らない形に切ってある——画面にそのまま出るので固定する。
+pub(crate) fn scan_failure(reason: &ScanError) -> String {
+    let what = match reason {
+        ScanError::RootNotFound(_) => "ワークスペースが見つかりません",
+        ScanError::RootUnreadable(_) => "ワークスペースを読む権限がありません",
+        ScanError::Io(_) => "ワークスペースを読めませんでした",
+    };
+    let how = match reason {
+        ScanError::RootNotFound(_) => {
+            "つないでいるディスクや共有フォルダを確かめるか、設定からワークスペースを選び直してください"
+        }
+        ScanError::RootUnreadable(_) => {
+            "フォルダの権限を確かめるか、設定からワークスペースを選び直してください"
+        }
+        ScanError::Io(_) => "ディスクやネットワークの接続を確かめてください",
+    };
+    format!("{what}。索引は最後に読めたときのままで、新しくなっていません。{how}")
+}
+
+/// 索引を組む仕事そのものが落ちたときの文言。
+///
+/// **内部の語彙を画面に出さない。** `JoinError` の `Display` は
+/// `task 42 panicked` のような綴り。
+///
+/// Tauri を要らない形に切ってある——画面にそのまま出るので固定する。
+pub(crate) fn build_failure() -> String {
+    "この棋譜を索引に入れられませんでした。検索には出ません。\
+     開き直しても直らないときは、ファイルが壊れていないか確かめてください"
+        .to_string()
+}
 
 /// 読めなかった場所を、利用者に出す一文へ組む。
 ///

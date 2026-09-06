@@ -53,6 +53,14 @@ export {
  */
 export { cursorFromLite } from "./lib/cursorAdapter";
 
+/**
+ * 索引の具合を1つに決める唯一の関門。**画面ごとに旗を並べ直さないこと**
+ * ——見る順が割れると、同じ状態に別の理由が付く。文言は画面が持ってよいが、
+ * **どの具合かの判断はここを通す**。
+ */
+export { indexHealth } from "./lib/indexHealth";
+export type { IndexHealth } from "./lib/indexHealth";
+
 export { PositionSearchProvider } from "./model/provider";
 export { usePositionSearch } from "./model/usePositionSearch";
 

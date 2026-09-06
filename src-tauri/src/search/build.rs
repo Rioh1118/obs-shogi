@@ -46,15 +46,34 @@ use crate::search::types::{
 /// 前の索引の同じ `file_id` の出現が桶に残ったまま**生きている扱いで**新しい節表に
 /// 当たり、**押すと違う局面が出るヒット**になる（`search/query_service.rs` の
 /// `cursor_lite` の腕）。`stale` も構築中ずっと `false` のままになる。
+/// 全件構築のタスクに渡すもの。
+///
+/// **走査の結果と、据え直しの代を1つにまとめる。** どれも構築の末尾まで
+/// 持ち回る必要があり、引数に並べると呼び手が順を取り違える。
+pub struct FullBuild {
+    pub root_dir: PathBuf,
+    pub records: Vec<FileRecord>,
+    pub total_files: u32,
+    /// `IndexStore::restart` が返した代。**据え終わるまで持ち回る**
+    pub epoch: u64,
+    /// 走査で読めなかった場所があったか。**構築の結末まで持ち回る**
+    /// ——`Building` にだけ載せると、`Ready` が上書きして画面から消える
+    pub partially_unreadable: bool,
+}
+
 pub async fn build_full_index_task(
     app: AppHandle,
     store: Arc<IndexStore>,
     project: Arc<ProjectManager>,
-    root_dir: PathBuf,
-    mut records: Vec<FileRecord>,
-    total_files: u32,
-    epoch: u64,
+    build: FullBuild,
 ) {
+    let FullBuild {
+        root_dir,
+        mut records,
+        total_files,
+        epoch,
+        partially_unreadable,
+    } = build;
     type BuildItem = (
         FileId,
         u32,
@@ -156,15 +175,19 @@ pub async fn build_full_index_task(
                     (file_id, gen, path_str, by_bucket, node_table, warns, true)
                 }
                 Ok(Err(e)) => (file_id, gen, path_str, empty, empty_nt, vec![e], false),
-                Err(e) => (
-                    file_id,
-                    gen,
-                    path_str,
-                    empty,
-                    empty_nt,
-                    vec![format!("spawn_blocking join error: {e}")],
-                    false,
-                ),
+                Err(e) => {
+                    // **理由はログへ。** 画面には内部の綴りを出さない
+                    log::warn!("[index] 索引を組む仕事が落ちた（file_id={file_id}）: {e}");
+                    (
+                        file_id,
+                        gen,
+                        path_str,
+                        empty,
+                        empty_nt,
+                        vec![crate::search::read::diagnosis::build_failure()],
+                        false,
+                    )
+                }
             };
 
             out
@@ -223,7 +246,9 @@ pub async fn build_full_index_task(
             );
             let _ = app.emit(
                 EVT_INDEX_STATE,
-                IndexStatePayload::of(IndexState::Building, total_files).indexed(indexed_ok),
+                IndexStatePayload::of(IndexState::Building, total_files)
+                    .indexed(indexed_ok)
+                    .partially_unreadable(partially_unreadable),
             );
             last_emit = Instant::now();
         }
@@ -253,7 +278,9 @@ pub async fn build_full_index_task(
 
     let _ = app.emit(
         EVT_INDEX_STATE,
-        IndexStatePayload::of(IndexState::Ready, total_files).indexed(indexed_ok),
+        IndexStatePayload::of(IndexState::Ready, total_files)
+            .indexed(indexed_ok)
+            .partially_unreadable(partially_unreadable),
     );
 
     let next_file_id = (total_files as FileId).wrapping_add(1).max(1);

@@ -9,6 +9,23 @@ export interface IndexStatePayload {
   dirtyCount: number;
   indexedFiles: number;
   totalFiles: number;
+  /**
+   * 最後の走査を最後まで通せなかった。
+   *
+   * **索引は最後に読めたときのまま健全**なので段は `Ready` で来るが、
+   * それ以降の追加・変更・削除は1件も反映されていない。
+   * このとき `dirtyCount` の 0 は「無い」ではなく**「分からない」**
+   * ——そのまま「未同期 0」と描くと、利用者は索引が最新だと確信する。
+   */
+  scanFailed: boolean;
+  /**
+   * 一部の場所を読めなかった。走査そのものは完走している。
+   *
+   * `scanFailed` とは失われるものが違う——あちらは「索引が新しくなっていない」、
+   * こちらは「**索引に入っていない棋譜がある**」。畳むと、検索が0件を
+   * 返した理由を利用者が取り違える。
+   */
+  partiallyUnreadable: boolean;
 }
 
 export interface IndexProgressPayload {

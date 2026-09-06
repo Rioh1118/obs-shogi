@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
 use crate::search::index::file_build::build_file_index;
-use crate::search::read::diagnosis::unreadable_places;
+use crate::search::read::diagnosis::{build_failure, scan_failure, unreadable_places};
 use crate::search::read::fs_scan::{
     carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
     ScanOptions, ScanSnapshot,
@@ -23,6 +23,34 @@ use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
+
+/// 差分適用がどう終わったか。
+///
+/// **`bool` に畳まないこと。** 「据え直された」と「走査できなかった」は、
+/// 呼び手のするべきことが逆になる——前者は索引がもう自分のものではないので
+/// `Ready` を出してはいけない、後者は**索引は自分のもののまま健全**で
+/// 差分が当たっていないだけなので `Ready` を出さなければならない。
+///
+/// 畳むと後者が前者として扱われ、復元した索引がメモリに丸ごと在るのに
+/// 画面は「更新中」のまま戻らない（再試行の導線は無いので、開き直しても同じ）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RescanOutcome {
+    /// 自分の代のまま完走し、帳簿を進めた。差分があれば索引にも書いた。
+    ///
+    /// **読めなかった場所があったかを一緒に運ぶ。** 結末と別に持つと、
+    /// 結末を出す口が旗を知らないまま `false` を書いて塗り潰す
+    Committed {
+        /// 読めなかった場所があった。**索引に入っていない棋譜がある**の印
+        partially_unreadable: bool,
+    },
+    /// 走っている間にワークスペースが据え直された。**何も書いていない**
+    Superseded,
+    /// 走査そのものが失敗した（root が消えた、未マウント、権限）。
+    ///
+    /// **索引は最後に読めたときのまま健全。** 差分が当たっていないだけなので、
+    /// 呼び手は `Ready` を出したうえで `scan_failed` を立てること。
+    ScanFailed,
+}
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -155,7 +183,11 @@ impl ProjectManager {
     /// 守らないと、前のプロジェクトの `file_id` で墓標を立てて
     /// **別の棋譜のヒットが黙って消える**し、構築中の索引を `Ready` に上げて
     /// **半分しか入っていない結果が「最新」として画面に並ぶ**。
-    pub async fn run_rescan_diff_apply(&self, app: AppHandle, store: Arc<IndexStore>) {
+    pub async fn run_rescan_diff_apply(
+        &self,
+        app: AppHandle,
+        store: Arc<IndexStore>,
+    ) -> RescanOutcome {
         // 走り出したときの代。以後の書き込みはこれを持ち回る
         let epoch = store.snapshot().epoch;
         let commit = |f: &dyn Fn(&IndexSnapshot) -> IndexSnapshot| -> bool {
@@ -169,7 +201,8 @@ impl ProjectManager {
         let (root, prev_scan, mut path_to_id, mut next_file_id) = {
             let g = self.inner.lock().await;
             let Some(root) = g.root_dir.clone() else {
-                return;
+                // 据え直しの最中。この走査はもう誰のものでもない
+                return RescanOutcome::Superseded;
             };
             (root, g.scan.clone(), g.path_to_id.clone(), g.next_file_id)
         };
@@ -182,10 +215,10 @@ impl ProjectManager {
                     EVT_INDEX_WARN,
                     IndexWarnPayload {
                         path: root.to_string_lossy().to_string(),
-                        message: format!("scan failed: {e}"),
+                        message: scan_failure(&e),
                     },
                 );
-                return;
+                return RescanOutcome::ScanFailed;
             }
         };
 
@@ -233,12 +266,14 @@ impl ProjectManager {
             // 変化なし：scanだけ更新して終了
             let mut g = self.inner.lock().await;
             g.scan = next_scan;
-            return;
+            return RescanOutcome::Committed {
+                partially_unreadable: partial,
+            };
         }
 
         // state=Updating（クエリは stale=true になる）
         if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Updating)) {
-            return;
+            return RescanOutcome::Superseded;
         }
         let _ = app.emit(
             EVT_INDEX_STATE,
@@ -252,7 +287,7 @@ impl ProjectManager {
         for path_key in &diff.removed {
             if let Some(file_id) = path_to_id.remove(path_key) {
                 if !commit(&|s: &IndexSnapshot| s.with_tombstone(file_id)) {
-                    return;
+                    return RescanOutcome::Superseded;
                 }
             }
             done_dirty += 1;
@@ -342,11 +377,11 @@ impl ProjectManager {
         }
 
         if !batch.is_empty() && !commit(&|s: &IndexSnapshot| s.with_files(batch.clone())) {
-            return;
+            return RescanOutcome::Superseded;
         }
 
         if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Ready)) {
-            return;
+            return RescanOutcome::Superseded;
         }
         let _ = app.emit(
             EVT_INDEX_STATE,
@@ -358,6 +393,9 @@ impl ProjectManager {
         g.scan = next_scan;
         g.path_to_id = path_to_id;
         g.next_file_id = next_file_id;
+        RescanOutcome::Committed {
+            partially_unreadable: partial,
+        }
     }
 
     /// 1ファイル分の構築を `spawn_blocking` で行い、`store` に直接書かずに
@@ -393,11 +431,13 @@ impl ProjectManager {
                 return None;
             }
             Err(e) => {
+                // **理由はログへ。** 画面には内部の綴りを出さない
+                log::warn!("[rescan] 索引を組む仕事が落ちた（{path_str}）: {e}");
                 let _ = app.emit(
                     EVT_INDEX_WARN,
                     IndexWarnPayload {
                         path: path_str,
-                        message: format!("spawn_blocking join error: {e}"),
+                        message: build_failure(),
                     },
                 );
                 return None;

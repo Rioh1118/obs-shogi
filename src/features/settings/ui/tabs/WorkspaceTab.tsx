@@ -7,7 +7,8 @@ import SSection from "../kit/SSection";
 import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
-import { usePositionSearch } from "@/entities/search";
+import { indexHealth, usePositionSearch } from "@/entities/search";
+import type { IndexUiState } from "@/entities/search";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -15,14 +16,43 @@ function percent(done: number, total: number) {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
 
-function badgeForIndexState(s: "Empty" | "Restoring" | "Building" | "Ready" | "Updating") {
-  switch (s) {
-    case "Ready":
+/**
+ * 状態バッジ。
+ *
+ * **走査に失敗した `Ready` を「準備完了」と言わせない。** 索引そのものは
+ * 最後に読めたときのまま健全なので状態は `Ready` だが、それ以降の
+ * 追加・変更・削除は1件も反映されていない。緑の「準備完了」を出すと、
+ * 利用者は索引が最新だと確信する。
+ *
+ * **読めなかった場所があった回も同じ。** 索引に入っていない棋譜があるのに
+ * 緑を出すと、0件が「自分の棋譜に無い」と読める。
+ *
+ * 具合の判断は `indexHealth` が持つ——画面ごとに旗を並べ直さない。
+ */
+function badgeForIndexState(idx: IndexUiState) {
+  switch (indexHealth(idx)) {
+    case "notRefreshed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "更新できていません",
+      };
+    case "partiallyUnreadable":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "一部を読めていません",
+      };
+    case "notStarted":
+      return { tone: "muted" as const, icon: null, label: "未作成" };
+    case "ok":
       return {
         tone: "accent" as const,
         icon: <CheckCircle2 size={14} />,
         label: "準備完了",
       };
+  }
+  switch (idx.state) {
     case "Building":
       return {
         tone: "warn" as const,
@@ -63,7 +93,7 @@ export default function WorkspaceTab() {
   const idx = search.index; // ←あなたの state 形
   const warns = search.warns; // ←あなたの state 形
 
-  const badge = useMemo(() => badgeForIndexState(idx.state), [idx.state]);
+  const badge = useMemo(() => badgeForIndexState(idx), [idx]);
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
@@ -123,7 +153,14 @@ export default function WorkspaceTab() {
 
             <div className="wsTab__mini">
               <div className="wsTab__miniK">未同期</div>
-              <div className="wsTab__miniV">{idx.dirtyCount.toLocaleString()}</div>
+              {/*
+                **数えられなかったときに 0 と書かない。** 走査が失敗すると
+                差分を1件も取れていないので、0 は「無い」ではなく「分からない」。
+                0 と描くと、索引が最新だと読める
+              */}
+              <div className="wsTab__miniV">
+                {idx.scanFailed ? "確認できていません" : idx.dirtyCount.toLocaleString()}
+              </div>
             </div>
 
             <div className="wsTab__mini">

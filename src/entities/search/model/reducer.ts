@@ -5,6 +5,8 @@ export const initialState: SearchState = {
   index: {
     state: "Empty",
     dirtyCount: 0,
+    scanFailed: false,
+    partiallyUnreadable: false,
     indexedFiles: 0,
     totalFiles: 0,
     doneFiles: 0,
@@ -71,6 +73,8 @@ export function reducer(state: SearchState, action: Action): SearchState {
           ...state.index,
           state: p.state,
           dirtyCount: p.dirtyCount,
+          scanFailed: p.scanFailed,
+          partiallyUnreadable: p.partiallyUnreadable,
           indexedFiles: p.indexedFiles,
           totalFiles: p.totalFiles,
           // Ready 到達時は doneFiles を totalFiles に揃える (C-M2 backstop)

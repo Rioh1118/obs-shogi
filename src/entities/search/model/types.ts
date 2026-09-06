@@ -18,6 +18,10 @@ import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
 export type IndexUiState = {
   state: IndexStatePayload["state"] | "Empty";
   dirtyCount: number;
+  /** 走査を最後まで通せなかった。意味は `IndexStatePayload` の doc */
+  scanFailed: boolean;
+  /** 一部の場所を読めなかった。意味は `IndexStatePayload` の doc */
+  partiallyUnreadable: boolean;
   indexedFiles: number;
   totalFiles: number;
   doneFiles: number;

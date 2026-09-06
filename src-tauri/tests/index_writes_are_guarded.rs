@@ -69,7 +69,11 @@ fn the_store_hands_back_the_epoch_it_installed() {
     }
 }
 
-/// **`build_full_index_task` が代を引数で受けていること。**
+/// **`build_full_index_task` が代を呼び手から受けていること。**
+///
+/// 引数を1つずつ並べるか、まとめた構造体（`FullBuild`）で渡すかは問わない
+/// ——見るのは「中で `snapshot().epoch` を拾っていないこと」。
+/// 拾うと `restart` から拾うまでの間に別の `open` が入ったとき**他人の代を掴む**。
 #[test]
 fn the_full_build_takes_the_epoch_from_its_caller() {
     let code = read_code("src/search/build.rs");
@@ -78,9 +82,20 @@ fn the_full_build_takes_the_epoch_from_its_caller() {
         .and_then(|(_, t)| t.split_once(')').map(|(h, _)| h.to_owned()))
         .expect("build_full_index_task が無い");
 
+    // 引数に代そのものが並ぶか、それを持つ形が並ぶか
     assert!(
-        head.contains("epoch: u64"),
-        "代を引数で受けていない。中で拾うと他人の代を掴む:\n{head}"
+        head.contains("epoch: u64") || head.contains("FullBuild"),
+        "代を呼び手から受けていない:\n{head}"
+    );
+    assert!(
+        code.contains("pub epoch: u64") || head.contains("epoch: u64"),
+        "受けている形の中に代が無い"
+    );
+    // **中で拾わないこと。** ここが本体
+    assert!(
+        !code.contains("snapshot().epoch"),
+        "全件構築が代を自分で拾っている。`restart` から拾うまでの間に\
+         別の `open` が入ると他人の代を掴む"
     );
 }
 
