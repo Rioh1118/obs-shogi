@@ -128,8 +128,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   // 開始を頼んでから席が返るまでの間に、その要求が要らなくなっていないか。
   //
-  // **畳まれたときと、利用者が止めた（または次の再開が始まった）ときを同じに扱う。**
-  // どちらも「返ってきた席の持ち主が居ない」で、返さなければ Rust に残る。
+  // **3つの引き金を同じに扱う**——畳まれた、利用者が止めた（または次の要求が始まった）、
+  // 読む局面が無くなった。どれも「返ってきた席の持ち主が居ない」で、
+  // 返さなければ Rust に残る。
   // `stopAnalysis` は世代を上げるが、撃てるのはその時点で握っている席まで
   // ——後から返る席を返せるのは、応答が返った側だけ。
   const supersededSince = useCallback(
@@ -290,9 +291,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // エンジン側のセッションも必ず止める。React の state だけ落とすと
         // Rust には席が残り、以降 start_infinite_analysis が
         // 常に「Analysis already running」で弾かれて解析を再開できなくなる。
-        // 握っていなければ撃たない。畳まれたときと違い、ここは画面が生きている
-        // ——指せない停止（＝全部止める）を投げると、席を持たないのに
-        // 走っている解析があったとき、それを巻き添えにする。
+        // エンジン側の席も返す。握っていなければ何もしない。
+        // 落ちたときに何が残るかは `useEngineSeat` の `releaseHeldQuietly` にある。
         seat.releaseHeldQuietly("sync-timeout");
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
@@ -320,8 +320,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
         //
         // **画面に触るのは門の後ろ。** `clear_results` は `error` も消すので
-        // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に出た
-        // 打ち切りのエラーが黙って消える。
+        // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に立った
+        // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
         if (supersededSince(seq)) return;
 
         clearFlushTimer();

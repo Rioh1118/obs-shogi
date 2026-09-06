@@ -5,7 +5,7 @@ import { stopAnalysis as stopAnalysisCore } from "@/entities/engine/api/tauri";
  * 席を返した口。**ログを切り分けるためだけに在る**（Rust のログにもそのまま出る）。
  *
  * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
- * `releaseHeldQuietly` と `discard` の doc に書き足すこと。書けないなら、その口は要らない。
+ * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
  */
 export type SeatReleasePoint =
   | "stop"
@@ -121,8 +121,8 @@ export function useEngineSeat(): EngineSeat {
   };
 
   // **落ちても利用者には出せない。** ここを通るのは、画面が既に無い（`unmount`）、
-  // 読む局面が無くなった（`no-position`。棋譜を閉じた後なので出す場所が無い）、
-  // 直後に別のエラーを出す（`sync-timeout`）、利用者が止めた直後で
+  // 棋譜を閉じた後で出す場所が無い（`no-position`）、直後に `set_error` が立つ
+  // （`sync-timeout`。その `error` の読み手はまだ0 → #277）、利用者が止めた直後で
   // 「停止の後始末に失敗しました」を出しても当てが無い（`late-start` / `late-restart`）。
   //
   // **それでも痕跡は残す。** ここが最後の防壁で、抜けられると席が残り、
