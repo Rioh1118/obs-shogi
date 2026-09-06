@@ -113,14 +113,20 @@ pub async fn open_project(
                 restored.index.buckets,
             );
 
-            project
+            // 据え直されていたら、帳簿も watcher も据えずに引き下がる
+            if !project
                 .install_after_full_build(
+                    restore_epoch,
                     root_dir.clone(),
                     restored.scan.snapshot,
                     restored.scan.path_to_id,
                     restored.scan.next_file_id,
                 )
-                .await;
+                .await
+            {
+                log::info!("[open_project] 据え直されたので復元した帳簿を据えない");
+                return Ok(OpenProjectOutput { total_files });
+            }
 
             let _ = app.emit(
                 EVT_INDEX_STATE,
@@ -135,7 +141,12 @@ pub async fn open_project(
             // watcher 起動（失敗してもopen自体は成功扱いにして良い）
             if let Err(e) = project
                 .clone()
-                .start_watcher_and_debounce(app.clone(), store.clone(), Duration::from_millis(800))
+                .start_watcher_and_debounce(
+                    app.clone(),
+                    store.clone(),
+                    Duration::from_millis(800),
+                    restore_epoch,
+                )
                 .await
             {
                 log::warn!("[open_project] watcher start FAILED: {e}");
