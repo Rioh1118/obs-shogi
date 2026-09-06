@@ -1,3 +1,5 @@
+import type { VisibleTier } from "@/shared/lib/notification/types";
+
 export type FsErrorCode =
   | "already_exists"
   | "not_found"
@@ -160,13 +162,17 @@ export function isNameInputError(code: FsErrorCode): boolean {
 }
 
 /**
- * 復帰に何が要るか（ADR-0004）。
+ * 復帰に何が要るか（ADR-0004 決定1）。
  *
  * `warning` は読み直しで直る見込みがあるもの、`danger` は読み直しても結果が変わらず、
  * 入力か権限の側を変えないと直らないもの。読み直しても直らない失敗に再読み込みを
  * 出すと、押しても何も起きないので利用者は押し続ける。
+ *
+ * **段の綴りは通知の基盤から取る。** 素の文字列だと、段を増やしたり名前を変えたりしても
+ * tsc がここへ連れて来ない。ファイル操作の失敗は4段のうち2つにしか割れないので、
+ * 取れるのはその2つに絞ってある。
  */
-export function fsErrorTier(code: FsErrorCode): "warning" | "danger" {
+export function fsErrorTier(code: FsErrorCode): Extract<VisibleTier, "warning" | "danger"> {
   switch (code) {
     // 一時的な事情で失敗した可能性がある。読み直すと結果が変わりうる
     case "io":
