@@ -20,7 +20,7 @@ GATE_LIB_ONLY=1 . .claude/hooks/verify-gate.sh
 GATE_TEST_FAILLOG=$(mktemp)
 export GATE_TEST_FAILLOG
 gate_cleanup() {
-  rm -f "$GATE_TEST_FAILLOG"
+  rm -f "$GATE_TEST_FAILLOG" "$GATE_TEST_RUNLOG"
   rm -rf "${gate_probe_template:-}"
 }
 trap gate_cleanup EXIT
@@ -29,7 +29,23 @@ count_failure() {
   printf 'x\n' >> "$GATE_TEST_FAILLOG"
 }
 
+# **走った本数も数える。** 集計（上）は「落ちた件数」しか見ないので、
+# assertion が最初から**走らなかった**ことと期待どおりだったことを区別できない。
+# fixture のサブシェルが `mktemp` の失敗で早く抜けると、その中の数件が
+# 黙って消えたまま緑になる。
+# 走るべき assertion の本数。**現在値ではなく床。**
+# 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
+# 実測は末尾の runs を見ること。
+GATE_TEST_MIN_RUNS=164
+GATE_TEST_RUNLOG=$(mktemp)
+export GATE_TEST_RUNLOG
+
+count_run() {
+  printf 'x\n' >> "$GATE_TEST_RUNLOG"
+}
+
 expect_match() {
+  count_run
   local want=$1 command=$2
   local got=SKIP
   gate_matches_commit "$command" && got=CATCH
@@ -97,6 +113,7 @@ expect_match SKIP 'echo commit'
 # 表は fixture（GATE_EXTRA_VERBS）で固定する。実際の設定に依存させると、
 # alias を持たない環境では何も守らないテストになる。
 expect_alias() {
+  count_run
   local want=$1 command=$2 verbs=$3
   local got=SKIP
   ( GATE_EXTRA_VERBS=$verbs gate_matches_commit "$command" ) && got=CATCH
@@ -115,6 +132,7 @@ expect_alias SKIP 'git ci -m x' ''
 # 差し替える seam なので、それでは展開先を辿る動きを固定できない。
 # GIT_CONFIG_GLOBAL に fixture を置いて、実際の設定に依存させずに回す。
 expect_alias_resolution() {
+  count_run
   local want=$1 config=$2
   local fixture got
   fixture=$(mktemp)
@@ -159,6 +177,7 @@ expect_alias_resolution "acp" "[alias]
 # その repo にしか無い commit alias が見えないまま素通しする
 # （S1 で切り出せず、`gate_mentions_commit` は基本の動詞しか知らない）。
 expect_base_alias() {
+  count_run
   local want=$1 repo got
   repo=$(mktemp -d)
   (
@@ -189,6 +208,7 @@ export GATE_BASE
 expect_base_alias CATCH
 
 expect_mentions() {
+  count_run
   local want=$1 command=$2
   local got=SKIP
   gate_mentions_commit "$command" && got=CATCH
@@ -213,6 +233,7 @@ expect_mentions CATCH 'grep -rn "git commit" docs/'
 expect_match SKIP 'gh pr create --title "fix: git commit を直す"' 
 
 expect_dir() {
+  count_run
   local want=$1 command=$2 base=$3
   local got
   got=$(gate_target_dir "$command" "$base")
@@ -352,6 +373,7 @@ expect_dir "" 'git commit -m x' /nonexistent/not-a-repo
 
 
 expect_kinds() {
+  count_run
   local want=$1 path=$2
   local got
   got=$(gate_kinds_for_path "$path")
@@ -391,6 +413,7 @@ expect_kinds "ts" "src/dir with space/a.ts"
 
 # 積んだ操作を畳む呼び出しは、検証の対象にしない。理由は `gate_is_teardown` の上。
 expect_teardown() {
+  count_run
   local want=$1 command=$2
   local got=NO
   gate_is_teardown "$command" && got=YES
@@ -428,6 +451,7 @@ expect_teardown NO 'git -C /tmp/other rebase --abort'
 # 当てると、そのツリーに `package.json` が無いという理由で deny になり、
 # 利用者には触ってもいないファイルについて直す対象が示される。
 expect_project() {
+  count_run
   local want=$1 target=$2
   local got=OUT
   gate_in_project "$target" "$GATE_HOME" && got=IN
@@ -559,6 +583,7 @@ probe_is_readonly() {
 }
 
 expect_readonly() {
+  count_run
   local verb=$1
   probe_is_readonly "$verb" && return 0
   printf 'FAIL  読むだけではない動詞が許可リストに入っている: %s\n' "$verb"
@@ -590,12 +615,17 @@ done
 # **ここまでのケースは全て `GATE_LIB_ONLY=1` の関数呼び出し**で、
 # 入口（payload を読む段）を1つも通っていない。
 # 入口が壊れると症状は「静かに全部通る」になり、下の判定は1つも走らない。
+# payload を入口へ流し、下した判定だけを返す。
+# `env` に渡す綴りで、環境を欠いた状態も作れる（`PATH=` で jq を隠す）。
 gate_entry() {
-  printf '%s' "$2" | env "$1" /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
-    | grep -o '"permissionDecision": *"[a-z]*"' | head -1
+  local env_spec=$1 payload=$2
+  printf '%s' "$payload" \
+    | env "$env_spec" /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
+    | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1
 }
 
 expect_entry() {
+  count_run
   local want=$1 label=$2 got=$3
   if [ "$want" = "$got" ]; then
     return 0
@@ -606,21 +636,16 @@ expect_entry() {
 
 # payload が空なら deny。読めないまま素通しさせない
 expect_entry '"permissionDecision":"deny"' 'payload が空' \
-  "$(printf '' | /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
-     | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
+  "$(gate_entry 'GATE_UNUSED=1' '')"
 
 # jq が無くても deny。**macOS に標準で入っていない**
 expect_entry '"permissionDecision":"deny"' 'jq が無い' \
-  "$(printf '{"tool_input":{"command":"x"}}' \
-     | PATH= /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
-     | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
+  "$(gate_entry 'PATH=' '{"tool_input":{"command":"x"}}')"
 
 # payload の形が変わっても deny。**`// ""` で既定値へ倒すと、
 # フィールドが消えた日に全 Bash 呼び出しが無言で通る**
 expect_entry '"permissionDecision":"deny"' 'command 欄が無い' \
-  "$(printf '{"tool_input":{"cmd":"x"}}' \
-     | /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
-     | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
+  "$(gate_entry 'GATE_UNUSED=1' '{"tool_input":{"cmd":"x"}}')"
 
 # --- 集計そのものを見る ---
 #
@@ -635,6 +660,15 @@ if [ "$after" -eq "$((before + 1))" ]; then
   [ "$before" -gt 0 ] && for _ in $(seq "$before"); do count_failure; done
 else
   printf 'FAIL  失敗の数え方が壊れている（サブシェルからの1件が集計に届かない）\n'
+  exit 1
+fi
+
+runs=$(wc -l < "$GATE_TEST_RUNLOG" | tr -d ' ')
+if [ "$runs" -lt "$GATE_TEST_MIN_RUNS" ]; then
+  printf 'verify-gate: assertion が %d 本しか走っていない（下限 %d）\n' \
+    "$runs" "$GATE_TEST_MIN_RUNS"
+  printf '本数が減ったなら GATE_TEST_MIN_RUNS を実測へ下げること。\n'
+  printf '**減らした覚えが無いなら、fixture のサブシェルが早く抜けている。**\n'
   exit 1
 fi
 
