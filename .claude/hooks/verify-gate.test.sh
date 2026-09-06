@@ -220,6 +220,12 @@ expect_dir "" "git checkout main -- src && git commit -am x" "$here"
 expect_dir "" "git restore --source=main -- src/foo.ts && git commit -am x" "$here"
 expect_dir "" "git reset --hard && git commit -m x" "$here"
 
+# **バッククォートの中身は、手前の許可リストを1文字も通らない。**
+# 先頭の語は読むだけの動詞なので正規表現は通り、その引数の中で別の git が走る。
+# `$( )` は `(` を弾く文字クラスに引っ掛かるが、こちらは記号として素通りする。
+expect_dir "" 'git status `git rm -f src/app/App.tsx` && git commit -m x' "$here"
+expect_dir "" 'git log -1 `git checkout main -- src` && git commit -am x' "$here"
+
 # 読むだけの git は手前に置いてよい。**塞ぎすぎると、いま通っている綴りが止まる。**
 expect_dir "$here" "git status && git commit -m x" "$here"
 expect_dir "$here" "git diff --cached && git commit -m x" "$here"
