@@ -99,7 +99,13 @@ fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookEr
     err.with_path(requested.to_string_lossy())
 }
 
-/// message にパスの注記を足す。`path` は触らない。
+/// message にパスの注記を**前置**する。`path` は触らない。
+///
+/// **後置しない。** 注記で終わると、その手前にある復帰操作を利用者が読み飛ばす ——
+/// `sfen.rs` の `to_book_key_in_file` と `yaneuraou_db.rs` の `annotate_line` が
+/// 同じ理由で前置にしてある。`open_at` は唯一の開き口なので、ここを後置にすると
+/// **開くときの失敗が全部**「…こと（実体 …）」になり、
+/// 表の不変条件3（message は次にやることで終わる）が本番経路で成り立たなくなる。
 ///
 /// **パスは必ずここで [`truncate_path`] を通す。** 呼び手が `format!` で組むと、
 /// リンク先や実体に含まれる制御文字が素通りして、1回の `log!` が2行になる ——
@@ -110,9 +116,9 @@ fn annotate(err: BookError, label: &str, path: &Path) -> BookError {
     let annotated = BookError::new(
         err.code(),
         format!(
-            "{}（{label} {}）",
-            err.message(),
-            truncate_path(&path.to_string_lossy())
+            "（{label} {}）{}",
+            truncate_path(&path.to_string_lossy()),
+            err.message()
         ),
     );
     match err.path() {
@@ -194,6 +200,35 @@ pub(crate) use validated::{validate_book_path, ValidatedBookPath};
 
 #[cfg(test)]
 mod tests {
+
+    /// **開く経路を通っても、message は次にやることで終わること。**
+    ///
+    /// `every_code_ends_with_something_the_user_can_do` は `open_reader` と
+    /// `validate_book_path` を直接叩くので、**`open_at` の注記を1度も通らない。**
+    /// ここが唯一の開き口なので、注記を後置にすると開くときの失敗が全部
+    /// 「…こと（実体 …）」になる。macOS では `/var` も `/tmp` も symlink なので、
+    /// **要求の綴りと実体は必ず食い違い、注記の枝に必ず入る。**
+    #[test]
+    fn a_failure_from_open_at_still_ends_with_an_action() {
+        let dir = crate::test_support::temp_dir("book-open-at-ends");
+
+        // 中身が定跡でない `.db`。注記の枝を通したうえで失敗する
+        let path = dir.join("plain.db");
+        std::fs::write(&path, b"not a book\n").expect("テスト用のファイル");
+
+        let validated = validate_book_path(&path.to_string_lossy()).expect("形は成立しているはず");
+        let Err(err) = open_at(&validated) else {
+            panic!("定跡でない中身なのに開けてしまった");
+        };
+
+        assert!(
+            err.message().ends_with("こと"),
+            "注記が後置されている: {}",
+            err.message()
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     use super::*;
     use crate::book::error::MAX_PATH_CHARS;
 
