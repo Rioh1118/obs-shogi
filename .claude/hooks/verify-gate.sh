@@ -354,17 +354,6 @@ GATE_HOME=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 # 読み込まれただけのときは判定関数を定義して終わる（テストから使う）。
 [ "${GATE_LIB_ONLY:-0}" = "1" ] && return 0
 
-payload=$(cat)
-command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""')
-cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
-
-if ! gate_matches_commit "$command"; then
-  # 呼び出しとして切り出せないのに git と commit が並んでいるなら、綴りを
-  # 言い当てられなかったということ。素通しさせない。
-  gate_mentions_commit "$command" || exit 0
-  gate_unknown_spelling=1
-fi
-
 deny() {
   jq -n --arg reason "$1" '{
     hookSpecificOutput: {
@@ -375,6 +364,39 @@ deny() {
   }'
   exit 0
 }
+
+# **読めなかったときは deny 側へ倒す。**
+#
+# jq は macOS に標準で入っていない。握り潰すと、新しいマシンで clone した人は
+# **ゲートが1度も走らないまま**「コミットが通ったから検証も通った」と読む。
+# payload の形が将来変わったときも症状は同じ（静かに全部通る）。
+if ! command -v jq >/dev/null 2>&1; then
+  # deny 自体が jq を使うので、ここだけは固定の JSON を出す
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"検証ゲート: jq が無いので判定できない。jq を入れること。"}}'
+  exit 0
+fi
+
+payload=$(cat)
+
+# 空も deny 側。**握り潰すと、渡し方が壊れた日に静かに全部通る。**
+if [ -z "$payload" ]; then
+  deny "検証ゲート: payload が空で、何を実行しようとしているのか読めなかった。
+hook の渡し方が変わっていないか確かめること。"
+fi
+
+command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""') || {
+  deny "検証ゲート: 渡された payload を読めなかった。
+形が変わっていないか確かめること。"
+}
+cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
+
+if ! gate_matches_commit "$command"; then
+  # 呼び出しとして切り出せないのに git と commit が並んでいるなら、綴りを
+  # 言い当てられなかったということ。素通しさせない。
+  gate_mentions_commit "$command" || exit 0
+  gate_unknown_spelling=1
+fi
+
 
 if [ "${gate_unknown_spelling:-0}" = "1" ]; then
   deny "検証ゲート: git commit の呼び出しを判別できなかった。
@@ -401,7 +423,7 @@ if ! gate_in_project "$project_dir" "$GATE_HOME"; then
   exit 0
 fi
 
-cd "$project_dir" || exit 0
+cd "$project_dir" || deny "検証ゲート: 対象のツリーへ移動できなかった: $project_dir"
 
 # ステージ済みと作業ツリーの両方を見る（`git commit -a` を取りこぼさないため）。
 #
@@ -450,7 +472,7 @@ fi
 run_gate() {
   local label=$1 out
   if ! out=$("${@:2}" 2>&1); then
-    deny "検証ゲート失敗: ${label}
+    deny "検証ゲート失敗: ${label}（${project_dir}）
 
 $(printf '%s' "$out" | tail -40)
 

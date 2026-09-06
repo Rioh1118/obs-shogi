@@ -341,6 +341,37 @@ rm -rf "$gate_other_repo"
 expect_project OUT "$(mktemp -d)"
 expect_project OUT ""
 
+
+# --- hook の入口 ---
+#
+# **ここまでのケースは全て `GATE_LIB_ONLY=1` の関数呼び出し**で、
+# 入口（payload を読む段）を1つも通っていない。
+# 入口が壊れると症状は「静かに全部通る」になり、下の判定は1つも走らない。
+gate_entry() {
+  printf '%s' "$2" | env "$1" /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
+    | grep -o '"permissionDecision": *"[a-z]*"' | head -1
+}
+
+expect_entry() {
+  local want=$1 label=$2 got=$3
+  if [ "$want" = "$got" ]; then
+    return 0
+  fi
+  printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（空）}" "${got:-（空）}" "$label"
+  failures=$((failures + 1))
+}
+
+# payload が空なら deny。読めないまま素通しさせない
+expect_entry '"permissionDecision":"deny"' 'payload が空' \
+  "$(printf '' | /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
+     | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
+
+# jq が無くても deny。**macOS に標準で入っていない**
+expect_entry '"permissionDecision":"deny"' 'jq が無い' \
+  "$(printf '{"tool_input":{"command":"x"}}' \
+     | PATH= /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
+     | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
+
 if [ "$failures" -eq 0 ]; then
   echo "verify-gate: 全て期待どおり"
   exit 0
