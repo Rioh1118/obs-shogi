@@ -38,7 +38,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const clearFlushTimer = useCallback(() => {
     if (flushTimerRef.current != null) {
-      window.clearTimeout(flushTimerRef.current);
+      clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
   }, []);
@@ -111,9 +111,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return true;
   };
 
+  // **`window` を通さない。** ここはタイマーのコールバックからも、畳んだ後の
+  // 後始末からも呼ばれる。テスト環境は畳んだ後に `window` を落とすので、
+  // そこで参照すると**テストが1本も失敗していないのに実行そのものが落ちる**。
+  // `clearTimeout` はブラウザにも Node にもある。
   const clearDebounceTimer = () => {
     if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current);
+      clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
   };
@@ -197,6 +201,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, []);
 
   runRestartRef.current = (seq: number) => {
+    // **畳まれていたら何もしない。** 張る側（`scheduleRestart`）は見ているが、
+    // 張った後に畳まれた回はここへ来る。
+    if (unmountedRef.current) return;
     if (restartSeqRef.current !== seq) return;
     if (!analyzingRef.current) return;
     if (!isReady) return;

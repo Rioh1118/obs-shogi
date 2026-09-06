@@ -1,7 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
 import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
+
+/** 門番とその検査。シェルだが、表が関数名を仕様として引く */
+const HOOKS = join(REPO_ROOT, ".claude/hooks");
 
 /**
  * docs がバッククォートで指す**識別子**が実在するかを見る検査の本体。
@@ -25,10 +28,24 @@ const IDENTIFIER = /^([A-Z][A-Z0-9]*(_[A-Z0-9]+)+|[a-z][a-z0-9]*(_[a-z0-9]+)+)$/
  * 増やすときは**なぜソースに無くてよいか**を1件ずつ書くこと。
  * 説明を書けないなら、それは腐った doc であって除外の対象ではない。
  */
+/// **他実装の綴りを免除するリストは、走査範囲ごとに3つある。**
+/// ここは `docs/**` のバッククォート、`state_table_terms.rs` の `NOT_IDENTIFIERS` は
+/// 状態遷移表の表本体、`comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
+/// **綴りの形と、どこに書いたかの掛け算で、要るリストが決まる** ——
+/// 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
+/// 片方にしか要らない綴りが現に在る（`peek_text` は3つ目だけ）。
 const EXEMPT = new Set([
   // USI の語。エンジンとの取り決めであって、こちらの識別子ではない
   "go_ponder",
   "position_sfen",
+  // ShogiHome（TypeScript）の定数。定跡の表が「あちらはこう書く」の出典に引く
+  "SCORE_NONE",
+  "DEPTH_NONE",
+  // やねうら王（C++）の綴り。同じく本家との差の出典
+  "get_number",
+  "line_buffer",
+  // YaneuraOu-ScriptCollection（Python）の関数。局面数の数え方の出典
+  "count_yaneuraou_db_positions",
 ]);
 
 /**
@@ -48,12 +65,25 @@ let corpus: string | null = null;
 function sourceCorpus(): string {
   if (corpus !== null) return corpus;
 
+  // **シェルもソースに数える。** `verify-gate-decision.md` は門番の関数名
+  // （`gate_kinds_for_path` ほか）を仕様として引く。`.claude/hooks/` を外すと、
+  // 表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
+  //
+  // **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の
+  // 定義で、外すと表が実在する関数を指しているのに落ちる。代わりに
+  // `codeOf` の shell の枝が引用符の中を落とすので、期待値に書いた名前は入らない。
+  const hooks = readdirSync(HOOKS, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".sh"))
+    .map((entry) => join(HOOKS, entry.name));
+
   corpus = [
-    ...sourceFiles(SRC, { includeTests: false }),
-    ...rustRoots().flatMap((root) => sourceFiles(root)),
-  ]
-    .map((path) => codeOf(readFileSync(path, "utf8")))
-    .join("\n");
+    ...[
+      ...sourceFiles(SRC, { includeTests: false }),
+      ...rustRoots().flatMap((root) => sourceFiles(root)),
+    ].map((path) => codeOf(readFileSync(path, "utf8"))),
+    // シェルの行コメントは `#`。`codeOf` の既定（`//`）では落ちない
+    ...hooks.map((path) => codeOf(readFileSync(path, "utf8"), "shell")),
+  ].join("\n");
   return corpus;
 }
 

@@ -12,21 +12,28 @@
 # **減らしたら BASELINE を下げること。** 下げないと、次に増えたぶんが隠れる。
 set -euo pipefail
 
-# `cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app` の警告数。
+# `cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app
+#  --document-private-items` の警告数。
 # `cargo doc` が最後に出す `generated N warnings` と同じ値になる。
 # **減らしたらここを下げること。**
-BASELINE=4
+#
+# **非公開の項目も見る。** 公開面だけを見ると、モジュールを割ったときに
+# 中で切れたリンクが1つも映らない。実際に定跡を割り直したとき、
+# 6本の intra-doc リンクが解決しなくなったのにここは緑のままだった。
+BASELINE=34
 
 cd "$(dirname "$0")/.."
 # 集計行（`generated N warnings`）は数えない。数えると画面の N と基準が1ずれて、
 # 直す人がまず数の食い違いを疑うことになる
-count=$(cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app 2>&1 |
+count=$(cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app \
+    --document-private-items 2>&1 |
   grep '^warning' | grep -vc 'generated' || true)
 
 if [ "$count" -gt "$BASELINE" ]; then
   echo "rustdoc の警告が増えた: ${count}（基準 ${BASELINE}）" >&2
   echo "" >&2
-  cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app 2>&1 |
+  cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app \
+    --document-private-items 2>&1 |
     grep -A 3 '^warning' >&2
   exit 1
 fi

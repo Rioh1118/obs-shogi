@@ -3,9 +3,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   brokenLinksInBody,
+  brokenReferencesInBody,
   docsPath,
   headingSlug,
   headingSlugs,
+  insideFences,
   markdownFiles,
   staleUncreatedInBody,
   staleUncreatedNames,
@@ -21,6 +23,11 @@ import {
  */
 const REASON = { "no-file": "ファイルが無い", "no-heading": "見出しが無い" } as const;
 
+const REFERENCE_REASON = {
+  "no-definition": "定義が無い。リンクにならず角括弧のまま出る",
+  "unused-definition": "使われていない定義。消し忘れ",
+} as const;
+
 describe("状態遷移表の索引", () => {
   test("README がすべての表を列挙している", () => {
     const files = tables().filter((f) => f !== "README.md");
@@ -28,6 +35,23 @@ describe("状態遷移表の索引", () => {
 
     const missing = files.filter((f) => !readme.includes(`(${f})`));
     expect(missing).toEqual([]);
+  });
+
+  /**
+   * 在庫表と階層図は別々に腐る。図は「新しい表をどこに置くか」を決める唯一の案内なので、
+   * 抜けた表は前例として参照されず、同じ階層に置くべきものが別の場所へ散る。
+   */
+  test("README の階層図がすべての表を挙げている", () => {
+    const files = tables().filter((f) => f !== "README.md");
+    // 図は `text` で開いたフェンス。規約の節の `markdown` の例まで読むと、
+    // 例に名前が1つ出るだけで「図にある」と判定される
+    const figure = insideFences(readFileSync(join(TABLES_DIR, "README.md"), "utf8"), "text");
+    // **名前の集合で比べる。** 部分一致だと `view.md` が `position-search-view.md` に
+    // 当たって、図に1文字も書いていない表が素通りする
+    const named = new Set([...figure.matchAll(/[\w-]+\.md/g)].map((m) => m[0]));
+
+    const missing = files.filter((f) => !named.has(f));
+    expect(missing, ["階層図に無い表:", ...missing].join("\n")).toEqual([]);
   });
 
   /** 判定は `brokenLinksInBody` が持つ */
@@ -42,6 +66,20 @@ describe("状態遷移表の索引", () => {
     });
 
     expect(broken, ["docs のリンクが切れている:", ...broken].join("\n")).toEqual([]);
+  });
+
+  /**
+   * 参照リンクは定義が離れて置かれるので、片方だけ消してもエラーにならない。
+   * 判定は `brokenReferencesInBody` が持つ。
+   */
+  test("参照リンクの使用と定義が対応している", () => {
+    const broken = markdownFiles().flatMap((file) =>
+      brokenReferencesInBody(readFileSync(docsPath(file), "utf8")).map(
+        (hit) => `${file}  [${hit.label}]  （${REFERENCE_REASON[hit.reason]}）`,
+      ),
+    );
+
+    expect(broken, ["参照リンクが繋がっていない:", ...broken].join("\n")).toEqual([]);
   });
 
   /**
@@ -140,6 +178,100 @@ describe("brokenLinksInBody", () => {
     expect(find("[隣](b.md#相手の見出し)\n[隣](b.md#無い見出し)")).toEqual([
       { href: "b.md#無い見出し", reason: "no-heading" },
     ]);
+  });
+});
+
+describe("insideFences", () => {
+  const BODY = ["外の行", "```text", "図の行", "```", "外", "```markdown", "例の行", "```"].join(
+    "\n",
+  );
+
+  test("フェンスの外と開閉の記号を落とす", () => {
+    expect(insideFences(BODY).split("\n").filter(Boolean)).toEqual(["図の行", "例の行"]);
+  });
+
+  // 例に名前が1つ出るだけで「図にある」と判定されるのを防ぐ
+  test("情報文字列でフェンスを選べる", () => {
+    expect(insideFences(BODY, "text").split("\n").filter(Boolean)).toEqual(["図の行"]);
+    expect(insideFences(BODY, "markdown").split("\n").filter(Boolean)).toEqual(["例の行"]);
+  });
+
+  // 行の位置で突き合わせる呼び手が居るので、行数は入力と同じでなければならない
+  test("行数を変えない", () => {
+    expect(insideFences(BODY).split("\n")).toHaveLength(BODY.split("\n").length);
+    expect(stripFences(BODY).split("\n")).toHaveLength(BODY.split("\n").length);
+  });
+
+  test("未閉じのフェンスは残り全部を中身として扱う", () => {
+    expect(insideFences("外\n```\n中\n").split("\n").filter(Boolean)).toEqual(["中"]);
+  });
+});
+
+describe("brokenReferencesInBody", () => {
+  const DEF = "[sh]: https://example.com/a.ts\n";
+
+  test("定義のある参照は返さない", () => {
+    expect(brokenReferencesInBody(`[表示][sh]\n\n${DEF}`)).toEqual([]);
+  });
+
+  test("定義の無い参照を返す", () => {
+    expect(brokenReferencesInBody("[表示][sh]\n")).toEqual([
+      { label: "sh", reason: "no-definition" },
+    ]);
+  });
+
+  test("使われていない定義を返す", () => {
+    expect(brokenReferencesInBody(DEF)).toEqual([{ label: "sh", reason: "unused-definition" }]);
+  });
+
+  // CommonMark はラベルの大小文字を同一視する。ここで割ると、描画されるのに落ちる
+  test("ラベルの大小文字は同一視する", () => {
+    expect(brokenReferencesInBody(`[表示][SH]\n\n${DEF}`)).toEqual([]);
+  });
+
+  test("省略形は表示そのものがラベル", () => {
+    expect(brokenReferencesInBody(`[sh][]\n\n${DEF}`)).toEqual([]);
+  });
+
+  // 同じ出典を2度目に引く人が最も自然に書く形。数えないと定義が「使われていない」になり、
+  // その案内どおり定義を消すと1度目のリンクが地の文に落ちる
+  test("ラベル単体も使用として数える", () => {
+    expect(brokenReferencesInBody(`本文 [sh] を見る\n\n${DEF}`)).toEqual([]);
+  });
+
+  // 裸の角括弧は地の文にも出る。全部拾うと docs が書けなくなる
+  test("定義の無いラベル単体は数えない", () => {
+    expect(brokenReferencesInBody("本文 [まだ書いていない] を見る\n")).toEqual([]);
+  });
+
+  test("定義の行そのものを使用として数えない", () => {
+    expect(brokenReferencesInBody(DEF)).toEqual([{ label: "sh", reason: "unused-definition" }]);
+  });
+
+  // 開きと同じ数で閉じる形まで見ないと、2連で囲った例が素通りする
+  test("2連バッククォートの行内コードも落とす", () => {
+    expect(brokenReferencesInBody("パターンは ``x-[a][b]`` 。\n")).toEqual([]);
+  });
+
+  // ラベルは行を跨がない。`[^\]]+` だと閉じない `[` が後続行の定義を飲み込む
+  test("閉じない角括弧が後続行の定義を飲み込まない", () => {
+    expect(brokenReferencesInBody(`本文に [ が1つ\n\n${DEF}\n\n[表示][sh]\n`)).toEqual([]);
+  });
+
+  // 規約の書き方を例として載せる文書がある。例まで解決すると規約が書けなくなる
+  test("フェンスの中の例は数えない", () => {
+    expect(brokenReferencesInBody("```markdown\n[表示][sh]\n\n[sh]: https://x/\n```\n")).toEqual(
+      [],
+    );
+  });
+
+  // 命名パターン（`ObsShogi-v[version]-[arch][setup]`）が `[…][…]` の形を踏む
+  test("行内コードの中は数えない", () => {
+    expect(brokenReferencesInBody("パターンは `x-[arch][setup][ext]`。\n")).toEqual([]);
+  });
+
+  test("行内コードを落とした跡で参照リンクが生まれない", () => {
+    expect(brokenReferencesInBody("[表示]`x`[別]\n")).toEqual([]);
   });
 });
 

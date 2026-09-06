@@ -80,8 +80,27 @@ describe("コメントを落としてから数える", () => {
     ]);
   });
 
+  // **2行目以降も落ちることを見る。** 1本しか置かないと、最初の1本だけを消す形でも
+  // 通ってしまう。実 corpus はほぼ全ファイルが行コメントを複数持つので、
+  // 取りこぼす側に倒れると「無い」はずの名前がまとめて「実在する」へ戻る
+  test("行コメントは2本目以降も落とす", () => {
+    const src = "let x = 1; // 説明\nlet y = 2; // DEAD_NAME のこと\n";
+
+    expect(missingIn(["DEAD_NAME"], codeOf(src))).toEqual(["DEAD_NAME"]);
+  });
+
   test("ブロックコメントも落とす", () => {
     expect(missingIn(["DEAD_NAME"], codeOf("/** DEAD_NAME */ let x = 1;"))).toEqual(["DEAD_NAME"]);
+  });
+
+  // **ブロックの手前にある行コメントも落とす。** ブロックを持たないファイルは
+  // 1本の経路で落ちるが、実 corpus はほぼ全ファイルがブロックと行コメントを
+  // 両方持つ。そちらが通る経路を突かないと、行コメントの中の名前が
+  // まとめて「実在する」へ戻る
+  test("ブロックの手前の行コメントも落とす", () => {
+    const src = "// DEAD_NAME のこと\n/** 説明 */\nconst a = 1;\n";
+
+    expect(missingIn(["DEAD_NAME"], codeOf(src))).toEqual(["DEAD_NAME"]);
   });
 
   test("コードは残す", () => {
@@ -94,11 +113,20 @@ describe("missingIn", () => {
     expect(missingIn(["running_clock"], "fn running_clock(&self)")).toEqual([]);
   });
 
-  // 接尾辞を足す改名は最も普通の形。部分一致で見ると素通りする
+  // 接頭辞を足す改名。部分一致で見ると素通りする
   test("別の識別子の一部としては数えない", () => {
     expect(missingIn(["WRITE_TIMEOUT"], "const STOP_WRITE_TIMEOUT: Duration")).toEqual([
       "WRITE_TIMEOUT",
     ]);
+  });
+
+  // **接尾辞側も見る。** 前置だけを与えると、語境界を片側しか要求しない形でも通る ——
+  // `\b` の後ろ側を落とす1文字の変異がそれ。
+  // この対は現物から採っている: `docs/proposals/naming-and-module-layout.md` が
+  // `config_write` を挙げ、`src/entities/file-tree/api/error.ts` にあるのは
+  // `config_write_failed`。**接尾辞が付いた側だけが実在する**形そのもの
+  test("接尾辞を足した別の識別子としては数えない", () => {
+    expect(missingIn(["config_write"], 'case "config_write_failed":')).toEqual(["config_write"]);
   });
 
   test("無いものだけ返す", () => {
