@@ -128,3 +128,19 @@
 - **閉じるなら走査ごと入れる。** `src/__tests__/sliceBarrels.test.ts` の `publicModules()` に
   「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
   `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる
+
+## 解析の停止が、ロックを握ったまま別のロックを待つ
+
+`.claude/reviews/2026-09-07-441-unmount-session-r2.md` の r2-21（rust reviewer）。
+
+`EngineAnalyzer::stop_analysis` の
+`if let Some(id) = self.infinite_listener.lock().await.take()` は、
+`if let` のスクルーティニに置いたガードが本体の終わりまで生きるので、
+**`infinite_listener` を握ったまま `protocol.remove_listener(&id).await`**
+（`listeners` の write ロック待ち）に入る。同時に走る `start_infinite_analysis` は
+そこで詰まる。
+
+いま環は無い（取得順は両者とも `infinite_listener` → `listeners`）ので、
+利用者に見える症状も無い。`listeners` を握る側が `infinite_listener` を触る日が来ると環になる。
+**文を分けて `await` の前にガードを落とすだけ**で消える。
+clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
