@@ -185,7 +185,20 @@ pub async fn open_project(
     // 2) restore 失敗 → full build
     let build_epoch = store.restart(Restart::Building);
 
-    let scanned = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
+    // **走査も逃がす。** ファイル1件ごとに `metadata` の syscall を回すので、
+    // 5万件・ネットワーク越しなら秒の単位。復元を逃がした理由
+    // （同じスレッドの `cancel_search` が動かなくなる）がそのまま当てはまる
+    let scanned = {
+        let root2 = root_dir.clone();
+        match tauri::async_runtime::spawn_blocking(move || {
+            scan_kifu_files(&root2, &ScanOptions::default())
+        })
+        .await
+        {
+            Ok(v) => v.map_err(|e| e.to_string())?,
+            Err(e) => return Err(format!("走査を実行できませんでした: {e}")),
+        }
+    };
     // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
     // その下の棋譜は索引に入らない——検索に出ないことの理由が要る
     if scanned.is_partial() {

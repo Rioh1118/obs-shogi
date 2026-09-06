@@ -13,7 +13,7 @@ use crate::search::index::file_build::build_file_index;
 use crate::search::read::diagnosis::{build_failure, scan_failure, unreadable_places};
 use crate::search::read::fs_scan::{
     carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
-    ScanOptions, ScanSnapshot,
+    ScanError, ScanOptions, ScanSnapshot,
 };
 use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
 use crate::search::store::index_store::IndexStore;
@@ -207,8 +207,19 @@ impl ProjectManager {
             (root, g.scan.clone(), g.path_to_id.clone(), g.next_file_id)
         };
 
-        // 再スキャン（雑にフルスキャンでOK：notify取りこぼしも補正できる）
-        let records = match scan_kifu_files(&root, &ScanOptions::default()) {
+        // 再スキャン（雑にフルスキャンでOK：notify取りこぼしも補正できる）。
+        // **`spawn_blocking` へ逃がす。** ファイル1件ごとに `metadata` と
+        // `canonicalize` の2回の syscall を回すので、大きなワークスペースでは
+        // 秒の単位で tokio のワーカーを1本握る。ここは debounce のタスクの中なので、
+        // 逃がさないと watcher のイベント処理まで止まる
+        let scan_root = root.clone();
+        let scanned = tauri::async_runtime::spawn_blocking(move || {
+            scan_kifu_files(&scan_root, &ScanOptions::default())
+        })
+        .await;
+        let records = match scanned
+            .unwrap_or_else(|e| Err(ScanError::Io(std::io::Error::other(e.to_string()))))
+        {
             Ok(v) => v,
             Err(e) => {
                 let _ = app.emit(
@@ -283,18 +294,44 @@ impl ProjectManager {
 
         let mut done_dirty: u32 = 0;
 
-        // removed → tombstone (cheap, fire immediately)
+        // **墓標は1回で立てる。** 1件ずつ `with_tombstone` を呼ぶと、そのたびに
+        // `FileTable` を丸ごと複製する（`paths` はファイル数ぶんの `String`）ので、
+        // 削除の件数 × 索引のファイル数になる。しかもその間ずっと
+        // `SnapshotCell` の書き込みロックを取り直すので、検索の読みが待たされる
+        let gone: Vec<FileId> = diff
+            .removed
+            .iter()
+            .filter_map(|path_key| path_to_id.remove(path_key))
+            .collect();
+        if !gone.is_empty() && !commit(&|s: &IndexSnapshot| s.with_tombstones(&gone)) {
+            return RescanOutcome::Superseded;
+        }
+
+        // **進捗は間引く。** `diff.removed` はフォルダを1つ移しただけで数千になる。
+        // 1件ごとに emit すると、直列化と IPC で tokio のワーカーを1本占有する
+        // （全件構築の側は同じ理由で既に間引いている）
+        let mut last_emit = std::time::Instant::now();
         for path_key in &diff.removed {
-            if let Some(file_id) = path_to_id.remove(path_key) {
-                if !commit(&|s: &IndexSnapshot| s.with_tombstone(file_id)) {
-                    return RescanOutcome::Superseded;
-                }
-            }
             done_dirty += 1;
+            if last_emit.elapsed() < crate::search::types::EMIT_INTERVAL {
+                continue;
+            }
+            last_emit = std::time::Instant::now();
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {
                     current_path: path_key.clone(),
+                    done_files: done_dirty,
+                    total_files: dirty_count,
+                },
+            );
+        }
+        // **最後の1回は必ず出す。** 間引きの谷で終わると、進捗が途中の数字のまま止まる
+        if !diff.removed.is_empty() {
+            let _ = app.emit(
+                EVT_INDEX_PROGRESS,
+                IndexProgressPayload {
+                    current_path: String::new(),
                     done_files: done_dirty,
                     total_files: dirty_count,
                 },
