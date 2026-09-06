@@ -21,8 +21,11 @@ main にあるか: **無い。この PR（`feature/book` → `main`）で入る�
 - コマンド6本 —— `open_book` / `lookup_book_moves` / `get_book_info` /
   `list_books` / `close_book` / `close_all_books`
 
-**読めるのは `.db` の1つだけ。** 残る3つは `UnsupportedFormat` で落ちる
-（「やねうら王バイナリ定跡 (.ybb) はまだ開けない。やねうら王テキスト定跡 (.db) なら開ける」）。
+**読めるのは `.db` の1つだけ。** 残る3つは `UnsupportedFormat` で落ちる。
+**文面をここへ写さない** —— 写した引用を突き合わせる検査が無いので、
+次に文言を直した人がここを置き去りにする。
+出典は `formats.rs` の `open_reader` で、`an_unsupported_format_tells_the_user_what_to_expect` が
+「利用者が次にやることで終わる」ことを見ている。
 
 ## 形式について確定していること
 
