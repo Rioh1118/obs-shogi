@@ -30,11 +30,8 @@ import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
 
 import { createChunkBuffer, type ChunkBufferApi } from "./chunkBuffer";
 import { PositionSearchContext } from "./context";
-import { initialState, reducer } from "./reducer";
-import type { Action, PositionSearchContextType, SearchLaunch, SearchSession } from "./types";
-
-/** 検索の持ち物を落とす合図。**この2つ以外は `state.sessions` を消さない** */
-type DropSearchAction = Extract<Action, { type: "open_start" | "clear_search" }>;
+import { initialState, reducer, type DropSearchAction } from "./reducer";
+import type { PositionSearchContextType, SearchLaunch, SearchSession } from "./types";
 
 const EMPTY_HITS: PositionHit[] = [];
 
@@ -128,7 +125,21 @@ export function PositionSearchProvider({
    */
   const dropSearch = useCallback(
     (action: DropSearchAction) => {
-      const requestId = action.type === "clear_search" ? action.payload.requestId : undefined;
+      // **既定を破壊側にしない。** 三項で書くと、合図が3つ目に増えたときに
+      // 黙って `undefined`（＝全部落とす）へ落ちる。ここで分類を迫る
+      let requestId: RequestId | undefined;
+      switch (action.type) {
+        case "open_start":
+          requestId = undefined;
+          break;
+        case "clear_search":
+          requestId = action.payload.requestId;
+          break;
+        default: {
+          const exhaustive: never = action;
+          return exhaustive;
+        }
+      }
 
       chunkBuffer.stopAccepting(requestId);
       if (requestId == null) hitsCacheRef.current.clear();

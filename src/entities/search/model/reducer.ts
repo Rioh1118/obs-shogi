@@ -1,6 +1,14 @@
 import type { RequestId } from "../api/ids";
 import type { Action, FilePathById, MergeFilesInput, SearchSession, SearchState } from "./types";
 
+/**
+ * `state.sessions` を落とすアクション。**この列挙はここが出典**——`sessions` を
+ * 消す `case` を足す人が、同じファイルで気づけるようにしておく。
+ * 消す側の手順（溜め場を閉じる → 置き場を捨てる → dispatch）は
+ * `model/provider.tsx` の `dropSearch` が持つ。
+ */
+export type DropSearchAction = Extract<Action, { type: "open_start" | "clear_search" }>;
+
 export const initialState: SearchState = {
   index: {
     state: "Empty",
