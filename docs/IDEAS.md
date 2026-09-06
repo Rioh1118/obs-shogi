@@ -68,3 +68,26 @@
 - **合流 / transposition を DAG として扱う** — ShogiHome issue #236（30コメント。**コメント数は2位で、ユニーク参加者は2名** → `research/findings/L2-transposition-demand.md`）が「木構造では千日手や局面の合流に対応できない、グラフを直接可視化・編集したい」と要求し未解決のまま。KIF/KI2/CSA いずれも仕様として合流を持たない。横断検索側は `PositionKey`(SFEN由来) なので既に合流に強く、棋譜内表現だけが木。**差別化の最有力候補**だが、着手前に現行 `normalizedTree` の設計影響を調べること
 - **「ShogiHome で開く」導線** — エンジン/対局/検討 GUI を自前で磨くより価値が高い可能性
 - **棋譜ブログ向けの出力** — ShogiHome #1271（複数棋譜横断の一括局面図）が 2025-07 から open のまま
+
+## SCSS の既存の負債（`refactor/app-shell-wiring` のレビューで出たもの）
+
+`.claude/reviews/2026-09-06-app-shell-wiring-r1.md` の ui reviewer が挙げた5件。
+**その PR は SCSS を1行も触っていない**ので範囲外にした。どれも単独では
+着手する価値を判断できていない。
+
+- **`--kifu-w` が2ファイルで別の意味で定義されている** — `.kifu` が自分の上で
+  `29rem` を再定義するので `.workspace` の `clamp(...)` は内側では見えない。
+  1280px 幅で約4rem ずれる。`.kifu` を別の場所に置いた瞬間に 29rem 固定へ戻る
+- **`AppLayout.scss` が widget のルートクラスを名指しで上書きしている** — 打ち消しに
+  見える `border` / `box-shadow` / `background` は元の宣言が無く、何も打ち消していない。
+  寸法の契約が page と widget の2ファイルに割れている
+- **解析ペインの `--active` が効かない** — `.analysis-header__icon` が svg に直接
+  `color` を宣言していて親の `color` が継承に負ける。オン状態の表現も
+  「クラス」「`aria-pressed` だけ」「アイコン差し替え」の3通りに割れている。
+  向きのトグルは `?pov=gote` が付いていても見た目が素の状態と同じ
+- **閉じたサイドバーの `transition` が一度も走らない** — 実際に変わるのは親の
+  `grid-template-columns` と登録されていないカスタムプロパティで、どちらも遷移しない。
+  仕切り線もスロットと `.sidebar` の2箇所で別々の直値で引かれている
+- **メディアクエリの breakpoint が13種類の直値で散っている** — 対象幅（1280px 以上）では
+  1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
+  `@media` の条件部を対象外にしている
