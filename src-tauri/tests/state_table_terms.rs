@@ -31,7 +31,7 @@ const TABLES: &[(&str, &[&str])] = &[
             "src/book/reader.rs",
             "src/book/formats.rs",
             "src/book/sfen.rs",
-            "src/book/yaneuraou_db.rs",
+            "src/book/yaneuraou_db",
         ],
     ),
     (
