@@ -542,6 +542,11 @@ mod tests {
     /// 起動しないと `analyzer` の側は動かないが、`take_session` /
     /// `release_session` は `active_sessions` しか触らないので、
     /// ここだけを回せる。回さないと、セッションを閉じ忘れる口が素通りする。
+    ///
+    /// **停止まで通す検査も回せる。** `analyzer.stop_analysis()` は
+    /// エンジンが居なければ `Ok` に落ちる（`analyzer.rs`）ので、席の出入りだけが残る。
+    /// 裏を返すと、**ここで見えるのは台帳だけ**——エンジンに `stop` が届いたかは
+    /// どのテストも見ていない。
     fn bridge() -> EngineBridge {
         EngineBridge::new(Arc::new(EngineRegistry::new()))
     }
@@ -643,7 +648,7 @@ mod tests {
         bridge.release_session(&mine).await;
     }
 
-    /// `session_id` を省いた停止が席を空けること。
+    /// `session_id` を省いた停止が席を空けること。**見ているのは台帳だけ**（→ `bridge`）。
     ///
     /// **席の ID を持てない呼び手が居る。** 画面が畳まれた後の後始末は、
     /// 握っている ID が席の主とずれていることがあるので指せない
@@ -656,10 +661,37 @@ mod tests {
 
         bridge.take_session(SessionType::Infinite).await.unwrap();
 
-        assert!(bridge.stop_analysis_impl(None).await.is_ok());
+        assert!(
+            bridge.stop_analysis_impl(None).await.is_ok(),
+            "エンジンが居ないときの停止が失敗している"
+        );
         assert!(
             bridge.take_session(SessionType::Infinite).await.is_ok(),
             "指さない停止の後も席が埋まったまま"
         );
+    }
+
+    /// 指した停止が、公開している口でも他人の席を触らないこと。
+    ///
+    /// 照合しているのは `stop_session` だが、**外から通るのは
+    /// `stop_analysis_impl`**。ここを通さずに検査していると、
+    /// 「`session_id` はログにだけ使い、常に全部止める」に書き換えても緑のまま通る。
+    /// そのとき、古い `sessionId` を握った画面の停止が、
+    /// **いま走っている別の解析を黙って殺す**。
+    #[tokio::test]
+    async fn stopping_by_a_stale_name_does_not_touch_the_running_one() {
+        let bridge = bridge();
+        let mine = bridge.take_session(SessionType::Infinite).await.unwrap();
+
+        let refused = bridge
+            .stop_analysis_impl(Some("someone-elses-id".to_string()))
+            .await;
+        assert!(refused.is_err(), "知らない ID が成功している");
+
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_err(),
+            "知らない ID で走っているセッションが消えてしまった"
+        );
+        bridge.release_session(&mine).await;
     }
 }
