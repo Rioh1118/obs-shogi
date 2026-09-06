@@ -5,7 +5,6 @@ import {
   useReducer,
   useRef,
   useState,
-  type Dispatch,
   type ReactNode,
 } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -22,167 +21,19 @@ import type {
   IndexStatePayload,
   IndexWarnPayload,
   SearchBeginPayload,
-  SearchChunkPayload,
   SearchEndPayload,
   SearchErrorPayload,
 } from "../api/events";
-import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
+import type { PositionHit, RequestId } from "../api/ids";
 
 import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
 
+import { createChunkBuffer, type ChunkBufferApi } from "./chunkBuffer";
 import { PositionSearchContext } from "./context";
 import { initialState, reducer } from "./reducer";
-import type { Action, PositionSearchContextType, SearchSession } from "./types";
+import type { PositionSearchContextType, SearchSession } from "./types";
 
 const EMPTY_HITS: PositionHit[] = [];
-
-/**
- * 届いたチャンクを溜めておく時間（ms）。
- *
- * **1チャンク1レンダにしない。** Rust は `yield_now` を挟んで実時間に散らして
- * emit する（`src-tauri/src/search/query_service.rs`）ので、チャンクは結果の
- * 件数ぶん飛んでくる——この画面が要求する 300 件区切り
- * （`features/position-search/ui/PositionSearchModal.tsx`）なら n=100,000 で 334 回。1回ごとに
- * state を作り直すと、10万件の `filePathById` と一覧の平坦化を 334 回やり直す。
- *
- * 溜めると、その回数が**件数でなく経過時間**で決まるようになる。50ms は
- * 「結果が育っていくのが見える」ことと「回数の上限（20回/秒）」の折り合い。
- * 検索の完了・失敗はここを待たずに吐き出すので、終わりが遅れることはない。
- */
-const CHUNK_FLUSH_MS = 50;
-
-/** まだ dispatch していない到着ぶん */
-type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
-
-/**
- * 溜め場と、そこへ入れてよいかの門。
- *
- * **溜めたぶんを捨てるだけでは門にならない。** `open_start` はセッションを全部
- * 落とすが、Rust の `open_project` は進行中の検索を1つもキャンセルしない
- * （`src-tauri/src/search/commands.rs`）。その後も同じ rid のチャンクが届くので、
- * 入口で弾かないと `ensureSession` が消えたセッションを作り直し、
- * `currentRequestId` と `filePathById` が**古い根のものへ戻る**。
- *
- * 線は「これより前の rid は受け取らない」で引く。rid は Rust 側で単調に増える
- * （`QueryService::next_request_id`）ので、線より後に始まった検索は必ず通る。
- * **通すのが既定**なので、`search_begin` を1発取りこぼしても結果が黙って
- * 0件になることはない。
- */
-type ChunkBufferApi = {
-  /** 1つ届いた。受け取ってよければ溜める */
-  enqueue: (p: SearchChunkPayload) => void;
-  /** 溜めたぶんを吐き出す。待ち時間は待たない */
-  flush: () => void;
-  /**
-   * 以後この検索のチャンクを受け取らない。溜めたぶんも**吐き出さずに**捨てる。
-   * `requestId` を省くと「いま在る検索は全部」——`open_start` がそれに当たる。
-   */
-  stopAccepting: (requestId?: RequestId) => void;
-  /** 検索が1つ始まった。線を引く位置に要る */
-  noteRequest: (requestId: RequestId) => void;
-  /** この検索をまだ受け取ってよいか。**チャンク以外の口もここを通す** */
-  isAccepting: (requestId: RequestId) => boolean;
-  /** 受け取りを開ける／閉じる。effect の setup と cleanup で対にする */
-  activate: () => void;
-  deactivate: () => void;
-};
-
-/**
- * **起こし手ごと1つの object に閉じる。**
- *
- * 購読の effect（`listenSearchEvents`）はここから `enqueue` と `flush` を呼ぶ。
- * 起こし手が `useCallback` のままだと、その effect の依存に載せることになり、
- * **同一性が変われば tauri の購読が張り直る**。`listen` は IPC の往復を待つので、
- * 張り直しの隙間に emit されたチャンクは誰にも届かず、エラーも出ずに件数だけ減る。
- * 同一性の変わらない object に入れておけば、その形が作れない。
- *
- * `dispatch` は `useReducer` が返すもので、React が同一性を保証している。
- */
-function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
-  const pending = new Map<RequestId, PendingChunks>();
-  /** 明示的に捨てた rid（`clear_search`）。線より後のものだけがここに要る */
-  const dead = new Set<RequestId>();
-
-  let timer: number | null = null;
-  let active = true;
-  /** `open_start` が引いた線。**これより前**の rid は受け取らない */
-  let firstLiveRid: RequestId = 1;
-  /** 見た中で最大の rid。線を引く位置に使う */
-  let maxSeenRid: RequestId = 0;
-
-  const cancelTimer = () => {
-    if (timer == null) return;
-    window.clearTimeout(timer);
-    timer = null;
-  };
-
-  const flush = () => {
-    cancelTimer();
-    if (pending.size === 0) return;
-
-    // **溜め場を先に空にする**——dispatch の最中に届いたチャンクは次の回のもので、
-    // 後から消すと落ちる
-    const batches = [...pending];
-    pending.clear();
-
-    for (const [requestId, { chunks, files }] of batches) {
-      dispatch({ type: "search_chunks", payload: { requestId, chunks, files } });
-    }
-  };
-
-  const noteRequest = (requestId: RequestId) => {
-    if (requestId > maxSeenRid) maxSeenRid = requestId;
-  };
-
-  const isAccepting = (requestId: RequestId) =>
-    active && requestId >= firstLiveRid && !dead.has(requestId);
-
-  return {
-    flush,
-    noteRequest,
-    isAccepting,
-
-    enqueue: (p) => {
-      noteRequest(p.requestId);
-      if (!isAccepting(p.requestId)) return;
-
-      const cur = pending.get(p.requestId);
-      if (cur) {
-        cur.chunks.push(p.chunk);
-        for (const f of p.files) cur.files.push(f);
-      } else {
-        pending.set(p.requestId, { chunks: [p.chunk], files: [...p.files] });
-      }
-
-      if (timer == null) timer = window.setTimeout(flush, CHUNK_FLUSH_MS);
-    },
-
-    stopAccepting: (requestId) => {
-      if (requestId == null) {
-        pending.clear();
-        // いま在るものは全部止める。次の検索の rid は必ずこれ以上になる
-        firstLiveRid = maxSeenRid + 1;
-        // 線より前は `firstLiveRid` が受け持つので、個別に覚えておく必要は無い
-        dead.clear();
-      } else {
-        pending.delete(requestId);
-        if (requestId >= firstLiveRid) dead.add(requestId);
-      }
-
-      if (pending.size === 0) cancelTimer();
-    },
-
-    activate: () => {
-      active = true;
-    },
-
-    deactivate: () => {
-      cancelTimer();
-      pending.clear();
-      active = false;
-    },
-  };
-}
 
 type HitsCacheEntry = {
   /**
@@ -262,6 +113,25 @@ export function PositionSearchProvider({
     return () => chunkBuffer.deactivate();
   }, [chunkBuffer]);
 
+  /**
+   * その検索の持ち物を落とす。**rid で引ける置き場は3つある**——`state.sessions`
+   * （reducer）、溜め場（`chunkBuffer`）、平坦化のキャッシュ（`hitsCacheRef`）。
+   * どれか1つに伝え忘れると、消えたはずのセッションが次の吐き出しで
+   * `ensureSession` に作り直される。**3つとも同じ順でしか落とせない形にしておく**
+   * ——入口を閉じるのが先で、置き場を捨てるのが後。
+   *
+   * `requestId` を省くと「いま在る検索は全部」（`open_start` がそれに当たる）。
+   * reducer への dispatch は呼び手が続けて出す。
+   */
+  const dropSessions = useCallback(
+    (requestId?: RequestId) => {
+      chunkBuffer.stopAccepting(requestId);
+      if (requestId == null) hitsCacheRef.current.clear();
+      else hitsCacheRef.current.delete(requestId);
+    },
+    [chunkBuffer],
+  );
+
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
   useEffect(() => {
     let cancelled = false;
@@ -325,15 +195,7 @@ export function PositionSearchProvider({
     async (rd: string): Promise<OpenProjectOutput> => {
       if (openInFlightRef.current) return openInFlightRef.current;
 
-      // `open_start` はセッションを全部落とす。**溜めたぶんを捨てるだけでは足りない**
-      // ——Rust の `open_project` は進行中の検索をキャンセルしないので、この後も
-      // 同じ rid のチャンクが届く。入口ごと閉じないと、消えたはずのセッションが
-      // 次の吐き出しで `ensureSession` に作り直される
-      chunkBuffer.stopAccepting();
-      // `open_start` は `sessions` を空にする。**平坦化の置き場も一緒に落とす**——
-      // 残すと、消えたセッションの `flat` と `snapshot` を生かしているのが
-      // この Map だけになる
-      hitsCacheRef.current.clear();
+      dropSessions();
       dispatch({ type: "open_start", payload: { rootDir: rd } });
 
       openInFlightRef.current = (async () => {
@@ -352,7 +214,7 @@ export function PositionSearchProvider({
 
       return openInFlightRef.current;
     },
-    [chunkBuffer],
+    [dropSessions],
   );
 
   /**
@@ -489,13 +351,10 @@ export function PositionSearchProvider({
   const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
   const clearSearch = useCallback(
     (requestId: RequestId) => {
-      // 溜めたぶんも一緒に捨てる。残すと、消したセッションが次の吐き出しで
-      // `ensureSession` に作り直される
-      chunkBuffer.stopAccepting(requestId);
-      hitsCacheRef.current.delete(requestId);
+      dropSessions(requestId);
       dispatch({ type: "clear_search", payload: { requestId } });
     },
-    [chunkBuffer],
+    [dropSessions],
   );
 
   const value = useMemo<PositionSearchContextType>(
