@@ -64,13 +64,14 @@ describe("usePositionHitNavigation", () => {
     expect(applyCursor).not.toHaveBeenCalled();
   });
 
-  test("ツリーを切り替えられたら true（局面はファイルが読めてから当たる）", () => {
+  test("ツリーを切り替えられたら true。局面はまだ当てない", () => {
     selectNodeByAbsPath.mockReturnValue(true);
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
     expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe(true);
     expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/b.kif");
+    expect(applyCursor).not.toHaveBeenCalled();
   });
 
   test("同じ棋譜が盤に載っていれば、その場で局面へ当てて true", () => {
