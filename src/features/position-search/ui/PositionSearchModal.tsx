@@ -262,9 +262,10 @@ export default function PositionSearchModal() {
     [orderedHits, activeIndex],
   );
 
-  // 行に渡すものは `rowProps` の `useMemo` に載り、そこから `PositionHitItem` の
-  // `memo` に届く。毎レンダ新しい関数を渡すとどちらも外れる。
-  // **`startNavigationToHit` 自身がツリーの選択で変わる**ので、これだけでは
+  // `rowProps`（`PositionSearchHitList`）の値が1つでも変われば、仮想リストは
+  // 見えている行を描き直す。**行数には比例しない**（到達するのは可視ぶん＋overscan
+  // の約31行）ので、ここを安定させても減るのはその31行ぶんだけ。
+  // **`startNavigationToHit` 自身がツリーの選択で変わる**ので、どのみち
   // 完全には安定しない
   const accept = useCallback(
     (hit: PositionHit) => {
