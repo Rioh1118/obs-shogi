@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { StrictMode } from "react";
 import { act, cleanup, render } from "@testing-library/react";
 
 /**
@@ -100,6 +101,42 @@ describe("索引を開く合図", () => {
       render(app("/ws"));
     });
 
+    expect(openedRoots()).toEqual(["/ws"]);
+  });
+
+  /**
+   * 購読 effect が名乗る「StrictMode-safe」を実際に踏む。
+   *
+   * 二度マウントされると、1回目は**畳まれてから**購読が決着する。畳まれた回が門を
+   * 開けると、2回目の購読がまだ張れていないうちに `open_project` が飛び、
+   * `Restoring` の最初の1発を取りこぼす（r1-06 が潰した形）。
+   *
+   * ここでは1回目を失敗、2回目を保留にして、**畳まれた回の決着では開かない**ことを見る。
+   */
+  test("畳まれた回の購読が決着しても、生きている回の門は開かない", async () => {
+    let letSecondListenFinish!: (unlisten: () => void) => void;
+    let attempt = 0;
+    listenImpl = () => {
+      attempt += 1;
+      if (attempt === 1) return Promise.reject(new Error("listen failed"));
+      return new Promise((resolve) => (letSecondListenFinish = resolve));
+    };
+
+    await act(async () => {
+      render(
+        <StrictMode>
+          <PositionSearchProvider rootDir="/ws">
+            <div />
+          </PositionSearchProvider>
+        </StrictMode>,
+      );
+    });
+    expect(attempt).toBe(2);
+    expect(openedRoots()).toEqual([]);
+
+    await act(async () => {
+      letSecondListenFinish(() => {});
+    });
     expect(openedRoots()).toEqual(["/ws"]);
   });
 
