@@ -9,13 +9,16 @@ import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { describeFsError, readText } from "@/entities/file-tree";
-import { cursorKey } from "@/entities/kifu/model/cursor";
+import { cursorKey, type CursorPath } from "@/entities/kifu/model/cursor";
 
 type Props = {
   activeHit: PositionHit | null;
   resolveAbsPath: (hit: PositionHit) => string | null;
   ply?: number;
 };
+
+/** 1回の読みに要るもの（どのファイルの、どの局面か）と、その同一性の鍵 */
+type ReadTarget = { abs: string; cursor: CursorPath; key: string };
 
 class Lru<K, V> {
   private map: Map<K, V>;
@@ -67,26 +70,44 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
   const jkfCacheRef = useRef(new Lru<string, JKFData>(16));
   const seqRef = useRef(0);
 
-  const key = useMemo(() => {
-    if (!activeHit) return null;
-    const abs = resolveAbsPath(activeHit);
-    if (!abs) return null;
+  const targetRef = useRef<ReadTarget | null>(null);
 
-    return `${abs}::${cursorKey(cursorFromLite(activeHit.cursor))}`;
+  /**
+   * **鍵が同じなら、前に作った object をそのまま返す。**
+   *
+   * `resolveAbsPath` は `filePathById` を閉じ込めていて、チャンクが新しい
+   * fileId を1つでも運んでくると同一性が壊れる（`entities/search/model/reducer.ts`
+   * の `mergeFiles`）。Rust はほぼ全チャンクに `files` を付けて emit するので、
+   * 素直に組むと**選択が動いていないのに**下の effect がチャンクごとに走り、
+   * 右ペインが「取得中…」へ差し替わって検索が終わるまで点滅し続ける。
+   *
+   * 鍵は `abs` と `cursorKey` の組なので、**鍵が同じなら中身も同じ**。引けなかった
+   * パスが後から索引に入った場合は `abs` が変わるので鍵も変わり、読み直される。
+   */
+  const target = useMemo<ReadTarget | null>(() => {
+    const next = ((): ReadTarget | null => {
+      if (!activeHit) return null;
+      const abs = resolveAbsPath(activeHit);
+      if (!abs) return null;
+
+      const cursor = cursorFromLite(activeHit.cursor);
+      return { abs, cursor, key: `${abs}::${cursorKey(cursor)}` };
+    })();
+
+    const prev = targetRef.current;
+    if (prev && next && prev.key === next.key) return prev;
+
+    targetRef.current = next;
+    return next;
   }, [activeHit, resolveAbsPath]);
 
   useEffect(() => {
-    if (!activeHit || !key) {
+    if (!target) {
       setMoves(null);
       setLoading(false);
       return;
     }
-    const abs = resolveAbsPath(activeHit);
-    if (!abs) {
-      setMoves(null);
-      setLoading(false);
-      return;
-    }
+    const { abs, cursor } = target;
 
     const mySeq = ++seqRef.current;
     setLoading(true);
@@ -99,7 +120,7 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
           jkfCacheRef.current.set(abs, data);
         }
 
-        const player = buildPlayer(data, cursorFromLite(activeHit.cursor));
+        const player = buildPlayer(data, cursor);
 
         const out: string[] = [];
         for (let i = 0; i < ply; i++) {
@@ -122,7 +143,7 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
         setLoading(false);
       }
     })();
-  }, [activeHit, key, resolveAbsPath, ply]);
+  }, [target, ply]);
 
   return (
     <section className="pos-search-cont" aria-label={`続き${ply}手`}>
