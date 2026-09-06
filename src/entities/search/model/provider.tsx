@@ -185,7 +185,7 @@ type HitsCacheEntry = {
    *
    * **チャンクを入れている配列の同一性では判定しない。** reducer は到着のたびに
    * `[...s.chunks, ...p.chunks]` で新しい配列へ差し替えるので、同一性で見ると
-   * 増分追記は**一度も起きない**（この形が実際に O(n²) を作っていた）。
+   * 増分追記は**一度も起きず**、毎回先頭から n 件を作り直すことになる。
    */
   lastChunk: PositionHit[] | null;
   consumed: number;
