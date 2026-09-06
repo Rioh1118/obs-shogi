@@ -1,6 +1,15 @@
 /**
  * 通知の語彙。分類は ADR-0004 が決めている。ここはその型だけを持つ。
  *
+ * **名前の規則は2つ。** 出す側が書くものは `Notify*`（`NotifyTier` / `NotifyAction` /
+ * `NotifyRequest` / `NotifyPresentation`）、基盤が持つものは `Notification*`。
+ * `NotifyAction`（利用者が押すボタン）と `NotificationAction`（reducer への指令）は
+ * 別物なので、取り違えないこと。
+ *
+ * **`Notification` は DOM のグローバルと同名。** あちらも `title` / `body` / `silent` を
+ * 持つので、import を忘れた新しいファイルは型検査を素通りする。この型を使うときは
+ * import があることを確かめること。
+ *
  * **状態としてのエラーはここに来ない**（ADR-0004 決定6）。各スライスの
  * `state.error` は「解析が止まっている」「ツリーが読めていない」を表すもので、
  * 通知を消しても状態は消えない。両者を1つにすると、通知を閉じた瞬間に

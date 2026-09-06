@@ -92,6 +92,16 @@ function foldInto(
   };
 }
 
+/**
+ * 通知の置き場の状態遷移。**呼び出し規約は3つ。**
+ *
+ * - `silent` の段は何も積まない（ADR-0004 決定2）
+ * - 同じ `dedupeKey` は畳む。件数だけが増え、id と並び順は動かず、採番も進まない
+ * - 消えるものが無い `dismiss` / `dismissByKey` は**同じ参照を返す**
+ *
+ * どれも「呼んだのに何も起きない」形なので、外から見て区別が付かない。
+ * 変えるときは `__tests__/reducer.test.ts` が3つとも固定していることを確かめること。
+ */
 export function notificationReducer(
   state: NotificationState,
   action: NotificationAction,

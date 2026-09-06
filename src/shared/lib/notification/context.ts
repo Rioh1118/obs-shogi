@@ -12,5 +12,11 @@ import type { Notification, NotificationActions } from "./types";
  */
 export const NotificationActionsContext = createContext<NotificationActions | undefined>(undefined);
 
-/** 出ているもの。購読するのは `NotificationLayer` だけ */
+/**
+ * 出ているもの。購読するのは `NotificationLayer` だけ。
+ *
+ * **どちらの context も直に `useContext` しない。** 素で読むと囲い忘れが
+ * `undefined` として通り、通知を出したつもりで何も出ていない状態になる。
+ * 入口は `useNotify`（出す側）と `useNotifications`（描く側）の2つ。
+ */
 export const NotificationListContext = createContext<Notification[] | undefined>(undefined);
