@@ -3,23 +3,37 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import { describeFsError, readText } from "@/entities/file-tree";
 
 /**
- * 抱えておく棋譜の量の上限（原文の文字数）。
+ * 抱えておく棋譜の量の上限（byte）。
  *
- * **件数で決めない。** 局面検索のヒットは1ファイル1件になりやすい——同じ棋譜に
- * 同じ局面が2度出るのは千日手か合流のときだけ——ので、件数で切ると
- * 一覧を矢印で降りたときに**ほぼ全打鍵が外れる**。
+ * **件数で決めない。** 件数で切ると、大きい棋譜ばかりを見ているときに抱える量が
+ * 青天井になる。量で切れば「大きい棋譜は少ししか抱えられない」という形になる。
+ * （当たり率は件数で切っても量で切っても変わらない。ここで決めているのは
+ * メモリの上限だけ）
  *
- * 数えるのは読んだ原文の長さで、抱えている JKF の実寸ではない。実寸を測ると
- * 測る側が持ち物に比例した仕事をすることになる。**多めに見積もる向きの
- * 誤差ではない**（JKF は原文より大きい）ので、上限は控えめに置く。
+ * 24MB は、120手の棋譜なら約 500 本ぶん。一覧を1本ずつ降りる使い方で、
+ * 1回モーダルを開いている間に触る本数を超える見積り。
  */
-export const MAX_CACHED_CHARS = 2_000_000;
+export const MAX_CACHED_BYTES = 24_000_000;
+
+/**
+ * 原文1文字あたりの保持量（byte）。
+ *
+ * **実寸を測らない。** 測る側が持ち物に比例した仕事をすることになる。読んだ原文の
+ * 長さに係数を掛けて見積もる。
+ *
+ * 実測で 11.9（120手・コメント無しの KIF を 516 本保持したときの heapUsed 差分。
+ * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` H-3）。分岐が多い
+ * 研究用やエンジン解析コメント付きはこれより大きいので、**下限寄りの値**。
+ * 測り直したら `MAX_CACHED_BYTES` の「約 500 本」も一緒に見直すこと。
+ */
+const BYTES_PER_SOURCE_CHAR = 12;
 
 export type LoadedKifu = { jkf: JKFData; sourceChars: number };
 
 type Entry = {
   value: Promise<LoadedKifu>;
-  chars: number;
+  /** 見積もった保持量。解決するまでは 0 */
+  bytes: number;
   /** 読み終わったか。**未解決は追い出しの対象にしない**（`evict` の doc） */
   settled: boolean;
 };
@@ -56,11 +70,11 @@ async function loadKifu(absPath: string): Promise<LoadedKifu> {
 export class KifuCache {
   /** 挿入順が「古い順」。取り出したものは末尾へ入れ直す */
   private entries = new Map<string, Entry>();
-  private chars = 0;
-  private readonly maxChars: number;
+  private bytes = 0;
+  private readonly maxBytes: number;
 
-  constructor(maxChars: number = MAX_CACHED_CHARS) {
-    this.maxChars = maxChars;
+  constructor(maxBytes: number = MAX_CACHED_BYTES) {
+    this.maxBytes = maxBytes;
   }
 
   /** 待たずに済むか。読んでいる最中も真（`read_file` はもう飛んでいる） */
@@ -76,16 +90,16 @@ export class KifuCache {
       return hit.value;
     }
 
-    const entry: Entry = { value: loadKifu(absPath), chars: 0, settled: false };
+    const entry: Entry = { value: loadKifu(absPath), bytes: 0, settled: false };
     this.entries.set(absPath, entry);
 
     entry.value.then(
       (loaded) => {
         // 解決を待つあいだに追い出されていたら、量に数え直さない
         if (this.entries.get(absPath) !== entry) return;
-        entry.chars = loaded.sourceChars;
+        entry.bytes = loaded.sourceChars * BYTES_PER_SOURCE_CHAR;
         entry.settled = true;
-        this.chars += loaded.sourceChars;
+        this.bytes += entry.bytes;
         this.evict();
       },
       () => {
@@ -110,15 +124,15 @@ export class KifuCache {
    * **最後の1つは残す**（1本で上限を超える棋譜がある）。
    */
   private evict() {
-    if (this.chars <= this.maxChars) return;
+    if (this.bytes <= this.maxBytes) return;
 
     // 挿入順＝古い順。末尾は直近に使ったものなので残す
     const settled = [...this.entries].filter(([, entry]) => entry.settled);
 
     for (const [absPath, entry] of settled.slice(0, -1)) {
-      if (this.chars <= this.maxChars) return;
+      if (this.bytes <= this.maxBytes) return;
       this.entries.delete(absPath);
-      this.chars -= entry.chars;
+      this.bytes -= entry.bytes;
     }
   }
 }

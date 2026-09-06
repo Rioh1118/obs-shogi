@@ -349,7 +349,7 @@ describe("同じ棋譜への読み", () => {
    * いること（件数で切ると、大きい棋譜ばかりのときに際限なく抱える）
    */
   test("上限を超えたら古いものから落とす", async () => {
-    // 2本で上限（原文 2,000,000 文字）を超える大きさ
+    // 2本で上限（`MAX_CACHED_BYTES`）を超える大きさ
     const huge = "x".repeat(1_100_000);
     readText.mockResolvedValue({ success: true, data: huge });
 

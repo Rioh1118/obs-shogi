@@ -18,8 +18,15 @@ vi.mock("@/entities/kifu/api/parse", () => ({
 
 const { KifuCache } = await import("../kifuCache");
 
-/** `n` 文字の棋譜として解決する */
-const okOf = (n: number) => ({ success: true, data: "x".repeat(n) });
+/**
+ * `n` byte ぶんを抱えることになる棋譜として解決する。
+ * 置き場は原文の長さに係数を掛けて見積もるので、ここでも割ってから渡す
+ */
+const BYTES_PER_SOURCE_CHAR = 12;
+const okOf = (bytes: number) => ({
+  success: true,
+  data: "x".repeat(Math.ceil(bytes / BYTES_PER_SOURCE_CHAR)),
+});
 
 /** 解決を試験の側から握る */
 function pending() {
