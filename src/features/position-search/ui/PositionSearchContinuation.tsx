@@ -32,7 +32,7 @@ type ReadTarget = { abs: string; cursor: CursorPath; key: string };
  * 通り過ぎた行の中身は誰も見ないので、止まったときだけ読めばよい。
  *
  * **読み込み済み（または読んでいる最中）なら待たない。** その場合 IPC は増えず、
- * 待つ理由が無い。先読み（下の `PREFETCH_STEP`）が効くのはここ。
+ * 待つ理由が無い。先読み（下の `PREFETCH_DELAY_MS`）が効くのはここ。
  */
 const READ_DEBOUNCE_MS = 150;
 
