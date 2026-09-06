@@ -28,6 +28,8 @@ import type {
 } from "../api/events";
 import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
 
+import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
+
 import { PositionSearchContext } from "./context";
 import { initialState, reducer } from "./reducer";
 import type { Action, PositionSearchContextType, SearchSession } from "./types";
@@ -421,9 +423,7 @@ export function PositionSearchProvider({
       // 前に取り込んだところまでが、いまの並びの先頭とそのまま一致しているか。
       // 一致していれば末尾だけ足せばよい
       const canAppend =
-        !!cache &&
-        cache.consumed <= chunks.length &&
-        (cache.consumed === 0 || chunks[cache.consumed - 1] === cache.lastChunk);
+        !!cache && isAppendOnlyContinuation(chunks, cache.consumed, cache.lastChunk);
 
       if (canAppend && cache.consumed === chunks.length) return cache.snapshot;
 

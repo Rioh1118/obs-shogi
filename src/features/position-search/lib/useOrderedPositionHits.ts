@@ -1,6 +1,7 @@
 import { useRef } from "react";
 
 import type { PositionHit } from "@/entities/search";
+import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
 
 /**
  * 振り分けの途中経過。
@@ -51,8 +52,7 @@ export function useOrderedPositionHits(
 
   const canAppend =
     cache.currentAbs === currentAbs &&
-    cache.consumed <= hits.length &&
-    (cache.consumed === 0 || hits[cache.consumed - 1] === cache.lastHit);
+    isAppendOnlyContinuation(hits, cache.consumed, cache.lastHit);
 
   if (canAppend && cache.consumed === hits.length) return cache.ordered;
 
