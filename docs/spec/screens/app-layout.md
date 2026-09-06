@@ -2,7 +2,8 @@
 
 対象: `src/pages/AppLayout.tsx` `src/widgets/app-layout-header/`
 `src/widgets/sidebar/Sidebar.tsx` `src/pages/WelcomeScreen.tsx`
-`src/shared/ui/TitleBar.tsx`
+`src/shared/ui/TitleBar.tsx` `src/features/board-orientation/`
+`src/features/clear-board-selection/`
 
 ## 目的
 
@@ -51,9 +52,9 @@
 
 ### サイドバー
 
-`Sidebar` は `isOpen` が偽なら `null` を返す（アンマウントする）。
-中身は `<Outlet />` で、いま入るのは `/app/panel/filetree` だけ。
-→ [file-tree.md](file-tree.md)
+`Sidebar` は器で、`isOpen` が偽なら `null` を返す（アンマウントする）。
+**中身は自分では決めない。** `AppLayout` が `<Outlet />` を `children` として渡し、
+いま入るのは `/app/panel/filetree` だけ。→ [file-tree.md](file-tree.md)
 
 ### WelcomeScreen
 
@@ -79,7 +80,11 @@
 | ヘッダの本アイコン     | `modal=study-positions` を開く                               |
 | ヘッダの歯車           | `modal=settings&tab=general` を開く（※タブ名は実在しない）   |
 | 盤・駒台の**外**を押す | 駒の選択を解除する                                           |
-| 別の棋譜を開く         | `pov` を落とす（盤の向きは棋譜をまたいで持ち越さない）       |
+| 別の棋譜が盤に載る     | `pov` を落とす（盤の向きは棋譜をまたいで持ち越さない）※      |
+
+※ 落ちるのは**盤に載っている棋譜**が変わったときだけ。ツリーの選択が動いただけ、
+開いたが盤に載せられなかった、では落ちない。開いている棋譜の改名では落ちる（既知）。
+→ [board-orientation.md](../../state-transitions/board-orientation.md)
 
 ### 盤の外を押すと選択が解除される
 
