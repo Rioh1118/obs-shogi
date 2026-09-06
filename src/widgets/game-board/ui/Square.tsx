@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "./Square.scss";
+import { boardSquareMarker } from "@/features/clear-board-selection";
 
 interface SquareProps {
   x: number;
@@ -25,7 +26,7 @@ function Square({
   return (
     <div
       className={`square ${isHighlighted ? "square__highlighted" : ""} ${isLastMove ? "square__last-move" : ""} ${isSelected ? "square--selected" : ""}`}
-      data-board-square="true"
+      {...boardSquareMarker}
       data-x={x}
       data-y={y}
       data-index={index}

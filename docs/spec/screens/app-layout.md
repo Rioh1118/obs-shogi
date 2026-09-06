@@ -83,9 +83,12 @@
 
 ### 盤の外を押すと選択が解除される
 
-`onPointerDownCapture` が `[data-board-square]` と `[data-hand-area]` の
-外側を拾って `clearSelection()` を呼ぶ。**キャプチャ段階で拾う**ので、
-下にあるボタンの `onClick` より先に走る。
+`onPointerDownCapture` が盤の内側の外を拾って `clearSelection()` を呼ぶ。
+**キャプチャ段階で拾う**ので、下にあるボタンの `onClick` より先に走る。
+
+捕まえるのはページの根（盤より広い範囲を見ないと「外」を判定できない）だが、
+**何が内側かは `src/features/clear-board-selection/` が持つ**。升と駒台に付ける
+目印もそこから来るので、ページは盤の目印の綴りを知らない。
 
 ## 失敗の見せ方
 

@@ -14,13 +14,14 @@ import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
+import { useClearBoardSelection } from "@/features/clear-board-selection";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
   // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
   // どのパネルを出すかは URL（`panel/*`）が持つが、開閉はそちらへ揃えない
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { view: gameView, state: gameState, clearSelection } = useGame();
+  const { view: gameView } = useGame();
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
 
@@ -28,14 +29,9 @@ const AppLayout = () => {
   // 判断はここに置く。**何をもって「ある」とするかは game が決める**
   const { hasKifu } = gameView;
 
-  const onPointerDownCapture = (e: React.PointerEvent) => {
-    if (!gameState.selectedPosition) return;
-    const el = e.target as HTMLElement | null;
-    if (!el) return;
-    if (el.closest('[data-board-square="true"]')) return;
-    if (el.closest('[data-hand-area="true"]')) return;
-    clearSelection();
-  };
+  // 「盤の外」は盤より広い範囲を見ないと判定できないので、捕まえるのはここ。
+  // 何が盤の内側かは feature が知っている
+  const onPointerDownCapture = useClearBoardSelection();
 
   return (
     <div
