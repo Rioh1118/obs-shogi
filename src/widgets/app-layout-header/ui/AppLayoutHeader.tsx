@@ -54,7 +54,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
               {info.fileLabel}
             </span>
 
-            {info.hasBadges && (
+            {info.hasKifu && (
               <span className="app-header__badges" aria-hidden="true">
                 <span className="app-header__badge app-header__badge--turn">
                   {info.turnGlyph} {info.turnText}

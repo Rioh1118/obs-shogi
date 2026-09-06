@@ -24,7 +24,6 @@ export type HeaderCenterInfo = {
   goteName: string | null;
   isPlayersShown: boolean;
 
-  hasBadges: boolean;
   turnGlyph: TurnGlyph;
   turnText: "先手番" | "後手番";
   tesuuText: string;
@@ -64,12 +63,11 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
     const isPlayersShown = hasKifu && Boolean(senteName || goteName);
 
     // バッジ（手番・手数）
-    const loaded = hasKifu;
 
     let turn = Color.Black;
     let tesuu = 0;
 
-    if (loaded && view.player) {
+    if (hasKifu && view.player) {
       try {
         turn = view.player.shogi.turn;
       } catch {
@@ -78,14 +76,14 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
       tesuu = state.cursor?.tesuu ?? view.player.tesuu ?? 0;
     }
 
-    const total = loaded ? getTotalMoves() : 0;
+    const total = hasKifu ? getTotalMoves() : 0;
 
     const isSenteTurn = turn === Color.Black;
     const glyph = turnGlyph(turn);
     const turnText = isSenteTurn ? "先手番" : "後手番";
 
-    const tesuuText = loaded ? `${tesuu}手目` : "";
-    const totalText = loaded ? `${tesuu}/${total}` : "";
+    const tesuuText = hasKifu ? `${tesuu}手目` : "";
+    const totalText = hasKifu ? `${tesuu}/${total}` : "";
 
     const playersTooltip = !hasKifu
       ? "ファイル未選択"
@@ -94,7 +92,7 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
         : `先手 ${senteName ?? "（不明）"} / 後手 ${goteName ?? "（不明）"}`;
 
     const tooltip = hasKifu
-      ? `${fileLabel} — ${playersTooltip}${loaded ? ` — ${turnText} ${totalText}` : ""}`
+      ? `${fileLabel} — ${playersTooltip}${hasKifu ? ` — ${turnText} ${totalText}` : ""}`
       : "ファイル未選択";
 
     return {
@@ -104,7 +102,6 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
       senteName,
       goteName,
       isPlayersShown,
-      hasBadges: loaded,
       turnGlyph: glyph,
       turnText,
       tesuuText,
