@@ -3,7 +3,6 @@ import type { AnalysisAction, AnalysisState } from "./types";
 
 export const initialState: AnalysisState = {
   isAnalyzing: false,
-  sessionId: null,
   currentPosition: null,
   analysisResults: [],
   candidates: [],
@@ -16,7 +15,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return {
         ...state,
         isAnalyzing: true,
-        sessionId: action.payload.sessionId,
         currentPosition: action.payload.position,
         error: null,
       };
@@ -25,7 +23,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return {
         ...state,
         isAnalyzing: false,
-        sessionId: null,
       };
 
     case "update_result": {

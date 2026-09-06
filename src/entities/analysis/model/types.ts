@@ -2,7 +2,6 @@ import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine";
 
 export interface AnalysisState {
   isAnalyzing: boolean;
-  sessionId: string | null;
   currentPosition: string | null; // SFEN
   analysisResults: AnalysisResult[];
   candidates: AnalysisCandidate[];
@@ -10,7 +9,7 @@ export interface AnalysisState {
 }
 
 export type AnalysisAction =
-  | { type: "start_analysis"; payload: { sessionId: string; position: string } }
+  | { type: "start_analysis"; payload: { position: string } }
   | { type: "stop_analysis" }
   | { type: "update_result"; payload: AnalysisResult }
   | { type: "set_error"; payload: string }

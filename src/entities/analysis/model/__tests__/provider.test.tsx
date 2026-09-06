@@ -454,8 +454,8 @@ describe("AnalysisProvider のアンマウント", () => {
       await view.current.startInfiniteAnalysis();
     });
 
-    // Rust からのエラー通知。`isAnalyzing` は落ちるが `sessionId` は残り、
-    // 席も Rust に在りうる（`reducer.ts` の `set_error`）。
+    // Rust からのエラー通知。`isAnalyzing` は落ちるが、席は握ったまま
+    // （`set_error` は席の欄に触らない）。
     await act(async () => {
       listeners?.onError("engine died");
     });

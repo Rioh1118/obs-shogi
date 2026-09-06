@@ -12,13 +12,13 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 | 記号   | 状態                 | 判定                                                                         |
 | ------ | -------------------- | ---------------------------------------------------------------------------- |
-| **S0** | 停止中               | `isAnalyzing === false`、`sessionId === null`                                |
+| **S0** | 停止中               | `isAnalyzing === false`。席を握っているかは別（→ P と ※1）                   |
 | **S1** | 解析中・安定         | `isAnalyzing`、`lastAnalyzedSfenRef === currentSfen`、タイマ・in-flight なし |
 | **S2** | 再開待ち（debounce） | `debounceTimerRef !== null`                                                  |
 | **S3** | 同期待ち             | `syncWaitRef !== null`（`syncedSfen !== desiredSfenRef`）                    |
 | **S4** | 再起動中             | `restartInFlightRef !== null`、`pendingAfterRef === false`                   |
 | **S5** | 再起動中・次が保留   | `restartInFlightRef !== null`、`pendingAfterRef === true`                    |
-| **S6** | エラー               | `error !== null`。**`isAnalyzing` は false になるが `sessionId` は残る**※1   |
+| **S6** | エラー               | `error !== null`。**`isAnalyzing` は false になるが席は握ったまま**※1        |
 
 ## 外部の状態（Rust の解析セッション）
 
@@ -67,9 +67,13 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 ### 注
 
-※1 `set_error` は `isAnalyzing: false` にするが **`sessionId` を残す**（`reducer.ts`）。
-`stop_analysis` を続けて撃たない経路（E9 の `onError`、`provider.tsx`）では
-**フロントが「停止」、Rust に席が残ったまま**になる。以降 E1 は※11 に落ちる
+※1 `set_error` は `isAnalyzing: false` にするが、**席の欄（`seatRef`）には触らない**
+（`reducer.ts` / `provider.tsx`）。`stop_analysis` を続けて撃たない経路では
+**フロントが「停止」、Rust に席が残ったまま**になり、以降 E1 は※11 に落ちる。
+
+**その経路は E9 の `onError` だけで、いまは踏めない**（→ E9 の行。`engine-error` を
+出す口が Rust に無い）。`set_error` を撃つ他の2経路——同期の打ち切りと再開の失敗——は
+どちらも席を返してから撃つ。**いま不変条件1 を実際に破るのは ※7 だけ。**
 
 ※2 `startInfiniteAnalysis` は `syncPosition()` → `waitUntil(syncedSfen === currentSfen, 2000)`
 → `startInfiniteAnalysisCore()` の順（`provider.tsx`）。
@@ -104,7 +108,9 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 （`provider.tsx`）。**ここは P を片付けている。**
 **席を握っているときだけ撃つ**——握っていないのに指さない停止を投げると、
 席を持たない画面が走っている解析を巻き添えにする。
-返せなかったときは `console.warn` に残り、直後に `set_error` が飛ぶので握り潰しではない
+返せなかったときに残るのは `console.warn` **だけ**。直後に飛ぶ `set_error` は
+同期の失敗を指すもので、席を返せなかったこととは別だし、その `error` の読み手も0（→ ※4 / F-2）。
+**席は握ったまま残る**ので、次に畳まれるまで解析は始まらない
 
 ※10 `stopAnalysis` は `restartSeqRef` を上げる。in-flight の再開は、開始の応答が
 返った行で世代を見て、違っていれば `start_analysis` を dispatch せずに**その席を返す**
@@ -126,22 +132,31 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 ※12 アンマウントの cleanup が `stopAnalysisCore()` を**セッションを指さずに**撃つ
 （`provider.tsx` の `releaseSeatOnUnmount`）。Rust は `stop_all_sessions` に落ちて
 `active_sessions` を空にする。指さないのは、握っている ID が席の主とずれる経路が
-在るため——停止が落ちて握り続けた回と、完了通知の ID が一致しなかった回。
+在るため。**この列挙をここに1つだけ置く**（コードのコメントはここを指す）。
+
+- 停止が他人の席に断られ、古い ID を握ったまま次の席が Rust に載った回
+- 要らなくなった開始を返す停止（※13）が届かず、その ID を握り直した回
+
 指した上で別の席が居ると `stop_session` は照合して断り、**席は残る**。
 
 **撃つかどうかは「席を握っているか」だけで決める**（`seatRef`）。Rust が席を渡した
-行で握り、返せたときだけ手放す。`isAnalyzing` や `sessionId` から導いてはいけない
+行で握り、返せたときだけ手放す。`isAnalyzing` のような `state` の写しから導いてはいけない
 ——あれを書くのは commit の後の effect なので、開始の応答が返った直後に畳まれた回は
 空のまま残り、席が在るのに「無い」と読む。
-**停止が落ちたときは手放さない**ので、※7 の経路（フロントだけ S0）で畳んでも返しにいける。
+**停止が落ちたときは手放さない**ので、席が本当に残る枝——invoke が届かなかった回と、
+指した先が他人の席だった回——では畳んだときに返し直せる。
+**エンジン側の失敗では席はもう空いている**（Rust は席を消してから止める）ので、
+その回に飛ぶ1本は空撃ちになる。
 StrictMode の setup → cleanup → setup では握っていないので撃たない。
 
-※13 開始の応答を待っている間に畳まれた回。畳んだときの一括停止（※12）と
-`take_session` はどちらの順にもなり、一括停止が先に届けばその席は残る。
-順序に頼らず、応答が返った側でも `unmountedRef` を見て `stop_analysis` を撃つ
-（`provider.tsx`）。手動開始（E1）の窓では ※12 の門が閉じている——まだ席を
-握っていない——ので、返せるのはここだけ。E2（停止ボタン）で同じ窓に入る経路も
-同じ行で塞いである（※10）。
+※13 開始の応答を待っている間に畳まれた回。**その間、席の欄は必ず空**
+（再開は古い席を返してから開始を頼み、手動開始はまだ何も握っていない）。
+だから ※12 の門は閉じていて、畳まれても一括停止は1本も飛ばない
+——**この席を返せるのは、応答が返った側だけ**（`provider.tsx`）。
+利用者が止めた回も同じ門で塞いである（※10）。
+
+**要らなくなったと分かった時点で `go` を出さない**のが先で、返すのはその後ろの守り。
+`startInfiniteAnalysisCore` を呼ぶ前にも同じ門がある。
 
 ## この表が満たすべき不変条件
 
@@ -153,8 +168,10 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
    `waitUntil` と `syncWaitRef` はこれを守るためにある
 5. **画面が消えたら Rust も P0。** 席の持ち主はこの provider だけで、
    畳まれた後は誰も返せない。※12・※13 がこれを守る。
-   **後始末の停止そのものが落ちた回は破れる**（E11 が E13 の最中に起きる）。
+   **後始末の停止が Rust に届かなかった回は破れる**（E11 が E13 の最中に起きる）。
    そのとき画面はもう無いので、返し直す機会は二度と来ない → F-7。
+   エンジン側の失敗で `Err` になった回は破れない——Rust は席を消してから止めるので、
+   台帳は空いている（残るのは「席は空・エンジンは探索中」の別の壊れ方 → #463）。
    ※6 も口としては同じ形だが、その通知はいま飛ばない
 
 ## 埋まっていないセル

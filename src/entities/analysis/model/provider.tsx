@@ -126,13 +126,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 開始の応答が返った直後に畳まれた回は空のまま残り、席が在るのに「無い」と読む。
   //
   // 返せたときだけ手放す。**停止が失敗したら握ったまま**にして、次に返せる機会
-  // （畳まれたとき）へ持ち越す。
-  //
-  // 失敗の大半では席はもう空いている——Rust は席を消してからエンジンを止めるので、
-  // 止まらなかったときには既に消えている（`bridge.rs` の `stop_session`）。
-  // 握り続けるのは残りの2つのため。**invoke が Rust に届かなかった回**と、
-  // **指した先が他人の席だった回**（照合に断られ、席は動かない）。
-  // そこで手放すと、席の存在を知る者が誰も居なくなる。
+  // （畳まれたとき）へ持ち越す。手放すと、席の存在を知る者が誰も居なくなる。
+  // どの失敗で席が本当に残るかは `docs/state-transitions/analysis.md` ※12 に1つだけ置く。
   const seatRef = useRef<string | null>(null);
 
   // 席を返す口をここ1つにする。散らすと、経路を1つ足すたびに返し忘れが1つ増える。
@@ -169,9 +164,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 現れない（`docs/state-transitions/analysis.md` ※4）ので、
   // ログが無いと原因に辿り着く手掛かりが1つも無い。
   //
-  // **どの口から撃ったかを書く。** 口によって、落ちた後にすべきことが違う
-  // ——畳んだときの一括停止が落ちたのならエンジンを畳み直すしかないが、
-  // 打ち切りの空撃ちが落ちただけなら何も要らない。文面が同じだと切り分けられない。
+  // **どの口から撃ったかを書く。** 口によって、落ちた後の結末が違う。
+  // `unmount` は誰も返せないまま画面が消えた回（エンジンを畳み直すしかない）。
+  // 他の3つは席を握り直すので、次に畳まれたときに返し直せる——ただし
+  // それまで ▶ は Rust に断られ続ける。文面が同じだと、この差を切り分けられない。
   const releaseSeatQuietly = (at: string, sessionId?: string) => {
     void releaseSeat(sessionId).catch((e) => {
       console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId }, e);
@@ -186,8 +182,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   //
   // **セッションを指さない。** 指した ID が席の主でなければ Rust は照合して断り
   // （`bridge.rs` の `stop_session`）、席は残ったままになる。握っている ID が
-  // 主とずれるのは、**古い ID を握ったまま次の席が Rust に載った回**
-  // ——停止が他人の席に断られ、その後の開始が席を取った回。
+  // 主とずれる経路は `docs/state-transitions/analysis.md` ※12 に挙げてある。
   // 画面が居ない以上どの解析も要らないので、指さずに全部返す。
   const releaseSeatOnUnmount = () => {
     if (seatRef.current === null) return;
@@ -379,10 +374,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         }
         seatRef.current = newSessionId;
 
-        dispatch({
-          type: "start_analysis",
-          payload: { sessionId: newSessionId, position: want },
-        });
+        dispatch({ type: "start_analysis", payload: { position: want } });
 
         lastAnalyzedSfenRef.current = want;
       } catch (e) {
@@ -491,10 +483,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
     seatRef.current = sessionId;
 
-    dispatch({
-      type: "start_analysis",
-      payload: { sessionId, position: currentSfen },
-    });
+    dispatch({ type: "start_analysis", payload: { position: currentSfen } });
 
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
@@ -507,7 +496,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer();
 
     // **席を持っているかは1つの式で決める。** 畳まれたときの後始末と別の式にすると、
-    // `set_error` で `sessionId` だけ残った状態（`reducer.ts`）で答えが割れ、
+    // エラーで `isAnalyzing` だけ落ちた状態（`reducer.ts` の `set_error`）で答えが割れ、
     // 片方は返しにいき、片方は state だけ落として席を置き去りにする。
     const held = seatRef.current;
     if (!held) {
