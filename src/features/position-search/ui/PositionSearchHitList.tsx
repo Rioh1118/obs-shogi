@@ -3,7 +3,7 @@ import { useDynamicRowHeight } from "react-window";
 import { useAppConfig } from "@/entities/app-config";
 import "./PositionSearchHitList.scss";
 import { useGame } from "@/entities/game";
-import type { PositionHit } from "@/entities/search";
+import type { IndexHealth, PositionHit } from "@/entities/search";
 import { VirtualHitRow, type HitRowProps } from "./VirtualHitRow";
 import { VirtualList } from "../lib/virtual/VirtualList";
 
@@ -18,9 +18,46 @@ type Props = {
 
   /** 検索する局面があるか。無ければ検索はそもそも走らない */
   hasQuery: boolean;
-  /** 索引が更新中で、結果が最新とは限らない */
-  stale: boolean;
+  /**
+   * 索引の具合。**0件の理由がここで変わる。**
+   *
+   * 旗を並べ直さない——並べる順は `indexHealth` が1つ持っている。
+   */
+  indexHealth: IndexHealth;
+  /** この検索が走っている間に索引が動いた。索引の具合とは別の話 */
+  sessionStale: boolean;
 };
+
+/**
+ * 0件の理由を言う。
+ *
+ * **索引の具合を伏せて「一致する棋譜がありません」と言い切らない。**
+ * 走査が完走していない回も、読めなかった場所があった回も、索引に無いだけで
+ * ディスクには在る。裸で断言すると、利用者は自分の棋譜に無いと読んで探すのをやめる。
+ */
+function emptyReason(health: IndexHealth, sessionStale: boolean): string {
+  switch (health) {
+    case "notRefreshed":
+      return "一致する棋譜がありません（索引を更新できていないので、最近の追加は反映されていません）";
+    case "buildFailed":
+      return "索引を作れなかったので検索できません（ワークスペースを読めるか確かめてください）";
+    case "partiallyUnreadable":
+      return "一致する棋譜がありません（読み取れなかった場所があるので、索引に入っていない棋譜があります）";
+    case "building":
+      return "一致する棋譜がありません（索引の更新中なので、増える場合があります）";
+    case "notStarted":
+      return "一致する棋譜がありません（索引がまだ作られていません）";
+    case "ok":
+      return sessionStale
+        ? "一致する棋譜がありません（検索中に索引が動いたので、取り直すと変わる場合があります）"
+        : "一致する棋譜がありません";
+    default: {
+      // 具合が増えたら tsc がここで止める。**黙って既定へ落ちない**
+      const never: never = health;
+      return never;
+    }
+  }
+}
 
 export default function PositionSearchHitList({
   hits,
@@ -31,7 +68,8 @@ export default function PositionSearchHitList({
   error,
   resolveAbsPath,
   hasQuery,
-  stale,
+  indexHealth,
+  sessionStale,
 }: Props) {
   const { config } = useAppConfig();
   const { state: gameState } = useGame();
@@ -85,9 +123,7 @@ export default function PositionSearchHitList({
               ? "検索結果を受信中…"
               : error
                 ? `検索に失敗しました: ${error}`
-                : stale
-                  ? "一致する棋譜がありません（索引の更新中なので、増える場合があります）"
-                  : "一致する棋譜がありません"}
+                : emptyReason(indexHealth, sessionStale)}
         </div>
       </section>
     );

@@ -16,7 +16,7 @@ import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderPositionHits";
 import { useGame } from "@/entities/game";
-import { usePositionSearch, type PositionHit } from "@/entities/search";
+import { indexHealth, usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
 
 export default function PositionSearchModal() {
@@ -50,11 +50,8 @@ export default function PositionSearchModal() {
   const isDone = !!session?.isDone && !isSearching;
   const error = launchError ?? session?.error ?? null;
 
-  const indexState = state.index.state;
-  const indexStale =
-    indexState === "Restoring" || indexState === "Building" || indexState === "Updating";
-
-  const resultStale = indexStale || !!session?.stale;
+  // 旗をここで並べ直さない。順を持っているのは `indexHealth` 1つ
+  const health = indexHealth(state.index);
 
   const statusText = useMemo(() => {
     if (isSearching) return "検索中…";
@@ -229,7 +226,8 @@ export default function PositionSearchModal() {
               <PositionSearchStatusBar
                 hitsCount={hits.length}
                 statusText={statusText}
-                stale={resultStale}
+                indexHealth={health}
+                sessionStale={!!session?.stale}
                 error={error}
               />
 
@@ -242,7 +240,8 @@ export default function PositionSearchModal() {
                 error={error}
                 resolveAbsPath={resolveHitAbsPath}
                 hasQuery={queryKey != null}
-                stale={resultStale}
+                indexHealth={health}
+                sessionStale={!!session?.stale}
               />
             </section>
 
