@@ -107,13 +107,13 @@ export function PositionSearchProvider({
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[SEARCH] Failed to setup listeners:", e);
+        if (cancelled) return;
         setIsListenSettled(true);
       }
     })();
 
     return () => {
       cancelled = true;
-      setIsListenSettled(false);
       unlisten?.();
       unlisten = null;
     };
