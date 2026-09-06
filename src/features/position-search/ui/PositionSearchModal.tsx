@@ -46,7 +46,7 @@ const REFUSALS: Record<RefusalReason, { tier: VisibleTier; title: string; body: 
   "not-in-tree": {
     tier: "danger",
     title: "この棋譜を開けません",
-    body: "ワークスペースの一覧にこの棋譜がありません。移動・削除されたか、索引がまだ古い可能性があります。",
+    body: "ワークスペースの一覧にこの棋譜がありません。移動・削除されたか、索引がまだ古い可能性があります。一覧から別のヒットを選んでください。",
   },
 };
 
