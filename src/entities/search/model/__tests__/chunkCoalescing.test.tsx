@@ -18,11 +18,13 @@ import type { SearchEventHandlers } from "@/entities/search/api/tauri";
  */
 
 let handlers: SearchEventHandlers = {};
+let listenCount = 0;
 
 vi.mock("../../api/tauri", () => ({
   openProject: vi.fn().mockResolvedValue({ indexedCount: 0 }),
   listenSearchEvents: (h: SearchEventHandlers) => {
     handlers = h;
+    listenCount += 1;
     return Promise.resolve(() => {});
   },
   searchPosition: vi.fn(),
@@ -113,6 +115,7 @@ function deliver(k: number) {
 beforeEach(() => {
   vi.useFakeTimers();
   handlers = {};
+  listenCount = 0;
   renders = 0;
   hitCount = 0;
   elementReads = 0;
@@ -268,6 +271,35 @@ describe("チャンクの合流", () => {
     });
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("購読", () => {
+  /**
+   * **購読を張り直させない。** `listen` は IPC の往復を待つので、張り直しの隙間に
+   * emit されたチャンクは誰にも届かない。**エラーは出ず、件数だけが減る。**
+   *
+   * 溜め場の起こし手を購読の effect が呼ぶ以上、それが `useCallback` のままだと
+   * 依存に載る。載せた時点でこの形が作れてしまうので、ここで数える
+   */
+  test("チャンクが届いても描き直されても、購読は1回だけ", async () => {
+    await mount();
+    expect(listenCount).toBe(1);
+
+    deliver(5);
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    await act(async () => {
+      view.rerender(
+        <PositionSearchProvider rootDir={null}>
+          <Probe />
+        </PositionSearchProvider>,
+      );
+    });
+
+    expect(listenCount).toBe(1);
   });
 });
 
