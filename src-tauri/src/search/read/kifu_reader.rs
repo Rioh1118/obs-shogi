@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::Path;
 
+use crate::search::message::for_screen;
 use crate::search::read::csa::{parse_csa_portable, warn_if_moves_were_dropped};
 use crate::search::read::diagnosis::{cannot_open, parse_failed, unreadable_record};
 use crate::search::read::encoding::{read_bytes, read_portable};
@@ -60,7 +61,7 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<ReadOutcome, KifuReadError> {
 /// そのまま索引に入れると平手の初期局面で検索したときに全部ヒットし、開いても
 /// 初期局面しか出ないので「そういう棋譜」と誤解される。だから入れない。
 ///
-/// **これは「壊れている」の判定ではない。** [`KifuReadError::NothingToIndex`]
+/// **これは「壊れている」の判定ではない。** `ReadOutcome::NothingToIndex`
 /// の doc のとおり、同じ形になるものにはこのアプリが作った新しい棋譜も含まれる。
 ///
 /// # バイト列でなく、読めた記録の形で決める
@@ -166,7 +167,10 @@ fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
 /// 組で受けられるようにすると、題材が空になったテストが
 /// **警告の assert を素通りして緑のまま**になる。
 #[cfg(test)]
-fn read_indexable(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), KifuReadError> {
+fn read_indexable(
+    path: &Path,
+    kind: KifuKind,
+) -> Result<(Jkf, Vec<crate::search::message::ScreenMessage>), KifuReadError> {
     match read_path_inner(path, kind)? {
         ReadOutcome::Indexable { jkf, warns } => Ok((*jkf, warns)),
         ReadOutcome::NothingToIndex { warns } => panic!(
@@ -229,15 +233,16 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
         .as_deref()
         .and_then(|bytes| warn_if_moves_were_dropped(bytes, &jkf));
 
+    // 組んだ場所で刈る。下流はもう通さない
+    let warns: Vec<_> = warn.iter().map(|w| for_screen(w)).collect();
+
     if says_nothing(&jkf) {
-        return Ok(ReadOutcome::NothingToIndex {
-            warns: warn.into_iter().collect(),
-        });
+        return Ok(ReadOutcome::NothingToIndex { warns });
     }
 
     Ok(ReadOutcome::Indexable {
         jkf: Box::new(jkf),
-        warns: warn.into_iter().collect(),
+        warns,
     })
 }
 
@@ -258,8 +263,8 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::message::SCREEN_MESSAGE_LIMIT;
     use crate::search::read::csa::{is_csa_move_line, tidy_csa};
-    use crate::search::read::diagnosis::{Capped, MESSAGE_LIMIT};
     use crate::search::read::encoding::{
         can_be_named, describe, Evidence, Unparsable, ENCODINGS_THE_CRATE_SKIPS,
     };
@@ -269,7 +274,6 @@ mod tests {
     use shogi_kifu_converter_obsshogi::error::ParseError;
     use shogi_kifu_converter_obsshogi::error::{NormalizeError, NormalizeErrorKind};
     use shogi_kifu_converter_obsshogi::jkf::{Initial, MoveFormat, MoveSpecial, Preset};
-    use std::fmt::Write as _;
     use test_support::dir::temp_dir;
     use test_support::kifu::{one_move_kif, HANDICAPS};
 
@@ -382,6 +386,17 @@ mod tests {
                 enc.name()
             );
         }
+        // **案内が先頭にある。** 引用を先に置くと、`parse_failed` の刈り直しで
+        // 案内が丸ごと落ちる（`unreadable_record` の doc の語順の規約）。
+        // 長さではなく語順を見るので、引用が短い今日でも変異を捕まえられる
+        assert!(
+            !message.starts_with("Decode Error"),
+            "クレートの英語が文頭に出ている: {message}"
+        );
+        assert!(
+            message.contains("棋譜ではないファイルに"),
+            "案内が刈られて消えた: {message}"
+        );
 
         fs::remove_dir_all(&dir).ok();
     }
@@ -1110,41 +1125,6 @@ mod tests {
 先手の持駒：金二
 ";
 
-    /// 文言の受け皿そのものの境界。
-    ///
-    /// 通し経路のテストは「出てきた文言が短いこと」しか見ないので、
-    /// **上限ちょうどで1文字余計に落とす / 1文字余計に通す**を区別できない。
-    /// `write_str` が複数回に分かれる呼ばれ方も、通し経路では起きないことがある。
-    #[test]
-    fn the_message_sink_stops_exactly_at_the_limit() {
-        // 上限ちょうどは省略記号を付けない
-        let mut sink = Capped::default();
-        write!(sink, "{}", "あ".repeat(MESSAGE_LIMIT)).expect("上限ちょうどで止められた");
-        let out = sink.finish();
-        assert_eq!(out.chars().count(), MESSAGE_LIMIT);
-        assert!(!out.ends_with('…'), "上限ちょうどで省略している");
-
-        // 1文字超えたら省略記号が付き、本文は上限で止まる
-        let mut sink = Capped::default();
-        let _ = write!(sink, "{}", "あ".repeat(MESSAGE_LIMIT + 1));
-        let out = sink.finish();
-        assert_eq!(out.chars().count(), MESSAGE_LIMIT + 1);
-        assert!(out.ends_with('…'), "省略記号が無い");
-
-        // **書き込みが分かれても、通算で数える。**
-        // 1回ぶんで数えていると、`format!` の引数の切れ目で上限が甘くなる
-        let mut sink = Capped::default();
-        for _ in 0..10 {
-            let _ = write!(sink, "{}", "い".repeat(MESSAGE_LIMIT));
-        }
-        assert_eq!(sink.finish().chars().count(), MESSAGE_LIMIT + 1);
-
-        // 制御文字は空白に置き換える。生の NUL やエスケープが画面に出ない
-        let mut sink = Capped::default();
-        write!(sink, "a\0b\x1bc\nd").expect("書けること");
-        assert_eq!(sink.finish(), "a b c\nd");
-    }
-
     /// **このアプリが作った棋譜を、このアプリが「壊れている」と言わない。**
     ///
     /// 新規作成フォームはファイル名以外すべて任意なので、対局者名を入れずに
@@ -1223,7 +1203,7 @@ mod tests {
 
         let err = read_path_to_jkf(&path, KifuKind::Kif).expect_err("読めないこと");
         let message = err.to_string();
-        // **固定したい定数そのものと比べない。** `MESSAGE_LIMIT` を上げるだけで
+        // **固定したい定数そのものと比べない。** `SCREEN_MESSAGE_LIMIT` を上げるだけで
         // 通ってしまい、刈り込みが効かなくなったことに気付けない
         assert!(
             message.chars().count() < 1_000,
@@ -1721,20 +1701,21 @@ P9 *  *  *  * +OU *  *  *  * ";
     /// ファイルの局面が1件も索引に入らないので、あとで検索して出てこなくても
     /// 利用者はそれを「その局面は指されていない」と読む。
     ///
-    /// **上限（[`MESSAGE_LIMIT`]）の外で足していることを見る。** 中に入れると
+    /// **上限（[`SCREEN_MESSAGE_LIMIT`]）の外で足していることを見る。** 中に入れると
     /// クレートの文言が長いときに刈られて消える。題材はクレートが長い引用を
     /// 返すように、読めない行を上限より長くしてある。
     #[test]
     fn an_unreadable_file_is_told_what_it_costs() {
         let dir = temp_dir("csa-cost");
 
-        for (name, capped_case, kind, ext, body) in [
+        for (name, capped_case, kind, ext, body, guidance) in [
             (
                 "短い理由",
                 false,
                 KifuKind::Csa,
                 "csa",
                 "V2.2\nPI\n+ \n+7776FU\n%TORYO\n".to_owned(),
+                "V2.2 のヘッダと手番行",
             ),
             // KIF は読めなかった行を文言に引用するので、行を長くすると上限に当たる
             (
@@ -1742,7 +1723,24 @@ P9 *  *  *  * +OU *  *  *  * ";
                 true,
                 KifuKind::Kif,
                 "kif",
-                format!("手合割：平手\n1 {}\n", "ん".repeat(MESSAGE_LIMIT * 2)),
+                format!(
+                    "手合割：平手\n1 {}\n",
+                    "ん".repeat(SCREEN_MESSAGE_LIMIT * 2)
+                ),
+                "その行を直すか",
+            ),
+            // **JKF は案内の位置が問われる。** `serde_json` は読めなかった値を
+            // 丸ごと引用するので、案内を引用の後ろに置くと刈られて消える
+            (
+                "上限を超える JKF",
+                true,
+                KifuKind::Jkf,
+                "jkf",
+                format!(
+                    "{{\"header\":{{}},\"moves\":\"{}\"}}",
+                    "7g7f ".repeat(SCREEN_MESSAGE_LIMIT)
+                ),
+                "元のアプリで書き出し直してください",
             ),
         ] {
             let path = dir.join(format!("{name}.{ext}"));
@@ -1751,15 +1749,24 @@ P9 *  *  *  * +OU *  *  *  * ";
             let Err(KifuReadError::ParseFailed(message)) = read_path_inner(&path, kind) else {
                 panic!("{name}: 読めないはずの題材が読めた");
             };
+            // **ここは組んだ直後の値。** 画面まで届くかは `file_build` 側で見る
+            let message = message.to_string();
             assert!(
                 message.ends_with("このファイルの局面は検索に出ません"),
                 "{name}: 失うものを言っていない: {message}"
             );
+            // **案内は引用より前に置く。** 後ろに置くと、引用が長い腕で刈られて消える。
+            // 末尾の一文は上限の外なので残ってしまい、これが無いと気付けない
+            assert!(
+                message.contains(guidance),
+                "{name}: 案内が刈られて消えた: {message}"
+            );
             if capped_case {
-                // 刈られた本文（上限ちょうど）に一文が乗るので、全体は上限を超える。
-                // 一文を上限の内側で足すとここが等号になって落ちる
+                // **題材が実際に刈られたことを見る。** 刈られた本文（上限ちょうど）に
+                // 一文が乗るので、全体は必ず上限を超える。上限に届かない題材に
+                // すり替わると、上の2つの assert が何も見ていないことに気付けない
                 assert!(
-                    message.chars().count() > MESSAGE_LIMIT,
+                    message.chars().count() > SCREEN_MESSAGE_LIMIT,
                     "{name}: 一文が上限の内側で刈られている: {}文字",
                     message.chars().count()
                 );
@@ -1988,13 +1995,13 @@ P9 *  *  *  * +OU *  *  *  * ";
             };
             assert_eq!(warns.len(), 1, "{base_name}: 警告が1件でない: {warns:?}");
             assert!(
-                warns[0].contains("しか読めませんでした"),
+                warns[0].to_string().contains("しか読めませんでした"),
                 "{base_name}: 読み残しを言っていない: {}",
                 warns[0]
             );
             // **利用者に出る文言に Markdown を入れない。** 素のテキストで描かれる
             assert!(
-                !warns[0].contains("**") && !warns[0].contains('`'),
+                !warns[0].to_string().contains("**") && !warns[0].to_string().contains('`'),
                 "{base_name}: 文言に記法が混ざっている: {}",
                 warns[0]
             );

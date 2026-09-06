@@ -15,6 +15,7 @@ use tokio::{sync::Semaphore, task::JoinSet};
 
 use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
+use crate::search::message::{for_screen, ScreenMessage};
 use crate::search::project_manager::ProjectManager;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
@@ -61,7 +62,7 @@ pub async fn build_full_index_task(
         String,
         BucketEntries,
         Arc<NodeTable>,
-        Vec<String>,
+        Vec<ScreenMessage>,
         bool,
     );
 
@@ -98,7 +99,7 @@ pub async fn build_full_index_task(
                 EVT_INDEX_WARN,
                 IndexWarnPayload {
                     path: root_dir.to_string_lossy().into_owned(),
-                    message: "索引の作成を始められませんでした。開き直してください".to_owned(),
+                    message: for_screen(&"索引の作成を始められませんでした。開き直してください"),
                 },
             );
             return;
@@ -141,7 +142,7 @@ pub async fn build_full_index_task(
             let _permit = permit;
 
             let res = tokio::task::spawn_blocking(
-                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
+                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<ScreenMessage>), ScreenMessage> {
                     let built = build_file_index(&rec2, file_id, gen)?;
                     Ok((built.by_bucket, built.node_table, built.warns))
                 },
@@ -162,7 +163,11 @@ pub async fn build_full_index_task(
                     path_str,
                     empty,
                     empty_nt,
-                    vec![format!("spawn_blocking join error: {e}")],
+                    vec![for_screen(&format_args!(
+                        "索引を組む途中で内部の処理が落ちました。このファイルの局面は\
+                         検索に出ません。開き直しても直らないときは報告してください\
+                         （内部の理由: {e}）"
+                    ))],
                     false,
                 ),
             };
