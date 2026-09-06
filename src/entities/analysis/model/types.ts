@@ -12,7 +12,6 @@ export type AnalysisAction =
   | { type: "stop_analysis" }
   | { type: "update_result"; payload: AnalysisResult }
   | { type: "set_error"; payload: string }
-  | { type: "clear_error" }
   | { type: "clear_results" };
 
 /** エンジンへの局面同期を解析側へ注入するための面。実装は features 側にある。 */

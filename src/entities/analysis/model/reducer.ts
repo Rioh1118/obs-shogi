@@ -10,6 +10,8 @@ export const initialState: AnalysisState = {
 
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
+    // **`error` を消す口はここと `clear_results` の2つだけ。**
+    // 「消すだけ」の action は読み手も dispatch 元も居なくなったので置かない。
     case "start_analysis":
       return {
         ...state,
@@ -36,9 +38,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
 
     case "set_error":
       return { ...state, error: action.payload, isAnalyzing: false };
-
-    case "clear_error":
-      return { ...state, error: null };
 
     case "clear_results":
       return {

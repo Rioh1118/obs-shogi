@@ -456,6 +456,57 @@ describe("AnalysisProvider の開始", () => {
     expect(pendingStops).toHaveLength(1);
   });
 
+  it("飛んでいる返却が落ちたら、▶ は席を握ったまま go を出さない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 同期待ちの打ち切りが席を返しにいく。その応答はまだ来ない。
+    let failRelease: (e: Error) => void = () => {};
+    stopCore.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, reject) => {
+          failRelease = reject;
+        }),
+    );
+    await view.setSync(adapter("P2", "P1"));
+    await advance(2400);
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    // 盤とエンジンを揃えておく（同期待ちで止まらないように）。
+    await view.setSync(adapter("P2", "P2"));
+    startCore.mockClear();
+    stopCore.mockClear();
+
+    // その最中に ▶。返却の結末を見ずに相乗りすると、**席を返さないまま** go を出す。
+    void view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+    await act(async () => {
+      failRelease(new Error("ipc is gone"));
+    });
+    await advance(150);
+
+    expect(stopCore).toHaveBeenCalledWith("session-1", "start");
+  });
+
+  it("押した後に盤が動いたら、動いた先の局面で始める", async () => {
+    const view = mountAnalysis(adapter("P1", null));
+
+    void view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+    expect(startCore).not.toHaveBeenCalled();
+
+    // 押した局面には追いつかないまま、盤が進んでエンジンもそこへ追いつく。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 押した瞬間の局面を待ち続けると、2秒後に何も失敗していないのに断りを積む。
+    expect(startCore).toHaveBeenCalled();
+    expect(view.current.state.currentPosition).toBe("P2");
+    expect(view.current.state.error).toBeNull();
+  });
+
   it("席を握ったまま止まっていたら、▶ で返してから始める", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
@@ -604,6 +655,49 @@ describe("AnalysisProvider の開始", () => {
 
     expect(stopCore).toHaveBeenCalledWith("session-1", "no-position");
     expect(view.current.state.isAnalyzing).toBe(false);
+  });
+
+  it("捨てた席の停止が飛んでいる間は、次の再開を始めない", async () => {
+    const pendingStops: Array<() => void> = [];
+    startCore.mockResolvedValueOnce("session-1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 再開の開始を待たせ、その間にもう1手進めて世代を上げる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    stopCore.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pendingStops.push(resolve);
+        }),
+    );
+    await view.setSync(adapter("P3", "P3"));
+    await advance(150);
+
+    startCore.mockClear();
+    startCore.mockResolvedValue("session-3");
+
+    // 追い越された席が返ってくる。捨てる停止が飛び、その応答はまだ来ない。
+    await act(async () => {
+      releaseStart("session-2");
+    });
+    await advance(150);
+    expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
+
+    // 捨てる停止が飛んでいる間に次の go を出すと、Rust の席がまだ空いていない。
+    expect(startCore).not.toHaveBeenCalled();
   });
 });
 

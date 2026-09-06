@@ -9,6 +9,20 @@ import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
 
+// 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
+//
+// `abort` を取るのは、待っている理由が消えたときに回り続けないため。
+// 畳まれた後は `syncedSfen` がもう動かないので、渡さないと必ず上限まで回る。
+const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => boolean) => {
+  const start = Date.now();
+  while (!cond()) {
+    if (abort?.()) return false;
+    if (Date.now() - start > timeoutMs) return false;
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  return true;
+};
+
 interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
@@ -112,30 +126,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const POSITION_SYNC_TIMEOUT_MS = 2000;
   const POSITION_SYNC_TIMEOUT_MESSAGE = "エンジンに現在の局面を送れませんでした";
 
-  // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
-  //
-  // `abort` を取るのは、待っている理由が消えたときに回り続けないため。
-  // 畳まれた後は `syncedSfen` がもう動かないので、渡さないと必ず上限まで回る。
-  const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => boolean) => {
-    const start = Date.now();
-    while (!cond()) {
-      if (abort?.()) return false;
-      if (Date.now() - start > timeoutMs) return false;
-      await new Promise((r) => setTimeout(r, 16));
-    }
-    return true;
-  };
-
   // **`window` を通さない。** ここはタイマーのコールバックからも、畳んだ後の
   // 後始末からも呼ばれる。テスト環境は畳んだ後に `window` を落とすので、
   // そこで参照すると**テストが1本も失敗していないのに実行そのものが落ちる**。
   // `clearTimeout` はブラウザにも Node にもある。
-  const clearDebounceTimer = () => {
+  const clearDebounceTimer = useCallback(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-  };
+  }, []);
 
   const unmountedRef = useRef(false);
 
@@ -164,7 +164,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     pendingAfterRef.current = false;
     restartSeqRef.current++;
     clearDebounceTimer();
-  }, []);
+  }, [clearDebounceTimer]);
 
   // 返ってきた席を握るか捨てるか。**欄に入れる前に見る**——要らなくなった席を
   // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
@@ -200,7 +200,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       seat.sweepOnUnmount();
     };
     // `seat` は同じ物が返り続ける（`useEngineSeat`）。載せても再実行されない。
-  }, [seat]);
+  }, [seat, clearDebounceTimer]);
 
   // === Event listeners ===
   useEffect(() => {
@@ -395,7 +395,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return () => {
       clearDebounceTimer();
     };
-  }, [currentSfen, state.isAnalyzing, isReady, scheduleRestart]);
+  }, [currentSfen, state.isAnalyzing, isReady, scheduleRestart, clearDebounceTimer]);
 
   useEffect(() => {
     if (!state.isAnalyzing) return;

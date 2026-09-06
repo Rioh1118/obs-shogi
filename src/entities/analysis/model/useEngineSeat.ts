@@ -167,10 +167,16 @@ export function useEngineSeat(): EngineSeat {
 
     releaseHeld: async (by) => {
       // **飛んでいる返却は待つ。ただし結末は自分で確かめる。**
-      // 相乗りしたまま返すと、その返却が落ちていても（`releaseHeldQuietly` の側は
-      // 失敗を飲む）「返せた」ことになり、呼び手は席を握ったまま `go` を出す。
-      const releasing = releasingRef.current;
-      if (releasing) await releasing.catch(() => {});
+      // 相乗りしたまま返すと、その返却が落ちていても（待てない側は失敗を飲む）
+      // 「返せた」ことになり、呼び手は席を握ったまま `go` を出す。
+      //
+      // **待っている間に後ろへ並んだ分も待つ。** 入口で見た1本だけを待つと、
+      // 並んだ側とこちらが同じ席へ並列で撃つ。
+      while (releasingRef.current) {
+        const releasing = releasingRef.current;
+        await releasing.catch(() => {});
+        if (releasingRef.current === releasing) break;
+      }
 
       const held = seatRef.current;
       if (held === null) return;
@@ -242,7 +248,14 @@ export function useEngineSeat(): EngineSeat {
     },
 
     discard: (by, sessionId) => {
-      quietly(by, sessionId);
+      // **枠に載せる。** 載せないと、この停止が飛んでいる間に次の再開が
+      // `releaseHeld` を素通りし（こちらは席を握っていない）、
+      // 捨てた席がまだ Rust に居るうちに `start_infinite_analysis` を投げる
+      // ——`take_session` が断って、解析が黙って停止中になる。
+      const sending: Promise<void> = shootQuietly(by, sessionId).finally(() => {
+        if (releasingRef.current === sending) releasingRef.current = null;
+      });
+      releasingRef.current = sending;
     },
   };
 
