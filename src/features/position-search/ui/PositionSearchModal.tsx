@@ -212,31 +212,38 @@ export default function PositionSearchModal() {
     if (next >= 0 && next !== activeIndex) setActiveIndex(next);
   }, [orderedHits, activeIndex]);
 
-  const accept = (hit: PositionHit) => {
-    // 索引に在る棋譜がツリーに無いのは正常運転で起こる（`usePositionHitNavigation`）。
-    // 移動できないまま閉じると、盤は前の棋譜のままなのに「開いた」と読める。
-    //
-    // **2つの断りを1つの文言に畳まない。** 行き先のパスを引けないのは索引の側の
-    // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
-    // 動かしていない棋譜を探しに行かせる
+  // 行に渡すものは `rowProps` の `useMemo` に載り、そこから `PositionHitItem` の
+  // `memo` に届く。毎レンダ新しい関数を渡すとどちらも外れる。
+  // **`startNavigationToHit` 自身がツリーの選択で変わる**ので、これだけでは
+  // 完全には安定しない
+  const accept = useCallback(
+    (hit: PositionHit) => {
+      // 索引に在る棋譜がツリーに無いのは正常運転で起こる（`usePositionHitNavigation`）。
+      // 移動できないまま閉じると、盤は前の棋譜のままなのに「開いた」と読める。
+      //
+      // **2つの断りを1つの文言に畳まない。** 行き先のパスを引けないのは索引の側の
+      // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
+      // 動かしていない棋譜を探しに行かせる
 
-    // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
-    // 追えるように鍵を書く
-    activeKeyRef.current = hitKey(hit);
+      // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
+      // 追えるように鍵を書く
+      activeKeyRef.current = hitKey(hit);
 
-    const absPath = resolveHitAbsPath(hit);
-    if (!absPath) {
-      setRefusedHit({ key: hitKey(hit), reason: "no-path" });
-      return;
-    }
-    const started = startNavigationToHit(absPath, hit.cursor);
-    if (!started) {
-      setRefusedHit({ key: hitKey(hit), reason: "not-in-tree" });
-      return;
-    }
-    // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
-    closeModal({ skipReturn: true });
-  };
+      const absPath = resolveHitAbsPath(hit);
+      if (!absPath) {
+        setRefusedHit({ key: hitKey(hit), reason: "no-path" });
+        return;
+      }
+      const started = startNavigationToHit(absPath, hit.cursor);
+      if (!started) {
+        setRefusedHit({ key: hitKey(hit), reason: "not-in-tree" });
+        return;
+      }
+      // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
+      closeModal({ skipReturn: true });
+    },
+    [closeModal, resolveHitAbsPath, startNavigationToHit],
+  );
 
   // 焦点は選択している行が持つ（`PositionHitItem`）ので、キーはそこから
   // ここまで上がってくる。この節自体は焦点を取らない。
