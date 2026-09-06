@@ -146,9 +146,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 断られる。しかもその失敗は「▶ を押しても何も起きない」という形でしか
   // 現れない（`docs/state-transitions/analysis.md` ※4）ので、
   // ログが無いと原因に辿り着く手掛かりが1つも無い。
-  const releaseSeatQuietly = (sessionId?: string) => {
+  //
+  // **どの口から撃ったかを書く。** 口によって、落ちた後にすべきことが違う
+  // ——畳んだときの一括停止が落ちたのならエンジンを畳み直すしかないが、
+  // 打ち切りの空撃ちが落ちただけなら何も要らない。文面が同じだと切り分けられない。
+  const releaseSeatQuietly = (at: string, sessionId?: string) => {
     void releaseSeat(sessionId).catch((e) => {
-      console.warn("[ANALYSIS] failed to release the engine session", sessionId, e);
+      console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId }, e);
     });
   };
 
@@ -164,7 +168,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 一致しなかった回。画面が居ない以上どの解析も要らないので、指さずに全部返す。
   const releaseSeatOnUnmount = () => {
     if (seatRef.current === null) return;
-    releaseSeatQuietly();
+    releaseSeatQuietly("unmount");
   };
 
   const unmountedRef = useRef(false);
@@ -291,7 +295,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 握っていなければ撃たない。畳まれたときと違い、ここは画面が生きている
         // ——指せない停止（＝全部止める）を投げると、席を持たないのに
         // 走っている解析があったとき、それを巻き添えにする。
-        if (seatRef.current) releaseSeatQuietly(seatRef.current);
+        if (seatRef.current) releaseSeatQuietly("sync-timeout", seatRef.current);
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
         dispatch({ type: "stop_analysis" });
@@ -336,7 +340,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 返さずに `start_analysis` を dispatch した場合は、止めたはずの解析が
         // 画面でも Rust でも走り直す。
         if (supersededSince(seq)) {
-          releaseSeatQuietly(newSessionId);
+          releaseSeatQuietly("late-restart", newSessionId);
           return;
         }
         seatRef.current = newSessionId;
@@ -433,7 +437,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 入った別の席（■ の直後に ▶ を押した回）を上書きして、
     // 走っている方を知る者が居なくなる。
     if (supersededSince(seq)) {
-      releaseSeatQuietly(sessionId);
+      releaseSeatQuietly("late-start", sessionId);
       return;
     }
     seatRef.current = sessionId;
