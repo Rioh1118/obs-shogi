@@ -67,11 +67,11 @@ describe("loadGame", () => {
 });
 
 /**
- * `hasKifu` は「盤に載せられる棋譜があるか」の唯一の綴り。
+ * `hasKifu` は**画面を丸ごと切り替える側**の綴り（盤の内側の判定は別の問い。
+ * `GameView` の doc を見る）。読み手は `player` も `shogi` も知らない形で問える必要がある。
  *
- * 読み手（`AppLayout` の `WelcomeScreen` との切り替え）は `player` も `shogi` も
- * 知らない形で問える必要がある。**壊れても例外は出ない**——切り替えが狂って
- * 空の作業面が出るか、棋譜があるのに WelcomeScreen が出るだけ。
+ * **壊れても例外は出ない**——切り替えが狂って空の作業面が出るか、
+ * 棋譜があるのに WelcomeScreen が出るだけ。
  */
 describe("hasKifu", () => {
   test("何も読み込んでいなければ偽", () => {
@@ -91,7 +91,7 @@ describe("hasKifu", () => {
     expect(game.current!.view.hasKifu).toBe(true);
   });
 
-  test("盤に載せられない棋譜を掴まされても偽のまま", async () => {
+  test("読み込みに失敗したら偽のまま", async () => {
     const game = mountGame();
     const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
 
