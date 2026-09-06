@@ -9,8 +9,9 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
+use crate::search::build::build_failure;
 use crate::search::index::file_build::build_file_index;
-use crate::search::read::diagnosis::{build_failure, scan_failure, unreadable_places};
+use crate::search::read::diagnosis::{scan_failure, unreadable_places};
 use crate::search::read::fs_scan::{
     carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
     ScanError, ScanOptions, ScanSnapshot,
@@ -34,6 +35,7 @@ use crate::search::types::{
 /// 畳むと後者が前者として扱われ、復元した索引がメモリに丸ごと在るのに
 /// 画面は「更新中」のまま戻らない（再試行の導線は無いので、開き直しても同じ）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use = "結末を捨てると、旗を知らない側が `Ready` を伏せた旗で塗り潰す（`announce_rescan` を通すこと）"]
 pub enum RescanOutcome {
     /// 自分の代のまま完走し、帳簿を進めた。差分があれば索引にも書いた。
     ///
@@ -404,7 +406,7 @@ impl ProjectManager {
         let mut last_emit = std::time::Instant::now();
         for path_key in &diff.removed {
             done_dirty += 1;
-            if last_emit.elapsed() < crate::search::types::EMIT_INTERVAL {
+            if last_emit.elapsed() < crate::search::EMIT_INTERVAL {
                 continue;
             }
             last_emit = std::time::Instant::now();
@@ -494,17 +496,30 @@ impl ProjectManager {
                 }
             }
             done_dirty += 1;
-            let _ = app.emit(
-                EVT_INDEX_PROGRESS,
-                IndexProgressPayload {
-                    current_path: path_str,
-                    done_files: done_dirty,
-                    total_files: dirty_count,
-                },
-            );
+            // 削除の側と同じく間引く。フォルダを1つ移すと、移した先は全部
+            // `added` になるので件数は同じ桁になる（`types::EMIT_INTERVAL`）
+            if last_emit.elapsed() >= crate::search::EMIT_INTERVAL {
+                last_emit = std::time::Instant::now();
+                let _ = app.emit(
+                    EVT_INDEX_PROGRESS,
+                    IndexProgressPayload {
+                        current_path: path_str,
+                        done_files: done_dirty,
+                        total_files: dirty_count,
+                    },
+                );
+            }
         }
 
-        if !batch.is_empty() && !commit(&|s: &IndexSnapshot| s.with_files(batch.clone())) {
+        // **`commit` ヘルパを通さない。** あれは `&dyn Fn` を取るので閉包が
+        // `batch` を消費できず、`clone()` を強いる——`FileBucketEntries` は
+        // `[Vec<_>; 256]` を持つので、**書き込みロックの中で**ファイル数 × 256本の
+        // `Vec` を確保し直すことになる（`snapshot_cell` の doc どおり、その長さが
+        // そのまま検索の読みの待ちになる）
+        let wrote = batch.is_empty()
+            || store.update_if_epoch(epoch, move |s| s.with_files(std::mem::take(&mut batch)));
+        if !wrote {
+            log::warn!("[rescan] 索引が別の代に差し替わったので、差分の取り込みをやめる");
             return RescanOutcome::Superseded;
         }
 

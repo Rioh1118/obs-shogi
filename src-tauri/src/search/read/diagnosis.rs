@@ -39,16 +39,6 @@ pub(crate) fn scan_failure(reason: &ScanError) -> String {
     format!("{what}。索引は最後に読めたときのままで、新しくなっていません。{how}")
 }
 
-/// 索引を組む仕事そのものが落ちたときの文言。
-///
-/// **内部の語彙を画面に出さない。** `JoinError` の `Display` は
-/// `task 42 panicked` のような綴り。
-pub(crate) fn build_failure() -> String {
-    "この棋譜を索引に入れられませんでした。検索には出ません。\
-     開き直しても直らないときは、ファイルが壊れていないか確かめてください"
-        .to_string()
-}
-
 /// 読めなかった場所を、利用者に出す一文へ組む。
 ///
 /// **「フォルダ」と言い切らない。** 読めなかったものにはファイル自身も入る
@@ -275,6 +265,9 @@ pub(crate) fn cannot_open_reason(e: &std::io::Error) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // 索引を組む失敗の文言は `build` 段が持つが、**同じ警告の枠に並ぶ**ので
+    // 「内部の語彙を出さない」はまとめて見る
+    use crate::search::build::build_failure;
 
     /// 場所が分かるものと分からないもので、文言が分かれること。
     #[test]

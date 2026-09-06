@@ -46,6 +46,16 @@ use crate::search::types::{
 /// 前の索引の同じ `file_id` の出現が桶に残ったまま**生きている扱いで**新しい節表に
 /// 当たり、**押すと違う局面が出るヒット**になる（`search/query_service.rs` の
 /// `cursor_lite` の腕）。`stale` も構築中ずっと `false` のままになる。
+/// 索引を組む仕事そのものが落ちたときの文言。
+///
+/// **内部の語彙を画面に出さない。** `JoinError` の `Display` は
+/// `task 42 panicked` のような綴り。
+pub(crate) fn build_failure() -> String {
+    "この棋譜を索引に入れられませんでした。検索には出ません。\
+     開き直しても直らないときは、ファイルが壊れていないか確かめてください"
+        .to_string()
+}
+
 /// 全件構築のタスクに渡すもの。
 ///
 /// **走査の結果と、据え直しの代を1つにまとめる。** どれも構築の末尾まで
@@ -183,7 +193,7 @@ pub async fn build_full_index_task(
                         path_str,
                         empty,
                         empty_nt,
-                        vec![crate::search::read::diagnosis::build_failure()],
+                        vec![build_failure()],
                         false,
                     )
                 }
@@ -234,7 +244,7 @@ pub async fn build_full_index_task(
             }
         }
 
-        if last_emit.elapsed() >= crate::search::types::EMIT_INTERVAL {
+        if last_emit.elapsed() >= crate::search::EMIT_INTERVAL {
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {
