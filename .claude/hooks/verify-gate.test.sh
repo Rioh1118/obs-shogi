@@ -39,7 +39,7 @@ count_failure() {
 # その条件を満たさないチェックアウトで床が必ず落ちる。
 # 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
 # 実測は末尾の runs を見ること。
-GATE_TEST_MIN_RUNS=197
+GATE_TEST_MIN_RUNS=203
 GATE_TEST_RUNLOG=$(mktemp)
 export GATE_TEST_RUNLOG
 
@@ -321,6 +321,20 @@ expect_dir "" 'git commit -am "don'"'"'t" >src/app/App.tsx --author="won'"'"'t"'
 # `>path` が `$call` に入り、手前も後ろも見ている検査のどれにも当たらない
 expect_dir "" 'git -c user.name=x>src/app/App.tsx commit -m y' "$here"
 expect_dir "" 'git -q>src/app/App.tsx commit -m y' "$here"
+
+# **別種の引用の中にある引用符を、引用の開始と読まない。**
+# 正規表現は「いま引用の中か」を持てないので、`-m 'a "b'` の `"` を開始と読み、
+# 次の `"` までを中身として空にする —— 間のリダイレクトや2つ目の呼び出しごと消える。
+expect_dir "" 'git commit -m '"'"'a "b'"'"' > src/app/App.tsx -m '"'"'c" d'"'"'' "$here"
+expect_dir "" 'git commit -m"a '"'"'b" > src/app/App.tsx -m"c'"'"' d"' "$here"
+expect_dir "" 'git commit -m"a '"'"'b" && cd /tmp && git commit -m"c'"'"' d"' "$here"
+expect_dir "" 'git commit -m"a '"'"'b" `git rm -f src/app/App.tsx` -m"c'"'"' d"' "$here"
+
+# 隣り合う引用トークンの2つ目も潰す。潰さないと、括弧を含むパスが
+# 置換もリダイレクトも書いていないのに deny になる
+expect_dir "$here" 'git commit -m "a b" "src/dir (x)/f.ts"' "$here"
+# 単一引用符の中では何も走らないので、`$` を含んでいても通る
+expect_dir "$here" "git commit -m 'fix:\$5'" "$here"
 
 # メッセージをファイルから読む形は、置換を1つも含まないので通る。
 # **塞いだ後に残る道**なので、ここが止まると打ち方が1つも無くなる。
@@ -722,7 +736,7 @@ fi
 
 failures=$(wc -l < "$GATE_TEST_FAILLOG" | tr -d ' ')
 if [ "$failures" -eq 0 ]; then
-  echo "verify-gate: 全て期待どおり"
+  printf 'verify-gate: 全て期待どおり（assertion %d 本）\n' "$runs"
   exit 0
 fi
 
