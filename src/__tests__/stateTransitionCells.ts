@@ -127,9 +127,17 @@ export function scanCells(file: string, markdown: string): ScanResult {
 
     row.slice(1).forEach((cell, i) => {
       const event = columns[i];
-      if (!event || !cell) return;
+      if (!event) return;
 
       inspected += 1;
+
+      // 空欄は「まだ何も決めていない」。`—` や `×` と同じ扱いにすると、
+      // 埋め忘れが黙って通る
+      if (!cell) {
+        uncovered.push({ file, state, event });
+        return;
+      }
+
       if (NO_TRANSITION.test(cell) || cell.includes("✓")) return;
       if (pending.has(`${state},${event}`)) return;
 
