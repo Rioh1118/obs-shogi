@@ -23,12 +23,14 @@ pub struct EngineBridge {
 
 /// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
 ///
+/// この1エントリを「席」と呼ぶ（doc とフロントも同じ語を使う）。**席は同時に1つだけ。**
+///
 /// 持っているのは、そのセッションで最後に受け取った結果だけ。
 ///
 /// **「解析中か」を表す欄は無い。** 走っているかどうかは
 /// **`active_sessions` に居るかどうか**で表す。欄にすると同じことを2通りで
 /// 表すことになり、片方だけ動いたとき（居るのに `false`、消えたのに `true`）を
-/// 誰も検出できない。終わったセッションは項目ごと消す。
+/// 誰も検出できない。終わったセッションは席ごと消す。
 #[derive(Debug)]
 struct AnalysisSession {
     last_result: Option<AnalysisResult>,
@@ -139,7 +141,7 @@ impl EngineBridge {
     }
 
     /// セッションを閉じる。**失敗した口も必ず通ること。**
-    /// 通らないと項目が残り、以後の解析が全部「既に走っている」で断られる
+    /// 通らないと席が残り、以後の解析が全部「既に走っている」で断られる
     async fn release_session(&self, session_id: &str) {
         self.active_sessions.write().await.remove(session_id);
     }
@@ -147,10 +149,10 @@ impl EngineBridge {
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
         log::info!(target: LOGT, "shutdown_engine: start");
 
-        // **止められなくても台帳の掃除まで進む。** `?` で折れると
+        // **止められなくても席の掃除まで進む。** `?` で折れると
         // `engine_id` が `Some` のまま残り、以降どのコマンドも
         // 「Engine is no longer running」を返すだけになる（終了ボタンが直せない）
-        if let Err(e) = self.stop_all_sessions().await {
+        if let Err(e) = self.stop_all_sessions("shutdown").await {
             log::warn!(
                 target: LOGT,
                 "shutdown_engine: could not stop sessions, continuing: {e}"
@@ -296,9 +298,9 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // **項目ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
+        // **席ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
         // 丸ごと持ったまま溜まる（上限は無い）。居ること自体が「走っている」なので、
-        // 終わった項目を残すと `take_session` が以後ずっと断ることにもなる。
+        // 終わった席を残すと `take_session` が以後ずっと断ることにもなる。
         //
         // ここを通っても**フロントには何も飛ばない**。`sessionId` を握ったままの
         // 画面から「停止」が来るので、`stop_session` はそれを失敗にしない。
@@ -377,7 +379,7 @@ impl EngineBridge {
         if let Some(id) = session_id {
             self.stop_session(&id).await
         } else {
-            self.stop_all_sessions().await
+            self.stop_all_sessions("stop_analysis").await
         }
     }
 
@@ -428,7 +430,7 @@ impl EngineBridge {
 
         let statuses = sessions
             .keys()
-            // 項目が在る＝走っている。消えたら終わっている
+            // 席が在る＝走っている。消えたら終わっている
             .map(|id| AnalysisStatus {
                 is_analyzing: true,
                 session_id: Some(id.clone()),
@@ -470,10 +472,10 @@ impl EngineBridge {
         // **いま走っている別の解析が止まって `Ok` が返る**。
         //
         // **「もう無い」は失敗にしない。** エンジンが落ちると
-        // `forward_results_to_ui` が項目を消すが、フロントへは何も飛ばないので
+        // `forward_results_to_ui` が席を消すが、フロントへは何も飛ばないので
         // `sessionId` を握ったまま「停止」が来る。ここで `Err` にすると
         // 呼び出し側の再開が `catch` に落ち、**解析が始まり直さない**。
-        // 要求は「止まっていること」で、項目が無いならその要求は満たせている
+        // 要求は「止まっていること」で、席が無いならその要求は満たせている
         // （`EngineAnalyzer::stop_analysis` と同じ立場）。
         {
             let mut sessions = self.active_sessions.write().await;
@@ -499,12 +501,15 @@ impl EngineBridge {
         Ok(())
     }
 
-    async fn stop_all_sessions(&self) -> Result<(), String> {
-        log::info!(target: LOGT, "stop_all_sessions: start");
+    /// 席を全部空ける。**呼び手は2つ**——指さない `stop_analysis` と `shutdown_engine`。
+    ///
+    /// `by` はそのどちらかを表す。畳まれた画面から来た停止は、失敗しても
+    /// 利用者にも開発者にも出せない（出す先の画面がもう無い）ので、
+    /// **席が在ったのかどうかを後から言えるのはこのログだけ**。
+    /// エンジンの入れ替えで空いた回と字面が同じだと、#441 の再発を追う人が取り違える。
+    async fn stop_all_sessions(&self, by: &str) -> Result<(), String> {
+        log::info!(target: LOGT, "stop_all_sessions: start by={by}");
 
-        // **誰の席を空けたかを残す。** この口を撃つのは畳まれた画面で、
-        // そちらは失敗を利用者にも開発者にも出せない（出す先の画面が無い）。
-        // 席が在ったのか空撃ちだったのかを後から言えるのはここだけ。
         let cleared: Vec<String> = self
             .active_sessions
             .write()
@@ -514,7 +519,8 @@ impl EngineBridge {
             .collect();
         log::info!(
             target: LOGT,
-            "stop_all_sessions: cleared {} session(s) {:?}",
+            "stop_all_sessions: by={} cleared {} session(s) {:?}",
+            by,
             cleared.len(),
             cleared
         );
@@ -522,13 +528,14 @@ impl EngineBridge {
         self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
                 target: LOGT,
-                "stop_all_sessions: analyzer stop failed: {:?}",
+                "stop_all_sessions: by={} analyzer stop failed: {:?}",
+                by,
                 e
             );
             format!("Failed to stop all analysis: {e}")
         })?;
 
-        log::info!(target: LOGT, "stop_all_sessions: ok");
+        log::info!(target: LOGT, "stop_all_sessions: ok by={by}");
         Ok(())
     }
 }
@@ -609,12 +616,12 @@ mod tests {
 
     /// セッションがもう無いときの「停止」を失敗にしないこと。
     ///
-    /// エンジンが落ちると `forward_results_to_ui` が項目を消すが、フロントへは
+    /// エンジンが落ちると `forward_results_to_ui` が席を消すが、フロントへは
     /// 何も飛ばないので `sessionId` を握ったまま「停止」が来る。ここで `Err` に
     /// すると、呼び出し側の再開が `catch` に落ちて**解析が始まり直さない**。
     /// 利用者から見ると「解析中」の表示が無言で「停止中」に変わる。
     ///
-    /// 要求は「止まっていること」で、項目が無いならその要求は満たせている。
+    /// 要求は「止まっていること」で、席が無いならその要求は満たせている。
     #[tokio::test]
     async fn stopping_a_session_that_is_already_gone_succeeds() {
         let bridge = bridge();
