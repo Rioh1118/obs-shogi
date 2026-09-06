@@ -75,7 +75,7 @@
 
 ## SCSS の既存の負債（`refactor/app-shell-wiring` のレビューで出たもの）
 
-`.claude/reviews/2026-09-06-app-shell-wiring-r1.md` の ui reviewer が挙げた5件。
+`.claude/reviews/2026-09-06-app-shell-wiring-r1.md` の ui reviewer が挙げたもの。
 **その PR は SCSS を1行も触っていない**ので範囲外にした。どれも単独では
 着手する価値を判断できていない。
 
@@ -92,10 +92,18 @@
 - **閉じたサイドバーの `transition` が一度も走らない** — 実際に変わるのは親の
   `grid-template-columns` と登録されていないカスタムプロパティで、どちらも遷移しない。
   仕切り線もスロットと `.sidebar` の2箇所で別々の直値で引かれている
-- **`Board` の「盤面を読み込み中...」は到達しない** — `AppLayout` の `hasKifu` が
-  同じ `view` を見て門番しているので、`Board` が描かれた時点で `player?.shogi` は必ずある。
-  しかも `.board-loading` の CSS 規則はリポジトリに1つも無く、ビルド後の CSS にも出ない。
-  `docs/spec/screens/board.md` の P0 は実在する状態のように書いている
 - **メディアクエリの breakpoint が13種類の直値で散っている** — 対象幅（1280px 以上）では
   1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
   `@media` の条件部を対象外にしている
+
+## 到達しない分岐が、仕様では実在する状態として書かれている
+
+`.claude/reviews/2026-09-06-app-shell-wiring-r2.md` の r2-10 の付随（ui reviewer）。
+**SCSS の話ではない**ので上の節とは分けてある。
+
+- **`Board` の「盤面を読み込み中...」は到達しない** — `AppLayout` の `hasKifu` が同じ `view` を
+  見て門番しているので、`Board` が描かれた時点で `player?.shogi` は必ずある。しかも
+  `.board-loading` の CSS 規則はリポジトリに1つも無く、ビルド後の CSS にも出ない。
+  **`docs/spec/screens/board.md` の P0 はこれを実在する状態として表に載せている。**
+  #434（盤に載せられない棋譜のときに何かを出す）に着手する人はまずその画面仕様を読み、
+  「盤が組めないときには既に文言が出る」と読む
