@@ -55,7 +55,7 @@ pub async fn open_project(
     log::info!("[open_project] BEGIN root_dir={}", root_dir.display());
 
     // 0) Restoring state (UIに「復元中」を見せる)
-    store.restart(Restart::Restoring);
+    let _ = store.restart(Restart::Restoring);
     let _ = app.emit(
         EVT_INDEX_STATE,
         IndexStatePayload {
@@ -107,7 +107,7 @@ pub async fn open_project(
             // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
             // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
             // Updating で開示する。
-            store.install_restored(
+            let restore_epoch = store.install_restored(
                 restored.index.file_table,
                 restored.index.node_tables,
                 restored.index.buckets,
@@ -152,7 +152,10 @@ pub async fn open_project(
                 pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
                 // 差分が無くて run_rescan_diff_apply が早期 return した場合、
                 // store の state は Updating のまま。 Ready に確実に上げ直す。
-                st.update(|s| s.with_state(StoreIndexState::Ready));
+                if !st.update_if_epoch(restore_epoch, |s| s.with_state(StoreIndexState::Ready)) {
+                    log::warn!("[open_project] 索引が別の代に差し替わったので Ready にしない");
+                    return;
+                }
                 let total_files = st.snapshot().file_table.len() as u32;
                 let _ = app2.emit(
                     EVT_INDEX_STATE,
@@ -175,7 +178,7 @@ pub async fn open_project(
     }
 
     // 2) restore 失敗 → full build
-    store.restart(Restart::Building);
+    let build_epoch = store.restart(Restart::Building);
 
     let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
     let total_files = records.len() as u32;
@@ -202,6 +205,7 @@ pub async fn open_project(
         root_dir,
         records,
         total_files,
+        build_epoch,
     ));
 
     log::info!("[open_project] END (full build path) total_files={total_files}");

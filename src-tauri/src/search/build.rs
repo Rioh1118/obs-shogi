@@ -33,7 +33,11 @@ use crate::search::types::{
 ///
 /// **2回目の `open` が来ても、この構築は止まらない。** そのとき索引は別のものへ
 /// 差し替わっているので、書き込みは全部 `IndexStore::update_if_epoch` を通し、
-/// **代が変わっていたら書かずに抜ける。** 代は入口で1回取り、以後持ち回る。
+/// **代が変わっていたら書かずに抜ける。**
+///
+/// **代（`epoch`）は呼び手が渡す。** ここで `snapshot().epoch` を拾うと、
+/// `restart` から spawn までの間（`open_project` は全走査を挟む）に
+/// 別の `open` が入ったとき**他人の代を掴む。**
 ///
 /// 前提が破れて始められなかったときは `EVT_INDEX_WARN` を出して帰る
 /// （段は動かさない —— そのとき索引の持ち主は別のタスク）。
@@ -49,6 +53,7 @@ pub async fn build_full_index_task(
     root_dir: PathBuf,
     mut records: Vec<FileRecord>,
     total_files: u32,
+    epoch: u64,
 ) {
     type BuildItem = (
         FileId,
@@ -74,13 +79,18 @@ pub async fn build_full_index_task(
     //
     // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
     // 索引が作られない方が観測できる。
-    let epoch = {
-        let snap = store.snapshot();
+    // 呼び手が渡した代の索引であること。**破れたら書かずに帰る。**
+    //
+    // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
+    // 索引が作られない方が観測できる。
+    {
+        let Some(snap) = store.snapshot_if_epoch(epoch) else {
+            log::error!("[build] 索引が別の代に差し替わっている。索引は作らない");
+            return;
+        };
         if snap.state != StoreIndexState::Building || !snap.file_table.is_empty() {
             log::error!(
-                "[build] 全件構築を空の Building 以外から始めようとした (state={:?} files={})。\
-                 別の open が割り込んだか、呼び手が restart(Restart::Building) を飛ばした。\
-                 索引は作らない",
+                "[build] 全件構築を空の Building 以外から始めようとした (state={:?} files={})",
                 snap.state,
                 snap.file_table.len()
             );
@@ -93,8 +103,7 @@ pub async fn build_full_index_task(
             );
             return;
         }
-        snap.epoch
-    };
+    }
 
     let conc = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -260,7 +269,12 @@ pub async fn build_full_index_task(
     let next_file_id = (total_files as FileId).wrapping_add(1).max(1);
 
     {
-        let snap = store.snapshot(); // Arc<IndexSnapshot>
+        // **保存も代を見る。** 拾い直すと、別の `open` が差し替えた索引を
+        // このプロジェクトの名前で焼いてしまう
+        let Some(snap) = store.snapshot_if_epoch(epoch) else {
+            log::warn!("[build] 索引が別の代に差し替わったので、チェックポイントを書かない");
+            return;
+        };
         let scan2 = scan.clone(); // ScanSnapshot (clone ok)
         let path_to_id2 = path_to_id.clone(); // HashMap clone
         let root2 = root_dir.clone();
@@ -268,8 +282,12 @@ pub async fn build_full_index_task(
         let next2 = next_file_id;
 
         tauri::async_runtime::spawn_blocking(move || {
-            if let Ok(store) = crate::storage::app_cache(&app2, "index") {
-                let _ = format::save_checkpoint(&store, &root2, &snap, &scan2, &path_to_id2, next2);
+            match crate::storage::app_cache(&app2, "index") {
+                Ok(blobs) => {
+                    let _ =
+                        format::save_checkpoint(&blobs, &root2, &snap, &scan2, &path_to_id2, next2);
+                }
+                Err(e) => log::error!("[index cache] チェックポイントの置き場を作れない: {e}"),
             }
         });
     }

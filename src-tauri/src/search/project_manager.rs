@@ -16,7 +16,7 @@ use crate::search::read::fs_scan::{
 use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
 use crate::search::store::index_store::IndexStore;
 use crate::search::store::node_table::NodeTable;
-use crate::search::store::snapshot::IndexState as StoreIndexState;
+use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexState};
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
@@ -143,7 +143,26 @@ impl ProjectManager {
     }
 
     /// Step2本体：scan -> diff -> apply
+    /// 走査し直して差分を索引に取り込む。
+    ///
+    /// **2回目の `open` が来ても、このタスクは止まらない。** 前の `root_dir` と
+    /// 前の `scan` を持ったまま、**差し替わった索引に書く**ことになる。
+    /// だから索引への書き込みは全部 `update_if_epoch` を通し、
+    /// 代が変わっていたら書かずに抜ける。
+    ///
+    /// 守らないと、前のプロジェクトの `file_id` で墓標を立てて
+    /// **別の棋譜のヒットが黙って消える**し、構築中の索引を `Ready` に上げて
+    /// **半分しか入っていない結果が「最新」として画面に並ぶ**。
     pub async fn run_rescan_diff_apply(&self, app: AppHandle, store: Arc<IndexStore>) {
+        // 走り出したときの代。以後の書き込みはこれを持ち回る
+        let epoch = store.snapshot().epoch;
+        let commit = |f: &dyn Fn(&IndexSnapshot) -> IndexSnapshot| -> bool {
+            if store.update_if_epoch(epoch, f) {
+                return true;
+            }
+            log::warn!("[rescan] 索引が別の代に差し替わったので、差分の取り込みをやめる");
+            false
+        };
         // プロジェクト情報を “cloneして” 取り出す（ロックを await に跨がない）
         let (root, prev_scan, mut path_to_id, mut next_file_id) = {
             let g = self.inner.lock().await;
@@ -181,7 +200,9 @@ impl ProjectManager {
         }
 
         // state=Updating（クエリは stale=true になる）
-        store.update(|s| s.with_state(StoreIndexState::Updating));
+        if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Updating)) {
+            return;
+        }
         let _ = app.emit(
             EVT_INDEX_STATE,
             IndexStatePayload {
@@ -197,7 +218,9 @@ impl ProjectManager {
         // removed → tombstone (cheap, fire immediately)
         for path_key in &diff.removed {
             if let Some(file_id) = path_to_id.remove(path_key) {
-                store.update(|s| s.with_tombstone(file_id));
+                if !commit(&|s: &IndexSnapshot| s.with_tombstone(file_id)) {
+                    return;
+                }
             }
             done_dirty += 1;
             let _ = app.emit(
@@ -285,11 +308,13 @@ impl ProjectManager {
             );
         }
 
-        if !batch.is_empty() {
-            store.update(|s| s.with_files(batch));
+        if !batch.is_empty() && !commit(&|s: &IndexSnapshot| s.with_files(batch.clone())) {
+            return;
         }
 
-        store.update(|s| s.with_state(StoreIndexState::Ready));
+        if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Ready)) {
+            return;
+        }
         let _ = app.emit(
             EVT_INDEX_STATE,
             IndexStatePayload {

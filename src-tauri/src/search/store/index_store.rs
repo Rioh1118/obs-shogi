@@ -52,14 +52,29 @@ impl IndexStore {
     ///
     /// `f` は書き込みロックの中で走る。長さがそのまま検索の待ちになる
     /// （[`SnapshotCell::update`](super::snapshot_cell::SnapshotCell::update)）。
+    /// **代を見ない。** 索引を持っているのが自分だと分かっている呼び手だけ使う。
+    ///
+    /// 走っている構築や差分適用から呼ぶなら [`Self::update_if_epoch`]。
     pub fn update(&self, f: impl FnOnce(&IndexSnapshot) -> IndexSnapshot) {
         self.cell.update(f);
     }
 
+    /// いまの索引を、**その代のものであれば**持ち出す。
+    pub fn snapshot_if_epoch(&self, epoch: u64) -> Option<Arc<IndexSnapshot>> {
+        let s = self.cell.snapshot();
+        (s.epoch == epoch).then_some(s)
+    }
+
     /// **中身を捨てて作り直しに入る。** 段は捨ててよい2つに限る。
-    pub fn restart(&self, at: Restart) {
-        self.cell
-            .replace(IndexSnapshot::restarting(at, self.take_epoch()));
+    /// **置いた代を返す。** 呼び手はそれを持ち回り、以後の書き込みに使う。
+    ///
+    /// 返さずに `snapshot().epoch` で拾わせると、
+    /// **`restart` と拾うまでの間に別の `open` が入ったとき他人の代を掴む。**
+    /// その窓は狭くない —— `open_project` は間で全走査を回す。
+    pub fn restart(&self, at: Restart) -> u64 {
+        let epoch = self.take_epoch();
+        self.cell.replace(IndexSnapshot::restarting(at, epoch));
+        epoch
     }
 
     /// **自分が始めた索引にだけ書く。**
@@ -96,13 +111,15 @@ impl IndexStore {
         file_table: FileTable,
         node_tables: NodeTables,
         entries: BucketEntries,
-    ) {
+    ) -> u64 {
+        let epoch = self.take_epoch();
         self.cell.replace(IndexSnapshot::restored(
             file_table,
             node_tables,
             entries,
-            self.take_epoch(),
+            epoch,
         ));
+        epoch
     }
 }
 
