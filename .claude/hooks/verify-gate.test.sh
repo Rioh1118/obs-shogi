@@ -19,7 +19,11 @@ GATE_LIB_ONLY=1 . .claude/hooks/verify-gate.sh
 # ファイルへ1行追記すれば、どの深さのサブシェルから呼ばれても親が数えられる。
 GATE_TEST_FAILLOG=$(mktemp)
 export GATE_TEST_FAILLOG
-trap 'rm -f "$GATE_TEST_FAILLOG"' EXIT
+gate_cleanup() {
+  rm -f "$GATE_TEST_FAILLOG"
+  rm -rf "${gate_probe_template:-}"
+}
+trap gate_cleanup EXIT
 
 count_failure() {
   printf 'x\n' >> "$GATE_TEST_FAILLOG"
@@ -474,51 +478,81 @@ gate_write_spellings=(
   "pop"
   "HEAD"
   "main"
+  "-f gatetestother"
+  "tracked.txt moved.txt"
+  "gatetest.patch"
 )
+
+# 読むだけなら 0、何かを書いたら 1。
+# 当てる先の雛形。**1度だけ作って、動詞ごとに複製する。**
+# 動詞ごとに `git init` からやり直すと、当てる本数より repo を作る本数のほうが
+# 高くつく（この検査だけで `npm run verify` の大半を占める）。
+gate_probe_template=$(mktemp -d)
+(
+  cd "$gate_probe_template" || exit 1
+  git init -q .
+  git config user.email a@b
+  git config user.name c
+  printf '[toolchain]\nchannel = "stable"\n' > rust-toolchain.toml
+  printf 'tracked\n' > tracked.txt
+  printf 'clean\n' > clean.txt
+  git add -A
+  git commit -qm init
+
+  # 枝を替える動詞（`switch` / `checkout -f`）が触るもの。
+  # 中身の違う枝が無いと、切り替えても作業ツリーは変わらない
+  git checkout -q -b gatetestother
+  printf 'other\n' > clean.txt
+  git commit -qam other
+  git checkout -q -
+
+  # `apply` が当てる patch。**汚れていない追跡ファイルに当たる**ものを作る
+  printf 'patched\n' > clean.txt
+  git diff -- clean.txt > gatetest.patch
+  git checkout -q -- clean.txt
+
+  # 書き込む動詞が触る材料。**最後に置く** ——
+  # 先に置くと上の commit に飲まれ、`git commit -m x` が「変えるものが無い」で
+  # 何もせず、読むだけに見える
+  printf 'unstaged\n' >> tracked.txt
+  printf 'staged\n' > staged.txt
+  git add staged.txt
+  printf 'untracked\n' > untracked.txt
+) >/dev/null 2>&1
 
 # 読むだけなら 0、何かを書いたら 1。
 probe_is_readonly() {
   local verb=$1 spelling
-  local repo before after head_before head_after files_before files_after rc=0
+  local repo before after head_before rc=0
   repo=$(mktemp -d)
-  (
-    cd "$repo" || exit 1
-    git init -q .
-    git config user.email a@b
-    git config user.name c
-    printf '[toolchain]\nchannel = "stable"\n' > rust-toolchain.toml
-    printf 'tracked\n' > tracked.txt
-    git add -A
-    git commit -qm init
-    # 書き込む動詞が触る材料を一通り置く。素の repo だと `commit` も
-    # `checkout --` も「変えるものが無い」ので動かず、読むだけに見える
-    printf 'unstaged\n' >> tracked.txt
-    printf 'staged\n' > staged.txt
-    git add staged.txt
-    printf 'untracked\n' > untracked.txt
-  ) >/dev/null 2>&1
+  rm -rf "$repo"
+  cp -R "$gate_probe_template" "$repo"
+  head_before=$(git -C "$repo" rev-parse HEAD)
 
   # **綴りを1つ当てるたびに突き合わせる。** まとめて最後に1回だけ見ると、
   # 表の中で打ち消し合う組（`stash` と `stash pop`）が「変わっていない」に見える。
   for spelling in "${gate_write_spellings[@]}"; do
     before=$(git -C "$repo" status --porcelain)
-    head_before=$(git -C "$repo" rev-parse HEAD)
-    files_before=$(ls -A "$repo" | sort)
 
     # 意図的に分割する。1要素で複数の引数を渡すため
+    #
+    # **stdin を塞ぐ。** 引数を持たない `git apply` は標準入力を読むので、
+    # 開けたままだと当てた時点で止まる（suite が返ってこない）。
     # shellcheck disable=SC2086
-    git -C "$repo" "$verb" $spelling >/dev/null 2>&1
+    git -C "$repo" "$verb" $spelling >/dev/null 2>&1 </dev/null
 
     after=$(git -C "$repo" status --porcelain)
-    head_after=$(git -C "$repo" rev-parse HEAD)
-    files_after=$(ls -A "$repo" | sort)
 
-    if [ "$before" != "$after" ] || [ "$head_before" != "$head_after" ] \
-      || [ "$files_before" != "$files_after" ]; then
+    if [ "$before" != "$after" ]; then
       rc=1
       break
     fi
   done
+
+  # **HEAD は最後に1回だけ見る。** 綴りごとに引くと git の起動費用が3倍になる。
+  # コミットを作る綴りは staged が消えるので上の status が先に拾う ——
+  # ここが拾うのは「ツリーを変えずに HEAD だけ動かす」形
+  [ "$(git -C "$repo" rev-parse HEAD)" = "$head_before" ] || rc=1
 
   rm -rf "$repo"
   return "$rc"
@@ -533,7 +567,11 @@ expect_readonly() {
 
 # **当て方そのものを先に見る。** 落とせない綴りしか当てていなければ、
 # 下のループは緑で回り続けるだけで何も守らない。
-for gate_writer in add rm checkout restore reset commit config stash clean; do
+# **この一覧を全部落とせることが、上の綴り表の正しさの条件。**
+# 綴りを痩せさせた変更は、ここが赤くなって止まる。
+# `mv` / `switch` / `apply` は判定表 (B, S4) が名指ししている動詞
+gate_writers=(add rm mv checkout switch restore reset commit config stash clean apply)
+for gate_writer in "${gate_writers[@]}"; do
   if probe_is_readonly "$gate_writer"; then
     printf 'FAIL  書き込む動詞を「読むだけ」と判定している: %s\n' "$gate_writer"
     count_failure
