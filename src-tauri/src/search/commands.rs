@@ -90,28 +90,32 @@ pub async fn open_project(
     match restored {
         Ok(mut restored) => {
             // 念のため（decode側でroot_dirを入れてるなら不要だが安全）
-            restored.scan.root_dir = root_dir.clone();
+            restored.scan.snapshot.root_dir = root_dir.clone();
 
-            let total_files = restored.scan.by_path.len() as u32;
+            let total_files = restored.scan.snapshot.by_path.len() as u32;
 
             log::info!(
                 "[open_project] RESTORE OK total_files={} next_file_id={}",
                 total_files,
-                restored.next_file_id
+                restored.scan.next_file_id
             );
 
             // restore 直後は Updating として install する。
             // watcher 差分反映の前に「Ready」を出すと stale=false の検索結果が
             // 古い snapshot を見るので、 UI が「再スキャン中」を認識できるよう
             // Updating で開示する。
-            store.install_restored(restored.file_table, restored.node_tables, restored.buckets);
+            store.install_restored(
+                restored.index.file_table,
+                restored.index.node_tables,
+                restored.index.buckets,
+            );
 
             project
                 .install_after_full_build(
                     root_dir.clone(),
-                    restored.scan,
-                    restored.path_to_id,
-                    restored.next_file_id,
+                    restored.scan.snapshot,
+                    restored.scan.path_to_id,
+                    restored.scan.next_file_id,
                 )
                 .await;
 

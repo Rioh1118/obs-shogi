@@ -56,7 +56,7 @@ macro_rules! err {
 
 const MAGIC: [u8; 8] = *b"OBSIXv01";
 
-/// 索引の中身の版。**容れ物の形だけでなく、棋譜の読み方が変わったときも上げる。**
+/// キャッシュの版。**容れ物の形だけでなく、棋譜の読み方が変わったときも上げる。**
 ///
 /// 索引の項目が作り直されるのは `(size, mtime_ms)` が**変わったとき**だけ
 /// （`fs_scan.rs` の `diff_snapshot`）。ファイルに触っていなければ読み直さないので、
@@ -71,15 +71,37 @@ const MAGIC: [u8; 8] = *b"OBSIXv01";
 /// 入った棋譜からどの `PositionKey` が出るか、のどちらかが変われば上げる。
 /// 棋譜を読むクレートを上げた、読み口の判定を変えた、初期局面の組み立てを変えた、
 /// 指し手の適用を変えた、はいずれも該当する。
-const VERSION: u32 = 3;
+const CACHE_VERSION: u32 = 3;
 
-pub struct RestoredCache {
+/// キャッシュから読み戻した、索引を組み直すのに要るもの。
+///
+/// **これはキャッシュではない。** キャッシュはディスク上の blob で、
+/// これはそこから取り出した値。そのまま `IndexStore::install_restored` へ渡る。
+///
+/// 桶は畳んだ状態（生きている出現だけ・鍵の昇順）で入っている。
+pub struct RestoredIndex {
     pub file_table: FileTable,
     pub node_tables: NodeTables,
-    pub buckets: BucketEntries, // compacted
-    pub scan: ScanSnapshot,
+    pub buckets: BucketEntries,
+}
+
+/// キャッシュから読み戻した、走査を続けるのに要るもの。
+///
+/// **索引とは別の寿命を持つ。** 索引は差し替わっても、どのファイルを
+/// どの `file_id` で見ていたかは引き継ぐ必要がある。
+/// そのまま `ProjectManager::install_after_full_build` へ渡る。
+pub struct RestoredScan {
+    /// どのファイルをどの世代で見ていたか
+    pub snapshot: ScanSnapshot,
     pub path_to_id: HashMap<String, FileId>,
+    /// 次に配る `file_id`。**1 から密に振った続き**
     pub next_file_id: FileId,
+}
+
+/// 読み戻した一式。
+pub struct Restored {
+    pub index: RestoredIndex,
+    pub scan: RestoredScan,
 }
 
 struct EncodeCtx<'a> {
@@ -237,7 +259,7 @@ pub fn save_checkpoint(
     Ok(())
 }
 
-pub fn try_restore(app: &AppHandle, root_dir: &Path) -> Result<RestoredCache, String> {
+pub fn try_restore(app: &AppHandle, root_dir: &Path) -> Result<Restored, String> {
     let (_proj_dir, final_path, bak_path) = cache_paths(app, root_dir)?;
     trace!("try_restore BEGIN root_dir={}", root_dir.display());
     trace!(
@@ -273,7 +295,7 @@ pub fn try_restore(app: &AppHandle, root_dir: &Path) -> Result<RestoredCache, St
     }
 }
 
-fn read_decode(path: &Path, root_dir: &Path) -> Result<RestoredCache, String> {
+fn read_decode(path: &Path, root_dir: &Path) -> Result<Restored, String> {
     trace!("read_decode path={}", path.display());
     let bytes = fs::read(path).map_err(|e| {
         let msg = format!("read failed {}: {e}", path.display());
@@ -311,7 +333,7 @@ fn compact_all_buckets(snap: &IndexSnapshot) -> BucketEntries {
 // --------------------
 fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> Result<(), String> {
     w.extend_from_slice(&MAGIC);
-    write_u32(w, VERSION);
+    write_u32(w, CACHE_VERSION);
     write_u64(w, now_ms());
 
     let rh = root_hash(ctx.root_dir);
@@ -479,7 +501,7 @@ mod min_bytes {
     pub(super) const OCCURRENCE: usize = 8 + 8 + 4 + 4 + 4;
 }
 
-fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
+fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<Restored, String> {
     let mut r = Reader::new(bytes);
 
     let magic = r.read_fixed::<8>()?;
@@ -488,7 +510,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     }
 
     let ver = r.read_u32()?;
-    if ver != VERSION {
+    if ver != CACHE_VERSION {
         return Err(format!("bad version: {ver}"));
     }
 
@@ -679,13 +701,17 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<RestoredCache, String> {
     total_bucket_entries,
 );
 
-    Ok(RestoredCache {
-        file_table: ft,
-        node_tables: nts,
-        buckets,
-        scan,
-        path_to_id,
-        next_file_id,
+    Ok(Restored {
+        index: RestoredIndex {
+            file_table: ft,
+            node_tables: nts,
+            buckets,
+        },
+        scan: RestoredScan {
+            snapshot: scan,
+            path_to_id,
+            next_file_id,
+        },
     })
 }
 
@@ -828,7 +854,7 @@ impl<'a> Reader<'a> {
 /// `a_corrupt_length_cannot_decide_how_much_to_allocate`）。
 /// あれらは blob を読めるかどうかの検査で、構造の門番とは別の族。
 /// **`tests/index_cache_guard_names.rs` が、ヘッダの検査が上の3つの綴りを
-/// 名乗らないことを見る。** ただし見分けは `MAGIC` / `VERSION` / `root_hash` /
+/// 名乗らないことを見る。** ただし見分けは `MAGIC` / `CACHE_VERSION` / `root_hash` /
 /// `header_for` の綴りが本文に出るかだけなので、**別のヘルパで組むと掛からない。**
 ///
 /// **書き側の門番の文言は `refusing to write: ` で始める。**
@@ -849,9 +875,9 @@ mod tests {
     fn an_index_written_by_an_older_version_cannot_be_read() {
         let mut blob = Vec::new();
         blob.extend_from_slice(&MAGIC);
-        write_u32(&mut blob, VERSION - 1);
+        write_u32(&mut blob, CACHE_VERSION - 1);
 
-        // RestoredCache は Debug を実装していないので expect_err は使えない
+        // Restored は Debug を実装していないので expect_err は使えない
         let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
             panic!("前の版の索引を読んでしまった");
         };
@@ -860,12 +886,12 @@ mod tests {
 
     /// 今の版で書いたものは、版の検査を通り抜ける。
     ///
-    /// 上のテストだけだと、`VERSION` をいくつにしても通る。
+    /// 上のテストだけだと、`CACHE_VERSION` をいくつにしても通る。
     #[test]
     fn the_current_version_passes_the_version_check() {
         let mut blob = Vec::new();
         blob.extend_from_slice(&MAGIC);
-        write_u32(&mut blob, VERSION);
+        write_u32(&mut blob, CACHE_VERSION);
 
         let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
             panic!("本体が無いので失敗するはず");
@@ -873,35 +899,35 @@ mod tests {
         assert!(!err.contains("bad version"), "今の版が弾かれている: {err}");
     }
 
-    /// 退役した版の最大値。**[`VERSION`] のすぐ下の値をリテラルで持つ。**
+    /// 退役した版の最大値。**[`CACHE_VERSION`] のすぐ下の値をリテラルで持つ。**
     ///
     /// この2つの関係は下の `const _` がコンパイル時に見ているので、
     /// **どちらかだけを動かすと `cargo test` / `cargo clippy --all-targets` が落ちる**
     /// （`const _` が `#[cfg(test)]` の中にあるので、`cargo build` だけでは通る）。
     /// 留めているのは言語ではなく、Rust を触ったら `verify:rust` を必ず走らせる
     /// `verify-gate.sh` のほう。
-    const LATEST_RETIRED_VERSION: u32 = 2;
+    const LATEST_RETIRED_CACHE_VERSION: u32 = 2;
 
     /// 過ぎた版の索引を、二度と受け入れない。
     ///
     /// `the_current_version_passes_the_version_check` と
-    /// `a_file_that_is_not_an_index_cannot_be_read` は `VERSION` そのものを使って
-    /// blob を組むので、値がいくつでも通る。**[`VERSION`] を留めるものが他に無い。**
+    /// `a_file_that_is_not_an_index_cannot_be_read` は `CACHE_VERSION` そのものを使って
+    /// blob を組むので、値がいくつでも通る。**[`CACHE_VERSION`] を留めるものが他に無い。**
     /// 前の版に戻ると、その版が書いた索引がそのまま読まれ、
     /// `(size, mtime_ms)` が変わっていない棋譜は古い解釈のまま検索に当たり続ける。
     /// 警告も出ない。
     #[test]
     fn superseded_versions_are_never_accepted_again() {
-        // **等号で留める。** 不等号（`VERSION > LATEST_RETIRED_VERSION`）だと
-        // 下げたときしか落ちない — 版を上げて `LATEST_RETIRED_VERSION` を
+        // **等号で留める。** 不等号（`CACHE_VERSION > LATEST_RETIRED_CACHE_VERSION`）だと
+        // 下げたときしか落ちない — 版を上げて `LATEST_RETIRED_CACHE_VERSION` を
         // 据え置くと、間の版を一度も試さないまま緑で通る。
         // 実行時の `assert!` は定数なので clippy が断る。コンパイル時に見る
         const _: () = assert!(
-            VERSION == LATEST_RETIRED_VERSION + 1,
-            "`VERSION` と `LATEST_RETIRED_VERSION` は一緒に動かすこと"
+            CACHE_VERSION == LATEST_RETIRED_CACHE_VERSION + 1,
+            "`CACHE_VERSION` と `LATEST_RETIRED_CACHE_VERSION` は一緒に動かすこと"
         );
 
-        for old in 1..=LATEST_RETIRED_VERSION {
+        for old in 1..=LATEST_RETIRED_CACHE_VERSION {
             let mut blob = MAGIC.to_vec();
             write_u32(&mut blob, old);
 
@@ -921,7 +947,7 @@ mod tests {
     #[test]
     fn a_file_that_is_not_an_index_cannot_be_read() {
         let mut blob = b"PK\x03\x04....".to_vec();
-        write_u32(&mut blob, VERSION);
+        write_u32(&mut blob, CACHE_VERSION);
 
         let Err(err) = decode_all(&blob, Path::new("/tmp")) else {
             panic!("索引でないファイルを読んでしまった");
@@ -948,7 +974,7 @@ mod tests {
     fn header_for(root_dir: &Path) -> Vec<u8> {
         let mut blob = Vec::new();
         blob.extend_from_slice(&MAGIC);
-        write_u32(&mut blob, VERSION);
+        write_u32(&mut blob, CACHE_VERSION);
         write_u64(&mut blob, 0);
         blob.extend_from_slice(&root_hash(root_dir));
         blob
@@ -1303,16 +1329,17 @@ mod tests {
         let Ok(back) = decode_all(&blob, root) else {
             panic!("本物の大きさの索引を読み戻せない（min_bytes を大きく見積もっている）");
         };
-        assert_eq!(back.file_table.len(), FILES as usize);
-        assert_eq!(back.scan.by_path.len(), FILES as usize);
-        assert_eq!(back.path_to_id.len(), FILES as usize);
+        assert_eq!(back.index.file_table.len(), FILES as usize);
+        assert_eq!(back.scan.snapshot.by_path.len(), FILES as usize);
+        assert_eq!(back.scan.path_to_id.len(), FILES as usize);
         assert_eq!(
-            back.buckets.iter().map(Vec::len).sum::<usize>(),
+            back.index.buckets.iter().map(Vec::len).sum::<usize>(),
             written,
             "出現が欠けた"
         );
         assert_eq!(
-            back.node_tables
+            back.index
+                .node_tables
                 .by_id_iter()
                 .filter(|x| x.is_some())
                 .count(),
@@ -1327,7 +1354,7 @@ mod tests {
     /// 検索は当たるのにそのヒットが別の節を指す。
     /// ヘッダ12バイトで止まるテストでは、そこまで届かない。
     ///
-    /// **`VERSION` を上げた版に更新した利用者は、次の起動で必ず1回ここを通る。**
+    /// **`CACHE_VERSION` を上げた版に更新した利用者は、次の起動で必ず1回ここを通る。**
     #[test]
     fn what_is_written_to_the_cache_is_what_is_read_back() {
         use crate::search::store::node_table::{ForkPtr, NodeCursor};
@@ -1452,12 +1479,16 @@ mod tests {
             panic!("書いたものを読み戻せない");
         };
 
-        assert_eq!(back.next_file_id, 3);
-        assert_eq!(back.path_to_id, path_to_id);
+        assert_eq!(back.scan.next_file_id, 3);
+        assert_eq!(back.scan.path_to_id, path_to_id);
 
         for file_id in [1u32, 2] {
             let before = ft.get(file_id).expect("元のファイル表に無い");
-            let after = back.file_table.get(file_id).expect("読み戻せていない");
+            let after = back
+                .index
+                .file_table
+                .get(file_id)
+                .expect("読み戻せていない");
             assert_eq!(
                 (after.path, after.deleted, after.r#gen),
                 (before.path, before.deleted, before.r#gen),
@@ -1466,7 +1497,12 @@ mod tests {
         }
 
         for (key, rec) in &scan.by_path {
-            let after = back.scan.by_path.get(key).expect("走査結果が欠けた");
+            let after = back
+                .scan
+                .snapshot
+                .by_path
+                .get(key)
+                .expect("走査結果が欠けた");
             assert_eq!(
                 (after.kind, after.size, after.mtime_ms),
                 (rec.kind, rec.size, rec.mtime_ms),
@@ -1475,7 +1511,7 @@ mod tests {
             );
         }
 
-        let after_nt = back.node_tables.get(1).expect("ノード表が欠けた");
+        let after_nt = back.index.node_tables.get(1).expect("ノード表が欠けた");
         assert_eq!(
             after_nt
                 .nodes
@@ -1499,7 +1535,7 @@ mod tests {
                 .map(|(k, o)| (k.z0, k.z1, o.file_id, o.r#gen, o.node_id))
                 .collect::<Vec<_>>()
         };
-        assert_eq!(flat(&back.buckets), flat(&buckets));
+        assert_eq!(flat(&back.index.buckets), flat(&buckets));
     }
     /// **崩れた桶は読まずに `Err` にする。**
     ///
