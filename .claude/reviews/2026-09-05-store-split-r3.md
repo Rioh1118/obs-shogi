@@ -140,3 +140,57 @@ architecture（併記）。`segment.rs:62`。**`from_soa` の削除に巻き込�
 | 4   | **R3-G**        | テストを器の側へ。素材は `store/fixtures.rs` へ下げる |
 | 5   | **R3-C / R3-I** | `len_nodes` を消す。`#[inline]` を戻す                |
 | 6   | **R3-F / R3-H** | doc の精度                                            |
+
+## 結果（r3 の修正）
+
+**9件すべて直した。1コミット**（`8debc507`。同じ扉と同じテスト群を触るため分けられなかった）。
+
+| 所見     | 直し方                                                                |
+| -------- | --------------------------------------------------------------------- |
+| **R3-A** | `build.rs:65` を落として `Building` の口を1つに。`U` / `B` 行を実装に |
+| **R3-B** | `restored` から `state` を落として `pub(super)`。**扉が閉じた**       |
+| **R3-C** | `len_nodes` を削除。`iter_entries` は bench が使うので残す            |
+| **R3-D** | 「必ず続く」を落とし、**呼び手の義務**として書く                      |
+| **R3-E** | 効かない塞ぎ方を落とす                                                |
+| **R3-F** | キャッシュ側に選ぶ余地が無い理由を欄に                                |
+| **R3-G** | 器のテストを `index_store.rs` へ。素材を `store/fixtures.rs` へ下げる |
+| **R3-H** | 段の遷移を固定しているテストを名指し                                  |
+| **R3-I** | `#[inline]` を戻す                                                    |
+
+### 扉が閉じたことをコンパイルで確かめた
+
+`store/` の外（`query_service.rs`）から `IndexSnapshot::restored(...)` を呼ぶと
+
+```
+error[E0624]: associated function `restored` is private
+```
+
+### 変異
+
+| 変異                               | 結果                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------- |
+| `restored` が `Ready` を置く       | **落ちる**（新しい `an_installed_restore_says_it_is_still_updating`） |
+| `restart` を `update` にすり替える | **落ちる**                                                            |
+
+### reviewer の指摘に1件の誤りがあった
+
+「`iter_entries` は呼び手ゼロ」は誤り。**`benches/search_bench.rs:498,622` が使っている。**
+
+reviewer が併せて出した「`store/mod.rs` を `pub(in crate::search)` にすれば
+`dead_code` が機械で落とす」も**採れない**。bench は外部クレートで、
+`app_lib::search::store::{bucket, file_table, node_table, segment, snapshot}` の5つを
+import している（`search_bench.rs:30-34`）。
+
+**`pub` で呼び手ゼロを機械で落とす手は、いまのところ無い。**
+
+### 途中で1回踏んだ
+
+テストを移すのに範囲で切り出して、**同じテストが2つできた**（`cargo build` が
+`defined multiple times` で落ちた）。塊の切り出しは行の範囲でなく
+**名前の一覧を取ってから**やること。
+
+### 検証
+
+- `npm run verify` **667 passed**、`npm run verify:rust` **通った**
+- `cargo test --lib search::store` **18 passed**（r2 から +1）
+- `scripts/rustdoc-ratchet.sh` **11 / baseline 11**
