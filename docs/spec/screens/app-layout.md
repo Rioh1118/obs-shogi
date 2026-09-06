@@ -129,7 +129,7 @@ URL（`panel/*`）が持つが、開閉はそちらへ揃えない。
 しかもそのファイルは `activeKifuPath` になっているので、**もう一度クリックしても
 何も起きない**（`FileNode` の `isActive` の関門）。復帰は別の棋譜を選ぶことだけ。
 → [game.md](../../state-transitions/game.md) の E16、
-[failure-surfacing.md](../../state-transitions/failure-surfacing.md) の F-21
+[failure-surfacing.md](../../state-transitions/failure-surfacing.md) の F-31
 
 ## いま満たしていないこと
 
