@@ -34,7 +34,18 @@ export interface IndexProgressPayload {
   totalFiles: number;
 }
 
+/**
+ * 警告が**何について**のものか。Rust: `pub enum IndexWarnKind`
+ *
+ * **場所とファイルを混ぜない。** 画面は限られた枠しか出せないので、混ぜると
+ * 1回の再走査で出るファイル単位の警告が場所の警告を押し出す——押し出される
+ * のは「ワークスペースを読めません」のような、**利用者が次にすることを
+ * 含んだ唯一の文言**のほう。
+ */
+export type IndexWarnKind = "place" | "file";
+
 export interface IndexWarnPayload {
+  kind: IndexWarnKind;
   path: string;
   message: string;
 }

@@ -12,6 +12,8 @@ import type { IndexUiState } from "../model/types";
 export type IndexHealth =
   /** 走査が完走していない。索引は最後に読めたときのまま */
   | "notRefreshed"
+  /** 作ろうとして作れなかった。**索引が無い**ので、検索は必ず0件 */
+  | "buildFailed"
   /** 一部の場所を読めなかった。**索引に入っていない棋譜がある** */
   | "partiallyUnreadable"
   /** 作成中・更新中。**待てば増える** */
@@ -34,7 +36,10 @@ export function indexHealth(index: IndexUiState): IndexHealth {
   if (index.state === "Restoring" || index.state === "Building" || index.state === "Updating") {
     return "building";
   }
-  if (index.scanFailed) return "notRefreshed";
+  // **「更新できていない」と「そもそも無い」を同じ語にしない。**
+  // 前者は前回の索引が残っているので検索は当たるが、後者は必ず0件。
+  // 畳むと、0件を「自分の棋譜に無い」と読ませる
+  if (index.scanFailed) return index.state === "Empty" ? "buildFailed" : "notRefreshed";
   if (index.partiallyUnreadable) return "partiallyUnreadable";
   // **`Empty` を「作成中」と言わない。** 何も走っていないので待っても増えない
   if (index.state === "Empty") return "notStarted";

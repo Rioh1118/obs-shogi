@@ -36,6 +36,18 @@ describe("indexHealth", () => {
    * プロジェクトを開く前の既定は `Empty`。ここを `building` に落とすと、
    * 待っても増えないものに「増える場合があります」と断言することになる。
    */
+  /**
+   * **「更新できていない」と「そもそも無い」を分けること。**
+   *
+   * 前者は前回の索引が残っているので検索は当たり、失われているのは
+   * 最近の追加だけ。後者は索引が空なので**必ず0件**。同じ語にすると、
+   * 0件を「自分の棋譜に無い」と読ませる。
+   */
+  it("作れなかった索引を「更新できていない」と言わない", () => {
+    expect(indexHealth(idx({ state: "Empty", scanFailed: true }))).toBe("buildFailed");
+    expect(indexHealth(idx({ state: "Ready", scanFailed: true }))).toBe("notRefreshed");
+  });
+
   it("まだ作っていない索引を「更新中」と言わない", () => {
     expect(indexHealth(idx({ state: "Empty" }))).toBe("notStarted");
     expect(indexHealth(idx({ state: "Building" }))).toBe("building");

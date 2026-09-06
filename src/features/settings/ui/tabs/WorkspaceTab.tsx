@@ -7,7 +7,7 @@ import SSection from "../kit/SSection";
 import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
-import { indexHealth, usePositionSearch } from "@/entities/search";
+import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
 import type { IndexUiState } from "@/entities/search";
 import SettingsBadge from "../kit/SettingsBadge";
 
@@ -37,6 +37,12 @@ function badgeForIndex(idx: IndexUiState) {
         tone: "warn" as const,
         icon: <AlertTriangle size={14} />,
         label: "更新できていません",
+      };
+    case "buildFailed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "作成できませんでした",
       };
     case "partiallyUnreadable":
       return {
@@ -95,6 +101,8 @@ export default function WorkspaceTab() {
   const warns = search.warns; // ←あなたの state 形
 
   const badge = useMemo(() => badgeForIndex(idx), [idx]);
+
+  const shownWarns = useMemo(() => pickWarns(warns), [warns]);
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
@@ -200,22 +208,14 @@ export default function WorkspaceTab() {
             </div>
 
             <ul className="wsTab__warnList">
-              {/*
-                **新しい順に出す。** reducer は末尾に積む（`slice(-199)`）ので、
-                先頭を読むと**いちばん古い5件が永久に居座る**。起動時の解析警告が
-                5件あるだけで、後から届いた走査の失敗が一度も描かれない
-              */}
-              {warns
-                .slice(-5)
-                .reverse()
-                .map((w, i) => (
-                  <li key={`${w.path}:${i}`} className="wsTab__warnItem">
-                    <div className="wsTab__warnMsg">{w.message}</div>
-                    <div className="wsTab__warnPath" title={w.path}>
-                      {w.path}
-                    </div>
-                  </li>
-                ))}
+              {shownWarns.map((w, i) => (
+                <li key={`${w.path}:${i}`} className="wsTab__warnItem">
+                  <div className="wsTab__warnMsg">{w.message}</div>
+                  <div className="wsTab__warnPath" title={w.path}>
+                    {w.path}
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
         )}
