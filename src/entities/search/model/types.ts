@@ -1,6 +1,7 @@
 import type { Consistency, OpenProjectOutput, SearchPositionInput } from "../api/contract";
 import type {
   IndexProgressPayload,
+  IndexState,
   IndexStatePayload,
   IndexWarnPayload,
   SearchBeginPayload,
@@ -10,7 +11,7 @@ import type {
 import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
 
 export type IndexUiState = {
-  state: IndexStatePayload["state"] | "Empty";
+  state: IndexState;
   dirtyCount: number;
   indexedFiles: number;
   totalFiles: number;

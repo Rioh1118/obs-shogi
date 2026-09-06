@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import "./WorkspaceTab.scss";
 
 import { Copy, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
@@ -7,7 +7,7 @@ import SSection from "../kit/SSection";
 import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
-import { isIndexBusy, usePositionSearch, type IndexUiState } from "@/entities/search";
+import { isIndexBusy, usePositionSearch, type IndexState } from "@/entities/search";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -15,37 +15,24 @@ function percent(done: number, total: number) {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
 
-function badgeForIndexState(s: IndexUiState["state"]) {
-  switch (s) {
-    case "Ready":
-      return {
-        tone: "accent" as const,
-        icon: <CheckCircle2 size={14} />,
-        label: "準備完了",
-      };
-    case "Building":
-      return {
-        tone: "warn" as const,
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: "作成中",
-      };
-    case "Updating":
-      return {
-        tone: "warn" as const,
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: "更新中",
-      };
-    case "Restoring":
-      return {
-        tone: "muted" as const,
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: "復元中",
-      };
-    case "Empty":
-    default:
-      return { tone: "muted" as const, icon: null, label: "未作成" };
-  }
-}
+type IndexBadge = { tone: "accent" | "warn" | "muted"; icon: ReactNode; label: string };
+
+const spinner = <Loader2 size={14} className="wsTab__spin" />;
+
+/**
+ * 索引の段ごとのバッジ。**表で書く。** `switch` の `default:` は網羅検査を
+ * 無条件に抑えるので、段が1つ増えたときに黙って「未作成」になる——索引を
+ * 組み直している最中に、この画面は「未作成」・局面検索は「更新中」という
+ * 食い違った2つの顔が出る。表なら段が増えた瞬間にここで分類を迫られる
+ * （同じ理由で `entities/search/lib/indexState.ts` も表にしてある）。
+ */
+const INDEX_BADGE: Record<IndexState, IndexBadge> = {
+  Ready: { tone: "accent", icon: <CheckCircle2 size={14} />, label: "準備完了" },
+  Building: { tone: "warn", icon: spinner, label: "作成中" },
+  Updating: { tone: "warn", icon: spinner, label: "更新中" },
+  Restoring: { tone: "muted", icon: spinner, label: "復元中" },
+  Empty: { tone: "muted", icon: null, label: "未作成" },
+};
 
 async function copyText(text: string) {
   try {
@@ -63,7 +50,7 @@ export default function WorkspaceTab() {
   const idx = search.index; // ←あなたの state 形
   const warns = search.warns; // ←あなたの state 形
 
-  const badge = useMemo(() => badgeForIndexState(idx.state), [idx.state]);
+  const badge = INDEX_BADGE[idx.state];
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
