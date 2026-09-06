@@ -114,7 +114,6 @@ pub async fn build_full_index_task(
     let mut join: JoinSet<BuildItem> = JoinSet::new();
 
     const COMMIT_BATCH: usize = 64;
-    const EMIT_INTERVAL: Duration = Duration::from_millis(100);
 
     let mut batch: Vec<(FileEntry, Arc<NodeTable>, BucketEntries)> =
         Vec::with_capacity(COMMIT_BATCH);
@@ -212,7 +211,7 @@ pub async fn build_full_index_task(
             }
         }
 
-        if last_emit.elapsed() >= EMIT_INTERVAL {
+        if last_emit.elapsed() >= crate::search::types::EMIT_INTERVAL {
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {

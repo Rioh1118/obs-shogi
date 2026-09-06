@@ -213,8 +213,24 @@ impl IndexSnapshot {
     /// 節表も残す —— `file_id` は使い回さないので、消しても空きが埋まらない。
     /// **代償はある**（`docs/state-transitions/search.md` の「出現ゼロの節表」）。
     pub fn with_tombstone(&self, file_id: FileId) -> Self {
+        self.with_tombstones(&[file_id])
+    }
+
+    /// まとめて消したことにした、次の索引。
+    ///
+    /// **1件ずつ [`Self::with_tombstone`] を呼ばない。** `FileTable` の
+    /// `paths` は `Vec<Option<String>>` なので、複製のたびに**索引中の全ファイルの
+    /// パス文字列を1本ずつ再確保する**。削除の件数 × 索引のファイル数になり、
+    /// しかもその間ずっと `SnapshotCell` の書き込みロックを取り直す
+    /// ——`snapshot_cell` の doc どおり、その長さがそのまま読みの待ちになる。
+    ///
+    /// 空なら中身は変わらないが、**呼び手には新しい索引が返る**。
+    /// 代の確認は呼び手（`update_if_epoch`）の仕事なので、ここでは判断しない。
+    pub fn with_tombstones(&self, file_ids: &[FileId]) -> Self {
         let mut file_table = (*self.file_table).clone();
-        file_table.tombstone(file_id);
+        for &file_id in file_ids {
+            file_table.tombstone(file_id);
+        }
 
         Self {
             state: self.state,
@@ -363,6 +379,65 @@ mod tests {
             after.node_tables.get(1).is_some(),
             "節表まで落としてしまっている"
         );
+    }
+
+    /// **まとめて渡した分だけが落ち、桶と節表は残る。**
+    ///
+    /// 1件ずつ渡したのと同じ結果になること。畳むと、削除の件数 × 索引の
+    /// ファイル数ぶんの複製になる（`with_tombstones` の doc）。
+    #[test]
+    fn tombstoning_many_at_once_matches_doing_them_one_at_a_time() {
+        let k = key_of(0x3300_0000_0000_0001);
+        let b = k.bucket() as usize;
+        let snap = IndexSnapshot::default().with_files(vec![
+            one_file(1, k, 0),
+            one_file(2, k, 0),
+            one_file(3, k, 0),
+        ]);
+        let segments_before = snap.buckets[b].len();
+
+        let at_once = snap.with_tombstones(&[1, 3]);
+        let one_by_one = snap.with_tombstone(1).with_tombstone(3);
+
+        let alive = |s: &IndexSnapshot| -> Vec<u32> {
+            s.search_occurrences_by_key(k)
+                .iter()
+                .map(|o| o.file_id)
+                .collect()
+        };
+        assert_eq!(alive(&at_once), vec![2], "まとめて渡した分が落ちていない");
+        assert_eq!(
+            alive(&at_once),
+            alive(&one_by_one),
+            "まとめて渡すと1件ずつと結果が違う"
+        );
+        assert_eq!(
+            at_once.buckets[b].len(),
+            segments_before,
+            "桶から消してしまっている"
+        );
+        assert!(
+            at_once.node_tables.get(1).is_some(),
+            "節表まで落としてしまっている"
+        );
+    }
+
+    /// **空で渡しても中身は変わらない。**
+    ///
+    /// 差分0の回に呼ばれても、生きている棋譜が消えないこと。
+    #[test]
+    fn tombstoning_nothing_keeps_every_hit() {
+        let k = key_of(0x3300_0000_0000_0001);
+        let snap = IndexSnapshot::default().with_files(vec![one_file(1, k, 0), one_file(2, k, 0)]);
+
+        let after = snap.with_tombstones(&[]);
+
+        let got: Vec<u32> = after
+            .search_occurrences_by_key(k)
+            .iter()
+            .map(|o| o.file_id)
+            .collect();
+        assert_eq!(got, vec![1, 2], "何も渡していないのにヒットが減っている");
     }
 
     /// **段だけ差し替えても中身は動かない。**
