@@ -1,12 +1,19 @@
 //! 索引の具合を、**利用者の言葉と画面の状態にする**。
 //!
-//! **`EVT_INDEX_STATE` と `EVT_INDEX_WARN` に載るものはここで組む。** 差分を当てる側
-//! （`project_manager`）にも全件構築の側（`build` / `commands`）にも置くと、
-//! 同じ失敗が経路ごとに違う言い方になり、旗を知らない側が伏せたまま出す。
+//! **`EVT_INDEX_STATE` に載るものはここで組む。** 差分を当てる側（`project_manager`）にも
+//! 全件構築の側（`build` / `commands`）にも置くと、旗を知らない側が
+//! `IndexStatePayload::of`（全部 `false` から始まる）で組んで、あとから出たほうが
+//! 緑で塗り潰す。`src-tauri/tests/state_is_announced_once.rs` が綴りで固定している。
+//!
+//! **`EVT_INDEX_WARN` はここが全部ではない。** ここが組むのは走査とワークスペースに
+//! ついての文言（`place`）で、棋譜1件の読み取り失敗（`file`）は `read/diagnosis.rs` が組む。
+//! 分けてあるのは、失われるものが違うから——前者は「索引が新しくならない」、
+//! 後者は「その1件が検索に出ない」。
 //!
 //! **文言は `AppHandle` を要らない形に切ってある**ので、テストから直に呼べる。
 //! ただし**呼ばれていることまでは見ていない**——emit の側を落としても緑のまま。
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter};
@@ -27,7 +34,7 @@ use crate::search::types::{
 /// 畳むと後者が前者として扱われ、復元した索引がメモリに丸ごと在るのに
 /// 画面は「更新中」のまま戻らない（再試行の導線は無いので、開き直しても同じ）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[must_use = "結末を捨てると、旗を知らない側が `Ready` を伏せた旗で塗り潰す（`announce_rescan` を通すこと）"]
+#[must_use = "結末を捨てると、旗を知らない側が `Ready` を伏せた旗で塗り潰す（`announce_state` に `IndexAnnouncement::Rescanned` で渡すこと）"]
 pub enum RescanOutcome {
     /// 自分の代のまま完走し、帳簿を進めた。差分があれば索引にも書いた。
     ///
@@ -46,16 +53,20 @@ pub enum RescanOutcome {
     ScanFailed,
 }
 
-/// 索引の段と旗を画面へ出す。**`EVT_INDEX_STATE` を出す口はここだけ。**
+/// 仕事が終わったことを画面へ出す。
 ///
-/// 出口が散ると、旗を知らない側が伏せたまま組む（`IndexStatePayload::of` は
-/// 全部 `false` から始まる）ので、あとから出たほうが緑で塗り潰す。
+/// **件数は呼び手に数えさせない。** 据え直された後の呼び手に数えさせると、
+/// **新しい索引の件数**を自分の結末に載せる。ここで索引から数える。
 ///
-/// **代を確かめてから出す。** `total_files` を呼び手に数えさせると、
-/// 据え直された後の呼び手が**新しい索引の件数**を自分の結末に載せる。
-pub fn announce_state(app: &AppHandle, store: &Arc<IndexStore>, epoch: u64, state: IndexUiState) {
+/// **代を確かめてから出す。** 合わなければ何も出さない——その索引はもう
+/// このタスクのものではない。
+pub fn announce_state(
+    app: &AppHandle,
+    store: &Arc<IndexStore>,
+    epoch: u64,
+    state: IndexAnnouncement,
+) {
     let Some(snap) = store.snapshot_if_epoch(epoch) else {
-        // その索引はもうこのタスクのものではない。何も出さない
         return;
     };
     // **墓標を数えない。** 消しても数が減らないと「削除が反映されていない」と読める
@@ -66,36 +77,113 @@ pub fn announce_state(app: &AppHandle, store: &Arc<IndexStore>, epoch: u64, stat
     let _ = app.emit(EVT_INDEX_STATE, payload);
 }
 
-/// 画面へ出す段と旗。**件数は載せない**——数えるのは `announce_state` の仕事で、
-/// 呼び手に数えさせると据え直された後の索引を数える。
+/// 仕事が進んでいることを画面へ出す。
+///
+/// **こちらは呼び手が件数を持つ。** まだ索引に入っていないものを数えるので、
+/// 索引からは数えられない（`announce_state` と逆）。
+///
+/// **代は同じように確かめる。** 確かめないと、ワークスペースを切り替えた後の
+/// 画面へ**前のワークスペースの進捗**が流れ続ける——全件構築は
+/// [`crate::search::EMIT_INTERVAL`] ごとに出すので、次のバッチが
+/// `update_if_epoch` に弾かれるまで毎秒10回それが届く。
+pub fn announce_progress(
+    app: &AppHandle,
+    store: &Arc<IndexStore>,
+    epoch: u64,
+    progress: IndexProgress,
+) {
+    if store.snapshot_if_epoch(epoch).is_none() {
+        return;
+    }
+    let _ = app.emit(EVT_INDEX_STATE, progress.into_payload());
+}
+
+/// 進行中の段。**件数は呼び手が持つ。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum IndexUiState {
-    /// 全件構築が終わった。読めなかった場所があったかを運ぶ
-    Built { partially_unreadable: bool },
+pub enum IndexProgress {
+    /// ディスク上のキャッシュを読みに行っている
+    Restoring,
+    /// 復元できた。差分を当てるまでは `Ready` にしない
+    Restored { files: u32 },
+    /// 全件構築の最中
+    Building {
+        total: u32,
+        /// **索引に入れ終えた数。** 組めなかった棋譜を含めない
+        indexed: u32,
+        partially_unreadable: bool,
+    },
+    /// 差分を当てている最中
+    Updating { total: u32, dirty: u32 },
+}
+
+impl IndexProgress {
+    fn into_payload(self) -> IndexStatePayload {
+        match self {
+            Self::Restoring => IndexStatePayload::of(IndexState::Restoring, 0),
+            Self::Restored { files } => {
+                IndexStatePayload::of(IndexState::Updating, files).indexed(files)
+            }
+            Self::Building {
+                total,
+                indexed,
+                partially_unreadable,
+            } => IndexStatePayload::of(IndexState::Building, total)
+                .indexed(indexed)
+                .partially_unreadable(partially_unreadable),
+            Self::Updating { total, dirty } => {
+                IndexStatePayload::of(IndexState::Updating, total).dirty(dirty)
+            }
+        }
+    }
+}
+
+/// 仕事が終わったことの告げ方。**`IndexState` そのものではない**——
+/// 段と旗をどう組むかはこの型が決める。
+///
+/// **TS の `IndexAnnouncement`（reducer が積む索引の現況）とは別物。**
+/// あちらは8欄のオブジェクトで、こちらは1回の結末。線には出ない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexAnnouncement {
+    /// 全件構築が終わった
+    Built {
+        /// **索引に入れ終えた数。** 組めなかった棋譜を含めない——
+        /// 索引が知っている件数（`live_len`）で代えると、壊れた棋譜が
+        /// 200本あっても `indexed == total` になり、失敗が数字から消える
+        indexed: u32,
+        /// 読めなかった**場所**があった（走査由来）
+        partially_unreadable: bool,
+    },
     /// 差分適用が終わった
     Rescanned(RescanOutcome),
     /// **作ろうとして作れなかった。** 索引は空のまま
     ///
-    /// `Ready` にしない——`query_service` の `stale` は段だけを見るので、
-    /// 空の索引を `Ready` にすると**0件が「最新」として並ぶ**
-    /// （`store/index_store.rs` の `//!` が名指しで警告している形）。
+    /// 画面の段を `Ready` にしない——`indexHealth`
+    /// （`entities/search/lib/indexHealth.ts`）は `Empty` ＋ `scanFailed` でだけ
+    /// `buildFailed`（＝必ず0件）に落ちる。`Ready` を出すと
+    /// 「更新できていません」（＝前回の索引が残っている）と同じ語になり、
+    /// **必ず0件になることが画面から消える**。
+    ///
+    /// **`IndexStore` の段は動かしていない。** ここが決めるのは画面へ出す段だけで、
+    /// 中は `restart(Restart::Building)` が入れた `Building` のまま
+    /// （`docs/state-transitions/search.md` の同名の節）。
     BuildFailed,
 }
 
-impl IndexUiState {
+impl IndexAnnouncement {
     /// 段と旗を組む。**`AppHandle` も索引も要らない形**なのでテストから直に呼べる。
     ///
-    /// `None` は「出してはいけない」。据え直された回に `Ready` を出すと、
-    /// **他人の索引の上に自分の代の旗が乗る**——代の照合は `announce_state`
-    /// にもあるが、据え直しを検出した時点ではまだ照合が通ることがある。
+    /// `None` は「出してはいけない」。**結末を出す口の外で `Superseded` を
+    /// 判定させないため**——呼び手が `outcome` を見て分岐する形にすると、
+    /// 経路ごとに判定が割れる。
     fn into_payload(self, live: u32) -> Option<IndexStatePayload> {
         Some(match self {
             Self::Rescanned(RescanOutcome::Superseded) => return None,
             Self::BuildFailed => IndexStatePayload::of(IndexState::Empty, 0).scan_failed(true),
             Self::Built {
+                indexed,
                 partially_unreadable,
             } => IndexStatePayload::of(IndexState::Ready, live)
-                .indexed(live)
+                .indexed(indexed)
                 .partially_unreadable(partially_unreadable),
             Self::Rescanned(outcome) => IndexStatePayload::of(IndexState::Ready, live)
                 .indexed(live)
@@ -114,40 +202,90 @@ impl IndexUiState {
 ///
 /// **理由を言えるのはここだけ。** 旗は「失敗した」しか運ばないので、
 /// 落とすと未マウントか権限かが画面から完全に消える。
-pub fn warn_scan_failed(app: &AppHandle, root: &std::path::Path, reason: &ScanError) {
+pub fn warn_scan_failed(
+    app: &AppHandle,
+    root: &std::path::Path,
+    reason: &ScanError,
+    survival: IndexSurvival,
+) {
     let _ = app.emit(
         EVT_INDEX_WARN,
-        IndexWarnPayload::place(root.to_string_lossy(), scan_failure(reason)),
+        IndexWarnPayload::place(root.to_string_lossy(), scan_failure(reason, survival)),
     );
 }
 
 /// 読めなかった場所を画面へ出す。
 ///
-/// **代表として先頭を `path` に載せる。** 場所が分からない失敗しか無い回は空。
-/// この決めごとを呼び手に持たせると、経路ごとに指す場所が変わる。
-pub fn warn_unreadable(app: &AppHandle, unreadable: &[String], unknown_gaps: bool, carried: usize) {
-    if unreadable.is_empty() && !unknown_gaps {
-        return;
+/// **引き継げた場所と引き継げなかった場所を1件に畳まない。** 失われるものが
+/// 逆になる——前者の棋譜は検索に出続け、後者の棋譜は索引に無い。畳むと、
+/// 名指しした場所に対して**逆のこと**を告げることになる。
+pub fn warn_unreadable(
+    app: &AppHandle,
+    unreadable: &[String],
+    unknown_gaps: bool,
+    carried_places: &HashSet<String>,
+) {
+    for w in unreadable_warnings(unreadable, unknown_gaps, carried_places) {
+        let _ = app.emit(EVT_INDEX_WARN, w);
     }
-    let _ = app.emit(
-        EVT_INDEX_WARN,
-        IndexWarnPayload::place(
-            unreadable.first().cloned().unwrap_or_default(),
-            unreadable_places(unreadable.len(), unknown_gaps, carried > 0),
-        ),
-    );
+}
+
+/// 読めなかった場所を警告へ組む。**`AppHandle` を要らない形**なのでテストから直に呼べる。
+///
+/// 出るのは多くて3件——引き継げた場所の分、引き継げなかった場所の分、
+/// 場所が分からない失敗の分。**それぞれ自分の代表と自分の件数を名乗る。**
+fn unreadable_warnings(
+    unreadable: &[String],
+    unknown_gaps: bool,
+    carried_places: &HashSet<String>,
+) -> Vec<IndexWarnPayload> {
+    let (carried, lost): (Vec<&String>, Vec<&String>) = unreadable
+        .iter()
+        .partition(|u| carried_places.contains(u.trim_end_matches('/')));
+
+    let mut out = Vec::new();
+    for (places, carried_over) in [(&lost, false), (&carried, true)] {
+        if let Some(first) = places.first() {
+            out.push(IndexWarnPayload::place(
+                (*first).clone(),
+                unreadable_places(places.len(), false, carried_over),
+            ));
+        }
+    }
+    if unknown_gaps {
+        // 場所が分からない失敗。**代表に選べる場所が無い**ので `path` は空
+        out.push(IndexWarnPayload::place(
+            String::new(),
+            unreadable_places(0, true, false),
+        ));
+    }
+    out
+}
+
+/// 走査が失敗したとき、**索引が残っているか**。
+///
+/// 同じ失敗でも、失われるものが逆になる。差分更新なら索引は最後に読めた
+/// ときのまま健全で、当たっていないのは差分だけ。全件構築なら
+/// `restart(Restart::Building)` が既に中身を捨てているので**索引は空**。
+///
+/// 畳むと、空にした回に「索引は最後に読めたときのままです」と告げることになり、
+/// 利用者は**古い索引でなら検索できる**と読んで、0件を「棋譜が無い」と受け取る。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexSurvival {
+    /// 差分更新。索引は前のまま残っている
+    Kept,
+    /// 全件構築。索引は捨てられていて、いま検索しても0件
+    Gone,
 }
 
 /// 走査そのものが失敗したことを、利用者に出す一文へ組む。
 ///
 /// **何が起きたか・何が失われたか・次に何をすればよいかの3つを言う。**
-/// 索引そのものは最後に読めたときのまま残っているので、
-/// 「検索できない」ではなく「新しくなっていない」が正しい。
 ///
 /// **内部の語彙を出さない。** `ScanError` の `Display` は
 /// `io error: Permission denied (os error 13)` のような綴りなので、
 /// 素で流すと利用者は自分に関係のある文字列だと読んで検索する。
-pub(crate) fn scan_failure(reason: &ScanError) -> String {
+pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> String {
     let what = match reason {
         ScanError::RootNotFound(_) => "ワークスペースが見つかりません",
         ScanError::RootUnreadable(_) => "ワークスペースを読む権限がありません",
@@ -162,7 +300,11 @@ pub(crate) fn scan_failure(reason: &ScanError) -> String {
         }
         ScanError::Io(_) => "ディスクやネットワークの接続を確かめてください",
     };
-    format!("{what}。索引は最後に読めたときのままで、新しくなっていません。{how}")
+    let lost = match survival {
+        IndexSurvival::Kept => "索引は最後に読めたときのままで、新しくなっていません",
+        IndexSurvival::Gone => "索引を作れていないので、いま検索しても0件になります",
+    };
+    format!("{what}。{lost}。{how}")
 }
 
 /// 読めなかった場所を、利用者に出す一文へ組む。
@@ -215,10 +357,11 @@ pub(crate) fn build_failure() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::types::IndexWarnKind;
 
     /// 段と旗の写像。**`announce_state` の中身は `AppHandle` を要るので、
     /// ここが落ちないかぎり写像は誰も見ていない。**
-    fn payload(state: IndexUiState, live: u32) -> Option<IndexStatePayload> {
+    fn payload(state: IndexAnnouncement, live: u32) -> Option<IndexStatePayload> {
         state.into_payload(live)
     }
 
@@ -267,9 +410,12 @@ mod tests {
         let messages = [
             unreadable_places(1, false, false),
             unreadable_places(0, true, false),
-            scan_failure(&ScanError::RootNotFound("/w".into())),
-            scan_failure(&ScanError::RootUnreadable("/w".into())),
-            scan_failure(&ScanError::Io(std::io::Error::other("x"))),
+            scan_failure(&ScanError::RootNotFound("/w".into()), IndexSurvival::Kept),
+            scan_failure(&ScanError::RootUnreadable("/w".into()), IndexSurvival::Kept),
+            scan_failure(
+                &ScanError::Io(std::io::Error::other("x")),
+                IndexSurvival::Gone,
+            ),
             build_failure(),
         ];
         for m in messages {
@@ -292,11 +438,86 @@ mod tests {
         }
     }
 
+    fn places(v: &[&str]) -> HashSet<String> {
+        v.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// **引き継げた場所と引き継げなかった場所に、逆のことを言わないこと。**
+    ///
+    /// 1件に畳んで代表を先頭から選ぶと、引き継げなかった場所を指して
+    /// 「前回の索引のまま残ります」と告げうる——その下の棋譜は索引に1件も
+    /// 入っていないので検索に出ない。利用者は出てこない棋譜を「無い」と判断する。
+    #[test]
+    fn each_place_is_told_what_actually_happened_to_it() {
+        let unreadable = vec!["/w/新規".to_string(), "/w/既存".to_string()];
+        let ws = unreadable_warnings(&unreadable, false, &places(&["/w/既存"]));
+
+        let lost = ws
+            .iter()
+            .find(|w| w.path == "/w/新規")
+            .expect("引き継げなかった場所の警告が無い");
+        assert!(
+            lost.message.contains("検索に出ません"),
+            "索引に入っていない場所を「残る」と言っている: {}",
+            lost.message
+        );
+
+        let kept = ws
+            .iter()
+            .find(|w| w.path == "/w/既存")
+            .expect("引き継げた場所の警告が無い");
+        assert!(
+            kept.message.contains("前回の索引のまま残ります"),
+            "引き継げた棋譜を「出ない」と言っている: {}",
+            kept.message
+        );
+    }
+
+    /// **場所についての警告は `place` を名乗ること。**
+    ///
+    /// `IndexWarnPayload::place` と `::file` は引数の型も数も同じなので、
+    /// 取り違えても型検査は止めない。`file` になると
+    /// `pickWarns`（TS 側）の場所優先の枠から外れ、**利用者が次にすることを
+    /// 含んだ唯一の文言**が普通のパース警告に押し出されて画面から消える。
+    #[test]
+    fn warnings_about_places_say_they_are_about_places() {
+        let ws = unreadable_warnings(&["/w/a".to_string()], true, &HashSet::new());
+        assert_eq!(ws.len(), 2, "場所の分からない失敗が別の1件になっていない");
+        for w in &ws {
+            assert_eq!(w.kind, IndexWarnKind::Place, "種類が place でない: {w:?}");
+        }
+    }
+
+    /// 読めなかった場所が1つも無ければ、何も出さないこと。
+    #[test]
+    fn nothing_unreadable_says_nothing() {
+        assert!(unreadable_warnings(&[], false, &HashSet::new()).is_empty());
+    }
+
+    /// **索引が残っている回と、捨てた回で逆のことを言わないこと。**
+    ///
+    /// 全件構築は `restart(Restart::Building)` が先に中身を捨てているので、
+    /// 「最後に読めたときのまま」と言うと、利用者は**古い索引でなら検索できる**と
+    /// 読んで、0件を「棋譜が無い」と受け取る。
+    #[test]
+    fn a_thrown_away_index_is_not_described_as_intact() {
+        let e = ScanError::RootNotFound("/w".into());
+        let kept = scan_failure(&e, IndexSurvival::Kept);
+        assert!(kept.contains("最後に読めたときのまま"), "{kept}");
+
+        let gone = scan_failure(&e, IndexSurvival::Gone);
+        assert!(
+            !gone.contains("最後に読めたときのまま"),
+            "捨てた索引を「残っている」と言っている: {gone}"
+        );
+        assert!(gone.contains("0件"), "何が起きるかを言っていない: {gone}");
+    }
+
     #[test]
     fn a_failed_build_is_empty_and_never_ready() {
         // `Ready` を出すと `query_service` の `stale` は段しか見ないので、
         // **空の索引の 0 件が「最新」として並ぶ**
-        let p = payload(IndexUiState::BuildFailed, 0).expect("構築失敗は画面へ出す");
+        let p = payload(IndexAnnouncement::BuildFailed, 0).expect("構築失敗は画面へ出す");
         assert_eq!(p.state, IndexState::Empty);
         assert!(p.scan_failed, "作れなかったことが旗に出ていない");
         assert_eq!(p.total_files, 0);
@@ -306,7 +527,7 @@ mod tests {
     fn a_superseded_rescan_says_nothing() {
         // 据え直された回に何か出すと、**他人の索引の上に自分の代の旗が乗る**
         assert_eq!(
-            payload(IndexUiState::Rescanned(RescanOutcome::Superseded), 7),
+            payload(IndexAnnouncement::Rescanned(RescanOutcome::Superseded), 7),
             None
         );
     }
@@ -315,7 +536,7 @@ mod tests {
     fn a_failed_scan_stays_ready_but_flags_that_nothing_was_applied() {
         // 索引は最後に読めたときのまま健全なので `Ready`。ただし旗を落とすと
         // 「未同期 0」が「最新」と読める
-        let p = payload(IndexUiState::Rescanned(RescanOutcome::ScanFailed), 5)
+        let p = payload(IndexAnnouncement::Rescanned(RescanOutcome::ScanFailed), 5)
             .expect("走査の失敗は画面へ出す");
         assert_eq!(p.state, IndexState::Ready);
         assert!(p.scan_failed);
@@ -330,7 +551,7 @@ mod tests {
     fn unreadable_places_survive_into_the_state() {
         // 警告だけだと設定タブを開かないかぎり届かず、局面検索は0件を裸で断言する
         let p = payload(
-            IndexUiState::Rescanned(RescanOutcome::Committed {
+            IndexAnnouncement::Rescanned(RescanOutcome::Committed {
                 partially_unreadable: true,
             }),
             5,
@@ -347,7 +568,7 @@ mod tests {
     #[test]
     fn a_clean_rescan_raises_no_flag() {
         let p = payload(
-            IndexUiState::Rescanned(RescanOutcome::Committed {
+            IndexAnnouncement::Rescanned(RescanOutcome::Committed {
                 partially_unreadable: false,
             }),
             5,
@@ -360,7 +581,8 @@ mod tests {
     #[test]
     fn a_full_build_carries_the_unreadable_flag() {
         let p = payload(
-            IndexUiState::Built {
+            IndexAnnouncement::Built {
+                indexed: 3,
                 partially_unreadable: true,
             },
             3,
@@ -368,6 +590,51 @@ mod tests {
         .expect("構築の完了は画面へ出す");
         assert_eq!(p.state, IndexState::Ready);
         assert!(p.partially_unreadable);
+        assert!(
+            !p.scan_failed,
+            "完走した構築を「更新できていません」と言っている"
+        );
         assert_eq!((p.indexed_files, p.total_files), (3, 3));
+    }
+
+    /// **いちばん普通の経路に旗が1本も立たないこと。**
+    ///
+    /// ここが抜けていると、`Built` の腕に旗を1つ足す変異が素通りする——
+    /// 問題なく終わった構築が毎回「更新できていません」になり、利用者は
+    /// 正常な索引をワークスペースの選び直しで作り直しに行く。
+    #[test]
+    fn a_clean_full_build_raises_no_flag() {
+        let p = payload(
+            IndexAnnouncement::Built {
+                indexed: 3,
+                partially_unreadable: false,
+            },
+            3,
+        )
+        .expect("構築の完了は画面へ出す");
+        assert_eq!(p.state, IndexState::Ready);
+        assert!(
+            !p.scan_failed && !p.partially_unreadable,
+            "何も起きていない構築で旗が立っている: {p:?}"
+        );
+    }
+
+    /// **組めなかった棋譜を「索引に入れた」と数えないこと。**
+    ///
+    /// 索引が知っている件数（`live_len`）で代えると、壊れた棋譜が200本あっても
+    /// `indexed == total` になり、失敗が数字から完全に消える——警告は出るが、
+    /// バッジは緑の「準備完了」のまま。
+    #[test]
+    fn files_that_could_not_be_indexed_are_not_counted_as_indexed() {
+        let p = payload(
+            IndexAnnouncement::Built {
+                indexed: 800,
+                partially_unreadable: false,
+            },
+            1000,
+        )
+        .expect("構築の完了は画面へ出す");
+        assert_eq!(p.indexed_files, 800, "組めなかった200本を数に入れている");
+        assert_eq!(p.total_files, 1000);
     }
 }

@@ -2,10 +2,11 @@
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use crate::search::announce::{
-    announce_state, scan_failure, warn_scan_failed, warn_unreadable, IndexUiState,
+    announce_progress, announce_state, scan_failure, warn_scan_failed, warn_unreadable,
+    IndexAnnouncement, IndexProgress, IndexSurvival,
 };
 use crate::search::build::{build_full_index_task, FullBuild};
 use crate::search::cache::format;
@@ -13,8 +14,8 @@ use crate::search::read::fs_scan::{scan_kifu_files, ScanError, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
 use crate::search::types::{
-    CancelSearchInput, IndexState, IndexStatePayload, OpenProjectInput, OpenProjectOutput,
-    SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE,
+    CancelSearchInput, OpenProjectInput, OpenProjectOutput, SearchPositionInput,
+    SearchPositionOutput,
 };
 
 /// 局面検索コマンド（イベントで結果を返す）。
@@ -58,11 +59,10 @@ pub async fn open_project(
     log::info!("[open_project] BEGIN root_dir={}", root_dir.display());
 
     // 0) Restoring state (UIに「復元中」を見せる)
-    let _ = store.restart(Restart::Restoring);
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        IndexStatePayload::of(IndexState::Restoring, 0),
-    );
+    // **`install_restored` が返す代とは別。** あちらは復元した索引を据えたときの代で、
+    // こちらは据える前に空にしたときの代。混ぜると、復元に失敗した回の照合が通る
+    let restarting_epoch = store.restart(Restart::Restoring);
+    announce_progress(&app, &store, restarting_epoch, IndexProgress::Restoring);
 
     // 1) try restore (cache)
     //
@@ -126,9 +126,11 @@ pub async fn open_project(
                 return Ok(OpenProjectOutput { total_files });
             }
 
-            let _ = app.emit(
-                EVT_INDEX_STATE,
-                IndexStatePayload::of(IndexState::Updating, total_files).indexed(total_files),
+            announce_progress(
+                &app,
+                &store,
+                restore_epoch,
+                IndexProgress::Restored { files: total_files },
             );
 
             // watcher 起動（失敗してもopen自体は成功扱いにして良い）
@@ -166,7 +168,12 @@ pub async fn open_project(
                 }
                 // **状態を出す口は1つ。** 旗を知っているのは結末だけなので、
                 // 自分で組むと知らない側が伏せた旗で塗り潰す
-                announce_state(&app2, &st, restore_epoch, IndexUiState::Rescanned(outcome));
+                announce_state(
+                    &app2,
+                    &st,
+                    restore_epoch,
+                    IndexAnnouncement::Rescanned(outcome),
+                );
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
 
@@ -205,20 +212,26 @@ pub async fn open_project(
     let scanned = match scanned {
         Ok(v) => v,
         Err(e) => {
-            warn_scan_failed(&app, &root_dir, &e);
+            // **索引はもう空。** `restart(Restart::Building)` が上で捨てている
+            warn_scan_failed(&app, &root_dir, &e, IndexSurvival::Gone);
             // **`Ready` にしない。** `restart` が中身を捨てた後なので索引は空で、
             // `query_service` の `stale` は段だけを見る——空を `Ready` にすると
             // **0件が「最新」として並ぶ**（`store/index_store.rs` の `//!`）
-            announce_state(&app, &store, build_epoch, IndexUiState::BuildFailed);
+            announce_state(&app, &store, build_epoch, IndexAnnouncement::BuildFailed);
             // **内部の綴りを返さない。** `openError` に読み手が付いたとき
             // （#403）、`root directory is not readable: /Users/…` が画面に出る
-            return Err(scan_failure(&e));
+            return Err(scan_failure(&e, IndexSurvival::Gone));
         }
     };
     // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
     // その下の棋譜は索引に入らない——検索に出ないことの理由が要る
-    // 全件構築には引き継ぐ前回が無いので `carried` は 0
-    warn_unreadable(&app, &scanned.unreadable, scanned.unknown_gaps, 0);
+    // **全件構築に引き継ぐ前回は無い。** どの場所も「索引に入っていない」側になる
+    warn_unreadable(
+        &app,
+        &scanned.unreadable,
+        scanned.unknown_gaps,
+        &std::collections::HashSet::new(),
+    );
     let partial = scanned.is_partial();
     let records = scanned.files;
     let total_files = records.len() as u32;
@@ -228,11 +241,17 @@ pub async fn open_project(
         total_files
     );
 
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        // 読めなかった場所があったことを状態にも載せる。警告だけだと
-        // 設定タブを開かないかぎり届かず、局面検索は0件を裸で断言する
-        IndexStatePayload::of(IndexState::Building, total_files).partially_unreadable(partial),
+    // 読めなかった場所があったことを状態にも載せる。警告だけだと
+    // 設定タブを開かないかぎり届かず、局面検索は0件を裸で断言する
+    announce_progress(
+        &app,
+        &store,
+        build_epoch,
+        IndexProgress::Building {
+            total: total_files,
+            indexed: 0,
+            partially_unreadable: partial,
+        },
     );
 
     tauri::async_runtime::spawn(build_full_index_task(

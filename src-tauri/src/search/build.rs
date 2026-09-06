@@ -13,7 +13,9 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Semaphore, task::JoinSet};
 
-use crate::search::announce::{announce_state, build_failure, IndexUiState};
+use crate::search::announce::{
+    announce_progress, announce_state, build_failure, IndexAnnouncement, IndexProgress,
+};
 use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
 use crate::search::project_manager::ProjectManager;
@@ -23,8 +25,7 @@ use crate::search::store::index_store::IndexStore;
 use crate::search::store::node_table::NodeTable;
 use crate::search::store::snapshot::IndexState as StoreIndexState;
 use crate::search::types::{
-    FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-    EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
+    FileEntry, FileId, IndexProgressPayload, IndexWarnPayload, EVT_INDEX_PROGRESS, EVT_INDEX_WARN,
 };
 
 /// 全件構築のタスクに渡すもの。
@@ -238,11 +239,15 @@ pub async fn build_full_index_task(
                     total_files,
                 },
             );
-            let _ = app.emit(
-                EVT_INDEX_STATE,
-                IndexStatePayload::of(IndexState::Building, total_files)
-                    .indexed(indexed_ok)
-                    .partially_unreadable(partially_unreadable),
+            announce_progress(
+                &app,
+                &store,
+                epoch,
+                IndexProgress::Building {
+                    total: total_files,
+                    indexed: indexed_ok,
+                    partially_unreadable,
+                },
             );
             last_emit = Instant::now();
         }
@@ -275,7 +280,10 @@ pub async fn build_full_index_task(
         &app,
         &store,
         epoch,
-        IndexUiState::Built {
+        IndexAnnouncement::Built {
+            // **索引が知っている件数で代えない。** 組めなかった棋譜も
+            // `deleted: false` で表に入るので、`live_len` は失敗を数に含める
+            indexed: indexed_ok,
             partially_unreadable,
         },
     );

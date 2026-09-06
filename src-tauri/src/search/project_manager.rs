@@ -10,7 +10,8 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
 use crate::search::announce::{
-    announce_state, build_failure, warn_scan_failed, warn_unreadable, IndexUiState, RescanOutcome,
+    announce_progress, announce_state, build_failure, warn_scan_failed, warn_unreadable,
+    IndexAnnouncement, IndexProgress, IndexSurvival, RescanOutcome,
 };
 use crate::search::index::file_build::build_file_index;
 use crate::search::read::fs_scan::{
@@ -22,8 +23,7 @@ use crate::search::store::index_store::IndexStore;
 use crate::search::store::node_table::NodeTable;
 use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexState};
 use crate::search::types::{
-    FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-    EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
+    FileEntry, FileId, IndexProgressPayload, IndexWarnPayload, EVT_INDEX_PROGRESS, EVT_INDEX_WARN,
 };
 
 #[derive(Debug, Default)]
@@ -184,7 +184,7 @@ impl ProjectManager {
                         // **自分の代を渡す。** いま store に載っている代を読み直すと、
                         // 据え直された直後でも必ず一致するので照合が素通りし、
                         // **他人の索引の件数**を自分の結末として出す
-                        announce_state(&app, &store, epoch, IndexUiState::Rescanned(outcome));
+                        announce_state(&app, &store, epoch, IndexAnnouncement::Rescanned(outcome));
 
                         // 次のイベントを待つ
                         sleep.as_mut().reset(time::Instant::now() + Duration::from_secs(3600));
@@ -265,7 +265,8 @@ impl ProjectManager {
         {
             Ok(v) => v,
             Err(e) => {
-                warn_scan_failed(&app, &root, &e);
+                // **索引は残っている。** 当たっていないのは差分だけ
+                warn_scan_failed(&app, &root, &e, IndexSurvival::Kept);
                 return RescanOutcome::ScanFailed;
             }
         };
@@ -286,7 +287,7 @@ impl ProjectManager {
         // **引き継げた件数で言い分ける。** 「読めない場所があったか」ではない
         // ——前回の走査に無かった場所（新しく作られたフォルダ）は引き継げないので、
         // 「前回の索引のまま残ります」と言うとその棋譜は検索に出ないのに残ると読める
-        warn_unreadable(&app, &unreadable, unknown_gaps, carried.len());
+        warn_unreadable(&app, &unreadable, unknown_gaps, &carried);
         if unknown_gaps {
             // **どこが読めなかったか分からない。** 範囲を絞れないので、この回は
             // 削除を1件も当てない。基準にも前回のものを戻す——戻さないと
@@ -328,10 +329,14 @@ impl ProjectManager {
         if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Updating)) {
             return RescanOutcome::Superseded;
         }
-        let _ = app.emit(
-            EVT_INDEX_STATE,
-            IndexStatePayload::of(IndexState::Updating, next_scan.by_path.len() as u32)
-                .dirty(dirty_count),
+        announce_progress(
+            &app,
+            &store,
+            epoch,
+            IndexProgress::Updating {
+                total: next_scan.by_path.len() as u32,
+                dirty: dirty_count,
+            },
         );
 
         let mut done_dirty: u32 = 0;
