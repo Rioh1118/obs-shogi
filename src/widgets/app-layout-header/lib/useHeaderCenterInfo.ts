@@ -85,14 +85,13 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
     const tesuuText = hasKifu ? `${tesuu}手目` : "";
     const totalText = hasKifu ? `${tesuu}/${total}` : "";
 
-    const playersTooltip = !hasKifu
-      ? "ファイル未選択"
-      : !isPlayersShown
-        ? "棋譜表示中"
-        : `先手 ${senteName ?? "（不明）"} / 後手 ${goteName ?? "（不明）"}`;
+    // `hasKifu` が偽なら下の三項で "ファイル未選択" に落ちるので、ここでは分岐しない
+    const playersTooltip = isPlayersShown
+      ? `先手 ${senteName ?? "（不明）"} / 後手 ${goteName ?? "（不明）"}`
+      : "棋譜表示中";
 
     const tooltip = hasKifu
-      ? `${fileLabel} — ${playersTooltip}${hasKifu ? ` — ${turnText} ${totalText}` : ""}`
+      ? `${fileLabel} — ${playersTooltip} — ${turnText} ${totalText}`
       : "ファイル未選択";
 
     return {

@@ -15,6 +15,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
   const { openModal } = useURLParams();
 
   const info = useHeaderCenterInfo();
+
   const hasKifu = info.hasKifu;
 
   const metaNode = !hasKifu ? null : !info.isPlayersShown ? (
@@ -54,7 +55,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
               {info.fileLabel}
             </span>
 
-            {info.hasKifu && (
+            {hasKifu && (
               <span className="app-header__badges" aria-hidden="true">
                 <span className="app-header__badge app-header__badge--turn">
                   {info.turnGlyph} {info.turnText}
