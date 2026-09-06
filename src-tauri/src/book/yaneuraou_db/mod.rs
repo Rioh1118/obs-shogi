@@ -1623,17 +1623,26 @@ mod tests {
     fn a_position_with_very_many_moves_is_still_deduped() {
         let mut text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n");
         // 相異なる 81 手を2回ずつ書く。`SCAN_LIMIT`（32）を超えるので
-        // `HashSet` の枝に入る
-        for _ in 0..2 {
+        // `HashSet` の枝に入る。
+        //
+        // **2周で評価値を変える。** 同じ値だと畳んだ結果が先勝ちでも後勝ちでも
+        // 一致してしまい、`HashSet` の枝が本家（後勝ち）に戻っても緑で通る。
+        for value in [50, 900] {
             for file in 1..=9 {
                 for rank in b'a'..=b'i' {
                     let rank = rank as char;
-                    text.push_str(&format!("{file}{rank}1a none 0 0 1\n"));
+                    text.push_str(&format!("{file}{rank}1a none {value} 0 1\n"));
                 }
             }
         }
         let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
         assert_eq!(moves.len(), 81, "重複が残っている: {}", moves.len());
+        // 先頭がその局面の best move、というのが形式の約束。
+        // 本家は後勝ちで畳むが、こちらはファイルに書かれた順の意味を保つ
+        assert!(
+            moves.iter().all(|m| m.value == Some(50)),
+            "先に読んだ方が残っていない"
+        );
     }
 
     /// 手数を落とすので `... b - 1` と `... b - 31` は同じキーになる。

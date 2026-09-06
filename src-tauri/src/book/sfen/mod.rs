@@ -708,9 +708,31 @@ mod tests {
 
     #[test]
     fn rejects_a_broken_hand_field() {
-        for hands in ["K", "k", "0P", "19P", "2", "-P", "P-", "+P", "x"] {
+        for hands in ["0P", "19P", "2", "-P", "P-", "+P", "x"] {
             let err = to_book_key(&bare_with_hands(hands)).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
+        }
+    }
+
+    /// **玉は持駒にできない。**
+    ///
+    /// 素通しすると `HAND_PIECES` の添字 0 に落ちて**飛車になる** ——
+    /// 引けない鍵ではなく、別の局面の鍵になり、壊れた入力が
+    /// 正当な局面の候補手を返す。
+    ///
+    /// **玉の居ない盤で当てる。** 玉が先後1枚ずつ在る盤だと、
+    /// この検査を外しても「同じ側に玉が2枚以上ある」で落ちて、
+    /// ここを1度も踏まない。
+    #[test]
+    fn a_king_cannot_be_in_hand() {
+        for hands in ["K", "k"] {
+            let err = to_book_key(&format!("9/9/9/9/9/9/9/9/9 b {hands} 1")).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "hands={hands}");
+            assert!(
+                err.message().contains("持駒にできない文字"),
+                "hands={hands} message={}",
+                err.message()
+            );
         }
     }
 
@@ -724,13 +746,30 @@ mod tests {
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/8",
             // 駒でない文字
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNX",
-            // 金と玉は成れない
-            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/+GNSGKGSN1",
             // + の後ろに駒が無い
             "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSN+",
         ] {
             let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidSfen, "board={board}");
+        }
+    }
+
+    /// **金と玉は成れない。**
+    ///
+    /// 盤は駒数でも弾かれるので、**駒数に当たらない盤で当てる** ——
+    /// 平手を崩した盤だと金が3枚になり、成駒の検査を外しても
+    /// 「金が5枚ある」で落ちて、この検査を1度も踏まない。
+    /// `code()` は全ての枝で同じ値なので、文面まで見る。
+    #[test]
+    fn gold_and_king_cannot_be_promoted() {
+        for board in ["4k4/9/9/9/9/9/9/9/3+GK4", "4k4/9/9/9/9/9/9/9/3+KG4"] {
+            let err = to_book_key(&format!("{board} b - 1")).unwrap_err();
+            assert_eq!(err.code(), BookErrorCode::InvalidSfen, "board={board}");
+            assert!(
+                err.message().contains("成れない駒"),
+                "board={board} message={}",
+                err.message()
+            );
         }
     }
 

@@ -439,10 +439,24 @@ mod tests {
 
     #[test]
     fn rejects_a_path_that_cannot_point_at_a_file() {
-        for raw in ["", "   ", "books/standard.db", "./standard.db", "a\0b.db"] {
+        for raw in ["", "   ", "books/standard.db", "./standard.db"] {
             let err = validate_book_path(raw).unwrap_err();
             assert_eq!(err.code(), BookErrorCode::InvalidPath, "raw={raw:?}");
         }
+    }
+
+    /// **NUL を含むパスは、開こうとする前に断る。**
+    ///
+    /// 素通しすると `Io` に化けて「定跡を取得し直すこと」と案内される ——
+    /// 何度取得し直しても直らない。
+    ///
+    /// **絶対パスで当てる。** 相対パスだと `is_absolute` の枝が先に落として、
+    /// この検査を1度も踏まない。
+    #[test]
+    fn rejects_a_path_with_a_nul_byte() {
+        let err = validate_book_path("/books/a\0b.db").unwrap_err();
+        assert_eq!(err.code(), BookErrorCode::InvalidPath);
+        assert!(err.message().contains("NUL"), "message={}", err.message());
     }
 
     /// 載る path は利用者が渡した綴りそのもの。選び直す先が分からなくなるので、
