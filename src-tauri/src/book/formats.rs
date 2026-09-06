@@ -115,7 +115,7 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         return Err(BookError::new(
             BookErrorCode::UnsupportedFormat,
             format!(
-                "{}はまだ開けない。やねうら王テキスト定跡 (.db) なら開ける",
+                "{}はまだ開けない。やねうら王テキスト定跡 (.db) を選び直すこと",
                 format.display_name()
             ),
         )

@@ -171,7 +171,7 @@ fn join_error(
     move |err| {
         BookError::new(
             BookErrorCode::Unknown,
-            format!("定跡の処理が異常終了した。{recovery}（{err}）"),
+            format!("定跡の処理が異常終了した（{err}）。{recovery}"),
         )
         .with_path(path)
     }

@@ -86,7 +86,7 @@ pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(input).map_err(|reason| {
         BookError::new(
             BookErrorCode::InvalidSfen,
-            format!("{reason}。{SFEN_RECOVERY}: {}", excerpt(input)),
+            format!("{reason}（{}）。{SFEN_RECOVERY}", excerpt(input)),
         )
     })
 }

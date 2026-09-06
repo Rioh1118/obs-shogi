@@ -278,63 +278,120 @@ mod tests {
     ///
     /// **経路ごとに散らさない。** 復帰操作を見る assert を呼び出し経路の側に置くと、
     /// どの経路も通らない枝がそのまま素通りする。
-    /// ここは `match` で網羅するので、**種別を足すとコンパイルが止まる。**
     ///
-    /// `Io` と `Unknown` は上の `an_io_error_ends_with_something_the_user_can_do`
-    /// が見るので、ここでは実物を作る口のあるものだけを回す。
+    /// 下の `sample` は `match` で網羅するので、**種別を足すとコンパイルが止まる。**
+    /// 作った実物の `code()` が求めた種別と一致することも見る ——
+    /// 一致を見ないと、環境によって別の枝へ落ちた失敗を数えたことになる
+    /// （固定パスを使うと、そのファイルが在るかどうかで結果が変わる）。
     #[test]
     fn every_code_ends_with_something_the_user_can_do() {
-        use crate::book::formats::open_reader;
-        use crate::book::types::BookFormat;
-        use std::path::Path;
+        let dir = crate::test_support::temp_dir("book-ends-with-action");
 
-        // 種別を足したらここも足すこと。`_` を書かないので漏れるとコンパイルが止まる
-        fn covered(code: BookErrorCode) -> bool {
-            match code {
-                BookErrorCode::NotFound
-                | BookErrorCode::PermissionDenied
-                | BookErrorCode::InvalidType
-                | BookErrorCode::InvalidPath
-                | BookErrorCode::UnknownExtension
-                | BookErrorCode::UnsupportedFormat
-                | BookErrorCode::InvalidContent
-                | BookErrorCode::TooLarge
-                | BookErrorCode::InvalidHandle
-                | BookErrorCode::InvalidSfen => true,
-                BookErrorCode::Io | BookErrorCode::Unknown => false,
-            }
+        for code in ALL_CODES {
+            let Some(err) = sample(code, &dir) else {
+                continue;
+            };
+            assert_eq!(err.code(), code, "求めた種別と違う実物を作っている");
+            assert!(
+                ends_with_an_action(err.message()),
+                "{code:?}: {}",
+                err.message()
+            );
         }
-        assert!(covered(BookErrorCode::UnknownExtension));
 
-        // 実物を作れる口から集める
-        let mut seen: Vec<BookError> = Vec::new();
-        // `OpenedBook` は `Debug` を持たないので `unwrap_err` を使わない
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 復帰操作で終わっているか。
+    ///
+    /// **`こと` だけを見ない。** 閉じたハンドルを閉じ直したときの案内は
+    /// 「操作は要らない」で、これも立派な「次にやること」。
+    fn ends_with_an_action(message: &str) -> bool {
+        message.ends_with("こと") || message.ends_with("要らない")
+    }
+
+    /// 種別を足したらここも足すこと。**`_` を書かないので漏れるとコンパイルが止まる。**
+    ///
+    /// `None` は「この種別の実物をここでは作れない」。理由を必ず添える。
+    fn sample(code: BookErrorCode, dir: &std::path::Path) -> Option<BookError> {
+        use crate::book::formats::open_reader;
+        use crate::book::session::BookState;
+        use crate::book::sfen::to_book_key;
+        use crate::book::types::BookFormat;
+
         fn err_of<T>(r: Result<T, BookError>) -> BookError {
             match r {
                 Ok(_) => panic!("失敗するはずの呼び出しが成功した"),
                 Err(e) => e,
             }
         }
-        seen.push(err_of(BookFormat::from_path(Path::new("/tmp/x.txt"))));
-        seen.push(err_of(open_reader(
-            Path::new("/tmp/x.bin"),
-            BookFormat::AperyBin,
-        )));
-        let dir = crate::test_support::temp_dir("book-ends-with-action");
-        let as_dir = dir.join("looks-like.db");
-        std::fs::create_dir_all(&as_dir).expect("ディレクトリ");
-        seen.push(err_of(open_reader(&as_dir, BookFormat::YaneuraouDb)));
-
-        for err in &seen {
-            assert!(
-                err.message().ends_with("こと"),
-                "{:?}: {}",
-                err.code(),
-                err.message()
-            );
+        fn write(dir: &std::path::Path, name: &str, body: &[u8]) -> std::path::PathBuf {
+            let path = dir.join(name);
+            std::fs::write(&path, body).expect("テスト用のファイル");
+            path
         }
-        let _ = std::fs::remove_dir_all(&dir);
+
+        Some(match code {
+            BookErrorCode::NotFound => err_of(open_reader(
+                &dir.join("missing.db"),
+                BookFormat::YaneuraouDb,
+            )),
+            BookErrorCode::InvalidType => {
+                let as_dir = dir.join("looks-like.db");
+                std::fs::create_dir_all(&as_dir).expect("ディレクトリ");
+                err_of(open_reader(&as_dir, BookFormat::YaneuraouDb))
+            }
+            BookErrorCode::InvalidPath => {
+                err_of(crate::book::open::validate_book_path("relative/x.db"))
+            }
+            BookErrorCode::UnknownExtension => {
+                err_of(BookFormat::from_path(std::path::Path::new("/tmp/x.txt")))
+            }
+            BookErrorCode::UnsupportedFormat => {
+                let path = write(dir, "x.bin", b"");
+                err_of(open_reader(&path, BookFormat::AperyBin))
+            }
+            BookErrorCode::InvalidContent => {
+                let path = write(dir, "broken.db", b"not a book\n");
+                err_of(open_reader(&path, BookFormat::YaneuraouDb))
+            }
+            BookErrorCode::InvalidSfen => err_of(to_book_key("garbage")),
+            BookErrorCode::InvalidHandle => err_of(BookState::new().get(1)),
+            // 実物を作る口がここに無いもの。理由を1つずつ書く
+            BookErrorCode::PermissionDenied => {
+                // 権限を落としたファイルを作ると root で走らせたときに通ってしまう。
+                // `from_io` の枝は `an_io_error_ends_with_something_the_user_can_do` が見る
+                return None;
+            }
+            BookErrorCode::TooLarge => {
+                // 上限は 2GiB。実ファイルを置けないので `formats.rs` の
+                // `a_file_over_the_limit_is_refused` が数値だけで見る
+                return None;
+            }
+            BookErrorCode::Io => return None,
+            BookErrorCode::Unknown => {
+                // `spawn_blocking` の join 失敗でしか出ない。
+                // 文面は `api.rs` の `join_error` が組む
+                return None;
+            }
+        })
     }
+
+    /// `sample` の `match` と対で持つ。**片方だけ足すと、足りない種別が黙って外れる。**
+    const ALL_CODES: [BookErrorCode; 12] = [
+        BookErrorCode::NotFound,
+        BookErrorCode::PermissionDenied,
+        BookErrorCode::InvalidType,
+        BookErrorCode::InvalidPath,
+        BookErrorCode::UnknownExtension,
+        BookErrorCode::UnsupportedFormat,
+        BookErrorCode::InvalidContent,
+        BookErrorCode::TooLarge,
+        BookErrorCode::InvalidHandle,
+        BookErrorCode::InvalidSfen,
+        BookErrorCode::Io,
+        BookErrorCode::Unknown,
+    ];
 
     /// **OS 由来の失敗も「次に何をすればよいか」で終わること。**
     ///

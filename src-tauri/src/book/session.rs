@@ -173,7 +173,7 @@ impl BookState {
     fn invalid_handle(handle: BookHandle, recovery: &'static str) -> BookError {
         BookError::new(
             BookErrorCode::InvalidHandle,
-            format!("この定跡は閉じられている。{recovery}（ハンドル {handle}）"),
+            format!("この定跡は閉じられている（ハンドル {handle}）。{recovery}"),
         )
     }
 }
