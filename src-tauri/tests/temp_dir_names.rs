@@ -15,10 +15,18 @@ use std::path::{Path, PathBuf};
 
 /// 一時ディレクトリ名に入っていればプロセスが分かれる語。
 ///
-/// `temp_dir` は `test_support` の共通の置き場で、中で `process::id()` と
+/// `test_support` の `temp_dir` は共通の置き場で、中で `process::id()` と
 /// スレッド番号と連番を混ぜている。**crate 全体から引ける**ので、
 /// 下の案内はどのモジュールでも実行できる。
-const SEPARATORS: [&str; 2] = ["process::id()", "temp_dir("];
+///
+/// **引き金の綴りを部分文字列に持つものを入れないこと。**
+/// 走査は `std::env::temp_dir()` を含む行を拾うので、そこに一致する綴りを
+/// separator にすると、**その行自身が条件を満たして offender が原理的に0になる。**
+/// 検査は緑のまま何も見なくなる。下の `a_separator_never_matches_the_trigger` が見る。
+const SEPARATORS: [&str; 2] = ["process::id()", "test_support::temp_dir("];
+
+/// 走査の引き金。この綴りを含む行だけを見る
+const TRIGGER: &str = "temp_dir()";
 
 fn rust_files(dir: &Path, found: &mut Vec<PathBuf>) {
     let Ok(entries) = fs::read_dir(dir) else {
@@ -56,7 +64,7 @@ fn a_temp_dir_name_is_not_shared_between_processes() {
         let text = blank_out_comments(&raw);
         let lines: Vec<&str> = text.lines().collect();
         for (number, line) in lines.iter().enumerate() {
-            if !line.contains("temp_dir()") {
+            if !line.contains(TRIGGER) {
                 continue;
             }
             scanned += 1;
@@ -84,4 +92,19 @@ fn a_temp_dir_name_is_not_shared_between_processes() {
          `std::process::id()` を混ぜるか、`test_support` の `temp_dir` を使うこと。",
         offenders.join("\n")
     );
+}
+
+/// **separator が引き金の綴りに一致しないこと。**
+///
+/// 一致すると、走査した行が必ず自分で条件を満たし、offender が0になる。
+/// 空振り止め（`scanned`）は行を数えているだけなので、この壊れ方を見ていない。
+#[test]
+fn a_separator_never_matches_the_trigger() {
+    for separator in SEPARATORS {
+        assert!(
+            !TRIGGER.contains(separator),
+            "separator `{separator}` が引き金 `{TRIGGER}` の部分文字列。\
+             走査した行が自分で条件を満たすので、検査が何も見なくなる"
+        );
+    }
 }
