@@ -141,6 +141,28 @@ fn the_log_line_truncates_the_path() {
         ));
     }
 
+    // **ログの行だけを見ても足りない。** 生パスを一度ローカルに束縛してから
+    // `{shown}` で埋め込むと、`log::` の塊には `input.path` の綴りが1つも出ない。
+    // 入口の本体ごと見て、`input.path` の出現を許す形に限る。
+    for name in ["open_book_inner", "lookup_inner", "close_book_inner"] {
+        let Some(body) = body_of(&code, name) else {
+            continue;
+        };
+        for (at, _) in body.match_indices("input.path") {
+            let before = &body[..at];
+            // 許すのは3つだけ。**検査に渡す**（`validate_book_path`）、
+            // **打ち切ってログへ出す**（`truncate_path`）、
+            // **失敗に添える**（`join_error`。`BookError::with_path` が打ち切る）。
+            if ["validate_book_path(&", "truncate_path(&", "join_error("]
+                .iter()
+                .any(|allowed| before.ends_with(allowed))
+            {
+                continue;
+            }
+            offenders.push(format!("{name} が利用者の入力を素のまま持ち回している"));
+        }
+    }
+
     // **等値で見る。** 緩い下限だと、守るはずのログ地点が1本消えても満たされる
     // （`open_book` がどのパスを開いたかを残す唯一の行が消えても緑になった）。
     // 増えた側で赤くなるのは正しい —— 増やした人に、それも打ち切りを通るのかを見させる。
