@@ -181,7 +181,7 @@ impl BookState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::book::sfen::BookKey;
+    use crate::book::sfen::key::BookKey;
     use crate::book::types::{BookFormat, BookMove};
     use std::path::PathBuf;
     use std::sync::atomic::AtomicUsize;
@@ -359,17 +359,24 @@ mod tests {
         assert_eq!(alive.load(Ordering::SeqCst), 0);
     }
 
+    /// **2冊では順序を見ていない。** `DashMap` の反復順が2要素だと
+    /// たまたま一致するので、`sort_by_key` を丸ごと消しても通る（実測）。
+    /// 減らさないこと。
     #[test]
     fn list_returns_every_open_book_in_handle_order() {
+        const BOOKS: usize = 12;
+
         let state = BookState::new();
         let alive = Arc::new(AtomicUsize::new(0));
-        let first = state.register(opened("/books/a.db", &alive));
-        let second = state.register(opened("/books/b.db", &alive));
+        let opened: Vec<BookInfo> = (0..BOOKS)
+            .map(|i| state.register(opened(&format!("/books/{i}.db"), &alive)))
+            .collect();
 
-        assert_eq!(state.list(), vec![first.clone(), second]);
+        assert_eq!(state.list(), opened);
 
+        let first = opened[0].clone();
         drop(state.close(first.handle).unwrap());
-        assert_eq!(state.list().len(), 1);
+        assert_eq!(state.list(), opened[1..].to_vec());
     }
 
     /// ハンドルを失ったフロントが回収できる経路。全て Drop まで行くこと。
