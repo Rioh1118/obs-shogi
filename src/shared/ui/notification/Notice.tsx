@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { CircleAlert, Info, OctagonX, TriangleAlert, X } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
 import type { NotifyAction, VisibleTier } from "@/shared/lib/notification/types";
@@ -56,34 +56,32 @@ export default function Notice({
   className,
 }: NoticeProps) {
   const Icon = ICONS[tier];
-  const [running, setRunning] = useState<number | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // **添字でなく動作そのもので覚える。** 通知は畳まれると `actions` が丸ごと
+  // 差し替わるのに id は動かない（再マウントしない）ので、添字で覚えると
+  // 一度も押していないボタンが busy かつ押せない状態で残る。押せなくなるのは
+  // たいてい「エンジンが応答しない」ときで、唯一の復帰導線がそれになる
+  const [running, setRunning] = useState<NotifyAction | null>(null);
+  const [failed, setFailed] = useState<NotifyAction | null>(null);
 
-  // 動作が通知そのものを消す（再試行が成功して dismiss する）ので、
-  // 返ってきたときには外れていることがある
-  const mounted = useRef(true);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  const invoke = (action: NotifyAction, at: number) => {
-    setActionError(null);
-    setRunning(at);
+  const invoke = (action: NotifyAction) => {
+    setFailed(null);
+    setRunning(action);
     // `run` が同期で投げる場合も拾えるように、呼び出しごと Promise に入れる
     void Promise.resolve()
       .then(() => action.run())
       .catch(() => {
         // **握り潰さない。** ここを console に落とすと、押した人には
         // 何も起きなかったようにしか見えない。押せる状態のまま理由を出す
-        if (mounted.current) setActionError(`「${action.label}」を実行できませんでした。`);
+        setFailed(action);
       })
       .finally(() => {
-        if (mounted.current) setRunning(null);
+        // 走り終えたものだけを落とす。差し替わったあとの動作を消さない
+        setRunning((current) => (current === action ? null : current));
       });
   };
+
+  // 差し替えられた動作の失敗を、新しいボタンの下に出したままにしない
+  const actionError = failed && actions.includes(failed) ? failed : null;
 
   const classes = ["notice", `notice--${tier}`, className].filter(Boolean).join(" ");
 
@@ -99,22 +97,21 @@ export default function Notice({
         {body && <p className="notice__text">{body}</p>}
         {actionError && (
           <p className="notice__actionError" role="alert">
-            {actionError}
+            「{actionError.label}」を実行できませんでした。
           </p>
         )}
         {actions.length > 0 && (
           <div className="notice__actions">
             {actions.map((action, at) => (
-              // 並び順が鍵。走っているものを指す `running` も添字なので、
-              // 文言を鍵にすると同じ文言が2つ並んだときに指す先がずれる
+              // 並び順が鍵。同じ文言が2つ並ぶ通知でも指す先が決まる
               <Button
                 key={at}
                 size="sm"
                 // 先頭だけを主にする。段では決めない（ADR-0004 決定3）。
                 // 2つとも主にすると「エンジンを再起動」が「再試行」と同じ重さに見える
                 tone={at === 0 ? "primary" : "neutral"}
-                isLoading={running === at}
-                onClick={() => invoke(action, at)}
+                isLoading={running === action}
+                onClick={() => invoke(action)}
               >
                 {action.label}
               </Button>

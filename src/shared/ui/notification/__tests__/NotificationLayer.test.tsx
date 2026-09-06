@@ -138,6 +138,49 @@ describe("通知の層", () => {
     expect(screen.queryByText("「再試行」を実行できませんでした。")).toBeNull();
   });
 
+  /**
+   * 畳まれると `actions` が丸ごと差し替わるのに id は動かない（再マウントしない）。
+   * 走っているものを添字で覚えていると、**一度も押していないボタンが busy かつ
+   * 押せない状態で残る**。押せなくなるのはたいてい「エンジンが応答しない」ときで、
+   * 唯一の復帰導線がそれになる。
+   */
+  it("畳まれて動作が差し替わっても、押していないボタンは押せる", async () => {
+    const app = setup();
+    // 返らない動作。エンジンが死んでいる状態そのもの
+    const stuck = { label: "再試行", run: () => new Promise<void>(() => {}) };
+    app.notify(request({ dedupeKey: "analysis", actions: [stuck] }));
+
+    await act(async () => screen.getByRole("button", { name: "再試行" }).click());
+    expect(screen.getByRole("button", { name: "再試行" }).getAttribute("aria-busy")).toBe("true");
+
+    app.notify(
+      request({ dedupeKey: "analysis", actions: [{ label: "エンジンを再起動", run: () => {} }] }),
+    );
+
+    const button = screen.getByRole("button", { name: "エンジンを再起動" });
+    expect(button.getAttribute("aria-busy")).toBeNull();
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("差し替えられた動作の失敗が、新しいボタンの下に残らない", async () => {
+    const app = setup();
+    app.notify(
+      request({
+        dedupeKey: "analysis",
+        actions: [{ label: "再試行", run: () => Promise.reject(new Error("boom")) }],
+      }),
+    );
+
+    await act(async () => screen.getByRole("button", { name: "再試行" }).click());
+    await screen.findByText("「再試行」を実行できませんでした。");
+
+    app.notify(
+      request({ dedupeKey: "analysis", actions: [{ label: "エンジンを再起動", run: () => {} }] }),
+    );
+
+    expect(screen.queryByText("「再試行」を実行できませんでした。")).toBeNull();
+  });
+
   it("見せ方が違えば同時に出る", () => {
     const app = setup();
     app.notify(request({ title: "トースト" }));
