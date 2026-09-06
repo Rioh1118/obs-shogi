@@ -58,7 +58,7 @@ export default function PositionSearchModal() {
     resolveHitAbsPath,
   } = usePositionSearch();
 
-  const { navigateToHit } = usePositionHitNavigation();
+  const { startNavigationToHit } = usePositionHitNavigation();
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [requestId, setRequestId] = useState<number | null>(null);
@@ -66,7 +66,7 @@ export default function PositionSearchModal() {
   const [isLaunching, setIsLaunching] = useState(false);
   // 開けなかったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
   // 並び替わるので、添字で覚えると届いていない棋譜の名前で断りが出る
-  const [unopenableKey, setUnopenableKey] = useState<{
+  const [refusedHit, setRefusedHit] = useState<{
     key: string;
     reason: RefusalReason;
   } | null>(null);
@@ -133,7 +133,7 @@ export default function PositionSearchModal() {
       setLaunchError(null);
       setIsLaunching(false);
       setActiveIndex(0);
-      setUnopenableKey(null);
+      setRefusedHit(null);
       return;
     }
 
@@ -151,7 +151,7 @@ export default function PositionSearchModal() {
     setLaunchError(null);
     setIsLaunching(true);
     setActiveIndex(0);
-    setUnopenableKey(null);
+    setRefusedHit(null);
 
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
@@ -208,11 +208,12 @@ export default function PositionSearchModal() {
     // 動かしていない棋譜を探しに行かせる
     const absPath = resolveHitAbsPath(hit);
     if (!absPath) {
-      setUnopenableKey({ key: hitKey(hit), reason: "no-path" });
+      setRefusedHit({ key: hitKey(hit), reason: "no-path" });
       return;
     }
-    if (!navigateToHit(absPath, hit.cursor)) {
-      setUnopenableKey({ key: hitKey(hit), reason: "not-in-tree" });
+    const started = startNavigationToHit(absPath, hit.cursor);
+    if (!started) {
+      setRefusedHit({ key: hitKey(hit), reason: "not-in-tree" });
       return;
     }
     // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
@@ -251,7 +252,7 @@ export default function PositionSearchModal() {
   // 断りが指しているのは選んでいる行なので、選び直したら引っ込める。
   // 残したままだと、いま選んでいる棋譜が開けないという意味に読める
   const refusal =
-    activeHit && unopenableKey?.key === hitKey(activeHit) ? REFUSALS[unopenableKey.reason] : null;
+    activeHit && refusedHit?.key === hitKey(activeHit) ? REFUSALS[refusedHit.reason] : null;
 
   return (
     <Modal

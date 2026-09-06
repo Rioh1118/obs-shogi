@@ -11,7 +11,7 @@ import type { PositionHit } from "@/entities/search";
  */
 
 const closeModal = vi.fn();
-const navigateToHit = vi.fn();
+const startNavigationToHit = vi.fn();
 const resolveHitAbsPath = vi.fn();
 
 vi.mock("@/shared/lib/router/useURLParams", () => ({
@@ -60,7 +60,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
 }));
 
 vi.mock("@/features/position-search/lib/usePositionHitNavigation", () => ({
-  usePositionHitNavigation: () => ({ navigateToHit }),
+  usePositionHitNavigation: () => ({ startNavigationToHit }),
 }));
 
 // 見に来ているのは「閉じたか」だけ。盤・プレビュー・この先の手は他のテストが見る
@@ -93,7 +93,7 @@ async function renderWithHits() {
 
 beforeEach(() => {
   closeModal.mockReset();
-  navigateToHit.mockReset();
+  startNavigationToHit.mockReset();
   searchPosition.mockReset();
   searchPosition.mockResolvedValue({ requestId: REQUEST_ID });
   cancelSearch.mockReset();
@@ -105,18 +105,18 @@ afterEach(() => cleanup());
 
 describe("PositionSearchModal のヒットを開く", () => {
   test("移動できたら閉じる", async () => {
-    navigateToHit.mockReturnValue(true);
+    startNavigationToHit.mockReturnValue(true);
     await renderWithHits();
 
     pressEnter();
 
-    expect(navigateToHit).toHaveBeenCalledWith("/root/1.kif", HITS[0].cursor);
+    expect(startNavigationToHit).toHaveBeenCalledWith("/root/1.kif", HITS[0].cursor);
     expect(closeModal).toHaveBeenCalledWith({ skipReturn: true });
     expect(screen.queryByText(NOTICE)).toBeNull();
   });
 
   test("ツリーに無くて移動できなければ、閉じずにその場で断る", async () => {
-    navigateToHit.mockReturnValue(false);
+    startNavigationToHit.mockReturnValue(false);
     await renderWithHits();
 
     pressEnter();
@@ -135,7 +135,7 @@ describe("PositionSearchModal のヒットを開く", () => {
 
     pressEnter();
 
-    expect(navigateToHit).not.toHaveBeenCalled();
+    expect(startNavigationToHit).not.toHaveBeenCalled();
     expect(closeModal).not.toHaveBeenCalled();
     // 段が違うので role も違う（warning は status、danger は alert）
     const notice = screen.getByRole("status", { name: undefined });
@@ -151,12 +151,12 @@ describe("PositionSearchModal のヒットを開く", () => {
     pressEnter();
 
     expect(screen.queryByRole("listbox")).toBeNull();
-    expect(navigateToHit).not.toHaveBeenCalled();
+    expect(startNavigationToHit).not.toHaveBeenCalled();
     expect(closeModal).not.toHaveBeenCalled();
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {
-    navigateToHit.mockReturnValue(false);
+    startNavigationToHit.mockReturnValue(false);
     await renderWithHits();
 
     pressEnter();

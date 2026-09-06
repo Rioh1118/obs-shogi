@@ -60,7 +60,7 @@ describe("usePositionHitNavigation", () => {
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.navigateToHit("/root/gone.kif", CURSOR)).toBe(false);
+    expect(result.current.startNavigationToHit("/root/gone.kif", CURSOR)).toBe(false);
     expect(applyCursor).not.toHaveBeenCalled();
   });
 
@@ -69,7 +69,7 @@ describe("usePositionHitNavigation", () => {
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.navigateToHit("/root/b.kif", CURSOR)).toBe(true);
+    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe(true);
     expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/b.kif");
   });
 
@@ -80,7 +80,7 @@ describe("usePositionHitNavigation", () => {
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.navigateToHit("/root/a.kif", CURSOR)).toBe(true);
+    expect(result.current.startNavigationToHit("/root/a.kif", CURSOR)).toBe(true);
     expect(selectNodeByAbsPath).not.toHaveBeenCalled();
     expect(applyCursor).toHaveBeenCalledTimes(1);
   });
@@ -97,7 +97,7 @@ describe("usePositionHitNavigation", () => {
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.navigateToHit("/root/b.kif", CURSOR)).toBe(true);
+    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe(true);
     expect(applyCursor).not.toHaveBeenCalled();
   });
 
@@ -106,7 +106,7 @@ describe("usePositionHitNavigation", () => {
     selectNodeByAbsPath.mockReturnValue(true);
 
     const { result, rerender } = renderHook(() => usePositionHitNavigation());
-    result.current.navigateToHit("/root/b.kif", CURSOR);
+    result.current.startNavigationToHit("/root/b.kif", CURSOR);
 
     stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
     stub.loadedAbsPath = "/root/b.kif";
@@ -124,7 +124,7 @@ describe("usePositionHitNavigation", () => {
     selectNodeByAbsPath.mockReturnValue(true);
 
     const { result, rerender } = renderHook(() => usePositionHitNavigation());
-    result.current.navigateToHit("/root/b.kif", CURSOR);
+    result.current.startNavigationToHit("/root/b.kif", CURSOR);
 
     stub.selectedNode = { path: "/root/c.kif", isDirectory: false };
     rerender();
@@ -141,7 +141,7 @@ describe("usePositionHitNavigation", () => {
     selectNodeByAbsPath.mockReturnValue(true);
 
     const { result, rerender } = renderHook(() => usePositionHitNavigation());
-    result.current.navigateToHit("/root/b.kif", CURSOR);
+    result.current.startNavigationToHit("/root/b.kif", CURSOR);
 
     stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
     stub.kifuError = { path: "/root/b.kif" };

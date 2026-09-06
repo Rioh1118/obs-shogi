@@ -84,7 +84,7 @@
    読み込みが終わって `view.player` が立ってから `applyCursor`
 
 **移動を始められたときだけ閉じる。** ツリーにその棋譜が無ければ
-`navigateToHit` は `false` を返し、モーダルは開いたまま断りを出す（下の表）。
+`startNavigationToHit` は `false` を返し、モーダルは開いたまま断りを出す（下の表）。
 索引に在る棋譜がツリーに無いのは**正常運転で起こる**——`run_rescan_diff_apply` は
 `scan_kifu_files` が失敗すると削除の取り込みに届く前に戻るので、消した棋譜が索引に残る。
 
