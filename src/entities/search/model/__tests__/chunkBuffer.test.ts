@@ -76,8 +76,11 @@ describe("createChunkBuffer", () => {
   });
 
   /**
-   * `open_start` が引く線。**境界はこの rid 自身も含めて止める**（`>= firstLiveRid`）。
-   * `<` と `<=` を取り違えると、開き直す直前に始まった検索が1本だけ生き残る
+   * `open_start` が引く線。通すのは `requestId >= firstLiveRid` で、線は
+   * `firstLiveRid = maxSeenRid + 1` で引く。**線を引いた時点で見えていた rid は、
+   * その rid 自身も含めて止まる。**
+   *
+   * `+ 1` を落とすと、開き直す直前に始まった検索が1本だけ生き残る。
    */
   test("いま在るものを全部止めると、その時点までの rid は1つも通らない", () => {
     const { dispatched, buffer } = setup();
