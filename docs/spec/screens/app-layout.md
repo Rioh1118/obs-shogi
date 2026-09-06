@@ -1,7 +1,7 @@
 # 画面仕様: アプリのシェル
 
 対象: `src/pages/AppLayout.tsx` `src/widgets/app-layout-header/`
-`src/widgets/sidebar/Sidebar.tsx` `src/pages/WelcomeScreen.tsx`
+`src/widgets/sidebar/ui/Sidebar.tsx` `src/pages/WelcomeScreen.tsx`
 `src/shared/ui/TitleBar.tsx` `src/features/board-orientation/`
 `src/features/clear-board-selection/`
 
