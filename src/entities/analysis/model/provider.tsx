@@ -138,7 +138,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   //   踏んだ回は cleanup を登録しないので、その回に張られた分を止める者が残らない。
   //   残ると、居ない画面のためにエンジンへ go を出し、window の消えたテスト環境では
   //   タイマー自身が投げる
-  // - Rust の席。→ `releaseSeatOnUnmount`
+  // - Rust の席。→ `seat.sweepOnUnmount()`（`useEngineSeat.ts`）
   useEffect(() => {
     // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
     // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
@@ -148,7 +148,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return () => {
       unmountedRef.current = true;
       clearDebounceTimer();
-      seat.releaseOnUnmount();
+      seat.sweepOnUnmount();
     };
     // `seat` は同じ物が返り続ける（`useEngineSeat`）。載せても再実行されない。
   }, [seat]);
@@ -258,7 +258,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 握っていなければ撃たない。畳まれたときと違い、ここは画面が生きている
         // ——指せない停止（＝全部止める）を投げると、席を持たないのに
         // 走っている解析があったとき、それを巻き添えにする。
-        if (seat.isHeld()) seat.releaseQuietly("sync-timeout");
+        seat.releaseHeldQuietly("sync-timeout");
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
         dispatch({ type: "stop_analysis" });
@@ -279,9 +279,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     restartInFlightRef.current = (async () => {
       try {
-        if (seat.isHeld()) {
-          await seat.release();
-        }
+        await seat.releaseHeld();
 
         // 停止の応答を待っている間に、畳まれたり止められたりしている。
         // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
@@ -302,7 +300,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 返さずに `start_analysis` を dispatch した場合は、止めたはずの解析が
         // 画面でも Rust でも走り直す。
         if (supersededSince(seq)) {
-          seat.releaseQuietly("late-restart", newSessionId);
+          seat.discard("late-restart", newSessionId);
           return;
         }
         seat.hold(newSessionId);
@@ -411,7 +409,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 入った別の席（■ の直後に ▶ を押した回）を上書きして、
     // 走っている方を知る者が居なくなる。
     if (supersededSince(seq)) {
-      seat.releaseQuietly("late-start", sessionId);
+      seat.discard("late-start", sessionId);
       return;
     }
     seat.hold(sessionId);
@@ -437,7 +435,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
 
     try {
-      await seat.release();
+      await seat.releaseHeld();
     } finally {
       dispatch({ type: "stop_analysis" });
       clearFlushTimer();

@@ -329,17 +329,40 @@ describe("AnalysisProvider の結果の照合", () => {
     await view.setSync(adapter("P2", "P2"));
     await advance(150);
 
-    // 席が返った直後——`state` にはまだ載っていない——に最初の `info` が届く。
-    // `state` の写しで照らすと、そこに入っているのは前の席なので落とす。
-    releaseStart("session-2");
-    await Promise.resolve();
-
+    // **席を欄に入れるより前**に最初の `info` が届く。Rust は席を作った時点で
+    // 配り始めるので、応答が返るより早く着くことがある。
     await act(async () => {
+      releaseStart("session-2");
       listeners?.onUpdate("session-2", oneCandidate);
     });
     await advance(150);
 
     expect(view.current.state.candidates).toHaveLength(1);
+  });
+
+  it("返したばかりの席で届いた info は採らない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("session-1");
+    startCore.mockImplementation(() => new Promise<string>(() => {}));
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 1手進む。再開は `session-1` を返し終え、新しい席の応答待ちで止まる。
+    // この間、席の欄は空。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 止めたばかりの `session-1` の `info` が遅れて届く。
+    await act(async () => {
+      listeners?.onUpdate("session-1", oneCandidate);
+    });
+    await advance(150);
+
+    // 採ると、前の局面の評価値と読み筋が新しい局面の解析結果として盤に出る。
+    expect(view.current.state.candidates).toHaveLength(0);
   });
 });
 
