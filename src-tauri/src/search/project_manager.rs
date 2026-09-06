@@ -9,22 +9,18 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
-use crate::search::{
-    file_build::build_file_index,
-    fs_scan::{
-        diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions,
-        ScanSnapshot,
-    },
-    index_store::{FileBucketEntries, IndexState as StoreIndexState, IndexStore},
-    node_table::NodeTable,
-    position_key::PositionKey,
-    types::{
-        FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-        Occurrence, EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
-    },
+use crate::search::index::file_build::build_file_index;
+use crate::search::read::fs_scan::{
+    diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
 };
-
-type BucketEntries = [Vec<(PositionKey, Occurrence)>; 256];
+use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
+use crate::search::store::index_store::IndexStore;
+use crate::search::store::node_table::NodeTable;
+use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexState};
+use crate::search::types::{
+    FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
+    EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
+};
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -147,7 +143,26 @@ impl ProjectManager {
     }
 
     /// Step2本体：scan -> diff -> apply
+    /// 走査し直して差分を索引に取り込む。
+    ///
+    /// **2回目の `open` が来ても、このタスクは止まらない。** 前の `root_dir` と
+    /// 前の `scan` を持ったまま、**差し替わった索引に書く**ことになる。
+    /// だから索引への書き込みは全部 `update_if_epoch` を通し、
+    /// 代が変わっていたら書かずに抜ける。
+    ///
+    /// 守らないと、前のプロジェクトの `file_id` で墓標を立てて
+    /// **別の棋譜のヒットが黙って消える**し、構築中の索引を `Ready` に上げて
+    /// **半分しか入っていない結果が「最新」として画面に並ぶ**。
     pub async fn run_rescan_diff_apply(&self, app: AppHandle, store: Arc<IndexStore>) {
+        // 走り出したときの代。以後の書き込みはこれを持ち回る
+        let epoch = store.snapshot().epoch;
+        let commit = |f: &dyn Fn(&IndexSnapshot) -> IndexSnapshot| -> bool {
+            if store.update_if_epoch(epoch, f) {
+                return true;
+            }
+            log::warn!("[rescan] 索引が別の代に差し替わったので、差分の取り込みをやめる");
+            false
+        };
         // プロジェクト情報を “cloneして” 取り出す（ロックを await に跨がない）
         let (root, prev_scan, mut path_to_id, mut next_file_id) = {
             let g = self.inner.lock().await;
@@ -185,7 +200,9 @@ impl ProjectManager {
         }
 
         // state=Updating（クエリは stale=true になる）
-        store.set_state(StoreIndexState::Updating);
+        if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Updating)) {
+            return;
+        }
         let _ = app.emit(
             EVT_INDEX_STATE,
             IndexStatePayload {
@@ -201,7 +218,9 @@ impl ProjectManager {
         // removed → tombstone (cheap, fire immediately)
         for path_key in &diff.removed {
             if let Some(file_id) = path_to_id.remove(path_key) {
-                store.tombstone_file(file_id);
+                if !commit(&|s: &IndexSnapshot| s.with_tombstone(file_id)) {
+                    return;
+                }
             }
             done_dirty += 1;
             let _ = app.emit(
@@ -223,7 +242,7 @@ impl ProjectManager {
         let mut pending: Vec<PendingBuild> = Vec::new();
 
         for rec in &diff.modified {
-            let path_key = crate::search::fs_scan::path_key(&rec.path);
+            let path_key = crate::search::read::fs_scan::path_key(&rec.path);
             let file_id = match path_to_id.get(&path_key).copied() {
                 Some(id) => id,
                 None => {
@@ -243,7 +262,7 @@ impl ProjectManager {
         }
 
         for rec in &diff.added {
-            let path_key = crate::search::fs_scan::path_key(&rec.path);
+            let path_key = crate::search::read::fs_scan::path_key(&rec.path);
             let file_id = next_file_id;
             next_file_id = next_file_id.wrapping_add(1);
             path_to_id.insert(path_key.clone(), file_id);
@@ -265,7 +284,7 @@ impl ProjectManager {
                 None => {
                     // build error: still record a tombstone-ish entry so file_table
                     // gets updated and stale segments from the old gen are excluded.
-                    let empty: BucketEntries = std::array::from_fn(|_| Vec::new());
+                    let empty: BucketEntries = empty_buckets();
                     batch.push((
                         FileEntry {
                             file_id: pb.file_id,
@@ -289,11 +308,13 @@ impl ProjectManager {
             );
         }
 
-        if !batch.is_empty() {
-            store.insert_many_file_segments(batch);
+        if !batch.is_empty() && !commit(&|s: &IndexSnapshot| s.with_files(batch.clone())) {
+            return;
         }
 
-        store.set_state(StoreIndexState::Ready);
+        if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Ready)) {
+            return;
+        }
         let _ = app.emit(
             EVT_INDEX_STATE,
             IndexStatePayload {
@@ -311,9 +332,8 @@ impl ProjectManager {
         g.next_file_id = next_file_id;
     }
 
-    /// 1 ファイル分の build を spawn_blocking で行い、 store に直接書き込まずに
-    /// FileBucketEntries を返す。 run_rescan_diff_apply 側で batch 化して
-    /// insert_many_file_segments を 1 回呼ぶ用。
+    /// 1ファイル分の構築を `spawn_blocking` で行い、`store` に直接書かずに
+    /// `FileBucketEntries` を返す。呼び手が束ねて `with_files` を1回呼ぶ用。
     async fn build_one_file(
         &self,
         app: &AppHandle,

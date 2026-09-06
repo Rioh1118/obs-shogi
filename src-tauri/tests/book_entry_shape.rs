@@ -1,6 +1,6 @@
 //! 定跡コマンドの入口が持つ、**戻り値に現れない性質**を固定する。
 //!
-//! `src/book/api.rs` の入口は `block_on` で呼べるので振る舞いは単体テストで見られるが、
+//! `src/book/commands.rs` の入口は `block_on` で呼べるので振る舞いは単体テストで見られるが、
 //! そこで見えるのは戻り値だけ。**下は全て、戻り値が同じまま壊れる。**
 //! 何を見ているかはこの下の `#[test]` を読むこと（数を書くと、足した人が必ず腐らせる）。
 //!
@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 const HEAVY_CALLS: [&str; 3] = ["open_at(", "reader.lookup(", "drop(value)"];
 
 fn entry_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book/api.rs")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book/commands.rs")
 }
 
 /// 入口の本体（テストモジュールを含まない）。
@@ -76,7 +76,11 @@ fn the_heavy_calls_stay_off_the_async_runtime() {
         if escapes_the_async_runtime(&block) {
             continue;
         }
-        offenders.push(format!("src/book/api.rs:{}  {}", number + 1, line.trim()));
+        offenders.push(format!(
+            "src/book/commands.rs:{}  {}",
+            number + 1,
+            line.trim()
+        ));
     }
 
     assert_eq!(
@@ -110,7 +114,11 @@ fn the_log_line_truncates_the_path() {
         if !logs_a_raw_path(&block) {
             continue;
         }
-        offenders.push(format!("src/book/api.rs:{}  {}", number + 1, line.trim()));
+        offenders.push(format!(
+            "src/book/commands.rs:{}  {}",
+            number + 1,
+            line.trim()
+        ));
     }
 
     // `logged` の1本が消えると失敗の切り分けができなくなる。空振り止めを兼ねる

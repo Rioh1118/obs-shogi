@@ -305,7 +305,7 @@ mod tests {
     /// （固定パスを使うと、そのファイルが在るかどうかで結果が変わる）。
     #[test]
     fn every_code_ends_with_something_the_user_can_do() {
-        let dir = crate::test_support::temp_dir("book-ends-with-action");
+        let dir = test_support::dir::temp_dir("book-ends-with-action");
 
         for &code in BookErrorCode::ALL {
             let Some(err) = sample(code, &dir) else {

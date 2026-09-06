@@ -166,7 +166,7 @@ mod tests {
     /// 次にやれること（.db なら開ける）を出す。
     #[test]
     fn an_unsupported_format_tells_the_user_what_to_expect() {
-        let dir = crate::test_support::temp_dir("book-unsupported");
+        let dir = test_support::dir::temp_dir("book-unsupported");
         let file = dir.join("a.bin");
         std::fs::write(&file, b"").expect("テスト用のファイルを作れない");
 
@@ -195,7 +195,7 @@ mod tests {
     /// 復帰操作に辿り着けない。
     #[test]
     fn reports_a_broken_db_as_broken_content() {
-        let dir = crate::test_support::temp_dir("book-broken");
+        let dir = test_support::dir::temp_dir("book-broken");
         let file = dir.join("a.db");
         std::fs::write(&file, b"not a book").expect("テスト用のファイルを作れない");
 
@@ -213,7 +213,7 @@ mod tests {
     /// 戻すと IO が async ワーカへ漏れる。
     #[test]
     fn a_readable_book_is_counted_while_opening() {
-        let dir = crate::test_support::temp_dir("book-counted");
+        let dir = test_support::dir::temp_dir("book-counted");
         let file = dir.join("a.db");
         std::fs::write(
             &file,
@@ -238,7 +238,7 @@ mod tests {
     /// 運搬を落とす変更（`Some(0)` 固定、`None` 固定）が緑で通る。
     #[test]
     fn dropped_fields_travel_with_the_opened_book() {
-        let dir = crate::test_support::temp_dir("book-dropped-travel");
+        let dir = test_support::dir::temp_dir("book-dropped-travel");
         let path = dir.join("broken.db");
         // 評価値と深さが数値でない。2つとも捨てる
         std::fs::write(
@@ -303,7 +303,7 @@ mod tests {
     /// つまりこのテストは「読まずに落ちた」ことまで見ている。
     #[test]
     fn an_over_sized_file_is_refused_without_reading_it() {
-        let dir = crate::test_support::temp_dir("book-over-sized");
+        let dir = test_support::dir::temp_dir("book-over-sized");
         let file = dir.join("huge.db");
         let handle = std::fs::File::create(&file).expect("テスト用のファイルを作れない");
         handle
@@ -327,7 +327,7 @@ mod tests {
     /// その形式に reader を足した時点でテスト名だけが嘘になり、順序を守らない。
     #[test]
     fn an_unsupported_format_is_not_reported_as_too_large() {
-        let dir = crate::test_support::temp_dir("book-unsupported-over-sized");
+        let dir = test_support::dir::temp_dir("book-unsupported-over-sized");
         let file = dir.join("huge.bin");
         let handle = std::fs::File::create(&file).expect("テスト用のファイルを作れない");
         handle
@@ -381,7 +381,7 @@ mod tests {
     /// 利用者は探し直してしまう。
     #[test]
     fn reports_a_directory_as_a_wrong_kind() {
-        let dir = crate::test_support::temp_dir("book-a-directory");
+        let dir = test_support::dir::temp_dir("book-a-directory");
         let result = open_reader(&dir, BookFormat::YaneuraouDb);
         let _ = std::fs::remove_dir_all(&dir);
 

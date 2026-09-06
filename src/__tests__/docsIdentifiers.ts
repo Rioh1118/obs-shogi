@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
-import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
+import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 
 /** 門番とその検査。シェルだが、表が関数名を仕様として引く */
 const HOOKS = join(REPO_ROOT, ".claude/hooks");
@@ -77,9 +77,10 @@ function sourceCorpus(): string {
     .map((entry) => join(HOOKS, entry.name));
 
   corpus = [
-    ...[...sourceFiles(SRC, { includeTests: false }), ...sourceFiles(RUST_SRC)].map((path) =>
-      codeOf(readFileSync(path, "utf8")),
-    ),
+    ...[
+      ...sourceFiles(SRC, { includeTests: false }),
+      ...rustRoots().flatMap((root) => sourceFiles(root)),
+    ].map((path) => codeOf(readFileSync(path, "utf8"))),
     // シェルの行コメントは `#`。`codeOf` の既定（`//`）では落ちない
     ...hooks.map((path) => codeOf(readFileSync(path, "utf8"), "shell")),
   ].join("\n");

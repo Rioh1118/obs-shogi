@@ -215,7 +215,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_failure_from_open_at_still_ends_with_an_action() {
-        let dir = crate::test_support::temp_dir("book-open-at-ends");
+        let dir = test_support::dir::temp_dir("book-open-at-ends");
 
         // 中身が定跡でない `.db` を、symlink 越しに開く。
         // 要求の綴りと実体が食い違うので注記の枝に入る
@@ -254,7 +254,7 @@ mod tests {
     fn opens_a_book_and_finds_the_opening_moves() {
         use crate::book::sfen::to_book_key;
 
-        let dir = crate::test_support::temp_dir("book-end-to-end");
+        let dir = test_support::dir::temp_dir("book-end-to-end");
         let file = dir.join("standard.db");
         std::fs::write(
             &file,
@@ -297,7 +297,7 @@ mod tests {
     /// 形式の食い違い検査自体は Windows でも本番経路として動くが、**検証していない。**
     #[cfg(unix)]
     fn linked(name: &str, target_ext: &str, link_ext: &str) -> (PathBuf, PathBuf, PathBuf) {
-        let dir = crate::test_support::temp_dir(&format!("book-{name}"));
+        let dir = test_support::dir::temp_dir(&format!("book-{name}"));
 
         let target = dir.join(format!("target{target_ext}"));
         let link = dir.join(format!("link{link_ext}"));
@@ -412,7 +412,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn reports_the_link_target_when_it_cannot_be_resolved() {
-        let dir = crate::test_support::temp_dir("book-dangling");
+        let dir = test_support::dir::temp_dir("book-dangling");
 
         let missing = dir.join("gone.db");
         let link = dir.join("link.db");
@@ -479,7 +479,7 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn a_link_target_cannot_forge_a_log_line() {
-        let dir = crate::test_support::temp_dir("book-forge");
+        let dir = test_support::dir::temp_dir("book-forge");
         std::fs::create_dir_all(&dir).expect("テスト用のディレクトリを作れない");
         let link = dir.join("link.db");
         let target = dir.join("gone\n[cmd] open_book path=/etc/passwd.db");

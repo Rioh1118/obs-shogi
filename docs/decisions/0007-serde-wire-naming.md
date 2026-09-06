@@ -81,7 +81,7 @@ interface EngineOptionType {
 ```
 
 `research/shogihome/05-usi-engine.md` が「型情報を捨てている」と評しているのは
-obs-shogi の `EnginePreset.options`（`src-tauri/src/engine_presets.rs` の
+obs-shogi の `EnginePreset.options`（`src-tauri/src/settings/presets.rs` の
 `HashMap<String, String>`）で、**そちらはこの ADR の対象外**（保存ファイルの形。
 下の 4 の EXEMPT）。
 

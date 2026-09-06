@@ -23,6 +23,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+mod roots;
 mod scanning;
 use scanning::{blank_out_strings, doc_above, is_test_attribute};
 

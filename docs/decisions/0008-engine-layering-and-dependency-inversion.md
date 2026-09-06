@@ -24,7 +24,7 @@
 
 ### 1. 段を決め、依存は下向きだけ
 
-**段の表はここに持たない。** `src-tauri/tests/engine_layering.rs` の `LAYERS` が
+**段の表はここに持たない。** `src-tauri/tests/layering.rs` の `LAYERS` が
 「何を決める場所か」と「何を `use` してよいか」を持つ。ここに写すと、
 片方を直したときにもう片方が古いまま残る（この ADR が決定3 で禁じている形）。
 
@@ -40,7 +40,7 @@
   「何を決める場所か」を1行で書く。`engine/mod.rs` は `pub mod` を並べるだけ
   （そこは段の表の外なので、置いたものはどの検査にも掛からない）
 
-`src-tauri/tests/engine_layering.rs` が強制する。**本数はここに書かない**——増えるたびに嘘になる。
+`src-tauri/tests/layering.rs` が強制する。**本数はここに書かない**——増えるたびに嘘になる。
 
 ### 2. 具象への依存は trait で逆転する
 

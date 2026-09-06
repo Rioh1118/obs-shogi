@@ -6,12 +6,17 @@
 //! 説明は「型名から読めないもの」にだけ付ける。`BookInfo::handle` のように
 //! 名前と型で決まるものは書かない。書く / 書かないが混ざると、次に足す人が迷う。
 //!
-//! サブモジュールは private にしてあり、外から使えるのはここに並んでいるものだけ。
-//! `BookReader` も `BookState` の操作も `pub(crate)` なので、定跡を開く経路は
-//! `open_book` コマンドしかない。形式ごとの reader を足すときも、この境界を
-//! 越えて reader を直に作れるようにしないこと。
+//! **`commands` 以外のサブモジュールは private。** 外から使えるのはここに
+//! 並んでいるものと、`commands` に居る6本だけ。`BookReader` も `BookState` の
+//! 操作も `pub(crate)` なので、定跡を開く経路は `open_book` コマンドしかない。
+//! 形式ごとの reader を足すときも、この境界を越えて reader を直に
+//! 作れるようにしないこと。
+//!
+//! `commands` を public にしているのは ADR-0009 決定3 ——
+//! コマンドは各スライスの `commands` 段にだけ置き、`lib.rs` はそこを
+//! 完全修飾で名指す。再エクスポートを挟むと、登録漏れを目で探すことになる。
 
-mod api;
+pub mod commands;
 mod error;
 mod formats;
 mod open;
@@ -21,9 +26,6 @@ mod sfen;
 mod types;
 mod yaneuraou_db;
 
-pub use api::{
-    close_all_books, close_book, get_book_info, list_books, lookup_book_moves, open_book,
-};
 // `BookError` はコマンドの `Err` 型なので `pub`。組み立てと読み取りは
 // `pub(crate)` にしてある。外から「作れるが読めない」型にしないため。
 // 種別で分岐させたくなったら、`code()` を上げるのと一緒に `BookErrorCode` も上げる。

@@ -1,0 +1,260 @@
+use std::sync::Arc;
+
+use crate::search::position::position_key::PositionKey;
+use crate::search::types::Occurrence;
+
+pub type SegmentArc = Arc<Segment>;
+
+/// **鍵の昇順に並んだ「鍵 → その局面が現れた場所」の表。**
+///
+/// 索引で二分探索が走るのはここだけ。概念としては1枚の表で、
+/// 行が鍵の昇順であることだけが不変条件。
+///
+/// ```text
+///   z0         z1    file_id  gen  node_id
+///   0x1100..   0..   1        1    0
+///   0x1100..   0..   3        1    7   ← 同じ鍵が複数行
+///   0x1101..   0..   1        1    2
+/// ```
+///
+/// **後から足せない。** 取り込みは新しいセグメントを桶に積み増す形で、
+/// 溜まったら `store/compaction.rs` が畳んで1本にする。
+/// 不変・整列済み・積み増し・溜まったら合流、という役は LSM の SSTable と同じ。
+///
+/// **列に倒して持つ**（SoA）のは二分探索が `z0` / `z1` しか触らないため。
+/// 出現の3列は当たった行でしか読まない。
+///
+/// `z0` / `z1` は [`PositionKey`] を列に分解したもので、
+/// **Zobrist の材料（`position/zobrist.rs` の `ZobristValue`）ではない。**
+/// 鍵は材料を xor し切った結果で、128ビットを `u64` 2つに割ってある。
+#[derive(Debug, Default)]
+pub struct Segment {
+    /// 鍵の上位64ビット。桶の振り分けもここから取る
+    z0: Vec<u64>,
+    /// 鍵の下位64ビット
+    z1: Vec<u64>,
+    file_ids: Vec<u32>,
+    /// その棋譜の世代。生死の判定に要る（`store/file_table.rs` の `is_occ_alive`）
+    gens: Vec<u32>,
+    /// その棋譜の節表の添字。手数と分岐路に戻すのに要る
+    node_ids: Vec<u32>,
+}
+
+impl Segment {
+    /// `entries` は鍵の昇順であること。**並べ直さない。**
+    ///
+    /// 崩れていると二分探索が黙って外す（検索が0件になるか別の局面を返す）。
+    ///
+    /// 昇順を作る側は3つ。取り込みは `store/bucket.rs` の `bucketize_entries`、
+    /// 畳んだ結果は `store/compaction.rs`、復元は `cache/format.rs` の
+    /// `decode_all`（自分で昇順を検査してから渡す。**release でもそこで弾く**）。
+    ///
+    /// # Panics
+    ///
+    /// debug ビルドで、昇順でない `entries` を渡すと落ちる
+    /// （`cargo test` も `npm run tauri dev` も debug）。
+    pub fn new_sorted(entries: Vec<(PositionKey, Occurrence)>) -> Self {
+        debug_assert!(
+            entries.windows(2).all(|w| w[0].0 <= w[1].0),
+            "鍵の昇順でない entries を Segment に詰めようとしている"
+        );
+        let n = entries.len();
+        let mut z0 = Vec::with_capacity(n);
+        let mut z1 = Vec::with_capacity(n);
+        let mut file_ids = Vec::with_capacity(n);
+        let mut gens = Vec::with_capacity(n);
+        let mut node_ids = Vec::with_capacity(n);
+
+        for (k, occ) in entries {
+            z0.push(k.z0);
+            z1.push(k.z1);
+            file_ids.push(occ.file_id);
+            gens.push(occ.gen);
+            node_ids.push(occ.node_id);
+        }
+
+        Self {
+            z0,
+            z1,
+            file_ids,
+            gens,
+            node_ids,
+        }
+    }
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.z0.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.z0.len()
+    }
+
+    /// `idx` の鍵と `key` を比べる。**並びの規約は `PositionKey` の `Ord`。**
+    ///
+    /// 列に割って持っているのは二分探索のためで、順序まで自前で組むと
+    /// 並べる側（`store/bucket.rs`）と食い違ったときに黙って外す。
+    #[inline]
+    fn cmp_at(&self, idx: usize, key: PositionKey) -> std::cmp::Ordering {
+        PositionKey {
+            z0: self.z0[idx],
+            z1: self.z1[idx],
+        }
+        .cmp(&key)
+    }
+
+    fn lower_bound(&self, key: PositionKey) -> usize {
+        let mut lo = 0usize;
+        let mut hi = self.z0.len();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.cmp_at(mid, key).is_lt() {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        lo
+    }
+
+    fn upper_bound(&self, key: PositionKey) -> usize {
+        let mut lo = 0usize;
+        let mut hi = self.z0.len();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if self.cmp_at(mid, key).is_gt() {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        lo
+    }
+
+    /// key に完全一致する `[lo, hi)` 半開区間。
+    pub(super) fn range_by_key(&self, key: PositionKey) -> (usize, usize) {
+        let lo = self.lower_bound(key);
+        if lo >= self.z0.len() || self.cmp_at(lo, key).is_ne() {
+            return (lo, lo);
+        }
+        let hi = self.upper_bound(key);
+        (lo, hi)
+    }
+
+    #[inline]
+    pub(super) fn occ_at(&self, idx: usize) -> Occurrence {
+        Occurrence {
+            file_id: self.file_ids[idx],
+            gen: self.gens[idx],
+            node_id: self.node_ids[idx],
+        }
+    }
+
+    #[inline]
+    pub(super) fn key_at(&self, idx: usize) -> PositionKey {
+        PositionKey {
+            z0: self.z0[idx],
+            z1: self.z1[idx],
+        }
+    }
+
+    pub fn iter_entries(&self) -> impl Iterator<Item = (PositionKey, Occurrence)> + '_ {
+        (0..self.z0.len()).map(|i| (self.key_at(i), self.occ_at(i)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::store::bucket::bucketize_entries;
+    use crate::search::store::fixtures::occ_of;
+
+    /// **並べる側と探す側が同じ順序を使う。**
+    ///
+    /// 桶へ振り分けて整列するのは `store/bucket.rs`、桶ごとにセグメントを作って
+    /// 二分探索するのはここ。どちらも `PositionKey` の `Ord` を通るので
+    /// 一致するはずだが、片方が自前で組み直すと**黙って外す** — 検索が0件に
+    /// なるか別の局面を返すかで、エラーも警告も出ない。
+    ///
+    /// **桶ごとに1本のセグメントを作る**（`store/snapshot.rs` と同じ形）。
+    /// 全桶を1本に平らにすると、振り分けを1度も検査しないまま
+    /// 「本番と同じ経路」を名乗ることになる。
+    ///
+    /// 題材は2つの桶にまたがり、片方は `z0` を揃えて `z1` だけが違う鍵を持つ。
+    /// 上位だけで比べるとその組が見分けられなくなる。
+    #[test]
+    fn every_key_that_was_sorted_in_can_be_found_again() {
+        // 桶は `z0` の上位8ビット
+        let b1 = 0x11u64 << 56;
+        let b2 = 0x22u64 << 56;
+        let entries: Vec<(PositionKey, Occurrence)> = vec![
+            (
+                PositionKey {
+                    z0: b1 | 7,
+                    z1: 300,
+                },
+                occ_of(1, 0),
+            ),
+            (
+                PositionKey {
+                    z0: b1 | 7,
+                    z1: 100,
+                },
+                occ_of(1, 1),
+            ),
+            (
+                PositionKey {
+                    z0: b1 | 7,
+                    z1: 200,
+                },
+                occ_of(1, 2),
+            ),
+            (
+                PositionKey {
+                    z0: b1 | 3,
+                    z1: 999,
+                },
+                occ_of(1, 3),
+            ),
+            (PositionKey { z0: b2 | 9, z1: 0 }, occ_of(1, 4)),
+        ];
+
+        // 本番と同じ形。桶ごとに1本
+        let segs: Vec<(usize, Segment)> = bucketize_entries(entries.clone())
+            .into_iter()
+            .enumerate()
+            .filter(|(_, v)| !v.is_empty())
+            .map(|(b, v)| (b, Segment::new_sorted(v)))
+            .collect();
+        assert_eq!(segs.len(), 2, "題材が1つの桶に固まっている");
+
+        let seg_of = |key: PositionKey| {
+            &segs
+                .iter()
+                .find(|(b, _)| *b == key.bucket() as usize)
+                .unwrap_or_else(|| panic!("鍵の桶にセグメントが無い: {key:?}"))
+                .1
+        };
+
+        for (key, o) in &entries {
+            let seg = seg_of(*key);
+            let (lo, hi) = seg.range_by_key(*key);
+            assert!(lo < hi, "並べた鍵が引けない: {key:?}");
+
+            let found: Vec<u32> = (lo..hi).map(|i| seg.occ_at(i).node_id).collect();
+            assert!(
+                found.contains(&o.node_id),
+                "別の鍵の場所を指している: {key:?} → {found:?}"
+            );
+        }
+
+        // 入れていない鍵は引けない
+        let absent = PositionKey {
+            z0: b1 | 7,
+            z1: 150,
+        };
+        let (lo, hi) = seg_of(absent).range_by_key(absent);
+        assert_eq!(lo, hi, "入れていない鍵が引けた");
+    }
+}

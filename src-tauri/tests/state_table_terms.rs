@@ -36,7 +36,11 @@ const TABLES: &[(&str, &[&str])] = &[
     ),
     (
         "docs/state-transitions/book-key-failures.md",
-        &["src/book/api.rs", "src/book/error.rs", "src/book/sfen.rs"],
+        &[
+            "src/book/commands.rs",
+            "src/book/error.rs",
+            "src/book/sfen.rs",
+        ],
     ),
     (
         "docs/state-transitions/game-session.md",
@@ -54,21 +58,7 @@ const TABLES: &[(&str, &[&str])] = &[
             "src/engine/game/types.rs",
         ],
     ),
-    (
-        "docs/state-transitions/search.md",
-        &[
-            "src/search/api.rs",
-            "src/search/file_table.rs",
-            "src/search/fs_scan.rs",
-            "src/search/index_builder.rs",
-            "src/search/index_cache.rs",
-            "src/search/index_store.rs",
-            "src/search/kifu_reader.rs",
-            "src/search/project_manager.rs",
-            "src/search/query_service.rs",
-            "src/search/types.rs",
-        ],
-    ),
+    ("docs/state-transitions/search.md", &["src/search"]),
 ];
 
 /// Rust の実装を指していない表。**理由を書かずに足さない。**
@@ -215,16 +205,39 @@ fn missing_in(table: &str, code: &str) -> Vec<String> {
         .collect()
 }
 
+/// 登録された1つを読む。**ディレクトリなら中の `.rs` を全部。**
+///
+/// スライスの中でファイルが割り直されるたびに一覧を書き直すと、
+/// 直し忘れた側は「実装に無い」と誤って落ちる（この検査の doc が
+/// 「落ちた人は実在する行を表から消しにいく」と書いている形）。
+/// 表が受け持つのはモジュール単位なので、登録もその粒度で書けるようにする。
+fn read_all(path: &Path) -> Vec<String> {
+    if path.is_dir() {
+        let mut found = Vec::new();
+        let Ok(entries) = fs::read_dir(path) else {
+            return found;
+        };
+        let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+        paths.sort();
+        for child in paths {
+            found.extend(read_all(&child));
+        }
+        return found;
+    }
+    if path.extension().is_some_and(|e| e == "rs") {
+        return vec![fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("{} を読めない: {e}", path.display()))];
+    }
+    Vec::new()
+}
+
 #[test]
 fn every_constant_named_in_a_table_exists_in_the_source() {
     for &(table, sources) in TABLES {
         let text = fs::read_to_string(repo_file(table)).expect("表を読めない");
         let code: String = sources
             .iter()
-            .map(|s| {
-                fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(s))
-                    .unwrap_or_else(|e| panic!("{s} を読めない: {e}"))
-            })
+            .flat_map(|s| read_all(&Path::new(env!("CARGO_MANIFEST_DIR")).join(s)))
             .collect();
 
         // **コメントアウトされた宣言を、宣言と読まないため**に落とす。
