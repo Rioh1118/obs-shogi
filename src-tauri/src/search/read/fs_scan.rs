@@ -274,33 +274,44 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Scanned, S
 /// `/w/b` の下と読み、同一を外すと `metadata` に失敗したファイル自身が漏れる。
 /// `Path::ancestors` はどちらも満たす。
 ///
-/// 引き継いだ鍵を返す。
+/// **引き継げた「場所」を返す**（引き継いだ鍵の数ではない）。
+///
+/// 鍵の数を返すと、呼び手は「この回のどこかで引き継ぎが起きた」しか言えない。
+/// 場所ごとに失われるものが逆になる——引き継げた場所の棋譜は検索に出続け、
+/// 引き継げなかった場所の棋譜は索引に無い。数で畳むと、**出ないものを
+/// 「残る」と告げる**か、その逆をやる。
 pub fn carry_over_unreadable(
     prev: &ScanSnapshot,
     next: &mut ScanSnapshot,
     unreadable: &[String],
-) -> Vec<String> {
+) -> HashSet<String> {
     if unreadable.is_empty() {
-        return Vec::new();
+        return HashSet::new();
     }
     // **集合で引く。** 総当たりだと `prev × unreadable` で、どちらもファイル数と
     // 同じ桁になりうる（`metadata` の失敗は1ファイルにつき1件積む）
     let blocked: HashSet<&str> = unreadable.iter().map(|u| u.trim_end_matches('/')).collect();
 
-    let mut carried = Vec::new();
+    let mut carried_places = HashSet::new();
+    let mut carried_keys = Vec::new();
     for (key, rec) in &prev.by_path {
         if next.by_path.contains_key(key) {
             continue;
         }
-        if Path::new(key)
+        // **どの場所の下だったかを覚える。** 呼び手はこれで文言を選ぶ
+        let Some(place) = Path::new(key)
             .ancestors()
-            .any(|a| blocked.contains(a.to_string_lossy().as_ref()))
-        {
-            next.by_path.insert(key.clone(), rec.clone());
-            carried.push(key.clone());
-        }
+            .find(|a| blocked.contains(a.to_string_lossy().as_ref()))
+        else {
+            continue;
+        };
+        carried_places.insert(place.to_string_lossy().into_owned());
+        carried_keys.push((key.clone(), rec.clone()));
     }
-    carried
+    for (key, rec) in carried_keys {
+        next.by_path.insert(key, rec);
+    }
+    carried_places
 }
 
 #[inline]
