@@ -47,7 +47,10 @@ impl BlobStore for DiskStore {
         {
             let mut out = fs::File::create(&tmp).map_err(io)?;
             out.write_all(bytes).map_err(io)?;
-            out.flush().map_err(io)?;
+            // **`flush` では足りない。** `std::fs::File` の `flush` は何もしないので、
+            // 中身はページキャッシュにあるだけ。ここで耐久化しないと、
+            // 置き換えの直後に OS ごと落ちたとき**本体は在るのに中身が空**になる
+            out.sync_all().map_err(io)?;
         }
 
         // 本体があれば退避してから置く
@@ -66,18 +69,17 @@ impl BlobStore for DiskStore {
     /// 本体 → 退避の順に読む。
     ///
     /// 本体の rename が落ちた直後だけ退避が残っていて、そこには**1つ前のもの**が入る。
+    ///
+    /// **見るのは「読めたか」だけ。** 中身が壊れていても読めれば本体を返すので、
+    /// 復号に失敗する形（書き込み途中で電源が落ちて半端なバイトが残った）では
+    /// 退避へ落ちない。**そこは呼び手が決めること** ——
+    /// バイト列を返す口に復号の成否は分からない。
     fn load(&self, key: &str) -> Result<Vec<u8>, StoreError> {
         let (final_path, bak, _) = self.paths(key);
         match read(&final_path) {
             Ok(v) => Ok(v),
-            Err(StoreError::NotFound) if bak.exists() => read(&bak),
-            Err(e) => {
-                if bak.exists() {
-                    read(&bak)
-                } else {
-                    Err(e)
-                }
-            }
+            Err(_) if bak.exists() => read(&bak),
+            Err(e) => Err(e),
         }
     }
 

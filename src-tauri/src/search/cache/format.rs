@@ -431,7 +431,6 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<Restored, String> {
 
     let _created_ms = r.read_u64()?;
 
-    // ここは Vec<u8> じゃなく固定長で読む方が楽（今のままでもOK）
     let saved_root_hash = r.read_fixed::<32>()?;
     let expect = root_hash(root_dir);
     if saved_root_hash != expect {
@@ -2216,11 +2215,39 @@ mod tests {
         save_checkpoint(&store, root, &snap, &scan, &path_to_id, next).expect("置けない");
         let back = try_restore(&store, root).expect("読み戻せない");
 
+        // **索引の中身が戻ること。** スカラだけ見ると、桶の書き出しを潰す変異が
+        // 緑のまま通る（`Codec` の doc が約束する「往復すること」の実体はここ）
+        let key = PositionKey {
+            z0: 0x1100_0000_0000_0001,
+            z1: 0x2222,
+        };
+        let restored_snap = IndexSnapshot::default().with_files(vec![(
+            back.index
+                .file_table
+                .get(1)
+                .expect("ファイル表に file 1 が無い"),
+            back.index
+                .node_tables
+                .get(1)
+                .expect("節表に file 1 が無い")
+                .clone(),
+            back.index.buckets,
+        )]);
+        let hits = restored_snap.search_occurrences_by_key(key);
+        assert_eq!(hits.len(), 1, "読み戻した索引でヒットしない");
+        assert_eq!(hits[0].file_id, 1);
+        assert_eq!(hits[0].node_id, 0);
+
         assert_eq!(back.scan.next_file_id, next);
         assert_eq!(
-            back.index.file_table.len(),
-            snap.file_table.len(),
-            "ファイル表の数が変わった"
+            back.scan.path_to_id.get("a.kif"),
+            Some(&1u32),
+            "path_to_id が戻っていない"
+        );
+        assert_eq!(
+            back.scan.snapshot.by_path.len(),
+            1,
+            "走査の記録が戻っていない"
         );
     }
 

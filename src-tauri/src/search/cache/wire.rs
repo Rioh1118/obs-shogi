@@ -27,8 +27,6 @@ pub(super) fn u8_to_kind(v: u8) -> Result<KifuKind, String> {
     })
 }
 
-// FileTable から全エントリを列挙したいので helper を FileTable に追加する（Step5参照）
-
 pub(super) fn write_u8(w: &mut Vec<u8>, v: u8) {
     w.push(v);
 }

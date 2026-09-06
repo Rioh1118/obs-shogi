@@ -68,7 +68,8 @@ impl std::fmt::Display for StoreError {
 /// 置き換えが走っても、読み手は前のものか新しいものかのどちらかを丸ごと得る。
 ///
 /// **置き場を差し替えても同じ約束が成り立つこと。** どの実装も
-/// `app_cache_dir.rs` のテストと同じ形を通す。
+/// `disk.rs` の `mod tests` にある `behaves_like_a_store` を通す。
+/// 3つ目の実装を足すなら、そこへ1行足すこと。
 pub trait BlobStore {
     /// 置く。同じ `key` があれば置き換える。
     fn save(&self, key: &str, bytes: &[u8]) -> Result<(), StoreError>;
