@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 ///
 /// **倍々に伸ばさない。** `Vec::push` は容量を2倍にするので、`len` が2の冪を
 /// 1つ超えた直後に最大の空きを残す（33 手なら容量 64）。その空きは
-/// [`flush`] が `mem::take` で map へ渡す列に乗ったまま、読み切るまで残る。
+/// [`super::flush`] が `mem::take` で map へ渡す列に乗ったまま、読み切るまで残る。
 /// 刻みで伸ばせば空きはこの数で頭打ちになる。
 ///
 /// 8 は「正常な定跡の候補手は 10 手前後」から。再確保の回数は 10 手で2回、
@@ -36,7 +36,7 @@ pub(super) fn push_without_doubling(buffered: &mut Vec<BookMove>, parsed: BookMo
 /// **正常な定跡の候補手は 10 手前後。** これを超える列は、同じ局面が延々と
 /// 繰り返されるファイルでしか出ない。
 ///
-/// [`flush`] が使う。ちょうどの大きさへ移し替えるか、そのまま渡すか。
+/// [`super::flush`] が使う。ちょうどの大きさへ移し替えるか、そのまま渡すか。
 /// 移し替えは一瞬だけ2本持つので、長い列では逆に膨らむ（実測 +47.8%）。
 ///
 /// **`keep_first_of_each_move` の `SCAN_LIMIT` と同じ値だが、同じ定数にしない。**
@@ -75,7 +75,7 @@ pub(super) const LONG_MOVE_LIST: usize = 32;
 /// | 10,000 | 18.8 s | 0.34 s |
 /// | 40,000 | 412 s | 38.9 s |
 ///
-/// 畳む前は重複を抱えたままになるが、その量は [`MAX_EXPANDED_BYTES`] が
+/// 畳む前は重複を抱えたままになるが、その量は [`super::limits::MAX_EXPANDED_BYTES`] が
 /// `total_moves` の側で上界を持つ。
 ///
 /// 畳んでから `shrink_to_fit` を掛ける。`push` の倍々成長が残す空き容量は、

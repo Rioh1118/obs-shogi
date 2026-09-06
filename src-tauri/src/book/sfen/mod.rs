@@ -57,7 +57,7 @@ const HIRATE_BOOK_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/L
 ///
 /// メモリに展開する reader は、定跡ファイル側のキーも [`to_book_key_in_file`] を
 /// 通すこと。ファイル上を二分探索する reader は通せない（通すと探索の前提である
-/// ソート順が壊れる）ので、代わりに [`HAND_PIECES`] の並びと出力の書式が
+/// ソート順が壊れる）ので、代わりに [`counts::HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(input).map_err(|reason| {
@@ -233,7 +233,7 @@ fn measured_len(input: &str) -> usize {
 /// 前置き・手番・10桁の手数と、トークンごとの区切りを足して 194。
 /// `a_maximally_spelled_board_is_accepted` がその長さちょうどを通している。
 ///
-/// この計算は、先頭ゼロを [`hand_count::HandCount::parse`] と手数の検査が拒否する
+/// この計算は、先頭ゼロを [`counts::hand_count::HandCount::parse`] と手数の検査が拒否する
 /// ことに依存している。受け付けると同じ局面をいくらでも長く書けて、上限が無くなる。
 ///
 /// 194 に余裕を持たせ、2 の冪へ丸めて 256。

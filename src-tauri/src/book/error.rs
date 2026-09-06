@@ -61,7 +61,7 @@ book_error_codes! {
 
 /// 定跡まわりの失敗。Tauri コマンドの `Err` としてそのままフロントへ渡る。
 ///
-/// フィールドは private。`path` の打ち切りは [`BookError::with_path`] が唯一の関門で、
+/// フィールドは private。`path` の打ち切りは `with_path`（crate 内）が唯一の関門で、
 /// 構造体リテラルで組み立てられると迂回できてしまう。
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
