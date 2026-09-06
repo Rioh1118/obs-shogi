@@ -4,16 +4,17 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use tauri::{AppHandle, Emitter, State};
 
+use crate::search::announce::{
+    announce_state, scan_failure, warn_scan_failed, warn_unreadable, IndexUiState,
+};
 use crate::search::build::{build_full_index_task, FullBuild};
 use crate::search::cache::format;
-use crate::search::project_manager::{announce_rescan, RescanOutcome};
-use crate::search::read::diagnosis::{scan_failure, unreadable_places};
 use crate::search::read::fs_scan::{scan_kifu_files, ScanError, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
 use crate::search::types::{
-    CancelSearchInput, IndexState, IndexStatePayload, IndexWarnPayload, OpenProjectInput,
-    OpenProjectOutput, SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE, EVT_INDEX_WARN,
+    CancelSearchInput, IndexState, IndexStatePayload, OpenProjectInput, OpenProjectOutput,
+    SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE,
 };
 
 /// 局面検索コマンド（イベントで結果を返す）。
@@ -157,20 +158,15 @@ pub async fn open_project(
                 // 索引は最後に読めたときのまま健全で、差分が当たっていないだけ
                 // ——ここで止めると `Updating` が最後の状態になり、検索は永久に
                 // `stale`、設定はスピナーのまま。再試行の導線は無いので開き直しても同じ
-                if outcome == RescanOutcome::Superseded {
-                    log::info!("[open_project] 据え直されたので Ready を出さない");
-                    return;
-                }
                 // 差分が無くて run_rescan_diff_apply が早期 return した場合、
                 // store の state は Updating のまま。 Ready に確実に上げ直す。
                 if !st.update_if_epoch(restore_epoch, |s| s.with_state(StoreIndexState::Ready)) {
                     log::warn!("[open_project] 索引が別の代に差し替わったので Ready にしない");
                     return;
                 }
-                // **`Ready` を出す口は1つ。** 旗を知っているのは結末だけなので、
-                // 自分で組むと知らない側が `false` で塗り潰す
-                let total_files = st.snapshot().file_table.live_len() as u32;
-                announce_rescan(&app2, total_files, outcome);
+                // **状態を出す口は1つ。** 旗を知っているのは結末だけなので、
+                // 自分で組むと知らない側が伏せた旗で塗り潰す
+                announce_state(&app2, &st, restore_epoch, IndexUiState::Rescanned(outcome));
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
 
@@ -209,18 +205,11 @@ pub async fn open_project(
     let scanned = match scanned {
         Ok(v) => v,
         Err(e) => {
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: root_dir.to_string_lossy().to_string(),
-                    message: scan_failure(&e),
-                },
-            );
-            let _ = store.update_if_epoch(build_epoch, |s| s.with_state(StoreIndexState::Ready));
-            let _ = app.emit(
-                EVT_INDEX_STATE,
-                IndexStatePayload::of(IndexState::Ready, 0).scan_failed(true),
-            );
+            warn_scan_failed(&app, &root_dir, &e);
+            // **`Ready` にしない。** `restart` が中身を捨てた後なので索引は空で、
+            // `query_service` の `stale` は段だけを見る——空を `Ready` にすると
+            // **0件が「最新」として並ぶ**（`store/index_store.rs` の `//!`）
+            announce_state(&app, &store, build_epoch, IndexUiState::BuildFailed);
             // **内部の綴りを返さない。** `openError` に読み手が付いたとき
             // （#403）、`root directory is not readable: /Users/…` が画面に出る
             return Err(scan_failure(&e));
@@ -228,15 +217,8 @@ pub async fn open_project(
     };
     // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
     // その下の棋譜は索引に入らない——検索に出ないことの理由が要る
-    if scanned.is_partial() {
-        let _ = app.emit(
-            EVT_INDEX_WARN,
-            IndexWarnPayload {
-                path: scanned.unreadable.first().cloned().unwrap_or_default(),
-                message: unreadable_places(scanned.unreadable.len(), scanned.unknown_gaps, false),
-            },
-        );
-    }
+    // 全件構築には引き継ぐ前回が無いので `carried` は 0
+    warn_unreadable(&app, &scanned.unreadable, scanned.unknown_gaps, 0);
     let partial = scanned.is_partial();
     let records = scanned.files;
     let total_files = records.len() as u32;

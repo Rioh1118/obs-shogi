@@ -13,6 +13,7 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Semaphore, task::JoinSet};
 
+use crate::search::announce::{announce_state, build_failure, IndexUiState};
 use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
 use crate::search::project_manager::ProjectManager;
@@ -25,6 +26,21 @@ use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
+
+/// 全件構築のタスクに渡すもの。
+///
+/// **走査の結果と、据え直しの代を1つにまとめる。** どれも構築の末尾まで
+/// 持ち回る必要があり、引数に並べると呼び手が順を取り違える。
+pub struct FullBuild {
+    pub root_dir: PathBuf,
+    pub records: Vec<FileRecord>,
+    pub total_files: u32,
+    /// `IndexStore::restart` が返した代。**据え終わるまで持ち回る**
+    pub epoch: u64,
+    /// 走査で読めなかった場所があったか。**構築の結末まで持ち回る**
+    /// ——`Building` にだけ載せると、`Ready` が上書きして画面から消える
+    pub partially_unreadable: bool,
+}
 
 /// 棋譜を1つずつ読んで索引を全件作る。
 ///
@@ -46,31 +62,6 @@ use crate::search::types::{
 /// 前の索引の同じ `file_id` の出現が桶に残ったまま**生きている扱いで**新しい節表に
 /// 当たり、**押すと違う局面が出るヒット**になる（`search/query_service.rs` の
 /// `cursor_lite` の腕）。`stale` も構築中ずっと `false` のままになる。
-/// 索引を組む仕事そのものが落ちたときの文言。
-///
-/// **内部の語彙を画面に出さない。** `JoinError` の `Display` は
-/// `task 42 panicked` のような綴り。
-pub(crate) fn build_failure() -> String {
-    "この棋譜を索引に入れられませんでした。検索には出ません。\
-     開き直しても直らないときは、ファイルが壊れていないか確かめてください"
-        .to_string()
-}
-
-/// 全件構築のタスクに渡すもの。
-///
-/// **走査の結果と、据え直しの代を1つにまとめる。** どれも構築の末尾まで
-/// 持ち回る必要があり、引数に並べると呼び手が順を取り違える。
-pub struct FullBuild {
-    pub root_dir: PathBuf,
-    pub records: Vec<FileRecord>,
-    pub total_files: u32,
-    /// `IndexStore::restart` が返した代。**据え終わるまで持ち回る**
-    pub epoch: u64,
-    /// 走査で読めなかった場所があったか。**構築の結末まで持ち回る**
-    /// ——`Building` にだけ載せると、`Ready` が上書きして画面から消える
-    pub partially_unreadable: bool,
-}
-
 pub async fn build_full_index_task(
     app: AppHandle,
     store: Arc<IndexStore>,
@@ -125,10 +116,10 @@ pub async fn build_full_index_task(
             );
             let _ = app.emit(
                 EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: root_dir.to_string_lossy().into_owned(),
-                    message: "索引の作成を始められませんでした。開き直してください".to_owned(),
-                },
+                IndexWarnPayload::place(
+                    root_dir.to_string_lossy(),
+                    "索引の作成を始められませんでした。開き直してください",
+                ),
             );
             return;
         }
@@ -218,13 +209,7 @@ pub async fn build_full_index_task(
         }
 
         for w in warns {
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: path_str.clone(),
-                    message: w,
-                },
-            );
+            let _ = app.emit(EVT_INDEX_WARN, IndexWarnPayload::file(path_str.clone(), w));
         }
 
         let file_entry = FileEntry {
@@ -285,11 +270,14 @@ pub async fn build_full_index_task(
         },
     );
 
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        IndexStatePayload::of(IndexState::Ready, total_files)
-            .indexed(indexed_ok)
-            .partially_unreadable(partially_unreadable),
+    // **状態を出す口は1つ。** 自分で組むと、旗が増えたときにここが伏せて出す
+    announce_state(
+        &app,
+        &store,
+        epoch,
+        IndexUiState::Built {
+            partially_unreadable,
+        },
     );
 
     let next_file_id = (total_files as FileId).wrapping_add(1).max(1);

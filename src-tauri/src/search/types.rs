@@ -74,7 +74,7 @@ pub struct FilePathEntry {
 ///
 /// `Ready` 以外で検索すると、結果が欠けうる。そのことは
 /// [`SearchBeginPayload::stale`] で画面に伝わる。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndexState {
     Empty,
     Restoring,
@@ -84,7 +84,7 @@ pub enum IndexState {
 }
 
 /// 索引の状態を画面へ知らせる。`EVT_INDEX_STATE` に載る。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexStatePayload {
     pub state: IndexState,
@@ -334,9 +334,46 @@ pub struct IndexProgressPayload {
     pub total_files: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 警告が**何について**のものか。
+///
+/// **場所とファイルを混ぜない。** 画面は限られた枠しか出せないので、
+/// 混ぜると1回の再走査で出るファイル単位の警告が場所の警告を押し出す
+/// ——押し出されるのは「ワークスペースを読めません」のような、
+/// **利用者が次にすることを含んだ唯一の文言**のほう。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IndexWarnKind {
+    /// ワークスペースそのもの、または読めなかった場所についての警告
+    Place,
+    /// 棋譜1件についての警告
+    File,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexWarnPayload {
+    pub kind: IndexWarnKind,
     pub path: String,
     pub message: String,
+}
+
+impl IndexWarnPayload {
+    /// 場所についての警告。**組み立てる口をここに閉じてある**
+    /// ——構造体リテラルを許すと、欄を足したときに全員が既定を書き足す。
+    pub fn place(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            kind: IndexWarnKind::Place,
+            path: path.into(),
+            message: message.into(),
+        }
+    }
+
+    /// 棋譜1件についての警告。
+    pub fn file(path: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            kind: IndexWarnKind::File,
+            path: path.into(),
+            message: message.into(),
+        }
+    }
 }

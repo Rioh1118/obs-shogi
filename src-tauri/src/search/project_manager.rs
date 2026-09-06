@@ -9,9 +9,10 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
-use crate::search::build::build_failure;
+use crate::search::announce::{
+    announce_state, build_failure, warn_scan_failed, warn_unreadable, IndexUiState, RescanOutcome,
+};
 use crate::search::index::file_build::build_file_index;
-use crate::search::read::diagnosis::{scan_failure, unreadable_places};
 use crate::search::read::fs_scan::{
     carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
     ScanError, ScanOptions, ScanSnapshot,
@@ -24,60 +25,6 @@ use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
-
-/// 差分適用がどう終わったか。
-///
-/// **`bool` に畳まないこと。** 「据え直された」と「走査できなかった」は、
-/// 呼び手のするべきことが逆になる——前者は索引がもう自分のものではないので
-/// `Ready` を出してはいけない、後者は**索引は自分のもののまま健全**で
-/// 差分が当たっていないだけなので `Ready` を出さなければならない。
-///
-/// 畳むと後者が前者として扱われ、復元した索引がメモリに丸ごと在るのに
-/// 画面は「更新中」のまま戻らない（再試行の導線は無いので、開き直しても同じ）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[must_use = "結末を捨てると、旗を知らない側が `Ready` を伏せた旗で塗り潰す（`announce_rescan` を通すこと）"]
-pub enum RescanOutcome {
-    /// 自分の代のまま完走し、帳簿を進めた。差分があれば索引にも書いた。
-    ///
-    /// **読めなかった場所があったかを一緒に運ぶ。** 結末と別に持つと、
-    /// 結末を出す口が旗を知らないまま `false` を書いて塗り潰す
-    Committed {
-        /// 読めなかった場所があった。**索引に入っていない棋譜がある**の印
-        partially_unreadable: bool,
-    },
-    /// 走っている間にワークスペースが据え直された。**何も書いていない**
-    Superseded,
-    /// 走査そのものが失敗した（root が消えた、未マウント、権限）。
-    ///
-    /// **索引は最後に読めたときのまま健全。** 差分が当たっていないだけなので、
-    /// 呼び手は `Ready` を出したうえで `scan_failed` を立てること。
-    ScanFailed,
-}
-
-/// 差分適用の結末を、画面へ出す状態にする。
-///
-/// **`Ready` を出す口はここだけ。** 出口が2つあると、後から出たほうが勝つ
-/// ——結末を知らない側は旗を伏せたまま組む（`IndexStatePayload::of`）ので、
-/// 読めない場所がまだあっても緑の「準備完了」で塗り潰される。
-///
-/// `Superseded` では何も出さない。その索引はもうこのタスクのものではない。
-pub fn announce_rescan(app: &AppHandle, total_files: u32, outcome: RescanOutcome) {
-    if outcome == RescanOutcome::Superseded {
-        return;
-    }
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        IndexStatePayload::of(IndexState::Ready, total_files)
-            .indexed(total_files)
-            .scan_failed(outcome == RescanOutcome::ScanFailed)
-            .partially_unreadable(matches!(
-                outcome,
-                RescanOutcome::Committed {
-                    partially_unreadable: true
-                }
-            )),
-    );
-}
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -234,8 +181,10 @@ impl ProjectManager {
                         // **結末を捨てない。** 捨てると、読めない場所がまだあるのに
                         // 緑の「準備完了」が出る（旗を知っているのは結末だけ）
                         let outcome = pm.run_rescan_diff_apply(app.clone(), store.clone()).await;
-                        let total = store.snapshot().file_table.live_len() as u32;
-                        announce_rescan(&app, total, outcome);
+                        // **自分の代を渡す。** いま store に載っている代を読み直すと、
+                        // 据え直された直後でも必ず一致するので照合が素通りし、
+                        // **他人の索引の件数**を自分の結末として出す
+                        announce_state(&app, &store, epoch, IndexUiState::Rescanned(outcome));
 
                         // 次のイベントを待つ
                         sleep.as_mut().reset(time::Instant::now() + Duration::from_secs(3600));
@@ -316,13 +265,7 @@ impl ProjectManager {
         {
             Ok(v) => v,
             Err(e) => {
-                let _ = app.emit(
-                    EVT_INDEX_WARN,
-                    IndexWarnPayload {
-                        path: root.to_string_lossy().to_string(),
-                        message: scan_failure(&e),
-                    },
-                );
+                warn_scan_failed(&app, &root, &e);
                 return RescanOutcome::ScanFailed;
             }
         };
@@ -334,22 +277,16 @@ impl ProjectManager {
         // 完全だったかは `files` を取り出す前に決める。取り出した後は
         // 判断の元が手元に無く、写した式だけが残る（`Scanned::is_partial` の doc）
         let partial = scanned.is_partial();
-        let carried_over = !scanned.unreadable.is_empty();
         let unreadable = scanned.unreadable;
         let unknown_gaps = scanned.unknown_gaps;
         let mut next_scan = snapshot_from_records(&root, scanned.files);
         let carried = carry_over_unreadable(&prev_scan, &mut next_scan, &unreadable);
         let mut diff = diff_snapshot(&prev_scan, &next_scan);
 
-        if partial {
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: unreadable.first().cloned().unwrap_or_default(),
-                    message: unreadable_places(unreadable.len(), unknown_gaps, carried_over),
-                },
-            );
-        }
+        // **引き継げた件数で言い分ける。** 「読めない場所があったか」ではない
+        // ——前回の走査に無かった場所（新しく作られたフォルダ）は引き継げないので、
+        // 「前回の索引のまま残ります」と言うとその棋譜は検索に出ないのに残ると読める
+        warn_unreadable(&app, &unreadable, unknown_gaps, carried.len());
         if unknown_gaps {
             // **どこが読めなかったか分からない。** 範囲を絞れないので、この回は
             // 削除を1件も当てない。基準にも前回のものを戻す——戻さないと
@@ -369,6 +306,13 @@ impl ProjectManager {
 
         let dirty_count = (diff.added.len() + diff.modified.len() + diff.removed.len()) as u32;
         if dirty_count == 0 {
+            // **索引の代も見る。** この腕は `update_if_epoch` を1度も通らないので、
+            // 帳簿だけ見ると素通りする——全件構築の間は「索引は新しい代・帳簿は
+            // 前の代」なので、前のワークスペースの watcher が
+            // **作りかけの索引に「準備完了」を出す**
+            if store.snapshot().epoch != epoch {
+                return RescanOutcome::Superseded;
+            }
             // 変化なし：scanだけ更新して終了。**代が変わっていたら書かない**
             let mut g = self.inner.lock().await;
             if epoch != g.epoch {
@@ -402,7 +346,7 @@ impl ProjectManager {
             return RescanOutcome::Superseded;
         }
 
-        // **進捗は間引く。** 理由と間隔は `types::EMIT_INTERVAL` の doc
+        // **進捗は間引く。** 理由と間隔は `crate::search::EMIT_INTERVAL` の doc
         let mut last_emit = std::time::Instant::now();
         for path_key in &diff.removed {
             done_dirty += 1;
@@ -497,7 +441,7 @@ impl ProjectManager {
             }
             done_dirty += 1;
             // 削除の側と同じく間引く。フォルダを1つ移すと、移した先は全部
-            // `added` になるので件数は同じ桁になる（`types::EMIT_INTERVAL`）
+            // `added` になるので件数は同じ桁になる（`crate::search::EMIT_INTERVAL`）
             if last_emit.elapsed() >= crate::search::EMIT_INTERVAL {
                 last_emit = std::time::Instant::now();
                 let _ = app.emit(
@@ -512,12 +456,12 @@ impl ProjectManager {
         }
 
         // **`commit` ヘルパを通さない。** あれは `&dyn Fn` を取るので閉包が
-        // `batch` を消費できず、`clone()` を強いる——`FileBucketEntries` は
+        // `batch` を消費できず、`clone()` を強いる。閉包に消費させておくと、
+        // 束縛を `FnMut` に緩める変更をコンパイラがその場で落とす——`FileBucketEntries` は
         // `[Vec<_>; 256]` を持つので、**書き込みロックの中で**ファイル数 × 256本の
         // `Vec` を確保し直すことになる（`snapshot_cell` の doc どおり、その長さが
         // そのまま検索の読みの待ちになる）
-        let wrote = batch.is_empty()
-            || store.update_if_epoch(epoch, move |s| s.with_files(std::mem::take(&mut batch)));
+        let wrote = batch.is_empty() || store.update_if_epoch(epoch, move |s| s.with_files(batch));
         if !wrote {
             log::warn!("[rescan] 索引が別の代に差し替わったので、差分の取り込みをやめる");
             return RescanOutcome::Superseded;
@@ -565,13 +509,7 @@ impl ProjectManager {
         let (by_bucket, node_table, warns) = match built {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
-                let _ = app.emit(
-                    EVT_INDEX_WARN,
-                    IndexWarnPayload {
-                        path: path_str,
-                        message: e,
-                    },
-                );
+                let _ = app.emit(EVT_INDEX_WARN, IndexWarnPayload::file(path_str, e));
                 return None;
             }
             Err(e) => {
@@ -579,23 +517,14 @@ impl ProjectManager {
                 log::warn!("[rescan] 索引を組む仕事が落ちた（{path_str}）: {e}");
                 let _ = app.emit(
                     EVT_INDEX_WARN,
-                    IndexWarnPayload {
-                        path: path_str,
-                        message: build_failure(),
-                    },
+                    IndexWarnPayload::file(path_str, build_failure()),
                 );
                 return None;
             }
         };
 
         for w in warns {
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: path_str.clone(),
-                    message: w,
-                },
-            );
+            let _ = app.emit(EVT_INDEX_WARN, IndexWarnPayload::file(path_str.clone(), w));
         }
 
         Some((
