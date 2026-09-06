@@ -19,7 +19,7 @@ import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDa
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
-import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderPositionHits";
+import { hitKey, useOrderedPositionHits } from "@/features/position-search/lib/orderPositionHits";
 import { useGame } from "@/entities/game";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
@@ -79,7 +79,7 @@ export default function PositionSearchModal() {
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
   // 移動を断ったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
-  // 並び替わる（`orderPositionHits`）ので、添字で覚えると断りが別のヒットに
+  // 並び替わる（`useOrderedPositionHits`）ので、添字で覚えると断りが別のヒットに
   // 付いたまま残る
   const [refusedHit, setRefusedHit] = useState<{
     key: string;
@@ -121,9 +121,11 @@ export default function PositionSearchModal() {
     return buildPreviewData(player, nodeId);
   }, [isOpen, params.sfen, gameView.player]);
 
-  const orderedHits = useMemo(() => {
-    return orderPositionHits(hits, resolveHitAbsPath, gameState.loadedAbsPath ?? null);
-  }, [hits, resolveHitAbsPath, gameState.loadedAbsPath]);
+  const orderedHits = useOrderedPositionHits(
+    hits,
+    resolveHitAbsPath,
+    gameState.loadedAbsPath ?? null,
+  );
 
   // -------------------------
   // 検索トリガ：queryKey（検索対象SFEN）が変わったら再検索
@@ -201,7 +203,7 @@ export default function PositionSearchModal() {
 
   const activeHit = orderedHits[activeIndex];
 
-  // 選んだ行の同一性は**ヒットの参照**で持つ。並び替え（`orderPositionHits` は
+  // 選んだ行の同一性は**ヒットの参照**で持つ。並び替え（`useOrderedPositionHits` は
   // 開いている棋譜のヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が
   // 入れ替わる）で添字は動く。
   //

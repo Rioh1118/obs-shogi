@@ -95,7 +95,7 @@ function hitAt(fileId: number, tesuu: number): PositionHit {
 
 const HITS = [hitAt(1, 20), hitAt(2, 30)];
 
-/** チャンクは後から届く。届くたびに一覧は並び替わる（`orderPositionHits`） */
+/** チャンクは後から届く。届くたびに一覧は並び替わる（`useOrderedPositionHits`） */
 const hitsState = { current: HITS };
 
 const NOTICE = "この棋譜を開けません";
