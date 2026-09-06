@@ -9,6 +9,8 @@
 
 ### [BLOCK] B-1 「写しを渡す」理由が、いまのコードでは成り立っていない（かつ経緯の混入）
 
+- 結果: 対応済み（`3ec78746` 3文目を削り、写しが要る理由を現在形の1つにした）
+
 - reviewer: comment
 - 場所: `src/entities/search/model/provider.tsx:357-360`
 - 根拠: 「いまその形が表に出ていないのは、判定が毎回外れて別の配列を返しているからでしかない」。`canAppend` は同じ差分で当たるようになっており、写しが要る理由は「1行下で `slice()` しているから」ではなく「`flat` が伸び続ける同じ配列だから」
@@ -17,12 +19,16 @@
 
 ### [BLOCK] B-2 コメントが存在しない識別子 `PREFETCH_STEP` を指している
 
+- 結果: 対応済み（`a10cb2e3` `PREFETCH_DELAY_MS` に直した）
+
 - reviewer: comment
 - 場所: `src/features/position-search/ui/PositionSearchContinuation.tsx:38`
 - 根拠: `grep -rn PREFETCH_STEP src/` はこの1行だけ。実在するのは `PREFETCH_DELAY_MS`
 - 直し方: `PREFETCH_DELAY_MS` に直す。歩幅（`activeIndex + moveDirRef.current`）は呼び手側にあるので、そこは `prefetchHit` の doc へ
 
 ### [HIGH] H-1 選択が外れた後に、前の行の続きが書き戻される（早期 return が世代を進めない）
+
+- 結果: 対応済み（`57735843` 世代を行き先の有無より先に進める。テストで固定）
 
 - reviewer: react（**再現済み**）
 - 場所: `src/features/position-search/ui/PositionSearchContinuation.tsx:210-218`
@@ -32,6 +38,8 @@
 
 ### [HIGH] H-2 状態遷移表が「選択は `hitKey` で追う」のまま
 
+- 結果: 対応済み（後述の順15。表の備考を参照追従に直し、鍵の用途を1段書き足した）
+
 - reviewer: oss-hygiene
 - 場所: `docs/state-transitions/position-search-view.md:55`
 - 根拠: 実装は `orderedHits.indexOf(activeHitRef.current)`。同じファイルのコメントが「鍵の文字列にしない」と正面から反対を書いている
@@ -39,6 +47,8 @@
 - 直し方: 備考を「選択はヒットの実体（参照）で追う（`orderedHits.indexOf`）。`hitKey` は断りを付ける行を覚えるほうにだけ残る」に差し替える
 
 ### [HIGH] H-3 `MAX_CACHED_CHARS` の doc が採らなかった理由を誤って説明し、実際の保持量が約6倍
+
+- 結果: 対応済み（`dcdd8358` 上限を byte 予算にし、実測係数 12 を掛けて数える。理由も「量で切る」に直した）
 
 - reviewer: comment / perf（**perf は実測**）
 - 場所: `src/features/position-search/ui/PositionSearchContinuation.tsx:42-53`, `:114-124`
@@ -49,12 +59,16 @@
 
 ### [HIGH] H-4 `lastChunk` の doc に「元はこうだった」が入っている
 
+- 結果: 対応済み（`6bf29494` 括弧内の過去形を削った）
+
 - reviewer: comment
 - 場所: `src/entities/search/model/provider.tsx:53-61`
 - 根拠: 「（この形が実際に O(n²) を作っていた）」。前2文は現在形の「なぜ」として正しい
 - 直し方: 括弧内を削る
 
 ### [HIGH] H-5 続きの読みが失敗しても「（続きなし）」としか出ない
+
+- 結果: 見送り（**既存の #421 と同じ**。新しく立てず、仕様の「いま満たしていないこと」からそちらを指す）
 
 - reviewer: robustness / oss-hygiene
 - 場所: `src/features/position-search/ui/PositionSearchContinuation.tsx:78`, `:236-240`, `:285-286`
@@ -66,6 +80,8 @@
 
 ### D-1 解放の口が無い（perf / react / robustness の3人）
 
+- 結果: 対応済み（`b2e8cbee` `discardSearch` を閉じる／撃ち直す／畳むの3箇所から呼び、`open_start` で `hitsCacheRef` も落とす）
+
 `clearSearch` は `src/` に呼び手が1つも無く、`open_start` は `hitsCacheRef` を掃除しない。
 perf の実測で n=100,000 のとき `session.chunks` 16.2MB + この差分が足した `flat`+`snapshot` 1.4MB
 ＝ **1検索あたり 17.6MB** が解放されない。モーダルを開くたびに積み上がる。
@@ -74,6 +90,8 @@ perf の実測で n=100,000 のとき `session.chunks` 16.2MB + この差分が�
 
 ### D-2 合流バッファの入口が閉じていない（robustness M3 / M5、react M4）
 
+- 結果: 対応済み（`331dded5` rid の線と `disposed` で入口を閉じる。テストは `vi.getTimerCount()` を見る形に直した）
+
 - `dropPendingChunks()` が消せるのは**その瞬間までに溜まったぶんだけ**。Rust の `open_project` は進行中の検索をキャンセルしない（`src-tauri/src/search/commands.rs:45`）ので、`open_start` の直後に届いたチャンクが `ensureSession` で消えたセッションを作り直し、`currentRequestId` と `filePathById` を古い根のものへ戻す。**コメントは「捨てるので作り直されない」と言い切っているが成り立っていない**
 - 後片付けにも「もう終わった」印が無い。unmount 後に届いたチャンクがタイマを張り直せる
 - テスト `畳まれたら溜め場ごと捨てる` は cleanup effect を丸ごと削除しても緑（react が実測）。`not.toThrow()` の外に守りたいものがある
@@ -81,12 +99,16 @@ perf の実測で n=100,000 のとき `session.chunks` 16.2MB + この差分が�
 
 ### D-3 ファイル名 `orderPositionHits.ts` に `orderPositionHits` が無い（architecture / comment）
 
+- 結果: 対応済み（`3cdec6db` `useOrderedPositionHits.ts` と `hitKey.ts` に分割。`obs-shogi-spec.md` も追随）
+
 export は `hitKey` と `useOrderedPositionHits` の2つで、しかも別の関心。
 `lib/` の先例は `usePositionHitNavigation.ts`（ファイル名＝フック名）。
 
 - 直し方: `lib/useOrderedPositionHits.ts` と `lib/hitKey.ts` に分ける
 
 ### D-4 `KifuCache` の置き場と、追い出しの穴（architecture M3 / robustness M4）
+
+- 結果: 対応済み（`0dc7f540` 置き場を `lib/` へ、`2a1dd70b` 追い出しを解決済みだけに）
 
 - architecture: IO の合成・in-flight の畳み込み・バイト量での追い出し・棋譜の走査という UI でない知識4つが `ui/` の `.tsx` に 90行超で同居。テストがコンポーネントを描画しないと境界を突けない。`useRef(new KifuCache(...))` にしたことでキャッシュの寿命が「どこに `new` を書いたか」の副産物になっている
 - robustness: `evict()` が未解決の entry を `chars: 0` として数えるので、上限超過のたびに `entries.size === 1` まで削り落とす。消された先読みは解決時に自分が居ないことに気づいて中身を捨て、その行へ降りると**150ms 待たされたうえで2本目の `read_file` が飛ぶ**
@@ -96,12 +118,16 @@ export は `hitKey` と `useOrderedPositionHits` の2つで、しかも別の関
 
 ### [MEDIUM] M-1 購読の effect が、溜め場のコールバックに依存するようになった
 
+- 結果: 対応済み（`ba7d973d` `createChunkBuffer` に閉じ、購読の依存を1つに戻した。`listen` の回数を数えるテストつき）
+
 - reviewer: architecture / react
 - 場所: `src/entities/search/model/provider.tsx:236`
 - 根拠: deps が `[]` から `[enqueueChunk, flushChunks]` になった。いまは連鎖が全て安定だが、`flushChunks` が `state.sessions` を見た瞬間にチャンク到着ごとに購読が張り直る。`listen` は IPC の往復を待つので、隙間の emit は誰にも届かず**エラーも出ずに件数だけ減る**
 - 直し方: 起こし手を `chunkBufferRef` の object に入れ、deps を `[]` に戻す
 
 ### [MEDIUM] M-2 「末尾にしか増えない」という不変条件を、2つの層が別々に手書きで持っている
+
+- 結果: 対応済み（`2fd0e7b5` `shared/lib/appendOnly.ts` に集約）
 
 - reviewer: architecture
 - 場所: `provider.tsx:343-346` と `lib/orderPositionHits.ts:63-66`
@@ -110,12 +136,16 @@ export は `hitKey` と `useOrderedPositionHits` の2つで、しかも別の関
 
 ### [MEDIUM] M-3 `prefetchHit` の契約（中身を出さない）が型で何も止めていない
 
+- 結果: 対応済み（`0433d430` `prefetchAbsPath: string | null` にした）
+
 - reviewer: architecture
 - 場所: `PositionSearchContinuation.tsx:17-25`, `:259-262`
 - 根拠: 子は絶対パスしか取り出していないのに `PositionHit` 全体を受け取り、そのせいで `resolveAbsPath` の同一性churn を避ける `useMemo` と注意書きが要っている
 - 直し方: prop を `prefetchAbsPath?: string | null` にする。memo と注意書きが丸ごと消える
 
 ### [MEDIUM] M-4 毎フラッシュに残る最大の費用は `[...same, ...other]`
+
+- 結果: 対応済み（`f057f760` `concat` に置き換え）
 
 - reviewer: perf（**実測**）
 - 場所: `lib/orderPositionHits.ts:86`
@@ -130,6 +160,8 @@ export は `hitKey` と `useOrderedPositionHits` の2つで、しかも別の関
 - 直し方: コメントを事実に直す（memo を効かせるより安い）
 
 ### [MEDIUM] M-6 `resolveHitAbsPath` は引けないとき `null` でなく空文字を返す
+
+- 結果: 見送り（**#466 を立てた**。Rust 側の修正と UI 文言の決定が要る）
 
 - reviewer: robustness
 - 場所: `src-tauri/src/search/query_service.rs:151`（`unwrap_or_default()`）、`reducer.ts:47-61`、`provider.tsx:388-391`
@@ -264,8 +296,8 @@ export は `hitKey` と `useOrderedPositionHits` の2つで、しかも別の関
 
 | 所見                                                 | 行き先              | 理由                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| H-5 続きの読みの失敗が「（続きなし）」に潰れる       | **issue**           | `main` から在る。直すには第3の表示状態・文言・段（ADR-0004）・再試行の導線の決定が要る。`/implement` 手順7 の「直し方に判断が要る（設計の選択が絡む）→ issue を立て、ユーザーに選ばせる」。仕様の「いま満たしていないこと」には同じ PR で載せる（上の順18）                                   |
-| M-6 `resolveHitAbsPath` が `null` でなく空文字を返す | **issue**           | Rust 側（`unwrap_or_default()`）の修正が要り、`VirtualHitRow` の `"path unknown"` と `PositionSearchDestinationCard` の「未選択」という UI 文言の決定も伴う。`main` から在り、この差分の前提を壊してはいない（`useOrderedPositionHits` は falsy 判定なので空文字でも正しく `other` へ落ちる） |
+| H-5 続きの読みの失敗が「（続きなし）」に潰れる       | **既存の #421**     | `main` から在る。直すには第3の表示状態・文言・段（ADR-0004）・再試行の導線の決定が要る。`/implement` 手順7 の「直し方に判断が要る（設計の選択が絡む）→ issue を立て、ユーザーに選ばせる」。仕様の「いま満たしていないこと」には同じ PR で載せる（上の順18）                                   |
+| M-6 `resolveHitAbsPath` が `null` でなく空文字を返す | **#466**            | Rust 側（`unwrap_or_default()`）の修正が要り、`VirtualHitRow` の `"path unknown"` と `PositionSearchDestinationCard` の「未選択」という UI 文言の決定も伴う。`main` から在り、この差分の前提を壊してはいない（`useOrderedPositionHits` は falsy 判定なので空文字でも正しく `other` へ落ちる） |
 | M-5 死んだ `memo` を根拠にしたコメント               | **r2**              | 件数を減らすため。実害無しと perf が明言している                                                                                                                                                                                                                                              |
 | M-7 「既定の 300 件区切り」                          | **r2**              | 同上                                                                                                                                                                                                                                                                                          |
 | M-8 実測値の出典なし4件                              | **r2**              | 同上                                                                                                                                                                                                                                                                                          |
