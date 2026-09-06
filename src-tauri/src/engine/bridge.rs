@@ -619,4 +619,24 @@ mod tests {
         );
         bridge.release_session(&mine).await;
     }
+
+    /// `session_id` を省いた停止が席を空けること。
+    ///
+    /// **席の ID を持てない呼び手が居る。** 画面が畳まれた後の後始末は、
+    /// 握っている ID が席の主とずれていることがあるので指せない
+    /// （指すと上の照合に断られて席が残る）。この形が空けられなくなると、
+    /// 以降の解析が全部「Analysis already running」で断られ、
+    /// エンジンを畳み直すまで戻れない。
+    #[tokio::test]
+    async fn stopping_without_naming_a_session_empties_the_seat() {
+        let bridge = bridge();
+
+        bridge.take_session(SessionType::Infinite).await.unwrap();
+
+        assert!(bridge.stop_analysis_impl(None).await.is_ok());
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_ok(),
+            "指さない停止の後も席が埋まったまま"
+        );
+    }
 }
