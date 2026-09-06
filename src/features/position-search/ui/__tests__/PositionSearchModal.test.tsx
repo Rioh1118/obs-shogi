@@ -63,6 +63,23 @@ vi.mock("@/features/position-search/lib/usePositionHitNavigation", () => ({
   usePositionHitNavigation: () => ({ startNavigationToHit }),
 }));
 
+/**
+ * `hitKey` が何回組まれたかを数える。**人の目では追えない**——鍵は1件 0.5〜2.7µs で、
+ * 件数に比例して増えても画面には「重い」としか出ない。
+ */
+const hitKeyCalls = vi.fn();
+vi.mock("@/features/position-search/lib/orderPositionHits", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/features/position-search/lib/orderPositionHits")>();
+  return {
+    ...actual,
+    hitKey: (hit: PositionHit) => {
+      hitKeyCalls();
+      return actual.hitKey(hit);
+    },
+  };
+});
+
 // 見に来ているのは「閉じたか」だけ。盤・プレビュー・この先の手は他のテストが見る
 vi.mock("@/shared/ui/Modal", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -90,8 +107,9 @@ function pressEnter() {
 
 /** 検索が解決してヒットが届くまで待つ。届く前は行が無いので Enter は何もしない */
 async function renderWithHits() {
-  render(<PositionSearchModal />);
+  const view = render(<PositionSearchModal />);
   await screen.findByRole("listbox");
+  return view;
 }
 
 beforeEach(() => {
@@ -103,6 +121,7 @@ beforeEach(() => {
   resolveHitAbsPath.mockReset();
   resolveHitAbsPath.mockImplementation((hit: PositionHit) => `/root/${hit.occ.fileId}.kif`);
   hitsState.current = HITS;
+  hitKeyCalls.mockReset();
 });
 
 afterEach(() => cleanup());
@@ -174,6 +193,31 @@ describe("PositionSearchModal のヒットを開く", () => {
     rerender(<PositionSearchModal />);
 
     expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+  });
+
+  /**
+   * 選択追従がヒット件数に比例した仕事をしないこと。
+   *
+   * 鍵の文字列で照合すると、選んだ行より前の全件ぶん `hitKey` を組み直す。
+   * 実測では n=100,000 で 24 秒（`.claude/reviews/2026-09-06-420-unopenable-position-hit-r2.md` H-5）。
+   * **チャンクが届くたびに起きる**ので、件数が増えるほど「何もしていないのに止まる」。
+   *
+   * 上限を定数で置くのが要点。ここが件数と一緒に増えてよいなら、
+   * どんな実装でも通ってしまう。
+   */
+  test("選んだ行が末尾へ動いても、追従は件数ぶんの鍵を組まない", async () => {
+    const { rerender } = await renderWithHits();
+
+    // 2件目を選ぶ。この後この行を末尾へ押しやる
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
+    hitKeyCalls.mockReset();
+
+    // チャンクが1つ届いて、選んだ行の前に500件割り込む
+    hitsState.current = [...Array.from({ length: 500 }, (_, i) => hitAt(100 + i, i)), ...HITS];
+    rerender(<PositionSearchModal />);
+
+    // 参照で追えば追従そのものは鍵を組まない。残るのは描画の断り判定ぶんだけ
+    expect(hitKeyCalls.mock.calls.length).toBeLessThanOrEqual(8);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

@@ -149,6 +149,11 @@ export default function PositionSearchModal() {
       setIsLaunching(false);
       setActiveIndex(0);
       setRefusedHit(null);
+      // **選択も明示的に捨てる。** モーダルは常時マウントで、ここを残すと
+      // 前の検索で選んだヒットが次の検索まで生き延びる。生き延びても
+      // `indexOf` は見つけられない（次の検索は別の実体を届ける）ので
+      // 実害は出ないが、「選択が残っているのに追えない」状態を作らない
+      activeHitRef.current = null;
       return;
     }
 
@@ -167,6 +172,7 @@ export default function PositionSearchModal() {
     setIsLaunching(true);
     setActiveIndex(0);
     setRefusedHit(null);
+    activeHitRef.current = null;
 
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
@@ -195,18 +201,24 @@ export default function PositionSearchModal() {
 
   const activeHit = orderedHits[activeIndex];
 
-  // 選んだ行の同一性は**鍵**で持つ。並び替え（`orderPositionHits` は開いている棋譜の
-  // ヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が入れ替わる）で添字は動く。
+  // 選んだ行の同一性は**ヒットの参照**で持つ。並び替え（`orderPositionHits` は
+  // 開いている棋譜のヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が
+  // 入れ替わる）で添字は動く。
   //
-  // **鍵を書くのは利用者が選んだときだけ。** 毎レンダ書き直すと、下の追従が
-  // 自分で書いた鍵を引くことになって一度も働かず、触っていないのに選択が滑る
-  const activeKeyRef = useRef<string | null>(null);
+  // **鍵の文字列にしない。** 照合が `hitKey` になると、1チャンク届くたびに
+  // 選択行までの全件ぶん `cursorKey`（`normalizeForkPointers` 2回＋
+  // `JSON.stringify`）を作り直すことになる。ヒットの実体はセッション中
+  // 作り直されない（`search_chunk` で届いた配列をそのまま保つ）ので、
+  // 参照の一致で足りる。
+  //
+  // **書くのは利用者が選んだときだけ。** 毎レンダ書き直すと、下の追従が
+  // 自分で書いた値を引くことになって一度も働かず、触っていないのに選択が滑る
+  const activeHitRef = useRef<PositionHit | null>(null);
 
   const selectIndex = useCallback(
     (next: number) => {
       setActiveIndex(next);
-      const hit = orderedHits[next];
-      activeKeyRef.current = hit ? hitKey(hit) : null;
+      activeHitRef.current = orderedHits[next] ?? null;
     },
     [orderedHits],
   );
@@ -218,11 +230,11 @@ export default function PositionSearchModal() {
     selectIndex(Math.max(0, n - 1));
   }, [isOpen, activeIndex, orderedHits.length, selectIndex]);
 
-  // 並び替えで選んでいた行が動いたら、鍵で追う
+  // 並び替えで選んでいた行が動いたら、参照で追う
   useEffect(() => {
-    const k = activeKeyRef.current;
-    if (!k) return;
-    const next = orderedHits.findIndex((h) => hitKey(h) === k);
+    const hit = activeHitRef.current;
+    if (!hit) return;
+    const next = orderedHits.indexOf(hit);
     if (next >= 0 && next !== activeIndex) setActiveIndex(next);
   }, [orderedHits, activeIndex]);
 
@@ -240,8 +252,8 @@ export default function PositionSearchModal() {
       // 動かしていない棋譜を探しに行かせる
 
       // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
-      // 追えるように鍵を書く
-      activeKeyRef.current = hitKey(hit);
+      // 追えるように参照を書く
+      activeHitRef.current = hit;
 
       const absPath = resolveHitAbsPath(hit);
       if (!absPath) {
