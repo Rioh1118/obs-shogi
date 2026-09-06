@@ -182,7 +182,8 @@ fn join_error(
 /// 違いは「その時点でハンドルがあるか」だけで、それは引数に既に現れている ——
 /// open の途中で落ちた時点ではハンドルがまだ無いので、**open の呼び出し側の
 /// スコープには `Some` に入れられるものが1つも無い**（`Some(0)` と書けば通るが、
-/// 手元に無い値を作る形になる）。
+/// 手元に無い値を作る形になる）。呼び出し側の対応そのものは
+/// `tests/book_entry_shape.rs` が走査で固定する。
 fn recovery_for(handle: Option<BookHandle>) -> &'static str {
     match handle {
         None => "もう一度開き直すこと",
