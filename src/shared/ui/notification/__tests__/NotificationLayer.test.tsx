@@ -181,6 +181,30 @@ describe("通知の層", () => {
     expect(screen.queryByText("「再試行」を実行できませんでした。")).toBeNull();
   });
 
+  /**
+   * 入れ物は高さに上限を持ち、溢れたぶんは巻き取られる。`scrollTop` の初期値は 0 で
+   * 見えているのは先頭なので、**出た順のまま並べると巻き取られるのが常に新着側**になる。
+   * 失敗が続いている間に出た最後の1件——いちばん段が重いことが多い——が
+   * 一度も画面に出ない。高さは happy-dom で測れないので、DOM の並びで固定する。
+   */
+  it.each([
+    ["toast", ".notice-layer__toasts", () => request({ title: "1件目" })],
+    ["banner", ".notice-layer__banners", () => shownAs("banner", { title: "1件目" })],
+  ] as const)("%s は新着が入れ物の先頭に来る", (_name, selector, first) => {
+    const app = setup();
+    app.notify(first());
+    app.notify(
+      selector === ".notice-layer__toasts"
+        ? request({ title: "2件目" })
+        : shownAs("banner", { title: "2件目" }),
+    );
+
+    const titles = [...boxOf(selector)!.querySelectorAll(".notice__title")].map(
+      (el) => el.textContent,
+    );
+    expect(titles).toEqual(["2件目", "1件目"]);
+  });
+
   it("見せ方が違えば同時に出る", () => {
     const app = setup();
     app.notify(request({ title: "トースト" }));

@@ -18,8 +18,14 @@ import "./NotificationLayer.scss";
 export default function NotificationLayer() {
   const { notifications, dismiss } = useNotifications();
 
-  const banners = notifications.filter((n) => n.presentation === "banner");
-  const toasts = notifications.filter((n) => n.presentation === "toast");
+  // **新着が可視の端に来るように並べる。** どちらの入れ物も高さに上限があり、
+  // 溢れたぶんは巻き取られる。出た順のまま並べると巻き取られるのが常に新着側で、
+  // 失敗が続いている間に出た最後の1件——いちばん段が重いことが多い——が
+  // 一度も画面に出ない。`scrollTop` の初期値は 0 なので、見えているのは先頭
+  const newestFirst = (list: Notification[]) => [...list].reverse();
+
+  const banners = newestFirst(notifications.filter((n) => n.presentation === "banner"));
+  const toasts = newestFirst(notifications.filter((n) => n.presentation === "toast"));
   // **重ねない。** 2枚目が上に乗ると、1枚目を読み終える前に塞がれる。
   // 出た順の先頭を出し切ってから次へ進む
   const modal = notifications.find((n) => n.presentation === "modal");
