@@ -280,6 +280,7 @@ gap: 0.75rem;
 | `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                                                                                                               |
 | `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**。比の話は [#185](https://github.com/Rioh1118/obs-shogi/issues/185)、意味の取り違えは [#180](https://github.com/Rioh1118/obs-shogi/issues/180) |
 | `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                                                                                                     |
+| `FsErrorView`          | 帯に `$color-danger` / `$color-warning`           | トークンだが、通知の側（`Notice`）は同じ面の同じ役割に `-text` を使っている。**同じ面に載る同じ役割の帯が2通りある**                                                         |
 
 ### 機械で止めているもの
 
