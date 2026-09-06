@@ -5,7 +5,7 @@ use crate::book::session::BookState;
 use crate::book::sfen::to_book_key;
 use crate::book::sfen::BookKey;
 use crate::book::types::{
-    BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
+    BookHandle, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
 };
 use std::sync::Arc;
 use tauri::State;
@@ -40,7 +40,7 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
-        .map_err(join_error(input.path, OPEN_RECOVERY))?;
+        .map_err(join_error(input.path, None))?;
 
     Ok(state.register(opened?))
 }
@@ -64,7 +64,7 @@ async fn lookup_inner(
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。
     tauri::async_runtime::spawn_blocking(move || book.reader.lookup(&key))
         .await
-        .map_err(join_error(path, LOOKUP_RECOVERY))?
+        .map_err(join_error(path, Some(input.handle)))?
 }
 
 /// 引く先と引くキーを揃える。
@@ -162,27 +162,31 @@ fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError
 /// どの定跡で起きたかを必ず添える。複数開いていると、これが無いと利用者は
 /// どのファイルの話なのか決められない。
 ///
-/// `recovery` は呼び出し側から渡す。open の途中で落ちた場合はまだハンドルが
-/// 無いので、「閉じてから開き直す」は案内できない。
-/// `Unknown` のときに出す復帰操作。**定数にして、テストが本物を食えるようにする。**
-///
-/// リテラルを呼び出し側へ埋めると、テストは自分で書いた別のリテラルを見ることになり、
-/// **利用者が実際に読む文言を誰も見ないまま残る。**
-const OPEN_RECOVERY: &str = "もう一度開き直すこと";
-
-/// 引くときの復帰操作。開くときと違い、まず閉じる必要がある。
-const LOOKUP_RECOVERY: &str = "この定跡を閉じてから開き直すこと";
-
 fn join_error(
     path: impl Into<String>,
-    recovery: &'static str,
+    handle: Option<BookHandle>,
 ) -> impl FnOnce(tauri::Error) -> BookError {
     move |err| {
         BookError::new(
             BookErrorCode::Unknown,
-            unknown_message(&err.to_string(), recovery),
+            unknown_message(&err.to_string(), recovery_for(handle)),
         )
         .with_path(path)
+    }
+}
+
+/// `Unknown` のときに出す復帰操作。**呼び出し側に選ばせず、ハンドルの有無から引く。**
+///
+/// 2つの文言を定数で並べて呼び出し側に渡させると、open と lookup で取り違えても
+/// 型は通り、テストも通る（この枝は blocking プールの panic でしか踏まない）。
+/// 違いは「その時点でハンドルがあるか」だけで、それは引数に既に現れている ——
+/// open の途中で落ちた時点ではハンドルがまだ無いので、**open の呼び出し側の
+/// スコープには `Some` に入れられるものが1つも無い**（`Some(0)` と書けば通るが、
+/// 手元に無い値を作る形になる）。
+fn recovery_for(handle: Option<BookHandle>) -> &'static str {
+    match handle {
+        None => "もう一度開き直すこと",
+        Some(_) => "この定跡を閉じてから開き直すこと",
     }
 }
 
@@ -198,16 +202,29 @@ fn unknown_message(cause: &str, recovery: &str) -> String {
 #[cfg(test)]
 mod tests {
 
+    /// **ハンドルの有無で案内が分かれること。**
+    ///
+    /// 同じ文言に潰れると、まだ開いていない定跡に「閉じてから開き直す」と
+    /// 案内する（従える操作が無い）か、開いたままの定跡に「開き直す」と案内して
+    /// ハンドルを溜める。どちらも `Unknown` の枝なので誰も踏まずに残る。
+    #[test]
+    fn the_recovery_depends_on_whether_a_handle_exists() {
+        assert_ne!(recovery_for(None), recovery_for(Some(1)));
+        // 閉じる案内が出せるのはハンドルがあるときだけ
+        assert!(recovery_for(Some(1)).contains("閉じ"));
+        assert!(!recovery_for(None).contains("閉じ"));
+    }
+
     /// **`Unknown` の文面も次にやることで終わること。**
     ///
     /// `Unknown` は blocking プールの panic でしか出ない＝**再現の難しい失敗の
     /// 唯一の案内**なので、崩れても気づかれない。
     #[test]
     fn the_unknown_message_ends_with_something_the_user_can_do() {
-        // **本物の定数を食う。** テストが自前のリテラルを書くと、
+        // **本物の文言を食う。** テストが自前のリテラルを書くと、
         // 呼び出し側の文言を内部語や英文に直しても緑のまま通る
-        for recovery in [OPEN_RECOVERY, LOOKUP_RECOVERY] {
-            let message = unknown_message("join に失敗", recovery);
+        for handle in [None, Some(1)] {
+            let message = unknown_message("join に失敗", recovery_for(handle));
 
             assert!(message.ends_with("こと"), "{message}");
             // 原文は残す。落とすとログから切り分けられなくなる
