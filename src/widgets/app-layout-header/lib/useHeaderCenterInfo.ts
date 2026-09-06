@@ -15,6 +15,9 @@ function stripExt(name: string) {
 }
 
 export type HeaderCenterInfo = {
+  /** 棋譜が盤に載っているか。ヘッダの表示はどれもこれで分岐する */
+  hasKifu: boolean;
+
   fileLabel: string;
   fileTitle: string;
   senteName: string | null;
@@ -30,14 +33,21 @@ export type HeaderCenterInfo = {
   tooltip: string;
 };
 
-export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
+/**
+ * ヘッダ中央の表示を組む。
+ *
+ * **棋譜が載っているかは自分で game に訊く。** 呼び出し側から真偽値で受け取ると、
+ * 同じ問いに `hasKifu` と prop の2つの綴りができる。
+ */
+export function useHeaderCenterInfo(): HeaderCenterInfo {
   const { selectedNode, jkfData } = useFileTree();
   const { state, view, getTotalMoves } = useGame();
+  const hasKifu = view.hasKifu;
 
   return useMemo(() => {
     const selectedFilePath = selectedNode && !selectedNode.isDirectory ? selectedNode.path : null;
 
-    const fileLabel = !hasFile
+    const fileLabel = !hasKifu
       ? "ファイル未選択"
       : selectedFilePath
         ? stripExt(basename(selectedFilePath))
@@ -51,10 +61,10 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
     const gote = (header["後手"] ?? "").trim();
     const senteName = sente.length ? sente : null;
     const goteName = gote.length ? gote : null;
-    const isPlayersShown = hasFile && Boolean(senteName || goteName);
+    const isPlayersShown = hasKifu && Boolean(senteName || goteName);
 
     // バッジ（手番・手数）
-    const loaded = hasFile && !!view.player;
+    const loaded = hasKifu;
 
     let turn = Color.Black;
     let tesuu = 0;
@@ -77,17 +87,18 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
     const tesuuText = loaded ? `${tesuu}手目` : "";
     const totalText = loaded ? `${tesuu}/${total}` : "";
 
-    const playersTooltip = !hasFile
+    const playersTooltip = !hasKifu
       ? "ファイル未選択"
       : !isPlayersShown
         ? "棋譜表示中"
         : `先手 ${senteName ?? "（不明）"} / 後手 ${goteName ?? "（不明）"}`;
 
-    const tooltip = hasFile
+    const tooltip = hasKifu
       ? `${fileLabel} — ${playersTooltip}${loaded ? ` — ${turnText} ${totalText}` : ""}`
       : "ファイル未選択";
 
     return {
+      hasKifu,
       fileLabel,
       fileTitle,
       senteName,
@@ -100,5 +111,5 @@ export function useHeaderCenterInfo(hasFile: boolean): HeaderCenterInfo {
       totalText,
       tooltip,
     };
-  }, [hasFile, selectedNode, jkfData, view.player, state.cursor, getTotalMoves]);
+  }, [hasKifu, selectedNode, jkfData, view.player, state.cursor, getTotalMoves]);
 }

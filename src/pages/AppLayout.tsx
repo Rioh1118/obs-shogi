@@ -43,11 +43,7 @@ const AppLayout = () => {
         <AppModalLayer />
       </AppErrorBoundary>
 
-      <AppLayoutHeader
-        toggleSidebar={toggleSidebar}
-        isSidebarOpen={isSidebarOpen}
-        hasFile={hasKifu}
-      />
+      <AppLayoutHeader toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
 
       <div className="app-layout__body">
         <aside className="app-layout__sidebar-slot">

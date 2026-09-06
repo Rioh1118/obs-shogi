@@ -9,15 +9,15 @@ import { useHeaderCenterInfo } from "@/widgets/app-layout-header/lib/useHeaderCe
 type Props = {
   toggleSidebar: () => void;
   isSidebarOpen: boolean;
-  hasFile: boolean;
 };
 
-function AppLayoutHeader({ toggleSidebar, isSidebarOpen, hasFile }: Props) {
+function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
   const { openModal } = useURLParams();
 
-  const info = useHeaderCenterInfo(hasFile);
+  const info = useHeaderCenterInfo();
+  const hasKifu = info.hasKifu;
 
-  const metaNode = !hasFile ? null : !info.isPlayersShown ? (
+  const metaNode = !hasKifu ? null : !info.isPlayersShown ? (
     <span className="app-header__muted">棋譜表示中</span>
   ) : (
     <span className="app-header__meta" aria-label="対局者">
