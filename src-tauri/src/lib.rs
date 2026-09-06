@@ -7,7 +7,7 @@ pub mod storage;
 pub mod workspace;
 
 pub use crate::engine::state::AppState;
-pub use book::BookState;
+pub use book::session::BookState;
 pub use search::state::SearchState;
 pub use search::store::index_store::IndexStore;
 
