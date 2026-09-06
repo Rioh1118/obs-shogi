@@ -223,6 +223,31 @@ pub(super) fn before_any_position(line_number: usize, line: &str, path: &str) ->
 mod tests {
     use super::*;
 
+    /// **上限ちょうどの行に改行が付いているだけの定跡を拒否しない。**
+    ///
+    /// `take(MAX_LINE_BYTES + 1)` で読むので `read` が上限を1つ超えるのは
+    /// 「内容ちょうど上限 + 改行」のときだけ。`!raw.ends_with(b"\n")` を落とすと、
+    /// 正しい定跡に「4.1KB を超えている。別のファイルを選び直すこと」を返す
+    /// （利用者に実行できる操作が対応しない）。
+    #[test]
+    fn a_line_of_exactly_the_limit_with_a_newline_is_accepted() {
+        let mut line = "7g7f none 0 0 1".to_string();
+        while line.len() < MAX_LINE_BYTES {
+            line.push(' ');
+        }
+        assert_eq!(line.len(), MAX_LINE_BYTES);
+        line.push('\n');
+
+        let mut reader = std::io::Cursor::new(line.clone().into_bytes());
+        let mut buffer = String::new();
+        let mut raw = Vec::new();
+        let read = read_line(&mut reader, &mut raw, &mut buffer, true, 1, "a.db")
+            .expect("上限ちょうど＋改行は読めるはず");
+
+        assert_eq!(read, Some(true));
+        assert_eq!(buffer.trim_end(), line.trim_end());
+    }
+
     /// 注記の判定は字下げを許す。パーサの他の判定は全て `trim` 済みの行を見るので、
     /// ここだけ生の先頭で見ると、字下げした注記だけが別の文字コードで拒否される。
     #[test]
