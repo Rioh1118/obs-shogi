@@ -17,6 +17,8 @@ type SelectedNode = { path: string; isDirectory: boolean } | null;
 const stub = {
   selectedNode: null as SelectedNode,
   player: null as unknown,
+  isLoading: false,
+  loadedAbsPath: null as string | null,
 };
 
 vi.mock("@/entities/file-tree", () => ({
@@ -25,7 +27,7 @@ vi.mock("@/entities/file-tree", () => ({
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    state: { isLoading: false, loadedAbsPath: null },
+    state: { isLoading: stub.isLoading, loadedAbsPath: stub.loadedAbsPath },
     view: { player: stub.player },
     applyCursor,
   }),
@@ -38,6 +40,8 @@ const CURSOR: CursorLite = { tesuu: 3, forkPointers: [] };
 beforeEach(() => {
   stub.selectedNode = null;
   stub.player = null;
+  stub.isLoading = false;
+  stub.loadedAbsPath = null;
   selectNodeByAbsPath.mockReset();
   applyCursor.mockReset();
 });
@@ -63,8 +67,9 @@ describe("usePositionHitNavigation", () => {
     expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/b.kif");
   });
 
-  test("同じ棋譜が既に開いていれば、その場で局面へ当てて true", () => {
+  test("同じ棋譜が盤に載っていれば、その場で局面へ当てて true", () => {
     stub.selectedNode = { path: "/root/a.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/a.kif";
     stub.player = {};
 
     const { result } = renderHook(() => usePositionHitNavigation());
@@ -72,5 +77,21 @@ describe("usePositionHitNavigation", () => {
     expect(result.current.navigateToHit("/root/a.kif", CURSOR)).toBe(true);
     expect(selectNodeByAbsPath).not.toHaveBeenCalled();
     expect(applyCursor).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 選択は即座に切り替わるのに、`view.player` は**盤に載っている棋譜**の再生器。
+   * 選択だけを見て当てると、前の棋譜に別の棋譜のカーソルが当たる。
+   */
+  test("選んであっても盤にまだ載っていなければ、その場では当てない", () => {
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/a.kif";
+    stub.player = {};
+    selectNodeByAbsPath.mockReturnValue(true);
+
+    const { result } = renderHook(() => usePositionHitNavigation());
+
+    expect(result.current.navigateToHit("/root/b.kif", CURSOR)).toBe(true);
+    expect(applyCursor).not.toHaveBeenCalled();
   });
 });

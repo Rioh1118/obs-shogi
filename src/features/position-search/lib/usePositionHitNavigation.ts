@@ -32,11 +32,19 @@ export function usePositionHitNavigation() {
     (absPath: string, cursor: CursorLite): boolean => {
       pendingRef.current = { absPath, cursor };
 
-      // すでにそのファイルが開かれていて、view.player もあるなら即ジャンプ
+      // すでにその棋譜が**盤に載っていて**、view.player もあるなら即ジャンプ。
+      //
+      // **`selectedNode` だけで判定しない。** ツリーの選択は即座に切り替わるのに
+      // `view.player` は盤に載っている棋譜の再生器なので、選択だけを見ると
+      // 読み込みの飛行中や盤に載せられなかった棋譜（#434）で
+      // **前の棋譜に別の棋譜のカーソルを当てて成功を返す**。
+      // 条件は下の effect（着いてから当てる側）と同じにしてある
       if (
         selectedNode &&
         !selectedNode.isDirectory &&
         selectedNode.path === absPath &&
+        !gameState.isLoading &&
+        gameState.loadedAbsPath === absPath &&
         gameView.player
       ) {
         applyCursor(cursorFromLite(cursor));
@@ -51,7 +59,14 @@ export function usePositionHitNavigation() {
 
       return true;
     },
-    [applyCursor, gameView.player, selectNodeByAbsPath, selectedNode],
+    [
+      applyCursor,
+      gameState.isLoading,
+      gameState.loadedAbsPath,
+      gameView.player,
+      selectNodeByAbsPath,
+      selectedNode,
+    ],
   );
 
   // ファイル切替 → 読み込み完了（view.player が立つ）を待ってから applyCursor
