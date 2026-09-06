@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
+import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import { usePositionHitNavigation } from "@/features/position-search/lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
@@ -42,6 +43,9 @@ export default function PositionSearchModal() {
   const [requestId, setRequestId] = useState<number | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
+  // 開けなかったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
+  // 並び替わるので、添字で覚えると届いていない棋譜の名前で断りが出る
+  const [unopenableKey, setUnopenableKey] = useState<string | null>(null);
 
   const session = getSessionByRequestId(requestId);
   const hits = getHitsByRequestId(requestId);
@@ -105,6 +109,7 @@ export default function PositionSearchModal() {
       setLaunchError(null);
       setIsLaunching(false);
       setActiveIndex(0);
+      setUnopenableKey(null);
       return;
     }
 
@@ -122,6 +127,7 @@ export default function PositionSearchModal() {
     setLaunchError(null);
     setIsLaunching(true);
     setActiveIndex(0);
+    setUnopenableKey(null);
 
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
@@ -170,9 +176,13 @@ export default function PositionSearchModal() {
   }, [orderedHits, activeIndex]);
 
   const accept = (hit: PositionHit) => {
+    // 索引に在る棋譜がツリーに無いのは正常運転で起こる（`usePositionHitNavigation`）。
+    // 移動できないまま閉じると、盤は前の棋譜のままなのに「開いた」と読める
     const absPath = resolveHitAbsPath(hit);
-    if (!absPath) return;
-    navigateToHit(absPath, hit.cursor);
+    if (!absPath || !navigateToHit(absPath, hit.cursor)) {
+      setUnopenableKey(hitKey(hit));
+      return;
+    }
     // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
     closeModal({ skipReturn: true });
   };
@@ -206,6 +216,9 @@ export default function PositionSearchModal() {
   if (!isOpen) return null;
 
   const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
+  // 断りが指しているのは選んでいる行なので、選び直したら引っ込める。
+  // 残したままだと、いま選んでいる棋譜が開けないという意味に読める
+  const isUnopenable = !!activeHit && hitKey(activeHit) === unopenableKey;
 
   return (
     <Modal
@@ -232,6 +245,14 @@ export default function PositionSearchModal() {
                 stale={resultStale}
                 error={error}
               />
+
+              {isUnopenable && (
+                <InlineNotice
+                  tier="danger"
+                  title="この棋譜を開けません"
+                  body="ワークスペースに見つかりませんでした。移動または削除された可能性があります（索引にはまだ残っています）。"
+                />
+              )}
 
               <PositionSearchHitList
                 hits={orderedHits}
