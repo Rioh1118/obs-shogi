@@ -1,7 +1,8 @@
 # 状態遷移表: 盤の向き（L2）
 
-対象: `src/features/board-orientation/`。上位は [app.md](app.md)、
-合図の出どころは [file-tree.md](file-tree.md)。
+対象: `src/features/board-orientation/`。上位は [app.md](app.md)。
+**合図（`loadedAbsPath`）の出どころは [game.md](game.md)**、
+イベント（E2 / E4 / E5 / E6 / E7）の出どころは [file-tree.md](file-tree.md)。
 
 読む側（`useBoardOrientation`）は盤の中に載る（`src/widgets/game-board/ui/GameBoard.tsx`）。
 落とす側（`useResetOrientationOnKifuChange`）は盤より上
