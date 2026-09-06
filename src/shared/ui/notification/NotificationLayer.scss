@@ -1,0 +1,65 @@
+@use "@/index.scss" as index;
+
+// グローバルの通知が敷かれる面。
+//
+// `top` をタイトルバーの下から始めるのは、あの帯が `decorations: false` の
+// ウィンドウを動かす唯一の手段（`data-tauri-drag-region`）だから。
+// 覆うと窓を掴めなくなる（`Modal.scss` の overlay と同じ理由）。
+//
+// z-index はモーダル（9999）の1つ下。通知の上に開いたモーダルが隠れると、
+// そのモーダルを閉じる手段が画面から消える。
+.notice-layer {
+  position: fixed;
+  top: index.$titlebar-height;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9998;
+
+  display: flex;
+  flex-direction: column;
+
+  // 敷いてあるだけの面はクリックを通す。通さないと、通知が1つも出ていなくても
+  // アプリ全体が操作できなくなる
+  pointer-events: none;
+
+  &__banners {
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+
+    // 帯は器の一部として出す。角丸も影も持たず、下の境界で本体と切る
+    .notice {
+      border-bottom: 1px solid index.$stroke;
+    }
+  }
+
+  // トーストは右下。**押し出さない**ので、盤の操作を邪魔しない位置に置く
+  &__toasts {
+    margin-top: auto;
+    align-self: flex-end;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-3;
+    padding: index.$space-5;
+    pointer-events: auto;
+
+    // 幅は寸法のスケールに載らない（ADR-0003 が見るのは間隔・角丸・文字サイズ）。
+    // 画面が狭いときは器に合わせて縮む
+    width: 36rem;
+    max-width: 100%;
+  }
+}
+
+.notice--toast {
+  border-radius: index.$radius-3;
+  border-top: 1px solid index.$stroke-strong;
+  border-right: 1px solid index.$stroke-strong;
+  border-bottom: 1px solid index.$stroke-strong;
+  box-shadow: index.$shadow-overlay;
+}
+
+// モーダルは `Modal` のカードがもう面と枠を持っているので、通知の側は面だけ敷く
+.notice--modal {
+  padding: index.$space-8 index.$space-10;
+}

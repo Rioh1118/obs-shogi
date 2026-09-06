@@ -1,0 +1,10 @@
+@use "@/index.scss" as index;
+
+// インラインは器の中に埋まるので、角丸と枠を持って「ここだけ別の面」を示す。
+// トーストと違って浮かないので影は持たない
+.notice--inline {
+  border-radius: index.$radius-3;
+  border-top: 1px solid index.$stroke-weak;
+  border-right: 1px solid index.$stroke-weak;
+  border-bottom: 1px solid index.$stroke-weak;
+}
