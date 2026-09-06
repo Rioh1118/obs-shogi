@@ -31,7 +31,10 @@ import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
 import { createChunkBuffer, type ChunkBufferApi } from "./chunkBuffer";
 import { PositionSearchContext } from "./context";
 import { initialState, reducer } from "./reducer";
-import type { PositionSearchContextType, SearchSession } from "./types";
+import type { Action, PositionSearchContextType, SearchSession } from "./types";
+
+/** 検索の持ち物を落とす合図。**この2つ以外は `state.sessions` を消さない** */
+type DropSearchAction = Extract<Action, { type: "open_start" | "clear_search" }>;
 
 const EMPTY_HITS: PositionHit[] = [];
 
@@ -114,20 +117,24 @@ export function PositionSearchProvider({
   }, [chunkBuffer]);
 
   /**
-   * その検索の持ち物を落とす。**rid で引ける置き場は3つある**——`state.sessions`
-   * （reducer）、溜め場（`chunkBuffer`）、平坦化のキャッシュ（`hitsCacheRef`）。
-   * どれか1つに伝え忘れると、消えたはずのセッションが次の吐き出しで
-   * `ensureSession` に作り直される。**3つとも同じ順でしか落とせない形にしておく**
-   * ——入口を閉じるのが先で、置き場を捨てるのが後。
+   * 検索の持ち物を落とす。**rid で引ける置き場は3つある**——溜め場（`chunkBuffer`）、
+   * 平坦化のキャッシュ（`hitsCacheRef`）、`state.sessions`（reducer）。どれか1つに
+   * 伝え忘れると、消えたはずのセッションが次の吐き出しで `ensureSession` に
+   * 作り直される。
    *
-   * `requestId` を省くと「いま在る検索は全部」（`open_start` がそれに当たる）。
-   * reducer への dispatch は呼び手が続けて出す。
+   * **落とす合図まで受け取って、3つを同じ順でしか落とせない形にする**——入口を
+   * 閉じるのが先、置き場を捨てるのが次、reducer が最後。呼び手に `dispatch` を
+   * 書かせると、その順を変える改変が1行で書けてしまう。
    */
-  const dropSessions = useCallback(
-    (requestId?: RequestId) => {
+  const dropSearch = useCallback(
+    (action: DropSearchAction) => {
+      const requestId = action.type === "clear_search" ? action.payload.requestId : undefined;
+
       chunkBuffer.stopAccepting(requestId);
       if (requestId == null) hitsCacheRef.current.clear();
       else hitsCacheRef.current.delete(requestId);
+
+      dispatch(action);
     },
     [chunkBuffer],
   );
@@ -195,8 +202,7 @@ export function PositionSearchProvider({
     async (rd: string): Promise<OpenProjectOutput> => {
       if (openInFlightRef.current) return openInFlightRef.current;
 
-      dropSessions();
-      dispatch({ type: "open_start", payload: { rootDir: rd } });
+      dropSearch({ type: "open_start", payload: { rootDir: rd } });
 
       openInFlightRef.current = (async () => {
         try {
@@ -214,7 +220,7 @@ export function PositionSearchProvider({
 
       return openInFlightRef.current;
     },
-    [dropSessions],
+    [dropSearch],
   );
 
   /**
@@ -361,11 +367,8 @@ export function PositionSearchProvider({
 
   const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
   const clearSearch = useCallback(
-    (requestId: RequestId) => {
-      dropSessions(requestId);
-      dispatch({ type: "clear_search", payload: { requestId } });
-    },
-    [dropSessions],
+    (requestId: RequestId) => dropSearch({ type: "clear_search", payload: { requestId } }),
+    [dropSearch],
   );
 
   const value = useMemo<PositionSearchContextType>(
