@@ -199,7 +199,7 @@ describe("AnalysisProvider のアンマウント", () => {
     stopCore.mockClear();
     view.unmount();
 
-    // 返さないと Rust の台帳に席が残り、以降どの解析も
+    // 返さないと Rust の `active_sessions` に席が残り、以降どの解析も
     // 「Analysis already running」で断られる。エンジンを畳み直すまで戻れない。
     expect(stopCore).toHaveBeenCalledTimes(1);
 
@@ -284,7 +284,8 @@ describe("AnalysisProvider のアンマウント", () => {
     void view.current.startInfiniteAnalysis();
     await advance(50);
 
-    // 畳んだ時点では席の ID を誰も知らない。後始末は空振りする。
+    // 畳んだ時点ではまだ席を握っていない（開始の応答が返っていない）。
+    // 後始末は門で止まる。
     view.unmount();
     stopCore.mockClear();
 
@@ -324,8 +325,8 @@ describe("AnalysisProvider のアンマウント", () => {
     });
     await advance(50);
 
-    // 畳んだときの後始末が止めたのは古い方（既に停止済み）。
-    // 新しい席はここで返すしかない。
+    // 畳んだ時点で握っている席は無い——古い方は再開が先に返している。
+    // 後始末は門で止まるので、この席を返せるのはここだけ。
     expect(stopCore).toHaveBeenCalledWith("session-2");
   });
 
