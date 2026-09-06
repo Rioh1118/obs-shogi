@@ -95,8 +95,9 @@ function useAutoDismiss(
     }
   }, [notifications]);
 
-  // 張った時計は自分で畳む。unmount では notifications の effect の cleanup が
-  // 走らない（依存で消える形にしていない）ので、ここに置く
+  // 張った時計は自分で畳む。**上の effect は cleanup を返していない**ので
+  // （返すと通知が1つ増えるたびに全部が張り直され、残り時間が巻き戻る）、
+  // unmount で残る時計を落とす場所がここしか無い
   useEffect(() => {
     const handles = timers.current;
     return () => {
