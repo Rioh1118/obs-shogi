@@ -7,7 +7,12 @@ import { stopAnalysis as stopAnalysisCore } from "@/entities/engine/api/tauri";
  * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
  * `releaseHeldQuietly` の doc に書き足すこと。書けないなら、その口は要らない。
  */
-export type SeatReleasePoint = "unmount" | "sync-timeout" | "late-start" | "late-restart";
+export type SeatReleasePoint =
+  | "unmount"
+  | "no-position"
+  | "sync-timeout"
+  | "late-start"
+  | "late-restart";
 
 /**
  * Rust が渡した解析の席（`active_sessions` の1エントリ）の生死を持つ。
@@ -91,7 +96,8 @@ export function useEngineSeat(): EngineSeat {
     if (seatRef.current === sessionId) seatRef.current = null;
   };
 
-  // **落ちても利用者には出せない。** ここを通るのは3つ——画面が既に無い（`unmount`）、
+  // **落ちても利用者には出せない。** ここを通るのは、画面が既に無い（`unmount`）、
+  // 読む局面が無くなった（`no-position`。棋譜を閉じた後なので出す場所が無い）、
   // 直後に別のエラーを出す（`sync-timeout`）、利用者が止めた直後で
   // 「停止の後始末に失敗しました」を出しても当てが無い（`late-start` / `late-restart`）。
   //

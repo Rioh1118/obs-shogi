@@ -366,6 +366,76 @@ describe("AnalysisProvider の結果の照合", () => {
   });
 });
 
+describe("AnalysisProvider の開始", () => {
+  it("応答待ちの間に押し直しても、開始は1本にする", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    void view.current.startInfiniteAnalysis();
+    await advance(50);
+    void view.current.startInfiniteAnalysis();
+    await advance(50);
+
+    // 2本目は Rust の `take_session` に断られ、その断りは画面に出ない。
+    expect(startCore).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseStart("session-1");
+    });
+    expect(view.current.state.isAnalyzing).toBe(true);
+  });
+
+  it("席を握ったまま止まっていたら、▶ で返してから始める", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 停止が Rust に届かない。席は握ったまま、画面は「停止中」になる。
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    // この状態で ▶。返さずに頼むと Rust に断られ続け、画面から復帰できない。
+    stopCore.mockClear();
+    startCore.mockClear();
+    stopCore.mockResolvedValue(undefined);
+    startCore.mockResolvedValue("session-2");
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    expect(stopCore).toHaveBeenCalledWith("session-1");
+    expect(startCore).toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(true);
+  });
+
+  it("読む局面が無くなったら、席を返して止める", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    stopCore.mockClear();
+
+    // 棋譜を閉じた。解析ペインは畳まれないが、止めるボタンは画面から消える。
+    await view.setSync(adapter(null, null));
+    await advance(50);
+
+    expect(stopCore).toHaveBeenCalledWith("session-1");
+    expect(view.current.state.isAnalyzing).toBe(false);
+  });
+});
+
 describe("AnalysisProvider のアンマウント", () => {
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));

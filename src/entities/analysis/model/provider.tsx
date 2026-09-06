@@ -366,10 +366,34 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart]);
 
+  // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になるが、
+  // 解析ペインごと畳まれるわけではない（`AnalysisProvider` は `RuntimeProviders` 側に居る）。
+  // 自動再開は `if (!currentSfen) return` で黙って止まるだけなので、放っておくと
+  // エンジンは閉じた棋譜の局面を読み続け、**それを止めるボタンは画面から消えている**。
+  useEffect(() => {
+    if (!state.isAnalyzing) return;
+    if (currentSfen) return;
+
+    desiredSfenRef.current = null;
+    pendingAfterRef.current = false;
+    restartSeqRef.current++;
+    clearDebounceTimer();
+
+    seat.releaseHeldQuietly("no-position");
+    dispatch({ type: "stop_analysis" });
+  }, [currentSfen, state.isAnalyzing, seat]);
+
+  const startInFlightRef = useRef<Promise<void> | null>(null);
+
   const startInfiniteAnalysis = useCallback(async () => {
     if (!isReady) throw new Error("Engine not ready");
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
+
+    // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
+    // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと
+    // Rust に断られ続け、画面からは復帰できなくなる（→ #172）。
+    if (seat.isHeld()) await seat.releaseHeld();
 
     // 局面を送って席が返るまでの世代。
     //
@@ -420,6 +444,24 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     desiredSfenRef.current = currentSfen;
   }, [isReady, state.isAnalyzing, currentSfen, syncPosition, seat]);
 
+  // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
+  // 局面を送って席が返った後（最大2秒）で、その間ボタンは ▶ のまま押せる。
+  // 2本目は Rust の `take_session` に断られ、その断りは `console.error` で終わる
+  // ——利用者には何も出ない。
+  //
+  // **`finally` で必ず外す。** 外し忘れると、以降 ▶ が「走っている」と
+  // 見なされて二度と始まらない。
+  const startInfiniteAnalysisOnce = useCallback(async () => {
+    const running = startInFlightRef.current;
+    if (running) return running;
+
+    const started = startInfiniteAnalysis().finally(() => {
+      startInFlightRef.current = null;
+    });
+    startInFlightRef.current = started;
+    return started;
+  }, [startInfiniteAnalysis]);
+
   const stopAnalysis = useCallback(async () => {
     desiredSfenRef.current = null;
     pendingAfterRef.current = false;
@@ -462,7 +504,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const value = useMemo<AnalysisContextType>(
     () => ({
       state,
-      startInfiniteAnalysis,
+      startInfiniteAnalysis: startInfiniteAnalysisOnce,
       stopAnalysis,
       clearResults,
       clearError,
@@ -471,7 +513,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }),
     [
       state,
-      startInfiniteAnalysis,
+      startInfiniteAnalysisOnce,
       stopAnalysis,
       clearResults,
       clearError,
