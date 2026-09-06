@@ -118,11 +118,10 @@
 `entities/file-tree/index.ts` は「ここに並ぶのはスライスの外に呼び出し元があるものだけ」を
 規約として書いているが、機械が見ていないので守られているのは一部だけ。
 
-- **`entities/search/index.ts` は41個を公開していて、外に読み手があるのは6個。**
-  `EVT_*` 7つと `searchPosition` / `searchPositionBestEffort` / `cancelSearch` /
-  `listenSearchEvents` は外の読み手0。`listenSearchEvents` を barrel から呼べば
-  `isListenSettled` を経ずに購読が二重に張れる。`WorkspaceTab` が `IndexState` の union を
-  手で写しているので、そこだけは**落とすのではなく import させる**のが正しい向き
+- **barrel と context に、呼び手のいない口が残る。** `entities/search/index.ts` は
+  型を中心に約30名を公開していて、スライス外の消費は7名。`entities/game` の context も
+  5件が呼び手0。`sliceBarrels.test.ts` は「barrel が在ること」しか見ておらず、
+  **未使用の export を数える走査は無い**。足せば落ちる
 - **`entities/game` の context に呼び出し元0の口が5つ**（`setCurrentComments` / `isAtStart` /
   `isAtEnd` / `getCurrentMove` / `getCurrentComments`）
 - **閉じるなら走査ごと入れる。** `src/__tests__/sliceBarrels.test.ts` の `publicModules()` に
