@@ -193,15 +193,20 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_end": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.requestId);
-      const s = sessions[p.requestId]!;
+      // **無いセッションは作らない。** Rust は取り下げた検索でも終わりを emit するので
+      // （`search/query_service.rs` は `break` した後で必ず `EVT_SEARCH_END` を出す）、
+      // ここで作ると `clear_search` で捨てたセッションが**空のまま戻る**。
+      // 戻った側を消す口はもう無い——画面はその rid を忘れている
+      const s = state.sessions[p.requestId];
+      if (!s) return state;
+
       const isCurrent = state.currentRequestId === p.requestId;
 
       return {
         ...state,
         isSearching: isCurrent ? false : state.isSearching,
         sessions: {
-          ...sessions,
+          ...state.sessions,
           [p.requestId]: {
             ...s,
             isDone: true,
@@ -213,15 +218,17 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_error": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.requestId);
-      const s = sessions[p.requestId]!;
+      // 終わりと同じ。捨てたセッションを失敗の記録で作り直さない
+      const s = state.sessions[p.requestId];
+      if (!s) return state;
+
       const isCurrent = state.currentRequestId === p.requestId;
 
       return {
         ...state,
         isSearching: isCurrent ? false : state.isSearching,
         sessions: {
-          ...sessions,
+          ...state.sessions,
           [p.requestId]: {
             ...s,
             error: p.message,

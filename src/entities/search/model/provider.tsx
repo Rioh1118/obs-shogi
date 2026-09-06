@@ -79,6 +79,8 @@ type ChunkBufferApi = {
   stopAccepting: (requestId?: RequestId) => void;
   /** 検索が1つ始まった。線を引く位置に要る */
   noteRequest: (requestId: RequestId) => void;
+  /** この検索をまだ受け取ってよいか。**チャンク以外の口もここを通す** */
+  isAccepting: (requestId: RequestId) => boolean;
   /** 受け取りを開ける／閉じる。effect の setup と cleanup で対にする */
   open: () => void;
   dispose: () => void;
@@ -132,15 +134,17 @@ function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
     if (requestId > maxSeenRid) maxSeenRid = requestId;
   };
 
+  const isAccepting = (requestId: RequestId) =>
+    !disposed && requestId > deadBefore && !dead.has(requestId);
+
   return {
     flush,
     noteRequest,
+    isAccepting,
 
     enqueue: (p) => {
-      if (disposed) return;
-
       noteRequest(p.requestId);
-      if (p.requestId <= deadBefore || dead.has(p.requestId)) return;
+      if (!isAccepting(p.requestId)) return;
 
       const cur = pending.get(p.requestId);
       if (cur) {
@@ -274,6 +278,10 @@ export function PositionSearchProvider({
             // 溜め場は「これ以下の rid はもう受け取らない」の線を rid の最大値から
             // 引く。チャンクが1つも来なかった検索も数に入れる
             chunkBuffer.noteRequest(p.requestId);
+
+            // **始まりも門を通す。** ここを通さないと、捨てた検索の begin が
+            // `ensureSession` でセッションを作り直す
+            if (!chunkBuffer.isAccepting(p.requestId)) return;
             dispatch({ type: "search_begin", payload: p });
           },
           onSearchChunk: chunkBuffer.enqueue,

@@ -45,11 +45,15 @@ let renders = 0;
 let hitCount = 0;
 let lastHits: PositionHit[] = [];
 let getHits: (rid: number) => PositionHit[] = () => [];
+let sessionIds: number[] = [];
+let clearSearch: (rid: number) => void = () => {};
 
 function Probe() {
-  const { getHitsByRequestId } = usePositionSearch();
+  const { getHitsByRequestId, state, clearSearch: clear } = usePositionSearch();
   renders += 1;
   getHits = getHitsByRequestId;
+  clearSearch = clear;
+  sessionIds = Object.keys(state.sessions).map(Number);
   lastHits = getHitsByRequestId(RID);
   hitCount = lastHits.length;
   return null;
@@ -337,6 +341,59 @@ describe("消えたセッション宛のチャンク", () => {
     });
 
     expect(hitCount).toBe(0);
+  });
+
+  /**
+   * **終わりも門を通す。** Rust は取り下げた検索でも `end` を emit する
+   * （`query_service.rs` は `break` の後で必ず出す）ので、素通りさせると
+   * `ensureSession` が捨てたセッションを**空のまま作り直す**。作り直された側を
+   * 消す口はもう無い——画面はその rid を忘れている
+   */
+  test("捨てた検索の終わりが届いても、セッションは戻らない", async () => {
+    await mount();
+
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: RID, stale: false });
+      handlers.onSearchChunk?.(chunkOf(2, 0));
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(sessionIds).toEqual([RID]);
+
+    act(() => {
+      clearSearch(RID);
+    });
+    expect(sessionIds).toEqual([]);
+
+    act(() => {
+      handlers.onSearchEnd?.({ requestId: RID } satisfies SearchEndPayload);
+    });
+
+    expect(sessionIds).toEqual([]);
+  });
+
+  /** 始まりも同じ。捨てた rid の begin でセッションを作り直さない */
+  test("捨てた検索の始まりが届いても、セッションは戻らない", async () => {
+    await mount();
+
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: RID, stale: false });
+      handlers.onSearchChunk?.(chunkOf(2, 0));
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    act(() => {
+      clearSearch(RID);
+    });
+
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: RID, stale: false });
+    });
+
+    expect(sessionIds).toEqual([]);
   });
 
   /** 線より後に始まった検索は通る。**弾くのは古い rid だけ** */
