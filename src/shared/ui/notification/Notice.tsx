@@ -105,10 +105,10 @@ export default function Notice({
         {actions.length > 0 && (
           <div className="notice__actions">
             {actions.map((action, at) => (
-              // 動作は「利用者が次に何をするか」で並ぶので、鍵は文言でよい。
-              // 同じ文言が2つ並ぶ通知は、そもそも2つ目を押す理由が無い
+              // 並び順が鍵。走っているものを指す `running` も添字なので、
+              // 文言を鍵にすると同じ文言が2つ並んだときに指す先がずれる
               <Button
-                key={action.label}
+                key={at}
                 size="sm"
                 // 先頭だけを主にする。段では決めない（ADR-0004 決定3）。
                 // 2つとも主にすると「エンジンを再起動」が「再試行」と同じ重さに見える

@@ -76,6 +76,19 @@ describe("通知の層", () => {
   });
 
   /**
+   * `Modal` は Escape とオーバーレイでも閉じるが、**どちらも画面に出ていない**。
+   * 押すものが1つも無い画面は行き止まりに見えるので、目に見える出口を要求する
+   */
+  it("モーダルには目に見える閉じる手段がある", async () => {
+    const app = setup();
+    app.notify(request({ presentation: "modal", title: "ファイルを削除できませんでした" }));
+
+    await act(async () => screen.getByRole("button", { name: "閉じる" }).click());
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  /**
    * 2枚目が上に乗ると、1枚目を読み終える前に塞がれる。
    * 出た順の先頭を出し切ってから次へ進む
    */

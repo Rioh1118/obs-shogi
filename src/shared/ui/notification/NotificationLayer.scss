@@ -23,10 +23,15 @@
   // アプリ全体が操作できなくなる
   pointer-events: none;
 
+  // **積み上がる数に上限を置かない代わりに、占める高さに上限を置く。**
+  // 同じ失敗が繰り返し出るとき、古いものを黙って捨てると「何件あったか」が消える
+  // （畳みたいなら `dedupeKey` を使う）。溢れたぶんは押し出さずにここで巻き取る
   &__banners {
     display: flex;
     flex-direction: column;
     pointer-events: auto;
+    max-height: 50%;
+    overflow-y: auto;
 
     // 帯は器の一部として出す。角丸も影も持たず、下の境界で本体と切る
     .notice {
@@ -43,6 +48,12 @@
     gap: index.$space-3;
     padding: index.$space-5;
     pointer-events: auto;
+
+    // flex の子は既定で内容より縮まないので、min-height を落とさないと
+    // max-height が効かず、溢れたぶんがタイトルバーの下から飛び出す
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
 
     // 幅は寸法のスケールに載らない（ADR-0003 が見るのは間隔・角丸・文字サイズ）。
     // 画面が狭いときは器に合わせて縮む

@@ -57,7 +57,13 @@ export default function NotificationLayer() {
 
       {modal && (
         <Modal onClose={() => dismiss(modal.id)} label={modal.title} size="sm" scroll="none">
-          <Notice {...toNoticeProps(modal)} className="notice--modal" />
+          {/* **閉じる手段を目に見える形で置く。** Modal は Escape とオーバーレイでも
+              閉じるが、どちらも画面に出ていない。押すものが1つも無い画面は行き止まりに見える */}
+          <Notice
+            {...toNoticeProps(modal)}
+            className="notice--modal"
+            onDismiss={() => dismiss(modal.id)}
+          />
         </Modal>
       )}
     </>
