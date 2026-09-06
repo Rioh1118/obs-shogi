@@ -1,6 +1,6 @@
 # 定跡キーへの変換の失敗経路
 
-`src-tauri/src/book/sfen/mod.rs` の `book_key_or_reason` が、局面の文字列を読む唯一の実装。
+`src-tauri/src/book/sfen/key.rs` の `book_key_or_reason` が、局面の文字列を読む唯一の実装。
 **この表が並べるのは `book_key_or_reason` から到達する枝。** G0〜G8 はその本体、
 G9 / G10 / G11 はそこから呼ぶ `normalize_board` / `normalize_hands` /
 `PieceCounts::validate` の中にある。

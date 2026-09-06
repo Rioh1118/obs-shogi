@@ -1,6 +1,6 @@
 # やねうら王テキスト定跡 (.db) の読み取り
 
-`src-tauri/src/book/yaneuraou_db/mod.rs` の `parse`。
+`src-tauri/src/book/yaneuraou_db/expand.rs` の `parse`。
 
 **この表は仕様の突き合わせのために置く。** 所見が「その形式は実際どう書かれて
 いるか」ばかりになったら、1件ずつ潰しても次の綴りに置いていかれる合図。
@@ -64,7 +64,7 @@
 **この表の `✓` は機械で守られていない。**
 セルと名乗りを突き合わせる Rust 側の検査（検査の一覧は CONTRIBUTING を見ること）が
 当てているのは `game-session.md` × `src/engine` の1組だけで、ここは走査範囲の外。
-`yaneuraou_db/mod.rs` は9箇所で `（表の (S0, E3)）` と名乗っているが、
+`yaneuraou_db/expand.rs` は9箇所で `（表の (S0, E3)）` と名乗っているが、
 **その名乗りが消えても表は `✓` を主張し続ける。**
 機械で守る形にしたいなら、`book-key-failures.md` と同じく
 `✓` の隣にテスト名を書くこと —— そちらは `docsIdentifiers` が綴りの実在を見る。
