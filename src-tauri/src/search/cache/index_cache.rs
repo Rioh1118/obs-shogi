@@ -10,7 +10,7 @@ use crate::search::store::node_table::NodeTable;
 use crate::search::store::node_table::NodeTables;
 use crate::search::store::snapshot::IndexSnapshot;
 use crate::search::types::{FileEntry, FileId, Occurrence};
-use crate::storage::BlobStore;
+use crate::storage::{self, BlobStore, Codec, Zstd};
 
 /// ログの接頭辞。**3つのマクロがここだけを見る。**
 /// 綴りが割れるとログを grep する側が行を落とすので、直書きしない。
@@ -110,14 +110,66 @@ struct EncodeCtx<'a> {
 // public APIs
 // --------------------
 
+/// 詰めるもの。**索引そのものではない。**
+///
+/// 索引に入っていない `scan` / `path_to_id` / `next_file_id` も blob に載る ——
+/// 復元したあと走査を続けるのに要るため（[`RestoredScan`]）。
+pub struct Checkpoint<'a> {
+    pub root_dir: &'a Path,
+    pub snapshot: &'a IndexSnapshot,
+    pub scan: &'a ScanSnapshot,
+    pub path_to_id: &'a HashMap<String, FileId>,
+    pub next_file_id: FileId,
+}
+
+/// 索引の blob の並べ方。
+///
+/// **置き場も圧縮も知らない。** 置くのは `storage` の `BlobStore`、
+/// 圧縮は `storage` の `Zstd` が包む。
+///
+/// **門番はここに載る。** 読み書き対称に置く —— 片側だけだと、壊れたものを
+/// 書いて次の起動で読めずに作り直し、作り直してまた同じものを書く輪から
+/// 抜けられない。
+///
+/// 復号は根を要る（blob の中の root hash と突き合わせるため）ので、
+/// 根を持って作る。
+pub struct IndexCodec<'a> {
+    pub root_dir: &'a Path,
+}
+
+impl Codec for IndexCodec<'_> {
+    type Input<'a> = &'a Checkpoint<'a>;
+    type Output = Restored;
+
+    fn encode(&self, v: Self::Input<'_>) -> Result<Vec<u8>, String> {
+        // 桶ごとに1本へ畳む。死んだ出現はここで落ちる
+        let buckets = compact_all_buckets(v.snapshot);
+
+        let mut body = Vec::<u8>::new();
+        let ctx = EncodeCtx {
+            root_dir: v.root_dir,
+            scan: v.scan,
+            path_to_id: v.path_to_id,
+            next_file_id: v.next_file_id,
+            ft: v.snapshot.file_table.as_ref(),
+            nts: v.snapshot.node_tables.as_ref(),
+        };
+        encode_all(&mut body, &ctx, &buckets)?;
+        Ok(body)
+    }
+
+    fn decode(&self, bytes: &[u8]) -> Result<Self::Output, String> {
+        decode_all(bytes, self.root_dir)
+    }
+}
+
 /// 索引を1つの blob に詰めて置く。
 ///
-/// 手順は4つ —— 桶を畳む、形式に詰める、圧縮する、[`BlobStore`] に置く。
-/// **どこへ置くかは知らない**（`store` が決める）。
+/// **どこへ置くかも圧縮も知らない** —— どちらも `storage` の仕事。
 ///
-/// 落ちても呼び手は続けられる。次の起動で復元できないだけで、
-/// そのときは全件構築に落ちる。**ただし画面には何も出ない**ので、
-/// 失敗は `err!` で出荷ビルドのログに残す（#407）。
+/// 落ちても呼び手は続けられる。次の起動で復元できないだけで、そのときは
+/// 全件構築に落ちる。**ただし画面には何も出ない**ので、失敗は `err!` で
+/// 出荷ビルドのログに残す（#407）。
 pub fn save_checkpoint(
     store: &dyn BlobStore,
     root_dir: &Path,
@@ -128,38 +180,26 @@ pub fn save_checkpoint(
 ) -> Result<(), String> {
     trace!("save_checkpoint BEGIN root_dir={}", root_dir.display());
 
-    // 1) 桶ごとに1本へ畳む。死んだ出現はここで落ちる
-    let buckets = compact_all_buckets(snap);
-
-    // 2) 形式に詰める。門番が並びや範囲を見る
-    let mut body = Vec::<u8>::new();
-    let ctx = EncodeCtx {
+    let value = Checkpoint {
         root_dir,
+        snapshot: snap,
         scan,
         path_to_id,
         next_file_id,
-        ft: snap.file_table.as_ref(),
-        nts: snap.node_tables.as_ref(),
     };
-    encode_all(&mut body, &ctx, &buckets).map_err(|e| {
-        err!("チェックポイントを書けない（encode_all）: {e}");
+
+    storage::save(
+        store,
+        &Zstd(IndexCodec { root_dir }),
+        &cache_key(root_dir),
+        &value,
+    )
+    .map_err(|e| {
+        err!("チェックポイントを書けない: {e}");
         e
     })?;
-    trace!("encode_all OK body_bytes={}", body.len());
 
-    // 3) 圧縮。level=1 は速さを取る（起動のたびに読むので展開の速さが効く）
-    let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| {
-        err!("チェックポイントを書けない（zstd compress）: {e}");
-        e.to_string()
-    })?;
-
-    // 4) 置く
-    store.save(&cache_key(root_dir), &compressed).map_err(|e| {
-        err!("チェックポイントを書けない（save）: {e}");
-        e.to_string()
-    })?;
-
-    trace!("save_checkpoint END OK bytes={}", compressed.len());
+    trace!("save_checkpoint END OK");
     Ok(())
 }
 
@@ -171,21 +211,8 @@ pub fn save_checkpoint(
 pub fn try_restore(store: &dyn BlobStore, root_dir: &Path) -> Result<Restored, String> {
     trace!("try_restore BEGIN root_dir={}", root_dir.display());
 
-    let compressed = store
-        .load(&cache_key(root_dir))
-        .map_err(|e| format!("load: {e}"))?;
-    trace!("load OK bytes={}", compressed.len());
-
-    let body = zstd::stream::decode_all(compressed.as_slice()).map_err(|e| {
-        let msg = format!("zstd decode: {e}");
-        trace!("{msg}");
-        msg
-    })?;
-
-    decode_all(&body, root_dir).map_err(|e| {
-        // `bad version` は版を上げた初回起動で必ず通る正規の経路なので、
-        // 化けと同じ重さで記録しない。結末（全件構築）は画面に出る
-        trace!("decode_all FAILED: {e}");
+    storage::load(store, &Zstd(IndexCodec { root_dir }), &cache_key(root_dir)).map_err(|e| {
+        trace!("try_restore FAILED: {e}");
         e
     })
 }

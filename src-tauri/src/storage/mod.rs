@@ -15,10 +15,12 @@
 //! **差し替えられないと失敗の側を踏めない。** 「`rename` が落ちて本体が無い状態で
 //! 終わる」はディスクの都合なので、テストからは起こせない。
 
+mod codec;
 mod disk;
 #[cfg(test)]
 mod in_memory;
 
+pub use codec::{load, save, Codec, Zstd};
 pub use disk::DiskStore;
 
 /// OS のキャッシュ置き場に根を取った [`DiskStore`]。
