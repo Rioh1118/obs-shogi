@@ -203,6 +203,89 @@ fn unknown_message(cause: &str, recovery: &str) -> String {
 #[cfg(test)]
 mod tests {
 
+    /// **入口を実際に通す。**
+    ///
+    /// `#[tauri::command]` の殻は `tauri::State` を要るが、中身の `*_inner` は
+    /// `&BookState` を取るので `block_on` で呼べる。
+    ///
+    /// **ここで見えるのは戻り値だけ。** `spawn_blocking` を外しても
+    /// 復帰案内を入れ替えても、開いて引いて閉じた結果は1文字も変わらない ——
+    /// それらは `tests/book_entry_shape.rs` が走査で見ている。
+    fn open(state: &BookState, path: &std::path::Path) -> Result<BookInfo, BookError> {
+        tauri::async_runtime::block_on(open_book_inner(
+            state,
+            OpenBookInput {
+                path: path.to_string_lossy().into_owned(),
+            },
+        ))
+    }
+
+    /// 開いて引いて閉じるまでが、入口を通して成立すること。
+    ///
+    /// 引いた結果を握り潰す変異（`resolve_lookup` の後で空を返す）はここで落ちる。
+    /// **入口を通さないと、`register` と `close` が同じハンドルを指していることを
+    /// 見ている経路が1つも無い。**
+    #[test]
+    fn the_entry_opens_looks_up_and_closes() {
+        let dir = crate::test_support::temp_dir("book-entry-round-trip");
+        let path = dir.join("a.db");
+        std::fs::write(
+            &path,
+            "#YANEURAOU-DB2016 1.00\nsfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n7g7f none 50 32 1\n",
+        )
+        .expect("テスト用の定跡");
+
+        let state = BookState::new();
+        let info = open(&state, &path).expect("開けるはず");
+
+        assert_eq!(info.position_count, Some(1));
+        assert_eq!(info.dropped_fields, Some(0));
+        assert_eq!(state.list().len(), 1);
+
+        let moves = tauri::async_runtime::block_on(lookup_inner(
+            &state,
+            LookupBookMovesInput {
+                handle: info.handle,
+                sfen: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1".to_string(),
+            },
+        ))
+        .expect("引けるはず");
+        assert_eq!(moves.len(), 1);
+
+        tauri::async_runtime::block_on(close_book_inner(
+            &state,
+            BookHandleInput {
+                handle: info.handle,
+            },
+        ))
+        .expect("閉じられるはず");
+        assert!(state.list().is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// **入口が失敗しても、ハンドルは登録されないこと。**
+    ///
+    /// いまの綴りでは `register` が `OpenedBook` を取るので、`?` を後ろへ回す
+    /// 書き方は型が通らない。**この先そこを緩めたときに、half-open なハンドルが
+    /// 残る形を止めるのはここだけ。**
+    #[test]
+    fn a_failed_open_registers_nothing() {
+        let dir = crate::test_support::temp_dir("book-entry-failed-open");
+        let path = dir.join("broken.db");
+        std::fs::write(&path, b"not a book\n").expect("テスト用のファイル");
+
+        let state = BookState::new();
+        let Err(err) = open(&state, &path) else {
+            panic!("定跡でない中身なのに開けてしまった");
+        };
+
+        assert_eq!(err.code(), BookErrorCode::InvalidContent);
+        assert!(state.list().is_empty(), "失敗したのにハンドルが残っている");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// **ハンドルの有無で案内が分かれること。**
     ///
     /// 同じ文言に潰れると、まだ開いていない定跡に「閉じてから開き直す」と
