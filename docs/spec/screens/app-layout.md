@@ -65,9 +65,12 @@
 
 | 記号 | 状態         | 判定                      | 本体に出るもの           |
 | ---- | ------------ | ------------------------- | ------------------------ |
-| L0   | 棋譜なし     | `gameView.hasKifu` が偽   | `WelcomeScreen`          |
+| L0   | 棋譜なし※    | `gameView.hasKifu` が偽   | `WelcomeScreen`          |
 | L1   | 棋譜あり     | 同上が真                  | 盤・棋譜・解析ペイン     |
 | Ls   | サイドバー閉 | `isSidebarOpen === false` | サイドバーがアンマウント |
+
+※ **L0 は「まだ開いていない」だけではない。** 開いたが盤に載せられなかったときも
+`hasKifu` は偽になる（下の「失敗の見せ方」）。
 
 `isSidebarOpen` は `AppLayout` のローカル state。**URL にも設定にも残らない**ので、
 リロードすると開いた状態に戻る。**持ち越さないのが意匠。** どのパネルを出すかは
@@ -106,6 +109,19 @@ URL（`panel/*`）が持つが、開閉はそちらへ揃えない。
 | `KifuStreamList` を包む | 棋譜一覧の例外で盤まで落とさない                   |
 
 盤（`GameBoard`）と解析ペインには境界が無い。そこで throw すると `/app` が畳まれる。
+
+### 棋譜を開いたが盤に載せられなかったとき、この画面は何も出さない
+
+`openKifuNode` は構文として読めれば通すので、ツリーの選択と `activeKifuPath` は動く。
+その先の `loadGame` が落ちると `game.state.error` に積まれるが、**読み手は0**。
+`hasKifu` は偽のままなので、起動直後なら本体は `WelcomeScreen`、ヘッダは
+「ファイル未選択」のまま——クリックが届かなかったように見える。
+前の棋譜を開いていたなら、盤は前の棋譜のまま残る。
+
+しかもそのファイルは `activeKifuPath` になっているので、**もう一度クリックしても
+何も起きない**（`FileNode` の `isActive` の関門）。復帰は別の棋譜を選ぶことだけ。
+→ [game.md](../../state-transitions/game.md) の E16、
+[failure-surfacing.md](../../state-transitions/failure-surfacing.md)
 
 ## いま満たしていないこと
 
