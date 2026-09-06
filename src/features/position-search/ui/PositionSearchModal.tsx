@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
-import { usePositionHitNavigation } from "@/features/position-search/lib/usePositionHitNavigation";
+import InlineNotice from "@/shared/ui/notification/InlineNotice";
+import type { VisibleTier } from "@/shared/lib/notification/types";
+import {
+  usePositionHitNavigation,
+  type NavigationOutcome,
+} from "@/features/position-search/lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -18,6 +23,37 @@ import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderP
 import { useGame } from "@/entities/game";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
+
+/**
+ * ヒットを開けなかった理由。**どちらもこの画面からは直せない**（ADR-0004 決定1 の
+ * `danger`＝別の操作が要る）。索引の欠けもツリーとのずれも、次に索引が更新される
+ * までは同じ結果が返る——Rust は1回の検索のあいだ同じスナップショットを使い、
+ * `mergeFiles` は同じ値なら書き換えない。**「検索し直せば直る」は成り立たない。**
+ *
+ * **`describeFsError` / `fsErrorTier` を通さない。** あちらは fs を叩いた結果の
+ * `FsError` を訳す口だが、この断りは fs を1回も叩いていない——見ているのは
+ * 索引とツリーの食い違いだけで、`not_found` の `warning`（ツリーから開いたときは
+ * 読み直せば直る）とは復帰の仕方が違う。段はこの画面から直せるかで決める。
+ */
+type RefusalReason = "no-path" | Exclude<NavigationOutcome, "started">;
+
+const REFUSALS: Record<RefusalReason, { tier: VisibleTier; title: string; body: string }> = {
+  "no-path": {
+    tier: "danger",
+    title: "この棋譜の場所が分かりません",
+    body: "検索の索引が、この結果の置き場を返していません。索引が更新されるまで、この結果からは開けません。",
+  },
+  "tree-unavailable": {
+    tier: "warning",
+    title: "ワークスペースの一覧をまだ読み込めていません",
+    body: "一覧を読み込めたあと、もう一度お試しください。",
+  },
+  "not-in-tree": {
+    tier: "danger",
+    title: "この棋譜を開けません",
+    body: "ワークスペースの一覧にこの棋譜がありません。移動・削除されたか、索引がまだ古い可能性があります。一覧から別のヒットを選んでください。",
+  },
+};
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
@@ -36,12 +72,19 @@ export default function PositionSearchModal() {
     resolveHitAbsPath,
   } = usePositionSearch();
 
-  const { navigateToHit } = usePositionHitNavigation();
+  const { startNavigationToHit } = usePositionHitNavigation();
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [requestId, setRequestId] = useState<number | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
+  // 移動を断ったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
+  // 並び替わる（`orderPositionHits`）ので、添字で覚えると断りが別のヒットに
+  // 付いたまま残る
+  const [refusedHit, setRefusedHit] = useState<{
+    key: string;
+    reason: RefusalReason;
+  } | null>(null);
 
   const session = getSessionByRequestId(requestId);
   const hits = getHitsByRequestId(requestId);
@@ -105,6 +148,7 @@ export default function PositionSearchModal() {
       setLaunchError(null);
       setIsLaunching(false);
       setActiveIndex(0);
+      setRefusedHit(null);
       return;
     }
 
@@ -122,6 +166,7 @@ export default function PositionSearchModal() {
     setLaunchError(null);
     setIsLaunching(true);
     setActiveIndex(0);
+    setRefusedHit(null);
 
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
@@ -149,19 +194,31 @@ export default function PositionSearchModal() {
   }, [cancelSearch]);
 
   const activeHit = orderedHits[activeIndex];
+
+  // 選んだ行の同一性は**鍵**で持つ。並び替え（`orderPositionHits` は開いている棋譜の
+  // ヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が入れ替わる）で添字は動く。
+  //
+  // **鍵を書くのは利用者が選んだときだけ。** 毎レンダ書き直すと、下の追従が
+  // 自分で書いた鍵を引くことになって一度も働かず、触っていないのに選択が滑る
   const activeKeyRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    activeKeyRef.current = activeHit ? hitKey(activeHit) : null;
-  }, [activeHit]);
+  const selectIndex = useCallback(
+    (next: number) => {
+      setActiveIndex(next);
+      const hit = orderedHits[next];
+      activeKeyRef.current = hit ? hitKey(hit) : null;
+    },
+    [orderedHits],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
     const n = orderedHits.length;
     if (activeIndex < n) return;
-    setActiveIndex(Math.max(0, n - 1));
-  }, [isOpen, activeIndex, orderedHits.length]);
+    selectIndex(Math.max(0, n - 1));
+  }, [isOpen, activeIndex, orderedHits.length, selectIndex]);
 
+  // 並び替えで選んでいた行が動いたら、鍵で追う
   useEffect(() => {
     const k = activeKeyRef.current;
     if (!k) return;
@@ -169,13 +226,38 @@ export default function PositionSearchModal() {
     if (next >= 0 && next !== activeIndex) setActiveIndex(next);
   }, [orderedHits, activeIndex]);
 
-  const accept = (hit: PositionHit) => {
-    const absPath = resolveHitAbsPath(hit);
-    if (!absPath) return;
-    navigateToHit(absPath, hit.cursor);
-    // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
-    closeModal({ skipReturn: true });
-  };
+  // 行に渡すものは `rowProps` の `useMemo` に載り、そこから `PositionHitItem` の
+  // `memo` に届く。毎レンダ新しい関数を渡すとどちらも外れる。
+  // **`startNavigationToHit` 自身がツリーの選択で変わる**ので、これだけでは
+  // 完全には安定しない
+  const accept = useCallback(
+    (hit: PositionHit) => {
+      // 索引に在る棋譜がツリーに無いのは正常運転で起こる（`usePositionHitNavigation`）。
+      // 移動できないまま閉じると、盤は前の棋譜のままなのに「開いた」と読める。
+      //
+      // **2つの断りを1つの文言に畳まない。** 行き先のパスを引けないのは索引の側の
+      // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
+      // 動かしていない棋譜を探しに行かせる
+
+      // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
+      // 追えるように鍵を書く
+      activeKeyRef.current = hitKey(hit);
+
+      const absPath = resolveHitAbsPath(hit);
+      if (!absPath) {
+        setRefusedHit({ key: hitKey(hit), reason: "no-path" });
+        return;
+      }
+      const outcome = startNavigationToHit(absPath, hit.cursor);
+      if (outcome !== "started") {
+        setRefusedHit({ key: hitKey(hit), reason: outcome });
+        return;
+      }
+      // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
+      closeModal({ skipReturn: true });
+    },
+    [closeModal, resolveHitAbsPath, startNavigationToHit],
+  );
 
   // 焦点は選択している行が持つ（`PositionHitItem`）ので、キーはそこから
   // ここまで上がってくる。この節自体は焦点を取らない。
@@ -192,13 +274,13 @@ export default function PositionSearchModal() {
 
     if (e.key === "ArrowDown" || e.key === "j") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, Math.max(0, orderedHits.length - 1)));
+      selectIndex(Math.min(activeIndex + 1, Math.max(0, orderedHits.length - 1)));
       return;
     }
 
     if (e.key === "ArrowUp" || e.key === "k") {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      selectIndex(Math.max(activeIndex - 1, 0));
       return;
     }
   };
@@ -206,6 +288,10 @@ export default function PositionSearchModal() {
   if (!isOpen) return null;
 
   const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
+  // 断りが指しているのは選んでいる行なので、選び直したら引っ込める。
+  // 残したままだと、いま選んでいる棋譜が開けないという意味に読める
+  const refusal =
+    activeHit && refusedHit?.key === hitKey(activeHit) ? REFUSALS[refusedHit.reason] : null;
 
   return (
     <Modal
@@ -233,10 +319,14 @@ export default function PositionSearchModal() {
                 error={error}
               />
 
+              {refusal && (
+                <InlineNotice tier={refusal.tier} title={refusal.title} body={refusal.body} />
+              )}
+
               <PositionSearchHitList
                 hits={orderedHits}
                 activeIndex={activeIndex}
-                onActiveIndexChange={setActiveIndex}
+                onActiveIndexChange={selectIndex}
                 onAccept={accept}
                 isSearching={isSearching}
                 error={error}

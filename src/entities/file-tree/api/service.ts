@@ -37,7 +37,12 @@ export async function readKifu(node: FileTreeNode): AsyncResult<string, FsError>
     const content = await fs.readFile(node.path);
     return { success: true, data: content };
   } catch (e) {
-    return { success: false, error: asFsError(e) };
+    // **どの棋譜で起きたかを必ず載せる。** `io::Error` 由来の失敗（権限が無い、
+    // ボリュームが外れた）は Rust 側で `path` を積まないので、補わないと
+    // 読み手は「どれが読めなかったか」を判定できない。実際に
+    // `usePositionHitNavigation` は `kifuError.path` で移動の要求を捨てている
+    const error = asFsError(e);
+    return { success: false, error: error.path ? error : { ...error, path: node.path } };
   }
 }
 
