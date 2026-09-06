@@ -34,12 +34,17 @@
 
 ## 状態
 
-| 記号   | 状態         | 判定                                                              |
-| ------ | ------------ | ----------------------------------------------------------------- |
-| **B0** | 盤に何も無い | `loadedAbsPath === null` かつ `shownKifuPathRef.current === null` |
-| **B1** | 先手が手前   | `loadedAbsPath !== null` かつ `params.pov === undefined`          |
-| **B2** | 後手が手前   | `loadedAbsPath !== null` かつ `params.pov === "gote"`             |
-| **B3** | 記録が古い   | `shownKifuPathRef.current !== loadedAbsPath`                      |
+| 記号   | 状態         | 判定                                                                                  |
+| ------ | ------------ | ------------------------------------------------------------------------------------- |
+| **B0** | 盤に何も無い | `shownKifuPathRef.current === loadedAbsPath === null`                                 |
+| **B1** | 先手が手前   | `shownKifuPathRef.current === loadedAbsPath !== null` かつ `params.pov === undefined` |
+| **B2** | 後手が手前   | `shownKifuPathRef.current === loadedAbsPath !== null` かつ `params.pov === "gote"`    |
+| **B3** | 記録が古い   | `shownKifuPathRef.current !== loadedAbsPath`                                          |
+
+**4つは排他。** B0〜B2 はどれも記録が追いついていること（`shownKifuPathRef.current ===
+loadedAbsPath`）を要求するので、B3 と重ならない。**記録の条件を落とすと、棋譜が載った
+直後のレンダが B1 と B3 の両方を満たし、表が同じ観測に2つの結末を言うことになる**
+（`(B1, E3)` は「→ B2」、B3 の行は「—」）。
 
 **B3 はレンダとエフェクトの間にしか無い。** `loadedAbsPath` が変わったレンダでは
 まだ ref が前の値を持っていて、その差でリセットするかどうかが決まる。
