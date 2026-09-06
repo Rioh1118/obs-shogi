@@ -96,6 +96,20 @@ describe("索引を開く合図", () => {
     expect(openedRoots()).toEqual(["/ws"]);
   });
 
+  /**
+   * 購読が張れないことと索引が作られないことは別の失敗。束ねると、購読の失敗が
+   * 索引の構築まで巻き添えにする——索引はディスクにも残るので、次の起動まで効く。
+   */
+  test("購読が張れなくても索引は開く", async () => {
+    listenImpl = () => Promise.reject(new Error("listen failed"));
+
+    await act(async () => {
+      render(app("/ws"));
+    });
+
+    expect(openedRoots()).toEqual(["/ws"]);
+  });
+
   test("同じ根のまま描き直しても開き直さない", async () => {
     let view!: ReturnType<typeof render>;
     await act(async () => {

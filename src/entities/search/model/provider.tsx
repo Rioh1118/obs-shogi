@@ -66,16 +66,19 @@ export function PositionSearchProvider({
   const hitsCacheRef = useRef(new Map<RequestId, HitsCacheEntry>());
 
   /**
-   * 購読が張り終わったか。**索引を開くのはこれが真になってから。**
+   * 購読の試行が決着したか。**索引を開くのはこれが真になってから。**
    *
    * `listenSearchEvents` は `listen` の連なりで、登録の完了は IPC の往復を待つ。
    * 一方 `open_project` は入口で即 `Restoring` を emit する。宣言順は購読が
    * 「始まる」ことしか保証しないので、順序を守るものがコードに要る。
-   *
    * 取りこぼすと `index.state` は `"Empty"` のままになり、`indexStale` が偽になる。
    * 復元中に検索すると**0件が「完了・最新」として出る**。
+   *
+   * **「張れたか」ではなく「決着したか」。** 失敗でも真にする。購読が張れないことと
+   * 索引が作られないことは別の失敗で、束ねると**購読の失敗が索引の構築まで巻き添えに
+   * する**。索引はディスクにも残るので、次の起動で効いてくる。
    */
-  const [isListening, setIsListening] = useState(false);
+  const [isListenSettled, setIsListenSettled] = useState(false);
 
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
   useEffect(() => {
@@ -100,16 +103,17 @@ export function PositionSearchProvider({
           return;
         }
         unlisten = u;
-        setIsListening(true);
+        setIsListenSettled(true);
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[SEARCH] Failed to setup listeners:", e);
+        setIsListenSettled(true);
       }
     })();
 
     return () => {
       cancelled = true;
-      setIsListening(false);
+      setIsListenSettled(false);
       unlisten?.();
       unlisten = null;
     };
@@ -155,11 +159,11 @@ export function PositionSearchProvider({
    * 握り潰しているのではなく、出口がまだ無い。
    */
   useEffect(() => {
-    if (!rootDir || !isListening) return;
+    if (!rootDir || !isListenSettled) return;
     void openProject(rootDir).catch(() => {
       // `open_error` に積まれている。ここで再度投げても拾う先が無い
     });
-  }, [rootDir, isListening, openProject]);
+  }, [rootDir, isListenSettled, openProject]);
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
