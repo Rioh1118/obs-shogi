@@ -34,12 +34,12 @@
 
 ## 状態
 
-| 記号   | 状態         | 判定                                                          |
-| ------ | ------------ | ------------------------------------------------------------- |
-| **B0** | 盤に何も無い | `loadedAbsPath === null` かつ `shownKifuRef.current === null` |
-| **B1** | 先手が手前   | `loadedAbsPath !== null` かつ `params.pov === undefined`      |
-| **B2** | 後手が手前   | `loadedAbsPath !== null` かつ `params.pov === "gote"`         |
-| **B3** | 記録が古い   | `shownKifuRef.current !== loadedAbsPath`                      |
+| 記号   | 状態         | 判定                                                              |
+| ------ | ------------ | ----------------------------------------------------------------- |
+| **B0** | 盤に何も無い | `loadedAbsPath === null` かつ `shownKifuPathRef.current === null` |
+| **B1** | 先手が手前   | `loadedAbsPath !== null` かつ `params.pov === undefined`          |
+| **B2** | 後手が手前   | `loadedAbsPath !== null` かつ `params.pov === "gote"`             |
+| **B3** | 記録が古い   | `shownKifuPathRef.current !== loadedAbsPath`                      |
 
 **B3 はレンダとエフェクトの間にしか無い。** `loadedAbsPath` が変わったレンダでは
 まだ ref が前の値を持っていて、その差でリセットするかどうかが決まる。
@@ -61,7 +61,7 @@
 
 **E8 を落とすと表が嘘になる。** `updateParams` は `searchParams` を閉じ込むので
 URL が変わるたびに同一性が変わり、エフェクトの依存に載っている以上**毎回再実行される**。
-「棋譜が変わったときだけ走る」のは依存配列ではなく `shownKifuRef` の比較が守っている。
+「棋譜が変わったときだけ走る」のは依存配列ではなく `shownKifuPathRef` の比較が守っている。
 
 ## 表
 

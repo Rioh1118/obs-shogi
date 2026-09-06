@@ -19,14 +19,15 @@ export function useResetOrientationOnKifuChange() {
   const { state } = useGame();
   const { updateParams } = useURLParams();
 
-  const shownKifu = state.loadedAbsPath;
+  const shownKifuPath = state.loadedAbsPath;
 
-  // 盤に載っている棋譜。null は「まだ何も載っていない」で、`loadedAbsPath` の初期値と同じ
-  const shownKifuRef = useRef<string | null>(null);
+  // 初期値は `loadedAbsPath` の初期値と揃える。ずらすと、マウント直後のエフェクトが
+  // 空振りせずに `?pov` を消す
+  const shownKifuPathRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (shownKifuRef.current === shownKifu) return;
-    shownKifuRef.current = shownKifu;
+    if (shownKifuPathRef.current === shownKifuPath) return;
+    shownKifuPathRef.current = shownKifuPath;
     updateParams({ pov: undefined }, { replace: true });
-  }, [shownKifu, updateParams]);
+  }, [shownKifuPath, updateParams]);
 }
