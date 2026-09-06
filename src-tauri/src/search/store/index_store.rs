@@ -25,6 +25,7 @@
 //! **遷移の規則を持つ場所は無い。** どの段からどの段へ動いてよいかは
 //! 呼び手（`search/commands.rs` / `build.rs` / `project_manager.rs`）に散っている。
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::search::store::bucket::BucketEntries;
@@ -37,6 +38,8 @@ use crate::search::store::snapshot_cell::SnapshotCell;
 #[derive(Debug, Default)]
 pub struct IndexStore {
     cell: SnapshotCell<IndexSnapshot>,
+    /// 次に配る代。**作り直すたびに上がる。**
+    next_epoch: AtomicU64,
 }
 
 impl IndexStore {
@@ -55,7 +58,26 @@ impl IndexStore {
 
     /// **中身を捨てて作り直しに入る。** 段は捨ててよい2つに限る。
     pub fn restart(&self, at: Restart) {
-        self.cell.replace(IndexSnapshot::restarting(at));
+        self.cell
+            .replace(IndexSnapshot::restarting(at, self.take_epoch()));
+    }
+
+    /// **自分が始めた索引にだけ書く。**
+    ///
+    /// 代が変わっていたら何も置かずに `false` を返す。走っている構築は
+    /// 2回目の `open` で止まらないので、これが無いと**前の代の構築が
+    /// 新しい索引に `file_id` を積む**（`search/build.rs` の doc）。
+    pub fn update_if_epoch(
+        &self,
+        epoch: u64,
+        f: impl FnOnce(&IndexSnapshot) -> IndexSnapshot,
+    ) -> bool {
+        self.cell
+            .update_checked(|s| (s.epoch == epoch).then(|| f(s)))
+    }
+
+    fn take_epoch(&self) -> u64 {
+        self.next_epoch.fetch_add(1, Ordering::Relaxed) + 1
     }
 
     /// キャッシュから読み戻した中身を丸ごと置く。
@@ -75,14 +97,19 @@ impl IndexStore {
         node_tables: NodeTables,
         entries: BucketEntries,
     ) {
-        self.cell
-            .replace(IndexSnapshot::restored(file_table, node_tables, entries));
+        self.cell.replace(IndexSnapshot::restored(
+            file_table,
+            node_tables,
+            entries,
+            self.take_epoch(),
+        ));
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::store::bucket::empty_buckets;
     use crate::search::store::fixtures::{key_of, one_file};
     use crate::search::store::snapshot::IndexState;
 
@@ -100,6 +127,63 @@ mod tests {
 
         assert!(store.snapshot().search_occurrences_by_key(k).is_empty());
         assert!(store.snapshot().node_tables.get(1).is_none());
+    }
+
+    /// **代が変わったら、前の代の書き込みは通らない。**
+    ///
+    /// 2回目の `open` で索引が差し替わっても、走っている構築は止まらない。
+    /// これが無いと**前の代の構築が新しい索引に `file_id` を積む**。
+    #[test]
+    fn a_write_from_an_older_epoch_is_refused() {
+        let k = key_of(0x7700_0000_0000_0001);
+        let store = IndexStore::default();
+        store.restart(Restart::Building);
+        let mine = store.snapshot().epoch;
+
+        // 自分の代なら通る
+        assert!(store.update_if_epoch(mine, |s| s.with_files(vec![one_file(1, k, 0)])));
+        assert_eq!(store.snapshot().search_occurrences_by_key(k).len(), 1);
+
+        // 別の open が索引を差し替えた
+        store.restart(Restart::Building);
+
+        assert!(
+            !store.update_if_epoch(mine, |s| s.with_files(vec![one_file(2, k, 0)])),
+            "前の代の書き込みが通っている"
+        );
+        assert!(
+            store.snapshot().search_occurrences_by_key(k).is_empty(),
+            "差し替えた索引に前の代が書き込んだ"
+        );
+    }
+
+    /// **代は作り直すたびに上がる。**
+    #[test]
+    fn every_restart_starts_a_new_epoch() {
+        let store = IndexStore::default();
+        let first = store.snapshot().epoch;
+
+        store.restart(Restart::Restoring);
+        let second = store.snapshot().epoch;
+        store.install_restored(FileTable::default(), NodeTables::default(), empty_buckets());
+        let third = store.snapshot().epoch;
+
+        assert!(second > first, "restart で代が上がっていない");
+        assert!(third > second, "install_restored で代が上がっていない");
+    }
+
+    /// **段や中身を触っても代は動かない。**
+    #[test]
+    fn an_ordinary_update_keeps_the_epoch() {
+        let k = key_of(0x8800_0000_0000_0001);
+        let store = IndexStore::default();
+        store.restart(Restart::Building);
+        let mine = store.snapshot().epoch;
+
+        store.update(|s| s.with_files(vec![one_file(1, k, 0)]));
+        store.update(|s| s.with_state(IndexState::Ready));
+
+        assert_eq!(store.snapshot().epoch, mine, "普通の更新で代が動いた");
     }
 
     /// **復元した索引は `Updating` を名乗る。**

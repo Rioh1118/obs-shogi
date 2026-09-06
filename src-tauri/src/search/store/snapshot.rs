@@ -68,6 +68,12 @@ pub enum IndexState {
 pub struct IndexSnapshot {
     /// いまどの段か。書き換えるのは [`Self::with_state`]
     pub state: IndexState,
+    /// **この索引の代。** 作り直すたびに上がる（`restarting` と `restored`）。
+    ///
+    /// 走っている構築が「自分が始めた索引に書いているか」を確かめるのに使う。
+    /// 2回目の `open` が来ると前の構築は止まらないので、
+    /// **代が変わったことに気付けないと、別の索引へ `file_id` を積む。**
+    pub epoch: u64,
     /// `file_id` → 棋譜のパスと世代。**生きているかの判定はここ**
     pub file_table: Arc<FileTable>,
     /// `file_id` → その棋譜の節表。ヒットを盤の位置に戻すのに要る
@@ -81,6 +87,7 @@ impl Default for IndexSnapshot {
     fn default() -> Self {
         Self {
             state: IndexState::Empty,
+            epoch: 0,
             file_table: Arc::new(FileTable::default()),
             node_tables: Arc::new(NodeTables::default()),
             buckets: empty_bucket_segments(),
@@ -97,9 +104,10 @@ impl IndexSnapshot {
     /// 「空にして `Ready` を名乗る」が書けてしまい、`query_service` が
     /// `stale = false` を返して**空の結果が「新鮮で正しい」として画面に並ぶ** ——
     /// エラーもログも出ない。捨ててよい段は2つだけ。
-    pub(super) fn restarting(at: Restart) -> Self {
+    pub(super) fn restarting(at: Restart, epoch: u64) -> Self {
         Self {
             state: at.into(),
+            epoch,
             file_table: Arc::new(FileTable::default()),
             node_tables: Arc::new(NodeTables::default()),
             buckets: empty_bucket_segments(),
@@ -110,6 +118,7 @@ impl IndexSnapshot {
     pub fn with_state(&self, state: IndexState) -> Self {
         Self {
             state,
+            epoch: self.epoch,
             file_table: self.file_table.clone(),
             node_tables: self.node_tables.clone(),
             buckets: self.buckets.clone(),
@@ -131,6 +140,7 @@ impl IndexSnapshot {
         file_table: FileTable,
         node_tables: NodeTables,
         mut entries: BucketEntries,
+        epoch: u64,
     ) -> Self {
         let buckets: BucketSegments = std::array::from_fn(|i| {
             let v = std::mem::take(&mut entries[i]);
@@ -143,6 +153,7 @@ impl IndexSnapshot {
 
         Self {
             state: IndexState::Updating,
+            epoch,
             file_table: Arc::new(file_table),
             node_tables: Arc::new(node_tables),
             buckets,
@@ -188,6 +199,7 @@ impl IndexSnapshot {
 
         Self {
             state: self.state,
+            epoch: self.epoch,
             file_table: Arc::new(file_table),
             node_tables: Arc::new(node_tables),
             buckets,
@@ -206,6 +218,7 @@ impl IndexSnapshot {
 
         Self {
             state: self.state,
+            epoch: self.epoch,
             file_table: Arc::new(file_table),
             node_tables: self.node_tables.clone(),
             buckets: self.buckets.clone(),
@@ -377,7 +390,7 @@ mod tests {
             (Restart::Restoring, IndexState::Restoring),
             (Restart::Building, IndexState::Building),
         ] {
-            let fresh = IndexSnapshot::restarting(at);
+            let fresh = IndexSnapshot::restarting(at, 1);
             assert!(fresh.search_occurrences_by_key(k).is_empty());
             assert!(fresh.node_tables.get(1).is_none());
             assert_eq!(fresh.state, want, "{at:?} が別の段を名乗っている");
@@ -407,6 +420,7 @@ mod tests {
         buckets[key.bucket() as usize] = vec![Arc::new(one)];
         let snap1 = IndexSnapshot {
             state: IndexState::Ready,
+            epoch: 0,
             file_table: Arc::new(ft.clone()),
             node_tables: Arc::new(NodeTables::default()),
             buckets,
@@ -424,6 +438,7 @@ mod tests {
         buckets[key.bucket() as usize] = vec![Arc::new(a), Arc::new(b)];
         let snap2 = IndexSnapshot {
             state: IndexState::Ready,
+            epoch: 0,
             file_table: Arc::new(ft),
             node_tables: Arc::new(NodeTables::default()),
             buckets,

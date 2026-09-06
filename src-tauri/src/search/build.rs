@@ -31,8 +31,12 @@ use crate::search::types::{
 /// **空の `Building` から呼ぶこと。** 直前に `store.restart(Restart::Building)` を
 /// 通す（いまの呼び手は `search/commands.rs` の `open_project`）。
 ///
-/// **この前提は機械では保証されていない。** 2回目の `open` が来ると破れる
-/// （`docs/state-transitions/search.md` の「`open` がどの状態からでも通る」）。
+/// **2回目の `open` が来ても、この構築は止まらない。** そのとき索引は別のものへ
+/// 差し替わっているので、書き込みは全部 `IndexStore::update_if_epoch` を通し、
+/// **代が変わっていたら書かずに抜ける。** 代は入口で1回取り、以後持ち回る。
+///
+/// 前提が破れて始められなかったときは `EVT_INDEX_WARN` を出して帰る
+/// （段は動かさない —— そのとき索引の持ち主は別のタスク）。
 ///
 /// 中身の残った索引に流すと壊れる。`file_id` を 1 から振り直し `gen` は常に 1 なので、
 /// 前の索引の同じ `file_id` の出現が桶に残ったまま**生きている扱いで**新しい節表に
@@ -70,17 +74,27 @@ pub async fn build_full_index_task(
     //
     // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
     // 索引が作られない方が観測できる。
-    {
+    let epoch = {
         let snap = store.snapshot();
         if snap.state != StoreIndexState::Building || !snap.file_table.is_empty() {
             log::error!(
-                "[build] 全件構築を空の Building 以外から始めようとした                  (state={:?} files={})。別の open が割り込んだか、呼び手が                  restart(Restart::Building) を飛ばした。索引は作らない",
+                "[build] 全件構築を空の Building 以外から始めようとした (state={:?} files={})。\
+                 別の open が割り込んだか、呼び手が restart(Restart::Building) を飛ばした。\
+                 索引は作らない",
                 snap.state,
                 snap.file_table.len()
             );
+            let _ = app.emit(
+                EVT_INDEX_WARN,
+                IndexWarnPayload {
+                    path: root_dir.to_string_lossy().into_owned(),
+                    message: "索引の作成を始められませんでした。開き直してください".to_owned(),
+                },
+            );
             return;
         }
-    }
+        snap.epoch
+    };
 
     let conc = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -183,7 +197,10 @@ pub async fn build_full_index_task(
 
         if batch.len() >= COMMIT_BATCH {
             let items = std::mem::take(&mut batch);
-            store.update(|s| s.with_files(items));
+            if !store.update_if_epoch(epoch, |s| s.with_files(items)) {
+                log::warn!("[build] 索引が別の代に差し替わったので、全件構築をやめる");
+                return;
+            }
         }
 
         if last_emit.elapsed() >= EMIT_INTERVAL {
@@ -208,11 +225,15 @@ pub async fn build_full_index_task(
         }
     }
 
-    if !batch.is_empty() {
-        store.update(|s| s.with_files(batch));
+    if !batch.is_empty() && !store.update_if_epoch(epoch, |s| s.with_files(batch)) {
+        log::warn!("[build] 索引が別の代に差し替わったので、全件構築をやめる");
+        return;
     }
 
-    store.update(|s| s.with_state(StoreIndexState::Ready));
+    if !store.update_if_epoch(epoch, |s| s.with_state(StoreIndexState::Ready)) {
+        log::warn!("[build] 索引が別の代に差し替わったので、全件構築をやめる");
+        return;
+    }
 
     // 最終 progress を必ず 1 回 emit する。 EMIT_INTERVAL の谷で
     // 取りこぼした場合、 reducer の doneFiles が total_files に達しないまま

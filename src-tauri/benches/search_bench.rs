@@ -337,6 +337,7 @@ fn bench_04_search() {
 
     let snap = IndexSnapshot {
         state: IndexState::Ready,
+        epoch: 0,
         file_table: Arc::new(result.file_table),
         node_tables: Arc::new(result.node_tables),
         buckets: result.buckets,
@@ -479,6 +480,7 @@ fn bench_06_compaction() {
 
     let snap = IndexSnapshot {
         state: IndexState::Ready,
+        epoch: 0,
         file_table: Arc::new(result.file_table),
         node_tables: Arc::new(result.node_tables),
         buckets: result.buckets,
@@ -520,6 +522,7 @@ fn bench_06_compaction() {
     // compacted 後の検索速度
     let compacted_snap = IndexSnapshot {
         state: IndexState::Ready,
+        epoch: 0,
         file_table: snap.file_table.clone(),
         node_tables: snap.node_tables.clone(),
         buckets: compacted_buckets,
@@ -778,6 +781,7 @@ fn bench_10_summary() {
     // search (startpos)
     let snap = IndexSnapshot {
         state: IndexState::Ready,
+        epoch: 0,
         file_table: Arc::new(result.file_table),
         node_tables: Arc::new(result.node_tables),
         buckets: result.buckets,

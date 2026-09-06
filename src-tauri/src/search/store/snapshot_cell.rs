@@ -60,6 +60,22 @@ impl<T> SnapshotCell<T> {
         let mut guard = self.inner.write();
         *guard = Arc::new(f(&guard));
     }
+
+    /// 条件付きの差し替え。**`f` が `None` を返したら何も置かない。**
+    ///
+    /// 置いたなら `true`。`f` は書き込みロックの中で走るので、
+    /// **見てから置くまでの間に他の書き手が割り込めない** ——
+    /// 「いまの値を見て、変わっていなければ置く」を安全に書ける。
+    pub fn update_checked(&self, f: impl FnOnce(&T) -> Option<T>) -> bool {
+        let mut guard = self.inner.write();
+        match f(&guard) {
+            Some(next) => {
+                *guard = Arc::new(next);
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 #[cfg(test)]
