@@ -4,8 +4,14 @@
 //! 綴りから局面に戻す口が無いので、解く経路は手で書くしかない。
 //!
 //! **受理するのは SFEN より広い。** 先頭の `position` / `startpos` / `sfen` を
-//! 剥がすので、エンジンへ送る USI の行がそのまま通る。定跡側にもう1本の
-//! 受理集合を置く予定があり、どちらへ寄せるかは #236。
+//! 剥がすので、エンジンへ送る USI の行がそのまま通る。
+//!
+//! **定跡側にもう1本の受理集合がある**（`book/sfen/mod.rs` の `to_book_key`）。
+//! そちらは手数を任意にして落とし、盤と持駒を合わせて駒数を数えて弾く ——
+//! こちらは4トークンと `ply >= 1` を要求する代わりに駒種ごとの上限を見ない。
+//! **統合しないこと。** 出す物が別で（Zobrist の鍵 / 定跡ファイルの綴りと
+//! 突き合わせる正規化済み文字列）、失敗の型も別（内部語 / 利用者に届く復帰操作つき）。
+//! どちらへ寄せるかは #236。
 
 use crate::search::position::position_key::{key_from_partial_position, PositionKey};
 use shogi_core::{Color, Hand, PartialPosition, Piece, PieceKind, Square};

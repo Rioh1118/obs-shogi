@@ -97,7 +97,7 @@ pub(super) const BYTES_PER_MOVE: usize = 160;
 
 /// 1行として受け付ける長さの上限。
 ///
-/// 正当な行はどれも短い。`sfen` 行はキーの上限（`sfen.rs` の `MAX_INPUT_CHARS`
+/// 正当な行はどれも短い。`sfen` 行はキーの上限（`sfen/key.rs` の `MAX_INPUT_CHARS`
 /// = 256 字）に前置きを足した程度、指し手行は数十字。自由に伸びるのは注記だけ。
 /// 4 KiB あれば実在する定跡には余裕がある。
 ///

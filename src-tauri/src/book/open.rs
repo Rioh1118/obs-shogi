@@ -102,7 +102,8 @@ fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookEr
 /// message にパスの注記を**前置**する。`path` は触らない。
 ///
 /// **後置しない。** 注記で終わると、その手前にある復帰操作を利用者が読み飛ばす ——
-/// `sfen.rs` の `to_book_key_in_file` と `yaneuraou_db.rs` の `annotate_line` が
+/// `sfen/key.rs` の `to_book_key_in_file` と `yaneuraou_db/diagnose.rs` の
+/// `annotate_line` が
 /// 同じ理由で前置にしてある。`open_at` は唯一の開き口なので、ここを後置にすると
 /// **開くときの失敗が全部**「…こと（実体 …）」になり、
 /// 表の不変条件3（message は次にやることで終わる）が本番経路で成り立たなくなる。

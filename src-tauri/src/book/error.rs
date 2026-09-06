@@ -407,7 +407,7 @@ mod tests {
                 let path = dir.join("huge.db");
                 let handle = std::fs::File::create(&path).expect("テスト用のファイル");
                 handle
-                    .set_len(crate::book::yaneuraou_db::MAX_FILE_BYTES + 1)
+                    .set_len(crate::book::yaneuraou_db::limits::MAX_FILE_BYTES + 1)
                     .expect("大きさを設定できない");
                 drop(handle);
                 err_of(open_reader(&path, BookFormat::YaneuraouDb))

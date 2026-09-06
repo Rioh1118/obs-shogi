@@ -8,6 +8,7 @@
 use crate::book::error::{format_size, BookError, BookErrorCode};
 use crate::book::reader::OpenedBook;
 use crate::book::types::BookFormat;
+use crate::book::yaneuraou_db;
 use std::path::Path;
 
 /// 読める形式1件ぶん。上限と reader の作り方を1つに持つ。
@@ -31,9 +32,9 @@ struct Support {
 fn support(format: BookFormat) -> Option<Support> {
     match format {
         BookFormat::YaneuraouDb => Some(Support {
-            max_file_bytes: Some(crate::book::yaneuraou_db::MAX_FILE_BYTES),
+            max_file_bytes: Some(yaneuraou_db::limits::MAX_FILE_BYTES),
             open: |path, size| {
-                let reader = crate::book::yaneuraou_db::load(path, size)?;
+                let reader = yaneuraou_db::expand::load(path, size)?;
                 Ok(OpenedBook {
                     path: path.to_path_buf(),
                     format: BookFormat::YaneuraouDb,
@@ -307,7 +308,7 @@ mod tests {
         let file = dir.join("huge.db");
         let handle = std::fs::File::create(&file).expect("テスト用のファイルを作れない");
         handle
-            .set_len(crate::book::yaneuraou_db::MAX_FILE_BYTES + 1)
+            .set_len(crate::book::yaneuraou_db::limits::MAX_FILE_BYTES + 1)
             .expect("大きさを設定できない");
         drop(handle);
 
@@ -331,7 +332,7 @@ mod tests {
         let file = dir.join("huge.bin");
         let handle = std::fs::File::create(&file).expect("テスト用のファイルを作れない");
         handle
-            .set_len(crate::book::yaneuraou_db::MAX_FILE_BYTES * 4)
+            .set_len(crate::book::yaneuraou_db::limits::MAX_FILE_BYTES * 4)
             .expect("大きさを設定できない");
         drop(handle);
 

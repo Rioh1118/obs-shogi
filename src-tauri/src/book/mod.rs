@@ -37,5 +37,5 @@ mod yaneuraou_db;
 // コマンドの署名に出る型（`BookError` / `BookInfo` / `BookMove` /
 // `OpenBookInput` ほか）は `pub` のままだが、置いてある段
 // （`error` / `types`）が private なので外から名前を引けない。
-// 名前が要るようになったら、その段を `pub mod` にすること ——
+// 名前が要るなら、その段を `pub mod` にすること ——
 // どの段に居るかが呼び出し側から読める形にする。
