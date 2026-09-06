@@ -86,7 +86,14 @@ vi.mock("@/shared/ui/Modal", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/entities/position/ui/PositionPreviewPane", () => ({ default: () => null }));
-vi.mock("../PositionSearchContinuation", () => ({ default: () => null }));
+/** 「いまどの行が選ばれているか」を、描かれた回ごとに記録する */
+const seenActiveHits: (PositionHit | null)[] = [];
+vi.mock("../PositionSearchContinuation", () => ({
+  default: ({ activeHit }: { activeHit: PositionHit | null }) => {
+    seenActiveHits.push(activeHit);
+    return null;
+  },
+}));
 
 const { default: PositionSearchModal } = await import("../PositionSearchModal");
 
@@ -124,6 +131,7 @@ beforeEach(() => {
   resolveHitAbsPath.mockImplementation((hit: PositionHit) => `/root/${hit.occ.fileId}.kif`);
   hitsState.current = HITS;
   hitKeyCalls.mockReset();
+  seenActiveHits.length = 0;
 });
 
 afterEach(() => cleanup());
@@ -258,6 +266,37 @@ describe("PositionSearchModal のヒットを開く", () => {
 
     expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
     expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+  });
+
+  /**
+   * 一覧はチャンクが届くたびに並び替わる（開いている棋譜のヒットが先頭へ寄る）。
+   * 選んだ行の**添字と実体の両方を state に持つ**と、突き合わせが済むまでの1レンダで
+   * 利用者が選んでいない隣の行が選択として描かれる。その1フレームで行き先も
+   * 先読みも「続き5手」も別の棋譜を指し、Enter を押せばそちらへ移動する。
+   *
+   * 50ms ごとの吐き出しに乗るので、検索が続くあいだ最大 20回/秒 繰り返す
+   * （`.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-6）。
+   */
+  test("並び替えで選択行の添字が動いても、途中で別の行が選ばれない", async () => {
+    // fileId 99 だけが「いま開いている棋譜」。届くと先頭へ寄る
+    resolveHitAbsPath.mockImplementation((hit: PositionHit) =>
+      hit.occ.fileId === 99 ? "/root/a.kif" : `/root/${hit.occ.fileId}.kif`,
+    );
+
+    const { rerender } = await renderWithHits();
+
+    // 2件目（HITS[1]）を選ぶ
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
+    seenActiveHits.length = 0;
+
+    // チャンクが届き、開いている棋譜のヒットが先頭へ寄って添字が1つずれる
+    const sameFileHit = hitAt(99, 7);
+    hitsState.current = [...HITS, sameFileHit];
+    rerender(<PositionSearchModal />);
+
+    // 描かれた全レンダで、選ばれているのは利用者が選んだ行だけ
+    expect(seenActiveHits.every((h) => h === HITS[1])).toBe(true);
+    expect(seenActiveHits.length).toBeGreaterThan(0);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

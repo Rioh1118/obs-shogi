@@ -76,7 +76,21 @@ export default function PositionSearchModal() {
 
   const { startNavigationToHit } = usePositionHitNavigation();
 
-  const [activeIndex, setActiveIndex] = useState(0);
+  /**
+   * 利用者が選んだヒットの**実体**。
+   *
+   * 添字で持たない。一覧はチャンクが届くたびに並び替わる
+   * （`useOrderedPositionHits` は開いている棋譜のヒットを先頭へ寄せる）ので、
+   * 添字と実体の両方を state に持つと、突き合わせが済むまでの1レンダで
+   * **利用者が選んでいない隣の行**が選択として描かれる。その1フレームで
+   * 行き先も先読みも「続き5手」も別の棋譜を指し、Enter を押せばそちらへ移動する。
+   *
+   * **鍵の文字列にもしない。** 照合が `hitKey` になると、1チャンク届くたびに
+   * 選択行までの全件ぶん `cursorKey` を組み直すことになる。ヒットの実体は
+   * セッション中に作り直されない（`search_chunks` は届いた配列をそのまま保つ）ので、
+   * 参照の一致で足りる。
+   */
+  const [selectedHit, setSelectedHit] = useState<PositionHit | null>(null);
   const [requestId, setRequestId] = useState<number | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
@@ -175,13 +189,8 @@ export default function PositionSearchModal() {
       setRequestId(null);
       setLaunchError(null);
       setIsLaunching(false);
-      setActiveIndex(0);
+      setSelectedHit(null);
       setRefusedHit(null);
-      // **選択も明示的に捨てる。** モーダルは常時マウントで、ここを残すと
-      // 前の検索で選んだヒットが次の検索まで生き延びる。生き延びても
-      // `indexOf` は見つけられない（次の検索は別の実体を届ける）ので
-      // 実害は出ないが、「選択が残っているのに追えない」状態を作らない
-      activeHitRef.current = null;
       return;
     }
 
@@ -195,9 +204,8 @@ export default function PositionSearchModal() {
     setRequestId(null);
     setLaunchError(null);
     setIsLaunching(true);
-    setActiveIndex(0);
+    setSelectedHit(null);
     setRefusedHit(null);
-    activeHitRef.current = null;
 
     const myLaunch = launchSeqRef.current;
 
@@ -231,21 +239,20 @@ export default function PositionSearchModal() {
     return () => discardSearch();
   }, [discardSearch]);
 
-  const activeHit = orderedHits[activeIndex];
+  /**
+   * 選んだ行の添字。**state に持たず、実体から導出する。**
+   *
+   * こうすると並び替えの追従が「同じレンダの中」で済み、突き合わせのための
+   * effect が要らなくなる。見失ったとき（新しい検索、届いた実体が入れ替わった）は
+   * 先頭に落ちる。
+   */
+  const activeIndex = useMemo(() => {
+    if (!selectedHit) return 0;
+    const i = orderedHits.indexOf(selectedHit);
+    return i >= 0 ? i : 0;
+  }, [orderedHits, selectedHit]);
 
-  // 選んだ行の同一性は**ヒットの参照**で持つ。並び替え（`useOrderedPositionHits` は
-  // 開いている棋譜のヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が
-  // 入れ替わる）で添字は動く。
-  //
-  // **鍵の文字列にしない。** 照合が `hitKey` になると、1チャンク届くたびに
-  // 選択行までの全件ぶん `cursorKey`（`normalizeForkPointers` 2回＋
-  // `JSON.stringify`）を作り直すことになる。ヒットの実体はセッション中
-  // 作り直されない（`search_chunk` で届いた配列をそのまま保つ）ので、
-  // 参照の一致で足りる。
-  //
-  // **書くのは利用者が選んだときだけ。** 毎レンダ書き直すと、下の追従が
-  // 自分で書いた値を引くことになって一度も働かず、触っていないのに選択が滑る
-  const activeHitRef = useRef<PositionHit | null>(null);
+  const activeHit = orderedHits[activeIndex];
 
   /**
    * 直前に選択が動いた向き。**先読みの当てにだけ使う**（`PositionSearchContinuation`）。
@@ -257,26 +264,10 @@ export default function PositionSearchModal() {
   const selectIndex = useCallback(
     (next: number) => {
       if (next !== activeIndex) moveDirRef.current = next > activeIndex ? 1 : -1;
-      setActiveIndex(next);
-      activeHitRef.current = orderedHits[next] ?? null;
+      setSelectedHit(orderedHits[next] ?? null);
     },
     [orderedHits, activeIndex],
   );
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const n = orderedHits.length;
-    if (activeIndex < n) return;
-    selectIndex(Math.max(0, n - 1));
-  }, [isOpen, activeIndex, orderedHits.length, selectIndex]);
-
-  // 並び替えで選んでいた行が動いたら、参照で追う
-  useEffect(() => {
-    const hit = activeHitRef.current;
-    if (!hit) return;
-    const next = orderedHits.indexOf(hit);
-    if (next >= 0 && next !== activeIndex) setActiveIndex(next);
-  }, [orderedHits, activeIndex]);
 
   // 行に渡すものは `rowProps` の `useMemo` に載り、そこから `PositionHitItem` の
   // `memo` に届く。毎レンダ新しい関数を渡すとどちらも外れる。
@@ -292,8 +283,8 @@ export default function PositionSearchModal() {
       // 動かしていない棋譜を探しに行かせる
 
       // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
-      // 追えるように参照を書く
-      activeHitRef.current = hit;
+      // 追えるように選択を合わせる
+      setSelectedHit(hit);
 
       const absPath = resolveHitAbsPath(hit);
       if (!absPath) {
