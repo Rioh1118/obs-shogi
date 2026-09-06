@@ -386,43 +386,102 @@ expect_project OUT ""
 
 # --- 許可した動詞が本当に読むだけか ---
 #
-# **眺めて決めない。** 使い捨ての repo で1つずつ実際に当て、
-# `git status` の出力が変わらないことを見る。
-# `config` はこれで落ちた（`git config -f <追跡ファイル>` は
-# `rust-toolchain.toml` のように git config として解釈できるファイルを書き換える）。
-expect_readonly() {
-  local verb=$1
-  local repo before after
+# **眺めて決めない。** 使い捨ての repo で1つずつ実際に当て、作業ツリーと
+# `HEAD` が動かないことを見る。`config` はこれで落ちた
+# （`git config -f <追跡ファイル>` は `rust-toolchain.toml` のように
+# git config として解釈できるファイルを書き換える）。
+#
+# **当てる綴りを1つで済ませない。** `-f <ファイル> a.b c` は `git config` の形なので、
+# 他の動詞に当てると必ず usage error で終わる —— それでは `config` 以外について
+# 何も確かめたことにならず、`checkout` を足した人が緑のまま通る。
+# 動詞ごとに「その動詞が書き込む綴り」を並べて全部当てる。
+gate_write_spellings=(
+  ""
+  "-f rust-toolchain.toml a.b c"
+  "rust-toolchain.toml"
+  "-f rust-toolchain.toml"
+  "-- rust-toolchain.toml"
+  "-- tracked.txt"
+  "--hard"
+  "-A"
+  "-m x"
+  "-fd ."
+  "push"
+  "pop"
+  "HEAD"
+  "main"
+)
+
+# 読むだけなら 0、何かを書いたら 1。
+probe_is_readonly() {
+  local verb=$1 spelling
+  local repo before after head_before head_after files_before files_after rc=0
   repo=$(mktemp -d)
   (
     cd "$repo" || exit 1
     git init -q .
+    git config user.email a@b
+    git config user.name c
     printf '[toolchain]\nchannel = "stable"\n' > rust-toolchain.toml
+    printf 'tracked\n' > tracked.txt
     git add -A
-    git -c user.email=a@b -c user.name=c commit -qm init
+    git commit -qm init
+    # 書き込む動詞が触る材料を一通り置く。素の repo だと `commit` も
+    # `checkout --` も「変えるものが無い」ので動かず、読むだけに見える
+    printf 'unstaged\n' >> tracked.txt
+    printf 'staged\n' > staged.txt
+    git add staged.txt
+    printf 'untracked\n' > untracked.txt
   ) >/dev/null 2>&1
 
-  before=$(git -C "$repo" status --porcelain)
-  # 書き込む綴りを与えても変わらないこと。読むだけの動詞なら失敗して終わる
-  git -C "$repo" "$verb" -f rust-toolchain.toml a.b c >/dev/null 2>&1
-  git -C "$repo" "$verb" >/dev/null 2>&1
-  after=$(git -C "$repo" status --porcelain)
-  rm -rf "$repo"
+  # **綴りを1つ当てるたびに突き合わせる。** まとめて最後に1回だけ見ると、
+  # 表の中で打ち消し合う組（`stash` と `stash pop`）が「変わっていない」に見える。
+  for spelling in "${gate_write_spellings[@]}"; do
+    before=$(git -C "$repo" status --porcelain)
+    head_before=$(git -C "$repo" rev-parse HEAD)
+    files_before=$(ls -A "$repo" | sort)
 
-  if [ "$before" = "$after" ]; then
-    return 0
-  fi
+    # 意図的に分割する。1要素で複数の引数を渡すため
+    # shellcheck disable=SC2086
+    git -C "$repo" "$verb" $spelling >/dev/null 2>&1
+
+    after=$(git -C "$repo" status --porcelain)
+    head_after=$(git -C "$repo" rev-parse HEAD)
+    files_after=$(ls -A "$repo" | sort)
+
+    if [ "$before" != "$after" ] || [ "$head_before" != "$head_after" ] \
+      || [ "$files_before" != "$files_after" ]; then
+      rc=1
+      break
+    fi
+  done
+
+  rm -rf "$repo"
+  return "$rc"
+}
+
+expect_readonly() {
+  local verb=$1
+  probe_is_readonly "$verb" && return 0
   printf 'FAIL  読むだけではない動詞が許可リストに入っている: %s\n' "$verb"
   count_failure
 }
 
-(
-  # shellcheck disable=SC1091
-  GATE_LIB_ONLY=1 source "$(dirname "$0")/verify-gate.sh"
-  printf '%s' "$GATE_READ_ONLY_VERBS_BASE" | tr '|' '\n' | while read -r verb; do
-    [ -n "$verb" ] && expect_readonly "$verb"
-  done
-)
+# **当て方そのものを先に見る。** 落とせない綴りしか当てていなければ、
+# 下のループは緑で回り続けるだけで何も守らない。
+for gate_writer in add rm checkout restore reset commit config stash clean; do
+  if probe_is_readonly "$gate_writer"; then
+    printf 'FAIL  書き込む動詞を「読むだけ」と判定している: %s\n' "$gate_writer"
+    count_failure
+  fi
+done
+
+# `|` で区切った一覧を `for` に載せる。`| while read` にすると末尾に改行が無く、
+# **一覧の最後の動詞が一度も当たらない**（追記する人が最も自然に置く位置）。
+# shellcheck disable=SC2086
+for gate_verb in ${GATE_READ_ONLY_VERBS_BASE//|/ }; do
+  expect_readonly "$gate_verb"
+done
 
 # --- hook の入口 ---
 #
