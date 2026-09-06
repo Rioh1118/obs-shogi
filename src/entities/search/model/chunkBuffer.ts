@@ -83,7 +83,11 @@ export type ChunkBufferApi = {
  */
 export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
   const pending = new Map<RequestId, PendingChunks>();
-  /** 明示的に捨てた rid（`clear_search`）。線より後のものだけがここに要る */
+  /**
+   * 名指しで捨てた rid。入れる口は2つ——`clear_search` と、番号が返る前に線が
+   * 引かれた起動（`model/provider.tsx` の `searchPosition`）。
+   * 線より後のものだけがここに要る
+   */
   const dead = new Set<RequestId>();
 
   let timer: number | null = null;

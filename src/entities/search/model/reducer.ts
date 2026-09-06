@@ -81,7 +81,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
           dirtyCount: p.dirtyCount,
           indexedFiles: p.indexedFiles,
           totalFiles: p.totalFiles,
-          // Ready 到達時は doneFiles を totalFiles に揃える (C-M2 backstop)
+          // `Ready` に着いた回の `index_progress` が来ないことがあるので、ここで揃える
           doneFiles: isReady ? p.totalFiles : Math.min(state.index.doneFiles, p.totalFiles),
         },
       };
@@ -248,7 +248,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
     }
 
     case "clear_search": {
-      // C-M4: rid 必須化。全削除は許可しない (他モーダル誤巻き込み防止)。
+      // rid を必須にする。全削除を許すと、別のモーダルが見ている検索まで巻き込む。
       const rid = action.payload.requestId;
       if (!state.sessions[rid]) return state;
 

@@ -71,7 +71,7 @@ export type Action =
    *
    * 1チャンク1アクションにしない。`filePathById` と `sessions` はアクション1回ごとに
    * 作り直されるので、10万件の表を「件数 ÷ 区切り」回コピーすることになる。
-   * 溜めるのは `model/provider.tsx`。
+   * 溜めるのは `model/chunkBuffer.ts`。
    */
   | { type: "search_chunks"; payload: SearchChunksInput }
   | {

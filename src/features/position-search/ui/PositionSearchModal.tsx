@@ -23,10 +23,15 @@ import { isIndexBusy, usePositionSearch, type PositionHit } from "@/entities/sea
 import PositionSearchContinuation from "./PositionSearchContinuation";
 
 /**
- * ヒットを開けなかった理由。**どちらもこの画面からは直せない**（ADR-0004 決定1 の
- * `danger`＝別の操作が要る）。索引の欠けもツリーとのずれも、次に索引が更新される
- * までは同じ結果が返る——Rust は1回の検索のあいだ同じスナップショットを使い、
- * `mergeFiles` は同じ値なら書き換えない。**「検索し直せば直る」は成り立たない。**
+ * ヒットを開けなかった理由。3つある。**段はこの画面から直せるかで決める**
+ * （ADR-0004 決定1）。
+ *
+ * `danger`（別の操作が要る）は2つ——索引がパスを返さない、ツリーにその棋譜が無い。
+ * どちらも次に索引が更新されるまでは同じ結果が返る（Rust は1回の検索のあいだ同じ
+ * スナップショットを使い、`mergeFiles` は同じ値なら書き換えない）ので、
+ * **「検索し直せば直る」は成り立たない。**
+ *
+ * `warning` は1つ——ツリーをまだ読めていない。読めれば**同じ操作で開ける**。
  *
  * **`describeFsError` / `fsErrorTier` を通さない。** あちらは fs を叩いた結果の
  * `FsError` を訳す口だが、この断りは fs を1回も叩いていない——見ているのは
