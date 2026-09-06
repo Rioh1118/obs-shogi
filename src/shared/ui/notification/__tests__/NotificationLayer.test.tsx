@@ -68,8 +68,9 @@ describe("通知の層", () => {
     const app = setup();
     app.notify(request());
 
-    expect(screen.getByText("解析を停止できませんでした")).toBeTruthy();
-    expect(boxOf(".notice-layer__toasts")?.querySelector(".notice--toast")).toBeTruthy();
+    const toast = boxOf(".notice-layer__toasts")?.querySelector(".notice--toast");
+    expect(toast).toBeTruthy();
+    expect(toast!.textContent).toContain("解析を停止できませんでした");
   });
 
   it("バナーは帯の入れ物に出る", () => {
@@ -210,8 +211,9 @@ describe("通知の層", () => {
     app.notify(request({ title: "トースト" }));
     app.notify(shownAs("banner", { title: "バナー" }));
 
-    expect(screen.getByText("トースト")).toBeTruthy();
-    expect(screen.getByText("バナー")).toBeTruthy();
+    // 読み上げの領域にも同じ文字が出るので、入れ物を指して数える
+    expect(boxOf(".notice-layer__toasts")!.textContent).toContain("トースト");
+    expect(boxOf(".notice-layer__banners")!.textContent).toContain("バナー");
   });
 
   it("閉じると消える", async () => {
@@ -237,6 +239,37 @@ describe("通知の層", () => {
       app.notify(request());
 
       expect(screen.queryByText(/^\d+件$/)).toBeNull();
+    });
+  });
+
+  /**
+   * `role="status"` は「既に文書に在る領域の中身が変わったとき」に読まれる規約。
+   * 領域と本文を同じ描画で挿し込むと、読まれるかが支援技術の実装依存になる。
+   * **出ているのに読まれない**のは、この基盤が直そうとしている形そのもの。
+   */
+  describe("読み上げの領域", () => {
+    const announce = () => boxOf(".notice-layer__announce");
+
+    it("通知が1つも無くても木に在る", () => {
+      setup();
+
+      expect(announce()).not.toBeNull();
+      expect(announce()!.getAttribute("aria-live")).toBe("polite");
+    });
+
+    it("最後に積まれた通知の題と本文が流れる", () => {
+      const app = setup();
+      app.notify(request({ title: "1件目" }));
+      app.notify(shownAs("banner", { title: "2件目" }));
+
+      expect(announce()!.textContent).toBe("2件目");
+    });
+
+    it("見せ方に関わらず流れる", () => {
+      const app = setup();
+      app.notify(shownAs("modal", { title: "ファイルを削除できませんでした" }));
+
+      expect(announce()!.textContent).toContain("ファイルを削除できませんでした");
     });
   });
 

@@ -47,11 +47,13 @@ describe("起動時の器", () => {
       </BootstrapProviders>,
     );
 
-    expect(screen.queryByText("エンジンを初期化できませんでした")).toBeNull();
+    const layer = () => document.querySelector(".notice-layer__toasts");
+    expect(layer()).toBeNull();
 
     await act(async () => screen.getByRole("button", { name: "失敗させる" }).click());
 
-    expect(screen.getByText("エンジンを初期化できませんでした")).toBeTruthy();
+    // 読み上げの領域にも同じ文字が出るので、通知の入れ物を指して数える
+    expect(layer()!.textContent).toContain("エンジンを初期化できませんでした");
     expect(screen.getByRole("button", { name: "設定を開く" })).toBeTruthy();
   });
 
@@ -65,6 +67,6 @@ describe("起動時の器", () => {
     await act(async () => screen.getByRole("button", { name: "失敗させる" }).click());
     await act(async () => screen.getByRole("button", { name: "閉じる" }).click());
 
-    expect(screen.queryByText("エンジンを初期化できませんでした")).toBeNull();
+    expect(document.querySelector(".notice-layer__toasts")).toBeNull();
   });
 });

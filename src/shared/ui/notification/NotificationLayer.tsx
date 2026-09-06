@@ -30,6 +30,13 @@ export default function NotificationLayer() {
   // 出た順の先頭を出し切ってから次へ進む
   const modal = notifications.find((n) => n.presentation === "modal");
 
+  // 読み上げるのは最後に積まれた1件だけ。全部を流すと、1件増えるたびに
+  // 出ている分がまとめて読み直される。**畳まれたものは読み直さない**——
+  // 同じ失敗が続いている間ずっと喋り続けることになる。
+  // 閉じたときは1つ前が読まれるが、それは次に対処するものなので害が無い
+  const newest = notifications[notifications.length - 1];
+  const announcement = newest ? [newest.title, newest.body].filter(Boolean).join("。") : "";
+
   // タイトルバーの下から敷く。あの帯は `decorations: false` のウィンドウを
   // 動かす唯一の手段なので、覆うと窓を掴めなくなる（`Modal.scss` と同じ理由）
   const root = document.getElementById("modal-root") ?? document.body;
@@ -38,6 +45,13 @@ export default function NotificationLayer() {
     <>
       {createPortal(
         <div className="notice-layer">
+          {/* **読み上げの領域は出しっぱなしにする。** `role="status"` は
+              「既に文書に在る領域の中身が変わったとき」に読まれる規約なので、
+              領域と本文を同じ描画で挿し込むと読まれるかが実装依存になる。
+              通知そのものの `role` は視覚の側の意味として別に残してある */}
+          <p className="notice-layer__announce" aria-live="polite">
+            {announcement}
+          </p>
           {banners.length > 0 && (
             <div className="notice-layer__banners">
               {banners.map((n) => (
