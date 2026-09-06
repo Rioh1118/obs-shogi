@@ -108,6 +108,42 @@ describe("通知の中身", () => {
       expect(await screen.findByText("「再試行」を実行できませんでした。")).toBeTruthy();
     });
 
+    /**
+     * 「実行できませんでした」だけでは次に何をすればよいかが無く、同じボタンを
+     * 押し続けることになる。ADR-0004 が「押しても直らない失敗に動作を付けない」と
+     * 決めた状態を、基盤の側で作ってしまう。
+     */
+    it("動作が次の一手を持っていれば、失敗と一緒に出す", async () => {
+      show({
+        actions: [
+          {
+            label: "エンジンを再起動",
+            run: () => Promise.reject(new Error("engine binary not found")),
+            failureBody: "設定タブでエンジンのパスを確かめてください。",
+          },
+        ],
+      });
+
+      await act(async () => screen.getByRole("button", { name: "エンジンを再起動" }).click());
+
+      const text = (await screen.findByRole("alert")).textContent ?? "";
+      expect(text).toContain("「エンジンを再起動」を実行できませんでした。");
+      expect(text).toContain("設定タブでエンジンのパスを確かめてください。");
+    });
+
+    // 画面には利用者の言葉、原因はログ。例外を捨てると後から誰も辿れない
+    it("原因をログに残す", async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const cause = new Error("engine binary not found");
+      show({ actions: [{ label: "再試行", run: () => Promise.reject(cause) }] });
+
+      await act(async () => screen.getByRole("button", { name: "再試行" }).click());
+      await screen.findByRole("alert");
+
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining("再試行"), cause);
+      spy.mockRestore();
+    });
+
     it("同期で投げた場合も出す", async () => {
       const run = () => {
         throw new Error("boom");

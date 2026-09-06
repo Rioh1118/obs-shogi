@@ -37,6 +37,17 @@ export type VisibleTier = Exclude<NotifyTier, "silent">;
 export type NotifyAction = {
   label: string;
   run: () => void | Promise<void>;
+  /**
+   * `run` そのものが失敗したときに、通知の中に出す一文。**利用者の言葉で書く。**
+   *
+   * 省くと「「＿＿」を実行できませんでした。」だけが出る。それだけでは
+   * 次に何をすればよいかが無く、同じボタンを押し続けることになる——
+   * ADR-0004 が「押しても直らない失敗に動作を付けない」と決めた状態を、
+   * 基盤の側で作ってしまう。
+   *
+   * 例外そのものは出さない。内部の語が利用者に届くのを避けるため
+   */
+  failureBody?: string;
 };
 
 /**

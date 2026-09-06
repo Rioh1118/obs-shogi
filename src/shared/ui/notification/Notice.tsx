@@ -69,9 +69,10 @@ export default function Notice({
     // `run` が同期で投げる場合も拾えるように、呼び出しごと Promise に入れる
     void Promise.resolve()
       .then(() => action.run())
-      .catch(() => {
-        // **握り潰さない。** ここを console に落とすと、押した人には
-        // 何も起きなかったようにしか見えない。押せる状態のまま理由を出す
+      .catch((cause: unknown) => {
+        // **握り潰さない。** 表示だけに落とすと、押した人には何が起きたか伝わるが
+        // 原因がどこにも残らない。**画面には利用者の言葉、原因はログ**に分ける
+        console.error(`[notification] 「${action.label}」が失敗した`, cause);
         setFailed(action);
       })
       .finally(() => {
@@ -98,6 +99,7 @@ export default function Notice({
         {actionError && (
           <p className="notice__actionError" role="alert">
             「{actionError.label}」を実行できませんでした。
+            {actionError.failureBody && ` ${actionError.failureBody}`}
           </p>
         )}
         {actions.length > 0 && (
