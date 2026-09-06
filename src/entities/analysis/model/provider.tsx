@@ -137,7 +137,19 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   // 席を返す口をここ1つにする。散らすと、経路を1つ足すたびに返し忘れが1つ増える。
   const releaseSeat = async (sessionId?: string) => {
-    await stopAnalysisCore(sessionId);
+    try {
+      await stopAnalysisCore(sessionId);
+    } catch (e) {
+      // **返せなかった席を、誰も知らないままにしない。** 欄が空なら握り直す。
+      // 要らなくなった開始を返す口（`late-start` / `late-restart`）は欄が空のまま
+      // 撃つので、書き戻さないと、畳まれたときの後始末が門で止まって
+      // （`releaseSeatOnUnmount`）二度と返す機会が来ない。
+      // 欄が埋まっているなら触らない——そちらは新しい席で、巻き添えにできない。
+      if (sessionId !== undefined && seatRef.current === null) {
+        seatRef.current = sessionId;
+      }
+      throw e;
+    }
 
     // 席が空なら、指した相手が既に居なくても Rust は `Ok` を返す
     // （`bridge.rs` の `stop_session`。**別のセッションが居れば `Err`**）。

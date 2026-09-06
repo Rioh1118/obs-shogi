@@ -125,6 +125,32 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
     expect(stopCore).toHaveBeenCalled();
   });
 
+  it("席を握っていないときは、打ち切りで停止を撃たない", async () => {
+    startCore.mockResolvedValueOnce("session-1");
+    startCore.mockImplementation(() => new Promise<string>(() => {}));
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 1手進む。再開は前の席を返し終え、**新しい席の応答待ち**で止まる。
+    // ここで席の欄は空。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    stopCore.mockClear();
+
+    // もう1手進み、エンジンが追いつかないまま打ち切られる。
+    await view.setSync(adapter("P3", "P2"));
+    await advance(2400);
+    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+
+    // 席を持っていないのに撃つと、指さない停止（＝全部止める）になり、
+    // 走っている解析を巻き添えにする。
+    expect(stopCore).not.toHaveBeenCalled();
+  });
+
   it("前回の待ちの経過時間を次の待ちに持ち越さない", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
@@ -386,6 +412,38 @@ describe("AnalysisProvider のアンマウント", () => {
     // 席の在処を `state` の写しから導くと、ここで「席は無い」と読んで
     // 何も撃たず、Rust に席が残る。
     expect(stopCore).toHaveBeenCalled();
+  });
+
+  it("返せなかった席を握り直して、畳まれたときにもう一度返す", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    void view.current.startInfiniteAnalysis();
+    await advance(50);
+
+    // 止めた後に席が返ってくる。返しにいくが、その停止が届かない。
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      releaseStart("session-late");
+    });
+    await advance(50);
+    expect(stopCore).toHaveBeenCalledWith("session-late");
+
+    stopCore.mockClear();
+    stopCore.mockResolvedValue(undefined);
+    view.unmount();
+
+    // 握り直していないと、席の存在を知る者が居ないまま画面が消える。
+    expect(stopCore).toHaveBeenCalledTimes(1);
   });
 
   it("エラーで止まって見えていても、畳まれたら席を返す", async () => {
