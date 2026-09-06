@@ -20,6 +20,8 @@
 
 ### [HIGH] R3-1 世代を見ているのは `.then` だけ。捨てた起動の `.catch` / `.finally` が現在の画面へ書き戻る
 
+- 結果: 対応済み（`52d229c1` 門を `.catch` / `.finally` にも置く。2つの顔をそれぞれテストで固定）
+
 - reviewer: react / robustness（**両者が独立に実測で再現**）
 - 場所: `PositionSearchModal.tsx` の `.then`（世代を見る）、`.catch` / `.finally`（見ない）
 - 根拠（実測、2人の再現が一致）:
@@ -31,6 +33,8 @@
 
 ### [BLOCK] R3-2 状態遷移表が `CHUNK_FLUSH_MS` の置き場を `provider.tsx` と書いている
 
+- 結果: 対応済み（`3c75e082` 指し先を `chunkBuffer.ts` に直し、provider 側の話は分けた）
+
 - reviewer: comment
 - 場所: `docs/state-transitions/position-search-view.md`
 - 根拠: 現物は `entities/search/model/chunkBuffer.ts`。`provider.tsx` に綴りは1つも無い。**R2-20（`e0b11056`）が置き去りにした**
@@ -39,12 +43,16 @@
 
 ### [MEDIUM] R3-3 `isIndexBusy` は、自分の doc が名指しした失敗を防げない形のまま
 
+- 結果: 対応済み（`61664b3a` `Record<IndexState, boolean>` に。段を1つ足して tsc が落ちることを確認。置き場も `lib/` へ）
+
 - reviewer: comment / architecture（**comment が実測**）
 - 場所: `entities/search/model/indexState.ts`
 - 根拠: doc は「union の手書きは tsc が落とすが3項の or は落ちない」と書くが、**同じコミットがその「union の手書き」を `IndexUiState["state"]` に置き換えた**。実測で `IndexState` に `"Compacting"` を1つ足して `tsc -b --force` → **終了コード0**。repo のどこも赤くならない。新しい段は黙って `false`（＝動いていない）になり、索引を組み直している最中の0件が確定した0件として出る
 - 直し方: 網羅を tsc に見させる（`Record<IndexState, boolean>`）。引数の `| "Empty"` は `IndexState` に既に含まれるので落とす。置き場も純関数なので `lib/` へ（スライス内の `lib/cursorAdapter.ts` と同じ形）
 
 ### [MEDIUM] R3-4 `dropSessions` の doc が「3つとも形で縛る」と言うが、縛れているのは2つ
+
+- 結果: 対応済み（`c4afa227` 落とす合図まで受け取る `dropSearch` にした。呼び手から `dispatch` が消えた）
 
 - reviewer: comment / architecture
 - 場所: `provider.tsx` の `dropSessions` と、その2つの呼び手
@@ -54,6 +62,8 @@
 
 ### [MEDIUM] R3-5 `open_start` の線が、rid の返っていない invoke を「線より後」に数える
 
+- 結果: 対応済み（`1012fdb1` 溜め場に線を引き直した回数を持たせ、`searchPosition` が invoke の前後で照合する）
+
 - reviewer: react
 - 場所: `chunkBuffer.ts` の `stopAccepting`（`firstLiveRid = maxSeenRid + 1`）
 - 根拠: `maxSeenRid` が進むのは「イベントを見た」か「invoke が解決した」の2つだけ。**飛行中の invoke に Rust が既に振っている rid は、どちらにも数えられていない。** 直前が rid 4 なら線は 5 になるが、飛行中の invoke の rid も 5 なので通る。通ると `search_requested` が新しい根にセッションを作り、`mergeFiles` が**前の根の絶対パス**を入れる（門の doc が防ぐと言っている失敗そのもの）
@@ -62,12 +72,16 @@
 
 ### [MEDIUM] R3-6 `isDone` が立つ唯一の担保が `search_requested` に移ったのに、それを固定するテストが無い
 
+- 結果: 対応済み（`51741a6c` `search_requested` がセッションを作らない形に変異させると落ちることを確認）
+
 - reviewer: react
 - 場所: `reducer.ts` の `search_end`（`if (!s) return state;`）と `search_requested`（`ensureSession`）
 - 根拠: 既存のテストは逆向き（「捨てた検索の終わりが届いても、セッションは戻らない」）しか見ていない。**`search_requested` にも門を足す「対称にする」改変が通ってしまう**。通すと begin を落とした回の end が捨てられ、「検索中…」で永久に止まる
 - 直し方: 「`searchPosition` が解決した後、`search_begin` を撃たずに `search_end` だけ撃つ → `isSearchingRequest` が偽になる」を1本
 
 ### [MEDIUM] R3-7 `isAccepting` の doc が「チャンク以外の口もここを通す」と言うが、通しているのは `search_begin` だけ
+
+- 結果: 対応済み（`95ff2b5a` 2つの門と、守れない口の理由を書いた）
 
 - reviewer: comment / architecture
 - 場所: `chunkBuffer.ts` の `ChunkBufferApi`
@@ -77,6 +91,8 @@
 
 ### [MEDIUM] R3-8 溜め場の境界テストの doc が、コードに無い `<` / `<=` を「取り違える対象」に挙げている
 
+- 結果: 対応済み（`8ccb9980` 通す条件と線の引き方を、いまの式で書いた）
+
 - reviewer: comment
 - 場所: `__tests__/chunkBuffer.test.ts`
 - 根拠: 現物の境界は `>=` と `+ 1` の2つ。`<` も `<=` も無い。書いてある失敗（1本だけ生き残る）を起こすのは `+ 1` を落とすこと。**R2-8 の改名で言い回しだけが前の形のまま残った**
@@ -84,11 +100,15 @@
 
 ### [MEDIUM] R3-9 `chunkSize: 300` の理由が5箇所に写り、定義側の根拠が循環している
 
+- 結果: 対応済み（`79baa872` / `5dcd7ee3` 理由を要求側に1つ置き、測っていないことも書いた。写しは5箇所とも外した）
+
 - reviewer: comment
 - 根拠: 定義側は「`CHUNK_FLUSH_MS` の1回ぶんに1〜数本入る粒度」、`CHUNK_FLUSH_MS` の側は「300 件区切りなら 334 回」。**互いを根拠にしていて、どちらも実測を持たない。** r1 の「見ていない範囲」が「フラッシュ回数 F を誰も測っていない」と記録している当のもの
 - 直し方: 理由の正を1つに決め、測っていないことも含めて書く。他の4箇所は数字を写さず参照だけにする
 
 ### [MEDIUM] R3-10 `entities/search` の barrel が、provider を素通りする生の invoke を出している
+
+- 結果: 対応済み（`9987a9db` `api/tauri` の関数4名を barrel から外し、呼び手0の `searchPositionBestEffort` を消した）
 
 - reviewer: architecture
 - 場所: `entities/search/index.ts`
@@ -102,6 +122,11 @@
 - 場所: `entities/search/model/__tests__/chunkBuffer.test.ts` / `chunkCoalescing.test.tsx`
 - 根拠: 同じファイルの中で `@/entities/search/api/ids` と `../types` が混ざっている。**R2-21 で直したのと同じ形が、私が足したテストに残っている**
 - 直し方: 相対に揃える
+- 結果: **見送り（所見に反論）。** `vite.config.ts` の `no-restricted-imports` は
+  **2階層以上遡る相対 import を禁止している**（「相対パスはレイヤ規則を素通りする」）。
+  `model/__tests__/` から `api/` は2階層遡るので、`@/entities/search/api/...` が
+  **規則が要求する形**。実際に相対へ直して `npm run lint` を回すと5件とも落ちる。
+  R2-21 で直したのは1階層（`ui/` → `../lib/...`）で、こことは別の形
 
 ## 見ていない範囲
 
