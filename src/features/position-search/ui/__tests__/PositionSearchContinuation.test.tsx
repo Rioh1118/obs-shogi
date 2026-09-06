@@ -63,7 +63,7 @@ function view(
   return (
     <PositionSearchContinuation
       activeHit={activeHit}
-      prefetchHit={prefetchHit}
+      prefetchAbsPath={prefetchHit ? absOf(prefetchHit) : null}
       resolveAbsPath={resolveAbsPath}
       ply={5}
     />

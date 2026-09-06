@@ -12,10 +12,12 @@ type Props = {
   activeHit: PositionHit | null;
 
   /**
-   * 次に選ばれそうなヒット（直前の移動方向へ1つ）。**中身は出さない。**
-   * その棋譜を先に読んでおくためだけに使う。
+   * 次に選ばれそうな行の棋譜（直前の移動方向へ1つ）。**先に読んでおくためだけ**に
+   * 使うので、受け取るのは絶対パス1本。ヒットそのものを受け取ると
+   * 「先読みした行の続きも組んでおく」を足せてしまい、画面に出ているのは
+   * `activeHit` の続きなのに別の局面の続きが混ざる形が作れる。
    */
-  prefetchHit?: PositionHit | null;
+  prefetchAbsPath?: string | null;
 
   resolveAbsPath: (hit: PositionHit) => string | null;
   ply?: number;
@@ -49,7 +51,7 @@ const PREFETCH_DELAY_MS = 300;
 
 export default function PositionSearchContinuation({
   activeHit,
-  prefetchHit = null,
+  prefetchAbsPath = null,
   resolveAbsPath,
   ply = 3,
 }: Props) {
@@ -139,30 +141,20 @@ export default function PositionSearchContinuation({
     return () => window.clearTimeout(timer);
   }, [target, ply]);
 
-  /**
-   * 次に選ばれそうな行の棋譜。**文字列で持つ。** ここが object だと
-   * `resolveAbsPath` の作り直しで下の effect が動き、選択が動いていないのに
-   * 先読みが走る
-   */
-  const prefetchAbs = useMemo(() => {
-    if (!prefetchHit) return null;
-    return resolveAbsPath(prefetchHit);
-  }, [prefetchHit, resolveAbsPath]);
-
   useEffect(() => {
-    if (!prefetchAbs || prefetchAbs === target?.abs) return;
+    if (!prefetchAbsPath || prefetchAbsPath === target?.abs) return;
 
     const cache = kifuCacheRef.current;
-    if (cache.has(prefetchAbs)) return;
+    if (cache.has(prefetchAbsPath)) return;
 
     const timer = window.setTimeout(() => {
       // 誰も待っていない読み。失敗しても画面には出さない——出す先は
       // 「選んでいる行の続き」だけで、そこはこの棋譜ではない
-      void cache.load(prefetchAbs).catch(() => {});
+      void cache.load(prefetchAbsPath).catch(() => {});
     }, PREFETCH_DELAY_MS);
 
     return () => window.clearTimeout(timer);
-  }, [prefetchAbs, target?.abs]);
+  }, [prefetchAbsPath, target?.abs]);
 
   return (
     <section className="pos-search-cont" aria-label={`続き${ply}手`}>

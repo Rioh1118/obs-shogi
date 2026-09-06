@@ -317,6 +317,11 @@ export default function PositionSearchModal() {
   if (!isOpen) return null;
 
   const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
+
+  // 次に選ばれそうな行の棋譜。当たれば矢印1回ぶんの待ちが消える（先読み）。
+  // 外れても捨てるのは1本ぶんの読み
+  const prefetchHit = orderedHits[activeIndex + moveDirRef.current];
+  const prefetchAbsPath = prefetchHit ? resolveHitAbsPath(prefetchHit) : null;
   // 断りが指しているのは選んでいる行なので、選び直したら引っ込める。
   // 残したままだと、いま選んでいる棋譜が開けないという意味に読める
   const refusal =
@@ -376,7 +381,7 @@ export default function PositionSearchModal() {
               <div className="pos-search__aux">
                 <PositionSearchContinuation
                   activeHit={activeHit ?? null}
-                  prefetchHit={orderedHits[activeIndex + moveDirRef.current] ?? null}
+                  prefetchAbsPath={prefetchAbsPath}
                   resolveAbsPath={resolveHitAbsPath}
                   ply={5}
                 />
