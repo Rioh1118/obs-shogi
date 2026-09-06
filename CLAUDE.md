@@ -19,15 +19,17 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 **判定の全体（免除を含む）は `docs/state-transitions/verify-gate-decision.md` が持つ。
 ここに写さない。**
 
-**手前にツリーを変える git を置いた綴りは deny される。** PreToolUse は
-コマンドが走る前に判定するので、手前で変えるとその前の状態を見ることになる ——
 **手前に置けるのは読むだけの git だけ**（`GATE_READ_ONLY_VERBS_BASE` と、
-それらへ展開する alias）。2回の呼び出しに分ければ従来どおり打てる。
+書き込む綴りを持たない alias）。PreToolUse はコマンドが走る前に判定するので、
+手前で変えるとその前の状態を見ることになる。
+2回の呼び出しに分ければ従来どおり打てる。
 
-**それでも残る素通しが2つある。** 追跡外のファイルは `--untracked-files=no` に出ない。
+**それでも素通しは残る。数を書かない** —— 免除が増えるたびにこの行だけが古くなる。
+追跡外のファイルは `--untracked-files=no` に出ない。
+種類に当たらない変更だけのコミットも走らない。
 `git commit` 以外でコミットを作る綴りが clean なツリーで作るコミットも見えない
 （語彙は `verify-gate.sh` の `GATE_COMMIT_VERB_BASE`。表は
-`docs/state-transitions/verify-gate-decision.md` の (B, S4) と (D, S4)）。
+`docs/state-transitions/verify-gate-decision.md` の (D, S4)）。
 
 **いずれの後も手で通すこと。**
 

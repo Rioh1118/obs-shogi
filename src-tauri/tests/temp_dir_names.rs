@@ -19,10 +19,10 @@ use std::path::{Path, PathBuf};
 /// スレッド番号と連番を混ぜている。**crate 全体から引ける**ので、
 /// 下の案内はどのモジュールでも実行できる。
 ///
-/// **引き金の綴りを部分文字列に持つものを入れないこと。**
+/// **引き金と綴りが重なるものを入れないこと（どちら向きでも）。**
 /// 走査は `std::env::temp_dir()` を含む行を拾うので、そこに一致する綴りを
 /// separator にすると、**その行自身が条件を満たして offender が原理的に0になる。**
-/// 検査は緑のまま何も見なくなる。下の `a_separator_never_matches_the_trigger` が見る。
+/// 検査は緑のまま何も見なくなる。下の `a_known_offender_is_still_caught` が見る。
 const SEPARATORS: [&str; 2] = ["process::id()", "test_support::temp_dir("];
 
 /// 走査の引き金。この綴りを含む行だけを見る

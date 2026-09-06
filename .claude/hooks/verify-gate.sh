@@ -66,8 +66,11 @@ GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 # ツリーを変えない git の動詞。**手前に置いてよいのはこれだけ。**
 #
 # 増やすときは「その呼び出しの後で `git status` の結果が変わらないか」で決める。
-# 変わるものを入れると、判定した時点の状態で検証することになる。
-GATE_READ_ONLY_VERBS_BASE='status|diff|log|show|rev-parse|config|branch|fetch|remote|describe'
+# **眺めて決めない** —— `verify-gate.test.sh` の `expect_readonly` が、
+# 使い捨ての repo で1つずつ実際に当てて確かめる。
+# `config` はここに入らない: `git config -f <追跡ファイル>` は
+# `rust-toolchain.toml` のように git config として解釈できるファイルを書き換える。
+GATE_READ_ONLY_VERBS_BASE='status|diff|log|show|rev-parse|branch|fetch|remote|describe'
 
 # 上に加えて、**それらへ展開する alias**。
 #
@@ -88,12 +91,19 @@ gate_read_only_verbs() {
     return 0
   }
 
-  # 展開先の先頭の語が読むだけの動詞なら、その alias 名も手前に置ける
+  # 展開先の先頭の語が読むだけの動詞で、**かつ展開先に書き込む綴りが無い**なら、
+  # その alias 名も手前に置ける。
+  #
+  # **展開先まで見る。** 先頭の語だけで許すと、`d = diff --output=x` のような
+  # alias が `git d && ...` の形で丸ごと抜ける —— 打った文字列に `--output` が
+  # 1文字も出ないので、下の `case` の弾きにも当たらない。
   names=$(printf '%s\n' "$config" \
-    | sed -n "s/^alias\.\([^ ]*\) *\([^ !][^ ]*\).*/\1 \2/p" \
+    | sed -n "s/^alias\.\([^ ]*\) *\([^ !].*\)$/\1 \2/p" \
     | awk -v ro="$GATE_READ_ONLY_VERBS_BASE" '
         BEGIN { n = split(ro, a, "|"); for (i = 1; i <= n; i++) ok[a[i]] = 1 }
-        ok[$2] { printf "|%s", $1 }')
+        !ok[$2] { next }
+        /--output|(^| )-f( |$)|--file|--edit|--unset|--add|--replace-all/ { next }
+        { printf "|%s", $1 }')
 
   printf '%s%s' "$GATE_READ_ONLY_VERBS_BASE" "$names"
 }

@@ -376,7 +376,25 @@ mod tests {
                 err_of(open_reader(&path, BookFormat::YaneuraouDb))
             }
             BookErrorCode::InvalidSfen => err_of(to_book_key("garbage")),
-            BookErrorCode::InvalidHandle => err_of(BookState::new().get(1)),
+            BookErrorCode::InvalidHandle => {
+                // **両方の復帰を通す。** 引くときは「開き直すこと」、
+                // 閉じるときは「操作は要らない」で、`ends_with_an_action` の
+                // 2つの枝はこの2つに1対1で結び付く。片方しか作らないと、
+                // もう片方の枝は判定を緩めただけで誰も通らない
+                let state = BookState::new();
+                let closing = err_of(state.close(1));
+                assert!(
+                    ends_with_an_action(closing.message()),
+                    "閉じるときの案内: {}",
+                    closing.message()
+                );
+                assert!(
+                    closing.message().ends_with("要らない"),
+                    "`要らない` の枝を通っていない: {}",
+                    closing.message()
+                );
+                err_of(state.get(1))
+            }
             // 実物を作る口がここに無いもの。理由を1つずつ書く
             BookErrorCode::PermissionDenied => {
                 // 権限を落としたファイルを作ると root で走らせたときに通ってしまう。

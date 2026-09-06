@@ -219,6 +219,19 @@ expect_dir "$here" "git log --oneline -1 && git commit -m x" "$here"
 expect_dir "" "git diff --output=src/app/App.tsx && git commit -am x" "$here"
 expect_dir "" "git log --output=x.ts -1 && git commit -am x" "$here"
 
+# **alias の展開先まで見る。** 先頭の語だけで許すと、
+# 打った文字列に `--output` が1文字も出ない形で丸ごと抜ける
+(
+  cfg=$(mktemp)
+  printf '[alias]\n\td = diff --output=src/app/App.tsx\n\tcfg = config -f rust-toolchain.toml\n\tst = status\n' > "$cfg"
+  export GIT_CONFIG_GLOBAL=$cfg
+  unset GATE_EXTRA_READ_ONLY
+  expect_dir "" "git d && git commit -am x" "$here"
+  expect_dir "" "git cfg a.b c && git commit -am x" "$here"
+  expect_dir "$here" "git st && git commit -m x" "$here"
+  rm -f "$cfg"
+)
+
 # 読むだけの動詞へ展開する alias も手前に置ける。
 # **止めても利用者にできることは「2回に分ける」だけ**で、ツリーは変わらないのに
 # 手数だけ増える。`GATE_EXTRA_READ_ONLY` で alias 名を差し込んで固定する。
@@ -353,6 +366,46 @@ rm -rf "$gate_other_repo"
 expect_project OUT "$(mktemp -d)"
 expect_project OUT ""
 
+
+# --- 許可した動詞が本当に読むだけか ---
+#
+# **眺めて決めない。** 使い捨ての repo で1つずつ実際に当て、
+# `git status` の出力が変わらないことを見る。
+# `config` はこれで落ちた（`git config -f <追跡ファイル>` は
+# `rust-toolchain.toml` のように git config として解釈できるファイルを書き換える）。
+expect_readonly() {
+  local verb=$1
+  local repo before after
+  repo=$(mktemp -d)
+  (
+    cd "$repo" || exit 1
+    git init -q .
+    printf '[toolchain]\nchannel = "stable"\n' > rust-toolchain.toml
+    git add -A
+    git -c user.email=a@b -c user.name=c commit -qm init
+  ) >/dev/null 2>&1
+
+  before=$(git -C "$repo" status --porcelain)
+  # 書き込む綴りを与えても変わらないこと。読むだけの動詞なら失敗して終わる
+  git -C "$repo" "$verb" -f rust-toolchain.toml a.b c >/dev/null 2>&1
+  git -C "$repo" "$verb" >/dev/null 2>&1
+  after=$(git -C "$repo" status --porcelain)
+  rm -rf "$repo"
+
+  if [ "$before" = "$after" ]; then
+    return 0
+  fi
+  printf 'FAIL  読むだけではない動詞が許可リストに入っている: %s\n' "$verb"
+  failures=$((failures + 1))
+}
+
+(
+  # shellcheck disable=SC1091
+  GATE_LIB_ONLY=1 source "$(dirname "$0")/verify-gate.sh"
+  printf '%s' "$GATE_READ_ONLY_VERBS_BASE" | tr '|' '\n' | while read -r verb; do
+    [ -n "$verb" ] && expect_readonly "$verb"
+  done
+)
 
 # --- hook の入口 ---
 #

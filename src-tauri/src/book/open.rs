@@ -206,21 +206,35 @@ mod tests {
     /// `every_code_ends_with_something_the_user_can_do` は `open_reader` と
     /// `validate_book_path` を直接叩くので、**`open_at` の注記を1度も通らない。**
     /// ここが唯一の開き口なので、注記を後置にすると開くときの失敗が全部
-    /// 「…こと（実体 …）」になる。macOS では `/var` も `/tmp` も symlink なので、
-    /// **要求の綴りと実体は必ず食い違い、注記の枝に必ず入る。**
+    /// 「…こと（実体 …）」になる。
+    ///
+    /// **symlink は自分で張る。** 一時ディレクトリが symlink かどうかは環境で違い
+    /// （macOS の `/var` は symlink、Linux の `/tmp` は実ディレクトリ）、
+    /// 環境任せにすると**枝に入らないまま緑になる**。
+    /// 入ったことを `starts_with` で固定する —— 前提が崩れたら黙って素通りせず落ちる。
+    #[cfg(unix)]
     #[test]
     fn a_failure_from_open_at_still_ends_with_an_action() {
         let dir = crate::test_support::temp_dir("book-open-at-ends");
 
-        // 中身が定跡でない `.db`。注記の枝を通したうえで失敗する
-        let path = dir.join("plain.db");
-        std::fs::write(&path, b"not a book\n").expect("テスト用のファイル");
+        // 中身が定跡でない `.db` を、symlink 越しに開く。
+        // 要求の綴りと実体が食い違うので注記の枝に入る
+        let target = dir.join("target.db");
+        let link = dir.join("link.db");
+        std::fs::write(&target, b"not a book\n").expect("テスト用のファイル");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink を作れない");
 
-        let validated = validate_book_path(&path.to_string_lossy()).expect("形は成立しているはず");
+        let validated = validate_book_path(&link.to_string_lossy()).expect("形は成立しているはず");
         let Err(err) = open_at(&validated) else {
             panic!("定跡でない中身なのに開けてしまった");
         };
 
+        // 枝に入ったこと自体を固定する
+        assert!(
+            err.message().starts_with("（実体"),
+            "注記の枝を通っていない: {}",
+            err.message()
+        );
         assert!(
             err.message().ends_with("こと"),
             "注記が後置されている: {}",

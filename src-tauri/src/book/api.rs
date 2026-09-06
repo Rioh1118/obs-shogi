@@ -40,7 +40,7 @@ async fn open_book_inner(state: &BookState, input: OpenBookInput) -> Result<Book
 
     let opened = tauri::async_runtime::spawn_blocking(move || open_at(&path))
         .await
-        .map_err(join_error(input.path, "もう一度開き直すこと"))?;
+        .map_err(join_error(input.path, OPEN_RECOVERY))?;
 
     Ok(state.register(opened?))
 }
@@ -64,7 +64,7 @@ async fn lookup_inner(
     // on-the-fly の reader はここでファイルを読むので、in-memory でも blocking 扱いに揃える。
     tauri::async_runtime::spawn_blocking(move || book.reader.lookup(&key))
         .await
-        .map_err(join_error(path, "この定跡を閉じてから開き直すこと"))?
+        .map_err(join_error(path, LOOKUP_RECOVERY))?
 }
 
 /// 引く先と引くキーを揃える。
@@ -164,6 +164,15 @@ fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError
 ///
 /// `recovery` は呼び出し側から渡す。open の途中で落ちた場合はまだハンドルが
 /// 無いので、「閉じてから開き直す」は案内できない。
+/// `Unknown` のときに出す復帰操作。**定数にして、テストが本物を食えるようにする。**
+///
+/// リテラルを呼び出し側へ埋めると、テストは自分で書いた別のリテラルを見ることになり、
+/// **利用者が実際に読む文言を誰も見ないまま残る。**
+const OPEN_RECOVERY: &str = "もう一度開き直すこと";
+
+/// 引くときの復帰操作。開くときと違い、まず閉じる必要がある。
+const LOOKUP_RECOVERY: &str = "この定跡を閉じてから開き直すこと";
+
 fn join_error(
     path: impl Into<String>,
     recovery: &'static str,
@@ -195,11 +204,15 @@ mod tests {
     /// 唯一の案内**なので、崩れても気づかれない。
     #[test]
     fn the_unknown_message_ends_with_something_the_user_can_do() {
-        let message = unknown_message("join に失敗", "開き直すこと");
+        // **本物の定数を食う。** テストが自前のリテラルを書くと、
+        // 呼び出し側の文言を内部語や英文に直しても緑のまま通る
+        for recovery in [OPEN_RECOVERY, LOOKUP_RECOVERY] {
+            let message = unknown_message("join に失敗", recovery);
 
-        assert!(message.ends_with("こと"), "{message}");
-        // 原文は残す。落とすとログから切り分けられなくなる
-        assert!(message.contains("join に失敗"), "{message}");
+            assert!(message.ends_with("こと"), "{message}");
+            // 原文は残す。落とすとログから切り分けられなくなる
+            assert!(message.contains("join に失敗"), "{message}");
+        }
     }
     use super::*;
     use crate::book::reader::{BookReader, OpenedBook};
