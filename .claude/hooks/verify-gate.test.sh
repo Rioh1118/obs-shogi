@@ -39,7 +39,7 @@ count_failure() {
 # その条件を満たさないチェックアウトで床が必ず落ちる。
 # 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
 # 実測は末尾の runs を見ること。
-GATE_TEST_MIN_RUNS=182
+GATE_TEST_MIN_RUNS=197
 GATE_TEST_RUNLOG=$(mktemp)
 export GATE_TEST_RUNLOG
 
@@ -312,6 +312,16 @@ expect_dir "" 'git commit -am x >src/app/App.tsx' "$here"
 expect_dir "" 'git commit -am x 2>src/app/App.tsx' "$here"
 expect_dir "" 'git commit -F =(git rm -f src/app/App.tsx)' "$here"
 
+# **引用の対を、トークン境界に錨づけて取る。** 錨が無いと二重引用符の中の
+# アポストロフィ2つが対になり、その間のリダイレクトごと消える
+expect_dir "" 'git commit -m "don'"'"'t" > src/app/App.tsx "won'"'"'t"' "$here"
+expect_dir "" 'git commit -am "don'"'"'t" >src/app/App.tsx --author="won'"'"'t"' "$here"
+
+# **リダイレクトを呼び出しの内側に飲ませない。** `-c a.b=c>path` の形だと
+# `>path` が `$call` に入り、手前も後ろも見ている検査のどれにも当たらない
+expect_dir "" 'git -c user.name=x>src/app/App.tsx commit -m y' "$here"
+expect_dir "" 'git -q>src/app/App.tsx commit -m y' "$here"
+
 # メッセージをファイルから読む形は、置換を1つも含まないので通る。
 # **塞いだ後に残る道**なので、ここが止まると打ち方が1つも無くなる。
 expect_dir "$here" 'git commit --file=/tmp/msg.txt' "$here"
@@ -408,7 +418,7 @@ expect_kinds "ts" "package.json"
 # `.rs` は両方。`src/__tests__/` の規約の検査には **Rust のソースを走査する
 # もの**があり、それは vitest でしか走らない。rust だけにすると、Rust しか
 # 触らないコミットでその検査が一度も走らない。
-expect_kinds "ts rust" "src-tauri/src/book/api.rs"
+expect_kinds "ts rust" "src-tauri/src/book/commands.rs"
 expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"
 expect_kinds "rust" "src-tauri/Cargo.toml"
 expect_kinds "rust" "src-tauri/tauri.conf.json"
@@ -672,6 +682,18 @@ expect_entry '"permissionDecision":"deny"' 'jq が無い' \
 # フィールドが消えた日に全 Bash 呼び出しが無言で通る**
 expect_entry '"permissionDecision":"deny"' 'command 欄が無い' \
   "$(gate_entry 'GATE_UNUSED=1' '{"tool_input":{"cmd":"x"}}')"
+
+# --- 数える口が全部繋がっているか ---
+#
+# **床は `count_run` を呼ぶ assertion しか数えない。** 呼び忘れた `expect_*` を
+# 足すと、assertion は増えるのに床は上がらない ——
+# そのあと fixture が早く抜けてそれらが消えても、本数は動かず気づけない。
+for gate_fn in $(compgen -A function 'expect_'); do
+  count_run
+  declare -f "$gate_fn" | grep -q 'count_run' && continue
+  printf 'FAIL  count_run を呼ばない assertion がある: %s\n' "$gate_fn"
+  count_failure
+done
 
 # --- 集計そのものを見る ---
 #
