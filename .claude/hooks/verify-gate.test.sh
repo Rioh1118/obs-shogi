@@ -12,7 +12,18 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 GATE_LIB_ONLY=1 . .claude/hooks/verify-gate.sh
 
-failures=0
+# **数え方をシェル変数に持たせない。**
+# `expect_*` はサブシェルの中からも呼ばれる（`( export GIT_CONFIG_GLOBAL=…; … )`、
+# `… | while read`）。変数に足すと、その加算は親へ戻らず、
+# **FAIL の行を印字したまま suite が緑で終わる。**
+# ファイルへ1行追記すれば、どの深さのサブシェルから呼ばれても親が数えられる。
+GATE_TEST_FAILLOG=$(mktemp)
+export GATE_TEST_FAILLOG
+trap 'rm -f "$GATE_TEST_FAILLOG"' EXIT
+
+count_failure() {
+  printf 'x\n' >> "$GATE_TEST_FAILLOG"
+}
 
 expect_match() {
   local want=$1 command=$2
@@ -20,7 +31,7 @@ expect_match() {
   gate_matches_commit "$command" && got=CATCH
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$command"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -87,7 +98,7 @@ expect_alias() {
   ( GATE_EXTRA_VERBS=$verbs gate_matches_commit "$command" ) && got=CATCH
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s（alias=%s）\n' "$want" "$got" "$command" "$verbs"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -114,7 +125,7 @@ expect_alias_resolution() {
 
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（無し）}" "${got:-（無し）}" "$config"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -142,7 +153,7 @@ expect_mentions() {
   gate_mentions_commit "$command" && got=CATCH
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$command"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -166,7 +177,7 @@ expect_dir() {
   got=$(gate_target_dir "$command" "$base")
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（空）}" "${got:-（空）}" "$command"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -272,7 +283,7 @@ expect_kinds() {
   got=$(gate_kinds_for_path "$path")
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（無し）}" "${got:-（無し）}" "$path"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -311,7 +322,7 @@ expect_teardown() {
   gate_is_teardown "$command" && got=YES
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$command"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -348,7 +359,7 @@ expect_project() {
   gate_in_project "$target" "$GATE_HOME" && got=IN
   if [ "$got" != "$want" ]; then
     printf 'FAIL  期待 %s / 実際 %s : %s\n' "$want" "$got" "$target"
-    failures=$((failures + 1))
+    count_failure
   fi
 }
 
@@ -396,7 +407,7 @@ expect_readonly() {
     return 0
   fi
   printf 'FAIL  読むだけではない動詞が許可リストに入っている: %s\n' "$verb"
-  failures=$((failures + 1))
+  count_failure
 }
 
 (
@@ -423,7 +434,7 @@ expect_entry() {
     return 0
   fi
   printf 'FAIL  期待 %s / 実際 %s : %s\n' "${want:-（空）}" "${got:-（空）}" "$label"
-  failures=$((failures + 1))
+  count_failure
 }
 
 # payload が空なら deny。読めないまま素通しさせない
@@ -444,6 +455,23 @@ expect_entry '"permissionDecision":"deny"' 'command 欄が無い' \
      | /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
      | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
 
+# --- 集計そのものを見る ---
+#
+# **この suite が緑で終わることを、緑の根拠にしてよいのはここが通ったときだけ。**
+# 失敗をサブシェルの中だけで数えると、FAIL の行は出るのに exit 0 で終わる。
+# わざと1件落として、それが集計へ届くことを見る。
+before=$(wc -l < "$GATE_TEST_FAILLOG" | tr -d ' ')
+( count_failure ) # 一番浅いサブシェル。深くしても同じ経路を通る
+after=$(wc -l < "$GATE_TEST_FAILLOG" | tr -d ' ')
+if [ "$after" -eq "$((before + 1))" ]; then
+  : > "$GATE_TEST_FAILLOG"
+  [ "$before" -gt 0 ] && for _ in $(seq "$before"); do count_failure; done
+else
+  printf 'FAIL  失敗の数え方が壊れている（サブシェルからの1件が集計に届かない）\n'
+  exit 1
+fi
+
+failures=$(wc -l < "$GATE_TEST_FAILLOG" | tr -d ' ')
 if [ "$failures" -eq 0 ]; then
   echo "verify-gate: 全て期待どおり"
   exit 0
