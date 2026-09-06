@@ -252,14 +252,30 @@ gap: 0.75rem;
 
 `success` は置いていません。成功を通知する場面が現物に1件も無いためです。必要になったら足します。
 
-**面と文字で使うトークンは分かれています。**
+**失敗を利用者に出すときは、まず通知の土台を通してください。**
+グローバルに出すなら `useNotify()`（`shared/lib/notification`）、その場所の中に出すなら
+`<InlineNotice>`（`shared/ui/notification`）です。段と見せ方の選び方は
+[ADR-0004](docs/decisions/0004-notification-taxonomy.md)、いまどの失敗がどこへ出ているかは
+`docs/state-transitions/failure-surfacing.md` にあります。
+**箱を自分で作ると、手書きの出口が1つ増えます**（いま8つあります）。
 
-| 用途                   | トークン                                      |
-| ---------------------- | --------------------------------------------- |
-| 枠・薄い面・アイコン   | `$color-warning` / `$color-danger` ほか意味色 |
-| 押せる面（確認の実行） | `$color-danger-solid` / `-hover`              |
-| 暗い面の上に置く文字   | `$color-danger-text`                          |
-| 失敗を伝える箱の面     | `$surface-warning` / `$surface-danger`        |
+下のトークンは、土台に載らない箱（既存のモーダルの中など）を触るときに使います。
+
+**基準ごとに使うトークンが違います。** 文字は 4.5:1、枠や記号は 3:1（WCAG 1.4.11）。
+
+| 用途                         | 基準  | トークン                                            |
+| ---------------------------- | ----- | --------------------------------------------------- |
+| 暗い面の上の**文字**         | 4.5:1 | `$color-danger-text` / `$color-fatal-text`          |
+| 暗い面の上の**枠・帯・記号** | 3:1   | `$color-info` / `$color-warning` / `$color-danger`  |
+| 押せる面（確認の実行）       | 4.5:1 | `$color-danger-solid` / `-hover`                    |
+| 失敗を伝える箱の面           | —     | `$surface-info` / `-warning` / `-danger` / `-fatal` |
+
+**`$color-fatal` だけは枠・記号にも使えません。** 暗いカードで 2.41:1 しかなく、
+輪郭の基準（3:1）を割ります。`$color-fatal-text` を使ってください
+（`$color-danger` は 3.75:1 なので枠・記号には足ります。文字には足りません）。
+
+持ち上げた `-text` の2つは色が近くなります（元の色相が同じなので避けられません）。
+**段の区別は色ではなく記号と文言と動作が持ちます。**
 
 失敗の箱を新しく作るときは `$surface-*` を使ってください。
 `color-mix(...)` を手で書くと、同じ式が複数のファイルに散ります。
@@ -274,6 +290,7 @@ gap: 0.75rem;
 | `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                                                                                                               |
 | `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**。比の話は [#185](https://github.com/Rioh1118/obs-shogi/issues/185)、意味の取り違えは [#180](https://github.com/Rioh1118/obs-shogi/issues/180) |
 | `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                                                                                                     |
+| `FsErrorView`          | 帯に `$color-danger` / `$color-warning`           | トークンだが、通知の側（`Notice`）は同じ面の同じ役割に `-text` を使っている。**同じ面に載る同じ役割の帯が2通りある**                                                         |
 
 ### 機械で止めているもの
 

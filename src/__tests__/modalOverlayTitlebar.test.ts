@@ -244,6 +244,16 @@ function unboundedForcedHeights(paths: string[]): string[] {
 
 const modalCss = compile("shared/ui/Modal.scss");
 const titlebarCss = compile("shared/ui/TitleBar.scss");
+const noticeLayerCss = compile("shared/ui/notification/NotificationLayer.scss");
+
+/** 規則が1つだけ持つ `z-index` の実効値。数に解けなければ `null` */
+function zIndexOf(css: string, selector: string): number | null {
+  const values = declarationsFor(css, selector)
+    .filter(({ prop }) => prop === "z-index")
+    .map(({ value }) => Number(value.trim()));
+  if (values.length !== 1 || Number.isNaN(values[0])) return null;
+  return values[0];
+}
 
 describe("モーダルの overlay とタイトルバー", () => {
   const titlebarHeights = declarationsFor(titlebarCss, ".titlebar")
@@ -361,6 +371,56 @@ describe("モーダルの overlay とタイトルバー", () => {
  * 判定そのものを固定する。上の検査は SCSS の現状に依存するので、
  * 判定を緩めても現状が通れば緑のままになる。ここが緩みを止める
  */
+/**
+ * 通知の層とモーダルの overlay の重なり順。
+ *
+ * **通知が下だと、モーダルを開いている間に出た失敗が届かない。** overlay は
+ * 全面に `backdrop-filter` と半透明の面を持つので、下にある帯はぼけて読めず、
+ * その動作を押したつもりのクリックは overlay に当たって**モーダルごと閉じる**
+ * （編集中の入力が消える）。いちばん出したい段（`banner` には `fatal` が載る）が
+ * いちばん隠れる。
+ *
+ * 上げても操作を塞がないのは、層が `pointer-events` を通知1枚ずつにしか
+ * 持たないため。**その前提もここで一緒に見る**——層の面がクリックを受けるように
+ * 戻すと、通知が1つも出ていなくてもアプリ全体が操作できなくなる。
+ */
+describe("通知の層とモーダルの重なり", () => {
+  const layer = zIndexOf(noticeLayerCss, ".notice-layer");
+  const overlay = zIndexOf(modalCss, ".modal__overlay");
+
+  it("どちらも数に解ける段を1つだけ持っている", () => {
+    expect(layer, "`.notice-layer` の z-index が1つに決まらない").not.toBeNull();
+    expect(overlay, "`.modal__overlay` の z-index が1つに決まらない").not.toBeNull();
+  });
+
+  it("通知がモーダルの overlay より上にある", () => {
+    expect(
+      layer! > overlay!,
+      [
+        `通知の層 ${layer} がモーダルの overlay ${overlay} より上に無い。`,
+        "下にすると、モーダルを開いている間に出た失敗が overlay にぼかされて読めず、",
+        "その動作を押したつもりのクリックが overlay に当たってモーダルごと閉じる。",
+        "段は `src/index.scss` の $z-notification / $z-modal。片方だけ直値に戻さないこと。",
+      ].join("\n"),
+    ).toBe(true);
+  });
+
+  it("層の面そのものはクリックを通す", () => {
+    const values = declarationsFor(noticeLayerCss, ".notice-layer")
+      .filter(({ prop }) => prop === "pointer-events")
+      .map(({ value }) => value.trim());
+
+    expect(
+      values,
+      [
+        "`.notice-layer` が `pointer-events: none` を持っていない。",
+        "モーダルより上に置いてあるので、面がクリックを受けると",
+        "通知が1つも出ていなくてもアプリ全体が操作できなくなる。",
+      ].join("\n"),
+    ).toEqual(["none"]);
+  });
+});
+
 describe("検査の判定", () => {
   const boundedCases: [string, boolean][] = [
     ["100%", true],

@@ -58,7 +58,14 @@
 | `study-positions`     | 課題局面の一覧           |
 | `sfen-kifu-create`    | 課題局面から棋譜を作成   |
 
+**`AppModalLayer` の外にもう1枚ある。** 通知の `modal`
+（`shared/ui/notification/NotificationLayer`）はルータの外でマウントされ、
+**URL でも state でも開かない**——出す側が `notify` を呼ぶと出る。同時に出るのは1枚だけ
+（出た順の先頭）で、`ModalType` を持たない。決まりは
+[system-dialogs.md](screens/system-dialogs.md) の「通知の土台が持つ決まり」。
+
 **モーダルを増やすときは `ModalType` も増やす**（`CLAUDE.md` の「連動が必要な箇所」）。
+**通知の modal はこの例外**で、増やさない。
 なお、この union が下位層（`shared/`）に上位層のスライス名簿を持たせている点は
 構造の負債として `docs/IDEAS.md` に載っている。
 

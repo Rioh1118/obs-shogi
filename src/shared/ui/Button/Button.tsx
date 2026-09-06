@@ -15,6 +15,15 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   motion?: boolean;
   /** 処理中。押せなくしたうえで、待っていることを支援技術にも伝える */
   isLoading?: boolean;
+  /**
+   * 処理中。**押せなくはしない。**
+   *
+   * フォーカス中の要素が `disabled` になるとブラウザは blur し、行き先は `<body>`。
+   * モーダルの中は `Modal` が引き戻すが、外（トースト・バナー・インライン）には
+   * 引き戻す仕組みが無いので、キーボードの利用者は居場所を失う。
+   * 二重起動を止める必要があるなら、押した側で弾くこと
+   */
+  busy?: boolean;
   children: ReactNode;
 }
 
@@ -31,6 +40,7 @@ export default function Button({
   radius = "soft",
   motion = true,
   isLoading = false,
+  busy = false,
   disabled,
   className,
   children,
@@ -52,11 +62,11 @@ export default function Button({
       type="button"
       className={classes}
       disabled={disabled || isLoading}
-      aria-busy={isLoading || undefined}
+      aria-busy={isLoading || busy || undefined}
       {...rest}
     >
       <span className="uiBtn__label">{children}</span>
-      {isLoading && <span className="uiBtn__spinner" aria-hidden="true" />}
+      {(isLoading || busy) && <span className="uiBtn__spinner" aria-hidden="true" />}
     </button>
   );
 }
