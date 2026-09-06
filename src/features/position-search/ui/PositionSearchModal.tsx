@@ -22,17 +22,18 @@ import { usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
 
 /**
- * ヒットを開けなかった理由。**段が違う。** 索引がパスを返していないだけなら
- * 検索し直せば直る見込みがある（`warning`）が、ワークスペースの一覧に無い棋譜は
- * この画面から何度押しても直らない（`danger`）。分け方は ADR-0004 決定1。
+ * ヒットを開けなかった理由。**どちらもこの画面からは直せない**（ADR-0004 決定1 の
+ * `danger`＝別の操作が要る）。索引の欠けもツリーとのずれも、次に索引が更新される
+ * までは同じ結果が返る——Rust は1回の検索のあいだ同じスナップショットを使い、
+ * `mergeFiles` は同じ値なら書き換えない。**「検索し直せば直る」は成り立たない。**
  */
 type RefusalReason = "no-path" | "not-in-tree";
 
 const REFUSALS: Record<RefusalReason, { tier: VisibleTier; title: string; body: string }> = {
   "no-path": {
-    tier: "warning",
+    tier: "danger",
     title: "この棋譜の場所が分かりません",
-    body: "検索の索引が、この結果の置き場を返していません。検索し直すと直ることがあります。",
+    body: "検索の索引が、この結果の置き場を返していません。索引が更新されるまで、この結果からは開けません。",
   },
   "not-in-tree": {
     tier: "danger",

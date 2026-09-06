@@ -141,8 +141,7 @@ describe("PositionSearchModal のヒットを開く", () => {
 
     expect(startNavigationToHit).not.toHaveBeenCalled();
     expect(closeModal).not.toHaveBeenCalled();
-    // 段が違うので role も違う（warning は status、danger は alert）
-    const notice = screen.getByRole("status", { name: undefined });
+    const notice = screen.getByRole("alert");
     expect(notice.textContent).toContain(NOTICE_NO_PATH);
     expect(screen.queryByText(NOTICE)).toBeNull();
   });
