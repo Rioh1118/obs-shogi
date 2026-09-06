@@ -21,6 +21,8 @@ let handlers: SearchEventHandlers = {};
 let listenCount = 0;
 
 let nextRequestId = 0;
+let searchPositionImpl: () => Promise<{ requestId: number }> = () =>
+  Promise.resolve({ requestId: nextRequestId });
 
 vi.mock("../../api/tauri", () => ({
   openProject: vi.fn().mockResolvedValue({ indexedCount: 0 }),
@@ -30,7 +32,7 @@ vi.mock("../../api/tauri", () => ({
     return Promise.resolve(() => {});
   },
   // Rust は rid を単調に増やす（`QueryService::next_request_id`）
-  searchPosition: () => Promise.resolve({ requestId: nextRequestId }),
+  searchPosition: () => searchPositionImpl(),
   cancelSearch: vi.fn(),
 }));
 
@@ -140,6 +142,7 @@ beforeEach(() => {
   hitCount = 0;
   elementReads = 0;
   nextRequestId = 0;
+  searchPositionImpl = () => Promise.resolve({ requestId: nextRequestId });
 });
 
 afterEach(() => {
@@ -478,6 +481,48 @@ describe("消えたセッション宛のチャンク", () => {
     });
 
     expect(hitsOf(9)).toBe(0);
+  });
+
+  /**
+   * **番号が返る前に線が引かれた検索。** 線は「見えている rid の最大」で引くので、
+   * invoke が飛んでいる最中の検索は数えられておらず、線の後ろに回ってしまう。
+   * 通すと前の根の絶対パスが新しい root の `filePathById` に混ざる
+   */
+  test("番号が返る前に根を開き直された検索は、state に残らない", async () => {
+    await mount();
+
+    // 検索を投げる。まだ解決しない
+    let settle!: (out: { requestId: number }) => void;
+    searchPositionImpl = () => new Promise((resolve) => (settle = resolve));
+    let launched!: Promise<{ requestId: number }>;
+    act(() => {
+      launched = searchPosition("dummy");
+    });
+
+    // 待っている間に根を開き直す
+    await act(async () => {
+      view.rerender(
+        <PositionSearchProvider rootDir="/ws">
+          <Probe />
+        </PositionSearchProvider>,
+      );
+    });
+
+    // そこでやっと番号が返る
+    await act(async () => {
+      settle({ requestId: 12 });
+      await launched;
+    });
+
+    act(() => {
+      handlers.onSearchChunk?.({ ...chunkOf(2, 0), requestId: 12 });
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(sessionIds).toEqual([]);
+    expect(hitsOf(12)).toBe(0);
   });
 
   /** 線より後に始まった検索は通る。**弾くのは古い rid だけ** */

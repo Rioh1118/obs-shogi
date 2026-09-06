@@ -246,7 +246,18 @@ export function PositionSearchProvider({
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
+      // **投げる前に世代を控える。** 番号が返るまでこの検索は溜め場から見えない
+      // ——線は「見えている rid の最大」で引かれるので、待っている間に根が開き直ると
+      // この検索は線の後ろに回り、消えたはずの根の結果が新しい state に混ざる
+      const myGeneration = chunkBuffer.generation();
+
       const out = await searchPositionApi(input);
+
+      if (chunkBuffer.generation() !== myGeneration) {
+        // 待っている間に線が引かれた。この検索は state に一切残さない
+        chunkBuffer.stopAccepting(out.requestId);
+        return out;
+      }
 
       // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
       // それより手前は個別に覚えない（`dead` を空にする）。イベントで見た rid しか

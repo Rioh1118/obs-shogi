@@ -48,6 +48,11 @@ export type ChunkBufferApi = {
   stopAccepting: (requestId?: RequestId) => void;
   /** 検索が1つ始まった。線を引く位置に要る */
   noteRequest: (requestId: RequestId) => void;
+  /**
+   * いま在る検索を全部止めた回数。**invoke が飛んでいる間に線が引かれたか**を
+   * 呼び手が確かめるのに使う（rid はまだ返っていないので、線には数えられない）
+   */
+  generation: () => number;
   /** この検索をまだ受け取ってよいか。**チャンク以外の口もここを通す** */
   isAccepting: (requestId: RequestId) => boolean;
   /** 受け取りを開ける／閉じる。effect の setup と cleanup で対にする */
@@ -77,6 +82,8 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
   let firstLiveRid: RequestId = 1;
   /** 見た中で最大の rid。線を引く位置に使う */
   let maxSeenRid: RequestId = 0;
+  /** 線を引き直した回数 */
+  let generation = 0;
 
   const cancelTimer = () => {
     if (timer == null) return;
@@ -109,6 +116,7 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
     flush,
     noteRequest,
     isAccepting,
+    generation: () => generation,
 
     enqueue: (p) => {
       noteRequest(p.requestId);
@@ -128,7 +136,10 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
     stopAccepting: (requestId) => {
       if (requestId == null) {
         pending.clear();
-        // いま在るものは全部止める。次の検索の rid は必ずこれ以上になる
+        generation += 1;
+        // 見えている rid はここで全部止める。**ここに数えられていない rid がある**
+        // ——invoke が飛んでいて番号がまだ返っていない検索。それは線の後ろに
+        // 回ってしまうので、呼び手が `generation` で見張る
         firstLiveRid = maxSeenRid + 1;
         // 線より前は `firstLiveRid` が受け持つので、個別に覚えておく必要は無い
         dead.clear();
