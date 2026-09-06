@@ -238,14 +238,26 @@ expect_dir "" "git log --output=x.ts -1 && git commit -am x" "$here"
 
 # **alias の展開先まで見る。** 先頭の語だけで許すと、
 # 打った文字列に `--output` が1文字も出ない形で丸ごと抜ける
+#
+# fixture は global だけでなく system と local からも切り離す。
+# `git config --get-regexp` は3つを混ぜて列挙するので、global を差し替えても
+# **手元の repo か system に同名の alias が1つあるだけで結果が変わる。**
+# local は環境変数では切れないので、リポジトリの外へ出て問い合わせる。
+# **`gate_target_dir` の答えは cwd に依る** —— 最終行の `rev-parse` は `$base` を
+# 明示するが、途中で呼ぶ `gate_read_only_verbs` と `gate_alias_verbs` は
+# `-C` の無い `git config` を引く。外へ出るのは、その依存を断つため。
+# 名前も `d` / `st` のような衝突しやすい短縮を避ける。
 (
+  cd "$(mktemp -d)" || exit 1
   cfg=$(mktemp)
-  printf '[alias]\n\td = diff --output=src/app/App.tsx\n\tcfg = config -f rust-toolchain.toml\n\tst = status\n' > "$cfg"
+  printf '[alias]\n\tgatetestd = diff --output=src/app/App.tsx\n\tgatetestcfg = config -f rust-toolchain.toml\n\tgatetestst = status\n' > "$cfg"
   export GIT_CONFIG_GLOBAL=$cfg
+  export GIT_CONFIG_SYSTEM=/dev/null
+  export GIT_CONFIG_NOSYSTEM=1
   unset GATE_EXTRA_READ_ONLY
-  expect_dir "" "git d && git commit -am x" "$here"
-  expect_dir "" "git cfg a.b c && git commit -am x" "$here"
-  expect_dir "$here" "git st && git commit -m x" "$here"
+  expect_dir "" "git gatetestd && git commit -am x" "$here"
+  expect_dir "" "git gatetestcfg a.b c && git commit -am x" "$here"
+  expect_dir "$here" "git gatetestst && git commit -m x" "$here"
   rm -f "$cfg"
 )
 
