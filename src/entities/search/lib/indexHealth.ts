@@ -28,10 +28,15 @@ export type IndexHealth =
  * もう問題ではない——利用者が次にすることは「ワークスペースを繋ぎ直す」の一手。
  */
 export function indexHealth(index: IndexUiState): IndexHealth {
+  // **走っている最中は、まずそう言う。** 読めない場所があっても、その間は
+  // 「待てば増える」が先。ここを後ろにすると、構築中ずっと警告三角の
+  // 「一部を読めていません」で止まり、**利用者は待てば直るものを直しに行く**
+  if (index.state === "Restoring" || index.state === "Building" || index.state === "Updating") {
+    return "building";
+  }
   if (index.scanFailed) return "notRefreshed";
   if (index.partiallyUnreadable) return "partiallyUnreadable";
   // **`Empty` を「作成中」と言わない。** 何も走っていないので待っても増えない
   if (index.state === "Empty") return "notStarted";
-  if (index.state !== "Ready") return "building";
   return "ok";
 }

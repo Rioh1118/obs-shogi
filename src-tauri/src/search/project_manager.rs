@@ -52,6 +52,31 @@ pub enum RescanOutcome {
     ScanFailed,
 }
 
+/// 差分適用の結末を、画面へ出す状態にする。
+///
+/// **`Ready` を出す口はここだけ。** 出口が2つあると、後から出たほうが勝つ
+/// ——結末を知らない側は旗を伏せたまま組む（`IndexStatePayload::of`）ので、
+/// 読めない場所がまだあっても緑の「準備完了」で塗り潰される。
+///
+/// `Superseded` では何も出さない。その索引はもうこのタスクのものではない。
+pub fn announce_rescan(app: &AppHandle, total_files: u32, outcome: RescanOutcome) {
+    if outcome == RescanOutcome::Superseded {
+        return;
+    }
+    let _ = app.emit(
+        EVT_INDEX_STATE,
+        IndexStatePayload::of(IndexState::Ready, total_files)
+            .indexed(total_files)
+            .scan_failed(outcome == RescanOutcome::ScanFailed)
+            .partially_unreadable(matches!(
+                outcome,
+                RescanOutcome::Committed {
+                    partially_unreadable: true
+                }
+            )),
+    );
+}
+
 #[derive(Debug, Default)]
 struct Inner {
     /// いま据わっているプロジェクトの代。**索引の代と同じ値。**
@@ -204,7 +229,11 @@ impl ProjectManager {
                         dirty_paths.clear();
 
                         // Step2: 差分更新（フル再スキャン→diff→適用）
-                        pm.run_rescan_diff_apply(app.clone(), store.clone()).await;
+                        // **結末を捨てない。** 捨てると、読めない場所がまだあるのに
+                        // 緑の「準備完了」が出る（旗を知っているのは結末だけ）
+                        let outcome = pm.run_rescan_diff_apply(app.clone(), store.clone()).await;
+                        let total = store.snapshot().file_table.live_len() as u32;
+                        announce_rescan(&app, total, outcome);
 
                         // 次のイベントを待つ
                         sleep.as_mut().reset(time::Instant::now() + Duration::from_secs(3600));
@@ -245,7 +274,23 @@ impl ProjectManager {
         // 組でも関門を素通りする——前のプロジェクトの `path_to_id` の `file_id` で
         // 新しい索引に墓標を打つことになる。帳簿から読めば、以後の
         // `update_if_epoch` が「帳簿と索引が同じ代」を式で確かめることになる
-        let epoch = self.inner.lock().await.epoch;
+        // **代と帳簿の中身を1回のロックで取る。** 別々に取ると、その間に
+        // `install_after_full_build` が挟まって「代は N・根は N+1」という組になる。
+        // 壊れはしないが、新しいワークスペースの全走査が丸ごと空振りする
+        let (epoch, root, prev_scan, mut path_to_id, mut next_file_id) = {
+            let g = self.inner.lock().await;
+            let Some(root) = g.root_dir.clone() else {
+                // 据え直しの最中。この走査はもう誰のものでもない
+                return RescanOutcome::Superseded;
+            };
+            (
+                g.epoch,
+                root,
+                g.scan.clone(),
+                g.path_to_id.clone(),
+                g.next_file_id,
+            )
+        };
         let commit = |f: &dyn Fn(&IndexSnapshot) -> IndexSnapshot| -> bool {
             if store.update_if_epoch(epoch, f) {
                 return true;
@@ -253,27 +298,18 @@ impl ProjectManager {
             log::warn!("[rescan] 索引が別の代に差し替わったので、差分の取り込みをやめる");
             false
         };
-        // プロジェクト情報を “cloneして” 取り出す（ロックを await に跨がない）
-        let (root, prev_scan, mut path_to_id, mut next_file_id) = {
-            let g = self.inner.lock().await;
-            let Some(root) = g.root_dir.clone() else {
-                // 据え直しの最中。この走査はもう誰のものでもない
-                return RescanOutcome::Superseded;
-            };
-            (root, g.scan.clone(), g.path_to_id.clone(), g.next_file_id)
-        };
 
         // 再スキャン（雑にフルスキャンでOK：notify取りこぼしも補正できる）。
-        // **`spawn_blocking` へ逃がす。** ファイル1件ごとに `metadata` と
-        // `canonicalize` の2回の syscall を回すので、大きなワークスペースでは
-        // 秒の単位で tokio のワーカーを1本握る。ここは debounce のタスクの中なので、
-        // 逃がさないと watcher のイベント処理まで止まる
+        // **`spawn_blocking` へ逃がす。** ファイル1件ごとに `metadata` の syscall を
+        // 回すので、大きなワークスペースでは秒の単位で tokio のワーカーを1本握る。
+        // ここは debounce のタスクの中なので、逃がさないと watcher の
+        // イベント処理まで止まる
         let scan_root = root.clone();
-        let scanned = tauri::async_runtime::spawn_blocking(move || {
+        let joined = tauri::async_runtime::spawn_blocking(move || {
             scan_kifu_files(&scan_root, &ScanOptions::default())
         })
         .await;
-        let records = match scanned
+        let scanned = match joined
             .unwrap_or_else(|e| Err(ScanError::Io(std::io::Error::other(e.to_string()))))
         {
             Ok(v) => v,
@@ -295,10 +331,11 @@ impl ProjectManager {
         // 二度と差分に現れなくなる（`carry_over_unreadable` の doc）
         // 完全だったかは `files` を取り出す前に決める。取り出した後は
         // 判断の元が手元に無く、写した式だけが残る（`Scanned::is_partial` の doc）
-        let partial = records.is_partial();
-        let unreadable = records.unreadable;
-        let unknown_gaps = records.unknown_gaps;
-        let mut next_scan = snapshot_from_records(&root, records.files);
+        let partial = scanned.is_partial();
+        let carried_over = !scanned.unreadable.is_empty();
+        let unreadable = scanned.unreadable;
+        let unknown_gaps = scanned.unknown_gaps;
+        let mut next_scan = snapshot_from_records(&root, scanned.files);
         let carried = carry_over_unreadable(&prev_scan, &mut next_scan, &unreadable);
         let mut diff = diff_snapshot(&prev_scan, &next_scan);
 
@@ -307,7 +344,7 @@ impl ProjectManager {
                 EVT_INDEX_WARN,
                 IndexWarnPayload {
                     path: unreadable.first().cloned().unwrap_or_default(),
-                    message: unreadable_places(unreadable.len(), unknown_gaps),
+                    message: unreadable_places(unreadable.len(), unknown_gaps, carried_over),
                 },
             );
         }
@@ -353,10 +390,7 @@ impl ProjectManager {
 
         let mut done_dirty: u32 = 0;
 
-        // **墓標は1回で立てる。** 1件ずつ `with_tombstone` を呼ぶと、そのたびに
-        // `FileTable` を丸ごと複製する（`paths` はファイル数ぶんの `String`）ので、
-        // 削除の件数 × 索引のファイル数になる。しかもその間ずっと
-        // `SnapshotCell` の書き込みロックを取り直すので、検索の読みが待たされる
+        // **墓標は1回で立てる。** 理由は `IndexSnapshot::with_tombstones` の doc
         let gone: Vec<FileId> = diff
             .removed
             .iter()
@@ -366,9 +400,7 @@ impl ProjectManager {
             return RescanOutcome::Superseded;
         }
 
-        // **進捗は間引く。** `diff.removed` はフォルダを1つ移しただけで数千になる。
-        // 1件ごとに emit すると、直列化と IPC で tokio のワーカーを1本占有する
-        // （全件構築の側は同じ理由で既に間引いている）
+        // **進捗は間引く。** 理由と間隔は `types::EMIT_INTERVAL` の doc
         let mut last_emit = std::time::Instant::now();
         for path_key in &diff.removed {
             done_dirty += 1;
@@ -479,10 +511,6 @@ impl ProjectManager {
         if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Ready)) {
             return RescanOutcome::Superseded;
         }
-        let _ = app.emit(
-            EVT_INDEX_STATE,
-            IndexStatePayload::of(IndexState::Ready, next_scan.by_path.len() as u32),
-        );
 
         // プロジェクト状態をコミット。**索引と同じ関門を通す**
         // ——ここを飛ばすと、索引は書けなかったのに帳簿だけが進む

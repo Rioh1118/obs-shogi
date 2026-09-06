@@ -29,8 +29,9 @@ function percent(done: number, total: number) {
  *
  * 具合の判断は `indexHealth` が持つ——画面ごとに旗を並べ直さない。
  */
-function badgeForIndexState(idx: IndexUiState) {
-  switch (indexHealth(idx)) {
+function badgeForIndex(idx: IndexUiState) {
+  const health = indexHealth(idx);
+  switch (health) {
     case "notRefreshed":
       return {
         tone: "warn" as const,
@@ -45,35 +46,35 @@ function badgeForIndexState(idx: IndexUiState) {
       };
     case "notStarted":
       return { tone: "muted" as const, icon: null, label: "未作成" };
+    case "building":
+      return {
+        tone: "warn" as const,
+        icon: <Loader2 size={14} className="wsTab__spin" />,
+        label: runningLabel(idx.state),
+      };
     case "ok":
       return {
         tone: "accent" as const,
         icon: <CheckCircle2 size={14} />,
         label: "準備完了",
       };
+    default: {
+      // 具合が増えたら tsc がここで止める。**黙って既定へ落ちない**
+      const never: never = health;
+      return never;
+    }
   }
-  switch (idx.state) {
-    case "Building":
-      return {
-        tone: "warn" as const,
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: "作成中",
-      };
-    case "Updating":
-      return {
-        tone: "warn" as const,
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: "更新中",
-      };
+}
+
+/** 進行中の3つを言い分ける。**どれを出すかは決めない**——決めるのは `indexHealth`。 */
+function runningLabel(state: IndexUiState["state"]): string {
+  switch (state) {
     case "Restoring":
-      return {
-        tone: "muted" as const,
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: "復元中",
-      };
-    case "Empty":
+      return "復元中";
+    case "Building":
+      return "作成中";
     default:
-      return { tone: "muted" as const, icon: null, label: "未作成" };
+      return "更新中";
   }
 }
 
@@ -93,7 +94,7 @@ export default function WorkspaceTab() {
   const idx = search.index; // ←あなたの state 形
   const warns = search.warns; // ←あなたの state 形
 
-  const badge = useMemo(() => badgeForIndexState(idx), [idx]);
+  const badge = useMemo(() => badgeForIndex(idx), [idx]);
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
@@ -199,14 +200,22 @@ export default function WorkspaceTab() {
             </div>
 
             <ul className="wsTab__warnList">
-              {warns.slice(0, 5).map((w, i) => (
-                <li key={`${w.path}:${i}`} className="wsTab__warnItem">
-                  <div className="wsTab__warnMsg">{w.message}</div>
-                  <div className="wsTab__warnPath" title={w.path}>
-                    {w.path}
-                  </div>
-                </li>
-              ))}
+              {/*
+                **新しい順に出す。** reducer は末尾に積む（`slice(-199)`）ので、
+                先頭を読むと**いちばん古い5件が永久に居座る**。起動時の解析警告が
+                5件あるだけで、後から届いた走査の失敗が一度も描かれない
+              */}
+              {warns
+                .slice(-5)
+                .reverse()
+                .map((w, i) => (
+                  <li key={`${w.path}:${i}`} className="wsTab__warnItem">
+                    <div className="wsTab__warnMsg">{w.message}</div>
+                    <div className="wsTab__warnPath" title={w.path}>
+                      {w.path}
+                    </div>
+                  </li>
+                ))}
             </ul>
           </div>
         )}

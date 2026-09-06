@@ -99,9 +99,24 @@ impl FileTable {
 
     /// 登録されている棋譜の数。**消された棋譜も数える。**
     ///
-    /// 毎回全走査する。画面に出す総数（`search/commands.rs`）が呼ぶ。
+    /// 毎回全走査する。**画面に出すのはこちらではない**——墓標込みなので、
+    /// 消しても数が減らない（[`Self::live_len`]）。
     pub fn len(&self) -> usize {
         self.paths.iter().filter(|p| p.is_some()).count()
+    }
+
+    /// **生きている棋譜の数。** 墓標を数えない。
+    ///
+    /// `paths` を `None` に戻す口はどこにも無い（`tombstone` は `deleted` を
+    /// 立てるだけ）ので、[`Self::len`] は消した棋譜も数える。**画面の
+    /// 「対象ファイル」に出すのはこちら**——`len` を出すと、1000件から300件
+    /// 消しても数が減らず、「削除が反映されていない」と読める。
+    pub fn live_len(&self) -> usize {
+        self.paths
+            .iter()
+            .zip(self.deleted.iter())
+            .filter(|(p, d)| p.is_some() && !**d)
+            .count()
     }
 
     /// 1件も登録されていないか。**全件構築を始めてよいかの判定に使う**
@@ -233,5 +248,30 @@ mod tests {
 
         assert_eq!(ft.len(), 1, "消された棋譜を数えていない");
         assert!(!ft.is_empty(), "消された棋譜だけの表を空と言っている");
+    }
+
+    /// **墓標は `len` に残り、`live_len` からは消える。**
+    ///
+    /// `paths` を `None` に戻す口はどこにも無いので `len` は減らない。
+    /// 画面の「対象ファイル」に `len` を出すと、消しても数が減らず
+    /// 「削除が反映されていない」と読める。
+    #[test]
+    fn a_tombstone_leaves_len_but_not_live_len() {
+        let mut ft = FileTable::default();
+        for id in 1..=3u32 {
+            ft.upsert(FileEntry {
+                file_id: id,
+                path: format!("/w/{id}.kif"),
+                deleted: false,
+                r#gen: 1,
+            });
+        }
+        assert_eq!(ft.len(), 3);
+        assert_eq!(ft.live_len(), 3);
+
+        ft.tombstone(2);
+
+        assert_eq!(ft.len(), 3, "`len` は墓標を数えない形に変わっている");
+        assert_eq!(ft.live_len(), 2, "`live_len` が墓標を数えている");
     }
 }

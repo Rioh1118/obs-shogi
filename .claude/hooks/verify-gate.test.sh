@@ -185,21 +185,20 @@ expect "門番自身は verify（test:hooks がこの検査を走らせる）" \
 expect "門番の検査も verify" \
   ".claude/hooks/verify-gate.test.sh" "run verify"
 
-# `kifuExtensions` が README の対応形式を実体と突き合わせ、`markdownLinks` が
-# リンクを歩き、`rootDocuments` が直下の文書一覧を見る
-expect "README も verify（対応形式とリンクを見る検査がある）" \
+# **直下の文書は名前で数え上げない。** 直下を読む検査は `ratchetIndex`
+# （`CONTRIBUTING.md`）だけだが、名前を並べると**増やしたファイルは当然その
+# 列挙に無い**ので、まさにそのコミットでだけ走らない。一律に通す
+expect "README も verify（直下の .md を数え上げない）" \
   "README.md" "run verify"
 
-# **直下の文書は名前で数え上げない。** `rootDocuments` は直下に文書が
-# 増えるのを止める検査なので、数え上げると**増やしたコミットでだけ走らない**
-expect "CLAUDE.md も verify" \
+expect "CLAUDE.md も verify（同上）" \
   "CLAUDE.md" "run verify"
 
-expect "直下の見知らぬ .md も verify（rootDocuments が止める側）" \
+expect "直下の見知らぬ .md も verify（同上）" \
   "NOTES.md" "run verify"
 
-# `capabilityPlugins`（TS）と `build.rs` の `tauri_build::build()`（cargo）が
-# どちらも読む。cargo 側を外すと、壊したコミットの赤を次に `.rs` を触った人が踏む
+# `build.rs` の `tauri_build::build()` が読む cargo のビルド入力。
+# 外すと、壊したコミットの赤を次に `.rs` を触った人が踏む
 expect "capabilities は verify:rust（cargo のビルド入力）" \
   "src-tauri/capabilities/default.json" "run verify:rust"
 

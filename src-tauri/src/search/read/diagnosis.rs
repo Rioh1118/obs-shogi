@@ -2,6 +2,10 @@
 //!
 //! **クレートが名指ししたものを消さない。** 固定の文言に潰すと、
 //! どのファイルのどこが悪いのかを知る手段が無くなる。
+//!
+//! **どれも Tauri を要らない形に切ってある**（`AppHandle` を取らない）ので、
+//! テストから直に呼べる。ただし**呼ばれていることまでは見ていない**
+//! ——emit の側を落としても、ここのテストは緑のまま。
 
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
@@ -17,8 +21,6 @@ use crate::search::read::outcome::KifuReadError;
 /// **内部の語彙を出さない。** `ScanError` の `Display` は
 /// `io error: Permission denied (os error 13)` のような綴りなので、
 /// 素で流すと利用者は自分に関係のある文字列だと読んで検索する。
-///
-/// Tauri を要らない形に切ってある——画面にそのまま出るので固定する。
 pub(crate) fn scan_failure(reason: &ScanError) -> String {
     let what = match reason {
         ScanError::RootNotFound(_) => "ワークスペースが見つかりません",
@@ -41,8 +43,6 @@ pub(crate) fn scan_failure(reason: &ScanError) -> String {
 ///
 /// **内部の語彙を画面に出さない。** `JoinError` の `Display` は
 /// `task 42 panicked` のような綴り。
-///
-/// Tauri を要らない形に切ってある——画面にそのまま出るので固定する。
 pub(crate) fn build_failure() -> String {
     "この棋譜を索引に入れられませんでした。検索には出ません。\
      開き直しても直らないときは、ファイルが壊れていないか確かめてください"
@@ -55,11 +55,12 @@ pub(crate) fn build_failure() -> String {
 /// （`metadata` に失敗した腕）ので、`.kif` を指して「このフォルダ」と出すと、
 /// 利用者は無いフォルダを探すか、案内どおり棋譜を外へ移す。
 ///
-/// **何が失われたかを言う。** その場所の棋譜が索引に入らない＝検索に出ない。
-/// これを言わないと、0件が「この局面は自分の棋譜に無い」と読める。
-///
-/// Tauri を要らない形に切ってある——画面にそのまま出るので固定する。
-pub(crate) fn unreadable_places(count: usize, unknown_gaps: bool) -> String {
+/// **失われるものは呼び手で違う。** `carried_over` は「その場所の棋譜を
+/// 前回の走査から引き継げたか」。引き継げていれば検索には出続ける代わりに
+/// その場所の追加・変更が反映されず、引き継げていなければ索引に入らない。
+/// 逆のことを言うと、利用者は出ているものを「出ない」と読んで探しに行き、
+/// 案内どおりワークスペースを選び直して**そのとき初めて本当に消す**。
+pub(crate) fn unreadable_places(count: usize, unknown_gaps: bool, carried_over: bool) -> String {
     let more = if count > 1 {
         format!("（ほか {} 件）", count - 1)
     } else {
@@ -77,10 +78,12 @@ pub(crate) fn unreadable_places(count: usize, unknown_gaps: bool) -> String {
     } else {
         ""
     };
-    format!(
-        "この場所を読めません{more}。中の棋譜は索引に入っていないので、検索に出ません{gaps}。\
-         権限を確かめてください"
-    )
+    let lost = if carried_over {
+        "中の棋譜は前回の索引のまま残ります。ここでの追加・変更は反映されません"
+    } else {
+        "中の棋譜は索引に入っていないので、検索に出ません"
+    };
+    format!("この場所を読めません{more}。{lost}{gaps}。権限を確かめてください")
 }
 
 /// 利用者に出す文言の上限。
@@ -265,6 +268,81 @@ pub(crate) fn cannot_open_reason(e: &std::io::Error) -> String {
         // `ErrorKind` の Debug は内部の識別子なので出さない
         _ => {
             "ファイルを読めませんでした。ディスクやネットワークの接続を確かめてください".to_owned()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 場所が分かるものと分からないもので、文言が分かれること。
+    #[test]
+    fn the_message_says_what_was_lost() {
+        let known = unreadable_places(2, false, false);
+        assert!(
+            known.contains("検索に出ません"),
+            "何が失われたかが無い: {known}"
+        );
+        assert!(known.contains("ほか 1 件"), "件数が出ていない: {known}");
+
+        let unknown = unreadable_places(0, true, false);
+        assert!(
+            unknown.contains("削除は索引に反映していません"),
+            "抑止したことを言っていない: {unknown}"
+        );
+    }
+
+    /// **引き継げた回に「検索に出ません」と言わないこと。**
+    ///
+    /// 差分更新では読めない場所の下を前回の走査から引き継ぐので、その棋譜は
+    /// 索引に残り検索にも出る。ここで「出ません」と言うと、利用者は消えたと
+    /// 信じ、案内どおりワークスペースを選び直して**そのとき初めて本当に消す**。
+    #[test]
+    fn carried_over_files_are_not_described_as_gone() {
+        let carried = unreadable_places(1, false, true);
+        assert!(
+            !carried.contains("検索に出ません"),
+            "引き継いだ棋譜を「出ない」と言っている: {carried}"
+        );
+        assert!(
+            carried.contains("前回の索引のまま残ります"),
+            "何が起きたかを言っていない: {carried}"
+        );
+    }
+
+    /// 画面に出る文言に内部の語彙が混じらないこと。
+    ///
+    /// **`ScanError` と `JoinError` の `Display` は内部の綴り**
+    /// （`io error: Permission denied (os error 13)` / `task 42 panicked`）。
+    /// 素で流すと、利用者は自分に関係のある文字列だと読んで検索する。
+    #[test]
+    fn no_user_message_carries_internal_words() {
+        let messages = [
+            unreadable_places(1, false, false),
+            unreadable_places(0, true, false),
+            scan_failure(&ScanError::RootNotFound("/w".into())),
+            scan_failure(&ScanError::RootUnreadable("/w".into())),
+            scan_failure(&ScanError::Io(std::io::Error::other("x"))),
+            build_failure(),
+        ];
+        for m in messages {
+            for internal in [
+                "io error",
+                "root directory",
+                "panicked",
+                "spawn_blocking",
+                "join",
+                "read_dir",
+                "unknown_gaps",
+                "Err",
+            ] {
+                assert!(
+                    !m.contains(internal),
+                    "内部の識別子が画面に出る（{internal}）: {m}"
+                );
+            }
+            assert!(m.contains("ください"), "次に何をすればよいかが無い: {m}");
         }
     }
 }

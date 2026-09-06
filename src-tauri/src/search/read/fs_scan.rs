@@ -567,27 +567,4 @@ mod tests {
             "読めない root が 0件として返っている: {got:?}"
         );
     }
-
-    /// 場所が分かるものと分からないもので、文言が分かれること。
-    #[test]
-    fn the_message_says_what_was_lost() {
-        let known = crate::search::read::diagnosis::unreadable_places(2, false);
-        assert!(
-            known.contains("検索に出ません"),
-            "何が失われたかが無い: {known}"
-        );
-        assert!(known.contains("ほか 1 件"), "件数が出ていない: {known}");
-
-        let unknown = crate::search::read::diagnosis::unreadable_places(0, true);
-        assert!(
-            unknown.contains("削除は索引に反映していません"),
-            "抑止したことを言っていない: {unknown}"
-        );
-        for internal in ["read_dir", "walkdir", "Err", "unknown_gaps"] {
-            assert!(
-                !unknown.contains(internal),
-                "内部の識別子が画面に出る（{internal}）: {unknown}"
-            );
-        }
-    }
 }

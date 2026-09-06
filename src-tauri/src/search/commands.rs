@@ -6,9 +6,9 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::search::build::{build_full_index_task, FullBuild};
 use crate::search::cache::format;
-use crate::search::project_manager::RescanOutcome;
-use crate::search::read::diagnosis::unreadable_places;
-use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
+use crate::search::project_manager::{announce_rescan, RescanOutcome};
+use crate::search::read::diagnosis::{scan_failure, unreadable_places};
+use crate::search::read::fs_scan::{scan_kifu_files, ScanError, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
 use crate::search::types::{
@@ -167,21 +167,10 @@ pub async fn open_project(
                     log::warn!("[open_project] 索引が別の代に差し替わったので Ready にしない");
                     return;
                 }
-                let total_files = st.snapshot().file_table.len() as u32;
-                let _ = app2.emit(
-                    EVT_INDEX_STATE,
-                    // **走査が完走したかを旗に載せる。** 索引は健全でも
-                    // 「新しくなっていない」ことは利用者にしか判断できない
-                    IndexStatePayload::of(IndexState::Ready, total_files)
-                        .indexed(total_files)
-                        .scan_failed(outcome == RescanOutcome::ScanFailed)
-                        .partially_unreadable(matches!(
-                            outcome,
-                            RescanOutcome::Committed {
-                                partially_unreadable: true
-                            }
-                        )),
-                );
+                // **`Ready` を出す口は1つ。** 旗を知っているのは結末だけなので、
+                // 自分で組むと知らない側が `false` で塗り潰す
+                let total_files = st.snapshot().file_table.live_len() as u32;
+                announce_rescan(&app2, total_files, outcome);
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
 
@@ -206,8 +195,35 @@ pub async fn open_project(
         })
         .await
         {
-            Ok(v) => v.map_err(|e| e.to_string())?,
-            Err(e) => return Err(format!("走査を実行できませんでした: {e}")),
+            Ok(v) => v,
+            Err(e) => {
+                // 逃がした先が落ちた場合も、走査できなかったこととして同じ口から出す
+                log::warn!("[open_project] 走査を起こせなかった: {e}");
+                Err(ScanError::Io(std::io::Error::other("join failed")))
+            }
+        }
+    };
+    // **索引を空の `Building` に置き去りにしない。** `restart` が中身を捨てた後
+    // なので、ここで抜けると検索は永久に `stale` かつ0件、バッジはスピナーのまま。
+    // 再試行の導線は無いので開き直しても同じところで止まる
+    let scanned = match scanned {
+        Ok(v) => v,
+        Err(e) => {
+            let _ = app.emit(
+                EVT_INDEX_WARN,
+                IndexWarnPayload {
+                    path: root_dir.to_string_lossy().to_string(),
+                    message: scan_failure(&e),
+                },
+            );
+            let _ = store.update_if_epoch(build_epoch, |s| s.with_state(StoreIndexState::Ready));
+            let _ = app.emit(
+                EVT_INDEX_STATE,
+                IndexStatePayload::of(IndexState::Ready, 0).scan_failed(true),
+            );
+            // **内部の綴りを返さない。** `openError` に読み手が付いたとき
+            // （#403）、`root directory is not readable: /Users/…` が画面に出る
+            return Err(scan_failure(&e));
         }
     };
     // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
@@ -217,7 +233,7 @@ pub async fn open_project(
             EVT_INDEX_WARN,
             IndexWarnPayload {
                 path: scanned.unreadable.first().cloned().unwrap_or_default(),
-                message: unreadable_places(scanned.unreadable.len(), scanned.unknown_gaps),
+                message: unreadable_places(scanned.unreadable.len(), scanned.unknown_gaps, false),
             },
         );
     }

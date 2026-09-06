@@ -75,31 +75,38 @@ let stale = snap.state != StoreIndexState::Ready;
 `U` 行の `diff-empty`（「走査だけ更新」＝ `U` のまま）はこの経路の話ではない
 ——そちらは watcher が動き出したあとに来る `fs-event` の話。
 
-### ⚠️ 走査が失敗しても `Y` に上がる
+### ⚠️ 走査が失敗しても `Y` に上がる（そのことは旗で伝わる）
 
-`run_rescan_diff_apply` は `root_dir` が `None` のときと `scan_kifu_files` が
-`Err` のときに、`with_state(StoreIndexState::Updating)` へ届く前に `return` する。
-**`run_rescan_diff_apply` は成否を返さない**（戻り値が `()`）ので、
-呼び手（`commands.rs`）には失敗と「差分0」を区別する手段が無い。
+`run_rescan_diff_apply` は結末を `RescanOutcome` の3値で返す。
 
-ワークスペースが外付けディスクごと消えている・権限が無い、といった理由で
-走査が1件もできなくても **`Y`（準備完了）になる**。`query_service` が見るのは
-`state != Ready` だけなので、**復元しただけの古い索引の結果が「最新」として返る**。
-この doc が答えると宣言している「いま検索を投げたら結果は最新か」の、
-いちばん多い経路での答えがこれ。
+| 結末                                 | 段       | `EVT_INDEX_STATE`                      |
+| ------------------------------------ | -------- | -------------------------------------- |
+| `Committed { partially_unreadable }` | `Y` へ   | `Ready` ＋ 読めない場所があれば旗      |
+| `ScanFailed`                         | `Y` へ   | `Ready` ＋ `scan_failed`               |
+| `Superseded`                         | 上げない | **出さない**（その索引はもう別のもの） |
 
-**早期 `return` の2つは出方が違う。** `scan_kifu_files` が `Err` のときだけ
-`scan failed: {e}` が出る（内部の語彙のままで、次に何をすればよいかを言っていない）。
-`root_dir` が `None` の腕は**何も出さずに戻る**。どちらも `main` から続く。
+**`Y` に上げるのは正しい。** 索引は最後に読めたときのまま健全で、差分が
+当たっていないだけ。ここで止めると `U` が最後の段になり、検索は永久に
+`stale`、設定はスピナーのまま——再試行の導線は無いので開き直しても同じ。
+
+**ただし `query_service` が見るのは `state != Ready` だけ。** 旗は
+`EVT_INDEX_STATE` に載って設定タブのバッジ（「更新できていません」）になるが、
+**局面検索の画面には出ない**。この doc が答えると宣言している
+「いま検索を投げたら結果は最新か」への答えは、いまも「画面からは分からない」。
+
+出す口は `announce_rescan` の1つ（`project_manager.rs`）。文言は
+`read/diagnosis.rs` が組む——内部の語彙は出さない。
 
 ### ⚠️ `open` がどの状態からでも通る
 
 `open_project` に**いまの状態を見る分岐が無い**。`R` / `B` / `U` の途中で
 もう一度呼ばれると `restart(Restart::Restoring)` が走って**中身が捨てられる**。
-走っている全件構築や差分適用は止まらないので、
-**古い構築が新しい `snap` に `with_files` で書き込む**。
+走っている全件構築や差分適用は止まらない。
 
-TS 側が二重に呼ばないことに依存している。**Rust 側に守りは無い。**
+**守りは代（epoch）。** 止めるのではなく、**古い書き手の書き込みを捨てる**
+——索引は `update_if_epoch` / `snapshot_if_epoch`、帳簿と watcher は
+`ProjectManager` の `epoch` が持つ。据え直された後の構築は帳簿を据えられず
+（`install_after_full_build` が `false` を返す）、呼び手は watcher も起こさない。
 
 ### ⚠️ `B`（全件構築中）に `fs-event` が来る
 

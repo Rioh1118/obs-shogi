@@ -42,4 +42,18 @@ describe("indexHealth", () => {
     expect(indexHealth(idx({ state: "Restoring" }))).toBe("building");
     expect(indexHealth(idx({}))).toBe("ok");
   });
+
+  /**
+   * **走っている最中は、読めない場所より先に「作成中」と言うこと。**
+   *
+   * 読めないフォルダが1つある大きなワークスペースを初めて開くと、構築が
+   * 数分走る。その間ずっと「一部を読めていません」だと、待てば直るものを
+   * 利用者は直しに行く（しかも構築の完了前後で文字列が変わらない）。
+   */
+  it("進行中は、読めない場所より先に見る", () => {
+    for (const state of ["Restoring", "Building", "Updating"] as const) {
+      expect(indexHealth(idx({ state, partiallyUnreadable: true }))).toBe("building");
+      expect(indexHealth(idx({ state, scanFailed: true }))).toBe("building");
+    }
+  });
 });
