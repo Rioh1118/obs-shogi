@@ -3,7 +3,18 @@ import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import type { CursorPath } from "@/entities/kifu/model/cursor";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 
-/** ヒット局面から、その線の続きを `ply` 手ぶん読む */
+/**
+ * ヒット局面から、その線の続きを `ply` 手ぶん読む。
+ *
+ * **要求した局面に着けたかは見ていない。** `buildPlayer` の `goto` は
+ * `forkAndForward` の返り値を見ないので、実在しない変化は黙って捨てられ、
+ * 要求した `tesuu` ちょうどで**別の線に着く**（`entities/kifu/lib/buildPlayer.ts`）。
+ * 索引を作った後に棋譜が編集された場合、ここは別の線の続きを何の印も無く返す。
+ *
+ * 突き合わせる口は `reachedCursor`（`entities/kifu/lib/playerCursor.ts`）に在るが、
+ * **通していない**。通したときに何を出すかは #443（`reachedCursor` の本番の呼び手が
+ * 0件）と同じ判断で、そちらが持つ。
+ */
 export function readContinuation(jkf: JKFData, cursor: CursorPath, ply: number): string[] {
   const player = buildPlayer(jkf, cursor);
   const out: string[] = [];
