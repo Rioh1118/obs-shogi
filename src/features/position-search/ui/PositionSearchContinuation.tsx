@@ -118,8 +118,7 @@ export default function PositionSearchContinuation({
 
           // **捨てると決まった選択は、ここから先へ進めない。** 読みと解析は
           // ファイル単位で共有されるので途中で止めても得は無いが、この先は
-          // 選んだ1行のためだけの仕事（`buildPlayer` は 60手 0.13ms /
-          // 300手 2.54ms）で、誰も見ない
+          // 選んだ1行のためだけの仕事（`buildPlayer` 以降）で、誰も見ない
           if (seqRef.current !== mySeq) return;
 
           setMoves(readContinuation(jkf, cursor, ply));

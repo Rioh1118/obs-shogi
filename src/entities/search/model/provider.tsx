@@ -452,7 +452,8 @@ export function PositionSearchProvider({
       // **写しを渡す。** `flat` は増分追記のために同じ配列を伸ばし続けるので、
       // 直に返すと呼び手の `useMemo` が「変わっていない」と読み、
       // **新着ヒットが一覧に出ない**。写しは要素の指し直しだけ（n=100,000 で
-      // 0.035ms）なので、増分追記の意味は消えない
+      // 0.035ms。`.claude/reviews/2026-09-07-447-position-search-perf-r1.md` M-4）
+      // なので、増分追記の意味は消えない
       const snapshot = flat.slice();
 
       hitsCacheRef.current.set(requestId, {
