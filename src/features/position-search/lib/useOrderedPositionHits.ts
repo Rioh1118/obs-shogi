@@ -72,7 +72,11 @@ export function useOrderedPositionHits(
 
   cache.consumed = hits.length;
   cache.lastHit = hits[hits.length - 1] ?? null;
-  cache.ordered = [...cache.same, ...cache.other];
+  // スプレッドで繋がない。同じ結果を同じ計算量で出すが、iterator を回すぶん遅い
+  // ——n=100,000 で 1.370ms 対 0.114ms（実測。
+  // `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` M-4）。
+  // ここは新着が1件でも通るので、届いた回数ぶん効く
+  cache.ordered = cache.same.concat(cache.other);
 
   return cache.ordered;
 }
