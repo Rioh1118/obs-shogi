@@ -16,6 +16,7 @@ export function VirtualList<RowProps extends object>({
   followIndex = null,
   followAlign = "smart",
   followBehavior = "instant",
+  followNonce,
 }: VirtualListBaseProps<RowProps>) {
   const listRef = useRef<ListImperativeAPI | null>(null);
 
@@ -26,7 +27,7 @@ export function VirtualList<RowProps extends object>({
       align: followAlign,
       behavior: followBehavior,
     });
-  }, [followIndex, followAlign, followBehavior]);
+  }, [followIndex, followAlign, followBehavior, followNonce]);
 
   return (
     <List<RowProps>

@@ -25,4 +25,12 @@ export type VirtualListBaseProps<RowProps extends object> = {
   followIndex?: number | null;
   followAlign?: VirtualListAlign;
   followBehavior?: VirtualScrollBehavior;
+  /**
+   * 添字が変わっていなくても追い直したいときの合図。**器の高さが変わる側が渡す。**
+   *
+   * 仮想リストは `scrollTop` を保つので、上に何かが差し込まれて器が縮むと
+   * 選んでいる行が画面外へ押し出される。添字は動いていないので追従は再発火せず、
+   * 「断りだけが見えていて、それが指している行は視界の外」になる
+   */
+  followNonce?: unknown;
 };
