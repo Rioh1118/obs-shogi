@@ -30,17 +30,13 @@ const TABLES: &[(&str, &[&str])] = &[
         &[
             "src/book/reader.rs",
             "src/book/formats.rs",
-            "src/book/sfen.rs",
+            "src/book/sfen",
             "src/book/yaneuraou_db",
         ],
     ),
     (
         "docs/state-transitions/book-key-failures.md",
-        &[
-            "src/book/commands.rs",
-            "src/book/error.rs",
-            "src/book/sfen.rs",
-        ],
+        &["src/book/commands.rs", "src/book/error.rs", "src/book/sfen"],
     ),
     (
         "docs/state-transitions/game-session.md",
