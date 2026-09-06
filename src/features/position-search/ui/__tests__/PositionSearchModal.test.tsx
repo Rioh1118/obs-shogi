@@ -189,7 +189,8 @@ describe("PositionSearchModal のヒットを開く", () => {
 
   /**
    * 断りは選んだ行に付く。並び替えで選択が滑ると、**利用者が何もしていないのに
-   * 断りが消える**。選択は添字でなく鍵で追う。
+   * 断りが消える**。断りは鍵（`hitKey`）で覚え、選択そのものは参照で追う
+   * （`docs/state-transitions/position-search-view.md`）。
    */
   test("チャンクが届いて並び替わっても、断りは押した行に付いたまま", async () => {
     startNavigationToHit.mockReturnValue("not-in-tree");

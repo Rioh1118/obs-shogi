@@ -77,26 +77,20 @@ export default function PositionSearchModal() {
   const { startNavigationToHit } = usePositionHitNavigation();
 
   /**
-   * 利用者が選んだヒットの**実体**。
+   * 利用者が選んだヒットの**実体**。添字でも鍵でもない。
    *
-   * 添字で持たない。一覧はチャンクが届くたびに並び替わる
-   * （`useOrderedPositionHits` は開いている棋譜のヒットを先頭へ寄せる）ので、
-   * 添字と実体の両方を state に持つと、突き合わせが済むまでの1レンダで
-   * **利用者が選んでいない隣の行**が選択として描かれる。その1フレームで
-   * 行き先も先読みも「続き5手」も別の棋譜を指し、Enter を押せばそちらへ移動する。
-   *
-   * **鍵の文字列にもしない。** 照合が `hitKey` になると、1チャンク届くたびに
-   * 選択行までの全件ぶん `cursorKey` を組み直すことになる。ヒットの実体は
-   * セッション中に作り直されない（`search_chunks` は届いた配列をそのまま保つ）ので、
-   * 参照の一致で足りる。
+   * 理由は `docs/state-transitions/position-search-view.md` の
+   * 「選択を追うのは参照、断りを覚えるのは鍵」。**選択について state に置くのは
+   * これ1つだけ**——添字も一緒に持つと、並び替えの突き合わせが済むまでの
+   * 1レンダで利用者が選んでいない行が選択として描かれる。
    */
   const [selectedHit, setSelectedHit] = useState<PositionHit | null>(null);
   const [requestId, setRequestId] = useState<number | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
-  // 移動を断ったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
-  // 並び替わる（`useOrderedPositionHits`）ので、添字で覚えると断りが別のヒットに
-  // 付いたまま残る
+  // 移動を断ったヒット。**鍵で覚える**（`hitKey`）。使い分けは
+  // `docs/state-transitions/position-search-view.md` の「選択を追うのは参照、
+  // 断りを覚えるのは鍵」
   const [refusedHit, setRefusedHit] = useState<{
     key: string;
     reason: RefusalReason;
@@ -240,11 +234,8 @@ export default function PositionSearchModal() {
   }, [discardSearch]);
 
   /**
-   * 選んだ行の添字。**state に持たず、実体から導出する。**
-   *
-   * こうすると並び替えの追従が「同じレンダの中」で済み、突き合わせのための
-   * effect が要らなくなる。見失ったとき（新しい検索、届いた実体が入れ替わった）は
-   * 先頭に落ちる。
+   * 選んだ行の添字。**導出する**（上の doc）。見失ったとき——新しい検索、
+   * 届いた実体が入れ替わった——は先頭に落ちる。
    */
   const activeIndex = useMemo(() => {
     if (!selectedHit) return 0;
@@ -282,8 +273,7 @@ export default function PositionSearchModal() {
       // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
       // 動かしていない棋譜を探しに行かせる
 
-      // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
-      // 追えるように選択を合わせる
+      // 押した行は利用者が選んだ行。断りがこの行に付く以上、選択も合わせる
       setSelectedHit(hit);
 
       const absPath = resolveHitAbsPath(hit);
