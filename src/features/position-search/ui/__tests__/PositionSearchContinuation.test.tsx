@@ -5,12 +5,11 @@ import { act, cleanup, render } from "@testing-library/react";
 import type { PositionHit } from "@/entities/search";
 
 /**
- * 「この先の手」を取り直した回数を数える。
+ * 「この先の手」を取りに行った回数を数える。
  *
- * 取り直しは画面には「取得中…」としか出ないので、**増えても人の目では追えない**。
- * 一方で1回ぶんの中身はファイル全文の読みか、少なくとも `buildPlayer`
- * （60手 0.13ms / 300手 2.54ms）で、チャンクの数だけ繰り返せば右ペインは
- * 検索が終わるまで点滅し続ける。
+ * 1回はファイル全文の IPC 越しの転送と全文パースだが、画面には「取得中…」と
+ * しか出ない。**増えても人の目では追えない。** 一覧は矢印で降りられて、
+ * 押しっぱなしは 25〜30 回/秒 になる。
  */
 
 const readText = vi.fn();
@@ -38,18 +37,23 @@ vi.mock("@/entities/kifu/lib/advanceWithPlan", () => ({
 
 const { default: PositionSearchContinuation } = await import("../PositionSearchContinuation");
 
-function hitAt(fileId: number, tesuu: number): PositionHit {
-  return { occ: { fileId, gen: 1, nodeId: tesuu }, cursor: { tesuu, forkPointers: [] } };
+/** 選択が止まってから読みに行くまでの時間より長く進める */
+const PAST_DEBOUNCE_MS = 200;
+
+function hitAt(fileId: number): PositionHit {
+  return { occ: { fileId, gen: 1, nodeId: fileId }, cursor: { tesuu: 1, forkPointers: [] } };
 }
 
-const HIT = hitAt(1, 20);
-const OTHER = hitAt(2, 30);
+const HIT = hitAt(1);
+const OTHER = hitAt(2);
+
+const absOf = (hit: PositionHit) => `/root/${hit.occ.fileId}.kif`;
 
 /**
  * 呼ばれるたびに新しい関数を返す。索引のパス表（`filePathById`）は
  * チャンクが新しい fileId を運ぶたびに作り直されるので、これが現物の形
  */
-const freshResolver = () => (hit: PositionHit) => `/root/${hit.occ.fileId}.kif`;
+const freshResolver = () => absOf;
 
 function view(activeHit: PositionHit | null, resolveAbsPath: (h: PositionHit) => string | null) {
   return (
@@ -57,13 +61,26 @@ function view(activeHit: PositionHit | null, resolveAbsPath: (h: PositionHit) =>
   );
 }
 
+/** 待ち時間を越えさせ、読みの解決まで流す */
+async function settle() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+  });
+}
+
+const readPaths = () => readText.mock.calls.map(([abs]) => abs as string);
+
 beforeEach(() => {
+  vi.useFakeTimers();
   readText.mockReset();
   readText.mockResolvedValue({ success: true, data: "kif text" });
   buildPlayer.mockReset();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("この先の手を取り直す回数", () => {
   /**
@@ -76,16 +93,18 @@ describe("この先の手を取り直す回数", () => {
     await act(async () => {
       v = render(view(HIT, freshResolver()));
     });
+    await settle();
     expect(buildPlayer).toHaveBeenCalledTimes(1);
 
     for (let i = 0; i < 5; i++) {
       await act(async () => {
         v.rerender(view(HIT, freshResolver()));
       });
+      await settle();
     }
 
     expect(buildPlayer).toHaveBeenCalledTimes(1);
-    expect(readText).toHaveBeenCalledTimes(1);
+    expect(readPaths()).toEqual(["/root/1.kif"]);
   });
 
   test("行が変われば取り直す", async () => {
@@ -93,12 +112,14 @@ describe("この先の手を取り直す回数", () => {
     await act(async () => {
       v = render(view(HIT, freshResolver()));
     });
+    await settle();
 
     await act(async () => {
       v.rerender(view(OTHER, freshResolver()));
     });
+    await settle();
 
-    expect(readText.mock.calls.map(([abs]) => abs)).toEqual(["/root/1.kif", "/root/2.kif"]);
+    expect(readPaths()).toEqual(["/root/1.kif", "/root/2.kif"]);
   });
 
   /**
@@ -110,12 +131,153 @@ describe("この先の手を取り直す回数", () => {
     await act(async () => {
       v = render(view(HIT, () => null));
     });
+    await settle();
     expect(readText).not.toHaveBeenCalled();
 
     await act(async () => {
       v.rerender(view(HIT, freshResolver()));
     });
+    await settle();
 
     expect(readText).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("矢印で駆け抜けたとき", () => {
+  /**
+   * 通り過ぎた行の中身は誰も見ない。**止まったときだけ読む。**
+   * 打鍵ごとに読むと、1本 100KB の棋譜で 2.5〜3MB/秒 を IPC 越しに運び続ける
+   */
+  test("10行ぶん動いても、読むのは止まった1行だけ", async () => {
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(hitAt(0), freshResolver()));
+    });
+
+    for (let i = 1; i <= 10; i++) {
+      await act(async () => {
+        v.rerender(view(hitAt(i), freshResolver()));
+      });
+      // 打鍵の間隔（30/秒）。待ち時間には届かない
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(33);
+      });
+    }
+
+    await settle();
+
+    expect(readPaths()).toEqual(["/root/10.kif"]);
+  });
+});
+
+describe("同じ棋譜への読み", () => {
+  /**
+   * 読み終わる前に戻ってきた場合。抱えるのが解決後の値だと、この経路で
+   * `read_file` が重なる
+   */
+  test("読んでいる最中に戻ってきても、2度は読まない", async () => {
+    const pending = new Map<string, (v: unknown) => void>();
+    readText.mockImplementation(
+      (abs: string) => new Promise((resolve) => pending.set(abs, resolve)),
+    );
+
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(HIT, freshResolver()));
+    });
+    await settle();
+    expect(readPaths()).toEqual(["/root/1.kif"]);
+
+    // 1.kif の読みは解決していない。別の行へ移って、戻る
+    await act(async () => {
+      v.rerender(view(OTHER, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    expect(readPaths()).toEqual(["/root/1.kif", "/root/2.kif"]);
+  });
+
+  /** 抱えた棋譜は残る。1行ずつ降りて戻ってくる操作で読み直しになってはいけない */
+  test("読み終わった棋譜へ戻っても、読み直さない", async () => {
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(OTHER, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    expect(readPaths()).toEqual(["/root/1.kif", "/root/2.kif"]);
+  });
+
+  /**
+   * 上限は件数でなく量。**大きい棋譜は少ししか抱えられない**という形になって
+   * いること（件数で切ると、大きい棋譜ばかりのときに際限なく抱える）
+   */
+  test("上限を超えたら古いものから落とす", async () => {
+    // 2本で上限（原文 2,000,000 文字）を超える大きさ
+    const huge = "x".repeat(1_100_000);
+    readText.mockResolvedValue({ success: true, data: huge });
+
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(OTHER, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    expect(readPaths()).toEqual(["/root/1.kif", "/root/2.kif", "/root/1.kif"]);
+  });
+
+  /**
+   * 失敗を抱えると、権限が戻ってもファイルが直っても同じ断りを返し続ける。
+   * 利用者から見ると「一度失敗した棋譜は、アプリを開き直すまで直らない」
+   */
+  test("読みに失敗した棋譜は抱えない（選び直せばもう一度読む）", async () => {
+    readText.mockImplementation((abs: string) =>
+      abs === "/root/1.kif"
+        ? Promise.resolve({ success: false, error: { code: "permission_denied" } })
+        : Promise.resolve({ success: true, data: "kif text" }),
+    );
+
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(OTHER, freshResolver()));
+    });
+    await settle();
+
+    await act(async () => {
+      v.rerender(view(HIT, freshResolver()));
+    });
+    await settle();
+
+    expect(readPaths()).toEqual(["/root/1.kif", "/root/2.kif", "/root/1.kif"]);
   });
 });
