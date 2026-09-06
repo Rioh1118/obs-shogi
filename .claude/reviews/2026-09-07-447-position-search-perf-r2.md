@@ -21,6 +21,8 @@
 
 ### [HIGH] R2-1 `search_end` / `search_error` が門を素通りし、`clear_search` で消したセッションを作り直す
 
+- 結果: 対応済み（`f0453e0f` 終わり・失敗は在るセッションにしか効かせない。始まりは `isAccepting` を通す）
+
 - reviewer: react / robustness（**両者が実測で再現**）
 - 場所: `provider.tsx` の `onSearchEnd` / `onSearchError`、`reducer.ts` の `search_end` / `search_error`（`ensureSession`）、`src-tauri/src/search/query_service.rs:127`・`:179`
 - 根拠: 門（`chunkBuffer`）を通るのは `search_chunk` だけ。Rust は取り下げられた検索でも `break` の後で必ず `EVT_SEARCH_END` を emit する。実測: `clearSearch(7)` 直後の `Object.keys(state.sessions)` は `[]`、続けて `onSearchEnd({requestId:7})` を撃つと `["7"]` に戻る
@@ -29,6 +31,8 @@
 
 ### [HIGH] R2-2 続きの5手が、要求した局面に着けなくても印無しで別の線を読む
 
+- 結果: doc と仕様に反映（`c1f4fb3c`）。実装は #443 と同じ判断が要るのでそちらへ
+
 - reviewer: robustness
 - 場所: `lib/readContinuation.ts`、`entities/kifu/lib/buildPlayer.ts` の doc、`playerCursor.ts` の `reachedCursor`
 - 根拠: `buildPlayer` の doc が「**要求した局面に着くとは限らない**。`goto` は `forkAndForward` の返り値を見ないので、実在しない変化は黙って捨てられ、要求した `tesuu` ちょうどで別の線に着く」と書いている。`readContinuation` は `reachedCursor` を通していない
@@ -36,6 +40,8 @@
 - **範囲の判断**: `main` から在る。実装の直しには第3の表示状態の決定が要り、#443（`reachedCursor` の本番の呼び手が0件）と同じ判断。**この PR では doc と仕様の欠けとして書く**
 
 ### [HIGH] R2-3 invoke が解決する前に閉じると、取り下げも破棄も1つも飛ばない
+
+- 結果: 対応済み（`bcb8b862` 起動の世代を取り、解決した側が自分の番かを確かめる）
 
 - reviewer: react / robustness / perf（**3人。robustness と perf が実測**）
 - 場所: `PositionSearchModal.tsx` の `discardSearch`（`rid == null` で素通り）と `searchPosition(...).then`（世代を確かめずに `inFlightRidRef` と `setRequestId` を書く）
@@ -46,12 +52,16 @@
 
 ### [BLOCK] R2-4 テストの doc が「選択は鍵で追う」と言っている（同じファイルの15行下が正反対を書く）
 
+- 結果: 対応済み（`61c10c29` R2-17 と同じ修正で書き換わった）
+
 - reviewer: comment
 - 場所: `ui/__tests__/PositionSearchModal.test.tsx` の「チャンクが届いて並び替わっても、断りは押した行に付いたまま」の doc
 - 根拠: 実装は `orderedHits.indexOf(hit)`。同じファイルの下のテストは「参照で追えば追従そのものは鍵を組まない」と書き、`docs/state-transitions/position-search-view.md` も直っている。**`7d48f456` の置き去り**
 - 直し方: 「断りは鍵で覚える。選択そのものは参照で追う」に差し替える
 
 ### [MEDIUM] R2-5 門の線が「イベントで見た rid」からしか引かれない
+
+- 結果: 対応済み（`53657045` invoke が返した rid も線に数える）
 
 - reviewer: robustness（**実測**）
 - 場所: `provider.tsx` の `noteRequest`（`onSearchBegin` と `enqueue` からしか呼ばれない）、`stopAccepting()` の `dead.clear()`、`searchPosition`
@@ -61,6 +71,8 @@
 
 ### [MEDIUM] R2-6 選択の真実の源が2つあり、突き合わせが effect にあるので1フレーム別の行が選ばれる
 
+- 結果: 対応済み（`3b7d0aef` 実体だけを state にし、添字を導出。追従 effect とクランプが消えた）
+
 - reviewer: react
 - 場所: `PositionSearchModal.tsx` の `activeHit = orderedHits[activeIndex]`（添字が源）と追従 effect（参照が源）
 - 根拠: 開いている棋譜のヒットが新しいチャンクに乗ると `same` が伸び、`other` に居る選択行の添字が後ろへずれる。`orderedHits` は新しく `activeIndex` は古いレンダが**必ず1回**入る
@@ -69,12 +81,16 @@
 
 ### [MEDIUM] R2-7 `KifuCache.load` に契約が書かれていない
 
+- 結果: 対応済み（`a667e6de` `load` に4つの約束を書いた）
+
 - reviewer: comment
 - 場所: `lib/kifuCache.ts` の `load`（無印）に対し、private の `evict` には10行
 - 根拠: 呼び手が知らないと踏む約束が4つ——同じパスの飛行中は同じ `Promise`、失敗は `Error` で **reject する**、失敗は抱えないので次に呼べばまた IPC、**呼ぶと他の entry が追い出されうる**
 - 直し方: `load` に TSDoc
 
 ### [MEDIUM] R2-8 溜め場の名前が振る舞いから1つずつずれている
+
+- 結果: 対応済み（`4de0701a` `activate`/`deactivate`、`deadBefore` → `firstLiveRid`）
 
 - reviewer: comment
 - 場所: `provider.tsx` の `open` / `dispose` / `deadBefore`
@@ -84,6 +100,8 @@
 
 ### [MEDIUM] R2-9 仕様の「更に 300ms」が実装より 150ms 長く読める
 
+- 結果: 対応済み（`3a453f76` 「更に」を落とした）
+
 - reviewer: comment
 - 場所: `docs/spec/screens/position-search.md`
 - 根拠: 2つの effect は同じ commit でタイマを張るので、先読みが走るのは**選択が止まってから 300ms**。450ms ではない。テストの `PAST_PREFETCH_MS = 400` が仕様どおりなら書けない
@@ -91,23 +109,27 @@
 
 ### [MEDIUM] R2-10〜R2-16（r1 から継続。現物で未解消を確認済み）
 
-| 番号  | 所見                                                                                         | 場所                                                                                       |
-| ----- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| R2-10 | 死んだ `memo` を根拠にしたコメント（r1 M-5）                                                 | `PositionSearchModal.tsx` / `VirtualHitRow.tsx`                                            |
-| R2-11 | 「既定の 300 件区切り」は既定ではない（r1 M-7）。300 の出所に理由が無い                      | `provider.tsx` / `chunkCoalescing.test.tsx` / `PositionSearchModal.tsx`                    |
-| R2-12 | 実測値が出典なしで **8箇所**（r1 M-8。出典付きの例が同じ差分に3つある）                      | 各所                                                                                       |
-| R2-13 | 「macOS の既定で 25〜30 回/秒」は最速設定（r1 M-9）                                          | `PositionSearchContinuation.tsx` と同テスト                                                |
-| R2-14 | 公開面に「返り値は共有の配列」が無い（r1 M-10）                                              | `types.ts` / `useOrderedPositionHits.ts`                                                   |
-| R2-15 | コメントが指す `search_chunk` は存在しない（r1 M-11）。**同じ形の所見が2ラウンド続けて出た** | `PositionSearchModal.tsx`                                                                  |
-| R2-16 | テストの名前と doc が実際より広い2件（r1 M-12）／ref 宣言が書く側より下（r1 M-13）           | `chunkCoalescing.test.tsx` / `useOrderedPositionHits.test.tsx` / `PositionSearchModal.tsx` |
+| 番号  | 所見                                                                                                                                                      | 場所                                                                                       |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| R2-10 | 死んだ `memo` を根拠にしたコメント（r1 M-5）**→ `e452337f`**                                                                                              | `PositionSearchModal.tsx` / `VirtualHitRow.tsx`                                            |
+| R2-11 | 「既定の 300 件区切り」は既定ではない（r1 M-7）**→ `dbf570d6`**                                                                                           | `provider.tsx` / `chunkCoalescing.test.tsx` / `PositionSearchModal.tsx`                    |
+| R2-12 | 実測値が出典なしで **8箇所**（r1 M-8）**→ `c50a1b70`**                                                                                                    | 各所                                                                                       |
+| R2-13 | 「macOS の既定で 25〜30 回/秒」は最速設定（r1 M-9）**→ `ae0b21eb`**                                                                                       | `PositionSearchContinuation.tsx` と同テスト                                                |
+| R2-14 | 公開面に「返り値は共有の配列」が無い（r1 M-10）**→ `a667e6de`**                                                                                           | `types.ts` / `useOrderedPositionHits.ts`                                                   |
+| R2-15 | コメントが指す `search_chunk` は存在しない（r1 M-11）。**解消済み**（`61c10c29` がその段ごと書き換えた）                                                  | `PositionSearchModal.tsx`                                                                  |
+| R2-16 | テストの名前と doc が実際より広い2件（r1 M-12）**→ `1222481d`**／ref 宣言が書く側より下（r1 M-13）は `3b7d0aef` で**解消済み**（`activeHitRef` が消えた） | `chunkCoalescing.test.tsx` / `useOrderedPositionHits.test.tsx` / `PositionSearchModal.tsx` |
 
 ### [MEDIUM] R2-17 同じ不変条件（選択は参照・断りは鍵）が8箇所に書かれ、1つが腐った
+
+- 結果: 対応済み（`61c10c29` 正を状態遷移表に決め、コードは指す形に縮めた）
 
 - reviewer: comment
 - 根拠: 8箇所すべてが別の言い回しで同じことを説明し、実装が変わったとき7箇所が追随して**1箇所（R2-4）だけが取り残された**
 - 直し方: 正を1つ（`docs/state-transitions/position-search-view.md`）に決め、コードのコメントはそこを指す形に縮める
 
 ### [MEDIUM] R2-18 `kifuCache` が entities 側の型の言い切りを `unknown` と `as` で捨てている
+
+- 結果: 対応済み（`a667e6de` `toText` と `as JKFData` を落とした）
 
 - reviewer: architecture
 - 場所: `lib/kifuCache.ts` の `toText` と `as JKFData`
@@ -117,6 +139,8 @@
 
 ### [MEDIUM] R2-19 「索引が動いている」の判定が2つの feature に手書きで重複
 
+- 結果: 対応済み（`141f21aa` `isIndexBusy` を entities に置き、2箇所から呼ぶ）
+
 - reviewer: architecture
 - 場所: `PositionSearchModal.tsx` の `indexStale`、`features/settings/ui/tabs/WorkspaceTab.tsx`
 - 根拠: `IndexState` に段が1つ増えたとき、`WorkspaceTab` の手書き union は tsc が落とすが、3項の or **2箇所は落ちない**
@@ -125,12 +149,16 @@
 
 ### [MEDIUM] R2-20 「そのセッションはもう無い」が3つの置き場に散り、順序でしか保証されていない
 
+- 結果: 対応済み（`e0b11056` `dropSessions` を唯一の口にし、溜め場を `model/chunkBuffer.ts` へ。React 抜きの単体テスト8件つき）
+
 - reviewer: architecture
 - 場所: `provider.tsx` の `openProject` と `clearSearch` の呼び出し列、`reducer.ts` の `ensureSession`、`createChunkBuffer`
 - 根拠: rid で引ける置き場が3つ（`state.sessions` / 溜め場の `pending`+`dead`+`deadBefore` / `hitsCacheRef`）。全部に伝える責任が2箇所の呼び出し順にしか無い。**この結合はこのブランチで増えている**（基点では置き場2つ・呼び出し1箇所）
 - 直し方: 破棄の口を1つにする。`createChunkBuffer` を `model/chunkBuffer.ts` へ出し、React 抜きで線の判定を単体テストできるようにする
 
 ### [LOW] R2-21 自スライスの import が絶対パスで書かれている（5件）
+
+- 結果: 対応済み（`bab0fdf0`）
 
 - reviewer: architecture
 - 根拠: `rg 'from "@/features/'` が feature 間の結合を洗う唯一の機械的手段だが、自スライスを絶対で書いた行が混ざると目で仕分けることになる。同じスライス内で相対と絶対が混在
