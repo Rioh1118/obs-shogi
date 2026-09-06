@@ -4,10 +4,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import Modal from "@/shared/ui/Modal";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import type { VisibleTier } from "@/shared/lib/notification/types";
-import {
-  usePositionHitNavigation,
-  type NavigationOutcome,
-} from "@/features/position-search/lib/usePositionHitNavigation";
+import { usePositionHitNavigation, type NavigationOutcome } from "../lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -19,8 +16,8 @@ import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDa
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
-import { hitKey } from "@/features/position-search/lib/hitKey";
-import { useOrderedPositionHits } from "@/features/position-search/lib/useOrderedPositionHits";
+import { hitKey } from "../lib/hitKey";
+import { useOrderedPositionHits } from "../lib/useOrderedPositionHits";
 import { useGame } from "@/entities/game";
 import { isIndexBusy, usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";

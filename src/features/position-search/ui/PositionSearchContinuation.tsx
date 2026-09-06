@@ -5,8 +5,8 @@ import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
 import { cursorKey, type CursorPath } from "@/entities/kifu/model/cursor";
 
-import { KifuCache } from "@/features/position-search/lib/kifuCache";
-import { readContinuation } from "@/features/position-search/lib/readContinuation";
+import { KifuCache } from "../lib/kifuCache";
+import { readContinuation } from "../lib/readContinuation";
 
 type Props = {
   activeHit: PositionHit | null;
