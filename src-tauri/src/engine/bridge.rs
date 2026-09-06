@@ -565,7 +565,7 @@ mod tests {
     ///
     /// **停止まで通す検査も回せる。** `analyzer.stop_analysis()` は
     /// エンジンが居なければ `Ok` に落ちる（`analyzer.rs`）ので、席の出入りだけが残る。
-    /// 裏を返すと、**ここで見えるのは台帳だけ**——エンジンに `stop` が届いたかは
+    /// 裏を返すと、**ここで見えるのは席の一覧だけ**——エンジンに `stop` が届いたかは
     /// どのテストも見ていない。
     fn bridge() -> EngineBridge {
         EngineBridge::new(Arc::new(EngineRegistry::new()))
@@ -668,7 +668,7 @@ mod tests {
         bridge.release_session(&mine).await;
     }
 
-    /// `session_id` を省いた停止が席を空けること。**見ているのは台帳だけ**（→ `bridge`）。
+    /// `session_id` を省いた停止が席を空けること。**見ているのは席の一覧だけ**（→ `bridge`）。
     ///
     /// **席の ID を持てない呼び手が居る。** 画面が畳まれた後の後始末は、
     /// 握っている ID が席の主とずれていることがあるので指せない
