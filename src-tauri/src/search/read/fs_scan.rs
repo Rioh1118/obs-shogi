@@ -484,14 +484,17 @@ mod tests {
         let dir = test_support::dir::temp_dir("scan-carry");
         std::fs::create_dir_all(dir.join("closed")).expect("試験用のディレクトリ");
         std::fs::create_dir_all(dir.join("open")).expect("試験用のディレクトリ");
+        // **2件置く。** 1件だと「鍵を返す」変異でも `carried.len() == 1` になり、
+        // 場所を返しているのか鍵を返しているのか区別が付かない
         std::fs::write(dir.join("closed/a.kif"), b"x").expect("下ごしらえ");
+        std::fs::write(dir.join("closed/b.kif"), b"x").expect("下ごしらえ");
         std::fs::write(dir.join("open/b.kif"), b"x").expect("下ごしらえ");
         std::fs::write(dir.join("open/gone.kif"), b"x").expect("下ごしらえ");
 
         let before = scan_kifu_files(&dir, &ScanOptions::default()).expect("1回目");
         assert!(before.unreadable.is_empty(), "まだ読める");
         let prev = snapshot_from_records(&dir, before.files);
-        assert_eq!(prev.by_path.len(), 3);
+        assert_eq!(prev.by_path.len(), 4);
 
         // 読める場所の1件を消し、もう1つの場所を辿れなくする
         std::fs::remove_file(dir.join("open/gone.kif")).expect("削除");
@@ -507,10 +510,25 @@ mod tests {
             std::fs::set_permissions(dir.join("closed"), std::fs::Permissions::from_mode(0o755));
         let _ = std::fs::remove_dir_all(&dir);
 
+        // **返るのは「場所」であって「鍵」ではない。** `unreadable_warnings` は
+        // これを場所の綴りで引くので、鍵が入ると引き継げた場所が全部
+        // 「引き継げなかった」側に落ち、検索に出る棋譜を「出ません」と告げる
         assert_eq!(
             carried.len(),
             1,
-            "読めない場所の下を引き継げていない（綴りが揃っていない）。unreadable={:?}",
+            "場所ではなく鍵を返している（2件の棋譜に対して場所は1つ）。carried={carried:?}"
+        );
+        // **`unreadable` と同じ綴りであること。** `unreadable_warnings` は
+        // この2つを突き合わせるので、片方が正規化された綴りだと一致しない
+        assert!(
+            carried.contains(&after.unreadable[0]),
+            "引き継げた場所の綴りが `unreadable` と揃っていない。carried={:?} unreadable={:?}",
+            carried,
+            after.unreadable
+        );
+        assert!(
+            after.unreadable[0].ends_with("/closed"),
+            "引き継いだ場所が `closed` でない: {:?}",
             after.unreadable
         );
         assert_eq!(

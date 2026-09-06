@@ -213,7 +213,14 @@ pub async fn open_project(
         Ok(v) => v,
         Err(e) => {
             // **索引はもう空。** `restart(Restart::Building)` が上で捨てている
-            warn_scan_failed(&app, &root_dir, &e, IndexSurvival::Gone);
+            warn_scan_failed(
+                &app,
+                &store,
+                build_epoch,
+                &root_dir,
+                &e,
+                IndexSurvival::Gone,
+            );
             // **`Ready` にしない。** `restart` が中身を捨てた後なので索引は空で、
             // `query_service` の `stale` は段だけを見る——空を `Ready` にすると
             // **0件が「最新」として並ぶ**（`store/index_store.rs` の `//!`）
@@ -228,9 +235,12 @@ pub async fn open_project(
     // **全件構築に引き継ぐ前回は無い。** どの場所も「索引に入っていない」側になる
     warn_unreadable(
         &app,
+        &store,
+        build_epoch,
         &scanned.unreadable,
         scanned.unknown_gaps,
         &std::collections::HashSet::new(),
+        IndexSurvival::Gone,
     );
     let partial = scanned.is_partial();
     let records = scanned.files;

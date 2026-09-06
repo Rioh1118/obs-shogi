@@ -14,7 +14,8 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Semaphore, task::JoinSet};
 
 use crate::search::announce::{
-    announce_progress, announce_state, build_failure, IndexAnnouncement, IndexProgress,
+    announce_progress, announce_state, build_failure, warn_build_not_started, IndexAnnouncement,
+    IndexProgress,
 };
 use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
@@ -96,11 +97,7 @@ pub async fn build_full_index_task(
         path_to_id.insert(path_key, file_id);
     }
 
-    // 上の doc の前提。**破れたら書かずに帰る。**
-    //
-    // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
-    // 索引が作られない方が観測できる。
-    // 呼び手が渡した代の索引であること。**破れたら書かずに帰る。**
+    // 呼び手が渡した代の、空の `Building` であること。**破れたら書かずに帰る。**
     //
     // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
     // 索引が作られない方が観測できる。
@@ -115,13 +112,7 @@ pub async fn build_full_index_task(
                 snap.state,
                 snap.file_table.len()
             );
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload::place(
-                    root_dir.to_string_lossy(),
-                    "索引の作成を始められませんでした。開き直してください",
-                ),
-            );
+            warn_build_not_started(&app, &root_dir);
             return;
         }
     }
@@ -230,7 +221,7 @@ pub async fn build_full_index_task(
             }
         }
 
-        if last_emit.elapsed() >= crate::search::EMIT_INTERVAL {
+        if last_emit.elapsed() >= crate::search::announce::EMIT_INTERVAL {
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {

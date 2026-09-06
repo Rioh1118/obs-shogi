@@ -266,7 +266,7 @@ impl ProjectManager {
             Ok(v) => v,
             Err(e) => {
                 // **索引は残っている。** 当たっていないのは差分だけ
-                warn_scan_failed(&app, &root, &e, IndexSurvival::Kept);
+                warn_scan_failed(&app, &store, epoch, &root, &e, IndexSurvival::Kept);
                 return RescanOutcome::ScanFailed;
             }
         };
@@ -287,7 +287,15 @@ impl ProjectManager {
         // **引き継げた件数で言い分ける。** 「読めない場所があったか」ではない
         // ——前回の走査に無かった場所（新しく作られたフォルダ）は引き継げないので、
         // 「前回の索引のまま残ります」と言うとその棋譜は検索に出ないのに残ると読める
-        warn_unreadable(&app, &unreadable, unknown_gaps, &carried);
+        warn_unreadable(
+            &app,
+            &store,
+            epoch,
+            &unreadable,
+            unknown_gaps,
+            &carried,
+            IndexSurvival::Kept,
+        );
         if unknown_gaps {
             // **どこが読めなかったか分からない。** 範囲を絞れないので、この回は
             // 削除を1件も当てない。基準にも前回のものを戻す——戻さないと
@@ -336,6 +344,7 @@ impl ProjectManager {
             IndexProgress::Updating {
                 total: next_scan.by_path.len() as u32,
                 dirty: dirty_count,
+                partially_unreadable: partial,
             },
         );
 
@@ -351,11 +360,11 @@ impl ProjectManager {
             return RescanOutcome::Superseded;
         }
 
-        // **進捗は間引く。** 理由と間隔は `crate::search::EMIT_INTERVAL` の doc
+        // **進捗は間引く。** 理由と間隔は `crate::search::announce::EMIT_INTERVAL` の doc
         let mut last_emit = std::time::Instant::now();
         for path_key in &diff.removed {
             done_dirty += 1;
-            if last_emit.elapsed() < crate::search::EMIT_INTERVAL {
+            if last_emit.elapsed() < crate::search::announce::EMIT_INTERVAL {
                 continue;
             }
             last_emit = std::time::Instant::now();
@@ -446,8 +455,8 @@ impl ProjectManager {
             }
             done_dirty += 1;
             // 削除の側と同じく間引く。フォルダを1つ移すと、移した先は全部
-            // `added` になるので件数は同じ桁になる（`crate::search::EMIT_INTERVAL`）
-            if last_emit.elapsed() >= crate::search::EMIT_INTERVAL {
+            // `added` になるので件数は同じ桁になる（`crate::search::announce::EMIT_INTERVAL`）
+            if last_emit.elapsed() >= crate::search::announce::EMIT_INTERVAL {
                 last_emit = std::time::Instant::now();
                 let _ = app.emit(
                     EVT_INDEX_PROGRESS,

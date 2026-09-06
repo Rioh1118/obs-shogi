@@ -24,6 +24,20 @@ use crate::search::types::{
     IndexState, IndexStatePayload, IndexWarnPayload, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
 
+/// 進捗を出す間隔。
+///
+/// **`search/mod.rs` に置かない。** `tests/layering.rs` は `mod.rs` を段に載せない
+/// ので、そこに置いたものはどの段の検査にも掛からない——上下の言えない2つが
+/// 共有の置き場にできてしまう。ここは「画面へ何をどれだけの頻度で出すか」を
+/// 決める段なので、間隔もここが持つ。
+///
+/// **経路ごとに変えない。** 同じ進捗バーへ全件構築と差分更新の両方が流すので、
+/// 片方だけ間引くと、同じ件数の変更でも経路によって画面の滑らかさが違う。
+///
+/// 間引かないと、フォルダを1つ移しただけで数千件の直列化と IPC が
+/// 途切れなく走り、tokio のワーカーを1本占有する。
+pub const EMIT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// 差分適用がどう終わったか。
 ///
 /// **`bool` に畳まないこと。** 「据え直された」と「走査できなかった」は、
@@ -84,7 +98,7 @@ pub fn announce_state(
 ///
 /// **代は同じように確かめる。** 確かめないと、ワークスペースを切り替えた後の
 /// 画面へ**前のワークスペースの進捗**が流れ続ける——全件構築は
-/// [`crate::search::EMIT_INTERVAL`] ごとに出すので、次のバッチが
+/// [`EMIT_INTERVAL`] ごとに出すので、次のバッチが
 /// `update_if_epoch` に弾かれるまで毎秒10回それが届く。
 pub fn announce_progress(
     app: &AppHandle,
@@ -113,7 +127,13 @@ pub enum IndexProgress {
         partially_unreadable: bool,
     },
     /// 差分を当てている最中
-    Updating { total: u32, dirty: u32 },
+    Updating {
+        total: u32,
+        dirty: u32,
+        /// **`Building` と同じ旗を運ぶ。** 片方だけ運ばないと、再走査に入った
+        /// 瞬間に旗が伏せられる——同じ事実が経路によって消える
+        partially_unreadable: bool,
+    },
 }
 
 impl IndexProgress {
@@ -130,9 +150,13 @@ impl IndexProgress {
             } => IndexStatePayload::of(IndexState::Building, total)
                 .indexed(indexed)
                 .partially_unreadable(partially_unreadable),
-            Self::Updating { total, dirty } => {
-                IndexStatePayload::of(IndexState::Updating, total).dirty(dirty)
-            }
+            Self::Updating {
+                total,
+                dirty,
+                partially_unreadable,
+            } => IndexStatePayload::of(IndexState::Updating, total)
+                .dirty(dirty)
+                .partially_unreadable(partially_unreadable),
         }
     }
 }
@@ -202,30 +226,70 @@ impl IndexAnnouncement {
 ///
 /// **理由を言えるのはここだけ。** 旗は「失敗した」しか運ばないので、
 /// 落とすと未マウントか権限かが画面から完全に消える。
+///
+/// **代を確かめてから出す。** 警告は場所を**絶対パスで名指しする**ので、
+/// 据え直された後に出すと、いま開いていないワークスペースのパスが画面に残る
+/// ——**ワークスペースを開き直しても警告は消えない**ので、利用者が
+/// 「警告をクリア」を押すまでそのセッション中ずっと居座る。
 pub fn warn_scan_failed(
     app: &AppHandle,
+    store: &Arc<IndexStore>,
+    epoch: u64,
     root: &std::path::Path,
     reason: &ScanError,
     survival: IndexSurvival,
 ) {
+    if store.snapshot_if_epoch(epoch).is_none() {
+        return;
+    }
     let _ = app.emit(
         EVT_INDEX_WARN,
         IndexWarnPayload::place(root.to_string_lossy(), scan_failure(reason, survival)),
     );
 }
 
+/// 索引を作り始められなかったことを画面へ出す。
+///
+/// **場所についての文言はこの段が組む。** 呼び手が裸のリテラルで組むと、
+/// そこだけ言い分け（[`IndexSurvival`]）も語彙の統一も掛からない。
+///
+/// **代は見ない。** ここへ来るのは「渡された代の索引がもう自分のものではない」
+/// と分かった直後で、**代が合わないことがこの警告の理由そのもの**。
+/// 関門を置くと、言うべき唯一の回に黙る。
+pub fn warn_build_not_started(app: &AppHandle, root: &std::path::Path) {
+    let _ = app.emit(
+        EVT_INDEX_WARN,
+        IndexWarnPayload::place(root.to_string_lossy(), warn_build_not_started_message()),
+    );
+}
+
+/// 上の文言。**`AppHandle` を要らない形**なので内部語彙の検査に載せられる。
+pub(crate) fn warn_build_not_started_message() -> String {
+    "索引を作り始められませんでした。いま検索しても0件になります。\
+     ワークスペースを開き直してください"
+        .to_string()
+}
+
 /// 読めなかった場所を画面へ出す。
+///
+/// **代を確かめてから出す。** 理由は [`warn_scan_failed`] と同じ。
 ///
 /// **引き継げた場所と引き継げなかった場所を1件に畳まない。** 失われるものが
 /// 逆になる——前者の棋譜は検索に出続け、後者の棋譜は索引に無い。畳むと、
 /// 名指しした場所に対して**逆のこと**を告げることになる。
 pub fn warn_unreadable(
     app: &AppHandle,
+    store: &Arc<IndexStore>,
+    epoch: u64,
     unreadable: &[String],
     unknown_gaps: bool,
     carried_places: &HashSet<String>,
+    survival: IndexSurvival,
 ) {
-    for w in unreadable_warnings(unreadable, unknown_gaps, carried_places) {
+    if store.snapshot_if_epoch(epoch).is_none() {
+        return;
+    }
+    for w in unreadable_warnings(unreadable, unknown_gaps, carried_places, survival) {
         let _ = app.emit(EVT_INDEX_WARN, w);
     }
 }
@@ -238,6 +302,7 @@ fn unreadable_warnings(
     unreadable: &[String],
     unknown_gaps: bool,
     carried_places: &HashSet<String>,
+    survival: IndexSurvival,
 ) -> Vec<IndexWarnPayload> {
     let (carried, lost): (Vec<&String>, Vec<&String>) = unreadable
         .iter()
@@ -248,7 +313,7 @@ fn unreadable_warnings(
         if let Some(first) = places.first() {
             out.push(IndexWarnPayload::place(
                 (*first).clone(),
-                unreadable_places(places.len(), false, carried_over),
+                unreadable_places(places.len(), carried_over),
             ));
         }
     }
@@ -256,7 +321,7 @@ fn unreadable_warnings(
         // 場所が分からない失敗。**代表に選べる場所が無い**ので `path` は空
         out.push(IndexWarnPayload::place(
             String::new(),
-            unreadable_places(0, true, false),
+            unreadable_gaps(survival),
         ));
     }
     out
@@ -318,30 +383,38 @@ pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> Strin
 /// その場所の追加・変更が反映されず、引き継げていなければ索引に入らない。
 /// 逆のことを言うと、利用者は出ているものを「出ない」と読んで探しに行き、
 /// 案内どおりワークスペースを選び直して**そのとき初めて本当に消す**。
-pub(crate) fn unreadable_places(count: usize, unknown_gaps: bool, carried_over: bool) -> String {
+pub(crate) fn unreadable_places(count: usize, carried_over: bool) -> String {
     let more = if count > 1 {
         format!("（ほか {} 件）", count - 1)
     } else {
         String::new()
-    };
-    if count == 0 {
-        // 場所が分からない失敗だけ。**抑止したことと、次にどうなるかを言う**
-        return "ワークスペースの一部を読み取れませんでした。どの場所かは分からないので、\
-                この回の削除は索引に反映していません。\
-                ディスクやネットワークの接続を確かめてください（次に変更があれば取り直します）"
-            .to_string();
-    }
-    let gaps = if unknown_gaps {
-        "。ほかにも場所の分からない読み取り失敗があります"
-    } else {
-        ""
     };
     let lost = if carried_over {
         "中の棋譜は前回の索引のまま残ります。ここでの追加・変更は反映されません"
     } else {
         "中の棋譜は索引に入っていないので、検索に出ません"
     };
-    format!("この場所を読めません{more}。{lost}{gaps}。権限を確かめてください")
+    format!("この場所を読めません{more}。{lost}。権限を確かめてください")
+}
+
+/// 場所の分からない読み取り失敗を、利用者に出す一文へ組む。
+///
+/// **場所が分かる失敗と同じ関数にしない。** 言えることが全く違う——
+/// あちらは場所を名指しできるが、こちらは名指しできる場所が無い。
+/// 1つの関数に同居させると、片方でしか起きない引数の組み合わせが残る。
+///
+/// **失われるものは呼び手で違う。** 差分更新はこの回の削除を当てないだけで
+/// 索引は残る。全件構築は引き継ぐ前回が無いので、読めなかった分は索引に入らない。
+/// 逆を言うと、利用者は「索引そのものは正しい」と読んで0件を受け取る。
+pub(crate) fn unreadable_gaps(survival: IndexSurvival) -> String {
+    let lost = match survival {
+        IndexSurvival::Kept => "どの場所かは分からないので、この回の削除は索引に反映していません",
+        IndexSurvival::Gone => "どの場所かは分からないので、索引に入っていない棋譜があります",
+    };
+    format!(
+        "ワークスペースの一部を読み取れませんでした。{lost}。\
+         ディスクやネットワークの接続を確かめてください（次に変更があれば取り直します）"
+    )
 }
 
 /// 索引を組む仕事そのものが落ちたときの文言。
@@ -368,14 +441,14 @@ mod tests {
     /// 場所が分かるものと分からないもので、文言が分かれること。
     #[test]
     fn the_message_says_what_was_lost() {
-        let known = unreadable_places(2, false, false);
+        let known = unreadable_places(2, false);
         assert!(
             known.contains("検索に出ません"),
             "何が失われたかが無い: {known}"
         );
         assert!(known.contains("ほか 1 件"), "件数が出ていない: {known}");
 
-        let unknown = unreadable_places(0, true, false);
+        let unknown = unreadable_gaps(IndexSurvival::Kept);
         assert!(
             unknown.contains("削除は索引に反映していません"),
             "抑止したことを言っていない: {unknown}"
@@ -389,7 +462,7 @@ mod tests {
     /// 信じ、案内どおりワークスペースを選び直して**そのとき初めて本当に消す**。
     #[test]
     fn carried_over_files_are_not_described_as_gone() {
-        let carried = unreadable_places(1, false, true);
+        let carried = unreadable_places(1, true);
         assert!(
             !carried.contains("検索に出ません"),
             "引き継いだ棋譜を「出ない」と言っている: {carried}"
@@ -408,8 +481,10 @@ mod tests {
     #[test]
     fn no_user_message_carries_internal_words() {
         let messages = [
-            unreadable_places(1, false, false),
-            unreadable_places(0, true, false),
+            unreadable_places(1, false),
+            unreadable_gaps(IndexSurvival::Kept),
+            unreadable_gaps(IndexSurvival::Gone),
+            warn_build_not_started_message(),
             scan_failure(&ScanError::RootNotFound("/w".into()), IndexSurvival::Kept),
             scan_failure(&ScanError::RootUnreadable("/w".into()), IndexSurvival::Kept),
             scan_failure(
@@ -450,7 +525,12 @@ mod tests {
     #[test]
     fn each_place_is_told_what_actually_happened_to_it() {
         let unreadable = vec!["/w/新規".to_string(), "/w/既存".to_string()];
-        let ws = unreadable_warnings(&unreadable, false, &places(&["/w/既存"]));
+        let ws = unreadable_warnings(
+            &unreadable,
+            false,
+            &places(&["/w/既存"]),
+            IndexSurvival::Kept,
+        );
 
         let lost = ws
             .iter()
@@ -471,6 +551,36 @@ mod tests {
             "引き継げた棋譜を「出ない」と言っている: {}",
             kept.message
         );
+
+        // **件数もその組のもの。** 全体の件数を載せると、1件しか無い組が
+        // 「ほか 1 件」と言う——利用者は在りもしない場所を探す
+        for w in [lost, kept] {
+            assert!(
+                !w.message.contains("ほか"),
+                "1件しか無い組が他の組の件数を数えている: {}",
+                w.message
+            );
+        }
+    }
+
+    /// 同じ組に2件以上あるときだけ「ほか N 件」と言うこと。
+    #[test]
+    fn the_count_belongs_to_its_own_group() {
+        let unreadable = vec!["/w/a".to_string(), "/w/b".to_string(), "/w/c".to_string()];
+        let ws = unreadable_warnings(&unreadable, false, &places(&["/w/c"]), IndexSurvival::Kept);
+
+        let lost = ws.iter().find(|w| w.path == "/w/a").expect("組が無い");
+        assert!(
+            lost.message.contains("ほか 1 件"),
+            "2件の組が自分の件数を言っていない: {}",
+            lost.message
+        );
+        let kept = ws.iter().find(|w| w.path == "/w/c").expect("組が無い");
+        assert!(
+            !kept.message.contains("ほか"),
+            "1件の組が他の組まで数えている: {}",
+            kept.message
+        );
     }
 
     /// **場所についての警告は `place` を名乗ること。**
@@ -481,7 +591,12 @@ mod tests {
     /// 含んだ唯一の文言**が普通のパース警告に押し出されて画面から消える。
     #[test]
     fn warnings_about_places_say_they_are_about_places() {
-        let ws = unreadable_warnings(&["/w/a".to_string()], true, &HashSet::new());
+        let ws = unreadable_warnings(
+            &["/w/a".to_string()],
+            true,
+            &HashSet::new(),
+            IndexSurvival::Kept,
+        );
         assert_eq!(ws.len(), 2, "場所の分からない失敗が別の1件になっていない");
         for w in &ws {
             assert_eq!(w.kind, IndexWarnKind::Place, "種類が place でない: {w:?}");
@@ -491,7 +606,7 @@ mod tests {
     /// 読めなかった場所が1つも無ければ、何も出さないこと。
     #[test]
     fn nothing_unreadable_says_nothing() {
-        assert!(unreadable_warnings(&[], false, &HashSet::new()).is_empty());
+        assert!(unreadable_warnings(&[], false, &HashSet::new(), IndexSurvival::Kept).is_empty());
     }
 
     /// **索引が残っている回と、捨てた回で逆のことを言わないこと。**
@@ -511,6 +626,111 @@ mod tests {
             "捨てた索引を「残っている」と言っている: {gone}"
         );
         assert!(gone.contains("0件"), "何が起きるかを言っていない: {gone}");
+    }
+
+    /// 進行中の段の写像。**`IndexAnnouncement` 側とは別の関数なので、
+    /// あちらのテストは1つも当たらない。**
+    fn progress(p: IndexProgress) -> IndexStatePayload {
+        p.into_payload()
+    }
+
+    /// **進行中の段に旗を立てないこと。**
+    ///
+    /// `IndexStatePayload::of` は全部伏せた形から始まるが、ここで1本でも
+    /// 立てると、`indexHealth` は進行中を先に見るので画面には出ないまま
+    /// **`Ready` に上がった瞬間に理由の無い警告が出る**。
+    #[test]
+    fn no_progress_state_raises_a_flag() {
+        for p in [
+            IndexProgress::Restoring,
+            IndexProgress::Restored { files: 3 },
+            IndexProgress::Building {
+                total: 5,
+                indexed: 2,
+                partially_unreadable: false,
+            },
+            IndexProgress::Updating {
+                total: 5,
+                dirty: 2,
+                partially_unreadable: false,
+            },
+        ] {
+            let out = progress(p);
+            assert!(
+                !out.scan_failed,
+                "進行中に「更新できていません」を立てている: {p:?} -> {out:?}"
+            );
+        }
+    }
+
+    /// 復元中は件数を名乗らないこと。**まだ何も読めていない。**
+    #[test]
+    fn restoring_claims_no_files() {
+        let out = progress(IndexProgress::Restoring);
+        assert_eq!(out.state, IndexState::Restoring);
+        assert_eq!((out.total_files, out.indexed_files), (0, 0));
+    }
+
+    /// **復元しただけでは `Ready` にしないこと。**
+    ///
+    /// 差分を当てるまでは古いので、`Ready` を出すと `query_service` の
+    /// `stale` が下りて、当たっていない差分の分だけ結果が欠ける。
+    #[test]
+    fn a_restored_index_is_still_updating() {
+        let out = progress(IndexProgress::Restored { files: 7 });
+        assert_eq!(out.state, IndexState::Updating);
+        assert_eq!((out.total_files, out.indexed_files), (7, 7));
+    }
+
+    /// 構築中は、入れ終えた数と対象の数を別に運ぶこと。
+    #[test]
+    fn building_keeps_indexed_apart_from_total() {
+        let out = progress(IndexProgress::Building {
+            total: 100,
+            indexed: 40,
+            partially_unreadable: true,
+        });
+        assert_eq!(out.state, IndexState::Building);
+        assert_eq!((out.indexed_files, out.total_files), (40, 100));
+        assert!(out.partially_unreadable, "読めない場所の旗が落ちている");
+    }
+
+    /// **`total` と `dirty` を取り違えないこと。**
+    ///
+    /// 入れ替わると、未同期の件数の欄にワークスペース全体の件数が出る
+    /// ——「未同期 50,000」は索引が壊れたようにしか見えない。
+    #[test]
+    fn updating_does_not_swap_total_and_dirty() {
+        let out = progress(IndexProgress::Updating {
+            total: 5000,
+            dirty: 12,
+            partially_unreadable: false,
+        });
+        assert_eq!(out.state, IndexState::Updating);
+        assert_eq!(out.total_files, 5000);
+        assert_eq!(out.dirty_count, 12);
+    }
+
+    /// **`Building` と `Updating` が同じ旗を運ぶこと。**
+    ///
+    /// 片方だけ運ばないと、再走査に入った瞬間に旗が伏せられる——
+    /// reducer は payload の欄を丸ごと写すので、同じ事実が経路によって消える。
+    #[test]
+    fn both_running_states_carry_the_unreadable_flag() {
+        let building = progress(IndexProgress::Building {
+            total: 5,
+            indexed: 1,
+            partially_unreadable: true,
+        });
+        let updating = progress(IndexProgress::Updating {
+            total: 5,
+            dirty: 1,
+            partially_unreadable: true,
+        });
+        assert!(
+            building.partially_unreadable && updating.partially_unreadable,
+            "旗が経路によって落ちる: building={building:?} updating={updating:?}"
+        );
     }
 
     #[test]
