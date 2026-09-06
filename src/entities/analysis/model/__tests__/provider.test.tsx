@@ -392,6 +392,70 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.isAnalyzing).toBe(true);
   });
 
+  it("▶ が席を返している間に局面が無くなったら、始めない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 停止が届かず、席を握ったまま「停止中」になる。
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+
+    // ▶ を押す。席を返す往復の最中に棋譜を閉じる。
+    let releaseStop: () => void = () => {};
+    stopCore.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseStop = resolve;
+        }),
+    );
+    startCore.mockClear();
+    void view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    await view.setSync(adapter(null, null));
+    await act(async () => {
+      releaseStop();
+    });
+
+    // 同期待ちの上限（2秒）を越えるまで進める。世代を返却より前に読まないと、
+    // ここまで待ってから閉じた棋譜のために断りを積む。
+    await advance(2400);
+
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.error).toBeNull();
+  });
+
+  it("再開の返却が飛んでいる間に止めても、席への停止は1本にする", async () => {
+    const pendingStops: Array<() => void> = [];
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    stopCore.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pendingStops.push(resolve);
+        }),
+    );
+
+    // 1手進む。再開が席を返しにいって止まる。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+    expect(pendingStops).toHaveLength(1);
+
+    // その最中に ■ を押す。停止も同じ席を返そうとする。
+    void view.current.stopAnalysis().catch(() => {});
+    await advance(50);
+
+    // 相乗りしないと同じ席へ2本飛び、順序も結末も保証できない。
+    expect(pendingStops).toHaveLength(1);
+  });
+
   it("席を握ったまま止まっていたら、▶ で返してから始める", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
@@ -414,7 +478,7 @@ describe("AnalysisProvider の開始", () => {
       await view.current.startInfiniteAnalysis();
     });
 
-    expect(stopCore).toHaveBeenCalledWith("session-1", "stop");
+    expect(stopCore).toHaveBeenCalledWith("session-1", "start");
     expect(startCore).toHaveBeenCalled();
     expect(view.current.state.isAnalyzing).toBe(true);
   });
@@ -460,6 +524,70 @@ describe("AnalysisProvider の開始", () => {
     expect(settled).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
     expect(view.current.state.error).toBeNull();
+  });
+
+  it("返却が飛んでいる最中に局面が無くなっても、席へ2本目を撃たない", async () => {
+    const pendingStops: Array<() => void> = [];
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    stopCore.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          pendingStops.push(resolve);
+        }),
+    );
+
+    // ■ を押す。停止の応答が返らないまま置く。
+    void view.current.stopAnalysis();
+    await advance(50);
+    expect(pendingStops).toHaveLength(1);
+
+    // その最中に棋譜を閉じる。同じ席へ2本目を撃つと、順序も結末も保証できない。
+    await view.setSync(adapter(null, null));
+    await advance(50);
+    expect(pendingStops).toHaveLength(1);
+
+    // 1本目が成功すれば席は空く。後ろに並んだ分は撃たない。
+    await act(async () => {
+      pendingStops[0]();
+    });
+    await advance(50);
+    expect(stopCore).toHaveBeenCalledTimes(1);
+  });
+
+  it("飛んでいた返却が落ちたら、局面が無くなった側が撃ち直す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    let failFirst: (e: Error) => void = () => {};
+    stopCore.mockImplementationOnce(
+      () =>
+        new Promise<void>((_, reject) => {
+          failFirst = reject;
+        }),
+    );
+
+    void view.current.stopAnalysis().catch(() => {});
+    await advance(50);
+
+    // 応答が返らないうちに棋譜を閉じる。後ろに並ぶだけで、まだ撃たない。
+    await view.setSync(adapter(null, null));
+    await advance(50);
+    stopCore.mockClear();
+
+    // 1本目が落ちる。席は握ったままなので、並んだ側が撃ち直す。
+    // 撃ち直さないと、棋譜を閉じた画面には ▶ も ■ も無く、誰も返せない。
+    await act(async () => {
+      failFirst(new Error("ipc is gone"));
+    });
+    await advance(50);
+
+    expect(stopCore).toHaveBeenCalledWith("session-1", "no-position");
   });
 
   it("読む局面が無くなったら、席を返して止める", async () => {

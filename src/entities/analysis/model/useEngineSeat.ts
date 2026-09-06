@@ -9,6 +9,8 @@ import { stopAnalysis as stopAnalysisCore } from "@/entities/engine/api/tauri";
  */
 export type SeatReleasePoint =
   | "stop"
+  | "start"
+  | "restart"
   | "unmount"
   | "no-position"
   | "sync-timeout"
@@ -45,9 +47,9 @@ export interface EngineSeat {
    * 握っている席を返す。握っていなければ何もしない。
    *
    * **返せたときだけ手放す。** 停止が失敗したら握ったままにして、次に返せる機会へ持ち越す。
-   * 失敗は呼び手へ投げる（口の名前を取らないのはそのため——出し方は呼び手が決める）。
+   * 失敗は呼び手へ投げる（出し方は呼び手が決める）。
    */
-  releaseHeld: () => Promise<void>;
+  releaseHeld: (at: SeatReleasePoint) => Promise<void>;
   /**
    * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
    *
@@ -74,9 +76,10 @@ export function useEngineSeat(): EngineSeat {
   // 直前に返した席。**採ってはいけない `info` を見分けるためだけに持つ。**
   const retiredRef = useRef<string | null>(null);
 
-  // 飛んでいる返却。**同じ席へ2本目を撃たないため**に持つ。
-  // 撃つと、1本目が空けた後に2本目が「知らない席」で断られ、
-  // その失敗で**もう存在しない ID を握り直す**（下の catch）。
+  // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を撃たないため**に持つ。
+  // 撃つ相手が同じなら2本目は無駄で、順序も保証できない（1本目の結末が返る前に
+  // 2本目の結末が返りうる）。待つ側は結末を受け取り、待てない側は
+  // **落ちたときだけ撃ち直す**（`releaseHeldQuietly`）。
   const releasingRef = useRef<Promise<void> | null>(null);
 
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
@@ -132,10 +135,15 @@ export function useEngineSeat(): EngineSeat {
   // 居ないので、エンジンを畳み直すしかない。画面が生きている回は握り直すので、
   // 次に畳まれたときに返し直せる（それまで ▶ は Rust に断られ続ける）。
   const quietly = (at: SeatReleasePoint, sessionId: string | undefined) => {
-    void send(at, sessionId).catch((e) => {
+    void shootQuietly(at, sessionId);
+  };
+
+  // 撃って、落ちたらログだけ残す。**解決する Promise を返す**ので、
+  // 後ろに並んだ返却がその結末を見られる。
+  const shootQuietly = (at: SeatReleasePoint, sessionId: string | undefined) =>
+    send(at, sessionId).catch((e) => {
       console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId }, e);
     });
-  };
 
   if (apiRef.current) return apiRef.current;
 
@@ -152,7 +160,7 @@ export function useEngineSeat(): EngineSeat {
       retiredRef.current = sessionId;
     },
 
-    releaseHeld: async () => {
+    releaseHeld: async (at) => {
       // **飛んでいる返却があれば、それに相乗りする。** 同じ席へ2本撃つと、
       // 1本目が空けた後の2本目が「知らない席」で断られる。
       const releasing = releasingRef.current;
@@ -161,7 +169,7 @@ export function useEngineSeat(): EngineSeat {
       const held = seatRef.current;
       if (held === null) return;
 
-      const sending = send("stop", held).finally(() => {
+      const sending = send(at, held).finally(() => {
         releasingRef.current = null;
       });
       releasingRef.current = sending;
@@ -169,17 +177,29 @@ export function useEngineSeat(): EngineSeat {
     },
 
     releaseHeldQuietly: (at) => {
-      if (releasingRef.current) return;
+      // **飛んでいる返却があるなら、その後ろに並ぶ。** 降りてしまうと、
+      // その返却が落ちたとき（席は握ったまま残る）に撃ち直す者が居ない
+      // ——棋譜を閉じた回はもう画面が無いので、依存が動いて effect が
+      // 再走することも無い。
+      const releasing = releasingRef.current;
+      if (releasing) {
+        releasingRef.current = releasing
+          .catch(() => {})
+          .then(() => {
+            if (seatRef.current === null) return;
+            return shootQuietly(at, seatRef.current);
+          })
+          .finally(() => {
+            releasingRef.current = null;
+          });
+        return;
+      }
 
       const held = seatRef.current;
       if (held === null) return;
 
-      const sending = send(at, held).finally(() => {
+      releasingRef.current = shootQuietly(at, held).finally(() => {
         releasingRef.current = null;
-      });
-      releasingRef.current = sending;
-      void sending.catch((e) => {
-        console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId: held }, e);
       });
     },
 

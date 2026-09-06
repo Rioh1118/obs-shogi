@@ -137,6 +137,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     [],
   );
 
+  // 走っている要求を全部要らなくする。**世代を上げる口をここ1つにする。**
+  // 引き金は3つ（利用者が止めた・読む局面が無くなった・次の要求が始まった）で、
+  // 散らすと、引き金を1つ足すたびにどの後始末を写し忘れたかを人が数えることになる。
+  // 畳まれた回は `unmountedRef` が同じ役をするので、ここは通らない。
+  const supersedeRequests = useCallback(() => {
+    desiredSfenRef.current = null;
+    pendingAfterRef.current = false;
+    restartSeqRef.current++;
+    clearDebounceTimer();
+  }, []);
+
   // 返ってきた席を握るか捨てるか。**欄に入れる前に見る**——要らなくなった席を
   // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
   // 捨てた側は `false` を返すので、呼び手はそこで打ち切る。
@@ -303,7 +314,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     restartInFlightRef.current = (async () => {
       try {
-        await seat.releaseHeld();
+        await seat.releaseHeld("restart");
 
         // 停止の応答を待っている間に、畳まれたり止められたりしている。
         // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
@@ -391,10 +402,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **世代は先に上げる。** 飛んでいる開始（席が返るまで `isAnalyzing` は false）を
     // 打ち切るのはこの1行で、下の門より後ろに置くと、閉じた棋譜のために
     // 同期待ちが上限まで回り、閉じた局面で「解析中」が1回 commit される。
-    desiredSfenRef.current = null;
-    pendingAfterRef.current = false;
-    restartSeqRef.current++;
-    clearDebounceTimer();
+    supersedeRequests();
 
     // **席を握っていれば、表示が停止中でも返す。** 停止が届かなかった回は
     // `isAnalyzing` が false のまま席だけ残る（→ ※7）。`state` の写しで
@@ -403,7 +411,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     seat.releaseHeldQuietly("no-position");
     dispatch({ type: "stop_analysis" });
-  }, [currentSfen, state.isAnalyzing, seat]);
+  }, [currentSfen, state.isAnalyzing, seat, supersedeRequests]);
 
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
@@ -415,15 +423,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
     // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと
     // Rust に断られ続け、画面からは復帰できなくなる（→ #172）。
-    // 握っていなければ `releaseHeld` は何もしない。
-    await seat.releaseHeld();
-
-    // 局面を送って席が返るまでの世代。
+    // 押してから席が返るまでの世代。**返却より前に読む**——`releaseHeld` は
+    // 本物の往復を挟むので、その間に世代が上がる（棋譜を閉じた回）と、
+    // 後で読むと上がった後の値を持ってしまい、以降の門が1枚も効かない。
     //
-    // **この窓で動く口は畳まれることだけ。** ヘッダのボタンは `isAnalyzing` を見て
-    // 形を決めるので（`AnalysisPaneHeader`）、席が返るまでは ▶ のまま——
-    // ■ はまだ押せない。`stopAnalysis` を直に呼ぶ経路（テスト）でも同じ門が要る。
+    // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
+    // 動くのは畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
+
+    // 握っていなければ `releaseHeld` は何もしない。
+    await seat.releaseHeld("start");
+    if (supersededSince(seq)) return;
 
     await syncPosition();
 
@@ -486,20 +496,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [startInfiniteAnalysis]);
 
   const stopAnalysis = useCallback(async () => {
-    desiredSfenRef.current = null;
-    pendingAfterRef.current = false;
-    restartSeqRef.current++;
-    clearDebounceTimer();
+    supersedeRequests();
 
     // 席を握っていなければ `releaseHeld` は何もしない。**席の判定はフックの中に1つだけ。**
     try {
-      await seat.releaseHeld();
+      await seat.releaseHeld("stop");
     } finally {
       dispatch({ type: "stop_analysis" });
       clearFlushTimer();
       latestResultRef.current = null;
     }
-  }, [clearFlushTimer, seat]);
+  }, [clearFlushTimer, seat, supersedeRequests]);
 
   const value = useMemo<AnalysisContextType>(
     () => ({
