@@ -56,13 +56,6 @@ GATE_OPT_VALUE="('[^']*'|\"[^\"]*\"|(\\\\.|[^[:space:]])+)"
 GATE_GIT_OPT="(--?(C|c|git-dir|work-tree|namespace|super-prefix)([[:space:]]+|=)$GATE_OPT_VALUE|-[^[:space:]]+)"
 GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 
-# コミットを作りうる git サブコマンド。
-#
-# `commit` は、手元の index と作業ツリーがそのままコミットされるので、下の
-# 検証（`npm run verify` / `verify:rust`）が掛かる。それ以外
-# （`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`）が作るツリーは
-# コマンドの前には存在しないので検証できない。**宛先の判定（`-C` 付き /
-# 呼び出しが複数）へ載せて deny の対象にするために語彙へ入れている。**
 # ツリーを変えない git の動詞。**手前に置いてよいのはこれだけ。**
 #
 # 増やすときは「その呼び出しの後で `git status` の結果が変わらないか」で決める。
@@ -121,6 +114,13 @@ gate_read_only_verbs() {
   printf '%s%s' "$GATE_READ_ONLY_VERBS_BASE" "$names"
 }
 
+# コミットを作りうる git サブコマンド。
+#
+# `commit` は、手元の index と作業ツリーがそのままコミットされるので、下の
+# 検証（`npm run verify` / `verify:rust`）が掛かる。それ以外
+# （`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`）が作るツリーは
+# コマンドの前には存在しないので検証できない。**宛先の判定（`-C` 付き /
+# 呼び出しが複数）へ載せて deny の対象にするために語彙へ入れている。**
 GATE_COMMIT_VERB_BASE='commit|revert|cherry-pick|merge|rebase|am|pull'
 
 # alias で付けられた別名。`git ci` のように、綴りは利用者の設定で無限に増える。

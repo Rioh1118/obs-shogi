@@ -507,7 +507,6 @@ gate_write_spellings=(
   "gatetest.patch"
 )
 
-# 読むだけなら 0、何かを書いたら 1。
 # 当てる先の雛形。**1度だけ作って、動詞ごとに複製する。**
 # 動詞ごとに `git init` からやり直すと、当てる本数より repo を作る本数のほうが
 # 高くつく（この検査だけで `npm run verify` の大半を占める）。
@@ -545,6 +544,12 @@ gate_probe_template=$(mktemp -d)
 ) >/dev/null 2>&1
 
 # 読むだけなら 0、何かを書いたら 1。
+#
+# **見ているのは作業ツリーと HEAD だけで、ref は見ていない。**
+# `git branch <名前>` や `git tag` は ref を作るが `git status` の結果を
+# 変えないので、ここは「読むだけ」と答える。ゲートが守りたいのは
+# 「走査した時点のツリー ＝ コミットされるツリー」なのでその基準では正しい。
+# ref を守りたくなったら、それは別の不変条件として足すこと。
 probe_is_readonly() {
   local verb=$1 spelling
   local repo before after head_before rc=0
