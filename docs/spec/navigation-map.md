@@ -126,7 +126,7 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | A2     | シェル ＋ ツリー ＋ `WelcomeScreen`      | 棋譜を選ぶ → A3                                 |
 | A3〜A5 | シェル ＋ ツリー ＋ 盤・棋譜・解析ペイン | 棋譜を閉じる → A2 / ワークスペース変更 → 再読込 |
 
-**A2 と A3 の切り替えは `hasFile`（`gameView.player?.shogi` の有無）1つで決まる。**
+**A2 と A3 の切り替えは `gameView.hasKifu` 1つで決まる。**
 棋譜を開く経路は2つあり、どちらも同じ state を通る。
 
 | 経路             | 起点                             | 効果                                        |
