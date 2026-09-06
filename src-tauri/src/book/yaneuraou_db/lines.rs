@@ -221,3 +221,19 @@ pub(super) fn before_any_position(line_number: usize, line: &str, path: &str) ->
     };
     invalid_content(&message, path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 注記の判定は字下げを許す。パーサの他の判定は全て `trim` 済みの行を見るので、
+    /// ここだけ生の先頭で見ると、字下げした注記だけが別の文字コードで拒否される。
+    #[test]
+    fn an_indented_note_is_still_a_note() {
+        assert!(is_note(b"# a"));
+        assert!(is_note(b"  # a"));
+        assert!(is_note(b"\t// a"));
+        assert!(!is_note(b"7g7f none 0 0 1"));
+        assert!(!is_note(b""));
+    }
+}

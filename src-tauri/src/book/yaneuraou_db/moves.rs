@@ -139,3 +139,72 @@ fn optional_number<T: std::str::FromStr>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `sfen` 行の途中で切れたファイルでは、形式のキーワードが指し手の位置に来る。
+    /// 形は満たすので、綴りで外さないと候補手に入る。
+    #[test]
+    fn the_sfen_keyword_is_not_a_candidate_move() {
+        assert!(!looks_like_a_move("sfen"));
+        assert!(looks_like_a_move("7g7f"));
+    }
+
+    /// **形の検査は「盤に適用できる」を意味しない。** ここを狭めると、こちらが
+    /// 知らない綴りを使った定跡をファイルごと拒否することになる（不変条件1）。
+    ///
+    /// 通す側を固定しておかないと、狭める変更が「厳しくして良くなった」ように
+    /// 見えて緑で通る。**通ることが仕様。** 盤へ渡す側の検査は #311。
+    #[test]
+    fn the_shape_check_is_not_a_usi_grammar() {
+        for token in ["+", "*", "0", "win", "abcdefg"] {
+            assert!(
+                looks_like_a_move(token),
+                "形だけを見るので通るはず: {token}"
+            );
+        }
+        for token in ["", "これは指し手ではない", "<html>", "12345678"] {
+            assert!(!looks_like_a_move(token), "落ちるはず: {token}");
+        }
+    }
+
+    /// 落とした欄の数を数えていること。数えていないと、誤読みだと分かる
+    /// 手がかりが利用者にも報告を受けた側にも無い。
+    #[test]
+    fn dropped_fields_are_counted() {
+        let mut dropped = DroppedFields::default();
+        // 応手が指し手の形を満たさない / 評価値が数値でない
+        let parsed = parse_move("7g7f ここには指し手が来るはず x 32 1", &mut dropped);
+
+        assert_eq!(parsed.usi_move, "7g7f");
+        assert_eq!(parsed.ponder, None);
+        assert_eq!(parsed.value, None);
+        assert_eq!(dropped.ponder, 1);
+        assert_eq!(dropped.numbers, 1);
+    }
+
+    /// 省略された欄は「読めなかった」ではないので数えない。数えると、正常な定跡で
+    /// 毎回ログが出て、本当に読めなかった場合と区別が付かなくなる。
+    ///
+    /// **`none` を含めること。** 空欄だけを見ていると、ShogiHome が書き出す
+    /// 現行の綴り（`7g7f none none none 103`）が数値欄2つぶんの欠損として
+    /// 数えられる。実物の `yaneuraou.db`（指し手19行）で欠損 20件という、
+    /// 指し手より多い件数が出ていた。
+    #[test]
+    fn an_omitted_field_is_not_counted_as_dropped() {
+        for line in [
+            // v1.20.0 までの ShogiHome
+            "7g7f none  32 5",
+            // 現行の ShogiHome
+            "7g7f none none none 103",
+        ] {
+            let mut dropped = DroppedFields::default();
+            parse_move(line, &mut dropped);
+
+            assert_eq!(dropped.ponder, 0, "line={line}");
+            assert_eq!(dropped.numbers, 0, "line={line}");
+        }
+    }
+}
