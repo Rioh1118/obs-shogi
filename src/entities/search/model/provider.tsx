@@ -385,6 +385,12 @@ export function PositionSearchProvider({
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
       const out = await searchPositionApi(input);
 
+      // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
+      // それより手前は個別に覚えない（`dead` を空にする）。イベントで見た rid しか
+      // 数えていないと、`clear_search` に渡された rid が線を追い越して忘れられ、
+      // 以後そのチャンクが通ってしまう
+      chunkBuffer.noteRequest(out.requestId);
+
       dispatch({
         type: "search_requested",
         payload: {
@@ -396,7 +402,7 @@ export function PositionSearchProvider({
 
       return out;
     },
-    [],
+    [chunkBuffer],
   );
 
   const cancelSearch = useCallback(async (requestId: RequestId) => {

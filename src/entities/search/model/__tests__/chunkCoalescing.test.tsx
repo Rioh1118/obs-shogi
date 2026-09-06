@@ -20,6 +20,8 @@ import type { SearchEventHandlers } from "@/entities/search/api/tauri";
 let handlers: SearchEventHandlers = {};
 let listenCount = 0;
 
+let nextRequestId = 0;
+
 vi.mock("../../api/tauri", () => ({
   openProject: vi.fn().mockResolvedValue({ indexedCount: 0 }),
   listenSearchEvents: (h: SearchEventHandlers) => {
@@ -27,7 +29,8 @@ vi.mock("../../api/tauri", () => ({
     listenCount += 1;
     return Promise.resolve(() => {});
   },
-  searchPosition: vi.fn(),
+  // Rust は rid を単調に増やす（`QueryService::next_request_id`）
+  searchPosition: () => Promise.resolve({ requestId: nextRequestId }),
   cancelSearch: vi.fn(),
 }));
 
@@ -47,12 +50,21 @@ let lastHits: PositionHit[] = [];
 let getHits: (rid: number) => PositionHit[] = () => [];
 let sessionIds: number[] = [];
 let clearSearch: (rid: number) => void = () => {};
+let searchPosition: (sfen: string) => Promise<{ requestId: number }> = async () => ({
+  requestId: 0,
+});
 
 function Probe() {
-  const { getHitsByRequestId, state, clearSearch: clear } = usePositionSearch();
+  const {
+    getHitsByRequestId,
+    state,
+    clearSearch: clear,
+    searchPosition: search,
+  } = usePositionSearch();
   renders += 1;
   getHits = getHitsByRequestId;
   clearSearch = clear;
+  searchPosition = (sfen) => search({ sfen, consistency: "BestEffort", chunkSize: 300 });
   sessionIds = Object.keys(state.sessions).map(Number);
   lastHits = getHitsByRequestId(RID);
   hitCount = lastHits.length;
@@ -123,6 +135,7 @@ beforeEach(() => {
   renders = 0;
   hitCount = 0;
   elementReads = 0;
+  nextRequestId = 0;
 });
 
 afterEach(() => {
@@ -394,6 +407,47 @@ describe("消えたセッション宛のチャンク", () => {
     });
 
     expect(sessionIds).toEqual([]);
+  });
+
+  /**
+   * 線は「見た中で最大の rid」に引き、それより手前は個別に覚えない
+   * （`dead` を空にする）。**イベントで見た rid しか数えないと**、
+   * `clear_search` に渡された rid が線を追い越して忘れられ、以後そのチャンクが通る
+   */
+  test("イベントを1つも見ていない検索でも、捨てたら線より後ろに残らない", async () => {
+    await mount();
+
+    // rid 8 の始まりだけを見た状態にする
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: 8, stale: false });
+    });
+
+    // rid 9 は invoke だけ済んでいる（イベントはまだ1つも来ていない）
+    nextRequestId = 9;
+    await act(async () => {
+      await searchPosition("dummy");
+    });
+    act(() => {
+      clearSearch(9);
+    });
+
+    // 根を開き直す → 線が引かれ、`dead` は空になる
+    await act(async () => {
+      view.rerender(
+        <PositionSearchProvider rootDir="/ws">
+          <Probe />
+        </PositionSearchProvider>,
+      );
+    });
+
+    act(() => {
+      handlers.onSearchChunk?.({ ...chunkOf(2, 0), requestId: 9 });
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(hitsOf(9)).toBe(0);
   });
 
   /** 線より後に始まった検索は通る。**弾くのは古い rid だけ** */
