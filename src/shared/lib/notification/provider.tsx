@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
-import { NotificationContext } from "./context";
+import { NotificationActionsContext, NotificationListContext } from "./context";
 import { INITIAL_NOTIFICATION_STATE, notificationReducer } from "./reducer";
-import type { NotificationContextType, NotificationId, NotifyRequest } from "./types";
+import type { NotificationActions, NotificationId, NotifyRequest } from "./types";
 
 /**
  * 自動で消えるまで。**1つしか置かない。**
@@ -35,12 +35,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   useAutoDismiss(state.notifications, dismiss);
 
-  const value = useMemo<NotificationContextType>(
-    () => ({ notifications: state.notifications, notify, dismiss, dismissByKey }),
-    [state.notifications, notify, dismiss, dismissByKey],
+  // **依存が空。** 3つとも `useCallback` で不変なので、この値は mount 後に
+  // 一度も変わらない。出す口だけを購読する部品は通知が出入りしても再描画しない
+  const actions = useMemo<NotificationActions>(
+    () => ({ notify, dismiss, dismissByKey }),
+    [notify, dismiss, dismissByKey],
   );
 
-  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
+  return (
+    <NotificationActionsContext.Provider value={actions}>
+      <NotificationListContext.Provider value={state.notifications}>
+        {children}
+      </NotificationListContext.Provider>
+    </NotificationActionsContext.Provider>
+  );
 }
 
 /**

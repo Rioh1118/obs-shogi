@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "../provider";
-import { useNotifications } from "../useNotifications";
+import { useNotifications, useNotify } from "../useNotifications";
 import type { NotifyRequest, VisibleTier } from "../types";
 
 /** 出ているものを文字にして見せる小さな読み手。中身は見ず、件数と鍵だけを見る */
@@ -64,9 +64,22 @@ describe("通知の provider", () => {
     vi.useRealTimers();
   });
 
-  it("provider の外で使うと落ちる", () => {
-    // 例外の中身は読まない。**囲い忘れが黙って no-op にならない**ことだけを見る
-    expect(() => render(<Probe onReady={() => {}} />)).toThrow(/NotificationProvider/);
+  // **囲い忘れが黙って no-op にならない**ことだけを見る。両方の口で確かめるのは、
+  // 片方だけ throw する形にすると、出す側が囲われていないことに気づけないため
+  it.each([
+    ["useNotifications", () => render(<Probe onReady={() => {}} />)],
+    [
+      "useNotify",
+      () => {
+        function Sender() {
+          useNotify();
+          return null;
+        }
+        return render(<Sender />);
+      },
+    ],
+  ] as const)("%s は provider の外で使うと落ちる", (_name, mount) => {
+    expect(mount).toThrow(/NotificationProvider/);
   });
 
   it("出したものが読み手に届く", () => {
@@ -139,6 +152,35 @@ describe("通知の provider", () => {
     app.dismissByKey("engine");
 
     expect(app.ids()).toEqual([]);
+  });
+
+  /**
+   * 出す側はアプリ中に散る（ADR-0004 の割り当ては19件ある）のに、出ているものを
+   * 読むのは通知の層1つだけ。1つの context に束ねると、**トーストが1つ出るたび・
+   * 6秒後に自動で消えるたび・畳まれて件数が増えるたび**に、出すだけの部品まで再描画する。
+   */
+  it("出すだけの部品は、通知が出入りしても再描画しない", () => {
+    let renders = 0;
+    let notify!: (request: NotifyRequest) => void;
+
+    function Sender() {
+      renders += 1;
+      notify = useNotify().notify;
+      return null;
+    }
+
+    render(
+      <NotificationProvider>
+        <Sender />
+      </NotificationProvider>,
+    );
+
+    expect(renders).toBe(1);
+
+    act(() => notify(toast()));
+    act(() => notify(toast({ title: "2件目" })));
+
+    expect(renders).toBe(1);
   });
 
   it("silent は何も出さない", () => {
