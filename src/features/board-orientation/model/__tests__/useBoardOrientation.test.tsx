@@ -29,15 +29,25 @@ vi.mock("@/entities/file-tree/model/useFileTree", () => ({
 }));
 
 const { useBoardOrientation } = await import("../useBoardOrientation");
+const { useResetOrientationOnKifuChange } = await import("../useResetOrientationOnKifuChange");
 
 let search = "";
 let rotate = false;
 
-/** 向きを付ける口は解析ペインのヘッダ1つだけ。ここではボタンで代役を立てる */
+/**
+ * 向きを付ける口は解析ペインのヘッダ1つだけ。ここではボタンで代役を立てる。
+ *
+ * 読む側と落とす側を**同じ所で**呼んでいるが、現物は別々に載っている——落とす側は
+ * `BoardOrientationBridge`、読む側は `GameBoard`。ここで見たいのは
+ * 「どの合図で落ちるか」なので、載せ方の違いは
+ * `widgets/game-board/ui/__tests__/gameBoardOrientation.test.tsx` と
+ * `app/providers/__tests__/runtimeProvidersBridges.test.tsx` が別に固定する。
+ */
 function Probe() {
   const { updateParams } = useURLParams();
   search = useLocation().search;
   rotate = useBoardOrientation().rotate;
+  useResetOrientationOnKifuChange();
   return (
     <button type="button" onClick={() => updateParams({ pov: "gote" }, { replace: true })}>
       回す

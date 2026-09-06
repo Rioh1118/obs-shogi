@@ -2,16 +2,18 @@ import type { ReactNode } from "react";
 import "./GameBoard.scss";
 import HandHeader from "./HandHeader";
 import { useFileTree } from "@/entities/file-tree";
+import { useBoardOrientation } from "@/features/board-orientation";
 
 type Props = {
   topLeft: ReactNode;
   center: ReactNode;
   bottomRight: ReactNode;
-  rotate?: boolean;
 };
 
-export default function GameBoard({ topLeft, center, bottomRight, rotate = false }: Props) {
+/** 対局者名と同じく、盤の向きも自分でスライスから取る。呼び出し側は枠だけを渡す */
+export default function GameBoard({ topLeft, center, bottomRight }: Props) {
   const { jkfData } = useFileTree();
+  const { rotate } = useBoardOrientation();
   const header = jkfData?.header ?? {};
   const senteName = header["先手"]?.trim();
   const goteName = header["後手"]?.trim();

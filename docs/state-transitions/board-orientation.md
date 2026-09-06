@@ -3,6 +3,12 @@
 対象: `src/features/board-orientation/`。上位は [app.md](app.md)、
 合図の出どころは [file-tree.md](file-tree.md)。
 
+読む側（`useBoardOrientation`）は盤の中に載る（`src/widgets/game-board/ui/GameBoard.tsx`）。
+落とす側（`useResetOrientationOnKifuChange`）は盤より上
+（`src/app/providers/bridges/BoardOrientationBridge.tsx`）。
+**落とす側を盤の中へ入れると E2 が消える**——棋譜を閉じると盤ごと unmount するので、
+落とす者が居なくなって `?pov=gote` が URL に残る。
+
 盤の向きは `?pov` 1つで決まる。表がこれだけのために在るのは、
 **向きを戻す合図の選び方を間違えると、失敗も出さずに盤が回る**から。
 

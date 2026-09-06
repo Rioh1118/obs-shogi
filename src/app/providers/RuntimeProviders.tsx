@@ -5,6 +5,7 @@ import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider"
 import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
 import { PositionSearchProvider } from "@/entities/search";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
+import { BoardOrientationBridge } from "./bridges/BoardOrientationBridge";
 import { StudyPositionsProvider } from "@/entities/study-positions/model/provider";
 
 export function RuntimeProviders({ children }: { children: ReactNode }) {
@@ -15,7 +16,10 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
           <EnginePresetsProvider>
             <EngineRuntimeBridge>
               <PositionSearchProvider>
-                <AnalysisBridge>{children}</AnalysisBridge>
+                <AnalysisBridge>
+                  <BoardOrientationBridge />
+                  {children}
+                </AnalysisBridge>
               </PositionSearchProvider>
             </EngineRuntimeBridge>
           </EnginePresetsProvider>

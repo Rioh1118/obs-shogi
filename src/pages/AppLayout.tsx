@@ -14,7 +14,6 @@ import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
-import { useBoardOrientation } from "@/features/board-orientation";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
@@ -22,7 +21,6 @@ const AppLayout = () => {
   // どのパネルを出すかは URL（`panel/*`）が持つが、開閉はそちらへ揃えない
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { view: gameView, state: gameState, clearSelection } = useGame();
-  const { rotate } = useBoardOrientation();
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
   const hasFile = !!gameView.player?.shogi;
@@ -73,7 +71,6 @@ const AppLayout = () => {
                       topLeft={<Hand isSente={false} />}
                       center={<Board />}
                       bottomRight={<Hand isSente={true} />}
-                      rotate={rotate}
                     />
                     <div className="workspace__controls">
                       <GameControls />
