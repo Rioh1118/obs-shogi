@@ -6,7 +6,7 @@ import { StrictMode, useEffect } from "react";
 import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
-import type { AnalysisResult } from "@/entities/engine/api/rust-types";
+import type { AnalysisResult } from "@/entities/engine";
 
 const startCore = vi.fn<() => Promise<string>>();
 const stopCore = vi.fn<(sessionId?: string) => Promise<void>>();
