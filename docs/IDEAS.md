@@ -107,3 +107,20 @@
   **`docs/spec/screens/board.md` の P0 はこれを実在する状態として表に載せている。**
   #434（盤に載せられない棋譜のときに何かを出す）に着手する人はまずその画面仕様を読み、
   「盤が組めないときには既に文言が出る」と読む
+
+## 呼び出し元の無い公開面が、スライスの barrel と context に残っている
+
+`.claude/reviews/2026-09-06-app-shell-wiring-r3.md` の r3-17（architecture reviewer）。
+`entities/file-tree/index.ts` は「ここに並ぶのはスライスの外に呼び出し元があるものだけ」を
+規約として書いているが、機械が見ていないので守られているのは一部だけ。
+
+- **`entities/search/index.ts` は41個を公開していて、外に読み手があるのは6個。**
+  `EVT_*` 7つと `searchPosition` / `searchPositionBestEffort` / `cancelSearch` /
+  `listenSearchEvents` は外の読み手0。`listenSearchEvents` を barrel から呼べば
+  `isListenSettled` を経ずに購読が二重に張れる。`WorkspaceTab` が `IndexState` の union を
+  手で写しているので、そこだけは**落とすのではなく import させる**のが正しい向き
+- **`entities/game` の context に呼び出し元0の口が5つ**（`setCurrentComments` / `isAtStart` /
+  `isAtEnd` / `getCurrentMove` / `getCurrentComments`）
+- **閉じるなら走査ごと入れる。** `src/__tests__/sliceBarrels.test.ts` の `publicModules()` に
+  「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
+  `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる
