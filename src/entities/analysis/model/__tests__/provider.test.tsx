@@ -146,8 +146,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
     await advance(2400);
     expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
 
-    // 席を持っていないのに撃つと、指さない停止（＝全部止める）になり、
-    // 走っている解析を巻き添えにする。
+    // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
     expect(stopCore).not.toHaveBeenCalled();
   });
 
@@ -649,7 +648,7 @@ describe("AnalysisProvider の開始", () => {
 
     stopCore.mockClear();
 
-    // 棋譜を閉じた。解析ペインは畳まれないが、止めるボタンは画面から消える。
+    // 棋譜を閉じた。provider は畳まれないが、ペインごと消えるので ▶ も ■ も無くなる。
     await view.setSync(adapter(null, null));
     await advance(50);
 

@@ -170,9 +170,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
   // 捨てた側は `false` を返すので、呼び手はそこで打ち切る。
   const holdUnlessSuperseded = useCallback(
-    (seq: number, at: SeatReleasePoint, sessionId: string) => {
+    (seq: number, by: SeatReleasePoint, sessionId: string) => {
       if (supersededSince(seq)) {
-        seat.discard(at, sessionId);
+        seat.discard(by, sessionId);
         return false;
       }
       seat.hold(sessionId);
@@ -214,13 +214,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       try {
         const unlisten = await setupAnalysisEventListeners({
           onUpdate: (sessionId: string, result: AnalysisResult) => {
-            // **自分のセッションのものだけ採る。** 前の探索が畳まりきる前に
-            // 次の `go` が出ると、古い局面の `info` がこちらへ配られる。
-            // 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る。
-            //
-            // 照らすのは `state` の写しではなく席の欄。写しが更新されるのは
-            // commit の後なので、**探索を始めた直後のいちばん出したい `info`** が
-            // 「自分のじゃない」と落ちる。
+            // **自分の席のものだけ採る**（判定と理由は `EngineSeat.matches`）。
             if (!seat.matches(sessionId)) return;
             latestResultRef.current = result;
             scheduleFlush();
@@ -284,10 +278,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // `seq` は要求の世代。**タイマーが起きた時点と、await から戻った時点の両方で見る。**
   // 見ないと、利用者が止めた後や次の要求が始まった後に go を出す。
   runRestartRef.current = (seq: number) => {
-    // **畳まれていたら何もしない。** 張る側（`scheduleRestart`）は見ているが、
-    // 張った後に畳まれた回はここへ来る。
-    if (unmountedRef.current) return;
-    if (restartSeqRef.current !== seq) return;
+    // **張った後に要らなくなった回はここへ来る。** 張る側（`scheduleRestart`）は
+    // 張る時点しか見ていない。
+    if (supersededSince(seq)) return;
     if (!analyzingRef.current) return;
     if (!isReady) return;
 
@@ -308,11 +301,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         syncWaitRef.current = null;
         clearDebounceTimer();
 
-        // エンジン側のセッションも必ず止める。React の state だけ落とすと
-        // Rust には席が残り、以降 start_infinite_analysis が
-        // 常に「Analysis already running」で弾かれて解析を再開できなくなる。
-        // エンジン側の席も返す。握っていなければ何もしない。
-        // 落ちたときに何が残るかは `useEngineSeat` の `releaseHeldQuietly` にある。
+        // 握っている席を返してから断りを出す。握っていなければ何も撃たない。
+        // 落ちたときの結末は `useEngineSeat` の `shootQuietly` にある。
         seat.releaseHeldQuietly("sync-timeout");
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
@@ -412,8 +402,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart]);
 
-  // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になるが、
-  // 解析ペインごと畳まれるわけではない（`AnalysisProvider` は `RuntimeProviders` 側に居る）。
+  // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
+  // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
+  // `AnalysisPane` は消える（`AppLayout` の `hasKifu` の内側）ので ▶ も ■ も無くなる。
   // 自動再開は `if (!currentSfen) return` で黙って止まるだけなので、放っておくと
   // エンジンは閉じた棋譜の局面を読み続け、**それを止めるボタンは画面から消えている**。
   useEffect(() => {

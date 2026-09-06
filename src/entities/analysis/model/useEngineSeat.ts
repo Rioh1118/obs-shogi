@@ -55,7 +55,7 @@ export interface EngineSeat {
    *
    * 撃つのは `sync-timeout` と `no-position` の2口。**落ちても利用者には出せない。**
    * 落ちた席は握ったままにするので、`sync-timeout` は ▶ が、`no-position` は
-   * 棋譜を開き直してからの ▶ が返し直す（落ちた後の結末は `shootQuietly` に1つ置く）。
+   * 棋譜を開き直してからの ▶ が返し直す（口ごとの結末は `shootQuietly` の頭に1つ置く）。
    */
   releaseHeldQuietly: (by: SeatReleasePoint) => void;
   /**
@@ -124,6 +124,11 @@ export function useEngineSeat(): EngineSeat {
     if (seatRef.current === sessionId) seatRef.current = null;
   };
 
+  // `shootQuietly` を投げっぱなしにする薄い包み。
+  const quietly = (by: SeatReleasePoint, sessionId: string | undefined) => {
+    void shootQuietly(by, sessionId);
+  };
+
   // 撃って、落ちたらログだけ残す。**応答を待てない口はここを通る。**
   //
   // **落ちても利用者には出せない。** 画面が既に無い（`unmount`）、棋譜を閉じた後で
@@ -140,10 +145,6 @@ export function useEngineSeat(): EngineSeat {
   // `unmount` と、畳まれた後に返ってきた `late-*` は、握り直しても読む者が居ないので
   // エンジンを畳み直すしかない。`no-position` は棋譜を開き直してから ▶。
   // 画面が生きている回は ▶ が返し直す（それまで ▶ は Rust に断られ続ける）。
-  const quietly = (by: SeatReleasePoint, sessionId: string | undefined) => {
-    void shootQuietly(by, sessionId);
-  };
-
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: string | undefined) =>
     send(by, sessionId).catch((e) => {
@@ -224,15 +225,16 @@ export function useEngineSeat(): EngineSeat {
     // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
     //
     // **ここだけ席を指さない。** 指した ID が席の主でなければ Rust は照合して断り
-    // （`bridge.rs` の `stop_session`）、席は残ったままになる。握っている ID が
-    // 主とずれる経路は `docs/state-transitions/analysis.md` ※12 に挙げてある。
-    // 画面が居ない以上どの解析も要らないので、指さずに全部返す。
+    // （`bridge.rs` の `stop_session`）、席は残ったままになる。畳まれた後に
+    // その断りを受け取っても返し直す者は居ない——**照合で断られる余地を残さない**、
+    // というのが指さない理由（`docs/state-transitions/analysis.md` ※12）。
     sweepOnUnmount: () => {
       if (seatRef.current === null) return;
 
-      // 飛んでいる返却があるなら、その後ろに並ぶ。重ねて撃っても Rust は
-      // 断らない（席が空なら `Ok`）が、**指さない停止は席を全部空ける**ので、
-      // 同時に走っている別の解析があれば巻き添えにする → #463。
+      // 飛んでいる返却があるなら、その後ろに並ぶ。重ねても Rust は断らない
+      // （席が空なら `Ok`）が、2本目は無駄で、順序も結末も保証できない。
+      // **指さない停止は席を全部空ける**ので、開始が席を取ってから `go` が線に出るまでに
+      // 割り込むと「席は空・エンジンは探索中」になる → #463。
       const releasing = releasingRef.current;
       if (releasing) {
         void releasing
