@@ -58,12 +58,7 @@ pub async fn open_project(
     let _ = store.restart(Restart::Restoring);
     let _ = app.emit(
         EVT_INDEX_STATE,
-        IndexStatePayload {
-            state: IndexState::Restoring,
-            dirty_count: 0,
-            indexed_files: 0,
-            total_files: 0,
-        },
+        IndexStatePayload::of(IndexState::Restoring, 0),
     );
 
     // 1) try restore (cache)
@@ -130,12 +125,7 @@ pub async fn open_project(
 
             let _ = app.emit(
                 EVT_INDEX_STATE,
-                IndexStatePayload {
-                    state: IndexState::Updating,
-                    dirty_count: 0,
-                    indexed_files: total_files,
-                    total_files,
-                },
+                IndexStatePayload::of(IndexState::Updating, total_files).indexed(total_files),
             );
 
             // watcher 起動（失敗してもopen自体は成功扱いにして良い）
@@ -170,12 +160,7 @@ pub async fn open_project(
                 let total_files = st.snapshot().file_table.len() as u32;
                 let _ = app2.emit(
                     EVT_INDEX_STATE,
-                    IndexStatePayload {
-                        state: IndexState::Ready,
-                        dirty_count: 0,
-                        indexed_files: total_files,
-                        total_files,
-                    },
+                    IndexStatePayload::of(IndexState::Ready, total_files).indexed(total_files),
                 );
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
@@ -201,12 +186,7 @@ pub async fn open_project(
 
     let _ = app.emit(
         EVT_INDEX_STATE,
-        IndexStatePayload {
-            state: IndexState::Building,
-            dirty_count: 0,
-            indexed_files: 0,
-            total_files,
-        },
+        IndexStatePayload::of(IndexState::Building, total_files),
     );
 
     tauri::async_runtime::spawn(build_full_index_task(

@@ -223,12 +223,7 @@ pub async fn build_full_index_task(
             );
             let _ = app.emit(
                 EVT_INDEX_STATE,
-                IndexStatePayload {
-                    state: IndexState::Building,
-                    dirty_count: 0,
-                    indexed_files: indexed_ok,
-                    total_files,
-                },
+                IndexStatePayload::of(IndexState::Building, total_files).indexed(indexed_ok),
             );
             last_emit = Instant::now();
         }
@@ -258,12 +253,7 @@ pub async fn build_full_index_task(
 
     let _ = app.emit(
         EVT_INDEX_STATE,
-        IndexStatePayload {
-            state: IndexState::Ready,
-            dirty_count: 0,
-            indexed_files: indexed_ok,
-            total_files,
-        },
+        IndexStatePayload::of(IndexState::Ready, total_files).indexed(indexed_ok),
     );
 
     let next_file_id = (total_files as FileId).wrapping_add(1).max(1);
