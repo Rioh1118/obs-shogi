@@ -360,6 +360,11 @@ impl EngineBridge {
         result
     }
 
+    /// 解析を止める。
+    ///
+    /// **`session_id` を省くと席を全部空ける。** 呼び手が席の ID を持てない場面
+    /// （画面が畳まれた後の後始末）は指せないので、この形が要る。指すと持ち主を
+    /// 照合するため、席に居るのが別のセッションなら `Err` になり**席は残る**。
     pub async fn stop_analysis_impl(&self, session_id: Option<String>) -> Result<(), String> {
         if let Some(id) = session_id {
             self.stop_session(&id).await

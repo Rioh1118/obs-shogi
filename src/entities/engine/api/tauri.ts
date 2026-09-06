@@ -81,6 +81,16 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
   return await invoke("analyze_with_depth", { depth });
 }
 
+/**
+ * 解析を止める。
+ *
+ * **`sessionId` を省くと走っている解析を全部止める。** 自分の1本ではない
+ * （Rust は `stop_all_sessions` に落ちる）。
+ *
+ * 指したときは持ち主を照合する。**席に居るのが別のセッションなら `Err`**
+ * ——止まらないまま解決しないので、指すなら自分が握っている ID を渡すこと。
+ * 指した相手が既に居ない場合だけは `Ok`（要求は「止まっていること」なので満たせている）。
+ */
 export async function stopAnalysis(sessionId?: string): Promise<void> {
   return await invoke("stop_analysis", { sessionId });
 }
