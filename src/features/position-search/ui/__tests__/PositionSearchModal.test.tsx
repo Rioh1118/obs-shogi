@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { PositionHit } from "@/entities/search";
 
@@ -231,6 +231,30 @@ describe("PositionSearchModal のヒットを開く", () => {
     const { unmount } = await renderWithHits();
 
     unmount();
+
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+  });
+
+  /**
+   * **rid が分かるのは invoke が解決してから。** それより先に畳まれると
+   * `discardSearch` は rid を知らないので、取り下げも破棄も飛ばない。素通りさせると
+   * Rust の検索は最後まで走り、閉じた画面が到着のたびに一覧を組み直し続ける
+   * （実測で n=100,000 のとき 19.4MB を抱える。
+   * `.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-3）
+   */
+  test("rid が分かる前に畳まれても、解決した側が取り下げて捨てる", async () => {
+    let settleLaunch!: (out: { requestId: number }) => void;
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => (settleLaunch = resolve as typeof settleLaunch)),
+    );
+
+    const { unmount } = render(<PositionSearchModal />);
+    unmount();
+
+    await act(async () => {
+      settleLaunch({ requestId: REQUEST_ID });
+    });
 
     expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
     expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);

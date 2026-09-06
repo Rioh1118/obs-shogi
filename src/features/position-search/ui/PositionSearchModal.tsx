@@ -142,13 +142,24 @@ export default function PositionSearchModal() {
   const inFlightRidRef = useRef<number | null>(null);
 
   /**
+   * 起動の世代。**`search_position` の invoke が解決するまで rid は分からない**ので、
+   * 「もう要らない」を rid でなくこれで表す。解決した側が自分の番かを確かめる。
+   */
+  const launchSeqRef = useRef(0);
+
+  /**
    * 進行中なら取り下げ、結果も捨てる。
    *
    * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
    * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB）。捨てる口を呼ぶのは
    * ここだけなので、呼ばないと**誰も呼ばない**。
+   *
+   * **rid が分かる前に呼ばれる**（開いた直後に Esc）。そのときは世代を進めるだけで、
+   * 実際の取り下げは invoke が解決した側が引き受ける
    */
   const discardSearch = useCallback(() => {
+    launchSeqRef.current += 1;
+
     const rid = inFlightRidRef.current;
     if (rid == null) return;
 
@@ -188,8 +199,20 @@ export default function PositionSearchModal() {
     setRefusedHit(null);
     activeHitRef.current = null;
 
+    const myLaunch = launchSeqRef.current;
+
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
+        // **自分の番でなければ、ここで取り下げる。** 待っているあいだに閉じた・
+        // 撃ち直された場合、`discardSearch` は rid を知らないので何もできていない。
+        // 素通りさせると Rust の検索は最後まで走り、閉じた画面が到着のたびに
+        // 一覧を組み直し続ける
+        if (launchSeqRef.current !== myLaunch) {
+          void cancelSearch(out.requestId);
+          clearSearch(out.requestId);
+          return;
+        }
+
         inFlightRidRef.current = out.requestId;
         setRequestId(out.requestId);
       })
@@ -201,7 +224,7 @@ export default function PositionSearchModal() {
       .finally(() => {
         setIsLaunching(false);
       });
-  }, [isOpen, queryKey, searchPosition, discardSearch]);
+  }, [isOpen, queryKey, searchPosition, cancelSearch, clearSearch, discardSearch]);
 
   // unmount 時にも進行中検索を取り下げる
   useEffect(() => {
