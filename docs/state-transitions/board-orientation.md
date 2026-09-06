@@ -114,7 +114,7 @@ file-tree が**開いた時点で持った** `jkfData` なので、盤・棋譜�
 n 回走り、各回が `shownKifuPathRef` を1段ずつ追いつかせる。**追いついた時点で必ず B0 か B1**
 になり、途中でどのイベントを挟んだかに依らない。だから空欄ではなく `—`。
 
-**この比較（`:29` の `shownKifuPathRef.current === shownKifuPath`）を「常に最新どうしを
+**この比較（`shownKifuPathRef.current === shownKifuPath`）を「常に最新どうしを
 比べているのだから要らない」と読んで落とさないこと。** 落とすと不変条件1が破れ、
 E8（`pov` 以外の URL 変更）のたびに `pov` が消える。
 
