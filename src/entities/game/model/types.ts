@@ -227,7 +227,14 @@ export interface GameContextType {
   view: GameView;
   helpers: JKFPlayerHelpers;
 
-  loadGame: (jkf: JKFData, absPath: string | null) => Promise<void>;
+  /**
+   * 棋譜を盤に載せる。**投げない。** 載せられなければ `Err` で理由が返る。
+   *
+   * `state.error` にも積むが、それを描いている場所は無い（#277）。載せられなかった
+   * ことを利用者に伝えるのはこの戻り値を読む側の仕事で、捨てると**盤も棋譜一覧も
+   * 前の棋譜のまま、何も出ない**（`failure-surfacing.md` の F-31）。
+   */
+  loadGame: (jkf: JKFData, absPath: string | null) => AsyncResult<void, string>;
   resetGame: () => void;
 
   goToIndex: (index: number) => void;

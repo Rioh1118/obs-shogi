@@ -36,7 +36,7 @@ describe("loadGame", () => {
     const jkf: JKFData = { header: {}, moves: [{}, { comments: ["t1"] }] };
 
     await act(async () => {
-      await game.current!.loadGame(jkf, "/ok.kif");
+      expect((await game.current!.loadGame(jkf, "/ok.kif")).success).toBe(true);
     });
 
     expect(game.current!.state.jkf).not.toBeNull();
@@ -58,7 +58,10 @@ describe("loadGame", () => {
     const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
 
     await act(async () => {
-      await game.current!.loadGame(broken, "/broken.kif");
+      const res = await game.current!.loadGame(broken, "/broken.kif");
+      // **`Err` を返すことが唯一の伝達路。** `state.error` を描いている場所は
+      // 無いので（#277）、これを捨てると F-31 が黙って通る
+      expect(res.success).toBe(false);
     });
 
     expect(game.current!.state.jkf).toBeNull();

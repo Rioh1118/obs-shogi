@@ -56,7 +56,7 @@ describe("ヘッダ中央の出どころ", () => {
     const seen = mount();
 
     await act(async () => {
-      await seen.game!.loadGame(OK, "/ws/a.kif");
+      expect((await seen.game!.loadGame(OK, "/ws/a.kif")).success).toBe(true);
     });
 
     expect(seen.info!.fileLabel).toBe("a");
@@ -74,10 +74,10 @@ describe("ヘッダ中央の出どころ", () => {
     const seen = mount();
 
     await act(async () => {
-      await seen.game!.loadGame(OK, "/ws/a.kif");
+      expect((await seen.game!.loadGame(OK, "/ws/a.kif")).success).toBe(true);
     });
     await act(async () => {
-      await seen.game!.loadGame(UNLOADABLE, "/ws/b.kif");
+      expect((await seen.game!.loadGame(UNLOADABLE, "/ws/b.kif")).success).toBe(false);
     });
 
     expect(seen.info!.fileLabel).toBe("a");

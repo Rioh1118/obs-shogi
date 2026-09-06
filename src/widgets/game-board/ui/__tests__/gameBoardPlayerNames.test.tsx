@@ -57,7 +57,7 @@ describe("盤の対局者名の出どころ", () => {
     const { seen, view } = mount();
 
     await act(async () => {
-      await seen.game!.loadGame(OK, "/ws/a.kif");
+      expect((await seen.game!.loadGame(OK, "/ws/a.kif")).success).toBe(true);
     });
 
     expect(names(view.container)).toEqual(["後手A", "先手A"]);
@@ -73,10 +73,10 @@ describe("盤の対局者名の出どころ", () => {
     const { seen, view } = mount();
 
     await act(async () => {
-      await seen.game!.loadGame(OK, "/ws/a.kif");
+      expect((await seen.game!.loadGame(OK, "/ws/a.kif")).success).toBe(true);
     });
     await act(async () => {
-      await seen.game!.loadGame(UNLOADABLE, "/ws/b.kif");
+      expect((await seen.game!.loadGame(UNLOADABLE, "/ws/b.kif")).success).toBe(false);
     });
 
     expect(names(view.container)).toEqual(["後手A", "先手A"]);
