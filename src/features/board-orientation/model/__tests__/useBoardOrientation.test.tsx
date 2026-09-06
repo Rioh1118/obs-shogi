@@ -30,6 +30,9 @@ const { useResetOrientationOnKifuChange } = await import("../useResetOrientation
 let search = "";
 let isGotePov = false;
 
+/** 見た location の鍵。`navigate` が撃たれるたびに増える */
+const seenKeys: string[] = [];
+
 /**
  * 向きを付ける口は解析ペインのヘッダ1つだけ。**そこが呼ぶのと同じ `toggle`** を
  * ボタンに繋ぐ。書き手を試験の側で組み直すと、符号化がずれても緑のままになる。
@@ -40,7 +43,9 @@ let isGotePov = false;
  * `src/app/providers/__tests__/runtimeProvidersBridges.test.tsx` が固定する。
  */
 function Probe() {
-  search = useLocation().search;
+  const location = useLocation();
+  search = location.search;
+  if (seenKeys[seenKeys.length - 1] !== location.key) seenKeys.push(location.key);
   const orientation = useBoardOrientation();
   isGotePov = orientation.isGotePov;
   useResetOrientationOnKifuChange();
@@ -84,6 +89,7 @@ beforeEach(() => {
   game.state.loadedAbsPath = null;
   search = "";
   isGotePov = false;
+  seenKeys.length = 0;
 });
 
 afterEach(() => cleanup());
@@ -123,6 +129,21 @@ describe("盤の向き", () => {
 
     expect(search).toContain("pov=gote");
     expect(isGotePov).toBe(true);
+  });
+
+  /**
+   * `updateParams` は削除が空振りでも `navigate` する。`history.replace` は URL が
+   * 同一でも新しい鍵を持つ location を作るので、`useLocation` の読み手
+   * （ファイルツリー全行を含む）が同じ操作に対して2回描き直される。
+   */
+  test("消す `pov` が無ければ、棋譜が載っても履歴を触らない", () => {
+    const view = render(app());
+    expect(seenKeys).toHaveLength(1);
+
+    game.state.loadedAbsPath = "/ws/a.kif";
+    redraw(view);
+
+    expect(seenKeys).toHaveLength(1);
   });
 
   /** 表の E2 */

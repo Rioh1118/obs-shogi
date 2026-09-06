@@ -17,7 +17,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
  */
 export function useResetOrientationOnKifuChange() {
   const { state } = useGame();
-  const { updateParams } = useURLParams();
+  const { params, updateParams } = useURLParams();
 
   const shownKifuPath = state.loadedAbsPath;
 
@@ -28,6 +28,12 @@ export function useResetOrientationOnKifuChange() {
   useEffect(() => {
     if (shownKifuPathRef.current === shownKifuPath) return;
     shownKifuPathRef.current = shownKifuPath;
+
+    // 消すものが無ければ履歴を触らない。`updateParams` は削除が空振りでも
+    // `navigate` するので、同じ URL でも location の同一性が変わり、
+    // `useLocation` の読み手（ファイルツリー全行を含む）が丸ごと描き直される
+    if (params.pov === undefined) return;
+
     updateParams({ pov: undefined }, { replace: true });
-  }, [shownKifuPath, updateParams]);
+  }, [shownKifuPath, params.pov, updateParams]);
 }
