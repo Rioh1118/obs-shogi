@@ -53,7 +53,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
     cancelSearch,
     getSessionByRequestId: (rid: number | null) =>
       rid == null ? null : { isDone: true, error: null, stale: false },
-    getHitsByRequestId: (rid: number | null) => (rid == null ? [] : HITS),
+    getHitsByRequestId: (rid: number | null) => (rid == null ? [] : hitsState.current),
     isSearchingRequest: () => false,
     resolveHitAbsPath,
   }),
@@ -78,6 +78,9 @@ function hitAt(fileId: number, tesuu: number): PositionHit {
 
 const HITS = [hitAt(1, 20), hitAt(2, 30)];
 
+/** チャンクは後から届く。届くたびに一覧は並び替わる（`orderPositionHits`） */
+const hitsState = { current: HITS };
+
 const NOTICE = "この棋譜を開けません";
 const NOTICE_NO_PATH = "この棋譜の場所が分かりません";
 
@@ -99,6 +102,7 @@ beforeEach(() => {
   cancelSearch.mockReset();
   resolveHitAbsPath.mockReset();
   resolveHitAbsPath.mockImplementation((hit: PositionHit) => `/root/${hit.occ.fileId}.kif`);
+  hitsState.current = HITS;
 });
 
 afterEach(() => cleanup());
@@ -153,6 +157,24 @@ describe("PositionSearchModal のヒットを開く", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(startNavigationToHit).not.toHaveBeenCalled();
     expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 断りは選んだ行に付く。並び替えで選択が滑ると、**利用者が何もしていないのに
+   * 断りが消える**。選択は添字でなく鍵で追う。
+   */
+  test("チャンクが届いて並び替わっても、断りは押した行に付いたまま", async () => {
+    startNavigationToHit.mockReturnValue(false);
+    const { rerender } = render(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+
+    pressEnter();
+    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+
+    hitsState.current = [hitAt(9, 5), ...HITS];
+    rerender(<PositionSearchModal />);
+
+    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

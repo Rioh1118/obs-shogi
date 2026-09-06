@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
@@ -180,19 +180,31 @@ export default function PositionSearchModal() {
   }, [cancelSearch]);
 
   const activeHit = orderedHits[activeIndex];
+
+  // 選んだ行の同一性は**鍵**で持つ。並び替え（`orderPositionHits` は開いている棋譜の
+  // ヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が入れ替わる）で添字は動く。
+  //
+  // **鍵を書くのは利用者が選んだときだけ。** 毎レンダ書き直すと、下の追従が
+  // 自分で書いた鍵を引くことになって一度も働かず、触っていないのに選択が滑る
   const activeKeyRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    activeKeyRef.current = activeHit ? hitKey(activeHit) : null;
-  }, [activeHit]);
+  const selectIndex = useCallback(
+    (next: number) => {
+      setActiveIndex(next);
+      const hit = orderedHits[next];
+      activeKeyRef.current = hit ? hitKey(hit) : null;
+    },
+    [orderedHits],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
     const n = orderedHits.length;
     if (activeIndex < n) return;
-    setActiveIndex(Math.max(0, n - 1));
-  }, [isOpen, activeIndex, orderedHits.length]);
+    selectIndex(Math.max(0, n - 1));
+  }, [isOpen, activeIndex, orderedHits.length, selectIndex]);
 
+  // 並び替えで選んでいた行が動いたら、鍵で追う
   useEffect(() => {
     const k = activeKeyRef.current;
     if (!k) return;
@@ -207,6 +219,11 @@ export default function PositionSearchModal() {
     // **2つの断りを1つの文言に畳まない。** 行き先のパスを引けないのは索引の側の
     // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
     // 動かしていない棋譜を探しに行かせる
+
+    // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
+    // 追えるように鍵を書く
+    activeKeyRef.current = hitKey(hit);
+
     const absPath = resolveHitAbsPath(hit);
     if (!absPath) {
       setRefusedHit({ key: hitKey(hit), reason: "no-path" });
@@ -236,13 +253,13 @@ export default function PositionSearchModal() {
 
     if (e.key === "ArrowDown" || e.key === "j") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, Math.max(0, orderedHits.length - 1)));
+      selectIndex(Math.min(activeIndex + 1, Math.max(0, orderedHits.length - 1)));
       return;
     }
 
     if (e.key === "ArrowUp" || e.key === "k") {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      selectIndex(Math.max(activeIndex - 1, 0));
       return;
     }
   };
@@ -288,7 +305,7 @@ export default function PositionSearchModal() {
               <PositionSearchHitList
                 hits={orderedHits}
                 activeIndex={activeIndex}
-                onActiveIndexChange={setActiveIndex}
+                onActiveIndexChange={selectIndex}
                 onAccept={accept}
                 isSearching={isSearching}
                 error={error}
