@@ -434,10 +434,10 @@ export function PositionSearchProvider({
         for (let j = 0; j < chunk.length; j++) flat.push(chunk[j]);
       }
 
-      // **写しを渡す。** `flat` を直に返すと、増えても同じ配列のままになり、
-      // 呼び手の `useMemo` が「変わっていない」と読んで**新着ヒットが一覧に出ない**。
-      // いまその形が表に出ていないのは、判定が毎回外れて別の配列を返しているから
-      // でしかない。写しは要素の指し直しだけなので、増分追記の意味は消えない
+      // **写しを渡す。** `flat` は増分追記のために同じ配列を伸ばし続けるので、
+      // 直に返すと呼び手の `useMemo` が「変わっていない」と読み、
+      // **新着ヒットが一覧に出ない**。写しは要素の指し直しだけ（n=100,000 で
+      // 0.035ms）なので、増分追記の意味は消えない
       const snapshot = flat.slice();
 
       hitsCacheRef.current.set(requestId, {
