@@ -11,7 +11,8 @@ use tokio::{sync::Mutex, task, time};
 
 use crate::search::index::file_build::build_file_index;
 use crate::search::read::fs_scan::{
-    diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
+    diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanError, ScanOptions,
+    ScanSnapshot,
 };
 use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
 use crate::search::store::index_store::IndexStore;
@@ -172,8 +173,19 @@ impl ProjectManager {
             (root, g.scan.clone(), g.path_to_id.clone(), g.next_file_id)
         };
 
-        // 再スキャン（雑にフルスキャンでOK：notify取りこぼしも補正できる）
-        let records = match scan_kifu_files(&root, &ScanOptions::default()) {
+        // 再スキャン（雑にフルスキャンでOK：notify取りこぼしも補正できる）。
+        // **`spawn_blocking` へ逃がす。** ファイル1件ごとに `metadata` と
+        // `canonicalize` の2回の syscall を回すので、大きなワークスペースでは
+        // 秒の単位で tokio のワーカーを1本握る。ここは debounce のタスクの中なので、
+        // 逃がさないと watcher のイベント処理まで止まる
+        let scan_root = root.clone();
+        let scanned = tauri::async_runtime::spawn_blocking(move || {
+            scan_kifu_files(&scan_root, &ScanOptions::default())
+        })
+        .await;
+        let records = match scanned
+            .unwrap_or_else(|e| Err(ScanError::Io(std::io::Error::other(e.to_string()))))
+        {
             Ok(v) => v,
             Err(e) => {
                 let _ = app.emit(
