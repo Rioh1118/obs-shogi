@@ -37,8 +37,12 @@ function autoDismissOf(request: VisibleRequest): boolean {
   return request.presentation === "toast" && request.autoDismiss === true;
 }
 
-function actionsOf(request: VisibleRequest): NotifyAction[] {
-  return ("actions" in request ? request.actions : undefined) ?? [];
+/**
+ * 書かれた動作。**「書いていない」と「空で書いた」を区別する**ので `undefined` を返しうる。
+ * 畳むときにその区別が要る（`foldInto`）
+ */
+function actionsOf(request: VisibleRequest): NotifyAction[] | undefined {
+  return "actions" in request ? request.actions : undefined;
 }
 
 function toNotification(request: VisibleRequest, tier: VisibleTier, seq: number): Notification {
@@ -48,7 +52,7 @@ function toNotification(request: VisibleRequest, tier: VisibleTier, seq: number)
     presentation: request.presentation,
     title: request.title,
     body: request.body,
-    actions: actionsOf(request),
+    actions: actionsOf(request) ?? [],
     autoDismiss: autoDismissOf(request),
     dedupeKey: request.dedupeKey,
     count: 1,
@@ -63,6 +67,11 @@ function toNotification(request: VisibleRequest, tier: VisibleTier, seq: number)
  *
  * **id と並び順は動かさない。** 動かすと、畳まれるたびに通知が右下で跳ね、
  * 読んでいる途中の別の通知がずれる。
+ *
+ * **動作だけは上書きしない。** 復帰手段を持つ通知に、動作を書かない別の経路から
+ * 同じ鍵で通知が来ると、表示は残ったままボタンだけ消えて件数が増える——
+ * 利用者は復帰手段の無いエラー表示の前に取り残される。
+ * 消したいときは `actions: []` を明示する。
  */
 function foldInto(
   existing: Notification,
@@ -77,7 +86,7 @@ function foldInto(
     presentation: request.presentation,
     title: request.title,
     body: request.body,
-    actions: actionsOf(request),
+    actions: actionsOf(request) ?? existing.actions,
     autoDismiss: autoDismissOf(request),
     count: existing.count + 1,
   };

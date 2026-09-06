@@ -110,6 +110,41 @@ describe("通知の置き場", () => {
       expect(raised.notifications[0].count).toBe(3);
     });
 
+    /**
+     * 復帰手段を持つ通知に、動作を書かない別の経路から同じ鍵で通知が来ると、
+     * 表示は残ったままボタンだけ消えて件数が増える。利用者は復帰手段の無い
+     * エラー表示の前に取り残される。
+     */
+    describe("動作", () => {
+      const retry = { label: "再試行", run: () => {} };
+      const withActions = notify(INITIAL_NOTIFICATION_STATE, {
+        dedupeKey: "analysis",
+        actions: [retry],
+      });
+
+      it("書かれていなければ残す", () => {
+        const state = notify(withActions, { dedupeKey: "analysis" });
+
+        expect(state.notifications[0].actions).toEqual([retry]);
+        expect(state.notifications[0].count).toBe(2);
+      });
+
+      it("書かれていれば差し替える", () => {
+        const restart = { label: "エンジンを再起動", run: () => {} };
+        const state = notify(withActions, { dedupeKey: "analysis", actions: [restart] });
+
+        expect(state.notifications[0].actions).toEqual([restart]);
+      });
+
+      // 「書いていない」と「空で書いた」を区別する。消す手段が無いと、
+      // 直った後もボタンが残り続ける
+      it("空で書けば消える", () => {
+        const state = notify(withActions, { dedupeKey: "analysis", actions: [] });
+
+        expect(state.notifications[0].actions).toEqual([]);
+      });
+    });
+
     it("鍵が違えば畳まない", () => {
       const other = notificationReducer(folded, {
         type: "notify",
