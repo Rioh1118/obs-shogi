@@ -121,9 +121,9 @@ export function useEngineSeat(): EngineSeat {
     if (seatRef.current === sessionId) seatRef.current = null;
   };
 
-  // **落ちても利用者には出せない。** ここを通るのは、画面が既に無い（`unmount`）、
-  // 棋譜を閉じた後で出す場所が無い（`no-position`）、直後に `set_error` が立つ
-  // （`sync-timeout`。その `error` の読み手はまだ0 → #277）、利用者が止めた直後で
+  // **落ちても利用者には出せない。** ここを通るのは、画面が既に無い（`unmount`）、棋譜を閉じた後で
+  // 出す場所が無い（`no-position`）、直後に `set_error` が立つ（`sync-timeout`。
+  // その `error` の読み手はまだ0 → #277）、利用者が止めた直後で
   // 「停止の後始末に失敗しました」を出しても当てが無い（`late-start` / `late-restart`）。
   //
   // **それでも痕跡は残す。** ここが最後の防壁で、抜けられると席が残り、

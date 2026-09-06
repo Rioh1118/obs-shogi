@@ -5,17 +5,42 @@ Tauri v2 デスクトップアプリ（React 19 + TypeScript + SCSS / Rust）。
 ## 検証（変更後に必ず実行）
 
 ```bash
-npm run verify          # tsc -b + lint + vitest      （約8秒）
-npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
+npm run verify          # tsc -b + lint + vitest + test:hooks
+npm run verify:rust     # cargo fmt + clippy + test
 ```
 
-`git commit` は `.claude/hooks/verify-gate.sh` が横取りし、**その変更を見る検査がある側**を
-自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
+**所要時間をここに書かない。** 書いた瞬間から実測と離れる（`verify` は
+「約8秒」と書いてあった時期に実測 84 秒だった）。知りたいときは
+`time npm run verify` で取ること。**どちらも分単位**だと思っておけばよい。
+`verify` の大半は `test:hooks` で、その中の `probe_is_readonly` が
+使い捨ての repo に動詞を1つずつ当てているぶん。
 
-**種類で二分しない。** `docs/` も `CONTRIBUTING.md` も `.claude/hooks/` も `verify` を通り、
-`docs/state-transitions/` は `verify:rust` まで通る（表とテストの名乗りを突き合わせる
-ラチェットが Rust 側にある）。どれがどちらを通るかは
-`.claude/hooks/verify-gate.test.sh` が固定している。
+`git commit` は `.claude/hooks/verify-gate.sh` が横取りし、変更ファイルの種類に応じて
+上を自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
+
+**種類で二分しない。** `.rs` だけを触っても ts が走り、`docs/` の中の `.md` だけを
+触っても ts が走る（規約とリンクの検査が、ソースと doc を文字列として読んでいるため）。
+**素通しする条件は種類だけでは決まらない。** ゲートが見るのは、判定した時点で
+`git status --untracked-files=no` に出る**追跡済みの変更**だけ。
+**判定の全体（免除を含む）は `docs/state-transitions/verify-gate-decision.md` が持つ。
+ここに写さない。**
+
+**手前に置けるのは読むだけの git だけ**（`GATE_READ_ONLY_VERBS_BASE` と、
+書き込む綴りを持たない alias）。PreToolUse はコマンドが走る前に判定するので、
+手前で変えるとその前の状態を見ることになる。
+2回の呼び出しに分ければ従来どおり打てる。
+
+**それでも素通しは残る。数を書かない** —— 免除が増えるたびにこの行だけが古くなる。
+追跡外のファイルは `--untracked-files=no` に出ない。
+種類に当たらない変更だけのコミットも走らない。
+`git commit` 以外でコミットを作る綴りが clean なツリーで作るコミットも見えない
+（語彙は `verify-gate.sh` の `GATE_COMMIT_VERB_BASE`。表は
+`docs/state-transitions/verify-gate-decision.md` の (D, S4)）。
+
+**いずれの後も手で通すこと。**
+
+パスから種類への対応は `gate_kinds_for_path`（`.claude/hooks/verify-gate.sh`）が唯一の出典で、
+`verify-gate.test.sh` がその対応を固定している。**ここに写さない。**
 
 作業を「完了」と報告する前に該当する方を必ず通すこと。通していないなら「未検証」と明示すること。
 
@@ -45,14 +70,15 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 
 ## テストの現状（誇張しないこと）
 
-**件数をここに書かない。** 書くと必ず腐る。現在値は `npm run test` と
-`cargo test` の末尾で確認すること。
+**件数をここに書かない。** 書くと必ず腐る。TS 側の現在値は `npm run test` の末尾。
+**Rust 側は末尾では取れない** —— `cargo test` はテストバイナリごとに集計を出すだけで
+総計を印字せず、末尾に出るのは doc-test の `0 passed`。
+**`src-tauri/tests/test_count_ratchet.rs` の `EXPECTED_MIN` も現在値ではない**（床）。
 
 **厚さは面によって全く違う。** 対局の状態機械（`engine/game/`）は変異を当てて
-埋めてあるが、**実プロセスを要する経路は1つも固定されていない**（`gameover` が
-実際にワイヤへ出ること、`ponderhit` の書き込みが落ちたとき）。
+埋めてあるが、**実プロセスを要する経路は1つも固定されていない**。
 `src-tauri/tests/` の大半は**ソースを走査するラチェット**で、振る舞いは見ていない。
-**例外は `engine_timeouts.rs`** ——ソースを読まず、段を跨ぐ上限どうしの関係を
+**例外は `engine_timeouts.rs`** —— ソースを読まず、段を跨ぐ上限どうしの関係を
 式で固定している。`CLOSE_TIMEOUT` の doc はその保証を根拠にしているので、
 赤くなったら「走査の都合」と読まず、どちらの定数が動いたのかを見ること。
 

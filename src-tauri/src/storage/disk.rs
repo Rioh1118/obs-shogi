@@ -112,10 +112,11 @@ mod tests {
     use super::*;
     use crate::storage::InMemory;
 
+    // 名前を固定しない。`std::env::temp_dir()` はワークツリーをまたいで共有され、
+    // worktree を並べて `verify:rust` を同時に走らせると片方の後片付けが
+    // もう片方の実体を消す（`tests/temp_dir_names.rs` が見ている）。
     fn tmp_root(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("obs-shogi-blob-{name}"));
-        let _ = fs::remove_dir_all(&d);
-        d
+        test_support::dir::temp_dir(&format!("blob-{name}"))
     }
 
     /// **どの置き場も同じ約束を守ること。**

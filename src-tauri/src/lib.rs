@@ -1,4 +1,5 @@
 pub mod ai_library;
+pub mod book;
 pub mod engine;
 pub mod kifu;
 pub mod search;
@@ -6,6 +7,7 @@ pub mod storage;
 pub mod workspace;
 
 pub use crate::engine::state::AppState;
+pub use book::session::BookState;
 pub use search::state::SearchState;
 pub use search::store::index_store::IndexStore;
 
@@ -56,6 +58,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_fs::init())
         .manage(AppState::new())
+        .manage(BookState::new())
         .invoke_handler(tauri::generate_handler![
             settings::commands::backup_broken_config,
             settings::commands::load_config,
@@ -107,6 +110,12 @@ pub fn run() {
             crate::search::commands::cancel_search,
             settings::commands::load_study_positions,
             settings::commands::save_study_positions,
+            crate::book::commands::open_book,
+            crate::book::commands::lookup_book_moves,
+            crate::book::commands::get_book_info,
+            crate::book::commands::close_book,
+            crate::book::commands::list_books,
+            crate::book::commands::close_all_books,
         ])
         .plugin(tauri_plugin_dialog::init())
         .manage(search_state)

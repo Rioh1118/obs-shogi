@@ -12,8 +12,8 @@
 
 ## 確認したこと
 
-- [ ] `npm run verify` を通した（TypeScript を触った場合）
-- [ ] `npm run verify:rust` を通した（Rust を触った場合）
+- [ ] `npm run verify` を通した
+- [ ] `npm run verify:rust` を通した
 - [ ] 手元で実際に動かして確認した
 
 <!--

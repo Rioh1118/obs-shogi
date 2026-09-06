@@ -6,7 +6,7 @@ import "./InlineNameEditor.scss";
 /**
  * **描かれている＝編集中。** 呼び出し側は5経路とも `isRenaming` /
  * `showCreateRow` で分岐して unmount するので、「閉じている」という状態を
- * この component は持たない（状態遷移表の E0）
+ * この component は持たない（`inline-name-editor.md` の E0）
  */
 type InlineRenameProps = {
   initialName: string;

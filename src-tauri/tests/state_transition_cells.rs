@@ -52,15 +52,18 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
-fn sources() -> Vec<PathBuf> {
-    roots::production_roots()
-        .iter()
-        .flat_map(|r| rust_files(r))
-        .collect()
-}
-
 fn src_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
+}
+
+/// この表が受け持つ実装。
+///
+/// **記号は表ごとに閉じている。** `E0` も `E6` も、どの表も自分の事象に付ける
+/// 番号なので、`src` 全体を走査すると別の表のテストが名乗った記号を
+/// この表の行として突き合わせることになる（定跡の表が `(S1, E0)` を使う）。
+/// 表を増やすたびに、名乗りが衝突して直しようのない赤が出る。
+fn covered_dir() -> PathBuf {
+    src_dir().join("engine")
 }
 
 fn table_source() -> String {
@@ -126,7 +129,7 @@ fn symbols_in(scope: &str) -> Vec<String> {
 fn claims() -> BTreeMap<String, Vec<String>> {
     let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
-    for path in sources() {
+    for path in rust_files(&covered_dir()) {
         // **文字列を潰してから読む。** 生文字列に doc コメントと `#[test]` の
         // 形を書いた行が、名乗っていないセルを名乗ったことにする
         let source = blank_out_strings(&fs::read_to_string(&path).unwrap_or_default());

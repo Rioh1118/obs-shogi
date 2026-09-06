@@ -55,12 +55,13 @@ const EXTRA_GUARDS: [(&str, &str); 3] = [
 /// `every_path_taking_command_checks_the_root` の対象に一度も入らないので、
 /// 関門を呼んでいなくても、免除の理由が無くても緑で通る。
 /// `no_path_carrying_command_is_missing_from_the_list` が載せ忘れを拾う。
-const STRUCT_CARRIED_PATH: [&str; 5] = [
+const STRUCT_CARRIED_PATH: [&str; 6] = [
     "write_kifu_to_file",
     "open_project",
     "save_config",
     "start_game",
     "save_presets",
+    "open_book",
 ];
 
 /// 関門を通さないコマンドと、その理由。
@@ -71,7 +72,12 @@ const STRUCT_CARRIED_PATH: [&str; 5] = [
 /// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
-const EXEMPT: [(&str, &str); 8] = [
+const EXEMPT: [(&str, &str); 9] = [
+    (
+        "open_book",
+        "(1) 定跡はエンジン同梱のディレクトリや外付けドライブなど、ワークスペースの外に置かれる。\
+         代わりに book 側で絶対パスと拡張子と実体を確かめる（`book::open`）",
+    ),
     (
         "scan_ai_root",
         "(1) ai_root はワークスペースとは別に利用者が選ぶ場所。root 配下に無い",

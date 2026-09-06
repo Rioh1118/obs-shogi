@@ -46,7 +46,15 @@ function resolve(path: string): string {
  *
  * 追わないもの: 相対リンク（`./branch-index.md`）は doc どうしの参照であって
  * ソースの置き場ではない。追うと**丁寧に相対で書いた人だけが赤くなる**。
- * レイヤ名でも起点でもない綴り（外部 URL、他リポジトリのパス）も追わない。
+ * レイヤ名でも起点でもない綴り（外部 URL など）も追わない。
+ *
+ * **他リポジトリのパスも、起点の綴りが重なれば追ってしまう。** 追うかどうかを
+ * 決めているのは `ROOTED`（`src/` `src-tauri/` `docs/` 始まり）で、`LAYER` では
+ * 弾けない —— ShogiHome の `src/background/` はレイヤ名ではないが `ROOTED` に当たる。
+ * ここで他リポジトリを見分けようとすると、こちらの `src/` を追わなくなるか、
+ * あちらの `src/` で赤くなるかのどちらかにしかならない。
+ * 区別は書き手が付ける —— バッククォートではなく外部リンクで書く
+ * （`docs/state-transitions/README.md` の規約）。
  */
 function tracked(inline: string, resolved: string): boolean {
   if (/^\.\.?\//.test(inline)) return false;
@@ -65,7 +73,7 @@ function tracked(inline: string, resolved: string): boolean {
  * 範囲を並べた綴りがどちらの検査も通り抜ける（パス側は空白とカンマで弾かれ、
  * 行番号側は知らない形として見逃す）。
  */
-const LINE_SUFFIX = /[#:]L?\d+(-\d+)?(,\s*\d+(-\d+)?)*$/;
+const LINE_SUFFIX = /[#:]L?\d+(-L?\d+)?(,\s*L?\d+(-L?\d+)?)*$/;
 
 /**
  * バッククォートで囲まれたソースのパスを拾う。
@@ -110,11 +118,25 @@ export function missingPaths(paths: string[]): string[] {
  *
  * 指したいものがあるなら識別子で指すこと。`docsIdentifiers` がそちらは見る。
  *
+ * **版を固定すると宣言した文書では、この木のどこにも無いファイルを見ない。**
+ * 他リポジトリの識別子はこちらの検査が追えないので「識別子で指せ」の逃げ道が無く、
+ * 代わりに版ごと引くのが `docs/state-transitions/README.md` の規約
+ * （「…の行番号は、すべて v9.40 時点」の形）。版が書いてあれば無言ではずれない。
+ *
+ * **免除するかは実在で決める。綴りの形では決めない。** `tracked` は
+ * 「実在を要求してよい形か」を見る別の関門で、`README.md` のような起点直下の
+ * ファイルにも、拡張子の無い識別子にも当たらない。それを流用すると、
+ * `optional_number:42` や `README.md#L10` まで宣言1行で通ってしまう。
+ *
+ * **裸の識別子は上流でも免除しない。** スラッシュも拡張子も持たない綴りは
+ * `docsIdentifiers` が追える側で、「識別子で指せ」の逃げ道が実在する。
+ *
  * 綴りは `LINE_SUFFIX` の1つだけを使う。**このファイル自身は走査の対象外**
  * （`src/__tests__` は `docs/` の外）なので、上に例を書いてよい。
  */
 export function lineNumberRefsIn(markdown: string): string[] {
   const found = new Set<string>();
+  const pinned = /`v?\d+(\.\d+)+`[^\n]*時点/.test(markdown);
 
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
     // ファイル名を省いた `:29` `:29-35` も拾う。**省いた形のほうが悪い**——ずれたときに
@@ -123,8 +145,21 @@ export function lineNumberRefsIn(markdown: string): string[] {
     const bare = /^:\d+(-\d+)?$/.test(inline);
 
     // 前が識別子かパスであること。`03:00` のような綴りを巻き込まない
+    // 版を固定した文書の行だけの綴りは、一次資料（この repo に無いソース）の行。
+    // 版を書いてあれば、あちらが動いたときにどの版の行かは辿れる
+    if (bare && pinned) continue;
+
+    // 行だけの綴り（`:29`）は前の識別子を持たないので、その検査を飛ばす
     if (!bare && !/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
-    if (bare || LINE_SUFFIX.test(inline)) found.add(inline);
+    if (!bare && !LINE_SUFFIX.test(inline)) continue;
+
+    // 版を固定した文書では、この repo に無いパス（一次資料の行番号）を拾わない
+    const withoutLine = inline.replace(LINE_SUFFIX, "");
+    const looksLikePath = withoutLine.includes("/") || /\.[A-Za-z0-9]+$/.test(withoutLine);
+    const resolvable = ROOTS.some((root) => existsSync(join(REPO_ROOT, root + withoutLine)));
+    if (!bare && pinned && looksLikePath && !resolvable && !LAYER.test(withoutLine)) continue;
+
+    found.add(inline);
   }
 
   return [...found].sort();
