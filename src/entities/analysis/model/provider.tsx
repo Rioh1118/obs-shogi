@@ -176,6 +176,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             latestResultRef.current = result;
             scheduleFlush();
           },
+          // **この通知は現物では届かない。** `analysis-complete` を emit する行が
+          // Rust に無い（`docs/state-transitions/analysis.md` の E8 / ※6）。
+          // 口が入ったときの取り決めとして置いてある。
           onComplete: (sessionId: string, result: AnalysisResult) => {
             // 終わった探索の席は Rust が自分で片付ける（`bridge.rs` の
             // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
@@ -188,6 +191,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             flushLatest();
             dispatch({ type: "stop_analysis" });
           },
+          // **この通知も届かない**（`engine-error` を emit する行が無い。E9 / ※6）。
           onError: (error: string) => {
             dispatch({ type: "set_error", payload: error });
           },
