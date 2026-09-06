@@ -1,14 +1,6 @@
-use std::{
-    collections::HashMap,
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
 
-use tauri::AppHandle;
-
-use crate::search::cache::paths::{cache_paths, now_ms, root_hash};
+use crate::search::cache::paths::{cache_key, now_ms, root_hash};
 use crate::search::position::position_key::PositionKey;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord, KifuKind, ScanSnapshot};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
@@ -18,6 +10,7 @@ use crate::search::store::node_table::NodeTable;
 use crate::search::store::node_table::NodeTables;
 use crate::search::store::snapshot::IndexSnapshot;
 use crate::search::types::{FileEntry, FileId, Occurrence};
+use crate::storage::BlobStore;
 
 /// ログの接頭辞。**3つのマクロがここだけを見る。**
 /// 綴りが割れるとログを grep する側が行を落とすので、直書きしない。
@@ -46,7 +39,7 @@ macro_rules! info {
 /// `save_checkpoint` の `?` はすべて `err!` を通ること。
 /// `err!` の側から数えると、ログを持たない出口は集合に入らない。
 ///
-/// **読む側（`try_restore` / `read_decode`）では使わない。**
+/// **読む側（`try_restore`）では使わない。**
 /// あちらは失敗しても全件構築に落ちて画面が進むので、`Info` で消えてよい。
 macro_rules! err {
     ($($t:tt)*) => {
@@ -117,41 +110,29 @@ struct EncodeCtx<'a> {
 // public APIs
 // --------------------
 
+/// 索引を1つの blob に詰めて置く。
+///
+/// 手順は4つ —— 桶を畳む、形式に詰める、圧縮する、[`BlobStore`] に置く。
+/// **どこへ置くかは知らない**（`store` が決める）。
+///
+/// 落ちても呼び手は続けられる。次の起動で復元できないだけで、
+/// そのときは全件構築に落ちる。**ただし画面には何も出ない**ので、
+/// 失敗は `err!` で出荷ビルドのログに残す（#407）。
 pub fn save_checkpoint(
-    app: &AppHandle,
+    store: &dyn BlobStore,
     root_dir: &Path,
     snap: &IndexSnapshot,
     scan: &ScanSnapshot,
     path_to_id: &HashMap<String, FileId>,
     next_file_id: FileId,
 ) -> Result<(), String> {
-    let (proj_dir, final_path, bak_path) = cache_paths(app, root_dir).map_err(|e| {
-        err!("チェックポイントを書けない（cache_paths）: {e}");
-        e
-    })?;
     trace!("save_checkpoint BEGIN root_dir={}", root_dir.display());
-    trace!(
-        "paths proj_dir={} final={} bak={}",
-        proj_dir.display(),
-        final_path.display(),
-        bak_path.display()
-    );
 
-    fs::create_dir_all(&proj_dir).map_err(|e| {
-        err!("チェックポイントを書けない（create_dir_all）: {e}");
-        e.to_string()
-    })?;
-    trace!("create_dir_all OK");
-
-    trace!("compact_all_buckets...");
-    // 1) コンパクション（桶ごとに1本化）
+    // 1) 桶ごとに1本へ畳む。死んだ出現はここで落ちる
     let buckets = compact_all_buckets(snap);
-    trace!("compact_all_buckets OK");
 
-    trace!("encode_all...");
-    // 2) エンコード（非圧縮 body）
+    // 2) 形式に詰める。門番が並びや範囲を見る
     let mut body = Vec::<u8>::new();
-
     let ctx = EncodeCtx {
         root_dir,
         scan,
@@ -160,112 +141,48 @@ pub fn save_checkpoint(
         ft: snap.file_table.as_ref(),
         nts: snap.node_tables.as_ref(),
     };
-
     encode_all(&mut body, &ctx, &buckets).map_err(|e| {
         err!("チェックポイントを書けない（encode_all）: {e}");
         e
     })?;
-
     trace!("encode_all OK body_bytes={}", body.len());
 
-    trace!("zstd compress...");
-    // 3) zstd 圧縮して tmp に書く → atomic-ish に置き換え
-    let tmp_path = final_path.with_extension("zst.tmp");
-    trace!("write tmp {}", tmp_path.display());
-
-    {
-        let mut out = fs::File::create(&tmp_path).map_err(|e| {
-            err!("チェックポイントを書けない（create tmp）: {e}");
-            e.to_string()
-        })?;
-        // zstd level=1 (速い)
-        let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| {
-            err!("チェックポイントを書けない（zstd compress）: {e}");
-            e.to_string()
-        })?;
-        out.write_all(&compressed).map_err(|e| {
-            err!("チェックポイントを書けない（write_all）: {e}");
-            e.to_string()
-        })?;
-        out.flush().map_err(|e| {
-            err!("チェックポイントを書けない（flush）: {e}");
-            e.to_string()
-        })?;
-    }
-    trace!("tmp write OK");
-
-    // Windows 対策：final があれば bak に退避してから rename
-    if final_path.exists() {
-        trace!("final exists → move to bak");
-        let _ = fs::remove_file(&bak_path);
-        fs::rename(&final_path, &bak_path).map_err(|e| {
-            err!("チェックポイントを書けない（rename final->bak）: {e}");
-            e.to_string()
-        })?;
-        trace!("rename final->bak OK");
-    }
-    trace!("rename tmp->final");
-    fs::rename(&tmp_path, &final_path).map_err(|e| {
-        err!("チェックポイントを書けない（rename tmp->final）: {e}");
+    // 3) 圧縮。level=1 は速さを取る（起動のたびに読むので展開の速さが効く）
+    let compressed = zstd::stream::encode_all(body.as_slice(), 1).map_err(|e| {
+        err!("チェックポイントを書けない（zstd compress）: {e}");
         e.to_string()
     })?;
-    trace!("rename tmp->final OK");
-    let _ = fs::remove_file(&bak_path);
-    trace!("save_checkpoint END OK");
 
+    // 4) 置く
+    store.save(&cache_key(root_dir), &compressed).map_err(|e| {
+        err!("チェックポイントを書けない（save）: {e}");
+        e.to_string()
+    })?;
+
+    trace!("save_checkpoint END OK bytes={}", compressed.len());
     Ok(())
 }
 
-pub fn try_restore(app: &AppHandle, root_dir: &Path) -> Result<Restored, String> {
-    let (_proj_dir, final_path, bak_path) = cache_paths(app, root_dir)?;
+/// 置いてある blob から索引を組み直す。
+///
+/// **失敗は正規の経路。** 初回起動・版を上げた直後・化けたときはここで失敗し、
+/// 呼び手が全件構築へ落ちる（`search/commands.rs` の `open_project`）。
+/// だから `err!` でなく `trace!` で記録する。
+pub fn try_restore(store: &dyn BlobStore, root_dir: &Path) -> Result<Restored, String> {
     trace!("try_restore BEGIN root_dir={}", root_dir.display());
-    trace!(
-        "final={} exists={}",
-        final_path.display(),
-        final_path.exists()
-    );
-    trace!("bak  ={} exists={}", bak_path.display(), bak_path.exists());
 
-    // final → 失敗したら bak
-    match read_decode(&final_path, root_dir) {
-        Ok(v) => {
-            trace!("try_restore OK (final)");
-            Ok(v)
-        }
-        Err(e_final) => {
-            trace!("try_restore FAILED (final): {e_final}");
-            if bak_path.exists() {
-                match read_decode(&bak_path, root_dir) {
-                    Ok(v) => {
-                        trace!("try_restore OK (bak)");
-                        Ok(v)
-                    }
-                    Err(e_bak) => {
-                        trace!("try_restore FAILED (bak): {e_bak}");
-                        Err(format!("restore failed. final: {e_final} / bak: {e_bak}"))
-                    }
-                }
-            } else {
-                Err(format!("restore failed. final: {e_final} (bak not found)"))
-            }
-        }
-    }
-}
+    let compressed = store
+        .load(&cache_key(root_dir))
+        .map_err(|e| format!("load: {e}"))?;
+    trace!("load OK bytes={}", compressed.len());
 
-fn read_decode(path: &Path, root_dir: &Path) -> Result<Restored, String> {
-    trace!("read_decode path={}", path.display());
-    let bytes = fs::read(path).map_err(|e| {
-        let msg = format!("read failed {}: {e}", path.display());
-        trace!("{msg}");
-        msg
-    })?;
-    let decompressed = zstd::stream::decode_all(bytes.as_slice()).map_err(|e| {
+    let body = zstd::stream::decode_all(compressed.as_slice()).map_err(|e| {
         let msg = format!("zstd decode: {e}");
         trace!("{msg}");
         msg
     })?;
-    trace!("zstd decode OK bytes={}", decompressed.len());
-    decode_all(&decompressed, root_dir).map_err(|e| {
+
+    decode_all(&body, root_dir).map_err(|e| {
         // `bad version` は版を上げた初回起動で必ず通る正規の経路なので、
         // 化けと同じ重さで記録しない。結末（全件構築）は画面に出る
         trace!("decode_all FAILED: {e}");
@@ -2306,5 +2223,141 @@ mod tests {
                 Err(e) => assert!(e.contains("is not after"), "別の門番で落ちている: {e}"),
             }
         }
+    }
+    /// 保存・復元を通すための小さな索引。
+    ///
+    /// 1ファイル・1局面。**形式の検査は他のテストが見る**ので、
+    /// ここは「置いて読める」ことだけを試せれば足りる。
+    fn a_small_index(
+        root: &Path,
+    ) -> (IndexSnapshot, ScanSnapshot, HashMap<String, FileId>, FileId) {
+        use crate::search::store::bucket::bucketize_entries;
+        use crate::search::store::node_table::NodeTableBuilder;
+        use crate::search::store::snapshot::IndexState;
+
+        let entry = FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            r#gen: 1,
+        };
+        let mut ft = FileTable::default();
+        ft.upsert(entry.clone());
+
+        let mut b = NodeTableBuilder::new();
+        b.push_node(0, &[]);
+        let mut nts = NodeTables::default();
+        nts.upsert(1, Arc::new(b.finish()));
+
+        let key = PositionKey {
+            z0: 0x1100_0000_0000_0001,
+            z1: 0x2222,
+        };
+        let by_bucket = bucketize_entries(vec![(
+            key,
+            Occurrence {
+                file_id: 1,
+                r#gen: 1,
+                node_id: 0,
+            },
+        )]);
+
+        let snap = IndexSnapshot::default()
+            .with_state(IndexState::Ready)
+            .with_files(vec![(entry, nts.get(1).expect("節表").clone(), by_bucket)]);
+
+        let scan = snapshot_from_records(
+            root,
+            vec![FileRecord {
+                path: root.join("a.kif"),
+                kind: KifuKind::Kif,
+                size: 10,
+                mtime_ms: 1,
+            }],
+        );
+        let path_to_id: HashMap<String, FileId> =
+            [("a.kif".to_owned(), 1u32)].into_iter().collect();
+
+        (snap, scan, path_to_id, 2)
+    }
+
+    /// **置いて読み戻すと、同じ索引が返る。**
+    ///
+    /// これまで `save_checkpoint` / `try_restore` を通るテストは1本も無かった。
+    /// `AppHandle` を直に取っていて、置き場を差し替えられなかったため。
+    #[test]
+    fn a_checkpoint_can_be_written_and_read_back() {
+        use crate::storage::InMemory;
+
+        let root = Path::new("/tmp/obs-shogi-roundtrip");
+        let (snap, scan, path_to_id, next) = a_small_index(root);
+        let store = InMemory::new();
+
+        save_checkpoint(&store, root, &snap, &scan, &path_to_id, next).expect("置けない");
+        let back = try_restore(&store, root).expect("読み戻せない");
+
+        assert_eq!(back.scan.next_file_id, next);
+        assert_eq!(
+            back.index.file_table.len(),
+            snap.file_table.len(),
+            "ファイル表の数が変わった"
+        );
+    }
+
+    /// **置いていなければ復元は失敗する。** 初回起動がこの形。
+    #[test]
+    fn restoring_without_a_checkpoint_fails() {
+        use crate::storage::InMemory;
+
+        let store = InMemory::new();
+        assert!(try_restore(&store, Path::new("/tmp/obs-shogi-none")).is_err());
+    }
+
+    /// **置き場が落ちたら、置くのも落ちる。**
+    ///
+    /// ディスクの失敗はテストから起こせないので、仕込める置き場で踏む。
+    /// **呼び手は `Err` を捨てる**ので、ここが黙ると次の起動が毎回全件構築になる。
+    #[test]
+    fn a_failing_store_makes_the_checkpoint_fail() {
+        use crate::storage::InMemory;
+
+        let root = Path::new("/tmp/obs-shogi-failing");
+        let (snap, scan, path_to_id, next) = a_small_index(root);
+
+        let err = save_checkpoint(&InMemory::failing(), root, &snap, &scan, &path_to_id, next)
+            .expect_err("落ちるはずが通った");
+        assert!(err.contains("仕込んだ失敗"), "別の理由で落ちている: {err}");
+    }
+
+    /// **別のプロジェクトのキャッシュは掴まない。**
+    ///
+    /// 守りは2枚ある。名前がプロジェクトごとに違うことと、blob の中に書いた
+    /// root hash を読み戻しで突き合わせること。
+    ///
+    /// **名前の側を殺しても中身の側が止めること**を見る —— 名前を殺した
+    /// 変異が生き残らないよう、同じ `key` に置いてから別の根で読む。
+    #[test]
+    fn a_checkpoint_of_another_project_is_refused_even_under_the_same_key() {
+        use crate::storage::{BlobStore, InMemory};
+
+        let mine = Path::new("/tmp/obs-shogi-mine");
+        let theirs = Path::new("/tmp/obs-shogi-theirs");
+        let (snap, scan, path_to_id, next) = a_small_index(mine);
+        let store = InMemory::new();
+
+        save_checkpoint(&store, mine, &snap, &scan, &path_to_id, next).expect("置けない");
+
+        // 名前の守りを外す —— 相手の名前にも同じ blob を置く
+        let blob = store.load(&cache_key(mine)).expect("置いたものが無い");
+        store.save(&cache_key(theirs), &blob).expect("置けない");
+
+        let err = match try_restore(&store, theirs) {
+            Ok(_) => panic!("別のプロジェクトのものを読んでいる"),
+            Err(e) => e,
+        };
+        assert!(
+            err.contains("root hash mismatch"),
+            "別の理由で落ちている: {err}"
+        );
     }
 }

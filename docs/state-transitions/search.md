@@ -218,16 +218,20 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 
 ## ディスク上のキャッシュを列に持つ
 
-キャッシュは `<app_cache_dir>/obs-shogi/index/<root hash>/` の下に2本。
-macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
-`tauri.conf.json` の identifier と合わせて
-`~/Library/Caches/com.rioh1118.obs-shogi/obs-shogi/index/<root hash>/index.v1.zst` になる。
+キャッシュは `<OS のキャッシュ置き場>/obs-shogi/index/` の下に、
+プロジェクトごとの名前（パスのハッシュを16進64文字）で置く。
+根を決めるのは `storage` の `app_cache` で、macOS なら
+`~/Library/Caches/com.rioh1118.obs-shogi/obs-shogi/index/` になる。
 **アプリの外で変わりうる**ので、状態機械の外部入力として扱う。
 
-| ファイル       | いつ在るか                                                                          |
-| -------------- | ----------------------------------------------------------------------------------- |
-| `index.v1.zst` | 本体                                                                                |
-| `index.v1.bak` | 保存の途中だけ。`final → bak` へ退避してから `tmp → final` を rename し、最後に消す |
+置き方は `storage` の `DiskStore` が持つ。索引はバイト列を渡すだけで、
+どこへどう置くかを知らない。
+
+| ファイル      | いつ在るか                                                             |
+| ------------- | ---------------------------------------------------------------------- |
+| `<名前>.blob` | 本体                                                                   |
+| `<名前>.bak`  | 保存の途中だけ。本体を退避してから作業中のものを rename し、最後に消す |
+| `<名前>.tmp`  | 書いている最中だけ                                                     |
 
 **下の表の `restore-ng` は「本体と `.bak` の両方が読めなかった」。**
 `try_restore` は本体で失敗すると `.bak` を読みに行くので、

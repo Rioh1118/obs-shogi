@@ -38,7 +38,7 @@ use scanning::blank_out_noncode;
 /// 外の crate の API（`app_cache_dir`）。
 ///
 /// **足すときは「なぜ `fn` でないか」が読み手に分かる並びに置くこと。**
-const EXEMPT: [&str; 16] = [
+const EXEMPT: [&str; 17] = [
     // 欄の名前
     "file_id",
     "node_id",
@@ -56,7 +56,8 @@ const EXEMPT: [&str; 16] = [
     "query_service",
     "project_manager",
     "fs_scan",
-    // 外の crate
+    // `src/search/**` の外にある fn。この検査は search 配下しか歩かない
+    "app_cache",
     "app_cache_dir",
 ];
 

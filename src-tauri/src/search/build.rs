@@ -268,7 +268,16 @@ pub async fn build_full_index_task(
         let next2 = next_file_id;
 
         tauri::async_runtime::spawn_blocking(move || {
-            let _ = index_cache::save_checkpoint(&app2, &root2, &snap, &scan2, &path_to_id2, next2);
+            if let Ok(store) = crate::storage::app_cache(&app2, "index") {
+                let _ = index_cache::save_checkpoint(
+                    &store,
+                    &root2,
+                    &snap,
+                    &scan2,
+                    &path_to_id2,
+                    next2,
+                );
+            }
         });
     }
 

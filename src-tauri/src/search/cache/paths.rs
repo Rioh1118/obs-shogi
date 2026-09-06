@@ -1,15 +1,13 @@
-//! キャッシュをどこへ置くか。
+//! キャッシュをどの名前で置くか。
 //!
-//! **中身を知らない。** blob の形式も書く手順も `index_cache.rs`。ここはパスだけ。
+//! **置き場は知らない。** どこへ置くかは `storage` の実装が決める。
+//! ここは「プロジェクトを1つに定める名前」を作るだけ。
 //!
-//! プロジェクトごとに1つ持つので、**プロジェクトのパスから一意な名前を作る**。
 //! パスをそのままファイル名にはできない（区切り文字・長さ・大文字小文字の扱い）ので、
-//! ハッシュを16進で綴ってディレクトリ名にする。
+//! ハッシュを16進で綴る。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use tauri::{AppHandle, Manager};
 
 /// いまの時刻。**blob に書いて、次に読んだとき「いつのものか」を示す。**
 pub(super) fn now_ms() -> u64 {
@@ -30,42 +28,15 @@ pub(super) fn root_hash(root_dir: &Path) -> [u8; 32] {
     blake3::hash(s.as_bytes()).into()
 }
 
-/// キャッシュ全体の置き場。**全プロジェクト共通。**
+/// このプロジェクトのキャッシュを指す名前。
 ///
-/// 消えても作り直せる派生データなので、OS の「キャッシュ」の側に置く
-/// （設定やデータの側ではない）。
-fn cache_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?
-        .join("obs-shogi")
-        .join("index");
-    Ok(dir)
+/// **置き場は知らない。** どこへ置くかは `storage` に渡す根が決める。
+/// ここはプロジェクトを1つに定める名前だけを作る。
+pub(super) fn cache_key(root_dir: &Path) -> String {
+    hex32(&root_hash(root_dir))
 }
 
-/// このプロジェクト1つ分の `(ディレクトリ, 本体, 退避)`。
-///
-/// **[`cache_dir`] より1段細かい。** あちらは全プロジェクト共通の置き場で、
-/// こちらはその中の1プロジェクト分。
-///
-/// 退避が要るのは Windows で上書き rename が失敗するため。本体を退避へ動かして
-/// から置くので、**復元は本体 → 退避の順に2回試す**（`index_cache.rs` の `try_restore`）。
-///
-/// ファイル名の `v1` は固定の綴り。版で弾くのは `CACHE_VERSION` の役で、
-/// 名前を変えると古いファイルが誰にも消されずに残る。
-pub(super) fn cache_paths(
-    app: &AppHandle,
-    root_dir: &Path,
-) -> Result<(PathBuf, PathBuf, PathBuf), String> {
-    let dir = cache_dir(app)?;
-    let proj = dir.join(hex32(&root_hash(root_dir)));
-    let final_path = proj.join("index.v1.zst");
-    let bak_path = proj.join("index.v1.bak");
-    Ok((proj, final_path, bak_path))
-}
-
-/// 32バイトを64文字の16進に。**ディレクトリ名にするため。**
+/// 32バイトを64文字の16進に。**ファイル名にするため。**
 fn hex32(h: &[u8; 32]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(64);
@@ -74,4 +45,40 @@ fn hex32(h: &[u8; 32]) -> String {
         out.push(HEX[(b & 0x0f) as usize] as char);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **名前はプロジェクトごとに違う。**
+    ///
+    /// 同じ名前になると、別のプロジェクトのキャッシュを掴む。
+    /// 中身の `root hash` でも止まるが、**そこまで行かせない**のがこの層の役。
+    #[test]
+    fn two_projects_never_share_a_key() {
+        let a = cache_key(Path::new("/tmp/project-a"));
+        let b = cache_key(Path::new("/tmp/project-b"));
+        assert_ne!(a, b, "別のプロジェクトが同じ名前になっている");
+    }
+
+    /// **同じプロジェクトなら何度呼んでも同じ名前。**
+    #[test]
+    fn the_same_project_always_gets_the_same_key() {
+        let p = Path::new("/tmp/project-a");
+        assert_eq!(cache_key(p), cache_key(p));
+    }
+
+    /// **名前はファイル名に使える文字だけ。**
+    ///
+    /// パスをそのまま使えないので16進に綴っている。
+    #[test]
+    fn a_key_is_safe_as_a_file_name() {
+        let k = cache_key(Path::new("/tmp/a b/日本語/../c"));
+        assert_eq!(k.len(), 64, "16進64文字でない");
+        assert!(
+            k.chars().all(|c| c.is_ascii_hexdigit()),
+            "16進以外が混ざっている: {k}"
+        );
+    }
 }

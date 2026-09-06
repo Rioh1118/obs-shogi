@@ -2,6 +2,7 @@ pub mod ai_library;
 pub mod engine;
 pub mod kifu;
 pub mod search;
+pub mod storage;
 pub mod workspace;
 
 pub use crate::engine::state::AppState;

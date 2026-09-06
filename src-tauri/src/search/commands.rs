@@ -79,8 +79,11 @@ pub async fn open_project(
     let restored = {
         let app2 = app.clone();
         let root2 = root_dir.clone();
-        match tauri::async_runtime::spawn_blocking(move || index_cache::try_restore(&app2, &root2))
-            .await
+        match tauri::async_runtime::spawn_blocking(move || {
+            let store = crate::storage::app_cache(&app2, "index").map_err(|e| e.to_string())?;
+            index_cache::try_restore(&store, &root2)
+        })
+        .await
         {
             Ok(v) => v,
             Err(e) => Err(format!("索引の復元を実行できませんでした: {e}")),
