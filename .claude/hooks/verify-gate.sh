@@ -67,7 +67,36 @@ GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 #
 # 増やすときは「その呼び出しの後で `git status` の結果が変わらないか」で決める。
 # 変わるものを入れると、判定した時点の状態で検証することになる。
-GATE_READ_ONLY_VERBS='status|diff|log|show|rev-parse|config|branch|fetch|remote|describe'
+GATE_READ_ONLY_VERBS_BASE='status|diff|log|show|rev-parse|config|branch|fetch|remote|describe'
+
+# 上に加えて、**それらへ展開する alias**。
+#
+# `st = status` のような短縮は普通に置かれるので、名前だけで見ると
+# 読むだけの呼び出しが止まる。**止めても利用者にできることは
+# 「2回に分ける」だけ**で、ツリーは1バイトも変わらないのに手数だけ増える。
+# `GATE_EXTRA_READ_ONLY` で差し込めるようにしてある（テストから固定するため）。
+gate_read_only_verbs() {
+  if [ -n "${GATE_EXTRA_READ_ONLY+set}" ]; then
+    printf '%s' "$GATE_READ_ONLY_VERBS_BASE${GATE_EXTRA_READ_ONLY:+|$GATE_EXTRA_READ_ONLY}"
+    return 0
+  fi
+
+  local config names
+  config=$(git config -z --get-regexp '^alias\.[^.]+$' 2>/dev/null \
+    | tr '\n' ' ' | tr '\0' '\n') || {
+    printf '%s' "$GATE_READ_ONLY_VERBS_BASE"
+    return 0
+  }
+
+  # 展開先の先頭の語が読むだけの動詞なら、その alias 名も手前に置ける
+  names=$(printf '%s\n' "$config" \
+    | sed -n "s/^alias\.\([^ ]*\) *\([^ !][^ ]*\).*/\1 \2/p" \
+    | awk -v ro="$GATE_READ_ONLY_VERBS_BASE" '
+        BEGIN { n = split(ro, a, "|"); for (i = 1; i <= n; i++) ok[a[i]] = 1 }
+        ok[$2] { printf "|%s", $1 }')
+
+  printf '%s%s' "$GATE_READ_ONLY_VERBS_BASE" "$names"
+}
 
 GATE_COMMIT_VERB_BASE='commit|revert|cherry-pick|merge|rebase|am|pull'
 
@@ -146,11 +175,19 @@ gate_commit_count() {
 #
 # 綴りを言い当てられなかったという理由で止めるための最後の網。ここを素通しに
 # すると、判別できない綴りが「検証もされず deny もされない」形で通る。
+#
+# **alias 由来の名前はここでは見ない**（`GATE_COMMIT_VERB_BASE` だけを使う）。
+# alias 名は利用者が短く付けるので、`ci` を持つ環境では `.github/workflows/ci.yml` を
+# 触るだけの読み取りコマンドが軒並み止まる —— **コミットを1つも作らないのに、
+# 案内はコミットの打ち方を指示する**ので、従える操作が1つも無い。
+# `git ci -m x` は `gate_commit_call` が構造として切り出すので、
+# alias がこの網に載っている必要は無い。
+# 抜けるのは「切り出せない綴り＋alias」が同時に成り立つ場合だけ。
 gate_mentions_commit() {
   local flat
   flat=$(gate_flatten "$1")
   printf '%s' "$flat" | grep -Eq '(^|[^[:alnum:]_.-])git([^[:alnum:]_-]|$)' \
-    && printf '%s' "$flat" | grep -Eq "(^|[^[:alnum:]_-])$(gate_commit_verb)([^[:alnum:]_-]|\$)"
+    && printf '%s' "$flat" | grep -Eq "(^|[^[:alnum:]_-])($GATE_COMMIT_VERB_BASE)([^[:alnum:]_-]|\$)"
 }
 
 # コミットされるツリーの位置を決める。決められなければ空を返す。
@@ -194,7 +231,7 @@ gate_target_dir() {
   prefix=${flat%"$call"*}
   # 空の prefix も1行として渡す。printf '%s' だと行が無く、grep が必ず外れる。
   printf '%s\n' "$prefix" \
-    | grep -Eq "^[[:space:]]*(git[[:space:]]+($GATE_READ_ONLY_VERBS)[[:space:]][^;&|()<>]*(&&|;)[[:space:]]*)*$" \
+    | grep -Eq "^[[:space:]]*(git[[:space:]]+($(gate_read_only_verbs))([[:space:]][^;&|()<>]*)?(&&|;)[[:space:]]*)*$" \
     || return 0
 
   case "$prefix" in

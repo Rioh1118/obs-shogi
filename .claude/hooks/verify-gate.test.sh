@@ -206,6 +206,17 @@ expect_dir "" "git reset --hard && git commit -m x" "$here"
 expect_dir "$here" "git status && git commit -m x" "$here"
 expect_dir "$here" "git diff --cached && git commit -m x" "$here"
 expect_dir "$here" "git log --oneline -1 && git commit -m x" "$here"
+
+# 読むだけの動詞へ展開する alias も手前に置ける。
+# **止めても利用者にできることは「2回に分ける」だけ**で、ツリーは変わらないのに
+# 手数だけ増える。`GATE_EXTRA_READ_ONLY` で alias 名を差し込んで固定する。
+(
+  export GATE_EXTRA_READ_ONLY='st|lg'
+  expect_dir "$here" "git st && git commit -m x" "$here"
+  expect_dir "$here" "git lg && git commit -m x" "$here"
+  # 展開先が読むだけでない alias は、名前が短くても手前に置けない
+  expect_dir "" "git unstage && git commit -m x" "$here"
+)
 expect_dir "" "cd $target&&git commit -m x" "$here"
 expect_dir "" "(cd $target && git commit -m x)" "$here"
 expect_dir "" "pushd $target && git commit -m x" "$here"
