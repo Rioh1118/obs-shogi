@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, render } from "@testing-library/react";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import { act, cleanup, render } from "@testing-library/react";
 import { StrictMode, useEffect } from "react";
 
 import { AnalysisProvider } from "../provider";
@@ -76,6 +76,13 @@ beforeEach(() => {
   stopCore.mockResolvedValue(undefined);
   syncPosition.mockResolvedValue(undefined);
 });
+
+// **畳まないまま次のテストへ渡さない。** 自動 cleanup は入っていない
+// （`vite.config.ts` の test に setup ファイルが無い）ので、`unmount()` を
+// 呼ばずに終わったテストの画面は生きたまま残る。残ると同期待ちの打ち切りが
+// 2秒後に停止を撃ち、**それが後のテストの中に落ちる**——「畳んだ後は撃たない」
+// を見ている検査が、他のテストの置き土産で赤くなる。
+afterEach(cleanup);
 
 describe("AnalysisProvider の同期待ちの打ち切り", () => {
   it("打ち切ったらエンジンのセッションも止める", async () => {
