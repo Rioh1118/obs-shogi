@@ -62,8 +62,7 @@ export type NotifyAction = {
 /**
  * グローバル経路の見せ方（ADR-0004 決定4）。段からは独立している。
  *
- * インラインはここに来ない。置き場がコンポーネントの中にあるので基盤からは
- * 描けず、`InlineNotice` をそのコンポーネントが置く。
+ * インラインはここに来ない（理由は `InlineNotice`）。
  */
 export type NotifyPresentation = "toast" | "banner" | "modal";
 
@@ -127,8 +126,11 @@ export type Notification = {
   autoDismiss: boolean;
   dedupeKey?: string;
   /**
-   * 畳まれた件数。**1件目から 1 が入る。**
-   * 2件目で急に数が現れると、増えたのか別の通知なのかが読めない
+   * 畳まれた件数。**保持する側では1件目から 1 が入る。**
+   *
+   * **画面に出すのは `dedupeKey` を持つ通知だけ**（`NotificationLayer`）。
+   * 鍵の無い通知は必ず 1 件なので、そこに数が付くと数そのものに意味が無くなる。
+   * 出すときは1件目から出す——2件目で急に現れると、増えたのか別の通知なのかが読めない
    */
   count: number;
 };

@@ -108,10 +108,7 @@ export default function NotificationLayer() {
   );
 }
 
-/**
- * 件数を出すのは**畳む鍵を持つ通知だけ**。鍵の無い通知は必ず 1 件なので、
- * そこに「1」が付くと数そのものに意味が無くなる
- */
+/** 件数を出す条件は `Notification.count` の doc */
 function toNoticeProps(n: Notification) {
   return {
     tier: n.tier,

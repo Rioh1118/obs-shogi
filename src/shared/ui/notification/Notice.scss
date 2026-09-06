@@ -35,8 +35,7 @@
     word-break: break-word;
   }
 
-  // 畳んだ件数（ADR-0004 の F-15）。**1件目から出す。**
-  // 2件目で急に数が現れると、増えたのか別の通知なのかが読めない
+  // 畳んだ件数のバッジ。出す条件は `Notification.count` の doc
   &__count {
     flex: none;
     min-width: index.$space-10;

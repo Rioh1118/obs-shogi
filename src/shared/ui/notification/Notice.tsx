@@ -31,10 +31,7 @@ export type NoticeProps = {
   title: string;
   body?: string;
   actions?: NotifyAction[];
-  /**
-   * 畳んだ件数。**渡したときだけ出す。**
-   * 畳んでいない通知に常に「1」が付くと、数に意味が無くなる
-   */
+  /** 畳んだ件数。渡したときだけ出す。条件は `Notification.count` の doc */
   count?: number;
   /** 閉じる手段。閉じられない通知（インライン）では渡さない */
   onDismiss?: () => void;
@@ -75,8 +72,8 @@ export default function Notice({
     void Promise.resolve()
       .then(() => action.run())
       .catch((cause: unknown) => {
-        // **握り潰さない。** 表示だけに落とすと、押した人には何が起きたか伝わるが
-        // 原因がどこにも残らない。**画面には利用者の言葉、原因はログ**に分ける
+        // **画面には利用者の言葉、原因はログ。** どちらか片方に寄せると、
+        // 押した人に伝わらないか、後から誰も辿れないかのどちらかになる
         console.error(`[notification] 「${action.label}」が失敗した`, cause);
         setFailed(action);
       })
