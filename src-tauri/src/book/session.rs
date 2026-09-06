@@ -219,7 +219,8 @@ mod tests {
             path: PathBuf::from(path),
             format: BookFormat::YaneuraouDb,
             position_count: Some(3),
-            dropped_fields: Some(0),
+            // **0 にしない。** 落として `Some(0)` を返す実装と区別が付かない
+            dropped_fields: Some(7),
             reader: FakeReader::boxed(alive),
         }
     }
@@ -237,6 +238,10 @@ mod tests {
         assert_eq!(info.path, "/books/a.db");
         assert_eq!(info.format, BookFormat::YaneuraouDb);
         assert_eq!(info.position_count, Some(3));
+        // 読み飛ばした欄の数も `BookInfo` まで運ぶ。
+        // **落とすと、評価値の `null` が「もともと無い」のか「読み損ねた」のか
+        // 利用者に区別できなくなる**
+        assert_eq!(info.dropped_fields, Some(7));
         assert!(info.handle > 0);
     }
 

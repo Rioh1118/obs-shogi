@@ -29,6 +29,7 @@ const TABLES: &[(&str, &[&str])] = &[
         "docs/state-transitions/yaneuraou-db-parse.md",
         &[
             "src/book/reader.rs",
+            "src/book/formats.rs",
             "src/book/sfen.rs",
             "src/book/yaneuraou_db.rs",
         ],

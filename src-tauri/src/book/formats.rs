@@ -226,7 +226,35 @@ mod tests {
 
         let opened = result.expect("読めるはず");
         assert_eq!(opened.position_count, Some(1));
+        // 読めない欄が無いので 0。**`None` にすると数えられない形式と区別が付かない**
+        assert_eq!(opened.dropped_fields, Some(0));
         assert_eq!(opened.format, BookFormat::YaneuraouDb);
+    }
+
+    /// **読み飛ばした欄の数が `OpenedBook` まで運ばれること。**
+    ///
+    /// `parse` の戻り値だけを見るテストは、`YaneuraouDbReader` →
+    /// `OpenedBook` → `BookInfo` の3ホップに触れない。
+    /// 運搬を落とす変更（`Some(0)` 固定、`None` 固定）が緑で通る。
+    #[test]
+    fn dropped_fields_travel_with_the_opened_book() {
+        let dir = crate::test_support::temp_dir("book-dropped-travel");
+        let path = dir.join("broken.db");
+        // 評価値と深さが数値でない。2つとも捨てる
+        std::fs::write(
+            &path,
+            "#YANEURAOU-DB2016 1.00\nsfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n7g7f none xx yy 1\n",
+        )
+        .expect("テスト用の定跡");
+
+        let opened = open_reader(&path, BookFormat::YaneuraouDb).expect("開けるはず");
+        assert_eq!(
+            opened.dropped_fields,
+            Some(2),
+            "捨てた欄の数が運ばれていない"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 上限を超えたら、1バイトも読まずに落とすこと。

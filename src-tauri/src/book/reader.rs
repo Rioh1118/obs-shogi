@@ -12,7 +12,7 @@ use std::path::PathBuf;
 /// 収録局面数はここに置かない。開くときに1度決まる値で、開いたあとの
 /// 問い合わせではないから。実装ごとに「毎回数えるのか、開くときに数えるのか」を
 /// 判断させると、数え方の違いが trait の外から見えなくなる。
-/// 数えるのは [`open_reader`] の中（blocking プールの中）で、結果は
+/// 数えるのは [`crate::book::formats::open_reader`] の中（blocking プールの中）で、結果は
 /// [`OpenedBook::position_count`] に載せる。
 ///
 /// 実装が守ること:
@@ -36,8 +36,8 @@ pub(crate) trait BookReader: Send + Sync {
 /// 開いた定跡ひとつぶんの材料。
 ///
 /// 確定させる場所は2つに分かれる。`format` は `open` モジュールがパスを解決する
-/// ときに決め、[`open_reader`] は受け取るだけ（決め直すと symlink をもう一度
-/// たどることになる）。`position_count` は [`open_reader`] が数える。
+/// ときに決め、[`crate::book::formats::open_reader`] は受け取るだけ（決め直すと symlink をもう一度
+/// たどることになる）。`position_count` は [`crate::book::formats::open_reader`] が数える。
 ///
 /// どちらも reader ではなくここに持つのは、**`BookState::register` に
 /// 問い合わせさせないため。** register は async ランタイム上で走るので、
