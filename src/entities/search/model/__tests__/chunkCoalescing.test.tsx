@@ -50,6 +50,7 @@ let lastHits: PositionHit[] = [];
 let getHits: (rid: number) => PositionHit[] = () => [];
 let sessionIds: number[] = [];
 let clearSearch: (rid: number) => void = () => {};
+let isSearchingRequest: (rid: number) => boolean = () => false;
 let searchPosition: (sfen: string) => Promise<{ requestId: number }> = async () => ({
   requestId: 0,
 });
@@ -60,10 +61,12 @@ function Probe() {
     state,
     clearSearch: clear,
     searchPosition: search,
+    isSearchingRequest: isSearching,
   } = usePositionSearch();
   renders += 1;
   getHits = getHitsByRequestId;
   clearSearch = clear;
+  isSearchingRequest = isSearching;
   searchPosition = (sfen) => search({ sfen, consistency: "BestEffort", chunkSize: 300 });
   sessionIds = Object.keys(state.sessions).map(Number);
   lastHits = getHitsByRequestId(RID);
@@ -317,6 +320,33 @@ describe("購読", () => {
     });
 
     expect(listenCount).toBe(1);
+  });
+});
+
+describe("検索の終わり", () => {
+  /**
+   * **`search_end` は在るセッションにしか効かない**（捨てたセッションを作り直さない
+   * ため）。その結果、「検索が終わったこと」を受け取れる担保は
+   * **`search_requested` がセッションを作っている1点だけ**になった。
+   *
+   * ここに門を足して「対称にする」改変を当てると、`search_begin` を取りこぼした回の
+   * 終わりが捨てられ、**「検索中…」で永久に止まる**。エラーも出ない。
+   */
+  test("始まりを取りこぼしても、終わりは届く", async () => {
+    await mount();
+
+    nextRequestId = 3;
+    await act(async () => {
+      await searchPosition("dummy");
+    });
+    expect(isSearchingRequest(3)).toBe(true);
+
+    // `search_begin` は撃たない（取りこぼした回）
+    act(() => {
+      handlers.onSearchEnd?.({ requestId: 3 } satisfies SearchEndPayload);
+    });
+
+    expect(isSearchingRequest(3)).toBe(false);
   });
 });
 
