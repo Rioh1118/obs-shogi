@@ -55,7 +55,12 @@ export default function NotificationLayer() {
           {banners.length > 0 && (
             <div className="notice-layer__banners">
               {banners.map((n) => (
-                <Notice key={n.id} {...toNoticeProps(n)} onDismiss={() => dismiss(n.id)} />
+                <Notice
+                  key={n.id}
+                  {...toNoticeProps(n)}
+                  className="notice--banner"
+                  onDismiss={() => dismiss(n.id)}
+                />
               ))}
             </div>
           )}
