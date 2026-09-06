@@ -277,6 +277,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         const newSessionId = await startInfiniteAnalysisCore();
 
+        // 上の門を通った後、応答を待っている間にも畳まれる。そのとき席は
+        // 既に Rust に在り、手元の `sessionId` には入らないまま画面が消える
+        // ——畳んだときの後始末は先に走り終えているので、誰も返さない。
+        if (unmountedRef.current) {
+          void stopAnalysisCore(newSessionId).catch(() => {});
+          return;
+        }
+
         dispatch({
           type: "start_analysis",
           payload: { sessionId: newSessionId, position: want },
@@ -355,6 +363,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
 
     const sessionId = await startInfiniteAnalysisCore();
+
+    // 局面を送って応答を待つ間に畳まれることがある（押した直後の切り替えでも
+    // 上限いっぱいの2秒待つ経路がある）。畳んだときの後始末はまだ席の存在を
+    // 知らないので、ここで返さないと台帳に残る。
+    if (unmountedRef.current) {
+      void stopAnalysisCore(sessionId).catch(() => {});
+      return;
+    }
 
     dispatch({
       type: "start_analysis",

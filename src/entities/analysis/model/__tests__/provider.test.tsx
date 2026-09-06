@@ -201,6 +201,66 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).not.toHaveBeenCalled();
   });
 
+  it("開始の応答が畳まれた後に返ってきたら、その席を返す", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    // 応答待ちのまま置く。await しない（返ってこないので）。
+    void view.current.startInfiniteAnalysis();
+    await advance(50);
+
+    // 畳んだ時点では席の ID を誰も知らない。後始末は空振りする。
+    view.unmount();
+    stopCore.mockClear();
+
+    await act(async () => {
+      releaseStart("session-late");
+    });
+    await advance(50);
+
+    // 返さないと、誰も見ていない解析が Rust の席に居座り続ける。
+    expect(stopCore).toHaveBeenCalledWith("session-late");
+  });
+
+  it("再開の開始が畳まれた後に返ってきたら、その席を返す", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockResolvedValueOnce("session-1");
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤とエンジンが揃って進む。再開が走り、開始の応答待ちで止まる。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    view.unmount();
+    stopCore.mockClear();
+
+    await act(async () => {
+      releaseStart("session-2");
+    });
+    await advance(50);
+
+    // 畳んだときの後始末が止めたのは古い方（既に停止済み）。
+    // 新しい席はここで返すしかない。
+    expect(stopCore).toHaveBeenCalledWith("session-2");
+  });
+
   it("同期の追いつきで張ったタイマーを、アンマウントで止める", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
@@ -320,6 +380,10 @@ describe("AnalysisProvider のアンマウント", () => {
     await advance(50);
 
     expect(startCore).not.toHaveBeenCalled();
-    expect(stopCore).not.toHaveBeenCalled();
+
+    // 撃たれる停止は、返ってきた席を返す1本だけ。**次の再開の前置きではない。**
+    // 前置きなら、その後に go が続く。
+    expect(stopCore).toHaveBeenCalledTimes(1);
+    expect(stopCore).toHaveBeenCalledWith("session-2");
   });
 });
