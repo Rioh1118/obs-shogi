@@ -34,9 +34,12 @@ count_failure() {
 # fixture のサブシェルが `mktemp` の失敗で早く抜けると、その中の数件が
 # 黙って消えたまま緑になる。
 # 走るべき assertion の本数。**現在値ではなく床。**
+#
+# **環境で本数が変わる assertion を足さないこと。** 条件付きで走らせると、
+# その条件を満たさないチェックアウトで床が必ず落ちる。
 # 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
 # 実測は末尾の runs を見ること。
-GATE_TEST_MIN_RUNS=170
+GATE_TEST_MIN_RUNS=182
 GATE_TEST_RUNLOG=$(mktemp)
 export GATE_TEST_RUNLOG
 
@@ -258,7 +261,10 @@ expect_dir "$here" 'git commit -m "fix: git commit の検出を直す"' "$here"
 expect_dir "$here" "git commit -m 'docs: git rebase の話'" "$here"
 # 単一引用符の中では何も走らないので、$ を含んでいても潰してよい
 expect_dir "$here" "git commit -m 'fix: 値段は \$5 だが git commit の話'" "$here"
-[ -n "$other" ] && expect_dir "$other" 'git commit -m x' "$other"
+# **本数を環境から切り離す。** 条件付きで走らせると、linked worktree を
+# 持たないチェックアウトで走った本数が1本減り、床が必ず落ちる ——
+# `npm run verify` ごと落ちるので、`.ts` を1文字触るコミットが全部止まる。
+expect_dir "${other:-$here}" 'git commit -m x' "${other:-$here}"
 
 # 宛先が自明でない綴りは、素通しさせずに deny 側へ落とす。
 # 「解決しようとして間違える」より「止める」を選んだ結果なので、
@@ -613,6 +619,10 @@ expect_readonly() {
 # `mv` / `switch` / `apply` は判定表 (B, S4) が名指ししている動詞
 gate_writers=(add rm mv checkout switch restore reset commit config stash clean apply)
 for gate_writer in "${gate_writers[@]}"; do
+  # **床に数えさせる。** ここは綴り表が「そもそも何かを落とせるか」を見る
+  # 唯一の検査で、消えては一番困る。数えないと、サブシェルに包まれて
+  # 黙って消えても床は動かない
+  count_run
   if probe_is_readonly "$gate_writer"; then
     printf 'FAIL  書き込む動詞を「読むだけ」と判定している: %s\n' "$gate_writer"
     count_failure
