@@ -22,8 +22,7 @@ pub type SegmentArc = Arc<Segment>;
 /// 不変・整列済み・積み増し・溜まったら合流、という役は LSM の SSTable と同じ。
 ///
 /// **列に倒して持つ**（SoA）のは二分探索が `z0` / `z1` しか触らないため。
-/// 出現の3列は当たった行でしか読まないので、探している間の
-/// キャッシュを鍵の2列が占められる。
+/// 出現の3列は当たった行でしか読まない。
 ///
 /// `z0` / `z1` は [`PositionKey`] を列に分解したもので、
 /// **Zobrist の材料（`position/zobrist.rs` の `ZobristValue`）ではない。**
@@ -134,7 +133,7 @@ impl Segment {
     }
 
     /// key に完全一致する `[lo, hi)` 半開区間。
-    pub fn range_by_key(&self, key: PositionKey) -> (usize, usize) {
+    pub(super) fn range_by_key(&self, key: PositionKey) -> (usize, usize) {
         let lo = self.lower_bound(key);
         if lo >= self.z0.len() || self.cmp_at(lo, key).is_ne() {
             return (lo, lo);
@@ -169,14 +168,7 @@ impl Segment {
 mod tests {
     use super::*;
     use crate::search::store::bucket::bucketize_entries;
-
-    fn occ(node_id: u32) -> Occurrence {
-        Occurrence {
-            file_id: 1,
-            r#gen: 1,
-            node_id,
-        }
-    }
+    use crate::search::store::fixtures::occ_of;
 
     /// **並べる側と探す側が同じ順序を使う。**
     ///
@@ -202,30 +194,30 @@ mod tests {
                     z0: b1 | 7,
                     z1: 300,
                 },
-                occ(0),
+                occ_of(1, 0),
             ),
             (
                 PositionKey {
                     z0: b1 | 7,
                     z1: 100,
                 },
-                occ(1),
+                occ_of(1, 1),
             ),
             (
                 PositionKey {
                     z0: b1 | 7,
                     z1: 200,
                 },
-                occ(2),
+                occ_of(1, 2),
             ),
             (
                 PositionKey {
                     z0: b1 | 3,
                     z1: 999,
                 },
-                occ(3),
+                occ_of(1, 3),
             ),
-            (PositionKey { z0: b2 | 9, z1: 0 }, occ(4)),
+            (PositionKey { z0: b2 | 9, z1: 0 }, occ_of(1, 4)),
         ];
 
         // 本番と同じ形。桶ごとに1本

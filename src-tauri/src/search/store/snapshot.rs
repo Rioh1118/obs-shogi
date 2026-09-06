@@ -248,7 +248,6 @@ impl IndexSnapshot {
 mod tests {
     use super::*;
     use crate::search::store::fixtures::*;
-    use crate::search::types::FileEntry;
 
     /// **取り込みは積み増す。置き換えない。**
     ///
@@ -395,28 +394,14 @@ mod tests {
     #[test]
     fn the_order_of_a_hit_list_does_not_depend_on_how_the_bucket_is_split() {
         let key = PositionKey { z0: 1, z1: 1 };
-        let occ = |f: u32, n: u32| Occurrence {
-            file_id: f,
-            r#gen: 1,
-            node_id: n,
-        };
-
-        let mut ft = FileTable::default();
-        for f in 1..=4u32 {
-            ft.upsert(FileEntry {
-                file_id: f,
-                path: format!("{f}.kif"),
-                deleted: false,
-                r#gen: 1,
-            });
-        }
+        let ft = alive_of(&[1, 2, 3, 4]);
 
         // 1本のセグメントに、同じ鍵の出現を file_id 降順で詰める
         let one = Segment::new_sorted(vec![
-            (key, occ(4, 0)),
-            (key, occ(3, 0)),
-            (key, occ(2, 0)),
-            (key, occ(1, 0)),
+            (key, occ_of(4, 0)),
+            (key, occ_of(3, 0)),
+            (key, occ_of(2, 0)),
+            (key, occ_of(1, 0)),
         ]);
         let mut buckets = empty_bucket_segments();
         buckets[key.bucket() as usize] = vec![Arc::new(one)];
@@ -433,8 +418,8 @@ mod tests {
             .collect();
 
         // 同じ中身を2本に割る
-        let a = Segment::new_sorted(vec![(key, occ(4, 0)), (key, occ(3, 0))]);
-        let b = Segment::new_sorted(vec![(key, occ(2, 0)), (key, occ(1, 0))]);
+        let a = Segment::new_sorted(vec![(key, occ_of(4, 0)), (key, occ_of(3, 0))]);
+        let b = Segment::new_sorted(vec![(key, occ_of(2, 0)), (key, occ_of(1, 0))]);
         let mut buckets = empty_bucket_segments();
         buckets[key.bucket() as usize] = vec![Arc::new(a), Arc::new(b)];
         let snap2 = IndexSnapshot {

@@ -118,7 +118,7 @@ pub(super) fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segm
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::store::fixtures::{alive_of as alive, key_of as key, occ_of as occ};
+    use crate::search::store::fixtures::{alive_of, key_of, occ_of};
     use std::sync::Arc;
 
     fn seg(entries: Vec<(PositionKey, Occurrence)>) -> SegmentArc {
@@ -135,14 +135,14 @@ mod tests {
     /// 揃えて積むと、尾をどちらにしても同じ結果になって変異が生き残る。
     #[test]
     fn the_tie_break_is_decided_by_the_occurrence_not_by_the_segment() {
-        let k = key(1);
+        let k = key_of(1);
         let segs = [
-            seg(vec![(k, occ(3, 0))]),
-            seg(vec![(k, occ(1, 0))]),
-            seg(vec![(k, occ(2, 0))]),
+            seg(vec![(k, occ_of(3, 0))]),
+            seg(vec![(k, occ_of(1, 0))]),
+            seg(vec![(k, occ_of(2, 0))]),
         ];
 
-        let got: Vec<u32> = compact_bucket_entries(&segs, &alive(&[1, 2, 3]))
+        let got: Vec<u32> = compact_bucket_entries(&segs, &alive_of(&[1, 2, 3]))
             .iter()
             .map(|(_, o)| o.file_id)
             .collect();
@@ -153,11 +153,11 @@ mod tests {
     /// **死んだ出現は畳むときに消える。**
     #[test]
     fn a_dead_occurrence_is_dropped_when_the_bucket_is_folded() {
-        let k = key(1);
-        let segs = [seg(vec![(k, occ(1, 0)), (k, occ(2, 0))])];
+        let k = key_of(1);
+        let segs = [seg(vec![(k, occ_of(1, 0)), (k, occ_of(2, 0))])];
 
         // file 2 はファイル表に無い = 死んでいる
-        let got = compact_bucket_entries(&segs, &alive(&[1]));
+        let got = compact_bucket_entries(&segs, &alive_of(&[1]));
 
         assert_eq!(got.len(), 1, "死んだ出現が残っている");
         assert_eq!(got[0].1.file_id, 1);
@@ -168,19 +168,19 @@ mod tests {
     /// `Some(空のセグメント)` を返すと、桶に空の1本が積まれ続ける。
     #[test]
     fn a_bucket_with_nothing_alive_folds_to_nothing() {
-        let segs = [seg(vec![(key(1), occ(9, 0))])];
-        assert!(compact_bucket(&segs, &alive(&[1])).is_none());
+        let segs = [seg(vec![(key_of(1), occ_of(9, 0))])];
+        assert!(compact_bucket(&segs, &alive_of(&[1])).is_none());
     }
 
     /// **鍵をまたいだ並びは昇順。**
     #[test]
     fn keys_come_out_in_ascending_order() {
         let segs = [
-            seg(vec![(key(1), occ(1, 0)), (key(5), occ(1, 1))]),
-            seg(vec![(key(3), occ(2, 0))]),
+            seg(vec![(key_of(1), occ_of(1, 0)), (key_of(5), occ_of(1, 1))]),
+            seg(vec![(key_of(3), occ_of(2, 0))]),
         ];
 
-        let got: Vec<u64> = compact_bucket_entries(&segs, &alive(&[1, 2]))
+        let got: Vec<u64> = compact_bucket_entries(&segs, &alive_of(&[1, 2]))
             .iter()
             .map(|(k, _)| k.z0)
             .collect();

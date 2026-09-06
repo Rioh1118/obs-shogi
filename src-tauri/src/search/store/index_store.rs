@@ -15,9 +15,12 @@
 //! **空なのに `Ready` を名乗る索引** —— が構造体リテラルから書ける
 //! （`query_service` の `stale` が偽になり、空の結果が新鮮として並ぶ）。
 //!
-//! **欄を非公開にする道は使えない。** `benches/search_bench.rs` が
-//! 構造体リテラルで組んでいる。塞ぐなら bench 向けに名前の付いた口を
-//! 1つ用意して、そのうえで欄を閉じることになる。
+//! **欄を非公開にするには、組む口と読む口の両方が要る。**
+//! 組む側は `benches/search_bench.rs` が構造体リテラルで書いており、
+//! 読む側は `query_service.rs` / `project_manager.rs` / `commands.rs` /
+//! `build.rs` / `cache/index_cache.rs` が4欄を直に読んでいる。
+//! **`pub(in crate::search)` に絞っても塞がらない** —— `update` を呼べる場所は
+//! どのみち `crate::search` の中。
 //!
 //! **遷移の規則を持つ場所は無い。** どの段からどの段へ動いてよいかは
 //! 呼び手（`search/commands.rs` / `build.rs` / `project_manager.rs`）に散っている。

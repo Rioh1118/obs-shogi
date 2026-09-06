@@ -1,26 +1,71 @@
-//! `docs/state-transitions/search.md` が名乗るテストとコマンドが実在するか。
+//! `docs/state-transitions/search.md` が名乗る `fn` 名と呼び出しが実在するか。
 //!
 //! この doc の状態表は「どうやってその段に入るか」を答えるための索引で、
 //! 読み手はそこに書かれた綴りで現物を引く。**引けないと、表が古いのか
 //! 実装が消えたのかを判断できない。**
 //!
 //! 既存の `state_transition_cells` は `game-session.md` **だけ**を読む。
-//! あちらは表のセルとテストの名乗りを突き合わせる形だが、`search.md` の表は
-//! 形が違う（セルでなく「判定条件」の欄）ので、ここは**綴りの実在だけ**を見る。
+//! `search.md` を載せられないのは表の形ではなく、**遷移表にテスト列が無く、
+//! セルを名乗るテストも1本も無いから**（`search.md` 自身がそう書いている）。
+//! ここは代わりに**綴りの実在だけ**を見る。
 //!
-//! **見るのは2つ。**
+//! ## 見るのは4つ
 //!
-//! 1. バッククォートで囲んだ `fn` 名が `src/search/**` に実在するか
-//! 2. `restart(Restart::X)` のような**呼び出しの並び**が `src/search/**` に実在するか
+//! 1. バッククォートが対で閉じているか
+//! 2. 候補が減っていないか（**空振りで緑になるのを止める**）
+//! 3. `fn` 名が `src/search/**` に実在するか
+//! 4. `名前(引数)` の形の呼び出しが実在するか
+//!
+//! ## ここが見ないもの
 //!
 //! **散文は見ていない。** 「〜が固定している」の主張が本当かは人が見る。
+//!
+//! **`src/search/**` に閉じている。** 綴りが workspace の別 crate
+//! （`crates/kifu-text` など）へ移ると、doc が正しくてもここが赤くなる。
+//! そのときはこの検査の根も直すこと。
+//!
+//! **[`EXEMPT`] に並べた綴りは見ない。** 欄の名前など、`fn` でないもの。
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-mod roots;
 mod scanning;
-use scanning::blank_out_comments;
+use scanning::blank_out_noncode;
+
+/// `fn` でないので実在を見ない綴り。
+///
+/// 欄の名前（`file_id` など）、モジュール名（`query_service` など）、
+/// 外の crate の API（`app_cache_dir`）。
+///
+/// **足すときは「なぜ `fn` でないか」が読み手に分かる並びに置くこと。**
+const EXEMPT: [&str; 16] = [
+    // 欄の名前
+    "file_id",
+    "node_id",
+    "fork_off",
+    "fork_len",
+    "fork_path",
+    "root_dir",
+    "file_table",
+    "node_tables",
+    "next_file_id",
+    "path_to_id",
+    "mtime_ms",
+    "indexed_ok",
+    // モジュール名
+    "query_service",
+    "project_manager",
+    "fs_scan",
+    // 外の crate
+    "app_cache_dir",
+];
+
+/// 候補がこれを下回ったら、走査が壊れているとみなす。
+///
+/// **実測**（`cargo test` の出力で数えた）: `fn` 名 23 / 呼び出し 10。
+/// 表の行が増減するので余裕を取ってあるが、**桁で落ちたら気付く**ための下限。
+const MIN_FN_CANDIDATES: usize = 15;
+const MIN_CALL_CANDIDATES: usize = 6;
 
 fn doc() -> String {
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -30,10 +75,10 @@ fn doc() -> String {
     fs::read_to_string(&p).unwrap_or_else(|e| panic!("{} を読めない: {e}", p.display()))
 }
 
-/// `src/search/**` の中身を、コメントを潰して1つに繋げたもの。
+/// `src/search/**` の中身を、**コメントも文字列も潰して**繋げたもの。
 ///
-/// **コメントを潰す。** doc が指す綴りが、別のコメントに書いてあるだけで
-/// 「実在する」と判定されると、この検査は何も止めない。
+/// 潰さないと、doc が指す綴りがログの文言やコメントにあるだけで
+/// 「実在する」と判定される。`commands.rs` のログが実例。
 fn search_sources() -> String {
     fn walk(dir: &Path, out: &mut String) {
         let Ok(entries) = fs::read_dir(dir) else {
@@ -45,7 +90,7 @@ fn search_sources() -> String {
                 walk(&p, out);
             } else if p.extension().is_some_and(|x| x == "rs") {
                 if let Ok(s) = fs::read_to_string(&p) {
-                    out.push_str(&blank_out_comments(&s));
+                    out.push_str(&blank_out_noncode(&s));
                     out.push('\n');
                 }
             }
@@ -59,10 +104,40 @@ fn search_sources() -> String {
     out
 }
 
-/// バッククォートで囲まれた断片を返す。
+/// コード塀（``` の行）を落とす。中の綴りは doc の主張ではなく例なので見ない。
+fn without_fences(md: &str) -> String {
+    let mut out = String::new();
+    let mut in_fence = false;
+    for l in md.lines() {
+        if l.trim_start().starts_with("```") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if !in_fence {
+            out.push_str(l);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// バッククォートで囲まれた断片。
+///
+/// # Panics
+///
+/// バッククォートが奇数個なら落とす。**閉じ忘れると以降の対応が全部ずれ、
+/// 候補が地の文になって検査が何も見なくなる。**
 fn quoted(md: &str) -> Vec<String> {
+    let body = without_fences(md);
+    let ticks = body.matches('`').count();
+    assert!(
+        ticks % 2 == 0,
+        "`search.md` のバッククォートが奇数個（{ticks}）。閉じ忘れると\
+         この検査は緑のまま何も見なくなる"
+    );
+
     let mut out = Vec::new();
-    let mut rest = md;
+    let mut rest = body.as_str();
     while let Some(a) = rest.find('`') {
         let after = &rest[a + 1..];
         let Some(b) = after.find('`') else { break };
@@ -75,53 +150,93 @@ fn quoted(md: &str) -> Vec<String> {
     out
 }
 
-/// **doc が名乗る `fn` 名が実在すること。**
+/// `fn` 名として実在を見る綴り。
 ///
-/// 綴りは `a_..._b` の形（小文字・数字・下線だけで、下線を2つ以上含む）に絞る。
-/// 型名や1語の識別子まで見ると、別の意味で使われている綴りを拾って偽の赤になる。
-#[test]
-fn every_test_named_by_the_doc_exists() {
-    let src = search_sources();
-    let missing: Vec<String> = quoted(&doc())
+/// 小文字・数字・下線だけで、下線を1つ以上含むもの。型名は大文字を含むので落ちる。
+/// 欄の名前は [`EXEMPT`] で外す。
+fn fn_candidates(md: &str) -> Vec<String> {
+    quoted(md)
         .into_iter()
+        // `install_restored(..)` のように引数付きで書かれていても頭を取る
+        .map(|q| q.split_once('(').map(|(h, _)| h.to_owned()).unwrap_or(q))
         .filter(|q| {
             q.chars()
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-                && q.matches('_').count() >= 2
+                && q.contains('_')
+                && !EXEMPT.contains(&q.as_str())
         })
-        .filter(|q| !src.contains(&format!("fn {q}")))
-        .collect();
-
-    assert!(
-        missing.is_empty(),
-        "`search.md` が名乗る fn が `src/search/**` に無い。\
-         改名したら doc も直すこと:\n{}",
-        missing.join("\n")
-    );
+        .collect()
 }
 
-/// **doc が書く呼び出しの並びが実在すること。**
-///
-/// `restart(Restart::Building)` のような、引数まで含めた形。
-/// これが引けないと、表の「判定条件」の欄が索引として働かない。
-#[test]
-fn every_call_written_by_the_doc_exists() {
-    let src = search_sources();
-    let missing: Vec<String> = quoted(&doc())
+/// `名前(引数)` の形で実在を見る綴り。`..` を含むものは略記なので除く。
+fn call_candidates(md: &str) -> Vec<String> {
+    quoted(md)
         .into_iter()
-        // `名前(引数)` の形だけ。`..` を含むものは略記なので除く
         .filter(|q| {
             let Some((head, tail)) = q.split_once('(') else {
                 return false;
             };
             tail.ends_with(')')
                 && !q.contains("..")
-                // 呼び出しの頭は識別子（`Err(..)` のような型や `(size, mtime)` を外す）
                 && !head.is_empty()
                 && head
                     .chars()
                     .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
         })
+        .collect()
+}
+
+/// **走査が壊れていないこと。**
+///
+/// バッククォートが1個ずれると候補が地の文になり、`missing` が空になって
+/// 2本とも緑で通る。**空振りを失敗として出す。**
+#[test]
+fn the_scan_still_finds_what_the_doc_names() {
+    let md = doc();
+    let fns = fn_candidates(&md).len();
+    let calls = call_candidates(&md).len();
+
+    assert!(
+        fns >= MIN_FN_CANDIDATES,
+        "`fn` 名の候補が {fns} 件しかない（下限 {MIN_FN_CANDIDATES}）。\
+         走査が壊れているか、表から名乗りが消えた"
+    );
+    assert!(
+        calls >= MIN_CALL_CANDIDATES,
+        "呼び出しの候補が {calls} 件しかない（下限 {MIN_CALL_CANDIDATES}）"
+    );
+}
+
+/// **doc が名乗る `fn` が実在すること。**
+///
+/// テストに限らない。**候補の多くは本番の関数**（`run_rescan_diff_apply` /
+/// `read_to_jkf` / `is_occ_alive` など）で、改名したら doc も直す。
+#[test]
+fn every_fn_named_by_the_doc_exists() {
+    let src = search_sources();
+    let missing: Vec<String> = fn_candidates(&doc())
+        .into_iter()
+        // 末尾まで見る。`fn foo` の前方一致だと `foo_and_bar` を実在と読む
+        .filter(|q| !src.contains(&format!("fn {q}(")) && !src.contains(&format!("fn {q}<")))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "`search.md` が名乗る fn が `src/search/**` に無い。\
+         改名したら doc も直すこと（`fn` でないなら `EXEMPT` へ）:\n{}",
+        missing.join("\n")
+    );
+}
+
+/// **doc が書く呼び出しが実在すること。**
+///
+/// `restart(Restart::Building)` のような、引数まで含めた形。
+/// これが引けないと、表の「判定条件」の欄が索引として働かない。
+#[test]
+fn every_call_written_by_the_doc_exists() {
+    let src = search_sources();
+    let missing: Vec<String> = call_candidates(&doc())
+        .into_iter()
         .filter(|q| !src.contains(q.as_str()))
         .collect();
 

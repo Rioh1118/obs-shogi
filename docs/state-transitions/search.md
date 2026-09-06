@@ -298,7 +298,7 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 `store/snapshot.rs` の `restarting_starts_from_an_empty_index`。
 
 **表の矢印（どの段からどの段へ動くか）を見るものは1本も無い。**
-3本とも出発点は空の索引で、`R`→`U` も `B`→`Y` も `U`→`Y` も踏んでいない。
+3本とも**段**は `E` から動かしておらず、`R`→`U` も `B`→`Y` も `U`→`Y` も踏んでいない。
 
 ## この表が拾ったもの
 
