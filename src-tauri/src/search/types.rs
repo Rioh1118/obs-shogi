@@ -9,6 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::search::message::ScreenMessage;
+
 // ---------------------------------------------------------------
 // 画面へ流すイベントの名前
 // ---------------------------------------------------------------
@@ -248,13 +250,28 @@ pub struct SearchEndPayload {
 }
 
 /// 検索が失敗した。`EVT_SEARCH_ERROR` に載る。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// **emit 専用。** `Deserialize` を持たないのは、`message` の欄の型が
+/// 刈る口を通った値しか受けないため（綴りから直に作れると門を回避できる）。
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchErrorPayload {
     pub request_id: RequestId,
     /// **英語の内部の理由がそのまま入る。** 綴りが読めなかった理由も
-    /// ここへ来る。画面に素で出す前に言葉を用意すること
-    pub message: String,
+    /// ここへ来る。画面に素で出す前に言葉を用意すること（#398）。
+    ///
+    /// **長さと制御文字を落とすのは Rust 側の仕事**（`search::message`）。
+    /// 型が `ScreenMessage` なのは、刈っていない `String` を載せられなくするため。
+    ///
+    /// **画面側に刈り込みは無く、器を越えたぶんは3箇所とも読まれない。** 描くのは状態行
+    /// （`PositionSearchStatusBar`）と、一致0件の箱・打ち切りの知らせ
+    /// （`PositionSearchHitList`）。どれも `overflow-wrap` の指定が無いので、
+    /// **空白を含まない綴りには折り返す場所が無く**、器を越えたぶんは祖先の
+    /// `overflow: hidden` が切る。刈った印の省略記号も切られる側に入る。
+    ///
+    /// だから**載せる文言は何が悪いのかを文頭で言うこと。**
+    /// 画面側で折り返させるかは #457。
+    pub message: ScreenMessage,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -277,9 +294,42 @@ pub struct IndexProgressPayload {
     pub total_files: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// 索引を組む途中で、1件ぶん伝えることがあった。`EVT_INDEX_WARN` に載る。
+///
+/// **「索引に入らなかった」とは限らない。** 読めなかったファイル（局面が1件も
+/// 入らない）と、読めたが一部を採れなかった棋譜（**途中までは入っている**）が
+/// 同じ口に載る。どちらなのかは文言が言う。
+///
+/// **emit 専用**（`SearchErrorPayload` と同じ理由で `Deserialize` を持たない）。
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexWarnPayload {
+    /// どのファイルの話か。画面はこちらを別の行に出す（`wsTab__warnPath`）。
+    ///
+    /// **1行に収まらなければ末尾が省略される**（`text-overflow: ellipsis`）。
+    /// 全文はホバー（`title`）でしか読めないので、深いパスは途中までしか見えない。
+    ///
+    /// **文言のほうにも入ることがある。** 走査そのものが失敗したときは、
+    /// `ScanError::RootNotFound` の腕が根のパスを持つので文言にも埋まる。
+    ///
+    /// **この欄は刈る口を通らない。** ファイル名に制御文字が入っていればそのまま出る（#459）。
     pub path: String,
-    pub message: String,
+    /// **何が起きて、何を失ったかを言う。** 読めなかったファイルは局面が1件も
+    /// 索引に入らないので、理由だけを出すと「読めない行が1つある」と受け取られる。
+    /// **この欄に載る文言はどれもこの基準に従う**（作る場所は複数ある）。
+    ///
+    /// **長さと制御文字を落とすのは Rust 側の仕事**（`search::message`）。
+    /// 画面側に刈り込みは無い。`WorkspaceTab` が素のテキストで描くのは `warns` の**先頭5件**。
+    /// `reducer` は新しいものを末尾に積み、**200件を超えると先頭から落とす**ので、
+    /// 200件までは最初の5件で固定され、それ以降は**新着ごとに5行すべてが1つずつずれる**。
+    /// どちらの側でも、後から出した警告を読ませることはできない（#465）。
+    ///
+    /// 日本語の案内は折り返して箱が縦に伸びるが、**空白を含まない綴りは折り返す場所が
+    /// 無く、横へはみ出して読まれない**（`overflow-wrap` の指定が無い）。
+    /// `path` と違って `title` も無く、箱を包む `.sui-section` が `overflow: hidden` なので、
+    /// はみ出した末尾を読む手段は無い。
+    /// **何が悪いのかは先に言うこと。**
+    ///
+    /// 件数のほうは webview の state に200件まで溜まる（`entities/search/model/reducer.ts`）。
+    pub message: ScreenMessage,
 }

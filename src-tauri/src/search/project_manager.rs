@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
 
 use crate::search::index::file_build::build_file_index;
+use crate::search::message::{for_screen, ScreenMessage};
 use crate::search::read::fs_scan::{
     diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord, ScanOptions, ScanSnapshot,
 };
@@ -180,7 +181,14 @@ impl ProjectManager {
                     EVT_INDEX_WARN,
                     IndexWarnPayload {
                         path: root.to_string_lossy().to_string(),
-                        message: format!("scan failed: {e}"),
+                        // **失うものを言う**（基準は `IndexWarnPayload::message` の doc）。
+                        // 走査が失敗した回はこの根の棋譜が1件も更新されないのに、
+                        // 索引は `Ready` を名乗る（#472）
+                        message: for_screen(&format_args!(
+                            "棋譜フォルダを読めませんでした。フォルダが移動・取り外し\
+                             されていないか確かめてください。このフォルダの棋譜は\
+                             検索の結果に反映されません（{e}）"
+                        )),
                     },
                 );
                 return;
@@ -345,7 +353,7 @@ impl ProjectManager {
         let rec_cloned = rec.clone();
 
         let built = task::spawn_blocking(
-            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
+            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<ScreenMessage>), ScreenMessage> {
                 let built = build_file_index(&rec_cloned, file_id, new_gen)?;
                 Ok((built.by_bucket, built.node_table, built.warns))
             },
@@ -369,7 +377,11 @@ impl ProjectManager {
                     EVT_INDEX_WARN,
                     IndexWarnPayload {
                         path: path_str,
-                        message: format!("spawn_blocking join error: {e}"),
+                        message: for_screen(&format_args!(
+                            "索引を組む途中で内部の処理が落ちました。このファイルの局面は\
+                             検索に出ません。開き直しても直らないときは報告してください\
+                             （内部の理由: {e}）"
+                        )),
                     },
                 );
                 return None;

@@ -2,6 +2,8 @@
 
 use thiserror::Error;
 
+use crate::search::message::ScreenMessage;
+
 /// 棋譜1つ分。クレートの JKF をそのまま使う
 pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 
@@ -10,15 +12,19 @@ pub type Jkf = shogi_kifu_converter_obsshogi::jkf::JsonKifuFormat;
 pub enum KifuReadError {
     /// どの文字コードでも、あるいは棋譜としても読めなかった。
     ///
-    /// **これがそのまま利用者の画面に出る**（`project_manager.rs` と `build.rs` が
-    /// `to_string()` して `IndexWarnPayload` に詰め、`EVT_INDEX_WARN` で
-    /// 設定のワークスペースへ）。内部の識別子ではなく、
+    /// **これがそのまま利用者の画面に出る**（`file_build` 経由で `IndexWarnPayload` に
+    /// 詰まり、`EVT_INDEX_WARN` で設定のワークスペースへ）。内部の識別子ではなく、
     /// 何が読めなかったかと次に何をすればよいかを入れること。
+    ///
+    /// **刈るのは組んだ場所で1回だけ**（`diagnosis::parse_failed`）。だから
+    /// `String` ではなく刈り終えた型で持つ —— `String` に戻すと、下流が
+    /// 「もう刈られている」ことを知らずにもう一度刈り、
+    /// **上限の外で足した一文が落ちる**。
     ///
     /// **どのファイルかは持たない。** 呼び手が `IndexWarnPayload` の別の欄で
     /// 持っており、画面はその欄と本文を並べて描くので、入れると同じパスが2回出る。
     #[error("{0}")]
-    ParseFailed(String),
+    ParseFailed(ScreenMessage),
 }
 
 /// 読めた記録と、読めたけれど伝えたいこと。
@@ -42,7 +48,7 @@ pub enum ReadOutcome {
         /// （`clippy::large_enum_variant`）
         jkf: Box<Jkf>,
         /// 利用者に出す文言。空なら何も出さない
-        warns: Vec<String>,
+        warns: Vec<ScreenMessage>,
     },
     /// **読めた。ただし索引に入れる局面が無い。**
     ///
@@ -59,6 +65,6 @@ pub enum ReadOutcome {
         /// 2つがあり、後者は伝えないと**指し手のある棋譜が黙って索引から消える**
         /// （対局者名を書かない CSA が1手目で切れると `says_nothing` が真になる）。
         /// 本当に空なら空の `Vec`。
-        warns: Vec<String>,
+        warns: Vec<ScreenMessage>,
     },
 }
