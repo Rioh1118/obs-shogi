@@ -1,10 +1,8 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
-import {
-  startInfiniteAnalysis as startInfiniteAnalysisCore,
-  stopAnalysis as stopAnalysisCore,
-} from "@/entities/engine/api/tauri";
+import { startInfiniteAnalysis as startInfiniteAnalysisCore } from "@/entities/engine/api/tauri";
+import { useEngineSeat } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -20,6 +18,9 @@ interface Props {
 
 export function AnalysisProvider({ children, positionSync }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
+
+  // Rust の席の生死。**識別子を書き換えられるのはこのフックの中だけ。**
+  const seat = useEngineSeat();
 
   const { isReady } = useEngine();
 
@@ -121,74 +122,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   };
 
-  // **Rust が渡した席を、握った行で持つ。** `state` の写し（`analyzingRef`）では
-  // 代われない——あれを書くのは commit の後の effect なので、
-  // 開始の応答が返った直後に畳まれた回は空のまま残り、席が在るのに「無い」と読む。
-  //
-  // 返せたときだけ手放す。**停止が失敗したら握ったまま**にして、次に返せる機会
-  // （畳まれたとき）へ持ち越す。手放すと、席の存在を知る者が誰も居なくなる。
-  // どの失敗で席が本当に残るかは `docs/state-transitions/analysis.md` ※12 に1つだけ置く。
-  const seatRef = useRef<string | null>(null);
-
-  // 席を返す口をここ1つにする。散らすと、経路を1つ足すたびに返し忘れが1つ増える。
-  const releaseSeat = async (sessionId?: string) => {
-    try {
-      await stopAnalysisCore(sessionId);
-    } catch (e) {
-      // **返せなかった席を、誰も知らないままにしない。** 欄が空なら握り直す。
-      // 要らなくなった開始を返す口（`late-start` / `late-restart`）は欄が空のまま
-      // 撃つので、書き戻さないと、畳まれたときの後始末が門で止まって
-      // （`releaseSeatOnUnmount`）二度と返す機会が来ない。
-      // 欄が埋まっているなら触らない——そちらは新しい席で、巻き添えにできない。
-      if (sessionId !== undefined && seatRef.current === null) {
-        seatRef.current = sessionId;
-      }
-      throw e;
-    }
-
-    // 席が空なら、指した相手が既に居なくても Rust は `Ok` を返す
-    // （`bridge.rs` の `stop_session`。**別のセッションが居れば `Err`**）。
-    // ここまで来た時点で、自分の席は空いている。
-    // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
-    if (sessionId === undefined || seatRef.current === sessionId) {
-      seatRef.current = null;
-    }
-  };
-
-  // 応答を待てない場所（畳まれた後・打ち切り）から返す。
-  //
-  // **落ちても利用者には出せない**——ここを通るのは画面が既に無いか、
-  // 直後に別のエラーを出す場面。**それでも痕跡は残す。** ここが最後の防壁で、
-  // 抜けられると席が残り、以降の解析が全部「Analysis already running」で
-  // 断られる。しかもその失敗は「▶ を押しても何も起きない」という形でしか
-  // 現れない（`docs/state-transitions/analysis.md` ※4）ので、
-  // ログが無いと原因に辿り着く手掛かりが1つも無い。
-  //
-  // **どの口から撃ったかを書く。** 口によって、落ちた後の結末が違う。
-  // `unmount` は誰も返せないまま画面が消えた回（エンジンを畳み直すしかない）。
-  // 他の3つは席を握り直すので、次に畳まれたときに返し直せる——ただし
-  // それまで ▶ は Rust に断られ続ける。文面が同じだと、この差を切り分けられない。
-  const releaseSeatQuietly = (at: string, sessionId?: string) => {
-    void releaseSeat(sessionId).catch((e) => {
-      console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId }, e);
-    });
-  };
-
-  // 畳まれた画面が握っている席を返す。
-  //
-  // React の state が消えても、Rust の `active_sessions` からは席が消えない。
-  // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
-  // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
-  //
-  // **セッションを指さない。** 指した ID が席の主でなければ Rust は照合して断り
-  // （`bridge.rs` の `stop_session`）、席は残ったままになる。握っている ID が
-  // 主とずれる経路は `docs/state-transitions/analysis.md` ※12 に挙げてある。
-  // 画面が居ない以上どの解析も要らないので、指さずに全部返す。
-  const releaseSeatOnUnmount = () => {
-    if (seatRef.current === null) return;
-    releaseSeatQuietly("unmount");
-  };
-
   const unmountedRef = useRef(false);
 
   // 開始を頼んでから席が返るまでの間に、その要求が要らなくなっていないか。
@@ -215,9 +148,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return () => {
       unmountedRef.current = true;
       clearDebounceTimer();
-      releaseSeatOnUnmount();
+      seat.releaseOnUnmount();
     };
-  }, []);
+    // `seat` は同じ物が返り続ける（`useEngineSeat`）。載せても再実行されない。
+  }, [seat]);
 
   // === Event listeners ===
   useEffect(() => {
@@ -238,7 +172,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             // 照らすのは `state` の写しではなく席の欄。写しが更新されるのは
             // commit の後なので、**探索を始めた直後のいちばん出したい `info`** が
             // 「自分のじゃない」と落ちる。
-            if (seatRef.current !== null && sessionId !== seatRef.current) return;
+            if (!seat.matches(sessionId)) return;
             latestResultRef.current = result;
             scheduleFlush();
           },
@@ -247,7 +181,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
             // 一致しないまま手放すと、走っている別の席を知る者が居なくなる。
             // 一致しない側に倒したときの損は、畳んだときに空振りの停止が1本出るだけ。
-            if (seatRef.current === sessionId) seatRef.current = null;
+            seat.forget(sessionId);
 
             latestResultRef.current = result;
             clearFlushTimer();
@@ -276,7 +210,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       clearFlushTimer();
       safeUnlisten();
     };
-  }, [safeUnlisten, scheduleFlush, clearFlushTimer, flushLatest]);
+  }, [safeUnlisten, scheduleFlush, clearFlushTimer, flushLatest, seat]);
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
 
@@ -324,7 +258,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 握っていなければ撃たない。畳まれたときと違い、ここは画面が生きている
         // ——指せない停止（＝全部止める）を投げると、席を持たないのに
         // 走っている解析があったとき、それを巻き添えにする。
-        if (seatRef.current) releaseSeatQuietly("sync-timeout", seatRef.current);
+        if (seat.isHeld()) seat.releaseQuietly("sync-timeout");
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
         dispatch({ type: "stop_analysis" });
@@ -345,9 +279,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     restartInFlightRef.current = (async () => {
       try {
-        const held = seatRef.current;
-        if (held) {
-          await releaseSeat(held);
+        if (seat.isHeld()) {
+          await seat.release();
         }
 
         // 停止の応答を待っている間に、畳まれたり止められたりしている。
@@ -369,10 +302,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 返さずに `start_analysis` を dispatch した場合は、止めたはずの解析が
         // 画面でも Rust でも走り直す。
         if (supersededSince(seq)) {
-          releaseSeatQuietly("late-restart", newSessionId);
+          seat.releaseQuietly("late-restart", newSessionId);
           return;
         }
-        seatRef.current = newSessionId;
+        seat.hold(newSessionId);
 
         dispatch({ type: "start_analysis", payload: { position: want } });
 
@@ -478,16 +411,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 入った別の席（■ の直後に ▶ を押した回）を上書きして、
     // 走っている方を知る者が居なくなる。
     if (supersededSince(seq)) {
-      releaseSeatQuietly("late-start", sessionId);
+      seat.releaseQuietly("late-start", sessionId);
       return;
     }
-    seatRef.current = sessionId;
+    seat.hold(sessionId);
 
     dispatch({ type: "start_analysis", payload: { position: currentSfen } });
 
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
-  }, [isReady, state.isAnalyzing, currentSfen, syncPosition]);
+  }, [isReady, state.isAnalyzing, currentSfen, syncPosition, seat]);
 
   const stopAnalysis = useCallback(async () => {
     desiredSfenRef.current = null;
@@ -498,20 +431,19 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **席を持っているかは1つの式で決める。** 畳まれたときの後始末と別の式にすると、
     // エラーで `isAnalyzing` だけ落ちた状態（`reducer.ts` の `set_error`）で答えが割れ、
     // 片方は返しにいき、片方は state だけ落として席を置き去りにする。
-    const held = seatRef.current;
-    if (!held) {
+    if (!seat.isHeld()) {
       dispatch({ type: "stop_analysis" });
       return;
     }
 
     try {
-      await releaseSeat(held);
+      await seat.release();
     } finally {
       dispatch({ type: "stop_analysis" });
       clearFlushTimer();
       latestResultRef.current = null;
     }
-  }, [clearFlushTimer]);
+  }, [clearFlushTimer, seat]);
 
   const clearResults = useCallback(() => {
     dispatch({ type: "clear_results" });
