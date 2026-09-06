@@ -349,7 +349,12 @@ describe("PositionSearchModal のヒットを開く", () => {
       rejecters[0](new Error("search app handle not ready"));
     });
 
-    expect(screen.getByLabelText("局面検索").textContent).not.toContain("検索に失敗しました");
+    // **到達しない文言を見ない。** 「検索に失敗しました」は一覧の空表示のもので、
+    // 起動Bが飛行中のこの場面では出ない。門を外したときに実際に出るのは
+    // 状況バーが素で描く理由の文字列
+    expect(screen.getByLabelText("局面検索").textContent).not.toContain(
+      "search app handle not ready",
+    );
   });
 
   /**
