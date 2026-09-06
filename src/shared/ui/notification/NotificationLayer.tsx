@@ -9,8 +9,9 @@ import "./NotificationLayer.scss";
  * グローバルの3経路（`toast` / `banner` / `modal`）を**1箇所で描く**
  * （ADR-0004 決定4・決定6）。
  *
- * 6箇所に表示・消す導線・再試行を手書きすると、表示を6回書くことになる。
- * 手書きは既に1回失敗していて、唯一の読み手がツリーごと消す実装になっていた。
+ * 出す側は `notify` を呼ぶだけでよく、表示・閉じる導線・動作の並べ方が
+ * 失敗ごとに散らない。いまどの失敗がどこへ出ているかは
+ * `docs/state-transitions/failure-surfacing.md` §1・§2。
  *
  * **インラインはここに来ない。** 置き場がコンポーネントの中にあるので、
  * ここからは描けない（`InlineNotice`）。
@@ -37,8 +38,9 @@ export default function NotificationLayer() {
   const newest = notifications[notifications.length - 1];
   const announcement = newest ? [newest.title, newest.body].filter(Boolean).join("。") : "";
 
-  // タイトルバーの下から敷く。あの帯は `decorations: false` のウィンドウを
-  // 動かす唯一の手段なので、覆うと窓を掴めなくなる（`Modal.scss` と同じ理由）
+  // モーダルと同じ器へ出す。`#modal-root` は `#root` の後ろにあるので、
+  // 同じ段どうしなら DOM の順で重なりが決まる（`Modal.tsx` と同じ）。
+  // 位置の話は `NotificationLayer.scss` が持つ
   const root = document.getElementById("modal-root") ?? document.body;
 
   return (
