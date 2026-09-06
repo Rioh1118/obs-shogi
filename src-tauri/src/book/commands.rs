@@ -161,7 +161,6 @@ fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError
 ///
 /// どの定跡で起きたかを必ず添える。複数開いていると、これが無いと利用者は
 /// どのファイルの話なのか決められない。
-///
 fn join_error(
     path: impl Into<String>,
     handle: Option<BookHandle>,
@@ -223,8 +222,12 @@ mod tests {
     /// 開いて引いて閉じるまでが、入口を通して成立すること。
     ///
     /// 引いた結果を握り潰す変異（`resolve_lookup` の後で空を返す）はここで落ちる。
-    /// **入口を通さないと、`register` と `close` が同じハンドルを指していることを
-    /// 見ている経路が1つも無い。**
+    ///
+    /// **`register` と `close` の対応そのものは `session.rs` が見ている**
+    /// （`closing_every_book_drops_every_reader` ほか）。ここだけが見るのは、
+    /// `open_book_inner` が返した `BookInfo::handle` を `lookup_inner` と
+    /// `close_book_inner` がそのまま受けること —— 入口が別の値を組み立てても
+    /// `session.rs` は緑のまま通る。
     #[test]
     fn the_entry_opens_looks_up_and_closes() {
         let dir = test_support::dir::temp_dir("book-entry-round-trip");
