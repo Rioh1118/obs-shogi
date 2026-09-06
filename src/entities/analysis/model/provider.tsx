@@ -29,7 +29,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const syncedSfenRef = useRef<string | null>(syncedSfen);
   const analyzingRef = useRef(state.isAnalyzing);
-  const sessionIdRef = useRef(state.sessionId);
 
   const latestResultRef = useRef<AnalysisResult | null>(null);
   const flushTimerRef = useRef<number | null>(null);
@@ -79,8 +78,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   useEffect(() => {
     analyzingRef.current = state.isAnalyzing;
-    sessionIdRef.current = state.sessionId;
-  }, [state.isAnalyzing, state.sessionId]);
+  }, [state.isAnalyzing]);
 
   const lastAnalyzedSfenRef = useRef<string | null>(null);
   const restartInFlightRef = useRef<Promise<void> | null>(null);
@@ -118,8 +116,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   };
 
-  // **Rust が渡した席を、握った行で持つ。** `state` の写し（`analyzingRef` /
-  // `sessionIdRef`）では代われない——あれを書くのは commit の後の effect なので、
+  // **Rust が渡した席を、握った行で持つ。** `state` の写し（`analyzingRef`）では
+  // 代われない——あれを書くのは commit の後の effect なので、
   // 開始の応答が返った直後に畳まれた回は空のまま残り、席が在るのに「無い」と読む。
   //
   // 返せたときだけ手放す。**停止が失敗したら握ったまま**にして、次に返せる機会
@@ -215,8 +213,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           onUpdate: (sessionId: string, result: AnalysisResult) => {
             // **自分のセッションのものだけ採る。** 前の探索が畳まりきる前に
             // 次の `go` が出ると、古い局面の `info` がこちらへ配られる。
-            // 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る
-            if (sessionIdRef.current !== null && sessionId !== sessionIdRef.current) return;
+            // 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る。
+            //
+            // 照らすのは `state` の写しではなく席の欄。写しが更新されるのは
+            // commit の後なので、**探索を始めた直後のいちばん出したい `info`** が
+            // 「自分のじゃない」と落ちる。
+            if (seatRef.current !== null && sessionId !== seatRef.current) return;
             latestResultRef.current = result;
             scheduleFlush();
           },

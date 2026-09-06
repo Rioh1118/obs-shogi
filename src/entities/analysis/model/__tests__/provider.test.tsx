@@ -6,6 +6,7 @@ import { StrictMode, useEffect } from "react";
 import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
+import type { AnalysisResult } from "@/entities/engine/api/rust-types";
 
 const startCore = vi.fn<() => Promise<string>>();
 const stopCore = vi.fn<(sessionId?: string) => Promise<void>>();
@@ -21,13 +22,19 @@ vi.mock("@/entities/engine/api/tauri", () => ({
 vi.mock("@/entities/engine", () => ({ useEngine: () => ({ isReady: true }) }));
 
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
-let listeners: { onError: (error: string) => void } | null = null;
+type Listeners = {
+  onUpdate: (sessionId: string, result: AnalysisResult) => void;
+  onError: (error: string) => void;
+};
+let listeners: Listeners | null = null;
 vi.mock("@/entities/engine/api/events", () => ({
-  setupAnalysisEventListeners: async (handlers: { onError: (error: string) => void }) => {
+  setupAnalysisEventListeners: async (handlers: Listeners) => {
     listeners = handlers;
     return () => {};
   },
 }));
+
+const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"] }] };
 
 /** 実時間を進める。打ち切りの判定が Date.now() を見るので偽タイマーは使えない。 */
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
@@ -215,6 +222,41 @@ describe("AnalysisProvider の停止", () => {
     // 停止ボタンが撃てるのはその時点で握っている古い席までで、この席はここでしか返せない。
     expect(view.current.state.isAnalyzing).toBe(false);
     expect(stopCore).toHaveBeenCalledWith("session-2");
+  });
+});
+
+describe("AnalysisProvider の結果の照合", () => {
+  it("再開した席で届いた info を、前の席と照らして落とさない", async () => {
+    tauri = true;
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockResolvedValueOnce("session-1");
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤とエンジンが揃って1手進む。再開が走り、開始の応答待ちで止まる。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 席が返った直後——`state` にはまだ載っていない——に最初の `info` が届く。
+    // `state` の写しで照らすと、そこに入っているのは前の席なので落とす。
+    releaseStart("session-2");
+    await Promise.resolve();
+
+    await act(async () => {
+      listeners?.onUpdate("session-2", oneCandidate);
+    });
+    await advance(150);
+
+    expect(view.current.state.candidates).toHaveLength(1);
   });
 });
 
