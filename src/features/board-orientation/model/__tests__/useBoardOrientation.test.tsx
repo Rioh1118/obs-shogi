@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 /**
  * 盤の向きを戻す合図は、**盤に載っている棋譜**（`loadedAbsPath`）。
@@ -31,10 +30,11 @@ const { useBoardOrientation } = await import("../useBoardOrientation");
 const { useResetOrientationOnKifuChange } = await import("../useResetOrientationOnKifuChange");
 
 let search = "";
-let rotate = false;
+let isGotePov = false;
 
 /**
- * 向きを付ける口は解析ペインのヘッダ1つだけ。ここではボタンで代役を立てる。
+ * 向きを付ける口は解析ペインのヘッダ1つだけ。**そこが呼ぶのと同じ `toggle`** を
+ * ボタンに繋ぐ。書き手を試験の側で組み直すと、符号化がずれても緑のままになる。
  *
  * 読む側と落とす側を同じ所で呼んでいるが、現物は別々に載っている——落とす側は
  * `BoardOrientationBridge`、読む側は `GameBoard`。載せ方の違いは
@@ -42,12 +42,12 @@ let rotate = false;
  * `src/app/providers/__tests__/runtimeProvidersBridges.test.tsx` が固定する。
  */
 function Probe() {
-  const { updateParams } = useURLParams();
   search = useLocation().search;
-  rotate = useBoardOrientation().rotate;
+  const orientation = useBoardOrientation();
+  isGotePov = orientation.isGotePov;
   useResetOrientationOnKifuChange();
   return (
-    <button type="button" onClick={() => updateParams({ pov: "gote" }, { replace: true })}>
+    <button type="button" onClick={orientation.toggle}>
       回す
     </button>
   );
@@ -78,14 +78,14 @@ function openAndRotate(path: string) {
   redraw(view);
 
   fireEvent.click(screen.getByRole("button", { name: "回す" }));
-  expect(rotate).toBe(true);
+  expect(isGotePov).toBe(true);
   return view;
 }
 
 beforeEach(() => {
   game.state.loadedAbsPath = null;
   search = "";
-  rotate = false;
+  isGotePov = false;
 });
 
 afterEach(() => cleanup());
@@ -106,7 +106,7 @@ describe("盤の向き", () => {
     redraw(view);
 
     expect(search).not.toContain("pov");
-    expect(rotate).toBe(false);
+    expect(isGotePov).toBe(false);
   });
 
   /**
@@ -122,7 +122,7 @@ describe("盤の向き", () => {
     redraw(view);
 
     expect(search).toContain("pov=gote");
-    expect(rotate).toBe(true);
+    expect(isGotePov).toBe(true);
   });
 
   /** 表の E2 */
