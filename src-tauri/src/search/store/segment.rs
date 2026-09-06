@@ -5,16 +5,39 @@ use crate::search::types::Occurrence;
 
 pub type SegmentArc = Arc<Segment>;
 
-/// 桶の中の不変なセグメント（SoA レイアウト）。
+/// **鍵の昇順に並んだ「鍵 → その局面が現れた場所」の表。**
 ///
-/// (z0, z1) が binary search のホット列なので並列 Vec にする。Occurrence 列は
-/// hit 後にしか参照しないため、binary search 中の L1 を z0/z1 が占有できる。
+/// 索引で二分探索が走るのはここだけ。概念としては1枚の表で、
+/// 行が鍵の昇順であることだけが不変条件。
+///
+/// ```text
+///   z0         z1    file_id  gen  node_id
+///   0x1100..   0..   1        1    0
+///   0x1100..   0..   3        1    7   ← 同じ鍵が複数行
+///   0x1101..   0..   1        1    2
+/// ```
+///
+/// **後から足せない。** 取り込みは新しいセグメントを桶に積み増す形で、
+/// 溜まったら `store/compaction.rs` が畳んで1本にする。
+/// 不変・整列済み・積み増し・溜まったら合流、という役は LSM の SSTable と同じ。
+///
+/// **列に倒して持つ**（SoA）のは二分探索が `z0` / `z1` しか触らないため。
+/// 出現の3列は当たった行でしか読まないので、探している間の
+/// キャッシュを鍵の2列が占められる。
+///
+/// `z0` / `z1` は [`PositionKey`] を列に分解したもので、
+/// **Zobrist の材料（`position/zobrist.rs` の `ZobristValue`）ではない。**
+/// 鍵は材料を xor し切った結果で、128ビットを `u64` 2つに割ってある。
 #[derive(Debug, Default)]
 pub struct Segment {
+    /// 鍵の上位64ビット。桶の振り分けもここから取る
     z0: Vec<u64>,
+    /// 鍵の下位64ビット
     z1: Vec<u64>,
     file_ids: Vec<u32>,
+    /// その棋譜の世代。生死の判定に要る（`store/file_table.rs` の `is_occ_alive`）
     gens: Vec<u32>,
+    /// その棋譜の節表の添字。手数と分岐路に戻すのに要る
     node_ids: Vec<u32>,
 }
 
