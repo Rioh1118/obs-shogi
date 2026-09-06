@@ -3,13 +3,10 @@ import "./PositionSearchContinuation.scss";
 
 import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
-import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
-import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
-
-import type { JKFData } from "@/entities/kifu/model/jkf";
-import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { describeFsError, readText } from "@/entities/file-tree";
 import { cursorKey, type CursorPath } from "@/entities/kifu/model/cursor";
+
+import { KifuCache } from "@/features/position-search/lib/kifuCache";
+import { readContinuation } from "@/features/position-search/lib/readContinuation";
 
 type Props = {
   activeHit: PositionHit | null;
@@ -40,19 +37,6 @@ type ReadTarget = { abs: string; cursor: CursorPath; key: string };
 const READ_DEBOUNCE_MS = 150;
 
 /**
- * 抱えておく棋譜の量の上限（原文の文字数）。
- *
- * **件数で決めない。** 局面検索のヒットは1ファイル1件になりやすい——同じ棋譜に
- * 同じ局面が2度出るのは千日手か合流のときだけ——ので、件数で切ると
- * 一覧を矢印で降りたときに**ほぼ全打鍵が外れる**。
- *
- * 数えるのは読んだ原文の長さで、抱えている JKF の実寸ではない。実寸を測ると
- * 測る側が持ち物に比例した仕事をすることになる。**多めに見積もる向きの
- * 誤差ではない**（JKF は原文より大きい）ので、上限は控えめに置く。
- */
-const MAX_CACHED_CHARS = 2_000_000;
-
-/**
  * 次に選ばれそうな1行を先に読むまでの時間（ms）。
  *
  * **選んでいる行より後に置く。** 同時に走らせると、利用者が待っている読みと
@@ -63,107 +47,6 @@ const MAX_CACHED_CHARS = 2_000_000;
  */
 const PREFETCH_DELAY_MS = 300;
 
-type LoadedKifu = { jkf: JKFData; sourceChars: number };
-
-function toText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (content instanceof Uint8Array) return new TextDecoder().decode(content);
-  return String(content ?? "");
-}
-
-async function loadKifu(absPath: string): Promise<LoadedKifu> {
-  const res = await readText(absPath);
-  // 投げる API を `catch {}` で握り潰すと、権限も見つからないも解析失敗も
-  // 同じ「続きが無い」に見える。理由を持ったまま上へ返す
-  if (!res.success) throw new Error(describeFsError(res.error.code));
-
-  const text = toText(res.data);
-  return { jkf: parseKifuStringToJKF(text).jkf as JKFData, sourceChars: text.length };
-}
-
-/**
- * 読んだ棋譜を抱えておく置き場。
- *
- * **抱えるのは `Promise`。** 読み終わってから入れると、同じファイルへ戻る操作が
- * 先の読みの解決前に来たときに `read_file` が重なる。読み始めた時点で入れておけば
- * 1本に畳まれる。
- */
-class KifuCache {
-  /** 挿入順が「古い順」。取り出したものは末尾へ入れ直す */
-  private entries = new Map<string, { value: Promise<LoadedKifu>; chars: number }>();
-  private chars = 0;
-  private readonly maxChars: number;
-
-  constructor(maxChars: number) {
-    this.maxChars = maxChars;
-  }
-
-  /** 待たずに済むか。読んでいる最中も真（`read_file` はもう飛んでいる） */
-  has(absPath: string): boolean {
-    return this.entries.has(absPath);
-  }
-
-  load(absPath: string): Promise<LoadedKifu> {
-    const hit = this.entries.get(absPath);
-    if (hit) {
-      this.entries.delete(absPath);
-      this.entries.set(absPath, hit);
-      return hit.value;
-    }
-
-    const entry = { value: loadKifu(absPath), chars: 0 };
-    this.entries.set(absPath, entry);
-
-    entry.value.then(
-      (loaded) => {
-        // 解決を待つあいだに追い出されていたら、量に数え直さない
-        if (this.entries.get(absPath) !== entry) return;
-        entry.chars = loaded.sourceChars;
-        this.chars += loaded.sourceChars;
-        this.evict();
-      },
-      () => {
-        // **失敗は抱えない。** 抱えると、権限が戻ってもファイルが直っても
-        // 同じ断りを返し続ける
-        if (this.entries.get(absPath) === entry) this.entries.delete(absPath);
-      },
-    );
-
-    return entry.value;
-  }
-
-  /** 上限を超えたぶんを古い順に落とす。**最後の1つは残す**（1本で超える棋譜がある） */
-  private evict() {
-    while (this.chars > this.maxChars && this.entries.size > 1) {
-      const oldest = this.entries.keys().next();
-      if (oldest.done) return;
-
-      const entry = this.entries.get(oldest.value);
-      this.entries.delete(oldest.value);
-      if (entry) this.chars -= entry.chars;
-    }
-  }
-}
-
-/** ヒット局面から、その線の続きを `ply` 手ぶん読む */
-function readContinuation(jkf: JKFData, cursor: CursorPath, ply: number): string[] {
-  const player = buildPlayer(jkf, cursor);
-  const out: string[] = [];
-
-  for (let i = 0; i < ply; i++) {
-    // ヒット局面が乗っている線の続きを辿る（変化の中のヒットなら変化の続き）。
-    // 索引のカーソルは「辿った経路」で `te > tesuu` を持たないので、
-    // 渡せる計画がそもそも無い（`planByTe(cursor.forkPointers)` を渡しても
-    // 引く te が `tesuu + 1` 以降なので1度も当たらない）。
-    if (!advanceCurrentLine(player).moved) break;
-
-    const s = player.getReadableKifu?.() ?? "";
-    if (s) out.push(s);
-  }
-
-  return out;
-}
-
 export default function PositionSearchContinuation({
   activeHit,
   prefetchHit = null,
@@ -173,7 +56,7 @@ export default function PositionSearchContinuation({
   const [moves, setMoves] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const kifuCacheRef = useRef(new KifuCache(MAX_CACHED_CHARS));
+  const kifuCacheRef = useRef(new KifuCache());
   const seqRef = useRef(0);
 
   const targetRef = useRef<ReadTarget | null>(null);
