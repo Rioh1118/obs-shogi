@@ -14,7 +14,7 @@ $titlebar-button-size: 1.2rem;
   flex-shrink: 0;
   // `.app-root` の flex item なので、position を持たなくても z-index が効く。
   // 最前面ではない。body へ portal される棋譜のポップオーバー（100000 / 100001）は上に出る
-  z-index: 9999;
+  z-index: index.$z-titlebar;
   box-shadow: 0 0.1rem 0.4rem rgba(0, 0, 0, 0.2);
 
   &__buttons {

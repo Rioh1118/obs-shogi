@@ -40,7 +40,6 @@ export {
 } from "./api/events";
 
 export {
-  openProject,
   searchPosition,
   searchPositionBestEffort,
   cancelSearch,

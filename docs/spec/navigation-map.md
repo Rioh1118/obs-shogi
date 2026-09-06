@@ -58,7 +58,14 @@
 | `study-positions`     | 課題局面の一覧           |
 | `sfen-kifu-create`    | 課題局面から棋譜を作成   |
 
+**`AppModalLayer` の外にもう1枚ある。** 通知の `modal`
+（`shared/ui/notification/NotificationLayer`）はルータの外でマウントされ、
+**URL でも state でも開かない**——出す側が `notify` を呼ぶと出る。同時に出るのは1枚だけ
+（出た順の先頭）で、`ModalType` を持たない。決まりは
+[system-dialogs.md](screens/system-dialogs.md) の「通知の土台が持つ決まり」。
+
 **モーダルを増やすときは `ModalType` も増やす**（`CLAUDE.md` の「連動が必要な箇所」）。
+**通知の modal はこの例外**で、増やさない。
 なお、この union が下位層（`shared/`）に上位層のスライス名簿を持たせている点は
 構造の負債として `docs/IDEAS.md` に載っている。
 
@@ -73,16 +80,16 @@
 
 `URLParams`（`useURLParams.ts`）が持つ8つ。
 
-| キー       | 型                  | 誰が読むか                                                                  |
-| ---------- | ------------------- | --------------------------------------------------------------------------- |
-| `modal`    | `ModalType`         | 各モーダル                                                                  |
-| `tab`      | `string`            | 設定（`workspace`/`aiLibrary`/`engine`）・ファイル作成（`create`/`import`） |
-| `dir`      | `string`            | ファイル作成の保存先                                                        |
-| `sfen`     | `string`            | 局面検索・課題局面の登録・SFEN からの棋譜作成                               |
-| `returnTo` | `ModalType`         | 閉じたときに戻る先のモーダル                                                |
-| `pov`      | `"sente" \| "gote"` | 盤の向き                                                                    |
-| `tesuu`    | `number`            | `navigateToPosition` が書く。**読み手は現状いない**                         |
-| `branch`   | `string`            | 同上                                                                        |
+| キー       | 型          | 誰が読むか                                                                  |
+| ---------- | ----------- | --------------------------------------------------------------------------- |
+| `modal`    | `ModalType` | 各モーダル                                                                  |
+| `tab`      | `string`    | 設定（`workspace`/`aiLibrary`/`engine`）・ファイル作成（`create`/`import`） |
+| `dir`      | `string`    | ファイル作成の保存先                                                        |
+| `sfen`     | `string`    | 局面検索・課題局面の登録・SFEN からの棋譜作成                               |
+| `returnTo` | `ModalType` | 閉じたときに戻る先のモーダル                                                |
+| `pov`      | `"gote"`    | 盤の向き（既定は値なし）                                                    |
+| `tesuu`    | `number`    | `navigateToPosition` が書く。**読み手は現状いない**                         |
+| `branch`   | `string`    | 同上                                                                        |
 
 ### `tesuu` / `branch` は書かれるが読まれない
 
@@ -119,7 +126,7 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | A2     | シェル ＋ ツリー ＋ `WelcomeScreen`      | 棋譜を選ぶ → A3                                 |
 | A3〜A5 | シェル ＋ ツリー ＋ 盤・棋譜・解析ペイン | 棋譜を閉じる → A2 / ワークスペース変更 → 再読込 |
 
-**A2 と A3 の切り替えは `hasFile`（`gameView.player?.shogi` の有無）1つで決まる。**
+**A2 と A3 の切り替えは `gameView.hasKifu` 1つで決まる。**
 棋譜を開く経路は2つあり、どちらも同じ state を通る。
 
 | 経路             | 起点                             | 効果                                        |
@@ -127,7 +134,10 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | ツリーから開く   | `FileNode` のクリック            | `openKifuNode` → `activeKifuPath` が変わる  |
 | 検索結果から開く | 局面検索で Enter／ダブルクリック | `usePositionHitNavigation` が同じ経路を通す |
 
-棋譜が変わると `AppLayout` が `pov` を落とす（盤の向きは棋譜ごとに持ち越さない）。
+**盤に載っている棋譜**（game の `loadedAbsPath`）が変わると `pov` が落ちる
+（盤の向きは棋譜ごとに持ち越さない）。上の表の2経路はどちらも `activeKifuPath` を
+動かすが、**それだけでは落ちない**——開いても盤に載らないことがある。
+→ [board-orientation.md](../state-transitions/board-orientation.md)
 
 ## モーダルを開くボタンの所在
 

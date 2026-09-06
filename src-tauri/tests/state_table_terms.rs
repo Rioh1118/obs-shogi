@@ -65,6 +65,7 @@ const NOT_RUST: &[(&str, &str)] = &[
     ("analysis.md", "解析パネル。TS 側の reducer"),
     ("app.md", "アプリ全体の起動と終了。TS 側"),
     ("branch-index.md", "分岐の索引。TS 側"),
+    ("board-orientation.md", "盤の向き。TS 側"),
     ("engine-position-sync.md", "局面の送信。TS 側のフック"),
     ("engine.md", "エンジンの生存。TS 側から見た状態"),
     ("failure-surfacing.md", "失敗の見せ方。TS 側"),

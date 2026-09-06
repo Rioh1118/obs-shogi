@@ -4,6 +4,7 @@ import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
 import { useEffect, useState } from "react";
 import { useGame } from "@/entities/game";
+import { handAreaMarker } from "@/features/clear-board-selection";
 
 interface HandProps {
   isSente: boolean;
@@ -115,7 +116,7 @@ function Hand({ isSente }: HandProps) {
   return (
     <div
       className={`hand-container ${isSente ? "player-hand" : "opponent-hand"}`}
-      data-hand-area="true"
+      {...handAreaMarker}
       onPointerDown={handleHandAreaPointerDown}
     >
       <div className="hand-pieces">

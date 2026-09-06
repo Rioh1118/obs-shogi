@@ -10,7 +10,14 @@ export type ModalType =
   | "study-positions"
   | "sfen-kifu-create";
 
-export type PovType = "sente" | "gote";
+/**
+ * 盤の向き。**後手が手前のときだけ値が付く。**
+ *
+ * 既定（先手が手前）は値の欠落で表す。`"sente"` を受けると同じ状態に2つの表現が
+ * できて、`pov === undefined` を「先手が手前」の判定として写した読み手が
+ * `"sente"` で黙って外れる。
+ */
+export type PovType = "gote";
 
 export interface URLParams {
   modal?: ModalType;
@@ -34,7 +41,7 @@ export function useURLParams() {
   // 現在のURLパラメータを取得
   const params: URLParams = useMemo(() => {
     const povRaw = searchParams.get("pov");
-    const pov = povRaw === "gote" || povRaw === "sente" ? (povRaw as PovType) : undefined;
+    const pov = povRaw === "gote" ? povRaw : undefined;
 
     return {
       tesuu: searchParams.get("tesuu") ? Number(searchParams.get("tesuu")) : undefined,

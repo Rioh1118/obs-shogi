@@ -92,7 +92,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
   // 「駒をクリックしただけ」でも JKFPlayer を作り直すことになり、
   // currentSfen の identity が変わって下流のエンジン同期や解析まで巻き添えで再実行される。
-  const cursorView = useMemo<Omit<GameView, "legalMoves">>(() => {
+  const cursorView = useMemo<Omit<GameView, "legalMoves" | "hasKifu">>(() => {
     if (!state.jkf) {
       return {
         player: null,
@@ -184,7 +184,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     }
   }, [cursorView.player, state.selectedPosition, moveValidator]);
 
-  const view = useMemo<GameView>(() => ({ ...cursorView, legalMoves }), [cursorView, legalMoves]);
+  const view = useMemo<GameView>(
+    () => ({ ...cursorView, legalMoves, hasKifu: !!cursorView.player?.shogi }),
+    [cursorView, legalMoves],
+  );
 
   const navigate = useCallback(
     (run: (player: JKFPlayer, branchPlan: BranchPlan) => boolean | void, errorMessage: string) => {
@@ -633,8 +636,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     dispatch({ type: "clear_error" });
   }, []);
 
-  const isGameLoaded = useCallback(() => state.jkf !== null, [state.jkf]);
-
   const isAtStart = useCallback(() => {
     return (state.cursor?.tesuu ?? 0) === 0;
   }, [state.cursor]);
@@ -658,10 +659,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
   }, [state.cursor]);
 
   const getTotalMoves = useCallback(() => view.totalMoves, [view.totalMoves]);
-
-  const hasSelection = useCallback(() => {
-    return state.selectedPosition !== null;
-  }, [state.selectedPosition]);
 
   const getCurrentMove = useCallback(() => {
     return view.currentMove;
@@ -746,7 +743,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       setCommentsByCursor,
       setCurrentComments,
       clearError,
-      isGameLoaded,
       isAtStart,
       isAtEnd,
       canGoForward,
@@ -754,7 +750,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
-      hasSelection,
       getCurrentMove,
       getCurrentComments,
       applyCursor,
@@ -780,7 +775,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       setCommentsByCursor,
       setCurrentComments,
       clearError,
-      isGameLoaded,
       isAtStart,
       isAtEnd,
       canGoForward,
@@ -788,7 +782,6 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
-      hasSelection,
       getCurrentMove,
       getCurrentComments,
       applyCursor,

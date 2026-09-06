@@ -1,8 +1,9 @@
 # 画面仕様: アプリのシェル
 
 対象: `src/pages/AppLayout.tsx` `src/widgets/app-layout-header/`
-`src/widgets/sidebar/Sidebar.tsx` `src/pages/WelcomeScreen.tsx`
-`src/shared/ui/TitleBar.tsx`
+`src/widgets/sidebar/ui/Sidebar.tsx` `src/pages/WelcomeScreen.tsx`
+`src/shared/ui/TitleBar.tsx` `src/features/board-orientation/`
+`src/features/clear-board-selection/`
 
 ## 目的
 
@@ -51,9 +52,9 @@
 
 ### サイドバー
 
-`Sidebar` は `isOpen` が偽なら `null` を返す（アンマウントする）。
-中身は `<Outlet />` で、いま入るのは `/app/panel/filetree` だけ。
-→ [file-tree.md](file-tree.md)
+`Sidebar` は器で、`isOpen` が偽なら `null` を返す（アンマウントする）。
+**中身は自分では決めない。** `AppLayout` が `<Outlet />` を `children` として渡し、
+いま入るのは `/app/panel/filetree` だけ。→ [file-tree.md](file-tree.md)
 
 ### WelcomeScreen
 
@@ -62,14 +63,18 @@
 
 ## 状態
 
-| 記号 | 状態         | 判定                          | 本体に出るもの           |
-| ---- | ------------ | ----------------------------- | ------------------------ |
-| L0   | 棋譜なし     | `gameView.player?.shogi` が偽 | `WelcomeScreen`          |
-| L1   | 棋譜あり     | 同上が真                      | 盤・棋譜・解析ペイン     |
-| Ls   | サイドバー閉 | `isSidebarOpen === false`     | サイドバーがアンマウント |
+| 記号 | 状態         | 判定                      | 本体に出るもの           |
+| ---- | ------------ | ------------------------- | ------------------------ |
+| L0   | 棋譜なし※    | `gameView.hasKifu` が偽   | `WelcomeScreen`          |
+| L1   | 棋譜あり     | 同上が真                  | 盤・棋譜・解析ペイン     |
+| Ls   | サイドバー閉 | `isSidebarOpen === false` | サイドバーがアンマウント |
+
+※ **L0 は「まだ開いていない」だけではない。** 開いたが盤に載せられなかったときも
+`hasKifu` は偽になる（下の「失敗の見せ方」）。
 
 `isSidebarOpen` は `AppLayout` のローカル state。**URL にも設定にも残らない**ので、
-リロードすると開いた状態に戻る。
+リロードすると開いた状態に戻る。**持ち越さないのが意匠。** どのパネルを出すかは
+URL（`panel/*`）が持つが、開閉はそちらへ揃えない。
 
 ## 操作と結果
 
@@ -79,34 +84,62 @@
 | ヘッダの本アイコン     | `modal=study-positions` を開く                               |
 | ヘッダの歯車           | `modal=settings&tab=general` を開く（※タブ名は実在しない）   |
 | 盤・駒台の**外**を押す | 駒の選択を解除する                                           |
-| 別の棋譜を開く         | `pov` を落とす（盤の向きは棋譜をまたいで持ち越さない）       |
+| 別の棋譜が盤に載る     | `pov` を落とす（盤の向きは棋譜をまたいで持ち越さない）※      |
+
+※ 落ちるのは**盤に載っている棋譜**が変わったときだけ。ツリーの選択が動いただけ、
+開いたが盤に載せられなかった、では落ちない。開いている棋譜の改名では落ちる（既知）。
+→ [board-orientation.md](../../state-transitions/board-orientation.md)
 
 ### 盤の外を押すと選択が解除される
 
-`onPointerDownCapture` が `[data-board-square]` と `[data-hand-area]` の
-外側を拾って `clearSelection()` を呼ぶ。**キャプチャ段階で拾う**ので、
-下にあるボタンの `onClick` より先に走る。
+`onPointerDownCapture` が盤の内側の外を拾って `clearSelection()` を呼ぶ。
+**キャプチャ段階で拾う**ので、下にあるボタンの `onClick` より先に走る。
+
+捕まえるのはページの根（盤より広い範囲を見ないと「外」を判定できない）だが、
+**何が内側かは `src/features/clear-board-selection/` が持つ**。升と駒台に付ける
+目印もそこから来るので、ページは盤の目印の綴りを知らない。
 
 ## 失敗の見せ方
 
-シェル自体は失敗しない。**2箇所に `AppErrorBoundary` を置いてある。**
+**レンダ例外で守られているのは2箇所だけ。** それ以外で throw すると、上に境界が
+1つも無いので **root ごと unmount する**——ウィンドウ枠も自前（`decorations: false`）なので、
+残るのは閉じるボタンもドラッグ領域も無い白い窓で、画面内の復帰導線は0になる。
+→ [failure-surfacing.md](../../state-transitions/failure-surfacing.md)
+
+（レンダ例外以外の失敗はこの下に1つある）
 
 | 境界                    | 守っているもの                                     |
 | ----------------------- | -------------------------------------------------- |
 | `AppModalLayer` を包む  | モーダル1枚のレンダ例外で本体まで unmount させない |
 | `KifuStreamList` を包む | 棋譜一覧の例外で盤まで落とさない                   |
 
-盤（`GameBoard`）と解析ペインには境界が無い。そこで throw すると `/app` が畳まれる。
+盤（`GameBoard`）・解析ペイン・ヘッダ・サイドバーには境界が無い。そこで throw すると上記になる。
+
+### 棋譜を開いたが盤に載せられなかったとき、この画面は何も出さない
+
+`openKifuNode` は構文として読めれば通すので、ツリーの選択と `activeKifuPath` は動く。
+その先の `loadGame` が落ちると `game.state.error` に積まれるが、**読み手は0**。
+`hasKifu` は偽のままなので、起動直後なら本体は `WelcomeScreen`、ヘッダは
+「ファイル未選択」のまま——クリックが届かなかったように見える。
+前の棋譜を開いていたなら、**盤と棋譜一覧は前の棋譜のまま、ヘッダのファイル名・
+ヘッダの対局者名・盤の対局者名が新しい棋譜に入れ替わる**（3つとも file-tree の
+`selectedNode` / `jkfData` 由来）。
+見出しと盤が食い違うので、利用者は新しい棋譜を見ていると読む。→ #434
+
+しかもそのファイルは `activeKifuPath` になっているので、**もう一度クリックしても
+何も起きない**（`FileNode` の `isActive` の関門）。復帰は別の棋譜を選ぶことだけ。
+→ [game.md](../../state-transitions/game.md) の E16、
+[failure-surfacing.md](../../state-transitions/failure-surfacing.md) の F-31
 
 ## いま満たしていないこと
 
-- **サイドバーの開閉が保存されない。** リロードで必ず開く
 - **サイドバーに入る面が1つしか無い。** `panel/*` の形だけがある
 - **ヘッダの歯車が `tab=general` を渡す。** `TABS` にその値は無い
   → [navigation-map.md](../navigation-map.md)
+- **盤に載せられない棋譜を開くと、見出しだけが入れ替わって何も出ない** → #434
 - **ウィンドウを既定より小さくするとレイアウトが破綻する** → #32
 - **ウィンドウを閉じると、実行中のファイル操作と未保存の入力が確認なしで消える** → #176
-- **盤ペインと解析ペインにエラー境界が無い**
+- **盤ペインと解析ペインにエラー境界が無い** → #436
 
 ## これからの要件
 

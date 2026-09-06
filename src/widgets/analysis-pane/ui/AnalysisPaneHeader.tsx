@@ -5,19 +5,20 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
+import { useBoardOrientation } from "@/features/board-orientation";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
-  const { openModal, params, updateParams } = useURLParams();
+  const { openModal } = useURLParams();
   const { findBySfen } = useStudyPositions();
   const isBookmarked = !!findBySfen(currentSfen);
   const [elapsedTime, setElapsedTime] = useState(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const lastSfenRef = useRef<string | null>(null);
-  const isGotePov = params.pov === "gote";
+  const { isGotePov, toggle: handleTogglePov } = useBoardOrientation();
 
   // タイマー管理
   useEffect(() => {
@@ -83,9 +84,6 @@ function AnalysisPaneHeader() {
     } catch (error) {
       console.error("Failed to toggle analysis:", error);
     }
-  };
-  const handleTogglePov = () => {
-    updateParams({ pov: isGotePov ? undefined : "gote" }, { replace: true });
   };
 
   // 局面ナビゲーションハンドラー

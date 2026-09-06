@@ -51,7 +51,11 @@
   横断検索は `PositionKey`(SFEN由来)、棋譜内は `tesuuPointer`、解析はまた別。**触るなら一度に揃える**
 - **`tesuuPointer` の生成が3箇所に重複** — `CLAUDE.md` は「`indexOf(",")` によるパースの重複」と
   書いているが**該当0件**。実在するのは生成側の重複。記述を直すこと
-- **`bridges` / `gates` を分ける基準が無い** — gate が何も gate していない
+- **`bridges` / `gates` の基準に合っていないファイルが2つ** — 基準そのものは
+  `src/app/providers/RuntimeProviders.tsx` の doc にある（`gates/` は値を prop で渡す器、
+  `bridges/` は effect で繋いで `null` を返す）。7ファイル中5つは一致していて、
+  `AnalysisBridge` / `EngineRuntimeBridge` だけが gate の形で `bridges/` に居る。
+  **揃えるのはファイル2つの移動と改名で済む**
 - **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る
 - **`ModalType` union が上位層のスライス名簿を持っている** — 下位層が上位層の一覧を知っている
 - **`app-config` ⇄ `engine-presets` の双方向依存** — `PresetId` を branded type にすると切れる
@@ -68,3 +72,59 @@
 - **合流 / transposition を DAG として扱う** — ShogiHome issue #236（30コメント。**コメント数は2位で、ユニーク参加者は2名** → `research/findings/L2-transposition-demand.md`）が「木構造では千日手や局面の合流に対応できない、グラフを直接可視化・編集したい」と要求し未解決のまま。KIF/KI2/CSA いずれも仕様として合流を持たない。横断検索側は `PositionKey`(SFEN由来) なので既に合流に強く、棋譜内表現だけが木。**差別化の最有力候補**だが、着手前に現行 `normalizedTree` の設計影響を調べること
 - **「ShogiHome で開く」導線** — エンジン/対局/検討 GUI を自前で磨くより価値が高い可能性
 - **棋譜ブログ向けの出力** — ShogiHome #1271（複数棋譜横断の一括局面図）が 2025-07 から open のまま
+
+## SCSS の既存の負債（`refactor/app-shell-wiring` のレビューで出たもの）
+
+`.claude/reviews/2026-09-06-app-shell-wiring-r1.md` の ui reviewer が挙げたもの。
+**その PR は SCSS を1行も触っていない**ので範囲外にした。どれも単独では
+着手する価値を判断できていない。
+
+- **`--kifu-w` が2ファイルで別の意味で定義されている** — `.kifu` が自分の上で
+  `29rem` を再定義するので `.workspace` の `clamp(...)` は内側では見えない。
+  1280px 幅で約4rem ずれる。`.kifu` を別の場所に置いた瞬間に 29rem 固定へ戻る
+- **`AppLayout.scss` が widget のルートクラスを名指しで上書きしている** — 打ち消しに
+  見える `border` / `box-shadow` / `background` は元の宣言が無く、何も打ち消していない。
+  寸法の契約が page と widget の2ファイルに割れている
+- **解析ペインの `--active` が効かない** — `.analysis-header__icon` が svg に直接
+  `color` を宣言していて親の `color` が継承に負ける。オン状態の表現も
+  「クラス」「`aria-pressed` だけ」「アイコン差し替え」の3通りに割れている。
+  向きのトグルは `?pov=gote` が付いていても見た目が素の状態と同じ
+- **閉じたサイドバーの `transition` が一度も走らない** — 実際に変わるのは親の
+  `grid-template-columns` と登録されていないカスタムプロパティで、どちらも遷移しない。
+  仕切り線もスロットと `.sidebar` の2箇所で別々の直値で引かれている
+- **メディアクエリの breakpoint が13種類の直値で散っている** — 対象幅（1280px 以上）では
+  1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
+  `@media` の条件部を対象外にしている
+
+## 到達しない分岐が、仕様では実在する状態として書かれている
+
+`.claude/reviews/2026-09-06-app-shell-wiring-r2.md` の r2-10 の付随（ui reviewer）。
+**SCSS の話ではない**ので上の節とは分けてある。
+
+**この節は6週間ルールの例外。** #434 の前提なので、着手はそちらに引きずられる
+（同じことを #434 のコメントにも積んである）。
+
+- **`Board` の「盤面を読み込み中...」は到達しない** — `AppLayout` の `hasKifu` が同じ `view` を
+  見て門番しているので、`Board` が描かれた時点で `player?.shogi` は必ずある。しかも
+  `.board-loading` の CSS 規則はリポジトリに1つも無く、ビルド後の CSS にも出ない。
+  **`docs/spec/screens/board.md` は2箇所でこれを実在する状態として書いている**——
+  状態表の P0 と、「失敗の見せ方」の「局面が組めない → 『盤面を読み込み中...』のまま止まる」。
+  #434（盤に載せられない棋譜のときに何かを出す）に着手する人はまずその画面仕様を読み、
+  「盤が組めないときには既に文言が出る」と読む
+
+## 呼び出し元の無い公開面が、スライスの barrel と context に残っている
+
+`.claude/reviews/2026-09-06-app-shell-wiring-r3.md` の r3-17（architecture reviewer）。
+`entities/file-tree/index.ts` は「ここに並ぶのはスライスの外に呼び出し元があるものだけ」を
+規約として書いているが、機械が見ていないので守られているのは一部だけ。
+
+- **`entities/search/index.ts` は41個を公開していて、外に読み手があるのは6個。**
+  `EVT_*` 7つと `searchPosition` / `searchPositionBestEffort` / `cancelSearch` /
+  `listenSearchEvents` は外の読み手0。`listenSearchEvents` を barrel から呼べば
+  `isListenSettled` を経ずに購読が二重に張れる。`WorkspaceTab` が `IndexState` の union を
+  手で写しているので、そこだけは**落とすのではなく import させる**のが正しい向き
+- **`entities/game` の context に呼び出し元0の口が5つ**（`setCurrentComments` / `isAtStart` /
+  `isAtEnd` / `getCurrentMove` / `getCurrentComments`）
+- **閉じるなら走査ごと入れる。** `src/__tests__/sliceBarrels.test.ts` の `publicModules()` に
+  「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
+  `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる

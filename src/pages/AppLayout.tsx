@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import Sidebar from "../widgets/sidebar/Sidebar";
-import GameBoard from "../widgets/game-board/ui/GameBoard";
-import Board from "../widgets/game-board/ui/Board";
-import Hand from "../widgets/game-board/ui/Hand";
+import { useState } from "react";
+import { Outlet } from "react-router";
+import Sidebar from "@/widgets/sidebar/ui/Sidebar";
+import GameBoard from "@/widgets/game-board/ui/GameBoard";
+import Board from "@/widgets/game-board/ui/Board";
+import Hand from "@/widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
 import WelcomeScreen from "@/pages/WelcomeScreen";
@@ -11,45 +12,26 @@ import AppModalLayer from "@/pages/AppModalLayer";
 import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
-import { usePositionSearch } from "@/entities/search";
 import GameControls from "@/widgets/game-board/ui/GameControls";
-import { useFileTree } from "@/entities/file-tree";
+import { useClearBoardSelection } from "@/features/clear-board-selection";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
+  // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
+  // どのパネルを出すかは URL（`panel/*`）が持つが、開閉はそちらへ揃えない
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const { view: gameView, state: gameState, clearSelection } = useGame();
-  const { params, updateParams } = useURLParams();
-  const rotate = params.pov === "gote";
-
-  const { selectedNode } = useFileTree();
-
-  const prevIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    const id = selectedNode?.id ?? null;
-    if (prevIdRef.current === id) return;
-    prevIdRef.current = id;
-    updateParams({ pov: undefined }, { replace: true });
-  }, [selectedNode, updateParams]);
+  const { view: gameView } = useGame();
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
-  const hasFile = !!gameView.player?.shogi;
-  const { openProject } = usePositionSearch();
 
-  const onPointerDownCapture = (e: React.PointerEvent) => {
-    if (!gameState.selectedPosition) return;
-    const el = e.target as HTMLElement | null;
-    if (!el) return;
-    if (el.closest('[data-board-square="true"]')) return;
-    if (el.closest('[data-hand-area="true"]')) return;
-    clearSelection();
-  };
+  // 「棋譜が無ければ WelcomeScreen、あれば作業面」は画面全体の切り替えなので、
+  // 判断はここに置く。**何をもって「ある」とするかは game が決める**
+  const { hasKifu } = gameView;
 
-  useEffect(() => {
-    openProject();
-  }, [openProject]);
+  // 「盤の外」は盤より広い範囲を見ないと判定できないので、捕まえるのはここ。
+  // 何が盤の内側かは feature が知っている
+  const onPointerDownCapture = useClearBoardSelection();
 
   return (
     <div
@@ -61,18 +43,17 @@ const AppLayout = () => {
         <AppModalLayer />
       </AppErrorBoundary>
 
-      <AppLayoutHeader
-        toggleSidebar={toggleSidebar}
-        isSidebarOpen={isSidebarOpen}
-        hasFile={hasFile}
-      />
+      <AppLayoutHeader toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
 
       <div className="app-layout__body">
         <aside className="app-layout__sidebar-slot">
-          <Sidebar isOpen={isSidebarOpen} />
+          {/* `panel/*` のルートがここに入る。行き先は AppRouter を見る */}
+          <Sidebar isOpen={isSidebarOpen}>
+            <Outlet />
+          </Sidebar>
         </aside>
         <main className="app-layout__main">
-          {!hasFile ? (
+          {!hasKifu ? (
             <div className="app-layout__empty">
               <WelcomeScreen />
             </div>
@@ -85,7 +66,6 @@ const AppLayout = () => {
                       topLeft={<Hand isSente={false} />}
                       center={<Board />}
                       bottomRight={<Hand isSente={true} />}
-                      rotate={rotate}
                     />
                     <div className="workspace__controls">
                       <GameControls />

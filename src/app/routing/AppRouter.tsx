@@ -11,6 +11,7 @@ function AppRouter() {
       <Route index element={<AppLoading />} />
 
       <Route element={<RuntimeShell />}>
+        {/* `panel/*` は AppLayout のサイドバー枠に入る（`AppLayout` の `Outlet`） */}
         <Route path="/app" element={<AppLayout />}>
           <Route index element={<Navigate replace to="panel/filetree" />} />
           <Route path="panel">

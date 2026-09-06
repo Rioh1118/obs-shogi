@@ -252,14 +252,30 @@ gap: 0.75rem;
 
 `success` は置いていません。成功を通知する場面が現物に1件も無いためです。必要になったら足します。
 
-**面と文字で使うトークンは分かれています。**
+**失敗を利用者に出すときは、まず通知の土台を通してください。**
+グローバルに出すなら `useNotify()`（`shared/lib/notification`）、その場所の中に出すなら
+`<InlineNotice>`（`shared/ui/notification`）です。段と見せ方の選び方は
+[ADR-0004](docs/decisions/0004-notification-taxonomy.md)、いまどの失敗がどこへ出ているかは
+`docs/state-transitions/failure-surfacing.md` にあります。
+**箱を自分で作ると、手書きの出口が1つ増えます**（いま8つあります）。
 
-| 用途                   | トークン                                      |
-| ---------------------- | --------------------------------------------- |
-| 枠・薄い面・アイコン   | `$color-warning` / `$color-danger` ほか意味色 |
-| 押せる面（確認の実行） | `$color-danger-solid` / `-hover`              |
-| 暗い面の上に置く文字   | `$color-danger-text`                          |
-| 失敗を伝える箱の面     | `$surface-warning` / `$surface-danger`        |
+下のトークンは、土台に載らない箱（既存のモーダルの中など）を触るときに使います。
+
+**基準ごとに使うトークンが違います。** 文字は 4.5:1、枠や記号は 3:1（WCAG 1.4.11）。
+
+| 用途                         | 基準  | トークン                                            |
+| ---------------------------- | ----- | --------------------------------------------------- |
+| 暗い面の上の**文字**         | 4.5:1 | `$color-danger-text` / `$color-fatal-text`          |
+| 暗い面の上の**枠・帯・記号** | 3:1   | `$color-info` / `$color-warning` / `$color-danger`  |
+| 押せる面（確認の実行）       | 4.5:1 | `$color-danger-solid` / `-hover`                    |
+| 失敗を伝える箱の面           | —     | `$surface-info` / `-warning` / `-danger` / `-fatal` |
+
+**`$color-fatal` だけは枠・記号にも使えません。** 暗いカードで 2.41:1 しかなく、
+輪郭の基準（3:1）を割ります。`$color-fatal-text` を使ってください
+（`$color-danger` は 3.75:1 なので枠・記号には足ります。文字には足りません）。
+
+持ち上げた `-text` の2つは色が近くなります（元の色相が同じなので避けられません）。
+**段の区別は色ではなく記号と文言と動作が持ちます。**
 
 失敗の箱を新しく作るときは `$surface-*` を使ってください。
 `color-mix(...)` を手で書くと、同じ式が複数のファイルに散ります。
@@ -274,6 +290,7 @@ gap: 0.75rem;
 | `KifuMoveActions`      | 同上                                              | 自前の値のまま                                                                                                                                                               |
 | `ContextMenu --danger` | `$color-secondary-dark`（アクセントの銅）         | トークンだが**危険色ではない**。比の話は [#185](https://github.com/Rioh1118/obs-shogi/issues/185)、意味の取り違えは [#180](https://github.com/Rioh1118/obs-shogi/issues/180) |
 | `FileConflictDialog`   | `$color-danger-text`                              | 寄せ済み                                                                                                                                                                     |
+| `FsErrorView`          | 帯に `$color-danger` / `$color-warning`           | トークンだが、通知の側（`Notice`）は同じ面の同じ役割に `-text` を使っている。**同じ面に載る同じ役割の帯が2通りある**                                                         |
 
 ### 機械で止めているもの
 
@@ -308,6 +325,7 @@ gap: 0.75rem;
 | `sourceText`                       | 検査が自前のコメント除去を持つこと                                                                                                                                                                                                                                                                                                                                                                         | 無し。`sourceText.ts` の `codeOf` を使う                                                                                                                                                                                                                                                                                                                                                       |
 | `escapeReceivers`                  | Escape を扱うハンドラで `stopPropagation()` を呼ぶこと                                                                                                                                                                                                                                                                                                                                                     | `ALLOWED` に相対パスと理由（モーダルの外にいて、上位の受け口を持たないものだけ）                                                                                                                                                                                                                                                                                                               |
 | `stateTransitionIndex`             | 状態遷移表を足して索引に載せ忘れること                                                                                                                                                                                                                                                                                                                                                                     | 無し。`docs/state-transitions/README.md` の在庫表に足す                                                                                                                                                                                                                                                                                                                                        |
+| `stateTransitionCells`             | 状態遷移表で、遷移（`→`）を書いたセルに ✓ も無く「埋まっていないセル」にも載っていないこと。**掛けているのは `board-orientation.md` だけ**（`SCANNED` で名指し。広げるのは #435）                                                                                                                                                                                                                          | 無し。テストを足して ✓ を付けるか、「埋まっていないセル」に挙げる。`—` / `×` のセルは対象外                                                                                                                                                                                                                                                                                                    |
 | `layering`（Rust）                 | 4つ。`engine/` のモジュールが環になること／下の段が上の段を使うこと／`engine/` が crate の他の枝を `use` すること／**段が「使わない」と決めた外部クレートを本文に書くこと**（`use` だけでなく型の位置の完全修飾も見る）                                                                                                                                                                                    | 環と段と外への `use` は逃げ道なし。共有したいものは共有できる段まで下げる。新しいモジュールは `LAYERS` に「何を決める場所か」を1行で書く。**外部クレートは `LAYERS` の `forbids` から外すのが唯一の道**で、外すには ADR-0008 決定2 を書き換えること                                                                                                                                            |
 | `engine_timeouts`（Rust）          | モジュールを跨ぐ上限どうしの関係が崩れること                                                                                                                                                                                                                                                                                                                                                               | 無し。値を戻すか、関係そのものを変えるなら式を書き直す（散文で「同じN分」と書かない）                                                                                                                                                                                                                                                                                                          |
 | `timeout_marker`（Rust）           | 時間切れの `Err` が `TIMED_OUT` の目印を持たないこと                                                                                                                                                                                                                                                                                                                                                       | 無し。目印が無いと、再試行で通る失敗をフロントが見分けられない。見ているのは `EngineError::Timeout(` の実引数の綴りだけなので、**変数へ括り出すと目印が入っていても落ちる**——目印は実引数側に残すこと                                                                                                                                                                                          |

@@ -65,3 +65,54 @@ describe("loadGame", () => {
     expect(game.current!.state.error).not.toBeNull();
   });
 });
+
+/**
+ * `hasKifu` は**画面を丸ごと切り替える側**の綴り（盤の内側の判定は別の問い。
+ * `GameView` の doc を見る）。読み手は `player` も `shogi` も知らない形で問える必要がある。
+ *
+ * **壊れても例外は出ない**——切り替えが狂って空の作業面が出るか、
+ * 棋譜があるのに WelcomeScreen が出るだけ。
+ */
+describe("hasKifu", () => {
+  test("何も読み込んでいなければ偽", () => {
+    const game = mountGame();
+
+    expect(game.current!.view.hasKifu).toBe(false);
+  });
+
+  test("読み込めた棋譜があれば真", async () => {
+    const game = mountGame();
+    const jkf: JKFData = { header: {}, moves: [{}, { comments: ["t1"] }] };
+
+    await act(async () => {
+      await game.current!.loadGame(jkf, "/ok.kif");
+    });
+
+    expect(game.current!.view.hasKifu).toBe(true);
+  });
+
+  test("読み込みに失敗したら偽のまま", async () => {
+    const game = mountGame();
+    const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
+
+    await act(async () => {
+      await game.current!.loadGame(broken, "/broken.kif");
+    });
+
+    expect(game.current!.view.hasKifu).toBe(false);
+  });
+
+  test("閉じたら偽に戻る", async () => {
+    const game = mountGame();
+    const jkf: JKFData = { header: {}, moves: [{}] };
+
+    await act(async () => {
+      await game.current!.loadGame(jkf, "/ok.kif");
+    });
+    await act(async () => {
+      game.current!.resetGame();
+    });
+
+    expect(game.current!.view.hasKifu).toBe(false);
+  });
+});

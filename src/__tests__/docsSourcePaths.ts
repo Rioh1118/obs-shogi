@@ -139,14 +139,25 @@ export function lineNumberRefsIn(markdown: string): string[] {
   const pinned = /`v?\d+(\.\d+)+`[^\n]*時点/.test(markdown);
 
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
-    // 前が識別子かパスであること。`03:00` のような綴りを巻き込まない
-    if (!/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
-    if (!LINE_SUFFIX.test(inline)) continue;
+    // ファイル名を省いた `:29` `:29-35` も拾う。**省いた形のほうが悪い**——ずれたときに
+    // どのファイルの29行目かも辿れない。
+    // `#2c3639`（色）を巻き込まないよう `#` は受けず、`03:00` は数字始まりなので当たらない
+    const bare = /^:\d+(-\d+)?$/.test(inline);
 
-    const bare = inline.replace(LINE_SUFFIX, "");
-    const looksLikePath = bare.includes("/") || /\.[A-Za-z0-9]+$/.test(bare);
-    const resolvable = ROOTS.some((root) => existsSync(join(REPO_ROOT, root + bare)));
-    if (pinned && looksLikePath && !resolvable && !LAYER.test(bare)) continue;
+    // 前が識別子かパスであること。`03:00` のような綴りを巻き込まない
+    // 版を固定した文書の行だけの綴りは、一次資料（この repo に無いソース）の行。
+    // 版を書いてあれば、あちらが動いたときにどの版の行かは辿れる
+    if (bare && pinned) continue;
+
+    // 行だけの綴り（`:29`）は前の識別子を持たないので、その検査を飛ばす
+    if (!bare && !/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
+    if (!bare && !LINE_SUFFIX.test(inline)) continue;
+
+    // 版を固定した文書では、この repo に無いパス（一次資料の行番号）を拾わない
+    const withoutLine = inline.replace(LINE_SUFFIX, "");
+    const looksLikePath = withoutLine.includes("/") || /\.[A-Za-z0-9]+$/.test(withoutLine);
+    const resolvable = ROOTS.some((root) => existsSync(join(REPO_ROOT, root + withoutLine)));
+    if (!bare && pinned && looksLikePath && !resolvable && !LAYER.test(withoutLine)) continue;
 
     found.add(inline);
   }
