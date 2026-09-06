@@ -36,7 +36,7 @@ count_failure() {
 # 走るべき assertion の本数。**現在値ではなく床。**
 # 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
 # 実測は末尾の runs を見ること。
-GATE_TEST_MIN_RUNS=164
+GATE_TEST_MIN_RUNS=170
 GATE_TEST_RUNLOG=$(mktemp)
 export GATE_TEST_RUNLOG
 
@@ -298,9 +298,20 @@ expect_dir "" 'git commit -m x --author="$(git stash)a"' "$here"
 expect_dir "" 'git commit -am x `git stash pop`' "$here"
 expect_dir "" 'git commit -am x $(git diff --output=src/app/App.tsx)' "$here"
 
+# **綴りを並べて塞がない。** 置換の綴りを列挙した版は、リダイレクトと
+# zsh のプロセス置換（`=( )`）を素通しした。どちらもシェルが `git commit` を
+# 起動する前にツリーを変える。
+expect_dir "" 'git commit -am x > src/app/App.tsx' "$here"
+expect_dir "" 'git commit -am x >src/app/App.tsx' "$here"
+expect_dir "" 'git commit -am x 2>src/app/App.tsx' "$here"
+expect_dir "" 'git commit -F =(git rm -f src/app/App.tsx)' "$here"
+
 # メッセージをファイルから読む形は、置換を1つも含まないので通る。
 # **塞いだ後に残る道**なので、ここが止まると打ち方が1つも無くなる。
 expect_dir "$here" 'git commit --file=/tmp/msg.txt' "$here"
+expect_dir "$here" 'git commit --amend --no-edit' "$here"
+# 空白を含まない引用も潰さないと、括弧1つで止まる
+expect_dir "$here" "git commit -m 'fix(#375):括弧を含む'" "$here"
 expect_dir "$here" "git commit -m 'fix: \`x\` を直す'" "$here"
 
 # 読むだけの git は手前に置いてよい。**塞ぎすぎると、いま通っている綴りが止まる。**
