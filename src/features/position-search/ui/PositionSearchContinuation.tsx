@@ -13,6 +13,13 @@ import { cursorKey, type CursorPath } from "@/entities/kifu/model/cursor";
 
 type Props = {
   activeHit: PositionHit | null;
+
+  /**
+   * 次に選ばれそうなヒット（直前の移動方向へ1つ）。**中身は出さない。**
+   * その棋譜を先に読んでおくためだけに使う。
+   */
+  prefetchHit?: PositionHit | null;
+
   resolveAbsPath: (hit: PositionHit) => string | null;
   ply?: number;
 };
@@ -44,6 +51,17 @@ const READ_DEBOUNCE_MS = 150;
  * 誤差ではない**（JKF は原文より大きい）ので、上限は控えめに置く。
  */
 const MAX_CACHED_CHARS = 2_000_000;
+
+/**
+ * 次に選ばれそうな1行を先に読むまでの時間（ms）。
+ *
+ * **選んでいる行より後に置く。** 同時に走らせると、利用者が待っている読みと
+ * 誰も待っていない読みが同じ IPC を取り合う。
+ *
+ * 先読みが当たると、次の矢印は待ち時間ごと消える（読み込み済みなら待たない）。
+ * 外れても捨てるのは1本ぶんの読みで、抱えている量の上限は変わらない。
+ */
+const PREFETCH_DELAY_MS = 300;
 
 type LoadedKifu = { jkf: JKFData; sourceChars: number };
 
@@ -146,7 +164,12 @@ function readContinuation(jkf: JKFData, cursor: CursorPath, ply: number): string
   return out;
 }
 
-export default function PositionSearchContinuation({ activeHit, resolveAbsPath, ply = 3 }: Props) {
+export default function PositionSearchContinuation({
+  activeHit,
+  prefetchHit = null,
+  resolveAbsPath,
+  ply = 3,
+}: Props) {
   const [moves, setMoves] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -227,6 +250,31 @@ export default function PositionSearchContinuation({ activeHit, resolveAbsPath, 
     const timer = window.setTimeout(run, READ_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
   }, [target, ply]);
+
+  /**
+   * 次に選ばれそうな行の棋譜。**文字列で持つ。** ここが object だと
+   * `resolveAbsPath` の作り直しで下の effect が動き、選択が動いていないのに
+   * 先読みが走る
+   */
+  const prefetchAbs = useMemo(() => {
+    if (!prefetchHit) return null;
+    return resolveAbsPath(prefetchHit);
+  }, [prefetchHit, resolveAbsPath]);
+
+  useEffect(() => {
+    if (!prefetchAbs || prefetchAbs === target?.abs) return;
+
+    const cache = kifuCacheRef.current;
+    if (cache.has(prefetchAbs)) return;
+
+    const timer = window.setTimeout(() => {
+      // 誰も待っていない読み。失敗しても画面には出さない——出す先は
+      // 「選んでいる行の続き」だけで、そこはこの棋譜ではない
+      void cache.load(prefetchAbs).catch(() => {});
+    }, PREFETCH_DELAY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [prefetchAbs, target?.abs]);
 
   return (
     <section className="pos-search-cont" aria-label={`続き${ply}手`}>

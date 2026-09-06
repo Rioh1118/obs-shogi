@@ -55,16 +55,36 @@ const absOf = (hit: PositionHit) => `/root/${hit.occ.fileId}.kif`;
  */
 const freshResolver = () => absOf;
 
-function view(activeHit: PositionHit | null, resolveAbsPath: (h: PositionHit) => string | null) {
+function view(
+  activeHit: PositionHit | null,
+  resolveAbsPath: (h: PositionHit) => string | null,
+  prefetchHit: PositionHit | null = null,
+) {
   return (
-    <PositionSearchContinuation activeHit={activeHit} resolveAbsPath={resolveAbsPath} ply={5} />
+    <PositionSearchContinuation
+      activeHit={activeHit}
+      prefetchHit={prefetchHit}
+      resolveAbsPath={resolveAbsPath}
+      ply={5}
+    />
   );
 }
 
-/** 待ち時間を越えさせ、読みの解決まで流す */
+/** 先読みが動き出すより手前まで進める */
+const BEFORE_PREFETCH_MS = 200;
+/** 先読みも動き終わるまで進める */
+const PAST_PREFETCH_MS = 400;
+
+/** 待ち時間を越えさせ、読みの解決まで流す（先読みには届かない） */
 async function settle() {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+  });
+}
+
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
   });
 }
 
@@ -167,6 +187,74 @@ describe("矢印で駆け抜けたとき", () => {
     await settle();
 
     expect(readPaths()).toEqual(["/root/10.kif"]);
+  });
+});
+
+describe("次の1行の先読み", () => {
+  /**
+   * デバウンスを入れると、矢印を1つ押すたびに 150ms 待たされる。
+   * **降りる先を先に読んでおけば、その待ちは消える**（読み込み済みなら待たない）
+   */
+  test("落ち着いたら、次に選ばれそうな1行を読んでおく", async () => {
+    await act(async () => {
+      render(view(HIT, freshResolver(), OTHER));
+    });
+
+    await settle();
+    expect(readPaths()).toEqual(["/root/1.kif"]);
+
+    await advance(PAST_PREFETCH_MS);
+
+    expect(readPaths()).toEqual(["/root/1.kif", "/root/2.kif"]);
+  });
+
+  test("先読みしてあった行へ移ると、待たずに出る", async () => {
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(HIT, freshResolver(), OTHER));
+    });
+    await settle();
+    await advance(PAST_PREFETCH_MS);
+    buildPlayer.mockReset();
+
+    // 待ち時間には届かない間隔で移る
+    await act(async () => {
+      v.rerender(view(OTHER, freshResolver(), hitAt(3)));
+    });
+    await advance(1);
+
+    expect(buildPlayer).toHaveBeenCalledTimes(1);
+  });
+
+  /** 駆け抜けている最中は、選んでいる行の読みすら投げていない。先読みも同じ */
+  test("矢印で駆け抜けている間は先読みしない", async () => {
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(hitAt(0), freshResolver(), hitAt(1)));
+    });
+
+    for (let i = 1; i <= 10; i++) {
+      await act(async () => {
+        v.rerender(view(hitAt(i), freshResolver(), hitAt(i + 1)));
+      });
+      await advance(33);
+    }
+
+    expect(readPaths()).toEqual([]);
+
+    await advance(PAST_PREFETCH_MS);
+    expect(readPaths()).toEqual(["/root/10.kif", "/root/11.kif"]);
+  });
+
+  /** 先読みは、選んでいる行の読みの後ろに置く。同じ IPC を取り合わせない */
+  test("選んでいる行より先に先読みが走らない", async () => {
+    await act(async () => {
+      render(view(HIT, freshResolver(), OTHER));
+    });
+
+    await advance(BEFORE_PREFETCH_MS);
+
+    expect(readPaths()).toEqual(["/root/1.kif"]);
   });
 });
 

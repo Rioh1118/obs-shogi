@@ -217,12 +217,20 @@ export default function PositionSearchModal() {
   // 自分で書いた値を引くことになって一度も働かず、触っていないのに選択が滑る
   const activeHitRef = useRef<PositionHit | null>(null);
 
+  /**
+   * 直前に選択が動いた向き。**先読みの当てにだけ使う**（`PositionSearchContinuation`）。
+   * 一覧を降りている人は次も下へ行く、という以上の意味は無いので、外れても
+   * 1本ぶんの読みが無駄になるだけ。既定は下向き
+   */
+  const moveDirRef = useRef<1 | -1>(1);
+
   const selectIndex = useCallback(
     (next: number) => {
+      if (next !== activeIndex) moveDirRef.current = next > activeIndex ? 1 : -1;
       setActiveIndex(next);
       activeHitRef.current = orderedHits[next] ?? null;
     },
-    [orderedHits],
+    [orderedHits, activeIndex],
   );
 
   useEffect(() => {
@@ -361,6 +369,7 @@ export default function PositionSearchModal() {
               <div className="pos-search__aux">
                 <PositionSearchContinuation
                   activeHit={activeHit ?? null}
+                  prefetchHit={orderedHits[activeIndex + moveDirRef.current] ?? null}
                   resolveAbsPath={resolveHitAbsPath}
                   ply={5}
                 />
