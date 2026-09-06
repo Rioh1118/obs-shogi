@@ -17,7 +17,6 @@ type SelectedNode = { path: string; isDirectory: boolean } | null;
 const stub = {
   selectedNode: null as SelectedNode,
   player: null as unknown,
-  isLoading: false,
   loadedAbsPath: null as string | null,
   kifuError: null as { path?: string } | null,
 };
@@ -32,7 +31,7 @@ vi.mock("@/entities/file-tree", () => ({
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    state: { isLoading: stub.isLoading, loadedAbsPath: stub.loadedAbsPath },
+    state: { loadedAbsPath: stub.loadedAbsPath },
     view: { player: stub.player },
     applyCursor,
   }),
@@ -45,7 +44,6 @@ const CURSOR: CursorLite = { tesuu: 3, forkPointers: [] };
 beforeEach(() => {
   stub.selectedNode = null;
   stub.player = null;
-  stub.isLoading = false;
   stub.loadedAbsPath = null;
   stub.kifuError = null;
   selectNodeByAbsPath.mockReset();

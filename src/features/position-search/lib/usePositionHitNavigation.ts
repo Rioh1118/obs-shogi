@@ -38,12 +38,15 @@ export function usePositionHitNavigation() {
       // `view.player` は盤に載っている棋譜の再生器なので、選択だけを見ると
       // 読み込みの飛行中や盤に載せられなかった棋譜（#434）で
       // **前の棋譜に別の棋譜のカーソルを当てて成功を返す**。
-      // 条件は下の effect（着いてから当てる側）と同じにしてある
+      //
+      // **`state.isLoading` は見ない。** あれは `blockingWrites > 0` の射影
+      // （`entities/game/model/types.ts`）で、棋譜の読み込み中には立たない。
+      // 読み込みの飛行中を実際に弾いているのは `loadedAbsPath` の一致で、
+      // 条件は下の effect（着いてから当てる側）と同じ2つにしてある
       if (
         selectedNode &&
         !selectedNode.isDirectory &&
         selectedNode.path === absPath &&
-        !gameState.isLoading &&
         gameState.loadedAbsPath === absPath &&
         gameView.player
       ) {
@@ -59,14 +62,7 @@ export function usePositionHitNavigation() {
 
       return true;
     },
-    [
-      applyCursor,
-      gameState.isLoading,
-      gameState.loadedAbsPath,
-      gameView.player,
-      selectNodeByAbsPath,
-      selectedNode,
-    ],
+    [applyCursor, gameState.loadedAbsPath, gameView.player, selectNodeByAbsPath, selectedNode],
   );
 
   // ファイル切替 → 読み込み完了（view.player が立つ）を待ってから applyCursor
@@ -88,20 +84,12 @@ export function usePositionHitNavigation() {
     }
 
     if (!selectedNode || selectedNode.isDirectory) return;
-    if (gameState.isLoading) return;
     if (!gameView.player) return;
     if (gameState.loadedAbsPath !== p.absPath) return;
 
     applyCursor(cursorFromLite(p.cursor));
     pendingRef.current = null;
-  }, [
-    applyCursor,
-    gameState.isLoading,
-    gameView.player,
-    gameState.loadedAbsPath,
-    kifuError,
-    selectedNode,
-  ]);
+  }, [applyCursor, gameView.player, gameState.loadedAbsPath, kifuError, selectedNode]);
 
   return { startNavigationToHit };
 }
