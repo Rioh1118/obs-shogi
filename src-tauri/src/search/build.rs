@@ -308,12 +308,22 @@ pub async fn build_full_index_task(
         });
     }
 
-    project
-        .install_after_full_build(root_dir.clone(), scan, path_to_id, next_file_id)
-        .await;
+    // **据えられなかったら、watcher も起こさない。** 据え直された後に
+    // 起こすと、新しいプロジェクトの根を前のプロジェクトの watcher が見張る
+    if !project
+        .install_after_full_build(epoch, root_dir.clone(), scan, path_to_id, next_file_id)
+        .await
+    {
+        return;
+    }
 
     let _ = project
         .clone()
-        .start_watcher_and_debounce(app.clone(), store.clone(), Duration::from_millis(800))
+        .start_watcher_and_debounce(
+            app.clone(),
+            store.clone(),
+            Duration::from_millis(800),
+            epoch,
+        )
         .await;
 }

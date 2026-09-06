@@ -8,7 +8,12 @@ interface Props {
   isRetrying?: boolean;
   /**
    * この部品の中では直せない失敗からの逃げ道。
-   * 何をすれば直るかは失敗ごとに違うので、動作ごと受け取る（ADR-0004）。
+   * 何をすれば直るかは失敗ごとに違うので、動作ごと受け取る（ADR-0004 決定3）。
+   *
+   * **`run` は同期に限る。** 形は `NotifyAction`（`shared/lib/notification/types`）と
+   * 同じだが、あちらは `Promise` を返せる——この部品には**その失敗を出す場所が無い**ので、
+   * そのまま使うと逃げ道が黙って死ぬ経路ができる。
+   * TODO(#277): この部品が逃げ道の失敗を出せる形になれば `NotifyAction` に寄せる。
    */
   fallback?: { label: string; run: () => void };
 }

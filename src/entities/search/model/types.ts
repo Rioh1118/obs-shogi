@@ -88,8 +88,6 @@ export type Action =
 export type PositionSearchContextType = {
   state: SearchState;
 
-  openProject: (rootDir?: string) => Promise<OpenProjectOutput>;
-
   searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
 
   cancelSearch: (requestId: RequestId) => Promise<void>;

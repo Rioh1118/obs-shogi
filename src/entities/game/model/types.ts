@@ -58,6 +58,21 @@ export interface GameContextState {
 export interface GameView {
   player: JKFPlayer | null;
 
+  /**
+   * 盤に載せられる棋譜があるか。**画面を丸ごと切り替える側の綴りはこれ**
+   * （`AppLayout` の `WelcomeScreen` との分岐、ヘッダの中央）。
+   *
+   * `player` があれば `shogi` も必ずある——`loadGame` が `buildPlayer` で門番していて、
+   * `cursorView` が `player` に入れるのは `null` か `buildPlayer` の返り値だけ。
+   * `?.shogi` を残してあるのは `cursorView` の catch を将来ゆるめたときの保険で、
+   * **いま `player !== null` と同値**。
+   *
+   * **盤の内側は寄せていない。** `Board` は `player?.shogi` を直に見て自分の描画を
+   * 止める。`Hand` は止めず、空の駒台を描く。あちらは「この部品が描けるか」で、
+   * こちらとは別の問い。
+   */
+  hasKifu: boolean;
+
   legalMoves: ShogiMove[];
   lastMove: ShogiMove | null;
   currentMove: IMoveMoveFormat | undefined;
@@ -244,7 +259,6 @@ export interface GameContextType {
 
   clearError: () => void;
 
-  isGameLoaded: () => boolean;
   isAtStart: () => boolean;
   isAtEnd: () => boolean;
   canGoForward: () => boolean;
@@ -254,7 +268,6 @@ export interface GameContextType {
   getCurrentMoveIndex: () => number;
   getTotalMoves: () => number;
 
-  hasSelection: () => boolean;
   getCurrentMove: () => IMoveMoveFormat | undefined;
   getCurrentComments: () => string[];
 

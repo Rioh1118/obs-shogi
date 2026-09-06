@@ -54,6 +54,20 @@ pub enum RescanOutcome {
 
 #[derive(Debug, Default)]
 struct Inner {
+    /// いま据わっているプロジェクトの代。**索引の代と同じ値。**
+    ///
+    /// `IndexStore` の代は索引だけを守る。帳簿（`root_dir` / `scan` /
+    /// `path_to_id` / `next_file_id`）と watcher が代を持たないと、
+    /// **索引は新しいプロジェクトのもの・帳簿は前のもの**という組が作れる
+    /// ——全件構築は最後の関門を通った後に帳簿を据えるので、その間に
+    /// 2回目の `open` が入るとそうなる。そのあとの差分適用は
+    /// 「索引の代」を拾うので関門を素通りし、**前のプロジェクトの `file_id` で
+    /// 新しい索引に墓標を打つ**。`run_rescan_diff_apply` の doc が
+    /// 「守らないと起きる」と書いている当のもの。
+    ///
+    /// 0 は「まだ何も据わっていない」。代は 1 から増える（`IndexStore::take_epoch`）。
+    epoch: u64,
+
     root_dir: Option<PathBuf>,
     scan: ScanSnapshot,
 
@@ -76,29 +90,58 @@ impl ProjectManager {
         }
     }
 
+    /// 構築し終えた帳簿を据える。**自分の代のものだけ。**
+    ///
+    /// `epoch` は `IndexStore::restart` / `install_restored` が返した値。
+    /// **据えられたかを返す**——据えなかったら、呼び手も watcher の起動と
+    /// checkpoint を飛ばすこと。据えないのに続けると、新しいプロジェクトの
+    /// 根を前のプロジェクトの watcher が見張る。
     pub async fn install_after_full_build(
         &self,
+        epoch: u64,
         root_dir: PathBuf,
         scan: ScanSnapshot,
         path_to_id: HashMap<String, FileId>,
         next_file_id: FileId,
-    ) {
+    ) -> bool {
         let mut g = self.inner.lock().await;
+        // **古い代は据えない。** 代は増えるだけなので、自分より新しいものが
+        // 既に据わっていれば、この構築はもう誰のものでもない
+        if epoch < g.epoch {
+            log::info!("[project] 据え直された後の構築なので帳簿を据えない（epoch={epoch}）");
+            return false;
+        }
+        g.epoch = epoch;
         g.root_dir = Some(root_dir);
         g.scan = scan;
         g.path_to_id = path_to_id;
         g.next_file_id = next_file_id;
+        true
     }
 
+    /// ファイル監視と、静穏をまとめる debounce ループを起こす。
+    ///
+    /// **代を持ち回る。** watcher を作るのに時間が要り、その間に据え直されうる。
+    /// 代を見ないと、**古い呼び手が新しい watcher を破棄して自分のものを据える**
+    /// ——新しいワークスペースの変更が二度と拾われなくなり、画面は黙る。
+    ///
+    /// 据え直されていたら何もしない。`Ok` を返すのは、呼び手にとって
+    /// 「起こせなかった」ではなく「起こす相手がもう居ない」だから。
     pub async fn start_watcher_and_debounce(
         self: Arc<Self>,
         app: AppHandle,
         store: Arc<IndexStore>,
         quiet: Duration,
+        epoch: u64,
     ) -> Result<(), String> {
         // 既存タスク停止＆watcher破棄
         let root = {
             let mut g = self.inner.lock().await;
+            // **壊す手前で見る。** ここを飛ばすと、据え直された後の呼び手が
+            // 新しいプロジェクトの watcher を落として帰る
+            if epoch != g.epoch {
+                return Ok(());
+            }
             if let Some(h) = g.debounce_task.take() {
                 h.abort();
             }
@@ -126,6 +169,10 @@ impl ProjectManager {
         // watcher を保持（drop したら止まる）
         {
             let mut g = self.inner.lock().await;
+            // 作っている間に据え直されていたら、据えずに落とす
+            if epoch != g.epoch {
+                return Ok(());
+            }
             g.watcher = Some(watcher);
         }
 
@@ -167,6 +214,12 @@ impl ProjectManager {
         });
 
         let mut g = self.inner.lock().await;
+        // 据え直されていたら、起こしたループを自分で畳む。据えると
+        // 新しいプロジェクトの debounce を落とす
+        if epoch != g.epoch {
+            handle.abort();
+            return Ok(());
+        }
         g.debounce_task = Some(handle);
 
         Ok(())
@@ -188,8 +241,11 @@ impl ProjectManager {
         app: AppHandle,
         store: Arc<IndexStore>,
     ) -> RescanOutcome {
-        // 走り出したときの代。以後の書き込みはこれを持ち回る
-        let epoch = store.snapshot().epoch;
+        // **代は帳簿から読む。** 索引から拾うと、帳簿と索引が別のプロジェクトの
+        // 組でも関門を素通りする——前のプロジェクトの `path_to_id` の `file_id` で
+        // 新しい索引に墓標を打つことになる。帳簿から読めば、以後の
+        // `update_if_epoch` が「帳簿と索引が同じ代」を式で確かめることになる
+        let epoch = self.inner.lock().await.epoch;
         let commit = |f: &dyn Fn(&IndexSnapshot) -> IndexSnapshot| -> bool {
             if store.update_if_epoch(epoch, f) {
                 return true;
@@ -274,8 +330,11 @@ impl ProjectManager {
 
         let dirty_count = (diff.added.len() + diff.modified.len() + diff.removed.len()) as u32;
         if dirty_count == 0 {
-            // 変化なし：scanだけ更新して終了
+            // 変化なし：scanだけ更新して終了。**代が変わっていたら書かない**
             let mut g = self.inner.lock().await;
+            if epoch != g.epoch {
+                return RescanOutcome::Superseded;
+            }
             g.scan = next_scan;
             return RescanOutcome::Committed {
                 partially_unreadable: partial,
@@ -425,8 +484,13 @@ impl ProjectManager {
             IndexStatePayload::of(IndexState::Ready, next_scan.by_path.len() as u32),
         );
 
-        // プロジェクト状態をコミット
+        // プロジェクト状態をコミット。**索引と同じ関門を通す**
+        // ——ここを飛ばすと、索引は書けなかったのに帳簿だけが進む
         let mut g = self.inner.lock().await;
+        if epoch != g.epoch {
+            log::warn!("[rescan] 据え直されたので帳簿の書き戻しをやめる");
+            return RescanOutcome::Superseded;
+        }
         g.scan = next_scan;
         g.path_to_id = path_to_id;
         g.next_file_id = next_file_id;
@@ -501,5 +565,87 @@ impl ProjectManager {
             node_table,
             by_bucket,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ledger() -> ProjectManager {
+        ProjectManager::new()
+    }
+
+    /// **据え直された後の構築が、帳簿を奪い返さないこと。**
+    ///
+    /// 全件構築は索引の最後の関門を通った後に帳簿を据える。その間に2回目の
+    /// `open` が入ると、索引は新しいプロジェクトのもの・帳簿は前のものになる。
+    /// そのあとの差分適用は帳簿から代を読むので、**帳簿が古いままだと
+    /// 前のプロジェクトの `file_id` で新しい索引に墓標を打つ**。
+    #[tokio::test]
+    async fn a_build_from_a_previous_project_does_not_take_the_ledger_back() {
+        let pm = ledger();
+
+        assert!(
+            pm.install_after_full_build(
+                2,
+                PathBuf::from("/b"),
+                ScanSnapshot::default(),
+                HashMap::new(),
+                1
+            )
+            .await,
+            "新しい代の構築を据えていない"
+        );
+        assert!(
+            !pm.install_after_full_build(
+                1,
+                PathBuf::from("/a"),
+                ScanSnapshot::default(),
+                HashMap::new(),
+                1
+            )
+            .await,
+            "据え直された後の構築が帳簿を奪い返した"
+        );
+
+        let g = pm.inner.lock().await;
+        assert_eq!(g.epoch, 2, "帳簿の代が古い方へ戻っている");
+        assert_eq!(
+            g.root_dir.as_deref(),
+            Some(Path::new("/b")),
+            "帳簿の根が前のプロジェクトのものになっている"
+        );
+    }
+
+    /// **同じ代なら据え直せること。**
+    ///
+    /// 復元 → 差分適用 のように、同じプロジェクトが2度据えることがある。
+    /// ここを弾くと、復元した索引に差分が二度と当たらなくなる。
+    #[tokio::test]
+    async fn the_same_project_can_install_twice() {
+        let pm = ledger();
+        assert!(
+            pm.install_after_full_build(
+                3,
+                PathBuf::from("/a"),
+                ScanSnapshot::default(),
+                HashMap::new(),
+                1
+            )
+            .await
+        );
+        assert!(
+            pm.install_after_full_build(
+                3,
+                PathBuf::from("/a"),
+                ScanSnapshot::default(),
+                HashMap::new(),
+                9
+            )
+            .await,
+            "同じ代の据え直しを弾いている"
+        );
+        assert_eq!(pm.inner.lock().await.next_file_id, 9);
     }
 }

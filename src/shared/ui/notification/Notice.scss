@@ -1,0 +1,200 @@
+@use "@/index.scss" as index;
+
+// 通知の中身。トースト・バナー・モーダル・インラインが共有する（ADR-0004 決定4）。
+// 共通なのは段（色）と動作だけで、どこに置くかは載せる側が決める。
+.notice {
+  display: flex;
+  gap: index.$space-4;
+  align-items: flex-start;
+  padding: index.$space-4 index.$space-5;
+  // 段の印。4つの面どうしの差は最大でも 1.06:1 しか無いので、段はこの帯と記号が持つ
+  border-left: 3px solid transparent;
+
+  // 題の1行目と目線を揃える。記号の箱は文字より背が低い
+  &__icon {
+    flex: none;
+    margin-top: index.$space-1;
+    line-height: 1;
+  }
+
+  &__body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__head {
+    display: flex;
+    align-items: baseline;
+    gap: index.$space-2;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: index.$font-body;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  // 畳んだ件数のバッジ。出す条件は `Notification.count` の doc
+  &__count {
+    flex: none;
+    min-width: index.$space-10;
+    padding: 0 index.$space-2;
+    border-radius: index.$radius-pill;
+    font-size: index.$font-hint;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  &__text {
+    margin: index.$space-1 0 0;
+    font-size: index.$font-aux;
+    // 失敗の説明は切り詰めない。`…` で切ると、いちばん要る「どこが」が落ちる
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: index.$space-3;
+    margin-top: index.$space-3;
+  }
+
+  // 動作そのものが失敗したときに、**同じ通知の中で**出す。
+  // console に落とすと、押した人には何も起きなかったようにしか見えない
+  &__actionError {
+    margin: index.$space-2 0 0;
+    font-size: index.$font-hint;
+    word-break: break-word;
+  }
+
+  &__close {
+    flex: none;
+    padding: 0 index.$space-1;
+    border: none;
+    background: none;
+    font-size: index.$font-aux;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+}
+
+// 段ごとの面と文字。**4つ書き下してある。**
+//
+// `@each` や `@mixin` で回すと `contrastRatchet` の走査器が段の色を解けず、
+// 24 対が丸ごと「測れなかった」枠へ移る（ループ変数も mixin の引数も
+// `$name: 値` の宣言ではないので `collectVariables` が拾えない）。
+// **落ちるのは `UNMEASURED_COUNT` の側**なので気づけはするが、そこで数を上げて
+// 通すと、この面の比を誰も測っていない状態が緑のまま残る。書き下すぶんの重複はその代償。
+//
+// 面が不透明なのは、載る場所（暗いカード・サイドバー・モーダルの中）ごとに
+// 実効値が変わるのを防ぐため。
+.notice--info {
+  background: index.$surface-info;
+  color: index.$color-text-primary;
+  border-left-color: index.$color-info;
+
+  .notice__icon {
+    color: index.$color-info;
+  }
+
+  .notice__count {
+    background: index.$color-info;
+    color: index.$surface-info;
+  }
+
+  .notice__text {
+    color: rgba(index.$color-text-primary, 0.86);
+  }
+
+  .notice__actionError {
+    color: index.$color-danger-text;
+  }
+
+  .notice__close {
+    color: rgba(index.$color-text-primary, 0.68);
+  }
+}
+
+.notice--warning {
+  background: index.$surface-warning;
+  color: index.$color-text-primary;
+  border-left-color: index.$color-warning;
+
+  .notice__icon {
+    color: index.$color-warning;
+  }
+
+  .notice__count {
+    background: index.$color-warning;
+    color: index.$surface-warning;
+  }
+
+  .notice__text {
+    color: rgba(index.$color-text-primary, 0.86);
+  }
+
+  .notice__actionError {
+    color: index.$color-danger-text;
+  }
+
+  .notice__close {
+    color: rgba(index.$color-text-primary, 0.68);
+  }
+}
+
+.notice--danger {
+  background: index.$surface-danger;
+  color: index.$color-text-primary;
+  border-left-color: index.$color-danger-text;
+
+  .notice__icon {
+    color: index.$color-danger-text;
+  }
+
+  .notice__count {
+    background: index.$color-danger-text;
+    color: index.$surface-danger;
+  }
+
+  .notice__text {
+    color: rgba(index.$color-text-primary, 0.86);
+  }
+
+  .notice__actionError {
+    color: index.$color-danger-text;
+  }
+
+  .notice__close {
+    color: rgba(index.$color-text-primary, 0.68);
+  }
+}
+
+// 段の色は $color-fatal でなく $color-fatal-text。生のままだと 2.32:1 で、
+// 帯も記号も見えない（理由は index.scss）
+.notice--fatal {
+  background: index.$surface-fatal;
+  color: index.$color-text-primary;
+  border-left-color: index.$color-fatal-text;
+
+  .notice__icon {
+    color: index.$color-fatal-text;
+  }
+
+  .notice__count {
+    background: index.$color-fatal-text;
+    color: index.$surface-fatal;
+  }
+
+  .notice__text {
+    color: rgba(index.$color-text-primary, 0.86);
+  }
+
+  .notice__actionError {
+    color: index.$color-danger-text;
+  }
+
+  .notice__close {
+    color: rgba(index.$color-text-primary, 0.68);
+  }
+}

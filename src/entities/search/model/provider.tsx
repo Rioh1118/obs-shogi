@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-
-import { useAppConfig } from "@/entities/app-config";
 
 import {
   openProject as openProjectApi,
@@ -33,10 +39,22 @@ type HitsCacheEntry = {
   flat: PositionHit[];
 };
 
-export function PositionSearchProvider({ children }: { children: ReactNode }) {
+/**
+ * 局面検索の state と索引の口。
+ *
+ * **根は prop で受け取る。** 自分で `useAppConfig` を読むと、このスライスが
+ * 起動シーケンスを持つことになり、`AppConfigProvider` の下に置く制約が
+ * 呼び出し側からは prop でも型でも読めなくなる。流し込むのは
+ * `src/app/providers/gates/SearchRootGate.tsx`（`FileTreeRootGate` と同じ形）。
+ */
+export function PositionSearchProvider({
+  rootDir,
+  children,
+}: {
+  rootDir: string | null;
+  children: ReactNode;
+}) {
   const [state, dispatch] = useReducer(reducer, initialState);
-
-  const { config } = useAppConfig();
 
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
@@ -46,6 +64,21 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
    * stable で React の memo が効く。
    */
   const hitsCacheRef = useRef(new Map<RequestId, HitsCacheEntry>());
+
+  /**
+   * 購読の試行が決着したか。**索引を開くのはこれが真になってから。**
+   *
+   * `listenSearchEvents` は `listen` の連なりで、登録の完了は IPC の往復を待つ。
+   * 一方 `open_project` は入口で即 `Restoring` を emit する。宣言順は購読が
+   * 「始まる」ことしか保証しないので、順序を守るものがコードに要る。
+   * 取りこぼすと `index.state` は `"Empty"` のままになり、`indexStale` が偽になる。
+   * 復元中に検索すると**0件が「完了・最新」として出る**。
+   *
+   * **「張れたか」ではなく「決着したか」。** 失敗でも真にする。購読が張れないことと
+   * 索引が作られないことは別の失敗で、束ねると**購読の失敗が索引の構築まで巻き添えに
+   * する**。索引はディスクにも残るので、次の起動で効いてくる。
+   */
+  const [isListenSettled, setIsListenSettled] = useState(false);
 
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
   useEffect(() => {
@@ -70,9 +103,12 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
           return;
         }
         unlisten = u;
+        setIsListenSettled(true);
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[SEARCH] Failed to setup listeners:", e);
+        if (cancelled) return;
+        setIsListenSettled(true);
       }
     })();
 
@@ -84,33 +120,54 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // --- actions ---
-  const openProject = useCallback(
-    async (rootDir?: string): Promise<OpenProjectOutput> => {
-      const rd = rootDir ?? config?.root_dir ?? null;
-      if (!rd) throw new Error("root_dir is not set");
+  const openProject = useCallback(async (rd: string): Promise<OpenProjectOutput> => {
+    if (openInFlightRef.current) return openInFlightRef.current;
 
-      if (openInFlightRef.current) return openInFlightRef.current;
+    dispatch({ type: "open_start", payload: { rootDir: rd } });
 
-      dispatch({ type: "open_start", payload: { rootDir: rd } });
+    openInFlightRef.current = (async () => {
+      try {
+        const out = await openProjectApi(rd);
+        dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
+        return out;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "open_error", payload: { message: msg } });
+        throw e;
+      } finally {
+        openInFlightRef.current = null;
+      }
+    })();
 
-      openInFlightRef.current = (async () => {
-        try {
-          const out = await openProjectApi(rd);
-          dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
-          return out;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          dispatch({ type: "open_error", payload: { message: msg } });
-          throw e;
-        } finally {
-          openInFlightRef.current = null;
-        }
-      })();
+    return openInFlightRef.current;
+  }, []);
 
-      return openInFlightRef.current;
-    },
-    [config?.root_dir],
-  );
+  /**
+   * 根そのものが入れ替わったときに索引を開き直す。
+   * （棋譜1本ずつの差分は Rust 側の watcher が入れる。こちらは別経路）
+   *
+   * **撃つのは2回だけ。** 購読の試行が決着したとき（起動時の一発はこちら。根はそれまで
+   * 保留される）と、`rootDir` prop が変わったとき。**どちらの依存も外さないこと。**
+   * `isListenSettled` を外すと購読より先に開いてしまい、`Restoring` の最初の1発を
+   * 取りこぼす。`rootDir` を外すとワークスペースを変えても開き直さない。
+   *
+   * 呼び出し側の再描画に頼らないのが要点。頼ると張り直しが「どの画面が描かれているか」と
+   * 「`openProject` の同一性が変わったか」に乗る。どちらもこのスライスの外にあって、
+   * 崩れても**索引が古いまま黙って動く**——検索は成功し、結果だけが実物と食い違う。
+   *
+   * **`openProject` は飛行中の open を根を見ずに1本へ畳む**（TODO(#430)）。
+   * 前の open が終わる前に根が変わると、その回は空振りする。撃つ機会は上の2回しか
+   * 無いので、空振りするとそのセッション中は開き直さない。
+   *
+   * 失敗はここでは出せない。`openError` に載るが読み手が居ない（F-17 / #403）。
+   * 握り潰しているのではなく、出口がまだ無い。
+   */
+  useEffect(() => {
+    if (!rootDir || !isListenSettled) return;
+    void openProject(rootDir).catch(() => {
+      // `open_error` に積まれている。ここで再度投げても拾う先が無い
+    });
+  }, [rootDir, isListenSettled, openProject]);
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
@@ -204,7 +261,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PositionSearchContextType>(
     () => ({
       state,
-      openProject,
       searchPosition,
       cancelSearch,
       getSessionByRequestId,
@@ -217,7 +273,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
-      openProject,
       searchPosition,
       cancelSearch,
       getSessionByRequestId,

@@ -117,9 +117,14 @@ export function lineNumberRefsIn(markdown: string): string[] {
   const found = new Set<string>();
 
   for (const [, inline] of markdown.matchAll(/`([^`\n]+)`/g)) {
+    // ファイル名を省いた `:29` `:29-35` も拾う。**省いた形のほうが悪い**——ずれたときに
+    // どのファイルの29行目かも辿れない。
+    // `#2c3639`（色）を巻き込まないよう `#` は受けず、`03:00` は数字始まりなので当たらない
+    const bare = /^:\d+(-\d+)?$/.test(inline);
+
     // 前が識別子かパスであること。`03:00` のような綴りを巻き込まない
-    if (!/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
-    if (LINE_SUFFIX.test(inline)) found.add(inline);
+    if (!bare && !/^[A-Za-z_][A-Za-z0-9_./-]*[#:]/.test(inline)) continue;
+    if (bare || LINE_SUFFIX.test(inline)) found.add(inline);
   }
 
   return [...found].sort();
