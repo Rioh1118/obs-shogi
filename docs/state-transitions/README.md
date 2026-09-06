@@ -24,6 +24,7 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
 
 L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
 L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
+L2    board-orientation.md     盤の向き。file-tree の「選択」と「盤の中身」のずれが軸
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -49,6 +50,7 @@ L2    position-search-view.md  局面検索の**画面**。L1 の search の結�
 | [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証** |
 | [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                     |
 | [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                           |
+| [board-orientation.md](board-orientation.md)       | ✅        | `selectedNode` と `activeKifuPath` のずれが軸。**改名のセルが未検証**           |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                 |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。

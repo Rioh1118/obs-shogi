@@ -85,12 +85,14 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("盤の向き", () => {
+  /** 表の E3 */
   test("回すと後手側から見る", () => {
     openAndRotate("/ws/a.kif");
 
     expect(search).toContain("pov=gote");
   });
 
+  /** 表の E1 */
   test("別の棋譜が盤に載ったら向きを既定へ戻す", () => {
     const view = openAndRotate("/ws/a.kif");
 
@@ -105,6 +107,8 @@ describe("盤の向き", () => {
   /**
    * 読めない棋譜をクリックした形。`openKifuNode` は選択だけを巻き戻すので
    * `selectedNode` は動くが、`kifu_opened` は起きないので盤は前の棋譜のまま。
+   *
+   * 表の E4 / E5
    */
   test("読み込みに失敗して選択だけが動いても、向きは変わらない", () => {
     const view = openAndRotate("/ws/a.kif");
@@ -118,6 +122,7 @@ describe("盤の向き", () => {
     expect(rotate).toBe(true);
   });
 
+  /** 表の E2 */
   test("棋譜を閉じたら向きを既定へ戻す", () => {
     const view = openAndRotate("/ws/a.kif");
 

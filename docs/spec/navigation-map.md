@@ -134,7 +134,9 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | ツリーから開く   | `FileNode` のクリック            | `openKifuNode` → `activeKifuPath` が変わる  |
 | 検索結果から開く | 局面検索で Enter／ダブルクリック | `usePositionHitNavigation` が同じ経路を通す |
 
-棋譜が変わると `AppLayout` が `pov` を落とす（盤の向きは棋譜ごとに持ち越さない）。
+**盤に載っている棋譜**が変わると `useBoardOrientation` が `pov` を落とす
+（盤の向きは棋譜ごとに持ち越さない）。ツリーの選択が動いただけでは落ちない
+——この2つはずれる。→ [board-orientation.md](../state-transitions/board-orientation.md)
 
 ## モーダルを開くボタンの所在
 
