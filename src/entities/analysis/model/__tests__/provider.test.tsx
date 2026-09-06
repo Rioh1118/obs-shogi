@@ -10,14 +10,23 @@ import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 const startCore = vi.fn<() => Promise<string>>();
 const stopCore = vi.fn<(sessionId?: string) => Promise<void>>();
 
-vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => false }));
+// リスナを実際に登録させたい回だけ true にする。既定を true にすると、
+// 全部の回で登録と解除が挟まって、見たい経路が長くなる。
+let tauri = false;
+vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri }));
 vi.mock("@/entities/engine/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
   stopAnalysis: (sessionId?: string) => stopCore(sessionId),
 }));
 vi.mock("@/entities/engine", () => ({ useEngine: () => ({ isReady: true }) }));
+
+/** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
+let listeners: { onError: (error: string) => void } | null = null;
 vi.mock("@/entities/engine/api/events", () => ({
-  setupAnalysisEventListeners: async () => () => {},
+  setupAnalysisEventListeners: async (handlers: { onError: (error: string) => void }) => {
+    listeners = handlers;
+    return () => {};
+  },
 }));
 
 /** 実時間を進める。打ち切りの判定が Date.now() を見るので偽タイマーは使えない。 */
@@ -69,6 +78,8 @@ const adapter = (currentSfen: string | null, syncedSfen: string | null): Positio
 });
 
 beforeEach(() => {
+  tauri = false;
+  listeners = null;
   startCore.mockReset();
   stopCore.mockReset();
   syncPosition.mockReset();
@@ -139,6 +150,57 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 });
 
 describe("AnalysisProvider のアンマウント", () => {
+  it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    expect(view.current.state.isAnalyzing).toBe(true);
+
+    stopCore.mockClear();
+    view.unmount();
+
+    // 返さないと Rust の台帳に席が残り、以降どの解析も
+    // 「Analysis already running」で断られる。エンジンを畳み直すまで戻れない。
+    expect(stopCore).toHaveBeenCalledTimes(1);
+
+    // **セッションを指さない。** 指すと、席に居るのが別のセッションだったとき
+    // Rust が照合して断る（`bridge.rs` の `stop_session`）。
+    expect(stopCore).toHaveBeenCalledWith(undefined);
+  });
+
+  it("エラーで止まって見えていても、畳まれたら席を返す", async () => {
+    tauri = true;
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // Rust からのエラー通知。`isAnalyzing` は落ちるが `sessionId` は残り、
+    // 席も Rust に在りうる（`reducer.ts` の `set_error`）。
+    await act(async () => {
+      listeners?.onError("engine died");
+    });
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    stopCore.mockClear();
+    view.unmount();
+
+    expect(stopCore).toHaveBeenCalledTimes(1);
+  });
+
+  it("解析していないまま畳まれたら、停止を撃たない", async () => {
+    // StrictMode は mount 直後に setup → cleanup → setup を走らせる。
+    // ここで撃つと、席を持っていないのに停止が飛ぶ。
+    const view = mountAnalysis(adapter("P1", "P1"), { strict: true });
+    expect(stopCore).not.toHaveBeenCalled();
+
+    view.unmount();
+    expect(stopCore).not.toHaveBeenCalled();
+  });
+
   it("同期の追いつきで張ったタイマーを、アンマウントで止める", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
@@ -155,9 +217,12 @@ describe("AnalysisProvider のアンマウント", () => {
     await view.setSync(adapter("P1", "P2"));
 
     startCore.mockClear();
-    stopCore.mockClear();
 
     view.unmount();
+
+    // 畳んだ時点の後始末（席を返す停止）は数に入れない。ここで見たいのは
+    // 「タイマーが後から動かないこと」だけ。
+    stopCore.mockClear();
     await advance(200);
 
     // 残っていると、畳まれた後にエンジンへ go を出し、window の無くなった
@@ -186,11 +251,15 @@ describe("AnalysisProvider のアンマウント", () => {
   });
 
   it("停止の応答を待っている間に畳まれたら、そのまま go を出さない", async () => {
-    let releaseStop: () => void = () => {};
+    // **待たせている停止を1本ずつ持つ。** 変数1つに上書きしていくと、
+    // 畳んだときの後始末で撃たれる停止が同じ変数を奪い、下で解いているのが
+    // 「再開が待っている停止」でなくなる——再開は止まったままなので
+    // テストは通り続けるが、見たかった経路は踏まなくなる。
+    const pendingStops: Array<() => void> = [];
     stopCore.mockImplementation(
       () =>
         new Promise<void>((resolve) => {
-          releaseStop = resolve;
+          pendingStops.push(resolve);
         }),
     );
 
@@ -203,11 +272,14 @@ describe("AnalysisProvider のアンマウント", () => {
     await view.setSync(adapter("P2", "P2"));
     await advance(150);
 
+    // 再開はここで止まっている
+    expect(pendingStops).toHaveLength(1);
+
     view.unmount();
     startCore.mockClear();
 
     await act(async () => {
-      releaseStop();
+      pendingStops[0]();
     });
     await advance(50);
 

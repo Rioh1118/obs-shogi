@@ -133,6 +133,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return () => {
       unmountedRef.current = true;
       clearDebounceTimer();
+
+      // React の state が消えても Rust の台帳は残る。畳んだ画面のセッションを
+      // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
+      // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
+      //
+      // **エラーで止まって見えるときも撃つ。** `set_error` は isAnalyzing を
+      // false にするが sessionId を残す（`reducer.ts`）。席は Rust に在りうる。
+      if (!analyzingRef.current && sessionIdRef.current === null) return;
+
+      // **セッションを指さない。** 指すと Rust は照合して「自分のではない」を
+      // 断る（`bridge.rs` の `stop_session`）。畳まれた瞬間に席に居るのが
+      // sessionIdRef の1本とは限らない——再開の途中では、指せる ID は
+      // 停止済みの古い方で、新しい席はまだ手元に無い。
+      // 画面が居ないのだから、走っている解析は全部要らない。
+      void stopAnalysisCore().catch(() => {});
     };
   }, []);
 
