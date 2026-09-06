@@ -13,6 +13,8 @@
 //! どちらも捨てられ、ログを読んでも「詰まった」のか「相手が先に居なくなった」
 //! のかが分からない。
 
+mod roots;
+
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,6 +35,13 @@ fn rust_files(dir: &Path) -> Vec<PathBuf> {
     }
     found.sort();
     found
+}
+
+fn sources() -> Vec<PathBuf> {
+    roots::production_roots()
+        .iter()
+        .flat_map(|r| rust_files(r))
+        .collect()
 }
 
 fn src_dir() -> PathBuf {
@@ -64,7 +73,7 @@ const EXEMPT: &[&str] = &[
 fn timeout_sites() -> Vec<String> {
     let mut sites = Vec::new();
 
-    for path in rust_files(&src_dir()) {
+    for path in sources() {
         let source = fs::read_to_string(&path).unwrap_or_default();
         let relative = path.strip_prefix(src_dir()).unwrap_or(&path).to_path_buf();
 
@@ -103,7 +112,7 @@ fn scan() -> (Vec<String>, BTreeSet<&'static str>) {
     let mut offenders = Vec::new();
     let mut used = BTreeSet::new();
 
-    for path in rust_files(&src_dir()) {
+    for path in sources() {
         let source = fs::read_to_string(&path).unwrap_or_default();
         let lines: Vec<&str> = source.lines().collect();
 

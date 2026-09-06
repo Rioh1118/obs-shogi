@@ -12,6 +12,7 @@
 //! **見ているのは属性の字面だけ。** 実際に出る JSON までは見ない
 //! （そちらは境界の型ごとに `#[test]` を書く。`engine/game/types.rs` が例）。
 
+mod roots;
 mod scanning;
 
 use scanning::{blank_out_comments, blank_out_noncode};
@@ -226,10 +227,9 @@ fn enum_carries_data(lines: &[&str], decl_line: usize) -> bool {
 
 fn all_types() -> Vec<SerdeType> {
     let mut out = Vec::new();
-    collect(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path(),
-        &mut out,
-    );
+    for root in roots::production_roots() {
+        collect(root.as_path(), &mut out);
+    }
     out
 }
 

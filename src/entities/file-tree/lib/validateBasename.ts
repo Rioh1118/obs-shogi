@@ -4,7 +4,7 @@ import { makeFsError, type FsError } from "@/entities/file-tree/api/error";
 /**
  * ファイル名・フォルダ名として使えるかを見て、**実際に使う形**を返す。
  *
- * Rust 側（`file_system/utils.rs` の `validate_basename`）と**同じ4つの規則**を
+ * Rust 側（`fs/path.rs` の `validate_basename`）と**同じ4つの規則**を
  * 同じ順で見る。手前に置くのは、通らないと分かっている名前を送って往復を
  * 待たせないため。最終的な可否は向こうが決めるので、**向こうより緩くしないこと。**
  * 片方だけ規則を増やすと、ここを通ってから向こうで落ちる名前ができる。

@@ -56,13 +56,17 @@ function existingChecks(): Set<string> {
  */
 const RUST_CHECKS = new Set([
   "comment_identifiers",
-  "engine_layering",
   "engine_timeouts",
+  "layering",
   "production_unwrap",
+  "roots",
   "root_guard",
   "serde_naming",
   "scanning",
   "state_transition_cells",
+  "index_cache_guard_names",
+  "search_doc_names",
+  "index_writes_are_guarded",
   "timeout_marker",
   "timeout_result",
 ]);

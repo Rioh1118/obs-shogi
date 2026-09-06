@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
-import { REPO_ROOT, RUST_SRC, SRC, sourceFiles } from "./walk";
+import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 
 /**
  * docs がバッククォートで指す**識別子**が実在するかを見る検査の本体。
@@ -48,7 +48,10 @@ let corpus: string | null = null;
 function sourceCorpus(): string {
   if (corpus !== null) return corpus;
 
-  corpus = [...sourceFiles(SRC, { includeTests: false }), ...sourceFiles(RUST_SRC)]
+  corpus = [
+    ...sourceFiles(SRC, { includeTests: false }),
+    ...rustRoots().flatMap((root) => sourceFiles(root)),
+  ]
     .map((path) => codeOf(readFileSync(path, "utf8")))
     .join("\n");
   return corpus;

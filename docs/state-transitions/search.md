@@ -12,18 +12,18 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 
 ## 状態
 
-状態を持つのは `IndexStore` の `snap`（`RwLock<Arc<IndexSnapshot>>`）1つだけ。
+状態を持つのは `IndexStore`（中身は `SnapshotCell<IndexSnapshot>`）1つだけ。
 `IndexSnapshot.state` が下の記号に対応する。
 
-| 記号  | `IndexState` | 判定条件                                                  | 中身               |
-| ----- | ------------ | --------------------------------------------------------- | ------------------ |
-| **E** | `Empty`      | 初期値                                                    | 空                 |
-| **R** | `Restoring`  | `start_restoring()` を通った                              | **空にされている** |
-| **B** | `Building`   | `start_full_build()` を通った                             | **空にされている** |
-| **U** | `Updating`   | `install_restored(Updating, ..)` か `set_state(Updating)` | 前の中身が残る     |
-| **Y** | `Ready`      | `set_state(Ready)`                                        | 揃っている         |
+| 記号  | `IndexState` | 判定条件                                                                         | 中身               |
+| ----- | ------------ | -------------------------------------------------------------------------------- | ------------------ |
+| **E** | `Empty`      | 初期値                                                                           | 空                 |
+| **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                                           | **空にされている** |
+| **B** | `Building`   | `restart(Restart::Building)` を通った。**口はこれ1つ**                           | **空にされている** |
+| **U** | `Updating`   | `install_restored(..)`（段は選べない）か `with_state(StoreIndexState::Updating)` | 前の中身が残る     |
+| **Y** | `Ready`      | `with_state(StoreIndexState::Ready)`                                             | 揃っている         |
 
-**`R` と `B` は中身を捨てる。** `start_restoring` / `start_full_build` は
+**`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::restarting` で
 `FileTable::default()` と空の bucket で作り直すので、**その間に投げた検索は必ず0件になる**
 （`stale=true` は付くが、`stale` は「古いかもしれない」であって「空」とは言っていない）。
 
@@ -40,19 +40,19 @@ let stale = snap.state != StoreIndexState::Ready;
 
 ## イベント
 
-| 記号          | 発生源                             | 何が起きるか                                                                                                                 |
-| ------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                        |
-| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `set_state(Ready)` を**無条件で**呼ぶ（`api.rs`） |
-| `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                        |
-| `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / zstd の失敗 / ファイルが無い                           |
-| `build-done`  | 全件構築の完了                     | `insert_many_file_segments` を最後まで流し終えた                                                                             |
-| `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                    |
-| `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                 |
-| `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                  |
-| `apply-done`  | 差分適用の完了                     |                                                                                                                              |
-| `search`      | webview（`search_position`）       | いまの `snap` を読むだけ。状態は動かさない                                                                                   |
-| `cancel`      | webview（`cancel_search`）         | 同上                                                                                                                         |
+| 記号          | 発生源                             | 何が起きるか                                                                                                                                                                                                |
+| ------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                                                                                                       |
+| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `with_state(StoreIndexState::Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                         |
+| `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
+| `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
+| `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
+| `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                                                                                                   |
+| `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                                                                                                |
+| `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                                                                                                 |
+| `apply-done`  | 差分適用の完了                     |                                                                                                                                                                                                             |
+| `search`      | webview（`search_position`）       | いまの `snap` を読むだけ。状態は動かさない                                                                                                                                                                  |
+| `cancel`      | webview（`cancel_search`）         | 同上                                                                                                                                                                                                        |
 
 **否定方向の遷移**（`Y` から `U` へ戻る）は `fs-event` → `diff-dirty` だけ。
 
@@ -70,7 +70,7 @@ let stale = snap.state != StoreIndexState::Ready;
 
 **`open-rescan` は復元経路にしか無い。** `restore-ok` で `U` に入った直後、
 `open_project` が spawn した1本が `run_rescan_diff_apply`（先頭で全走査する）を
-待ち、**差分が0でも `set_state(Ready)` を無条件で呼ぶ**。
+待ち、**差分が0でも `with_state(StoreIndexState::Ready)` を無条件で呼ぶ**。
 つまり**起動時のいちばん普通の経路では、`U` に留まらず必ず `Y` まで行く**。
 `U` 行の `diff-empty`（「走査だけ更新」＝ `U` のまま）はこの経路の話ではない
 ——そちらは watcher が動き出したあとに来る `fs-event` の話。
@@ -78,9 +78,9 @@ let stale = snap.state != StoreIndexState::Ready;
 ### ⚠️ 走査が失敗しても `Y` に上がる
 
 `run_rescan_diff_apply` は `root_dir` が `None` のときと `scan_kifu_files` が
-`Err` のときに、`set_state(Updating)` へ届く前に `return` する。
+`Err` のときに、`with_state(StoreIndexState::Updating)` へ届く前に `return` する。
 **`run_rescan_diff_apply` は成否を返さない**（戻り値が `()`）ので、
-呼び手（`api.rs`）には失敗と「差分0」を区別する手段が無い。
+呼び手（`commands.rs`）には失敗と「差分0」を区別する手段が無い。
 
 ワークスペースが外付けディスクごと消えている・権限が無い、といった理由で
 走査が1件もできなくても **`Y`（準備完了）になる**。`query_service` が見るのは
@@ -95,15 +95,15 @@ let stale = snap.state != StoreIndexState::Ready;
 ### ⚠️ `open` がどの状態からでも通る
 
 `open_project` に**いまの状態を見る分岐が無い**。`R` / `B` / `U` の途中で
-もう一度呼ばれると `start_restoring()` が走って**中身が捨てられる**。
+もう一度呼ばれると `restart(Restart::Restoring)` が走って**中身が捨てられる**。
 走っている全件構築や差分適用は止まらないので、
-**古い構築が新しい `snap` に `insert_many_file_segments` で書き込む**。
+**古い構築が新しい `snap` に `with_files` で書き込む**。
 
 TS 側が二重に呼ばないことに依存している。**Rust 側に守りは無い。**
 
 ### ⚠️ `B`（全件構築中）に `fs-event` が来る
 
-watcher の起動は2箇所（`api.rs` の復元成功側と、全件構築の**最後**）。
+watcher の起動は2箇所（`commands.rs` の復元成功側と、全件構築の**最後**）。
 **全件構築中はまだ起動していない**ので、構築の最中に変わったファイルは
 イベントとして拾われない。
 
@@ -179,7 +179,7 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 
 **「警告が出ない」＝「何も出ない」ではない。** 読めた棋譜でも、
 `build_index_for_jkf` が `BuildPolicy::Loose` で指せない手に当たると
-`BuildWarn` を積み、呼び手（`api.rs` / `project_manager.rs`）がそれを
+`BuildWarn` を積み、呼び手（`build.rs` / `project_manager.rs`）がそれを
 `EVT_INDEX_WARN` に流す。反則手を記録した棋譜（クレートの R-RULE-002 が
 正当な入力と明言している形）は、`Ok` で読めて登録されるのに警告が出る。
 この表が言っているのは**読み手が出す警告**だけで、索引を組む側の警告は別。
@@ -199,7 +199,7 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 抜けるので、後ろのノードには `forks` を降りる機会そのものが来ない。
 「打ち切られるのはその手順だけ」を「他の変化は全部残る」と読まないこと。
 
-警告は打ち切った線を名指す（`to_user_message` が「本譜の」「N手目から分かれた
+警告は打ち切った線を名指す（`BuildWarn` の `Display` が「本譜の」「N手目から分かれた
 変化Mの」を前置する）が、**その線から先に何本の変化が落ちたかは言わない**。
 表の「入る」は「1つも入らないわけではない」の意味で、全部入るとは言っていない。
 
@@ -208,26 +208,30 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 **`gen` が上がらないと前の世代のセグメントが索引に残る**からで、
 `project_manager` の `build_one_file` が `None` を返したときの腕がそれを担っている。
 
-全件構築（`api`）と差分更新（`project_manager`）で残っている差は2つ。
+全件構築（`build.rs`）と差分更新（`project_manager.rs`）で残っている差は2つ。
 
-- `api` は `ok` フラグを計算しているが、登録の判断には使っていない（`indexed_ok` の勘定だけ）
-- **読めなかった理由をどこで警告にするかが違う。** `api` は `warns` に混ぜて
+- `build.rs` は `ok` フラグを計算しているが、登録の判断には使っていない（`indexed_ok` の勘定だけ）
+- **読めなかった理由をどこで警告にするかが違う。** `build.rs` は `warns` に混ぜて
   他の警告と同じループで出す。`project_manager` は `build_one_file` の別の腕で
   その場で出して `None` を返す。**出し方（1件ずつ `EVT_INDEX_WARN` を emit）は
   どちらも同じ**で、違うのは入口だけ
 
 ## ディスク上のキャッシュを列に持つ
 
-キャッシュは `<app_cache_dir>/obs-shogi/index/<root hash>/` の下に2本。
-macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
-`tauri.conf.json` の identifier と合わせて
-`~/Library/Caches/com.rioh1118.obs-shogi/obs-shogi/index/<root hash>/index.v1.zst` になる。
+キャッシュは `<OS のキャッシュ置き場>/obs-shogi/index/` の下に、
+プロジェクトごとの名前（パスのハッシュを16進64文字）で置く。
+根を決めるのは `storage` の `app_cache` で、macOS なら
+`~/Library/Caches/com.rioh1118.obs-shogi/obs-shogi/index/` になる。
 **アプリの外で変わりうる**ので、状態機械の外部入力として扱う。
 
-| ファイル       | いつ在るか                                                                          |
-| -------------- | ----------------------------------------------------------------------------------- |
-| `index.v1.zst` | 本体                                                                                |
-| `index.v1.bak` | 保存の途中だけ。`final → bak` へ退避してから `tmp → final` を rename し、最後に消す |
+置き方は `storage` の `DiskStore` が持つ。索引はバイト列を渡すだけで、
+どこへどう置くかを知らない。
+
+| ファイル      | いつ在るか                                                             |
+| ------------- | ---------------------------------------------------------------------- |
+| `<名前>.blob` | 本体                                                                   |
+| `<名前>.bak`  | 保存の途中だけ。本体を退避してから作業中のものを rename し、最後に消す |
+| `<名前>.tmp`  | 書いている最中だけ                                                     |
 
 **下の表の `restore-ng` は「本体と `.bak` の両方が読めなかった」。**
 `try_restore` は本体で失敗すると `.bak` を読みに行くので、
@@ -247,19 +251,38 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | **ビット化けして伸長は通る**           | 中身しだい（下記）   | 何も出ない                  |
 
 **`zstd` は checksum 無しで書いている**ので、ビット化けは伸長を通る（#336）。
-単ビット反転の総当たりで **672通り中 513件が通り、うち 504件は中身が変わっていた**。
+単ビット反転の総当たりで **672通り中 513件が通り、うち 504件は中身が変わっていた**
+（`1e2608fa` 時点の実測。**測り直していない**）。この数は zstd を通った件数で、
+`decode_all` の検査を足しても変わらない。変わるのは下の表の受け止め方。
 
 そこから先は `decode_all` の検査に掛かる。
 
-| 化けた欄                                   | 結果                                                   |
-| ------------------------------------------ | ------------------------------------------------------ |
-| `file_id`                                  | `bad file_id` → **B**（`checked_file_id`）             |
-| 長さの欄7つ                                | `bad length` → **B**（`read_len`。残りバイト数で縛る） |
-| `z0` / `z1` / `tesuu` / `fork_off` / `gen` | **通る。黙って間違った索引になる**（#336）             |
+| 化けた欄                | 結果                                                                                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `file_id`               | `bad file_id` → **B**（`checked_file_id`）                                                                                                                                                                          |
+| 長さの欄7つ             | `bad length` → **B**（`read_len`。残りバイト数で縛る）                                                                                                                                                              |
+| `z0` の上位8ビット      | 桶の取り違え → **B**                                                                                                                                                                                                |
+| `z0` / `z1` のその他    | 桶の並びが崩れれば → **B**。崩れなければ**通る**                                                                                                                                                                    |
+| 節表の `file_id`        | ファイル表の外なら `bad file_id` → **B**。**並びが崩れれば `is not after` → B**（既存の `file_id` に載る形はここで落ちる）。前より後の値に飛ぶと、元の `file_id` に生きた出現があれば → **B**、出現ゼロなら**通る** |
+| `node_id`               | 節表の外なら → **B**。**表の中の別の節を指すなら通る**                                                                                                                                                              |
+| `fork_off` / `fork_len` | 分岐の表の外なら → **B**。**表の中の別の範囲を指すなら通る**                                                                                                                                                        |
+| `tesuu`                 | **通る。黙って間違った索引になる**（#336）                                                                                                                                                                          |
+| `gen`                   | **通る。**その出現が `is_occ_alive` で黙って消える                                                                                                                                                                  |
 
-**最後の行が塞がっていない。** 検査を足しても値の妥当性は分からないので、
-checksum を入れるまでは残る。`(size, mtime_ms)` が変わらない限り作り直されないので、
-**一度化けると残り続ける**。
+**「出現ゼロの節表」は例外ではない。** 削除された棋譜は `with_tombstone` が
+ファイル表だけを差し替えて節表を持ち越し、読めなかった棋譜は `NodeTable::empty()` と
+空の桶で登録される。`encode_all` は節表を全部書くのに、`decode_all` が `file_id` を
+突き合わせるのは**出現側**なので、出現ゼロのファイルは突き合わせに掛からない。
+
+**だから節表の `file_id` は並びで縛る。縛らないと**、前の値以下に化けたとき
+`NodeTables::upsert` が既存の節表を黙って上書きし、**上書きされた側の全ヒットが
+別の棋譜の `tesuu` / `fork_path` を持つ。** 出現側の `node_id` 検査は節数が
+足りていれば通るので、どこでも `Err` にならない。`node_id` の化けは0手目に落ちるので
+気付けるが、こちらは**それらしい局面が出るので気付けない。**
+
+**塞がっていない行がまだある。** 検査は「あり得る値か」しか見ないので、
+**あり得る別の値**に化けたときは通る。checksum を入れるまで残る
+（`(size, mtime_ms)` が変わらない限り作り直されないので、一度化けると残り続ける）。
 
 ## 埋まっていないセル（テスト項目）
 
@@ -268,12 +291,18 @@ checksum を入れるまでは残る。`(size, mtime_ms)` が変わらない限�
 | 何を見ていないか                     | どうなるか（未確認）                                       |
 | ------------------------------------ | ---------------------------------------------------------- |
 | `R` / `B` の最中に `search` を投げる | 0件が返るはず。`stale=true` は付くが「空」とは言っていない |
-| `U` の最中に `open` を投げる         | 差分適用と `start_restoring` が競合する                    |
+| `U` の最中に `open` を投げる         | 差分適用と `restart(Restart::Restoring)` が競合する        |
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
-`src-tauri/tests/` にあるのは `root_guard.rs`（パスの検証）だけで、
-状態機械そのものを回すテストは無い。
+**各口が名乗る段と、捨てられる中身**は3本が固定している ——
+`store/index_store.rs` の `restarting_the_store_throws_the_current_index_away`
+（中身が捨てられること。段は見ていない）と
+`an_installed_restore_says_it_is_still_updating`、
+`store/snapshot.rs` の `restarting_starts_from_an_empty_index`。
+
+**表の矢印（どの段からどの段へ動くか）を見るものは1本も無い。**
+3本とも**段**は `E` から動かしておらず、`R`→`U` も `B`→`Y` も `U`→`Y` も踏んでいない。
 
 ## この表が拾ったもの
 

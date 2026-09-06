@@ -13,14 +13,13 @@ use tokio_util::sync::CancellationToken;
 
 use crate::search::types::{CursorLite, FileId, PositionHit, RequestId};
 
-use super::{
-    index_store::{IndexState as StoreIndexState, IndexStore},
-    sfen_position::position_key_from_sfen,
-    types::{
-        SearchBeginPayload, SearchChunkPayload, SearchEndPayload, SearchErrorPayload,
-        SearchPositionInput, SearchPositionOutput, EVT_SEARCH_BEGIN, EVT_SEARCH_CHUNK,
-        EVT_SEARCH_END, EVT_SEARCH_ERROR,
-    },
+use crate::search::position::sfen_position::position_key_from_sfen;
+use crate::search::store::index_store::IndexStore;
+use crate::search::store::snapshot::IndexState as StoreIndexState;
+use crate::search::types::{
+    SearchBeginPayload, SearchChunkPayload, SearchEndPayload, SearchErrorPayload,
+    SearchPositionInput, SearchPositionOutput, EVT_SEARCH_BEGIN, EVT_SEARCH_CHUNK, EVT_SEARCH_END,
+    EVT_SEARCH_ERROR,
 };
 
 #[derive(Debug)]
@@ -130,6 +129,12 @@ impl QueryService {
 
                     let mut hits: Vec<PositionHit> = Vec::with_capacity(chunk.len());
                     for occ in chunk {
+                        // `cursor_lite` が `None` を返すのは索引が壊れているときだけ。
+                        // ここで `root()` にすり替えるので、**そのヒットは
+                        // 「そのファイルの0手目」として利用者の一覧に並ぶ** ——
+                        // 検索の当たりに見えて、押しても違う局面が出る。
+                        // 壊れた blob をここへ届かせないのは
+                        // `cache/format.rs` の `decode_all` の門番。
                         let cursor = nts
                             .get(occ.file_id)
                             .and_then(|nt| nt.cursor_lite(occ.node_id))

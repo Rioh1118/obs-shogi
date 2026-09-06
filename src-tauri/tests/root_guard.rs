@@ -15,6 +15,7 @@
 //! 関門そのものは `root_dir` が未設定のときに無条件で開く
 //! （`utils.rs` の `validate_under_root`）。
 
+mod roots;
 mod scanning;
 
 use scanning::{blank_out_noncode, matching, matching_angle};
@@ -261,6 +262,14 @@ fn guarded_variables(code: &str) -> Vec<(usize, String)> {
     found
 }
 
+/// 本番のソース。**`src/` だけでなく、割った crate も歩く。**
+fn production_sources() -> Vec<(String, String)> {
+    roots::production_roots()
+        .iter()
+        .flat_map(|r| rust_files(r))
+        .collect()
+}
+
 fn rust_files(dir: &Path) -> Vec<(String, String)> {
     let mut found = Vec::new();
     for entry in fs::read_dir(dir).expect("ディレクトリを読めない") {
@@ -407,7 +416,7 @@ fn parameter_types(chunk: &str) -> BTreeSet<String> {
 /// （`GameSettings` → `PlayerSpec` → `engine_path`）。
 #[test]
 fn no_path_carrying_command_is_missing_from_the_list() {
-    let files = rust_files(Path::new("src"));
+    let files = production_sources();
     let types = type_graph(&files);
     assert!(
         types.carries_path.contains("GameSettings"),
@@ -446,7 +455,7 @@ fn no_path_carrying_command_is_missing_from_the_list() {
 
 #[test]
 fn every_path_taking_command_checks_the_root() {
-    let files = rust_files(Path::new("src"));
+    let files = production_sources();
     assert!(
         files.len() >= 20,
         "src の .rs を列挙できていない: {}",
@@ -712,7 +721,7 @@ pub async fn a(app: AppHandle, file_path: String) -> () {
 /// 綴りを間違えた瞬間にその行が黙って無効になる
 #[test]
 fn every_listed_name_is_a_real_command() {
-    let names: Vec<String> = rust_files(Path::new("src"))
+    let names: Vec<String> = production_sources()
         .iter()
         .flat_map(|(_, source)| commands(source))
         .map(|command| command.name)
@@ -740,7 +749,7 @@ fn every_listed_name_is_a_real_command() {
 /// `EXTRA_GUARDS` が要求する関門が、実在する `pub fn` か
 #[test]
 fn every_extra_guard_is_a_real_function() {
-    let sources: String = rust_files(Path::new("src"))
+    let sources: String = production_sources()
         .iter()
         .map(|(_, source)| source.as_str())
         .collect::<Vec<_>>()
@@ -758,7 +767,7 @@ fn every_extra_guard_is_a_real_function() {
 /// 置かれていないと、免除されていること自体がコードから辿れない
 #[test]
 fn every_todo_in_a_reason_exists_in_the_source() {
-    let sources: String = rust_files(Path::new("src"))
+    let sources: String = production_sources()
         .iter()
         .map(|(_, source)| source.as_str())
         .collect::<Vec<_>>()

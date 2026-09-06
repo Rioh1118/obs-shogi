@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -25,8 +25,47 @@ export const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /** アプリのソース */
 export const SRC = join(REPO_ROOT, "src");
 
-/** Rust のソース */
+/** Rust のソース（アプリの組み立て） */
 export const RUST_SRC = join(REPO_ROOT, "src-tauri", "src");
+
+/**
+ * Rust の本番ソースが置かれている根の一覧。
+ *
+ * **`src-tauri/src` だけを見ない。** スライスは workspace の crate に割ってある
+ * （ADR-0009 決定1）ので、そこだけを歩く検査はアプリの組み立てしか見ない。
+ * 違反が0になるのではなく**見る対象が無くなる**ので、緑のまま何もしていない状態になる。
+ *
+ * `crates/*` はその場で数える。手で並べると、crate を1つ足した人が
+ * 書き忘れても何も落ちない。Rust 側の同じ一覧は `src-tauri/tests/roots`。
+ */
+export function rustRoots(): string[] {
+  const crates = join(REPO_ROOT, "src-tauri", "crates");
+  const found = existsSync(crates)
+    ? readdirSync(crates, { withFileTypes: true })
+        .filter((e) => e.isDirectory() && existsSync(join(crates, e.name, "src")))
+        .map((e) => join(crates, e.name, "src"))
+        .sort()
+    : [];
+  return [RUST_SRC, ...found];
+}
+
+/**
+ * 本番ソースの中の1ファイルを、根をまたいで探す。
+ *
+ * **見つからないことを黙って通さない。** `readFileSync` が投げる ENOENT だと
+ * 「crate へ移した」のか「消した」のかが読み手に伝わらない
+ */
+export function rustFile(...parts: string[]): string {
+  const hit = rustRoots()
+    .map((root) => join(root, ...parts))
+    .find((p) => existsSync(p));
+  if (!hit) {
+    throw new Error(
+      `Rust のソースに ${parts.join("/")} が無い。crate へ移したなら、この検査の指す先も直すこと`,
+    );
+  }
+  return hit;
+}
 
 /**
  * Rust 側の**リポジトリ横断の検査**の置き場。
