@@ -12,9 +12,12 @@ import { MemoryRouter } from "react-router";
  *
  * あわせて、`GameBoard` が向きを**落とす**側を持っていないことも見る。持たせると、
  * 棋譜を閉じて盤が unmount した瞬間に落とす者が居なくなり `?pov=gote` が残る。
+ * ここで動かせるのは `GameBoard` が読むもの（`useFileTree` の `jkfData`）だけなので、
+ * **見ているのは「盤が自分から `pov` を触らない」まで。** 合図（`loadedAbsPath`）で
+ * 落ちる／落ちないは `src/features/board-orientation/model/__tests__/` が持つ。
  */
 
-const tree = { jkfData: null as unknown, activeKifuPath: null as string | null };
+const tree = { jkfData: null as unknown };
 
 vi.mock("@/entities/file-tree", () => ({
   useFileTree: () => tree,
@@ -30,7 +33,6 @@ const app = (search: string) => (
 
 beforeEach(() => {
   tree.jkfData = null;
-  tree.activeKifuPath = null;
 });
 
 afterEach(() => cleanup());
@@ -48,11 +50,11 @@ describe("盤の向き（盤の側）", () => {
     expect(container.querySelector(".game-board--rotated")).toBeNull();
   });
 
-  test("盤に載っている棋譜が変わっても、盤は `pov` を落とさない", () => {
-    tree.activeKifuPath = "/ws/a.kif";
+  test("描き直しても、盤は自分から `pov` を落とさない", () => {
+    tree.jkfData = { header: { 先手: "a" } };
     const view = render(app("?pov=gote"));
 
-    tree.activeKifuPath = "/ws/b.kif";
+    tree.jkfData = { header: { 先手: "b" } };
     view.rerender(app("?pov=gote"));
 
     expect(view.container.querySelector(".game-board--rotated")).not.toBeNull();
