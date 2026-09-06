@@ -19,10 +19,13 @@ npm run verify:rust     # cargo fmt + clippy + test   （約2分15秒）
 **判定の全体（免除を含む）は `docs/state-transitions/verify-gate-decision.md` が持つ。
 ここに写さない。**
 
-**追跡外のファイルはこの判定に入らない。** PreToolUse はコマンドが走る前に判定するので、
-同じ呼び出しの中で先にツリーを変える git 呼び出しを置くと（`git add -A && git commit` など）
-その前の状態を見る。**種類外の追跡済み変更が混ざっていても素通しする。**
-`git commit` 以外でコミットを作る綴りが clean なツリーで作るコミットも同じ
+**手前にツリーを変える git を置いた綴りは deny される。** PreToolUse は
+コマンドが走る前に判定するので、手前で変えるとその前の状態を見ることになる ——
+**手前に置けるのは読むだけの git だけ**（`GATE_READ_ONLY_VERBS_BASE` と、
+それらへ展開する alias）。2回の呼び出しに分ければ従来どおり打てる。
+
+**それでも残る素通しが2つある。** 追跡外のファイルは `--untracked-files=no` に出ない。
+`git commit` 以外でコミットを作る綴りが clean なツリーで作るコミットも見えない
 （語彙は `verify-gate.sh` の `GATE_COMMIT_VERB_BASE`。表は
 `docs/state-transitions/verify-gate-decision.md` の (B, S4) と (D, S4)）。
 

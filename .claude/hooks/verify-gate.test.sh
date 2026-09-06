@@ -153,6 +153,13 @@ expect_mentions SKIP 'npm run commit-helper'
 expect_mentions SKIP 'git log --oneline'
 expect_mentions SKIP 'echo commit'
 
+# J: commit を作らないのに `git` と動詞が同じコマンドに並ぶ形。
+# **無条件 deny になる唯一の行**（不変条件3の例外）なので、
+# ここが将来ゆるんだとき「誤発火が消えた」のか「穴が開いた」のかを区別できるようにする
+expect_mentions CATCH 'gh pr create --title "fix: git commit を直す"'
+expect_mentions CATCH 'grep -rn "git commit" docs/'
+expect_match SKIP 'gh pr create --title "fix: git commit を直す"' 
+
 expect_dir() {
   local want=$1 command=$2 base=$3
   local got
@@ -206,6 +213,11 @@ expect_dir "" "git reset --hard && git commit -m x" "$here"
 expect_dir "$here" "git status && git commit -m x" "$here"
 expect_dir "$here" "git diff --cached && git commit -m x" "$here"
 expect_dir "$here" "git log --oneline -1 && git commit -m x" "$here"
+
+# 読むだけの動詞でも、`--output=` は追跡ファイルを潰せる。
+# `>` は正規表現が弾くが、これは記号を使わずに同じことをする
+expect_dir "" "git diff --output=src/app/App.tsx && git commit -am x" "$here"
+expect_dir "" "git log --output=x.ts -1 && git commit -am x" "$here"
 
 # 読むだけの動詞へ展開する alias も手前に置ける。
 # **止めても利用者にできることは「2回に分ける」だけ**で、ツリーは変わらないのに
@@ -370,6 +382,13 @@ expect_entry '"permissionDecision":"deny"' 'payload が空' \
 expect_entry '"permissionDecision":"deny"' 'jq が無い' \
   "$(printf '{"tool_input":{"command":"x"}}' \
      | PATH= /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
+     | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
+
+# payload の形が変わっても deny。**`// ""` で既定値へ倒すと、
+# フィールドが消えた日に全 Bash 呼び出しが無言で通る**
+expect_entry '"permissionDecision":"deny"' 'command 欄が無い' \
+  "$(printf '{"tool_input":{"cmd":"x"}}' \
+     | /bin/bash "$(dirname "$0")/verify-gate.sh" 2>/dev/null \
      | tr -d ' \n' | grep -o '"permissionDecision":"[a-z]*"' | head -1)"
 
 if [ "$failures" -eq 0 ]; then

@@ -235,6 +235,9 @@ gate_target_dir() {
     || return 0
 
   case "$prefix" in
+    # `>` は上の正規表現が弾くが、`--output=` は同じことを記号なしで行う。
+    # 読むだけの動詞でも追跡ファイルを潰せるので、宛先不明として落とす。
+    *--output*) return 0 ;;
     *-C*|*--git-dir*|*--work-tree*) return 0 ;;
   esac
 
@@ -384,9 +387,13 @@ if [ -z "$payload" ]; then
 hook の渡し方が変わっていないか確かめること。"
 fi
 
-command=$(printf '%s' "$payload" | jq -r '.tool_input.command // ""') || {
-  deny "検証ゲート: 渡された payload を読めなかった。
-形が変わっていないか確かめること。"
+# **`// ""` で既定値へ倒さない。** フィールドが無くても jq は成功するので、
+# 空のコマンドとして扱うと**形が変わった日に全 Bash 呼び出しが無言で通る。**
+# `-e` は null / 欠落で非0を返すので、そこを deny 側へ落とす。
+# matcher は `Bash` 固定なのでこの欄は実運用では必ず在り、正常系は止まらない。
+command=$(printf '%s' "$payload" | jq -er '.tool_input.command') || {
+  deny "検証ゲート: payload に実行しようとしているコマンドが入っていない。
+hook の渡し方が変わっていないか確かめること。"
 }
 cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
 
@@ -412,10 +419,11 @@ if [ -z "$project_dir" ]; then
 ディレクトリ指定の無い \`git commit\` 単体として実行すること。
 同じコマンドの中で cd / pushd / env / サブシェルを使わないこと。
 1つのコマンドに commit を2つ以上並べないこと。
-**ツリーを変える git を手前に置かないこと**（\`add\` / \`rm\` / \`mv\` /
-\`stash\` / \`checkout\` / \`restore\` / \`reset\` など）——
+**手前に置けるのは読むだけの git だけ**（$(gate_read_only_verbs | tr '|' ' ')
+と、それらへ展開する alias）。**\`--output=\` は付けないこと** ——
+読むだけの動詞でも追跡ファイルを潰せる。
 判定はコマンドが走る前なので、手前で変えるとその前の状態を見ることになる。
-別の呼び出しに分けること。"
+それ以外は別の呼び出しに分けること。"
 fi
 
 # このプロジェクト以外のツリーには、このプロジェクトの検証を当てる筋合いが無い。
