@@ -59,7 +59,7 @@ use hand_count::HandCount;
 /// 駒種と、40枚の駒箱に入っている数。玉は先後1枚ずつ。
 ///
 /// 盤上と持駒を通して数え、この数を超えたら綴りが壊れていると判断する。
-pub(super) const PIECE_LIMITS: [(char, u32); 8] = [
+const PIECE_LIMITS: [(char, u32); 8] = [
     ('P', 18),
     ('L', 4),
     ('N', 4),

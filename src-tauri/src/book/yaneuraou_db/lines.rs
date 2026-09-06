@@ -15,10 +15,7 @@ use crate::book::error::{excerpt, format_size, BookError};
 use std::io::BufRead;
 
 /// 行の残りを読み捨てる。確保は [`MAX_LINE_BYTES`] ずつで頭打ち。
-pub(super) fn discard_rest_of_line<R: BufRead>(
-    reader: &mut R,
-    path: &str,
-) -> Result<(), BookError> {
+fn discard_rest_of_line<R: BufRead>(reader: &mut R, path: &str) -> Result<(), BookError> {
     let mut sink = Vec::new();
     loop {
         sink.clear();
@@ -139,12 +136,12 @@ pub(super) fn read_line<R: BufRead>(
 pub(super) const HEADER_PREFIX: &str = "#YANEURAOU-DB";
 
 /// 行の先頭のトークン。区切りは空白1つ（`parse_move` と同じ数え方）。
-pub(super) fn first_token(line: &str) -> &str {
+fn first_token(line: &str) -> &str {
     line.split(' ').next().unwrap_or(line)
 }
 
 /// UTF-8 の BOM。付いたまま配られている定跡がある。
-pub(super) const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// 局面行の頭。
 pub(super) const POSITION_PREFIX: &str = "sfen ";
@@ -177,7 +174,7 @@ pub(super) fn is_note(raw: &[u8]) -> bool {
 }
 
 /// ファイル自身が申告する収録局面数の綴り。
-pub(super) const DECLARED_COUNT_PREFIX: &str = "# NOE:";
+const DECLARED_COUNT_PREFIX: &str = "# NOE:";
 
 /// 申告された局面数を読む。
 ///
