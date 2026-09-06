@@ -7,7 +7,7 @@ import SSection from "../kit/SSection";
 import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
-import { usePositionSearch } from "@/entities/search";
+import { isIndexBusy, usePositionSearch, type IndexUiState } from "@/entities/search";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -15,7 +15,7 @@ function percent(done: number, total: number) {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
 
-function badgeForIndexState(s: "Empty" | "Restoring" | "Building" | "Ready" | "Updating") {
+function badgeForIndexState(s: IndexUiState["state"]) {
   switch (s) {
     case "Ready":
       return {
@@ -67,9 +67,7 @@ export default function WorkspaceTab() {
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
-  const showProgress =
-    (idx.state === "Restoring" || idx.state === "Building" || idx.state === "Updating") &&
-    progressTotal > 0;
+  const showProgress = isIndexBusy(idx.state) && progressTotal > 0;
 
   const pct = useMemo(() => percent(idx.doneFiles, progressTotal), [idx.doneFiles, progressTotal]);
 

@@ -22,7 +22,7 @@ import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey } from "@/features/position-search/lib/hitKey";
 import { useOrderedPositionHits } from "@/features/position-search/lib/useOrderedPositionHits";
 import { useGame } from "@/entities/game";
-import { usePositionSearch, type PositionHit } from "@/entities/search";
+import { isIndexBusy, usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
 
 /**
@@ -103,9 +103,7 @@ export default function PositionSearchModal() {
   const isDone = !!session?.isDone && !isSearching;
   const error = launchError ?? session?.error ?? null;
 
-  const indexState = state.index.state;
-  const indexStale =
-    indexState === "Restoring" || indexState === "Building" || indexState === "Updating";
+  const indexStale = isIndexBusy(state.index.state);
 
   const resultStale = indexStale || !!session?.stale;
 
