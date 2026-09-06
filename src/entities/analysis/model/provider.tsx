@@ -288,7 +288,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // エンジン側のセッションも必ず止める。React の state だけ落とすと
         // Rust には席が残り、以降 start_infinite_analysis が
         // 常に「Analysis already running」で弾かれて解析を再開できなくなる。
-        releaseSeatQuietly(seatRef.current ?? undefined);
+        // 握っていなければ撃たない。畳まれたときと違い、ここは画面が生きている
+        // ——指せない停止（＝全部止める）を投げると、席を持たないのに
+        // 走っている解析があったとき、それを巻き添えにする。
+        if (seatRef.current) releaseSeatQuietly(seatRef.current);
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
         dispatch({ type: "stop_analysis" });
