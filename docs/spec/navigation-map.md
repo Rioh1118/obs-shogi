@@ -80,16 +80,16 @@
 
 `URLParams`（`useURLParams.ts`）が持つ8つ。
 
-| キー       | 型                  | 誰が読むか                                                                  |
-| ---------- | ------------------- | --------------------------------------------------------------------------- |
-| `modal`    | `ModalType`         | 各モーダル                                                                  |
-| `tab`      | `string`            | 設定（`workspace`/`aiLibrary`/`engine`）・ファイル作成（`create`/`import`） |
-| `dir`      | `string`            | ファイル作成の保存先                                                        |
-| `sfen`     | `string`            | 局面検索・課題局面の登録・SFEN からの棋譜作成                               |
-| `returnTo` | `ModalType`         | 閉じたときに戻る先のモーダル                                                |
-| `pov`      | `"sente" \| "gote"` | 盤の向き                                                                    |
-| `tesuu`    | `number`            | `navigateToPosition` が書く。**読み手は現状いない**                         |
-| `branch`   | `string`            | 同上                                                                        |
+| キー       | 型          | 誰が読むか                                                                  |
+| ---------- | ----------- | --------------------------------------------------------------------------- |
+| `modal`    | `ModalType` | 各モーダル                                                                  |
+| `tab`      | `string`    | 設定（`workspace`/`aiLibrary`/`engine`）・ファイル作成（`create`/`import`） |
+| `dir`      | `string`    | ファイル作成の保存先                                                        |
+| `sfen`     | `string`    | 局面検索・課題局面の登録・SFEN からの棋譜作成                               |
+| `returnTo` | `ModalType` | 閉じたときに戻る先のモーダル                                                |
+| `pov`      | `"gote"`    | 盤の向き（既定は値なし）                                                    |
+| `tesuu`    | `number`    | `navigateToPosition` が書く。**読み手は現状いない**                         |
+| `branch`   | `string`    | 同上                                                                        |
 
 ### `tesuu` / `branch` は書かれるが読まれない
 
