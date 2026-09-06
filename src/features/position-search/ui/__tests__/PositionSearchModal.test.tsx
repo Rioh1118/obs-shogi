@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
@@ -374,6 +375,33 @@ describe("PositionSearchModal のヒットを開く", () => {
     rerender(<PositionSearchModal />);
     await screen.findByRole("listbox");
     expect(searchPosition).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * 畳んで張り直す経路（StrictMode の二重マウント）。世代を進める3つ目の口は
+   * 「進めるだけで撃ち直さない」ので、覚えている問い合わせを残すと張り直された
+   * effect が早期 return し、**飛行中の起動を降ろす者が居なくなる**。
+   * 検索は取り下げ済みなのに、画面は結果の来ない「検索中…」で固まる。
+   */
+  test("畳んで張り直されても、「検索中…」で固まらない", async () => {
+    const settlers: ((out: { status: "started"; requestId: number }) => void)[] = [];
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => settlers.push(resolve as (typeof settlers)[number])),
+    );
+
+    render(
+      <StrictMode>
+        <PositionSearchModal />
+      </StrictMode>,
+    );
+
+    // 1本目（畳まれた回）が後から解決する
+    await act(async () => {
+      settlers[0]({ status: "started", requestId: 41 });
+    });
+
+    // 張り直された側が撃ち直しているので、結果の来ない「検索中…」にはならない
+    expect(searchPosition.mock.calls.length).toBeGreaterThan(1);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

@@ -170,6 +170,12 @@ export default function PositionSearchModal() {
   const discardSearch = useCallback(() => {
     launchSeqRef.current += 1;
 
+    // **捨てたら、次に描かれたときに撃ち直す。** 世代を進めるのは3箇所——閉じる枝、
+    // 撃ち直しの枝、畳みの後始末。3つ目は「進めるだけ」なので、覚えている
+    // 問い合わせを残すと、張り直された effect が早期 return して**飛行中の起動を
+    // 降ろす者が居なくなる**（画面は結果の来ない「検索中…」で固まる）
+    lastQueryKeyRef.current = null;
+
     const rid = inFlightRidRef.current;
     if (rid == null) return;
 
@@ -181,7 +187,6 @@ export default function PositionSearchModal() {
   useEffect(() => {
     if (!isOpen) {
       discardSearch();
-      lastQueryKeyRef.current = null;
       setRequestId(null);
       setLaunchError(null);
       setIsLaunching(false);
