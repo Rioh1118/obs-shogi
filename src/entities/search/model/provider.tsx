@@ -244,7 +244,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
   const value = useMemo<PositionSearchContextType>(
     () => ({
       state,
-      openProject,
       searchPosition,
       cancelSearch,
       getSessionByRequestId,
@@ -257,7 +256,6 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
-      openProject,
       searchPosition,
       cancelSearch,
       getSessionByRequestId,
