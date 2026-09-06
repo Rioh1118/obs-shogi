@@ -170,6 +170,36 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledWith(undefined);
   });
 
+  it("席を受け取った直後、state に載る前に畳まれても、席を返す", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    // 応答待ちのまま置く（返ってこないので await しない）
+    void view.current.startInfiniteAnalysis();
+    await advance(50);
+
+    stopCore.mockClear();
+
+    // **`act` で包まない。** 包むと effect が流れて `state` の写しが更新され、
+    // 見たい窓——dispatch と unmount が同じバッチに入り、写しが一度も
+    // 更新されないまま畳まれる回——を踏めなくなる。
+    releaseStart("session-late");
+    await Promise.resolve();
+
+    view.unmount();
+
+    // 席の在処を `state` の写しから導くと、ここで「席は無い」と読んで
+    // 何も撃たず、Rust に席が残る。
+    expect(stopCore).toHaveBeenCalled();
+  });
+
   it("エラーで止まって見えていても、畳まれたら席を返す", async () => {
     tauri = true;
     const view = mountAnalysis(adapter("P1", "P1"));

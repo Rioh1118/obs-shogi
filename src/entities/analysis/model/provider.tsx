@@ -118,6 +118,31 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   };
 
+  // **Rust が渡した席を、握った行で持つ。** `state` の写し（`analyzingRef` /
+  // `sessionIdRef`）では代われない——あれを書くのは commit の後の effect なので、
+  // 開始の応答が返った直後に畳まれた回は空のまま残り、席が在るのに「無い」と読む。
+  //
+  // 返せたときだけ手放す。**停止が失敗したら握ったまま**にして、次に返せる機会
+  // （畳まれたとき）へ持ち越す。手放してしまうと、席の存在を知る者が誰も居なくなる。
+  const seatRef = useRef<string | null>(null);
+
+  // 席を返す口をここ1つにする。散らすと、経路を1つ足すたびに返し忘れが1つ増える。
+  const releaseSeat = async (sessionId?: string) => {
+    await stopAnalysisCore(sessionId);
+
+    // 指した相手が既に居なくても Rust は `Ok` を返す（`bridge.rs` の `stop_session`）。
+    // ここまで来た時点で、その席は空いている。
+    // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
+    if (sessionId === undefined || seatRef.current === sessionId) {
+      seatRef.current = null;
+    }
+  };
+
+  // 応答を待てない場所（畳まれた後・打ち切り）から返す。
+  const releaseSeatQuietly = (sessionId?: string) => {
+    void releaseSeat(sessionId).catch(() => {});
+  };
+
   const unmountedRef = useRef(false);
 
   // 畳まれたら再開のタイマーを必ず止める。局面を見る effect の cleanup だけでは
@@ -134,20 +159,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       unmountedRef.current = true;
       clearDebounceTimer();
 
-      // React の state が消えても Rust の台帳は残る。畳んだ画面のセッションを
+      // React の state が消えても、Rust の `active_sessions` からは席が消えない。
       // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
       // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
-      //
-      // **エラーで止まって見えるときも撃つ。** `set_error` は isAnalyzing を
-      // false にするが sessionId を残す（`reducer.ts`）。席は Rust に在りうる。
-      if (!analyzingRef.current && sessionIdRef.current === null) return;
+      if (seatRef.current === null) return;
 
       // **セッションを指さない。** 指すと Rust は照合して「自分のではない」を
-      // 断る（`bridge.rs` の `stop_session`）。畳まれた瞬間に席に居るのが
-      // sessionIdRef の1本とは限らない——再開の途中では、指せる ID は
-      // 停止済みの古い方で、新しい席はまだ手元に無い。
+      // 断る（`bridge.rs` の `stop_session`）。畳まれた瞬間に握っている ID が
+      // 席の主とは限らない——再開の途中では、握っているのは停止を投げ終えた
+      // 古い方で、新しい席はまだ返ってきていない。
       // 画面が居ないのだから、走っている解析は全部要らない。
-      void stopAnalysisCore().catch(() => {});
+      releaseSeatQuietly();
     };
   }, []);
 
@@ -170,7 +192,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             latestResultRef.current = result;
             scheduleFlush();
           },
-          onComplete: (_sessionId: string, result: AnalysisResult) => {
+          onComplete: (sessionId: string, result: AnalysisResult) => {
+            // 終わった探索の席は Rust が自分で片付ける（`bridge.rs` の
+            // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
+            // 一致しないまま手放すと、走っている別の席を知る者が居なくなる。
+            // 一致しない側に倒したときの損は、畳んだときに空振りの停止が1本出るだけ。
+            if (seatRef.current === sessionId) seatRef.current = null;
+
             latestResultRef.current = result;
             clearFlushTimer();
             flushLatest();
@@ -234,10 +262,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         clearDebounceTimer();
 
         // エンジン側のセッションも必ず止める。React の state だけ落とすと
-        // Rust には is_active なセッションが残り、以降 start_infinite_analysis が
+        // Rust には席が残り、以降 start_infinite_analysis が
         // 常に「Analysis already running」で弾かれて解析を再開できなくなる。
-        const sid = sessionIdRef.current;
-        void stopAnalysisCore(sid ?? undefined).catch(() => {});
+        releaseSeatQuietly(seatRef.current ?? undefined);
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
         dispatch({ type: "stop_analysis" });
@@ -258,9 +285,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     restartInFlightRef.current = (async () => {
       try {
-        const sid = sessionIdRef.current;
-        if (sid) {
-          await stopAnalysisCore(sid);
+        const held = seatRef.current;
+        if (held) {
+          await releaseSeat(held);
         }
 
         clearFlushTimer();
@@ -276,12 +303,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         if (unmountedRef.current) return;
 
         const newSessionId = await startInfiniteAnalysisCore();
+        seatRef.current = newSessionId;
 
-        // 上の門を通った後、応答を待っている間にも畳まれる。そのとき席は
-        // 既に Rust に在り、手元の `sessionId` には入らないまま画面が消える
-        // ——畳んだときの後始末は先に走り終えているので、誰も返さない。
+        // 上の門を通った後、応答を待っている間にも畳まれる。畳んだときの
+        // 一括停止がこの席より先に Rust へ届いていれば、席は残ったまま
+        // ——順序はどちらにもなるので、返ってきた側でも返す。
         if (unmountedRef.current) {
-          void stopAnalysisCore(newSessionId).catch(() => {});
+          releaseSeatQuietly(newSessionId);
           return;
         }
 
@@ -363,12 +391,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
 
     const sessionId = await startInfiniteAnalysisCore();
+    seatRef.current = sessionId;
 
-    // 局面を送って応答を待つ間に畳まれることがある（押した直後の切り替えでも
-    // 上限いっぱいの2秒待つ経路がある）。畳んだときの後始末はまだ席の存在を
-    // 知らないので、ここで返さないと台帳に残る。
+    // 席を頼んでから返ってくるまでの間に畳まれることがある。畳んだときの
+    // 一括停止は、この席が Rust に載る前に届いていれば何も掃かない
+    // ——返せるのはここだけ。
     if (unmountedRef.current) {
-      void stopAnalysisCore(sessionId).catch(() => {});
+      releaseSeatQuietly(sessionId);
       return;
     }
 
@@ -387,19 +416,23 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     restartSeqRef.current++;
     clearDebounceTimer();
 
-    if (!state.isAnalyzing || !state.sessionId) {
+    // **席を持っているかは1つの式で決める。** 畳まれたときの後始末と別の式にすると、
+    // `set_error` で `sessionId` だけ残った状態（`reducer.ts`）で答えが割れ、
+    // 片方は返しにいき、片方は state だけ落として席を置き去りにする。
+    const held = seatRef.current;
+    if (!held) {
       dispatch({ type: "stop_analysis" });
       return;
     }
 
     try {
-      await stopAnalysisCore(state.sessionId);
+      await releaseSeat(held);
     } finally {
       dispatch({ type: "stop_analysis" });
       clearFlushTimer();
       latestResultRef.current = null;
     }
-  }, [clearFlushTimer, state.isAnalyzing, state.sessionId]);
+  }, [clearFlushTimer]);
 
   const clearResults = useCallback(() => {
     dispatch({ type: "clear_results" });
