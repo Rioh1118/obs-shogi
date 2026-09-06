@@ -9,9 +9,10 @@ import type { Action } from "./types";
  *
  * **1チャンク1レンダにしない。** Rust は `yield_now` を挟んで実時間に散らして
  * emit する（`src-tauri/src/search/query_service.rs`）ので、チャンクは結果の
- * 件数ぶん飛んでくる——この画面が要求する 300 件区切り
- * （`features/position-search/ui/PositionSearchModal.tsx`）なら n=100,000 で 334 回。1回ごとに
- * state を作り直すと、10万件の `filePathById` と一覧の平坦化を 334 回やり直す。
+ * 件数ぶん飛んでくる。区切りを決めているのは要求する側
+ * （`features/position-search/ui/PositionSearchModal.tsx` の `chunkSize`）で、
+ * **ここは区切りの値を知らない**。1回ごとに state を作り直すと、10万件の
+ * `filePathById` と一覧の平坦化を「件数 ÷ 区切り」回やり直す。
  *
  * 溜めると、その回数が**件数でなく経過時間**で決まるようになる。50ms は
  * 「結果が育っていくのが見える」ことと「回数の上限（20回/秒）」の折り合い。

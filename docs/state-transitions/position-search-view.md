@@ -33,7 +33,7 @@
 **`stale` は上の6つと直交する。** `indexState ∈ {Restoring, Building, Updating} || session.stale`
 で決まり、どの状態にも重なって出る。意味は [search.md](search.md) が持つ。
 
-**`L-strm` が通常の姿。** `chunkSize: 300` で届くので、`isSearching` は
+**`L-strm` が通常の姿。** 結果は分割して届くので、`isSearching` は
 一覧が育っているあいだずっと真。「検索中だから触らせない」を選ぶと、
 利用者から見て**ずっと触れない**になる。
 
