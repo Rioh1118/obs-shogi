@@ -64,8 +64,9 @@ export default function PositionSearchModal() {
   const [requestId, setRequestId] = useState<number | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
-  // 開けなかったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
-  // 並び替わるので、添字で覚えると届いていない棋譜の名前で断りが出る
+  // 移動を断ったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
+  // 並び替わる（`orderPositionHits`）ので、添字で覚えると断りが別のヒットに
+  // 付いたまま残る
   const [refusedHit, setRefusedHit] = useState<{
     key: string;
     reason: RefusalReason;
