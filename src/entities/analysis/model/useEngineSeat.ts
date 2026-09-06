@@ -5,7 +5,7 @@ import { stopAnalysis as stopAnalysisCore } from "@/entities/engine/api/tauri";
  * 席を返した口。**ログを切り分けるためだけに在る**（Rust のログにもそのまま出る）。
  *
  * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
- * `releaseHeldQuietly` の doc に書き足すこと。書けないなら、その口は要らない。
+ * `releaseHeldQuietly` と `discard` の doc に書き足すこと。書けないなら、その口は要らない。
  */
 export type SeatReleasePoint =
   | "stop"
@@ -48,11 +48,23 @@ export interface EngineSeat {
    * 失敗は呼び手へ投げる（口の名前を取らないのはそのため——出し方は呼び手が決める）。
    */
   releaseHeld: () => Promise<void>;
-  /** 応答を待てない場所から、握っている席を返す */
+  /**
+   * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
+   *
+   * **落ちても利用者には出せない**（画面がもう無いか、直後に別のエラーを出す場面）。
+   * 落ちた席は握ったままにするので、画面が生きていれば ▶ が返し直す。
+   * 畳まれた後（`unmount`）に落ちた回は、読む者が居ないので誰も返せない。
+   */
   releaseHeldQuietly: (at: SeatReleasePoint) => void;
   /** 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある */
   sweepOnUnmount: () => void;
-  /** 要らなくなった開始が持ってきた席を捨てる。**握っている席には触らない** */
+  /**
+   * 要らなくなった開始が持ってきた席を捨てる。**握っている席には触らない。**
+   *
+   * **捨てられなかったときは握る**（欄が空で、まだ返し終えていない席のとき）。
+   * 呼んだ後に `isHeld()` が true になりうるのはこの形だけで、そうしないと
+   * その席を知る者が居なくなる。畳まれた後に落ちた回は誰も返せない。
+   */
   discard: (at: SeatReleasePoint, sessionId: string) => void;
 }
 
