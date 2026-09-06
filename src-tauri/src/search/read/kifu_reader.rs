@@ -19,32 +19,37 @@ use shogi_kifu_converter_obsshogi::parser::{
 ///
 /// | 形式 | 文字コードの総当たり | パニックを捕まえる | 読み残し |
 /// | --- | --- | --- | --- |
-/// | KIF / KI2 | する（[`read_portable`]） | しない | クレートが断る |
-/// | CSA | する（[`read_portable`]） | **する**（[`parse_csa_portable`]） | **こちらが見つけて `warns` に積む**（[`warn_if_moves_were_dropped`]） |
+/// | KIF / KI2 | する（`read_portable`） | しない | クレートが断る |
+/// | CSA | する（`read_portable`） | **する**（`parse_csa_portable`） | **こちらが見つけて `warns` に積む**（`warn_if_moves_were_dropped`） |
 /// | JKF | しない（JSON なので UTF-8） | しない | — |
 ///
 /// 非対称の理由はそれぞれの関数の doc にある。
 /// **CSA 固有の経路**は、クレートが断った／パニックを捕まえた。
-/// 形式を問わない経路（開けない・[`SIZE_LIMIT`] 超過）は形式で分岐する前にあり、
+/// 形式を問わない経路（開けない・`SIZE_LIMIT` 超過）は形式で分岐する前にあり、
 /// この表の外。**読み残しはどちらにも入らない** — `warns` に積むだけで、
-/// 記録を落とすかどうかは [`says_nothing`] だけが決める。
+/// 記録を落とすかどうかは `says_nothing` だけが決める。
 ///
-/// # Errors
+/// # 戻り
 ///
-/// 2つある。**どちらを返すかで、呼び手のすることが変わる。**
+/// 3つある。**どれを返すかで、呼び手のすることが変わる。**
 ///
-/// | 腕 | 何が起きたか | 呼び手のすること |
+/// | 戻り | 何が起きたか | 呼び手のすること |
 /// | --- | --- | --- |
-/// | [`KifuReadError::ParseFailed`] | 読めなかった | 文言を警告として出す |
-/// | [`KifuReadError::NothingToIndex`] | 読めたが入れる局面が無い | **`warn` があればそれだけ出す** |
+/// | `Ok(`[`ReadOutcome::Indexable`]`)` | 読めた | 局面を索引に入れる。`warns` があれば出す |
+/// | `Ok(`[`ReadOutcome::NothingToIndex`]`)` | 読めたが入れる局面が無い | **項目だけ登録する。** `warns` があれば出す |
+/// | `Err(`[`KifuReadError::ParseFailed`]`)` | 読めなかった | 文言を警告として出す |
 ///
-/// **項目の登録はどちらも同じ。** 全件構築（`build.rs`）も差分更新（`project_manager.rs`）も、
-/// 局面を1つも持たない項目として登録する（`project_manager` は
-/// `build_one_file` が `None` を返したときに呼び手側で積む）。
-/// どちらの経路でも、その棋譜の局面は検索に出てこない。
+/// **項目の登録は3つとも同じ。** 全件構築（`build.rs`）も差分更新
+/// （`project_manager.rs`）も項目を登録する —— 登録しないと `file_table` の
+/// 世代が上がらず、**前の世代のセグメントが索引に残る**。
+/// 下2つでは、その棋譜の局面は検索に出てこない。
 ///
 /// **`Ok` でも `warns` が空とは限らない。** 5つの戻りを並べた表は
 /// `docs/state-transitions/search.md`（この関数を主語にしている）。
+///
+/// [`ReadOutcome::Indexable`]: crate::search::read::outcome::ReadOutcome::Indexable
+/// [`ReadOutcome::NothingToIndex`]: crate::search::read::outcome::ReadOutcome::NothingToIndex
+/// [`KifuReadError::ParseFailed`]: crate::search::read::outcome::KifuReadError::ParseFailed
 pub fn read_to_jkf(rec: &FileRecord) -> Result<ReadOutcome, KifuReadError> {
     read_path_inner(&rec.path, rec.kind)
 }

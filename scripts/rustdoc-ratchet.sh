@@ -15,7 +15,7 @@ set -euo pipefail
 # `cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app` の警告数。
 # `cargo doc` が最後に出す `generated N warnings` と同じ値になる。
 # **減らしたらここを下げること。**
-BASELINE=11
+BASELINE=4
 
 cd "$(dirname "$0")/.."
 # 集計行（`generated N warnings`）は数えない。数えると画面の N と基準が1ずれて、
