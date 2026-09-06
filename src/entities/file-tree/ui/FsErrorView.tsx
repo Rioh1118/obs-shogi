@@ -16,6 +16,11 @@ interface Props {
  *
  * 利用者に見せる文は `describeFsError` が `code` から作る。`message` は開発者向けの
  * ログなので、`cause` と一緒に畳んだ中へ置く。
+ *
+ * TODO(#277): 段と動作は `shared/ui/notification` の `Notice` と同じものを描いている。
+ * **そのままでは寄せられない**——ここは `FsError` 固有の詳細（`code` / `message` /
+ * `cause`）を `details` で出すが、`Notice` には本文以外の差し込み口が無い。
+ * 口を足してから寄せること。
  */
 export default function FsErrorView({ error, actions }: Props) {
   const tier = fsErrorTier(error.code);
