@@ -42,17 +42,6 @@ export async function searchPosition(input: SearchPositionInput): Promise<Search
   return await invoke<SearchPositionOutput>("search_position", { input });
 }
 
-export async function searchPositionBestEffort(
-  sfen: string,
-  chunkSize: number = 5000,
-): Promise<SearchPositionOutput> {
-  return await searchPosition({
-    sfen,
-    consistency: "BestEffort",
-    chunkSize,
-  });
-}
-
 /**
  * 進行中の検索をキャンセル。フロント側 cleanup で必ず呼ぶ。
  */
