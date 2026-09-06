@@ -64,6 +64,11 @@ export default function Notice({
   const [failed, setFailed] = useState<NotifyAction | null>(null);
 
   const invoke = (action: NotifyAction) => {
+    // **二重起動はここで止める。ボタンを `disabled` にしない。**
+    // フォーカス中の要素が `disabled` になるとブラウザは blur し、行き先は `<body>`。
+    // 通知は `#modal-root`（文書の末尾）に描かれるので、そこから戻るには
+    // アプリ全体を Tab で辿り直すことになり、直後に出る失敗の理由へ帰れない
+    if (running !== null) return;
     setFailed(null);
     setRunning(action);
     // `run` が同期で投げる場合も拾えるように、呼び出しごと Promise に入れる
@@ -112,7 +117,8 @@ export default function Notice({
                 // 先頭だけを主にする。段では決めない（ADR-0004 決定3）。
                 // 2つとも主にすると「エンジンを再起動」が「再試行」と同じ重さに見える
                 tone={at === 0 ? "primary" : "neutral"}
-                isLoading={running === action}
+                // 待っていることは伝えるが押せなくはしない（`invoke` が弾く）
+                busy={running === action}
                 onClick={() => invoke(action)}
               >
                 {action.label}

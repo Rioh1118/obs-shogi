@@ -94,6 +94,38 @@ describe("通知の中身", () => {
     });
 
     /**
+     * フォーカス中の要素が `disabled` になるとブラウザは blur し、行き先は `<body>`。
+     * 通知は `#modal-root`（文書の末尾）に描かれるので、そこから戻るにはアプリ全体を
+     * Tab で辿り直すことになり、**直後に出る失敗の理由へ帰れない**。
+     * モーダルの中は `Modal` が引き戻すが、トースト・バナー・インラインには無い。
+     */
+    it("走っている間も押せる状態のままにする", async () => {
+      const run = () => new Promise<void>(() => {});
+      show({ actions: [{ label: "再試行", run }] });
+
+      const button = screen.getByRole("button", { name: "再試行" }) as HTMLButtonElement;
+      await act(async () => button.click());
+
+      expect(button.disabled).toBe(false);
+    });
+
+    // 押せる状態のままにした代わりに、二重起動は押した側で弾く
+    it("走っている間に押し直しても二重に走らない", async () => {
+      let calls = 0;
+      const run = () => {
+        calls += 1;
+        return new Promise<void>(() => {});
+      };
+      show({ actions: [{ label: "再試行", run }] });
+
+      const button = screen.getByRole("button", { name: "再試行" });
+      await act(async () => button.click());
+      await act(async () => button.click());
+
+      expect(calls).toBe(1);
+    });
+
+    /**
      * **動作そのものが失敗したことを握り潰さない。** console に落とすと、
      * 押した人には何も起きなかったようにしか見えない。
      * 通知の中で失敗を出すのがこの基盤の存在理由なので、
