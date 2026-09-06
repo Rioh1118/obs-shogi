@@ -169,7 +169,6 @@ other=$(git worktree list --porcelain | awk '/^worktree /{print $2}' | grep -v "
 # 宛先が自明な形。起点の作業ディレクトリで commit が1つだけ走る。
 expect_dir "$here" 'git commit -m x' "$here"
 expect_dir "$here" 'git commit -m "fix: 直した"' "$here"
-expect_dir "$here" 'git add -A && git commit -m x' "$here"
 # git の綴りにパス修飾や引用が付いても、宛先は起点のまま（deny にはならない）
 expect_dir "$here" '/usr/bin/git commit -m x' "$here"
 expect_dir "$here" "'git' commit -m x" "$here"
@@ -191,6 +190,22 @@ expect_dir "" 'git --git-dir=/tmp/x/.git commit -m x' "$here"
 expect_dir "" "cd $target && git commit -m x" "$here"
 expect_dir "" "cd '$target' && git commit -m x" "$here"
 expect_dir "" "cd $target; git commit -m x" "$here"
+
+# **ツリーを変える git を手前に置いた形。** 判定はコマンドが走る前なので、
+# 手前で変えるとその前の状態を見る。`git rm X && git commit` は X がまだ在る
+# 状態を走査して「変更なし」と読み、検証も deny もせずに素通ししていた。
+expect_dir "" "git rm src/app/App.tsx && git commit -m x" "$here"
+expect_dir "" "git add -A && git commit -m x" "$here"
+expect_dir "" "git mv a.rs b.rs && git commit -m x" "$here"
+expect_dir "" "git stash pop && git commit -am x" "$here"
+expect_dir "" "git checkout main -- src && git commit -am x" "$here"
+expect_dir "" "git restore --source=main -- src/foo.ts && git commit -am x" "$here"
+expect_dir "" "git reset --hard && git commit -m x" "$here"
+
+# 読むだけの git は手前に置いてよい。**塞ぎすぎると、いま通っている綴りが止まる。**
+expect_dir "$here" "git status && git commit -m x" "$here"
+expect_dir "$here" "git diff --cached && git commit -m x" "$here"
+expect_dir "$here" "git log --oneline -1 && git commit -m x" "$here"
 expect_dir "" "cd $target&&git commit -m x" "$here"
 expect_dir "" "(cd $target && git commit -m x)" "$here"
 expect_dir "" "pushd $target && git commit -m x" "$here"

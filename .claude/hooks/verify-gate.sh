@@ -63,6 +63,12 @@ GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 # （`revert` / `cherry-pick` / `merge` / `rebase` / `am` / `pull`）が作るツリーは
 # コマンドの前には存在しないので検証できない。**宛先の判定（`-C` 付き /
 # 呼び出しが複数）へ載せて deny の対象にするために語彙へ入れている。**
+# ツリーを変えない git の動詞。**手前に置いてよいのはこれだけ。**
+#
+# 増やすときは「その呼び出しの後で `git status` の結果が変わらないか」で決める。
+# 変わるものを入れると、判定した時点の状態で検証することになる。
+GATE_READ_ONLY_VERBS='status|diff|log|show|rev-parse|config|branch|fetch|remote|describe'
+
 GATE_COMMIT_VERB_BASE='commit|revert|cherry-pick|merge|rebase|am|pull'
 
 # alias で付けられた別名。`git ci` のように、綴りは利用者の設定で無限に増える。
@@ -173,12 +179,22 @@ gate_target_dir() {
     *-C*|*--git-dir*|*--work-tree*|*--namespace*) return 0 ;;
   esac
 
-  # 手前に置いてよいのは、ディレクトリ指定の無い git 呼び出しだけ。
+  # 手前に置いてよいのは、**コミットされる中身を変えない git 呼び出しだけ**。
+  #
+  # PreToolUse はコマンドが走る前に判定するので、手前の呼び出しがツリーを変えると
+  # **その前の状態を見る**。`git rm X && git commit` は、判定した時点では X がまだ
+  # 在るので変更が1つも見えず、種類が空のまま素通しする ——
+  # コンパイルが通らないコミットが検証も deny もされずに積まれる。
+  # `git add` / `git mv` / `git stash pop` / `git checkout --` も同じ。
+  # 走査の仕方を変えても閉じない（消される側・これから現れる側は原理的に見えない）ので、
+  # **手前に置ける動詞を列挙する側で塞ぐ。**
+  #
+  # 2回の呼び出しに分ければ従来どおり打てる。
   flat=$(gate_strip_quotes "$command")
   prefix=${flat%"$call"*}
   # 空の prefix も1行として渡す。printf '%s' だと行が無く、grep が必ず外れる。
   printf '%s\n' "$prefix" \
-    | grep -Eq '^[[:space:]]*(git[[:space:]]+[^;&|()<>]*(&&|;)[[:space:]]*)*$' \
+    | grep -Eq "^[[:space:]]*(git[[:space:]]+($GATE_READ_ONLY_VERBS)[[:space:]][^;&|()<>]*(&&|;)[[:space:]]*)*$" \
     || return 0
 
   case "$prefix" in
@@ -336,7 +352,11 @@ if [ -z "$project_dir" ]; then
 別の呼び出しで対象のワークツリーへ移動してから、
 ディレクトリ指定の無い \`git commit\` 単体として実行すること。
 同じコマンドの中で cd / pushd / env / サブシェルを使わないこと。
-1つのコマンドに commit を2つ以上並べないこと。"
+1つのコマンドに commit を2つ以上並べないこと。
+**ツリーを変える git を手前に置かないこと**（\`add\` / \`rm\` / \`mv\` /
+\`stash\` / \`checkout\` / \`restore\` / \`reset\` など）——
+判定はコマンドが走る前なので、手前で変えるとその前の状態を見ることになる。
+別の呼び出しに分けること。"
 fi
 
 # このプロジェクト以外のツリーには、このプロジェクトの検証を当てる筋合いが無い。
