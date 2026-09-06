@@ -9,11 +9,11 @@ import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
+import { useGame } from "@/entities/game";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
     openKifuNode,
-    activeKifuPath,
     selectedNode,
     selectNode,
     openContextMenu,
@@ -22,8 +22,16 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     cancelInlineRename,
     pushError,
   } = useFileTree();
+  const { state: gameState } = useGame();
   const isSelected = selectedNode?.id === node.id;
-  const isActive = activeKifuPath === node.path;
+  /**
+   * **もう載っているか**は盤に訊く。ツリーが開いたと言っているパス
+   * （`activeKifuPath`）は、構文として読めた時点で進む。そこから盤に載るまでに
+   * もう一段あるので（`loadGame` の `buildPlayer`）、そちらを合図にすると
+   * 載せられなかった棋譜が「載っている」ことになり、**もう一度クリックしても
+   * 何も起きない**——復帰が別の棋譜を選ぶことだけになる。
+   */
+  const isActive = gameState.loadedAbsPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 
