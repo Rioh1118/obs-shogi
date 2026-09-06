@@ -104,6 +104,8 @@
 | 索引が作成中・更新中                 | 「結果が古い可能性」の印（`stale`）                          |
 | 索引が空                             | **「0件」と区別が付かない**                                  |
 
+→ [`failure-surfacing.md`](../../state-transitions/failure-surfacing.md) F-32
+
 最後の1つが `search.md` の言う核心の欠陥。`Empty` / `Restoring` / `Building` /
 `Updating` はどれも `stale = true` になるだけで、
 「まだ索引が無いから0件」と「本当に0件」を利用者が区別できない。→ #350
