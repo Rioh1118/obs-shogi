@@ -60,7 +60,7 @@ impl BookFormat {
 /// 定跡が持つ1手ぶんの情報。
 ///
 /// `value` / `depth` / `count` は形式によっては存在せず、同じ形式でも行ごとに
-/// 欠けることがあるので optional。出典: やねうら王 `source/book/book.h:51-68`。
+/// 欠けることがあるので optional。出典: やねうら王 `source/book/book.h:51-68`（`v9.40` 時点）。
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BookMove {

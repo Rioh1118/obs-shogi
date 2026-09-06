@@ -26,6 +26,9 @@ mod error;
 mod formats;
 mod open;
 mod reader;
+// `session` は `pub` だが、**`BookState` の操作は全て `pub(crate)`。**
+// 名前が crate 外から引けるのは `lib.rs` が `.manage()` へ渡すためで、
+// 外から開いたり閉じたりできるという意味ではない。
 pub mod session;
 mod sfen;
 mod types;

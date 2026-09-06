@@ -61,7 +61,7 @@ const HIRATE_BOOK_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/L
 ///
 /// メモリに展開する reader は、定跡ファイル側のキーも [`to_book_key_in_file`] を
 /// 通すこと。ファイル上を二分探索する reader は通せない（通すと探索の前提である
-/// ソート順が壊れる）ので、代わりに [`super::counts::HAND_PIECES`] の並びと出力の書式が
+/// ソート順が壊れる）ので、代わりに [`super::hands::HAND_PIECES`] の並びと出力の書式が
 /// ファイルの綴りと一致していることに依存する。
 pub(crate) fn to_book_key(input: &str) -> Result<BookKey, BookError> {
     book_key_or_reason(input).map_err(|reason| {

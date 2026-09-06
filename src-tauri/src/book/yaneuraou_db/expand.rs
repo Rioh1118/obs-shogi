@@ -8,11 +8,10 @@
 //! 重複を抱えたままの列が読み切るまで残る。
 
 use super::dedup::{keep_first_of_each_move_everywhere, push_without_doubling, LONG_MOVE_LIST};
+use super::diagnose::before_any_position;
 use super::diagnose::{annotate_line, invalid_content, EMPTY_OF_POSITIONS};
 use super::limits::{check_expanded_size, held_positions, MAX_EXPANDED_BYTES};
-use super::lines::{
-    before_any_position, declared_count, is_skippable, read_line, HEADER_PREFIX, POSITION_PREFIX,
-};
+use super::lines::{declared_count, is_skippable, read_line, HEADER_PREFIX, POSITION_PREFIX};
 use super::moves::{looks_like_a_move, parse_move, DroppedFields, ABSENT_MOVE};
 use crate::book::error::{excerpt, BookError};
 use crate::book::sfen::key::{to_book_key_in_file, BookKey};
@@ -277,7 +276,7 @@ fn parse_limited<R: BufRead>(
     if let Some(count) = declared {
         // 比べるのは `sfen` 行の数。**`positions.len()` と比べてはいけない。**
         // キーは手数を落とすので、手数違いで2度書かれた局面は1つに畳まれる
-        // （`flush` の doc のとおり実在する）。畳んだ後の数と申告を突き合わせると、
+        // （`flush` の `Entry::Occupied` の枝に書いたとおり実在する）。畳んだ後の数と申告を突き合わせると、
         // 正常な定跡が「途中で切れている。取得し直すこと」で拒否され、
         // 何度取得し直しても直らない案内を出すことになる。
         //

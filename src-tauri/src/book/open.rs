@@ -15,8 +15,9 @@
 //! `tauri::State` を経由せずにここへ来られる。
 //!
 //! パスと形式から決まる検査（綴り・実在・種別）を足すときはここに置く。
-//! **ファイルの中身を読まないと決まらない検査は `reader` 側**（大きさの上限と
-//! 中身の検査がそこにあるのはそのため）。境目は「`metadata` より先か後か」。
+//! **ファイルの中身を読まないと決まらない検査は `formats` 側**（大きさの上限は
+//! `check_file_size`、中身の検査は形式ごとの reader）。
+//! 境目は「`metadata` より先か後か」。
 
 use crate::book::error::{truncate_path, BookError, BookErrorCode};
 use crate::book::formats::open_reader;

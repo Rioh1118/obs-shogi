@@ -6,7 +6,9 @@
 //!
 //! 抜粋は `excerpt` が長さと不可視文字を抑える。ここでは組み立てだけを持つ。
 
-use crate::book::error::{BookError, BookErrorCode};
+use super::lines::first_token;
+use super::moves::looks_like_a_move;
+use crate::book::error::{excerpt, BookError, BookErrorCode};
 
 /// 失敗に行番号を前置する。
 ///
@@ -35,3 +37,33 @@ pub(super) fn invalid_content(message: &str, path: &str) -> BookError {
 pub(super) const EMPTY_OF_POSITIONS: &str = "この定跡には局面が1つも入っていない\
                                   （まだ何も登録されていないか、途中で切れている）。\
                                   別の定跡を開くこと";
+
+/// 局面より先に来た行の診断。
+///
+/// **見出しの有無で変えない。** 見出しは要求しないので、先頭の局面行を失った
+/// 切れかけの定跡は、見出しがあれば本体のループで、無ければ見出し探索のループで
+/// 同じ形に当たる。診断が割れると、利用者は同じ壊れ方に別の説明を受ける。
+/// **行の形で説明を分ける。** 指し手なら「切れたファイル」、そうでなければ
+/// 「別の形式」。片方に寄せると、どちらかの利用者が事実でないことを言われる
+/// （`<!DOCTYPE html>` に「指し手が書かれている」と言う／やねうら王の指し手行に
+/// 「別の形式かもしれない」と言う）。
+///
+/// **どちらにも引用を付ける。** 行が見えないと、利用者は何が起きたか画面から
+/// 確かめられない。`looks_like_a_move` は形しか見ないので、普通の英文の1語目が
+/// 指し手扱いになることがある。そのとき引用があれば読み手には分かる。
+pub(super) fn before_any_position(line_number: usize, line: &str, path: &str) -> BookError {
+    let message = if looks_like_a_move(first_token(line)) {
+        format!(
+            "局面より先に指し手が書かれている（{line_number}行目: {}）。\
+             途中で切れたファイルかもしれない。取得し直すか、別の定跡を開くこと",
+            excerpt(line)
+        )
+    } else {
+        format!(
+            "やねうら王テキスト定跡として読めない（{line_number}行目: {}）。\
+             別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
+            excerpt(line)
+        )
+    };
+    invalid_content(&message, path)
+}
