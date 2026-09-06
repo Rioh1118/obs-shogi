@@ -226,6 +226,21 @@ expect_dir "" "git reset --hard && git commit -m x" "$here"
 expect_dir "" 'git status `git rm -f src/app/App.tsx` && git commit -m x' "$here"
 expect_dir "" 'git log -1 `git checkout main -- src` && git commit -am x' "$here"
 
+# **後ろに置いても同じこと。** 呼び出し自身の引数の中で走る置換は、
+# 手前の許可リストを1文字も通らないまま、走査した時点のツリーを別物にする。
+# prefix だけを見ていると「手前に何も無い」ので通ってしまう。
+expect_dir "" 'git commit -m x `git rm -f src/app/App.tsx`' "$here"
+expect_dir "" 'git commit -am x $(git rm -f src/app/App.tsx)' "$here"
+expect_dir "" 'git commit -am "$(git rm -f src/app/App.tsx)x"' "$here"
+expect_dir "" 'git commit -m x --author="$(git stash)a"' "$here"
+expect_dir "" 'git commit -am x `git stash pop`' "$here"
+expect_dir "" 'git commit -am x $(git diff --output=src/app/App.tsx)' "$here"
+
+# メッセージをファイルから読む形は、置換を1つも含まないので通る。
+# **塞いだ後に残る道**なので、ここが止まると打ち方が1つも無くなる。
+expect_dir "$here" 'git commit --file=/tmp/msg.txt' "$here"
+expect_dir "$here" "git commit -m 'fix: \`x\` を直す'" "$here"
+
 # 読むだけの git は手前に置いてよい。**塞ぎすぎると、いま通っている綴りが止まる。**
 expect_dir "$here" "git status && git commit -m x" "$here"
 expect_dir "$here" "git diff --cached && git commit -m x" "$here"
