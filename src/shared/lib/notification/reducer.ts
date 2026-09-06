@@ -1,4 +1,10 @@
-import type { Notification, NotificationId, NotifyRequest, VisibleTier } from "./types";
+import type {
+  Notification,
+  NotificationId,
+  NotifyAction,
+  NotifyRequest,
+  VisibleTier,
+} from "./types";
 
 export type NotificationState = {
   notifications: Notification[];
@@ -20,15 +26,30 @@ export const INITIAL_NOTIFICATION_STATE: NotificationState = {
   nextSeq: 1,
 };
 
-function toNotification(request: NotifyRequest, tier: VisibleTier, seq: number): Notification {
+/** 見せ方の枝を持つ要求。`silent` を落としたあとはこれしか来ない */
+type VisibleRequest = Exclude<NotifyRequest, { tier: "silent" }>;
+
+/**
+ * 自動で消えるのは `toast` の枝だけ。**ここで型から読み切る**ので、
+ * 時計を張る側（`useAutoDismiss`）は見せ方を知らなくてよい
+ */
+function autoDismissOf(request: VisibleRequest): boolean {
+  return request.presentation === "toast" && request.autoDismiss === true;
+}
+
+function actionsOf(request: VisibleRequest): NotifyAction[] {
+  return ("actions" in request ? request.actions : undefined) ?? [];
+}
+
+function toNotification(request: VisibleRequest, tier: VisibleTier, seq: number): Notification {
   return {
     id: `notice-${seq}`,
     tier,
     presentation: request.presentation,
     title: request.title,
     body: request.body,
-    actions: request.actions ?? [],
-    autoDismiss: request.autoDismiss ?? false,
+    actions: actionsOf(request),
+    autoDismiss: autoDismissOf(request),
     dedupeKey: request.dedupeKey,
     count: 1,
   };
@@ -43,7 +64,11 @@ function toNotification(request: NotifyRequest, tier: VisibleTier, seq: number):
  * **id と並び順は動かさない。** 動かすと、畳まれるたびに通知が右下で跳ね、
  * 読んでいる途中の別の通知がずれる。
  */
-function foldInto(existing: Notification, request: NotifyRequest, tier: VisibleTier): Notification {
+function foldInto(
+  existing: Notification,
+  request: VisibleRequest,
+  tier: VisibleTier,
+): Notification {
   return {
     ...existing,
     // 段も上書きする。同じ鍵で段が上がる経路（「読めなかった」が
@@ -52,8 +77,8 @@ function foldInto(existing: Notification, request: NotifyRequest, tier: VisibleT
     presentation: request.presentation,
     title: request.title,
     body: request.body,
-    actions: request.actions ?? [],
-    autoDismiss: request.autoDismiss ?? false,
+    actions: actionsOf(request),
+    autoDismiss: autoDismissOf(request),
     count: existing.count + 1,
   };
 }
@@ -65,9 +90,10 @@ export function notificationReducer(
   switch (action.type) {
     case "notify": {
       const { request } = action;
+      // 出さないと決めた段。握り潰しとの違いは、ここに来ていること自体が示す。
+      // **`request` を直に見る**ので、以降は型が見せ方の枝に絞られる
+      if (request.tier === "silent") return state;
       const tier = request.tier;
-      // 出さないと決めた段。握り潰しとの違いは、ここに来ていること自体が示す
-      if (tier === "silent") return state;
 
       const key = request.dedupeKey;
       const at = key === undefined ? -1 : state.notifications.findIndex((n) => n.dedupeKey === key);

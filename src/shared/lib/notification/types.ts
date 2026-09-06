@@ -49,10 +49,9 @@ export type NotifyPresentation = "toast" | "banner" | "modal";
 
 export type NotificationId = string;
 
-/** 出す側が書くもの */
-export type NotifyRequest = {
-  tier: NotifyTier;
-  presentation: NotifyPresentation;
+/** どの見せ方にも要るもの */
+type VisibleRequestBase = {
+  tier: VisibleTier;
   /** 何が起きたか。**利用者の言葉で**書く。内部の語（`NotInitialized` 等）を出さない */
   title: string;
   /** 何をすれば直るか。要らなければ省く */
@@ -65,14 +64,37 @@ export type NotifyRequest = {
    * 省くと畳まれない。棋譜を1つ開くたびに何十件も出る類の失敗にだけ付ける
    */
   dedupeKey?: string;
-  /**
-   * 放っておけば消える。`toast` にだけ効く。
-   *
-   * **既定は消えない。** 消える側を既定にすると、書き忘れた失敗が
-   * 「見ていなければ無かったこと」になる
-   */
-  autoDismiss?: boolean;
 };
+
+/**
+ * 出す側が書くもの。**見せ方で枝を分けてある。**
+ *
+ * フラットな1つの型にすると、見せ方ごとに違う制約を型が表せない。
+ * 実際に3つの破れ方があった——`autoDismiss` が帯やモーダルにも効いて
+ * `fatal` が6秒で消える、押した動作の結果が出る前にその通知が消える、
+ * 出さないと決めた失敗に見せ方を1つ書かされる。**どれも型で言えば起きない。**
+ */
+export type NotifyRequest =
+  // 消えないトースト。**既定はこちら。** 消える側を既定にすると、
+  // 書き忘れた失敗が「見ていなければ無かったこと」になる
+  | (VisibleRequestBase & { presentation: "toast"; autoDismiss?: false })
+  // 放っておけば消えるトースト。**動作を持てない**——押した動作の結果が返る前に
+  // 通知が消えると、成功したのか失敗したのかを伝える場所が無くなる
+  | (Omit<VisibleRequestBase, "actions"> & { presentation: "toast"; autoDismiss: true })
+  // 帯とモーダルは自分からは消えない。閉じるか、出した側が引っ込めるまで残る
+  | (VisibleRequestBase & { presentation: "banner" | "modal" })
+  | {
+      /**
+       * **出してはいけない失敗**（ADR-0004 決定2）。何も起きない。
+       *
+       * 段として持つのは、握り潰し（`catch {}`）と区別をコードに残すため。
+       * 見せ方も文言も持たないので、可視の通知から段だけを差し替えて
+       * 黙らせることはできない
+       */
+      tier: "silent";
+      /** なぜ出さないか。**出さない判断の唯一の記録**なので省けない */
+      reason: string;
+    };
 
 /** 基盤が持つもの */
 export type Notification = {

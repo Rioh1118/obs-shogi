@@ -4,9 +4,21 @@ import {
   notificationReducer,
   type NotificationState,
 } from "../reducer";
-import type { NotifyRequest } from "../types";
+import type { NotifyAction, NotifyRequest, VisibleTier } from "../types";
 
-function request(over: Partial<NotifyRequest> = {}): NotifyRequest {
+/**
+ * 差し替えられるのは見せ方に依らない欄だけ。`presentation` を差し替え可能にすると、
+ * spread の結果が union のどの枝にも決まらず、型が制約を語らなくなる
+ */
+type Over = {
+  tier?: VisibleTier;
+  title?: string;
+  body?: string;
+  actions?: NotifyAction[];
+  dedupeKey?: string;
+};
+
+function request(over: Over = {}): NotifyRequest {
   return {
     tier: "warning",
     presentation: "toast",
@@ -15,7 +27,7 @@ function request(over: Partial<NotifyRequest> = {}): NotifyRequest {
   };
 }
 
-function notify(state: NotificationState, over: Partial<NotifyRequest> = {}): NotificationState {
+function notify(state: NotificationState, over: Over = {}): NotificationState {
   return notificationReducer(state, { type: "notify", request: request(over) });
 }
 
@@ -35,9 +47,15 @@ describe("通知の置き場", () => {
   });
 
   // 出さないと決めた段が「出ない」ことは、この検査でしか固定できない。
-  // 段の判定を落としても、他のどの検査も赤くならない
+  // 段の判定を落としても、他のどの検査も赤くならない。
+  //
+  // **可視の通知から `tier` だけを差し替えては書けない。** 型が別の枝なので、
+  // 見せ方も文言も落として「なぜ出さないか」を書くことになる
   it("silent は何も積まない", () => {
-    const state = notify(INITIAL_NOTIFICATION_STATE, { tier: "silent" });
+    const state = notificationReducer(INITIAL_NOTIFICATION_STATE, {
+      type: "notify",
+      request: { tier: "silent", reason: "cancelSearch は no-op として通るのが仕様" },
+    });
 
     expect(state).toBe(INITIAL_NOTIFICATION_STATE);
   });

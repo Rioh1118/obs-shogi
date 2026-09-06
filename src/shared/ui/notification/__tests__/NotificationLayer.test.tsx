@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { NotificationProvider } from "@/shared/lib/notification/provider";
 import { useNotifications } from "@/shared/lib/notification/useNotifications";
-import type { NotifyRequest } from "@/shared/lib/notification/types";
+import type { NotifyAction, NotifyRequest, VisibleTier } from "@/shared/lib/notification/types";
 import NotificationLayer from "../NotificationLayer";
 
 /**
@@ -33,9 +33,22 @@ function setup() {
   return { notify: (request: NotifyRequest) => act(() => notify(request)) };
 }
 
-const request = (over: Partial<NotifyRequest> = {}): NotifyRequest => ({
+/** 見せ方を変える口は別に持つ。spread で差し替えると union の枝が決まらない */
+const request = (
+  over: { tier?: VisibleTier; title?: string; actions?: NotifyAction[]; dedupeKey?: string } = {},
+): NotifyRequest => ({
   tier: "warning",
   presentation: "toast",
+  title: "解析を停止できませんでした",
+  ...over,
+});
+
+const shownAs = (
+  presentation: "banner" | "modal",
+  over: { title?: string } = {},
+): NotifyRequest => ({
+  tier: "warning",
+  presentation,
   title: "解析を停止できませんでした",
   ...over,
 });
@@ -61,7 +74,7 @@ describe("通知の層", () => {
 
   it("バナーは帯の入れ物に出る", () => {
     const app = setup();
-    app.notify(request({ presentation: "banner", title: "エンジンを起動できません" }));
+    app.notify(shownAs("banner", { title: "エンジンを起動できません" }));
 
     expect(boxOf(".notice-layer__banners")?.textContent).toContain("エンジンを起動できません");
     expect(boxOf(".notice-layer__toasts")).toBeNull();
@@ -69,7 +82,7 @@ describe("通知の層", () => {
 
   it("モーダルは Modal として出る", () => {
     const app = setup();
-    app.notify(request({ presentation: "modal", title: "ファイルを削除できませんでした" }));
+    app.notify(shownAs("modal", { title: "ファイルを削除できませんでした" }));
 
     const dialog = screen.getByRole("dialog");
     expect(dialog.getAttribute("aria-label")).toBe("ファイルを削除できませんでした");
@@ -81,7 +94,7 @@ describe("通知の層", () => {
    */
   it("モーダルには目に見える閉じる手段がある", async () => {
     const app = setup();
-    app.notify(request({ presentation: "modal", title: "ファイルを削除できませんでした" }));
+    app.notify(shownAs("modal", { title: "ファイルを削除できませんでした" }));
 
     await act(async () => screen.getByRole("button", { name: "閉じる" }).click());
 
@@ -94,8 +107,8 @@ describe("通知の層", () => {
    */
   it("モーダルは1枚しか出さない", () => {
     const app = setup();
-    app.notify(request({ presentation: "modal", title: "1枚目" }));
-    app.notify(request({ presentation: "modal", title: "2枚目" }));
+    app.notify(shownAs("modal", { title: "1枚目" }));
+    app.notify(shownAs("modal", { title: "2枚目" }));
 
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("1枚目");
@@ -103,8 +116,8 @@ describe("通知の層", () => {
 
   it("見せ方が違えば同時に出る", () => {
     const app = setup();
-    app.notify(request({ presentation: "toast", title: "トースト" }));
-    app.notify(request({ presentation: "banner", title: "バナー" }));
+    app.notify(request({ title: "トースト" }));
+    app.notify(shownAs("banner", { title: "バナー" }));
 
     expect(screen.getByText("トースト")).toBeTruthy();
     expect(screen.getByText("バナー")).toBeTruthy();
@@ -138,7 +151,7 @@ describe("通知の層", () => {
 
   it("silent は何も描かない", () => {
     const app = setup();
-    app.notify(request({ tier: "silent" }));
+    app.notify({ tier: "silent", reason: "cancelSearch は no-op として通るのが仕様" });
 
     expect(screen.queryByText("解析を停止できませんでした")).toBeNull();
   });

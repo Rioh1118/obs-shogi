@@ -3,7 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "../provider";
 import { useNotifications } from "../useNotifications";
-import type { NotifyRequest } from "../types";
+import type { NotifyRequest, VisibleTier } from "../types";
 
 /** 出ているものを文字にして見せる小さな読み手。中身は見ず、件数と鍵だけを見る */
 function Probe({ onReady }: { onReady: (api: ReturnType<typeof useNotifications>) => void }) {
@@ -38,10 +38,22 @@ function setup() {
   };
 }
 
-const toast = (over: Partial<NotifyRequest> = {}): NotifyRequest => ({
+/** 消えないトースト。動作を持てる枝 */
+const toast = (
+  over: { tier?: VisibleTier; title?: string; dedupeKey?: string } = {},
+): NotifyRequest => ({
   tier: "info",
   presentation: "toast",
   title: "開けませんでした",
+  ...over,
+});
+
+/** 自動で消えるトースト。**型として動作を持てない**ので、別の口にしてある */
+const timedToast = (over: { title?: string; dedupeKey?: string } = {}): NotifyRequest => ({
+  tier: "info",
+  presentation: "toast",
+  title: "開けませんでした",
+  autoDismiss: true,
   ...over,
 });
 
@@ -66,7 +78,7 @@ describe("通知の provider", () => {
 
   it("autoDismiss を付けたものは時間で消える", () => {
     const app = setup();
-    app.notify(toast({ autoDismiss: true }));
+    app.notify(timedToast());
 
     act(() => vi.advanceTimersByTime(5999));
     expect(app.ids()).toHaveLength(1);
@@ -89,10 +101,10 @@ describe("通知の provider", () => {
    */
   it("あとから別の通知が出ても、先に出た通知の残り時間は巻き戻らない", () => {
     const app = setup();
-    app.notify(toast({ autoDismiss: true }));
+    app.notify(timedToast());
 
     act(() => vi.advanceTimersByTime(3000));
-    app.notify(toast({ title: "2件目", autoDismiss: true }));
+    app.notify(timedToast({ title: "2件目" }));
 
     act(() => vi.advanceTimersByTime(3000));
     expect(app.ids()).toEqual(["notice-2:2件目:1"]);
@@ -104,10 +116,10 @@ describe("通知の provider", () => {
    */
   it("同じ鍵で畳まれたら残り時間を数え直す", () => {
     const app = setup();
-    app.notify(toast({ dedupeKey: "sfen", autoDismiss: true }));
+    app.notify(timedToast({ dedupeKey: "sfen" }));
 
     act(() => vi.advanceTimersByTime(5000));
-    app.notify(toast({ dedupeKey: "sfen", title: "2件目", autoDismiss: true }));
+    app.notify(timedToast({ dedupeKey: "sfen", title: "2件目" }));
 
     act(() => vi.advanceTimersByTime(5000));
     expect(app.ids()).toEqual(["notice-1:2件目:2"]);
@@ -118,7 +130,12 @@ describe("通知の provider", () => {
 
   it("鍵で引っ込められる", () => {
     const app = setup();
-    app.notify(toast({ dedupeKey: "engine", presentation: "banner" }));
+    app.notify({
+      tier: "warning",
+      presentation: "banner",
+      title: "開けませんでした",
+      dedupeKey: "engine",
+    });
     app.dismissByKey("engine");
 
     expect(app.ids()).toEqual([]);
@@ -126,7 +143,7 @@ describe("通知の provider", () => {
 
   it("silent は何も出さない", () => {
     const app = setup();
-    app.notify(toast({ tier: "silent" }));
+    app.notify({ tier: "silent", reason: "cancelSearch は no-op として通るのが仕様" });
 
     expect(app.ids()).toEqual([]);
   });
