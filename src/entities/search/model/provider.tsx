@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 import { useAppConfig } from "@/entities/app-config";
@@ -47,6 +55,18 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
    */
   const hitsCacheRef = useRef(new Map<RequestId, HitsCacheEntry>());
 
+  /**
+   * 購読が張り終わったか。**索引を開くのはこれが真になってから。**
+   *
+   * `listenSearchEvents` は `listen` の連なりで、登録の完了は IPC の往復を待つ。
+   * 一方 `open_project` は入口で即 `Restoring` を emit する。宣言順は購読が
+   * 「始まる」ことしか保証しないので、順序を守るものがコードに要る。
+   *
+   * 取りこぼすと `index.state` は `"Empty"` のままになり、`indexStale` が偽になる。
+   * 復元中に検索すると**0件が「完了・最新」として出る**。
+   */
+  const [isListening, setIsListening] = useState(false);
+
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +90,7 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
           return;
         }
         unlisten = u;
+        setIsListening(true);
       } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[SEARCH] Failed to setup listeners:", e);
@@ -78,6 +99,7 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      setIsListening(false);
       unlisten?.();
       unlisten = null;
     };
@@ -124,11 +146,11 @@ export function PositionSearchProvider({ children }: { children: ReactNode }) {
    */
   const rootDir = config?.root_dir ?? null;
   useEffect(() => {
-    if (!rootDir) return;
+    if (!rootDir || !isListening) return;
     void openProject(rootDir).catch(() => {
       // `open_error` に積まれている。ここで再度投げても拾う先が無い
     });
-  }, [rootDir, openProject]);
+  }, [rootDir, isListening, openProject]);
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchPositionOutput> => {
