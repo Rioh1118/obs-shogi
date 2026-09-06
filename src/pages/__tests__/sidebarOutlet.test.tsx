@@ -14,14 +14,10 @@ import { MemoryRouter, Route, Routes } from "react-router";
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    view: { player: null },
+    view: { hasKifu: false },
     state: { selectedPosition: null },
     clearSelection: vi.fn(),
   }),
-}));
-
-vi.mock("@/features/board-orientation", () => ({
-  useBoardOrientation: () => ({ rotate: false }),
 }));
 
 // 盤・棋譜・解析・モーダルはこの検査の対象外。枠だけ残す

@@ -65,3 +65,54 @@ describe("loadGame", () => {
     expect(game.current!.state.error).not.toBeNull();
   });
 });
+
+/**
+ * `hasKifu` は「盤に載せられる棋譜があるか」の唯一の綴り。
+ *
+ * 読み手（`AppLayout` の `WelcomeScreen` との切り替え）は `player` も `shogi` も
+ * 知らない形で問える必要がある。**壊れても例外は出ない**——切り替えが狂って
+ * 空の作業面が出るか、棋譜があるのに WelcomeScreen が出るだけ。
+ */
+describe("hasKifu", () => {
+  test("何も読み込んでいなければ偽", () => {
+    const game = mountGame();
+
+    expect(game.current!.view.hasKifu).toBe(false);
+  });
+
+  test("読み込めた棋譜があれば真", async () => {
+    const game = mountGame();
+    const jkf: JKFData = { header: {}, moves: [{}, { comments: ["t1"] }] };
+
+    await act(async () => {
+      await game.current!.loadGame(jkf, "/ok.kif");
+    });
+
+    expect(game.current!.view.hasKifu).toBe(true);
+  });
+
+  test("盤に載せられない棋譜を掴まされても偽のまま", async () => {
+    const game = mountGame();
+    const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
+
+    await act(async () => {
+      await game.current!.loadGame(broken, "/broken.kif");
+    });
+
+    expect(game.current!.view.hasKifu).toBe(false);
+  });
+
+  test("閉じたら偽に戻る", async () => {
+    const game = mountGame();
+    const jkf: JKFData = { header: {}, moves: [{}] };
+
+    await act(async () => {
+      await game.current!.loadGame(jkf, "/ok.kif");
+    });
+    await act(async () => {
+      game.current!.resetGame();
+    });
+
+    expect(game.current!.view.hasKifu).toBe(false);
+  });
+});

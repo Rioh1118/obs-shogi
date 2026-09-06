@@ -58,6 +58,15 @@ export interface GameContextState {
 export interface GameView {
   player: JKFPlayer | null;
 
+  /**
+   * 盤に載せられる棋譜があるか。**画面を切り替える側はこれを見る。**
+   *
+   * `player` と `player.shogi` のどちらが欠けても偽になる。読み手が
+   * `player?.shogi` を毎回組み立てると、`player !== null` で縮めた人と
+   * そうでない人が混ざり、**同じ問いに2つの答えが出る**。
+   */
+  hasKifu: boolean;
+
   legalMoves: ShogiMove[];
   lastMove: ShogiMove | null;
   currentMove: IMoveMoveFormat | undefined;

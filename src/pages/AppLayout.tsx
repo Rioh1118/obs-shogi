@@ -23,7 +23,10 @@ const AppLayout = () => {
   const { view: gameView, state: gameState, clearSelection } = useGame();
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
-  const hasFile = !!gameView.player?.shogi;
+
+  // 「棋譜が無ければ WelcomeScreen、あれば作業面」は画面全体の切り替えなので、
+  // 判断はここに置く。**何をもって「ある」とするかは game が決める**
+  const { hasKifu } = gameView;
 
   const onPointerDownCapture = (e: React.PointerEvent) => {
     if (!gameState.selectedPosition) return;
@@ -47,7 +50,7 @@ const AppLayout = () => {
       <AppLayoutHeader
         toggleSidebar={toggleSidebar}
         isSidebarOpen={isSidebarOpen}
-        hasFile={hasFile}
+        hasFile={hasKifu}
       />
 
       <div className="app-layout__body">
@@ -58,7 +61,7 @@ const AppLayout = () => {
           </Sidebar>
         </aside>
         <main className="app-layout__main">
-          {!hasFile ? (
+          {!hasKifu ? (
             <div className="app-layout__empty">
               <WelcomeScreen />
             </div>
