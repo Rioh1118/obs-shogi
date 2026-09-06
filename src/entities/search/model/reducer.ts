@@ -76,13 +76,30 @@ const WARNS_KEPT = 200;
  */
 const PLACE_KEPT = 20;
 
+/** 同じ警告かを決める鍵。**直前との比較では足りない**（下の `appendWarn`）。 */
+function warnKey(w: SearchState["warns"][number]) {
+  return `${w.kind}\u0000${w.path}\u0000${w.message}`;
+}
+
 /**
- * 警告を積む。**種類ごとに上限を持つ。**
+ * 警告を積む。**同じものは複製せず、末尾へ動かす。**
  *
- * 並べ替えはしない——並びは届いた順のままで、どれを描くかは `pickWarns` が決める。
+ * **直前の1件と比べるだけでは足りない。** 1回の再走査は読めない場所について
+ * 最大3本（引き継げた／引き継げなかった／場所が分からない）を出し、そのあいだに
+ * 棋譜1件ごとの警告も挟まる。次の再走査が同じ3本を出すとき、どれも直前とは
+ * 別の1件なので**全部通る**——読めない場所を1つ放置したまま作業すると、
+ * 数回の保存で枠が同じ文言の複製だけになり、棋譜の警告が一度も描かれなくなる。
+ *
+ * 末尾へ動かすのは、**新しさを保つため**。前に出た警告がまた出たなら、
+ * それはいまも起きていることなので古い扱いにしない。
+ *
+ * **種類ごとに上限を持つ。** 総数だけで切ると、1回の再走査が棋譜1件ごとに出す
+ * 警告が枠を独占し、場所の警告が消える。
  */
 function appendWarn(warns: SearchState["warns"], next: SearchState["warns"][number]) {
-  const grown = [...warns, next];
+  const key = warnKey(next);
+  const withoutDup = warns.filter((w) => warnKey(w) !== key);
+  const grown = [...withoutDup, next];
   if (grown.length <= WARNS_KEPT) return grown;
 
   // **末尾から数える形で書かない。** `slice(-n)` は `n` が 0 のとき
@@ -132,22 +149,8 @@ export function reducer(state: SearchState, action: Action): SearchState {
       };
     }
 
-    case "index_warn": {
-      // **同じ警告を積み増さない。** 読めない場所が1つあると、ワークスペースで
-      // ファイルを保存するたびの再走査が毎回同じ1件を積む。枠は5つしか無いので、
-      // 数回の保存で**同じ文言が枠を埋め尽くし**、後から来る棋譜1件ごとの警告が
-      // 一度も描かれなくなる（`pickWarns` は場所を先に取る）
-      const last = state.warns[state.warns.length - 1];
-      if (
-        last &&
-        last.kind === action.payload.kind &&
-        last.path === action.payload.path &&
-        last.message === action.payload.message
-      ) {
-        return state;
-      }
+    case "index_warn":
       return { ...state, warns: appendWarn(state.warns, action.payload) };
-    }
 
     case "clear_warns":
       return { ...state, warns: [] };

@@ -30,12 +30,47 @@ describe("警告の積み方", () => {
     expect(s.warns).toHaveLength(1);
   });
 
-  it("間に別の警告が挟まれば、同じ文言でも積む", () => {
+  /**
+   * **間に別の警告が挟まっても積み増さないこと。**
+   *
+   * 直前の1件しか見ない形だと、ここが素通りする。1回の再走査は読めない場所に
+   * ついて最大3本を出し、そのあいだに棋譜1件ごとの警告も挟まるので、
+   * **次の回の同じ3本はどれも直前と別の1件になる**——照合は一度も成立しない。
+   */
+  it("間に別の警告が挟まっても、同じ警告は積み増さない", () => {
     const p = warn("place", 1);
     let s = push(initialState, p);
     s = push(s, warn("file", 1));
     s = push(s, { ...p });
+    expect(s.warns.filter((w) => w.kind === "place")).toHaveLength(1);
+    expect(s.warns).toHaveLength(2);
+  });
+
+  /**
+   * **1回の走査が3本出す形を、回をまたいで繰り返しても増えないこと。**
+   *
+   * 読めない場所を1つ放置したまま作業すると、保存のたびに再走査が走る。
+   * 積み増すと数回で枠が同じ文言の複製だけになり、棋譜の警告が
+   * 一度も描かれなくなる。
+   */
+  it("3本の組を繰り返し受け取っても3本のまま", () => {
+    const round = [
+      { kind: "place" as const, path: "/w/新規", message: "検索に出ません" },
+      { kind: "place" as const, path: "/w/既存", message: "前回のまま残ります" },
+      { kind: "place" as const, path: "", message: "場所が分かりません" },
+    ];
+    let s = initialState;
+    for (let r = 0; r < 4; r++) for (const p of round) s = push(s, { ...p });
     expect(s.warns).toHaveLength(3);
+  });
+
+  /** 出続けている警告は古い扱いにしない（末尾へ動かす）。 */
+  it("また出た警告は新しい側へ動く", () => {
+    const p = warn("place", 1);
+    let s = push(initialState, p);
+    s = push(s, warn("file", 1));
+    s = push(s, { ...p });
+    expect(s.warns[s.warns.length - 1].kind).toBe("place");
   });
 
   /**

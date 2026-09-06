@@ -39,6 +39,19 @@ describe("pickWarns", () => {
     expect(got).toHaveLength(5);
   });
 
+  /**
+   * **場所を名指しできない1本を先頭に出さないこと。**
+   *
+   * Rust 側は1回の走査で最大3本出し、そのうち1本は `path` が空
+   * （どの場所か分からない失敗）。素の新しい順だとそれが先頭に来て、
+   * 利用者が動ける手掛かりの無い1本が枠を先に取る。
+   */
+  it("場所を名指しできる警告を先に出す", () => {
+    const unnamed: Warn = { kind: "place", path: "", message: "場所が分かりません" };
+    const got = pickWarns([place(1), unnamed], 2);
+    expect(got.map((w) => w.path)).toEqual(["/w/1", ""]);
+  });
+
   it("場所の警告どうしも新しい順", () => {
     const got = pickWarns([place(1), file(0), place(2)], 2);
     expect(got.map((w) => w.message)).toEqual(["場所 2", "場所 1"]);
