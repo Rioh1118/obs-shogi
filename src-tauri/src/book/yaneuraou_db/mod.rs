@@ -27,15 +27,25 @@
 //! （[`MAX_EXPANDED_BYTES`]）。**どれが欠けても穴が空く。**
 //! 進捗と中断は #197。
 
+mod dedup;
+mod diagnose;
+mod limits;
+mod lines;
 mod moves;
 
-use crate::book::error::{excerpt, format_size, BookError, BookErrorCode};
+use crate::book::error::{excerpt, BookError};
 use crate::book::sfen::{to_book_key_in_file, BookKey};
 use crate::book::types::BookMove;
+use dedup::{keep_first_of_each_move_everywhere, push_without_doubling, LONG_MOVE_LIST};
+use diagnose::{annotate_line, invalid_content, EMPTY_OF_POSITIONS};
+pub(crate) use limits::MAX_FILE_BYTES;
+use limits::{check_expanded_size, held_positions, MAX_EXPANDED_BYTES};
+use lines::{
+    before_any_position, declared_count, is_skippable, read_line, HEADER_PREFIX, POSITION_PREFIX,
+};
 use moves::{looks_like_a_move, parse_move, DroppedFields, ABSENT_MOVE};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::io::BufRead;
 use std::path::Path;
 
@@ -83,346 +93,6 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
     })
 }
 
-/// 行の残りを読み捨てる。確保は [`MAX_LINE_BYTES`] ずつで頭打ち。
-fn discard_rest_of_line<R: BufRead>(reader: &mut R, path: &str) -> Result<(), BookError> {
-    let mut sink = Vec::new();
-    loop {
-        sink.clear();
-        let read = std::io::Read::take(reader.by_ref(), MAX_LINE_BYTES as u64)
-            .read_until(b'\n', &mut sink)
-            .map_err(|e| BookError::from_io(e, path))?;
-        if read == 0 || sink.ends_with(b"\n") {
-            return Ok(());
-        }
-    }
-}
-
-/// 1行読む。行末の改行と、最初の行だけ BOM を落とす。
-///
-/// 壊れたバイト列を lossy で読むと、置換文字を含むキーが黙って登録される。
-/// そのキーは引かれることが無いので、「定跡に載っていない」と区別が付かない。
-/// `read_line` は不正な UTF-8 に `InvalidData` を返すので、それを利用者向けの
-/// 文面へ言い直す。
-/// 返り値は「読めたか」と「その行が改行で終わっていたか」。
-///
-/// 1行が [`MAX_LINE_BYTES`] を超えて改行が来ないときは `InvalidContent` で落とす
-/// （理由は定数の doc）。不正な UTF-8 も落とす。**どちらも注記なら落とさず、
-/// 残りを読み捨てて読み進む**（本家は注記の中身を見ないので、長い注記を1行
-/// 持つだけの正しい定跡がある）。読み捨てた行では、改行の有無にかかわらず
-/// 2つ目に `true` を返す。
-///
-/// **2つ目は切れの判定には使わない。** 行境界で切れたファイルは素通りするので
-/// 根拠にならない（理由は `parse_limited` の末尾）。事実として `log::warn!` に
-/// 出すためだけに返す。
-///
-/// **バイト列で読んで、行ごとに UTF-8 を試す。** ファイル全体を UTF-8 として
-/// 読むと、Shift_JIS の注記が1行あるだけで定跡全体が拒否される。本家は行を
-/// 生のバイト列として読み、注記は中身を見ずに捨てるので、そういう定跡を普通に
-/// 読む。注記でない行が読めないときだけ落とす（キーが置換文字で汚れる懸念は、
-/// `sfen` 行と指し手行に厳格な UTF-8 を課したままなので保たれる）。
-fn read_line<R: BufRead>(
-    reader: &mut R,
-    raw: &mut Vec<u8>,
-    buffer: &mut String,
-    first: bool,
-    line_number: usize,
-    path: &str,
-) -> Result<Option<bool>, BookError> {
-    raw.clear();
-    // 上限の根拠は `MAX_LINE_BYTES` の doc。
-    let read = std::io::Read::take(reader.by_ref(), MAX_LINE_BYTES as u64 + 1)
-        .read_until(b'\n', raw)
-        .map_err(|e| BookError::from_io(e, path))?;
-
-    if read == 0 {
-        return Ok(None);
-    }
-
-    // **長さの検査より前に落とす。** BOM を残したまま `is_note` に渡すと、
-    // `0xEF` は ASCII 空白ではないので1行目の注記が注記と判定されない。
-    // BOM 付きの `.db` は実在する（ShogiHome が開ける側の fixture に持っている）
-    // ので、1行目に長い生成情報コメントを置いた定跡が BOM の有無だけで拒否される。
-    if first && raw.starts_with(&BOM) {
-        raw.drain(..BOM.len());
-    }
-
-    // 見るのは**読んだバイト数**。`raw.len()` だと BOM を落とした3バイトぶん
-    // 短くなって上限をすり抜け、行の残りが次の行として読まれる。
-    if read > MAX_LINE_BYTES && !raw.ends_with(b"\n") {
-        // **注記だけは捨てて読み進む。** 本家は注記の中身を見ないので、長い注記を
-        // 1行持つだけの定跡を普通に読む。拒否すると、正しい定跡に対して
-        // 「別のファイルを選び直すこと」という効かない復帰操作を出すことになる。
-        // 自由に伸びうるのは注記だけなので、ここを通せば残りは短い。
-        if is_note(raw) {
-            discard_rest_of_line(reader, path)?;
-            raw.clear();
-            buffer.clear();
-            buffer.push('#');
-            return Ok(Some(true));
-        }
-
-        return Err(invalid_content(
-            &format!(
-                "{line_number}行目が長すぎる（{} を超えている）。定跡ファイルでは\
-                 ないかもしれない。別のファイルを選び直すこと",
-                format_size(MAX_LINE_BYTES as u64)
-            ),
-            path,
-        ));
-    }
-
-    let terminated = raw.ends_with(b"\n");
-    while raw.ends_with(b"\n") || raw.ends_with(b"\r") {
-        raw.pop();
-    }
-
-    buffer.clear();
-    match std::str::from_utf8(raw) {
-        Ok(line) => buffer.push_str(line),
-        Err(_) => {
-            // 注記なら中身を見ない。本家と同じ扱い。
-            if is_note(raw) {
-                return Ok(Some(terminated));
-            }
-            // **形式違いの可能性を先に言う。** 「文字として読めないバイト」は
-            // 利用者の言葉ではないし、最初に提示する復帰操作が「取得し直す」だと、
-            // `.bin` を `.db` に付け替えただけのファイルでは何度やっても直らない。
-            return Err(invalid_content(
-                &format!(
-                    "やねうら王テキスト定跡 (.db) として読めない\
-                     （{line_number}行目に文字として読めないバイトがある）。\
-                     別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと"
-                ),
-                path,
-            ));
-        }
-    }
-
-    Ok(Some(terminated))
-}
-
-/// 失敗に行番号を前置する。
-///
-/// `to_book_key_in_file` は行の中身しか知らないので、位置はここで足す。
-fn annotate_line(err: BookError, line_number: usize) -> BookError {
-    let annotated = BookError::new(err.code(), format!("{line_number}行目: {}", err.message()));
-    match err.path() {
-        Some(path) => annotated.with_path(path),
-        None => annotated,
-    }
-}
-
-fn invalid_content(message: &str, path: &str) -> BookError {
-    BookError::new(BookErrorCode::InvalidContent, message).with_path(path)
-}
-
-/// 展開後に確保してよいバイト数の見積もり。
-///
-/// **件数では上界にならない。** 局面だけのファイル（`sfen ` 行が並び、指し手が
-/// 0手）は手数を1つも増やさないので、手数の上限に一度も当たらない。実測:
-///
-/// | ファイル | 局面 | 指し手 | ピーク確保 |
-/// | --- | --- | --- | --- |
-/// | 831.0 MB | 20,000,000 | 0 | **3.07 GB**（定常値での測定。ピークではない） |
-///
-/// この形をファイルサイズの上限まで伸ばすと約 5,170 万局面。単価を掛けた量は
-/// 16 GB の機械の実装メモリに近く、棋譜ツリーとエンジンを抱えたまま
-/// スワップに入ってアプリごと落ちる（未保存の棋譜が消える）。
-///
-/// 単価は [`BYTES_PER_POSITION`] と [`BYTES_PER_MOVE`]。**数字はそちらにだけ置く。**
-/// ここへ写すと、単価を直したときにこの説明だけが取り残される。
-///
-/// **上限を実物の大きさに近づけて置かない。** 版が重なった時点で実利用者が
-/// 弾かれ、そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
-/// 分割機能が無い）。実物が見積もりで 3.32 GB を使うので、2倍の余裕を取って 7 GiB。
-///
-/// **7 GiB を「安全な量」と読まないこと。** これはメモリへ展開する設計の代価で、
-/// 実物1本ですでに 3 GB 前後を使う。8 GB の機械では実物1本でも苦しい。
-/// 減らす道は綴りの interning（#274。実測で半分程度）で、上限を下げることではない。
-/// 開いている間の進捗と中断は #197。
-const MAX_EXPANDED_BYTES: usize = 7 * 1024 * 1024 * 1024;
-
-/// 局面1件あたりの見積もり。
-///
-/// **ピークで較正する。** 上限が守るのは確保のピークであって、読み終わった後の
-/// 定常値ではない。差の出どころは `HashMap` のバケットの空き（要素数の最大2倍）、
-/// 拡張中に旧テーブルが生きること、長い列を畳むときの一時領域。
-///
-/// **測る点は `HashMap` が拡張した直後。** 1点だけで測ると、鋸歯のどこに
-/// 乗ったかで倍近く違う値が出る。実測（`peak memory footprint`、正規化後 62 字の
-/// キー、aarch64 macOS / release）:
-///
-/// | 局面 | ピーク | B/局面 |
-/// | --- | --- | --- |
-/// | 458,752 | 91,411,944 | 199.3（拡張の直前） |
-/// | 459,000 | 142,726,680 | **311.0**（拡張の直後） |
-/// | 470,000 | 143,717,984 | 305.8 |
-/// | 520,000 | 147,711,584 | 284.1 |
-///
-/// 実物のキーは 76 字前後。確保は 16 バイト刻みなので 64 → 80 で 16 バイト増え、
-/// 311.0 + 16 = 327。330 を置く。
-///
-/// **片方の軸だけ動かした形で較正しない。** 局面だけ／1局面に大量の手、では
-/// どちらも見積もりを下回るのに、**両方が同時に効く実物と同じ形でだけ破れる**。
-/// 459,000 局面 × 9 手（実物の平均は 7.15 手）で測った比:
-///
-/// | | 実 footprint | 見積もり | 比 |
-/// | --- | --- | --- | --- |
-/// | `flush` が容量ごと渡す | 1,254MB | 812MB | **1.54** |
-/// | ちょうどの大きさへ移し替える | 546MB | 812MB | 0.67 |
-///
-/// つまり 330 / 160 は `flush` の移し替えを入れて初めて上界になる。
-///
-/// **掃引する軸は3つ。** 局面と手数の組み合わせ（上の表）に加えて、
-/// **`flush` の閾値（`LONG_MOVE_LIST`）の直上**でも測る。閾値を超えると
-/// 移し替えをやめるので、そこで空きの扱いが変わる。1局面あたりの手数を
-/// 9 / 32 / 33 / 65 / 257 で掃引した比:
-///
-/// | 手/局面 | 9 | 32 | 33 | 65 | 257 |
-/// | --- | --- | --- | --- | --- | --- |
-/// | 溜める側が倍々 | 0.72 | 0.73 | **1.20** | 1.02 | **1.34** |
-/// | 刻みで頭打ち | 0.69 | 0.62 | 0.79 | 0.70 | 0.63 |
-const BYTES_PER_POSITION: usize = 330;
-
-/// 指し手1件あたりの見積もり。
-///
-/// **応手付きで測る。** 応手を省いた行は `String` を1つ確保しないので 2 割ほど
-/// 軽く出る。実測（同上。`Vec` が拡張した直後を探した）:
-///
-/// | 指し手 | B/手 |
-/// | --- | --- |
-/// | 2,000,000 | **157.2** |
-/// | 2,097,200 | 155.2 |
-/// | 4,194,400 | 147.0 |
-/// | 5,000,000 | 128.9（拡張の直前） |
-///
-/// 160 を置く。
-const BYTES_PER_MOVE: usize = 160;
-
-/// 1行として受け付ける長さの上限。
-///
-/// 正当な行はどれも短い。`sfen` 行はキーの上限（`sfen.rs` の `MAX_INPUT_CHARS`
-/// = 256 字）に前置きを足した程度、指し手行は数十字。自由に伸びるのは注記だけ。
-/// 4 KiB あれば実在する定跡には余裕がある。
-///
-/// **これを掛けないと、改行を1つも含まないファイルで確保が上限を素通りする。**
-/// 展開の見積もりは行を受理した後にしか走らないので、行そのものの長さは
-/// [`MAX_EXPANDED_BYTES`] の勘定に入らない。
-const MAX_LINE_BYTES: usize = 4 * 1024;
-
-/// 開けるファイルの上限。
-///
-/// **メモリの上界はここではなく [`MAX_EXPANDED_BYTES`] が持つ。** ここは「明らかに定跡で
-/// ないものを1バイトも読まずに落とす」ための粗い前段。`.db` は SQLite でも使う
-/// 拡張子なので、数 GB のデータベースを選んだときに読み進めないためにある。
-///
-/// 値は実物から決めた。**配布されている最大の無償定跡 `user_book1.db`
-/// （peta_shock 系）が 470.3 MiB / 2,252,118 局面。** その4倍を置く。
-/// 512 MiB では実物の 91.9% しかなく、版が重なった時点で実利用者が弾かれる。
-/// そのとき出せる復帰操作が無い（この定跡に分割配布は無く、アプリにも
-/// 分割機能が無い）ので、近い値を置いてはいけない。
-pub(crate) const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
-
-/// ヘッダの綴り。バージョンは見ない（`1.00` 以外が配られても中身の書式は同じ）。
-const HEADER_PREFIX: &str = "#YANEURAOU-DB";
-
-/// 局面より先に来た行の診断。
-///
-/// **見出しの有無で変えない。** 見出しは要求しないので、先頭の局面行を失った
-/// 切れかけの定跡は、見出しがあれば本体のループで、無ければ見出し探索のループで
-/// 同じ形に当たる。診断が割れると、利用者は同じ壊れ方に別の説明を受ける。
-/// **行の形で説明を分ける。** 指し手なら「切れたファイル」、そうでなければ
-/// 「別の形式」。片方に寄せると、どちらかの利用者が事実でないことを言われる
-/// （`<!DOCTYPE html>` に「指し手が書かれている」と言う／やねうら王の指し手行に
-/// 「別の形式かもしれない」と言う）。
-///
-/// **どちらにも引用を付ける。** 行が見えないと、利用者は何が起きたか画面から
-/// 確かめられない。`looks_like_a_move` は形しか見ないので、普通の英文の1語目が
-/// 指し手扱いになることがある。そのとき引用があれば読み手には分かる。
-fn before_any_position(line_number: usize, line: &str, path: &str) -> BookError {
-    let message = if looks_like_a_move(first_token(line)) {
-        format!(
-            "局面より先に指し手が書かれている（{line_number}行目: {}）。\
-             途中で切れたファイルかもしれない。取得し直すか、別の定跡を開くこと",
-            excerpt(line)
-        )
-    } else {
-        format!(
-            "やねうら王テキスト定跡として読めない（{line_number}行目: {}）。\
-             別の形式のファイルかもしれない。取得し直すか、別の定跡を開くこと",
-            excerpt(line)
-        )
-    };
-    invalid_content(&message, path)
-}
-
-/// 行の先頭のトークン。区切りは空白1つ（`parse_move` と同じ数え方）。
-fn first_token(line: &str) -> &str {
-    line.split(' ').next().unwrap_or(line)
-}
-
-/// 局面が1つも書かれていないファイルの文面。
-///
-/// **2箇所から出る**（局面行に一度も当たらずに読み終わった場合と、注記だけの
-/// 場合）。利用者から見れば同じ状況なので、同じ文面にする。
-///
-/// **原因を1つに断定しない。復帰操作に「取得し直す」を置かない。** ShogiHome は
-/// 空の定跡を見出し1行だけのファイルとして書き出す（`storeYaneuraOuBook`。
-/// 指し手が0の項目は書かないので、全ての指し手を消した定跡も同じ形になる）。
-/// 利用者が自分で作ったばかりのファイルには取得元が無い。
-const EMPTY_OF_POSITIONS: &str = "この定跡には局面が1つも入っていない\
-                                  （まだ何も登録されていないか、途中で切れている）。\
-                                  別の定跡を開くこと";
-
-/// UTF-8 の BOM。付いたまま配られている定跡がある。
-const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
-
-/// 局面行の頭。
-const POSITION_PREFIX: &str = "sfen ";
-
-/// 読み飛ばす行。
-///
-/// **`//` を落とすのは形式の一部**（本家 `source/book/book.cpp:314-320` が
-/// `#` と `//` の両方を読み飛ばす）。落とさないと2通りに壊れる。
-///
-/// - `sfen` 行の後ろにあると候補手として登録され、しかも先頭に来る。
-///   形式は「先頭がその局面の best move」と約束しているので、`//` が推奨手になる
-/// - 最初の `sfen` 行より前にあると「局面より先に指し手」の枝に落ち、
-///   本家が普通に読める定跡が丸ごと開けなくなる
-fn is_skippable(line: &str) -> bool {
-    line.is_empty() || is_note(line.as_bytes())
-}
-
-/// 注記の行か。**バイト列で見る。** 文字コードの分からない注記を落とす判定に
-/// 使うので、`str` に直す前に呼べる必要がある。
-///
-/// 字下げを許すのは、パーサの他の判定が全て `trim` 済みの行を見ているため。
-/// ここだけ生の先頭で見ると、**字下げした注記だけが別の文字コードで拒否される**
-/// という説明できない挙動になる。
-fn is_note(raw: &[u8]) -> bool {
-    let body = raw
-        .iter()
-        .position(|b| !b.is_ascii_whitespace())
-        .map_or(&raw[..0], |at| &raw[at..]);
-    body.starts_with(b"#") || body.starts_with(b"//")
-}
-
-/// ファイル自身が申告する収録局面数の綴り。
-const DECLARED_COUNT_PREFIX: &str = "# NOE:";
-
-/// 申告された局面数を読む。
-///
-/// **この値を確保に使ってはいけない。** `# NOE:99999999999` と書かれた 40 バイトの
-/// ファイルで `with_capacity` を呼ぶと確保が失敗し、`handle_alloc_error` で
-/// abort する（`BookReader` の「壊れた内容で panic しない」に正面から反する）。
-/// 使い道は展開後の実数との突き合わせだけ。
-fn declared_count(line: &str) -> Option<u64> {
-    line.strip_prefix(DECLARED_COUNT_PREFIX)?
-        .trim()
-        .parse()
-        .ok()
-}
-
 /// 本文を局面ごとに畳む。
 ///
 /// **見出しは要求しない。** 本家は検査しないし、見出しの無い `.db` は実在する。
@@ -435,48 +105,6 @@ fn parse<R: BufRead>(
     file_size: u64,
 ) -> Result<(HashMap<BookKey, Vec<BookMove>>, u64), BookError> {
     parse_limited(reader, path, MAX_EXPANDED_BYTES, file_size)
-}
-
-/// いま抱えている局面の数。読んでいる最中のものを含む。
-fn held_positions(positions: &HashMap<BookKey, Vec<BookMove>>, current: &Option<BookKey>) -> usize {
-    positions.len() + usize::from(current.is_some())
-}
-
-/// 展開の見積もりが上限を超えていないか。
-///
-/// 局面と指し手の両方を数える。**片方だけだと、もう片方だけのファイルが
-/// 素通りする。**
-fn check_expanded_size(
-    positions: usize,
-    moves: usize,
-    max_bytes: usize,
-    file_size: u64,
-    consumed: u64,
-    path: &str,
-) -> Result<(), BookError> {
-    let estimated = positions * BYTES_PER_POSITION + moves * BYTES_PER_MOVE;
-    if estimated <= max_bytes {
-        return Ok(());
-    }
-
-    // **展開の上限そのものは出さない。** ファイルの上限（`MAX_FILE_BYTES`）は
-    // 展開の上限より小さいので、その2つを並べると必ず「小さいファイルが大きい
-    // 上限を超えた」と読める。利用者はアプリの不具合だと判断するか、
-    // 「上限まで余裕がある」と逆方向へ動く。
-    //
-    // 出すのは同じ量どうし。**上限に当たった時点で読めていたバイト数**が、
-    // この形の定跡なら開ける大きさそのものになる。
-    Err(BookError::new(
-        BookErrorCode::TooLarge,
-        format!(
-            "この定跡は展開するとメモリに収まらない（{} のうち先頭 {} を読んだ\
-             ところで上限）。この形の定跡なら {} 程度までにすること",
-            format_size(file_size),
-            format_size(consumed),
-            format_size(consumed)
-        ),
-    )
-    .with_path(path))
 }
 
 /// 展開後の上限（[`MAX_EXPANDED_BYTES`]）を差し替えられる形。
@@ -775,125 +403,15 @@ fn flush(
     }
 }
 
-/// 溜める側を伸ばす刻み。
-///
-/// **倍々に伸ばさない。** `Vec::push` は容量を2倍にするので、`len` が2の冪を
-/// 1つ超えた直後に最大の空きを残す（33 手なら容量 64）。その空きは
-/// [`flush`] が `mem::take` で map へ渡す列に乗ったまま、読み切るまで残る。
-/// 刻みで伸ばせば空きはこの数で頭打ちになる。
-///
-/// 8 は「正常な定跡の候補手は 10 手前後」から。再確保の回数は 10 手で2回、
-/// 257 手で 33 回で、どちらも局面あたりの費用として無視できる。
-const MOVE_CHUNK: usize = 8;
-
-/// 候補手を溜める。**倍々の成長をさせない**（理由は [`MOVE_CHUNK`]）。
-fn push_without_doubling(buffered: &mut Vec<BookMove>, parsed: BookMove) {
-    if buffered.len() == buffered.capacity() {
-        buffered.reserve_exact(MOVE_CHUNK);
-    }
-    buffered.push(parsed);
-}
-
-/// 1局面の候補手として異常に長いと見なす数。
-///
-/// **正常な定跡の候補手は 10 手前後。** これを超える列は、同じ局面が延々と
-/// 繰り返されるファイルでしか出ない。
-///
-/// [`flush`] が使う。ちょうどの大きさへ移し替えるか、そのまま渡すか。
-/// 移し替えは一瞬だけ2本持つので、長い列では逆に膨らむ（実測 +47.8%）。
-///
-/// **`keep_first_of_each_move` の `SCAN_LIMIT` と同じ値だが、同じ定数にしない。**
-/// 動かしたい向きが逆で、片方を実測で直した人がもう片方を壊す。
-/// あちらは低くしたい（走査が二乗）、こちらは高くしたい（移し替えの費用）。
-const LONG_MOVE_LIST: usize = 32;
-
-/// 読み切った後に1回だけ、全ての局面の重複を畳む。
-///
-/// **同じ指し手が2度出たら先に来た方を残す。本家は後勝ち。**
-/// やねうら王は `MemoryBook::insert`（`book.cpp:166-183`。既定引数は `book.h:215`）が
-/// `BookMoves::insert`（`book.cpp:120-145`）へ委譲する。`overwrite` の既定が `true` なので、
-/// 既にある指し手を後の行で丸ごと置換し、採択回数だけ合算する（`book.cpp:129-138`）。
-/// つまり `7g7f 8c8d 50 10` の後に `7g7f 8c8d 900 20` が並ぶ定跡で、
-/// 本家は 900 を、こちらは 50 を返す。
-///
-/// **どちらでもよい。** 費用は変わらず（どちらの枝も1周のまま）、順序への依存も同じ
-/// （上の2行を入れ替えれば、先勝ちでも返るのは 900 になる）。先勝ちを選んだのは、
-/// [`keep_first_of_each_move`] の2つの枝が素直に書けるから。
-///
-/// **替えるなら、手順はここに求めず実装を読むこと。** 踏むものが複数ある ——
-/// 2つの枝で残す位置を揃えること、[`keep_first_of_each_move`] の `HashSet` の枝の借用、
-/// その枝を踏むテストが長さしか見ていないこと（`a_position_with_very_many_moves_is_still_deduped`。
-/// 先勝ちでも後勝ちでも同じ 81 が通る）、`count` が `Option` なので合算の規則を先に決めること、
-/// 先勝ちを名乗る綴りが名前とコメントに散っていること。
-/// **どれも現物を開かないと正しい手順にならないので、ここには置かない。**
-/// ただし1つだけ Rust のツリーの外にある —— `docs/state-transitions/yaneuraou-db-parse.md`
-/// の一次資料の表が、この差を本家との差として記録している。**`cargo` は落とさない。**
-///
-/// **併合のたびに畳んではいけない。** 1回の仕事が `existing.len()` に比例するので、
-/// 同じキーが N ブロックに分かれた定跡で総計が二乗になる。実測（同じキーを
-/// N ブロック、各1手）:
-///
-/// | N | 併合のたびに畳む | 読み切った後に1回 |
-/// | --- | --- | --- |
-/// | 10,000 | 18.8 s | 0.34 s |
-/// | 40,000 | 412 s | 38.9 s |
-///
-/// 畳む前は重複を抱えたままになるが、その量は [`MAX_EXPANDED_BYTES`] が
-/// `total_moves` の側で上界を持つ。
-///
-/// 畳んでから `shrink_to_fit` を掛ける。`push` の倍々成長が残す空き容量は、
-/// 実測で展開後の 28%。
-fn keep_first_of_each_move_everywhere(positions: &mut HashMap<BookKey, Vec<BookMove>>) {
-    for moves in positions.values_mut() {
-        keep_first_of_each_move(moves);
-        moves.shrink_to_fit();
-    }
-}
-
-/// 同じ綴りの指し手を、先に来た方だけ残す。
-///
-/// **走査で畳むのは短い列のときだけ。** 1局面の候補手は普通10手前後なので、
-/// そこで `HashSet` を作ると確保が局面の数だけ増える（実物の定跡で 225 万回）。
-/// 一方、同じ局面が延々と繰り返されるファイルでは列が伸びて走査が二乗になる。
-/// 実測で 6.22MB のファイルに 16 秒かかり、100MB なら 70 分を超える
-/// （`open_book` は `spawn_blocking` の中で進捗も中断も持たないので、
-/// アプリは無反応のまま戻らない）。長い列だけ `HashSet` へ切り替える。
-fn keep_first_of_each_move(moves: &mut Vec<BookMove>) {
-    /// 走査と `HashSet` の切り替え点。1局面の候補手がこれを超えるのは異常な形。
-    ///
-    /// [`LONG_MOVE_LIST`] と同じ値だが**別の判断**（あちらは移し替えの費用）。
-    /// 動かしたい向きが逆なので、同じ定数にしない。
-    const SCAN_LIMIT: usize = 32;
-
-    if moves.len() <= SCAN_LIMIT {
-        let mut kept = 0usize;
-        for i in 0..moves.len() {
-            if moves[..kept]
-                .iter()
-                .any(|m| m.usi_move == moves[i].usi_move)
-            {
-                continue;
-            }
-            moves.swap(kept, i);
-            kept += 1;
-        }
-        moves.truncate(kept);
-        return;
-    }
-
-    // 綴りを clone せず、添字だけ持つ。畳む対象が長い列なので、ここで
-    // 要素数ぶんの `String` を確保すると畳む意味が薄れる。
-    let mut seen: HashSet<&str> = HashSet::with_capacity(moves.len());
-    let mut keep = Vec::with_capacity(moves.len());
-    for m in moves.iter() {
-        keep.push(seen.insert(m.usi_move.as_str()));
-    }
-    let mut kept = keep.into_iter();
-    moves.retain(|_| kept.next().unwrap_or(false));
-}
 #[cfg(test)]
 mod tests {
+    // 走査を通す統合寄りのテストがここに居る。個々の関心の単体テストは
+    // それぞれのファイルが持つ
+    use super::dedup::MOVE_CHUNK;
+    use super::limits::{BYTES_PER_MOVE, BYTES_PER_POSITION, MAX_LINE_BYTES};
+    use super::lines::is_note;
     use super::*;
+    use crate::book::error::{format_size, BookErrorCode};
     use crate::book::reader::BookReader;
     use crate::book::sfen::to_book_key;
 
