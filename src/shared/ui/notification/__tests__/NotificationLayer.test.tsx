@@ -114,6 +114,30 @@ describe("通知の層", () => {
     expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("1枚目");
   });
 
+  /**
+   * モーダルは1枚ずつなので、**2枚目は1枚目が消えた瞬間に同じ位置へ入る**。
+   * React は位置で照合するので、`key` を付けないと `Notice` が再マウントされず、
+   * 1枚目で動作が失敗したときの理由が2枚目の本文の下に残る。
+   */
+  it("前のモーダルで出た動作の失敗が、次のモーダルに残らない", async () => {
+    const app = setup();
+    app.notify({
+      tier: "warning",
+      presentation: "modal",
+      title: "1枚目",
+      actions: [{ label: "再試行", run: () => Promise.reject(new Error("boom")) }],
+    });
+
+    await act(async () => screen.getByRole("button", { name: "再試行" }).click());
+    await screen.findByText("「再試行」を実行できませんでした。");
+
+    app.notify(shownAs("modal", { title: "2枚目" }));
+    await act(async () => screen.getAllByRole("button", { name: "閉じる" })[0].click());
+
+    expect(screen.getByRole("dialog").getAttribute("aria-label")).toBe("2枚目");
+    expect(screen.queryByText("「再試行」を実行できませんでした。")).toBeNull();
+  });
+
   it("見せ方が違えば同時に出る", () => {
     const app = setup();
     app.notify(request({ title: "トースト" }));

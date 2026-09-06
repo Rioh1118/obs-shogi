@@ -64,7 +64,13 @@ export default function NotificationLayer() {
         <Modal onClose={() => dismiss(modal.id)} label={modal.title} size="sm" scroll="content">
           {/* **閉じる手段を目に見える形で置く。** Modal は Escape とオーバーレイでも
               閉じるが、どちらも画面に出ていない。押すものが1つも無い画面は行き止まりに見える */}
+          {/* **鍵は `Notice` に付ける。`Modal` に付けない。** モーダルは1枚ずつなので
+              2枚目は1枚目が消えた瞬間に同じ位置へ入り、鍵が無いと React が再マウントせず、
+              1枚目の失敗の理由と走行中の状態が2枚目へ持ち越される。
+              `Modal` を作り直すと `useOverlayLayer` の積み降ろしとフォーカスの戻し先が
+              入れ替わるので、鍵は中身の側にだけ置く */}
           <Notice
+            key={modal.id}
             {...toNoticeProps(modal)}
             className="notice--modal"
             onDismiss={() => dismiss(modal.id)}
