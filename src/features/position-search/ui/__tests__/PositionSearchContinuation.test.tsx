@@ -9,7 +9,7 @@ import type { PositionHit } from "@/entities/search";
  *
  * 1回はファイル全文の IPC 越しの転送と全文パースだが、画面には「取得中…」と
  * しか出ない。**増えても人の目では追えない。** 一覧は矢印で降りられて、
- * 押しっぱなしは 25〜30 回/秒 になる。
+ * 押しっぱなしは macOS の最速設定で 30 回/秒 に達する。
  */
 
 const readText = vi.fn();
@@ -166,7 +166,7 @@ describe("この先の手を取り直す回数", () => {
 describe("矢印で駆け抜けたとき", () => {
   /**
    * 通り過ぎた行の中身は誰も見ない。**止まったときだけ読む。**
-   * 打鍵ごとに読むと、1本 100KB の棋譜で 2.5〜3MB/秒 を IPC 越しに運び続ける
+   * 打鍵ごとに読むと、ファイル全文の転送と全文パースがその回数ぶん IPC を占める
    */
   test("10行ぶん動いても、読むのは止まった1行だけ", async () => {
     let v!: ReturnType<typeof render>;
@@ -178,7 +178,7 @@ describe("矢印で駆け抜けたとき", () => {
       await act(async () => {
         v.rerender(view(hitAt(i), freshResolver()));
       });
-      // 打鍵の間隔（30/秒）。待ち時間には届かない
+      // 打鍵の間隔（最速設定の 30 回/秒）。待ち時間には届かない
       await act(async () => {
         await vi.advanceTimersByTimeAsync(33);
       });
