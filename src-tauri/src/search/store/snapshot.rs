@@ -131,7 +131,7 @@ impl IndexSnapshot {
     /// 鍵の昇順に並んだ `Vec` で、そのままでは二分探索できない。
     /// [`Segment::new_sorted`] が列に詰め替える。
     ///
-    /// 素材が昇順であることは `cache/index_cache.rs` の `decode_all` が
+    /// 素材が昇順であることは `cache/format.rs` の `decode_all` が
     /// 桶ごとに確かめてから渡す（崩れていればキャッシュごと捨てる）。
     ///
     /// 段は `Updating` で固定。理由は [`IndexStore::install_restored`]

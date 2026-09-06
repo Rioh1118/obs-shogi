@@ -46,7 +46,7 @@ impl Segment {
     /// 崩れていると二分探索が黙って外す（検索が0件になるか別の局面を返す）。
     ///
     /// 昇順を作る側は3つ。取り込みは `store/bucket.rs` の `bucketize_entries`、
-    /// 畳んだ結果は `store/compaction.rs`、復元は `cache/index_cache.rs` の
+    /// 畳んだ結果は `store/compaction.rs`、復元は `cache/format.rs` の
     /// `decode_all`（自分で昇順を検査してから渡す。**release でもそこで弾く**）。
     ///
     /// # Panics

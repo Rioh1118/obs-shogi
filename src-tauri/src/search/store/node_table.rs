@@ -30,7 +30,7 @@ impl NodeTables {
     /// 足りなければ `None` で伸ばしてから入れる。**縮まない。**
     ///
     /// **同じ `file_id` に2度入れると黙って上書きする。** 復元の経路では
-    /// それが起きないことを `cache/index_cache.rs` の `decode_all` が
+    /// それが起きないことを `cache/format.rs` の `decode_all` が
     /// 節表の `file_id` の並びで縛っている（破れると、上書きされた側の
     /// 全ヒットが別の棋譜の手数を持つ）。
     pub fn upsert(&mut self, file_id: FileId, nt: NodeTableArc) {
@@ -44,7 +44,7 @@ impl NodeTables {
     /// `file_id` の昇順。**穴（`None`）も含めて全部返す。**
     ///
     /// 添字が `file_id` なので、`enumerate()` の添字をそのまま使える。
-    /// `cache/index_cache.rs` の `encode_all` がそれを使って
+    /// `cache/format.rs` の `encode_all` がそれを使って
     /// 節表を昇順かつ一意に書く。
     pub fn by_id_iter(&self) -> impl Iterator<Item = &Option<NodeTableArc>> {
         self.by_id.iter()
@@ -115,7 +115,7 @@ impl NodeTableBuilder {
     /// **`fork_off + fork_len <= forks.len()` を保つ。** `fork_off` を
     /// 追加直前の `forks.len()` に置き、その直後に `fork_len` 個だけ push するため。
     ///
-    /// これは呼び手の都合ではなく**保存の前提**で、`cache/index_cache.rs` の
+    /// これは呼び手の都合ではなく**保存の前提**で、`cache/format.rs` の
     /// `encode_all` がこの範囲を検査し、破れるとチェックポイントを1バイトも書かない。
     /// そのとき壊れるのは索引の中身ではなく保存なので、症状は
     /// **「起動が毎回遅い」だけ**で原因を辿る手掛かりが無い。
@@ -168,7 +168,7 @@ mod tests {
 
     /// **`push_node` が `encode_all` の前提を保つこと。**
     ///
-    /// `cache/index_cache.rs` の `encode_all` は
+    /// `cache/format.rs` の `encode_all` は
     /// `fork_off + fork_len > forks.len()` ならチェックポイント全体を書かない。
     /// 本番で `NodeCursor` を作る口はここと `decode_all`（あちらは自分で検査する）
     /// だけなので、**この不変条件を守っているのは `push_node` 一箇所。**

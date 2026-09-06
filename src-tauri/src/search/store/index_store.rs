@@ -18,7 +18,7 @@
 //! **欄を非公開にするには、組む口と読む口の両方が要る。**
 //! 組む側は `benches/search_bench.rs` が構造体リテラルで書いており、
 //! 読む側は `query_service.rs` / `project_manager.rs` / `commands.rs` /
-//! `build.rs` / `cache/index_cache.rs` が4欄を直に読んでいる。
+//! `build.rs` / `cache/format.rs` が4欄を直に読んでいる。
 //! **`pub(in crate::search)` に絞っても塞がらない** —— `update` を呼べる場所は
 //! どのみち `crate::search` の中。
 //!

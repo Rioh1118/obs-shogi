@@ -112,7 +112,7 @@ impl FileTable {
 
     /// `file_id` の昇順に全項目。**消された棋譜も返る。**
     ///
-    /// キャッシュに書き出す側（`cache/index_cache.rs`）が使う。
+    /// キャッシュに書き出す側（`cache/format.rs`）が使う。
     pub fn iter_all(&self) -> impl Iterator<Item = (FileId, FileEntry)> + '_ {
         self.paths.iter().enumerate().filter_map(move |(i, path)| {
             let path = path.as_ref()?;

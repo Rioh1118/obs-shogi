@@ -13,7 +13,7 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Semaphore, task::JoinSet};
 
-use crate::search::cache::index_cache;
+use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
 use crate::search::project_manager::ProjectManager;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord};
@@ -269,14 +269,7 @@ pub async fn build_full_index_task(
 
         tauri::async_runtime::spawn_blocking(move || {
             if let Ok(store) = crate::storage::app_cache(&app2, "index") {
-                let _ = index_cache::save_checkpoint(
-                    &store,
-                    &root2,
-                    &snap,
-                    &scan2,
-                    &path_to_id2,
-                    next2,
-                );
+                let _ = format::save_checkpoint(&store, &root2, &snap, &scan2, &path_to_id2, next2);
             }
         });
     }

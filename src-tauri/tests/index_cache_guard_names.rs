@@ -1,6 +1,6 @@
 //! 索引キャッシュの書き側の門番と、**それを名乗るテスト**を突き合わせる。
 //!
-//! `search/cache/index_cache.rs` の `mod tests` の直上に綴りの規約がある——
+//! `search/cache/format.rs` の `mod tests` の直上に綴りの規約がある——
 //! 書く側だけを見るなら `_not_written`、読む側だけなら `_refused`、
 //! 両方なら `_neither_written_nor_read`。次に門番を足す人はその綴りで
 //! 「どの門番に留めがあるか」を数える。
@@ -66,7 +66,7 @@ const MARK: &str = "\"refusing to write: ";
 const ERR_FORMS: [&str; 4] = ["return Err", "ok_or_else(", "ok_or(", ".map_err("];
 
 fn index_cache_src() -> String {
-    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/search/cache/index_cache.rs");
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/search/cache/format.rs");
     fs::read_to_string(&p).unwrap_or_else(|e| panic!("{} を読めない: {e}", p.display()))
 }
 

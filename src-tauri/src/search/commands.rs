@@ -5,7 +5,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::search::build::build_full_index_task;
-use crate::search::cache::index_cache;
+use crate::search::cache::format;
 use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
@@ -81,7 +81,7 @@ pub async fn open_project(
         let root2 = root_dir.clone();
         match tauri::async_runtime::spawn_blocking(move || {
             let store = crate::storage::app_cache(&app2, "index").map_err(|e| e.to_string())?;
-            index_cache::try_restore(&store, &root2)
+            format::try_restore(&store, &root2)
         })
         .await
         {
