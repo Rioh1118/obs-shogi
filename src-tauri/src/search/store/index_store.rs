@@ -12,8 +12,8 @@
 //!
 //! **絞りきってはいない。** [`IndexStore::update`] は戻り値に任意の
 //! `IndexSnapshot` を許すので、`update(|_| IndexSnapshot::default().with_state(Ready))`
-//! —— **空なのに `Ready` を名乗る索引** —— はいまも書ける。
-//! 型で塞ぐには `IndexSnapshot` の欄を非公開にするところまで要る。
+//! —— **空なのに `Ready` を名乗る索引** —— はいまも書ける
+//! （`query_service` が `stale = false` を返し、空の結果が新鮮として画面に並ぶ）。
 //!
 //! **遷移の規則を持つ場所は無い。** どの段からどの段へ動いてよいかは
 //! 呼び手（`search/commands.rs` / `build.rs` / `project_manager.rs`）に散っている。
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use crate::search::store::bucket::BucketEntries;
 use crate::search::store::file_table::FileTable;
 use crate::search::store::node_table::NodeTables;
-use crate::search::store::snapshot::{IndexSnapshot, IndexState, Restart};
+use crate::search::store::snapshot::{IndexSnapshot, Restart};
 use crate::search::store::snapshot_cell::SnapshotCell;
 
 /// 索引を1つ持つ升。
@@ -53,19 +53,58 @@ impl IndexStore {
 
     /// キャッシュから読み戻した中身を丸ごと置く。
     ///
-    /// **段は `Updating` に決め打つ。** 復元のあとは必ず差分の取り込みが続くので、
-    /// 呼び手に選ばせる意味が無い（選べると「空にして `Ready`」が書ける）。
+    /// **段は `Updating` に決め打つ。** `Ready` を先に出すと
+    /// `stale = false` の結果が古い索引を見る（理由は `search/commands.rs` の
+    /// `open_project`）。
+    ///
+    /// **呼び手は、このあと `Ready` へ上げる責任を負う。**
+    /// 上げないと `query_service` が `stale = true` を返し続け、
+    /// 画面が「再スキャン中」のまま止まる。いまの呼び手は `commands.rs` の
+    /// `open_project` で、差分が0でも無条件に上げている。
     pub fn install_restored(
         &self,
         file_table: FileTable,
         node_tables: NodeTables,
         entries: BucketEntries,
     ) {
-        self.cell.replace(IndexSnapshot::restored(
-            IndexState::Updating,
-            file_table,
-            node_tables,
-            entries,
-        ));
+        self.cell
+            .replace(IndexSnapshot::restored(file_table, node_tables, entries));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::store::fixtures::{key_of, one_file};
+    use crate::search::store::snapshot::IndexState;
+
+    /// **作り直しに入ると、いま持っている索引が捨てられる。**
+    ///
+    /// 捨てているのは `IndexStore::restart` の側なので、器を通して見る。
+    #[test]
+    fn restarting_the_store_throws_the_current_index_away() {
+        let k = key_of(0x6600_0000_0000_0001);
+        let store = IndexStore::default();
+        store.update(|s| s.with_files(vec![one_file(1, k, 0)]));
+        assert_eq!(store.snapshot().search_occurrences_by_key(k).len(), 1);
+
+        store.restart(Restart::Building);
+
+        assert!(store.snapshot().search_occurrences_by_key(k).is_empty());
+        assert!(store.snapshot().node_tables.get(1).is_none());
+    }
+
+    /// **復元した索引は `Updating` を名乗る。**
+    ///
+    /// 段を選ばせないのは、`Ready` を先に出すと `stale = false` の結果が
+    /// 古い索引を見るため（`search/commands.rs` の `open_project`）。
+    #[test]
+    fn an_installed_restore_says_it_is_still_updating() {
+        use crate::search::store::bucket::empty_buckets;
+
+        let store = IndexStore::default();
+        store.install_restored(FileTable::default(), NodeTables::default(), empty_buckets());
+
+        assert_eq!(store.snapshot().state, IndexState::Updating);
     }
 }

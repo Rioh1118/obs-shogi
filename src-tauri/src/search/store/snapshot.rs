@@ -124,8 +124,7 @@ impl IndexSnapshot {
     ///
     /// 素材が昇順であることは `cache/index_cache.rs` の `decode_all` が
     /// 桶ごとに確かめてから渡す（崩れていればキャッシュごと捨てる）。
-    pub fn restored(
-        state: IndexState,
+    pub(super) fn restored(
         file_table: FileTable,
         node_tables: NodeTables,
         mut entries: BucketEntries,
@@ -140,7 +139,8 @@ impl IndexSnapshot {
         });
 
         Self {
-            state,
+            // 復元のあとは差分の取り込みが要るので、段は選ばせない
+            state: IndexState::Updating,
             file_table: Arc::new(file_table),
             node_tables: Arc::new(node_tables),
             buckets,
@@ -245,61 +245,8 @@ impl IndexSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::store::bucket::bucketize_entries;
-    use crate::search::store::node_table::{NodeTableArc, NodeTableBuilder};
+    use crate::search::store::fixtures::*;
     use crate::search::types::FileEntry;
-
-    fn key_of(z0: u64) -> PositionKey {
-        PositionKey { z0, z1: 0 }
-    }
-
-    fn occ_of(file_id: u32, node_id: u32) -> Occurrence {
-        Occurrence {
-            file_id,
-            r#gen: 1,
-            node_id,
-        }
-    }
-
-    fn entry_of(file_id: u32) -> FileEntry {
-        FileEntry {
-            file_id,
-            path: format!("{file_id}.kif"),
-            deleted: false,
-            r#gen: 1,
-        }
-    }
-
-    fn node_table_of(nodes: u32) -> NodeTableArc {
-        let mut b = NodeTableBuilder::new();
-        for n in 0..nodes {
-            b.push_node(n, &[]);
-        }
-        Arc::new(b.finish())
-    }
-
-    /// 1ファイル分の取り込みの素材。
-    ///
-    /// **本番の口（`bucketize_entries`）を通す。** 桶に直接 push すると
-    /// 中身が常に1件になり、`Segment::new_sorted` の昇順の検査も
-    /// `range_by_key` の二分探索も一度も効かない。
-    fn file_with(file_id: u32, keys: &[(PositionKey, u32)]) -> FileBucketEntries {
-        let entries: Vec<(PositionKey, Occurrence)> = keys
-            .iter()
-            .map(|(k, node_id)| (*k, occ_of(file_id, *node_id)))
-            .collect();
-        let max_node = keys.iter().map(|(_, n)| *n).max().unwrap_or(0);
-        (
-            entry_of(file_id),
-            node_table_of(max_node + 1),
-            bucketize_entries(entries),
-        )
-    }
-
-    /// 1鍵1出現の素材。
-    fn one_file(file_id: u32, key: PositionKey, node_id: u32) -> FileBucketEntries {
-        file_with(file_id, &[(key, node_id)])
-    }
 
     /// **取り込みは積み増す。置き換えない。**
     ///
@@ -434,22 +381,6 @@ mod tests {
             assert!(fresh.node_tables.get(1).is_none());
             assert_eq!(fresh.state, want, "{at:?} が別の段を名乗っている");
         }
-    }
-
-    /// **作り直しに入ると、いま持っている索引が捨てられる。**
-    ///
-    /// 捨てているのは `IndexStore::restart` の側なので、器を通して見る。
-    #[test]
-    fn restarting_the_store_throws_the_current_index_away() {
-        let k = key_of(0x6600_0000_0000_0001);
-        let store = crate::search::store::index_store::IndexStore::default();
-        store.update(|s| s.with_files(vec![one_file(1, k, 0)]));
-        assert_eq!(store.snapshot().search_occurrences_by_key(k).len(), 1);
-
-        store.restart(Restart::Building);
-
-        assert!(store.snapshot().search_occurrences_by_key(k).is_empty());
-        assert!(store.snapshot().node_tables.get(1).is_none());
     }
 
     /// **同じ検索の結果が、セグメントの本数によらず同じ順で出ること。**

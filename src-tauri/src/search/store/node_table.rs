@@ -110,11 +110,6 @@ impl NodeTableBuilder {
         Self::default()
     }
 
-    #[inline]
-    pub fn len_nodes(&self) -> usize {
-        self.nodes.len()
-    }
-
     /// (tesuu, fork_path) を 1ノードとして追加し、node_id を返す。
     ///
     /// **`fork_off + fork_len <= forks.len()` を保つ。** `fork_off` を

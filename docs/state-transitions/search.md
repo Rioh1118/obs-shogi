@@ -15,13 +15,13 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 状態を持つのは `IndexStore`（中身は `SnapshotCell<IndexSnapshot>`）1つだけ。
 `IndexSnapshot.state` が下の記号に対応する。
 
-| 記号  | `IndexState` | 判定条件                                                    | 中身               |
-| ----- | ------------ | ----------------------------------------------------------- | ------------------ |
-| **E** | `Empty`      | 初期値                                                      | 空                 |
-| **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                      | **空にされている** |
-| **B** | `Building`   | `restart(Restart::Building)` を通った                       | **空にされている** |
-| **U** | `Updating`   | `replace(restored(Updating, ..))` か `with_state(Updating)` | 前の中身が残る     |
-| **Y** | `Ready`      | `with_state(Ready)`                                         | 揃っている         |
+| 記号  | `IndexState` | 判定条件                                                        | 中身               |
+| ----- | ------------ | --------------------------------------------------------------- | ------------------ |
+| **E** | `Empty`      | 初期値                                                          | 空                 |
+| **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                          | **空にされている** |
+| **B** | `Building`   | `restart(Restart::Building)` を通った。**口はこれ1つ**          | **空にされている** |
+| **U** | `Updating`   | `install_restored(..)`（段は選べない）か `with_state(Updating)` | 前の中身が残る     |
+| **Y** | `Ready`      | `with_state(Ready)`                                             | 揃っている         |
 
 **`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::restarting` で
 `FileTable::default()` と空の bucket で作り直すので、**その間に投げた検索は必ず0件になる**
@@ -291,7 +291,10 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
-状態機械そのものを回すものは `src-tauri/tests/` にも `#[cfg(test)]` にも無い。
+コマンドを通して段を跨ぐものは無い。段そのものの遷移は
+`store/index_store.rs` の `restarting_the_store_throws_the_current_index_away` と
+`an_installed_restore_says_it_is_still_updating`、
+`store/snapshot.rs` の `restarting_starts_from_an_empty_index` が固定している。
 
 ## この表が拾ったもの
 

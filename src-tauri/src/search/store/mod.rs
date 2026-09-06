@@ -3,6 +3,8 @@
 pub mod bucket;
 pub(in crate::search) mod compaction;
 pub mod file_table;
+#[cfg(test)]
+mod fixtures;
 pub mod index_store;
 pub mod node_table;
 pub mod segment;

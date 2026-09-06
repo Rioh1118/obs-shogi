@@ -8,7 +8,7 @@
 //! | 呼び手 | いつ |
 //! | --- | --- |
 //! | `store/snapshot.rs` の `with_files` | 積み増した桶が [`COMPACT_THRESHOLD`] を超えたとき |
-//! | `cache/index_cache.rs` の `compact_all_buckets` | チェックポイントを書くたび、**全桶** |
+//! | `cache/index_cache.rs` の `compact_all_buckets` | チェックポイントを書くたび、**全桶**。選ぶ余地が無い —— blob は桶ごとに1本の昇順で、崩れていれば `encode_all` が書くのを拒む |
 
 use std::{cmp::Ordering, collections::BinaryHeap};
 

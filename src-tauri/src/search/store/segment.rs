@@ -59,6 +59,7 @@ impl Segment {
             node_ids,
         }
     }
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.z0.is_empty()
     }

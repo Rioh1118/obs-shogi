@@ -62,8 +62,6 @@ pub async fn build_full_index_task(
     let sem = Arc::new(Semaphore::new(conc));
     let mut join: JoinSet<BuildItem> = JoinSet::new();
 
-    store.update(|s| s.with_state(StoreIndexState::Building));
-
     const COMMIT_BATCH: usize = 64;
     const EMIT_INTERVAL: Duration = Duration::from_millis(100);
 
