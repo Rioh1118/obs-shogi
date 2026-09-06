@@ -90,9 +90,13 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
  * 指したときは持ち主を照合する。**席に居るのが別のセッションなら `Err`**
  * ——止まらないまま解決しないので、指すなら自分が握っている ID を渡すこと。
  * 指した相手が既に居ない場合だけは `Ok`（要求は「止まっていること」なので満たせている）。
+ *
+ * `by` は**どの口から撃ったか**。Rust のログにそのまま出る。
+ * 畳まれた画面から撃った停止は、失敗しても利用者にも開発者にも出せない
+ * （出す先の画面がもう無い）ので、**利用者が押した停止と区別できるのはログだけ**。
  */
-export async function stopAnalysis(sessionId?: string): Promise<void> {
-  return await invoke("stop_analysis", { sessionId });
+export async function stopAnalysis(sessionId?: string, by?: string): Promise<void> {
+  return await invoke("stop_analysis", { sessionId, by });
 }
 
 // ===== 結果取得 =====

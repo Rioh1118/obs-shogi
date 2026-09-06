@@ -63,8 +63,9 @@ pub async fn analyze_with_depth(
 pub async fn stop_analysis(
     state: tauri::State<'_, AppState>,
     session_id: Option<String>,
+    by: Option<String>,
 ) -> Result<(), String> {
-    state.bridge.stop_analysis_impl(session_id).await
+    state.bridge.stop_analysis_impl(session_id, by).await
 }
 
 #[tauri::command]

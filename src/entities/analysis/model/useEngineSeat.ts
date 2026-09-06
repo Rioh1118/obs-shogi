@@ -2,12 +2,13 @@ import { useRef } from "react";
 import { stopAnalysis as stopAnalysisCore } from "@/entities/engine/api/tauri";
 
 /**
- * 席を返した口。**ログを切り分けるためだけに在る。**
+ * 席を返した口。**ログを切り分けるためだけに在る**（Rust のログにもそのまま出る）。
  *
  * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
  * `releaseHeldQuietly` の doc に書き足すこと。書けないなら、その口は要らない。
  */
 export type SeatReleasePoint =
+  | "stop"
   | "unmount"
   | "no-position"
   | "sync-timeout"
@@ -66,11 +67,11 @@ export function useEngineSeat(): EngineSeat {
   // ——畳まれてもいないのに後始末が撃たれる。
   const apiRef = useRef<EngineSeat | null>(null);
 
-  const send = async (sessionId: string | undefined) => {
+  const send = async (at: SeatReleasePoint, sessionId: string | undefined) => {
     const held = seatRef.current;
 
     try {
-      await stopAnalysisCore(sessionId);
+      await stopAnalysisCore(sessionId, at);
     } catch (e) {
       // **返せなかった席を、誰も知らないままにしない。** 欄が空なら握り直す。
       // 要らなくなった開始を捨てる口は欄が空のまま撃つので、書き戻さないと
@@ -111,7 +112,7 @@ export function useEngineSeat(): EngineSeat {
   // 居ないので、エンジンを畳み直すしかない。画面が生きている回は握り直すので、
   // 次に畳まれたときに返し直せる（それまで ▶ は Rust に断られ続ける）。
   const quietly = (at: SeatReleasePoint, sessionId: string | undefined) => {
-    void send(sessionId).catch((e) => {
+    void send(at, sessionId).catch((e) => {
       console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId }, e);
     });
   };
@@ -134,7 +135,7 @@ export function useEngineSeat(): EngineSeat {
     releaseHeld: async () => {
       const held = seatRef.current;
       if (held === null) return;
-      await send(held);
+      await send("stop", held);
     },
 
     releaseHeldQuietly: (at) => {

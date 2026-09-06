@@ -367,6 +367,9 @@ impl EngineBridge {
     /// **`session_id` を省くと席を全部空ける。** 呼び手が席の ID を持てない場面
     /// （画面が畳まれた後の後始末）は指せないので、この形が要る。
     ///
+    /// `by` は**どの口から撃ったか**。ログにだけ出る。畳まれた画面から来た停止は
+    /// 失敗しても画面に出せないので、利用者が押した停止と区別できるのはログだけ。
+    ///
     /// **`Err` の意味は枝で違う。** 指した側は照合してから消すので、
     /// 席に居るのが別のセッションなら**席は残る**。省いた側は席を空けてから
     /// 止めに行くので、`Err` は「席は空いたが、エンジンはまだ探索しているかもしれない」。
@@ -375,11 +378,18 @@ impl EngineBridge {
     /// （席を取ってから `go` が線に出るまで）に割り込むと、席だけ消えて
     /// エンジンが読み続ける。いまそれが収束しているのは、開始の応答を受け取った
     /// フロントが**その席をもう一度返す**からで、Rust 側の仕組みではない → #463
-    pub async fn stop_analysis_impl(&self, session_id: Option<String>) -> Result<(), String> {
+    pub async fn stop_analysis_impl(
+        &self,
+        session_id: Option<String>,
+        by: Option<String>,
+    ) -> Result<(), String> {
+        // 呼び手が名乗らなかったときの既定。**名乗った回と区別できるようにしておく。**
+        let by = by.as_deref().unwrap_or("unnamed");
+
         if let Some(id) = session_id {
-            self.stop_session(&id).await
+            self.stop_session(&id, by).await
         } else {
-            self.stop_all_sessions("stop_analysis").await
+            self.stop_all_sessions(by).await
         }
     }
 
@@ -458,11 +468,12 @@ impl EngineBridge {
 
     // ===  session === //
 
-    async fn stop_session(&self, session_id: &str) -> Result<(), String> {
+    async fn stop_session(&self, session_id: &str, by: &str) -> Result<(), String> {
         log::info!(
             target: LOGT,
-            "stop_session: start session_id={}",
-            session_id
+            "stop_session: start session_id={} by={}",
+            session_id,
+            by
         );
 
         // **他人のセッションは止めない。** `session_id` はフロントから来る任意の文字列で、
@@ -501,12 +512,14 @@ impl EngineBridge {
         Ok(())
     }
 
-    /// 席を全部空ける。**呼び手は2つ**——指さない `stop_analysis` と `shutdown_engine`。
+    /// 席を全部空ける。
     ///
-    /// `by` はそのどちらかを表す。畳まれた画面から来た停止は、失敗しても
+    /// `by` は**どの口から撃ったか**。フロントの `stop_analysis` が名乗った値か、
+    /// `shutdown_engine` からの `"shutdown"`。畳まれた画面から来た停止は、失敗しても
     /// 利用者にも開発者にも出せない（出す先の画面がもう無い）ので、
     /// **席が在ったのかどうかを後から言えるのはこのログだけ**。
-    /// エンジンの入れ替えで空いた回と字面が同じだと、#441 の再発を追う人が取り違える。
+    /// エンジンの入れ替えで空いた回や利用者が押した停止と字面が同じだと、
+    /// #441 の再発を追う人が取り違える。
     async fn stop_all_sessions(&self, by: &str) -> Result<(), String> {
         log::info!(target: LOGT, "stop_all_sessions: start by={by}");
 
@@ -630,7 +643,7 @@ mod tests {
         bridge.release_session(&id).await;
 
         assert!(
-            bridge.stop_session(&id).await.is_ok(),
+            bridge.stop_session(&id, "test").await.is_ok(),
             "もう無いセッションの停止が失敗している。再開の経路が catch に落ちる"
         );
     }
@@ -645,7 +658,7 @@ mod tests {
         let bridge = bridge();
         let mine = bridge.take_session(SessionType::Infinite).await.unwrap();
 
-        let refused = bridge.stop_session("someone-elses-id").await;
+        let refused = bridge.stop_session("someone-elses-id", "test").await;
         assert!(refused.is_err(), "知らない ID が成功している");
 
         assert!(
@@ -669,7 +682,7 @@ mod tests {
         bridge.take_session(SessionType::Infinite).await.unwrap();
 
         assert!(
-            bridge.stop_analysis_impl(None).await.is_ok(),
+            bridge.stop_analysis_impl(None, None).await.is_ok(),
             "エンジンが居ないときの停止が失敗している"
         );
         assert!(
@@ -691,7 +704,7 @@ mod tests {
         let mine = bridge.take_session(SessionType::Infinite).await.unwrap();
 
         let refused = bridge
-            .stop_analysis_impl(Some("someone-elses-id".to_string()))
+            .stop_analysis_impl(Some("someone-elses-id".to_string()), None)
             .await;
         assert!(refused.is_err(), "知らない ID が成功している");
 
