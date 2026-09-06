@@ -66,7 +66,10 @@ S4 の分類に関わらず `needs_*` を 0 にする（不変条件3）。**数
   `needs_*=0` になり素通しする。**これは PreToolUse の構造上どうにもならない**
   （コマンドの前に、そのツリーは存在しない）。表に残す
 - **(B, S4)**: 手前に**ツリーを変える** git（`add` / `rm` / `mv` / `stash` /
-  `checkout` / `restore` / `reset`）を置いた形は、**S3（`gate_target_dir`）で deny する。**
+  `checkout` / `switch` / `restore` / `reset` / `clean` / `apply` / `commit` /
+  `config`）を置いた形は、**S3（`gate_target_dir`）で deny する。**
+  **この一覧は `verify-gate.test.sh` の `gate_writers` と同じ**（あちらは
+  「綴り表がこれを全部落とせること」を見る）。片方だけ増やさないこと。
   PreToolUse はコマンドが走る前に判定するので、手前で変えると**その前の状態を見る** ——
   `git rm X && git commit` は X がまだ在る状態を走査して「変更なし」と読み、
   検証も deny もせずに素通ししていた。

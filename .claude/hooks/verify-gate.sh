@@ -67,12 +67,6 @@ GATE_GIT_WORD="['\"\\\\]*[^[:space:];&|()]*git['\"]?"
 # `rust-toolchain.toml` のように git config として解釈できるファイルを書き換える。
 GATE_READ_ONLY_VERBS_BASE='status|diff|log|show|rev-parse|branch|fetch|remote|describe'
 
-# 上に加えて、**それらへ展開する alias**。
-#
-# `st = status` のような短縮は普通に置かれるので、名前だけで見ると
-# 読むだけの呼び出しが止まる。**止めても利用者にできることは
-# 「2回に分ける」だけ**で、ツリーは1バイトも変わらないのに手数だけ増える。
-# `GATE_EXTRA_READ_ONLY` で差し込めるようにしてある（テストから固定するため）。
 # alias を引くリポジトリ。**hook 自身の cwd ではない。**
 #
 # `git config` は local を混ぜて列挙するので、どこで引くかで答えが変わる。
@@ -86,6 +80,12 @@ gate_config_at() {
   git -C "${GATE_BASE:-.}" config "$@"
 }
 
+# 上に加えて、**それらへ展開する alias**。
+#
+# `st = status` のような短縮は普通に置かれるので、名前だけで見ると
+# 読むだけの呼び出しが止まる。**止めても利用者にできることは
+# 「2回に分ける」だけ**で、ツリーは1バイトも変わらないのに手数だけ増える。
+# `GATE_EXTRA_READ_ONLY` で差し込めるようにしてある（テストから固定するため）。
 gate_read_only_verbs() {
   if [ -n "${GATE_EXTRA_READ_ONLY+set}" ]; then
     printf '%s' "$GATE_READ_ONLY_VERBS_BASE${GATE_EXTRA_READ_ONLY:+|$GATE_EXTRA_READ_ONLY}"

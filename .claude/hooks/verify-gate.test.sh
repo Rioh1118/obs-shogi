@@ -626,7 +626,7 @@ expect_readonly() {
 # 下のループは緑で回り続けるだけで何も守らない。
 # **この一覧を全部落とせることが、上の綴り表の正しさの条件。**
 # 綴りを痩せさせた変更は、ここが赤くなって止まる。
-# `mv` / `switch` / `apply` は判定表 (B, S4) が名指ししている動詞
+# **この一覧は判定表 (B, S4) と同じ。** 片方だけ増やさないこと
 gate_writers=(add rm mv checkout switch restore reset commit config stash clean apply)
 for gate_writer in "${gate_writers[@]}"; do
   # **床に数えさせる。** ここは綴り表が「そもそも何かを落とせるか」を見る
