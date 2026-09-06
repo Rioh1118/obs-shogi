@@ -2,12 +2,32 @@ use serde::Serialize;
 use std::fmt;
 use std::io;
 
-/// フロントで分岐できる粒度の失敗種別。
+/// 種別の宣言。**列挙と全件の配列を1つの綴りから作る。**
 ///
-/// メッセージ文字列で分岐させないために、`file_system::FsError` と同じ形を取る。
-#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum BookErrorCode {
+/// 手で配列を持つと、種別を足したときに片方だけ更新して
+/// **足りない種別が黙って外れる**（網羅テストがその1つを見なくなる）。
+macro_rules! book_error_codes {
+    ($( $(#[$meta:meta])* $name:ident ),+ $(,)?) => {
+        /// フロントで分岐できる粒度の失敗種別。
+        ///
+        /// メッセージ文字列で分岐させないために、`file_system::FsError` と同じ形を取る。
+        #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+        #[serde(rename_all = "snake_case")]
+        pub(crate) enum BookErrorCode {
+            $( $(#[$meta])* $name ),+
+        }
+
+        impl BookErrorCode {
+            /// 宣言から導いた全件。**手で並べる口が無い。**
+            #[cfg(test)]
+            pub(crate) const ALL: &'static [BookErrorCode] = &[
+                $( BookErrorCode::$name ),+
+            ];
+        }
+    };
+}
+
+book_error_codes! {
     /// 定跡ファイルが存在しない
     NotFound,
     /// 存在するが読む権限が無い
@@ -287,7 +307,7 @@ mod tests {
     fn every_code_ends_with_something_the_user_can_do() {
         let dir = crate::test_support::temp_dir("book-ends-with-action");
 
-        for code in ALL_CODES {
+        for &code in BookErrorCode::ALL {
             let Some(err) = sample(code, &dir) else {
                 continue;
             };
@@ -386,22 +406,6 @@ mod tests {
             }
         })
     }
-
-    /// `sample` の `match` と対で持つ。**片方だけ足すと、足りない種別が黙って外れる。**
-    const ALL_CODES: [BookErrorCode; 12] = [
-        BookErrorCode::NotFound,
-        BookErrorCode::PermissionDenied,
-        BookErrorCode::InvalidType,
-        BookErrorCode::InvalidPath,
-        BookErrorCode::UnknownExtension,
-        BookErrorCode::UnsupportedFormat,
-        BookErrorCode::InvalidContent,
-        BookErrorCode::TooLarge,
-        BookErrorCode::InvalidHandle,
-        BookErrorCode::InvalidSfen,
-        BookErrorCode::Io,
-        BookErrorCode::Unknown,
-    ];
 
     /// **OS 由来の失敗も「次に何をすればよいか」で終わること。**
     ///
