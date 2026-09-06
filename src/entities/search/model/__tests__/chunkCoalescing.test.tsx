@@ -168,8 +168,7 @@ describe("チャンクの合流", () => {
       vi.runAllTimers();
     });
 
-    // 各チャンクは fileId が 0,1 / 2,3 / 4,5
-    expect(hitCount).toBe(6);
+    expect(lastHits.map((h) => h.occ.fileId)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
   /**

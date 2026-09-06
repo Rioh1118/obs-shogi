@@ -109,18 +109,23 @@ describe("useOrderedPositionHits", () => {
     expect(result.current.map((h) => h.occ.fileId)).toEqual([1, 0, 2]);
   });
 
-  /** 検索し直すと、同じ長さでも中身は別のヒット。前の振り分けに足してはいけない */
-  test("別の検索の結果に入れ替わったら振り分け直す", () => {
+  /**
+   * 検索し直すと、**同じ長さのまま**中身が別のヒットに入れ替わる。
+   * `isAppendOnlyContinuation` の境目はここ——長さだけを見ていると前の振り分けに
+   * 足してしまい、消えたはずのヒットが並びに残る
+   */
+  test("同じ長さのまま実体が入れ替わったら振り分け直す", () => {
     let hits = [hitAt(0), hitAt(1), hitAt(2)];
     const { result, rerender } = renderHook(() => useOrderedPositionHits(hits, resolve, CURRENT));
-    expect(result.current).toHaveLength(3);
+    const first = result.current;
+    expect(first.map((h) => h.occ.fileId)).toEqual([0, 2, 1]);
 
-    // 同じ fileId でも実体は別。前の結果とは繋がっていない
-    hits = [hitAt(0), hitAt(1), hitAt(2), hitAt(3)];
+    // 同じ fileId・同じ件数でも実体は別
+    hits = [hitAt(0), hitAt(1), hitAt(2)];
     rerender();
 
-    expect(result.current.map((h) => h.occ.fileId)).toEqual([0, 2, 1, 3]);
-    // 前の結果の実体が混ざっていないこと
+    expect(result.current.map((h) => h.occ.fileId)).toEqual([0, 2, 1]);
     expect(result.current.every((h) => hits.includes(h))).toBe(true);
+    expect(result.current.some((h) => first.includes(h))).toBe(false);
   });
 });
