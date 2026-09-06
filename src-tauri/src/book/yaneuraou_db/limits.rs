@@ -8,7 +8,7 @@
 //! 説明の側へ写すと、単価を直したときにそちらだけが取り残される。
 
 use crate::book::error::{format_size, BookError, BookErrorCode};
-use crate::book::sfen::BookKey;
+use crate::book::sfen::key::BookKey;
 use crate::book::types::BookMove;
 use std::collections::HashMap;
 

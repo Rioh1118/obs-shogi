@@ -2,8 +2,8 @@ use crate::book::error::{truncate_path, BookError, BookErrorCode};
 use crate::book::open::{open_at, validate_book_path};
 use crate::book::session::BookSession;
 use crate::book::session::BookState;
-use crate::book::sfen::to_book_key;
-use crate::book::sfen::BookKey;
+use crate::book::sfen::key::to_book_key;
+use crate::book::sfen::key::BookKey;
 use crate::book::types::{
     BookHandle, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
 };

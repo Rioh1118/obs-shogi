@@ -253,7 +253,7 @@ mod tests {
     /// 通る。** ここだけが「開いて引ける」を言える。
     #[test]
     fn opens_a_book_and_finds_the_opening_moves() {
-        use crate::book::sfen::to_book_key;
+        use crate::book::sfen::key::to_book_key;
 
         let dir = test_support::dir::temp_dir("book-end-to-end");
         let file = dir.join("standard.db");

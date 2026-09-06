@@ -8,7 +8,7 @@
 //! 読み切るまで解放されない空きを局面ごとに残す。畳む処理と同じ場所に置くのは、
 //! どちらも「溜めた列をどう扱うか」だけを決めているため。
 
-use crate::book::sfen::BookKey;
+use crate::book::sfen::key::BookKey;
 use crate::book::types::BookMove;
 use std::collections::{HashMap, HashSet};
 

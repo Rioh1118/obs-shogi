@@ -1,5 +1,5 @@
 use crate::book::error::BookError;
-use crate::book::sfen::BookKey;
+use crate::book::sfen::key::BookKey;
 use crate::book::types::BookFormat;
 use crate::book::types::BookMove;
 use std::path::PathBuf;
