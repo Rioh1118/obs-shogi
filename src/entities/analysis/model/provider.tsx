@@ -139,8 +139,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   };
 
   // 応答を待てない場所（畳まれた後・打ち切り）から返す。
+  //
+  // **落ちても利用者には出せない**——ここを通るのは画面が既に無いか、
+  // 直後に別のエラーを出す場面。**それでも痕跡は残す。** ここが最後の防壁で、
+  // 抜けられると席が残り、以降の解析が全部「Analysis already running」で
+  // 断られる。しかもその失敗は「▶ を押しても何も起きない」という形でしか
+  // 現れない（`docs/state-transitions/analysis.md` ※4）ので、
+  // ログが無いと原因に辿り着く手掛かりが1つも無い。
   const releaseSeatQuietly = (sessionId?: string) => {
-    void releaseSeat(sessionId).catch(() => {});
+    void releaseSeat(sessionId).catch((e) => {
+      console.warn("[ANALYSIS] failed to release the engine session", sessionId, e);
+    });
   };
 
   const unmountedRef = useRef(false);
