@@ -59,11 +59,14 @@ export interface GameView {
   player: JKFPlayer | null;
 
   /**
-   * 盤に載せられる棋譜があるか。**画面を切り替える側はこれを見る。**
+   * 盤に載せられる棋譜があるか。`player` と `player.shogi` のどちらが欠けても偽。
    *
-   * `player` と `player.shogi` のどちらが欠けても偽になる。読み手が
-   * `player?.shogi` を毎回組み立てると、`player !== null` で縮めた人と
-   * そうでない人が混ざり、**同じ問いに2つの答えが出る**。
+   * **画面を丸ごと切り替える側の綴りはこれ**（`AppLayout` の `WelcomeScreen` との
+   * 分岐、ヘッダの中央）。読み手が `player?.shogi` を毎回組み立てると、
+   * `player !== null` で縮めた人と混ざって同じ問いに2つの答えが出る。
+   *
+   * **盤の内側は寄せていない。** `Board` / `Hand` は `player?.shogi` を直に見て
+   * 自分の描画を止める。あちらは「この部品が描けるか」で、こちらとは別の問い。
    */
   hasKifu: boolean;
 
