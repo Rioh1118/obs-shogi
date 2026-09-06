@@ -208,6 +208,12 @@ export default function PositionSearchContinuation({
   }, [activeHit, resolveAbsPath]);
 
   useEffect(() => {
+    // **世代は行き先の有無より先に進める。** 行き先が消えた側が世代を据え置くと、
+    // 飛んでいる読みの `mySeq` が有効なまま残り、解決したときに**もう選ばれて
+    // いない行の続きが書き戻される**。検索をやり直して0件になった場面では、
+    // 前の検索で選んでいた行の続きが「取得中」ですらない顔で残る
+    const mySeq = ++seqRef.current;
+
     if (!target) {
       setMoves(null);
       setLoading(false);
@@ -215,7 +221,6 @@ export default function PositionSearchContinuation({
     }
     const { abs, cursor } = target;
 
-    const mySeq = ++seqRef.current;
     setLoading(true);
 
     const cache = kifuCacheRef.current;

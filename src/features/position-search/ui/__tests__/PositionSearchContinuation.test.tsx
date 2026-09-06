@@ -190,6 +190,39 @@ describe("矢印で駆け抜けたとき", () => {
   });
 });
 
+describe("選択が外れたとき", () => {
+  /**
+   * 検索をやり直して0件になる、索引がパスを返さない行へ移る——どちらも
+   * 行き先が消える。**そのとき飛んでいる読みが解決しても、画面へ書き戻して
+   * はいけない。** 書き戻すと、前に選んでいた行の続きが「取得中」ですらない
+   * 顔で残る
+   */
+  test("読みの解決前に行き先が消えたら、その結果は画面へ出さない", async () => {
+    let settleRead!: (v: unknown) => void;
+    readText.mockImplementation(() => new Promise((resolve) => (settleRead = resolve)));
+
+    let v!: ReturnType<typeof render>;
+    await act(async () => {
+      v = render(view(HIT, freshResolver()));
+    });
+    await settle();
+    expect(readPaths()).toEqual(["/root/1.kif"]);
+
+    // 行き先が消える（検索し直して0件、など）
+    await act(async () => {
+      v.rerender(view(null, freshResolver()));
+    });
+
+    // その後で前の読みが解決する
+    await act(async () => {
+      settleRead({ success: true, data: "kif text" });
+    });
+
+    expect(buildPlayer).not.toHaveBeenCalled();
+    expect(v.container.textContent).toContain("（続きなし）");
+  });
+});
+
 describe("次の1行の先読み", () => {
   /**
    * デバウンスを入れると、矢印を1つ押すたびに 150ms 待たされる。
