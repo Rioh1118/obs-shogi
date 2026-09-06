@@ -38,20 +38,18 @@ type Entry = {
   settled: boolean;
 };
 
-function toText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (content instanceof Uint8Array) return new TextDecoder().decode(content);
-  return String(content ?? "");
-}
-
 async function loadKifu(absPath: string): Promise<LoadedKifu> {
   const res = await readText(absPath);
   // 投げる API を `catch {}` で握り潰すと、権限も見つからないも解析失敗も
   // 同じ「続きが無い」に見える。理由を持ったまま上へ返す
   if (!res.success) throw new Error(describeFsError(res.error.code));
 
-  const text = toText(res.data);
-  return { jkf: parseKifuStringToJKF(text).jkf as JKFData, sourceChars: text.length };
+  // **型の口を広げない。** `readText` は `string` を返すと言い切っているので、
+  // ここで `unknown` を受けて変換すると、その約束が変わったときに tsc が
+  // 落ちなくなる（代わりに `"[object Object]"` が解析へ流れ、原因と無関係な
+  // 文言の断りになる）
+  const text = res.data;
+  return { jkf: parseKifuStringToJKF(text).jkf, sourceChars: text.length };
 }
 
 /**
@@ -82,6 +80,20 @@ export class KifuCache {
     return this.entries.has(absPath);
   }
 
+  /**
+   * その棋譜を読む。抱えていればそれを返す。
+   *
+   * 呼ぶ前に知っておくことが4つある。
+   *
+   * 1. **同じパスの飛行中の読みには、同じ `Promise` が返る。** `read_file` は
+   *    重ならない
+   * 2. **失敗は reject する。** 理由は `describeFsError` を通した文言を持つ
+   *    `Error`。捨てるなら `catch` を付けること
+   * 3. **失敗した読みは抱えない。** 次に呼べばもう一度 IPC が飛ぶ（権限が戻れば
+   *    今度は読める）
+   * 4. **呼ぶと他の棋譜が追い出されうる。** 上限は量（`MAX_CACHED_BYTES`）で、
+   *    `has` が真だったものが次の `load` の後で偽になることがある
+   */
   load(absPath: string): Promise<LoadedKifu> {
     const hit = this.entries.get(absPath);
     if (hit) {

@@ -95,6 +95,15 @@ export type PositionSearchContextType = {
   cancelSearch: (requestId: RequestId) => Promise<void>;
 
   getSessionByRequestId: (requestId: RequestId | null | undefined) => SearchSession | null;
+
+  /**
+   * その検索のヒットを、届いた順に平らにして返す。
+   *
+   * **返り値は共有の配列。破壊的に触らないこと**（`sort` / `reverse` / `push`）。
+   * 同じ到着ぶんを見ている間は**同じ配列**が返り、増えたときだけ別の配列になる
+   * ——呼び手はその同一性で「増えたか」を判断してよい。触ると、次の増分追記が
+   * 壊れた並びの上に足される。
+   */
   getHitsByRequestId: (requestId: RequestId | null | undefined) => PositionHit[];
   isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
   getAbsPathByFileId: (fileId: number) => string | null;
