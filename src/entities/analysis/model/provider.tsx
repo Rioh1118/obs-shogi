@@ -2,13 +2,11 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import { startInfiniteAnalysis as startInfiniteAnalysisCore } from "@/entities/engine/api/tauri";
-import { useEngineSeat } from "./useEngineSeat";
+import { useEngineSeat, type SeatReleasePoint } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
-import type { AnalysisCandidate } from "@/entities/engine";
-import { pickTopCandidate } from "../lib/candidates";
 import { AnalysisContext } from "./context";
 
 interface Props {
@@ -90,7 +88,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 自動再開の同期待ち。打ち切りの判定に使う。
   // 待っている対象（seq と局面）ごと持つ。時刻だけを持つと、前回の待ちの経過時間を
   // 引き継いで、次の待ちを1ミリ秒も待たずに打ち切ってしまう。
-  const syncWaitRef = useRef<{ seq: number; want: string; startedAt: number } | null>(null);
+  const syncWaitRef = useRef<{
+    seq: number;
+    want: string;
+    startedAt: number;
+  } | null>(null);
   const pendingAfterRef = useRef(false);
 
   const RESTART_DEBOUNCE_MS = 100;
@@ -130,7 +132,25 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // どちらも「返ってきた席の持ち主が居ない」で、返さなければ Rust に残る。
   // `stopAnalysis` は世代を上げるが、撃てるのはその時点で握っている席まで
   // ——後から返る席を返せるのは、応答が返った側だけ。
-  const supersededSince = (seq: number) => unmountedRef.current || restartSeqRef.current !== seq;
+  const supersededSince = useCallback(
+    (seq: number) => unmountedRef.current || restartSeqRef.current !== seq,
+    [],
+  );
+
+  // 返ってきた席を握るか捨てるか。**欄に入れる前に見る**——要らなくなった席を
+  // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
+  // 捨てた側は `false` を返すので、呼び手はそこで打ち切る。
+  const holdUnlessSuperseded = useCallback(
+    (seq: number, at: SeatReleasePoint, sessionId: string) => {
+      if (supersededSince(seq)) {
+        seat.discard(at, sessionId);
+        return false;
+      }
+      seat.hold(sessionId);
+      return true;
+    },
+    [seat, supersededSince],
+  );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
   //
@@ -298,16 +318,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         dispatch({ type: "clear_results" });
 
         const newSessionId = await startInfiniteAnalysisCore();
-
-        // **欄に入れる前に見る。** 要らなくなった席を欄に入れると、その後に
-        // 入った別の席を上書きして、走っている方を知る者が居なくなる。
-        // 返さずに `start_analysis` を dispatch した場合は、止めたはずの解析が
-        // 画面でも Rust でも走り直す。
-        if (supersededSince(seq)) {
-          seat.discard("late-restart", newSessionId);
-          return;
-        }
-        seat.hold(newSessionId);
+        if (!holdUnlessSuperseded(seq, "late-restart", newSessionId)) return;
 
         dispatch({ type: "start_analysis", payload: { position: want } });
 
@@ -375,13 +386,20 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 自動再開は `if (!currentSfen) return` で黙って止まるだけなので、放っておくと
   // エンジンは閉じた棋譜の局面を読み続け、**それを止めるボタンは画面から消えている**。
   useEffect(() => {
-    if (!state.isAnalyzing) return;
     if (currentSfen) return;
 
+    // **世代は先に上げる。** 飛んでいる開始（席が返るまで `isAnalyzing` は false）を
+    // 打ち切るのはこの1行で、下の門より後ろに置くと、閉じた棋譜のために
+    // 同期待ちが上限まで回り、閉じた局面で「解析中」が1回 commit される。
     desiredSfenRef.current = null;
     pendingAfterRef.current = false;
     restartSeqRef.current++;
     clearDebounceTimer();
+
+    // **席を握っていれば、表示が停止中でも返す。** 停止が届かなかった回は
+    // `isAnalyzing` が false のまま席だけ残る（→ ※7）。`state` の写しで
+    // 決めると、その回にエンジンが閉じた棋譜を読み続ける。
+    if (!state.isAnalyzing && !seat.isHeld()) return;
 
     seat.releaseHeldQuietly("no-position");
     dispatch({ type: "stop_analysis" });
@@ -397,7 +415,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
     // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと
     // Rust に断られ続け、画面からは復帰できなくなる（→ #172）。
-    if (seat.isHeld()) await seat.releaseHeld();
+    // 握っていなければ `releaseHeld` は何もしない。
+    await seat.releaseHeld();
 
     // 局面を送って席が返るまでの世代。
     //
@@ -432,21 +451,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (supersededSince(seq)) return;
 
     const sessionId = await startInfiniteAnalysisCore();
-
-    // **欄に入れる前に見る。** 要らなくなった席を欄に入れると、その後に
-    // 入った別の席（■ の直後に ▶ を押した回）を上書きして、
-    // 走っている方を知る者が居なくなる。
-    if (supersededSince(seq)) {
-      seat.discard("late-start", sessionId);
-      return;
-    }
-    seat.hold(sessionId);
+    if (!holdUnlessSuperseded(seq, "late-start", sessionId)) return;
 
     dispatch({ type: "start_analysis", payload: { position: currentSfen } });
 
     lastAnalyzedSfenRef.current = currentSfen;
     desiredSfenRef.current = currentSfen;
-  }, [isReady, state.isAnalyzing, currentSfen, syncPosition, seat]);
+  }, [
+    isReady,
+    state.isAnalyzing,
+    currentSfen,
+    syncPosition,
+    seat,
+    supersededSince,
+    holdUnlessSuperseded,
+  ]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
   // 局面を送って席が返った後（最大2秒）で、その間ボタンは ▶ のまま押せる。
@@ -472,14 +491,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     restartSeqRef.current++;
     clearDebounceTimer();
 
-    // **席を持っているかは1つの式で決める。** 畳まれたときの後始末と別の式にすると、
-    // エラーで `isAnalyzing` だけ落ちた状態（`reducer.ts` の `set_error`）で答えが割れ、
-    // 片方は返しにいき、片方は state だけ落として席を置き去りにする。
-    if (!seat.isHeld()) {
-      dispatch({ type: "stop_analysis" });
-      return;
-    }
-
+    // 席を握っていなければ `releaseHeld` は何もしない。**席の判定はフックの中に1つだけ。**
     try {
       await seat.releaseHeld();
     } finally {
@@ -489,41 +501,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
   }, [clearFlushTimer, seat]);
 
-  const clearResults = useCallback(() => {
-    dispatch({ type: "clear_results" });
-  }, []);
-
-  const clearError = useCallback(() => {
-    dispatch({ type: "clear_error" });
-  }, []);
-
-  const getTopCandidate = useCallback((): AnalysisCandidate | null => {
-    return pickTopCandidate(state.candidates);
-  }, [state.candidates]);
-
-  const getAllCandidates = useCallback((): AnalysisCandidate[] => {
-    return state.candidates;
-  }, [state.candidates]);
-
   const value = useMemo<AnalysisContextType>(
     () => ({
       state,
       startInfiniteAnalysis: startInfiniteAnalysisOnce,
       stopAnalysis,
-      clearResults,
-      clearError,
-      getTopCandidate,
-      getAllCandidates,
     }),
-    [
-      state,
-      startInfiniteAnalysisOnce,
-      stopAnalysis,
-      clearResults,
-      clearError,
-      getTopCandidate,
-      getAllCandidates,
-    ],
+    [state, startInfiniteAnalysisOnce, stopAnalysis],
   );
 
   return <AnalysisContext.Provider value={value}>{children}</AnalysisContext.Provider>;

@@ -34,14 +34,15 @@ export type PositionSyncAdapter = {
   syncPosition: () => Promise<void>;
 };
 
+/**
+ * 解析ペインが使う面。**ここに載せるのは、スライスの外に呼び手が居るものだけ。**
+ *
+ * 呼び手0の口を載せると、次に触る人が「その口が正しい入口だ」と読む。
+ * 候補手を取り出すのは `lib` の `pickTopCandidate`（`state.candidates` を渡す）。
+ */
 export interface AnalysisContextType {
   state: AnalysisState;
 
   startInfiniteAnalysis: () => Promise<void>;
   stopAnalysis: () => Promise<void>;
-  clearResults: () => void;
-  clearError: () => void;
-
-  getTopCandidate: () => AnalysisCandidate | null;
-  getAllCandidates: () => AnalysisCandidate[];
 }

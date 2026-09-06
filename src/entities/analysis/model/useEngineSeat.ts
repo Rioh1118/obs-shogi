@@ -62,6 +62,11 @@ export function useEngineSeat(): EngineSeat {
   // 直前に返した席。**採ってはいけない `info` を見分けるためだけに持つ。**
   const retiredRef = useRef<string | null>(null);
 
+  // 飛んでいる返却。**同じ席へ2本目を撃たないため**に持つ。
+  // 撃つと、1本目が空けた後に2本目が「知らない席」で断られ、
+  // その失敗で**もう存在しない ID を握り直す**（下の catch）。
+  const releasingRef = useRef<Promise<void> | null>(null);
+
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
   // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
   // ——畳まれてもいないのに後始末が撃たれる。
@@ -76,8 +81,11 @@ export function useEngineSeat(): EngineSeat {
       // **返せなかった席を、誰も知らないままにしない。** 欄が空なら握り直す。
       // 要らなくなった開始を捨てる口は欄が空のまま撃つので、書き戻さないと
       // `sweepOnUnmount` が門で止まり、二度と返す機会が来ない。
-      // 欄が埋まっているなら触らない——そちらは新しい席で、巻き添えにできない。
-      if (sessionId !== undefined && seatRef.current === null) {
+      //
+      // 握り直さないのは2つ。**欄が埋まっている**なら、そちらは新しい席で
+      // 巻き添えにできない。**既に返し終えた席**なら、Rust にもう無いものを
+      // 握ることになり、次に畳まれたときの後始末が席を指さない停止に落ちる。
+      if (sessionId !== undefined && seatRef.current === null && retiredRef.current !== sessionId) {
         seatRef.current = sessionId;
       }
       throw e;
@@ -133,15 +141,34 @@ export function useEngineSeat(): EngineSeat {
     },
 
     releaseHeld: async () => {
+      // **飛んでいる返却があれば、それに相乗りする。** 同じ席へ2本撃つと、
+      // 1本目が空けた後の2本目が「知らない席」で断られる。
+      const releasing = releasingRef.current;
+      if (releasing) return releasing;
+
       const held = seatRef.current;
       if (held === null) return;
-      await send("stop", held);
+
+      const sending = send("stop", held).finally(() => {
+        releasingRef.current = null;
+      });
+      releasingRef.current = sending;
+      return sending;
     },
 
     releaseHeldQuietly: (at) => {
+      if (releasingRef.current) return;
+
       const held = seatRef.current;
       if (held === null) return;
-      quietly(at, held);
+
+      const sending = send(at, held).finally(() => {
+        releasingRef.current = null;
+      });
+      releasingRef.current = sending;
+      void sending.catch((e) => {
+        console.warn("[ANALYSIS] failed to release the engine session", { at, sessionId: held }, e);
+      });
     },
 
     // React の state が消えても、Rust の `active_sessions` からは席が消えない。

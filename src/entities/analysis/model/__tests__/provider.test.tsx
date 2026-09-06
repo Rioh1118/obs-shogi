@@ -9,7 +9,7 @@ import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 import type { AnalysisResult } from "@/entities/engine";
 
 const startCore = vi.fn<() => Promise<string>>();
-const stopCore = vi.fn<(sessionId?: string) => Promise<void>>();
+const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<void>>();
 
 // リスナを実際に登録させたい回だけ true にする。既定を true にすると、
 // 全部の回で登録と解除が挟まって、見たい経路が長くなる。
@@ -17,7 +17,7 @@ let tauri = false;
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri }));
 vi.mock("@/entities/engine/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
-  stopAnalysis: (sessionId?: string) => stopCore(sessionId),
+  stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
 }));
 vi.mock("@/entities/engine", () => ({ useEngine: () => ({ isReady: true }) }));
 
@@ -211,7 +211,7 @@ describe("AnalysisProvider の停止", () => {
 
     // 世代を見ないと、押した停止が握り潰されて解析が始まる。
     expect(view.current.state.isAnalyzing).toBe(false);
-    expect(stopCore).toHaveBeenCalledWith("session-late");
+    expect(stopCore).toHaveBeenCalledWith("session-late", "late-start");
   });
 
   it("同期待ちの間に止めたら、go を出さない", async () => {
@@ -304,7 +304,7 @@ describe("AnalysisProvider の停止", () => {
     // 世代を見ないと、止めたのに「解析中」へ戻り、Rust では新しい席が走り続ける。
     // 停止ボタンが撃てるのはその時点で握っている古い席までで、この席はここでしか返せない。
     expect(view.current.state.isAnalyzing).toBe(false);
-    expect(stopCore).toHaveBeenCalledWith("session-2");
+    expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
   });
 });
 
@@ -414,9 +414,52 @@ describe("AnalysisProvider の開始", () => {
       await view.current.startInfiniteAnalysis();
     });
 
-    expect(stopCore).toHaveBeenCalledWith("session-1");
+    expect(stopCore).toHaveBeenCalledWith("session-1", "stop");
     expect(startCore).toHaveBeenCalled();
     expect(view.current.state.isAnalyzing).toBe(true);
+  });
+
+  it("席を握ったまま止まっていても、局面が無くなったら返す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 停止が届かない。画面は「停止中」、席は握ったまま、エンジンは読み続けている。
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    stopCore.mockClear();
+    stopCore.mockResolvedValue(undefined);
+
+    // 棋譜を閉じる。`isAnalyzing` で門を作ると、ここで席が置き去りになる。
+    await view.setSync(adapter(null, null));
+    await advance(50);
+
+    expect(stopCore).toHaveBeenCalledWith("session-1", "no-position");
+  });
+
+  it("開始の応答待ちで局面が無くなったら、待つのをやめて始めない", async () => {
+    const view = mountAnalysis(adapter("P1", null));
+
+    let settled = false;
+    const done = () => {
+      settled = true;
+    };
+    void view.current.startInfiniteAnalysis().then(done, done);
+    await advance(50);
+
+    // 席が返る前なので `isAnalyzing` は false。世代を上げないと、閉じた棋譜のために
+    // 同期待ちが上限（2秒）まで回り、その後で「送れませんでした」を積む。
+    await view.setSync(adapter(null, null));
+    await advance(200);
+
+    expect(settled).toBe(true);
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.error).toBeNull();
   });
 
   it("読む局面が無くなったら、席を返して止める", async () => {
@@ -431,7 +474,7 @@ describe("AnalysisProvider の開始", () => {
     await view.setSync(adapter(null, null));
     await advance(50);
 
-    expect(stopCore).toHaveBeenCalledWith("session-1");
+    expect(stopCore).toHaveBeenCalledWith("session-1", "no-position");
     expect(view.current.state.isAnalyzing).toBe(false);
   });
 });
@@ -454,7 +497,7 @@ describe("AnalysisProvider のアンマウント", () => {
 
     // **セッションを指さない。** 指すと、席に居るのが別のセッションだったとき
     // Rust が照合して断る（`bridge.rs` の `stop_session`）。
-    expect(stopCore).toHaveBeenCalledWith(undefined);
+    expect(stopCore).toHaveBeenCalledWith(undefined, "unmount");
   });
 
   it("同期待ちの最中に畳まれたら、待つのをやめる", async () => {
@@ -529,7 +572,7 @@ describe("AnalysisProvider のアンマウント", () => {
       releaseStart("session-late");
     });
     await advance(50);
-    expect(stopCore).toHaveBeenCalledWith("session-late");
+    expect(stopCore).toHaveBeenCalledWith("session-late", "late-start");
 
     stopCore.mockClear();
     stopCore.mockResolvedValue(undefined);
@@ -596,7 +639,7 @@ describe("AnalysisProvider のアンマウント", () => {
     await advance(50);
 
     // 返さないと、誰も見ていない解析が Rust の席に居座り続ける。
-    expect(stopCore).toHaveBeenCalledWith("session-late");
+    expect(stopCore).toHaveBeenCalledWith("session-late", "late-start");
   });
 
   it("再開の開始が畳まれた後に返ってきたら、その席を返す", async () => {
@@ -628,7 +671,7 @@ describe("AnalysisProvider のアンマウント", () => {
 
     // 畳んだ時点で握っている席は無い——古い方は再開が先に返している。
     // 後始末は門で止まるので、この席を返せるのはここだけ。
-    expect(stopCore).toHaveBeenCalledWith("session-2");
+    expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
   });
 
   it("同期の追いつきで張ったタイマーを、アンマウントで止める", async () => {
@@ -754,6 +797,6 @@ describe("AnalysisProvider のアンマウント", () => {
     // 撃たれる停止は、返ってきた席を返す1本だけ。**次の再開の前置きではない。**
     // 前置きなら、その後に go が続く。
     expect(stopCore).toHaveBeenCalledTimes(1);
-    expect(stopCore).toHaveBeenCalledWith("session-2");
+    expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
   });
 });
