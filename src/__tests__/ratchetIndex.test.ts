@@ -65,6 +65,7 @@ const RUST_CHECKS = new Set([
   "scanning",
   "state_transition_cells",
   "index_cache_guard_names",
+  "search_doc_names",
   "timeout_marker",
   "timeout_result",
 ]);

@@ -20,7 +20,7 @@ use crate::search::types::{FileId, Occurrence};
 
 /// **中身を捨ててよい段。**
 ///
-/// [`IndexSnapshot::restarting`] が受ける。`IndexState` を素で受けない理由は
+/// `IndexSnapshot::restarting` が受ける。`IndexState` を素で受けない理由は
 /// そちらの doc に書いてある。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Restart {
@@ -97,7 +97,7 @@ impl IndexSnapshot {
     /// 「空にして `Ready` を名乗る」が書けてしまい、`query_service` が
     /// `stale = false` を返して**空の結果が「新鮮で正しい」として画面に並ぶ** ——
     /// エラーもログも出ない。捨ててよい段は2つだけ。
-    pub fn restarting(at: Restart) -> Self {
+    pub(super) fn restarting(at: Restart) -> Self {
         Self {
             state: at.into(),
             file_table: Arc::new(FileTable::default()),
@@ -124,6 +124,9 @@ impl IndexSnapshot {
     ///
     /// 素材が昇順であることは `cache/index_cache.rs` の `decode_all` が
     /// 桶ごとに確かめてから渡す（崩れていればキャッシュごと捨てる）。
+    ///
+    /// 段は `Updating` で固定。理由は [`IndexStore::install_restored`]
+    /// （`store/index_store.rs`）。
     pub(super) fn restored(
         file_table: FileTable,
         node_tables: NodeTables,
@@ -139,7 +142,6 @@ impl IndexSnapshot {
         });
 
         Self {
-            // 復元のあとは差分の取り込みが要るので、段は選ばせない
             state: IndexState::Updating,
             file_table: Arc::new(file_table),
             node_tables: Arc::new(node_tables),

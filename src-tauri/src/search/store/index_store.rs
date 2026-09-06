@@ -10,10 +10,14 @@
 //! **`IndexStore` は器の `replace` を出さない。** 段を捨てる口は
 //! [`IndexStore::restart`] だけで、そこは [`Restart`] の2つに絞ってある。
 //!
-//! **絞りきってはいない。** [`IndexStore::update`] は戻り値に任意の
-//! `IndexSnapshot` を許すので、`update(|_| IndexSnapshot::default().with_state(Ready))`
-//! —— **空なのに `Ready` を名乗る索引** —— はいまも書ける
-//! （`query_service` が `stale = false` を返し、空の結果が新鮮として画面に並ぶ）。
+//! **絞りきってはいない。** `IndexSnapshot` の欄は4つとも `pub` なので、
+//! `update(|_| IndexSnapshot { state: Ready, ..Default::default() })` ——
+//! **空なのに `Ready` を名乗る索引** —— が構造体リテラルから書ける
+//! （`query_service` の `stale` が偽になり、空の結果が新鮮として並ぶ）。
+//!
+//! **欄を非公開にする道は使えない。** `benches/search_bench.rs` が
+//! 構造体リテラルで組んでいる。塞ぐなら bench 向けに名前の付いた口を
+//! 1つ用意して、そのうえで欄を閉じることになる。
 //!
 //! **遷移の規則を持つ場所は無い。** どの段からどの段へ動いてよいかは
 //! 呼び手（`search/commands.rs` / `build.rs` / `project_manager.rs`）に散っている。
@@ -58,9 +62,10 @@ impl IndexStore {
     /// `open_project`）。
     ///
     /// **呼び手は、このあと `Ready` へ上げる責任を負う。**
-    /// 上げないと `query_service` が `stale = true` を返し続け、
-    /// 画面が「再スキャン中」のまま止まる。いまの呼び手は `commands.rs` の
-    /// `open_project` で、差分が0でも無条件に上げている。
+    /// 上げないと `search/query_service.rs` の `stale` が真のまま残り、
+    /// 検索の結果に「インデックス更新待ち」が付き続ける。
+    /// いまの呼び手は `search/commands.rs` の `open_project` で、
+    /// 差分が0でも無条件に上げている。
     pub fn install_restored(
         &self,
         file_table: FileTable,

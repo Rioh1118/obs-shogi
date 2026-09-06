@@ -121,7 +121,7 @@ impl Segment {
     }
 
     #[inline]
-    pub fn occ_at(&self, idx: usize) -> Occurrence {
+    pub(super) fn occ_at(&self, idx: usize) -> Occurrence {
         Occurrence {
             file_id: self.file_ids[idx],
             gen: self.gens[idx],
@@ -130,7 +130,7 @@ impl Segment {
     }
 
     #[inline]
-    pub fn key_at(&self, idx: usize) -> PositionKey {
+    pub(super) fn key_at(&self, idx: usize) -> PositionKey {
         PositionKey {
             z0: self.z0[idx],
             z1: self.z1[idx],

@@ -26,6 +26,15 @@ use crate::search::types::{
     EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
 };
 
+/// 棋譜を1つずつ読んで索引を全件作る。
+///
+/// **空の `Building` から呼ぶこと。** 直前に `store.restart(Restart::Building)` を
+/// 通す（いまの呼び手は `search/commands.rs` の `open_project`）。
+///
+/// 中身の残った索引に流すと壊れる。`file_id` を 1 から振り直し `gen` は常に 1 なので、
+/// 前の索引の同じ `file_id` の出現が桶に残ったまま**生きている扱いで**新しい節表に
+/// 当たり、**押すと違う局面が出るヒット**になる（`search/query_service.rs` の
+/// `cursor_lite` の腕）。`stale` も構築中ずっと `false` のままになる。
 pub async fn build_full_index_task(
     app: AppHandle,
     store: Arc<IndexStore>,
@@ -52,6 +61,20 @@ pub async fn build_full_index_task(
         let file_id: FileId = (i as u32) + 1;
         let path_key = rec.path.to_string_lossy().to_string();
         path_to_id.insert(path_key, file_id);
+    }
+
+    // 上の doc の前提。破れると壊れ方が静かなので、debug では落とす
+    {
+        let snap = store.snapshot();
+        debug_assert_eq!(
+            snap.state,
+            StoreIndexState::Building,
+            "全件構築を Building 以外から始めている"
+        );
+        debug_assert!(
+            snap.file_table.is_empty(),
+            "中身の残った索引に全件構築を流している（file_id が衝突する）"
+        );
     }
 
     let conc = std::thread::available_parallelism()

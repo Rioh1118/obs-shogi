@@ -118,33 +118,8 @@ pub(super) fn compact_bucket(segs: &[SegmentArc], ft: &FileTable) -> Option<Segm
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::types::FileEntry;
+    use crate::search::store::fixtures::{alive_of as alive, key_of as key, occ_of as occ};
     use std::sync::Arc;
-
-    fn key(z0: u64) -> PositionKey {
-        PositionKey { z0, z1: 0 }
-    }
-
-    fn occ(file_id: u32, node_id: u32) -> Occurrence {
-        Occurrence {
-            file_id,
-            r#gen: 1,
-            node_id,
-        }
-    }
-
-    fn alive(ids: &[u32]) -> FileTable {
-        let mut ft = FileTable::default();
-        for id in ids {
-            ft.upsert(FileEntry {
-                file_id: *id,
-                path: format!("{id}.kif"),
-                deleted: false,
-                r#gen: 1,
-            });
-        }
-        ft
-    }
 
     fn seg(entries: Vec<(PositionKey, Occurrence)>) -> SegmentArc {
         Arc::new(Segment::new_sorted(entries))

@@ -15,13 +15,13 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 状態を持つのは `IndexStore`（中身は `SnapshotCell<IndexSnapshot>`）1つだけ。
 `IndexSnapshot.state` が下の記号に対応する。
 
-| 記号  | `IndexState` | 判定条件                                                        | 中身               |
-| ----- | ------------ | --------------------------------------------------------------- | ------------------ |
-| **E** | `Empty`      | 初期値                                                          | 空                 |
-| **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                          | **空にされている** |
-| **B** | `Building`   | `restart(Restart::Building)` を通った。**口はこれ1つ**          | **空にされている** |
-| **U** | `Updating`   | `install_restored(..)`（段は選べない）か `with_state(Updating)` | 前の中身が残る     |
-| **Y** | `Ready`      | `with_state(Ready)`                                             | 揃っている         |
+| 記号  | `IndexState` | 判定条件                                                                         | 中身               |
+| ----- | ------------ | -------------------------------------------------------------------------------- | ------------------ |
+| **E** | `Empty`      | 初期値                                                                           | 空                 |
+| **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                                           | **空にされている** |
+| **B** | `Building`   | `restart(Restart::Building)` を通った。**口はこれ1つ**                           | **空にされている** |
+| **U** | `Updating`   | `install_restored(..)`（段は選べない）か `with_state(StoreIndexState::Updating)` | 前の中身が残る     |
+| **Y** | `Ready`      | `with_state(StoreIndexState::Ready)`                                             | 揃っている         |
 
 **`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::restarting` で
 `FileTable::default()` と空の bucket で作り直すので、**その間に投げた検索は必ず0件になる**
@@ -43,7 +43,7 @@ let stale = snap.state != StoreIndexState::Ready;
 | 記号          | 発生源                             | 何が起きるか                                                                                                                                                                                                |
 | ------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                                                                                                       |
-| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `with_state(Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                                          |
+| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `with_state(StoreIndexState::Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                         |
 | `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
 | `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
 | `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
@@ -70,7 +70,7 @@ let stale = snap.state != StoreIndexState::Ready;
 
 **`open-rescan` は復元経路にしか無い。** `restore-ok` で `U` に入った直後、
 `open_project` が spawn した1本が `run_rescan_diff_apply`（先頭で全走査する）を
-待ち、**差分が0でも `with_state(Ready)` を無条件で呼ぶ**。
+待ち、**差分が0でも `with_state(StoreIndexState::Ready)` を無条件で呼ぶ**。
 つまり**起動時のいちばん普通の経路では、`U` に留まらず必ず `Y` まで行く**。
 `U` 行の `diff-empty`（「走査だけ更新」＝ `U` のまま）はこの経路の話ではない
 ——そちらは watcher が動き出したあとに来る `fs-event` の話。
@@ -78,7 +78,7 @@ let stale = snap.state != StoreIndexState::Ready;
 ### ⚠️ 走査が失敗しても `Y` に上がる
 
 `run_rescan_diff_apply` は `root_dir` が `None` のときと `scan_kifu_files` が
-`Err` のときに、`with_state(Updating)` へ届く前に `return` する。
+`Err` のときに、`with_state(StoreIndexState::Updating)` へ届く前に `return` する。
 **`run_rescan_diff_apply` は成否を返さない**（戻り値が `()`）ので、
 呼び手（`commands.rs`）には失敗と「差分0」を区別する手段が無い。
 
@@ -291,10 +291,14 @@ macOS の `app_cache_dir()` は `~/Library/Caches/<identifier>` なので、
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
-コマンドを通して段を跨ぐものは無い。段そのものの遷移は
-`store/index_store.rs` の `restarting_the_store_throws_the_current_index_away` と
+**各口が名乗る段と、捨てられる中身**は3本が固定している ——
+`store/index_store.rs` の `restarting_the_store_throws_the_current_index_away`
+（中身が捨てられること。段は見ていない）と
 `an_installed_restore_says_it_is_still_updating`、
-`store/snapshot.rs` の `restarting_starts_from_an_empty_index` が固定している。
+`store/snapshot.rs` の `restarting_starts_from_an_empty_index`。
+
+**表の矢印（どの段からどの段へ動くか）を見るものは1本も無い。**
+3本とも出発点は空の索引で、`R`→`U` も `B`→`Y` も `U`→`Y` も踏んでいない。
 
 ## この表が拾ったもの
 
