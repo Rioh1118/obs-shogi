@@ -41,19 +41,39 @@ function hitAt(fileId: number): PositionHit {
 /** 一覧を読む側。読まないと平坦化が走らないので、現物と同じく毎レンダ引く */
 let renders = 0;
 let hitCount = 0;
+let lastHits: PositionHit[] = [];
 
 function Probe() {
   const { getHitsByRequestId } = usePositionSearch();
   renders += 1;
-  hitCount = getHitsByRequestId(RID).length;
+  lastHits = getHitsByRequestId(RID);
+  hitCount = lastHits.length;
   return null;
+}
+
+/**
+ * チャンクの中身が何回読まれたかを数える。
+ *
+ * 平坦化が増分なら合計は届いた件数に落ち着く。毎回作り直していれば、到着の
+ * 回数ぶん二乗で伸びる（実測で n=100,000 のとき合計 836ms）。**回数は
+ * どこにも出ないので、これ以外に見る方法が無い。**
+ */
+let elementReads = 0;
+
+function counting(hits: PositionHit[]): PositionHit[] {
+  return new Proxy(hits, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && /^\d+$/.test(prop)) elementReads += 1;
+      return Reflect.get(target, prop, receiver);
+    },
+  });
 }
 
 function chunkOf(n: number, from: number): SearchChunkPayload {
   const chunk = Array.from({ length: n }, (_, i) => hitAt(from + i));
   return {
     requestId: RID,
-    chunk,
+    chunk: counting(chunk),
     files: chunk.map((h) => ({ fileId: h.occ.fileId, absPath: `/root/${h.occ.fileId}.kif` })),
   };
 }
@@ -89,6 +109,7 @@ beforeEach(() => {
   handlers = {};
   renders = 0;
   hitCount = 0;
+  elementReads = 0;
 });
 
 afterEach(() => {
@@ -146,6 +167,58 @@ describe("チャンクの合流", () => {
     });
     expect(renders).toBe(rendersAfterEnd);
     expect(hitCount).toBe(8);
+  });
+
+  /**
+   * 溜め時間を跨いで届いた場合。**取り込みは末尾だけ**で、先頭から作り直さない。
+   *
+   * 10回に分けて2件ずつ届けたとき、作り直していれば 2+4+…+20 = 110 件ぶん読む。
+   * 増分なら 20 件。件数が増えるほど差は二乗で開く。
+   */
+  test("溜め時間を跨いで届いても、平坦化は末尾だけ足す", async () => {
+    await mount();
+
+    for (let i = 0; i < 10; i++) {
+      act(() => {
+        handlers.onSearchChunk?.(chunkOf(2, i * 2));
+      });
+      act(() => {
+        vi.runAllTimers();
+      });
+    }
+
+    expect(hitCount).toBe(20);
+    expect(elementReads).toBeLessThanOrEqual(25);
+  });
+
+  /**
+   * 増分にすると、作業用の配列は同じものを伸ばし続けることになる。**それを直に
+   * 返してはいけない**——呼び手の `useMemo` は参照で変化を見ているので、
+   * 同じ配列のままだと新着ヒットが一覧に出なくなる
+   */
+  test("増えたら別の配列として渡す", async () => {
+    let seen: unknown[] = [];
+    await mount();
+
+    act(() => {
+      handlers.onSearchChunk?.(chunkOf(2, 0));
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+    seen = lastHits;
+    const first = seen;
+
+    act(() => {
+      handlers.onSearchChunk?.(chunkOf(2, 2));
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(lastHits).not.toBe(first);
+    expect(first.length).toBe(2);
+    expect(lastHits.length).toBe(4);
   });
 
   /** 溜めたまま畳まれても、タイマが後から起きて外れた state を触らないこと */

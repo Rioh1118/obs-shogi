@@ -51,9 +51,19 @@ const CHUNK_FLUSH_MS = 50;
 type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
 
 type HitsCacheEntry = {
-  chunksRef: PositionHit[][];
+  /**
+   * 直前に取り込んだチャンクの実体。
+   *
+   * **チャンクを入れている配列の同一性では判定しない。** reducer は到着のたびに
+   * `[...s.chunks, ...p.chunks]` で新しい配列へ差し替えるので、同一性で見ると
+   * 増分追記は**一度も起きない**（この形が実際に O(n²) を作っていた）。
+   */
+  lastChunk: PositionHit[] | null;
   consumed: number;
+  /** 追記していく作業用。**呼び手へ渡すのはこれではない** */
   flat: PositionHit[];
+  /** 呼び手へ渡した写し。同じ state を見ている間は同じものを返す */
+  snapshot: PositionHit[];
 };
 
 /**
@@ -76,9 +86,12 @@ export function PositionSearchProvider({
   const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
 
   /**
-   * 償却 O(n) の hits キャッシュ。session.chunks に新規 chunk が増えたら
-   * 末尾だけ flat 配列に append する。同一 chunks 参照を見ている間は flat 配列も
-   * stable で React の memo が効く。
+   * 償却 O(n) の hits キャッシュ。到着ぶんが増えたら**末尾だけ**追記する。
+   *
+   * 同じ `sessions` を見ている間は同じ配列を返すので React の memo が効き、
+   * 増えたときだけ別の配列になる。**どちらか片方だけでは成り立たない**——
+   * 常に別の配列を返せば memo が毎回外れ、常に同じ配列を返せば増えたことが
+   * 伝わらない。境目は `getHitsByRequestId` の中。
    */
   const hitsCacheRef = useRef(new Map<RequestId, HitsCacheEntry>());
 
@@ -320,24 +333,40 @@ export function PositionSearchProvider({
       const session = state.sessions[requestId];
       if (!session) return EMPTY_HITS;
 
-      const cache = hitsCacheRef.current.get(requestId);
-      if (cache && cache.chunksRef === session.chunks && cache.consumed === session.chunks.length) {
-        return cache.flat;
-      }
+      const chunks = session.chunks;
+      if (chunks.length === 0) return EMPTY_HITS;
 
-      const flat: PositionHit[] = cache && cache.chunksRef === session.chunks ? cache.flat : [];
-      const start = cache && cache.chunksRef === session.chunks ? cache.consumed : 0;
-      for (let i = start; i < session.chunks.length; i++) {
-        const chunk = session.chunks[i];
+      const cache = hitsCacheRef.current.get(requestId);
+
+      // 前に取り込んだところまでが、いまの並びの先頭とそのまま一致しているか。
+      // 一致していれば末尾だけ足せばよい
+      const canAppend =
+        !!cache &&
+        cache.consumed <= chunks.length &&
+        (cache.consumed === 0 || chunks[cache.consumed - 1] === cache.lastChunk);
+
+      if (canAppend && cache.consumed === chunks.length) return cache.snapshot;
+
+      const flat = canAppend ? cache.flat : [];
+      const start = canAppend ? cache.consumed : 0;
+      for (let i = start; i < chunks.length; i++) {
+        const chunk = chunks[i];
         for (let j = 0; j < chunk.length; j++) flat.push(chunk[j]);
       }
 
+      // **写しを渡す。** `flat` を直に返すと、増えても同じ配列のままになり、
+      // 呼び手の `useMemo` が「変わっていない」と読んで**新着ヒットが一覧に出ない**。
+      // いまその形が表に出ていないのは、判定が毎回外れて別の配列を返しているから
+      // でしかない。写しは要素の指し直しだけなので、増分追記の意味は消えない
+      const snapshot = flat.slice();
+
       hitsCacheRef.current.set(requestId, {
-        chunksRef: session.chunks,
-        consumed: session.chunks.length,
+        lastChunk: chunks[chunks.length - 1],
+        consumed: chunks.length,
         flat,
+        snapshot,
       });
-      return flat;
+      return snapshot;
     },
     [state.sessions],
   );
