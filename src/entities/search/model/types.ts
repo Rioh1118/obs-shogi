@@ -71,7 +71,7 @@ export type Action =
    * 到着したチャンクを**まとめて**積む。
    *
    * 1チャンク1アクションにしない。`filePathById` と `sessions` はアクション1回ごとに
-   * 作り直されるので、n=100,000（334チャンク）なら 10万件の表を 334 回コピーする。
+   * 作り直されるので、10万件の表を「件数 ÷ 区切り」回コピーすることになる。
    * 溜めるのは `model/provider.tsx`。
    */
   | { type: "search_chunks"; payload: SearchChunksInput }
