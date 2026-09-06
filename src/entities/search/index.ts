@@ -51,7 +51,7 @@ export {
  * 自分で組み直さないこと**（並びと `te <= tesuu` の前提をここで揃えている）。
  */
 export { cursorFromLite } from "./lib/cursorAdapter";
-export { isIndexBusy } from "./model/indexState";
+export { isIndexBusy } from "./lib/indexState";
 
 export { PositionSearchProvider } from "./model/provider";
 export { usePositionSearch } from "./model/usePositionSearch";
