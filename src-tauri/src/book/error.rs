@@ -364,11 +364,21 @@ mod tests {
                 return None;
             }
             BookErrorCode::TooLarge => {
-                // 上限は 2GiB。実ファイルを置けないので `formats.rs` の
-                // `a_file_over_the_limit_is_refused` が数値だけで見る
+                // sparse file なら 2GiB でもディスクを使わない
+                // （`formats.rs` の `an_over_sized_file_is_refused_without_reading_it` と同じ手）
+                let path = dir.join("huge.db");
+                let handle = std::fs::File::create(&path).expect("テスト用のファイル");
+                handle
+                    .set_len(crate::book::yaneuraou_db::MAX_FILE_BYTES + 1)
+                    .expect("大きさを設定できない");
+                drop(handle);
+                err_of(open_reader(&path, BookFormat::YaneuraouDb))
+            }
+            BookErrorCode::Io => {
+                // `from_io` の枝は `an_io_error_ends_with_something_the_user_can_do` が
+                // 3つの `ErrorKind` で見る
                 return None;
             }
-            BookErrorCode::Io => return None,
             BookErrorCode::Unknown => {
                 // `spawn_blocking` の join 失敗でしか出ない。
                 // 文面は `api.rs` の `join_error` が組む

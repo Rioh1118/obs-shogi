@@ -71,7 +71,7 @@ fn a_temp_dir_name_is_not_shared_between_processes() {
             // 名前は複数行に分けて組むことがある（`format!` の引数が折り返る）。
             // 続く数行までを1つの式として見る
             let block = lines[number..(number + 5).min(lines.len())].join("\n");
-            if SEPARATORS.iter().any(|s| block.contains(s)) {
+            if !offends(&block) {
                 continue;
             }
             offenders.push(format!(
@@ -94,17 +94,26 @@ fn a_temp_dir_name_is_not_shared_between_processes() {
     );
 }
 
-/// **separator が引き金の綴りに一致しないこと。**
+/// **既知の違反を、判定が実際に offender と読むこと。**
 ///
-/// 一致すると、走査した行が必ず自分で条件を満たし、offender が0になる。
-/// 空振り止め（`scanned`）は行を数えているだけなので、この壊れ方を見ていない。
+/// separator が引き金と一致すると、走査した行が必ず自分で条件を満たし、
+/// offender が0になる。**包含はどちら向きでも起きる** ——
+/// 引き金より長い綴りを separator にしても同じ状態になるので、
+/// 綴りの比較ではなく**判定そのものに既知の入力を食わせる。**
+/// 空振り止め（`scanned`）は行を数えているだけで、この壊れ方を見ていない。
 #[test]
-fn a_separator_never_matches_the_trigger() {
-    for separator in SEPARATORS {
-        assert!(
-            !TRIGGER.contains(separator),
-            "separator `{separator}` が引き金 `{TRIGGER}` の部分文字列。\
-             走査した行が自分で条件を満たすので、検査が何も見なくなる"
-        );
-    }
+fn a_known_offender_is_still_caught() {
+    let bad = "    let dir = std::env::temp_dir().join(\"obs-shogi-fixed\");";
+    let good = "    let dir = std::env::temp_dir().join(format!(\"x-{}\", std::process::id()));";
+
+    assert!(
+        offends(bad),
+        "固定名を offender と読めていない。separator が引き金と重なっていないか"
+    );
+    assert!(!offends(good), "正当な綴りを offender と読んでいる");
+}
+
+/// 走査の判定そのもの。**テストと本体で同じものを通す。**
+fn offends(block: &str) -> bool {
+    block.contains(TRIGGER) && !SEPARATORS.iter().any(|s| block.contains(s))
 }

@@ -171,14 +171,36 @@ fn join_error(
     move |err| {
         BookError::new(
             BookErrorCode::Unknown,
-            format!("定跡の処理が異常終了した（{err}）。{recovery}"),
+            unknown_message(&err.to_string(), recovery),
         )
         .with_path(path)
     }
 }
 
+/// `Unknown` の文面。**組み立てだけを切り出す。**
+///
+/// `join_error` は `tauri::Error` を要求するのでテストから作れない ——
+/// クロージャの中に文面を埋めると、**この枝だけ誰も見ないまま残る。**
+/// 原文を先に置いて復帰操作で終わるのは、表の不変条件3。
+fn unknown_message(cause: &str, recovery: &str) -> String {
+    format!("定跡の処理が異常終了した（{cause}）。{recovery}")
+}
+
 #[cfg(test)]
 mod tests {
+
+    /// **`Unknown` の文面も次にやることで終わること。**
+    ///
+    /// `Unknown` は blocking プールの panic でしか出ない＝**再現の難しい失敗の
+    /// 唯一の案内**なので、崩れても気づかれない。
+    #[test]
+    fn the_unknown_message_ends_with_something_the_user_can_do() {
+        let message = unknown_message("join に失敗", "開き直すこと");
+
+        assert!(message.ends_with("こと"), "{message}");
+        // 原文は残す。落とすとログから切り分けられなくなる
+        assert!(message.contains("join に失敗"), "{message}");
+    }
     use super::*;
     use crate::book::reader::{BookReader, OpenedBook};
     use crate::book::types::BookFormat;
