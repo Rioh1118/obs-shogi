@@ -7,6 +7,7 @@
 //! **出るのは非決定的な赤。** 落ちたのが自分の変更のせいか判別できず、再実行で
 //! 消えるため誰も原因を追わない。人の注意では、テストを1本足すたびに再発する。
 
+mod roots;
 mod scanning;
 use scanning::blank_out_comments;
 
@@ -19,11 +20,14 @@ use std::path::{Path, PathBuf};
 /// スレッド番号と連番を混ぜている。**crate 全体から引ける**ので、
 /// 下の案内はどのモジュールでも実行できる。
 ///
+/// **綴りは実物と合っていること。** どこにも当たらない separator は、
+/// 案内どおりに直しても offender のままになる形を作る（`a_separator_is_not_dead` が見る）。
+///
 /// **引き金と綴りが重なるものを入れないこと（どちら向きでも）。**
 /// 走査は `std::env::temp_dir()` を含む行を拾うので、そこに一致する綴りを
 /// separator にすると、**その行自身が条件を満たして offender が原理的に0になる。**
 /// 検査は緑のまま何も見なくなる。下の `a_known_offender_is_still_caught` が見る。
-const SEPARATORS: [&str; 2] = ["process::id()", "test_support::temp_dir("];
+const SEPARATORS: [&str; 2] = ["process::id()", "test_support::dir::temp_dir("];
 
 /// 走査の引き金。この綴りを含む行だけを見る
 const TRIGGER: &str = "temp_dir()";
@@ -46,7 +50,11 @@ fn rust_files(dir: &Path, found: &mut Vec<PathBuf>) {
 fn a_temp_dir_name_is_not_shared_between_processes() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
-    rust_files(&root.join("src"), &mut files);
+    // **`src/` だけを見ない。** スライスは crate に割ってあるので、
+    // `src/` だけを歩くと `crates/` の中は1行も見ない（`roots` の doc）
+    for production in roots::production_roots() {
+        rust_files(&production, &mut files);
+    }
     rust_files(&root.join("tests"), &mut files);
 
     let mut offenders = Vec::new();
@@ -111,6 +119,34 @@ fn a_known_offender_is_still_caught() {
         "固定名を offender と読めていない。separator が引き金と重なっていないか"
     );
     assert!(!offends(good), "正当な綴りを offender と読んでいる");
+}
+
+/// **免除の綴りが実在すること。**
+///
+/// どこにも当たらない separator は、案内（「`test_support` の `temp_dir` を使うこと」）に
+/// 従っても offender のままになる形を作る。置き場が動いたときにここが落ちる。
+#[test]
+fn a_separator_is_not_dead() {
+    let mut sources = Vec::new();
+    for production in roots::production_roots() {
+        rust_files(&production, &mut sources);
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    rust_files(&root.join("tests"), &mut sources);
+
+    let corpus: String = sources
+        .iter()
+        .filter(|p| !p.ends_with("temp_dir_names.rs"))
+        .map(|p| fs::read_to_string(p).unwrap_or_default())
+        .collect();
+
+    for separator in SEPARATORS {
+        assert!(
+            corpus.contains(separator),
+            "免除の綴りがどこにも無い: {separator}\n\
+             置き場が動いたなら綴りを直すこと。死んだ免除は案内を嘘にする。"
+        );
+    }
 }
 
 /// 走査の判定そのもの。**テストと本体で同じものを通す。**

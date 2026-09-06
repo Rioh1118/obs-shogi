@@ -10,6 +10,7 @@
 //! crate をリンクせずソースを文字列として読む（`root_guard.rs` と同じ形）。
 //! crate の内部を見るテストは `src` 側の `#[cfg(test)]` に置く。
 
+mod roots;
 mod scanning;
 use scanning::is_test_attribute;
 
@@ -19,7 +20,7 @@ use std::path::Path;
 /// 本数の床。**現在値ではない** —— `DRIFT_ALLOWANCE` のぶんだけ下にずれたまま緑で通るので、
 /// ここを現在値として読まないこと。**下げるときは理由をコミットメッセージに書くこと。**
 /// 上げるのは自由（足したぶんだけ上がる）。
-const EXPECTED_MIN: usize = 545;
+const EXPECTED_MIN: usize = 559;
 
 /// 取り込み忘れを許す幅。**1回の作業で足すテストの本数の目安。**
 /// これ以上ずれたら更新忘れとみなす。
@@ -61,14 +62,22 @@ fn count_tests(dir: &Path) -> usize {
     total
 }
 
-/// `src` と `tests` の両方を見る。
+/// 本番のソース全部と `tests` の両方を見る。
+///
+/// **`src/` だけを見てはいけない。** スライスは crate に割ってあるので、
+/// `src/` だけだと `crates/` の中のテストを1本も数えない ——
+/// そこを丸ごと消しても本数が変わらず、緑で通る（`roots` の doc）。
 ///
 /// **`tests/` を外してはいけない。** `root_guard.rs` は、パスを受け取る Tauri
 /// コマンドが root 配下を確かめていることを見る関門で、消えて一番困るテストが
 /// そこにある。
 fn count_all_tests() -> usize {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    count_tests(&manifest.join("src")) + count_tests(&manifest.join("tests"))
+    roots::production_roots()
+        .iter()
+        .map(|root| count_tests(root))
+        .sum::<usize>()
+        + count_tests(&manifest.join("tests"))
 }
 
 #[test]
