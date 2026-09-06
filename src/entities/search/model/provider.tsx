@@ -50,6 +50,33 @@ const CHUNK_FLUSH_MS = 50;
 /** まだ dispatch していない到着ぶん */
 type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
 
+/**
+ * 溜め場と、そこへ入れてよいかの門。
+ *
+ * **溜めたぶんを捨てるだけでは門にならない。** `open_start` はセッションを全部
+ * 落とすが、Rust の `open_project` は進行中の検索を1つもキャンセルしない
+ * （`src-tauri/src/search/commands.rs`）。その後も同じ rid のチャンクが届くので、
+ * 入口で弾かないと `ensureSession` が消えたセッションを作り直し、
+ * `currentRequestId` と `filePathById` が**古い根のものへ戻る**。
+ *
+ * 線は「これ以下の rid は受け取らない」で引く。rid は Rust 側で単調に増える
+ * （`QueryService::next_request_id`）ので、線より後に始まった検索は必ず通る。
+ * **通すのが既定**なので、`search_begin` を1発取りこぼしても結果が黙って
+ * 0件になることはない。
+ */
+type ChunkBuffer = {
+  pending: Map<RequestId, PendingChunks>;
+  timer: number | null;
+  /** 後片付け済み。**setup で偽に戻す**——畳んで張り直す経路で真のまま残ると全部落ちる */
+  disposed: boolean;
+  /** `open_start` が引いた線。これ以下の rid は受け取らない */
+  deadBefore: RequestId;
+  /** 明示的に捨てた rid（`clear_search`）。線より後のものだけがここに要る */
+  dead: Set<RequestId>;
+  /** 見た中で最大の rid。線を引く位置に使う */
+  maxSeenRid: RequestId;
+};
+
 type HitsCacheEntry = {
   /**
    * 直前に取り込んだチャンクの実体。
@@ -118,9 +145,13 @@ export function PositionSearchProvider({
    * 別の値になっている可能性を lint が咎める——ここでは起きないが、
    * 起きないことをコードで示せる形にしておく）。
    */
-  const chunkBufferRef = useRef<{ pending: Map<RequestId, PendingChunks>; timer: number | null }>({
+  const chunkBufferRef = useRef<ChunkBuffer>({
     pending: new Map(),
     timer: null,
+    disposed: false,
+    deadBefore: 0,
+    dead: new Set(),
+    maxSeenRid: 0,
   });
 
   const cancelFlushTimer = useCallback(() => {
@@ -148,11 +179,21 @@ export function PositionSearchProvider({
     }
   }, [cancelFlushTimer]);
 
+  /** 検索が1つ始まったことを溜め場へ知らせる。線を引く位置に要る */
+  const noteRequest = useCallback((requestId: RequestId) => {
+    const buf = chunkBufferRef.current;
+    if (requestId > buf.maxSeenRid) buf.maxSeenRid = requestId;
+  }, []);
+
   const enqueueChunk = useCallback(
     (p: SearchChunkPayload) => {
       const buf = chunkBufferRef.current;
-      const cur = buf.pending.get(p.requestId);
+      if (buf.disposed) return;
 
+      noteRequest(p.requestId);
+      if (p.requestId <= buf.deadBefore || buf.dead.has(p.requestId)) return;
+
+      const cur = buf.pending.get(p.requestId);
       if (cur) {
         cur.chunks.push(p.chunk);
         for (const f of p.files) cur.files.push(f);
@@ -162,27 +203,45 @@ export function PositionSearchProvider({
 
       if (buf.timer == null) buf.timer = window.setTimeout(flushChunks, CHUNK_FLUSH_MS);
     },
-    [flushChunks],
+    [flushChunks, noteRequest],
   );
 
-  /** 溜め場を捨てる。**吐き出さない。** 積んだ先のセッションごと消える場面で使う */
-  const dropPendingChunks = useCallback(
+  /**
+   * 以後この検索のチャンクを受け取らない。溜めたぶんも**吐き出さずに**捨てる。
+   * 積んだ先のセッションごと消える場面で使う。
+   *
+   * `requestId` を省くと「いま在る検索は全部」——`open_start` がそれに当たる。
+   */
+  const stopAcceptingChunks = useCallback(
     (requestId?: RequestId) => {
-      const { pending } = chunkBufferRef.current;
-      if (requestId == null) pending.clear();
-      else pending.delete(requestId);
+      const buf = chunkBufferRef.current;
 
-      if (pending.size === 0) cancelFlushTimer();
+      if (requestId == null) {
+        buf.pending.clear();
+        buf.deadBefore = buf.maxSeenRid;
+        // 線より手前は `deadBefore` が受け持つので、個別に覚えておく必要は無い
+        buf.dead.clear();
+      } else {
+        buf.pending.delete(requestId);
+        if (requestId > buf.deadBefore) buf.dead.add(requestId);
+      }
+
+      if (buf.pending.size === 0) cancelFlushTimer();
     },
     [cancelFlushTimer],
   );
 
   useEffect(() => {
     const buf = chunkBufferRef.current;
+    // **setup で開け直す。** 畳んで張り直す経路（StrictMode の二重マウント）で
+    // 閉じたままになると、以後のチャンクが1つも積まれない
+    buf.disposed = false;
+
     return () => {
       if (buf.timer != null) window.clearTimeout(buf.timer);
       buf.timer = null;
       buf.pending.clear();
+      buf.disposed = true;
     };
   }, []);
 
@@ -199,7 +258,12 @@ export function PositionSearchProvider({
             dispatch({ type: "index_progress", payload: p }),
           onIndexWarn: (p: IndexWarnPayload) => dispatch({ type: "index_warn", payload: p }),
 
-          onSearchBegin: (p: SearchBeginPayload) => dispatch({ type: "search_begin", payload: p }),
+          onSearchBegin: (p: SearchBeginPayload) => {
+            // 溜め場は「これ以下の rid はもう受け取らない」の線を rid の最大値から
+            // 引く。チャンクが1つも来なかった検索も数に入れる
+            noteRequest(p.requestId);
+            dispatch({ type: "search_begin", payload: p });
+          },
           onSearchChunk: enqueueChunk,
 
           // **終わりと失敗は、溜めたぶんを吐き出してから。** 先に `isDone` を
@@ -233,16 +297,18 @@ export function PositionSearchProvider({
       unlisten?.();
       unlisten = null;
     };
-  }, [enqueueChunk, flushChunks]);
+  }, [enqueueChunk, flushChunks, noteRequest]);
 
   // --- actions ---
   const openProject = useCallback(
     async (rd: string): Promise<OpenProjectOutput> => {
       if (openInFlightRef.current) return openInFlightRef.current;
 
-      // `open_start` はセッションを全部落とす。溜めたぶんを残すと、消えたはずの
-      // セッションが次の吐き出しで `ensureSession` に作り直される
-      dropPendingChunks();
+      // `open_start` はセッションを全部落とす。**溜めたぶんを捨てるだけでは足りない**
+      // ——Rust の `open_project` は進行中の検索をキャンセルしないので、この後も
+      // 同じ rid のチャンクが届く。入口ごと閉じないと、消えたはずのセッションが
+      // 次の吐き出しで `ensureSession` に作り直される
+      stopAcceptingChunks();
       dispatch({ type: "open_start", payload: { rootDir: rd } });
 
       openInFlightRef.current = (async () => {
@@ -261,7 +327,7 @@ export function PositionSearchProvider({
 
       return openInFlightRef.current;
     },
-    [dropPendingChunks],
+    [stopAcceptingChunks],
   );
 
   /**
@@ -395,11 +461,11 @@ export function PositionSearchProvider({
     (requestId: RequestId) => {
       // 溜めたぶんも一緒に捨てる。残すと、消したセッションが次の吐き出しで
       // `ensureSession` に作り直される
-      dropPendingChunks(requestId);
+      stopAcceptingChunks(requestId);
       hitsCacheRef.current.delete(requestId);
       dispatch({ type: "clear_search", payload: { requestId } });
     },
-    [dropPendingChunks],
+    [stopAcceptingChunks],
   );
 
   const value = useMemo<PositionSearchContextType>(

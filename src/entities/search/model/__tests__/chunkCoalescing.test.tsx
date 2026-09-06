@@ -42,14 +42,18 @@ function hitAt(fileId: number): PositionHit {
 let renders = 0;
 let hitCount = 0;
 let lastHits: PositionHit[] = [];
+let getHits: (rid: number) => PositionHit[] = () => [];
 
 function Probe() {
   const { getHitsByRequestId } = usePositionSearch();
   renders += 1;
+  getHits = getHitsByRequestId;
   lastHits = getHitsByRequestId(RID);
   hitCount = lastHits.length;
   return null;
 }
+
+const hitsOf = (rid: number) => getHits(rid).length;
 
 /**
  * チャンクの中身が何回読まれたかを数える。
@@ -78,9 +82,11 @@ function chunkOf(n: number, from: number): SearchChunkPayload {
   };
 }
 
+let view!: ReturnType<typeof render>;
+
 async function mount() {
   await act(async () => {
-    render(
+    view = render(
       <PositionSearchProvider rootDir={null}>
         <Probe />
       </PositionSearchProvider>,
@@ -221,7 +227,13 @@ describe("チャンクの合流", () => {
     expect(lastHits.length).toBe(4);
   });
 
-  /** 溜めたまま畳まれても、タイマが後から起きて外れた state を触らないこと */
+  /**
+   * 溜めたまま畳まれたら、起こし手ごと消える。
+   *
+   * **「例外が出ないこと」では見張れない。** 外れた reducer への dispatch は
+   * React が黙って捨てるので、タイマが残っていても通ってしまう。
+   * 残っていないことを直接数える
+   */
   test("畳まれたら溜め場ごと捨てる", async () => {
     await act(async () => {
       render(
@@ -232,13 +244,95 @@ describe("チャンクの合流", () => {
     });
 
     deliver(3);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     cleanup();
 
-    expect(() => {
-      act(() => {
-        vi.runAllTimers();
-      });
-    }).not.toThrow();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  /** 畳んだ後に届いたチャンクが、消えた溜め場へ積んでタイマを張り直さないこと */
+  test("畳んだ後に届いたチャンクは積まない", async () => {
+    await act(async () => {
+      render(
+        <PositionSearchProvider rootDir={null}>
+          <Probe />
+        </PositionSearchProvider>,
+      );
+    });
+
+    cleanup();
+
+    act(() => {
+      handlers.onSearchChunk?.(chunkOf(2, 0));
+    });
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("消えたセッション宛のチャンク", () => {
+  /**
+   * Rust の `open_project` は進行中の検索を1つもキャンセルしない
+   * （`src-tauri/src/search/commands.rs`）。`open_start` がセッションを落とした後も
+   * 同じ rid のチャンクが届くので、**入口で弾かないと `ensureSession` が
+   * 消えたセッションを作り直す**——`currentRequestId` と `filePathById` が
+   * 古い根のものへ戻る
+   */
+  test("根を開き直した後に届いた、前の検索のチャンクは捨てる", async () => {
+    await mount();
+
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: RID, stale: false });
+      handlers.onSearchChunk?.(chunkOf(2, 0));
+    });
+
+    // 根を開き直す（`open_start`）
+    await act(async () => {
+      view.rerender(
+        <PositionSearchProvider rootDir="/ws">
+          <Probe />
+        </PositionSearchProvider>,
+      );
+    });
+
+    // 取り下げの届いていない Rust が、まだ同じ rid で送ってくる
+    act(() => {
+      handlers.onSearchChunk?.(chunkOf(2, 2));
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(hitCount).toBe(0);
+  });
+
+  /** 線より後に始まった検索は通る。**弾くのは古い rid だけ** */
+  test("開き直した後に始まった検索は通る", async () => {
+    await mount();
+
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: RID, stale: false });
+      handlers.onSearchChunk?.(chunkOf(2, 0));
+    });
+
+    await act(async () => {
+      view.rerender(
+        <PositionSearchProvider rootDir="/ws">
+          <Probe />
+        </PositionSearchProvider>,
+      );
+    });
+
+    const nextRid = RID + 1;
+    act(() => {
+      handlers.onSearchBegin?.({ requestId: nextRid, stale: false });
+      handlers.onSearchChunk?.({ ...chunkOf(2, 0), requestId: nextRid });
+    });
+    act(() => {
+      vi.runAllTimers();
+    });
+
+    expect(hitsOf(nextRid)).toBe(2);
   });
 });
