@@ -58,7 +58,13 @@ describe("索引を開く合図", () => {
     expect(openedRoots()).toEqual(["/ws"]);
   });
 
-  test("ワークスペースを変えたら開き直す", async () => {
+  /**
+   * **前の open が終わっている場合だけ**を見ている。終わる前に根が変わる経路は
+   * `openProject` が飛行中の open を根を見ずに畳むので通らない（#430）。
+   * ここを「ワークスペースを変えたら開き直す」と名乗らせない——名前が実装より
+   * 強いと、#430 を直したかどうかがこのテストの緑では分からなくなる。
+   */
+  test("前の open が終わっていれば、根が変わったときに開き直す", async () => {
     let view!: ReturnType<typeof render>;
     await act(async () => {
       view = render(app("/ws"));
