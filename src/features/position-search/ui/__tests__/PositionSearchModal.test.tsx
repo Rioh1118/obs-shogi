@@ -37,14 +37,23 @@ vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: { root_dir: "/root" } }),
 }));
 
+const REQUEST_ID = 1;
+const searchPosition = vi.fn();
+const cancelSearch = vi.fn();
+
 // 差し替えるのは実体の側。barrel は再 export なので cursorFromLite は本物が通る
+//
+// **`requestId` を無視しない。** 本物は要求が立つまで `null` と空配列を返す
+// （`entities/search/model/provider.tsx`）。無視すると最初のレンダから一覧が立ち、
+// `searchPosition` が投げても `setRequestId` が落ちても緑のままになる
 vi.mock("@/entities/search/model/usePositionSearch", () => ({
   usePositionSearch: () => ({
     state: { index: { state: "Ready" } },
-    searchPosition: vi.fn().mockResolvedValue({ requestId: 1 }),
-    cancelSearch: vi.fn(),
-    getSessionByRequestId: () => ({ isDone: true, error: null, stale: false }),
-    getHitsByRequestId: () => HITS,
+    searchPosition,
+    cancelSearch,
+    getSessionByRequestId: (rid: number | null) =>
+      rid == null ? null : { isDone: true, error: null, stale: false },
+    getHitsByRequestId: (rid: number | null) => (rid == null ? [] : HITS),
     isSearchingRequest: () => false,
     resolveHitAbsPath,
   }),
@@ -75,9 +84,18 @@ function pressEnter() {
   fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "Enter" });
 }
 
+/** 検索が解決してヒットが届くまで待つ。届く前は行が無いので Enter は何もしない */
+async function renderWithHits() {
+  render(<PositionSearchModal />);
+  await screen.findByRole("listbox");
+}
+
 beforeEach(() => {
   closeModal.mockReset();
   navigateToHit.mockReset();
+  searchPosition.mockReset();
+  searchPosition.mockResolvedValue({ requestId: REQUEST_ID });
+  cancelSearch.mockReset();
   resolveHitAbsPath.mockReset();
   resolveHitAbsPath.mockImplementation((hit: PositionHit) => `/root/${hit.occ.fileId}.kif`);
 });
@@ -85,9 +103,9 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("PositionSearchModal のヒットを開く", () => {
-  test("移動できたら閉じる", () => {
+  test("移動できたら閉じる", async () => {
     navigateToHit.mockReturnValue(true);
-    render(<PositionSearchModal />);
+    await renderWithHits();
 
     pressEnter();
 
@@ -96,9 +114,9 @@ describe("PositionSearchModal のヒットを開く", () => {
     expect(screen.queryByText(NOTICE)).toBeNull();
   });
 
-  test("ツリーに無くて移動できなければ、閉じずにその場で断る", () => {
+  test("ツリーに無くて移動できなければ、閉じずにその場で断る", async () => {
     navigateToHit.mockReturnValue(false);
-    render(<PositionSearchModal />);
+    await renderWithHits();
 
     pressEnter();
 
@@ -106,9 +124,9 @@ describe("PositionSearchModal のヒットを開く", () => {
     expect(screen.getByRole("alert").textContent).toContain(NOTICE);
   });
 
-  test("索引にパスが無いヒットも同じ扱い（移動を試みない）", () => {
+  test("索引にパスが無いヒットも同じ扱い（移動を試みない）", async () => {
     resolveHitAbsPath.mockReturnValue(null);
-    render(<PositionSearchModal />);
+    await renderWithHits();
 
     pressEnter();
 
@@ -117,9 +135,21 @@ describe("PositionSearchModal のヒットを開く", () => {
     expect(screen.getByRole("alert").textContent).toContain(NOTICE);
   });
 
-  test("別のヒットを選び直したら断りは引っ込む", () => {
-    navigateToHit.mockReturnValue(false);
+  // 要求が立つ前に一覧が出ていると、以下のテストは「ヒットが届く経路」を通らずに
+  // 緑になる。土台としてここで押さえる
+  test("要求が立つまでヒットは1件も無く、Enter は何もしない", () => {
     render(<PositionSearchModal />);
+
+    pressEnter();
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(navigateToHit).not.toHaveBeenCalled();
+    expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  test("別のヒットを選び直したら断りは引っ込む", async () => {
+    navigateToHit.mockReturnValue(false);
+    await renderWithHits();
 
     pressEnter();
     expect(screen.getByRole("alert").textContent).toContain(NOTICE);
