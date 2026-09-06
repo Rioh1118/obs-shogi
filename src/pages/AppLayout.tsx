@@ -18,6 +18,8 @@ import { useBoardOrientation } from "@/features/board-orientation";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
+  // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
+  // どのパネルを出すかは URL（`panel/*`）が持つが、開閉はそちらへ揃えない
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { view: gameView, state: gameState, clearSelection } = useGame();
   const { rotate } = useBoardOrientation();
