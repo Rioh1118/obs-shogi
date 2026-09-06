@@ -353,6 +353,133 @@ fn comments_do_not_point_at_names_that_are_gone() {
 /// `includes` だと、消えた `FOO` が生きている `STOP_FOO` の一部として
 /// 見つかって緑になる。接尾辞を足す改名は最も普通の形なので、そこが抜けると
 /// 検査の意味が大きく減る。
+/// このリポジトリに無いファイルを指すコメント。**理由を書かずに足さない。**
+///
+/// 依存クレートの中身を指す言及は、綴りが正しくてもここには無い。
+/// 免除が死んでいないことは [`the_exempt_file_list_is_not_dead`] が見る。
+const EXEMPT_FILES: &[(&str, &str)] = &[
+    ("ki2.rs", "tsshogi クレートの converter/ki2.rs"),
+    ("from.rs", "tsshogi クレートの src/shogi_core/from.rs"),
+    (
+        "parser.rs",
+        "tsshogi クレートの parser.rs（stopped_at / decode_kifu / recognised_nothing）",
+    ),
+    ("jkf.rs", "tsshogi クレートの jkf.rs（Preset）"),
+];
+
+/// **免除が死んでいないこと。** 指す先が消えたら、その行は誰にも見られなくなる。
+#[test]
+fn the_exempt_file_list_is_not_dead() {
+    let mut mentioned: BTreeSet<String> = BTreeSet::new();
+    for path in sources() {
+        let source = fs::read_to_string(&path).expect("読めない");
+        for (_, line) in comment_lines(&source) {
+            mentioned.extend(rust_files_named_in(line));
+        }
+    }
+    for (name, why) in EXEMPT_FILES {
+        assert!(
+            mentioned.contains(*name),
+            "免除が使われていない: {name}（{why}）\n\
+             言及が消えたなら免除も消すこと。"
+        );
+    }
+}
+
+/// コメントの中のファイル名が、実在するファイルを指していること。
+///
+/// **識別子の検査では拾えない。** `is_identifier` は下線を含む綴りしか候補にせず、
+/// `sfen.rs` は下線を持たない。モジュールを割ってファイル名が変わったとき、
+/// 「`sfen.rs` の `to_book_key_in_file`」のようなコメントは
+/// **関数名が実在する限り緑のまま**通り、開こうとした人だけが空振りする。
+///
+/// 見るのは「バッククォートで囲まれた `〜.rs`」だけ。パスの一部（`src/book/…`）も
+/// 末尾のファイル名で照合する —— どの段に居るかまで見ると、段を動かすたびに
+/// 綴りを直す作業がここに集まる。
+#[test]
+fn comments_do_not_point_at_files_that_are_gone() {
+    let mut known: BTreeSet<String> = BTreeSet::new();
+    for root in roots::production_roots() {
+        for path in rust_files(&root) {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                known.insert(name.to_string());
+            }
+        }
+    }
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for dir in [tests_dir(), manifest.join("benches")] {
+        for path in rust_files(&dir) {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                known.insert(name.to_string());
+            }
+        }
+    }
+
+    let mut offenders = Vec::new();
+    let mut scanned = 0;
+
+    for path in sources() {
+        let source = fs::read_to_string(&path).expect("読めない");
+        for (number, line) in comment_lines(&source) {
+            for named in rust_files_named_in(line) {
+                scanned += 1;
+                if known.contains(&named) || EXEMPT_FILES.iter().any(|(f, _)| *f == named) {
+                    continue;
+                }
+                offenders.push(format!("{}:{}  {named}", path.display(), number + 1));
+            }
+        }
+    }
+
+    assert!(
+        scanned >= 5,
+        "ファイル名の言及を {scanned} 件しか見ていない"
+    );
+    assert!(
+        offenders.is_empty(),
+        "コメントが実在しないファイルを指している:\n{}\n\
+         割り直しで名前が変わったなら、指す先も直すこと。",
+        offenders.join("\n")
+    );
+}
+
+/// バッククォートで囲まれた `〜.rs` の、末尾のファイル名だけを返す。
+fn rust_files_named_in(line: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut rest = line;
+
+    while let Some(open) = rest.find('`') {
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('`') else { break };
+        let inline = &after[..close];
+        rest = &after[close + 1..];
+
+        if !inline.ends_with(".rs") {
+            continue;
+        }
+        let name = inline.rsplit('/').next().unwrap_or(inline);
+        if !name.contains(' ') {
+            found.push(name.to_string());
+        }
+    }
+    found
+}
+
+/// **既知の違反を、判定が実際に offender と読むこと。**
+#[test]
+fn a_gone_file_name_is_still_caught() {
+    assert_eq!(rust_files_named_in("// `sfen.rs` の話"), vec!["sfen.rs"]);
+    // パスで書いても末尾で照合する
+    assert_eq!(
+        rust_files_named_in("// `src/book/sfen/key.rs` を見ること"),
+        vec!["key.rs"]
+    );
+    // `.rs` で終わらない綴りは対象外
+    assert!(rust_files_named_in("// `to_book_key` の話").is_empty());
+    // 空白を含むものは文であってファイル名ではない
+    assert!(rust_files_named_in("// `a b.rs` みたいな文").is_empty());
+}
+
 fn regex_free_word_search(haystack: &str, needle: &str) -> bool {
     let bytes = haystack.as_bytes();
     let mut from = 0;

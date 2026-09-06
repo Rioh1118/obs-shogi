@@ -1,6 +1,6 @@
 //! テストが使う道具。棋譜の中身に依らないもの。
 //!
-//! 棋譜そのものの材料は `search/test_kifu.rs`。
+//! 棋譜そのものの材料は同じ crate の `kifu.rs`。
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};

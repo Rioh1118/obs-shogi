@@ -336,7 +336,7 @@ mod tests {
     fn sample(code: BookErrorCode, dir: &std::path::Path) -> Option<BookError> {
         use crate::book::formats::open_reader;
         use crate::book::session::BookState;
-        use crate::book::sfen::to_book_key;
+        use crate::book::sfen::key::to_book_key;
         use crate::book::types::BookFormat;
 
         fn err_of<T>(r: Result<T, BookError>) -> BookError {
@@ -419,7 +419,7 @@ mod tests {
             }
             BookErrorCode::Unknown => {
                 // `spawn_blocking` の join 失敗でしか出ない。
-                // 文面は `api.rs` の `join_error` が組む
+                // 文面は `commands.rs` の `join_error` が組む
                 return None;
             }
         })
