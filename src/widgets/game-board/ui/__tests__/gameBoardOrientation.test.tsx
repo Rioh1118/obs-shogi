@@ -10,8 +10,8 @@ import { MemoryRouter } from "react-router";
  * prop で渡すと、渡し忘れても既定値で描けてしまい、**盤が回らなくなるだけで**
  * 型でもレンダでも落ちない。
  *
- * あわせて、`GameBoard` が向きを**落とす**側を持っていないことも見る。持たせると、
- * 棋譜を閉じて盤が unmount した瞬間に落とす者が居なくなり `?pov=gote` が残る。
+ * あわせて、`GameBoard` が向きを**落とす**側を持っていないことも見る（持たせると何が
+ * 壊れるかは `BoardOrientationBridge` の doc）。
  * ここで動かせるのは `GameBoard` が読むもの（`useFileTree` の `jkfData`）だけなので、
  * **見ているのは「盤が自分から `pov` を触らない」まで。** 合図（`loadedAbsPath`）で
  * 落ちる／落ちないは `src/features/board-orientation/model/__tests__/` が持つ。

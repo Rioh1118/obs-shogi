@@ -12,8 +12,8 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
  * ツリー側を見ていると、そこで**何も言われないのに盤が回る**。
  * `loadedAbsPath` は `game_loaded` でしか動かないので、定義上「盤に載っている棋譜」。
  *
- * **盤の外で呼ぶ。** 棋譜が無い間は盤そのものが描かれないので、盤の中から呼ぶと
- * 棋譜を閉じたときに落とす者が居なくなり、`?pov=gote` が URL に残ったままになる。
+ * **盤の外で呼ぶ。** 理由は
+ * [BoardOrientationBridge](../../../app/providers/bridges/BoardOrientationBridge.tsx) の doc。
  */
 export function useResetOrientationOnKifuChange() {
   const { state } = useGame();
