@@ -78,6 +78,19 @@ GATE_READ_ONLY_VERBS_BASE='status|diff|log|show|rev-parse|branch|fetch|remote|de
 # 読むだけの呼び出しが止まる。**止めても利用者にできることは
 # 「2回に分ける」だけ**で、ツリーは1バイトも変わらないのに手数だけ増える。
 # `GATE_EXTRA_READ_ONLY` で差し込めるようにしてある（テストから固定するため）。
+# alias を引くリポジトリ。**hook 自身の cwd ではない。**
+#
+# `git config` は local を混ぜて列挙するので、どこで引くかで答えが変わる。
+# hook が走る場所とコマンドが走る場所は一致しないことがあり、
+# 引く場所を間違えると repo-local の commit alias（`git ci`）が見えない ——
+# S1 で切り出せず、`gate_mentions_commit` は基本の動詞しか知らないので、
+# **deny も検証もされないまま通る。**
+#
+# 入口が payload の `cwd` を入れる。テストからも差し込める。
+gate_config_at() {
+  git -C "${GATE_BASE:-.}" config "$@"
+}
+
 gate_read_only_verbs() {
   if [ -n "${GATE_EXTRA_READ_ONLY+set}" ]; then
     printf '%s' "$GATE_READ_ONLY_VERBS_BASE${GATE_EXTRA_READ_ONLY:+|$GATE_EXTRA_READ_ONLY}"
@@ -85,7 +98,7 @@ gate_read_only_verbs() {
   fi
 
   local config names
-  config=$(git config -z --get-regexp '^alias\.[^.]+$' 2>/dev/null \
+  config=$(gate_config_at -z --get-regexp '^alias\.[^.]+$' 2>/dev/null \
     | tr '\n' ' ' | tr '\0' '\n') || {
     printf '%s' "$GATE_READ_ONLY_VERBS_BASE"
     return 0
@@ -130,7 +143,7 @@ gate_alias_verbs() {
 
   # -z で読む。`git config --get-regexp` は値に含まれる改行をそのまま出すので、
   # 素で読むと2行目以降が `alias.` で始まらず、名前を切り出せない。
-  config=$(git config -z --get-regexp '^alias\.[^.]+$' 2>/dev/null \
+  config=$(gate_config_at -z --get-regexp '^alias\.[^.]+$' 2>/dev/null \
     | tr '\n' ' ' | tr '\0' '\n') || return 0
 
   while [ "$added" -eq 1 ]; do
@@ -214,6 +227,8 @@ gate_mentions_commit() {
 # hook 自身の CWD はコマンドが実際に走る場所と一致しないことがある）。
 gate_target_dir() {
   local command=$1 base=${2:-$PWD} call flat prefix
+  # 手前の許可リストも alias を引く。起点が渡っているならそこで引く
+  local GATE_BASE=$base
 
   call=$(gate_commit_call "$command")
   [ -n "$call" ] || return 0
@@ -421,6 +436,10 @@ command=$(printf '%s' "$payload" | jq -er '.tool_input.command') || {
 hook の渡し方が変わっていないか確かめること。"
 }
 cwd=$(printf '%s' "$payload" | jq -r '.cwd // ""')
+
+# **alias はコマンドが走る場所で引く。** hook 自身の cwd で引くと、
+# その repo にしか無い commit alias が見えないまま素通しする。
+GATE_BASE=${cwd:-$PWD}
 
 if ! gate_matches_commit "$command"; then
   # 呼び出しとして切り出せないのに git と commit が並んでいるなら、綴りを

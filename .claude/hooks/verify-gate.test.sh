@@ -147,6 +147,39 @@ expect_alias_resolution "acp" "[alias]
 	acp = \"!f() { \\n git commit -m x \\n }; f\"
 	st = status"
 
+# **alias はコマンドが走る場所で引く。** hook 自身の cwd で引くと、
+# その repo にしか無い commit alias が見えないまま素通しする
+# （S1 で切り出せず、`gate_mentions_commit` は基本の動詞しか知らない）。
+expect_base_alias() {
+  local want=$1 repo got
+  repo=$(mktemp -d)
+  (
+    cd "$repo" || exit 1
+    git init -q .
+    git config --local alias.gatetestci commit
+  ) >/dev/null 2>&1
+
+  # cwd はリポジトリの外。起点だけを repo に向ける
+  got=$(
+    cd "$(mktemp -d)" || exit 1
+    unset GATE_EXTRA_VERBS
+    GIT_CONFIG_SYSTEM=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+    GATE_BASE=$repo \
+      bash -c "GATE_LIB_ONLY=1 . '$gate_root/.claude/hooks/verify-gate.sh'
+               gate_matches_commit 'git gatetestci -m x' && echo CATCH || echo SKIP"
+  )
+  rm -rf "$repo"
+
+  if [ "$got" != "$want" ]; then
+    printf 'FAIL  期待 %s / 実際 %s : 起点の repo にしか無い commit alias\n' "$want" "$got"
+    count_failure
+  fi
+}
+
+gate_root=$(git rev-parse --show-toplevel)
+export GATE_BASE
+expect_base_alias CATCH
+
 expect_mentions() {
   local want=$1 command=$2
   local got=SKIP
