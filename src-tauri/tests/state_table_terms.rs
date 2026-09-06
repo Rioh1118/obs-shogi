@@ -154,7 +154,7 @@ fn constants_in(text: &str) -> BTreeSet<String> {
 ///
 /// **`#[cfg(test)]` の中の `const` も数える。** 表は照合の相手としてテスト側の定数を
 /// 名指すことがあり、`book-key-failures.md` の `LONGEST_VALID_INPUT_CHARS`
-/// （`sfen.rs` の `mod tests`）が実例 —— コンパイル時 assert の根拠なので、
+/// （`sfen/key.rs` の `mod tests`）が実例 —— コンパイル時 assert の根拠なので、
 /// 落とすと**正当に書かれている行が赤くなる**。代価は、本番の `const` を
 /// テストモジュールへ移しても表が緑のままになること。
 ///
