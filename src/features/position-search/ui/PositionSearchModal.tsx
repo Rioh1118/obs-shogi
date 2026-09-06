@@ -4,7 +4,10 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import Modal from "@/shared/ui/Modal";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import type { VisibleTier } from "@/shared/lib/notification/types";
-import { usePositionHitNavigation } from "@/features/position-search/lib/usePositionHitNavigation";
+import {
+  usePositionHitNavigation,
+  type NavigationOutcome,
+} from "@/features/position-search/lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -27,13 +30,18 @@ import PositionSearchContinuation from "./PositionSearchContinuation";
  * までは同じ結果が返る——Rust は1回の検索のあいだ同じスナップショットを使い、
  * `mergeFiles` は同じ値なら書き換えない。**「検索し直せば直る」は成り立たない。**
  */
-type RefusalReason = "no-path" | "not-in-tree";
+type RefusalReason = "no-path" | Exclude<NavigationOutcome, "started">;
 
 const REFUSALS: Record<RefusalReason, { tier: VisibleTier; title: string; body: string }> = {
   "no-path": {
     tier: "danger",
     title: "この棋譜の場所が分かりません",
     body: "検索の索引が、この結果の置き場を返していません。索引が更新されるまで、この結果からは開けません。",
+  },
+  "tree-unavailable": {
+    tier: "warning",
+    title: "ワークスペースの一覧をまだ読み込めていません",
+    body: "一覧を読み込めたあと、もう一度お試しください。",
   },
   "not-in-tree": {
     tier: "danger",
@@ -235,9 +243,9 @@ export default function PositionSearchModal() {
         setRefusedHit({ key: hitKey(hit), reason: "no-path" });
         return;
       }
-      const started = startNavigationToHit(absPath, hit.cursor);
-      if (!started) {
-        setRefusedHit({ key: hitKey(hit), reason: "not-in-tree" });
+      const outcome = startNavigationToHit(absPath, hit.cursor);
+      if (outcome !== "started") {
+        setRefusedHit({ key: hitKey(hit), reason: outcome });
         return;
       }
       // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）

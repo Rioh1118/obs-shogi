@@ -11,6 +11,13 @@ type PendingNav = {
 };
 
 /**
+ * 移動を始められたか。始められなかったときは**理由まで返す**——
+ * ツリーそのものがまだ無いのと、ツリーにその棋譜が無いのは別の失敗で、
+ * 前者は読み込めれば同じ操作で開ける（呼び手が段と文言を分けられるように）
+ */
+export type NavigationOutcome = "started" | "not-in-tree" | "tree-unavailable";
+
+/**
  * 検索ヒット -> (必要ならファイルを開く) -> 指定局面へ applyCursor
  *
  * - 同一ファイルなら即 applyCursor
@@ -23,13 +30,13 @@ type PendingNav = {
  * 呼び手が戻り値を捨てると、盤が動かないまま「開いた」ように見える経路になる
  */
 export function usePositionHitNavigation() {
-  const { selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
+  const { fileTree, selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
   const pendingRef = useRef<PendingNav | null>(null);
 
   const startNavigationToHit = useCallback(
-    (absPath: string, cursor: CursorLite): boolean => {
+    (absPath: string, cursor: CursorLite): NavigationOutcome => {
       pendingRef.current = { absPath, cursor };
 
       // すでにその棋譜が**盤に載っていて**、view.player もあるなら即ジャンプ。
@@ -52,17 +59,32 @@ export function usePositionHitNavigation() {
       ) {
         applyCursor(cursorFromLite(cursor));
         pendingRef.current = null;
-        return true;
+        return "started";
+      }
+
+      // ツリーを1本も持っていなければ、探した結果ではない。
+      // `findNodeByPath` は `fileTree` が null なら必ず null を返すので、
+      // ここで分けないと「読み込めていない」が「棋譜が無い」に化ける
+      if (!fileTree) {
+        pendingRef.current = null;
+        return "tree-unavailable";
       }
 
       if (!selectNodeByAbsPath(absPath)) {
         pendingRef.current = null;
-        return false;
+        return "not-in-tree";
       }
 
-      return true;
+      return "started";
     },
-    [applyCursor, gameState.loadedAbsPath, gameView.player, selectNodeByAbsPath, selectedNode],
+    [
+      applyCursor,
+      fileTree,
+      gameState.loadedAbsPath,
+      gameView.player,
+      selectNodeByAbsPath,
+      selectedNode,
+    ],
   );
 
   // ファイル切替 → 読み込み完了（view.player が立つ）を待ってから applyCursor

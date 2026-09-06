@@ -15,6 +15,7 @@ const applyCursor = vi.fn();
 
 type SelectedNode = { path: string; isDirectory: boolean } | null;
 const stub = {
+  fileTree: {} as unknown,
   selectedNode: null as SelectedNode,
   player: null as unknown,
   loadedAbsPath: null as string | null,
@@ -23,6 +24,7 @@ const stub = {
 
 vi.mock("@/entities/file-tree", () => ({
   useFileTree: () => ({
+    fileTree: stub.fileTree,
     selectedNode: stub.selectedNode,
     selectNodeByAbsPath,
     kifuError: stub.kifuError,
@@ -42,6 +44,7 @@ const { usePositionHitNavigation } = await import("../usePositionHitNavigation")
 const CURSOR: CursorLite = { tesuu: 3, forkPointers: [] };
 
 beforeEach(() => {
+  stub.fileTree = {};
   stub.selectedNode = null;
   stub.player = null;
   stub.loadedAbsPath = null;
@@ -53,33 +56,33 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("usePositionHitNavigation", () => {
-  test("ツリーにその棋譜が無ければ false。局面も動かさない", () => {
+  test("ツリーにその棋譜が無ければ not-in-tree。局面も動かさない", () => {
     selectNodeByAbsPath.mockReturnValue(false);
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.startNavigationToHit("/root/gone.kif", CURSOR)).toBe(false);
+    expect(result.current.startNavigationToHit("/root/gone.kif", CURSOR)).toBe("not-in-tree");
     expect(applyCursor).not.toHaveBeenCalled();
   });
 
-  test("ツリーを切り替えられたら true。局面はまだ当てない", () => {
+  test("ツリーを切り替えられたら started。局面はまだ当てない", () => {
     selectNodeByAbsPath.mockReturnValue(true);
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe(true);
+    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe("started");
     expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/b.kif");
     expect(applyCursor).not.toHaveBeenCalled();
   });
 
-  test("同じ棋譜が盤に載っていれば、その場で局面へ当てて true", () => {
+  test("同じ棋譜が盤に載っていれば、その場で局面へ当てて started", () => {
     stub.selectedNode = { path: "/root/a.kif", isDirectory: false };
     stub.loadedAbsPath = "/root/a.kif";
     stub.player = {};
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.startNavigationToHit("/root/a.kif", CURSOR)).toBe(true);
+    expect(result.current.startNavigationToHit("/root/a.kif", CURSOR)).toBe("started");
     expect(selectNodeByAbsPath).not.toHaveBeenCalled();
     expect(applyCursor).toHaveBeenCalledTimes(1);
   });
@@ -96,7 +99,7 @@ describe("usePositionHitNavigation", () => {
 
     const { result } = renderHook(() => usePositionHitNavigation());
 
-    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe(true);
+    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe("started");
     expect(applyCursor).not.toHaveBeenCalled();
   });
 
@@ -152,5 +155,18 @@ describe("usePositionHitNavigation", () => {
     rerender();
 
     expect(applyCursor).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ツリーを1本も持っていない状態は「探した結果、無かった」ではない。
+   * 索引は cache から復元されるので、ツリーの取得が落ちた回でも結果は並ぶ。
+   */
+  test("ツリーそのものが無ければ tree-unavailable。ツリーは引かない", () => {
+    stub.fileTree = null;
+
+    const { result } = renderHook(() => usePositionHitNavigation());
+
+    expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe("tree-unavailable");
+    expect(selectNodeByAbsPath).not.toHaveBeenCalled();
   });
 });

@@ -109,7 +109,7 @@ afterEach(() => cleanup());
 
 describe("PositionSearchModal のヒットを開く", () => {
   test("移動できたら閉じる", async () => {
-    startNavigationToHit.mockReturnValue(true);
+    startNavigationToHit.mockReturnValue("started");
     await renderWithHits();
 
     pressEnter();
@@ -120,7 +120,7 @@ describe("PositionSearchModal のヒットを開く", () => {
   });
 
   test("ツリーに無くて移動できなければ、閉じずにその場で断る", async () => {
-    startNavigationToHit.mockReturnValue(false);
+    startNavigationToHit.mockReturnValue("not-in-tree");
     await renderWithHits();
 
     pressEnter();
@@ -163,7 +163,7 @@ describe("PositionSearchModal のヒットを開く", () => {
    * 断りが消える**。選択は添字でなく鍵で追う。
    */
   test("チャンクが届いて並び替わっても、断りは押した行に付いたまま", async () => {
-    startNavigationToHit.mockReturnValue(false);
+    startNavigationToHit.mockReturnValue("not-in-tree");
     const { rerender } = render(<PositionSearchModal />);
     await screen.findByRole("listbox");
 
@@ -177,7 +177,7 @@ describe("PositionSearchModal のヒットを開く", () => {
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {
-    startNavigationToHit.mockReturnValue(false);
+    startNavigationToHit.mockReturnValue("not-in-tree");
     await renderWithHits();
 
     pressEnter();
