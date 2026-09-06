@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Outlet } from "react-router";
 import Sidebar from "@/widgets/sidebar/ui/Sidebar";
-import GameBoard from "../widgets/game-board/ui/GameBoard";
-import Board from "../widgets/game-board/ui/Board";
-import Hand from "../widgets/game-board/ui/Hand";
+import GameBoard from "@/widgets/game-board/ui/GameBoard";
+import Board from "@/widgets/game-board/ui/Board";
+import Hand from "@/widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
 import WelcomeScreen from "@/pages/WelcomeScreen";
