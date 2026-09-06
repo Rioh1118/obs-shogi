@@ -19,7 +19,8 @@ import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDa
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
-import { hitKey, useOrderedPositionHits } from "@/features/position-search/lib/orderPositionHits";
+import { hitKey } from "@/features/position-search/lib/hitKey";
+import { useOrderedPositionHits } from "@/features/position-search/lib/useOrderedPositionHits";
 import { useGame } from "@/entities/game";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";

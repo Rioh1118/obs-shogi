@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 import type { PositionHit } from "@/entities/search";
-import { useOrderedPositionHits } from "../orderPositionHits";
+import { useOrderedPositionHits } from "../useOrderedPositionHits";
 
 /**
  * 並べ替えが**新しく届いたぶんだけ**を見ること。

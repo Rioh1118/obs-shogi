@@ -70,9 +70,8 @@ vi.mock("@/features/position-search/lib/usePositionHitNavigation", () => ({
  * 件数に比例して増えても画面には「重い」としか出ない。
  */
 const hitKeyCalls = vi.fn();
-vi.mock("@/features/position-search/lib/orderPositionHits", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/features/position-search/lib/orderPositionHits")>();
+vi.mock("@/features/position-search/lib/hitKey", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/position-search/lib/hitKey")>();
   return {
     ...actual,
     hitKey: (hit: PositionHit) => {

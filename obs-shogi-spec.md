@@ -52,7 +52,7 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
 - キャンセル（`cancel_search` by request_id）
 - 結果 UI（`features/position-search`）
   - 仮想化リスト（`VirtualList` / `VirtualHitRow`）、相対パスキャッシュ（`createRelPathCache`）
-  - ヒット並べ替え（`orderPositionHits`）
+  - ヒット並べ替え（`useOrderedPositionHits`）
   - ヒットへナビゲート（該当ファイルを開きカーソル移動、`usePositionHitNavigation`）
   - 継続局面の表示（`PositionSearchContinuation`）、行き先カード（`PositionSearchDestinationCard`）
   - ステータスバー（`PositionSearchStatusBar`）、モーダルヘッダ（件数・状態）
