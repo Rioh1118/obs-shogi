@@ -3,6 +3,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
+import type { VisibleTier } from "@/shared/lib/notification/types";
 import { usePositionHitNavigation } from "@/features/position-search/lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
@@ -19,6 +20,26 @@ import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderP
 import { useGame } from "@/entities/game";
 import { usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
+
+/**
+ * ヒットを開けなかった理由。**段が違う。** 索引がパスを返していないだけなら
+ * 検索し直せば直る見込みがある（`warning`）が、ワークスペースの一覧に無い棋譜は
+ * この画面から何度押しても直らない（`danger`）。分け方は ADR-0004 決定1。
+ */
+type RefusalReason = "no-path" | "not-in-tree";
+
+const REFUSALS: Record<RefusalReason, { tier: VisibleTier; title: string; body: string }> = {
+  "no-path": {
+    tier: "warning",
+    title: "この棋譜の場所が分かりません",
+    body: "検索の索引が、この結果の置き場を返していません。検索し直すと直ることがあります。",
+  },
+  "not-in-tree": {
+    tier: "danger",
+    title: "この棋譜を開けません",
+    body: "ワークスペースの一覧にこの棋譜がありません。移動・削除されたか、索引がまだ古い可能性があります。",
+  },
+};
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
@@ -45,7 +66,10 @@ export default function PositionSearchModal() {
   const [isLaunching, setIsLaunching] = useState(false);
   // 開けなかったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
   // 並び替わるので、添字で覚えると届いていない棋譜の名前で断りが出る
-  const [unopenableKey, setUnopenableKey] = useState<string | null>(null);
+  const [unopenableKey, setUnopenableKey] = useState<{
+    key: string;
+    reason: RefusalReason;
+  } | null>(null);
 
   const session = getSessionByRequestId(requestId);
   const hits = getHitsByRequestId(requestId);
@@ -177,10 +201,18 @@ export default function PositionSearchModal() {
 
   const accept = (hit: PositionHit) => {
     // 索引に在る棋譜がツリーに無いのは正常運転で起こる（`usePositionHitNavigation`）。
-    // 移動できないまま閉じると、盤は前の棋譜のままなのに「開いた」と読める
+    // 移動できないまま閉じると、盤は前の棋譜のままなのに「開いた」と読める。
+    //
+    // **2つの断りを1つの文言に畳まない。** 行き先のパスを引けないのは索引の側の
+    // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
+    // 動かしていない棋譜を探しに行かせる
     const absPath = resolveHitAbsPath(hit);
-    if (!absPath || !navigateToHit(absPath, hit.cursor)) {
-      setUnopenableKey(hitKey(hit));
+    if (!absPath) {
+      setUnopenableKey({ key: hitKey(hit), reason: "no-path" });
+      return;
+    }
+    if (!navigateToHit(absPath, hit.cursor)) {
+      setUnopenableKey({ key: hitKey(hit), reason: "not-in-tree" });
       return;
     }
     // 確定操作なので returnTo は適用しない（キャンセル時のみマネージャーに戻る）
@@ -218,7 +250,8 @@ export default function PositionSearchModal() {
   const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
   // 断りが指しているのは選んでいる行なので、選び直したら引っ込める。
   // 残したままだと、いま選んでいる棋譜が開けないという意味に読める
-  const isUnopenable = !!activeHit && hitKey(activeHit) === unopenableKey;
+  const refusal =
+    activeHit && unopenableKey?.key === hitKey(activeHit) ? REFUSALS[unopenableKey.reason] : null;
 
   return (
     <Modal
@@ -246,12 +279,8 @@ export default function PositionSearchModal() {
                 error={error}
               />
 
-              {isUnopenable && (
-                <InlineNotice
-                  tier="danger"
-                  title="この棋譜を開けません"
-                  body="ワークスペースに見つかりませんでした。移動または削除された可能性があります（索引にはまだ残っています）。"
-                />
+              {refusal && (
+                <InlineNotice tier={refusal.tier} title={refusal.title} body={refusal.body} />
               )}
 
               <PositionSearchHitList

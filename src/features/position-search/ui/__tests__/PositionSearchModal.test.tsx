@@ -79,6 +79,7 @@ function hitAt(fileId: number, tesuu: number): PositionHit {
 const HITS = [hitAt(1, 20), hitAt(2, 30)];
 
 const NOTICE = "この棋譜を開けません";
+const NOTICE_NO_PATH = "この棋譜の場所が分かりません";
 
 function pressEnter() {
   fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "Enter" });
@@ -124,7 +125,11 @@ describe("PositionSearchModal のヒットを開く", () => {
     expect(screen.getByRole("alert").textContent).toContain(NOTICE);
   });
 
-  test("索引にパスが無いヒットも同じ扱い（移動を試みない）", async () => {
+  /**
+   * 行き先のパスを引けないのは索引の側の欠けで、ツリーは見ていない。
+   * 「ワークスペースを探した」と言うと、動かしていない棋譜を探しに行かせる。
+   */
+  test("索引にパスが無いヒットは、閉じずに別の断りを出す（移動は試みない）", async () => {
     resolveHitAbsPath.mockReturnValue(null);
     await renderWithHits();
 
@@ -132,7 +137,10 @@ describe("PositionSearchModal のヒットを開く", () => {
 
     expect(navigateToHit).not.toHaveBeenCalled();
     expect(closeModal).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+    // 段が違うので role も違う（warning は status、danger は alert）
+    const notice = screen.getByRole("status", { name: undefined });
+    expect(notice.textContent).toContain(NOTICE_NO_PATH);
+    expect(screen.queryByText(NOTICE)).toBeNull();
   });
 
   // 要求が立つ前に一覧が出ていると、以下のテストは「ヒットが届く経路」を通らずに
