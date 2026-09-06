@@ -149,6 +149,44 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
   });
 });
 
+describe("AnalysisProvider の停止", () => {
+  it("再開の最中に止めたら、後から返ってきた席を返して再開しない", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockResolvedValueOnce("session-1");
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤とエンジンが揃って1手進む。再開が走り、開始の応答待ちで止まる。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    stopCore.mockClear();
+    await act(async () => {
+      releaseStart("session-2");
+    });
+    await advance(50);
+
+    // 止めたのに「解析中」へ戻り、Rust では新しい席が走り続ける——という形になる。
+    // 停止ボタンが撃てるのはその時点で握っている古い席までで、この席はここでしか返せない。
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(stopCore).toHaveBeenCalledWith("session-2");
+  });
+});
+
 describe("AnalysisProvider のアンマウント", () => {
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));

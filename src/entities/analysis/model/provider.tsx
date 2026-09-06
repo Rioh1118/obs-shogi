@@ -305,10 +305,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         const newSessionId = await startInfiniteAnalysisCore();
         seatRef.current = newSessionId;
 
-        // 上の門を通った後、応答を待っている間にも畳まれる。畳んだときの
-        // 一括停止がこの席より先に Rust へ届いていれば、席は残ったまま
-        // ——順序はどちらにもなるので、返ってきた側でも返す。
-        if (unmountedRef.current) {
+        // 応答を待っている間に、畳まれるか、利用者が停止を押している。
+        //
+        // 畳まれた場合: 後始末の一括停止がこの席より先に Rust へ届いていれば、
+        // 席は残ったまま——順序はどちらにもなるので、返ってきた側でも返す。
+        // 停止された場合: `stopAnalysis` は世代を上げるが、撃てるのは
+        // その時点で握っている古い席だけ。**この席を返せるのはここだけ。**
+        // 返さずに `start_analysis` を dispatch すると、止めたはずの解析が
+        // 画面でも Rust でも走り直す。
+        if (unmountedRef.current || restartSeqRef.current !== seq) {
           releaseSeatQuietly(newSessionId);
           return;
         }
