@@ -58,7 +58,7 @@ export { cursorFromLite } from "./lib/cursorAdapter";
  * **どの具合かの判断はここを通す**。
  */
 export { indexHealth } from "./lib/indexHealth";
-export { pickWarns, WARN_SLOTS } from "./lib/pickWarns";
+export { pickWarns } from "./lib/pickWarns";
 export type { IndexHealth } from "./lib/indexHealth";
 
 export { PositionSearchProvider } from "./model/provider";

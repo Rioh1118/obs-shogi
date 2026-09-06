@@ -34,7 +34,7 @@ describe("pickWarns", () => {
    */
   it("場所の警告はファイルの警告に押し出されない", () => {
     const warns = [place(1), ...Array.from({ length: 20 }, (_, i) => file(i))];
-    const got = pickWarns(warns);
+    const got = pickWarns(warns, 5);
     expect(got[0]).toEqual(place(1));
     expect(got).toHaveLength(5);
   });

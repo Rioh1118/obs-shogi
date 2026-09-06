@@ -8,7 +8,7 @@ import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
 import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
-import type { IndexUiState } from "@/entities/search";
+import type { IndexHealth, IndexUiState } from "@/entities/search";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -29,8 +29,7 @@ function percent(done: number, total: number) {
  *
  * 具合の判断は `indexHealth` が持つ——画面ごとに旗を並べ直さない。
  */
-function badgeForIndex(idx: IndexUiState) {
-  const health = indexHealth(idx);
+function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
   switch (health) {
     case "notRefreshed":
       return {
@@ -84,6 +83,9 @@ function runningLabel(state: IndexUiState["state"]): string {
   }
 }
 
+/** 警告の枠。**増やすと状態の要約が押し出される**ので、増やす前に置き場を決めること */
+const WARN_SLOTS = 5;
+
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -100,15 +102,16 @@ export default function WorkspaceTab() {
   const idx = search.index; // ←あなたの state 形
   const warns = search.warns; // ←あなたの state 形
 
-  const badge = useMemo(() => badgeForIndex(idx), [idx]);
+  // 具合を一度だけ導いて配る。画面の中で `state` を並べ直すと、段が増えたときに
+  // バッジだけ追随して進捗バーが消える（`indexHealth` は `switch` ではない）
+  const health = indexHealth(idx);
+  const badge = badgeForIndex(idx, health);
 
-  const shownWarns = useMemo(() => pickWarns(warns), [warns]);
+  const shownWarns = useMemo(() => pickWarns(warns, WARN_SLOTS), [warns]);
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
-  const showProgress =
-    (idx.state === "Restoring" || idx.state === "Building" || idx.state === "Updating") &&
-    progressTotal > 0;
+  const showProgress = health === "building" && progressTotal > 0;
 
   const pct = useMemo(() => percent(idx.doneFiles, progressTotal), [idx.doneFiles, progressTotal]);
 

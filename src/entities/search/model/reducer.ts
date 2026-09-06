@@ -62,6 +62,42 @@ function mergeFiles(base: FilePathById, files: MergeFilesInput): FilePathById {
   return next ?? base;
 }
 
+/** 覚えておく警告の総数。**種類ごとの内訳は下の `PLACE_KEPT`。** */
+const WARNS_KEPT = 200;
+
+/**
+ * 場所の警告として覚えておく数。
+ *
+ * **総数だけで切ると、場所の警告は必ず落ちる。** 1回の再走査は棋譜1件ごとに
+ * 警告を出しうるので、読めない場所が1つあるワークスペースでは
+ * ファイル単位の警告が総数の枠を独占する——落ちるのは
+ * 「ワークスペースを読めません」のような、**利用者が次にすることを含んだ
+ * 唯一の文言**のほう。
+ */
+const PLACE_KEPT = 20;
+
+/**
+ * 警告を積む。**種類ごとに上限を持つ。**
+ *
+ * 並べ替えはしない——並びは届いた順のままで、どれを描くかは `pickWarns` が決める。
+ */
+function appendWarn(warns: SearchState["warns"], next: SearchState["warns"][number]) {
+  const grown = [...warns, next];
+  if (grown.length <= WARNS_KEPT) return grown;
+
+  // **末尾から数える形で書かない。** `slice(-n)` は `n` が 0 のとき
+  // `slice(-0)` ＝ `slice(0)` になり、**1件も残さないつもりが全件残る**
+  const allPlaces = grown.filter((w) => w.kind === "place");
+  const places = allPlaces.slice(Math.max(0, allPlaces.length - PLACE_KEPT));
+
+  const allFiles = grown.filter((w) => w.kind !== "place");
+  const fileSlots = Math.max(0, WARNS_KEPT - places.length);
+  const files = allFiles.slice(Math.max(0, allFiles.length - fileSlots));
+
+  const keep = new Set([...places, ...files]);
+  return grown.filter((w) => keep.has(w));
+}
+
 export function reducer(state: SearchState, action: Action): SearchState {
   switch (action.type) {
     case "index_state": {
@@ -96,11 +132,22 @@ export function reducer(state: SearchState, action: Action): SearchState {
       };
     }
 
-    case "index_warn":
-      return {
-        ...state,
-        warns: [...state.warns.slice(-199), action.payload],
-      };
+    case "index_warn": {
+      // **同じ警告を積み増さない。** 読めない場所が1つあると、ワークスペースで
+      // ファイルを保存するたびの再走査が毎回同じ1件を積む。枠は5つしか無いので、
+      // 数回の保存で**同じ文言が枠を埋め尽くし**、後から来る棋譜1件ごとの警告が
+      // 一度も描かれなくなる（`pickWarns` は場所を先に取る）
+      const last = state.warns[state.warns.length - 1];
+      if (
+        last &&
+        last.kind === action.payload.kind &&
+        last.path === action.payload.path &&
+        last.message === action.payload.message
+      ) {
+        return state;
+      }
+      return { ...state, warns: appendWarn(state.warns, action.payload) };
+    }
 
     case "clear_warns":
       return { ...state, warns: [] };

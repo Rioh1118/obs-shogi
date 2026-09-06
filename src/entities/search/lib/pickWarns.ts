@@ -1,8 +1,5 @@
 import type { IndexWarnPayload } from "../api/events";
 
-/** 警告の枠。増やすと状態の要約が押し出されるので、増やす前に置き場を決めること */
-export const WARN_SLOTS = 5;
-
 /**
  * 出す警告を選ぶ。**画面ごとに並べ直さない**——順はここ1つが持つ。
  *
@@ -18,8 +15,10 @@ export const WARN_SLOTS = 5;
  * **消えた警告は自分では消えない。** 走査が成功しても前の失敗は積まれたまま
  * なので、利用者が「警告をクリア」を押すまで残る。いまの具合を言うのは
  * バッジ（`indexHealth`）の役目で、こちらは履歴。
+ *
+ * **枠数は決めない。** いくつ描けるかは画面の寸法の話なので、呼び手が渡す。
  */
-export function pickWarns(warns: IndexWarnPayload[], slots: number = WARN_SLOTS) {
+export function pickWarns(warns: IndexWarnPayload[], slots: number) {
   const newestFirst = warns.slice().reverse();
   const places = newestFirst.filter((w) => w.kind === "place");
   const files = newestFirst.filter((w) => w.kind !== "place");
