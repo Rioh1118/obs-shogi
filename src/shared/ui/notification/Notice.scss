@@ -7,7 +7,7 @@
   gap: index.$space-4;
   align-items: flex-start;
   padding: index.$space-4 index.$space-5;
-  // 段の印。面どうしの差は 1.2:1 しか無いので、段はこの帯と記号が持つ
+  // 段の印。4つの面どうしの差は最大でも 1.06:1 しか無いので、段はこの帯と記号が持つ
   border-left: 3px solid transparent;
 
   // 題の1行目と目線を揃える。記号の箱は文字より背が低い
