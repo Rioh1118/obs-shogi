@@ -19,10 +19,15 @@ const stub = {
   player: null as unknown,
   isLoading: false,
   loadedAbsPath: null as string | null,
+  kifuError: null as { path?: string } | null,
 };
 
 vi.mock("@/entities/file-tree", () => ({
-  useFileTree: () => ({ selectedNode: stub.selectedNode, selectNodeByAbsPath }),
+  useFileTree: () => ({
+    selectedNode: stub.selectedNode,
+    selectNodeByAbsPath,
+    kifuError: stub.kifuError,
+  }),
 }));
 
 vi.mock("@/entities/game", () => ({
@@ -42,6 +47,7 @@ beforeEach(() => {
   stub.player = null;
   stub.isLoading = false;
   stub.loadedAbsPath = null;
+  stub.kifuError = null;
   selectNodeByAbsPath.mockReset();
   applyCursor.mockReset();
 });
@@ -92,6 +98,60 @@ describe("usePositionHitNavigation", () => {
     const { result } = renderHook(() => usePositionHitNavigation());
 
     expect(result.current.navigateToHit("/root/b.kif", CURSOR)).toBe(true);
+    expect(applyCursor).not.toHaveBeenCalled();
+  });
+
+  /** 要求を出したあと、その棋譜が盤に載ったら当てる（この経路が生きていること） */
+  test("要求した棋譜が読み終わったら当たる", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+
+    const { result, rerender } = renderHook(() => usePositionHitNavigation());
+    result.current.navigateToHit("/root/b.kif", CURSOR);
+
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/b.kif";
+    stub.player = {};
+    rerender();
+
+    expect(applyCursor).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 要求は1回きり。捨てないと、開けなかった棋譜の要求がアプリを終えるまで残り、
+   * あとでその棋譜を普通に開いた瞬間に頼んでいない局面へ盤が動く。
+   */
+  test("別の棋譜を選んだら要求は流れ、あとでその棋譜が読めても当たらない", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+
+    const { result, rerender } = renderHook(() => usePositionHitNavigation());
+    result.current.navigateToHit("/root/b.kif", CURSOR);
+
+    stub.selectedNode = { path: "/root/c.kif", isDirectory: false };
+    rerender();
+
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/b.kif";
+    stub.player = {};
+    rerender();
+
+    expect(applyCursor).not.toHaveBeenCalled();
+  });
+
+  test("その棋譜を読めなかったら要求は流れる", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+
+    const { result, rerender } = renderHook(() => usePositionHitNavigation());
+    result.current.navigateToHit("/root/b.kif", CURSOR);
+
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    stub.kifuError = { path: "/root/b.kif" };
+    rerender();
+
+    stub.kifuError = null;
+    stub.loadedAbsPath = "/root/b.kif";
+    stub.player = {};
+    rerender();
+
     expect(applyCursor).not.toHaveBeenCalled();
   });
 });

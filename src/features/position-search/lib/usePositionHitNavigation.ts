@@ -23,7 +23,7 @@ type PendingNav = {
  * 盤が動かないまま「開いた」ように見える経路になる
  */
 export function usePositionHitNavigation() {
-  const { selectedNode, selectNodeByAbsPath } = useFileTree();
+  const { selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
   const pendingRef = useRef<PendingNav | null>(null);
@@ -74,15 +74,34 @@ export function usePositionHitNavigation() {
     const p = pendingRef.current;
     if (!p) return;
 
+    // **流れた要求は捨てる。** このフックはモーダルごと常時マウントされている
+    // （`AppModalLayer`）ので、捨てないと要求はアプリを終えるまで生き残り、
+    // あとでその棋譜を普通に開いた瞬間に、誰も頼んでいない局面へ盤が動く。
+    // 見分けは2つ——利用者が別の棋譜を選んだ／その棋譜を読めなかった
+    if (selectedNode && !selectedNode.isDirectory && selectedNode.path !== p.absPath) {
+      pendingRef.current = null;
+      return;
+    }
+    if (kifuError?.path === p.absPath) {
+      pendingRef.current = null;
+      return;
+    }
+
     if (!selectedNode || selectedNode.isDirectory) return;
-    if (selectedNode.path !== p.absPath) return;
     if (gameState.isLoading) return;
     if (!gameView.player) return;
     if (gameState.loadedAbsPath !== p.absPath) return;
 
     applyCursor(cursorFromLite(p.cursor));
     pendingRef.current = null;
-  }, [applyCursor, gameState.isLoading, gameView.player, gameState.loadedAbsPath, selectedNode]);
+  }, [
+    applyCursor,
+    gameState.isLoading,
+    gameView.player,
+    gameState.loadedAbsPath,
+    kifuError,
+    selectedNode,
+  ]);
 
   return { navigateToHit };
 }
