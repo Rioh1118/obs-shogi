@@ -14,12 +14,15 @@ const closeModal = vi.fn();
 const startNavigationToHit = vi.fn();
 const resolveHitAbsPath = vi.fn();
 
+const SFEN_A = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1";
+const SFEN_B = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL w - 2";
+
+/** 検索する局面を試験の側から差し替える。撃ち直しの経路はこれでしか作れない */
+const urlParams = { modal: "position-search", sfen: SFEN_A };
+
 vi.mock("@/shared/lib/router/useURLParams", () => ({
   useURLParams: () => ({
-    params: {
-      modal: "position-search",
-      sfen: "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1",
-    },
+    params: urlParams,
     closeModal,
     openModal: vi.fn(),
     updateParams: vi.fn(),
@@ -132,6 +135,7 @@ beforeEach(() => {
   hitsState.current = HITS;
   hitKeyCalls.mockReset();
   seenActiveHits.length = 0;
+  urlParams.sfen = SFEN_A;
 });
 
 afterEach(() => cleanup());
@@ -299,6 +303,52 @@ describe("PositionSearchModal のヒットを開く", () => {
     // 描かれた全レンダで、選ばれているのは利用者が選んだ行だけ
     expect(seenActiveHits.every((h) => h === HITS[1])).toBe(true);
     expect(seenActiveHits.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * 捨てた起動の後始末が、現に走っている起動の画面へ書き戻らないこと。
+   *
+   * `.then` だけに門を置くと `.finally` が素通りし、後から撃った検索の rid が
+   * まだ返っていない一瞬に `isLaunching` が落ちる。画面は「待機中 / 一致する棋譜が
+   * ありません」——**0件が完了として出る**（`search.md` が核心の欠陥と呼ぶ形）。
+   */
+  test("捨てた起動が解決しても、走っている起動は「検索中」のまま", async () => {
+    const settlers: ((out: { requestId: number }) => void)[] = [];
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => settlers.push(resolve as (typeof settlers)[number])),
+    );
+
+    // 起動A（invoke 保留）→ 局面が変わって撃ち直し（起動B、invoke 保留）
+    const { rerender } = render(<PositionSearchModal />);
+    urlParams.sfen = SFEN_B;
+    rerender(<PositionSearchModal />);
+    expect(settlers).toHaveLength(2);
+
+    // A がやっと解決する。B の rid はまだ返っていない
+    await act(async () => {
+      settlers[0]({ requestId: 41 });
+    });
+
+    expect(screen.getByLabelText("局面検索").textContent).not.toContain("待機中");
+    expect(screen.queryByText("一致する棋譜がありません")).toBeNull();
+  });
+
+  /** 同じ経路の失敗側。捨てた起動の失敗が、走っている起動の画面に貼り付かないこと */
+  test("捨てた起動が失敗しても、走っている起動にエラーは出ない", async () => {
+    const rejecters: ((e: Error) => void)[] = [];
+    searchPosition.mockImplementation(
+      () => new Promise((_resolve, reject) => rejecters.push(reject as (typeof rejecters)[number])),
+    );
+
+    const { rerender } = render(<PositionSearchModal />);
+    urlParams.sfen = SFEN_B;
+    rerender(<PositionSearchModal />);
+
+    await act(async () => {
+      rejecters[0](new Error("search app handle not ready"));
+    });
+
+    expect(screen.getByLabelText("局面検索").textContent).not.toContain("検索に失敗しました");
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

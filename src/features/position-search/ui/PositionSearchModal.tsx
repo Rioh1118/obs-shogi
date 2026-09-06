@@ -220,9 +220,22 @@ export default function PositionSearchModal() {
       .catch((e) => {
         // eslint-disable-next-line no-console
         console.error("[PositionSearchModal] search failed:", e);
+
+        // **失敗も自分の番のときだけ出す。** 捨てた起動の失敗をここで載せると、
+        // 後から解決した検索の**正しい結果の上に**「検索に失敗しました」が残る。
+        // 消えるのは `queryKey` が変わるか閉じるときだけなので、同じ画面では
+        // 撃ち直せない
+        if (launchSeqRef.current !== myLaunch) return;
         setLaunchError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
+        // **降ろすのも自分の番のときだけ。** 捨てた起動がここを通ると、後から
+        // 撃った検索の rid がまだ返っていない一瞬に `isLaunching` が落ち、
+        // 画面が「待機中 / 一致する棋譜がありません」になる——**0件が完了として出る**。
+        //
+        // 立ちっぱなしにはならない。閉じる枝が明示的に降ろし、撃ち直しは新しい
+        // 起動が上げてから自分の `.finally` で降ろす
+        if (launchSeqRef.current !== myLaunch) return;
         setIsLaunching(false);
       });
   }, [isOpen, queryKey, searchPosition, cancelSearch, clearSearch, discardSearch]);
