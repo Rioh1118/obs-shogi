@@ -3,7 +3,6 @@ import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine";
 export interface AnalysisState {
   isAnalyzing: boolean;
   currentPosition: string | null; // SFEN
-  analysisResults: AnalysisResult[];
   candidates: AnalysisCandidate[];
   error: string | null;
 }

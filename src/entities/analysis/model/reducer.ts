@@ -4,7 +4,6 @@ import type { AnalysisAction, AnalysisState } from "./types";
 export const initialState: AnalysisState = {
   isAnalyzing: false,
   currentPosition: null,
-  analysisResults: [],
   candidates: [],
   error: null,
 };
@@ -31,7 +30,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
 
       return {
         ...state,
-        analysisResults: [...state.analysisResults.slice(-9), result],
         candidates,
       };
     }
@@ -45,7 +43,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
     case "clear_results":
       return {
         ...state,
-        analysisResults: [],
         candidates: [],
         error: null,
       };
