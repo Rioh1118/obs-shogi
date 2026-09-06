@@ -62,6 +62,7 @@
     flex-direction: column;
     pointer-events: none;
     flex: none;
+    // 半分。帯は器の操作を覆うので、これを超えると盤も棋譜も使えなくなる
     max-height: 50%;
     overflow-y: auto;
   }
@@ -83,7 +84,8 @@
     overflow-y: auto;
 
     // 幅は寸法のスケールに載らない（ADR-0003 が見るのは間隔・角丸・文字サイズ）。
-    // 画面が狭いときは器に合わせて縮む
+    // 36rem は、題1行と動作2つ（「再試行」＋「エンジンを再起動」）が
+    // 折り返さずに収まる幅。狭いウィンドウでは器に合わせて縮む
     width: 36rem;
     max-width: 100%;
   }
