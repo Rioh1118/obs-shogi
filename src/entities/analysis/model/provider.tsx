@@ -169,6 +169,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const unmountedRef = useRef(false);
 
+  // 開始を頼んでから席が返るまでの間に、その要求が要らなくなっていないか。
+  //
+  // **畳まれたときと、利用者が止めた（または次の再開が始まった）ときを同じに扱う。**
+  // どちらも「返ってきた席の持ち主が居ない」で、返さなければ Rust に残る。
+  // `stopAnalysis` は世代を上げるが、撃てるのはその時点で握っている席まで
+  // ——後から返る席を返せるのは、応答が返った側だけ。
+  const supersededSince = (seq: number) => unmountedRef.current || restartSeqRef.current !== seq;
+
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
   //
   // - 再開のタイマー。局面を見る effect の cleanup だけでは足りない——早期 return を
@@ -314,25 +322,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         clearFlushTimer();
         latestResultRef.current = null;
 
-        // 停止の応答を待っている間に畳まれていることがある。ここで go を出すと、
-        // 誰も見ていない探索が走り、それを止める者もいない。
-        if (unmountedRef.current) return;
+        // 停止の応答を待っている間に、畳まれたり止められたりしている。
+        // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
+        if (supersededSince(seq)) return;
 
         const newSessionId = await startInfiniteAnalysisCore();
-        seatRef.current = newSessionId;
 
-        // 応答を待っている間に、畳まれるか、利用者が停止を押している。
-        //
-        // 畳まれた場合: 後始末の一括停止がこの席より先に Rust へ届いていれば、
-        // 席は残ったまま——順序はどちらにもなるので、返ってきた側でも返す。
-        // 停止された場合: `stopAnalysis` は世代を上げるが、撃てるのは
-        // その時点で握っている古い席だけ。**この席を返せるのはここだけ。**
-        // 返さずに `start_analysis` を dispatch すると、止めたはずの解析が
+        // **欄に入れる前に見る。** 要らなくなった席を欄に入れると、その後に
+        // 入った別の席を上書きして、走っている方を知る者が居なくなる。
+        // 返さずに `start_analysis` を dispatch した場合は、止めたはずの解析が
         // 画面でも Rust でも走り直す。
-        if (unmountedRef.current || restartSeqRef.current !== seq) {
+        if (supersededSince(seq)) {
           releaseSeatQuietly(newSessionId);
           return;
         }
+        seatRef.current = newSessionId;
 
         dispatch({
           type: "start_analysis",
@@ -341,6 +345,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         lastAnalyzedSfenRef.current = want;
       } catch (e) {
+        // 要らなくなった要求の失敗は、誰にも見せない。利用者が止めた後に
+        // 「再開に失敗しました」が出るし、`stop_analysis` の dispatch は
+        // 別の理由で走り出した解析を巻き添えにする。
+        if (supersededSince(seq)) return;
+
         dispatch({
           type: "set_error",
           payload: `Failed to restart analysis: ${e instanceof Error ? e.message : String(e)}`,
@@ -398,6 +407,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (state.isAnalyzing) return;
     if (!currentSfen) throw new Error("No position available for analysis");
 
+    // 局面を送って席が返るまでの世代。この間に ■ を押されると `stopAnalysis` が
+    // 世代を上げる。押した時点では席がまだ無いので、停止は Rust に何も撃てない。
+    const seq = restartSeqRef.current;
+
     await syncPosition();
 
     // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
@@ -412,15 +425,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
 
     const sessionId = await startInfiniteAnalysisCore();
-    seatRef.current = sessionId;
 
-    // 席を頼んでから返ってくるまでの間に畳まれることがある。畳んだときの
-    // 一括停止は、この席が Rust に載る前に届いていれば何も掃かない
-    // ——返せるのはここだけ。
-    if (unmountedRef.current) {
+    // **欄に入れる前に見る。** 要らなくなった席を欄に入れると、その後に
+    // 入った別の席（■ の直後に ▶ を押した回）を上書きして、
+    // 走っている方を知る者が居なくなる。
+    if (supersededSince(seq)) {
       releaseSeatQuietly(sessionId);
       return;
     }
+    seatRef.current = sessionId;
 
     dispatch({
       type: "start_analysis",

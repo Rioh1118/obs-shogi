@@ -150,6 +150,37 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 });
 
 describe("AnalysisProvider の停止", () => {
+  it("開始の応答待ちで止めたら、後から返ってきた席を返して始めない", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    // ▶ の応答待ちのまま置く（返ってこないので await しない）
+    void view.current.startInfiniteAnalysis();
+    await advance(50);
+
+    // ここで ■ を押す。席はまだ手元に無いので、停止は Rust に何も撃てない。
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+
+    stopCore.mockClear();
+    await act(async () => {
+      releaseStart("session-late");
+    });
+    await advance(50);
+
+    // 世代を見ないと、押した停止が握り潰されて解析が始まる。
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(stopCore).toHaveBeenCalledWith("session-late");
+  });
+
   it("再開の最中に止めたら、後から返ってきた席を返して再開しない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockResolvedValueOnce("session-1");
