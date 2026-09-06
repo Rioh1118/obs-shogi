@@ -5,8 +5,8 @@ import { cleanup, renderHook } from "@testing-library/react";
 import type { CursorLite } from "@/entities/search";
 
 /**
- * 索引に在る棋譜がツリーに無いのは正常運転で起こる（`scan_kifu_files` が失敗した回は
- * 削除が当たらない）。**そのとき移動は始まっていない**ので、
+ * 索引に在る棋譜がツリーに無いのは正常運転で起こる（理由は
+ * `docs/state-transitions/search.md`）。**そのとき移動は始まっていない**ので、
  * 呼び手がそれを知れなければ「開いた」ように見えるだけの操作になる。
  */
 

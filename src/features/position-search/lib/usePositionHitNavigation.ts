@@ -17,10 +17,10 @@ type PendingNav = {
  * - 別ファイルなら selectNodeByAbsPath で FileTree を切り替え、
  *   GameContext がそのファイルを load して view.player が立ったら applyCursor
  *
- * **返すのは「移動を始められたか」であって「開けたか」ではない。** 索引に在る棋譜がツリーに無いのは
- * 正常運転で起こる——`run_rescan_diff_apply` は `scan_kifu_files` が失敗すると
- * 削除の取り込みに届く前に戻るので、消えた棋譜が索引に残る。呼び手が戻り値を捨てると、
- * 盤が動かないまま「開いた」ように見える経路になる
+ * **返すのは「移動を始められたか」であって「開けたか」ではない。** 索引に在る棋譜が
+ * ツリーに無いのは正常運転で起こる（理由は
+ * `docs/state-transitions/search.md` の「走査が失敗しても `Y` に上がる」）。
+ * 呼び手が戻り値を捨てると、盤が動かないまま「開いた」ように見える経路になる
  */
 export function usePositionHitNavigation() {
   const { selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
