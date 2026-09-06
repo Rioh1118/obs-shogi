@@ -16,6 +16,9 @@
 
 棋譜が開かれている間、本体の下のドックに常駐する。畳めない。
 
+**畳めないが、消えることはある。** ワークスペースの差し戻し（`RequireRootDir`）は
+`RuntimeProviders` ごと unmount する。そのとき走っていた解析は終わる。
+
 ## 画面構成
 
 ```
@@ -76,6 +79,7 @@
 | ■ を押す           | `stopAnalysis()`                                                                                              |
 | 局面を動かす       | 解析中なら新しい局面を送り直す → [`engine-position-sync.md`](../../state-transitions/engine-position-sync.md) |
 | プリセットを変える | エンジンを再起動する → [`engine.md`](../../state-transitions/engine.md)                                       |
+| 画面が畳まれる     | **解析も終わる。** 席を返さないと以降どの解析も断られる → `analysis.md` の E13                                |
 
 ## 失敗の見せ方
 
