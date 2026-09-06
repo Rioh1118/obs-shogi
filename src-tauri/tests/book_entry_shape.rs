@@ -25,6 +25,9 @@ use std::path::{Path, PathBuf};
 ///
 /// どれも入口の async 関数から呼ばれ、収録局面ぶんの確保か解放を伴う。
 /// 逃がさないと async ランタイムのワーカを占有し、**他のコマンドの応答が止まる。**
+/// 入口に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
+const EXPECTED_LOG_LINES: usize = 5;
+
 const HEAVY_CALLS: [&str; 3] = ["open_at(", "reader.lookup(", "drop(value)"];
 
 fn entry_path() -> PathBuf {
@@ -121,8 +124,13 @@ fn the_log_line_truncates_the_path() {
         ));
     }
 
-    // `logged` の1本が消えると失敗の切り分けができなくなる。空振り止めを兼ねる
-    assert!(scanned >= 4, "log の行を {scanned} 本しか見ていない");
+    // **等値で見る。** 緩い下限だと、守るはずのログ地点が1本消えても満たされる
+    // （`open_book` がどのパスを開いたかを残す唯一の行が消えても緑になった）。
+    // 増えた側で赤くなるのは正しい —— 増やした人に、それも打ち切りを通るのかを見させる。
+    assert_eq!(
+        scanned, EXPECTED_LOG_LINES,
+        "log の行が {scanned} 本。増減したなら EXPECTED_LOG_LINES を実測へ直すこと"
+    );
     assert!(
         offenders.is_empty(),
         "利用者の入力をそのままログへ書いている:\n{}\n\
@@ -186,6 +194,14 @@ fn a_known_offender_is_still_caught() {
     ));
     // パスを含まないログは対象外
     assert!(!logs_a_raw_path(r#"log::info!("[cmd] closed={closed}");"#));
+    // **窓を跨いだ言及で無罪にしない。** 隣の行に綴りがあるだけの形
+    assert!(logs_a_raw_path(
+        "log::info!(\"path={}\", input.path);\n    let _shown = truncate_path(&input.path);"
+    ));
+    // 折り返して引数の位置に居る形は通す
+    assert!(!logs_a_raw_path(
+        "log::info!(\n        \"path={}\",\n        truncate_path(&input.path)\n    );"
+    ));
 
     // 本体を切り出せること。**入れ子の `}` で早く閉じない** ——
     // 早く閉じると `join_error` の行を含まない断片を見て、対応の検査が空振りする
@@ -206,6 +222,14 @@ fn escapes_the_async_runtime(block: &str) -> bool {
     block.contains("spawn_blocking")
 }
 
+/// 利用者の入力が、**打ち切りを通らずに**ログへ乗っているか。
+///
+/// **窓の中に `truncate_path` の綴りがあるかで見ない。** それだと
+/// `log::info!("… {}", input.path); let _ = truncate_path(&input.path);` のように
+/// 隣の行で名前を出すだけで無罪になる（実測で生き残った）。
+/// 見るのは「`input.path` の出現が、打ち切りの引数の位置にあるか」だけ。
 fn logs_a_raw_path(block: &str) -> bool {
-    block.contains("input.path") && !block.contains("truncate_path")
+    block
+        .match_indices("input.path")
+        .any(|(at, _)| !block[..at].ends_with("truncate_path(&"))
 }
