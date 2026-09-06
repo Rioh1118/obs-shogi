@@ -21,13 +21,13 @@ use scanning::{blank_out_comments, matching};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// 入口に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
+const EXPECTED_LOG_LINES: usize = 5;
+
 /// blocking プールへ逃がすべき呼び出し。
 ///
 /// どれも入口の async 関数から呼ばれ、収録局面ぶんの確保か解放を伴う。
 /// 逃がさないと async ランタイムのワーカを占有し、**他のコマンドの応答が止まる。**
-/// 入口に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
-const EXPECTED_LOG_LINES: usize = 5;
-
 const HEAVY_CALLS: [&str; 3] = ["open_at(", "reader.lookup(", "drop(value)"];
 
 fn entry_path() -> PathBuf {
@@ -100,6 +100,20 @@ fn the_heavy_calls_stay_off_the_async_runtime() {
     );
 }
 
+/// `log::` の行から、そのマクロ呼び出しの閉じ括弧までを取り出す。
+///
+/// 括弧が閉じない（開き括弧が無い、対応が取れない）なら、その行だけを返す。
+fn macro_call_at(code: &str, lines: &[&str], number: usize) -> String {
+    let from: usize = lines[..number].iter().map(|l| l.len() + 1).sum();
+    let Some(open) = code[from..].find('(').map(|at| from + at) else {
+        return lines[number].to_string();
+    };
+    match matching(&code[open..], '(', ')') {
+        Some(close) => code[from..=open + close].to_string(),
+        None => lines[number].to_string(),
+    }
+}
+
 #[test]
 fn the_log_line_truncates_the_path() {
     let code = entry_source();
@@ -113,7 +127,10 @@ fn the_log_line_truncates_the_path() {
             continue;
         }
         scanned += 1;
-        let block = lines[number..(number + 3).min(lines.len())].join("\n");
+        // **固定行数の窓にしない。** rustfmt は引数が増えると `log::info!(` を
+        // 折り返すので、3行の窓だと `input.path` が窓の外へ落ちて素通しする。
+        // マクロ呼び出しの閉じ括弧までを1つの塊として渡す。
+        let block = macro_call_at(&code, &lines, number);
         if !logs_a_raw_path(&block) {
             continue;
         }
@@ -197,6 +214,11 @@ fn a_known_offender_is_still_caught() {
     // **窓を跨いだ言及で無罪にしない。** 隣の行に綴りがあるだけの形
     assert!(logs_a_raw_path(
         "log::info!(\"path={}\", input.path);\n    let _shown = truncate_path(&input.path);"
+    ));
+    // **折り返しで窓の外へ出さない。** rustfmt が引数を1行ずつに割った形
+    assert!(logs_a_raw_path(
+        "log::info!(\n        \"[cmd] open_book handle={} format={} path={}\",\n\
+         \x20       0u64,\n        \"db\",\n        input.path\n    )"
     ));
     // 折り返して引数の位置に居る形は通す
     assert!(!logs_a_raw_path(
