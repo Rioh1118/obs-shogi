@@ -27,9 +27,11 @@ vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePre
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
 
 const resetOrientation = vi.fn();
+
+// 向きを読む側はこの部分木に居ないので、落とす側だけを差し替える。
+// 使わない口を形だけ書くと、実物が変わっても気付けない
 vi.mock("@/features/board-orientation", () => ({
   useResetOrientationOnKifuChange: () => resetOrientation(),
-  useBoardOrientation: () => ({ rotate: false }),
 }));
 
 const { RuntimeProviders } = await import("../RuntimeProviders");
