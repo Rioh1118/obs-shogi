@@ -62,7 +62,7 @@ type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
  * 入口で弾かないと `ensureSession` が消えたセッションを作り直し、
  * `currentRequestId` と `filePathById` が**古い根のものへ戻る**。
  *
- * 線は「これ以下の rid は受け取らない」で引く。rid は Rust 側で単調に増える
+ * 線は「これより前の rid は受け取らない」で引く。rid は Rust 側で単調に増える
  * （`QueryService::next_request_id`）ので、線より後に始まった検索は必ず通る。
  * **通すのが既定**なので、`search_begin` を1発取りこぼしても結果が黙って
  * 0件になることはない。
@@ -82,8 +82,8 @@ type ChunkBufferApi = {
   /** この検索をまだ受け取ってよいか。**チャンク以外の口もここを通す** */
   isAccepting: (requestId: RequestId) => boolean;
   /** 受け取りを開ける／閉じる。effect の setup と cleanup で対にする */
-  open: () => void;
-  dispose: () => void;
+  activate: () => void;
+  deactivate: () => void;
 };
 
 /**
@@ -103,10 +103,9 @@ function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
   const dead = new Set<RequestId>();
 
   let timer: number | null = null;
-  /** 後片付け済み。**`open()` で開け直す**——閉じたまま残ると以後1つも積まれない */
-  let disposed = false;
-  /** `open_start` が引いた線。これ以下の rid は受け取らない */
-  let deadBefore: RequestId = 0;
+  let active = true;
+  /** `open_start` が引いた線。**これより前**の rid は受け取らない */
+  let firstLiveRid: RequestId = 1;
   /** 見た中で最大の rid。線を引く位置に使う */
   let maxSeenRid: RequestId = 0;
 
@@ -135,7 +134,7 @@ function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
   };
 
   const isAccepting = (requestId: RequestId) =>
-    !disposed && requestId > deadBefore && !dead.has(requestId);
+    active && requestId >= firstLiveRid && !dead.has(requestId);
 
   return {
     flush,
@@ -160,25 +159,26 @@ function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
     stopAccepting: (requestId) => {
       if (requestId == null) {
         pending.clear();
-        deadBefore = maxSeenRid;
-        // 線より手前は `deadBefore` が受け持つので、個別に覚えておく必要は無い
+        // いま在るものは全部止める。次の検索の rid は必ずこれ以上になる
+        firstLiveRid = maxSeenRid + 1;
+        // 線より前は `firstLiveRid` が受け持つので、個別に覚えておく必要は無い
         dead.clear();
       } else {
         pending.delete(requestId);
-        if (requestId > deadBefore) dead.add(requestId);
+        if (requestId >= firstLiveRid) dead.add(requestId);
       }
 
       if (pending.size === 0) cancelTimer();
     },
 
-    open: () => {
-      disposed = false;
+    activate: () => {
+      active = true;
     },
 
-    dispose: () => {
+    deactivate: () => {
       cancelTimer();
       pending.clear();
-      disposed = true;
+      active = false;
     },
   };
 }
@@ -257,8 +257,8 @@ export function PositionSearchProvider({
   useEffect(() => {
     // 対にする。**setup で開け直す**のは、畳んで張り直す経路（StrictMode の
     // 二重マウント）で閉じたまま残ると以後のチャンクが1つも積まれないため
-    chunkBuffer.open();
-    return () => chunkBuffer.dispose();
+    chunkBuffer.activate();
+    return () => chunkBuffer.deactivate();
   }, [chunkBuffer]);
 
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
