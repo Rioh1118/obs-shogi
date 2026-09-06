@@ -9,7 +9,6 @@ import type {
   IndexStatePayload,
   IndexWarnPayload,
   SearchBeginPayload,
-  SearchChunkPayload,
   SearchEndPayload,
   SearchErrorPayload,
 } from "../api/events";
@@ -68,7 +67,14 @@ export type Action =
   | { type: "open_ok"; payload: { rootDir: string; out: OpenProjectOutput } }
   | { type: "open_error"; payload: { message: string } }
   | { type: "search_begin"; payload: SearchBeginPayload }
-  | { type: "search_chunk"; payload: SearchChunkPayload }
+  /**
+   * 到着したチャンクを**まとめて**積む。
+   *
+   * 1チャンク1アクションにしない。`filePathById` と `sessions` はアクション1回ごとに
+   * 作り直されるので、n=100,000（334チャンク）なら 10万件の表を 334 回コピーする。
+   * 溜めるのは `model/provider.tsx`。
+   */
+  | { type: "search_chunks"; payload: SearchChunksInput }
   | {
       type: "search_requested";
       payload: {
@@ -99,3 +105,10 @@ export type PositionSearchContextType = {
 };
 
 export type MergeFilesInput = FilePathEntry[];
+
+/** 1回ぶんの取り込み。`chunks` は到着順、`files` はそのぶんを平らに繋いだもの */
+export type SearchChunksInput = {
+  requestId: RequestId;
+  chunks: PositionHit[][];
+  files: MergeFilesInput;
+};

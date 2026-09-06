@@ -25,13 +25,30 @@ import type {
   SearchEndPayload,
   SearchErrorPayload,
 } from "../api/events";
-import type { PositionHit, RequestId } from "../api/ids";
+import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
 
 import { PositionSearchContext } from "./context";
 import { initialState, reducer } from "./reducer";
 import type { PositionSearchContextType, SearchSession } from "./types";
 
 const EMPTY_HITS: PositionHit[] = [];
+
+/**
+ * 届いたチャンクを溜めておく時間（ms）。
+ *
+ * **1チャンク1レンダにしない。** Rust は `yield_now` を挟んで実時間に散らして
+ * emit する（`src-tauri/src/search/query_service.rs`）ので、チャンクは結果の
+ * 件数ぶん飛んでくる——既定の 300 件区切りなら n=100,000 で 334 回。1回ごとに
+ * state を作り直すと、10万件の `filePathById` と一覧の平坦化を 334 回やり直す。
+ *
+ * 溜めると、その回数が**件数でなく経過時間**で決まるようになる。50ms は
+ * 「結果が育っていくのが見える」ことと「回数の上限（20回/秒）」の折り合い。
+ * 検索の完了・失敗はここを待たずに吐き出すので、終わりが遅れることはない。
+ */
+const CHUNK_FLUSH_MS = 50;
+
+/** まだ dispatch していない到着ぶん */
+type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
 
 type HitsCacheEntry = {
   chunksRef: PositionHit[][];
@@ -80,6 +97,82 @@ export function PositionSearchProvider({
    */
   const [isListenSettled, setIsListenSettled] = useState(false);
 
+  // ---- チャンクの合流 ----
+
+  /**
+   * 溜め場とその起こし手を**1つの object にまとめて持つ**。同一性が変わらないので、
+   * 後片付けの effect が `ref.current` を直に読まずに済む（読むと、片付けの時点で
+   * 別の値になっている可能性を lint が咎める——ここでは起きないが、
+   * 起きないことをコードで示せる形にしておく）。
+   */
+  const chunkBufferRef = useRef<{ pending: Map<RequestId, PendingChunks>; timer: number | null }>({
+    pending: new Map(),
+    timer: null,
+  });
+
+  const cancelFlushTimer = useCallback(() => {
+    const buf = chunkBufferRef.current;
+    if (buf.timer == null) return;
+    window.clearTimeout(buf.timer);
+    buf.timer = null;
+  }, []);
+
+  /**
+   * 溜めたぶんを吐き出す。**溜め場を先に空にする**——dispatch の最中に届いた
+   * チャンクは次の回のものなので、後から消すと落ちる。
+   */
+  const flushChunks = useCallback(() => {
+    cancelFlushTimer();
+
+    const { pending } = chunkBufferRef.current;
+    if (pending.size === 0) return;
+
+    const batches = [...pending];
+    pending.clear();
+
+    for (const [requestId, { chunks, files }] of batches) {
+      dispatch({ type: "search_chunks", payload: { requestId, chunks, files } });
+    }
+  }, [cancelFlushTimer]);
+
+  const enqueueChunk = useCallback(
+    (p: SearchChunkPayload) => {
+      const buf = chunkBufferRef.current;
+      const cur = buf.pending.get(p.requestId);
+
+      if (cur) {
+        cur.chunks.push(p.chunk);
+        for (const f of p.files) cur.files.push(f);
+      } else {
+        buf.pending.set(p.requestId, { chunks: [p.chunk], files: [...p.files] });
+      }
+
+      if (buf.timer == null) buf.timer = window.setTimeout(flushChunks, CHUNK_FLUSH_MS);
+    },
+    [flushChunks],
+  );
+
+  /** 溜め場を捨てる。**吐き出さない。** 積んだ先のセッションごと消える場面で使う */
+  const dropPendingChunks = useCallback(
+    (requestId?: RequestId) => {
+      const { pending } = chunkBufferRef.current;
+      if (requestId == null) pending.clear();
+      else pending.delete(requestId);
+
+      if (pending.size === 0) cancelFlushTimer();
+    },
+    [cancelFlushTimer],
+  );
+
+  useEffect(() => {
+    const buf = chunkBufferRef.current;
+    return () => {
+      if (buf.timer != null) window.clearTimeout(buf.timer);
+      buf.timer = null;
+      buf.pending.clear();
+    };
+  }, []);
+
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
   useEffect(() => {
     let cancelled = false;
@@ -94,9 +187,19 @@ export function PositionSearchProvider({
           onIndexWarn: (p: IndexWarnPayload) => dispatch({ type: "index_warn", payload: p }),
 
           onSearchBegin: (p: SearchBeginPayload) => dispatch({ type: "search_begin", payload: p }),
-          onSearchChunk: (p: SearchChunkPayload) => dispatch({ type: "search_chunk", payload: p }),
-          onSearchEnd: (p: SearchEndPayload) => dispatch({ type: "search_end", payload: p }),
-          onSearchError: (p: SearchErrorPayload) => dispatch({ type: "search_error", payload: p }),
+          onSearchChunk: enqueueChunk,
+
+          // **終わりと失敗は、溜めたぶんを吐き出してから。** 先に `isDone` を
+          // 立てると、まだ届いていない結果を抱えたまま一覧が「完了」と名乗る。
+          // 失敗のときも同じで、届いたぶんは残す
+          onSearchEnd: (p: SearchEndPayload) => {
+            flushChunks();
+            dispatch({ type: "search_end", payload: p });
+          },
+          onSearchError: (p: SearchErrorPayload) => {
+            flushChunks();
+            dispatch({ type: "search_error", payload: p });
+          },
         });
         if (cancelled) {
           u();
@@ -117,30 +220,36 @@ export function PositionSearchProvider({
       unlisten?.();
       unlisten = null;
     };
-  }, []);
+  }, [enqueueChunk, flushChunks]);
 
   // --- actions ---
-  const openProject = useCallback(async (rd: string): Promise<OpenProjectOutput> => {
-    if (openInFlightRef.current) return openInFlightRef.current;
+  const openProject = useCallback(
+    async (rd: string): Promise<OpenProjectOutput> => {
+      if (openInFlightRef.current) return openInFlightRef.current;
 
-    dispatch({ type: "open_start", payload: { rootDir: rd } });
+      // `open_start` はセッションを全部落とす。溜めたぶんを残すと、消えたはずの
+      // セッションが次の吐き出しで `ensureSession` に作り直される
+      dropPendingChunks();
+      dispatch({ type: "open_start", payload: { rootDir: rd } });
 
-    openInFlightRef.current = (async () => {
-      try {
-        const out = await openProjectApi(rd);
-        dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
-        return out;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        dispatch({ type: "open_error", payload: { message: msg } });
-        throw e;
-      } finally {
-        openInFlightRef.current = null;
-      }
-    })();
+      openInFlightRef.current = (async () => {
+        try {
+          const out = await openProjectApi(rd);
+          dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
+          return out;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          dispatch({ type: "open_error", payload: { message: msg } });
+          throw e;
+        } finally {
+          openInFlightRef.current = null;
+        }
+      })();
 
-    return openInFlightRef.current;
-  }, []);
+      return openInFlightRef.current;
+    },
+    [dropPendingChunks],
+  );
 
   /**
    * 根そのものが入れ替わったときに索引を開き直す。
@@ -253,10 +362,16 @@ export function PositionSearchProvider({
   );
 
   const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
-  const clearSearch = useCallback((requestId: RequestId) => {
-    hitsCacheRef.current.delete(requestId);
-    dispatch({ type: "clear_search", payload: { requestId } });
-  }, []);
+  const clearSearch = useCallback(
+    (requestId: RequestId) => {
+      // 溜めたぶんも一緒に捨てる。残すと、消したセッションが次の吐き出しで
+      // `ensureSession` に作り直される
+      dropPendingChunks(requestId);
+      hitsCacheRef.current.delete(requestId);
+      dispatch({ type: "clear_search", payload: { requestId } });
+    },
+    [dropPendingChunks],
+  );
 
   const value = useMemo<PositionSearchContextType>(
     () => ({

@@ -152,8 +152,10 @@ export function reducer(state: SearchState, action: Action): SearchState {
       };
     }
 
-    case "search_chunk": {
+    case "search_chunks": {
       const p = action.payload;
+      if (!p.chunks.length) return state;
+
       const sessions = ensureSession(state.sessions, p.requestId);
       const s = sessions[p.requestId]!;
       // chunk は配列のまま追加。フラット化は consumer 側で償却 O(n)
@@ -165,7 +167,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
           ...sessions,
           [p.requestId]: {
             ...s,
-            chunks: [...s.chunks, p.chunk],
+            chunks: [...s.chunks, ...p.chunks],
           },
         },
       };
