@@ -494,7 +494,22 @@ impl EngineBridge {
     async fn stop_all_sessions(&self) -> Result<(), String> {
         log::info!(target: LOGT, "stop_all_sessions: start");
 
-        self.active_sessions.write().await.clear();
+        // **誰の席を空けたかを残す。** この口を撃つのは畳まれた画面で、
+        // そちらは失敗を利用者にも開発者にも出せない（出す先の画面が無い）。
+        // 席が在ったのか空撃ちだったのかを後から言えるのはここだけ。
+        let cleared: Vec<String> = self
+            .active_sessions
+            .write()
+            .await
+            .drain()
+            .map(|(id, _)| id)
+            .collect();
+        log::info!(
+            target: LOGT,
+            "stop_all_sessions: cleared {} session(s) {:?}",
+            cleared.len(),
+            cleared
+        );
 
         self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
