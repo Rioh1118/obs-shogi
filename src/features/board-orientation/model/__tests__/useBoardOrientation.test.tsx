@@ -146,6 +146,46 @@ describe("盤の向き", () => {
     expect(seenKeys).toHaveLength(1);
   });
 
+  /** 表の (B2, E3)。**戻す側**——ボタンは同じ1つで、押すたびに切り替わる */
+  test("もう一度押すと先手側から見る", () => {
+    openAndRotate("/ws/a.kif");
+
+    fireEvent.click(screen.getByRole("button", { name: "回す" }));
+
+    expect(search).not.toContain("pov");
+    expect(isGotePov).toBe(false);
+  });
+
+  /**
+   * 表の (B1, E1) / (B1, E7)。**既定のまま別の棋譜が載る場合。**
+   * `pov` の落下は no-op なので、観測できるのは「履歴を触らないこと」だけ。
+   */
+  test("既定のまま別の棋譜が載っても、`pov` は付かず履歴も触らない", () => {
+    const view = render(app());
+    game.state.loadedAbsPath = "/ws/a.kif";
+    redraw(view);
+    expect(seenKeys).toHaveLength(1);
+
+    game.state.loadedAbsPath = "/ws/b.kif";
+    redraw(view);
+
+    expect(search).not.toContain("pov");
+    expect(seenKeys).toHaveLength(1);
+  });
+
+  /** 表の (B1, E2)。既定のまま閉じる */
+  test("既定のまま棋譜を閉じても、履歴を触らない", () => {
+    const view = render(app());
+    game.state.loadedAbsPath = "/ws/a.kif";
+    redraw(view);
+
+    game.state.loadedAbsPath = null;
+    redraw(view);
+
+    expect(search).not.toContain("pov");
+    expect(seenKeys).toHaveLength(1);
+  });
+
   /** 表の E2 */
   test("棋譜を閉じたら向きを既定へ戻す", () => {
     const view = openAndRotate("/ws/a.kif");
