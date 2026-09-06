@@ -201,6 +201,9 @@ export default function PositionSearchModal() {
 
     const myLaunch = launchSeqRef.current;
 
+    // 300 は `CHUNK_FLUSH_MS`（50ms）の1回ぶんに1〜数本入る粒度。大きくすると
+    // 1本あたりの IPC が重くなり、小さくすると溜め場に積む回数が増える。
+    // `api/tauri.ts` の `searchPositionBestEffort` が持つ既定（5000）とは別
     searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
       .then((out) => {
         // **自分の番でなければ、ここで取り下げる。** 待っているあいだに閉じた・
