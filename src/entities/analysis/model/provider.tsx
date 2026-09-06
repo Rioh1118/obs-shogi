@@ -152,12 +152,30 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     });
   };
 
+  // 畳まれた画面が握っている席を返す。
+  //
+  // React の state が消えても、Rust の `active_sessions` からは席が消えない。
+  // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
+  // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
+  //
+  // **セッションを指さない。** 指した ID が席の主でなければ Rust は照合して断り
+  // （`bridge.rs` の `stop_session`）、席は残ったままになる。握っている ID が
+  // 主とずれる経路は在る——停止が落ちて握り続けた回と、完了通知の ID が
+  // 一致しなかった回。画面が居ない以上どの解析も要らないので、指さずに全部返す。
+  const releaseSeatOnUnmount = () => {
+    if (seatRef.current === null) return;
+    releaseSeatQuietly();
+  };
+
   const unmountedRef = useRef(false);
 
-  // 畳まれたら再開のタイマーを必ず止める。局面を見る effect の cleanup だけでは
-  // 足りない——早期 return を踏んだ回は cleanup を登録しないので、その回に
-  // 張られた分を止める者が残らない。残ると、居ない画面のためにエンジンへ go を出し、
-  // window の消えたテスト環境ではタイマー自身が投げる。
+  // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
+  //
+  // - 再開のタイマー。局面を見る effect の cleanup だけでは足りない——早期 return を
+  //   踏んだ回は cleanup を登録しないので、その回に張られた分を止める者が残らない。
+  //   残ると、居ない画面のためにエンジンへ go を出し、window の消えたテスト環境では
+  //   タイマー自身が投げる
+  // - Rust の席。→ `releaseSeatOnUnmount`
   useEffect(() => {
     // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
     // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
@@ -167,18 +185,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return () => {
       unmountedRef.current = true;
       clearDebounceTimer();
-
-      // React の state が消えても、Rust の `active_sessions` からは席が消えない。
-      // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
-      // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
-      if (seatRef.current === null) return;
-
-      // **セッションを指さない。** 指すと Rust は照合して「自分のではない」を
-      // 断る（`bridge.rs` の `stop_session`）。畳まれた瞬間に握っている ID が
-      // 席の主とは限らない——再開の途中では、握っているのは停止を投げ終えた
-      // 古い方で、新しい席はまだ返ってきていない。
-      // 画面が居ないのだから、走っている解析は全部要らない。
-      releaseSeatQuietly();
+      releaseSeatOnUnmount();
     };
   }, []);
 
