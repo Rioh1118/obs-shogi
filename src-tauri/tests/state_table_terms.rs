@@ -62,7 +62,10 @@ const TABLES: &[(&str, &[&str])] = &[
 /// 対応表を手で書く以上、足し忘れは必ず起きる。`root_guard.rs` と同じで、
 /// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
 const NOT_RUST: &[(&str, &str)] = &[
-    ("analysis.md", "解析パネル。TS 側の reducer"),
+    (
+        "analysis.md",
+        "解析の席。Rust を跨ぐが、名指す定数は TS 側だけ",
+    ),
     ("app.md", "アプリ全体の起動と終了。TS 側"),
     ("branch-index.md", "分岐の索引。TS 側"),
     ("board-orientation.md", "盤の向き。TS 側"),

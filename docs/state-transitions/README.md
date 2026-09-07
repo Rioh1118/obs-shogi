@@ -50,7 +50,7 @@ L2    board-orientation.md     盤の向き。盤に載っている棋譜とツ�
 | -------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- |
 | [app.md](app.md)                                   | ✅        | L0                                                                                                                      |
 | [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                                                                                  |
-| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                                                                                               |
+| [analysis.md](analysis.md)                         | ✅        | Rust の席を列に持つ。**✓ を使わない**（網羅は表末尾の「埋まっていないセル」）                                           |
 | [file-tree.md](file-tree.md)                       | ✅        |                                                                                                                         |
 | [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                                                                                 |
 | [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）                                                                          |
