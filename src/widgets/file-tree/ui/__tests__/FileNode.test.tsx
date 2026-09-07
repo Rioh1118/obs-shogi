@@ -78,11 +78,30 @@ describe("棋譜のノードを押したとき", () => {
 
   /**
    * E16 のあとの状態。ツリーは開いたと言っているが、盤には載っていない。
-   * 関門を `activeKifuPath` に戻すと、ここで押しても何も起きなくなる。
+   * 関門を `activeKifuPath` だけに戻すと、ここで押しても何も起きなくなる。
    */
   test("ツリーが開いたと言っていても、盤に載っていなければ開きに行く", () => {
     tree.activeKifuPath = "/ws/a.kif";
     game.state.loadedAbsPath = "/ws/前の.kif";
+
+    clickNode();
+
+    expect(openKifuNode).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **E16 のあとに前の棋譜へ戻る経路。** 盤には載っているが、ツリーは別のファイルを
+   * 掴んだままになっている。
+   *
+   * 関門を `loadedAbsPath` だけにすると、ここで押しても何も起きない。盤は既にこの棋譜を
+   * 出しているので利用者は戻れたと読むが、`activeKifuPath` は壊れた棋譜を指したままなので
+   * `persistIfPossible` の門番（`entities/game` の `provider.tsx`）が以降の書き込みを全部
+   * 止める——**指した手が一瞬出てから黙って戻る**状態になり、抜けるには第3のファイルを
+   * 押すしかなくなる。
+   */
+  test("盤に載っていても、ツリーが別のファイルを掴んでいれば開き直しに行く", () => {
+    game.state.loadedAbsPath = "/ws/a.kif";
+    tree.activeKifuPath = "/ws/こわれた.kif";
 
     clickNode();
 

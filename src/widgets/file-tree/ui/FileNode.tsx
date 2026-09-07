@@ -14,6 +14,7 @@ import { useGame } from "@/entities/game";
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
     openKifuNode,
+    activeKifuPath,
     selectedNode,
     selectNode,
     openContextMenu,
@@ -25,13 +26,18 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const { state: gameState } = useGame();
   const isSelected = selectedNode?.id === node.id;
   /**
-   * **もう載っているか**は盤に訊く。ツリーが開いたと言っているパス
-   * （`activeKifuPath`）は、構文として読めた時点で進む。そこから盤に載るまでに
-   * もう一段あるので（`loadGame` の `buildPlayer`）、そちらを合図にすると
-   * 載せられなかった棋譜が「載っている」ことになり、**もう一度クリックしても
-   * 何も起きない**——復帰が別の棋譜を選ぶことだけになる。
+   * 開き直しを省いてよいのは、**ツリーと盤の両方がこの棋譜を指しているとき**だけ。
+   *
+   * 2つはずれる。`activeKifuPath` は構文として読めた時点で進むが、盤に載るまでには
+   * もう一段ある（`loadGame` の `buildPlayer`）。どちらか片方だけで判定すると、
+   * ずれている間の押し直しが両方向で効かなくなる。
+   *
+   * - 盤だけを見ると、載せられなかった棋譜が「載っている」ことになって押し直せない
+   * - ツリーだけを見ると、**その前に開いていた棋譜へ戻れない**。盤は既にそれを出して
+   *   いるので戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指した
+   *   ままなので、`persistIfPossible` の門番が以降の書き込みを全部止める
    */
-  const isActive = gameState.loadedAbsPath === node.path;
+  const isActive = gameState.loadedAbsPath === node.path && activeKifuPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 
