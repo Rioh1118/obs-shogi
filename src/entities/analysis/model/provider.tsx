@@ -629,6 +629,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
   /**
+   * 断りを立てて投げる。**▶ の失敗はどの段もここを通る**——立て方を段ごとに選ばせない。
+   */
+  const failStart = useCallback((message: string, e: unknown): never => {
+    dispatch({ type: "set_error", payload: message });
+    throw e;
+  }, []);
+
+  /**
    * ▶ が `go` を出せる状態か。**出せないなら断りを立てて投げる。**
    *
    * 断るのは、押しても結果が届かない／エンジンに届かないと分かっている回だけ。
@@ -638,23 +646,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **結果を受け取れない回は `go` を出さない。** 出しても候補手は永久に届かず、
     // Rust の席だけが埋まる。断りは押すたびに立て直す（消えても次の ▶ で戻る）。
     if (listenersFailedRef.current) {
-      dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
-      throw new Error("Analysis event listeners are not registered");
+      failStart(LISTENERS_FAILED_MESSAGE, new Error("Analysis event listeners are not registered"));
     }
 
     // ▶ は ready でなくても押せる（`AnalysisPaneHeader` は局面の有無しか見ない）ので、
     // ここは**いちばん踏まれる枝**。理由は engine 側が決める（`desiredRuntime` を
     // 見られるのはあちらだけ）。`isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
-      dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason] });
-      throw new Error("Engine not ready");
+      failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
     // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
     // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
     // 増えたときのために `throw` だけ残す。
     if (!currentSfen) throw new Error("No position available for analysis");
-  }, [isReady, notReadyReason, currentSfen]);
+  }, [isReady, notReadyReason, currentSfen, failStart]);
 
   /**
    * 盤の局面をエンジンへ送り、追いつくのを待つ。**追いつかなければ断りを立てて投げる。**
@@ -667,7 +673,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 局面へ追いついている）。
    */
   const sendAndAwaitSync = useCallback(
-    async (seq: number, failStart: (message: string, e: unknown) => never) => {
+    async (seq: number) => {
       // 送信そのものが落ちた回も断る。`syncPosition` は `set_position` の失敗を呼び手へ
       // 投げる（自動追従の口は飲むので、投げ先はここだけ）。捕まえずに抜けると
       // `error` が null のまま終わり、押し直しても同じところで落ちる。
@@ -706,7 +712,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
       return !supersededSince(seq);
     },
-    [syncPosition, supersededSince],
+    [syncPosition, supersededSince, failStart],
   );
 
   /**
@@ -728,11 +734,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
     // 動くのは畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
-
-    const failStart = (message: string, e: unknown): never => {
-      dispatch({ type: "set_error", payload: message });
-      throw e;
-    };
 
     // **飛んでいる自動再開の開始を待つ。** Rust は席を**取ってから** `go` を待つので
     // （`bridge.rs` の `start_infinite_analysis_impl`）、その往復の間に ▶ を押すと
@@ -756,7 +757,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
     if (supersededSince(seq)) return;
 
-    if (!(await sendAndAwaitSync(seq, failStart))) return;
+    if (!(await sendAndAwaitSync(seq))) return;
 
     // 待ち切った局面で始める。押した瞬間の局面とは違うことがある。
     const started = currentSfenRef.current;
@@ -781,6 +782,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     state.isAnalyzing,
     refuseIfCannotStart,
     sendAndAwaitSync,
+    failStart,
     seat,
     supersededSince,
     takeSeatAndGo,

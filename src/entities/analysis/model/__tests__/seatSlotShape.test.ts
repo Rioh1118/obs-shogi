@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { REPO_ROOT } from "./walk";
-import { codeOf } from "./sourceText";
+import { REPO_ROOT } from "@/__tests__/walk";
+import { codeOf } from "@/__tests__/sourceText";
 
 /**
  * 解析の席を返す「枠」を書き換えてよいのは、`useEngineSeat` の `holdSlot` の中だけ。
@@ -21,6 +21,9 @@ import { codeOf } from "./sourceText";
  * 初回のまま凍り、描画ごとに変わる値を読んだ人はそれに気づけない。
  *
  * **見るのは形だけ。** `holdSlot` の中身が正しいかは見ない。
+ *
+ * **置き場はスライスの中。** `src/__tests__/` はリポジトリ横断の検査だけを置く場所で
+ * （`vite.config.ts`）、この検査は1ファイルの内部の形しか見ない。
  */
 const SEAT = "src/entities/analysis/model/useEngineSeat.ts";
 

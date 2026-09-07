@@ -22,10 +22,16 @@ export type DiscardPoint = Extract<SeatReleasePoint, "late-start" | "late-restar
  * **どの部分集合にも入れていない値を tsc に落とさせる。** `Extract` は綴りを間違えても
  * 黙って狭まるので、`SeatReleasePoint` に値を足して割り当てを忘れた回をここで止める。
  */
+/**
+ * どの口の引数にもならない値。**綴りは `sweepOnUnmount` の中だけに書く**
+ * ——引数にできると `releaseHeldQuietly("unmount")` が通ってしまう。
+ */
+type InlineOnlyReleasePoint = "unmount";
+
 type _EveryPointIsAssigned =
   Exclude<
     SeatReleasePoint,
-    BlockingReleasePoint | QuietReleasePoint | DiscardPoint | "unmount"
+    BlockingReleasePoint | QuietReleasePoint | DiscardPoint | InlineOnlyReleasePoint
   > extends never
     ? true
     : never;
