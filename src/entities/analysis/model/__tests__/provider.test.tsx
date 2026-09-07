@@ -765,6 +765,78 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.candidates).toHaveLength(1);
   });
 
+  it(
+    "再開の開始が飛んでいる間に ■ → ▶ と押しても、Rust に断られない",
+    async () => {
+      // Rust と同じ相互排除を模す。**席は開始が返る前に取られる**
+      // （`bridge.rs` の `start_infinite_analysis_impl`）。
+      let taken = false;
+      let releaseRestart: (sessionId: string) => void = () => {};
+      let nth = 0;
+      startCore.mockImplementation(() => {
+        nth += 1;
+        if (taken) return Promise.reject(new Error("Analysis already running"));
+        taken = true;
+        // 1本目（手動）と3本目（▶）は即返る。2本目（自動再開）だけが往復の途中で止まる。
+        if (nth === 2) {
+          return new Promise<string>((resolve) => {
+            releaseRestart = resolve;
+          });
+        }
+        return Promise.resolve(`s${nth}`);
+      });
+      stopCore.mockImplementation(async () => {
+        taken = false;
+      });
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤が動いて自動再開が走り出す。開始の往復は返ってこない（席は Rust が握っている）。
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+
+      // ■ を押す。席の欄は空なので、ここでは何も撃たない。
+      await act(async () => {
+        await view.current.stopAnalysis().catch(() => {});
+      });
+
+      // その状態で ▶。待たずに頼むと `take_session` に断られ、
+      // **数百ミリ秒待てば通る回に「エンジンを起こし直せ」と案内する**ことになる。
+      const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+      await act(async () => {
+        releaseRestart("s2");
+      });
+      await advance(150);
+      await pressed;
+
+      expect(view.current.state.error).toBeNull();
+      expect(view.current.state.isAnalyzing).toBe(true);
+    },
+    SLOW,
+  );
+
+  it("停止が届かなかったら、表示は停止中にしたうえで投げ返す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    let settled: "resolved" | "rejected" = "resolved";
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {
+        settled = "rejected";
+      });
+    });
+
+    // 呼び手はこの向きを見て `.catch` を書く。飲むと、席が残った回を誰も知らない。
+    expect(settled).toBe("rejected");
+    expect(view.current.state.isAnalyzing).toBe(false);
+  });
+
   it("席を返せなかったら、断りを立てる", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
@@ -1205,7 +1277,8 @@ describe("AnalysisProvider のアンマウント", () => {
     await act(async () => {
       listeners?.onError("engine died");
     });
-    expect(view.current.state.error).toBe("engine died");
+    // 上流の英文は `state.error` には出さない（`console.error` にだけ残す）。
+    expect(view.current.state.error).toContain("エンジンがエラーを返しました");
     expect(view.current.state.isAnalyzing).toBe(false);
 
     stopCore.mockClear();

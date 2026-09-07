@@ -37,10 +37,21 @@ const POSITION_SYNC_TIMEOUT_MESSAGE =
   "エンジンが局面を受け取るのに時間が掛かっています。もう一度 ▶ を押してください。";
 /** 局面の送信そのものが落ちた。**押し直しても同じところで落ちる。** */
 const POSITION_SYNC_FAILED_MESSAGE = `エンジンに局面を送れませんでした。${RESTART_ENGINE_HINT}`;
-/** 握っている席を返せなかった（→ ※7 / F-7）。 */
-const RELEASE_FAILED_MESSAGE = `前の解析を止められませんでした。${RESTART_ENGINE_HINT}`;
+/**
+ * 握っている席を返せなかった（→ ※7 / F-7）。
+ *
+ * **まず押し直し。** 停止の invoke が一時的に落ちただけの回は、もう一度 ▶ を押すと
+ * 同じ席へ撃ち直して戻る（`provider.test.tsx` が固定している）。
+ */
+const RELEASE_FAILED_MESSAGE = `前の解析を止められませんでした。もう一度 ▶ を押してください。それでも始まらないときは、${RESTART_ENGINE_HINT}`;
 /** Rust が開始を断った（席が残っている。→ ※11 / #172）。 */
 const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
+/** エンジンが ready でない（→ F-9）。**▶ は押せてしまう**（`AnalysisPaneHeader`）。 */
+const ENGINE_NOT_READY_MESSAGE = "エンジンが起動していません。設定でエンジンを選んでください。";
+/** 読む局面が無い（棋譜を開いていない）。 */
+const NO_POSITION_MESSAGE = "解析する局面がありません。棋譜を開いてください。";
+/** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
+const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
 /** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
 const RESTART_FAILED_MESSAGE = `解析を再開できませんでした。▶ を押しても始まらないときは、${RESTART_ENGINE_HINT}`;
 
@@ -226,10 +237,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // ——**別の局面の評価値と読み筋が、いまの局面の解析結果として画面に出る**
         // （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
         //
-        // ここで待っているのは、捨てる席のものか、既に手放した席のもの
-        // （`accepts` が落とす）だけなので、無条件に落として構わない。
+        // **落とすのは席を握っていないときだけ。** 握っているなら、待っているのは
+        // その席のもの（`accepts` が他を落とす）で、捨てた席とは関係が無い
+        // ——落とすと、いま走っている探索の最初の `info` が消える。
         // `clear_results` は撃たない——`error` も消すので、直前に立った断りが黙って消える。
-        dropPendingResult();
+        if (!seat.isHeld()) dropPendingResult();
         return false;
       }
       seat.hold(sessionId);
@@ -280,6 +292,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           // Rust に無い（`docs/state-transitions/analysis.md` の E8 / ※6）。
           // 口が入ったときの取り決めとして置いてある。
           onComplete: (sessionId: string, result: AnalysisResult) => {
+            // **自分の席のものだけ採る**（`onUpdate` と同じ門）。通さないと、古い席の
+            // 完了通知1本で走っている解析の表示が停止中に落ち、前の局面の評価値が出る。
+            if (!seat.accepts(sessionId)) return;
+
             // 終わった探索の席は Rust が自分で片付ける（`bridge.rs` の
             // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
             // 一致しないまま手放すと、走っている別の席を知る者が居なくなる。
@@ -293,7 +309,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           },
           // **この通知も届かない**（`engine-error` を emit する行が無い。E9 / ※6）。
           onError: (error: string) => {
-            dispatch({ type: "set_error", payload: error });
+            // 上流の文をそのまま `state.error` に載せない（`runRestart` の catch と同じ）。
+            console.error("[ANALYSIS] engine reported an error", error);
+            dispatch({ type: "set_error", payload: ENGINE_ERROR_MESSAGE });
           },
         });
 
@@ -509,9 +527,18 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 世代の門を通してから `set_error` を立て、呼び手へ投げ直す。
    */
   const startInfiniteAnalysis = useCallback(async () => {
-    if (!isReady) throw new Error("Engine not ready");
+    // **前置きの門も断りを立てる。** ▶ は ready でなくても押せる
+    // （`AnalysisPaneHeader` は局面の有無しか見ない）ので、ここは**いちばん踏まれる枝**。
+    // 立てないと `console.error` で終わり、#277 が出口を作っても無言のまま残る。
+    if (!isReady) {
+      dispatch({ type: "set_error", payload: ENGINE_NOT_READY_MESSAGE });
+      throw new Error("Engine not ready");
+    }
     if (state.isAnalyzing) return;
-    if (!currentSfen) throw new Error("No position available for analysis");
+    if (!currentSfen) {
+      dispatch({ type: "set_error", payload: NO_POSITION_MESSAGE });
+      throw new Error("No position available for analysis");
+    }
 
     // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
     // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと
@@ -531,6 +558,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       dispatch({ type: "set_error", payload: message });
       throw e;
     };
+
+    // **飛んでいる自動再開の開始を待つ。** Rust は席を**取ってから** `go` を待つので
+    // （`bridge.rs` の `start_infinite_analysis_impl`）、その往復の間に ▶ を押すと
+    // `take_session` に断られる——**数百ミリ秒待てば通る回に「エンジンを起こし直せ」と
+    // 案内する**ことになる。席の欄は空なので、返却の枠を待つだけでは足りない
+    // （席を握っているのは飛んでいる開始の側）。
+    const restarting = restartInFlightRef.current;
+    if (restarting) {
+      await restarting.catch(() => {});
+      if (supersededSince(seq)) return;
+    }
 
     // 握っていなければ `releaseHeld` は何もしない。
     try {
