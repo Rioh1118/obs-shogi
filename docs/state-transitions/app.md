@@ -54,7 +54,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 
 ※1 `RequireRootDir` が `error` を見て `<Navigate to="/" replace />`。
 
-**`error` を立てる口は3つだけ**——`updateConfig` / `chooseRootDir` / `setLastPresetId`
+**`error` を立てる口**は起動時ロードと `updateConfig` / `chooseRootDir` / `setLastPresetId`
 （`entities/app-config/model/provider.tsx`）。`setRootDir`（ツリーの根のリネーム）と
 `chooseAiRoot` は**意図して立てない**。立てると、呼び手が出そうとした失敗が画面に出る前に
 ランタイムごと畳まれるので、あの2つは `settled` を降ろし、失敗は呼び手がその場に出す。
