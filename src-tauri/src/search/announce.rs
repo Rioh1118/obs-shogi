@@ -5,10 +5,13 @@
 //! `IndexStatePayload::of`（全部 `false` から始まる）で組んで、あとから出たほうが
 //! 緑で塗り潰す。`src-tauri/tests/state_is_announced_once.rs` が綴りで固定している。
 //!
-//! **`EVT_INDEX_WARN` はここが全部ではない。** ここが組むのは走査とワークスペースに
-//! ついての文言（`place`）で、棋譜1件の読み取り失敗（`file`）は `read/diagnosis.rs` が組む。
-//! 分けてあるのは、失われるものが違うから——前者は「索引が新しくならない」、
-//! 後者は「その1件が検索に出ない」。
+//! **`EVT_INDEX_WARN` はここが全部ではない。** ここが組むのは、走査とワークスペースに
+//! ついての文言（`place`）と、**索引を組む仕事そのものが落ちたとき**の文言
+//! （`build_failure`）。棋譜の**読み取り**が失敗した理由は `read/diagnosis.rs` が組む。
+//!
+//! 割れ目は `place` / `file` ではなく**理由を誰が持っているか**。読み取りの失敗は
+//! 読み手が理由を知っているが、`spawn_blocking` の join が落ちた回は読み手が
+//! 何も知らない——だから後者だけここに居る。
 //!
 //! **文言は `AppHandle` を要らない形に切ってある**ので、テストから直に呼べる。
 //! ただし**呼ばれていることまでは見ていない**——emit の側を落としても緑のまま。
@@ -26,10 +29,13 @@ use crate::search::types::{
 
 /// 進捗を出す間隔。
 ///
-/// **`search/mod.rs` に置かない。** `tests/layering.rs` は `mod.rs` を段に載せない
-/// ので、そこに置いたものはどの段の検査にも掛からない——上下の言えない2つが
-/// 共有の置き場にできてしまう。ここは「画面へ何をどれだけの頻度で出すか」を
-/// 決める段なので、間隔もここが持つ。
+/// **`search/mod.rs` に置かない。** `mod.rs` は段の表の外なので、上下の言えない
+/// 2つ（`build` と `project_manager`）がそこを共有の置き場にできてしまう。
+/// ここは「画面へ何をどれだけの頻度で出すか」を決める段なので、間隔もここが持つ。
+///
+/// **段の検査は当てにできない。** `tests/layering.rs` が歩くのは `src/engine` だけで
+/// （#399）、`search` は `mod.rs` も `announce.rs` も等しく検査の外に居る。
+/// 置き場の根拠は責務であって、機械ではない。
 ///
 /// **経路ごとに変えない。** 同じ進捗バーへ全件構築と差分更新の両方が流すので、
 /// 片方だけ間引くと、同じ件数の変更でも経路によって画面の滑らかさが違う。
@@ -85,7 +91,10 @@ pub fn announce_state(
     };
     // **墓標を数えない。** 消しても数が減らないと「削除が反映されていない」と読める
     let live = snap.file_table.live_len() as u32;
-    let Some(payload) = state.into_payload(live) else {
+    // **組めた数は索引が覚えている。** 回ごとに数え直すと、差分更新は自分が
+    // 触れた分しか知らないので前の回の失敗を引き継げず、1回の再走査で緑に戻る
+    let indexed = snap.file_table.indexed_len() as u32;
+    let Some(payload) = state.into_payload(live, indexed) else {
         return;
     };
     let _ = app.emit(EVT_INDEX_STATE, payload);
@@ -106,10 +115,15 @@ pub fn announce_progress(
     epoch: u64,
     progress: IndexProgress,
 ) {
-    if store.snapshot_if_epoch(epoch).is_none() {
+    let Some(snap) = store.snapshot_if_epoch(epoch) else {
         return;
-    }
-    let _ = app.emit(EVT_INDEX_STATE, progress.into_payload());
+    };
+    // **据わっている索引の数を運ぶ。** 0 のまま出すと、差分を当てているあいだ
+    // 画面が「索引済み 0 / 5,000」になる——バッジは「更新中」と言っているのに
+    // 数字は「1件も入っていない」と言う。起動直後は復元が出した数から 0 へ
+    // 落ちて戻るので、壊れた索引にしか見えない
+    let indexed = snap.file_table.indexed_len() as u32;
+    let _ = app.emit(EVT_INDEX_STATE, progress.into_payload(indexed));
 }
 
 /// 進行中の段。**件数は呼び手が持つ。**
@@ -137,11 +151,15 @@ pub enum IndexProgress {
 }
 
 impl IndexProgress {
-    fn into_payload(self) -> IndexStatePayload {
+    /// `installed` は**いま据わっている索引が組めている数**。
+    ///
+    /// 進行中の腕のうち、既に索引が据わっているもの（`Restored` / `Updating`）が
+    /// 使う。`Restoring` と `Building` は索引を捨てた後なので使わない。
+    fn into_payload(self, installed: u32) -> IndexStatePayload {
         match self {
             Self::Restoring => IndexStatePayload::of(IndexState::Restoring, 0),
             Self::Restored { files } => {
-                IndexStatePayload::of(IndexState::Updating, files).indexed(files)
+                IndexStatePayload::of(IndexState::Updating, files).indexed(installed)
             }
             Self::Building {
                 total,
@@ -155,6 +173,7 @@ impl IndexProgress {
                 dirty,
                 partially_unreadable,
             } => IndexStatePayload::of(IndexState::Updating, total)
+                .indexed(installed)
                 .dirty(dirty)
                 .partially_unreadable(partially_unreadable),
         }
@@ -170,10 +189,6 @@ impl IndexProgress {
 pub enum IndexAnnouncement {
     /// 全件構築が終わった
     Built {
-        /// **索引に入れ終えた数。** 組めなかった棋譜を含めない——
-        /// 索引が知っている件数（`live_len`）で代えると、壊れた棋譜が
-        /// 200本あっても `indexed == total` になり、失敗が数字から消える
-        indexed: u32,
         /// 読めなかった**場所**があった（走査由来）
         partially_unreadable: bool,
     },
@@ -199,18 +214,17 @@ impl IndexAnnouncement {
     /// `None` は「出してはいけない」。**結末を出す口の外で `Superseded` を
     /// 判定させないため**——呼び手が `outcome` を見て分岐する形にすると、
     /// 経路ごとに判定が割れる。
-    fn into_payload(self, live: u32) -> Option<IndexStatePayload> {
+    fn into_payload(self, live: u32, indexed: u32) -> Option<IndexStatePayload> {
         Some(match self {
             Self::Rescanned(RescanOutcome::Superseded) => return None,
             Self::BuildFailed => IndexStatePayload::of(IndexState::Empty, 0).scan_failed(true),
             Self::Built {
-                indexed,
                 partially_unreadable,
             } => IndexStatePayload::of(IndexState::Ready, live)
                 .indexed(indexed)
                 .partially_unreadable(partially_unreadable),
             Self::Rescanned(outcome) => IndexStatePayload::of(IndexState::Ready, live)
-                .indexed(live)
+                .indexed(indexed)
                 .scan_failed(outcome == RescanOutcome::ScanFailed)
                 .partially_unreadable(matches!(
                     outcome,
@@ -253,9 +267,12 @@ pub fn warn_scan_failed(
 /// **場所についての文言はこの段が組む。** 呼び手が裸のリテラルで組むと、
 /// そこだけ言い分け（[`IndexSurvival`]）も語彙の統一も掛からない。
 ///
-/// **代は見ない。** ここへ来るのは「渡された代の索引がもう自分のものではない」
-/// と分かった直後で、**代が合わないことがこの警告の理由そのもの**。
-/// 関門を置くと、言うべき唯一の回に黙る。
+/// **代は見ない。ここへ来る回は既に代が合っている。** 呼び手（`build.rs`）が
+/// `snapshot_if_epoch` を通した後の腕でだけ呼ぶので、名指しする `root` は
+/// いま据わっているワークスペースのもの。二度目の関門は素通りするだけ。
+///
+/// **代が合わない回はここへ来ない。** そちらは据え直しであって、利用者に
+/// 告げることが無いので呼び手が無言で帰る。
 pub fn warn_build_not_started(app: &AppHandle, root: &std::path::Path) {
     let _ = app.emit(
         EVT_INDEX_WARN,
@@ -435,7 +452,16 @@ mod tests {
     /// 段と旗の写像。**`announce_state` の中身は `AppHandle` を要るので、
     /// ここが落ちないかぎり写像は誰も見ていない。**
     fn payload(state: IndexAnnouncement, live: u32) -> Option<IndexStatePayload> {
-        state.into_payload(live)
+        state.into_payload(live, live)
+    }
+
+    /// 生きている数と組めた数が違う形。**索引が覚えている値を渡す。**
+    fn payload_with(
+        state: IndexAnnouncement,
+        live: u32,
+        indexed: u32,
+    ) -> Option<IndexStatePayload> {
+        state.into_payload(live, indexed)
     }
 
     /// 場所が分かるものと分からないもので、文言が分かれること。
@@ -631,16 +657,25 @@ mod tests {
     /// 進行中の段の写像。**`IndexAnnouncement` 側とは別の関数なので、
     /// あちらのテストは1つも当たらない。**
     fn progress(p: IndexProgress) -> IndexStatePayload {
-        p.into_payload()
+        p.into_payload(0)
     }
 
-    /// **進行中の段に旗を立てないこと。**
+    /// 据わっている索引の数を渡す形。
+    fn progress_with(p: IndexProgress, installed: u32) -> IndexStatePayload {
+        p.into_payload(installed)
+    }
+
+    /// **進行中の段が「走査に失敗した」と名乗らないこと。**
     ///
-    /// `IndexStatePayload::of` は全部伏せた形から始まるが、ここで1本でも
-    /// 立てると、`indexHealth` は進行中を先に見るので画面には出ないまま
-    /// **`Ready` に上がった瞬間に理由の無い警告が出る**。
+    /// 進行中はまだ走査の結末が出ていないので、この旗を立てられる回が無い。
+    /// 立ったまま終端の告知が代の不一致で出なければ、**それが最後の状態として
+    /// 残り**、画面は「更新できていません」で止まる（`indexHealth` は進行中を
+    /// 先に見るので、そこに至るまで誰も気付けない）。
+    ///
+    /// **`partially_unreadable` はここで見ない。** あちらは進行中も運ぶのが正で、
+    /// [`Self::both_running_states_carry_the_unreadable_flag`] が固定している。
     #[test]
-    fn no_progress_state_raises_a_flag() {
+    fn no_progress_state_claims_the_scan_failed() {
         for p in [
             IndexProgress::Restoring,
             IndexProgress::Restored { files: 3 },
@@ -660,6 +695,12 @@ mod tests {
                 !out.scan_failed,
                 "進行中に「更新できていません」を立てている: {p:?} -> {out:?}"
             );
+            // 渡した入力は全部 `partially_unreadable: false`。ここで真になるのは
+            // 写像が勝手に立てたときだけ
+            assert!(
+                !out.partially_unreadable,
+                "入力が伏せているのに旗が立っている: {p:?} -> {out:?}"
+            );
         }
     }
 
@@ -669,6 +710,7 @@ mod tests {
         let out = progress(IndexProgress::Restoring);
         assert_eq!(out.state, IndexState::Restoring);
         assert_eq!((out.total_files, out.indexed_files), (0, 0));
+        assert_eq!(out.dirty_count, 0, "当てる差分をまだ知らない");
     }
 
     /// **復元しただけでは `Ready` にしないこと。**
@@ -677,9 +719,28 @@ mod tests {
     /// `stale` が下りて、当たっていない差分の分だけ結果が欠ける。
     #[test]
     fn a_restored_index_is_still_updating() {
-        let out = progress(IndexProgress::Restored { files: 7 });
+        let out = progress_with(IndexProgress::Restored { files: 7 }, 7);
         assert_eq!(out.state, IndexState::Updating);
         assert_eq!((out.total_files, out.indexed_files), (7, 7));
+    }
+
+    /// **差分を当てているあいだ、据わっている索引の数を伏せないこと。**
+    ///
+    /// 0 のまま出すと「索引済み 0 / 5,000」になり、バッジの「更新中」と
+    /// 同じ画面で食い違う。起動直後は復元が出した数から 0 へ落ちて戻るので、
+    /// 壊れた索引にしか見えない。
+    #[test]
+    fn updating_keeps_showing_what_the_index_already_has() {
+        let out = progress_with(
+            IndexProgress::Updating {
+                total: 5000,
+                dirty: 1,
+                partially_unreadable: false,
+            },
+            4800,
+        );
+        assert_eq!(out.indexed_files, 4800, "据わっている索引の数を伏せている");
+        assert_eq!(out.total_files, 5000);
     }
 
     /// 構築中は、入れ終えた数と対象の数を別に運ぶこと。
@@ -693,6 +754,7 @@ mod tests {
         assert_eq!(out.state, IndexState::Building);
         assert_eq!((out.indexed_files, out.total_files), (40, 100));
         assert!(out.partially_unreadable, "読めない場所の旗が落ちている");
+        assert_eq!(out.dirty_count, 0, "全件構築に「未同期」は無い");
     }
 
     /// **`total` と `dirty` を取り違えないこと。**
@@ -785,6 +847,29 @@ mod tests {
         );
     }
 
+    /// **再走査が「組めなかった」を緑で塗り潰さないこと。**
+    ///
+    /// 差分更新は自分が触れた分しか知らないので、その回の数で埋めると
+    /// **前の回の失敗が1回の再走査で消える**。ワークスペース内でファイルを
+    /// 1つ保存するだけで起きるうえ、開き直すと復元経路が必ず再走査を通るので、
+    /// 次回以降は一度も出なくなる。数えるのは索引（`indexed_len`）。
+    #[test]
+    fn a_rescan_does_not_erase_what_the_build_could_not_index() {
+        let p = payload_with(
+            IndexAnnouncement::Rescanned(RescanOutcome::Committed {
+                partially_unreadable: false,
+            }),
+            1000,
+            800,
+        )
+        .expect("完走した回は画面へ出す");
+        assert_eq!(
+            p.indexed_files, 800,
+            "再走査が組めなかった200本を「入れた」ことにしている"
+        );
+        assert_eq!(p.total_files, 1000);
+    }
+
     #[test]
     fn a_clean_rescan_raises_no_flag() {
         let p = payload(
@@ -802,7 +887,6 @@ mod tests {
     fn a_full_build_carries_the_unreadable_flag() {
         let p = payload(
             IndexAnnouncement::Built {
-                indexed: 3,
                 partially_unreadable: true,
             },
             3,
@@ -826,7 +910,6 @@ mod tests {
     fn a_clean_full_build_raises_no_flag() {
         let p = payload(
             IndexAnnouncement::Built {
-                indexed: 3,
                 partially_unreadable: false,
             },
             3,
@@ -841,17 +924,21 @@ mod tests {
 
     /// **組めなかった棋譜を「索引に入れた」と数えないこと。**
     ///
-    /// 索引が知っている件数（`live_len`）で代えると、壊れた棋譜が200本あっても
+    /// 生きている件数（`live_len`）で代えると、壊れた棋譜が200本あっても
     /// `indexed == total` になり、失敗が数字から完全に消える——警告は出るが、
     /// バッジは緑の「準備完了」のまま。
+    ///
+    /// **数えるのは索引（`indexed_len`）。** 回ごとに数え直す形にすると、
+    /// 差分更新は自分が触れた分しか知らないので、**1回の再走査で緑に戻る**。
     #[test]
     fn files_that_could_not_be_indexed_are_not_counted_as_indexed() {
-        let p = payload(
+        // 表には1000件居るが、組めたのは800件——差の200件は局面を1つも持たない
+        let p = payload_with(
             IndexAnnouncement::Built {
-                indexed: 800,
                 partially_unreadable: false,
             },
             1000,
+            800,
         )
         .expect("構築の完了は画面へ出す");
         assert_eq!(p.indexed_files, 800, "組めなかった200本を数に入れている");

@@ -446,6 +446,9 @@ impl ProjectManager {
                             file_id: pb.file_id,
                             path: path_str.clone(),
                             deleted: false,
+                            // **組めなかった。** 表には載せる（`gen` を上げて
+                            // 前の世代のセグメントを落とすため）が、局面は1つも無い
+                            indexed: false,
                             r#gen: pb.new_gen,
                         },
                         Arc::new(NodeTable::empty()),
@@ -546,6 +549,7 @@ impl ProjectManager {
                 file_id,
                 path: path_str,
                 deleted: false,
+                indexed: true,
                 r#gen: new_gen,
             },
             node_table,

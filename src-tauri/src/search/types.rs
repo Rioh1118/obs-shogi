@@ -55,6 +55,13 @@ pub struct FileEntry {
     pub file_id: FileId,
     pub path: String,
     pub deleted: bool,
+    /// **索引を組めたか。** 偽なら、その棋譜の局面は1つも入っていない。
+    ///
+    /// 表に載ること自体は組めた棋譜と変わらない（`gen` を上げて前の世代の
+    /// セグメントを落とす必要があるため）ので、**この欄が唯一の見分け**。
+    /// 数え直す形にすると経路ごとに違う数を出す——差分更新は自分の回に
+    /// 触れた分しか知らないので、前の回の失敗を引き継げない。
+    pub indexed: bool,
     #[serde(rename = "gen")]
     pub r#gen: Gen,
 }

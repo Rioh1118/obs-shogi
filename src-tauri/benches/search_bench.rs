@@ -115,6 +115,7 @@ fn do_full_build(records: &[app_lib::search::read::fs_scan::FileRecord]) -> Buil
             file_id,
             path: rec.path.to_string_lossy().to_string(),
             deleted: false,
+            indexed: true,
             gen,
         });
         nts.upsert(file_id, built.node_table);

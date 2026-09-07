@@ -208,6 +208,8 @@ pub async fn build_full_index_task(
             file_id,
             path: path_str.clone(),
             deleted: false,
+            // 組めなかった棋譜も表には載る。**見分けはこの欄だけ**
+            indexed: ok,
             gen,
         };
 
@@ -271,10 +273,9 @@ pub async fn build_full_index_task(
         &app,
         &store,
         epoch,
+        // **件数は渡さない。** 組めた数は `FileEntry::indexed` として索引が
+        // 覚えているので、`announce_state` が数える
         IndexAnnouncement::Built {
-            // **索引が知っている件数で代えない。** 組めなかった棋譜も
-            // `deleted: false` で表に入るので、`live_len` は失敗を数に含める
-            indexed: indexed_ok,
             partially_unreadable,
         },
     );

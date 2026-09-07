@@ -78,7 +78,7 @@ const MAGIC: [u8; 8] = *b"OBSIXv01";
 /// 入った棋譜からどの `PositionKey` が出るか、のどちらかが変われば上げる。
 /// 棋譜を読むクレートを上げた、読み口の判定を変えた、初期局面の組み立てを変えた、
 /// 指し手の適用を変えた、はいずれも該当する。
-const CACHE_VERSION: u32 = 3;
+const CACHE_VERSION: u32 = 4;
 
 /// キャッシュから読み戻した、索引を組み直すのに要るもの。
 ///
@@ -262,6 +262,7 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
         write_u32(w, e.file_id);
         write_u32(w, e.r#gen);
         write_u8(w, if e.deleted { 1 } else { 0 });
+        write_u8(w, if e.indexed { 1 } else { 0 });
         write_string(w, &e.path);
     }
 
@@ -400,8 +401,8 @@ fn checked_file_id(file_id: FileId, ft_len: usize) -> Result<FileId, String> {
 /// 可変長（文字列）を含む項目は、長さの欄だけを数えて中身を0バイトとする。
 /// 上限として使うので、**小さく見積もるぶんには安全側**（通す範囲が広くなるだけ）。
 mod min_bytes {
-    /// `file_id` + `gen` + `deleted` + パスの長さ
-    pub(super) const FILE_ENTRY: usize = 4 + 4 + 1 + 4;
+    /// `file_id` + `gen` + `deleted` + `indexed` + パスの長さ
+    pub(super) const FILE_ENTRY: usize = 4 + 4 + 1 + 1 + 4;
     /// パスの長さ + `kind` + `size` + `mtime_ms`
     pub(super) const FILE_RECORD: usize = 4 + 1 + 8 + 8;
     /// パスの長さ + `file_id`
@@ -443,11 +444,13 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<Restored, String> {
         let file_id = checked_file_id(r.read_u32()?, ft_len)?;
         let gen_val = r.read_u32()?;
         let deleted = r.read_u8()? != 0;
+        let indexed = r.read_u8()? != 0;
         let path = r.read_string()?;
         ft.upsert(FileEntry {
             file_id,
             r#gen: gen_val,
             deleted,
+            indexed,
             path,
         });
     }
@@ -699,7 +702,7 @@ mod tests {
     /// （`const _` が `#[cfg(test)]` の中にあるので、`cargo build` だけでは通る）。
     /// 留めているのは言語ではなく、Rust を触ったら `verify:rust` を必ず走らせる
     /// `verify-gate.sh` のほう。
-    const LATEST_RETIRED_CACHE_VERSION: u32 = 2;
+    const LATEST_RETIRED_CACHE_VERSION: u32 = 3;
 
     /// 過ぎた版の索引を、二度と受け入れない。
     ///
@@ -898,6 +901,7 @@ mod tests {
                 write_u32(b, 0); // file_id
                 write_u32(b, 0); // gen
                 write_u8(b, 0); // deleted
+                write_u8(b, 0); // indexed
                 write_u32(b, 0); // 長さ0のパス
             }),
             (
@@ -1057,6 +1061,7 @@ mod tests {
                 file_id: i,
                 path: path_of(i),
                 deleted: false,
+                indexed: true,
                 r#gen: 1,
             });
             path_to_id.insert(path_of(i), i);
@@ -1160,6 +1165,7 @@ mod tests {
                 file_id,
                 path: path.to_owned(),
                 deleted,
+                indexed: true,
                 r#gen: file_id + 40,
             });
         }
@@ -1347,6 +1353,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         // **出現を持つ `file_id` は節表も持つ**（本番の口が対でしか入れない）。
@@ -1471,6 +1478,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         let path_to_id: HashMap<String, FileId> =
@@ -1591,6 +1599,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
 
@@ -1659,6 +1668,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         let mut nt = NodeTable::empty();
@@ -1729,6 +1739,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         let mut nt = NodeTable::empty();
@@ -1801,6 +1812,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
 
@@ -1913,6 +1925,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             // **1 にしない。** `file_id` / `gen` / `node_id` が揃うと
             // 出現レコードと同じ並びが blob に3箇所でき、下の byte poke が
             // 狙いと別の欄を壊す
@@ -2024,6 +2037,7 @@ mod tests {
                 file_id: id,
                 path: path.to_owned(),
                 deleted: false,
+                indexed: true,
                 r#gen: 1,
             });
         }
@@ -2158,6 +2172,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         };
         let mut ft = FileTable::default();

@@ -32,6 +32,7 @@ pub(super) fn entry_of(file_id: u32) -> FileEntry {
         file_id,
         path: format!("{file_id}.kif"),
         deleted: false,
+        indexed: true,
         r#gen: 1,
     }
 }
