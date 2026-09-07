@@ -39,6 +39,14 @@ const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"]
 /** 実時間を進める。打ち切りの判定が Date.now() を見るので偽タイマーは使えない。 */
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
+/**
+ * 同期待ちの上限（2秒）をまたぐテストの持ち時間。
+ *
+ * **既定の5秒では足りない。** 実時間を4秒以上進める回があり、
+ * 実行機が混んでいると（Rust のビルドと並走した回で実際に）取りこぼす。
+ */
+const SLOW = 20_000;
+
 function mountAnalysis(initial: PositionSyncAdapter, { strict = false } = {}) {
   const seen: AnalysisContextType[] = [];
 
@@ -123,7 +131,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
     // エラーを出すだけでは足りない。Rust 側のセッションを止めないと
     // 以降の start_infinite_analysis が「Analysis already running」で永久に弾かれる。
     expect(stopCore).toHaveBeenCalled();
-  });
+  }, SLOW);
 
   it("席を握っていないときは、打ち切りで停止を撃たない", async () => {
     startCore.mockResolvedValueOnce("session-1");
@@ -148,7 +156,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
     // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
     expect(stopCore).not.toHaveBeenCalled();
-  });
+  }, SLOW);
 
   it("前回の待ちの経過時間を次の待ちに持ち越さない", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
@@ -178,7 +186,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
     expect(view.current.state.error).toBeNull();
     expect(view.current.state.isAnalyzing).toBe(true);
-  });
+  }, SLOW);
 });
 
 describe("AnalysisProvider の停止", () => {
@@ -268,7 +276,7 @@ describe("AnalysisProvider の停止", () => {
     await advance(100);
 
     expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
-  });
+  }, SLOW);
 
   it("再開の最中に止めたら、後から返ってきた席を返して再開しない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
@@ -505,7 +513,7 @@ describe("AnalysisProvider の開始", () => {
 
     expect(startCore).not.toHaveBeenCalled();
     expect(view.current.state.error).toBeNull();
-  });
+  }, SLOW);
 
   it("再開の返却が飛んでいる間に止めても、席への停止は1本にする", async () => {
     const pendingStops: Array<() => void> = [];
@@ -566,7 +574,7 @@ describe("AnalysisProvider の開始", () => {
     await advance(150);
 
     expect(stopCore).toHaveBeenCalledWith("session-1", "start");
-  });
+  }, SLOW);
 
   it("押した後に盤が動いたら、動いた先の局面で始める", async () => {
     const view = mountAnalysis(adapter("P1", null));
@@ -863,7 +871,7 @@ describe("AnalysisProvider のアンマウント", () => {
     // 抜けないと、畳まれた画面のために `syncedSfen` を2秒ぶん見続ける。
     expect(settled).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
-  });
+  }, SLOW);
 
   it("席を受け取った直後、state に載る前に畳まれても、席を返す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
