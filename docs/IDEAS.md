@@ -169,3 +169,21 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 - **第三者コードの帰属表示が配布物に無い。** `src-tauri/Cargo.toml` は
   `license = ""` / `authors = ["you"]` / `description = "A Tauri App"` の雛形のままで、
   `package.json` にも `license` が無い。MIT / BSD 系はバイナリ配布でも著作権表示を求める
+
+## `entities/engine` の公開面が barrel と deep import に割れている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
+
+`entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
+**barrel を通さずに11箇所から読まれている**（`aiLibrary` が6、`tauri` が3、`events` が2。
+うち8箇所は `main` から在る）。`sliceBarrels` はこれを見ない——禁止するのは
+barrel が実際に公開しているモジュールだけなので、**公開しない限り深く読める**。
+
+**判断: 6週間以内に着手しない。** 利用者に見える不具合ではない。
+どちらへ寄せるかは `entities/engine` の公開面をまとめて決める作業で、
+どちらを選んでも `features/settings` と `features/engine-position-sync` に波及する。
+
+- **(a) `api/` を境界として認めて barrel に載せる。** 載せた瞬間に既存の deep import が
+  `sliceBarrels` の違反になるので、11箇所を同時に書き換えることになる
+- **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙（`SeatReleasePoint` など）は
+  跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
