@@ -26,6 +26,24 @@ const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => b
   return true;
 };
 
+// **断りは枝ごとに割る。** 復帰の手が違うものを同じ1文にすると、読み手（→ #277）が
+// 「もう一度押す」のか「エンジンを起こし直す」のかを選べない。
+// どの文も**次に何をすればよいか**で終える（ADR-0004 の決定1）。
+//
+// 起こし直し方は1箇所に置いてある（`docs/state-transitions/engine.md` の ※5）。
+const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて保存すると起こし直せます。";
+/** 上限まで待っても同期が追いつかない。**押し直しで直りうる。** */
+const POSITION_SYNC_TIMEOUT_MESSAGE =
+  "エンジンが局面を受け取るのに時間が掛かっています。もう一度 ▶ を押してください。";
+/** 局面の送信そのものが落ちた。**押し直しても同じところで落ちる。** */
+const POSITION_SYNC_FAILED_MESSAGE = `エンジンに局面を送れませんでした。${RESTART_ENGINE_HINT}`;
+/** 握っている席を返せなかった（→ ※7 / F-7）。 */
+const RELEASE_FAILED_MESSAGE = `前の解析を止められませんでした。${RESTART_ENGINE_HINT}`;
+/** Rust が開始を断った（席が残っている。→ ※11 / #172）。 */
+const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
+/** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
+const RESTART_FAILED_MESSAGE = `解析を再開できませんでした。▶ を押しても始まらないときは、${RESTART_ENGINE_HINT}`;
+
 interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
@@ -152,7 +170,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 見なし、盤面と一致しない候補手を出さないために解析を始めない。
   // 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
   const POSITION_SYNC_TIMEOUT_MS = 2000;
-  const POSITION_SYNC_TIMEOUT_MESSAGE = "エンジンに現在の局面を送れませんでした";
 
   // **`window` を通さない。** ここはタイマーのコールバックからも、畳んだ後の
   // 後始末からも呼ばれる。テスト環境は畳んだ後に `window` を落とすので、
@@ -395,10 +412,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 別の理由で走り出した解析を巻き添えにする。
         if (supersededSince(seq)) return;
 
-        dispatch({
-          type: "set_error",
-          payload: `Failed to restart analysis: ${e instanceof Error ? e.message : String(e)}`,
-        });
+        // **上流の文をそのまま載せない。** ここに入る `e` は Rust の英文
+        // （`take_session` の断りなど）で、`state.error` は画面へ出す欄
+        // （読み手はまだ0 → #277）。中身は `console.error` にだけ残す。
+        console.error("[ANALYSIS] restart failed", e);
+        dispatch({ type: "set_error", payload: RESTART_FAILED_MESSAGE });
         dispatch({ type: "stop_analysis" });
         lastAnalyzedSfenRef.current = null;
       } finally {
@@ -495,8 +513,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 動くのは畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
 
+    // **失敗する `await` は3つとも同じ形で包む**（返す・送る・始める）。
+    // 包まないと、その枝だけ `error` が null のまま `console.error` で終わり、
+    // #277 が出口を作っても永久に出ない。要らなくなった要求の失敗は誰にも見せない。
+    const failStart = (message: string, e: unknown): never => {
+      dispatch({ type: "set_error", payload: message });
+      throw e;
+    };
+
     // 握っていなければ `releaseHeld` は何もしない。
-    await seat.releaseHeld("start");
+    try {
+      await seat.releaseHeld("start");
+    } catch (e) {
+      if (supersededSince(seq)) return;
+      failStart(RELEASE_FAILED_MESSAGE, e);
+    }
     if (supersededSince(seq)) return;
 
     // **送信そのものが落ちた回も断りを立てる。** `syncPosition` は
@@ -509,11 +540,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     try {
       await syncPosition();
     } catch (e) {
-      // 要らなくなった要求の失敗は誰にも見せない（打ち切り・再開側と同じ）。
       if (supersededSince(seq)) return;
-
-      dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
-      throw e;
+      failStart(POSITION_SYNC_FAILED_MESSAGE, e);
     }
 
     // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
@@ -549,7 +577,20 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     discardShownResults();
 
-    const sessionId = await startInfiniteAnalysisCore();
+    // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
+    // 席が返ってから `hold` / `discard` に着くまでの微小タスクが1つ増える
+    // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
+    // 畳まれた後に席を返す側が間に合わなくなる。
+    let sessionId: string | null = null;
+    try {
+      sessionId = await startInfiniteAnalysisCore();
+    } catch (e) {
+      // 要らなくなった要求の失敗は誰にも見せない。
+      if (supersededSince(seq)) return;
+      failStart(START_REFUSED_MESSAGE, e);
+    }
+    if (sessionId === null) return;
+
     if (!holdUnlessSuperseded(seq, "late-start", sessionId)) return;
 
     dispatch({ type: "start_analysis", payload: { position: started } });
