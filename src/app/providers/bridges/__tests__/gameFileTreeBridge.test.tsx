@@ -84,8 +84,9 @@ describe("ツリーが開いた棋譜を盤に載せる橋", () => {
   });
 
   /**
-   * StrictMode では effect が2回走る。鍵が無いと同じ文言が積み上がり、
-   * 1枚閉じても次が出てくる。
+   * 載せられなかった棋譜は押し直せる（`FileNode` の関門は盤とツリーの両方を見る）。
+   * 押すたびに `openKifuNode` が新しい `jkfData` を作ってこの effect を撃ち直すので、
+   * 鍵が無いと押した回数だけ同じ文言が積み上がる。
    */
   test("同じ棋譜で畳む鍵を持つ", async () => {
     await mountWith("/ws/こわれた.kif", UNLOADABLE);

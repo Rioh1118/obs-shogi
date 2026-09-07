@@ -41,8 +41,10 @@ export function GameFileTreeBridge() {
       notify({
         tier: "danger",
         presentation: "modal",
-        // **同じ棋譜で畳む。** StrictMode では effect が2回走り、載せ直しも
-        // 同じパスで繰り返される。鍵が無いと同じ文言が積み上がる
+        // **同じ棋譜で畳む。** 載せられなかった棋譜のノードはツリーの関門を通る
+        // （`FileNode` の `isActive` は盤とツリーの両方が指しているときだけ真）ので、
+        // 押すたびに `openKifuNode` が新しい `jkfData` を作り、この effect が撃ち直される。
+        // 鍵が無いと、押した回数だけ同じ文言が積み上がる。
         dedupeKey: `kifu-unloadable:${activeKifuPath}`,
         title: `「${basename(activeKifuPath)}」を盤に並べられませんでした`,
         // 段が `danger` なのは、同じ棋譜をもう一度開いても同じ結果になるから。
