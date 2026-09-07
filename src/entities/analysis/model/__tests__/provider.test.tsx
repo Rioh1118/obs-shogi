@@ -692,6 +692,56 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.error).toBeNull();
   });
 
+  it("開始の応答より早く届いた info を、応答の後に出す", async () => {
+    tauri = true;
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+
+    // 席が欄に入る前に最初の `info` が届く。Rust は席を作った時点で配り始める。
+    await advance(50);
+    await act(async () => {
+      listeners?.onUpdate("session-1", oneCandidate);
+    });
+
+    // 間引きのタイマー（80ms）が、開始の応答より先に起きる。
+    await advance(150);
+    await act(async () => {
+      releaseStart("session-1");
+    });
+    await pressed;
+    await advance(150);
+
+    // 出し直さないと、次の `info` が来るまで「解析中」のまま空のペインが残る
+    // ——深い局面ほどその間隔は伸びる。
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.candidates).toHaveLength(1);
+  });
+
+  it("局面の送信そのものが落ちたら、断りを立てる", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    syncPosition.mockRejectedValueOnce(new Error("engine is gone"));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+
+    // 立てないと `error` が null のまま `console.error` で終わり、画面は
+    // 停止中のまま何も変わらない。押し直しても同じところで落ちる。
+    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(startCore).not.toHaveBeenCalled();
+  });
+
   it("▶ で始め直したら、前の局面の候補手を出さない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");

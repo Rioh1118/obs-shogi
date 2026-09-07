@@ -361,6 +361,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         dispatch({ type: "start_analysis", payload: { position: want } });
 
+        // **開始の応答より早く届いた `info` を、ここで出し直す。** 席が欄に入る前に
+        // 来た1本は `latestResultRef` に入るが、`flushLatest` は `isAnalyzing` を見るので
+        // （`analyzingRef`）、そのタイマーが `start_analysis` の commit より先に起きると
+        // 黙って捨てられ、タイマーの欄も空に戻っている——張り直す者が居ない。
+        // 探索が深いほど次の `info` までは伸びるので、**「解析中」のまま空のペインが残る**。
+        scheduleFlush();
+
         lastAnalyzedSfenRef.current = want;
       } catch (e) {
         // 要らなくなった要求の失敗は、誰にも見せない。利用者が止めた後に
@@ -472,7 +479,22 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     await seat.releaseHeld("start");
     if (supersededSince(seq)) return;
 
-    await syncPosition();
+    // **送信そのものが落ちた回も断りを立てる。** `syncPosition` は
+    // `set_position` の失敗を呼び手へ投げる（自動追従の口は飲むので、
+    // 投げ先はここだけ）。捕まえずに抜けると `error` が null のまま
+    // `AnalysisPaneHeader` の `console.error` で終わり、**画面は停止中のまま
+    // 1ドットも変わらない**——押し直しても同じところで落ちる。
+    // 打ち切りの回（下）と違って `error` にすら載らないので、#277 が出口を
+    // 作っても永久に出ない。
+    try {
+      await syncPosition();
+    } catch (e) {
+      // 要らなくなった要求の失敗は誰にも見せない（打ち切り・再開側と同じ）。
+      if (supersededSince(seq)) return;
+
+      dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
+      throw e;
+    }
 
     // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
     // 候補手が返ってきて、盤面と一致しないものが表示される。
@@ -512,6 +534,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     dispatch({ type: "start_analysis", payload: { position: started } });
 
+    // 理由は自動再開の側に1つ置いてある（`runRestart` の同じ行）。
+    scheduleFlush();
+
     lastAnalyzedSfenRef.current = started;
     desiredSfenRef.current = started;
   }, [
@@ -523,6 +548,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     supersededSince,
     holdUnlessSuperseded,
     discardShownResults,
+    scheduleFlush,
   ]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
