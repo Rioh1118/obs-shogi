@@ -105,7 +105,7 @@
   1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
   `@media` の条件部を対象外にしている
 
-## 到達しない分岐が、仕様では実在する状態として書かれている
+## 到達しない分岐が `Board` に残っている
 
 `.claude/reviews/2026-09-06-app-shell-wiring-r2.md` の r2-10 の付随（ui reviewer）。
 **SCSS の話ではない**ので上の節とは分けてある。
