@@ -517,7 +517,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const stopAnalysis = useCallback(async () => {
     supersedeRequests();
 
-    // 席を握っていなければ `releaseHeld` は何もしない。**席の判定はフックの中に1つだけ。**
+    // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
+    // 席と `isAnalyzing` のどちらかが立っていれば後始末ごと走らせたい
+    // 「読む局面が無くなった」回の1箇所だけ。
     try {
       await seat.releaseHeld("stop");
     } finally {

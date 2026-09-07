@@ -8,10 +8,12 @@ export const initialState: AnalysisState = {
   error: null,
 };
 
+/**
+ * **`error` を消すのは `start_analysis` と `clear_results` だけ。**
+ * 「消すだけ」の action は置かない——消える条件が action の名前から読めなくなる。
+ */
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
-    // **`error` を消す口はここと `clear_results` の2つだけ。**
-    // 「消すだけ」の action は読み手も dispatch 元も居なくなったので置かない。
     case "start_analysis":
       return {
         ...state,

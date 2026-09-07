@@ -86,9 +86,13 @@ export function useEngineSeat(): EngineSeat {
 
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
-  // 2本目は無駄で、順序も結末も保証できない。待てる側（`releaseHeld`）は待ってから
-  // 席を見直し、待てない側（`releaseHeldQuietly` / `sweepOnUnmount`）は後ろに並んで
-  // **1本目が落ちたときだけ撃ち直す**。
+  // 2本目は無駄で、順序も結末も保証できない。口ごとに振る舞いが違う。
+  //
+  // - **待てる側**（`releaseHeld`）——枠が自分のものになるまで待ってから、席を見直す
+  // - **待てない側**（`releaseHeldQuietly` / `sweepOnUnmount`）——後ろに並び、
+  //   **席がまだ握られていれば**撃ち直す
+  // - **`discard`**——握っている席に触らないので並ばず、枠を差し替える。
+  //   並列にならないのは、開始が飛んでいる間は席の欄が必ず空だから（→ ※13）
   const releasingRef = useRef<Promise<void> | null>(null);
 
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
@@ -129,11 +133,6 @@ export function useEngineSeat(): EngineSeat {
     if (seatRef.current === sessionId) seatRef.current = null;
   };
 
-  // `shootQuietly` を投げっぱなしにする薄い包み。
-  const quietly = (by: SeatReleasePoint, sessionId: string | undefined) => {
-    void shootQuietly(by, sessionId);
-  };
-
   // 撃って、落ちたらログだけ残す。**応答を待てない口はここを通る。**
   //
   // **落ちても利用者には出せない。** 画面が既に無い（`unmount`）、棋譜を閉じた後で
@@ -149,7 +148,8 @@ export function useEngineSeat(): EngineSeat {
   // **どの口から撃ったかを書く。** 落ちた後の結末が違う。
   // `unmount` と、畳まれた後に返ってきた `late-*` は、握り直しても読む者が居ないので
   // エンジンを畳み直すしかない。`no-position` は棋譜を開き直してから ▶。
-  // 画面が生きている回は ▶ が返し直す（それまで ▶ は Rust に断られ続ける）。
+  // 画面が生きている回は ▶ が返し直す（▶ は握っている席を返してから頼む）。
+  // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: string | undefined) =>
     send(by, sessionId).catch((e) => {
@@ -233,17 +233,12 @@ export function useEngineSeat(): EngineSeat {
     // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
     // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
     //
-    // **ここだけ席を指さない。** 指した ID が席の主でなければ Rust は照合して断り
-    // （`bridge.rs` の `stop_session`）、席は残ったままになる。畳まれた後に
-    // その断りを受け取っても返し直す者は居ない——**照合で断られる余地を残さない**、
-    // というのが指さない理由（`docs/state-transitions/analysis.md` ※12）。
+    // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
       if (seatRef.current === null) return;
 
-      // 飛んでいる返却があるなら、その後ろに並ぶ。重ねても Rust は断らない
-      // （席が空なら `Ok`）が、2本目は無駄で、順序も結末も保証できない。
       // **指さない停止は席を全部空ける**ので、開始が席を取ってから `go` が線に出るまでに
-      // 割り込むと「席は空・エンジンは探索中」になる → #463。
+      // 割り込むと「席は空・エンジンは探索中」になる → #463。だから後ろに並ぶ。
       const releasing = releasingRef.current;
       if (releasing) {
         void releasing
@@ -255,7 +250,7 @@ export function useEngineSeat(): EngineSeat {
         return;
       }
 
-      quietly("unmount", undefined);
+      void shootQuietly("unmount", undefined);
     },
 
     discard: (by, sessionId) => {

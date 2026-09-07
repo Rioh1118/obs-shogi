@@ -47,8 +47,8 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 | **A1** | —           | —                | → A2                                     | —                                            | —               | 設定は保存される                 | —                              | —                     | —                                  | —                           |
 | **A2** | —           | —                | ツリー再読込 → [file-tree](file-tree.md) | → A3 → [game](game.md)                       | —               | → [engine](engine.md)            | → A2（棋譜が無くても起動する） | → [engine](engine.md) | —                                  | → [file-tree](file-tree.md) |
 | **A3** | —           | —                | → A2（棋譜を閉じる）※2                   | 別の棋譜へ                                   | → A2            | → [engine](engine.md)            | → **A4**                       | —                     | 開始できない※3                     | → [file-tree](file-tree.md) |
-| **A4** | —           | —                | → A2                                     | 別の棋譜へ → [sync](engine-position-sync.md) | → A3            | 再起動 → [engine](engine.md)     | —                              | → **A3**              | → **A5** → [analysis](analysis.md) | → [file-tree](file-tree.md) |
-| **A5** | —           | —                | → A2※4                                   | 局面が変わる → [analysis](analysis.md)       | → A3※4          | 再起動 → [analysis](analysis.md) | —                              | → A3※4                | → A4                               | → [file-tree](file-tree.md) |
+| **A4** | —           | —                | → A2                                     | 別の棋譜へ → [sync](engine-position-sync.md) | → A2            | 再起動 → [engine](engine.md)     | —                              | → **A3**              | → **A5** → [analysis](analysis.md) | → [file-tree](file-tree.md) |
+| **A5** | —           | —                | → A2※4                                   | 局面が変わる → [analysis](analysis.md)       | → A2※4          | 再起動 → [analysis](analysis.md) | —                              | → A3※4                | → A4                               | → [file-tree](file-tree.md) |
 
 ### 注
 
