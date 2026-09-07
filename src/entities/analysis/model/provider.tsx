@@ -440,12 +440,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     seat.releaseHeldQuietly("no-position");
     dispatch({ type: "stop_analysis" });
-    // **この effect は棋譜を1回閉じるたびに2回走る。** ここの `dispatch` が
-    // `isAnalyzing` を倒し、それが依存に載っているため。2回目に入る時点では
-    // 1本目の返却がまだ飛んでいる（席は握ったまま）ので上の門は通るが、
-    // `releaseHeldQuietly` が後ろに並び、**1本目が席を返せていれば撃たない**。
-    // 撃つのは返せなかった回だけ——そこがこの2本目の値打ちなので、
-    // `isAnalyzing` を依存から外さない。
+    // **解析中に閉じた回は、この effect が2回走る。** ここの `dispatch` が
+    // `isAnalyzing` を倒し、それが依存に載っているため。2本目は
+    // `releaseHeldQuietly` が1本目の後ろに並び、**1本目が席を返せていれば撃たない**
+    // （並んだ側は撃つ直前に席を読み直す）。撃つのは返せなかった回だけ。
+    //
+    // **停止が届かないまま「停止中」になっていた回は1回で終わる**（→ ※7）。
+    // `isAnalyzing` は既に false なので、この `dispatch` では値が動かない。
+    // その回に席を返すのは、上の門を `seat.isHeld()` で開けた1本目。
   }, [currentSfen, state.isAnalyzing, seat, supersedeRequests]);
 
   const startInFlightRef = useRef<Promise<void> | null>(null);
