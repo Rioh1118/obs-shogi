@@ -36,7 +36,10 @@
 .wsTab__miniGrid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  // **枚数を直に書かない。** カードが増えたとき列が追随せず、最後の1枚だけが
+  // 次の段に 1/N 幅で落ちる。「未同期」は走査に失敗すると「確認できていません」の
+  // 9文字が入るので、狭い枠だと折り返す
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 
   @media (max-width: 860px) {
     grid-template-columns: 1fr;

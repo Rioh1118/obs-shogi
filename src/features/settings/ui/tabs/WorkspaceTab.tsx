@@ -55,6 +55,12 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
         icon: <AlertTriangle size={14} />,
         label: "一部を索引に入れられていません",
       };
+    case "notRefreshedAndPartiallyIndexed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "更新できず、入れられなかった棋譜もあります",
+      };
     case "partiallyUnreadableAndIndexed":
       return {
         tone: "warn" as const,
@@ -234,6 +240,19 @@ export default function WorkspaceTab() {
               <AlertTriangle size={16} />
               読み取り警告
             </div>
+
+            {/*
+              **切ったことを言う。** 「警告 200」と出しているのに一覧が5行で
+              終わると、利用者は「5件だけ壊れている」と読む——「一部を索引に
+              入れられていません」と言われた人が次にできるのは、ここで
+              どの棋譜かを見ることだけ
+            */}
+            {warns.length > shownWarns.length && (
+              <div className="wsTab__warnMore">
+                ほか {(warns.length - shownWarns.length).toLocaleString()} 件（新しい順に
+                {shownWarns.length} 件だけ表示しています）
+              </div>
+            )}
 
             <ul className="wsTab__warnList">
               {shownWarns.map((w, i) => (
