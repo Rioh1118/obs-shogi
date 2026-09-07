@@ -131,7 +131,7 @@ pub async fn build_full_index_task(
         Vec::with_capacity(COMMIT_BATCH);
 
     let mut done_files: u32 = 0;
-    let mut indexed_ok: u32 = 0;
+    let mut indexed_files: u32 = 0;
     let mut last_emit = Instant::now();
 
     for (i, rec) in records.into_iter().enumerate() {
@@ -196,7 +196,7 @@ pub async fn build_full_index_task(
     }
 
     while let Some(r) = join.join_next().await {
-        let (file_id, gen, path_str, by_bucket, node_table, warns, ok) = match r {
+        let (file_id, gen, path_str, by_bucket, node_table, warns, indexed) = match r {
             Ok(v) => v,
             Err(_join_err) => {
                 done_files += 1;
@@ -205,8 +205,8 @@ pub async fn build_full_index_task(
         };
 
         done_files += 1;
-        if ok {
-            indexed_ok += 1;
+        if indexed {
+            indexed_files += 1;
         }
 
         for w in warns {
@@ -219,7 +219,7 @@ pub async fn build_full_index_task(
             deleted: false,
             // 組めなかった棋譜も表には載る。**見分けはこの欄だけ**
             // （`FileEntry::indexed` の doc）
-            indexed: ok,
+            indexed,
             gen,
         };
 
@@ -248,7 +248,7 @@ pub async fn build_full_index_task(
                 epoch,
                 IndexProgress::Building {
                     total: total_files,
-                    indexed: indexed_ok,
+                    indexed: indexed_files,
                     partially_unreadable,
                 },
             );

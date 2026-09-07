@@ -51,7 +51,7 @@ const EXEMPT: [&str; 17] = [
     "next_file_id",
     "path_to_id",
     "mtime_ms",
-    "indexed_ok",
+    "looks_intentional",
     // モジュール名
     "query_service",
     "project_manager",

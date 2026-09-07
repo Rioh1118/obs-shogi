@@ -778,6 +778,17 @@ mod tests {
         assert_eq!(out.dirty_count, 12);
     }
 
+    /// **入れた数が対象を超えたら丸めること。**
+    ///
+    /// 数える順が入れ替わると（墓標の前に出すなど）起きる。画面に出すと
+    /// 壊れた索引にしか見えないので、丸めてログへ残す——`debug_assert!` で
+    /// 止めると、spawn したタスクが誰にも気付かれずに死ぬ。
+    #[test]
+    fn a_count_larger_than_the_total_is_clamped() {
+        let p = IndexStatePayload::of(IndexState::Updating, 4500).indexed(5000);
+        assert_eq!(p.indexed_files, 4500, "対象を超えた数をそのまま出している");
+    }
+
     /// **`Building` と `Updating` が同じ旗を運ぶこと。**
     ///
     /// 片方だけ運ばないと、再走査に入った瞬間に旗が伏せられる——
