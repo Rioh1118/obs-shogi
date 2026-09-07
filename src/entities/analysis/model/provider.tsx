@@ -410,32 +410,22 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }, delayMs);
   }, []);
 
-  // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
-  //
-  // やることは3つ。エンジンが望みの局面に追いつくのを待つ（追いつかなければ打ち切る）、
-  // 古い席を返して新しい席を取る、その席が要らなくなっていないかを見る。
-  //
-  // `seq` は要求の世代。**タイマーが起きた時点と、await から戻った時点の両方で見る。**
-  // 見ないと、利用者が止めた後や次の要求が始まった後に go を出す。
-  runRestartRef.current = (seq: number) => {
-    // **張った後に要らなくなった回はここへ来る。** 張る側（`scheduleRestart`）は
-    // 張る時点しか見ていない。
-    if (supersededSince(seq)) return;
-    if (!analyzingRef.current) return;
-    if (!isReady) return;
-
-    const want = desiredSfenRef.current;
-    if (!want) return;
-    if (sentSfenRef.current === want) return;
-
-    if (syncedSfen !== want) {
-      // 同期を待つ。手動開始と同じ上限で打ち切る。上限が無いと、同期が恒久的に
-      // 失敗したときに「解析中」の表示のままタイマーだけが回り続け、
-      // 利用者には何も起きていないのに正常に見える。
+  /**
+   * エンジンが望みの局面に追いつくのを、刻みながら待つ。**追いつかなければ打ち切る。**
+   *
+   * 上限が無いと、同期が恒久的に失敗したときに「解析中」の表示のままタイマーだけが
+   * 回り続け、利用者には何も起きていないのに正常に見える。
+   *
+   * **経過時間は待つ相手（`seq` と局面）ごと持つ。** 時刻だけを持つと、前回の待ちの
+   * 経過を引き継いで、次の待ちを1ミリ秒も待たずに打ち切る。
+   *
+   * **同じ待ちの規則が2箇所にある。** 手動の ▶ は `sendAndAwaitSync` が `waitUntil` で
+   * 待つ。上限や刻みを変えるときは**両方**を直すこと——片方だけ直すと、盤を動かして
+   * 再開した回だけが古い上限で断られる。
+   */
+  const keepWaitingForSync = useCallback(
+    (seq: number, want: string) => {
       const prev = syncWaitRef.current;
-      // **同じ待ちの規則が2箇所にある。** 手動の ▶ は `sendAndAwaitSync` が
-      // `waitUntil` で待つ。上限や刻みを変えるときは**両方**を直すこと——片方だけ直すと、
-      // 盤を動かして再開した回だけが古い上限で断られる。
       const startedAt =
         prev && prev.seq === seq && prev.want === want ? prev.startedAt : Date.now();
       syncWaitRef.current = { seq, want, startedAt };
@@ -455,17 +445,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       clearDebounceTimer();
       scheduleRestart(seq, SYNC_POLL_MS);
-      return;
-    }
+    },
+    [clearDebounceTimer, scheduleRestart, seat],
+  );
 
-    syncWaitRef.current = null;
-
-    if (restartInFlightRef.current) {
-      pendingAfterRef.current = true;
-      return;
-    }
-
-    restartInFlightRef.current = (async () => {
+  /**
+   * 古い席を返して新しい席を取り直す。**同期が追いついた回だけが通る。**
+   *
+   * `seq` は要求の世代。**await から戻った時点でもう一度見る**——返却は本物の往復なので、
+   * その間に利用者が止めたり畳まれたりする。
+   *
+   * **飛んでいる間に来た要求は `finally` が拾う**（`pendingAfterRef`）。返す Promise を
+   * `restartInFlightRef` に載せるのは呼び手。
+   */
+  const swapSeatAndGo = useCallback(
+    async (seq: number, want: string) => {
       try {
         await seat.releaseHeld("restart");
 
@@ -477,6 +471,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
         if (supersededSince(seq)) return;
 
+        // **エンジンが消えていた回は断らない。** 押した人が居ないうえ、戻れば
+        // 同期の追従が張り直す（→ `analysis.md` の ※13）。
         await takeSeatAndGo(seq, want, "late-restart");
       } catch (e) {
         // 要らなくなった要求の失敗は、誰にも見せない。利用者が止めた後に
@@ -501,7 +497,41 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           scheduleRestart(latestSeq, 0);
         }
       }
-    })();
+    },
+    [clearDebounceTimer, scheduleRestart, seat, supersededSince, takeSeatAndGo],
+  );
+
+  // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
+  //
+  // 門を並べて、追いつくのを待つか（`keepWaitingForSync`）、席を取り直すか
+  // （`swapSeatAndGo`）を選ぶだけ。
+  //
+  // `seq` は要求の世代。**タイマーが起きた時点で見る**（await の向こうは各段が見る）。
+  runRestartRef.current = (seq: number) => {
+    // **張った後に要らなくなった回はここへ来る。** 張る側（`scheduleRestart`）は
+    // 張る時点しか見ていない。
+    if (supersededSince(seq)) return;
+    if (!analyzingRef.current) return;
+    if (!isReady) return;
+
+    const want = desiredSfenRef.current;
+    if (!want) return;
+    if (sentSfenRef.current === want) return;
+
+    if (syncedSfen !== want) {
+      keepWaitingForSync(seq, want);
+      return;
+    }
+
+    syncWaitRef.current = null;
+
+    // **飛んでいる再開に2本目を重ねない。** 予約しておけば `finally` が拾う。
+    if (restartInFlightRef.current) {
+      pendingAfterRef.current = true;
+      return;
+    }
+
+    restartInFlightRef.current = swapSeatAndGo(seq, want);
   };
 
   useEffect(() => {
