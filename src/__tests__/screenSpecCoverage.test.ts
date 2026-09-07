@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
-import { REPO_ROOT } from "./walk";
+import { REPO_ROOT, SRC, sourceFiles } from "./walk";
 
 /**
  * **画面が出す語が、その画面の仕様書に載っているか。**
@@ -16,7 +16,24 @@ import { REPO_ROOT } from "./walk";
  * （`docs/state-transitions/` 側のラチェットと同じ線引き）。
  */
 
-/** 画面の分岐が返す文言と、それが載るべき仕様書。 */
+/**
+ * `src/features` 以下の画面ファイル。
+ *
+ * `SCREENS` の漏れを見るためだけに歩く。**空振りを緑と読まない**よう、
+ * 呼び手が件数を確かめる。
+ */
+function uiFiles(): string[] {
+  return sourceFiles(join(SRC, "features"))
+    .filter((f) => f.endsWith(".tsx"))
+    .map((f) => relative(REPO_ROOT, f));
+}
+
+/**
+ * 画面の分岐が返す文言と、それが載るべき仕様書。
+ *
+ * **`IndexHealth` で分岐する画面を全部入れること。** 下の
+ * `every_screen_that_branches_on_health_is_listed` が漏れを見る。
+ */
 const SCREENS: { source: string; spec: string }[] = [
   {
     source: "src/features/settings/ui/tabs/WorkspaceTab.tsx",
@@ -26,15 +43,31 @@ const SCREENS: { source: string; spec: string }[] = [
     source: "src/features/position-search/ui/PositionSearchStatusBar.tsx",
     spec: "docs/spec/screens/position-search.md",
   },
+  {
+    source: "src/features/position-search/ui/PositionSearchHitList.tsx",
+    spec: "docs/spec/screens/position-search.md",
+  },
 ];
 
-/** `case "…": return "文言";` の文言だけを拾う。 */
+/**
+ * 画面に出る文字列リテラルを拾う。
+ *
+ * **拾うのは分岐が返す文言だけ。** JSX の地の文（`ほか N 件` など）は
+ * 見ていない——テンプレートを含むので、拾おうとすると綴りの正規化が要る。
+ * そこは人が読む。
+ *
+ * 三項の腕（`cond ? "A" : "B"`）も拾う。`return` だけを見ると、
+ * **いちばん長い文言を持つ `emptyReason` の `ok` の腕**が漏れる。
+ */
 function labelsOf(source: string): string[] {
   const text = readFileSync(join(REPO_ROOT, source), "utf8");
   const out: string[] = [];
-  // `label: "…"` と `return "…";` の両方。どちらも画面に出る文字列
-  for (const m of text.matchAll(/(?:label:|return)\s*"([^"]{4,})"/g)) {
+  for (const m of text.matchAll(/(?:label:|return)\s*"([^"]{2,})"/g)) {
     out.push(m[1]);
+  }
+  // 三項の両腕。`:` を単独で拾うと `tone: "muted"` のような**画面に出ない値**まで来る
+  for (const m of text.matchAll(/\?\s*"([^"]{2,})"\s*:\s*"([^"]{2,})"/g)) {
+    out.push(m[1], m[2]);
   }
   return out;
 }
@@ -52,6 +85,23 @@ describe("画面の文言と仕様書", () => {
       ).toEqual([]);
     });
   }
+
+  /**
+   * **`IndexHealth` で分岐する画面が `SCREENS` に全部載っていること。**
+   *
+   * 載せ漏らすと、その画面だけ仕様書を触らずに文言を足せる——ラチェットが
+   * 止めようとしている事故が、載っていない面で素通りする。
+   */
+  it("IndexHealth で分岐する画面は全部 SCREENS に載っている", () => {
+    const listed = new Set(SCREENS.map((s) => s.source));
+    const all = uiFiles();
+    expect(all.length, "`src/features` を歩けていない").toBeGreaterThan(10);
+
+    const branching = all.filter((f) =>
+      readFileSync(join(REPO_ROOT, f), "utf8").includes("IndexHealth"),
+    );
+    expect(branching.filter((f) => !listed.has(f))).toEqual([]);
+  });
 
   /** 走査が空振りしたのを緑と読まない。 */
   it("文言を1つも拾えていないなら、それは走査の失敗", () => {
