@@ -38,6 +38,9 @@ pub struct FileBuild {
     /// 棋譜（途中で切れた CSA など）も `Ok` で返るので、`Ok`/`Err` で数えると
     /// **局面を1つも持たない棋譜が「索引済み」に数えられる**。
     ///
+    /// 決め方は2つ。**局面が入ったか**（`Indexable` の腕）と、
+    /// **空になった理由**（`NothingToIndex` の腕）。
+    ///
     /// **本当に空の棋譜と割る。** このアプリが対局者名なしで作った棋譜は
     /// 中身が無いのが正しい姿なので、それまで「入れられなかった」に数えると
     /// **正常なワークスペースが恒久的に黄色くなる**。割り方は警告の有無
@@ -98,11 +101,19 @@ pub fn build_file_index(rec: &FileRecord, file_id: FileId, gen: Gen) -> Result<F
         }))
         .collect();
 
+    // **`Ok` だから真、にしない。** 局面が1つも出なければ検索に出ないので、
+    // 数え方は空の腕と同じ「入ったか」で決める。
+    //
+    // **いまこの式が偽になる入力は見つかっていない**（初期局面が必ず入るため）。
+    // 守りであって、直した不具合ではない——`Ok` を根拠にしたままだと、
+    // 初期局面が入らなくなった日に黙って数が合わなくなる
+    let indexed = !built.entries.is_empty();
+
     Ok(FileBuild {
         by_bucket: bucketize_entries(built.entries),
         node_table: built.node_table,
         warns,
-        indexed: true,
+        indexed,
     })
 }
 
