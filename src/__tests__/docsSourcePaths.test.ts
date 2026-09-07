@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { docsPath, markdownFiles } from "./stateTransitionIndex";
-import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths";
+import { lineNumberRefsIn, missingPaths, scannedDocs, sourcePathsIn } from "./docsSourcePaths";
 
 /**
  * 状態遷移表と画面の仕様がバッククォートで指すソースのパスが実在するかを見る。
@@ -33,18 +33,6 @@ import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths
  * **行番号のほう（`lineNumberRefsIn`）は既に `docs/` 全体へ掛けてある。**
  */
 describe("状態遷移表と画面の仕様が指すソースのパス", () => {
-  /**
-   * 見るのは状態遷移表と**画面の仕様**（`spec/screens/`）。
-   *
-   * `spec/features/` は入れない——あちらは「ここに置く」の**予告**を書くので、
-   * 死んだパスと見分けられない（上の doc の1つ目）。`screens/` は
-   * 「いま画面にあるもの」だけを書く約束（`docs/spec/README.md`）なので掛かる。
-   */
-  const scannedDocs = () =>
-    markdownFiles().filter(
-      (f) => f.startsWith("state-transitions/") || f.startsWith("spec/screens/"),
-    );
-
   // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
   // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
   test("走査する doc を拾えている", () => {

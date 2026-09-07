@@ -20,7 +20,7 @@ import {
 } from "../lib/normalize";
 import { EnginePresetsContext } from "./context";
 import { derivePaths } from "../lib/derivePath";
-import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
+import type { EngineRuntimeConfig } from "@/entities/engine";
 
 export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);

@@ -33,19 +33,39 @@ function listedChecks(): string[] {
   return [...section![1].matchAll(ROW)].map((m) => m[1]).sort();
 }
 
-/** `src/` 側の検査。ファイル名から拡張子を落としたものを名前とする */
+/** `src/` 側の検査。ファイル名から拡張子（と `.ratchet`）を落としたものを名前とする */
 function existingChecks(): Set<string> {
   const names = tsFiles(SRC, { includeTests: true })
     .map((p) => relative(REPO_ROOT, p))
     .filter((p) => p.endsWith(".test.ts") || p.endsWith(".test.tsx"))
-    .map((p) =>
-      p
-        .split("/")
-        .pop()!
-        .replace(/\.test\.tsx?$/, ""),
-    );
+    .map((p) => checkName(p));
 
   return new Set(names);
+}
+
+/** ファイルのパスから、表の1列目と突き合わせる名前を取る */
+function checkName(path: string): string {
+  return path
+    .split("/")
+    .pop()!
+    .replace(/(\.ratchet)?\.test\.tsx?$/, "");
+}
+
+/**
+ * 索引に載せる義務が掛かるファイル。**置き場ではなく綴りで決める。**
+ *
+ * リポジトリ横断の検査は `src/__tests__/` に置くと決めてある（`vite.config.ts`）が、
+ * **1ファイルの内部の形しか見ない走査**はスライス側に置く。置き場で見分けると、
+ * スライスへ移した検査がその瞬間に索引の義務から外れる。
+ * スライスに置くものは `*.ratchet.test.ts` と名乗ること。
+ */
+function ratchetFiles(): string[] {
+  return tsFiles(SRC, { includeTests: true })
+    .map((p) => relative(REPO_ROOT, p))
+    .filter(
+      (p) =>
+        (p.startsWith("src/__tests__/") && p.endsWith(".test.ts")) || p.endsWith(".ratchet.test.ts"),
+    );
 }
 
 /**
@@ -139,17 +159,21 @@ describe("CONTRIBUTING.md の検査の索引", () => {
     expect(phantom, "`src-tauri/tests/` に無い名前が RUST_CHECKS に残っている").toEqual([]);
   });
 
-  test("`src/__tests__` の検査は表に載っている", () => {
+  // 0件を見て緑になる形を止める
+  test("索引の義務が掛かるファイルを拾えている", () => {
+    const found = ratchetFiles();
+
+    expect(found.length).toBeGreaterThan(10);
+    expect(
+      found.filter((p) => p.endsWith(".ratchet.test.ts")).length,
+      "スライス側のラチェットを1本も拾えていない",
+    ).toBeGreaterThan(0);
+  });
+
+  test("ラチェットは表に載っている", () => {
     const listed = new Set(listedChecks());
-    const unlisted = tsFiles(SRC, { includeTests: true })
-      .map((p) => relative(REPO_ROOT, p))
-      .filter((p) => p.startsWith("src/__tests__/") && p.endsWith(".test.ts"))
-      .map((p) =>
-        p
-          .split("/")
-          .pop()!
-          .replace(/\.test\.ts$/, ""),
-      )
+    const unlisted = ratchetFiles()
+      .map((p) => checkName(p))
       .filter((n) => !listed.has(n) && !SCANNER_TESTS.has(n))
       .sort();
 

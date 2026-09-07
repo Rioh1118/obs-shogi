@@ -70,8 +70,10 @@ describe("スライスの公開境界", () => {
       const name = relative(REPO_ROOT, file);
 
       for (const [slice, modules] of slices) {
-        // スライスの中からは実体を直に読む（barrel を読み返すと循環の種になる）
-        if (name.startsWith(slice.replace("@/", "src/"))) continue;
+        // スライスの中からは実体を直に読む（barrel を読み返すと循環の種になる）。
+        // **区切りまで含めて比べる。** 含めないと、名前が接頭辞を共有するスライス
+        // （`engine` と `engine-presets`）が丸ごと免除される。
+        if (name.startsWith(`${slice.replace("@/", "src/")}/`)) continue;
 
         for (const moduleName of modules) {
           if (!source.includes(`"${moduleName}"`)) continue;
