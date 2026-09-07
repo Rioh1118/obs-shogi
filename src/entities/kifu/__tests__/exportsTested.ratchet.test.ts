@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { SRC } from "@/__tests__/walk";
 import * as cursorModule from "@/entities/kifu/model/cursor";
 import * as branchModule from "@/entities/kifu/model/branch";
 import * as jkfModule from "@/entities/kifu/model/jkf";
@@ -37,9 +37,12 @@ import * as applyMoveWithBranchModule from "@/entities/kifu/lib/applyMoveWithBra
  * 置き場がスライスの中なのは、`src/__tests__` が「レイヤに依存しない検査」の場所で
  * アプリのコードを import できないため（`vite.config.ts` の `no-restricted-imports`）。
  * `model/` と `lib/` の両方を見るのでスライス直下に置く。
- * 自分の居場所は `import.meta.url` から取る。
+ *
+ * **起点は `walk.ts` から引く**（`CONTRIBUTING.md`）。自分の居場所から相対で辿ると、
+ * 置き場を動かしたときに黙って別のディレクトリを数える。`readdirSync` を残すのは
+ * **ファイル名だけを数える**ためで、中身は下の `readFileSync` が個別に読む。
  */
-const HERE = dirname(fileURLToPath(import.meta.url));
+const KIFU = join(SRC, "entities/kifu");
 
 type Target = { name: string; module: unknown; test: string };
 
@@ -78,8 +81,8 @@ const LIB: Target[] = [
 const TARGETS = [...MODEL, ...LIB];
 
 const DIRS = [
-  { dir: "../model", targets: MODEL },
-  { dir: "../lib", targets: LIB },
+  { dir: "model", targets: MODEL },
+  { dir: "lib", targets: LIB },
 ];
 
 const exportedFunctions = (mod: Record<string, unknown>) =>
@@ -92,7 +95,7 @@ const exportedFunctions = (mod: Record<string, unknown>) =>
 // 「見ている」と言う範囲が現物とずれるのが、この検査がいちばん避けたい形。
 describe.each(DIRS)("$dir の範囲", ({ dir, targets }) => {
   test("全ファイルを対象にしている", () => {
-    const files = readdirSync(join(HERE, dir))
+    const files = readdirSync(join(KIFU, dir))
       .filter((n) => n.endsWith(".ts"))
       .sort();
 
@@ -113,14 +116,14 @@ describe("検査の範囲", () => {
 });
 
 describe.each(TARGETS)("$name の関数 export", ({ name, module, test: testFile }) => {
-  const testDir = MODEL.some((t) => t.name === name) ? "../model/__tests__" : "../lib/__tests__";
+  const testDir = MODEL.some((t) => t.name === name) ? "model/__tests__" : "lib/__tests__";
   const names = exportedFunctions(module as Record<string, unknown>);
 
   test("すべてに describe がある", () => {
     // 型だけのファイルはテストファイル自体を持たない
     if (names.length === 0) return;
 
-    const body = readFileSync(join(HERE, testDir, testFile), "utf8");
+    const body = readFileSync(join(KIFU, testDir, testFile), "utf8");
     // 閉じ引用符まで見る。前方一致だと `describe("cursorKeyOld")` が `cursorKey` を満たす
     const missing = names.filter((n) => !body.includes(`describe("${n}"`));
 

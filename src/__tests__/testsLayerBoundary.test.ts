@@ -115,4 +115,35 @@ describe("レイヤに依存しない検査の置き場", () => {
       ].join("\n"),
     ).toEqual([]);
   });
+
+  /**
+   * **逆向きも塞ぐ。** `vite.config.ts` のレイヤの override は
+   * `@/{app,pages,widgets,features}` を禁じるだけなので、本番モジュールが
+   * `@/__tests__/walk` を読んでも lint は鳴らない。読めば `node:fs` が本番の束に
+   * 入り、落ちるのはビルドかブラウザの実行時になる。
+   *
+   * **辺そのものは禁じない。** スライスに置くラチェット（`*.ratchet.test.ts`）は
+   * 走査の起点を `walk.ts` から引くと決めてある（`CONTRIBUTING.md`）ので、
+   * テストからは読めなければならない。分けるのは**テストかどうか**だけ。
+   */
+  it("本番のモジュールが検査の道具を読まない", () => {
+    const production = tsFiles(SRC, { includeTests: false });
+    // 走査が空振りしても「違反0」になる。歩けていることを別に固定する
+    expect(production.length, "本番のモジュールを歩けていない").toBeGreaterThan(50);
+
+    const offenders = production.flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(/["'`]@\/__tests__\/[^"'`]*/g)].map(
+        (match) => `${relative(SRC, file)}  ${match[0]}`,
+      ),
+    );
+
+    expect(
+      offenders,
+      [
+        "本番のモジュールが `@/__tests__/` を読んでいる。",
+        "走査の道具は `node:fs` を掴むので、読むのはテストからだけ。",
+        ...offenders,
+      ].join("\n"),
+    ).toEqual([]);
+  });
 });
