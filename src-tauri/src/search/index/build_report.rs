@@ -87,8 +87,10 @@ impl std::fmt::Display for BuildWarn {
 }
 /// 索引を組めなかった理由。
 ///
-/// **`Display` がそのまま利用者の画面に出る**（呼び手が `map_err(|e| e.to_string())`
-/// で `EVT_INDEX_WARN` に流す）。`ParseFailed` のような文字数の刈り込みも通らない。
+/// **`Display` がそのまま利用者の画面に出る**（呼び手の `file_build` が
+/// `EVT_INDEX_WARN` に流す）。長さと制御文字は `search::message::for_screen` が落とすので、
+/// **文言を長くしても画面は壊れない** — ただし刈られた側は読まれないので、
+/// 何が悪いのかは先に言うこと。
 ///
 /// **`BuildPolicy::Loose`（`index_builder.rs`）でも `Initial` は返る。** `build_index_for_jkf` が
 /// 開始局面を組むのは `policy` を見るより前なので、`Loose` が受け止めるのは

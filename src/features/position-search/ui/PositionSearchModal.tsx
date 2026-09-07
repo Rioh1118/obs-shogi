@@ -4,10 +4,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import Modal from "@/shared/ui/Modal";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import type { VisibleTier } from "@/shared/lib/notification/types";
-import {
-  usePositionHitNavigation,
-  type NavigationOutcome,
-} from "@/features/position-search/lib/usePositionHitNavigation";
+import { usePositionHitNavigation, type NavigationOutcome } from "../lib/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -19,16 +16,22 @@ import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDa
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
-import { hitKey, orderPositionHits } from "@/features/position-search/lib/orderPositionHits";
+import { hitKey } from "../lib/hitKey";
+import { useOrderedPositionHits } from "../lib/useOrderedPositionHits";
 import { useGame } from "@/entities/game";
-import { usePositionSearch, type PositionHit } from "@/entities/search";
+import { isIndexBusy, usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
 
 /**
- * ヒットを開けなかった理由。**どちらもこの画面からは直せない**（ADR-0004 決定1 の
- * `danger`＝別の操作が要る）。索引の欠けもツリーとのずれも、次に索引が更新される
- * までは同じ結果が返る——Rust は1回の検索のあいだ同じスナップショットを使い、
- * `mergeFiles` は同じ値なら書き換えない。**「検索し直せば直る」は成り立たない。**
+ * ヒットを開けなかった理由。3つある。**段はこの画面から直せるかで決める**
+ * （ADR-0004 決定1）。
+ *
+ * `danger`（別の操作が要る）は2つ——索引がパスを返さない、ツリーにその棋譜が無い。
+ * どちらも次に索引が更新されるまでは同じ結果が返る（Rust は1回の検索のあいだ同じ
+ * スナップショットを使い、`mergeFiles` は同じ値なら書き換えない）ので、
+ * **「検索し直せば直る」は成り立たない。**
+ *
+ * `warning` は1つ——ツリーをまだ読めていない。読めれば**同じ操作で開ける**。
  *
  * **`describeFsError` / `fsErrorTier` を通さない。** あちらは fs を叩いた結果の
  * `FsError` を訳す口だが、この断りは fs を1回も叩いていない——見ているのは
@@ -70,17 +73,32 @@ export default function PositionSearchModal() {
     getHitsByRequestId,
     isSearchingRequest,
     resolveHitAbsPath,
+    clearSearch,
   } = usePositionSearch();
 
   const { startNavigationToHit } = usePositionHitNavigation();
 
-  const [activeIndex, setActiveIndex] = useState(0);
+  /**
+   * 利用者が選んだヒットの**実体**。添字でも鍵でもない。
+   *
+   * 理由は `docs/state-transitions/position-search-view.md` の
+   * 「選択を追うのは参照、断りを覚えるのは鍵」。**選択について state に置くのは
+   * これ1つだけ**——添字も一緒に持つと、並び替えの突き合わせが済むまでの
+   * 1レンダで利用者が選んでいない行が選択として描かれる。
+   */
+  const [selectedHit, setSelectedHit] = useState<PositionHit | null>(null);
   const [requestId, setRequestId] = useState<number | null>(null);
+  /**
+   * 撃ち直しの合図。**受け付けられなかった検索の後に、同じ問い合わせでもう一度
+   * 立てる**ために要る（`queryKey` が変わっていないので、これが無いと effect が
+   * 再走しない）。
+   */
+  const [relaunchNonce, setRelaunchNonce] = useState(0);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [isLaunching, setIsLaunching] = useState(false);
-  // 移動を断ったヒット。**添字でなく鍵で覚える。** 一覧はチャンクが届くたびに
-  // 並び替わる（`orderPositionHits`）ので、添字で覚えると断りが別のヒットに
-  // 付いたまま残る
+  // 移動を断ったヒット。**鍵で覚える**（`hitKey`）。使い分けは
+  // `docs/state-transitions/position-search-view.md` の「選択を追うのは参照、
+  // 断りを覚えるのは鍵」
   const [refusedHit, setRefusedHit] = useState<{
     key: string;
     reason: RefusalReason;
@@ -93,9 +111,7 @@ export default function PositionSearchModal() {
   const isDone = !!session?.isDone && !isSearching;
   const error = launchError ?? session?.error ?? null;
 
-  const indexState = state.index.state;
-  const indexStale =
-    indexState === "Restoring" || indexState === "Building" || indexState === "Updating";
+  const indexStale = isIndexBusy(state.index.state);
 
   const resultStale = indexStale || !!session?.stale;
 
@@ -121,9 +137,11 @@ export default function PositionSearchModal() {
     return buildPreviewData(player, nodeId);
   }, [isOpen, params.sfen, gameView.player]);
 
-  const orderedHits = useMemo(() => {
-    return orderPositionHits(hits, resolveHitAbsPath, gameState.loadedAbsPath ?? null);
-  }, [hits, resolveHitAbsPath, gameState.loadedAbsPath]);
+  const orderedHits = useOrderedPositionHits(
+    hits,
+    resolveHitAbsPath,
+    gameState.loadedAbsPath ?? null,
+  );
 
   // -------------------------
   // 検索トリガ：queryKey（検索対象SFEN）が変わったら再検索
@@ -137,17 +155,47 @@ export default function PositionSearchModal() {
   // 解決前に乱発される再検索でも確実に直前の rid をキャンセルできるようにする。
   const inFlightRidRef = useRef<number | null>(null);
 
+  /**
+   * 起動の世代。**`search_position` の invoke が解決するまで rid は分からない**ので、
+   * 「もう要らない」を rid でなくこれで表す。解決した側が自分の番かを確かめる。
+   */
+  const launchSeqRef = useRef(0);
+
+  /**
+   * 進行中なら取り下げ、結果も捨てる。
+   *
+   * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
+   * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB。
+   * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` D-1）。捨てる口を呼ぶのは
+   * ここだけなので、呼ばないと**誰も呼ばない**。
+   *
+   * **rid が分かる前に呼ばれる**（開いた直後に Esc）。そのときは世代を進めるだけで、
+   * 実際の取り下げは invoke が解決した側が引き受ける
+   */
+  const discardSearch = useCallback(() => {
+    launchSeqRef.current += 1;
+
+    // **捨てたら、次に描かれたときに撃ち直す。** 世代を進めるのは3箇所——閉じる枝、
+    // 撃ち直しの枝、畳みの後始末。3つ目は「進めるだけ」なので、覚えている
+    // 問い合わせを残すと、張り直された effect が早期 return して**飛行中の起動を
+    // 降ろす者が居なくなる**（画面は結果の来ない「検索中…」で固まる）
+    lastQueryKeyRef.current = null;
+
+    const rid = inFlightRidRef.current;
+    if (rid == null) return;
+
+    inFlightRidRef.current = null;
+    void cancelSearch(rid);
+    clearSearch(rid);
+  }, [cancelSearch, clearSearch]);
+
   useEffect(() => {
     if (!isOpen) {
-      if (inFlightRidRef.current != null) {
-        void cancelSearch(inFlightRidRef.current);
-        inFlightRidRef.current = null;
-      }
-      lastQueryKeyRef.current = null;
+      discardSearch();
       setRequestId(null);
       setLaunchError(null);
       setIsLaunching(false);
-      setActiveIndex(0);
+      setSelectedHit(null);
       setRefusedHit(null);
       return;
     }
@@ -155,80 +203,109 @@ export default function PositionSearchModal() {
     if (!queryKey) return;
     if (lastQueryKeyRef.current === queryKey) return;
 
-    // queryKey が変わった: 前の rid があれば取り下げる
-    if (inFlightRidRef.current != null) {
-      void cancelSearch(inFlightRidRef.current);
-      inFlightRidRef.current = null;
-    }
+    // queryKey が変わった: 前の rid があれば取り下げて捨てる
+    discardSearch();
 
     lastQueryKeyRef.current = queryKey;
     setRequestId(null);
     setLaunchError(null);
     setIsLaunching(true);
-    setActiveIndex(0);
+    setSelectedHit(null);
     setRefusedHit(null);
 
-    searchPosition({ sfen: queryKey, consistency: "BestEffort", chunkSize: 300 })
-      .then((out) => {
-        inFlightRidRef.current = out.requestId;
-        setRequestId(out.requestId);
-      })
-      .catch((e) => {
+    const myLaunch = launchSeqRef.current;
+
+    // 区切りの大きさ。**実測は無い。** 大きくすると1本あたりの IPC が重くなり、
+    // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
+    // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、ここは件数に
+    // 影響しない
+    void (async () => {
+      try {
+        // 区切りの大きさ。**実測は無い。** 大きくすると1本あたりの IPC が重くなり、
+        // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
+        // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、ここは件数に
+        // 影響しない
+        const launch = await searchPosition({
+          sfen: queryKey,
+          consistency: "BestEffort",
+          chunkSize: 300,
+        });
+
+        // **自分の番でなければ、ここで取り下げる。** 待っているあいだに閉じた・
+        // 撃ち直された場合、`discardSearch` は rid を知らないので何もできていない。
+        // 素通りさせると Rust の検索は最後まで走り、閉じた画面が到着のたびに
+        // 一覧を組み直し続ける
+        if (launchSeqRef.current !== myLaunch) {
+          if (launch.status === "started") {
+            void cancelSearch(launch.requestId);
+            clearSearch(launch.requestId);
+          }
+          return;
+        }
+
+        // 索引が開き直されて受け付けられなかった回。**rid を採用せず、撃ち直す。**
+        // 採用するとセッションの無い rid を握って「待機中 / 一致する棋譜が
+        // ありません」になる（0件が完了として出る）。`isLaunching` は降ろさない
+        // ——降ろすと、撃ち直しが立つまでの1レンダで同じ画面が出る
+        if (launch.status === "superseded") {
+          lastQueryKeyRef.current = null;
+          setRelaunchNonce((n) => n + 1);
+          return;
+        }
+
+        inFlightRidRef.current = launch.requestId;
+        setRequestId(launch.requestId);
+        setIsLaunching(false);
+      } catch (e) {
         // eslint-disable-next-line no-console
         console.error("[PositionSearchModal] search failed:", e);
+
+        // **失敗も自分の番のときだけ出す。** 捨てた起動の失敗をここで載せると、
+        // 後から解決した検索の**正しい結果の上に**「検索に失敗しました」が残り、
+        // 同じ画面では撃ち直せない
+        if (launchSeqRef.current !== myLaunch) return;
         setLaunchError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => {
         setIsLaunching(false);
-      });
-  }, [isOpen, queryKey, searchPosition, cancelSearch]);
+      }
+    })();
+  }, [isOpen, queryKey, relaunchNonce, searchPosition, cancelSearch, clearSearch, discardSearch]);
 
   // unmount 時にも進行中検索を取り下げる
   useEffect(() => {
-    return () => {
-      if (inFlightRidRef.current != null) {
-        void cancelSearch(inFlightRidRef.current);
-        inFlightRidRef.current = null;
-      }
-    };
-  }, [cancelSearch]);
+    return () => discardSearch();
+  }, [discardSearch]);
+
+  /**
+   * 選んだ行の添字。**導出する**（上の doc）。見失ったとき——新しい検索、
+   * 届いた実体が入れ替わった——は先頭に落ちる。
+   */
+  const activeIndex = useMemo(() => {
+    if (!selectedHit) return 0;
+    const i = orderedHits.indexOf(selectedHit);
+    return i >= 0 ? i : 0;
+  }, [orderedHits, selectedHit]);
 
   const activeHit = orderedHits[activeIndex];
 
-  // 選んだ行の同一性は**鍵**で持つ。並び替え（`orderPositionHits` は開いている棋譜の
-  // ヒットを先頭へ寄せるので、チャンクが1つ届くだけで先頭が入れ替わる）で添字は動く。
-  //
-  // **鍵を書くのは利用者が選んだときだけ。** 毎レンダ書き直すと、下の追従が
-  // 自分で書いた鍵を引くことになって一度も働かず、触っていないのに選択が滑る
-  const activeKeyRef = useRef<string | null>(null);
+  /**
+   * 直前に選択が動いた向き。**先読みの当てにだけ使う**（`PositionSearchContinuation`）。
+   * 一覧を降りている人は次も下へ行く、という以上の意味は無いので、外れても
+   * 1本ぶんの読みが無駄になるだけ。既定は下向き
+   */
+  const moveDirRef = useRef<1 | -1>(1);
 
   const selectIndex = useCallback(
     (next: number) => {
-      setActiveIndex(next);
-      const hit = orderedHits[next];
-      activeKeyRef.current = hit ? hitKey(hit) : null;
+      if (next !== activeIndex) moveDirRef.current = next > activeIndex ? 1 : -1;
+      setSelectedHit(orderedHits[next] ?? null);
     },
-    [orderedHits],
+    [orderedHits, activeIndex],
   );
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const n = orderedHits.length;
-    if (activeIndex < n) return;
-    selectIndex(Math.max(0, n - 1));
-  }, [isOpen, activeIndex, orderedHits.length, selectIndex]);
-
-  // 並び替えで選んでいた行が動いたら、鍵で追う
-  useEffect(() => {
-    const k = activeKeyRef.current;
-    if (!k) return;
-    const next = orderedHits.findIndex((h) => hitKey(h) === k);
-    if (next >= 0 && next !== activeIndex) setActiveIndex(next);
-  }, [orderedHits, activeIndex]);
-
-  // 行に渡すものは `rowProps` の `useMemo` に載り、そこから `PositionHitItem` の
-  // `memo` に届く。毎レンダ新しい関数を渡すとどちらも外れる。
-  // **`startNavigationToHit` 自身がツリーの選択で変わる**ので、これだけでは
+  // `rowProps`（`PositionSearchHitList`）の値が1つでも変われば、仮想リストは
+  // 見えている行を描き直す。**行数には比例しない**（到達するのは可視ぶん＋overscan
+  // の約31行）ので、ここを安定させても減るのはその31行ぶんだけ。
+  // **`startNavigationToHit` 自身がツリーの選択で変わる**ので、どのみち
   // 完全には安定しない
   const accept = useCallback(
     (hit: PositionHit) => {
@@ -239,9 +316,8 @@ export default function PositionSearchModal() {
       // 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
       // 動かしていない棋譜を探しに行かせる
 
-      // 押した行は利用者が選んだ行。断りがこの行に付く以上、並び替えが来ても
-      // 追えるように鍵を書く
-      activeKeyRef.current = hitKey(hit);
+      // 押した行は利用者が選んだ行。断りがこの行に付く以上、選択も合わせる
+      setSelectedHit(hit);
 
       const absPath = resolveHitAbsPath(hit);
       if (!absPath) {
@@ -288,6 +364,11 @@ export default function PositionSearchModal() {
   if (!isOpen) return null;
 
   const destAbsPath = activeHit ? resolveHitAbsPath(activeHit) : null;
+
+  // 次に選ばれそうな行の棋譜。当たれば矢印1回ぶんの待ちが消える（先読み）。
+  // 外れても捨てるのは1本ぶんの読み
+  const prefetchHit = orderedHits[activeIndex + moveDirRef.current];
+  const prefetchAbsPath = prefetchHit ? resolveHitAbsPath(prefetchHit) : null;
   // 断りが指しているのは選んでいる行なので、選び直したら引っ込める。
   // 残したままだと、いま選んでいる棋譜が開けないという意味に読める
   const refusal =
@@ -347,6 +428,7 @@ export default function PositionSearchModal() {
               <div className="pos-search__aux">
                 <PositionSearchContinuation
                   activeHit={activeHit ?? null}
+                  prefetchAbsPath={prefetchAbsPath}
                   resolveAbsPath={resolveHitAbsPath}
                   ply={5}
                 />

@@ -7,7 +7,8 @@ use std::path::Path;
 use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE};
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
-use crate::search::read::diagnosis::{cannot_open, capped, parse_failed, unreadable_record};
+use crate::search::message::for_screen;
+use crate::search::read::diagnosis::{cannot_open, parse_failed, unreadable_record};
 use crate::search::read::outcome::{Jkf, KifuReadError};
 use kifu_text::declared_encoding;
 
@@ -312,6 +313,12 @@ pub(crate) const LOSSY_DECODERS: [LossyDecoder; 2] = [
 /// 2 が 4 より先なのは、**ISO-2022-JP の本文がすべて 0x80 未満**だから。
 /// クレートの Shift_JIS 復号は誤りを出さず `Kif` を返すので、4 を先に見ると
 /// 切れた ISO-2022-JP のファイルが「この行が読めない」と**化けた行を名指し**する。
+///
+/// # どの腕も、案内を先・引用を後ろに置く
+///
+/// 戻り値は [`parse_failed`] がもう一度刈るので、引用の後ろに置いた案内は
+/// 引用が長い腕で丸ごと落ちる。**腕ごとに「いまは短いから大丈夫」と論証しない。**
+/// 根拠は [`unreadable_record`] の doc（同じ規約が同じ強さで掛かる）。
 pub(crate) fn describe(
     by_crate: ParseError,
     evidence: &Evidence,
@@ -341,7 +348,7 @@ pub(crate) fn describe(
         return format!(
             "{name} としては読めましたが、棋譜として読めない行があります。\
              その行を直すか、拡張子が中身と合っているか確かめてください:\n{}",
-            capped(error)
+            for_screen(error)
         );
     }
 
@@ -361,7 +368,7 @@ pub(crate) fn describe(
                 format!(
                     "文字コードは特定できませんが、棋譜として読めない行があります。\
                      その行を直すか、拡張子が中身と合っているか確かめてください:\n{}",
-                    capped(&error)
+                    for_screen(&error)
                 )
             }
             None => {
@@ -371,10 +378,10 @@ pub(crate) fn describe(
                     .chain(ENCODINGS_THE_CRATE_SKIPS.iter().map(|enc| enc.name()))
                     .collect();
                 format!(
-                    "{}: {} のどれでも文字として読めませんでした。\
-                         棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください",
-                    capped(&other),
-                    tried.join(" / ")
+                    "{} のどれでも文字として読めませんでした。棋譜ではないファイルに\
+                         棋譜の拡張子が付いていないか確かめてください（{}）",
+                    tried.join(" / "),
+                    for_screen(&other)
                 )
             }
         },

@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::search::types::{CursorLite, FileId, PositionHit, RequestId};
 
+use crate::search::message::for_screen;
 use crate::search::position::sfen_position::position_key_from_sfen;
 use crate::search::store::index_store::IndexStore;
 use crate::search::store::snapshot::IndexState as StoreIndexState;
@@ -104,7 +105,13 @@ impl QueryService {
                             EVT_SEARCH_ERROR,
                             SearchErrorPayload {
                                 request_id,
-                                message: format!("search task join error: {e}"),
+                                // いま埋まる `JoinError` は `search_occurrences_by_key` の
+                                // panic か取り消しで、どちらも入力由来の値を持たない。
+                                // それでも通すのは、載せる型が刈った値しか受けないから
+                                message: for_screen(&format_args!(
+                                    "検索の処理が途中で落ちました。もう一度検索してください\
+                                     （内部の理由: {e}）"
+                                )),
                             },
                         );
                         self.cancellations.lock().remove(&request_id);
@@ -183,7 +190,11 @@ impl QueryService {
                     EVT_SEARCH_ERROR,
                     SearchErrorPayload {
                         request_id,
-                        message: e.to_string(),
+                        // **綴りが読めなかった失敗はこの腕を通る。**
+                        // `SfenParseError` は組む側でバリアントごとに有界にしてあるが、
+                        // それは型の doc が守っている約束であって、この口の約束ではない。
+                        // 素通しにすると、バリアントが1つ増えた日に破れる
+                        message: for_screen(&e),
                     },
                 );
             }
