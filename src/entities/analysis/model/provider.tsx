@@ -269,6 +269,38 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     [seat, supersededSince, dropPendingResult],
   );
 
+  /**
+   * `go` を出して席を握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
+   *
+   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
+   * その形の欠けを何度も出している。開始の失敗は**呼び手へ投げる**（断りの文言は
+   * 口ごとに違う）。要らなくなっていて席を捨てた回は `false` を返す。
+   *
+   * **画面に触るのは門の後ろ。** `clear_results` は `error` も消すので（`reducer.ts`）、
+   * 要らなくなった要求がここを通ると、直前に立った断りが黙って消える。
+   */
+  const beginSession = useCallback(
+    async (seq: number, sfen: string, by: DiscardPoint) => {
+      discardShownResults();
+
+      const sessionId = await startInfiniteAnalysisCore();
+      if (!holdUnlessSuperseded(seq, by, sessionId)) return false;
+
+      dispatch({ type: "start_analysis", payload: { sfen } });
+
+      // **開始の応答より早く届いた `info` を、ここで出し直す。** 席が欄に入る前に
+      // 来た1本は `latestResultRef` に入るが、`flushLatest` は `isAnalyzing` を見るので
+      // （`analyzingRef`）、そのタイマーが `start_analysis` の commit より先に起きると
+      // 黙って捨てられ、タイマーの欄も空に戻っている——張り直す者が居ない。
+      // 探索が深いほど次の `info` までは伸びるので、**「解析中」のまま空のペインが残る**。
+      scheduleFlush();
+
+      lastAnalyzedSfenRef.current = sfen;
+      return true;
+    },
+    [discardShownResults, holdUnlessSuperseded, scheduleFlush],
+  );
+
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
   //
   // - 再開のタイマー。局面を見る effect の cleanup だけでは足りない——早期 return を
@@ -428,21 +460,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
         if (supersededSince(seq)) return;
 
-        discardShownResults();
-
-        const newSessionId = await startInfiniteAnalysisCore();
-        if (!holdUnlessSuperseded(seq, "late-restart", newSessionId)) return;
-
-        dispatch({ type: "start_analysis", payload: { sfen: want } });
-
-        // **開始の応答より早く届いた `info` を、ここで出し直す。** 席が欄に入る前に
-        // 来た1本は `latestResultRef` に入るが、`flushLatest` は `isAnalyzing` を見るので
-        // （`analyzingRef`）、そのタイマーが `start_analysis` の commit より先に起きると
-        // 黙って捨てられ、タイマーの欄も空に戻っている——張り直す者が居ない。
-        // 探索が深いほど次の `info` までは伸びるので、**「解析中」のまま空のペインが残る**。
-        scheduleFlush();
-
-        lastAnalyzedSfenRef.current = want;
+        await beginSession(seq, want, "late-restart");
       } catch (e) {
         // 要らなくなった要求の失敗は、誰にも見せない。利用者が止めた後に
         // 「再開に失敗しました」が出るし、`stop_analysis` の dispatch は
@@ -635,42 +653,22 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     const started = currentSfenRef.current;
     if (!started) return;
 
-    discardShownResults();
-
     // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
     // 席が返ってから `hold` / `discard` に着くまでの微小タスクが1つ増える
     // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
     // 畳まれた後に席を返す側が間に合わなくなる。
-    let sessionId: AnalysisSessionId | null = null;
+    let held = false;
     try {
-      sessionId = await startInfiniteAnalysisCore();
+      held = await beginSession(seq, started, "late-start");
     } catch (e) {
       // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
       failStart(START_REFUSED_MESSAGE, e);
     }
-    if (sessionId === null) return;
+    if (!held) return;
 
-    if (!holdUnlessSuperseded(seq, "late-start", sessionId)) return;
-
-    dispatch({ type: "start_analysis", payload: { sfen: started } });
-
-    // 理由は自動再開の側に1つ置いてある（`runRestart` の同じ行）。
-    scheduleFlush();
-
-    lastAnalyzedSfenRef.current = started;
     desiredSfenRef.current = started;
-  }, [
-    isReady,
-    state.isAnalyzing,
-    currentSfen,
-    syncPosition,
-    seat,
-    supersededSince,
-    holdUnlessSuperseded,
-    discardShownResults,
-    scheduleFlush,
-  ]);
+  }, [isReady, state.isAnalyzing, currentSfen, syncPosition, seat, supersededSince, beginSession]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
   // 局面を送って席が返った後（最大2秒）で、その間ボタンは ▶ のまま押せる。
