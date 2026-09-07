@@ -215,7 +215,7 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 /// 実測すると、CSA の形をしていない行が1本混ざるとそこで読むのをやめ、
 /// **後ろの指し手が消えたまま `Ok`** になる。対局者名が無ければ
 /// [`says_nothing`] も真になるが、**この文言は
-/// [`KifuReadError::NothingToIndex`] の `warn` に載せて呼び手へ渡す**
+/// [`ReadOutcome::NothingToIndex`] の `warn` に載せて呼び手へ渡す**
 /// （`read_path_inner` がこの検査を門より前に置いているのはそのため）。
 ///
 /// **これが出たとき、画面で開けるかどうかは行の形で分かれる。**
@@ -242,7 +242,12 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 ///   （＝余計な警告が出る）
 ///
 /// どちらも索引の中身は変わらない。**外れる方向を選べないので、
-/// 外れても害の無い出口（警告）にしてある。**
+/// 外れても害の少ない側（警告を出しすぎる側）に倒してある。**
+///
+/// **出口は警告だけではない。** この戻りは
+/// [`ReadOutcome::NothingToIndex::looks_intentional`] を通って
+/// `FileEntry::indexed` になり、設定タブのバッジまで決める。黙った回は
+/// 「本当に空の棋譜」として数えられる——上の2つはそこでも黙る。
 ///
 /// # バイト列で数える
 ///
@@ -299,8 +304,22 @@ pub(crate) fn warn_if_moves_were_dropped(bytes: &[u8], jkf: &Jkf) -> Option<Stri
 pub(crate) fn is_csa_move_line(line: &[u8]) -> bool {
     // 行末の `\r` は落とす。CRLF のファイルで全行が外れる
     let line = line.strip_suffix(b"\r").unwrap_or(line);
-    line.len() >= 7
-        && matches!(line[0], b'+' | b'-')
-        && line[1..5].iter().all(u8::is_ascii_digit)
-        && line[5..7].iter().all(u8::is_ascii_uppercase)
+    // **途中で切れた指し手も数える。** ファイルが指し手の最中で終わると
+    // `+7776F` のような6バイトの行が残る。長さで外すと `moves_seen` が 0 のまま
+    // 警告が出ず、**指し手のある棋譜が黙って索引から消える**——外しても害の無い
+    // 側（警告を出しすぎる側）に倒す、という `warn_if_moves_were_dropped` の
+    // 決めごとに従う
+    if line.len() < 2 || !matches!(line[0], b'+' | b'-') {
+        return false;
+    }
+    let digits = line[1..].len().min(4);
+    if !line[1..1 + digits].iter().all(u8::is_ascii_digit) {
+        return false;
+    }
+    // 数字が4桁に満たない＝途中で切れている
+    if digits < 4 {
+        return true;
+    }
+    let upper = line[5..].len().min(2);
+    line[5..5 + upper].iter().all(u8::is_ascii_uppercase)
 }

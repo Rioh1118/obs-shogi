@@ -39,25 +39,30 @@ pub struct FileBuild {
     /// **局面を1つも持たない棋譜が「索引済み」に数えられる**。
     ///
     /// 決め方は2つ。**局面が入ったか**（`Indexable` の腕）と、
-    /// **空になった理由**（`NothingToIndex` の腕）。
+    /// **空なのが正しい姿か**（`NothingToIndex` の `looks_intentional`）。
     ///
-    /// **本当に空の棋譜と割る。** このアプリが対局者名なしで作った棋譜は
-    /// 中身が無いのが正しい姿なので、それまで「入れられなかった」に数えると
-    /// **正常なワークスペースが恒久的に黄色くなる**。割り方は警告の有無
-    /// ——`docs/state-transitions/search.md` の「下2行を割る理由」と同じ線。
+    /// **本当に空の棋譜と割る。** このアプリが新規作成した棋譜は指し手が0手で
+    /// 局面も入らないが、失われたものは無い。それを「入れられなかった」に
+    /// 数えると、**棋譜を1つ作るたびにワークスペースが黄色くなる**。
     pub indexed: bool,
 }
 
 impl FileBuild {
     /// 局面を持たない項目。**登録はするが検索には出ない。**
     ///
-    /// **空になった理由で `indexed` を割る。** 警告があれば「読めなかったせいで
-    /// 空」なので入れられなかった側、無ければ「本当に空」なので数えてよい側。
-    fn empty(warns: Vec<String>) -> Self {
+    /// **空になった理由は読み手が決める。** ここで `warns` の有無から導くと、
+    /// 警告を出す口が無い形式（CSA 以外）が必ず「本当に空」になる
+    /// ——0バイトの `.kif` が黙って「索引済み」に数えられていた。
+    ///
+    /// **割れるのは検査が見つけられた範囲だけ。** `warn_if_moves_were_dropped` が
+    /// 黙る形（最初の `%` 行で数を打ち切る／UTF-16 は指し手行の形にならず0件と
+    /// 数える）は、0バイトでなければここで**真に落ちる**。局面が入っていない
+    /// のに緑になる回が、その分だけ残っている。
+    fn empty(warns: Vec<String>, looks_intentional: bool) -> Self {
         Self {
             by_bucket: empty_buckets(),
             node_table: Arc::new(NodeTable::empty()),
-            indexed: warns.is_empty(),
+            indexed: looks_intentional,
             warns,
         }
     }
@@ -81,7 +86,10 @@ pub fn build_file_index(rec: &FileRecord, file_id: FileId, gen: Gen) -> Result<F
 
     let (jkf, warns) = match outcome {
         ReadOutcome::Indexable { jkf, warns } => (jkf, warns),
-        ReadOutcome::NothingToIndex { warns } => return Ok(FileBuild::empty(warns)),
+        ReadOutcome::NothingToIndex {
+            warns,
+            looks_intentional,
+        } => return Ok(FileBuild::empty(warns, looks_intentional)),
     };
 
     let built =
@@ -128,7 +136,10 @@ mod tests {
         std::fs::write(&path, body).expect("下ごしらえ");
         let rec = FileRecord {
             path: path.clone(),
-            kind: KifuKind::Csa,
+            // **形式は名前から取る。** `Csa` を直に書くと、他の形式の腕を
+            // 落とす変異が緑で通る——警告を出す口があるのは CSA だけなので、
+            // 割り方の穴はいつも他の形式に空く
+            kind: KifuKind::from_path(&path).expect("拡張子から種別が決まること"),
             size: body.len() as u64,
             mtime_ms: 0,
         };
@@ -162,17 +173,52 @@ mod tests {
 
     /// **本当に空の棋譜まで「入れられなかった」に数えないこと。**
     ///
-    /// このアプリが対局者名なしで作った棋譜は中身が無いのが正しい姿。
-    /// 数えると**正常なワークスペースが恒久的に黄色くなる**。
+    /// このアプリが新規作成した棋譜は指し手が0手で局面も入らないが、
+    /// 失われたものは無い。数えると**棋譜を1つ作るたびにワークスペースが
+    /// 黄色くなる**。
     #[test]
     fn a_genuinely_empty_kifu_is_not_a_failure() {
-        let built = write_and_build("empty.csa", "V2.2\nPI\n+\n");
+        for (name, body) in [
+            ("empty.csa", "V2.2\nPI\n+\n"),
+            (
+                "appnew.kif",
+                "手合割：平手\n\n手数----指手---------消費時間--\n",
+            ),
+        ] {
+            let built = write_and_build(name, body);
+            assert!(built.indexed, "本当に空の棋譜を失敗に数えている: {name}");
+        }
+    }
+
+    /// **中身が無いファイルを「本当に空の棋譜」と読まないこと。**
+    ///
+    /// 同期の途中で置かれた 0 バイトのプレースホルダや、保存が落ちた残骸が
+    /// この形になる。**警告の有無で割ると KIF / KI2 は必ず素通りする**
+    /// ——警告を出す口があるのは CSA だけなので、0バイトでも `warns` は空。
+    #[test]
+    fn a_zero_byte_file_is_not_a_genuinely_empty_kifu() {
+        for name in ["empty.kif", "empty.ki2"] {
+            let built = write_and_build(name, "");
+            assert!(
+                !built.indexed,
+                "0バイトのファイルを「索引済み」に数えている: {name}"
+            );
+        }
+    }
+
+    /// **指し手の途中で切れた CSA を「本当に空」と読まないこと。**
+    ///
+    /// `+7776F` は6バイトなので、指し手行を長さで数えると 0 件になり、
+    /// 読み残しの警告が出ない。**指し手のある棋譜が黙って索引から消える。**
+    #[test]
+    fn a_csa_cut_mid_move_is_not_a_genuinely_empty_kifu() {
+        let built = write_and_build("trunc.csa", "V2.2\nPI\n+\n+7776F");
         assert!(
-            built.warns.is_empty(),
-            "空の棋譜に警告が出ている。割り方の前提が崩れている: {:?}",
+            !built.warns.is_empty(),
+            "切れた指し手に警告が出ていない: {:?}",
             built.warns
         );
-        assert!(built.indexed, "本当に空の棋譜を失敗に数えている");
+        assert!(!built.indexed, "切れた棋譜を「索引済み」に数えている");
     }
 
     /// 局面が入った棋譜は数えること。

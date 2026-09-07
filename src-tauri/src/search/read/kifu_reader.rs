@@ -60,7 +60,7 @@ pub fn read_to_jkf(rec: &FileRecord) -> Result<ReadOutcome, KifuReadError> {
 /// そのまま索引に入れると平手の初期局面で検索したときに全部ヒットし、開いても
 /// 初期局面しか出ないので「そういう棋譜」と誤解される。だから入れない。
 ///
-/// **これは「壊れている」の判定ではない。** [`KifuReadError::NothingToIndex`]
+/// **これは「壊れている」の判定ではない。** [`ReadOutcome::NothingToIndex`]
 /// の doc のとおり、同じ形になるものにはこのアプリが作った新しい棋譜も含まれる。
 ///
 /// # バイト列でなく、読めた記録の形で決める
@@ -154,7 +154,7 @@ fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
         // **`Err` に混ぜない。** 混ぜると「読めなかった」と区別が付かなくなり、
         // 題材が空になったテストが「読めない」の assert で緑のまま通る。
         // 空になりうる題材は `read_path_inner` で受けること
-        ReadOutcome::NothingToIndex { warns } => panic!(
+        ReadOutcome::NothingToIndex { warns, .. } => panic!(
             "題材に索引へ入れる局面が無い。`read_path_inner` で受けること（warns: {warns:?}）"
         ),
     }
@@ -169,7 +169,7 @@ fn read_path_to_jkf(path: &Path, kind: KifuKind) -> Result<Jkf, KifuReadError> {
 fn read_indexable(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), KifuReadError> {
     match read_path_inner(path, kind)? {
         ReadOutcome::Indexable { jkf, warns } => Ok((*jkf, warns)),
-        ReadOutcome::NothingToIndex { warns } => panic!(
+        ReadOutcome::NothingToIndex { warns, .. } => panic!(
             "題材に索引へ入れる局面が無い。`read_path_inner` で受けること（warns: {warns:?}）"
         ),
     }
@@ -186,7 +186,13 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
 
     // 大きさは開いた手で見る。`fs::metadata` を別に呼ぶと、
     // 見た対象と読む対象がずれる
+    // **中身が無いファイルは「本当に空の棋譜」ではない。** 同期の途中で
+    // 置かれた 0 バイトのプレースホルダや、保存が落ちた残骸がこの形になる。
+    // 形式によっては警告を出す口が無い（`warn_if_moves_were_dropped` は CSA だけ）
+    // ので、大きさで見ないと **KIF / KI2 が黙って「索引済み」に数えられる**
+    let mut is_blank = false;
     if let Ok(meta) = file.metadata() {
+        is_blank = meta.len() == 0;
         if too_large_to_be_a_kifu(meta.len()) {
             // **上限値そのものを言う。** 「大きすぎる」だけだと、
             // 上限を上げるべき棋譜が実在したときに報告のしようがない。
@@ -230,8 +236,12 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
         .and_then(|bytes| warn_if_moves_were_dropped(bytes, &jkf));
 
     if says_nothing(&jkf) {
+        // **空なのが正しい姿か**を、ここで決めて運ぶ。呼び手が `warns` の
+        // 有無から導くと、警告を出す口が無い形式で必ず「正しい姿」になる
+        let looks_intentional = !is_blank && warn.is_none();
         return Ok(ReadOutcome::NothingToIndex {
             warns: warn.into_iter().collect(),
+            looks_intentional,
         });
     }
 
@@ -960,7 +970,7 @@ mod tests {
             let outcome = read_path_inner(&path, KifuKind::Kif)
                 .unwrap_or_else(|e| panic!("{label} が読めなかった扱いになっている: {e}"));
             // **黙って弾くこと。** `{ .. }` で受けると警告が付いても緑になる
-            let ReadOutcome::NothingToIndex { warns } = outcome else {
+            let ReadOutcome::NothingToIndex { warns, .. } = outcome else {
                 panic!("{label} を弾いていない");
             };
             assert!(
@@ -1193,7 +1203,8 @@ mod tests {
             match read_path_inner(&path, kind) {
                 // 入れる局面があるかは形式で変わるが、**どちらでも警告は出させない**
                 Ok(
-                    ReadOutcome::Indexable { warns, .. } | ReadOutcome::NothingToIndex { warns },
+                    ReadOutcome::Indexable { warns, .. }
+                    | ReadOutcome::NothingToIndex { warns, .. },
                 ) => {
                     assert!(
                         warns.is_empty(),
@@ -1982,7 +1993,8 @@ P9 *  *  *  * +OU *  *  *  * ";
             // 戻りは `says_nothing` が決める。**警告はどちらでも出る**
             let warns = match read_path_inner(&path, KifuKind::Csa) {
                 Ok(
-                    ReadOutcome::Indexable { warns, .. } | ReadOutcome::NothingToIndex { warns },
+                    ReadOutcome::Indexable { warns, .. }
+                    | ReadOutcome::NothingToIndex { warns, .. },
                 ) => warns,
                 Err(e) => panic!("{base_name}: 読めた記録を断った: {e}"),
             };
@@ -2088,10 +2100,15 @@ P9 *  *  *  * +OU *  *  *  * ";
     /// 指し手ではない行を指し手と数えると、健全な棋譜が「途中で切れている」と
     /// 断られる。CSA のヘッダ・盤面・消費時間・終局・コメントを1つずつ置いて、
     /// どれも数に入らないことを見る。
+    ///
+    /// **途中で切れた指し手は数える側。** 健全な CSA に `+7776F` という完結した
+    /// 行は現れない（`+7776FU` になる）ので、数えても誤報にならない。数えないと
+    /// ファイルが指し手の最中で終わった回に `moves_seen` が 0 のままになり、
+    /// **指し手のある棋譜が警告も出さずに索引から消える**。
     #[test]
     fn only_move_lines_are_counted_as_moves() {
-        // 数える対象（`+7776FU` の形）
-        for line in ["+7776FU", "-3334FU", "+2726FU\r"] {
+        // 数える対象（`+7776FU` の形と、途中で切れた形）
+        for line in ["+7776FU", "-3334FU", "+2726FU\r", "+7776F", "+777"] {
             assert!(
                 is_csa_move_line(line.as_bytes()),
                 "指し手行を数えていない: {line:?}"
@@ -2112,7 +2129,6 @@ P9 *  *  *  * +OU *  *  *  * ";
             "%CHUDAN",
             "'コメント",
             "",
-            "+7776F",
             "+777FU",
             "+7776fu",
         ] {
