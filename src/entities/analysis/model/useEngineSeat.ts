@@ -38,7 +38,12 @@ type _EveryPointIsAssigned =
 const _everyPointIsAssigned: _EveryPointIsAssigned = true;
 void _everyPointIsAssigned;
 
-/** 返ってきた席をどう扱ったか。**呼び手はこの3つを全部書き分ける。** */
+/**
+ * 返ってきた席をどう扱ったか。
+ *
+ * **読まずに捨てるなら理由を書く**（`asyncResultUse` が式文の呼び出しを止める）。
+ * ▶ の口は3つを書き分け、自動再開の口はどれでも黙って降りる。
+ */
 export type SeatTakeResult = "held" | "engine-gone" | "superseded";
 
 /**

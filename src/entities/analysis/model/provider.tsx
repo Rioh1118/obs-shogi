@@ -265,8 +265,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    *
    * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
    * その形の欠けを何度も出している。開始の失敗は**呼び手へ投げる**（断りの文言は
-   * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）——呼び手は
-   * その3値を書き分けること。エンジンが消えた回と、利用者が降りた回では出す物が違う。
+   * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
+   *
+   * **▶ の口は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
+   * 違う。**自動再開の口はどちらでも黙って降りる**（押した人が居ない）。捨てる側は
+   * その理由を `async-result-ignored:` で書くこと（`asyncResultUse` が要求する）。
    *
    * **呼ぶ前に要求の世代の門（`supersededSince`）を通すこと。** 本体の先頭で
    * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった
@@ -502,9 +505,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
         if (supersededSince(seq)) return;
 
-        // **エンジンが消えていた回は断らない。** 押した人が居ないうえ、戻れば
-        // 同期の追従が張り直す（→ `analysis.md` の ※13）。
-        await takeSeatAndGo(seq, want, "late-restart");
+        // 自動再開はどの失敗でも黙って降りる。押した人が居ないうえ、エンジンが
+        // 消えた回は戻れば同期の追従が張り直し、要求が死んだ回は利用者自身が
+        // 降りている（→ `docs/state-transitions/analysis.md` の ※13）。
+        await takeSeatAndGo(seq, want, "late-restart"); // async-result-ignored: 上のとおり黙って降りる
       } catch (e) {
         // 要らなくなった要求の失敗は、誰にも見せない。利用者が止めた後に
         // 「再開に失敗しました」が出るし、`stop_analysis` の dispatch は

@@ -55,6 +55,7 @@ const EXEMPT = new Set([
   // 検査の名前。ファイル名（`*.test.ts`）としては在るが、ソースの本文には現れない
   "analysisRefusals",
   "docsIdentifiers",
+  "asyncResultUse",
 ]);
 
 /**
