@@ -1,6 +1,9 @@
 import { useRef } from "react";
 import {
   stopAnalysis as stopAnalysisCore,
+  type BlockingReleasePoint,
+  type DiscardPoint,
+  type QuietReleasePoint,
   type SeatReleasePoint,
 } from "@/entities/engine/api/tauri";
 
@@ -44,14 +47,13 @@ export interface EngineSeat {
    * **返せたときだけ手放す。** 停止が失敗したら握ったままにして、次に返せる機会へ持ち越す。
    * 失敗は呼び手へ投げる（出し方は呼び手が決める）。
    */
-  releaseHeld: (by: SeatReleasePoint) => Promise<void>;
+  releaseHeld: (by: BlockingReleasePoint) => Promise<void>;
   /**
    * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
    *
-   * 撃つのは `sync-timeout` と `no-position` の2口。
    * **落ちたときの結末は `shootQuietly` の頭に1つ置いてある。**
    */
-  releaseHeldQuietly: (by: SeatReleasePoint) => void;
+  releaseHeldQuietly: (by: QuietReleasePoint) => void;
   /**
    * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある。
    * 落ちた回は誰も返せない（読む者が居ない）。
@@ -64,7 +66,7 @@ export interface EngineSeat {
    * 呼んだ後に `isHeld()` が true になりうるのはこの形だけで、そうしないと
    * その席を知る者が居なくなる。畳まれた後に落ちた回は誰も返せない。
    */
-  discard: (by: SeatReleasePoint, sessionId: string) => void;
+  discard: (by: DiscardPoint, sessionId: string) => void;
 }
 
 export function useEngineSeat(): EngineSeat {

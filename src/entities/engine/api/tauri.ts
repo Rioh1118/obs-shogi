@@ -87,20 +87,26 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
  * 畳まれた画面から撃った停止は、落ちても利用者にも開発者にも出せない
  * （出す先の画面がもう無い）。**利用者が押した停止と区別できるのはログだけ**なので、
  * 値は口ごとに割る。値の集合が閉じていることがこの引数の価値なので、
- * 境界を跨いでも `string` に落とさない。
+ * 境界を跨いでも `string` に落とさず、省略もできない
+ * （Rust 側は名乗らない呼び手のために `unnamed` を持つが、TS からはそこへ落ちない）。
+ *
+ * **受け取る口ごとに部分集合を持つ。** 値を取り違えても Rust は止まるので、
+ * 壊れるのはログだけ——#441 の再発を追う人が読む唯一の手掛かりが嘘になる。
+ * 型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
  *
  * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
  * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
  */
-export type SeatReleasePoint =
-  | "stop"
-  | "start"
-  | "restart"
-  | "unmount"
-  | "no-position"
-  | "sync-timeout"
-  | "late-start"
-  | "late-restart";
+export type SeatReleasePoint = BlockingReleasePoint | QuietReleasePoint | DiscardPoint | "unmount";
+
+/** 応答を待てる口。落ちたら呼び手へ投げ、次に返せる機会へ持ち越す */
+export type BlockingReleasePoint = "stop" | "start" | "restart";
+
+/** 応答を待てない口。落ちても画面に出せない（結末は `useEngineSeat` の `shootQuietly`） */
+export type QuietReleasePoint = "sync-timeout" | "no-position";
+
+/** 要らなくなった開始が持ってきた席を捨てる口 */
+export type DiscardPoint = "late-start" | "late-restart";
 
 /**
  * 解析を止める。
@@ -112,9 +118,12 @@ export type SeatReleasePoint =
  * ——止まらないまま解決しないので、指すなら自分が握っている ID を渡すこと。
  * 指した相手が既に居ない場合だけは `Ok`（要求は「止まっていること」なので満たせている）。
  *
- * `by` の意味は `SeatReleasePoint` に置いてある。
+ * `by` の意味と、口ごとの部分集合は `SeatReleasePoint` に置いてある。
  */
-export async function stopAnalysis(sessionId?: string, by?: SeatReleasePoint): Promise<void> {
+export async function stopAnalysis(
+  sessionId: string | undefined,
+  by: SeatReleasePoint,
+): Promise<void> {
   return await invoke("stop_analysis", { sessionId, by });
 }
 

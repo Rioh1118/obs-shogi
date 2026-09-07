@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } f
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
-  type SeatReleasePoint,
+  type DiscardPoint,
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
@@ -190,7 +190,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
   // 捨てた側は `false` を返すので、呼び手はそこで打ち切る。
   const holdUnlessSuperseded = useCallback(
-    (seq: number, by: SeatReleasePoint, sessionId: string) => {
+    (seq: number, by: DiscardPoint, sessionId: string) => {
       if (supersededSince(seq)) {
         seat.discard(by, sessionId);
         return false;
