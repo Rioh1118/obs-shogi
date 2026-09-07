@@ -370,6 +370,14 @@ describe("AnalysisProvider の結果の照合", () => {
 
     // 張り直す口が無いので、断らないと「解析中・候補手0」で永久に固まる。
     expect(view.current.state.error).toBe(LISTENERS_FAILED_MESSAGE);
+
+    // **▶ を押しても `go` を出さない。** 出すと `clear_results` が断りを消し、
+    // 「解析中・候補手0・断りも無し」になって唯一の案内が画面から消える。
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.error).toBe(LISTENERS_FAILED_MESSAGE);
   });
 
   it("再開した席で届いた info を、前の席と照らして落とさない", async () => {
@@ -442,6 +450,35 @@ describe("AnalysisProvider の結果の照合", () => {
 
     expect(view.current.state.candidates).toHaveLength(0);
   });
+
+  it(
+    "解析中にエンジンを起こし直したら、戻ったときに読み直す",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      expect(startCore).toHaveBeenCalledTimes(1);
+
+      // 設定でエンジンのオプションを変えて保存した回。**この画面の断りが案内している操作。**
+      // Rust は畳む前に席を全部空けるので、こちらが握っている席はもう無い。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(50);
+
+      // 戻ってくる。投げ済みの印を捨てていないと、**「解析中」の表示のまま数字が
+      // 一切動かない**（席は死んだまま握られ、断りも出ない）。
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P1", "P1"));
+      await advance(300);
+
+      expect(startCore).toHaveBeenCalledTimes(2);
+      expect(view.current.state.isAnalyzing).toBe(true);
+      // もう無い席へ停止は撃たない（空撃ちになり、次の席を巻き添えにしうる）。
+      expect(stopCore).not.toHaveBeenCalled();
+    },
+    SLOW,
+  );
 
   it(
     "盤を1手進めてすぐ戻したら、戻した局面を読み直す",

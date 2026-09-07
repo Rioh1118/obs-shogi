@@ -83,6 +83,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
+  /** 結果の購読に失敗した。**張り直す口が無い**ので、以後 ▶ は断りを立て直して降りる */
+  const listenersFailedRef = useRef(false);
+
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
   // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
@@ -364,7 +367,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       } catch (e) {
         // **張り直す口が無い。** この effect の依存は全部固定なのでマウント1回きりで、
         // 落ちると結果が二度と届かない——`isAnalyzing` は true のまま候補手が0で固まる。
+        //
+        // **印を残す。** 断りだけでは足りない——▶ を1回押すと `clear_results` が
+        // `error` を消し（`reducer.ts`）、そのまま `go` が出る。以後は「解析中・候補手0・
+        // 断りも無し」で、唯一の案内（起動し直し）が画面から消える。
         console.error("[ANALYSIS] Failed to setup listeners:", e);
+        listenersFailedRef.current = true;
         dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
       }
     };
@@ -514,12 +522,24 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer,
   ]);
 
-  // **同期が追いついた回と、`isReady` が戻った回の入口。**
+  // **エンジンが落ちたら、投げ済みの印と席の欄を捨てる。**
   //
-  // 局面が変わった側の effect は `currentSfen` しか見ないので、送信が遅れて追いついた回と、
-  // エンジンが落ちて戻った回を拾えない。とくに後者はここが唯一の入口
-  // ——`runRestart` は `if (!isReady) return` で**張り直さずに**抜けるので（→ ※5）、
-  // これを消すと「解析中の表示のまま二度と再開しない」に戻る。
+  // 落ちる引き金は解析中の起こし直し（設定でオプションを変えて保存する——**この画面の
+  // 断りが案内している操作**）。Rust は畳む前に席を全部空けるので、こちらの欄に残るのは
+  // もう無い席。捨てないと、戻ってきたときに下の effect が「その局面は投げ済み」と読んで
+  // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られ、断りも出ない）。
+  useEffect(() => {
+    if (isReady) return;
+    if (!analyzingRef.current) return;
+
+    sentSfenRef.current = null;
+    seat.abandonOnEngineGone();
+  }, [isReady, seat]);
+
+  // **同期が追いついた回と、エンジンが戻った回の入口。**
+  //
+  // 局面が変わった側の effect は `currentSfen` しか見ないので、送信が遅れて追いついた回を
+  // 拾えない。エンジンが戻った回は、上の effect が投げ済みの印を捨てているのでここを通る。
   //
   // 最後の門は、**既に張られているタイマーと飛んでいる再開に2本目を重ねない**ため。
   useEffect(() => {
@@ -585,6 +605,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **前置きの門も断りを立てる。** ▶ は ready でなくても押せる
     // （`AnalysisPaneHeader` は局面の有無しか見ない）ので、ここは**いちばん踏まれる枝**。
     // 立てないと `console.error` で終わり、#277 が出口を作っても無言のまま残る。
+    // **結果を受け取れない回は、`go` を出さない。** 出しても候補手は永久に届かず、
+    // Rust の席だけが埋まる。断りは押すたびに立て直す（消えても次の ▶ で戻る）。
+    if (listenersFailedRef.current) {
+      dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
+      throw new Error("Analysis event listeners are not registered");
+    }
+
     if (!isReady) {
       // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
       dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason ?? "no-engine"] });

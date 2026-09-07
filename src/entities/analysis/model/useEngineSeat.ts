@@ -77,6 +77,15 @@ export interface EngineSeat {
    */
   closeFinished: (sessionId: AnalysisSessionId) => void;
   /**
+   * エンジンごと席が消えたときに、こちらの欄も空ける。**停止は撃たない。**
+   *
+   * エンジンを畳む側は `stop_all_sessions` で席を全部空けてから落ちる（`bridge.rs` の
+   * `shutdown_engine_impl`）。落ちただけの回も `forward_results_to_ui` が席を消す。
+   * どちらも**もう無い席**なので、撃つと空撃ちになるうえ、次のエンジンの席を
+   * 巻き添えにしうる。手放した席として覚えるので、遅れて届く `info` は落ちる。
+   */
+  abandonOnEngineGone: () => void;
+  /**
    * 握っている席を返す。
    *
    * **飛んでいる返却があれば、握っていなくても枠が空くまで待つ。** この待ちを外すと、
@@ -294,6 +303,12 @@ export function useEngineSeat(): EngineSeat {
     },
     hold: (sessionId) => {
       seatRef.current = sessionId;
+    },
+    abandonOnEngineGone: () => {
+      const held = seatRef.current;
+      if (held === null) return;
+      seatRef.current = null;
+      remember(held);
     },
     closeFinished: (sessionId) => {
       if (seatRef.current !== sessionId) return;
