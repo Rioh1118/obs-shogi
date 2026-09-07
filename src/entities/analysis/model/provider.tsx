@@ -5,7 +5,7 @@ import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
 } from "@/entities/engine/api/tauri";
-import { useEngineSeat, type DiscardPoint } from "./useEngineSeat";
+import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -85,15 +85,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   /** 結果の購読に失敗した。**張り直す口が無い**ので、以後 ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
-
-  /**
-   * エンジンの世代。**`isReady` が落ちるたびに1つ進む。**
-   *
-   * 席を取る往復を跨いで「その席はどのエンジンのものか」を言うために持つ。
-   * 進んだ後に着地した席は**もう無いエンジン**のもので、握ると「解析中の表示のまま
-   * 数字が動かない」に落ちる。
-   */
-  const engineEpochRef = useRef(0);
 
   /** `waitUntil` の中から読む。**await の向こう側でエンジンが消えたかを見る** */
   const isReadyRef = useRef(isReady);
@@ -250,15 +241,29 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer();
   }, [clearDebounceTimer]);
 
-  // 返ってきた席を握るか捨てるか。**欄に入れる前に見る**——要らなくなった席を
-  // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
-  // 捨てた側は `false` を返すので、呼び手はそこで打ち切る。
-  const holdUnlessSuperseded = useCallback(
-    (seq: number, by: DiscardPoint, sessionId: AnalysisSessionId) => {
-      if (supersededSince(seq)) {
-        seat.discard(by, sessionId);
+  /**
+   * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
+   *
+   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
+   * その形の欠けを何度も出している。開始の失敗は**呼び手へ投げる**（断りの文言は
+   * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）——呼び手は
+   * その3値を書き分けること。エンジンが消えた回と、利用者が降りた回では出す物が違う。
+   *
+   * **呼ぶ前に要求の世代の門（`supersededSince`）を通すこと。** 本体の先頭で
+   * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった
+   * 要求がここへ入ると直前に立った断りが黙って消える。
+   */
+  const takeSeatAndGo = useCallback(
+    async (seq: number, sfen: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
+      discardShownResults();
 
-        // **席と一緒に、その席の反映待ちも捨てる。** `discard` が落とすのは
+      // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
+      const take = seat.beginTake(discardBy);
+      const sessionId = await startInfiniteAnalysisCore();
+      const landed = take.landed(sessionId, () => supersededSince(seq));
+
+      if (landed !== "held") {
+        // **席と一緒に、その席の反映待ちも捨てる。** 席を捨てる側が落とすのは
         // これ以降の `info` だけで、席が欄に入る前に届いて `latestResultRef` に
         // 入った1本と、それが張ったタイマーには触らない。この経路は
         // `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される
@@ -271,42 +276,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // どの席の `info` も通すため。**どちらを取るかで前者を選んでいる。**
         // `clear_results` は撃たない——`error` も消すので、直前に立った断りが黙って消える。
         if (!seat.isHeld()) dropPendingResult();
-        return false;
+        return landed;
       }
-      seat.hold(sessionId);
-      return true;
-    },
-    [seat, supersededSince, dropPendingResult],
-  );
-
-  /**
-   * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
-   *
-   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
-   * その形の欠けを何度も出している。開始の失敗は**呼び手へ投げる**（断りの文言は
-   * 口ごとに違う）。要らなくなっていて席を捨てた回は `false` を返す。
-   *
-   * **呼ぶ前に世代の門（`supersededSince`）を通すこと。** 本体の先頭で `clear_results` が
-   * 飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった要求がここへ入ると
-   * 直前に立った断りが黙って消える。
-   */
-  const takeSeatAndGo = useCallback(
-    async (seq: number, sfen: string, by: DiscardPoint) => {
-      discardShownResults();
-
-      const epoch = engineEpochRef.current;
-      const sessionId = await startInfiniteAnalysisCore();
-
-      // **もう無いエンジンの席は握らない。** 往復の間にエンジンが落ちていたら、
-      // Rust は畳む前に席を全部空けているので、この席は死んでいる。握ると
-      // 「解析中の表示のまま数字が動かない」に落ちる。**撃たずに捨てる**
-      // （席が空の回の停止は、起こし直したエンジンへ裸の `stop` を書く）。
-      if (engineEpochRef.current !== epoch) {
-        seat.abandonOnEngineGone(sessionId);
-        return false;
-      }
-
-      if (!holdUnlessSuperseded(seq, by, sessionId)) return false;
 
       dispatch({ type: "start_analysis", payload: { sfen } });
 
@@ -318,9 +289,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       scheduleFlush();
 
       sentSfenRef.current = sfen;
-      return true;
+      return "held";
     },
-    [discardShownResults, holdUnlessSuperseded, scheduleFlush, seat],
+    [discardShownResults, dropPendingResult, scheduleFlush, seat, supersededSince],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
@@ -570,12 +541,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   useEffect(() => {
     if (isReady) return;
 
-    // **世代を1つ進める。** 立ち下がりを1回見るだけでは足りない——飛んでいる開始が
-    // この後に着地して、捨てたばかりの印を書き戻す（席が返るのは往復の後）。
-    engineEpochRef.current++;
+    // **エンジンの世代も進む**（`onEngineGone` の中）。立ち下がりを1回見るだけでは
+    // 足りない——飛んでいる開始がこの後に着地して、捨てたばかりの印を書き戻す
+    // （席が返るのは往復の後）。
     sentSfenRef.current = null;
     clearDebounceTimer();
-    seat.abandonOnEngineGone();
+    seat.onEngineGone();
   }, [isReady, seat, clearDebounceTimer]);
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
@@ -771,15 +742,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 席が返ってから `hold` / `discard` に着くまでの微小タスクが1つ増える
     // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
     // 畳まれた後に席を返す側が間に合わなくなる。
-    let held = false;
+    let landed: SeatTakeResult = "superseded";
     try {
-      held = await takeSeatAndGo(seq, started, "late-start");
+      landed = await takeSeatAndGo(seq, started, "late-start");
     } catch (e) {
       // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
       failStart(START_REFUSED_MESSAGE, e);
     }
-    if (!held) return;
+    if (landed !== "held") return;
 
     desiredSfenRef.current = started;
   }, [
