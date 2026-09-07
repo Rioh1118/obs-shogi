@@ -577,8 +577,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
   //
-  // 局面が変わった側の effect は `currentSfen` しか見ないので、送信が遅れて追いついた回を
-  // 拾えない。エンジンが戻った回は、上の effect が投げ済みの印を捨てているのでここを通る。
+  // 局面が変わった側の effect は `syncedSfen` を依存に持たないので、送信が遅れて
+  // 追いついた回を拾えない（盤が動いていない回は `state.analyzedSfen === currentSfen` の
+  // 門でも降りる）。エンジンが戻った回は、上の effect が投げ済みの印を捨てているのでここを通る。
   //
   // 最後の門は、**既に張られているタイマーと飛んでいる再開に2本目を重ねない**ため。
   useEffect(() => {

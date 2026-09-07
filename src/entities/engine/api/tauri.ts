@@ -63,6 +63,18 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
 }
 
 // ===== 解析実行 =====
+/**
+ * 無限解析を始め、**Rust が作った席の識別子**を返す。
+ *
+ * **席は応答が返るより先に埋まる。** Rust は `take_session` で席を取ってから `go` を
+ * 待つ（`bridge.rs`）ので、この往復の最中に2本目を投げると必ず断られる。
+ *
+ * **返ってきた席は、要求が要らなくなっていても必ず返すこと**
+ * （`stopAnalysis(sessionId, ...)`）。返さないと以後の開始が全部
+ * 「Analysis already running」で断られ、エンジンを畳み直すまで解析が始まらない（#441）。
+ *
+ * 席を取る口はこれだけではない（`analyze_with_time` / `analyze_with_depth` も同じ席を取る）。
+ */
 export async function startInfiniteAnalysis(): Promise<AnalysisSessionId> {
   return (await invoke<string>("start_infinite_analysis")) as AnalysisSessionId;
 }
@@ -84,7 +96,8 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
 /**
  * Rust が渡した解析の席の識別子。
  *
- * **素の `string` と取り違えないための brand。** この provider は同じスコープに
+ * **素の `string` と取り違えないための brand。** `AnalysisProvider`
+ * （`entities/analysis/model/provider.tsx`）は同じスコープに
  * SFEN を同じ型で並べて持つので、取り違えても tsc は何も言わない——取り違えた回は
  * 本物の `info` が全部落ち（席の照合に通らない）、停止は `Err` になり、
  * **本物の席が Rust に残ったままエンジンを起こし直すまで戻らない**（#441 の症状）。

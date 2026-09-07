@@ -4,12 +4,12 @@ import { docsPath, markdownFiles } from "./stateTransitionIndex";
 import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths";
 
 /**
- * 状態遷移表がバッククォートで指すソースのパスが実在するかを見る。
+ * 状態遷移表と画面の仕様がバッククォートで指すソースのパスが実在するかを見る。
  *
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
  * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
  *
- * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と提案と `IDEAS.md` /
+ * `docs/` 全体ではなく状態遷移表と `spec/screens/` に絞るのは、ADR と提案と `IDEAS.md` /
  * `PREMISES.md` が**別リポジトリ（ShogiHome / YaneuraOu）のパス**を根拠として
  * 引くため。件数は書かない（引く側が増えると嘘になる）。
  * このリポジトリの現物を指す約束があるのは**状態遷移表と `spec/screens/`**（画面の仕様）で、
@@ -40,7 +40,7 @@ describe("状態遷移表と画面の仕様が指すソースのパス", () => {
    * 死んだパスと見分けられない（上の doc の1つ目）。`screens/` は
    * 「いま画面にあるもの」だけを書く約束（`docs/spec/README.md`）なので掛かる。
    */
-  const tableFiles = () =>
+  const scannedDocs = () =>
     markdownFiles().filter(
       (f) => f.startsWith("state-transitions/") || f.startsWith("spec/screens/"),
     );
@@ -48,11 +48,11 @@ describe("状態遷移表と画面の仕様が指すソースのパス", () => {
   // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
   // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
   test("走査する doc を拾えている", () => {
-    expect(tableFiles().length).toBeGreaterThan(3);
+    expect(scannedDocs().length).toBeGreaterThan(3);
   });
 
   test("実在しないパスを指していない", () => {
-    const broken = tableFiles().flatMap((relative) => {
+    const broken = scannedDocs().flatMap((relative) => {
       const body = readFileSync(docsPath(relative), "utf8");
       return missingPaths(sourcePathsIn(body)).map((p) => `${relative}: ${p}`);
     });
@@ -64,7 +64,7 @@ describe("状態遷移表と画面の仕様が指すソースのパス", () => {
 /**
  * `docs/` の**全部**が行番号で指さないこと。
  *
- * パスの実在は状態遷移表だけに絞ってよい（ADR は別リポジトリのパスを引くので、
+ * パスの実在は状態遷移表と `spec/screens/` に絞ってよい（ADR は別リポジトリのパスを引くので、
  * 実在を要求できない）。**行番号のほうは絞る理由が無い。** 自リポジトリを
  * 行番号で指せば、どこに書いてあっても無言でずれる。
  *

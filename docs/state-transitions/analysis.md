@@ -30,22 +30,22 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 ## イベント
 
-| 記号    | イベント                             | 発生源                                                        |
-| ------- | ------------------------------------ | ------------------------------------------------------------- |
-| **E1**  | 開始ボタン                           | `AnalysisPaneHeader` → `startInfiniteAnalysis()`              |
-| **E2**  | 停止ボタン                           | 同 → `stopAnalysis()`                                         |
-| **E3**  | 局面が変わる                         | 盤操作・棋譜ナビ（`currentSfen`）                             |
-| **E4**  | 同期が追いつく                       | `syncedSfen === desiredSfenRef` になる                        |
-| **E5**  | 同期が失敗する                       | 送信の例外／上限切れ（2000ms、`POSITION_SYNC_TIMEOUT_MS`）※15 |
-| **E6**  | エンジンが ready でなくなる          | → [engine.md](engine.md) E6/E7/E8                             |
-| **E7**  | 結果が届く                           | Rust の `analysis-update`                                     |
-| **E8**  | 完了通知が届く                       | **飛ばない**。`analysis-complete` を emit する行が無い        |
-| **E9**  | エラー通知が届く                     | **飛ばない**。`engine-error` を emit する行が無い             |
-| **E10** | `start_infinite_analysis` が失敗する | エンジンが応答しない・**セッションが残っている**              |
-| **E11** | `stop_analysis` が失敗する           | 同上                                                          |
-| **E12** | リスナの登録に失敗する               | `setupAnalysisEventListeners` の reject（起動時1回）          |
-| **E13** | 画面が畳まれる                       | `RequireRootDir` の差し戻し（`RuntimeProviders` ごと）        |
-| **E14** | 読む局面が無くなる                   | 棋譜を閉じる（`currentSfen` が null になる）                  |
+| 記号    | イベント                             | 発生源                                                                                                                  |
+| ------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| **E1**  | 開始ボタン                           | `AnalysisPaneHeader` → `startInfiniteAnalysis()`                                                                        |
+| **E2**  | 停止ボタン                           | 同 → `stopAnalysis()`                                                                                                   |
+| **E3**  | 局面が変わる                         | 盤操作・棋譜ナビ（`currentSfen`）                                                                                       |
+| **E4**  | 同期が追いつく                       | `syncedSfen === desiredSfenRef` になる                                                                                  |
+| **E5**  | 同期が失敗する                       | 送信の例外／上限切れ（2000ms、`POSITION_SYNC_TIMEOUT_MS`）※15                                                           |
+| **E6**  | エンジンが ready でなくなる          | → [engine.md](engine.md) E3/E6/E7/E8。**E3（起こし直し）もここ**——`phase` は `ready` のまま `isReady` だけ false になる |
+| **E7**  | 結果が届く                           | Rust の `analysis-update`                                                                                               |
+| **E8**  | 完了通知が届く                       | **飛ばない**。`analysis-complete` を emit する行が無い                                                                  |
+| **E9**  | エラー通知が届く                     | **飛ばない**。`engine-error` を emit する行が無い                                                                       |
+| **E10** | `start_infinite_analysis` が失敗する | エンジンが応答しない・**セッションが残っている**                                                                        |
+| **E11** | `stop_analysis` が失敗する           | 同上                                                                                                                    |
+| **E12** | リスナの登録に失敗する               | `setupAnalysisEventListeners` の reject（起動時1回）                                                                    |
+| **E13** | 画面が畳まれる                       | `RequireRootDir` の差し戻し（`RuntimeProviders` ごと）                                                                  |
+| **E14** | 読む局面が無くなる                   | 棋譜を閉じる（`currentSfen` が null になる）                                                                            |
 
 ## 表
 
@@ -106,7 +106,9 @@ E2 の欄は、それでも `stopAnalysis()` が呼ばれたときに何が起�
 - **席を返し終えた後に撃つ**ので要求も出さない——送信の失敗・打ち切り・開始の拒否（→ ※15）。
   ▶ は先頭で席を返す（※2）ので、そこから先はこの形になる
 
-※2 `startInfiniteAnalysis` は **飛んでいる自動再開の開始を待つ**（Rust は席を取ってから
+※2 `startInfiniteAnalysis` はまず**購読が落ちていないかを見る**（落ちていれば
+`LISTENERS_FAILED_MESSAGE` を立て直して throw。→ ※15 / E12。ここで降りるので
+`syncPosition` も `go` も出ない）。その後、**飛んでいる自動再開の開始を待つ**（Rust は席を取ってから
 `go` を待つので、その窓で撃つと `take_session` に断られる）→ **握っている席を返す** →
 `syncPosition()` → `waitUntil(syncedSfen === currentSfen, 2000)` → 席を取って `go`、の順
 （`provider.tsx`）。
@@ -131,7 +133,7 @@ E2 の欄は、それでも `stopAnalysis()` が呼ばれたときに何が起�
 **解析は落ちた回に投げ済みの印を捨てる**ので、戻ってきた回に同じ局面へ張り直す
 （`provider.tsx`。Rust は畳む前に席を全部空けるので、こちらの欄も撃たずに空ける）。
 
-**打ち切りも張り直しも走らない。** `runRestart` の `if (!isReady) return` は
+**打ち切りも張り直しも走らない。** `runRestartRef` の `if (!isReady) return` は
 `syncWaitRef` に触らずに抜けるので、同期待ちで踏んだ回はその欄が非 null のまま止まる。
 **debounce のタイマは落ちる**——局面を見る effect の依存に `isReady` が載っていて、
 false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
@@ -140,8 +142,10 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 `stop_all_sessions("shutdown")` が先に走るので P0（`bridge.rs`）。
 プロセスが落ちただけの回は、`forward_results_to_ui` がストリームの終わりで席を消す
 （`bridge.rs`）——**フロントには何も飛ばない**ので、欄だけが古い ID を握ったまま残る。
-どちらの回もフロントは席の欄を握ったままなので、次に撃つ停止は
-「もう無い席」を指すことがある——`bridge.rs` はそれを `Ok` にする。
+**`isReady` が落ちる回はフロントも欄を空ける**（上の段。`shutdown_engine` を通った
+起こし直しがこれ）。欄が古い ID を握ったまま残るのは**プロセスが落ちただけの回**
+——`phase` は `ready` のままなので `isReady` が落ちず、欄を空ける effect が発火しない。
+その回に撃つ停止は「もう無い席」を指す——`bridge.rs` はそれを `Ok` にする。
 
 ※6 `onComplete` は `stop_analysis` を dispatch し、席の欄も手放す（`provider.tsx`）。
 **ただしこの通知は飛ばない。** `src-tauri` で `emit` しているのは `analysis-update` だけで、
@@ -245,7 +249,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）                                             | 起こし直す                             |
 | `NO_ENGINE_SELECTED_MESSAGE`    | エンジンを選んでいない                                                            | 設定でエンジンを選ぶ                   |
 | `ENGINE_ERROR_MESSAGE`          | E9 のエラー通知。**いま踏めない**                                                 | 起こし直す                             |
-| `LISTENERS_FAILED_MESSAGE`      | 結果の購読に失敗した（E12 → F-4）                                                 | アプリを起動し直す（張り直す口が無い） |
+| `LISTENERS_FAILED_MESSAGE`      | 結果の購読に失敗した（E12 → F-4）／**以後の ▶ すべて**                            | アプリを起動し直す（張り直す口が無い） |
 
 **自動再開の側は `syncPosition` を呼ばない。** 送信の例外は自動追従の口が飲むので
 （`features/engine-position-sync`）、その回は `syncedSfen` が追いつかないまま
@@ -290,11 +294,12 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 `src/entities/analysis/model/__tests__/provider.test.tsx` が踏んでいるセル以外。
 特に:
 
-- **`(S1〜S5, E6)` エンジンが ready でなくなる（※5）。** 全行にまたがる未検証
+- **`(S2〜S5, E6)` エンジンが ready でなくなる（※5）。** S1 は `provider.test.tsx` が踏んでいる
+  （起こし直しの前後・応答待ちに落ちた回・同期待ちに落ちた回）。残る4行は未検証
 - **`(S6/P1, E1)` のうち、フロントが席の ID を持っていない回。** ※11 に落ちる形。
   Rust に席を残したままフロントに席を持たせない再現手段がテストに無い
   （席を握ったまま S6 になる回は `provider.test.tsx` が踏んでいる）
-- `(S4, E10)` 開始の失敗（`startCore` を落とすテストが無い）
+- `(S4, E10)` 開始の失敗（`startInfiniteAnalysis` の IPC を落とすテストが無い）
 - `(S3, E11)` 同期の打ち切りが撃つ停止が落ちた回（※9）。残るのは `console.warn` だけ
 - `(S6/P0, E5)` S6 から ▶ を押して同期が失敗した回。断りが差し替わるだけ
 - `(S4/S5, E11)` 再開の途中で停止が落ちた回。席を握ったまま S6 へ落ちる

@@ -14,13 +14,17 @@ const HOOKS = join(REPO_ROOT, ".claude/hooks");
  */
 
 /**
- * 拾う綴り。**下線を1つ以上含むものだけ。**
+ * 拾う綴り。**下線を1つ以上含むか、大文字の切れ目を持つもの。**
  *
- * 下線を要求するのは、表の記号（`A3` / `E11` / `G0`）と頭字語（`USI` / `SFEN` / `KIF`）を
- * 除くため。長さで切ると `USI` は落とせても `SFEN` が残り、記号の桁数が増えると
- * また拾い始める。**下線の有無は綴りの規則なので、桁数と違って後から破れない。**
+ * 下線か大文字の切れ目を要求するのは、表の記号（`A3` / `E11` / `G0`）と頭字語
+ * （`USI` / `SFEN` / `KIF`）を除くため。長さで切ると `USI` は落とせても `SFEN` が残り、
+ * 記号の桁数が増えるとまた拾い始める。**綴りの規則なので、桁数と違って後から破れない。**
+ *
+ * **camelCase も見る。** このリポジトリで実際に腐るのは TS 側の綴りなので、
+ * 下線だけを見ると肝心のところが空く。
  */
-const IDENTIFIER = /^([A-Z][A-Z0-9]*(_[A-Z0-9]+)+|[a-z][a-z0-9]*(_[a-z0-9]+)+)$/;
+const IDENTIFIER =
+  /^([A-Z][A-Z0-9]*(_[A-Z0-9]+)+|[a-z][a-z0-9]*(_[a-z0-9]+)+|[a-z][a-z0-9]*([A-Z][A-Za-z0-9]*)+)$/;
 
 /**
  * 拾わない綴り。ソースに無くて当然のもの。
@@ -46,6 +50,11 @@ const EXEMPT = new Set([
   "line_buffer",
   // YaneuraOu-ScriptCollection（Python）の関数。局面数の数え方の出典
   "count_yaneuraou_db_positions",
+  // ShogiHome の設定名。対局の表が「あちらの既定」の出典に引く
+  "enableEngineTimeout",
+  // 検査の名前。ファイル名（`*.test.ts`）としては在るが、ソースの本文には現れない
+  "analysisRefusals",
+  "docsIdentifiers",
 ]);
 
 /**
