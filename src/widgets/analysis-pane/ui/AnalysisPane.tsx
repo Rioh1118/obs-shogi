@@ -49,13 +49,13 @@ function AnalysisPane() {
     if (!cacheKey) return;
     if (!currentSfen) return;
     if (!state.candidates || state.candidates.length === 0) return;
-    if (state.currentPosition && state.currentPosition !== currentSfen) return;
+    if (state.analyzedSfen && state.analyzedSfen !== currentSfen) return;
 
     cacheRef.current.set(cacheKey, {
       candidates: state.candidates,
       savedAt: Date.now(),
     });
-  }, [cacheKey, currentSfen, state.candidates, state.currentPosition]);
+  }, [cacheKey, currentSfen, state.candidates, state.analyzedSfen]);
 
   const visibleCandidates: AnalysisCandidate[] = useMemo(() => {
     if (state.isAnalyzing) return state.candidates ?? [];
@@ -63,7 +63,7 @@ function AnalysisPane() {
     return cacheRef.current.get(cacheKey)?.candidates ?? [];
   }, [state.isAnalyzing, state.candidates, cacheKey]);
 
-  const pvBaseSfen = state.isAnalyzing ? state.currentPosition : currentSfen;
+  const pvBaseSfen = state.isAnalyzing ? state.analyzedSfen : currentSfen;
 
   const displayData = useMemo(() => {
     const canConvert = !!pvBaseSfen && !!visibleCandidates.length;

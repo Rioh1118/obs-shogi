@@ -726,7 +726,7 @@ describe("AnalysisProvider の開始", () => {
 
     // 押した瞬間の局面を待ち続けると、2秒後に何も失敗していないのに断りを積む。
     expect(startCore).toHaveBeenCalled();
-    expect(view.current.state.currentPosition).toBe("P2");
+    expect(view.current.state.analyzedSfen).toBe("P2");
     expect(view.current.state.error).toBeNull();
   });
 
@@ -919,7 +919,7 @@ describe("AnalysisProvider の開始", () => {
     });
 
     expect(view.current.state.isAnalyzing).toBe(true);
-    expect(view.current.state.currentPosition).toBe("P2");
+    expect(view.current.state.analyzedSfen).toBe("P2");
     expect(view.current.state.candidates).toHaveLength(0);
   });
 

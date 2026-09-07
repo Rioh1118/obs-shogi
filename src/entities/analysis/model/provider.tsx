@@ -17,12 +17,18 @@ import { AnalysisContext } from "./context";
 //
 // `abort` を取るのは、待っている理由が消えたときに回り続けないため。
 // 畳まれた後は `syncedSfen` がもう動かないので、渡さないと必ず上限まで回る。
+/**
+ * 同期が追いつくのを見に行く間隔。**1フレームぶん。**
+ * 打ち切りの上限（`POSITION_SYNC_TIMEOUT_MS` = 2000ms）までに約125回見に行く。
+ */
+const SYNC_POLL_MS = 16;
+
 const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => boolean) => {
   const start = Date.now();
   while (!cond()) {
     if (abort?.()) return false;
     if (Date.now() - start > timeoutMs) return false;
-    await new Promise((r) => setTimeout(r, 16));
+    await new Promise((r) => setTimeout(r, SYNC_POLL_MS));
   }
   return true;
 };
@@ -61,6 +67,18 @@ interface Props {
   positionSync: PositionSyncAdapter;
 }
 
+/**
+ * 解析の状態と、Rust の席の生死を持つ。
+ *
+ * **呼び手が守る前提が3つある。**
+ *
+ * - **棋譜の有無で畳まれない位置に置くこと**（`RuntimeProviders`）。棋譜を閉じるたびに
+ *   畳まれる位置に置くと、「読む局面が無くなったら止める」effect は死に、代わりに
+ *   `sweepOnUnmount` の**席を指さない停止**が毎回飛ぶ——#463 の窓へ撃ち込み続ける
+ * - `positionSync` は**アプリ全体で1箇所だけがマウントした** `useEnginePositionSync`
+ *   を渡すこと（同期の状態が二重になると、待つ相手が食い違う）
+ * - 畳まれた回は席を指さずに撃つ（→ `docs/state-transitions/analysis.md` ※12）
+ */
 export function AnalysisProvider({ children, positionSync }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
@@ -115,7 +133,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /**
    * 画面に出ている候補手を捨てる。**`go` を出す前に、開始する口が必ず通る。**
    *
-   * 通さないと `start_analysis` が `currentPosition` だけを差し替えるので
+   * 通さないと `start_analysis` が `analyzedSfen` だけを差し替えるので
    * （`reducer.ts`）、**前の局面の評価値と読み筋が、新しい局面の解析結果として出る**
    * ——新しい席の最初の `info` が届くまで。`AnalysisPane` はその間に
    * 現在の局面の鍵でキャッシュへ焼き付けるので、停止中に戻るたび出続ける。
@@ -387,7 +405,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       }
 
       clearDebounceTimer();
-      scheduleRestart(seq, 16);
+      scheduleRestart(seq, SYNC_POLL_MS);
       return;
     }
 
@@ -415,7 +433,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         const newSessionId = await startInfiniteAnalysisCore();
         if (!holdUnlessSuperseded(seq, "late-restart", newSessionId)) return;
 
-        dispatch({ type: "start_analysis", payload: { position: want } });
+        dispatch({ type: "start_analysis", payload: { sfen: want } });
 
         // **開始の応答より早く届いた `info` を、ここで出し直す。** 席が欄に入る前に
         // 来た1本は `latestResultRef` に入るが、`flushLatest` は `isAnalyzing` を見るので
@@ -541,20 +559,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       throw new Error("No position available for analysis");
     }
 
-    // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
-    // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと
-    // Rust に断られ続け、画面からは復帰できなくなる（→ #172）。
-    // 押してから席が返るまでの世代。**返却より前に読む**——`releaseHeld` は
-    // 本物の往復を挟むので、その間に世代が上がる（棋譜を閉じた回）と、
-    // 後で読むと上がった後の値を持ってしまい、以降の門が1枚も効かない。
-    //
     // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
     // 動くのは畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
 
-    // **失敗する `await` は3つとも同じ形で包む**（返す・送る・始める）。
-    // 包まないと、その枝だけ `error` が null のまま `console.error` で終わり、
-    // #277 が出口を作っても永久に出ない。要らなくなった要求の失敗は誰にも見せない。
     const failStart = (message: string, e: unknown): never => {
       dispatch({ type: "set_error", payload: message });
       throw e;
@@ -571,7 +579,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       if (supersededSince(seq)) return;
     }
 
-    // 握っていなければ `releaseHeld` は何もしない。
+    // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
+    // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと Rust に
+    // 断られ続ける（→ #172）。握っていなければ `releaseHeld` は何もしない。
     try {
       await seat.releaseHeld("start");
     } catch (e) {
@@ -643,7 +653,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     if (!holdUnlessSuperseded(seq, "late-start", sessionId)) return;
 
-    dispatch({ type: "start_analysis", payload: { position: started } });
+    dispatch({ type: "start_analysis", payload: { sfen: started } });
 
     // 理由は自動再開の側に1つ置いてある（`runRestart` の同じ行）。
     scheduleFlush();
