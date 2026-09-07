@@ -135,23 +135,23 @@ comment が指摘。`BookErrorCode` は8個中2個、`BookMove` は `depth` だ�
 
 ## 修正結果
 
-| 所見 | 結果   | コミット  | 備考                                                                                      |
-| ---- | ------ | --------- | ----------------------------------------------------------------------------------------- |
+| 所見 | 結果 | コミット | 備考 |
+| ---- | ---- | -------- | ---- |
 | F-01 | 直した | `86f7664` | `moves` と余分なトークンを `InvalidSfen` に。誤挙動を固定していたテストを拒否側へ書き換え |
-| F-04 | 直した | `2c64de6` | 段数・列数・駒文字・持駒の書式を検査。持駒の並びを畳む                                    |
-| F-05 | 直した | `9a9bfb7` | `BookKey` newtype。`normalize_sfen` → `to_book_key` に改名                                |
-| F-02 | 直した | `59228df` | `fs::metadata` に置換。`PermissionDenied` / `InvalidType` を追加                          |
-| F-09 | 直した | `e33680a` | trait doc に禁止事項。`BookError::from_io` を追加                                         |
-| F-11 | 直した | `afc52fb` | `OpenBook` → `BookSession`                                                                |
-| F-06 | 直した | `f5d29ca` | `close` が本体を返し、Drop を blocking プールへ                                           |
-| F-03 | 直した | `0fe383a` | `list_books` / `close_all_books` を追加                                                   |
-| F-07 | 直した | `a5e70f7` | 絶対パス・NUL を検査。実体のパスで登録                                                    |
-| F-14 | 直した | `aa15de7` | ハンドルを先に見る。順序を純関数に切り出してテストで固定                                  |
-| F-08 | 直した | `6499170` | 失敗経路に `log::warn!`                                                                   |
-| F-10 | 直した | `65d8948` | サブモジュールを private にしてファサードだけ公開                                         |
-| F-12 | 直した | `a12bb99` | 「数百 MB」を撤回。close の理由を `get` 側へ。`TODO(#91)`                                 |
-| F-15 | 直した | `e523317` | `position_count` の意味など、公開 API の doc を補完                                       |
-| F-13 | 見送り | —         | → issue #197。上限値に根拠が無いため、実際に確保を行う #91 で実測に基づいて決める         |
+| F-04 | 直した | `2c64de6` | 段数・列数・駒文字・持駒の書式を検査。持駒の並びを畳む |
+| F-05 | 直した | `9a9bfb7` | `BookKey` newtype。`normalize_sfen` → `to_book_key` に改名 |
+| F-02 | 直した | `59228df` | `fs::metadata` に置換。`PermissionDenied` / `InvalidType` を追加 |
+| F-09 | 直した | `e33680a` | trait doc に禁止事項。`BookError::from_io` を追加 |
+| F-11 | 直した | `afc52fb` | `OpenBook` → `BookSession` |
+| F-06 | 直した | `f5d29ca` | `close` が本体を返し、Drop を blocking プールへ |
+| F-03 | 直した | `0fe383a` | `list_books` / `close_all_books` を追加 |
+| F-07 | 直した | `a5e70f7` | 絶対パス・NUL を検査。実体のパスで登録 |
+| F-14 | 直した | `aa15de7` | ハンドルを先に見る。順序を純関数に切り出してテストで固定 |
+| F-08 | 直した | `6499170` | 失敗経路に `log::warn!` |
+| F-10 | 直した | `65d8948` | サブモジュールを private にしてファサードだけ公開 |
+| F-12 | 直した | `a12bb99` | 「数百 MB」を撤回。close の理由を `get` 側へ。`TODO(#91)` |
+| F-15 | 直した | `e523317` | `position_count` の意味など、公開 API の doc を補完 |
+| F-13 | 見送り | — | → issue #197。上限値に根拠が無いため、実際に確保を行う #91 で実測に基づいて決める |
 
 提案どおりに直さなかったもの:
 
@@ -171,21 +171,21 @@ comment が指摘。`BookErrorCode` は8個中2個、`BookMove` は `depth` だ�
 
 書いたテストが実装を固定できていることを、実装を壊して確かめた。**12件すべてでテストが落ちた。**
 
-| #   | 壊した箇所                            | 落ちたテスト                                                                   |
-| --- | ------------------------------------- | ------------------------------------------------------------------------------ |
-| M1  | SFEN キーから手数を落とさない         | `drops_the_move_number` ほか                                                   |
-| M2  | 知らないハンドルの close を成功させる | `close_rejects_an_already_closed_handle`                                       |
-| M3  | 拡張子を小文字化しない                | `extension_match_ignores_case`                                                 |
-| M4  | 閉じたハンドルを配り直す              | `handles_are_distinct_even_for_the_same_path` ほか                             |
-| M5  | ファイルの実在を形式判別より先に見る  | `reports_the_extension_before_looking_at_the_file_system`                      |
-| M6a | 局面の後ろの余りを黙って捨てる        | `rejects_a_position_with_moves` / `rejects_trailing_tokens_after_the_position` |
-| M6b | 手数の位置の `moves` を見ない         | `rejects_a_position_with_moves`                                                |
-| M7  | 盤面の段数を見ない                    | `rejects_a_broken_board`                                                       |
-| M8  | 持駒の並びを畳まず素通し              | `hand_spelling_does_not_change_the_key` ほか                                   |
-| M9  | 相対パスを通す                        | `rejects_a_path_that_cannot_be_resolved`                                       |
-| M10 | SFEN をハンドルより先に見る           | `reports_a_closed_handle_before_a_broken_position`                             |
-| M11 | `close_all` が map から外さない       | `close_all_drops_every_reader`                                                 |
-| M12 | ディレクトリを NotFound に潰す        | `reports_a_directory_as_a_wrong_kind`                                          |
+| # | 壊した箇所 | 落ちたテスト |
+| - | ---------- | ------------ |
+| M1 | SFEN キーから手数を落とさない | `drops_the_move_number` ほか |
+| M2 | 知らないハンドルの close を成功させる | `close_rejects_an_already_closed_handle` |
+| M3 | 拡張子を小文字化しない | `extension_match_ignores_case` |
+| M4 | 閉じたハンドルを配り直す | `handles_are_distinct_even_for_the_same_path` ほか |
+| M5 | ファイルの実在を形式判別より先に見る | `reports_the_extension_before_looking_at_the_file_system` |
+| M6a | 局面の後ろの余りを黙って捨てる | `rejects_a_position_with_moves` / `rejects_trailing_tokens_after_the_position` |
+| M6b | 手数の位置の `moves` を見ない | `rejects_a_position_with_moves` |
+| M7 | 盤面の段数を見ない | `rejects_a_broken_board` |
+| M8 | 持駒の並びを畳まず素通し | `hand_spelling_does_not_change_the_key` ほか |
+| M9 | 相対パスを通す | `rejects_a_path_that_cannot_be_resolved` |
+| M10 | SFEN をハンドルより先に見る | `reports_a_closed_handle_before_a_broken_position` |
+| M11 | `close_all` が map から外さない | `close_all_drops_every_reader` |
+| M12 | ディレクトリを NotFound に潰す | `reports_a_directory_as_a_wrong_kind` |
 
 ## 検証
 

@@ -339,6 +339,46 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(1);
   });
 
+  it("席を続けて2つ手放しても、古い方の info を採らない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("session-1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 1手進める。再開が `session-1` を返し（1つ目の手放し）、開始の応答待ちで止まる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // もう1手進めて世代を上げ、返ってきた席を捨てさせる（2つ目の手放し）。
+    // 張り直される再開は応答が返らないので、席の欄は空のまま。
+    startCore.mockImplementation(() => new Promise<string>(() => {}));
+    await view.setSync(adapter("P3", "P3"));
+    await advance(150);
+    await act(async () => {
+      releaseStart("session-2");
+    });
+    await advance(150);
+
+    // ここで `session-1` の遅れた `info` が届く。覚えているのが1枠だと、
+    // `session-2` に上書きされていて `session-1` が通る。
+    await act(async () => {
+      listeners?.onUpdate("session-1", oneCandidate);
+    });
+    await advance(150);
+
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("捨てる停止の応答を待っている間も、その席の info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");
@@ -800,8 +840,8 @@ describe("AnalysisProvider のアンマウント", () => {
     // 「Analysis already running」で断られる。エンジンを畳み直すまで戻れない。
     expect(stopCore).toHaveBeenCalledTimes(1);
 
-    // **セッションを指さない。** 指すと、席に居るのが別のセッションだったとき
-    // Rust が照合して断る（`bridge.rs` の `stop_session`）。
+    // 指さない理由は `docs/state-transitions/analysis.md` ※12。ここで見るのは
+    // 「指していないこと」だけ。
     expect(stopCore).toHaveBeenCalledWith(undefined, "unmount");
   });
 
