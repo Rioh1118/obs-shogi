@@ -91,9 +91,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /**
    * `waitUntil` の中から読む。**await の向こう側でエンジンが消えたかを見る。**
    *
-   * **合併のまま1本で持つ。** 2つの ref に割ると narrowing が消え、読む側が
-   * `notReadyReason ?? "既定値"` を書くことになる——その既定値は、起こし直しの窓で
-   * 「設定でエンジンを選んでください」を出す（→ `EngineReadiness` の doc）。
+   * **合併のまま1本で持つ。** 2つの ref に割ると tsc の narrowing が消え、読む側が
+   * `notReadyReason ?? "既定値"` を書くことになる。どの既定値を選んでも3つのうち2つでは
+   * 嘘になる（→ `EngineNotReadyReason`）。
    */
   const readinessRef = useRef<EngineReadiness>(readiness);
 
@@ -453,9 +453,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * **経過時間は待つ相手（`seq` と局面）ごと持つ。** 時刻だけを持つと、前回の待ちの
    * 経過を引き継いで、次の待ちを1ミリ秒も待たずに打ち切る。
    *
-   * **同じ待ちの規則が2箇所にある。** 手動の ▶ は `sendAndAwaitSync` が `waitUntil` で
-   * 待つ。上限や刻みを変えるときは**両方**を直すこと——片方だけ直すと、盤を動かして
-   * 再開した回だけが古い上限で断られる。
+   * **上限と刻みは定数を共有している**（`POSITION_SYNC_TIMEOUT_MS` / `SYNC_POLL_MS`）
+   * ので、値を変えれば両方に効く。**二重化しているのは待ちの形のほう**——手動の ▶ は
+   * `sendAndAwaitSync` が `waitUntil` で待って断りを立てて投げ、こちらはタイマーを
+   * 張り直して打ち切りで席を返す。**打ち切りの条件を変えるときは両方を見ること。**
    */
   const keepWaitingForSync = useCallback(
     (seq: number, want: string) => {
@@ -889,8 +890,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     supersedeRequests();
 
     // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
-    // 席と `isAnalyzing` のどちらかが立っていれば後始末ごと走らせたい
-    // 「読む局面が無くなった」回の1箇所だけ。
+    // **フックに撃たせるかどうかとは別の判断**をするときだけ——席と `isAnalyzing` の
+    // どちらかが立っていれば後始末ごと走らせたい「読む局面が無くなった」回と、
+    // 握れなかった席の反映待ちを落とす回（`takeSeatAndGo`）。
     try {
       await seat.releaseHeld("stop");
     } catch (e) {

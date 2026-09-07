@@ -19,7 +19,8 @@ user-invocable: false
 
 - テストは TS / Rust の両方にある。**件数を前提にしない。**
   ただし `cargo test` の green は `src/` の振る舞いを網羅していない。「テストが通るので安全」と書かない
-- 検証は `npm run verify`（tsc + oxlint + vitest、約8秒）と `npm run verify:rust`（fmt + clippy + test、約2分15秒）
+- 検証は `npm run verify` と `npm run verify:rust`。段の内訳と免除は `CONTRIBUTING.md` が持つ。
+  **所要時間を前提にしない**（`CLAUDE.md` が数字を書かないと決めている）
 - E2E は無い。今後も作らない（`tauri-driver` が macOS 非対応のため）
 - 対象画面サイズは **MacBook 相当以上**（幅 1280px 以上）。スマホ・タブレット対応は要求しない
 - Lint は oxlint（`vite.config.ts` の `lint` に設定がインラインで書かれている）
