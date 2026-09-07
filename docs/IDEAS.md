@@ -159,9 +159,6 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 - **README のトップ画像が古い。** 解析ペインのヘッダはボタン5つで、🔖（課題局面）が写っていない。
   仕様（`docs/spec/screens/analysis-pane.md`）と実装は6つ。README の Features にも
   課題局面が無いので、画像・機能一覧・仕様が揃って1機能を落としている
-- **PR テンプレートの検証チェックリストが CONTRIBUTING より狭い。**
-  「TypeScript を触った場合 / Rust を触った場合」の2行しかないので、
-  `docs/state-transitions/` だけを触る PR は**どちらにも当てはまらない**と読める
   （CONTRIBUTING は両方必須と書いている）
 - **手元でビルドする前提が足りない。** Tauri の Linux 依存（`libwebkit2gtk-4.1-dev` ほか）は
   `.github/workflows/ci.yml` にしか無い。README と CONTRIBUTING の「前提」は
@@ -175,15 +172,18 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 `.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
 
 `entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
-**barrel を通さずに11箇所から読まれている**（`aiLibrary` が6、`tauri` が3、`events` が2。
-うち8箇所は `main` から在る）。`sliceBarrels` はこれを見ない——禁止するのは
-barrel が実際に公開しているモジュールだけなので、**公開しない限り深く読める**。
+**barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
+で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` が10行）。
+`sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
+**公開しない限り深く読める**。
 
 **判断: 6週間以内に着手しない。** 利用者に見える不具合ではない。
 どちらへ寄せるかは `entities/engine` の公開面をまとめて決める作業で、
 どちらを選んでも `features/settings` と `features/engine-position-sync` に波及する。
 
-- **(a) `api/` を境界として認めて barrel に載せる。** 載せた瞬間に既存の deep import が
-  `sliceBarrels` の違反になるので、11箇所を同時に書き換えることになる
+- **(a) `api/` を境界として認めて barrel に載せる。** 載せたモジュールの deep import が
+  その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）。
+  `api/tauri` だけなら3ファイル（うち範囲外は `features/engine-position-sync` の1つ）、
+  `api/aiLibrary` まで広げると `features/settings` の6ファイル
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙（`SeatReleasePoint` など）は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む

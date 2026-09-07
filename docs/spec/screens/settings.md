@@ -1,6 +1,6 @@
 # 画面仕様: 設定
 
-対象: `src/features/settings/` `src/entities/app-config/` `src-tauri/src/ai_library.rs`
+対象: `src/features/settings/` `src/entities/app-config/` `src-tauri/src/ai_library/`
 `modal=settings`
 
 ## 目的

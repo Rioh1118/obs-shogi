@@ -76,7 +76,12 @@ issue #120 と同型の行き止まり
 
 ※5 S3 では**同じ runtime なら再トライしない**（`provider.tsx`）。
 無限リトライを避けるため。**再トライの導線は `clearError()` だが、UI からの呼び出し元が0。**
-利用者は別のプリセットを選ぶ以外に復帰できない
+
+**「同じ runtime」はプリセットの同一性ではない**——見るのは `enginePath` /
+`workDir` / `evalDir` / `bookDir` / `bookFile` / `options`（`entities/engine/lib/equalRuntime.ts`。
+この判定がここの唯一の出典で、他の doc はここを指す）。だから**選択中のプリセットの
+オプションを1つ変えて保存するだけでも起動し直す**——プリセットが1つしか無い利用者に
+残っている道はこれだけ
 → [failure-surfacing.md](failure-surfacing.md) F-9
 
 ※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
@@ -86,7 +91,8 @@ issue #120 と同型の行き止まり
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
    ※2 はこれを破りうる
 2. **フロントが S0 なら Rust 側も P0。** ※3 はこれを破る
-3. **S3（失敗）から抜ける道が常にある。** いまは「別のプリセットを選ぶ」だけ。※5
+3. **S3（失敗）から抜ける道が常にある。** いまは `desiredRuntime` を前回試した値から
+   動かすことだけ（※5。プリセットを選び直しても、選択中のものを編集してもよい）
 
 ## 埋まっていないセル
 

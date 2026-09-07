@@ -30,22 +30,22 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 
 ## イベント
 
-| 記号    | イベント                             | 発生源                                                 |
-| ------- | ------------------------------------ | ------------------------------------------------------ |
-| **E1**  | 開始ボタン                           | `AnalysisPaneHeader` → `startInfiniteAnalysis()`       |
-| **E2**  | 停止ボタン                           | 同 → `stopAnalysis()`                                  |
-| **E3**  | 局面が変わる                         | 盤操作・棋譜ナビ（`currentSfen`）                      |
-| **E4**  | 同期が追いつく                       | `syncedSfen === desiredSfenRef` になる                 |
-| **E5**  | 同期がタイムアウトする               | 2000ms（`POSITION_SYNC_TIMEOUT_MS`）                   |
-| **E6**  | エンジンが ready でなくなる          | → [engine.md](engine.md) E6/E7/E8                      |
-| **E7**  | 結果が届く                           | Rust の `analysis-update`                              |
-| **E8**  | 完了通知が届く                       | **飛ばない**。`analysis-complete` を emit する行が無い |
-| **E9**  | エラー通知が届く                     | **飛ばない**。`engine-error` を emit する行が無い      |
-| **E10** | `start_infinite_analysis` が失敗する | エンジンが応答しない・**セッションが残っている**       |
-| **E11** | `stop_analysis` が失敗する           | 同上                                                   |
-| **E12** | リスナの登録に失敗する               | `setupAnalysisEventListeners` の reject（起動時1回）   |
-| **E13** | 画面が畳まれる                       | `RequireRootDir` の差し戻し（`RuntimeProviders` ごと） |
-| **E14** | 読む局面が無くなる                   | 棋譜を閉じる（`currentSfen` が null になる）           |
+| 記号    | イベント                             | 発生源                                                        |
+| ------- | ------------------------------------ | ------------------------------------------------------------- |
+| **E1**  | 開始ボタン                           | `AnalysisPaneHeader` → `startInfiniteAnalysis()`              |
+| **E2**  | 停止ボタン                           | 同 → `stopAnalysis()`                                         |
+| **E3**  | 局面が変わる                         | 盤操作・棋譜ナビ（`currentSfen`）                             |
+| **E4**  | 同期が追いつく                       | `syncedSfen === desiredSfenRef` になる                        |
+| **E5**  | 同期が失敗する                       | 送信の例外／上限切れ（2000ms、`POSITION_SYNC_TIMEOUT_MS`）※15 |
+| **E6**  | エンジンが ready でなくなる          | → [engine.md](engine.md) E6/E7/E8                             |
+| **E7**  | 結果が届く                           | Rust の `analysis-update`                                     |
+| **E8**  | 完了通知が届く                       | **飛ばない**。`analysis-complete` を emit する行が無い        |
+| **E9**  | エラー通知が届く                     | **飛ばない**。`engine-error` を emit する行が無い             |
+| **E10** | `start_infinite_analysis` が失敗する | エンジンが応答しない・**セッションが残っている**              |
+| **E11** | `stop_analysis` が失敗する           | 同上                                                          |
+| **E12** | リスナの登録に失敗する               | `setupAnalysisEventListeners` の reject（起動時1回）          |
+| **E13** | 画面が畳まれる                       | `RequireRootDir` の差し戻し（`RuntimeProviders` ごと）        |
+| **E14** | 読む局面が無くなる                   | 棋譜を閉じる（`currentSfen` が null になる）                  |
 
 ## 表
 
@@ -144,8 +144,9 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 ※8 `syncWaitRef` は `{seq, want, startedAt}` を持つ。
 **時刻だけを持つと前回の経過時間を引き継いで即座に打ち切る**ため（`provider.tsx`）
 
-※9 タイムアウト時は `seat.releaseHeldQuietly("sync-timeout")` で席を返してから `set_error` + `stop_analysis`
-（`provider.tsx`）。**ここは P を片付けている。**
+※9 タイムアウト時は `seat.releaseHeldQuietly("sync-timeout")` で席を返してから、
+`set_error` と `stop_analysis` を dispatch する（`provider.tsx`。**IPC はここでは撃たない**
+——席は返し済み）。**ここは P を片付けている。**
 **席の判定はフックの中にある**（`releaseHeldQuietly` は `sessionId` を取らず、
 握っていなければ何も撃たない）。呼び手が門を書く場所ではない。
 返せなかったときに残るのは `console.warn` **だけ**。直後に飛ぶ `set_error` は
@@ -213,6 +214,13 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 **席を握っていれば表示が停止中でも返す**（※7 の後がその形）。
 返せなかった回は不変条件1 を破る → ※12。**その回の復帰は「棋譜を開き直してから ▶」**
 ——閉じたままではボタンが無い。
+
+※15 **同期の失敗は2通り。** `syncPosition` が投げる回（`set_position` が落ちた）と、
+送れてはいるが `syncedSfen` が追いつかない回（上限切れ）。**どちらも `set_error` を立てる**
+（`provider.tsx`）。自動再開の側は投げる回を `catch` で拾って同じ断りに落とす。
+断りの読み手は0（→ ※4 / F-2）。**送信の例外は再試行では直らない**——押し直しても
+同じところで落ちるので、復帰は `runtimeConfig` を動かしてエンジンを起こし直すこと
+（[engine.md](engine.md) の ※5）。
 
 ## この表が満たすべき不変条件
 
