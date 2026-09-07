@@ -20,6 +20,7 @@ import {
   RELEASE_FAILED_MESSAGE,
   RESTART_FAILED_MESSAGE,
   START_REFUSED_MESSAGE,
+  ENGINE_RESTARTED_MESSAGE,
   STOP_FAILED_MESSAGE,
 } from "./refusals";
 
@@ -566,7 +567,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (syncedSfen !== want) return;
     if (sentSfenRef.current === want) return;
 
-    if (!debounceTimerRef.current && !restartInFlightRef.current) {
+    // **飛んでいる再開があるなら捨てずに予約する。** 判断は `runRestart` の同じ門と
+    // 揃える。降りてしまうと、エンジンが2回続けて落ちた回に再開の引き金が消える
+    // ——飛んでいる側は席を捨てて降りるので張り直す者が居らず、`finally` の予約も
+    // 立っていない。盤を動かすまで「解析中」の表示のまま数字が動かない。
+    if (restartInFlightRef.current) {
+      pendingAfterRef.current = true;
+      return;
+    }
+
+    if (!debounceTimerRef.current) {
       scheduleRestart(restartSeqRef.current, 0);
     }
   }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart]);
@@ -749,6 +759,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
       failStart(START_REFUSED_MESSAGE, e);
+    }
+    // **エンジンが消えた回は断る。** 利用者が降りた回（`"superseded"`）と違って、
+    // ここは押した人がまだ画面の前に居る。黙ると `AnalysisPaneHeader` の catch にも
+    // 入らないので `console.error` すら出ず、**押す前と1ドットも変わらない画面**が残る
+    // （停止中はペインが控えを出す）。1段あとの同期待ちで同じことが起きれば断りは出る
+    // ——隣り合う枝で片方だけ黙らせない。
+    if (landed === "engine-gone") {
+      failStart(ENGINE_RESTARTED_MESSAGE, new Error("engine was restarted while taking a seat"));
     }
     if (landed !== "held") return;
 

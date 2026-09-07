@@ -12,6 +12,7 @@ import {
   ENGINE_FAILED_MESSAGE,
   NO_ENGINE_SELECTED_MESSAGE,
   ENGINE_STARTING_MESSAGE,
+  ENGINE_RESTARTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
@@ -486,6 +487,10 @@ describe("AnalysisProvider の結果の照合", () => {
       expect(view.current.state.isAnalyzing).toBe(false);
       expect(stopCore).not.toHaveBeenCalled();
 
+      // **黙らない。** 押した人はまだ画面の前に居る。断りが無いと、停止中の
+      // ペインが控えを出すので**押す前と1ドットも変わらない**。
+      expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+
       // 戻ってきたら ▶ で始められる。
       engine = { isReady: true, notReadyReason: null };
       await view.setSync(adapter("P1", "P1"));
@@ -542,8 +547,57 @@ describe("AnalysisProvider の結果の照合", () => {
 
       expect(startCore).toHaveBeenCalledTimes(2);
       expect(view.current.state.isAnalyzing).toBe(true);
-      // もう無い席へ停止は撃たない（空撃ちになり、次の席を巻き添えにしうる）。
+      // もう無い席へ停止は撃たない（→ `analysis.md` の ※13）。
       expect(stopCore).not.toHaveBeenCalled();
+    },
+    SLOW,
+  );
+
+  it(
+    "エンジンを2回続けて起こし直しても、戻ったときに読み直す",
+    async () => {
+      let releaseStart: (sessionId: string) => void = () => {};
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      expect(startCore).toHaveBeenCalledTimes(1);
+
+      // 1回目。戻ったところで再開が飛び、その席はまだ返ってこない。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(50);
+
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P1", "P1"));
+      await advance(150);
+      expect(startCore).toHaveBeenCalledTimes(2);
+
+      // 2回目。**飛んでいる再開の最中**に落ちて戻る。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(50);
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P1", "P1"));
+      await advance(50);
+
+      // 飛んでいた席が**最後に**着地する。死んでいるので捨てられ、この経路には
+      // 再開を張り直す者が居ない——予約しないと、盤を動かすまで何も起きない。
+      await act(async () => {
+        releaseStart("dead");
+      });
+      await advance(300);
+
+      expect(startCore).toHaveBeenCalledTimes(3);
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.error).toBeNull();
     },
     SLOW,
   );
