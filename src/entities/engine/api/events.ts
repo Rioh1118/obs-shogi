@@ -55,28 +55,46 @@ export interface AnalysisEventListeners {
   onError?: (error: string) => void;
 }
 
+/**
+ * 3つの通知を購読する。**途中で落ちたら、そこまでに登録した分を解除してから投げ直す。**
+ *
+ * 解除する者が居ないまま登録が残ると、畳まれた画面のハンドラが呼ばれ続ける
+ * ——受け取る側は畳まれた後にタイマーを張るので、`window` が消えた環境では
+ * そのタイマー自身が投げる。
+ */
 export async function setupAnalysisEventListeners(
   listeners: AnalysisEventListeners,
 ): Promise<() => void> {
   const unlisteners: UnlistenFn[] = [];
 
-  if (listeners.onUpdate) {
-    const unlisten = await listenToAnalysisUpdates(listeners.onUpdate);
-    unlisteners.push(unlisten);
-  }
-
-  if (listeners.onComplete) {
-    const unlisten = await listenToAnalysisComplete(listeners.onComplete);
-    unlisteners.push(unlisten);
-  }
-
-  if (listeners.onError) {
-    const unlisten = await listenToEngineErrors(listeners.onError);
-    unlisteners.push(unlisten);
-  }
-
-  // 全リスナー解除関数を返す
-  return () => {
-    unlisteners.forEach((unlisten) => unlisten());
+  /** 解除は1本ずつ包む。**1本目が投げても残りを解除する。** */
+  const unlistenAll = () => {
+    for (const unlisten of unlisteners) {
+      try {
+        unlisten();
+      } catch (e) {
+        console.debug("[ANALYSIS] unlisten failed (ignored)", e);
+      }
+    }
+    unlisteners.length = 0;
   };
+
+  try {
+    if (listeners.onUpdate) {
+      unlisteners.push(await listenToAnalysisUpdates(listeners.onUpdate));
+    }
+
+    if (listeners.onComplete) {
+      unlisteners.push(await listenToAnalysisComplete(listeners.onComplete));
+    }
+
+    if (listeners.onError) {
+      unlisteners.push(await listenToEngineErrors(listeners.onError));
+    }
+  } catch (e) {
+    unlistenAll();
+    throw e;
+  }
+
+  return unlistenAll;
 }

@@ -237,6 +237,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）                                             | 起こし直す                             |
 | `ENGINE_NOT_READY_MESSAGE`      | エンジンを選んでいない                                                            | 設定でエンジンを選ぶ                   |
 | `ENGINE_ERROR_MESSAGE`          | E9 のエラー通知。**いま踏めない**                                                 | 起こし直す                             |
+| `LISTENERS_FAILED_MESSAGE`      | 結果の購読に失敗した（E12 → F-4）                                                 | アプリを起動し直す（張り直す口が無い） |
 
 **自動再開の側は `syncPosition` を呼ばない。** 送信の例外は自動追従の口が飲むので
 （`features/engine-position-sync`）、その回は `syncedSfen` が追いつかないまま

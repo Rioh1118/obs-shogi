@@ -16,6 +16,7 @@ import {
   ENGINE_FAILED_MESSAGE,
   ENGINE_NOT_READY_MESSAGE,
   ENGINE_STARTING_MESSAGE,
+  LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RELEASE_FAILED_MESSAGE,
@@ -28,6 +29,17 @@ import {
  * 同期が追いつくのを見に行く間隔。**1フレームぶん**（打ち切りの上限に対して十分細かい）。
  */
 const SYNC_POLL_MS = 16;
+
+/** 結果を画面へ反映する間引き。**80ms ごとに1回**（`info` は数十 ms 間隔で届く） */
+const RESULT_FLUSH_MS = 80;
+
+/** 盤が動いてから再開を始めるまでの猶予。連打を1本に畳む */
+const RESTART_DEBOUNCE_MS = 100;
+
+// エンジンが position を受け付けるまで待つ上限。これを超えたら送信できていないと
+// 見なし、盤面と一致しない候補手を出さないために解析を始めない。
+// 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
+const POSITION_SYNC_TIMEOUT_MS = 2000;
 
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
 //
@@ -84,8 +96,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const latestResultRef = useRef<AnalysisResult | null>(null);
   const flushTimerRef = useRef<number | null>(null);
 
-  const RESULT_FLUSH_MS = 80;
-
   const clearFlushTimer = useCallback(() => {
     if (flushTimerRef.current != null) {
       clearTimeout(flushTimerRef.current);
@@ -134,7 +144,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       flushTimerRef.current = null;
       flushLatest();
     }, RESULT_FLUSH_MS);
-  }, [flushLatest, RESULT_FLUSH_MS]);
+  }, [flushLatest]);
 
   const safeUnlisten = useCallback(() => {
     const fn = unlistenRef.current;
@@ -180,13 +190,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     startedAt: number;
   } | null>(null);
   const pendingAfterRef = useRef(false);
-
-  const RESTART_DEBOUNCE_MS = 100;
-
-  // エンジンが position を受け付けるまで待つ上限。これを超えたら送信できていないと
-  // 見なし、盤面と一致しない候補手を出さないために解析を始めない。
-  // 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
-  const POSITION_SYNC_TIMEOUT_MS = 2000;
 
   // **`window` を通さない。** ここはタイマーのコールバックからも、畳んだ後の
   // 後始末からも呼ばれる。テスト環境は畳んだ後に `window` を落とすので、
@@ -361,7 +364,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         }
         unlistenRef.current = unlisten;
       } catch (e) {
+        // **張り直す口が無い。** この effect の依存は全部固定なのでマウント1回きりで、
+        // 落ちると結果が二度と届かない——`isAnalyzing` は true のまま候補手が0で固まる。
         console.error("[ANALYSIS] Failed to setup listeners:", e);
+        dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
       }
     };
 
@@ -510,6 +516,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer,
   ]);
 
+  // **同期が追いついた回と、`isReady` が戻った回の入口。**
+  //
+  // 局面が変わった側の effect は `currentSfen` しか見ないので、送信が遅れて追いついた回と、
+  // エンジンが落ちて戻った回を拾えない。とくに後者はここが唯一の入口
+  // ——`runRestart` は `if (!isReady) return` で**張り直さずに**抜けるので（→ ※5）、
+  // これを消すと「解析中の表示のまま二度と再開しない」に戻る。
+  //
+  // 最後の門は、**既に張られているタイマーと飛んでいる再開に2本目を重ねない**ため。
   useEffect(() => {
     if (!state.isAnalyzing) return;
     if (!isReady) return;
@@ -723,8 +737,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     try {
       await seat.releaseHeld("stop");
     } catch (e) {
-      // **停止だけが断りの無い枝だった。** 表示は停止中になり、タイマーも 0 に戻るので
-      // 成功と1ドットも違わないのに、エンジンは閉じた探索を回し続ける。
+      // **停止が落ちても表示は停止中になり、タイマーも 0 に戻る**ので、成功と1ドットも
+      // 見分けが付かない。断らないと、エンジンが閉じた探索を回し続けていることに
+      // 利用者は気づけない。
       dispatch({ type: "set_error", payload: STOP_FAILED_MESSAGE });
       throw e;
     } finally {

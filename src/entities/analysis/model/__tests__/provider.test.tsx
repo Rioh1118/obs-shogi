@@ -12,6 +12,7 @@ import {
   ENGINE_FAILED_MESSAGE,
   ENGINE_NOT_READY_MESSAGE,
   ENGINE_STARTING_MESSAGE,
+  LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RELEASE_FAILED_MESSAGE,
@@ -44,8 +45,11 @@ type Listeners = {
   onError: (error: string) => void;
 };
 let listeners: Listeners | null = null;
+/** 購読の登録を落としたい回だけ立てる */
+let listenerSetupFails = false;
 vi.mock("@/entities/engine/api/events", () => ({
   setupAnalysisEventListeners: async (handlers: Listeners) => {
+    if (listenerSetupFails) throw new Error("listen failed");
     listeners = handlers;
     return () => {};
   },
@@ -121,6 +125,7 @@ beforeEach(() => {
   stopCore.mockResolvedValue(undefined);
   syncPosition.mockResolvedValue(undefined);
   engine = { isReady: true, phase: "ready" };
+  listenerSetupFails = false;
 });
 
 // **畳まないまま次のテストへ渡さない。** 自動 cleanup は入っていない
@@ -352,6 +357,18 @@ describe("AnalysisProvider の停止", () => {
 });
 
 describe("AnalysisProvider の結果の照合", () => {
+  it("結果の購読に失敗したら、断りを立てる", async () => {
+    tauri = true;
+    listenerSetupFails = true;
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await advance(50);
+    listenerSetupFails = false;
+
+    // 張り直す口が無いので、断らないと「解析中・候補手0」で永久に固まる。
+    expect(view.current.state.error).toBe(LISTENERS_FAILED_MESSAGE);
+  });
+
   it("再開した席で届いた info を、前の席と照らして落とさない", async () => {
     tauri = true;
     let releaseStart: (sessionId: string) => void = () => {};

@@ -8,6 +8,13 @@
  *
  * **ここに1本足したら、`docs/state-transitions/analysis.md` の ※15 にも枝を足すこと。**
  * `src/__tests__/analysisRefusals.test.ts` が突き合わせる。
+ *
+ * @packageDocumentation
+ */
+
+/**
+ * 断りではなく、**複数の断りが末尾に埋め込む部品**。
+ * 起こし直し方の出典は `docs/state-transitions/engine.md` の ※5。
  */
 export const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて保存すると起こし直せます。";
 /** 上限まで待っても同期が追いつかない。**押し直しで直りうる。** */
@@ -47,3 +54,9 @@ export const ENGINE_NOT_READY_MESSAGE =
 export const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
 /** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
 export const RESTART_FAILED_MESSAGE = `解析を再開できませんでした。▶ を押しても始まらないときは、${RESTART_ENGINE_HINT}`;
+
+/**
+ * 解析結果の購読に失敗した（→ E12 / F-4）。**結果が二度と届かない。**
+ * 張り直す口が無い（effect はマウント1回きり）ので、復帰はアプリの起動し直し。
+ */
+export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。アプリを起動し直してください。";
