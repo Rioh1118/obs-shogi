@@ -22,6 +22,11 @@ export async function listenToAnalysisUpdates(
   });
 }
 
+/**
+ * 探索の完了通知。**`sessionId` を照合すること**——一致しない完了通知を採ると、
+ * 走っている別の席の表示が停止中に落ち、前の局面の評価値が残る。
+ * `analysis-update` より結末が重い。
+ */
 export async function listenToAnalysisComplete(
   callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
@@ -33,6 +38,10 @@ export async function listenToAnalysisComplete(
   );
 }
 
+/**
+ * エンジンのエラー通知。**上流の英文をそのまま画面へ出さないこと**——
+ * `state.error` は利用者に見せる欄で、Rust の内部メッセージはログにだけ残す。
+ */
 export async function listenToEngineErrors(callback: (error: string) => void): Promise<UnlistenFn> {
   return await listen<string>(EVENT_NAMES.ENGINE_ERROR, (event) => {
     callback(event.payload);
