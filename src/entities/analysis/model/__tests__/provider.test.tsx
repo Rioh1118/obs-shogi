@@ -692,6 +692,39 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.error).toBeNull();
   });
 
+  it("▶ で始め直したら、前の局面の候補手を出さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("session-1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    await act(async () => {
+      listeners?.onUpdate("session-1", oneCandidate);
+    });
+    await advance(150);
+    expect(view.current.state.candidates).toHaveLength(1);
+
+    // ■ を押す。候補手は画面に残ったまま（停止中の表示に使う）。
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+
+    // 盤を動かして ▶。新しい席の最初の `info` が届くまでの窓で、
+    // 消さないと **P1 の評価値と読み筋が P2 の解析結果として出る**
+    // ——`AnalysisPane` はその間に P2 の鍵でキャッシュへ焼き付ける。
+    startCore.mockResolvedValueOnce("session-2");
+    await view.setSync(adapter("P2", "P2"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.currentPosition).toBe("P2");
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("席を握ったまま止まっていたら、▶ で返してから始める", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {

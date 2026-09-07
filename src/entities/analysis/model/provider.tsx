@@ -73,6 +73,23 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     dispatch({ type: "update_result", payload: r });
   }, []);
 
+  /**
+   * 画面に出ている候補手を捨てる。**`go` を出す前に、開始する口が必ず通る。**
+   *
+   * 通さないと `start_analysis` が `currentPosition` だけを差し替えるので
+   * （`reducer.ts`）、**前の局面の評価値と読み筋が、新しい局面の解析結果として出る**
+   * ——新しい席の最初の `info` が届くまで。`AnalysisPane` はその間に
+   * 現在の局面の鍵でキャッシュへ焼き付けるので、停止中に戻るたび出続ける。
+   *
+   * **`clear_results` は `error` も消す**（`reducer.ts`）ので、
+   * 要らなくなった要求が通らない位置——世代の門の後ろ——で呼ぶこと。
+   */
+  const discardShownResults = useCallback(() => {
+    clearFlushTimer();
+    latestResultRef.current = null;
+    dispatch({ type: "clear_results" });
+  }, [clearFlushTimer]);
+
   const scheduleFlush = useCallback(() => {
     if (flushTimerRef.current != null) return;
     flushTimerRef.current = window.setTimeout(() => {
@@ -337,9 +354,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
         if (supersededSince(seq)) return;
 
-        clearFlushTimer();
-        latestResultRef.current = null;
-        dispatch({ type: "clear_results" });
+        discardShownResults();
 
         const newSessionId = await startInfiniteAnalysisCore();
         if (!holdUnlessSuperseded(seq, "late-restart", newSessionId)) return;
@@ -488,6 +503,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     const started = currentSfenRef.current;
     if (!started) return;
 
+    discardShownResults();
+
     const sessionId = await startInfiniteAnalysisCore();
     if (!holdUnlessSuperseded(seq, "late-start", sessionId)) return;
 
@@ -503,6 +520,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     seat,
     supersededSince,
     holdUnlessSuperseded,
+    discardShownResults,
   ]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
