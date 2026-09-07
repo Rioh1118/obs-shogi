@@ -209,6 +209,7 @@ pub async fn build_full_index_task(
             path: path_str.clone(),
             deleted: false,
             // 組めなかった棋譜も表には載る。**見分けはこの欄だけ**
+            // （`FileEntry::indexed` の doc）
             indexed: ok,
             gen,
         };

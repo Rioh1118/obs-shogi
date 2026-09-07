@@ -7,6 +7,17 @@ export type IndexState = "Empty" | "Restoring" | "Building" | "Ready" | "Updatin
 export interface IndexStatePayload {
   state: IndexState;
   dirtyCount: number;
+  /**
+   * **段によって意味が違う。**
+   *
+   * - `Ready`: 索引を組めた棋譜の数。`totalFiles` との差が**検索に出ない棋譜**
+   * - `Updating`: 据わっている索引の数。差は**まだ当てていない差分**
+   * - `Building`: その回でいままでに組めた数。差は**未処理と失敗の合計**
+   * - `Restoring`: 0（索引を捨てた直後）
+   *
+   * `indexHealth` が `Ready` に限って差を読むのはこのため。段を足すときに
+   * 条件を広げると、進行中の走行中カウントが「一部を索引に入れられていません」に化ける。
+   */
   indexedFiles: number;
   totalFiles: number;
   /**

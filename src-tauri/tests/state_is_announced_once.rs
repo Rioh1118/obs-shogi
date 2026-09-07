@@ -1,4 +1,4 @@
-//! **索引の段を画面へ出す口が1つに閉じているか。**
+//! **索引の段を画面へ出す場所が1つに閉じているか。**
 //!
 //! `IndexStatePayload::of` は旗（`scan_failed` / `partially_unreadable`）を
 //! **全部伏せた形から始める**。組み立てる場所が散っていると、旗を知らない側が
@@ -13,10 +13,16 @@
 //! `search/announce.rs` の `mod tests` が見る（`IndexAnnouncement` と
 //! `IndexProgress` の両方の写像に腕ごとのテストがある）。
 //!
-//! **迂回できる綴りを塞いである。** 定数名（`EVT_INDEX_STATE`）だけを見ると、
-//! 2つの形が素通りする。値（`"position-index-state"`）を直に書く形は
-//! **import を1つも増やさずに通り**、`IndexStatePayload` を構造体リテラルで
-//! 組む形は import が1行増えるだけで型検査は止めない（欄は全部 `pub`）。
+//! **迂回できる綴りを3つ塞いである。** 定数名（`EVT_INDEX_STATE`）だけを見ると
+//! どれも素通りする。
+//!
+//! 1. 値（`"position-index-state"`）を直に書く——**import を1つも増やさずに通る**
+//! 2. `IndexStatePayload` を構造体リテラルで組む——import が1行増えるだけで
+//!    型検査は止めない（欄は全部 `pub`）
+//! 3. `use ... as P` で別名にする——`cargo fmt` は書き戻さないので他の検査も拾わない
+//!
+//! **走査するのは `src` 全体。** `EVT_INDEX_STATE` も `IndexStatePayload` も `pub` で、
+//! `search` の外のどの枝からでも組んで出せる。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -24,8 +30,8 @@ use std::path::{Path, PathBuf};
 mod scanning;
 use scanning::{blank_out_comments, blank_out_noncode};
 
-/// 段を組んでよい唯一の場所。
-const THE_ONE_MOUTH: &str = "src/search/announce.rs";
+/// 段を組んでよい唯一のファイル。
+const THE_ONE_ANNOUNCER: &str = "src/search/announce.rs";
 
 /// 段の綴りを持ってよい場所。**`types` は定義するだけで出さない。**
 const NOT_CALLERS: [&str; 2] = ["src/search/announce.rs", "src/search/types.rs"];
@@ -33,8 +39,9 @@ const NOT_CALLERS: [&str; 2] = ["src/search/announce.rs", "src/search/types.rs"]
 /// `EVT_INDEX_STATE` の値。**定数名を迂回した綴りを塞ぐ。**
 const EVENT_NAME: &str = "position-index-state";
 
-/// 段を出す口の数。**終端（`announce_state`）と進行中（`announce_progress`）の2つ。**
-const EXPECTED_MOUTHS: usize = 2;
+/// そのファイルの中に在るべき emit の数。
+/// **終端（`announce_state`）と進行中（`announce_progress`）の2箇所。**
+const EXPECTED_EMIT_SITES: usize = 2;
 
 /// 画面へ出しうる側を**歩いて集める**。
 ///
@@ -112,7 +119,7 @@ fn no_caller_emits_the_index_state_itself() {
 
     assert!(
         offenders.is_empty(),
-        "段を出す口が `{THE_ONE_MOUTH}` の外にある: {offenders:?}\n\
+        "段を出す口が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          `announce_state`（終端）か `announce_progress`（進行中）を通すこと。\
          生で組むと、旗を知らない側が伏せたまま出す",
     );
@@ -122,19 +129,19 @@ fn no_caller_emits_the_index_state_itself() {
 ///
 /// 上の検査は「無いこと」しか見ないので、`announce.rs` から emit が消えても緑になる。
 #[test]
-fn the_one_mouth_still_emits() {
+fn the_announcer_still_emits_from_both_paths() {
     // **`use` 行では満たされない形で見る。** 綴りの有無だけだと、
     // emit を両方消しても `use` に名前が残っているかぎり緑になる
     //
-    // **本数で見る。** 口は2つ（終端と進行中）あるので「1本以上あるか」だと
-    // **片方が黙っても緑**になる。進行中が黙れば構築の段が1つも画面に届かず、
+    // **箇所の数で見る。** emit は2箇所（終端と進行中）あるので「1箇所以上あるか」
+    // だと**片方が黙っても緑**になる。進行中が黙れば構築の段が1つも画面に届かず、
     // 終端が黙れば `Ready` が二度と来ないので検索は永久に `stale`
-    let code = read_code(THE_ONE_MOUTH);
-    let mouths = code.matches("emit(EVT_INDEX_STATE").count();
+    let code = read_code(THE_ONE_ANNOUNCER);
+    let sites = code.matches("emit(EVT_INDEX_STATE").count();
     assert_eq!(
-        mouths, EXPECTED_MOUTHS,
-        "{THE_ONE_MOUTH} の段を出す口が {mouths} 本（終端と進行中で {EXPECTED_MOUTHS} 本のはず）。\n\
-         口を増やしたならこの数も動かすこと——減っているなら、その経路の段は誰も出せない",
+        sites, EXPECTED_EMIT_SITES,
+        "{THE_ONE_ANNOUNCER} の emit が {sites} 箇所（終端と進行中で {EXPECTED_EMIT_SITES} 箇所のはず）。\n\
+         増やしたならこの数も動かすこと——減っているなら、その経路の段は誰も出せない",
     );
 }
 
@@ -157,7 +164,7 @@ fn no_caller_builds_the_payload_itself() {
 
     assert!(
         offenders.is_empty(),
-        "旗を組む口が `{THE_ONE_MOUTH}` の外にある: {offenders:?}\n\
+        "旗を組む口が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          段と旗の対応は `IndexAnnouncement` / `IndexProgress` の写像1箇所で決めること",
     );
 }
@@ -181,7 +188,7 @@ fn no_caller_builds_a_place_warning_itself() {
 
     assert!(
         offenders.is_empty(),
-        "場所の警告を組む口が `{THE_ONE_MOUTH}` の外にある: {offenders:?}\n\
+        "場所の警告を組む口が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          `announce` の関数を通すこと。裸のリテラルで組むと、そこだけ言い分けが掛からない",
     );
 }

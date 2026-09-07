@@ -91,8 +91,7 @@ pub fn announce_state(
     };
     // **墓標を数えない。** 消しても数が減らないと「削除が反映されていない」と読める
     let live = snap.file_table.live_len() as u32;
-    // **組めた数は索引が覚えている。** 回ごとに数え直すと、差分更新は自分が
-    // 触れた分しか知らないので前の回の失敗を引き継げず、1回の再走査で緑に戻る
+    // 組めた数は索引が覚えている（`FileEntry::indexed` の doc に理由）
     let indexed = snap.file_table.indexed_len() as u32;
     let Some(payload) = state.into_payload(live, indexed) else {
         return;
@@ -102,8 +101,9 @@ pub fn announce_state(
 
 /// 仕事が進んでいることを画面へ出す。
 ///
-/// **こちらは呼び手が件数を持つ。** まだ索引に入っていないものを数えるので、
-/// 索引からは数えられない（`announce_state` と逆）。
+/// **対象の件数は呼び手が持ち、据わっている索引の件数はここで数える。**
+/// まだ索引に入っていないものは呼び手しか知らないが、既に据わっている数は
+/// 索引が覚えている（[`crate::search::types::FileEntry::indexed`]）。
 ///
 /// **代は同じように確かめる。** 確かめないと、ワークスペースを切り替えた後の
 /// 画面へ**前のワークスペースの進捗**が流れ続ける——全件構築は
@@ -126,7 +126,7 @@ pub fn announce_progress(
     let _ = app.emit(EVT_INDEX_STATE, progress.into_payload(indexed));
 }
 
-/// 進行中の段。**件数は呼び手が持つ。**
+/// 進行中の段。**対象の件数は呼び手が持つ。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexProgress {
     /// ディスク上のキャッシュを読みに行っている
@@ -151,15 +151,19 @@ pub enum IndexProgress {
 }
 
 impl IndexProgress {
-    /// `installed` は**いま据わっている索引が組めている数**。
+    /// `indexed` は**いま据わっている索引が組めている数**（`FileTable::indexed_len`）。
     ///
-    /// 進行中の腕のうち、既に索引が据わっているもの（`Restored` / `Updating`）が
-    /// 使う。`Restoring` と `Building` は索引を捨てた後なので使わない。
-    fn into_payload(self, installed: u32) -> IndexStatePayload {
+    /// 進行中の腕のうち、既に索引が据わっているもの（`Restored` / `Updating`）が使う。
+    ///
+    /// `Restoring` は `restart` の直後で索引が空。**`Building` は空ではない**
+    /// （`COMMIT_BATCH` ごとに積みながら進む）が、`indexed_len` はその
+    /// バッチのぶんだけ遅れるので、進捗には自前の走行中の勘定を使う
+    /// ——揃えると数字が `COMMIT_BATCH` 刻みで飛ぶ。
+    fn into_payload(self, indexed: u32) -> IndexStatePayload {
         match self {
             Self::Restoring => IndexStatePayload::of(IndexState::Restoring, 0),
             Self::Restored { files } => {
-                IndexStatePayload::of(IndexState::Updating, files).indexed(installed)
+                IndexStatePayload::of(IndexState::Updating, files).indexed(indexed)
             }
             Self::Building {
                 total,
@@ -173,7 +177,7 @@ impl IndexProgress {
                 dirty,
                 partially_unreadable,
             } => IndexStatePayload::of(IndexState::Updating, total)
-                .indexed(installed)
+                .indexed(indexed)
                 .dirty(dirty)
                 .partially_unreadable(partially_unreadable),
         }
@@ -661,8 +665,8 @@ mod tests {
     }
 
     /// 据わっている索引の数を渡す形。
-    fn progress_with(p: IndexProgress, installed: u32) -> IndexStatePayload {
-        p.into_payload(installed)
+    fn progress_with(p: IndexProgress, indexed: u32) -> IndexStatePayload {
+        p.into_payload(indexed)
     }
 
     /// **進行中の段が「走査に失敗した」と名乗らないこと。**
@@ -672,8 +676,9 @@ mod tests {
     /// 残り**、画面は「更新できていません」で止まる（`indexHealth` は進行中を
     /// 先に見るので、そこに至るまで誰も気付けない）。
     ///
-    /// **`partially_unreadable` はここで見ない。** あちらは進行中も運ぶのが正で、
-    /// [`Self::both_running_states_carry_the_unreadable_flag`] が固定している。
+    /// **`partially_unreadable` は「伏せた入力を勝手に立てないか」だけ見る。**
+    /// 立てた入力をちゃんと運ぶかは
+    /// [`both_running_states_carry_the_unreadable_flag`] が固定している。
     #[test]
     fn no_progress_state_claims_the_scan_failed() {
         for p in [
@@ -924,12 +929,12 @@ mod tests {
 
     /// **組めなかった棋譜を「索引に入れた」と数えないこと。**
     ///
-    /// 生きている件数（`live_len`）で代えると、壊れた棋譜が200本あっても
+    /// 生きている件数（`live_len`）で代えると、組めなかった棋譜が何本あっても
     /// `indexed == total` になり、失敗が数字から完全に消える——警告は出るが、
     /// バッジは緑の「準備完了」のまま。
     ///
-    /// **数えるのは索引（`indexed_len`）。** 回ごとに数え直す形にすると、
-    /// 差分更新は自分が触れた分しか知らないので、**1回の再走査で緑に戻る**。
+    /// 数えるのは索引（`FileTable::indexed_len`）。理由は
+    /// `FileEntry::indexed` の doc。
     #[test]
     fn files_that_could_not_be_indexed_are_not_counted_as_indexed() {
         // 表には1000件居るが、組めたのは800件——差の200件は局面を1つも持たない

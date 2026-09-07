@@ -471,11 +471,11 @@ mod tests {
         assert_eq!(KifuKind::from_path(Path::new("/tmp/noext")), None);
     }
 
-    /// **読めない場所の下の棋譜が、削除に化けないこと。**
+    /// `Scanned` を手で組む。**[`Scanned::is_partial`] の写像だけを見るとき用。**
     ///
-    /// 手で組んだ `ScanSnapshot` を渡すテストは、`unreadable` と `by_path` の
-    /// **綴りを揃えて作ってしまう**ので、本番で両者がずれていても緑になる。
-    /// 走査から差分までを実ファイルで1本通す。
+    /// 綴りの突き合わせが要るもの（引き継ぎ・差分）にこれを使わないこと——
+    /// 手で組むと `unreadable` と `by_path` の綴りが必ず揃うので、
+    /// 本番でずれていても緑になる。そちらは実ファイルで通す。
     fn scanned(unreadable: &[&str], unknown_gaps: bool) -> Scanned {
         Scanned {
             files: Vec::new(),
@@ -507,6 +507,11 @@ mod tests {
         assert!(scanned(&["/w/closed"], false).is_partial());
     }
 
+    /// **読めない場所の下の棋譜が、削除に化けないこと。**
+    ///
+    /// 手で組んだ `ScanSnapshot` を渡すテストは、`unreadable` と `by_path` の
+    /// **綴りを揃えて作ってしまう**ので、本番で両者がずれていても緑になる。
+    /// 走査から差分までを実ファイルで1本通す。
     #[cfg(unix)]
     #[test]
     fn a_file_under_an_unreadable_place_is_not_reported_as_removed() {

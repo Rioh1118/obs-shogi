@@ -245,9 +245,23 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 **`gen` が上がらないと前の世代のセグメントが索引に残る**からで、
 `project_manager` の `build_one_file` が `None` を返したときの腕がそれを担っている。
 
-全件構築（`build.rs`）と差分更新（`project_manager.rs`）で残っている差は2つ。
+**登録は同じでも、`indexed` 欄が違う。** 組めた棋譜は `indexed: true`、
+組めなかった棋譜は `indexed: false` で載る——**表に居るのに局面を1つも持たない**
+第3の状態がある。両経路ともこの欄を書く（`build.rs` の `indexed: ok`、
+`project_manager` の `None` の腕の `indexed: false`）。
 
-- `build.rs` は `ok` フラグを計算しているが、登録の判断には使っていない（`indexed_ok` の勘定だけ）
+画面の2つの数はこの欄で分かれる。
+
+| 画面の欄     | 数える口                 | 何を数えるか                               |
+| ------------ | ------------------------ | ------------------------------------------ |
+| 対象ファイル | `FileTable::live_len`    | 墓標を除いた全部（組めなかった棋譜も含む） |
+| 索引済み     | `FileTable::indexed_len` | `indexed` が真のものだけ                   |
+
+差が「検索に出ない棋譜」の数になるのは `Ready` の回だけ
+（`IndexStatePayload::indexed_files` の doc）。
+
+全件構築（`build.rs`）と差分更新（`project_manager.rs`）で残っている差は1つ。
+
 - **読めなかった理由をどこで警告にするかが違う。** `build.rs` は `warns` に混ぜて
   他の警告と同じループで出す。`project_manager` は `build_one_file` の別の腕で
   その場で出して `None` を返す。**出し方（1件ずつ `EVT_INDEX_WARN` を emit）は

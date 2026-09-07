@@ -96,6 +96,18 @@ pub enum IndexState {
 pub struct IndexStatePayload {
     pub state: IndexState,
     pub dirty_count: u32,
+    /// **段によって意味が違う。**
+    ///
+    /// | 段 | 何の数か |
+    /// | --- | --- |
+    /// | `Ready` | [`FileEntry::indexed`] が真の件数。`total_files` との差が**検索に出ない棋譜** |
+    /// | `Updating` | 据わっている索引の件数。差は**まだ当てていない差分** |
+    /// | `Building` | その回でいままでに組めた件数。差は**未処理と失敗の合計** |
+    /// | `Restoring` | 0（索引を捨てた直後） |
+    ///
+    /// 画面が `Ready` に限って差を読むのはこのため
+    /// （`entities/search/lib/indexHealth.ts`）。段を足すときに条件を
+    /// 広げると、進行中の走行中カウントが「一部を索引に入れられていません」に化ける。
     pub indexed_files: u32,
     pub total_files: u32,
     /// **最後の走査を最後まで通せなかった。** 索引そのものは最後に読めた

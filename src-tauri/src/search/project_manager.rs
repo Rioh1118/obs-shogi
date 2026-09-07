@@ -438,16 +438,15 @@ impl ProjectManager {
             {
                 Some(item) => batch.push(item),
                 None => {
-                    // build error: still record a tombstone-ish entry so file_table
-                    // gets updated and stale segments from the old gen are excluded.
                     let empty: BucketEntries = empty_buckets();
                     batch.push((
                         FileEntry {
                             file_id: pb.file_id,
                             path: path_str.clone(),
                             deleted: false,
-                            // **組めなかった。** 表には載せる（`gen` を上げて
-                            // 前の世代のセグメントを落とすため）が、局面は1つも無い
+                            // **組めなかった。消えたのではない**ので `deleted` は
+                            // 立てない。表には載せる（`gen` を上げて前の世代の
+                            // セグメントを落とすため）が、局面は1つも無い
                             indexed: false,
                             r#gen: pb.new_gen,
                         },
