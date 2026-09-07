@@ -31,7 +31,7 @@ export function pickWarns(warns: IndexWarnPayload[], slots: number) {
   const newestFirst = warns.slice().reverse();
   const places = newestFirst.filter((w) => w.kind === "place");
   const files = newestFirst.filter((w) => w.kind !== "place");
-  // 安定ソートなので、名指しできるもの同士の新しい順は崩れない
+  // `filter` は順を保つので、名指しできるもの同士の新しい順は崩れない
   const named = places.filter((w) => w.path !== "");
   const unnamed = places.filter((w) => w.path === "");
   return [...named, ...unnamed, ...files].slice(0, slots);

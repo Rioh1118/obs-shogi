@@ -183,9 +183,10 @@ export default function WorkspaceTab() {
 
             <div className="wsTab__mini">
               {/*
-                **入れ終えた数を出す。** 対象より少ない回は、その差がそのまま
-                「検索に出ない棋譜」の数。数を伏せると、警告欄の5件しか
-                手掛かりが無くなる
+                **入れ終えた数を出す。** `Ready` の回にかぎり、対象との差が
+                そのまま「検索に出ない棋譜」の数。数を伏せると、警告欄の5件しか
+                手掛かりが無くなる。
+                進行中は据わっている索引の数が出るので、差は「まだ当てていない分」
               */}
               <div className="wsTab__miniK">索引済み</div>
               <div className="wsTab__miniV">
