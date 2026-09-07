@@ -14,10 +14,9 @@
 //! `IndexProgress` の両方の写像に腕ごとのテストがある）。
 //!
 //! **迂回できる綴りを塞いである。** 定数名（`EVT_INDEX_STATE`）だけを見ると、
-//! その値（`"position-index-state"`）を直に書く形と、`IndexStatePayload` を
-//! 構造体リテラルで組む形が素通りする——`IndexStatePayload` の欄は全部 `pub` で、
-//! 呼び手は `EVT_INDEX_PROGRESS` のために `Emitter` を既に `use` している。
-//! **どちらも新しい import なしでコンパイルが通る。**
+//! 2つの形が素通りする。値（`"position-index-state"`）を直に書く形は
+//! **import を1つも増やさずに通り**、`IndexStatePayload` を構造体リテラルで
+//! 組む形は import が1行増えるだけで型検査は止めない（欄は全部 `pub`）。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -34,12 +33,18 @@ const NOT_CALLERS: [&str; 2] = ["src/search/announce.rs", "src/search/types.rs"]
 /// `EVT_INDEX_STATE` の値。**定数名を迂回した綴りを塞ぐ。**
 const EVENT_NAME: &str = "position-index-state";
 
+/// 段を出す口の数。**終端（`announce_state`）と進行中（`announce_progress`）の2つ。**
+const EXPECTED_MOUTHS: usize = 2;
+
 /// 画面へ出しうる側を**歩いて集める**。
 ///
 /// ベタ書きの一覧にすると、`search` に新しいファイルを足して emit を書いた回に
 /// 検査の対象にすら入らない——**列挙の漏れは静かに通る**。
 fn callers() -> Vec<PathBuf> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/search");
+    // **`src` 全体を歩く。** `EVT_INDEX_STATE` も `IndexStatePayload` も `pub` なので、
+    // `search` の外のどの枝からでも組んで出せる——`search` だけを歩く形だと、
+    // そこに書かれた emit は検査の対象にすら入らない
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut out = Vec::new();
     walk(&root, &mut out);
     let skip: Vec<PathBuf> = NOT_CALLERS
@@ -47,9 +52,11 @@ fn callers() -> Vec<PathBuf> {
         .map(|r| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(r))
         .collect();
     out.retain(|p| !skip.contains(p));
+    // **空振りを緑と読まない。** 走査が半分で止まっても、見つからなければ
+    // 「違反なし」になる
     assert!(
-        out.len() > 3,
-        "`src/search` を歩けていない（{}件）。走査が空振りしたのを緑と読まないこと",
+        out.len() > 50,
+        "`src` を歩けていない（{}件）。走査が空振りしたのを緑と読まないこと",
         out.len()
     );
     out
@@ -118,10 +125,16 @@ fn no_caller_emits_the_index_state_itself() {
 fn the_one_mouth_still_emits() {
     // **`use` 行では満たされない形で見る。** 綴りの有無だけだと、
     // emit を両方消しても `use` に名前が残っているかぎり緑になる
+    //
+    // **本数で見る。** 口は2つ（終端と進行中）あるので「1本以上あるか」だと
+    // **片方が黙っても緑**になる。進行中が黙れば構築の段が1つも画面に届かず、
+    // 終端が黙れば `Ready` が二度と来ないので検索は永久に `stale`
     let code = read_code(THE_ONE_MOUTH);
-    assert!(
-        code.contains("emit(EVT_INDEX_STATE"),
-        "{THE_ONE_MOUTH} が段を出さなくなっている。出す口を動かしたなら、この検査も動かすこと",
+    let mouths = code.matches("emit(EVT_INDEX_STATE").count();
+    assert_eq!(
+        mouths, EXPECTED_MOUTHS,
+        "{THE_ONE_MOUTH} の段を出す口が {mouths} 本（終端と進行中で {EXPECTED_MOUTHS} 本のはず）。\n\
+         口を増やしたならこの数も動かすこと——減っているなら、その経路の段は誰も出せない",
     );
 }
 
@@ -155,7 +168,8 @@ fn no_caller_builds_the_payload_itself() {
 /// 取り違えても型検査は止めない。`announce` の外で組むと、そこだけ
 /// 言い分け（`IndexSurvival`）も語彙の統一も掛からない。
 ///
-/// **`::file`（棋譜1件）は許す。** あちらは読み手が理由を持っているので、
+/// **`::file`（棋譜1件）は許す。** 文言の出所が2つ（`read/diagnosis.rs` と
+/// `announce::build_failure`）あり、どちらも段の旗を組まないので、
 /// 出す場所と組む場所を分ける理由が無い。
 #[test]
 fn no_caller_builds_a_place_warning_itself() {
@@ -169,5 +183,32 @@ fn no_caller_builds_a_place_warning_itself() {
         offenders.is_empty(),
         "場所の警告を組む口が `{THE_ONE_MOUTH}` の外にある: {offenders:?}\n\
          `announce` の関数を通すこと。裸のリテラルで組むと、そこだけ言い分けが掛からない",
+    );
+}
+
+/// **別名で `use` して検査を素通りしないこと。**
+///
+/// `use ...IndexStatePayload as P;` と書くと、`P::of(..)` も `P { .. }` も
+/// 綴りの走査に掛からない。`cargo fmt` は別名を書き戻さないので、
+/// **`verify:rust` の他の検査も拾わない**。
+#[test]
+fn no_caller_hides_the_names_behind_an_alias() {
+    const HIDDEN: [&str; 3] = ["IndexStatePayload", "IndexWarnPayload", "EVT_INDEX_STATE"];
+
+    let offenders: Vec<String> = callers()
+        .into_iter()
+        .filter(|p| {
+            blank_out_noncode(&read_with_strings(p))
+                .lines()
+                .filter(|l| l.contains("use ") && l.contains(" as "))
+                .any(|l| HIDDEN.iter().any(|h| l.contains(h)))
+        })
+        .map(|p| rel(&p))
+        .collect();
+
+    assert!(
+        offenders.is_empty(),
+        "段の名前を別名で隠している: {offenders:?}\n\
+         別名にすると綴りの走査が全部素通りする。素の名前で `use` すること",
     );
 }

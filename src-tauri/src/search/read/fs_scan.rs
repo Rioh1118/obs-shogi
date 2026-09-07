@@ -476,6 +476,37 @@ mod tests {
     /// 手で組んだ `ScanSnapshot` を渡すテストは、`unreadable` と `by_path` の
     /// **綴りを揃えて作ってしまう**ので、本番で両者がずれていても緑になる。
     /// 走査から差分までを実ファイルで1本通す。
+    fn scanned(unreadable: &[&str], unknown_gaps: bool) -> Scanned {
+        Scanned {
+            files: Vec::new(),
+            unreadable: unreadable.iter().map(|s| (*s).to_string()).collect(),
+            unknown_gaps,
+        }
+    }
+
+    /// **場所の分からない失敗だけの回を「完走した」と言わないこと。**
+    ///
+    /// `read_dir` の反復中の失敗はパスを持たないので `unreadable` は空のまま。
+    /// `!unreadable.is_empty()` で見ると**その回だけが黙る**——削除を1件も
+    /// 当てていないのに、画面は緑の「準備完了」になる。
+    #[test]
+    fn a_scan_with_only_placeless_failures_is_still_partial() {
+        assert!(
+            scanned(&[], true).is_partial(),
+            "場所の分からない失敗を見落としている"
+        );
+    }
+
+    #[test]
+    fn a_scan_that_read_everything_is_not_partial() {
+        assert!(!scanned(&[], false).is_partial());
+    }
+
+    #[test]
+    fn a_scan_with_an_unreadable_place_is_partial() {
+        assert!(scanned(&["/w/closed"], false).is_partial());
+    }
+
     #[cfg(unix)]
     #[test]
     fn a_file_under_an_unreadable_place_is_not_reported_as_removed() {
