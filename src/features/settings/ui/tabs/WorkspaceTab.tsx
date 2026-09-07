@@ -249,8 +249,7 @@ export default function WorkspaceTab() {
             */}
             {warns.length > shownWarns.length && (
               <div className="wsTab__warnMore">
-                ほか {(warns.length - shownWarns.length).toLocaleString()} 件（新しい順に
-                {shownWarns.length} 件だけ表示しています）
+                {`ほか ${(warns.length - shownWarns.length).toLocaleString()} 件（読めなかった場所を先に、${shownWarns.length} 件だけ表示しています）`}
               </div>
             )}
 

@@ -98,7 +98,7 @@ pub(crate) fn capped(e: &dyn std::fmt::Display) -> String {
 /// 読めなかった理由を、利用者に出せる形にして包む。
 ///
 /// **[`KifuReadError::ParseFailed`] を作る口はここだけ。** 長さと制御文字を落とすのを
-/// 各所でやると必ず漏れる。[`KifuReadError::NothingToIndex`] の `warn` は
+/// 各所でやると必ず漏れる。[`ReadOutcome::NothingToIndex`] の `warn` は
 /// **数だけを埋める定型文**なので刈る対象が無く、ここを通らず直に組む。
 /// **クレート由来の文言を混ぜるなら、ここか [`capped`] を通すこと。**
 ///
