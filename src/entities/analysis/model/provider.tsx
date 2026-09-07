@@ -456,6 +456,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // 失敗したときに「解析中」の表示のままタイマーだけが回り続け、
       // 利用者には何も起きていないのに正常に見える。
       const prev = syncWaitRef.current;
+      // **同じ待ちの規則が2箇所にある。** 手動の ▶ は `sendAndAwaitSync` が
+      // `waitUntil` で待つ。上限や刻みを変えるときは**両方**を直すこと——片方だけ直すと、
+      // 盤を動かして再開した回だけが古い上限で断られる。
       const startedAt =
         prev && prev.seq === seq && prev.want === want ? prev.startedAt : Date.now();
       syncWaitRef.current = { seq, want, startedAt };
