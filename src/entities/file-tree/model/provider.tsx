@@ -21,6 +21,7 @@ import {
   type FsError,
 } from "../api/error";
 import { isProjectRoot } from "../lib/isProjectRoot";
+import { isOpenedInTree } from "../lib/isOpenedInTree";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { useAppConfig } from "@/entities/app-config";
 
@@ -673,20 +674,26 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return true;
       }
 
-      // **開き直しを省いてよいかを、ここだけでは決められない。** ツリーが握っている
-      // 3つは「構文として読めた」までしか言わず、盤に載ったかは `loadGame` まで
-      // 来ないと分からない。載っているかを見られるのは呼び出し側なので、
-      // 覆せるようにしてある（`forceReopen`）。
+      // **開き直しを省いてよいかを、ここだけでは決められない。** `isOpenedInTree` が
+      // 見るのは「構文として読めた」までで、盤に載ったかは `loadGame` まで来ないと
+      // 分からない。載っているかを見られるのは呼び出し側なので、覆せるようにしてある。
       //
       // 覆せないと、載せられなかった棋譜がツリー側では「開いている」ままになり、
       // 2度目以降の要求が**何も起こさずに成功を返す**。
-      const isAlreadyActive =
+      // **`state` を丸ごと渡さない。** 依存が `state` 全体になり、ツリーのどの変化でも
+      // この callback が作り直される（`react-hooks/exhaustive-deps` が落とす）
+      const canSkipOpen =
         !options.forceReopen &&
-        state.activeKifuPath === node.path &&
-        state.jkfData !== null &&
-        state.kifuFormat === node.kifuInfo?.format;
+        isOpenedInTree(
+          {
+            activeKifuPath: state.activeKifuPath,
+            jkfData: state.jkfData,
+            kifuFormat: state.kifuFormat,
+          },
+          node,
+        );
 
-      if (!isAlreadyActive) {
+      if (!canSkipOpen) {
         void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
       }
 

@@ -17,6 +17,8 @@ const selectNode = vi.fn();
 
 const tree = {
   activeKifuPath: null as string | null,
+  jkfData: {} as unknown,
+  kifuFormat: "kif" as string | null,
   selectedNode: null as FileTreeNode | null,
   openKifuNode,
   selectNode,
@@ -29,7 +31,10 @@ const tree = {
 
 const game = { loadedAbsPath: null as string | null };
 
-vi.mock("@/entities/file-tree", () => ({
+// **`isOpenedInTree` は実物を使う。** 関門の半分をスタブに置き換えると、
+// この test は「関門が正しいか」ではなく「スタブが返す値」を見ることになる
+vi.mock("@/entities/file-tree", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/entities/file-tree")>()),
   useFileTree: () => tree,
   commitName: vi.fn(),
 }));
@@ -43,6 +48,7 @@ const NODE = {
   path: "/ws/a.kif",
   isDirectory: false,
   displayInfo: { iconType: "kifu" },
+  kifuInfo: { format: "kif" },
 } as unknown as FileTreeNode;
 
 const clickNode = () => {
@@ -54,6 +60,8 @@ beforeEach(() => {
   openKifuNode.mockClear();
   selectNode.mockClear();
   tree.activeKifuPath = null;
+  tree.jkfData = {};
+  tree.kifuFormat = "kif";
   game.loadedAbsPath = null;
 });
 
@@ -83,6 +91,21 @@ describe("棋譜のノードを押したとき", () => {
   test("ツリーが開いたと言っていても、盤に載っていなければ開きに行く", () => {
     tree.activeKifuPath = "/ws/a.kif";
     game.loadedAbsPath = "/ws/前の.kif";
+
+    clickNode();
+
+    expect(openKifuNode).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **改名で拡張子が変わった後。** `active_kifu_reconciled` は形式を運ばないので
+   * `kifuFormat` は古いまま据え置かれる。据え置かれた形式のまま開き直しを省くと、
+   * 保存が別の形式で書かれる（`.csa` に KIF の本文が入る）。
+   */
+  test("ツリーが掴んでいる形式が節と違えば、盤に載っていても開き直しに行く", () => {
+    game.loadedAbsPath = "/ws/a.kif";
+    tree.activeKifuPath = "/ws/a.kif";
+    tree.kifuFormat = "csa";
 
     clickNode();
 

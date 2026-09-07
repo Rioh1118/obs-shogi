@@ -8,13 +8,15 @@ import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
-import { commitName, useFileTree } from "@/entities/file-tree";
+import { commitName, isOpenedInTree, useFileTree } from "@/entities/file-tree";
 import { useLoadedKifuPath } from "@/entities/game";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
     openKifuNode,
     activeKifuPath,
+    jkfData,
+    kifuFormat,
     selectedNode,
     selectNode,
     openContextMenu,
@@ -30,16 +32,16 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   /**
    * 開き直しを省いてよいのは、**ツリーと盤の両方がこの棋譜を指しているとき**だけ。
    *
-   * 2つはずれる。`activeKifuPath` は構文として読めた時点で進むが、盤に載るまでには
-   * もう一段ある（`loadGame` の `buildPlayer`）。どちらか片方だけで判定すると、
-   * ずれている間の押し直しが両方向で効かなくなる。
+   * 2つはずれる（それぞれの意味は `activeKifuPath` と `loadedAbsPath` の doc）。
+   * 片方だけで判定すると、ずれている間の押し直しが片側ずつ効かなくなる。
    *
-   * - 盤だけを見ると、載せられなかった棋譜が「載っている」ことになって押し直せない
-   * - ツリーだけを見ると、**その前に開いていた棋譜へ戻れない**。盤は既にそれを出して
-   *   いるので戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指した
-   *   ままなので、`persistIfPossible` の門番が以降の書き込みを全部止める
+   * - **ツリーだけ**を見ると、載せられなかった棋譜が「開いている」ことになって押し直せない
+   * - **盤だけ**を見ると、その前に開いていた棋譜へ戻れない。盤は既にそれを出しているので
+   *   戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指したままなので、
+   *   `persistIfPossible` の門番が以降の書き込みを全部止める
    */
-  const isActive = loadedAbsPath === node.path && activeKifuPath === node.path;
+  const canSkipReopen =
+    isOpenedInTree({ activeKifuPath, jkfData, kifuFormat }, node) && loadedAbsPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 
@@ -112,7 +114,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
 
     selectNode(node);
 
-    if (!isActive) {
+    if (!canSkipReopen) {
       void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
     }
   };
