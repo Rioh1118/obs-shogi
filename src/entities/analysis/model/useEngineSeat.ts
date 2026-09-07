@@ -239,6 +239,7 @@ export function useEngineSeat(): EngineSeat {
    */
   const shoot = async (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) => {
     const held = seatRef.current;
+    const generation = engineGenRef.current;
 
     try {
       await stopAnalysisCore(sessionId, by);
@@ -254,7 +255,15 @@ export function useEngineSeat(): EngineSeat {
       //
       // 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
       if (sessionId !== undefined && seatRef.current === null) {
-        seatRef.current = sessionId;
+        // **往復の間にエンジンが消えていたら書き戻さない。** その席はもう
+        // Rust に無く（畳む側が `stop_all_sessions` で空ける）、欄へ戻すと
+        // 以後の停止が**次のエンジン**へその識別子で飛ぶ。手放した席として
+        // 覚えるだけにして、遅れて届く `info` を落とす。
+        if (engineGenRef.current !== generation) {
+          remember(sessionId);
+        } else {
+          seatRef.current = sessionId;
+        }
       }
       throw e;
     }

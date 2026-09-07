@@ -80,4 +80,33 @@ describe("EngineSeat とエンジンの世代", () => {
     // 遅れて届く `info` は落とす。
     expect(seat.accepts(id("S1"))).toBe(false);
   });
+
+  it("停止が落ちても、その往復の間に消えたエンジンの席は書き戻さない", async () => {
+    let rejectStop: (e: unknown) => void = () => {};
+    stopCore.mockImplementation(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectStop = reject;
+        }),
+    );
+
+    const { result } = renderHook(() => useEngineSeat());
+    const seat = result.current;
+
+    seat.beginTake("late-start").landed(id("S1"), () => false);
+
+    // 返却が飛んでいる間にエンジンが消える。
+    const releasing = seat.releaseHeld("restart").catch(() => {});
+    seat.onEngineGone();
+    rejectStop(new Error("ipc gone"));
+    await releasing;
+
+    // 書き戻すと、以後の停止が**次のエンジン**へ `S1` を指して飛ぶ。
+    expect(seat.isHeld()).toBe(false);
+
+    stopCore.mockReset();
+    stopCore.mockResolvedValue(undefined);
+    await seat.releaseHeld("start");
+    expect(stopCore).not.toHaveBeenCalled();
+  });
 });
