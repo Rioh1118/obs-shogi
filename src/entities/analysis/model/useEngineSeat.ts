@@ -79,6 +79,11 @@ export function useEngineSeat(): EngineSeat {
   // 直前に返した席。**採ってはいけない `info` を見分けるためだけに持つ。**
   const retiredRef = useRef<string | null>(null);
 
+  // 捨てると決めた席。**停止の応答が返る前から `info` を落とす**ために持つ。
+  // `retiredRef` は停止が解決してから書くので、その往復の間だけ
+  // 「席は空・まだ retired でもない」になり、捨てた席の `info` が通ってしまう。
+  const discardingRef = useRef<Set<string>>(new Set());
+
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
   // 2本目は無駄で、順序も結末も保証できない。待てる側（`releaseHeld`）は待ってから
@@ -155,8 +160,12 @@ export function useEngineSeat(): EngineSeat {
 
   apiRef.current = {
     isHeld: () => seatRef.current !== null,
-    matches: (sessionId) =>
-      seatRef.current !== null ? seatRef.current === sessionId : sessionId !== retiredRef.current,
+    matches: (sessionId) => {
+      if (discardingRef.current.has(sessionId)) return false;
+      return seatRef.current !== null
+        ? seatRef.current === sessionId
+        : sessionId !== retiredRef.current;
+    },
     hold: (sessionId) => {
       seatRef.current = sessionId;
     },
@@ -250,11 +259,17 @@ export function useEngineSeat(): EngineSeat {
     },
 
     discard: (by, sessionId) => {
+      // **捨てると決めた時点で `info` を落とす。** 停止の応答が返るまで Rust は
+      // その席の `info` を配り続けるので、待つと前の局面の読み筋が盤に出る。
+      discardingRef.current.add(sessionId);
+
       // **枠に載せる。** 載せないと、この停止が飛んでいる間に次の再開が
       // `releaseHeld` を素通りし（こちらは席を握っていない）、
       // 捨てた席がまだ Rust に居るうちに `start_infinite_analysis` を投げる
       // ——`take_session` が断って、解析が黙って停止中になる。
       const sending: Promise<void> = shootQuietly(by, sessionId).finally(() => {
+        // 握り直した回（`send` の catch）は落とし続ける。その席はまだ Rust に居る。
+        if (seatRef.current !== sessionId) discardingRef.current.delete(sessionId);
         if (releasingRef.current === sending) releasingRef.current = null;
       });
       releasingRef.current = sending;

@@ -339,6 +339,45 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(1);
   });
 
+  it("捨てる停止の応答を待っている間も、その席の info は採らない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("session-1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 再開の開始を待たせ、その間にもう1手進めて世代を上げる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+    await view.setSync(adapter("P3", "P3"));
+    await advance(150);
+
+    // 追い越された席が返る。捨てる停止は応答待ちのまま。
+    stopCore.mockImplementation(() => new Promise<void>(() => {}));
+    await act(async () => {
+      releaseStart("session-2");
+    });
+    await advance(50);
+
+    // その席はまだ Rust で読んでいるので `info` を配ってくる。
+    await act(async () => {
+      listeners?.onUpdate("session-2", oneCandidate);
+    });
+    await advance(150);
+
+    // 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る。
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("返したばかりの席で届いた info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");
@@ -701,6 +740,51 @@ describe("AnalysisProvider の開始", () => {
 });
 
 describe("AnalysisProvider のアンマウント", () => {
+  it("後ろに並んだ返却が飛んでいる間は、畳まれても指さない停止を撃たない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    stopCore.mockClear();
+    let failFirst: (e: unknown) => void = () => {};
+    let releaseSecond: () => void = () => {};
+    stopCore
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_, reject) => {
+            failFirst = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseSecond = resolve;
+          }),
+      );
+
+    // 棋譜を閉じる。1本目が飛ぶ。
+    await view.setSync(adapter(null, null));
+    expect(stopCore).toHaveBeenCalledTimes(1);
+
+    // 1本目が落ちる。席は握ったままなので、並んでいた側が撃ち直す。
+    await act(async () => {
+      failFirst(new Error("ipc is gone"));
+      await Promise.resolve();
+    });
+    expect(stopCore).toHaveBeenCalledTimes(2);
+
+    // 2本目が飛んでいる最中に畳まれる。指さない停止は席を全部空けるので、
+    // 重ねると開始と競って「席は空・エンジンは探索中」を作る（#463）。
+    view.unmount();
+    await advance(50);
+    expect(stopCore.mock.calls).not.toContainEqual([undefined, "unmount"]);
+
+    await act(async () => {
+      releaseSecond();
+    });
+  });
+
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
@@ -801,6 +885,34 @@ describe("AnalysisProvider のアンマウント", () => {
 
     // 握り直していないと、席の存在を知る者が居ないまま画面が消える。
     expect(stopCore).toHaveBeenCalledTimes(1);
+  });
+
+  it("エラーで席を握ったまま止まっていても、▶ で返してから始める", async () => {
+    tauri = true;
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // Rust からのエラー通知で S6（`isAnalyzing` は落ちるが席は握ったまま）。
+    // **この通知は現物では飛ばない**（`provider.tsx` の注記）。ここでは S6 を作る道具。
+    await act(async () => {
+      listeners?.onError("engine died");
+    });
+    expect(view.current.state.error).toBe("engine died");
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    stopCore.mockClear();
+    startCore.mockClear();
+    startCore.mockResolvedValue("session-2");
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 席を返さずに頼むと `take_session` が断り、S6 から抜けられない（#120 の形）。
+    expect(stopCore).toHaveBeenCalledWith("session-1", "start");
+    expect(view.current.state.isAnalyzing).toBe(true);
   });
 
   it("エラーで止まって見えていても、畳まれたら席を返す", async () => {
