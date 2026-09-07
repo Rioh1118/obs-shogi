@@ -2,11 +2,7 @@ import { useEffect } from "react";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
-
-function basename(path: string) {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] ?? path;
-}
+import { getBaseName } from "@/shared/lib/path";
 
 /**
  * ツリーが開いた棋譜を盤に載せる。
@@ -46,7 +42,7 @@ export function GameFileTreeBridge() {
         // 押すたびに `openKifuNode` が新しい `jkfData` を作り、この effect が撃ち直される。
         // 鍵が無いと、押した回数だけ同じ文言が積み上がる。
         dedupeKey: `kifu-unloadable:${activeKifuPath}`,
-        title: `「${basename(activeKifuPath)}」を盤に並べられませんでした`,
+        title: `「${getBaseName(activeKifuPath)}」を盤に並べられませんでした`,
         // **本文は「何をすれば直るか」から書く**（`NotifyRequest` の `body`）。
         // 段が `danger` で動作を持たない以上、次の一手を書けるのはここだけ。
         //
