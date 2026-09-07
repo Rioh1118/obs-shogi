@@ -1160,12 +1160,17 @@ mod tests {
         let root = Path::new("/tmp/obs-shogi-roundtrip");
 
         let mut ft = FileTable::default();
-        for (file_id, path, deleted) in [(1u32, "a.kif", false), (2u32, "変化.ki2", true)] {
+        // **`indexed` を片方だけ偽にする。** 両方 `true` だと定数へ潰す変異
+        // （`write_u8(w, 1)`）が生き残る
+        for (file_id, path, deleted, indexed) in [
+            (1u32, "a.kif", false, true),
+            (2u32, "変化.ki2", true, false),
+        ] {
             ft.upsert(FileEntry {
                 file_id,
                 path: path.to_owned(),
                 deleted,
-                indexed: true,
+                indexed,
                 r#gen: file_id + 40,
             });
         }
@@ -1288,11 +1293,9 @@ mod tests {
                 .file_table
                 .get(file_id)
                 .expect("読み戻せていない");
-            assert_eq!(
-                (after.path, after.deleted, after.r#gen),
-                (before.path, before.deleted, before.r#gen),
-                "file_id={file_id}"
-            );
+            // **欄を並べて書かない。** 手で並べると、欄が増えたときに
+            // 新しい1つだけが往復の検査から漏れる
+            assert_eq!(after, before, "file_id={file_id}");
         }
 
         for (key, rec) in &scan.by_path {

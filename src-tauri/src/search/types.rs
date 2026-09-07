@@ -49,7 +49,7 @@ pub type NodeId = u32;
 
 /// 索引が知っているファイル1件。**引くときの生死判定はここの `gen` と
 /// [`Occurrence`] の `gen` を突き合わせて決まる。**
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub file_id: FileId,
