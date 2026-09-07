@@ -300,7 +300,14 @@ export function useEngineSeat(): EngineSeat {
       // `releaseHeld` を素通りし（こちらは席を握っていない）、
       // 捨てた席がまだ Rust に居るうちに `start_infinite_analysis` を投げる
       // ——`take_session` が断って、解析が黙って停止中になる。
-      void occupy(() => shootQuietly(by, sessionId));
+      //
+      // **待たずに撃つが、前の返却は枠ごと畳み込む。** 捨てる席は握っている席
+      // ではないので、先に飛んでいる返却の後ろに並ぶ理由が無い。ただし枠を
+      // ただ差し替えると、**後から並ぶ側が前の返却を見失う**——こちらが先に
+      // 解決した時点で「誰も飛んでいない」と読み、まだ飛んでいる席へ2本目を撃つ。
+      const previous = releasingRef.current;
+      const shot = shootQuietly(by, sessionId);
+      void occupy(() => Promise.allSettled([previous, shot]).then(() => {}));
     },
   };
 
