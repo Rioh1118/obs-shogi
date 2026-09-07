@@ -1,21 +1,8 @@
 import { useRef } from "react";
-import { stopAnalysis as stopAnalysisCore } from "@/entities/engine/api/tauri";
-
-/**
- * 席を返した口。**ログを切り分けるためだけに在る**（Rust のログにもそのまま出る）。
- *
- * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
- * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
- */
-export type SeatReleasePoint =
-  | "stop"
-  | "start"
-  | "restart"
-  | "unmount"
-  | "no-position"
-  | "sync-timeout"
-  | "late-start"
-  | "late-restart";
+import {
+  stopAnalysis as stopAnalysisCore,
+  type SeatReleasePoint,
+} from "@/entities/engine/api/tauri";
 
 /**
  * Rust が渡した解析の席（`active_sessions` の1エントリ）の生死を持つ。

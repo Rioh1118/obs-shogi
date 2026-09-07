@@ -1,8 +1,11 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
-import { startInfiniteAnalysis as startInfiniteAnalysisCore } from "@/entities/engine/api/tauri";
-import { useEngineSeat, type SeatReleasePoint } from "./useEngineSeat";
+import {
+  startInfiniteAnalysis as startInfiniteAnalysisCore,
+  type SeatReleasePoint,
+} from "@/entities/engine/api/tauri";
+import { useEngineSeat } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";

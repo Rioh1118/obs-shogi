@@ -82,6 +82,27 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
 }
 
 /**
+ * 停止をどの口から撃ったか。**Rust のログにそのまま出る。**
+ *
+ * 畳まれた画面から撃った停止は、落ちても利用者にも開発者にも出せない
+ * （出す先の画面がもう無い）。**利用者が押した停止と区別できるのはログだけ**なので、
+ * 値は口ごとに割る。値の集合が閉じていることがこの引数の価値なので、
+ * 境界を跨いでも `string` に落とさない。
+ *
+ * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
+ * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
+ */
+export type SeatReleasePoint =
+  | "stop"
+  | "start"
+  | "restart"
+  | "unmount"
+  | "no-position"
+  | "sync-timeout"
+  | "late-start"
+  | "late-restart";
+
+/**
  * 解析を止める。
  *
  * **`sessionId` を省くと走っている解析を全部止める。** 自分の1本ではない
@@ -91,11 +112,9 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
  * ——止まらないまま解決しないので、指すなら自分が握っている ID を渡すこと。
  * 指した相手が既に居ない場合だけは `Ok`（要求は「止まっていること」なので満たせている）。
  *
- * `by` は**どの口から撃ったか**。Rust のログにそのまま出る。
- * 畳まれた画面から撃った停止は、失敗しても利用者にも開発者にも出せない
- * （出す先の画面がもう無い）ので、**利用者が押した停止と区別できるのはログだけ**。
+ * `by` の意味は `SeatReleasePoint` に置いてある。
  */
-export async function stopAnalysis(sessionId?: string, by?: string): Promise<void> {
+export async function stopAnalysis(sessionId?: string, by?: SeatReleasePoint): Promise<void> {
   return await invoke("stop_analysis", { sessionId, by });
 }
 
