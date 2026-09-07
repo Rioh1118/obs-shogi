@@ -497,6 +497,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
+  /**
+   * ▶ の本体。**やることは5つ**——握っている席を返す、局面を送る、エンジンが
+   * 追いつくのを待つ、要らなくなっていないかを見る、開始して席を握る。
+   *
+   * `seq` は押した時点の世代。**返却より前に読む**——`releaseHeld` は本物の往復を
+   * 挟むので、その間に世代が上がる（棋譜を閉じた回）と、後で読むと上がった後の値を
+   * 持ってしまい、以降の門が1枚も効かない。
+   *
+   * 失敗する `await` は3つ（返す・送る・始める）。**どれも同じ形で包む**——
+   * 世代の門を通してから `set_error` を立て、呼び手へ投げ直す。
+   */
   const startInfiniteAnalysis = useCallback(async () => {
     if (!isReady) throw new Error("Engine not ready");
     if (state.isAnalyzing) return;
@@ -631,6 +642,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [startInfiniteAnalysis]);
 
   const stopAnalysis = useCallback(async () => {
+    // **世代は返却より先に上げる。** 上げないと、飛んでいる開始が返ってきた席を
+    // 古い世代のまま握り、止めたのに Rust で走り続ける（理由の本文は
+    // 「読む局面が無くなったら止める」effect の同じ行）。
     supersedeRequests();
 
     // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、

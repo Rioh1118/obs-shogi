@@ -12,8 +12,9 @@ import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths
  * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と提案と `IDEAS.md` /
  * `PREMISES.md` が**別リポジトリ（ShogiHome / YaneuraOu）のパス**を根拠として
  * 引くため。件数は書かない（引く側が増えると嘘になる）。
- * このリポジトリの現物を指す約束があるのは状態遷移表だけなので、
- * そこだけが「実在しなければ腐っている」と言える。
+ * このリポジトリの現物を指す約束があるのは**状態遷移表と `spec/screens/`**（画面の仕様）で、
+ * そこだけが「実在しなければ腐っている」と言える。`spec/features/` は入れない
+ * ——あちらは「ここに置く」の**予告**を書くので、死んだパスと見分けられない。
  *
  * **`docs/` 全体へ広げる手順の出典はここ。** 先に落ちるものの種類を数え上げ、
  * 種類ごとに「直す」のか「綴りで見分ける」のかを決める。**検査だけ先に広げると、
@@ -31,7 +32,7 @@ import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths
  *
  * **行番号のほう（`lineNumberRefsIn`）は既に `docs/` 全体へ掛けてある。**
  */
-describe("状態遷移表が指すソースのパス", () => {
+describe("状態遷移表と画面の仕様が指すソースのパス", () => {
   /**
    * 見るのは状態遷移表と**画面の仕様**（`spec/screens/`）。
    *
@@ -46,7 +47,7 @@ describe("状態遷移表が指すソースのパス", () => {
 
   // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
   // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
-  test("状態遷移表を拾えている", () => {
+  test("走査する doc を拾えている", () => {
     expect(tableFiles().length).toBeGreaterThan(3);
   });
 

@@ -44,6 +44,16 @@ export type PositionSyncAdapter = {
 export interface AnalysisContextType {
   state: AnalysisState;
 
+  /**
+   * ▶。**失敗したら reject する**——エンジンが ready でない／読む局面が無い／
+   * 席を返せない／局面を送れない／Rust が開始を断る。断りは `state.error` にも載るが、
+   * **その読み手はまだ0**（→ #277）ので、いまは呼び手の `console.error` で終わる。
+   */
   startInfiniteAnalysis: () => Promise<void>;
+  /**
+   * ■。**停止が Rust に届かなくても resolve する**（`finally` で必ず state を落とす）。
+   * 表示は必ず停止中になるが、席が残ることがある
+   * （→ `docs/state-transitions/analysis.md` ※7 / F-7）。その回の復帰は ▶。
+   */
   stopAnalysis: () => Promise<void>;
 }
