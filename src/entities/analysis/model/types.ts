@@ -61,7 +61,7 @@ export interface AnalysisContextType {
   /**
    * ■。**表示は必ず停止中になる**（`finally` で state を落とす）。
    * **ただし停止が Rust に届かなかった回は、断りを立てて reject する**
-   * （`STOP_FAILED_MESSAGE`）——席が残ることがある（→ ※7 / F-7）。その回の復帰は ▶。
+   * （`STOP_FAILED_MESSAGE`）——席が残ることがある（→ `docs/state-transitions/analysis.md` の ※7 / F-7）。その回の復帰は ▶。
    */
   stopAnalysis: () => Promise<void>;
 }

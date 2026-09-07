@@ -85,7 +85,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
-  /** 結果の購読に失敗した。**張り直す口が無い**ので、以後 ▶ は断りを立て直して降りる */
+  /** 結果の購読に失敗した。**張り直す口はマウント時の1回だけ**なので、以後 ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
 
   /**
@@ -349,7 +349,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             // 終わった探索の席は Rust が自分で片付ける（`bridge.rs` の
             // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
             // 一致しないまま手放すと、走っている別の席を知る者が居なくなる。
-            // 一致しない側に倒したときの損は、畳んだときに空振りの停止が1本出るだけ。
+            // 一致しない側に倒したときの損は、畳んだときに席を指さない停止が1本出るだけ。
             seat.closeFinished(sessionId);
 
             latestResultRef.current = result;
@@ -357,7 +357,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             flushLatest();
             dispatch({ type: "stop_analysis" });
           },
-          // **この通知も届かない**（`engine-error` を emit する行が無い。E9 / ※6）。
+          // **この通知も届かない**（`engine-error` を emit する行が無い。`docs/state-transitions/analysis.md` の E9 / ※6）。
           onError: (error: string) => {
             // 上流の文をそのまま `state.error` に載せない（`runRestart` の catch と同じ）。
             console.error("[ANALYSIS] engine reported an error", error);
@@ -370,8 +370,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           return;
         }
         unlistenRef.current = unlisten;
-        // **張り直せた回は印を戻す。** 戻さないと、1度の一時的な失敗が以後の ▶ を
-        // 永久に断る（購読は生きているのに「アプリを起動し直してください」が出続ける）。
+        // **同じインスタンスに setup → cleanup → setup が走った回（StrictMode）に
+        // 印を戻す。** 戻さないと、1度の一時的な失敗が以後の ▶ を永久に断る
+        // （購読は生きているのに「アプリを起動し直してください」が出続ける）。
         listenersFailedRef.current = false;
       } catch (e) {
         // 畳まれた／張り直された pass の失敗で、生きているインスタンスの印と
@@ -630,7 +631,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     supersedeRequests();
 
     // **席を握っていれば、表示が停止中でも返す。** 停止が届かなかった回は
-    // `isAnalyzing` が false のまま席だけ残る（→ ※7）。`state` の写しで
+    // `isAnalyzing` が false のまま席だけ残る（→ `docs/state-transitions/analysis.md` の ※7）。`state` の写しで
     // 決めると、その回にエンジンが閉じた棋譜を読み続ける。
     if (!state.isAnalyzing && !seat.isHeld()) return;
 
@@ -641,7 +642,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // `releaseHeldQuietly` が1本目の後ろに並び、**1本目が席を返せていれば撃たない**
     // （並んだ側は撃つ直前に席を読み直す）。撃つのは返せなかった回だけ。
     //
-    // **停止が届かないまま「停止中」になっていた回は1回で終わる**（→ ※7）。
+    // **停止が届かないまま「停止中」になっていた回は1回で終わる**（→ `docs/state-transitions/analysis.md` の ※7）。
     // `isAnalyzing` は既に false なので、この `dispatch` では値が動かない。
     // その回に席を返すのは、上の門を `seat.isHeld()` で開けた1本目。
   }, [currentSfen, state.isAnalyzing, seat, supersedeRequests]);

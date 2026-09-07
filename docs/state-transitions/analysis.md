@@ -145,7 +145,10 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 （`bridge.rs`）——**フロントには何も飛ばない**ので、欄だけが古い ID を握ったまま残る。
 **`isReady` が落ちる回はフロントも欄を空ける**（上の段。`shutdown_engine` を通った
 起こし直しがこれ）。欄が古い ID を握ったまま残るのは**プロセスが落ちただけの回**
-——`phase` は `ready` のままなので `isReady` が落ちず、欄を空ける effect が発火しない。
+——その回はフロントの4つの欄（`phase` / `engineInfo` / `desiredRuntime` / `activeRuntime`）が
+1つも変わらないので `isReady` は true のまま、欄を空ける effect が発火しない。
+**`phase` を理由にしない**——`isReady` は4つの欄の積で決まる（`entities/engine/model/provider.tsx`）。
+起こし直しは `phase` が `ready` のままでも `desiredRuntime` が動くので `isReady` が落ちる（E6）。
 その回に撃つ停止は「もう無い席」を指す——`bridge.rs` はそれを `Ok` にする。
 
 ※6 `onComplete` は `stop_analysis` を dispatch し、席の欄も手放す（`provider.tsx`）。
@@ -208,7 +211,13 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 空のまま残り、席が在るのに「無い」と読む。
 **停止が落ちたときは手放さない**ので、席が本当に残る枝——**invoke が届かなかった回**——では
 畳んだときに返し直せる。**エンジン側の失敗では席はもう空いている**
-（Rust は席を消してから止める）ので、その回に飛ぶ1本は空撃ちになる。
+（Rust は席を消してから止める）。
+
+**席が空の回に撃つのは空撃ちではない。** `stop_session` は席が空でも `Ok` のまま
+`analyzer.stop_analysis()` まで進み、そこが `protocol.stop()` を呼ぶ（`analyzer.rs`）
+——**いま線に居るエンジンへ裸の `stop` が書かれる**。起こし直した後なら、書かれる先は
+新しいエンジン。だから「もう無い席」へは撃たずに捨てる（`onEngineGone` と
+`landed` の `"engine-gone"`）。巻き添えではない——席の主の照合は Rust が塞いでいる。
 **畳まれた後に落ちた回は、握り直しても読む者が居ない**（→ 不変条件5）。
 StrictMode の setup → cleanup → setup では握っていないので撃たない。
 

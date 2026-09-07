@@ -25,16 +25,18 @@ export const POSITION_SYNC_TIMEOUT_MESSAGE =
 /** 局面の送信そのものが落ちた。**押し直しても同じところで落ちる。** */
 export const POSITION_SYNC_FAILED_MESSAGE = `エンジンに局面を送れませんでした。${RESTART_ENGINE_HINT}`;
 /**
- * 握っている席を返せなかった（→ ※7 / F-7）。
+ * ▶ の先頭で、握っている席を返せなかった（→ `docs/state-transitions/analysis.md` の ※2 /
+ * `docs/state-transitions/failure-surfacing.md` の F-7）。
  *
  * **まず押し直し。** 停止の invoke が一時的に落ちただけの回は、もう一度 ▶ を押すと
  * 同じ席へ撃ち直して戻る（`provider.test.tsx` が固定している）。
  */
 export const RELEASE_FAILED_MESSAGE = `前の解析を止められませんでした。もう一度 ▶ を押してください。それでも始まらないときは、${RESTART_ENGINE_HINT}`;
-/** Rust が開始を断った（席が残っている。→ ※11 / #172）。 */
+/** Rust が開始を断った（席が残っている。→ `docs/state-transitions/analysis.md` の ※11 / #172）。 */
 export const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
 /**
- * 席を取りに行っている間にエンジンが起こし直された（→ ※14 / F-6）。
+ * 席を取りに行っている間にエンジンが起こし直された（→ `docs/state-transitions/analysis.md` の ※13 /
+ * `docs/state-transitions/failure-surfacing.md` の F-6）。
  *
  * **起こし直しを頼んだのは利用者自身**（オプションを変えて保存した）なので、
  * 起こし直し方は案内しない。着地した時点でエンジンは戻っていることがあり、
@@ -43,7 +45,7 @@ export const START_REFUSED_MESSAGE = `解析を開始できませんでした。
 export const ENGINE_RESTARTED_MESSAGE =
   "エンジンを起こし直したので、解析を始められませんでした。もう一度 ▶ を押してください。";
 /**
- * ■ が届かなかった（→ ※7 / F-7）。**表示は停止中になるので、成功と見分けが付かない。**
+ * ■ が届かなかった（→ `docs/state-transitions/analysis.md` の ※7 / F-7）。**表示は停止中になるので、成功と見分けが付かない。**
  * エンジンは閉じた探索を回し続けるので、断りが無いと利用者は気づけない。
  */
 export const STOP_FAILED_MESSAGE =

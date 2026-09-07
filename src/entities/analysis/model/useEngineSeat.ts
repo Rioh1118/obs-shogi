@@ -212,7 +212,7 @@ export function useEngineSeat(): EngineSeat {
   // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
   // 下で読んだ値は**その1回の値のまま**——描画ごとに変わる値（props や別のフックの
   // 戻り値）をここで読むと、以後ずっと初回の値を見る。tsc も lint も止めない。
-  // **`useRef` 以外を上に置かない**のはそのため（`analysisSeatSlot.test.ts` が見る）。
+  // **`useRef` 以外を上に置かない**のはそのため（`src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が見る）。
   if (apiRef.current) return apiRef.current;
 
   const remember = (sessionId: AnalysisSessionId) => {
@@ -332,7 +332,7 @@ export function useEngineSeat(): EngineSeat {
   // `unmount` と、畳まれた後に返ってきた `late-*` は、握り直しても読む者が居ないので
   // エンジンを畳み直すしかない。`no-position` は棋譜を開き直してから ▶。
   // 画面が生きている回は ▶ が返し直す（▶ は握っている席を返してから頼む）。
-  // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ ※1 / F-7）。
+  // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ `docs/state-transitions/analysis.md` の ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
     shoot(by, sessionId).catch((e) => {
