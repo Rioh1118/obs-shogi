@@ -602,6 +602,109 @@ describe("AnalysisProvider の結果の照合", () => {
     SLOW,
   );
 
+  // **席が返る回と、Rust が断る回は同じ窓に居る。** 畳んでいる最中のエンジンへの
+  // 開始は `Err` で返るので、起こし直しの窓は断られるほうが起きやすい。
+  it(
+    "起こし直しの最中に自動再開が断られても、解析は止まらず戻ったら読み直す",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤が動いて自動再開が走り、その開始が応答を返さないまま止まる。
+      let rejectStart: (e: unknown) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((_resolve, reject) => {
+            rejectStart = reject;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(200);
+      expect(startCore).toHaveBeenCalledTimes(2);
+
+      // 往復の最中に、断りが案内している操作（オプションを変えて保存）をする。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P2", null));
+      await advance(50);
+
+      // 畳んでいる最中のエンジンは開始を `Err` で返す。
+      await act(async () => {
+        rejectStart(new Error("engine is shutting down"));
+      });
+      await advance(50);
+
+      // **止めない。** 止めると `isAnalyzing` が倒れ、戻っても門で降りる
+      // ——盤を動かしても解析が返らない。
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.error).toBeNull();
+
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P2", "P2"));
+      await advance(300);
+
+      expect(startCore).toHaveBeenCalledTimes(3);
+      expect(view.current.state.isAnalyzing).toBe(true);
+    },
+    SLOW,
+  );
+
+  it("起こし直しの最中に ▶ が断られたら、起こし直しの断りを出す", async () => {
+    let rejectStart: (e: unknown) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P1", null));
+    await advance(50);
+
+    await act(async () => {
+      rejectStart(new Error("engine is shutting down"));
+    });
+    await pressed;
+    await advance(50);
+
+    // **「起こし直してください」と言わない**——利用者がいま済ませた操作。
+    expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+    expect(view.current.state.error).not.toBe(START_REFUSED_MESSAGE);
+  });
+
+  it("棋譜を閉じた後に席が着地したら、断りを立てない", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    // 棋譜を閉じ、そのうえでエンジンが消える。`landed` はエンジンを先に見るので
+    // `"engine-gone"` が返るが、出す先の画面はもう無い。
+    await view.setSync(adapter(null, null));
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter(null, null));
+    await act(async () => {
+      releaseStart("late");
+    });
+    await pressed;
+    await advance(50);
+
+    expect(view.current.state.error).toBeNull();
+  });
+
   it(
     "盤を1手進めてすぐ戻したら、戻した局面を読み直す",
     async () => {

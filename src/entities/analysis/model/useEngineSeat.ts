@@ -57,6 +57,15 @@ export interface SeatTake {
    * 要らなくなっていた回は撃って捨てる（`discard`）。
    */
   landed: (sessionId: AnalysisSessionId, isSuperseded: () => boolean) => SeatTakeResult;
+  /**
+   * **席が返ってこなかった回に呼ぶ。** 往復の間にエンジンが消えていたか。
+   *
+   * 畳んでいる最中のエンジンへの開始は Rust が `Err` で返す（`bridge.rs`）ので、
+   * 起こし直しの窓は「席が返る」より「断られる」で踏むほうが多い。**同じ窓なのに
+   * 断りが違う**——席が返れば起こし直しの案内、断られれば「起こし直してください」
+   * ——という食い違いを、この述語で1つに寄せる。
+   */
+  engineChanged: () => boolean;
 }
 
 /**
@@ -376,6 +385,7 @@ export function useEngineSeat(): EngineSeat {
       const generation = engineGenRef.current;
 
       return {
+        engineChanged: () => engineGenRef.current !== generation,
         landed: (sessionId, isSuperseded) => {
           // **見る順の理由は `SeatTake.landed` の doc に1つ置いてある。**
           if (engineGenRef.current !== generation) {

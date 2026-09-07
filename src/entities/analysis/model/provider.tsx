@@ -265,7 +265,20 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
       const take = seat.beginTake(discardBy);
-      const sessionId = await startInfiniteAnalysisCore();
+
+      let sessionId: AnalysisSessionId;
+      try {
+        sessionId = await startInfiniteAnalysisCore();
+      } catch (e) {
+        // **断られた回も同じ窓に居る。** 畳んでいる最中のエンジンへの開始は Rust が
+        // `Err` で返すので（`bridge.rs`）、起こし直しの窓は席が返るより断られるほうが
+        // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
+        // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
+        // 席は取れていないので捨てるものも無い。
+        if (take.engineChanged()) return "engine-gone";
+        throw e;
+      }
+
       const landed = take.landed(sessionId, () => supersededSince(seq));
 
       if (landed !== "held") {
@@ -407,6 +420,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const scheduleRestart = useCallback((seq: number, delayMs: number) => {
     if (unmountedRef.current) return;
     debounceTimerRef.current = window.setTimeout(() => {
+      // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
+      // （同期の追従）が、もう発火した id を見て降りる。`scheduleFlush` と
+      // `clearFlushTimer` の組が同じ形をしている。
+      debounceTimerRef.current = null;
       runRestartRef.current(seq);
     }, delayMs);
   }, []);
@@ -802,7 +819,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 入らないので `console.error` すら出ず、**押す前と1ドットも変わらない画面**が残る
     // （停止中はペインが控えを出す）。1段あとの同期待ちで同じことが起きれば断りは出る
     // ——隣り合う枝で片方だけ黙らせない。
-    if (landed === "engine-gone") {
+    // **要求がまだ生きている回だけ断る。** 棋譜を閉じた回・畳まれた回は
+    // `landed` がエンジンを先に見るのでここへ来るが、出す先の画面がもう無い
+    // （`AnalysisPane` は `hasKifu` の内側）。隣の `"superseded"` と同じ門を通す。
+    if (landed === "engine-gone" && !supersededSince(seq)) {
       failStart(ENGINE_RESTARTED_MESSAGE, new Error("engine was restarted while taking a seat"));
     }
     if (landed !== "held") return;
