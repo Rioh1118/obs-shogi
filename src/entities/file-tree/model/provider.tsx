@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
 
-import type { FileConflictRequest, FileTreeNode } from "./types";
+import type { FileConflictRequest, FileTreeNode, SelectNodeOptions } from "./types";
 import { FileTreeContext } from "./context";
 import { reducer } from "./reducer";
 import { initialState } from "./types";
@@ -660,7 +660,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const selectNodeByAbsPath = useCallback(
-    (absPath: string): boolean => {
+    (absPath: string, options?: SelectNodeOptions): boolean => {
       const node = findNodeByPath(absPath);
       if (!node) {
         return false;
@@ -673,7 +673,15 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return true;
       }
 
+      // **開き直しを省いてよいかを、ここだけでは決められない。** ツリーが握っている
+      // 3つは「構文として読めた」までしか言わず、盤に載ったかは `loadGame` まで
+      // 来ないと分からない。載っているかを見られるのは呼び出し側なので、
+      // 覆せるようにしてある（`forceReopen`）。
+      //
+      // 覆せないと、載せられなかった棋譜がツリー側では「開いている」ままになり、
+      // 2度目以降の要求が**何も起こさずに成功を返す**。
       const isAlreadyActive =
+        !options?.forceReopen &&
         state.activeKifuPath === node.path &&
         state.jkfData !== null &&
         state.kifuFormat === node.kifuInfo?.format;

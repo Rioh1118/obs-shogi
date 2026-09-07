@@ -56,6 +56,36 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("usePositionHitNavigation", () => {
+  /**
+   * **一度盤に載せられなかった棋譜へ、もう一度ヒットから飛ぶ経路。**
+   *
+   * ツリーは `activeKifuPath` をその棋譜に進めたまま（構文としては読めている）なので、
+   * `selectNodeByAbsPath` に任せると「もう開いている」と判断して `openKifuNode` を飛ばす。
+   * 飛ばされると載せ直しの effect が走らず、**モーダルだけが閉じて何も起きない**。
+   */
+  test("盤に載っていない棋譜は、ツリーが開いていると言っていても開き直させる", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+    stub.selectedNode = { path: "/root/こわれた.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/前の.kif";
+
+    const { result } = renderHook(() => usePositionHitNavigation());
+
+    expect(result.current.startNavigationToHit("/root/こわれた.kif", CURSOR)).toBe("started");
+    expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/こわれた.kif", { forceReopen: true });
+  });
+
+  /** 盤に載っているなら、読み直させない（ディスクを1回余分に読むことになる） */
+  test("盤に載っている棋譜は開き直させない", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+    stub.selectedNode = { path: "/root/別.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/a.kif";
+
+    const { result } = renderHook(() => usePositionHitNavigation());
+
+    result.current.startNavigationToHit("/root/a.kif", CURSOR);
+    expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/a.kif", { forceReopen: false });
+  });
+
   test("ツリーにその棋譜が無ければ not-in-tree。局面も動かさない", () => {
     selectNodeByAbsPath.mockReturnValue(false);
 
@@ -71,7 +101,7 @@ describe("usePositionHitNavigation", () => {
     const { result } = renderHook(() => usePositionHitNavigation());
 
     expect(result.current.startNavigationToHit("/root/b.kif", CURSOR)).toBe("started");
-    expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/b.kif");
+    expect(selectNodeByAbsPath).toHaveBeenCalledWith("/root/b.kif", { forceReopen: true });
     expect(applyCursor).not.toHaveBeenCalled();
   });
 

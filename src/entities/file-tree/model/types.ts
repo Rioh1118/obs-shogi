@@ -178,6 +178,17 @@ export const initialState: FileTreeState = {
   conflict: null,
 };
 
+export type SelectNodeOptions = {
+  /**
+   * ツリー側が「もう開いている」と判断しても、開き直させる。
+   *
+   * **盤に載っているかはツリーからは分からない。** `activeKifuPath` は構文として
+   * 読めた時点で進むので、盤に載せられなかった棋譜もツリー側では開いていることに
+   * なる。載っているかを見られる呼び出し側だけが、この判断を覆せる。
+   */
+  forceReopen?: boolean;
+};
+
 export type FileTreeContextType = FileTreeState & {
   loadFileTree: () => AsyncResult<void, FsError>;
   selectNode: (node: FileTreeNode | null) => void;
@@ -221,5 +232,11 @@ export type FileTreeContextType = FileTreeState & {
   resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
 
   revealNodeByAbsPath: (absPath: string) => void;
-  selectNodeByAbsPath: (absPath: string) => boolean;
+
+  /**
+   * ツリーの選択をそのパスへ移し、必要なら棋譜を開く。
+   *
+   * **返るのは「ツリーにその節が在ったか」だけ。** 開けたかも、盤に載ったかも意味しない。
+   */
+  selectNodeByAbsPath: (absPath: string, options?: SelectNodeOptions) => boolean;
 };

@@ -70,7 +70,14 @@ export function usePositionHitNavigation() {
         return "tree-unavailable";
       }
 
-      if (!selectNodeByAbsPath(absPath)) {
+      // **盤に載っていないなら必ず開き直させる。** ツリー側の「もう開いている」は
+      // 構文として読めたことしか言わないので、盤に載せられなかった棋譜は
+      // 2度目以降の要求で `openKifuNode` ごと飛ばされる。飛ばされると
+      // `jkfData` の同一性も `activeKifuPath` も動かず、載せ直しの effect が
+      // 走らないので**モーダルだけが閉じて何も起きない**。
+      const forceReopen = gameState.loadedAbsPath !== absPath;
+
+      if (!selectNodeByAbsPath(absPath, { forceReopen })) {
         pendingRef.current = null;
         return "not-in-tree";
       }
