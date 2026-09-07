@@ -590,6 +590,76 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
   /**
+   * ▶ が `go` を出せる状態か。**出せないなら断りを立てて投げる。**
+   *
+   * 断るのは、押しても結果が届かない／エンジンに届かないと分かっている回だけ。
+   * どの門も**席に触る前**に通るので、断った回に Rust の状態は1ビットも動かない。
+   */
+  const refuseIfCannotStart = useCallback(() => {
+    // **結果を受け取れない回は `go` を出さない。** 出しても候補手は永久に届かず、
+    // Rust の席だけが埋まる。断りは押すたびに立て直す（消えても次の ▶ で戻る）。
+    if (listenersFailedRef.current) {
+      dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
+      throw new Error("Analysis event listeners are not registered");
+    }
+
+    // ▶ は ready でなくても押せる（`AnalysisPaneHeader` は局面の有無しか見ない）ので、
+    // ここは**いちばん踏まれる枝**。理由は engine 側が決める（`desiredRuntime` を
+    // 見られるのはあちらだけ）。`isReady` が false なら理由は必ず在る（`EngineReadiness`）。
+    if (!isReady) {
+      dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason] });
+      throw new Error("Engine not ready");
+    }
+
+    // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
+    // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
+    // 増えたときのために `throw` だけ残す。
+    if (!currentSfen) throw new Error("No position available for analysis");
+  }, [isReady, notReadyReason, currentSfen]);
+
+  /**
+   * 盤の局面をエンジンへ送り、追いつくのを待つ。**追いつかなければ断りを立てて投げる。**
+   *
+   * 要らなくなった要求（畳まれた／止められた／読む局面が無くなった）は、断りを立てずに
+   * `false` を返す——その失敗を出しても、出す先の画面がもう無いか、利用者が既に降りている。
+   *
+   * **待つ相手は「いま盤が見ている局面」。** 押した瞬間の値を待つと、待っている間に盤が
+   * 動いた回は条件が二度と真にならず、上限いっぱい回してから断りを積む（同期は新しい
+   * 局面へ追いついている）。
+   */
+  const sendAndAwaitSync = useCallback(
+    async (seq: number, failStart: (message: string, e: unknown) => never) => {
+      // 送信そのものが落ちた回も断る。`syncPosition` は `set_position` の失敗を呼び手へ
+      // 投げる（自動追従の口は飲むので、投げ先はここだけ）。捕まえずに抜けると
+      // `error` が null のまま終わり、押し直しても同じところで落ちる。
+      try {
+        await syncPosition();
+      } catch (e) {
+        if (supersededSince(seq)) return false;
+        failStart(POSITION_SYNC_FAILED_MESSAGE, e);
+      }
+
+      // 送れていないまま始めると、エンジンには別の局面が入ったまま候補手が返り、盤面と
+      // 一致しないものが表示される。**要らなくなったら待つのをやめる**——待ち続けても
+      // `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
+      const synced = await waitUntil(
+        () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
+        POSITION_SYNC_TIMEOUT_MS,
+        () => supersededSince(seq),
+      );
+      if (!synced) {
+        if (supersededSince(seq)) return false;
+        failStart(POSITION_SYNC_TIMEOUT_MESSAGE, new Error("position sync timed out"));
+      }
+
+      // **`go` を出す前にも見る。** 抜かすと、止めた後・畳まれた後に `go` を出してから
+      // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
+      return !supersededSince(seq);
+    },
+    [syncPosition, supersededSince],
+  );
+
+  /**
    * ▶ の本体。段はこの順——**飛んでいる自動再開の開始を待つ**（Rust は席を取ってから
    * `go` を待つので、待たずに撃つと `take_session` に断られる）、握っている席を返す、
    * 局面を送る、エンジンが追いつくのを待つ、要らなくなっていないかを見る、開始して席を握る。
@@ -602,27 +672,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 世代の門を通してから `set_error` を立て、呼び手へ投げ直す。
    */
   const startInfiniteAnalysis = useCallback(async () => {
-    // **前置きの門も断りを立てる。** ▶ は ready でなくても押せる
-    // （`AnalysisPaneHeader` は局面の有無しか見ない）ので、ここは**いちばん踏まれる枝**。
-    // 立てないと `console.error` で終わり、#277 が出口を作っても無言のまま残る。
-    // **結果を受け取れない回は、`go` を出さない。** 出しても候補手は永久に届かず、
-    // Rust の席だけが埋まる。断りは押すたびに立て直す（消えても次の ▶ で戻る）。
-    if (listenersFailedRef.current) {
-      dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
-      throw new Error("Analysis event listeners are not registered");
-    }
-
-    if (!isReady) {
-      // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
-      // `isReady` が false なら理由は必ず在る（`EngineReadiness` の合併）。
-      dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason] });
-      throw new Error("Engine not ready");
-    }
     if (state.isAnalyzing) return;
-    // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
-    // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
-    // 増えたときのために `throw` だけ残す。
-    if (!currentSfen) throw new Error("No position available for analysis");
+    refuseIfCannotStart();
 
     // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
     // 動くのは畳まれた回と、読む局面が無くなった回。
@@ -655,46 +706,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
     if (supersededSince(seq)) return;
 
-    // **送信そのものが落ちた回も断りを立てる。** `syncPosition` は
-    // `set_position` の失敗を呼び手へ投げる（自動追従の口は飲むので、
-    // 投げ先はここだけ）。捕まえずに抜けると `error` が null のまま
-    // `AnalysisPaneHeader` の `console.error` で終わり、**画面は停止中のまま
-    // 1ドットも変わらない**——押し直しても同じところで落ちる。
-    // 打ち切りの回（下）と違って `error` にすら載らないので、#277 が出口を
-    // 作っても永久に出ない。
-    try {
-      await syncPosition();
-    } catch (e) {
-      if (supersededSince(seq)) return;
-      failStart(POSITION_SYNC_FAILED_MESSAGE, e);
-    }
-
-    // 送れていないまま解析を始めると、エンジンには別の局面が入ったまま
-    // 候補手が返ってきて、盤面と一致しないものが表示される。
-    //
-    // **待つ相手は「いま盤が見ている局面」。** 押した瞬間の値を待つと、
-    // 待っている間に盤が動いた回は条件が二度と真にならず、上限いっぱい回してから
-    // 何も失敗していないのに断りを積む（同期は新しい局面へ追いついている）。
-    //
-    // **要らなくなったら待つのをやめる**（畳まれた／止められた／読む局面が無くなった）。
-    // 待ち続けても `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
-    const synced = await waitUntil(
-      () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
-      POSITION_SYNC_TIMEOUT_MS,
-      () => supersededSince(seq),
-    );
-    if (!synced) {
-      // 要らなくなった要求の失敗は誰にも見せない（再開側の `catch` と同じ）。
-      if (supersededSince(seq)) return;
-
-      dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
-      throw new Error(POSITION_SYNC_TIMEOUT_MESSAGE);
-    }
-
-    // **go を出す前にも見る。** 再開側と同じ形（`runRestartRef` の中）。
-    // ここを抜かすと、止めた後・畳まれた後にエンジンへ `go` を出してから、
-    // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
-    if (supersededSince(seq)) return;
+    if (!(await sendAndAwaitSync(seq, failStart))) return;
 
     // 待ち切った局面で始める。押した瞬間の局面とは違うことがある。
     const started = currentSfenRef.current;
@@ -716,11 +728,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     desiredSfenRef.current = started;
   }, [
-    isReady,
-    notReadyReason,
     state.isAnalyzing,
-    currentSfen,
-    syncPosition,
+    refuseIfCannotStart,
+    sendAndAwaitSync,
     seat,
     supersededSince,
     takeSeatAndGo,
