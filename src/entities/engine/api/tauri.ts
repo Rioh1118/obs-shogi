@@ -89,9 +89,9 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
  * 本物の `info` が全部落ち（席の照合に通らない）、停止は `Err` になり、
  * **本物の席が Rust に残ったままエンジンを起こし直すまで戻らない**（#441 の症状）。
  *
- * **鋳造してよいのは IPC の境界だけ**（`startInfiniteAnalysis` の戻り値と
- * `api/events` が受け取る通知）。`as` を書く場所は
- * `src/__tests__/analysisSessionId.test.ts` が固定している。
+ * **鋳造してよいのは IPC の境界だけ**（`startInfiniteAnalysis` の戻り値と、`api/events` が
+ * `listen` の型引数で受ける通知）。`as` を書けるファイルと、**綴りを書けるファイル**の
+ * 両方を `src/__tests__/analysisSessionId.test.ts` が固定している。
  */
 declare const analysisSessionIdBrand: unique symbol;
 export type AnalysisSessionId = string & { readonly [analysisSessionIdBrand]: true };

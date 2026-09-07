@@ -48,8 +48,10 @@ export interface AnalysisContextType {
   state: AnalysisState;
 
   /**
-   * ▶。**失敗したら `state.error` に断りを立てて reject する**（枝と文言は
+   * ▶。**断りを立てた回は `state.error` に載せてから reject する**（枝と文言は
    * `docs/state-transitions/analysis.md` の ※15。ここでは数え上げない）。
+   * **読む局面が無い回だけは断りを立てずに reject する**——その状態では ▶ が
+   * `disabled` なので、画面に出す先が無い。
    * **その断りの読み手はまだ0**（→ #277）ので、いまは呼び手の `console.error` で終わる。
    *
    * **要らなくなった要求は静かに resolve する**——畳まれた・止められた・読む局面が
@@ -58,8 +60,8 @@ export interface AnalysisContextType {
   startInfiniteAnalysis: () => Promise<void>;
   /**
    * ■。**表示は必ず停止中になる**（`finally` で state を落とす）。
-   * **ただし停止が Rust に届かなかった回は reject する**——席が残ることがある
-   * （→ ※7 / F-7）。その回の復帰は ▶。
+   * **ただし停止が Rust に届かなかった回は、断りを立てて reject する**
+   * （`STOP_FAILED_MESSAGE`）——席が残ることがある（→ ※7 / F-7）。その回の復帰は ▶。
    */
   stopAnalysis: () => Promise<void>;
 }

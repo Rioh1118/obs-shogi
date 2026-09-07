@@ -16,6 +16,16 @@ import { describeOwnedSpellings } from "./ownedSpelling";
  */
 const RULES = [
   {
+    /**
+     * **鋳造は IPC の境界だけ。** 綴りの規則（下）は owners を4つ許すが、そのうち2つは
+     * 席の識別子と SFEN を同じスコープに並べて持つファイル——そこで `as` が書けると、
+     * brand が止めたかった取り違えがそのまま通る。
+     */
+    name: "AnalysisSessionId への as キャスト",
+    pattern: /as (?:unknown as )?AnalysisSessionId\b/,
+    owners: ["src/entities/engine/api/tauri.ts"],
+  },
+  {
     name: "AnalysisSessionId の綴り",
     pattern: /\bAnalysisSessionId\b/,
     owners: [
