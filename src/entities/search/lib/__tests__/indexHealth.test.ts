@@ -49,6 +49,33 @@ describe("indexHealth", () => {
   });
 
   /**
+   * **走査の失敗が「入れられなかった棋譜」を飲み込まないこと。**
+   *
+   * あちらは走査由来、こちらは索引由来で、走査の成否と独立に生き残る。
+   * 畳むと利用者は差を「更新できていないから」と読み、**繋ぎ直しても
+   * 消えない差**の説明を失う。
+   */
+  it("走査の失敗が、入れられなかった棋譜を飲み込まない", () => {
+    expect(
+      indexHealth(idx({ state: "Ready", scanFailed: true, indexedFiles: 800, totalFiles: 1000 })),
+    ).toBe("notRefreshedAndPartiallyIndexed");
+    expect(
+      indexHealth(idx({ state: "Ready", scanFailed: true, indexedFiles: 1000, totalFiles: 1000 })),
+    ).toBe("notRefreshed");
+  });
+
+  /**
+   * **索引が空の回を、旗の軽い文言で出さないこと。**
+   *
+   * `Empty` は「検索は必ず0件」。`partiallyUnreadable` を先に見ると
+   * 「そこの棋譜だけ」と言うが、実際にはどの局面を検索しても0件になる。
+   * いまの Rust はこの組み合わせを出さないが、腕の順は誰も見ていない。
+   */
+  it("索引が空なら、読めない場所より先にそう言う", () => {
+    expect(indexHealth(idx({ state: "Empty", partiallyUnreadable: true }))).toBe("notStarted");
+  });
+
+  /**
    * **入れ終えた数が対象より少ない回を緑にしないこと。**
    *
    * `partiallyUnreadable` は走査＝**場所**の話なので、棋譜1件ごとの構築失敗

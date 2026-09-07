@@ -74,12 +74,15 @@ export function indexHealth(index: IndexUiState): IndexHealth {
   // 文字コード）はここに落ちる。緑を出すと、その棋譜の局面を検索した利用者は
   // 0件を「自分の棋譜に無い」と読む
   //
+  // **`Empty` を旗より先に見る。** 索引が空なら検索は必ず0件で、
+  // 「そこの棋譜だけ」と言うと**どの局面も0件になること**が画面から消える。
+  // いまの Rust はこの組み合わせを出さないが、腕の順は型では守れない
+  if (index.state === "Empty") return "notStarted";
+
   // **どちらかに畳まない。** 畳むと、利用者は差の全部をもう片方のせいだと読む
   // ——場所の権限を直しても、壊れた棋譜は検索に出ないまま
   if (index.partiallyUnreadable && someNotIndexed) return "partiallyUnreadableAndIndexed";
   if (index.partiallyUnreadable) return "partiallyUnreadable";
   if (someNotIndexed) return "partiallyIndexed";
-  // **`Empty` を「作成中」と言わない。** 何も走っていないので待っても増えない
-  if (index.state === "Empty") return "notStarted";
   return "ok";
 }
