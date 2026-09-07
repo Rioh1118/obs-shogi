@@ -168,6 +168,38 @@ export function useEngineSeat(): EngineSeat {
     if (seatRef.current === sessionId) seatRef.current = null;
   };
 
+  /**
+   * 枠を取って撃つ。**`releasingRef` に書く綴りはここだけ。**
+   *
+   * 口ごとに手で書くと、口を1つ足したときの写し忘れが人の目でしか止まらない
+   * ——実際に r9 と r10 で2回踏んだ。
+   *
+   * **空けるのは自分がまだ枠に居るときだけ。** 後ろに並んだ返却が居るのに
+   * 空けると、その返却が飛んでいる間に3本目が並列で出る。
+   */
+  const occupy = (run: () => Promise<void>): Promise<void> => {
+    const slot: Promise<void> = run().finally(() => {
+      if (releasingRef.current === slot) releasingRef.current = null;
+    });
+    releasingRef.current = slot;
+    return slot;
+  };
+
+  /**
+   * 飛んでいる返却があれば、その後ろに並んでから撃つ。**応答を待てない口が通る。**
+   *
+   * 降りてしまうと、先の返却が落ちたとき（席は握ったまま残る）に撃ち直す者が居ない
+   * ——棋譜を閉じた回・畳まれた回はもう画面が無いので、依存が動いて effect が
+   * 再走することも無い。
+   *
+   * **並ぶときも枠を取る**（`occupy` を通る）。取らないと、同じ1本を待っている
+   * `releaseHeld` が「誰も並んでいない」と見て先へ進み、並列で同じ席へ撃つ。
+   */
+  const queueBehind = (run: () => Promise<void>): void => {
+    const releasing = releasingRef.current;
+    void occupy(releasing ? () => releasing.catch(() => {}).then(run) : run);
+  };
+
   // 撃って、落ちたらログだけ残す。**応答を待てない口はここを通る。**
   //
   // **落ちても利用者には出せない。** 画面が既に無い（`unmount`）、棋譜を閉じた後で
@@ -226,44 +258,17 @@ export function useEngineSeat(): EngineSeat {
       const held = seatRef.current;
       if (held === null) return;
 
-      const sending: Promise<void> = send(by, held).finally(() => {
-        // **自分がまだ枠に居るときだけ空ける。** 後ろに並んだ返却が居るのに
-        // 空けると、その返却が飛んでいる間に3本目が並列で出る。
-        if (releasingRef.current === sending) releasingRef.current = null;
-      });
-      releasingRef.current = sending;
-      return sending;
+      return occupy(() => send(by, held));
     },
 
     releaseHeldQuietly: (by) => {
-      // **飛んでいる返却があるなら、その後ろに並ぶ。** 降りてしまうと、
-      // その返却が落ちたとき（席は握ったまま残る）に撃ち直す者が居ない
-      // ——棋譜を閉じた回はもう画面が無いので、依存が動いて effect が
-      // 再走することも無い。
-      // **並ぶときも枠を取る。** 取らないと、同じ1本を待っている `releaseHeld` が
-      // 「誰も並んでいない」と見て先に進み、この停止と並列で同じ席へ撃つ。
-      const releasing = releasingRef.current;
-      if (releasing) {
-        const queued: Promise<void> = releasing
-          .catch(() => {})
-          .then(() => {
-            if (seatRef.current === null) return;
-            return shootQuietly(by, seatRef.current);
-          })
-          .finally(() => {
-            if (releasingRef.current === queued) releasingRef.current = null;
-          });
-        releasingRef.current = queued;
-        return;
-      }
-
-      const held = seatRef.current;
-      if (held === null) return;
-
-      const sending: Promise<void> = shootQuietly(by, held).finally(() => {
-        if (releasingRef.current === sending) releasingRef.current = null;
+      // **席は撃つ直前に読み直す。** 並んで待っている間に返し終えていることも、
+      // 落ちた返却が別の席を書き戻していることもある。
+      queueBehind(async () => {
+        const held = seatRef.current;
+        if (held === null) return;
+        await shootQuietly(by, held);
       });
-      releasingRef.current = sending;
     },
 
     // React の state が消えても、Rust の `active_sessions` からは席が消えない。
@@ -272,32 +277,16 @@ export function useEngineSeat(): EngineSeat {
     //
     // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
+      // **席を握っていない回は撃たない。** 指さない停止は席を**全部**空けるので、
+      // 開始が席を取ってから `go` が線に出るまでの窓に撃ち込むと
+      // 「席は空・エンジンは探索中」になる → #463。その窓では欄がまだ空なので、
+      // この門で降りる。そこで残った席を返すのは、応答が返った側（`discard`）。
       if (seatRef.current === null) return;
 
-      // **指さない停止は席を全部空ける**ので、開始が席を取ってから `go` が線に出るまでに
-      // 割り込むと「席は空・エンジンは探索中」になる → #463。だから後ろに並ぶ。
-      // ここも `releaseHeldQuietly` と同じ理由で枠を取る。取らずに並ぶと、
-      // 待っている `releaseHeld` が枠の空きを見て先へ進み、席を指す停止と
-      // 指さない停止が同じ席へ並列で出る。
-      const releasing = releasingRef.current;
-      if (releasing) {
-        const queued: Promise<void> = releasing
-          .catch(() => {})
-          .then(() => {
-            if (seatRef.current === null) return;
-            return shootQuietly("unmount", undefined);
-          })
-          .finally(() => {
-            if (releasingRef.current === queued) releasingRef.current = null;
-          });
-        releasingRef.current = queued;
-        return;
-      }
-
-      const sending: Promise<void> = shootQuietly("unmount", undefined).finally(() => {
-        if (releasingRef.current === sending) releasingRef.current = null;
+      queueBehind(async () => {
+        if (seatRef.current === null) return;
+        await shootQuietly("unmount", undefined);
       });
-      releasingRef.current = sending;
     },
 
     discard: (by, sessionId) => {
@@ -309,10 +298,7 @@ export function useEngineSeat(): EngineSeat {
       // `releaseHeld` を素通りし（こちらは席を握っていない）、
       // 捨てた席がまだ Rust に居るうちに `start_infinite_analysis` を投げる
       // ——`take_session` が断って、解析が黙って停止中になる。
-      const sending: Promise<void> = shootQuietly(by, sessionId).finally(() => {
-        if (releasingRef.current === sending) releasingRef.current = null;
-      });
-      releasingRef.current = sending;
+      void occupy(() => shootQuietly(by, sessionId));
     },
   };
 
