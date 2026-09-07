@@ -425,6 +425,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     seat.releaseHeldQuietly("no-position");
     dispatch({ type: "stop_analysis" });
+    // **この effect は棋譜を1回閉じるたびに2回走る。** ここの `dispatch` が
+    // `isAnalyzing` を倒し、それが依存に載っているため。2回目に入る時点では
+    // 1本目の返却がまだ飛んでいる（席は握ったまま）ので上の門は通るが、
+    // `releaseHeldQuietly` が後ろに並び、**1本目が席を返せていれば撃たない**。
+    // 撃つのは返せなかった回だけ——そこがこの2本目の値打ちなので、
+    // `isAnalyzing` を依存から外さない。
   }, [currentSfen, state.isAnalyzing, seat, supersedeRequests]);
 
   const startInFlightRef = useRef<Promise<void> | null>(null);

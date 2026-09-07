@@ -40,10 +40,12 @@ const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"]
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
 /**
- * 同期待ちの上限（2秒）をまたぐテストの持ち時間。
+ * **同期待ちの上限（2秒）を実時間でまたぐテストだけ**に付ける持ち時間。
  *
- * **既定の5秒では足りない。** 実時間を4秒以上進める回があり、
- * 実行機が混んでいると（Rust のビルドと並走した回で実際に）取りこぼす。
+ * 既定の5秒では足りない。またぐ回は最短でも 2.4 秒、いちばん長い回は 4.2 秒
+ * 進めるので、実行機が混んでいると（Rust のビルドと並走した回で実際に）取りこぼす。
+ * ミリ秒しか進めないテストには付けない——付けると、
+ * 本当に止まったテストが 20 秒待たされる。
  */
 const SLOW = 20_000;
 
@@ -944,7 +946,7 @@ describe("AnalysisProvider のアンマウント", () => {
     // 抜けないと、畳まれた画面のために `syncedSfen` を2秒ぶん見続ける。
     expect(settled).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
-  }, SLOW);
+  });
 
   it("席を受け取った直後、state に載る前に畳まれても、席を返す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
