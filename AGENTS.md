@@ -14,3 +14,9 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 - [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->
+
+## このリポジトリの検証
+
+`vp check` / `vp test` だけでは足りない。**`npm run verify` と `npm run verify:rust`** を通すこと
+（前者は `test:hooks`、後者は `cargo fmt` / `clippy` / `test` / rustdoc のラチェットを含む）。
+手順と免除は `CONTRIBUTING.md` と `docs/state-transitions/verify-gate-decision.md` が持つ。
