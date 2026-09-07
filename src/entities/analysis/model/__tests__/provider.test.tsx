@@ -426,6 +426,79 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  it("席を握り直した後でも、その前に手放した席の info は採らない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("session-1");
+    startCore.mockResolvedValueOnce("session-2");
+    startCore.mockImplementation(() => new Promise<string>(() => {}));
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 1手進む。`session-1` を返し、`session-2` を**握る**。
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // もう1手進む。`session-2` も返し、次の席は応答が返らない＝欄は空。
+    await view.setSync(adapter("P3", "P3"));
+    await advance(150);
+
+    // 盤を1手ずつ動かすだけの、いちばん普通の経路。ここで `session-1` の
+    // 遅れた `info` が届く。席を握った時点で「採らない」を空にしていると、
+    // P1 の評価値と読み筋が、P3 を映した盤の解析結果として出る。
+    await act(async () => {
+      listeners?.onUpdate("session-1", oneCandidate);
+    });
+    await advance(150);
+
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
+  it("捨てた席を握り直しても、その席の info は採らない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("session-1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 再開の開始を待たせ、その間にもう1手進めて世代を上げる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+    startCore.mockImplementation(() => new Promise<string>(() => {}));
+    await view.setSync(adapter("P3", "P3"));
+    await advance(150);
+
+    // 追い越された席を捨てにいくが、停止が落ちる。席の欄が空なので握り直される
+    // ——Rust にまだ居るなら、畳まれたときに返しにいけるように。
+    // 握り直した席を返す次の停止は応答が返らない＝席を握ったままにする。
+    stopCore.mockImplementation(() => new Promise<void>(() => {}));
+    stopCore.mockRejectedValueOnce(new Error("stop failed"));
+    await act(async () => {
+      releaseStart("session-2");
+    });
+    await advance(150);
+
+    // 握り直しても、捨てると決めた事実は消えない。席の照合を先に見ると、
+    // 捨てた席が「自分の席」に昇格して `info` が通る。
+    await act(async () => {
+      listeners?.onUpdate("session-2", oneCandidate);
+    });
+    await advance(150);
+
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("返したばかりの席で届いた info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");

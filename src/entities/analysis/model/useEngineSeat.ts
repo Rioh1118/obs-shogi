@@ -82,7 +82,28 @@ export function useEngineSeat(): EngineSeat {
   //
   // **1枠ではなく集合。** 1枠だと、席を続けて2つ手放したときに古い方が
   // 「採らない」から外れ、その遅れた `info` がまた通る。
-  const ignoredRef = useRef<Set<string>>(new Set());
+  //
+  // **席を握り直しても忘れない。** 忘れると、盤を1手ずつ動かす普通の経路
+  // （返す→握る→返す）で1枠と同じところまで戻る。握っている席の照合が
+  // 厳密一致でも足りない——捨てた席を握り直す枝（下の catch）があるので、
+  // `matches` は席よりこちらを先に見る。
+  //
+  // **上限で切る。** 遅れて届く `info` は探索1本ぶんの窓に収まるので、
+  // 古い方から落として構わない。切らないと解析を繰り返すぶんだけ育つ。
+  const ignoredRef = useRef<Map<string, true>>(new Map());
+
+  /** 「採らない席」の上限。**探索1本の `info` の窓を覆えれば足りる。** */
+  const IGNORED_LIMIT = 32;
+
+  const rememberIgnored = (sessionId: string) => {
+    ignoredRef.current.delete(sessionId);
+    ignoredRef.current.set(sessionId, true);
+    while (ignoredRef.current.size > IGNORED_LIMIT) {
+      const oldest = ignoredRef.current.keys().next();
+      if (oldest.done) break;
+      ignoredRef.current.delete(oldest.value);
+    }
+  };
 
   // **Rust がもう持っていない席。** 停止が成功した回と、完了通知で片付いた回。
   // 返せなかった席を握り直すとき（下の catch）、**ここに在る席は握らない**
@@ -90,12 +111,7 @@ export function useEngineSeat(): EngineSeat {
   // 席を指さない停止に落ちる。
   const returnedRef = useRef<Set<string>>(new Set());
 
-  // **席を新しく握ったらどちらも空にする。** 握っている間の照合は厳密一致なので
-  // この2つを見ない。育ち続けないのはそのため。
-  const forgetIgnored = () => {
-    ignoredRef.current.clear();
-    returnedRef.current.clear();
-  };
+
 
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
@@ -104,8 +120,10 @@ export function useEngineSeat(): EngineSeat {
   // - **待てる側**（`releaseHeld`）——枠が自分のものになるまで待ってから、席を見直す
   // - **待てない側**（`releaseHeldQuietly` / `sweepOnUnmount`）——後ろに並び、
   //   **席がまだ握られていれば**撃ち直す
-  // - **`discard`**——握っている席に触らないので並ばず、枠を差し替える。
-  //   並列にならないのは、開始が飛んでいる間は席の欄が必ず空だから（→ ※13）
+  // - **`discard`**——並ばずに枠を差し替える。捨てる席は握っている席ではないので、
+  //   先に飛んでいる返却と**別の席**を指す。同じ席に2本出ることはない。
+  //   ただし**枠を待っている `releaseHeld` は、差し替えたこちらを待つ**
+  //   ——それでよい。要らなくなった席が Rust から消えるまで、次の開始は始められない
   const releasingRef = useRef<Promise<void> | null>(null);
 
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
@@ -125,11 +143,13 @@ export function useEngineSeat(): EngineSeat {
       //
       // 握り直さないのは2つ。**欄が埋まっている**なら、そちらは新しい席で
       // 巻き添えにできない。**既に返し終えた席**なら、Rust にもう無いものを
-      // 握ることになり、次に畳まれたときの後始末が席を指さない停止に落ちる。
-      // **既に返し終えた席は握らない。** Rust にもう無いものを握ると、
-      // 次に畳まれたときの後始末が席を指さない停止に落ちる。
-      // 空ける口は `send` の成功と `forget`（＝完了通知）の2つ。
-      if (sessionId !== undefined && seatRef.current === null && !returnedRef.current.has(sessionId)) {
+      // 握ることになり、次に畳まれたときの後始末が席を指さない停止に落ちる
+      // （`returnedRef` を空ける口は `send` の成功と `forget`＝完了通知の2つ）。
+      if (
+        sessionId !== undefined &&
+        seatRef.current === null &&
+        !returnedRef.current.has(sessionId)
+      ) {
         seatRef.current = sessionId;
       }
       throw e;
@@ -140,14 +160,14 @@ export function useEngineSeat(): EngineSeat {
     // ここまで来た時点で、指した席は空いている。
     if (sessionId === undefined) {
       if (held !== null) {
-        ignoredRef.current.add(held);
+        rememberIgnored(held);
         returnedRef.current.add(held);
       }
       seatRef.current = null;
       return;
     }
 
-    ignoredRef.current.add(sessionId);
+    rememberIgnored(sessionId);
     returnedRef.current.add(sessionId);
     // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
     if (seatRef.current === sessionId) seatRef.current = null;
@@ -180,18 +200,22 @@ export function useEngineSeat(): EngineSeat {
 
   apiRef.current = {
     isHeld: () => seatRef.current !== null,
-    matches: (sessionId) =>
-      seatRef.current !== null
-        ? seatRef.current === sessionId
-        : !ignoredRef.current.has(sessionId),
+    matches: (sessionId) => {
+      // **採らない席を先に見る。** 捨てた席を握り直す枝があるので、
+      // 席の照合を先にすると、捨てると決めた席が「自分の席」に昇格して通る。
+      if (ignoredRef.current.has(sessionId)) return false;
+      return seatRef.current === null || seatRef.current === sessionId;
+    },
     hold: (sessionId) => {
       seatRef.current = sessionId;
-      forgetIgnored();
+      // 握った席は「採らない」から外す。捨ててから握り直す枝を通ると入っている。
+      ignoredRef.current.delete(sessionId);
+      returnedRef.current.delete(sessionId);
     },
     forget: (sessionId) => {
       if (seatRef.current !== sessionId) return;
       seatRef.current = null;
-      ignoredRef.current.add(sessionId);
+      rememberIgnored(sessionId);
       returnedRef.current.add(sessionId);
     },
 
@@ -225,6 +249,8 @@ export function useEngineSeat(): EngineSeat {
       // その返却が落ちたとき（席は握ったまま残る）に撃ち直す者が居ない
       // ——棋譜を閉じた回はもう画面が無いので、依存が動いて effect が
       // 再走することも無い。
+      // **並ぶときも枠を取る。** 取らないと、同じ1本を待っている `releaseHeld` が
+      // 「誰も並んでいない」と見て先に進み、この停止と並列で同じ席へ撃つ。
       const releasing = releasingRef.current;
       if (releasing) {
         const queued: Promise<void> = releasing
@@ -259,24 +285,36 @@ export function useEngineSeat(): EngineSeat {
 
       // **指さない停止は席を全部空ける**ので、開始が席を取ってから `go` が線に出るまでに
       // 割り込むと「席は空・エンジンは探索中」になる → #463。だから後ろに並ぶ。
+      // ここも `releaseHeldQuietly` と同じ理由で枠を取る。取らずに並ぶと、
+      // 待っている `releaseHeld` が枠の空きを見て先へ進み、席を指す停止と
+      // 指さない停止が同じ席へ並列で出る。
       const releasing = releasingRef.current;
       if (releasing) {
-        void releasing
+        const queued: Promise<void> = releasing
           .catch(() => {})
           .then(() => {
             if (seatRef.current === null) return;
             return shootQuietly("unmount", undefined);
+          })
+          .finally(() => {
+            if (releasingRef.current === queued) releasingRef.current = null;
           });
+        releasingRef.current = queued;
         return;
       }
 
-      void shootQuietly("unmount", undefined);
+      const sending: Promise<void> = shootQuietly("unmount", undefined).finally(
+        () => {
+          if (releasingRef.current === sending) releasingRef.current = null;
+        },
+      );
+      releasingRef.current = sending;
     },
 
     discard: (by, sessionId) => {
       // **捨てると決めた時点で `info` を落とす。** 停止の応答が返るまで Rust は
       // その席の `info` を配り続けるので、待つと前の局面の読み筋が盤に出る。
-      ignoredRef.current.add(sessionId);
+      rememberIgnored(sessionId);
 
       // **枠に載せる。** 載せないと、この停止が飛んでいる間に次の再開が
       // `releaseHeld` を素通りし（こちらは席を握っていない）、
