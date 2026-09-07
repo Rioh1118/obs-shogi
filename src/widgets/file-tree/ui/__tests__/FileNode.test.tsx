@@ -27,13 +27,13 @@ const tree = {
   pushError: vi.fn(),
 };
 
-const game = { state: { loadedAbsPath: null as string | null } };
+const game = { loadedAbsPath: null as string | null };
 
 vi.mock("@/entities/file-tree", () => ({
   useFileTree: () => tree,
   commitName: vi.fn(),
 }));
-vi.mock("@/entities/game", () => ({ useGame: () => game }));
+vi.mock("@/entities/game", () => ({ useLoadedKifuPath: () => game.loadedAbsPath }));
 
 const { default: FileNode } = await import("../FileNode");
 
@@ -54,7 +54,7 @@ beforeEach(() => {
   openKifuNode.mockClear();
   selectNode.mockClear();
   tree.activeKifuPath = null;
-  game.state.loadedAbsPath = null;
+  game.loadedAbsPath = null;
 });
 
 afterEach(() => cleanup());
@@ -67,7 +67,7 @@ describe("棋譜のノードを押したとき", () => {
   });
 
   test("盤に載っていれば開き直さない", () => {
-    game.state.loadedAbsPath = "/ws/a.kif";
+    game.loadedAbsPath = "/ws/a.kif";
     tree.activeKifuPath = "/ws/a.kif";
 
     clickNode();
@@ -82,7 +82,7 @@ describe("棋譜のノードを押したとき", () => {
    */
   test("ツリーが開いたと言っていても、盤に載っていなければ開きに行く", () => {
     tree.activeKifuPath = "/ws/a.kif";
-    game.state.loadedAbsPath = "/ws/前の.kif";
+    game.loadedAbsPath = "/ws/前の.kif";
 
     clickNode();
 
@@ -100,7 +100,7 @@ describe("棋譜のノードを押したとき", () => {
    * 押すしかなくなる。
    */
   test("盤に載っていても、ツリーが別のファイルを掴んでいれば開き直しに行く", () => {
-    game.state.loadedAbsPath = "/ws/a.kif";
+    game.loadedAbsPath = "/ws/a.kif";
     tree.activeKifuPath = "/ws/こわれた.kif";
 
     clickNode();

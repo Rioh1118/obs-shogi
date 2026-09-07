@@ -13,7 +13,7 @@ import {
   type ShogiMove,
   type StandardMoveFormat,
 } from "./types";
-import { GameContext } from "./context";
+import { GameContext, LoadedKifuPathContext } from "./context";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
@@ -793,5 +793,11 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     ],
   );
 
-  return <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>;
+  return (
+    <GameContext.Provider value={contextValue}>
+      <LoadedKifuPathContext.Provider value={state.loadedAbsPath}>
+        {children}
+      </LoadedKifuPathContext.Provider>
+    </GameContext.Provider>
+  );
 }

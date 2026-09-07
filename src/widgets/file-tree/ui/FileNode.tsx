@@ -9,7 +9,7 @@ import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
-import { useGame } from "@/entities/game";
+import { useLoadedKifuPath } from "@/entities/game";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
@@ -23,7 +23,9 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     cancelInlineRename,
     pushError,
   } = useFileTree();
-  const { state: gameState } = useGame();
+  // **`useGame()` を読まない。** 行の数だけ盤の state を購読することになり、
+  // 盤を1手動かすだけでツリーの全行が描き直される（ツリーは仮想化されていない）
+  const loadedAbsPath = useLoadedKifuPath();
   const isSelected = selectedNode?.id === node.id;
   /**
    * 開き直しを省いてよいのは、**ツリーと盤の両方がこの棋譜を指しているとき**だけ。
@@ -37,7 +39,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
    *   いるので戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指した
    *   ままなので、`persistIfPossible` の門番が以降の書き込みを全部止める
    */
-  const isActive = gameState.loadedAbsPath === node.path && activeKifuPath === node.path;
+  const isActive = loadedAbsPath === node.path && activeKifuPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 
