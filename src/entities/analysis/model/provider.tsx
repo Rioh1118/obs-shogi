@@ -13,10 +13,8 @@ import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
 import {
   ENGINE_ERROR_MESSAGE,
-  ENGINE_FAILED_MESSAGE,
-  ENGINE_NOT_READY_MESSAGE,
-  ENGINE_STARTING_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
+  NOT_READY_REFUSALS,
   POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RELEASE_FAILED_MESSAGE,
@@ -79,7 +77,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // Rust の席の生死。**識別子を書き換えられるのはこのフックの中だけ。**
   const seat = useEngineSeat();
 
-  const { isReady, state: engineState } = useEngine();
+  const { isReady, notReadyReason } = useEngine();
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
@@ -588,15 +586,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // （`AnalysisPaneHeader` は局面の有無しか見ない）ので、ここは**いちばん踏まれる枝**。
     // 立てないと `console.error` で終わり、#277 が出口を作っても無言のまま残る。
     if (!isReady) {
-      dispatch({
-        type: "set_error",
-        payload:
-          engineState.phase === "initializing"
-            ? ENGINE_STARTING_MESSAGE
-            : engineState.phase === "error"
-              ? ENGINE_FAILED_MESSAGE
-              : ENGINE_NOT_READY_MESSAGE,
-      });
+      // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
+      dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason ?? "no-engine"] });
       throw new Error("Engine not ready");
     }
     if (state.isAnalyzing) return;
@@ -698,7 +689,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     desiredSfenRef.current = started;
   }, [
     isReady,
-    engineState.phase,
+    notReadyReason,
     state.isAnalyzing,
     currentSfen,
     syncPosition,

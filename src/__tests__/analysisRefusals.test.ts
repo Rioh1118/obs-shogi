@@ -30,7 +30,12 @@ const TESTS = "src/entities/analysis/model/__tests__/provider.test.tsx";
 const NAMES = /export const ([A-Z][A-Z0-9_]*)\b/g;
 
 /** 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される */
-const PARTS = new Set(["RESTART_ENGINE_HINT"]);
+const PARTS = new Set([
+  /** 他の断りが末尾に埋め込む文 */
+  "RESTART_ENGINE_HINT",
+  /** 断りそのものではなく、`EngineNotReadyReason` から断りへの対応表 */
+  "NOT_READY_REFUSALS",
+]);
 
 /**
  * ※15 の節だけを切り出す。他の注や表のセルに名前が1度出ただけで通るのを止める。

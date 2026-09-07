@@ -1,3 +1,5 @@
+import type { EngineNotReadyReason } from "@/entities/engine";
+
 /**
  * 解析が利用者に返す断り。**枝ごとに1本ずつ持つ。**
  *
@@ -40,14 +42,14 @@ export const STOP_FAILED_MESSAGE =
 /**
  * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisPaneHeader` は
  * エンジンの状態を1つも読まない）ので、起動を待っている間に押した人が必ずここへ来る。
- * `isReady` は3つの状態（選んでいない／起動中／失敗した）を1つの bool に潰しているので、
- * **どれかで断りを割る**——「選んでください」を起動中の人に言わないため。
+ * **理由ごとに割る**——「選んでください」を起動中の人に言わないため。
+ * 理由を決めるのは `entities/engine`（`EngineNotReadyReason`）。
  */
 export const ENGINE_STARTING_MESSAGE =
   "エンジンの起動を待っています。少し待ってからもう一度 ▶ を押してください。";
 /** エンジンの初期化が落ちている（→ F-9 / #171）。 */
 export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
-/** エンジンを選んでいない、または設定が変わって起動し直しが要る。 */
+/** エンジンをまだ選んでいない。 */
 export const ENGINE_NOT_READY_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選んでください。";
 /** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
@@ -60,3 +62,10 @@ export const RESTART_FAILED_MESSAGE = `解析を再開できませんでした�
  * 張り直す口が無い（effect はマウント1回きり）ので、復帰はアプリの起動し直し。
  */
 export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。アプリを起動し直してください。";
+
+/** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
+export const NOT_READY_REFUSALS: Record<EngineNotReadyReason, string> = {
+  "no-engine": ENGINE_NOT_READY_MESSAGE,
+  starting: ENGINE_STARTING_MESSAGE,
+  failed: ENGINE_FAILED_MESSAGE,
+};

@@ -32,11 +32,14 @@ vi.mock("@/entities/engine/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
 }));
-// エンジンの状態。**`isReady` の false は3つの理由を潰している**ので、
-// 断りを枝ごとに見るテストは `phase` も動かす。
-let engine = { isReady: true, phase: "ready" as "idle" | "initializing" | "ready" | "error" };
+// エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
+// 断りを枝ごとに見るテストはその理由を動かす。
+let engine = {
+  isReady: true,
+  notReadyReason: null as "no-engine" | "starting" | "failed" | null,
+};
 vi.mock("@/entities/engine", () => ({
-  useEngine: () => ({ isReady: engine.isReady, state: { phase: engine.phase } }),
+  useEngine: () => ({ isReady: engine.isReady, notReadyReason: engine.notReadyReason }),
 }));
 
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
@@ -124,7 +127,7 @@ beforeEach(() => {
   startCore.mockResolvedValue("session-1");
   stopCore.mockResolvedValue(undefined);
   syncPosition.mockResolvedValue(undefined);
-  engine = { isReady: true, phase: "ready" };
+  engine = { isReady: true, notReadyReason: null };
   listenerSetupFails = false;
 });
 
@@ -913,13 +916,13 @@ describe("AnalysisProvider の開始", () => {
   });
 
   it.each([
-    ["initializing", ENGINE_STARTING_MESSAGE],
-    ["error", ENGINE_FAILED_MESSAGE],
-    ["idle", ENGINE_NOT_READY_MESSAGE],
-  ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (phase, message) => {
+    ["starting", ENGINE_STARTING_MESSAGE],
+    ["failed", ENGINE_FAILED_MESSAGE],
+    ["no-engine", ENGINE_NOT_READY_MESSAGE],
+  ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
     // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、
     // **起動を待っている人が必ずここへ来る**。「選んでください」と言ってはいけない。
-    engine = { isReady: false, phase };
+    engine = { isReady: false, notReadyReason: reason };
 
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
