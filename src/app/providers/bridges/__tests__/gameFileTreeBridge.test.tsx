@@ -23,9 +23,7 @@ const tree = {
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
 
-// **毎回新しい参照を返す。** 同じオブジェクトを返すと、値を書き換えても React へ
-// 伝わらず、棋譜を切り替える経路そのものがテストから書けなくなる
-vi.mock("@/entities/file-tree", () => ({ useFileTree: () => ({ ...tree }) }));
+vi.mock("@/entities/file-tree", () => ({ useFileTree: () => tree }));
 vi.mock("@/shared/lib/notification/useNotifications", () => ({
   useNotify: () => ({ notify, dismiss: vi.fn(), dismissByKey: vi.fn() }),
 }));
@@ -41,8 +39,15 @@ const UNLOADABLE = {
   moves: [{}],
 } as unknown as JKFData;
 
-// **毎回新しい要素を作る。** 同じ要素オブジェクトを渡し直すと React が
-// サブツリーごと畳んでしまい、`rerender` しても橋が描き直されない
+/**
+ * **毎回新しい要素を作る。** 同じ要素オブジェクトを渡し直すと React がサブツリーごと
+ * 畳むので、`rerender` しても橋が描き直されず、棋譜を切り替える経路が書けない。
+ *
+ * **`useFileTree` の戻り値の同一性は関係ない。** 橋は3つのフィールドに分解していて
+ * effect の依存もその3つなので、包み側を新しくしても React には何も伝わらない
+ * （固定した参照に戻しても全部緑になる）。切り替えを見せているのは `tree` の書き換えと、
+ * この要素の作り直しの2つ。
+ */
 const app = () => (
   <GameProvider>
     <GameFileTreeBridge />
