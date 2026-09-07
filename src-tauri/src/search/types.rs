@@ -144,7 +144,16 @@ impl IndexStatePayload {
     }
 
     /// 索引に入れ終えた数。既定は0
+    ///
+    /// **対象より多い数を渡さない。** 入れた数が対象を超える数字は、
+    /// 画面では壊れた索引にしか見えない。数える順が入れ替わったときに
+    /// ここで気付けるよう、debug ビルドでは式で止める。
     pub fn indexed(mut self, n: u32) -> Self {
+        debug_assert!(
+            n <= self.total_files,
+            "索引済み {n} が対象 {} を超えている。数える順を確かめること",
+            self.total_files
+        );
         self.indexed_files = n;
         self
     }

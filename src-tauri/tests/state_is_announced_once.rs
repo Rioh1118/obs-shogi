@@ -193,6 +193,21 @@ fn no_caller_builds_a_place_warning_itself() {
     );
 }
 
+/// `use` から `;` までを1つずつ返す。
+///
+/// **行で切らない。** `use a::{\n  B as C,\n};` のように**項目が次の行に並ぶ**形が
+/// 普通に書かれている（`cargo fmt` がそう畳む）ので、`use ` を含む行だけを見ると
+/// 別名は必ず次の行に居て**一度も引っかからない**。
+fn use_statements(code: &str) -> Vec<String> {
+    code.match_indices("use ")
+        .map(|(at, _)| {
+            let rest = &code[at..];
+            let end = rest.find(';').map_or(rest.len(), |i| i + 1);
+            rest[..end].replace('\n', " ")
+        })
+        .collect()
+}
+
 /// **別名で `use` して検査を素通りしないこと。**
 ///
 /// `use ...IndexStatePayload as P;` と書くと、`P::of(..)` も `P { .. }` も
@@ -205,10 +220,10 @@ fn no_caller_hides_the_names_behind_an_alias() {
     let offenders: Vec<String> = callers()
         .into_iter()
         .filter(|p| {
-            blank_out_noncode(&read_with_strings(p))
-                .lines()
-                .filter(|l| l.contains("use ") && l.contains(" as "))
-                .any(|l| HIDDEN.iter().any(|h| l.contains(h)))
+            let code = blank_out_noncode(&read_with_strings(p));
+            use_statements(&code)
+                .iter()
+                .any(|st| st.contains(" as ") && HIDDEN.iter().any(|h| st.contains(h)))
         })
         .map(|p| rel(&p))
         .collect();
