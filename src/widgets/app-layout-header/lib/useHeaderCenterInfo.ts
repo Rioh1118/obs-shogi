@@ -37,10 +37,9 @@ export type HeaderCenterInfo = {
  * **棋譜が載っているかは自分で game に訊く。** 呼び出し側から真偽値で受け取ると、
  * 同じ問いに `hasKifu` と prop の2つの綴りができる。
  *
- * **出どころは全部 game で、ツリーの選択は見ない。** ツリーは構文として読めた時点で
- * 選択とパスを進めるが、そこから盤に載るまでにもう一段ある（`loadGame` の
- * `buildPlayer`）。ツリー側を出どころにすると、載せられなかった棋譜でも見出しだけが
- * 入れ替わり、盤には前の棋譜が残ったまま「新しい棋譜を見ている」と読める画面になる。
+ * **出どころは全部 game で、ツリーの選択は見ない**（2つの違いは `loadedAbsPath` の doc）。
+ * ツリー側を出どころにすると、盤に載せられなかった棋譜でも見出しだけが入れ替わり、
+ * 盤には前の棋譜が残ったまま「新しい棋譜を見ている」と読める画面になる。
  */
 export function useHeaderCenterInfo(): HeaderCenterInfo {
   const { state, view, getTotalMoves } = useGame();

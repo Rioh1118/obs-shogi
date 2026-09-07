@@ -13,8 +13,7 @@ type Props = {
 /**
  * 対局者名と同じく、盤の向きも自分でスライスから取る。呼び出し側は枠だけを渡す。
  *
- * **対局者名は盤に載っている棋譜から取る**（`useResetOrientationOnKifuChange` が
- * 向きの合図に `loadedAbsPath` を選んだのと同じ理由）。ツリーが開いたと言っている
+ * **対局者名は盤に載っている棋譜から取る**（`state.jkf`）。ツリーが開いたと言っている
  * 棋譜から取ると、盤に載せられなかったときに駒の並びと対局者名が別の棋譜になる。
  */
 export default function GameBoard({ topLeft, center, bottomRight }: Props) {

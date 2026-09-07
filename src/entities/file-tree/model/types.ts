@@ -93,7 +93,13 @@ export type FileTreeState = {
   fileTree: FileTreeNode | null;
   // ツリー上の選択
   selectedNode: FileTreeNode | null;
-  // 現在開いている棋譜
+  /**
+   * **ツリーが開いた棋譜。** `openKifuNode` が構文として読めた時点で進む。
+   *
+   * **盤に載ったことは意味しない。** 載るかは `entities/game` の `loadGame` まで
+   * 来ないと分からないので、載せられなかった回はこちらだけが進む。
+   * 画面に出ている棋譜を問うなら `entities/game` の `loadedAbsPath`。
+   */
   activeKifuPath: string | null;
   jkfData: JKFData | null;
   kifuFormat: KifuFormat | null;
@@ -182,13 +188,11 @@ export type SelectNodeOptions = {
   /**
    * ツリー側が「もう開いている」と判断しても、開き直させる。
    *
-   * **盤に載っているかはツリーからは分からない。** `activeKifuPath` は構文として
-   * 読めた時点で進むので、盤に載せられなかった棋譜もツリー側では開いていることに
-   * なる。載っているかを見られる呼び出し側だけが、この判断を覆せる。
+   * 判断材料は盤の側（`entities/game` の `loadedAbsPath`）にしか無く、ここからは見えない。
    *
    * **省略できないのは、省いた側が黙るから。** 既定値を置くと「盤に載っていない棋譜への
-   * 2度目の要求が、何も起こさずに成功を返す」に倒れる。ツリーからは正しい既定値を
-   * 決めようが無いので、呼び出し側に必ず書かせる。
+   * 2度目の要求が、何も起こさずに成功を返す」に倒れる。正しい既定値を決めようが無いので、
+   * 呼び出し側に必ず書かせる。
    */
   forceReopen: boolean;
 };

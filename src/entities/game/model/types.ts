@@ -34,7 +34,15 @@ export interface GameContextState {
 
   selectedPosition: SelectedPosition | null;
 
-  /** 現在ロードしている棋譜ファイル（未選択なら null） */
+  /**
+   * **盤に載っている棋譜。** 動くのは `game_loaded` と `reset_state` だけなので、
+   * 載せられなかった回（`game.md` の E16）は前の棋譜を指したまま残る。
+   *
+   * **ツリーの `activeKifuPath` とはずれる。** あちらは構文として読めた時点で進み、
+   * 盤に載るかは `loadGame` の `buildPlayer` まで来ないと分からない。
+   * 「いま画面に出ている棋譜」を問うならこちら、「ツリーが開いたと言っているパス」は
+   * あちら（`entities/file-tree` の `activeKifuPath`）。
+   */
   loadedAbsPath: string | null;
 
   /**
