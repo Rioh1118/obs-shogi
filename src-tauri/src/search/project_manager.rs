@@ -337,17 +337,6 @@ impl ProjectManager {
         if !commit(&|s: &IndexSnapshot| s.with_state(StoreIndexState::Updating)) {
             return RescanOutcome::Superseded;
         }
-        announce_progress(
-            &app,
-            &store,
-            epoch,
-            IndexProgress::Updating {
-                total: next_scan.by_path.len() as u32,
-                dirty: dirty_count,
-                partially_unreadable: partial,
-            },
-        );
-
         let mut done_dirty: u32 = 0;
 
         // **墓標は1回で立てる。** 理由は `IndexSnapshot::with_tombstones` の doc
@@ -359,6 +348,20 @@ impl ProjectManager {
         if !gone.is_empty() && !commit(&|s: &IndexSnapshot| s.with_tombstones(&gone)) {
             return RescanOutcome::Superseded;
         }
+
+        // **墓標を立ててから出す。** `announce_progress` は索引から件数を数えるので、
+        // 先に出すと**消える予定の棋譜まで数えて**「索引済み 5,000 / 4,500」になる
+        // ——入れた数が対象より多い数字は、壊れた索引にしか見えない
+        announce_progress(
+            &app,
+            &store,
+            epoch,
+            IndexProgress::Updating {
+                total: next_scan.by_path.len() as u32,
+                dirty: dirty_count,
+                partially_unreadable: partial,
+            },
+        );
 
         // **進捗は間引く。** 理由と間隔は `crate::search::announce::EMIT_INTERVAL` の doc
         let mut last_emit = std::time::Instant::now();
@@ -515,14 +518,19 @@ impl ProjectManager {
         let rec_cloned = rec.clone();
 
         let built = task::spawn_blocking(
-            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
+            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>, bool), String> {
                 let built = build_file_index(&rec_cloned, file_id, new_gen)?;
-                Ok((built.by_bucket, built.node_table, built.warns))
+                Ok((
+                    built.by_bucket,
+                    built.node_table,
+                    built.warns,
+                    built.indexed,
+                ))
             },
         )
         .await;
 
-        let (by_bucket, node_table, warns) = match built {
+        let (by_bucket, node_table, warns, indexed) = match built {
             Ok(Ok(v)) => v,
             Ok(Err(e)) => {
                 let _ = app.emit(EVT_INDEX_WARN, IndexWarnPayload::file(path_str, e));
@@ -548,7 +556,8 @@ impl ProjectManager {
                 file_id,
                 path: path_str,
                 deleted: false,
-                indexed: true,
+                // **`Ok` を「入った」と読まない**（`FileBuild::indexed` の doc）
+                indexed,
                 r#gen: new_gen,
             },
             node_table,

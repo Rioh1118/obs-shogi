@@ -152,9 +152,14 @@ pub async fn build_full_index_task(
             let _permit = permit;
 
             let res = tokio::task::spawn_blocking(
-                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>), String> {
+                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>, bool), String> {
                     let built = build_file_index(&rec2, file_id, gen)?;
-                    Ok((built.by_bucket, built.node_table, built.warns))
+                    Ok((
+                        built.by_bucket,
+                        built.node_table,
+                        built.warns,
+                        built.indexed,
+                    ))
                 },
             )
             .await;
@@ -163,8 +168,12 @@ pub async fn build_full_index_task(
             let empty_nt = Arc::new(NodeTable::empty());
 
             let out: BuildItem = match res {
-                Ok(Ok((by_bucket, node_table, warns))) => {
-                    (file_id, gen, path_str, by_bucket, node_table, warns, true)
+                Ok(Ok((by_bucket, node_table, warns, indexed))) => {
+                    // **`Ok` を「入った」と読まない。** 読めたが入れる局面が
+                    // 無い棋譜も `Ok` で返る（`FileBuild::indexed` の doc）
+                    (
+                        file_id, gen, path_str, by_bucket, node_table, warns, indexed,
+                    )
                 }
                 Ok(Err(e)) => (file_id, gen, path_str, empty, empty_nt, vec![e], false),
                 Err(e) => {

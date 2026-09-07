@@ -32,14 +32,29 @@ pub struct FileBuild {
     /// （指せない手）が混ざる。**呼び手はこれを区別しない** — どちらも
     /// 同じ `EVT_INDEX_WARN` に載り、利用者にとっては同じ「この棋譜のここが変」。
     pub warns: Vec<String>,
+    /// **索引に局面が入ったか。**
+    ///
+    /// `Ok` で返ったことと、局面が入ったことは別。読めたが入れる局面が無い
+    /// 棋譜（途中で切れた CSA など）も `Ok` で返るので、`Ok`/`Err` で数えると
+    /// **局面を1つも持たない棋譜が「索引済み」に数えられる**。
+    ///
+    /// **本当に空の棋譜と割る。** このアプリが対局者名なしで作った棋譜は
+    /// 中身が無いのが正しい姿なので、それまで「入れられなかった」に数えると
+    /// **正常なワークスペースが恒久的に黄色くなる**。割り方は警告の有無
+    /// ——`docs/state-transitions/search.md` の「下2行を割る理由」と同じ線。
+    pub indexed: bool,
 }
 
 impl FileBuild {
     /// 局面を持たない項目。**登録はするが検索には出ない。**
+    ///
+    /// **空になった理由で `indexed` を割る。** 警告があれば「読めなかったせいで
+    /// 空」なので入れられなかった側、無ければ「本当に空」なので数えてよい側。
     fn empty(warns: Vec<String>) -> Self {
         Self {
             by_bucket: empty_buckets(),
             node_table: Arc::new(NodeTable::empty()),
+            indexed: warns.is_empty(),
             warns,
         }
     }
@@ -87,5 +102,75 @@ pub fn build_file_index(rec: &FileRecord, file_id: FileId, gen: Gen) -> Result<F
         by_bucket: bucketize_entries(built.entries),
         node_table: built.node_table,
         warns,
+        indexed: true,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::read::fs_scan::KifuKind;
+
+    fn write_and_build(name: &str, body: &str) -> FileBuild {
+        let dir = test_support::dir::temp_dir("file-build");
+        let path = dir.join(name);
+        std::fs::write(&path, body).expect("下ごしらえ");
+        let rec = FileRecord {
+            path: path.clone(),
+            kind: KifuKind::Csa,
+            size: body.len() as u64,
+            mtime_ms: 0,
+        };
+        let built = build_file_index(&rec, 1, 1).expect("読めるはず");
+        let _ = std::fs::remove_dir_all(&dir);
+        built
+    }
+
+    /// **`Ok` を「索引に入った」と読まないこと。**
+    ///
+    /// 途中で切れた CSA はヘッダだけ読めて `Ok` で返るが、入る局面は無い。
+    /// `Ok`/`Err` で数えると**局面を1つも持たない棋譜が「索引済み」になり**、
+    /// 1000件中200件がこの形でも `indexed == total` で緑の「準備完了」が出る。
+    #[test]
+    fn a_kifu_that_reads_but_yields_nothing_is_not_counted_as_indexed() {
+        let built = write_and_build(
+            "broken.csa",
+            "V2.2\nPI\n+\nZZZZ not a kifu line\n+7776FU\n-3334FU\n%TORYO\n",
+        );
+        assert!(
+            !built.warns.is_empty(),
+            "読み残しの警告が出ていない。題材が古い: {:?}",
+            built.warns
+        );
+        assert!(
+            !built.indexed,
+            "局面を1つも持たない棋譜を「索引済み」に数えている: {:?}",
+            built.warns
+        );
+    }
+
+    /// **本当に空の棋譜まで「入れられなかった」に数えないこと。**
+    ///
+    /// このアプリが対局者名なしで作った棋譜は中身が無いのが正しい姿。
+    /// 数えると**正常なワークスペースが恒久的に黄色くなる**。
+    #[test]
+    fn a_genuinely_empty_kifu_is_not_a_failure() {
+        let built = write_and_build("empty.csa", "V2.2\nPI\n+\n");
+        assert!(
+            built.warns.is_empty(),
+            "空の棋譜に警告が出ている。割り方の前提が崩れている: {:?}",
+            built.warns
+        );
+        assert!(built.indexed, "本当に空の棋譜を失敗に数えている");
+    }
+
+    /// 局面が入った棋譜は数えること。
+    #[test]
+    fn a_kifu_with_moves_is_counted() {
+        let built = write_and_build(
+            "ok.csa",
+            "V2.2\nN+Sente\nN-Gote\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n",
+        );
+        assert!(built.indexed, "指し手のある棋譜を数えていない");
+    }
 }
