@@ -84,6 +84,34 @@ describe("ツリーが開いた棋譜を盤に載せる橋", () => {
   });
 
   /**
+   * `danger` は動作を持たないので、**次に何をすればよいかを書けるのは本文だけ**
+   * （`NotifyRequest` の `body` は「何をすれば直るか」）。
+   * 起きたことだけを書くと、閉じたあと利用者は「壊れているらしい」までしか分からない。
+   */
+  test("本文に、次に何をすればよいかを書く", async () => {
+    await mountWith("/ws/こわれた.kif", UNLOADABLE);
+
+    expect(notify.mock.calls[0][0]).toHaveProperty(
+      "body",
+      expect.stringContaining("別の棋譜を選んで"),
+    );
+  });
+
+  /**
+   * **前の棋譜が残っていない回**（起動後いちばん最初に開いたファイルが壊れていた）でも
+   * 同じ本文が出る。「盤には前の棋譜が残っています」と言い切ると、`WelcomeScreen` を
+   * 見ている利用者が無い棋譜を探すことになる。
+   */
+  test("前の棋譜が無くても嘘にならない本文にする", async () => {
+    await mountWith("/ws/こわれた.kif", UNLOADABLE);
+
+    expect(notify.mock.calls[0][0]).toHaveProperty(
+      "body",
+      expect.stringContaining("残っている場合"),
+    );
+  });
+
+  /**
    * 載せられなかった棋譜は押し直せる（`FileNode` の関門は盤とツリーの両方を見る）。
    * 押すたびに `openKifuNode` が新しい `jkfData` を作ってこの effect を撃ち直すので、
    * 鍵が無いと押した回数だけ同じ文言が積み上がる。
