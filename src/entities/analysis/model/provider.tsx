@@ -227,7 +227,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
         //
         // ここで待っているのは、捨てる席のものか、既に手放した席のもの
-        // （`matches` が落とす）だけなので、無条件に落として構わない。
+        // （`accepts` が落とす）だけなので、無条件に落として構わない。
         // `clear_results` は撃たない——`error` も消すので、直前に立った断りが黙って消える。
         dropPendingResult();
         return false;
@@ -271,8 +271,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       try {
         const unlisten = await setupAnalysisEventListeners({
           onUpdate: (sessionId: string, result: AnalysisResult) => {
-            // **自分の席のものだけ採る**（判定と理由は `EngineSeat.matches`）。
-            if (!seat.matches(sessionId)) return;
+            // **自分の席のものだけ採る**（判定と理由は `EngineSeat.accepts`）。
+            if (!seat.accepts(sessionId)) return;
             latestResultRef.current = result;
             scheduleFlush();
           },
@@ -284,7 +284,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
             // 一致しないまま手放すと、走っている別の席を知る者が居なくなる。
             // 一致しない側に倒したときの損は、畳んだときに空振りの停止が1本出るだけ。
-            seat.forget(sessionId);
+            seat.closeFinished(sessionId);
 
             latestResultRef.current = result;
             clearFlushTimer();

@@ -5,7 +5,7 @@ import { REPO_ROOT } from "./walk";
 import { codeOf } from "./sourceText";
 
 /**
- * 解析の席を返す「枠」を書き換えてよいのは、`useEngineSeat` の `occupy` の中だけ。
+ * 解析の席を返す「枠」を書き換えてよいのは、`useEngineSeat` の `holdSlot` の中だけ。
  *
  * `useEngineSeat` は飛んでいる返却を1枠（`releasingRef`）で持ち、後から来た口は
  * その後ろに並ぶ。**空けてよいのは自分がまだその枠に居るときだけ**で、無条件に
@@ -20,7 +20,7 @@ import { codeOf } from "./sourceText";
  * （`apiRef`）。早期 return より上に `useRef` 以外の宣言を置くと、そこで読んだ値が
  * 初回のまま凍り、描画ごとに変わる値を読んだ人はそれに気づけない。
  *
- * **見るのは形だけ。** `occupy` の中身が正しいかは見ない。
+ * **見るのは形だけ。** `holdSlot` の中身が正しいかは見ない。
  */
 const SEAT = "src/entities/analysis/model/useEngineSeat.ts";
 
@@ -28,20 +28,20 @@ const SEAT = "src/entities/analysis/model/useEngineSeat.ts";
 const WRITE = /releasingRef\.current\s*=[^=]/g;
 
 describe("解析の席を返す枠", () => {
-  test("枠に書くのは occupy の中だけ", () => {
+  test("枠に書くのは holdSlot の中だけ", () => {
     const code = codeOf(readFileSync(join(REPO_ROOT, SEAT), "utf8"));
 
-    const occupy = /const occupy = \(run[\s\S]*?\n {2}\};/.exec(code);
+    const holdSlot = /const holdSlot = \(run[\s\S]*?\n {2}\};/.exec(code);
     expect(
-      occupy,
-      `${SEAT}: \`occupy\` が見つからない（この検査の前提が崩れている）`,
+      holdSlot,
+      `${SEAT}: \`holdSlot\` が見つからない（この検査の前提が崩れている）`,
     ).not.toBeNull();
 
-    const inside = occupy![0].match(WRITE)?.length ?? 0;
+    const inside = holdSlot![0].match(WRITE)?.length ?? 0;
     const total = code.match(WRITE)?.length ?? 0;
 
-    expect(inside, `${SEAT}: \`occupy\` が枠に書いていない`).toBe(2);
-    expect(total, `${SEAT}: \`occupy\` の外から枠に書いている`).toBe(inside);
+    expect(inside, `${SEAT}: \`holdSlot\` が枠に書いていない`).toBe(2);
+    expect(total, `${SEAT}: \`holdSlot\` の外から枠に書いている`).toBe(inside);
   });
 
   test("凍る前に置くのは useRef だけ", () => {
@@ -54,11 +54,13 @@ describe("解析の席を返す枠", () => {
 
     expect(head, `${SEAT}: 早期 return が見つからない（この検査の前提が崩れている）`).not.toBe("");
 
-    const declarations = head.match(/^ {2}const \w+ =/gm) ?? [];
-    const refs = head.match(/^ {2}const \w+ = useRef</gm) ?? [];
-
-    expect(declarations.length, `${SEAT}: 早期 return より上に useRef 以外の宣言がある`).toBe(
-      refs.length,
+    // **`useRef(` を含まない宣言を数える。** 名前だけを見ると、この検査が
+    // いちばん止めたい形——`const { isReady } = useEngine();` のような
+    // 分割代入——が素通りする。
+    const offenders = (head.match(/^ {2}(?:const|let|var)\b[^\n]*/gm) ?? []).filter(
+      (line) => !/\buseRef\s*[<(]/.test(line),
     );
+
+    expect(offenders, `${SEAT}: 早期 return より上に useRef 以外の宣言がある`).toEqual([]);
   });
 });

@@ -30,22 +30,23 @@ export interface EngineSeat {
    *
    * 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る。
    */
-  matches: (sessionId: string) => boolean;
+  accepts: (sessionId: string) => boolean;
   /**
    * Rust が席を渡した行で呼ぶ。**要らない要求だと分かった後に呼ばない。**
    *
    * 手放した席の集合には触らない。渡る識別子は必ず新品なので（Rust の
    * `new_session_id` が UUID を振る）、そこに居ることが無い。
-   * 握り直しは `send` の catch が席の欄へ直接書く。
+   * 握り直しは `shoot` の catch が席の欄へ直接書く。
    */
   hold: (sessionId: string) => void;
   /**
-   * Rust が自分で片付けた席を、握っている欄から落とす。
+   * Rust が自分で片付けた席を締める。
    *
-   * **落とすだけではない**——手放した席として覚えるので、以後その席の通知は
-   * `matches` が落とし、停止が落ちても握り直さない。
+   * **握っている席と一致するときだけ効く**——一致しなければ何もしない
+   * （走っている別の席を巻き添えにしないため）。効いた回は手放した席として
+   * 覚えるので、以後その席の通知は `accepts` が落とし、停止が落ちても握り直さない。
    */
-  forget: (sessionId: string) => void;
+  closeFinished: (sessionId: string) => void;
   /**
    * 握っている席を返す。握っていなければ何もしない。
    *
@@ -87,7 +88,7 @@ export function useEngineSeat(): EngineSeat {
   const seatRef = useRef<string | null>(null);
 
   /**
-   * 手放した席。**もう採らない**（`matches` が落とす）。
+   * 手放した席。**もう採らない**（`accepts` が落とす）。
    *
    * 入るのは、返し終えた席・完了通知で片付いた席・捨てると決めた席
    * （捨てる側は停止の応答を待たない。待つと前の局面の読み筋が盤に出る）。
@@ -102,7 +103,7 @@ export function useEngineSeat(): EngineSeat {
    * `RuntimeProviders` 側に居るので、普通は畳まれない）。
    *
    * **「Rust がもう持っていない席」を別に持たない。** 持っても読む者が居ない——
-   * `send` に渡る識別子は、握っている席か、`discard` が受け取った新しい UUID
+   * `shoot` に渡る識別子は、握っている席か、`discard` が受け取った新しい UUID
    * （`bridge.rs` の `new_session_id`）だけなので、**返し終えた席で停止が落ちる
    * 経路そのものが無い**。逆に「Rust に無い席を握ってしまう回」は在るが、
    * それは区別できない——`stop_session` は席を消してからエンジンを止めるので、
@@ -117,10 +118,10 @@ export function useEngineSeat(): EngineSeat {
   // - **待てる側**（`releaseHeld`）——枠が自分のものになるまで待ってから、席を見直す
   // - **待てない側**（`releaseHeldQuietly` / `sweepOnUnmount`）——後ろに並び、
   //   **席がまだ握られていれば**撃ち直す
-  // - **`discard`**——並ばずに枠を差し替える。捨てる席は握っている席ではないので、
-  //   先に飛んでいる返却と**別の席**を指す。同じ席に2本出ることはない。
-  //   ただし**枠を待っている `releaseHeld` は、差し替えたこちらを待つ**
-  //   ——それでよい。要らなくなった席が Rust から消えるまで、次の開始は始められない
+  // - **`discard`**——並ばずに撃つが、枠には**前の返却とこの停止の両方**を載せる
+  //   （載せないと後から並ぶ側が前の返却を見失う。理由は `discard` の本体に1つ）。
+  //   枠を待っている `releaseHeld` は両方を待つ——それでよい。要らなくなった席が
+  //   Rust から消えるまで、次の開始は始められない
   const releasingRef = useRef<Promise<void> | null>(null);
 
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
@@ -145,7 +146,14 @@ export function useEngineSeat(): EngineSeat {
     }
   };
 
-  const send = async (by: SeatReleasePoint, sessionId: string | undefined) => {
+  /**
+   * 停止を撃つ。**失敗は呼び手へ投げる**（飲む版は `shootQuietly`）。
+   *
+   * 事後条件が2つある。**成功したときは、握っている席と一致するときだけ欄を空ける**
+   * ——一致しないなら、そこに居るのは新しい席で巻き添えにできない。
+   * **落ちたときは、欄が空なら撃った席を書き戻す**——誰も知らないまま Rust に残さない。
+   */
+  const shoot = async (by: SeatReleasePoint, sessionId: string | undefined) => {
     const held = seatRef.current;
 
     try {
@@ -155,12 +163,12 @@ export function useEngineSeat(): EngineSeat {
       // 要らなくなった開始を捨てる口は欄が空のまま撃つので、書き戻さないと
       // `sweepOnUnmount` が門で止まり、二度と返す機会が来ない。
       //
-      // **欄が埋まっているなら握らない。** そちらは新しい席で、巻き添えにできない。
+      // **欄が埋まっているなら握らない**——そこに居るのは別の席で、巻き添えにできない。
+      // その回、いま撃った席は誰も知らないまま Rust に残りうる（→ `analysis.md` ※12 / F-7）。
+      // いまその回が作れないのは、開始する口が必ず枠を待ち切るからで、
+      // `discard` の呼び手を増やすときはここを見直すこと。
       //
-      // 握り直した席が Rust にもう無いこともある（`stop_session` は席を消してから
-      // エンジンを止めるので、エンジン側の失敗は「席は空・`Err`」で返る）。
-      // **フロントからその2つは区別できない**ので、握る側に倒す——次に畳まれたときに
-      // 出るのは空撃ち1本で、席を置き去りにするより軽い（→ `analysis.md` ※12）。
+      // 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
       if (sessionId !== undefined && seatRef.current === null) {
         seatRef.current = sessionId;
       }
@@ -184,14 +192,15 @@ export function useEngineSeat(): EngineSeat {
   };
 
   /**
-   * 枠を取って撃つ。**`releasingRef` に書く綴りはここだけ。**
+   * 枠を1本の Promise で占める。**撃つのは呼び手**（`discard` は枠に載せる前に撃つ）。
+   * **`releasingRef` に書く綴りはここだけ。**
    *
    * 口ごとに手で書くと、口を1つ足したときの写し忘れを止める機械が無くなる。
    *
    * **空けるのは自分がまだ枠に居るときだけ。** 後ろに並んだ返却が居るのに
    * 空けると、その返却が飛んでいる間に3本目が並列で出る。
    */
-  const occupy = (run: () => Promise<void>): Promise<void> => {
+  const holdSlot = (run: () => Promise<void>): Promise<void> => {
     const slot: Promise<void> = run().finally(() => {
       if (releasingRef.current === slot) releasingRef.current = null;
     });
@@ -206,12 +215,12 @@ export function useEngineSeat(): EngineSeat {
    * ——棋譜を閉じた回・畳まれた回はもう画面が無いので、依存が動いて effect が
    * 再走することも無い。
    *
-   * **並ぶときも枠を取る**（`occupy` を通る）。取らないと、同じ1本を待っている
+   * **並ぶときも枠を取る**（`holdSlot` を通る）。取らないと、同じ1本を待っている
    * `releaseHeld` が「誰も並んでいない」と見て先へ進み、並列で同じ席へ撃つ。
    */
   const queueBehind = (run: () => Promise<void>): void => {
     const releasing = releasingRef.current;
-    void occupy(releasing ? () => releasing.catch(() => {}).then(run) : run);
+    void holdSlot(releasing ? () => releasing.catch(() => {}).then(run) : run);
   };
 
   // 撃って、落ちたらログだけ残す。**応答を待てない口はここを通る。**
@@ -233,21 +242,21 @@ export function useEngineSeat(): EngineSeat {
   // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: string | undefined) =>
-    send(by, sessionId).catch((e) => {
+    shoot(by, sessionId).catch((e) => {
       console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
     });
 
   apiRef.current = {
     isHeld: () => seatRef.current !== null,
-    matches: (sessionId) => {
-      // 順序の理由は `EngineSeat.matches` の doc に1つ置いてある。
+    accepts: (sessionId) => {
+      // 順序の理由は `EngineSeat.accepts` の doc に1つ置いてある。
       if (pastRef.current.has(sessionId)) return false;
       return seatRef.current === null || seatRef.current === sessionId;
     },
     hold: (sessionId) => {
       seatRef.current = sessionId;
     },
-    forget: (sessionId) => {
+    closeFinished: (sessionId) => {
       if (seatRef.current !== sessionId) return;
       seatRef.current = null;
       remember(sessionId);
@@ -269,7 +278,7 @@ export function useEngineSeat(): EngineSeat {
       const held = seatRef.current;
       if (held === null) return;
 
-      return occupy(() => send(by, held));
+      return holdSlot(() => shoot(by, held));
     },
 
     releaseHeldQuietly: (by) => {
@@ -316,7 +325,7 @@ export function useEngineSeat(): EngineSeat {
       // 解決した時点で「誰も飛んでいない」と読み、まだ飛んでいる席へ2本目を撃つ。
       const previous = releasingRef.current;
       const shot = shootQuietly(by, sessionId);
-      void occupy(() => Promise.allSettled([previous, shot]).then(() => {}));
+      void holdSlot(() => Promise.allSettled([previous, shot]).then(() => {}));
     },
   };
 
