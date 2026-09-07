@@ -85,18 +85,6 @@ export interface DepthOutcome {
   reached: boolean;
 }
 
-export interface AnalysisUpdateEvent {
-  sessionId: string;
-  result: AnalysisResult;
-  timestamp: number;
-}
-
-export interface AnalysisCompleteEvent {
-  sessionId: string;
-  finalResult: AnalysisResult;
-  totalTime: number;
-}
-
 export interface BatchAnalysisPosition {
   moves: string[];
   name?: string;

@@ -104,23 +104,21 @@ export type AnalysisSessionId = string & { readonly [analysisSessionIdBrand]: tr
  * 落とさず、省略もできない（Rust 側は名乗らない呼び手のために `unnamed` を
  * 持つが、TS からはそこへ落ちない）。
  *
- * **受け取る口ごとに部分集合を持つ。** 値を取り違えても Rust は止まるので、
- * 壊れるのはログだけ——#441 の再発を追う人が読む唯一の手掛かりが嘘になる。
- * 型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
+ * **口ごとの部分集合は受け取る側が持つ**（`useEngineSeat`）。分け方は席を返す口の
+ * 性質（応答を待てるか・捨てる側か）で、Rust が受け取る値の集合とは別の関心。
  *
  * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
  * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
  */
-export type SeatReleasePoint = BlockingReleasePoint | QuietReleasePoint | DiscardPoint | "unmount";
-
-/** 応答を待てる口。落ちたら呼び手へ投げ、次に返せる機会へ持ち越す */
-export type BlockingReleasePoint = "stop" | "start" | "restart";
-
-/** 応答を待てない口。落ちても画面に出せない（結末は `useEngineSeat` の `shootQuietly`） */
-export type QuietReleasePoint = "sync-timeout" | "no-position";
-
-/** 要らなくなった開始が持ってきた席を捨てる口 */
-export type DiscardPoint = "late-start" | "late-restart";
+export type SeatReleasePoint =
+  | "stop"
+  | "start"
+  | "restart"
+  | "unmount"
+  | "no-position"
+  | "sync-timeout"
+  | "late-start"
+  | "late-restart";
 
 /**
  * 解析を止める。

@@ -2,11 +2,35 @@ import { useRef } from "react";
 import {
   stopAnalysis as stopAnalysisCore,
   type AnalysisSessionId,
-  type BlockingReleasePoint,
-  type DiscardPoint,
-  type QuietReleasePoint,
   type SeatReleasePoint,
 } from "@/entities/engine/api/tauri";
+
+/**
+ * 口ごとの部分集合。**分け方は席を返す口の性質**（応答を待てるか・捨てる側か）で、
+ * Rust が受け取る値の集合（`SeatReleasePoint`）とは別の関心なので、こちら側で持つ。
+ *
+ * 値を取り違えても Rust は止まるので壊れるのはログだけ——#441 の再発を追う人が読む
+ * 唯一の手掛かりが嘘になる。型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
+ */
+export type BlockingReleasePoint = Extract<SeatReleasePoint, "stop" | "start" | "restart">;
+/** 応答を待てない口。落ちても画面に出せない（結末は `shootQuietly` の頭） */
+export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-position">;
+/** 要らなくなった開始が持ってきた席を捨てる口 */
+export type DiscardPoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
+
+/**
+ * **どの部分集合にも入れていない値を tsc に落とさせる。** `Extract` は綴りを間違えても
+ * 黙って狭まるので、`SeatReleasePoint` に値を足して割り当てを忘れた回をここで止める。
+ */
+type _EveryPointIsAssigned =
+  Exclude<
+    SeatReleasePoint,
+    BlockingReleasePoint | QuietReleasePoint | DiscardPoint | "unmount"
+  > extends never
+    ? true
+    : never;
+const _everyPointIsAssigned: _EveryPointIsAssigned = true;
+void _everyPointIsAssigned;
 
 /**
  * Rust が渡した解析の席（`active_sessions` の1エントリ）の生死を持つ。
@@ -49,7 +73,11 @@ export interface EngineSeat {
    */
   closeFinished: (sessionId: AnalysisSessionId) => void;
   /**
-   * 握っている席を返す。握っていなければ何もしない。
+   * 握っている席を返す。
+   *
+   * **飛んでいる返却があれば、握っていなくても枠が空くまで待つ。** この待ちを外すと、
+   * `shoot` の catch が「誰も知らない席は作れない」と言える根拠が消える。
+   * 待ち切った時点で席を握っていなければ撃たない。
    *
    * **返せたときだけ手放す。** 停止が失敗したら握ったままにして、次に返せる機会へ持ち越す。
    * 失敗は呼び手へ投げる（出し方は呼び手が決める）。
@@ -64,6 +92,8 @@ export interface EngineSeat {
   /**
    * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある。
    * 落ちた回は誰も返せない（読む者が居ない）。
+   *
+   * **席を握っていない回は撃たない**（→ #463。理由は本体の門に置いてある）。
    */
   sweepOnUnmount: () => void;
   /**
