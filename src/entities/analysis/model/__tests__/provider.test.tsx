@@ -73,6 +73,9 @@ const advance = (ms: number) => act(async () => void (await new Promise((r) => s
  */
 const SLOW = 20_000;
 
+/** provider が持つ同期待ちの上限。**この待ちを短く抜けることを見る**テストが使う */
+const POSITION_SYNC_TIMEOUT_MS = 2000;
+
 function mountAnalysis(initial: PositionSyncAdapter, { strict = false } = {}) {
   const seen: AnalysisContextType[] = [];
 
@@ -449,6 +452,71 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(150);
 
     expect(view.current.state.candidates).toHaveLength(0);
+  });
+
+  it(
+    "▶ の応答待ちにエンジンが落ちたら、その席を握らない",
+    async () => {
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+
+      // 席の往復の最中に、断りが案内している操作（オプションを変えて保存）をする。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(50);
+
+      // 席が返ってくる。Rust は畳む前に席を全部空けるので、この席は死んでいる。
+      await act(async () => {
+        releaseStart("s1");
+      });
+      await pressed;
+      await advance(50);
+
+      // 握ると「解析中の表示のまま数字が動かない」に落ちる。**撃たずに捨てる**
+      // ——席が空の回の停止は、起こし直したエンジンへ裸の `stop` を書く。
+      expect(view.current.state.isAnalyzing).toBe(false);
+      expect(stopCore).not.toHaveBeenCalled();
+
+      // 戻ってきたら ▶ で始められる。
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P1", "P1"));
+      startCore.mockResolvedValue("s2");
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      expect(view.current.state.isAnalyzing).toBe(true);
+    },
+    SLOW,
+  );
+
+  it("同期待ちの最中にエンジンが落ちたら、その理由で断る", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    // 送信は通るが、エンジンは追いつかない（起こし直しの最中）。
+    await view.setSync(adapter("P2", "P1"));
+    const startedAt = Date.now();
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P2", "P1"));
+    await pressed;
+    const elapsed = Date.now() - startedAt;
+    await advance(50);
+
+    // **上限（2秒）まで待たせない。** 待っても追いつかないし、待った末に告げる理由
+    // （同期が遅い＝押し直し）はここでは効かない。
+    expect(elapsed).toBeLessThan(POSITION_SYNC_TIMEOUT_MS);
+    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
+    expect(startCore).not.toHaveBeenCalled();
   });
 
   it(

@@ -86,6 +86,19 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /** 結果の購読に失敗した。**張り直す口が無い**ので、以後 ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
 
+  /**
+   * エンジンの世代。**`isReady` が落ちるたびに1つ進む。**
+   *
+   * 席を取る往復を跨いで「その席はどのエンジンのものか」を言うために持つ。
+   * 進んだ後に着地した席は**もう無いエンジン**のもので、握ると「解析中の表示のまま
+   * 数字が動かない」に落ちる。
+   */
+  const engineEpochRef = useRef(0);
+
+  /** `waitUntil` の中から読む。**await の向こう側でエンジンが消えたかを見る** */
+  const isReadyRef = useRef(isReady);
+  const notReadyReasonRef = useRef(notReadyReason);
+
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
   // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
@@ -170,6 +183,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   useEffect(() => {
     analyzingRef.current = state.isAnalyzing;
   }, [state.isAnalyzing]);
+
+  useEffect(() => {
+    isReadyRef.current = isReady;
+    notReadyReasonRef.current = notReadyReason;
+  }, [isReady, notReadyReason]);
 
   /**
    * エンジンへ投げ済みの局面。**`null` は「もう一度投げてよい」の印**で、
@@ -276,7 +294,18 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     async (seq: number, sfen: string, by: DiscardPoint) => {
       discardShownResults();
 
+      const epoch = engineEpochRef.current;
       const sessionId = await startInfiniteAnalysisCore();
+
+      // **もう無いエンジンの席は握らない。** 往復の間にエンジンが落ちていたら、
+      // Rust は畳む前に席を全部空けているので、この席は死んでいる。握ると
+      // 「解析中の表示のまま数字が動かない」に落ちる。**撃たずに捨てる**
+      // （席が空の回の停止は、起こし直したエンジンへ裸の `stop` を書く）。
+      if (engineEpochRef.current !== epoch) {
+        seat.abandonOnEngineGone(sessionId);
+        return false;
+      }
+
       if (!holdUnlessSuperseded(seq, by, sessionId)) return false;
 
       dispatch({ type: "start_analysis", payload: { sfen } });
@@ -291,7 +320,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       sentSfenRef.current = sfen;
       return true;
     },
-    [discardShownResults, holdUnlessSuperseded, scheduleFlush],
+    [discardShownResults, holdUnlessSuperseded, scheduleFlush, seat],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
@@ -364,7 +393,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           return;
         }
         unlistenRef.current = unlisten;
+        // **張り直せた回は印を戻す。** 戻さないと、1度の一時的な失敗が以後の ▶ を
+        // 永久に断る（購読は生きているのに「アプリを起動し直してください」が出続ける）。
+        listenersFailedRef.current = false;
       } catch (e) {
+        // 畳まれた／張り直された pass の失敗で、生きているインスタンスの印と
+        // `state.error` を汚さない。
+        if (!alive) return;
+
         // **張り直す口が無い。** この effect の依存は全部固定なのでマウント1回きりで、
         // 落ちると結果が二度と届かない——`isAnalyzing` は true のまま候補手が0で固まる。
         //
@@ -530,11 +566,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られ、断りも出ない）。
   useEffect(() => {
     if (isReady) return;
-    if (!analyzingRef.current) return;
 
+    // **世代を1つ進める。** 立ち下がりを1回見るだけでは足りない——飛んでいる開始が
+    // この後に着地して、捨てたばかりの印を書き戻す（席が返るのは往復の後）。
+    engineEpochRef.current++;
     sentSfenRef.current = null;
+    clearDebounceTimer();
     seat.abandonOnEngineGone();
-  }, [isReady, seat]);
+  }, [isReady, seat, clearDebounceTimer]);
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
   //
@@ -645,10 +684,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       const synced = await waitUntil(
         () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
         POSITION_SYNC_TIMEOUT_MS,
-        () => supersededSince(seq),
+        () => supersededSince(seq) || !isReadyRef.current,
       );
       if (!synced) {
         if (supersededSince(seq)) return false;
+
+        // **エンジンが消えた回は、その理由で断る。** 待ち続けても追いつかないうえ、
+        // 「同期が遅い」の案内（押し直し）はここでは効かない——押し直すと今度は
+        // 起動待ちの断りが出る。上限まで待たせてから違う理由を告げないこと。
+        if (!isReadyRef.current) {
+          failStart(
+            NOT_READY_REFUSALS[notReadyReasonRef.current ?? "no-engine"],
+            new Error("engine went away while syncing"),
+          );
+        }
+
         failStart(POSITION_SYNC_TIMEOUT_MESSAGE, new Error("position sync timed out"));
       }
 

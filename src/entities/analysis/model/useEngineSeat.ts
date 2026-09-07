@@ -81,10 +81,12 @@ export interface EngineSeat {
    *
    * エンジンを畳む側は `stop_all_sessions` で席を全部空けてから落ちる（`bridge.rs` の
    * `shutdown_engine_impl`）。落ちただけの回も `forward_results_to_ui` が席を消す。
-   * どちらも**もう無い席**なので、撃つと空撃ちになるうえ、次のエンジンの席を
-   * 巻き添えにしうる。手放した席として覚えるので、遅れて届く `info` は落ちる。
+   * **撃たない理由は空撃ちではない。** Rust は席の主を照合するので新しい席は巻き添えに
+   * ならない（`stop_session`）が、席が空の回は `Ok` のまま `analyzer.stop_analysis()` まで
+   * 進み、**起こし直したエンジンへ裸の `stop` が書かれる**。
+   * 手放した席として覚えるので、遅れて届く `info` は落ちる。
    */
-  abandonOnEngineGone: () => void;
+  abandonOnEngineGone: (sessionId?: AnalysisSessionId) => void;
   /**
    * 握っている席を返す。
    *
@@ -304,7 +306,13 @@ export function useEngineSeat(): EngineSeat {
     hold: (sessionId) => {
       seatRef.current = sessionId;
     },
-    abandonOnEngineGone: () => {
+    abandonOnEngineGone: (sessionId) => {
+      // 指した回は、遅れて着地した席を捨てる（欄には入っていない）。
+      if (sessionId !== undefined) {
+        remember(sessionId);
+        return;
+      }
+
       const held = seatRef.current;
       if (held === null) return;
       seatRef.current = null;
