@@ -74,6 +74,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, []);
 
   /**
+   * 反映待ちの下書きを捨てる。**`latestResultRef` と間引きのタイマーで1組**なので、
+   * 片方だけ落とすと、捨てたはずの結果が次のタイマーで画面に出る。
+   */
+  const dropPendingResult = useCallback(() => {
+    clearFlushTimer();
+    latestResultRef.current = null;
+  }, [clearFlushTimer]);
+
+  /**
    * 画面に出ている候補手を捨てる。**`go` を出す前に、開始する口が必ず通る。**
    *
    * 通さないと `start_analysis` が `currentPosition` だけを差し替えるので
@@ -85,10 +94,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 要らなくなった要求が通らない位置——世代の門の後ろ——で呼ぶこと。
    */
   const discardShownResults = useCallback(() => {
-    clearFlushTimer();
-    latestResultRef.current = null;
+    dropPendingResult();
     dispatch({ type: "clear_results" });
-  }, [clearFlushTimer]);
+  }, [dropPendingResult]);
 
   const scheduleFlush = useCallback(() => {
     if (flushTimerRef.current != null) return;
@@ -579,10 +587,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       await seat.releaseHeld("stop");
     } finally {
       dispatch({ type: "stop_analysis" });
-      clearFlushTimer();
-      latestResultRef.current = null;
+      dropPendingResult();
     }
-  }, [clearFlushTimer, seat, supersedeRequests]);
+  }, [dropPendingResult, seat, supersedeRequests]);
 
   const value = useMemo<AnalysisContextType>(
     () => ({
