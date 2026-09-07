@@ -5,7 +5,7 @@
  * `position` / `go` / `ponderhit` / `gameover` は Rust の中で完結する。
  * ここが扱うのは対局者・持ち時間・手番・決まった手・終局。
  *
- * **エンジンを起こすための設定は越える**（`setOption` の値、`ponder`、根の SFEN、
+ * **エンジンを起こすための設定は越える**（`setoption` の値、`ponder`、根の SFEN、
  * USI の指し手文字列）。どれを渡すかを決めるのはこちら側なので、内側に閉じようがない。
  */
 import { invoke } from "@tauri-apps/api/core";

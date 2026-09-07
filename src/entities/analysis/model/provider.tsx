@@ -385,7 +385,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           },
           // **この通知も届かない**（`engine-error` を emit する行が無い。`docs/state-transitions/analysis.md` の E9 / ※6）。
           onError: (error: string) => {
-            // 上流の文をそのまま `state.error` に載せない（`runRestart` の catch と同じ）。
+            // 上流の文をそのまま `state.error` に載せない（`swapSeatAndGo` の catch と同じ）。
             console.error("[ANALYSIS] engine reported an error", error);
             dispatch({ type: "set_error", payload: ENGINE_ERROR_MESSAGE });
           },
@@ -808,7 +808,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!started) return;
 
     // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
-    // 席が返ってから `hold` / `discard` に着くまでの微小タスクが1つ増える
+    // 席が返ってから `landed` が握るか捨てるかを決めるまでの微小タスクが1つ増える
     // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
     // 畳まれた後に席を返す側が間に合わなくなる。
     let landed: SeatTakeResult = "superseded";

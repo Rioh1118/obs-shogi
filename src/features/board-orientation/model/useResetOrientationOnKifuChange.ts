@@ -31,7 +31,7 @@ export function useResetOrientationOnKifuChange() {
 
     // 消すものが無ければ履歴を触らない。`updateParams` は削除が空振りでも
     // `navigate` するので、同じ URL でも location の同一性が変わり、
-    // `useLocation` の読み手（ファイルツリー全行を含む）が丸ごと描き直される
+    // `useSearchParams` の読み手（ファイルツリー全行を含む）が丸ごと描き直される
     if (params.pov === undefined) return;
 
     updateParams({ pov: undefined }, { replace: true });

@@ -99,6 +99,44 @@ export const codeOf = (body: string, lang: "c-like" | "shell" = "c-like"): strin
   return out;
 };
 
+/** 行コメントだけを拾う。`codeOf` の `stripLineComments` の裏返し */
+const lineCommentsIn = (text: string): string => (text.match(/\/\/[^\n]*/g) ?? []).join("\n");
+
+/**
+ * コメントだけを残す。**`codeOf` の裏返し**で、同じ `openIndex` の規則に従う
+ * ——行の途中で開いたブロックは、あちらがコードとして数えるのでこちらも拾わない。
+ *
+ * **落とす／残すの規則を2通り持たない**のがここに置く理由。片方だけ直すと、
+ * コードでもコメントでもない区間が生まれ、どちらの検査からも外れる。
+ */
+export const commentsOf = (body: string): string => {
+  let out = "";
+  let rest = body;
+
+  while (rest.length > 0) {
+    const open = openIndex(rest);
+
+    if (open < 0) {
+      out += lineCommentsIn(rest);
+      break;
+    }
+
+    out += `${lineCommentsIn(rest.slice(0, open))}\n`;
+
+    const close = rest.indexOf("*/", open + 2);
+    // 閉じないブロックは末尾まで
+    if (close < 0) {
+      out += rest.slice(open);
+      break;
+    }
+
+    out += `${rest.slice(open, close + 2)}\n`;
+    rest = rest.slice(close + 2);
+  }
+
+  return out;
+};
+
 /**
  * 綴りが当たった箇所を `path:行番号` で返す。空なら当たっていない。
  *
