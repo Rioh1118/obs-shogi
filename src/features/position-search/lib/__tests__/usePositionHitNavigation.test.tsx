@@ -19,6 +19,7 @@ const stub = {
   selectedNode: null as SelectedNode,
   player: null as unknown,
   loadedAbsPath: null as string | null,
+  loadFailedAbsPath: null as string | null,
   kifuError: null as { path?: string } | null,
 };
 
@@ -33,7 +34,10 @@ vi.mock("@/entities/file-tree", () => ({
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    state: { loadedAbsPath: stub.loadedAbsPath },
+    state: {
+      loadedAbsPath: stub.loadedAbsPath,
+      loadFailedAbsPath: stub.loadFailedAbsPath,
+    },
     view: { player: stub.player },
     applyCursor,
   }),
@@ -48,6 +52,7 @@ beforeEach(() => {
   stub.selectedNode = null;
   stub.player = null;
   stub.loadedAbsPath = null;
+  stub.loadFailedAbsPath = null;
   stub.kifuError = null;
   selectNodeByAbsPath.mockReset();
   applyCursor.mockReset();
@@ -185,6 +190,55 @@ describe("usePositionHitNavigation", () => {
     rerender();
 
     expect(applyCursor).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **読めたが盤に載せられなかった回**（`game.md` の E16）。`kifuError` は立たず、
+   * 選択もその棋譜のままなので、上の2つでは見分けが付かない。
+   *
+   * 捨てないと、利用者が外でそのファイルを直して普通に開き直した瞬間に、
+   * **ずっと前に押した検索ヒットの局面へ盤が飛ぶ**。
+   */
+  test("盤に載せられなかったら要求は流れる", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+
+    const { result, rerender } = renderHook(() => usePositionHitNavigation());
+    result.current.startNavigationToHit("/root/b.kif", CURSOR);
+
+    // ツリーは開いた（選択も動いた）が、盤には載らなかった
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    stub.loadFailedAbsPath = "/root/b.kif";
+    rerender();
+
+    // あとで直して、普通に開き直した
+    stub.loadFailedAbsPath = null;
+    stub.loadedAbsPath = "/root/b.kif";
+    stub.player = {};
+    rerender();
+
+    expect(applyCursor).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **読み込みの最中は捨てない。** `loadedAbsPath` の不一致で代用すると、
+   * 成功する要求まで捨てることになる。
+   */
+  test("まだ載っていないだけなら要求は生きている", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+
+    const { result, rerender } = renderHook(() => usePositionHitNavigation());
+    result.current.startNavigationToHit("/root/b.kif", CURSOR);
+
+    // 選択は動いたが、盤はまだ前の棋譜（読み込みの飛行中）
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    stub.loadedAbsPath = "/root/a.kif";
+    stub.player = {};
+    rerender();
+
+    stub.loadedAbsPath = "/root/b.kif";
+    rerender();
+
+    expect(applyCursor).toHaveBeenCalledTimes(1);
   });
 
   /**

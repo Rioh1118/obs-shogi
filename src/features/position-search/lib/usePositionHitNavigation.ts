@@ -102,12 +102,20 @@ export function usePositionHitNavigation() {
     // **流れた要求は捨てる。** このフックはモーダルごと常時マウントされている
     // （`AppModalLayer`）ので、捨てないと要求はアプリを終えるまで生き残り、
     // あとでその棋譜を普通に開いた瞬間に、誰も頼んでいない局面へ盤が動く。
-    // 見分けは2つ——利用者が別の棋譜を選んだ／その棋譜を読めなかった
+    // 見分けは3つ——利用者が別の棋譜を選んだ／その棋譜を読めなかった／
+    // 読めたが盤に載せられなかった
     if (selectedNode && !selectedNode.isDirectory && selectedNode.path !== p.absPath) {
       pendingRef.current = null;
       return;
     }
     if (kifuError?.path === p.absPath) {
+      pendingRef.current = null;
+      return;
+    }
+    // **`loadedAbsPath` が一致しないことでは代用できない。** 読み込みが進んでいる間も
+    // 一致しないので、成功する要求まで捨てることになる。載せられなかったことは
+    // `loadFailedAbsPath` にしか出ない
+    if (gameState.loadFailedAbsPath === p.absPath) {
       pendingRef.current = null;
       return;
     }
@@ -118,7 +126,14 @@ export function usePositionHitNavigation() {
 
     applyCursor(cursorFromLite(p.cursor));
     pendingRef.current = null;
-  }, [applyCursor, gameView.player, gameState.loadedAbsPath, kifuError, selectedNode]);
+  }, [
+    applyCursor,
+    gameView.player,
+    gameState.loadedAbsPath,
+    gameState.loadFailedAbsPath,
+    kifuError,
+    selectedNode,
+  ]);
 
   return { startNavigationToHit };
 }

@@ -14,6 +14,8 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         branchPlan: asBranchPlan([...action.payload.cursor.forkPointers]),
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
+        // 載ったので、前に失敗した印は消す
+        loadFailedAbsPath: null,
         isLoading: state.blockingWrites > 0,
         blockingWrites: state.blockingWrites,
         error: null,
@@ -111,6 +113,11 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
 
     // `game_loaded` と同じ理由で `blockingWrites` を持ち越す。
     // 棋譜を閉じるのは書き込みが走っている最中にも起こる（ワークスペースの切り替え）。
+    // **`loadedAbsPath` は触らない。** 盤には前の棋譜が載ったままなので、
+    // ここで動かすと「載っている棋譜」の意味が崩れる。足すのは失敗した宛先だけ。
+    case "load_failed":
+      return { ...state, loadFailedAbsPath: action.payload.absPath };
+
     case "reset_state":
       return {
         ...initialGameState,

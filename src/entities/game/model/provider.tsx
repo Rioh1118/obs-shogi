@@ -330,6 +330,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to load game";
         dispatch({ type: "set_error", payload: msg });
+        // **宛先も残す。** `error` は文字列なのでどのファイルの失敗か分からず、
+        // その棋譜が載るのを待っている側（`usePositionHitNavigation`）が
+        // 要求を捨てられない
+        dispatch({ type: "load_failed", payload: { absPath } });
         return Err(msg);
       } finally {
         dispatch({ type: "write_ended", payload: { blocking: true } });

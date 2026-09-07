@@ -38,6 +38,18 @@ export interface GameContextState {
   loadedAbsPath: string | null;
 
   /**
+   * 盤に載せられなかった棋譜のパス（`game.md` の E16）。載るまで、または閉じるまで残る。
+   *
+   * **`loadedAbsPath` が動かないことでは代用できない。** 読み込みが進行中の1レンダぶんも
+   * 「まだ載っていない」なので、その2つは区別が付かない。**待っている側が
+   * 「もう来ない」と判断できる唯一の合図**がこれ（`usePositionHitNavigation`）。
+   *
+   * `error` と別に持つのは、あちらが文字列でパスを持たないため。
+   * どのファイルの失敗かが分からないと、待っている要求と突き合わせられない
+   */
+  loadFailedAbsPath: string | null;
+
+  /**
    * **利用者を待たせている**書き込みが1つ以上あるか。`blockingWrites > 0` の射影。
    *
    * これを見て棋譜一覧の行が無効になる。だから
@@ -166,6 +178,14 @@ export type GameAction =
       type: "set_error";
       payload: string | null;
     }
+  /**
+   * 盤に載せられなかった（E16）。`error` と違い**どのファイルかを持つ**ので、
+   * その棋譜を待っている側が要求を捨てられる
+   */
+  | {
+      type: "load_failed";
+      payload: { absPath: string | null };
+    }
   // 書き込みが失敗したときの `set_error`。**待っている間に棋譜が別物に
   // なっていたら積まない**（`jkf_restored` の `expectedJkf` と同じ判定）。
   | {
@@ -189,6 +209,7 @@ export const initialGameState: GameContextState = {
   branchPlan: asBranchPlan([]),
   selectedPosition: null,
   loadedAbsPath: null,
+  loadFailedAbsPath: null,
   isLoading: false,
   blockingWrites: 0,
   error: null,
