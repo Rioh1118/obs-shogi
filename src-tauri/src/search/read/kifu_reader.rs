@@ -178,6 +178,27 @@ fn read_indexable(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), Kif
 /// 棋譜ファイルを JKF に読み、伝えたいことも返す。**読み手の本体。**
 ///
 /// 表と腕ごとの義務は [`read_to_jkf`] の doc にある。
+/// **中身が無いか。** 空白と BOM しか無いファイルを「本当に空の棋譜」から外す。
+///
+/// 同期の途中で置かれたプレースホルダや、保存が落ちた残骸がこの形になる。
+/// 大きさ0だけを見ると、改行1つや BOM だけのものが素通りする——どれも
+/// 「空なのが正しい姿」ではない。
+///
+/// **BOM を落としてから見る。** UTF-8 / UTF-16 の BOM は中身ではなく、
+/// 書き手が何も書かなくても付く。
+fn is_blank(bytes: &[u8]) -> bool {
+    const BOMS: [&[u8]; 3] = [b"\xEF\xBB\xBF", b"\xFF\xFE", b"\xFE\xFF"];
+    let mut rest = bytes;
+    for bom in BOMS {
+        if let Some(stripped) = rest.strip_prefix(bom) {
+            rest = stripped;
+            break;
+        }
+    }
+    // UTF-16 の空白は NUL を挟むので、NUL も「中身ではない」側に数える
+    rest.iter().all(|b| b.is_ascii_whitespace() || *b == 0)
+}
+
 fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadError> {
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
@@ -186,13 +207,7 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
 
     // 大きさは開いた手で見る。`fs::metadata` を別に呼ぶと、
     // 見た対象と読む対象がずれる
-    // **中身が無いファイルは「本当に空の棋譜」ではない。** 同期の途中で
-    // 置かれた 0 バイトのプレースホルダや、保存が落ちた残骸がこの形になる。
-    // 形式によっては警告を出す口が無い（`warn_if_moves_were_dropped` は CSA だけ）
-    // ので、大きさで見ないと **KIF / KI2 が黙って「索引済み」に数えられる**
-    let mut is_blank = false;
     if let Ok(meta) = file.metadata() {
-        is_blank = meta.len() == 0;
         if too_large_to_be_a_kifu(meta.len()) {
             // **上限値そのものを言う。** 「大きすぎる」だけだと、
             // 上限を上げるべき棋譜が実在したときに報告のしようがない。
@@ -238,7 +253,15 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
     if says_nothing(&jkf) {
         // **空なのが正しい姿か**を、ここで決めて運ぶ。呼び手が `warns` の
         // 有無から導くと、警告を出す口が無い形式で必ず「正しい姿」になる
-        let looks_intentional = !is_blank && warn.is_none();
+        //
+        // **中身を読んで決める。** ここへ来るのは記録が空に見えた回だけなので、
+        // 読み直しの費用は掛かっても構わない（`SIZE_LIMIT` で上限は付いている）。
+        // 大きさ0だけを見ると、改行1つや BOM だけのファイルが素通りする
+        let has_content = csa_bytes
+            .as_deref()
+            .map_or_else(|| read_bytes(path).ok(), |b| Some(b.to_vec()))
+            .is_some_and(|b| !is_blank(&b));
+        let looks_intentional = has_content && warn.is_none();
         return Ok(ReadOutcome::NothingToIndex {
             warns: warn.into_iter().collect(),
             looks_intentional,

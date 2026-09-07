@@ -206,6 +206,26 @@ mod tests {
         }
     }
 
+    /// **空白と BOM しか無いファイルも「本当に空の棋譜」ではない。**
+    ///
+    /// 大きさ0だけを見ると、改行1つや BOM だけのものが素通りする。
+    /// どれも同期の途中や保存の失敗で残る形で、「空なのが正しい姿」ではない。
+    #[test]
+    fn a_file_with_only_whitespace_or_a_bom_is_not_a_genuinely_empty_kifu() {
+        for (name, body) in [
+            ("ws.kif", "\n"),
+            ("spaces.kif", "   \n\n"),
+            ("bom.kif", "\u{feff}"),
+            ("bomws.ki2", "\u{feff}\n"),
+        ] {
+            let built = write_and_build(name, body);
+            assert!(
+                !built.indexed,
+                "中身の無いファイルを「索引済み」に数えている: {name}"
+            );
+        }
+    }
+
     /// **指し手の途中で切れた CSA を「本当に空」と読まないこと。**
     ///
     /// `+7776F` は6バイトなので、指し手行を長さで数えると 0 件になり、
