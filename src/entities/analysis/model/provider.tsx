@@ -201,12 +201,24 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     (seq: number, by: DiscardPoint, sessionId: string) => {
       if (supersededSince(seq)) {
         seat.discard(by, sessionId);
+
+        // **席と一緒に、その席の反映待ちも捨てる。** `discard` が落とすのは
+        // これ以降の `info` だけで、席が欄に入る前に届いて `latestResultRef` に
+        // 入った1本と、それが張ったタイマーには触らない。この経路は
+        // `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される
+        // ——**別の局面の評価値と読み筋が、いまの局面の解析結果として画面に出る**
+        // （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
+        //
+        // ここで待っているのは、捨てる席のものか、既に手放した席のもの
+        // （`matches` が落とす）だけなので、無条件に落として構わない。
+        // `clear_results` は撃たない——`error` も消すので、直前に立った断りが黙って消える。
+        dropPendingResult();
         return false;
       }
       seat.hold(sessionId);
       return true;
     },
-    [seat, supersededSince],
+    [seat, supersededSince, dropPendingResult],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**

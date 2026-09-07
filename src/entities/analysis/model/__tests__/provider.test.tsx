@@ -405,6 +405,44 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  it("捨てた席の反映待ちを、いまの局面の結果として出さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 1手進む。再開が `s1` を返し、次の席の応答待ちで止まる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // もう1手進む。**エンジンはまだ追いついていない**ので、次の再開は同期待ちで止まり、
+    // 画面の候補手を捨てる口を通らない。
+    await view.setSync(adapter("P3", "P2"));
+    await advance(150);
+
+    // 応答待ちの窓で `s2` の最初の `info` が届く（席が欄に入るより早いので通る）。
+    // 間引きのタイマーが起きる前に応答が返り、その席は捨てられる。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+      releaseStart("s2");
+    });
+    await advance(150);
+
+    // 捨てた席の反映待ちを残すと、**P2 の評価値と読み筋が、盤が P3 を映したまま
+    // 解析結果として出る**（盤がその局面へ戻るとペインのキャッシュにも焼き付く）。
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("捨てる停止の応答を待っている間も、その席の info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");
