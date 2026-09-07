@@ -185,8 +185,12 @@ export type SelectNodeOptions = {
    * **盤に載っているかはツリーからは分からない。** `activeKifuPath` は構文として
    * 読めた時点で進むので、盤に載せられなかった棋譜もツリー側では開いていることに
    * なる。載っているかを見られる呼び出し側だけが、この判断を覆せる。
+   *
+   * **省略できないのは、省いた側が黙るから。** 既定値を置くと「盤に載っていない棋譜への
+   * 2度目の要求が、何も起こさずに成功を返す」に倒れる。ツリーからは正しい既定値を
+   * 決めようが無いので、呼び出し側に必ず書かせる。
    */
-  forceReopen?: boolean;
+  forceReopen: boolean;
 };
 
 export type FileTreeContextType = FileTreeState & {
@@ -238,5 +242,5 @@ export type FileTreeContextType = FileTreeState & {
    *
    * **返るのは「ツリーにその節が在ったか」だけ。** 開けたかも、盤に載ったかも意味しない。
    */
-  selectNodeByAbsPath: (absPath: string, options?: SelectNodeOptions) => boolean;
+  selectNodeByAbsPath: (absPath: string, options: SelectNodeOptions) => boolean;
 };

@@ -660,7 +660,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const selectNodeByAbsPath = useCallback(
-    (absPath: string, options?: SelectNodeOptions): boolean => {
+    (absPath: string, options: SelectNodeOptions): boolean => {
       const node = findNodeByPath(absPath);
       if (!node) {
         return false;
@@ -681,7 +681,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       // 覆せないと、載せられなかった棋譜がツリー側では「開いている」ままになり、
       // 2度目以降の要求が**何も起こさずに成功を返す**。
       const isAlreadyActive =
-        !options?.forceReopen &&
+        !options.forceReopen &&
         state.activeKifuPath === node.path &&
         state.jkfData !== null &&
         state.kifuFormat === node.kifuInfo?.format;
