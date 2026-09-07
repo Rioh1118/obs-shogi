@@ -217,7 +217,7 @@ G2 で計画が消えること（#226）も**見ていない**。
 ※7 `△` は「歩き方の部品だけ固定されている」の意。`advanceWithPlan.test.ts` が
 1手ぶんの規則（壊れた計画は捨てて線をそのまま進む、線の末尾では動かない）を固定しているだけで、
 **`navigate` を通した `state.branchPlan` の遷移（G2 のまま残るか G1 に落ちるか）は
-未検証**。`provider.test.tsx` が踏むのは `loadGame` だけ（※6）。
+未検証**。`provider.test.tsx` が踏むのは `loadGame` だけ（※8）。
 
 ※8 `provider.test.tsx` が固定しているのは `loadGame` の2つ（読み込めた棋譜が
 `state` に入ること、盤に載せられない棋譜を弾いて `error` と `Err` を残すこと）。
