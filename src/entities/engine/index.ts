@@ -1,7 +1,12 @@
 export { EngineProvider } from "./model/provider";
 export { useEngine } from "./model/useEngine";
 
-export type { EngineRuntimeConfig, EnginePhase, EngineNotReadyReason } from "./model/types";
+export type {
+  EngineRuntimeConfig,
+  EnginePhase,
+  EngineNotReadyReason,
+  EngineReadiness,
+} from "./model/types";
 export type {
   EngineInfo,
   EngineSettings,

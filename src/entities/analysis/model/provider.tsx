@@ -7,7 +7,7 @@ import {
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
-import { useEngine, type AnalysisResult } from "@/entities/engine";
+import { useEngine, type AnalysisResult, type EngineReadiness } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
@@ -78,7 +78,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // Rust の席の生死。**識別子を書き換えられるのはこのフックの中だけ。**
   const seat = useEngineSeat();
 
-  const { isReady, notReadyReason } = useEngine();
+  const readiness = useEngine();
+  const { isReady, notReadyReason } = readiness;
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
@@ -87,9 +88,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /** 結果の購読に失敗した。**張り直す口が無い**ので、以後 ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
 
-  /** `waitUntil` の中から読む。**await の向こう側でエンジンが消えたかを見る** */
-  const isReadyRef = useRef(isReady);
-  const notReadyReasonRef = useRef(notReadyReason);
+  /**
+   * `waitUntil` の中から読む。**await の向こう側でエンジンが消えたかを見る。**
+   *
+   * **合併のまま1本で持つ。** 2つの ref に割ると narrowing が消え、読む側が
+   * `notReadyReason ?? "既定値"` を書くことになる——その既定値は、起こし直しの窓で
+   * 「設定でエンジンを選んでください」を出す（→ `EngineReadiness` の doc）。
+   */
+  const readinessRef = useRef<EngineReadiness>(readiness);
 
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
@@ -177,9 +183,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [state.isAnalyzing]);
 
   useEffect(() => {
-    isReadyRef.current = isReady;
-    notReadyReasonRef.current = notReadyReason;
-  }, [isReady, notReadyReason]);
+    readinessRef.current = readiness;
+  }, [readiness]);
 
   /**
    * エンジンへ投げ済みの局面。**`null` は「もう一度投げてよい」の印**で、
@@ -675,7 +680,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       const synced = await waitUntil(
         () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
         POSITION_SYNC_TIMEOUT_MS,
-        () => supersededSince(seq) || !isReadyRef.current,
+        () => supersededSince(seq) || !readinessRef.current.isReady,
       );
       if (!synced) {
         if (supersededSince(seq)) return false;
@@ -683,9 +688,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // **エンジンが消えた回は、その理由で断る。** 待ち続けても追いつかないうえ、
         // 「同期が遅い」の案内（押し直し）はここでは効かない——押し直すと今度は
         // 起動待ちの断りが出る。上限まで待たせてから違う理由を告げないこと。
-        if (!isReadyRef.current) {
+        const engine = readinessRef.current;
+        if (!engine.isReady) {
           failStart(
-            NOT_READY_REFUSALS[notReadyReasonRef.current ?? "no-engine"],
+            NOT_READY_REFUSALS[engine.notReadyReason],
             new Error("engine went away while syncing"),
           );
         }
