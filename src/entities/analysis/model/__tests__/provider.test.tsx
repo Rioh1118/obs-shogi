@@ -113,82 +113,94 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("AnalysisProvider の同期待ちの打ち切り", () => {
-  it("打ち切ったらエンジンのセッションも止める", async () => {
-    const view = mountAnalysis(adapter("P1", "P1"));
+  it(
+    "打ち切ったらエンジンのセッションも止める",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
 
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
-    expect(view.current.state.isAnalyzing).toBe(true);
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      expect(view.current.state.isAnalyzing).toBe(true);
 
-    // 盤だけ進め、エンジンへの同期は追従させない
-    await view.setSync(adapter("P2", "P1"));
-    stopCore.mockClear();
+      // 盤だけ進め、エンジンへの同期は追従させない
+      await view.setSync(adapter("P2", "P1"));
+      stopCore.mockClear();
 
-    await advance(2400);
+      await advance(2400);
 
-    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
-    expect(view.current.state.isAnalyzing).toBe(false);
+      expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+      expect(view.current.state.isAnalyzing).toBe(false);
 
-    // エラーを出すだけでは足りない。Rust 側のセッションを止めないと
-    // 以降の start_infinite_analysis が「Analysis already running」で永久に弾かれる。
-    expect(stopCore).toHaveBeenCalled();
-  }, SLOW);
+      // エラーを出すだけでは足りない。Rust 側のセッションを止めないと
+      // 以降の start_infinite_analysis が「Analysis already running」で永久に弾かれる。
+      expect(stopCore).toHaveBeenCalled();
+    },
+    SLOW,
+  );
 
-  it("席を握っていないときは、打ち切りで停止を撃たない", async () => {
-    startCore.mockResolvedValueOnce("session-1");
-    startCore.mockImplementation(() => new Promise<string>(() => {}));
+  it(
+    "席を握っていないときは、打ち切りで停止を撃たない",
+    async () => {
+      startCore.mockResolvedValueOnce("session-1");
+      startCore.mockImplementation(() => new Promise<string>(() => {}));
 
-    const view = mountAnalysis(adapter("P1", "P1"));
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
 
-    // 1手進む。再開は前の席を返し終え、**新しい席の応答待ち**で止まる。
-    // ここで席の欄は空。
-    await view.setSync(adapter("P2", "P2"));
-    await advance(150);
+      // 1手進む。再開は前の席を返し終え、**新しい席の応答待ち**で止まる。
+      // ここで席の欄は空。
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
 
-    stopCore.mockClear();
+      stopCore.mockClear();
 
-    // もう1手進み、エンジンが追いつかないまま打ち切られる。
-    await view.setSync(adapter("P3", "P2"));
-    await advance(2400);
-    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+      // もう1手進み、エンジンが追いつかないまま打ち切られる。
+      await view.setSync(adapter("P3", "P2"));
+      await advance(2400);
+      expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
 
-    // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
-    expect(stopCore).not.toHaveBeenCalled();
-  }, SLOW);
+      // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
+      expect(stopCore).not.toHaveBeenCalled();
+    },
+    SLOW,
+  );
 
-  it("前回の待ちの経過時間を次の待ちに持ち越さない", async () => {
-    const view = mountAnalysis(adapter("P1", "P1"));
+  it(
+    "前回の待ちの経過時間を次の待ちに持ち越さない",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
 
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
 
-    // 追従しないまま待たせ、打ち切りの手前で止める
-    await view.setSync(adapter("P2", "P1"));
-    await advance(1500);
-    await act(async () => {
-      await view.current.stopAnalysis();
-    });
+      // 追従しないまま待たせ、打ち切りの手前で止める
+      await view.setSync(adapter("P2", "P1"));
+      await advance(1500);
+      await act(async () => {
+        await view.current.stopAnalysis();
+      });
 
-    // 打ち切りの上限を越える時間を空けてから、あらためて解析する
-    await advance(2400);
-    await view.setSync(adapter("P2", "P2"));
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
-    expect(view.current.state.isAnalyzing).toBe(true);
+      // 打ち切りの上限を越える時間を空けてから、あらためて解析する
+      await advance(2400);
+      await view.setSync(adapter("P2", "P2"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      expect(view.current.state.isAnalyzing).toBe(true);
 
-    // 1手進める。ここで待ちが始まるので、経過時間はゼロから数え直されなければならない。
-    await view.setSync(adapter("P3", "P2"));
-    await advance(300);
+      // 1手進める。ここで待ちが始まるので、経過時間はゼロから数え直されなければならない。
+      await view.setSync(adapter("P3", "P2"));
+      await advance(300);
 
-    expect(view.current.state.error).toBeNull();
-    expect(view.current.state.isAnalyzing).toBe(true);
-  }, SLOW);
+      expect(view.current.state.error).toBeNull();
+      expect(view.current.state.isAnalyzing).toBe(true);
+    },
+    SLOW,
+  );
 });
 
 describe("AnalysisProvider の停止", () => {
@@ -246,39 +258,43 @@ describe("AnalysisProvider の停止", () => {
     expect(view.current.state.error).toBeNull();
   });
 
-  it("打ち切りのエラーを、後から返ってきた再開が消さない", async () => {
-    const pendingStops: Array<() => void> = [];
-    stopCore.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          pendingStops.push(resolve);
-        }),
-    );
+  it(
+    "打ち切りのエラーを、後から返ってきた再開が消さない",
+    async () => {
+      const pendingStops: Array<() => void> = [];
+      stopCore.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            pendingStops.push(resolve);
+          }),
+      );
 
-    const view = mountAnalysis(adapter("P1", "P1"));
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
 
-    // 1手進む。再開は「前の席を返す」ところで止まる。
-    await view.setSync(adapter("P2", "P2"));
-    await advance(150);
-    expect(pendingStops).toHaveLength(1);
+      // 1手進む。再開は「前の席を返す」ところで止まる。
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+      expect(pendingStops).toHaveLength(1);
 
-    // もう1手進むが、エンジンは追いつかない。同期待ちが2秒で打ち切られる。
-    await view.setSync(adapter("P3", "P2"));
-    await advance(2400);
-    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+      // もう1手進むが、エンジンは追いつかない。同期待ちが2秒で打ち切られる。
+      await view.setSync(adapter("P3", "P2"));
+      await advance(2400);
+      expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
 
-    // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
-    // 門より前に置くと、利用者に出したばかりの断りが黙って消える。
-    await act(async () => {
-      pendingStops[0]();
-    });
-    await advance(100);
+      // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
+      // 門より前に置くと、利用者に出したばかりの断りが黙って消える。
+      await act(async () => {
+        pendingStops[0]();
+      });
+      await advance(100);
 
-    expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
-  }, SLOW);
+      expect(view.current.state.error).toBe("エンジンに現在の局面を送れませんでした");
+    },
+    SLOW,
+  );
 
   it("再開の最中に止めたら、後から返ってきた席を返して再開しない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
@@ -553,42 +569,46 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.isAnalyzing).toBe(true);
   });
 
-  it("▶ が席を返している間に局面が無くなったら、始めない", async () => {
-    const view = mountAnalysis(adapter("P1", "P1"));
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
+  it(
+    "▶ が席を返している間に局面が無くなったら、始めない",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
 
-    // 停止が届かず、席を握ったまま「停止中」になる。
-    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
-    await act(async () => {
-      await view.current.stopAnalysis().catch(() => {});
-    });
+      // 停止が届かず、席を握ったまま「停止中」になる。
+      stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+      await act(async () => {
+        await view.current.stopAnalysis().catch(() => {});
+      });
 
-    // ▶ を押す。席を返す往復の最中に棋譜を閉じる。
-    let releaseStop: () => void = () => {};
-    stopCore.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          releaseStop = resolve;
-        }),
-    );
-    startCore.mockClear();
-    void view.current.startInfiniteAnalysis().catch(() => {});
-    await advance(50);
+      // ▶ を押す。席を返す往復の最中に棋譜を閉じる。
+      let releaseStop: () => void = () => {};
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      startCore.mockClear();
+      void view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
 
-    await view.setSync(adapter(null, null));
-    await act(async () => {
-      releaseStop();
-    });
+      await view.setSync(adapter(null, null));
+      await act(async () => {
+        releaseStop();
+      });
 
-    // 同期待ちの上限（2秒）を越えるまで進める。世代を返却より前に読まないと、
-    // ここまで待ってから閉じた棋譜のために断りを積む。
-    await advance(2400);
+      // 同期待ちの上限（2秒）を越えるまで進める。世代を返却より前に読まないと、
+      // ここまで待ってから閉じた棋譜のために断りを積む。
+      await advance(2400);
 
-    expect(startCore).not.toHaveBeenCalled();
-    expect(view.current.state.error).toBeNull();
-  }, SLOW);
+      expect(startCore).not.toHaveBeenCalled();
+      expect(view.current.state.error).toBeNull();
+    },
+    SLOW,
+  );
 
   it("再開の返却が飛んでいる間に止めても、席への停止は1本にする", async () => {
     const pendingStops: Array<() => void> = [];
@@ -617,39 +637,43 @@ describe("AnalysisProvider の開始", () => {
     expect(pendingStops).toHaveLength(1);
   });
 
-  it("飛んでいる返却が落ちたら、▶ は席を握ったまま go を出さない", async () => {
-    const view = mountAnalysis(adapter("P1", "P1"));
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
+  it(
+    "飛んでいる返却が落ちたら、▶ は席を握ったまま go を出さない",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
 
-    // 同期待ちの打ち切りが席を返しにいく。その応答はまだ来ない。
-    let failRelease: (e: Error) => void = () => {};
-    stopCore.mockImplementationOnce(
-      () =>
-        new Promise<void>((_, reject) => {
-          failRelease = reject;
-        }),
-    );
-    await view.setSync(adapter("P2", "P1"));
-    await advance(2400);
-    expect(view.current.state.isAnalyzing).toBe(false);
+      // 同期待ちの打ち切りが席を返しにいく。その応答はまだ来ない。
+      let failRelease: (e: Error) => void = () => {};
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((_, reject) => {
+            failRelease = reject;
+          }),
+      );
+      await view.setSync(adapter("P2", "P1"));
+      await advance(2400);
+      expect(view.current.state.isAnalyzing).toBe(false);
 
-    // 盤とエンジンを揃えておく（同期待ちで止まらないように）。
-    await view.setSync(adapter("P2", "P2"));
-    startCore.mockClear();
-    stopCore.mockClear();
+      // 盤とエンジンを揃えておく（同期待ちで止まらないように）。
+      await view.setSync(adapter("P2", "P2"));
+      startCore.mockClear();
+      stopCore.mockClear();
 
-    // その最中に ▶。返却の結末を見ずに相乗りすると、**席を返さないまま** go を出す。
-    void view.current.startInfiniteAnalysis().catch(() => {});
-    await advance(50);
-    await act(async () => {
-      failRelease(new Error("ipc is gone"));
-    });
-    await advance(150);
+      // その最中に ▶。返却の結末を見ずに相乗りすると、**席を返さないまま** go を出す。
+      void view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+      await act(async () => {
+        failRelease(new Error("ipc is gone"));
+      });
+      await advance(150);
 
-    expect(stopCore).toHaveBeenCalledWith("session-1", "start");
-  }, SLOW);
+      expect(stopCore).toHaveBeenCalledWith("session-1", "start");
+    },
+    SLOW,
+  );
 
   it("押した後に盤が動いたら、動いた先の局面で始める", async () => {
     const view = mountAnalysis(adapter("P1", null));

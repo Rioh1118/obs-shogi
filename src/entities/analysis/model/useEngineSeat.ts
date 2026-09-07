@@ -98,8 +98,6 @@ export function useEngineSeat(): EngineSeat {
   // 席を指さない停止に落ちる。
   const returnedRef = useRef<Set<string>>(new Set());
 
-
-
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
   // 2本目は無駄で、順序も結末も保証できない。口ごとに振る舞いが違う。
@@ -290,11 +288,9 @@ export function useEngineSeat(): EngineSeat {
         return;
       }
 
-      const sending: Promise<void> = shootQuietly("unmount", undefined).finally(
-        () => {
-          if (releasingRef.current === sending) releasingRef.current = null;
-        },
-      );
+      const sending: Promise<void> = shootQuietly("unmount", undefined).finally(() => {
+        if (releasingRef.current === sending) releasingRef.current = null;
+      });
       releasingRef.current = sending;
     },
 
