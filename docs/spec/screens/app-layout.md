@@ -129,9 +129,12 @@ URL（`panel/*`）が持つが、開閉はそちらへ揃えない。
 ツリーの行のハイライトだけは載せられなかったファイルへ移る。`openKifuNode` が選択を
 戻すのは読み込みかパースが失敗した回だけで、`loadGame` の失敗はそこまで届かない。
 
-**もう一度クリックすれば開き直しに行く。** 関門（`FileNode` の `isActive`）が見るのは
-盤に載っている棋譜なので、載せられなかったファイルは「開いている」に数えない。
-結果は同じなので直りはしないが、押しても何も起きない状態にはならない。
+**もう一度クリックすれば開き直しに行く。** 関門（`FileNode` の `canSkipReopen`）が
+省くのは、**ツリーと盤の両方**がそのパスを指しているときだけ
+（→ [board-orientation.md](../../state-transitions/board-orientation.md) の ※7）。
+載せられなかったファイルは盤が指していないので押し直せるし、盤に残っている前の棋譜も
+`activeKifuPath` が別を指している間は押し直せる。**前の棋譜を押し直すのが、
+編集できる状態へ戻す唯一の操作。**
 → [game.md](../../state-transitions/game.md) の E16、
 [failure-surfacing.md](../../state-transitions/failure-surfacing.md) の F-31
 
