@@ -63,8 +63,8 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
 }
 
 // ===== 解析実行 =====
-export async function startInfiniteAnalysis(): Promise<string> {
-  return await invoke("start_infinite_analysis");
+export async function startInfiniteAnalysis(): Promise<AnalysisSessionId> {
+  return (await invoke<string>("start_infinite_analysis")) as AnalysisSessionId;
 }
 
 export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResult> {
@@ -80,6 +80,21 @@ export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResu
 export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
   return await invoke("analyze_with_depth", { depth });
 }
+
+/**
+ * Rust が渡した解析の席の識別子。
+ *
+ * **素の `string` と取り違えないための brand。** この provider は同じスコープに
+ * SFEN を同じ型で並べて持つので、取り違えても tsc は何も言わない——取り違えた回は
+ * 本物の `info` が全部落ち（席の照合に通らない）、停止は `Err` になり、
+ * **本物の席が Rust に残ったままエンジンを起こし直すまで戻らない**（#441 の症状）。
+ *
+ * **鋳造してよいのは IPC の境界だけ**（`startInfiniteAnalysis` の戻り値と
+ * `api/events` が受け取る通知）。`as` を書く場所は
+ * `src/__tests__/analysisSessionId.test.ts` が固定している。
+ */
+declare const analysisSessionIdBrand: unique symbol;
+export type AnalysisSessionId = string & { readonly [analysisSessionIdBrand]: true };
 
 /**
  * 停止をどの口から撃ったか。**Rust のログにそのまま出る**
@@ -120,14 +135,16 @@ export type DiscardPoint = "late-start" | "late-restart";
  * `by` の意味と、口ごとの部分集合は `SeatReleasePoint` に置いてある。
  */
 export async function stopAnalysis(
-  sessionId: string | undefined,
+  sessionId: AnalysisSessionId | undefined,
   by: SeatReleasePoint,
 ): Promise<void> {
   return await invoke("stop_analysis", { sessionId, by });
 }
 
 // ===== 結果取得 =====
-export async function getAnalysisResult(sessionId: string): Promise<AnalysisResult | null> {
+export async function getAnalysisResult(
+  sessionId: AnalysisSessionId,
+): Promise<AnalysisResult | null> {
   return await invoke("get_analysis_result", { sessionId });
 }
 

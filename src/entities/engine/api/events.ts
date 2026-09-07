@@ -1,8 +1,9 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { AnalysisSessionId } from "./tauri";
 import type { AnalysisResult } from "@/entities/engine/api/rust-types";
 import { EVENT_NAMES } from "./eventNames";
 
-type AnalysisUpdate = { sessionId: string; result: AnalysisResult };
+type AnalysisUpdate = { sessionId: AnalysisSessionId; result: AnalysisResult };
 // ===== リアルタイムイベントリスナー =====
 /**
  * 解析の途中経過を受ける。
@@ -13,7 +14,7 @@ type AnalysisUpdate = { sessionId: string; result: AnalysisResult };
  * `AnalysisUpdate` の doc に同じことを書いている）。
  */
 export async function listenToAnalysisUpdates(
-  callback: (sessionId: string, result: AnalysisResult) => void,
+  callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
   return await listen<AnalysisUpdate>(EVENT_NAMES.ANALYSIS_UPDATE, (event) => {
     const p: AnalysisUpdate = event.payload;
@@ -22,9 +23,9 @@ export async function listenToAnalysisUpdates(
 }
 
 export async function listenToAnalysisComplete(
-  callback: (sessionId: string, result: AnalysisResult) => void,
+  callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
-  return await listen<{ sessionId: string; result: AnalysisResult }>(
+  return await listen<{ sessionId: AnalysisSessionId; result: AnalysisResult }>(
     EVENT_NAMES.ANALYSIS_COMPLETE,
     (event) => {
       callback(event.payload.sessionId, event.payload.result);
@@ -40,8 +41,8 @@ export async function listenToEngineErrors(callback: (error: string) => void): P
 
 // ===== 統合リスナー =====
 export interface AnalysisEventListeners {
-  onUpdate?: (sessionId: string, result: AnalysisResult) => void;
-  onComplete?: (sessionId: string, result: AnalysisResult) => void;
+  onUpdate?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
+  onComplete?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
   onError?: (error: string) => void;
 }
 

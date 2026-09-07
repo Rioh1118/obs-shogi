@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import {
   stopAnalysis as stopAnalysisCore,
+  type AnalysisSessionId,
   type BlockingReleasePoint,
   type DiscardPoint,
   type QuietReleasePoint,
@@ -30,7 +31,7 @@ export interface EngineSeat {
    *
    * 採ると、前の局面の評価値と読み筋が現在の盤面の解析結果として出る。
    */
-  accepts: (sessionId: string) => boolean;
+  accepts: (sessionId: AnalysisSessionId) => boolean;
   /**
    * Rust が席を渡した行で呼ぶ。**要らない要求だと分かった後に呼ばない。**
    *
@@ -38,7 +39,7 @@ export interface EngineSeat {
    * `new_session_id` が UUID を振る）、そこに居ることが無い。
    * 握り直しは `shoot` の catch が席の欄へ直接書く。
    */
-  hold: (sessionId: string) => void;
+  hold: (sessionId: AnalysisSessionId) => void;
   /**
    * Rust が自分で片付けた席を締める。
    *
@@ -46,7 +47,7 @@ export interface EngineSeat {
    * （走っている別の席を巻き添えにしないため）。効いた回は手放した席として
    * 覚えるので、以後その席の通知は `accepts` が落とし、停止が落ちても握り直さない。
    */
-  closeFinished: (sessionId: string) => void;
+  closeFinished: (sessionId: AnalysisSessionId) => void;
   /**
    * 握っている席を返す。握っていなければ何もしない。
    *
@@ -72,7 +73,7 @@ export interface EngineSeat {
    * 呼んだ後に `isHeld()` が true になりうるのはこの形だけで、そうしないと
    * その席を知る者が居なくなる。畳まれた後に落ちた回は誰も返せない。
    */
-  discard: (by: DiscardPoint, sessionId: string) => void;
+  discard: (by: DiscardPoint, sessionId: AnalysisSessionId) => void;
 }
 
 /**
@@ -85,7 +86,7 @@ export interface EngineSeat {
 const PAST_LIMIT = 32;
 
 export function useEngineSeat(): EngineSeat {
-  const seatRef = useRef<string | null>(null);
+  const seatRef = useRef<AnalysisSessionId | null>(null);
 
   /**
    * 手放した席。**もう採らない**（`accepts` が落とす）。
@@ -135,7 +136,7 @@ export function useEngineSeat(): EngineSeat {
   // **`useRef` 以外を上に置かない**のはそのため（`analysisSeatSlot.test.ts` が見る）。
   if (apiRef.current) return apiRef.current;
 
-  const remember = (sessionId: string) => {
+  const remember = (sessionId: AnalysisSessionId) => {
     // 入れ直して最後尾へ。`Set` は挿入順を保つので、先頭が最も古い
     pastRef.current.delete(sessionId);
     pastRef.current.add(sessionId);
@@ -153,7 +154,7 @@ export function useEngineSeat(): EngineSeat {
    * ——一致しないなら、そこに居るのは新しい席で巻き添えにできない。
    * **落ちたときは、欄が空なら撃った席を書き戻す**——誰も知らないまま Rust に残さない。
    */
-  const shoot = async (by: SeatReleasePoint, sessionId: string | undefined) => {
+  const shoot = async (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) => {
     const held = seatRef.current;
 
     try {
@@ -241,7 +242,7 @@ export function useEngineSeat(): EngineSeat {
   // 画面が生きている回は ▶ が返し直す（▶ は握っている席を返してから頼む）。
   // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
-  const shootQuietly = (by: SeatReleasePoint, sessionId: string | undefined) =>
+  const shootQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
     shoot(by, sessionId).catch((e) => {
       console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
     });

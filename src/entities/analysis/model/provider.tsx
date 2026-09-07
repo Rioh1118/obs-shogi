@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } f
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
+  type AnalysisSessionId,
   type DiscardPoint,
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat } from "./useEngineSeat";
@@ -226,7 +227,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 欄に入れると、その後に入った別の席を上書きして、走っている方を知る者が居なくなる。
   // 捨てた側は `false` を返すので、呼び手はそこで打ち切る。
   const holdUnlessSuperseded = useCallback(
-    (seq: number, by: DiscardPoint, sessionId: string) => {
+    (seq: number, by: DiscardPoint, sessionId: AnalysisSessionId) => {
       if (supersededSince(seq)) {
         seat.discard(by, sessionId);
 
@@ -282,7 +283,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       try {
         const unlisten = await setupAnalysisEventListeners({
-          onUpdate: (sessionId: string, result: AnalysisResult) => {
+          onUpdate: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
             // **自分の席のものだけ採る**（判定と理由は `EngineSeat.accepts`）。
             if (!seat.accepts(sessionId)) return;
             latestResultRef.current = result;
@@ -291,7 +292,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           // **この通知は現物では届かない。** `analysis-complete` を emit する行が
           // Rust に無い（`docs/state-transitions/analysis.md` の E8 / ※6）。
           // 口が入ったときの取り決めとして置いてある。
-          onComplete: (sessionId: string, result: AnalysisResult) => {
+          onComplete: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
             // **自分の席のものだけ採る**（`onUpdate` と同じ門）。通さないと、古い席の
             // 完了通知1本で走っている解析の表示が停止中に落ち、前の局面の評価値が出る。
             if (!seat.accepts(sessionId)) return;
@@ -630,7 +631,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 席が返ってから `hold` / `discard` に着くまでの微小タスクが1つ増える
     // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
     // 畳まれた後に席を返す側が間に合わなくなる。
-    let sessionId: string | null = null;
+    let sessionId: AnalysisSessionId | null = null;
     try {
       sessionId = await startInfiniteAnalysisCore();
     } catch (e) {

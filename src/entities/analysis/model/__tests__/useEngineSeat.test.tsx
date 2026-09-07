@@ -3,6 +3,10 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { cleanup, renderHook } from "@testing-library/react";
 
 import { useEngineSeat } from "../useEngineSeat";
+import type { AnalysisSessionId } from "@/entities/engine/api/tauri";
+
+/** Rust が鋳造する識別子を、テストの中で作る。 */
+const id = (value: string) => value as AnalysisSessionId;
 
 const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<void>>();
 vi.mock("@/entities/engine/api/tauri", () => ({
@@ -34,13 +38,13 @@ describe("EngineSeat の枠", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    seat.hold("S1");
+    seat.hold(id("S1"));
 
     // 握っている席を返す。応答は返らない。
     seat.releaseHeldQuietly("no-position");
 
     // 要らなくなった開始が持ってきた別の席を捨てる。**枠はこちらに移る。**
-    seat.discard("late-restart", "S2");
+    seat.discard("late-restart", id("S2"));
 
     // その後ろに並ぶ返却。並ぶ相手を取り違えると、S1 の1本目がまだ飛んでいるのに撃つ。
     seat.releaseHeldQuietly("no-position");
