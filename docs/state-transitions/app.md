@@ -71,7 +71,13 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 （`entities/app-config/model/provider.tsx`）。A4 / A5 でそれが起きると `RequireRootDir` が
 差し戻し、`RuntimeProviders` ごと畳まれる——解析はそこで席を返す
 → [analysis.md](analysis.md) の E13。返せなかった回は
-[failure-surfacing.md](failure-surfacing.md) F-7
+[failure-surfacing.md](failure-surfacing.md) F-7。差し戻しそのものは F-37
+
+**書き込みの失敗が全部ここへ来るわけではない。** `error` を立てるのは
+`updateConfig` / `chooseRootDir` / `setLastPresetId` の3つ。`setRootDir`（ツリーの根の
+リネーム）と `chooseAiRoot` は**意図して立てない**——立てると、呼び手が出そうとした
+失敗が画面に出る前にランタイムごと畳まれる。あの2つは `settled` を降ろし、
+失敗は呼び手がその場に出す。**ここを `error` に変えてはいけない**
 
 ## この表が満たすべき不変条件
 
