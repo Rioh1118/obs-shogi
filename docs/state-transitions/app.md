@@ -67,8 +67,8 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 [game.md](game.md) の E15 と ※4 が持つ。取得に失敗しても、棋譜が新しい根の外なら閉じる（`game.md` の ※4）。
 **読み込み中の窓は未検証** — 取得の途中で編集が走った場合の順序は決めていない
 
-※3 `startInfiniteAnalysis` が `throw new Error("Engine not ready")` を投げるが、
-呼び出し元（`AnalysisPaneHeader`）は `console.error` で終わる。**押しても何も起きない**
+※3 `startInfiniteAnalysis` は理由ごとの断りを立ててから throw する
+（文言の一覧は [analysis.md](analysis.md) の ※15）。**その読み手が0なので画面は変わらない**
 → [failure-surfacing.md](failure-surfacing.md) F-6
 
 ※4 解析中に前提が崩れたとき、**Rust 側のセッションが残るかどうかがここでは分からない。**

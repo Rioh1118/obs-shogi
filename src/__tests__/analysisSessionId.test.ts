@@ -17,9 +17,10 @@ import { describeOwnedSpellings } from "./ownedSpelling";
 const RULES = [
   {
     /**
-     * **鋳造は IPC の境界だけ。** 綴りの規則（下）は owners を4つ許すが、そのうち2つは
-     * 席の識別子と SFEN を同じスコープに並べて持つファイル——そこで `as` が書けると、
-     * brand が止めたかった取り違えがそのまま通る。
+     * **鋳造は IPC の境界だけ。** 綴りの規則（下）は owners を4つ許すが、そのうち
+     * `provider.tsx` は席の識別子と SFEN を同じスコープに並べて持つ——そこで `as` が
+     * 書けると、brand が止めたかった取り違えがそのまま通る。
+     * `useEngineSeat.ts` と `events.ts` は SFEN を持たないが、型を使うので綴りは要る。
      */
     name: "AnalysisSessionId への as キャスト",
     pattern: /as (?:unknown as )?AnalysisSessionId\b/,
