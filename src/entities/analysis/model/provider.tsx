@@ -220,6 +220,19 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const unmountedRef = useRef(false);
 
+  /**
+   * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための門。**
+   *
+   * 予約は `swapSeatAndGo` の `finally` が拾う。**門を2箇所に書き下ろさない**
+   * ——このファイルは「片方だけに入る」形の欠けを何度も出している。実際に
+   * 拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
+   */
+  const bookIfRestarting = useCallback(() => {
+    if (!restartInFlightRef.current) return false;
+    pendingAfterRef.current = true;
+    return true;
+  }, []);
+
   // 開始を頼んでから席が返るまでの間に、その要求が要らなくなっていないか。
   //
   // **3つの引き金を同じに扱う**——畳まれた、利用者が止めた（または次の要求が始まった）、
@@ -543,11 +556,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     syncWaitRef.current = null;
 
-    // **飛んでいる再開に2本目を重ねない。** 予約しておけば `finally` が拾う。
-    if (restartInFlightRef.current) {
-      pendingAfterRef.current = true;
-      return;
-    }
+    if (bookIfRestarting()) return;
 
     restartInFlightRef.current = swapSeatAndGo(seq, want);
   };
@@ -620,19 +629,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (syncedSfen !== want) return;
     if (sentSfenRef.current === want) return;
 
-    // **飛んでいる再開があるなら捨てずに予約する。** 判断は `runRestart` の同じ門と
-    // 揃える。降りてしまうと、エンジンが2回続けて落ちた回に再開の引き金が消える
-    // ——飛んでいる側は席を捨てて降りるので張り直す者が居らず、`finally` の予約も
-    // 立っていない。盤を動かすまで「解析中」の表示のまま数字が動かない。
-    if (restartInFlightRef.current) {
-      pendingAfterRef.current = true;
-      return;
-    }
+    // **飛んでいるなら捨てずに予約する。** 降りてしまうと、エンジンが2回続けて
+    // 落ちた回に再開の引き金が消える——飛んでいる側は席を捨てて降りるので
+    // 張り直す者が居ない。盤を動かすまで「解析中」の表示のまま数字が動かない。
+    if (bookIfRestarting()) return;
 
     if (!debounceTimerRef.current) {
       scheduleRestart(restartSeqRef.current, 0);
     }
-  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart]);
+  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting]);
 
   // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
   // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
