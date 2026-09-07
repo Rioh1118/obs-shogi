@@ -23,7 +23,9 @@ const tree = {
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
 
-vi.mock("@/entities/file-tree", () => ({ useFileTree: () => tree }));
+// **毎回新しい参照を返す。** 同じオブジェクトを返すと、値を書き換えても React へ
+// 伝わらず、棋譜を切り替える経路そのものがテストから書けなくなる
+vi.mock("@/entities/file-tree", () => ({ useFileTree: () => ({ ...tree }) }));
 vi.mock("@/shared/lib/notification/useNotifications", () => ({
   useNotify: () => ({ notify, dismiss: vi.fn(), dismissByKey: vi.fn() }),
 }));
@@ -39,17 +41,31 @@ const UNLOADABLE = {
   moves: [{}],
 } as unknown as JKFData;
 
+// **毎回新しい要素を作る。** 同じ要素オブジェクトを渡し直すと React が
+// サブツリーごと畳んでしまい、`rerender` しても橋が描き直されない
+const app = () => (
+  <GameProvider>
+    <GameFileTreeBridge />
+  </GameProvider>
+);
+
 async function mountWith(path: string | null, jkf: JKFData | null) {
   tree.activeKifuPath = path;
   tree.jkfData = jkf;
 
+  let view!: ReturnType<typeof render>;
   await act(async () => {
-    render(
-      <GameProvider>
-        <GameFileTreeBridge />
-      </GameProvider>,
-    );
+    view = render(app());
   });
+
+  /** ツリーが別の棋譜を開いた、を実物と同じ順序で起こす */
+  return async (nextPath: string, nextJkf: JKFData) => {
+    tree.activeKifuPath = nextPath;
+    tree.jkfData = nextJkf;
+    await act(async () => {
+      view.rerender(app());
+    });
+  };
 }
 
 beforeEach(() => {
@@ -135,5 +151,33 @@ describe("ツリーが開いた棋譜を盤に載せる橋", () => {
     await mountWith(null, null);
 
     expect(notify).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **#434 が実際に踏む筋。** 前の棋譜が載っている状態から、盤に載せられない棋譜へ
+   * 切り替える。マウント時にしか出さない実装でも上の4本は緑になるので、
+   * 切り替えを踏むのはここだけ。
+   */
+  test("載っている棋譜から載せられない棋譜へ切り替えたときに出す", async () => {
+    const switchTo = await mountWith("/ws/a.kif", OK);
+    expect(notify).not.toHaveBeenCalled();
+
+    await switchTo("/ws/こわれた.kif", UNLOADABLE);
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0][0]).toHaveProperty(
+      "title",
+      expect.stringContaining("こわれた.kif"),
+    );
+  });
+
+  /** 載せられなかった後で別の棋譜が載れば、そちらでは何も出さない */
+  test("載せられなかった後に載る棋譜へ切り替えれば、それ以上出さない", async () => {
+    const switchTo = await mountWith("/ws/こわれた.kif", UNLOADABLE);
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    await switchTo("/ws/b.kif", OK);
+
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 });
