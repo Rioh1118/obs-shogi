@@ -34,9 +34,9 @@ export type PositionSyncAdapter = {
 };
 
 /**
- * 解析ペインが使う面。**ここに載せるのは、スライスの外に呼び手が居るものだけ。**
+ * 解析ペインが使う面。**載せるのは、スライスの外に呼び手が居るものだけ**
+ * ——規約と理由は `index.ts` に1つ置いてある（公開面は context だけではない）。
  *
- * 呼び手0の口を載せると、次に触る人が「その口が正しい入口だ」と読む。
  * 候補手を取り出すのは `lib` の `pickTopCandidate`（`state.candidates` を渡す）。
  */
 export interface AnalysisContextType {
