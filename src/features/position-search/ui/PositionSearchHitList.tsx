@@ -43,6 +43,8 @@ function emptyReason(health: IndexHealth, sessionStale: boolean): string {
       return "索引を作れなかったので検索できません（ワークスペースを読めるか確かめてください）";
     case "partiallyIndexed":
       return "一致する棋譜がありません（索引に入れられなかった棋譜があるので、そこには当たりません）";
+    case "partiallyUnreadableAndIndexed":
+      return "一致する棋譜がありません（読めなかった場所と、索引に入れられなかった棋譜の両方があります）";
     case "partiallyUnreadable":
       return "一致する棋譜がありません（読み取れなかった場所があるので、索引に入っていない棋譜があります）";
     case "building":

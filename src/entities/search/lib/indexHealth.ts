@@ -18,6 +18,13 @@ export type IndexHealth =
   | "partiallyIndexed"
   /** 一部の場所を読めなかった。**索引に入っていない棋譜がある** */
   | "partiallyUnreadable"
+  /**
+   * 読めなかった場所と、索引に入れられなかった棋譜の**両方**がある。
+   *
+   * 片方に畳むと、利用者は差の全部をもう片方のせいだと読む——場所の権限を
+   * 直しても、壊れた棋譜は検索に出ないまま。
+   */
+  | "partiallyUnreadableAndIndexed"
   /** 作成中・更新中。**待てば増える** */
   | "building"
   /** まだ作っていない。**待っても増えない** */
@@ -42,14 +49,20 @@ export function indexHealth(index: IndexUiState): IndexHealth {
   // 前者は前回の索引が残っているので検索は当たるが、後者は必ず0件。
   // 畳むと、0件を「自分の棋譜に無い」と読ませる
   if (index.scanFailed) return index.state === "Empty" ? "buildFailed" : "notRefreshed";
-  if (index.partiallyUnreadable) return "partiallyUnreadable";
   // **入れ終えた数が対象より少ない回を緑にしない。** `partiallyUnreadable` は
   // 走査＝**場所**の話なので、棋譜1件ごとの構築失敗（壊れた KIF、読めない
   // 文字コード）はここに落ちる。緑を出すと、その棋譜の局面を検索した利用者は
   // 0件を「自分の棋譜に無い」と読む
-  if (index.state === "Ready" && index.indexedFiles < index.totalFiles) {
-    return "partiallyIndexed";
-  }
+  //
+  // 差を読むのは `Ready` の回だけ。進行中は数が揃っていないのが当たり前
+  // （`IndexStatePayload.indexedFiles` の doc）
+  const someNotIndexed = index.state === "Ready" && index.indexedFiles < index.totalFiles;
+
+  // **どちらかに畳まない。** 畳むと、利用者は差の全部をもう片方のせいだと読む
+  // ——場所の権限を直しても、壊れた棋譜は検索に出ないまま
+  if (index.partiallyUnreadable && someNotIndexed) return "partiallyUnreadableAndIndexed";
+  if (index.partiallyUnreadable) return "partiallyUnreadable";
+  if (someNotIndexed) return "partiallyIndexed";
   // **`Empty` を「作成中」と言わない。** 何も走っていないので待っても増えない
   if (index.state === "Empty") return "notStarted";
   return "ok";

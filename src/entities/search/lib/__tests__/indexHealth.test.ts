@@ -60,6 +60,23 @@ describe("indexHealth", () => {
     expect(indexHealth(idx({ indexedFiles: 1000, totalFiles: 1000 }))).toBe("ok");
   });
 
+  /**
+   * **両方成り立つ回に、片方を隠さないこと。**
+   *
+   * 権限を落としたフォルダが1つ + 壊れた KIF が200本、という普通の構成で
+   * 両方真になる。畳むと利用者は差の全部をフォルダの権限のせいだと読み、
+   * 権限を直しても200本は検索に出ないままになる。
+   */
+  it("読めない場所と入れられなかった棋譜を、片方に畳まない", () => {
+    expect(
+      indexHealth(idx({ partiallyUnreadable: true, indexedFiles: 800, totalFiles: 1000 })),
+    ).toBe("partiallyUnreadableAndIndexed");
+    expect(
+      indexHealth(idx({ partiallyUnreadable: true, indexedFiles: 1000, totalFiles: 1000 })),
+    ).toBe("partiallyUnreadable");
+    expect(indexHealth(idx({ indexedFiles: 800, totalFiles: 1000 }))).toBe("partiallyIndexed");
+  });
+
   /** 構築中は数が揃っていないのが当たり前なので、そちらを先に見る。 */
   it("構築中の数の差を「入れられなかった」と言わない", () => {
     expect(indexHealth(idx({ state: "Building", indexedFiles: 10, totalFiles: 1000 }))).toBe(

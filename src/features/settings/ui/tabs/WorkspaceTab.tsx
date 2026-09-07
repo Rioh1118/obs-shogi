@@ -55,6 +55,12 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
         icon: <AlertTriangle size={14} />,
         label: "一部を索引に入れられていません",
       };
+    case "partiallyUnreadableAndIndexed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "読めない場所と、入れられなかった棋譜があります",
+      };
     case "notStarted":
       return { tone: "muted" as const, icon: null, label: "未作成" };
     case "building":
