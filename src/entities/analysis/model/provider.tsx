@@ -764,16 +764,55 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * ▶ の本体。段はこの順——**飛んでいる自動再開の開始を待つ**（Rust は席を取ってから
-   * `go` を待つので、待たずに撃つと `take_session` に断られる）、握っている席を返す、
-   * 局面を送る、エンジンが追いつくのを待つ、要らなくなっていないかを見る、開始して席を握る。
+   * 飛んでいる自動再開の開始を待つ。**要らなくなっていたら `false`。**
+   *
+   * Rust は席を**取ってから** `go` を待つので（`bridge.rs` の
+   * `start_infinite_analysis_impl`）、その往復の間に ▶ を押すと `take_session` に
+   * 断られる——**数百ミリ秒待てば通る回に「エンジンを起こし直せ」と案内する**ことになる。
+   * 席の欄は空なので、返却の枠を待つだけでは足りない（席を握っているのは
+   * 飛んでいる開始の側）。
+   */
+  const awaitInFlightRestart = useCallback(
+    async (seq: number) => {
+      const restarting = restartInFlightRef.current;
+      if (!restarting) return true;
+
+      await restarting.catch(() => {});
+      return !supersededSince(seq);
+    },
+    [supersededSince],
+  );
+
+  /**
+   * 握っている席を、開始を頼む前に返す。**返せなければ断りを立てて投げる。**
+   *
+   * 停止が届かなかった回はこの形になり、`isAnalyzing` が false なので ■ は出ていない。
+   * 返さずに開始を頼むと Rust に断られ続ける（→ #172）。握っていなければ
+   * `releaseHeld` は何もしない。要らなくなっていたら `false`。
+   */
+  const releaseHeldBeforeStart = useCallback(
+    async (seq: number) => {
+      try {
+        await seat.releaseHeld("start");
+      } catch (e) {
+        if (supersededSince(seq)) return false;
+        failStart(RELEASE_FAILED_MESSAGE, e);
+      }
+      return !supersededSince(seq);
+    },
+    [seat, supersededSince, failStart],
+  );
+
+  /**
+   * ▶ の本体。段を並べるだけ——飛んでいる自動再開を待つ、握っている席を返す、
+   * 局面を送って追いつくのを待つ、席を取って `go` を出す。
+   *
+   * **どの段も、要らなくなっていたら `false` を返して降りる。** 断りを立てるかどうかは
+   * 段の側が決める（立てる段は `failStart` で投げる）。
    *
    * `seq` は押した時点の世代。**返却より前に読む**——`releaseHeld` は本物の往復を
    * 挟むので、その間に世代が上がる（棋譜を閉じた回）と、後で読むと上がった後の値を
    * 持ってしまい、以降の門が1枚も効かない。
-   *
-   * 失敗する `await` は3つ（返す・送る・始める）。**どれも同じ形で包む**——
-   * 世代の門を通してから `set_error` を立て、呼び手へ投げ直す。
    */
   const startInfiniteAnalysis = useCallback(async () => {
     if (state.isAnalyzing) return;
@@ -783,28 +822,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 動くのは畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
 
-    // **飛んでいる自動再開の開始を待つ。** Rust は席を**取ってから** `go` を待つので
-    // （`bridge.rs` の `start_infinite_analysis_impl`）、その往復の間に ▶ を押すと
-    // `take_session` に断られる——**数百ミリ秒待てば通る回に「エンジンを起こし直せ」と
-    // 案内する**ことになる。席の欄は空なので、返却の枠を待つだけでは足りない
-    // （席を握っているのは飛んでいる開始の側）。
-    const restarting = restartInFlightRef.current;
-    if (restarting) {
-      await restarting.catch(() => {});
-      if (supersededSince(seq)) return;
-    }
-
-    // **席を握ったままなら先に返す。** 停止が届かなかった回はこの形になり、
-    // `isAnalyzing` が false なので ■ は出ていない。返さずに開始を頼むと Rust に
-    // 断られ続ける（→ #172）。握っていなければ `releaseHeld` は何もしない。
-    try {
-      await seat.releaseHeld("start");
-    } catch (e) {
-      if (supersededSince(seq)) return;
-      failStart(RELEASE_FAILED_MESSAGE, e);
-    }
-    if (supersededSince(seq)) return;
-
+    if (!(await awaitInFlightRestart(seq))) return;
+    if (!(await releaseHeldBeforeStart(seq))) return;
     if (!(await sendAndAwaitSync(seq))) return;
 
     // 待ち切った局面で始める。押した瞬間の局面とは違うことがある。
@@ -823,14 +842,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       if (supersededSince(seq)) return;
       failStart(START_REFUSED_MESSAGE, e);
     }
-    // **エンジンが消えた回は断る。** 利用者が降りた回（`"superseded"`）と違って、
-    // ここは押した人がまだ画面の前に居る。黙ると `AnalysisPaneHeader` の catch にも
-    // 入らないので `console.error` すら出ず、**押す前と1ドットも変わらない画面**が残る
-    // （停止中はペインが控えを出す）。1段あとの同期待ちで同じことが起きれば断りは出る
-    // ——隣り合う枝で片方だけ黙らせない。
-    // **要求がまだ生きている回だけ断る。** 棋譜を閉じた回・畳まれた回は
-    // `landed` がエンジンを先に見るのでここへ来るが、出す先の画面がもう無い
-    // （`AnalysisPane` は `hasKifu` の内側）。隣の `"superseded"` と同じ門を通す。
+    // **エンジンが消えた回は断る。** 押した人がまだ画面の前に居るので、黙ると
+    // `AnalysisPaneHeader` の catch にも入らず `console.error` すら出ない
+    // ——停止中はペインが控えを出すので**押す前と1ドットも変わらない画面**が残る。
+    // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
+    // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
     if (landed === "engine-gone" && !supersededSince(seq)) {
       failStart(ENGINE_RESTARTED_MESSAGE, new Error("engine was restarted while taking a seat"));
     }
@@ -840,9 +856,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [
     state.isAnalyzing,
     refuseIfCannotStart,
+    awaitInFlightRestart,
+    releaseHeldBeforeStart,
     sendAndAwaitSync,
     failStart,
-    seat,
     supersededSince,
     takeSeatAndGo,
   ]);
