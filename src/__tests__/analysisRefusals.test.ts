@@ -19,15 +19,16 @@ import { codeOf } from "./sourceText";
  * どちらも「その断りが**正しい**か」は見ない。踏む筋があるか、文言が現物と合うかは
  * `provider.test.tsx` の側の仕事。
  *
- * **対象は `refusals.ts` の `export const` 全部。** 名前の末尾では選ばない——
- * `..._NOTICE` と名付けた1本が黙って義務から外れる。断りでない部品（他の断りが
- * 埋め込む文）だけを、下の `PARTS` に**名前で書いて**外す。
+ * **対象は `refusals.ts` の `export const` 全部**（名前の形も問わない）。末尾や大文字で
+ * 選ぶと、そこから外れた名前の1本が黙って義務から外れる。断りでない部品だけを、
+ * 下の `PARTS` に**名前で書いて**外す——`PARTS` に足すのは「断りではない」と言い切れる
+ * ときだけで、それが唯一の逃げ道。
  */
 const REFUSALS = "src/entities/analysis/model/refusals.ts";
 const NOTES = "docs/state-transitions/analysis.md";
 const TESTS = "src/entities/analysis/model/__tests__/provider.test.tsx";
 
-const NAMES = /export const ([A-Z][A-Z0-9_]*)\b/g;
+const NAMES = /export const ([A-Za-z_$][\w$]*)\b/g;
 
 /** 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される */
 const PARTS = new Set([
@@ -53,7 +54,10 @@ const noteFifteen = (body: string) => {
 
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), "utf8");
 
-/** `import { ... } from "../refusals";` の中身を落とす */
+/**
+ * `import { ... } from "../refusals";` の中身を落とす。
+ * **コメントは `codeOf` が落とす**——「まだ踏めない」と1行書けば通る形を残さない。
+ */
 const withoutImports = (body: string) => body.replace(/import \{[\s\S]*?\} from "[^"]*";/g, "");
 
 const refusalNames = () =>
@@ -75,8 +79,25 @@ describe("解析の断り", () => {
   test.each(refusalNames())("%s を踏むテストがある", (name) => {
     // **import しただけでは通さない。** 断りを読み込む行を落としてから探す。
     expect(
-      withoutImports(read(TESTS)).includes(name),
+      withoutImports(codeOf(read(TESTS))).includes(name),
       `${TESTS} が \`${name}\` を使っていない。踏む筋が無い断りなら、定数ごと落とすこと`,
     ).toBe(true);
+  });
+});
+
+describe("エンジンが使えない理由への対応", () => {
+  test("対応表の値は、登録済みの断りだけ", () => {
+    const code = codeOf(read(REFUSALS));
+    const table = /NOT_READY_REFUSALS[^=]*=\s*\{([\s\S]*?)\};/.exec(code);
+
+    expect(table, `${REFUSALS}: \`NOT_READY_REFUSALS\` が見つからない`).not.toBeNull();
+
+    // **文字列リテラルを直に置かない。** 置くと、その1本が ※15 にもテストにも
+    // 通らないまま増える（対応表は `PARTS` に入っているので、こちらは素通りする）。
+    expect(/:\s*["`']/.test(table![1]), `${REFUSALS}: 対応表に文言を直に書いている`).toBe(false);
+
+    const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+    expect(values.length, `${REFUSALS}: 対応表が空`).toBeGreaterThan(0);
+    expect(values.filter((v) => !refusalNames().includes(v))).toEqual([]);
   });
 });

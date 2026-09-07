@@ -10,7 +10,7 @@ import type { AnalysisResult } from "@/entities/engine";
 import {
   ENGINE_ERROR_MESSAGE,
   ENGINE_FAILED_MESSAGE,
-  ENGINE_NOT_READY_MESSAGE,
+  NO_ENGINE_SELECTED_MESSAGE,
   ENGINE_STARTING_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_FAILED_MESSAGE,
@@ -955,7 +955,7 @@ describe("AnalysisProvider の開始", () => {
   it.each([
     ["starting", ENGINE_STARTING_MESSAGE],
     ["failed", ENGINE_FAILED_MESSAGE],
-    ["no-engine", ENGINE_NOT_READY_MESSAGE],
+    ["no-engine", NO_ENGINE_SELECTED_MESSAGE],
   ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
     // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、
     // **起動を待っている人が必ずここへ来る**。「選んでください」と言ってはいけない。

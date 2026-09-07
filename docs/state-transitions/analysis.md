@@ -237,7 +237,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `RESTART_FAILED_MESSAGE`        | 自動再開が落ちた（→ `(S4/S5, E10/E11)`。`(S3, E5/E11)` の打ち切りは上限切れの枝） | まず ▶。それでも駄目なら起こし直す     |
 | `ENGINE_STARTING_MESSAGE`       | エンジンの起動待ちに ▶ を押した                                                   | 待ってからもう一度 ▶                   |
 | `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）                                             | 起こし直す                             |
-| `ENGINE_NOT_READY_MESSAGE`      | エンジンを選んでいない                                                            | 設定でエンジンを選ぶ                   |
+| `NO_ENGINE_SELECTED_MESSAGE`    | エンジンを選んでいない                                                            | 設定でエンジンを選ぶ                   |
 | `ENGINE_ERROR_MESSAGE`          | E9 のエラー通知。**いま踏めない**                                                 | 起こし直す                             |
 | `LISTENERS_FAILED_MESSAGE`      | 結果の購読に失敗した（E12 → F-4）                                                 | アプリを起動し直す（張り直す口が無い） |
 

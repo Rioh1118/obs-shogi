@@ -1,6 +1,11 @@
 import { reducer, initialState } from "./reducer";
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type { EngineContextType, EngineNotReadyReason, EngineRuntimeConfig } from "./types";
+import type {
+  EngineContextType,
+  EngineNotReadyReason,
+  EngineReadiness,
+  EngineRuntimeConfig,
+} from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
 import { EngineContext } from "./context";
@@ -25,13 +30,19 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
   // **理由はここで決める。** `desiredRuntime` を見られるのはこの provider だけなので、
   // 解析側からは「選んでいない」と「起こし直している最中」を区別できない。
-  const notReadyReason: EngineNotReadyReason | null = isReady
-    ? null
-    : state.phase === "error"
+  const notReadyReason: EngineNotReadyReason =
+    state.phase === "error"
       ? "failed"
       : state.phase === "initializing" || (state.phase === "ready" && !!desiredRuntime)
         ? "starting"
         : "no-engine";
+
+  // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
+  // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。
+  const readiness: EngineReadiness = useMemo(
+    () => (isReady ? { isReady: true, notReadyReason: null } : { isReady: false, notReadyReason }),
+    [isReady, notReadyReason],
+  );
 
   // lifecycle
   const initialize = useCallback(async (): Promise<boolean> => {
@@ -125,14 +136,13 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   const value = useMemo<EngineContextType>(
     () => ({
       state,
-      isReady,
-      notReadyReason,
+      ...readiness,
       initialize,
       shutdown,
       restart,
       clearError,
     }),
-    [state, isReady, notReadyReason, initialize, shutdown, restart, clearError],
+    [state, readiness, initialize, shutdown, restart, clearError],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

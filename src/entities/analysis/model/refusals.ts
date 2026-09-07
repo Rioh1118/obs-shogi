@@ -50,7 +50,7 @@ export const ENGINE_STARTING_MESSAGE =
 /** エンジンの初期化が落ちている（→ F-9 / #171）。 */
 export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
 /** エンジンをまだ選んでいない。 */
-export const ENGINE_NOT_READY_MESSAGE =
+export const NO_ENGINE_SELECTED_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選んでください。";
 /** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
 export const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
@@ -65,7 +65,7 @@ export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。
 
 /** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
 export const NOT_READY_REFUSALS: Record<EngineNotReadyReason, string> = {
-  "no-engine": ENGINE_NOT_READY_MESSAGE,
+  "no-engine": NO_ENGINE_SELECTED_MESSAGE,
   starting: ENGINE_STARTING_MESSAGE,
   failed: ENGINE_FAILED_MESSAGE,
 };

@@ -614,7 +614,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     if (!isReady) {
       // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
-      dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason ?? "no-engine"] });
+      // `isReady` が false なら理由は必ず在る（`EngineReadiness` の合併）。
+      dispatch({ type: "set_error", payload: NOT_READY_REFUSALS[notReadyReason] });
       throw new Error("Engine not ready");
     }
     if (state.isAnalyzing) return;

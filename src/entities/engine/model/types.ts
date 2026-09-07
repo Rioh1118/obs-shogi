@@ -48,12 +48,17 @@ export type EngineNotReadyReason =
   /** 初期化が落ちている */
   | "failed";
 
-export type EngineContextType = {
+/**
+ * **「使えないなら理由が在る」を型で持つ。** 2つの欄を独立に持つと、呼び手は
+ * `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える
+ * （どれを選んでも、3つのうち2つでは嘘になる）。
+ */
+export type EngineReadiness =
+  | { isReady: true; notReadyReason: null }
+  | { isReady: false; notReadyReason: EngineNotReadyReason };
+
+export type EngineContextType = EngineReadiness & {
   state: EngineState;
-  // derived
-  isReady: boolean;
-  /** `isReady` が true のときは null */
-  notReadyReason: EngineNotReadyReason | null;
 
   initialize: () => Promise<boolean>;
   shutdown: () => Promise<void>;
