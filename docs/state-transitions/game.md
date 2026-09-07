@@ -131,7 +131,7 @@ E3〜E10 のどれかに対応する。
 | **E13** `swap` / `delete`  | 無視           | 棋譜が変わり、カーソルは `res.nextCursor` 由来へ                                                                                                                                                                       | **先の計画が消える。** 消えて正しいのは消した枝を指す分だけ                                          | ✗      |
 | **E14** 保存の失敗         | —              | `jkf_restored` が編集前へ戻すので **P1 のまま**。戻せなかったときだけ P2（→ #301）。`error` は棋譜が別物になっていたら積まれない（`write_failed`）。**戻り値では必ず返る**。画面に出るのはコメントの保存と分岐の削除※5 | 同左                                                                                                 | ✗      |
 | **E15** ワークスペース変更 | —              | 棋譜が新しい根の外なら E2 と同じ。取得の成否は見ない※4                                                                                                                                                                 | 同左                                                                                                 | ✓      |
-| **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残り、`error` だけ載る（読み手0）※3                                                                                                                                                                  | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                           | ✓※8    |
+| **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残る。`error` に積み、**`Err` を返す**（`error` の読み手は0のまま）※3                                                                                                                                | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                           | ✓※8    |
 | **E17** 編集の失敗         | 無視           | 棋譜も計画も変わらず `error` だけ載る（読み手0）                                                                                                                                                                       | 同左                                                                                                 | ✗      |
 
 ### 注
@@ -164,6 +164,10 @@ E3〜E10 のどれかに対応する。
 （`persistence.absPath !== state.loadedAbsPath` なので `Err` を返す）。
 前の棋譜が新しいファイルへ入ることは無いが、**保存だけが黙って落ちる状態**が残る
 （`error` の読み手が0 → #277）。盤には前の棋譜が出たまま。
+
+**載せられなかったこと自体は出る。** `loadGame` の `Err` を `GameFileTreeBridge` が
+受けて `notify` する（`failure-surfacing.md` の F-31）。出ないのは**この後の保存が
+落ちること**で、それは別の失敗。
 
 ※4 **開いている棋譜は、いまのワークスペースの中にある。** `FileTreeProvider` が
 `rootDir` と `activeKifuPath` を突き合わせ、外に出た時点で `kifu_closed` を撃つ
@@ -216,9 +220,12 @@ G2 で計画が消えること（#226）も**見ていない**。
 未検証**。`provider.test.tsx` が踏むのは `loadGame` だけ（※6）。
 
 ※8 `provider.test.tsx` が固定しているのは `loadGame` の2つ（読み込めた棋譜が
-`state` に入ること、盤に載せられない棋譜を弾いて `error` を残すこと）。
+`state` に入ること、盤に載せられない棋譜を弾いて `error` と `Err` を残すこと）。
 **E16 の番人は `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけ**で、
 返り値を使わないので消しても tsc も lint も通る。このテストがその1行を守っている。
+
+E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持つ。
+**橋が `Err` を捨てても tsc は通る**ので、そちらも1本で守っている。
 
 ## ディスクを組で見る
 
@@ -354,6 +361,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 - 2つの型: `src/entities/kifu/model/cursor.ts` の `KifuCursor` / `PlannedCursor`
 - 行と分岐メニュー: `src/widgets/kifu-stream/`
 - テスト: `src/entities/game/model/__tests__/provider.test.tsx`（`loadGame` と E16）、
+  `src/app/providers/bridges/__tests__/gameFileTreeBridge.test.tsx`（E16 を利用者に出すところ）、
   `src/entities/game/model/__tests__/reducer.test.ts`（identity のみ）、
   `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts`、
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
