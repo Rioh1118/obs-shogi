@@ -12,12 +12,15 @@ import { codeOf } from "./sourceText";
  * 空けると、並んだ側が枠から消え、次に来た返却が「誰も居ない」と読んで
  * 同じ席へ2本目を並列で撃つ。
  *
- * **この規約は振る舞いのテストが持てない。** 枠を口ごとに手書きしていた頃、
- * 6箇所を1つずつ無条件の代入へ変異させて `provider.test.tsx` を回すと、
- * 落ちるのは1箇所だけだった（残り5箇所は、3本が重なる筋を組まないと差が出ない）。
- * 差が出ないものを人の目で守り続けることになるので、綴りで止める。
+ * **この規約は振る舞いのテストが持てない。** 枠への書き込みを1箇所ずつ無条件の
+ * 代入へ変異させても、落ちるテストは1本しかない（3本の返却が重なる筋を組まないと
+ * 差が出ない）。差が出ないものを人の目で守り続けることになるので、綴りで止める。
  *
- * **見るのは書き込みの箇所数だけ。** `occupy` の中身が正しいかは見ない。
+ * **同じ理由でもう1つ見る**——`useEngineSeat` は返す口を初回の描画で凍らせる
+ * （`apiRef`）。早期 return より上に `useRef` 以外の宣言を置くと、そこで読んだ値が
+ * 初回のまま凍り、描画ごとに変わる値を読んだ人はそれに気づけない。
+ *
+ * **見るのは形だけ。** `occupy` の中身が正しいかは見ない。
  */
 const SEAT = "src/entities/analysis/model/useEngineSeat.ts";
 
@@ -39,5 +42,23 @@ describe("解析の席を返す枠", () => {
 
     expect(inside, `${SEAT}: \`occupy\` が枠に書いていない`).toBe(2);
     expect(total, `${SEAT}: \`occupy\` の外から枠に書いている`).toBe(inside);
+  });
+
+  test("凍る前に置くのは useRef だけ", () => {
+    const code = codeOf(readFileSync(join(REPO_ROOT, SEAT), "utf8"));
+
+    const head = code.slice(
+      code.indexOf("export function useEngineSeat"),
+      code.indexOf("if (apiRef.current) return apiRef.current;"),
+    );
+
+    expect(head, `${SEAT}: 早期 return が見つからない（この検査の前提が崩れている）`).not.toBe("");
+
+    const declarations = head.match(/^ {2}const \w+ =/gm) ?? [];
+    const refs = head.match(/^ {2}const \w+ = useRef</gm) ?? [];
+
+    expect(declarations.length, `${SEAT}: 早期 return より上に useRef 以外の宣言がある`).toBe(
+      refs.length,
+    );
   });
 });

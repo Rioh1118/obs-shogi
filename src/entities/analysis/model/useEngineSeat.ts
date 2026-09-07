@@ -34,12 +34,17 @@ export interface EngineSeat {
   /**
    * Rust が席を渡した行で呼ぶ。**要らない要求だと分かった後に呼ばない。**
    *
-   * 手放した席の表からは消さない。渡ってくる識別子は毎回新しい（Rust の
-   * `new_session_id` が UUID を振る）ので消す相手が居らず、消すようにすると
-   * **停止が落ちて握り直した席が「採らない」から外れる**。
+   * 手放した席の集合には触らない。渡る識別子は必ず新品なので（Rust の
+   * `new_session_id` が UUID を振る）、そこに居ることが無い。
+   * 握り直しは `send` の catch が席の欄へ直接書く。
    */
   hold: (sessionId: string) => void;
-  /** Rust が自分で片付けた席を、こちらの記録から落とす */
+  /**
+   * Rust が自分で片付けた席を、握っている欄から落とす。
+   *
+   * **落とすだけではない**——手放した席として覚えるので、以後その席の通知は
+   * `matches` が落とし、停止が落ちても握り直さない。
+   */
   forget: (sessionId: string) => void;
   /**
    * 握っている席を返す。握っていなければ何もしない。
@@ -69,20 +74,25 @@ export interface EngineSeat {
   discard: (by: DiscardPoint, sessionId: string) => void;
 }
 
+/**
+ * 手放した席を覚えておく本数。
+ *
+ * **数えるのは `info` ではなく席。** 遅れた `info` が届き得るのは、その席を
+ * 手放してから停止が Rust に届くまでで、その間に重なる席はたかだか数本
+ * （盤を連打しても、再開は1本ずつ直列に走る）。桁1つぶん余裕を取ってこの値。
+ */
+const PAST_LIMIT = 32;
+
 export function useEngineSeat(): EngineSeat {
   const seatRef = useRef<string | null>(null);
 
   /**
-   * 手放した席の行方。**1つの表で持つ。**
+   * 手放した席。**もう採らない**（`matches` が落とす）。
    *
-   * - `"ignored"` ——**もう採らない。** 捨てると決めた席（停止の応答を待たない）。
-   *   待つと前の局面の読み筋が盤に出る
-   * - `"gone"` —— 採らないうえに、**Rust がもう持っていない**。停止が成功した回と、
-   *   完了通知で片付いた回。返せなかった席を握り直す枝（下の catch）は、
-   *   ここに在る席を握らない——Rust に無いものを握ると、次に畳まれたときの
-   *   後始末が席を指さない停止に落ちる
+   * 入るのは、返し終えた席・完了通知で片付いた席・捨てると決めた席
+   * （捨てる側は停止の応答を待たない。待つと前の局面の読み筋が盤に出る）。
    *
-   * **1枠ではなく表。** 1枠だと、席を続けて2つ手放したときに古い方が
+   * **1枠ではなく集合。** 1枠だと、席を続けて2つ手放したときに古い方が
    * 「採らない」から外れ、その遅れた `info` がまた通る。
    *
    * **席を握り直しても消さない。** 消すと、盤を1手ずつ動かす普通の経路
@@ -90,28 +100,15 @@ export function useEngineSeat(): EngineSeat {
    *
    * **上限で切る。** 切らないと解析を繰り返すぶんだけ育つ（`AnalysisProvider` は
    * `RuntimeProviders` 側に居るので、普通は畳まれない）。
-   */
-  const pastRef = useRef<Map<string, "ignored" | "gone">>(new Map());
-
-  /**
-   * 手放した席を覚えておく本数。
    *
-   * **数えるのは `info` ではなく席。** 遅れた `info` が届き得るのは、その席を
-   * 手放してから停止が Rust に届くまでで、その間に重なる席はたかだか数本
-   * （盤を連打しても、再開は1本ずつ直列に走る）。桁1つぶん余裕を取ってこの値。
+   * **「Rust がもう持っていない席」を別に持たない。** 持っても読む者が居ない——
+   * `send` に渡る識別子は、握っている席か、`discard` が受け取った新しい UUID
+   * （`bridge.rs` の `new_session_id`）だけなので、**返し終えた席で停止が落ちる
+   * 経路そのものが無い**。逆に「Rust に無い席を握ってしまう回」は在るが、
+   * それは区別できない——`stop_session` は席を消してからエンジンを止めるので、
+   * エンジン側の失敗は「席は空・`Err`」で返る（→ `analysis.md` ※12）。
    */
-  const PAST_LIMIT = 32;
-
-  const remember = (sessionId: string, how: "ignored" | "gone") => {
-    // 入れ直して最後尾へ。`Map` は挿入順を保つので、先頭が最も古い
-    pastRef.current.delete(sessionId);
-    pastRef.current.set(sessionId, how);
-    while (pastRef.current.size > PAST_LIMIT) {
-      const oldest = pastRef.current.keys().next();
-      if (oldest.done) break;
-      pastRef.current.delete(oldest.value);
-    }
-  };
+  const pastRef = useRef<Set<string>>(new Set());
 
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
@@ -131,6 +128,23 @@ export function useEngineSeat(): EngineSeat {
   // ——畳まれてもいないのに後始末が撃たれる。
   const apiRef = useRef<EngineSeat | null>(null);
 
+  // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
+  // 下で読んだ値は**その1回の値のまま**——描画ごとに変わる値（props や別のフックの
+  // 戻り値）をここで読むと、以後ずっと初回の値を見る。tsc も lint も止めない。
+  // **`useRef` 以外を上に置かない**のはそのため（`analysisSeatSlot.test.ts` が見る）。
+  if (apiRef.current) return apiRef.current;
+
+  const remember = (sessionId: string) => {
+    // 入れ直して最後尾へ。`Set` は挿入順を保つので、先頭が最も古い
+    pastRef.current.delete(sessionId);
+    pastRef.current.add(sessionId);
+    while (pastRef.current.size > PAST_LIMIT) {
+      const oldest = pastRef.current.values().next();
+      if (oldest.done) break;
+      pastRef.current.delete(oldest.value);
+    }
+  };
+
   const send = async (by: SeatReleasePoint, sessionId: string | undefined) => {
     const held = seatRef.current;
 
@@ -141,14 +155,13 @@ export function useEngineSeat(): EngineSeat {
       // 要らなくなった開始を捨てる口は欄が空のまま撃つので、書き戻さないと
       // `sweepOnUnmount` が門で止まり、二度と返す機会が来ない。
       //
-      // 握り直さないのは2つ。**欄が埋まっている**なら、そちらは新しい席で
-      // 巻き添えにできない。**`"gone"` と記録した席**なら、Rust にもう無いものを
-      // 握ることになり、次に畳まれたときの後始末が席を指さない停止に落ちる。
-      if (
-        sessionId !== undefined &&
-        seatRef.current === null &&
-        pastRef.current.get(sessionId) !== "gone"
-      ) {
+      // **欄が埋まっているなら握らない。** そちらは新しい席で、巻き添えにできない。
+      //
+      // 握り直した席が Rust にもう無いこともある（`stop_session` は席を消してから
+      // エンジンを止めるので、エンジン側の失敗は「席は空・`Err`」で返る）。
+      // **フロントからその2つは区別できない**ので、握る側に倒す——次に畳まれたときに
+      // 出るのは空撃ち1本で、席を置き去りにするより軽い（→ `analysis.md` ※12）。
+      if (sessionId !== undefined && seatRef.current === null) {
         seatRef.current = sessionId;
       }
       throw e;
@@ -159,13 +172,13 @@ export function useEngineSeat(): EngineSeat {
     // ここまで来た時点で、指した席は空いている。
     if (sessionId === undefined) {
       if (held !== null) {
-        remember(held, "gone");
+        remember(held);
       }
       seatRef.current = null;
       return;
     }
 
-    remember(sessionId, "gone");
+    remember(sessionId);
     // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
     if (seatRef.current === sessionId) seatRef.current = null;
   };
@@ -173,8 +186,7 @@ export function useEngineSeat(): EngineSeat {
   /**
    * 枠を取って撃つ。**`releasingRef` に書く綴りはここだけ。**
    *
-   * 口ごとに手で書くと、口を1つ足したときの写し忘れが人の目でしか止まらない
-   * ——実際に r9 と r10 で2回踏んだ。
+   * 口ごとに手で書くと、口を1つ足したときの写し忘れを止める機械が無くなる。
    *
    * **空けるのは自分がまだ枠に居るときだけ。** 後ろに並んだ返却が居るのに
    * 空けると、その返却が飛んでいる間に3本目が並列で出る。
@@ -225,13 +237,10 @@ export function useEngineSeat(): EngineSeat {
       console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
     });
 
-  if (apiRef.current) return apiRef.current;
-
   apiRef.current = {
     isHeld: () => seatRef.current !== null,
     matches: (sessionId) => {
-      // **手放した席を先に見る。** 停止が落ちて席を握り直す枝があるので、
-      // 席の照合を先にすると、捨てると決めた席が「自分の席」に昇格して通る。
+      // 順序の理由は `EngineSeat.matches` の doc に1つ置いてある。
       if (pastRef.current.has(sessionId)) return false;
       return seatRef.current === null || seatRef.current === sessionId;
     },
@@ -241,7 +250,7 @@ export function useEngineSeat(): EngineSeat {
     forget: (sessionId) => {
       if (seatRef.current !== sessionId) return;
       seatRef.current = null;
-      remember(sessionId, "gone");
+      remember(sessionId);
     },
 
     releaseHeld: async (by) => {
@@ -294,7 +303,7 @@ export function useEngineSeat(): EngineSeat {
     discard: (by, sessionId) => {
       // **捨てると決めた時点で `info` を落とす。** 停止の応答が返るまで Rust は
       // その席の `info` を配り続けるので、待つと前の局面の読み筋が盤に出る。
-      remember(sessionId, "ignored");
+      remember(sessionId);
 
       // **枠に載せる。** 載せないと、この停止が飛んでいる間に次の再開が
       // `releaseHeld` を素通りし（こちらは席を握っていない）、
