@@ -12,6 +12,18 @@ import { useEngine, type AnalysisResult } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
+import {
+  ENGINE_ERROR_MESSAGE,
+  ENGINE_FAILED_MESSAGE,
+  ENGINE_NOT_READY_MESSAGE,
+  ENGINE_STARTING_MESSAGE,
+  POSITION_SYNC_FAILED_MESSAGE,
+  POSITION_SYNC_TIMEOUT_MESSAGE,
+  RELEASE_FAILED_MESSAGE,
+  RESTART_FAILED_MESSAGE,
+  START_REFUSED_MESSAGE,
+  STOP_FAILED_MESSAGE,
+} from "./refusals";
 
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
 //
@@ -32,35 +44,6 @@ const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => b
   }
   return true;
 };
-
-// **断りは枝ごとに割る。** 復帰の手が違うものを同じ1文にすると、読み手（→ #277）が
-// 「もう一度押す」のか「エンジンを起こし直す」のかを選べない。
-// どの文も**次に何をすればよいか**で終える（ADR-0004 の決定1）。
-//
-// 起こし直し方は1箇所に置いてある（`docs/state-transitions/engine.md` の ※5）。
-const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて保存すると起こし直せます。";
-/** 上限まで待っても同期が追いつかない。**押し直しで直りうる。** */
-const POSITION_SYNC_TIMEOUT_MESSAGE =
-  "エンジンが局面を受け取るのに時間が掛かっています。もう一度 ▶ を押してください。";
-/** 局面の送信そのものが落ちた。**押し直しても同じところで落ちる。** */
-const POSITION_SYNC_FAILED_MESSAGE = `エンジンに局面を送れませんでした。${RESTART_ENGINE_HINT}`;
-/**
- * 握っている席を返せなかった（→ ※7 / F-7）。
- *
- * **まず押し直し。** 停止の invoke が一時的に落ちただけの回は、もう一度 ▶ を押すと
- * 同じ席へ撃ち直して戻る（`provider.test.tsx` が固定している）。
- */
-const RELEASE_FAILED_MESSAGE = `前の解析を止められませんでした。もう一度 ▶ を押してください。それでも始まらないときは、${RESTART_ENGINE_HINT}`;
-/** Rust が開始を断った（席が残っている。→ ※11 / #172）。 */
-const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
-/** エンジンが ready でない（→ F-9）。**▶ は押せてしまう**（`AnalysisPaneHeader`）。 */
-const ENGINE_NOT_READY_MESSAGE = "エンジンが起動していません。設定でエンジンを選んでください。";
-/** 読む局面が無い（棋譜を開いていない）。 */
-const NO_POSITION_MESSAGE = "解析する局面がありません。棋譜を開いてください。";
-/** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
-const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
-/** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
-const RESTART_FAILED_MESSAGE = `解析を再開できませんでした。▶ を押しても始まらないときは、${RESTART_ENGINE_HINT}`;
 
 interface Props {
   children: ReactNode;
@@ -85,7 +68,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // Rust の席の生死。**識別子を書き換えられるのはこのフックの中だけ。**
   const seat = useEngineSeat();
 
-  const { isReady } = useEngine();
+  const { isReady, state: engineState } = useEngine();
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
@@ -491,9 +474,18 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!state.isAnalyzing) return;
     if (!isReady) return;
     if (!currentSfen) return;
-    if (lastAnalyzedSfenRef.current === currentSfen) return;
 
+    // **読ませたい局面は門より前に書く。** これは盤の現在位置そのもので、
+    // 再開が要るかどうかとは別の事実。門の後ろに置くと、盤を1手進めてすぐ戻した回
+    // （再開が飛んでいる最中）に**前の局面が「読ませたい」欄に取り残される**
+    // ——飛んでいた再開が着いた先で `syncedSfen` が動き、盤と違う局面へ `go` を撃つか、
+    // 追いつかない局面を上限まで待って嘘の断りを立てる。
     desiredSfenRef.current = currentSfen;
+
+    // **門は `state` で書く。** ref で書くと、その ref が動いた回に effect が
+    // 再実行されない——盤が戻ってきた局面を既に解析済みだと読んだまま、
+    // **盤と読んでいる局面が食い違ったことに誰も気づかない**。
+    if (state.analyzedSfen === currentSfen) return;
 
     clearDebounceTimer();
     const seq = ++restartSeqRef.current;
@@ -503,7 +495,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return () => {
       clearDebounceTimer();
     };
-  }, [currentSfen, state.isAnalyzing, isReady, scheduleRestart, clearDebounceTimer]);
+  }, [
+    currentSfen,
+    state.isAnalyzing,
+    state.analyzedSfen,
+    isReady,
+    scheduleRestart,
+    clearDebounceTimer,
+  ]);
 
   useEffect(() => {
     if (!state.isAnalyzing) return;
@@ -568,14 +567,22 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // （`AnalysisPaneHeader` は局面の有無しか見ない）ので、ここは**いちばん踏まれる枝**。
     // 立てないと `console.error` で終わり、#277 が出口を作っても無言のまま残る。
     if (!isReady) {
-      dispatch({ type: "set_error", payload: ENGINE_NOT_READY_MESSAGE });
+      dispatch({
+        type: "set_error",
+        payload:
+          engineState.phase === "initializing"
+            ? ENGINE_STARTING_MESSAGE
+            : engineState.phase === "error"
+              ? ENGINE_FAILED_MESSAGE
+              : ENGINE_NOT_READY_MESSAGE,
+      });
       throw new Error("Engine not ready");
     }
     if (state.isAnalyzing) return;
-    if (!currentSfen) {
-      dispatch({ type: "set_error", payload: NO_POSITION_MESSAGE });
-      throw new Error("No position available for analysis");
-    }
+    // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
+    // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
+    // 増えたときのために `throw` だけ残す。
+    if (!currentSfen) throw new Error("No position available for analysis");
 
     // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
     // 動くのは畳まれた回と、読む局面が無くなった回。
@@ -668,7 +675,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!held) return;
 
     desiredSfenRef.current = started;
-  }, [isReady, state.isAnalyzing, currentSfen, syncPosition, seat, supersededSince, beginSession]);
+  }, [
+    isReady,
+    engineState.phase,
+    state.isAnalyzing,
+    currentSfen,
+    syncPosition,
+    seat,
+    supersededSince,
+    beginSession,
+  ]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
   // 局面を送って席が返った後（最大2秒）で、その間ボタンは ▶ のまま押せる。
@@ -699,6 +715,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 「読む局面が無くなった」回の1箇所だけ。
     try {
       await seat.releaseHeld("stop");
+    } catch (e) {
+      // **停止だけが断りの無い枝だった。** 表示は停止中になり、タイマーも 0 に戻るので
+      // 成功と1ドットも違わないのに、エンジンは閉じた探索を回し続ける。
+      dispatch({ type: "set_error", payload: STOP_FAILED_MESSAGE });
+      throw e;
     } finally {
       dispatch({ type: "stop_analysis" });
       dropPendingResult();

@@ -7,6 +7,18 @@ import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 import type { AnalysisResult } from "@/entities/engine";
+import {
+  ENGINE_ERROR_MESSAGE,
+  ENGINE_FAILED_MESSAGE,
+  ENGINE_NOT_READY_MESSAGE,
+  ENGINE_STARTING_MESSAGE,
+  POSITION_SYNC_FAILED_MESSAGE,
+  POSITION_SYNC_TIMEOUT_MESSAGE,
+  RELEASE_FAILED_MESSAGE,
+  RESTART_FAILED_MESSAGE,
+  START_REFUSED_MESSAGE,
+  STOP_FAILED_MESSAGE,
+} from "../refusals";
 
 const startCore = vi.fn<() => Promise<string>>();
 const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<void>>();
@@ -19,7 +31,12 @@ vi.mock("@/entities/engine/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
 }));
-vi.mock("@/entities/engine", () => ({ useEngine: () => ({ isReady: true }) }));
+// エンジンの状態。**`isReady` の false は3つの理由を潰している**ので、
+// 断りを枝ごとに見るテストは `phase` も動かす。
+let engine = { isReady: true, phase: "ready" as "idle" | "initializing" | "ready" | "error" };
+vi.mock("@/entities/engine", () => ({
+  useEngine: () => ({ isReady: engine.isReady, state: { phase: engine.phase } }),
+}));
 
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
 type Listeners = {
@@ -103,6 +120,7 @@ beforeEach(() => {
   startCore.mockResolvedValue("session-1");
   stopCore.mockResolvedValue(undefined);
   syncPosition.mockResolvedValue(undefined);
+  engine = { isReady: true, phase: "ready" };
 });
 
 // **畳まないまま次のテストへ渡さない。** 自動 cleanup は入っていない
@@ -129,7 +147,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
       await advance(2400);
 
-      expect(view.current.state.error).toContain("時間が掛かっています");
+      expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
       expect(view.current.state.isAnalyzing).toBe(false);
 
       // エラーを出すだけでは足りない。Rust 側のセッションを止めないと
@@ -160,7 +178,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
       // もう1手進み、エンジンが追いつかないまま打ち切られる。
       await view.setSync(adapter("P3", "P2"));
       await advance(2400);
-      expect(view.current.state.error).toContain("時間が掛かっています");
+      expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
       expect(stopCore).not.toHaveBeenCalled();
@@ -282,7 +300,7 @@ describe("AnalysisProvider の停止", () => {
       // もう1手進むが、エンジンは追いつかない。同期待ちが2秒で打ち切られる。
       await view.setSync(adapter("P3", "P2"));
       await advance(2400);
-      expect(view.current.state.error).toContain("時間が掛かっています");
+      expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
       // 門より前に置くと、利用者に出したばかりの断りが黙って消える。
@@ -291,7 +309,7 @@ describe("AnalysisProvider の停止", () => {
       });
       await advance(100);
 
-      expect(view.current.state.error).toContain("時間が掛かっています");
+      expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
     },
     SLOW,
   );
@@ -404,6 +422,45 @@ describe("AnalysisProvider の結果の照合", () => {
 
     expect(view.current.state.candidates).toHaveLength(0);
   });
+
+  it(
+    "盤を1手進めてすぐ戻したら、戻した局面を読み直す",
+    async () => {
+      tauri = true;
+      startCore.mockResolvedValueOnce("s1");
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      expect(view.current.state.analyzedSfen).toBe("P1");
+
+      // 1手進めて、再開が飛んでいる最中に戻す（棋譜で → のあと ←）。
+      let releaseRestart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseRestart = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+      await view.setSync(adapter("P1", "P1"));
+
+      startCore.mockResolvedValue("s3");
+      await act(async () => {
+        releaseRestart("s2");
+      });
+      await advance(300);
+
+      // 読ませたい局面を門の後ろに書くと、盤は P1・エンジンは P2 のまま止まり、
+      // **P2 基準の読み筋と評価値が P1 の盤の下に出続ける**（表示は「解析中」、断りも無い）。
+      expect(view.current.state.analyzedSfen).toBe("P1");
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.error).toBeNull();
+    },
+    SLOW,
+  );
 
   it("捨てた席の反映待ちを、いまの局面の結果として出さない", async () => {
     tauri = true;
@@ -643,7 +700,8 @@ describe("AnalysisProvider の開始", () => {
       await advance(2400);
 
       expect(startCore).not.toHaveBeenCalled();
-      expect(view.current.state.error).toBeNull();
+      // 立っているのは届かなかった ■ の断りだけ。閉じた棋譜のぶんは積まれない。
+      expect(view.current.state.error).toBe(STOP_FAILED_MESSAGE);
     },
     SLOW,
   );
@@ -837,6 +895,40 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.isAnalyzing).toBe(false);
   });
 
+  it.each([
+    ["initializing", ENGINE_STARTING_MESSAGE],
+    ["error", ENGINE_FAILED_MESSAGE],
+    ["idle", ENGINE_NOT_READY_MESSAGE],
+  ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (phase, message) => {
+    // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、
+    // **起動を待っている人が必ずここへ来る**。「選んでください」と言ってはいけない。
+    engine = { isReady: false, phase };
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+
+    expect(view.current.state.error).toBe(message);
+    expect(startCore).not.toHaveBeenCalled();
+  });
+
+  it("自動再開が落ちたら、▶ を先に案内する断りを立てる", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤が動いて自動再開が走り、Rust が開始を断る。
+    startCore.mockRejectedValueOnce(new Error("Analysis already running"));
+    await view.setSync(adapter("P2", "P2"));
+    await advance(200);
+
+    // 上流の英文は載せない。まず ▶ を案内する（席は返し終えているので通りうる）。
+    expect(view.current.state.error).toBe(RESTART_FAILED_MESSAGE);
+    expect(view.current.state.isAnalyzing).toBe(false);
+  });
+
   it("席を返せなかったら、断りを立てる", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
@@ -857,7 +949,7 @@ describe("AnalysisProvider の開始", () => {
       await view.current.startInfiniteAnalysis().catch(() => {});
     });
 
-    expect(view.current.state.error).toContain("前の解析を止められませんでした");
+    expect(view.current.state.error).toBe(RELEASE_FAILED_MESSAGE);
     expect(startCore).not.toHaveBeenCalled();
   });
 
@@ -870,7 +962,7 @@ describe("AnalysisProvider の開始", () => {
     });
 
     // #441 が再発したときの症状そのもの。上流の英文はここには出さない。
-    expect(view.current.state.error).toContain("解析を開始できませんでした");
+    expect(view.current.state.error).toBe(START_REFUSED_MESSAGE);
     expect(view.current.state.error).not.toContain("Analysis already running");
     expect(view.current.state.isAnalyzing).toBe(false);
   });
@@ -885,7 +977,7 @@ describe("AnalysisProvider の開始", () => {
 
     // 立てないと `error` が null のまま `console.error` で終わり、画面は
     // 停止中のまま何も変わらない。押し直しても同じところで落ちる。
-    expect(view.current.state.error).toContain("エンジンに局面を送れませんでした");
+    expect(view.current.state.error).toBe(POSITION_SYNC_FAILED_MESSAGE);
     expect(view.current.state.isAnalyzing).toBe(false);
     expect(startCore).not.toHaveBeenCalled();
   });
@@ -1278,7 +1370,7 @@ describe("AnalysisProvider のアンマウント", () => {
       listeners?.onError("engine died");
     });
     // 上流の英文は `state.error` には出さない（`console.error` にだけ残す）。
-    expect(view.current.state.error).toContain("エンジンがエラーを返しました");
+    expect(view.current.state.error).toBe(ENGINE_ERROR_MESSAGE);
     expect(view.current.state.isAnalyzing).toBe(false);
 
     stopCore.mockClear();
