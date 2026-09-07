@@ -69,6 +69,13 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
       // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
       // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+      //
+      // **追いつかない場合がある。** 盤に載せられなかった回（`game.md` の E16）は
+      // `activeKifuPath` だけが進み、`loadedAbsPath` は `game_loaded` でしか動かないので、
+      // 次の棋譜が載るまでこの条件は真であり続ける。その間、盤には前の棋譜が出ているのに
+      // 書き込みは全部ここで止まる——`edit` は `jkf_restored` を撃つので、
+      // **指した手が一瞬出てから戻る**。読み手のいない `state.error` にしか理由が残らないので、
+      // 載せられなかったこと自体は `GameFileTreeBridge` が断りとして出している。
       if (persistence.absPath !== state.loadedAbsPath) {
         const msg = "保存先が切り替わったため書き込みを中止しました";
         dispatch({ type: "set_error", payload: msg });
