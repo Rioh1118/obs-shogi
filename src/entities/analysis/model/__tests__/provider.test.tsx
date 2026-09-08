@@ -1886,9 +1886,10 @@ describe("AnalysisProvider のアンマウント", () => {
       // 書き戻した席を返し直さないと、Rust に残ったままになる（#441）。
       expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
 
-      // **撃ち直しは1回だけ。** この停止も落ち続けるので、回数を持たないと
-      // 書き戻しと撃ち直しが回り続ける。
+      // **着地は1本なので、撃ち直しも1本。** 席を指さない停止は書き戻しに乗らない
+      // （`keepOrForget` の先頭で降りる）ので、落ち続けても回り続けない。
       await advance(300);
+      expect(startCore).toHaveBeenCalledTimes(1);
       expect(stopCore.mock.calls.filter((c) => c[1] === "unmount")).toHaveLength(1);
     },
     SLOW,
