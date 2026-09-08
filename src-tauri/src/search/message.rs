@@ -32,8 +32,10 @@ use serde::Serialize;
 /// ではファイルの中身がそのまま値になる。局面の綴りは空白区切りの1トークンなので、
 /// これも長さが決まらない。
 ///
-/// **出た先で刈られることは期待できない。** 出口は `IndexWarnPayload` と
-/// `SearchErrorPayload` の2つで、画面側がどう描くかはそれぞれの doc が持つ。
+/// **出た先で刈られることは期待できない。** 出口は3つ——`IndexWarnPayload` と
+/// `SearchErrorPayload` の欄、そして `open_project` の `Err`。**どれも型が
+/// [`ScreenMessage`] を要求する**ので、刈っていない `String` は載せられない。
+/// 画面側がどう描くかはそれぞれの doc が持つ。
 pub(crate) const SCREEN_MESSAGE_LIMIT: usize = 300;
 
 /// 画面へ出す形にする。[`SCREEN_MESSAGE_LIMIT`] 文字で刈り、**制御文字を空白に落とす。**

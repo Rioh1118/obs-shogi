@@ -4,6 +4,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use tauri::{AppHandle, State};
 
+use crate::search::message::ScreenMessage;
 use crate::search::announce::{
     announce_progress, announce_state, scan_failure, warn_scan_failed, warn_unreadable,
     IndexAnnouncement, IndexProgress, IndexSurvival,
@@ -50,7 +51,7 @@ pub async fn open_project(
     app: AppHandle,
     state: State<'_, SearchState>,
     input: OpenProjectInput,
-) -> Result<OpenProjectOutput, String> {
+) -> Result<OpenProjectOutput, ScreenMessage> {
     let store = state.store.clone();
     let project = state.project.clone();
 
@@ -227,7 +228,7 @@ pub async fn open_project(
             announce_state(&app, &store, build_epoch, IndexAnnouncement::BuildFailed);
             // **内部の綴りを返さない。** `openError` に読み手が付いたとき
             // （#403）、`root directory is not readable: /Users/…` が画面に出る
-            return Err(scan_failure(&e, IndexSurvival::Gone).to_string());
+            return Err(scan_failure(&e, IndexSurvival::Gone));
         }
     };
     // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
