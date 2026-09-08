@@ -12,14 +12,18 @@ function App() {
   return (
     <div className="app-root">
       {/*
-        **最後の砦。** ここより上に境界は置けない（`createRoot` の直下）ので、
-        これを抜けた例外は root ごと unmount する —— ウィンドウ枠も自前なので、
+        **最後の砦。** これを抜けた例外は root ごと unmount する —— ウィンドウ枠も自前なので、
         残るのは閉じるボタンもドラッグ領域も無い窓になる。だから fallback は
         枠を自前で持つ `RootErrorFallback` にする。
 
-        **普段ここまでは上がってこない。** 盤・解析ペイン・ヘッダ・サイドバーは
-        `RuntimeShell` の境界が受け、そちらは本物の `TitleBar` を残す。ここが出るのは
-        provider・guard・ルータ自身が落ちたときだけ。
+        **これより上に置かないのは、そこでは枠を描けないから。** `main.tsx` で `<App />` を
+        包むことはできるが、`.app-root` の外に出た fallback は `App.scss` の器を持たない。
+
+        **受けるのはいちばん内側の境界。** 盤・解析ペイン・棋譜一覧・モーダルは `AppLayout` の
+        境界が、ヘッダとサイドバーは `RuntimeShell` の境界が受け、どちらも本物の `TitleBar` を残す。
+        ここまで上がるのは**境界の外に居るもの**が落ちたとき —— provider・guard・ルータ自身に
+        加えて、`TitleBar` そのものと、`RuntimeShell` の外に居る `/` の起動画面
+        （`AppLoading`）がある。
       */}
       <AppErrorBoundary
         label="画面"
