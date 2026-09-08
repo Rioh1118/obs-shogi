@@ -128,6 +128,17 @@
   「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
   `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる
 
+- **`entities/app-config/index.ts` は、直後のコメントが禁じている口を自分で開けている**
+  （`loadConfig` / `saveConfig` を出しつつ「api を直に出さない。呼ぶのは `useAppConfig()` 経由」
+  と書いている）。スライス外の呼び手は**0件**。落とすだけで済むが、上の走査を足せば
+  この2本も一緒に落ちる。副作用として、いま `sliceBarrels` は
+  「公開すべきでないと自分で書いたモジュール」への deep import を禁じている
+  （#502 の r9 architecture 所見）
+- **`entities/engine-presets` に barrel が無い**ので `sliceBarrels` が見ておらず、
+  `model/types` も `model/provider` も外から素通しで読める。あわせて `PresetId` が
+  `engine-presets` に居るせいで `app-config` との間にスライス単位の双方向依存ができている
+  ——永続する欄（`last_preset_id`）を持つのは `app-config` の側。`import/no-cycle` は
+  型だけの辺を見ないので黙る（#502 の r9 architecture 所見）
 - 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
 - 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
 
