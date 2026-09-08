@@ -14,14 +14,25 @@ user-invocable: false
 レビュアーは並走するので、片方の変異がもう片方の実測を汚す。
 
 ```bash
-mkdir -p /tmp/rv && git archive HEAD | tar -x -C /tmp/rv
-ln -s "$PWD/node_modules" /tmp/rv/node_modules
-cd /tmp/rv && ./node_modules/.bin/vp test run --run <path>
+RV=$(mktemp -d) && git archive HEAD | tar -x -C "$RV"
+ln -s "$PWD/node_modules" "$RV/node_modules"
+cd "$RV" && ./node_modules/.bin/vp test run --run <path>
 ```
+
+**宛先は必ず使い捨てにすること**（`mktemp -d`）。固定の名前にすると、並走する
+レビュアーどうしが同じ場所を取り合い、後から来た `tar -x` が先の人の変異を上書きする。
+さらに悪いことに、2回目の `ln -s` は既に在るリンクを辿って**作業ツリーの
+`node_modules` の中**にリンクを作る。
 
 **赤を報告する前に `git status --porcelain` を1回見ること。** 汚れていたら、その赤は
 自分の変異の結果ではない——隔離コピーで取り直す。これを飛ばして
 「実時計の待ちのせいで flaky」と報告しかけた回が実際にある。
+**ただし `git status` は `node_modules` を見ない**（`.gitignore`）ので、
+そちらの汚れは別に確かめること。
+
+**投げる形で観測しない。** `throw` を挟んで「全部緑なら踏んでいない」と読むのは、
+その行の呼び手に `catch` があると成立しない（`provider.tsx` の
+`dropPendingForLostSeat` は、無条件に投げても大半の筋が飲む）。観測はログで取る。
 
 **他人の変更を戻さない。** 自分が触っていないファイルが dirty なら、そのまま報告に書く。
 
