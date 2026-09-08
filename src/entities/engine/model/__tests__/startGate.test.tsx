@@ -17,8 +17,15 @@ import type { EngineInfo } from "@/entities/engine/api/rust-types";
  * 差し替えるのは IPC の4つだけ。
  *
  * 守っている性質: **起動を待っている間に `desiredRuntime` が2度外れて戻っても、
- * エンジンは起動し直す。** 落ちると理由は `starting`（＝待てば戻る側）のまま固まるので、
- * 走っている解析は誰にも断たれずに「解析中」を回し続ける（→ #502 と同じ症状）。
+ * エンジンは起動し直し、追い越された畳みは後から起きたエンジンを殺さない。**
+ * 前半が落ちると理由は `starting`（＝待てば戻る側）のまま固まり、走っている解析は
+ * 誰にも断たれずに「解析中」を回し続ける（→ #502 と同じ症状）。
+ *
+ * **見ているのは世代の門2つだけ**——`provider.tsx` の `shutdown` が `await` の
+ * 向こうで `dispatch` を止めることと、`api/initializer.ts` の `shutdown` が
+ * 追い越されたら IPC を撃たないこと。`initialize` 側の世代照合と、両者の
+ * `finally` の同一性判定は**防御で、観測できる差を作れなかった**
+ * （潰しても赤くならない。→ `docs/state-transitions/engine.md` の「埋まっていないセル」）。
  */
 const initializeEngine = vi.fn<() => Promise<void>>();
 const shutdownEngine = vi.fn<() => Promise<void>>();
@@ -119,13 +126,20 @@ describe("起動の門", () => {
     await view.setRuntime(runtime());
     await view.settle();
 
-    // 1本目の起動がようやく返る（もう誰の待ち相手でもない）。
+    // 1本目の起動がようやく返る。**1度目の畳みはこれを待っていた**ので、ここで
+    // その継続が目を覚ます。世代を見ていなければ、いま `ready` になったエンジンへ
+    // `shutdown_engine` を撃ち、`phase` を `idle` へ落として3本目を走らせる。
     releaseStart();
     await view.settle();
     await view.settle();
 
-    // **門が降りていれば、ここまでに起動し直している。**
-    expect(initializeEngine.mock.calls.length).toBeGreaterThan(1);
+    // **門が降りていれば、ここまでに起動し直している。数で締める**——
+    // `toBeGreaterThan(1)` だと、上の巻き添えで3本になった回も緑になる。
+    expect(initializeEngine).toHaveBeenCalledTimes(2);
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
+
+    // 追い越された畳みは IPC を撃たない。**撃つと、殺されるのはいま起きたエンジン**
+    // （Rust の `shutdown` は `engine_id` を無条件に take する）。
+    expect(shutdownEngine).toHaveBeenCalledTimes(1);
   });
 });

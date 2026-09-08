@@ -22,6 +22,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   const seqRef = useRef(0);
   const lastTriedRef = useRef<EngineRuntimeConfig | null>(null);
   const startingSeqRef = useRef<number | null>(null);
+  // **最新の設定を ref でも持つ。** `initialize` は `await` の向こうから呼ばれる回が
+  // あるので、クロージャの値だと古い設定で起こし直す（下の `initialize` の先頭）。
+  const desiredRuntimeRef = useRef(desiredRuntime);
+  desiredRuntimeRef.current = desiredRuntime;
 
   const isReady =
     state.phase === "ready" &&
@@ -57,7 +61,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
   // lifecycle
   const initialize = useCallback(async (): Promise<boolean> => {
-    if (!desiredRuntime) return false;
+    // **描画時の値ではなく、撃つ時点の値で起動する。** `restart()` は `shutdown()` を
+    // 待ってから呼ぶので、その間（現物では畳みの猶予ぶん）に利用者がもう一度保存すると、
+    // クロージャに焼き付いた設定＝**すでに捨てられた設定**で起こし直すことになる。
+    const desired = desiredRuntimeRef.current;
+    if (!desired) return false;
     // **門は ref。** `state.phase` は描画のクロージャの値なので、同じコミットで
     // setup が2回走る回（StrictMode）には `initialize_start` を撃った後でも
     // `"idle"` のまま見え、2本目が通る。いま2プロセスにならないのは
@@ -65,9 +73,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     //
     // **持つのは世代であって bool ではない。** 畳む側は飛んでいる起動を待ち切るとは
     // 限らない（`api/initializer.ts` の `shutdown` は `await` の前に `inFlight` を
-    // 空けるので、2本目は待たずに戻る）。bool だと、その回に降ろす者が居ないまま
-    // `phase` が `idle` へ落ち、**エンジンが二度と起動しない**——しかもそのときの理由は
-    // `starting`（戻る側）なので、解析は誰にも断たれずに回り続ける。
+    // 空けるので、2本目は待たずに戻る）。bool だと、その回に `phase` が `idle` へ
+    // 落ちてから先の `initialize` が全部弾かれる——**最後には降りる**が、降ろすのは
+    // 世代違いで `dispatch` せずに戻る1本なので `state` が動かず、
+    // **effect を起こし直す者がもう居ない**。そのときの理由は `starting`（戻る側）で、
+    // 解析は誰にも断たれずに回り続ける。
     if (startingSeqRef.current !== null) return false;
 
     const mySeq = ++seqRef.current;
@@ -75,14 +85,14 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
     const snap: EngineRuntimeConfig =
       typeof structuredClone === "function"
-        ? structuredClone(desiredRuntime)
-        : JSON.parse(JSON.stringify(desiredRuntime));
+        ? structuredClone(desired)
+        : JSON.parse(JSON.stringify(desired));
 
     lastTriedRef.current = snap;
     dispatch({ type: "initialize_start" });
 
     try {
-      const info = await engineInitializer.initialize(desiredRuntime);
+      const info = await engineInitializer.initialize(desired);
       if (seqRef.current !== mySeq) return false;
 
       dispatch({
@@ -105,17 +115,21 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       // 畳まれて世代が上がっていたら、門を握っているのはもう自分ではない。
       if (startingSeqRef.current === mySeq) startingSeqRef.current = null;
     }
-  }, [desiredRuntime]);
+  }, []);
 
   const shutdown = useCallback(async (): Promise<void> => {
-    seqRef.current++;
+    const mySeq = ++seqRef.current;
     // **世代を上げたら門も落とす。** ここを飛ばすと、飛んでいる起動が返らない限り
     // 次の `initialize` が撃てない（上の門の TSDoc）。
     startingSeqRef.current = null;
     try {
       await engineInitializer.shutdown();
     } finally {
-      dispatch({ type: "shutdown" });
+      // **`await` の向こうでも世代を見る。** 畳みは飛んでいる起動を待つ回があるので、
+      // 眠っている間に新しいエンジンが起き切ることがある。そこで無条件に `idle` を撃つと、
+      // **健全なエンジンを畳んだことにして**起こし直しが1回まるごと余分に走る。
+      // IPC の側を止めるのは `api/initializer.ts` の同じ世代の門で、ここだけでは足りない。
+      if (seqRef.current === mySeq) dispatch({ type: "shutdown" });
     }
   }, []);
 
@@ -140,8 +154,9 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     // error でも「別設定なら」再トライする（同一設定なら止める）。
     // **上で計算した値をそのまま読む**——ここで呼び直すと、理由を決めた描画とこの effect が
     // 別の `lastTriedRef` を見て、起動し直しているのに解析側が終端と読む窓ができる。
-    // （依存にも載っているが、いまは `state.phase` と同じ回にしか動かないので導出可能。
-    // 外しても赤くなるテストは無い。）
+    // （この値は `desiredRuntime` と `lastTriedRef` から決まり、`lastTriedRef` が動く回は
+    // 必ず `initialize_start` が同じ回に飛ぶので、依存としては導出可能。
+    // それでも並べてあるのは `react-hooks/exhaustive-deps` が error だから。）
     if (state.phase === "error") {
       if (willRetryAfterError) initialize().catch(() => {});
       return;
