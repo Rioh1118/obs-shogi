@@ -73,11 +73,16 @@ export default function BasicSection(props: {
               AI_ROOT を選択…
             </Button>
 
+            {/* **走査中も押せるままにする。** 帯（`EngineFilesSection`）の再スキャンは
+                `engines` が無い／フォルダでない回にしか描かれないので、正常な構成や
+                初回の走査中は**この1つが画面で唯一の再試行の口**になる。走査が返らない
+                環境（応答しないボリューム）でここを塞ぐと、閉じて開き直す以外に出口が無く、
+                編集中の下書きが消える。二重に出た分は effect の cleanup が畳む */}
             <Button
               size="sm"
               onClick={rescan}
-              disabled={!aiRootReady || indexStatus === "loading"}
-              isLoading={indexStatus === "loading"}
+              disabled={!aiRootReady}
+              busy={indexStatus === "loading"}
             >
               再スキャン
             </Button>

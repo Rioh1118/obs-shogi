@@ -92,7 +92,10 @@ function AnalysisPaneHeader() {
   };
 
   const handleOpenSettings = () => {
-    openModal("settings", { tab: "general" });
+    // 解析の断りが案内する復帰操作（プリセットのオプションを変えて保存し、起こし直す）は
+    // このタブにしか無い。**綴りを間違えると既定のタブへ黙って落ちる**ので、
+    // `src/__tests__/settingsTabNames.test.ts` が実在を見る。
+    openModal("settings", { tab: "engine" });
   };
 
   const handlePositionSearch = () => {

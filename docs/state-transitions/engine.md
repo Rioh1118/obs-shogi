@@ -135,7 +135,7 @@ issue #120 と同型の行き止まり
 `starting` がいつか `ready` か `failed` へ動くことを、**フロント側だけでは保証しない。**
 根拠は Rust 側の上限（→ [analysis.md](analysis.md) の不変条件2）と、
 **起動の門が世代ごとに必ず降りること**（→ 下の「埋まっていないセル」の
-`startGate.test.tsx`）。**実プロセスでは未確認**（→ F-39）——出典と同じ強さで読むこと。
+`startGate.test.tsx`）。**実プロセスでは未確認**（→ F-40）——出典と同じ強さで読むこと。
 
 **`failed` と `starting` を割る述語は `retriesAfterError`**、`phase` から理由を決めるのは
 `reasonForPhase`（どちらも `lib/notReadyReason.ts`）。**述語を呼ぶのは描画時の1箇所だけ**で、

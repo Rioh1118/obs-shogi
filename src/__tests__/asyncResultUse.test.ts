@@ -16,8 +16,17 @@ import { codeOf } from "./sourceText";
  * フォルダを作れなかったのに「中身が未検出です」と出れば、
  * 利用者は「まだ置いていないだけ」と読む。
  *
- * 構文解析はしない。**式文としての `await f(...)`**（結果を代入も分岐もしない形）
- * だけを見る。`if (!res.success)` を書かせるところまでは見ない。
+ * 構文解析はしない。**行頭から始まる式文の呼び出し**（`f(...)` / `await f(...)` /
+ * `void f(...)`。結果を代入も分岐もしない形）だけを見る。`if (!res.success)` を
+ * 書かせるところまでは見ない。
+ *
+ * **行頭に来ない呼び出しは見ていない**——1行のコールバック（`setTimeout(() => void f(...), 0)`）、
+ * `if (ok) void f(...)`、代入。広げると `jobs.push(f())` のような正当な形が落ちるので、
+ * ここで線を引いている。**その先は人が見る。**
+ *
+ * **引数か戻り値に `{` を含む宣言は、名前を拾えない**（分割代入・インラインの
+ * オブジェクト型）。名前が集合に入らなければ、その関数の投げっぱなしの呼び出しは
+ * 1つも拾われない。**その形で書くなら型に名前を付けること。**
  *
  * 読まないのが正しい呼び出しもある（呼び先が自分で `state.error` に積む場合）。
  * その1行に `// async-result-ignored: <理由>` を付けると外れる。
@@ -75,6 +84,14 @@ describe("読まねばならない戻り値", () => {
       names.size,
       `戻り値を読むべき関数を ${names.size} 件しか拾えていない。名前の集め方が壊れている`,
     ).toBeGreaterThanOrEqual(20);
+
+    // **枝ごとに1本ずつ名指す。** 集計だけだと、片方の枝を丸ごと落としても数が
+    // ほとんど動かない——`AsyncResult` 側が数を支配しているので、`SeatTakeResult` の枝を
+    // 消しても 32 → 31 にしかならず下限に当たらない（実測）。
+    expect(names, "`AsyncResult<` の枝が `MUST_READ` から落ちている").toContain("loadFileTree");
+    expect(names, "`Promise<SeatTakeResult>` の枝が `MUST_READ` から落ちている").toContain(
+      "takeSeatAndGo",
+    );
 
     const pattern = bareCallOf(names);
     const offenders: string[] = [];

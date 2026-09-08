@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { readdirSync } from "node:fs";
-import { REPO_ROOT, RUST_CHECKS_DIR, SRC, tsFiles } from "./walk";
+import { REPO_ROOT, SRC, tsFiles } from "./walk";
+import { checkName, existingChecks, rustChecks } from "./checkNames";
 
 /**
  * `CONTRIBUTING.md` の「機械で止めているもの」の表と、実在する検査を突き合わせる。
@@ -33,39 +33,26 @@ function listedChecks(): string[] {
   return [...section![1].matchAll(ROW)].map((m) => m[1]).sort();
 }
 
-/** `src/` 側の検査。ファイル名から拡張子（と `.ratchet`）を落としたものを名前とする */
-function existingChecks(): Set<string> {
-  const names = tsFiles(SRC, { includeTests: true })
-    .map((p) => relative(REPO_ROOT, p))
-    .filter((p) => p.endsWith(".test.ts") || p.endsWith(".test.tsx"))
-    .map((p) => checkName(p));
-
-  return new Set(names);
-}
-
-/** ファイルのパスから、表の1列目と突き合わせる名前を取る */
-function checkName(path: string): string {
-  return path
-    .split("/")
-    .pop()!
-    .replace(/(\.ratchet)?\.test\.tsx?$/, "");
-}
-
 /**
  * 索引に載せる義務が掛かるファイル。**置き場ではなく綴りで決める。**
  *
  * リポジトリ横断の検査は `src/__tests__/` に置くと決めてある（`vite.config.ts`）が、
  * **1ファイルの内部の形しか見ない走査**はスライス側に置く。置き場で見分けると、
  * スライスへ移した検査がその瞬間に索引の義務から外れる。
- * スライスに置くものは `*.ratchet.test.ts` と名乗ること。
+ * スライスに置くものは `*.ratchet.test.ts` / `.tsx` と名乗ること。
+ *
+ * **拡張子は `checkName` と同じ集合で見ること。** 片方だけ `.ts` に閉じると、
+ * `.tsx` と名乗ったラチェットが索引の義務から丸ごと外れる——置き場の
+ * `entities/analysis/model/__tests__/` は `.tsx` が多数派なので、周りに
+ * 合わせた人がそのまま踏む。
  */
+const hasIndexDuty = (p: string): boolean =>
+  (p.startsWith("src/__tests__/") && /\.test\.tsx?$/.test(p)) || /\.ratchet\.test\.tsx?$/.test(p);
+
 function ratchetFiles(): string[] {
   return tsFiles(SRC, { includeTests: true })
     .map((p) => relative(REPO_ROOT, p))
-    .filter(
-      (p) =>
-        (p.startsWith("src/__tests__/") && p.endsWith(".test.ts")) || p.endsWith(".ratchet.test.ts"),
-    );
+    .filter(hasIndexDuty);
 }
 
 /**
@@ -94,27 +81,6 @@ const RUST_CHECKS = new Set([
   "timeout_marker",
   "timeout_result",
 ]);
-
-/**
- * `src-tauri/tests` にある Rust の検査の名前。
- *
- * **サブディレクトリも歩く。** 共有ヘルパの既定の置き場（`tests/scanning/`）に
- * 置いた検査が、`isFile()` で止めると丸ごと索引の死角に落ちる——
- * 「両方に載っていないと落ちる」と表と `RUST_CHECKS` の両方が書いているのに、
- * サブディレクトリでは何も落ちない状態になる。
- *
- * `mod.rs` はディレクトリの名前で採る（`scanning/mod.rs` → `scanning`）。
- */
-function rustChecks(): string[] {
-  const walk = (dir: string, name: string): string[] =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      if (entry.isDirectory()) return walk(join(dir, entry.name), entry.name);
-      if (!entry.name.endsWith(".rs")) return [];
-      return [entry.name === "mod.rs" ? name : entry.name.replace(/\.rs$/, "")];
-    });
-
-  return [...new Set(walk(RUST_CHECKS_DIR, "tests"))].sort();
-}
 
 /**
  * ラチェットではなく、**ラチェットが使う走査器の単体テスト**。表には載せない。
@@ -165,9 +131,24 @@ describe("CONTRIBUTING.md の検査の索引", () => {
 
     expect(found.length).toBeGreaterThan(10);
     expect(
-      found.filter((p) => p.endsWith(".ratchet.test.ts")).length,
+      found.filter((p) => /\.ratchet\.test\.tsx?$/.test(p)).length,
       "スライス側のラチェットを1本も拾えていない",
     ).toBeGreaterThan(0);
+  });
+
+  // 拾う側（`hasIndexDuty`）と名前を採る側（`checkName`）で拡張子の集合が割れると、
+  // 片方の綴りだけが義務から外れる。**両方に同じ道を通す。**
+  test("スライス側のラチェットは .ts と .tsx の両方が義務に入る", () => {
+    for (const p of [
+      "src/entities/x/__tests__/probe.ratchet.test.ts",
+      "src/entities/x/__tests__/probe.ratchet.test.tsx",
+    ]) {
+      expect(hasIndexDuty(p), p).toBe(true);
+      expect(checkName(p), p).toBe("probe");
+    }
+
+    // ラチェットを名乗らない隣人は巻き込まない
+    expect(hasIndexDuty("src/entities/x/__tests__/probe.test.tsx")).toBe(false);
   });
 
   test("ラチェットは表に載っている", () => {

@@ -6,6 +6,8 @@ import {
   type AnalysisSessionId,
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
+import { useResultFlush } from "./useResultFlush";
+import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";
 import {
   useEngine,
@@ -30,22 +32,6 @@ import {
   STOP_FAILED_MESSAGE,
 } from "./refusals";
 
-/**
- * 同期が追いつくのを見に行く間隔。**1フレームぶん**（打ち切りの上限に対して十分細かい）。
- */
-const SYNC_POLL_MS = 16;
-
-/** 結果を画面へ反映する間引き。**80ms ごとに1回**（`info` は数十 ms 間隔で届く） */
-const RESULT_FLUSH_MS = 80;
-
-/** 盤が動いてから再開を始めるまでの猶予。連打を1本に畳む */
-const RESTART_DEBOUNCE_MS = 100;
-
-// エンジンが position を受け付けるまで待つ上限。これを超えたら送信できていないと
-// 見なし、盤面と一致しない候補手を出さないために解析を始めない。
-// 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
-const POSITION_SYNC_TIMEOUT_MS = 2000;
-
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
 //
 // `abort` を取るのは、待っている理由が消えたときに回り続けないため。
@@ -55,7 +41,7 @@ const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => b
   while (!cond()) {
     if (abort?.()) return false;
     if (Date.now() - start > timeoutMs) return false;
-    await new Promise((r) => setTimeout(r, SYNC_POLL_MS));
+    await new Promise((r) => setTimeout(r, waits().syncPollMs));
   }
   return true;
 };
@@ -111,58 +97,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const currentSfenRef = useRef<string | null>(currentSfen);
   const analyzingRef = useRef(state.isAnalyzing);
 
-  const latestResultRef = useRef<AnalysisResult | null>(null);
-  const flushTimerRef = useRef<number | null>(null);
-
-  const clearFlushTimer = useCallback(() => {
-    if (flushTimerRef.current != null) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-  }, []);
-
-  const flushLatest = useCallback(() => {
-    // 解析中じゃないならUI更新しない（stop直後の無駄更新防止）
-    if (!analyzingRef.current) return;
-
-    const r = latestResultRef.current;
-    if (!r) return;
-
-    dispatch({ type: "update_result", payload: r });
-  }, []);
-
-  /**
-   * 反映待ちの下書きを捨てる。**`latestResultRef` と間引きのタイマーで1組**なので、
-   * 片方だけ落とすと、捨てたはずの結果が次のタイマーで画面に出る。
-   */
-  const dropPendingResult = useCallback(() => {
-    clearFlushTimer();
-    latestResultRef.current = null;
-  }, [clearFlushTimer]);
-
-  /**
-   * 画面に出ている候補手を捨てる。**`go` を出す前に、開始する口が必ず通る。**
-   *
-   * 通さないと `start_analysis` が `analyzedSfen` だけを差し替えるので
-   * （`reducer.ts`）、**前の局面の評価値と読み筋が、新しい局面の解析結果として出る**
-   * ——新しい席の最初の `info` が届くまで。`AnalysisPane` はその間に
-   * 現在の局面の鍵でキャッシュへ焼き付けるので、停止中に戻るたび出続ける。
-   *
-   * **`clear_results` は `error` も消す**（`reducer.ts`）ので、
-   * 要らなくなった要求が通らない位置——世代の門の後ろ——で呼ぶこと。
-   */
-  const discardShownResults = useCallback(() => {
-    dropPendingResult();
-    dispatch({ type: "clear_results" });
-  }, [dropPendingResult]);
-
-  const scheduleFlush = useCallback(() => {
-    if (flushTimerRef.current != null) return;
-    flushTimerRef.current = window.setTimeout(() => {
-      flushTimerRef.current = null;
-      flushLatest();
-    }, RESULT_FLUSH_MS);
-  }, [flushLatest]);
+  // 届いた結果の間引き。**反映待ちとタイマーの組はこのフックの中だけ。**
+  const results = useResultFlush(dispatch, analyzingRef, seat.isHeld);
 
   const safeUnlisten = useCallback(() => {
     const fn = unlistenRef.current;
@@ -227,6 +163,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const unmountedRef = useRef(false);
 
   /**
+   * 再開のタイマーが張られているか。**欄を読む綴りをここ1つにする。**
+   *
+   * 発火した時点で `scheduleRestart` が欄を空けるので、ここが true を返すのは
+   * まだ起きていないタイマーが在るときだけ。空け忘れると、この門は**もう発火した id**
+   * を見て降りる——盤が追いついても再開が張られない。
+   */
+  const isRestartScheduled = useCallback(() => debounceTimerRef.current !== null, []);
+
+  /**
    * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための門。**
    *
    * 予約は `swapSeatAndGo` の `finally` が拾う。**門を2箇所に書き下ろさない**
@@ -267,6 +212,32 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [clearDebounceTimer]);
 
   /**
+   * 握れなかった席の**反映待ち**を捨てる。**席の門と2枚で守る。**
+   *
+   * 主の保証は `commitLatest` の席の門（`useResultFlush`）——枠を落とすだけだと、
+   * 落とす前にタイマーが起きた回を守れない。ここが落とすのは、次に席を握るまで
+   * 枠に残る**古い1本**と、下の窓（席の門が開いてしまう回）。
+   *
+   * **無条件に落とす。** 呼び手は握れなかった回だけで、そこへ来る道はどれも
+   * 先に席を返し終えている（返せなければ `takeSeatAndGo` へ入らない）。
+   * 握った回は**ここを通らず** `results.schedule()` が出し直すので、
+   * 席が欄に入る前に届いた1本を消す心配も要らない。
+   *
+   * **席を見て降りる形にしない。** 捨てる停止が落ちると `shoot` の catch
+   * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
+   * 反映待ちを残す**——その後は `commitLatest` の席の門も開くので、捨てた席の読み筋が
+   * そこから出る。書き戻しは `await stopAnalysisCore` の向こうなので必ずここより後だが、
+   * 席を返さずに呼ぶ口を足せば順序は変わる。
+   * 守っているのは `provider.test.tsx` の
+   * 「捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない」。
+   *
+   * **`clear_results` は撃たない**——`error` も消すので、直前に立った断りが黙って消える。
+   */
+  const dropPendingForLostSeat = useCallback(() => {
+    results.dropPending();
+  }, [results]);
+
+  /**
    * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
    *
    * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
@@ -283,57 +254,43 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 要求がここへ入ると直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
-    async (seq: number, sfen: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
-      discardShownResults();
+    async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
+      results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
       const take = seat.beginTake(discardBy);
 
-      let sessionId: AnalysisSessionId;
+      // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
+      // 後始末が割れると、片方だけが反映待ちを落とし忘れる（この関数は現にその形で
+      // 1度落とした）。**`landed` を先に決めてから、握れなかった側をまとめて畳む。**
+      let landed: SeatTakeResult;
       try {
-        sessionId = await startInfiniteAnalysisCore();
+        const sessionId = await startInfiniteAnalysisCore();
+        landed = take.landed(sessionId, () => supersededSince(seq));
       } catch (e) {
         // **断られた回も同じ窓に居る。** 畳んでいる最中のエンジンへの開始は Rust が
         // `Err` で返すので（`bridge.rs`）、起こし直しの窓は席が返るより断られるほうが
         // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
         // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
-        // 席は取れていないので捨てるものも無い。
-        if (take.engineChanged()) return "engine-gone";
-        throw e;
+        if (!take.engineChanged()) throw e;
+        landed = "engine-gone";
       }
 
-      const landed = take.landed(sessionId, () => supersededSince(seq));
-
       if (landed !== "held") {
-        // **席と一緒に、その席の反映待ちも捨てる。** 席を捨てる側が落とすのは
-        // これ以降の `info` だけで、席が欄に入る前に届いて `latestResultRef` に
-        // 入った1本と、それが張ったタイマーには触らない。この経路は
-        // `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される
-        // ——**別の局面の評価値と読み筋が、いまの局面の解析結果として画面に出る**
-        // （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
-        //
-        // **落とすのは席を握っていないときだけ。** 握っている回に落とすと、
-        // 開始が出し直す最初の `info`（席が欄に入る前に届いた1本）まで消える。
-        // 逆に、その1本が捨てた席のものである窓は残る——`accepts` は欄が空の間は
-        // どの席の `info` も通すため。**どちらを取るかで前者を選んでいる。**
-        // `clear_results` は撃たない——`error` も消すので、直前に立った断りが黙って消える。
-        if (!seat.isHeld()) dropPendingResult();
+        dropPendingForLostSeat();
         return landed;
       }
 
-      dispatch({ type: "start_analysis", payload: { sfen } });
+      dispatch({ type: "start_analysis", payload: { sfen: want } });
 
-      // **開始の応答より早く届いた `info` を、ここで出し直す。** 席が欄に入る前に
-      // 来た1本は `latestResultRef` に入るが、`flushLatest` は `isAnalyzing` を見るので
-      // （`analyzingRef`）、そのタイマーが `start_analysis` の commit より先に起きると
-      // 黙って捨てられ、タイマーの欄も空に戻っている——張り直す者が居ない。
-      // 探索が深いほど次の `info` までは伸びるので、**「解析中」のまま空のペインが残る**。
-      scheduleFlush();
+      // **開始の応答より早く届いた `info` を、ここで出し直す**（理由は
+      // `ResultFlush.schedule` の doc）。
+      results.schedule();
 
-      sentSfenRef.current = sfen;
+      sentSfenRef.current = want;
       return "held";
     },
-    [discardShownResults, dropPendingResult, scheduleFlush, seat, supersededSince],
+    [results, dropPendingForLostSeat, seat, supersededSince],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
@@ -371,8 +328,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           onUpdate: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
             // **自分の席のものだけ採る**（判定と理由は `EngineSeat.accepts`）。
             if (!seat.accepts(sessionId)) return;
-            latestResultRef.current = result;
-            scheduleFlush();
+            results.receive(result);
           },
           // **この通知は現物では届かない。** `analysis-complete` を emit する行が
           // Rust に無い（`docs/state-transitions/analysis.md` の E8 / ※6）。
@@ -388,9 +344,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             // 一致しない側に倒したときの損は、畳んだときに席を指さない停止が1本出るだけ。
             seat.closeFinished(sessionId);
 
-            latestResultRef.current = result;
-            clearFlushTimer();
-            flushLatest();
+            results.flushNow(result);
             dispatch({ type: "stop_analysis" });
           },
           // **この通知も届かない**（`engine-error` を emit する行が無い。`docs/state-transitions/analysis.md` の E9 / ※6）。
@@ -431,10 +385,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     return () => {
       alive = false;
-      clearFlushTimer();
+      results.dropPending();
       safeUnlisten();
     };
-  }, [safeUnlisten, scheduleFlush, clearFlushTimer, flushLatest, seat]);
+  }, [safeUnlisten, results, seat]);
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
 
@@ -442,14 +396,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
   const scheduleRestart = useCallback((seq: number, delayMs: number) => {
     if (unmountedRef.current) return;
+
+    // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
+    // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
+    // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
+    // `take_session` に断られる（利用者はボタンを1つも押していない）。
+    clearDebounceTimer();
+
     debounceTimerRef.current = window.setTimeout(() => {
       // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
-      // （同期の追従）が、もう発火した id を見て降りる。`scheduleFlush` と
-      // `clearFlushTimer` の組が同じ形をしている。
+      // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
+      // 間引きのタイマーが同じ形をしている。
       debounceTimerRef.current = null;
       runRestartRef.current(seq);
     }, delayMs);
-  }, []);
+  }, [clearDebounceTimer]);
 
   /**
    * エンジンが望みの局面に追いつくのを、刻みながら待つ。**追いつかなければ打ち切る。**
@@ -460,7 +421,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * **経過時間は待つ相手（`seq` と局面）ごと持つ。** 時刻だけを持つと、前回の待ちの
    * 経過を引き継いで、次の待ちを1ミリ秒も待たずに打ち切る。
    *
-   * **上限と刻みは定数を共有している**（`POSITION_SYNC_TIMEOUT_MS` / `SYNC_POLL_MS`）
+   * **上限と刻みは `waits()` を共有している**
    * ので、値を変えれば両方に効く。**二重化しているのは待ちの形のほう**——手動の ▶ は
    * `sendAndAwaitSync` が `waitUntil` で待って断りを立てて投げ、こちらはタイマーを
    * 張り直して打ち切りで席を返す。**打ち切りの条件を変えるときは両方を見ること。**
@@ -472,7 +433,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         prev && prev.seq === seq && prev.want === want ? prev.startedAt : Date.now();
       syncWaitRef.current = { seq, want, startedAt };
 
-      if (Date.now() - startedAt > POSITION_SYNC_TIMEOUT_MS) {
+      if (Date.now() - startedAt > waits().positionSyncTimeoutMs) {
         syncWaitRef.current = null;
         clearDebounceTimer();
 
@@ -485,8 +446,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         return;
       }
 
-      clearDebounceTimer();
-      scheduleRestart(seq, SYNC_POLL_MS);
+      scheduleRestart(seq, waits().syncPollMs);
     },
     [clearDebounceTimer, scheduleRestart, seat],
   );
@@ -536,15 +496,19 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         if (pendingAfterRef.current) {
           pendingAfterRef.current = false;
           const latestSeq = restartSeqRef.current;
-          clearDebounceTimer();
           scheduleRestart(latestSeq, 0);
         }
       }
     },
-    [clearDebounceTimer, scheduleRestart, seat, supersededSince, takeSeatAndGo],
+    [scheduleRestart, seat, supersededSince, takeSeatAndGo],
   );
 
   // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
+  //
+  // **描画のたびに差し替える。** タイマーが運ぶのは `seq` だけなので、最新の
+  // `syncedSfen` / `isReady` を運ぶのはこの再代入だけ。`useCallback` に包むと、
+  // 依存を書いた時点で本体が**その描画の値で凍り**、盤が追いついても再開が動かない。
+  // effect の中へ移すと commit 後の1描画ぶん遅れる。
   //
   // 門を並べて、追いつくのを待つか（`keepWaitingForSync`）、席を取り直すか
   // （`swapSeatAndGo`）を選ぶだけ。
@@ -590,10 +554,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **盤と読んでいる局面が食い違ったことに誰も気づかない**。
     if (state.analyzedSfen === currentSfen) return;
 
-    clearDebounceTimer();
     const seq = ++restartSeqRef.current;
 
-    scheduleRestart(seq, RESTART_DEBOUNCE_MS);
+    scheduleRestart(seq, waits().restartDebounceMs);
 
     return () => {
       clearDebounceTimer();
@@ -648,11 +611,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const cutRunningAnalysis = useCallback(
     (refusal: string) => {
       supersedeRequests();
-      discardShownResults();
+      results.discardShown();
       dispatch({ type: "set_error", payload: refusal });
       dispatch({ type: "stop_analysis" });
     },
-    [discardShownResults, supersedeRequests],
+    [results, supersedeRequests],
   );
 
   // **戻ってこない回は、そこで断つ。** 置いておくと「解析中」の丸とタイマーが回り続ける。
@@ -688,10 +651,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 張り直す者が居ない。盤を動かすまで「解析中」の表示のまま数字が動かない。
     if (bookIfRestarting()) return;
 
-    if (!debounceTimerRef.current) {
-      scheduleRestart(restartSeqRef.current, 0);
-    }
-  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting]);
+    if (isRestartScheduled()) return;
+
+    scheduleRestart(restartSeqRef.current, 0);
+  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting, isRestartScheduled]);
 
   // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
   // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
@@ -726,7 +689,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
   /**
-   * 断りを立てて投げる。**▶ の失敗はどの段もここを通る**——立て方を段ごとに選ばせない。
+   * 断りを立てて投げる。**断りを立てる回はどの段もここを通る**——立て方を段ごとに選ばせない。
+   *
+   * **断りを立てない `throw` が1つだけ在る**（読む局面が無い回。理由は
+   * `refuseIfCannotStart` の中）。`AnalysisContextType` がその1つを契約に書いている。
    */
   const failStart = useCallback((message: string, e: unknown): never => {
     dispatch({ type: "set_error", payload: message });
@@ -786,7 +752,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
       const synced = await waitUntil(
         () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
-        POSITION_SYNC_TIMEOUT_MS,
+        waits().positionSyncTimeoutMs,
         () => supersededSince(seq) || !readinessRef.current.isReady,
       );
       if (!synced) {
@@ -854,11 +820,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * ▶ の本体。段を並べるだけ——飛んでいる自動再開を待つ、握っている席を返す、
-   * 局面を送って追いつくのを待つ、席を取って `go` を出す。
+   * ▶ の本体。**降りる段を3つ並べ**（飛んでいる自動再開を待つ／握っている席を返す／
+   * 局面を送って追いつくのを待つ）、そのあと席を取って `go` を出す。
    *
-   * **どの段も、要らなくなっていたら `false` を返して降りる。** 断りを立てるかどうかは
+   * **3つの段は、要らなくなっていたら `false` を返して降りる。** 断りを立てるかどうかは
    * 段の側が決める（立てる段は `failStart` で投げる）。
+   *
+   * **席を取る段だけは3値を返す**（`SeatTakeResult`）。エンジンが消えた回と利用者が
+   * 降りた回で出す物が違うので、**書き分けはここ**——段の中に押し込むと、断りの立て方が
+   * 2通りになる。
    *
    * `seq` は押した時点の世代。**返却より前に読む**——`releaseHeld` は本物の往復を
    * 挟むので、その間に世代が上がる（棋譜を閉じた回）と、後で読むと上がった後の値を
@@ -877,8 +847,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!(await sendAndAwaitSync(seq))) return;
 
     // 待ち切った局面で始める。押した瞬間の局面とは違うことがある。
-    const started = currentSfenRef.current;
-    if (!started) return;
+    const want = currentSfenRef.current;
+    if (!want) return;
 
     // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
     // 席が返ってから `landed` が握るか捨てるかを決めるまでの微小タスクが1つ増える
@@ -886,7 +856,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 畳まれた後に席を返す側が間に合わなくなる。
     let landed: SeatTakeResult = "superseded";
     try {
-      landed = await takeSeatAndGo(seq, started, "late-start");
+      landed = await takeSeatAndGo(seq, want, "late-start");
     } catch (e) {
       // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
@@ -897,12 +867,20 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // ——停止中はペインが控えを出すので**押す前と1ドットも変わらない画面**が残る。
     // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
     // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
+    //
+    // **まだ戻っていない回は、その理由で断る**（`sendAndAwaitSync` と同じ判断）。
+    // 「もう一度 ▶」と案内した先で起動待ちの断りが出ると、案内が1回空振りする。
     if (landed === "engine-gone" && !supersededSince(seq)) {
-      failStart(ENGINE_RESTARTED_MESSAGE, new Error("engine was restarted while taking a seat"));
+      const engine = readinessRef.current;
+      const refusal = engine.isReady
+        ? ENGINE_RESTARTED_MESSAGE
+        : ON_START_REFUSALS[engine.notReadyReason];
+
+      failStart(refusal, new Error("engine was restarted while taking a seat"));
     }
     if (landed !== "held") return;
 
-    desiredSfenRef.current = started;
+    desiredSfenRef.current = want;
   }, [
     state.isAnalyzing,
     refuseIfCannotStart,
@@ -915,7 +893,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   ]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
-  // 局面を送って席が返った後（最大2秒）で、その間ボタンは ▶ のまま押せる。
+  // 局面を送って席が返った後（上限は `positionSyncTimeoutMs`）で、その間ボタンは
+  // ▶ のまま押せる。
   // 2本目は Rust の `take_session` に断られ、その断りは `console.error` で終わる
   // ——利用者には何も出ない。
   //
@@ -952,9 +931,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       throw e;
     } finally {
       dispatch({ type: "stop_analysis" });
-      dropPendingResult();
+      results.dropPending();
     }
-  }, [dropPendingResult, seat, supersedeRequests]);
+  }, [results, seat, supersedeRequests]);
 
   const value = useMemo<AnalysisContextType>(
     () => ({

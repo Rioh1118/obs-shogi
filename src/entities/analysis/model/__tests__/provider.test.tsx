@@ -5,6 +5,7 @@ import { StrictMode, useEffect } from "react";
 
 import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
+import { shortenWaits, waits } from "../waits";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 import type { AnalysisResult, EngineReadiness } from "@/entities/engine";
 import {
@@ -71,17 +72,22 @@ const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"]
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
 /**
- * **同期待ちの上限（2秒）を実時間でまたぐテストだけ**に付ける持ち時間。
+ * **上限を跨ぐテストだけ**に付ける持ち時間。
  *
- * 既定の5秒では足りない。またぐ回は最短でも 2.4 秒、いちばん長い回は 4.2 秒
- * 進めるので、実行機が混んでいると（Rust のビルドと並走した回で実際に）取りこぼす。
- * ミリ秒しか進めないテストには付けない——付けると、
- * 本当に止まったテストが 20 秒待たされる。
+ * 寸法は `shortenWaits` で縮めてあるが（下の `beforeEach`）、それでも1本あたり数百ミリ秒を
+ * 実時間で進める。既定の5秒でも足りるはずだが、並走する機械でも取りこぼさない幅を残す。
+ * ミリ秒しか進めないテストには付けない——付けると、本当に止まったテストが長く待たされる。
  */
 const SLOW = 20_000;
 
-/** provider が持つ同期待ちの上限。**この待ちを短く抜けることを見る**テストが使う */
-const POSITION_SYNC_TIMEOUT_MS = 2000;
+/**
+ * 縮めた寸法（`shortenWaits`）。**数字も比も写さない**——写すと片方だけ動かせる。
+ *
+ * 散文に「上限は2秒」「間引きは 80ms」と書かないこと。このファイルは `beforeEach` で
+ * 寸法を縮めるので、**現物の値はどれも当たらない**。
+ */
+const limitMs = () => waits().positionSyncTimeoutMs;
+const flushMs = () => waits().resultFlushMs;
 
 function mountAnalysis(initial: PositionSyncAdapter, { strict = false } = {}) {
   const seen: AnalysisContextType[] = [];
@@ -128,6 +134,19 @@ const adapter = (currentSfen: string | null, syncedSfen: string | null): Positio
   syncPosition,
 });
 
+/**
+ * **上限を実時計で待たない。** 現物の `positionSyncTimeoutMs` を跨ぐ待ち方をすると、並走する機械では
+ * コードを触っていないコミットがランダムに落ちる。寸法は4つとも**同じ比**で縮むので、
+ * 大小の順序（刻み < 間引き < 猶予 < 上限）は現物と同じ。比は `waits.ts` が持つ。
+ */
+let restoreWaits: () => void = () => {};
+beforeEach(() => {
+  restoreWaits = shortenWaits();
+});
+afterEach(() => {
+  restoreWaits();
+});
+
 beforeEach(() => {
   tauri = false;
   listeners = null;
@@ -144,7 +163,7 @@ beforeEach(() => {
 // **畳まないまま次のテストへ渡さない。** 自動 cleanup は入っていない
 // （`vite.config.ts` の test に setup ファイルが無い）ので、`unmount()` を
 // 呼ばずに終わったテストの画面は生きたまま残る。残ると同期待ちの打ち切りが
-// 2秒後に停止を撃ち、**それが後のテストの中に落ちる**——「畳んだ後は撃たない」
+// 上限の後に停止を撃ち、**それが後のテストの中に落ちる**——「畳んだ後は撃たない」
 // を見ている検査が、他のテストの置き土産で赤くなる。
 afterEach(cleanup);
 
@@ -163,7 +182,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
       await view.setSync(adapter("P2", "P1"));
       stopCore.mockClear();
 
-      await advance(2400);
+      await advance(700);
 
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
       expect(view.current.state.isAnalyzing).toBe(false);
@@ -195,7 +214,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
       // もう1手進み、エンジンが追いつかないまま打ち切られる。
       await view.setSync(adapter("P3", "P2"));
-      await advance(2400);
+      await advance(700);
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
@@ -215,13 +234,15 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
       // 追従しないまま待たせ、打ち切りの手前で止める
       await view.setSync(adapter("P2", "P1"));
-      await advance(1500);
+      await advance(limitMs() * 0.3);
       await act(async () => {
         await view.current.stopAnalysis();
       });
 
-      // 打ち切りの上限を越える時間を空けてから、あらためて解析する
-      await advance(2400);
+      // **この空白がこのテストの検出源。** 停止中に上限を越える時間が経つので、
+      // 前回の待ちの開始時刻を持ち越すと、次の待ちは1ミリ秒も待たずに打ち切られる。
+      // **縮めると検査でなくなる**——縮めても下の2つだけでは上限に届かない。
+      await advance(limitMs() * 1.4);
       await view.setSync(adapter("P2", "P2"));
       await act(async () => {
         await view.current.startInfiniteAnalysis();
@@ -230,7 +251,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
       // 1手進める。ここで待ちが始まるので、経過時間はゼロから数え直されなければならない。
       await view.setSync(adapter("P3", "P2"));
-      await advance(300);
+      await advance(limitMs() * 0.12);
 
       expect(view.current.state.error).toBeNull();
       expect(view.current.state.isAnalyzing).toBe(true);
@@ -315,9 +336,9 @@ describe("AnalysisProvider の停止", () => {
       await advance(150);
       expect(pendingStops).toHaveLength(1);
 
-      // もう1手進むが、エンジンは追いつかない。同期待ちが2秒で打ち切られる。
+      // もう1手進むが、エンジンは追いつかない。同期待ちが上限で打ち切られる。
       await view.setSync(adapter("P3", "P2"));
-      await advance(2400);
+      await advance(700);
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
@@ -495,7 +516,8 @@ describe("AnalysisProvider の結果の照合", () => {
 
       // **黙らない。** 押した人はまだ画面の前に居る。断りが無いと、停止中の
       // ペインが控えを出すので**押す前と1ドットも変わらない**。
-      expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+      // まだ戻っていないので、案内は起動待ちのほう（押し直しても効かない）。
+      expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
 
       // 戻ってきたら ▶ で始められる。
       engine = { isReady: true, notReadyReason: null };
@@ -523,9 +545,9 @@ describe("AnalysisProvider の結果の照合", () => {
     const elapsed = Date.now() - startedAt;
     await advance(50);
 
-    // **上限（2秒）まで待たせない。** 待っても追いつかないし、待った末に告げる理由
+    // **上限まで待たせない。** 待っても追いつかないし、待った末に告げる理由
     // （同期が遅い＝押し直し）はここでは効かない。
-    expect(elapsed).toBeLessThan(POSITION_SYNC_TIMEOUT_MS);
+    expect(elapsed).toBeLessThan(limitMs() / 2);
     expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
     expect(startCore).not.toHaveBeenCalled();
   });
@@ -680,7 +702,8 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(50);
 
     // **「起こし直してください」と言わない**——利用者がいま済ませた操作。
-    expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+    // まだ戻っていないので起動待ちの案内になる。
+    expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
     expect(view.current.state.error).not.toBe(START_REFUSED_MESSAGE);
   });
 
@@ -809,6 +832,36 @@ describe("AnalysisProvider の結果の照合", () => {
     },
     SLOW,
   );
+  it("席が着く前にエンジンが戻っていたら、押し直しを案内する", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    // 落ちて、席が着く前に戻る。
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P1", null));
+    await advance(50);
+    engine = { isReady: true, notReadyReason: null };
+    await view.setSync(adapter("P1", "P1"));
+    await advance(50);
+
+    await act(async () => {
+      releaseStart("dead");
+    });
+    await pressed;
+    await advance(50);
+
+    // **この回だけ「もう一度 ▶」が実際に効く。**
+    expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+  });
 
   it("棋譜を閉じた後に席が着地したら、断りを立てない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
@@ -911,6 +964,125 @@ describe("AnalysisProvider の結果の照合", () => {
 
     // 捨てた席の反映待ちを残すと、**P2 の評価値と読み筋が、盤が P3 を映したまま
     // 解析結果として出る**（盤がその局面へ戻るとペインのキャッシュにも焼き付く）。
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
+  // **席が返ってきて捨てる回と、Rust に断られる回は同じ窓に居る。** 後始末が枝で割れると、
+  // 断られた側だけが反映待ちを落とし忘れる。
+  it("開始が断られた回も、反映待ちを残さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤が動いて再開が走り、その開始が応答を返さないまま止まる。
+    let rejectStart: (e: unknown) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 席が欄に入る前に `info` が1本届く（`accepts` は欄が空の間どの席も通す）。
+    // そのあとエンジンが消え、開始は `Err` で返る。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+    });
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P2", null));
+    await advance(50);
+    await act(async () => {
+      rejectStart(new Error("engine is shutting down"));
+    });
+    await advance(150);
+
+    // 残すと、死んだエンジンの読み筋が「解析中」の表示のまま commit される
+    // （この枝は `stop_analysis` を dispatch しないので `isAnalyzing` は true のまま）。
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
+  // **間引きの1周期を跨がせる。** 枠を落とす形の後始末は、落とす前に
+  // タイマーが起きた回を守れない——着地が遅い回だけが素通りする。
+  it("席が着くのが間引きより遅くても、捨てた席の結果は出さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    let rejectStart: (e: unknown) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 席が欄に入る前に `info` が1本届く（`accepts` は欄が空の間どの席も通す）。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+    });
+
+    // **間引きより長く待つ。** ここでタイマーが起きる。
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P2", null));
+    await advance(flushMs() * 6);
+
+    await act(async () => {
+      rejectStart(new Error("engine is shutting down"));
+    });
+    await advance(150);
+
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
+  it("捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    // 捨てる停止**だけ**を落とす。再開のための返却は通す——通さないと `isAnalyzing` が
+    // 倒れ、`commitLatest` の `analyzing` の門が先に止めてしまい、席の門を見られない。
+    stopCore.mockImplementation((_sessionId, by) =>
+      by === "late-restart" ? Promise.reject(new Error("ipc lost")) : Promise.resolve(),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 自動再開の開始を待たせ、その間にもう1手進めて世代を上げる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+    await view.setSync(adapter("P3", "P2"));
+    await advance(150);
+
+    // 席が欄に入る前に `info` が1本届き（`accepts` は欄が空の間どの席も通す）、
+    // 直後に追い越された席が着く。捨てる停止は落ち、`keepOrForget` が欄へ書き戻す。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+      releaseStart("s2");
+    });
+    await advance(150);
+
+    // 書き戻しで席の門は開くが、反映待ちはその手前で落ちている。
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
@@ -1109,9 +1281,9 @@ describe("AnalysisProvider の開始", () => {
         releaseStop();
       });
 
-      // 同期待ちの上限（2秒）を越えるまで進める。世代を返却より前に読まないと、
-      // ここまで待ってから閉じた棋譜のために断りを積む。
-      await advance(2400);
+      // 同期待ちの上限を越えるまで進める（テスト中は縮めた寸法。値は `waits.ts`）。
+      // 世代を返却より前に読まないと、ここまで待ってから閉じた棋譜のために断りを積む。
+      await advance(limitMs() * 1.4);
 
       expect(startCore).not.toHaveBeenCalled();
       // 立っているのは届かなかった ■ の断りだけ。閉じた棋譜のぶんは積まれない。
@@ -1164,7 +1336,7 @@ describe("AnalysisProvider の開始", () => {
           }),
       );
       await view.setSync(adapter("P2", "P1"));
-      await advance(2400);
+      await advance(700);
       expect(view.current.state.isAnalyzing).toBe(false);
 
       // 盤とエンジンを揃えておく（同期待ちで止まらないように）。
@@ -1196,7 +1368,7 @@ describe("AnalysisProvider の開始", () => {
     await view.setSync(adapter("P2", "P2"));
     await advance(150);
 
-    // 押した瞬間の局面を待ち続けると、2秒後に何も失敗していないのに断りを積む。
+    // 押した瞬間の局面を待ち続けると、上限の後に何も失敗していないのに断りを積む。
     expect(startCore).toHaveBeenCalled();
     expect(view.current.state.analyzedSfen).toBe("P2");
     expect(view.current.state.error).toBeNull();
@@ -1223,8 +1395,8 @@ describe("AnalysisProvider の開始", () => {
       listeners?.onUpdate("session-1", oneCandidate);
     });
 
-    // 間引きのタイマー（80ms）が、開始の応答より先に起きる。
-    await advance(150);
+    // 間引きのタイマーが、開始の応答より先に起きる。
+    await advance(flushMs() * 7);
     await act(async () => {
       releaseStart("session-1");
     });
@@ -1286,6 +1458,60 @@ describe("AnalysisProvider の開始", () => {
 
       expect(view.current.state.error).toBeNull();
       expect(view.current.state.isAnalyzing).toBe(true);
+    },
+    SLOW,
+  );
+
+  it(
+    "再開の開始が飛んでいる間にもう1手進んでも、2本目を重ねない",
+    async () => {
+      // 上と同じ相互排除。**違うのは2手目を ▶ ではなく盤で進めること**
+      // ——猶予のタイマーは飛んでいる再開を1つも見ないので、門が無ければ2本目が並ぶ。
+      let taken = false;
+      let releaseRestart: (sessionId: string) => void = () => {};
+      let nth = 0;
+      const refused: number[] = [];
+      startCore.mockImplementation(() => {
+        nth += 1;
+        if (taken) {
+          refused.push(nth);
+          return Promise.reject(new Error("Analysis already running"));
+        }
+        taken = true;
+        if (nth === 2) {
+          return new Promise<string>((resolve) => {
+            releaseRestart = resolve;
+          });
+        }
+        return Promise.resolve(`s${nth}`);
+      });
+      stopCore.mockImplementation(async () => {
+        taken = false;
+      });
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 1手目。自動再開が走り出し、開始の往復で止まる。
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+
+      // **2手目。** ここで猶予のタイマーが張られ、飛んでいる再開の後ろに予約される。
+      await view.setSync(adapter("P3", "P3"));
+      await advance(150);
+
+      await act(async () => {
+        releaseRestart("s2");
+      });
+      await advance(150);
+
+      // 重ねると Rust が両方断り、解析は1手目で止まったまま断りが出る。
+      expect(refused).toEqual([]);
+      expect(view.current.state.error).toBeNull();
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.analyzedSfen).toBe("P3");
     },
     SLOW,
   );
@@ -1490,7 +1716,7 @@ describe("AnalysisProvider の開始", () => {
     await advance(50);
 
     // 席が返る前なので `isAnalyzing` は false。世代を上げないと、閉じた棋譜のために
-    // 同期待ちが上限（2秒）まで回り、その後で「送れませんでした」を積む。
+    // 同期待ちが上限まで回り、その後で「送れませんでした」を積む。
     await view.setSync(adapter(null, null));
     await advance(200);
 
@@ -1701,10 +1927,11 @@ describe("AnalysisProvider のアンマウント", () => {
 
     view.unmount();
 
-    // 上限（2000ms）よりずっと手前で見る。
-    await advance(200);
+    // **上限に届かないうちに見る**（畳んだら待つのをやめる）。合計を上限の半分より
+    // 十分下に置くこと——半分まで使うと、遅い機械では抜けていない回まで緑になる。
+    await advance(limitMs() * 0.2);
 
-    // 抜けないと、畳まれた画面のために `syncedSfen` を2秒ぶん見続ける。
+    // 抜けないと、畳まれた画面のために `syncedSfen` を上限いっぱい見続ける。
     expect(settled).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
   });

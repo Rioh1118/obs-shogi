@@ -4,7 +4,7 @@ import { docsPath, markdownFiles } from "./stateTransitionIndex";
 import { lineNumberRefsIn, missingPaths, scannedDocs, sourcePathsIn } from "./docsSourcePaths";
 
 /**
- * 状態遷移表と画面の仕様がバッククォートで指すソースのパスが実在するかを見る。
+ * `scannedDocs()` が返す doc がバッククォートで指すソースのパスが実在するかを見る。
  *
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
  * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
@@ -28,7 +28,7 @@ import { lineNumberRefsIn, missingPaths, scannedDocs, sourcePathsIn } from "./do
  *
  * **行番号のほう（`lineNumberRefsIn`）は既に `docs/` 全体へ掛けてある。**
  */
-describe("状態遷移表と画面の仕様が指すソースのパス", () => {
+describe("走査対象の doc が指すソースのパス", () => {
   // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
   // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
   test("走査する doc を拾えている", () => {
@@ -48,7 +48,7 @@ describe("状態遷移表と画面の仕様が指すソースのパス", () => {
 /**
  * `docs/` の**全部**が行番号で指さないこと。
  *
- * パスの実在は状態遷移表と `spec/screens/` に絞ってよい（ADR は別リポジトリのパスを引くので、
+ * パスの実在は `scannedDocs()` の範囲に絞ってよい（ADR は別リポジトリのパスを引くので、
  * 実在を要求できない）。**行番号のほうは絞る理由が無い。** 自リポジトリを
  * 行番号で指せば、どこに書いてあっても無言でずれる。
  *

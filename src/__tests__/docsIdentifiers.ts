@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
 import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
@@ -7,8 +7,12 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 const HOOKS = join(REPO_ROOT, ".claude/hooks");
 
 /**
- * docs がバッククォートで指す**識別子**が実在するかを見る検査の本体。
+ * バッククォートが指す**識別子**が実在するかを見る判定の本体。
  * パスを見る `docsSourcePaths.ts` の隣。あちらはファイル、こちらは名前。
+ *
+ * **走査範囲は持たない。** 渡す側が決める——doc は `docsIdentifiers.test.ts`
+ * （範囲は `docsSourcePaths.ts` の `scannedDocs`）、`src/**` の TS コメントは
+ * `srcCommentIdentifiers.test.ts`。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
@@ -31,14 +35,13 @@ const IDENTIFIER =
  *
  * 増やすときは**なぜソースに無くてよいか**を1件ずつ書くこと。
  * 説明を書けないなら、それは腐った doc であって除外の対象ではない。
- */
-/**
- * **走査範囲は4つ、免除のリストは3つ。** ここは `docs/**` のバッククォート**と
- * `src/**` の TS コメント**（`srcCommentIdentifiers` がこのリストごと借りる）。
+ *
+ * **走査範囲は4つ、免除のリストは3つ。** ここは **`scannedDocs` が返す doc** の
+ * バッククォート**と `src/**` の TS コメント**（`srcCommentIdentifiers` がこのリストごと借りる）。
  * `state_table_terms.rs` の `NOT_IDENTIFIERS` は状態遷移表の表本体、
  * `comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
  *
- * **`docs/**` と `src/**` のコメントは同じリストを共有する。** 片方の都合で1件足すと、
+ * **doc と `src/**` のコメントは同じリストを共有する。** 片方の都合で1件足すと、
  * もう片方でもその綴りが二度と検査されない——**検査の名前をここに足さないこと**。
  * コメントから検査を指したいならパスで書く（`src/__tests__/foo.test.ts`）。
  *
@@ -46,7 +49,7 @@ const IDENTIFIER =
  * 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
  * 片方にしか要らない綴りが現に在る（`peek_text` は Rust のコメントだけ）。
  */
-const EXEMPT = new Set([
+export const EXEMPT = new Set([
   // USI の語。エンジンとの取り決めであって、こちらの識別子ではない
   "go_ponder",
   "position_sfen",
@@ -60,9 +63,10 @@ const EXEMPT = new Set([
   "count_yaneuraou_db_positions",
   // ShogiHome の設定名。対局の表が「あちらの既定」の出典に引く
   "enableEngineTimeout",
-  // 検査の名前。ファイル名（`*.test.ts`）としては在るが、ソースの本文には現れない
-  "analysisRefusals",
-  "docsIdentifiers",
+  // `@tauri-apps/plugin-opener` のコマンドと口。あちらの綴りであって、こちらの識別子ではない
+  "reveal_item_in_dir",
+  "open_path",
+  "openPath",
 ]);
 
 /**
@@ -79,27 +83,34 @@ const EXEMPT = new Set([
  */
 let corpus: string | null = null;
 
+/**
+ * 門番のシェルもソースに数える。
+ *
+ * `verify-gate-decision.md` は門番の関数名（`gate_kinds_for_path` ほか）を仕様として引く。
+ * `.claude/hooks/` を外すと、表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
+ *
+ * **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の定義で、
+ * 外すと表が実在する関数を指しているのに落ちる。期待値に書いた名前が母数に入らないのは、
+ * `codeOf` の shell の枝が引用符の中を落とすため。
+ *
+ * `.sh` に絞るのは、その shell の枝を使うから——別の言語のファイルを混ぜると
+ * `#` 以外のコメントが落ちない。歩くのは `walk.ts`（`CONTRIBUTING.md` の「走査の対象と起点」）
+ */
+function hookCorpus(): string[] {
+  return sourceFiles(HOOKS)
+    .filter((path) => path.endsWith(".sh"))
+    .map((path) => codeOf(readFileSync(path, "utf8"), "shell"));
+}
+
 function sourceCorpus(): string {
   if (corpus !== null) return corpus;
-
-  // **シェルもソースに数える。** `verify-gate-decision.md` は門番の関数名
-  // （`gate_kinds_for_path` ほか）を仕様として引く。`.claude/hooks/` を外すと、
-  // 表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
-  //
-  // **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の
-  // 定義で、外すと表が実在する関数を指しているのに落ちる。代わりに
-  // `codeOf` の shell の枝が引用符の中を落とすので、期待値に書いた名前は入らない。
-  const hooks = readdirSync(HOOKS, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sh"))
-    .map((entry) => join(HOOKS, entry.name));
 
   corpus = [
     ...[
       ...sourceFiles(SRC, { includeTests: false }),
       ...rustRoots().flatMap((root) => sourceFiles(root)),
     ].map((path) => codeOf(readFileSync(path, "utf8"))),
-    // シェルの行コメントは `#`。`codeOf` の既定（`//`）では落ちない
-    ...hooks.map((path) => codeOf(readFileSync(path, "utf8"), "shell")),
+    ...hookCorpus(),
   ].join("\n");
   return corpus;
 }

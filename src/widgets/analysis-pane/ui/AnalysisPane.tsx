@@ -28,8 +28,9 @@ function AnalysisPane() {
   // ===== cache key =====
   const engineKey = presetsState.selectedPresetId ?? "no-engine";
   const fileKey = selectedNode?.id ?? null;
-  const posKey = gameState.cursor?.tesuuPointer ?? null;
-  const cacheKey = fileKey && posKey ? `${engineKey}${fileKey}:${posKey}` : null;
+  const cursorPointer = gameState.cursor?.tesuuPointer ?? null;
+  const cacheKey =
+    fileKey && cursorPointer ? `${engineKey}${fileKey}:${cursorPointer}` : null;
 
   // ===== cache storage (UI responsibility) =====
   const cacheRef = useRef<Map<string, PaneSnapshot>>(new Map());

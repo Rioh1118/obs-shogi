@@ -149,7 +149,7 @@ reviewer: react / robustness / comment（3人）
 | 4 / 5         | 直した。`occupy` / `queueBehind` に寄せ、ラチェットを構造で見る形に強めた     | `9061c7c4`（変異で確認）            |
 | 6             | 直した。`by` を必須にし、`Blocking` / `Quiet` / `Discard` の3つに割った       | `825856e9`                          |
 | 16            | 直した。`sortByRank` を barrel から落とし、規約を barrel 側に移した           | `7c4f8ae8`                          |
-| 10〜14 / 15   | 直した。F-37 を新設し、表の2セルと凡例、`analysis-pane.md` の復帰導線を直した | `5f6acd86`                          |
+| 10〜14 / 15   | 直した。台帳に1行を新設し（**`main` の取り込みで F-38 へ番号がずれた**。F-37 は #404 の側）、表の2セルと凡例、`analysis-pane.md` の復帰導線を直した | `5f6acd86`                          |
 | 9             | 直した                                                                        | `d3310219`                          |
 | 17            | **直さない。** 理由は下記                                                     | —                                   |
 

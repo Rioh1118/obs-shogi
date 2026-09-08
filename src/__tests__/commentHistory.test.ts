@@ -94,7 +94,7 @@ const HISTORY_WORDS = [
  * 形は正規表現そのものを読むこと。ここに例を書くと自分で落ちる
  */
 const REVIEW_TAG =
-  /^\s*\/\/\s*\d+:|\([A-Z]{2}-\d+\)|\([A-Z]\d+-[A-Z]?\d+\)|\([A-Z]-[A-Z]\d+\)|→\s*r\d+|\br\d+\s*→\s*r\d+/;
+  /^\s*\/\/\s*\d+:|\([A-Z]{2}-\d+\)|\([A-Z]\d+-[A-Z]?\d+\)|\([A-Z]-[A-Z]\d+\)|→\s*r\d+|\br\d+\s*→\s*r\d+|\br\d+\s*(?:で|の|が|は|を|に)/;
 
 /**
  * ブランチ名。マージすると消えるので、コードから指してはいけない。
@@ -121,7 +121,16 @@ const SLASH_COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
  */
 const HASH_COMMENT = /#[^\n]*/g;
 
-function commentsOf(file: string): RegExp {
+/**
+ * そのファイルでコメントを拾う綴り。**返すのはパターンで、コメントそのものではない。**
+ *
+ * **`sourceText.ts` の `commentsOf` とは別物。** あちらは「コメント以外を落とす」ので、
+ * 拾いすぎると本物のコードが検査から消えて**違反があっても緑になる**——だから
+ * 行頭で開くブロックしか見ない。こちらは拾ったものを語の検索に掛けて
+ * `path:行番号` で出すだけなので、**拾いすぎても人が見て直せる形で出る**。
+ * 危険の向きが逆なので、綴りを共有しない。
+ */
+function commentPatternFor(file: string): RegExp {
   return file.endsWith(".sh") ? HASH_COMMENT : SLASH_COMMENT;
 }
 
@@ -146,15 +155,15 @@ describe("コメント", () => {
         const source = readFileSync(file, "utf8");
         const name = relative(REPO_ROOT, file);
 
-        for (const match of source.matchAll(commentsOf(file))) {
+        for (const match of source.matchAll(commentPatternFor(file))) {
           const text = match[0];
           // **本文が取れたものだけ数える。** 回数だけだと、`#` や `//` に当たるが
           // 行末まで読まない形（`[^\n]*` を落とす変異）が同じ回数を返して素通りする。
-          // 形は `commentsOf` の戻り値で判別する —— ここで拡張子を見ると、
+          // 形は `commentPatternFor` の戻り値で判別する —— ここで拡張子を見ると、
           // 分岐が壊れても数える側が独立に正しい形を名乗ってしまう
           if (text.length > 2) {
             const kind =
-              commentsOf(file) === HASH_COMMENT ? "hash" : text.startsWith("//") ? "line" : "block";
+              commentPatternFor(file) === HASH_COMMENT ? "hash" : text.startsWith("//") ? "line" : "block";
             read[kind] += 1;
             chars[kind] += text.length;
           }

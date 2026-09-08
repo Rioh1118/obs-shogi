@@ -14,16 +14,6 @@
     "dialog:allow-save",
     "fs:default",
     "log:default",
-
-    {
-      "identifier": "opener:allow-open-path",
-      "allow": [
-        { "path": "$HOME/**/*.kif" },
-        { "path": "$HOME/**/*.ki2" },
-        { "path": "$HOME/**/*.jkf" },
-        { "path": "$HOME/**/*.csa" }
-      ]
-    },
     "opener:allow-reveal-item-in-dir",
     "updater:default",
     "process:allow-restart"

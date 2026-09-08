@@ -1,12 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
+import { allCheckNames } from "./checkNames";
 import { docsPath } from "./stateTransitionIndex";
 import { codeOf } from "./sourceText";
 import { scannedDocs } from "./docsSourcePaths";
-import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
+import { EXEMPT, identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
 
 /**
- * 状態遷移表と画面の仕様がバッククォートで指す識別子が、ソースに実在するかを見る。
+ * `scannedDocs()` が返す doc がバッククォートで指す識別子が、ソースに実在するかを見る。
  *
  * 表は「現物を引くための索引」として書かれている。書いてある名前で grep して
  * 空振りすると、読み手は「表が古い」以上のことを判断できない。
@@ -37,6 +38,38 @@ describe("doc が指す識別子", () => {
     });
 
     expect(broken, "改名したら表も直すこと。落とすなら行ごと落とすこと").toEqual([]);
+  });
+});
+
+/**
+ * 免除に**検査の名前**を足すと、その検査が自分で見ている綴りを検査から外す。
+ *
+ * `EXEMPT` は `scannedDocs()` が返す doc と `src/**` の TS コメントの両方に掛かるので、片方の都合で
+ * 1件足すと**両方で二度と検査されない**。検査の名前を免除に入れると、その検査が
+ * 自分の名前を守れなくなる——改名しても、名前を指している doc は赤くならない。
+ * コメントや doc から検査を指したいときはパスで書くこと（`src/__tests__/foo.test.ts`）。
+ */
+describe("免除の中身", () => {
+  test("検査の名前を免除していない", () => {
+    // **母数は `checkNames` が持つ。** ここで作り直すと、TS の検査名しか知らない
+    // 集合になり、Rust の検査名（`state_table_terms`）も検査本体（`ownedSpelling`）も
+    // 黙って免除に入る。
+    const checks = allCheckNames();
+
+    // **母数が痩せる向きも見る。** 0件になれば `named` は空で緑になる。
+    // 由来は3つ（TS の検査・Rust の検査・走査の道具）あり、`helpers` は
+    // `"src/__tests__/"` の直書きに依存するので、置き場を動かすと黙って抜ける。
+    expect(checks.size, "検査の名前を1つも拾えていない").toBeGreaterThan(20);
+    expect(checks, "TS の検査を拾えていない").toContain("ratchetIndex");
+    expect(checks, "Rust の検査を拾えていない").toContain("state_table_terms");
+    expect(checks, "走査の道具を拾えていない").toContain("ownedSpelling");
+
+    const named = [...EXEMPT].filter((name) => checks.has(name)).sort();
+
+    expect(
+      named,
+      "免除に検査の名前が入っている。指したいならパスで書くこと（`src/__tests__/foo.test.ts`）",
+    ).toEqual([]);
   });
 });
 
