@@ -1,8 +1,3 @@
-import { describe, expect, it } from "vitest";
-
-import { equalRuntime } from "../equalRuntime";
-import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
-
 /**
  * **どの欄を比べるかを固定する。**
  *
@@ -14,6 +9,11 @@ import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
  * **欄ごとに1本ずつ当てる。** provider を通すテストは `options` しか動かしておらず、
  * そちらでは欄の抜けが観測できない。
  */
+import { describe, expect, it } from "vitest";
+
+import { equalRuntime } from "../equalRuntime";
+import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
+
 const base: EngineRuntimeConfig = {
   enginePath: "/e",
   workDir: "/w",

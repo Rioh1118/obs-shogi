@@ -1,13 +1,4 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, render } from "@testing-library/react";
-import { useEffect } from "react";
-
-import { EnginePresetsProvider } from "../provider";
-import { useEnginePresets } from "../useEnginePresets";
-import type { EnginePreset, PresetsFile } from "../types";
-import type { EngineRuntimeConfig } from "@/entities/engine";
-
 /**
  * `runtimeConfig` の並びを固定する。
  *
@@ -21,6 +12,15 @@ import type { EngineRuntimeConfig } from "@/entities/engine";
  *
  * @packageDocumentation
  */
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { act, cleanup, render } from "@testing-library/react";
+import { useEffect } from "react";
+
+import { EnginePresetsProvider } from "../provider";
+import { useEnginePresets } from "../useEnginePresets";
+import type { EnginePreset, PresetsFile } from "../types";
+import type { EngineRuntimeConfig } from "@/entities/engine";
+
 const loadPresets = vi.fn<() => Promise<PresetsFile>>();
 const savePresets = vi.fn<(file: PresetsFile) => Promise<void>>();
 vi.mock("../../api/presets", () => ({
