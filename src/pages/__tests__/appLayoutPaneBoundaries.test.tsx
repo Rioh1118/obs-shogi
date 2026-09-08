@@ -42,6 +42,8 @@ vi.mock("@/pages/AppModalLayer", () => ({
     if (throwing.modal) throw new Error("modal の中で落ちた");
     return null;
   },
+  // 鍵は層の側が数える。ここを消すと、包む側が数え直す形へ戻ったことに気づけない
+  useModalLayerResetKeys: () => [],
 }));
 vi.mock("@/pages/WelcomeScreen", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);

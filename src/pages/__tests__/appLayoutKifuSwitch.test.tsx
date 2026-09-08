@@ -26,7 +26,10 @@ vi.mock("@/entities/game", () => ({
 
 // 中身はこの検査の対象外。どちらの枝が選ばれたかだけを見る
 const empty = { default: () => null };
-vi.mock("@/pages/AppModalLayer", () => empty);
+vi.mock("@/pages/AppModalLayer", () => ({
+  ...empty,
+  useModalLayerResetKeys: () => [],
+}));
 vi.mock("@/pages/WelcomeScreen", () => ({ default: () => <div data-testid="welcome" /> }));
 vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);

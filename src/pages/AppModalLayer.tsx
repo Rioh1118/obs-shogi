@@ -12,6 +12,21 @@ import SettingsModal from "@/features/settings/ui/SettingsModal";
 import StudyPositionSaveModal from "@/features/study-position-save/ui/StudyPositionSaveModal";
 import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/StudyPositionsManagerModal";
 
+/**
+ * この層を包む境界に渡す鍵。**この層が読む入力を全部並べる。**
+ *
+ * ここに置くのは、入力を読むのと同じ場所で数えるため。包む側（`AppLayout`）が数え直すと、
+ * 入力が増えたときに黙って穴が開く —— **`modal` だけを見ていた間は、URL で開かない2枚
+ * （`FileConflictDialog` / `KifuReadErrorDialog`）が鍵の外に居た。** その2枚が落ちると
+ * 鍵は動かず、原因を消す口（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
+ * **そのセッションではどのモーダルも二度と出ない。**
+ */
+export function useModalLayerResetKeys(): readonly unknown[] {
+  const { conflict, kifuError } = useFileTree();
+  const { params } = useURLParams();
+  return [params.modal, conflict, kifuError];
+}
+
 export default function AppModalLayer() {
   const { conflict, kifuError, closeConflict, resolveConflictByRename, clearKifuError } =
     useFileTree();
