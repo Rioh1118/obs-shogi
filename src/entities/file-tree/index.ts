@@ -21,7 +21,6 @@ export {
 export { commitName, type CommitOutcome } from "./lib/commitName";
 export { isProjectRoot } from "./lib/isProjectRoot";
 export type {
-  SelectNodeOptions,
   FileTreeNode,
   FileTreeFailure,
   FileConflictRequest,
