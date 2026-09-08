@@ -66,8 +66,15 @@
 ファイル系の4つは `entities/file-tree/ui/FsErrorView` を共有する（ADR-0005 決定5）。
 `position-navigation` の「この手目を盤上で再現できない」はモーダル内の手書き。
 
-※ 全画面ではない。`pages/AppLayout.tsx` で**モーダル層と棋譜ペインをそれぞれ囲っている**。
-囲われていない場所で throw すると、いまも root ごと unmount する。
+※ 段構えで囲ってある。`app/App.tsx`（最後の砦）→ `app/routing/RuntimeShell.tsx`
+（`.app-content` の内側。`/app` の中身の全部）→ `pages/AppLayout.tsx`
+（モーダル層・盤ペイン・棋譜ペイン・解析ペイン）。**受けるのはいちばん内側**なので、
+畳まれるのは落ちた部分だけ。
+
+**root まで上がるのは provider・guard・ルータ自身が落ちたときだけ。** ウィンドウ枠は自前
+（`decorations: false`）で `TitleBar` は `RuntimeShell` の中に居るので、そこまで上がると
+枠も消える。だから最後の砦だけは fallback を差し替えてあり、`app/RootErrorFallback.tsx` が
+**自前のドラッグ領域と閉じるボタン**を描く（2026-09-08 / `fix/436-root-error-boundary`）。
 
 ## 1. `error` の置き場は6つあり、読み手はほとんど居ない
 
