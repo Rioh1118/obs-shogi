@@ -47,7 +47,14 @@ const { useFileTree } = await import("../useFileTree");
 const WS = "/ws";
 const A_KIFU = "/ws/a.kif";
 
-const A_NODE = {
+const A_NODE: {
+  id: string;
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  displayInfo: { iconType: "kif-file" };
+  kifuInfo: { format: "kif" | "csa" };
+} = {
   id: "a1",
   name: "a.kif",
   path: A_KIFU,
@@ -131,5 +138,29 @@ describe("selectNodeByAbsPath の開き直し", () => {
     });
 
     expect(readKifu).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **形式のずれで開き直さない。**
+   *
+   * 改名で拡張子が変わると `active_kifu_reconciled` が形式を運ばないので、
+   * ツリーが握る形式と節の形式がずれる。そこで開き直すと**中身と違う形式でパースされ**、
+   * パーサは投げずに0手の棋譜を返す（`entities/kifu/api/parse.ts`）。
+   * `loadGame` は成功するので断りも出ず、盤が空になったまま載り、次の1手で
+   * **空の棋譜がディスクへ書かれる**。
+   *
+   * ずれ自体は発生源で直すもの（#507）。関門は開き直しの引き金にしない。
+   */
+  it("ツリーが握る形式が節と違っても、それだけでは読み直さない", async () => {
+    await openOnce();
+    // 節の形式だけが新しい拡張子になった状態を作る
+    A_NODE.kifuInfo = { format: "csa" as const };
+
+    await act(async () => {
+      screen.getByTestId("skip").click();
+    });
+
+    expect(readKifu).not.toHaveBeenCalled();
+    A_NODE.kifuInfo = { format: "kif" as const };
   });
 });

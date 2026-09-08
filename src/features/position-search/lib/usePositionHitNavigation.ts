@@ -77,8 +77,7 @@ export function usePositionHitNavigation() {
         return "tree-unavailable";
       }
 
-      // **盤に載っていないなら必ず開き直させる。** ツリー側の判断（`isOpenedInTree`）に
-      // 任せると、載せられなかった棋譜は2度目以降の要求で `openKifuNode` ごと飛ばされる。
+      // **盤に載っていないなら必ず開き直させる。** ツリー側の判断に任せると、載せられなかった棋譜は2度目以降の要求で `openKifuNode` ごと飛ばされる。
       // 飛ばされると `jkfData` の同一性も `activeKifuPath` も動かず、載せ直しの effect が
       // 走らないので**モーダルだけが閉じて何も起きない**。
       const forceReopen = gameState.loadedAbsPath !== absPath;

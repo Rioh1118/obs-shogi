@@ -21,7 +21,6 @@ import {
   type FsError,
 } from "../api/error";
 import { isProjectRoot } from "../lib/isProjectRoot";
-import { isOpenedInTree } from "../lib/isOpenedInTree";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { useAppConfig } from "@/entities/app-config";
 
@@ -674,24 +673,17 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return true;
       }
 
-      // **開き直しを省いてよいかを、ここだけでは決められない。** `isOpenedInTree` が
-      // 見るのは「構文として読めた」までで、盤に載ったかは `loadGame` まで来ないと
-      // 分からない。載っているかを見られるのは呼び出し側なので、覆せるようにしてある。
+      // **開き直しを省いてよいかを、ここだけでは決められない。** ツリーが握っているのは
+      // 「構文として読めた」までで、盤に載ったかは `loadGame` まで来ないと分からない。
+      // 載っているかを見られるのは呼び出し側なので、覆せるようにしてある
+      // （省略できない理由は `SelectNodeOptions` の doc）。
       //
-      // 覆せないと、載せられなかった棋譜がツリー側では「開いている」ままになり、
-      // 2度目以降の要求が**何も起こさずに成功を返す**。
-      // **`state` を丸ごと渡さない。** 依存が `state` 全体になり、ツリーのどの変化でも
-      // この callback が作り直される（`react-hooks/exhaustive-deps` が落とす）
+      // **形式は見ない。** 改名で拡張子が変わった回は `active_kifu_reconciled` が形式を
+      // 運ばないのでずれるが、そこで開き直すと**中身と違う形式でパースされる**。
+      // パーサは投げずに0手の棋譜を返すので、盤が空になったまま成功として載る。
+      // ずれは発生源で直すもの → #507
       const canSkipOpen =
-        !options.forceReopen &&
-        isOpenedInTree(
-          {
-            activeKifuPath: state.activeKifuPath,
-            jkfData: state.jkfData,
-            kifuFormat: state.kifuFormat,
-          },
-          node,
-        );
+        !options.forceReopen && state.activeKifuPath === node.path && state.jkfData !== null;
 
       if (!canSkipOpen) {
         void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
@@ -699,14 +691,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       return true;
     },
-    [
-      findNodeByPath,
-      openKifuNode,
-      revealNodeInCurrentTree,
-      state.activeKifuPath,
-      state.jkfData,
-      state.kifuFormat,
-    ],
+    [findNodeByPath, openKifuNode, revealNodeInCurrentTree, state.activeKifuPath, state.jkfData],
   );
 
   const clearError = useCallback(() => {
