@@ -23,10 +23,29 @@ function layers(): string[] {
     .map((entry) => entry.name);
 }
 
+/**
+ * `@/` と相対の両方を受ける頭。
+ *
+ * **綴りをここ1箇所で決める。** 順方向と逆向きで別々に書くと、片方だけが `@/` しか
+ * 見ない状態が黙って作れる——相対1段で届くファイル（`src/main.tsx` ほか）が
+ * まるごと素通りする。
+ */
+const ANY_PREFIX = String.raw`["'\`](?:@/|\.{1,2}/)`;
+
 /** `@/layer/...` と `../layer/...` の両方。相対でもレイヤには届く */
 function appReference(names: string[]): RegExp {
-  return new RegExp(`["'\`](?:@/|\\.{1,2}/)(${names.join("|")})\\b`, "g");
+  return new RegExp(`${ANY_PREFIX}(${names.join("|")})\\b`, "g");
 }
+
+/**
+ * `@/__tests__/` と、相対で辿り着く `__tests__/`（`./` でも `../` でも、間に何段あっても）。
+ *
+ * **相対も見る。** `src/` から1階層以内のファイル（`src/main.tsx` ほか）は相対1段で
+ * `src/__tests__/` に届き、`vite.config.ts` の `DEEP_RELATIVE_IMPORT`（`../../` 以上を
+ * 禁じる）にも当たらない。`src/main.tsx` は入口なので、`node:fs` が本番の束に入ると
+ * ツリーシェイクの逃げ道が無い。
+ */
+const TESTS_DIR_IMPORT = new RegExp(`${ANY_PREFIX}(?:[\\w.-]+/)*__tests__/[^"'\`]*`, "g");
 
 /**
  * 上から下へ。`vite.config.ts` の `no-restricted-imports` と同じ順で、
@@ -124,7 +143,10 @@ describe("レイヤに依存しない検査の置き場", () => {
    *
    * **辺そのものは禁じない。** スライスに置くラチェット（`*.ratchet.test.ts`）は
    * 走査の起点を `walk.ts` から引くと決めてある（`CONTRIBUTING.md`）ので、
-   * テストからは読めなければならない。分けるのは**テストかどうか**だけ。
+   * テストからは読めなければならない。**分けるのは `__tests__` 配下かどうか**
+   * （`walk.ts` の `includeTests`）——スライス側のラチェットもディレクトリは
+   * `__tests__/` に置くこと。綴り（`*.ratchet.test.ts`）は `ratchetIndex` が、
+   * 置き場はここが見る。
    */
   it("本番のモジュールが検査の道具を読まない", () => {
     const production = tsFiles(SRC, { includeTests: false });
@@ -132,7 +154,7 @@ describe("レイヤに依存しない検査の置き場", () => {
     expect(production.length, "本番のモジュールを歩けていない").toBeGreaterThan(50);
 
     const offenders = production.flatMap((file) =>
-      [...readFileSync(file, "utf8").matchAll(/["'`]@\/__tests__\/[^"'`]*/g)].map(
+      [...readFileSync(file, "utf8").matchAll(TESTS_DIR_IMPORT)].map(
         (match) => `${relative(SRC, file)}  ${match[0]}`,
       ),
     );

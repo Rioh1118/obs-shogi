@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
+import { codeOf } from "./sourceText";
 
 /**
  * **戻り値を読まないと失敗が消える関数**を、式文で呼んでいないかを見る。
@@ -45,23 +46,28 @@ const DECLARES_MUST_READ = new RegExp(
 const IGNORE_MARKER = "async-result-ignored:";
 
 /**
- * 行頭から始まる `await f(` / `void await f(` / `void f(`。
- * 代入も `return` も付いていない＝結果を読みようがない形。
+ * 行頭から始まる呼び出し。代入も `return` も付いていない＝結果を読みようがない形。
  *
- * `void f(` を落とすと、`await` を消すだけで検査を抜けられる
+ * **`void` も `await` も任意にする。** どちらかを要求すると、その綴りを消すだけで
+ * 抜けられる——**素の `f(...)` がいちばん普通の投げっぱなしの形**で、しかも順序まで
+ * 失う（後ろの `finally` より先に進む）。許してよい理由が無いので同じ扱いにする。
  */
 function bareCallOf(names: Set<string>): RegExp {
   const call = `(?:\\w+\\.)?(${[...names].join("|")})`;
-  return new RegExp(`^[ \\t]*(?:void await |void |await )${call}\\([^\\n]*`, "gm");
+  return new RegExp(`^[ \\t]*(?:void )?(?:await )?${call}\\([^\\n]*`, "gm");
 }
 
 describe("読まねばならない戻り値", () => {
   it("結果を読まずに呼んでいる箇所が無い", () => {
     const files = tsFiles(SRC);
+    // **コメントを落としてから名前を集める。** 落とさないと、doc に書いた例文
+    // （`const f = useCallback(` / `: AsyncResult<...>`）が「読まねばならない関数」に
+    // 化け、`f` のような綴りで無関係な行が赤くなる。
     const sources = new Map(files.map((file) => [file, readFileSync(file, "utf8")]));
+    const code = new Map([...sources].map(([file, body]) => [file, codeOf(body)]));
 
     const names = new Set<string>();
-    for (const source of sources.values()) {
+    for (const source of code.values()) {
       for (const match of source.matchAll(DECLARES_MUST_READ)) names.add(match[1]);
     }
     // 実測に近い下限。緩いままだと、書き方が変わって半分しか拾えなくなっても気づけない
