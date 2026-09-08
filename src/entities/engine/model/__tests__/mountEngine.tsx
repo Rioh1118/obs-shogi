@@ -38,7 +38,14 @@ export const runtime = (options: Record<string, string> = {}): EngineRuntimeConf
  *
  * 静止の観測は commit の数。`Probe` は依存なしの effect なので、commit のたびに必ず積む。
  */
+/**
+ * **1では足りない。** 正常系にも「commit を1つも出さないターン」が必ずある
+ * ——`shutdown` は IPC の `await` を挟んでから `dispatch` するので、その間の1ターンは静かになる。
+ * 1で抜けると、そこを静止と誤判定して**畳みが済む前に assert へ着く**。
+ */
 const QUIET_TURNS = 2;
+
+/** 値そのものに意味は無い。**止まらない連鎖を「止まらない」と名乗って落とす**ためだけ。 */
 const HARD_CAP = 200;
 
 async function turn() {
@@ -56,7 +63,12 @@ async function drainUntilQuiet(commits: () => number) {
   }
 }
 
-/** 木を自分で建てるテスト用。**静止は観測できない**ので回数で回す。 */
+/**
+ * 木を自分で建てるテスト用。**静止を観測する口が無い**ので回数で回す。
+ *
+ * StrictMode の2回の setup は同じ commit で終わるので、実際に要るのは最初の1〜2ターン。
+ * 既定はその余裕。
+ */
 export async function drain(turns = 8) {
   for (let i = 0; i < turns; i++) await turn();
 }

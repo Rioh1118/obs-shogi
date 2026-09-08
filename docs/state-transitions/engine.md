@@ -60,11 +60,13 @@
 
 ※2 **`YaneuraOuInitializer.initialize` は `inFlight` があれば引数を無視して前の promise を返す**
 （`initializer.ts`）。その結果を新しい runtime のものとして `activeRuntime` に書く形になるが、
-**1つの provider の中では踏めない**——`initialize` は起動の門（`startingSeqRef`）で塞がれ、
-門が開くのは `shutdown` を通ったときだけで、そこで `inFlight` も同じ同期区間で空く。
+**1つの provider の中では踏めない**——`initialize` は起動の門（`startingSeqRef`）で塞がれており、
+**門が開いている時点では `inFlight` は必ず空**。開ける口は2つで、`shutdown` の同期区間
+（そこで `inFlight` も空く）と、`initialize` 自身の `finally`（そこへ来るのは
+`initializer` の `.finally` が `inFlight` を空けた後）。
 **踏めるのは provider ごと畳んで張り直した回**（ref は消えるが `inFlight` はモジュールに残る）。
-→ **未検証。この窓を踏むテストは無い**（`startGate.test.tsx` が同じファイルを
-本物で通しているので、足すならそこ）。実機で踏めるかは未確認
+→ **未検証。踏むテストは無く、`startGate.test.tsx` の構えでは書けない**
+（単一 provider では門が塞ぐ）——provider を畳んで張り直す列が要る
 
 ※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で撃つ**
 （`provider.tsx`）。**ただし世代の門を通ったときだけ**——追い越された畳み

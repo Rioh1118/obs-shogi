@@ -18,11 +18,9 @@ import { info, mountEngine, runtime } from "./mountEngine";
  * 前半が落ちると理由は `starting`（＝待てば戻る側）のまま固まり、走っている解析は
  * 誰にも断たれずに「解析中」を回し続ける（→ #502 と同じ症状）。
  *
- * **見ているのは世代の門4つ**——`provider.tsx` の `shutdown` が `await` の向こうで
- * `dispatch` を止めること、`api/initializer.ts` の `shutdown` が追い越されたら
- * IPC を撃たないこと、そして `initialize` が成功側・失敗側の両方で降りること。
- * **両者の `finally` の同一性判定だけは、観測できる差を作れていない**
- * （→ `docs/state-transitions/engine.md` の「埋まっていないセル」）。
+ * **どの門を見ていて、どれがまだ観測できていないかの在庫は
+ * `docs/state-transitions/engine.md` の「埋まっていないセル」が持つ。**
+ * ここに数も内訳も書かない——門を1枚足すたびに、片方だけが古くなる。
  */
 const initializeEngine = vi.fn<() => Promise<void>>();
 const shutdownEngine = vi.fn<() => Promise<void>>();
