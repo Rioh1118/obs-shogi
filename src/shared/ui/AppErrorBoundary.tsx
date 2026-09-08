@@ -9,6 +9,15 @@ import "./AppErrorBoundary.scss";
  */
 export const RETRY_LABEL = "再表示";
 
+/**
+ * 浮かせて出す枠の段。**同時に出うる枠どうしで番号を分ける。**
+ *
+ * 同じ番号を2箇所に振ると同じ座標に重なり、後から描かれた側が不透明な面で下の1枚を丸ごと覆う
+ * （名乗りも出口も読めず押せない）。番号を足す操作がこの1行を通るように union にしてある。
+ * 上限は窓の高さで決まる —— `AppErrorBoundary.scss` の `$slot-height` を段の数だけ積める範囲まで。
+ */
+export type FloatingSlot = 0 | 1;
+
 type Props = {
   /**
    * 畳まれる範囲の名前。「盤」「解析」のように**利用者が画面で指せる呼び方**にする。
@@ -38,7 +47,7 @@ type Props = {
    * **境界の位置の性質なので、境界が持つ。** `fallback` を渡して既定の本文を組み直す形にすると、
    * 本文に段が増えたときに組み直した側だけが古いまま残る。
    */
-  floatingSlot?: number;
+  floatingSlot?: FloatingSlot;
   /**
    * 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める。
    *
@@ -99,7 +108,7 @@ export type AppErrorFallbackProps = {
   /** 次に何をすればよいか。`AppErrorBoundary` の `hint` と同じもの */
   hint?: ReactNode;
   /** 浮かせて出す段の番号。`AppErrorBoundary` の `floatingSlot` と同じもの */
-  floatingSlot?: number;
+  floatingSlot?: FloatingSlot;
   /** 畳むのをやめて描き直す。原因が境界の外にあるなら効かない */
   reset: () => void;
   /** 浮かせた枠を閉じる。**浮かせていない境界では `undefined`** */

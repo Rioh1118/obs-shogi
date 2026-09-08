@@ -94,7 +94,7 @@ const AppLayout = () => {
                     */}
                     <AppErrorBoundary
                       label="棋譜一覧"
-                      hint={`この棋譜は途中から一覧を組めません。別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                      hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
                     >
                       <KifuStreamList />
                     </AppErrorBoundary>
