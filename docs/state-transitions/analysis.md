@@ -148,7 +148,9 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 ——その回はフロントの4つの欄（`phase` / `engineInfo` / `desiredRuntime` / `activeRuntime`）が
 1つも変わらないので `isReady` は true のまま、欄を空ける effect が発火しない。
 **`phase` を理由にしない**——`isReady` は4つの欄の積で決まる（`entities/engine/model/provider.tsx`）。
-起こし直しは `phase` が `ready` のままでも `desiredRuntime` が動くので `isReady` が落ちる（E6）。
+起こし直しは `desiredRuntime` が動くので `isReady` が落ちる（E6）。その間 `phase` は
+`ready → idle → initializing` と動くが、**断りの理由はどの段でも `starting`**
+（`idle` を別扱いすると「エンジンを選んでください」に落ちる）。
 その回に撃つ停止は「もう無い席」を指す——`bridge.rs` はそれを `Ok` にする。
 
 ※6 `onComplete` は `stop_analysis` を dispatch し、席の欄も手放す（`provider.tsx`）。

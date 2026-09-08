@@ -35,15 +35,16 @@ export type EngineAction =
 /**
  * `isReady` が false である理由。**解析側が断りを選ぶのに使う。**
  *
- * `phase` だけでは足りない——設定が変わって起こし直している最中は `phase` が
- * `"ready"` のまま `isReady` だけ false になる。その窓で「エンジンを選んでください」と
- * 案内すると、**起こし直しを案内された利用者がその指示に従った直後**に、
- * もう一度同じ指示を受ける。
+ * **`phase` では割れない。** 起こし直しは `ready → idle → initializing` を通り、
+ * どの段でも `isReady` は false。`phase` で並べると `idle` を書き落として
+ * 「エンジンを選んでください」に落ち、**起こし直しを案内された利用者がその指示に
+ * 従った直後**に、もう一度同じ指示を受ける。判定は「選んでいるか」で割る
+ * （導出は `entities/engine/model/provider.tsx`）。
  */
 export type EngineNotReadyReason =
   /** まだ選んでいない（または設定が読めていない） */
   | "no-engine"
-  /** 起動中。**起こし直している最中もここ**（`phase` は `ready` のまま） */
+  /** 起動中。**起こし直している最中もここ**（`ready → idle → initializing` の全部） */
   | "starting"
   /** 初期化が落ちている */
   | "failed";

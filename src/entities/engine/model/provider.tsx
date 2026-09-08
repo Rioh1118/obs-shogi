@@ -30,12 +30,17 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
   // **理由はここで決める。** `desiredRuntime` を見られるのはこの provider だけなので、
   // 解析側からは「選んでいない」と「起こし直している最中」を区別できない。
+  //
+  // **`phase` で割らない。** 起こし直しは `ready → idle → initializing` を通り
+  // （`restart()` は `shutdown()` を await してから `initialize()`）、その `idle` は
+  // **必ず commit される**。`phase` を並べると `idle` の枝を書き落とし、
+  // 「設定でエンジンを選んでください」——この型が避けるために在る文言——が出る。
+  //
+  // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、いま何段目に居ても
+  // 利用者から見れば「起動を待っている」。`"no-engine"` の doc（「まだ選んでいない」）
+  // とも一致する。
   const notReadyReason: EngineNotReadyReason =
-    state.phase === "error"
-      ? "failed"
-      : state.phase === "initializing" || (state.phase === "ready" && !!desiredRuntime)
-        ? "starting"
-        : "no-engine";
+    state.phase === "error" ? "failed" : desiredRuntime ? "starting" : "no-engine";
 
   // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
   // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。
