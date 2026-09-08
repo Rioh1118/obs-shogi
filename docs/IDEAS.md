@@ -187,3 +187,17 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
   `api/aiLibrary` まで広げると `features/settings` の6ファイル
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙（`SeatReleasePoint` など）は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
+
+## `EngineTab` が選択中のプリセット id を `console.log` している
+
+`src/features/settings/ui/tabs/EngineTab.tsx` の `selectPreset` の中。
+`no-console` が lint に入っていないので落ちない。
+
+**判断: 6週間以内に着手しない。** 出るのは開発者コンソールだけで、利用者に見える
+不具合ではない。ただし**この1行だけを消しても同じものがまた入る**ので、
+着手するなら `no-console` を lint に入れるところまで。そのとき、意図して残している
+`console.warn` / `console.error` / `console.debug`（席を返す口・購読の失敗・
+`unlisten` の失敗）を許す形にすること——**あれらは最後の防壁で、消すと
+「▶ を押しても何も起きない」の手掛かりが1つも無くなる**（`useEngineSeat` の `shootQuietly`）。
+
+出どころ: #502 のレビュー ラウンド1（robustness が範囲外として記録）。
