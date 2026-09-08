@@ -62,14 +62,17 @@ const AppLayout = () => {
               <div className="workspace__surface">
                 <section className="workspace__main">
                   <div className="workspace__boardPane">
-                    <GameBoard
-                      topLeft={<Hand isSente={false} />}
-                      center={<Board />}
-                      bottomRight={<Hand isSente={true} />}
-                    />
-                    <div className="workspace__controls">
-                      <GameControls />
-                    </div>
+                    {/* 盤が落ちても棋譜一覧と解析は残す。畳む範囲はペイン1つ分 */}
+                    <AppErrorBoundary>
+                      <GameBoard
+                        topLeft={<Hand isSente={false} />}
+                        center={<Board />}
+                        bottomRight={<Hand isSente={true} />}
+                      />
+                      <div className="workspace__controls">
+                        <GameControls />
+                      </div>
+                    </AppErrorBoundary>
                   </div>
                   <aside className="workspace__kifuPane">
                     <AppErrorBoundary>
@@ -79,7 +82,10 @@ const AppLayout = () => {
                 </section>
 
                 <section className="workspace__dock">
-                  <AnalysisPane />
+                  {/* 解析が落ちても盤は残す。エンジンの応答は形が保証されていない */}
+                  <AppErrorBoundary>
+                    <AnalysisPane />
+                  </AppErrorBoundary>
                 </section>
               </div>
             </div>
