@@ -62,6 +62,12 @@ export interface ResultFlush {
  *
  * `state` の写しを渡すこと——commit の後に effect が書くので、タイマーの中から読むと
  * 停止直後の無駄な更新を落とせる。
+ *
+ * `holdsSeat` は席を握っているかの述語。**描画を跨いで同じ関数を渡すこと**
+ * ——返す面は初回の描画で凍るので、毎描画で作り直す述語を渡すと**席の門が初回の答えに
+ * 凍る**。症状は「解析中の表示のまま候補手が出ない」で、断りも `console.error` も出ない
+ * （tsc も lint もラチェットも止めない）。いまの呼び手は `EngineSeat.isHeld` で、
+ * あちらも初回で凍った面のメソッド。
  */
 export function useResultFlush(
   dispatch: Dispatch<AnalysisAction>,

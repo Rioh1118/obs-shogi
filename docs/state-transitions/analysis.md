@@ -116,7 +116,8 @@ E2 の欄は、それでも `stopAnalysis()` が呼ばれたときに何が起�
 押し直しは1本に畳む（`startInfiniteAnalysisOnce`）。
 `isReady` でなければ、理由ごとの断りを立てて throw（→ ※15）
 
-※3 間引きの commit が `analyzingRef.current` を見て捨てる（`useResultFlush`）
+※3 間引きの commit は `analyzingRef.current` **と席の両方**を見て捨てる（`useResultFlush`）。
+席が欄に入る前に届いた1本は枠に残り、握った直後の `schedule` が出し直す
 
 ※4 `startInfiniteAnalysis` の throw は `AnalysisPaneHeader` の `console.error` で終わる。
 **押しても何も起きない。** `set_error` は飛ぶ（→ ※15。断りは枝ごとに文言が違う）が、その読み手が0

@@ -44,7 +44,7 @@ describe("doc が指す識別子", () => {
 /**
  * 免除に**検査の名前**を足すと、その検査が自分で見ている綴りを検査から外す。
  *
- * `EXEMPT` は `docs/**` と `src/**` の TS コメントの両方に掛かるので、片方の都合で
+ * `EXEMPT` は `scannedDocs()` が返す doc と `src/**` の TS コメントの両方に掛かるので、片方の都合で
  * 1件足すと**両方で二度と検査されない**。検査の名前を免除に入れると、その検査が
  * 自分の名前を守れなくなる——改名しても、名前を指している doc は赤くならない。
  * コメントや doc から検査を指したいときはパスで書くこと（`src/__tests__/foo.test.ts`）。
@@ -55,6 +55,15 @@ describe("免除の中身", () => {
     // 集合になり、Rust の検査名（`state_table_terms`）も検査本体（`ownedSpelling`）も
     // 黙って免除に入る。
     const checks = allCheckNames();
+
+    // **母数が痩せる向きも見る。** 0件になれば `named` は空で緑になる。
+    // 由来は3つ（TS の検査・Rust の検査・走査の道具）あり、`helpers` は
+    // `"src/__tests__/"` の直書きに依存するので、置き場を動かすと黙って抜ける。
+    expect(checks.size, "検査の名前を1つも拾えていない").toBeGreaterThan(20);
+    expect(checks, "TS の検査を拾えていない").toContain("ratchetIndex");
+    expect(checks, "Rust の検査を拾えていない").toContain("state_table_terms");
+    expect(checks, "走査の道具を拾えていない").toContain("ownedSpelling");
+
     const named = [...EXEMPT].filter((name) => checks.has(name)).sort();
 
     expect(

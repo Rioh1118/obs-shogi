@@ -36,9 +36,9 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **必ず commit される**。`phase` を並べると `idle` の枝を書き落とし、
   // 「設定でエンジンを選んでください」——この型が避けるために在る文言——が出る。
   //
-  // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、いま何段目に居ても
-  // 利用者から見れば「起動を待っている」。`"no-engine"` の doc（「まだ選んでいない」）
-  // とも一致する。
+  // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、**初期化が落ちている段を
+  // 除いて**どの段でも、利用者から見れば「起動を待っている」。
+  // `"no-engine"` の doc（「まだ選んでいない」）とも一致する。
   //
   // **選んでいるかを先に見る。** `error` を先に見ると、壊れたプリセットの選択を外した
   // 直後——`desiredRuntime` が null になってから `phase` が `idle` へ戻るまでの
