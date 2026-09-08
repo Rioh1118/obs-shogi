@@ -180,7 +180,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
       await view.setSync(adapter("P2", "P1"));
       stopCore.mockClear();
 
-      await advance(700);
+      await advance(limitMs() * 1.4);
 
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
       expect(view.current.state.isAnalyzing).toBe(false);
@@ -212,7 +212,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
       // もう1手進み、エンジンが追いつかないまま打ち切られる。
       await view.setSync(adapter("P3", "P2"));
-      await advance(700);
+      await advance(limitMs() * 1.4);
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
@@ -336,7 +336,7 @@ describe("AnalysisProvider の停止", () => {
 
       // もう1手進むが、エンジンは追いつかない。同期待ちが上限で打ち切られる。
       await view.setSync(adapter("P3", "P2"));
-      await advance(700);
+      await advance(limitMs() * 1.4);
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
@@ -1229,7 +1229,7 @@ describe("AnalysisProvider の開始", () => {
           }),
       );
       await view.setSync(adapter("P2", "P1"));
-      await advance(700);
+      await advance(limitMs() * 1.4);
       expect(view.current.state.isAnalyzing).toBe(false);
 
       // 盤とエンジンを揃えておく（同期待ちで止まらないように）。
@@ -1839,6 +1839,8 @@ describe("AnalysisProvider のアンマウント", () => {
       });
       await advance(50);
 
+      // 打ち切りに先を越されると、席は `sync-timeout` が返す（上と同じ理由）。
+      expect(stopCore.mock.calls.map((c) => c[1])).not.toContain("sync-timeout");
       expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
     },
     SLOW,
@@ -1875,6 +1877,11 @@ describe("AnalysisProvider のアンマウント", () => {
       });
       await advance(150);
       await pressed;
+
+      // **同期待ちの打ち切りに先を越されていないこと。** 越されると席は
+      // `sync-timeout` が返すので、この筋は「返せている」まま赤くなる
+      // ——寸法を動かした人が #441 の再発と読み違える。
+      expect(stopCore.mock.calls.map((c) => c[1])).not.toContain("sync-timeout");
 
       // 書き戻した席を返し直さないと、Rust に残ったままになる（#441）。
       expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
