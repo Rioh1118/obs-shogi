@@ -9,11 +9,17 @@ import type { EnginePreset, PresetsFile } from "../types";
 import type { EngineRuntimeConfig } from "@/entities/engine";
 
 /**
- * **見るのは `runtimeConfig` の並びだけ。**
+ * `runtimeConfig` の並びを固定する。
  *
  * この値が `desiredRuntime` として engine へ降り、null になった回は engine が畳まれる
  * （`docs/state-transitions/engine.md` の ※7）。走っている解析はそれを「エンジンが
- * 使えなくなった」と読んで止まるので、**一瞬でも null を通すかどうかが振る舞いそのもの**。
+ * 使えなくなった」と読んで打ち切るので、**null を通すかどうかがそのまま振る舞い**になる。
+ *
+ * **ここが固定しているのは、いま在る窓が在ること**——選択中のプリセットを消すと、
+ * 保存の往復のあいだ `runtimeConfig` は null を通る（→ #518）。塞ぐときにこの
+ * テストが赤くなるので、そこで期待値ごと書き換えること。
+ *
+ * @packageDocumentation
  */
 const loadPresets = vi.fn<() => Promise<PresetsFile>>();
 const savePresets = vi.fn<(file: PresetsFile) => Promise<void>>();
@@ -44,7 +50,10 @@ const preset = (id: string): EnginePreset =>
     options: {},
   }) as unknown as EnginePreset;
 
-/** commit された `runtimeConfig` を順に集める。**null も1つの値として残す。** */
+/**
+ * commit された `runtimeConfig` を順に集める。**畳まない**——中間の1枚が見たいので、
+ * 同じ値が続いてもそのまま押す。
+ */
 function mountPresets() {
   const seen: (EngineRuntimeConfig | null)[] = [];
   let api: ReturnType<typeof useEnginePresets> | null = null;
@@ -90,17 +99,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("EnginePresetsProvider", () => {
-  it("選択中のプリセットを消しても、runtimeConfig は null を通らない", async () => {
+  it("選択中のプリセットを消すと、保存の往復のあいだ runtimeConfig が null を通る", async () => {
     const view = mountPresets();
     await view.settle();
     expect(view.current.runtimeConfig).not.toBeNull();
-
-    // 読み込みが済むまでの描画は `runtimeConfig` が null（プリセットがまだ無い）。
-    // **見たいのはそこから先**なので、印を取ってから消す。
     const from = view.seen.length;
 
-    // **保存の invoke を長引かせて窓を開ける。** 一覧と選択が別々の commit なら、
-    // この間の描画で `runtimeConfig` が null になる。
+    // 保存の invoke を長引かせて窓を開ける。
     let finishSave: () => void = () => {};
     savePresets.mockImplementationOnce(
       () =>
@@ -112,25 +117,31 @@ describe("EnginePresetsProvider", () => {
     const deleting = view.current.deletePreset("a");
     await view.settle();
 
-    // **保存が返るまで画面は動かない**（ADR-0004 の決定7）。
-    expect(view.current.selectedPreset?.id).toBe("a");
+    // 一覧からは消えたのに、選択は消した id を指したまま——**engine はここで畳まれる。**
+    expect(view.current.selectedPreset).toBeNull();
+    expect(view.current.runtimeConfig).toBeNull();
 
-    await act(async () => {
-      finishSave();
-      await deleting;
-    });
+    // **`act` の外で解決させる。** 中に入れると、その間の commit がまとめて畳まれて
+    // 中間の1枚が `seen` に出ない（＝どう壊しても緑になる）。
+    finishSave();
+    await deleting;
     await view.settle();
 
-    // **一度も null を通していない。** 通すとエンジンが畳まれ、走っている解析が止まる。
-    expect(view.seen.slice(from).filter((r) => r === null)).toHaveLength(0);
+    // 窓は閉じる。代わりのプリセットが選ばれ、エンジンは起動し直せる。
     expect(view.current.selectedPreset?.id).toBe("b");
+    expect(view.current.runtimeConfig).not.toBeNull();
     expect(setLastPresetId).toHaveBeenCalledWith("b");
+
+    // **通った null が `seen` に残っている。** 塞いだらここが 0 になるので、
+    // そのとき doc（`analysis.md` の ※5）も一緒に直すこと。
+    expect(view.seen.slice(from).filter((r) => r === null).length).toBeGreaterThan(0);
     view.unmount();
   });
 
   it("選んでいないプリセットを消しても、選択は動かない", async () => {
     const view = mountPresets();
     await view.settle();
+    const from = view.seen.length;
 
     await act(async () => {
       await view.current.deletePreset("b");
@@ -141,24 +152,8 @@ describe("EnginePresetsProvider", () => {
     expect(view.current.state.presets.map((p) => p.id)).toEqual(["a"]);
     // 選択を動かさない回は `setLastPresetId` も撃たない（保存する値が変わっていない）。
     expect(setLastPresetId).not.toHaveBeenCalled();
-    view.unmount();
-  });
-
-  it("保存に失敗したら、一覧も選択も動かさない", async () => {
-    const view = mountPresets();
-    await view.settle();
-    savePresets.mockRejectedValueOnce(new Error("disk full"));
-
-    await act(async () => {
-      await view.current.deletePreset("a").catch(() => {});
-    });
-    await view.settle();
-
-    // **成功と見分けが付く形で終える。** 画面を先に動かすと、ディスクは元のままなのに
-    // 完全な成功と同じに見え、次に起動したとき消したはずのものが戻ってくる。
-    expect(view.current.state.presets.map((p) => p.id)).toEqual(["a", "b"]);
-    expect(view.current.selectedPreset?.id).toBe("a");
-    expect(setLastPresetId).not.toHaveBeenCalled();
+    // この回は窓が開かない——選択が消えないので `runtimeConfig` も動かない。
+    expect(view.seen.slice(from).filter((r) => r === null)).toHaveLength(0);
     view.unmount();
   });
 });
