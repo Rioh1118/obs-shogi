@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const fetchTree = vi.fn();
 const readKifu = vi.fn();
 const parseKifu = vi.fn();
+const removeFile = vi.fn();
 
 vi.mock("../../api/service", () => ({
   fetchTree: (...a: unknown[]) => fetchTree(...a),
@@ -27,7 +28,7 @@ vi.mock("../../api/service", () => ({
   createKifu: vi.fn(),
   importKifu: vi.fn(),
   createDir: vi.fn(),
-  removeFile: vi.fn(),
+  removeFile: (...a: unknown[]) => removeFile(...a),
   removeDir: vi.fn(),
   renameFile: vi.fn(),
   renameDir: vi.fn(),
@@ -78,7 +79,8 @@ const TREE = {
  * 「読み込み中に元の棋譜へ戻る」経路（下の検査）がこの Probe では再現しなくなる。
  */
 function Probe() {
-  const { activeKifuPath, selectedNode, kifuError, selectNode, openKifuNode } = useFileTree();
+  const { activeKifuPath, selectedNode, kifuError, selectNode, openKifuNode, deleteNode } =
+    useFileTree();
   const click = (node: typeof A_NODE) => () => {
     const isActive = activeKifuPath === node.path;
     selectNode(node as never);
@@ -99,6 +101,12 @@ function Probe() {
       </button>
       <button data-testid="open-c" onClick={click(C_NODE)}>
         c
+      </button>
+      <button
+        data-testid="delete-b"
+        onClick={() => void deleteNode(B_NODE as never)} // async-result-ignored: 失敗は deleteNode が積む
+      >
+        delete b
       </button>
     </div>
   );
@@ -257,6 +265,25 @@ describe("続けて棋譜を開いたとき", () => {
 
     expect(shows("active")).toBe(A_KIFU);
     expect(shows("selected")).toBe(A_KIFU);
+  });
+
+  it("読み込み中に消したファイルは、読み出しが返っても盤に載らない", async () => {
+    // 載せると `activeKifuPath` が消したファイルへ変わる。ツリーの読み直しが失敗した回は
+    // それが残り、1手指すと `GamePersistenceGate` が**消したはずのファイルを書き戻す**
+    const resolveRead = deferReadKifu();
+    removeFile.mockResolvedValue({ success: true, data: undefined });
+    await renderTree();
+
+    await click("open-a");
+    await resolveRead(A_KIFU, ok("a"));
+
+    await click("open-b");
+    await click("delete-b");
+
+    await resolveRead(B_KIFU, ok("b"));
+
+    expect(shows("active")).toBe(A_KIFU);
+    expect(shows("selected")).toBe("-");
   });
 
   it("新しい要求が失敗したら、選択は盤に載っている棋譜へ戻る", async () => {
