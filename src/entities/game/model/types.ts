@@ -49,13 +49,25 @@ export interface GameContextState {
    * 盤に載せられなかった棋譜のパス（`game.md` の E16）。載るまで、または閉じるまで残る。
    *
    * **`loadedAbsPath` が動かないことでは代用できない。** 読み込みが進行中の1レンダぶんも
-   * 「まだ載っていない」なので、その2つは区別が付かない。**待っている側が
-   * 「もう来ない」と判断できる唯一の合図**がこれ（`usePositionHitNavigation`）。
+   * 「まだ載っていない」なので、その2つは区別が付かない。
    *
    * `error` と別に持つのは、あちらが文字列でパスを持たないため。
    * どのファイルの失敗かが分からないと、待っている要求と突き合わせられない
    */
   loadFailedAbsPath: string | null;
+
+  /**
+   * `loadFailedAbsPath` が立った回数。**単調増加で、戻らない。**
+   *
+   * パスだけでは「いつ失敗したか」が分からない。待っている側は要求を出した時点の値を
+   * 控えておき、**それより進んでいるときだけ**「自分の要求が落ちた」と読む
+   * （`usePositionHitNavigation`）。
+   *
+   * **印を試行の開始で落とす形では足りない。** ツリーから開く経路は
+   * `openKifuNode` がディスクを読み終えるまで `loadGame` に届かないので、
+   * その間に走った effect が前の回の印を読む窓が残る。
+   */
+  loadFailedSeq: number;
 
   /**
    * **利用者を待たせている**書き込みが1つ以上あるか。`blockingWrites > 0` の射影。
@@ -218,6 +230,7 @@ export const initialGameState: GameContextState = {
   selectedPosition: null,
   loadedAbsPath: null,
   loadFailedAbsPath: null,
+  loadFailedSeq: 0,
   isLoading: false,
   blockingWrites: 0,
   error: null,

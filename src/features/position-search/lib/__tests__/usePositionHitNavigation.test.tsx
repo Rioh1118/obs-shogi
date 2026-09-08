@@ -20,6 +20,7 @@ const stub = {
   player: null as unknown,
   loadedAbsPath: null as string | null,
   loadFailedAbsPath: null as string | null,
+  loadFailedSeq: 0,
   kifuError: null as { path?: string } | null,
 };
 
@@ -37,6 +38,7 @@ vi.mock("@/entities/game", () => ({
     state: {
       loadedAbsPath: stub.loadedAbsPath,
       loadFailedAbsPath: stub.loadFailedAbsPath,
+      loadFailedSeq: stub.loadFailedSeq,
     },
     view: { player: stub.player },
     applyCursor,
@@ -53,6 +55,7 @@ beforeEach(() => {
   stub.player = null;
   stub.loadedAbsPath = null;
   stub.loadFailedAbsPath = null;
+  stub.loadFailedSeq = 0;
   stub.kifuError = null;
   selectNodeByAbsPath.mockReset();
   applyCursor.mockReset();
@@ -208,6 +211,7 @@ describe("usePositionHitNavigation", () => {
     // ツリーは開いた（選択も動いた）が、盤には載らなかった
     stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
     stub.loadFailedAbsPath = "/root/b.kif";
+    stub.loadFailedSeq = 1;
     rerender();
 
     // あとで直して、普通に開き直した
@@ -236,6 +240,35 @@ describe("usePositionHitNavigation", () => {
     rerender();
 
     stub.loadedAbsPath = "/root/b.kif";
+    rerender();
+
+    expect(applyCursor).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **前の回の失敗が残っているうちに、新しい要求を出す。**
+   *
+   * 印が「いま失敗している」を表すと、armed の直後から立っているので、effect が
+   * 1回でも走った時点で新しい要求まで捨てられる。**印は直近の試行だけを指すこと。**
+   */
+  test("前の失敗の印が残っていても、新しい要求は捨てない", () => {
+    selectNodeByAbsPath.mockReturnValue(true);
+    // 前の回に載せられなかった印が残っている
+    stub.loadFailedAbsPath = "/root/b.kif";
+    stub.loadFailedSeq = 1;
+
+    const { result, rerender } = renderHook(() => usePositionHitNavigation());
+    result.current.startNavigationToHit("/root/b.kif", CURSOR);
+
+    // `selectNodeByAbsPath` が選択を動かす。**`openKifuNode` はまだディスクを読んでいる**ので、
+    // `loadGame` には届いておらず、前の回の印が立ったまま effect が走る
+    stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
+    rerender();
+
+    // 今度は載った
+    stub.loadFailedAbsPath = null;
+    stub.loadedAbsPath = "/root/b.kif";
+    stub.player = {};
     rerender();
 
     expect(applyCursor).toHaveBeenCalledTimes(1);

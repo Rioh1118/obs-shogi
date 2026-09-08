@@ -8,6 +8,13 @@ import type { CursorLite } from "@/entities/search";
 type PendingNav = {
   absPath: string;
   cursor: CursorLite;
+  /**
+   * 要求を出した時点の `loadFailedSeq`。**これより進んだ失敗だけが自分のもの。**
+   *
+   * パスの一致だけで捨てると、前の回の失敗が残っている状態で同じ棋譜を
+   * もう一度要求したときに、**まだ走っている試行を「もう来ない」と読む**。
+   */
+  failedSeq: number;
 };
 
 /**
@@ -37,7 +44,7 @@ export function usePositionHitNavigation() {
 
   const startNavigationToHit = useCallback(
     (absPath: string, cursor: CursorLite): NavigationOutcome => {
-      pendingRef.current = { absPath, cursor };
+      pendingRef.current = { absPath, cursor, failedSeq: gameState.loadFailedSeq };
 
       // すでにその棋譜が**盤に載っていて**、view.player もあるなら即ジャンプ。
       //
@@ -87,6 +94,7 @@ export function usePositionHitNavigation() {
       applyCursor,
       fileTree,
       gameState.loadedAbsPath,
+      gameState.loadFailedSeq,
       gameView.player,
       selectNodeByAbsPath,
       selectedNode,
@@ -113,8 +121,11 @@ export function usePositionHitNavigation() {
     }
     // **`loadedAbsPath` が一致しないことでは代用できない。** 読み込みが進んでいる間も
     // 一致しないので、成功する要求まで捨てることになる。載せられなかったことは
-    // `loadFailedAbsPath` にしか出ない
-    if (gameState.loadFailedAbsPath === p.absPath) {
+    // `loadFailedAbsPath` にしか出ない。
+    //
+    // **回数まで見る。** パスの一致だけだと、前の回の失敗が残っている状態で同じ棋譜を
+    // もう一度要求したときに、要求を出した直後の effect が古い印を読んで捨てる。
+    if (gameState.loadFailedAbsPath === p.absPath && gameState.loadFailedSeq !== p.failedSeq) {
       pendingRef.current = null;
       return;
     }
@@ -130,6 +141,7 @@ export function usePositionHitNavigation() {
     gameView.player,
     gameState.loadedAbsPath,
     gameState.loadFailedAbsPath,
+    gameState.loadFailedSeq,
     kifuError,
     selectedNode,
   ]);
