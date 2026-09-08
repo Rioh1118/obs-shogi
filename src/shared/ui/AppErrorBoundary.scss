@@ -34,23 +34,28 @@
     user-select: text;
   }
 
-  // **平常時に in-flow の箱を作らない部品**（`createPortal` で描くモーダル層・更新の知らせ）を
-  // 包む境界のための段。既定のまま出すと、親の grid の行や flex の列を1つ食い、
-  // 周りの部品が暗黙の行へ押し出される —— 1枚の事故で本体を畳まないための境界が、
-  // 本体を畳むことになる
+  // **平常時に in-flow の箱を作らない部品**（更新の知らせは `createPortal`、モーダル層は
+  // 閉じている間 `null` を返す）を包む境界のための段。既定のまま出すと、親の grid の行や
+  // flex の列を1つ食い、周りの部品が暗黙の行へ押し出される —— 1枚の事故で本体を畳まないための
+  // 境界が、本体を畳むことになる。**守るべき条件は置く側**（`pages/AppLayout.tsx`）が持つ。
+  //
+  // **どこにも重ならない場所が要る。** 避けるものが3つある:
+  // 帯（`$titlebar-height`。窓を動かす唯一の手段）／ヘッダの右のアイコン
+  // （`$app-header-height`。この箱を消す鍵を動かす唯一の導線）／右下の角
+  // （通知のトーストと更新のカードが既に取り合っている。`NotificationLayer.scss` の注記）。
+  // 残るのはヘッダの下の右側で、そこに置く
   &--floating {
     position: fixed;
-    z-index: index.$z-notification;
-    // **右下を避ける。** あの角は通知（`NotificationLayer`）と更新のカードが既に取り合っていて、
-    // 不透明なこの箱を重ねると、いちばん要る場面で更新の導線を物理的に塞ぐ
+    z-index: index.$z-error-fallback;
     right: index.$space-12;
-    // **帯を空けて `top` を置く。** `Modal.scss` の overlay と同じ不変条件に載る。
-    // `bottom` 起点にすると中身が伸びたぶん上へ伸び、ビューポートの外へ出た分は
-    // `position: fixed` なのでどんなスクロールでも届かない
-    top: calc(#{index.$titlebar-height} + #{index.$space-6});
+    top: calc(#{index.$titlebar-height} + #{index.$app-header-height} + #{index.$space-6});
     height: auto;
-    // 上限を持たせて、基底の `overflow: auto` を効かせる
-    max-height: calc(100vh - #{index.$titlebar-height} - #{index.$space-6} * 2);
+    // 上限を持たせて、基底の `overflow: auto` を効かせる。`bottom` 起点にすると
+    // 中身が伸びたぶん上へ伸び、ビューポートの外へ出た分は `position: fixed` なので
+    // どんなスクロールでも届かない
+    max-height: calc(
+      100vh - #{index.$titlebar-height} - #{index.$app-header-height} - #{index.$space-6} * 2
+    );
     border-radius: index.$radius-4;
     box-shadow: index.$shadow-overlay;
   }
