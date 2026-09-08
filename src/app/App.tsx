@@ -5,7 +5,7 @@ import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";
 import AppRouter from "./routing/AppRouter";
 import UpdaterScreen from "@/features/updater/ui/UpdaterScreen";
-import { AppErrorBoundary, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 import { RootErrorFallback } from "./RootErrorFallback";
 
 function App() {
@@ -47,12 +47,7 @@ function App() {
 
         `useUpdater` は context も router も要らないので、外に置いても何も失わない。
       */}
-      <AppErrorBoundary
-        label="更新の知らせ"
-        fallback={(error, reset) => (
-          <AppErrorFallbackBody label="更新の知らせ" error={error} reset={reset} floating />
-        )}
-      >
+      <AppErrorBoundary label="更新の知らせ" floating>
         <UpdaterScreen />
       </AppErrorBoundary>
     </div>

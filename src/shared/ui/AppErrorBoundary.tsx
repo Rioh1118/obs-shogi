@@ -20,6 +20,13 @@ type Props = {
    * 渡すと、落ち続けるものを描き続けようとして fallback が出なくなる。
    */
   resetKeys?: readonly unknown[];
+  /**
+   * 平常時に in-flow の箱を作らない部品を包む境界で真にする。詳細は SCSS の `--floating`。
+   *
+   * **境界の位置の性質なので、境界が持つ。** `fallback` を渡して既定の本文を組み直す形にすると、
+   * 本文に段が増えたときに組み直した側だけが古いまま残る。
+   */
+  floating?: boolean;
   children: ReactNode;
   /**
    * 既定の画面の代わりに描くもの。渡さなければ `AppErrorFallbackBody` が出る。
@@ -92,7 +99,14 @@ export class AppErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }
-      return <AppErrorFallbackBody label={this.props.label} error={error} reset={this.reset} />;
+      return (
+        <AppErrorFallbackBody
+          label={this.props.label}
+          error={error}
+          reset={this.reset}
+          floating={this.props.floating}
+        />
+      );
     }
     return this.props.children;
   }

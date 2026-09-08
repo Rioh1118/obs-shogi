@@ -16,7 +16,7 @@ import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { AppErrorBoundary, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
   // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
@@ -45,19 +45,15 @@ const AppLayout = () => {
       {/*
         モーダル1枚の事故で本体まで unmount させない。
 
-        **fallback は箱を作らない段で出す。** `AppModalLayer` は `createPortal` なので
-        平常時ここに in-flow の子を1つも作らず、`.app-layout`（`grid-template-rows` が2段）は
-        ヘッダと本体でちょうど埋まっている。既定のまま出すと fallback が1段目を取り、
-        本体が暗黙の3段目へ押し出されて `overflow: hidden` に切られる —— 本体を畳まないための
-        境界が、本体を畳むことになる
+        **`floating` にするのは、平常時ここに in-flow の子が1つも無いから。**
+        `AppModalLayer` の子は閉じている間 `null` を返し、開いたときだけ `Modal` が portal する。
+        `.app-layout` は `grid-template-rows` が2段で、ヘッダと本体でちょうど埋まっている。
+        箱を作る fallback を出すと1段目を取り、本体が暗黙の3段目へ押し出されて
+        `overflow: hidden` に切られる —— 本体を畳まないための境界が、本体を畳むことになる。
+
+        **`AppModalLayer` の子に、平常時 in-flow の要素を返す部品を足さないこと。**
       */}
-      <AppErrorBoundary
-        label="モーダル"
-        resetKeys={[modal]}
-        fallback={(error, reset) => (
-          <AppErrorFallbackBody label="モーダル" error={error} reset={reset} floating />
-        )}
-      >
+      <AppErrorBoundary label="モーダル" resetKeys={[modal]} floating>
         <AppModalLayer />
       </AppErrorBoundary>
 
