@@ -76,7 +76,8 @@ describe("`src/` のコメントが指す識別子", () => {
   });
 
   /**
-   * **ハーネス（`.claude/agents` と `.claude/skills`）も同じ網に入れる。**
+   * **ハーネス（`.claude/agents` / `.claude/skills` の `.md` と `.claude/hooks/*.sh`）も
+   * 同じ網に入れる。** `.sh` は `commentsOf(..., "shell")` を通す（`.md` は本文そのまま）。
    *
    * reviewer の定義と手順書は、識別子を「これを grep して数えろ」という**材料**として
    * 名指す。腐ると reviewer は空振りし、何を探せばよいか分からないまま節を飛ばす
@@ -98,10 +99,8 @@ describe("`src/` のコメントが指す識別子", () => {
       comments: readFileSync(join(REPO_ROOT, rel), "utf8"),
     }));
 
-    // **hooks も同じ網に入れる。** あちらのコメントは検査の名前やパスを
-    // 「仕様として引く」ので、腐っても赤くならない状態が残る。
-    // corpus 側（`docsIdentifiers` の `hookCorpus`）としては既に読まれているが、
-    // そこに書かれた綴りを**見る**側はどこにも無かった。
+    // hooks のコメントは検査の名前やパスを「仕様として引く」ので、見る側をここに置く。
+    // corpus 側（`docsIdentifiers` の `hookCorpus`）は同じディレクトリを別に読む。
     const sh = readdirSync(join(REPO_ROOT, ".claude/hooks"), { withFileTypes: true })
       .filter((e) => e.isFile() && e.name.endsWith(".sh"))
       .map((e) => `.claude/hooks/${e.name}`)

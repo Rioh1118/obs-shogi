@@ -53,9 +53,16 @@ const TESTS_DIR_IMPORT = new RegExp(`${ANY_PREFIX}(?:[\\w.-]+/)*__tests__/[^"'\`
  * **接頭辞もサブパスも受ける。** `node:` は省ける（lint も素の `fs` を通す）し、
  * `fs/promises` は `readFile` を持つ現実的な代替なので、どちらかに限ると素通りする。
  *
+ * **静的 import に限らない。** 同じファイルの上の検査が
+ * 「`no-restricted-imports` は静的 import しか見ない」と言って `await import(...)` を
+ * 塞いでいるのに、こちらだけ `from` に縛ると同じ穴が片側だけ開く。
+ * `child_process`（外部プロセスで歩く）と `module`（`createRequire` 経由で `fs` に届く）も
+ * 材料に入れる。
+ *
  * `import.meta.glob` は入れない——本番の正当な用途が在る（駒画像の読み込み）。
  */
-const NODE_SCAN = /from\s+["'`](?:node:)?(?:fs|path|url|os)(?:\/[\w-]+)?["'`]/g;
+const NODE_SCAN =
+  /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'`](?:node:)?(?:fs|path|url|os|child_process|module)(?:\/[\w-]+)?["'`]/g;
 
 /**
  * 上から下へ。`vite.config.ts` の `no-restricted-imports` と同じ順で、

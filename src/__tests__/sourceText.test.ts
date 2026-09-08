@@ -196,6 +196,17 @@ describe("commentsOf", () => {
   test("ブロックの右に書いたコードも残さない", () => {
     expect(commentsOf("/** 説明 */ const FOO_BAR = 1;\n")).not.toContain("FOO_BAR");
   });
+
+  // **シェルの枝も固定する。** 丸ごと空を返す変異は、`.md` の取り分だけで
+  // 下限を越えるので `srcCommentIdentifiers` では赤くならない
+  test("シェルの行コメントを拾う", () => {
+    expect(commentsOf("needs_ts=1  # `FOO_BAR` のこと\n", "shell")).toContain("FOO_BAR");
+    expect(commentsOf("# `FOO_BAR` のこと\nneeds_ts=1\n", "shell")).toContain("FOO_BAR");
+  });
+
+  test("シェルのコードは残さない", () => {
+    expect(commentsOf("gate_kinds_for_path() {\n", "shell")).not.toContain("gate_kinds_for_path");
+  });
 });
 
 describe("コメント除去の持ち主", () => {

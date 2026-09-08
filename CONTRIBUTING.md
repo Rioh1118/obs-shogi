@@ -387,6 +387,8 @@ TS 側のラチェットの置き場は2つに分かれます。リポジトリ�
 | `openerCapability`                      | 数えるのが `src-tauri/capabilities/`。ACL は JSON5 でも TOML でも書ける            |
 | `ratchetIndex`                          | ファイル名ではなく**親ディレクトリ名**が要る（`scanning/mod.rs` → `scanning`）     |
 | `exportsTested`（`entities/kifu` の中） | 数えるのが `model/` `lib/` の**ファイル名**。`src/__tests__` はアプリのコードを import できないので中に置く |
+| `settingsTabNames`                      | 数えるのが `docs/spec/**` の `.md`。`scannedDocs` の範囲は `spec/screens/` までで `navigation-map.md` が入らない |
+| `srcCommentIdentifiers`                 | 数えるのが `.claude/agents` / `.claude/skills` / `.claude/hooks`。`walk.ts` はどれも歩かない |
 
 **それ以外は `walk.ts` から引いてください。** 中身を読む走査は特にそうです
 （`docsIdentifiers` は `.claude/hooks/` を `sourceFiles` で歩きます）。
