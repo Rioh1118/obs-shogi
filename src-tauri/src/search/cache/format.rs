@@ -2229,8 +2229,9 @@ mod tests {
 
     /// **置いて読み戻すと、同じ索引が返る。**
     ///
-    /// これまで `save_checkpoint` / `try_restore` を通るテストは1本も無かった。
-    /// `AppHandle` を直に取っていて、置き場を差し替えられなかったため。
+    /// **置き場を差し替えられる形で書く。** `BlobStore` を引数に取るので
+    /// `InMemory` を渡せる——`AppHandle` を直に取る形だと、この経路は
+    /// ディスクの実物なしには一度も通せない。
     #[test]
     fn a_checkpoint_can_be_written_and_read_back() {
         use crate::storage::InMemory;

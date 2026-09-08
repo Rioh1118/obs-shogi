@@ -64,9 +64,13 @@ const SCREENS: { source: string; spec: string }[] = [
 /**
  * 画面に出る文字列リテラルを拾う。
  *
- * **拾うのは3つの形だけ。** `label: "…"`、`return "…"`、**両腕とも文字列
- * リテラルの三項**（`cond ? "A" : "B"`）。三項を拾うのは、`return` だけだと
- * `emptyReason` の `ok` の腕が漏れるから。
+ * **拾うのは4つの形だけ。** `label: "…"`、`title: "…"` / `body: "…"`、
+ * `return "…"`、**両腕とも文字列リテラルの三項**（`cond ? "A" : "B"`）。
+ *
+ * 三項を拾うのは `return` だけだと `emptyReason` の `ok` の腕が漏れるから。
+ * `title:` / `body:` は、断りの文言を**表で持つ**画面（`PositionSearchModal` の
+ * `REFUSALS`）がそのどれでもない形で文言を出すため——素の値にすると
+ * 仕様書との突き合わせから落ちる。
  *
  * **見ていないもの。** 入れ子三項（腕の片方が識別子）と JSX の地の文
  * （`ほか N 件` など）。どちらもここでは拾わないので、**その文言が
@@ -77,7 +81,7 @@ const SCREENS: { source: string; spec: string }[] = [
 function labelsOf(source: string): string[] {
   const text = readFileSync(join(REPO_ROOT, source), "utf8");
   const out: string[] = [];
-  for (const m of text.matchAll(/(?:label:|return)\s*"([^"]{2,})"/g)) {
+  for (const m of text.matchAll(/(?:label:|title:|body:|return)\s*"([^"]{2,})"/g)) {
     out.push(m[1]);
   }
   // 三項の両腕。`:` を単独で拾うと `tone: "muted"` のような**画面に出ない値**まで来る

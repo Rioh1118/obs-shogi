@@ -47,8 +47,9 @@ use shogi_kifu_converter_obsshogi::parser::{
 /// 世代が上がらず、**前の世代のセグメントが索引に残る**。
 /// 下2つでは、その棋譜の局面は検索に出てこない。
 ///
-/// **`Ok` でも `warns` が空とは限らない。** 5つの戻りを並べた表は
-/// `docs/state-transitions/search.md`（この関数を主語にしている）。
+/// **`Ok` でも `warns` が空とは限らない。** `NothingToIndex` を
+/// `looks_intentional` で割った表は `docs/state-transitions/search.md`
+/// （この関数を主語にしている）。
 ///
 /// [`ReadOutcome::Indexable`]: crate::search::read::outcome::ReadOutcome::Indexable
 /// [`ReadOutcome::NothingToIndex`]: crate::search::read::outcome::ReadOutcome::NothingToIndex

@@ -15,7 +15,7 @@
 //! 2. 候補が減っていないか（**空振りで緑になるのを止める**。3つの向きすべてに床がある）
 //! 3. `fn` 名が `src/search/**` に実在するか
 //! 4. `名前(引数)` の形の呼び出しが実在するか
-//! 5. `Type::Variant` の並びが実在するか
+//! 5. `Type::Variant` の**両側が語として**実在するか
 //!
 //! ## ここが見ないもの
 //!
@@ -26,6 +26,11 @@
 //! そのときはこの検査の根も直すこと。
 //!
 //! **[`EXEMPT`] に並べた綴りは見ない。** 欄の名前など、`fn` でないもの。
+//!
+//! **`Type::Variant` の組み合わせは見ない。** 型とバリアントが別々の場所に
+//! 語として在れば通るので、型を跨いだ取り違え（`BuildError::Loose` のような綴り）は
+//! 素通りする。並びを要求すると、`#[from]` で作られる正しい綴り
+//! （`BuildError::Initial`）が落ちるため、そこは人が読む。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -64,12 +69,13 @@ const EXEMPT: [&str; 17] = [
 
 /// 候補がこれを下回ったら、走査が壊れているとみなす。
 ///
-/// **実測**（`cargo test` の出力で数えた）: `fn` 名 23 / 呼び出し 10。
+/// **実測値をここに書かない。** 書いた瞬間から `search.md` の編集で離れる。
+/// 床は「桁で落ちたら気付く」ためのもので、実測に張り付ける意味は無い。
 /// 表の行が増減するので余裕を取ってあるが、**桁で落ちたら気付く**ための下限。
 const MIN_FN_CANDIDATES: usize = 15;
 const MIN_CALL_CANDIDATES: usize = 6;
 
-/// `Type::Variant` の候補の下限。**実測は3件**（重複を除く）。
+/// `Type::Variant` の候補の下限。**数えるのは重複を含む件数。**
 ///
 /// **この床が無いと、新しい向きだけが空振りで緑になる。** `without_fences` は
 /// コード塀を落とすので、表の書き方を変えて `Type::Variant` の言及が塀の中へ
@@ -238,6 +244,33 @@ fn mentions_word(code: &str, name: &str) -> bool {
         from = at + name.len();
     }
     false
+}
+
+/// 語境界の判定そのものを固定する。
+///
+/// **doc 側の変異では捕まらない。** `mentions_word` が常に真を返すよう壊すと
+/// `missing` は空になり、候補の数を見る検査も通るので、**両方緑のまま**
+/// この走査だけが何も見なくなる。
+#[test]
+fn mentions_word_looks_at_boundaries() {
+    assert!(
+        !mentions_word("SupersededByRestart", "Superseded"),
+        "接尾を通している"
+    );
+    assert!(
+        !mentions_word("RestartSuperseded", "Superseded"),
+        "接頭を通している"
+    );
+    assert!(
+        mentions_word("enum X { Superseded }", "Superseded"),
+        "記号に挟まれた語を落としている"
+    );
+    // **1つ目が語でなくても2つ目で当たること。** `from` の前進が
+    // 後ろの出現を飛ばしていたら、ここが落ちる
+    assert!(
+        mentions_word("A_Loose Loose", "Loose"),
+        "2つ目の出現を飛ばしている"
+    );
 }
 
 /// doc が名乗る `Type::Variant` の両側が実在すること。

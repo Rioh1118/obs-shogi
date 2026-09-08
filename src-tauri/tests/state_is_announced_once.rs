@@ -234,6 +234,34 @@ fn no_one_builds_a_warning_payload_with_a_struct_literal() {
     );
 }
 
+/// **画面へ出る `Err` は刈った型で返すこと。**
+///
+/// `search` のコマンドの `Err` はフロントがそのまま描く経路がある
+/// （`PositionSearchHitList` の「検索に失敗しました: …」）。`String` で返せる形を
+/// 残すと、`ScanError` の `Display`（`root directory is not readable: /Users/…`）を
+/// そのまま画面へ通す書き方がコンパイルを通ってしまう。
+///
+/// **`message.rs` の doc がこの性質を主張している。** 主張を人の注意で保つと、
+/// コマンドが1つ増えた日にそこだけ外れる——実際に3つのうち1つが外れていた。
+#[test]
+fn no_search_command_returns_a_bare_string_error() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/search/commands.rs");
+    let code = blank_out_noncode(&read_with_strings(&path));
+
+    let commands = code.matches("#[tauri::command]").count();
+    assert!(
+        commands >= 3,
+        "`commands.rs` のコマンドが {commands} 件しか見えない。走査が空振りしている"
+    );
+
+    let offenders = code.matches(", String>").count();
+    assert_eq!(
+        offenders, 0,
+        "`search` のコマンドが `Err` を裸の `String` で返している（{offenders} 件）。\n\
+         `ScreenMessage` を返すこと——刈っていない文言が画面へ出る"
+    );
+}
+
 /// `use` から `;` までを1つずつ返す。
 ///
 /// **行で切らない。** `use a::{\n  B as C,\n};` のように**項目が次の行に並ぶ**形が

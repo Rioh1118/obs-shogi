@@ -37,7 +37,7 @@ pub async fn search_position(
 pub async fn cancel_search(
     state: State<'_, SearchState>,
     input: CancelSearchInput,
-) -> Result<(), String> {
+) -> Result<(), ScreenMessage> {
     log::debug!("[cmd] cancel_search rid={}", input.request_id);
     state.query.cancel(input.request_id);
     Ok(())

@@ -478,7 +478,11 @@ impl IndexWarnPayload {
         }
     }
 
-    /// 棋譜1件についての警告。
+    /// 棋譜1件についての警告。**組み立てはここを通すこと。**
+    ///
+    /// `place` と同じく、閉じているのは型ではなく
+    /// `tests/state_is_announced_once.rs` の走査
+    /// （`no_one_builds_a_warning_payload_with_a_struct_literal`）。
     pub fn file(path: impl Into<String>, message: ScreenMessage) -> Self {
         Self {
             kind: IndexWarnKind::File,
