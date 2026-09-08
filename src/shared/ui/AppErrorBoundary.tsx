@@ -47,9 +47,16 @@ export class AppErrorBoundary extends Component<Props, State> {
  * 既定の fallback と、枠を自前で持つ `fallback`（`app/RootErrorFallback.tsx`）の両方が描く。
  * 写しを持たせると、文言を直したときに片方だけが変わり、その片方を見ているテストだけが赤くなる。
  */
-export function AppErrorFallbackBody({ reset }: { reset: () => void }) {
+export function AppErrorFallbackBody({
+  reset,
+  floating = false,
+}: {
+  reset: () => void;
+  /** 平常時に in-flow の箱を作らない部品を包む境界で真にする。詳細は SCSS の `--floating` */
+  floating?: boolean;
+}) {
   return (
-    <div className="app-error-fallback">
+    <div className={`app-error-fallback${floating ? " app-error-fallback--floating" : ""}`}>
       <p>表示中にエラーが発生しました。</p>
       <button type="button" className="app-error-fallback__action" onClick={reset}>
         再表示

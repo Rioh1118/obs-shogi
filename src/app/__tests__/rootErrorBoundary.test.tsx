@@ -17,7 +17,14 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 const close = vi.fn(() => Promise.resolve());
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ close }) }));
 
-vi.mock("@/features/updater/ui/UpdaterScreen", () => ({ default: () => null }));
+/** 更新の知らせは平常時 `null` か portal で、`.app-root` に in-flow の子を作らない */
+let updaterThrowing = false;
+vi.mock("@/features/updater/ui/UpdaterScreen", () => ({
+  default: () => {
+    if (updaterThrowing) throw new Error("更新の知らせの中で落ちた");
+    return <div data-testid="updater" />;
+  },
+}));
 vi.mock("../providers/BootstrapProviders", () => ({
   BootstrapProviders: ({ children }: { children: ReactNode }) => children,
 }));
@@ -35,6 +42,7 @@ const { default: App } = await import("../App");
 
 beforeEach(() => {
   throwing = true;
+  updaterThrowing = false;
   // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。
   // 出ること自体は意図どおりなので、出力だけ畳む
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -63,6 +71,29 @@ describe("root の境界", () => {
 
     fireEvent.click(closeButton);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  test("更新の知らせが落ちても、本体は畳まない", () => {
+    throwing = false;
+    updaterThrowing = true;
+    const { container } = render(<App />);
+
+    expect(
+      screen.getByTestId("router"),
+      "更新の知らせ1枚の事故で、動いているアプリ全体が最後の砦に差し替わっている",
+    ).toBeTruthy();
+    // in-flow の箱を作ると `.app-root`（flex column）の列を1つ食い、本体が縮む
+    expect(container.querySelector(".app-error-fallback--floating")).not.toBeNull();
+  });
+
+  test("本体が落ちても、更新の知らせは残る", () => {
+    render(<App />);
+
+    expect(screen.getByText("表示中にエラーが発生しました。")).toBeTruthy();
+    expect(
+      screen.getByTestId("updater"),
+      "その状態を直す版が、その状態のせいで届かなくなっている",
+    ).toBeTruthy();
   });
 
   test("再表示で元の画面へ戻れる", () => {

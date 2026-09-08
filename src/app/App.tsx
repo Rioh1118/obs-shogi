@@ -5,7 +5,7 @@ import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";
 import AppRouter from "./routing/AppRouter";
 import UpdaterScreen from "@/features/updater/ui/UpdaterScreen";
-import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 import { RootErrorFallback } from "./RootErrorFallback";
 
 function App() {
@@ -27,14 +27,22 @@ function App() {
             <AppRouter />
           </BrowserRouter>
         </BootstrapProviders>
+      </AppErrorBoundary>
 
-        {/*
-          **更新の知らせはルートの外に置く。** 畳んでいるのは `RequireRootDir` で、
-          設定が読めないときとワークスペースが無いときに `/` へ飛ばす。その内側に
-          置くと、**その状態を直す版が、その状態のせいで届かない。**
+      {/*
+        **更新の知らせはルートの外に置く。境界の外でもある。** 畳んでいるのは
+        `RequireRootDir` で、設定が読めないときとワークスペースが無いときに `/` へ飛ばす。
+        その内側に置くと、**その状態を直す版が、その状態のせいで届かない。**
+        同じ理由で境界も分ける —— provider が落ちて上の fallback が出ているときこそ、
+        修正版を受け取る導線が要る。
 
-          `useUpdater` は context も router も要らないので、外に置いても何も失わない。
-        */}
+        逆向きも分ける理由になる。ここが落ちてもアプリ全体を最後の砦へ落とさない。
+
+        `useUpdater` は context も router も要らないので、外に置いても何も失わない。
+      */}
+      <AppErrorBoundary
+        fallback={(_error, reset) => <AppErrorFallbackBody reset={reset} floating />}
+      >
         <UpdaterScreen />
       </AppErrorBoundary>
     </div>

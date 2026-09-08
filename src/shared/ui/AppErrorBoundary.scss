@@ -23,6 +23,20 @@
   color: index.$color-text-primary;
   font-size: index.$font-body;
 
+  // **平常時に in-flow の箱を作らない部品**（`createPortal` で描くモーダル層・更新の知らせ）を
+  // 包む境界のための段。既定のまま出すと、親の grid の行や flex の列を1つ食い、
+  // 周りの部品が暗黙の行へ押し出される —— 1枚の事故で本体を畳まないための境界が、
+  // 本体を畳むことになる
+  &--floating {
+    position: fixed;
+    z-index: index.$z-notification;
+    right: index.$space-12;
+    bottom: index.$space-12;
+    height: auto;
+    border-radius: index.$radius-4;
+    box-shadow: index.$shadow-overlay;
+  }
+
   // 面で境を作る。枠線で作ると、この面（$color-primary-black）に対して
   // 1.4.11 の 3:1 を満たす明るさが本文より明るくなり、ボタンが見出しに見える
   &__action {
