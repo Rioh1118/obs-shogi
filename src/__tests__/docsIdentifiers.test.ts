@@ -1,9 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
+import { basename } from "node:path";
+import { SRC, tsFiles } from "./walk";
 import { docsPath } from "./stateTransitionIndex";
 import { codeOf } from "./sourceText";
 import { scannedDocs } from "./docsSourcePaths";
-import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
+import { EXEMPT, identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
 
 /**
  * `scannedDocs()` が返す doc がバッククォートで指す識別子が、ソースに実在するかを見る。
@@ -37,6 +39,31 @@ describe("doc が指す識別子", () => {
     });
 
     expect(broken, "改名したら表も直すこと。落とすなら行ごと落とすこと").toEqual([]);
+  });
+});
+
+/**
+ * 免除に**検査の名前**を足すと、その検査が自分で見ている綴りを検査から外す。
+ *
+ * `EXEMPT` は `docs/**` と `src/**` の TS コメントの両方に掛かるので、片方の都合で
+ * 1件足すと**両方で二度と検査されない**。検査の名前を免除に入れると、その検査が
+ * 自分の名前を守れなくなる——改名しても、名前を指している doc は赤くならない。
+ * コメントや doc から検査を指したいときはパスで書くこと（`src/__tests__/foo.test.ts`）。
+ */
+describe("免除の中身", () => {
+  test("検査の名前を免除していない", () => {
+    const checks = new Set(
+      tsFiles(SRC, { includeTests: true })
+        .map((p) => basename(p))
+        .filter((n) => n.endsWith(".test.ts") || n.endsWith(".test.tsx"))
+        .map((n) => n.replace(/(\.ratchet)?\.test\.tsx?$/, "")),
+    );
+    const named = [...EXEMPT].filter((name) => checks.has(name)).sort();
+
+    expect(
+      named,
+      "免除に検査の名前が入っている。指したいならパスで書くこと（`src/__tests__/foo.test.ts`）",
+    ).toEqual([]);
   });
 });
 

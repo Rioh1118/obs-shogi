@@ -46,7 +46,7 @@ const IDENTIFIER =
  * 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
  * 片方にしか要らない綴りが現に在る（`peek_text` は Rust のコメントだけ）。
  */
-const EXEMPT = new Set([
+export const EXEMPT = new Set([
   // USI の語。エンジンとの取り決めであって、こちらの識別子ではない
   "go_ponder",
   "position_sfen",
@@ -60,9 +60,6 @@ const EXEMPT = new Set([
   "count_yaneuraou_db_positions",
   // ShogiHome の設定名。対局の表が「あちらの既定」の出典に引く
   "enableEngineTimeout",
-  // 検査の名前。ファイル名（`*.test.ts`）としては在るが、ソースの本文には現れない
-  "analysisRefusals",
-  "docsIdentifiers",
 ]);
 
 /**

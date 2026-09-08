@@ -176,6 +176,12 @@ describe("commentsOf", () => {
     expect(commentsOf("const a = 1; /* `FOO_BAR` */\n")).not.toContain("FOO_BAR");
   });
 
+  // **実ファイルは必ず両方を持つ。** ブロック側だけを固めると、ブロックより前に
+  // 現れた行コメントを落とす変異が素通りする（実測で 492 本が消えて全部緑だった）。
+  test("ブロックの前にある行コメントも拾う", () => {
+    expect(commentsOf("// `FOO_BAR` のこと\n/** 説明 */\nconst a = 1;\n")).toContain("FOO_BAR");
+  });
+
   test("閉じないブロックは末尾まで拾う", () => {
     expect(commentsOf("/** 説明\n * `FOO_BAR`\n")).toContain("FOO_BAR");
   });

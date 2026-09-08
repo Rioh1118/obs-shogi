@@ -80,7 +80,7 @@ describe("解析の断り", () => {
     // **import しただけでは通さない。** 断りを読み込む行を落としてから探す。
     //
     // **否定の当たりを数に入れない。** 綴りが在るかだけを見ると、
-    // `expect(...).not.toBe(NAME)`——「その断りが**出ない**こと」を確かめる行——が
+    // `.not.` を頭に持つ当たり——「その断りが**出ない**こと」を確かめる行——が
     // そのまま「踏んでいる」の根拠になる。現に同じ断りに肯定と否定を1本ずつ持つ回が
     // あるので、肯定側を落とす改変が黙って通る。
     //
@@ -88,7 +88,9 @@ describe("解析の断り", () => {
     // （`it.each([["failed", ENGINE_FAILED_MESSAGE]])`）は期待値を変数で渡すので、
     // `.toBe(NAME)` を要求すると正しい形が落ちる。否定だけを引いて、
     // **残りに1度でも出るか**を見る。
-    const negated = new RegExp(String.raw`\.not\.(?:toBe|toEqual|toContain)\(\s*${name}\b`, "g");
+    // **matcher を列挙しない。** 列挙すると `.not.toStrictEqual` へ書き換えるだけで
+    // 素通りする（実測）。`not` の後ろに何が来ても引く。
+    const negated = new RegExp(String.raw`\.not\.\w+\(\s*${name}\b`, "g");
     const body = withoutImports(codeOf(read(TESTS))).replace(negated, "");
 
     expect(
