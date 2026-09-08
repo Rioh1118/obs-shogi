@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { AppErrorFallbackAction, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 import "./RootErrorFallback.scss";
@@ -9,6 +9,8 @@ type Props = {
   label: string;
   /** 落ちた原因。ここが出す以外に、利用者が原因を知る手段は無い */
   error: unknown;
+  /** 次に何をすればよいか。同上、境界が持つ */
+  hint?: ReactNode;
   /** 境界の `reset`。落ちた原因が一過性なら、これで元の画面へ戻れる */
   reset: () => void;
 };
@@ -34,7 +36,7 @@ type Props = {
  * **共有し切れていないものが1つある。** アイコンの `lucide-react` は `TitleBar` と同じものを
  * import しているので、そこが原因で root まで上がった場合はこの画面も同じ例外で落ちる。
  */
-export function RootErrorFallback({ label, error, reset }: Props) {
+export function RootErrorFallback({ label, error, hint, reset }: Props) {
   // **握って黙ると「押しても何も起きないボタン」になる。** この画面は他に手段が無いときの
   // 最後の1つなので、閉じられなかったことは画面に出す
   const [closeFailed, setCloseFailed] = useState(false);
@@ -68,7 +70,7 @@ export function RootErrorFallback({ label, error, reset }: Props) {
           label={label}
           error={error}
           reset={reset}
-          hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。"
+          hint={hint}
           actions={
             /*
               **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、

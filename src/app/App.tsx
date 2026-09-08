@@ -24,7 +24,11 @@ function App() {
         `docs/spec/screens/app-layout.md` の「失敗の見せ方」が持つ。**ここに写さない**
         —— 2箇所に置くと片方だけ直る。
       */}
-      <AppErrorBoundary label="アプリ" fallback={(args) => <RootErrorFallback {...args} />}>
+      <AppErrorBoundary
+        label="アプリ"
+        hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。"
+        fallback={(args) => <RootErrorFallback {...args} />}
+      >
         <BootstrapProviders>
           <BrowserRouter>
             <AppRouter />

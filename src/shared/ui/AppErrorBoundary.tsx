@@ -45,10 +45,20 @@ type Props = {
    *
    * `reset` は `error` を消すだけ。原因が境界の外にあるなら効かない（`resetKeys` を見ること）。
    *
-   * **`label` を受け取って使うこと。** ここで名乗りを書き直すと、ログ（`componentDidCatch`）と
-   * 画面が別々の文字列を持ち、`label` を直しても画面が変わらなくなる。
+   * **受け取ったものをそのまま `AppErrorFallbackBody` へ渡すこと。** ここで書き直すと、
+   * 境界に書いた `label` / `hint` / `floating` が黙って捨てられる（型でも lint でも赤くならない）。
+   *
+   * **`actions` と `notice` だけは境界から渡らない。** どちらも「出口を押した結果」に依存していて、
+   * その state は fallback の中にしか無い（`RootErrorFallback` の `closeFailed` がその例）。
+   * 境界が持てるのは、落ちる前から決まっている表現だけ。
    */
-  fallback?: (args: { error: unknown; reset: () => void; label: string }) => ReactNode;
+  fallback?: (args: {
+    error: unknown;
+    reset: () => void;
+    label: string;
+    hint?: ReactNode;
+    floating?: boolean;
+  }) => ReactNode;
 };
 
 type State = {
@@ -109,7 +119,13 @@ export class AppErrorBoundary extends Component<Props, State> {
     const { caught, error } = this.state;
     if (caught) {
       if (this.props.fallback) {
-        return this.props.fallback({ error, reset: this.reset, label: this.props.label });
+        return this.props.fallback({
+          error,
+          reset: this.reset,
+          label: this.props.label,
+          hint: this.props.hint,
+          floating: this.props.floating,
+        });
       }
       return (
         <AppErrorFallbackBody

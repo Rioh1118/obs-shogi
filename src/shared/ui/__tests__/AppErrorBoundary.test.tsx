@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { AppErrorBoundary } from "../AppErrorBoundary";
+import { AppErrorBoundary, AppErrorFallbackBody } from "../AppErrorBoundary";
 
 /**
  * 境界から出る手段が「再表示」しか無いと、**押しても画面が1ドットも変わらない**行き止まりになる。
@@ -133,6 +133,33 @@ describe("AppErrorBoundary が出す案内", () => {
 
     // 既定の fallback へ素通ししないと、案内を書けるのは fallback を渡した境界だけになる
     expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
+  });
+});
+
+describe("AppErrorBoundary が fallback へ渡すもの", () => {
+  test("`hint` と `floating` は `fallback` にも届く", () => {
+    // 届かないと、境界に書いた案内が黙って捨てられる（型でも lint でも赤くならない）
+    render(
+      <AppErrorBoundary
+        label="盤"
+        hint="棋譜を開き直してください。"
+        floating
+        fallback={(args) => (
+          <AppErrorFallbackBody
+            label={args.label}
+            error={args.error}
+            reset={args.reset}
+            hint={args.hint}
+            floating={args.floating}
+          />
+        )}
+      >
+        <Throwing value={new Error("落ちた")} />
+      </AppErrorBoundary>,
+    );
+
+    expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
+    expect(document.querySelector(".app-error-fallback--floating")).not.toBeNull();
   });
 });
 
