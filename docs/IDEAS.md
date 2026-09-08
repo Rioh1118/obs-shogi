@@ -142,6 +142,24 @@
 - 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
 - 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
 
+## `entities/engine` の context に、命令形の口が呼び手0のまま並んでいる
+
+`initialize` / `shutdown` / `restart` / `clearError` / `state` は `EngineContextType` に
+出ているが、**スライス外の読み手は `isReady` / `notReadyReason` だけ**
+（`entities/analysis/model/provider.tsx` と `features/engine-position-sync`）。
+`clearError` はリポジトリ全体で呼び手0。エンジンの寿命は `desiredRuntime` から導出する、
+というのがこの provider の設計なので、命令形の動詞を context に出す理由が無い。
+
+`restart()` の `Promise<boolean>` が結末5通りを1ビットに潰し、畳みの失敗だけ型の外
+（reject）に出している件も、**降ろせば消える**——いま型を厚くすると、`isReady` /
+`notReadyReason` という既存の観測面と二重に結末を語ることになる。
+
+**`startingSeqRef`（起動の門）も同じ節で見ること。** `initialize_start` の dispatch を
+1回に保つ以外に効いている先が無く（実測）、#502 の受け入れ条件とは線が繋がっていない。
+外すなら StrictMode の検査ごと。上の走査（呼び手0の公開面）と同じ回に片付けるのが安い。
+
+出どころ: #502 のレビュー r13（architecture）。
+
 ## 解析の停止が、ロックを握ったまま別のロックを待つ
 
 `.claude/reviews/2026-09-07-441-unmount-session-r2.md` の r2-21（rust reviewer）。
