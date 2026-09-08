@@ -58,8 +58,20 @@ export const STOP_FAILED_MESSAGE =
  */
 export const ENGINE_STARTING_MESSAGE =
   "エンジンの起動を待っています。少し待ってからもう一度 ▶ を押してください。";
-/** エンジンの初期化が落ちている（→ F-9 / #171）。 */
+/**
+ * エンジンの初期化が落ちている（→ F-9 / #171）。**▶ を押した人に出す。**
+ * 解析が走っている最中に落ちた回は `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE`。
+ */
 export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
+/**
+ * 解析の最中にエンジンの初期化が落ち、**戻ってこない**（→ `docs/state-transitions/analysis.md` の ※5）。
+ *
+ * **`ENGINE_FAILED_MESSAGE` と分ける。** あちらは ▶ を押した人に「まだ起動していない」と
+ * 告げる文で、押していない人が読むと「押しても始まらない」と受け取る。ここで告げるのは
+ * **走っていた解析が切れて、出ていた候補手も消えた**こと——利用者はボタンを1つも
+ * 押していない。次の一手は同じ（起こし直す）が、起きた事が違う。
+ */
+export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}`;
 /** エンジンをまだ選んでいない。 */
 export const NO_ENGINE_SELECTED_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選んでください。";

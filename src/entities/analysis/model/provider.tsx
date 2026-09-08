@@ -13,6 +13,7 @@ import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
 import {
   ENGINE_ERROR_MESSAGE,
+  ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   NOT_READY_REFUSALS,
   POSITION_SYNC_FAILED_MESSAGE,
@@ -606,7 +607,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 落ちる引き金は解析中の起こし直し（設定でオプションを変えて保存する——**この画面の
   // 断りが案内している操作**）。Rust は畳む前に席を全部空けるので、こちらの欄に残るのは
   // もう無い席。捨てないと、戻ってきたときに下の effect が「その局面は投げ済み」と読んで
-  // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られ、断りも出ない）。
+  // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られる）。
+  //
+  // **ここは `isAnalyzing` に触らない。** 戻ってくる回はそのまま張り直したいので、
+  // 止めるかどうかは理由を見てから決める（→ 次の effect）。
   useEffect(() => {
     if (isReady) return;
 
@@ -617,6 +621,39 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer();
     seat.onEngineGone();
   }, [isReady, seat, clearDebounceTimer]);
+
+  // **戻ってこないと分かった回は、そこで断つ。**
+  //
+  // 上の effect は席と投げ済みの印を捨てるだけで `isAnalyzing` には触らない
+  // ——戻ってくる回に張り直すため。戻ってこない回をそのまま置くと、「解析中」の丸と
+  // タイマーだけが回り続け、**死んだエンジンが最後に返した候補手が、いま見ている盤の
+  // 下に残る**（→ `docs/state-transitions/analysis.md` の ※5 / 不変条件2）。
+  //
+  // **見るのは `failed` だけ。** これだけが、こちら側の状態機械から終端だと言い切れる
+  // ——`initialize_error` が `phase: "error"` を書き、engine の provider は**同じ設定なら
+  // 再トライしない**（`entities/engine/model/provider.tsx`）。時間を測る必要が無い。
+  // 残る2つは終端ではない。`starting` は ready か error に落ちるし、`no-engine` は
+  // **健全な起こし直しの途中にも観測される**（`restart()` は `shutdown()` を通り、
+  // それが書く `phase: "idle"` の理由がこれ）。どちらかで断つと、#441 が入れた
+  // 「戻ってきた回に張り直す」を毎回殺す。
+  useEffect(() => {
+    if (isReady) return;
+    if (notReadyReason !== "failed") return;
+    if (!state.isAnalyzing) return;
+
+    // **世代を先に上げる。** 上げないと、飛んでいる再開が自分の門を素通りして
+    // `takeSeatAndGo` へ入り、その先頭の `clear_results` がいま立てた断りを黙って消す。
+    supersedeRequests();
+
+    // **候補手も落とす。** 断りだけでは、前の局面の候補手と読み筋が盤の下に残り、
+    // 停止中のペインはそれを合法手として描き続ける（`AnalysisPane`）。
+    // 落とした後は局面ごとのキャッシュだけが出るので、盤を進めれば何も出ない。
+    discardShownResults();
+
+    // `set_error` が `isAnalyzing` を倒す（`reducer.ts`）。**`clear_results` の後に撃つ**
+    // ——先に撃つと、その `clear_results` が `error` ごと消す。
+    dispatch({ type: "set_error", payload: ENGINE_FAILED_WHILE_ANALYZING_MESSAGE });
+  }, [isReady, notReadyReason, state.isAnalyzing, discardShownResults, supersedeRequests]);
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
   //

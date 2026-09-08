@@ -10,6 +10,7 @@ import type { AnalysisResult } from "@/entities/engine";
 import {
   ENGINE_ERROR_MESSAGE,
   ENGINE_FAILED_MESSAGE,
+  ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
   NO_ENGINE_SELECTED_MESSAGE,
   ENGINE_STARTING_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
@@ -677,6 +678,110 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
     expect(view.current.state.error).not.toBe(START_REFUSED_MESSAGE);
   });
+
+  it(
+    "解析中に初期化が落ちて戻らないなら、止めて断り、候補手も落とす",
+    async () => {
+      tauri = true;
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 落ちる前に1本返している。**これが盤の下に残り続けるのが #502。**
+      await act(async () => {
+        listeners?.onUpdate("session-1", oneCandidate);
+      });
+      await advance(150);
+      expect(view.current.state.candidates).toHaveLength(1);
+
+      // 起こし直して初期化が落ちる。設定が同じままなので engine は再トライしない
+      // ——`isReady` は戻ってこない。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(50);
+      engine = { isReady: false, notReadyReason: "failed" };
+      await view.setSync(adapter("P1", null));
+      await advance(150);
+
+      // 断たないと「解析中」の丸とタイマーが回り続ける（→ 不変条件2）。
+      expect(view.current.state.isAnalyzing).toBe(false);
+      expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
+
+      // **死んだエンジンの読み筋を、いま見ている盤の下に残さない。**
+      expect(view.current.state.candidates).toHaveLength(0);
+
+      // もう無い席へは撃たない（→ ※12 / ※13）。撃つと起こし直した先へ裸の `stop` が書かれる。
+      expect(stopCore).not.toHaveBeenCalled();
+    },
+    SLOW,
+  );
+
+  it(
+    "起こし直しの途中で理由が no-engine になっても、解析は止めない",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // `restart()` は `shutdown()` を通り、それが書く `phase: "idle"` の理由がこれ
+      // （`entities/engine/model/provider.tsx`）。**健全な起こし直しの途中**なので、
+      // ここで断つと戻ってきても読み直さない。
+      engine = { isReady: false, notReadyReason: "no-engine" };
+      await view.setSync(adapter("P1", null));
+      await advance(150);
+
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.error).toBeNull();
+
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P1", "P1"));
+      await advance(300);
+      expect(startCore).toHaveBeenCalledTimes(2);
+    },
+    SLOW,
+  );
+
+  it(
+    "席を返している最中に初期化が落ちても、立てた断りは消えない",
+    async () => {
+      let releaseStop: () => void = () => {};
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤が動いて自動再開が走り、握っている席の返却で止まる。
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(200);
+      expect(stopCore).toHaveBeenCalledTimes(1);
+
+      // その最中に初期化が落ちて戻らない。
+      engine = { isReady: false, notReadyReason: "failed" };
+      await view.setSync(adapter("P2", "P2"));
+      await advance(50);
+      expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
+
+      // 返却が返り、再開の続きが動き出す。**要求の世代を上げていないと**、この先の
+      // `takeSeatAndGo` の先頭の `clear_results` が、いま立てた断りを黙って消す。
+      await act(async () => {
+        releaseStop();
+      });
+      await advance(200);
+
+      expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
+      expect(view.current.state.isAnalyzing).toBe(false);
+      expect(startCore).toHaveBeenCalledTimes(1);
+    },
+    SLOW,
+  );
 
   it("棋譜を閉じた後に席が着地したら、断りを立てない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
