@@ -159,7 +159,6 @@ $titlebar-height: 2.6rem;
 // `.app-layout` の1段目（`AppLayoutHeader`）。**出典はここ1つ。**
 // `.app-header` が自分の上に同名のカスタムプロパティを再宣言すると継承が切れ、
 // 片方だけ動かしたときに隙間が空くか `overflow: hidden` に切られる。
-// 帯を避ける `position: fixed` の箱（`.app-error-fallback--floating`）もこれを見る
 $app-header-height: 5.6rem;
 // 帯に並ぶ丸ボタンの大きさ。**帯と同じ理由でここに置く** —— `.titlebar` と
 // `.root-error-fallback__chrome` が同じボタンを別々に描くので、片方だけ動くと
@@ -197,11 +196,6 @@ $z-notification: 10000;
 // —— 畳んだ範囲を名乗ることがこの箱の役目なので、そこが隠れると出す意味が無くなる。
 // 覆う側になっても塞がないのは、箱が右の一部にしか出ないため
 $z-error-fallback: 10001;
-// 浮かせて出す fallback の1段ぶんの高さ。**段どうしが重ならないことを式で保証する**ので、
-// `max-height` と段の間隔がこの1つを見る。利用者が1つしか無いのにここに置くのは、
-// コンポーネント側のローカル変数に下ろすと `scssScaleRatchet` の `indirect` が増えて落ちるため
-// （`$floating-note-header-height` と同じ理由）
-$error-fallback-slot-height: 24rem;
 
 // elevation
 // 段は浮き上がりの高さでなく、何が浮いているかで選ぶ

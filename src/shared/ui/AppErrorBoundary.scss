@@ -1,5 +1,12 @@
 @use "@/index.scss" as index;
 
+// 浮かせて出す枠の1段ぶん。**段どうしが重ならないことを式で保証する**ので、
+// `max-height` と段の間隔がこの1つを見る。
+// スケールに載らない部品固有の寸法なので、`index.scss` へ上げずに `scale-exempt` で置く（ADR-0003）
+$slot-height: 24rem; // scale-exempt
+// 同じ枠の幅。狭い窓では `100vw` から左右の余白を引いた側が勝つ
+$slot-width: 40rem; // scale-exempt
+
 // **面を自分で持つ。** この器が出るのは、面を塗っていた部品ごと畳んだ後。
 // `.app-layout` の背景も `.workspace` の枠も消えているので、面を継ごうとすると
 // `body` まで遡って canvas の既定色（白）に着き、白地に白文字になる。
@@ -52,12 +59,12 @@
     right: index.$space-12;
     top: calc(
       #{index.$titlebar-height} + #{index.$space-6} + var(--error-fallback-slot, 0) *
-        (#{index.$error-fallback-slot-height} + #{index.$space-6})
+        (#{$slot-height} + #{index.$space-6})
     );
-    width: min(#{index.$error-fallback-width}, 100vw - #{index.$space-12} * 2);
+    width: min(#{$slot-width}, 100vw - #{index.$space-12} * 2);
     height: auto;
     // 上限を持たせて、基底の `overflow: auto` を効かせる
-    max-height: index.$error-fallback-slot-height;
+    max-height: $slot-height;
     border-radius: index.$radius-4;
     box-shadow: index.$shadow-overlay;
   }
