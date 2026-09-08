@@ -79,10 +79,10 @@ describe("AppErrorBoundary が出す原因", () => {
       </AppErrorBoundary>,
     );
 
-    expect(screen.getByText("駒を置けない升がある")).toBeTruthy();
+    expect(screen.getByText(/駒を置けない升がある/)).toBeTruthy();
   });
 
-  test("`Error` でない値が投げられても、そのまま出す", () => {
+  test("文字列が投げられても、そのまま出す", () => {
     render(
       <AppErrorBoundary label="盤">
         <Thrower value="文字列を投げた" />
@@ -90,9 +90,21 @@ describe("AppErrorBoundary が出す原因", () => {
     );
 
     expect(
-      screen.getByText("文字列を投げた"),
+      screen.getByText(/文字列を投げた/),
       "`error.message` で読むと undefined が画面に出る",
     ).toBeTruthy();
+  });
+
+  test("`Error` でも文字列でもない値は出さない", () => {
+    render(
+      <AppErrorBoundary label="盤" hint="棋譜を開き直してください。">
+        <Thrower value={{ code: 1 }} />
+      </AppErrorBoundary>,
+    );
+
+    // `String({})` は `[object Object]`。案内より目立つ位置に意味の無い1行が入る
+    expect(screen.queryByText(/技術的な内容/)).toBeNull();
+    expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
   });
 });
 

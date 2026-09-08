@@ -163,13 +163,20 @@ export function AppErrorFallbackBody({
    */
   actions?: ReactNode;
 }) {
-  // `throw` される値は `Error` とは限らない。刈らないと `undefined` が画面に出る
-  const detail = error instanceof Error ? error.message : String(error);
+  // `throw` される値は `Error` とは限らない。**`String()` で落とさない** ——
+  // plain object を投げると `[object Object]` がそのまま画面に出て、
+  // 案内（`hint`）より目立つ位置に意味の無い1行が入る
+  const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
 
   return (
     <div className={`app-error-fallback${floating ? " app-error-fallback--floating" : ""}`}>
       <p>{label}を表示できませんでした。</p>
-      {detail && <p className="app-error-fallback__detail">{detail}</p>}
+      {/*
+        **これは報告用の材料で、利用者向けの説明ではない。** レンダ経路で実際に投げられるのは
+        `plan walk overflows` のような開発者向けの英語なので、見出しを添えて役割を割る。
+        次に何をすればよいかは `hint` が持つ
+      */}
+      {detail && <p className="app-error-fallback__detail">技術的な内容: {detail}</p>}
       {hint && <p className="app-error-fallback__hint">{hint}</p>}
       <div className="app-error-fallback__actions">
         <AppErrorFallbackAction onClick={reset}>再表示</AppErrorFallbackAction>
