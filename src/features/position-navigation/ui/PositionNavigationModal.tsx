@@ -21,7 +21,7 @@ import type { NavigationState } from "@/features/position-navigation/model/types
  *
  * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
  * `goto` が throw する。呼び出し側はレンダ中なので、拾わないと
- * `AppModalLayer` を包む `AppErrorBoundary`（`pages/AppLayout.tsx`）が受け、
+ * `ModalLayerContent` を包む `AppErrorBoundary`（`pages/AppModalLayer.tsx`）が受け、
  * モーダルの層が丸ごと `AppErrorBoundary` の既定の画面に置き換わる。
  * **ここで拾うのは、どの手が再現できないかを名指しした文言を出すため。**
  *
