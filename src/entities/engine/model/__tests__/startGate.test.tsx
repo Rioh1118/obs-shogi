@@ -84,7 +84,6 @@ describe("起動の門", () => {
     // `shutdown_engine` を撃ち、`phase` を `idle` へ落として3本目を走らせる。
     releaseStart();
     await view.settle();
-    await view.settle();
 
     // **門が降りていれば、ここまでに起動し直している。数で締める**——
     // `toBeGreaterThan(1)` だと、上の巻き添えで3本になった回も緑になる。
@@ -149,16 +148,19 @@ describe("起動の門", () => {
     const view = mountEngine(runtime());
     await openSecondStart(view);
 
+    // **窓が開いていることを先に名指しする。** ここを見ないと、下の「何も起きない」は
+    // 窓が閉じていても（＝2本目が飛んでいなくても）同じ形で緑になる。
+    expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+
     const from = view.reasons.length;
     settleFirst();
     await view.settle();
 
-    // **`null` は「使える」の意味。** 2本目がまだ飛んでいるのに名乗ると ▶ が通り、
-    // Rust は `NotInitialized` で断る——**正常に起動している最中に**
-    // 「エンジンを起こし直してください」と案内することになる。
+    // **追い越された起動は commit を1つも起こさない。** 名乗ってしまうと——
+    // `null` なら ▶ が通って Rust が `NotInitialized` で断り、**正常に起動している最中に**
+    // 「起こし直してください」と案内する。空であることまで固定する。
     try {
-      expect(view.reasons.slice(from)).not.toContain(null);
-      expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+      expect(view.reasons.slice(from)).toEqual([]);
     } finally {
       // **assert より後ろに置かない。** 落ちた回に保留が残ると、次のテストの
       // `initialize` が「飛んでいる起動」を引き継ぎ、**自分の assert ではなく
@@ -173,6 +175,8 @@ describe("起動の門", () => {
     const view = mountEngine(runtime());
     await openSecondStart(view);
 
+    expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+
     const from = view.reasons.length;
     settleFirst(new Error("boom"));
     await view.settle();
@@ -181,8 +185,7 @@ describe("起動の門", () => {
     // 解析側が `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE` で打ち切る
     // ——**健全なエンジンが起動している最中に**「使えなくなった」と告げて止める。
     try {
-      expect(view.reasons.slice(from)).not.toContain("failed");
-      expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+      expect(view.reasons.slice(from)).toEqual([]);
     } finally {
       settleSecond();
       await view.settle();
@@ -214,11 +217,15 @@ describe("起動の門", () => {
     await view.setRuntime(null);
     await view.settle();
 
+    // **窓の前提**——起動は保留のまま、畳みがそれを待っている。
+    expect(view.phases[view.phases.length - 1]).toBe("initializing");
+    expect(shutdownEngine).not.toHaveBeenCalled();
+
     const from = view.phases.length;
     settleStart();
     await view.settle();
 
-    expect(view.phases.slice(from)).not.toContain("ready");
+    expect(view.phases.slice(from)).toEqual([]);
 
     settleShutdown();
     await view.settle();

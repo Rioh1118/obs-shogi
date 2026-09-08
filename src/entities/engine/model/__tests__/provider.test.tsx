@@ -99,7 +99,6 @@ describe("EngineProvider が立てる理由", () => {
 
     const view = mountEngine(runtime());
     await view.settle();
-    await view.settle();
     expect(view.reasons[view.reasons.length - 1]).toBe("failed");
 
     // **`desiredRuntime` の有無を先に見る。** `failed` を先に見ると、この窓で
@@ -133,7 +132,6 @@ describe("EngineProvider が立てる理由", () => {
     // （`entities/engine-presets` の `runtimeConfig` が null になる口）。
     await view.setRuntime(null);
     await view.settle();
-    await view.settle();
 
     // **戻ってこない。** 解析側はこれを終端として読み、走っている解析を打ち切る。
     expect(view.reasons[view.reasons.length - 1]).toBe("no-engine");
@@ -145,7 +143,6 @@ describe("EngineProvider が立てる理由", () => {
     initialize.mockRejectedValue(new Error("boom"));
 
     const view = mountEngine(runtime());
-    await view.settle();
     await view.settle();
 
     expect(view.reasons[view.reasons.length - 1]).toBe("failed");
@@ -219,7 +216,6 @@ describe("EngineProvider が立てる理由", () => {
       async (reason) => {
         const { view, resolveStart } = enter[reason]();
         await view.settle();
-        await view.settle();
 
         expect(view.reasons[view.reasons.length - 1]).toBe(reason);
         const callsWhileStuck = initialize.mock.calls.length;
@@ -236,7 +232,6 @@ describe("EngineProvider が立てる理由", () => {
           // **戻らない側は、放っておいても起動を試みない。** ここが偽になると、
           // 解析側は再トライの最中に打ち切って「使えなくなった」と案内する。
           expect(resolveStart, `${reason} は戻らない側なのに、待つ相手が居る`).toBeNull();
-          await view.settle();
           await view.settle();
           expect(initialize.mock.calls.length).toBe(callsWhileStuck);
           expect(view.reasons[view.reasons.length - 1]).toBe(reason);

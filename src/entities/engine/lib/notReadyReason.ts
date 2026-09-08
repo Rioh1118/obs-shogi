@@ -3,6 +3,7 @@ import {
   RECOVERABLE_NOT_READY_REASONS,
   type EngineNotReadyReason,
   type EnginePhase,
+  type PhaseNotReadyReason,
   type EngineRuntimeConfig,
   type RecoverableNotReadyReason,
 } from "../model/types";
@@ -42,7 +43,7 @@ export function retriesAfterError({
 export function reasonForPhase(
   phase: EnginePhase,
   willRetryAfterError: boolean,
-): EngineNotReadyReason {
+): PhaseNotReadyReason {
   switch (phase) {
     case "idle":
     case "initializing":

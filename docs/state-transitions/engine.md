@@ -54,7 +54,7 @@
 
 ### 注
 
-※1 `initialize()` は**世代の門**で早期 return する（`provider.tsx` の `startingSeqRef`）。
+※1 `initialize()` は**起動の門**で早期 return する（`provider.tsx` の `startingSeqRef`）。
 `state.phase` では割れない——描画のクロージャの値なので、同じコミットで setup が
 2回走る回には `initialize_start` を撃った後でも `"idle"` のまま見える
 
@@ -69,7 +69,7 @@
 （単一 provider では門が塞ぐ）——provider を畳んで張り直す列が要る
 
 ※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で撃つ**
-（`provider.tsx`）。**ただし世代の門を通ったときだけ**——追い越された畳み
+（`provider.tsx`）。**ただし畳みの世代（`seqRef`）の門を通ったときだけ**——追い越された畳み
 （飛んでいる起動を待っている間に次が起き切った回）は撃たないので、そこは S0 へ落ちない。
 撃った回のフロントは S0（未起動）になるが、Rust のプロセスは残りうる。
 呼び出し元は `shutdown().catch(() => {})`（`provider.tsx`）なので**誰にも届かない**。
@@ -178,7 +178,7 @@ issue #120 と同型の行き止まり
 - **`startGate.test.tsx` だけは `engineInitializer` を差し替えず、本物を通す**
   （差し替えるのは IPC の4つ）。踏んでいるのは、起動を待っている間に設定が2度外れて
   戻る窓——**※7 が「フロント側だけでは保証しない」と書いている根拠の片方
-  ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは世代の門6つ（`shutdown` の `dispatch` と世代の繰り上げ、
+  ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは門6つ（起動の門は `startingSeqRef`、残りは畳みと起動の世代 `seqRef` / `this.seq`）。`shutdown` の `dispatch` と世代の繰り上げ、
   `initializer` の IPC と `finally` の同一性判定、`initialize` の成功側と失敗側）。
   **潰しても赤くならないものが3つ残っている**——`provider` 側の `finally` の同一性判定、
   `initialize` 側の世代の繰り上げ、`initializer` の in-flight の畳み込み。

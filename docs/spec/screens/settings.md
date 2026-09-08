@@ -16,8 +16,9 @@
 | 解析ペインの歯車             | `engine`    |
 | ツリーの失敗通知「選び直す」 | `workspace` |
 
-**解析ペインの歯車だけ `engine`。** そこから出る断りが「設定でエンジンのオプションを
-変えて保存すると起こし直せます」と案内するので、開く先が別のタブだと案内が空振りする
+**解析ペインの歯車だけ `engine`。** そこから出る断りが案内する復帰操作
+（→ [analysis.md](../../state-transitions/analysis.md) の ※15 / `RESTART_ENGINE_HINT`）は
+このタブにしか無いので、開く先が別だと案内が空振りする。**その断りの読み手はまだ0**（→ #277）
 （2026-09-09 / `fix/502-refuse-when-engine-never-returns`）。
 
 タブの切り替えは `updateParams({ tab }, { replace: true })` で URL に載る。

@@ -75,6 +75,14 @@ export type RecoverableNotReadyReason = (typeof RECOVERABLE_NOT_READY_REASONS)[n
 export type TerminalNotReadyReason = Exclude<EngineNotReadyReason, RecoverableNotReadyReason>;
 
 /**
+ * `phase` から決まる理由。**`no-engine` はここに入らない**——それを決めるのは
+ * `desiredRuntime` の有無だけで、`phase` は見ない（→ `engine.md` の ※7）。
+ * 型で締めないと、`phase` を足した人が既定を `no-engine` に倒せてしまう
+ * ——エンジンを選んでいる利用者に「選んでください」と案内し、しかも終端なので解析が断たれる。
+ */
+export type PhaseNotReadyReason = Exclude<EngineNotReadyReason, "no-engine">;
+
+/**
  * **「使えないなら理由が在る」を型で持つ。** 2つの欄を独立に持つと、呼び手は
  * `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える
  * （どれを選んでも、3つのうち2つでは嘘になる）。
