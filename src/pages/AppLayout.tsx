@@ -15,6 +15,7 @@ import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
+import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { AppErrorBoundary, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
@@ -33,6 +34,9 @@ const AppLayout = () => {
   // 何が盤の内側かは feature が知っている
   const onPointerDownCapture = useClearBoardSelection();
 
+  // どのモーダルを出しているか。境界がこれを見て、別のモーダルへ移ったら畳むのをやめる
+  const { modal } = useURLParams().params;
+
   return (
     <div
       className={`app-layout ${isSidebarOpen ? "" : "app-layout--sidebar-closed"}`}
@@ -49,6 +53,7 @@ const AppLayout = () => {
       */}
       <AppErrorBoundary
         label="モーダル"
+        resetKeys={[modal]}
         fallback={(_error, reset) => (
           <AppErrorFallbackBody label="モーダル" reset={reset} floating />
         )}

@@ -9,22 +9,49 @@ type Props = {
    * 内側の1枚を外しても外側が同じ画面で受けて退行が見えない。
    */
   label: string;
+  /**
+   * これが変わったら `error` を落とす。**落ちた原因が境界の外にある**ときの唯一の出口。
+   *
+   * `reset` は `error` を消すだけなので、原因が上位の state に残っていれば同じ行で
+   * 落ち直し、画面は1ドットも変わらない。逆に、原因が消えても（別の棋譜を選んだ、
+   * モーダルを閉じた）境界は畳んだままになる。**どちらも利用者からは「壊れたまま」に見える。**
+   *
+   * 渡すのは「別の局面／別の画面になった」と言い切れる値だけにする。毎レンダ変わる値を
+   * 渡すと、落ち続けるものを描き続けようとして fallback が出なくなる。
+   */
+  resetKeys?: readonly unknown[];
   children: ReactNode;
   fallback?: (error: Error, reset: () => void) => ReactNode;
 };
 
 type State = {
   error: Error | null;
+  /** 直前に見た `resetKeys`。`getDerivedStateFromProps` は前の props を受け取れない */
+  keys: readonly unknown[];
 };
 
 export class AppErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, keys: props.resetKeys ?? [] };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { error };
+  }
+
+  /**
+   * 鍵が変わったら畳むのをやめる。
+   *
+   * **鍵は落ちている間も更新する。** 落ちたまま鍵だけ2回動くと、比較の相手が
+   * 落ちた時点の鍵に留まり、1回目の変化で解けた後に2回目で解け直せなくなる。
+   */
+  static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
+    const keys = props.resetKeys ?? [];
+    const same =
+      keys.length === state.keys.length && keys.every((key, at) => Object.is(key, state.keys[at]));
+    if (same) return null;
+    return { error: null, keys };
   }
 
   // 落ちた原因はここでしか見られない。表示側は詳細を出さない
