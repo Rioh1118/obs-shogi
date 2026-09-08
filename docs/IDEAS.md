@@ -95,12 +95,16 @@
 - **メディアクエリの breakpoint が13種類の直値で散っている** — 対象幅（1280px 以上）では
   1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
   `@media` の条件部を対象外にしている
-- **`.tsx` のインライン `style={{}}` に書いた寸法と色は、どのラチェットにも数えられない**
-  — `scssScaleRatchet` も `contrastRatchet` も `scssFiles(SRC)`（`.scss` だけ）を歩く。
+
+## `.tsx` のインライン直値が、どのラチェットにも数えられない（#436 のレビューで出たもの）
+
+`.claude/reviews/2026-09-08-436-error-boundary-layers-r1.md` の r1-21（ui reviewer）。
+**その PR では直値そのものを消した**ので、走査は要らないまま残した。
+
+- `scssScaleRatchet` も `contrastRatchet` も `scssFiles(SRC)`（`.scss` だけ）を歩く。
   `tsFiles` を歩いて `style={{` の中の長さ・色リテラルを数えれば、「ここだけは直値でよい」という
   例外が意図した数に留まっていることを機械で保てる。**いまは例外が無言で増やせる。**
-  #436 のレビュー `.claude/reviews/2026-09-08-436-error-boundary-layers-r1.md` の r1-21（ui）。
-  そのときは直値そのものを消したので、走査は要らないまま残した
+  実測は ADR-0003 の「諦めるもの」が持つ
 
 ## 到達しない分岐が、仕様では実在する状態として書かれている
 
