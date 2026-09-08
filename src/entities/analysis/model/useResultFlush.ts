@@ -1,9 +1,7 @@
 import { useCallback, useRef, type Dispatch, type RefObject } from "react";
 import type { AnalysisResult } from "@/entities/engine";
 import type { AnalysisAction } from "./types";
-
-/** 結果を画面へ反映する間引き。**80ms ごとに1回**（`info` は数十 ms 間隔で届く） */
-const RESULT_FLUSH_MS = 80;
+import { waits } from "./waits";
 
 /**
  * 届いた解析結果を、間引いて画面へ流す。
@@ -101,7 +99,7 @@ export function useResultFlush(
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
       commitLatest();
-    }, RESULT_FLUSH_MS);
+    }, waits().resultFlushMs);
   }, [commitLatest]);
 
   const dropPending = useCallback(() => {
