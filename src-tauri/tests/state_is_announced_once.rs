@@ -193,6 +193,47 @@ fn no_caller_builds_a_place_warning_itself() {
     );
 }
 
+/// **`IndexWarnPayload` を構造体リテラルで組まないこと。**
+///
+/// `place` / `file` の doc は「組み立てる口をここに閉じてある」と書いているが、
+/// 欄が `pub` なので**閉じていない**。閉じるのはこの走査。
+///
+/// 欄を非公開にすれば型で閉じられるが、`announce` の `mod tests` が20箇所ほど
+/// 読んでいるので取り出しの口をその数だけ足すことになる。**取り違えたときに
+/// 起きること**（`kind` を誤ると `pickWarns` の場所優先の枠から外れ、
+/// 「ワークスペースを読めません」がファイル単位の警告に押し出されて画面から消える）
+/// を止められれば足りるので、字面で見る。
+///
+/// **`::place` / `::file` の呼び出しは当たらない**——見るのは `{` が続く形だけ。
+#[test]
+fn no_one_builds_a_warning_payload_with_a_struct_literal() {
+    // **`types.rs` だけ外す**——定義そのものが同じ字面になる。
+    // `announce.rs` は外さない（あそこも `::place` / `::file` を通す側）
+    let definition = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/search/types.rs");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    walk(&root, &mut files);
+    assert!(
+        files.len() > 50,
+        "`src` を歩けていない（{}件）。走査が空振りしたのを緑と読まないこと",
+        files.len()
+    );
+
+    let offenders: Vec<String> = files
+        .into_iter()
+        .filter(|p| *p != definition)
+        .filter(|p| blank_out_noncode(&read_with_strings(p)).contains("IndexWarnPayload {"))
+        .map(|p| rel(&p))
+        .collect();
+
+    assert!(
+        offenders.is_empty(),
+        "`IndexWarnPayload` を構造体リテラルで組んでいる: {offenders:?}\n\
+         `::place` / `::file` を通すこと。`kind` を取り違えると、場所の警告が\n\
+         ファイル単位の警告に押し出されて画面から消える",
+    );
+}
+
 /// `use` から `;` までを1つずつ返す。
 ///
 /// **行で切らない。** `use a::{\n  B as C,\n};` のように**項目が次の行に並ぶ**形が

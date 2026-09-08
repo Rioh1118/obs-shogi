@@ -419,7 +419,7 @@ pub enum IndexWarnKind {
 /// 同じ口に載る。どちらなのかは文言が言う。
 ///
 /// **emit 専用**（`SearchErrorPayload` と同じ理由で `Deserialize` を持たない）。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexWarnPayload {
     /// 場所についてか、棋譜1件についてか。**画面はこれで並べ分ける。**
@@ -447,8 +447,13 @@ pub struct IndexWarnPayload {
 }
 
 impl IndexWarnPayload {
-    /// 場所についての警告。**組み立てる口をここに閉じてある**
-    /// ——構造体リテラルを許すと、欄を足したときに全員が既定を書き足す。
+    /// 場所についての警告。**組み立てはここを通すこと。**
+    ///
+    /// 欄が `pub` なので構造体リテラルも書けてしまう。閉じているのは型ではなく
+    /// `tests/state_is_announced_once.rs` の走査
+    /// （`no_one_builds_a_warning_payload_with_a_struct_literal`）。
+    /// **`kind` を取り違えると、場所の警告が `pickWarns` の場所優先の枠から外れ、
+    /// ファイル単位の警告に押し出されて画面から消える。**
     pub fn place(path: impl Into<String>, message: ScreenMessage) -> Self {
         Self {
             kind: IndexWarnKind::Place,

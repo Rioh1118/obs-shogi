@@ -82,7 +82,7 @@ pub(crate) fn for_screen(e: &dyn std::fmt::Display) -> ScreenMessage {
 /// 開いて門を回避できる。この2つの payload は emit 専用で、読み戻す呼び手はいない。
 ///
 /// 足したいことがあるなら `followed_by` を通す。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(transparent)]
 pub struct ScreenMessage(String);
 
