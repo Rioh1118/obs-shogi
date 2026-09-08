@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import "./AppErrorBoundary.scss";
 
 type Props = {
   children: ReactNode;
@@ -34,34 +35,10 @@ export class AppErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }
-      // SCSS が読めていない場合でも出せるよう、ここだけ直値で書く
       return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "1.2rem",
-            padding: "2.4rem",
-            color: "rgba(255,255,255,0.7)",
-            fontSize: "1.3rem",
-          }}
-        >
+        <div className="app-error-fallback">
           <p>表示中にエラーが発生しました。</p>
-          <button
-            type="button"
-            onClick={this.reset}
-            style={{
-              padding: "0.6rem 1.4rem",
-              borderRadius: "0.8rem",
-              border: "1px solid rgba(255,255,255,0.2)",
-              background: "rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.8)",
-              fontSize: "1.2rem",
-              cursor: "pointer",
-            }}
-          >
+          <button type="button" className="app-error-fallback__action" onClick={this.reset}>
             再表示
           </button>
         </div>
