@@ -80,6 +80,9 @@ const advance = (ms: number) => act(async () => void (await new Promise((r) => s
  */
 const SLOW = 20_000;
 
+/** provider が結果を画面へ反映する間引き。**その1本が遅れて戻らないことを見る**テストが使う */
+const RESULT_FLUSH_MS = 80;
+
 /** provider が持つ同期待ちの上限。**この待ちを短く抜けることを見る**テストが使う */
 const POSITION_SYNC_TIMEOUT_MS = 2000;
 
@@ -716,6 +719,12 @@ describe("AnalysisProvider の結果の照合", () => {
       // **死んだ席の読み筋を state に残さない。** 次の ▶ が最初の `info` を返すまで、
       // それが現在の解析結果として扱われるため。**画面から消えるとは限らない**
       // ——ペインは停止中に局面ごとのキャッシュを出す（→ `analysis.md` の ※5）。
+      expect(view.current.state.candidates).toHaveLength(0);
+
+      // **落ち着いた後にもう一度見る。** 反映待ちのタイマーが1本でも生き残っていると、
+      // 捨てたはずの1本が遅れて戻る——実時計に依存して**たまに**赤くなる形になるので、
+      // 戻るなら毎回戻るところまで待って固定する。
+      await advance(RESULT_FLUSH_MS * 3);
       expect(view.current.state.candidates).toHaveLength(0);
 
       // もう無い席へは撃たない（→ `analysis.md` の ※12 / ※13）。撃つと起こし直した先へ裸の `stop` が書かれる。

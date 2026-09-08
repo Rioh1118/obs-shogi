@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
-import { useEffect } from "react";
+import { StrictMode, useEffect } from "react";
 
 import { EngineProvider } from "../provider";
 import { useEngine } from "../useEngine";
@@ -225,11 +225,15 @@ describe("EngineProvider が立てる理由", () => {
      * どちらの枝でも落ちる。永久に返らない promise で作ると、戻る側も戻らない側も
      * 「動かない」で同じに見え、検査が分類の定義を言い直すだけになる。
      */
-    type Window = { view: ReturnType<typeof mountEngine>; finish: (() => void) | null };
+    type ReasonWindow = {
+      view: ReturnType<typeof mountEngine>;
+      /** 飛んでいる起動を返す口。**戻る側だけが持つ。** */
+      resolveStart: (() => void) | null;
+    };
 
-    const enter: Record<EngineNotReadyReason, () => Window> = {
+    const enter: Record<EngineNotReadyReason, () => ReasonWindow> = {
       // 設定を組み立てられない。選び直すまで起動する口が無い
-      "no-engine": () => ({ view: mountEngine(null), finish: null }),
+      "no-engine": () => ({ view: mountEngine(null), resolveStart: null }),
       // 起動待ち。飛んでいる起動が返れば ready へ着く
       starting: () => {
         let settleStart: (info: EngineInfo) => void = () => {};
@@ -239,19 +243,19 @@ describe("EngineProvider が立てる理由", () => {
               settleStart = resolve;
             }),
         );
-        return { view: mountEngine(runtime()), finish: () => settleStart(info) };
+        return { view: mountEngine(runtime()), resolveStart: () => settleStart(info) };
       },
       // 同じ設定のまま初期化が落ちた。飛んでいる起動はもう無い
       failed: () => {
         initialize.mockRejectedValue(new Error("boom"));
-        return { view: mountEngine(runtime()), finish: null };
+        return { view: mountEngine(runtime()), resolveStart: null };
       },
     };
 
     it.each(Object.keys(enter) as EngineNotReadyReason[])(
       "%s は、戻る側なら待てば ready へ着き、戻らない側なら二度と起動しない",
       async (reason) => {
-        const { view, finish } = enter[reason]();
+        const { view, resolveStart } = enter[reason]();
         await view.settle();
         await view.settle();
 
@@ -260,16 +264,16 @@ describe("EngineProvider が立てる理由", () => {
 
         if (isRecoverableNotReady(reason)) {
           // **戻す口が在る。** 分類を入れ替えると、口を持たない理由がここへ来て落ちる。
-          expect(finish, `${reason} は戻る側なのに、待つ相手が居ない`).not.toBeNull();
+          expect(resolveStart, `${reason} は戻る側なのに、待つ相手が居ない`).not.toBeNull();
           await act(async () => {
-            finish!();
+            resolveStart!();
           });
           await view.settle();
           expect(view.reasons[view.reasons.length - 1]).toBeNull();
         } else {
           // **戻らない側は、放っておいても起動を試みない。** ここが偽になると、
           // 解析側は再トライの最中に打ち切って「使えなくなった」と案内する。
-          expect(finish, `${reason} は戻らない側なのに、待つ相手が居る`).toBeNull();
+          expect(resolveStart, `${reason} は戻らない側なのに、待つ相手が居る`).toBeNull();
           await view.settle();
           await view.settle();
           expect(initialize.mock.calls.length).toBe(callsWhileStuck);
@@ -279,8 +283,24 @@ describe("EngineProvider が立てる理由", () => {
     );
   });
 
+  it("StrictMode で二重にマウントしても、起動は1回", async () => {
+    // **門は描画のクロージャではなく ref。** `state.phase` を見る門は、同じコミットで
+    // setup が2回走る回に `initialize_start` を撃った後でも `"idle"` のまま見える。
+    render(
+      <StrictMode>
+        <EngineProvider desiredRuntime={runtime()}>
+          <div />
+        </EngineProvider>
+      </StrictMode>,
+    );
+    await act(async () => void (await new Promise((r) => setTimeout(r, 20))));
+
+    expect(initialize).toHaveBeenCalledTimes(1);
+  });
+
   it("初期化が落ちた後に設定が動いたら、再トライを待つ窓は starting", async () => {
-    // 起こし直しの最中に、初期化が返る前もう一度プリセットを切り替えた回。
+    // 初回の起動が返る前にプリセットを切り替え、その後で最初の起動が落ちた回。
+    // `lastTried` は切り替える前の設定のまま `phase` が `error` に入る。
     let failFirst: (e: unknown) => void = () => {};
     initialize.mockImplementationOnce(
       () =>

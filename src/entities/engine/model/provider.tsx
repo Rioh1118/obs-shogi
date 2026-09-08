@@ -6,7 +6,8 @@ import type {
   EngineReadiness,
   EngineRuntimeConfig,
 } from "./types";
-import { equalRuntime, retriesAfterError } from "../lib/equalRuntime";
+import { equalRuntime } from "../lib/equalRuntime";
+import { reasonForPhase, retriesAfterError } from "../lib/notReadyReason";
 import { engineInitializer } from "../api/initializer";
 import { EngineContext } from "./context";
 
@@ -20,6 +21,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
   const seqRef = useRef(0);
   const lastTriedRef = useRef<EngineRuntimeConfig | null>(null);
+  const startingRef = useRef(false);
 
   const isReady =
     state.phase === "ready" &&
@@ -33,16 +35,17 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   //
   // **理由の割り方と、当たる順の根拠は `docs/state-transitions/engine.md` の ※7。**
   // 向こうの表はこの三項の並びに追随しているので、順を変えるときは一緒に直すこと。
-  // **`failed` は「同じ設定のまま落ちた」まで。** 設定が前回試した値から動いていれば
-  // 下の effect が起動し直すので、その窓は `starting`（起動し直す口が在る）。
-  // **述語は下の `error` の枝と同じものを呼ぶ**——書き下ろすと片方だけが古くなる。
-  const willRetryAfterError = retriesAfterError(desiredRuntime, lastTriedRef.current);
+  // **述語の呼び出しは描画時のここ1箇所。** 三項も下の effect もこの値を読み、
+  // **effect の依存にも載せる**——effect の中で呼び直すと、`lastTriedRef` の更新は
+  // 再描画を起こさないので取りこぼす。
+  const willRetryAfterError = retriesAfterError({
+    desired: desiredRuntime,
+    lastTried: lastTriedRef.current,
+  });
 
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
-    : state.phase === "error" && !willRetryAfterError
-      ? "failed"
-      : "starting";
+    : reasonForPhase(state.phase, willRetryAfterError);
 
   // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
   // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。
@@ -54,7 +57,13 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // lifecycle
   const initialize = useCallback(async (): Promise<boolean> => {
     if (!desiredRuntime) return false;
+    // **門は ref。** `state.phase` は描画のクロージャの値なので、同じコミットで
+    // setup が2回走る回（StrictMode）には `initialize_start` を撃った後でも
+    // `"idle"` のまま見え、2本目が通る。いま2プロセスにならないのは
+    // `engineInitializer` 側が in-flight を畳んでいるからで、この門ではない。
+    if (startingRef.current) return false;
     if (state.phase === "initializing") return false;
+    startingRef.current = true;
 
     const mySeq = ++seqRef.current;
 
@@ -86,6 +95,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
         payload: `Engine initialization failed: ${String(e)}`,
       });
       return false;
+    } finally {
+      startingRef.current = false;
     }
   }, [desiredRuntime, state.phase]);
 
