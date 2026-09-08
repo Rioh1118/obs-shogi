@@ -362,6 +362,21 @@ export function useEngineSeat(): EngineSeat {
     });
 
   /**
+   * 飛んでいる停止を、**前の返却ごと**枠に載せる。
+   *
+   * **枠に載せる理由。** 載せないと、この停止が飛んでいる間に次の再開が `releaseHeld` を
+   * 素通りし（こちらは席を握っていない）、捨てた席がまだ Rust に居るうちに
+   * `start_infinite_analysis` を投げる——`take_session` が断って、解析が黙って停止中になる。
+   *
+   * **前の返却を畳み込む理由。** 枠をただ差し替えると、**後から並ぶ側が前の返却を見失う**
+   * ——こちらが先に解決した時点で「誰も飛んでいない」と読み、まだ飛んでいる席へ2本目を撃つ。
+   */
+  const foldIntoSlot = (shot: Promise<void>) => {
+    const previous = releasingRef.current;
+    void holdSlot(() => Promise.allSettled([previous, shot]).then(() => {}));
+  };
+
+  /**
    * 要らなくなった開始が持ってきた席を捨てる。**握っている席には触らない。**
    *
    * **捨てられなかったときは握る**（欄が空で、まだ返し終えていない席のとき。
@@ -373,18 +388,7 @@ export function useEngineSeat(): EngineSeat {
     // その席の `info` を配り続けるので、待つと前の局面の読み筋が盤に出る。
     remember(sessionId);
 
-    // **枠に載せる。** 載せないと、この停止が飛んでいる間に次の再開が
-    // `releaseHeld` を素通りし（こちらは席を握っていない）、
-    // 捨てた席がまだ Rust に居るうちに `start_infinite_analysis` を投げる
-    // ——`take_session` が断って、解析が黙って停止中になる。
-    //
-    // **待たずに撃つが、前の返却は枠ごと畳み込む。** 捨てる席は握っている席
-    // ではないので、先に飛んでいる返却の後ろに並ぶ理由が無い。ただし枠を
-    // ただ差し替えると、**後から並ぶ側が前の返却を見失う**——こちらが先に
-    // 解決した時点で「誰も飛んでいない」と読み、まだ飛んでいる席へ2本目を撃つ。
-    const previous = releasingRef.current;
-    const shot = shootQuietly(by, sessionId);
-    void holdSlot(() => Promise.allSettled([previous, shot]).then(() => {}));
+    foldIntoSlot(shootQuietly(by, sessionId));
   };
 
   apiRef.current = {
