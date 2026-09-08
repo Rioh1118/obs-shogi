@@ -157,6 +157,11 @@ impl IndexStatePayload {
     /// ——ログにも画面にも出ないまま、以後どのファイル変更も拾われなくなる。
     /// **番人が不発のとき、直そうとしている症状そのものになる。**
     /// 丸めて `log::error!` に残し、タスクは生かす。
+    ///
+    /// **丸めた回は、画面から健全と見分けが付かない。** `indexed_files ==
+    /// total_files` になるので `indexHealth` は `ok` を返し、緑の「準備完了」が出る
+    /// ——気付けるのはログを開いた人だけ。壊れて見える表示を捨てる代わりに、
+    /// 気付く手掛かりも捨てている。
     pub fn indexed(mut self, n: u32) -> Self {
         let n = if n > self.total_files {
             log::error!(
