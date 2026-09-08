@@ -40,6 +40,11 @@ export function usePositionHitNavigation() {
   const { fileTree, selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
+  // **真偽に落としてから依存に入れる。** `view.player` は `buildPlayer` が作る新しい
+  // オブジェクトなので、盤が1手動くたびに同一性が変わる。ここが要るのは「有るか無いか」
+  // だけなのに、そのまま依存に入れると `accept` → 行の props → `memo` の連鎖が毎手切れる
+  const hasPlayer = gameView.player !== null;
+
   const pendingRef = useRef<PendingNav | null>(null);
 
   const startNavigationToHit = useCallback(
@@ -62,7 +67,7 @@ export function usePositionHitNavigation() {
         !selectedNode.isDirectory &&
         selectedNode.path === absPath &&
         gameState.loadedAbsPath === absPath &&
-        gameView.player
+        hasPlayer
       ) {
         applyCursor(cursorFromLite(cursor));
         pendingRef.current = null;
@@ -94,7 +99,7 @@ export function usePositionHitNavigation() {
       fileTree,
       gameState.loadedAbsPath,
       gameState.loadFailedSeq,
-      gameView.player,
+      hasPlayer,
       selectNodeByAbsPath,
       selectedNode,
     ],
@@ -130,14 +135,14 @@ export function usePositionHitNavigation() {
     }
 
     if (!selectedNode || selectedNode.isDirectory) return;
-    if (!gameView.player) return;
+    if (!hasPlayer) return;
     if (gameState.loadedAbsPath !== p.absPath) return;
 
     applyCursor(cursorFromLite(p.cursor));
     pendingRef.current = null;
   }, [
     applyCursor,
-    gameView.player,
+    hasPlayer,
     gameState.loadedAbsPath,
     gameState.loadFailedAbsPath,
     gameState.loadFailedSeq,
