@@ -67,6 +67,21 @@ describe("AppErrorBoundary が出す原因", () => {
   });
 });
 
+describe("AppErrorBoundary が残す記録", () => {
+  test("どの境界が受けたかを添えて `console.error` に出す", () => {
+    render(
+      <AppErrorBoundary label="解析">
+        <Thrower value={new Error("読み筋が組めない")} />
+      </AppErrorBoundary>,
+    );
+
+    // 境界は入れ子なので、名乗りが無いとログからも受け側を特定できない。
+    // **潰すだけのテストだと、この行を消しても変異が生き残る**
+    const calls = vi.mocked(console.error).mock.calls;
+    expect(calls.some((args) => String(args[0]).includes("[AppErrorBoundary:解析]"))).toBe(true);
+  });
+});
+
 describe("AppErrorBoundary の resetKeys", () => {
   test("鍵が変わったら畳むのをやめる", () => {
     const { rerender } = render(
