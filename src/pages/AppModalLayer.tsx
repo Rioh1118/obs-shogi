@@ -25,6 +25,8 @@ import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/St
  * **URL を持たない2枚**（`FileConflictDialog` / `KifuReadErrorDialog`）だけは別に並べる。
  * この2枚が落ちると、原因を消す口（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
  * 鍵が動かなければ**そのセッションではどのモーダルも二度と出ない。**
+ *
+ * **URL を持たない入力をここに足すときは、鍵にも足すこと。**
  */
 function useModalLayerResetKeys(): readonly unknown[] {
   const { conflict, kifuError } = useFileTree();
