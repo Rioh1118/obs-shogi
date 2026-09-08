@@ -35,6 +35,10 @@ type Props = {
  *
  * **共有し切れていないものが1つある。** アイコンの `lucide-react` は `TitleBar` と同じものを
  * import しているので、そこが原因で root まで上がった場合はこの画面も同じ例外で落ちる。
+ *
+ * **閉じられなかったことは `shared/lib/notification` を通さない。** あの土台は
+ * `BootstrapProviders` の `NotificationLayer` が描くので、root の境界が受けている間は
+ * 一緒に畳まれていて出てこない。**この画面が自分で描くしかない。**
  */
 export function RootErrorFallback({ label, error, hint, reset }: Props) {
   // **握って黙ると「押しても何も起きないボタン」になる。** この画面は他に手段が無いときの
@@ -71,7 +75,7 @@ export function RootErrorFallback({ label, error, hint, reset }: Props) {
           error={error}
           reset={reset}
           hint={hint}
-          actions={
+          extraActions={
             /*
               **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、
               12px の色の丸は失敗の直後にいちばん見つけにくい。文字のボタンを本文に並べる
@@ -80,7 +84,7 @@ export function RootErrorFallback({ label, error, hint, reset }: Props) {
               ウィンドウを閉じる
             </AppErrorFallbackAction>
           }
-          notice={
+          afterAction={
             closeFailed && (
               <p className="root-error-fallback__closeError" role="alert">
                 ウィンドウを閉じられませんでした。OS の終了操作（macOS は ⌘Q、Windows は Alt+F4）で
