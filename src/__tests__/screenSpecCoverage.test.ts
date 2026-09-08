@@ -23,16 +23,24 @@ import { REPO_ROOT, SRC, sourceFiles } from "./walk";
  * 呼び手が件数を確かめる。
  */
 function uiFiles(): string[] {
-  return sourceFiles(join(SRC, "features"))
+  // **`src` 全体を歩く。** レイヤ規則は `widgets` / `pages` が
+  // `indexHealth` を読むことを禁じていない。`features` だけだと、
+  // そこへ移した瞬間に検査から外れる
+  //
+  // **テストと `entities/search` 自身は除く。** 前者はテストが型を import した
+  // 瞬間に「SCREENS に載せろ」と落ちて**テストを画面として登録する誤り**へ
+  // 誘導する。後者は具合を決める側であって、画面ではない
+  return sourceFiles(SRC, { includeTests: false })
     .filter((f) => f.endsWith(".tsx"))
-    .map((f) => relative(REPO_ROOT, f));
+    .map((f) => relative(REPO_ROOT, f))
+    .filter((f) => !f.startsWith("src/entities/search/"));
 }
 
 /**
  * 画面の分岐が返す文言と、それが載るべき仕様書。
  *
- * **`IndexHealth` で分岐する画面を全部入れること。** 下の
- * `every_screen_that_branches_on_health_is_listed` が漏れを見る。
+ * **`IndexHealth` で分岐する画面を全部入れること。**
+ * 漏れは同じファイルの「IndexHealth で分岐する画面は全部 SCREENS に載っている」が見る。
  */
 const SCREENS: { source: string; spec: string }[] = [
   {
@@ -47,17 +55,24 @@ const SCREENS: { source: string; spec: string }[] = [
     source: "src/features/position-search/ui/PositionSearchHitList.tsx",
     spec: "docs/spec/screens/position-search.md",
   },
+  {
+    source: "src/features/position-search/ui/PositionSearchModal.tsx",
+    spec: "docs/spec/screens/position-search.md",
+  },
 ];
 
 /**
  * 画面に出る文字列リテラルを拾う。
  *
- * **拾うのは分岐が返す文言だけ。** JSX の地の文（`ほか N 件` など）は
- * 見ていない——テンプレートを含むので、拾おうとすると綴りの正規化が要る。
- * そこは人が読む。
+ * **拾うのは3つの形だけ。** `label: "…"`、`return "…"`、**両腕とも文字列
+ * リテラルの三項**（`cond ? "A" : "B"`）。三項を拾うのは、`return` だけだと
+ * `emptyReason` の `ok` の腕が漏れるから。
  *
- * 三項の腕（`cond ? "A" : "B"`）も拾う。`return` だけを見ると、
- * **いちばん長い文言を持つ `emptyReason` の `ok` の腕**が漏れる。
+ * **見ていないもの。** 入れ子三項（腕の片方が識別子）と JSX の地の文
+ * （`ほか N 件` など）。どちらもここでは拾わないので、**その文言が
+ * 仕様書に載っているかは人が読む**。
+ *
+ * 下限を2文字にしてあるのは、`未作成` のような3文字のバッジを落とさないため。
  */
 function labelsOf(source: string): string[] {
   const text = readFileSync(join(REPO_ROOT, source), "utf8");
@@ -97,9 +112,13 @@ describe("画面の文言と仕様書", () => {
     const all = uiFiles();
     expect(all.length, "`src/features` を歩けていない").toBeGreaterThan(10);
 
-    const branching = all.filter((f) =>
-      readFileSync(join(REPO_ROOT, f), "utf8").includes("IndexHealth"),
-    );
+    // **型名だけを見ない。** 型注釈を書かずに `indexHealth()` の返り値で
+    // 分岐する画面は、`IndexHealth` の綴りをファイルに1つも持たない
+    // ——値だけで分岐する形が、いちばん普通の書き方
+    const branching = all.filter((f) => {
+      const text = readFileSync(join(REPO_ROOT, f), "utf8");
+      return /\bIndexHealth\b/.test(text) || /\bindexHealth\s*\(/.test(text);
+    });
     expect(branching.filter((f) => !listed.has(f))).toEqual([]);
   });
 
