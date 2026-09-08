@@ -842,7 +842,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   ]);
 
   // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
-  // 局面を送って席が返った後（最大2秒）で、その間ボタンは ▶ のまま押せる。
+  // 局面を送って席が返った後（上限は `positionSyncTimeoutMs`）で、その間ボタンは
+  // ▶ のまま押せる。
   // 2本目は Rust の `take_session` に断られ、その断りは `console.error` で終わる
   // ——利用者には何も出ない。
   //

@@ -74,8 +74,14 @@ const advance = (ms: number) => act(async () => void (await new Promise((r) => s
  */
 const SLOW = 20_000;
 
-/** 縮めた寸法（`shortenWaits`）。**数字を写さない**——写すと片方だけ動かせる */
+/**
+ * 縮めた寸法（`shortenWaits`）。**数字も比も写さない**——写すと片方だけ動かせる。
+ *
+ * 散文に「上限は2秒」「間引きは 80ms」と書かないこと。このファイルは `beforeEach` で
+ * 寸法を縮めるので、**現物の値はどれも当たらない**。
+ */
 const limitMs = () => waits().positionSyncTimeoutMs;
+const flushMs = () => waits().resultFlushMs;
 
 function mountAnalysis(initial: PositionSyncAdapter, { strict = false } = {}) {
   const seen: AnalysisContextType[] = [];
@@ -123,7 +129,7 @@ const adapter = (currentSfen: string | null, syncedSfen: string | null): Positio
 });
 
 /**
- * **上限を実時計で待たない。** 現物の上限（2秒）を跨ぐ待ち方をすると、並走する機械では
+ * **上限を実時計で待たない。** 現物の `positionSyncTimeoutMs` を跨ぐ待ち方をすると、並走する機械では
  * コードを触っていないコミットがランダムに落ちる。寸法は4つとも 1/4 に縮むので、
  * 大小の順序（刻み < 間引き < 猶予 < 上限）は現物と同じ。
  */
@@ -220,15 +226,17 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
         await view.current.startInfiniteAnalysis();
       });
 
-      // 追従しないまま待たせ、打ち切りの手前で止める（上限の 3/4 まで）
+      // 追従しないまま待たせ、打ち切りの手前で止める
       await view.setSync(adapter("P2", "P1"));
-      await advance(150);
+      await advance(limitMs() * 0.3);
       await act(async () => {
         await view.current.stopAnalysis();
       });
 
-      // 打ち切りの上限を越える時間を空けてから、あらためて解析する
-      await advance(700);
+      // **この空白がこのテストの検出源。** 停止中に上限を越える時間が経つので、
+      // 前回の待ちの開始時刻を持ち越すと、次の待ちは1ミリ秒も待たずに打ち切られる。
+      // **縮めると検査でなくなる**——縮めても下の2つだけでは上限に届かない。
+      await advance(limitMs() * 1.4);
       await view.setSync(adapter("P2", "P2"));
       await act(async () => {
         await view.current.startInfiniteAnalysis();
@@ -236,9 +244,8 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
       expect(view.current.state.isAnalyzing).toBe(true);
 
       // 1手進める。ここで待ちが始まるので、経過時間はゼロから数え直されなければならない。
-      // 持ち越すと、前回の 3/4 が乗って上限を越える。
       await view.setSync(adapter("P3", "P2"));
-      await advance(60);
+      await advance(limitMs() * 0.12);
 
       expect(view.current.state.error).toBeNull();
       expect(view.current.state.isAnalyzing).toBe(true);
@@ -869,7 +876,7 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
-  // **間引きの1周期（80ms）を跨がせる。** 枠を落とす形の後始末は、落とす前に
+  // **間引きの1周期を跨がせる。** 枠を落とす形の後始末は、落とす前に
   // タイマーが起きた回を守れない——着地が遅い回だけが素通りする。
   it("席が着くのが間引きより遅くても、捨てた席の結果は出さない", async () => {
     tauri = true;
@@ -898,7 +905,7 @@ describe("AnalysisProvider の結果の照合", () => {
     // **間引きより長く待つ。** ここでタイマーが起きる。
     engine = { isReady: false, notReadyReason: "starting" };
     await view.setSync(adapter("P2", null));
-    await advance(120);
+    await advance(flushMs() * 6);
 
     await act(async () => {
       rejectStart(new Error("engine is shutting down"));
@@ -1257,8 +1264,8 @@ describe("AnalysisProvider の開始", () => {
       listeners?.onUpdate("session-1", oneCandidate);
     });
 
-    // 間引きのタイマー（80ms）が、開始の応答より先に起きる。
-    await advance(150);
+    // 間引きのタイマーが、開始の応答より先に起きる。
+    await advance(flushMs() * 7);
     await act(async () => {
       releaseStart("session-1");
     });
@@ -1735,8 +1742,9 @@ describe("AnalysisProvider のアンマウント", () => {
 
     view.unmount();
 
-    // 上限のずっと手前で見る（畳んだら待つのをやめるので、上限には達しない）。
-    await advance(200);
+    // **上限に届かないうちに見る**（畳んだら待つのをやめる）。合計を上限の半分より
+    // 十分下に置くこと——半分まで使うと、遅い機械では抜けていない回まで緑になる。
+    await advance(limitMs() * 0.2);
 
     // 抜けないと、畳まれた画面のために `syncedSfen` を上限いっぱい見続ける。
     expect(settled).toBe(true);
