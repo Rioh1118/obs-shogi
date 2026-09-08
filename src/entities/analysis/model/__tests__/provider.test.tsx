@@ -915,6 +915,26 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  it("同期が先に追いついても、猶予より早く取り直さない", async () => {
+    startCore.mockResolvedValueOnce("s1");
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤と同期が同じ描画で動く。追従の effect は猶予を張った直後に、
+    // 同じ再開を 0ms で張り直しに来る——`scheduleRestart` は先頭でタイマーを
+    // 消すので、止めないと**猶予そのものが消える**。
+    stopCore.mockClear();
+    await view.setSync(adapter("P2", "P2"));
+
+    await advance(waits().restartDebounceMs / 5);
+    expect(stopCore).not.toHaveBeenCalled();
+
+    await advance(waits().restartDebounceMs * 4);
+    expect(stopCore).toHaveBeenCalledWith("s1", "restart");
+  });
+
   it("捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("s1");
