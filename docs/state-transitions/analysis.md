@@ -234,8 +234,11 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 開始は Rust が `Err` を返すので（`bridge.rs`）、**現物では後者のほうが起きやすい**。
 判定はどちらも `useEngineSeat` の中で、`beginTake` が焼き付けた同じ世代を見る
 ——着地した回は `landed`、返ってこなかった回は `engineChanged()`。
-利用者はまだ画面の前に居るので、▶ から入った回は断りを立てる
-（`ENGINE_RESTARTED_MESSAGE` → ※15）。自動再開から入った回は、エンジンが戻れば
+利用者はまだ画面の前に居るので、▶ から入った回は断りを立てる。**着地した時点の
+readiness で割る**——戻っていれば `ENGINE_RESTARTED_MESSAGE`、まだなら理由ごとの断り
+（`NOT_READY_REFUSALS`。→ ※15）。**現物では後者のほうが多い**（開始が `Err` で返る回は
+着地した瞬間まだ起動中）。理由は `sendAndAwaitSync` と同じ——上限まで待たせてから
+効かない案内を出さない。自動再開から入った回は断りを立てず、エンジンが戻れば
 同期の追従が張り直す。
 
 **席の欄が空なら**——前の停止に成功していれば
@@ -269,10 +272,10 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `POSITION_SYNC_FAILED_MESSAGE`  | 局面の送信そのものが落ちた（E5）                                                  | 押し直しても同じ。起こし直す（→ [engine.md](engine.md) の ※5） |
 | `RELEASE_FAILED_MESSAGE`        | ▶ の先頭の返却が落ちた（→ ※2 / F-7）                                              | まず ▶。それでも駄目なら起こし直す     |
 | `START_REFUSED_MESSAGE`         | Rust が開始を断った（→ ※11）                                                      | 起こし直す                             |
-| `ENGINE_RESTARTED_MESSAGE`      | 席を取りに行っている間にエンジンが起こし直された（→ ※13 / F-6）                   | **▶ の押し直し**（戻っていれば始まる） |
+| `ENGINE_RESTARTED_MESSAGE`      | 席を取りに行っている間に起こし直され、**着地した時点では戻っている**（→ ※13 / F-6） | **▶ の押し直し**（この回だけ実際に効く） |
 | `STOP_FAILED_MESSAGE`           | ■ が届かなかった（→ ※7 / F-7）                                                    | まず ▶（同じ席を止め直してから始める） |
 | `RESTART_FAILED_MESSAGE`        | 自動再開が落ちた（→ `(S4/S5, E10/E11)`。`(S3, E5/E11)` の打ち切りは上限切れの枝）。**起こし直しの窓は含まない** → ※13 | まず ▶。それでも駄目なら起こし直す     |
-| `ENGINE_STARTING_MESSAGE`       | エンジンの起動待ちに ▶ を押した                                                   | 待ってからもう一度 ▶                   |
+| `ENGINE_STARTING_MESSAGE`       | エンジンの起動待ちに ▶ を押した／席を取る往復の最中に起こし直され、**まだ戻っていない**（→ ※13） | 待ってからもう一度 ▶                   |
 | `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）                                             | 起こし直す                             |
 | `NO_ENGINE_SELECTED_MESSAGE`    | エンジンを選んでいない                                                            | 設定でエンジンを選ぶ                   |
 | `ENGINE_ERROR_MESSAGE`          | E9 のエラー通知。**いま踏めない**                                                 | 起こし直す                             |

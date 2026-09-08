@@ -171,7 +171,7 @@ reviewer: architecture（実測）
 | 10〜13 / 15〜17 | 直した                                                                              | `460da657`                          |
 | 25              | 直した。`commentPatternFor` に改名し、危険の向きが逆である理由を書いた               | `a2c04658`                          |
 | 19              | 直した。`dropPendingForLostSeat` / `keepOrForget` に割った                           | `c15f037c`                          |
-| 18              | 直した（`460da657` に含む）。置き場で分けている事実をそのまま書いた                  | `bfe59cd4`                          |
+| 18              | 直した。置き場で分けている事実をそのまま書いた                                      | `bfe59cd4`                          |
 
 ### 所見20 について
 

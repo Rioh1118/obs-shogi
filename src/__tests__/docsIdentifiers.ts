@@ -7,8 +7,11 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 const HOOKS = join(REPO_ROOT, ".claude/hooks");
 
 /**
- * docs がバッククォートで指す**識別子**が実在するかを見る検査の本体。
+ * バッククォートが指す**識別子**が実在するかを見る判定の本体。
  * パスを見る `docsSourcePaths.ts` の隣。あちらはファイル、こちらは名前。
+ *
+ * **走査範囲は持たない。** 渡す側が決める——`docs/**` は `docsIdentifiers.test.ts`、
+ * `src/**` の TS コメントは `srcCommentIdentifiers.test.ts`。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */

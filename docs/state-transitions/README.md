@@ -95,7 +95,7 @@ ShogiHome のパスをバッククォートのまま書いているが、そち�
 **広げるときの手順はこの節が持たない。** 落ちるものには外部リンクで片付かない種類が
 あり、その一覧と順序は `src/__tests__/docsSourcePaths.test.ts` の doc にある。
 
-`src/__tests__/docsSourcePaths.test.ts` が、これらの表の中でバッククォートに囲まれた
+`src/__tests__/docsSourcePaths.test.ts` が、走査範囲の doc の中でバッククォートに囲まれた
 パスの実在を要求する。**要求されるのは自リポジトリの起点と綴りが重なるものだけ** ——
 `src/` / `src-tauri/` / `docs/` で始まるか、`src/` の直下のレイヤ名
 （`entities/` など）で始まるもの。判定を持つのは `src/__tests__/docsSourcePaths.ts`。

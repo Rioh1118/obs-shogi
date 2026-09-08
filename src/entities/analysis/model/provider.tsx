@@ -705,7 +705,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
   /**
-   * 断りを立てて投げる。**▶ の失敗はどの段もここを通る**——立て方を段ごとに選ばせない。
+   * 断りを立てて投げる。**断りを立てる回はどの段もここを通る**——立て方を段ごとに選ばせない。
+   *
+   * **断りを立てない `throw` が1つだけ在る**（読む局面が無い回。理由は
+   * `refuseIfCannotStart` の中）。`AnalysisContextType` がその1つを契約に書いている。
    */
   const failStart = useCallback((message: string, e: unknown): never => {
     dispatch({ type: "set_error", payload: message });
