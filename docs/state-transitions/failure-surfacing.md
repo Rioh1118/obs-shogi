@@ -60,7 +60,7 @@
 | その場           | 同上（ツリーが1本も無いとき）                                | ツリーを開けなかった                                                                    | 直るまで残る               |
 | フォーム内       | `create-file` の3フォームの `FsErrorView`                    | 作成・取り込みの失敗                                                                    | 打ち直すまで               |
 | 入力欄の直下     | `widgets/file-tree/ui/InlineNameEditor.tsx`                  | 名前の訂正で直る失敗                                                                    | 打ち直すまで               |
-| 境界の差し替え   | `shared/ui/AppErrorBoundary.tsx`                             | React が落ちた。**囲った範囲だけ**※                                                     | 残る                       |
+| 境界の差し替え   | `shared/ui/AppErrorBoundary.tsx`                             | React が落ちた。**囲った範囲だけ**※                                                     | 残る（鍵が動けば解ける）※ |
 | 画面内インライン | 設定タブ・保存モーダル・検索モーダル                         | F-32 だけ `InlineNotice`。他は手書き                                                    | その画面を開いている間だけ |
 
 ファイル系の4つは `entities/file-tree/ui/FsErrorView` を共有する（ADR-0005 決定5）。
