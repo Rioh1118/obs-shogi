@@ -156,6 +156,11 @@ $sidebar-width: 23%;
 // 値を動かすぶんには揃って動くが、どれか1つだけ直値に書き換えると境がずれて
 // ウィンドウを掴めなくなる
 $titlebar-height: 2.6rem;
+// `.app-layout` の1段目（`AppLayoutHeader`）。**出典はここ1つ。**
+// `.app-header` が自分の上に同名のカスタムプロパティを再宣言すると継承が切れ、
+// 片方だけ動かしたときに隙間が空くか `overflow: hidden` に切られる。
+// 帯を避ける `position: fixed` の箱（`.app-error-fallback--floating`）もこれを見る
+$app-header-height: 5.6rem;
 // 帯に並ぶ丸ボタンの大きさ。**帯と同じ理由でここに置く** —— `.titlebar` と
 // `.root-error-fallback__chrome` が同じボタンを別々に描くので、片方だけ動くと
 // 落ちたときにだけ大きさが変わる
