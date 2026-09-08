@@ -118,8 +118,10 @@ issue #120 と同型の行き止まり
 `failed` へ落ちるのは起動側の上限（`SPAWN_TIMEOUT` / `USI_OK_TIMEOUT`）で折れた回。
 **待てば理由が動く**という意味では戻る側でよい（読み手はそこで諦められる）。
 
-**`failed` と `starting` を割る述語は `retriesAfterError`**（`lib/equalRuntime.ts`）。
-三項と、起動し直す effect の両方が同じものを呼ぶ——書き下ろすと片方だけが古くなる。
+**`failed` と `starting` を割る述語は `retriesAfterError`**、`phase` から理由を決めるのは
+`reasonForPhase`（どちらも `lib/notReadyReason.ts`）。**述語を呼ぶのは描画時の1箇所だけ**で、
+理由を決める側も起動し直す effect もその値を読み、**effect の依存にも載せる**
+——effect の中で呼び直すと、`lastTriedRef` の更新は再描画を起こさないので取りこぼす。
 
 分類は `entities/engine/model/types.ts` の `isRecoverableNotReady` が持ち、
 理由の並びは `src/entities/engine/model/__tests__/provider.test.tsx` が固定している。

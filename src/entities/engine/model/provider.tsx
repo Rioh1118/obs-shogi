@@ -128,8 +128,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     }
 
     // error でも「別設定なら」再トライする（同一設定なら止める）。
-    // **理由を決める三項と同じ述語**——片方だけ変えると、起動し直しているのに
-    // 解析側が終端と読んで走っている解析を打ち切る。
+    // **上で計算した値をそのまま読む**（依存にも載せてある）——ここで呼び直すと、
+    // `lastTriedRef` の更新を取りこぼし、起動し直しているのに解析側が終端と読む。
     if (state.phase === "error") {
       if (willRetryAfterError) initialize().catch(() => {});
       return;
