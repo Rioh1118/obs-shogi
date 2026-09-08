@@ -17,11 +17,14 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 const close = vi.fn(() => Promise.resolve());
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({ close }) }));
 
-/** 更新の知らせは平常時 `null` か portal で、`.app-root` に in-flow の子を作らない */
-let updaterThrowing = false;
+/**
+ * どこを落とすか。**更新の知らせは平常時 `null` か portal** で、
+ * `.app-root` に in-flow の子を作らない
+ */
+const throwing = { router: true, updater: false };
 vi.mock("@/features/updater/ui/UpdaterScreen", () => ({
   default: () => {
-    if (updaterThrowing) throw new Error("更新の知らせの中で落ちた");
+    if (throwing.updater) throw new Error("更新の知らせの中で落ちた");
     return <div data-testid="updater" />;
   },
 }));
@@ -30,10 +33,9 @@ vi.mock("../providers/BootstrapProviders", () => ({
 }));
 
 /** ルータの中身は関係無い。落ちる／落ちないを切り替えるためだけの差し替え */
-let throwing = true;
 vi.mock("../routing/AppRouter", () => ({
   default: () => {
-    if (throwing) throw new Error("ルータの下で落ちた");
+    if (throwing.router) throw new Error("ルータの下で落ちた");
     return <div data-testid="router">画面</div>;
   },
 }));
@@ -41,8 +43,8 @@ vi.mock("../routing/AppRouter", () => ({
 const { default: App } = await import("../App");
 
 beforeEach(() => {
-  throwing = true;
-  updaterThrowing = false;
+  throwing.router = true;
+  throwing.updater = false;
   // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。
   // 出ること自体は意図どおりなので、出力だけ畳む
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -105,8 +107,8 @@ describe("root の境界", () => {
   });
 
   test("更新の知らせが落ちても、本体は畳まない", () => {
-    throwing = false;
-    updaterThrowing = true;
+    throwing.router = false;
+    throwing.updater = true;
     const { container } = render(<App />);
 
     expect(
@@ -130,7 +132,7 @@ describe("root の境界", () => {
   test("再表示で元の画面へ戻れる", () => {
     render(<App />);
 
-    throwing = false;
+    throwing.router = false;
     fireEvent.click(screen.getByText("再表示"));
 
     expect(screen.getByTestId("router")).toBeTruthy();

@@ -26,7 +26,7 @@ vi.mock("@/entities/game", () => ({
 /** どのペインを落とすか。テストごとに1つだけ真にする */
 const throwing = { board: false, analysis: false, modal: false };
 
-function throwingIn(name: keyof typeof throwing, testId: string) {
+function mockThrowing(name: keyof typeof throwing, testId: string) {
   return {
     default: () => {
       if (throwing[name]) throw new Error(`${name} の中で落ちた`);
@@ -53,8 +53,8 @@ vi.mock("@/widgets/kifu-stream/ui/KifuStreamList", () => ({
   default: () => <div data-testid="kifu" />,
 }));
 vi.mock("@/widgets/game-board/ui/Board", () => empty);
-vi.mock("@/widgets/game-board/ui/GameBoard", () => throwingIn("board", "board"));
-vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => throwingIn("analysis", "analysis"));
+vi.mock("@/widgets/game-board/ui/GameBoard", () => mockThrowing("board", "board"));
+vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => mockThrowing("analysis", "analysis"));
 
 const { default: AppLayout } = await import("../AppLayout");
 

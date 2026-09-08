@@ -15,7 +15,7 @@ import { AppErrorBoundary } from "../AppErrorBoundary";
  */
 
 /** 与えられた値をそのままレンダで投げる。`Error` 以外も投げられる */
-function Thrower({ value }: { value: unknown }): never {
+function Throwing({ value }: { value: unknown }): never {
   throw value;
 }
 
@@ -58,7 +58,7 @@ describe("AppErrorBoundary が捕まえる値", () => {
       try {
         render(
           <AppErrorBoundary label="盤">
-            <Thrower value={value} />
+            <Throwing value={value} />
           </AppErrorBoundary>,
         );
       } catch {
@@ -75,7 +75,7 @@ describe("AppErrorBoundary が出す原因", () => {
   test("例外の文言を画面に出す", () => {
     render(
       <AppErrorBoundary label="盤">
-        <Thrower value={new Error("駒を置けない升がある")} />
+        <Throwing value={new Error("駒を置けない升がある")} />
       </AppErrorBoundary>,
     );
 
@@ -85,7 +85,7 @@ describe("AppErrorBoundary が出す原因", () => {
   test("文字列が投げられても、そのまま出す", () => {
     render(
       <AppErrorBoundary label="盤">
-        <Thrower value="文字列を投げた" />
+        <Throwing value="文字列を投げた" />
       </AppErrorBoundary>,
     );
 
@@ -98,7 +98,7 @@ describe("AppErrorBoundary が出す原因", () => {
   test("`Error` でも文字列でもない値は出さない", () => {
     render(
       <AppErrorBoundary label="盤" hint="棋譜を開き直してください。">
-        <Thrower value={{ code: 1 }} />
+        <Throwing value={{ code: 1 }} />
       </AppErrorBoundary>,
     );
 
@@ -112,7 +112,7 @@ describe("AppErrorBoundary が残す記録", () => {
   test("どの境界が受けたかを添えて `console.error` に出す", () => {
     render(
       <AppErrorBoundary label="解析">
-        <Thrower value={new Error("読み筋が組めない")} />
+        <Throwing value={new Error("読み筋が組めない")} />
       </AppErrorBoundary>,
     );
 
@@ -127,7 +127,7 @@ describe("AppErrorBoundary が出す案内", () => {
   test("既定の fallback にも `hint` が届く", () => {
     render(
       <AppErrorBoundary label="盤" hint="棋譜を開き直してください。">
-        <Thrower value={new Error("落ちた")} />
+        <Throwing value={new Error("落ちた")} />
       </AppErrorBoundary>,
     );
 
