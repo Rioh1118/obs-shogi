@@ -908,6 +908,46 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  it("捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    // 捨てる停止**だけ**を落とす。再開のための返却は通す——通さないと `isAnalyzing` が
+    // 倒れ、`commitLatest` の `analyzing` の門が先に止めてしまい、席の門を見られない。
+    stopCore.mockImplementation((_sessionId, by) =>
+      by === "late-restart" ? Promise.reject(new Error("ipc lost")) : Promise.resolve(),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 自動再開の開始を待たせ、その間にもう1手進めて世代を上げる。
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+    await view.setSync(adapter("P3", "P2"));
+    await advance(150);
+
+    // 席が欄に入る前に `info` が1本届き（`accepts` は欄が空の間どの席も通す）、
+    // 直後に追い越された席が着く。捨てる停止は落ち、`keepOrForget` が欄へ書き戻す。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+      releaseStart("s2");
+    });
+    await advance(150);
+
+    // 書き戻しで席の門は開くが、反映待ちはその手前で落ちている。
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("捨てる停止の応答を待っている間も、その席の info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");
