@@ -16,9 +16,11 @@
 | 解析ペインの歯車             | `engine`    |
 | ツリーの失敗通知「選び直す」 | `workspace` |
 
-**解析ペインの歯車だけ `engine`。** そこから出る断りが案内する復帰操作
-（→ [analysis.md](../../state-transitions/analysis.md) の ※15 / `RESTART_ENGINE_HINT`）は
-このタブにしか無いので、開く先が別だと案内が空振りする。**その断りの読み手はまだ0**（→ #277）
+**解析ペインの歯車だけ `engine`。** そこから出る断りのうち **`RESTART_ENGINE_HINT`
+（オプションを変えて保存する）が案内する操作はこのタブにしか無い**ので、開く先が別だと空振りする。
+**ただし `no-engine` の断りは AI フォルダの確認も案内する**（→ [analysis.md](../../state-transitions/analysis.md)
+の ※15）——そちらは AI ライブラリタブなので、この歯車では着かない。
+**どちらの断りも読み手はまだ0**（→ #277 / #523）
 （2026-09-09 / `fix/502-refuse-when-engine-never-returns`）。
 
 タブの切り替えは `updateParams({ tab }, { replace: true })` で URL に載る。

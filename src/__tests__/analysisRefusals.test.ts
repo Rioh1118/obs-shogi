@@ -27,8 +27,10 @@ import { codeOf } from "./sourceText";
  *
  * **対象は `refusals.ts` の `export const` 全部**（名前の形も問わない）。末尾や大文字で
  * 選ぶと、そこから外れた名前の1本が黙って義務から外れる。断りでない部品だけを、
- * 下の `PARTS` に**名前で書いて**外す——`PARTS` に足すのは「断りではない」と言い切れる
- * ときだけで、それが唯一の逃げ道。
+ * 下の `PARTS` に**名前で書いて**外す——`PARTS` に足すのは「断りではない」と言い切れるときだけ。
+ *
+ * **逃げ道は2つある。** もう1つは `Record<…NotReadyReason…>` と型注釈すること
+ * ——それは「対応表である」の意味なので、義務は下の `describe` の側へ移る。
  */
 const REFUSALS = "src/entities/analysis/model/refusals.ts";
 const NOTES = "docs/state-transitions/analysis.md";
@@ -148,14 +150,22 @@ describe("エンジンが使えない理由への対応", () => {
    * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる
    * （規約の全体は `refusals.ts` の冒頭）。
    */
-  test.each([
-    ["ON_START_REFUSALS", "_ON_START_MESSAGE"],
-    ["WHILE_ANALYZING_REFUSALS", "_WHILE_ANALYZING_MESSAGE"],
-  ])("%s の値は %s で終わる", (name, suffix) => {
+  test.each(tableNames(codeOf(read(REFUSALS))))("%s の値は入口の軸で終わる", (name) => {
+    // **表名から導く。** ここに対応を手で並べると、3つ目の表を足した人が
+    // 「対応表を2つとも拾えている」の数字だけを直して、新しい表だけ規約から外れる。
+    const suffix = `_${name.replace(/_REFUSALS$/, "")}_MESSAGE`;
     const code = codeOf(read(REFUSALS));
     const table = new RegExp(`${name}[^=]*=\\s*\\{([\\s\\S]*?)\\};`).exec(code);
     const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
 
-    expect(values.filter((v) => !v.endsWith(suffix))).toEqual([]);
+    expect(
+      values.filter((v) => !v.endsWith(suffix)),
+      `期待する接尾辞は ${suffix}`,
+    ).toEqual([]);
+  });
+
+  // 表名が軸を持たないと、上の接尾辞が組めない
+  test.each(tableNames(codeOf(read(REFUSALS))))("%s は _REFUSALS で終わる", (name) => {
+    expect(name.endsWith("_REFUSALS")).toBe(true);
   });
 });

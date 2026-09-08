@@ -262,6 +262,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const takeSeatAndGo = useCallback(
     async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
+      // **入口でも readiness を見る。** 下の札が守るのは「往復の**前**に読んだ世代」だけで、
+      // **世代が上がった後にここへ入る要求**は素通りする——`releaseHeld` の `await` を
+      // 跨いだ自動再開がそれで、Rust はまだ畳んでいないので**もう無いエンジンの席**を握り、
+      // `landed` は `"held"` を返す。以後どの effect も拾えず（席の欄を捨てる effect の
+      // 依存は `isReady` だけ）、盤は候補手0本で「解析中」を回し続ける。
+      //
+      // **`discardShown()` より前に置く。** 後ろだと `clear_results` が、
+      // 断つ effect や打ち切りが立てたばかりの `error` を消す。
+      if (!readinessRef.current.isReady) return "engine-gone";
+
       results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。

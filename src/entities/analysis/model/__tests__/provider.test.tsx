@@ -836,6 +836,48 @@ describe("AnalysisProvider の結果の照合", () => {
     },
     SLOW,
   );
+  it(
+    "戻る理由でエンジンが落ちた最中に自動再開が着地しても、席を握らない",
+    async () => {
+      let releaseStop: () => void = () => {};
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤が動いて自動再開が走り、握っている席の返却で止まる。
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(200);
+      expect(stopCore).toHaveBeenCalledTimes(1);
+
+      // **その最中に、戻る理由で `isReady` が落ちる**（オプションを保存した回）。
+      // 理由が `starting` なので断つ effect は降り、`isAnalyzing` は true のまま
+      // ——だが席の欄を捨てる effect は走り、エンジンの世代が上がる。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P2", "P2"));
+      await advance(50);
+      expect(view.current.state.isAnalyzing).toBe(true);
+
+      // 返却が返り、再開の続きが `takeSeatAndGo` へ入る。**入口で readiness を見ないと**、
+      // 札は往復の前の世代しか見ないので素通りし、**もう無いエンジンの席を握る**
+      // ——`landed` は "held" を返し、以後どの effect も拾えない（席の欄を捨てる
+      // effect の依存は `isReady` だけ）。盤は候補手0本で「解析中」を回し続ける。
+      await act(async () => {
+        releaseStop();
+      });
+      await advance(200);
+
+      expect(startCore).toHaveBeenCalledTimes(1);
+    },
+    SLOW,
+  );
+
   it("席が着く前にエンジンが戻っていたら、押し直しを案内する", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockImplementationOnce(
