@@ -48,7 +48,7 @@ const preset = (id: string): EnginePreset =>
     bookEnabled: false,
     bookFilePath: null,
     options: {},
-  }) as unknown as EnginePreset;
+  }) satisfies EnginePreset;
 
 /**
  * commit された `runtimeConfig` を順に集める。**畳まない**——中間の1枚が見たいので、
@@ -91,7 +91,7 @@ beforeEach(() => {
   savePresets.mockReset();
   setLastPresetId.mockReset();
   lastPresetId = "a";
-  loadPresets.mockResolvedValue({ presets: [preset("a"), preset("b")] } as PresetsFile);
+  loadPresets.mockResolvedValue({ presets: [preset("a"), preset("b")] } satisfies PresetsFile);
   savePresets.mockResolvedValue(undefined);
   setLastPresetId.mockResolvedValue(undefined);
 });
@@ -138,21 +138,35 @@ describe("EnginePresetsProvider", () => {
     view.unmount();
   });
 
-  it("選んでいないプリセットを消しても、選択は動かない", async () => {
+  it("選んでいないプリセットを消しても、窓は開かない", async () => {
     const view = mountPresets();
     await view.settle();
     const from = view.seen.length;
 
-    await act(async () => {
-      await view.current.deletePreset("b");
-    });
+    // **1本目と同じ形で観測する。** `act` の中で解決させると中間の commit が畳まれ、
+    // 「窓が開かない」を名乗る検査がどう壊しても緑になる（→ 上の doc）。
+    let finishSave: () => void = () => {};
+    savePresets.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+
+    const deleting = view.current.deletePreset("b");
+    await view.settle();
+
+    // 保存の往復のあいだも、選択は動かないので `runtimeConfig` も動かない。
+    expect(view.current.runtimeConfig).not.toBeNull();
+
+    finishSave();
+    await deleting;
     await view.settle();
 
     expect(view.current.selectedPreset?.id).toBe("a");
     expect(view.current.state.presets.map((p) => p.id)).toEqual(["a"]);
     // 選択を動かさない回は `setLastPresetId` も撃たない（保存する値が変わっていない）。
     expect(setLastPresetId).not.toHaveBeenCalled();
-    // この回は窓が開かない——選択が消えないので `runtimeConfig` も動かない。
     expect(view.seen.slice(from).filter((r) => r === null)).toHaveLength(0);
     view.unmount();
   });

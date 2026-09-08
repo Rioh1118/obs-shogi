@@ -33,9 +33,17 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   //
   // **理由の割り方と、当たる順の根拠は `docs/state-transitions/engine.md` の ※7。**
   // 向こうの表はこの三項の並びに追随しているので、順を変えるときは一緒に直すこと。
+  // **`failed` は「同じ設定のまま落ちた」まで。** 設定が前回試した値から動いていれば
+  // 下の effect が起動し直すので、その窓は `starting`（起動し直す口が在る）。
+  // 見る条件は下の `error` の枝と同じ——**片方だけ変えない。**
+  const willRetryAfterError =
+    !!desiredRuntime &&
+    !!lastTriedRef.current &&
+    !equalRuntime(desiredRuntime, lastTriedRef.current);
+
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
-    : state.phase === "error"
+    : state.phase === "error" && !willRetryAfterError
       ? "failed"
       : "starting";
 

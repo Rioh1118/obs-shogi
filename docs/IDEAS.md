@@ -174,7 +174,7 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 `entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**（`isRecoverableNotReady`。
 意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` の行が4つ——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
+で数えられる（**件数と内訳をここに書かない**——触るたびに動く。`vi.mock` の行は `sliceBarrels` の免除に当たるので、実際の波及は下の (a) の見積もりを取り直すこと）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
 **公開しない限り深く読める**。
 
@@ -195,11 +195,11 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 `no-console` が lint に入っていないので落ちない。
 
 **判断: 6週間以内に着手しない。** 出るのは開発者コンソールだけで、利用者に見える
-不具合ではない。ただし**この1行だけを消しても同じものがまた入る**ので、
-着手するなら `no-console` を lint に入れるところまで。そのとき、意図して残している
-`console.warn` / `console.error` / `console.debug`（席を返す口・購読の失敗・
-`unlisten` の失敗）を許す形にすること——**あれらは最後の防壁で、消すと
-「▶ を押しても何も起きない」の手掛かりが1つも無くなる**（`useEngineSeat` の `shootQuietly`）。
+不具合ではない。ただし**`console.log` は他のスライスにもある**し、この1行だけを消しても同じものがまた入るので、
+着手するなら `no-console` を lint に入れるところまで。そのとき、
+**`failure-surfacing.md` の §2 が「いま起きること」に `console.error` のみと書いている行は
+全部残すこと**——あれらは台帳が数えている唯一の出口で、消すと失敗の手掛かりが1つも
+無くなる（解析側の例は `useEngineSeat` の `shootQuietly`）。
 
 出どころ: #502 のレビュー ラウンド1（robustness が範囲外として記録）。
 

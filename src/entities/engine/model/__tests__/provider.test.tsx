@@ -5,7 +5,11 @@ import { useEffect } from "react";
 
 import { EngineProvider } from "../provider";
 import { useEngine } from "../useEngine";
-import type { EngineNotReadyReason, EngineRuntimeConfig } from "../types";
+import {
+  isRecoverableNotReady,
+  type EngineNotReadyReason,
+  type EngineRuntimeConfig,
+} from "../types";
 import type { EngineInfo } from "@/entities/engine/api/rust-types";
 
 /**
@@ -24,7 +28,7 @@ vi.mock("../../api/initializer", () => ({
   },
 }));
 
-const info = { name: "test-engine", author: "t" } as unknown as EngineInfo;
+const info = { name: "test-engine", author: "t", options: [] } satisfies EngineInfo;
 
 const runtime = (options: Record<string, string> = {}): EngineRuntimeConfig => ({
   enginePath: "/e",
@@ -90,6 +94,7 @@ describe("EngineProvider が立てる理由", () => {
     // 起動を待つ窓は `starting`。**`no-engine` を1枚も挟まない**——挟むと、解析側が
     // 戻らない側と読んで、走っている解析を打ち切る。**畳まずに数える**
     // （畳むと、直前が `no-engine` のときに挟まった1枚が吸われて検査が効かない）。
+    expect(view.reasons.slice(from)).toContain("starting");
     expect(view.reasons.slice(from)).not.toContain("no-engine");
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
   });
@@ -102,7 +107,8 @@ describe("EngineProvider が立てる理由", () => {
     await view.setRuntime(runtime({ Threads: "4" }));
     await view.settle();
 
-    // 起こし直しの窓を `no-engine` で通さない（同上）。
+    // 起こし直しの窓は `starting` を通り、`no-engine` は通さない。
+    expect(view.reasons.slice(from)).toContain("starting");
     expect(view.reasons.slice(from)).not.toContain("no-engine");
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
     expect(initialize).toHaveBeenCalledTimes(2);
@@ -119,6 +125,7 @@ describe("EngineProvider が立てる理由", () => {
     await view.settle();
 
     // **起動し直すのは `idle` の枝。** その枝を消すと `initialize` は1回で止まる。
+    expect(view.reasons.slice(2)).toContain("starting");
     expect(view.reasons).not.toContain("no-engine");
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
     expect(initialize).toHaveBeenCalledTimes(2);
@@ -195,6 +202,92 @@ describe("EngineProvider が立てる理由", () => {
     expect(initialize).toHaveBeenCalledTimes(1);
     expect(shutdown).not.toHaveBeenCalled();
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
+  });
+
+  /**
+   * **分類を、現物の振る舞いから引き直す。**
+   *
+   * `isRecoverableNotReady` は綴りの表（`RECOVERABLE_NOT_READY_REASONS`）で、
+   * それを決めているのは下の effect のどの枝が起動し直すか。**表と枝は機械的に
+   * 結ばれていない**ので、枝を1つ足した人が表を直さなくても何も赤くならない
+   * ——理由が増えた回だけを tsc が見て、既存の理由の分類が動いた回は素通りする。
+   *
+   * ここで結ぶ。**`EngineNotReadyReason` の全値を回す**ので、理由が増えた回に
+   * 「窓の作り方が無い」で落ちる（0件で黙らない）。
+   */
+  describe("分類が現物と合っている", () => {
+    /** その理由の窓を作り、追加の入力なしで放置する */
+    const enter: Record<EngineNotReadyReason, () => ReturnType<typeof mountEngine>> = {
+      // 設定を組み立てられない。選び直すまで起動する口が無い
+      "no-engine": () => mountEngine(null),
+      // 起動待ち。`initialize` は返ってこない
+      starting: () => {
+        initialize.mockImplementation(() => new Promise<EngineInfo>(() => {}));
+        return mountEngine(runtime());
+      },
+      // 同じ設定のまま初期化が落ちた
+      failed: () => {
+        initialize.mockRejectedValue(new Error("boom"));
+        return mountEngine(runtime());
+      },
+    };
+
+    it.each(Object.keys(enter) as EngineNotReadyReason[])(
+      "%s は、戻る側なら放っておいて ready へ進み、戻らない側なら二度と起動しない",
+      async (reason) => {
+        const view = enter[reason]();
+        await view.settle();
+        await view.settle();
+
+        expect(view.reasons[view.reasons.length - 1]).toBe(reason);
+        const callsWhileStuck = initialize.mock.calls.length;
+
+        // **追加の入力を1つも与えずに待つ。**
+        await view.settle();
+        await view.settle();
+
+        if (isRecoverableNotReady(reason)) {
+          // 戻る側は「いつか ready」ではなく「**起動し直す口が在る**」（→ engine.md の ※7）。
+          // ここでは口が在ることを、理由が戻らない側へ落ちていないことで見る。
+          expect(isRecoverableNotReady(view.reasons[view.reasons.length - 1] ?? "starting")).toBe(
+            true,
+          );
+        } else {
+          // **戻らない側は、放っておいても起動を試みない。** ここが偽になると、
+          // 解析側は再トライの最中に打ち切って「使えなくなった」と案内する。
+          expect(initialize.mock.calls.length).toBe(callsWhileStuck);
+          expect(view.reasons[view.reasons.length - 1]).toBe(reason);
+        }
+      },
+    );
+  });
+
+  it("初期化が落ちた後に設定が動いたら、再トライを待つ窓は starting", async () => {
+    // 起こし直しの最中に、初期化が返る前もう一度プリセットを切り替えた回。
+    let failFirst: (e: unknown) => void = () => {};
+    initialize.mockImplementationOnce(
+      () =>
+        new Promise<EngineInfo>((_resolve, reject) => {
+          failFirst = reject;
+        }),
+    );
+
+    const view = mountEngine(runtime());
+    await view.settle();
+
+    await view.setRuntime(runtime({ Threads: "4" }));
+    await act(async () => {
+      failFirst(new Error("boom"));
+    });
+
+    // **ここを `failed` にしない。** 下の effect は設定が動いているので起動し直す
+    // ——その窓で解析を打ち切ると、エンジンだけが黙って戻り、盤の下は止まったまま
+    // 「使えなくなった」の断りが残る。
+    expect(view.reasons).not.toContain("failed");
+
+    await view.settle();
+    expect(view.reasons[view.reasons.length - 1]).toBeNull();
+    expect(initialize).toHaveBeenCalledTimes(2);
   });
 
   it("設定が変われば failed からは再トライする", async () => {

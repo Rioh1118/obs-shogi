@@ -13,9 +13,8 @@ import type { EngineNotReadyReason, TerminalNotReadyReason } from "@/entities/en
  *
  * **対応表に入れる断りは、入口を名前に持たせる**（`_ON_START_MESSAGE` /
  * `_WHILE_ANALYZING_MESSAGE`）。2つの表は同じ `EngineNotReadyReason` を鍵に取るので、
- * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる——**ボタンを押していない人に
- * 「もう一度 ▶ を押してください」が出る**形が、それで1度入っている。
- * 両方の入口で使いたくなったら、それは2本に割るべき断り。
+ * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる。
+ * **両方の入口で使いたくなったら、それは2本に割るべき断り。**
  *
  * @packageDocumentation
  */
@@ -76,7 +75,7 @@ export const ENGINE_FAILED_ON_START_MESSAGE = `エンジンを起動できてい
  * 押していない人が読むと「押しても始まらない」と受け取る。ここで告げるのは
  * **走っていた解析が切れた**こと。次の一手は同じでも、起きた事が違う。
  */
-export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}`;
+export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}起こし直したら、もう一度 ▶ を押してください。`;
 /**
  * 解析の最中に `no-engine` になった（→ `docs/state-transitions/analysis.md` の ※5）。
  *
@@ -85,7 +84,7 @@ export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジン�
  * 何度やっても同じ文に戻る。
  */
 export const NO_ENGINE_WHILE_ANALYZING_MESSAGE =
-  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてください。";
+  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてから、もう一度 ▶ を押してください。";
 /** `no-engine` で ▶ を押した（入口は `EngineNotReadyReason` の doc）。 */
 export const NO_ENGINE_ON_START_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてください。";
