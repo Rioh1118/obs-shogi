@@ -44,7 +44,6 @@ export type {
  * 自分で組み直さないこと**（並びと `te <= tesuu` の前提をここで揃えている）。
  */
 export { cursorFromLite } from "./lib/cursorAdapter";
-export { isIndexBusy } from "./lib/indexState";
 
 /**
  * 索引の具合を1つに決める唯一の関門。**画面ごとに旗を並べ直さないこと**

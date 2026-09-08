@@ -73,7 +73,7 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
       return {
         tone: "warn" as const,
         icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: runningLabel(idx.state),
+        label: STAGE_LABEL[idx.state],
       };
     case "ok":
       return {
@@ -89,17 +89,25 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
   }
 }
 
-/** 進行中の3つを言い分ける。**どれを出すかは決めない**——決めるのは `indexHealth`。 */
-function runningLabel(state: IndexUiState["state"]): string {
-  switch (state) {
-    case "Restoring":
-      return "復元中";
-    case "Building":
-      return "作成中";
-    default:
-      return "更新中";
-  }
-}
+/**
+ * 段そのものの語。**どれを出すかは決めない**——決めるのは `indexHealth`。
+ *
+ * **表で書く。** `switch` の `default:` は網羅検査を無条件に抑えるので、段が
+ * 1つ増えた日に黙って「更新中」になる。そのとき `isIndexBusy` の表は分類を
+ * 迫るのに、こちらは tsc を1つも落とさずに**間違った語を出す**
+ * （同じ理由で `entities/search/lib/indexState.ts` も表にしてある）。
+ *
+ * **進行中でない2つも埋める。** 表にするには全段が要る。値は
+ * `badgeForIndex` が `notStarted` / `ok` で出す語に合わせてあるので、
+ * 万一そちらから引かれても食い違わない。
+ */
+const STAGE_LABEL: Record<IndexUiState["state"], string> = {
+  Restoring: "復元中",
+  Building: "作成中",
+  Updating: "更新中",
+  Empty: "未作成",
+  Ready: "準備完了",
+};
 
 /** 警告の枠。**増やすと状態の要約が押し出される**ので、増やす前に置き場を決めること */
 const WARN_SLOTS = 5;
