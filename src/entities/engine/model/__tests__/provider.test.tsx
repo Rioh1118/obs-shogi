@@ -13,11 +13,16 @@ import {
 import type { EngineInfo } from "@/entities/engine/api/rust-types";
 
 /**
- * **見るのは `notReadyReason` の並びだけ。**
+ * **見るのは `notReadyReason` の並びと、そこに至る `initialize` / `shutdown` の
+ * 呼び出し回数。`phase` の値そのものは見ない。**
  *
  * この理由は解析側が「解析を打ち切るか、待つか」を決めるのに使う
  * （`docs/state-transitions/analysis.md` の ※5）ので、**どの窓でどれが立つか**が
  * 振る舞いそのもの。`phase` を見ても、待てば戻る窓と戻らない窓は区別できない。
+ *
+ * **起動の門が畳む回と重なる窓はここでは見られない**——下の double は `inFlight` を
+ * 持たないので「畳む側が飛んでいる起動を待つか」を表現できない。`startGate.test.tsx` が
+ * 本物の initializer を通して見る。
  */
 const initialize = vi.fn<(runtime: EngineRuntimeConfig) => Promise<EngineInfo>>();
 const shutdown = vi.fn<() => Promise<void>>();
