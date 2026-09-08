@@ -123,9 +123,9 @@ export function useResultFlush(
   const apiRef = useRef<ResultFlush | null>(null);
 
   // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
-  // ここで読む値は**その1回の値のまま**。上に置いてよいのは `useRef` と、
-  // 依存が全部安定な `useCallback` だけ
-  // （`src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が見る）。
+  // ここで読む値は**その1回の値のまま**。上に置いてよいものは
+  // `src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が持つ
+  // （そこが唯一の出典。ここに写すと、機械が広がったときにこちらだけ古くなる）。
   if (apiRef.current) return apiRef.current;
 
   apiRef.current = {

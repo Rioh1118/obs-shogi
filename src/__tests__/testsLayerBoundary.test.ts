@@ -48,6 +48,13 @@ function appReference(names: string[]): RegExp {
 const TESTS_DIR_IMPORT = new RegExp(`${ANY_PREFIX}(?:[\\w.-]+/)*__tests__/[^"'\`]*`, "g");
 
 /**
+ * node の走査 API を直に引く綴り。**`walk.ts` を通らない走査器を拾うため。**
+ *
+ * `import.meta.glob` は入れない——本番の正当な用途が在る（駒画像の読み込み）。
+ */
+const NODE_SCAN = /from\s+["'`]node:(?:fs|path|url)["'`]/g;
+
+/**
  * 上から下へ。`vite.config.ts` の `no-restricted-imports` と同じ順で、
  * ここでも `src/` 直下から導く（一覧を写さない）
  */
@@ -177,14 +184,21 @@ describe("レイヤに依存しない検査の置き場", () => {
    * `CONTRIBUTING.md` の表へ載せる義務から丸ごと外れる。表に無い検査は
    * 「逃げ道が無い」と読まれるので、次に赤くした人が `ALLOWED` に辿り着けない。
    *
-   * 判定の材料は上と同じ（`walk.ts` を引くかどうか）。**置き場は上が、綴りはここが見る。**
+   * 材料は2つ。`__tests__/` 配下を import しているか（`TESTS_DIR_IMPORT`）と、
+   * **node の走査 API を直に引いているか**（`NODE_SCAN`）。前者だけだと、
+   * `walk.ts` を通さず `node:fs` を直に掴む走査器が素通りする——起点を自分の
+   * 居場所から取る形は `CONTRIBUTING.md` が別に禁じているが、文でしか要求して
+   * いないので機械が要る。**置き場は上が、綴りはここが見る。**
    */
   it("スライス側の走査器はラチェットを名乗る", () => {
     const scanners = tsFiles(SRC, { includeTests: true })
       .filter((file) => !relative(SRC, file).startsWith("__tests__"))
-      // `TESTS_DIR_IMPORT` は `g` を持つ。`test()` は `lastIndex` を持ち越すので、
-      // 1本おきに取りこぼす——**必ず `match` で見ること。**
-      .filter((file) => readFileSync(file, "utf8").match(TESTS_DIR_IMPORT) !== null);
+      // どちらも `g` を持つ。`test()` は `lastIndex` を持ち越して1本おきに
+      // 取りこぼすので、**必ず `match` で見ること。**
+      .filter((file) => {
+        const body = readFileSync(file, "utf8");
+        return body.match(TESTS_DIR_IMPORT) !== null || body.match(NODE_SCAN) !== null;
+      });
 
     expect(scanners.length, "スライス側の走査器を1本も拾えていない").toBeGreaterThan(0);
 
