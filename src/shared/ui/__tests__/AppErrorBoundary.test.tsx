@@ -171,7 +171,7 @@ describe("AppErrorBoundary の resetKeys", () => {
     ).toBeTruthy();
   });
 
-  test("落ちている間に鍵が2回動いても、2回目で解ける", () => {
+  test("落ちている間に鍵が動いても、境界は捕まえ続ける", () => {
     const { rerender } = render(
       <AppErrorBoundary label="盤" resetKeys={["a"]}>
         <Child boom />
@@ -186,7 +186,8 @@ describe("AppErrorBoundary の resetKeys", () => {
     );
     expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
 
-    // 比較の相手が落ちた時点の鍵に留まっていると、ここが "b" のままで解けない
+    // 比較の相手を落ちた時点で止めると、毎レンダ「変わった」と判定して子を描き直し続け、
+    // 境界は捕まえ直せずに例外が外へ抜ける（このレンダで throw が飛び出す）
     rerender(
       <AppErrorBoundary label="盤" resetKeys={["c"]}>
         <Child boom={false} />

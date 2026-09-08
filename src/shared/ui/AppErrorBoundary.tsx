@@ -17,7 +17,8 @@ type Props = {
    * モーダルを閉じた）境界は畳んだままになる。**どちらも利用者からは「壊れたまま」に見える。**
    *
    * 渡すのは「別の局面／別の画面になった」と言い切れる値だけにする。毎レンダ変わる値を
-   * 渡すと、落ち続けるものを描き続けようとして fallback が出なくなる。
+   * 渡すと、落ち続けるものを描き直し続けて**例外がこの境界を素通りする**（fallback が
+   * 出ないだけでは済まない）。
    */
   resetKeys?: readonly unknown[];
   /**
@@ -79,8 +80,9 @@ export class AppErrorBoundary extends Component<Props, State> {
   /**
    * 鍵が変わったら畳むのをやめる。
    *
-   * **鍵は落ちている間も更新する。** 落ちたまま鍵だけ2回動くと、比較の相手が
-   * 落ちた時点の鍵に留まり、1回目の変化で解けた後に2回目で解け直せなくなる。
+   * **鍵は落ちている間も更新する。** 更新しないと、比較の相手が落ちた時点の鍵に留まったまま
+   * 毎レンダ「変わった」と判定され、`error` を消しては子を描き直し続ける。境界は捕まえ直せず、
+   * 例外は1つ外の境界（無ければ root）まで抜ける。
    */
   static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
     const keys = props.resetKeys ?? [];
