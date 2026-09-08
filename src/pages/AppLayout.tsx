@@ -80,7 +80,10 @@ const AppLayout = () => {
               <div className="workspace__surface">
                 <section className="workspace__main">
                   <div className="workspace__boardPane">
-                    {/* 盤が落ちても棋譜一覧と解析は残す。畳む範囲はペイン1つ分 */}
+                    {/*
+                      盤は局面から駒の配置を組み直すので、棋譜が壊れていれば描く前に落ちる。
+                      畳むのは盤と操作列だけで、棋譜一覧と解析は残す
+                    */}
                     <AppErrorBoundary label="盤">
                       <GameBoard
                         topLeft={<Hand isSente={false} />}
@@ -93,6 +96,10 @@ const AppLayout = () => {
                     </AppErrorBoundary>
                   </div>
                   <aside className="workspace__kifuPane">
+                    {/*
+                      `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #295）。
+                      畳むのは一覧だけで、盤と解析は残す
+                    */}
                     <AppErrorBoundary label="棋譜一覧">
                       <KifuStreamList />
                     </AppErrorBoundary>
@@ -100,7 +107,10 @@ const AppLayout = () => {
                 </section>
 
                 <section className="workspace__dock">
-                  {/* 解析が落ちても盤は残す。エンジンの応答は形が保証されていない */}
+                  {/*
+                    エンジンの応答は形が保証されていないので、描く段で落ちうる。
+                    畳むのはドックの中だけで、盤と棋譜一覧は残す
+                  */}
                   <AppErrorBoundary label="解析">
                     <AnalysisPane />
                   </AppErrorBoundary>
