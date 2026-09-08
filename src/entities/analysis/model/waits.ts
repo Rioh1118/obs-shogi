@@ -24,7 +24,7 @@ export interface AnalysisWaits {
    * 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
    */
   positionSyncTimeoutMs: number;
-  /** 結果を画面へ反映する間引き。**80ms ごとに1回**（`info` は数十 ms 間隔で届く） */
+  /** 結果を画面へ反映する間引き。`info` は数十 ms 間隔で届くので、1周期に1回へ畳む */
   resultFlushMs: number;
 }
 

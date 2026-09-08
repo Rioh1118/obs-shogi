@@ -114,11 +114,9 @@ export function useResultFlush(
     latestRef.current = null;
   }, [clearTimer]);
 
-  // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
-  // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
-  // ——畳まれてもいないのに後始末が撃たれる。
+  // **同じ物を返し続ける**（理由は `useEngineSeat` の `apiRef` に1つ）。
   //
-  // **`useEngineSeat` と同じ形。** `useMemo` は React が値を捨てないことを約束しないので、
+  // `useMemo` は React が値を捨てないことを約束しないので、
   // 同一性を要求として持つ口は ref で凍らせる。同じスライスに2通りの答えを置かない。
   const apiRef = useRef<ResultFlush | null>(null);
 

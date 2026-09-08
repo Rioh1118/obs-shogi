@@ -170,8 +170,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための門。**
    *
    * 予約は `swapSeatAndGo` の `finally` が拾う。**門を2箇所に書き下ろさない**
-   * ——このファイルは「片方だけに入る」形の欠けを何度も出している。実際に
-   * 拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
+   * ——拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
    */
   const bookIfRestarting = useCallback(() => {
     if (!restartInFlightRef.current) return false;
@@ -217,10 +216,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 先に席を返し終えている（返せなければ `takeSeatAndGo` へ入らない）。
    * 握った回は**ここを通らず** `results.schedule()` が出し直すので、
    * 席が欄に入る前に届いた1本を消す心配も要らない。
-   *
-   * **ここで席を観測するなら `throw` を使わないこと。** 呼び手の2つの `catch`
-   * （▶ と自動再開）がどちらも飲むので、投げても大半の筋では緑のまま通る
-   * ——無条件に投げても落ちるのは一部だけ。観測はログで取ること。
+
    *
    * **席を見て降りる形にしない。** 捨てる停止が落ちると `shoot` の catch
    * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
@@ -239,8 +235,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /**
    * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
    *
-   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
-   * その形の欠けを何度も出している。開始の失敗は**呼び手へ投げる**（断りの文言は
+   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る。
+   * 開始の失敗は**呼び手へ投げる**（断りの文言は
    * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
    *
    * **▶ の口は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
@@ -260,8 +256,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       const take = seat.beginTake(discardBy);
 
       // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
-      // 後始末が割れると、片方だけが反映待ちを落とし忘れる（この関数は現にその形で
-      // 1度落とした）。**`landed` を先に決めてから、握れなかった側をまとめて畳む。**
+      // 後始末が割れると、片方だけが反映待ちを落とし忘れる。
+      // **`landed` を先に決めてから、握れなかった側をまとめて畳む。**
       let landed: SeatTakeResult;
       try {
         const sessionId = await startInfiniteAnalysisCore();
