@@ -10,8 +10,14 @@ import {
   Wrench,
 } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
-import { describeFsError, type FsError } from "@/entities/file-tree";
+import { describeFsError } from "@/entities/file-tree";
+import {
+  canCreateEnginesDir,
+  enginesDirUsable,
+  type EnginesDir,
+} from "@/entities/engine/lib/enginesDir";
 import { SField, SInput, SSection } from "../kit";
+import type { CreateAiFolderResult, SetupGuideProfile } from "./types";
 import SettingsBadge from "../kit/SettingsBadge";
 import type { StepState } from "./steps/StepShell";
 import { Step1SelectRoot } from "./steps/Step1SelectRoot";
@@ -21,15 +27,6 @@ import { Step4PlaceAssets } from "./steps/Step4PlaceAssets";
 import { StructureOverview } from "./steps/StructureOverview";
 import { FolderConcept } from "./steps/FolderConcept";
 import "./SetupGuide.scss";
-
-export type SetupGuideProfile = {
-  name: string;
-  path: string;
-  hasEvalDir: boolean;
-  hasBookDir: boolean;
-  evalCount: number;
-  bookCount: number;
-};
 
 type NextAction = {
   tone: "ok" | "warn" | "todo";
@@ -43,11 +40,35 @@ type NextAction = {
   onSecondary?: () => void;
 };
 
+/** カードに出す状態の名前。網羅の理由は `EnginesDir` の doc */
+const ENGINES_DIR_LABEL: Record<EnginesDir, string> = {
+  unknown: "—",
+  missing: "なし",
+  dir: "あり",
+  other: "フォルダでない",
+};
+
+const ENGINES_DIR_TONE: Record<EnginesDir, "ok" | "warn" | "todo"> = {
+  unknown: "todo",
+  missing: "warn",
+  dir: "ok",
+  other: "warn",
+};
+
 type Props = {
   aiRootPath: string | null;
   scanStatus: "idle" | "loading" | "ok" | "error";
   scanError?: string | null;
-  enginesDirExists: boolean;
+  /** `engines` が何として在るか。4つに割れている理由は `EnginesDir` の doc */
+  enginesDir: EnginesDir;
+  /**
+   * 索引を読めているか。**「読めていない」と「0 件」を分けるために要る。**
+   *
+   * 数だけを渡すと、読めていない回も `0` になって「エンジン 0 件（要注意）」と
+   * 観測していないことを断言する。`engines` のカードだけ `—` にしても、
+   * 隣が数を言い切るとそちらが上書きして読まれる
+   */
+  indexed: boolean;
   enginesDirPath?: string;
   enginesCount: number;
   engineNames: string[];
@@ -59,8 +80,8 @@ type Props = {
   onCreateEnginesDir: () => void;
   onOpenAiRoot: () => void;
   onOpenEnginesDir: () => void;
-  /** 名前を直せば通る失敗だけを返す。それ以外は呼び出し元が診断側へ回す */
-  onCreateAiFolder: (aiName: string) => Promise<FsError | null>;
+  /** 答えの3つは `CreateAiFolderResult` が持つ */
+  onCreateAiFolder: (aiName: string) => Promise<CreateAiFolderResult>;
 };
 
 function StatusCard({
@@ -113,7 +134,8 @@ export default function SetupGuide({
   aiRootPath,
   scanStatus,
   scanError = null,
-  enginesDirExists,
+  enginesDir,
+  indexed,
   enginesDirPath,
   enginesCount,
   engineNames,
@@ -147,15 +169,24 @@ export default function SetupGuide({
 
     inFlightRef.current = true;
     setIsCreatingFolder(true);
-    setCreateError(null);
     try {
-      const nameError = await onCreateAiFolder(name);
-      if (nameError) {
+      const result = await onCreateAiFolder(name);
+
+      // 宛先を失った回。**打った名前も欄の赤字も動かさない**——
+      // 直すべき理由（前の失敗の赤字）だけを消すと、直すべき文字列だけが残る。
+      // 旧ルートで何が起きたかは通知が伝える
+      if (result === "stale") return;
+
+      if (result) {
         // 打った名前は消さない。消すと、直すのではなく打ち直しになる
-        setCreateError(describeFsError(nameError.code));
+        setCreateError(describeFsError(result.code));
         aiNameRef.current?.focus();
         return;
       }
+
+      // **赤字を消すのはここ。** `await` の前で消すと、上の枝（宛先を失った回）が
+      // 「前の失敗の赤字を消しただけ」で返る
+      setCreateError(null);
       setAiNameDraft("");
     } finally {
       inFlightRef.current = false;
@@ -168,16 +199,38 @@ export default function SetupGuide({
   const canOperate = !!aiRootPath;
   const scanReady = scanStatus === "ok";
 
+  /**
+   * いま AI フォルダを作れるか。**1度だけ組んで3箇所が引く。**
+   *
+   * 引く先はカードのヒント・入力欄・「現在の状態」の木。条件を手書きで散らすと、
+   * 木が「作成しろ」と指示するのに入力欄が描かれない、という食い違いが出る
+   * （実際に2度出した。1度目は読めていない回、2度目はエンジンが0件の回）。
+   *
+   * **`enginesCount > 0` を条件にするのが正しいかは未決**（#475）——
+   * エンジンを置く前に AI フォルダだけ作りたい人を止めている
+   */
+  const canCreateProfile = canOperate && indexed && enginesCount > 0;
+
   const step1: StepState = canOperate ? "done" : "active";
-  const step2: StepState = !canOperate ? "locked" : enginesDirExists ? "done" : "active";
-  const step3: StepState = !enginesDirExists
+  const enginesDirReady = enginesDirUsable(enginesDir);
+
+  // フォルダでないものが居る間と、何が在るか読めていない間は塞ぐ。
+  // どちらもこの段の操作（作成）が通る保証が無い——何をすべきかは hero が言う
+  const step2: StepState = !canOperate
+    ? "locked"
+    : enginesDirReady
+      ? "done"
+      : canCreateEnginesDir(enginesDir)
+        ? "active"
+        : "locked";
+  const step3: StepState = !enginesDirReady
     ? "locked"
     : enginesCount > 0
       ? "done"
       : scanReady
         ? "warn"
         : "active";
-  const step4: StepState = !enginesDirExists
+  const step4: StepState = !enginesDirReady
     ? "locked"
     : profiles.length > 0
       ? "done"
@@ -190,6 +243,13 @@ export default function SetupGuide({
 
   // ── next action (hero) ─────────────────────────────────────────────────
 
+  /**
+   * hero の主動作と副動作。
+   *
+   * **アプリの外での作業を指示する段には、終わったことを伝える口（スキャン）を必ず置く。**
+   * 無いと、作業を終えて戻った利用者に古い画面が出て、押せるのは実在しなくなったパスへの
+   * 「開く」だけになる——正しい作業の直後に失敗の通知が出る。
+   */
   const nextAction = useMemo<NextAction>(() => {
     if (!aiRootPath) {
       return {
@@ -218,20 +278,51 @@ export default function SetupGuide({
         desc: scanError ?? "再スキャンして状態を読み直してください。",
         primaryLabel: "再スキャン",
         onPrimary: onRescan,
-        secondaryLabel: "フォルダを開く",
-        onSecondary: onOpenAiRoot,
+        // **ここで「開く」を勧めない。** この段には4つの失敗が来る（選択・作成・
+        // スキャン・プロファイル作成）ので、開く先が読めているとは限らない。
+        // 読み直し（主）と選び直し（副）だけを出す
+        secondaryLabel: "選択…",
+        onSecondary: onSelectRoot,
       };
     }
-    if (!enginesDirExists) {
+    // **読めていない側の枝を、フォルダとして在る以外の全部で受ける。**
+    // 3つを名前で並べると、`EnginesDir` に状態が増えた日（#469）に
+    // その状態が下の「エンジンを置いてください」へ落ちる——engines が
+    // どうなっているか誰も読めていないのに、次の段の指示が出る
+    if (!enginesDirUsable(enginesDir)) {
+      if (enginesDir === "other") {
+        return {
+          tone: "warn",
+          icon: <Wrench size={18} />,
+          title: "engines がフォルダではありません",
+          desc: "同じ名前のファイル（またはリンク）があります。外すか、フォルダに置き換えてください。",
+          primaryLabel: "engines/ を開く",
+          onPrimary: onOpenEnginesDir,
+          secondaryLabel: "スキャン",
+          onSecondary: onRescan,
+        };
+      }
+      if (canCreateEnginesDir(enginesDir)) {
+        return {
+          tone: "warn",
+          icon: <Wrench size={18} />,
+          title: "engines/ フォルダを作りましょう",
+          desc: "エンジン実行ファイルをまとめる engines/ フォルダをボタンひとつで作成できます。",
+          primaryLabel: "engines/ を作成",
+          onPrimary: onCreateEnginesDir,
+          secondaryLabel: "AI ルートを開く",
+          onSecondary: onOpenAiRoot,
+        };
+      }
       return {
-        tone: "warn",
-        icon: <Wrench size={18} />,
-        title: "engines/ フォルダを作りましょう",
-        desc: "エンジン実行ファイルをまとめる engines/ フォルダをボタンひとつで作成できます。",
-        primaryLabel: "engines/ を作成",
-        onPrimary: onCreateEnginesDir,
-        secondaryLabel: "フォルダを開く",
-        onSecondary: onOpenAiRoot,
+        tone: "todo",
+        icon: <RefreshCw size={18} />,
+        title: "フォルダの状態を読めていません",
+        desc: "スキャンし直すと、いま何が在るかを読み直します。",
+        primaryLabel: "再スキャン",
+        onPrimary: onRescan,
+        secondaryLabel: "選択…",
+        onSecondary: onSelectRoot,
       };
     }
     if (enginesCount === 0) {
@@ -239,7 +330,7 @@ export default function SetupGuide({
         tone: "warn",
         icon: <Bot size={18} />,
         title: "エンジン実行ファイルを置いてください",
-        desc: "YaneuraOu などの実行ファイルを engines/ に置いて、スキャンします。",
+        desc: "engines/ の場所を表示します。その中に YaneuraOu などの実行ファイルを置いてからスキャンしてください。",
         primaryLabel: "engines/ を開く",
         onPrimary: onOpenEnginesDir,
         secondaryLabel: "スキャン",
@@ -262,8 +353,8 @@ export default function SetupGuide({
         tone: "warn",
         icon: <Database size={18} />,
         title: `「${missingEval.name}」に評価関数を置いてください`,
-        desc: `${missingEval.name}/eval/ に nn.bin などを配置してからスキャンします。`,
-        primaryLabel: "フォルダを開く",
+        desc: `AI ルートの場所を表示します。その中の ${missingEval.name}/eval/ に nn.bin などを置いてからスキャンしてください。`,
+        primaryLabel: "AI ルートを開く",
         onPrimary: onOpenAiRoot,
         secondaryLabel: "スキャン",
         onSecondary: onRescan,
@@ -281,7 +372,7 @@ export default function SetupGuide({
     aiRootPath,
     scanStatus,
     scanError,
-    enginesDirExists,
+    enginesDir,
     enginesCount,
     profiles,
     onSelectRoot,
@@ -332,28 +423,32 @@ export default function SetupGuide({
         />
         <StatusCard
           label="engines フォルダ"
-          value={enginesDirExists ? "あり" : "なし"}
-          hint={enginesDirPath}
+          value={ENGINES_DIR_LABEL[enginesDir]}
+          hint={enginesDir === "unknown" ? undefined : enginesDirPath}
           icon={<Wrench size={13} />}
-          state={!canOperate ? "todo" : enginesDirExists ? "ok" : "warn"}
+          state={ENGINES_DIR_TONE[enginesDir]}
         />
         <StatusCard
           label="エンジン"
-          value={`${enginesCount} 件`}
-          hint={enginesCount > 0 ? "検出済み" : "engines/ に置いてください"}
+          value={indexed ? `${enginesCount} 件` : "—"}
+          hint={!indexed ? undefined : enginesCount > 0 ? "検出済み" : "engines/ に置いてください"}
           icon={<Bot size={13} />}
-          state={!canOperate ? "todo" : enginesCount > 0 ? "ok" : "warn"}
+          state={!indexed ? "todo" : enginesCount > 0 ? "ok" : "warn"}
         />
         <StatusCard
           label="AI フォルダ"
-          value={`${profiles.length} 件`}
+          value={indexed ? `${profiles.length} 件` : "—"}
           hint={
-            profiles.length > 0
-              ? `eval あり ${profiles.filter((p) => p.hasEvalDir && p.evalCount > 0).length} 件`
-              : "下のフォームから作成できます"
+            !indexed
+              ? undefined
+              : profiles.length > 0
+                ? `eval あり ${profiles.filter((p) => p.hasEvalDir && p.evalCount > 0).length} 件`
+                : canCreateProfile
+                  ? "下のフォームから作成できます"
+                  : "エンジンを置いた後に作成できます"
           }
           icon={<Database size={13} />}
-          state={!canOperate ? "todo" : profiles.length > 0 ? "ok" : "warn"}
+          state={!indexed ? "todo" : profiles.length > 0 ? "ok" : "warn"}
         />
       </div>
 
@@ -366,7 +461,8 @@ export default function SetupGuide({
       <SSection title="現在の状態" description="スキャン結果をリアルタイムで反映しています。">
         <StructureOverview
           aiRootPath={aiRootPath}
-          enginesDirExists={enginesDirExists}
+          enginesDir={enginesDir}
+          canCreateProfile={canCreateProfile}
           engineNames={engineNames}
           profiles={profiles}
         />
@@ -399,7 +495,7 @@ export default function SetupGuide({
       </SSection>
 
       {/* AI folder creation */}
-      {canOperate && enginesCount > 0 && (
+      {canCreateProfile && (
         <SSection
           title="AIフォルダを追加"
           description="AI名を入れると eval/ と book/ をまとめて作成します。"

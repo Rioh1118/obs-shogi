@@ -39,7 +39,7 @@ count_failure() {
 # その条件を満たさないチェックアウトで床が必ず落ちる。
 # 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
 # 実測は末尾の runs を見ること。
-GATE_TEST_MIN_RUNS=203
+GATE_TEST_MIN_RUNS=204
 GATE_TEST_RUNLOG=$(mktemp)
 export GATE_TEST_RUNLOG
 
@@ -436,7 +436,12 @@ expect_kinds "ts rust" "src-tauri/src/book/commands.rs"
 expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"
 expect_kinds "rust" "src-tauri/Cargo.toml"
 expect_kinds "rust" "src-tauri/tauri.conf.json"
-expect_kinds "rust" "src-tauri/capabilities/default.json"
+# capability は両方。`openerCapability`（vitest）が口と許可を突き合わせ、
+# `tauri_build::build()` が識別子を検証する。**書式では絞らない**——
+# ACL は JSON5 でも TOML でも書けるので、片方だけが拾う形にすると
+# その書式で足した1枚がどちらかの検証を素通りする
+expect_kinds "ts rust" "src-tauri/capabilities/default.json"
+expect_kinds "ts rust" "src-tauri/capabilities/desktop.toml"
 expect_kinds "rust" "rust-toolchain.toml"
 expect_kinds "ts" ".claude/hooks/verify-gate.sh"
 expect_kinds "" "README.md"
