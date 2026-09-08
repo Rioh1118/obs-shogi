@@ -24,8 +24,22 @@ import { codeOf } from "./sourceText";
  * **doc も見る。** `docs/spec/` の画面仕様がタブ名を書いているので、コードだけを直すと
  * 仕様の側が現在形で嘘になる（`CLAUDE.md` が同じ PR で直すと決めている）。
  */
-const TAB_CALL =
-  /openModal\(\s*"settings"\s*,\s*\{[^}]*?\btab:\s*"([^"]*)"|updateParams\(\s*\{[^}]*?\bmodal:\s*"settings"[^}]*?\btab:\s*"([^"]*)"/g;
+/**
+ * 設定モーダルを開く呼びの**第1引数の塊**を取る。
+ *
+ * **キーの並び順に依存しないこと。** オブジェクトのキーの順序は書き手の自由なので、
+ * `modal` が `tab` より前に在る形だけを見ると、逆に書いた瞬間に素通りする。
+ * 塊を取ってから中で `modal` と `tab` を別々に探す。
+ */
+const OPEN_MODAL = /openModal\(\s*"settings"\s*,\s*(\{[\s\S]*?\})\s*\)/g;
+const UPDATE_PARAMS = /updateParams\(\s*(\{[\s\S]*?\})\s*[,)]/g;
+const TAB_IN_ARG = /\btab:\s*"([^"]*)"/;
+
+/** 呼び1つが渡すタブ名（設定モーダル宛でなければ `null`） */
+function tabOf(arg: string, requireModal: boolean): string | null {
+  if (requireModal && !/\bmodal:\s*"settings"/.test(arg)) return null;
+  return arg.match(TAB_IN_ARG)?.[1] ?? null;
+}
 
 /**
  * doc の中の `tab=<名前>`。**設定モーダルを名指している行だけ**を見る
@@ -64,9 +78,11 @@ describe("設定モーダルのタブ名", () => {
       .map((path) => relative(REPO_ROOT, path))
       .flatMap((rel) => {
         const code = codeOf(readFileSync(join(REPO_ROOT, rel), "utf8"));
-        return [...code.matchAll(TAB_CALL)]
-          .map((m) => m[1] ?? m[2])
-          .filter((name) => !keys.includes(name))
+        return [
+          ...[...code.matchAll(OPEN_MODAL)].map((m) => tabOf(m[1], false)),
+          ...[...code.matchAll(UPDATE_PARAMS)].map((m) => tabOf(m[1], true)),
+        ]
+          .filter((name): name is string => name !== null && !keys.includes(name))
           .map((name) => `${rel}: ${name}`);
       })
       .sort();

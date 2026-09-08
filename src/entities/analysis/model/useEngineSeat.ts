@@ -158,6 +158,13 @@ export interface EngineSeat {
    *
    * **席を握っていない回は撃たない**（→ #463。理由は本体の門に置いてある）。
    */
+  /**
+   * 畳まれた印を戻す。**cleanup で立てる印は setup で戻すこと。**
+   *
+   * 戻さないと、同じインスタンスに setup → cleanup → setup が走ったとき
+   * （StrictMode）に立ったまま残り、画面が生きているのに席を指さない停止が飛ぶ。
+   */
+  armForMount: () => void;
   sweepOnUnmount: () => void;
 }
 
@@ -225,6 +232,11 @@ export function useEngineSeat(): EngineSeat {
    * `sweepOnUnmount` は枠が空いた時点の席を読むが、席は**その後**に戻ってくることが
    * ある——畳まれた後に着地した席を捨て、その停止が落ちた回（`keepOrForget`）。
    * そのとき sweep はもう走り終えているので、撃ち直す者が居ない。
+   *
+   * **setup で戻すこと**（`armForMount`）。cleanup で立てるだけだと、同じインスタンスに
+   * setup → cleanup → setup が走ったとき（StrictMode）に立ったまま残り、**画面が
+   * 生きているのに**席を指さない停止が飛ぶ——Rust は席を全部空けるので、
+   * 別の口が取った席まで巻き添えにする。
    */
   const sweptRef = useRef(false);
 
@@ -491,6 +503,10 @@ export function useEngineSeat(): EngineSeat {
     // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
     //
     // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
+    armForMount: () => {
+      sweptRef.current = false;
+    },
+
     sweepOnUnmount: () => {
       sweptRef.current = true;
 

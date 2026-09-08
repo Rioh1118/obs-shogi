@@ -1887,6 +1887,46 @@ describe("AnalysisProvider のアンマウント", () => {
     SLOW,
   );
 
+  it(
+    "effect が張り直されただけなら、席を指さない停止は撃たない",
+    async () => {
+      tauri = true;
+      startCore.mockResolvedValueOnce("s1");
+
+      // **畳んでいない。** StrictMode が setup → cleanup → setup を走らせるだけ。
+      // 畳んだ印を setup で戻さないと、以後この画面は「畳まれた」ものとして扱われる。
+      const view = mountAnalysis(adapter("P1", "P1"), { strict: true });
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+      stopCore.mockImplementation((_sessionId, by) =>
+        by === "late-restart" ? Promise.reject(new Error("ipc lost")) : Promise.resolve(),
+      );
+
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+      await view.setSync(adapter("P3", "P2"));
+      await advance(150);
+      await act(async () => {
+        releaseStart("s2");
+      });
+      await advance(150);
+
+      // 指さない停止は Rust の席を**全部**空けるので、生きている画面へ撃つと
+      // 別の口が取った席まで巻き添えにする。
+      expect(stopCore.mock.calls).not.toContainEqual([undefined, "unmount"]);
+    },
+    SLOW,
+  );
+
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 

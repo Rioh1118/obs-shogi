@@ -50,9 +50,12 @@ const TESTS_DIR_IMPORT = new RegExp(`${ANY_PREFIX}(?:[\\w.-]+/)*__tests__/[^"'\`
 /**
  * node の走査 API を直に引く綴り。**`walk.ts` を通らない走査器を拾うため。**
  *
+ * **接頭辞もサブパスも受ける。** `node:` は省ける（lint も素の `fs` を通す）し、
+ * `fs/promises` は `readFile` を持つ現実的な代替なので、どちらかに限ると素通りする。
+ *
  * `import.meta.glob` は入れない——本番の正当な用途が在る（駒画像の読み込み）。
  */
-const NODE_SCAN = /from\s+["'`]node:(?:fs|path|url)["'`]/g;
+const NODE_SCAN = /from\s+["'`](?:node:)?(?:fs|path|url|os)(?:\/[\w-]+)?["'`]/g;
 
 /**
  * 上から下へ。`vite.config.ts` の `no-restricted-imports` と同じ順で、

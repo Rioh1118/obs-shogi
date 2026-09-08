@@ -304,6 +304,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
     // 以降タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
     unmountedRef.current = false;
+    seat.armForMount();
 
     return () => {
       unmountedRef.current = true;
