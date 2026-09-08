@@ -5,7 +5,7 @@ import TitleBar from "@/shared/ui/TitleBar";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 
 export default function RuntimeShell() {
-  const { pathname } = useLocation();
+  const location = useLocation();
 
   return (
     <RequireRootDir>
@@ -18,16 +18,19 @@ export default function RuntimeShell() {
             閉じることもできる。root の境界まで上げると枠ごと差し替わる。
           */}
           {/*
-            **行き先が変わったら畳むのをやめる。** ここが受けるとヘッダもサイドバーも
-            消えるので、`reset` を押す以外に出口が無くなる。`/app/panel/*` を移った時点で
-            落ちた画面はもう描かれないのに、境界がそれを知らないと畳んだままになる。
+            **どこかへ移ったら畳むのをやめる。** `pathname` でなく `location.key` を見るのは、
+            `?modal=` や `?tesuu=` を動かす遷移が `pathname` に出ないため。
 
-            `key` にしないのは、`AppLayout` がサイドバーの開閉をローカル state で持っていて、
-            パネルを移るたび既定に戻ってしまうため
+            **いま `/app` の下で行き先が動く経路はほとんど無い。** `panel/*` は `filetree` の
+            1本だけで、この境界が受けるとヘッダもサイドバーも消えるので、利用者が遷移を
+            起こす導線は残らない。実際の復帰は案内（`hint`）が言う「窓を開き直す」になる → #511
+
+            `key` を使わないのは、`AppLayout` がサイドバーの開閉をローカル state で持っていて、
+            遷移のたび既定に戻ってしまうため
           */}
           <AppErrorBoundary
             label="作業画面"
-            resetKeys={[pathname]}
+            resetKeys={[location.key]}
             hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。"
           >
             <Outlet />
