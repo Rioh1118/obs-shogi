@@ -1844,6 +1844,49 @@ describe("AnalysisProvider のアンマウント", () => {
     SLOW,
   );
 
+  it(
+    "畳まれた後に着地した席の停止が落ちても、その席を返し直す",
+    async () => {
+      tauri = true;
+
+      // ▶ の開始を往復の途中で止める。**着地するのは畳んだ後。**
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+
+      // 畳まれた時点で席の欄は空。飛んでいる停止も無い。
+      stopCore.mockClear();
+      view.unmount();
+      await advance(50);
+      expect(stopCore).not.toHaveBeenCalled();
+
+      // ここで席が着地し、捨てる停止が落ちる——`keepOrForget` が欄へ書き戻す。
+      stopCore.mockRejectedValue(new Error("ipc is gone"));
+      await act(async () => {
+        releaseStart("session-late");
+      });
+      await advance(150);
+      await pressed;
+
+      // 書き戻した席を返し直さないと、Rust に残ったままになる（#441）。
+      expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
+
+      // **撃ち直しは1回だけ。** この停止も落ち続けるので、回数を持たないと
+      // 書き戻しと撃ち直しが回り続ける。
+      await advance(300);
+      expect(stopCore.mock.calls.filter((c) => c[1] === "unmount")).toHaveLength(1);
+    },
+    SLOW,
+  );
+
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 

@@ -219,6 +219,15 @@ export function useEngineSeat(): EngineSeat {
   //   Rust から消えるまで、次の開始は始められない
   const releasingRef = useRef<Promise<void> | null>(null);
 
+  /**
+   * 畳まれたか。**書き戻された席を返し直す判断に要る。**
+   *
+   * `sweepOnUnmount` は枠が空いた時点の席を読むが、席は**その後**に戻ってくることが
+   * ある——畳まれた後に着地した席を捨て、その停止が落ちた回（`keepOrForget`）。
+   * そのとき sweep はもう走り終えているので、撃ち直す者が居ない。
+   */
+  const sweptRef = useRef(false);
+
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
   // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
   // ——畳まれてもいないのに後始末が撃たれる。
@@ -267,6 +276,17 @@ export function useEngineSeat(): EngineSeat {
       return;
     }
     seatRef.current = sessionId;
+
+    // **畳まれた後に戻ってきた席は、ここでしか返せない。** 画面はもう無いので
+    // effect も再走しない。**撃ち直しは1回だけ**——`sweptRef` を先に倒すので、
+    // この停止がまた落ちて書き戻しても、書き戻しと撃ち直しが回り続けない。
+    if (sweptRef.current) {
+      sweptRef.current = false;
+      queueBehind(async () => {
+        if (seatRef.current === null) return;
+        await shootQuietly("unmount", undefined);
+      });
+    }
   };
 
   /**
@@ -472,6 +492,8 @@ export function useEngineSeat(): EngineSeat {
     //
     // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
+      sweptRef.current = true;
+
       queueBehind(async () => {
         // **席を握っていない回は撃たない。** 指さない停止は席を**全部**空けるので、
         // 開始が席を取ってから `go` が線に出るまでの窓に撃ち込むと

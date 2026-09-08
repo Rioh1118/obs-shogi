@@ -41,12 +41,15 @@ describe("useResultFlush の間引き", () => {
   it("1周期の中に3本届いても、画面へ出すのは1回", async () => {
     const { dispatch, flush } = mountFlush();
 
-    for (let i = 0; i < 3; i++) {
-      act(() => {
-        flush().receive(oneCandidate);
-      });
-      await advance(waits().resultFlushMs / 4);
-    }
+    // **間を空けずに渡す。** 実時計で刻むと、遅い機械では1本目のタイマーが
+    // 途中で起きて2回 commit し、門が効いていても赤くなる。
+    // 門が見ているのは経過時間ではなく「タイマーが既に在るか」なので、
+    // 間を空けなくても落とした版とは差が出る（落とすと3本張られて3回出る）。
+    act(() => {
+      flush().receive(oneCandidate);
+      flush().receive(oneCandidate);
+      flush().receive(oneCandidate);
+    });
     await advance(waits().resultFlushMs * 3);
 
     expect(dispatch.mock.calls.filter(([a]) => a.type === "update_result")).toHaveLength(1);
