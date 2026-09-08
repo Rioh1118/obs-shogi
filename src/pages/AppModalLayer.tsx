@@ -97,6 +97,14 @@ export default function AppModalLayer() {
   );
 }
 
+/**
+ * 層の中身。**平常時 in-flow の要素を返す部品を、ここに足さないこと。**
+ *
+ * 9枚とも閉じている間は `null` を返し、開いたときだけ `Modal` が `createPortal` する。
+ * だからこの層は `.app-layout`（`grid-template-rows` が2段）の中に置けている。
+ * 1つでも素の要素を返すと1段目を取り、本体が暗黙の3段目へ押し出されて
+ * `overflow: hidden` に切られる —— 本体を畳まないための境界が、本体を畳むことになる。
+ */
 function ModalLayerContent() {
   const { conflict, kifuError, closeConflict, resolveConflictByRename, clearKifuError } =
     useFileTree();

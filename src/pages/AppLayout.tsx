@@ -42,11 +42,9 @@ const AppLayout = () => {
         モーダル1枚の事故で本体まで unmount させない。**境界は `AppModalLayer` の中にある**
         （鍵を読むために、ここが `FileTreeContext` を購読しないため）。
 
-        **ここに置ける条件**: `.app-layout` は `grid-template-rows` が2段で、ヘッダと本体で
-        ちょうど埋まっている。`AppModalLayer` の子は閉じている間 `null` を返し、開いたときだけ
-        `Modal` が portal するので、平常時 in-flow の子は0。**その子に、平常時 in-flow の要素を
-        返す部品を足さないこと** —— 1つ足すと1段目を取り、本体が暗黙の3段目へ押し出されて
-        `overflow: hidden` に切られる
+        **`.app-layout` は `grid-template-rows` が2段で、ヘッダと本体でちょうど埋まっている。**
+        ここに置けるのは、この層が平常時 in-flow の子を1つも作らないから。
+        その条件は `pages/AppModalLayer.tsx` の `ModalLayerContent` が持つ
       */}
       <AppModalLayer />
 
