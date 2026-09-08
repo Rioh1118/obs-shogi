@@ -25,7 +25,11 @@ export default function RuntimeShell() {
             `key` にしないのは、`AppLayout` がサイドバーの開閉をローカル state で持っていて、
             パネルを移るたび既定に戻ってしまうため
           */}
-          <AppErrorBoundary label="作業画面" resetKeys={[pathname]}>
+          <AppErrorBoundary
+            label="作業画面"
+            resetKeys={[pathname]}
+            hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。"
+          >
             <Outlet />
           </AppErrorBoundary>
         </div>

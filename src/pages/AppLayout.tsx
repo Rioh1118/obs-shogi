@@ -53,7 +53,12 @@ const AppLayout = () => {
 
         **`AppModalLayer` の子に、平常時 in-flow の要素を返す部品を足さないこと。**
       */}
-      <AppErrorBoundary label="モーダル" resetKeys={[modal]} floating>
+      <AppErrorBoundary
+        label="モーダル"
+        resetKeys={[modal]}
+        floating
+        hint="このダイアログは開けません。別の操作からやり直してください。"
+      >
         <AppModalLayer />
       </AppErrorBoundary>
 
@@ -80,7 +85,10 @@ const AppLayout = () => {
                       盤は局面から駒の配置を組み直すので、棋譜が壊れていれば描く前に落ちる。
                       畳むのは盤と操作列だけで、棋譜一覧と解析は残す
                     */}
-                    <AppErrorBoundary label="盤">
+                    <AppErrorBoundary
+                      label="盤"
+                      hint="棋譜一覧から別の手を選ぶか、棋譜を開き直してください。"
+                    >
                       <GameBoard
                         topLeft={<Hand isSente={false} />}
                         center={<Board />}
@@ -96,7 +104,10 @@ const AppLayout = () => {
                       `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #295）。
                       畳むのは一覧だけで、盤と解析は残す
                     */}
-                    <AppErrorBoundary label="棋譜一覧">
+                    <AppErrorBoundary
+                      label="棋譜一覧"
+                      hint="この棋譜は途中から一覧を組めません。別の棋譜を開いてください。"
+                    >
                       <KifuStreamList />
                     </AppErrorBoundary>
                   </aside>
@@ -107,7 +118,10 @@ const AppLayout = () => {
                     エンジンの応答は形が保証されていないので、描く段で落ちうる。
                     畳むのはドックの中だけで、盤と棋譜一覧は残す
                   */}
-                  <AppErrorBoundary label="解析">
+                  <AppErrorBoundary
+                    label="解析"
+                    hint="設定からエンジンを選び直すか、棋譜を開き直してください。"
+                  >
                     <AnalysisPane />
                   </AppErrorBoundary>
                 </section>

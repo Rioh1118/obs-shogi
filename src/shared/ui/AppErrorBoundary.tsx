@@ -27,6 +27,13 @@ type Props = {
    * 本文に段が増えたときに組み直した側だけが古いまま残る。
    */
   floating?: boolean;
+  /**
+   * 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める。
+   *
+   * `再表示` は境界の `error` を消すだけで、原因が境界の外にあれば同じ行で落ち直す。
+   * ここが無いと、押しても変わらないボタン1つだけが残る行き止まりになる。
+   */
+  hint?: ReactNode;
   children: ReactNode;
   /**
    * 既定の画面の代わりに描くもの。渡さなければ `AppErrorFallbackBody` が出る。
@@ -108,6 +115,7 @@ export class AppErrorBoundary extends Component<Props, State> {
           error={error}
           reset={this.reset}
           floating={this.props.floating}
+          hint={this.props.hint}
         />
       );
     }

@@ -111,6 +111,19 @@ describe("AppErrorBoundary が残す記録", () => {
   });
 });
 
+describe("AppErrorBoundary が出す案内", () => {
+  test("既定の fallback にも `hint` が届く", () => {
+    render(
+      <AppErrorBoundary label="盤" hint="棋譜を開き直してください。">
+        <Thrower value={new Error("落ちた")} />
+      </AppErrorBoundary>,
+    );
+
+    // 既定の fallback へ素通ししないと、案内を書けるのは fallback を渡した境界だけになる
+    expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
+  });
+});
+
 describe("AppErrorBoundary の resetKeys", () => {
   test("鍵が変わったら畳むのをやめる", () => {
     const { rerender } = render(
