@@ -1,4 +1,4 @@
-use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
+use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_LEN};
 
 use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
@@ -102,7 +102,8 @@ impl EngineBridge {
     /// 利用者には「▶ を押しても何も起きない」としか見えない。
     ///
     /// **順序を入れ替えないこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
-    /// 断られる——落ちた回こそ空けておく必要がある。
+    /// 断られる——落ちた回こそ空けておく必要がある。捨ててから畳むので、
+    /// その間だけ席の相互排除を素通りする窓ができる（本体のコメントに1つ）。
     pub async fn initialize_engine_impl(
         &self,
         engine_path: String,
@@ -110,8 +111,11 @@ impl EngineBridge {
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
 
-        // ここまで残っている席はどれも既に死んでいる（`initialize_engine` は
-        // 古いプロセスを畳んでから起こし直す）。理由は上の doc に1つ。
+        // 席を捨ててから、下の `initialize_engine` が古いプロセスを畳む。
+        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
+        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
+        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
+        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
         let stale: Vec<String> = self
             .active_sessions
             .write()
@@ -414,7 +418,14 @@ impl EngineBridge {
         by: Option<String>,
     ) -> Result<(), String> {
         // 呼び手が名乗らなかったときの既定。**名乗った回と区別できるようにしておく。**
-        let by = by.as_deref().unwrap_or("unnamed");
+        //
+        // **フロントから来た綴りをそのままログへ流さない。** 改行を通すと、その後ろに
+        // 好きなログ行を作れるうえ、長さの上限が無いので1回の `invoke` で
+        // `LOG_FILE_BUDGET` を何周もできる——**#441 の再発を追う唯一の記録**
+        // （席が在ったのかどうか）を、その1本で流し切れる。
+        // 型はフロント側で閉じているが（`SeatReleasePoint`）、IPC の境界は素の文字列。
+        let by = shown(by.as_deref().unwrap_or("unnamed"), MAX_SUMMARY_LEN);
+        let by = by.as_str();
 
         if let Some(id) = session_id {
             self.stop_session(&id, by).await
@@ -587,6 +598,7 @@ impl EngineBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::utils::LOG_FILE_BUDGET;
 
     /// セッションの出し入れだけを見る。**エンジンのプロセスは要らない。**
     ///
@@ -631,6 +643,39 @@ mod tests {
             bridge.take_session(SessionType::Infinite).await.is_ok(),
             "返したのに次が取れない"
         );
+    }
+
+    /// フロントが名乗る `by` が、ログの行を偽造したり予算を流し切ったりしないこと。
+    ///
+    /// **IPC の境界は素の文字列。** TS 側の型（`SeatReleasePoint`）は閉じた8値だが、
+    /// `invoke` はその型を持って来ない。ここが素通しだと、1回の呼びで
+    /// `LOG_FILE_BUDGET` を何周もでき、**#441 の再発を追う唯一の記録**
+    /// （席が在ったのかどうか）をその1本で流し切れる。改行も同じ1本で通る。
+    ///
+    /// 同じ形は `registry` が
+    /// `the_registry_lines_cannot_rotate_the_log_or_forge_a_line` で押さえている。
+    #[tokio::test]
+    async fn the_release_point_cannot_rotate_the_log_or_forge_a_line() {
+        /// 1行が予算のうち占めてよい割合の逆数
+        const SHARE: u128 = 50;
+
+        // 潰されず（制御文字ではない）、UTF-8 でいちばん重い4バイト文字
+        let heavy = "\u{10ffff}".repeat(LOG_FILE_BUDGET as usize / 4);
+        let forged = format!("unmount\n{}", "[ERROR] forged",);
+
+        for raw in [heavy.as_str(), forged.as_str()] {
+            let by = shown(raw, MAX_SUMMARY_LEN);
+
+            assert!(
+                !by.contains('\n'),
+                "改行が通っている。偽のログ行を1本作れる: {by:.40}"
+            );
+            assert!(
+                by.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+                "1回の停止が予算の1/{SHARE} を超える（{} バイト）",
+                by.len()
+            );
+        }
     }
 
     /// 起こし直しが、残っている席を捨てること。
