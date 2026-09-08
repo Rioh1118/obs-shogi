@@ -20,6 +20,23 @@ export type SelectedPosition =
   | { type: "square"; x: number; y: number }
   | { type: "hand"; color: Color; kind: Kind };
 
+/**
+ * 盤に載せられなかった理由。**呼び出し側が段と文言を決められる形にする。**
+ *
+ * 例外の `message` をそのまま外へ出すと、**中身は `shogi.js` が投げた英文**なので
+ * 呼び出し側は使えず、自前の日本語を書くことになる。そうすると段と文言を決める場所が
+ * 呼び出し側ごとに分かれる——`entities/file-tree` が `FsError` の `code` で
+ * 同じ問題を避けているのと同じ理由（`describeFsError`）。
+ *
+ * `cause` は診断のためだけに持つ。**利用者に出さない**（内部の語が混ざる）。
+ */
+export type KifuLoadFailure = {
+  /** `initial` から局面を組めない（`game.md` の E16）。いま実際に起きるのはこれだけ */
+  code: "unplayable_initial" | "unknown";
+  absPath: string;
+  cause: string;
+};
+
 export interface GameContextState {
   jkf: JKFData | null;
 
@@ -270,13 +287,13 @@ export interface GameContextType {
   helpers: JKFPlayerHelpers;
 
   /**
-   * 棋譜を盤に載せる。**投げない。** 載せられなければ `Err` で理由が返る。
+   * 棋譜を盤に載せる。**投げない。** 載せられなければ `Err` で `KifuLoadFailure` が返る。
    *
    * `state.error` にも積むが、それを描いている場所は無い（#277）。載せられなかった
    * ことを利用者に伝えるのはこの戻り値を読む側の仕事で、捨てると**盤も棋譜一覧も
    * 前の棋譜のまま、何も出ない**（`failure-surfacing.md` の F-31）。
    */
-  loadGame: (jkf: JKFData, absPath: string) => AsyncResult<void, string>;
+  loadGame: (jkf: JKFData, absPath: string) => AsyncResult<void, KifuLoadFailure>;
   resetGame: () => void;
 
   goToIndex: (index: number) => void;

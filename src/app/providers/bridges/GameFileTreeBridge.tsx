@@ -3,6 +3,7 @@ import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { getBaseName } from "@/shared/lib/path";
+import { describeKifuLoadFailure, kifuLoadFailureTier } from "@/entities/game/lib/kifuLoadFailure";
 
 /**
  * ツリーが開いた棋譜を盤に載せる。
@@ -36,7 +37,9 @@ export function GameFileTreeBridge() {
       if (res.success) return;
 
       notify({
-        tier: "danger",
+        // 段は `code` から決まる（`kifuLoadFailureTier`）。ここで選ばない——
+        // 選ぶと、2件目の呼び手が別の段にしても誰も気づかない
+        tier: kifuLoadFailureTier(res.error),
         presentation: "modal",
         // **同じ棋譜で畳む。** 載せられなかった棋譜のノードは `FileNode` の関門
         // （`canSkipReopen`）を通るので、押すたびに `openKifuNode` が新しい `jkfData` を
@@ -63,7 +66,8 @@ export function GameFileTreeBridge() {
         // 門番の条件が解ける。関門（`FileNode` の `canSkipReopen`）がツリーと盤の両方を
         // 見ているので、その押し直しは実際に届く。
         body:
-          "このファイルは、いまの中身では盤に並べられません。" +
+          // 「何が起きたか」は `code` から。復帰の手順だけがこの画面の話
+          `${describeKifuLoadFailure(res.error)}` +
           "直してから開き直すか、別の棋譜を選んでください。" +
           "盤に前の棋譜が残っている場合、その棋譜は表示だけになり、編集しても保存されません——" +
           "続けて編集するには、その棋譜をツリーでもう一度選んでください。",
