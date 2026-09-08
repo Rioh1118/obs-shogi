@@ -1764,6 +1764,62 @@ describe("AnalysisProvider のアンマウント", () => {
     });
   });
 
+  it(
+    "畳んだ後に捨てる停止が落ちて席が戻ってきたら、その席も返す",
+    async () => {
+      tauri = true;
+      startCore.mockResolvedValueOnce("s1");
+
+      // 捨てる停止**だけ**を落とす。落ちた席は `keepOrForget` が欄へ書き戻す。
+      let failDiscard: (e: unknown) => void = () => {};
+      stopCore.mockImplementation((_sessionId, by) =>
+        by === "late-restart"
+          ? new Promise<void>((_, reject) => {
+              failDiscard = reject;
+            })
+          : Promise.resolve(),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤を2手進める。1手目の席は追い越され、着地したところで捨てられる。
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+      await view.setSync(adapter("P3", "P2"));
+      await advance(150);
+      await act(async () => {
+        releaseStart("s2");
+      });
+      await advance(150);
+
+      // 捨てる停止が飛んでいる最中に畳まれる。ここで席の欄は空。
+      stopCore.mockClear();
+      view.unmount();
+      await advance(50);
+
+      // **その後で停止が落ちる。** 席が欄へ戻るので、返す者が要る
+      // ——ここで取り残すと Rust に席が残り、以後の解析が全部断られる（#441）。
+      await act(async () => {
+        failDiscard(new Error("ipc is gone"));
+        await Promise.resolve();
+      });
+      await advance(50);
+
+      expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
+    },
+    SLOW,
+  );
+
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
