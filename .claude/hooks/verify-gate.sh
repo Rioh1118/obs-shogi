@@ -339,9 +339,12 @@ gate_target_dir() {
 # 直値の件数を厳密一致で見ているため（ADR-0003 のラチェット）。`.scss` だけの
 # コミットはここが唯一の検査になる。
 #
-# `tauri.conf.json` と `capabilities/*.json` を rust 側に入れるのは、`build.rs` と
+# `tauri.conf.json` と `capabilities/` を rust 側に入れるのは、`build.rs` と
 # `generate_context!` がコンパイル時に読むため。壊すと clippy が落ちるので、
 # そのファイルだけのコミットでも検証が要る。
+# **capability は拡張子で絞らない。** ACL は JSON5 でも TOML でも書けて、
+# `tauri_build::build()` はどれも読む。`.json` に絞ると、他の書式で足した1枚が
+# ゲートを素通りして、赤くなるのは次に `.rs` を触った人になる。
 # `rust-toolchain.toml` は、替えると clippy の lint 集合ごと変わって既存のコードが
 # 落ちうるので同じ扱いにする。
 #
@@ -356,8 +359,15 @@ gate_kinds_for_path() {
   case "$path" in
     *.ts|*.tsx|*.scss|*.rs|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
   esac
+  # capability も ts。`openerCapability` がここを歩いて、フロントが呼ぶ口と
+  # 許可の識別子を突き合わせる。rust だけに分類すると、許可を1行足しただけの
+  # コミットでその突き合わせが一度も走らない ——
+  # 許されていない口は**型もビルドも通り、実機でだけ落ちる**。
   case "$path" in
-    *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*.json|rust-toolchain.toml)
+    src-tauri/capabilities/*) kinds="$kinds ts" ;;
+  esac
+  case "$path" in
+    *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*|rust-toolchain.toml)
       kinds="$kinds rust" ;;
   esac
   # ts 側にはリンクの検査があり、`docs/` 全体に掛かっている。
