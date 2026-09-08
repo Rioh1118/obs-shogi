@@ -1331,6 +1331,60 @@ describe("AnalysisProvider の開始", () => {
     SLOW,
   );
 
+  it(
+    "再開の開始が飛んでいる間にもう1手進んでも、2本目を重ねない",
+    async () => {
+      // 上と同じ相互排除。**違うのは2手目を ▶ ではなく盤で進めること**
+      // ——猶予のタイマーは飛んでいる再開を1つも見ないので、門が無ければ2本目が並ぶ。
+      let taken = false;
+      let releaseRestart: (sessionId: string) => void = () => {};
+      let nth = 0;
+      const refused: number[] = [];
+      startCore.mockImplementation(() => {
+        nth += 1;
+        if (taken) {
+          refused.push(nth);
+          return Promise.reject(new Error("Analysis already running"));
+        }
+        taken = true;
+        if (nth === 2) {
+          return new Promise<string>((resolve) => {
+            releaseRestart = resolve;
+          });
+        }
+        return Promise.resolve(`s${nth}`);
+      });
+      stopCore.mockImplementation(async () => {
+        taken = false;
+      });
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 1手目。自動再開が走り出し、開始の往復で止まる。
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+
+      // **2手目。** ここで猶予のタイマーが張られ、飛んでいる再開の後ろに予約される。
+      await view.setSync(adapter("P3", "P3"));
+      await advance(150);
+
+      await act(async () => {
+        releaseRestart("s2");
+      });
+      await advance(150);
+
+      // 重ねると Rust が両方断り、解析は1手目で止まったまま断りが出る。
+      expect(refused).toEqual([]);
+      expect(view.current.state.error).toBeNull();
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.analyzedSfen).toBe("P3");
+    },
+    SLOW,
+  );
+
   it("停止が届かなかったら、表示は停止中にしたうえで投げ返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
