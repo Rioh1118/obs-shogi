@@ -225,15 +225,21 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const deletePreset = useCallback(
     async (id: PresetId) => {
       const next = state.presets.filter((p) => p.id !== id);
-      dispatch({ type: "set_presets", payload: next });
-      await persist(next);
+      const replacing = state.selectedPresetId === id;
+      const fallback = replacing ? (next[0]?.id ?? null) : null;
 
-      if (state.selectedPresetId === id) {
-        const fallback = next[0]?.id ?? null;
-        await selectPreset(fallback);
-      }
+      // **一覧と選択は同じ commit で動かす。** 間に await を挟むと、その描画は
+      // 「もう無いプリセットを選んだまま」になり `runtimeConfig` が null に落ちる
+      // ——エンジンが畳まれ、走っている解析は「使えなくなった」と読んで止まる
+      // （→ `docs/state-transitions/engine.md` の ※7）。代わりが自動で選ばれる操作なのに、
+      // 画面には選び直しを促す断りだけが残る。**永続化はその後でよい。**
+      dispatch({ type: "set_presets", payload: next });
+      if (replacing) dispatch({ type: "set_selected", payload: fallback });
+
+      await persist(next);
+      if (replacing) await setLastPresetId(fallback);
     },
-    [persist, selectPreset, state.presets, state.selectedPresetId],
+    [persist, setLastPresetId, state.presets, state.selectedPresetId],
   );
 
   const value: EnginePresetsContextType = useMemo(
