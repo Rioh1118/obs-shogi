@@ -34,10 +34,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // 解析側からは「選んでいない」と「起こし直している最中」を区別できない。
   //
   // **理由の割り方と、当たる順の根拠は `docs/state-transitions/engine.md` の ※7。**
-  // 向こうの表はこの三項の並びに追随しているので、順を変えるときは一緒に直すこと。
-  // **述語の呼び出しは描画時のここ1箇所。** 三項も下の effect もこの値を読み、
-  // **effect の依存にも載せる**——effect の中で呼び直すと、`lastTriedRef` の更新は
-  // 再描画を起こさないので取りこぼす。
+  // 割るのは2段で、下の三項が `desiredRuntime` の有無を見て、残りを `reasonForPhase` が
+  // `phase` で割る。**この2段を入れ替えるときは ※7 の表も一緒に直すこと。**
+  // **述語の呼び出しは描画時のここ1箇所。** 三項も下の effect もこの値を読む。
+  // **effect の中で呼び直さない**——`lastTriedRef` の更新は再描画を起こさないので、
+  // 呼んだ時点によって答えが割れる。
   const willRetryAfterError = retriesAfterError({
     desired: desiredRuntime,
     lastTried: lastTriedRef.current,
@@ -137,8 +138,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     }
 
     // error でも「別設定なら」再トライする（同一設定なら止める）。
-    // **上で計算した値をそのまま読む**（依存にも載せてある）——ここで呼び直すと、
-    // `lastTriedRef` の更新を取りこぼし、起動し直しているのに解析側が終端と読む。
+    // **上で計算した値をそのまま読む**——ここで呼び直すと、理由を決めた描画とこの effect が
+    // 別の `lastTriedRef` を見て、起動し直しているのに解析側が終端と読む窓ができる。
+    // （依存にも載っているが、いまは `state.phase` と同じ回にしか動かないので導出可能。
+    // 外しても赤くなるテストは無い。）
     if (state.phase === "error") {
       if (willRetryAfterError) initialize().catch(() => {});
       return;
