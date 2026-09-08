@@ -1,7 +1,7 @@
 import RootNode from "./RootNode";
 import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 import { useCallback, useMemo, useState } from "react";
 import {
   buildNodeMap,
@@ -68,16 +68,16 @@ function FileTree() {
     refreshTree,
   } = useFileTree();
 
-  const { openModal } = useURLParams();
+  const openSettings = useOpenSettings();
 
   // ルートそのものが読めないとき、この widget の中に復帰路が無い。
   // 読み直しても同じ場所を見にいくだけなので、選び直せる場所へ送る
   const chooseWorkspace = useMemo(
     () => ({
       label: "ワークスペースを選び直す",
-      run: () => openModal("settings", { tab: "workspace" }),
+      run: () => openSettings("workspace"),
     }),
-    [openModal],
+    [openSettings],
   );
 
   const nodeMap = useMemo(() => buildNodeMap(fileTree), [fileTree]);
