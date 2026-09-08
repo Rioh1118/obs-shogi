@@ -58,7 +58,7 @@ describe("root の境界", () => {
   test("下で throw しても、ウィンドウを閉じる手段が画面に残る", () => {
     const { container } = render(<App />);
 
-    expect(screen.getByText("画面を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByText("アプリを表示できませんでした。")).toBeTruthy();
 
     const dragRegion = container.querySelector('[data-tauri-drag-region="true"]');
     expect(dragRegion, "ドラッグ領域が無いとウィンドウを動かせない").not.toBeNull();
@@ -79,9 +79,9 @@ describe("root の境界", () => {
     // fallback が名乗りを書き直すと、`label` を直してもログだけが変わって画面は古いまま残る
     const logged = vi
       .mocked(console.error)
-      .mock.calls.some((args) => String(args[0]).includes("[AppErrorBoundary:画面]"));
+      .mock.calls.some((args) => String(args[0]).includes("[AppErrorBoundary:アプリ]"));
     expect(logged).toBe(true);
-    expect(screen.getByText("画面を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByText("アプリを表示できませんでした。")).toBeTruthy();
   });
 
   test("帯の丸だけでなく、文字のボタンでも閉じられる", () => {
@@ -120,7 +120,7 @@ describe("root の境界", () => {
   test("本体が落ちても、更新の知らせは残る", () => {
     render(<App />);
 
-    expect(screen.getByText("画面を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByText("アプリを表示できませんでした。")).toBeTruthy();
     expect(
       screen.getByTestId("updater"),
       "その状態を直す版が、その状態のせいで届かなくなっている",
