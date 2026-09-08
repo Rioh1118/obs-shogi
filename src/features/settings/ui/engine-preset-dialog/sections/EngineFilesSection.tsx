@@ -1,10 +1,24 @@
 import type { Dispatch, SetStateAction } from "react";
+import { canCreateEnginesDir, type EnginesDir } from "@/entities/engine/lib/enginesDir";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
-import type { AiRootIndex, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+
+/**
+ * 帯の文言。網羅の理由は `EnginesDir` の doc。
+ *
+ * `null` は「帯を出さない」。読めていない（`unknown`）回に「存在しません」と言うと、
+ * 誰も見ていない `engines` について無いと断言することになる。
+ */
+const ENGINES_DIR_HINT: Record<EnginesDir, ((path: string) => string) | null> = {
+  unknown: null,
+  dir: null,
+  missing: (path) => `engines/ ディレクトリが存在しません（${path}）。`,
+  other: (path) => `engines がフォルダではありません（${path}）。同じ名前のものを外してください。`,
+};
 
 export default function EngineFilesSection(props: {
   draft: EnginePreset;
@@ -13,9 +27,9 @@ export default function EngineFilesSection(props: {
   setErrors: Dispatch<SetStateAction<Record<string, string>>>;
   aiRootReady: boolean;
   scanReady: boolean;
-  index: AiRootIndex | null;
   indexStatus: "idle" | "loading" | "ok" | "error";
-  enginesDirExists: boolean;
+  /** `engines` が何として在るか。分類は `classifyEnginesDir` が持つ */
+  enginesDir: EnginesDir;
   enginesDirPath: string;
   onCreateEnginesDir: () => void;
   rescan: () => void;
@@ -42,9 +56,8 @@ export default function EngineFilesSection(props: {
     setErrors,
     aiRootReady,
     scanReady,
-    index,
     indexStatus,
-    enginesDirExists,
+    enginesDir,
     enginesDirPath,
     onCreateEnginesDir,
     rescan,
@@ -61,19 +74,36 @@ export default function EngineFilesSection(props: {
     profiles,
   } = props;
 
+  // 分類そのもので出し分ける。`scanReady && index` を重ねると門番が2つになり、
+  // 片方を緩めた人が `unknown` に嘘を言わせる形が戻る
+  const hint = ENGINES_DIR_HINT[enginesDir];
+
   return (
     <SSection
       title="エンジン・ファイル"
       description="ai_root から候補を列挙し、選択だけで絶対パスを自動設定します。"
     >
-      {scanReady && index && !enginesDirExists && (
+      {hint && (
         <div className="presetDialog__hintWarn" style={{ marginBottom: 12 }}>
-          engines/ ディレクトリが存在しません（{enginesDirPath}）。
+          {hint(enginesDirPath)}
           <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
-            <Button tone="primary" size="sm" onClick={onCreateEnginesDir}>
-              engines/ を作成
-            </Button>
-            <Button size="sm" onClick={rescan}>
+            {/* 出すのは「無い」と読めている回だけ。分類の理由は `EnginesDir` の doc。
+                **読み直している間は押せなくする**——帯の文言は読み直しが返るまで
+                前の索引のままなので、押せると「効かなかった」と読んでもう一度押される */}
+            {canCreateEnginesDir(enginesDir) && (
+              <Button
+                tone="primary"
+                size="sm"
+                onClick={onCreateEnginesDir}
+                disabled={indexStatus === "loading"}
+              >
+                engines/ を作成
+              </Button>
+            )}
+            {/* **こちらは塞がない。** 走査が返らない環境（応答しないボリューム）で
+                再試行の口が消えるのを避ける。**この帯は `engines` が無い／フォルダでない
+                回にしか出ない**ので、常設の口は基本の節の側が持つ */}
+            <Button size="sm" onClick={rescan} busy={indexStatus === "loading"}>
               再スキャン
             </Button>
           </div>
