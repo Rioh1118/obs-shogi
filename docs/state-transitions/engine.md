@@ -59,9 +59,10 @@
 2回走る回には `initialize_start` を撃った後でも `"idle"` のまま見える
 
 ※2 **`YaneuraOuInitializer.initialize` は `inFlight` があれば引数を無視して前の promise を返す**
-（`initializer.ts`）。起動中に別のプリセットへ切り替えると、
-**前の runtime の起動結果を新しい runtime のものとして `activeRuntime` に書く**
-（`provider.tsx` の `snap` は新しい方）。
+（`initializer.ts`）。その結果を新しい runtime のものとして `activeRuntime` に書く形になるが、
+**1つの provider の中では踏めない**——`initialize` は起動の門（`startingSeqRef`）で塞がれ、
+門が開くのは `shutdown` を通ったときだけで、そこで `inFlight` も同じ同期区間で空く。
+**踏めるのは provider ごと畳んで張り直した回**（ref は消えるが `inFlight` はモジュールに残る）。
 → **未検証。この窓を踏むテストは無い**（`startGate.test.tsx` が同じファイルを
 本物で通しているので、足すならそこ）。実機で踏めるかは未確認
 
@@ -152,14 +153,14 @@ issue #120 と同型の行き止まり
 ## この表が満たすべき不変条件
 
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
-   ※2 はこれを破りうる
+   ※2 はこれを破りうる（**入口は provider の張り直しだけ**）
 2. **フロントが S0 なら Rust 側も P0。** ※3 はこれを破る
 3. **S3（失敗）から抜ける道が常にある。** いまは `desiredRuntime` を前回試した値から
    動かすことだけ（※5。プリセットを選び直しても、選択中のものを編集してもよい）
 
 ## 埋まっていないセル
 
-- `(S1, E3)` 起動中の runtime 切替（※2）。**この窓を踏むテストは無い**（下の `initializer.ts` の行へ）
+- `(S1, E3)` 起動中の runtime 切替（※2）。**単一の provider では踏めない**（※2）
 - `(S3, E4)` 失敗した状態で同じ runtime が入り直す回（※5）。`provider.test.tsx` が見ているのは
   「落ちた後そのまま放置しても再トライしない」ことだけで、**等値な別オブジェクトを
   入れ直す回は未検証**（踏めているのは S2 側の同じ形）
@@ -175,12 +176,11 @@ issue #120 と同型の行き止まり
 - **`startGate.test.tsx` だけは `engineInitializer` を差し替えず、本物を通す**
   （差し替えるのは IPC の4つ）。踏んでいるのは、起動を待っている間に設定が2度外れて
   戻る窓——**※7 が「フロント側だけでは保証しない」と書いている根拠の片方
-  ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは世代の門5つ（`shutdown` の
-  `dispatch` と世代の繰り上げ、`initializer` の IPC、`initialize` の成功側と失敗側）。
-  **潰しても赤くならないものが3つ残っている**——両者の `finally` の同一性判定と、
-  `initialize` 側の世代の繰り上げ、そして `initializer` の in-flight の畳み込み。
+  ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは世代の門6つ（`shutdown` の `dispatch` と世代の繰り上げ、
+  `initializer` の IPC と `finally` の同一性判定、`initialize` の成功側と失敗側）。
+  **潰しても赤くならないものが3つ残っている**——`provider` 側の `finally` の同一性判定、
+  `initialize` 側の世代の繰り上げ、`initializer` の in-flight の畳み込み。
   前2つは門が開いた先で `initialize` を撃つ者が居ないため列を組めず、
-  最後の1つは provider を張り直す列でしか踏めない（→ 不変条件1）
-- **`initializer.ts` の ※2 の窓**（飛んでいる起動の最中に別の runtime で `initialize`
-  を呼ぶと、前の起動の結果が新しい runtime のものとして記録される）は誰も踏んでいない。
-  足すなら `startGate.test.tsx` の構えがそのまま使える
+  最後の1つは provider を張り直す列でしか踏めない（→ ※2 / 不変条件1）
+- **`initializer.ts` の ※2 の窓**は誰も踏んでいない。`startGate.test.tsx` の構えでは
+  **書けない**（単一 provider では門が塞ぐ）——provider を畳んで張り直す列が要る

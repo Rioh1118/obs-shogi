@@ -73,15 +73,15 @@
 
 **これが最大の発見。** 分類の前に、そもそも出す場所が無い。
 
-| スライス          | フィールド        | `set_error` 相当の発火元    | **UI の読み手**                            |
-| ----------------- | ----------------- | --------------------------- | ------------------------------------------ |
-| `game`            | `state.error`     | `provider.tsx` の各所       | **0**                                      |
-| `analysis`        | `state.error`     | `provider.tsx` の各所       | **0**（issue #157）                        |
-| `study-positions` | `state.error`     | `load_error` / `save_error` | **0**                                      |
-| `search`          | `state.openError` | `open_error`                | **0**                                      |
-| `file-tree`       | `state.error`     | 4種類の行き先※              | 1（ツリーは消さない → F-3）                |
-| `file-tree`       | `state.kifuError` | `kifu_error`                | 1（`AppModalLayer` → モーダル）            |
-| `engine`          | `state.error`     | `initialize_error`          | **0**（→ F-9。2026-09-09 / `fix/502-...`） |
+| スライス          | フィールド        | `set_error` 相当の発火元    | **UI の読み手**                                                         |
+| ----------------- | ----------------- | --------------------------- | ----------------------------------------------------------------------- |
+| `game`            | `state.error`     | `provider.tsx` の各所       | **0**                                                                   |
+| `analysis`        | `state.error`     | `provider.tsx` の各所       | **0**（issue #157）                                                     |
+| `study-positions` | `state.error`     | `load_error` / `save_error` | **0**                                                                   |
+| `search`          | `state.openError` | `open_error`                | **0**                                                                   |
+| `file-tree`       | `state.error`     | 4種類の行き先※              | 1（ツリーは消さない → F-3）                                             |
+| `file-tree`       | `state.kifuError` | `kifu_error`                | 1（`AppModalLayer` → モーダル）                                         |
+| `engine`          | `state.error`     | `initialize_error`          | **0**（→ F-9。2026-09-09 / `fix/502-refuse-when-engine-never-returns`） |
 
 ※ `failWithNotice`（移動）/ `failToNameInput`（リネーム・フォルダ作成。
 名前を直せば通る失敗＝`isNameInputError` は積まない）/ `pushError` の直呼び

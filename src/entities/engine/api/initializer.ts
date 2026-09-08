@@ -10,9 +10,10 @@ import { shutdownEngine } from "./tauri";
  * ——`model/__tests__/provider.test.tsx` の double は第1条も第2条も満たさない）:
  *
  * - **飛んでいる起動が在れば、`initialize` はそれを返す。** 引数は**見ない**
- *   ——別の設定で呼んでも、返るのは先に飛んでいる起動の結果。**呼び手はそれを誤って
- *   記録する**（新しい設定を `activeRuntime` に書く。→ `docs/state-transitions/engine.md`
- *   の ※2 / 不変条件1）ので、差し替える実装は引数を見るほうへ寄せてよい
+ *   ——別の設定で呼んでも、返るのは先に飛んでいる起動の結果。**この枝は1つの
+ *   provider の中では踏めない**（`EngineProvider` が起動の門で塞いでいる）。
+ *   踏めるのは provider ごと張り直した回だけで、そのとき呼び手は新しい設定を
+ *   `activeRuntime` に誤って書く（→ `docs/state-transitions/engine.md` の ※2 / 不変条件1）
  * - **自分が掴んだ起動の決着は待ってから畳む。** 待っている間に次の起動が始まっていたら
  *   **畳みは撃たない**——Rust の `shutdown` はそのとき載っているプロセスを落とすので、
  *   撃つと後から起きたエンジンを殺す。**掴んでいる起動が無い回は待たない**

@@ -92,8 +92,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // **この4本（`readinessRef` / `syncedSfenRef` / `currentSfenRef` / `analyzingRef`）は
   // effect で更新する。** 描画中に代入するほうがこのリポジトリの多数派
   // （`entities/engine` の `desiredRuntimeRef` ほか）だが、ここは揃えない——
-  // 読むのは全部 `await` の継続なので、**commit された値であること**のほうが要る。
-  // 描画中に代入すると、commit されなかった描画の値を継続が読む。
+  // 読むのは `await` の継続とタイマー／イベントのコールバックで、どれも描画の外。
+  // **commit された値であること**のほうが要る——描画中に代入すると、
+  // commit されなかった描画の値を読ませることになる。
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
   // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
@@ -597,9 +598,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     sentSfenRef.current = null;
     clearDebounceTimer();
     seat.onEngineGone();
-    // **`readinessRef` を更新する effect より後に置くこと。** 上へ動かすと、
-    // 席を取る往復が着地したときの枝（`landed === "engine-gone"`）が古い readiness を読み、
-    // 起動待ちの断りではなく「起こし直された」を出す。
+    // **鏡の更新とこれは必ず同じ commit で走る**——`readiness` の同一性は `isReady` に
+    // 連動するので（`entities/engine` の `useMemo`）、`isReady` が倒れる回は鏡の effect も
+    // 必ず動く。席を取る往復が着地したときの枝（`landed === "engine-gone"`）は
+    // `await` の継続なので、両方が走り終えた後の値を読む。**順序ではなく同一 commit が要る。**
   }, [isReady, seat, clearDebounceTimer]);
 
   /**

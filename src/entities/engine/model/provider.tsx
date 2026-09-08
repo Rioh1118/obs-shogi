@@ -68,8 +68,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     if (!desired) return false;
     // **門は ref。** `state.phase` は描画のクロージャの値なので、同じコミットで
     // setup が2回走る回（StrictMode）には `initialize_start` を撃った後でも
-    // `"idle"` のまま見え、2本目が通る。いま2プロセスにならないのは
-    // `engineInitializer` 側が in-flight を畳んでいるからで、この門ではない。
+    // `"idle"` のまま見え、2本目が通る。**2本目を止めているのはこの門**
+    // （`provider.test.tsx` の StrictMode が固定している。`engineInitializer` を
+    // 差し替えた double で通るので、畳み込みではなくここが効いている）。
+    // `engineInitializer` 側の in-flight の畳み込みは provider ごと張り直した回の保険で、
+    // **1つの provider の中では踏めない**。
     //
     // **門が閉じたまま残らないことは `shutdown` 側が守る**（そこで必ず落とす）。
     // ここが世代を持つのは `finally` のためで、**自分が握っている回だけ空ける**

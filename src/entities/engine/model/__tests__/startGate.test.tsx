@@ -225,4 +225,35 @@ describe("起動の門", () => {
     settleShutdown();
     await view.settle();
   });
+  /**
+   * **`initialize` の後始末は、自分が居座っているときだけ枠を空ける。**
+   *
+   * 無条件に空けると、追い越された1本が着地した時点で枠が空き、**次の畳みが
+   * 飛んでいる起動を待たずに IPC を撃つ**——Rust の `shutdown` はそのとき載っている
+   * プロセスを落とすので、起動処理中のエンジンが死ぬ。畳みは
+   * `shutdown().catch(() => {})` で捨てられるので**画面には何も出ない**。
+   */
+  it("追い越された起動の後始末は、次の畳みが待つべき相手を消さない", async () => {
+    // **2本目も保留にする。** 決着していると枠は自分の後始末で空くので差が出ない。
+    const { settleFirst, settleSecond } = twoPendingStarts();
+    const view = mountEngine(runtime());
+    await openSecondStart(view);
+
+    // 1本目が着地する。**枠を握っているのは2本目**——1本目は空けてはいけない。
+    settleFirst();
+    await view.settle();
+
+    const before = shutdownEngine.mock.calls.length;
+
+    // 3本目の畳み。**2本目がまだ飛んでいるので待つ側**——撃ってはいけない。
+    await view.setRuntime(null);
+    await view.settle();
+
+    try {
+      expect(shutdownEngine.mock.calls.length).toBe(before);
+    } finally {
+      settleSecond();
+      await view.settle();
+    }
+  });
 });

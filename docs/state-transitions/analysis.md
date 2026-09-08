@@ -113,7 +113,8 @@ E2 の欄は、それでも `stopAnalysis()` が呼ばれたときに何が起�
 `LISTENERS_FAILED_MESSAGE` を立て直して throw。→ ※15 / E12。ここで降りるので
 `syncPosition` も `go` も出ない）。その後、**飛んでいる自動再開の開始を待つ**（Rust は席を取ってから
 `go` を待つので、その窓で撃つと `take_session` に断られる）→ **握っている席を返す** →
-`syncPosition()` → `waitUntil(syncedSfen === currentSfen, 2000)` → 席を取って `go`、の順
+`syncPosition()` → `waitUntil(同期が追いつく, positionSyncTimeoutMs, 打ち切り)` → 席を取って `go`、の順。
+**打ち切りを持つ**——`isReady` が落ちた回は上限を待たずに降りる（→ `(S0/P0, E6)`）
 （`provider.tsx`）。
 先頭で返すので、席を握ったまま止まって見える状態（※7 の後）からも ▶ で戻れる。
 押し直しは1本に畳む（`startInfiniteAnalysisOnce`）。
