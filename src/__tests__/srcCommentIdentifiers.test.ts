@@ -4,6 +4,7 @@ import { relative } from "node:path";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
 import { commentsOf } from "./sourceText";
 import { identifiersIn, missingIdentifiers } from "./docsIdentifiers";
+import { missingPaths, sourcePathsIn } from "./docsSourcePaths";
 
 /**
  * `src/` のコメントがバッククォートで指す識別子が、ソースに実在するかを見る。
@@ -52,5 +53,25 @@ describe("`src/` のコメントが指す識別子", () => {
       broken,
       "コメントが指す名前が消えている。改名したらコメントも直すこと。落とすなら理由ごと書き直すこと",
     ).toEqual([]);
+  });
+
+  // 0件を見て緑になる形を止める
+  test("コメントからパスを拾えている", () => {
+    expect(scanned().flatMap((file) => sourcePathsIn(file.comments)).length).toBeGreaterThan(10);
+  });
+
+  /**
+   * **パスで指す形は `docsIdentifiers` が自分から誘導している**——「検査の名前を
+   * `EXEMPT` に足さないこと。指したいならパスで書く」。誘導した先が無検査だと、
+   * 検査を1本改名した人が `src/` 側の参照を探す手掛かりを持たない。
+   *
+   * 判定は `docsSourcePaths` から借りる。写すと、穴が見つかったとき直るのが片方だけになる。
+   */
+  test("ソースに無いパスを指していない", () => {
+    const broken = scanned().flatMap((file) =>
+      missingPaths(sourcePathsIn(file.comments)).map((p) => `${file.name}: ${p}`),
+    );
+
+    expect(broken, "コメントが指すパスが消えている。移したらコメントも直すこと").toEqual([]);
   });
 });

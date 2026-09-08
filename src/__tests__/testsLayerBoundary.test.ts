@@ -145,8 +145,8 @@ describe("レイヤに依存しない検査の置き場", () => {
    * 走査の起点を `walk.ts` から引くと決めてある（`CONTRIBUTING.md`）ので、
    * テストからは読めなければならない。**分けるのは `__tests__` 配下かどうか**
    * （`walk.ts` の `includeTests`）——スライス側のラチェットもディレクトリは
-   * `__tests__/` に置くこと。綴り（`*.ratchet.test.ts`）は `ratchetIndex` が、
-   * 置き場はここが見る。
+   * `__tests__/` に置くこと。**表への行は `ratchetIndex` が、置き場と名乗る義務は
+   * ここが見る**（下の「スライス側の走査器はラチェットを名乗る」）。
    */
   it("本番のモジュールが検査の道具を読まない", () => {
     const production = tsFiles(SRC, { includeTests: false });
@@ -166,6 +166,35 @@ describe("レイヤに依存しない検査の置き場", () => {
         "走査の道具は `node:fs` を掴むので、読むのはテストからだけ。",
         ...offenders,
       ].join("\n"),
+    ).toEqual([]);
+  });
+
+  /**
+   * スライス側に置いた**横断の走査器**が `*.ratchet.test.ts` を名乗ることを見る。
+   *
+   * **`ratchetIndex` は名乗る義務を見ない。** あちらが見るのは「`.ratchet` を名乗った
+   * もの」だけなので、ここが無いと、走査器をスライスへ置いて普通の名前を付けた瞬間に
+   * `CONTRIBUTING.md` の表へ載せる義務から丸ごと外れる。表に無い検査は
+   * 「逃げ道が無い」と読まれるので、次に赤くした人が `ALLOWED` に辿り着けない。
+   *
+   * 判定の材料は上と同じ（`walk.ts` を引くかどうか）。**置き場は上が、綴りはここが見る。**
+   */
+  it("スライス側の走査器はラチェットを名乗る", () => {
+    const scanners = tsFiles(SRC, { includeTests: true })
+      .filter((file) => !relative(SRC, file).startsWith("__tests__"))
+      // `TESTS_DIR_IMPORT` は `g` を持つ。`test()` は `lastIndex` を持ち越すので、
+      // 1本おきに取りこぼす——**必ず `match` で見ること。**
+      .filter((file) => readFileSync(file, "utf8").match(TESTS_DIR_IMPORT) !== null);
+
+    expect(scanners.length, "スライス側の走査器を1本も拾えていない").toBeGreaterThan(0);
+
+    const unnamed = scanners
+      .map((file) => relative(SRC, file))
+      .filter((rel) => !/\.ratchet\.test\.tsx?$/.test(rel));
+
+    expect(
+      unnamed,
+      "スライスに置く走査器は `*.ratchet.test.ts` と名乗ること（`ratchetIndex` が表への行を要求する）",
     ).toEqual([]);
   });
 });
