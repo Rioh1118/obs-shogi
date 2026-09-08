@@ -4,6 +4,13 @@ import { X } from "lucide-react";
 import { AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 import "./RootErrorFallback.scss";
 
+type Props = {
+  /** 落ちた原因。ここが出す以外に、利用者が原因を知る手段は無い */
+  error: unknown;
+  /** 境界の `reset`。落ちた原因が一過性なら、これで元の画面へ戻れる */
+  retry: () => void;
+};
+
 /**
  * root の境界が最後に出す画面。
  *
@@ -22,14 +29,6 @@ import "./RootErrorFallback.scss";
  * **避けているのは部品の再利用であって、スタイルの共有ではない** —— スタイルは
  * `App.tsx` と同じ塊に載るので、この画面が描けている時点で読めていることが確定している。
  */
-
-type Props = {
-  /** 落ちた原因。ここが出す以外に、利用者が原因を知る手段は無い */
-  error: unknown;
-  /** 境界の `reset`。落ちた原因が一過性なら、これで元の画面へ戻れる */
-  retry: () => void;
-};
-
 export function RootErrorFallback({ error, retry }: Props) {
   // **握って黙ると「押しても何も起きないボタン」になる。** この画面は他に手段が無いときの
   // 最後の1つなので、閉じられなかったことは画面に出す
