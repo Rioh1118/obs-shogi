@@ -122,13 +122,20 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         loadFailedSeq: state.loadFailedSeq + 1,
       };
 
-    // `game_loaded` と同じ理由で `blockingWrites` を持ち越す。
-    // 棋譜を閉じるのは書き込みが走っている最中にも起こる（ワークスペースの切り替え）。
+    // **持ち越す欄が2つある。** `initialGameState` を展開するので、
+    // ここに書かない欄は初期値へ戻る——**戻ってはいけない欄を足したら、ここも足すこと。**
+    //
+    // - `blockingWrites`: 棋譜を閉じるのは書き込みが走っている最中にも起こる
+    //   （ワークスペースの切り替え）。0 に戻すと、まだ書いている最中に `isLoading` が落ちて
+    //   確認ダイアログが押し直せる状態へ戻る
+    // - `loadFailedSeq`: 単調増加（`game_loaded` と同じ理由）。戻すと、控えた値と同じ回数で
+    //   別の失敗が観測され、待っている側が落ちた要求を捨てそこねる
     case "reset_state":
       return {
         ...initialGameState,
         blockingWrites: state.blockingWrites,
         isLoading: state.blockingWrites > 0,
+        loadFailedSeq: state.loadFailedSeq,
       };
 
     default:

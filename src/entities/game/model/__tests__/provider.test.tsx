@@ -109,7 +109,11 @@ describe("loadGame", () => {
     expect(game.current!.state.loadFailedSeq).toBe(1);
   });
 
-  test("棋譜を閉じたら宛先も消える", async () => {
+  /**
+   * **回数は閉じても戻らない。** 戻すと、控えた値と同じ回数で別の失敗が観測されうる——
+   * そのとき待っている側は「自分の要求はまだ落ちていない」と読み、落ちた要求を捨てそこねる。
+   */
+  test("棋譜を閉じたら宛先は消えるが、回数は戻らない", async () => {
     const game = mountGame();
     const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
 
@@ -121,6 +125,7 @@ describe("loadGame", () => {
     });
 
     expect(game.current!.state.loadFailedAbsPath).toBeNull();
+    expect(game.current!.state.loadFailedSeq).toBe(1);
   });
 });
 
