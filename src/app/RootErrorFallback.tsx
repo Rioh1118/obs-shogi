@@ -75,13 +75,15 @@ export function RootErrorFallback({ label, error, reset }: Props) {
               ウィンドウを閉じる
             </AppErrorFallbackAction>
           }
+          notice={
+            closeFailed && (
+              <p className="root-error-fallback__closeError" role="alert">
+                ウィンドウを閉じられませんでした。OS の終了操作（macOS は ⌘Q、Windows は Alt+F4）で
+                アプリを終了してください。
+              </p>
+            )
+          }
         />
-        {closeFailed && (
-          <p className="root-error-fallback__closeError" role="alert">
-            ウィンドウを閉じられませんでした。OS の終了操作（macOS は ⌘Q、Windows は Alt+F4）で
-            アプリを終了してください。
-          </p>
-        )}
       </div>
     </div>
   );

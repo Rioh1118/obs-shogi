@@ -45,17 +45,13 @@
   &__body {
     flex: 1;
     min-height: 0;
-    // 本文の器が面と高さを持つので、ここは重ねる場所を用意するだけ
-    position: relative;
   }
 
-  // 閉じるボタンが効かなかったときだけ出る。本文の下端に重ねて、
-  // 本文の縦位置（中央寄せ）を動かさない
+  // 閉じるボタンが効かなかったときだけ出る。**出口の下に流れで置く** ——
+  // 重ねると、本文が縦に伸びたときに「再表示」と「ウィンドウを閉じる」を覆う。
+  // その2つは、閉じるのに失敗した直後に唯一残っている操作
   &__closeError {
-    position: absolute;
-    right: index.$space-12;
-    bottom: index.$space-12;
-    left: index.$space-12;
+    max-width: 60ch;
     background-color: index.$surface-fatal;
     border-radius: index.$radius-4;
     padding: index.$space-4 index.$space-6;

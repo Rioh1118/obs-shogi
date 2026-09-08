@@ -136,6 +136,7 @@ export function AppErrorFallbackBody({
   floating = false,
   hint,
   actions,
+  notice,
 }: {
   /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
   label: string;
@@ -152,6 +153,8 @@ export function AppErrorFallbackBody({
   floating?: boolean;
   /** 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める */
   hint?: ReactNode;
+  /** 出口を押したあとに起きたことの知らせ。**出口の下に流れで置く**（重ねると出口を覆う） */
+  notice?: ReactNode;
   /**
    * 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す。
    *
@@ -172,6 +175,7 @@ export function AppErrorFallbackBody({
         <AppErrorFallbackAction onClick={reset}>再表示</AppErrorFallbackAction>
         {actions}
       </div>
+      {notice}
     </div>
   );
 }
