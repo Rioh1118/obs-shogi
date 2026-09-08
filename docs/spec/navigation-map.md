@@ -145,7 +145,7 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 
 | モーダル              | 入口                                                                                                    |
 | --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `settings`            | ヘッダの歯車（`tab=general`※）／解析ペインの歯車（`tab=general`※）／ツリーの失敗通知（`tab=workspace`） |
+| `settings`            | ヘッダの歯車（`tab=workspace`）／解析ペインの歯車（`tab=engine`）／ツリーの失敗通知（`tab=workspace`） |
 | `study-positions`     | ヘッダの本アイコン                                                                                      |
 | `study-position-save` | 解析ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                           |
 | `position-search`     | 解析ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                   |
@@ -153,14 +153,9 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | `create-file`         | ツリーのフォルダ行のホバーで出る「＋」                                                                  |
 | `sfen-kifu-create`    | 課題局面の詳細の「棋譜を作成」                                                                          |
 
-※ `tab=general` というタブは `TABS`（`features/settings/model/tabs.ts`）に無い。
-`SettingsPanel` が知らない値を `workspace` に読み替えるので実害は出ていないが、
-**URL には存在しないタブ名が入る。**
-
 ## いま満たしていないこと
 
 - **`tesuu` / `branch` に読み手がいない。** URL は局面を復元できない
-- **`tab=general` が実在しないタブを指している**（上記）
 - **モーダルは9枚とも常時マウントされる。** 閉じている間もフックが走るので、
   各モーダルが自前で「閉じている間は何もしない」を書く必要がある。
   書き漏らすと盤を1手進めるたびに閉じたモーダルの state が更新される

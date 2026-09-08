@@ -43,7 +43,7 @@
 | 🔍     | `modal=position-search`                             | `currentSfen` が無い        |
 | ▶ / ■  | 解析の開始・停止                                    | 停止中で `currentSfen` 無し |
 | 🔖     | `modal=study-position-save`。登録済みなら塗りつぶす | `currentSfen` が無い        |
-| ⚙      | `modal=settings&tab=general`                        | なし                        |
+| ⚙      | `modal=settings&tab=engine`                         | なし                        |
 
 読み筋は **`convertCandidateToSenteView` で先手視点に揃えてから**表示する。
 評価値の符号が手番で反転しないようにするため。

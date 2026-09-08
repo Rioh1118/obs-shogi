@@ -217,6 +217,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 握った回は**ここを通らず** `results.schedule()` が出し直すので、
    * 席が欄に入る前に届いた1本を消す心配も要らない。
    *
+   * **ここで席を観測するなら `throw` を使わないこと。** 呼び手の2つの `catch`
+   * （▶ と自動再開）がどちらも飲むので、投げても大半の筋では緑のまま通る
+   * ——無条件に投げても落ちるのは一部だけ。観測はログで取ること。
+   *
    * **席を見て降りる形にしない。** 捨てる停止が落ちると `shoot` の catch
    * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
    * 反映待ちを残す**——その後は `commitLatest` の席の門も開くので、捨てた席の読み筋が
@@ -872,7 +876,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
     // **フックに撃たせるかどうかとは別の判断**をするときだけ——席と `isAnalyzing` の
     // どちらかが立っていれば後始末ごと走らせたい「読む局面が無くなった」回と、
-    // 握れなかった席の反映待ちを落とす回（`takeSeatAndGo`）。
+    // `useResultFlush` に席の門を渡す口。
     try {
       await seat.releaseHeld("stop");
     } catch (e) {
