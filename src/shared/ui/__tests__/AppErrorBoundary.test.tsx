@@ -45,7 +45,7 @@ afterEach(() => {
 describe("AppErrorBoundary が捕まえる値", () => {
   // **投げられた値そのものを旗にすると、falsy な例外で境界が素通りする。**
   // 素通りした例外は外の境界も受けないので（React は「処理できなかった」と見なす）、
-  // 7枚とも抜けて root ごと unmount する ——「閉じられない白い窓」に戻る
+  // 入れ子の何枚目でも抜けて root ごと unmount する ——「閉じられない白い窓」に戻る
   for (const [name, value] of [
     ["undefined", undefined],
     ["null", null],
@@ -205,7 +205,8 @@ describe("AppErrorBoundary の resetKeys", () => {
       </AppErrorBoundary>,
     );
 
-    // 1回目の変化では原因が残っていて、解けた直後にまた落ちる
+    // **ここが変異を殺す。** 比較の相手を落ちた時点で止めると、毎レンダ「変わった」と判定して
+    // 子を描き直し続け、境界は捕まえ直せずにこの rerender で例外が飛び出す
     rerender(
       <AppErrorBoundary label="盤" resetKeys={["b"]}>
         <Child boom />
@@ -213,8 +214,7 @@ describe("AppErrorBoundary の resetKeys", () => {
     );
     expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
 
-    // 比較の相手を落ちた時点で止めると、毎レンダ「変わった」と判定して子を描き直し続け、
-    // 境界は捕まえ直せずに例外が外へ抜ける（このレンダで throw が飛び出す）
+    // 原因が消えて鍵が動いたので、ここで畳むのをやめる
     rerender(
       <AppErrorBoundary label="盤" resetKeys={["c"]}>
         <Child boom={false} />
