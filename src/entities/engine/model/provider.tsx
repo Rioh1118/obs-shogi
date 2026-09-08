@@ -39,8 +39,16 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、いま何段目に居ても
   // 利用者から見れば「起動を待っている」。`"no-engine"` の doc（「まだ選んでいない」）
   // とも一致する。
-  const notReadyReason: EngineNotReadyReason =
-    state.phase === "error" ? "failed" : desiredRuntime ? "starting" : "no-engine";
+  //
+  // **選んでいるかを先に見る。** `error` を先に見ると、壊れたプリセットの選択を外した
+  // 直後——`desiredRuntime` が null になってから `phase` が `idle` へ戻るまでの
+  // 本物の IPC 往復——に「設定でエンジンのオプションを変えて保存」と案内する。
+  // **もう選んでいないプリセット**のオプションを変えろ、という実行できない案内になる。
+  const notReadyReason: EngineNotReadyReason = !desiredRuntime
+    ? "no-engine"
+    : state.phase === "error"
+      ? "failed"
+      : "starting";
 
   // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
   // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。

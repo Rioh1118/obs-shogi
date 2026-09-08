@@ -99,6 +99,35 @@ describe("エンジンが使えない理由", () => {
     expect(initialize).not.toHaveBeenCalled();
   });
 
+  it("壊れたプリセットの選択を外したら、その瞬間から「選んでください」になる", async () => {
+    initialize.mockRejectedValue(new Error("boom"));
+    // 畳むのは本物の IPC 往復。その間も理由を配り続ける。
+    let finishShutdown: () => void = () => {};
+    shutdown.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishShutdown = resolve;
+        }),
+    );
+
+    const view = mountEngine(runtime("/broken"));
+    await advance(30);
+    expect(view.current.notReadyReason).toBe("failed");
+
+    // この状況でいちばん自然な復帰操作——壊れたプリセットの選択を外す。
+    await view.setDesired(null);
+    await advance(20);
+
+    // **もう選んでいないプリセットのオプションを変えろ、と案内しない。**
+    expect(view.current.notReadyReason).toBe("no-engine");
+
+    await act(async () => {
+      finishShutdown();
+    });
+    await advance(20);
+    expect(view.current.notReadyReason).toBe("no-engine");
+  });
+
   it("初期化が落ちたら failed", async () => {
     initialize.mockRejectedValue(new Error("boom"));
 
