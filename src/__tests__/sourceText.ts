@@ -108,8 +108,19 @@ const lineCommentsIn = (text: string): string => (text.match(/\/\/[^\n]*/g) ?? [
  *
  * **落とす／残すの規則を2通り持たない**のがここに置く理由。片方だけ直すと、
  * コードでもコメントでもない区間が生まれ、どちらの検査からも外れる。
+ *
+ * `lang` は `codeOf` と同じ。**シェルにも裏返しが要る**——`.claude/hooks/*.sh` は
+ * 検査の名前やパスを「仕様として引く」ので、そこが腐っても赤くならない状態が残る。
  */
-export const commentsOf = (body: string): string => {
+export const commentsOf = (body: string, lang: "c-like" | "shell" = "c-like"): string => {
+  // **シェルは同じ綴りの裏返しで取る。** `stripShellComments` が落とす区間が
+  // そのままコメントなので、規則を2通り持たずに済む（この関数の doc のとおり）。
+  if (lang === "shell") {
+    return [...stripShellStrings(body).matchAll(/(?:^|\n|[ \t])(#(?!!)[^\n]*)/g)]
+      .map((m) => m[1])
+      .join("\n");
+  }
+
   let out = "";
   let rest = body;
 

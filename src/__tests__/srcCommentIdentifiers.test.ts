@@ -93,10 +93,24 @@ describe("`src/` のコメントが指す識別子", () => {
             ? [`${rel}/${e.name}`]
             : [],
       );
-    return [...walk(".claude/agents"), ...walk(".claude/skills")].map((rel) => ({
+    const md = [...walk(".claude/agents"), ...walk(".claude/skills")].map((rel) => ({
       name: rel,
       comments: readFileSync(join(REPO_ROOT, rel), "utf8"),
     }));
+
+    // **hooks も同じ網に入れる。** あちらのコメントは検査の名前やパスを
+    // 「仕様として引く」ので、腐っても赤くならない状態が残る。
+    // corpus 側（`docsIdentifiers` の `hookCorpus`）としては既に読まれているが、
+    // そこに書かれた綴りを**見る**側はどこにも無かった。
+    const sh = readdirSync(join(REPO_ROOT, ".claude/hooks"), { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith(".sh"))
+      .map((e) => `.claude/hooks/${e.name}`)
+      .map((rel) => ({
+        name: rel,
+        comments: commentsOf(readFileSync(join(REPO_ROOT, rel), "utf8"), "shell"),
+      }));
+
+    return [...md, ...sh];
   };
 
   // 0件を見て緑になる形を止める
