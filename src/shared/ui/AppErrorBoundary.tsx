@@ -271,8 +271,12 @@ export function AppErrorFallbackAction({
    * 押されたときにすること。**非同期でよい。**
    *
    * `() => void` に絞ると `() => Promise<void>` が代入できてしまい、拒否が誰にも
-   * 拾われないまま消える（型でも lint でも赤くならない）。ここが最後の砦の画面の出口なので、
-   * 少なくともログには残す。**画面への出しかたは呼び出し側が `afterAction` で持つ。**
+   * 拾われないまま消える（型でも lint でも赤くならない）。
+   *
+   * **ここで握るのは、未処理の拒否にしないためだけ。** `console.error` は配布版では読めないので
+   * （同じファイルの `error` の doc）、**これは利用者に何も届けない。**
+   * 押しても何も起きないボタンにしないために、**拒否を画面に出すのは呼び出し側の責任**で、
+   * 置き場は `afterAction`（`app/RootErrorFallback.tsx` の `closeFailed` がその実装例）。
    */
   onClick: () => void | Promise<void>;
   secondary?: boolean;
