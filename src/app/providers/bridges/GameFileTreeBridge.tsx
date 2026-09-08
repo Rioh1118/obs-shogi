@@ -38,10 +38,9 @@ export function GameFileTreeBridge() {
       notify({
         tier: "danger",
         presentation: "modal",
-        // **同じ棋譜で畳む。** 載せられなかった棋譜のノードはツリーの関門を通る
-        // （`FileNode` の `isActive` は盤とツリーの両方が指しているときだけ真）ので、
-        // 押すたびに `openKifuNode` が新しい `jkfData` を作り、この effect が撃ち直される。
-        // 鍵が無いと、押した回数だけ同じ文言が積み上がる。
+        // **同じ棋譜で畳む。** 載せられなかった棋譜のノードは `FileNode` の関門
+        // （`canSkipReopen`）を通るので、押すたびに `openKifuNode` が新しい `jkfData` を
+        // 作り、この effect が撃ち直される。鍵が無いと、押した回数だけ積み上がる。
         dedupeKey: `kifu-unloadable:${activeKifuPath}`,
         title: `「${getBaseName(activeKifuPath)}」を盤に並べられませんでした`,
         // **本文は「何をすれば直るか」から書く**（`NotifyRequest` の `body`）。
