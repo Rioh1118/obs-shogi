@@ -44,6 +44,17 @@ jobs:
       - name: Frontend test (if present)
         run: npm test --if-present
 
+      # `verify` に入っている。ローカルでは commit ゲートが走らせるが、
+      # ゲートを迂回して push された分をここで拾う。
+      - name: Dead export ratchet
+        run: npm run ratchet:knip
+
+      # **`verify` には入っていない。** 判定を1件ずつ当てるので数分掛かり、
+      # ローカルでは `.claude/hooks/*.sh` を触ったコミットでだけ門番自身が走らせる。
+      # ここは、その分類ごと壊された場合の控え。
+      - name: Commit gate self-test
+        run: npm run test:hooks
+
       - name: Install Linux deps (GTK/Webkit for Tauri)
         if: runner.os == 'Linux'
         run: |
