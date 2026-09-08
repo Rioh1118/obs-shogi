@@ -321,9 +321,12 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
    ※1 も口としては同じ形だが、E9 が飛ばないので踏めない
 2. **`isAnalyzing` が true なら、結果がいつか届くか、エラーが出るか、利用者が止められる。**
    `isReady` が落ちて戻らない回は ※5 が断りを立てて倒す。**まだ破れる回。**
-   - **プロセスが落ちただけの回**（→ ※5 の後段）。フロントの4つの欄が1つも変わらないので
-     `isReady` は true のまま、断つ effect の入口で降りる。**こちらが起きやすい**
-   - `starting` のまま戻らない回。ただし Rust 側の初期化には上限がある
+   - **プロセスが落ちただけの回**（→ ※5 の後段 / [failure-surfacing.md](failure-surfacing.md) の F-38）。
+     フロントの4つの欄が1つも変わらないので `isReady` は true のまま、
+     **断つ effect の入口で降りる**。**こちらが起きやすい**
+   - `starting` のまま戻らない回（→ F-39）。`isReady` は落ちるので**入口は通り**、
+     理由が戻る側に分類されているところ（`isRecoverableNotReady` の門）で降りる
+     ——**F-38 とは降りる場所が違う＝塞ぎ方も違う**。ただし Rust 側の初期化には上限がある
      （`SPAWN_TIMEOUT` / `USI_OK_TIMEOUT` / `WRITE_TIMEOUT`。`src-tauri/src/engine/`）ので、
      どこかで `failed` へ落ちる。**踏めるかは未確認**
    - ※6（完了通知が飛ばない回）も同じ形だが、その口が Rust に無いので踏めない

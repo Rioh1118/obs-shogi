@@ -11,6 +11,12 @@ import type { EngineNotReadyReason, TerminalNotReadyReason } from "@/entities/en
  * **ここに1本足したら、`docs/state-transitions/analysis.md` の ※15 にも枝を足すこと。**
  * `src/__tests__/analysisRefusals.test.ts` が突き合わせる。
  *
+ * **対応表に入れる断りは、入口を名前に持たせる**（`_ON_START_MESSAGE` /
+ * `_WHILE_ANALYZING_MESSAGE`）。2つの表は同じ `EngineNotReadyReason` を鍵に取るので、
+ * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる——**ボタンを押していない人に
+ * 「もう一度 ▶ を押してください」が出る**形が、それで1度入っている。
+ * 両方の入口で使いたくなったら、それは2本に割るべき断り。
+ *
  * @packageDocumentation
  */
 
@@ -51,7 +57,7 @@ export const ENGINE_RESTARTED_MESSAGE =
 export const STOP_FAILED_MESSAGE =
   "解析を止められませんでした。エンジンはまだ読み続けているかもしれません。もう一度 ▶ を押すと、同じ席を止め直してから始めます。";
 /**
- * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisPaneHeader` は
+ * 起動を待っている間に ▶ を押した。**▶ は押せてしまう**（`AnalysisPaneHeader` は
  * エンジンの状態を1つも読まない）ので、起動を待っている間に押した人が必ずここへ来る。
  * **理由ごとに割る**——「選んでください」を起動中の人に言わないため。
  * 理由を決めるのは `entities/engine`（`EngineNotReadyReason`）。

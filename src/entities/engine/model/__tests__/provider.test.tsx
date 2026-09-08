@@ -42,8 +42,7 @@ function mountEngine(initial: EngineRuntimeConfig | null) {
   function Probe() {
     const { notReadyReason } = useEngine();
     useEffect(() => {
-      // 同じ理由が続く描画は1つに畳む。見たいのは遷移で、描画の回数ではない。
-      if (seen[seen.length - 1] !== notReadyReason) seen.push(notReadyReason);
+      seen.push(notReadyReason);
     });
     return null;
   }
@@ -81,26 +80,31 @@ describe("EngineProvider が立てる理由", () => {
   it("起動の設定を組み立てられない間だけ no-engine", async () => {
     const view = mountEngine(null);
     await view.settle();
-    expect(view.reasons).toEqual(["no-engine"]);
+    expect(new Set(view.reasons)).toEqual(new Set(["no-engine"]));
     expect(initialize).not.toHaveBeenCalled();
 
+    const from = view.reasons.length;
     await view.setRuntime(runtime());
     await view.settle();
 
-    // 起動を待つ窓は `starting`。**`no-engine` を挟まない**——挟むと、解析側が
-    // 戻らない側と読んで、走っている解析を打ち切る。
-    expect(view.reasons).toEqual(["no-engine", "starting", null]);
+    // 起動を待つ窓は `starting`。**`no-engine` を1枚も挟まない**——挟むと、解析側が
+    // 戻らない側と読んで、走っている解析を打ち切る。**畳まずに数える**
+    // （畳むと、直前が `no-engine` のときに挟まった1枚が吸われて検査が効かない）。
+    expect(view.reasons.slice(from)).not.toContain("no-engine");
+    expect(view.reasons[view.reasons.length - 1]).toBeNull();
   });
 
   it("起こし直している間も starting のまま", async () => {
     const view = mountEngine(runtime());
     await view.settle();
-    expect(view.reasons).toEqual(["starting", null]);
+    const from = view.reasons.length;
 
     await view.setRuntime(runtime({ Threads: "4" }));
     await view.settle();
 
-    expect(view.reasons).toEqual(["starting", null, "starting", null]);
+    // 起こし直しの窓を `no-engine` で通さない（同上）。
+    expect(view.reasons.slice(from)).not.toContain("no-engine");
+    expect(view.reasons[view.reasons.length - 1]).toBeNull();
     expect(initialize).toHaveBeenCalledTimes(2);
   });
 
@@ -115,7 +119,8 @@ describe("EngineProvider が立てる理由", () => {
     await view.settle();
 
     // **起動し直すのは `idle` の枝。** その枝を消すと `initialize` は1回で止まる。
-    expect(view.reasons.slice(2)).toEqual(["starting", null]);
+    expect(view.reasons).not.toContain("no-engine");
+    expect(view.reasons[view.reasons.length - 1]).toBeNull();
     expect(initialize).toHaveBeenCalledTimes(2);
   });
 
