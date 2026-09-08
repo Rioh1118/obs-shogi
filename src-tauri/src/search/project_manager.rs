@@ -14,6 +14,7 @@ use crate::search::announce::{
     IndexAnnouncement, IndexProgress, IndexSurvival, RescanOutcome,
 };
 use crate::search::index::file_build::build_file_index;
+use crate::search::message::ScreenMessage;
 use crate::search::read::fs_scan::{
     carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
     ScanError, ScanOptions, ScanSnapshot,
@@ -518,7 +519,7 @@ impl ProjectManager {
         let rec_cloned = rec.clone();
 
         let built = task::spawn_blocking(
-            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>, bool), String> {
+            move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<ScreenMessage>, bool), ScreenMessage> {
                 let built = build_file_index(&rec_cloned, file_id, new_gen)?;
                 Ok((
                     built.by_bucket,

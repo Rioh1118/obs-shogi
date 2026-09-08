@@ -227,7 +227,7 @@ pub async fn open_project(
             announce_state(&app, &store, build_epoch, IndexAnnouncement::BuildFailed);
             // **内部の綴りを返さない。** `openError` に読み手が付いたとき
             // （#403）、`root directory is not readable: /Users/…` が画面に出る
-            return Err(scan_failure(&e, IndexSurvival::Gone));
+            return Err(scan_failure(&e, IndexSurvival::Gone).to_string());
         }
     };
     // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、

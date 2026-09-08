@@ -7,26 +7,12 @@ import { cursorKey } from "@/entities/kifu/model/cursor";
  *
  * カーソル側の直列化は `cursorFromLite` → `cursorKey` に任せる。ここで自前に
  * 組み直すと、鍵の書式が2つになる。
+ *
+ * **一覧を追いかけるのに使わない。** 組むのに `normalizeForkPointers` を2回通して
+ * `JSON.stringify` するので、件数ぶん組むと止まる。ここが要るのは**描画をまたいで
+ * 覚えておきたいとき**だけ——断りを付けた行など。使い分けは
+ * `docs/state-transitions/position-search-view.md` の
+ * 「選択を追うのは参照、断りを覚えるのは鍵」。
  */
 export const hitKey = (h: PositionHit) =>
   `${h.occ.fileId}:${h.occ.gen}:${h.occ.nodeId}:${cursorKey(cursorFromLite(h.cursor))}`;
-
-export function orderPositionHits(
-  hits: PositionHit[],
-  resolveAbsPath: (hit: PositionHit) => string | null,
-  currentAbs: string | null,
-) {
-  if (!currentAbs) return hits;
-
-  const same: PositionHit[] = [];
-  const other: PositionHit[] = [];
-
-  for (const hit of hits) {
-    const abs = resolveAbsPath(hit);
-    if (abs && abs === currentAbs) same.push(hit);
-    else other.push(hit);
-  }
-
-  // stable：元の相対順序を保つ
-  return [...same, ...other];
-}

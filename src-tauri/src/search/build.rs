@@ -19,6 +19,7 @@ use crate::search::announce::{
 };
 use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
+use crate::search::message::ScreenMessage;
 use crate::search::project_manager::ProjectManager;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
@@ -83,7 +84,7 @@ pub async fn build_full_index_task(
         String,
         BucketEntries,
         Arc<NodeTable>,
-        Vec<String>,
+        Vec<ScreenMessage>,
         bool,
     );
 
@@ -152,7 +153,7 @@ pub async fn build_full_index_task(
             let _permit = permit;
 
             let res = tokio::task::spawn_blocking(
-                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<String>, bool), String> {
+                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<ScreenMessage>, bool), ScreenMessage> {
                     let built = build_file_index(&rec2, file_id, gen)?;
                     Ok((
                         built.by_bucket,

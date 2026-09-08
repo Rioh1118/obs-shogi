@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter};
 
+use crate::search::message::{for_screen, ScreenMessage};
 use crate::search::read::fs_scan::ScanError;
 use crate::search::store::index_store::IndexStore;
 use crate::search::types::{
@@ -285,10 +286,11 @@ pub fn warn_build_not_started(app: &AppHandle, root: &std::path::Path) {
 }
 
 /// 上の文言。**`AppHandle` を要らない形**なので内部語彙の検査に載せられる。
-pub(crate) fn warn_build_not_started_message() -> String {
-    "索引を作り始められませんでした。いま検索しても0件になります。\
-     ワークスペースを開き直してください"
-        .to_string()
+pub(crate) fn warn_build_not_started_message() -> ScreenMessage {
+    for_screen(
+        &"索引を作り始められませんでした。いま検索しても0件になります。\
+          ワークスペースを開き直してください",
+    )
 }
 
 /// 読めなかった場所を画面へ出す。
@@ -371,7 +373,7 @@ pub enum IndexSurvival {
 /// **内部の語彙を出さない。** `ScanError` の `Display` は
 /// `io error: Permission denied (os error 13)` のような綴りなので、
 /// 素で流すと利用者は自分に関係のある文字列だと読んで検索する。
-pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> String {
+pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> ScreenMessage {
     let what = match reason {
         ScanError::RootNotFound(_) => "ワークスペースが見つかりません",
         ScanError::RootUnreadable(_) => "ワークスペースを読む権限がありません",
@@ -390,7 +392,7 @@ pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> Strin
         IndexSurvival::Kept => "索引は最後に読めたときのままで、新しくなっていません",
         IndexSurvival::Gone => "索引を作れていないので、いま検索しても0件になります",
     };
-    format!("{what}。{lost}。{how}")
+    for_screen(&format_args!("{what}。{lost}。{how}"))
 }
 
 /// 読めなかった場所を、利用者に出す一文へ組む。
@@ -404,7 +406,7 @@ pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> Strin
 /// その場所の追加・変更が反映されず、引き継げていなければ索引に入らない。
 /// 逆のことを言うと、利用者は出ているものを「出ない」と読んで探しに行き、
 /// 案内どおりワークスペースを選び直して**そのとき初めて本当に消す**。
-pub(crate) fn unreadable_places(count: usize, carried_over: bool) -> String {
+pub(crate) fn unreadable_places(count: usize, carried_over: bool) -> ScreenMessage {
     let more = if count > 1 {
         format!("（ほか {} 件）", count - 1)
     } else {
@@ -415,7 +417,9 @@ pub(crate) fn unreadable_places(count: usize, carried_over: bool) -> String {
     } else {
         "中の棋譜は索引に入っていないので、検索に出ません"
     };
-    format!("この場所を読めません{more}。{lost}。権限を確かめてください")
+    for_screen(&format_args!(
+        "この場所を読めません{more}。{lost}。権限を確かめてください"
+    ))
 }
 
 /// 場所の分からない読み取り失敗を、利用者に出す一文へ組む。
@@ -427,25 +431,26 @@ pub(crate) fn unreadable_places(count: usize, carried_over: bool) -> String {
 /// **失われるものは呼び手で違う。** 差分更新はこの回の削除を当てないだけで
 /// 索引は残る。全件構築は引き継ぐ前回が無いので、読めなかった分は索引に入らない。
 /// 逆を言うと、利用者は「索引そのものは正しい」と読んで0件を受け取る。
-pub(crate) fn unreadable_gaps(survival: IndexSurvival) -> String {
+pub(crate) fn unreadable_gaps(survival: IndexSurvival) -> ScreenMessage {
     let lost = match survival {
         IndexSurvival::Kept => "どの場所かは分からないので、この回の削除は索引に反映していません",
         IndexSurvival::Gone => "どの場所かは分からないので、索引に入っていない棋譜があります",
     };
-    format!(
+    for_screen(&format_args!(
         "ワークスペースの一部を読み取れませんでした。{lost}。\
          ディスクやネットワークの接続を確かめてください（次に変更があれば取り直します）"
-    )
+    ))
 }
 
 /// 索引を組む仕事そのものが落ちたときの文言。
 ///
 /// **内部の語彙を画面に出さない。** `JoinError` の `Display` は
 /// `task 42 panicked` のような綴り。
-pub(crate) fn build_failure() -> String {
-    "この棋譜を索引に入れられませんでした。検索には出ません。\
-     開き直しても直らないときは、ファイルが壊れていないか確かめてください"
-        .to_string()
+pub(crate) fn build_failure() -> ScreenMessage {
+    for_screen(
+        &"この棋譜を索引に入れられませんでした。検索には出ません。\
+          開き直しても直らないときは、ファイルが壊れていないか確かめてください",
+    )
 }
 
 #[cfg(test)]
@@ -473,14 +478,17 @@ mod tests {
     fn the_message_says_what_was_lost() {
         let known = unreadable_places(2, false);
         assert!(
-            known.contains("検索に出ません"),
+            known.to_string().contains("検索に出ません"),
             "何が失われたかが無い: {known}"
         );
-        assert!(known.contains("ほか 1 件"), "件数が出ていない: {known}");
+        assert!(
+            known.to_string().contains("ほか 1 件"),
+            "件数が出ていない: {known}"
+        );
 
         let unknown = unreadable_gaps(IndexSurvival::Kept);
         assert!(
-            unknown.contains("削除は索引に反映していません"),
+            unknown.to_string().contains("削除は索引に反映していません"),
             "抑止したことを言っていない: {unknown}"
         );
     }
@@ -494,11 +502,11 @@ mod tests {
     fn carried_over_files_are_not_described_as_gone() {
         let carried = unreadable_places(1, true);
         assert!(
-            !carried.contains("検索に出ません"),
+            !carried.to_string().contains("検索に出ません"),
             "引き継いだ棋譜を「出ない」と言っている: {carried}"
         );
         assert!(
-            carried.contains("前回の索引のまま残ります"),
+            carried.to_string().contains("前回の索引のまま残ります"),
             "何が起きたかを言っていない: {carried}"
         );
     }
@@ -535,11 +543,14 @@ mod tests {
                 "Err",
             ] {
                 assert!(
-                    !m.contains(internal),
+                    !m.to_string().contains(internal),
                     "内部の識別子が画面に出る（{internal}）: {m}"
                 );
             }
-            assert!(m.contains("ください"), "次に何をすればよいかが無い: {m}");
+            assert!(
+                m.to_string().contains("ください"),
+                "次に何をすればよいかが無い: {m}"
+            );
         }
     }
 
@@ -567,7 +578,7 @@ mod tests {
             .find(|w| w.path == "/w/新規")
             .expect("引き継げなかった場所の警告が無い");
         assert!(
-            lost.message.contains("検索に出ません"),
+            lost.message.to_string().contains("検索に出ません"),
             "索引に入っていない場所を「残る」と言っている: {}",
             lost.message
         );
@@ -577,7 +588,9 @@ mod tests {
             .find(|w| w.path == "/w/既存")
             .expect("引き継げた場所の警告が無い");
         assert!(
-            kept.message.contains("前回の索引のまま残ります"),
+            kept.message
+                .to_string()
+                .contains("前回の索引のまま残ります"),
             "引き継げた棋譜を「出ない」と言っている: {}",
             kept.message
         );
@@ -586,7 +599,7 @@ mod tests {
         // 「ほか 1 件」と言う——利用者は在りもしない場所を探す
         for w in [lost, kept] {
             assert!(
-                !w.message.contains("ほか"),
+                !w.message.to_string().contains("ほか"),
                 "1件しか無い組が他の組の件数を数えている: {}",
                 w.message
             );
@@ -601,13 +614,13 @@ mod tests {
 
         let lost = ws.iter().find(|w| w.path == "/w/a").expect("組が無い");
         assert!(
-            lost.message.contains("ほか 1 件"),
+            lost.message.to_string().contains("ほか 1 件"),
             "2件の組が自分の件数を言っていない: {}",
             lost.message
         );
         let kept = ws.iter().find(|w| w.path == "/w/c").expect("組が無い");
         assert!(
-            !kept.message.contains("ほか"),
+            !kept.message.to_string().contains("ほか"),
             "1件の組が他の組まで数えている: {}",
             kept.message
         );
@@ -648,14 +661,20 @@ mod tests {
     fn a_thrown_away_index_is_not_described_as_intact() {
         let e = ScanError::RootNotFound("/w".into());
         let kept = scan_failure(&e, IndexSurvival::Kept);
-        assert!(kept.contains("最後に読めたときのまま"), "{kept}");
+        assert!(
+            kept.to_string().contains("最後に読めたときのまま"),
+            "{kept}"
+        );
 
         let gone = scan_failure(&e, IndexSurvival::Gone);
         assert!(
-            !gone.contains("最後に読めたときのまま"),
+            !gone.to_string().contains("最後に読めたときのまま"),
             "捨てた索引を「残っている」と言っている: {gone}"
         );
-        assert!(gone.contains("0件"), "何が起きるかを言っていない: {gone}");
+        assert!(
+            gone.to_string().contains("0件"),
+            "何が起きるかを言っていない: {gone}"
+        );
     }
 
     /// 進行中の段の写像。**`IndexAnnouncement` 側とは別の関数なので、

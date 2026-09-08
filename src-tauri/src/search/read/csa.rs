@@ -26,10 +26,9 @@ use crate::search::read::outcome::{Jkf, KifuReadError};
 /// `shogi-kifu-converter` の `deny(clippy::unwrap_used)` の外側にある。
 /// 同じ壊れ方が出たら上の表に行を足すこと。
 ///
-/// 呼び口は `spawn_blocking` の中なのでプロセスは落ちないが、
-/// 捕まえずに落ちると利用者に届くのが `spawn_blocking join error: task N panicked`
-/// になり、**どこが悪いのかが消える**（ファイル名は `IndexWarnPayload` が
-/// 別の欄で持つので残る）。
+/// 呼び口は `spawn_blocking` の中なのでプロセスは落ちないが、捕まえずに落ちると
+/// 利用者に届くのは join error の定型文だけになり、**この行のどこが悪いのかが消える**
+/// （ファイル名は `IndexWarnPayload` が別の欄で持つので残る）。
 ///
 /// # 総当たりの外側で捕まえる
 ///
@@ -215,7 +214,7 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 /// 実測すると、CSA の形をしていない行が1本混ざるとそこで読むのをやめ、
 /// **後ろの指し手が消えたまま `Ok`** になる。対局者名が無ければ
 /// [`says_nothing`] も真になるが、**この文言は
-/// [`ReadOutcome::NothingToIndex`] の `warn` に載せて呼び手へ渡す**
+/// `ReadOutcome::NothingToIndex` の `warns` に載せて呼び手へ渡す**
 /// （`read_path_inner` がこの検査を門より前に置いているのはそのため）。
 ///
 /// **これが出たとき、画面で開けるかどうかは行の形で分かれる。**
@@ -256,6 +255,13 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 /// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ、[`LOSSY_DECODERS`] の2つ）は
 /// どれも同じ数を出すので、どの候補で読めたかに関わらず結果が変わらない。
 /// UTF-16 はバイト列に NUL が挟まって指し手行の形にならず0件と数える（＝黙る）。
+///
+/// # 戻り値は有界
+///
+/// **埋めるのは数字と行番号だけ。** だから呼び手は組み上がった `String` を刈れば足りる。
+/// ファイルの本文やクレートの文言を引用するように変えるなら、`format_args!` を返す形に
+/// して `for_screen` へ**組みながら**渡すこと —— 組み上げてから刈ると、
+/// 刈る対象がファイルの大きさで先に確保される。
 ///
 /// # バイト列を受け取る
 ///

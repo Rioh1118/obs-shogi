@@ -22,7 +22,7 @@ pub(super) fn now_ms() -> u64 {
 /// **暗号の強さは要らない。** 別のプロジェクトが同じ名前にならなければよい。
 ///
 /// blob の中にも書いて読み戻すときに突き合わせる —— 別のプロジェクトの
-/// キャッシュを掴んだら弾くため（`index_cache.rs` の `root hash mismatch`）。
+/// キャッシュを掴んだら弾くため（`format.rs` の `root hash mismatch`）。
 pub(super) fn root_hash(root_dir: &Path) -> [u8; 32] {
     let s = root_dir.to_string_lossy();
     blake3::hash(s.as_bytes()).into()

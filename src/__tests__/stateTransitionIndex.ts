@@ -132,6 +132,68 @@ export function brokenLinksInBody(
   return broken;
 }
 
+export type BrokenReference = { label: string; reason: "no-definition" | "unused-definition" };
+
+/**
+ * 1つの文書の中で、定義の無い参照リンクと、使われていない定義を返す。
+ *
+ * **参照名を間違えても markdown はエラーを出さない。** `[表示][ラベル]` は
+ * 角括弧つきの地の文としてそのまま描画されるだけで、リンクにならなかったことに
+ * 目視でしか気づけない。他リポジトリのパスを外部リンクで書く規約
+ * （`docs/state-transitions/README.md`）がこの2部構成を標準にしたので、
+ * 使用と定義の結合は機械で見る。定義は使用箇所から遠く離れて置かれる。
+ *
+ * 使われていない定義も返すのは、表の行を消したときに定義だけが残るため。
+ * 残った定義は次に同じラベルを別の意味で使った人を黙って誤った URL へ送る。
+ *
+ * ラベルの大小文字は CommonMark が同一視するので、こちらも畳んで比べる。
+ *
+ * **`[ラベル]` 単体（shortcut）も使用として数える。** 同じ出典を2度目に引く人が
+ * 最も自然に書く形で、リンクとして正しく描画される。数えないと定義が
+ * 「使われていない」になり、**その案内どおり定義を消すと1度目のリンクが地の文に落ちる。**
+ * ただし裸の角括弧は地の文にも出るので、**定義済みのラベルと一致するものだけ**を数える。
+ * 綴りを間違えた shortcut は、定義が使われていない側で赤くなる。
+ *
+ * `[a][b]` の形は、地の文でも参照リンクとして数える。CommonMark 上も定義が無ければ
+ * 地の文に落ちるだけで、**書き手の意図が区別できない**。角括弧を2つ並べたいなら
+ * 行内コードで囲むこと。
+ */
+export function brokenReferencesInBody(body: string): BrokenReference[] {
+  // 行内コードも落とす。`ObsShogi-v[version]-[platform]-[arch][setup][ext]` のような
+  // **命名パターン**が `[…][…]` の形を踏む。開きと同じ数のバッククォートで閉じる形
+  // （`` `x` ``）まで見ないと、2連で囲った例が素通りする。
+  // 空文字ではなく空白へ置き換えるのは、落とした跡で `[a]` と `[b]` が
+  // 隣り合って参照リンクに見えるのを防ぐため。
+  const text = stripFences(body).replace(/(`+)[^`\n]*?\1/g, " ");
+
+  const defined = new Map<string, string>();
+  // ラベルは行を跨がない。`[^\]]+` にすると、閉じない `[` が後続行の定義を飲み込む。
+  for (const m of text.matchAll(/^ {0,3}\[([^\]\n]+)\]:\s*\S+/gm)) {
+    defined.set(m[1]!.toLowerCase(), m[1]!);
+  }
+
+  const used = new Set<string>();
+  // `[表示][ラベル]`。ラベルが空なら表示そのものがラベル（collapsed）
+  for (const m of text.matchAll(/\[([^\]\n]*)\]\[([^\]\n]*)\]/g)) {
+    const label = (m[2] || m[1] || "").toLowerCase();
+    if (label) used.add(label);
+  }
+  // `[ラベル]` 単体（shortcut）。定義と一致するものだけ
+  for (const m of text.matchAll(/\[([^\]\n]+)\](?![[(:])/g)) {
+    const label = m[1]!.toLowerCase();
+    if (defined.has(label)) used.add(label);
+  }
+
+  const broken: BrokenReference[] = [];
+  for (const label of used) {
+    if (!defined.has(label)) broken.push({ label, reason: "no-definition" });
+  }
+  for (const [key, label] of defined) {
+    if (!used.has(key)) broken.push({ label, reason: "unused-definition" });
+  }
+  return broken;
+}
+
 /**
  * 1つの文書の中で「実在する表を未作成と書いている」箇所を、1始まりの行番号とともに返す。
  *
@@ -155,27 +217,65 @@ export function staleUncreatedInBody(
 }
 
 /**
+ * コードフェンスの**中身だけ**を返す（外と開閉の記号は空行にする）。
+ * [`stripFences`] の裏返しで、走査は [`scanFences`] を共有する。
+ *
+ * 索引の階層図はフェンスの中にあり、そこが「新しい表をどこに置くか」を決める唯一の案内。
+ * 在庫表だけを見る検査は、図から表が1本抜けても緑のまま通る。抜けた表は前例として
+ * 参照されないので、同じ階層に置くべきものが別の場所へ散る。
+ *
+ * `info` を渡すと、その情報文字列で開いたフェンスだけを返す。**渡さないと
+ * 説明のための例まで拾う** —— 例に名前が1つ出るだけで「図にある」と判定されてしまう。
+ */
+export function insideFences(body: string, info?: string): string {
+  return scanFences(body)
+    .map((l) => (l.kind === "inside" && (info === undefined || l.info === info) ? l.line : ""))
+    .join("\n");
+}
+
+/**
  * コードフェンスの中身を落とす。中は説明のための例なので、リンクとしても見出しとしても
  * 数えない。
+ */
+export function stripFences(body: string): string {
+  return scanFences(body)
+    .map((l) => (l.kind === "outside" ? l.line : ""))
+    .join("\n");
+}
+
+type FenceLine = {
+  line: string;
+  kind: "outside" | "marker" | "inside";
+  /** そのフェンスの情報文字列（```markdown の "markdown"）。中身と閉じ記号にだけ付く */
+  info: string | null;
+};
+
+/**
+ * 行ごとにフェンスの内外を判定する。**`stripFences` と `insideFences` の唯一の走査。**
+ *
+ * 2つに分けて書くと、片方だけが CommonMark の規則に追随して割れる。しかも割れ方は
+ * 「フェンスを見ていない状態が緑で通る」側へ倒れるので、誰も気づかない。
  *
  * 閉じ記号は開きと同じ記号・同じ長さ以上のものだけ、という規則を行単位で見る。
  * 正規表現1本で済ませると、4連バッククォートで3連を囲んだ入れ子で外側の開きが内側の
  * 開きと対になり、**例として書いたリンクが本文として残る**。未閉じも同じ側に倒れる。
+ *
+ * **1行につき1要素を返す。** 呼ぶ側は行の位置で突き合わせる。
  */
-export function stripFences(body: string): string {
-  let fence: { mark: string; indent: number } | null = null;
-  const out: string[] = [];
+function scanFences(body: string): FenceLine[] {
+  let fence: { mark: string; indent: number; info: string } | null = null;
+  const out: FenceLine[] = [];
 
   for (const line of body.split("\n")) {
     const m = /^( *)(`{3,}|~{3,})(.*)$/.exec(line);
 
     if (fence == null) {
       if (m) {
-        fence = { mark: m[2]!, indent: m[1]!.length };
-        out.push("");
+        fence = { mark: m[2]!, indent: m[1]!.length, info: m[3]!.trim() };
+        out.push({ line, kind: "marker", info: fence.info });
         continue;
       }
-      out.push(line);
+      out.push({ line, kind: "outside", info: null });
       continue;
     }
 
@@ -190,8 +290,9 @@ export function stripFences(body: string): string {
       m[2]!.length >= fence.mark.length &&
       m[1]!.length <= fence.indent + 3 &&
       !m[3]!.trim();
+
+    out.push({ line, kind: closes ? "marker" : "inside", info: fence.info });
     if (closes) fence = null;
-    out.push("");
   }
-  return out.join("\n");
+  return out;
 }

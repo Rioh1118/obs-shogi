@@ -1,22 +1,17 @@
-import type {
-  Consistency,
-  OpenProjectOutput,
-  SearchPositionInput,
-  SearchPositionOutput,
-} from "../api/contract";
+import type { Consistency, OpenProjectOutput, SearchPositionInput } from "../api/contract";
 import type {
   IndexProgressPayload,
+  IndexState,
   IndexStatePayload,
   IndexWarnPayload,
   SearchBeginPayload,
-  SearchChunkPayload,
   SearchEndPayload,
   SearchErrorPayload,
 } from "../api/events";
 import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
 
 export type IndexUiState = {
-  state: IndexStatePayload["state"] | "Empty";
+  state: IndexState;
   dirtyCount: number;
   /** 走査を最後まで通せなかった。意味は `IndexStatePayload` の doc */
   scanFailed: boolean;
@@ -45,6 +40,9 @@ export type SearchSession = {
   endedAt: number | null;
 };
 
+/** 検索を起こした結末。**受け付けられなかった回を成功と同じ形にしない** */
+export type SearchLaunch = { status: "started"; requestId: RequestId } | { status: "superseded" };
+
 export type FilePathById = Record<number, string>;
 
 export type SearchState = {
@@ -72,7 +70,14 @@ export type Action =
   | { type: "open_ok"; payload: { rootDir: string; out: OpenProjectOutput } }
   | { type: "open_error"; payload: { message: string } }
   | { type: "search_begin"; payload: SearchBeginPayload }
-  | { type: "search_chunk"; payload: SearchChunkPayload }
+  /**
+   * 到着したチャンクを**まとめて**積む。
+   *
+   * 1チャンク1アクションにしない。`filePathById` と `sessions` はアクション1回ごとに
+   * 作り直されるので、10万件の表を「件数 ÷ 区切り」回コピーすることになる。
+   * 溜めるのは `model/chunkBuffer.ts`。
+   */
+  | { type: "search_chunks"; payload: SearchChunksInput }
   | {
       type: "search_requested";
       payload: {
@@ -88,11 +93,31 @@ export type Action =
 export type PositionSearchContextType = {
   state: SearchState;
 
-  searchPosition: (input: SearchPositionInput) => Promise<SearchPositionOutput>;
+  /**
+   * 検索を起こす。**結末は2つあり、型で分かれる。**
+   *
+   * `"started"` なら結果はイベントで届き、`requestId` で引ける。
+   * `"superseded"` は**受け付けられなかった**回——番号が返るまでの間に索引が
+   * 開き直され、この検索は state にも溜め場にも残っていない（Rust 側も取り下げ済み）。
+   *
+   * **成功と同じ形で返さない。** 返すと呼び手は `requestId` を採用し、セッションの
+   * 無い rid を握って「待機中 / 一致する棋譜がありません」を出す——0件が完了として
+   * 出る形（`docs/state-transitions/search.md`）。分岐を書かない限り tsc が落ちる。
+   */
+  searchPosition: (input: SearchPositionInput) => Promise<SearchLaunch>;
 
   cancelSearch: (requestId: RequestId) => Promise<void>;
 
   getSessionByRequestId: (requestId: RequestId | null | undefined) => SearchSession | null;
+
+  /**
+   * その検索のヒットを、届いた順に平らにして返す。
+   *
+   * **返り値は共有の配列。破壊的に触らないこと**（`sort` / `reverse` / `push`）。
+   * 同じ到着ぶんを見ている間は**同じ配列**が返り、増えたときだけ別の配列になる
+   * ——呼び手はその同一性で「増えたか」を判断してよい。触ると、次の増分追記が
+   * 壊れた並びの上に足される。
+   */
   getHitsByRequestId: (requestId: RequestId | null | undefined) => PositionHit[];
   isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
   getAbsPathByFileId: (fileId: number) => string | null;
@@ -103,3 +128,10 @@ export type PositionSearchContextType = {
 };
 
 export type MergeFilesInput = FilePathEntry[];
+
+/** 1回ぶんの取り込み。`chunks` は到着順、`files` はそのぶんを平らに繋いだもの */
+export type SearchChunksInput = {
+  requestId: RequestId;
+  chunks: PositionHit[][];
+  files: MergeFilesInput;
+};

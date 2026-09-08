@@ -118,13 +118,15 @@
 `entities/file-tree/index.ts` は「ここに並ぶのはスライスの外に呼び出し元があるものだけ」を
 規約として書いているが、機械が見ていないので守られているのは一部だけ。
 
-- **`entities/search/index.ts` は41個を公開していて、外に読み手があるのは6個。**
-  `EVT_*` 7つと `searchPosition` / `searchPositionBestEffort` / `cancelSearch` /
-  `listenSearchEvents` は外の読み手0。`listenSearchEvents` を barrel から呼べば
-  `isListenSettled` を経ずに購読が二重に張れる。`WorkspaceTab` が `IndexState` の union を
-  手で写しているので、そこだけは**落とすのではなく import させる**のが正しい向き
+- **barrel と context に、呼び手のいない口が残る。** `entities/search/index.ts` は
+  型を中心に約30名を公開していて、スライス外の消費は7名。`entities/game` の context も
+  5件が呼び手0。`sliceBarrels.test.ts` は「barrel が在ること」しか見ておらず、
+  **未使用の export を数える走査は無い**。足せば落ちる
 - **`entities/game` の context に呼び出し元0の口が5つ**（`setCurrentComments` / `isAtStart` /
   `isAtEnd` / `getCurrentMove` / `getCurrentComments`）
 - **閉じるなら走査ごと入れる。** `src/__tests__/sliceBarrels.test.ts` の `publicModules()` に
   「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
   `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる
+
+- 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
+- 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）

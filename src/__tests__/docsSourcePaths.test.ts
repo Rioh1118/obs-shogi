@@ -15,9 +15,21 @@ import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths
  * このリポジトリの現物を指す約束があるのは状態遷移表だけなので、
  * そこだけが「実在しなければ腐っている」と言える。
  *
- * **絞っている間、`docs/` の他のファイルには自リポジトリの腐ったパスも混ざる。**
- * 他リポジトリのパスを外部リンクの形で書く規約にするか、免除に挙げ切れば
- * `docs/` 全体へ広げられる（行番号のほうは既に全体へ掛けてある）。
+ * **`docs/` 全体へ広げる手順の出典はここ。** 先に落ちるものの種類を数え上げ、
+ * 種類ごとに「直す」のか「綴りで見分ける」のかを決める。**検査だけ先に広げると、
+ * 直しようのない赤が残る。** いま落ちる種類は次のとおり（件数は書かない。増える）。
+ *
+ * - **別リポジトリのパス。** `decisions/` / `IDEAS.md` / `PREMISES.md` /
+ *   `proposals/` が根拠として引く。書き方は決まっている（外部リンク。
+ *   `docs/state-transitions/README.md`）ので、あとは直すだけ
+ * - **まだ存在しない自リポジトリの置き場。** `docs/spec/` が「ここに置く」を
+ *   予告として書く。**規約はこちらに効かない。** 予告と死んだパスを
+ *   綴りで見分ける手が要る
+ * - **別ブランチにあった過去のファイル。** `docs/archive/` が元データとして引く。
+ *   更新しない約束の記録なので、直すこと自体が筋に合わない。走査から外すか、
+ *   これも綴りで見分ける
+ *
+ * **行番号のほう（`lineNumberRefsIn`）は既に `docs/` 全体へ掛けてある。**
  */
 describe("状態遷移表が指すソースのパス", () => {
   const tableFiles = () => markdownFiles().filter((f) => f.startsWith("state-transitions/"));
@@ -105,6 +117,20 @@ describe("sourcePathsIn", () => {
     ]);
   });
 
+  // 落とさないと拡張子の検査に当たらず、拾われも赤くもならない
+  test("行番号の範囲も落として拾う", () => {
+    expect(sourcePathsIn("`src/entities/kifu/lib/comment.ts:42-50`")).toEqual([
+      "src/entities/kifu/lib/comment.ts",
+    ]);
+    expect(sourcePathsIn("`src/entities/kifu/lib/comment.ts#L42-L50`")).toEqual([
+      "src/entities/kifu/lib/comment.ts",
+    ]);
+  });
+
+  test("範囲つきでも実在しなければ missing に出る", () => {
+    expect(missingPaths(sourcePathsIn("`src/book/GONE.rs:1-2`"))).toEqual(["src/book/GONE.rs"]);
+  });
+
   // 地の文まで拾うと、説明のために書いたディレクトリ名で落ちる
   test("バッククォートの外は拾わない", () => {
     expect(sourcePathsIn("src/entities/kifu あたりに置く")).toEqual([]);
@@ -176,5 +202,38 @@ describe("lineNumberRefsIn", () => {
     ["バッククォートの外の bridge.rs:117", "囲まれていない"],
   ])("%s は拾わない（%s）", (markdown, _why) => {
     expect(lineNumberRefsIn(markdown)).toEqual([]);
+  });
+});
+
+describe("lineNumberRefsIn（版を固定した文書）", () => {
+  /**
+   * 上流の行番号は「識別子で指せ」の逃げ道が無いので、版ごと引くのが規約。
+   * **免除はこの木に無いファイルにだけ掛ける。**
+   */
+  const PIN = "このファイルが引く本家の行番号は、すべて `v9.40` 時点。\n\n";
+
+  test.each([
+    ["`book.cpp:355-357`", "上流の裸のファイル名"],
+    ["`source/misc.cpp:1677-1680`", "上流の起点つき"],
+  ])("%s は免除する（%s）", (markdown) => {
+    expect(lineNumberRefsIn(PIN + markdown)).toEqual([]);
+  });
+
+  /**
+   * **宣言は上流の綴りにしか効かない。** 形で判定すると、`README.md#L10` のような
+   * 起点直下のファイルや、`optional_number:42` のような裸の識別子まで通る
+   * ——どちらも1行足すだけで無言でずれる側で、この検査の存在理由そのもの。
+   */
+  test.each([
+    ["`AnalysisPaneHeader:84`", "拡張子の無い識別子"],
+    ["`optional_number:42`", "こちらの Rust の識別子"],
+    ["`README.md#L10`", "起点直下のファイル"],
+    ["`vite.config.ts:88`", "起点直下の設定"],
+    ["`src/entities/kifu/model/cursor.ts:42`", "起点から書いたパス"],
+    // **`LAYER` の枝を突く。** 実在しないので `resolvable` では拾えない ——
+    // この行が無いと、枝を「冗長」と読んで落としても緑のまま通る
+    ["`entities/kifu/model/GONE.ts:42`", "実在しないレイヤ相対のパス"],
+  ])("%s は宣言があっても拾う（%s）", (markdown) => {
+    expect(lineNumberRefsIn(PIN + markdown)).toHaveLength(1);
   });
 });

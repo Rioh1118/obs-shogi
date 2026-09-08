@@ -1,4 +1,5 @@
 import type { IndexUiState } from "../model/types";
+import { isIndexBusy } from "./indexState";
 
 /**
  * 索引がいまどういう具合か。**画面はこれで分岐する。**
@@ -52,7 +53,10 @@ export function indexHealth(index: IndexUiState): IndexHealth {
   // **走っている最中は、まずそう言う。** 読めない場所があっても、その間は
   // 「待てば増える」が先。ここを後ろにすると、構築中ずっと警告三角の
   // 「一部を読めていません」で止まり、**利用者は待てば直るものを直しに行く**
-  if (index.state === "Restoring" || index.state === "Building" || index.state === "Updating") {
+  //
+  // **段を or で並べない**（理由は `isIndexBusy`）。並べると段が1つ増えた日に
+  // 黙って「動いていない」側へ落ち、その回の具合は `Ready` と同じ枝を通る
+  if (isIndexBusy(index.state)) {
     return "building";
   }
   // 差を読むのは `Ready` の回だけ。進行中は数が揃っていないのが当たり前

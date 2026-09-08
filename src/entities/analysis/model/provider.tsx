@@ -38,7 +38,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const clearFlushTimer = useCallback(() => {
     if (flushTimerRef.current != null) {
-      window.clearTimeout(flushTimerRef.current);
+      clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
   }, []);
@@ -111,12 +111,34 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return true;
   };
 
+  // **`window` を通さない。** ここはタイマーのコールバックからも、畳んだ後の
+  // 後始末からも呼ばれる。テスト環境は畳んだ後に `window` を落とすので、
+  // そこで参照すると**テストが1本も失敗していないのに実行そのものが落ちる**。
+  // `clearTimeout` はブラウザにも Node にもある。
   const clearDebounceTimer = () => {
     if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current);
+      clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
   };
+
+  const unmountedRef = useRef(false);
+
+  // 畳まれたら再開のタイマーを必ず止める。局面を見る effect の cleanup だけでは
+  // 足りない——早期 return を踏んだ回は cleanup を登録しないので、その回に
+  // 張られた分を止める者が残らない。残ると、居ない画面のためにエンジンへ go を出し、
+  // window の消えたテスト環境ではタイマー自身が投げる。
+  useEffect(() => {
+    // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
+    // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
+    // 以降タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
+    unmountedRef.current = false;
+
+    return () => {
+      unmountedRef.current = true;
+      clearDebounceTimer();
+    };
+  }, []);
 
   // === Event listeners ===
   useEffect(() => {
@@ -168,7 +190,20 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [safeUnlisten, scheduleFlush, clearFlushTimer, flushLatest]);
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
+
+  // 再開のタイマーを張る口をここ1つにする。畳まれた後に張ると、それを止める
+  // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
+  const scheduleRestart = useCallback((seq: number, delayMs: number) => {
+    if (unmountedRef.current) return;
+    debounceTimerRef.current = window.setTimeout(() => {
+      runRestartRef.current(seq);
+    }, delayMs);
+  }, []);
+
   runRestartRef.current = (seq: number) => {
+    // **畳まれていたら何もしない。** 張る側（`scheduleRestart`）は見ているが、
+    // 張った後に畳まれた回はここへ来る。
+    if (unmountedRef.current) return;
     if (restartSeqRef.current !== seq) return;
     if (!analyzingRef.current) return;
     if (!isReady) return;
@@ -202,9 +237,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       }
 
       clearDebounceTimer();
-      debounceTimerRef.current = window.setTimeout(() => {
-        runRestartRef.current(seq);
-      }, 16);
+      scheduleRestart(seq, 16);
       return;
     }
 
@@ -229,6 +262,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         clearFlushTimer();
         latestResultRef.current = null;
+
+        // 停止の応答を待っている間に畳まれていることがある。ここで go を出すと、
+        // 誰も見ていない探索が走り、それを止める者もいない。
+        if (unmountedRef.current) return;
+
         const newSessionId = await startInfiniteAnalysisCore();
 
         dispatch({
@@ -251,9 +289,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           pendingAfterRef.current = false;
           const latestSeq = restartSeqRef.current;
           clearDebounceTimer();
-          debounceTimerRef.current = window.setTimeout(() => {
-            runRestartRef.current(latestSeq);
-          }, 0);
+          scheduleRestart(latestSeq, 0);
         }
       }
     })();
@@ -270,14 +306,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer();
     const seq = ++restartSeqRef.current;
 
-    debounceTimerRef.current = window.setTimeout(() => {
-      runRestartRef.current(seq);
-    }, RESTART_DEBOUNCE_MS);
+    scheduleRestart(seq, RESTART_DEBOUNCE_MS);
 
     return () => {
       clearDebounceTimer();
     };
-  }, [currentSfen, state.isAnalyzing, isReady]);
+  }, [currentSfen, state.isAnalyzing, isReady, scheduleRestart]);
 
   useEffect(() => {
     if (!state.isAnalyzing) return;
@@ -290,12 +324,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (lastAnalyzedSfenRef.current === want) return;
 
     if (!debounceTimerRef.current && !restartInFlightRef.current) {
-      const seq = restartSeqRef.current;
-      debounceTimerRef.current = window.setTimeout(() => {
-        runRestartRef.current(seq);
-      }, 0);
+      scheduleRestart(restartSeqRef.current, 0);
     }
-  }, [syncedSfen, state.isAnalyzing, isReady]);
+  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart]);
 
   const startInfiniteAnalysis = useCallback(async () => {
     if (!isReady) throw new Error("Engine not ready");

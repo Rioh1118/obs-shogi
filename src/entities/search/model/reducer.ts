@@ -1,6 +1,14 @@
 import type { RequestId } from "../api/ids";
 import type { Action, FilePathById, MergeFilesInput, SearchSession, SearchState } from "./types";
 
+/**
+ * `state.sessions` を落とすアクション。**この列挙はここが出典**——`sessions` を
+ * 消す `case` を足す人が、同じファイルで気づけるようにしておく。
+ * 消す側の手順（溜め場を閉じる → 置き場を捨てる → dispatch）は
+ * `model/provider.tsx` の `dropSearch` が持つ。
+ */
+export type DropSearchAction = Extract<Action, { type: "open_start" | "clear_search" }>;
+
 export const initialState: SearchState = {
   index: {
     state: "Empty",
@@ -130,7 +138,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
           partiallyUnreadable: p.partiallyUnreadable,
           indexedFiles: p.indexedFiles,
           totalFiles: p.totalFiles,
-          // Ready 到達時は doneFiles を totalFiles に揃える (C-M2 backstop)
+          // `Ready` に着いた回の `index_progress` が来ないことがあるので、ここで揃える
           doneFiles: isReady ? p.totalFiles : Math.min(state.index.doneFiles, p.totalFiles),
         },
       };
@@ -206,8 +214,10 @@ export function reducer(state: SearchState, action: Action): SearchState {
       };
     }
 
-    case "search_chunk": {
+    case "search_chunks": {
       const p = action.payload;
+      if (!p.chunks.length) return state;
+
       const sessions = ensureSession(state.sessions, p.requestId);
       const s = sessions[p.requestId]!;
       // chunk は配列のまま追加。フラット化は consumer 側で償却 O(n)
@@ -219,7 +229,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
           ...sessions,
           [p.requestId]: {
             ...s,
-            chunks: [...s.chunks, p.chunk],
+            chunks: [...s.chunks, ...p.chunks],
           },
         },
       };
@@ -245,15 +255,20 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_end": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.requestId);
-      const s = sessions[p.requestId]!;
+      // **無いセッションは作らない。** Rust は取り下げた検索でも終わりを emit するので
+      // （`search/query_service.rs` は `break` した後で必ず `EVT_SEARCH_END` を出す）、
+      // ここで作ると `clear_search` で捨てたセッションが**空のまま戻る**。
+      // 戻った側を消す口はもう無い——画面はその rid を忘れている
+      const s = state.sessions[p.requestId];
+      if (!s) return state;
+
       const isCurrent = state.currentRequestId === p.requestId;
 
       return {
         ...state,
         isSearching: isCurrent ? false : state.isSearching,
         sessions: {
-          ...sessions,
+          ...state.sessions,
           [p.requestId]: {
             ...s,
             isDone: true,
@@ -265,15 +280,17 @@ export function reducer(state: SearchState, action: Action): SearchState {
 
     case "search_error": {
       const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.requestId);
-      const s = sessions[p.requestId]!;
+      // 終わりと同じ。捨てたセッションを失敗の記録で作り直さない
+      const s = state.sessions[p.requestId];
+      if (!s) return state;
+
       const isCurrent = state.currentRequestId === p.requestId;
 
       return {
         ...state,
         isSearching: isCurrent ? false : state.isSearching,
         sessions: {
-          ...sessions,
+          ...state.sessions,
           [p.requestId]: {
             ...s,
             error: p.message,
@@ -285,7 +302,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
     }
 
     case "clear_search": {
-      // C-M4: rid 必須化。全削除は許可しない (他モーダル誤巻き込み防止)。
+      // rid を必須にする。全削除を許すと、別のモーダルが見ている検索まで巻き込む。
       const rid = action.payload.requestId;
       if (!state.sessions[rid]) return state;
 
