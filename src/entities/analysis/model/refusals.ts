@@ -1,4 +1,4 @@
-import type { EngineNotReadyReason } from "@/entities/engine";
+import type { EngineNotReadyReason, TerminalNotReadyReason } from "@/entities/engine";
 
 /**
  * 解析が利用者に返す断り。**枝ごとに1本ずつ持つ。**
@@ -71,9 +71,17 @@ export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません
  * **走っていた解析が切れた**こと。次の一手は同じでも、起きた事が違う。
  */
 export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}`;
-/** 解析の最中にエンジンの選択が外れた（→ ※5）。**起こし直し方ではなく、選び直しを案内する。** */
+/**
+ * 解析の最中に、起動に要る設定が組み立てられなくなった
+ * （→ `docs/state-transitions/analysis.md` の ※5）。
+ *
+ * **「選んでください」だけで終えない。** ここへ来る入口は選択が外れた回だけではなく、
+ * **選んだプリセットのエンジンや評価関数が空**の回もある（`entities/engine-presets` の
+ * `runtimeConfig`）。後者の人は今まさに選んだ直後なので、選び直しだけを案内すると
+ * 何度やっても変わらない。
+ */
 export const NO_ENGINE_WHILE_ANALYZING_MESSAGE =
-  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選んでください。";
+  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選び、エンジンと評価関数の場所を設定してください。";
 /** エンジンをまだ選んでいない。 */
 export const NO_ENGINE_SELECTED_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選んでください。";
@@ -89,23 +97,21 @@ export const RESTART_FAILED_MESSAGE = `解析を再開できませんでした�
 export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。アプリを起動し直してください。";
 
 /** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
-export const NOT_READY_REFUSALS: Record<EngineNotReadyReason, string> = {
+export const ON_START_REFUSALS: Record<EngineNotReadyReason, string> = {
   "no-engine": NO_ENGINE_SELECTED_MESSAGE,
   starting: ENGINE_STARTING_MESSAGE,
   failed: ENGINE_FAILED_MESSAGE,
 };
 
 /**
- * 走っている解析の最中に `isReady` が落ちたときの断り。**`null` は「待てば戻るので断たない」。**
+ * 走っている解析の最中にエンジンが**戻らなくなった**ときの断り。
  *
- * **不等号で書かない。** 理由が1つ増えたときに黙って「断たない」側へ落ちると、
- * 「解析中」の丸が回り続ける経路が1本、誰にも気づかれずに増える。表にしておけば
- * tsc が分類を迫る。**どの理由が戻ってくるかの出典は
- * `docs/state-transitions/engine.md` の ※7**——ここはその写しではなく、
- * 戻らない回に何と言うかだけを持つ。
+ * **鍵は終端の理由だけ**（`TerminalNotReadyReason`）。待てば戻る理由をここに書こうとすると
+ * tsc が落とすので、「断つ理由」の集合を写す必要が無い——**どれが戻るかを決めるのは
+ * engine 側**（`isRecoverableNotReady`。判断の全体は `docs/state-transitions/engine.md` の ※7）。
+ * 理由が1つ増えれば、engine で分類した結果としてこの表の過不足を tsc が指摘する。
  */
-export const WHILE_ANALYZING_REFUSALS: Record<EngineNotReadyReason, string | null> = {
+export const WHILE_ANALYZING_REFUSALS: Record<TerminalNotReadyReason, string> = {
   "no-engine": NO_ENGINE_WHILE_ANALYZING_MESSAGE,
-  starting: null,
   failed: ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
 };

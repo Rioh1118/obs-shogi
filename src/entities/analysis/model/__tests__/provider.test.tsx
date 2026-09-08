@@ -6,7 +6,7 @@ import { StrictMode, useEffect } from "react";
 import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
-import type { AnalysisResult, EngineNotReadyReason } from "@/entities/engine";
+import type { AnalysisResult, EngineReadiness } from "@/entities/engine";
 import {
   ENGINE_ERROR_MESSAGE,
   ENGINE_FAILED_MESSAGE,
@@ -37,13 +37,14 @@ vi.mock("@/entities/engine/api/tauri", () => ({
 }));
 // エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
 // 断りを枝ごとに見るテストはその理由を動かす。
-// **語彙を写さない。** 写すと、理由が1つ増えたときにここだけが古いまま緑で通る。
-let engine = {
-  isReady: true,
-  notReadyReason: null as EngineNotReadyReason | null,
-};
-vi.mock("@/entities/engine", () => ({
-  useEngine: () => ({ isReady: engine.isReady, notReadyReason: engine.notReadyReason }),
+//
+// **合併のまま持つ**（`EngineReadiness`）。2欄に割ると
+// `{ isReady: false, notReadyReason: null }` が tsc を通り、その回は断りの欄に
+// `undefined` が載ったまま解析が止まる——テストを書いた人はそれを「断りが立った」と読む。
+let engine: EngineReadiness = { isReady: true, notReadyReason: null };
+vi.mock("@/entities/engine", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useEngine: () => engine,
 }));
 
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
@@ -682,7 +683,7 @@ describe("AnalysisProvider の結果の照合", () => {
   });
 
   it(
-    "解析中に初期化が落ちて戻らないなら、止めて断り、候補手も落とす",
+    "解析中に初期化が落ちて戻らないなら、止めて断り、state の候補手も落とす",
     async () => {
       tauri = true;
       const view = mountAnalysis(adapter("P1", "P1"));
@@ -710,7 +711,9 @@ describe("AnalysisProvider の結果の照合", () => {
       expect(view.current.state.isAnalyzing).toBe(false);
       expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
 
-      // **死んだエンジンの読み筋を、いま見ている盤の下に残さない。**
+      // **死んだ席の読み筋を state に残さない。** 次の ▶ が最初の `info` を返すまで、
+      // それが現在の解析結果として扱われるため。**画面から消えるとは限らない**
+      // ——ペインは停止中に局面ごとのキャッシュを出す（→ `analysis.md` の ※5）。
       expect(view.current.state.candidates).toHaveLength(0);
 
       // もう無い席へは撃たない（→ ※12 / ※13）。撃つと起こし直した先へ裸の `stop` が書かれる。

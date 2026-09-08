@@ -31,14 +31,20 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **理由はここで決める。** `desiredRuntime` を見られるのはこの provider だけなので、
   // 解析側からは「選んでいない」と「起こし直している最中」を区別できない。
   //
-  // **`no-engine` は `desiredRuntime` の有無だけで決まる。** `phase` で割ると、
-  // 起こし直しの途中（下の effect が `idle` から起動し直す窓）まで「選んでいない」に
-  // 落ちる——**そこは待てば戻る**のに、読み手は戻らない側と見分けられなくなる
-  // （解析側は理由で解析を打ち切るかを決める → `docs/state-transitions/analysis.md` の ※5）。
-  // 逆に `desiredRuntime` が無い回は、下の effect が `shutdown` して降りるだけで
-  // 起動し直す口が1つも無いので、選び直すまで戻らない。
-  const notReadyReason: EngineNotReadyReason =
-    state.phase === "error" ? "failed" : desiredRuntime ? "starting" : "no-engine";
+  // **`desiredRuntime` の有無を先に見る。** 無ければ、下の effect は `shutdown` して
+  // 降りるだけで起動し直す口が1つも無い——`phase` が何であれ戻らないし、
+  // 起こし直し方を案内しても**起こす対象が選ばれていない**。
+  //
+  // 残りを `phase` で割る。`error` は同じ設定では再トライしない（→ ※5）ので戻らず、
+  // それ以外は必ずどこかの枝が起動し直す。**`idle` を「選んでいない」に落とさない**
+  // ——起こし直しの途中（下の effect が `idle` から拾い直す窓）がそこへ来るので、
+  // 落とすと読み手が「待てば戻る」を見分けられなくなる
+  // （解析側は理由で打ち切るかを決める → `docs/state-transitions/analysis.md` の ※5）。
+  const notReadyReason: EngineNotReadyReason = !desiredRuntime
+    ? "no-engine"
+    : state.phase === "error"
+      ? "failed"
+      : "starting";
 
   // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
   // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。

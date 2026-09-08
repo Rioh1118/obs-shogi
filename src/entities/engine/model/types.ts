@@ -41,12 +41,38 @@ export type EngineAction =
  * もう一度同じ指示を受ける。
  */
 export type EngineNotReadyReason =
-  /** まだ選んでいない（または設定が読めていない） */
+  /**
+   * 起動に要る設定が組み立てられない。**選んでいないとは限らない**——
+   * 選んだプリセットのエンジンや評価関数が空でもここ（`entities/engine-presets` の `runtimeConfig`）。
+   */
   | "no-engine"
   /** 起動中。**起こし直している最中もここ**（`phase` は `ready` のまま） */
   | "starting"
   /** 初期化が落ちている */
   | "failed";
+
+/**
+ * **待てば戻る理由。** 読み手はこれで「待つか、諦めるか」を決める
+ * ——走っている解析を打ち切るかどうかがこれで変わる
+ * （`docs/state-transitions/analysis.md` の ※5）。
+ *
+ * **この分類は engine が持つ。** 戻るかどうかを決めているのは engine の effect
+ * （どの `phase` から起動し直す口が在るか）なので、読み手側に置くと、engine を
+ * 変えた人の手元では何も赤くならない。判断の全体は
+ * `docs/state-transitions/engine.md` の ※7。
+ */
+export const RECOVERABLE_NOT_READY_REASONS = ["starting"] as const;
+
+/** 待てば戻る理由 */
+export type RecoverableNotReadyReason = (typeof RECOVERABLE_NOT_READY_REASONS)[number];
+/** 待っても戻らない理由。**読み手はここで諦める。** */
+export type TerminalNotReadyReason = Exclude<EngineNotReadyReason, RecoverableNotReadyReason>;
+
+/** 待てば戻るか。**`false` に絞り込むので、呼び手は終端の理由だけを扱える。** */
+export const isRecoverableNotReady = (
+  reason: EngineNotReadyReason,
+): reason is RecoverableNotReadyReason =>
+  (RECOVERABLE_NOT_READY_REASONS as readonly EngineNotReadyReason[]).includes(reason);
 
 /**
  * **「使えないなら理由が在る」を型で持つ。** 2つの欄を独立に持つと、呼び手は

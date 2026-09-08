@@ -7,7 +7,12 @@ import {
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
 import { analysisReducer, initialState } from "./reducer";
-import { useEngine, type AnalysisResult, type EngineReadiness } from "@/entities/engine";
+import {
+  useEngine,
+  isRecoverableNotReady,
+  type AnalysisResult,
+  type EngineReadiness,
+} from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
@@ -15,7 +20,7 @@ import {
   ENGINE_ERROR_MESSAGE,
   WHILE_ANALYZING_REFUSALS,
   LISTENERS_FAILED_MESSAGE,
-  NOT_READY_REFUSALS,
+  ON_START_REFUSALS,
   POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RELEASE_FAILED_MESSAGE,
@@ -626,25 +631,26 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   //
   // 上の effect は席と投げ済みの印を捨てるだけで `isAnalyzing` には触らない——戻ってくる回に
   // 張り直すため。戻ってこない回をそのまま置くと「解析中」の丸とタイマーが回り続ける。
-  // **どの理由が戻ってくるかは表が持つ**（`WHILE_ANALYZING_REFUSALS`。判断の全体は
+  // **戻るかどうかを決めるのは engine 側**（`isRecoverableNotReady`。判断の全体は
   // `docs/state-transitions/analysis.md` の ※5）。
   useEffect(() => {
     if (isReady) return;
     if (!state.isAnalyzing) return;
-
-    const refusal = WHILE_ANALYZING_REFUSALS[notReadyReason];
-    if (refusal === null) return;
+    if (isRecoverableNotReady(notReadyReason)) return;
 
     // **世代を先に上げる。** 上げないと、飛んでいる再開が自分の門を素通りして
     // `takeSeatAndGo` へ入り、その先頭の `clear_results` がいま立てた断りを黙って消す。
     supersedeRequests();
 
-    // **反映待ちの下書きも落とす。** 落とさないと、間引きのタイマーが後から起きて
-    // 死んだエンジンの最後の1本を `candidates` へ戻す。
+    // **既に出ている候補手を落とす。** 残すと、次の ▶ が最初の `info` を返すまで、
+    // 死んだ席の読み筋が現在の解析結果として扱われる（`start_analysis` は
+    // `analyzedSfen` だけを差し替える）。**画面から消えるとは限らない**
+    // ——ペインは停止中に局面ごとのキャッシュを出す（→ ※5）。
+    //
     // **`clear_results` は `error` も消す**ので、断りより先に撃つこと。
     discardShownResults();
 
-    dispatch({ type: "set_error", payload: refusal });
+    dispatch({ type: "set_error", payload: WHILE_ANALYZING_REFUSALS[notReadyReason] });
     dispatch({ type: "stop_analysis" });
   }, [isReady, notReadyReason, state.isAnalyzing, discardShownResults, supersedeRequests]);
 
@@ -732,7 +738,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // ここは**いちばん踏まれる枝**。理由は engine 側が決める（`desiredRuntime` を
     // 見られるのはあちらだけ）。`isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
-      failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
+      failStart(ON_START_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
     // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
@@ -780,7 +786,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         const engine = readinessRef.current;
         if (!engine.isReady) {
           failStart(
-            NOT_READY_REFUSALS[engine.notReadyReason],
+            ON_START_REFUSALS[engine.notReadyReason],
             new Error("engine went away while syncing"),
           );
         }

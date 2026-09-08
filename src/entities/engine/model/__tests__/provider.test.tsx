@@ -114,9 +114,39 @@ describe("EngineProvider が立てる理由", () => {
     await view.setRuntime(runtime({ Threads: "4" }));
     await view.settle();
 
+    // **起動し直すのは `idle` の枝。** その枝を消すと `initialize` は1回で止まる。
     expect(view.reasons.slice(2)).toEqual(["starting", null]);
-    expect(view.reasons).not.toContain("no-engine");
     expect(initialize).toHaveBeenCalledTimes(2);
+  });
+
+  it("選択が外れていれば、初期化に失敗していても no-engine", async () => {
+    initialize.mockRejectedValue(new Error("boom"));
+
+    const view = mountEngine(runtime());
+    await view.settle();
+    await view.settle();
+    expect(view.reasons[view.reasons.length - 1]).toBe("failed");
+
+    // **`desiredRuntime` の有無を先に見る。** `failed` を先に見ると、この窓で
+    // 「オプションを変えて保存してください」と案内することになる
+    // ——**変える対象のプリセットが選ばれていない。**
+    // `shutdown` を長引かせて窓を開けたまま観測する。
+    let finishShutdown: () => void = () => {};
+    shutdown.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishShutdown = resolve;
+        }),
+    );
+    await view.setRuntime(null);
+
+    expect(view.reasons[view.reasons.length - 1]).toBe("no-engine");
+
+    await act(async () => {
+      finishShutdown();
+    });
+    await view.settle();
+    expect(view.reasons[view.reasons.length - 1]).toBe("no-engine");
   });
 
   it("選択が外れたら no-engine で止まり、起動し直す口が無い", async () => {
