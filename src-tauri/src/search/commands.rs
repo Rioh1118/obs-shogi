@@ -4,13 +4,13 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use tauri::{AppHandle, State};
 
-use crate::search::message::ScreenMessage;
 use crate::search::announce::{
     announce_progress, announce_state, scan_failure, warn_scan_failed, warn_unreadable,
     IndexAnnouncement, IndexProgress, IndexSurvival,
 };
 use crate::search::build::{build_full_index_task, FullBuild};
 use crate::search::cache::format;
+use crate::search::message::ScreenMessage;
 use crate::search::read::fs_scan::{scan_kifu_files, ScanError, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
