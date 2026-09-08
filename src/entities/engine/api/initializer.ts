@@ -14,7 +14,9 @@ import { shutdownEngine } from "./tauri";
  * - **`shutdown` は飛んでいる起動の決着を待ってから畳む。** 待っている間に
  *   次の起動が始まっていたら、**畳みは撃たない**——Rust の `shutdown` は
  *   そのとき載っているプロセスを落とすので、撃つと後から起きたエンジンを殺す
- * - 畳み損ねても例外にしない。呼び手は失敗の有無で分岐しない
+ * - **畳みの失敗は呼び手へ投げる。** `shutdown_engine` は `Err` を返しうるので
+ *   `shutdown()` は reject する。`EngineProvider` の `restart()` はそこで切れ、
+ *   起こし直すのは effect の `idle` の枝（→ `docs/state-transitions/engine.md` の ※3）
  */
 export interface EngineInitializer {
   initialize(runtime: EngineRuntimeConfig): Promise<EngineInfo>;

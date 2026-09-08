@@ -30,6 +30,27 @@ function listedChecks(): string[] {
 
   expect(section, "CONTRIBUTING.md の「機械で止めているもの」の節が見つからない").not.toBeNull();
 
+  // **表が空行で割れていないこと。** GFM は空行で表を終えるので、途中に1本入ると
+  // それ以降は区切り行を持たない生テキストになり、**索引の後ろ半分が読めなくなる**。
+  // 行単位で名前を拾う下の走査は空行を跨ぐので、ここで別に見る（実際に起きた）。
+  //
+  // 見るのは「**空行の直後に始まる `|` の並びは、2行目が区切り行**」だけ
+  // ——節の中に表が複数あってもよい形にしてある。
+  const rows = section![1].split("\n");
+  const orphans = rows
+    .map((line, i) => ({ line, i }))
+    .filter(
+      ({ line, i }) =>
+        line.startsWith("|") &&
+        (i === 0 || rows[i - 1].trim() === "") &&
+        !/^\|\s*-{3,}/.test(rows[i + 1] ?? ""),
+    )
+    .map(({ line }) => line.slice(0, 40));
+  expect(
+    orphans,
+    "CONTRIBUTING.md の索引で表が空行に割られている。そこで表が終わり、以降が読めなくなる",
+  ).toEqual([]);
+
   return [...section![1].matchAll(ROW)].map((m) => m[1]).sort();
 }
 

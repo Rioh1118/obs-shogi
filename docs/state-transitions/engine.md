@@ -65,8 +65,10 @@
 → **未検証。この窓を踏むテストは無い**（`startGate.test.tsx` が同じファイルを
 本物で通しているので、足すならそこ）。実機で踏めるかは未確認
 
-※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で必ず走る**
-（`provider.tsx`）。フロントは S0（未起動）になるが、Rust のプロセスは残りうる。
+※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で撃つ**
+（`provider.tsx`）。**ただし世代の門を通ったときだけ**——追い越された畳み
+（飛んでいる起動を待っている間に次が起き切った回）は撃たないので、そこは S0 へ落ちない。
+撃った回のフロントは S0（未起動）になるが、Rust のプロセスは残りうる。
 呼び出し元は `shutdown().catch(() => {})`（`provider.tsx`）なので**誰にも届かない**。
 issue #120 と同型の行き止まり
 → [failure-surfacing.md](failure-surfacing.md) F-8
@@ -126,10 +128,10 @@ issue #120 と同型の行き止まり
 **待ちの上限をここに数え上げない**——出典は
 [analysis.md](analysis.md) の不変条件2。
 
-**畳めなかったことは `failed` として出ない。** 根拠は畳む側の戻り値ではなく、
-`provider.tsx` の `shutdown` が **`finally` で必ず `idle` へ落とす**こと
-——将来 `EngineAnalyzer::shutdown` が `Err` を返すようになっても結論は動かない。
-そこから effect の `idle` の枝が起こし直す。**残ったプロセスの話は ※3 / F-8 の管轄**で、
+**畳めなかったことは `failed` として出ない。** 根拠は畳む側の戻り値でも `finally` でもなく、
+**`phase: "error"` を立てる action が `initialize_error` しか無い**こと（`model/reducer.ts`）
+——畳みの経路にその口が無いので、将来 `EngineAnalyzer::shutdown` が `Err` を返すようになっても、
+畳みの `dispatch` に門が増えても結論は動かない。**残ったプロセスの話は ※3 / F-8 の管轄**で、
 この理由の分類とは別。
 
 `starting` がいつか `ready` か `failed` へ動くことを、**フロント側だけでは保証しない。**
@@ -142,7 +144,8 @@ issue #120 と同型の行き止まり
 理由を決める側も起動し直す effect もその値を読む。**effect の中で呼び直さない**
 ——`lastTriedRef` の更新は再描画を起こさないので、呼んだ時点によって答えが割れる。
 
-分類は `entities/engine/model/types.ts` の `isRecoverableNotReady` が持ち、
+分類は `entities/engine/lib/notReadyReason.ts` の `isRecoverableNotReady` が持ち、
+集合そのもの（`RECOVERABLE_NOT_READY_REASONS`）は `Exclude` の導出元として `model/types.ts` に残る。
 理由の並びは `src/entities/engine/model/__tests__/provider.test.tsx` が固定している。
 **どちらも `engineInitializer` を差し替えた回で、実プロセスでは未確認。**
 
@@ -156,7 +159,7 @@ issue #120 と同型の行き止まり
 
 ## 埋まっていないセル
 
-- `(S1, E3)` 起動中の runtime 切替（※2）。**`initializer.ts` にテストが無い**
+- `(S1, E3)` 起動中の runtime 切替（※2）。**この窓を踏むテストは無い**（下の `initializer.ts` の行へ）
 - `(S3, E4)` 失敗した状態で同じ runtime が入り直す回（※5）。`provider.test.tsx` が見ているのは
   「落ちた後そのまま放置しても再トライしない」ことだけで、**等値な別オブジェクトを
   入れ直す回は未検証**（踏めているのは S2 側の同じ形）
@@ -168,14 +171,15 @@ issue #120 と同型の行き止まり
   踏んでいる（`equalRuntime` が中身で比べていなければ落ちる）。
   **見ていないのは `phase` の値そのもの**——理由は `phase` の写しではないので、
   並びが合っていても `phase` が合っている根拠にならない——と、`equalRuntime` が
-  **どの欄**を比べるか（単体テストが無い）
+  **どの欄**を比べるか（`lib/__tests__/equalRuntime.test.ts` が欄ごとに当てている）
 - **`startGate.test.tsx` だけは `engineInitializer` を差し替えず、本物を通す**
   （差し替えるのは IPC の4つ）。踏んでいるのは、起動を待っている間に設定が2度外れて
   戻る窓——**※7 の「`starting` は必ず `ready` か `failed` へ動く」は、この門が
-  世代ごとに降りることに依っている。** 見ているのは世代の門2つ（`shutdown` の
-  `dispatch` と、`initializer` の IPC）だけで、**`initialize` 側の世代照合と、
-  両者の `finally` の同一性判定は潰しても赤くならない**——防御として置いてあり、
-  観測できる差を作る筋は見つかっていない
+  世代ごとに降りることに依っている。** 見ているのは世代の門4つ（`shutdown` の
+  `dispatch`、`initializer` の IPC、`initialize` の成功側と失敗側）。
+  **観測できていないのは両者の `finally` の同一性判定だけ**——潰しても赤くならない。
+  門が開いた先で `initialize` を撃つ者が居ない（`phase` が `initializing` の間、
+  effect はどの枝にも入らない）ため、外から見える結末が変わる列を組めていない
 - **`initializer.ts` の ※2 の窓**（飛んでいる起動の最中に別の runtime で `initialize`
   を呼ぶと、前の起動の結果が新しい runtime のものとして記録される）は誰も踏んでいない。
   足すなら `startGate.test.tsx` の構えがそのまま使える

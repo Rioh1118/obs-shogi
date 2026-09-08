@@ -89,6 +89,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const readinessRef = useRef<EngineReadiness>(readiness);
 
+  // **この4本（`readinessRef` / `syncedSfenRef` / `currentSfenRef` / `analyzingRef`）は
+  // effect で更新する。** 描画中に代入するほうがこのリポジトリの多数派
+  // （`entities/engine` の `desiredRuntimeRef` ほか）だが、ここは揃えない——
+  // `readinessRef` と `seat.onEngineGone()` が**どちらも effect なので同じ commit の中で
+  // 宣言順に決まる**ことに、`takeSeatAndGo` の `landed === "engine-gone"` の枝が乗っている。
+  // 片方だけ描画中へ上げると、その順序が黙って壊れる。
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
   // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
@@ -394,23 +400,26 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   // 再開のタイマーを張る口をここ1つにする。畳まれた後に張ると、それを止める
   // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
-  const scheduleRestart = useCallback((seq: number, delayMs: number) => {
-    if (unmountedRef.current) return;
+  const scheduleRestart = useCallback(
+    (seq: number, delayMs: number) => {
+      if (unmountedRef.current) return;
 
-    // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
-    // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
-    // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
-    // `take_session` に断られる（利用者はボタンを1つも押していない）。
-    clearDebounceTimer();
+      // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
+      // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
+      // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
+      // `take_session` に断られる（利用者はボタンを1つも押していない）。
+      clearDebounceTimer();
 
-    debounceTimerRef.current = window.setTimeout(() => {
-      // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
-      // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
-      // 間引きのタイマーが同じ形をしている。
-      debounceTimerRef.current = null;
-      runRestartRef.current(seq);
-    }, delayMs);
-  }, [clearDebounceTimer]);
+      debounceTimerRef.current = window.setTimeout(() => {
+        // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
+        // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
+        // 間引きのタイマーが同じ形をしている。
+        debounceTimerRef.current = null;
+        runRestartRef.current(seq);
+      }, delayMs);
+    },
+    [clearDebounceTimer],
+  );
 
   /**
    * エンジンが望みの局面に追いつくのを、刻みながら待つ。**追いつかなければ打ち切る。**
@@ -654,7 +663,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (isRestartScheduled()) return;
 
     scheduleRestart(restartSeqRef.current, 0);
-  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting, isRestartScheduled]);
+  }, [
+    syncedSfen,
+    state.isAnalyzing,
+    isReady,
+    scheduleRestart,
+    bookIfRestarting,
+    isRestartScheduled,
+  ]);
 
   // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
   // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
