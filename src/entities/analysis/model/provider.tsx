@@ -245,7 +245,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 要求がここへ入ると直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
-    async (seq: number, sfen: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
+    async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
       results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
@@ -272,13 +272,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         return landed;
       }
 
-      dispatch({ type: "start_analysis", payload: { sfen } });
+      dispatch({ type: "start_analysis", payload: { sfen: want } });
 
       // **開始の応答より早く届いた `info` を、ここで出し直す**（理由は
       // `ResultFlush.schedule` の doc）。
       results.schedule();
 
-      sentSfenRef.current = sfen;
+      sentSfenRef.current = want;
       return "held";
     },
     [results, dropPendingForLostSeat, seat, supersededSince],
@@ -796,8 +796,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!(await sendAndAwaitSync(seq))) return;
 
     // 待ち切った局面で始める。押した瞬間の局面とは違うことがある。
-    const started = currentSfenRef.current;
-    if (!started) return;
+    const want = currentSfenRef.current;
+    if (!want) return;
 
     // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
     // 席が返ってから `landed` が握るか捨てるかを決めるまでの微小タスクが1つ増える
@@ -805,7 +805,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 畳まれた後に席を返す側が間に合わなくなる。
     let landed: SeatTakeResult = "superseded";
     try {
-      landed = await takeSeatAndGo(seq, started, "late-start");
+      landed = await takeSeatAndGo(seq, want, "late-start");
     } catch (e) {
       // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
@@ -829,7 +829,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
     if (landed !== "held") return;
 
-    desiredSfenRef.current = started;
+    desiredSfenRef.current = want;
   }, [
     state.isAnalyzing,
     refuseIfCannotStart,
