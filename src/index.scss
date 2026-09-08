@@ -153,6 +153,14 @@ $sidebar-width: 23%;
 // 値を動かすぶんには揃って動くが、どれか1つだけ直値に書き換えると境がずれて
 // ウィンドウを掴めなくなる
 $titlebar-height: 2.6rem;
+// 帯に並ぶ丸ボタンの大きさ。**帯と同じ理由でここに置く** —— `.titlebar` と
+// `.root-error-fallback__chrome` が同じボタンを別々に描くので、片方だけ動くと
+// 落ちたときにだけ大きさが変わる
+$window-button-size: 1.2rem;
+$window-button-padding: 0.14rem;
+// 帯の塗り。**半透明のまま共有する** —— 不透明にすると、下に何が居るかで
+// 平常時（作業面の上）と落ちたとき（`$color-primary-black` の上）で見え方が割れる
+$surface-titlebar: rgba($color-primary-black, 0.86);
 // 付箋（`FloatingNote`）のヘッダ。高さがタイトルバーと揃うのは意匠で、従属ではない。
 // 利用者が1つしか無いのにここに置くのは、コンポーネント側のローカル変数に下ろすと
 // `scssScaleRatchet` の `indirect` が増えて落ちるため。
