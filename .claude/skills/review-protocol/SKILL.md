@@ -35,8 +35,9 @@ user-invocable: false
 
 ## このプロジェクトの実態
 
-- 検証は `npm run verify`（tsc + oxlint + vitest、約8秒）と
-  `npm run verify:rust`（fmt + clippy + test、約2分15秒）
+- 検証は `npm run verify`（tsc + oxlint + vitest + 未使用 export のラチェット）と
+  `npm run verify:rust`（fmt + clippy + test + rustdoc のラチェット）。
+  **所要時間をここに書かない**（`CLAUDE.md`）
 - **テストの件数をここに書かない**（`CLAUDE.md`）。現在値は `npm run test` と `cargo test` の末尾。
   ただし**あることを理由に「テストが通るので安全」と書かない。**
   `src-tauri/tests/` の大半はソースを走査するラチェットで、振る舞いを見ていない
