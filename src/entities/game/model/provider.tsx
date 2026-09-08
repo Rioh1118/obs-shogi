@@ -307,40 +307,37 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
-  const loadGame = useCallback(
-    async (jkf: JKFData, absPath: string | null): AsyncResult<void, string> => {
-      try {
-        dispatch({ type: "clear_error" });
-        dispatch({ type: "write_started", payload: { blocking: true } });
+  const loadGame = useCallback(async (jkf: JKFData, absPath: string): AsyncResult<void, string> => {
+    try {
+      dispatch({ type: "clear_error" });
+      dispatch({ type: "write_started", payload: { blocking: true } });
 
-        const nextJkf = cloneJkf(jkf);
+      const nextJkf = cloneJkf(jkf);
 
-        // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
-        // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
-        // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
-        // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
-        // `cursorView` の catch で盤が黙って空になる。
-        buildPlayer(nextJkf, ROOT_CURSOR);
+      // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
+      // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
+      // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
+      // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
+      // `cursorView` の catch で盤が黙って空になる。
+      buildPlayer(nextJkf, ROOT_CURSOR);
 
-        dispatch({
-          type: "game_loaded",
-          payload: { jkf: nextJkf, absPath, cursor: ROOT_CURSOR },
-        });
-        return Ok(undefined);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to load game";
-        dispatch({ type: "set_error", payload: msg });
-        // **宛先も残す。** `error` は文字列なのでどのファイルの失敗か分からず、
-        // その棋譜が載るのを待っている側（`usePositionHitNavigation`）が
-        // 要求を捨てられない
-        dispatch({ type: "load_failed", payload: { absPath } });
-        return Err(msg);
-      } finally {
-        dispatch({ type: "write_ended", payload: { blocking: true } });
-      }
-    },
-    [],
-  );
+      dispatch({
+        type: "game_loaded",
+        payload: { jkf: nextJkf, absPath, cursor: ROOT_CURSOR },
+      });
+      return Ok(undefined);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load game";
+      dispatch({ type: "set_error", payload: msg });
+      // **宛先も残す。** `error` は文字列なのでどのファイルの失敗か分からず、
+      // その棋譜が載るのを待っている側（`usePositionHitNavigation`）が
+      // 要求を捨てられない
+      dispatch({ type: "load_failed", payload: { absPath } });
+      return Err(msg);
+    } finally {
+      dispatch({ type: "write_ended", payload: { blocking: true } });
+    }
+  }, []);
 
   const resetGame = useCallback(() => {
     dispatch({ type: "reset_state" });

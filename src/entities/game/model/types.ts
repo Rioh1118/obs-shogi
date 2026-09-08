@@ -115,7 +115,7 @@ export type GameAction =
       type: "game_loaded";
       payload: {
         jkf: JKFData;
-        absPath: string | null;
+        absPath: string;
         cursor: KifuCursor;
       };
     }
@@ -192,7 +192,7 @@ export type GameAction =
    */
   | {
       type: "load_failed";
-      payload: { absPath: string | null };
+      payload: { absPath: string };
     }
   // 書き込みが失敗したときの `set_error`。**待っている間に棋譜が別物に
   // なっていたら積まない**（`jkf_restored` の `expectedJkf` と同じ判定）。
@@ -263,7 +263,7 @@ export interface GameContextType {
    * ことを利用者に伝えるのはこの戻り値を読む側の仕事で、捨てると**盤も棋譜一覧も
    * 前の棋譜のまま、何も出ない**（`failure-surfacing.md` の F-31）。
    */
-  loadGame: (jkf: JKFData, absPath: string | null) => AsyncResult<void, string>;
+  loadGame: (jkf: JKFData, absPath: string) => AsyncResult<void, string>;
   resetGame: () => void;
 
   goToIndex: (index: number) => void;
