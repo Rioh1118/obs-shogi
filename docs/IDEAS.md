@@ -173,6 +173,31 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 オリジンが無いので**配布物では1本も読めない**。dev サーバには CSP が乗らないため
 開発中と字面が違う。体裁ではなく不具合なので issue にしてある。
 
+### 着手の合図は、もう過ぎている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（oss-hygiene）。
+上は「**Releases を人に配り始める回**が着手の合図」と書いているが、実測では
+v0.1.0（2026-02-27）から v0.2.1（2026-03-21）まで**9本が既に公開済み**で、
+README がそこへ利用者を誘導している。**帰属表示の判断は据え置けない。**
+
+同じラウンドで挙がった、上に無いもの。
+
+- **`CODE_OF_CONDUCT.md` に報告の連絡先が無い。** 「リポジトリ所有者に連絡」としか
+  書いておらず、GitHub に非公開 DM は無い。公開 issue を立てさせるのは同じ文書の
+  「報告者の身元は秘匿されます」と矛盾する。`SECURITY.md` の窓口を流用できる
+- **CI が `verify` と同じものを走らせていない。** `test:hooks` と `ratchet:rustdoc` が
+  抜けているので、`CONTRIBUTING.md` が「手で流してください」と書いた2つは
+  誰も流さなければ緑のまま通る
+- **`docs/` に索引が無い。** 直下に運用の記録（`IDEAS` / `PREMISES` /
+  `OPEN-QUESTIONS` / `OPERATING-MODEL`）と利用者向け（`spec/`）が並び、
+  アルファベット順で最初に来るのが「やらないこと置き場」
+- **Rust の版が3箇所で違うことを言っている。** README と CONTRIBUTING は `stable`、
+  `rust-toolchain.toml` は固定、`Cargo.toml` の `rust-version` は雛形の既定値
+- **画面仕様2本が、`.gitignore` された `.claude/plans/` を設計の出典に挙げている。**
+  外部の人は辿れない
+- **`AGENTS.md` が `vp install` を指示している。** README / CONTRIBUTING は
+  `npm install` で、`vp` はグローバル導入が前提の綴り
+
 **ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
 時点で昇格すること。
 
@@ -248,3 +273,21 @@ r11 で `types.ts` をこのディレクトリに新設したので、次の書�
 プリセット編集ダイアログの中だけで使われるのに `model/` に在り、
 r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じるならその場に置く」と
 理由付きで名乗っている。どちらでも正当化できるので、散り始めると型を探す人が2箇所を見る。
+
+## 自動再開に、差の出る筋を組めていない門が2つある
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（react reviewer）。
+`provider.tsx` の追従 effect にある `bookIfRestarting()` と、`runRestart` の
+`sentSfenRef` の門。**3ラウンド続けて、落としても全テストが緑になる筋しか作れていない。**
+落とすのは危ない（差が無いことを示せていないだけで、無いことの証明ではない）が、
+「効いている」と読める根拠も無い。**#489 で自動再開の8本の ref を切り出す回に、
+機構ごと見直す対象として拾うこと。**
+
+## `useEngineSeat` の doc が、`analysis.md` ※12 と同じ知識を二重に持っている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（comment reviewer）。
+`shootQuietly` の「落ちても利用者には出せない」の枝の列挙と `onEngineGone` の説明が、
+※12 の「どの失敗で席が本当に残るか」と重なる。そのファイル自身が4箇所で
+「理由は ※12 に1つだけ置いてある」と名乗っているので、方針と現物がずれている。
+コメントとコードの比が 1.8:1 なのはその結果。**密度そのものは指標にしない**
+（削るべき行を名指しできないので）。出典を ※12 に寄せる作業として拾う。
