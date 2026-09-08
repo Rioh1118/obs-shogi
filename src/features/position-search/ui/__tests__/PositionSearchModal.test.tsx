@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { PositionHit } from "@/entities/search";
 
@@ -14,12 +15,15 @@ const closeModal = vi.fn();
 const startNavigationToHit = vi.fn();
 const resolveHitAbsPath = vi.fn();
 
+const SFEN_A = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1";
+const SFEN_B = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL w - 2";
+
+/** 検索する局面を試験の側から差し替える。撃ち直しの経路はこれでしか作れない */
+const urlParams = { modal: "position-search", sfen: SFEN_A };
+
 vi.mock("@/shared/lib/router/useURLParams", () => ({
   useURLParams: () => ({
-    params: {
-      modal: "position-search",
-      sfen: "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1",
-    },
+    params: urlParams,
     closeModal,
     openModal: vi.fn(),
     updateParams: vi.fn(),
@@ -40,6 +44,7 @@ vi.mock("@/entities/app-config", () => ({
 const REQUEST_ID = 1;
 const searchPosition = vi.fn();
 const cancelSearch = vi.fn();
+const clearSearch = vi.fn();
 
 // 差し替えるのは実体の側。barrel は再 export なので cursorFromLite は本物が通る
 //
@@ -56,6 +61,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
     getHitsByRequestId: (rid: number | null) => (rid == null ? [] : hitsState.current),
     isSearchingRequest: () => false,
     resolveHitAbsPath,
+    clearSearch,
   }),
 }));
 
@@ -63,12 +69,35 @@ vi.mock("@/features/position-search/lib/usePositionHitNavigation", () => ({
   usePositionHitNavigation: () => ({ startNavigationToHit }),
 }));
 
+/**
+ * `hitKey` が何回組まれたかを数える。**人の目では追えない**——1件は µs の単位で、
+ * 件数に比例して増えても画面には「重い」としか出ない。
+ */
+const hitKeyCalls = vi.fn();
+vi.mock("@/features/position-search/lib/hitKey", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/position-search/lib/hitKey")>();
+  return {
+    ...actual,
+    hitKey: (hit: PositionHit) => {
+      hitKeyCalls();
+      return actual.hitKey(hit);
+    },
+  };
+});
+
 // 見に来ているのは「閉じたか」だけ。盤・プレビュー・この先の手は他のテストが見る
 vi.mock("@/shared/ui/Modal", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@/entities/position/ui/PositionPreviewPane", () => ({ default: () => null }));
-vi.mock("../PositionSearchContinuation", () => ({ default: () => null }));
+/** 「いまどの行が選ばれているか」を、描かれた回ごとに記録する */
+const seenActiveHits: (PositionHit | null)[] = [];
+vi.mock("../PositionSearchContinuation", () => ({
+  default: ({ activeHit }: { activeHit: PositionHit | null }) => {
+    seenActiveHits.push(activeHit);
+    return null;
+  },
+}));
 
 const { default: PositionSearchModal } = await import("../PositionSearchModal");
 
@@ -78,7 +107,7 @@ function hitAt(fileId: number, tesuu: number): PositionHit {
 
 const HITS = [hitAt(1, 20), hitAt(2, 30)];
 
-/** チャンクは後から届く。届くたびに一覧は並び替わる（`orderPositionHits`） */
+/** チャンクは後から届く。届くたびに一覧は並び替わる（`useOrderedPositionHits`） */
 const hitsState = { current: HITS };
 
 const NOTICE = "この棋譜を開けません";
@@ -90,19 +119,24 @@ function pressEnter() {
 
 /** 検索が解決してヒットが届くまで待つ。届く前は行が無いので Enter は何もしない */
 async function renderWithHits() {
-  render(<PositionSearchModal />);
+  const view = render(<PositionSearchModal />);
   await screen.findByRole("listbox");
+  return view;
 }
 
 beforeEach(() => {
   closeModal.mockReset();
   startNavigationToHit.mockReset();
   searchPosition.mockReset();
-  searchPosition.mockResolvedValue({ requestId: REQUEST_ID });
+  searchPosition.mockResolvedValue({ status: "started", requestId: REQUEST_ID });
   cancelSearch.mockReset();
+  clearSearch.mockReset();
   resolveHitAbsPath.mockReset();
   resolveHitAbsPath.mockImplementation((hit: PositionHit) => `/root/${hit.occ.fileId}.kif`);
   hitsState.current = HITS;
+  hitKeyCalls.mockReset();
+  seenActiveHits.length = 0;
+  urlParams.sfen = SFEN_A;
 });
 
 afterEach(() => cleanup());
@@ -160,7 +194,8 @@ describe("PositionSearchModal のヒットを開く", () => {
 
   /**
    * 断りは選んだ行に付く。並び替えで選択が滑ると、**利用者が何もしていないのに
-   * 断りが消える**。選択は添字でなく鍵で追う。
+   * 断りが消える**。断りは鍵（`hitKey`）で覚え、選択そのものは参照で追う
+   * （`docs/state-transitions/position-search-view.md`）。
    */
   test("チャンクが届いて並び替わっても、断りは押した行に付いたまま", async () => {
     startNavigationToHit.mockReturnValue("not-in-tree");
@@ -174,6 +209,204 @@ describe("PositionSearchModal のヒットを開く", () => {
     rerender(<PositionSearchModal />);
 
     expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+  });
+
+  /**
+   * 選択追従がヒット件数に比例した仕事をしないこと。
+   *
+   * 鍵の文字列で照合すると、選んだ行より前の全件ぶん `hitKey` を組み直す。
+   * 実測では n=100,000 で 24 秒（`.claude/reviews/2026-09-06-420-unopenable-position-hit-r2.md` H-5）。
+   * **チャンクが届くたびに起きる**ので、件数が増えるほど「何もしていないのに止まる」。
+   *
+   * 上限を定数で置くのが要点。ここが件数と一緒に増えてよいなら、
+   * どんな実装でも通ってしまう。
+   */
+  test("選んだ行が末尾へ動いても、追従は件数ぶんの鍵を組まない", async () => {
+    const { rerender } = await renderWithHits();
+
+    // 2件目を選ぶ。この後この行を末尾へ押しやる
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
+    hitKeyCalls.mockReset();
+
+    // チャンクが1つ届いて、選んだ行の前に500件割り込む
+    hitsState.current = [...Array.from({ length: 500 }, (_, i) => hitAt(100 + i, i)), ...HITS];
+    rerender(<PositionSearchModal />);
+
+    // 参照で追えば追従そのものは鍵を組まない。残るのは描画の断り判定ぶんだけ
+    expect(hitKeyCalls.mock.calls.length).toBeLessThanOrEqual(8);
+  });
+
+  /**
+   * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
+   * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB。
+   * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` D-1）。捨てる口
+   * （`clearSearch`）を呼ぶのはこの画面だけなので、呼ばないと**誰も呼ばない**。
+   */
+  test("画面を畳むとき、進行中の検索を取り下げたうえで結果も捨てる", async () => {
+    const { unmount } = await renderWithHits();
+
+    unmount();
+
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+  });
+
+  /**
+   * **rid が分かるのは invoke が解決してから。** それより先に畳まれると
+   * `discardSearch` は rid を知らないので、取り下げも破棄も飛ばない。素通りさせると
+   * Rust の検索は最後まで走り、閉じた画面が到着のたびに一覧を組み直し続ける
+   * （実測で n=100,000 のとき 19.4MB を抱える。
+   * `.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-3）
+   */
+  test("rid が分かる前に畳まれても、解決した側が取り下げて捨てる", async () => {
+    let settleLaunch!: (out: { status: "started"; requestId: number }) => void;
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => (settleLaunch = resolve as typeof settleLaunch)),
+    );
+
+    const { unmount } = render(<PositionSearchModal />);
+    unmount();
+
+    await act(async () => {
+      settleLaunch({ status: "started", requestId: REQUEST_ID });
+    });
+
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+  });
+
+  /**
+   * 一覧はチャンクが届くたびに並び替わる（開いている棋譜のヒットが先頭へ寄る）。
+   * 選んだ行の**添字と実体の両方を state に持つ**と、突き合わせが済むまでの1レンダで
+   * 利用者が選んでいない隣の行が選択として描かれる。その1フレームで行き先も
+   * 先読みも「続き5手」も別の棋譜を指し、Enter を押せばそちらへ移動する。
+   *
+   * 50ms ごとの吐き出しに乗るので、検索が続くあいだ最大 20回/秒 繰り返す
+   * （`.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-6）。
+   */
+  test("並び替えで選択行の添字が動いても、途中で別の行が選ばれない", async () => {
+    // fileId 99 だけが「いま開いている棋譜」。届くと先頭へ寄る
+    resolveHitAbsPath.mockImplementation((hit: PositionHit) =>
+      hit.occ.fileId === 99 ? "/root/a.kif" : `/root/${hit.occ.fileId}.kif`,
+    );
+
+    const { rerender } = await renderWithHits();
+
+    // 2件目（HITS[1]）を選ぶ
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
+    seenActiveHits.length = 0;
+
+    // チャンクが届き、開いている棋譜のヒットが先頭へ寄って添字が1つずれる
+    const sameFileHit = hitAt(99, 7);
+    hitsState.current = [...HITS, sameFileHit];
+    rerender(<PositionSearchModal />);
+
+    // 描かれた全レンダで、選ばれているのは利用者が選んだ行だけ
+    expect(seenActiveHits.every((h) => h === HITS[1])).toBe(true);
+    expect(seenActiveHits.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * 捨てた起動の後始末が、現に走っている起動の画面へ書き戻らないこと。
+   *
+   * `.then` だけに門を置くと `.finally` が素通りし、後から撃った検索の rid が
+   * まだ返っていない一瞬に `isLaunching` が落ちる。画面は「待機中 / 一致する棋譜が
+   * ありません」——**0件が完了として出る**（`search.md` が核心の欠陥と呼ぶ形）。
+   */
+  test("捨てた起動が解決しても、走っている起動は「検索中」のまま", async () => {
+    const settlers: ((out: { status: "started"; requestId: number }) => void)[] = [];
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => settlers.push(resolve as (typeof settlers)[number])),
+    );
+
+    // 起動A（invoke 保留）→ 局面が変わって撃ち直し（起動B、invoke 保留）
+    const { rerender } = render(<PositionSearchModal />);
+    urlParams.sfen = SFEN_B;
+    rerender(<PositionSearchModal />);
+    expect(settlers).toHaveLength(2);
+
+    // A がやっと解決する。B の rid はまだ返っていない
+    await act(async () => {
+      settlers[0]({ status: "started", requestId: 41 });
+    });
+
+    expect(screen.getByLabelText("局面検索").textContent).not.toContain("待機中");
+    expect(screen.queryByText("一致する棋譜がありません")).toBeNull();
+  });
+
+  /** 同じ経路の失敗側。捨てた起動の失敗が、走っている起動の画面に貼り付かないこと */
+  test("捨てた起動が失敗しても、走っている起動にエラーは出ない", async () => {
+    const rejecters: ((e: Error) => void)[] = [];
+    searchPosition.mockImplementation(
+      () => new Promise((_resolve, reject) => rejecters.push(reject as (typeof rejecters)[number])),
+    );
+
+    const { rerender } = render(<PositionSearchModal />);
+    urlParams.sfen = SFEN_B;
+    rerender(<PositionSearchModal />);
+
+    await act(async () => {
+      rejecters[0](new Error("search app handle not ready"));
+    });
+
+    // **到達しない文言を見ない。** 「検索に失敗しました」は一覧の空表示のもので、
+    // 起動Bが飛行中のこの場面では出ない。門を外したときに実際に出るのは
+    // 状況バーが素で描く理由の文字列
+    expect(screen.getByLabelText("局面検索").textContent).not.toContain(
+      "search app handle not ready",
+    );
+  });
+
+  /**
+   * 索引が開き直されて受け付けられなかった検索。**成功と同じ扱いにしない。**
+   *
+   * rid を採用すると、セッションの無い rid を握って
+   * 「待機中 / 一致する棋譜がありません」になる——0件が完了として出る形
+   * （`docs/state-transitions/search.md`）。しかも `lastQueryKeyRef` が埋まっている
+   * ので、同じ画面では撃ち直せない。
+   */
+  test("受け付けられなかった検索は、rid を採用せず撃ち直せる状態に戻る", async () => {
+    searchPosition.mockReset();
+    searchPosition.mockResolvedValueOnce({ status: "superseded" });
+    searchPosition.mockResolvedValue({ status: "started", requestId: REQUEST_ID });
+
+    const { rerender } = render(<PositionSearchModal />);
+    await act(async () => {});
+
+    // 0件で「待機中」に落ちていない
+    expect(screen.queryByText("一致する棋譜がありません")).toBeNull();
+
+    // 覚えている問い合わせが落ちているので、次のレンダで撃ち直せる
+    rerender(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+    expect(searchPosition).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * 畳んで張り直す経路（StrictMode の二重マウント）。世代を進める3つ目の口は
+   * 「進めるだけで撃ち直さない」ので、覚えている問い合わせを残すと張り直された
+   * effect が早期 return し、**飛行中の起動を降ろす者が居なくなる**。
+   * 検索は取り下げ済みなのに、画面は結果の来ない「検索中…」で固まる。
+   */
+  test("畳んで張り直されても、「検索中…」で固まらない", async () => {
+    const settlers: ((out: { status: "started"; requestId: number }) => void)[] = [];
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => settlers.push(resolve as (typeof settlers)[number])),
+    );
+
+    render(
+      <StrictMode>
+        <PositionSearchModal />
+      </StrictMode>,
+    );
+
+    // 1本目（畳まれた回）が後から解決する
+    await act(async () => {
+      settlers[0]({ status: "started", requestId: 41 });
+    });
+
+    // 張り直された側が撃ち直しているので、結果の来ない「検索中…」にはならない
+    expect(searchPosition.mock.calls.length).toBeGreaterThan(1);
   });
 
   test("別のヒットを選び直したら断りは引っ込む", async () => {

@@ -245,8 +245,8 @@ mod tests {
     /// そのまま信じ、`says_nothing` も `preset != PresetHirate` を通すので、
     /// **`{"initial":{"preset":"OTHER"}}` だけでここへ届く**。
     ///
-    /// `BuildError` の `Display` は呼び手の `map_err(|e| e.to_string())` を通って
-    /// `EVT_INDEX_WARN` に素のテキストで出る（`build.rs` / `project_manager.rs`）。
+    /// `BuildError` の `Display` は呼び手の `file_build` が `for_screen` に通して
+    /// `EVT_INDEX_WARN` へ流す（長さの扱いは `build_report` の `BuildError` の doc）。
     #[test]
     fn a_jkf_without_an_initial_board_fails_in_the_users_words() {
         // `preset: OTHER` は「盤面を書く」の意味なのに `data` が無い

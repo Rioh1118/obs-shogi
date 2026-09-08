@@ -22,7 +22,7 @@ export function Step3PlaceEngines({
 }: Props) {
   const desc =
     scanReady && enginesCount === 0
-      ? "エンジンが見つかりませんでした。engines/ を開いて実行ファイルを配置してからスキャンしてください。"
+      ? "エンジンが見つかりませんでした。engines/ の場所を表示するので、その中に実行ファイルを置いてからスキャンしてください。"
       : "YaneuraOu などのエンジン実行ファイルを engines/ に配置してください。配置後にスキャンします。";
 
   return (
