@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import {
   AppErrorFallbackAction,
   AppErrorFallbackBody,
-  type AppErrorFallbackView,
+  type AppErrorFallbackProps,
 } from "@/shared/ui/AppErrorBoundary";
 import "./RootErrorFallback.scss";
 
@@ -12,7 +12,7 @@ import "./RootErrorFallback.scss";
  * 境界が組んだ表示の材料をそのまま受ける。**欄を選び直さない** ——
  * 選ぶと、境界に書いたものが黙って捨てられる（この形なら、欄が増えたときに tsc が落とす）。
  */
-type Props = AppErrorFallbackView;
+type Props = AppErrorFallbackProps;
 
 /**
  * root の境界が最後に出す画面。

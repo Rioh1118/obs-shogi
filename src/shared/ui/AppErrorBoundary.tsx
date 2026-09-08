@@ -46,6 +46,8 @@ type Props = {
    * ここが無いと、押しても変わらないボタン1つだけが残る行き止まりになる。
    */
   hint?: ReactNode;
+  /** 「再表示」の隣に並べる出口。落ちる前から決まっている表現なので、境界が持てる */
+  extraActions?: ReactNode;
   children: ReactNode;
   /**
    * 既定の画面の代わりに描くもの。渡さなければ `AppErrorFallbackBody` が出る。
@@ -56,15 +58,15 @@ type Props = {
    *
    * `reset` は `error` を消すだけ。原因が境界の外にあるなら効かない（`resetKeys` を見ること）。
    *
-   * **受け取った `AppErrorFallbackView` を丸ごと `AppErrorFallbackBody` へ渡すこと。**
+   * **受け取った `AppErrorFallbackProps` を丸ごと `AppErrorFallbackBody` へ渡すこと。**
    * 欄を手で選び直すと、境界に書いたものが黙って捨てられる。型を1つにしてあるので、
    * スプレッドで渡していれば欄が増えても落とさない。
    *
-   * **`extraActions` と `afterAction` だけは境界から渡らない。** どちらも「出口を押した結果」に
-   * 依存していて、その state は fallback の中にしか無い（`RootErrorFallback` の `closeFailed`）。
+   * **`afterAction` だけは境界から渡らない。**「出口を押した結果」に依存していて、
+   * その state は fallback の中にしか無い（`RootErrorFallback` の `closeFailed`）。
    * 境界が持てるのは、落ちる前から決まっている表現だけ。
    */
-  fallback?: (view: AppErrorFallbackView) => ReactNode;
+  fallback?: (view: AppErrorFallbackProps) => ReactNode;
 };
 
 /**
@@ -74,7 +76,16 @@ type Props = {
  * 欄が増えたときに渡し忘れると tsc が落とす（JSX のスプレッドは余剰の欄を見ないが、
  * **足りない欄は見る**）。
  */
-export type AppErrorFallbackView = {
+export type AppErrorFallbackProps = {
+  /**
+   * 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す。
+   * `AppErrorFallbackAction` を並べること。
+   *
+   * `children` にしないのは、同じファイルの `AppErrorBoundary` の `children`（囲う対象）と
+   * 逆の意味になるため。`actions` にしないのは、`notification/Notice` の `actions` が
+   * **描画済みの要素ではなく `NotifyAction[]`（データ）**を指していて、形が違うため。
+   */
+  extraActions?: ReactNode;
   /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
   label: string;
   /**
@@ -168,11 +179,12 @@ export class AppErrorBoundary extends Component<Props, State> {
       // 閉じた浮かせ枠は何も描かない。子は畳んだままなので、原因を踏み直すこともない
       if (dismissed) return null;
 
-      const view: AppErrorFallbackView = {
+      const view: AppErrorFallbackProps = {
         label: this.props.label,
         error,
         hint: this.props.hint,
         floatingSlot: this.props.floatingSlot,
+        extraActions: this.props.extraActions,
         reset: this.reset,
         // 浮かせた枠だけが閉じられる。in-flow の器は閉じても隙間が残るだけで得が無い
         dismiss: this.props.floatingSlot === undefined ? undefined : this.dismiss,
@@ -201,16 +213,7 @@ export function AppErrorFallbackBody({
   dismiss,
   extraActions,
   afterAction,
-}: AppErrorFallbackView & {
-  /**
-   * 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す。
-   * `AppErrorFallbackAction` を並べること。
-   *
-   * `children` にしないのは、同じファイルの `AppErrorBoundary` の `children`（囲う対象）と
-   * 逆の意味になるため。`actions` にしないのは、`notification/Notice` の `actions` が
-   * **描画済みの要素ではなく `NotifyAction[]`（データ）**を指していて、形が違うため。
-   */
-  extraActions?: ReactNode;
+}: AppErrorFallbackProps & {
   /**
    * 出口を押した**結果**の知らせ。**出口の下に流れで置く**（重ねると出口を覆う）。
    *

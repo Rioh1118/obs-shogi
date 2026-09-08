@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useLocation } from "react-router";
 import { useFileTree } from "@/entities/file-tree";
 import { isRaisedFromModal } from "@/features/file-conflict/lib/isRaisedFromModal";
@@ -53,14 +53,25 @@ export default function AppModalLayer() {
   const { conflict, kifuError, closeConflict, clearKifuError } = useFileTree();
 
   /**
-   * 落ちた原因が「まだ立っている知らせ」そのものであることがある。
+   * まだ画面に出したい知らせが立っているか。
    *
-   * そのときは鍵が動いても直らない —— 解けた瞬間に同じ値をもう一度描いて落ちるので、
-   * **別のモーダルを開く操作が、そのまま行き止まりを踏む操作になる。**
-   * 原因を消す口（`clearKifuError` / `closeConflict`）は畳まれた側にしか無いので、
-   * 境界の**外**にいるここが出口を持つ。
+   * **立っている知らせそのものが落ちる原因のことがある。** そのときは鍵が動いても直らない
+   * —— 解けた瞬間に同じ値をもう一度描いて落ちるので、**別のモーダルを開く操作が、
+   * そのまま行き止まりを踏む操作になる。** 消す口（`clearKifuError` / `closeConflict`）は
+   * 畳まれた側にしか無いので、境界の**外**にいるここが出口を持つ。
    */
-  const stale = conflict !== null || kifuError !== null;
+  const hasStandingNotice = conflict !== null || kifuError !== null;
+
+  /**
+   * 出口が捨てるものは、知らせによって重さが違う。
+   *
+   * `kifuError` は**知らせるだけ**なので、捨てても失うのは説明だけ。
+   * `conflict` は**待っているファイル操作そのもの**（作成・取り込み・リネーム・移動の要求）で、
+   * 捨てるとその操作は実行されずに消える。だから綴りで「待っている操作」を名指しし、
+   * 押した結果は `afterAction` に出す
+   */
+  const dropLabel = conflict !== null ? "待っている操作を取り消す" : "知らせを閉じる";
+  const [dropped, setDropped] = useState<string | null>(null);
 
   return (
     <AppErrorBoundary
@@ -68,27 +79,32 @@ export default function AppModalLayer() {
       resetKeys={resetKeys}
       floatingSlot={0}
       hint={
-        stale
-          ? `出しかけの知らせが原因のことがあります。「知らせを取り消す」を押してから「${RETRY_LABEL}」を押してください。`
+        hasStandingNotice
+          ? `出しかけの知らせが原因のことがあります。「${dropLabel}」を押してから「${RETRY_LABEL}」を押してください。`
           : `別の操作からやり直してから「${RETRY_LABEL}」を押してください。`
+      }
+      extraActions={
+        hasStandingNotice && (
+          <AppErrorFallbackAction
+            secondary
+            onClick={() => {
+              setDropped(
+                conflict === null
+                  ? "知らせを閉じました。"
+                  : "待っていた操作を取り消しました。もう一度やり直してください。",
+              );
+              closeConflict();
+              clearKifuError();
+            }}
+          >
+            {dropLabel}
+          </AppErrorFallbackAction>
+        )
       }
       fallback={(view) => (
         <AppErrorFallbackBody
           {...view}
-          extraActions={
-            stale && (
-              <AppErrorFallbackAction
-                secondary
-                onClick={() => {
-                  closeConflict();
-                  clearKifuError();
-                  view.reset();
-                }}
-              >
-                知らせを取り消す
-              </AppErrorFallbackAction>
-            )
-          }
+          afterAction={dropped && <p className="app-error-fallback__hint">{dropped}</p>}
         />
       )}
     >

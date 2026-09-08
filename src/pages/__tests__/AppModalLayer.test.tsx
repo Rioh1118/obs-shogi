@@ -15,16 +15,26 @@ import type { FileConflictState } from "@/features/file-conflict/model/types";
 
 const closeModal = vi.fn();
 const resolveConflictByRename = vi.fn();
-const stub = { conflict: null as FileConflictState | null };
+// **原因を実際に消す。** `vi.fn()` のままだと、出口の `onClick` を空にしてもテストが通る
+const closeConflict = vi.fn(() => {
+  stub.conflict = null;
+});
+const clearKifuError = vi.fn(() => {
+  stub.kifuError = null;
+});
+const stub = {
+  conflict: null as FileConflictState | null,
+  kifuError: null as { code: string; message: string } | null,
+};
 
 // 差し替えるのは実体の側。barrel は再 export なので describeFsError は本物が通る
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({
     conflict: stub.conflict,
-    kifuError: null,
-    closeConflict: vi.fn(),
+    kifuError: stub.kifuError,
+    closeConflict,
     resolveConflictByRename,
-    clearKifuError: vi.fn(),
+    clearKifuError,
   }),
 }));
 
@@ -83,7 +93,10 @@ beforeEach(() => {
   // **可変の模擬状態は1箇所で戻す。** `stub.conflict` は境界の `resetKeys` に入る値そのもので、
   // 持ち越すと「いま検証している機構の入力」を前のテストが決めることになる
   stub.conflict = null;
+  stub.kifuError = null;
   throwing.settings = false;
+  closeConflict.mockClear();
+  clearKifuError.mockClear();
   closeModal.mockReset();
   resolveConflictByRename.mockReset().mockResolvedValue({ success: true, data: undefined });
 });
@@ -204,7 +217,7 @@ describe("モーダル層の境界", () => {
     expect(screen.queryByText("モーダルを表示できませんでした。")).toBeNull();
   });
 
-  test("出しかけの知らせが原因なら、それを取り消す出口を出す", () => {
+  test("待っている操作が原因なら、それを取り消す出口を出して結果を知らせる", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.settings = true;
     stub.conflict = conflictFor("create_file");
@@ -215,8 +228,53 @@ describe("モーダル層の境界", () => {
       </MemoryRouter>,
     );
 
-    // 「別の操作からやり直す」だけだと、解けた瞬間に同じ値を描いてまた落ちる
-    expect(screen.getByText("知らせを取り消す")).toBeTruthy();
+    // 「別の操作からやり直す」だけだと、解けた瞬間に同じ値を描いてまた落ちる。
+    // **畳みが解けるかは原因による**ので、ここで見るのは「原因を消したこと」と
+    // 「捨てたものを知らせたこと」の2つ（解けることは `kifuError` の1本が見る）
+    fireEvent.click(screen.getByText("待っている操作を取り消す"));
+
+    expect(closeConflict).toHaveBeenCalled();
+    // **捨てたものを知らせる。** 衝突は待っているファイル操作そのもので、
+    // 押した人は送信ボタンを押した後なので、作られたかどうかの手掛かりが要る
+    expect(screen.getByText(/待っていた操作を取り消しました/)).toBeTruthy();
+  });
+
+  test("知らせるだけの失敗なら、綴りも軽い", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.settings = true;
+    stub.kifuError = { code: "unreadable", message: "読めない" };
+
+    render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+
+    // 捨てるのが説明だけなら「取り消す」と言わない
+    expect(screen.getByText("知らせを閉じる")).toBeTruthy();
+  });
+
+  test("`kifuError` が消えたら、境界も畳むのをやめる", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.settings = true;
+    stub.kifuError = { code: "unreadable", message: "読めない" };
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
+
+    throwing.settings = false;
+    stub.kifuError = null;
+    rerender(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText("モーダルを表示できませんでした。")).toBeNull();
   });
 
   test("URL を持たない衝突が消えたら、境界も畳むのをやめる", () => {
