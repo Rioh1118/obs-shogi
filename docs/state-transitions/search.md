@@ -176,17 +176,24 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 
 **この表が無かったために、doc と issue #333 が2回続けて逆のことを書いた。**
 
-`read_to_jkf` の結果は5つに分かれる。**局面が入るかと、警告が出るかは別々に決まる。**
+`read_to_jkf` の戻りは3つの腕に分かれ、`NothingToIndex` は `looks_intentional` で
+さらに割れる。**局面が入るかと、警告が出るかは別々に決まる。**
 
-**主語は `read_to_jkf`。** `indexed` の列は、その戻りを `build_file_index` が
-どう数えるか（`file_build.rs`）。
+**主語は `read_to_jkf`。** `indexed` の欄を実際に書くのは、`build_file_index` の
+戻りを受けた呼び手（`build.rs` と `project_manager.rs`）。
 
 | 戻り                                              | 何が起きたか                       | 警告       | `file_table` への登録 | 局面                 | `indexed` |
 | ------------------------------------------------- | ---------------------------------- | ---------- | --------------------- | -------------------- | --------- |
-| `Ok(Indexable)`                                   | 読めた（`warns` は空とは限らない） | 中身しだい | する                  | **採れたぶんは入る** | **真**    |
+| `Ok(Indexable)`                                   | 読めた（`warns` は空とは限らない） | 中身しだい | する                  | **採れたぶんは入る** | 真※       |
 | `Err(ParseFailed)`                                | 読めなかった                       | **出す**   | **する**              | 入らない             | 偽        |
 | `Ok(NothingToIndex { looks_intentional: true })`  | 空なのが正しい姿                   | 出さない   | **する**              | 入らない             | **真**    |
 | `Ok(NothingToIndex { looks_intentional: false })` | 空に見えるだけ                     | 中身しだい | **する**              | 入らない             | 偽        |
+
+※ **`Indexable` でも偽になる口が1つある。** `build_index_for_jkf` が
+`BuildError::Initial` を返した回——`BuildPolicy::Loose` でも開始局面を組み立て
+られなければ `build_file_index` は `Err` を返し、呼び手が `indexed: false` で
+載せる（`file_build.rs` の `# Errors`）。表に居るのに局面を1つも持たない
+第3の状態はこれ。
 
 **`warns` の空・非空では割れない。** `warns: [_]` なら `looks_intentional` は必ず偽だが、
 **`warns: []` はどちらもありうる**——`an_empty_file_is_rejected_but_a_moveless_kifu_is_not`
@@ -231,8 +238,8 @@ CSA でも上の2通り（`%` の打ち切り・UTF-16）は同じ。
 繋がらなければ `tsshogi` も断る — 飛ばした行が指し手だった場合と、
 `-3334XX` のように指し手の形で値が壊れている場合。
 `is_csa_move_line` は形しか見ないので、**どちらも同じ警告になる**。
-表の `warns: [_]` の2行（`Ok(Indexable { warns: [_] })` と
-`Ok(NothingToIndex { warns: [_] })`）は「画面では開ける」を意味しない。
+**`warns` が空でない回**（`Indexable` でも `NothingToIndex` でも起こる）は
+「画面では開ける」を意味しない。
 
 ### 局面を入れるかは `says_nothing` だけが決める
 

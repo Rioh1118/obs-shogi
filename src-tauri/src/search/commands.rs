@@ -27,7 +27,7 @@ use crate::search::types::{
 pub async fn search_position(
     state: State<'_, SearchState>,
     input: SearchPositionInput,
-) -> Result<SearchPositionOutput, String> {
+) -> Result<SearchPositionOutput, ScreenMessage> {
     log::debug!("[cmd] search_position invoked");
     state.query.clone().start_search(input).await
 }
