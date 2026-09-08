@@ -90,6 +90,8 @@ export function AppErrorFallbackBody({
   error,
   reset,
   floating = false,
+  hint,
+  children,
 }: {
   /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
   label: string;
@@ -104,6 +106,10 @@ export function AppErrorFallbackBody({
   reset: () => void;
   /** 平常時に in-flow の箱を作らない部品を包む境界で真にする。詳細は SCSS の `--floating` */
   floating?: boolean;
+  /** 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める */
+  hint?: ReactNode;
+  /** 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す */
+  children?: ReactNode;
 }) {
   // `throw` される値は `Error` とは限らない。刈らないと `undefined` が画面に出る
   const detail = error instanceof Error ? error.message : String(error);
@@ -112,9 +118,13 @@ export function AppErrorFallbackBody({
     <div className={`app-error-fallback${floating ? " app-error-fallback--floating" : ""}`}>
       <p>{label}を表示できませんでした。</p>
       {detail && <p className="app-error-fallback__detail">{detail}</p>}
-      <button type="button" className="app-error-fallback__action" onClick={reset}>
-        再表示
-      </button>
+      {hint && <p className="app-error-fallback__hint">{hint}</p>}
+      <div className="app-error-fallback__actions">
+        <button type="button" className="app-error-fallback__action" onClick={reset}>
+          再表示
+        </button>
+        {children}
+      </div>
     </div>
   );
 }

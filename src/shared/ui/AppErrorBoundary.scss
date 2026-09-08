@@ -48,6 +48,19 @@
     box-shadow: index.$shadow-overlay;
   }
 
+  // 次に何をすればよいか。原因（`__detail`）より前に読ませたいので、
+  // 薄くせず本文と同じ強さで置く
+  &__hint {
+    max-width: 60ch;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: index.$space-4;
+  }
+
   // 面で境を作る。枠線で作ると、この面（$color-primary-black）に対して
   // 1.4.11 の 3:1 を満たす明るさが本文より明るくなり、ボタンが見出しに見える
   &__action {
@@ -61,6 +74,17 @@
 
     &:hover {
       background-color: index.$color-secondary-solid-hover;
+    }
+
+    // 「再表示」で戻らなかったときの出口。同じ強さで並べると、
+    // 先に試すべき方がどちらか読めなくなる
+    &--secondary {
+      background-color: index.$surface-raised;
+      color: index.$color-text-primary;
+
+      &:hover {
+        background-color: index.$surface-overlay;
+      }
     }
   }
 }

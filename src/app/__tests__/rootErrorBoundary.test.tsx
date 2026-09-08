@@ -73,6 +73,14 @@ describe("root の境界", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  test("帯の丸だけでなく、文字のボタンでも閉じられる", () => {
+    render(<App />);
+
+    // 12px の色の丸は、失敗の直後にいちばん見つけにくい導線になる
+    fireEvent.click(screen.getByText("ウィンドウを閉じる"));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   test("閉じられなかったら、そのことを画面に出す", async () => {
     close.mockRejectedValueOnce(new Error("IPC が落ちている"));
     render(<App />);
