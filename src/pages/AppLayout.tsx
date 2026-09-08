@@ -54,8 +54,8 @@ const AppLayout = () => {
       <AppErrorBoundary
         label="モーダル"
         resetKeys={[modal]}
-        fallback={(_error, reset) => (
-          <AppErrorFallbackBody label="モーダル" reset={reset} floating />
+        fallback={(error, reset) => (
+          <AppErrorFallbackBody label="モーダル" error={error} reset={reset} floating />
         )}
       >
         <AppModalLayer />

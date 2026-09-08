@@ -14,6 +14,11 @@ import { AppErrorBoundary } from "../AppErrorBoundary";
  * `resetKeys` の比較そのものをここで固定する。壊れても型では落ちない。
  */
 
+/** 与えられた値をそのままレンダで投げる。`Error` 以外も投げられる */
+function Thrower({ value }: { value: unknown }): never {
+  throw value;
+}
+
 /** `boom` が真の間だけレンダで投げる */
 function Child({ boom }: { boom: boolean }) {
   if (boom) throw new Error("子が落ちた");
@@ -28,6 +33,38 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+});
+
+/**
+ * 落ちた原因は、画面に出す以外に利用者へ届く経路が無い。
+ *
+ * `console.error` は配布版では読めない（`devtools` の feature を入れておらず、
+ * フロントの `console` をログファイルへ流す経路も無い）。ここで捨てると、
+ * 報告に書けるものが「表示できませんでした」の一文だけになる。
+ */
+describe("AppErrorBoundary が出す原因", () => {
+  test("例外の文言を画面に出す", () => {
+    render(
+      <AppErrorBoundary label="盤">
+        <Thrower value={new Error("駒を置けない升がある")} />
+      </AppErrorBoundary>,
+    );
+
+    expect(screen.getByText("駒を置けない升がある")).toBeTruthy();
+  });
+
+  test("`Error` でない値が投げられても、そのまま出す", () => {
+    render(
+      <AppErrorBoundary label="盤">
+        <Thrower value="文字列を投げた" />
+      </AppErrorBoundary>,
+    );
+
+    expect(
+      screen.getByText("文字列を投げた"),
+      "`error.message` で読むと undefined が画面に出る",
+    ).toBeTruthy();
+  });
 });
 
 describe("AppErrorBoundary の resetKeys", () => {

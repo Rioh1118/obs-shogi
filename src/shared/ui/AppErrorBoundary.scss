@@ -23,6 +23,17 @@
   color: index.$color-text-primary;
   font-size: index.$font-body;
 
+  // 落ちた原因。**利用者が報告に写せるだけの長さ**を残す。
+  // 1行に潰すと、そこが唯一の手掛かりなのに読めなくなる
+  &__detail {
+    max-width: 60ch;
+    color: rgba(index.$color-text-primary, 0.72);
+    font-size: index.$font-aux;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
   // **平常時に in-flow の箱を作らない部品**（`createPortal` で描くモーダル層・更新の知らせ）を
   // 包む境界のための段。既定のまま出すと、親の grid の行や flex の列を1つ食い、
   // 周りの部品が暗黙の行へ押し出される —— 1枚の事故で本体を畳まないための境界が、

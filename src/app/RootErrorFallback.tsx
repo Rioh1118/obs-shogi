@@ -23,11 +23,13 @@ import "./RootErrorFallback.scss";
  */
 
 type Props = {
+  /** 落ちた原因。ここが出す以外に、利用者が原因を知る手段は無い */
+  error: unknown;
   /** 境界の `reset`。落ちた原因が一過性なら、これで元の画面へ戻れる */
   retry: () => void;
 };
 
-export function RootErrorFallback({ retry }: Props) {
+export function RootErrorFallback({ error, retry }: Props) {
   const close = async () => {
     try {
       await getCurrentWindow().close();
@@ -52,7 +54,7 @@ export function RootErrorFallback({ retry }: Props) {
       </div>
 
       <div className="root-error-fallback__body">
-        <AppErrorFallbackBody label="画面" reset={retry} />
+        <AppErrorFallbackBody label="画面" error={error} reset={retry} />
       </div>
     </div>
   );

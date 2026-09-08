@@ -23,7 +23,7 @@ function App() {
       */}
       <AppErrorBoundary
         label="画面"
-        fallback={(_error, reset) => <RootErrorFallback retry={reset} />}
+        fallback={(error, reset) => <RootErrorFallback error={error} retry={reset} />}
       >
         <BootstrapProviders>
           <BrowserRouter>
@@ -45,8 +45,8 @@ function App() {
       */}
       <AppErrorBoundary
         label="更新の知らせ"
-        fallback={(_error, reset) => (
-          <AppErrorFallbackBody label="更新の知らせ" reset={reset} floating />
+        fallback={(error, reset) => (
+          <AppErrorFallbackBody label="更新の知らせ" error={error} reset={reset} floating />
         )}
       >
         <UpdaterScreen />
