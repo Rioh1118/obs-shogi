@@ -227,7 +227,8 @@ export function useEngineSeat(): EngineSeat {
   // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
   // 下で読んだ値は**その1回の値のまま**——描画ごとに変わる値（props や別のフックの
   // 戻り値）をここで読むと、以後ずっと初回の値を見る。tsc も lint も止めない。
-  // **`useRef` 以外を上に置かない**のはそのため（`src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が見る）。
+  // **上に置いてよいものは `src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が持つ**
+  // （そこが唯一の出典。ここに写すと機械より狭い規約を名乗ることになる）。
   if (apiRef.current) return apiRef.current;
 
   const remember = (sessionId: AnalysisSessionId) => {
