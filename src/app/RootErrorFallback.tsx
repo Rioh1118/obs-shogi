@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useState } from "react";
 import { X } from "lucide-react";
-import { AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorFallbackAction, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 import "./RootErrorFallback.scss";
 
 type Props = {
@@ -66,19 +66,16 @@ export function RootErrorFallback({ label, error, reset }: Props) {
           error={error}
           reset={reset}
           hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。"
-        >
-          {/*
-            **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、
-            12px の色の丸は失敗の直後にいちばん見つけにくい。文字のボタンを本文に並べる
-          */}
-          <button
-            type="button"
-            className="app-error-fallback__action app-error-fallback__action--secondary"
-            onClick={close}
-          >
-            ウィンドウを閉じる
-          </button>
-        </AppErrorFallbackBody>
+          actions={
+            /*
+              **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、
+              12px の色の丸は失敗の直後にいちばん見つけにくい。文字のボタンを本文に並べる
+            */
+            <AppErrorFallbackAction onClick={close} secondary>
+              ウィンドウを閉じる
+            </AppErrorFallbackAction>
+          }
+        />
         {closeFailed && (
           <p className="root-error-fallback__closeError" role="alert">
             ウィンドウを閉じられませんでした。OS の終了操作（macOS は ⌘Q、Windows は Alt+F4）で

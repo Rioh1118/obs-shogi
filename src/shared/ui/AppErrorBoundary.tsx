@@ -127,7 +127,7 @@ export function AppErrorFallbackBody({
   reset,
   floating = false,
   hint,
-  children,
+  actions,
 }: {
   /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
   label: string;
@@ -144,8 +144,13 @@ export function AppErrorFallbackBody({
   floating?: boolean;
   /** 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める */
   hint?: ReactNode;
-  /** 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す */
-  children?: ReactNode;
+  /**
+   * 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す。
+   *
+   * `children` にしないのは、同じファイルの `AppErrorBoundary` の `children`（囲う対象）と
+   * 逆の意味になるため。`AppErrorFallbackAction` を並べること
+   */
+  actions?: ReactNode;
 }) {
   // `throw` される値は `Error` とは限らない。刈らないと `undefined` が画面に出る
   const detail = error instanceof Error ? error.message : String(error);
@@ -156,11 +161,36 @@ export function AppErrorFallbackBody({
       {detail && <p className="app-error-fallback__detail">{detail}</p>}
       {hint && <p className="app-error-fallback__hint">{hint}</p>}
       <div className="app-error-fallback__actions">
-        <button type="button" className="app-error-fallback__action" onClick={reset}>
-          再表示
-        </button>
-        {children}
+        <AppErrorFallbackAction onClick={reset}>再表示</AppErrorFallbackAction>
+        {actions}
       </div>
     </div>
+  );
+}
+
+/**
+ * 落ちた画面に並べるボタン。**class 名は `shared/ui` の中に閉じる。**
+ *
+ * 呼び出し側に綴りを書かせると、`shared` 側で class を整理したときに黙って素の `<button>` へ戻る。
+ * 落ちる場所は「最後の砦」の画面なので、型でも lint でもテストでも赤くならない。
+ */
+export function AppErrorFallbackAction({
+  onClick,
+  /** 「再表示」で戻らなかったときの出口。同じ強さで並べると、先に試すべき方が読めなくなる */
+  secondary = false,
+  children,
+}: {
+  onClick: () => void;
+  secondary?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`app-error-fallback__action${secondary ? " app-error-fallback__action--secondary" : ""}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
