@@ -190,7 +190,7 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 
 ## `EngineTab` が選択中のプリセット id を `console.log` している
 
-`src/features/settings/ui/tabs/EngineTab.tsx` の `selectPreset` の中。
+`src/features/settings/ui/tabs/EngineTab.tsx` の、`selectedId` だけを依存に持つ `useEffect` の中。
 `no-console` が lint に入っていないので落ちない。
 
 **判断: 6週間以内に着手しない。** 出るのは開発者コンソールだけで、利用者に見える

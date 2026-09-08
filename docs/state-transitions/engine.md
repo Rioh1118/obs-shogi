@@ -90,18 +90,33 @@ issue #120 と同型の行き止まり
 解析側はこれを見て、走っている解析を打ち切るか待つかを決める
 （→ [analysis.md](analysis.md) の ※5）ので、**`phase` の写しではない。**
 
-| 理由        | いつ                            | 待てば戻るか                                                                           |
-| ----------- | ------------------------------- | -------------------------------------------------------------------------------------- |
-| `failed`    | S3（`phase: "error"`）          | **戻らない**（同じ runtime では再トライしない → ※5）                                   |
-| `no-engine` | `desiredRuntime` が無い         | **戻らない**（下の effect は `shutdown` して降りるだけ。選び直すまで起動する口が無い） |
-| `starting`  | `desiredRuntime` が在る残り全部 | 戻る（S1 の起動待ち、S2 で runtime が変わった窓、畳み損ねて S0 に落ちた窓）            |
+**当たる順に上から**（`provider.tsx` の三項と同じ順）。
+
+| 理由        | いつ                              | 待てば戻るか                                                                    |
+| ----------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| `no-engine` | `desiredRuntime` が無い           | **戻らない**（下の effect は `shutdown` して降りるだけ。起動する口が1つも無い） |
+| `failed`    | 残りのうち S3（`phase: "error"`） | **戻らない**（同じ runtime では再トライしない → ※5）                            |
+| `starting`  | 残り全部                          | 戻る（S1 の起動待ち、S2 で runtime が変わった窓、畳み損ねて S0 に落ちた窓※）    |
+
+**`desiredRuntime` の有無を先に見る。** 後に回すと、初期化が落ちた後に選択が外れた窓で
+`failed` が立ち、**変える対象のプリセットが1つも無いのに**「オプションを変えて保存」と案内する。
+
+**`no-engine` は「選んでいない」ではない。** `desiredRuntime` を組み立てられない回すべてで、
+**選んだプリセットのエンジンや評価関数が空**でもここへ来る
+（`entities/engine-presets` の `runtimeConfig`）。読み手が案内を書くときはその入口を落とさないこと。
 
 **`no-engine` を `phase` で割らない。** 割ると、畳んでから起こし直すまでの窓
 （`restart()` の途中、および畳む invoke が落ちて `idle` の枝が拾い直す回）が
-「選んでいない」に落ちる——**そこは待てば戻る**のに、読み手が戻らない側と
-見分けられなくなる。判定は `desiredRuntime` の有無だけ（`provider.tsx`）。
+「選んでいない」に落ちる——**そこは待てば戻る**のに、読み手が戻らない側と見分けられなくなる。
 
-並びは `src/entities/engine/model/__tests__/provider.test.tsx` が固定している。
+※ **`starting` は「いつか ready になる」ではなく「起動し直す口が在る」。**
+畳めなかった原因が続いていれば、起動し直しも `initialize_engine` の先頭の
+`shutdown().await?`（`src-tauri/src/engine/analyzer.rs`）で折れて `failed` へ落ちる。
+**待てば理由が動く**という意味では戻る側でよい（読み手はそこで諦められる）。
+
+分類は `entities/engine/model/types.ts` の `isRecoverableNotReady` が持ち、
+理由の並びは `src/entities/engine/model/__tests__/provider.test.tsx` が固定している。
+**どちらも `engineInitializer` を差し替えた回で、実プロセスでは未確認。**
 
 ## この表が満たすべき不変条件
 
@@ -117,5 +132,8 @@ issue #120 と同型の行き止まり
 - `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無い。**
   `provider.test.tsx` が踏んでいるのは `engineInitializer.shutdown()` を reject させた回で、
   見ているのは**そのとき立つ理由**（※7）だけ——Rust 側に何が残るかは見ていない
-- **`entities/engine` の `__tests__` は理由の並び（※7）だけを見る。**
-  `phase` の遷移そのもの・`equalRuntime` の判定・`initializer.ts` は、まだテストが無い
+- **`entities/engine` の `__tests__` が見ているのは理由の並び（※7）と、そこに至る
+  `initialize` / `shutdown` の呼び出し回数**——`(S2, E2)` `(S2, E3)` `(S3, E3)` `(S3, E4)` の
+  結末はそれで固定できている。**見ていないのは `phase` の値そのもの**
+  （理由は `phase` の写しではないので、並びが合っていても `phase` が合っている根拠にならない）と、
+  `equalRuntime` がどの欄を比べるか、`initializer.ts`
