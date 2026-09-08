@@ -293,7 +293,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `ENGINE_STARTING_ON_START_MESSAGE`      | エンジンの起動待ちに ▶ を押した                                                   | 待ってからもう一度 ▶                                           |
 | `ENGINE_FAILED_ON_START_MESSAGE`        | エンジンの初期化が落ちている状態で ▶ を押した（→ F-9）                            | 起こし直す                                                     |
 | `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE` | **解析中に**初期化が落ちた（→ ※5。ボタンは押していない）                          | 起こし直してから ▶                                             |
-| `NO_ENGINE_WHILE_ANALYZING_MESSAGE`     | **解析中に**起動の設定が組み立てられなくなった（→ ※5。同上）                      | 設定でエンジンを選び、場所を設定する                           |
+| `NO_ENGINE_WHILE_ANALYZING_MESSAGE`     | **解析中に**起動の設定が組み立てられなくなった（→ ※5。同上）                      | 選んで場所を確かめてから ▶                                     |
 | `NO_ENGINE_ON_START_MESSAGE`            | `no-engine` で ▶ を押した（入口は `EngineNotReadyReason` の doc）                 | エンジンを選び、場所を確かめる                                 |
 | `ENGINE_ERROR_MESSAGE`                  | E9 のエラー通知。**いま踏めない**                                                 | 起こし直す                                                     |
 | `LISTENERS_FAILED_MESSAGE`              | 結果の購読に失敗した（E12 → F-4）／**以後の ▶ すべて**                            | アプリを起動し直す（張り直す口が無い）                         |

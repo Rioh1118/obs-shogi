@@ -174,7 +174,7 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 `entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**（`isRecoverableNotReady`。
 意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で数えられる（**件数と内訳をここに書かない**——触るたびに動く。`vi.mock` の行は `sliceBarrels` の免除に当たるので、実際の波及は下の (a) の見積もりを取り直すこと）。
+で数えられる。**この一文に件数と内訳を書かない**——触るたびに動く（`vi.mock` の行は `sliceBarrels` の免除に当たる）。選択肢ごとの見積もり（下の (a)）は、その都度取り直した値を書くこと）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
 **公開しない限り深く読める**。
 

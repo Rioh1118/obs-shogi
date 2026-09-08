@@ -120,12 +120,13 @@ describe("EngineProvider が立てる理由", () => {
 
     // 畳む invoke が落ちると `restart()` はそこで切れる。`phase` は `idle` に落ち、
     // **起動し直すのは下の effect の `idle` の枝**——待てば戻るので `starting`。
+    const from = view.reasons.length;
     shutdown.mockRejectedValueOnce(new Error("shutdown failed"));
     await view.setRuntime(runtime({ Threads: "4" }));
     await view.settle();
 
     // **起動し直すのは `idle` の枝。** その枝を消すと `initialize` は1回で止まる。
-    expect(view.reasons.slice(2)).toContain("starting");
+    expect(view.reasons.slice(from)).toContain("starting");
     expect(view.reasons).not.toContain("no-engine");
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
     expect(initialize).toHaveBeenCalledTimes(2);
@@ -216,45 +217,61 @@ describe("EngineProvider が立てる理由", () => {
    * 「窓の作り方が無い」で落ちる（0件で黙らない）。
    */
   describe("分類が現物と合っている", () => {
-    /** その理由の窓を作り、追加の入力なしで放置する */
-    const enter: Record<EngineNotReadyReason, () => ReturnType<typeof mountEngine>> = {
+    /**
+     * その理由の窓を作り、**戻す口**を返す。
+     *
+     * 戻る側は「待てば ready へ着く」ので、待つ相手（飛んでいる起動）を解決する口を持つ。
+     * 戻らない側は持たない——**その有無を検査が両方向で見る**ので、分類を入れ替えると
+     * どちらの枝でも落ちる。永久に返らない promise で作ると、戻る側も戻らない側も
+     * 「動かない」で同じに見え、検査が分類の定義を言い直すだけになる。
+     */
+    type Window = { view: ReturnType<typeof mountEngine>; finish: (() => void) | null };
+
+    const enter: Record<EngineNotReadyReason, () => Window> = {
       // 設定を組み立てられない。選び直すまで起動する口が無い
-      "no-engine": () => mountEngine(null),
-      // 起動待ち。`initialize` は返ってこない
+      "no-engine": () => ({ view: mountEngine(null), finish: null }),
+      // 起動待ち。飛んでいる起動が返れば ready へ着く
       starting: () => {
-        initialize.mockImplementation(() => new Promise<EngineInfo>(() => {}));
-        return mountEngine(runtime());
+        let settleStart: (info: EngineInfo) => void = () => {};
+        initialize.mockImplementation(
+          () =>
+            new Promise<EngineInfo>((resolve) => {
+              settleStart = resolve;
+            }),
+        );
+        return { view: mountEngine(runtime()), finish: () => settleStart(info) };
       },
-      // 同じ設定のまま初期化が落ちた
+      // 同じ設定のまま初期化が落ちた。飛んでいる起動はもう無い
       failed: () => {
         initialize.mockRejectedValue(new Error("boom"));
-        return mountEngine(runtime());
+        return { view: mountEngine(runtime()), finish: null };
       },
     };
 
     it.each(Object.keys(enter) as EngineNotReadyReason[])(
-      "%s は、戻る側なら放っておいて ready へ進み、戻らない側なら二度と起動しない",
+      "%s は、戻る側なら待てば ready へ着き、戻らない側なら二度と起動しない",
       async (reason) => {
-        const view = enter[reason]();
+        const { view, finish } = enter[reason]();
         await view.settle();
         await view.settle();
 
         expect(view.reasons[view.reasons.length - 1]).toBe(reason);
         const callsWhileStuck = initialize.mock.calls.length;
 
-        // **追加の入力を1つも与えずに待つ。**
-        await view.settle();
-        await view.settle();
-
         if (isRecoverableNotReady(reason)) {
-          // 戻る側は「いつか ready」ではなく「**起動し直す口が在る**」（→ engine.md の ※7）。
-          // ここでは口が在ることを、理由が戻らない側へ落ちていないことで見る。
-          expect(isRecoverableNotReady(view.reasons[view.reasons.length - 1] ?? "starting")).toBe(
-            true,
-          );
+          // **戻す口が在る。** 分類を入れ替えると、口を持たない理由がここへ来て落ちる。
+          expect(finish, `${reason} は戻る側なのに、待つ相手が居ない`).not.toBeNull();
+          await act(async () => {
+            finish!();
+          });
+          await view.settle();
+          expect(view.reasons[view.reasons.length - 1]).toBeNull();
         } else {
           // **戻らない側は、放っておいても起動を試みない。** ここが偽になると、
           // 解析側は再トライの最中に打ち切って「使えなくなった」と案内する。
+          expect(finish, `${reason} は戻らない側なのに、待つ相手が居る`).toBeNull();
+          await view.settle();
+          await view.settle();
           expect(initialize.mock.calls.length).toBe(callsWhileStuck);
           expect(view.reasons[view.reasons.length - 1]).toBe(reason);
         }

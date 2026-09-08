@@ -48,7 +48,10 @@ export type EngineNotReadyReason =
    * 案内を書く人はその関数を読むこと。
    */
   | "no-engine"
-  /** 起動中。**起こし直している最中もここ**（`phase` は `ready` のまま） */
+  /**
+   * 起動中。**起こし直している最中もここ**（`phase` は `ready` のまま）。
+   * **初期化が落ちた後に設定が動いた窓もここ**——起動し直す口が在る（→ engine.md の ※7）。
+   */
   | "starting"
   /** 初期化が落ちている */
   | "failed";

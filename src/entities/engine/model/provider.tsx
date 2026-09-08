@@ -6,7 +6,7 @@ import type {
   EngineReadiness,
   EngineRuntimeConfig,
 } from "./types";
-import { equalRuntime } from "../lib/equalRuntime";
+import { equalRuntime, retriesAfterError } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
 import { EngineContext } from "./context";
 
@@ -35,11 +35,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // 向こうの表はこの三項の並びに追随しているので、順を変えるときは一緒に直すこと。
   // **`failed` は「同じ設定のまま落ちた」まで。** 設定が前回試した値から動いていれば
   // 下の effect が起動し直すので、その窓は `starting`（起動し直す口が在る）。
-  // 見る条件は下の `error` の枝と同じ——**片方だけ変えない。**
-  const willRetryAfterError =
-    !!desiredRuntime &&
-    !!lastTriedRef.current &&
-    !equalRuntime(desiredRuntime, lastTriedRef.current);
+  // **述語は下の `error` の枝と同じものを呼ぶ**——書き下ろすと片方だけが古くなる。
+  const willRetryAfterError = retriesAfterError(desiredRuntime, lastTriedRef.current);
 
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
@@ -119,11 +116,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       return;
     }
 
-    // error でも「別設定なら」再トライする（同一設定なら止める）
+    // error でも「別設定なら」再トライする（同一設定なら止める）。
+    // **理由を決める三項と同じ述語**——片方だけ変えると、起動し直しているのに
+    // 解析側が終端と読んで走っている解析を打ち切る。
     if (state.phase === "error") {
-      const last = lastTriedRef.current;
-      const sameRuntime = last ? equalRuntime(desiredRuntime, last) : false;
-      if (!sameRuntime) initialize().catch(() => {});
+      if (willRetryAfterError) initialize().catch(() => {});
       return;
     }
 
@@ -141,7 +138,15 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
         restart().catch(() => {});
       }
     }
-  }, [desiredRuntime, state.phase, state.activeRuntime, initialize, shutdown, restart]);
+  }, [
+    desiredRuntime,
+    state.phase,
+    state.activeRuntime,
+    willRetryAfterError,
+    initialize,
+    shutdown,
+    restart,
+  ]);
 
   const value = useMemo<EngineContextType>(
     () => ({
