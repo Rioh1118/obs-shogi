@@ -93,9 +93,13 @@
    読み込みが終わって `view.player` が立ってから `applyCursor`
 
 **移動を始められたときだけ閉じる。** `startNavigationToHit` が返すのは
-`NavigationOutcome` の3値で、`"started"` 以外はモーダルを開いたまま断りを出す
-（下の表。断り方が3行に割れている根拠がこの3値）。ツリーにその棋譜が無ければ
-`"not-in-tree"`、ツリー自体をまだ読めていなければ `"tree-unavailable"`。
+`NavigationOutcome` の3値で、`"started"` 以外はモーダルを開いたまま断りを出す。
+ツリーにその棋譜が無ければ `"not-in-tree"`、ツリー自体をまだ読めていなければ
+`"tree-unavailable"`。
+
+**下の表が3行に割れている根拠は `RefusalReason`**（`PositionSearchModal`）で、
+`NavigationOutcome` の失敗2値に `"no-path"` を足したもの。あちらは
+`startNavigationToHit` を呼ぶ前——索引が行き先のパスを返さなかった回。
 
 **返すのは「始められたか」で、「開けたか」ではない**——ツリーに在って盤に
 載せられない棋譜（#434）は `"started"` が返るので、いまも黙って閉じる。**着いた局面が要求どおりかも

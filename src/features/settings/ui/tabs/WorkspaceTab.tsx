@@ -73,7 +73,7 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
       return {
         tone: "warn" as const,
         icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: STAGE_LABEL[idx.state],
+        label: STAGE_LABEL[idx.state].label,
       };
     case "ok":
       return {
@@ -97,16 +97,21 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
  * 迫るのに、こちらは tsc を1つも落とさずに**間違った語を出す**
  * （同じ理由で `entities/search/lib/indexState.ts` も表にしてある）。
  *
- * **進行中でない2つも埋める。** 表にするには全段が要る。値は
- * `badgeForIndex` が `notStarted` / `ok` で出す語に合わせてあるので、
- * 万一そちらから引かれても食い違わない。
+ * **`label:` の形で書く。** `screenSpecCoverage` が拾うのは `label:` と
+ * `return` と三項の両腕だけなので、素の値にすると**仕様書との突き合わせから
+ * 落ちる**——網羅は tsc が見るが、語が仕様書と合っているかは誰も見なくなる。
+ *
+ * **引くのは `badgeForIndex` の `building` の腕だけ。** `state` から直接語を
+ * 引かないこと。`Ready` は `indexHealth` で6通りに落ちるので、ここから引くと
+ * **走査に失敗した `Ready` に緑の「準備完了」を出す**——このファイルが
+ * 冒頭で禁じている表示になる。`Empty` / `Ready` の欄は表を埋めるためだけに在る。
  */
-const STAGE_LABEL: Record<IndexUiState["state"], string> = {
-  Restoring: "復元中",
-  Building: "作成中",
-  Updating: "更新中",
-  Empty: "未作成",
-  Ready: "準備完了",
+const STAGE_LABEL: Record<IndexUiState["state"], { label: string }> = {
+  Restoring: { label: "復元中" },
+  Building: { label: "作成中" },
+  Updating: { label: "更新中" },
+  Empty: { label: "未作成" },
+  Ready: { label: "準備完了" },
 };
 
 /** 警告の枠。**増やすと状態の要約が押し出される**ので、増やす前に置き場を決めること */
