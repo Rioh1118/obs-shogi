@@ -39,15 +39,20 @@ function listedChecks(): string[] {
  * リポジトリ横断の検査は `src/__tests__/` に置くと決めてある（`vite.config.ts`）が、
  * **1ファイルの内部の形しか見ない走査**はスライス側に置く。置き場で見分けると、
  * スライスへ移した検査がその瞬間に索引の義務から外れる。
- * スライスに置くものは `*.ratchet.test.ts` と名乗ること。
+ * スライスに置くものは `*.ratchet.test.ts` / `.tsx` と名乗ること。
+ *
+ * **拡張子は `checkName` と同じ集合で見ること。** 片方だけ `.ts` に閉じると、
+ * `.tsx` と名乗ったラチェットが索引の義務から丸ごと外れる——置き場の
+ * `entities/analysis/model/__tests__/` は `.tsx` が多数派なので、周りに
+ * 合わせた人がそのまま踏む。
  */
+const hasIndexDuty = (p: string): boolean =>
+  (p.startsWith("src/__tests__/") && /\.test\.tsx?$/.test(p)) || /\.ratchet\.test\.tsx?$/.test(p);
+
 function ratchetFiles(): string[] {
   return tsFiles(SRC, { includeTests: true })
     .map((p) => relative(REPO_ROOT, p))
-    .filter(
-      (p) =>
-        (p.startsWith("src/__tests__/") && p.endsWith(".test.ts")) || p.endsWith(".ratchet.test.ts"),
-    );
+    .filter(hasIndexDuty);
 }
 
 /**
@@ -126,9 +131,24 @@ describe("CONTRIBUTING.md の検査の索引", () => {
 
     expect(found.length).toBeGreaterThan(10);
     expect(
-      found.filter((p) => p.endsWith(".ratchet.test.ts")).length,
+      found.filter((p) => /\.ratchet\.test\.tsx?$/.test(p)).length,
       "スライス側のラチェットを1本も拾えていない",
     ).toBeGreaterThan(0);
+  });
+
+  // 拾う側（`hasIndexDuty`）と名前を採る側（`checkName`）で拡張子の集合が割れると、
+  // 片方の綴りだけが義務から外れる。**両方に同じ道を通す。**
+  test("スライス側のラチェットは .ts と .tsx の両方が義務に入る", () => {
+    for (const p of [
+      "src/entities/x/__tests__/probe.ratchet.test.ts",
+      "src/entities/x/__tests__/probe.ratchet.test.tsx",
+    ]) {
+      expect(hasIndexDuty(p), p).toBe(true);
+      expect(checkName(p), p).toBe("probe");
+    }
+
+    // ラチェットを名乗らない隣人は巻き込まない
+    expect(hasIndexDuty("src/entities/x/__tests__/probe.test.tsx")).toBe(false);
   });
 
   test("ラチェットは表に載っている", () => {
