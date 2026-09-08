@@ -30,11 +30,21 @@ type Props = {
    *
    * `reset` は `error` を消すだけ。原因が境界の外にあるなら効かない（`resetKeys` を見ること）。
    */
-  fallback?: (error: Error, reset: () => void) => ReactNode;
+  fallback?: (error: unknown, reset: () => void) => ReactNode;
 };
 
 type State = {
-  error: Error | null;
+  /**
+   * 捕まえたかどうか。**投げられた値そのもので判定しない。**
+   *
+   * `throw` される値は `Error` とは限らず、`undefined` / `null` / `""` / `0` / `false` もありうる。
+   * 値を旗に兼ねると falsy な例外で `render` が `children` を描き直し、React はそれを
+   * 「境界が処理できなかった」と見なして1つ外へ流す。境界は全部この class なので、
+   * **7枚とも素通りして root ごと unmount する** —— この部品が消しに来た状態そのものになる。
+   */
+  caught: boolean;
+  /** 投げられた値。`caught` が偽のときは見ない */
+  error: unknown;
   /** 直前に見た `resetKeys`。`getDerivedStateFromProps` は前の props を受け取れない */
   keys: readonly unknown[];
 };
@@ -42,11 +52,11 @@ type State = {
 export class AppErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { error: null, keys: props.resetKeys ?? [] };
+    this.state = { caught: false, error: null, keys: props.resetKeys ?? [] };
   }
 
-  static getDerivedStateFromError(error: Error): Partial<State> {
-    return { error };
+  static getDerivedStateFromError(error: unknown): Partial<State> {
+    return { caught: true, error };
   }
 
   /**
@@ -60,11 +70,11 @@ export class AppErrorBoundary extends Component<Props, State> {
     const same =
       keys.length === state.keys.length && keys.every((key, at) => Object.is(key, state.keys[at]));
     if (same) return null;
-    return { error: null, keys };
+    return { caught: false, error: null, keys };
   }
 
   // 落ちた原因はここでしか見られない。表示側は詳細を出さない
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
     console.error(
       `[AppErrorBoundary:${this.props.label}] Uncaught error:`,
       error,
@@ -73,12 +83,12 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   reset = () => {
-    this.setState({ error: null });
+    this.setState({ caught: false, error: null });
   };
 
   render() {
-    const { error } = this.state;
-    if (error) {
+    const { caught, error } = this.state;
+    if (caught) {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }

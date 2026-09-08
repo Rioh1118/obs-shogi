@@ -42,6 +42,35 @@ afterEach(() => {
  * フロントの `console` をログファイルへ流す経路も無い）。ここで捨てると、
  * 報告に書けるものが「表示できませんでした」の一文だけになる。
  */
+describe("AppErrorBoundary が捕まえる値", () => {
+  // **投げられた値そのものを旗にすると、falsy な例外で境界が素通りする。**
+  // 素通りした例外は外の境界も受けないので（React は「処理できなかった」と見なす）、
+  // 7枚とも抜けて root ごと unmount する ——「閉じられない白い窓」に戻る
+  for (const [name, value] of [
+    ["undefined", undefined],
+    ["null", null],
+    ["空文字", ""],
+    ["0", 0],
+    ["false", false],
+  ] as const) {
+    test(`${name} を投げても畳む`, () => {
+      let escaped = false;
+      try {
+        render(
+          <AppErrorBoundary label="盤">
+            <Thrower value={value} />
+          </AppErrorBoundary>,
+        );
+      } catch {
+        escaped = true;
+      }
+
+      expect(escaped, `${name} が境界を素通りした`).toBe(false);
+      expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
+    });
+  }
+});
+
 describe("AppErrorBoundary が出す原因", () => {
   test("例外の文言を画面に出す", () => {
     render(
