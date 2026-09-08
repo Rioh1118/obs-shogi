@@ -5,7 +5,7 @@ import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";
 import AppRouter from "./routing/AppRouter";
 import UpdaterScreen from "@/features/updater/ui/UpdaterScreen";
-import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, RETRY_LABEL } from "@/shared/ui/AppErrorBoundary";
 import { RootErrorFallback } from "./RootErrorFallback";
 
 function App() {
@@ -26,7 +26,7 @@ function App() {
       */}
       <AppErrorBoundary
         label="アプリ"
-        hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。"
+        hint={`「${RETRY_LABEL}」で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。`}
         fallback={(args) => <RootErrorFallback {...args} />}
       >
         <BootstrapProviders>

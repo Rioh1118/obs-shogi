@@ -2,7 +2,7 @@ import { Outlet, useLocation } from "react-router";
 import { RuntimeProviders } from "@/app/providers/RuntimeProviders";
 import { RequireRootDir } from "@/app/routing/guards/RequireRootDir";
 import TitleBar from "@/shared/ui/TitleBar";
-import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, RETRY_LABEL } from "@/shared/ui/AppErrorBoundary";
 
 export default function RuntimeShell() {
   const location = useLocation();
@@ -31,7 +31,7 @@ export default function RuntimeShell() {
           <AppErrorBoundary
             label="作業画面"
             resetKeys={[location.key]}
-            hint="再表示で戻らない場合は、ウィンドウを閉じて開き直してください。"
+            hint={`「${RETRY_LABEL}」で戻らない場合は、ウィンドウを閉じて開き直してください。`}
           >
             <Outlet />
           </AppErrorBoundary>

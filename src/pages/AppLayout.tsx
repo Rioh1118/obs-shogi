@@ -15,7 +15,7 @@ import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
-import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, RETRY_LABEL } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
   // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
@@ -75,7 +75,9 @@ const AppLayout = () => {
                     */}
                     <AppErrorBoundary
                       label="盤"
-                      hint="棋譜を開き直してから「再表示」を押してください。"
+                      // 同じ棋譜をツリーで押しても `openKifuNode` は走らない
+                      // （`FileNode` の `isActive` の関門）。効くのは別の棋譜を開くこと
+                      hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
                     >
                       <GameBoard
                         topLeft={<Hand isSente={false} />}
@@ -94,7 +96,7 @@ const AppLayout = () => {
                     */}
                     <AppErrorBoundary
                       label="棋譜一覧"
-                      hint="この棋譜は途中から一覧を組めません。別の棋譜を開いてから「再表示」を押してください。"
+                      hint={`この棋譜は途中から一覧を組めません。別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
                     >
                       <KifuStreamList />
                     </AppErrorBoundary>
@@ -108,7 +110,7 @@ const AppLayout = () => {
                   */}
                   <AppErrorBoundary
                     label="解析"
-                    hint="設定からエンジンを選び直してから「再表示」を押してください。"
+                    hint={`設定からエンジンを選び直してから「${RETRY_LABEL}」を押してください。`}
                   >
                     <AnalysisPane />
                   </AppErrorBoundary>
