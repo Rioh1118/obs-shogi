@@ -489,7 +489,8 @@ describe("AnalysisProvider の結果の照合", () => {
 
       // **黙らない。** 押した人はまだ画面の前に居る。断りが無いと、停止中の
       // ペインが控えを出すので**押す前と1ドットも変わらない**。
-      expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+      // まだ戻っていないので、案内は起動待ちのほう（押し直しても効かない）。
+      expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
 
       // 戻ってきたら ▶ で始められる。
       engine = { isReady: true, notReadyReason: null };
@@ -674,8 +675,40 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(50);
 
     // **「起こし直してください」と言わない**——利用者がいま済ませた操作。
-    expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+    // まだ戻っていないので起動待ちの案内になる。
+    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
     expect(view.current.state.error).not.toBe(START_REFUSED_MESSAGE);
+  });
+
+  it("席が着く前にエンジンが戻っていたら、押し直しを案内する", async () => {
+    let releaseStart: (sessionId: string) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    // 落ちて、席が着く前に戻る。
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P1", null));
+    await advance(50);
+    engine = { isReady: true, notReadyReason: null };
+    await view.setSync(adapter("P1", "P1"));
+    await advance(50);
+
+    await act(async () => {
+      releaseStart("dead");
+    });
+    await pressed;
+    await advance(50);
+
+    // **この回だけ「もう一度 ▶」が実際に効く。**
+    expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
   });
 
   it("棋譜を閉じた後に席が着地したら、断りを立てない", async () => {

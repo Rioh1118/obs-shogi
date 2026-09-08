@@ -78,9 +78,23 @@ describe("解析の断り", () => {
 
   test.each(refusalNames())("%s を踏むテストがある", (name) => {
     // **import しただけでは通さない。** 断りを読み込む行を落としてから探す。
+    //
+    // **否定の当たりを数に入れない。** 綴りが在るかだけを見ると、
+    // `expect(...).not.toBe(NAME)`——「その断りが**出ない**こと」を確かめる行——が
+    // そのまま「踏んでいる」の根拠になる。現に同じ断りに肯定と否定を1本ずつ持つ回が
+    // あるので、肯定側を落とす改変が黙って通る。
+    //
+    // **肯定形の綴りまでは要求しない。** 表で回すテスト
+    // （`it.each([["failed", ENGINE_FAILED_MESSAGE]])`）は期待値を変数で渡すので、
+    // `.toBe(NAME)` を要求すると正しい形が落ちる。否定だけを引いて、
+    // **残りに1度でも出るか**を見る。
+    const negated = new RegExp(String.raw`\.not\.(?:toBe|toEqual|toContain)\(\s*${name}\b`, "g");
+    const body = withoutImports(codeOf(read(TESTS))).replace(negated, "");
+
     expect(
-      withoutImports(codeOf(read(TESTS))).includes(name),
-      `${TESTS} が \`${name}\` を使っていない。踏む筋が無い断りなら、定数ごと落とすこと`,
+      body.includes(name),
+      `${TESTS} で \`${name}\` に触れているのが \`.not.toBe\` だけ。` +
+        "踏む筋が無い断りなら、定数ごと落とすこと",
     ).toBe(true);
   });
 });

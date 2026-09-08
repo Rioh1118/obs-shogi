@@ -849,8 +849,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // ——停止中はペインが控えを出すので**押す前と1ドットも変わらない画面**が残る。
     // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
     // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
+    //
+    // **まだ戻っていない回は、その理由で断る**（`sendAndAwaitSync` と同じ判断）。
+    // 「もう一度 ▶」と案内した先で起動待ちの断りが出ると、案内が1回空振りする。
     if (landed === "engine-gone" && !supersededSince(seq)) {
-      failStart(ENGINE_RESTARTED_MESSAGE, new Error("engine was restarted while taking a seat"));
+      const engine = readinessRef.current;
+      const refusal = engine.isReady
+        ? ENGINE_RESTARTED_MESSAGE
+        : NOT_READY_REFUSALS[engine.notReadyReason];
+
+      failStart(refusal, new Error("engine was restarted while taking a seat"));
     }
     if (landed !== "held") return;
 
