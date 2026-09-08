@@ -114,7 +114,9 @@ let stale = snap.state != StoreIndexState::Ready;
 `state != Ready` だけなので、空の索引を `Ready` にすると
 **0件が「最新」として並ぶ**。
 
-出すのは `IndexUiState::BuildFailed`。段は `Empty` で `scan_failed` を立てる。
+出すのは `IndexAnnouncement::BuildFailed`。画面の段が `Empty` ＋ `scan_failed` に
+なるのは `into_payload` の中（TS 側の `IndexUiState` はレコード型で、この名前の
+バリアントは持たない）。
 差分適用の `ScanFailed`（`Y` ＋ 旗）と逆になるのは、**残っている索引が
 あるかどうか**が逆だから——あちらは最後に読めたときのまま健全で、
 こちらは空。
@@ -276,7 +278,7 @@ CSA でも上の2通り（`%` の打ち切り・UTF-16）は同じ。
 
 **登録は同じでも、`indexed` 欄が違う。** 組めた棋譜は `indexed: true`、
 組めなかった棋譜は `indexed: false` で載る——**表に居るのに局面を1つも持たない**
-第3の状態がある。両経路ともこの欄を書く（`build.rs` の `indexed: ok`、
+第3の状態がある。両経路ともこの欄を書く（`build.rs` の `FileEntry { indexed, .. }`、
 `project_manager` の `None` の腕の `indexed: false`）。
 
 画面の2つの数はこの欄で分かれる。

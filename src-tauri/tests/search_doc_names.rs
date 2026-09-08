@@ -187,6 +187,53 @@ fn call_candidates(md: &str) -> Vec<String> {
         .collect()
 }
 
+/// `Type::Variant` の形で実在を見る綴り。
+///
+/// **`fn` 名の走査では拾えない。** あちらは小文字・数字・下線だけを候補にするので、
+/// 大文字を含む型名は候補にすら入らない。実際に、実在しない
+/// `IndexUiState::BuildFailed`（現物は `IndexAnnouncement::BuildFailed`）が
+/// この検査を緑のまま通り抜けていた。
+///
+/// 見るのは**両側が別々に実在するか**だけ——`Type` と `Variant` がそれぞれ
+/// `src/search/**` に現れるか。組み合わせの正しさ（その型がそのバリアントを
+/// 持つか）までは見ていないので、そこは人が読む。
+///
+/// **`::` の左が小文字で始まるものは除く**（`crate::search::…` のようなパス）。
+fn variant_candidates(md: &str) -> Vec<(String, String)> {
+    quoted(md)
+        .into_iter()
+        .filter_map(|q| {
+            let q = q.split_once('(').map(|(h, _)| h.to_owned()).unwrap_or(q);
+            let (ty, var) = q.rsplit_once("::")?;
+            let ident = |s: &str| {
+                !s.is_empty()
+                    && s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                    && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            };
+            (ident(ty) && ident(var)).then(|| (ty.to_owned(), var.to_owned()))
+        })
+        .collect()
+}
+
+/// doc が名乗る `Type::Variant` の両側が実在すること。
+#[test]
+fn every_variant_the_doc_names_exists() {
+    let md = doc();
+    let code = search_sources();
+
+    let missing: Vec<String> = variant_candidates(&md)
+        .into_iter()
+        .filter(|(ty, var)| !code.contains(ty.as_str()) || !code.contains(var.as_str()))
+        .map(|(ty, var)| format!("{ty}::{var}"))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "`search.md` が実在しない綴りを名乗っている: {missing:?}\n\
+         型かバリアントのどちらかが `src/search/**` に無い"
+    );
+}
+
 /// **走査が壊れていないこと。**
 ///
 /// バッククォートが1個ずれると候補が地の文になり、`missing` が空になって
