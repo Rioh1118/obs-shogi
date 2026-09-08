@@ -104,20 +104,6 @@ B0 の行でそれらを `×` にしてはいけない。
 また載せられなければ E9 になる。向きは B0 のまま動かないので `—` で正しいが、
 **理由は「関門が飲み込むから」ではない**。
 
-※7 **2つの関門は、同じ問い（開き直しを省いてよいか）に別の材料で答えている。**
-
-| 関門                                   | 見るもの                                                                                               |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `FileNode` の `canSkipReopen`          | `activeKifuPath === node.path && loadedAbsPath === node.path`                                          |
-| `selectNodeByAbsPath` の `canSkipOpen` | `isOpenedInTree`（`activeKifuPath` / `jkfData` / `kifuFormat`）を、呼び出し側が `forceReopen` で覆せる |
-
-**盤（`loadedAbsPath`）を見られるのは呼び出し側だけ**——`entities/file-tree` から
-`entities/game` は見えないので、後者は覆す口を持つ形になっている。
-
-**`isOpenedInTree` の形式の条件を「開き直せば直る」と読まないこと。** 改名で拡張子が
-変わった回はそこが偽になるが、開き直すと中身と違う形式でパースされ、パーサは投げずに
-0手の棋譜を返す。ずれは発生源で直すもの → #507
-
 ※2 **「閉じる」ボタンは無い。** `closeActiveKifu` は公開されているがスライス外の
 呼び出し元が0で、E2 を踏めるのは上の3つだけ。**それでも E2 は実在する**ので、
 落とすと `BoardOrientationBridge` を盤の外に置く理由（盤ごと unmount すると
@@ -160,6 +146,20 @@ n 回走り、各回が `shownKifuPathRef` を1段ずつ追いつかせる。**�
 **この比較（`shownKifuPathRef.current === shownKifuPath`）を「常に最新どうしを
 比べているのだから要らない」と読んで落とさないこと。** 落とすと不変条件1が破れ、
 E8（`pov` 以外の URL 変更）のたびに `pov` が消える。
+
+※7 **2つの関門は、同じ問い（開き直しを省いてよいか）に別の材料で答えている。**
+
+| 関門                                   | 見るもの                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `FileNode` の `canSkipReopen`          | `activeKifuPath === node.path && loadedAbsPath === node.path`                                          |
+| `selectNodeByAbsPath` の `canSkipOpen` | `isOpenedInTree`（`activeKifuPath` / `jkfData` / `kifuFormat`）を、呼び出し側が `forceReopen` で覆せる |
+
+**盤（`loadedAbsPath`）を見られるのは呼び出し側だけ**——`entities/file-tree` から
+`entities/game` は見えないので、後者は覆す口を持つ形になっている。
+
+**`isOpenedInTree` の形式の条件を「開き直せば直る」と読まないこと。** 改名で拡張子が
+変わった回はそこが偽になるが、開き直すと中身と違う形式でパースされ、パーサは投げずに
+0手の棋譜を返す。ずれは発生源で直すもの → #507
 
 ## この表が満たすべき不変条件
 
