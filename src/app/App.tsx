@@ -16,14 +16,13 @@ function App() {
         残るのは閉じるボタンもドラッグ領域も無い窓になる。だから fallback は
         枠を自前で持つ `RootErrorFallback` にする。
 
-        **これより上に置かないのは、そこでは枠を描けないから。** `main.tsx` で `<App />` を
-        包むことはできるが、`.app-root` の外に出た fallback は `App.scss` の器を持たない。
+        **これより上に置かないのは、`UpdaterScreen` を巻き込むから。** `main.tsx` で `<App />` を
+        包むことはできる（`RootErrorFallback` は `position: fixed` なので器も要らない）が、
+        そうすると本体の事故で更新の導線まで畳まれる —— 下の境界を分けた理由がそのまま消える。
 
-        **受けるのはいちばん内側の境界。** 盤・解析ペイン・棋譜一覧・モーダルは `AppLayout` の
-        境界が、ヘッダとサイドバーは `RuntimeShell` の境界が受け、どちらも本物の `TitleBar` を残す。
-        ここまで上がるのは**境界の外に居るもの**が落ちたとき —— provider・guard・ルータ自身に
-        加えて、`TitleBar` そのものと、`RuntimeShell` の外に居る `/` の起動画面
-        （`AppLoading`）がある。
+        **受けるのはいちばん内側の境界。** どこに何枚あるか、どこまで枠が残るかは
+        `docs/spec/screens/app-layout.md` の「失敗の見せ方」が持つ。**ここに写さない**
+        —— 2箇所に置くと片方だけ直る。
       */}
       <AppErrorBoundary label="アプリ" fallback={(args) => <RootErrorFallback {...args} />}>
         <BootstrapProviders>
