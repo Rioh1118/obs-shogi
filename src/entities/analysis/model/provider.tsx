@@ -6,6 +6,7 @@ import {
   type AnalysisSessionId,
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
+import { useResultFlush } from "./useResultFlush";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult, type EngineReadiness } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -28,9 +29,6 @@ import {
  * 同期が追いつくのを見に行く間隔。**1フレームぶん**（打ち切りの上限に対して十分細かい）。
  */
 const SYNC_POLL_MS = 16;
-
-/** 結果を画面へ反映する間引き。**80ms ごとに1回**（`info` は数十 ms 間隔で届く） */
-const RESULT_FLUSH_MS = 80;
 
 /** 盤が動いてから再開を始めるまでの猶予。連打を1本に畳む */
 const RESTART_DEBOUNCE_MS = 100;
@@ -105,58 +103,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const currentSfenRef = useRef<string | null>(currentSfen);
   const analyzingRef = useRef(state.isAnalyzing);
 
-  const latestResultRef = useRef<AnalysisResult | null>(null);
-  const flushTimerRef = useRef<number | null>(null);
-
-  const clearFlushTimer = useCallback(() => {
-    if (flushTimerRef.current != null) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-  }, []);
-
-  const flushLatest = useCallback(() => {
-    // 解析中じゃないならUI更新しない（stop直後の無駄更新防止）
-    if (!analyzingRef.current) return;
-
-    const r = latestResultRef.current;
-    if (!r) return;
-
-    dispatch({ type: "update_result", payload: r });
-  }, []);
-
-  /**
-   * 反映待ちの下書きを捨てる。**`latestResultRef` と間引きのタイマーで1組**なので、
-   * 片方だけ落とすと、捨てたはずの結果が次のタイマーで画面に出る。
-   */
-  const dropPendingResult = useCallback(() => {
-    clearFlushTimer();
-    latestResultRef.current = null;
-  }, [clearFlushTimer]);
-
-  /**
-   * 画面に出ている候補手を捨てる。**`go` を出す前に、開始する口が必ず通る。**
-   *
-   * 通さないと `start_analysis` が `analyzedSfen` だけを差し替えるので
-   * （`reducer.ts`）、**前の局面の評価値と読み筋が、新しい局面の解析結果として出る**
-   * ——新しい席の最初の `info` が届くまで。`AnalysisPane` はその間に
-   * 現在の局面の鍵でキャッシュへ焼き付けるので、停止中に戻るたび出続ける。
-   *
-   * **`clear_results` は `error` も消す**（`reducer.ts`）ので、
-   * 要らなくなった要求が通らない位置——世代の門の後ろ——で呼ぶこと。
-   */
-  const discardShownResults = useCallback(() => {
-    dropPendingResult();
-    dispatch({ type: "clear_results" });
-  }, [dropPendingResult]);
-
-  const scheduleFlush = useCallback(() => {
-    if (flushTimerRef.current != null) return;
-    flushTimerRef.current = window.setTimeout(() => {
-      flushTimerRef.current = null;
-      flushLatest();
-    }, RESULT_FLUSH_MS);
-  }, [flushLatest]);
+  // 届いた結果の間引き。**反映待ちとタイマーの組はこのフックの中だけ。**
+  const results = useResultFlush(dispatch, analyzingRef);
 
   const safeUnlisten = useCallback(() => {
     const fn = unlistenRef.current;
@@ -273,7 +221,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 握れなかった席の**反映待ち**を捨てる。
    *
    * 席を捨てる側が落とすのはこれ以降の `info` だけで、席が欄に入る前に届いて
-   * `latestResultRef` に入った1本と、それが張ったタイマーには触らない。捨てる経路は
+   * 反映待ちに入った1本と、それが張ったタイマーには触らない。捨てる経路は
    * `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される
    * ——**別の局面の評価値と読み筋が、いまの局面の解析結果として画面に出る**
    * （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
@@ -286,8 +234,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * **`clear_results` は撃たない**——`error` も消すので、直前に立った断りが黙って消える。
    */
   const dropPendingForLostSeat = useCallback(() => {
-    if (!seat.isHeld()) dropPendingResult();
-  }, [seat, dropPendingResult]);
+    if (!seat.isHeld()) results.dropPending();
+  }, [seat, results]);
 
   /**
    * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
@@ -307,7 +255,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const takeSeatAndGo = useCallback(
     async (seq: number, sfen: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
-      discardShownResults();
+      results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
       const take = seat.beginTake(discardBy);
@@ -335,17 +283,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       dispatch({ type: "start_analysis", payload: { sfen } });
 
-      // **開始の応答より早く届いた `info` を、ここで出し直す。** 席が欄に入る前に
-      // 来た1本は `latestResultRef` に入るが、`flushLatest` は `isAnalyzing` を見るので
-      // （`analyzingRef`）、そのタイマーが `start_analysis` の commit より先に起きると
-      // 黙って捨てられ、タイマーの欄も空に戻っている——張り直す者が居ない。
-      // 探索が深いほど次の `info` までは伸びるので、**「解析中」のまま空のペインが残る**。
-      scheduleFlush();
+      // **開始の応答より早く届いた `info` を、ここで出し直す**（理由は
+      // `ResultFlush.schedule` の doc）。
+      results.schedule();
 
       sentSfenRef.current = sfen;
       return "held";
     },
-    [discardShownResults, dropPendingForLostSeat, scheduleFlush, seat, supersededSince],
+    [results, dropPendingForLostSeat, seat, supersededSince],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
@@ -383,8 +328,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           onUpdate: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
             // **自分の席のものだけ採る**（判定と理由は `EngineSeat.accepts`）。
             if (!seat.accepts(sessionId)) return;
-            latestResultRef.current = result;
-            scheduleFlush();
+            results.receive(result);
           },
           // **この通知は現物では届かない。** `analysis-complete` を emit する行が
           // Rust に無い（`docs/state-transitions/analysis.md` の E8 / ※6）。
@@ -400,9 +344,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             // 一致しない側に倒したときの損は、畳んだときに席を指さない停止が1本出るだけ。
             seat.closeFinished(sessionId);
 
-            latestResultRef.current = result;
-            clearFlushTimer();
-            flushLatest();
+            results.flushNow(result);
             dispatch({ type: "stop_analysis" });
           },
           // **この通知も届かない**（`engine-error` を emit する行が無い。`docs/state-transitions/analysis.md` の E9 / ※6）。
@@ -443,10 +385,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     return () => {
       alive = false;
-      clearFlushTimer();
+      results.dropPending();
       safeUnlisten();
     };
-  }, [safeUnlisten, scheduleFlush, clearFlushTimer, flushLatest, seat]);
+  }, [safeUnlisten, results, seat]);
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
 
@@ -463,8 +405,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     debounceTimerRef.current = window.setTimeout(() => {
       // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
-      // （同期の追従）が、もう発火した id を見て降りる。`scheduleFlush` と
-      // `clearFlushTimer` の組が同じ形をしている。
+      // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
+      // 間引きのタイマーが同じ形をしている。
       debounceTimerRef.current = null;
       runRestartRef.current(seq);
     }, delayMs);
@@ -946,9 +888,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       throw e;
     } finally {
       dispatch({ type: "stop_analysis" });
-      dropPendingResult();
+      results.dropPending();
     }
-  }, [dropPendingResult, seat, supersedeRequests]);
+  }, [results, seat, supersedeRequests]);
 
   const value = useMemo<AnalysisContextType>(
     () => ({
