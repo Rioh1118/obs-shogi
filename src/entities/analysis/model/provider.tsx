@@ -267,7 +267,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // `Err` で返すので（`bridge.rs`）、起こし直しの窓は席が返るより断られるほうが
         // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
         // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
-        if (!take.engineChanged()) throw e;
+        //
+        // **札の世代差だけでは足りない。** 札を取るのは席を返した**後**なので、
+        // 返却の往復の最中に起こし直された回は、進んだ後の世代が札に焼き付く
+        // ——世代差は 0 のまま、開始だけが落ちる。いまエンジンが使えるかも見る。
+        if (!take.engineChanged() && readinessRef.current.isReady) throw e;
         landed = "engine-gone";
       }
 

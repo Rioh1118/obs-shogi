@@ -149,6 +149,9 @@ describe("EngineSeat とエンジンの世代", () => {
     rejects.shift()?.(new Error("ipc gone"));
     await settle();
 
+    // **名前が約束しているのは「返し直す」。** 欄が空いたかだけを見ると、
+    // 撃たずに欄を空ける変異が素通りする。
+    expect(stopCore.mock.calls.filter(([s]) => s === undefined)).toHaveLength(2);
     expect(seat.isHeld(), "2本目の席が返らずに残っている").toBe(false);
   });
 });

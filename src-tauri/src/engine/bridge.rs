@@ -92,6 +92,17 @@ impl EngineBridge {
         *self.app_handle.write().await = Some(handle);
     }
 
+    /// エンジンを起こす（走っていれば畳んでから起こし直す）。
+    ///
+    /// **起動を試みる前に `active_sessions` を空にする。** `Err` を返した回も席は空く。
+    ///
+    /// フロントの後始末を当てにできない口が在るため——ワークスペースの切り替えは
+    /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
+    /// （クラッシュでも同じ）。残すと以後の `take_session` が全部断り、
+    /// 利用者には「▶ を押しても何も起きない」としか見えない。
+    ///
+    /// **順序を入れ替えないこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
+    /// 断られる——落ちた回こそ空けておく必要がある。
     pub async fn initialize_engine_impl(
         &self,
         engine_path: String,
@@ -99,14 +110,8 @@ impl EngineBridge {
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
 
-        // **残っている席を先に捨てる。** `initialize_engine` は古いプロセスを
-        // 畳んでから起こし直すので、ここまで残っている席はどれも既に死んでいる。
-        //
-        // フロントの後始末を当てにできない口が在る——ワークスペースの切り替えは
-        // webview をリロードするので、React の cleanup が1つも走らないまま
-        // 席だけが残る。残すと以後の `take_session` が全部「Analysis already
-        // running」で断り、利用者には「▶ を押しても何も起きない」としか見えない。
-        // **フロント側で口を1つずつ塞ぐ形にしない**——クラッシュでも同じことが起きる。
+        // ここまで残っている席はどれも既に死んでいる（`initialize_engine` は
+        // 古いプロセスを畳んでから起こし直す）。理由は上の doc に1つ。
         let stale: Vec<String> = self
             .active_sessions
             .write()

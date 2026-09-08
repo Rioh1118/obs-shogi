@@ -117,6 +117,36 @@ describe("`src/` のコメントが指す識別子", () => {
     expect(harness().flatMap((f) => identifiersIn(f.comments)).length).toBeGreaterThan(10);
   });
 
+  /**
+   * **宣言を挟まずに `/** … *\/` が2枚続く形**を止める。
+   *
+   * TS は直前のブロックだけを宣言に結び付けるので、口を1つ足すときに doc の
+   * 並べ替えを忘れると、**前の宣言の doc が新しい宣言に付く**——エディタの
+   * ホバーも `cargo doc` にあたる読み方も、まるごと別の関数の説明を出す。
+   * 危険な口ほど doc が厚いので、取り残されるのも危険な口のほうになる。
+   *
+   * **空行を挟むものは見ない。** ファイルの頭の doc と、その下の宣言の doc が
+   * 続く形は正当で、そちらは必ず1行空けて書かれている。取り残しは
+   * **次の行がすぐ `/**` で始まる**——doc を動かし忘れた形がそれ。
+   *
+   * **この形はこのブランチで3回起きた**ので、綴りで止める。
+   */
+  test("宣言を挟まない doc ブロックが2枚続いていない", () => {
+    const orphans = tsFiles(SRC, { includeTests: true })
+      .map((path) => ({ name: relative(REPO_ROOT, path), body: readFileSync(path, "utf8") }))
+      .flatMap((f) =>
+        [...f.body.matchAll(/\*\/\n[ \t]*\/\*\*/g)].map(
+          (m) => `${f.name}:${f.body.slice(0, m.index).split("\n").length}`,
+        ),
+      )
+      .sort();
+
+    expect(
+      orphans,
+      "doc ブロックが宣言に付いていない。口を足したなら doc も一緒に動かすこと",
+    ).toEqual([]);
+  });
+
   test("ハーネスがソースに無い識別子を指していない", () => {
     const broken = harness().flatMap((f) =>
       missingIdentifiers(identifiersIn(f.comments)).map((name) => `${f.name}: ${name}`),

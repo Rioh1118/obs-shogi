@@ -939,6 +939,44 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(stopCore).toHaveBeenCalledWith("s1", "restart");
   });
 
+  it(
+    "席を返している最中に起こし直されたら、自動再開は黙って降りる",
+    async () => {
+      startCore.mockResolvedValueOnce("s1");
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 自動再開の返却を往復の途中で止める。**札を取るのはこの後。**
+      let releaseStop: () => void = () => {};
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+
+      // 返却を待っている間に、利用者が設定でオプションを変えて保存する。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P2", "P2"));
+
+      // 畳んでいる最中のエンジンへの開始は Rust が断る。
+      startCore.mockRejectedValueOnce(new Error("engine is shutting down"));
+      await act(async () => {
+        releaseStop();
+      });
+      await advance(150);
+
+      // **押した人が居ないので黙って降りる。** 断りを立てると、利用者がいま
+      // 済ませた操作（オプションを変えて保存）をもう一度やれと案内することになる。
+      expect(view.current.state.error).toBeNull();
+    },
+    SLOW,
+  );
+
   it("捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("s1");

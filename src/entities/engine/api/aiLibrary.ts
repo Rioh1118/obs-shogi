@@ -54,6 +54,7 @@ export async function ensureEnginesDir(aiRoot: string): Promise<string> {
  * ワークスペース配下かの関門を通るコマンドでは作れない。
  * 理由は Rust の `create_ai_profile_dirs` の doc
  */
+
 /**
  * AI プロファイルのフォルダを作る。
  *

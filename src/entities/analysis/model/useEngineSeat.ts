@@ -19,8 +19,9 @@ export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-p
 export type DiscardPoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
 
 /**
- * どの口の引数にもならない値。**綴りは `sweepOnUnmount` の中だけに書く**
- * ——引数にできると `releaseHeldQuietly("unmount")` が通ってしまう。
+ * どの口の引数にもならない値。**部分集合に入れない**のは、引数にできると
+ * 呼び手が席を指さない停止を撃てるようになるため——それは Rust の席を**全部**
+ * 空けるので、別の口が取った席まで巻き添えにする。撃つのはフックの中だけ。
  */
 type InlineOnlyReleasePoint = "unmount";
 
@@ -283,6 +284,9 @@ export function useEngineSeat(): EngineSeat {
    * その識別子で飛ぶ。手放した席として覚えるだけにして、遅れて届く `info` を落とす。
    *
    * 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
+   *
+   * **欄を書き換えるだけではない。** 畳まれた後に書き戻した回は、そのまま
+   * 席を指さない停止を1本撃つ（下の `sweptRef` の枝）。
    */
   const keepOrForget = (sessionId: AnalysisSessionId | undefined, generation: number) => {
     if (sessionId === undefined || seatRef.current !== null) return;
@@ -513,7 +517,7 @@ export function useEngineSeat(): EngineSeat {
     // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
     // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
     //
-    // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
+    // **席を指さない停止を撃つ。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
       sweptRef.current = true;
 
