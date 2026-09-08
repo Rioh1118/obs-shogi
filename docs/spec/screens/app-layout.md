@@ -121,9 +121,8 @@ URL（`panel/*`）が持つが、開閉はそちらへ揃えない。
 `openKifuNode` は構文として読めれば通すので、ツリーの選択と `activeKifuPath` は動く。
 その先の `loadGame` が落ちると `GameFileTreeBridge` がモーダルを出す（`danger`）。
 
-**動くのはツリーの選択だけ。** 盤・棋譜一覧・ヘッダのファイル名・ヘッダの対局者名・
-盤の対局者名は、どれも `game` の `state.loadedAbsPath` / `state.jkf` 由来なので、
-盤が動かない回は見出しも動かない。起動直後なら本体は `WelcomeScreen` のままで、
+盤・棋譜一覧・ヘッダのファイル名・ヘッダの対局者名・盤の対局者名は、どれも
+`game` の `state.loadedAbsPath` / `state.jkf` 由来なので、盤が動かない回は見出しも動かない。起動直後なら本体は `WelcomeScreen` のままで、
 前の棋譜を開いていたならその棋譜がそのまま残る。**モーダルがどのファイルの話かを言う。**
 
 ツリーの行のハイライトだけは載せられなかったファイルへ移る。`openKifuNode` が選択を
