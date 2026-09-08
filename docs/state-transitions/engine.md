@@ -174,12 +174,13 @@ issue #120 と同型の行き止まり
   **どの欄**を比べるか（`lib/__tests__/equalRuntime.test.ts` が欄ごとに当てている）
 - **`startGate.test.tsx` だけは `engineInitializer` を差し替えず、本物を通す**
   （差し替えるのは IPC の4つ）。踏んでいるのは、起動を待っている間に設定が2度外れて
-  戻る窓——**※7 の「`starting` は必ず `ready` か `failed` へ動く」は、この門が
-  世代ごとに降りることに依っている。** 見ているのは世代の門4つ（`shutdown` の
-  `dispatch`、`initializer` の IPC、`initialize` の成功側と失敗側）。
-  **観測できていないのは両者の `finally` の同一性判定だけ**——潰しても赤くならない。
-  門が開いた先で `initialize` を撃つ者が居ない（`phase` が `initializing` の間、
-  effect はどの枝にも入らない）ため、外から見える結末が変わる列を組めていない
+  戻る窓——**※7 が「フロント側だけでは保証しない」と書いている根拠の片方
+  ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは世代の門5つ（`shutdown` の
+  `dispatch` と世代の繰り上げ、`initializer` の IPC、`initialize` の成功側と失敗側）。
+  **潰しても赤くならないものが3つ残っている**——両者の `finally` の同一性判定と、
+  `initialize` 側の世代の繰り上げ、そして `initializer` の in-flight の畳み込み。
+  前2つは門が開いた先で `initialize` を撃つ者が居ないため列を組めず、
+  最後の1つは provider を張り直す列でしか踏めない（→ 不変条件1）
 - **`initializer.ts` の ※2 の窓**（飛んでいる起動の最中に別の runtime で `initialize`
   を呼ぶと、前の起動の結果が新しい runtime のものとして記録される）は誰も踏んでいない。
   足すなら `startGate.test.tsx` の構えがそのまま使える

@@ -1,12 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, render } from "@testing-library/react";
-import { useEffect } from "react";
+import { cleanup } from "@testing-library/react";
 
-import { EngineProvider } from "../provider";
-import { useEngine } from "../useEngine";
-import type { EngineNotReadyReason, EngineRuntimeConfig } from "../types";
 import type { EngineInfo } from "@/entities/engine/api/rust-types";
+import { info, mountEngine, runtime } from "./mountEngine";
 
 /**
  * **起動の門が、畳む回と重なっても降りること。**
@@ -38,48 +35,6 @@ vi.mock("../../api/tauri", () => ({
   applyEngineSettings: () => applyEngineSettings(),
   getEngineInfo: () => getEngineInfo(),
 }));
-
-const info = { name: "test-engine", author: "t", options: [] } satisfies EngineInfo;
-
-const runtime = (options: Record<string, string> = {}): EngineRuntimeConfig => ({
-  enginePath: "/e",
-  workDir: "/w",
-  evalDir: "/v",
-  bookDir: null,
-  bookFile: null,
-  options,
-});
-
-function mountEngine(initial: EngineRuntimeConfig | null) {
-  const seen: (EngineNotReadyReason | null)[] = [];
-
-  function Probe() {
-    const { notReadyReason } = useEngine();
-    useEffect(() => {
-      seen.push(notReadyReason);
-    });
-    return null;
-  }
-
-  const tree = (desired: EngineRuntimeConfig | null) => (
-    <EngineProvider desiredRuntime={desired}>
-      <Probe />
-    </EngineProvider>
-  );
-
-  const utils = render(tree(initial));
-  return {
-    reasons: seen,
-    async setRuntime(desired: EngineRuntimeConfig | null) {
-      await act(async () => {
-        utils.rerender(tree(desired));
-      });
-    },
-    async settle() {
-      await act(async () => void (await new Promise((r) => setTimeout(r, 20))));
-    },
-  };
-}
 
 beforeEach(() => {
   initializeEngine.mockReset();
@@ -135,6 +90,10 @@ describe("起動の門", () => {
 
     // **門が降りていれば、ここまでに起動し直している。数で締める**——
     // `toBeGreaterThan(1)` だと、上の巻き添えで3本になった回も緑になる。
+    //
+    // **ここで固定しているのは「起動し直せること」だけ。** この並びは1本目が
+    // 未解決のまま2本目が飛ぶ形で、**Rust 側はそれを直列化していない**
+    // ——参照されないプロセスが1本残る（→ #525）。本数はここでは見ていない。
     expect(initializeEngine).toHaveBeenCalledTimes(2);
     expect(view.reasons[view.reasons.length - 1]).toBeNull();
 
@@ -144,9 +103,11 @@ describe("起動の門", () => {
   });
 
   /**
-   * **起動を2本とも保留にする。** 1本目が返った時点で2本目がまだ飛んでいれば、
-   * 追い越された1本目の `dispatch` は**単独の commit として観測できる**
-   * ——2本目が既に決着していると、同じ tick の `shutdown` と畳まれて消える。
+   * **起動を2本とも保留にする。**
+   *
+   * 2本目を決着させると、1本目が着地する**前から** `isReady` が真になり、
+   * 理由の並びに `null` が入る——下の検査は「追い越された1本が `null` を名乗らないこと」を
+   * 見るので、**欠陥が無くても落ちる**。2本目は飛ばしたままにしておくこと。
    */
   function twoPendingStarts() {
     let settleFirst: (e?: Error) => void = () => {};
@@ -156,7 +117,7 @@ describe("起動の門", () => {
           settleFirst = (e) => (e ? reject(e) : resolve());
         }),
     );
-    // 2本目は assert が済むまで返さない。**先に返すと1本目の commit が同じ tick で畳まれる。**
+    // 2本目は assert が済むまで返さない（上の doc）。
     //
     // **返さないまま終えない。** `engineInitializer` はモジュールの singleton なので、
     // 保留のまま `it` を抜けると次のテストの `initialize` が「飛んでいる起動」を
@@ -197,11 +158,16 @@ describe("起動の門", () => {
     // **`null` は「使える」の意味。** 2本目がまだ飛んでいるのに名乗ると ▶ が通り、
     // Rust は `NotInitialized` で断る——**正常に起動している最中に**
     // 「エンジンを起こし直してください」と案内することになる。
-    expect(view.reasons.slice(from)).not.toContain(null);
-    expect(view.reasons[view.reasons.length - 1]).toBe("starting");
-
-    settleSecond();
-    await view.settle();
+    try {
+      expect(view.reasons.slice(from)).not.toContain(null);
+      expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+    } finally {
+      // **assert より後ろに置かない。** 落ちた回に保留が残ると、次のテストの
+      // `initialize` が「飛んでいる起動」を引き継ぎ、**自分の assert ではなく
+      // 足場で**落ちる——失敗の位置が原因を指さなくなる。
+      settleSecond();
+      await view.settle();
+    }
   });
 
   it("追い越された起動が落ちても、終端を名乗らない", async () => {
@@ -216,10 +182,47 @@ describe("起動の門", () => {
     // **`failed` は終端。** 名乗ると `retriesAfterError` は同じ設定なので偽のまま、
     // 解析側が `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE` で打ち切る
     // ——**健全なエンジンが起動している最中に**「使えなくなった」と告げて止める。
-    expect(view.reasons.slice(from)).not.toContain("failed");
-    expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+    try {
+      expect(view.reasons.slice(from)).not.toContain("failed");
+      expect(view.reasons[view.reasons.length - 1]).toBe("starting");
+    } finally {
+      settleSecond();
+      await view.settle();
+    }
+  });
+  /**
+   * **畳みも世代を上げる。**
+   *
+   * 上げないと、畳みを待っている間に着地した起動が `initialize_success` を通し、
+   * **利用者がもう捨てた設定**が `activeRuntime` に入る（→ `engine.md` の不変条件1）。
+   * 理由の並びでは見えない——`desiredRuntime` が無い間は理由が `no-engine` に短絡するので、
+   * ここだけ `phase` を見る。
+   */
+  it("畳みを待っている間に起動が着地しても、ready へ進まない", async () => {
+    let settleStart: () => void = () => {};
+    initializeEngine.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (settleStart = resolve)),
+    );
+    // 畳みの IPC を止めて、着地と畳みを別の commit に割る。
+    let settleShutdown: () => void = () => {};
+    shutdownEngine.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (settleShutdown = resolve)),
+    );
 
-    settleSecond();
+    const view = mountEngine(runtime());
+    await view.settle();
+
+    // 設定が外れる。畳みは飛んでいる起動を待つ。
+    await view.setRuntime(null);
+    await view.settle();
+
+    const from = view.phases.length;
+    settleStart();
+    await view.settle();
+
+    expect(view.phases.slice(from)).not.toContain("ready");
+
+    settleShutdown();
     await view.settle();
   });
 });

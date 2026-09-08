@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
-import { StrictMode, useEffect } from "react";
+import { StrictMode } from "react";
 
-import { EngineProvider } from "../provider";
-import { useEngine } from "../useEngine";
 import { isRecoverableNotReady } from "@/entities/engine/lib/notReadyReason";
 import type { EngineNotReadyReason, EngineRuntimeConfig } from "../types";
 import type { EngineInfo } from "@/entities/engine/api/rust-types";
+import { EngineProvider } from "../provider";
+import { drain, info, mountEngine, runtime } from "./mountEngine";
 import type { EngineInitializer } from "@/entities/engine/api/initializer";
 
 /**
@@ -32,49 +32,6 @@ vi.mock("../../api/initializer", () => ({
     shutdown: () => shutdown(),
   } satisfies EngineInitializer,
 }));
-
-const info = { name: "test-engine", author: "t", options: [] } satisfies EngineInfo;
-
-const runtime = (options: Record<string, string> = {}): EngineRuntimeConfig => ({
-  enginePath: "/e",
-  workDir: "/w",
-  evalDir: "/v",
-  bookDir: null,
-  bookFile: null,
-  options,
-});
-
-/** commit された理由を順に集める。**`isReady` の回は `null` が入る。** */
-function mountEngine(initial: EngineRuntimeConfig | null) {
-  const seen: (EngineNotReadyReason | null)[] = [];
-
-  function Probe() {
-    const { notReadyReason } = useEngine();
-    useEffect(() => {
-      seen.push(notReadyReason);
-    });
-    return null;
-  }
-
-  const tree = (desired: EngineRuntimeConfig | null) => (
-    <EngineProvider desiredRuntime={desired}>
-      <Probe />
-    </EngineProvider>
-  );
-
-  const utils = render(tree(initial));
-  return {
-    reasons: seen,
-    async setRuntime(desired: EngineRuntimeConfig | null) {
-      await act(async () => {
-        utils.rerender(tree(desired));
-      });
-    },
-    async settle() {
-      await act(async () => void (await new Promise((r) => setTimeout(r, 20))));
-    },
-  };
-}
 
 beforeEach(() => {
   initialize.mockReset();
@@ -298,7 +255,7 @@ describe("EngineProvider が立てる理由", () => {
         </EngineProvider>
       </StrictMode>,
     );
-    await act(async () => void (await new Promise((r) => setTimeout(r, 20))));
+    await drain();
 
     expect(initialize).toHaveBeenCalledTimes(1);
   });

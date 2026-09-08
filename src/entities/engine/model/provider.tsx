@@ -71,13 +71,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     // `"idle"` のまま見え、2本目が通る。いま2プロセスにならないのは
     // `engineInitializer` 側が in-flight を畳んでいるからで、この門ではない。
     //
-    // **持つのは世代であって bool ではない。** 畳む側は飛んでいる起動を待ち切るとは
-    // 限らない（`api/initializer.ts` の `shutdown` は `await` の前に `inFlight` を
-    // 空けるので、2本目は待たずに戻る）。bool だと、その回に `phase` が `idle` へ
-    // 落ちてから先の `initialize` が全部弾かれる——**最後には降りる**が、降ろすのは
-    // 世代違いで `dispatch` せずに戻る1本なので `state` が動かず、
-    // **effect を起こし直す者がもう居ない**。そのときの理由は `starting`（戻る側）で、
-    // 解析は誰にも断たれずに回り続ける。
+    // **門が閉じたまま残らないことは `shutdown` 側が守る**（そこで必ず落とす）。
+    // ここが世代を持つのは `finally` のためで、**自分が握っている回だけ空ける**
+    // ——無条件に空けると、畳みに追い越された1本が着地した時点で門が開き、
+    // 飛んでいる起動の上にもう1本が重なる。
     if (startingSeqRef.current !== null) return false;
 
     const mySeq = ++seqRef.current;

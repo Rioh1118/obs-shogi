@@ -104,7 +104,7 @@ describe("解析の断り", () => {
     // あるので、肯定側を落とす改変が黙って通る。
     //
     // **肯定形の綴りまでは要求しない。** 表で回すテスト
-    // （`it.each([["failed", ENGINE_FAILED_MESSAGE]])`）は期待値を変数で渡すので、
+    // （`it.each([["failed", ENGINE_FAILED_ON_START_MESSAGE]])`）は期待値を変数で渡すので、
     // `.toBe(NAME)` を要求すると正しい形が落ちる。否定だけを引いて、
     // **残りに1度でも出るか**を見る。
     // **matcher を列挙しない。** 列挙すると `.not.toStrictEqual` へ書き換えるだけで

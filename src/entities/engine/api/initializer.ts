@@ -6,17 +6,21 @@ import { shutdownEngine } from "./tauri";
 /**
  * エンジンの起動と畳みを、**同時に1本**に絞る口。
  *
- * ここが約束すること（差し替える側もこの契約を満たすこと）:
+ * **本物が守ること**（差し替えるなら、どの条を落としたかを double の doc に書くこと
+ * ——`model/__tests__/provider.test.tsx` の double は第1条も第2条も満たさない）:
  *
  * - **飛んでいる起動が在れば、`initialize` はそれを返す。** 引数は**見ない**
- *   ——別の設定で呼んでも、返るのは先に飛んでいる起動の結果。
- *   どの設定で起きたかを記録するのは呼び手の責任（`EngineProvider` の `lastTriedRef`）
- * - **`shutdown` は飛んでいる起動の決着を待ってから畳む。** 待っている間に
- *   次の起動が始まっていたら、**畳みは撃たない**——Rust の `shutdown` は
- *   そのとき載っているプロセスを落とすので、撃つと後から起きたエンジンを殺す
- * - **畳みの失敗は呼び手へ投げる。** `shutdown_engine` は `Err` を返しうるので
- *   `shutdown()` は reject する。`EngineProvider` の `restart()` はそこで切れ、
- *   起こし直すのは effect の `idle` の枝（→ `docs/state-transitions/engine.md` の ※3）
+ *   ——別の設定で呼んでも、返るのは先に飛んでいる起動の結果。**呼び手はそれを誤って
+ *   記録する**（新しい設定を `activeRuntime` に書く。→ `docs/state-transitions/engine.md`
+ *   の ※2 / 不変条件1）ので、差し替える実装は引数を見るほうへ寄せてよい
+ * - **自分が掴んだ起動の決着は待ってから畳む。** 待っている間に次の起動が始まっていたら
+ *   **畳みは撃たない**——Rust の `shutdown` はそのとき載っているプロセスを落とすので、
+ *   撃つと後から起きたエンジンを殺す。**掴んでいる起動が無い回は待たない**
+ *   （先行する畳みが既に `inFlight` を空けている）ので、起動が実際に飛んでいても IPC は撃つ
+ * - **畳みの失敗は呼び手へ投げる。** `shutdownEngine()` は裸の `await` なので、
+ *   invoke が落ちれば通る（**Rust 側が `Err` を返す筋はいま無い**
+ *   → `docs/state-transitions/engine.md` の「埋まっていないセル」）。
+ *   `EngineProvider` の `restart()` はそこで切れ、起こし直すのは effect の `idle` の枝（→ ※3）
  */
 export interface EngineInitializer {
   initialize(runtime: EngineRuntimeConfig): Promise<EngineInfo>;
