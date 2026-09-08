@@ -166,8 +166,10 @@ $app-header-height: 5.6rem;
 // 落ちたときにだけ大きさが変わる
 $window-button-size: 1.2rem;
 $window-button-padding: 0.14rem;
-// 帯の塗り。**半透明のまま共有する** —— 不透明にすると、下に何が居るかで
-// 平常時（作業面の上）と落ちたとき（`$color-primary-black` の上）で見え方が割れる
+// 帯の塗り。`.titlebar` と `.root-error-fallback__chrome` が同じ帯を別々に描くので、
+// 落ちた瞬間に色味が変わらないよう1つを見る。
+// **半透明なのは `backdrop-filter` と対の意匠**（`TitleBar.scss`）。どちらの帯も背後に
+// 塗られた祖先を持たないので、いまぼかす相手は無い
 $surface-titlebar: rgba($color-primary-black, 0.86);
 // 付箋（`FloatingNote`）のヘッダ。高さがタイトルバーと揃うのは意匠で、従属ではない。
 // 利用者が1つしか無いのにここに置くのは、コンポーネント側のローカル変数に下ろすと
