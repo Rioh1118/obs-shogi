@@ -391,7 +391,17 @@ gate_kinds_for_path() {
     # **門番自身も `ts`。** `npm run verify` は最後に `test:hooks`（門番の検査）を
     # 走らせるうえ、`docsIdentifiers` が `.claude/hooks/*.sh` を走査する
     # ——シェルは判定表が引く関数名の唯一の定義元。専用の種類は要らない。
-    .claude/hooks/*.sh) kinds="$kinds ts" ;;
+    .claude/hooks/*.sh) kinds="$kinds ts hooks" ;;
+  esac
+  # ラチェットの本体は `scripts/` に居る。`knip-ratchet.sh` は `verify` が、
+  # `rustdoc-ratchet.sh` は `verify:rust` が呼ぶので、**両方の種類を返す。**
+  #
+  # 分類しないと、**ラチェットを緩めるコミットだけが検査を1本も通らない**
+  # ——基準を書き換える変更こそ、その基準で守っているものを走らせる必要がある。
+  # どちらが呼ぶかを綴りで振り分けない。次のラチェットが増えたとき、
+  # 振り分けの表だけが取り残される。
+  case "$path" in
+    scripts/*.sh) kinds="$kinds ts rust" ;;
   esac
 
   printf '%s' "${kinds# }"
@@ -551,6 +561,7 @@ cd "$project_dir" || deny "検証ゲート: 対象のツリーへ移動できな
 # 数えられない。
 needs_ts=0
 needs_rust=0
+needs_hooks=0
 while IFS= read -r -d '' record; do
   status=${record:0:2}
   paths=${record:3}
@@ -569,6 +580,7 @@ $original"
       case "$kind" in
         ts) needs_ts=1 ;;
         rust) needs_rust=1 ;;
+        hooks) needs_hooks=1 ;;
       esac
     done
   done <<EOF
@@ -580,9 +592,10 @@ done < <(git status --porcelain -z --untracked-files=no)
 if gate_is_teardown "$command"; then
   needs_ts=0
   needs_rust=0
+  needs_hooks=0
 fi
 
-if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ]; then
+if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ] && [ "$needs_hooks" -eq 0 ]; then
   exit 0
 fi
 
@@ -600,5 +613,11 @@ $(printf '%s' "$out" | tail -40)
 
 [ "$needs_ts" -eq 1 ] && run_gate "npm run verify" npm run verify
 [ "$needs_rust" -eq 1 ] && run_gate "npm run verify:rust" npm run verify:rust
+# 門番自身の検査。**`npm run verify` から外してある。**
+# 判定を1件ずつ当てるうえ、動詞ごとに使い捨ての repo を複製するので
+# git を数千プロセス起動し、実測4分52秒——`verify` の8割を1人で占めていた。
+# 守っている不変条件（判定表と許可リストの正しさ）は**門番を触ったときしか動かない**。
+# だからここでだけ走らせる。CI にも控えを置いてある。
+[ "$needs_hooks" -eq 1 ] && run_gate "npm run test:hooks" npm run test:hooks
 
 exit 0

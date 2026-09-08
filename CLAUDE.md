@@ -5,15 +5,21 @@ Tauri v2 デスクトップアプリ（React 19 + TypeScript + SCSS / Rust）。
 ## 検証（変更後に必ず実行）
 
 ```bash
-npm run verify          # tsc -b + lint + vitest + test:hooks
-npm run verify:rust     # cargo fmt + clippy + test
+npm run verify          # tsc -b + lint + vitest + ratchet:knip
+npm run verify:rust     # cargo fmt + clippy + test + ratchet:rustdoc
+npm run test:hooks      # 門番自身の検査。verify には入っていない（下記）
 ```
 
 **所要時間をここに書かない。** 書いた瞬間から実測と離れる（`verify` は
 「約8秒」と書いてあった時期に実測 84 秒だった）。知りたいときは
-`time npm run verify` で取ること。**どちらも分単位**だと思っておけばよい。
-`verify` の大半は `test:hooks` で、その中の `probe_is_readonly` が
-使い捨ての repo に動詞を1つずつ当てているぶん。
+`time npm run verify` で取ること。
+
+**`test:hooks` は `verify` に入っていない。** 判定を1件ずつ当てるうえ、
+`probe_is_readonly` が動詞ごとに使い捨ての repo を複製するので git を
+数千プロセス起動する。これを毎コミット払っていた時期は `verify` の8割がこれだった。
+守っている不変条件は**門番を触ったときしか動かない**ので、
+`.claude/hooks/*.sh` を触ったコミットで**ゲート自身が走らせる**（種類 `hooks`）。
+CI にも控えがある。**思い出して手で走らせる必要は無い。**
 
 `git commit` は `.claude/hooks/verify-gate.sh` が横取りし、変更ファイルの種類に応じて
 上を自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
