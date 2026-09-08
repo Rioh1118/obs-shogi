@@ -41,9 +41,16 @@
   &--floating {
     position: fixed;
     z-index: index.$z-notification;
+    // **右下を避ける。** あの角は通知（`NotificationLayer`）と更新のカードが既に取り合っていて、
+    // 不透明なこの箱を重ねると、いちばん要る場面で更新の導線を物理的に塞ぐ
     right: index.$space-12;
-    bottom: index.$space-12;
+    // **帯を空けて `top` を置く。** `Modal.scss` の overlay と同じ不変条件に載る。
+    // `bottom` 起点にすると中身が伸びたぶん上へ伸び、ビューポートの外へ出た分は
+    // `position: fixed` なのでどんなスクロールでも届かない
+    top: calc(#{index.$titlebar-height} + #{index.$space-6});
     height: auto;
+    // 上限を持たせて、基底の `overflow: auto` を効かせる
+    max-height: calc(100vh - #{index.$titlebar-height} - #{index.$space-6} * 2);
     border-radius: index.$radius-4;
     box-shadow: index.$shadow-overlay;
   }
