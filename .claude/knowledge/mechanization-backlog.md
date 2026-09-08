@@ -39,14 +39,14 @@
 | **9**  | 未使用 export の検出                                                      | `knip` は devDependency に入っているが `verify` に未接続。通算14件の死んだ export                                      | entities-kifu r1〜r11                     |
 | **9**  | `docs/**/*.md` を verify-gate の対象に                                    | docs だけのコミットで検査が1本も走らない                                                                               | #251 / game-cursor-plan r3〜r11           |
 | **7**  | `@throws` の**有無**の静的検出                                            | `throw` を含む関数を呼ぶ export に `@throws` があるか。**内容の正しさは拾えない**                                      | entities-kifu r5〜r11                     |
+| **6**  | Rust の doc が TS / SCSS の綴りを名指す形                                 | `comment_identifiers.rs` は全大文字か全小文字しか候補にせず、`PositionSearchStatusBar` も `wsTab__warnPath` も拾わない | 410-cap-sfen r1〜r6                       |
 | **5**  | doc の識別子の実在検査                                                    | `[lints.rustdoc] broken_intra_doc_links = "deny"`。**既存の警告13件**を先に片付けるか、件数ラチェットで増分だけ止める  | skc r8/r10/r11/r12/r17                    |
 | **5**  | `await` を跨いだ closure 変数を `dispatch`/`setState` の payload に使う形 | 通算9件の変種。「宛先が古い」「本文が古い」「基準が古い」                                                              | kifu-write-path r3〜r13                   |
+| **4**  | `` `X`（path） `` の**対**の突き合わせ                                    | `docsIdentifiers` は綴りがどこかに在れば通り、`docsSourcePaths` はパスだけを見る。**両方が緑のまま対だけが壊れる**     | 447-position-search r1〜r4                |
 | **3**  | `as TesuuPointer` / `as BranchIndex` を所有ファイル以外で禁止             | 入れれば `CLAUDE.md` の落とし穴の記述自体が要らなくなる                                                                | #243                                      |
 | **3**  | 束縛なしの空 `catch {}` を UI 層で禁止                                    |                                                                                                                        | #308                                      |
 | **3**  | barrel の呼び出し元0の export                                             | `sliceBarrels.test.ts` と同じ形の走査                                                                                  | app-shell r1/r2/r3                        |
 | **3**  | `model/**` の doc から `lib/**` の識別子を参照することの禁止              | 前回の修正コミット自身が新しい違反を足した                                                                             | entities-kifu r7/r8/r9                    |
-| **6**  | Rust の doc が TS / SCSS の綴りを名指す形                                 | `comment_identifiers.rs` は全大文字か全小文字しか候補にせず、`PositionSearchStatusBar` も `wsTab__warnPath` も拾わない | 410-cap-sfen r1〜r6                       |
-| **4**  | `` `X`（path） `` の**対**の突き合わせ                                    | `docsIdentifiers` は綴りがどこかに在れば通り、`docsSourcePaths` はパスだけを見る。**両方が緑のまま対だけが壊れる**     | 447-position-search r1〜r4                |
 | **3**  | `docsIdentifiers` / `docsSourcePaths` の走査を `docs/**` へ広げる         | いま見ているのは `docs/state-transitions/` だけ。`docs/spec/` と `docs/decisions/` は無防備                            | 404-reveal r3 / book-to-main r38 / 420 r1 |
 | **2**  | `commentHistory` を Rust の `//!` `///` にも掛ける                        | いま TS 側だけ。同じ述語をそのまま使える                                                                               | 410-cap-sfen r3                           |
 | **2**  | barrel の未使用 export の走査                                             | `entities/search` だけで28名が未消費。目視では追えない                                                                 | 447-position-search r3/r4                 |
@@ -69,7 +69,7 @@
 
 全トピックで繰り返し「防げない」と申告された類型。ここ以外を人が見るのは無駄。
 
-1. **コメントが主張する条件と、実装している条件式のずれ。** 全179本を通じて最多。
+1. **コメントが主張する条件と、実装している条件式のずれ。** 全275本を通じて最多。
    `commentHistory` は**経緯**の語しか見ないので、**理由の嘘**には効かない。
    → 対処は1つだけ: **「〜だから」と書いてあったら、その条件式がコードのどの行かを指す。**
 2. **文脈を前提にしたコメント。** そのコメントだけを読んで意味が通るか。
