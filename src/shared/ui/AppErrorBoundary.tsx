@@ -217,15 +217,31 @@ export function AppErrorFallbackAction({
   secondary = false,
   children,
 }: {
-  onClick: () => void;
+  /**
+   * 押されたときにすること。**非同期でよい。**
+   *
+   * `() => void` に絞ると `() => Promise<void>` が代入できてしまい、拒否が誰にも
+   * 拾われないまま消える（型でも lint でも赤くならない）。ここが最後の砦の画面の出口なので、
+   * 少なくともログには残す。**画面への出しかたは呼び出し側が `notice` で持つ。**
+   */
+  onClick: () => void | Promise<void>;
   secondary?: boolean;
   children: ReactNode;
 }) {
+  const run = () => {
+    const result = onClick();
+    if (result) {
+      void result.catch((cause: unknown) => {
+        console.error("[AppErrorFallbackAction] 出口が失敗:", cause);
+      });
+    }
+  };
+
   return (
     <button
       type="button"
       className={`app-error-fallback__action${secondary ? " app-error-fallback__action--secondary" : ""}`}
-      onClick={onClick}
+      onClick={run}
     >
       {children}
     </button>
