@@ -1,5 +1,11 @@
 import { equalRuntime } from "./equalRuntime";
-import type { EngineNotReadyReason, EnginePhase, EngineRuntimeConfig } from "../model/types";
+import {
+  RECOVERABLE_NOT_READY_REASONS,
+  type EngineNotReadyReason,
+  type EnginePhase,
+  type EngineRuntimeConfig,
+  type RecoverableNotReadyReason,
+} from "../model/types";
 
 /**
  * `phase: "error"` から**起動し直す口が在るか**。
@@ -46,3 +52,15 @@ export function reasonForPhase(
       return willRetryAfterError ? "starting" : "failed";
   }
 }
+
+/**
+ * 待てば戻るか。**`false` に絞り込むので、呼び手は終端の理由だけを扱える。**
+ *
+ * 集合そのもの（`RECOVERABLE_NOT_READY_REASONS`）は `Exclude` の導出元なので
+ * `model/types.ts` に残る。**述語はこのファイルに集める**——理由の割り方を
+ * 3本とも1箇所で読めるようにするため。
+ */
+export const isRecoverableNotReady = (
+  reason: EngineNotReadyReason,
+): reason is RecoverableNotReadyReason =>
+  (RECOVERABLE_NOT_READY_REASONS as readonly EngineNotReadyReason[]).includes(reason);

@@ -8,7 +8,7 @@ export type {
   TerminalNotReadyReason,
   EngineReadiness,
 } from "./model/types";
-export { isRecoverableNotReady } from "./model/types";
+export { isRecoverableNotReady } from "./lib/notReadyReason";
 export type {
   EngineInfo,
   EngineSettings,

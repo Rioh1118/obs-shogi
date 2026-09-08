@@ -5,12 +5,10 @@ import { StrictMode, useEffect } from "react";
 
 import { EngineProvider } from "../provider";
 import { useEngine } from "../useEngine";
-import {
-  isRecoverableNotReady,
-  type EngineNotReadyReason,
-  type EngineRuntimeConfig,
-} from "../types";
+import { isRecoverableNotReady } from "@/entities/engine/lib/notReadyReason";
+import type { EngineNotReadyReason, EngineRuntimeConfig } from "../types";
 import type { EngineInfo } from "@/entities/engine/api/rust-types";
+import type { EngineInitializer } from "@/entities/engine/api/initializer";
 
 /**
  * **見るのは `notReadyReason` の並びと、そこに至る `initialize` / `shutdown` の
@@ -26,11 +24,13 @@ import type { EngineInfo } from "@/entities/engine/api/rust-types";
  */
 const initialize = vi.fn<(runtime: EngineRuntimeConfig) => Promise<EngineInfo>>();
 const shutdown = vi.fn<() => Promise<void>>();
+// **差し替えも契約で縛る。** `satisfies` が無いと、`EngineInitializer` の署名が
+// 動いてもこの double だけ古いまま緑になる。
 vi.mock("../../api/initializer", () => ({
   engineInitializer: {
     initialize: (runtime: EngineRuntimeConfig) => initialize(runtime),
     shutdown: () => shutdown(),
-  },
+  } satisfies EngineInitializer,
 }));
 
 const info = { name: "test-engine", author: "t", options: [] } satisfies EngineInfo;

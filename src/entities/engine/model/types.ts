@@ -73,12 +73,6 @@ export type RecoverableNotReadyReason = (typeof RECOVERABLE_NOT_READY_REASONS)[n
 /** 待っても戻らない理由。**読み手はここで諦める。** */
 export type TerminalNotReadyReason = Exclude<EngineNotReadyReason, RecoverableNotReadyReason>;
 
-/** 待てば戻るか。**`false` に絞り込むので、呼び手は終端の理由だけを扱える。** */
-export const isRecoverableNotReady = (
-  reason: EngineNotReadyReason,
-): reason is RecoverableNotReadyReason =>
-  (RECOVERABLE_NOT_READY_REASONS as readonly EngineNotReadyReason[]).includes(reason);
-
 /**
  * **「使えないなら理由が在る」を型で持つ。** 2つの欄を独立に持つと、呼び手は
  * `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える
