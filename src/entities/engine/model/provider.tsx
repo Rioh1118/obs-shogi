@@ -28,19 +28,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     !!state.activeRuntime &&
     equalRuntime(desiredRuntime, state.activeRuntime);
 
-  // **理由はここで決める。** `desiredRuntime` を見られるのはこの provider だけなので、
+  // **理由はここで決める**——`desiredRuntime` を見られるのはこの provider だけなので、
   // 解析側からは「選んでいない」と「起こし直している最中」を区別できない。
   //
-  // **`desiredRuntime` の有無を先に見る。** 無ければ、下の effect は `shutdown` して
-  // 降りるだけで**起動し直す口が1つも無い**——`phase` が何であれ結末は同じなので、
-  // `phase` に先を譲ると、その窓で「オプションを変えて保存」と案内することになる
-  // （起こし直す材料が揃っていないのに）。
-  //
-  // 残りを `phase` で割る。`error` は同じ設定では再トライしない（→ engine.md の ※5）ので戻らず、
-  // それ以外は必ずどこかの枝が起動し直す。**`idle` を「選んでいない」に落とさない**
-  // ——起こし直しの途中（下の effect が `idle` から拾い直す窓）がそこへ来るので、
-  // 落とすと読み手が「待てば戻る」を見分けられなくなる
-  // （解析側は理由で打ち切るかを決める → `docs/state-transitions/analysis.md` の ※5）。
+  // **理由の割り方と、当たる順の根拠は `docs/state-transitions/engine.md` の ※7。**
+  // 向こうの表はこの三項の並びに追随しているので、順を変えるときは一緒に直すこと。
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
     : state.phase === "error"

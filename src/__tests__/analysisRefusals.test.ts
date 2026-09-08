@@ -120,4 +120,20 @@ describe("エンジンが使えない理由への対応", () => {
     expect(values.length, `${REFUSALS}: ${name} が空`).toBeGreaterThan(0);
     expect(values.filter((v) => !refusalNames().includes(v))).toEqual([]);
   });
+
+  /**
+   * **名前で入口が読めること。** 2つの表は同じ `EngineNotReadyReason` を鍵に取るので、
+   * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる——**ボタンを押していない人に
+   * 「もう一度 ▶ を押してください」が出る**形が、それで1度入っている。
+   */
+  test.each([
+    ["ON_START_REFUSALS", "_ON_START_MESSAGE"],
+    ["WHILE_ANALYZING_REFUSALS", "_WHILE_ANALYZING_MESSAGE"],
+  ])("%s の値は %s で終わる", (name, suffix) => {
+    const code = codeOf(read(REFUSALS));
+    const table = new RegExp(`${name}[^=]*=\\s*\\{([\\s\\S]*?)\\};`).exec(code);
+    const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+
+    expect(values.filter((v) => !v.endsWith(suffix))).toEqual([]);
+  });
 });

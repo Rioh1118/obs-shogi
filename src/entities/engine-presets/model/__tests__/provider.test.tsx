@@ -112,9 +112,8 @@ describe("EnginePresetsProvider", () => {
     const deleting = view.current.deletePreset("a");
     await view.settle();
 
-    // 消した後も、代わりのプリセットが選ばれている。
-    expect(view.current.runtimeConfig).not.toBeNull();
-    expect(view.current.selectedPreset?.id).toBe("b");
+    // **保存が返るまで画面は動かない**（ADR-0004 の決定7）。
+    expect(view.current.selectedPreset?.id).toBe("a");
 
     await act(async () => {
       finishSave();
@@ -124,6 +123,7 @@ describe("EnginePresetsProvider", () => {
 
     // **一度も null を通していない。** 通すとエンジンが畳まれ、走っている解析が止まる。
     expect(view.seen.slice(from).filter((r) => r === null)).toHaveLength(0);
+    expect(view.current.selectedPreset?.id).toBe("b");
     expect(setLastPresetId).toHaveBeenCalledWith("b");
     view.unmount();
   });
@@ -144,22 +144,20 @@ describe("EnginePresetsProvider", () => {
     view.unmount();
   });
 
-  it("保存に失敗したら、一覧も選択も元に戻して断る", async () => {
+  it("保存に失敗したら、一覧も選択も動かさない", async () => {
     const view = mountPresets();
     await view.settle();
     savePresets.mockRejectedValueOnce(new Error("disk full"));
 
     await act(async () => {
-      await view.current.deletePreset("a");
+      await view.current.deletePreset("a").catch(() => {});
     });
     await view.settle();
 
-    // **成功と見分けが付く形で終える。** 戻さないと、ディスクは元のままなのに
-    // 画面は完全な成功と同じになり、次に起動したとき消したはずのものが戻ってくる。
+    // **成功と見分けが付く形で終える。** 画面を先に動かすと、ディスクは元のままなのに
+    // 完全な成功と同じに見え、次に起動したとき消したはずのものが戻ってくる。
     expect(view.current.state.presets.map((p) => p.id)).toEqual(["a", "b"]);
     expect(view.current.selectedPreset?.id).toBe("a");
-    expect(view.current.state.status).toBe("error");
-    // 保存が落ちた回に `last_preset_id` だけ進めない。
     expect(setLastPresetId).not.toHaveBeenCalled();
     view.unmount();
   });

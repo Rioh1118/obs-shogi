@@ -162,15 +162,15 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   }, [state.selectedPresetId, setLastPresetId, touchPreset]);
 
   /**
-   * 選択を差し替える。**同期の分と待つ分を割ってある。**
+   * 選択を state に載せるだけ。**永続化は呼び手が撃つ。**
    *
-   * 一覧の入れ替えと同じ commit で選択を動かしたい口があり、そこは永続化を後ろへ回す。
-   * 割らずに `selectPreset` を呼ぶと、間に本物の往復が入って
-   * 「もう無いプリセットを選んだまま」の描画が1枚できる（→ `deletePreset`）。
+   * 割ってあるのは、一覧の入れ替えと**同じ commit** で選択を動かしたい口があるため
+   * （→ `deletePreset`）。`selectPreset` を呼ぶと `setLastPresetId` の往復まで背負う。
    *
-   * **`touchPreset` は撃たない。** あれは `engineKey` を動かして解析ペインの
-   * キャッシュを外すためのもので、プリセットの中身が変わった回だけが撃つ
-   * （`features/engine-position-sync`）。選び直しでは中身は変わっていない。
+   * **`touchPreset` は撃たない。** あれが動かす `selectedPresetVersion` は
+   * `features/engine-position-sync` が**送信済み局面の記録**を捨てる鍵に入るもので、
+   * **id が動かないまま中身だけが変わった回**に要る。選び直しは id 自体が動くので、
+   * 鍵は撃たなくても外れる。
    */
   const commitSelection = useCallback((id: PresetId | null) => {
     dispatch({ type: "set_selected", payload: id });
@@ -201,6 +201,10 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
    *
    * 選択が動くのは一覧に足し終えた後なので、`deletePreset` のような
    * 「もう無いものを選んだまま」の窓は開かない。
+   *
+   * **保存が落ちた回は画面を戻さない**——ディスクに無い複製が一覧に残る（→ F-5）。
+   * `createPreset` / `updatePreset` / `mergeOptions` も同じ。`deletePreset` だけが
+   * 保存を先に撃つのは、そこだけ**選択も一緒に動く**（外すとエンジンが畳まれる）ため。
    */
   const duplicatePreset = useCallback(
     async (id: PresetId) => {
@@ -245,11 +249,14 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
 
   const deletePreset = useCallback(
     async (id: PresetId) => {
-      const previous = state.presets;
-      const previousSelected = state.selectedPresetId;
-      const next = previous.filter((p) => p.id !== id);
-      const replacing = previousSelected === id;
+      const next = state.presets.filter((p) => p.id !== id);
+      const replacing = state.selectedPresetId === id;
       const fallback = replacing ? (next[0]?.id ?? null) : null;
+
+      // **保存が返ってから画面を動かす**（ADR-0004 の決定7。プリセットは書けたかどうかを
+      // 後から読み直す経路が無いので、`state` を先に動かすとディスクとのズレに誰も気づけない）。
+      // 落ちた回は何も動かないので、成功と見分けが付く。
+      await persist(next);
 
       // **一覧と選択は同じ commit で動かす。** 間に await を挟むと、その描画は
       // 「もう無いプリセットを選んだまま」になり `runtimeConfig` が null に落ちる
@@ -258,18 +265,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       // 画面には選び直しを促す断りだけが残る。
       dispatch({ type: "set_presets", payload: next });
       if (replacing) commitSelection(fallback);
-
-      // **保存が落ちたら、畳んだ2つの dispatch ごと戻す。** 戻さないと、
-      // ディスクは元のままなのに画面は**完全な成功と1ドットも変わらない**
-      // ——次に起動したとき、消したはずのプリセットが選ばれた状態で戻ってくる。
-      try {
-        await persist(next);
-      } catch {
-        dispatch({ type: "set_presets", payload: previous });
-        if (replacing) commitSelection(previousSelected);
-        dispatch({ type: "error", payload: "プリセットを削除できませんでした。" });
-        return;
-      }
 
       if (replacing) await setLastPresetId(fallback);
     },

@@ -56,13 +56,13 @@ export const STOP_FAILED_MESSAGE =
  * **理由ごとに割る**——「選んでください」を起動中の人に言わないため。
  * 理由を決めるのは `entities/engine`（`EngineNotReadyReason`）。
  */
-export const ENGINE_STARTING_MESSAGE =
+export const ENGINE_STARTING_ON_START_MESSAGE =
   "エンジンの起動を待っています。少し待ってからもう一度 ▶ を押してください。";
 /**
  * エンジンの初期化が落ちている（→ F-9 / #171）。**▶ を押した人に出す。**
  * 解析が走っている最中に落ちた回は `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE`。
  */
-export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
+export const ENGINE_FAILED_ON_START_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
 /**
  * 解析の最中に初期化が落ちた（→ `docs/state-transitions/analysis.md` の ※5）。
  *
@@ -97,8 +97,8 @@ export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。
 /** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
 export const ON_START_REFUSALS: Record<EngineNotReadyReason, string> = {
   "no-engine": NO_ENGINE_ON_START_MESSAGE,
-  starting: ENGINE_STARTING_MESSAGE,
-  failed: ENGINE_FAILED_MESSAGE,
+  starting: ENGINE_STARTING_ON_START_MESSAGE,
+  failed: ENGINE_FAILED_ON_START_MESSAGE,
 };
 
 /**

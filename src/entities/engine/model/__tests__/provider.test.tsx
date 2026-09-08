@@ -78,7 +78,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("EngineProvider が立てる理由", () => {
-  it("エンジンを選んでいない間だけ no-engine", async () => {
+  it("起動の設定を組み立てられない間だけ no-engine", async () => {
     const view = mountEngine(null);
     await view.settle();
     expect(view.reasons).toEqual(["no-engine"]);
@@ -88,7 +88,7 @@ describe("EngineProvider が立てる理由", () => {
     await view.settle();
 
     // 起動を待つ窓は `starting`。**`no-engine` を挟まない**——挟むと、解析側が
-    // 「選び直すまで戻らない」と読んで走っている解析を打ち切る。
+    // 戻らない側と読んで、走っている解析を打ち切る。
     expect(view.reasons).toEqual(["no-engine", "starting", null]);
   });
 
@@ -119,7 +119,7 @@ describe("EngineProvider が立てる理由", () => {
     expect(initialize).toHaveBeenCalledTimes(2);
   });
 
-  it("選択が外れていれば、初期化に失敗していても no-engine", async () => {
+  it("設定を組み立てられなければ、初期化に失敗していても no-engine", async () => {
     initialize.mockRejectedValue(new Error("boom"));
 
     const view = mountEngine(runtime());
@@ -129,7 +129,7 @@ describe("EngineProvider が立てる理由", () => {
 
     // **`desiredRuntime` の有無を先に見る。** `failed` を先に見ると、この窓で
     // 「オプションを変えて保存してください」と案内することになる
-    // ——**変える対象のプリセットが選ばれていない。**
+    // ——**起こし直す材料が揃っていない。**
     // `shutdown` を長引かせて窓を開けたまま観測する。
     let finishShutdown: () => void = () => {};
     shutdown.mockImplementationOnce(
@@ -149,7 +149,7 @@ describe("EngineProvider が立てる理由", () => {
     expect(view.reasons[view.reasons.length - 1]).toBe("no-engine");
   });
 
-  it("選択が外れたら no-engine で止まり、起動し直す口が無い", async () => {
+  it("設定が組み立てられなくなったら no-engine で止まり、起動し直す口が無い", async () => {
     const view = mountEngine(runtime());
     await view.settle();
     expect(initialize).toHaveBeenCalledTimes(1);

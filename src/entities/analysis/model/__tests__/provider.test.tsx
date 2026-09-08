@@ -9,11 +9,11 @@ import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 import type { AnalysisResult, EngineReadiness } from "@/entities/engine";
 import {
   ENGINE_ERROR_MESSAGE,
-  ENGINE_FAILED_MESSAGE,
+  ENGINE_FAILED_ON_START_MESSAGE,
   ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
   NO_ENGINE_WHILE_ANALYZING_MESSAGE,
   NO_ENGINE_ON_START_MESSAGE,
-  ENGINE_STARTING_MESSAGE,
+  ENGINE_STARTING_ON_START_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_FAILED_MESSAGE,
@@ -42,6 +42,8 @@ vi.mock("@/entities/engine/api/tauri", () => ({
 // `{ isReady: false, notReadyReason: null }` が tsc を通り、その回は断りの欄に
 // `undefined` が載ったまま解析が止まる——テストを書いた人はそれを「断りが立った」と読む。
 let engine: EngineReadiness = { isReady: true, notReadyReason: null };
+// **全面モックにしない。** `isRecoverableNotReady` は本物が要る（断つ判断そのもの）。
+// 差し替えたいのは `useEngine` だけ。
 vi.mock("@/entities/engine", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   useEngine: () => engine,
@@ -524,7 +526,7 @@ describe("AnalysisProvider の結果の照合", () => {
     // **上限（2秒）まで待たせない。** 待っても追いつかないし、待った末に告げる理由
     // （同期が遅い＝押し直し）はここでは効かない。
     expect(elapsed).toBeLessThan(POSITION_SYNC_TIMEOUT_MS);
-    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
+    expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
     expect(startCore).not.toHaveBeenCalled();
   });
 
@@ -716,14 +718,14 @@ describe("AnalysisProvider の結果の照合", () => {
       // ——ペインは停止中に局面ごとのキャッシュを出す（→ `analysis.md` の ※5）。
       expect(view.current.state.candidates).toHaveLength(0);
 
-      // もう無い席へは撃たない（→ ※12 / ※13）。撃つと起こし直した先へ裸の `stop` が書かれる。
+      // もう無い席へは撃たない（→ `analysis.md` の ※12 / ※13）。撃つと起こし直した先へ裸の `stop` が書かれる。
       expect(stopCore).not.toHaveBeenCalled();
     },
     SLOW,
   );
 
   it(
-    "解析中にエンジンの選択が外れたら、止めて選び直しを案内する",
+    "解析中に起動の設定が組み立てられなくなったら、止めて場所の確認まで案内する",
     async () => {
       const view = mountAnalysis(adapter("P1", "P1"));
       await act(async () => {
@@ -1308,8 +1310,8 @@ describe("AnalysisProvider の開始", () => {
   });
 
   it.each([
-    ["starting", ENGINE_STARTING_MESSAGE],
-    ["failed", ENGINE_FAILED_MESSAGE],
+    ["starting", ENGINE_STARTING_ON_START_MESSAGE],
+    ["failed", ENGINE_FAILED_ON_START_MESSAGE],
     ["no-engine", NO_ENGINE_ON_START_MESSAGE],
   ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
     // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、

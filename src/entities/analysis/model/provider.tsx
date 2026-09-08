@@ -629,18 +629,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [isReady, seat, clearDebounceTimer]);
 
   /**
-   * 走っている解析を、利用者の操作なしに畳む。**順序が3つとも意味を持つ。**
+   * 走っている解析を、利用者の操作なしに畳む。
    *
-   * 1. **世代を先に上げる。** 上げないと、飛んでいる再開が自分の門を素通りして
-   *    `takeSeatAndGo` へ入り、その先頭の `clear_results` がいま立てた断りを黙って消す
-   * 2. **次に、出ている候補手を落とす。** 残すと、次の ▶ が最初の `info` を返すまで、
-   *    死んだ席の読み筋が現在の解析結果として扱われる（`start_analysis` は
-   *    `analyzedSfen` だけを差し替える）。**画面から消えるとは限らない**
-   *    ——ペインは停止中に局面ごとのキャッシュを出す（→ `docs/state-transitions/analysis.md` の ※5）
-   * 3. **断りは最後。** `clear_results` は `error` も消すので、先に撃つと自分で消す
+   * **順序で守っているのは1つ**——`clear_results` は `error` も消すので（`reducer.ts`）、
+   * 断りはその後に撃つ。
+   *
+   * 世代を上げるのは順序の制約ではなく**必ず撃つことの制約**。飛んでいる再開が世代を
+   * 見るのは `releaseHeld` から戻った所（`swapSeatAndGo`）なので、ここで上げ忘れると
+   * その先の `takeSeatAndGo` が先頭の `clear_results` でいま立てた断りを消す。
+   *
+   * `stop_analysis` は `set_error` が既に倒しているので値を動かさない。**撃つ口を
+   * 揃えるために残している**（同期の打ち切りと自動再開の失敗も同じ対で撃つ）。
    *
    * **席は撃たない。** どの引き金でも Rust は畳む前に席を空けており、撃つと
-   * 起こし直した先へ裸の `stop` が書かれる（→ ※12）。欄を空けるのは上の effect。
+   * 起こし直した先へ裸の `stop` が書かれる（→ `docs/state-transitions/analysis.md` の ※12）。
+   * 欄を空けるのは上の effect。
    */
   const cutRunningAnalysis = useCallback(
     (refusal: string) => {

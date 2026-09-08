@@ -284,8 +284,8 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `ENGINE_RESTARTED_MESSAGE`              | 席を取りに行っている間にエンジンが起こし直された（→ ※13 / F-6）                   | **▶ の押し直し**（戻っていれば始まる）                         |
 | `STOP_FAILED_MESSAGE`                   | ■ が届かなかった（→ ※7 / F-7）                                                    | まず ▶（同じ席を止め直してから始める）                         |
 | `RESTART_FAILED_MESSAGE`                | 自動再開が落ちた（→ `(S4/S5, E10/E11)`。`(S3, E5/E11)` の打ち切りは上限切れの枝） | まず ▶。それでも駄目なら起こし直す                             |
-| `ENGINE_STARTING_MESSAGE`               | エンジンの起動待ちに ▶ を押した                                                   | 待ってからもう一度 ▶                                           |
-| `ENGINE_FAILED_MESSAGE`                 | エンジンの初期化が落ちている状態で ▶ を押した（→ F-9）                            | 起こし直す                                                     |
+| `ENGINE_STARTING_ON_START_MESSAGE`      | エンジンの起動待ちに ▶ を押した                                                   | 待ってからもう一度 ▶                                           |
+| `ENGINE_FAILED_ON_START_MESSAGE`        | エンジンの初期化が落ちている状態で ▶ を押した（→ F-9）                            | 起こし直す                                                     |
 | `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE` | **解析中に**初期化が落ちた（→ ※5。ボタンは押していない）                          | 起こし直す                                                     |
 | `NO_ENGINE_WHILE_ANALYZING_MESSAGE`     | **解析中に**起動の設定が組み立てられなくなった（→ ※5。同上）                      | 設定でエンジンを選び、場所を設定する                           |
 | `NO_ENGINE_ON_START_MESSAGE`            | `no-engine` で ▶ を押した（入口は `EngineNotReadyReason` の doc）                 | エンジンを選び、場所を確かめる                                 |
