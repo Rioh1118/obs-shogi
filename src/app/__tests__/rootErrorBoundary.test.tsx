@@ -58,7 +58,7 @@ describe("root の境界", () => {
   test("下で throw しても、ウィンドウを閉じる手段が画面に残る", () => {
     const { container } = render(<App />);
 
-    expect(screen.getByText("表示中にエラーが発生しました。")).toBeTruthy();
+    expect(screen.getByText("画面を表示できませんでした。")).toBeTruthy();
 
     const dragRegion = container.querySelector('[data-tauri-drag-region="true"]');
     expect(dragRegion, "ドラッグ領域が無いとウィンドウを動かせない").not.toBeNull();
@@ -89,7 +89,7 @@ describe("root の境界", () => {
   test("本体が落ちても、更新の知らせは残る", () => {
     render(<App />);
 
-    expect(screen.getByText("表示中にエラーが発生しました。")).toBeTruthy();
+    expect(screen.getByText("画面を表示できませんでした。")).toBeTruthy();
     expect(
       screen.getByTestId("updater"),
       "その状態を直す版が、その状態のせいで届かなくなっている",

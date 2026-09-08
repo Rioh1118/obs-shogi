@@ -2,6 +2,13 @@ import { Component, type ReactNode } from "react";
 import "./AppErrorBoundary.scss";
 
 type Props = {
+  /**
+   * 畳まれる範囲の名前。「盤」「解析」のように**利用者が画面で指せる呼び方**にする。
+   *
+   * **必須にしてある。** 境界は入れ子で置くので、どれが受けても同じ文言だと、
+   * 内側の1枚を外しても外側が同じ画面で受けて退行が見えない。
+   */
+  label: string;
   children: ReactNode;
   fallback?: (error: Error, reset: () => void) => ReactNode;
 };
@@ -22,7 +29,11 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   // 落ちた原因はここでしか見られない。表示側は詳細を出さない
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error("[AppErrorBoundary] Uncaught error:", error, info.componentStack);
+    console.error(
+      `[AppErrorBoundary:${this.props.label}] Uncaught error:`,
+      error,
+      info.componentStack,
+    );
   }
 
   reset = () => {
@@ -35,7 +46,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }
-      return <AppErrorFallbackBody reset={this.reset} />;
+      return <AppErrorFallbackBody label={this.props.label} reset={this.reset} />;
     }
     return this.props.children;
   }
@@ -48,16 +59,19 @@ export class AppErrorBoundary extends Component<Props, State> {
  * 写しを持たせると、文言を直したときに片方だけが変わり、その片方を見ているテストだけが赤くなる。
  */
 export function AppErrorFallbackBody({
+  label,
   reset,
   floating = false,
 }: {
+  /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
+  label: string;
   reset: () => void;
   /** 平常時に in-flow の箱を作らない部品を包む境界で真にする。詳細は SCSS の `--floating` */
   floating?: boolean;
 }) {
   return (
     <div className={`app-error-fallback${floating ? " app-error-fallback--floating" : ""}`}>
-      <p>表示中にエラーが発生しました。</p>
+      <p>{label}を表示できませんでした。</p>
       <button type="button" className="app-error-fallback__action" onClick={reset}>
         再表示
       </button>

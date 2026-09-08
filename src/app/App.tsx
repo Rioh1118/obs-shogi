@@ -21,7 +21,10 @@ function App() {
         `RuntimeShell` の境界が受け、そちらは本物の `TitleBar` を残す。ここが出るのは
         provider・guard・ルータ自身が落ちたときだけ。
       */}
-      <AppErrorBoundary fallback={(_error, reset) => <RootErrorFallback retry={reset} />}>
+      <AppErrorBoundary
+        label="画面"
+        fallback={(_error, reset) => <RootErrorFallback retry={reset} />}
+      >
         <BootstrapProviders>
           <BrowserRouter>
             <AppRouter />
@@ -41,7 +44,10 @@ function App() {
         `useUpdater` は context も router も要らないので、外に置いても何も失わない。
       */}
       <AppErrorBoundary
-        fallback={(_error, reset) => <AppErrorFallbackBody reset={reset} floating />}
+        label="更新の知らせ"
+        fallback={(_error, reset) => (
+          <AppErrorFallbackBody label="更新の知らせ" reset={reset} floating />
+        )}
       >
         <UpdaterScreen />
       </AppErrorBoundary>

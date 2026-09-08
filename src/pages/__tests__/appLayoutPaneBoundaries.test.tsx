@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 /**
@@ -83,6 +83,9 @@ describe("ペインごとの境界", () => {
     const { container } = mount();
 
     expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();
+    // **どの境界が受けたかを文言で見る。** 同じ文言だと、盤の境界を外しても
+    // 上の境界が同じ画面で受けて退行が見えない
+    expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
     expect(container.querySelector('[data-testid="analysis"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="board"]')).toBeNull();
@@ -110,6 +113,7 @@ describe("ペインごとの境界", () => {
     const { container } = mount();
 
     expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();
+    expect(screen.getByText("解析を表示できませんでした。")).toBeTruthy();
     expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="analysis"]')).toBeNull();

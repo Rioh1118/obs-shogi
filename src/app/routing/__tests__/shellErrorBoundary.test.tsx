@@ -54,7 +54,7 @@ describe("RuntimeShell の境界", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("表示中にエラーが発生しました。")).toBeTruthy();
+    expect(screen.getByText("作業画面を表示できませんでした。")).toBeTruthy();
     expect(
       container.querySelector(".titlebar"),
       "枠まで畳むと、ウィンドウを動かすことも閉じることもできなくなる",

@@ -15,7 +15,7 @@ export default function RuntimeShell() {
             この下に居るので、ここで受ければ枠が残り、ウィンドウを動かすことも
             閉じることもできる。root の境界まで上げると枠ごと差し替わる。
           */}
-          <AppErrorBoundary>
+          <AppErrorBoundary label="作業画面">
             <Outlet />
           </AppErrorBoundary>
         </div>

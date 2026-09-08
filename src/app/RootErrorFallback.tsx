@@ -52,7 +52,7 @@ export function RootErrorFallback({ retry }: Props) {
       </div>
 
       <div className="root-error-fallback__body">
-        <AppErrorFallbackBody reset={retry} />
+        <AppErrorFallbackBody label="画面" reset={retry} />
       </div>
     </div>
   );

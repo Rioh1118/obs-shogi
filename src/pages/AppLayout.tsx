@@ -48,7 +48,10 @@ const AppLayout = () => {
         境界が、本体を畳むことになる
       */}
       <AppErrorBoundary
-        fallback={(_error, reset) => <AppErrorFallbackBody reset={reset} floating />}
+        label="モーダル"
+        fallback={(_error, reset) => (
+          <AppErrorFallbackBody label="モーダル" reset={reset} floating />
+        )}
       >
         <AppModalLayer />
       </AppErrorBoundary>
@@ -73,7 +76,7 @@ const AppLayout = () => {
                 <section className="workspace__main">
                   <div className="workspace__boardPane">
                     {/* 盤が落ちても棋譜一覧と解析は残す。畳む範囲はペイン1つ分 */}
-                    <AppErrorBoundary>
+                    <AppErrorBoundary label="盤">
                       <GameBoard
                         topLeft={<Hand isSente={false} />}
                         center={<Board />}
@@ -85,7 +88,7 @@ const AppLayout = () => {
                     </AppErrorBoundary>
                   </div>
                   <aside className="workspace__kifuPane">
-                    <AppErrorBoundary>
+                    <AppErrorBoundary label="棋譜一覧">
                       <KifuStreamList />
                     </AppErrorBoundary>
                   </aside>
@@ -93,7 +96,7 @@ const AppLayout = () => {
 
                 <section className="workspace__dock">
                   {/* 解析が落ちても盤は残す。エンジンの応答は形が保証されていない */}
-                  <AppErrorBoundary>
+                  <AppErrorBoundary label="解析">
                     <AnalysisPane />
                   </AppErrorBoundary>
                 </section>
