@@ -269,7 +269,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    *
    * **▶ の口は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
    * 違う。**自動再開の口はどちらでも黙って降りる**（押した人が居ない）。捨てる側は
-   * その理由を `async-result-ignored:` で書くこと（`asyncResultUse` が要求する）。
+   * その理由を `async-result-ignored:` で書くこと
+   * （`src/__tests__/asyncResultUse.test.ts` が要求する）。
    *
    * **呼ぶ前に要求の世代の門（`supersededSince`）を通すこと。** 本体の先頭で
    * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった

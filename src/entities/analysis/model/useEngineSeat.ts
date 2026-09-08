@@ -41,7 +41,8 @@ void _everyPointIsAssigned;
 /**
  * 返ってきた席をどう扱ったか。
  *
- * **読まずに捨てるなら理由を書く**（`asyncResultUse` が式文の呼び出しを止める）。
+ * **読まずに捨てるなら理由を書く**（`src/__tests__/asyncResultUse.test.ts` が
+ * `Promise<SeatTakeResult>` を返す口の式文を止める。`landed` の戻り値は人が見る）。
  * ▶ の口は3つを書き分け、自動再開の口はどれでも黙って降りる。
  */
 export type SeatTakeResult = "held" | "engine-gone" | "superseded";

@@ -32,12 +32,20 @@ const IDENTIFIER =
  * 増やすときは**なぜソースに無くてよいか**を1件ずつ書くこと。
  * 説明を書けないなら、それは腐った doc であって除外の対象ではない。
  */
-/// **他実装の綴りを免除するリストは、走査範囲ごとに3つある。**
-/// ここは `docs/**` のバッククォート、`state_table_terms.rs` の `NOT_IDENTIFIERS` は
-/// 状態遷移表の表本体、`comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
-/// **綴りの形と、どこに書いたかの掛け算で、要るリストが決まる** ——
-/// 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
-/// 片方にしか要らない綴りが現に在る（`peek_text` は3つ目だけ）。
+/**
+ * **走査範囲は4つ、免除のリストは3つ。** ここは `docs/**` のバッククォート**と
+ * `src/**` の TS コメント**（`srcCommentIdentifiers` がこのリストごと借りる）。
+ * `state_table_terms.rs` の `NOT_IDENTIFIERS` は状態遷移表の表本体、
+ * `comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
+ *
+ * **`docs/**` と `src/**` のコメントは同じリストを共有する。** 片方の都合で1件足すと、
+ * もう片方でもその綴りが二度と検査されない——**検査の名前をここに足さないこと**。
+ * コメントから検査を指したいならパスで書く（`src/__tests__/foo.test.ts`）。
+ *
+ * **綴りの形と、どこに書いたかの掛け算で、要るリストが決まる** ——
+ * 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
+ * 片方にしか要らない綴りが現に在る（`peek_text` は Rust のコメントだけ）。
+ */
 const EXEMPT = new Set([
   // USI の語。エンジンとの取り決めであって、こちらの識別子ではない
   "go_ponder",
@@ -55,7 +63,6 @@ const EXEMPT = new Set([
   // 検査の名前。ファイル名（`*.test.ts`）としては在るが、ソースの本文には現れない
   "analysisRefusals",
   "docsIdentifiers",
-  "asyncResultUse",
 ]);
 
 /**
@@ -124,7 +131,7 @@ export function identifiersIn(markdown: string): string[] {
  *    `ClocksView` や `Aborted` は候補にすら入らない
  * 3. 語境界で照合するので接尾辞を足す改名（`FOO` → `STOP_FOO`）は拾えるが、
  *    `Foo::Bar` の `Bar` 側は 2 の理由で拾えない
- * 4. **Rust のコメントが指す識別子は見ていない。** 見るのは `docs/**` だけ
+ * 4. **Rust のコメントが指す識別子は見ていない**（`comment_identifiers.rs` が見る）
  */
 export function missingIdentifiers(identifiers: string[]): string[] {
   return missingIn(identifiers, sourceCorpus());
