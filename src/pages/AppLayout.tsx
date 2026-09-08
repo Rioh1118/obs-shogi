@@ -101,7 +101,7 @@ const AppLayout = () => {
                   </div>
                   <aside className="workspace__kifuPane">
                     {/*
-                      `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #295）。
+                      `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #277。症状は #295 の本文）。
                       畳むのは一覧だけで、盤と解析は残す
                     */}
                     <AppErrorBoundary
