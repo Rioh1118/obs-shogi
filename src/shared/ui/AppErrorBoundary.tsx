@@ -21,6 +21,15 @@ type Props = {
    */
   resetKeys?: readonly unknown[];
   children: ReactNode;
+  /**
+   * 既定の画面の代わりに描くもの。渡さなければ `AppErrorFallbackBody` が出る。
+   *
+   * **ここで描くものは境界の内側に居る。** 投げれば同じ境界では捕まらず、1つ外の境界まで
+   * 抜ける。落ちたツリーの部品（`TitleBar` など）を再利用しないこと —— 同じ例外で
+   * この画面も落ちる。
+   *
+   * `reset` は `error` を消すだけ。原因が境界の外にあるなら効かない（`resetKeys` を見ること）。
+   */
   fallback?: (error: Error, reset: () => void) => ReactNode;
 };
 
