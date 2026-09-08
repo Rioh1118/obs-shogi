@@ -83,8 +83,12 @@ const SLOW = 20_000;
 /**
  * 縮めた寸法（`shortenWaits`）。**数字も比も写さない**——写すと片方だけ動かせる。
  *
- * 散文に「上限は2秒」「間引きは 80ms」と書かないこと。このファイルは `beforeEach` で
- * 寸法を縮めるので、**現物の値はどれも当たらない**。
+ * 散文に現物の値を書かないこと。このファイルは `beforeEach` で寸法を縮めるので、
+ * **現物の値はどれも当たらない**。
+ *
+ * **`advance()` の引数まで導く必要は無い。** 上限や間引きを**跨ぐ**待ちだけを
+ * `limitMs()` / `flushMs()` から導く。跨がない短い待ち（連打を畳む・応答を1つ進める）は
+ * 生の数字でよい——全部を比に直すと、何が寸法に依存しているのか読めなくなる。
  */
 const limitMs = () => waits().positionSyncTimeoutMs;
 const flushMs = () => waits().resultFlushMs;
@@ -182,7 +186,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
       await view.setSync(adapter("P2", "P1"));
       stopCore.mockClear();
 
-      await advance(700);
+      await advance(limitMs() * 1.4);
 
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
       expect(view.current.state.isAnalyzing).toBe(false);
@@ -214,7 +218,7 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
 
       // もう1手進み、エンジンが追いつかないまま打ち切られる。
       await view.setSync(adapter("P3", "P2"));
-      await advance(700);
+      await advance(limitMs() * 1.4);
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // `releaseHeldQuietly` は席を握っていなければ何も撃たない。
@@ -338,7 +342,7 @@ describe("AnalysisProvider の停止", () => {
 
       // もう1手進むが、エンジンは追いつかない。同期待ちが上限で打ち切られる。
       await view.setSync(adapter("P3", "P2"));
-      await advance(700);
+      await advance(limitMs() * 1.4);
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
@@ -1046,6 +1050,26 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  it("同期が先に追いついても、猶予より早く取り直さない", async () => {
+    startCore.mockResolvedValueOnce("s1");
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤と同期が同じ描画で動く。追従の effect は猶予を張った直後に、
+    // 同じ再開を 0ms で張り直しに来る——`scheduleRestart` は先頭でタイマーを
+    // 消すので、止めないと**猶予そのものが消える**。
+    stopCore.mockClear();
+    await view.setSync(adapter("P2", "P2"));
+
+    await advance(waits().restartDebounceMs / 5);
+    expect(stopCore).not.toHaveBeenCalled();
+
+    await advance(waits().restartDebounceMs * 4);
+    expect(stopCore).toHaveBeenCalledWith("s1", "restart");
+  });
+
   it("捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("s1");
@@ -1336,7 +1360,7 @@ describe("AnalysisProvider の開始", () => {
           }),
       );
       await view.setSync(adapter("P2", "P1"));
-      await advance(700);
+      await advance(limitMs() * 1.4);
       expect(view.current.state.isAnalyzing).toBe(false);
 
       // 盤とエンジンを揃えておく（同期待ちで止まらないように）。
@@ -1894,6 +1918,153 @@ describe("AnalysisProvider のアンマウント", () => {
       releaseSecond();
     });
   });
+
+  it(
+    "畳んだ後に捨てる停止が落ちて席が戻ってきたら、その席も返す",
+    async () => {
+      tauri = true;
+      startCore.mockResolvedValueOnce("s1");
+
+      // 捨てる停止**だけ**を落とす。落ちた席は `keepOrForget` が欄へ書き戻す。
+      let failDiscard: (e: unknown) => void = () => {};
+      stopCore.mockImplementation((_sessionId, by) =>
+        by === "late-restart"
+          ? new Promise<void>((_, reject) => {
+              failDiscard = reject;
+            })
+          : Promise.resolve(),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤を2手進める。1手目の席は追い越され、着地したところで捨てられる。
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+      await view.setSync(adapter("P3", "P2"));
+      await advance(150);
+      await act(async () => {
+        releaseStart("s2");
+      });
+      await advance(150);
+
+      // 捨てる停止が飛んでいる最中に畳まれる。ここで席の欄は空。
+      stopCore.mockClear();
+      view.unmount();
+      await advance(50);
+
+      // **その後で停止が落ちる。** 席が欄へ戻るので、返す者が要る
+      // ——ここで取り残すと Rust に席が残り、以後の解析が全部断られる（#441）。
+      await act(async () => {
+        failDiscard(new Error("ipc is gone"));
+        await Promise.resolve();
+      });
+      await advance(50);
+
+      // 打ち切りに先を越されると、席は `sync-timeout` が返す（上と同じ理由）。
+      expect(stopCore.mock.calls.map((c) => c[1])).not.toContain("sync-timeout");
+      expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
+    },
+    SLOW,
+  );
+
+  it(
+    "畳まれた後に着地した席の停止が落ちても、その席を返し直す",
+    async () => {
+      tauri = true;
+
+      // ▶ の開始を往復の途中で止める。**着地するのは畳んだ後。**
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+
+      // 畳まれた時点で席の欄は空。飛んでいる停止も無い。
+      stopCore.mockClear();
+      view.unmount();
+      await advance(50);
+      expect(stopCore).not.toHaveBeenCalled();
+
+      // ここで席が着地し、捨てる停止が落ちる——`keepOrForget` が欄へ書き戻す。
+      stopCore.mockRejectedValue(new Error("ipc is gone"));
+      await act(async () => {
+        releaseStart("session-late");
+      });
+      await advance(150);
+      await pressed;
+
+      // **同期待ちの打ち切りに先を越されていないこと。** 越されると席は
+      // `sync-timeout` が返すので、この筋は「返せている」まま赤くなる
+      // ——寸法を動かした人が #441 の再発と読み違える。
+      expect(stopCore.mock.calls.map((c) => c[1])).not.toContain("sync-timeout");
+
+      // 書き戻した席を返し直さないと、Rust に残ったままになる（#441）。
+      expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
+
+      // **着地は1本なので、撃ち直しも1本。** 席を指さない停止は書き戻しに乗らない
+      // （`keepOrForget` の先頭で降りる）ので、落ち続けても回り続けない。
+      await advance(300);
+      expect(startCore).toHaveBeenCalledTimes(1);
+      expect(stopCore.mock.calls.filter((c) => c[1] === "unmount")).toHaveLength(1);
+    },
+    SLOW,
+  );
+
+  it(
+    "effect が張り直されただけなら、席を指さない停止は撃たない",
+    async () => {
+      tauri = true;
+      startCore.mockResolvedValueOnce("s1");
+
+      // **畳んでいない。** StrictMode が setup → cleanup → setup を走らせるだけ。
+      // 畳んだ印を setup で戻さないと、以後この画面は「畳まれた」ものとして扱われる。
+      const view = mountAnalysis(adapter("P1", "P1"), { strict: true });
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      let releaseStart: (sessionId: string) => void = () => {};
+      startCore.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseStart = resolve;
+          }),
+      );
+      stopCore.mockImplementation((_sessionId, by) =>
+        by === "late-restart" ? Promise.reject(new Error("ipc lost")) : Promise.resolve(),
+      );
+
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+      await view.setSync(adapter("P3", "P2"));
+      await advance(150);
+      await act(async () => {
+        releaseStart("s2");
+      });
+      await advance(150);
+
+      // 指さない停止は Rust の席を**全部**空けるので、生きている画面へ撃つと
+      // 別の口が取った席まで巻き添えにする。
+      expect(stopCore.mock.calls).not.toContainEqual([undefined, "unmount"]);
+    },
+    SLOW,
+  );
 
   it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));

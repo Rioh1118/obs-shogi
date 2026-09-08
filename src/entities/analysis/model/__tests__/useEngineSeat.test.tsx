@@ -109,4 +109,46 @@ describe("EngineSeat とエンジンの世代", () => {
     await seat.releaseHeld("start");
     expect(stopCore).not.toHaveBeenCalled();
   });
+
+  /**
+   * 畳まれた後に**2本**着地して、どちらの捨てる停止も落ちる回。
+   *
+   * **provider はこの並びを作らない**（`beginTake` の呼び手は1本で、飛んでいる往復も
+   * たかだか1本）。それでも見るのは、保証しているのが provider の都合であって
+   * フックではないため——畳まれた印を1回で倒すと、2本目の書き戻しが黙って
+   * 取り残され、その席は Rust に残る（#441）。
+   */
+  it("畳まれた後に2本戻ってきたら、2本とも返し直す", async () => {
+    const rejects: ((e: unknown) => void)[] = [];
+    stopCore.mockImplementation((sessionId?: string) =>
+      sessionId === undefined
+        ? Promise.resolve()
+        : new Promise<void>((_resolve, reject) => {
+            rejects.push(reject);
+          }),
+    );
+
+    const { result } = renderHook(() => useEngineSeat());
+    const seat = result.current;
+
+    const first = seat.beginTake("late-start");
+    const second = seat.beginTake("late-restart");
+
+    seat.sweepOnUnmount();
+
+    // 枠に並んだ停止が解決し切るまで進める。
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+
+    // 1本目が着地して捨てられ、その停止が落ちる → 書き戻し → 撃ち直す。
+    first.landed(id("S1"), () => true);
+    rejects.shift()?.(new Error("ipc gone"));
+    await settle();
+
+    // 2本目も同じ。**ここを落とすと席が残る。**
+    second.landed(id("S2"), () => true);
+    rejects.shift()?.(new Error("ipc gone"));
+    await settle();
+
+    expect(seat.isHeld(), "2本目の席が返らずに残っている").toBe(false);
+  });
 });

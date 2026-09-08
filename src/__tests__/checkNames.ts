@@ -8,7 +8,7 @@ import { REPO_ROOT, RUST_CHECKS_DIR, SRC, tsFiles } from "./walk";
  * 引き手は2つ——`ratchetIndex` が `CONTRIBUTING.md` の表と突き合わせ、
  * `docsIdentifiers` の免除の検査が「検査の名前を免除に入れていないか」を見る。
  * **写しを作らない。** 片方だけが TS しか知らない状態になると、Rust の検査名は
- * 免除に黙って入る（現にその形で入りかけた）。
+ * 免除に黙って入る。
  */
 
 /** `src/` 側の検査。ファイル名から拡張子（と `.ratchet`）を落としたものを名前とする */

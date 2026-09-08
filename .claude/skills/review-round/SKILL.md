@@ -8,6 +8,23 @@ allowed-tools: Read, Grep, Glob, Bash, Write, Agent
 
 レビューを**1ラウンド**走らせる。直すのはこの skill の仕事ではない。所見を出して止まる。
 
+## 手順0: ハーネスがどの版から読まれるか確かめる
+
+**worktree で作業していても、agent と skill は主チェックアウトから読まれる。**
+`.claude/` をブランチの中で直しても、**そのブランチのレビューには届かない**
+（主チェックアウトが別のブランチに居れば、そちらの版が配られる）。
+
+```bash
+diff <(git show HEAD:.claude/skills/review-protocol/SKILL.md) \
+     "$(git rev-parse --path-format=absolute --git-common-dir)/../.claude/skills/review-protocol/SKILL.md"
+```
+
+差があるなら、**その差はこのラウンドの reviewer に効かない。** 効かせたい規約は
+reviewer へ渡すプロンプトに本文ごと書く（指し先だけ書いても読めない）。
+
+**`.claude/` の所見を「直した」と報告書に書くときは、その直しが次のラウンドに
+届く経路があるかを併記すること。** 届かないなら、届いていないことも書く。
+
 ## 手順1: 範囲を確定する
 
 `$ARGUMENTS` を読む。

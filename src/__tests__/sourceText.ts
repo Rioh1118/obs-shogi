@@ -24,8 +24,13 @@ const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, 
  *
  * 行頭の `#!`（shebang）は残す。落としても困らないが、落とす理由も無い。
  */
-const stripShellComments = (text: string): string =>
-  text.replace(/(^|\n|[ \t])#(?!!)[^\n]*/g, "$1");
+/**
+ * シェルのコメント。**綴りをここ1つにする**——`codeOf` が落とす区間と
+ * `commentsOf` が拾う区間が同じでなければ、どちらからも外れる区間が生まれる。
+ */
+const SHELL_COMMENT = /(^|\n|[ \t])(#(?!!)[^\n]*)/g;
+
+const stripShellComments = (text: string): string => text.replace(SHELL_COMMENT, "$1");
 
 /**
  * シェルの文字列リテラルを落とす。
@@ -108,8 +113,21 @@ const lineCommentsIn = (text: string): string => (text.match(/\/\/[^\n]*/g) ?? [
  *
  * **落とす／残すの規則を2通り持たない**のがここに置く理由。片方だけ直すと、
  * コードでもコメントでもない区間が生まれ、どちらの検査からも外れる。
+ *
+ * `lang` は `codeOf` と同じ。**シェルにも裏返しが要る**——`.claude/hooks/*.sh` は
+ * 検査の名前やパスを「仕様として引く」ので、そこが腐っても赤くならない状態が残る。
+ *
+ * **シェルには第3の区間が在る。** 引用符の中は `codeOf` も `commentsOf` も落とす
+ * （corpus に検査の期待値が混ざるのを止めるため、先に潰している）。
+ * シェルのコメントに書いた綴りを検査に載せたいなら、引用符でくくらないこと。
  */
-export const commentsOf = (body: string): string => {
+export const commentsOf = (body: string, lang: "c-like" | "shell" = "c-like"): string => {
+  // **シェルは同じ綴りの裏返しで取る。** `stripShellComments` が落とす区間が
+  // そのままコメントなので、規則を2通り持たずに済む（この関数の doc のとおり）。
+  if (lang === "shell") {
+    return [...stripShellStrings(body).matchAll(SHELL_COMMENT)].map((m) => m[2]).join("\n");
+  }
+
   let out = "";
   let rest = body;
 

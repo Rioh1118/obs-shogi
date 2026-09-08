@@ -28,9 +28,10 @@ export interface ResultFlush {
    * 反映待ちの1本と、それが張った間引きのタイマーを**両方**落とす。
    * **画面に出ている候補手には触らない**（それは `discardShown`）。
    *
-   * **これは掃除であって、門ではない。** 捨てた席の結果を画面に出さない保証は
-   * `commitLatest` の席の門が持つ——枠を落とすだけだと、落とす前にタイマーが
-   * 起きた回を守れない。
+   * **主の保証は `commitLatest` の席の門**——枠を落とすだけだと、落とす前にタイマーが
+   * 起きた回を守れない。**ただし席の門が開く窓が1つある**（捨てる停止が落ちて、
+   * `keepOrForget` が席を欄へ書き戻す回）ので、そこは枠側でしか塞げない
+   * → `dropPendingForLostSeat`（`provider.tsx`）。**掃除だと読んで呼びを外さないこと。**
    */
   dropPending: () => void;
   /**
@@ -113,18 +114,16 @@ export function useResultFlush(
     latestRef.current = null;
   }, [clearTimer]);
 
-  // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
-  // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
-  // ——畳まれてもいないのに後始末が撃たれる。
+  // **同じ物を返し続ける**（理由は `useEngineSeat` の `apiRef` に1つ）。
   //
-  // **`useEngineSeat` と同じ形。** `useMemo` は React が値を捨てないことを約束しないので、
+  // `useMemo` は React が値を捨てないことを約束しないので、
   // 同一性を要求として持つ口は ref で凍らせる。同じスライスに2通りの答えを置かない。
   const apiRef = useRef<ResultFlush | null>(null);
 
   // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
-  // ここで読む値は**その1回の値のまま**。上に置いてよいのは `useRef` と、
-  // 依存が全部安定な `useCallback` だけ
-  // （`src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が見る）。
+  // ここで読む値は**その1回の値のまま**。上に置いてよいものは
+  // `src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が持つ
+  // （そこが唯一の出典。ここに写すと、機械が広がったときにこちらだけ古くなる）。
   if (apiRef.current) return apiRef.current;
 
   apiRef.current = {

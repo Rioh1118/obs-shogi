@@ -128,6 +128,8 @@
   「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
   `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる
 
+- 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
+- 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
 - **`entities/app-config/index.ts` は、直後のコメントが禁じている口を自分で開けている**
   （`loadConfig` / `saveConfig` を出しつつ「api を直に出さない。呼ぶのは `useAppConfig()` 経由」
   と書いている）。スライス外の呼び手は**0件**。落とすだけで済むが、上の走査を足せば
@@ -139,8 +141,6 @@
   `engine-presets` に居るせいで `app-config` との間にスライス単位の双方向依存ができている
   ——永続する欄（`last_preset_id`）を持つのは `app-config` の側。`import/no-cycle` は
   型だけの辺を見ないので黙る（#502 の r9 architecture 所見）
-- 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
-- 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
 
 ## `entities/engine` の context に、命令形の口が呼び手0のまま並んでいる
 
@@ -218,6 +218,31 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 オリジンが無いので**配布物では1本も読めない**。dev サーバには CSP が乗らないため
 開発中と字面が違う。体裁ではなく不具合なので issue にしてある。
 
+### 着手の合図は、もう過ぎている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（oss-hygiene）。
+上は「**Releases を人に配り始める回**が着手の合図」と書いているが、実測では
+v0.1.0（2026-02-27）から v0.2.1（2026-03-21）まで**9本が既に公開済み**で、
+README がそこへ利用者を誘導している。**帰属表示の判断は据え置けない。**
+
+同じラウンドで挙がった、上に無いもの。
+
+- **`CODE_OF_CONDUCT.md` に報告の連絡先が無い。** 「リポジトリ所有者に連絡」としか
+  書いておらず、GitHub に非公開 DM は無い。公開 issue を立てさせるのは同じ文書の
+  「報告者の身元は秘匿されます」と矛盾する。`SECURITY.md` の窓口を流用できる
+- **CI が `verify` と同じものを走らせていない。** `test:hooks` と `ratchet:rustdoc` が
+  抜けているので、`CONTRIBUTING.md` が「手で流してください」と書いた2つは
+  誰も流さなければ緑のまま通る
+- **`docs/` に索引が無い。** 直下に運用の記録（`IDEAS` / `PREMISES` /
+  `OPEN-QUESTIONS` / `OPERATING-MODEL`）と利用者向け（`spec/`）が並び、
+  アルファベット順で最初に来るのが「やらないこと置き場」
+- **Rust の版が3箇所で違うことを言っている。** README と CONTRIBUTING は `stable`、
+  `rust-toolchain.toml` は固定、`Cargo.toml` の `rust-version` は雛形の既定値
+- **画面仕様2本が、`.gitignore` された `.claude/plans/` を設計の出典に挙げている。**
+  外部の人は辿れない
+- **`AGENTS.md` が `vp install` を指示している。** README / CONTRIBUTING は
+  `npm install` で、`vp` はグローバル導入が前提の綴り
+
 **ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
 時点で昇格すること。
 
@@ -225,10 +250,10 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 
 `.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
 
-`entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**（`isRecoverableNotReady`。
-意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
+`entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**
+（`isRecoverableNotReady`。意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で数えられる。**この一文に件数と内訳を書かない**——触るたびに動く（`vi.mock` の行は `sliceBarrels` の免除に当たる）。選択肢ごとの見積もり（下の (a)）は、その都度取り直した値を書くこと）。
+で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` の行が4つ——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
 **公開しない限り深く読める**。
 
@@ -332,3 +357,35 @@ r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じる�
 「同じ名前が別の式に束縛されていないこと」で、どちらを改名するかは問わない。
 
 出どころ: #502 のレビュー ラウンド4（comment）。
+
+## 自動再開に、差の出る筋を組めていない門が2つある
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（react reviewer）。
+`provider.tsx` の追従 effect にある `bookIfRestarting()` と、`runRestart` の
+`sentSfenRef` の門。**3ラウンド続けて、落としても全テストが緑になる筋しか作れていない。**
+落とすのは危ない（差が無いことを示せていないだけで、無いことの証明ではない）が、
+「効いている」と読める根拠も無い。**#489 で自動再開の8本の ref を切り出す回に、
+機構ごと見直す対象として拾うこと。**
+
+## `useEngineSeat` の doc が、`analysis.md` ※12 と同じ知識を二重に持っている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（comment reviewer）。
+`shootQuietly` の「落ちても利用者には出せない」の枝の列挙と `onEngineGone` の説明が、
+※12 の「どの失敗で席が本当に残るか」と重なる。そのファイル自身が4箇所で
+「理由は ※12 に1つだけ置いてある」と名乗っているので、方針と現物がずれている。
+コメントとコードの比が 1.8:1 なのはその結果。**密度そのものは指標にしない**
+（削るべき行を名指しできないので）。出典を ※12 に寄せる作業として拾う。
+
+## 解析セッションの IPC が `entities/engine` に在るが、語彙は `entities/analysis` のもの
+
+`.claude/reviews/2026-09-07-441-unmount-session-r30.md`（architecture reviewer）。
+`SeatReleasePoint` の値（`unmount` / `no-position` / `late-start` / `late-restart` /
+`sync-timeout`）は全部**解析ペインのライフサイクルと局面同期**の語なのに、型は
+`entities/engine/api/tauri.ts` に在る。解析側が席を返す口を1本足すたびに別スライスの
+IPC 型を編集することになり、その同期漏れを捕まえるためだけに `_EveryPointIsAssigned`
+という型の仕掛けが要っている。**仕掛けの存在自体が置き場のずれの症状。**
+
+解析の IPC（`startInfiniteAnalysis` / `stopAnalysis` / `AnalysisSessionId` /
+`SeatReleasePoint` / `setupAnalysisEventListeners`）を `entities/analysis/api/` へ
+移せば、同スライスに閉じて仕掛けを落とせる。呼び手は `entities/analysis` の2ファイルだけ。
+**#524（席を取る口が3つ）と同じ回に決めるのが安い。**

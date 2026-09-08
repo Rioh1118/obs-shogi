@@ -153,8 +153,19 @@ export interface EngineSeat {
    */
   releaseHeldQuietly: (by: QuietReleasePoint) => void;
   /**
+   * 畳まれた印を戻す。**cleanup で立てる印は setup で戻すこと。**
+   *
+   * 戻さないと、同じインスタンスに setup → cleanup → setup が走ったとき
+   * （StrictMode）に立ったまま残り、画面が生きているのに席を指さない停止が飛ぶ。
+   *
+   * **停止は1本も撃たない。** 名前が `sweepOnUnmount` と対に見えるが、
+   * こちらは印を戻すだけ。
+   */
+  armForMount: () => void;
+  /**
    * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある。
-   * 落ちた回は誰も返せない（読む者が居ない）。
+   * **これが落ちた回は誰も返せない**——指さない停止は席の識別子を持たないので、
+   * `keepOrForget` の書き戻しにも乗らない（撃ち直しが効くのは席を指した停止だけ）。
    *
    * **席を握っていない回は撃たない**（→ #463。理由は本体の門に置いてある）。
    */
@@ -219,6 +230,20 @@ export function useEngineSeat(): EngineSeat {
   //   Rust から消えるまで、次の開始は始められない
   const releasingRef = useRef<Promise<void> | null>(null);
 
+  /**
+   * 畳まれたか。**書き戻された席を返し直す判断に要る。**
+   *
+   * `sweepOnUnmount` は枠が空いた時点の席を読むが、席は**その後**に戻ってくることが
+   * ある——畳まれた後に着地した席を捨て、その停止が落ちた回（`keepOrForget`）。
+   * そのとき sweep はもう走り終えているので、撃ち直す者が居ない。
+   *
+   * **setup で戻すこと**（`armForMount`）。cleanup で立てるだけだと、同じインスタンスに
+   * setup → cleanup → setup が走ったとき（StrictMode）に立ったまま残り、**画面が
+   * 生きているのに**席を指さない停止が飛ぶ——Rust は席を全部空けるので、
+   * 別の口が取った席まで巻き添えにする。
+   */
+  const sweptRef = useRef(false);
+
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
   // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
   // ——畳まれてもいないのに後始末が撃たれる。
@@ -227,7 +252,8 @@ export function useEngineSeat(): EngineSeat {
   // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
   // 下で読んだ値は**その1回の値のまま**——描画ごとに変わる値（props や別のフックの
   // 戻り値）をここで読むと、以後ずっと初回の値を見る。tsc も lint も止めない。
-  // **`useRef` 以外を上に置かない**のはそのため（`src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が見る）。
+  // **上に置いてよいものは `src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が持つ**
+  // （そこが唯一の出典。ここに写すと機械より狭い規約を名乗ることになる）。
   if (apiRef.current) return apiRef.current;
 
   const remember = (sessionId: AnalysisSessionId) => {
@@ -266,6 +292,19 @@ export function useEngineSeat(): EngineSeat {
       return;
     }
     seatRef.current = sessionId;
+
+    // **畳まれた後に戻ってきた席は、ここでしか返せない。** 画面はもう無いので
+    // effect も再走しない。**印は倒さない**——倒すと2本目以降の書き戻しを
+    // 落とすことになり、その席が Rust に残る。
+    //
+    // **自分自身を呼び戻さない。** 撃ち直しは席を指さない停止なので、それが落ちても
+    // `keepOrForget` は先頭の `sessionId === undefined` で降りる。回り続けない。
+    if (sweptRef.current) {
+      queueBehind(async () => {
+        if (seatRef.current === null) return;
+        await shootQuietly("unmount", undefined);
+      });
+    }
   };
 
   /**
@@ -351,8 +390,9 @@ export function useEngineSeat(): EngineSeat {
   // （`docs/state-transitions/analysis.md` ※4）ので、ログが無いと手掛かりが1つも無い。
   //
   // **どの口から撃ったかを書く。** 落ちた後の結末が違う。
-  // `unmount` と、畳まれた後に返ってきた `late-*` は、握り直しても読む者が居ないので
-  // エンジンを畳み直すしかない。`no-position` は棋譜を開き直してから ▶。
+  // `unmount` は席を指さないので書き戻しに乗らず、エンジンを畳み直すしかない。
+  // 畳まれた後に返ってきた `late-*` は `keepOrForget` が1回だけ撃ち直す
+  // （それも落ちたら同じ）。`no-position` は棋譜を開き直してから ▶。
   // 画面が生きている回は ▶ が返し直す（▶ は握っている席を返してから頼む）。
   // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ `docs/state-transitions/analysis.md` の ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
@@ -381,7 +421,7 @@ export function useEngineSeat(): EngineSeat {
    *
    * **捨てられなかったときは握る**（欄が空で、まだ返し終えていない席のとき。
    * 書き戻すのは `shoot` の catch）。そうしないとその席を知る者が居なくなる。
-   * 畳まれた後に落ちた回は誰も返せない。
+   * **畳まれた後に落ちた回は、書き戻しの側から1回だけ撃ち直す**（`keepOrForget`）。
    */
   const discard = (by: DiscardPoint, sessionId: AnalysisSessionId) => {
     // **捨てると決めた時点で `info` を落とす。** 停止の応答が返るまで Rust は
@@ -465,20 +505,29 @@ export function useEngineSeat(): EngineSeat {
       });
     },
 
+    armForMount: () => {
+      sweptRef.current = false;
+    },
+
     // React の state が消えても、Rust の `active_sessions` からは席が消えない。
     // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
     // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
     //
     // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
-      // **席を握っていない回は撃たない。** 指さない停止は席を**全部**空けるので、
-      // 開始が席を取ってから `go` が線に出るまでの窓に撃ち込むと
-      // 「席は空・エンジンは探索中」になる → #463。その窓では欄がまだ空なので、
-      // この門で降りる。そこで残った席を返すのは、応答が返った側（`discard`）。
-      if (seatRef.current === null) return;
+      sweptRef.current = true;
 
       queueBehind(async () => {
+        // **席を握っていない回は撃たない。** 指さない停止は席を**全部**空けるので、
+        // 開始が席を取ってから `go` が線に出るまでの窓に撃ち込むと
+        // 「席は空・エンジンは探索中」になる → #463。その窓では欄がまだ空なので、
+        // この門で降りる。そこで残った席を返すのは、応答が返った側（`discard`）。
+        //
+        // **読むのは枠が空いてから。** 畳まれた時点で読むと、飛んでいる停止が
+        // **この後に落ちて**席を書き戻す回（`keepOrForget`）を取り残す
+        // ——撃ち直す者が誰も居なくなり、その席は Rust に残ったままになる（#441）。
         if (seatRef.current === null) return;
+
         await shootQuietly("unmount", undefined);
       });
     },

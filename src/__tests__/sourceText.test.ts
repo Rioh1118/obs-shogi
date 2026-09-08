@@ -177,8 +177,8 @@ describe("commentsOf", () => {
     expect(commentsOf("const a = 1; /* `FOO_BAR` */\n")).not.toContain("FOO_BAR");
   });
 
-  // **実ファイルは必ず両方を持つ。** ブロック側だけを固めると、ブロックより前に
-  // 現れた行コメントを落とす変異が素通りする（実測で 492 本が消えて全部緑だった）。
+  // **実ファイルは必ず両方を持つ。** 行コメントはほぼ全てのファイルに在るので、
+  // ブロック側だけを固めると、行コメントを落とす変異が1本も落ちない。
   test("ブロックの前にある行コメントも拾う", () => {
     expect(commentsOf("// `FOO_BAR` のこと\n/** 説明 */\nconst a = 1;\n")).toContain("FOO_BAR");
   });
@@ -195,6 +195,17 @@ describe("commentsOf", () => {
 
   test("ブロックの右に書いたコードも残さない", () => {
     expect(commentsOf("/** 説明 */ const FOO_BAR = 1;\n")).not.toContain("FOO_BAR");
+  });
+
+  // **シェルの枝も固定する。** 丸ごと空を返す変異は、`.md` の取り分だけで
+  // 下限を越えるので `srcCommentIdentifiers` では赤くならない
+  test("シェルの行コメントを拾う", () => {
+    expect(commentsOf("needs_ts=1  # `FOO_BAR` のこと\n", "shell")).toContain("FOO_BAR");
+    expect(commentsOf("# `FOO_BAR` のこと\nneeds_ts=1\n", "shell")).toContain("FOO_BAR");
+  });
+
+  test("シェルのコードは残さない", () => {
+    expect(commentsOf("gate_kinds_for_path() {\n", "shell")).not.toContain("gate_kinds_for_path");
   });
 });
 

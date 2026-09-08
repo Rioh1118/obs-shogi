@@ -6,12 +6,14 @@ import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
+import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 
 function AnalysisPaneHeader() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const { openModal } = useURLParams();
+  const openSettings = useOpenSettings();
   const { findBySfen } = useStudyPositions();
   const isBookmarked = !!findBySfen(currentSfen);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -93,9 +95,8 @@ function AnalysisPaneHeader() {
 
   const handleOpenSettings = () => {
     // 解析の断りが案内する復帰操作（プリセットのオプションを変えて保存し、起こし直す）は
-    // このタブにしか無い。**綴りを間違えると既定のタブへ黙って落ちる**ので、
-    // `src/__tests__/settingsTabNames.test.ts` が実在を見る。
-    openModal("settings", { tab: "engine" });
+    // このタブにしか無い。**綴りは `useOpenSettings` が型で閉じる。**
+    openSettings("engine");
   };
 
   const handlePositionSearch = () => {

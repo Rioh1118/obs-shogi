@@ -359,7 +359,7 @@ gate_kinds_for_path() {
   case "$path" in
     *.ts|*.tsx|*.scss|*.rs|tsconfig*.json|vite.config.ts|package.json|package-lock.json) kinds="ts" ;;
   esac
-  # capability も ts。`openerCapability` がここを歩いて、フロントが呼ぶ口と
+  # capability も ts。`src/__tests__/openerCapability.test.ts` がここを歩いて、フロントが呼ぶ口と
   # 許可の識別子を突き合わせる。rust だけに分類すると、許可を1行足しただけの
   # コミットでその突き合わせが一度も走らない ——
   # 許されていない口は**型もビルドも通り、実機でだけ落ちる**。
@@ -389,7 +389,7 @@ gate_kinds_for_path() {
   esac
   case "$path" in
     # **門番自身も `ts`。** `npm run verify` は最後に `test:hooks`（門番の検査）を
-    # 走らせるうえ、`docsIdentifiers` が `.claude/hooks/*.sh` を走査する
+    # 走らせるうえ、`src/__tests__/docsIdentifiers.ts` が `.claude/hooks/*.sh` を走査する
     # ——シェルは判定表が引く関数名の唯一の定義元。専用の種類は要らない。
     .claude/hooks/*.sh) kinds="$kinds ts" ;;
   esac

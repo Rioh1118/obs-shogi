@@ -1,6 +1,7 @@
 import { PanelLeftClose, PanelLeftOpen, Settings, Library } from "lucide-react";
 import IconButton from "@/shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
 import "./AppLayoutHeader.scss";
 import Title from "@/shared/ui/Title";
@@ -13,6 +14,7 @@ type Props = {
 
 function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
   const { openModal } = useURLParams();
+  const openSettings = useOpenSettings();
 
   const info = useHeaderCenterInfo();
 
@@ -83,7 +85,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
           className="app-header__icon-btn"
           title="設定"
           aria-label="設定"
-          onClick={() => openModal("settings", { tab: "workspace" })}
+          onClick={() => openSettings("workspace")}
         >
           <Settings size={18} />
         </button>

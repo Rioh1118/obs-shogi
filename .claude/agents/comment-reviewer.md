@@ -62,7 +62,7 @@ color: blue
 
 ### 7. 命名
 
-- 同じ概念に複数の名前が使われていないか（`sfen` / `position` / `currentPosition` / `posKey` など）。
+- 同じ概念に複数の名前が使われていないか（`sfen` / `position` / `analyzedSfen` / `cursorPointer` など）。
   **見つけたら、どれを正とするかまで提案すること**
 - 名前と実際の振る舞いがずれているもの。特に副作用を持つのに get / build で始まる関数
 - 真偽値が `is` / `has` / `should` / `can` で始まっているか

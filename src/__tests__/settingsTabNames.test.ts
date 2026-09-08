@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, test } from "vitest";
 
@@ -12,15 +12,53 @@ import { codeOf } from "./sourceText";
  * 通し、`SettingsPanel` の `isTabKey` が知らない名前を黙って捨てて既定のタブへ落とす。
  * 画面は「設定は開いた」ので、押した人が気づく手掛かりは**開いた先が違う**ことだけ。
  *
- * 実際に `tab: "general"` という**存在しない名前**が2箇所に入っていた。解析の断りは
- * 復帰操作としてエンジン管理タブを案内するのに、その断りを出す画面の歯車が
- * ワークスペースを開いていた。
+ * 解析の断りは復帰操作として**エンジン管理タブ**での操作を案内するので、歯車が
+ * 別のタブを開くと案内が空振りする。
  *
- * **型で閉じるのが本筋**（`URLParams["tab"]` を `TabKey` にする）だが、`TabKey` は
- * `features/settings` に在り、`shared` の型がそれを読むと依存の向きが逆になる。
- * 型を下げるかどうかを決めるまでの間、綴りで止める。
+ * **`URLParams["tab"]` を設定の `TabKey` にする道は無い。** `tab` は設定専用の欄では
+ * なく、`create-file` が `"create" | "import"` として同じ欄を読んでいる。
+ * 型で閉じるなら「設定を開く口」の側（`features/settings` に置く関数）に寄せることに
+ * なるので、そこを決めるまでは綴りで止める。
+ *
+ * **doc も見る。** `docs/spec/` の画面仕様がタブ名を書いているので、コードだけを直すと
+ * 仕様の側が現在形で嘘になる（`CLAUDE.md` が同じ PR で直すと決めている）。
  */
-const TAB_CALL = /openModal\(\s*"settings"\s*,\s*\{[^}]*\btab:\s*"([^"]*)"/g;
+/**
+ * 設定モーダルを開く呼びの**第1引数の塊**を取る。
+ *
+ * **キーの並び順に依存しないこと。** オブジェクトのキーの順序は書き手の自由なので、
+ * `modal` が `tab` より前に在る形だけを見ると、逆に書いた瞬間に素通りする。
+ * 塊を取ってから中で `modal` と `tab` を別々に探す。
+ */
+const OPEN_MODAL = /openModal\(\s*"settings"\s*,\s*(\{[\s\S]*?\})\s*\)/g;
+const UPDATE_PARAMS = /updateParams\(\s*(\{[\s\S]*?\})\s*[,)]/g;
+const TAB_IN_ARG = /\btab:\s*"([^"]*)"/;
+
+/** 呼び1つが渡すタブ名（設定モーダル宛でなければ `null`） */
+function tabOf(arg: string, requireModal: boolean): string | null {
+  if (requireModal && !/\bmodal:\s*"settings"/.test(arg)) return null;
+  return arg.match(TAB_IN_ARG)?.[1] ?? null;
+}
+
+/**
+ * doc の中の `tab=<名前>`。**設定モーダルを名指している行だけ**を見る
+ * ——`tab` の欄は `create-file` も使うので、行を絞らないとそちらの
+ * `tab=import` を「実在しない」と誤って赤くする。
+ */
+const TAB_IN_DOC = /\btab=([\w-]+)/g;
+const namesSettings = (line: string) => line.includes("settings");
+
+/**
+ * 画面仕様。**`docsSourcePaths` の `scannedDocs` は使えない** ——あちらの範囲は
+ * `spec/screens/` までで、タブ名を書いている `navigation-map.md` が入らない。
+ */
+const specDocs = (): string[] => {
+  const walk = (rel: string): string[] =>
+    readdirSync(join(REPO_ROOT, rel), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(`${rel}/${e.name}`) : e.name.endsWith(".md") ? [`${rel}/${e.name}`] : [],
+    );
+  return walk("docs/spec");
+};
 
 const tabKeys = (): string[] => {
   const body = readFileSync(join(SRC, "features/settings/model/tabs.ts"), "utf8");
@@ -39,10 +77,33 @@ describe("設定モーダルのタブ名", () => {
       .map((path) => relative(REPO_ROOT, path))
       .flatMap((rel) => {
         const code = codeOf(readFileSync(join(REPO_ROOT, rel), "utf8"));
-        return [...code.matchAll(TAB_CALL)]
-          .filter((m) => !keys.includes(m[1]))
-          .map((m) => `${rel}: ${m[1]}`);
+        return [
+          ...[...code.matchAll(OPEN_MODAL)].map((m) => tabOf(m[1], false)),
+          ...[...code.matchAll(UPDATE_PARAMS)].map((m) => tabOf(m[1], true)),
+        ]
+          .filter((name): name is string => name !== null && !keys.includes(name))
+          .map((name) => `${rel}: ${name}`);
       })
+      .sort();
+
+    expect(offenders, `実在するのは ${keys.join(" / ")}`).toEqual([]);
+  });
+
+  test("画面仕様が書くタブ名も実在する", () => {
+    const keys = tabKeys();
+
+    // 0件を見て緑になる形を止める
+    expect(specDocs().length, "docs/spec/ を歩けていない").toBeGreaterThan(3);
+
+    const offenders = specDocs()
+      .flatMap((rel) =>
+        readFileSync(join(REPO_ROOT, rel), "utf8")
+          .split("\n")
+          .filter(namesSettings)
+          .flatMap((line) => [...line.matchAll(TAB_IN_DOC)].map((m) => m[1]))
+          .filter((name) => !keys.includes(name))
+          .map((name) => `${rel}: ${name}`),
+      )
       .sort();
 
     expect(offenders, `実在するのは ${keys.join(" / ")}`).toEqual([]);

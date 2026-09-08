@@ -99,6 +99,30 @@ impl EngineBridge {
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
 
+        // **残っている席を先に捨てる。** `initialize_engine` は古いプロセスを
+        // 畳んでから起こし直すので、ここまで残っている席はどれも既に死んでいる。
+        //
+        // フロントの後始末を当てにできない口が在る——ワークスペースの切り替えは
+        // webview をリロードするので、React の cleanup が1つも走らないまま
+        // 席だけが残る。残すと以後の `take_session` が全部「Analysis already
+        // running」で断り、利用者には「▶ を押しても何も起きない」としか見えない。
+        // **フロント側で口を1つずつ塞ぐ形にしない**——クラッシュでも同じことが起きる。
+        let stale: Vec<String> = self
+            .active_sessions
+            .write()
+            .await
+            .drain()
+            .map(|(id, _)| id)
+            .collect();
+        if !stale.is_empty() {
+            log::warn!(
+                target: LOGT,
+                "initialize_engine: dropped {} stale session(s) {:?}",
+                stale.len(),
+                stale
+            );
+        }
+
         // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
         // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
         match self
@@ -601,6 +625,33 @@ mod tests {
         assert!(
             bridge.take_session(SessionType::Infinite).await.is_ok(),
             "返したのに次が取れない"
+        );
+    }
+
+    /// 起こし直しが、残っている席を捨てること。
+    ///
+    /// **フロントの後始末を当てにできない口が在る**——ワークスペースの切り替えは
+    /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
+    /// （クラッシュでも同じ）。残ると以後の `take_session` が全部断り、
+    /// 利用者には「▶ を押しても何も起きない」としか見えない。
+    ///
+    /// **実行ファイルは渡さない。** 起動は落ちてよく、見たいのは席が空くことだけ
+    /// ——席を捨てるのは起動を試みる前でなければならない。
+    #[tokio::test]
+    async fn starting_the_engine_drops_a_seat_that_outlived_the_screen() {
+        let bridge = bridge();
+
+        let stale = bridge.take_session(SessionType::Infinite).await.unwrap();
+        assert!(!stale.is_empty());
+
+        // 起動そのものは落ちる（実行ファイルが無い）。それでよい。
+        let _ = bridge
+            .initialize_engine_impl("/nonexistent/engine".to_string(), None)
+            .await;
+
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_ok(),
+            "起こし直したのに、画面より長生きした席が残っている"
         );
     }
 

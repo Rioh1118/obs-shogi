@@ -11,7 +11,7 @@ import type { JKFData } from "../model/jkf";
  * （`Permission denied (os error 13)` など）がそのまま入るので、
  * 利用者に出すなら何をしようとして失敗したのかを前後に足すこと。
  *
- * この関数が呼ぶ `write_kifu_to_file` は正規化しない（`src-tauri/src/kifu.rs`）。
+ * この関数が呼ぶ `write_kifu_to_file` は正規化しない（`src-tauri/src/kifu/commands.rs`）。
  * 一方、新規作成の `create_kifu_file` は書く前に Rust 側で正規化する
  * （`src-tauri/src/workspace/commands/kifu.rs`）。同じ JKF でも、作った時と
  * 保存し直した時でファイルの中身が揃わない。

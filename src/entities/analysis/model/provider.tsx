@@ -57,8 +57,9 @@ interface Props {
  * **呼び手が守ること。**
  *
  * - **棋譜の有無で畳まれない位置に置くこと**（`RuntimeProviders`）。棋譜を閉じるたびに
- *   畳まれる位置に置くと、「読む局面が無くなったら止める」effect は死に、代わりに
- *   `sweepOnUnmount` の**席を指さない停止**が毎回飛ぶ——#463 の窓へ撃ち込み続ける
+ *   畳まれる位置に置くと、「読む局面が無くなったら止める」effect（→ ※14）は死に、
+ *   席を指して返す機会が消える。代わりに飛ぶのは `sweepOnUnmount` の**席を指さない停止**で、
+ *   そちらは Rust の席を**全部**空けるので、別の口が取った席まで巻き添えにする
  * - `positionSync` は**アプリ全体で1箇所だけがマウントした** `useEnginePositionSync`
  *   を渡すこと（同期の状態が二重になると、待つ相手が食い違う）
  *
@@ -181,8 +182,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための門。**
    *
    * 予約は `swapSeatAndGo` の `finally` が拾う。**門を2箇所に書き下ろさない**
-   * ——このファイルは「片方だけに入る」形の欠けを何度も出している。実際に
-   * 拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
+   * ——拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
    */
   const bookIfRestarting = useCallback(() => {
     if (!restartInFlightRef.current) return false;
@@ -228,6 +228,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 先に席を返し終えている（返せなければ `takeSeatAndGo` へ入らない）。
    * 握った回は**ここを通らず** `results.schedule()` が出し直すので、
    * 席が欄に入る前に届いた1本を消す心配も要らない。
+
    *
    * **席を見て降りる形にしない。** 捨てる停止が落ちると `shoot` の catch
    * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
@@ -246,8 +247,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /**
    * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
    *
-   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
-   * その形の欠けを何度も出している。開始の失敗は**呼び手へ投げる**（断りの文言は
+   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る。
+   * 開始の失敗は**呼び手へ投げる**（断りの文言は
    * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
    *
    * **▶ の口は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
@@ -267,8 +268,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       const take = seat.beginTake(discardBy);
 
       // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
-      // 後始末が割れると、片方だけが反映待ちを落とし忘れる（この関数は現にその形で
-      // 1度落とした）。**`landed` を先に決めてから、握れなかった側をまとめて畳む。**
+      // 後始末が割れると、片方だけが反映待ちを落とし忘れる。
+      // **`landed` を先に決めてから、握れなかった側をまとめて畳む。**
       let landed: SeatTakeResult;
       try {
         const sessionId = await startInfiniteAnalysisCore();
@@ -311,6 +312,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
     // 以降タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
     unmountedRef.current = false;
+    seat.armForMount();
 
     return () => {
       unmountedRef.current = true;
@@ -940,7 +942,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
     // **フックに撃たせるかどうかとは別の判断**をするときだけ——席と `isAnalyzing` の
     // どちらかが立っていれば後始末ごと走らせたい「読む局面が無くなった」回と、
-    // 握れなかった席の反映待ちを落とす回（`takeSeatAndGo`）。
+    // `useResultFlush` に席の門を渡す口。
     try {
       await seat.releaseHeld("stop");
     } catch (e) {
