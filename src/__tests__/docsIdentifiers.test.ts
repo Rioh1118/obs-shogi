@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
-import { SRC, tsFiles } from "./walk";
+import { allCheckNames } from "./checkNames";
 import { docsPath } from "./stateTransitionIndex";
 import { codeOf } from "./sourceText";
 import { scannedDocs } from "./docsSourcePaths";
@@ -52,12 +51,10 @@ describe("doc が指す識別子", () => {
  */
 describe("免除の中身", () => {
   test("検査の名前を免除していない", () => {
-    const checks = new Set(
-      tsFiles(SRC, { includeTests: true })
-        .map((p) => basename(p))
-        .filter((n) => n.endsWith(".test.ts") || n.endsWith(".test.tsx"))
-        .map((n) => n.replace(/(\.ratchet)?\.test\.tsx?$/, "")),
-    );
+    // **母数は `checkNames` が持つ。** ここで作り直すと、TS の検査名しか知らない
+    // 集合になり、Rust の検査名（`state_table_terms`）も検査本体（`ownedSpelling`）も
+    // 黙って免除に入る。
+    const checks = allCheckNames();
     const named = [...EXEMPT].filter((name) => checks.has(name)).sort();
 
     expect(

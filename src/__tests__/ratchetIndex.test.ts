@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { readdirSync } from "node:fs";
-import { REPO_ROOT, RUST_CHECKS_DIR, SRC, tsFiles } from "./walk";
+import { REPO_ROOT, SRC, tsFiles } from "./walk";
+import { checkName, existingChecks, rustChecks } from "./checkNames";
 
 /**
  * `CONTRIBUTING.md` の「機械で止めているもの」の表と、実在する検査を突き合わせる。
@@ -31,24 +31,6 @@ function listedChecks(): string[] {
   expect(section, "CONTRIBUTING.md の「機械で止めているもの」の節が見つからない").not.toBeNull();
 
   return [...section![1].matchAll(ROW)].map((m) => m[1]).sort();
-}
-
-/** `src/` 側の検査。ファイル名から拡張子（と `.ratchet`）を落としたものを名前とする */
-function existingChecks(): Set<string> {
-  const names = tsFiles(SRC, { includeTests: true })
-    .map((p) => relative(REPO_ROOT, p))
-    .filter((p) => p.endsWith(".test.ts") || p.endsWith(".test.tsx"))
-    .map((p) => checkName(p));
-
-  return new Set(names);
-}
-
-/** ファイルのパスから、表の1列目と突き合わせる名前を取る */
-function checkName(path: string): string {
-  return path
-    .split("/")
-    .pop()!
-    .replace(/(\.ratchet)?\.test\.tsx?$/, "");
 }
 
 /**
@@ -94,27 +76,6 @@ const RUST_CHECKS = new Set([
   "timeout_marker",
   "timeout_result",
 ]);
-
-/**
- * `src-tauri/tests` にある Rust の検査の名前。
- *
- * **サブディレクトリも歩く。** 共有ヘルパの既定の置き場（`tests/scanning/`）に
- * 置いた検査が、`isFile()` で止めると丸ごと索引の死角に落ちる——
- * 「両方に載っていないと落ちる」と表と `RUST_CHECKS` の両方が書いているのに、
- * サブディレクトリでは何も落ちない状態になる。
- *
- * `mod.rs` はディレクトリの名前で採る（`scanning/mod.rs` → `scanning`）。
- */
-function rustChecks(): string[] {
-  const walk = (dir: string, name: string): string[] =>
-    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      if (entry.isDirectory()) return walk(join(dir, entry.name), entry.name);
-      if (!entry.name.endsWith(".rs")) return [];
-      return [entry.name === "mod.rs" ? name : entry.name.replace(/\.rs$/, "")];
-    });
-
-  return [...new Set(walk(RUST_CHECKS_DIR, "tests"))].sort();
-}
 
 /**
  * ラチェットではなく、**ラチェットが使う走査器の単体テスト**。表には載せない。
