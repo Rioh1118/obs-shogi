@@ -186,8 +186,8 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 
 割れ目は `ReadOutcome::NothingToIndex` の `looks_intentional`。**警告の有無では
 割れない**——警告を出す口があるのは CSA だけ（`warn_if_moves_were_dropped`）なので、
-KIF / KI2 / JKF は0バイトでも `warns` が空になる。大きさが0でないこと**と**
-警告が無いことの両方で決める。
+KIF / KI2 / JKF は中身が無くても `warns` が空になる。**中身が空白・BOM・NUL
+だけでないこと**と警告が無いことの両方で決める（`kifu_reader::is_blank`）。
 
 **それでも検査が黙る形は真に落ちる。** 読み残しを見る口は CSA 専用なので、
 KIF / KI2 / JKF は中身があっても局面0件なら「本当に空」と数えられる（#501）。
@@ -208,7 +208,7 @@ CSA でも上の2通り（`%` の打ち切り・UTF-16）は同じ。
 **指し手のある棋譜が黙って索引から消える**ので伝える。
 
 **`warns` を積むのは CSA だけ。** `csa` クレートが読み残しを捨てて `Ok` を返すので、
-読み手が見つけて積む（`kifu_reader.rs` の `warn_if_moves_were_dropped`）。
+読み手が見つけて積む（`csa.rs` の `warn_if_moves_were_dropped`）。
 
 **この警告が出たファイルを画面で開けるとは限らない。** `tsshogi` が
 どの行パターンにも当たらない行を読み飛ばすので、飛ばしても局面が繋がるなら開ける

@@ -3,9 +3,11 @@
 use std::fs;
 use std::path::Path;
 
+use encoding_rs::SHIFT_JIS;
+
 use crate::search::read::csa::{parse_csa_portable, warn_if_moves_were_dropped};
 use crate::search::read::diagnosis::{cannot_open, parse_failed, unreadable_record};
-use crate::search::read::encoding::{read_bytes, read_portable};
+use crate::search::read::encoding::{read_bytes, read_portable, ENCODINGS_THE_CRATE_SKIPS};
 use crate::search::read::fs_scan::{FileRecord, KifuKind};
 use crate::search::read::outcome::{Jkf, KifuReadError, ReadOutcome};
 
@@ -175,30 +177,39 @@ fn read_indexable(path: &Path, kind: KifuKind) -> Result<(Jkf, Vec<String>), Kif
     }
 }
 
-/// 棋譜ファイルを JKF に読み、伝えたいことも返す。**読み手の本体。**
-///
-/// 表と腕ごとの義務は [`read_to_jkf`] の doc にある。
-/// **中身が無いか。** 空白と BOM しか無いファイルを「本当に空の棋譜」から外す。
+/// **中身が無いか。** 空白しか無いファイルを「本当に空の棋譜」から外す。
 ///
 /// 同期の途中で置かれたプレースホルダや、保存が落ちた残骸がこの形になる。
 /// 大きさ0だけを見ると、改行1つや BOM だけのものが素通りする——どれも
 /// 「空なのが正しい姿」ではない。
 ///
-/// **BOM を落としてから見る。** UTF-8 / UTF-16 の BOM は中身ではなく、
-/// 書き手が何も書かなくても付く。
+/// **復号してから見る。** 生バイトの ASCII 空白だけを数えると、全角スペース・
+/// NBSP・EUC-JP・ISO-2022-JP・BOM 無しの UTF-16 が全部抜ける
+/// （`an_empty_file_is_rejected_but_a_moveless_kifu_is_not` が20形を並べている）。
+/// 文字コードが分からないので**候補を総当たりし、どれか1つでも空白だけに
+/// 読めたら空**とする——「空に読める読み方がある」なら、その棋譜から
+/// 索引に入るものは無い。
+///
+/// `char::is_whitespace` は全角スペースも NBSP も落とす。BOM は
+/// 空白ではないので明示的に外す。
 fn is_blank(bytes: &[u8]) -> bool {
-    const BOMS: [&[u8]; 3] = [b"\xEF\xBB\xBF", b"\xFF\xFE", b"\xFE\xFF"];
-    let mut rest = bytes;
-    for bom in BOMS {
-        if let Some(stripped) = rest.strip_prefix(bom) {
-            rest = stripped;
-            break;
-        }
+    let blank = |s: &str| {
+        s.chars()
+            .all(|c| c.is_whitespace() || c == '\u{feff}' || c == '\0')
+    };
+
+    if blank(&String::from_utf8_lossy(bytes)) {
+        return true;
     }
-    // UTF-16 の空白は NUL を挟むので、NUL も「中身ではない」側に数える
-    rest.iter().all(|b| b.is_ascii_whitespace() || *b == 0)
+    ENCODINGS_THE_CRATE_SKIPS
+        .iter()
+        .chain(std::iter::once(&SHIFT_JIS))
+        .any(|enc| blank(&enc.decode(bytes).0))
 }
 
+/// 棋譜ファイルを JKF に読み、伝えたいことも返す。**読み手の本体。**
+///
+/// 表と腕ごとの義務は [`read_to_jkf`] の doc にある。
 fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadError> {
     // ファイルそのものを開けるかを、形式ごとの分岐より前に1度だけ見る。
     // CSA / JKF はクレートが自分で開くので、ここを通さないと
@@ -256,11 +267,27 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
         //
         // **中身を読んで決める。** ここへ来るのは記録が空に見えた回だけなので、
         // 読み直しの費用は掛かっても構わない（`SIZE_LIMIT` で上限は付いている）。
-        // 大きさ0だけを見ると、改行1つや BOM だけのファイルが素通りする
-        let has_content = csa_bytes
-            .as_deref()
-            .map_or_else(|| read_bytes(path).ok(), |b| Some(b.to_vec()))
-            .is_some_and(|b| !is_blank(&b));
+        // 大きさ0だけを見ると、改行1つや BOM だけのファイルが素通りする。
+        //
+        // **読み直しに失敗した回は「中身が無い」側へ倒す。** パースは通って
+        // いても索引済みには数えない——安全側だが、その棋譜がある限り
+        // ワークスペースは黄色いままになる
+        let has_content = match csa_bytes.as_deref() {
+            // **CSA は手元のバイト列を使う。** 読み直すと「パースしたのと
+            // 同じものを見ているか」が型で表せなくなるうえ、判定のためだけに
+            // 最大 `SIZE_LIMIT` の複製が走る
+            Some(b) => !is_blank(b),
+            None => match read_bytes(path) {
+                Ok(b) => !is_blank(&b),
+                // **読み直せないなら「空なのが正しい姿」とは言えない。**
+                // 理由は残す——数だけ減って手掛かりが無いと、利用者は
+                // なぜ黄色いのかを知りようがない
+                Err(e) => {
+                    log::warn!("{}: 中身を確かめられなかった: {e}", path.display());
+                    false
+                }
+            },
+        };
         let looks_intentional = has_content && warn.is_none();
         return Ok(ReadOutcome::NothingToIndex {
             warns: warn.into_iter().collect(),
@@ -993,12 +1020,24 @@ mod tests {
             let outcome = read_path_inner(&path, KifuKind::Kif)
                 .unwrap_or_else(|e| panic!("{label} が読めなかった扱いになっている: {e}"));
             // **黙って弾くこと。** `{ .. }` で受けると警告が付いても緑になる
-            let ReadOutcome::NothingToIndex { warns, .. } = outcome else {
+            let ReadOutcome::NothingToIndex {
+                warns,
+                looks_intentional,
+            } = outcome
+            else {
                 panic!("{label} を弾いていない");
             };
             assert!(
                 warns.is_empty(),
                 "{label} が警告つきで弾かれている: {warns:?}"
+            );
+            // **「空なのが正しい姿」かも見る。** ここを `..` で受けている限り、
+            // 20形をいくら並べても `looks_intentional` は誰も見ていない
+            // ——`indexed` に化けて緑の「準備完了」になる
+            let intentional_by_design = label == "hirate-only";
+            assert_eq!(
+                looks_intentional, intentional_by_design,
+                "{label} の「空なのが正しい姿か」が違う"
             );
         }
 
