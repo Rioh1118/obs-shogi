@@ -180,7 +180,8 @@ issue #120 と同型の行き止まり
   戻る窓——**※7 が「フロント側だけでは保証しない」と書いている根拠の片方
   ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは次の門。**数を書かない**——1枚足すたびにこの行だけが古くなる。
   - `provider.tsx` の起動の門（`startingSeqRef`）——固定しているのは `provider.test.tsx` の StrictMode
-  - `provider.tsx` の `shutdown` の `dispatch` の門と、世代（`seqRef`）の繰り上げ
+  - `provider.tsx` の `shutdown` の `dispatch` の門、世代（`seqRef`）の繰り上げ、
+    **起動の門を落とす1行**（これを潰すと `startGate.test.tsx` が4本落ちる）
   - `provider.tsx` の `initialize` の成功側・失敗側の世代の照合
   - `initializer.ts` の追い越された畳みの IPC と、`finally` の同一性判定
     **潰しても赤くならないものが3つ残っている**——`provider` 側の `finally` の同一性判定、

@@ -878,6 +878,42 @@ describe("AnalysisProvider の結果の照合", () => {
     SLOW,
   );
 
+  it("局面が既に揃っていても、同期の往復の向こうでエンジンが死んだら席を取りに行かない", async () => {
+    // **`waitUntil` は `cond()` を先に見る。** 盤とエンジンが同じ局面を指していれば
+    // 打ち切りを1度も評価せず真を返すので、`if (!synced)` の中に在る readiness の
+    // 見直しごと飛ばされる——**入口の門が無いと、その先で死んだ席を握る。**
+    let releaseSync: () => void = () => {};
+    syncPosition.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSync = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    // 往復の最中に、起動の設定が組み立てられなくなる。
+    engine = { isReady: false, notReadyReason: "no-engine" };
+    await view.setSync(adapter("P1", "P1"));
+    await advance(50);
+
+    await act(async () => {
+      releaseSync();
+    });
+    await pressed;
+    await advance(50);
+
+    // **席を取りに行かない。** 行くと、Rust が渡した回は死んだ席が欄に残り、
+    // 次の ▶ の停止がその識別子で**別のエンジンへ**飛ぶ。
+    expect(startCore).not.toHaveBeenCalled();
+
+    // **理由に合った断り。** ここで「オプションを変えて保存」と案内すると、
+    // 起こし直す材料が揃っていないのにその操作を指示することになる。
+    expect(view.current.state.error).toBe(NO_ENGINE_ON_START_MESSAGE);
+  });
+
   it("席が着く前にエンジンが戻っていたら、押し直しを案内する", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockImplementationOnce(
