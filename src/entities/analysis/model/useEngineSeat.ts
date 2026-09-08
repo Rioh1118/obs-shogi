@@ -242,6 +242,33 @@ export function useEngineSeat(): EngineSeat {
   };
 
   /**
+   * 停止が落ちた席を、握り直すか手放すか。**撃った席を誰も知らないままにしない。**
+   *
+   * **欄が空なら握り直す。** 要らなくなった開始を捨てる口は欄が空のまま撃つので、
+   * 書き戻さないと `sweepOnUnmount` が門で止まり、二度と返す機会が来ない。
+   *
+   * **欄が埋まっているなら握らない**——そこに居るのは別の席で、巻き添えにできない。
+   * その回、いま撃った席は誰も知らないまま Rust に残りうる
+   * （→ `docs/state-transitions/analysis.md` の ※12 / F-7）。いまその回が作れないのは、
+   * 開始する口が必ず枠を待ち切るからで、`discard` の呼び手を増やすときは見直すこと。
+   *
+   * **往復の間にエンジンが消えていたら書き戻さない。** その席はもう Rust に無く
+   * （畳む側が `stop_all_sessions` で空ける）、欄へ戻すと以後の停止が**次のエンジン**へ
+   * その識別子で飛ぶ。手放した席として覚えるだけにして、遅れて届く `info` を落とす。
+   *
+   * 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
+   */
+  const keepOrForget = (sessionId: AnalysisSessionId | undefined, generation: number) => {
+    if (sessionId === undefined || seatRef.current !== null) return;
+
+    if (engineGenRef.current !== generation) {
+      remember(sessionId);
+      return;
+    }
+    seatRef.current = sessionId;
+  };
+
+  /**
    * 停止を撃つ。**失敗は呼び手へ投げる**（飲む版は `shootQuietly`）。
    *
    * 成功したときに欄を空ける条件は、枝で違う。**席を指した回は、握っている席と
@@ -259,27 +286,7 @@ export function useEngineSeat(): EngineSeat {
     try {
       await stopAnalysisCore(sessionId, by);
     } catch (e) {
-      // **返せなかった席を、誰も知らないままにしない。** 欄が空なら握り直す。
-      // 要らなくなった開始を捨てる口は欄が空のまま撃つので、書き戻さないと
-      // `sweepOnUnmount` が門で止まり、二度と返す機会が来ない。
-      //
-      // **欄が埋まっているなら握らない**——そこに居るのは別の席で、巻き添えにできない。
-      // その回、いま撃った席は誰も知らないまま Rust に残りうる（→ `analysis.md` ※12 / F-7）。
-      // いまその回が作れないのは、開始する口が必ず枠を待ち切るからで、
-      // `discard` の呼び手を増やすときはここを見直すこと。
-      //
-      // 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
-      if (sessionId !== undefined && seatRef.current === null) {
-        // **往復の間にエンジンが消えていたら書き戻さない。** その席はもう
-        // Rust に無く（畳む側が `stop_all_sessions` で空ける）、欄へ戻すと
-        // 以後の停止が**次のエンジン**へその識別子で飛ぶ。手放した席として
-        // 覚えるだけにして、遅れて届く `info` を落とす。
-        if (engineGenRef.current !== generation) {
-          remember(sessionId);
-        } else {
-          seatRef.current = sessionId;
-        }
-      }
+      keepOrForget(sessionId, generation);
       throw e;
     }
 

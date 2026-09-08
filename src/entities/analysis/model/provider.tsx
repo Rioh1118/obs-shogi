@@ -261,6 +261,26 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [clearDebounceTimer]);
 
   /**
+   * 握れなかった席の**反映待ち**を捨てる。
+   *
+   * 席を捨てる側が落とすのはこれ以降の `info` だけで、席が欄に入る前に届いて
+   * `latestResultRef` に入った1本と、それが張ったタイマーには触らない。捨てる経路は
+   * `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される
+   * ——**別の局面の評価値と読み筋が、いまの局面の解析結果として画面に出る**
+   * （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
+   *
+   * **落とすのは席を握っていないときだけ。** 握っている回に落とすと、開始が出し直す
+   * 最初の `info`（席が欄に入る前に届いた1本）まで消える。逆に、その1本が捨てた席の
+   * ものである窓は残る——`accepts` は欄が空の間はどの席の `info` も通すため。
+   * **どちらを取るかで前者を選んでいる。**
+   *
+   * **`clear_results` は撃たない**——`error` も消すので、直前に立った断りが黙って消える。
+   */
+  const dropPendingForLostSeat = useCallback(() => {
+    if (!seat.isHeld()) dropPendingResult();
+  }, [seat, dropPendingResult]);
+
+  /**
    * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
    *
    * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る——このファイルは
@@ -299,19 +319,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       const landed = take.landed(sessionId, () => supersededSince(seq));
 
       if (landed !== "held") {
-        // **席と一緒に、その席の反映待ちも捨てる。** 席を捨てる側が落とすのは
-        // これ以降の `info` だけで、席が欄に入る前に届いて `latestResultRef` に
-        // 入った1本と、それが張ったタイマーには触らない。この経路は
-        // `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される
-        // ——**別の局面の評価値と読み筋が、いまの局面の解析結果として画面に出る**
-        // （盤がその局面に戻ると、ペインのキャッシュにも焼き付く）。
-        //
-        // **落とすのは席を握っていないときだけ。** 握っている回に落とすと、
-        // 開始が出し直す最初の `info`（席が欄に入る前に届いた1本）まで消える。
-        // 逆に、その1本が捨てた席のものである窓は残る——`accepts` は欄が空の間は
-        // どの席の `info` も通すため。**どちらを取るかで前者を選んでいる。**
-        // `clear_results` は撃たない——`error` も消すので、直前に立った断りが黙って消える。
-        if (!seat.isHeld()) dropPendingResult();
+        dropPendingForLostSeat();
         return landed;
       }
 
@@ -327,7 +335,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       sentSfenRef.current = sfen;
       return "held";
     },
-    [discardShownResults, dropPendingResult, scheduleFlush, seat, supersededSince],
+    [discardShownResults, dropPendingForLostSeat, scheduleFlush, seat, supersededSince],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
