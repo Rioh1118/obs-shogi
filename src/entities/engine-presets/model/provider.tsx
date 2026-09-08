@@ -196,6 +196,12 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [persist, state.presets, touchPreset],
   );
 
+  /**
+   * 複製して、**その複製を選ぶ**。選ぶのでエンジンは起こし直る（`runtimeConfig` が動く）。
+   *
+   * 選択が動くのは一覧に足し終えた後なので、`deletePreset` のような
+   * 「もう無いものを選んだまま」の窓は開かない。
+   */
   const duplicatePreset = useCallback(
     async (id: PresetId) => {
       const src = state.presets.find((p) => p.id === id);
