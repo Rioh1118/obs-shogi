@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useNavigate } from "react-router";
 
 import type { FileConflictState } from "@/features/file-conflict/model/types";
 
@@ -80,12 +80,15 @@ function conflictFor(kind: "create_file" | "rename_file"): FileConflictState {
 }
 
 beforeEach(() => {
+  // **可変の模擬状態は1箇所で戻す。** `stub.conflict` は境界の `resetKeys` に入る値そのもので、
+  // 持ち越すと「いま検証している機構の入力」を前のテストが決めることになる
+  stub.conflict = null;
+  throwing.settings = false;
   closeModal.mockReset();
   resolveConflictByRename.mockReset().mockResolvedValue({ success: true, data: undefined });
 });
 
 afterEach(() => {
-  throwing.settings = false;
   cleanup();
   vi.restoreAllMocks();
 });
@@ -171,6 +174,49 @@ describe("モーダル層の境界", () => {
       "in-flow の箱を出すと `.app-layout` の1段目を取り、本体が3段目へ押し出される",
     ).toBe(true);
     expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
+  });
+
+  test("行き先が変わったら、境界も畳むのをやめる", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.settings = true;
+
+    function GoElsewhere() {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate("/other")}>
+          移動
+        </button>
+      );
+    }
+
+    render(
+      <MemoryRouter>
+        <GoElsewhere />
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
+
+    // 原因は消しておく。**鍵から `location.key` を落とすと、ここで解けない**
+    throwing.settings = false;
+    fireEvent.click(screen.getByText("移動"));
+
+    expect(screen.queryByText("モーダルを表示できませんでした。")).toBeNull();
+  });
+
+  test("出しかけの知らせが原因なら、それを取り消す出口を出す", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.settings = true;
+    stub.conflict = conflictFor("create_file");
+
+    render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+
+    // 「別の操作からやり直す」だけだと、解けた瞬間に同じ値を描いてまた落ちる
+    expect(screen.getByText("知らせを取り消す")).toBeTruthy();
   });
 
   test("URL を持たない衝突が消えたら、境界も畳むのをやめる", () => {

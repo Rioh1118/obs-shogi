@@ -3,7 +3,12 @@ import { useLocation } from "react-router";
 import { useFileTree } from "@/entities/file-tree";
 import { isRaisedFromModal } from "@/features/file-conflict/lib/isRaisedFromModal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
+import {
+  AppErrorBoundary,
+  AppErrorFallbackAction,
+  AppErrorFallbackBody,
+  RETRY_LABEL,
+} from "@/shared/ui/AppErrorBoundary";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import SfenKifuCreateModal from "@/features/create-file/ui/SfenKifuCreateModal";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
@@ -45,13 +50,47 @@ function useModalLayerResetKeys(): readonly unknown[] {
  */
 export default function AppModalLayer() {
   const resetKeys = useModalLayerResetKeys();
+  const { conflict, kifuError, closeConflict, clearKifuError } = useFileTree();
+
+  /**
+   * 落ちた原因が「まだ立っている知らせ」そのものであることがある。
+   *
+   * そのときは鍵が動いても直らない —— 解けた瞬間に同じ値をもう一度描いて落ちるので、
+   * **別のモーダルを開く操作が、そのまま行き止まりを踏む操作になる。**
+   * 原因を消す口（`clearKifuError` / `closeConflict`）は畳まれた側にしか無いので、
+   * 境界の**外**にいるここが出口を持つ。
+   */
+  const stale = conflict !== null || kifuError !== null;
 
   return (
     <AppErrorBoundary
       label="モーダル"
       resetKeys={resetKeys}
       floatingSlot={0}
-      hint="このダイアログは開けません。別の操作からやり直してください。"
+      hint={
+        stale
+          ? `出しかけの知らせが原因のことがあります。「知らせを取り消す」を押してから「${RETRY_LABEL}」を押してください。`
+          : `別の操作からやり直してから「${RETRY_LABEL}」を押してください。`
+      }
+      fallback={(view) => (
+        <AppErrorFallbackBody
+          {...view}
+          extraActions={
+            stale && (
+              <AppErrorFallbackAction
+                secondary
+                onClick={() => {
+                  closeConflict();
+                  clearKifuError();
+                  view.reset();
+                }}
+              >
+                知らせを取り消す
+              </AppErrorFallbackAction>
+            )
+          }
+        />
+      )}
     >
       <ModalLayerContent />
     </AppErrorBoundary>
