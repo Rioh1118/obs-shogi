@@ -36,7 +36,7 @@ issue #120 のラウンド3 BLOCK は、3つ目を列に入れ忘れたことで
 | **E2**  | 停止ボタン                           | 同 → `stopAnalysis()`                                                                                                   |
 | **E3**  | 局面が変わる                         | 盤操作・棋譜ナビ（`currentSfen`）                                                                                       |
 | **E4**  | 同期が追いつく                       | `syncedSfen === desiredSfenRef` になる                                                                                  |
-| **E5**  | 同期が失敗する                       | 送信の例外／上限切れ（2000ms、`POSITION_SYNC_TIMEOUT_MS`）※15                                                           |
+| **E5**  | 同期が失敗する                       | 送信の例外／上限切れ（2000ms、`positionSyncTimeoutMs`。寸法は `src/entities/analysis/model/waits.ts`）※15                                                           |
 | **E6**  | エンジンが ready でなくなる          | → [engine.md](engine.md) E3/E6/E7/E8。**E3（起こし直し）もここ**——`phase` は `ready` のまま `isReady` だけ false になる |
 | **E7**  | 結果が届く                           | Rust の `analysis-update`                                                                                               |
 | **E8**  | 完了通知が届く                       | **飛ばない**。`analysis-complete` を emit する行が無い                                                                  |

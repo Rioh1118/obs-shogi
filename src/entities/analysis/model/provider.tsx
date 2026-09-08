@@ -7,6 +7,7 @@ import {
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
 import { useResultFlush } from "./useResultFlush";
+import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";
 import { useEngine, type AnalysisResult, type EngineReadiness } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -25,19 +26,6 @@ import {
   STOP_FAILED_MESSAGE,
 } from "./refusals";
 
-/**
- * 同期が追いつくのを見に行く間隔。**1フレームぶん**（打ち切りの上限に対して十分細かい）。
- */
-const SYNC_POLL_MS = 16;
-
-/** 盤が動いてから再開を始めるまでの猶予。連打を1本に畳む */
-const RESTART_DEBOUNCE_MS = 100;
-
-// エンジンが position を受け付けるまで待つ上限。これを超えたら送信できていないと
-// 見なし、盤面と一致しない候補手を出さないために解析を始めない。
-// 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい。
-const POSITION_SYNC_TIMEOUT_MS = 2000;
-
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
 //
 // `abort` を取るのは、待っている理由が消えたときに回り続けないため。
@@ -47,7 +35,7 @@ const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => b
   while (!cond()) {
     if (abort?.()) return false;
     if (Date.now() - start > timeoutMs) return false;
-    await new Promise((r) => setTimeout(r, SYNC_POLL_MS));
+    await new Promise((r) => setTimeout(r, waits().syncPollMs));
   }
   return true;
 };
@@ -421,7 +409,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * **経過時間は待つ相手（`seq` と局面）ごと持つ。** 時刻だけを持つと、前回の待ちの
    * 経過を引き継いで、次の待ちを1ミリ秒も待たずに打ち切る。
    *
-   * **上限と刻みは定数を共有している**（`POSITION_SYNC_TIMEOUT_MS` / `SYNC_POLL_MS`）
+   * **上限と刻みは `waits()` を共有している**
    * ので、値を変えれば両方に効く。**二重化しているのは待ちの形のほう**——手動の ▶ は
    * `sendAndAwaitSync` が `waitUntil` で待って断りを立てて投げ、こちらはタイマーを
    * 張り直して打ち切りで席を返す。**打ち切りの条件を変えるときは両方を見ること。**
@@ -433,7 +421,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         prev && prev.seq === seq && prev.want === want ? prev.startedAt : Date.now();
       syncWaitRef.current = { seq, want, startedAt };
 
-      if (Date.now() - startedAt > POSITION_SYNC_TIMEOUT_MS) {
+      if (Date.now() - startedAt > waits().positionSyncTimeoutMs) {
         syncWaitRef.current = null;
         clearDebounceTimer();
 
@@ -446,7 +434,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         return;
       }
 
-      scheduleRestart(seq, SYNC_POLL_MS);
+      scheduleRestart(seq, waits().syncPollMs);
     },
     [clearDebounceTimer, scheduleRestart, seat],
   );
@@ -556,7 +544,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
     const seq = ++restartSeqRef.current;
 
-    scheduleRestart(seq, RESTART_DEBOUNCE_MS);
+    scheduleRestart(seq, waits().restartDebounceMs);
 
     return () => {
       clearDebounceTimer();
@@ -710,7 +698,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
       const synced = await waitUntil(
         () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
-        POSITION_SYNC_TIMEOUT_MS,
+        waits().positionSyncTimeoutMs,
         () => supersededSince(seq) || !readinessRef.current.isReady,
       );
       if (!synced) {
