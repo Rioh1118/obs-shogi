@@ -40,13 +40,13 @@ $titlebar-button-size: 1.2rem;
       }
 
       &.close {
-        background-color: #ff5f57;
+        background-color: index.$color-window-close;
       }
       &.minimize {
-        background-color: #ffbd2e;
+        background-color: index.$color-window-minimize;
       }
       &.maximize {
-        background-color: #28c840;
+        background-color: index.$color-window-maximize;
       }
 
       &:hover {

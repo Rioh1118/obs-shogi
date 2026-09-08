@@ -1,5 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { X } from "lucide-react";
 import { AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
+import "./RootErrorFallback.scss";
 
 /**
  * root の境界が最後に出す画面。
@@ -14,10 +16,10 @@ import { AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
  * `getCurrentWindow()` はレンダで呼ばず押されたときだけ呼ぶ。Tauri の API が
  * 使えなくてもドラッグ領域は生き、ウィンドウを動かすことはできる。
  *
- * 寸法と色を直値で書いているのも依存を増やさないため。`AppErrorBoundary` の既定の
- * fallback と同じ理由で、トークンを解決するスタイルに頼らずに出せる形にしてある。
- * **帯の高さを `$titlebar-height` に合わせる必要は無い** —— この画面では
- * モーダルの overlay のように帯の高さを見て位置を決めるものが1つも描かれない。
+ * 帯の高さと閉じるボタンの色は `TitleBar` と同じトークンから取る。落ちた瞬間に掴める領域が
+ * 伸び縮みしたり赤の色味が変わったりすると、同じ窓の同じボタンだと分からなくなる。
+ * **避けているのは部品の再利用であって、スタイルの共有ではない** —— スタイルは
+ * `App.tsx` と同じ塊に載るので、この画面が描けている時点で読めていることが確定している。
  */
 
 type Props = {
@@ -35,48 +37,21 @@ export function RootErrorFallback({ retry }: Props) {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        flexDirection: "column",
-        background: "#1c2325",
-        color: "rgba(255,255,255,0.7)",
-        fontSize: "1.3rem",
-      }}
-    >
-      {/* ウィンドウを動かせる唯一の帯。閉じるボタンだけドラッグから外す */}
-      <div
-        data-tauri-drag-region
-        style={{
-          height: "2.6rem",
-          flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          padding: "0 1.2rem",
-          background: "rgba(0,0,0,0.3)",
-          userSelect: "none",
-        }}
-      >
+    <div className="root-error-fallback">
+      {/* この画面でウィンドウを動かせる唯一の帯。閉じるボタンだけドラッグから外す */}
+      <div className="root-error-fallback__chrome" data-tauri-drag-region>
         <button
           type="button"
+          className="root-error-fallback__close"
           onClick={close}
           aria-label="ウィンドウを閉じる"
           data-tauri-drag-region="false"
-          style={{
-            width: "1.2rem",
-            height: "1.2rem",
-            padding: 0,
-            border: "none",
-            borderRadius: "50%",
-            background: "#ff5f57",
-            cursor: "pointer",
-          }}
-        />
+        >
+          <X size={12} strokeWidth={3} />
+        </button>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div className="root-error-fallback__body">
         <AppErrorFallbackBody reset={retry} />
       </div>
     </div>
