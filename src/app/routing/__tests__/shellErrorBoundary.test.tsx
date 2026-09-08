@@ -28,7 +28,7 @@ vi.mock("../../providers/RuntimeProviders", () => ({
 
 const { default: RuntimeShell } = await import("../RuntimeShell");
 
-function Exploding(): ReactNode {
+function Throwing(): ReactNode {
   throw new Error("ペインの中で落ちた");
 }
 
@@ -48,7 +48,7 @@ describe("RuntimeShell の境界", () => {
       <MemoryRouter initialEntries={["/app"]}>
         <Routes>
           <Route element={<RuntimeShell />}>
-            <Route path="/app" element={<Exploding />} />
+            <Route path="/app" element={<Throwing />} />
           </Route>
         </Routes>
       </MemoryRouter>,

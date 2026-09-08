@@ -24,12 +24,12 @@ vi.mock("@/entities/game", () => ({
 }));
 
 /** どのペインを落とすか。テストごとに1つだけ真にする */
-const explode = { board: false, analysis: false, modal: false };
+const throwing = { board: false, analysis: false, modal: false };
 
-function exploding(name: keyof typeof explode, testId: string) {
+function throwingIn(name: keyof typeof throwing, testId: string) {
   return {
     default: () => {
-      if (explode[name]) throw new Error(`${name} の中で落ちた`);
+      if (throwing[name]) throw new Error(`${name} の中で落ちた`);
       return <div data-testid={testId} />;
     },
   };
@@ -39,7 +39,7 @@ const empty = { default: () => null };
 // 平常時 `createPortal` で描くので、`.app-layout` には in-flow の子を作らない
 vi.mock("@/pages/AppModalLayer", () => ({
   default: () => {
-    if (explode.modal) throw new Error("modal の中で落ちた");
+    if (throwing.modal) throw new Error("modal の中で落ちた");
     return null;
   },
 }));
@@ -51,8 +51,8 @@ vi.mock("@/widgets/kifu-stream/ui/KifuStreamList", () => ({
   default: () => <div data-testid="kifu" />,
 }));
 vi.mock("@/widgets/game-board/ui/Board", () => empty);
-vi.mock("@/widgets/game-board/ui/GameBoard", () => exploding("board", "board"));
-vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => exploding("analysis", "analysis"));
+vi.mock("@/widgets/game-board/ui/GameBoard", () => throwingIn("board", "board"));
+vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => throwingIn("analysis", "analysis"));
 
 const { default: AppLayout } = await import("../AppLayout");
 
@@ -72,16 +72,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  explode.board = false;
-  explode.analysis = false;
-  explode.modal = false;
+  throwing.board = false;
+  throwing.analysis = false;
+  throwing.modal = false;
   cleanup();
   vi.restoreAllMocks();
 });
 
 describe("ペインごとの境界", () => {
   test("盤が落ちても、棋譜一覧と解析ペインは残る", () => {
-    explode.board = true;
+    throwing.board = true;
     const { container } = mount();
 
     expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();
@@ -94,7 +94,7 @@ describe("ペインごとの境界", () => {
   });
 
   test("モーダル層が落ちても、`.app-layout` の段割りを崩さない", () => {
-    explode.modal = true;
+    throwing.modal = true;
     const { container } = mount();
 
     const fallback = container.querySelector(".app-error-fallback");
@@ -111,7 +111,7 @@ describe("ペインごとの境界", () => {
   });
 
   test("解析ペインが落ちても、盤と棋譜一覧は残る", () => {
-    explode.analysis = true;
+    throwing.analysis = true;
     const { container } = mount();
 
     expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();

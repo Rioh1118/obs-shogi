@@ -27,7 +27,7 @@ function App() {
       */}
       <AppErrorBoundary
         label="画面"
-        fallback={(error, reset) => <RootErrorFallback error={error} retry={reset} />}
+        fallback={(error, reset) => <RootErrorFallback error={error} reset={reset} />}
       >
         <BootstrapProviders>
           <BrowserRouter>
