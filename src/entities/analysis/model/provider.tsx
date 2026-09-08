@@ -104,7 +104,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const analyzingRef = useRef(state.isAnalyzing);
 
   // 届いた結果の間引き。**反映待ちとタイマーの組はこのフックの中だけ。**
-  const results = useResultFlush(dispatch, analyzingRef);
+  const results = useResultFlush(dispatch, analyzingRef, seat.isHeld);
 
   const safeUnlisten = useCallback(() => {
     const fn = unlistenRef.current;

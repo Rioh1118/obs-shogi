@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type Dispatch, type RefObject } from "react";
+import { useCallback, useRef, type Dispatch, type RefObject } from "react";
 import type { AnalysisResult } from "@/entities/engine";
 import type { AnalysisAction } from "./types";
 
@@ -27,11 +27,12 @@ export interface ResultFlush {
    */
   flushNow: (result: AnalysisResult) => void;
   /**
-   * 反映待ちを捨てる。**画面に出ている候補手には触らない。**
+   * 反映待ちの1本と、それが張った間引きのタイマーを**両方**落とす。
+   * **画面に出ている候補手には触らない**（それは `discardShown`）。
    *
-   * 席を握れなかった回に通る。捨てる側が落とすのはこれ以降の `info` だけで、
-   * 席が欄に入る前に届いて反映待ちに入った1本と、それが張ったタイマーには触らない。
-   * 捨てる経路は `stop_analysis` を dispatch しないので、そのタイマーは起きて commit される。
+   * **これは掃除であって、門ではない。** 捨てた席の結果を画面に出さない保証は
+   * `commitLatest` の席の門が持つ——枠を落とすだけだと、落とす前にタイマーが
+   * 起きた回を守れない。
    */
   dropPending: () => void;
   /**
@@ -47,12 +48,13 @@ export interface ResultFlush {
    */
   discardShown: () => void;
   /**
-   * 反映待ちを持っているなら、タイマーを張り直す。**席を握った直後に呼ぶ。**
+   * タイマーが張られていなければ張る（張られていれば何もしない）。
+   * **席を握った直後に呼ぶ。**
    *
-   * 席が欄に入る前に来た1本は反映待ちに入るが、commit は `isAnalyzing` を見るので、
-   * そのタイマーが `start_analysis` の commit より先に起きると黙って捨てられ、
-   * タイマーの欄も空に戻っている——張り直す者が居ない。探索が深いほど次の `info` までは
-   * 伸びるので、**「解析中」のまま空のペインが残る**。
+   * 席が欄に入る前に来た1本は反映待ちに入るが、commit は `isAnalyzing` と席を見るので、
+   * そのタイマーが席の確定より先に起きると commit されず、タイマーの欄も空に戻っている
+   * ——張り直す者が居ない。探索が深いほど次の `info` までは伸びるので、
+   * **「解析中」のまま空のペインが残る**。
    */
   schedule: () => void;
 }
@@ -66,6 +68,7 @@ export interface ResultFlush {
 export function useResultFlush(
   dispatch: Dispatch<AnalysisAction>,
   analyzing: RefObject<boolean>,
+  holdsSeat: () => boolean,
 ): ResultFlush {
   const latestRef = useRef<AnalysisResult | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -81,11 +84,17 @@ export function useResultFlush(
     // 解析中じゃないならUI更新しない（stop直後の無駄更新防止）
     if (!analyzing.current) return;
 
+    // **席を握っていない間は出さない。** 捨てた席の1本を「枠から落とす」形で防ぐと、
+    // 落とす前にタイマーが起きた回（着地が間引きの1周期より遅い回）を守れない
+    // ——**死んだエンジンの読み筋が、盤が別の局面を映したまま「解析中」で残る**。
+    // 席が欄に入る前に届いた1本は枠に残り、握った直後の `schedule` が出し直す。
+    if (!holdsSeat()) return;
+
     const r = latestRef.current;
     if (!r) return;
 
     dispatch({ type: "update_result", payload: r });
-  }, [dispatch, analyzing]);
+  }, [dispatch, analyzing, holdsSeat]);
 
   const schedule = useCallback(() => {
     if (timerRef.current != null) return;
@@ -100,27 +109,40 @@ export function useResultFlush(
     latestRef.current = null;
   }, [clearTimer]);
 
-  // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。依存が全部
-  // 安定（`dispatch` は `useReducer` の、`analyzing` は ref）なので、この `useMemo` は
-  // 一度しか走らない。
-  return useMemo(
-    () => ({
-      receive: (result: AnalysisResult) => {
-        latestRef.current = result;
-        schedule();
-      },
-      flushNow: (result: AnalysisResult) => {
-        latestRef.current = result;
-        clearTimer();
-        commitLatest();
-      },
-      dropPending,
-      discardShown: () => {
-        dropPending();
-        dispatch({ type: "clear_results" });
-      },
-      schedule,
-    }),
-    [dispatch, schedule, clearTimer, commitLatest, dropPending],
-  );
+  // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
+  // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
+  // ——畳まれてもいないのに後始末が撃たれる。
+  //
+  // **`useEngineSeat` と同じ形。** `useMemo` は React が値を捨てないことを約束しないので、
+  // 同一性を要求として持つ口は ref で凍らせる。同じスライスに2通りの答えを置かない。
+  const apiRef = useRef<ResultFlush | null>(null);
+
+  // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
+  // ここで読む値は**その1回の値のまま**。上に置いてよいのは `useRef` と、
+  // 依存が全部安定な `useCallback` だけ
+  // （`src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が見る）。
+  if (apiRef.current) return apiRef.current;
+
+  apiRef.current = {
+    receive: (result) => {
+      latestRef.current = result;
+      schedule();
+    },
+    flushNow: (result) => {
+      latestRef.current = result;
+      clearTimer();
+      // **席の門を通さない。** 呼び手（`onComplete`）は席を締めてからここへ来るので、
+      // 掛けると探索が終わった最後の1本が消える。
+      if (!analyzing.current) return;
+      dispatch({ type: "update_result", payload: result });
+    },
+    dropPending,
+    discardShown: () => {
+      dropPending();
+      dispatch({ type: "clear_results" });
+    },
+    schedule,
+  };
+
+  return apiRef.current;
 }

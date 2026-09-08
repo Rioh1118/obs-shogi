@@ -855,6 +855,45 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  // **間引きの1周期（80ms）を跨がせる。** 枠を落とす形の後始末は、落とす前に
+  // タイマーが起きた回を守れない——着地が遅い回だけが素通りする。
+  it("席が着くのが間引きより遅くても、捨てた席の結果は出さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    let rejectStart: (e: unknown) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 席が欄に入る前に `info` が1本届く（`accepts` は欄が空の間どの席も通す）。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+    });
+
+    // **間引きより長く待つ。** ここでタイマーが起きる。
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P2", null));
+    await advance(120);
+
+    await act(async () => {
+      rejectStart(new Error("engine is shutting down"));
+    });
+    await advance(150);
+
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("捨てる停止の応答を待っている間も、その席の info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");
