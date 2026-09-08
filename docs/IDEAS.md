@@ -171,7 +171,8 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 
 `.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
 
-`entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
+`entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**（`isRecoverableNotReady`。
+意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
 で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` の行が4つ——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、

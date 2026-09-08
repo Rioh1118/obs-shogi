@@ -177,6 +177,21 @@ describe("EngineProvider が立てる理由", () => {
     expect(initialize).toHaveBeenCalledTimes(1);
   });
 
+  it("同じ設定を入れ直しても起こし直さない", async () => {
+    const view = mountEngine(runtime());
+    await view.settle();
+    expect(initialize).toHaveBeenCalledTimes(1);
+
+    // **等値だが別のオブジェクト**を流す。`equalRuntime` が中身で比べていないと、
+    // プリセットを保存し直すたびにエンジンが畳まれて起こし直る。
+    await view.setRuntime(runtime());
+    await view.settle();
+
+    expect(initialize).toHaveBeenCalledTimes(1);
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(view.reasons[view.reasons.length - 1]).toBeNull();
+  });
+
   it("設定が変われば failed からは再トライする", async () => {
     initialize.mockRejectedValueOnce(new Error("boom"));
 

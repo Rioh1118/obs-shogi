@@ -136,7 +136,8 @@ issue #120 と同型の行き止まり
   `provider.test.tsx` が踏んでいるのは `engineInitializer.shutdown()` を reject させた回で、
   見ているのは**そのとき立つ理由**（※7）だけ——Rust 側に何が残るかは見ていない
 - **`entities/engine` の `__tests__` が見ているのは理由の並び（※7）と、そこに至る
-  `initialize` / `shutdown` の呼び出し回数**——`(S2, E2)` `(S2, E3)` `(S3, E3)` `(S3, E4)` の
-  結末はそれで固定できている。**見ていないのは `phase` の値そのもの**
-  （理由は `phase` の写しではないので、並びが合っていても `phase` が合っている根拠にならない）と、
-  `equalRuntime` がどの欄を比べるか、`initializer.ts`
+  `initialize` / `shutdown` の呼び出し回数。** `(S2, E4)` は等値な別オブジェクトを流して
+  踏んでいる（`equalRuntime` が中身で比べていなければ落ちる）。
+  **見ていないのは `phase` の値そのもの**——理由は `phase` の写しではないので、
+  並びが合っていても `phase` が合っている根拠にならない——と、`equalRuntime` が
+  **どの欄**を比べるか、`initializer.ts`
