@@ -23,6 +23,7 @@ reviewer: react / robustness（両者が独立に実測）
 - 型が嘘を配っている点も同根: `fallback?: (error: Error, ...)` と書いてあるので、新しい fallback を
   書く人は `error.message` と書ける。`AppErrorFallbackBody` は `unknown` で受けて刈っており、
   そこだけ齟齬が無い。
+- 結果: 対応済み `848fbafb` — `caught` を旗に分け、型も `unknown` に緩めた。5値とも実測で確認
 
 ### [HIGH] r2-02 モーダル層の鍵が、その層の9枚のうち2枚を見ていない。畳むと以後どのモーダルも出ない
 
@@ -37,6 +38,7 @@ reviewer: react / robustness / architecture（3人が独立に指摘）
   `再表示` も、別のモーダルを開いて鍵を動かしても、同じ行で落ち直す。
 - 結果: **そのセッションでは設定も局面検索もファイル作成も二度と開かず、次の棋譜の読み込み失敗も
   同名ファイルの衝突も画面に出ない。** 失敗を見せる層が畳まれて、以後の失敗が全部沈黙する。
+- 結果: 対応済み `a733aeab` — 鍵を数えるのを層の側（`useModalLayerResetKeys`）に置き、`conflict` / `kifuError` を入れた
 
 ### [HIGH] r2-03 `--floating` に高さの上限が無く、長い `detail` で上へ伸びてタイトルバーを覆う／画面外へ出る
 
@@ -52,6 +54,7 @@ reviewer: ui / robustness
   `NotificationLayer.scss` はどちらも「帯は `decorations: false` のウィンドウを動かす唯一の手段だから
   覆わない」ために `top: $titlebar-height` を明示している。**`--floating` はその不変条件の外に出た
   最初の fixed 要素**で、幅は 60ch + padding ≒ 44rem なので 1280px 窓では帯の右半分が掴めなくなる。
+- 結果: 対応済み `fd170502` — 帯を空けて `top` を置き、`max-height` を足した（r2-04 と同じ編集）
 
 ### [HIGH] r2-04 `--floating` が更新カード・通知と同じ角・同じ段に出て、更新のボタンを覆う
 
@@ -69,6 +72,7 @@ reviewer: ui / robustness
   トーストが fallback の上に来る。
 - モーダル層と更新の知らせの fallback は right / bottom / z-index が1つも違わないので、
   両方出ると後勝ちで片方に触れなくなる。
+- 結果: 対応済み `fd170502` — 右下から右上へ移した。ui の「帯の直下・中央」でなく robustness の「右上」を採ったのは、中央だと本体の作業面を隠すため
 
 ### [HIGH] r2-05 `hint` を足したのに7枚中1枚にしか渡していない。既定 fallback からは渡す手段が無い
 
@@ -79,6 +83,7 @@ reviewer: robustness
   利用者が見るのは「棋譜一覧を表示できませんでした。／ `plan walk overflows` ／ `再表示`」。
   **次に何をすればよいかは0行**で、`再表示` は同じカーソルなので必ず落ち直す。
 - `hint` という仕組みを足しながら、案内が要る6箇所には構造的に使えない。
+- 結果: 対応済み `e69489b9` — `hint` を境界の prop にして既定の fallback へ素通しし、6枚に文言を置いた。出口のボタンは #511
 
 ### [HIGH] r2-06 `resetKeys` の doc が、鍵を更新しないと起きる失敗を取り違えている
 
@@ -90,6 +95,7 @@ reviewer: comment（変異を当てて実測）
   境界が二度と捕まえられなくなって例外が外まで抜ける**こと。
 - テストは変異を殺すが、殺している理由はコメントが書いた条件ではない。
   **この repo で4ラウンド続いた「理由と条件のずれ」と同じ型**が、いちばん読み解きにくい6行に入っている。
+- 結果: 対応済み `5107ba09` — 実際に起きること（毎レンダ `error` を消し続けて例外が外へ抜ける）に書き換えた。テスト名も揃えた
 
 ### [HIGH] r2-07 「`.app-root` の外に出た fallback は `App.scss` の器を持たない」が嘘
 
@@ -100,6 +106,7 @@ reviewer: comment
   包んでも見た目は変わらない。**本当の理由は同じファイルの数行下にある** ——
   上げると `UpdaterScreen` の境界まで内側に入り、本体の事故で更新の導線まで畳まれる。
 - r1-07 で一度直した段落に、別の嘘を入れ直したことになる。
+- 結果: 対応済み `8fd3501a` — 本当の理由（`UpdaterScreen` を巻き込む）に差し替えた
 
 ### [HIGH] r2-08 ボタンの面を選んだ理由（3:1）が数値で成り立たず、直下の `--secondary` がその主張を破る
 
@@ -114,6 +121,7 @@ reviewer: comment / ui
   この面（`#1c2325`）の上では**合成結果が地と完全に一致する**。
   **マウスを載せた瞬間に境が 1.00:1 になって消える。** 主ボタンとホバーの意味が逆になっている。
   コントラストの走査は `$surface-overlay` を不透明として 11.08:1 と報告するので**検査では止まらない**。
+- 結果: 対応済み `ad7d5c45` — hover を面から枠へ移した。主ボタンの 3:1 の根拠も実際の数値に書き換えた
 
 ### [HIGH] r2-09 出典に定めた節が、この PR が同時に立てた穴を1つも載せていない
 
@@ -126,6 +134,7 @@ reviewer: oss-hygiene
 - `docs/spec/README.md` は「**無いものを『無い』と書く。** 復帰導線が無い…は仕様である」を
   `screens/` の書き方として定めている。いまの節は**在る部分だけ**を出典として持ち、
   知っていて残した穴を1つも持っていない。#513 が記述しているのは、まさにその閉じるボタンが無い窓。
+- 結果: 対応済み `597fc829` — 主語を「レンダ例外なら」に限定し、「いま満たしていないこと」に #511 / #512 / #513 を足した
 
 ### [MEDIUM] r2-10 `label` が境界と fallback に別々に手書きされ、`fallback` の signature が渡さない
 
@@ -138,6 +147,7 @@ reviewer: react / architecture
   独立に持つ。**`label` を必須にした目的（ログと画面の両方から受け側を名指しできる）が、
   fallback を渡した3枚では成立していない。**
 - 型も弱い。名乗りは `app-layout.md` の表が定める閉じた7語の集合なのに `label: string`。
+- 結果: 対応済み `52dd6611` — `fallback` の引数をオブジェクトにして `label` を渡し、名乗りの出典を境界1箇所にした
 
 ### [MEDIUM] r2-11 `floating` は境界の位置の性質なのに、`fallback` の穴を通って2箇所に散っている
 
@@ -149,6 +159,7 @@ reviewer: architecture
   既定の本文に段が増えたとき、この2箇所だけ古い形で残る。
 - `AppErrorBoundary` に `floating` を持たせれば、`AppErrorFallbackBody` の外部利用者が
   `RootErrorFallback` の1つだけになる。
+- 結果: 対応済み `b303ac16` — `floating` を境界の prop にした。`fallback` を渡すのは root の1箇所だけになった
 
 ### [MEDIUM] r2-12 `AppErrorFallbackBody` の `children` が、同じファイルの `AppErrorBoundary` の `children` と逆の意味
 
@@ -159,6 +170,7 @@ reviewer: react / comment
   `<AppErrorFallbackBody …>{原因のツリー}</AppErrorFallbackBody>` と書いても型は通り、
   `fallback` の doc が禁じている状況（落ちた本文の中で落ちたツリーが再登場する）になる。
 - `children` の暗黙の契約（`button` 1個、`--secondary` の class 前提）も名前から読めない。
+- 結果: 対応済み `613b042f` — `actions` に改名した（r2-13 と同じ編集）
 
 ### [MEDIUM] r2-13 `app/` が `shared/ui` の BEM class 名を文字列で手書きしている
 
@@ -169,6 +181,7 @@ reviewer: ui / architecture
   **このボタンは黙って素の `<button>`（UA 既定の灰色）に戻る**。落ちる場所は「最後の砦」の画面で、
   tsc も lint もテストも赤くならない。
 - `--secondary` は `shared/ui` に定義があるのに利用者は `app/` の1箇所だけ、という形にもなっている。
+- 結果: 対応済み `613b042f` — `AppErrorFallbackAction` を出し、class 名を `shared/ui` の中に閉じた
 
 ### [MEDIUM] r2-14 `__closeError` が絶対配置で「再表示」と「ウィンドウを閉じる」を覆いうる
 
@@ -180,6 +193,7 @@ reviewer: ui / robustness
   切っていないので、2つのボタンは見えないうえに押せない。
 - この帯が出るのは「閉じるボタンが効かなかった」ときで、そこで唯一残る操作がその2つ。
   **失敗を知らせる箱が、失敗をやり直す手段を消す。**
+- 結果: 対応済み `a3ef6eb1` — `notice` として出口の下に流れで置いた
 
 ### [MEDIUM] r2-15 作業画面の `resetKeys={[pathname]}` は、畳んでいる間に動かせる経路が1つも無い
 
@@ -191,6 +205,7 @@ reviewer: react
   ヘッダもサイドバーも消えるので、**利用者が `pathname` を動かせる導線はゼロ**。
 - 実際に動く URL（`?modal=` `?tesuu=` `?branch=`）は `pathname` に出ないので鍵は反応しない。
   コメントと doc だけが「復帰できる」と読める。`useLocation().key` なら遷移のたびに1回だけ変わる。
+- 結果: 対応済み `b10053b6` — `location.key` にした。畳まれている間に遷移を起こす導線が無いことはコメントに書いて #511 へ
 
 ### [MEDIUM] r2-16 `label="画面"` が何も名指していない。しかも「作業画面」と並ぶ
 
@@ -199,6 +214,7 @@ reviewer: robustness
 - 場所: `src/app/App.tsx`、`docs/spec/screens/app-layout.md` の表
 - 「画面」と「作業画面」は利用者から見て同じものを指す語で、**どちらが出たのかを言葉から区別できない。**
   `label` の doc が求める「利用者が画面で指せる呼び方」を root だけが満たしていない。
+- 結果: 対応済み `43f0ffec` — 「アプリ」にした
 
 ### [MEDIUM] r2-17 画面に出す `detail` が、内部の英語識別子か `[object Object]` になる
 
@@ -212,6 +228,7 @@ reviewer: robustness
 - plain object を投げると `String({})` = `[object Object]` がそのまま出る。
 - **機微な情報の漏れは見つからなかった**（レンダ経路の `throw` に絶対パスを載せているものは無く、
   `dangerouslySetInnerHTML` は0件、React が `{detail}` をエスケープする）。
+- 結果: 対応済み `fda7a758` — `String()` をやめ、見出しを添えて `hint` と役割を割った
 
 ### [MEDIUM] r2-18 閉じるボタンの寸法が3通りに書かれていて、doc の「同じ形」が現物と違う
 
@@ -221,6 +238,7 @@ reviewer: ui
 - 共有されたのは `$color-window-close` と `$titlebar-height` だけ。丸の大きさは
   `TitleBar.scss` の直値 `1.2rem` / ローカル変数 `$titlebar-button-size` / `index.$space-6` の3通り。
   `TitleBar` にある `padding: 0.14rem` が `RootErrorFallback` には無いので、12px の丸では見て分かる差になる。
+- 結果: 対応済み `7b3d0648` — 丸の大きさ・padding・帯の塗りをトークンにして共有した。`scssScaleRatchet` の3つの枠が下がったので数も下げた
 
 ### [MEDIUM] r2-19 足した3トークンのうち2つは、コメントが書いた置き場の理由に当たらない
 
@@ -231,6 +249,7 @@ reviewer: architecture
   `close` だけ。`minimize` / `maximize` は利用者が1つで、揃える相手が居ない。
 - このファイルは「1利用者でもここに置く」場合に機械的な理由を残す作法を持っている
   （`$floating-note-header-height` は「ローカル変数に下ろすとラチェットの `indirect` が増える」と書いてある）。
+- 結果: 対応済み `8c54325e` — 「3色は1組で意味を持つ」に書き換えた
 
 ### [MEDIUM] r2-20 「`AppModalLayer` は `createPortal` なので」が現物と違う
 
@@ -241,6 +260,7 @@ reviewer: comment
   `return null` し、開いたときだけ `shared/ui/Modal.tsx` が portal するため。
 - 守るべき条件は「`AppModalLayer` の子に、平常時 in-flow の要素を返す部品を足さない」という
   **追加時に破れる**制約なのに、それがどこにも書かれていない。
+- 結果: 対応済み `b303ac16` — 「`AppModalLayer` の子は閉じている間 `null` を返し、開くと `Modal` が portal する」に直し、追加時に破れる制約も書いた
 
 ### [MEDIUM] r2-21 `App.tsx` のコメントが、`app-layout.md` が出典と宣言した表を丸ごと写している
 
@@ -250,6 +270,7 @@ reviewer: comment
 - 同じ PR で ADR-0004 と台帳からこの記述を剥がして「出典は app-layout.md。ここに写さない」と決めたのに、
   コード側の写しだけが残っている。しかもこの段落は r1-07 で一度腐った実績がある。
 - **いまの記述は現物と一致している。** 壊れるのは次の変更のとき。
+- 結果: 対応済み `8fd3501a` — 一覧を落として `app-layout.md` への参照1行にした
 
 ### [MEDIUM] r2-22 段構えの表の1行目「窓の中身の全部」が、2行目と `App.tsx` の意図に矛盾する
 
@@ -259,6 +280,7 @@ reviewer: oss-hygiene
 - 2つの境界は `.app-root` の**兄弟**で、root が受けても `UpdaterScreen` は描かれ続ける。
   表だけを読むと「root が受けたら更新の知らせも消える」と読め、`58f480c6` で分けた理由が
   その決定を記録する当の表で打ち消されている。**7行のうち内容が食い違うのはこの1セルだけ。**
+- 結果: 対応済み `597fc829` — 「`/` と `/app` の全部（更新の知らせを除く）」にした
 
 ### [MEDIUM] r2-23 台帳の「残るか」が、`resetKeys` を入れた後は無条件では偽
 
@@ -268,6 +290,7 @@ reviewer: oss-hygiene
 - どちらも最終列が「残る」のまま。実装は鍵が変われば `error` を落とすので、
   行き先を変える／モーダルを閉じるだけで**利用者の操作なしに fallback は消える**。
 - G-3 の「次の操作」欄だけ直して「残るか」欄を残したので、同じ行の中で食い違っている。
+- 結果: 対応済み `fbd1b972` / `20b3cddd` — §0 の表・G-3・※ の3箇所に「鍵が動けば解ける」を書いた
 
 ### [MEDIUM] r2-24 ADR-0004 の「割り当て」表のセルを、※ を添えずに書き換えている
 
@@ -278,6 +301,7 @@ reviewer: oss-hygiene
   `再読み込み` は一度も実装されていない。
 - `OPERATING-MODEL.md` が `main` 後に許すのは実測値の更新・誤記の訂正・supersede の印だけ。
   過去に同じ表を書き換えた `a435ba40` は、セルの変更と同時に「なぜ割り当てを変えたか」の ※ を足している。
+- 結果: 対応済み `4458a9fd` — ボタン欄を `再読み込み` に戻し、実測との差を ※ に書いた。決定そのものは触っていない
 
 ### [MEDIUM] r2-25 ADR-0003 が、この PR で消えた直値を現在形の例として挙げたまま
 
@@ -288,6 +312,7 @@ reviewer: oss-hygiene
   実測では両ファイルとも一覧に出ない。総数は `origin/main` で 37、このブランチで 35。
 - 同じ PR で `IDEAS.md` に同じ事実を新規に書いたので、**同じ事実が2箇所**に、片方は腐った例つきで載った。
   この PR の主題（出典を1箇所に定める）と逆を行っている。
+- 結果: 対応済み `4e9e8333` — 35箇所・22ファイルに更新し、測定日とブランチを添えた
 
 ### [MEDIUM] r2-26 `IDEAS.md` の追記先が、その節の見出し・前書き・出典のどれとも合っていない
 
@@ -296,6 +321,7 @@ reviewer: oss-hygiene
 - 場所: `docs/IDEAS.md` の「SCSS の既存の負債（`refactor/app-shell-wiring` のレビューで出たもの）」
 - 足した項目は `.tsx` のインライン style の話で、出典も別のレビュー。同じファイルには
   「**SCSS の話ではない**ので上の節とは分けてある」という先例が既にある。
+- 結果: 対応済み `b388037d` — 由来ごと独立した節に出した
 
 ### [MEDIUM] r2-27 出典に定めた節へ、コード側からも隣の仕様書からも辿り着けない
 
@@ -308,6 +334,7 @@ reviewer: oss-hygiene
   境界に触れず、`kifu-stream.md` は3ペインで唯一リンクを持っていない（`board.md` と
   `analysis-pane.md` は受け取った）。
 - **「出典を1箇所に定めた」の効き目は、そこへ辿り着ける人の数で決まる。**
+- 結果: 対応済み `f1877eaa` — 「対象:」行・`docs/spec/README.md`・`kifu-stream.md`・`system-dialogs.md` の4箇所に導線を作った
 
 ### [MEDIUM] r2-28 `→ #295` は CLOSED の issue を指しており、この PR が参照を1つ増やした
 
@@ -318,6 +345,7 @@ reviewer: oss-hygiene
 - `#295` は `CLOSED` / `COMPLETED`（2026-09-02）。コメントは「#277 に吸収した。本文はここに残っている」。
   GitHub 上では紫の「Closed as completed」に見えるので、読んだ人はまず「もう直っている」と読む。
   いま5箇所が同じ死に番号を指している。
+- 結果: 対応済み `c0028268` — 5箇所とも `#277`（症状は `#295` の本文）へ向けた
 
 ### [MEDIUM] r2-29 消えた文言を現在形で引いているコメントが1つ残った
 
@@ -328,6 +356,7 @@ reviewer: oss-hygiene
   他のどこにも無い（`1c7d896d` で `{label}を表示できませんでした。` に変えた）。
 - 境界の**呼び出し側**のコメントは4箇所そろえたが、境界に落ちることを説明している**利用側**が
   取り残された。
+- 結果: 対応済み `9e843035` — 文言を写すのをやめた
 
 ### [MEDIUM] r2-30 テストの語がまだ4通りある（r1-27 の統一が届いていない）
 
@@ -338,6 +367,7 @@ reviewer: comment
   `throwing`・`throwingIn`（`appLayoutPaneBoundaries.test.tsx`）/ `updaterThrowing`・`throwing`
   （`rootErrorBoundary.test.tsx`）。`throwing` は真偽値の場合とレコードの場合がある。
 - `a07c85be` は「テストの語も揃えた」と記録しているが、4本並べると揃っていない。
+- 結果: 対応済み `68dfbe4c` — 部品は `Throwing`、旗は `throwing`、モックを作る関数は `mockThrowing` に揃えた
 
 ### [MEDIUM] r2-31 更新の適用（`再起動して適用`）の失敗が投げっぱなしで、押しても何も起きない
 
@@ -349,6 +379,7 @@ reviewer: robustness
 - `useUpdater` には `phase: "error"` という出口が既にあり、`downloadAndInstall` は `catch` している。
   **この呼び出しだけ使っていない。**
 - **`main` から在る欠陥**で、レンダ例外ではない（境界は関与しない）。
+- 結果: **見送り** → 既存の #405 へコメント（`#issuecomment-5589319833`）。`main` から在る非同期の握り潰しで、レンダ例外ではない
 
 ## 重複・矛盾した知見
 
