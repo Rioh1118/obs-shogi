@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
 import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
@@ -63,6 +63,10 @@ export const EXEMPT = new Set([
   "count_yaneuraou_db_positions",
   // ShogiHome の設定名。対局の表が「あちらの既定」の出典に引く
   "enableEngineTimeout",
+  // `@tauri-apps/plugin-opener` のコマンドと口。あちらの綴りであって、こちらの識別子ではない
+  "reveal_item_in_dir",
+  "open_path",
+  "openPath",
 ]);
 
 /**
@@ -79,27 +83,34 @@ export const EXEMPT = new Set([
  */
 let corpus: string | null = null;
 
+/**
+ * 門番のシェルもソースに数える。
+ *
+ * `verify-gate-decision.md` は門番の関数名（`gate_kinds_for_path` ほか）を仕様として引く。
+ * `.claude/hooks/` を外すと、表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
+ *
+ * **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の定義で、
+ * 外すと表が実在する関数を指しているのに落ちる。期待値に書いた名前が母数に入らないのは、
+ * `codeOf` の shell の枝が引用符の中を落とすため。
+ *
+ * `.sh` に絞るのは、その shell の枝を使うから——別の言語のファイルを混ぜると
+ * `#` 以外のコメントが落ちない。歩くのは `walk.ts`（`CONTRIBUTING.md` の「走査の対象と起点」）
+ */
+function hookCorpus(): string[] {
+  return sourceFiles(HOOKS)
+    .filter((path) => path.endsWith(".sh"))
+    .map((path) => codeOf(readFileSync(path, "utf8"), "shell"));
+}
+
 function sourceCorpus(): string {
   if (corpus !== null) return corpus;
-
-  // **シェルもソースに数える。** `verify-gate-decision.md` は門番の関数名
-  // （`gate_kinds_for_path` ほか）を仕様として引く。`.claude/hooks/` を外すと、
-  // 表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
-  //
-  // **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の
-  // 定義で、外すと表が実在する関数を指しているのに落ちる。代わりに
-  // `codeOf` の shell の枝が引用符の中を落とすので、期待値に書いた名前は入らない。
-  const hooks = readdirSync(HOOKS, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sh"))
-    .map((entry) => join(HOOKS, entry.name));
 
   corpus = [
     ...[
       ...sourceFiles(SRC, { includeTests: false }),
       ...rustRoots().flatMap((root) => sourceFiles(root)),
     ].map((path) => codeOf(readFileSync(path, "utf8"))),
-    // シェルの行コメントは `#`。`codeOf` の既定（`//`）では落ちない
-    ...hooks.map((path) => codeOf(readFileSync(path, "utf8"), "shell")),
+    ...hookCorpus(),
   ].join("\n");
   return corpus;
 }

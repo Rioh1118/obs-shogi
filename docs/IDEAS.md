@@ -196,3 +196,55 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
   `api/aiLibrary` まで広げると `features/settings` の6ファイル
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙（`SeatReleasePoint` など）は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
+
+## `SetupGuide` が親の状態をフラットに受けている
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r1.md`（react reviewer）。
+`AiLibraryTab` の `ScanState` 1つが、`scanStatus` / `isScanning` / `scanError` の3つに
+バラされて渡り、`data.engines_dir` も `enginesDir`（4状態）/ `enginesDirPath` に割れている。
+状態を1つ足すたびに、親の派生・`Props`・子の分岐の3箇所を揃えて触ることになる。
+`isScanning`（= `status === "loading"`）と `scanStatus === "loading"` が両方渡っていて、
+**片方だけ更新しても型は通る。**
+
+- props を `scan` と `library` の2つに畳んで、真実の源を1つのまま渡す
+- `nextAction` を組む部分（hero）を切り出しても、**そこに閉じるコールバックは
+  `onOpenAiRoot` の1本だけ**。残りは Step 側でも使うので、畳むなら Step へ渡す口ごと
+  設計し直すことになる
+
+## AI ライブラリタブの部品と SCSS の持ち主が別ディレクトリ
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（architecture reviewer）。
+`aiLibraryTab__step*` / `aiLibraryTab__tree*` の規則は `ui/tabs/AiLibraryTab.scss` に在るのに、
+使う `.tsx` は `ui/ai-library-tab/` に7ファイル（そちらは `SetupGuide.scss` しか import しない）。
+r11 で `types.ts` をこのディレクトリに新設したので、次の書き手は「AI ライブラリタブのものは
+`ai-library-tab/`」と読み、新しい段のスタイルを `SetupGuide.scss` に書く——
+`.aiLibraryTab` の入れ子の外に出て**何も当たらない**。tsc も lint も見ないので緑のまま通る。
+
+- `AiLibraryTab.tsx`（+ `.scss` + `__tests__`）を `ui/ai-library-tab/` へ移して
+  1ディレクトリ = 1画面にする（`engine-preset-dialog/` が既にその形）
+- 移さないなら、`aiLibraryTab__step*` / `__tree*` の規則を `SetupGuide.scss` 側へ移す
+
+## 「作成を出すのは無いときだけ」の理由が3箇所にある
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。
+`canCreateEnginesDir` の doc と、`AiLibraryTab` の `ENGINES_DIR_WARNING` の行内コメントと、
+`EngineFilesSection` の JSX コメント。条件を変えた日（`other` でも作成を出す判断に倒す等）に、
+述語の doc だけ直して2つが古い理由を主張する。理由は述語の doc に1つだけ置き、
+呼び出し側は参照1行にする。
+
+## 関数の本文に説明コメントが何行も続く関数が3つ
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。
+`AiLibraryTab` の `onPick`（本文26行に説明10行）と `revealOrNotify`（22行に9行）、
+`SetupGuide` の `handleCreateFolder`（37行に8行）。
+`CONTRIBUTING.md` の「関数本文の中に説明コメントが何行も必要になったら、関数を分ける合図」に当たる。
+`onPick` は「ref の読み書きの順序」と「同じルートを選び直した回の再走査」という別々の判断を
+1つの本文に抱えている。
+
+## 画面の中だけで使う型の置き場に、逆向きの前例が2つある
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（oss-hygiene reviewer）。
+`features/settings/model/types.ts` の `ThreadsMode` / `HashMode` は
+プリセット編集ダイアログの中だけで使われるのに `model/` に在り、
+r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じるならその場に置く」と
+理由付きで名乗っている。どちらでも正当化できるので、散り始めると型を探す人が2箇所を見る。
