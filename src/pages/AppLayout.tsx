@@ -75,7 +75,7 @@ const AppLayout = () => {
                     */}
                     <AppErrorBoundary
                       label="盤"
-                      hint="棋譜一覧から別の手を選ぶか、棋譜を開き直してください。"
+                      hint="棋譜を開き直してから「再表示」を押してください。"
                     >
                       <GameBoard
                         topLeft={<Hand isSente={false} />}
@@ -94,7 +94,7 @@ const AppLayout = () => {
                     */}
                     <AppErrorBoundary
                       label="棋譜一覧"
-                      hint="この棋譜は途中から一覧を組めません。別の棋譜を開いてください。"
+                      hint="この棋譜は途中から一覧を組めません。別の棋譜を開いてから「再表示」を押してください。"
                     >
                       <KifuStreamList />
                     </AppErrorBoundary>
@@ -108,7 +108,7 @@ const AppLayout = () => {
                   */}
                   <AppErrorBoundary
                     label="解析"
-                    hint="設定からエンジンを選び直すか、棋譜を開き直してください。"
+                    hint="設定からエンジンを選び直してから「再表示」を押してください。"
                   >
                     <AnalysisPane />
                   </AppErrorBoundary>
