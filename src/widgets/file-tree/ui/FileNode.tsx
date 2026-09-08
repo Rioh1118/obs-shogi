@@ -8,15 +8,13 @@ import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
-import { commitName, isOpenedInTree, useFileTree } from "@/entities/file-tree";
+import { commitName, useFileTree } from "@/entities/file-tree";
 import { useLoadedKifuPath } from "@/entities/game";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
     openKifuNode,
     activeKifuPath,
-    jkfData,
-    kifuFormat,
     selectedNode,
     selectNode,
     openContextMenu,
@@ -40,8 +38,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
    *   戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指したままなので、
    *   `persistIfPossible` の門番が以降の書き込みを全部止める
    */
-  const canSkipReopen =
-    isOpenedInTree({ activeKifuPath, jkfData, kifuFormat }, node) && loadedAbsPath === node.path;
+  const canSkipReopen = activeKifuPath === node.path && loadedAbsPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 

@@ -20,7 +20,6 @@ export {
 } from "./api/error";
 export { commitName, type CommitOutcome } from "./lib/commitName";
 export { isProjectRoot } from "./lib/isProjectRoot";
-export { isOpenedInTree } from "./lib/isOpenedInTree";
 export type {
   SelectNodeOptions,
   FileTreeNode,
