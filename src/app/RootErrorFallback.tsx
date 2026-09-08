@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 
 /**
  * root の境界が最後に出す画面。
@@ -75,33 +76,8 @@ export function RootErrorFallback({ retry }: Props) {
         />
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "1.2rem",
-          padding: "2.4rem",
-        }}
-      >
-        <p>表示中にエラーが発生しました。</p>
-        <button
-          type="button"
-          onClick={retry}
-          style={{
-            padding: "0.6rem 1.4rem",
-            borderRadius: "0.8rem",
-            border: "1px solid rgba(255,255,255,0.2)",
-            background: "rgba(255,255,255,0.08)",
-            color: "rgba(255,255,255,0.8)",
-            fontSize: "1.2rem",
-            cursor: "pointer",
-          }}
-        >
-          再表示
-        </button>
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <AppErrorFallbackBody reset={retry} />
       </div>
     </div>
   );

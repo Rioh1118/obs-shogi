@@ -35,15 +35,25 @@ export class AppErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) {
         return this.props.fallback(error, this.reset);
       }
-      return (
-        <div className="app-error-fallback">
-          <p>表示中にエラーが発生しました。</p>
-          <button type="button" className="app-error-fallback__action" onClick={this.reset}>
-            再表示
-          </button>
-        </div>
-      );
+      return <AppErrorFallbackBody reset={this.reset} />;
     }
     return this.props.children;
   }
+}
+
+/**
+ * 落ちたことを伝える本文。**出典はここ1つ。**
+ *
+ * 既定の fallback と、枠を自前で持つ `fallback`（`app/RootErrorFallback.tsx`）の両方が描く。
+ * 写しを持たせると、文言を直したときに片方だけが変わり、その片方を見ているテストだけが赤くなる。
+ */
+export function AppErrorFallbackBody({ reset }: { reset: () => void }) {
+  return (
+    <div className="app-error-fallback">
+      <p>表示中にエラーが発生しました。</p>
+      <button type="button" className="app-error-fallback__action" onClick={reset}>
+        再表示
+      </button>
+    </div>
+  );
 }
