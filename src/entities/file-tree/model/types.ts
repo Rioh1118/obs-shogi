@@ -199,7 +199,24 @@ export type SelectNodeOptions = {
 
 export type FileTreeContextType = FileTreeState & {
   loadFileTree: () => AsyncResult<void, FsError>;
+
+  /**
+   * 選択を動かす。**盤が映すべき棋譜も一緒に動く**（フォルダは動かさない）。
+   *
+   * 飛行中の読み出しは、返った時点で宛先と違うパスなら捨てられる。棋譜を選んでから
+   * `openKifuNode` を呼ぶ順にすること。逆にすると、選び直しが読み出しを追い越す
+   */
   selectNode: (node: FileTreeNode | null) => void;
+
+  /**
+   * 棋譜を読んで盤に載せる。
+   *
+   * **`Ok` は「盤に載った」を意味しない。** 読んでいるあいだに利用者が別の棋譜を
+   * 選んだ要求は、何も起こさずに `Ok` で抜ける（結果を捨てないと、ツリーが選んで
+   * いるのとは別の棋譜が盤に載る → #223）。フォルダを渡したときも `Ok`。
+   *
+   * 載ったかを知りたい呼び出し元は `activeKifuPath` を見ること
+   */
   openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
   closeActiveKifu: () => void;
 
