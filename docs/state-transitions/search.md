@@ -107,6 +107,12 @@ let stale = snap.state != StoreIndexState::Ready;
 `into_payload` が `None` を返す。段の照合（`snapshot_if_epoch`）とは別の守り
 ——据え直しを検出した時点では、まだ照合が通ることがある。
 
+**`run_rescan_diff_apply` の早期 `return` は2つあり、出方が違う。** 走査が `Err` の
+腕は `EVT_INDEX_WARN` を1件出す（何を失うかまで言う。文言は `announce.rs` の
+`scan_failure`）。`root_dir` が `None` の腕は**何も出さずに戻る**
+（`RescanOutcome::Superseded`）。**全件構築の側にこの2つ目は無い**——
+`root_dir` は引数で渡る。
+
 ### ⚠️ 全件構築の走査が失敗したら、画面へ `E` を出す（`Y` にしない）
 
 `B` に入った時点で索引は空にされている。そこで走査が失敗すると入れるものが
@@ -128,9 +134,6 @@ let stale = snap.state != StoreIndexState::Ready;
 
 警告の文言も分ける。差分更新の失敗は「索引は最後に読めたときのまま」だが、
 ここは既に捨てた後なので**同じことを言うと嘘になる**（`IndexSurvival`）。
-**早期 `return` の2つは出方が違う。** `scan_kifu_files` が `Err` のときだけ
-`EVT_INDEX_WARN` が1件出る（何を失うかまで言う。文言は `announce.rs` の `scan_failure`）。
-`root_dir` が `None` の腕は**何も出さずに戻る**。どちらも `main` から続く。
 
 ### ⚠️ `open` がどの状態からでも通る
 

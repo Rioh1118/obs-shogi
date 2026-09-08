@@ -214,10 +214,6 @@ export default function PositionSearchModal() {
 
     const myLaunch = launchSeqRef.current;
 
-    // 区切りの大きさ。**実測は無い。** 大きくすると1本あたりの IPC が重くなり、
-    // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
-    // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、ここは件数に
-    // 影響しない
     void (async () => {
       try {
         // 区切りの大きさ。**実測は無い。** 大きくすると1本あたりの IPC が重くなり、
