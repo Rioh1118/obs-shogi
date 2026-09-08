@@ -15,7 +15,7 @@ import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
-import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 
 const AppLayout = () => {
   // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
@@ -38,8 +38,18 @@ const AppLayout = () => {
       className={`app-layout ${isSidebarOpen ? "" : "app-layout--sidebar-closed"}`}
       onPointerDownCapture={onPointerDownCapture}
     >
-      {/* モーダル1枚の事故で本体まで unmount させない */}
-      <AppErrorBoundary>
+      {/*
+        モーダル1枚の事故で本体まで unmount させない。
+
+        **fallback は箱を作らない段で出す。** `AppModalLayer` は `createPortal` なので
+        平常時ここに in-flow の子を1つも作らず、`.app-layout`（`grid-template-rows` が2段）は
+        ヘッダと本体でちょうど埋まっている。既定のまま出すと fallback が1段目を取り、
+        本体が暗黙の3段目へ押し出されて `overflow: hidden` に切られる —— 本体を畳まないための
+        境界が、本体を畳むことになる
+      */}
+      <AppErrorBoundary
+        fallback={(_error, reset) => <AppErrorFallbackBody reset={reset} floating />}
+      >
         <AppModalLayer />
       </AppErrorBoundary>
 
