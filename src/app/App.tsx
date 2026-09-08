@@ -47,7 +47,11 @@ function App() {
 
         `useUpdater` は context も router も要らないので、外に置いても何も失わない。
       */}
-      <AppErrorBoundary label="更新の知らせ" floating hint="更新は次の起動時にもう一度知らせます。">
+      <AppErrorBoundary
+        label="更新の知らせ"
+        floatingSlot={1}
+        hint="更新は次の起動時にもう一度知らせます。"
+      >
         <UpdaterScreen />
       </AppErrorBoundary>
     </div>

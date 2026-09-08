@@ -40,7 +40,8 @@ function useModalLayerResetKeys(): readonly unknown[] {
  * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
  * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
  *
- * `floating` の理由と、`.app-layout` の段割りを壊さないための制約は置く側が持つ。
+ * **`floatingSlot` の段は、同時に出うる枠どうしで重ならないよう振ってある**（0 がここ、
+ * 1 が `app/App.tsx` の更新の知らせ）。理由は `shared/ui/AppErrorBoundary.scss` の `--floating`。
  */
 export default function AppModalLayer() {
   const resetKeys = useModalLayerResetKeys();
@@ -49,7 +50,7 @@ export default function AppModalLayer() {
     <AppErrorBoundary
       label="モーダル"
       resetKeys={resetKeys}
-      floating
+      floatingSlot={0}
       hint="このダイアログは開けません。別の操作からやり直してください。"
     >
       <ModalLayerContent />

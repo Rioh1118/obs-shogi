@@ -1,5 +1,13 @@
-import { Component, type ReactNode } from "react";
+import { Component, type CSSProperties, type ReactNode } from "react";
 import "./AppErrorBoundary.scss";
+
+/**
+ * 畳むのをやめる出口の文言。**出典はここ1つ。**
+ *
+ * 各境界の `hint` がこの綴りを本文に埋めるので（「…してから『再表示』を押してください。」）、
+ * 手書きにすると、ボタンを改名したときに案内が**存在しないボタン**を名指しする。
+ */
+export const RETRY_LABEL = "再表示";
 
 type Props = {
   /**
@@ -22,12 +30,15 @@ type Props = {
    */
   resetKeys?: readonly unknown[];
   /**
-   * 平常時に in-flow の箱を作らない部品を包む境界で真にする。詳細は SCSS の `--floating`。
+   * 平常時に in-flow の箱を作らない部品を包む境界で渡す。詳細は SCSS の `--floating`。
+   *
+   * **値は段の番号。** 浮かせた枠は同時に2枚以上出うるので、**同じ番号を2箇所に振らない**
+   * （同じ座標に重なって、後から描かれた側が下の1枚を丸ごと覆う）。0 から詰めて振ること。
    *
    * **境界の位置の性質なので、境界が持つ。** `fallback` を渡して既定の本文を組み直す形にすると、
    * 本文に段が増えたときに組み直した側だけが古いまま残る。
    */
-  floating?: boolean;
+  floatingSlot?: number;
   /**
    * 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める。
    *
@@ -45,23 +56,48 @@ type Props = {
    *
    * `reset` は `error` を消すだけ。原因が境界の外にあるなら効かない（`resetKeys` を見ること）。
    *
-   * **受け取ったものをそのまま `AppErrorFallbackBody` へ渡すこと。** ここで書き直すと、
-   * 境界に書いた `label` / `hint` / `floating` が黙って捨てられる（型でも lint でも赤くならない）。
+   * **受け取った `AppErrorFallbackView` を丸ごと `AppErrorFallbackBody` へ渡すこと。**
+   * 欄を手で選び直すと、境界に書いたものが黙って捨てられる。型を1つにしてあるので、
+   * スプレッドで渡していれば欄が増えても落とさない。
    *
-   * **`actions` と `notice` だけは境界から渡らない。** どちらも「出口を押した結果」に依存していて、
-   * その state は fallback の中にしか無い（`RootErrorFallback` の `closeFailed` がその例）。
+   * **`extraActions` と `afterAction` だけは境界から渡らない。** どちらも「出口を押した結果」に
+   * 依存していて、その state は fallback の中にしか無い（`RootErrorFallback` の `closeFailed`）。
    * 境界が持てるのは、落ちる前から決まっている表現だけ。
    */
-  fallback?: (args: {
-    error: unknown;
-    reset: () => void;
-    label: string;
-    hint?: ReactNode;
-    floating?: boolean;
-  }) => ReactNode;
+  fallback?: (view: AppErrorFallbackView) => ReactNode;
+};
+
+/**
+ * 落ちたことを伝える本文が要るもの。**境界が組んで渡す。**
+ *
+ * `fallback` を書く人はこれを丸ごと `AppErrorFallbackBody` へ渡す。型を1つにしてあるので、
+ * 欄が増えたときに渡し忘れると tsc が落とす（JSX のスプレッドは余剰の欄を見ないが、
+ * **足りない欄は見る**）。
+ */
+export type AppErrorFallbackView = {
+  /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
+  label: string;
+  /**
+   * 落ちた原因。**画面に出す唯一の場所。**
+   *
+   * `console.error` は配布版では誰も読めない（`devtools` の feature を入れておらず、
+   * フロントの `console` をログファイルへ流す経路も無い）。ここで捨てると、
+   * 利用者が報告できるのは「表示できませんでした」の一文だけになる。
+   */
+  error: unknown;
+  /** 次に何をすればよいか。`AppErrorBoundary` の `hint` と同じもの */
+  hint?: ReactNode;
+  /** 浮かせて出す段の番号。`AppErrorBoundary` の `floatingSlot` と同じもの */
+  floatingSlot?: number;
+  /** 畳むのをやめて描き直す。原因が境界の外にあるなら効かない */
+  reset: () => void;
+  /** 浮かせた枠を閉じる。**浮かせていない境界では `undefined`** */
+  dismiss?: () => void;
 };
 
 type State = {
+  /** 浮かせた枠を利用者が閉じたか。閉じても `caught` は下ろさない（子は描き直さない） */
+  dismissed: boolean;
   /**
    * 捕まえたかどうか。**投げられた値そのもので判定しない。**
    *
@@ -81,11 +117,11 @@ type State = {
 export class AppErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { caught: false, error: null, keys: props.resetKeys ?? [] };
+    this.state = { caught: false, dismissed: false, error: null, keys: props.resetKeys ?? [] };
   }
 
   static getDerivedStateFromError(error: unknown): Partial<State> {
-    return { caught: true, error };
+    return { caught: true, dismissed: false, error };
   }
 
   /**
@@ -100,7 +136,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     const same =
       keys.length === state.keys.length && keys.every((key, at) => Object.is(key, state.keys[at]));
     if (same) return null;
-    return { caught: false, error: null, keys };
+    return { caught: false, dismissed: false, error: null, keys };
   }
 
   // 落ちた原因はここでしか見られない。表示側は詳細を出さない
@@ -113,30 +149,38 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   reset = () => {
-    this.setState({ caught: false, error: null });
+    this.setState({ caught: false, dismissed: false, error: null });
+  };
+
+  /**
+   * 浮かせた枠を閉じる。**`caught` は下ろさない** —— 下ろすと子を描き直して同じ行で落ちる。
+   *
+   * 浮かせた枠だけに要る。**`再表示` が効かない失敗では、箱は自分から消えない**ので、
+   * 閉じる手段が無いとそのセッションのあいだ他の部品を覆い続ける。
+   */
+  dismiss = () => {
+    this.setState({ dismissed: true });
   };
 
   render() {
-    const { caught, error } = this.state;
+    const { caught, dismissed, error } = this.state;
     if (caught) {
+      // 閉じた浮かせ枠は何も描かない。子は畳んだままなので、原因を踏み直すこともない
+      if (dismissed) return null;
+
+      const view: AppErrorFallbackView = {
+        label: this.props.label,
+        error,
+        hint: this.props.hint,
+        floatingSlot: this.props.floatingSlot,
+        reset: this.reset,
+        // 浮かせた枠だけが閉じられる。in-flow の器は閉じても隙間が残るだけで得が無い
+        dismiss: this.props.floatingSlot === undefined ? undefined : this.dismiss,
+      };
       if (this.props.fallback) {
-        return this.props.fallback({
-          error,
-          reset: this.reset,
-          label: this.props.label,
-          hint: this.props.hint,
-          floating: this.props.floating,
-        });
+        return this.props.fallback(view);
       }
-      return (
-        <AppErrorFallbackBody
-          label={this.props.label}
-          error={error}
-          reset={this.reset}
-          floating={this.props.floating}
-          hint={this.props.hint}
-        />
-      );
+      return <AppErrorFallbackBody {...view} />;
     }
     return this.props.children;
   }
@@ -151,34 +195,13 @@ export class AppErrorBoundary extends Component<Props, State> {
 export function AppErrorFallbackBody({
   label,
   error,
-  reset,
-  floating = false,
   hint,
+  floatingSlot,
+  reset,
+  dismiss,
   extraActions,
   afterAction,
-}: {
-  /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
-  label: string;
-  /**
-   * 落ちた原因。**画面に出す唯一の場所。**
-   *
-   * `console.error` は配布版では誰も読めない（`devtools` の feature を入れておらず、
-   * フロントの `console` をログファイルへ流す経路も無い）。ここで捨てると、
-   * 利用者が報告できるのは「表示できませんでした」の一文だけになる。
-   */
-  error: unknown;
-  reset: () => void;
-  /** 平常時に in-flow の箱を作らない部品を包む境界で真にする。詳細は SCSS の `--floating` */
-  floating?: boolean;
-  /** 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める */
-  hint?: ReactNode;
-  /**
-   * 出口を押した**結果**の知らせ。**出口の下に流れで置く**（重ねると出口を覆う）。
-   *
-   * `notice` にしないのは、同じ `shared/ui` の `notification/Notice` が
-   * 「失敗を伝える箱」そのものの名前として先に使っているため。
-   */
-  afterAction?: ReactNode;
+}: AppErrorFallbackView & {
   /**
    * 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す。
    * `AppErrorFallbackAction` を並べること。
@@ -188,6 +211,13 @@ export function AppErrorFallbackBody({
    * **描画済みの要素ではなく `NotifyAction[]`（データ）**を指していて、形が違うため。
    */
   extraActions?: ReactNode;
+  /**
+   * 出口を押した**結果**の知らせ。**出口の下に流れで置く**（重ねると出口を覆う）。
+   *
+   * `notice` にしないのは、同じ `shared/ui` の `notification/Notice` が
+   * 「失敗を伝える箱」そのものの名前として先に使っているため。
+   */
+  afterAction?: ReactNode;
 }) {
   // `throw` される値は `Error` とは限らない。**`String()` で落とさない** ——
   // plain object を投げると `[object Object]` がそのまま画面に出て、
@@ -195,7 +225,14 @@ export function AppErrorFallbackBody({
   const detail = error instanceof Error ? error.message : typeof error === "string" ? error : "";
 
   return (
-    <div className={`app-error-fallback${floating ? " app-error-fallback--floating" : ""}`}>
+    <div
+      className={`app-error-fallback${floatingSlot === undefined ? "" : " app-error-fallback--floating"}`}
+      style={
+        floatingSlot === undefined
+          ? undefined
+          : ({ "--error-fallback-slot": floatingSlot } as CSSProperties)
+      }
+    >
       <p>{label}を表示できませんでした。</p>
       {/*
         **これは報告用の材料で、利用者向けの説明ではない。** レンダ経路で実際に投げられるのは
@@ -205,8 +242,13 @@ export function AppErrorFallbackBody({
       {detail && <p className="app-error-fallback__detail">技術的な内容: {detail}</p>}
       {hint && <p className="app-error-fallback__hint">{hint}</p>}
       <div className="app-error-fallback__actions">
-        <AppErrorFallbackAction onClick={reset}>再表示</AppErrorFallbackAction>
+        <AppErrorFallbackAction onClick={reset}>{RETRY_LABEL}</AppErrorFallbackAction>
         {extraActions}
+        {dismiss && (
+          <AppErrorFallbackAction onClick={dismiss} secondary>
+            閉じる
+          </AppErrorFallbackAction>
+        )}
       </div>
       {afterAction}
     </div>
@@ -230,7 +272,7 @@ export function AppErrorFallbackAction({
    *
    * `() => void` に絞ると `() => Promise<void>` が代入できてしまい、拒否が誰にも
    * 拾われないまま消える（型でも lint でも赤くならない）。ここが最後の砦の画面の出口なので、
-   * 少なくともログには残す。**画面への出しかたは呼び出し側が `notice` で持つ。**
+   * 少なくともログには残す。**画面への出しかたは呼び出し側が `afterAction` で持つ。**
    */
   onClick: () => void | Promise<void>;
   secondary?: boolean;

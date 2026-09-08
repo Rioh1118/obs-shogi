@@ -1,19 +1,18 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { X } from "lucide-react";
-import { AppErrorFallbackAction, AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
+import {
+  AppErrorFallbackAction,
+  AppErrorFallbackBody,
+  type AppErrorFallbackView,
+} from "@/shared/ui/AppErrorBoundary";
 import "./RootErrorFallback.scss";
 
-type Props = {
-  /** 畳まれた範囲の名前。**境界から受け取る。**ここで書き直すとログと画面で名乗りが割れる */
-  label: string;
-  /** 落ちた原因。ここが出す以外に、利用者が原因を知る手段は無い */
-  error: unknown;
-  /** 次に何をすればよいか。同上、境界が持つ */
-  hint?: ReactNode;
-  /** 境界の `reset`。落ちた原因が一過性なら、これで元の画面へ戻れる */
-  reset: () => void;
-};
+/**
+ * 境界が組んだ表示の材料をそのまま受ける。**欄を選び直さない** ——
+ * 選ぶと、境界に書いたものが黙って捨てられる（この形なら、欄が増えたときに tsc が落とす）。
+ */
+type Props = AppErrorFallbackView;
 
 /**
  * root の境界が最後に出す画面。
@@ -40,7 +39,7 @@ type Props = {
  * `BootstrapProviders` の `NotificationLayer` が描くので、root の境界が受けている間は
  * 一緒に畳まれていて出てこない。**この画面が自分で描くしかない。**
  */
-export function RootErrorFallback({ label, error, hint, reset }: Props) {
+export function RootErrorFallback(view: Props) {
   // **握って黙ると「押しても何も起きないボタン」になる。** この画面は他に手段が無いときの
   // 最後の1つなので、閉じられなかったことは画面に出す
   const [closeFailed, setCloseFailed] = useState(false);
@@ -71,10 +70,7 @@ export function RootErrorFallback({ label, error, hint, reset }: Props) {
 
       <div className="root-error-fallback__body">
         <AppErrorFallbackBody
-          label={label}
-          error={error}
-          reset={reset}
-          hint={hint}
+          {...view}
           extraActions={
             /*
               **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、

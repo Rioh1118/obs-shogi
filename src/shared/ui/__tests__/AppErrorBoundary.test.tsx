@@ -137,22 +137,14 @@ describe("AppErrorBoundary が出す案内", () => {
 });
 
 describe("AppErrorBoundary が fallback へ渡すもの", () => {
-  test("`hint` と `floating` は `fallback` にも届く", () => {
+  test("`hint` と `floatingSlot` は `fallback` にも届く", () => {
     // 届かないと、境界に書いた案内が黙って捨てられる（型でも lint でも赤くならない）
     render(
       <AppErrorBoundary
         label="盤"
         hint="棋譜を開き直してください。"
-        floating
-        fallback={(args) => (
-          <AppErrorFallbackBody
-            label={args.label}
-            error={args.error}
-            reset={args.reset}
-            hint={args.hint}
-            floating={args.floating}
-          />
-        )}
+        floatingSlot={0}
+        fallback={(view) => <AppErrorFallbackBody {...view} />}
       >
         <Throwing value={new Error("落ちた")} />
       </AppErrorBoundary>,
@@ -160,6 +152,55 @@ describe("AppErrorBoundary が fallback へ渡すもの", () => {
 
     expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
     expect(document.querySelector(".app-error-fallback--floating")).not.toBeNull();
+  });
+});
+
+describe("浮かせて出す枠", () => {
+  test("段の番号を渡すと、その番号が CSS へ出る", () => {
+    // **同じ番号を2箇所に振ると同じ座標で重なり、後から描かれた側が下の1枚を丸ごと覆う。**
+    // 段の間隔と上限は同じトークンを見るので、番号が違えば重ならないことは式で決まる
+    const { container } = render(
+      <AppErrorBoundary label="モーダル" floatingSlot={1}>
+        <Throwing value={new Error("落ちた")} />
+      </AppErrorBoundary>,
+    );
+
+    const box = container.querySelector<HTMLElement>(".app-error-fallback--floating");
+    expect(box).not.toBeNull();
+    expect(box!.style.getPropertyValue("--error-fallback-slot")).toBe("1");
+  });
+
+  test("閉じられる。閉じても子は描き直さない", () => {
+    // `再表示` が効かない失敗では箱は自分から消えない。閉じる手段が無いと
+    // そのセッションのあいだ他の部品を覆い続ける
+    let renders = 0;
+    function Counting(): never {
+      renders += 1;
+      throw new Error("落ちた");
+    }
+
+    const { container } = render(
+      <AppErrorBoundary label="モーダル" floatingSlot={0}>
+        <Counting />
+      </AppErrorBoundary>,
+    );
+    const before = renders;
+
+    fireEvent.click(screen.getByText("閉じる"));
+
+    expect(container.querySelector(".app-error-fallback")).toBeNull();
+    expect(renders, "閉じたときに子を描き直すと、同じ行で落ちて箱が戻る").toBe(before);
+  });
+
+  test("浮かせていない境界には閉じる出口を出さない", () => {
+    // in-flow の器は閉じても隙間が残るだけで、畳んだことが読めなくなる
+    render(
+      <AppErrorBoundary label="盤">
+        <Throwing value={new Error("落ちた")} />
+      </AppErrorBoundary>,
+    );
+
+    expect(screen.queryByText("閉じる")).toBeNull();
   });
 });
 
