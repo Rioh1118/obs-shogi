@@ -73,6 +73,17 @@ describe("root の境界", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  test("画面の名乗りとログの名乗りが同じ `label` から出ている", () => {
+    render(<App />);
+
+    // fallback が名乗りを書き直すと、`label` を直してもログだけが変わって画面は古いまま残る
+    const logged = vi
+      .mocked(console.error)
+      .mock.calls.some((args) => String(args[0]).includes("[AppErrorBoundary:画面]"));
+    expect(logged).toBe(true);
+    expect(screen.getByText("画面を表示できませんでした。")).toBeTruthy();
+  });
+
   test("帯の丸だけでなく、文字のボタンでも閉じられる", () => {
     render(<App />);
 

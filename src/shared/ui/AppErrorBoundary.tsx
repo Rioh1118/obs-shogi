@@ -36,8 +36,11 @@ type Props = {
    * この画面も落ちる。
    *
    * `reset` は `error` を消すだけ。原因が境界の外にあるなら効かない（`resetKeys` を見ること）。
+   *
+   * **`label` を受け取って使うこと。** ここで名乗りを書き直すと、ログ（`componentDidCatch`）と
+   * 画面が別々の文字列を持ち、`label` を直しても画面が変わらなくなる。
    */
-  fallback?: (error: unknown, reset: () => void) => ReactNode;
+  fallback?: (args: { error: unknown; reset: () => void; label: string }) => ReactNode;
 };
 
 type State = {
@@ -97,7 +100,7 @@ export class AppErrorBoundary extends Component<Props, State> {
     const { caught, error } = this.state;
     if (caught) {
       if (this.props.fallback) {
-        return this.props.fallback(error, this.reset);
+        return this.props.fallback({ error, reset: this.reset, label: this.props.label });
       }
       return (
         <AppErrorFallbackBody

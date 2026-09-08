@@ -25,10 +25,7 @@ function App() {
         加えて、`TitleBar` そのものと、`RuntimeShell` の外に居る `/` の起動画面
         （`AppLoading`）がある。
       */}
-      <AppErrorBoundary
-        label="画面"
-        fallback={(error, reset) => <RootErrorFallback error={error} reset={reset} />}
-      >
+      <AppErrorBoundary label="画面" fallback={(args) => <RootErrorFallback {...args} />}>
         <BootstrapProviders>
           <BrowserRouter>
             <AppRouter />
