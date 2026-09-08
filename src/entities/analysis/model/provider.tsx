@@ -221,6 +221,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const unmountedRef = useRef(false);
 
   /**
+   * 再開のタイマーが張られているか。**欄を読む綴りをここ1つにする。**
+   *
+   * 発火した時点で `scheduleRestart` が欄を空けるので、ここが true を返すのは
+   * まだ起きていないタイマーが在るときだけ。空け忘れると、この門は**もう発火した id**
+   * を見て降りる——盤が追いついても再開が張られない。
+   */
+  const isRestartScheduled = useCallback(() => debounceTimerRef.current !== null, []);
+
+  /**
    * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための門。**
    *
    * 予約は `swapSeatAndGo` の `finally` が拾う。**門を2箇所に書き下ろさない**
@@ -303,20 +312,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
       const take = seat.beginTake(discardBy);
 
-      let sessionId: AnalysisSessionId;
+      // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
+      // 後始末が割れると、片方だけが反映待ちを落とし忘れる（この関数は現にその形で
+      // 1度落とした）。**`landed` を先に決めてから、握れなかった側をまとめて畳む。**
+      let landed: SeatTakeResult;
       try {
-        sessionId = await startInfiniteAnalysisCore();
+        const sessionId = await startInfiniteAnalysisCore();
+        landed = take.landed(sessionId, () => supersededSince(seq));
       } catch (e) {
         // **断られた回も同じ窓に居る。** 畳んでいる最中のエンジンへの開始は Rust が
         // `Err` で返すので（`bridge.rs`）、起こし直しの窓は席が返るより断られるほうが
         // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
         // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
-        // 席は取れていないので捨てるものも無い。
-        if (take.engineChanged()) return "engine-gone";
-        throw e;
+        if (!take.engineChanged()) throw e;
+        landed = "engine-gone";
       }
-
-      const landed = take.landed(sessionId, () => supersededSince(seq));
 
       if (landed !== "held") {
         dropPendingForLostSeat();
@@ -444,6 +454,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
   const scheduleRestart = useCallback((seq: number, delayMs: number) => {
     if (unmountedRef.current) return;
+
+    // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
+    // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
+    // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
+    // `take_session` に断られる（利用者はボタンを1つも押していない）。
+    clearDebounceTimer();
+
     debounceTimerRef.current = window.setTimeout(() => {
       // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
       // （同期の追従）が、もう発火した id を見て降りる。`scheduleFlush` と
@@ -451,7 +468,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       debounceTimerRef.current = null;
       runRestartRef.current(seq);
     }, delayMs);
-  }, []);
+  }, [clearDebounceTimer]);
 
   /**
    * エンジンが望みの局面に追いつくのを、刻みながら待つ。**追いつかなければ打ち切る。**
@@ -487,7 +504,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         return;
       }
 
-      clearDebounceTimer();
       scheduleRestart(seq, SYNC_POLL_MS);
     },
     [clearDebounceTimer, scheduleRestart, seat],
@@ -538,12 +554,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         if (pendingAfterRef.current) {
           pendingAfterRef.current = false;
           const latestSeq = restartSeqRef.current;
-          clearDebounceTimer();
           scheduleRestart(latestSeq, 0);
         }
       }
     },
-    [clearDebounceTimer, scheduleRestart, seat, supersededSince, takeSeatAndGo],
+    [scheduleRestart, seat, supersededSince, takeSeatAndGo],
   );
 
   // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
@@ -597,7 +612,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **盤と読んでいる局面が食い違ったことに誰も気づかない**。
     if (state.analyzedSfen === currentSfen) return;
 
-    clearDebounceTimer();
     const seq = ++restartSeqRef.current;
 
     scheduleRestart(seq, RESTART_DEBOUNCE_MS);
@@ -653,10 +667,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 張り直す者が居ない。盤を動かすまで「解析中」の表示のまま数字が動かない。
     if (bookIfRestarting()) return;
 
-    if (!debounceTimerRef.current) {
-      scheduleRestart(restartSeqRef.current, 0);
-    }
-  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting]);
+    if (isRestartScheduled()) return;
+
+    scheduleRestart(restartSeqRef.current, 0);
+  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting, isRestartScheduled]);
 
   // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
   // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、

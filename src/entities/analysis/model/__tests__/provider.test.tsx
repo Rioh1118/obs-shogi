@@ -815,6 +815,46 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
+  // **席が返ってきて捨てる回と、Rust に断られる回は同じ窓に居る。** 後始末が枝で割れると、
+  // 断られた側だけが反映待ちを落とし忘れる。
+  it("開始が断られた回も、反映待ちを残さない", async () => {
+    tauri = true;
+    startCore.mockResolvedValueOnce("s1");
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 盤が動いて再開が走り、その開始が応答を返さないまま止まる。
+    let rejectStart: (e: unknown) => void = () => {};
+    startCore.mockImplementationOnce(
+      () =>
+        new Promise<string>((_resolve, reject) => {
+          rejectStart = reject;
+        }),
+    );
+    await view.setSync(adapter("P2", "P2"));
+    await advance(150);
+
+    // 席が欄に入る前に `info` が1本届く（`accepts` は欄が空の間どの席も通す）。
+    // そのあとエンジンが消え、開始は `Err` で返る。
+    await act(async () => {
+      listeners?.onUpdate("s2", oneCandidate);
+    });
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P2", null));
+    await advance(50);
+    await act(async () => {
+      rejectStart(new Error("engine is shutting down"));
+    });
+    await advance(150);
+
+    // 残すと、死んだエンジンの読み筋が「解析中」の表示のまま commit される
+    // （この枝は `stop_analysis` を dispatch しないので `isAnalyzing` は true のまま）。
+    expect(view.current.state.candidates).toHaveLength(0);
+  });
+
   it("捨てる停止の応答を待っている間も、その席の info は採らない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("session-1");
