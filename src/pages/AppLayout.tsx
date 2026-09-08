@@ -7,7 +7,7 @@ import Hand from "@/widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
 import WelcomeScreen from "@/pages/WelcomeScreen";
-import AppModalLayer, { useModalLayerResetKeys } from "@/pages/AppModalLayer";
+import AppModalLayer from "@/pages/AppModalLayer";
 
 import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
@@ -33,34 +33,22 @@ const AppLayout = () => {
   // 何が盤の内側かは feature が知っている
   const onPointerDownCapture = useClearBoardSelection();
 
-  // モーダル層が読んでいる入力。**数えるのは層の側**（`useModalLayerResetKeys`）で、
-  // ここは受け取るだけ。ページが数え直すと、入力が増えたときに黙って穴が開く
-  const modalLayerKeys = useModalLayerResetKeys();
-
   return (
     <div
       className={`app-layout ${isSidebarOpen ? "" : "app-layout--sidebar-closed"}`}
       onPointerDownCapture={onPointerDownCapture}
     >
       {/*
-        モーダル1枚の事故で本体まで unmount させない。
+        モーダル1枚の事故で本体まで unmount させない。**境界は `AppModalLayer` の中にある**
+        （鍵を読むために、ここが `FileTreeContext` を購読しないため）。
 
-        **`floating` にするのは、平常時ここに in-flow の子が1つも無いから。**
-        `AppModalLayer` の子は閉じている間 `null` を返し、開いたときだけ `Modal` が portal する。
-        `.app-layout` は `grid-template-rows` が2段で、ヘッダと本体でちょうど埋まっている。
-        箱を作る fallback を出すと1段目を取り、本体が暗黙の3段目へ押し出されて
-        `overflow: hidden` に切られる —— 本体を畳まないための境界が、本体を畳むことになる。
-
-        **`AppModalLayer` の子に、平常時 in-flow の要素を返す部品を足さないこと。**
+        **ここに置ける条件**: `.app-layout` は `grid-template-rows` が2段で、ヘッダと本体で
+        ちょうど埋まっている。`AppModalLayer` の子は閉じている間 `null` を返し、開いたときだけ
+        `Modal` が portal するので、平常時 in-flow の子は0。**その子に、平常時 in-flow の要素を
+        返す部品を足さないこと** —— 1つ足すと1段目を取り、本体が暗黙の3段目へ押し出されて
+        `overflow: hidden` に切られる
       */}
-      <AppErrorBoundary
-        label="モーダル"
-        resetKeys={modalLayerKeys}
-        floating
-        hint="このダイアログは開けません。別の操作からやり直してください。"
-      >
-        <AppModalLayer />
-      </AppErrorBoundary>
+      <AppModalLayer />
 
       <AppLayoutHeader toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
 

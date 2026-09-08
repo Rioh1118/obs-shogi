@@ -1,7 +1,9 @@
 import { useCallback } from "react";
+import { useLocation } from "react-router";
 import { useFileTree } from "@/entities/file-tree";
 import { isRaisedFromModal } from "@/features/file-conflict/lib/isRaisedFromModal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import SfenKifuCreateModal from "@/features/create-file/ui/SfenKifuCreateModal";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
@@ -13,21 +15,47 @@ import StudyPositionSaveModal from "@/features/study-position-save/ui/StudyPosit
 import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/StudyPositionsManagerModal";
 
 /**
- * この層を包む境界に渡す鍵。**この層が読む入力を全部並べる。**
+ * この層を包む境界に渡す鍵。
  *
- * ここに置くのは、入力を読むのと同じ場所で数えるため。包む側（`AppLayout`）が数え直すと、
- * 入力が増えたときに黙って穴が開く —— **`modal` だけを見ていた間は、URL で開かない2枚
- * （`FileConflictDialog` / `KifuReadErrorDialog`）が鍵の外に居た。** その2枚が落ちると
- * 鍵は動かず、原因を消す口（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
- * **そのセッションではどのモーダルも二度と出ない。**
+ * **入力を param ごとに数え上げない。** ここに居る9枚は `modal` だけでなく
+ * `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べる形は**足し忘れる規則**になる。
+ * `location.key` は遷移のたびに1つ変わるので、いま読んでいる param も、あとで増える param も、
+ * 同じ URL へ開き直した操作もまとめて拾える。
+ *
+ * **URL を持たない2枚**（`FileConflictDialog` / `KifuReadErrorDialog`）だけは別に並べる。
+ * この2枚が落ちると、原因を消す口（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
+ * 鍵が動かなければ**そのセッションではどのモーダルも二度と出ない。**
  */
-export function useModalLayerResetKeys(): readonly unknown[] {
+function useModalLayerResetKeys(): readonly unknown[] {
   const { conflict, kifuError } = useFileTree();
-  const { params } = useURLParams();
-  return [params.modal, conflict, kifuError];
+  const { key } = useLocation();
+  return [key, conflict, kifuError];
 }
 
+/**
+ * モーダルの層。**境界をここに持つ。**
+ *
+ * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
+ * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
+ *
+ * `floating` の理由と、`.app-layout` の段割りを壊さないための制約は置く側が持つ。
+ */
 export default function AppModalLayer() {
+  const resetKeys = useModalLayerResetKeys();
+
+  return (
+    <AppErrorBoundary
+      label="モーダル"
+      resetKeys={resetKeys}
+      floating
+      hint="このダイアログは開けません。別の操作からやり直してください。"
+    >
+      <ModalLayerContent />
+    </AppErrorBoundary>
+  );
+}
+
+function ModalLayerContent() {
   const { conflict, kifuError, closeConflict, resolveConflictByRename, clearKifuError } =
     useFileTree();
   const { closeModal } = useURLParams();

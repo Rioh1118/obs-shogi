@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 import type { FileConflictState } from "@/features/file-conflict/model/types";
 
@@ -37,13 +38,21 @@ for (const path of [
   "@/features/create-file/ui/CreateFileModal",
   "@/features/create-file/ui/SfenKifuCreateModal",
   "@/features/position-navigation/ui/PositionNavigationModal",
-  "@/features/settings/ui/SettingsModal",
   "@/features/position-search/ui/PositionSearchModal",
   "@/features/study-position-save/ui/StudyPositionSaveModal",
   "@/features/study-positions-manager/ui/StudyPositionsManagerModal",
 ]) {
   vi.doMock(path, () => noModal);
 }
+
+/** 1枚だけ落とせるようにする。どの1枚でもよいので、いちばん素の設定モーダルを使う */
+const throwing = { settings: false };
+vi.doMock("@/features/settings/ui/SettingsModal", () => ({
+  default: () => {
+    if (throwing.settings) throw new Error("設定モーダルの中で落ちた");
+    return null;
+  },
+}));
 vi.mock("@/features/kifu-read-error", () => ({ KifuReadErrorDialog: () => null }));
 vi.mock("@/shared/ui/Modal", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -75,7 +84,11 @@ beforeEach(() => {
   resolveConflictByRename.mockReset().mockResolvedValue({ success: true, data: undefined });
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  throwing.settings = false;
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 async function resolveWith(name: string) {
   fireEvent.change(screen.getByRole("textbox"), { target: { value: name } });
@@ -87,7 +100,11 @@ async function resolveWith(name: string) {
 describe("衝突の解決", () => {
   test("モーダルから起こした衝突なら、解決後にそのモーダルも閉じる", async () => {
     stub.conflict = conflictFor("create_file");
-    render(<AppModalLayer />);
+    render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
 
     await resolveWith("b.kif");
 
@@ -97,7 +114,11 @@ describe("衝突の解決", () => {
 
   test("ツリーから起こした衝突では、閉じる相手がいないので閉じない", async () => {
     stub.conflict = conflictFor("rename_file");
-    render(<AppModalLayer />);
+    render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
 
     await resolveWith("c.kif");
 
@@ -110,10 +131,69 @@ describe("衝突の解決", () => {
       success: false,
       error: { code: "permission_denied", message: "denied" },
     });
-    render(<AppModalLayer />);
+    render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
 
     await resolveWith("b.kif");
 
     expect(closeModal).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 層が落ちたときに、何を畳み・何で解けるか。
+ *
+ * この層は平常時 in-flow の子を1つも作らない（閉じている間は `null`、開くと portal）。
+ * `.app-layout` は `grid-template-rows` が2段なので、**箱を作る fallback を出すと
+ * 本体が暗黙の3段目へ押し出されて `overflow: hidden` に切られる。**
+ *
+ * 鍵は `location.key` と、URL を持たない2枚の入力。**`params.modal` で数え上げない** ——
+ * この層は `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べると足し忘れる。
+ */
+describe("モーダル層の境界", () => {
+  test("落ちても箱を作らない", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.settings = true;
+
+    const { container } = render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+
+    const fallback = container.querySelector(".app-error-fallback");
+    expect(fallback).not.toBeNull();
+    expect(
+      fallback!.classList.contains("app-error-fallback--floating"),
+      "in-flow の箱を出すと `.app-layout` の1段目を取り、本体が3段目へ押し出される",
+    ).toBe(true);
+    expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
+  });
+
+  test("URL を持たない衝突が消えたら、境界も畳むのをやめる", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.settings = true;
+    stub.conflict = conflictFor("create_file");
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
+
+    // 原因が消え、URL は1文字も動いていない。鍵が `location` だけなら解けない
+    throwing.settings = false;
+    stub.conflict = null;
+    rerender(
+      <MemoryRouter>
+        <AppModalLayer />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText("モーダルを表示できませんでした。")).toBeNull();
   });
 });

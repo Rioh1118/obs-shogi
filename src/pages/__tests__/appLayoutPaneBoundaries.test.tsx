@@ -24,7 +24,7 @@ vi.mock("@/entities/game", () => ({
 }));
 
 /** どのペインを落とすか。テストごとに1つだけ真にする */
-const throwing = { board: false, analysis: false, modal: false };
+const throwing = { board: false, analysis: false };
 
 function mockThrowing(name: keyof typeof throwing, testId: string) {
   return {
@@ -36,15 +36,8 @@ function mockThrowing(name: keyof typeof throwing, testId: string) {
 }
 
 const empty = { default: () => null };
-// 平常時 `createPortal` で描くので、`.app-layout` には in-flow の子を作らない
-vi.mock("@/pages/AppModalLayer", () => ({
-  default: () => {
-    if (throwing.modal) throw new Error("modal の中で落ちた");
-    return null;
-  },
-  // 鍵は層の側が数える。ここを消すと、包む側が数え直す形へ戻ったことに気づけない
-  useModalLayerResetKeys: () => [],
-}));
+// 境界ごとこの層の中に居るので、落ちたときの振る舞いは AppModalLayer.test.tsx が見る
+vi.mock("@/pages/AppModalLayer", () => empty);
 vi.mock("@/pages/WelcomeScreen", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);
 vi.mock("@/widgets/game-board/ui/Hand", () => empty);
@@ -76,7 +69,6 @@ beforeEach(() => {
 afterEach(() => {
   throwing.board = false;
   throwing.analysis = false;
-  throwing.modal = false;
   cleanup();
   vi.restoreAllMocks();
 });
@@ -93,23 +85,6 @@ describe("ペインごとの境界", () => {
     expect(container.querySelector('[data-testid="analysis"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="board"]')).toBeNull();
-  });
-
-  test("モーダル層が落ちても、`.app-layout` の段割りを崩さない", () => {
-    throwing.modal = true;
-    const { container } = mount();
-
-    const fallback = container.querySelector(".app-error-fallback");
-    expect(fallback).not.toBeNull();
-    expect(
-      fallback!.classList.contains("app-error-fallback--floating"),
-      [
-        "`.app-layout` は grid-template-rows が2段で、ヘッダと本体でちょうど埋まっている。",
-        "in-flow の箱を作る fallback を出すと1段目を取り、本体が暗黙の3段目へ押し出されて",
-        "overflow: hidden に切られる（=盤も棋譜も解析も消える）。",
-      ].join("\n"),
-    ).toBe(true);
-    expect(container.querySelector(".app-layout__body")).not.toBeNull();
   });
 
   test("解析ペインが落ちても、盤と棋譜一覧は残る", () => {

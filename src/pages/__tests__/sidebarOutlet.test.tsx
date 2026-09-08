@@ -22,10 +22,7 @@ vi.mock("@/entities/game", () => ({
 
 // 盤・棋譜・解析・モーダルはこの検査の対象外。枠だけ残す
 const empty = { default: () => null };
-vi.mock("@/pages/AppModalLayer", () => ({
-  ...empty,
-  useModalLayerResetKeys: () => [],
-}));
+vi.mock("@/pages/AppModalLayer", () => empty);
 vi.mock("@/pages/WelcomeScreen", () => empty);
 vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);
