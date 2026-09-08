@@ -3,7 +3,7 @@
 - 日付: 2026-09-07
 - 範囲: `fix/404-reveal-item-in-dir`（r10 の修正まで。`origin/main` = `89ba0270`）
 - 走らせた reviewer: architecture / react / robustness / comment / oss-hygiene
-- 対象コミット: `3b958864`
+- 対象コミット: 畳み込み済み
 - 前ラウンド: `2026-09-06-404-reveal-item-in-dir-r10.md`
 
 所見は **15件**（18 → 21 → 24 → 20 → 13 → 14 → 6 → 11 → 9 → 16 → 15）。

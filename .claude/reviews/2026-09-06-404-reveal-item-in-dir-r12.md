@@ -3,7 +3,7 @@
 - 日付: 2026-09-07
 - 範囲: `fix/404-reveal-item-in-dir`（r11 の修正まで）
 - 走らせた reviewer: architecture / react / robustness / comment / oss-hygiene
-- 対象コミット: `14f7a400`
+- 対象コミット: 畳み込み済み
 - 前ラウンド: `2026-09-06-404-reveal-item-in-dir-r11.md`
 
 所見は **14件**（18 → 21 → 24 → 20 → 13 → 14 → 6 → 11 → 9 → 16 → 15 → 14）。
