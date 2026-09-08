@@ -130,8 +130,8 @@ const adapter = (currentSfen: string | null, syncedSfen: string | null): Positio
 
 /**
  * **上限を実時計で待たない。** 現物の `positionSyncTimeoutMs` を跨ぐ待ち方をすると、並走する機械では
- * コードを触っていないコミットがランダムに落ちる。寸法は4つとも 1/4 に縮むので、
- * 大小の順序（刻み < 間引き < 猶予 < 上限）は現物と同じ。
+ * コードを触っていないコミットがランダムに落ちる。寸法は4つとも**同じ比**で縮むので、
+ * 大小の順序（刻み < 間引き < 猶予 < 上限）は現物と同じ。比は `waits.ts` が持つ。
  */
 let restoreWaits: () => void = () => {};
 beforeEach(() => {
@@ -1150,9 +1150,9 @@ describe("AnalysisProvider の開始", () => {
         releaseStop();
       });
 
-      // 同期待ちの上限を越えるまで進める（テスト中は 1/4 の寸法）。世代を返却より前に読まないと、
-      // ここまで待ってから閉じた棋譜のために断りを積む。
-      await advance(700);
+      // 同期待ちの上限を越えるまで進める（テスト中は縮めた寸法。値は `waits.ts`）。
+      // 世代を返却より前に読まないと、ここまで待ってから閉じた棋譜のために断りを積む。
+      await advance(limitMs() * 1.4);
 
       expect(startCore).not.toHaveBeenCalled();
       // 立っているのは届かなかった ■ の断りだけ。閉じた棋譜のぶんは積まれない。
