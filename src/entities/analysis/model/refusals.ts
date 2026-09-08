@@ -72,19 +72,17 @@ export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません
  */
 export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}`;
 /**
- * 解析の最中に、起動に要る設定が組み立てられなくなった
- * （→ `docs/state-transitions/analysis.md` の ※5）。
+ * 解析の最中に `no-engine` になった（→ `docs/state-transitions/analysis.md` の ※5）。
  *
- * **「選んでください」だけで終えない。** ここへ来る入口は選択が外れた回だけではなく、
- * **選んだプリセットのエンジンや評価関数が空**の回もある（`entities/engine-presets` の
- * `runtimeConfig`）。後者の人は今まさに選んだ直後なので、選び直しだけを案内すると
- * 何度やっても変わらない。
+ * **「選んでください」だけで終えない。** 入口は選択が外れた回だけではないので
+ * （`EngineNotReadyReason` の doc）、選び直しだけを案内すると、既に選んでいる人が
+ * 何度やっても同じ文に戻る。
  */
 export const NO_ENGINE_WHILE_ANALYZING_MESSAGE =
-  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選び、エンジンと評価関数の場所を設定してください。";
-/** エンジンをまだ選んでいない。 */
-export const NO_ENGINE_SELECTED_MESSAGE =
-  "エンジンが起動していません。設定でエンジンを選んでください。";
+  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてください。";
+/** `no-engine` で ▶ を押した（入口は `EngineNotReadyReason` の doc）。 */
+export const NO_ENGINE_ON_START_MESSAGE =
+  "エンジンが起動していません。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてください。";
 /** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
 export const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
 /** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
@@ -98,7 +96,7 @@ export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。
 
 /** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
 export const ON_START_REFUSALS: Record<EngineNotReadyReason, string> = {
-  "no-engine": NO_ENGINE_SELECTED_MESSAGE,
+  "no-engine": NO_ENGINE_ON_START_MESSAGE,
   starting: ENGINE_STARTING_MESSAGE,
   failed: ENGINE_FAILED_MESSAGE,
 };

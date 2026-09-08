@@ -607,12 +607,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer,
   ]);
 
-  // **エンジンが落ちたら、投げ済みの印と席の欄を捨てる。**
+  // **エンジンが使えなくなったら、投げ済みの印と席の欄を捨てる。**
   //
-  // 落ちる引き金は解析中の起こし直し（設定でオプションを変えて保存する——**この画面の
-  // 断りが案内している操作**）。Rust は畳む前に席を全部空けるので、こちらの欄に残るのは
-  // もう無い席。捨てないと、戻ってきたときに下の effect が「その局面は投げ済み」と読んで
-  // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られる）。
+  // 引き金は `isReady` の立ち下がり全部——起こし直し・初期化の失敗・起動の設定が
+  // 組み立てられなくなった回（→ `EngineNotReadyReason`）。Rust はどの畳み方でも席を
+  // 先に全部空けるので、こちらの欄に残るのはもう無い席。捨てないと、戻ってきたときに
+  // 下の effect が「その局面は投げ済み」と読んで降り、**「解析中」の表示のまま数字が
+  // 一切動かない**（席は死んだまま握られる）。
   //
   // **ここは `isAnalyzing` に触らない。** 戻ってくる回はそのまま張り直したいので、
   // 止めるかどうかは理由を見てから決める（→ 次の effect）。
@@ -627,32 +628,40 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     seat.onEngineGone();
   }, [isReady, seat, clearDebounceTimer]);
 
-  // **戻ってこない回は、そこで断つ。**
-  //
-  // 上の effect は席と投げ済みの印を捨てるだけで `isAnalyzing` には触らない——戻ってくる回に
-  // 張り直すため。戻ってこない回をそのまま置くと「解析中」の丸とタイマーが回り続ける。
+  /**
+   * 走っている解析を、利用者の操作なしに畳む。**順序が3つとも意味を持つ。**
+   *
+   * 1. **世代を先に上げる。** 上げないと、飛んでいる再開が自分の門を素通りして
+   *    `takeSeatAndGo` へ入り、その先頭の `clear_results` がいま立てた断りを黙って消す
+   * 2. **次に、出ている候補手を落とす。** 残すと、次の ▶ が最初の `info` を返すまで、
+   *    死んだ席の読み筋が現在の解析結果として扱われる（`start_analysis` は
+   *    `analyzedSfen` だけを差し替える）。**画面から消えるとは限らない**
+   *    ——ペインは停止中に局面ごとのキャッシュを出す（→ `docs/state-transitions/analysis.md` の ※5）
+   * 3. **断りは最後。** `clear_results` は `error` も消すので、先に撃つと自分で消す
+   *
+   * **席は撃たない。** どの引き金でも Rust は畳む前に席を空けており、撃つと
+   * 起こし直した先へ裸の `stop` が書かれる（→ ※12）。欄を空けるのは上の effect。
+   */
+  const cutRunningAnalysis = useCallback(
+    (refusal: string) => {
+      supersedeRequests();
+      discardShownResults();
+      dispatch({ type: "set_error", payload: refusal });
+      dispatch({ type: "stop_analysis" });
+    },
+    [discardShownResults, supersedeRequests],
+  );
+
+  // **戻ってこない回は、そこで断つ。** 置いておくと「解析中」の丸とタイマーが回り続ける。
   // **戻るかどうかを決めるのは engine 側**（`isRecoverableNotReady`。判断の全体は
-  // `docs/state-transitions/analysis.md` の ※5）。
+  // `docs/state-transitions/engine.md` の ※7）。
   useEffect(() => {
     if (isReady) return;
     if (!state.isAnalyzing) return;
     if (isRecoverableNotReady(notReadyReason)) return;
 
-    // **世代を先に上げる。** 上げないと、飛んでいる再開が自分の門を素通りして
-    // `takeSeatAndGo` へ入り、その先頭の `clear_results` がいま立てた断りを黙って消す。
-    supersedeRequests();
-
-    // **既に出ている候補手を落とす。** 残すと、次の ▶ が最初の `info` を返すまで、
-    // 死んだ席の読み筋が現在の解析結果として扱われる（`start_analysis` は
-    // `analyzedSfen` だけを差し替える）。**画面から消えるとは限らない**
-    // ——ペインは停止中に局面ごとのキャッシュを出す（→ ※5）。
-    //
-    // **`clear_results` は `error` も消す**ので、断りより先に撃つこと。
-    discardShownResults();
-
-    dispatch({ type: "set_error", payload: WHILE_ANALYZING_REFUSALS[notReadyReason] });
-    dispatch({ type: "stop_analysis" });
-  }, [isReady, notReadyReason, state.isAnalyzing, discardShownResults, supersedeRequests]);
+    cutRunningAnalysis(WHILE_ANALYZING_REFUSALS[notReadyReason]);
+  }, [isReady, notReadyReason, state.isAnalyzing, cutRunningAnalysis]);
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
   //

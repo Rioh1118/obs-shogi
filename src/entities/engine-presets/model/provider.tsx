@@ -161,12 +161,27 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     }
   }, [state.selectedPresetId, setLastPresetId, touchPreset]);
 
+  /**
+   * 選択を差し替える。**同期の分と待つ分を割ってある。**
+   *
+   * 一覧の入れ替えと同じ commit で選択を動かしたい口があり、そこは永続化を後ろへ回す。
+   * 割らずに `selectPreset` を呼ぶと、間に本物の往復が入って
+   * 「もう無いプリセットを選んだまま」の描画が1枚できる（→ `deletePreset`）。
+   *
+   * **`touchPreset` は撃たない。** あれは `engineKey` を動かして解析ペインの
+   * キャッシュを外すためのもので、プリセットの中身が変わった回だけが撃つ
+   * （`features/engine-position-sync`）。選び直しでは中身は変わっていない。
+   */
+  const commitSelection = useCallback((id: PresetId | null) => {
+    dispatch({ type: "set_selected", payload: id });
+  }, []);
+
   const selectPreset = useCallback(
     async (id: PresetId | null) => {
-      dispatch({ type: "set_selected", payload: id });
+      commitSelection(id);
       await setLastPresetId(id);
     },
-    [setLastPresetId],
+    [commitSelection, setLastPresetId],
   );
 
   const createPreset = useCallback(
@@ -224,22 +239,35 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
 
   const deletePreset = useCallback(
     async (id: PresetId) => {
-      const next = state.presets.filter((p) => p.id !== id);
-      const replacing = state.selectedPresetId === id;
+      const previous = state.presets;
+      const previousSelected = state.selectedPresetId;
+      const next = previous.filter((p) => p.id !== id);
+      const replacing = previousSelected === id;
       const fallback = replacing ? (next[0]?.id ?? null) : null;
 
       // **一覧と選択は同じ commit で動かす。** 間に await を挟むと、その描画は
       // 「もう無いプリセットを選んだまま」になり `runtimeConfig` が null に落ちる
       // ——エンジンが畳まれ、走っている解析は「使えなくなった」と読んで止まる
       // （→ `docs/state-transitions/engine.md` の ※7）。代わりが自動で選ばれる操作なのに、
-      // 画面には選び直しを促す断りだけが残る。**永続化はその後でよい。**
+      // 画面には選び直しを促す断りだけが残る。
       dispatch({ type: "set_presets", payload: next });
-      if (replacing) dispatch({ type: "set_selected", payload: fallback });
+      if (replacing) commitSelection(fallback);
 
-      await persist(next);
+      // **保存が落ちたら、畳んだ2つの dispatch ごと戻す。** 戻さないと、
+      // ディスクは元のままなのに画面は**完全な成功と1ドットも変わらない**
+      // ——次に起動したとき、消したはずのプリセットが選ばれた状態で戻ってくる。
+      try {
+        await persist(next);
+      } catch {
+        dispatch({ type: "set_presets", payload: previous });
+        if (replacing) commitSelection(previousSelected);
+        dispatch({ type: "error", payload: "プリセットを削除できませんでした。" });
+        return;
+      }
+
       if (replacing) await setLastPresetId(fallback);
     },
-    [persist, setLastPresetId, state.presets, state.selectedPresetId],
+    [commitSelection, persist, setLastPresetId, state.presets, state.selectedPresetId],
   );
 
   const value: EnginePresetsContextType = useMemo(

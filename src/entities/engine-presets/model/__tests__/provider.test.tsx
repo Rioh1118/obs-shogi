@@ -131,7 +131,6 @@ describe("EnginePresetsProvider", () => {
   it("選んでいないプリセットを消しても、選択は動かない", async () => {
     const view = mountPresets();
     await view.settle();
-    const from = view.seen.length;
 
     await act(async () => {
       await view.current.deletePreset("b");
@@ -139,7 +138,29 @@ describe("EnginePresetsProvider", () => {
     await view.settle();
 
     expect(view.current.selectedPreset?.id).toBe("a");
-    expect(view.seen.slice(from).filter((r) => r === null)).toHaveLength(0);
+    expect(view.current.state.presets.map((p) => p.id)).toEqual(["a"]);
+    // 選択を動かさない回は `setLastPresetId` も撃たない（保存する値が変わっていない）。
+    expect(setLastPresetId).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
+  it("保存に失敗したら、一覧も選択も元に戻して断る", async () => {
+    const view = mountPresets();
+    await view.settle();
+    savePresets.mockRejectedValueOnce(new Error("disk full"));
+
+    await act(async () => {
+      await view.current.deletePreset("a");
+    });
+    await view.settle();
+
+    // **成功と見分けが付く形で終える。** 戻さないと、ディスクは元のままなのに
+    // 画面は完全な成功と同じになり、次に起動したとき消したはずのものが戻ってくる。
+    expect(view.current.state.presets.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(view.current.selectedPreset?.id).toBe("a");
+    expect(view.current.state.status).toBe("error");
+    // 保存が落ちた回に `last_preset_id` だけ進めない。
+    expect(setLastPresetId).not.toHaveBeenCalled();
     view.unmount();
   });
 });

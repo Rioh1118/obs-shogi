@@ -99,10 +99,11 @@ describe("解析の断り", () => {
 });
 
 describe("エンジンが使えない理由への対応", () => {
-  // **拾えていることを先に見る。** 宣言の書き方が変わって0件になると、
-  // 下の `test.each` は1本も走らないまま緑になる。
-  test("対応表を拾えている", () => {
-    expect(tableNames(codeOf(read(REFUSALS))).length).toBeGreaterThan(1);
+  // **表は「いつ出すか」で2つに割れている**——▶ を押した回と、走っている解析が
+  // 切れた回。1つに減ったらどちらかの入口の断りが消えているので、番人ごと見直すこと。
+  // 0件で黙る形（宣言の書き方が変わって抽出が外れる）も同じ検査で止まる。
+  test("対応表を2つとも拾えている", () => {
+    expect(tableNames(codeOf(read(REFUSALS))).length).toBe(2);
   });
 
   test.each(tableNames(codeOf(read(REFUSALS))))("%s の値は、登録済みの断りだけ", (name) => {

@@ -12,7 +12,7 @@ import {
   ENGINE_FAILED_MESSAGE,
   ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
   NO_ENGINE_WHILE_ANALYZING_MESSAGE,
-  NO_ENGINE_SELECTED_MESSAGE,
+  NO_ENGINE_ON_START_MESSAGE,
   ENGINE_STARTING_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
@@ -737,7 +737,7 @@ describe("AnalysisProvider の結果の照合", () => {
       await advance(150);
 
       expect(view.current.state.isAnalyzing).toBe(false);
-      // **起こし直し方を案内しない**——起こす対象が選ばれていない。
+      // **起こし直し方を案内しない**——起こす材料が揃っていない。
       expect(view.current.state.error).toBe(NO_ENGINE_WHILE_ANALYZING_MESSAGE);
     },
     SLOW,
@@ -1310,7 +1310,7 @@ describe("AnalysisProvider の開始", () => {
   it.each([
     ["starting", ENGINE_STARTING_MESSAGE],
     ["failed", ENGINE_FAILED_MESSAGE],
-    ["no-engine", NO_ENGINE_SELECTED_MESSAGE],
+    ["no-engine", NO_ENGINE_ON_START_MESSAGE],
   ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
     // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、
     // **起動を待っている人が必ずここへ来る**。「選んでください」と言ってはいけない。

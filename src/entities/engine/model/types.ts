@@ -43,7 +43,9 @@ export type EngineAction =
 export type EngineNotReadyReason =
   /**
    * 起動に要る設定が組み立てられない。**選んでいないとは限らない**——
-   * 選んだプリセットのエンジンや評価関数が空でもここ（`entities/engine-presets` の `runtimeConfig`）。
+   * 入口は `entities/engine-presets` の `runtimeConfig` が `null` を返す枝すべてで、
+   * **数も条件もここに写さない**（写すと枝が増えたときにこの doc だけが古くなる）。
+   * 案内を書く人はその関数を読むこと。
    */
   | "no-engine"
   /** 起動中。**起こし直している最中もここ**（`phase` は `ready` のまま） */
