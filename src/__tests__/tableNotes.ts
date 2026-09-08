@@ -42,7 +42,7 @@ const REFERENCE = /※(\d+)/g;
  */
 const CROSS_FILE = /\.md/;
 
-export type NoteReport = {
+type NoteReport = {
   /** 定義の番号を、ファイルに現れる順で */
   defined: number[];
   /** 参照されているのに定義が無い番号 */

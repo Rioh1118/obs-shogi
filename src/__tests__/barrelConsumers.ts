@@ -33,7 +33,7 @@ function namesIn(clause: string): string[] {
     .filter((name) => /^[A-Za-z_]\w*$/.test(name));
 }
 
-export type BarrelExport = { slice: string; name: string };
+type BarrelExport = { slice: string; name: string };
 
 /** barrel が名前で公開しているもの */
 export function namedExports(): BarrelExport[] {
@@ -68,10 +68,10 @@ export function namedExports(): BarrelExport[] {
  * **語境界で数える。** 部分一致だと `FsError` が `FsErrorView` を根拠に生き残る。
  * **スライスの中は数えない**——中から使うだけなら公開する理由が無い。
  */
-export type Source = { name: string; body: string };
+type Source = { name: string; body: string };
 
 /** リポジトリの実ファイルを読む。判定は `unconsumed` が持つ */
-export function repoSources(): Source[] {
+function repoSources(): Source[] {
   return tsFiles(SRC).map((path) => ({
     name: relative(REPO_ROOT, path),
     body: readFileSync(path, "utf8"),

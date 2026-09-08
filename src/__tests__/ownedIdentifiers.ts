@@ -115,7 +115,7 @@ function ownerIndex(): Map<string, string[]> {
   return ownerFiles;
 }
 
-export type OwnedRef = { owner: string; member: string };
+type OwnedRef = { owner: string; member: string };
 
 /** 「`X` の `y`」の対を拾う */
 export function ownedRefsIn(text: string): OwnedRef[] {
