@@ -64,14 +64,16 @@ export const ENGINE_STARTING_MESSAGE =
  */
 export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
 /**
- * 解析の最中にエンジンの初期化が落ち、**戻ってこない**（→ `docs/state-transitions/analysis.md` の ※5）。
+ * 解析の最中に初期化が落ちた（→ `docs/state-transitions/analysis.md` の ※5）。
  *
- * **`ENGINE_FAILED_MESSAGE` と分ける。** あちらは ▶ を押した人に「まだ起動していない」と
- * 告げる文で、押していない人が読むと「押しても始まらない」と受け取る。ここで告げるのは
- * **走っていた解析が切れて、出ていた候補手も消えた**こと——利用者はボタンを1つも
- * 押していない。次の一手は同じ（起こし直す）が、起きた事が違う。
+ * **▶ を押した人への断りと分ける。** あちらは「まだ起動していない」と告げる文で、
+ * 押していない人が読むと「押しても始まらない」と受け取る。ここで告げるのは
+ * **走っていた解析が切れた**こと。次の一手は同じでも、起きた事が違う。
  */
 export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}`;
+/** 解析の最中にエンジンの選択が外れた（→ ※5）。**起こし直し方ではなく、選び直しを案内する。** */
+export const NO_ENGINE_WHILE_ANALYZING_MESSAGE =
+  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選んでください。";
 /** エンジンをまだ選んでいない。 */
 export const NO_ENGINE_SELECTED_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選んでください。";
@@ -91,4 +93,19 @@ export const NOT_READY_REFUSALS: Record<EngineNotReadyReason, string> = {
   "no-engine": NO_ENGINE_SELECTED_MESSAGE,
   starting: ENGINE_STARTING_MESSAGE,
   failed: ENGINE_FAILED_MESSAGE,
+};
+
+/**
+ * 走っている解析の最中に `isReady` が落ちたときの断り。**`null` は「待てば戻るので断たない」。**
+ *
+ * **不等号で書かない。** 理由が1つ増えたときに黙って「断たない」側へ落ちると、
+ * 「解析中」の丸が回り続ける経路が1本、誰にも気づかれずに増える。表にしておけば
+ * tsc が分類を迫る。**どの理由が戻ってくるかの出典は
+ * `docs/state-transitions/engine.md` の ※7**——ここはその写しではなく、
+ * 戻らない回に何と言うかだけを持つ。
+ */
+export const WHILE_ANALYZING_REFUSALS: Record<EngineNotReadyReason, string | null> = {
+  "no-engine": NO_ENGINE_WHILE_ANALYZING_MESSAGE,
+  starting: null,
+  failed: ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
 };

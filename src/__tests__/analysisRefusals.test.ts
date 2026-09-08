@@ -36,7 +36,23 @@ const PARTS = new Set([
   "RESTART_ENGINE_HINT",
   /** 断りそのものではなく、`EngineNotReadyReason` から断りへの対応表 */
   "NOT_READY_REFUSALS",
+  /** 同じく対応表。**`null` は「断らない」**を意味する枝を持つ */
+  "WHILE_ANALYZING_REFUSALS",
 ]);
+
+/**
+ * `EngineNotReadyReason` を鍵に取る対応表。**どれも同じ2つを守らせる**——
+ * 文言を直に置かないことと、値が登録済みの断りであること。
+ *
+ * **`PARTS` に入れた表をここに書き漏らすと、その表だけ検査から外れる。**
+ * `PARTS` は「※15 とテストの義務を免除する」ためのもので、
+ * 中身を見ない理由にはならない。
+ */
+const TABLES = [
+  { name: "NOT_READY_REFUSALS", allowsNull: false },
+  /** `starting` は待てば戻るので断らない → `null` */
+  { name: "WHILE_ANALYZING_REFUSALS", allowsNull: true },
+];
 
 /**
  * ※15 の節だけを切り出す。他の注や表のセルに名前が1度出ただけで通るのを止める。
@@ -86,18 +102,32 @@ describe("解析の断り", () => {
 });
 
 describe("エンジンが使えない理由への対応", () => {
-  test("対応表の値は、登録済みの断りだけ", () => {
+  test.each(TABLES)("$name の値は、登録済みの断りだけ", ({ name, allowsNull }) => {
     const code = codeOf(read(REFUSALS));
-    const table = /NOT_READY_REFUSALS[^=]*=\s*\{([\s\S]*?)\};/.exec(code);
+    const table = new RegExp(`${name}[^=]*=\\s*\\{([\\s\\S]*?)\\};`).exec(code);
 
-    expect(table, `${REFUSALS}: \`NOT_READY_REFUSALS\` が見つからない`).not.toBeNull();
+    expect(table, `${REFUSALS}: \`${name}\` が見つからない`).not.toBeNull();
 
     // **文字列リテラルを直に置かない。** 置くと、その1本が ※15 にもテストにも
     // 通らないまま増える（対応表は `PARTS` に入っているので、こちらは素通りする）。
-    expect(/:\s*["`']/.test(table![1]), `${REFUSALS}: 対応表に文言を直に書いている`).toBe(false);
+    expect(/:\s*["`']/.test(table![1]), `${REFUSALS}: ${name} に文言を直に書いている`).toBe(false);
 
     const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
-    expect(values.length, `${REFUSALS}: 対応表が空`).toBeGreaterThan(0);
-    expect(values.filter((v) => !refusalNames().includes(v))).toEqual([]);
+    expect(values.length, `${REFUSALS}: ${name} が空`).toBeGreaterThan(0);
+
+    // **`null` を許す表でも、綴りは1つだけ。** `undefined` や `""` を混ぜると
+    // 「断らない」の書き方が増え、読む側が全部を覚えることになる。
+    const known = allowsNull ? [...refusalNames(), "null"] : refusalNames();
+    expect(values.filter((v) => !known.includes(v))).toEqual([]);
+  });
+
+  // **`null` の枝を持つ表は、全部が `null` になっていないか見る。**
+  // 全部 `null` なら断る経路が1本も無く、表があるのに何も起きない。
+  test("WHILE_ANALYZING_REFUSALS は少なくとも1本は断る", () => {
+    const code = codeOf(read(REFUSALS));
+    const table = /WHILE_ANALYZING_REFUSALS[^=]*=\s*\{([\s\S]*?)\};/.exec(code);
+    const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+
+    expect(values.filter((v) => v !== "null").length).toBeGreaterThan(0);
   });
 });

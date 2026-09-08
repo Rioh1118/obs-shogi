@@ -6,11 +6,12 @@ import { StrictMode, useEffect } from "react";
 import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
-import type { AnalysisResult } from "@/entities/engine";
+import type { AnalysisResult, EngineNotReadyReason } from "@/entities/engine";
 import {
   ENGINE_ERROR_MESSAGE,
   ENGINE_FAILED_MESSAGE,
   ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
+  NO_ENGINE_WHILE_ANALYZING_MESSAGE,
   NO_ENGINE_SELECTED_MESSAGE,
   ENGINE_STARTING_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
@@ -36,9 +37,10 @@ vi.mock("@/entities/engine/api/tauri", () => ({
 }));
 // エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
 // 断りを枝ごとに見るテストはその理由を動かす。
+// **語彙を写さない。** 写すと、理由が1つ増えたときにここだけが古いまま緑で通る。
 let engine = {
   isReady: true,
-  notReadyReason: null as "no-engine" | "starting" | "failed" | null,
+  notReadyReason: null as EngineNotReadyReason | null,
 };
 vi.mock("@/entities/engine", () => ({
   useEngine: () => ({ isReady: engine.isReady, notReadyReason: engine.notReadyReason }),
@@ -688,7 +690,7 @@ describe("AnalysisProvider の結果の照合", () => {
         await view.current.startInfiniteAnalysis();
       });
 
-      // 落ちる前に1本返している。**これが盤の下に残り続けるのが #502。**
+      // 落ちる前に1本返している。**これを握ったまま「解析中」を続けない。**
       await act(async () => {
         listeners?.onUpdate("session-1", oneCandidate);
       });
@@ -718,17 +720,37 @@ describe("AnalysisProvider の結果の照合", () => {
   );
 
   it(
-    "起こし直しの途中で理由が no-engine になっても、解析は止めない",
+    "解析中にエンジンの選択が外れたら、止めて選び直しを案内する",
     async () => {
       const view = mountAnalysis(adapter("P1", "P1"));
       await act(async () => {
         await view.current.startInfiniteAnalysis();
       });
 
-      // `restart()` は `shutdown()` を通り、それが書く `phase: "idle"` の理由がこれ
-      // （`entities/engine/model/provider.tsx`）。**健全な起こし直しの途中**なので、
-      // ここで断つと戻ってきても読み直さない。
+      // 設定でプリセットを消す／必須欄を空にする回。engine 側は `shutdown` して降りるだけで、
+      // 選び直すまで起動する口が無い（`docs/state-transitions/engine.md` の ※7）。
       engine = { isReady: false, notReadyReason: "no-engine" };
+      await view.setSync(adapter("P1", null));
+      await advance(150);
+
+      expect(view.current.state.isAnalyzing).toBe(false);
+      // **起こし直し方を案内しない**——起こす対象が選ばれていない。
+      expect(view.current.state.error).toBe(NO_ENGINE_WHILE_ANALYZING_MESSAGE);
+    },
+    SLOW,
+  );
+
+  it(
+    "起動を待っている間は、解析を止めない",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 起こし直しの途中も、畳み損ねて `idle` に落ちた窓も理由はこれ。**待てば戻る**ので、
+      // ここで断つと戻ってきても読み直さない。
+      engine = { isReady: false, notReadyReason: "starting" };
       await view.setSync(adapter("P1", null));
       await advance(150);
 

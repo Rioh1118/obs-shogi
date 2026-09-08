@@ -13,7 +13,7 @@ import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
 import {
   ENGINE_ERROR_MESSAGE,
-  ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
+  WHILE_ANALYZING_REFUSALS,
   LISTENERS_FAILED_MESSAGE,
   NOT_READY_REFUSALS,
   POSITION_SYNC_FAILED_MESSAGE,
@@ -622,37 +622,30 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     seat.onEngineGone();
   }, [isReady, seat, clearDebounceTimer]);
 
-  // **戻ってこないと分かった回は、そこで断つ。**
+  // **戻ってこない回は、そこで断つ。**
   //
-  // 上の effect は席と投げ済みの印を捨てるだけで `isAnalyzing` には触らない
-  // ——戻ってくる回に張り直すため。戻ってこない回をそのまま置くと、「解析中」の丸と
-  // タイマーだけが回り続け、**死んだエンジンが最後に返した候補手が、いま見ている盤の
-  // 下に残る**（→ `docs/state-transitions/analysis.md` の ※5 / 不変条件2）。
-  //
-  // **見るのは `failed` だけ。** これだけが、こちら側の状態機械から終端だと言い切れる
-  // ——`initialize_error` が `phase: "error"` を書き、engine の provider は**同じ設定なら
-  // 再トライしない**（`entities/engine/model/provider.tsx`）。時間を測る必要が無い。
-  // 残る2つは終端ではない。`starting` は ready か error に落ちるし、`no-engine` は
-  // **健全な起こし直しの途中にも観測される**（`restart()` は `shutdown()` を通り、
-  // それが書く `phase: "idle"` の理由がこれ）。どちらかで断つと、#441 が入れた
-  // 「戻ってきた回に張り直す」を毎回殺す。
+  // 上の effect は席と投げ済みの印を捨てるだけで `isAnalyzing` には触らない——戻ってくる回に
+  // 張り直すため。戻ってこない回をそのまま置くと「解析中」の丸とタイマーが回り続ける。
+  // **どの理由が戻ってくるかは表が持つ**（`WHILE_ANALYZING_REFUSALS`。判断の全体は
+  // `docs/state-transitions/analysis.md` の ※5）。
   useEffect(() => {
     if (isReady) return;
-    if (notReadyReason !== "failed") return;
     if (!state.isAnalyzing) return;
+
+    const refusal = WHILE_ANALYZING_REFUSALS[notReadyReason];
+    if (refusal === null) return;
 
     // **世代を先に上げる。** 上げないと、飛んでいる再開が自分の門を素通りして
     // `takeSeatAndGo` へ入り、その先頭の `clear_results` がいま立てた断りを黙って消す。
     supersedeRequests();
 
-    // **候補手も落とす。** 断りだけでは、前の局面の候補手と読み筋が盤の下に残り、
-    // 停止中のペインはそれを合法手として描き続ける（`AnalysisPane`）。
-    // 落とした後は局面ごとのキャッシュだけが出るので、盤を進めれば何も出ない。
+    // **反映待ちの下書きも落とす。** 落とさないと、間引きのタイマーが後から起きて
+    // 死んだエンジンの最後の1本を `candidates` へ戻す。
+    // **`clear_results` は `error` も消す**ので、断りより先に撃つこと。
     discardShownResults();
 
-    // `set_error` が `isAnalyzing` を倒す（`reducer.ts`）。**`clear_results` の後に撃つ**
-    // ——先に撃つと、その `clear_results` が `error` ごと消す。
-    dispatch({ type: "set_error", payload: ENGINE_FAILED_WHILE_ANALYZING_MESSAGE });
+    dispatch({ type: "set_error", payload: refusal });
+    dispatch({ type: "stop_analysis" });
   }, [isReady, notReadyReason, state.isAnalyzing, discardShownResults, supersedeRequests]);
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
