@@ -86,6 +86,23 @@ issue #120 と同型の行き止まり
 
 ※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
 
+※7 **`isReady` が false の理由は3つで、割れ目は「待てば戻るか」。**
+解析側はこれを見て、走っている解析を打ち切るか待つかを決める
+（→ [analysis.md](analysis.md) の ※5）ので、**`phase` の写しではない。**
+
+| 理由        | いつ                            | 待てば戻るか                                                                           |
+| ----------- | ------------------------------- | -------------------------------------------------------------------------------------- |
+| `failed`    | S3（`phase: "error"`）          | **戻らない**（同じ runtime では再トライしない → ※5）                                   |
+| `no-engine` | `desiredRuntime` が無い         | **戻らない**（下の effect は `shutdown` して降りるだけ。選び直すまで起動する口が無い） |
+| `starting`  | `desiredRuntime` が在る残り全部 | 戻る（S1 の起動待ち、S2 で runtime が変わった窓、畳み損ねて S0 に落ちた窓）            |
+
+**`no-engine` を `phase` で割らない。** 割ると、畳んでから起こし直すまでの窓
+（`restart()` の途中、および畳む invoke が落ちて `idle` の枝が拾い直す回）が
+「選んでいない」に落ちる——**そこは待てば戻る**のに、読み手が戻らない側と
+見分けられなくなる。判定は `desiredRuntime` の有無だけ（`provider.tsx`）。
+
+並びは `src/entities/engine/model/__tests__/provider.test.tsx` が固定している。
+
 ## この表が満たすべき不変条件
 
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
@@ -97,6 +114,8 @@ issue #120 と同型の行き止まり
 ## 埋まっていないセル
 
 - `(S1, E3)` 起動中の runtime 切替（※2）。**`initializer.ts` にテストが無い**
-- `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無く踏めていない**
-- `(S3, E4)` 同じ runtime での再設定。再トライしないことを固定するテストが無い
-- **`entities/engine` に `__tests__` が1つも無い**
+- `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無い。**
+  `provider.test.tsx` が踏んでいるのは `engineInitializer.shutdown()` を reject させた回で、
+  見ているのは**そのとき立つ理由**（※7）だけ——Rust 側に何が残るかは見ていない
+- **`entities/engine` の `__tests__` は理由の並び（※7）だけを見る。**
+  `phase` の遷移そのもの・`equalRuntime` の判定・`initializer.ts` は、まだテストが無い
