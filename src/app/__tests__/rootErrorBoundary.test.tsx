@@ -73,6 +73,18 @@ describe("root の境界", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  test("閉じられなかったら、そのことを画面に出す", async () => {
+    close.mockRejectedValueOnce(new Error("IPC が落ちている"));
+    render(<App />);
+
+    fireEvent.click(screen.getByLabelText("ウィンドウを閉じる"));
+
+    expect(
+      await screen.findByRole("alert"),
+      "最後の手段が黙って失敗すると、押しても何も起きないボタンだけが残る",
+    ).toBeTruthy();
+  });
+
   test("更新の知らせが落ちても、本体は畳まない", () => {
     throwing = false;
     updaterThrowing = true;

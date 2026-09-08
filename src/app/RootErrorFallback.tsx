@@ -1,4 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useState } from "react";
 import { X } from "lucide-react";
 import { AppErrorFallbackBody } from "@/shared/ui/AppErrorBoundary";
 import "./RootErrorFallback.scss";
@@ -30,11 +31,16 @@ type Props = {
 };
 
 export function RootErrorFallback({ error, retry }: Props) {
+  // **握って黙ると「押しても何も起きないボタン」になる。** この画面は他に手段が無いときの
+  // 最後の1つなので、閉じられなかったことは画面に出す
+  const [closeFailed, setCloseFailed] = useState(false);
+
   const close = async () => {
     try {
       await getCurrentWindow().close();
-    } catch (error) {
-      console.error("[RootErrorFallback] ウィンドウを閉じられない:", error);
+    } catch (cause) {
+      console.error("[RootErrorFallback] ウィンドウを閉じられない:", cause);
+      setCloseFailed(true);
     }
   };
 
@@ -55,6 +61,12 @@ export function RootErrorFallback({ error, retry }: Props) {
 
       <div className="root-error-fallback__body">
         <AppErrorFallbackBody label="画面" error={error} reset={retry} />
+        {closeFailed && (
+          <p className="root-error-fallback__closeError" role="alert">
+            ウィンドウを閉じられませんでした。OS の終了操作（macOS は ⌘Q、Windows は Alt+F4）で
+            アプリを終了してください。
+          </p>
+        )}
       </div>
     </div>
   );
