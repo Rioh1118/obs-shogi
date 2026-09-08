@@ -6,7 +6,7 @@ import { scannedDocs } from "./docsSourcePaths";
 import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
 
 /**
- * 状態遷移表と画面の仕様がバッククォートで指す識別子が、ソースに実在するかを見る。
+ * `scannedDocs()` が返す doc がバッククォートで指す識別子が、ソースに実在するかを見る。
  *
  * 表は「現物を引くための索引」として書かれている。書いてある名前で grep して
  * 空振りすると、読み手は「表が古い」以上のことを判断できない。
