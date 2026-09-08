@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Color } from "shogi.js";
 import { turnGlyph, type TurnGlyph } from "@/shared/lib/turn";
 import { useGame } from "@/entities/game";
+import { playerNames } from "@/entities/kifu/lib/playerNames";
 
 function basename(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean);
@@ -56,12 +57,8 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
 
     const fileTitle = loadedAbsPath ?? fileLabel;
 
-    // 対局者
-    const header = jkf?.header ?? {};
-    const sente = (header["先手"] ?? "").trim();
-    const gote = (header["後手"] ?? "").trim();
-    const senteName = sente.length ? sente : null;
-    const goteName = gote.length ? gote : null;
+    // 対局者。欄名と欠けの判定は `playerNames` が持つ
+    const { sente: senteName, gote: goteName } = playerNames(jkf);
     const isPlayersShown = hasKifu && Boolean(senteName || goteName);
 
     // バッジ（手番・手数）

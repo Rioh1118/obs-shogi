@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import "./GameBoard.scss";
 import HandHeader from "./HandHeader";
 import { useGame } from "@/entities/game";
+import { playerNames } from "@/entities/kifu/lib/playerNames";
 import { useBoardOrientation } from "@/features/board-orientation";
 
 type Props = {
@@ -19,9 +20,9 @@ type Props = {
 export default function GameBoard({ topLeft, center, bottomRight }: Props) {
   const { state } = useGame();
   const { isGotePov } = useBoardOrientation();
-  const header = state.jkf?.header ?? {};
-  const senteName = header["先手"]?.trim();
-  const goteName = header["後手"]?.trim();
+  // 欄名と欠けの判定は `playerNames` が持つ。ここで別に書くと、同じ棋譜について
+  // ヘッダと盤で違う答えが出る
+  const { sente: senteName, gote: goteName } = playerNames(state.jkf);
 
   const gotePlacement = isGotePov ? "bottom" : "top";
   const sentePlacement = isGotePov ? "top" : "bottom";
