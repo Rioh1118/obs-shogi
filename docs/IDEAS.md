@@ -165,7 +165,16 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
   同じ3行が二重にあり、片方だけ直すとまた食い違う
 - **第三者コードの帰属表示が配布物に無い。** `src-tauri/Cargo.toml` は
   `license = ""` / `authors = ["you"]` / `description = "A Tauri App"` の雛形のままで、
-  `package.json` にも `license` が無い。MIT / BSD 系はバイナリ配布でも著作権表示を求める
+  `package.json` にも `license` が無い。MIT / BSD 系はバイナリ配布でも著作権表示を求める。
+  **`public/` に、どこからも参照されていない画像2枚が同梱されている**（`駒箱.jpg` /
+  `kaya.jpg`）。`knip.json` の走査は `src/**` だけなので機械でも見つからない
+
+**フォントは別**（→ #503）。`index.html` が読む Google Fonts は、アプリ自身の CSP に
+オリジンが無いので**配布物では1本も読めない**。dev サーバには CSP が乗らないため
+開発中と字面が違う。体裁ではなく不具合なので issue にしてある。
+
+**ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
+時点で昇格すること。
 
 ## `entities/engine` の公開面が barrel と deep import に割れている
 
