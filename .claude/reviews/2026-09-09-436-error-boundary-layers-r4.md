@@ -19,6 +19,7 @@ reviewer: ui / robustness / architecture（3人が独立に）
   その下に隠れたモーダル層の名乗りも `hint` も `再表示` も、読めず押せない。
 - **r2-04 が挙げ、r3-02 が「位置を動かしただけ」で残した重なりが3ラウンド生き残っている。**
   SCSS の「避けるもの」の列挙に**もう1枚の `--floating`** が入っていない。
+- 結果: 対応済み `e245c7e5` — `floatingSlot` で段を分け、間隔と上限が同じトークンを見るので重ならないことが式で決まる
 
 ### [HIGH] r4-02 `--floating` の箱に閉じる手段が無い。`再表示` が効かない失敗では覆ったまま消えない
 
@@ -31,6 +32,7 @@ reviewer: ui
   1280×800 の実測算で `.workspace__kifuPane` の上から4〜5割を覆ったまま残る。
 - `hint`「更新は次の起動時にもう一度知らせます。」は「無視してよい」と読ませる文なのに、
   **無視するための操作が画面に無い。** 位置を3回動かしても所見が出続けている根はここ。
+- 結果: 対応済み `e245c7e5` — 浮かせた枠だけに `dismiss` を出す（`caught` は下ろさないので子は描き直さない）
 
 ### [HIGH] r4-03 契約「受け取ったものをそのまま渡すこと」を、唯一の `fallback` 実装が守れていない
 
@@ -44,6 +46,7 @@ reviewer: react / comment / architecture（3人）
 - 実際には root の fallback は自前の枠（`position: fixed; inset: 0`）を持つので `floating` は意味を持たない
   —— つまり**契約の文が広すぎる**。この文を素直に読んで2枚目の `fallback` を書く人は、
   枠を自前で持つ器の中で `position: fixed` の箱を出す形になる。
+- 結果: 対応済み `e245c7e5` — `AppErrorFallbackView` を1つの型にし、`RootErrorFallback` の `Props` をそこから導いた
 
 ### [HIGH] r4-04 境界を層の中へ移したのに、その所在を書いた4箇所が古いまま
 
@@ -57,6 +60,7 @@ reviewer: comment / robustness / architecture / oss-hygiene（4人）
   `PositionNavigationModal` の doc を読んだ人が `pages/AppLayout.tsx` を開くと境界が3つ見つかり、
   そのどれもモーダル層のものではない。
 - 誤読は既に伝播していて、issue #511 の表もこの節を出典として引いている。
+- 結果: 対応済み `e044f16a` — 表・対象の列挙・`docs/spec/README.md`・`PositionNavigationModal` の4箇所を同じコミットで直した
 
 ### [HIGH] r4-05 `fallback` の契約 doc が、同じラウンドで改名して消えた prop 名（`actions` / `notice`）で書かれている
 
@@ -69,6 +73,7 @@ reviewer: comment / react / architecture（3人。comment は BLOCK 判定）
   `fallback` を新しく書く人は「`Notice` を自分で組めということか」と読み、r3-17 が消そうとした
   手書きの箱がもう1つ増える。
 - **原因は1ラウンド内の順序**: 順1 が `actions` / `notice` で doc を書き、順8 が改名した。
+- 結果: 対応済み `e245c7e5` — `extraActions` / `afterAction` の綴りに直した
 
 ### [HIGH] r4-06 盤の `hint` が「棋譜を開き直してから」と言うが、その操作がツリーに無い
 
@@ -79,6 +84,7 @@ reviewer: robustness
   `FileNode` は `isActive` が真なら `openKifuNode` を呼ばないので、**ツリーで同じファイルをクリックしても何も起きない。**
 - 実際に効くのは「別の棋譜を開いてから戻る」で、隣の棋譜一覧の `hint` はそう書いている。
   **同じ PR の中で、同じ操作を指す2つの案内が食い違っている。**
+- 結果: 対応済み `17e6b49b` — 「別の棋譜を開いてから」に直した（同じ棋譜は `isActive` の関門で開き直せない）
 
 ### [HIGH] r4-07 `conflict` / `kifuError` **自身**が落ちたときは、鍵に足しても出口にならない。`hint` が往復を作る
 
@@ -91,6 +97,7 @@ reviewer: robustness
 - 実際の出口は「ツリーで**別の**棋譜を開く」（`kifu_loading` が `kifuError` を落とす）だが、
   `hint` はそれを一言も言っていない。**案内が指す操作が、唯一の行き止まりを踏む操作になっている。**
 - `clearKifuError` / `closeConflict` の呼び手は畳まれた側の2箇所だけ。
+- 結果: 対応済み `2ca5054d` — 出しかけの知らせが立っているときだけ「知らせを取り消す」を境界の外から並べ、案内もそれを指す
 
 ### [MEDIUM] r4-08 ボタンの綴り「再表示」が `hint` の5箇所に写され、出典と結ぶものが無い
 
@@ -101,6 +108,7 @@ reviewer: react / comment
   5枚の案内が**存在しないボタン**を名指しし、型でも lint でもテストでも赤くならない。
 - ADR-0004 が「実装のボタンは以前から『再表示』」と別の綴り（「再読み込み」）との差を注記していて、
   揺れる余地が現に残っている。
+- 結果: 対応済み `17e6b49b` — `RETRY_LABEL` を出典にして5箇所とも組み立てるようにした
 
 ### [MEDIUM] r4-09 `/`（ヘッダの無い画面）でも `--floating` がヘッダぶん下がる
 
@@ -112,6 +120,7 @@ reviewer: ui / comment / architecture
   `FolderSelect` の見出しに正面から重なる。
 - 同じ状況を `NotificationLayer.scss` は「**帯が無い画面でもこのぶんを空ける**」と明記して受け入れているのに、
   こちらの根拠には断りが無く「ヘッダは常に在る」と読める。
+- 結果: 対応済み `e245c7e5` — 避けるのは帯だけにした。`/` でもヘッダぶん下がらない
 
 ### [MEDIUM] r4-10 `--floating` の「避けるもの」の根拠が2つ成り立たない
 
@@ -122,6 +131,7 @@ reviewer: comment
   `updateParams` は必ず `navigate` する。畳まれている間も生きている導線が最低3つある
   （解析ペインのヘッダ、ツリーの行の操作、盤の向きのトグル）。
 - (2) もう一方の利用者（更新の知らせ）には `resetKeys` 自体が無いので「この箱を消す鍵」が存在しない。
+- 結果: 対応済み `e245c7e5` — 「唯一の導線」を落とし、避けるものの列挙を実態に合わせた
 
 ### [MEDIUM] r4-11 `location.key` を見るテストが1本も無い。鍵の主役を落としても全テストが緑
 
@@ -133,6 +143,7 @@ reviewer: react
   つまりこの2本は `conflict` の変化だけを検証している。
 - r3-10 の核心は「鍵を `location.key` に寄せる」ことだったのに、`key` を落とす変異はどのテストも赤くしない
   （他の3本は層ごとモックしている）。**r3-11 が `conflict` について塞いだ穴が、より効いている側に残っている。**
+- 結果: 対応済み `2ca5054d` — 実際に `navigate` するテストを足した（鍵から `location.key` を落とす変異で落ちることを確認）
 
 ### [MEDIUM] r4-12 `AppModalLayer.test.tsx` の `stub.conflict` がリセットされず、テスト間で持ち越される
 
@@ -142,6 +153,7 @@ reviewer: react
 - `throwing.settings` は `afterEach`、2つの `vi.fn()` は `beforeEach` で戻るのに、`stub.conflict` はどちらにも無い。
 - `stub.conflict` は**この PR が `resetKeys` に入れた値そのもの**で、持ち越しが「いま検証している機構の入力」に
   直接入る。`.only` を付ける・順序を変えるだけで描いている木が変わる。
+- 結果: 対応済み `2ca5054d` — 可変の模擬状態を `beforeEach` の1箇所に揃えた
 
 ### [MEDIUM] r4-13 `AppErrorFallbackAction` が「ログに残す」と書いているが、同じファイルがそのログは読めないと書いている
 
@@ -152,6 +164,7 @@ reviewer: react
   自分で try/catch して `closeFailed` を立てているからで、部品側の catch は効いていない。
 - 次の呼び出し側が部品側の握りを頼りにすると、**押しても何も起きないボタン**が戻る。
   しかも `run` が rejection を飲むので、呼び出し側が後から気づく手段も無い。
+- 結果: 対応済み `0623e6bf` — 「利用者には届かない。画面に出すのは呼び出し側の責任」に書き下げた
 
 ### [MEDIUM] r4-14 `shared/ui` の汎用部品が、`pages` 層のレイアウトの段の高さから自分の位置を決めている
 
@@ -163,6 +176,7 @@ reviewer: architecture
   より強い形の同じ結合を入れている** —— 箱の位置が `.app-layout`（pages）の1段目の高さと、
   `AppLayoutHeader`（widgets）のアイコンの並びを前提にしている。
 - 逆向きに、`.app-layout` の段構成を変えた人は `shared/ui` の SCSS を直す必要があることに気づけない。
+- 結果: 対応済み `e245c7e5` — `shared/ui` から `$app-header-height` への参照を落とした
 
 ### [MEDIUM] r4-15 同じ prop の doc が3ファイル10箇所に手書きで写されている
 
@@ -171,6 +185,7 @@ reviewer: architecture
 - 場所: `AppErrorBoundary` の `Props` / `AppErrorFallbackBody` の引数 / `RootErrorFallback` の `Props`
 - `label` / `hint` / `floating` / `error` / `reset` の5概念が3箇所に別々の日本語で置かれている。
   **仮定ではなく既に起きていて、r4-03 と r4-05 はどちらもこの写しの片側だけが動いた形。**
+- 結果: 対応済み `e245c7e5` — `AppErrorFallbackView` に1本化し、本文と `RootErrorFallback` はそこから導く
 
 ### [MEDIUM] r4-16 モーダル層を壊す条件が、その条件を破れる唯一のファイル以外の3箇所に書かれている
 
@@ -181,6 +196,7 @@ reviewer: architecture
 - 10枚目のモーダルを足す人が編集するのは `ModalLayerContent` で、そこにあるのは
   行き先を書いていない「置く側が持つ」の一行だけ。
 - 条件を破っても、`.app-layout` の段が実際に食われるかを見ているテストは1本も無い。
+- 結果: 対応済み `5a931d03` — 条件を `ModalLayerContent` の直上へ移し、置く側からは1行で指す
 
 ### [MEDIUM] r4-17 `system-dialogs.md` に、9枚を1枚の境界が畳むことが書かれていない
 
@@ -190,6 +206,7 @@ reviewer: robustness
 - 3つのペインの仕様書には「畳まれるのは〜だけ」が入ったのに、**いちばん粒度の粗い境界
   （1枚の事故で9枚が消える）を持つ画面の仕様書にだけ無い。**
 - r4-07 の症状（歯車を押しても設定が出ない）に当たったとき、既知の穴か新しい不具合か判別できない。
+- 結果: 対応済み `e044f16a` — 「9枚まとめて畳まれる」を `system-dialogs.md` に足した
 
 ### [MEDIUM] r4-18 ADR-0003 の「補間そのものは7箇所」を、隣の行を実測で更新した同じ PR が嘘にした
 
@@ -199,6 +216,7 @@ reviewer: oss-hygiene
 - 実測は **11行・17箇所**（`origin/main` は 8行・10箇所）。狂わせたのはこの PR 自身
   （`AppErrorBoundary.scss` の6箇所と `AppLayout.scss` の1箇所）。
 - 直前の行（35箇所・22ファイル）は測り直して測定日まで添えたのに、同じ箇条書きの次の行は測り直していない。
+- 結果: 対応済み `5a931d03` — 数を落として数え方だけ残した（実測は 17箇所・5ファイル）
 
 ### [MEDIUM] r4-19 通知の層（`NotificationLayer`）に境界が無い。失敗を出すための層が落ちると窓の中身が丸ごと差し替わる
 
@@ -209,6 +227,7 @@ reviewer: robustness
   `TitleBar` を含む窓の中身ぜんぶが `RootErrorFallback` に差し替わる。
 - **失敗を伝えるための層が、いちばん広い畳み方をする。** しかも `RootErrorFallback` は通知を使えないと
   明記されているので、この経路の失敗だけは通知の土台に載せ替えても届かない。
+- 結果: **見送り** → 既存の #512 へコメント。境界を1枚足す判断で、粒度を変えるかの判断に属する
 
 ### [MEDIUM] r4-20 リポジトリ入口の宿題5件（**#436 の範囲外**）
 
@@ -222,6 +241,7 @@ reviewer: oss-hygiene
   （`getVersion()` を呼ぶ経路が0件）
 - **`docs/spec/` が README からも CONTRIBUTING からも PR テンプレートからも1度も参照されていない。**
   README の画像3枚も 2026-02-27 のままで、ヘッダ右の「課題局面」が写っていない
+- 結果: **見送り** → 既存の #522 へコメント（4件）。#511 の本文の鍵の写しだけは落とした
 
 ## 重複・矛盾した所見
 
