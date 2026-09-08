@@ -21,7 +21,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
 
   const seqRef = useRef(0);
   const lastTriedRef = useRef<EngineRuntimeConfig | null>(null);
-  const startingRef = useRef(false);
+  const startingSeqRef = useRef<number | null>(null);
 
   const isReady =
     state.phase === "ready" &&
@@ -61,11 +61,16 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     // setup が2回走る回（StrictMode）には `initialize_start` を撃った後でも
     // `"idle"` のまま見え、2本目が通る。いま2プロセスにならないのは
     // `engineInitializer` 側が in-flight を畳んでいるからで、この門ではない。
-    if (startingRef.current) return false;
-    if (state.phase === "initializing") return false;
-    startingRef.current = true;
+    //
+    // **持つのは世代であって bool ではない。** 畳む側は飛んでいる起動を待ち切るとは
+    // 限らない（`api/initializer.ts` の `shutdown` は `await` の前に `inFlight` を
+    // 空けるので、2本目は待たずに戻る）。bool だと、その回に降ろす者が居ないまま
+    // `phase` が `idle` へ落ち、**エンジンが二度と起動しない**——しかもそのときの理由は
+    // `starting`（戻る側）なので、解析は誰にも断たれずに回り続ける。
+    if (startingSeqRef.current !== null) return false;
 
     const mySeq = ++seqRef.current;
+    startingSeqRef.current = mySeq;
 
     const snap: EngineRuntimeConfig =
       typeof structuredClone === "function"
@@ -96,12 +101,16 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       });
       return false;
     } finally {
-      startingRef.current = false;
+      // 畳まれて世代が上がっていたら、門を握っているのはもう自分ではない。
+      if (startingSeqRef.current === mySeq) startingSeqRef.current = null;
     }
-  }, [desiredRuntime, state.phase]);
+  }, [desiredRuntime]);
 
   const shutdown = useCallback(async (): Promise<void> => {
     seqRef.current++;
+    // **世代を上げたら門も落とす。** ここを飛ばすと、飛んでいる起動が返らない限り
+    // 次の `initialize` が撃てない（上の門の TSDoc）。
+    startingSeqRef.current = null;
     try {
       await engineInitializer.shutdown();
     } finally {
