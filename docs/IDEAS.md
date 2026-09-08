@@ -202,3 +202,19 @@ clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
 「▶ を押しても何も起きない」の手掛かりが1つも無くなる**（`useEngineSeat` の `shootQuietly`）。
 
 出どころ: #502 のレビュー ラウンド1（robustness が範囲外として記録）。
+
+## `engineKey` という名前が、2つのスライスで別の式に束縛されている
+
+- `features/engine-position-sync` の `engineKey` は `` `${selectedPresetId}@${selectedPresetVersion}` ``
+  ——**送信済み局面の記録**を捨てる鍵。中身が変わった回に外したい
+- `widgets/analysis-pane` の `engineKey` は `selectedPresetId` だけ
+  ——**候補手のキャッシュ**の鍵。version を含まないので、オプションを変えただけでは外れない
+
+同じ名前で別の粒度なので、「`engineKey` が動けばキャッシュが外れる」と読んだ人が
+両方に当てはめる（実際、#502 のレビューでその形のコメントを1本書いて指摘された）。
+
+**判断: 6週間以内に着手しない。** 利用者に見える不具合ではなく、改名は2スライスに跨る。
+着手するなら `syncKey` / `presetKey` のように**鍵ごとに違う名前**へ。正は
+「同じ名前が別の式に束縛されていないこと」で、どちらを改名するかは問わない。
+
+出どころ: #502 のレビュー ラウンド4（comment）。
