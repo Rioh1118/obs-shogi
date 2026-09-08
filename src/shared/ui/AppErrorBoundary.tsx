@@ -68,7 +68,8 @@ type State = {
    * `throw` される値は `Error` とは限らず、`undefined` / `null` / `""` / `0` / `false` もありうる。
    * 値を旗に兼ねると falsy な例外で `render` が `children` を描き直し、React はそれを
    * 「境界が処理できなかった」と見なして1つ外へ流す。境界は全部この class なので、
-   * **7枚とも素通りして root ごと unmount する** —— この部品が消しに来た状態そのものになる。
+   * **入れ子の何枚目でも同じ経路で素通りし、root ごと unmount する** ——
+   * この部品が消しに来た状態そのものになる。
    */
   caught: boolean;
   /** 投げられた値。`caught` が偽のときは見ない */
