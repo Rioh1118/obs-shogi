@@ -52,7 +52,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 
 - 見るファイルの具体的な一覧
 - この変更が何をしようとしているかの1〜2行
-- **`.claude/knowledge/mechanization-backlog.md` の「機械では止まらないもの」の5類型。
+- **`.claude/knowledge/mechanization-backlog.md` の「機械では止まらないもの」。
   そこだけを見させる。** 機械が既に見ている範囲の所見は雑音
 
 ## 手順3: 振り分ける（この skill の中心）
