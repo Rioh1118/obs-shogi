@@ -9,7 +9,8 @@ import { identifiersIn, missingIdentifiers } from "./docsIdentifiers";
  * `src/` のコメントがバッククォートで指す識別子が、ソースに実在するかを見る。
  *
  * **同じ形の検査が3つある。** Rust のコメントは `comment_identifiers`
- * （`src-tauri/tests/`）、`docs/**` は `docsIdentifiers`、`src/**` の TS コメントはここ。この穴に落ちた腐りは、**コメントが「なぜこう書くか」の根拠として
+ * （`src-tauri/tests/`）、doc は `docsIdentifiers`（範囲は `docsSourcePaths.ts` の
+ * `scannedDocs`）、`src/**` の TS コメントはここ。この穴に落ちた腐りは、**コメントが「なぜこう書くか」の根拠として
  * 名指した関数が消えている**という形で出る——読み手はその名前を grep して
  * 空振りし、根拠を確かめられないまま「たぶん古い注意書きだろう」と判断する。
  * 消したはずの条件をもう一度書く番になったとき、止める者が居ない。

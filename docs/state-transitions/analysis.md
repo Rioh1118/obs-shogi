@@ -1,6 +1,6 @@
 # 状態遷移表: analysis（L1）
 
-対象: `src/entities/analysis/model/provider.tsx` と `useEngineSeat.ts`、
+対象: `src/entities/analysis/model/provider.tsx` と `useEngineSeat.ts` / `useResultFlush.ts`、
 Rust 側 `src-tauri/src/engine/bridge.rs`。
 
 上位は [app.md](app.md)。エンジンプロセスの生死は [engine.md](engine.md)、
@@ -129,7 +129,8 @@ E2 の欄は、それでも `stopAnalysis()` が呼ばれたときに何が起�
 **戻ってくる回は張り直す**（下の段）。**戻ってこない回は断りも出ない** → #502
 
 **起こし直しの窓では、断りは `starting` を選ぶ**（`EngineNotReadyReason`）。
-`phase` は `ready` のままなので、`phase` だけで割ると「選んでください」に落ちる。
+起こし直しは `ready → idle → initializing` と動くので、`phase` で割ると `idle` の枝を
+書き落として「選んでください」に落ちる。
 
 **解析は落ちた回に投げ済みの印を捨てる**ので、戻ってきた回に同じ局面へ張り直す
 （`provider.tsx`。Rust は畳む前に席を全部空けるので、こちらの欄も撃たずに空ける）。
@@ -276,8 +277,8 @@ readiness で割る**——戻っていれば `ENGINE_RESTARTED_MESSAGE`、ま�
 | `STOP_FAILED_MESSAGE`           | ■ が届かなかった（→ ※7 / F-7）                                                    | まず ▶（同じ席を止め直してから始める） |
 | `RESTART_FAILED_MESSAGE`        | 自動再開が落ちた（→ `(S4/S5, E10/E11)`。`(S3, E5/E11)` の打ち切りは上限切れの枝）。**起こし直しの窓は含まない** → ※13 | まず ▶。それでも駄目なら起こし直す     |
 | `ENGINE_STARTING_MESSAGE`       | エンジンの起動待ちに ▶ を押した／席を取る往復の最中に起こし直され、**まだ戻っていない**（→ ※13） | 待ってからもう一度 ▶                   |
-| `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）                                             | 起こし直す                             |
-| `NO_ENGINE_SELECTED_MESSAGE`    | エンジンを選んでいない                                                            | 設定でエンジンを選ぶ                   |
+| `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）。**同期待ちの最中／席を取る往復の最中に、起こし直しが失敗した回もここ**（→ ※13） | 起こし直す                             |
+| `NO_ENGINE_SELECTED_MESSAGE`    | エンジンを選んでいない。**待っている間に選択が外れた回もここ**（→ ※13）           | 設定でエンジンを選ぶ                   |
 | `ENGINE_ERROR_MESSAGE`          | E9 のエラー通知。**いま踏めない**                                                 | 起こし直す                             |
 | `LISTENERS_FAILED_MESSAGE`      | 結果の購読に失敗した（E12 → F-4）／**以後の ▶ すべて**                            | アプリを起動し直す（張り直す口が無い） |
 

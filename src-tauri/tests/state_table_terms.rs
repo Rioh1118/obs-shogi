@@ -93,7 +93,7 @@ const NOT_IDENTIFIERS: &[&str] = &[
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
     "DEPTH_NONE",
-    // このリポジトリの TS 側の定数（`entities/analysis` の provider）。
+    // このリポジトリの TS 側の定数（`src/entities/analysis/model/useResultFlush.ts`）。
     // 表はそれを「間引きは受け手側にある」の出典として引いている
     "RESULT_FLUSH_MS",
     // やねうら王の定跡フォーマットの見出し。文字列であって定数名ではない

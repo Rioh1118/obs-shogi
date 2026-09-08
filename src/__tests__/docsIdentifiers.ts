@@ -10,8 +10,9 @@ const HOOKS = join(REPO_ROOT, ".claude/hooks");
  * バッククォートが指す**識別子**が実在するかを見る判定の本体。
  * パスを見る `docsSourcePaths.ts` の隣。あちらはファイル、こちらは名前。
  *
- * **走査範囲は持たない。** 渡す側が決める——`docs/**` は `docsIdentifiers.test.ts`、
- * `src/**` の TS コメントは `srcCommentIdentifiers.test.ts`。
+ * **走査範囲は持たない。** 渡す側が決める——doc は `docsIdentifiers.test.ts`
+ * （範囲は `docsSourcePaths.ts` の `scannedDocs`）、`src/**` の TS コメントは
+ * `srcCommentIdentifiers.test.ts`。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
@@ -34,14 +35,13 @@ const IDENTIFIER =
  *
  * 増やすときは**なぜソースに無くてよいか**を1件ずつ書くこと。
  * 説明を書けないなら、それは腐った doc であって除外の対象ではない。
- */
-/**
- * **走査範囲は4つ、免除のリストは3つ。** ここは `docs/**` のバッククォート**と
- * `src/**` の TS コメント**（`srcCommentIdentifiers` がこのリストごと借りる）。
+ *
+ * **走査範囲は4つ、免除のリストは3つ。** ここは **`scannedDocs` が返す doc** の
+ * バッククォート**と `src/**` の TS コメント**（`srcCommentIdentifiers` がこのリストごと借りる）。
  * `state_table_terms.rs` の `NOT_IDENTIFIERS` は状態遷移表の表本体、
  * `comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
  *
- * **`docs/**` と `src/**` のコメントは同じリストを共有する。** 片方の都合で1件足すと、
+ * **doc と `src/**` のコメントは同じリストを共有する。** 片方の都合で1件足すと、
  * もう片方でもその綴りが二度と検査されない——**検査の名前をここに足さないこと**。
  * コメントから検査を指したいならパスで書く（`src/__tests__/foo.test.ts`）。
  *
