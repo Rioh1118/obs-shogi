@@ -311,3 +311,31 @@ IPC 型を編集することになり、その同期漏れを捕まえるため�
 `SeatReleasePoint` / `setupAnalysisEventListeners`）を `entities/analysis/api/` へ
 移せば、同スライスに閉じて仕掛けを落とせる。呼び手は `entities/analysis` の2ファイルだけ。
 **#524（席を取る口が3つ）と同じ回に決めるのが安い。**
+
+## 畳まれたかの合図を `Notify` から `CancellationToken` に替える
+
+`.claude/reviews/2026-09-09-441-unmount-session-r33.md`（rust reviewer）。
+`EngineAnalyzer::infinite_settled` は `Arc<Notify>` で、`notify_one` が
+**待ち手が居なければ permit を1つ貯める**という性質に乗っている。
+停止が2本同時に来ると片方が permit を取り、もう片方は上限まで待って諦める——
+どちらも「畳まれた」を見たはずなのに、結末が呼ぶ順で変わる。
+
+`CancellationToken` なら「一度倒れたら、以後の待ち手は全員すぐ通る」ので、
+何本来ても同じ結末になる。`tokio-util` は既に依存に在る（`Cargo.toml`）ので
+足すものは無い。
+
+替えるかは**合図の型の設計判断**なので、#441 の PR には混ぜない。
+現状でも実害は出ていない（停止を2本同時に撃つ口が無い）が、口が増えたら踏む。
+
+## `useEngineSeat` から、席を返す枠の管理を割る
+
+`.claude/reviews/2026-09-09-441-unmount-session-r33.md`（architecture reviewer）。
+このフックは2つのことをしている——**席を取る/手放す**（`beginTake` /
+`keepOrForget` / `shoot`）と、**返却を1本ずつに並べる枠**（`holdSlot` /
+`queueBehind` / `foldIntoSlot` / `sweepOnUnmount`）。後者は前者を知らなくても書ける。
+
+`useReleaseSlot` として割れば、枠側だけを単体で固定できる。いまは枠の振る舞いを
+見るテストが席の生死をぜんぶ組み立ててからでないと書けない。
+
+責務の割り方の判断であり、#441 の欠陥とは独立している。**同じ PR に混ぜると
+差分が読めなくなる**ので送る。
