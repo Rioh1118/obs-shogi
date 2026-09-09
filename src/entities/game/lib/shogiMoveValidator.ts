@@ -1,9 +1,9 @@
 import {
   wouldBeInCheckAfterMove,
-  canDropPieceAt,
   canPromote,
   mustPromote,
   getAllLegalMoves,
+  getLegalDrops,
 } from "./moveValidation";
 import type { MoveValidator } from "../model/moveValidator";
 import type { Color, Kind, Shogi } from "shogi.js";
@@ -30,10 +30,7 @@ export class ShogiMoveValidator implements MoveValidator {
     }
   }
 
-  /**
-   * 全ての合法手を取得
-   * utilsのgetAllLegalMovesを委譲
-   */
+  /** `color` は手番の側であること（前提は `moveValidation.ts` の `generateLegalMoves`） */
   getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
     return getAllLegalMoves(shogi, color);
   }
@@ -51,22 +48,14 @@ export class ShogiMoveValidator implements MoveValidator {
   }
 
   /**
-   * 指定した駒種の駒打ち合法手取得
-   * shogi.getDropsBy()を使用 + 駒種フィルタ + 制約チェック + 王手放置チェック
+   * 指定した駒種の駒打ち合法手取得。
+   *
+   * **自分で条件を並べ直さないこと。** 同じ規則を2箇所に書いていた頃、
+   * 数え上げの順序を直した修正が片方にしか入らず、盤が通るこちら側だけが
+   * 遅いまま残った（`filterLegalDrops` の doc）
    */
   getLegalDropsByKind(shogi: Shogi, color: Color, kind: Kind): ShogiMove[] {
-    const hands = shogi.getHandsSummary(color);
-    const pieceCount = hands[kind as keyof typeof hands] || 0;
-    if (pieceCount == 0) return [];
-
-    // 全ての駒打ち手を取得
-    const allDrops = shogi.getDropsBy(color);
-
-    // 指定駒種でフィルタ + 制約チェック + 王手放置チェック
-    return allDrops
-      .filter((move) => move.kind === kind)
-      .filter((move) => canDropPieceAt(shogi, kind, move.to.x, move.to.y, color))
-      .filter((move) => !wouldBeInCheckAfterMove(shogi, move));
+    return getLegalDrops(shogi, color, kind);
   }
 
   /**

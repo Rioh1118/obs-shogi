@@ -90,15 +90,12 @@ export function canDropKy(_x: number, y: number, color: Color): boolean {
 }
 
 /**
- * 駒種別の駒打ちチェック
+ * 駒種別の駒打ちチェック。
+ *
+ * **公開しない。** 駒打ちの合否を組み立てる口は `filterLegalDrops` の1つだけで、
+ * ここを外から呼べると、王手放置より先に打ち歩詰めを見る形が別の場所で復活する
  */
-export function canDropPieceAt(
-  shogi: Shogi,
-  kind: Kind,
-  x: number,
-  y: number,
-  color: Color,
-): boolean {
+function canDropPieceAt(shogi: Shogi, kind: Kind, x: number, y: number, color: Color): boolean {
   switch (kind) {
     case "FU":
       return canDropFu(shogi, x, y, color);
@@ -242,22 +239,46 @@ function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
   const allDrops = shogi.getDropsBy(color);
   for (const kind of kinds) {
     if (hands[kind] === 0) continue;
-    for (const move of allDrops) {
-      if (move.kind !== kind) continue;
-      // **`wouldBeInCheckAfterMove` を先に見る。** 積の条件なので結果は変わらないが、
-      // `canDropPieceAt` は歩について `isUchifudume` を通り、その中で相手の合法手を
-      // また数え上げる。王手放置で落ちる歩打ちにその値段を払うと、双方が歩を2枚持つ
-      // 詰み形で1分を超える（実測 66 秒 → 1ms 未満）
-      if (wouldBeInCheckAfterMove(shogi, move)) continue;
-      if (!canDropPieceAt(shogi, kind, move.to.x, move.to.y, color)) continue;
-      yield move;
-    }
+    yield* filterLegalDrops(shogi, color, kind, allDrops);
+  }
+}
+
+/**
+ * `allDrops` のうち `kind` の合法な駒打ちを返す。
+ *
+ * **駒打ちの合否を決めるのはこの関数だけ。** 同じ条件を2箇所に書くと、
+ * 片方だけ順序や条件が変わっても両方緑のまま通る（実際に
+ * `ShogiMoveValidator.getLegalDropsByKind` が同じ規則の写しを持っていた）。
+ *
+ * **`wouldBeInCheckAfterMove` を先に見る。** 積の条件なので結果は変わらないが、
+ * `canDropPieceAt` は歩について `isUchifudume` を通り、その中で相手の合法手を
+ * また数え上げる。王手放置で落ちる歩打ちにその値段を払うと、双方が歩を2枚持つ
+ * 詰み形で1分を超える（実測 66 秒 → 1ms 未満）。
+ */
+function* filterLegalDrops(
+  shogi: Shogi,
+  color: Color,
+  kind: Kind,
+  allDrops: ShogiMove[],
+): Generator<ShogiMove> {
+  for (const move of allDrops) {
+    if (move.kind !== kind) continue;
+    if (wouldBeInCheckAfterMove(shogi, move)) continue;
+    if (!canDropPieceAt(shogi, kind, move.to.x, move.to.y, color)) continue;
+    yield move;
   }
 }
 
 /** 手番側（`color`）の合法手を全部取得する。前提は `generateLegalMoves` と同じ */
 export function getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
   return [...generateLegalMoves(shogi, color)];
+}
+
+/** 手番側（`color`）が `kind` を打てる合法手。前提は `generateLegalMoves` と同じ */
+export function getLegalDrops(shogi: Shogi, color: Color, kind: Kind): ShogiMove[] {
+  const hands = shogi.getHandsSummary(color);
+  if ((hands[kind as keyof typeof hands] || 0) === 0) return [];
+  return [...filterLegalDrops(shogi, color, kind, shogi.getDropsBy(color))];
 }
 
 /**
