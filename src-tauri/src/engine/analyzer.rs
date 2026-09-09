@@ -334,9 +334,6 @@ impl EngineAnalyzer {
         let stop_flag = Arc::new(AtomicBool::new(false));
         *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
 
-        let settled = Arc::new(tokio::sync::Notify::new());
-        *self.infinite_settled.lock().await = Some(Arc::clone(&settled));
-
         let protocol = self.protocol().await?;
 
         // channel
@@ -392,6 +389,15 @@ impl EngineAnalyzer {
             "analysis.infinite.started listener_id={}",
             listener_id
         );
+
+        // **合図を立てるのは、鳴らす者を起こす直前。** ここより前に立てると、
+        // `protocol()` / `register_listener` / `send_command` が落ちた回に
+        // **誰も鳴らさない合図**が欄に残る。残ると、以後の停止が
+        // `ANALYSIS_STOP_GRACE` を待ち切って事実でない warn を出し、
+        // しかも `wait_until_settled` は諦めた回に空けないので**停止では二度と外せない**。
+        // `send_command` は線が健全なままでも落ちうる（積み置きが満杯の回）。
+        let settled = Arc::new(tokio::sync::Notify::new());
+        *self.infinite_settled.lock().await = Some(Arc::clone(&settled));
 
         // 結果処理タスク
         let state_clone = Arc::clone(&self.state);
@@ -591,8 +597,12 @@ impl EngineAnalyzer {
     /// 超えても進む。ここで返らないと `stop_analysis` が返らず、
     /// 停止ボタンも棋譜を閉じる操作も固まる。畳めていないまま次の `go` を
     /// 出すことになるが、待ち続けて操作を失うよりましだという判断。
+    ///
+    /// **待つだけではない——畳まれたと分かった回は合図を消費する**
+    /// （自分が待った1本に限る。待っている間に次の解析が別の合図を立てている）。
+    /// したがって1本の探索に対して待つのは1回きりで、2回目は即座に返る。
+    /// **上限に当たった回は残す**——まだ畳まれていないので、次の停止が待ち直せる。
     async fn wait_until_settled(&self) {
-        // **読むだけ。空けるのは畳まれたと分かってから。**
         let Some(settled) = self.infinite_settled.lock().await.clone() else {
             return;
         };
@@ -606,17 +616,11 @@ impl EngineAnalyzer {
                 "stop_analysis: no bestmove within {ANALYSIS_STOP_GRACE:?}; the engine may still be searching"
             );
 
-            // **諦めた回は残す。** まだ畳まれていないので、次の停止が待ち直す相手が要る。
             return;
         }
 
-        // 畳まれた。この1本にはもう待つ相手が居ないので空ける——**読むだけにすると、
-        // 畳まれた後の停止まで鳴る当てのない `Notify` を上限いっぱい待つ**。
-        // 起こし直し（設定でオプションを変えて保存）は必ずこの経路を通るので、
-        // 毎回そのぶん固まり、しかも事実でない warn がログに残る。
-        //
-        // **同じ合図のときだけ空ける。** 待っている間に次の解析が別の合図を立てている
-        // ことがあり、それを空けると新しい解析の待ち相手を消す。
+        // 空けないと、畳まれた後の停止まで上限いっぱい待つ——起こし直し
+        // （設定でオプションを変えて保存）は必ずこの経路を通るので毎回そのぶん固まる。
         let mut current = self.infinite_settled.lock().await;
         if current.as_ref().is_some_and(|c| Arc::ptr_eq(c, &settled)) {
             *current = None;

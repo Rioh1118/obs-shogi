@@ -77,6 +77,26 @@ fn new_session_id(session_type: &SessionType) -> String {
     format!("{}_{}", prefix, uuid::Uuid::new_v4())
 }
 
+/// 停止を受け取ったことを記録する1行。
+///
+/// **フロントから来た綴りを、そのままログへ流さない。** `session_id` も `by` も
+/// 同じ `invoke` の引数で、産地は webview。改行を通すとその後ろに好きなログ行を作れ、
+/// 長さの上限が無いと1回の呼びで `LOG_FILE_BUDGET` を何周もできる——
+/// **席が在ったのかどうかを後から言える記録**を、その1本で流し切れる。
+///
+/// **潰すのは載せる値だけ。** 照合（`sessions.remove`）には生の `session_id` を渡すこと
+/// ——文字数で切るので、上限より長い ID を先に潰すと照合が永久に外れる。
+///
+/// **行を組むのはこの関数だけ。** テストがここを通らないと、入口の潰しを外す変異が
+/// 素通りする（`engine::registry` の `spawn_ok_line` と同じ形）。
+fn stop_start_line(session_id: &str, by: &str) -> String {
+    format!(
+        "stop_session: start session_id='{}' by='{}'",
+        shown(session_id, MAX_SUMMARY_LEN),
+        shown(by, MAX_SUMMARY_LEN)
+    )
+}
+
 impl EngineBridge {
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
@@ -419,13 +439,7 @@ impl EngineBridge {
     ) -> Result<(), String> {
         // 呼び手が名乗らなかったときの既定。**名乗った回と区別できるようにしておく。**
         //
-        // **フロントから来た綴りをそのままログへ流さない。** 改行を通すと、その後ろに
-        // 好きなログ行を作れるうえ、長さの上限が無いので1回の `invoke` で
-        // `LOG_FILE_BUDGET` を何周もできる——**#441 の再発を追う唯一の記録**
-        // （席が在ったのかどうか）を、その1本で流し切れる。
-        // 型はフロント側で閉じているが（`SeatReleasePoint`）、IPC の境界は素の文字列。
-        let by = shown(by.as_deref().unwrap_or("unnamed"), MAX_SUMMARY_LEN);
-        let by = by.as_str();
+        let by = by.as_deref().unwrap_or("unnamed");
 
         if let Some(id) = session_id {
             self.stop_session(&id, by).await
@@ -510,12 +524,7 @@ impl EngineBridge {
     // ===  session === //
 
     async fn stop_session(&self, session_id: &str, by: &str) -> Result<(), String> {
-        log::info!(
-            target: LOGT,
-            "stop_session: start session_id={} by={}",
-            session_id,
-            by
-        );
+        log::info!(target: LOGT, "{}", stop_start_line(session_id, by));
 
         // **他人のセッションは止めない。** `session_id` はフロントから来る任意の文字列で、
         // フロントはエラーの後も `sessionId` を握り続ける
@@ -534,12 +543,23 @@ impl EngineBridge {
             match sessions.remove(session_id) {
                 Some(_) => {}
                 None if sessions.is_empty() => {
-                    log::debug!(target: LOGT, "stop_session: already gone id={session_id}");
+                    log::debug!(
+                        target: LOGT,
+                        "stop_session: already gone id='{}'",
+                        shown(session_id, MAX_SUMMARY_LEN)
+                    );
                 }
                 // 別のセッションが走っている。撃った側のものではないので触らない
                 None => {
-                    log::warn!(target: LOGT, "stop_session: not the running one id={session_id}");
-                    return Err(format!("unknown analysis session: {session_id}"));
+                    log::warn!(
+                        target: LOGT,
+                        "stop_session: not the running one id='{}'",
+                        shown(session_id, MAX_SUMMARY_LEN)
+                    );
+                    return Err(format!(
+                        "unknown analysis session: {}",
+                        shown(session_id, MAX_SUMMARY_LEN)
+                    ));
                 }
             }
         }
@@ -549,7 +569,11 @@ impl EngineBridge {
             format!("Failed to stop analysis: {e}")
         })?;
 
-        log::info!(target: LOGT, "stop_session: ok session_id={}", session_id);
+        log::info!(
+            target: LOGT,
+            "stop_session: ok session_id='{}'",
+            shown(session_id, MAX_SUMMARY_LEN)
+        );
         Ok(())
     }
 
@@ -661,21 +685,31 @@ mod tests {
 
         // 潰されず（制御文字ではない）、UTF-8 でいちばん重い4バイト文字
         let heavy = "\u{10ffff}".repeat(LOG_FILE_BUDGET as usize / 4);
-        let forged = format!("unmount\n{}", "[ERROR] forged",);
+        let forged = "unmount\n[ERROR] forged";
 
-        for raw in [heavy.as_str(), forged.as_str()] {
-            let by = shown(raw, MAX_SUMMARY_LEN);
-
-            assert!(
-                !by.contains('\n'),
-                "改行が通っている。偽のログ行を1本作れる: {by:.40}"
-            );
-            assert!(
-                by.len() as u128 * SHARE <= LOG_FILE_BUDGET,
-                "1回の停止が予算の1/{SHARE} を超える（{} バイト）",
-                by.len()
-            );
+        // **本番が組む行そのものを測る。** `shown` を直に呼ぶと、入口の潰しを
+        // 外す変異が素通りする（`engine::registry` の兄弟と同じ形）。
+        for raw in [heavy.as_str(), forged] {
+            for line in [stop_start_line(raw, "unmount"), stop_start_line("s1", raw)] {
+                assert!(
+                    !line.contains('\n'),
+                    "改行が通っている。偽のログ行を1本作れる: {line:.40}"
+                );
+                assert!(
+                    line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+                    "1回の停止が予算の1/{SHARE} を超える（{} バイト）",
+                    line.len()
+                );
+            }
         }
+
+        // **実在する `session_id` が切れないこと**（＝上限の下側）。切れると、
+        // どの席を止めたのかがログから読めなくなる。
+        let real = new_session_id(&SessionType::Depth(u32::MAX));
+        assert!(
+            !stop_start_line(&real, "unmount").contains('…'),
+            "実在する session_id が切れている: {real}"
+        );
     }
 
     /// 起こし直しが、残っている席を捨てること。
