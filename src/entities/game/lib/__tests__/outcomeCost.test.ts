@@ -15,7 +15,6 @@
  * この2本のどちらかで `npm run test` が止まったら、それがこの検査の赤である。
  */
 import { describe, expect, test } from "vitest";
-import { Color } from "shogi.js";
 
 import { judgeGameOutcome } from "../gameOutcome";
 import type { GameRules } from "../gameRules";
@@ -58,7 +57,7 @@ describe("judgeGameOutcome の値段", () => {
       );
       expect(result).toEqual({
         success: true,
-        data: { kind: "checkmate", winner: Color.Black },
+        data: { kind: "checkmate", winner: "black" },
       });
     });
     expect(elapsed).toBeLessThan(2000);

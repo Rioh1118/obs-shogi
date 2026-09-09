@@ -1,5 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { Color } from "shogi.js";
 
 import {
   judgeGameOutcome,
@@ -27,9 +26,11 @@ const BEFORE_STALEMATE = "k8/2G6/9/1S7/9/9/9/9/4K4 b - 1";
 const TWO_KINGS = "4k4/9/9/9/9/9/9/9/4K4 b - 1";
 const KING_SHUFFLE = ["5i4i", "5a4a", "4i5i", "4a5a"];
 
-/** 先手飛9三。9一へ寄って王手を掛け、以後は9一と9二を往復して掛け続ける */
-const BEFORE_PERPETUAL_CHECK = "8k/9/R8/9/9/9/9/9/4K4 b - 1";
+/** 先手飛9三。9一と9二を往復すると、先手の手が毎回王手になる */
+const ROOK_AND_KING = "8k/9/R8/9/9/9/9/9/4K4 b - 1";
 const PERPETUAL_CHECK_CYCLE = ["1a1b", "9a9b", "1b1a", "9b9a"];
+/** 同じ往復でも、飛が9三へ戻る形では先手の手の半分が王手にならない */
+const HALF_CHECK_CYCLE = ["9c9a", "1a1b", "9a9c", "1b1a"];
 
 /** 先手玉5二。5一へ上がるとトライが成立する */
 const BEFORE_TRY = "9/4K4/9/9/9/9/9/9/k8 b - 1";
@@ -52,42 +53,60 @@ describe("judgeGameOutcome", () => {
   test("詰み", () => {
     expect(judge({ startSfen: BEFORE_CHECKMATE, usiMoves: ["6c5b"] })).toEqual({
       kind: "checkmate",
-      winner: Color.Black,
+      winner: "black",
     });
   });
 
   test("合法手が無く王手でもなければ手詰まり", () => {
     expect(judge({ startSfen: BEFORE_STALEMATE, usiMoves: ["8d8c"] })).toEqual({
       kind: "stalemate",
-      winner: Color.Black,
+      winner: "black",
     });
   });
 
-  test("同一局面が4回で千日手", () => {
-    expect(judge({ startSfen: TWO_KINGS, usiMoves: repeat(KING_SHUFFLE, 3) })).toEqual({
-      kind: "repetitionDraw",
-      winner: null,
+  describe("千日手", () => {
+    test("同一局面が4回で千日手", () => {
+      expect(judge({ startSfen: TWO_KINGS, usiMoves: repeat(KING_SHUFFLE, 3) })).toEqual({
+        kind: "repetitionDraw",
+        winner: null,
+      });
     });
-  });
 
-  test("同一局面が3回では終わらない", () => {
-    expect(judge({ startSfen: TWO_KINGS, usiMoves: repeat(KING_SHUFFLE, 2) })).toBeNull();
-  });
+    test("同一局面が3回では終わらない", () => {
+      expect(judge({ startSfen: TWO_KINGS, usiMoves: repeat(KING_SHUFFLE, 2) })).toBeNull();
+    });
 
-  test("連続王手の千日手は、王手を続けた側の負け", () => {
-    expect(
-      judge({
-        startSfen: BEFORE_PERPETUAL_CHECK,
-        usiMoves: ["9c9a", ...repeat(PERPETUAL_CHECK_CYCLE, 3)],
-      }),
-    ).toEqual({ kind: "perpetualCheck", winner: Color.White });
+    test("連続王手なら、王手を続けた側の負け", () => {
+      expect(
+        judge({
+          startSfen: ROOK_AND_KING,
+          usiMoves: ["9c9a", ...repeat(PERPETUAL_CHECK_CYCLE, 3)],
+        }),
+      ).toEqual({ kind: "perpetualCheck", winner: "white" });
+    });
+
+    test("王手が途切れていれば引き分け", () => {
+      expect(judge({ startSfen: ROOK_AND_KING, usiMoves: repeat(HALF_CHECK_CYCLE, 3) })).toEqual({
+        kind: "repetitionDraw",
+        winner: null,
+      });
+    });
+
+    test("最大手数より先に立つ", () => {
+      expect(
+        judge(
+          { startSfen: TWO_KINGS, usiMoves: repeat(KING_SHUFFLE, 3) },
+          { jishogiRule: "none", maxMoves: 12 },
+        ),
+      ).toEqual({ kind: "repetitionDraw", winner: null });
+    });
   });
 
   describe("トライルール", () => {
     test("設定が try なら、玉が相手玉の初期位置に着いた時点で勝ち", () => {
       expect(
         judge({ startSfen: BEFORE_TRY, usiMoves: ["5b5a"] }, { jishogiRule: "try", maxMoves: 0 }),
-      ).toEqual({ kind: "tryRule", winner: Color.Black });
+      ).toEqual({ kind: "tryRule", winner: "black" });
     });
 
     test("設定が try でなければ同じ局面でも終わらない", () => {
@@ -119,11 +138,11 @@ describe("judgeGameOutcome", () => {
       ).toBeNull();
     });
 
-    test("0 なら上限なし", () => {
+    test.each([[0], [-1], [Number.NaN]])("%p は上限なしとして扱う", (maxMoves) => {
       expect(
         judge(
           { startSfen: TWO_KINGS, usiMoves: KING_SHUFFLE.slice(0, 2) },
-          { jishogiRule: "none", maxMoves: 0 },
+          { jishogiRule: "none", maxMoves },
         ),
       ).toBeNull();
     });
@@ -134,7 +153,7 @@ describe("judgeGameOutcome", () => {
           { startSfen: BEFORE_CHECKMATE, usiMoves: ["6c5b"] },
           { ...DEFAULT_GAME_RULES, maxMoves: 1 },
         ),
-      ).toEqual({ kind: "checkmate", winner: Color.Black });
+      ).toEqual({ kind: "checkmate", winner: "black" });
     });
   });
 
@@ -147,11 +166,33 @@ describe("judgeGameOutcome", () => {
       });
     });
 
-    test("指せない手が混ざっている。何手目かを返す", () => {
-      const error: GameOutcomeFailure = { code: "unplayable_move", usiMove: "9i8i", ply: 2 };
+    test("指せない手が混ざっている。何手目と、その直前の局面を返す", () => {
+      const error: GameOutcomeFailure = {
+        code: "unplayable_move",
+        usiMove: "9i8i",
+        ply: 2,
+        sfen: "4k4/9/9/9/9/9/9/9/5K3 w - 1",
+      };
       expect(
         judgeGameOutcome({ startSfen: TWO_KINGS, usiMoves: ["5i4i", "9i8i"] }, NO_LIMIT),
       ).toEqual({ success: false, error });
+    });
+
+    test("綴りは読めるが指せない手でも、直前の局面を返す", () => {
+      // 玉が2マス動く手。駒はあるので `createMoveByUSI` は通り、合法手の検査で落ちる
+      const result = judgeGameOutcome({ startSfen: TWO_KINGS, usiMoves: ["5i3i"] }, NO_LIMIT);
+      expect(result).toEqual({
+        success: false,
+        error: { code: "unplayable_move", usiMove: "5i3i", ply: 1, sfen: TWO_KINGS },
+      });
+    });
+
+    test("USI の綴りに余りが付いていたら、読める分だけ採らずに断る", () => {
+      const result = judgeGameOutcome({ startSfen: TWO_KINGS, usiMoves: ["5i4i4i"] }, NO_LIMIT);
+      expect(result).toEqual({
+        success: false,
+        error: { code: "unplayable_move", usiMove: "5i4i4i", ply: 1, sfen: TWO_KINGS },
+      });
     });
   });
 });

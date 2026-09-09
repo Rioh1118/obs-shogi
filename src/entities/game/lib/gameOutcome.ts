@@ -20,10 +20,11 @@
 import { Color, Shogi } from "shogi.js";
 import { Position, Record as ShogiRecord } from "tsshogi";
 
+import type { Side } from "@/entities/game-session";
 import { Err, Ok, type Result } from "@/shared/lib/result";
 import type { GameRules } from "./gameRules";
 import { hasLegalMove } from "./moveValidation";
-import { fromTsColor, opponentOf } from "./ruleColor";
+import { fromTsColor, opponentOf, toSide } from "./ruleColor";
 
 /**
  * 終局の種別。**投了・時間切れ・中断は入らない**——それらは Rust が決めるので
@@ -50,19 +51,42 @@ export type GameOutcomeKind =
 
 export interface GameOutcome {
   kind: GameOutcomeKind;
-  /** 引き分けなら null */
-  winner: Color | null;
+  /**
+   * 引き分けなら null。**`endGameByRule` にそのまま渡せる形で返す。**
+   *
+   * shogi.js の `Color` で返さないのは `Color.Black` が `0` だから
+   * （`ruleColor.ts`）。`winner ? … : 引き分け` と書かれた瞬間に
+   * 先手勝ちが引き分けに潰れ、tsc は通してしまう
+   */
+  winner: Side | null;
 }
 
 /**
  * 局面を組み立てられなかった。**「まだ終わっていない」と混ぜないこと。**
  *
- * これが返ったら盤と Rust の指し手列が食い違っている。`continueGame` を返すと
- * Rust 側の検算で弾かれるので、対局を中断して利用者に見せるほかない。
+ * これが返ったら、渡された指し手列からいまの局面を再現できていない。
+ * `continueGame` を返しても Rust 側の検算で弾かれるので、対局を中断して
+ * 利用者に見せるほかない。
+ *
+ * **「その手が反則だった」の受け皿ではない。** 対局者が指した手の合法性は、
+ * 裁定に入る前に見るもの（`ShogiMoveValidator.isLegalMove`）。ここまで来た
+ * 反則手は、その検査を通していないか、通した検査と食い違ったかのどちらかで、
+ * **どちらも反則負けにはできない**——`GameOutcomeKind` に反則の種別が無いので、
+ * 誰の反則かをこの型は表せない。合法性の権威が2つに割れている件は #536。
  */
 export type GameOutcomeFailure =
   | { code: "unplayable_start_sfen"; startSfen: string }
-  | { code: "unplayable_move"; usiMove: string; ply: number };
+  | {
+      code: "unplayable_move";
+      usiMove: string;
+      ply: number;
+      /**
+       * その手を指す**直前**の局面。詰まった場所を盤に出すために持たせてある。
+       * これが無いと利用者へ言えるのは「N手目の xxxx が指せない」までで、
+       * どこまで進んでいたのかを見せられない
+       */
+      sfen: string;
+    };
 
 export interface GameProgress {
   /**
@@ -88,6 +112,15 @@ function isOnTrySquare(shogi: Shogi, color: Color): boolean {
   return !!piece && piece.color === color && piece.kind === "OU";
 }
 
+/**
+ * USI の指し手1つ。移動は `7g7f` / `2b3a+`、駒打ちは `P*5b`。
+ *
+ * **末尾まで見る。** `createMoveByUSI` は先頭から読める分だけ解釈して余りを捨てるので、
+ * `7g7f7f` のような綴りが `7g7f` として通る。指し手列の権威はこちら側なので、
+ * 通すと**盤は `7g7f` を、エンジンは元の文字列を**それぞれ解釈して別の局面を進む。
+ */
+const USI_MOVE = /^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$/;
+
 function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFailure> {
   const position = Position.newBySFEN(progress.startSfen);
   if (!position) {
@@ -98,10 +131,17 @@ function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFai
   // 途中までの棋譜を `Ok` として返すので、短い局面を「現在局面」と誤って裁定する
   const record = new ShogiRecord(position);
   for (const [index, usiMove] of progress.usiMoves.entries()) {
-    const move = record.position.createMoveByUSI(usiMove);
-    if (!move || !record.append(move)) {
-      return Err({ code: "unplayable_move", usiMove, ply: index + 1 });
+    const failure = { code: "unplayable_move", usiMove, ply: index + 1 } as const;
+    if (!USI_MOVE.test(usiMove)) {
+      return Err({ ...failure, sfen: record.position.sfen });
     }
+    const move = record.position.createMoveByUSI(usiMove);
+    if (!move) return Err({ ...failure, sfen: record.position.sfen });
+
+    // **`append` の前に控える。** 積んだ後では `record.position` が次の局面になり、
+    // 「その手を指す直前」を指せなくなる
+    const before = record.position.sfen;
+    if (!record.append(move)) return Err({ ...failure, sfen: before });
   }
   return Ok(record);
 }
@@ -128,12 +168,12 @@ export function judgeGameOutcome(
   if (!hasLegalMove(shogi, toMove)) {
     return Ok({
       kind: shogi.isCheck(toMove) ? "checkmate" : "stalemate",
-      winner: lastMover,
+      winner: toSide(lastMover),
     });
   }
 
   if (rules.jishogiRule === "try" && isOnTrySquare(shogi, lastMover)) {
-    return Ok({ kind: "tryRule", winner: lastMover });
+    return Ok({ kind: "tryRule", winner: toSide(lastMover) });
   }
 
   if (record.repetition) {
@@ -144,7 +184,7 @@ export function judgeGameOutcome(
     return Ok(
       checking === null
         ? { kind: "repetitionDraw", winner: null }
-        : { kind: "perpetualCheck", winner: opponentOf(fromTsColor(checking)) },
+        : { kind: "perpetualCheck", winner: toSide(opponentOf(fromTsColor(checking))) },
     );
   }
 

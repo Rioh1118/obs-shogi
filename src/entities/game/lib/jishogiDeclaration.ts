@@ -11,7 +11,6 @@
  * `GameOverReason::DeclareWin` として終局させ、こちら側に裁定を求めない
  * （`src-tauri/src/engine/game/session.rs` の `SearchOutcome::DeclareWin`）。
  */
-import type { Color } from "shogi.js";
 import {
   JishogiDeclarationResult,
   JishogiDeclarationRule,
@@ -19,9 +18,10 @@ import {
   judgeJishogiDeclaration,
 } from "tsshogi";
 
+import type { Side } from "@/entities/game-session";
 import { Err, Ok, type Result } from "@/shared/lib/result";
 import type { JishogiRule } from "./gameRules";
-import { toTsColor } from "./ruleColor";
+import { sideToTsColor } from "./ruleColor";
 
 /**
  * 宣言の結果。
@@ -38,7 +38,25 @@ export type DeclarationJudgment = "win" | "lose" | "draw" | "unavailable";
 export type DeclarationFailure = { code: "unplayable_sfen"; sfen: string };
 
 /**
- * `color` がこの局面で宣言したらどうなるかを返す。
+ * 設定を tsshogi の宣言規則へ移す。宣言を認めない設定なら `null`。
+ *
+ * **`switch` で書く。** `JishogiRule` に値を足したとき、三項の else 側に
+ * 吸われて黙って27点法になるのを tsc に止めさせるため
+ */
+function declarationRuleOf(rule: JishogiRule): JishogiDeclarationRule | null {
+  switch (rule) {
+    case "general24":
+      return JishogiDeclarationRule.GENERAL24;
+    case "general27":
+      return JishogiDeclarationRule.GENERAL27;
+    case "none":
+    case "try":
+      return null;
+  }
+}
+
+/**
+ * `side` がこの局面で宣言したらどうなるかを返す。
  *
  * 見る条件は入玉宣言法のうち盤から分かるものだけ——手番・玉が敵陣にいること・
  * 王手されていないこと・敵陣の駒が玉を除いて10枚以上・点数。
@@ -46,18 +64,16 @@ export type DeclarationFailure = { code: "unplayable_sfen"; sfen: string };
  */
 export function judgeDeclaration(
   sfen: string,
-  color: Color,
+  side: Side,
   rule: JishogiRule,
 ): Result<DeclarationJudgment, DeclarationFailure> {
-  if (rule === "none" || rule === "try") return Ok("unavailable");
+  const declarationRule = declarationRuleOf(rule);
+  if (declarationRule === null) return Ok("unavailable");
 
   const position = Position.newBySFEN(sfen);
   if (!position) return Err({ code: "unplayable_sfen", sfen });
 
-  const declarationRule =
-    rule === "general24" ? JishogiDeclarationRule.GENERAL24 : JishogiDeclarationRule.GENERAL27;
-
-  switch (judgeJishogiDeclaration(declarationRule, position, toTsColor(color))) {
+  switch (judgeJishogiDeclaration(declarationRule, position, sideToTsColor(side))) {
     case JishogiDeclarationResult.WIN:
       return Ok("win");
     case JishogiDeclarationResult.DRAW:

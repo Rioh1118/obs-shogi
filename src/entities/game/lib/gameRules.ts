@@ -21,7 +21,12 @@ export type JishogiRule = "none" | "general24" | "general27" | "try";
 export interface GameRules {
   jishogiRule: JishogiRule;
   /**
-   * この手数に達したら引き分けにする。**0 以下なら上限なし。**
+   * この手数に達したら引き分けにする。**正の有限値でなければ上限なし**
+   * （0・負数・`NaN` はどれも上限なしになる。`NaN > 0` が false なので同じ枝に落ちる）。
+   *
+   * **`judgeGameOutcome` はここを検証しない。** 値が壊れていることを理由に
+   * 裁定を断ると、設定の誤りで**進行中の対局が畳まれる**。妥当な値であることは
+   * 設定を作る側が見ること。
    *
    * 数えるのは根からの指し手の総数なので、途中局面から始めた対局では
    * `GameSettings.initialMoves` のぶんも含む（`continueGame` に渡す列の長さと同じ）。
