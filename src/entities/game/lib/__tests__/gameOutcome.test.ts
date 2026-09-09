@@ -34,6 +34,8 @@ const HALF_CHECK_CYCLE = ["9c9a", "1a1b", "9a9c", "1b1a"];
 
 /** 先手玉5二。5一へ上がるとトライが成立する */
 const BEFORE_TRY = "9/4K4/9/9/9/9/9/9/k8 b - 1";
+/** **先手玉が最初から5一に居る。** 歩を突いてもトライではない */
+const KING_ALREADY_ON_TRY_SQUARE = "4K4/9/9/9/9/9/4P4/9/k8 b - 1";
 
 function judge(progress: GameProgress, rules: GameRules = NO_LIMIT): GameOutcome | null {
   const result = judgeGameOutcome(progress, rules);
@@ -114,6 +116,24 @@ describe("judgeGameOutcome", () => {
         judge(
           { startSfen: BEFORE_TRY, usiMoves: ["5b5a"] },
           { jishogiRule: "general27", maxMoves: 0 },
+        ),
+      ).toBeNull();
+    });
+
+    test("玉が既にその地点に居るだけでは成立しない", () => {
+      expect(
+        judge(
+          { startSfen: KING_ALREADY_ON_TRY_SQUARE, usiMoves: ["5g5f"] },
+          { jishogiRule: "try", maxMoves: 0 },
+        ),
+      ).toBeNull();
+    });
+
+    test("1手も指していない局面では成立しない", () => {
+      expect(
+        judge(
+          { startSfen: KING_ALREADY_ON_TRY_SQUARE, usiMoves: [] },
+          { jishogiRule: "try", maxMoves: 0 },
         ),
       ).toBeNull();
     });

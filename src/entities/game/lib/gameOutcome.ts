@@ -101,14 +101,29 @@ export interface GameProgress {
   usiMoves: readonly string[];
 }
 
+/** トライルールの到達点は相手玉の初期位置。先手なら5一、後手なら5九 */
+function trySquareOf(color: Color): { usi: string; x: number; y: number } {
+  return color === Color.Black ? { usi: "5a", x: 5, y: 1 } : { usi: "5i", x: 5, y: 9 };
+}
+
 /**
- * トライルールの到達点は相手玉の初期位置。先手なら5一、後手なら5九。
+ * `color` が直前の手でトライを成立させたか。
  *
- * **着いた時点で成立する。** 玉がそこへ動けたなら王手はかかっていないので、
- * 「取られない」ことを別に確かめる必要はない
+ * **盤の上に玉が在ることだけで判定しない。** 途中局面から始める対局
+ * （`GameSettings.startSfen` は平手に限らない）で、根の SFEN が既に先手玉5一なら、
+ * 先手が何を指してもその直後に成立してしまう。成立するのは**その手で着いたとき**だけ。
+ *
+ * 着けた時点で「取られない」ことは確かめ済み——`buildRecord` の `record.append` が
+ * 合法手しか積まないので、`color` の手番が終わった直後に `color` の玉が
+ * 王手されている局面は組み立てられない。
  */
-function isOnTrySquare(shogi: Shogi, color: Color): boolean {
-  const piece = shogi.get(5, color === Color.Black ? 1 : 9);
+function reachedTrySquare(shogi: Shogi, color: Color, usiMoves: readonly string[]): boolean {
+  const square = trySquareOf(color);
+  const lastUsiMove = usiMoves.length === 0 ? null : usiMoves[usiMoves.length - 1];
+  if (lastUsiMove === null || !lastUsiMove.endsWith(square.usi)) return false;
+
+  // 玉以外もその地点へ動ける。着いたのが玉であることを盤で確かめる
+  const piece = shogi.get(square.x, square.y);
   return !!piece && piece.color === color && piece.kind === "OU";
 }
 
@@ -172,7 +187,7 @@ export function judgeGameOutcome(
     });
   }
 
-  if (rules.jishogiRule === "try" && isOnTrySquare(shogi, lastMover)) {
+  if (rules.jishogiRule === "try" && reachedTrySquare(shogi, lastMover, progress.usiMoves)) {
     return Ok({ kind: "tryRule", winner: toSide(lastMover) });
   }
 
