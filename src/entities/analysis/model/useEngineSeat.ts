@@ -16,7 +16,7 @@ export type BlockingReleasePoint = Extract<SeatReleasePoint, "stop" | "start" | 
 /** 応答を待てない口。落ちても画面に出せない（結末は `shootQuietly` の頭） */
 export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-position">;
 /** 要らなくなった開始が持ってきた席を捨てる口 */
-export type DiscardPoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
+export type DiscardReleasePoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
 
 /**
  * どの口の引数にもならない値。**部分集合に入れない**のは、引数にできると
@@ -32,7 +32,7 @@ type InlineOnlyReleasePoint = "unmount";
 type _EveryPointIsAssigned =
   Exclude<
     SeatReleasePoint,
-    BlockingReleasePoint | QuietReleasePoint | DiscardPoint | InlineOnlyReleasePoint
+    BlockingReleasePoint | QuietReleasePoint | DiscardReleasePoint | InlineOnlyReleasePoint
   > extends never
     ? true
     : never;
@@ -112,7 +112,7 @@ export interface EngineSeat {
    * ——札を取るのは席を返した後なので、返却の往復の最中に起こし直された回は
    * 進んだ後の世代が焼き付く。世代差は 0 のまま、その席は死んだエンジンのものになる。
    */
-  beginTake: (discardBy: DiscardPoint, engineUsable: () => boolean) => SeatTake;
+  beginTake: (discardBy: DiscardReleasePoint, engineUsable: () => boolean) => SeatTake;
   /**
    * Rust が自分で片付けた席を締める。
    *
@@ -431,7 +431,7 @@ export function useEngineSeat(): EngineSeat {
    * 書き戻すのは `shoot` の catch）。そうしないとその席を知る者が居なくなる。
    * **畳まれた後に落ちた回は、書き戻しの側から1回だけ撃ち直す**（`keepOrForget`）。
    */
-  const discard = (by: DiscardPoint, sessionId: AnalysisSessionId) => {
+  const discard = (by: DiscardReleasePoint, sessionId: AnalysisSessionId) => {
     // **捨てると決めた時点で `info` を落とす。** 停止の応答が返るまで Rust は
     // その席の `info` を配り続けるので、待つと前の局面の読み筋が盤に出る。
     remember(sessionId);

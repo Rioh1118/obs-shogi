@@ -5,7 +5,7 @@ import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
 } from "@/entities/engine/api/tauri";
-import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
+import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./useEngineSeat";
 import { useResultFlush } from "./useResultFlush";
 import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";
@@ -255,7 +255,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 要求がここへ入ると直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
-    async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
+    async (seq: number, want: string, discardBy: DiscardReleasePoint): Promise<SeatTakeResult> => {
       results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
