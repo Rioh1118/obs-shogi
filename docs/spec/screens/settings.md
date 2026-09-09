@@ -12,14 +12,14 @@
 
 | 入口                         | `tab=`      |
 | ---------------------------- | ----------- |
-| ヘッダの歯車                 | `general`※  |
-| 解析ペインの歯車             | `general`※  |
+| ヘッダの歯車                 | `workspace` |
+| 解析ペインの歯車             | `workspace` |
 | ツリーの失敗通知「選び直す」 | `workspace` |
-
-※ `general` は `TABS` に無い値。`SettingsPanel` が知らない値を `workspace` に
-読み替えるので実害は出ていないが、**URL には存在しないタブ名が入る。**
+| エンジンの起動の失敗の帯     | `engine`    |
 
 タブの切り替えは `updateParams({ tab }, { replace: true })` で URL に載る。
+**綴りは型が持つ**（`shared/lib/router/useURLParams.ts` の `TabType`）。
+`TABS` はそれに `satisfies` で合わせてあるので、**片方だけ増やすと tsc が落ちる。**
 
 ## タブ
 
