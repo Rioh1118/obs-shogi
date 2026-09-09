@@ -134,4 +134,62 @@ describe("PositionSearchHitList", () => {
     fireEvent.click(cards[1]);
     expect(onActiveIndexChange).toHaveBeenCalledWith(1);
   });
+
+  /**
+   * 2打目の `click` と `dblclick` を並べているのは、ブラウザが実際にその順で出すから。
+   * `dblclick` だけを撃つと、`click` を見ている実装が素通りして緑になる。
+   *
+   * 一覧は仮想化されているので、車輪で送ると**ポインタを動かさないまま**別の行が
+   * 同じ場所へ来る。OS は打鍵間隔とポインタの移動だけを見るので2打目は
+   * `detail: 2` で届き、`dblclick` は2打目が落ちた行に出る。
+   */
+  test("1打目と別の行に落ちた2打目では開かない（車輪で送ってから押した行）", () => {
+    const onAccept = vi.fn();
+    const onActiveIndexChange = vi.fn();
+    // 1打目は行0に落ちて、行0が選ばれている
+    const { container } = renderList(HITS, { activeIndex: 0, onAccept, onActiveIndexChange });
+
+    const cards = [...container.querySelectorAll<HTMLButtonElement>(".pos-hit")];
+    fireEvent.click(cards[3], { detail: 2 });
+    fireEvent.dblClick(cards[3], { detail: 2 });
+
+    expect(onAccept).not.toHaveBeenCalled();
+    expect(onActiveIndexChange).toHaveBeenCalledWith(3);
+  });
+
+  test("2打とも同じ行なら開く", () => {
+    const onAccept = vi.fn();
+    // 1打目が選んだ行を、そのまま2打目が押す
+    const { container } = renderList(HITS, { activeIndex: 3, onAccept });
+
+    const cards = [...container.querySelectorAll<HTMLButtonElement>(".pos-hit")];
+    fireEvent.click(cards[3], { detail: 2 });
+
+    expect(onAccept).toHaveBeenCalledTimes(1);
+    expect(onAccept).toHaveBeenCalledWith(HITS[3]);
+  });
+
+  /**
+   * 3打目まで数える。`detail === 2` だけを見ると、「行Aを押す → 行Bを押す →
+   * 行Bをもう一度押す」で行Bのダブルクリックが取りこぼされる。
+   */
+  test("3打目でも、直前の打鍵と同じ行なら開く", () => {
+    const onAccept = vi.fn();
+    const { container } = renderList(HITS, { activeIndex: 3, onAccept });
+
+    const cards = [...container.querySelectorAll<HTMLButtonElement>(".pos-hit")];
+    fireEvent.click(cards[3], { detail: 3 });
+
+    expect(onAccept).toHaveBeenCalledWith(HITS[3]);
+  });
+
+  test("1打目では開かない", () => {
+    const onAccept = vi.fn();
+    const { container } = renderList(HITS, { activeIndex: 3, onAccept });
+
+    const cards = [...container.querySelectorAll<HTMLButtonElement>(".pos-hit")];
+    fireEvent.click(cards[3], { detail: 1 });
+
+    expect(onAccept).not.toHaveBeenCalled();
+  });
 });
