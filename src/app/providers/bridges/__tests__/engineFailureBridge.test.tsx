@@ -110,8 +110,20 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   test("本文は設定を直す道だけを案内する", async () => {
     await mountWith("error", "boom");
 
-    expect(shown().body).toContain("設定を直すと自動で");
+    expect(shown().body).toContain("設定を直せば自動で");
     expect(shown().body).not.toContain("再試行");
+  });
+
+  /**
+   * **設定を直しても直らない失敗がある**（実行権限が無い、応答しないボリューム）。
+   * その回に案内が「設定を確かめてください」で終わっていると、確かめ終えた利用者に
+   * 次の一手が残らない——同じ設定では自動でも手動でも起動し直さないので、
+   * アプリを再起動する以外に道が無い。
+   */
+  test("設定に原因が無かった回の一手も書く", async () => {
+    await mountWith("error", "boom");
+
+    expect(shown().body).toContain("アプリを再起動");
   });
 
   /** 内部の語を画面に出さない（`NotifyRequest` の `title` / `body`） */
