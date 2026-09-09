@@ -67,7 +67,9 @@ fn budget_tests(code: &str) -> Vec<(String, String)> {
 
     for (at, _) in code.match_indices("fn ") {
         let after = &code[at + 3..];
-        let Some(paren) = after.find('(') else { continue };
+        let Some(paren) = after.find('(') else {
+            continue;
+        };
         let name = &after[..paren];
         if !name.contains("rotate_the_log") {
             continue;
