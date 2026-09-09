@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, render } from "@testing-library/react";
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
+import { act, cleanup, render } from "@testing-library/react";
 import { StrictMode, useEffect } from "react";
 
 import { AnalysisProvider } from "../provider";
@@ -67,6 +67,17 @@ const adapter = (currentSfen: string | null, syncedSfen: string | null): Positio
   syncedSfen,
   syncPosition,
 });
+
+/**
+ * **畳まないまま次へ進まない。** 同期待ちは 16ms のタイマーを自分で張り直し続ける
+ * （`scheduleRestart`）。畳むのを忘れた回はその輪が回ったまま残り、
+ * テスト環境が片付いた後に発火して `window is not defined` で落ちる
+ * ——このファイルの外の、たまたま最後まで走っていたテストの失敗として出る。
+ *
+ * 止める口は provider の cleanup が既に持っている（「同期の追いつきで張った
+ * タイマーを、アンマウントで止める」）ので、ここは畳むことだけを引き受ける。
+ */
+afterEach(cleanup);
 
 beforeEach(() => {
   startCore.mockReset();
