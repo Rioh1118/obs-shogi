@@ -2,24 +2,13 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+Antique:wght@700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Noto+Sans+JP:wght@100..900&display=swap"
-      rel="stylesheet"
-    />
+    <!--
+      **外部オリジンをここに書かない。** 配布物の CSP（`src-tauri/tauri.conf.json` の
+      `app.security.csp`）は `style-src 'self' 'unsafe-inline'` / `font-src 'self' data:` で、
+      外部のスタイルシートも書体も落とす。dev サーバには CSP が乗らないので、
+      書けば**開発中だけ効いて配布物では効かない**という差ができる（→ #503）。
+      同梱している書体の読み込みは `src/main.tsx`。
+    -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OBS-SHOGI</title>
