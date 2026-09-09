@@ -8,9 +8,12 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
  * **合図は盤に載っている棋譜（`loadedAbsPath`）で、ツリーが開いたと言っているパスではない。**
  * この2つはずれる。`openKifuNode` は構文として読めれば `kifu_opened` を出して
  * `activeKifuPath` を動かすが、盤に載せられない `initial` を持つ棋譜は
- * その先の `loadGame` で落ちる。そのとき盤は前の棋譜のままで、`error` を出す先も無い。
- * ツリー側を見ていると、そこで**何も言われないのに盤が回る**。
+ * その先の `loadGame` で落ちる。そのとき盤は前の棋譜のまま。
+ * ツリー側を見ていると、そこで**盤に出ている棋譜は変わらないのに向きだけが戻る**。
  * `loadedAbsPath` は `game_loaded` でしか動かないので、定義上「盤に載っている棋譜」。
+ *
+ * **載せられなかったこと自体は `GameFileTreeBridge` が断りとして出す**が、それは
+ * 向きを落とす理由にならない。盤に並んでいる駒が同じなら、向きも同じままでよい。
  *
  * **盤の外で呼ぶ。** 理由は
  * [BoardOrientationBridge](../../../app/providers/bridges/BoardOrientationBridge.tsx) の doc。

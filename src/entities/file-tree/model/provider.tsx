@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
 
-import type { FileConflictRequest, FileTreeNode } from "./types";
+import type { FileConflictRequest, FileTreeNode, SelectNodeOptions } from "./types";
 import { FileTreeContext } from "./context";
 import { reducer } from "./reducer";
 import { initialState } from "./types";
@@ -660,7 +660,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const selectNodeByAbsPath = useCallback(
-    (absPath: string): boolean => {
+    (absPath: string, options: SelectNodeOptions): boolean => {
       const node = findNodeByPath(absPath);
       if (!node) {
         return false;
@@ -673,25 +673,25 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return true;
       }
 
-      const isAlreadyActive =
-        state.activeKifuPath === node.path &&
-        state.jkfData !== null &&
-        state.kifuFormat === node.kifuInfo?.format;
+      // **開き直しを省いてよいかを、ここだけでは決められない。** ツリーが握っているのは
+      // 「構文として読めた」までで、盤に載ったかは `loadGame` まで来ないと分からない。
+      // 載っているかを見られるのは呼び出し側なので、覆せるようにしてある
+      // （省略できない理由は `SelectNodeOptions` の doc）。
+      //
+      // **形式は見ない。** 改名で拡張子が変わった回は `active_kifu_reconciled` が形式を
+      // 運ばないのでずれるが、そこで開き直すと**中身と違う形式でパースされる**。
+      // パーサは投げずに0手の棋譜を返すので、盤が空になったまま成功として載る。
+      // ずれは発生源で直すもの → #507
+      const canSkipOpen =
+        !options.forceReopen && state.activeKifuPath === node.path && state.jkfData !== null;
 
-      if (!isAlreadyActive) {
+      if (!canSkipOpen) {
         void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
       }
 
       return true;
     },
-    [
-      findNodeByPath,
-      openKifuNode,
-      revealNodeInCurrentTree,
-      state.activeKifuPath,
-      state.jkfData,
-      state.kifuFormat,
-    ],
+    [findNodeByPath, openKifuNode, revealNodeInCurrentTree, state.activeKifuPath, state.jkfData],
   );
 
   const clearError = useCallback(() => {

@@ -9,6 +9,7 @@ import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
+import { useLoadedKifuPath } from "@/entities/game";
 
 function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const {
@@ -22,8 +23,22 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     cancelInlineRename,
     pushError,
   } = useFileTree();
+  // **`useGame()` を読まない。** 行の数だけ盤の state を購読することになり、
+  // 盤を1手動かすだけでツリーの全行が描き直される（ツリーは仮想化されていない）
+  const loadedAbsPath = useLoadedKifuPath();
   const isSelected = selectedNode?.id === node.id;
-  const isActive = activeKifuPath === node.path;
+  /**
+   * 開き直しを省いてよいのは、**ツリーと盤の両方がこの棋譜を指しているとき**だけ。
+   *
+   * 2つはずれる（それぞれの意味は `activeKifuPath` と `loadedAbsPath` の doc）。
+   * 片方だけで判定すると、ずれている間の押し直しが片側ずつ効かなくなる。
+   *
+   * - **ツリーだけ**を見ると、載せられなかった棋譜が「開いている」ことになって押し直せない
+   * - **盤だけ**を見ると、その前に開いていた棋譜へ戻れない。盤は既にそれを出しているので
+   *   戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指したままなので、
+   *   `persistIfPossible` の門番が以降の書き込みを全部止める
+   */
+  const canSkipReopen = activeKifuPath === node.path && loadedAbsPath === node.path;
   const isRenaming = renamingNodeId === node.id;
   const nameRef = useRef<HTMLSpanElement | null>(null);
 
@@ -96,7 +111,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
 
     selectNode(node);
 
-    if (!isActive) {
+    if (!canSkipReopen) {
       void openKifuNode(node); // async-result-ignored: openKifuNode が kifuError に積む
     }
   };

@@ -36,7 +36,7 @@ describe("loadGame", () => {
     const jkf: JKFData = { header: {}, moves: [{}, { comments: ["t1"] }] };
 
     await act(async () => {
-      await game.current!.loadGame(jkf, "/ok.kif");
+      expect((await game.current!.loadGame(jkf, "/ok.kif")).success).toBe(true);
     });
 
     expect(game.current!.state.jkf).not.toBeNull();
@@ -58,11 +58,74 @@ describe("loadGame", () => {
     const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
 
     await act(async () => {
-      await game.current!.loadGame(broken, "/broken.kif");
+      const res = await game.current!.loadGame(broken, "/broken.kif");
+      // **`Err` を返すことが唯一の伝達路。** `state.error` を描いている場所は
+      // 無いので（#277）、これを捨てると F-31 が黙って通る
+      expect(res.success).toBe(false);
     });
 
     expect(game.current!.state.jkf).toBeNull();
     expect(game.current!.state.error).not.toBeNull();
+  });
+
+  /**
+   * **どのファイルが載らなかったかを残す。** `error` は文字列でパスを持たないので、
+   * その棋譜が載るのを待っている側（`usePositionHitNavigation`）が要求と突き合わせられない。
+   */
+  test("載せられなかった宛先と、その回数を残す", async () => {
+    const game = mountGame();
+    const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
+
+    await act(async () => {
+      await game.current!.loadGame(broken, "/broken.kif");
+    });
+
+    expect(game.current!.state.loadFailedAbsPath).toBe("/broken.kif");
+    expect(game.current!.state.loadFailedSeq).toBe(1);
+
+    // 2度目の失敗は回数だけが進む。**進まないと、待っている側が
+    // 「前の回の失敗」と「いまの失敗」を区別できない**
+    await act(async () => {
+      await game.current!.loadGame(broken, "/broken.kif");
+    });
+
+    expect(game.current!.state.loadFailedSeq).toBe(2);
+  });
+
+  /** 載ったら宛先は消える。**回数は戻さない**（戻すと控えた値と別の失敗が一致しうる） */
+  test("次に載せられたら宛先は消え、回数は戻らない", async () => {
+    const game = mountGame();
+    const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
+    const ok: JKFData = { header: {}, moves: [{}] };
+
+    await act(async () => {
+      await game.current!.loadGame(broken, "/broken.kif");
+    });
+    await act(async () => {
+      await game.current!.loadGame(ok, "/ok.kif");
+    });
+
+    expect(game.current!.state.loadFailedAbsPath).toBeNull();
+    expect(game.current!.state.loadFailedSeq).toBe(1);
+  });
+
+  /**
+   * **回数は閉じても戻らない。** 戻すと、控えた値と同じ回数で別の失敗が観測されうる——
+   * そのとき待っている側は「自分の要求はまだ落ちていない」と読み、落ちた要求を捨てそこねる。
+   */
+  test("棋譜を閉じたら宛先は消えるが、回数は戻らない", async () => {
+    const game = mountGame();
+    const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
+
+    await act(async () => {
+      await game.current!.loadGame(broken, "/broken.kif");
+    });
+    await act(async () => {
+      game.current!.resetGame();
+    });
+
+    expect(game.current!.state.loadFailedAbsPath).toBeNull();
+    expect(game.current!.state.loadFailedSeq).toBe(1);
   });
 });
 
