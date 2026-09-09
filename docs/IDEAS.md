@@ -176,6 +176,20 @@
 
 出どころ: #502 のレビュー r14（oss-hygiene）。
 
+## ADR-0007 が指すソースの場所が2つとも存在しない
+
+`docs/decisions/0007-serde-wire-naming.md` の `src-tauri/src/settings/presets.rs` と
+`file_system/types.rs` は、ADR-0009 の crate 分割で移った先（`crates/settings/src/presets.rs` /
+`src-tauri/src/workspace/types.rs`）を書かないまま消えたパスとして残っている。
+同 ADR が「**再現できる形で書く**」と宣言して並べた6本の grep も、`src-tauri/src/` しか
+見ないので `crates/` の型を数えず、いま流すと別の値を返す。
+
+**判断: 6週間以内に着手しない。** ADR は決定の記録なので本文は触らず、
+パスだけを現在地へ直すか、grep の節に「ADR-0009 より前のレイアウトでの実測」と
+1行添えて凍結するかを決める作業。`docsSourcePaths` を `docs/decisions/` へ広げれば機械で拾える。
+
+出どころ: #502 のレビュー r16（oss-hygiene）。**`main` から在る。**
+
 ## 解析の停止が、ロックを握ったまま別のロックを待つ
 
 `.claude/reviews/2026-09-07-441-unmount-session-r2.md` の r2-21（rust reviewer）。
@@ -253,7 +267,7 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 `entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**
 （`isRecoverableNotReady`。意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で数えられる。**この一文に件数と内訳を書かない**——触るたびに動く（テストを含めるかで倍近く変わる）。ほかに `vi.mock` の行——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
+で数えられる。**この一文に件数と内訳を書かない**——触るたびに動く（テストを含めるかで倍近く変わる）。ほかに `vi.mock` の行がある——**そちらの内訳も書かない**。`sliceBarrels` の免除に当たるので、選択肢 (a) の見積もりを取るときに数え直すこと）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
 **公開しない限り深く読める**。
 
@@ -349,7 +363,8 @@ r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じる�
 `cacheKey` が1ビットも動かない。解析が断たれて `state.candidates` が空になっても、
 ペインは停止中にキャッシュを出すので**死んだ設定で出した読み筋がそのまま盤の下に残る**。
 断りの読み手は0（→ #277）なので、画面には何の手掛かりも出ない
-（#502 の r11 react 所見。**この PR の断りが案内している操作がちょうどこの窓を踏む**）。
+（#502 の r11 react 所見。**`RESTART_ENGINE_HINT`（オプションを変えて保存する）が
+案内している操作が、ちょうどこの窓を踏む**）。
 
 **判断: 6週間以内に着手しない。** 改名は2スライスに跨り、鍵を1箇所から配る形
 （`state.activeRuntime` の同一性など、実際に起きているプロセスを指す値）まで含めて決める必要がある。

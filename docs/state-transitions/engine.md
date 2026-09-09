@@ -172,19 +172,20 @@ issue #120 と同型の行き止まり
 - **`entities/engine` の `__tests__` が見ているのは理由の並び（※7）と、そこに至る
   `initialize` / `shutdown` の呼び出し回数。** `(S2, E4)` は等値な別オブジェクトを流して
   踏んでいる（`equalRuntime` が中身で比べていなければ落ちる）。
-  **見ていないのは `phase` の値そのもの**——理由は `phase` の写しではないので、
-  並びが合っていても `phase` が合っている根拠にならない——と、`equalRuntime` が
-  **どの欄**を比べるか（`lib/__tests__/equalRuntime.test.ts` が欄ごとに当てている）
+  **`phase` の値を見るのは1箇所だけ**——`startGate.test.tsx` の「畳みを待っている間に
+  起動が着地しても ready へ進まない」だけが `phase` を直に見る（理由では割れない窓のため）。
+  他の窓では見ていないので、**並びが合っていても `phase` が合っている根拠にはならない**。
+  `equalRuntime` がどの欄を比べるかは `lib/__tests__/equalRuntime.test.ts` が欄ごとに当てている
 - **`startGate.test.tsx` だけは `engineInitializer` を差し替えず、本物を通す**
   （差し替えるのは IPC の4つ）。踏んでいるのは、起動を待っている間に設定が2度外れて
   戻る窓——**※7 が「フロント側だけでは保証しない」と書いている根拠の片方
-  ——起動の門が世代ごとに降りること——は、ここで見ている。** 見ているのは次の門。**数を書かない**——1枚足すたびにこの行だけが古くなる。
+  ——起動の門が世代ごとに降りること——は、ここで見ている。** この2本（`startGate.test.tsx` と `provider.test.tsx`）が見ているのは次の門。**数を書かない**——1枚足すたびにこの行だけが古くなる。
   - `provider.tsx` の起動の門（`startingSeqRef`）——固定しているのは `provider.test.tsx` の StrictMode
   - `provider.tsx` の `shutdown` の `dispatch` の門、世代（`seqRef`）の繰り上げ、
-    **起動の門を落とす1行**（これを潰すと `startGate.test.tsx` が4本落ちる）
+    **起動の門を落とす1行**（潰すと `startGate.test.tsx` の、畳みと起動が重なる列が落ちる）
   - `provider.tsx` の `initialize` の成功側・失敗側の世代の照合
   - `initializer.ts` の追い越された畳みの IPC と、`finally` の同一性判定
-    **潰しても赤くならないものが3つ残っている**——`provider` 側の `finally` の同一性判定、
+    **潰しても赤くならないものが残っている**——`provider` 側の `finally` の同一性判定、
     `initialize` 側の世代の繰り上げ、`initializer` の in-flight の畳み込み。
     前2つは門が開いた先で `initialize` を撃つ者が居ないため列を組めず、
     最後の1つは provider を張り直す列でしか踏めない（→ ※2 / 不変条件1）

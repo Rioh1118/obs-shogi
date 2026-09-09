@@ -262,15 +262,31 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const takeSeatAndGo = useCallback(
     async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
-      // **入口でも readiness を見る。** 下の札が守るのは「往復の**前**に読んだ世代」だけで、
-      // **世代が上がった後にここへ入る要求**は素通りする——`releaseHeld` の `await` を
-      // 跨いだ自動再開がそれで、Rust はまだ畳んでいないので**もう無いエンジンの席**を握り、
-      // `landed` は `"held"` を返す。以後どの effect も拾えず（席の欄を捨てる effect の
-      // 依存は `isReady` だけ）、盤は候補手0本で「解析中」を回し続ける。
+      // **入口でも readiness を見る。入口は2つある。**
       //
-      // **`discardShown()` より前に置く。** 後ろだと `clear_results` が、
-      // 断つ effect や打ち切りが立てたばかりの `error` を消す。
-      if (!readinessRef.current.isReady) return "engine-gone";
+      // 下の札が守るのは「往復の**前**に読んだ世代」だけで、**世代が上がった後に
+      // ここへ入る要求**は素通りする——`releaseHeld` の `await` を跨いだ自動再開がそれ。
+      // ▶ の側は `sendAndAwaitSync` が守っているように見えるが、`waitUntil` は
+      // `cond()` を先に見るので、盤とエンジンが同じ局面を指していれば**打ち切りも
+      // readiness の見直しも1度も走らない**——`syncPosition()` の `await` の向こうで
+      // 死んだ回は、ここだけが止めている。
+      //
+      // 通してしまうと、Rust はまだ畳んでいないので**もう無いエンジンの席**を握り、
+      // `landed` は `"held"` を返す。**以後どの effect も拾えない**——席の欄を捨てる
+      // effect は先頭の `if (isReady) return;` で降り、`isReady` はもう倒れないため。
+      // 盤は候補手0本で「解析中」を回し続ける。
+      //
+      // **`discardShown()` より前に置く。** 後ろだと、自動再開が死んだエンジンに当たった回に
+      // `clear_results` が立っている断りを消し、**代わりを何も立てずに黙って降りる**
+      // （自動再開の口は3値のどれでも黙って降りる）。
+      // **入れ替えても落ちるテストは無い**——順序を守っているのは人だけ。
+      if (!readinessRef.current.isReady) {
+        // **握れなかった回の後始末は1本に揃える。** ここを通さないと、
+        // 「握れなかった回はどれも通る」と名乗っている下の doc が偽になる
+        // （いま席は必ず null なので、振る舞いは変わらない）。
+        dropPendingForLostSeat();
+        return "engine-gone";
+      }
 
       results.discardShown();
 
@@ -540,13 +556,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 張る時点しか見ていない。
     if (supersededSince(seq)) return;
     if (!analyzingRef.current) return;
-    if (!isReady) return;
+    // **鏡から読む。** ここは前のコミットで張ったタイマーからも呼ばれるので、
+    // 描画スコープの値を読むと、入口の門（commit された鏡を読む）と1コミットずれる
+    // ——エンジンは生きているのに、門が古い false を見て自動再開が1本落ちる。
+    if (!readinessRef.current.isReady) return;
 
     const want = desiredSfenRef.current;
     if (!want) return;
     if (sentSfenRef.current === want) return;
 
-    if (syncedSfen !== want) {
+    if (syncedSfenRef.current !== want) {
       keepWaitingForSync(seq, want);
       return;
     }
@@ -622,9 +641,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * **順序で守っているのは1つ**——`clear_results` は `error` も消すので（`reducer.ts`）、
    * 断りはその後に撃つ。
    *
-   * 世代を上げるのは順序の制約ではなく**必ず撃つことの制約**。飛んでいる再開が世代を
-   * 見るのは `releaseHeld` から戻った所（`swapSeatAndGo`）なので、ここで上げ忘れると
-   * その先の `takeSeatAndGo` が先頭の `clear_results` でいま立てた断りを消す。
+   * `supersedeRequests()` が要るのは**掃除のため**——張られた debounce のタイマーと
+   * 予約（`pendingAfterRef`）と望みの局面を落とす。残すと、エンジンが戻った回に
+   * **利用者が何も押していないのに**古い要求が再点火する。
+   * （断りが消される筋は `takeSeatAndGo` の入口の門が塞いでいるので、
+   * 世代を上げること自体には**落ちるテストが無い**。）
    *
    * `stop_analysis` は `set_error` が既に倒しているので値を動かさない。**撃つ口を
    * 揃えるために残している**（同期の打ち切りと自動再開の失敗も同じ対で撃つ）。

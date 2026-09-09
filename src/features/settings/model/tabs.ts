@@ -7,7 +7,7 @@ export const TABS = [
   {
     key: "aiLibrary",
     label: "AIライブラリ",
-    desc: "engines/evel/bookの置き場所とルール",
+    desc: "engines/eval/book の置き場所とルール",
   },
   { key: "engine", label: "エンジン管理", desc: "解析プリセットを編集" },
 ] as const;

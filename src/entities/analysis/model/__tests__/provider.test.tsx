@@ -68,7 +68,7 @@ vi.mock("@/entities/engine/api/events", () => ({
 
 const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"] }] };
 
-/** 実時間を進める。打ち切りの判定が Date.now() を見るので偽タイマーは使えない。 */
+/** 実時間を進める。**寸法は `shortenWaits` で縮めてある**——実時計で進める理由は `waits.ts` の doc。 */
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
 /**
