@@ -4,7 +4,7 @@
  * | 綴り                              | 誰のものか                                    |
  * | --------------------------------- | --------------------------------------------- |
  * | shogi.js の `Color`（数値 enum）  | 盤の表示と合法手（`GameView.currentTurn`）   |
- * | tsshogi の `Color`（文字列 enum） | 千日手と持将棋の点数（`jishogiDeclaration`） |
+ * | tsshogi の `Color`（文字列 enum） | 千日手（`gameOutcome`）と持将棋の点数（`jishogiDeclaration`） |
  * | `Side`（`"black"` / `"white"`）   | Rust との境界（`endGameByRule` の `winner`） |
  *
  * **外へ出すのは `Side`。** shogi.js の `Color.Black` は `0` なので、

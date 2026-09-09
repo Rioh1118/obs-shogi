@@ -10,12 +10,22 @@
  * `KifuLoadFailure`（`entities/game/model/types.ts`）と同じ——ライブラリの英文や
  * 内部の語をそのまま外へ出すと、段と文言を決める場所が呼び出し側ごとに分かれる。
  *
+ * **返すのは詰み・手詰まり・千日手・連続王手・トライルール・最大手数の6つだけ。**
+ * 27点法と24点法はここに入らない——どちらも宣言の規則で、条件を満たしただけでは
+ * 終局しない。宣言の可否は `judgeDeclaration`（`jishogiDeclaration.ts`）が持つ。
+ *
  * **ルールの持ち主が2つに割れている。** 合法手の生成は shogi.js、千日手・
  * 連続王手・持将棋の点数は tsshogi。どちらか一方では賄えない——tsshogi は
  * 合法手を生成せず、shogi.js は千日手も点数も持たない。
- * shogi.js 側を選べないのは、盤の表示（移動可能マスの強調・成り選択）が既に
- * それを使っていて、重ねると合法手判定が2実装になるため
+ * **tsshogi 一本に寄せられないのは、盤の表示（移動可能マスの強調・成り選択）が
+ * 既に shogi.js を使っていて消せないため。** 合法手の生成を重ねると2実装になる
  * （`docs/state-transitions/game-session.md` の「責任の切れ目」）。
+ * その2つが割れたときに何が起きるかは #536。
+ *
+ * **値段は手数に比例する。** 呼ばれるたびに根から `Record` を組み直すので、
+ * 1回が実測で 100手 4.6ms / 400手 16ms / 2000手 60ms。毎手呼ぶと合計は2乗で効き、
+ * 400手の対局を通しで裁定すると 2.8 秒になる（`Record` を持ち回れば 2.6ms）。
+ * **画面を作るときは、対局セッションの間だけ判定器を持ち回る形にすること。**
  */
 import { Color, Shogi } from "shogi.js";
 import { Position, Record as ShogiRecord } from "tsshogi";
@@ -164,8 +174,8 @@ function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFai
 /**
  * 現在局面が終局かを判定する。終わっていなければ `null`。
  *
- * **判定の順は勝敗が付くものが先。** 詰んだ局面は、それが同時に4回目の同一局面でも
- * 千日手にしないし、最大手数に達していても引き分けにしない。
+ * **判定の順は勝敗が付くものが先。** 詰んだ局面は、最大手数に達していても
+ * 引き分けにしない。千日手も最大手数より先に立つ。
  */
 export function judgeGameOutcome(
   progress: GameProgress,
