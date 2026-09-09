@@ -52,7 +52,8 @@ export interface GameContextState {
   selectedPosition: SelectedPosition | null;
 
   /**
-   * **盤に載っている棋譜。** 動くのは `game_loaded` と `reset_state` だけなので、
+   * **盤に載っている棋譜。** 動くのは `game_loaded` と `reset_state`、
+   * それに改名・移動の張り替え（`path_renamed`）だけなので、
    * 載せられなかった回（`game.md` の E16）は前の棋譜を指したまま残る。
    *
    * **ツリーの `activeKifuPath` とはずれる。** あちらは構文として読めた時点で進み、
@@ -61,6 +62,29 @@ export interface GameContextState {
    * あちら（`entities/file-tree` の `activeKifuPath`）。
    */
   loadedAbsPath: string | null;
+
+  /**
+   * **盤の中身が入れ替わった回数。単調増加で、戻らない。**
+   *
+   * 進むのは `game_loaded` と `reset_state`。**`path_renamed` では進まない**——
+   * 改名・移動で変わるのは名前だけで、盤に並んでいるものは同じ。
+   *
+   * **「いま盤に載っている棋譜」を指す値はこちらで、`loadedAbsPath` ではない。**
+   * あちらは改名で動くので、パスの変化を「別の棋譜になった」と読むと、名前を直しただけで
+   * その棋譜に紐づけて開いていたものが捨てられる。読み手は3つあり、どれも
+   * 「まだ同じ棋譜か」を問うている:
+   *
+   * - `useResetOrientationOnKifuChange`（向きを落とすか）
+   * - `KifuStreamList`（開いている面・確認ダイアログを畳むか）
+   * - `KifuCommentNote`（書きかけの本文を、いまの棋譜へ書いてよいか）
+   *
+   * **パスが要る読み手とは別**（`FileNode` の `canSkipReopen`、`useHeaderCenterInfo`、
+   * `usePositionHitNavigation`）。あちらは名前そのものを問うているので `loadedAbsPath` を見る。
+   *
+   * 閉じても戻さないのは `loadFailedSeq` と同じ理由——戻すと、控えた値と同じ回数で
+   * 別の入れ替わりが観測されうる。
+   */
+  boardSeq: number;
 
   /**
    * 盤に載せられなかった棋譜のパス（`game.md` の E16）。載るまで、または閉じるまで残る。
@@ -193,6 +217,21 @@ export type GameAction =
         restoreCursor: boolean;
       };
     }
+  /**
+   * 盤に載っている棋譜が改名・移動された。**張り替えるのは宛先だけ。**
+   *
+   * 盤に並んでいるものは変わらないので `jkf` / `cursor` / `branchPlan` に触らない。
+   * ここで載せ直すと、file-tree が**開いた時点で持った** `jkfData` で置き換わり、
+   * 盤も棋譜一覧もカーソルもその時点まで戻る。
+   *
+   * **それでも宛先は動かす。** `persistence.absPath` は新しいパスで組み直されるので、
+   * `loadedAbsPath` を据え置くと `persistIfPossible` の突き合わせが二度と一致せず、
+   * 以後の書き込みが全部止まる。
+   */
+  | {
+      type: "path_renamed";
+      payload: { absPath: string };
+    }
   | {
       type: "set_selection";
       payload: SelectedPosition | null;
@@ -246,6 +285,7 @@ export const initialGameState: GameContextState = {
   branchPlan: asBranchPlan([]),
   selectedPosition: null,
   loadedAbsPath: null,
+  boardSeq: 0,
   loadFailedAbsPath: null,
   loadFailedSeq: 0,
   isLoading: false,
@@ -295,6 +335,19 @@ export interface GameContextType {
    */
   loadGame: (jkf: JKFData, absPath: string) => AsyncResult<void, KifuLoadFailure>;
   resetGame: () => void;
+
+  /**
+   * 盤に載っている棋譜の宛先だけを、改名・移動後のパスへ張り替える。
+   * **ディスク上の改名はもう済んでいる。** ここが動かすのは、次の保存が向かう先だけで、
+   * 盤・カーソル・分岐の選択も `boardSeq` も動かない（`path_renamed`）。
+   *
+   * **同じ棋譜であることを確かめてから呼ぶこと。呼び手を増やさない。** 確かめられるのは
+   * `GameFileTreeBridge` だけで、ツリーが持つ `jkfData` の同一性がその根拠
+   * （`entities/file-tree` の `jkfData` の doc）。
+   * 別の棋譜を指して呼ぶと `persistIfPossible` の突き合わせが通り、
+   * **盤に載っている棋譜が別のファイルへ書き込まれる。**
+   */
+  renameLoadedPath: (absPath: string) => void;
 
   goToIndex: (index: number) => void;
   nextMove: () => void;

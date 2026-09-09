@@ -142,7 +142,7 @@ describe("走っている書き込みを数える", () => {
    * **`reset_state` が返す欄を全部並べる。**
    *
    * `initialGameState` を展開する枝なので、書かなかった欄は黙って初期値へ戻る。
-   * 戻ってはいけない欄（走っている書き込みの本数、失敗の回数）が増えたとき、
+   * 戻ってはいけない欄（走っている書き込みの本数、盤の入れ替わりの回数、失敗の回数）が増えたとき、
    * **この test が落ちて持ち越しの判断を通させる**のが目的。
    * 欄を1つ足しただけで赤くなるので、期待値をここで更新すること。
    */
@@ -151,6 +151,7 @@ describe("走っている書き込みを数える", () => {
       ...initialGameState,
       jkf: { header: {}, moves: [{}] },
       loadedAbsPath: "/ws/a.kif",
+      boardSeq: 4,
       loadFailedAbsPath: "/ws/b.kif",
       loadFailedSeq: 3,
       blockingWrites: 2,
@@ -165,12 +166,94 @@ describe("走っている書き込みを数える", () => {
       selectedPosition: null,
       loadedAbsPath: null,
       loadFailedAbsPath: null,
-      // 持ち越す2つ
+      // 持ち越す3つ（`boardSeq` は閉じたぶん1つ進む）
+      boardSeq: 5,
       loadFailedSeq: 3,
       blockingWrites: 2,
       isLoading: true,
       error: null,
     });
+  });
+});
+
+/**
+ * 開いている棋譜を改名・移動しても、盤は載せ直さない。
+ *
+ * 載せ直すと file-tree が**開いた時点で持った** `jkfData` が盤に戻り、
+ * 盤・棋譜一覧・カーソル・分岐の選択がその時点まで巻き戻る。
+ * そこから1手指すと、間の編集を落とした棋譜が新しいパスへ保存される。
+ */
+describe("path_renamed", () => {
+  const jkf = { header: {}, moves: [{}, {}] };
+  const cursor = { tesuu: 1, forkPointers: [], tesuuPointer: "1,[]" } as never;
+
+  const opened = {
+    ...initialGameState,
+    jkf,
+    cursor,
+    branchPlan: asBranchPlan([{ te: 1, forkIndex: 0 }]),
+    loadedAbsPath: "/ws/a.kif",
+    boardSeq: 1,
+  };
+
+  it("宛先だけを張り替え、棋譜・カーソル・計画は動かさない", () => {
+    const renamed = gameReducer(opened, {
+      type: "path_renamed",
+      payload: { absPath: "/ws/b.kif" },
+    });
+
+    expect(renamed.loadedAbsPath).toBe("/ws/b.kif");
+    expect(renamed.jkf).toBe(jkf);
+    expect(renamed.cursor).toBe(cursor);
+    expect(renamed.branchPlan).toEqual([{ te: 1, forkIndex: 0 }]);
+  });
+
+  /**
+   * **宛先を据え置く形では直らない。** `persistence.absPath` は新しいパスで
+   * 組み直されるので、`loadedAbsPath` が古いままだと `persistIfPossible` の
+   * 突き合わせが二度と一致せず、改名した棋譜への書き込みが全部止まる。
+   */
+  it("張り替えた宛先は、新しいパスと一致する", () => {
+    const renamed = gameReducer(opened, {
+      type: "path_renamed",
+      payload: { absPath: "/ws/移動先/a.kif" },
+    });
+
+    expect(renamed.loadedAbsPath).toBe("/ws/移動先/a.kif");
+  });
+
+  /**
+   * 盤の中身が入れ替わったかを持つのは `boardSeq` だけ。ここで進めると、
+   * それを見ている側（`boardSeq` の doc に3つ並ぶ）が改名を入れ替わりと読んで、
+   * 開いているノートや確認ダイアログを捨てる。
+   */
+  it("盤の中身が入れ替わった回数は進めない", () => {
+    const renamed = gameReducer(opened, {
+      type: "path_renamed",
+      payload: { absPath: "/ws/b.kif" },
+    });
+
+    expect(renamed.boardSeq).toBe(1);
+  });
+
+  /**
+   * `loadedAbsPath` は「盤に載っている棋譜」。載っていないのに値を持つと
+   * `FileNode` の `canSkipReopen` が真になり、その行は押しても開かなくなる。
+   */
+  it("盤に何も載っていなければ受けない", () => {
+    const empty = { ...initialGameState };
+
+    expect(gameReducer(empty, { type: "path_renamed", payload: { absPath: "/ws/b.kif" } })).toBe(
+      empty,
+    );
+  });
+
+  // 値が変わらないなら同じ参照を返す。新しい state を返すと、それだけで
+  // contextValue が作り直されて useGame() の消費者が全部再レンダする
+  it("宛先が変わらないなら同じ state を返す", () => {
+    expect(gameReducer(opened, { type: "path_renamed", payload: { absPath: "/ws/a.kif" } })).toBe(
+      opened,
+    );
   });
 });
 
