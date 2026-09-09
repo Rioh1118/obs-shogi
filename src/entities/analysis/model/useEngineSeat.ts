@@ -107,8 +107,12 @@ export interface EngineSeat {
    *
    * **開始を頼む行より前で呼ぶこと。** 後で呼ぶと、往復の間に消えたエンジンを
    * 「まだ居る」と読む——この札が焼き付けるのは、呼んだ時点のエンジンの世代。
+   *
+   * `engineUsable` は「いまエンジンが使えるか」の述語。**世代だけでは足りない**
+   * ——札を取るのは席を返した後なので、返却の往復の最中に起こし直された回は
+   * 進んだ後の世代が焼き付く。世代差は 0 のまま、その席は死んだエンジンのものになる。
    */
-  beginTake: (discardBy: DiscardPoint) => SeatTake;
+  beginTake: (discardBy: DiscardPoint, engineUsable: () => boolean) => SeatTake;
   /**
    * Rust が自分で片付けた席を締める。
    *
@@ -442,14 +446,17 @@ export function useEngineSeat(): EngineSeat {
       if (pastRef.current.has(sessionId)) return false;
       return seatRef.current === null || seatRef.current === sessionId;
     },
-    beginTake: (discardBy) => {
+    beginTake: (discardBy, engineUsable) => {
       const generation = engineGenRef.current;
 
       return {
-        engineChanged: () => engineGenRef.current !== generation,
+        engineChanged: () => engineGenRef.current !== generation || !engineUsable(),
         landed: (sessionId, isSuperseded) => {
           // **見る順の理由は `SeatTake.landed` の doc に1つ置いてある。**
-          if (engineGenRef.current !== generation) {
+          //
+          // **撃たない。** 席が空の停止は起こし直したエンジンへ裸の `stop` を書く
+          // （→ `docs/state-transitions/analysis.md` ※12）。手放した席として覚えるだけ。
+          if (engineGenRef.current !== generation || !engineUsable()) {
             remember(sessionId);
             return "engine-gone";
           }

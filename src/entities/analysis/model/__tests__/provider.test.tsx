@@ -940,6 +940,41 @@ describe("AnalysisProvider の結果の照合", () => {
   });
 
   it(
+    "同期の往復の最中に起こし直されたら、席を取りに行かない",
+    async () => {
+      // **盤は既に同期済み。** `waitUntil` はループへ入らないので、`abort` を
+      // 本体だけで見る形だと1度も評価されない。
+      let releaseSync: () => void = () => {};
+      syncPosition.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseSync = resolve;
+          }),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+
+      // 送信の往復の最中に、利用者が設定でオプションを変えて保存する。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", "P1"));
+
+      startCore.mockClear();
+      await act(async () => {
+        releaseSync();
+      });
+      await advance(150);
+      await pressed;
+
+      // **席を取りに行くと、死んだエンジンの席を握ったまま「解析中」で固まる。**
+      expect(startCore).not.toHaveBeenCalled();
+      expect(view.current.state.isAnalyzing).toBe(false);
+    },
+    SLOW,
+  );
+
+  it(
     "席を返している最中に起こし直されたら、自動再開は黙って降りる",
     async () => {
       startCore.mockResolvedValueOnce("s1");

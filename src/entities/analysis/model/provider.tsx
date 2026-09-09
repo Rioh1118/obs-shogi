@@ -32,6 +32,12 @@ import {
 // 畳まれた後は `syncedSfen` がもう動かないので、渡さないと必ず上限まで回る。
 const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => boolean) => {
   const start = Date.now();
+
+  // **入る前に1度見る。** 条件が既に真の回（盤が同期済みで ▶ を押した回＝いちばん
+  // 普通の回）はループへ入らないので、本体だけに置くと `abort` が1度も評価されない
+  // ——往復の最中にエンジンが消えても、そのまま席を取りに行く。
+  if (abort?.()) return false;
+
   while (!cond()) {
     if (abort?.()) return false;
     if (Date.now() - start > timeoutMs) return false;
@@ -253,7 +259,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
-      const take = seat.beginTake(discardBy);
+      const take = seat.beginTake(discardBy, () => readinessRef.current.isReady);
 
       // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
       // 後始末が割れると、片方だけが反映待ちを落とし忘れる。
@@ -268,10 +274,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
         // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
         //
-        // **札の世代差だけでは足りない。** 札を取るのは席を返した**後**なので、
-        // 返却の往復の最中に起こし直された回は、進んだ後の世代が札に焼き付く
-        // ——世代差は 0 のまま、開始だけが落ちる。いまエンジンが使えるかも見る。
-        if (!take.engineChanged() && readinessRef.current.isReady) throw e;
+        // **判定は札が持つ**（世代とエンジンが使えるかの両方）。ここで足すと、
+        // 成功して返る側（`landed`）と条件が割れる——割れた側は、死んだエンジンの席を
+        // 握ったまま「解析中」で固まる。
+        if (!take.engineChanged()) throw e;
+
+        // **Rust の言い分を残す。** ここで倒すと例外にならないので、呼び手の
+        // `console.error` には届かない。断りの文言は合成した `Error` になる。
+        console.warn("[ANALYSIS] start refused while the engine was away", e);
         landed = "engine-gone";
       }
 
