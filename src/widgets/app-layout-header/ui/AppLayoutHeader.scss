@@ -1,9 +1,10 @@
 @use "@/index.scss" as index;
 
 .app-header {
-  --header-h: 5.6rem;
-
-  height: var(--header-h);
+  // **再宣言しない。** 高さの出典は `index.scss` の `$app-header-height` 1つで、
+  // ここで上書きすると `.app-layout` の grid の1段目と独立に動き、片方だけ直したときに
+  // 隙間が空くか `overflow: hidden` に切られる
+  height: index.$app-header-height;
   display: flex;
   align-items: center;
   justify-content: space-between;

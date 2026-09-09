@@ -12,8 +12,10 @@ import { RequireRootDir } from "../guards/RequireRootDir";
  * ここは**ルーティングの性質**なので app 層に置く。`RequireRootDir` は
  * `error` を見て `/` へ送り、`/` のページは `config.root_dir` を見て `/app` へ
  * 送る。この2つが同時に成り立つと往復が止まらず、React は
- * 「Maximum update depth exceeded」でツリーごと投げる。境界が無いので
- * 画面は**真っ白**になり、エラー文も選び直す手段も消える。
+ * 「Maximum update depth exceeded」でツリーごと投げる。`RequireRootDir` は
+ * `RuntimeShell` の境界より**上**なので、受けるのは root の境界（`App.tsx`）で、
+ * 出るのは `RootErrorFallback`。窓は閉じられるが、**ワークスペースを選び直す導線は消える**
+ * ので、往復そのものを止める必要がある。
  *
  * `Navigate` は effect の中で `navigate()` を呼ぶので、この往復は型でも
  * レンダでも捕まらない。通った pathname を数えるしかない。

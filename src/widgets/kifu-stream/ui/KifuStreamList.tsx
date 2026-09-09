@@ -116,7 +116,7 @@ export default function KifuStreamList() {
     [state.cursor, state.branchPlan],
   );
 
-  // TODO(#295): buildStreamRowsFromCursor は盤上で再生できない手で投げる。ここは
+  // TODO(#277): buildStreamRowsFromCursor は盤上で再生できない手で投げる（症状は #295 の本文）。ここは
   // レンダ中なので AppErrorBoundary が受けて棋譜ペインが行き止まりになる。
   // try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
   const rows = useMemo(() => {

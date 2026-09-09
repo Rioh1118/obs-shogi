@@ -9,35 +9,35 @@ import { lineNumberRefsIn, missingPaths, sourcePathsIn } from "./docsSourcePaths
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
  * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
  *
- * `docs/` 全体ではなく状態遷移表に絞るのは、ADR と提案と `IDEAS.md` /
- * `PREMISES.md` が**別リポジトリ（ShogiHome / YaneuraOu）のパス**を根拠として
- * 引くため。件数は書かない（引く側が増えると嘘になる）。
- * このリポジトリの現物を指す約束があるのは状態遷移表だけなので、
- * そこだけが「実在しなければ腐っている」と言える。
+ * **掛ける先は「このリポジトリの現物を指す約束があるもの」だけ。** いまは3つ。
  *
- * **`docs/` 全体へ広げる手順の出典はここ。** 先に落ちるものの種類を数え上げ、
- * 種類ごとに「直す」のか「綴りで見分ける」のかを決める。**検査だけ先に広げると、
- * 直しようのない赤が残る。** いま落ちる種類は次のとおり（件数は書かない。増える）。
+ * - `state-transitions/` —— 表が現物から起こされている
+ * - `spec/screens/` —— **いま画面にあるもの**を書く場所（`docs/spec/README.md`）
+ * - `decisions/` —— 決めた根拠として現物を引く
  *
- * - **別リポジトリのパス。** `decisions/` / `IDEAS.md` / `PREMISES.md` /
- *   `proposals/` が根拠として引く。書き方は決まっている（外部リンク。
- *   `docs/state-transitions/README.md`）ので、あとは直すだけ
- * - **まだ存在しない自リポジトリの置き場。** `docs/spec/` が「ここに置く」を
- *   予告として書く。**規約はこちらに効かない。** 予告と死んだパスを
- *   綴りで見分ける手が要る
- * - **別ブランチにあった過去のファイル。** `docs/archive/` が元データとして引く。
- *   更新しない約束の記録なので、直すこと自体が筋に合わない。走査から外すか、
- *   これも綴りで見分ける
+ * 掛けない先と、その理由（件数は書かない。引く側が増えると嘘になる）。
+ *
+ * - **`spec/features/`** —— **まだ画面に無いものの要件**を書く場所なので、
+ *   「ここに置く」という**予告**のパスが実在しないのが正しい。予告と死んだパスは
+ *   綴りでは見分けられないので、ディレクトリで分ける
+ * - **`IDEAS.md` / `PREMISES.md` / `proposals/`** —— 別リポジトリ（ShogiHome /
+ *   YaneuraOu）のパスを根拠として引く。書き方の規約はある（外部リンク。
+ *   `docs/state-transitions/README.md`）が、まだ全部は寄っていない
+ * - **`archive/`** —— 別ブランチにあった過去のファイルを元データとして引く。
+ *   更新しない約束の記録なので、直すこと自体が筋に合わない
  *
  * **行番号のほう（`lineNumberRefsIn`）は既に `docs/` 全体へ掛けてある。**
  */
-describe("状態遷移表が指すソースのパス", () => {
-  const tableFiles = () => markdownFiles().filter((f) => f.startsWith("state-transitions/"));
+describe("docs が指すソースのパス", () => {
+  /** 現物を指す約束があるもの。**予告を書く `spec/features/` は入れない** */
+  const TRACKED = ["state-transitions/", "spec/screens/", "decisions/"];
+  const tableFiles = () =>
+    markdownFiles().filter((f) => TRACKED.some((prefix) => f.startsWith(prefix)));
 
   // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
   // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
-  test("状態遷移表を拾えている", () => {
-    expect(tableFiles().length).toBeGreaterThan(3);
+  test("掛ける先を拾えている", () => {
+    expect(tableFiles().length).toBeGreaterThan(20);
   });
 
   test("実在しないパスを指していない", () => {
