@@ -73,8 +73,9 @@ const AppLayout = () => {
                     */}
                     <AppErrorBoundary
                       label="盤"
-                      // 同じ棋譜をツリーで押しても `openKifuNode` は走らない
-                      // （`FileNode` の `isActive` の関門）。効くのは別の棋譜を開くこと
+                      // 棋譜が載った後で描画に失敗したときは、同じ棋譜をツリーで押しても
+                      // `openKifuNode` は走らない（`FileNode` の `canSkipReopen` が真）。
+                      // 効くのは別の棋譜を開くこと
                       hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
                     >
                       <GameBoard

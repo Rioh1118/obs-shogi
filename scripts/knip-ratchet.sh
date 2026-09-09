@@ -14,7 +14,7 @@ set -uo pipefail
 
 # `npm run deadcode` と同じ範囲（未使用ファイル・未使用 export・未使用の型）の合計。
 # **減らしたらここを下げること。**
-BASELINE=150
+BASELINE=149
 
 cd "$(dirname "$0")/.."
 

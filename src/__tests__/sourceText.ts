@@ -100,6 +100,26 @@ export const codeOf = (body: string, lang: "c-like" | "shell" = "c-like"): strin
 };
 
 /**
+ * **コメントだけを返す。** `codeOf` の裏。
+ *
+ * コメントが指す綴りを検査する側（`ownedIdentifiers`）が要る。`codeOf` の
+ * 補集合を各検査で書き直すと、片方だけがブロックの開き方の扱いを外す。
+ *
+ * 行コメントは `//` から行末まで、ブロックは**行頭で開いたものだけ**——
+ * どちらも `codeOf` が落とす範囲と同じにしてある。
+ */
+export const commentsOf = (body: string): string => {
+  const out: string[] = [];
+
+  for (const [, line] of body.matchAll(/\/\/([^\n]*)/g)) out.push(line);
+  for (const [, block] of body.matchAll(/(^|\n)[ \t]*\/\*([\s\S]*?)\*\//g)) {
+    out.push(block);
+  }
+
+  return out.join("\n");
+};
+
+/**
  * 綴りが当たった箇所を `path:行番号` で返す。空なら当たっていない。
  *
  * ファイル名だけを出すと、当たったのが本物のコードなのか、ブロックと

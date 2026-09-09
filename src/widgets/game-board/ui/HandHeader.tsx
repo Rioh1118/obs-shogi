@@ -34,7 +34,8 @@ export default function HandHeader({
   placement,
 }: Props) {
   const ui = SIDE_UI[side];
-  const raw = name?.trim() ?? "";
+  // 欠けているかは `playerNames` が `null` で決めている。ここで trim し直さない
+  const raw = name ?? "";
   const displayName = raw ? clampTo15Chars(raw) : "—";
   const symbol = ui.symbol[placement];
 
