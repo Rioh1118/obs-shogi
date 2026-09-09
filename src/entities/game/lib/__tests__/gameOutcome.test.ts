@@ -137,6 +137,16 @@ describe("judgeGameOutcome", () => {
         ),
       ).toBeNull();
     });
+
+    test("玉以外がその地点へ着いても成立しない", () => {
+      // 先手が金を持ち、5一へ打つ。着地点はトライの地点だが玉ではない
+      expect(
+        judge(
+          { startSfen: "9/9/9/9/9/9/9/9/4K3k b G 1", usiMoves: ["G*5a"] },
+          { jishogiRule: "try", maxMoves: 0 },
+        ),
+      ).toBeNull();
+    });
   });
 
   describe("最大手数", () => {
@@ -205,6 +215,16 @@ describe("judgeGameOutcome", () => {
         success: false,
         error: { code: "unplayable_move", usiMove: "5i3i", ply: 1, sfen: TWO_KINGS },
       });
+    });
+
+    // 綴りの枝を1つずつ通す。どれか1つでも弾かれると、その手を指した対局が
+    // 「裁定できない」として畳まれ、勝敗が消える
+    test.each([
+      ["駒打ち", "9/9/9/9/9/9/9/9/4K3k b G 1", "G*5b"],
+      ["成り", "9/4p4/4P4/9/9/9/9/9/4K3k b - 1", "5c5b+"],
+      ["成らず", "9/4p4/4P4/9/9/9/9/9/4K3k b - 1", "5c5b"],
+    ])("%s の綴りは通す", (_name, startSfen, usiMove) => {
+      expect(judgeGameOutcome({ startSfen, usiMoves: [usiMove] }, NO_LIMIT).success).toBe(true);
     });
 
     test("USI の綴りに余りが付いていたら、読める分だけ採らずに断る", () => {
