@@ -44,7 +44,8 @@ function renderList(hits: PositionHit[], overrides: Partial<ListProps> = {}) {
       error={null}
       resolveAbsPath={(h) => `/root/${h.cursor.tesuu}.kif`}
       hasQuery
-      stale={false}
+      indexHealth="ok"
+      sessionStale={false}
       {...overrides}
     />,
   );

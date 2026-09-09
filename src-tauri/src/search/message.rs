@@ -33,7 +33,12 @@ use serde::Serialize;
 /// これも長さが決まらない。
 ///
 /// **出た先で刈られることは期待できない。** 出口は `IndexWarnPayload` と
-/// `SearchErrorPayload` の2つで、画面側がどう描くかはそれぞれの doc が持つ。
+/// `SearchErrorPayload` の欄、そして `search` のコマンドの `Err`。
+/// 刈っていない `String` を載せられないのは型が要求するからで、
+/// **その性質を保っているのは走査**（`tests/state_is_announced_once.rs` の
+/// `no_search_command_returns_a_bare_string_error`）。
+///
+/// **ここに一覧も数も書かない。** 口が増えた日に、書いた側だけが古くなる。
 pub(crate) const SCREEN_MESSAGE_LIMIT: usize = 300;
 
 /// 画面へ出す形にする。[`SCREEN_MESSAGE_LIMIT`] 文字で刈り、**制御文字を空白に落とす。**

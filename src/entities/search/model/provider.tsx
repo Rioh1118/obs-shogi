@@ -86,8 +86,8 @@ export function PositionSearchProvider({
    * `listenSearchEvents` は `listen` の連なりで、登録の完了は IPC の往復を待つ。
    * 一方 `open_project` は入口で即 `Restoring` を emit する。宣言順は購読が
    * 「始まる」ことしか保証しないので、順序を守るものがコードに要る。
-   * 取りこぼすと `index.state` は `"Empty"` のままになり、`indexStale` が偽になる。
-   * 復元中に検索すると**0件が「完了・最新」として出る**。
+   * 取りこぼすと `index.state` は `"Empty"` のままになり、`indexHealth` は
+   * `"notStarted"` を返す。**復元が進んでいるのに「索引がありません」と出続ける。**
    *
    * **「張れたか」ではなく「決着したか」。** 失敗でも真にする。購読が張れないことと
    * 索引が作られないことは別の失敗で、束ねると**購読の失敗が索引の構築まで巻き添えに

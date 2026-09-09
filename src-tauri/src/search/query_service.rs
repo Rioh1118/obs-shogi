@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::search::types::{CursorLite, FileId, PositionHit, RequestId};
 
-use crate::search::message::for_screen;
+use crate::search::message::{for_screen, ScreenMessage};
 use crate::search::position::sfen_position::position_key_from_sfen;
 use crate::search::store::index_store::IndexStore;
 use crate::search::store::snapshot::IndexState as StoreIndexState;
@@ -50,10 +50,15 @@ impl QueryService {
     pub async fn start_search(
         self: Arc<Self>,
         input: SearchPositionInput,
-    ) -> Result<SearchPositionOutput, String> {
+    ) -> Result<SearchPositionOutput, ScreenMessage> {
         let handle = self.app_handle.read().await.clone();
         let Some(handle) = handle else {
-            return Err("search app handle not ready".to_string());
+            // **内部の語彙を出さない。** この `Err` は画面へそのまま出る
+            // （`PositionSearchHitList` が「検索に失敗しました: …」として描く）。
+            // 起動直後に撃つと本当に踏む——`lib.rs` は宛先の設定を `spawn` の中でやる
+            return Err(for_screen(
+                &"検索の準備がまだ終わっていません。少し待ってからもう一度お試しください",
+            ));
         };
 
         let request_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);

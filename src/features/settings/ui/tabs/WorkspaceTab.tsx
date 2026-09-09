@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import "./WorkspaceTab.scss";
 
 import { Copy, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
@@ -7,7 +7,8 @@ import SSection from "../kit/SSection";
 import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
-import { isIndexBusy, usePositionSearch, type IndexState } from "@/entities/search";
+import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
+import type { IndexHealth, IndexUiState } from "@/entities/search";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -15,24 +16,106 @@ function percent(done: number, total: number) {
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)));
 }
 
-type IndexBadge = { tone: "accent" | "warn" | "muted"; icon: ReactNode; label: string };
-
-const spinner = <Loader2 size={14} className="wsTab__spin" />;
+/**
+ * 状態バッジ。
+ *
+ * **走査に失敗した `Ready` を「準備完了」と言わせない。** 索引そのものは
+ * 最後に読めたときのまま健全なので状態は `Ready` だが、それ以降の
+ * 追加・変更・削除は1件も反映されていない。緑の「準備完了」を出すと、
+ * 利用者は索引が最新だと確信する。
+ *
+ * **読めなかった場所があった回も同じ。** 索引に入っていない棋譜があるのに
+ * 緑を出すと、0件が「自分の棋譜に無い」と読める。
+ *
+ * 具合の判断は `indexHealth` が持つ——画面ごとに旗を並べ直さない。
+ */
+function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
+  switch (health) {
+    case "notRefreshed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "更新できていません",
+      };
+    case "buildFailed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "作成できませんでした",
+      };
+    case "partiallyUnreadable":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "一部を読めていません",
+      };
+    case "partiallyIndexed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "一部を索引に入れられていません",
+      };
+    case "notRefreshedAndPartiallyIndexed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "更新できず、入れられなかった棋譜もあります",
+      };
+    case "partiallyUnreadableAndIndexed":
+      return {
+        tone: "warn" as const,
+        icon: <AlertTriangle size={14} />,
+        label: "読めない場所と、入れられなかった棋譜があります",
+      };
+    case "notStarted":
+      return { tone: "muted" as const, icon: null, label: "未作成" };
+    case "building":
+      return {
+        tone: "warn" as const,
+        icon: <Loader2 size={14} className="wsTab__spin" />,
+        label: STAGE_LABEL[idx.state].label,
+      };
+    case "ok":
+      return {
+        tone: "accent" as const,
+        icon: <CheckCircle2 size={14} />,
+        label: "準備完了",
+      };
+    default: {
+      // 具合が増えたら tsc がここで止める。**黙って既定へ落ちない**
+      const never: never = health;
+      return never;
+    }
+  }
+}
 
 /**
- * 索引の段ごとのバッジ。**表で書く。** `switch` の `default:` は網羅検査を
- * 無条件に抑えるので、段が1つ増えたときに黙って「未作成」になる——索引を
- * 組み直している最中に、この画面は「未作成」・局面検索は「更新中」という
- * 食い違った2つの顔が出る。表なら段が増えた瞬間にここで分類を迫られる
+ * 段そのものの語。**どれを出すかは決めない**——決めるのは `indexHealth`。
+ *
+ * **表で書く。** `switch` の `default:` は網羅検査を無条件に抑えるので、段が
+ * 1つ増えた日に黙って「更新中」になる。そのとき `isIndexBusy` の表は分類を
+ * 迫るのに、こちらは tsc を1つも落とさずに**間違った語を出す**
  * （同じ理由で `entities/search/lib/indexState.ts` も表にしてある）。
+ *
+ * **`label:` の形で書く。** `screenSpecCoverage` が拾うのは `label:` と
+ * `return` と三項の両腕だけなので、素の値にすると**仕様書との突き合わせから
+ * 落ちる**——網羅は tsc が見るが、語が仕様書と合っているかは誰も見なくなる。
+ *
+ * **引くのは `badgeForIndex` の `building` の腕だけ。** `state` から直接語を
+ * 引かないこと。`Ready` は `indexHealth` で6通りに落ちるので、ここから引くと
+ * **走査に失敗した `Ready` に緑の「準備完了」を出す**——このファイルが
+ * 冒頭で禁じている表示になる。`Empty` / `Ready` の欄は表を埋めるためだけに在る。
  */
-const INDEX_BADGE: Record<IndexState, IndexBadge> = {
-  Ready: { tone: "accent", icon: <CheckCircle2 size={14} />, label: "準備完了" },
-  Building: { tone: "warn", icon: spinner, label: "作成中" },
-  Updating: { tone: "warn", icon: spinner, label: "更新中" },
-  Restoring: { tone: "muted", icon: spinner, label: "復元中" },
-  Empty: { tone: "muted", icon: null, label: "未作成" },
+const STAGE_LABEL: Record<IndexUiState["state"], { label: string }> = {
+  Restoring: { label: "復元中" },
+  Building: { label: "作成中" },
+  Updating: { label: "更新中" },
+  Empty: { label: "未作成" },
+  Ready: { label: "準備完了" },
 };
+
+/** 警告の枠。**増やすと状態の要約が押し出される**ので、増やす前に置き場を決めること */
+const WARN_SLOTS = 5;
 
 async function copyText(text: string) {
   try {
@@ -50,11 +133,16 @@ export default function WorkspaceTab() {
   const idx = search.index; // ←あなたの state 形
   const warns = search.warns; // ←あなたの state 形
 
-  const badge = INDEX_BADGE[idx.state];
+  // 具合を一度だけ導いて配る。画面の中で `state` を並べ直すと、段が増えたときに
+  // バッジだけ追随して進捗バーが消える（`indexHealth` は `switch` ではない）
+  const health = indexHealth(idx);
+  const badge = badgeForIndex(idx, health);
+
+  const shownWarns = useMemo(() => pickWarns(warns, WARN_SLOTS), [warns]);
 
   const progressTotal = idx.state === "Updating" ? idx.dirtyCount : idx.totalFiles;
 
-  const showProgress = isIndexBusy(idx.state) && progressTotal > 0;
+  const showProgress = health === "building" && progressTotal > 0;
 
   const pct = useMemo(() => percent(idx.doneFiles, progressTotal), [idx.doneFiles, progressTotal]);
 
@@ -108,7 +196,27 @@ export default function WorkspaceTab() {
 
             <div className="wsTab__mini">
               <div className="wsTab__miniK">未同期</div>
-              <div className="wsTab__miniV">{idx.dirtyCount.toLocaleString()}</div>
+              {/*
+                **数えられなかったときに 0 と書かない。** 走査が失敗すると
+                差分を1件も取れていないので、0 は「無い」ではなく「分からない」。
+                0 と描くと、索引が最新だと読める
+              */}
+              <div className="wsTab__miniV">
+                {idx.scanFailed ? "確認できていません" : idx.dirtyCount.toLocaleString()}
+              </div>
+            </div>
+
+            <div className="wsTab__mini">
+              {/*
+                **入れ終えた数を出す。** `Ready` の回にかぎり、対象との差が
+                そのまま「検索に出ない棋譜」の数。数を伏せると、警告欄の5件しか
+                手掛かりが無くなる。
+                進行中は据わっている索引の数が出るので、差は「まだ当てていない分」
+              */}
+              <div className="wsTab__miniK">索引済み</div>
+              <div className="wsTab__miniV">
+                {idx.indexedFiles.toLocaleString()} / {idx.totalFiles.toLocaleString()}
+              </div>
             </div>
 
             <div className="wsTab__mini">
@@ -146,8 +254,20 @@ export default function WorkspaceTab() {
               読み取り警告
             </div>
 
+            {/*
+              **切ったことを言う。** 「警告 200」と出しているのに一覧が5行で
+              終わると、利用者は「5件だけ壊れている」と読む——「一部を索引に
+              入れられていません」と言われた人が次にできるのは、ここで
+              どの棋譜かを見ることだけ
+            */}
+            {warns.length > shownWarns.length && (
+              <div className="wsTab__warnMore">
+                {`ほか ${(warns.length - shownWarns.length).toLocaleString()} 件（読めなかった場所を先に、${shownWarns.length} 件だけ表示しています）`}
+              </div>
+            )}
+
             <ul className="wsTab__warnList">
-              {warns.slice(0, 5).map((w, i) => (
+              {shownWarns.map((w, i) => (
                 <li key={`${w.path}:${i}`} className="wsTab__warnItem">
                   <div className="wsTab__warnMsg">{w.message}</div>
                   <div className="wsTab__warnPath" title={w.path}>

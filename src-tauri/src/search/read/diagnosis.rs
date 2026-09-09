@@ -2,6 +2,10 @@
 //!
 //! **クレートが名指ししたものを消さない。** 固定の文言に潰すと、
 //! どのファイルのどこが悪いのかを知る手段が無くなる。
+//!
+//! **どれも Tauri を要らない形に切ってある**（`AppHandle` を取らない）ので、
+//! テストから直に呼べる。ただし**呼ばれていることまでは見ていない**
+//! ——emit の側を落としても、ここのテストは緑のまま。
 
 use shogi_kifu_converter_obsshogi::error::ParseError;
 
@@ -129,6 +133,41 @@ pub(crate) fn cannot_open_reason(e: &std::io::Error) -> String {
         // `ErrorKind` の Debug は内部の識別子なので出さない
         _ => {
             "ファイルを読めませんでした。ディスクやネットワークの接続を確かめてください".to_owned()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 画面に出る文言に内部の語彙が混じらないこと。
+    ///
+    /// **`io::Error` の `Display` は内部の綴り**（`Permission denied (os error 13)`）。
+    /// 素で流すと、利用者は自分に関係のある文字列だと読んで検索する。
+    #[test]
+    fn no_open_failure_message_carries_internal_words() {
+        use std::io::ErrorKind;
+        for kind in [
+            ErrorKind::PermissionDenied,
+            ErrorKind::NotFound,
+            ErrorKind::Other,
+        ] {
+            let m = cannot_open_reason(&std::io::Error::new(kind, "os error 13"));
+            for internal in ["os error", "ErrorKind", "Err", "read_dir"] {
+                assert!(
+                    !m.contains(internal),
+                    "内部の識別子が画面に出る（{internal}）: {m}"
+                );
+            }
+            assert!(!m.is_empty(), "文言が無い（{kind:?}）");
+        }
+        // **直せるものだけ「ください」と言う。** 索引を組んでいる間に消えた
+        // ファイルには利用者のすることが無いので、案内を足すと直せないものを
+        // 直しに行かせる
+        for kind in [ErrorKind::PermissionDenied, ErrorKind::Other] {
+            let m = cannot_open_reason(&std::io::Error::new(kind, "os error 13"));
+            assert!(m.contains("ください"), "次に何をすればよいかが無い: {m}");
         }
     }
 }

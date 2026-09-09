@@ -28,6 +28,14 @@ pub enum ScanError {
     #[error("root directory does not exist: {0}")]
     RootNotFound(String),
 
+    /// **root そのものを読めなかった。** 在るのに開けない
+    /// （権限、未マウントの共有、TCC の許可が落ちた）。
+    ///
+    /// `RootNotFound` と分ける——`exists()` は権限が無くても真を返すので、
+    /// 「無い」と「読めない」は別の症状で、利用者への案内も違う。
+    #[error("root directory is not readable: {0}")]
+    RootUnreadable(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -116,12 +124,61 @@ impl Default for ScanOptions {
     }
 }
 
+/// 走査の結果。**完全だったかどうかを一緒に返す。**
+///
+/// `files` だけを返すと、**読めなかったせいで見つからなかった**ものと
+/// **本当に消えた**ものが同じ値になる。呼び手はそれを差分に掛けるので、
+/// 読めなかった部分木の棋譜が丸ごと `removed` に並び、
+/// **索引から黙って消える**（画面は「準備完了」と減った件数を出すだけ）。
+#[derive(Debug)]
+pub struct Scanned {
+    /// 見つかった棋譜
+    pub files: Vec<FileRecord>,
+    /// **読めなかった場所。** ディレクトリとは限らない——`metadata` に失敗した
+    /// ファイル自身も入る（`0444` のディレクトリの中身がそう）。
+    ///
+    /// **空でも「全部読めた」ではない**——場所の分からない失敗は
+    /// `unknown_gaps` に載る。完全だったかは [`Scanned::is_partial`] で見る。
+    pub unreadable: Vec<String>,
+    /// **どこが読めなかったか分からない失敗があった。**
+    ///
+    /// `read_dir` の反復中の失敗はパスを持たない（`walkdir` が `path: None` を作る）。
+    /// 場所が分からないので引き継ぐ範囲を決められない
+    /// ——呼び手は**その回の削除を1件も当てない**こと。
+    pub unknown_gaps: bool,
+}
+
+impl Scanned {
+    /// 読めなかったものがあったか。**場所が分かるものと分からないものの両方。**
+    ///
+    /// 呼び手が `!unreadable.is_empty()` と書くと、`unknown_gaps` を落とした側だけが
+    /// 黙る——同じ失敗が経路によって違う結末になる。
+    pub fn is_partial(&self) -> bool {
+        !self.unreadable.is_empty() || self.unknown_gaps
+    }
+}
+
 /// ルート配下を再帰走査し、対象拡張子だけ列挙
 /// - 対象外ファイルはメタ情報すら取得しない（最速優先）
-pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Vec<FileRecord>, ScanError> {
+///
+/// **読めなかったものを捨てない。** 捨てると呼び手が「消えた」と読む
+/// （[`Scanned`] の doc）。
+pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Scanned, ScanError> {
     if !root_dir.exists() {
         return Err(ScanError::RootNotFound(root_dir.display().to_string()));
     }
+
+    // **綴りを入口で1度だけ揃える。** ファイルごとに `canonicalize` して
+    // `unreadable` は素のパスを積む形にすると、root に symlink が1つ挟まるだけで
+    // （macOS の `/tmp` → `/private/tmp`）**両者が一度も一致しなくなる**
+    // ——引き継ぎが丸ごと空振りし、読めない場所の棋譜が削除として消える。
+    //
+    // 揃えられなければ返す。素のパスへ落とすと、揃っているという前提だけが
+    // 消えて走査は続く。root を辿れないなら `WalkDir` も depth 0 で落ちるので、
+    // ここで返しても届く結末は変わらない
+    let root_dir = &root_dir
+        .canonicalize()
+        .map_err(|_| ScanError::RootUnreadable(root_dir.display().to_string()))?;
 
     let walker = WalkDir::new(root_dir)
         .follow_links(opts.follow_links)
@@ -129,11 +186,27 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Vec<FileRe
         .filter_entry(|e| !should_skip_dir(e, opts));
 
     let mut out = Vec::new();
+    let mut unreadable: Vec<String> = Vec::new();
+    let mut unknown_gaps = false;
 
     for entry in walker {
         let entry = match entry {
             Ok(e) => e,
-            Err(_) => continue,
+            Err(e) => {
+                // **root 自身が読めないなら、走査そのものが失敗。**
+                // 0件と区別が付かない値を返さない
+                if e.depth() == 0 {
+                    return Err(ScanError::RootUnreadable(root_dir.display().to_string()));
+                }
+                // **パスを持つ失敗と持たない失敗を分ける。** 前者はその部分木が
+                // 丸ごと落ちる、いちばん damage の大きい種類。後者は範囲を
+                // 決められないので、呼び手に「削除を当てない」を選ばせる
+                match e.path() {
+                    Some(path) => unreadable.push(path.display().to_string()),
+                    None => unknown_gaps = true,
+                }
+                continue;
+            }
         };
 
         if !entry.file_type().is_file() {
@@ -147,10 +220,15 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Vec<FileRe
             continue;
         };
 
-        // メタ取得
+        // メタ取得。**失敗を捨てない**——捨てると、そのファイルは `files` にも
+        // `unreadable` にも入らず、差分では削除と同じ形になる。`0444` の
+        // ディレクトリ（読めるが辿れない）はこの腕だけを通る
         let meta = match fs::metadata(path) {
             Ok(m) => m,
-            Err(_) => continue,
+            Err(_) => {
+                unreadable.push(path.display().to_string());
+                continue;
+            }
         };
 
         let size = meta.len();
@@ -160,18 +238,80 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Vec<FileRe
             .and_then(|t| system_time_to_unix_ms(t).ok())
             .unwrap_or(0);
 
-        // canonicalizeは可能なら（失敗しても動くの優先）
-        let abs = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-
+        // **ここで `canonicalize` しない。** root は揃えてあるので、`WalkDir` が
+        // 返す綴りはその下で既に一貫している。ここで解くと、`follow_links` で
+        // 辿った先が root の外にある場合に**そのファイルだけ綴りが外へ出る**
+        // ——`unreadable` の前置きにも前回の走査にも二度と一致しない。
+        // 1ファイル1 syscall も要らない
         out.push(FileRecord {
-            path: abs,
+            path: path.to_path_buf(),
             kind,
             size,
             mtime_ms,
         });
     }
 
-    Ok(out)
+    Ok(Scanned {
+        files: out,
+        unreadable,
+        unknown_gaps,
+    })
+}
+
+/// 読めなかった場所の下にあったものを、**前回の走査から引き継ぐ**。
+///
+/// 読めないディレクトリの中身は「無くなった」と見分けが付かないので、
+/// 削除として当ててはいけない。だが**捨てるだけでは足りない**——読めた分だけの
+/// 走査をそのまま次回の基準にすると、そのファイルは前回からも消えるので、
+/// **どの完全な走査でも二度と差分に現れない**。索引には残ったままになり、
+/// 検索は存在しないファイルを返し続ける。権限が戻ったときは追加として
+/// 新しい `file_id` が振られ、同じ棋譜が2件並ぶ。
+///
+/// **抑止は読めなかった場所と、その下だけ。** 読めたフォルダで消したファイルの
+/// 削除まで止めると、ワークスペース全体で削除が反映されなくなる。
+///
+/// **成分単位で見て、同一も含める。** 文字列の前置きで見ると `/w/bc` を
+/// `/w/b` の下と読み、同一を外すと `metadata` に失敗したファイル自身が漏れる。
+/// `Path::ancestors` はどちらも満たす。
+///
+/// **引き継げた「場所」を返す**（引き継いだ鍵の数ではない）。
+///
+/// 鍵の数を返すと、呼び手は「この回のどこかで引き継ぎが起きた」しか言えない。
+/// 場所ごとに失われるものが逆になる——引き継げた場所の棋譜は検索に出続け、
+/// 引き継げなかった場所の棋譜は索引に無い。数で畳むと、**出ないものを
+/// 「残る」と告げる**か、その逆をやる。
+pub fn carry_over_unreadable(
+    prev: &ScanSnapshot,
+    next: &mut ScanSnapshot,
+    unreadable: &[String],
+) -> HashSet<String> {
+    if unreadable.is_empty() {
+        return HashSet::new();
+    }
+    // **集合で引く。** 総当たりだと `prev × unreadable` で、どちらもファイル数と
+    // 同じ桁になりうる（`metadata` の失敗は1ファイルにつき1件積む）
+    let blocked: HashSet<&str> = unreadable.iter().map(|u| u.trim_end_matches('/')).collect();
+
+    let mut carried_places = HashSet::new();
+    let mut carried_keys = Vec::new();
+    for (key, rec) in &prev.by_path {
+        if next.by_path.contains_key(key) {
+            continue;
+        }
+        // **どの場所の下だったかを覚える。** 呼び手はこれで文言を選ぶ
+        let Some(place) = Path::new(key)
+            .ancestors()
+            .find(|a| blocked.contains(a.to_string_lossy().as_ref()))
+        else {
+            continue;
+        };
+        carried_places.insert(place.to_string_lossy().into_owned());
+        carried_keys.push((key.clone(), rec.clone()));
+    }
+    for (key, rec) in carried_keys {
+        next.by_path.insert(key, rec);
+    }
+    carried_places
 }
 
 #[inline]
@@ -329,5 +469,167 @@ mod tests {
         );
         assert_eq!(KifuKind::from_path(Path::new("/tmp/a.txt")), None);
         assert_eq!(KifuKind::from_path(Path::new("/tmp/noext")), None);
+    }
+
+    /// `Scanned` を手で組む。**[`Scanned::is_partial`] の写像だけを見るとき用。**
+    ///
+    /// 綴りの突き合わせが要るもの（引き継ぎ・差分）にこれを使わないこと——
+    /// 手で組むと `unreadable` と `by_path` の綴りが必ず揃うので、
+    /// 本番でずれていても緑になる。そちらは実ファイルで通す。
+    fn scanned(unreadable: &[&str], unknown_gaps: bool) -> Scanned {
+        Scanned {
+            files: Vec::new(),
+            unreadable: unreadable.iter().map(|s| (*s).to_string()).collect(),
+            unknown_gaps,
+        }
+    }
+
+    /// **場所の分からない失敗だけの回を「完走した」と言わないこと。**
+    ///
+    /// `read_dir` の反復中の失敗はパスを持たないので `unreadable` は空のまま。
+    /// `!unreadable.is_empty()` で見ると**その回だけが黙る**——削除を1件も
+    /// 当てていないのに、画面は緑の「準備完了」になる。
+    #[test]
+    fn a_scan_with_only_placeless_failures_is_still_partial() {
+        assert!(
+            scanned(&[], true).is_partial(),
+            "場所の分からない失敗を見落としている"
+        );
+    }
+
+    #[test]
+    fn a_scan_that_read_everything_is_not_partial() {
+        assert!(!scanned(&[], false).is_partial());
+    }
+
+    #[test]
+    fn a_scan_with_an_unreadable_place_is_partial() {
+        assert!(scanned(&["/w/closed"], false).is_partial());
+    }
+
+    /// **読めない場所の下の棋譜が、削除に化けないこと。**
+    ///
+    /// 手で組んだ `ScanSnapshot` を渡すテストは、`unreadable` と `by_path` の
+    /// **綴りを揃えて作ってしまう**ので、本番で両者がずれていても緑になる。
+    /// 走査から差分までを実ファイルで1本通す。
+    #[cfg(unix)]
+    #[test]
+    fn a_file_under_an_unreadable_place_is_not_reported_as_removed() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = test_support::dir::temp_dir("scan-carry");
+        std::fs::create_dir_all(dir.join("closed")).expect("試験用のディレクトリ");
+        std::fs::create_dir_all(dir.join("open")).expect("試験用のディレクトリ");
+        // **2件置く。** 1件だと「鍵を返す」変異でも `carried.len() == 1` になり、
+        // 場所を返しているのか鍵を返しているのか区別が付かない
+        std::fs::write(dir.join("closed/a.kif"), b"x").expect("下ごしらえ");
+        std::fs::write(dir.join("closed/b.kif"), b"x").expect("下ごしらえ");
+        std::fs::write(dir.join("open/b.kif"), b"x").expect("下ごしらえ");
+        std::fs::write(dir.join("open/gone.kif"), b"x").expect("下ごしらえ");
+
+        let before = scan_kifu_files(&dir, &ScanOptions::default()).expect("1回目");
+        assert!(before.unreadable.is_empty(), "まだ読める");
+        let prev = snapshot_from_records(&dir, before.files);
+        assert_eq!(prev.by_path.len(), 4);
+
+        // 読める場所の1件を消し、もう1つの場所を辿れなくする
+        std::fs::remove_file(dir.join("open/gone.kif")).expect("削除");
+        std::fs::set_permissions(dir.join("closed"), std::fs::Permissions::from_mode(0o000))
+            .expect("権限を落とす");
+
+        let after = scan_kifu_files(&dir, &ScanOptions::default()).expect("2回目");
+        let mut next = snapshot_from_records(&dir, after.files);
+        let carried = carry_over_unreadable(&prev, &mut next, &after.unreadable);
+        let diff = diff_snapshot(&prev, &next);
+
+        let _ =
+            std::fs::set_permissions(dir.join("closed"), std::fs::Permissions::from_mode(0o755));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // **返るのは「場所」であって「鍵」ではない。** `unreadable_warnings` は
+        // これを場所の綴りで引くので、鍵が入ると引き継げた場所が全部
+        // 「引き継げなかった」側に落ち、検索に出る棋譜を「出ません」と告げる
+        assert_eq!(
+            carried.len(),
+            1,
+            "場所ではなく鍵を返している（2件の棋譜に対して場所は1つ）。carried={carried:?}"
+        );
+        // **`unreadable` と同じ綴りであること。** `unreadable_warnings` は
+        // この2つを突き合わせるので、片方が正規化された綴りだと一致しない
+        assert!(
+            carried.contains(&after.unreadable[0]),
+            "引き継げた場所の綴りが `unreadable` と揃っていない。carried={:?} unreadable={:?}",
+            carried,
+            after.unreadable
+        );
+        assert!(
+            after.unreadable[0].ends_with("/closed"),
+            "引き継いだ場所が `closed` でない: {:?}",
+            after.unreadable
+        );
+        assert_eq!(
+            diff.removed.len(),
+            1,
+            "読める場所の削除だけが当たるべき。removed={:?}",
+            diff.removed
+        );
+        assert!(
+            diff.removed[0].contains("gone.kif"),
+            "当たった削除が違う: {:?}",
+            diff.removed
+        );
+    }
+
+    /// **辿れないディレクトリ（`0444`）の中身も数える。**
+    ///
+    /// `0444` は「読める（listing は取れる）が辿れない」ので、`walkdir` は
+    /// エントリを返し、`metadata` だけが落ちる。この腕を捨てると、そのファイルは
+    /// `files` にも `unreadable` にも入らず、差分では削除と同じ形になる。
+    #[cfg(unix)]
+    #[test]
+    fn a_file_that_cannot_be_stat_ed_is_counted_as_unreadable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = test_support::dir::temp_dir("scan-stat");
+        std::fs::create_dir_all(dir.join("sub")).expect("試験用のディレクトリ");
+        std::fs::write(dir.join("sub/a.kif"), b"x").expect("下ごしらえ");
+
+        std::fs::set_permissions(dir.join("sub"), std::fs::Permissions::from_mode(0o444))
+            .expect("権限を落とす");
+        let scanned = scan_kifu_files(&dir, &ScanOptions::default()).expect("走査");
+        let _ = std::fs::set_permissions(dir.join("sub"), std::fs::Permissions::from_mode(0o755));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(
+            scanned.is_partial(),
+            "辿れないディレクトリの中身を数え落としている。files={:?}",
+            scanned.files.len()
+        );
+    }
+
+    /// **読めない root は「0件」で返さない。**
+    ///
+    /// `exists()` は権限が無くても真を返すので、`walkdir` の `Err` を捨てると
+    /// `Ok(空)` になる。呼び手はそれを差分に掛けるので、前回の全ファイルが
+    /// `removed` に並んで**索引が黙って全消しされる**。
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_root_is_an_error_not_an_empty_scan() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = test_support::dir::temp_dir("scan-root");
+        std::fs::write(dir.join("a.kif"), b"x").expect("下ごしらえ");
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o000))
+            .expect("権限を落とす");
+
+        let got = scan_kifu_files(&dir, &ScanOptions::default());
+
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        assert!(
+            matches!(got, Err(ScanError::RootUnreadable(_))),
+            "読めない root が 0件として返っている: {got:?}"
+        );
     }
 }

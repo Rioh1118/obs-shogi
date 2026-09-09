@@ -13,6 +13,8 @@ export const initialState: SearchState = {
   index: {
     state: "Empty",
     dirtyCount: 0,
+    scanFailed: false,
+    partiallyUnreadable: false,
     indexedFiles: 0,
     totalFiles: 0,
     doneFiles: 0,
@@ -68,6 +70,59 @@ function mergeFiles(base: FilePathById, files: MergeFilesInput): FilePathById {
   return next ?? base;
 }
 
+/** 覚えておく警告の総数。**種類ごとの内訳は下の `PLACE_KEPT`。** */
+const WARNS_KEPT = 200;
+
+/**
+ * 場所の警告として覚えておく数。
+ *
+ * **総数だけで切ると、場所の警告は必ず落ちる。** 1回の再走査は棋譜1件ごとに
+ * 警告を出しうるので、読めない場所が1つあるワークスペースでは
+ * ファイル単位の警告が総数の枠を独占する——落ちるのは
+ * 「ワークスペースを読めません」のような、**利用者が次にすることを含んだ
+ * 唯一の文言**のほう。
+ */
+const PLACE_KEPT = 20;
+
+/** 同じ警告かを決める鍵。**直前との比較では足りない**（下の `appendWarn`）。 */
+function warnKey(w: SearchState["warns"][number]) {
+  return `${w.kind}\u0000${w.path}\u0000${w.message}`;
+}
+
+/**
+ * 警告を積む。**同じものは複製せず、末尾へ動かす。**
+ *
+ * **直前の1件と比べるだけでは足りない。** 1回の再走査は読めない場所について
+ * 最大3本（引き継げた／引き継げなかった／場所が分からない）を出し、そのあいだに
+ * 棋譜1件ごとの警告も挟まる。次の再走査が同じ3本を出すとき、どれも直前とは
+ * 別の1件なので**全部通る**——読めない場所を1つ放置したまま作業すると、
+ * 数回の保存で枠が同じ文言の複製だけになり、棋譜の警告が一度も描かれなくなる。
+ *
+ * 末尾へ動かすのは、**新しさを保つため**。前に出た警告がまた出たなら、
+ * それはいまも起きていることなので古い扱いにしない。
+ *
+ * **種類ごとに上限を持つ。** 総数だけで切ると、1回の再走査が棋譜1件ごとに出す
+ * 警告が枠を独占し、場所の警告が消える。
+ */
+function appendWarn(warns: SearchState["warns"], next: SearchState["warns"][number]) {
+  const key = warnKey(next);
+  const withoutDup = warns.filter((w) => warnKey(w) !== key);
+  const grown = [...withoutDup, next];
+  if (grown.length <= WARNS_KEPT) return grown;
+
+  // **末尾から数える形で書かない。** `slice(-n)` は `n` が 0 のとき
+  // `slice(-0)` ＝ `slice(0)` になり、**1件も残さないつもりが全件残る**
+  const allPlaces = grown.filter((w) => w.kind === "place");
+  const places = allPlaces.slice(Math.max(0, allPlaces.length - PLACE_KEPT));
+
+  const allFiles = grown.filter((w) => w.kind !== "place");
+  const fileSlots = Math.max(0, WARNS_KEPT - places.length);
+  const files = allFiles.slice(Math.max(0, allFiles.length - fileSlots));
+
+  const keep = new Set([...places, ...files]);
+  return grown.filter((w) => keep.has(w));
+}
+
 export function reducer(state: SearchState, action: Action): SearchState {
   switch (action.type) {
     case "index_state": {
@@ -79,6 +134,8 @@ export function reducer(state: SearchState, action: Action): SearchState {
           ...state.index,
           state: p.state,
           dirtyCount: p.dirtyCount,
+          scanFailed: p.scanFailed,
+          partiallyUnreadable: p.partiallyUnreadable,
           indexedFiles: p.indexedFiles,
           totalFiles: p.totalFiles,
           // `Ready` に着いた回の `index_progress` が来ないことがあるので、ここで揃える
@@ -101,10 +158,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
     }
 
     case "index_warn":
-      return {
-        ...state,
-        warns: [...state.warns.slice(-199), action.payload],
-      };
+      return { ...state, warns: appendWarn(state.warns, action.payload) };
 
     case "clear_warns":
       return { ...state, warns: [] };

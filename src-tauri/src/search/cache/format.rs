@@ -70,15 +70,24 @@ const MAGIC: [u8; 8] = *b"OBSIXv01";
 /// **棋譜の解釈が変わっても古い解釈のまま残り続ける**。上げないと、索引と
 /// 現在の読み手が食い違ったまま検索が当たる（#296 と同じ壊れ方をする）。
 ///
-/// 版を持つのはここだけ。`MAGIC` の `v01` とキャッシュのファイル名 `index.v1.*`
-/// は固定の綴りで、**上げるときはこの定数だけを動かす**。名前を変えると古い
-/// ファイルがディスクに残って誰も消さないが、版で弾けば同じ名前に上書きされる。
+/// 版を持つのはここだけ。`MAGIC` の `v01` は固定の綴りで、**上げるときは
+/// この定数だけを動かす**。
+///
+/// **ファイル名は版を持たない。** 置き場は `<app_cache>/obs-shogi/index/` で、
+/// 名前は根のパスから引いた `cache_key`（`paths.rs`）＋ `.blob` / `.bak` / `.tmp`
+/// （`storage/disk.rs`）。版を上げても鍵は同じなので、**次に構築が成功して
+/// 書き戻したとき**に上書きされる。
+///
+/// **消す口は無い。** 読めない版は使わずに全件構築へ落ちるだけで
+/// （`try_restore` の `Err` → `commands.rs` の fallback）、blob を消す呼び手は
+/// `src/search/` に1つも無い。走査が失敗して構築が書き戻しまで届かない回は、
+/// **読めない旧版がディスクに残り続ける**。読み戻されることはこの定数が防ぐ。
 ///
 /// **上げるのは「索引に入る値が変わったとき」** — どの棋譜が入るか、
 /// 入った棋譜からどの `PositionKey` が出るか、のどちらかが変われば上げる。
 /// 棋譜を読むクレートを上げた、読み口の判定を変えた、初期局面の組み立てを変えた、
 /// 指し手の適用を変えた、はいずれも該当する。
-const CACHE_VERSION: u32 = 3;
+const CACHE_VERSION: u32 = 4;
 
 /// キャッシュから読み戻した、索引を組み直すのに要るもの。
 ///
@@ -262,6 +271,7 @@ fn encode_all(w: &mut Vec<u8>, ctx: &EncodeCtx<'_>, buckets: &BucketEntries) -> 
         write_u32(w, e.file_id);
         write_u32(w, e.r#gen);
         write_u8(w, if e.deleted { 1 } else { 0 });
+        write_u8(w, if e.indexed { 1 } else { 0 });
         write_string(w, &e.path);
     }
 
@@ -400,8 +410,8 @@ fn checked_file_id(file_id: FileId, ft_len: usize) -> Result<FileId, String> {
 /// 可変長（文字列）を含む項目は、長さの欄だけを数えて中身を0バイトとする。
 /// 上限として使うので、**小さく見積もるぶんには安全側**（通す範囲が広くなるだけ）。
 mod min_bytes {
-    /// `file_id` + `gen` + `deleted` + パスの長さ
-    pub(super) const FILE_ENTRY: usize = 4 + 4 + 1 + 4;
+    /// `file_id` + `gen` + `deleted` + `indexed` + パスの長さ
+    pub(super) const FILE_ENTRY: usize = 4 + 4 + 1 + 1 + 4;
     /// パスの長さ + `kind` + `size` + `mtime_ms`
     pub(super) const FILE_RECORD: usize = 4 + 1 + 8 + 8;
     /// パスの長さ + `file_id`
@@ -443,11 +453,13 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<Restored, String> {
         let file_id = checked_file_id(r.read_u32()?, ft_len)?;
         let gen_val = r.read_u32()?;
         let deleted = r.read_u8()? != 0;
+        let indexed = r.read_u8()? != 0;
         let path = r.read_string()?;
         ft.upsert(FileEntry {
             file_id,
             r#gen: gen_val,
             deleted,
+            indexed,
             path,
         });
     }
@@ -699,7 +711,7 @@ mod tests {
     /// （`const _` が `#[cfg(test)]` の中にあるので、`cargo build` だけでは通る）。
     /// 留めているのは言語ではなく、Rust を触ったら `verify:rust` を必ず走らせる
     /// `verify-gate.sh` のほう。
-    const LATEST_RETIRED_CACHE_VERSION: u32 = 2;
+    const LATEST_RETIRED_CACHE_VERSION: u32 = 3;
 
     /// 過ぎた版の索引を、二度と受け入れない。
     ///
@@ -898,6 +910,7 @@ mod tests {
                 write_u32(b, 0); // file_id
                 write_u32(b, 0); // gen
                 write_u8(b, 0); // deleted
+                write_u8(b, 0); // indexed
                 write_u32(b, 0); // 長さ0のパス
             }),
             (
@@ -1057,6 +1070,7 @@ mod tests {
                 file_id: i,
                 path: path_of(i),
                 deleted: false,
+                indexed: true,
                 r#gen: 1,
             });
             path_to_id.insert(path_of(i), i);
@@ -1155,11 +1169,17 @@ mod tests {
         let root = Path::new("/tmp/obs-shogi-roundtrip");
 
         let mut ft = FileTable::default();
-        for (file_id, path, deleted) in [(1u32, "a.kif", false), (2u32, "変化.ki2", true)] {
+        // **`indexed` を片方だけ偽にする。** 両方 `true` だと定数へ潰す変異
+        // （`write_u8(w, 1)`）が生き残る
+        for (file_id, path, deleted, indexed) in [
+            (1u32, "a.kif", false, true),
+            (2u32, "変化.ki2", true, false),
+        ] {
             ft.upsert(FileEntry {
                 file_id,
                 path: path.to_owned(),
                 deleted,
+                indexed,
                 r#gen: file_id + 40,
             });
         }
@@ -1282,11 +1302,9 @@ mod tests {
                 .file_table
                 .get(file_id)
                 .expect("読み戻せていない");
-            assert_eq!(
-                (after.path, after.deleted, after.r#gen),
-                (before.path, before.deleted, before.r#gen),
-                "file_id={file_id}"
-            );
+            // **欄を並べて書かない。** 手で並べると、欄が増えたときに
+            // 新しい1つだけが往復の検査から漏れる
+            assert_eq!(after, before, "file_id={file_id}");
         }
 
         for (key, rec) in &scan.by_path {
@@ -1347,6 +1365,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         // **出現を持つ `file_id` は節表も持つ**（本番の口が対でしか入れない）。
@@ -1471,6 +1490,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         let path_to_id: HashMap<String, FileId> =
@@ -1591,6 +1611,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
 
@@ -1659,6 +1680,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         let mut nt = NodeTable::empty();
@@ -1729,6 +1751,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
         let mut nt = NodeTable::empty();
@@ -1801,6 +1824,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         });
 
@@ -1913,6 +1937,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             // **1 にしない。** `file_id` / `gen` / `node_id` が揃うと
             // 出現レコードと同じ並びが blob に3箇所でき、下の byte poke が
             // 狙いと別の欄を壊す
@@ -2024,6 +2049,7 @@ mod tests {
                 file_id: id,
                 path: path.to_owned(),
                 deleted: false,
+                indexed: true,
                 r#gen: 1,
             });
         }
@@ -2158,6 +2184,7 @@ mod tests {
             file_id: 1,
             path: "a.kif".to_owned(),
             deleted: false,
+            indexed: true,
             r#gen: 1,
         };
         let mut ft = FileTable::default();
@@ -2202,8 +2229,9 @@ mod tests {
 
     /// **置いて読み戻すと、同じ索引が返る。**
     ///
-    /// これまで `save_checkpoint` / `try_restore` を通るテストは1本も無かった。
-    /// `AppHandle` を直に取っていて、置き場を差し替えられなかったため。
+    /// **置き場を差し替えられる形で書く。** `BlobStore` を引数に取るので
+    /// `InMemory` を渡せる——`AppHandle` を直に取る形だと、この経路は
+    /// ディスクの実物なしには一度も通せない。
     #[test]
     fn a_checkpoint_can_be_written_and_read_back() {
         use crate::storage::InMemory;
