@@ -3,7 +3,7 @@ import {
   canDropPieceAt,
   canPromote,
   mustPromote,
-  getAllPossibleMoves,
+  getAllLegalMoves,
 } from "./moveValidation";
 import type { MoveValidator } from "../model/moveValidator";
 import type { Color, Kind, Shogi } from "shogi.js";
@@ -32,10 +32,10 @@ export class ShogiMoveValidator implements MoveValidator {
 
   /**
    * 全ての合法手を取得
-   * utilsのgetAllPossibleMovesを委譲
+   * utilsのgetAllLegalMovesを委譲
    */
   getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
-    return getAllPossibleMoves(shogi, color);
+    return getAllLegalMoves(shogi, color);
   }
 
   /**

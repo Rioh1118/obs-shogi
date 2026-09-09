@@ -209,6 +209,10 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
  * (`wouldBeInCheckAfterMove`) は候補1手ごとに局面を SFEN で写して指し直すので、
  * 「合法手が1つでもあるか」だけを知りたい側（`hasLegalMove`）が
  * 全部を作ると、その分だけ丸ごと無駄になる。
+ *
+ * **`color` は手番の側であること。** 手番でない側を渡すと、`wouldBeInCheckAfterMove`
+ * の中で shogi.js が手番違いを投げ、その catch が「王手放置」に倒すので、
+ * **合法手が1つも無い＝詰み**という答えが返る。エラーにはならない。
  */
 function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
   // 盤上の駒からの移動手
@@ -251,20 +255,17 @@ function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
   }
 }
 
-/**
- * 指定した色の全ての可能な手を取得
- * 王手放置チェックは含む
- */
-export function getAllPossibleMoves(shogi: Shogi, color: Color): ShogiMove[] {
+/** 手番側（`color`）の合法手を全部取得する。前提は `generateLegalMoves` と同じ */
+export function getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
   return [...generateLegalMoves(shogi, color)];
 }
 
 /**
  * 合法手が1つでもあるか
  *
- * **詰み・手詰まりの判定はこれを使う。** `getAllPossibleMoves(...).length === 0` でも
+ * **詰み・手詰まりの判定はこれを使う。** `getAllLegalMoves(...).length === 0` でも
  * 同じ答えが出るが、詰んでいない局面（対局中はほぼ毎手そうである）でも
- * 最後の1手まで数え上げることになる。
+ * 最後の1手まで数え上げることになる。前提は `generateLegalMoves` と同じ。
  */
 export function hasLegalMove(shogi: Shogi, color: Color): boolean {
   return !generateLegalMoves(shogi, color).next().done;

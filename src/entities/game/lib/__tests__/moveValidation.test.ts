@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { Color, Shogi } from "shogi.js";
 
-import { getAllPossibleMoves, hasLegalMove } from "../moveValidation";
+import { getAllLegalMoves, hasLegalMove } from "../moveValidation";
 
 const HIRATE = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
@@ -30,13 +30,13 @@ function positionOf(sfen: string): Shogi {
   return shogi;
 }
 
-describe("getAllPossibleMoves", () => {
+describe("getAllLegalMoves", () => {
   test("平手初期局面の合法手は30手", () => {
-    expect(getAllPossibleMoves(positionOf(HIRATE), Color.Black)).toHaveLength(30);
+    expect(getAllLegalMoves(positionOf(HIRATE), Color.Black)).toHaveLength(30);
   });
 
   test("打ち歩詰めになる歩打ちは含まない", () => {
-    const moves = getAllPossibleMoves(positionOf(UCHIFUDUME), Color.Black);
+    const moves = getAllLegalMoves(positionOf(UCHIFUDUME), Color.Black);
 
     // 歩を打てる場所自体は他にある。「歩打ちが1つも無い」で通ってしまわないようにする
     expect(moves.some((move) => !move.from && move.kind === "FU")).toBe(true);
@@ -60,9 +60,16 @@ describe("hasLegalMove", () => {
     ["詰み", CHECKMATE, Color.White],
     ["手詰まり", STALEMATE, Color.White],
     ["打ち歩詰めのある局面", UCHIFUDUME, Color.Black],
-  ])("%s で getAllPossibleMoves と答えが一致する", (_name, sfen, color) => {
+  ])("%s で getAllLegalMoves と答えが一致する", (_name, sfen, color) => {
     expect(hasLegalMove(positionOf(sfen), color)).toBe(
-      getAllPossibleMoves(positionOf(sfen), color).length > 0,
+      getAllLegalMoves(positionOf(sfen), color).length > 0,
     );
+  });
+
+  // 手番でない側を渡すと shogi.js が手番違いを投げ、`wouldBeInCheckAfterMove` の
+  // catch が「王手放置」に倒すので、平手初期局面でも「合法手なし」になる。
+  // **エラーにはならない**ので、呼び出し側が取り違えると詰みと区別が付かない
+  test("手番でない側を渡すと、エラーではなく「合法手なし」が返る", () => {
+    expect(hasLegalMove(positionOf(HIRATE), Color.White)).toBe(false);
   });
 });
