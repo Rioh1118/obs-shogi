@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
+import type { JKFData } from "@/entities/kifu/model/jkf";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { getBaseName } from "@/shared/lib/path";
 import { describeKifuLoadFailure, kifuLoadFailureTier } from "@/entities/game/lib/kifuLoadFailure";
@@ -8,12 +9,11 @@ import { describeKifuLoadFailure, kifuLoadFailureTier } from "@/entities/game/li
 /**
  * ツリーが開いた棋譜を盤に載せる。
  *
- * **`activeKifuPath` が変わるたびに載せ直す。** 改名・移動では file-tree が
- * `jkfData` を持ち越してパスだけを張り替えるので、この effect は
- * **開いた時点の内容で載せ直す**——盤・棋譜一覧・カーソル・分岐の選択が
- * その時点まで戻り、そこから1手指すとディスクの手が消える。
- *
- * TODO(#262): 「同じ棋譜でパスだけが変わった」を見分けて載せ直しを飛ばす。
+ * **改名・移動では載せ直さない。** ツリーは改名で `jkfData` を持ち越して
+ * `activeKifuPath` だけを張り替えるので、そこで載せ直すと**開いた時点の内容**が
+ * 盤に戻る——盤・棋譜一覧・カーソル・分岐の選択がその時点まで巻き戻り、
+ * そこから1手指すと、間の編集を落とした棋譜が新しいパスへ保存される。
+ * 見分けているのは `loadedJkfDataRef`（下の doc）。
  *
  * **載せられなかったことを利用者に伝えるのはここ**（`failure-surfacing.md` の F-31）。
  * ツリーと盤の合図がずれる唯一の場所がここなので（違いは `loadedAbsPath` の doc）、
@@ -23,18 +23,46 @@ import { describeKifuLoadFailure, kifuLoadFailureTier } from "@/entities/game/li
  */
 export function GameFileTreeBridge() {
   const { activeKifuPath, jkfData, kifuFormat } = useFileTree();
-  const { loadGame, resetGame } = useGame();
+  const { loadGame, renameLoadedPath, resetGame } = useGame();
   const { notify } = useNotify();
+
+  /**
+   * いま盤に載っている棋譜の元になった `jkfData`。
+   * **載せ直しと改名を見分けられるのはこの参照だけ**——`entities/game` は
+   * ツリーが持つ `jkfData` を見ないし、`entities/file-tree` は盤を見ない。
+   *
+   * 棋譜を開き直す経路（`openKifuNode`）は毎回ディスクから読み直して新しい
+   * オブジェクトを作るので、**同じ参照で effect が走るのは改名・移動のときだけ**
+   * （その性質は `entities/file-tree` の `jkfData` の doc が持ち、
+   * `activeKifuReferenceIdentity.test.ts` が固定している）。
+   *
+   * **控えるのは `loadGame` が返ったあと。** 最初の読み込みが飛んでいる最中に来た改名は
+   * 参照が一致せず、載せ直しになる。その窓では利用者の編集がまだ入り得ないので
+   * 落ちるものは無い。
+   */
+  const loadedJkfDataRef = useRef<JKFData | null>(null);
 
   useEffect(() => {
     if (!(activeKifuPath && jkfData && kifuFormat)) {
+      loadedJkfDataRef.current = null;
       resetGame();
+      return;
+    }
+
+    if (loadedJkfDataRef.current === jkfData) {
+      renameLoadedPath(activeKifuPath);
       return;
     }
 
     const run = async () => {
       const res = await loadGame(jkfData, activeKifuPath);
-      if (res.success) return;
+      if (res.success) {
+        // **載せられた回だけ控える。** 落ちた回も控えると、盤には前の棋譜が
+        // 載ったままなのに次の改名で `renameLoadedPath` が通り、
+        // **前の棋譜が改名先のファイルへ書き込まれる**
+        loadedJkfDataRef.current = jkfData;
+        return;
+      }
 
       notify({
         // 段は `code` から決まる（`kifuLoadFailureTier`）。ここで選ばない——
@@ -75,7 +103,7 @@ export function GameFileTreeBridge() {
     };
 
     void run();
-  }, [activeKifuPath, jkfData, kifuFormat, loadGame, resetGame, notify]);
+  }, [activeKifuPath, jkfData, kifuFormat, loadGame, renameLoadedPath, resetGame, notify]);
 
   return null;
 }
