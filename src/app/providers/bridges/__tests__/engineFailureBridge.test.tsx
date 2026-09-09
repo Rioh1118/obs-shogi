@@ -10,7 +10,7 @@ import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
  * エンジンを起動できなかったことを利用者へ届けるのはこの橋
  * （`failure-surfacing.md` の F-9 / #171）。
  *
- * **`engine.state.error` には読み手が居ない。** ここが黙ると、失敗は
+ * **この橋の外に、エンジンの失敗を描く UI は無い。** ここが黙ると、失敗は
  * どの画面にも出ないまま「解析が始まらない」だけになる。
  */
 
@@ -18,7 +18,14 @@ const engine = { state: { phase: "idle" as EnginePhase, error: null as string | 
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
 const dismissByKey = vi.fn<(key: string) => void>();
-const openModal = vi.fn<(modal: ModalType, extra?: Partial<URLParams>) => void>();
+
+/**
+ * **実物は render のたびに別物を返しうる。** `openModal` は `searchParams` に依存する
+ * `useCallback` なので、URL が動けば同一性が変わる（`useURLParams`）。
+ * 固定した1つを返す形にすると、橋が最新を掴めているかを見られない
+ */
+type OpenModal = (modal: ModalType, extra?: Partial<URLParams>) => void;
+let openModal = vi.fn<OpenModal>();
 
 vi.mock("@/entities/engine", () => ({ useEngine: () => engine }));
 vi.mock("@/shared/lib/notification/useNotifications", () => ({
@@ -50,19 +57,31 @@ async function mountWith(phase: EnginePhase, error: string | null = null) {
     view = render(app());
   });
 
-  /** エンジンの段が動いた、を実物と同じ順序で起こす */
-  return async (next: EnginePhase, nextError: string | null = null) => {
-    engine.state = { phase: next, error: nextError };
+  const draw = async () => {
     await act(async () => {
       view.rerender(app());
     });
   };
+
+  return Object.assign(
+    /** エンジンの段が動いた、を実物と同じ順序で起こす */
+    async (next: EnginePhase, nextError: string | null = null) => {
+      engine.state = { phase: next, error: nextError };
+      await draw();
+    },
+    {
+      /** 段は動かさず、画面（URL）だけが動いた回 */
+      async redraw() {
+        await draw();
+      },
+    },
+  );
 }
 
 beforeEach(() => {
   notify.mockClear();
   dismissByKey.mockClear();
-  openModal.mockClear();
+  openModal = vi.fn<OpenModal>();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -141,7 +160,8 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
 
   /**
    * **利用者が実際に踏む筋。** 起動中から失敗へ落ちる。
-   * マウント時にしか見ない実装でも上の4本は緑になるので、切り替えを踏むのはここだけ。
+   * 段を1つだけ与えるテストは、マウント時にしか見ない実装でも全部緑になるので、
+   * **失敗へ落ちる切り替え**を踏むのはここだけ（抜ける側は下の「引っ込める」）。
    */
   test("起動中から失敗へ落ちたときに出す", async () => {
     const move = await mountWith("initializing");
@@ -174,5 +194,40 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
     await mountWith("error", "boom");
 
     expect(shown().dedupeKey).toEqual(expect.any(String));
+  });
+
+  /**
+   * **画面を動かしても帯を積み直さない。** `openModal` は URL が変わるたびに別物になるので、
+   * effect の依存に入れると cleanup → `notify` が走り、**利用者が閉じた帯が黙って戻る**。
+   */
+  test("URL が動いただけでは出し直さない", async () => {
+    const move = await mountWith("error", "boom");
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    openModal = vi.fn<OpenModal>();
+    await move.redraw();
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(dismissByKey).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 依存から外すぶん、**押したときに掴んでいるのは最新でなければならない**。
+   * 古いほうを掴むと、押した時点の URL ではなく帯を出した時点の URL に対して
+   * `navigate` することになる。
+   */
+  test("押したときに走るのは、いまの画面の口", async () => {
+    const move = await mountWith("error", "boom");
+    const stale = openModal;
+
+    openModal = vi.fn<OpenModal>();
+    await move.redraw();
+
+    await act(async () => {
+      await (shown().actions ?? [])[0].run();
+    });
+
+    expect(openModal).toHaveBeenCalledWith("settings", { tab: "engine" });
+    expect(stale).not.toHaveBeenCalled();
   });
 });
