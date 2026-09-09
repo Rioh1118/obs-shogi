@@ -852,19 +852,29 @@ mod tests {
     ///
     /// 開始の途中に割り込んだ停止（`take_session` の相互排除を素通りする口）が、
     /// **まだ始まっていない解析の合図を持ち去る**のを止める。
+    /// **入れ替えは待ちに入った後でなければならない。** 呼ぶ前に差し替えると
+    /// `wait_until_settled` は最初から2本目を読み、誰も鳴らさないまま上限まで
+    /// 待って諦める——**通るのは諦めの枝**で、この関数が見たい枝を1行も通らない。
     #[tokio::test]
     async fn settling_only_clears_the_handle_it_waited_on() {
-        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+        let analyzer = Arc::new(EngineAnalyzer::new(Arc::new(EngineRegistry::new())));
 
         let first = Arc::new(tokio::sync::Notify::new());
         *analyzer.infinite_settled.lock().await = Some(Arc::clone(&first));
-        first.notify_one();
+
+        let waiting = {
+            let analyzer = Arc::clone(&analyzer);
+            tokio::spawn(async move { analyzer.wait_until_settled().await })
+        };
+        // 1本目を読み終えて待ちに入るまで進める
+        tokio::task::yield_now().await;
 
         // 待っている間に、次の解析が別の合図を立てる。
         let second = Arc::new(tokio::sync::Notify::new());
         *analyzer.infinite_settled.lock().await = Some(Arc::clone(&second));
 
-        analyzer.wait_until_settled().await;
+        first.notify_one();
+        waiting.await.expect("待ちが落ちた");
 
         let current = analyzer.infinite_settled.lock().await;
         assert!(
