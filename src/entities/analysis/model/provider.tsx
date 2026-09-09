@@ -256,9 +256,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * その理由を `async-result-ignored:` で書くこと
    * （`src/__tests__/asyncResultUse.test.ts` が要求する）。
    *
-   * **呼ぶ前に要求の世代の門（`supersededSince`）を通すこと。** 本体の先頭で
-   * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった
-   * 要求がここへ入ると直前に立った断りが黙って消える。
+   * **要求の世代と readiness は、本体の先頭で見る**（呼び手にも門はあるが、
+   * ここが最後の砦）。`clear_results` は `error` も消すので（`reducer.ts`）、
+   * 要らなくなった要求がその先へ入ると、直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
     async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
@@ -280,6 +280,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // `clear_results` が立っている断りを消し、**代わりを何も立てずに黙って降りる**
       // （自動再開の口は3値のどれでも黙って降りる）。
       // **入れ替えても落ちるテストは無い**——順序を守っているのは人だけ。
+      // **要求の世代も入口で見る。** doc が「呼ぶ前に通すこと」と散文で課していた義務。
+      // 通し忘れると、下の `discardShown()` → `clear_results` が、断つ effect や
+      // 打ち切りが立てたばかりの断りを消す。呼び手は2本とも既に通しているので、
+      // ここは**その前提をコードにしただけ**（振る舞いは変わらない）。
+      if (supersededSince(seq)) {
+        dropPendingForLostSeat();
+        return "superseded";
+      }
+
       if (!readinessRef.current.isReady) {
         // **握れなかった回の後始末は1本に揃える。** ここを通さないと、
         // 「握れなかった回はどれも通る」と名乗っている下の doc が偽になる
