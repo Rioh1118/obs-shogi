@@ -24,17 +24,19 @@
  *
  * **値段は手数に比例する。** 呼ばれるたびに根から `Record` を組み直すので、
  * 1回が実測で 100手 4.6ms / 400手 16ms / 2000手 60ms。毎手呼ぶと合計は2乗で効き、
- * 400手の対局を通しで裁定すると 2.8 秒になる（`Record` を持ち回れば 2.6ms）。
+ * 400手の対局を通しで裁定すると 2.8 秒になる。
  * **画面を作るときは、対局セッションの間だけ判定器を持ち回る形にすること。**
+ * ただし消えるのは**組み直しの分だけ**（同じ400手で約2ms）で、1手ごとの
+ * `hasLegalMove` と千日手の判定は残る（同じ400手で約7ms）。
  */
 import { Color, Shogi } from "shogi.js";
 import { Position, Record as ShogiRecord } from "tsshogi";
 
 import type { Side } from "@/entities/game-session";
 import { Err, Ok, type Result } from "@/shared/lib/result";
-import type { GameRules } from "./gameRules";
+import type { GameRules, JishogiRule } from "./gameRules";
 import { hasLegalMove } from "./moveValidation";
-import { fromTsColor, opponentOf, toSide } from "./ruleColor";
+import { tsColorToColor, opponentOf, colorToSide } from "./ruleColor";
 
 /**
  * 終局の種別。**投了・時間切れ・中断は入らない**——それらは Rust が決めるので
@@ -138,6 +140,32 @@ function reachedTrySquare(shogi: Shogi, color: Color, usiMoves: readonly string[
 }
 
 /**
+ * 設定が「宣言を待たずに終局させる」持将棋の規則なら、その終局を返す。
+ *
+ * **`switch` で書く。** `JishogiRule` に値を足したとき、`=== "try"` の形だと
+ * 新しい規則が黙って素通りし、**自動で終わるはずの対局が最大手数まで続く**。
+ * ここは戻り値を返し切らないと tsc が落ちるので、足した人が必ず選ぶことになる。
+ */
+function judgeAutomaticJishogi(
+  shogi: Shogi,
+  lastMover: Color,
+  usiMoves: readonly string[],
+  rule: JishogiRule,
+): GameOutcome | null {
+  switch (rule) {
+    case "try":
+      return reachedTrySquare(shogi, lastMover, usiMoves)
+        ? { kind: "tryRule", winner: colorToSide(lastMover) }
+        : null;
+    // 宣言の規則。条件を満たしただけでは終局しないので、ここでは何も返さない
+    case "general24":
+    case "general27":
+    case "none":
+      return null;
+  }
+}
+
+/**
  * USI の指し手1つ。移動は `7g7f` / `2b3a+`、駒打ちは `P*5b`。
  *
  * **末尾まで見る。** `createMoveByUSI` は先頭から読める分だけ解釈して余りを捨てるので、
@@ -193,13 +221,12 @@ export function judgeGameOutcome(
   if (!hasLegalMove(shogi, toMove)) {
     return Ok({
       kind: shogi.isCheck(toMove) ? "checkmate" : "stalemate",
-      winner: toSide(lastMover),
+      winner: colorToSide(lastMover),
     });
   }
 
-  if (rules.jishogiRule === "try" && reachedTrySquare(shogi, lastMover, progress.usiMoves)) {
-    return Ok({ kind: "tryRule", winner: toSide(lastMover) });
-  }
+  const jishogi = judgeAutomaticJishogi(shogi, lastMover, progress.usiMoves, rules.jishogiRule);
+  if (jishogi !== null) return Ok(jishogi);
 
   if (record.repetition) {
     // **返るのは王手を続けた側**、つまり反則負けになる側。
@@ -209,7 +236,7 @@ export function judgeGameOutcome(
     return Ok(
       checking === null
         ? { kind: "repetitionDraw", winner: null }
-        : { kind: "perpetualCheck", winner: toSide(opponentOf(fromTsColor(checking))) },
+        : { kind: "perpetualCheck", winner: colorToSide(opponentOf(tsColorToColor(checking))) },
     );
   }
 
