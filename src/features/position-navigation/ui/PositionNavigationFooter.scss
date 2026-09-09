@@ -11,7 +11,7 @@
     gap: 24px;
     font-size: 14px;
     color: rgba(index.$color-text-light-1, 0.8);
-    font-family: "JetBrains Mono", "Roboto Mono", monospace;
+    font-family: index.$font-mono;
 
     span {
       padding: 4px 8px;

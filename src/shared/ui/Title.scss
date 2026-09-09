@@ -9,14 +9,14 @@
   &__obs {
     display: inline-block;
     margin-right: var(--title-gap, 8rem);
-    font-family: "Orbitron";
+    font-family: "Orbitron", index.$font-sans;
     font-weight: 700;
     text-transform: uppercase;
   }
 
   &__shogi {
     display: inline-block;
-    font-family: "Zen Kaku Gothic Antique", sans-serif;
+    font-family: "Zen Kaku Gothic Antique", index.$font-sans;
     font-weight: 700;
     text-transform: uppercase;
   }

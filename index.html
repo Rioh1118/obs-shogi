@@ -2,30 +2,113 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@100..900&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+Antique:wght@700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Noto+Sans+JP:wght@100..900&display=swap"
-      rel="stylesheet"
-    />
+    <!--
+      **外部オリジンをここに書かない。** 配布物の CSP（`src-tauri/tauri.conf.json` の
+      `app.security.csp`）は `style-src 'self' 'unsafe-inline'` / `font-src 'self' data:` で、
+      外部のスタイルシートも書体も落とす。dev サーバには CSP が乗らないので、
+      書けば**開発中だけ効いて配布物では効かない**という差ができる（→ #503）。
+      同梱している書体の読み込みは `src/main.tsx`。
+    -->
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OBS-SHOGI</title>
+    <!--
+      **React が着く前の1枚ぶんの見た目。** バンドルされた CSS も
+      `html { font-size: 62.5% }`（`src/app/styles/global.scss`）も、この時点では
+      まだ効いていない。だからここには次の2つの制約がある。
+
+      - **`rem` を使わない。** 基準が 62.5% になる前は 1rem = 16px なので、
+        CSS が届いた瞬間に文字とアイコンの大きさが飛ぶ。`BootSplash.scss` の
+        `rem` の 10 倍を px で書く（一致は `bootStaticSplash.test.ts` が見る）
+      - **`html` / `body` / `#root` / `*` にルールを足さない。** それらは React が
+        置き換えた後も効き続ける。`.app-root` は面を持たず親の配分に依存するので、
+        器のルールを `#root` に置くと本体のレイアウトが変わる。
+        `position: fixed` の器に閉じ込めれば、`body` の UA 既定 margin も無関係になる
+    -->
+    <style>
+      .boot-static {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background-color: #3f4e4f;
+        color: #ffffff;
+        font-family:
+          "Orbitron", system-ui, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+      }
+
+      .boot-static__content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .boot-static__icon {
+        width: 88px;
+        height: auto;
+        opacity: 0.92;
+      }
+
+      .boot-static__text {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        opacity: 0.92;
+      }
+
+      .boot-static__stuck {
+        display: none;
+        max-width: 40ch;
+        text-align: center;
+        font-family: system-ui, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+        letter-spacing: normal;
+      }
+
+      .boot-static--stuck .boot-static__text {
+        display: none;
+      }
+
+      .boot-static--stuck .boot-static__stuck {
+        display: block;
+      }
+
+      /*
+        器がまだ何も持っていない段の出口。**面の色だけ合わせて、あとは UA に任せる。**
+        ここに寄せ先のトークンは無く、写した宣言はどれも腐りうる
+      */
+      .boot-static__stuck button {
+        margin-top: 16px;
+        padding: 8px 16px;
+        font: inherit;
+        letter-spacing: normal;
+        cursor: pointer;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!--
+      **中身は `createRoot(...).render()` の初回コミットで消える。**
+      React は HostRoot をコミットする段で container の子を空にするので、
+      正常時はこの1枚がそのまま `BootSplash` に入れ替わる。
+
+      絵を `BootSplash` と揃えるのは、白い窓を消すことが目的だから
+      （→ `docs/spec/screens/boot.md`）。**アニメーションは写していない。**
+      写した宣言はどれも片方だけ動きうるので、増やすほど食い違う面が増える
+    -->
+    <div id="root">
+      <div id="boot-static" class="boot-static" role="status" aria-live="polite">
+        <div class="boot-static__content">
+          <img class="boot-static__icon" src="/icon.svg" alt="ObsShogi" width="88" height="102" />
+          <p class="boot-static__text">Loading</p>
+          <div class="boot-static__stuck">
+            <p>起動できませんでした。ウィンドウを閉じて、もう一度開いてください。</p>
+            <button type="button" id="boot-static-close">ウィンドウを閉じる</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="modal-root"></div>
     <!--
       落ちた範囲を伝える箱のうち、浮かせて出すものを積む器
@@ -34,6 +117,40 @@
       積み方は `FloatingErrorFallback.scss` の `.error-overlay`
     -->
     <div id="error-overlay-root" class="error-overlay"></div>
+    <!--
+      **「読み込み中」と「起動できていない」を区別できる状態にしておく。**
+
+      上の1枚は React が初回コミットするまで残る。`createRoot` に入る前に落ちる経路
+      （モジュール評価中の throw、`#root` が無い、捕まえていない rejection）では
+      永久に残るので、放っておくと「Loading が回り続ける窓」になる —— 窓枠は自前
+      （`decorations: false`）で閉じるボタンも無いため、利用者にできることが何も無い。
+
+      React が着けば器ごと消えるので、**正常時はこの `setTimeout` は空振りする。**
+      枠（ドラッグ領域）まで持たせるのは別 → #513
+    -->
+    <script>
+      // 起動が届かなかったと見なすまで。実測の起動は1秒に届かないので、
+      // 遅い機械で誤って出さないよう大きく取ってある
+      var BOOT_STUCK_MS = 10000;
+
+      setTimeout(function () {
+        var boot = document.getElementById("boot-static");
+        // React が初回コミットで器ごと外している。何も出さない
+        if (!boot) return;
+
+        boot.className = "boot-static boot-static--stuck";
+
+        var close = document.getElementById("boot-static-close");
+        if (close) {
+          close.addEventListener("click", function () {
+            // 窓を閉じる口は Tauri しか持たない。許可は
+            // `src-tauri/capabilities/default.json` の `core:window:allow-close`
+            var tauri = window.__TAURI_INTERNALS__;
+            if (tauri) tauri.invoke("plugin:window|close");
+          });
+        }
+      }, BOOT_STUCK_MS);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

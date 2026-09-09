@@ -107,6 +107,6 @@
 
   &__sequence-text {
     color: rgba(index.$color-text-dark-1, 0.75);
-    font-family: "Inter", sans-serif;
+    font-family: index.$font-sans;
   }
 }

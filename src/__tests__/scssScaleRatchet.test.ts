@@ -18,7 +18,7 @@ const BASELINE: Record<Bucket, number> = {
   spacing: 441,
   elevation: 50,
   motion: 67,
-  family: 15,
+  family: 10,
   indirect: 49,
   exempt: 5,
 };
