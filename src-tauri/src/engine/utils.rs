@@ -184,6 +184,22 @@ pub fn with_cause(error: &dyn std::error::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// 制御文字を潰し、文字の途中で割らないこと。
+    #[test]
+    fn a_shown_copy_is_bounded_and_readable() {
+        assert_eq!(shown("7g7f", 8), "7g7f");
+        assert!(!shown("a\nb", 8).contains('\n'), "改行を通している");
+
+        // 多バイト文字の途中で割らない
+        let trimmed = shown("あいうえお", 3);
+        assert!(
+            trimmed.starts_with("あいう"),
+            "文字の途中で割っている: {trimmed}"
+        );
+        assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
+    }
+
     use super::*;
 
     /// 原因の連鎖が残ること。

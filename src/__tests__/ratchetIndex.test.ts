@@ -62,6 +62,7 @@ function ratchetFiles(): string[] {
  * 片方だけ人が覚える形にすると、忘れても何も起きない。
  */
 const RUST_CHECKS = new Set([
+  "log_line_builders",
   "comment_identifiers",
   "engine_timeouts",
   "layering",
