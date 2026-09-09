@@ -2,7 +2,7 @@
 
 対象: `src/features/study-positions-manager/`（一覧）
 `src/features/study-position-save/`（登録・編集）
-`src/entities/study-positions/` `src-tauri/src/settings/`
+`src/entities/study-positions/` `src-tauri/crates/settings/src/`
 
 `modal=study-positions` / `modal=study-position-save`
 

@@ -1,0 +1,51 @@
+@use "@/index.scss" as index;
+
+// 浮かせた枠1枚の幅と高さの上限。スケールに載らない部品固有の寸法なので、
+// `index.scss` へ上げずに `scale-exempt` で置く（ADR-0003）
+$item-width: 40rem; // scale-exempt
+$item-max-height: 24rem; // scale-exempt
+
+// 浮かせた枠を積む器。`index.html` の `#error-overlay-root` に当たる。
+//
+// **重なりは器が決める。** 1枚ずつに座標を持たせると、同時に出たときに同じ位置へ重なり、
+// 後から描かれた側が不透明な面で下の1枚を丸ごと覆う（名乗りも出口も読めず押せない）。
+// 縦に積めば枚数が増えても重ならない。
+//
+// 避けるのは帯だけ（`$titlebar-height`。`decorations: false` の窓を動かす唯一の手段）。
+// **ヘッダは避けない** —— この器は `/`（ヘッダの無い画面）にも出るし、箱は自分で閉じられる。
+//
+// 段は `index.scss` の `$z-error-fallback`（通知より上）。理由はそちらに書いてある。
+.error-overlay {
+  position: fixed;
+  top: index.$titlebar-height;
+  right: 0;
+  bottom: 0;
+  z-index: index.$z-error-fallback;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: index.$space-6;
+  padding: index.$space-6 index.$space-12;
+
+  // 積んだ合計が窓の高さを超えたら、器の側で巻き取る。
+  // 押し出す形にすると、いちばん下の1枚が画面の外へ出て読めなくなる
+  overflow-y: auto;
+
+  // 敷いてあるだけの器はクリックを通す。通さないと、箱が1つも出ていなくても
+  // 画面の右側が操作できなくなる（`NotificationLayer.scss` と同じ理由）
+  pointer-events: none;
+
+  &__item {
+    pointer-events: auto;
+    // 器が巻き取るので、1枚ずつは縮まない。縮むと出た順に潰れて名乗りが読めなくなる
+    flex: none;
+    width: $item-width;
+    max-width: 100%;
+    max-height: $item-max-height;
+    border-radius: index.$radius-4;
+    box-shadow: index.$shadow-overlay;
+    // 角丸で中身を切る。溢れたぶんを送るのは中の `.error-fallback`（`overflow: auto`）
+    overflow: hidden;
+  }
+}

@@ -87,6 +87,12 @@
 再試行では直らないので、ADR-0004 の段では `fatal` に当たる。
 → [`failure-surfacing.md`](../../state-transitions/failure-surfacing.md) F-1
 
+**この画面のレンダ例外を受けるのは root の境界だけ。** `/` は `RuntimeShell` の外に居るので、
+中の境界には届かない。→ [app-layout.md](app-layout.md) の「失敗の見せ方」
+
+**正常時のこの画面には、ウィンドウを動かす帯も閉じるボタンも無い**（`TitleBar` は
+`RuntimeShell` の中）。落ちたときだけ root の fallback が枠を描くという逆転になっている → #515
+
 ## いま満たしていないこと
 
 - **`RequireRootDir` は `error` の内容を捨てる。** `/` へ戻すだけなので、

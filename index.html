@@ -27,6 +27,13 @@
   <body>
     <div id="root"></div>
     <div id="modal-root"></div>
+    <!--
+      落ちた範囲を伝える箱のうち、浮かせて出すものを積む器
+      （`src/shared/ui/error-fallback/FloatingErrorFallback.tsx`）。
+      **落ちた後に作りに行かなくて済むよう、ここで用意しておく。**
+      積み方は `FloatingErrorFallback.scss` の `.error-overlay`
+    -->
+    <div id="error-overlay-root" class="error-overlay"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -14,7 +14,7 @@ import type { RowModel } from "../ui/KifuMoveCard";
  * 再生そのものが投げる。
  *
  * **唯一の呼び出し側（`KifuStreamList`）はいま拾っていない。** 拾うだけだと
- * 読める手まで消えるので、復帰導線と一緒に直す → #295
+ * 読める手まで消えるので、復帰導線と一緒に直す → #277（症状は #295 の本文）
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`advanceWithPlan` が投げる）
  */

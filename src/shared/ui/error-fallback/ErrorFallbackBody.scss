@@ -1,0 +1,89 @@
+@use "@/index.scss" as index;
+
+// **面を自分で持つ。** この器が出るのは、面を塗っていた部品ごと畳んだ後。
+// `.app-layout` の背景も `.workspace` の枠も消えているので、面を継ごうとすると
+// `body` まで遡って canvas の既定色（白）に着き、白地に白文字になる。
+// 同じ理由は `pages/AppLoading.tsx` にも書いてある
+.error-fallback {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+
+  display: flex;
+  flex-direction: column;
+  // 親が高さをくれる枠（盤ペイン）とくれない枠（ドック・`.app-content`）の両方に出る。
+  // `safe` を付けるのは、狭い枠で中身が溢れたときに上端を切らないため
+  align-items: safe center;
+  justify-content: safe center;
+  gap: index.$space-6;
+  padding: index.$space-12;
+  text-align: center;
+
+  background-color: index.$color-primary-black;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+
+  // 落ちた原因。**利用者が報告に写せるだけの長さ**を残す。
+  // 1行に潰すと、そこが唯一の手掛かりなのに読めなくなる
+  &__detail {
+    max-width: 60ch;
+    color: rgba(index.$color-text-primary, 0.72);
+    font-size: index.$font-aux;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
+  // 次に何をすればよいか。原因（`__detail`）より前に読ませたいので、
+  // 薄くせず本文と同じ強さで置く
+  &__hint {
+    max-width: 60ch;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: index.$space-4;
+  }
+
+  // 面で境を作る。地（`$color-primary-black`）に対して `$color-secondary-solid` が 3.33:1、
+  // hover が 3.02:1 で 1.4.11 を満たす。枠線にすると 3:1 を満たす明るさが本文より暗くなり、
+  // 押せる面より輪郭が沈む
+  &__action {
+    padding: index.$space-3 index.$space-7;
+    // 枠は透明で持つ。`--secondary` が枠を使うので、無いと2つのボタンの高さがずれる
+    border: 1px solid transparent;
+    border-radius: index.$radius-4;
+    background-color: index.$color-secondary-solid;
+    color: index.$color-white;
+    font-size: index.$font-aux;
+    cursor: pointer;
+
+    &:hover {
+      background-color: index.$color-secondary-solid-hover;
+    }
+
+    // 「再表示」で戻らなかったときの出口。同じ強さで並べると、
+    // 先に試すべき方がどちらか読めなくなる。
+    //
+    // 面は主ボタンより暗いまま残す（同じ明るさにすると先に試すべき方が読めなくなる）。
+    // そのぶん境は枠が持つ —— `$surface-raised` は地に対して 1.56:1 で、面だけでは
+    // 1.4.11 の 3:1 に届かない。枠の `$color-secondary-dark` は**地に対して** 4.19:1。
+    // 内側（自分の面）に対しては 2.69:1 しかない。**境として効いているのは地の側だけ。**
+    //
+    // **ホバーで動かすのは枠。** 面を `$surface-overlay` に替えると、
+    // `color-mix(..., transparent)` なのでこの面（`$color-primary-black`）の上では
+    // 合成結果が地と一致し、**押そうとした瞬間に境が消える**
+    &--secondary {
+      background-color: index.$surface-raised;
+      border-color: index.$color-secondary-dark;
+      color: index.$color-text-primary;
+
+      &:hover {
+        background-color: index.$surface-raised;
+        border-color: index.$color-secondary-light;
+      }
+    }
+  }
+}
