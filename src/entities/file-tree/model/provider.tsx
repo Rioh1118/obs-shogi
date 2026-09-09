@@ -45,7 +45,16 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // - 削除: 消したフォルダの中に**無い**棋譜を「中にある」と判定して閉じる
   const activeKifuPathRef = useRef(state.activeKifuPath);
   activeKifuPathRef.current = state.activeKifuPath;
-  const kifuOpenGenerationRef = useRef(0);
+  const fileTreeRef = useRef(state.fileTree);
+  fileTreeRef.current = state.fileTree;
+  // **ツリーが開くべき棋譜。読み出しが返った時点でここと違うパスなら、その結果は捨てる。**
+  //
+  // 選択は同期で動くのに、`activeKifuPath` は IPC を跨いだ読み出しが返ってから決まる。
+  // 解決の順は棋譜の大きさで前後するので、要求した順に進むとは限らない（#223）。
+  // 連番ではなくパスで持つのは、捨てる基準が「何番目の要求か」ではなく
+  // **「利用者がいまどの棋譜を選んでいるか」**だから。選び直して元の棋譜へ戻った要求は、
+  // 番号で見ると古いが、開くべき棋譜としては正しい。
+  const requestedKifuPathRef = useRef<string | null>(null);
 
   const revealNodeInCurrentTree = useCallback(
     (absPath: string) => {
@@ -188,6 +197,14 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // 棋譜は内側に残るので、そのときは開いたままでよい。
   useEffect(() => {
     if (!rootDir) return;
+
+    // **飛行中の読み出しも同じ理由で捨てる。** そちらはまだ `activeKifuPath` を
+    // 進めていないので、下の判定には掛からない。捨てないと、返った時点で
+    // **前のワークスペースの棋譜が開き**、この効果がもう一度走って閉じるまで残る
+    if (!isSameOrDescendantPath(requestedKifuPathRef.current, rootDir)) {
+      requestedKifuPathRef.current = null;
+    }
+
     if (!state.activeKifuPath) return;
     if (isSameOrDescendantPath(state.activeKifuPath, rootDir)) return;
 
@@ -222,7 +239,23 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     }
   }, [state.fileTree, revealNodeInCurrentTree, state.activeKifuPath]);
 
+  /**
+   * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く。**
+   *
+   * この2つがずれた状態が #223。行の強調は選択を見て、ヘッダのファイル名は盤を見る
+   * （`useHeaderCenterInfo`）ので、ずれると**ツリーが指す行とヘッダが名乗る名前が
+   * 別々のファイルになる**。保存は `activeKifuPath` へ行く（`GamePersistenceGate`）
+   *
+   * **`node_selected` を撃つ口はここだけ。** 飛行中の読み出しを捨てる判断は
+   * `requestedKifuPathRef` だけを見るので、この口を通らずに選択を動かすと
+   * 「選び直したのに古い読み出しが載る」が戻る。`src/__tests__/kifuOpenTarget.test.ts` が見る。
+   *
+   * フォルダは宛先を動かさない。開閉の操作であって、棋譜の要求ではない
+   */
   const selectNode = useCallback((node: FileTreeNode | null) => {
+    if (!node?.isDirectory) {
+      requestedKifuPathRef.current = node?.path ?? null;
+    }
     dispatch({ type: "node_selected", payload: node });
   }, []);
 
@@ -237,71 +270,86 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [state.fileTree],
   );
 
-  const openKifuNode = useCallback(async (node: FileTreeNode): AsyncResult<void, FsError> => {
-    if (node.isDirectory) return Ok(undefined);
+  const openKifuNode = useCallback(
+    async (node: FileTreeNode): AsyncResult<void, FsError> => {
+      if (node.isDirectory) return Ok(undefined);
 
-    const fmt = node.kifuInfo?.format;
-    if (!fmt) {
-      const error = makeFsError("kifu_format_unknown", "kifu format is not resolved", node.path);
-      dispatch({ type: "kifu_error", payload: error });
-      return Err(error);
-    }
-
-    const prevSelectedNode = selectedNodeRef.current;
-    const myGeneration = ++kifuOpenGenerationRef.current;
-
-    const restoreSelection = () => {
-      // 1) このリクエストより新しい openKifuNode が始まっていたらスキップ
-      // 2) openKifuNode 以外の操作（ツリー再読み込み・deleteNode 等）で
-      //    selectedNode が既に別のノードに変わっていてもスキップ
-      if (
-        kifuOpenGenerationRef.current === myGeneration &&
-        selectedNodeRef.current?.path === node.path
-      ) {
-        dispatch({ type: "node_selected", payload: prevSelectedNode });
+      const fmt = node.kifuInfo?.format;
+      if (!fmt) {
+        const error = makeFsError("kifu_format_unknown", "kifu format is not resolved", node.path);
+        dispatch({ type: "kifu_error", payload: error });
+        return Err(error);
       }
-    };
 
-    dispatch({ type: "kifu_loading" });
+      requestedKifuPathRef.current = node.path;
 
-    const readRes = await api.readKifu(node);
-    if (!readRes.success) {
-      restoreSelection();
-      dispatch({ type: "kifu_error", payload: readRes.error });
-      return Err(readRes.error);
-    }
+      /**
+       * 開けなかったので、選択を**いまツリーが開いている棋譜**（`activeKifuPath`）へ戻す。
+       *
+       * 「1つ前の選択」ではない。それはこの要求より古い要求の対象でありうるので、
+       * 戻すと、開いてすらいない棋譜が選択されたままになる。
+       * 選択が既にこの node から動いているなら、利用者が自分で選び直したあとなので触らない。
+       */
+      const restoreSelectionToActiveKifu = () => {
+        if (selectedNodeRef.current?.path !== node.path) return;
 
-    try {
-      const jkfData = parseKifuContentToJKF(readRes.data, fmt);
-      dispatch({
-        type: "kifu_opened",
-        payload: {
-          path: node.path,
-          jkfData,
-          format: fmt,
-        },
-      });
-      return Ok(undefined);
-    } catch (e) {
-      restoreSelection();
-      // cause には元の例外メッセージだけを入れる。スタックはノイズが多い
-      const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
-      const cause =
-        e instanceof Error
-          ? rawCause instanceof Error
-            ? `${e.message}\n原因: ${rawCause.message}`
-            : e.message
-          : String(e);
-      const error: FsError = {
-        code: "kifu_parse_failed",
-        message: "failed to parse kifu content",
-        path: node.path,
-        cause,
+        const activePath = activeKifuPathRef.current;
+        const chain =
+          activePath && fileTreeRef.current ? findNodeChain(fileTreeRef.current, activePath) : null;
+        selectNode(chain ? chain[chain.length - 1] : null);
       };
-      dispatch({ type: "kifu_error", payload: error });
-      return Err(error);
-    }
-  }, []);
+
+      dispatch({ type: "kifu_loading" });
+
+      const readRes = await api.readKifu(node);
+
+      // **IPC を跨いでいるあいだに宛先が動いていたら、この結果はもう要らない。**
+      // 書くと、ツリーが選んでいるのとは別の棋譜が `activeKifuPath` に入る（#223）。
+      // 断りも同じで、開いたのは選び直したあとの棋譜なのに、古い失敗だけが残る。
+      // 宛先が動くのは選択が動いたときだけで、それは await の前後でしか起きないので、
+      // 確認はここ1箇所でよい（このあとの parse から dispatch までは同期で、割り込む余地が無い）。
+      // **`Ok` は「盤に載った」を意味しない。** → `types.ts` の `openKifuNode`
+      if (requestedKifuPathRef.current !== node.path) return Ok(undefined);
+
+      if (!readRes.success) {
+        restoreSelectionToActiveKifu();
+        dispatch({ type: "kifu_error", payload: readRes.error });
+        return Err(readRes.error);
+      }
+
+      try {
+        const jkfData = parseKifuContentToJKF(readRes.data, fmt);
+        dispatch({
+          type: "kifu_opened",
+          payload: {
+            path: node.path,
+            jkfData,
+            format: fmt,
+          },
+        });
+        return Ok(undefined);
+      } catch (e) {
+        restoreSelectionToActiveKifu();
+        // cause には元の例外メッセージだけを入れる。スタックはノイズが多い
+        const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
+        const cause =
+          e instanceof Error
+            ? rawCause instanceof Error
+              ? `${e.message}\n原因: ${rawCause.message}`
+              : e.message
+            : String(e);
+        const error: FsError = {
+          code: "kifu_parse_failed",
+          message: "failed to parse kifu content",
+          path: node.path,
+          cause,
+        };
+        dispatch({ type: "kifu_error", payload: error });
+        return Err(error);
+      }
+    },
+    [selectNode],
+  );
 
   const closeActiveKifu = useCallback(() => {
     dispatch({ type: "kifu_closed" });
@@ -405,7 +453,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       if (isSameOrDescendantPath(selectedNodeRef.current?.path, node.path)) {
         pendingSelectedPathRef.current = null;
-        dispatch({ type: "node_selected", payload: null });
+        selectNode(null);
       }
 
       if (isSameOrDescendantPath(activeKifuPathRef.current, node.path)) {
@@ -415,7 +463,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
-    [loadFileTree, pushError],
+    [loadFileTree, pushError, selectNode],
   );
 
   const renameNode = useCallback(
@@ -667,7 +715,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
 
       revealNodeInCurrentTree(absPath);
-      dispatch({ type: "node_selected", payload: node });
+      selectNode(node);
 
       if (node.isDirectory) {
         return true;
@@ -691,7 +739,14 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
       return true;
     },
-    [findNodeByPath, openKifuNode, revealNodeInCurrentTree, state.activeKifuPath, state.jkfData],
+    [
+      findNodeByPath,
+      openKifuNode,
+      revealNodeInCurrentTree,
+      selectNode,
+      state.activeKifuPath,
+      state.jkfData,
+    ],
   );
 
   const clearError = useCallback(() => {
