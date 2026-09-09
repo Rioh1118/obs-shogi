@@ -48,6 +48,7 @@
 | 選択を動かす `node_selected` を1箇所へ寄せる（#223 で2箇所漏れた） | **入れた。** `src/__tests__/kifuOpenTarget.test.ts`。変異3通り（別ファイルから撃つ／provider 内で2箇所／走査対象を空にする）で落ちることを確かめた                                                       |
 | 画面へ出る段を組む口が1つに閉じているか（3ラウンド見送り）         | **入れた。** `src-tauri/tests/state_is_announced_once.rs`。旗・場所の警告・構造体リテラル・別名 `use`・裸の `String` の `Err` を見る。**主張を doc に書いて3回外した**あと走査へ移した                   |
 | 画面の文言が仕様書に載っているか                                   | **入れた。** `src/__tests__/screenSpecCoverage.test.ts`。`IndexHealth` で分岐する画面が一覧から漏れることも見る。**見るのは文言そのもの**——`docsSourcePaths` はパス、`ownedIdentifiers` は綴りしか見ない |
+| 表と Rust の module doc で同じ節が片方だけ直る（2ラウンド見送り）  | **入れた**（#354）。`src/__tests__/responsibilitySplit.test.ts`。「責任の切れ目」が名指すファイル名の集合を突き合わせる。**文章の言い回しは見ない**——縛ると同じことを2通りに書けなくなる                 |
 
 ## 入っていない。繰り返し提案されている
 
