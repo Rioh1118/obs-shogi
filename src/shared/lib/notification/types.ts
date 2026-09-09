@@ -73,7 +73,14 @@ type VisibleRequestBase = {
   tier: VisibleTier;
   /** 何が起きたか。**利用者の言葉で**書く。内部の語（`NotInitialized` 等）を出さない */
   title: string;
-  /** 何をすれば直るか。要らなければ省く */
+  /**
+   * 何をすれば直るか。**直せない失敗なら、何が起きたか。**
+   *
+   * 直し方が1つに決まらない失敗もある（原因が環境で変わるもの）。そこに
+   * 決め打ちの指示を書くと、従っても直らない案内になる。要らなければ省く。
+   *
+   * **長さの制約は見せ方で違う**（自動で消える枝の doc）
+   */
   body?: string;
   actions?: NotifyAction[];
   /**
@@ -98,7 +105,10 @@ export type NotifyRequest =
   // 書き忘れた失敗が「見ていなければ無かったこと」になる
   | (VisibleRequestBase & { presentation: "toast"; autoDismiss?: false })
   // 放っておけば消えるトースト。**動作を持てない**——押した動作の結果が返る前に
-  // 通知が消えると、成功したのか失敗したのかを伝える場所が無くなる
+  // 通知が消えると、成功したのか失敗したのかを伝える場所が無くなる。
+  //
+  // **本文は1行に収める**（日本語で40字前後）。消えるまでの時間はそれを読む長さから
+  // 取ってあるので、パスのような長いものは題に寄せるかログへ回す（`AUTO_DISMISS_MS`）
   | (Omit<VisibleRequestBase, "actions"> & { presentation: "toast"; autoDismiss: true })
   // 帯とモーダルは自分からは消えない。閉じるか、出した側が引っ込めるまで残る
   | (VisibleRequestBase & { presentation: "banner" | "modal" })

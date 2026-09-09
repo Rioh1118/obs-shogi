@@ -39,7 +39,7 @@ count_failure() {
 # その条件を満たさないチェックアウトで床が必ず落ちる。
 # 足したときは実測へ上げる（上げないと、次に消えたときに検出できない）。
 # 実測は末尾の runs を見ること。
-GATE_TEST_MIN_RUNS=203
+GATE_TEST_MIN_RUNS=204
 GATE_TEST_RUNLOG=$(mktemp)
 export GATE_TEST_RUNLOG
 
@@ -436,9 +436,16 @@ expect_kinds "ts rust" "src-tauri/src/book/commands.rs"
 expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"
 expect_kinds "rust" "src-tauri/Cargo.toml"
 expect_kinds "rust" "src-tauri/tauri.conf.json"
-expect_kinds "rust" "src-tauri/capabilities/default.json"
+# capability は両方。`openerCapability`（vitest）が口と許可を突き合わせ、
+# `tauri_build::build()` が識別子を検証する。**書式では絞らない**——
+# ACL は JSON5 でも TOML でも書けるので、片方だけが拾う形にすると
+# その書式で足した1枚がどちらかの検証を素通りする
+expect_kinds "ts rust" "src-tauri/capabilities/default.json"
+expect_kinds "ts rust" "src-tauri/capabilities/desktop.toml"
 expect_kinds "rust" "rust-toolchain.toml"
-expect_kinds "ts" ".claude/hooks/verify-gate.sh"
+expect_kinds "ts hooks" ".claude/hooks/verify-gate.sh"
+expect_kinds "ts rust" "scripts/knip-ratchet.sh"
+expect_kinds "ts rust" "scripts/rustdoc-ratchet.sh"
 expect_kinds "" "README.md"
 # `ratchetIndex` が索引としてこの表を読むので、触ったら vitest を通す
 expect_kinds "ts" "CONTRIBUTING.md"
@@ -548,9 +555,12 @@ gate_write_spellings=(
   "gatetest.patch"
 )
 
+# --- 使い捨ての repo に当てる段 ---
+#
+# 動詞ごとに repo を複製して17通りの綴りを当てる。ここだけで git を
+# 数百プロセス起動する。
 # 当てる先の雛形。**1度だけ作って、動詞ごとに複製する。**
-# 動詞ごとに `git init` からやり直すと、当てる本数より repo を作る本数のほうが
-# 高くつく（この検査だけで `npm run verify` の大半を占める）。
+# 動詞ごとに `git init` からやり直すと、当てる本数より repo を作る本数のほうが高くつく。
 gate_probe_template=$(mktemp -d)
 (
   cd "$gate_probe_template" || exit 1
@@ -659,6 +669,7 @@ done
 for gate_verb in ${GATE_READ_ONLY_VERBS_BASE//|/ }; do
   expect_readonly "$gate_verb"
 done
+
 
 # --- hook の入口 ---
 #

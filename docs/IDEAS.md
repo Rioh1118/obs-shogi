@@ -72,6 +72,15 @@
 - **合流 / transposition を DAG として扱う** — ShogiHome issue #236（30コメント。**コメント数は2位で、ユニーク参加者は2名** → `research/findings/L2-transposition-demand.md`）が「木構造では千日手や局面の合流に対応できない、グラフを直接可視化・編集したい」と要求し未解決のまま。KIF/KI2/CSA いずれも仕様として合流を持たない。横断検索側は `PositionKey`(SFEN由来) なので既に合流に強く、棋譜内表現だけが木。**差別化の最有力候補**だが、着手前に現行 `normalizedTree` の設計影響を調べること
 - **「ShogiHome で開く」導線** — エンジン/対局/検討 GUI を自前で磨くより価値が高い可能性
 - **棋譜ブログ向けの出力** — ShogiHome #1271（複数棋譜横断の一括局面図）が 2025-07 から open のまま
+- **`AsyncResult` のラチェットが、深いプロパティ経路の呼び出しを見ていない** —
+  `src/__tests__/asyncResultUse.test.ts` の `bareCallOf` が拾えるのは `await f(` と
+  `await obj.f(` の2形だけ。`await a.b.c(` と `await a!.b(` は素通りする。
+  いま素通りしている 15 行は全て test か `AsyncResult` を返さない呼び出し
+  （`navigator.clipboard.writeText`）なので**本番のコードで漏れているものは無い**が、
+  緑を「戻り値を捨てている箇所は無い」と読める状態ではない。
+  **正規表現を1箇所広げるだけでは済まない**——広げた瞬間に 15 行が赤くなり、
+  1件ずつ「読むべきか、印を付けるべきか」を決めることになる。まとめて着手するときに
+  1度で決めること
 
 ## SCSS の既存の負債（`refactor/app-shell-wiring` のレビューで出たもの）
 
@@ -96,21 +105,18 @@
   1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
   `@media` の条件部を対象外にしている
 
-## 到達しない分岐が、仕様では実在する状態として書かれている
+## 到達しない分岐が `Board` に残っている
 
 `.claude/reviews/2026-09-06-app-shell-wiring-r2.md` の r2-10 の付随（ui reviewer）。
 **SCSS の話ではない**ので上の節とは分けてある。
 
-**この節は6週間ルールの例外。** #434 の前提なので、着手はそちらに引きずられる
-（同じことを #434 のコメントにも積んである）。
-
 - **`Board` の「盤面を読み込み中...」は到達しない** — `AppLayout` の `hasKifu` が同じ `view` を
   見て門番しているので、`Board` が描かれた時点で `player?.shogi` は必ずある。しかも
   `.board-loading` の CSS 規則はリポジトリに1つも無く、ビルド後の CSS にも出ない。
-  **`docs/spec/screens/board.md` は2箇所でこれを実在する状態として書いている**——
-  状態表の P0 と、「失敗の見せ方」の「局面が組めない → 『盤面を読み込み中...』のまま止まる」。
-  #434（盤に載せられない棋譜のときに何かを出す）に着手する人はまずその画面仕様を読み、
-  「盤が組めないときには既に文言が出る」と読む
+  **仕様の側は直してある**（`docs/spec/screens/board.md` の P0 の※）。残っているのは
+  枝そのものを畳むかどうかで、畳むなら `GameView` の `hasKifu` の doc が言う
+  「`?.shogi` を残してあるのは `cursorView` の catch を将来ゆるめたときの保険」と
+  一緒に決めることになる
 
 ## 呼び出し元の無い公開面が、スライスの barrel と context に残っている
 
@@ -130,3 +136,55 @@
 
 - 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
 - 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
+
+## `SetupGuide` が親の状態をフラットに受けている
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r1.md`（react reviewer）。
+`AiLibraryTab` の `ScanState` 1つが、`scanStatus` / `isScanning` / `scanError` の3つに
+バラされて渡り、`data.engines_dir` も `enginesDir`（4状態）/ `enginesDirPath` に割れている。
+状態を1つ足すたびに、親の派生・`Props`・子の分岐の3箇所を揃えて触ることになる。
+`isScanning`（= `status === "loading"`）と `scanStatus === "loading"` が両方渡っていて、
+**片方だけ更新しても型は通る。**
+
+- props を `scan` と `library` の2つに畳んで、真実の源を1つのまま渡す
+- `nextAction` を組む部分（hero）を切り出しても、**そこに閉じるコールバックは
+  `onOpenAiRoot` の1本だけ**。残りは Step 側でも使うので、畳むなら Step へ渡す口ごと
+  設計し直すことになる
+
+## AI ライブラリタブの部品と SCSS の持ち主が別ディレクトリ
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（architecture reviewer）。
+`aiLibraryTab__step*` / `aiLibraryTab__tree*` の規則は `ui/tabs/AiLibraryTab.scss` に在るのに、
+使う `.tsx` は `ui/ai-library-tab/` に7ファイル（そちらは `SetupGuide.scss` しか import しない）。
+r11 で `types.ts` をこのディレクトリに新設したので、次の書き手は「AI ライブラリタブのものは
+`ai-library-tab/`」と読み、新しい段のスタイルを `SetupGuide.scss` に書く——
+`.aiLibraryTab` の入れ子の外に出て**何も当たらない**。tsc も lint も見ないので緑のまま通る。
+
+- `AiLibraryTab.tsx`（+ `.scss` + `__tests__`）を `ui/ai-library-tab/` へ移して
+  1ディレクトリ = 1画面にする（`engine-preset-dialog/` が既にその形）
+- 移さないなら、`aiLibraryTab__step*` / `__tree*` の規則を `SetupGuide.scss` 側へ移す
+
+## 「作成を出すのは無いときだけ」の理由が3箇所にある
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。
+`canCreateEnginesDir` の doc と、`AiLibraryTab` の `ENGINES_DIR_WARNING` の行内コメントと、
+`EngineFilesSection` の JSX コメント。条件を変えた日（`other` でも作成を出す判断に倒す等）に、
+述語の doc だけ直して2つが古い理由を主張する。理由は述語の doc に1つだけ置き、
+呼び出し側は参照1行にする。
+
+## 関数の本文に説明コメントが何行も続く関数が3つ
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。
+`AiLibraryTab` の `onPick`（本文26行に説明10行）と `revealOrNotify`（22行に9行）、
+`SetupGuide` の `handleCreateFolder`（37行に8行）。
+`CONTRIBUTING.md` の「関数本文の中に説明コメントが何行も必要になったら、関数を分ける合図」に当たる。
+`onPick` は「ref の読み書きの順序」と「同じルートを選び直した回の再走査」という別々の判断を
+1つの本文に抱えている。
+
+## 画面の中だけで使う型の置き場に、逆向きの前例が2つある
+
+`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（oss-hygiene reviewer）。
+`features/settings/model/types.ts` の `ThreadsMode` / `HashMode` は
+プリセット編集ダイアログの中だけで使われるのに `model/` に在り、
+r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じるならその場に置く」と
+理由付きで名乗っている。どちらでも正当化できるので、散り始めると型を探す人が2箇所を見る。

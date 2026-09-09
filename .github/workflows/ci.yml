@@ -44,10 +44,15 @@ jobs:
       - name: Frontend test (if present)
         run: npm test --if-present
 
-      # `npm run verify` は含むが CI は含んでいなかった。門番の文法を固定する
-      # 唯一の検査で、壊れる方向が「選び損ねても何も落ちない」なので、
-      # 手元で verify を通さなかった PR では誰も気付かない
-      - name: Commit gate tests
+      # `verify` に入っている。ローカルでは commit ゲートが走らせるが、
+      # ゲートを迂回して push された分をここで拾う。
+      - name: Dead export ratchet
+        run: npm run ratchet:knip
+
+      # **`verify` には入っていない。** 判定を1件ずつ当てるので数分掛かり、
+      # ローカルでは `.claude/hooks/*.sh` を触ったコミットでだけ門番自身が走らせる。
+      # ここは、その分類ごと壊された場合の控え。
+      - name: Commit gate self-test
         run: npm run test:hooks
 
       - name: Install Linux deps (GTK/Webkit for Tauri)
@@ -87,10 +92,6 @@ jobs:
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
-
-      # `npm run verify:rust` は含むが CI は含んでいなかった
-      - name: Rustdoc ratchet
-        run: npm run ratchet:rustdoc
 
   build-desktop:
     name: Build (Windows/macOS)

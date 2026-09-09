@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import "./GameBoard.scss";
 import HandHeader from "./HandHeader";
-import { useFileTree } from "@/entities/file-tree";
+import { useGame } from "@/entities/game";
+import { playerNames } from "@/entities/kifu/lib/playerNames";
 import { useBoardOrientation } from "@/features/board-orientation";
 
 type Props = {
@@ -10,13 +11,18 @@ type Props = {
   bottomRight: ReactNode;
 };
 
-/** 対局者名と同じく、盤の向きも自分でスライスから取る。呼び出し側は枠だけを渡す */
+/**
+ * 対局者名と同じく、盤の向きも自分でスライスから取る。呼び出し側は枠だけを渡す。
+ *
+ * **対局者名は盤に載っている棋譜から取る**（`state.jkf`）。ツリーが開いたと言っている
+ * 棋譜から取ると、盤に載せられなかったときに駒の並びと対局者名が別の棋譜になる。
+ */
 export default function GameBoard({ topLeft, center, bottomRight }: Props) {
-  const { jkfData } = useFileTree();
+  const { state } = useGame();
   const { isGotePov } = useBoardOrientation();
-  const header = jkfData?.header ?? {};
-  const senteName = header["先手"]?.trim();
-  const goteName = header["後手"]?.trim();
+  // 欄名と欠けの判定は `playerNames` が持つ。ここで別に書くと、同じ棋譜について
+  // ヘッダと盤で違う答えが出る
+  const { sente: senteName, gote: goteName } = playerNames(state.jkf);
 
   const gotePlacement = isGotePov ? "bottom" : "top";
   const sentePlacement = isGotePov ? "top" : "bottom";

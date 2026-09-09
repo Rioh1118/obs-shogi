@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { classifyEnginesDir } from "@/entities/engine/lib/enginesDir";
 import "./EnginePresetEditDialogPanel.scss";
 
 import Modal from "@/shared/ui/Modal";
 
 import {
+  autofillPreset,
   basename,
   clampInt,
   cleanText,
@@ -57,20 +59,38 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const aiRoot = config?.ai_root ?? null;
 
   // ---- scan state ----
-  const [index, setIndex] = useState<AiRootIndex | null>(null);
+  /**
+   * 読めた索引と、**それがどのルートのものか**。
+   *
+   * ルートを持たせないと、切り替えた直後の走査中に前のルートの索引で描くことになる——
+   * 帯が旧ルートの絶対パスを名指しし、その隣の「engines/ を作成」は新しいルートに対して
+   * 働く（本文と動作の宛先が食い違う）。候補の一覧も前のルートのものが残る。
+   * 同じ形を `AiLibraryTab` が `LoadedIndex` で持っている
+   */
+  const [loaded, setLoaded] = useState<{ root: string; index: AiRootIndex } | null>(null);
   const [indexStatus, setIndexStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [indexError, setIndexError] = useState<string | null>(null);
   const [scanNonce, setScanNonce] = useState(0);
 
   const rescan = useCallback(() => setScanNonce((n) => n + 1), []);
 
+  /**
+   * いま指しているルート。**`await` を跨いだ後の書き込みを関門するために要る。**
+   *
+   * 書くのはルートが変わる場所＝この effect（`aiRoot` は設定からしか変わらない）。
+   * 読むのは `await` の後だけ——それが関門の定義。
+   * 同じ役の ref を `AiLibraryTab` が `currentRootRef` として持っている
+   */
+  const currentRootRef = useRef(aiRoot);
+
   useEffect(() => {
     let cancelled = false;
+    currentRootRef.current = aiRoot;
 
     (async () => {
       if (!open) return;
       if (!aiRoot) {
-        setIndex(null);
+        setLoaded(null);
         setIndexStatus("idle");
         setIndexError(null);
         return;
@@ -81,11 +101,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       try {
         const idx = await scanAiRoot(aiRoot);
         if (cancelled) return;
-        setIndex(idx);
+        setLoaded({ root: aiRoot, index: idx });
         setIndexStatus("ok");
       } catch (e) {
         if (cancelled) return;
-        setIndex(null);
+        setLoaded(null);
         setIndexStatus("error");
         setIndexError(`AI_ROOT のスキャンに失敗しました: ${String(e)}`);
       }
@@ -103,6 +123,10 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   }, [open, preset, onClose]);
 
   // ---- derived candidates ----
+  // **別のルートの索引は使わない。** 読み直しの最中は同じルートの索引を残すが、
+  // 切り替えた直後は「まだ何も読めていない」が正しい
+  const index = loaded && loaded.root === aiRoot ? loaded.index : null;
+
   const enginesAll = useMemo(() => index?.engines ?? [], [index?.engines]);
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
 
@@ -263,42 +287,15 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     if (!draft) return;
     if (!index) return;
 
-    setDraft((cur) => {
-      if (!cur) return cur;
-
-      const next = { ...cur };
-
-      // profile empty -> pick first eval-capable
-      if (!cleanText(next.aiName)) {
-        const p = profiles.find((x) => x.has_eval_dir) ?? profiles[0] ?? null;
-        if (p) next.aiName = p.name;
-      }
-
-      const prof = profiles.find((p) => p.name === cleanText(next.aiName)) ?? null;
-
-      // engine empty -> pick first from filtered (or all)
-      if (!cleanText(next.enginePath)) {
-        const first = engineFiltered.filtered[0] ?? engines[0] ?? null;
-        if (first) next.enginePath = first.path;
-      }
-
-      // eval empty -> default eval
-      if (!cleanText(next.evalFilePath)) {
-        const xs = prof?.eval_files ?? [];
-        const defEval = xs.find((f) => f.entry === "nn.bin") ?? xs[0] ?? null;
-        next.evalFilePath = defEval ? defEval.path : "";
-      }
-
-      // book
-      if (!next.bookEnabled) {
-        next.bookFilePath = null;
-      } else if (!cleanText(next.bookFilePath ?? "")) {
-        const defBook = (prof?.book_db_files ?? [])[0] ?? null;
-        next.bookFilePath = defBook ? defBook.path : null;
-      }
-
-      return next;
-    });
+    setDraft((cur) =>
+      cur
+        ? autofillPreset(cur, {
+            profiles,
+            engines,
+            filteredEngines: engineFiltered.filtered,
+          })
+        : cur,
+    );
   }, [open, draft, index, profiles, engines, engineFiltered.filtered]);
 
   const setOpt = useCallback((key: string, value: string) => {
@@ -396,12 +393,21 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   );
 
   const onCreateEnginesDir = useCallback(async () => {
-    if (!aiRoot) return;
+    const root = aiRoot;
+    if (!root) return;
     try {
       setIndexStatus("loading");
-      await ensureEnginesDir(aiRoot);
+      await ensureEnginesDir(root);
+
+      // 切り替え後の走査と重ねて、同じルートをもう一度歩かせない
+      // （`rescan` はそのときの `aiRoot` を読むので、古いルートを走ることは無い）
+      if (root !== currentRootRef.current) return;
       rescan();
     } catch (e) {
+      // **前のルートの失敗を新しいルートの画面へ書かない。** 書くと、指してもいない
+      // フォルダの失敗が赤字で出たうえ、`indexStatus` が error に落ちて
+      // 読めている索引ごと候補が塞がる
+      if (root !== currentRootRef.current) return;
       setIndexStatus("error");
       setIndexError(`engines/ の作成に失敗しました: ${String(e)}`);
     }
@@ -525,9 +531,20 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             setErrors={setErrors}
             aiRoot={aiRoot}
             chooseAiRoot={() => {
+              // **同じルートを選び直した回は自分で走査する。** `chooseAiRoot` は設定を
+              // 書き換えてから返るが、同じ値なら `aiRoot` が動かないので effect は再走しない
+              // ——効かなくなった外付けを繋ぎ直した人が、唯一押せる口を押しても
+              // 画面が1ピクセルも変わらないことになる。判定の材料は `await` の前に取る
+              // （`currentRootRef` は effect も書くので、返った後に読むと競る）
+              const before = currentRootRef.current;
+
               void chooseAiRoot({ force: true }).then((picked) => {
                 // 失敗を捨てると、押しても何も起きない画面になる
-                if (!picked.success) setErrors((prev) => ({ ...prev, aiName: picked.error }));
+                if (!picked.success) {
+                  setErrors((prev) => ({ ...prev, aiName: picked.error }));
+                  return;
+                }
+                if (picked.data !== null && picked.data === before) rescan();
               });
             }}
             rescan={rescan}
@@ -545,10 +562,9 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             setErrors={setErrors}
             aiRootReady={Boolean(aiRoot)}
             scanReady={scanReady}
-            index={index}
             indexStatus={indexStatus}
-            enginesDirExists={Boolean(index?.engines_dir.exists)}
-            enginesDirPath={index?.engines_dir.path ?? ""}
+            enginesDir={classifyEnginesDir(index?.engines_dir)}
+            enginesDirPath={index?.engines_dir?.path ?? ""}
             onCreateEnginesDir={onCreateEnginesDir}
             rescan={rescan}
             engineFilterAi={engineFilterAi}
