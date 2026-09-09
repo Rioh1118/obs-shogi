@@ -13,10 +13,10 @@ const ENGINE_INIT_FAILURE = "engine-init-failure";
  * エンジンを起動できなかったことを利用者へ届ける
  * （`failure-surfacing.md` の F-9 / ADR-0004 の割り当ては `danger` の帯）。
  *
- * **`engine` の `state.error` には読み手が居ない。** 失敗しても画面は
- * 「解析を始められない」だけになり、理由も次の一手もどこにも出ない。
- * 出せるのはここ——設定タブは開いている間しか見えず、
- * エンジンが要るのは解析ペインの側なので、画面に依らない帯へ出す。
+ * **`engine` の `state.error` を読む UI はここだけ。** ここが黙ると、失敗しても
+ * 画面は「解析を始められない」だけになり、理由も次の一手もどこにも出ない。
+ * 帯にするのは、エンジンが要る画面（解析ペイン）と直せる画面（設定）が
+ * 別なので、**どちらを開いていても届く必要がある**ため。
  *
  * **`state.error` を描かずに `notify` を呼ぶ**のは ADR-0004 決定6。
  * 帯を閉じてもエンジンが起動していないことは変わらない。
@@ -49,9 +49,8 @@ export function EngineFailureBridge() {
 
     notify({
       tier: "danger",
-      // 解析ペインを開いていなくても届く必要がある（受入条件の1つ目）。
-      // 帯はヘッダを覆うので、閉じる以外の動作を必ず持たせること
-      //（`NotificationLayer.scss`）——ここでは「設定を開く」がそれ
+      // **帯はヘッダを覆う**ので、閉じる以外にやることが無い帯は出せない
+      //（`NotificationLayer.scss`）。ここでは「設定を開く」がそれに当たる
       presentation: "banner",
       dedupeKey: ENGINE_INIT_FAILURE,
       title: "エンジンを起動できませんでした",

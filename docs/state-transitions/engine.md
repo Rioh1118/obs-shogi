@@ -75,8 +75,10 @@ issue #120 と同型の行き止まり
 [engine-position-sync.md](engine-position-sync.md) の E3
 
 ※5 S3 では**同じ runtime なら再トライしない**（`provider.tsx`）。
-無限リトライを避けるため。**再トライの導線は `clearError()` だが、UI からの呼び出し元が0。**
-利用者は別のプリセットを選ぶ以外に復帰できない
+無限リトライを避けるため。**復帰は E3（設定を直す）を通る**——失敗すると
+`EngineFailureBridge` が帯を出し、「設定を開く」がプリセットの編集へ送る。
+直した設定は別の runtime になるので、その場で起動し直す。
+**`clearError()` は使っていない**（context には在るが呼び出し元は0のまま）
 → [failure-surfacing.md](failure-surfacing.md) F-9
 
 ※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
@@ -86,11 +88,11 @@ issue #120 と同型の行き止まり
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
    ※2 はこれを破りうる
 2. **フロントが S0 なら Rust 側も P0。** ※3 はこれを破る
-3. **S3（失敗）から抜ける道が常にある。** いまは「別のプリセットを選ぶ」だけ。※5
+3. **S3（失敗）から抜ける道が常にある。** 帯が設定へ送り、直せば E3 で起動し直す。※5
 
 ## 埋まっていないセル
 
 - `(S1, E3)` 起動中の runtime 切替（※2）。**`initializer.ts` にテストが無い**
 - `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無く踏めていない**
-- `(S3, E4)` 同じ runtime での再設定。再トライしないことを固定するテストが無い
-- **`entities/engine` に `__tests__` が1つも無い**
+- **`entities/engine` に在るテストは `model/__tests__/provider.test.tsx` の1本だけ**
+  （`(S3, E4)` と `(S3, E3)`）。`initializer.ts` と `setup.ts` は素通り
