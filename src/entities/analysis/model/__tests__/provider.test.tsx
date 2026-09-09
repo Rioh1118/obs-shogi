@@ -1148,6 +1148,79 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(stopCore).toHaveBeenCalledWith("s1", "restart");
   });
 
+  it(
+    "同期の往復の最中に起こし直されたら、席を取りに行かない",
+    async () => {
+      // **盤は既に同期済み。** `waitUntil` はループへ入らないので、`abort` を
+      // 本体だけで見る形だと1度も評価されない。
+      let releaseSync: () => void = () => {};
+      syncPosition.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseSync = resolve;
+          }),
+      );
+
+      const view = mountAnalysis(adapter("P1", "P1"));
+      const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+      await advance(50);
+
+      // 送信の往復の最中に、利用者が設定でオプションを変えて保存する。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", "P1"));
+
+      startCore.mockClear();
+      await act(async () => {
+        releaseSync();
+      });
+      await advance(150);
+      await pressed;
+
+      // **席を取りに行くと、死んだエンジンの席を握ったまま「解析中」で固まる。**
+      expect(startCore).not.toHaveBeenCalled();
+      expect(view.current.state.isAnalyzing).toBe(false);
+    },
+    SLOW,
+  );
+
+  it(
+    "席を返している最中に起こし直されたら、自動再開は黙って降りる",
+    async () => {
+      startCore.mockResolvedValueOnce("s1");
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 自動再開の返却を往復の途中で止める。**札を取るのはこの後。**
+      let releaseStop: () => void = () => {};
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(150);
+
+      // 返却を待っている間に、利用者が設定でオプションを変えて保存する。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P2", "P2"));
+
+      // 畳んでいる最中のエンジンへの開始は Rust が断る。
+      startCore.mockRejectedValueOnce(new Error("engine is shutting down"));
+      await act(async () => {
+        releaseStop();
+      });
+      await advance(150);
+
+      // **押した人が居ないので黙って降りる。** 断りを立てると、利用者がいま
+      // 済ませた操作（オプションを変えて保存）をもう一度やれと案内することになる。
+      expect(view.current.state.error).toBeNull();
+    },
+    SLOW,
+  );
+
   it("捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない", async () => {
     tauri = true;
     startCore.mockResolvedValueOnce("s1");

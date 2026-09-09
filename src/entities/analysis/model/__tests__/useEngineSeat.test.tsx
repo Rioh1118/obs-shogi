@@ -8,6 +8,12 @@ import type { AnalysisSessionId } from "@/entities/engine/api/tauri";
 /** Rust が鋳造する識別子を、テストの中で作る。 */
 const id = (value: string) => value as AnalysisSessionId;
 
+/**
+ * エンジンが使えるかの述語。**ここで見たいのは席の出し入れ**なので、
+ * 常に真を返す（エンジンが消える筋は `engineGenRef` を動かす `onEngineGone` で作る）。
+ */
+const ready = () => true;
+
 const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<void>>();
 vi.mock("@/entities/engine/api/tauri", () => ({
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
@@ -38,13 +44,13 @@ describe("EngineSeat の枠", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    seat.beginTake("late-start").landed(id("S1"), () => false);
+    seat.beginTake("late-start", ready).landed(id("S1"), () => false);
 
     // 握っている席を返す。応答は返らない。
     seat.releaseHeldQuietly("no-position");
 
     // 要らなくなった開始が持ってきた別の席を捨てる。**枠はこちらに移る。**
-    seat.beginTake("late-restart").landed(id("S2"), () => true);
+    seat.beginTake("late-restart", ready).landed(id("S2"), () => true);
 
     // その後ろに並ぶ返却。並ぶ相手を取り違えると、S1 の1本目がまだ飛んでいるのに撃つ。
     seat.releaseHeldQuietly("no-position");
@@ -68,7 +74,7 @@ describe("EngineSeat とエンジンの世代", () => {
     const seat = result.current;
 
     // 開始を頼む行。この時点のエンジンが札に焼き付く。
-    const take = seat.beginTake("late-restart");
+    const take = seat.beginTake("late-restart", ready);
 
     seat.onEngineGone();
 
@@ -93,7 +99,7 @@ describe("EngineSeat とエンジンの世代", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    seat.beginTake("late-start").landed(id("S1"), () => false);
+    seat.beginTake("late-start", ready).landed(id("S1"), () => false);
 
     // 返却が飛んでいる間にエンジンが消える。
     const releasing = seat.releaseHeld("restart").catch(() => {});
@@ -108,6 +114,28 @@ describe("EngineSeat とエンジンの世代", () => {
     stopCore.mockResolvedValue(undefined);
     await seat.releaseHeld("start");
     expect(stopCore).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 席を返している往復の最中にエンジンが消えた回。
+   *
+   * **世代だけでは足りない。** 札を取るのは席を返した後なので、その往復の最中に
+   * 起こし直されると**進んだ後の世代が焼き付く**——世代差は 0 のまま。
+   * 握ってしまうと、死んだエンジンの席を持ったまま「解析中」で固まり、
+   * エンジンが戻っても再開しない（どの門も閉じたままになる）。
+   */
+  it("エンジンが使えなくなっていたら、着地した席を握らない", () => {
+    const { result } = renderHook(() => useEngineSeat());
+    const seat = result.current;
+
+    let usable = true;
+    const take = seat.beginTake("late-restart", () => usable);
+
+    // 往復の最中に起こし直される。**世代は動かない**（札より前に進んだ扱い）。
+    usable = false;
+
+    expect(take.landed(id("S1"), () => false)).toBe("engine-gone");
+    expect(seat.isHeld(), "死んだエンジンの席を握っている").toBe(false);
   });
 
   /**
@@ -131,8 +159,8 @@ describe("EngineSeat とエンジンの世代", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    const first = seat.beginTake("late-start");
-    const second = seat.beginTake("late-restart");
+    const first = seat.beginTake("late-start", ready);
+    const second = seat.beginTake("late-restart", ready);
 
     seat.sweepOnUnmount();
 
@@ -149,6 +177,9 @@ describe("EngineSeat とエンジンの世代", () => {
     rejects.shift()?.(new Error("ipc gone"));
     await settle();
 
+    // **名前が約束しているのは「返し直す」。** 欄が空いたかだけを見ると、
+    // 撃たずに欄を空ける変異が素通りする。
+    expect(stopCore.mock.calls.filter(([s]) => s === undefined)).toHaveLength(2);
     expect(seat.isHeld(), "2本目の席が返らずに残っている").toBe(false);
   });
 });

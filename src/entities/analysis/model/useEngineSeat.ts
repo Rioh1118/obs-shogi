@@ -19,8 +19,9 @@ export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-p
 export type DiscardPoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
 
 /**
- * どの口の引数にもならない値。**綴りは `sweepOnUnmount` の中だけに書く**
- * ——引数にできると `releaseHeldQuietly("unmount")` が通ってしまう。
+ * どの口の引数にもならない値。**部分集合に入れない**のは、引数にできると
+ * 呼び手が席を指さない停止を撃てるようになるため——それは Rust の席を**全部**
+ * 空けるので、別の口が取った席まで巻き添えにする。撃つのはフックの中だけ。
  */
 type InlineOnlyReleasePoint = "unmount";
 
@@ -106,8 +107,12 @@ export interface EngineSeat {
    *
    * **開始を頼む行より前で呼ぶこと。** 後で呼ぶと、往復の間に消えたエンジンを
    * 「まだ居る」と読む——この札が焼き付けるのは、呼んだ時点のエンジンの世代。
+   *
+   * `engineUsable` は「いまエンジンが使えるか」の述語。**世代だけでは足りない**
+   * ——札を取るのは席を返した後なので、返却の往復の最中に起こし直された回は
+   * 進んだ後の世代が焼き付く。世代差は 0 のまま、その席は死んだエンジンのものになる。
    */
-  beginTake: (discardBy: DiscardPoint) => SeatTake;
+  beginTake: (discardBy: DiscardPoint, engineUsable: () => boolean) => SeatTake;
   /**
    * Rust が自分で片付けた席を締める。
    *
@@ -283,6 +288,9 @@ export function useEngineSeat(): EngineSeat {
    * その識別子で飛ぶ。手放した席として覚えるだけにして、遅れて届く `info` を落とす。
    *
    * 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
+   *
+   * **欄を書き換えるだけではない。** 畳まれた後に書き戻した回は、そのまま
+   * 席を指さない停止を1本撃つ（下の `sweptRef` の枝）。
    */
   const keepOrForget = (sessionId: AnalysisSessionId | undefined, generation: number) => {
     if (sessionId === undefined || seatRef.current !== null) return;
@@ -438,14 +446,17 @@ export function useEngineSeat(): EngineSeat {
       if (pastRef.current.has(sessionId)) return false;
       return seatRef.current === null || seatRef.current === sessionId;
     },
-    beginTake: (discardBy) => {
+    beginTake: (discardBy, engineUsable) => {
       const generation = engineGenRef.current;
 
       return {
-        engineChanged: () => engineGenRef.current !== generation,
+        engineChanged: () => engineGenRef.current !== generation || !engineUsable(),
         landed: (sessionId, isSuperseded) => {
           // **見る順の理由は `SeatTake.landed` の doc に1つ置いてある。**
-          if (engineGenRef.current !== generation) {
+          //
+          // **撃たない。** 席が空の停止は起こし直したエンジンへ裸の `stop` を書く
+          // （→ `docs/state-transitions/analysis.md` ※12）。手放した席として覚えるだけ。
+          if (engineGenRef.current !== generation || !engineUsable()) {
             remember(sessionId);
             return "engine-gone";
           }
@@ -513,7 +524,7 @@ export function useEngineSeat(): EngineSeat {
     // 置いていくと、以降 start_infinite_analysis が「Analysis already running」で
     // 断られ、エンジンを畳み直すまで解析が二度と始まらない。
     //
-    // **ここだけ席を指さない。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
+    // **席を指さない停止を撃つ。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
       sweptRef.current = true;
 

@@ -592,7 +592,13 @@ impl EngineAnalyzer {
     /// 停止ボタンも棋譜を閉じる操作も固まる。畳めていないまま次の `go` を
     /// 出すことになるが、待ち続けて操作を失うよりましだという判断。
     async fn wait_until_settled(&self) {
-        let Some(settled) = self.infinite_settled.lock().await.clone() else {
+        // **取り出して空ける**（`infinite_listener` と同じ扱い）。1本の無限解析に対して
+        // 待つのは1回だけ。読むだけにすると、その1本が畳まれた後の停止も
+        // 鳴る当てのない `Notify` を上限いっぱい待つ——**停止そのものは即座に返るのに、
+        // 起こし直し（設定でオプションを変えて保存）が毎回 `ANALYSIS_STOP_GRACE` 固まり**、
+        // しかも「まだ探索中かもしれない」と事実でない warn がログに残る。
+        // その warn は #441 の再発を追う人が最初に読む場所に出る。
+        let Some(settled) = self.infinite_settled.lock().await.take() else {
             return;
         };
 
@@ -807,6 +813,29 @@ impl Clone for EngineAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 畳んだ後の停止が、鳴る当てのない合図を待たないこと。
+    ///
+    /// **エンジンのプロセスは要らない。** 見たいのは欄の出し入れだけ。
+    /// 読むだけ（`clone`）にすると、1本目の無限解析を畳んだ後の停止が全部
+    /// `ANALYSIS_STOP_GRACE` を待ち切る——起こし直し（設定でオプションを変えて
+    /// 保存）は必ずこの経路を通るので、**毎回そのぶん固まる**。
+    #[tokio::test]
+    async fn waiting_for_the_search_to_settle_happens_once_per_analysis() {
+        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+
+        let settled = Arc::new(tokio::sync::Notify::new());
+        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&settled));
+
+        // 1本目。探索の終わりが鳴るので、待ちは即座に抜ける。
+        settled.notify_one();
+        analyzer.wait_until_settled().await;
+
+        // 2本目。**もう待つ相手が居ない。** 上限を待つなら、この await は返らない。
+        tokio::time::timeout(Duration::from_millis(200), analyzer.wait_until_settled())
+            .await
+            .expect("畳んだ後の停止が、鳴る当てのない合図を待ち切っている");
+    }
 
     fn result_with_depth(depth: u32) -> AnalysisResult {
         AnalysisResult {

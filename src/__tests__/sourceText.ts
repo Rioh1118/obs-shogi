@@ -9,6 +9,12 @@
 const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, "");
 
 /**
+ * シェルのコメント。**綴りをここ1つにする**——`codeOf` が落とす区間と
+ * `commentsOf` が拾う区間が同じでなければ、どちらからも外れる区間が生まれる。
+ */
+const SHELL_COMMENT = /(^|\n|[ \t])(#(?!!)[^\n]*)/g;
+
+/**
  * シェルのコメントを落とす。
  *
  * **`//` を落とさない。** `sed -E 's/\\$//'` のような本物のコード行が消える。
@@ -24,12 +30,6 @@ const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, 
  *
  * 行頭の `#!`（shebang）は残す。落としても困らないが、落とす理由も無い。
  */
-/**
- * シェルのコメント。**綴りをここ1つにする**——`codeOf` が落とす区間と
- * `commentsOf` が拾う区間が同じでなければ、どちらからも外れる区間が生まれる。
- */
-const SHELL_COMMENT = /(^|\n|[ \t])(#(?!!)[^\n]*)/g;
-
 const stripShellComments = (text: string): string => text.replace(SHELL_COMMENT, "$1");
 
 /**
