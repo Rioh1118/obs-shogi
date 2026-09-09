@@ -82,7 +82,7 @@
 | HIGH-4 / MEDIUM-9 〜 MEDIUM-13 | `67a1c6f0`。在庫と `advance` の理由、F-9、`IDEAS`、`evel` を現物へ         |
 | MEDIUM-5 / -6 / -7             | `67a1c6f0`。門の後始末を揃え、根拠を**観測できる差**へ。掃除の理由を書いた |
 | MEDIUM-8                       | `67a1c6f0`。`runRestartRef` は鏡から読む                                   |
-| MEDIUM-4（architecture）       | `<この後のコミット>`。散文の義務（世代の門）をコードにした                 |
+| MEDIUM-4（architecture）       | `08b9fc0c`。散文の義務（世代の門）をコードにした                           |
 | ADR-0007 のパス                | `docs/IDEAS.md` へ（`main` から在る）                                      |
 | HIGH-1 / HIGH-2                | **据え置き**（差分の外。#277 と基底側）                                    |
 
