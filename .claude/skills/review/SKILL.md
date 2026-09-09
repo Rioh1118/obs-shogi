@@ -34,12 +34,18 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 `.claude/` をブランチの中で直しても、**そのブランチのレビューには届かない**
 （主チェックアウトが別のブランチに居れば、そちらの版が配られる）。
 
+**1ファイルだけ見ない。** reviewer に配られるのは `.claude/agents/` と
+`.claude/skills/` の全部なので、1本を確かめて安心すると残りの差を見落とす。
+
 ```bash
-diff <(git show HEAD:.claude/skills/review-protocol/SKILL.md) \
-     "$(git rev-parse --path-format=absolute --git-common-dir)/../.claude/skills/review-protocol/SKILL.md"
+MAIN="$(git rev-parse --path-format=absolute --git-common-dir)/.."
+git ls-tree -r --name-only HEAD -- .claude/agents .claude/skills |
+  while read -r f; do
+    diff -q <(git show "HEAD:$f") "$MAIN/$f" >/dev/null 2>&1 || echo "差あり: $f"
+  done
 ```
 
-差があるなら、**その差はこのラウンドの reviewer に効かない。** 効かせたい規約は
+出た行は、**このラウンドの reviewer に効かない。** 効かせたい規約は
 reviewer へ渡すプロンプトに本文ごと書く（指し先だけ書いても読めない）。
 
 **`.claude/` の所見を「直した」と書くときは、その直しが次のラウンドに届く経路が
