@@ -89,6 +89,11 @@ tauri-plugin-process = { workspace = true }
 
 [dev-dependencies]
 test-support = { path = "crates/test-support" }
+# `#[tokio::test(start_paused = true)]` のため。上限を実時間で待つテストが
+# 定数を伸ばすたびに比例して遅くなるのを避ける。
+# **本体には入らない** —— edition 2021 の resolver は dev-dependencies の
+# feature を通常のビルドへ寄せない
+tokio = { workspace = true, features = ["test-util"] }
 # `tidy_csa` の整形が tsshogi の受ける範囲を出ていないかを、
 # tsshogi 自身の正規表現を読んで確かめるために使う（`kifu_reader.rs` のテスト）
 regex = "1.11"

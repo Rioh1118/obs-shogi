@@ -832,7 +832,11 @@ mod tests {
     ///
     /// **上限に当たったのは「まだ畳まれていない」の意味**（warn 自身がそう言う）。
     /// そこで空けると、次の停止が待ち直す相手を失う。
-    #[tokio::test]
+    ///
+    /// **時計を止めて走らせる。** `ANALYSIS_STOP_GRACE` を実時間で待つと、
+    /// 上限を伸ばすたびにこのテストだけが比例して遅くなる。
+    /// 止めた時計は待ち相手が居なくなった時点で自動で進むので、上限の値には依らない。
+    #[tokio::test(start_paused = true)]
     async fn giving_up_keeps_the_handle_for_the_next_stop() {
         let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
 
