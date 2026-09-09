@@ -592,13 +592,8 @@ impl EngineAnalyzer {
     /// 停止ボタンも棋譜を閉じる操作も固まる。畳めていないまま次の `go` を
     /// 出すことになるが、待ち続けて操作を失うよりましだという判断。
     async fn wait_until_settled(&self) {
-        // **取り出して空ける**（`infinite_listener` と同じ扱い）。1本の無限解析に対して
-        // 待つのは1回だけ。読むだけにすると、その1本が畳まれた後の停止も
-        // 鳴る当てのない `Notify` を上限いっぱい待つ——**停止そのものは即座に返るのに、
-        // 起こし直し（設定でオプションを変えて保存）が毎回 `ANALYSIS_STOP_GRACE` 固まり**、
-        // しかも「まだ探索中かもしれない」と事実でない warn がログに残る。
-        // その warn は #441 の再発を追う人が最初に読む場所に出る。
-        let Some(settled) = self.infinite_settled.lock().await.take() else {
+        // **読むだけ。空けるのは畳まれたと分かってから。**
+        let Some(settled) = self.infinite_settled.lock().await.clone() else {
             return;
         };
 
@@ -610,6 +605,21 @@ impl EngineAnalyzer {
                 target: LOGT,
                 "stop_analysis: no bestmove within {ANALYSIS_STOP_GRACE:?}; the engine may still be searching"
             );
+
+            // **諦めた回は残す。** まだ畳まれていないので、次の停止が待ち直す相手が要る。
+            return;
+        }
+
+        // 畳まれた。この1本にはもう待つ相手が居ないので空ける——**読むだけにすると、
+        // 畳まれた後の停止まで鳴る当てのない `Notify` を上限いっぱい待つ**。
+        // 起こし直し（設定でオプションを変えて保存）は必ずこの経路を通るので、
+        // 毎回そのぶん固まり、しかも事実でない warn がログに残る。
+        //
+        // **同じ合図のときだけ空ける。** 待っている間に次の解析が別の合図を立てている
+        // ことがあり、それを空けると新しい解析の待ち相手を消す。
+        let mut current = self.infinite_settled.lock().await;
+        if current.as_ref().is_some_and(|c| Arc::ptr_eq(c, &settled)) {
+            *current = None;
         }
     }
 
@@ -813,6 +823,51 @@ impl Clone for EngineAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 諦めた回は合図を残すこと。
+    ///
+    /// **上限に当たったのは「まだ畳まれていない」の意味**（warn 自身がそう言う）。
+    /// そこで空けると、次の停止が待ち直す相手を失う。
+    #[tokio::test]
+    async fn giving_up_keeps_the_handle_for_the_next_stop() {
+        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+
+        let settled = Arc::new(tokio::sync::Notify::new());
+        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&settled));
+
+        // 誰も鳴らさないので上限まで待って諦める。
+        analyzer.wait_until_settled().await;
+
+        assert!(
+            analyzer.infinite_settled.lock().await.is_some(),
+            "諦めた（＝まだ畳まれていない）のに合図を捨てている"
+        );
+    }
+
+    /// 待っている間に次の解析が立てた合図を、前の停止が空けないこと。
+    ///
+    /// 開始の途中に割り込んだ停止（`take_session` の相互排除を素通りする口）が、
+    /// **まだ始まっていない解析の合図を持ち去る**のを止める。
+    #[tokio::test]
+    async fn settling_only_clears_the_handle_it_waited_on() {
+        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+
+        let first = Arc::new(tokio::sync::Notify::new());
+        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&first));
+        first.notify_one();
+
+        // 待っている間に、次の解析が別の合図を立てる。
+        let second = Arc::new(tokio::sync::Notify::new());
+        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&second));
+
+        analyzer.wait_until_settled().await;
+
+        let current = analyzer.infinite_settled.lock().await;
+        assert!(
+            current.as_ref().is_some_and(|c| Arc::ptr_eq(c, &second)),
+            "前の停止が、次の解析の待ち相手を消している"
+        );
+    }
 
     /// 畳んだ後の停止が、鳴る当てのない合図を待たないこと。
     ///
