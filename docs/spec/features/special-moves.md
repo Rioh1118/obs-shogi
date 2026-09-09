@@ -80,6 +80,21 @@ Rust 側の `kifu_reader.rs` には
 
 最後の1行が決まっていない。→ [game-play.md](game-play.md)
 
+**`Rule` の内訳も3つには収まらない。** `judgeGameOutcome`
+（`src/entities/game/lib/gameOutcome.ts`）が返す6種の対応。
+
+| 終局             | `JKFSpecial`                     |
+| ---------------- | -------------------------------- |
+| 詰み             | `TSUMI`                          |
+| 千日手           | `SENNICHITE`                     |
+| トライルール     | `JISHOGI`                        |
+| 手詰まり         | **無い**                         |
+| 連続王手の千日手 | **無い**（反則負けの綴りが無い） |
+| 最大手数         | **無い**（引き分けの綴りが無い） |
+
+下3つは受入条件の「引き分け」「反則勝ち／反則負け」と同じ穴で、
+`JKFSpecial` を増やすか逃がしを作るかが決まっていない。
+
 ## 判断の軸
 
 `docs/PREMISES.md` P-008 と `docs/OPEN-QUESTIONS.md` Q-003。

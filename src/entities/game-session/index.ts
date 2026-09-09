@@ -6,10 +6,9 @@
  * 局面と指し手列（棋譜）とルールの判定で、`continueGame` が毎手それを渡す。
  * 表は `docs/state-transitions/game-session.md`。
  *
- * **詰み・千日手・持将棋・最大手数の判定はまだ無い** → #354。
- * `entities/game` にあるのは合法手と成りだけなので、`moveDecided` に対して
- * 返せるのは `continueGame` だけ。**こちらから**ルールで終局させることは、
- * それが入るまでできない（投了・中断・時間切れ・エンジンの異常では終わる）。
+ * 詰み・千日手・持将棋・最大手数の判定は `entities/game` にある
+ * （`lib/gameOutcome.ts` の `judgeGameOutcome`）。`moveDecided` を受けたら
+ * それに掛けて、`continueGame` と `endGameByRule` のどちらを返すかを決める。
  * ただし Rust は手数の上限で `rule` を出す——`endGameByRule` を呼んでいなくても届く。
  */
 export {
