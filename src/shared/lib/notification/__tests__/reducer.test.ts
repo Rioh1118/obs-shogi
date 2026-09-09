@@ -16,6 +16,7 @@ type Over = {
   body?: string;
   actions?: NotifyAction[];
   dedupeKey?: string;
+  dismissKey?: string;
 };
 
 function request(over: Over = {}): NotifyRequest {
@@ -155,6 +156,40 @@ describe("通知の置き場", () => {
     });
   });
 
+  /**
+   * 取っ手（`dismissKey`）は**引っ込めるためだけ**。畳む鍵と分けてあるのは、
+   * 条件と結び付いた通知——条件が消えれば引っ込む類——に件数を出さないため
+   * （`Notification.count` は「必ず1件」に数が付くのを避けている）。
+   */
+  describe("同じ取っ手は置き換える", () => {
+    const held = notify(
+      notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine", title: "1回目" }),
+      { dismissKey: "engine", title: "2回目" },
+    );
+
+    it("1つのまま置き換わる", () => {
+      expect(held.notifications).toHaveLength(1);
+      expect(held.notifications[0].title).toBe("2回目");
+    });
+
+    /** **畳みと違って数えない。** 「また起きた」ではなく「まだ続いている」ので */
+    it("件数は増えない", () => {
+      expect(held.notifications[0].count).toBe(1);
+    });
+
+    it("id は動かない", () => {
+      expect(held.notifications[0].id).toBe("notice-1");
+    });
+
+    /**
+     * 件数を出すかどうかは `dedupeKey` の有無で決まる（`NotificationLayer`）。
+     * 取っ手だけの通知に鍵が付くと、そこに「1件」が出る
+     */
+    it("畳む鍵は持たない", () => {
+      expect(held.notifications[0].dedupeKey).toBeUndefined();
+    });
+  });
+
   describe("消す", () => {
     const two = notify(notify(INITIAL_NOTIFICATION_STATE, { dedupeKey: "engine" }));
 
@@ -168,6 +203,16 @@ describe("通知の置き場", () => {
       const state = notificationReducer(two, { type: "dismissByKey", key: "engine" });
 
       expect(state.notifications.map((n) => n.id)).toEqual(["notice-2"]);
+    });
+
+    /** 取っ手で出したものは取っ手で消える。**畳む鍵しか見ないと消せない** */
+    it("取っ手でも消える", () => {
+      const state = notificationReducer(
+        notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine" }),
+        { type: "dismissByKey", key: "engine" },
+      );
+
+      expect(state.notifications).toEqual([]);
     });
 
     // 条件が満たされている間ずっと撃たれうるので、空振りで再描画を起こさない

@@ -19,12 +19,26 @@ export type ModalType =
  */
 export type PovType = "gote";
 
+/**
+ * `tab` に書ける綴り。**モーダルごとの語彙をここに集める。**
+ *
+ * 集めないと `tab` は `string` になり、実在しない綴りを渡しても何も起きない——
+ * 受け側（`SettingsPanel`）は知らない綴りを既定のタブへ落とすので、
+ * **押した先が違うだけで、型検査もテストも黙って通る**。
+ *
+ * 綴りの持ち主は各モーダルなので、増やすときは両側を直す
+ * （`features/settings/model/tabs.ts` は `satisfies` でここに合わせてある）。
+ * **どのモーダルにどの綴りが有効かまではここでは言えない**——
+ * `openModal` は `modal` と `tab` を別々に受け取る。
+ */
+export type TabType = "workspace" | "aiLibrary" | "engine" | "create" | "import";
+
 export interface URLParams {
   modal?: ModalType;
   tesuu?: number;
   branch?: string;
   dir?: string;
-  tab?: string;
+  tab?: TabType;
   pov?: PovType;
   /** 局面検索・課題局面登録に渡す検索対象SFEN（省略時は現在局面） */
   sfen?: string;
@@ -48,7 +62,9 @@ export function useURLParams() {
       branch: searchParams.get("branch") || undefined,
       modal: (searchParams.get("modal") as URLParams["modal"]) || undefined,
       dir: searchParams.get("dir") || undefined,
-      tab: searchParams.get("tab") || undefined,
+      // URL は誰でも書けるので、綴りは受け側が確かめる（`SettingsPanel` の `isTabKey`）。
+      // ここで型を名乗るのは**渡す側**を止めるため
+      tab: (searchParams.get("tab") as TabType) || undefined,
       pov,
       sfen: searchParams.get("sfen") || undefined,
       returnTo: (searchParams.get("returnTo") as ModalType) || undefined,
