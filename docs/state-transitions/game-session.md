@@ -19,18 +19,22 @@
 （移動可能マスの強調・成り選択）にも要るので消せず、Rust に重ねると
 合法手判定が2実装になる。ルールをフロント側に寄せるのはそのため。
 
-**詰み・千日手・持将棋・最大手数の判定は、まだどちらにも無い** → #354。
-`shogiMoveValidator.ts` が持つのは合法手と成りだけで（`isLegalMove` から
-`getLegalMovesWithPromotionOptions` まで）、`src/` を
-`千日手|repetition|持将棋|jishogi|最大手数` で引いても当たるのは
-`entities/kifu/model/jkf.ts` の**棋譜の特殊手の文字列定数**だけ。
+詰み・手詰まり・千日手・連続王手の千日手・トライルール・最大手数の判定も
+**フロントにある**（`src/entities/game/lib/gameOutcome.ts` の `judgeGameOutcome`）。
+そちらは合法手を shogi.js、千日手と連続王手を tsshogi から取る。
 
-その帰結として、**Rust は手が決まっても次の `go` を自分では出せない**。
-指した後の局面が終局かどうかを知る手立てを持たないため。`AwaitingRuling` で
-止まり、フロントの裁定（`continue_game` / `end_by_rule`）を待つ。
+**持将棋の27点法・24点法はそこに入らない。** 宣言の規則なので、条件を満たしただけでは
+終局しない。点数を読んで宣言の可否を返すのは `judgeDeclaration`
+（`lib/jishogiDeclaration.ts`）の側で、利用者の宣言操作から呼ぶ。
+**反則の判定はどちらにも無い**（→ #536）。
 
-**#354 が入るまで、この表の `end_by_rule` の列は「呼ばれる口があるだけ」で、
-呼ぶ側が存在しない。**
+Rust はどれも持たない。その帰結として、**Rust は手が決まっても次の `go` を
+自分では出せない**——指した後の局面が終局かどうかを知る手立てが無いため。
+`AwaitingRuling` で止まり、フロントの裁定（`continue_game` / `end_by_rule`）を待つ。
+
+**この表の `end_by_rule` の列は、まだ「呼ばれる口があるだけ」。**
+判定は入ったが、`game-event` を購読して裁定を返す画面がまだ無い
+（`docs/spec/features/game-play.md`）。
 
 **指し手列の権威はフロント。** Rust の `Runner.moves` は `go` を組むための写しで、
 `continue_game` が毎手上書きする。書き込むのは `start`（`initial_moves`）と

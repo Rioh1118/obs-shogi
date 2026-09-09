@@ -90,15 +90,12 @@ export function canDropKy(_x: number, y: number, color: Color): boolean {
 }
 
 /**
- * 駒種別の駒打ちチェック
+ * 駒種別の駒打ちチェック。
+ *
+ * **公開しない。** 駒打ちの合否を組み立てる口は `filterLegalDrops` の1つだけで、
+ * ここを外から呼べると、王手放置より先に打ち歩詰めを見る形が別の場所で復活する
  */
-export function canDropPieceAt(
-  shogi: Shogi,
-  kind: Kind,
-  x: number,
-  y: number,
-  color: Color,
-): boolean {
+function canDropPieceAt(shogi: Shogi, kind: Kind, x: number, y: number, color: Color): boolean {
   switch (kind) {
     case "FU":
       return canDropFu(shogi, x, y, color);
@@ -190,15 +187,12 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
       return false;
     }
 
-    // 相手の全ての合法手を取得
-    const opponentMoves = getAllPossibleMoves(testShogi, opponentColor);
-
-    // 相手に合法手がない場合は詰み = 打ち歩詰め
-    if (opponentMoves.length === 0) {
-      return true;
-    }
-
-    return false;
+    // 相手に合法手がない場合は詰み = 打ち歩詰め。
+    //
+    // **数え上げてから長さを見ないこと。** この検査は `hasLegalMove` から
+    // 呼ばれ、その中でまた歩打ちごとにここへ入る。全部作る形だと入れ子が
+    // 掛け算になり、双方が歩を2枚持つ詰み形で1分を超える（実測 66 秒）。
+    return !hasLegalMove(testShogi, opponentColor);
   } catch (e) {
     console.log(e);
     return true; // エラーの場合は安全側に倒して打ち歩詰めとする
@@ -206,20 +200,26 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
 }
 
 /**
- * 指定した色の全ての可能な手を取得
- * 王手放置チェックは含む
+ * 指定した色の合法手を、見つかった順に1つずつ返す
+ *
+ * **数え上げの途中で打ち切れるようにするための形。** 王手放置の検査
+ * (`wouldBeInCheckAfterMove`) は候補1手ごとに局面を SFEN で写して指し直すので、
+ * 「合法手が1つでもあるか」だけを知りたい側（`hasLegalMove`）が
+ * 全部を作ると、その分だけ丸ごと無駄になる。
+ *
+ * **`color` は手番の側であること。** 手番でない側を渡すと、`wouldBeInCheckAfterMove`
+ * の中で shogi.js が手番違いを投げ、その catch が「王手放置」に倒すので、
+ * **合法手が1つも無い＝詰み**という答えが返る。エラーにはならない。
  */
-export function getAllPossibleMoves(shogi: Shogi, color: Color): ShogiMove[] {
-  const moves: ShogiMove[] = [];
-
+function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
   // 盤上の駒からの移動手
   for (let x = 1; x <= 9; x++) {
     for (let y = 1; y <= 9; y++) {
       const piece = shogi.get(x, y);
       if (piece && piece.color === color) {
-        const basicMoves = shogi.getMovesFrom(x, y);
-        const legalMoves = basicMoves.filter((move) => !wouldBeInCheckAfterMove(shogi, move));
-        moves.push(...legalMoves);
+        for (const move of shogi.getMovesFrom(x, y)) {
+          if (!wouldBeInCheckAfterMove(shogi, move)) yield move;
+        }
       }
     }
   }
@@ -236,16 +236,58 @@ export function getAllPossibleMoves(shogi: Shogi, color: Color): ShogiMove[] {
     "HI",
   ];
 
+  const allDrops = shogi.getDropsBy(color);
   for (const kind of kinds) {
-    if (hands[kind] > 0) {
-      const allDrops = shogi.getDropsBy(color);
-      const kindDrops = allDrops
-        .filter((move) => move.kind === kind)
-        .filter((move) => canDropPieceAt(shogi, kind, move.to.x, move.to.y, color))
-        .filter((move) => !wouldBeInCheckAfterMove(shogi, move));
-      moves.push(...kindDrops);
-    }
+    if (hands[kind] === 0) continue;
+    yield* filterLegalDrops(shogi, color, kind, allDrops);
   }
+}
 
-  return moves;
+/**
+ * `allDrops` のうち `kind` の合法な駒打ちを返す。
+ *
+ * **駒打ちの合否を決めるのはこの関数だけ。** 同じ条件を2箇所に書くと、
+ * 片方だけ順序や条件が変わっても両方緑のまま通る（実際に
+ * `ShogiMoveValidator.getLegalDropsByKind` が同じ規則の写しを持っていた）。
+ *
+ * **`wouldBeInCheckAfterMove` を先に見る。** 積の条件なので結果は変わらないが、
+ * `canDropPieceAt` は歩について `isUchifudume` を通り、その中で相手の合法手を
+ * また数え上げる。王手放置で落ちる歩打ちにその値段を払うと、双方が歩を2枚持つ
+ * 詰み形で1分を超える（実測 66 秒 → 1ms 未満）。
+ */
+function* filterLegalDrops(
+  shogi: Shogi,
+  color: Color,
+  kind: Kind,
+  allDrops: ShogiMove[],
+): Generator<ShogiMove> {
+  for (const move of allDrops) {
+    if (move.kind !== kind) continue;
+    if (wouldBeInCheckAfterMove(shogi, move)) continue;
+    if (!canDropPieceAt(shogi, kind, move.to.x, move.to.y, color)) continue;
+    yield move;
+  }
+}
+
+/** 手番側（`color`）の合法手を全部取得する。前提は `generateLegalMoves` と同じ */
+export function getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
+  return [...generateLegalMoves(shogi, color)];
+}
+
+/** 手番側（`color`）が `kind` を打てる合法手。前提は `generateLegalMoves` と同じ */
+export function getLegalDrops(shogi: Shogi, color: Color, kind: Kind): ShogiMove[] {
+  const hands = shogi.getHandsSummary(color);
+  if ((hands[kind as keyof typeof hands] || 0) === 0) return [];
+  return [...filterLegalDrops(shogi, color, kind, shogi.getDropsBy(color))];
+}
+
+/**
+ * 合法手が1つでもあるか
+ *
+ * **詰み・手詰まりの判定はこれを使う。** `getAllLegalMoves(...).length === 0` でも
+ * 同じ答えが出るが、詰んでいない局面（対局中はほぼ毎手そうである）でも
+ * 最後の1手まで数え上げることになる。前提は `generateLegalMoves` と同じ。
+ */
+export function hasLegalMove(shogi: Shogi, color: Color): boolean {
+  return !generateLegalMoves(shogi, color).next().done;
 }

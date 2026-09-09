@@ -153,7 +153,10 @@ export interface GameSettings {
  * **こちらの呼び出しから入るのは3つ。**
  *
  * - `rule` — `endGameByRule`。詰み・千日手・持将棋・最大手数・反則。
- *   **その判定はまだ実装されていない** → #354。
+ *   自動で立つ判定は `entities/game` の `judgeGameOutcome`（`lib/gameOutcome.ts`）。
+ *   **持将棋の27点法・24点法はそこに入らない**——宣言の規則なので
+ *   `judgeDeclaration`（`lib/jishogiDeclaration.ts`）を宣言操作から呼ぶ。
+ *   **反則の判定はどちらにも無い**（→ #536）。
  *   **ただし Rust からも入る**——盤に載る手数の上限（`MAX_PLIES`）に当たったとき。
  *   `endGameByRule` を呼んでいないのに届くので、「自分が投げた終局のこだま」として
  *   捨てないこと。そのときの `detail` は Rust が入れた英文
