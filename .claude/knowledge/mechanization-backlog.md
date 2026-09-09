@@ -82,6 +82,7 @@
 | **1**  | **falsy になりうる正常値**が `null` と同じ欄に載る形                      | `Color.Black === 0` を `Color \| null` で返すと `winner ? … :` が先手勝ちを引き分けに潰す。tsc は通す。#354 では返り値を `Side` に替えて外した。**同じ形は `Color` を返す関数すべてに在る**                                                                                            | 354 r1（robustness）                   |
 | **1**  | 同層の横断 import（`entities/A` → `entities/B`）                          | `vite.config.ts` の `upperLayers` は上位層しか禁じない。#354 で `entities/game` → `entities/game-session` が1本増えた。**許す組み合わせを列挙する形**にしないと、増えたことに誰も気づかない                                                                                            | 354 r1（architecture）                 |
 | **1**  | 「1つでもあるか」を `.length === 0` で書く形                              | #354 では `isUchifudume` がその形で、実測 46.57ms → 0.104ms の差があった。`hasLegalMove` のような早期打ち切りの口がある関数について、`.length` 比較を禁じる                                                                                                                            | 354 r1（perf）                         |
+| **1**  | `knip` の計測を本番 entry だけに寄せる                                    | いまはテストからの import も消費に数えるので、**本番から到達しない barrel export をテスト1本で隠せる**（#171 で `EnginePhase` 等4件が実際に隠れて基準が下がった）。テスト込みの計測とは別に、本番だけの計測を持ち、基準を下げてよいのは後者だけにする | #171 r1（architecture）                   |
 
 ## 走査を書くときの既知の罠
 

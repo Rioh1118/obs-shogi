@@ -76,9 +76,11 @@ issue #120 と同型の行き止まり
 
 ※5 S3 では**同じ runtime なら再トライしない**（`provider.tsx`）。
 無限リトライを避けるため。**復帰は E3（設定を直す）を通る**——失敗すると
-`EngineFailureBridge` が帯を出し、「設定を開く」がプリセットの編集へ送る。
-直した設定は別の runtime になるので、その場で起動し直す。
-**`clearError()` は使っていない**（context には在るが呼び出し元は0のまま）
+`EngineFailureBridge` が帯を出し、「設定を開く」が設定のエンジン管理タブを開く
+（そこからプリセットを編集する。行き先の一次記述は
+[settings.md](../spec/screens/settings.md)）。直した設定は別の runtime になるので、
+その場で起動し直す。**`clearError()` は使っていない**（context には在るが
+呼び出し元は0のまま。同じ設定で起こし直す口を出すかは → #535）
 → [failure-surfacing.md](failure-surfacing.md) F-9
 
 ※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
@@ -94,5 +96,7 @@ issue #120 と同型の行き止まり
 
 - `(S1, E3)` 起動中の runtime 切替（※2）。**`initializer.ts` にテストが無い**
 - `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無く踏めていない**
-- **`entities/engine` に在るテストは `model/__tests__/provider.test.tsx` の1本だけ**
-  （`(S3, E4)` と `(S3, E3)`）。`initializer.ts` と `setup.ts` は素通り
+
+**`entities/engine` でテストが在るのは `model/provider.tsx` だけ**
+（`model/__tests__/provider.test.tsx` が `(S3, E4)` と `(S3, E3)` を踏む）。
+`model/` の外——`api/` と `lib/`——はどれも素通り。

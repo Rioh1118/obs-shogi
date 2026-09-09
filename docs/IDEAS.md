@@ -53,9 +53,9 @@
   書いているが**該当0件**。実在するのは生成側の重複。記述を直すこと
 - **`bridges` / `gates` の基準に合っていないファイルが2つ** — 基準そのものは
   `src/app/providers/RuntimeProviders.tsx` の doc にある（`gates/` は値を prop で渡す器、
-  `bridges/` は effect で繋いで `null` を返す）。7ファイル中5つは一致していて、
-  `AnalysisBridge` / `EngineRuntimeBridge` だけが gate の形で `bridges/` に居る。
-  **揃えるのはファイル2つの移動と改名で済む**
+  `bridges/` は effect で繋いで `null` を返す）。**合っていないのは
+  `AnalysisBridge` / `EngineRuntimeBridge` の2つ**で、どちらも gate の形で `bridges/` に居る
+  （数は書かない。橋を1本足すたびに腐る）。**揃えるのはファイル2つの移動と改名で済む**
 - **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る
 - **`ModalType` union が上位層のスライス名簿を持っている** — 下位層が上位層の一覧を知っている
 - **`app-config` ⇄ `engine-presets` の双方向依存** — `PresetId` を branded type にすると切れる
