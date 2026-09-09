@@ -100,6 +100,15 @@ $font-hero: 4rem; // ガイド画面の導入
 
 $font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
 
+// 日本語を含む本文の書体。**webfont は同梱していない**ので、ここに並ぶのは
+// OS が持っている綴りだけ。同梱しているのは Latin だけを描く3書体
+// （`Orbitron` / `Zen Kaku Gothic Antique` / `Lato`。読み込みは `src/main.tsx`）で、
+// 日本語の字形はどれも持たない。
+//
+// **総称名 `sans-serif` を引用符で囲まない。** 囲むと「`sans-serif` という名前の
+// 書体」を探す指定になり、見つからないので UA 既定（多くの環境で明朝）へ落ちる
+$font-sans: system-ui, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+
 // space
 // 役割名を付けない。役割と寸法が一対一に対応しないため。
 // 0.2rem 刻みを 2.4rem まで欠けなく張る。段を飛ばすと寄せ先が2つに割れる
