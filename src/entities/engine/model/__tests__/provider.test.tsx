@@ -36,7 +36,14 @@ const RUNTIME: EngineRuntimeConfig = {
   options: { MultiPV: "1" },
 };
 
-/** 値は同じで**入れ物だけ新しい**設定。プリセットを選び直すと実際にこれが来る */
+/**
+ * 値は同じで**入れ物だけ新しい**設定。
+ *
+ * 実際に作るのは、選択中のプリセットの**編集**（`updatePreset` が `set_presets` で
+ * 箱ごと差し替える。ラベルや解析の既定だけ直せば runtime の欄は同値）と、
+ * プリセットの**読み直し**。同じプリセットを選び直しても `selectedPresetId` は
+ * 動かないので、そちらでは `runtimeConfig` のメモが再計算されない
+ */
 const sameValues = (): EngineRuntimeConfig => ({ ...RUNTIME, options: { ...RUNTIME.options } });
 
 const INFO: EngineInfo = { name: "YaneuraOu", author: "yaneurao", options: [] };
@@ -83,9 +90,9 @@ afterEach(() => cleanup());
 
 describe("EngineProvider の失敗からの復帰", () => {
   /**
-   * （表の S3 / E4）同じ runtime での再設定。
+   * 表の (S3, E4)。同じ runtime での再設定。
    *
-   * `equalRuntime` は値で比べる。参照で比べる形に倒すと、プリセットを選び直す
+   * `equalRuntime` は値で比べる。参照で比べる形に倒すと、プリセットを編集する
    * たびに起動し直すことになり、**落ちる設定なら落ち続ける**
    */
   test("同じ値の設定が来ても、失敗したまま再トライしない", async () => {
@@ -103,10 +110,10 @@ describe("EngineProvider の失敗からの復帰", () => {
   });
 
   /**
-   * （表の S3 / E3）別の runtime。**復帰の唯一の入口。**
+   * 表の (S3, E3)。別の runtime。**復帰の唯一の入口。**
    *
    * 帯の「設定を開く」が連れて行く先はここで、設定を直せば自動で起動し直す。
-   * これが落ちると、帯の本文（「直すと自動でもう一度起動します」）が嘘になる
+   * これが落ちると、帯の本文（「設定を直せば自動でもう一度起動します」）が嘘になる
    */
   test("設定を直せば、失敗したままでも起動し直す", async () => {
     initialize.mockRejectedValueOnce(new Error("no such file"));
