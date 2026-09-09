@@ -28,6 +28,25 @@
 
 ## 画面構成
 
+### 窓の初期色
+
+窓は `src-tauri/tauri.conf.json` の `backgroundColor` で `#3f4e4f`
+（`src/index.scss` の `$color-primary-light`）に塗られる。
+
+**この色は「画面」ではなく、まだ何も描いていない間の下地。** 窓枠は自前
+（`decorations: false`）でプロセス起動と同時に画面へ載るので、これを指定しないと
+webview の既定色（白）が出る。アプリの面は暗いので、**起動のたびに白が1枚挟まる。**
+
+`$color-primary-light` を選ぶのは、窓の色が最初に接するのが常に `BootSplash` だから
+（`BootSplash` の面と同じ）。`/app` へ抜けた後の `AppLayout` の面とも同じ。
+
+**`FolderSelect` と起動エラーの面は `$color-primary-dark` で、ここだけ一段暗い。**
+つまりワークスペース未設定の初回起動では、窓 → `BootSplash` → `FolderSelect` で
+面が1回変わる。画面の最下面が2トークンに割れていることが原因 → #545
+
+**`visible: false` にして描けてから見せる、は採らない。** React が着く前に落ちると
+窓が一度も出ず、プロセスだけが残る（#513 の症状が悪化する）。
+
 ### BootSplash
 
 タイトルだけ。**進捗も中止も出ない。** 設定の読み込みは
