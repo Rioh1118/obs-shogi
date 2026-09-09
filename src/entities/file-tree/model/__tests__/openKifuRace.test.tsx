@@ -3,15 +3,15 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * **選択されているファイルと、盤に載っている棋譜は同じものである。**
+ * **選択されているファイルと、ツリーが開いた棋譜（`activeKifuPath`）は同じものである。**
  *
- * 選択は同期で動くのに、盤は `api.readKifu` の IPC を跨いだ読み出しが返ってから決まる。
- * 解決の順は棋譜の大きさで前後するので、要求した順に載るとは限らない。→ #223
+ * 選択は同期で動くのに、`activeKifuPath` は `api.readKifu` の IPC を跨いだ読み出しが
+ * 返ってから決まる。解決の順は棋譜の大きさで前後するので、要求した順に進むとは限らない。
+ * → #223
  *
- * ずれても画面には何も出ない。`FileNode` は盤に載っているかを強調に使っておらず、
- * 手掛かりは選択の強調とヘッダのファイル名（`useHeaderCenterInfo`）だけで、
- * どちらも**選択**を見ている。利用者は名前を見ているのとは別のファイルを編集し、
- * `GamePersistenceGate` は `activeKifuPath` へ書く。
+ * ずれても「食い違っている」とは画面に出ない。行の強調は選択を見て、ヘッダのファイル名は
+ * 盤を見る（`useHeaderCenterInfo`）ので、**2つが別々のファイルを名乗る**。保存は
+ * `GamePersistenceGate` が `activeKifuPath` へ組むので、書かれるのは名乗っていないほう。
  *
  * どの検査も `active` と `selected` を**対で**見ること。片方だけではずれを検出できない。
  */
@@ -73,18 +73,22 @@ const TREE = {
 };
 
 /**
- * `FileNode.handleClick` を写す。**`isActive` の関門も含めて写すこと。**
+ * `FileNode.handleClick` を写す。**開き直しを省く関門も含めて写すこと。**
  *
- * 現物は盤に載っている棋譜をクリックしても `openKifuNode` を呼ばない。関門を落とすと、
+ * 現物は「もう開いている」と見た棋譜では `openKifuNode` を呼ばない。関門を落とすと、
  * 「読み込み中に元の棋譜へ戻る」経路（下の検査）がこの Probe では再現しなくなる。
+ *
+ * **写しているのはツリー側の条件だけ。** 現物の `canSkipReopen` は盤の
+ * `loadedAbsPath` も見るが、ここに `entities/game` は居ない。省く条件が**緩い**ぶんには
+ * `openKifuNode` を呼ぶ回数が増えるだけで、捨てる判断そのものは変わらない。
  */
 function Probe() {
   const { activeKifuPath, selectedNode, kifuError, selectNode, openKifuNode, deleteNode } =
     useFileTree();
   const click = (node: typeof A_NODE) => () => {
-    const isActive = activeKifuPath === node.path;
+    const canSkipReopen = activeKifuPath === node.path;
     selectNode(node as never);
-    if (!isActive) {
+    if (!canSkipReopen) {
       void openKifuNode(node as never); // async-result-ignored: FileNode と同じく投げっぱなしにする
     }
   };
@@ -249,7 +253,7 @@ describe("続けて棋譜を開いたとき", () => {
   });
 
   it("読み込み中に盤に載っている棋譜へ戻ると、飛行中の読み出しは載らない", async () => {
-    // `FileNode` は載っている棋譜では `openKifuNode` を呼ばない。捨てる基準を
+    // `FileNode` はもう開いている棋譜では `openKifuNode` を呼ばない。捨てる基準を
     // 「`openKifuNode` に入った回数」に置くと、この経路だけ無効化されずに残る
     const resolveRead = deferReadKifu();
     await renderTree();
@@ -259,7 +263,7 @@ describe("続けて棋譜を開いたとき", () => {
     expect(shows("active")).toBe(A_KIFU);
 
     await click("open-b");
-    await click("open-a"); // 気が変わって戻る。`isActive` なので読み出しは起きない
+    await click("open-a"); // 気が変わって戻る。もう開いているので読み出しは起きない
 
     await resolveRead(B_KIFU, ok("b"));
 

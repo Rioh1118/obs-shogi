@@ -47,13 +47,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   activeKifuPathRef.current = state.activeKifuPath;
   const fileTreeRef = useRef(state.fileTree);
   fileTreeRef.current = state.fileTree;
-  // **盤が映すべき棋譜。読み出しが返った時点でここと違うパスなら、その結果は捨てる。**
+  // **ツリーが開くべき棋譜。読み出しが返った時点でここと違うパスなら、その結果は捨てる。**
   //
-  // 選択は同期で動くのに、盤は IPC を跨いだ読み出しが返ってから決まる。解決の順は
-  // 棋譜の大きさで前後するので、要求した順に載るとは限らない（#223）。
+  // 選択は同期で動くのに、`activeKifuPath` は IPC を跨いだ読み出しが返ってから決まる。
+  // 解決の順は棋譜の大きさで前後するので、要求した順に進むとは限らない（#223）。
   // 連番ではなくパスで持つのは、捨てる基準が「何番目の要求か」ではなく
   // **「利用者がいまどの棋譜を選んでいるか」**だから。選び直して元の棋譜へ戻った要求は、
-  // 番号で見ると古いが、載せるべき棋譜としては正しい。
+  // 番号で見ると古いが、開くべき棋譜としては正しい。
   const requestedKifuPathRef = useRef<string | null>(null);
 
   const revealNodeInCurrentTree = useCallback(
@@ -232,11 +232,11 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   }, [state.fileTree, revealNodeInCurrentTree, state.activeKifuPath]);
 
   /**
-   * 選択を動かす。**盤が映すべき棋譜も一緒に動く。**
+   * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く。**
    *
-   * この2つがずれた状態が #223 で、ヘッダのファイル名（`useHeaderCenterInfo`）も
-   * 行の強調も「選択されているファイル＝盤に載っている棋譜」を前提にしている。
-   * ずれると、利用者が名前を見ているのとは別のファイルへ保存が行く。
+   * この2つがずれた状態が #223。行の強調は選択を見て、ヘッダのファイル名は盤を見る
+   * （`useHeaderCenterInfo`）ので、ずれると**ツリーが指す行とヘッダが名乗る名前が
+   * 別々のファイルになる**。保存は `activeKifuPath` へ行く（`GamePersistenceGate`）
    *
    * **`node_selected` を撃つ口はここだけ。** 飛行中の読み出しを捨てる判断は
    * `requestedKifuPathRef` だけを見るので、この口を通らずに選択を動かすと
@@ -276,10 +276,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       requestedKifuPathRef.current = node.path;
 
       /**
-       * 開けなかったので、選択を**いま盤に載っている棋譜**へ戻す。
+       * 開けなかったので、選択を**いまツリーが開いている棋譜**（`activeKifuPath`）へ戻す。
        *
        * 「1つ前の選択」ではない。それはこの要求より古い要求の対象でありうるので、
-       * 戻すと盤に載っていない棋譜が選択されたままになる。
+       * 戻すと、開いてすらいない棋譜が選択されたままになる。
        * 選択が既にこの node から動いているなら、利用者が自分で選び直したあとなので触らない。
        */
       const restoreSelectionToActiveKifu = () => {
@@ -296,8 +296,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const readRes = await api.readKifu(node);
 
       // **IPC を跨いでいるあいだに宛先が動いていたら、この結果はもう要らない。**
-      // 書くと、ツリーが選んでいるのとは別の棋譜が盤に載る（#223）。
-      // 断りも同じで、載っているのは選び直したあとの棋譜なのに、古い失敗だけが残る。
+      // 書くと、ツリーが選んでいるのとは別の棋譜が `activeKifuPath` に入る（#223）。
+      // 断りも同じで、開いたのは選び直したあとの棋譜なのに、古い失敗だけが残る。
       // 宛先が動くのは選択が動いたときだけで、それは await の前後でしか起きないので、
       // 確認はここ1箇所でよい（このあとの parse から dispatch までは同期で、割り込む余地が無い）。
       // **`Ok` は「盤に載った」を意味しない。** → `types.ts` の `openKifuNode`
