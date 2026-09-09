@@ -183,17 +183,27 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
     await move("ready");
 
     expect(dismissByKey).toHaveBeenCalledTimes(1);
-    expect(dismissByKey.mock.calls[0][0]).toBe(shown().dedupeKey);
+    expect(dismissByKey.mock.calls[0][0]).toBe(shown().dismissKey);
   });
 
   /**
-   * 帯は条件と結び付いているので、**出した鍵で引っ込められること**が要る。
-   * 鍵が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
+   * 帯は条件と結び付いているので、**出した取っ手で引っ込められること**が要る。
+   * 取っ手が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
    */
-  test("引っ込めるための鍵を持つ", async () => {
+  test("引っ込めるための取っ手を持つ", async () => {
     await mountWith("error", "boom");
 
-    expect(shown().dedupeKey).toEqual(expect.any(String));
+    expect(shown().dismissKey).toEqual(expect.any(String));
+  });
+
+  /**
+   * **畳む鍵は持たない。** この帯は条件から出ていて2枚目が積まれようがないので、
+   * 畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
+   */
+  test("件数の付く鍵は持たない", async () => {
+    await mountWith("error", "boom");
+
+    expect(shown().dedupeKey).toBeUndefined();
   });
 
   /**

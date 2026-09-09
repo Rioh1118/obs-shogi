@@ -4,8 +4,11 @@ import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 /**
- * 出し消しの鍵。**帯は条件（`phase === "error"`）と結び付いている**ので、
- * 起動し直せたときに引っ込める側から指せる名前が要る（`NotificationActions`）。
+ * 引っ込めるための取っ手。**帯は条件（`phase === "error"`）と結び付いている**ので、
+ * 抜けたときに指せる名前が要る（`NotificationActions`）。
+ *
+ * **畳む鍵（`dedupeKey`）ではない。** この帯は条件から出ていて2枚目が積まれようが
+ * ないので、畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
  */
 const ENGINE_INIT_FAILURE = "engine-init-failure";
 
@@ -56,7 +59,7 @@ export function EngineFailureBridge() {
       // **帯はヘッダを覆う**ので、閉じる以外にやることが無い帯は出せない
       //（`NotificationLayer.scss`）。ここでは「設定を開く」がそれに当たる
       presentation: "banner",
-      dedupeKey: ENGINE_INIT_FAILURE,
+      dismissKey: ENGINE_INIT_FAILURE,
       title: "エンジンを起動できませんでした",
       // **「同じ設定でもう一度」を勧めない**（ADR-0004 の F-9）。原因が設定にある回は
       // 直さない限り同じ結果になり、押させるだけになる。
