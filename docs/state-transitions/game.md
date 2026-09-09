@@ -95,6 +95,7 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | **E15** | ワークスペース変更              | `GameFileTreeBridge` / `GamePersistenceGate`                                                                |
 | **E16** | 棋譜を載せられない              | `JKFPlayer` 構築の失敗（`loadGame` の `catch`）。`cloneJkf` は `structuredClone` なので実質到達しない       |
 | **E17** | 編集の失敗                      | `applyMoveWithBranch` / `assertBranchIndex` の throw（`edit` / `swapBranches` / `deleteBranch` の `catch`） |
+| **E18** | 開いている棋譜の改名・移動      | `GameFileTreeBridge` → `renameLoadedPath`（`path_renamed`）※9                                               |
 
 `selectSquare` / `selectHand` の失敗は `selectedPosition` の話で、
 この表が持つ `cursor` / `branchPlan` / `jkf` を動かさないので扱わない。
@@ -133,6 +134,7 @@ E3〜E10 のどれかに対応する。
 | **E15** ワークスペース変更 | —              | 棋譜が新しい根の外なら E2 と同じ。取得の成否は見ない※4                                                                                                                                                                 | 同左                                                                                                 | ✓      |
 | **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残る。`error` に積み、**`Err` を返す**（`error` の読み手は0のまま）。宛先を `loadFailedAbsPath` に、回数を `loadFailedSeq` に残す※3                                                                  | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                           | ✓※8    |
 | **E17** 編集の失敗         | 無視           | 棋譜も計画も変わらず `error` だけ載る（読み手0）                                                                                                                                                                       | 同左                                                                                                 | ✗      |
+| **E18** 改名・移動         | 無視※9         | 棋譜・カーソル・計画は動かない。`loadedAbsPath` だけが新しいパスへ移る※9                                                                                                                                               | 同左。**先の計画も残る**                                                                             | ✓※9    |
 
 ### 注
 
@@ -233,6 +235,48 @@ G2 で計画が消えること（#226）も**見ていない**。
 E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持つ。
 **橋が `Err` を捨てても tsc は通る**ので、そちらも1本で守っている。
 
+※9 **改名・移動では載せ直さない。** ツリーは `jkfData` を持ち越して
+`activeKifuPath` だけを張り替えるので（[file-tree.md](file-tree.md)）、そこで `loadGame` を
+撃つと**開いた時点の内容**が盤に戻る——カーソルは `ROOT_CURSOR` へ、計画は空へ、
+棋譜は `file-tree.state.jkfData` へ。そのあと1手でも書くと、間の編集を落とした内容が
+新しいパスへ保存される。
+
+**見分けているのは橋。** `GameFileTreeBridge` は前回載せた `jkfData` の参照を控え、
+同じなら `renameLoadedPath` で宛先だけを張り替える。`entities/game` はツリーの
+`jkfData` を知らず、`entities/file-tree` は盤を知らないので、**この判断ができるのはそこだけ**。
+控えるのは**載せられた回だけ**——落ちた回も控えると、盤に前の棋譜が載ったまま
+次の改名で宛先が動き、前の棋譜が改名先のファイルへ入る。
+
+**走っている書き込みと重なる回は別枠。** 改名は `blockingWrites` を見ないので、
+保存が飛んでいる最中に改名すると、その往復が古い名前のファイルを作り直す → #537。
+宛先が移ること自体は変わらないが、「改名では宛先だけが移る」で片付く話ではない。
+
+**G0 で `無視` なのは reducer の門番。** `loadedAbsPath` は「盤に載っている棋譜」なので、
+載っていないのに値を持つと `FileNode` の `canSkipReopen` が真になり、その行は
+押しても開かなくなる。
+
+**`boardSeq` はここでは進まない。** 進めると、「盤の中身が入れ替わったか」を問う側が
+改名を入れ替わりと読む。読み手は3つあり、どれも**その棋譜に紐づけて開いていたもの**を
+捨てる側にいる。
+
+| 読み手                            | 進めてしまうと                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| `useResetOrientationOnKifuChange` | 名前を直しただけで盤が回る（→ [board-orientation.md](board-orientation.md) の `(B2, E7)`） |
+| `KifuStreamList`                  | 開いているノート・分岐メニュー・削除の確認が畳まれる                                       |
+| `KifuCommentNote`                 | 離脱時の保存が門番に弾かれ、**書きかけの本文が断りも無く消える**                           |
+
+**この3つはパスを見てはいけない。** パスを見る読み手（`FileNode` の `canSkipReopen`、
+`useHeaderCenterInfo`、`usePositionHitNavigation`）とは問いが違う——あちらは
+「どのファイルか」、こちらは「まだ同じ棋譜か」。区別は `boardSeq` の doc が持つ。
+
+**橋が突き合わせる `jkfData` の参照は、file-tree 側の性質。** 改名で参照が作り直されると
+載せ直しが復活し、逆に別のファイルを指しながら参照が残ると盤の棋譜がそちらへ書かれる。
+どちらも `entities/file-tree` の `activeKifuReferenceIdentity.test.ts` が固定している——
+橋のテストは file-tree をまるごとモックするので、そこでは守れない。
+
+✓ は `gameFileTreeBridgeRename.test.tsx`（橋と保存先の門番を通した形）、
+`reducer.test.ts` の `path_renamed`、`kifuStreamFaces.test.tsx`（開いている面を畳む合図）。
+
 ## ディスクを組で見る
 
 `G × P` の組で見ないと分からないセルがあるので、行を組にする。
@@ -281,6 +325,7 @@ P2 は state の中に印が無い。`error` は7箇所で消える（局面を�
 | **W6** | E13（delete）    | `deleteBranch` → `jkf_replaced`          | 同上                                                   | 同上                                                                   |
 | **W7** | E14（E11 / E13） | `jkf_restored`（`restoreCursor: true`）  | 編集の**前**の `branchPlan` へ戻す                     | 巻き戻しなので、置く前の組へ戻す                                       |
 | **W8** | E14（E12）       | `jkf_restored`（`restoreCursor: false`） | **触らない**（棋譜だけ戻す）                           | 局面を動かさない書き込みで戻すと、待っている間に進めた手数まで巻き戻る |
+| **W9** | E18              | `path_renamed`（`reducer.ts`）           | **触らない**（宛先だけ張り替える）                     | 先の計画が**残る**。盤が動いていないので残って正しい                   |
 
 W4〜W6 は `te > tesuu` の計画を無条件に捨てる。**コメントを1つ保存するだけで、
 見ていた変化の予定が消えて手数表示が本譜の長さに戻る**（#226）。
@@ -319,7 +364,8 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
    `mergeBranchPlan` はその範囲を `cursor.forkPointers` からしか取らず（`prevPlan` と
    `overridePlan` は `fp.te > cursor.tesuu` で絞る）、`jkf_replaced` / `game_loaded` は
    `cursor.forkPointers` をそのまま写し、`reset_state` は両方空にする。
-   7つの書き込み経路すべてがこれを守っている。
+   `path_renamed` はどちらにも触らないので、置かれていた組がそのまま残る。
+   8つの書き込み経路すべてがこれを守っている。
    **破れると「盤に出ている局面」と「行のチェック」が同じ手数で食い違う。**
 
 2. **画面が「選ばれている」と描いた値と、押したときに比較する値は、食い違っても
@@ -368,7 +414,8 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 - 行と分岐メニュー: `src/widgets/kifu-stream/`
 - テスト: `src/entities/game/model/__tests__/provider.test.tsx`（`loadGame` と E16）、
   `src/app/providers/bridges/__tests__/gameFileTreeBridge.test.tsx`（E16 を利用者に出すところ）、
-  `src/entities/game/model/__tests__/reducer.test.ts`（identity のみ）、
+  `src/app/providers/bridges/__tests__/gameFileTreeBridgeRename.test.tsx`（E18）、
+  `src/entities/game/model/__tests__/reducer.test.ts`（identity と `path_renamed`）、
   `src/widgets/kifu-stream/lib/__tests__/cursorSelection.test.ts`、
   `src/widgets/kifu-stream/lib/__tests__/buildStreamRows.test.ts`、
   `src/entities/kifu/lib/__tests__/leafTesuu.test.ts`、

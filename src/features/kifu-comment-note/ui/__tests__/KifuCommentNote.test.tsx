@@ -14,7 +14,8 @@ import type { CursorPath } from "@/entities/kifu/model/cursor";
  */
 
 const setCommentsByCursor = vi.fn();
-const gameState = { loadedAbsPath: "/ws/a.kif" as string | null };
+/** 盤に載っている棋譜。`1` が a.kif、`2` は別の棋譜が載り直したあと */
+const gameState = { boardSeq: 1 };
 /** メモリの棋譜が持つコメント。`edit` は書き込みの前にここを更新する */
 let comments: string[] = [];
 
@@ -89,9 +90,9 @@ const CURSOR: CursorPath = {
   forkPointers: [],
 };
 
-function open(absPath: string | null) {
+function open(boardSeq: number | null) {
   return render(
-    <KifuCommentNote open cursor={CURSOR} absPath={absPath} anchorEl={null} onClose={() => {}} />,
+    <KifuCommentNote open cursor={CURSOR} boardSeq={boardSeq} anchorEl={null} onClose={() => {}} />,
   );
 }
 
@@ -117,7 +118,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
-  gameState.loadedAbsPath = "/ws/a.kif";
+  gameState.boardSeq = 1;
   comments = [];
   setCommentsByCursor.mockResolvedValue(Ok(undefined));
 });
@@ -125,7 +126,7 @@ beforeEach(() => {
 describe("保存の失敗", () => {
   it("失敗したら「保存済み」を出さず、理由を出す", async () => {
     setCommentsByCursor.mockResolvedValue(Err("Permission denied (os error 13)"));
-    open("/ws/a.kif");
+    open(1);
 
     await typeAndAutosave("メモ");
 
@@ -139,7 +140,7 @@ describe("保存の失敗", () => {
   // 「保存済みを出さない」だけでは足りない（出さずに本文だけ失う形が通る）。
   it("失敗したあと、何も書き足さずに閉じても保存をやり直す", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom"));
-    open("/ws/a.kif");
+    open(1);
 
     await typeAndAutosave("メモ");
     expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
@@ -159,7 +160,7 @@ describe("保存の失敗", () => {
     // その結果 `getCommentsByCursor` が新しい本文を返すようになるが、
     // それを baseText へ入れると dirty が落ちて上と同じ失われ方をする。
     setCommentsByCursor.mockResolvedValue(Err("boom"));
-    const view = open("/ws/a.kif");
+    const view = open(1);
 
     await typeAndAutosave("メモ");
 
@@ -168,13 +169,7 @@ describe("保存の失敗", () => {
     comments = ["メモ"];
     await act(async () => {
       view.rerender(
-        <KifuCommentNote
-          open
-          cursor={CURSOR}
-          absPath="/ws/a.kif"
-          anchorEl={null}
-          onClose={() => {}}
-        />,
+        <KifuCommentNote open cursor={CURSOR} boardSeq={1} anchorEl={null} onClose={() => {}} />,
       );
     });
 
@@ -188,7 +183,7 @@ describe("保存の失敗", () => {
 
   it("失敗しても下書きは捨てない。書き足した全文で保存し直す", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom"));
-    open("/ws/a.kif");
+    open(1);
 
     await typeAndAutosave("メモ");
     expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
@@ -201,7 +196,7 @@ describe("保存の失敗", () => {
   });
 
   it("成功したら「保存済み」を出す", async () => {
-    open("/ws/a.kif");
+    open(1);
     await typeAndAutosave("メモ");
 
     expect(screen.getByText("保存済み")).toBeTruthy();
@@ -213,8 +208,8 @@ describe("開いた棋譜との突き合わせ", () => {
   it("棋譜が差し替わったあとは書かない", async () => {
     // エディタを作り直す前に autosave が撃つ競合が残るので、鍵だけでは塞がらない。
     // 書いてしまうと、前のファイルの本文が**次のファイルの同じ手数へ**入る。
-    open("/ws/a.kif");
-    gameState.loadedAbsPath = "/ws/b.kif";
+    open(1);
+    gameState.boardSeq = 2;
 
     await typeAndAutosave("A のメモ");
 
@@ -222,7 +217,7 @@ describe("開いた棋譜との突き合わせ", () => {
   });
 
   it("同じ棋譜なら書く", async () => {
-    open("/ws/a.kif");
+    open(1);
     await typeAndAutosave("A のメモ");
 
     expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
@@ -247,14 +242,14 @@ describe("面が入れ替わるとき", () => {
 
   function show(
     view: ReturnType<typeof open>,
-    props: { open?: boolean; cursor?: CursorPath; absPath?: string | null; onClose?: () => void },
+    props: { open?: boolean; cursor?: CursorPath; boardSeq?: number | null; onClose?: () => void },
   ) {
     return act(async () => {
       view.rerender(
         <KifuCommentNote
           open={props.open ?? true}
           cursor={props.cursor ?? CURSOR}
-          absPath={props.absPath ?? "/ws/a.kif"}
+          boardSeq={props.boardSeq ?? 1}
           anchorEl={null}
           onClose={props.onClose ?? (() => {})}
         />,
@@ -263,18 +258,12 @@ describe("面が入れ替わるとき", () => {
   }
 
   it("別の手のコメントへ移る前に、出ていく面へ書く", async () => {
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await type("5手目のメモ");
 
     await act(async () => {
       view.rerender(
-        <KifuCommentNote
-          open
-          cursor={OTHER}
-          absPath="/ws/a.kif"
-          anchorEl={null}
-          onClose={() => {}}
-        />,
+        <KifuCommentNote open cursor={OTHER} boardSeq={1} anchorEl={null} onClose={() => {}} />,
       );
     });
 
@@ -285,7 +274,7 @@ describe("面が入れ替わるとき", () => {
   });
 
   it("閉じる手続きを通らずに閉じられても、出ていく面へ書く", async () => {
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await type("メモ");
 
     await act(async () => {
@@ -293,7 +282,7 @@ describe("面が入れ替わるとき", () => {
         <KifuCommentNote
           open={false}
           cursor={CURSOR}
-          absPath="/ws/a.kif"
+          boardSeq={1}
           anchorEl={null}
           onClose={() => {}}
         />,
@@ -308,7 +297,7 @@ describe("面が入れ替わるとき", () => {
   // 突き合わせずに書き戻すと、**打っていない手のノートに失敗の箱が出る**。
   it("出ていく面の失敗を、移った先の面に出さない", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom-A"));
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await type("5手目のメモ");
 
     await show(view, { cursor: OTHER });
@@ -322,7 +311,7 @@ describe("面が入れ替わるとき", () => {
   it("別の手の失敗が残っていても、この面の初回の失敗ではノートを閉じない", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom"));
     const onClose = vi.fn();
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await type("5手目のメモ");
 
     await show(view, { cursor: OTHER, onClose });
@@ -343,7 +332,7 @@ describe("面が入れ替わるとき", () => {
   it("同じ失敗が2回続いたら、ノートは閉じる", async () => {
     setCommentsByCursor.mockResolvedValue(Err("Permission denied (os error 13)"));
     const onClose = vi.fn();
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await show(view, { onClose });
     await type("メモ");
 
@@ -365,10 +354,10 @@ describe("面が入れ替わるとき", () => {
    */
   it("宛先が切り替わっていても、初めての失敗ではノートを閉じない", async () => {
     const onClose = vi.fn();
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await show(view, { onClose });
     // 突き合わせは再レンダを跨いで拾うので、打つ前に切り替える
-    gameState.loadedAbsPath = "/ws/b.kif";
+    gameState.boardSeq = 2;
     await type("メモ");
 
     await act(async () => {
@@ -384,7 +373,7 @@ describe("面が入れ替わるとき", () => {
   // **移った先のエディタが前の手の本文で mount される**。
   // Lexical は初期値しか読まないので、そのまま最後まで残る。
   it("移った先のエディタを、前の手の本文で組まない", async () => {
-    const view = open("/ws/a.kif");
+    const view = open(1);
     await type("5手目のメモ");
 
     await show(view, { cursor: OTHER });
@@ -400,7 +389,7 @@ describe("面が入れ替わるとき", () => {
       () => new Promise((r) => (release = () => r(Ok(undefined)))),
     );
 
-    open("/ws/a.kif");
+    open(1);
     await typeAndAutosave("あ");
     expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
 
@@ -440,7 +429,7 @@ describe("走っている保存の面を組み直したとき", () => {
         <KifuCommentNote
           open={props.open ?? true}
           cursor={props.cursor ?? CURSOR}
-          absPath="/ws/a.kif"
+          boardSeq={1}
           anchorEl={null}
           onClose={() => {}}
         />,
@@ -471,7 +460,7 @@ describe("走っている保存の面を組み直したとき", () => {
    */
   it("走っている保存の面へ戻ってから失敗が返ったら、閉じるときにもう一度書きに行く", async () => {
     const fail = holdFirstFailure("boom");
-    const view = open("/ws/a.kif");
+    const view = open(1);
 
     await typeAndAutosave("消えては困るメモ");
     comments = ["消えては困るメモ"];

@@ -11,14 +11,20 @@ import "./KifuCommentNote.scss";
 type Props = {
   open: boolean;
   cursor: CursorPath | null;
-  /** このノートを開いた時点の棋譜。いま読み込まれている棋譜と違うなら保存しない */
-  absPath: string | null;
+  /**
+   * このノートを開いた時点で盤に載っていた棋譜（`boardSeq`）。
+   * いま載っている棋譜と違うなら保存しない。
+   *
+   * **パスでは代用できない。** 改名・移動でもパスは動くが、盤に載っている棋譜は
+   * 同じままなので、そこで保存を止めると**書きかけの本文が行き場を失う**
+   */
+  boardSeq: number | null;
   anchorEl: HTMLButtonElement | null;
   onClose: () => void;
 };
 
 /** ノートが出している面。書く先はこれで決まる */
-type Face = { key: string; cursor: CursorPath; absPath: string | null };
+type Face = { key: string; cursor: CursorPath; boardSeq: number };
 
 /**
  * ノートが出している面の、確定した中身。鍵と本文が必ず同じコミットで揃う。
@@ -34,7 +40,7 @@ type Editing = {
   told: boolean;
 };
 
-export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClose }: Props) {
+export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onClose }: Props) {
   const { state, getCommentsByCursor, setCommentsByCursor } = useGame();
 
   const [status, setStatus] = useState<{ key: string; kind: "saving" | "saved" } | null>(null);
@@ -45,8 +51,14 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   }, [cursor, getCommentsByCursor]);
 
   const face = useMemo<Face | null>(
-    () => (open && cursor ? { key: faceKey(cursor, absPath), cursor, absPath } : null),
-    [open, cursor, absPath],
+    // **`boardSeq` が無ければ面を作らない。** 盤に何も載っていないという意味なので、
+    // 書く先が無い。面にして通すと、突き合わせ（下の `save`）が永久に一致せず、
+    // そのノートの保存が全部「棋譜が切り替わった」で落ちる
+    () =>
+      open && cursor && boardSeq !== null
+        ? { key: faceKey(cursor, boardSeq), cursor, boardSeq }
+        : null,
+    [open, cursor, boardSeq],
   );
 
   // **面はレンダ中に確定させる。**
@@ -70,9 +82,9 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   // 撃った時点の `setCommentsByCursor` を捕まえると、その先の `edit` が
   // **撃った時点の `state.jkf`** を閉じ込めているので、待っている間に盤で指した手を
   // 含まない棋譜を書き戻す。指した手がメモリからもディスクからも消える。
-  const commitRef = useRef({ setCommentsByCursor, loadedAbsPath: state.loadedAbsPath });
+  const commitRef = useRef({ setCommentsByCursor, boardSeq: state.boardSeq });
   useEffect(() => {
-    commitRef.current = { setCommentsByCursor, loadedAbsPath: state.loadedAbsPath };
+    commitRef.current = { setCommentsByCursor, boardSeq: state.boardSeq };
   });
 
   /**
@@ -110,11 +122,15 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
         const showing = () => mountedRef.current && faceRef.current?.key === target.key;
 
-        // **開いた棋譜と、いま読み込まれている棋譜が同じときだけ書く。**
+        // **開いた棋譜と、いま盤に載っている棋譜が同じときだけ書く。**
         // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
         // 棋譜が差し替わったあとに走ると、前のファイルの本文が**次のファイルの
         // 同じ手数へ**書き込まれる。鍵だけでは塞がらない。
-        if (target.absPath !== commitRef.current.loadedAbsPath) {
+        //
+        // **見るのは `boardSeq` で、パスではない。** 改名・移動ではパスだけが動いて
+        // 盤の中身は同じなので、パスで止めると書きかけの本文が保存されないまま残る。
+        // 書き込みは `persistIfPossible` が現在の宛先（＝改名後のパス）へ通す。
+        if (target.boardSeq !== commitRef.current.boardSeq) {
           const msg = "棋譜が切り替わったので保存できませんでした";
           if (showing())
             setEditing((e) =>
@@ -183,7 +199,11 @@ export default function KifuCommentNote({ open, cursor, absPath, anchorEl, onClo
   //
   // **ここで書き切れなかったぶんは、失敗も本文も画面に出ない。** 面はもう外れており、
   // 下の `showing()` が書き戻しを弾く。「閉じると、この本文は失われます」を出せるのは
-  // ノート自身の閉じる操作を通ったときだけ → #315。面をまたいで預かる形は → #314
+  // ノート自身の閉じる操作を通ったときだけ。
+  //
+  // **止まること自体は正しい。** 同じ棋譜を開き直した回はディスクを読み直しているので、
+  // 開き直す前の下書きをそのまま書くと、読み直したばかりの内容を上書きする。
+  // 黙って捨てるほうが問題で、そこは → #538
   const leavingRef = useRef<Editing | null>(null);
   useEffect(() => {
     const prev = leavingRef.current;
