@@ -110,8 +110,15 @@ export type NotifyRequest =
   // **本文は1行に収める**（日本語で40字前後）。消えるまでの時間はそれを読む長さから
   // 取ってあるので、パスのような長いものは題に寄せるかログへ回す（`AUTO_DISMISS_MS`）
   | (Omit<VisibleRequestBase, "actions"> & { presentation: "toast"; autoDismiss: true })
-  // 帯とモーダルは自分からは消えない。閉じるか、出した側が引っ込めるまで残る
-  | (VisibleRequestBase & { presentation: "banner" | "modal" })
+  // モーダルは自分からは消えない。閉じるか、出した側が引っ込めるまで残る
+  | (VisibleRequestBase & { presentation: "modal" })
+  // 帯も同じだが、**動作を1つ以上持たなければならない。**
+  // 帯はアプリのヘッダを押し下げず覆う（`NotificationLayer.scss`）ので、
+  // 閉じる以外にやることが無い帯は、操作を奪うだけのものになる
+  | (VisibleRequestBase & {
+      presentation: "banner";
+      actions: [NotifyAction, ...NotifyAction[]];
+    })
   | {
       /**
        * **出してはいけない失敗**（ADR-0004 決定2）。何も起きない。
