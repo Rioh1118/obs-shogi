@@ -155,6 +155,7 @@ export const commentsOf = (body: string, lang: "c-like" | "shell" = "c-like"): s
   return out;
 };
 
+
 /**
  * 綴りが当たった箇所を `path:行番号` で返す。空なら当たっていない。
  *

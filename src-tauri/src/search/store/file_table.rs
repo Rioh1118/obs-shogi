@@ -19,16 +19,19 @@ pub struct FileTable {
     deleted: Vec<bool>,
     /// `None` は「その `file_id` に棋譜が無い」——未使用の slot 0 と、欠番
     paths: Vec<Option<String>>,
+    /// 索引を組めたか。**偽の項目は表に居るのに局面を1つも持たない**
+    indexed: Vec<bool>,
 }
 
 impl FileTable {
-    /// `file_id` を添字にできるまで3列を伸ばす。**縮まない。**
+    /// `file_id` を添字にできるまで4列を伸ばす。**縮まない。**
     fn ensure(&mut self, file_id: FileId) {
         let i = file_id as usize;
         if self.gens.len() <= i {
             self.gens.resize(i + 1, 0);
             self.deleted.resize(i + 1, false);
             self.paths.resize(i + 1, None);
+            self.indexed.resize(i + 1, false);
         }
     }
 
@@ -42,7 +45,8 @@ impl FileTable {
             file_id,
             path: path.clone(),
             deleted: self.deleted[i],
-            gen: self.gens[i],
+            indexed: self.indexed[i],
+            r#gen: self.gens[i],
         })
     }
 
@@ -52,15 +56,17 @@ impl FileTable {
         self.paths.get(i)?.as_deref()
     }
 
-    /// 入れる。同じ `file_id` があれば3列とも上書きする。
+    /// 入れる。同じ `file_id` があれば4列とも上書きする。
     ///
-    /// **`deleted` も上書きする**ので、生きた項目を入れ直せば墓標は消える。
+    /// **`deleted` も `indexed` も上書きする**ので、生きた項目を入れ直せば
+    /// 墓標も「組めなかった」印も消える。
     pub fn upsert(&mut self, entry: FileEntry) {
         self.ensure(entry.file_id);
         let i = entry.file_id as usize;
-        self.gens[i] = entry.gen;
+        self.gens[i] = entry.r#gen;
         self.deleted[i] = entry.deleted;
         self.paths[i] = Some(entry.path);
+        self.indexed[i] = entry.indexed;
     }
 
     /// 消えたことにする。**項目は残す。**
@@ -99,9 +105,41 @@ impl FileTable {
 
     /// 登録されている棋譜の数。**消された棋譜も数える。**
     ///
-    /// 毎回全走査する。画面に出す総数（`search/commands.rs`）が呼ぶ。
+    /// 毎回全走査する。**画面に出すのはこちらではない**——墓標込みなので、
+    /// 消しても数が減らない（[`Self::live_len`]）。
     pub fn len(&self) -> usize {
         self.paths.iter().filter(|p| p.is_some()).count()
+    }
+
+    /// **生きている棋譜の数。** 墓標を数えない。
+    ///
+    /// `paths` を `None` に戻す口はどこにも無い（`tombstone` は `deleted` を
+    /// 立てるだけ）ので、[`Self::len`] は消した棋譜も数える。**画面の
+    /// 「対象ファイル」に出すのはこちら**——`len` を出すと、1000件から300件
+    /// 消しても数が減らず、「削除が反映されていない」と読める。
+    pub fn live_len(&self) -> usize {
+        self.paths
+            .iter()
+            .zip(self.deleted.iter())
+            .filter(|(p, d)| p.is_some() && !**d)
+            .count()
+    }
+
+    /// **索引を組めた棋譜の数。** 墓標も、組めなかった棋譜も数えない。
+    ///
+    /// **`Ready` と `Updating` の「索引済み」に出すのはこちら。**
+    /// [`Self::live_len`] を出すと、組めなかった棋譜が何本あっても
+    /// `indexed == total` になり、失敗が数から消える。
+    ///
+    /// 覚えるのが索引である理由は
+    /// [`crate::search::types::FileEntry::indexed`] の doc。
+    pub fn indexed_len(&self) -> usize {
+        self.paths
+            .iter()
+            .zip(self.deleted.iter())
+            .zip(self.indexed.iter())
+            .filter(|((p, d), ix)| p.is_some() && !**d && **ix)
+            .count()
     }
 
     /// 1件も登録されていないか。**全件構築を始めてよいかの判定に使う**
@@ -123,7 +161,8 @@ impl FileTable {
                     file_id,
                     path: path.clone(),
                     deleted: self.deleted[i],
-                    gen: self.gens[i],
+                    indexed: self.indexed[i],
+                    r#gen: self.gens[i],
                 },
             ))
         })
@@ -139,6 +178,7 @@ mod tests {
             file_id,
             path: format!("{file_id}.kif"),
             deleted,
+            indexed: true,
             r#gen,
         }
     }
@@ -233,5 +273,72 @@ mod tests {
 
         assert_eq!(ft.len(), 1, "消された棋譜を数えていない");
         assert!(!ft.is_empty(), "消された棋譜だけの表を空と言っている");
+    }
+
+    /// **組めなかった棋譜を「索引済み」に数えないこと。**
+    ///
+    /// 組めなかった棋譜も `deleted: false` で表に載る（`gen` を上げて前の世代の
+    /// セグメントを落とすため）ので、`live_len` では見分けが付かない。
+    #[test]
+    fn a_file_that_could_not_be_indexed_is_live_but_not_indexed() {
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "ok.kif".to_owned(),
+            deleted: false,
+            indexed: true,
+            r#gen: 1,
+        });
+        ft.upsert(FileEntry {
+            file_id: 2,
+            path: "broken.kif".to_owned(),
+            deleted: false,
+            indexed: false,
+            r#gen: 1,
+        });
+
+        assert_eq!(ft.live_len(), 2, "表には両方載る");
+        assert_eq!(ft.indexed_len(), 1, "組めなかった棋譜を数えている");
+    }
+
+    /// 墓標は「索引済み」にも数えないこと。
+    #[test]
+    fn a_tombstone_is_not_counted_as_indexed() {
+        let mut ft = FileTable::default();
+        ft.upsert(FileEntry {
+            file_id: 1,
+            path: "a.kif".to_owned(),
+            deleted: false,
+            indexed: true,
+            r#gen: 1,
+        });
+        ft.tombstone(1);
+        assert_eq!(ft.indexed_len(), 0, "消した棋譜を数えている");
+    }
+
+    /// **墓標は `len` に残り、`live_len` からは消える。**
+    ///
+    /// `paths` を `None` に戻す口はどこにも無いので `len` は減らない。
+    /// 画面の「対象ファイル」に `len` を出すと、消しても数が減らず
+    /// 「削除が反映されていない」と読める。
+    #[test]
+    fn a_tombstone_leaves_len_but_not_live_len() {
+        let mut ft = FileTable::default();
+        for id in 1..=3u32 {
+            ft.upsert(FileEntry {
+                file_id: id,
+                path: format!("/w/{id}.kif"),
+                deleted: false,
+                indexed: true,
+                r#gen: 1,
+            });
+        }
+        assert_eq!(ft.len(), 3);
+        assert_eq!(ft.live_len(), 3);
+
+        ft.tombstone(2);
+
+        assert_eq!(ft.len(), 3, "`len` は墓標を数えない形に変わっている");
+        assert_eq!(ft.live_len(), 2, "`live_len` が墓標を数えている");
     }
 }

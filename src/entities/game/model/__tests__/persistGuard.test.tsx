@@ -17,6 +17,16 @@ import { branchIndexFromForkIndex } from "@/entities/kifu/model/branch";
  * **前の棋譜が新しく開いたファイルへ入る**。
  */
 
+/**
+ * どの test でも最初に踏む前提。**`loadGame` は投げない**ので、載せられなくても
+ * 次の行へ進み、空の盤を相手にした assertion が「書かれなかった」を通してしまう。
+ * 前提が崩れたことは前提の場所で出す
+ */
+async function loadOrFail(game: ReturnType<typeof useGame>, jkf: JKFData, path: string) {
+  const res = await game.loadGame(jkf, path);
+  expect(res.success, `前提の読み込みが失敗した: ${path}`).toBe(true);
+}
+
 function makePersistence(
   absPath: string,
   written: { path: string; jkf: JKFData }[],
@@ -62,7 +72,7 @@ describe("保存先の門番", () => {
     );
 
     await act(async () => {
-      await game.loadGame(JKF_A, "/ws/a.kif");
+      await loadOrFail(game, JKF_A, "/ws/a.kif");
     });
     await act(async () => {
       await game.setCommentsByCursor(game.state.cursor!, ["メモ"]); // async-result-ignored: 書けた先だけを見る
@@ -83,7 +93,7 @@ describe("保存先の門番", () => {
     );
 
     await act(async () => {
-      await game.loadGame(JKF_A, "/ws/a.kif");
+      await loadOrFail(game, JKF_A, "/ws/a.kif");
     });
 
     // 宛先だけ b.kif へ進む（`loadGame` はまだ a.kif のまま）
@@ -116,7 +126,7 @@ describe("保存先の門番", () => {
     );
 
     await act(async () => {
-      await game.loadGame(JKF_A, "/ws/a.kif");
+      await loadOrFail(game, JKF_A, "/ws/a.kif");
     });
     const beforeJkf = game.state.jkf;
 
@@ -154,7 +164,7 @@ describe("保存先の門番", () => {
     );
 
     await act(async () => {
-      await game.loadGame(JKF_A, "/ws/a.kif");
+      await loadOrFail(game, JKF_A, "/ws/a.kif");
     });
 
     await act(async () => {
@@ -182,7 +192,7 @@ describe("保存先の門番", () => {
     );
 
     await act(async () => {
-      await game.loadGame(JKF_FORKED, "/ws/a.kif");
+      await loadOrFail(game, JKF_FORKED, "/ws/a.kif");
     });
     const beforeJkf = game.state.jkf;
 
@@ -222,7 +232,7 @@ describe("保存先の門番", () => {
     );
 
     await act(async () => {
-      await game.loadGame(JKF_FORKED, "/ws/a.kif");
+      await loadOrFail(game, JKF_FORKED, "/ws/a.kif");
     });
 
     await act(async () => {

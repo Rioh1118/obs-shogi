@@ -67,6 +67,8 @@ export const EXEMPT = new Set([
   "reveal_item_in_dir",
   "open_path",
   "openPath",
+  // vitest の matcher。検査の書き方の規約が「これを置け」と指す。こちらの識別子ではない
+  "toBeGreaterThan",
   // React の API。reviewer の定義が「使っていないこと」を確かめる材料に引く
   "dangerouslySetInnerHTML",
 ]);

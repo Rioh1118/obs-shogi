@@ -14,13 +14,13 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  */
 const BASELINE: Record<Bucket, number> = {
   "font-size": 203,
-  "border-radius": 146,
-  spacing: 443,
+  "border-radius": 145,
+  spacing: 441,
   elevation: 50,
   motion: 67,
   family: 15,
-  indirect: 52,
-  exempt: 3,
+  indirect: 49,
+  exempt: 5,
 };
 
 /** トークンの定義そのものなので、直値があって当然のファイル */
@@ -74,7 +74,38 @@ function definedIn(file: string): Set<string> {
   return names;
 }
 
+/** `index.$name` の参照。`@use "@/index.scss" as index` の名前空間を通るものだけ */
+const TOKEN_REFERENCE = /\bindex\.\$([\w-]+)/g;
+
 describe("SCSS のトークン名", () => {
+  /**
+   * **`npm run verify` は SCSS をコンパイルしない**（`tsc -b` + lint + vitest + test:hooks）。
+   * 未定義のトークンを参照しても型でも lint でもテストでも赤くならず、
+   * `vite build` まで行って初めて `Undefined variable.` で止まる。
+   * つまりコミットの gate を素通りして、**アプリが起動しない状態で緑になる。**
+   *
+   * 実際に起きた（`e245c7e5` が `$error-fallback-width` を参照だけして定義しなかった）ので、
+   * ここで名前の解決だけを見る。コンパイルより速く、この故障をちょうど捕まえる。
+   */
+  it("参照しているトークンが `index.scss` に実在する", () => {
+    const tokens = definedIn(TOKEN_SOURCE);
+    const missing = scssFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(TOKEN_REFERENCE)]
+        .map((match) => match[1])
+        .filter((name) => !tokens.has(name))
+        .map((name) => `${relative(REPO_ROOT, file)}  index.$${name}`),
+    );
+
+    expect(
+      missing,
+      [
+        "`index.scss` に無いトークンを参照している。**`vite build` が Undefined variable で止まる。**",
+        "`npm run verify` はコンパイルしないので、ここが無いと gate を素通りする。",
+        ...missing,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
   it("ファイルローカルの変数がトークンと同名にならない", () => {
     const tokens = definedIn(TOKEN_SOURCE);
     const collisions = scssFiles(SRC)

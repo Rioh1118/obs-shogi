@@ -6,21 +6,21 @@ import { MemoryRouter } from "react-router";
 /**
  * 盤の向きは `GameBoard` が自分で取る。**呼び出し側から prop で降ってこない。**
  *
- * 対局者名を自力で取っている（`useFileTree`）のに向きだけ上から受け取るのは一貫していない。
+ * 対局者名を自力で取っている（`useGame`）のに向きだけ上から受け取るのは一貫していない。
  * prop で渡すと、渡し忘れても既定値で描けてしまい、**盤が回らなくなるだけで**
  * 型でもレンダでも落ちない。
  *
  * あわせて、`GameBoard` が向きを**落とす**側を持っていないことも見る（持たせると何が
  * 壊れるかは `BoardOrientationBridge` の doc）。
- * ここで動かせるのは `GameBoard` が読むもの（`useFileTree` の `jkfData`）だけなので、
+ * ここで動かせるのは `GameBoard` が読むもの（`useGame` の `state.jkf`）だけなので、
  * **見ているのは「盤が自分から `pov` を触らない」まで。** 合図（`loadedAbsPath`）で
  * 落ちる／落ちないは `src/features/board-orientation/model/__tests__/` が持つ。
  */
 
-const tree = { jkfData: null as unknown };
+const game = { state: { jkf: null as unknown } };
 
-vi.mock("@/entities/file-tree", () => ({
-  useFileTree: () => tree,
+vi.mock("@/entities/game", () => ({
+  useGame: () => game,
 }));
 
 const { default: GameBoard } = await import("../GameBoard");
@@ -32,7 +32,7 @@ const app = (search: string) => (
 );
 
 beforeEach(() => {
-  tree.jkfData = null;
+  game.state.jkf = null;
 });
 
 afterEach(() => cleanup());
@@ -51,10 +51,10 @@ describe("盤の向き（盤の側）", () => {
   });
 
   test("描き直しても、盤は自分から `pov` を落とさない", () => {
-    tree.jkfData = { header: { 先手: "a" } };
+    game.state.jkf = { header: { 先手: "a" } };
     const view = render(app("?pov=gote"));
 
-    tree.jkfData = { header: { 先手: "b" } };
+    game.state.jkf = { header: { 先手: "b" } };
     view.rerender(app("?pov=gote"));
 
     expect(view.container.querySelector(".game-board--rotated")).not.toBeNull();

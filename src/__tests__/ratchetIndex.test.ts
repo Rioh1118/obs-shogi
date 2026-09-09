@@ -97,6 +97,7 @@ const RUST_CHECKS = new Set([
   "index_cache_guard_names",
   "index_writes_are_guarded",
   "search_doc_names",
+  "state_is_announced_once",
   "temp_dir_names",
   "test_count_ratchet",
   "timeout_marker",

@@ -51,12 +51,23 @@ pub type NodeId = u32;
 
 /// 索引が知っているファイル1件。**引くときの生死判定はここの `gen` と
 /// [`Occurrence`] の `gen` を突き合わせて決まる。**
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub file_id: FileId,
     pub path: String,
     pub deleted: bool,
+    /// **索引を組めたか。** 偽なら、その棋譜の局面は1つも入っていない。
+    ///
+    /// **真は「局面が入った」ではない。** このアプリが新規作成した棋譜は
+    /// 指し手が0手なので局面も入らないが、失われたものが無いので真。
+    /// 割れ目は `search::index::file_build::FileBuild::indexed`。
+    ///
+    /// 表に載ること自体は組めた棋譜と変わらない（`gen` を上げて前の世代の
+    /// セグメントを落とす必要があるため）ので、**この欄が唯一の見分け**。
+    /// 数え直す形にすると経路ごとに違う数を出す——差分更新は自分の回に
+    /// 触れた分しか知らないので、前の回の失敗を引き継げない。
+    pub indexed: bool,
     #[serde(rename = "gen")]
     pub r#gen: Gen,
 }
@@ -76,7 +87,7 @@ pub struct FilePathEntry {
 ///
 /// `Ready` 以外で検索すると、結果が欠けうる。そのことは
 /// [`SearchBeginPayload::stale`] で画面に伝わる。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IndexState {
     Empty,
     Restoring,
@@ -86,13 +97,105 @@ pub enum IndexState {
 }
 
 /// 索引の状態を画面へ知らせる。`EVT_INDEX_STATE` に載る。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexStatePayload {
     pub state: IndexState,
     pub dirty_count: u32,
+    /// **段によって意味が違う。**
+    ///
+    /// | 段 | 何の数か |
+    /// | --- | --- |
+    /// | `Ready` | [`FileEntry::indexed`] が真の件数。`total_files` との差が**検索に出ない棋譜** |
+    /// | `Updating` | 据わっている索引の件数。差は**まだ当てていない差分** |
+    /// | `Building` | その回でいままでに組めた件数。差は**未処理と失敗の合計** |
+    /// | `Restoring` | 0（索引を捨てた直後） |
+    ///
+    /// 画面が `Ready` に限って差を読むのはこのため
+    /// （`entities/search/lib/indexHealth.ts`）。段を足すときに条件を
+    /// 広げると、進行中の走行中カウントが「一部を索引に入れられていません」に化ける。
     pub indexed_files: u32,
     pub total_files: u32,
+    /// **最後の走査を最後まで通せなかった。** 索引そのものは最後に読めた
+    /// ときのまま健全なので段は `Ready` に上がるが、**それ以降の追加・変更・
+    /// 削除は1件も反映されていない**。
+    ///
+    /// このとき `dirty_count` の 0 は「当てるものが無かった」ではなく
+    /// **「分からない」**。0 をそのまま「未同期 0」と描くと、
+    /// 利用者は索引が最新だと確信する。
+    pub scan_failed: bool,
+    /// **一部の場所を読めなかった。** 走査そのものは完走している。
+    ///
+    /// `scan_failed` とは失われるものが違う——あちらは「索引が新しく
+    /// なっていない」、こちらは「**索引に入っていない棋譜がある**」。
+    /// 畳むと、検索が0件を返した理由を利用者が取り違える。
+    pub partially_unreadable: bool,
+}
+
+impl IndexStatePayload {
+    /// 状態を出す。**旗はすべて伏せた形から始める。**
+    ///
+    /// **組み立てる口をここ1つに閉じてある。** 呼び手が構造体リテラルを手で
+    /// 書く形にすると、欄を足したときに全員が `false` を書き足すことになり、
+    /// **本当に渡す口がその中に埋もれる**。
+    pub fn of(state: IndexState, total_files: u32) -> Self {
+        Self {
+            state,
+            dirty_count: 0,
+            indexed_files: 0,
+            total_files,
+            scan_failed: false,
+            partially_unreadable: false,
+        }
+    }
+
+    /// 索引に入れ終えた数。既定は0
+    ///
+    /// **対象より多い数を渡さない。** 入れた数が対象を超える数字は、
+    /// 画面では壊れた索引にしか見えない。
+    ///
+    /// **`debug_assert!` で止めない。** ここが評価されるのは spawn した
+    /// 監視ループと再走査タスクの中で、panic しても誰も join しない
+    /// ——ログにも画面にも出ないまま、以後どのファイル変更も拾われなくなる。
+    /// **番人が不発のとき、直そうとしている症状そのものになる。**
+    /// 丸めて `log::error!` に残し、タスクは生かす。
+    ///
+    /// **丸めた回は、画面から健全と見分けが付かない。** `indexed_files ==
+    /// total_files` になるので `indexHealth` は `ok` を返し、緑の「準備完了」が出る
+    /// ——気付けるのはログを開いた人だけ。壊れて見える表示を捨てる代わりに、
+    /// 気付く手掛かりも捨てている。
+    pub fn indexed(mut self, n: u32) -> Self {
+        let n = if n > self.total_files {
+            log::error!(
+                "[announce] 索引済み {n} が対象 {} を超えている。数える順を確かめること",
+                self.total_files
+            );
+            self.total_files
+        } else {
+            n
+        };
+        self.indexed_files = n;
+        self
+    }
+
+    /// まだ当てていない差分の数。**数えられなかったときは呼ばない**
+    /// ——0 は「無い」であって「分からない」ではない。
+    pub fn dirty(mut self, n: u32) -> Self {
+        self.dirty_count = n;
+        self
+    }
+
+    /// 走査が完走していない。**索引が新しくなっていない**
+    pub fn scan_failed(mut self, yes: bool) -> Self {
+        self.scan_failed = yes;
+        self
+    }
+
+    /// 読めなかった場所があった。**索引に入っていない棋譜がある**
+    pub fn partially_unreadable(mut self, yes: bool) -> Self {
+        self.partially_unreadable = yes;
+        self
+    }
 }
 
 /// 索引が組み上がるのを待つかどうか。
@@ -294,6 +397,21 @@ pub struct IndexProgressPayload {
     pub total_files: u32,
 }
 
+/// 警告が**何について**のものか。
+///
+/// **場所とファイルを混ぜない。** 画面は限られた枠しか出せないので、
+/// 混ぜると1回の再走査で出るファイル単位の警告が場所の警告を押し出す
+/// ——押し出されるのは「ワークスペースを読めません」のような、
+/// **利用者が次にすることを含んだ唯一の文言**のほう。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum IndexWarnKind {
+    /// ワークスペースそのもの、または読めなかった場所についての警告
+    Place,
+    /// 棋譜1件についての警告
+    File,
+}
+
 /// 索引を組む途中で、1件ぶん伝えることがあった。`EVT_INDEX_WARN` に載る。
 ///
 /// **「索引に入らなかった」とは限らない。** 読めなかったファイル（局面が1件も
@@ -304,32 +422,72 @@ pub struct IndexProgressPayload {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexWarnPayload {
+    /// 場所についてか、棋譜1件についてか。**画面はこれで並べ分ける。**
+    pub kind: IndexWarnKind,
     /// どのファイルの話か。画面はこちらを別の行に出す（`wsTab__warnPath`）。
     ///
     /// **1行に収まらなければ末尾が省略される**（`text-overflow: ellipsis`）。
     /// 全文はホバー（`title`）でしか読めないので、深いパスは途中までしか見えない。
     ///
-    /// **文言のほうにも入ることがある。** 走査そのものが失敗したときは、
-    /// `ScanError::RootNotFound` の腕が根のパスを持つので文言にも埋まる。
-    ///
-    /// **この欄は刈る口を通らない。** ファイル名に制御文字が入っていればそのまま出る（#459）。
+    /// **この欄は刈る口を通らない。** `message` と違って型が `String` なので、
+    /// ファイル名に制御文字が入っていればそのまま線に出る（#459）。
+    /// 産地はファイルシステムで、`::place` / `::file` の呼び手が
+    /// `to_string_lossy` した値をそのまま渡す。
     pub path: String,
     /// **何が起きて、何を失ったかを言う。** 読めなかったファイルは局面が1件も
     /// 索引に入らないので、理由だけを出すと「読めない行が1つある」と受け取られる。
     /// **この欄に載る文言はどれもこの基準に従う**（作る場所は複数ある）。
     ///
-    /// **長さと制御文字を落とすのは Rust 側の仕事**（`search::message`）。
-    /// 画面側に刈り込みは無い。`WorkspaceTab` が素のテキストで描くのは `warns` の**先頭5件**。
-    /// `reducer` は新しいものを末尾に積み、**200件を超えると先頭から落とす**ので、
-    /// 200件までは最初の5件で固定され、それ以降は**新着ごとに5行すべてが1つずつずれる**。
-    /// どちらの側でも、後から出した警告を読ませることはできない（#465）。
+    /// **長さと制御文字を落とすのは Rust 側の仕事**（`search::message`）。画面側に刈り込みは無い。
+    ///
+    /// **順は `pickWarns` が持つ。** 受け取った列を逆順にしてから、場所の警告 →
+    /// `path` が空の場所 → 棋譜1件の警告、の順に並べて先頭から取る。
+    /// **新着は必ず前に来る**ので、後から出した警告が読めないという状態には
+    /// ならない（#465 はこの経路で解いてある）。
+    ///
+    /// **何件描くかは画面が決める**（`WorkspaceTab` が枠数を渡す）。
+    /// 件数をここに書かない——寸法の話なので、写すとこちらが先に腐る。
+    ///
+    /// **溜め方は種類ごとに枠がある。** `entities/search/model/reducer.ts` は同じ鍵の
+    /// 警告を末尾へ動かして重複を除き、総数の上限（200件）を超えたら場所の枠
+    /// （20件）だけ残して残りを棋譜1件の枠に充てる。**場所の警告が棋譜の警告に
+    /// 押し流されない**のはこの枠のため。現在値は向こうの定数が持つ——
+    /// **数を写すとここが先に腐る。**
     ///
     /// 日本語の案内は折り返して箱が縦に伸びるが、**空白を含まない綴りは折り返す場所が
     /// 無く、横へはみ出して読まれない**（`overflow-wrap` の指定が無い）。
     /// `path` と違って `title` も無く、箱を包む `.sui-section` が `overflow: hidden` なので、
     /// はみ出した末尾を読む手段は無い。
     /// **何が悪いのかは先に言うこと。**
-    ///
-    /// 件数のほうは webview の state に200件まで溜まる（`entities/search/model/reducer.ts`）。
     pub message: ScreenMessage,
+}
+
+impl IndexWarnPayload {
+    /// 場所についての警告。**組み立てはここを通すこと。**
+    ///
+    /// 欄が `pub` なので構造体リテラルも書けてしまう。閉じているのは型ではなく
+    /// `tests/state_is_announced_once.rs` の走査
+    /// （`no_one_builds_a_warning_payload_with_a_struct_literal`）。
+    /// **`kind` を取り違えると、場所の警告が `pickWarns` の場所優先の枠から外れ、
+    /// ファイル単位の警告に押し出されて画面から消える。**
+    pub fn place(path: impl Into<String>, message: ScreenMessage) -> Self {
+        Self {
+            kind: IndexWarnKind::Place,
+            path: path.into(),
+            message,
+        }
+    }
+
+    /// 棋譜1件についての警告。**組み立てはここを通すこと。**
+    ///
+    /// `place` と同じく、閉じているのは型ではなく
+    /// `tests/state_is_announced_once.rs` の走査
+    /// （`no_one_builds_a_warning_payload_with_a_struct_literal`）。
+    pub fn file(path: impl Into<String>, message: ScreenMessage) -> Self {
+        Self {
+            kind: IndexWarnKind::File,
+            path: path.into(),
+            message,
+        }
+    }
 }

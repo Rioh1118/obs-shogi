@@ -1,10 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { docsPath, markdownFiles } from "./stateTransitionIndex";
-import { lineNumberRefsIn, missingPaths, scannedDocs, sourcePathsIn } from "./docsSourcePaths";
+import {
+  lineNumberRefsIn,
+  missingPaths,
+  pathCheckedDocs,
+  sourcePathsIn,
+} from "./docsSourcePaths";
 
 /**
- * `scannedDocs()` が返す doc がバッククォートで指すソースのパスが実在するかを見る。
+ * `pathCheckedDocs()` が返す doc がバッククォートで指すソースのパスが実在するかを見る。
  *
  * 置き場を動かすと doc が死んだパスを指したまま残る。読み手はそこを開いて空振りし、
  * どこに移ったのかは doc からは分からない。人の注意では止まらないので機械で見る。
@@ -32,11 +37,11 @@ describe("走査対象の doc が指すソースのパス", () => {
   // 置き場が動いたとき、この検査が0件を見て緑のまま素通りするのを止める。
   // 空回りする検査は、無いより悪い（「見ている」と誤解させる）
   test("走査する doc を拾えている", () => {
-    expect(scannedDocs().length).toBeGreaterThan(3);
+    expect(pathCheckedDocs().length).toBeGreaterThan(3);
   });
 
   test("実在しないパスを指していない", () => {
-    const broken = scannedDocs().flatMap((relative) => {
+    const broken = pathCheckedDocs().flatMap((relative) => {
       const body = readFileSync(docsPath(relative), "utf8");
       return missingPaths(sourcePathsIn(body)).map((p) => `${relative}: ${p}`);
     });
@@ -48,7 +53,7 @@ describe("走査対象の doc が指すソースのパス", () => {
 /**
  * `docs/` の**全部**が行番号で指さないこと。
  *
- * パスの実在は `scannedDocs()` の範囲に絞ってよい（ADR は別リポジトリのパスを引くので、
+ * パスの実在は `pathCheckedDocs()` の範囲に絞ってよい（ADR は別リポジトリのパスを引くので、
  * 実在を要求できない）。**行番号のほうは絞る理由が無い。** 自リポジトリを
  * 行番号で指せば、どこに書いてあっても無言でずれる。
  *

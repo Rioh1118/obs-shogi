@@ -36,14 +36,42 @@ pub struct FileBuild {
     /// **受け取るのは刈り終えた文言。** 読み手の側は `read_path_inner` が、
     /// 索引を組む側は下の `for_screen` が通す。刈るのは組んだ場所で1回だけ。
     pub warns: Vec<ScreenMessage>,
+    /// **索引を組めたか。** 真は「局面が入った」ではない——本当に空の棋譜も真。
+    ///
+    /// `Ok` で返ったことと、局面が入ったことは別。読めたが入れる局面が無い
+    /// 棋譜（途中で切れた CSA など）も `Ok` で返るので、`Ok`/`Err` で数えると
+    /// **局面を1つも持たない棋譜が「索引済み」に数えられる**。
+    ///
+    /// 決め方は2つ。**局面が入ったか**（`Indexable` の腕）と、
+    /// **空なのが正しい姿か**（`NothingToIndex` の `looks_intentional`）。
+    ///
+    /// **本当に空の棋譜と割る。** このアプリが新規作成した棋譜は指し手が0手で
+    /// 局面も入らないが、失われたものは無い。それを「入れられなかった」に
+    /// 数えると、**棋譜を1つ作るたびにワークスペースが黄色くなる**。
+    pub indexed: bool,
 }
 
 impl FileBuild {
     /// 局面を持たない項目。**登録はするが検索には出ない。**
-    fn empty(warns: Vec<ScreenMessage>) -> Self {
+    ///
+    /// **空になった理由は読み手が決める。** ここで `warns` の有無から導くと、
+    /// 警告を出す口が無い形式（CSA 以外）が必ず「本当に空」になる
+    /// ——0バイトや空白だけの `.kif` を「本当に空」に数えないため。
+    ///
+    /// **割れるのは検査が見つけられた範囲だけ。**
+    ///
+    /// 読み残しを見る口は `warn_if_moves_were_dropped` **1つで、CSA 専用**。
+    /// KIF / KI2 / JKF には無いので、中身があるのに局面0件で終わった回
+    /// （ヘッダの途中で切れた KIF など）は**真に落ちる**——局面が入って
+    /// いないのに緑になる。**TODO(#501)**
+    ///
+    /// CSA でも、その検査が黙る形（最初の `%` 行で数を打ち切る／UTF-16 は
+    /// 指し手行の形にならず0件と数える）は同じく真に落ちる。
+    fn empty(warns: Vec<ScreenMessage>, looks_intentional: bool) -> Self {
         Self {
             by_bucket: empty_buckets(),
             node_table: Arc::new(NodeTable::empty()),
+            indexed: looks_intentional,
             warns,
         }
     }
@@ -75,7 +103,10 @@ pub fn build_file_index(
 
     let (jkf, warns) = match outcome {
         ReadOutcome::Indexable { jkf, warns } => (jkf, warns),
-        ReadOutcome::NothingToIndex { warns } => return Ok(FileBuild::empty(warns)),
+        ReadOutcome::NothingToIndex {
+            warns,
+            looks_intentional,
+        } => return Ok(FileBuild::empty(warns, looks_intentional)),
     };
 
     let built =
@@ -95,10 +126,19 @@ pub fn build_file_index(
         }))
         .collect();
 
+    // **`Ok` だから真、にしない。** 局面が1つも出なければ検索に出ないので、
+    // 数え方は空の腕と同じ「入ったか」で決める。
+    //
+    // **いまこの式が偽になる入力は見つかっていない**（初期局面が必ず入るため）。
+    // 守りであって、直した不具合ではない——`Ok` を根拠にしたままだと、
+    // 初期局面が入らなくなった日に黙って数が合わなくなる
+    let indexed = !built.entries.is_empty();
+
     Ok(FileBuild {
         by_bucket: bucketize_entries(built.entries),
         node_table: built.node_table,
         warns,
+        indexed,
     })
 }
 
@@ -109,6 +149,127 @@ mod tests {
     use crate::search::read::fs_scan::KifuKind;
     use std::fs;
     use test_support::dir::temp_dir;
+
+    fn write_and_build(name: &str, body: &str) -> FileBuild {
+        let dir = temp_dir("file-build");
+        let path = dir.join(name);
+        fs::write(&path, body).expect("下ごしらえ");
+        let rec = FileRecord {
+            path: path.clone(),
+            // **形式は名前から取る。** `Csa` を直に書くと、他の形式の腕を
+            // 落とす変異が緑で通る——警告を出す口があるのは CSA だけなので、
+            // 割り方の穴はいつも他の形式に空く
+            kind: KifuKind::from_path(&path).expect("拡張子から種別が決まること"),
+            size: body.len() as u64,
+            mtime_ms: 0,
+        };
+        let built = build_file_index(&rec, 1, 1).expect("読めるはず");
+        fs::remove_dir_all(&dir).ok();
+        built
+    }
+
+    /// **`Ok` を「索引に入った」と読まないこと。**
+    ///
+    /// 途中で切れた CSA はヘッダだけ読めて `Ok` で返るが、入る局面は無い。
+    /// `Ok`/`Err` で数えると**局面を1つも持たない棋譜が「索引済み」になり**、
+    /// 1000件中200件がこの形でも `indexed == total` で緑の「準備完了」が出る。
+    #[test]
+    fn a_kifu_that_reads_but_yields_nothing_is_not_counted_as_indexed() {
+        let built = write_and_build(
+            "broken.csa",
+            "V2.2\nPI\n+\nZZZZ not a kifu line\n+7776FU\n-3334FU\n%TORYO\n",
+        );
+        assert!(
+            !built.warns.is_empty(),
+            "読み残しの警告が出ていない。題材が古い: {:?}",
+            built.warns
+        );
+        assert!(
+            !built.indexed,
+            "局面を1つも持たない棋譜を「索引済み」に数えている: {:?}",
+            built.warns
+        );
+    }
+
+    /// **本当に空の棋譜まで「入れられなかった」に数えないこと。**
+    ///
+    /// このアプリが新規作成した棋譜は指し手が0手で局面も入らないが、
+    /// 失われたものは無い。数えると**棋譜を1つ作るたびにワークスペースが
+    /// 黄色くなる**。
+    #[test]
+    fn a_genuinely_empty_kifu_is_not_a_failure() {
+        for (name, body) in [
+            ("empty.csa", "V2.2\nPI\n+\n"),
+            (
+                "appnew.kif",
+                "手合割：平手\n\n手数----指手---------消費時間--\n",
+            ),
+        ] {
+            let built = write_and_build(name, body);
+            assert!(built.indexed, "本当に空の棋譜を失敗に数えている: {name}");
+        }
+    }
+
+    /// **中身が無いファイルを「本当に空の棋譜」と読まないこと。**
+    ///
+    /// 同期の途中で置かれた 0 バイトのプレースホルダや、保存が落ちた残骸が
+    /// この形になる。**警告の有無で割ると KIF / KI2 は必ず素通りする**
+    /// ——警告を出す口があるのは CSA だけなので、0バイトでも `warns` は空。
+    #[test]
+    fn a_zero_byte_file_is_not_a_genuinely_empty_kifu() {
+        for name in ["empty.kif", "empty.ki2"] {
+            let built = write_and_build(name, "");
+            assert!(
+                !built.indexed,
+                "0バイトのファイルを「索引済み」に数えている: {name}"
+            );
+        }
+    }
+
+    /// **空白と BOM しか無いファイルも「本当に空の棋譜」ではない。**
+    ///
+    /// 大きさ0だけを見ると、改行1つや BOM だけのものが素通りする。
+    /// どれも同期の途中や保存の失敗で残る形で、「空なのが正しい姿」ではない。
+    #[test]
+    fn a_file_with_only_whitespace_or_a_bom_is_not_a_genuinely_empty_kifu() {
+        for (name, body) in [
+            ("ws.kif", "\n"),
+            ("spaces.kif", "   \n\n"),
+            ("bom.kif", "\u{feff}"),
+            ("bomws.ki2", "\u{feff}\n"),
+        ] {
+            let built = write_and_build(name, body);
+            assert!(
+                !built.indexed,
+                "中身の無いファイルを「索引済み」に数えている: {name}"
+            );
+        }
+    }
+
+    /// **指し手の途中で切れた CSA を「本当に空」と読まないこと。**
+    ///
+    /// `+7776F` は6バイトなので、指し手行を長さで数えると 0 件になり、
+    /// 読み残しの警告が出ない。**指し手のある棋譜が黙って索引から消える。**
+    #[test]
+    fn a_csa_cut_mid_move_is_not_a_genuinely_empty_kifu() {
+        let built = write_and_build("trunc.csa", "V2.2\nPI\n+\n+7776F");
+        assert!(
+            !built.warns.is_empty(),
+            "切れた指し手に警告が出ていない: {:?}",
+            built.warns
+        );
+        assert!(!built.indexed, "切れた棋譜を「索引済み」に数えている");
+    }
+
+    /// 局面が入った棋譜は数えること。
+    #[test]
+    fn a_kifu_with_moves_is_counted() {
+        let built = write_and_build(
+            "ok.csa",
+            "V2.2\nN+Sente\nN-Gote\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n",
+        );
+        assert!(built.indexed, "指し手のある棋譜を数えていない");
+    }
 
     /// **失うものを言う一文が、画面へ渡る値にも残る。**
     ///

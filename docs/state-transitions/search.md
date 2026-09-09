@@ -43,10 +43,11 @@ let stale = snap.state != StoreIndexState::Ready;
 | 記号          | 発生源                             | 何が起きるか                                                                                                                                                                                                |
 | ------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `open`        | webview（`open_project` コマンド） | 復元を試す → 成功なら走査せずに `U` へ / 失敗してから走査して全件構築                                                                                                                                       |
-| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `with_state(StoreIndexState::Ready)` を**無条件で**呼ぶ（`commands.rs`）                                                         |
+| `open-rescan` | `open` の復元成功側が spawn する   | **復元が成功したら必ず1回走る。** `run_rescan_diff_apply` を待ち、そのあと `update_if_epoch(.., with_state(Ready))` を呼ぶ。差分が0でも呼ぶが、**据え直されていたら上げない**（`commands.rs`）              |
 | `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
 | `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
 | `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
+| `build-fail`  | 全件構築の前の走査が失敗           | root が消えた / 未マウント / 権限。**索引は空のまま**（`restart(Restart::Building)` が既に中身を捨てている）。**`IndexStore` の段は動かない**——画面へ出す段だけ `Empty` にする                              |
 | `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                                                                                                   |
 | `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                                                                                                |
 | `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                                                                                                 |
@@ -60,46 +61,90 @@ let stale = snap.state != StoreIndexState::Ready;
 
 行が状態、列がイベント。`—` は起こらない組み合わせ。
 
-|       | `open`  | `restore-ok` | `restore-ng` | `build-done` | `open-rescan`      | `fs-event` → `diff-dirty` | `fs-event` → `diff-empty` | `apply-done` |
-| ----- | ------- | ------------ | ------------ | ------------ | ------------------ | ------------------------- | ------------------------- | ------------ |
-| **E** | → **R** | —            | —            | —            | —                  | —                         | —                         | —            |
-| **R** | ⚠️ 下記 | → **U**      | → **B**      | —            | —                  | —                         | —                         | —            |
-| **B** | ⚠️ 下記 | —            | —            | → **Y**      | —                  | ⚠️ 下記                   | ⚠️ 下記                   | —            |
-| **U** | ⚠️ 下記 | —            | —            | —            | → **Y**（⚠️ 下記） | → **U**（そのまま）       | 走査だけ更新              | → **Y**      |
-| **Y** | ⚠️ 下記 | —            | —            | —            | —                  | → **U**                   | 走査だけ更新              | —            |
+|       | `open`  | `restore-ok` | `restore-ng` | `build-done` | `build-fail`     | `open-rescan`      | `fs-event` → `diff-dirty` | `fs-event` → `diff-empty` | `apply-done` |
+| ----- | ------- | ------------ | ------------ | ------------ | ---------------- | ------------------ | ------------------------- | ------------------------- | ------------ |
+| **E** | → **R** | —            | —            | —            | —                | —                  | —                         | —                         | —            |
+| **R** | ⚠️ 下記 | → **U**      | → **B**      | —            | —                | —                  | —                         | —                         | —            |
+| **B** | ⚠️ 下記 | —            | —            | → **Y**      | **B**（⚠️ 下記） | —                  | ⚠️ 下記                   | ⚠️ 下記                   | —            |
+| **U** | ⚠️ 下記 | —            | —            | —            | —                | → **Y**（⚠️ 下記） | → **U**（そのまま）       | 走査だけ更新              | → **Y**      |
+| **Y** | ⚠️ 下記 | —            | —            | —            | —                | —                  | → **U**                   | 走査だけ更新              | —            |
 
 **`open-rescan` は復元経路にしか無い。** `restore-ok` で `U` に入った直後、
 `open_project` が spawn した1本が `run_rescan_diff_apply`（先頭で全走査する）を
-待ち、**差分が0でも `with_state(StoreIndexState::Ready)` を無条件で呼ぶ**。
+待ち、**差分が0でも `Ready` へ上げる**。上げる口は `update_if_epoch` なので、
+**その間に `open` が来ていれば上げない**（他人の索引を `Ready` にしない）。
 つまり**起動時のいちばん普通の経路では、`U` に留まらず必ず `Y` まで行く**。
 `U` 行の `diff-empty`（「走査だけ更新」＝ `U` のまま）はこの経路の話ではない
 ——そちらは watcher が動き出したあとに来る `fs-event` の話。
 
-### ⚠️ 走査が失敗しても `Y` に上がる
+### ⚠️ 走査が失敗しても `Y` に上がる（そのことは旗で伝わる）
 
-`run_rescan_diff_apply` は `root_dir` が `None` のときと `scan_kifu_files` が
-`Err` のときに、`with_state(StoreIndexState::Updating)` へ届く前に `return` する。
-**`run_rescan_diff_apply` は成否を返さない**（戻り値が `()`）ので、
-呼び手（`commands.rs`）には失敗と「差分0」を区別する手段が無い。
+`run_rescan_diff_apply` は結末を `RescanOutcome` の3値で返す。
 
-ワークスペースが外付けディスクごと消えている・権限が無い、といった理由で
-走査が1件もできなくても **`Y`（準備完了）になる**。`query_service` が見るのは
-`state != Ready` だけなので、**復元しただけの古い索引の結果が「最新」として返る**。
-この doc が答えると宣言している「いま検索を投げたら結果は最新か」の、
-いちばん多い経路での答えがこれ。
+| 結末                                 | 段       | `EVT_INDEX_STATE`                      |
+| ------------------------------------ | -------- | -------------------------------------- |
+| `Committed { partially_unreadable }` | `Y` へ   | `Ready` ＋ 読めない場所があれば旗      |
+| `ScanFailed`                         | `Y` へ   | `Ready` ＋ `scan_failed`               |
+| `Superseded`                         | 上げない | **出さない**（その索引はもう別のもの） |
 
-**早期 `return` の2つは出方が違う。** `scan_kifu_files` が `Err` のときだけ
-`EVT_INDEX_WARN` が1件出る（何を失うかまで言う。文言は `run_rescan_diff_apply`）。
-`root_dir` が `None` の腕は**何も出さずに戻る**。どちらも `main` から続く。
+**`Y` に上げるのは正しい。** 索引は最後に読めたときのまま健全で、差分が
+当たっていないだけ。ここで止めると `U` が最後の段になり、検索は永久に
+`stale`、設定はスピナーのまま——再試行の導線は無いので開き直しても同じ。
+
+**ただし `query_service` が見るのは `state != Ready` だけ。** 旗は
+`EVT_INDEX_STATE` に載って設定タブのバッジ（「更新できていません」）になるが、
+**局面検索の画面には出ない**。この doc が答えると宣言している
+「いま検索を投げたら結果は最新か」への答えは、いまも「画面からは分からない」。
+
+出す口は `search/announce.rs` の2つ——終わったことを言う `announce_state` と、
+進んでいることを言う `announce_progress`。**どの経路もそこを通る**——
+経路ごとに組むと、旗を知らない側が `IndexStatePayload::of`（全部伏せた形）で
+組んで塗り潰す。`src-tauri/tests/state_is_announced_once.rs` が綴りで固定している。
+文言も同じ段が持つ（`scan_failure` / `unreadable_places` / `build_failure`）
+——内部の語彙は出さない。
+
+`Superseded` が「出さない」のは `announce_state` の中で決まっていて、
+`into_payload` が `None` を返す。段の照合（`snapshot_if_epoch`）とは別の守り
+——据え直しを検出した時点では、まだ照合が通ることがある。
+
+**`run_rescan_diff_apply` の早期 `return` は2つあり、出方が違う。** 走査が `Err` の
+腕は `EVT_INDEX_WARN` を1件出す（何を失うかまで言う。文言は `announce.rs` の
+`scan_failure`）。`root_dir` が `None` の腕は**何も出さずに戻る**
+（`RescanOutcome::Superseded`）。**全件構築の側にこの2つ目は無い**——
+`root_dir` は引数で渡る。
+
+### ⚠️ 全件構築の走査が失敗したら、画面へ `E` を出す（`Y` にしない）
+
+`B` に入った時点で索引は空にされている。そこで走査が失敗すると入れるものが
+1件も無いので、**`Y` に上げてはいけない**——`query_service` が見るのは
+`state != Ready` だけなので、空の索引を `Ready` にすると
+**0件が「最新」として並ぶ**。
+
+出すのは `IndexAnnouncement::BuildFailed`。画面の段が `Empty` ＋ `scan_failed` に
+なるのは `into_payload` の中（TS 側の `IndexUiState` はレコード型で、この名前の
+バリアントは持たない）。
+差分適用の `ScanFailed`（`Y` ＋ 旗）と逆になるのは、**残っている索引が
+あるかどうか**が逆だから——あちらは最後に読めたときのまま健全で、
+こちらは空。
+
+**`store` の段は動かしていない**ので、表のセルは `B` のまま。画面へ出すのは
+`Empty` だが、`IndexStore` の中は `restart(Restart::Building)` が入れた
+`Building` のまま。検索は `stale=true` を返し続ける。
+**この食い違いを見るテストは無い。**
+
+警告の文言も分ける。差分更新の失敗は「索引は最後に読めたときのまま」だが、
+ここは既に捨てた後なので**同じことを言うと嘘になる**（`IndexSurvival`）。
 
 ### ⚠️ `open` がどの状態からでも通る
 
 `open_project` に**いまの状態を見る分岐が無い**。`R` / `B` / `U` の途中で
 もう一度呼ばれると `restart(Restart::Restoring)` が走って**中身が捨てられる**。
-走っている全件構築や差分適用は止まらないので、
-**古い構築が新しい `snap` に `with_files` で書き込む**。
+走っている全件構築や差分適用は止まらない。
 
-TS 側が二重に呼ばないことに依存している。**Rust 側に守りは無い。**
+**守りは代（epoch）。** 止めるのではなく、**古い書き手の書き込みを捨てる**
+——索引は `update_if_epoch` / `snapshot_if_epoch`、帳簿と watcher は
+`ProjectManager` の `epoch` が持つ。据え直された後の構築は帳簿を据えられず
+（`install_after_full_build` が `false` を返す）、呼び手は watcher も起こさない。
 
 ### ⚠️ `B`（全件構築中）に `fs-event` が来る
 
@@ -131,29 +176,61 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 
 **この表が無かったために、doc と issue #333 が2回続けて逆のことを書いた。**
 
-`read_to_jkf` の結果は5つに分かれる。**局面が入るかと、警告が出るかは別々に決まる。**
+`read_to_jkf` の戻りは3つの腕に分かれ、`NothingToIndex` は `looks_intentional` で
+さらに割れる。**局面が入るかと、警告が出るかは別々に決まる。**
 
-| 戻り                                | 何が起きたか                   | 警告     | `file_table` への登録 | 局面                 |
-| ----------------------------------- | ------------------------------ | -------- | --------------------- | -------------------- |
-| `Ok(Indexable { warns: [] })`       | 読めた（読み残しも見つからず） | 出さない | する                  | 入る（⚠️ 下記）      |
-| `Ok(Indexable { warns: [_] })`      | 読めたが一部を採れなかった     | **出す** | する                  | **採れたぶんは入る** |
-| `Err(ParseFailed)`                  | 読めなかった                   | **出す** | **する**              | 入らない             |
-| `Ok(NothingToIndex { warns: [] })`  | 空に見え、読み残しも見つからず | 出さない | **する**              | 入らない             |
-| `Ok(NothingToIndex { warns: [_] })` | 空に見えるが、読めなかったせい | **出す** | **する**              | 入らない             |
+**主語は `read_to_jkf`。** `indexed` の欄を実際に書くのは、`build_file_index` の
+戻りを受けた呼び手（`build.rs` と `project_manager.rs`）。
 
-**登録は5つとも同じ。** 違うのは警告を出すかどうかと、局面が入るかどうか。
+| 戻り                                              | 何が起きたか                       | 警告       | `file_table` への登録 | 局面                 | `indexed` |
+| ------------------------------------------------- | ---------------------------------- | ---------- | --------------------- | -------------------- | --------- |
+| `Ok(Indexable)`                                   | 読めた（`warns` は空とは限らない） | 中身しだい | する                  | **採れたぶんは入る** | 真※       |
+| `Err(ParseFailed)`                                | 読めなかった                       | **出す**   | **する**              | 入らない             | 偽        |
+| `Ok(NothingToIndex { looks_intentional: true })`  | 空なのが正しい姿                   | 出さない   | **する**              | 入らない             | **真**    |
+| `Ok(NothingToIndex { looks_intentional: false })` | 空に見えるだけ                     | 中身しだい | **する**              | 入らない             | 偽        |
+
+※ **`Indexable` でも偽になる口が1つある。** `build_index_for_jkf` が
+`BuildError::Initial` を返した回——`BuildPolicy::Loose` でも開始局面を組み立て
+られなければ `build_file_index` は `Err` を返し、呼び手が `indexed: false` で
+載せる（`file_build.rs` の `# Errors`）。表に居るのに局面を1つも持たない
+第3の状態はこれ。
+
+**`warns` の空・非空では割れない。** `warns: [_]` なら `looks_intentional` は必ず偽だが、
+**`warns: []` はどちらもありうる**——`an_empty_file_is_rejected_but_a_moveless_kifu_is_not`
+が並べる20形は**すべて `warns` が空**で、`looks_intentional` が真なのは平手の1形だけ。
+0バイト・BOM だけ・全角スペースだけの `.kif` はどれも警告なしで偽に落ちる。
+
+**登録はどの戻りでも同じ。** 違うのは警告・局面・`indexed` の3つ。
+
+**`indexed` は「局面が入ったか」ではない。** `looks_intentional: true` の行は
+局面が入らないのに**真**——このアプリが新規作成した棋譜がこれで、中身が無いのが
+正しい姿。失敗に数えると**棋譜を1つ作るたびにワークスペースが黄色くなる**。
+
+`looks_intentional` を決めるのは `kifu_reader::is_blank`。**中身が空白・BOM・NUL
+だけでないこと**と警告が無いことの両方で決める。警告を出す口があるのは CSA だけ
+（`warn_if_moves_were_dropped`）なので、KIF / KI2 / JKF は中身が無くても
+`warns` が空になる——だから警告の有無だけでは割れない。
+
+**それでも検査が黙る形は真に落ちる。** 読み残しを見る口は CSA 専用なので、
+KIF / KI2 / JKF は中身があっても局面0件なら「本当に空」と数えられる（#501）。
+CSA でも上の2通り（`%` の打ち切り・UTF-16）は同じ。
+
+**`Ok` を「入った」と読まない。** `NothingToIndex` も `Ok(FileBuild)` で返るので、
+`Ok`/`Err` で数えると**局面を1つも持たない棋譜が「索引済み」に数えられる**
+（`FileBuild::indexed` の doc）。
 
 **検査は2通りで黙る。** `%` の行で数を打ち切るので `%MATTA` の後ろに指し手が
-続く記録は数え落とし、読み直しの I/O が失敗しても黙る。どちらも
-**警告の欄が空の行**（`Ok(Indexable { warns: [] })` と `Ok(NothingToIndex { warns: [] })`）に落ちるので、
-その2行は**「読み残しが無い」ではなく「見つからなかった」**と読むこと。
+続く記録は数え落とし、UTF-16 の CSA はバイト列に NUL が挟まって指し手行の形に
+ならず0件と数える。どちらも
+**`warns` が空のまま**通るので、空の `warns` は
+**「読み残しが無い」ではなく「見つからなかった」**と読むこと。
 
-**下2行を割る理由。** アプリが対局者名なしで作った棋譜は本当に空で、
+**`looks_intentional` で割る理由。** アプリが対局者名なしで作った棋譜は本当に空で、
 利用者に直しようが無いので黙る。途中で切れた CSA は同じ形に見えるが、
 **指し手のある棋譜が黙って索引から消える**ので伝える。
 
 **`warns` を積むのは CSA だけ。** `csa` クレートが読み残しを捨てて `Ok` を返すので、
-読み手が見つけて積む（`kifu_reader.rs` の `warn_if_moves_were_dropped`）。
+読み手が見つけて積む（`csa.rs` の `warn_if_moves_were_dropped`）。
 
 **この警告が出たファイルを画面で開けるとは限らない。** `tsshogi` が
 どの行パターンにも当たらない行を読み飛ばすので、飛ばしても局面が繋がるなら開ける
@@ -161,8 +238,8 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 繋がらなければ `tsshogi` も断る — 飛ばした行が指し手だった場合と、
 `-3334XX` のように指し手の形で値が壊れている場合。
 `is_csa_move_line` は形しか見ないので、**どちらも同じ警告になる**。
-表の `warns: [_]` の2行（`Ok(Indexable { warns: [_] })` と
-`Ok(NothingToIndex { warns: [_] })`）は「画面では開ける」を意味しない。
+**`warns` が空でない回**（`Indexable` でも `NothingToIndex` でも起こる）は
+「画面では開ける」を意味しない。
 
 ### 局面を入れるかは `says_nothing` だけが決める
 
@@ -209,9 +286,23 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 **`gen` が上がらないと前の世代のセグメントが索引に残る**からで、
 `project_manager` の `build_one_file` が `None` を返したときの腕がそれを担っている。
 
-全件構築（`build.rs`）と差分更新（`project_manager.rs`）で残っている差は2つ。
+**登録は同じでも、`indexed` 欄が違う。** 組めた棋譜は `indexed: true`、
+組めなかった棋譜は `indexed: false` で載る——**表に居るのに局面を1つも持たない**
+第3の状態がある。両経路ともこの欄を書く（`build.rs` の `FileEntry { indexed, .. }`、
+`project_manager` の `None` の腕の `indexed: false`）。
 
-- `build.rs` は `ok` フラグを計算しているが、登録の判断には使っていない（`indexed_ok` の勘定だけ）
+画面の2つの数はこの欄で分かれる。
+
+| 画面の欄     | 数える口                 | 何を数えるか                               |
+| ------------ | ------------------------ | ------------------------------------------ |
+| 対象ファイル | `FileTable::live_len`    | 墓標を除いた全部（組めなかった棋譜も含む） |
+| 索引済み     | `FileTable::indexed_len` | `indexed` が真のものだけ                   |
+
+差が「検索に出ない棋譜」の数になるのは `Ready` の回だけ
+（`IndexStatePayload::indexed_files` の doc）。
+
+全件構築（`build.rs`）と差分更新（`project_manager.rs`）で残っている差は1つ。
+
 - **読めなかった理由をどこで警告にするかが違う。** `build.rs` は `warns` に混ぜて
   他の警告と同じループで出す。`project_manager` は `build_one_file` の別の腕で
   その場で出して `None` を返す。**出し方（1件ずつ `EVT_INDEX_WARN` を emit）は
@@ -234,10 +325,15 @@ abort されず、生きたまま `B` に入る。そのとき `run_rescan_diff_
 | `<名前>.bak`  | 保存の途中だけ。本体を退避してから作業中のものを rename し、最後に消す |
 | `<名前>.tmp`  | 書いている最中だけ                                                     |
 
-**下の表の `restore-ng` は「本体と `.bak` の両方が読めなかった」。**
-`try_restore` は本体で失敗すると `.bak` を読みに行くので、
-保存の途中で落ちて `.bak` が残っていると、**1つ前のチェックポイントが
-黙って復元される**（`U` へ行く。利用者に出るものは無い）。
+**`.bak` へ落ちるのは、本体の「ファイル読み込み」が失敗したときだけ。**
+`DiskStore::load` が見るのは読めたかどうかだけで、中身は見ない——復号の失敗
+（版違い / magic 違い / root hash 違い / `bad length` / zstd の失敗）では
+本体を返したまま `restore-ng` になる。**下の表の `restore-ng` は
+「本体が読めて、その中身が通らなかった」がほとんど。**
+
+本体のファイルが消えた・開けない回だけ `.bak` を読みに行くので、保存の途中で
+落ちて `.bak` が残っていると、**1つ前のチェックポイントが黙って復元される**
+（`U` へ行く。利用者に出るものは無い）。
 差分は `(size, mtime_ms)` の変わったファイルしか拾い直さないので、
 触っていない棋譜は1世代古い解釈のまま残る。
 

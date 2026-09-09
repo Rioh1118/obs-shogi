@@ -51,17 +51,17 @@ loadedAbsPath`）を要求するので、B3 と重ならない。**記録の条�
 
 ## イベント
 
-| 記号   | イベント                                   | 発生源                                                                                           |
-| ------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| **E1** | 棋譜が盤に載る                             | `loadGame` の `game_loaded`（起点は `GameFileTreeBridge`）                                       |
-| **E2** | 棋譜を閉じる                               | 開いている棋譜（か親）の削除・ツリーからの消失・ルート外への移動 → `kifu_closed` → `resetGame`※2 |
-| **E3** | 向きのボタンを押す                         | `AnalysisPaneHeader` の `handleTogglePov`                                                        |
-| **E4** | ツリーの選択だけが動く                     | `FileNode` のクリック。`selectNode` は同期、読み込みは非同期                                     |
-| **E5** | 読み込みに失敗して選択が巻き戻る           | `openKifuNode` の `restoreSelection`（→ [file-tree.md](file-tree.md) E11）                       |
-| **E6** | 開いている棋譜をもう一度クリックする       | `FileNode.handleClick` と `selectNodeByAbsPath` の両方に `isActive` の関門                       |
-| **E7** | 改名・移動で `activeKifuPath` が張り替わる | `renameNode` / `moveNode` → `reconcilePathMutation` → `active_kifu_reconciled`                   |
-| **E8** | `pov` 以外の URL が変わる                  | モーダルの開閉、`tesuu` の移動                                                                   |
-| **E9** | 開いた棋譜が盤に載せられず落ちる           | `loadGame` の catch → `set_error`。`game_loaded` は出ない                                        |
+| 記号   | イベント                                   | 発生源                                                                                                                                                     |
+| ------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **E1** | 棋譜が盤に載る                             | `loadGame` の `game_loaded`（起点は `GameFileTreeBridge`）                                                                                                 |
+| **E2** | 棋譜を閉じる                               | 開いている棋譜（か親）の削除・ツリーからの消失・ルート外への移動 → `kifu_closed` → `resetGame`※2                                                           |
+| **E3** | 向きのボタンを押す                         | `AnalysisPaneHeader` の `handleTogglePov`                                                                                                                  |
+| **E4** | ツリーの選択だけが動く                     | `FileNode` のクリック。`selectNode` は同期、読み込みは非同期                                                                                               |
+| **E5** | 読み込みに失敗して選択が巻き戻る           | `openKifuNode` の `restoreSelectionToActiveKifu`（→ [file-tree.md](file-tree.md) E11）                                                                                 |
+| **E6** | 開いている棋譜をもう一度クリックする       | `FileNode.handleClick` の関門（ツリーと盤の**両方**がその棋譜を指すときだけ省く）と、`selectNodeByAbsPath` の関門（呼び出し側が `forceReopen` で覆せる）※7 |
+| **E7** | 改名・移動で `activeKifuPath` が張り替わる | `renameNode` / `moveNode` → `reconcilePathMutation` → `active_kifu_reconciled`                                                                             |
+| **E8** | `pov` 以外の URL が変わる                  | モーダルの開閉、`tesuu` の移動                                                                                                                             |
+| **E9** | 開いた棋譜が盤に載せられず落ちる           | `loadGame` の catch → `set_error`。`game_loaded` は出ない                                                                                                  |
 
 **E8 を落とすと表が嘘になる。** `updateParams` は `searchParams` を閉じ込むので
 URL が変わるたびに同一性が変わり、エフェクトの依存に載っている以上**毎回再実行される**。
@@ -99,6 +99,10 @@ URL が変わるたびに同一性が変わり、エフェクトの依存に載�
 `loadedAbsPath` だけ。E9（開いたが盤に載せられず落ちる）の後は、ツリーが壊れた棋譜を
 掴んだまま盤が空という B0 になる。**その B0 では E2 / E6 / E7 が踏める**ので、
 B0 の行でそれらを `×` にしてはいけない。
+
+**B0 の E6 では、どちらの関門も塞がない**（※7）。クリックは `openKifuNode` まで届き、
+また載せられなければ E9 になる。向きは B0 のまま動かないので `—` で正しいが、
+**理由は「関門が飲み込むから」ではない**。
 
 ※2 **「閉じる」ボタンは無い。** `closeActiveKifu` は公開されているがスライス外の
 呼び出し元が0で、E2 を踏めるのは上の3つだけ。**それでも E2 は実在する**ので、
@@ -142,6 +146,21 @@ n 回走り、各回が `shownKifuPathRef` を1段ずつ追いつかせる。**�
 **この比較（`shownKifuPathRef.current === shownKifuPath`）を「常に最新どうしを
 比べているのだから要らない」と読んで落とさないこと。** 落とすと不変条件1が破れ、
 E8（`pov` 以外の URL 変更）のたびに `pov` が消える。
+
+※7 **2つの関門は、同じ問い（開き直しを省いてよいか）に別の材料で答えている。**
+
+| 関門                                   | 見るもの                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `FileNode` の `canSkipReopen`          | `activeKifuPath === node.path && loadedAbsPath === node.path`                              |
+| `selectNodeByAbsPath` の `canSkipOpen` | `activeKifuPath === node.path && jkfData !== null` を、呼び出し側が `forceReopen` で覆せる |
+
+**盤（`loadedAbsPath`）を見られるのは呼び出し側だけ**——`entities/file-tree` から
+`entities/game` は見えないので、後者は覆す口を持つ形になっている。
+
+**どちらの関門も形式（`kifuFormat`）を見ない。** 改名で拡張子が変わった回は
+ツリーが握る形式がずれるが、そこで開き直すと**中身と違う形式でパースされる**——
+パーサは投げずに0手の棋譜を返すので、盤が空になったまま成功として載る。
+ずれは発生源で直すもの → #507
 
 ## この表が満たすべき不変条件
 

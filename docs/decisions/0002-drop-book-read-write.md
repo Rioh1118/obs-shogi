@@ -23,11 +23,11 @@ open issue の最大の塊だった。方針転換 2026-06 では T1-④ とし�
 
 ShogiHome が同じ領域を、追いつく見込みの無い水準で埋めている。
 
-| 確認したこと                                                                                           | 出典                                                                   |
-| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| 4形式の reader が実在する（`apery.ts` / `sbk.ts` / `yaneuraou.ts` / `ybb.ts` + Zobrist テーブル 62KB） | `sunfish-shogi/shogihome` の `src/background/book/` を `gh api` で列挙 |
-| テストが実在する（7ファイル、`index.spec.ts` だけで 44KB）                                             | 同 `src/tests/background/book/`                                        |
-| Windows / macOS / Linux で配布されている                                                               | リリース asset                                                         |
+| 確認したこと                                                                                           | 出典                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| 4形式の reader が実在する（`apery.ts` / `sbk.ts` / `yaneuraou.ts` / `ybb.ts` + Zobrist テーブル 62KB） | [shogihome の src/background/book/](https://github.com/sunfish-shogi/shogihome/tree/main/src/background/book) を `gh api` で列挙 |
+| テストが実在する（7ファイル、`index.spec.ts` だけで 44KB）                                             | 同 [src/tests/background/book/](https://github.com/sunfish-shogi/shogihome/tree/main/src/tests/background/book)                  |
+| Windows / macOS / Linux で配布されている                                                               | リリース asset                                                                                                                   |
 
 **やねうら王のバイナリ定跡は `.ybb` であり、`.db.bin` は存在しない。**
 `source/book/book.h` を直接読んで確認した。`.bin` で当たるのは Apery の `book.bin`（`book.h:184`）だけで、

@@ -137,6 +137,41 @@ describe("走っている書き込みを数える", () => {
       false,
     );
   });
+
+  /**
+   * **`reset_state` が返す欄を全部並べる。**
+   *
+   * `initialGameState` を展開する枝なので、書かなかった欄は黙って初期値へ戻る。
+   * 戻ってはいけない欄（走っている書き込みの本数、失敗の回数）が増えたとき、
+   * **この test が落ちて持ち越しの判断を通させる**のが目的。
+   * 欄を1つ足しただけで赤くなるので、期待値をここで更新すること。
+   */
+  it("棋譜を閉じたとき、どの欄が初期値へ戻りどれが残るかを全部固定する", () => {
+    const dirty = {
+      ...initialGameState,
+      jkf: { header: {}, moves: [{}] },
+      loadedAbsPath: "/ws/a.kif",
+      loadFailedAbsPath: "/ws/b.kif",
+      loadFailedSeq: 3,
+      blockingWrites: 2,
+      isLoading: true,
+      error: "boom",
+    } as typeof initialGameState;
+
+    expect(gameReducer(dirty, { type: "reset_state" })).toEqual({
+      jkf: null,
+      cursor: null,
+      branchPlan: asBranchPlan([]),
+      selectedPosition: null,
+      loadedAbsPath: null,
+      loadFailedAbsPath: null,
+      // 持ち越す2つ
+      loadFailedSeq: 3,
+      blockingWrites: 2,
+      isLoading: true,
+      error: null,
+    });
+  });
 });
 
 describe("jkf_restored", () => {

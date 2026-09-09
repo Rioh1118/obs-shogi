@@ -13,9 +13,13 @@ use std::{
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Semaphore, task::JoinSet};
 
+use crate::search::announce::{
+    announce_progress, announce_state, build_failure, warn_build_not_started, IndexAnnouncement,
+    IndexProgress,
+};
 use crate::search::cache::format;
 use crate::search::index::file_build::build_file_index;
-use crate::search::message::{for_screen, ScreenMessage};
+use crate::search::message::ScreenMessage;
 use crate::search::project_manager::ProjectManager;
 use crate::search::read::fs_scan::{snapshot_from_records, FileRecord};
 use crate::search::store::bucket::{empty_buckets, BucketEntries};
@@ -23,9 +27,23 @@ use crate::search::store::index_store::IndexStore;
 use crate::search::store::node_table::NodeTable;
 use crate::search::store::snapshot::IndexState as StoreIndexState;
 use crate::search::types::{
-    FileEntry, FileId, IndexProgressPayload, IndexState, IndexStatePayload, IndexWarnPayload,
-    EVT_INDEX_PROGRESS, EVT_INDEX_STATE, EVT_INDEX_WARN,
+    FileEntry, FileId, IndexProgressPayload, IndexWarnPayload, EVT_INDEX_PROGRESS, EVT_INDEX_WARN,
 };
+
+/// 全件構築のタスクに渡すもの。
+///
+/// **走査の結果と、据え直しの代を1つにまとめる。** どれも構築の末尾まで
+/// 持ち回る必要があり、引数に並べると呼び手が順を取り違える。
+pub struct FullBuild {
+    pub root_dir: PathBuf,
+    pub records: Vec<FileRecord>,
+    pub total_files: u32,
+    /// `IndexStore::restart` が返した代。**据え終わるまで持ち回る**
+    pub epoch: u64,
+    /// 走査で読めなかった場所があったか。**構築の結末まで持ち回る**
+    /// ——`Building` にだけ載せると、`Ready` が上書きして画面から消える
+    pub partially_unreadable: bool,
+}
 
 /// 棋譜を1つずつ読んで索引を全件作る。
 ///
@@ -51,11 +69,15 @@ pub async fn build_full_index_task(
     app: AppHandle,
     store: Arc<IndexStore>,
     project: Arc<ProjectManager>,
-    root_dir: PathBuf,
-    mut records: Vec<FileRecord>,
-    total_files: u32,
-    epoch: u64,
+    build: FullBuild,
 ) {
+    let FullBuild {
+        root_dir,
+        mut records,
+        total_files,
+        epoch,
+        partially_unreadable,
+    } = build;
     type BuildItem = (
         FileId,
         u32,
@@ -76,11 +98,7 @@ pub async fn build_full_index_task(
         path_to_id.insert(path_key, file_id);
     }
 
-    // 上の doc の前提。**破れたら書かずに帰る。**
-    //
-    // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
-    // 索引が作られない方が観測できる。
-    // 呼び手が渡した代の索引であること。**破れたら書かずに帰る。**
+    // 呼び手が渡した代の、空の `Building` であること。**破れたら書かずに帰る。**
     //
     // 半端に書き込むと `file_id` が衝突して、違う局面のヒットが黙って出る。
     // 索引が作られない方が観測できる。
@@ -95,13 +113,7 @@ pub async fn build_full_index_task(
                 snap.state,
                 snap.file_table.len()
             );
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: root_dir.to_string_lossy().into_owned(),
-                    message: for_screen(&"索引の作成を始められませんでした。開き直してください"),
-                },
-            );
+            warn_build_not_started(&app, &root_dir);
             return;
         }
     }
@@ -115,13 +127,12 @@ pub async fn build_full_index_task(
     let mut join: JoinSet<BuildItem> = JoinSet::new();
 
     const COMMIT_BATCH: usize = 64;
-    const EMIT_INTERVAL: Duration = Duration::from_millis(100);
 
     let mut batch: Vec<(FileEntry, Arc<NodeTable>, BucketEntries)> =
         Vec::with_capacity(COMMIT_BATCH);
 
     let mut done_files: u32 = 0;
-    let mut indexed_ok: u32 = 0;
+    let mut indexed_files: u32 = 0;
     let mut last_emit = Instant::now();
 
     for (i, rec) in records.into_iter().enumerate() {
@@ -142,9 +153,14 @@ pub async fn build_full_index_task(
             let _permit = permit;
 
             let res = tokio::task::spawn_blocking(
-                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<ScreenMessage>), ScreenMessage> {
+                move || -> Result<(BucketEntries, Arc<NodeTable>, Vec<ScreenMessage>, bool), ScreenMessage> {
                     let built = build_file_index(&rec2, file_id, gen)?;
-                    Ok((built.by_bucket, built.node_table, built.warns))
+                    Ok((
+                        built.by_bucket,
+                        built.node_table,
+                        built.warns,
+                        built.indexed,
+                    ))
                 },
             )
             .await;
@@ -153,23 +169,27 @@ pub async fn build_full_index_task(
             let empty_nt = Arc::new(NodeTable::empty());
 
             let out: BuildItem = match res {
-                Ok(Ok((by_bucket, node_table, warns))) => {
-                    (file_id, gen, path_str, by_bucket, node_table, warns, true)
+                Ok(Ok((by_bucket, node_table, warns, indexed))) => {
+                    // **`Ok` を「入った」と読まない。** 読めたが入れる局面が
+                    // 無い棋譜も `Ok` で返る（`FileBuild::indexed` の doc）
+                    (
+                        file_id, gen, path_str, by_bucket, node_table, warns, indexed,
+                    )
                 }
                 Ok(Err(e)) => (file_id, gen, path_str, empty, empty_nt, vec![e], false),
-                Err(e) => (
-                    file_id,
-                    gen,
-                    path_str,
-                    empty,
-                    empty_nt,
-                    vec![for_screen(&format_args!(
-                        "索引を組む途中で内部の処理が落ちました。このファイルの局面は\
-                         検索に出ません。開き直しても直らないときは報告してください\
-                         （内部の理由: {e}）"
-                    ))],
-                    false,
-                ),
+                Err(e) => {
+                    // **理由はログへ。** 画面には内部の綴りを出さない
+                    log::warn!("[index] 索引を組む仕事が落ちた（file_id={file_id}）: {e}");
+                    (
+                        file_id,
+                        gen,
+                        path_str,
+                        empty,
+                        empty_nt,
+                        vec![build_failure()],
+                        false,
+                    )
+                }
             };
 
             out
@@ -177,7 +197,7 @@ pub async fn build_full_index_task(
     }
 
     while let Some(r) = join.join_next().await {
-        let (file_id, gen, path_str, by_bucket, node_table, warns, ok) = match r {
+        let (file_id, gen, path_str, by_bucket, node_table, warns, indexed) = match r {
             Ok(v) => v,
             Err(_join_err) => {
                 done_files += 1;
@@ -186,24 +206,21 @@ pub async fn build_full_index_task(
         };
 
         done_files += 1;
-        if ok {
-            indexed_ok += 1;
+        if indexed {
+            indexed_files += 1;
         }
 
         for w in warns {
-            let _ = app.emit(
-                EVT_INDEX_WARN,
-                IndexWarnPayload {
-                    path: path_str.clone(),
-                    message: w,
-                },
-            );
+            let _ = app.emit(EVT_INDEX_WARN, IndexWarnPayload::file(path_str.clone(), w));
         }
 
         let file_entry = FileEntry {
             file_id,
             path: path_str.clone(),
             deleted: false,
+            // 組めなかった棋譜も表には載る。**見分けはこの欄だけ**
+            // （`FileEntry::indexed` の doc）
+            indexed,
             gen,
         };
 
@@ -217,7 +234,7 @@ pub async fn build_full_index_task(
             }
         }
 
-        if last_emit.elapsed() >= EMIT_INTERVAL {
+        if last_emit.elapsed() >= crate::search::announce::EMIT_INTERVAL {
             let _ = app.emit(
                 EVT_INDEX_PROGRESS,
                 IndexProgressPayload {
@@ -226,13 +243,14 @@ pub async fn build_full_index_task(
                     total_files,
                 },
             );
-            let _ = app.emit(
-                EVT_INDEX_STATE,
-                IndexStatePayload {
-                    state: IndexState::Building,
-                    dirty_count: 0,
-                    indexed_files: indexed_ok,
-                    total_files,
+            announce_progress(
+                &app,
+                &store,
+                epoch,
+                IndexProgress::Building {
+                    total: total_files,
+                    indexed: indexed_files,
+                    partially_unreadable,
                 },
             );
             last_emit = Instant::now();
@@ -261,13 +279,15 @@ pub async fn build_full_index_task(
         },
     );
 
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        IndexStatePayload {
-            state: IndexState::Ready,
-            dirty_count: 0,
-            indexed_files: indexed_ok,
-            total_files,
+    // **状態を出す口は1つ。** 自分で組むと、旗が増えたときにここが伏せて出す
+    announce_state(
+        &app,
+        &store,
+        epoch,
+        // **件数は渡さない。** 組めた数は `FileEntry::indexed` として索引が
+        // 覚えているので、`announce_state` が数える
+        IndexAnnouncement::Built {
+            partially_unreadable,
         },
     );
 
@@ -297,12 +317,22 @@ pub async fn build_full_index_task(
         });
     }
 
-    project
-        .install_after_full_build(root_dir.clone(), scan, path_to_id, next_file_id)
-        .await;
+    // **据えられなかったら、watcher も起こさない。** 据え直された後に
+    // 起こすと、新しいプロジェクトの根を前のプロジェクトの watcher が見張る
+    if !project
+        .install_after_full_build(epoch, root_dir.clone(), scan, path_to_id, next_file_id)
+        .await
+    {
+        return;
+    }
 
     let _ = project
         .clone()
-        .start_watcher_and_debounce(app.clone(), store.clone(), Duration::from_millis(800))
+        .start_watcher_and_debounce(
+            app.clone(),
+            store.clone(),
+            Duration::from_millis(800),
+            epoch,
+        )
         .await;
 }
