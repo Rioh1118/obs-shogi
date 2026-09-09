@@ -1,8 +1,8 @@
 # 画面仕様: 起動とワークスペース選択
 
-対象: `src/pages/AppLoading.tsx` `src/pages/FolderSelect.tsx`
+対象: `index.html` `src/pages/AppLoading.tsx` `src/pages/FolderSelect.tsx`
 `src/widgets/boot-splash/` `src/features/choose-workspace/`
-`src/app/routing/guards/RequireRootDir.tsx`
+`src/app/routing/guards/RequireRootDir.tsx` `src-tauri/tauri.conf.json`
 
 状態遷移: [`docs/state-transitions/app.md`](../../state-transitions/app.md) の A0 / A1
 
@@ -47,10 +47,35 @@ webview の既定色（白）が出る。アプリの面は暗いので、**起�
 **`visible: false` にして描けてから見せる、は採らない。** React が着く前に落ちると
 窓が一度も出ず、プロセスだけが残る（#513 の症状が悪化する）。
 
+### 起動の1枚目（`index.html` の `.boot-static`）
+
+`BootSplash` と同じ絵を、`index.html` が静的な HTML として持っている。
+`#root` の中に書いてあり、`createRoot(...).render()` の初回コミットで消える
+（React は HostRoot をコミットする段で container の子を空にする）。
+
+**バンドルされた CSS もモジュールグラフも待たない。** ここが無いと、
+最初の絵が出るまでの間ずっと窓の初期色だけになる —— 白は消えても、
+利用者から見れば「何も起きていない窓」が数百 ms 続く。
+
+寸法は px で書いてある。`html { font-size: 62.5% }`（`src/app/styles/global.scss`）は
+バンドル側にあり、この時点ではまだ効かないので、`rem` を書くと CSS が届いた瞬間に
+大きさが飛ぶ。`BootSplash.scss` の `rem` の 10 倍に揃えることは
+`src/__tests__/bootStaticSplash.test.ts` が見る。
+
+**アニメーションは写していない。** 写した宣言はどれも片方だけ動きうる。
+`"Loading"` の書体も、`@font-face` がバンドル側にあるので**1回入れ替わる**。
+
+**10秒経っても消えなければ、断りに切り替わる。** `createRoot` に入る前に落ちる経路
+（モジュール評価中の throw、`#root` が無い、捕まえていない rejection）では
+この1枚が永久に残るので、放っておくと「Loading が回り続ける窓」になる。
+窓枠は自前で閉じるボタンも無いため、利用者にできることが無くなる。
+出すのは一文と「ウィンドウを閉じる」だけ。**ドラッグ領域は持たない** → #513
+
 ### BootSplash
 
-タイトルだけ。**進捗も中止も出ない。** 設定の読み込みは
+アイコンと `Loading` と点3つ。**進捗も中止も出ない。** 設定の読み込みは
 `load_config` の1往復なので、通常はほぼ見えない。
+上の静的な1枚と絵が同じなので、入れ替わりは書体と点の動き以外に出ない。
 
 ### FolderSelect
 
@@ -77,10 +102,14 @@ webview の既定色（白）が出る。アプリの面は暗いので、**起�
 
 | 記号 | 状態                 | 判定                                  | 見えるもの     |
 | ---- | -------------------- | ------------------------------------- | -------------- |
+| B-1  | React が着く前       | `#root` に静的 markup が残っている    | 起動の1枚目    |
 | B0   | 設定の読み込み中     | `isLoading && !config`                | `BootSplash`   |
 | B1   | 読み込み失敗         | `error !== null`                      | 起動エラー     |
 | B2   | ワークスペース未設定 | `config !== null && !config.root_dir` | `FolderSelect` |
 | B3   | 設定済み             | `config.root_dir !== null`            | `/app` へ遷移  |
+
+**B-1 と B0 は絵で区別できない。** そう作ってあるので、入れ替わりの継ぎ目が出ない。
+区別が要るのは止まったときだけで、そちらは10秒後に断りへ切り替わることで付く。
 
 ## 操作と結果
 
@@ -119,7 +148,9 @@ webview の既定色（白）が出る。アプリの面は暗いので、**起�
   （`AppLoading` に戻れば文言は出るが、戻る途中の1フレームは同じ絵になる）
 - **`AppConfig` の `error` が2つの意味を兼ねている** —— 「起動できない」と
   「更新できなかった」。後者を積むとランタイムごと畳まれる → #249
-- **`BootSplash` に進捗も中止も無い。** 読み込みが返らない場合、画面はタイトルのまま止まる
+- **`BootSplash` に進捗も中止も無い。** 読み込みが返らない場合、画面は Loading のまま止まる。
+  静的な1枚が持っている10秒後の断りは**React が着く前にしか出ない**ので、
+  `load_config` が返らない回はここに落ちる
 - **選んだフォルダが読めなかった場合の経路が画面に出ない**
 
 ## これからの要件
