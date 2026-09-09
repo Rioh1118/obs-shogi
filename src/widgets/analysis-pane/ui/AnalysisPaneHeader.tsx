@@ -92,7 +92,7 @@ function AnalysisPaneHeader() {
   };
 
   const handleOpenSettings = () => {
-    openModal("settings", { tab: "general" });
+    openModal("settings", { tab: "workspace" });
   };
 
   const handlePositionSearch = () => {

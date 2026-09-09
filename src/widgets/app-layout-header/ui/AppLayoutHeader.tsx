@@ -83,7 +83,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
           className="app-header__icon-btn"
           title="設定"
           aria-label="設定"
-          onClick={() => openModal("settings", { tab: "general" })}
+          onClick={() => openModal("settings", { tab: "workspace" })}
         >
           <Settings size={18} />
         </button>
