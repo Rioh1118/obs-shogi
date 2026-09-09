@@ -20,6 +20,23 @@ export type SelectedPosition =
   | { type: "square"; x: number; y: number }
   | { type: "hand"; color: Color; kind: Kind };
 
+/**
+ * 盤に載せられなかった理由。**呼び出し側が段と文言を決められる形にする。**
+ *
+ * 例外の `message` をそのまま外へ出すと、**中身は `shogi.js` が投げた英文**なので
+ * 呼び出し側は使えず、自前の日本語を書くことになる。そうすると段と文言を決める場所が
+ * 呼び出し側ごとに分かれる——`entities/file-tree` が `FsError` の `code` で
+ * 同じ問題を避けているのと同じ理由（`describeFsError`）。
+ *
+ * `cause` は診断のためだけに持つ。**利用者に出さない**（内部の語が混ざる）。
+ */
+export type KifuLoadFailure = {
+  /** `initial` から局面を組めない（`game.md` の E16）。いま実際に起きるのはこれだけ */
+  code: "unplayable_initial" | "unknown";
+  absPath: string;
+  cause: string;
+};
+
 export interface GameContextState {
   jkf: JKFData | null;
 
@@ -34,8 +51,40 @@ export interface GameContextState {
 
   selectedPosition: SelectedPosition | null;
 
-  /** 現在ロードしている棋譜ファイル（未選択なら null） */
+  /**
+   * **盤に載っている棋譜。** 動くのは `game_loaded` と `reset_state` だけなので、
+   * 載せられなかった回（`game.md` の E16）は前の棋譜を指したまま残る。
+   *
+   * **ツリーの `activeKifuPath` とはずれる。** あちらは構文として読めた時点で進み、
+   * 盤に載るかは `loadGame` の `buildPlayer` まで来ないと分からない。
+   * 「いま画面に出ている棋譜」を問うならこちら、「ツリーが開いたと言っているパス」は
+   * あちら（`entities/file-tree` の `activeKifuPath`）。
+   */
   loadedAbsPath: string | null;
+
+  /**
+   * 盤に載せられなかった棋譜のパス（`game.md` の E16）。載るまで、または閉じるまで残る。
+   *
+   * **`loadedAbsPath` が動かないことでは代用できない。** 読み込みが進行中の1レンダぶんも
+   * 「まだ載っていない」なので、その2つは区別が付かない。
+   *
+   * `error` と別に持つのは、あちらが文字列でパスを持たないため。
+   * どのファイルの失敗かが分からないと、待っている要求と突き合わせられない
+   */
+  loadFailedAbsPath: string | null;
+
+  /**
+   * `loadFailedAbsPath` が立った回数。**単調増加で、戻らない。**
+   *
+   * パスだけでは「いつ失敗したか」が分からない。待っている側は要求を出した時点の値を
+   * 控えておき、**それより進んでいるときだけ**「自分の要求が落ちた」と読む
+   * （`usePositionHitNavigation`）。
+   *
+   * **印を試行の開始で落とす形では足りない。** ツリーから開く経路は
+   * `openKifuNode` がディスクを読み終えるまで `loadGame` に届かないので、
+   * その間に走った effect が前の回の印を読む窓が残る。
+   */
+  loadFailedSeq: number;
 
   /**
    * **利用者を待たせている**書き込みが1つ以上あるか。`blockingWrites > 0` の射影。
@@ -95,7 +144,7 @@ export type GameAction =
       type: "game_loaded";
       payload: {
         jkf: JKFData;
-        absPath: string | null;
+        absPath: string;
         cursor: KifuCursor;
       };
     }
@@ -166,6 +215,14 @@ export type GameAction =
       type: "set_error";
       payload: string | null;
     }
+  /**
+   * 盤に載せられなかった（E16）。`error` と違い**どのファイルかを持つ**ので、
+   * その棋譜を待っている側が要求を捨てられる
+   */
+  | {
+      type: "load_failed";
+      payload: { absPath: string };
+    }
   // 書き込みが失敗したときの `set_error`。**待っている間に棋譜が別物に
   // なっていたら積まない**（`jkf_restored` の `expectedJkf` と同じ判定）。
   | {
@@ -189,6 +246,8 @@ export const initialGameState: GameContextState = {
   branchPlan: asBranchPlan([]),
   selectedPosition: null,
   loadedAbsPath: null,
+  loadFailedAbsPath: null,
+  loadFailedSeq: 0,
   isLoading: false,
   blockingWrites: 0,
   error: null,
@@ -227,7 +286,14 @@ export interface GameContextType {
   view: GameView;
   helpers: JKFPlayerHelpers;
 
-  loadGame: (jkf: JKFData, absPath: string | null) => Promise<void>;
+  /**
+   * 棋譜を盤に載せる。**投げない。** 載せられなければ `Err` で `KifuLoadFailure` が返る。
+   *
+   * `state.error` にも積むが、それを描いている場所は無い（#277）。載せられなかった
+   * ことを利用者に伝えるのはこの戻り値を読む側の仕事で、捨てると**盤も棋譜一覧も
+   * 前の棋譜のまま、何も出ない**（`failure-surfacing.md` の F-31）。
+   */
+  loadGame: (jkf: JKFData, absPath: string) => AsyncResult<void, KifuLoadFailure>;
   resetGame: () => void;
 
   goToIndex: (index: number) => void;

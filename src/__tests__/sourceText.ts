@@ -113,6 +113,7 @@ const lineCommentsIn = (text: string): string => (text.match(/\/\/[^\n]*/g) ?? [
  *
  * **落とす／残すの規則を2通り持たない**のがここに置く理由。片方だけ直すと、
  * コードでもコメントでもない区間が生まれ、どちらの検査からも外れる。
+ * 引き手は `srcCommentIdentifiers` と `ownedIdentifiers`。
  *
  * `lang` は `codeOf` と同じ。**シェルにも裏返しが要る**——`.claude/hooks/*.sh` は
  * 検査の名前やパスを「仕様として引く」ので、そこが腐っても赤くならない状態が残る。

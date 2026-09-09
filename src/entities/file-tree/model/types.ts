@@ -93,7 +93,13 @@ export type FileTreeState = {
   fileTree: FileTreeNode | null;
   // ツリー上の選択
   selectedNode: FileTreeNode | null;
-  // 現在開いている棋譜
+  /**
+   * **ツリーが開いた棋譜。** `openKifuNode` が構文として読めた時点で進む。
+   *
+   * **盤に載ったことは意味しない。** 載るかは `entities/game` の `loadGame` まで
+   * 来ないと分からないので、載せられなかった回はこちらだけが進む。
+   * 画面に出ている棋譜を問うなら `entities/game` の `loadedAbsPath`。
+   */
   activeKifuPath: string | null;
   jkfData: JKFData | null;
   kifuFormat: KifuFormat | null;
@@ -178,6 +184,19 @@ export const initialState: FileTreeState = {
   conflict: null,
 };
 
+export type SelectNodeOptions = {
+  /**
+   * ツリー側が「もう開いている」と判断しても、開き直させる。
+   *
+   * 判断材料は盤の側（`entities/game` の `loadedAbsPath`）にしか無く、ここからは見えない。
+   *
+   * **省略できないのは、省いた側が黙るから。** 既定値を置くと「盤に載っていない棋譜への
+   * 2度目の要求が、何も起こさずに成功を返す」に倒れる。正しい既定値を決めようが無いので、
+   * 呼び出し側に必ず書かせる。
+   */
+  forceReopen: boolean;
+};
+
 export type FileTreeContextType = FileTreeState & {
   loadFileTree: () => AsyncResult<void, FsError>;
   selectNode: (node: FileTreeNode | null) => void;
@@ -221,5 +240,11 @@ export type FileTreeContextType = FileTreeState & {
   resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
 
   revealNodeByAbsPath: (absPath: string) => void;
-  selectNodeByAbsPath: (absPath: string) => boolean;
+
+  /**
+   * ツリーの選択をそのパスへ移し、必要なら棋譜を開く。
+   *
+   * **返るのは「ツリーにその節が在ったか」だけ。** 開けたかも、盤に載ったかも意味しない。
+   */
+  selectNodeByAbsPath: (absPath: string, options: SelectNodeOptions) => boolean;
 };

@@ -69,6 +69,8 @@ export const EXEMPT = new Set([
   "openPath",
   // React の API。reviewer の定義が「使っていないこと」を確かめる材料に引く
   "dangerouslySetInnerHTML",
+  // vitest の matcher。レビューの手順書が「空振りを止める形」の例に引く
+  "toBeGreaterThan",
 ]);
 
 /**

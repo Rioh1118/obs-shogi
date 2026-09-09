@@ -10,10 +10,11 @@ import {
   type GameProviderProps,
   type GameView,
   type JKFPlayerHelpers,
+  type KifuLoadFailure,
   type ShogiMove,
   type StandardMoveFormat,
 } from "./types";
-import { GameContext } from "./context";
+import { GameContext, LoadedKifuPathContext } from "./context";
 
 import type { JKFData } from "@/entities/kifu/model/jkf";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
@@ -69,6 +70,13 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
       // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
       // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+      //
+      // **追いつかない場合がある。** 盤に載せられなかった回（`game.md` の E16）は
+      // `activeKifuPath` だけが進み、`loadedAbsPath` は `game_loaded` でしか動かないので、
+      // 次の棋譜が載るまでこの条件は真であり続ける。その間、盤には前の棋譜が出ているのに
+      // 書き込みは全部ここで止まる——`edit` は `jkf_restored` を撃つので、
+      // **指した手が一瞬出てから戻る**。読み手のいない `state.error` にしか理由が残らないので、
+      // 載せられなかったこと自体は `GameFileTreeBridge` が断りとして出している。
       if (persistence.absPath !== state.loadedAbsPath) {
         const msg = "保存先が切り替わったため書き込みを中止しました";
         dispatch({ type: "set_error", payload: msg });
@@ -300,31 +308,42 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
   );
 
-  const loadGame = useCallback(async (jkf: JKFData, absPath: string | null) => {
-    try {
-      dispatch({ type: "clear_error" });
-      dispatch({ type: "write_started", payload: { blocking: true } });
+  const loadGame = useCallback(
+    async (jkf: JKFData, absPath: string): AsyncResult<void, KifuLoadFailure> => {
+      try {
+        dispatch({ type: "clear_error" });
+        dispatch({ type: "write_started", payload: { blocking: true } });
 
-      const nextJkf = cloneJkf(jkf);
+        const nextJkf = cloneJkf(jkf);
 
-      // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
-      // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
-      // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
-      // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
-      // `cursorView` の catch で盤が黙って空になる。
-      buildPlayer(nextJkf, ROOT_CURSOR);
+        // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
+        // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
+        // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
+        // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
+        // `cursorView` の catch で盤が黙って空になる。
+        buildPlayer(nextJkf, ROOT_CURSOR);
 
-      dispatch({
-        type: "game_loaded",
-        payload: { jkf: nextJkf, absPath, cursor: ROOT_CURSOR },
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load game";
-      dispatch({ type: "set_error", payload: msg });
-    } finally {
-      dispatch({ type: "write_ended", payload: { blocking: true } });
-    }
-  }, []);
+        dispatch({
+          type: "game_loaded",
+          payload: { jkf: nextJkf, absPath, cursor: ROOT_CURSOR },
+        });
+        return Ok(undefined);
+      } catch (e) {
+        const cause = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "set_error", payload: cause });
+        // **宛先も残す。** `error` は文字列なのでどのファイルの失敗か分からず、
+        // その棋譜が載るのを待っている側（`usePositionHitNavigation`）が
+        // 要求を捨てられない
+        dispatch({ type: "load_failed", payload: { absPath } });
+        // **例外の文をそのまま返さない。** 中身は `shogi.js` の英文で、呼び出し側は
+        // 利用者に出せない。段と文言を code から決められる形で返す
+        return Err({ code: "unplayable_initial", absPath, cause } as const);
+      } finally {
+        dispatch({ type: "write_ended", payload: { blocking: true } });
+      }
+    },
+    [],
+  );
 
   const resetGame = useCallback(() => {
     dispatch({ type: "reset_state" });
@@ -788,5 +807,11 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
     ],
   );
 
-  return <GameContext.Provider value={contextValue}>{children}</GameContext.Provider>;
+  return (
+    <GameContext.Provider value={contextValue}>
+      <LoadedKifuPathContext.Provider value={state.loadedAbsPath}>
+        {children}
+      </LoadedKifuPathContext.Provider>
+    </GameContext.Provider>
+  );
 }

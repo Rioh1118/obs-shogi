@@ -8,6 +8,13 @@ import type { CursorLite } from "@/entities/search";
 type PendingNav = {
   absPath: string;
   cursor: CursorLite;
+  /**
+   * 要求を出した時点の `loadFailedSeq`。**これより進んだ失敗だけが自分のもの。**
+   *
+   * パスの一致だけで捨てると、前の回の失敗が残っている状態で同じ棋譜を
+   * もう一度要求したときに、**まだ走っている試行を「もう来ない」と読む**。
+   */
+  failedSeq: number;
 };
 
 /**
@@ -33,11 +40,16 @@ export function usePositionHitNavigation() {
   const { fileTree, selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
+  // **真偽に落としてから依存に入れる。** `view.player` は `buildPlayer` が作る新しい
+  // オブジェクトなので、盤が1手動くたびに同一性が変わる。ここが要るのは「有るか無いか」
+  // だけなのに、そのまま依存に入れると `accept` → 行の props → `memo` の連鎖が毎手切れる
+  const hasPlayer = gameView.player !== null;
+
   const pendingRef = useRef<PendingNav | null>(null);
 
   const startNavigationToHit = useCallback(
     (absPath: string, cursor: CursorLite): NavigationOutcome => {
-      pendingRef.current = { absPath, cursor };
+      pendingRef.current = { absPath, cursor, failedSeq: gameState.loadFailedSeq };
 
       // すでにその棋譜が**盤に載っていて**、view.player もあるなら即ジャンプ。
       //
@@ -55,7 +67,7 @@ export function usePositionHitNavigation() {
         !selectedNode.isDirectory &&
         selectedNode.path === absPath &&
         gameState.loadedAbsPath === absPath &&
-        gameView.player
+        hasPlayer
       ) {
         applyCursor(cursorFromLite(cursor));
         pendingRef.current = null;
@@ -70,7 +82,12 @@ export function usePositionHitNavigation() {
         return "tree-unavailable";
       }
 
-      if (!selectNodeByAbsPath(absPath)) {
+      // **盤に載っていないなら必ず開き直させる。** ツリー側の判断に任せると、載せられなかった棋譜は2度目以降の要求で `openKifuNode` ごと飛ばされる。
+      // 飛ばされると `jkfData` の同一性も `activeKifuPath` も動かず、載せ直しの effect が
+      // 走らないので**モーダルだけが閉じて何も起きない**。
+      const forceReopen = gameState.loadedAbsPath !== absPath;
+
+      if (!selectNodeByAbsPath(absPath, { forceReopen })) {
         pendingRef.current = null;
         return "not-in-tree";
       }
@@ -81,7 +98,8 @@ export function usePositionHitNavigation() {
       applyCursor,
       fileTree,
       gameState.loadedAbsPath,
-      gameView.player,
+      gameState.loadFailedSeq,
+      hasPlayer,
       selectNodeByAbsPath,
       selectedNode,
     ],
@@ -95,7 +113,8 @@ export function usePositionHitNavigation() {
     // **流れた要求は捨てる。** このフックはモーダルごと常時マウントされている
     // （`AppModalLayer`）ので、捨てないと要求はアプリを終えるまで生き残り、
     // あとでその棋譜を普通に開いた瞬間に、誰も頼んでいない局面へ盤が動く。
-    // 見分けは2つ——利用者が別の棋譜を選んだ／その棋譜を読めなかった
+    // 見分けは3つ——利用者が別の棋譜を選んだ／その棋譜を読めなかった／
+    // 読めたが盤に載せられなかった
     if (selectedNode && !selectedNode.isDirectory && selectedNode.path !== p.absPath) {
       pendingRef.current = null;
       return;
@@ -104,14 +123,32 @@ export function usePositionHitNavigation() {
       pendingRef.current = null;
       return;
     }
+    // **`loadedAbsPath` が一致しないことでは代用できない。** 読み込みが進んでいる間も
+    // 一致しないので、成功する要求まで捨てることになる。載せられなかったことは
+    // `loadFailedAbsPath` にしか出ない。
+    //
+    // **回数まで見る。** パスの一致だけだと、前の回の失敗が残っている状態で同じ棋譜を
+    // もう一度要求したときに、要求を出した直後の effect が古い印を読んで捨てる。
+    if (gameState.loadFailedAbsPath === p.absPath && gameState.loadFailedSeq !== p.failedSeq) {
+      pendingRef.current = null;
+      return;
+    }
 
     if (!selectedNode || selectedNode.isDirectory) return;
-    if (!gameView.player) return;
+    if (!hasPlayer) return;
     if (gameState.loadedAbsPath !== p.absPath) return;
 
     applyCursor(cursorFromLite(p.cursor));
     pendingRef.current = null;
-  }, [applyCursor, gameView.player, gameState.loadedAbsPath, kifuError, selectedNode]);
+  }, [
+    applyCursor,
+    hasPlayer,
+    gameState.loadedAbsPath,
+    gameState.loadFailedAbsPath,
+    gameState.loadFailedSeq,
+    kifuError,
+    selectedNode,
+  ]);
 
   return { startNavigationToHit };
 }
