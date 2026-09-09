@@ -190,15 +190,12 @@ export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
       return false;
     }
 
-    // 相手の全ての合法手を取得
-    const opponentMoves = getAllPossibleMoves(testShogi, opponentColor);
-
-    // 相手に合法手がない場合は詰み = 打ち歩詰め
-    if (opponentMoves.length === 0) {
-      return true;
-    }
-
-    return false;
+    // 相手に合法手がない場合は詰み = 打ち歩詰め。
+    //
+    // **数え上げてから長さを見ないこと。** この検査は `hasLegalMove` から
+    // 呼ばれ、その中でまた歩打ちごとにここへ入る。全部作る形だと入れ子が
+    // 掛け算になり、双方が歩を2枚持つ詰み形で1分を超える（実測 66 秒）。
+    return !hasLegalMove(testShogi, opponentColor);
   } catch (e) {
     console.log(e);
     return true; // エラーの場合は安全側に倒して打ち歩詰めとする
@@ -243,8 +240,12 @@ function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
     if (hands[kind] === 0) continue;
     for (const move of allDrops) {
       if (move.kind !== kind) continue;
-      if (!canDropPieceAt(shogi, kind, move.to.x, move.to.y, color)) continue;
+      // **`wouldBeInCheckAfterMove` を先に見る。** 積の条件なので結果は変わらないが、
+      // `canDropPieceAt` は歩について `isUchifudume` を通り、その中で相手の合法手を
+      // また数え上げる。王手放置で落ちる歩打ちにその値段を払うと、双方が歩を2枚持つ
+      // 詰み形で1分を超える（実測 66 秒 → 1ms 未満）
       if (wouldBeInCheckAfterMove(shogi, move)) continue;
+      if (!canDropPieceAt(shogi, kind, move.to.x, move.to.y, color)) continue;
       yield move;
     }
   }
