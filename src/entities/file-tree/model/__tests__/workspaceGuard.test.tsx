@@ -140,6 +140,65 @@ describe("ワークスペースを変えたときの棋譜", () => {
     expect(screen.getByTestId("active").textContent).toBe(A_KIFU);
   });
 
+  it("根が変わったら、飛行中の読み出しは返っても開かない", async () => {
+    // 飛行中の要求は `activeKifuPath` をまだ進めていないので、「根の外の棋譜を閉じる」
+    // 判定には掛からない。捨てないと、返った時点で**前のワークスペースの棋譜が開く**。
+    //
+    // **最後の値だけを見ても分からない。** 開いた直後にこの効果がもう一度走って閉じるので、
+    // 終わりはどちらも `-` になる。開いた瞬間を数えること
+    const opened: string[] = [];
+
+    function RecordingProbe() {
+      const { activeKifuPath, openKifuNode } = useFileTree();
+      opened.push(activeKifuPath ?? "-");
+      return (
+        <button data-testid="open-a" onClick={() => void openKifuNode(A_NODE as never)}>
+          open
+        </button>
+      );
+    }
+
+    let finishRead: (result: unknown) => void = () => {};
+    readKifu.mockImplementation(() => new Promise((resolve) => (finishRead = resolve)));
+
+    const view = render(
+      <FileTreeProvider rootDir={WS_A}>
+        <RecordingProbe />
+      </FileTreeProvider>,
+    );
+    await act(async () => {});
+    await act(async () => {
+      screen.getByTestId("open-a").click();
+    });
+
+    fetchTree.mockResolvedValue({
+      success: true,
+      data: {
+        id: "rootB",
+        name: "B",
+        path: WS_B,
+        isDirectory: true,
+        displayInfo: { iconType: "folder" as const },
+        children: [],
+      },
+    });
+    await act(async () => {
+      view.rerender(
+        <FileTreeProvider rootDir={WS_B}>
+          <RecordingProbe />
+        </FileTreeProvider>,
+      );
+    });
+
+    opened.length = 0; // 根が変わったあとだけを見る
+    await act(async () => {
+      finishRead({ success: true, data: "" });
+      await Promise.resolve();
+    });
+
+    expect(opened, "根の外の棋譜が一瞬でも開いている").not.toContain(A_KIFU);
+  });
+
   it("名前の先頭が一致するだけの兄弟ディレクトリは、中に入っていない", async () => {
     // 開いているのは `/ws/AB/x.kif`。新しい根は `/ws/A` で、`AB` は `A` の中ではない。
     // `startsWith(rootDir)` だけで判定すると true になり、**別のワークスペースの

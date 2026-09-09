@@ -197,6 +197,14 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // 棋譜は内側に残るので、そのときは開いたままでよい。
   useEffect(() => {
     if (!rootDir) return;
+
+    // **飛行中の読み出しも同じ理由で捨てる。** そちらはまだ `activeKifuPath` を
+    // 進めていないので、下の判定には掛からない。捨てないと、返った時点で
+    // **前のワークスペースの棋譜が開き**、この効果がもう一度走って閉じるまで残る
+    if (!isSameOrDescendantPath(requestedKifuPathRef.current, rootDir)) {
+      requestedKifuPathRef.current = null;
+    }
+
     if (!state.activeKifuPath) return;
     if (isSameOrDescendantPath(state.activeKifuPath, rootDir)) return;
 
