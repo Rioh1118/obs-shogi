@@ -180,12 +180,10 @@ describe("モーダル層の境界", () => {
       </MemoryRouter>,
     );
 
-    const fallback = container.querySelector(".app-error-fallback");
-    expect(fallback).not.toBeNull();
     expect(
-      fallback!.classList.contains("app-error-fallback--floating"),
+      container.querySelector(".error-fallback"),
       "in-flow の箱を出すと `.app-layout` の1段目を取り、本体が3段目へ押し出される",
-    ).toBe(true);
+    ).toBeNull();
     expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
   });
 

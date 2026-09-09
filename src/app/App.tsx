@@ -5,7 +5,9 @@ import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";
 import AppRouter from "./routing/AppRouter";
 import UpdaterScreen from "@/features/updater/ui/UpdaterScreen";
-import { AppErrorBoundary, RETRY_LABEL } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
+import { RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
+import { FloatingErrorFallback } from "@/shared/ui/error-fallback/FloatingErrorFallback";
 import { RootErrorFallback } from "./RootErrorFallback";
 
 function App() {
@@ -25,9 +27,13 @@ function App() {
         —— 2箇所に置くと片方だけ直る。
       */}
       <AppErrorBoundary
-        label="アプリ"
-        hint={`「${RETRY_LABEL}」で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。`}
-        fallback={(args) => <RootErrorFallback {...args} />}
+        label={BOUNDARY_LABELS.root}
+        fallback={(view) => (
+          <RootErrorFallback
+            {...view}
+            hint={`「${RETRY_LABEL}」で戻らない場合は、ウィンドウを閉じて開き直してください。保存していない入力は失われます。`}
+          />
+        )}
       >
         <BootstrapProviders>
           <BrowserRouter>
@@ -48,9 +54,10 @@ function App() {
         `useUpdater` は context も router も要らないので、外に置いても何も失わない。
       */}
       <AppErrorBoundary
-        label="更新の知らせ"
-        floatingSlot={1}
-        hint="更新は次の起動時にもう一度知らせます。"
+        label={BOUNDARY_LABELS.updater}
+        fallback={(view) => (
+          <FloatingErrorFallback {...view} hint="更新は次の起動時にもう一度知らせます。" />
+        )}
       >
         <UpdaterScreen />
       </AppErrorBoundary>

@@ -15,7 +15,8 @@ import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
-import { AppErrorBoundary, RETRY_LABEL } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
+import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 
 const AppLayout = () => {
   // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
@@ -72,11 +73,16 @@ const AppLayout = () => {
                       畳むのは盤と操作列だけで、棋譜一覧と解析は残す
                     */}
                     <AppErrorBoundary
-                      label="盤"
-                      // 棋譜が載った後で描画に失敗したときは、同じ棋譜をツリーで押しても
-                      // `openKifuNode` は走らない（`FileNode` の `canSkipReopen` が真）。
-                      // 効くのは別の棋譜を開くこと
-                      hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                      label={BOUNDARY_LABELS.board}
+                      fallback={(view) => (
+                        <ErrorFallbackBody
+                          {...view}
+                          // 棋譜が載った後で描画に失敗したときは、同じ棋譜をツリーで押しても
+                          // `openKifuNode` は走らない（`FileNode` の `canSkipReopen` が真）。
+                          // 効くのは別の棋譜を開くこと
+                          hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                        />
+                      )}
                     >
                       <GameBoard
                         topLeft={<Hand isSente={false} />}
@@ -94,8 +100,13 @@ const AppLayout = () => {
                       畳むのは一覧だけで、盤と解析は残す
                     */}
                     <AppErrorBoundary
-                      label="棋譜一覧"
-                      hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                      label={BOUNDARY_LABELS.kifuStream}
+                      fallback={(view) => (
+                        <ErrorFallbackBody
+                          {...view}
+                          hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                        />
+                      )}
                     >
                       <KifuStreamList />
                     </AppErrorBoundary>
@@ -108,8 +119,13 @@ const AppLayout = () => {
                     畳むのはドックの中だけで、盤と棋譜一覧は残す
                   */}
                   <AppErrorBoundary
-                    label="解析"
-                    hint={`設定からエンジンを選び直してから「${RETRY_LABEL}」を押してください。`}
+                    label={BOUNDARY_LABELS.analysis}
+                    fallback={(view) => (
+                      <ErrorFallbackBody
+                        {...view}
+                        hint={`設定からエンジンを選び直してから「${RETRY_LABEL}」を押してください。`}
+                      />
+                    )}
                   >
                     <AnalysisPane />
                   </AppErrorBoundary>

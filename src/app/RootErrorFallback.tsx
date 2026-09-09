@@ -2,17 +2,19 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useState } from "react";
 import { X } from "lucide-react";
 import {
-  AppErrorFallbackAction,
-  AppErrorFallbackBody,
-  type AppErrorFallbackProps,
-} from "@/shared/ui/AppErrorBoundary";
+  ErrorFallbackAction,
+  ErrorFallbackBody,
+  type ErrorFallbackBodyProps,
+} from "@/shared/ui/error-fallback/ErrorFallbackBody";
 import "./RootErrorFallback.scss";
 
 /**
- * 境界が組んだ表示の材料をそのまま受ける。**欄を選び直さない** ——
- * 選ぶと、境界に書いたものが黙って捨てられる（この形なら、欄が増えたときに tsc が落とす）。
+ * 本文が要るものはそのまま本文へ通す。**出口だけをこの画面が足す。**
+ *
+ * `afterAction` を受けないのは、この画面が自分で埋めるため（`closeFailed`）。
+ * 外から渡せる形にすると、押した結果の知らせが2つ並びうる。
  */
-type Props = AppErrorFallbackProps;
+type Props = Omit<ErrorFallbackBodyProps, "extraActions" | "afterAction">;
 
 /**
  * root の境界が最後に出す画面。
@@ -69,16 +71,16 @@ export function RootErrorFallback(view: Props) {
       </div>
 
       <div className="root-error-fallback__body">
-        <AppErrorFallbackBody
+        <ErrorFallbackBody
           {...view}
           extraActions={
             /*
               **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、
               12px の色の丸は失敗の直後にいちばん見つけにくい。文字のボタンを本文に並べる
             */
-            <AppErrorFallbackAction onClick={close} secondary>
+            <ErrorFallbackAction onClick={close} secondary>
               ウィンドウを閉じる
-            </AppErrorFallbackAction>
+            </ErrorFallbackAction>
           }
           afterAction={
             closeFailed && (

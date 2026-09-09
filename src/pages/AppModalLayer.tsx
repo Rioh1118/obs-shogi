@@ -5,10 +5,11 @@ import { isRaisedFromModal } from "@/features/file-conflict/lib/isRaisedFromModa
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
   AppErrorBoundary,
-  AppErrorFallbackAction,
-  AppErrorFallbackBody,
-  RETRY_LABEL,
+  BOUNDARY_LABELS,
+  type ErrorBoundaryView,
 } from "@/shared/ui/AppErrorBoundary";
+import { ErrorFallbackAction, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
+import { FloatingErrorFallback } from "@/shared/ui/error-fallback/FloatingErrorFallback";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import SfenKifuCreateModal from "@/features/create-file/ui/SfenKifuCreateModal";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
@@ -40,25 +41,25 @@ function useModalLayerResetKeys(): readonly unknown[] {
 }
 
 /**
- * モーダルの層。**境界をここに持つ。**
+ * モーダルの層が畳まれている間に出す箱。**浮かせて出す。**
  *
- * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
- * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
+ * 流れの中の箱で置き換えると `.app-layout` の grid の1段目を取り、本体が
+ * 暗黙の3段目へ押し出されて `overflow: hidden` に切られる（`ModalLayerContent` の doc）。
  *
- * **`floatingSlot` の段は、同時に出うる枠どうしで重ならないよう振ってある**（0 がここ、
- * 1 が `app/App.tsx` の更新の知らせ）。理由は `shared/ui/AppErrorBoundary.scss` の `--floating`。
+ * **立っている知らせを捨てる出口を持つのはここ。** 消す口（`clearKifuError` /
+ * `closeConflict`）は畳まれた側にしか無いので、境界の外に居るこの部品が呼ぶ。
+ * 出口を押した結果を出す `dropped` も、押されるまで存在しない state なので**ここが持つ。**
  */
-export default function AppModalLayer() {
-  const resetKeys = useModalLayerResetKeys();
+function ModalLayerErrorFallback(view: ErrorBoundaryView) {
   const { conflict, kifuError, closeConflict, clearKifuError } = useFileTree();
+  const [dropped, setDropped] = useState<string | null>(null);
 
   /**
    * まだ画面に出したい知らせが立っているか。
    *
    * **立っている知らせそのものが落ちる原因のことがある。** そのときは鍵が動いても直らない
    * —— 解けた瞬間に同じ値をもう一度描いて落ちるので、**別のモーダルを開く操作が、
-   * そのまま行き止まりを踏む操作になる。** 消す口（`clearKifuError` / `closeConflict`）は
-   * 畳まれた側にしか無いので、境界の**外**にいるここが出口を持つ。
+   * そのまま行き止まりを踏む操作になる。**
    */
   const hasStandingNotice = conflict !== null || kifuError !== null;
 
@@ -67,17 +68,13 @@ export default function AppModalLayer() {
    *
    * `kifuError` は**知らせるだけ**なので、捨てても失うのは説明だけ。
    * `conflict` は**待っているファイル操作そのもの**（作成・取り込み・リネーム・移動の要求）で、
-   * 捨てるとその操作は実行されずに消える。だから綴りで「待っている操作」を名指しし、
-   * 押した結果は `afterAction` に出す
+   * 捨てるとその操作は実行されずに消える。だから綴りで「待っている操作」を名指しする
    */
   const dropLabel = conflict !== null ? "待っている操作を取り消す" : "知らせを閉じる";
-  const [dropped, setDropped] = useState<string | null>(null);
 
   return (
-    <AppErrorBoundary
-      label="モーダル"
-      resetKeys={resetKeys}
-      floatingSlot={0}
+    <FloatingErrorFallback
+      {...view}
       hint={
         hasStandingNotice
           ? `出しかけの知らせが原因のことがあります。「${dropLabel}」を押してから「${RETRY_LABEL}」を押してください。`
@@ -85,7 +82,7 @@ export default function AppModalLayer() {
       }
       extraActions={
         hasStandingNotice && (
-          <AppErrorFallbackAction
+          <ErrorFallbackAction
             secondary
             onClick={() => {
               setDropped(
@@ -98,15 +95,28 @@ export default function AppModalLayer() {
             }}
           >
             {dropLabel}
-          </AppErrorFallbackAction>
+          </ErrorFallbackAction>
         )
       }
-      fallback={(view) => (
-        <AppErrorFallbackBody
-          {...view}
-          afterAction={dropped && <p className="app-error-fallback__hint">{dropped}</p>}
-        />
-      )}
+      afterAction={dropped && <p className="error-fallback__hint">{dropped}</p>}
+    />
+  );
+}
+
+/**
+ * モーダルの層。**境界をここに持つ。**
+ *
+ * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
+ * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
+ */
+export default function AppModalLayer() {
+  const resetKeys = useModalLayerResetKeys();
+
+  return (
+    <AppErrorBoundary
+      label={BOUNDARY_LABELS.modal}
+      resetKeys={resetKeys}
+      fallback={(view) => <ModalLayerErrorFallback {...view} />}
     >
       <ModalLayerContent />
     </AppErrorBoundary>

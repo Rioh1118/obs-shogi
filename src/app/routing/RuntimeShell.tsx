@@ -2,7 +2,8 @@ import { Outlet, useLocation } from "react-router";
 import { RuntimeProviders } from "@/app/providers/RuntimeProviders";
 import { RequireRootDir } from "@/app/routing/guards/RequireRootDir";
 import TitleBar from "@/shared/ui/TitleBar";
-import { AppErrorBoundary, RETRY_LABEL } from "@/shared/ui/AppErrorBoundary";
+import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
+import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 
 export default function RuntimeShell() {
   const location = useLocation();
@@ -29,9 +30,14 @@ export default function RuntimeShell() {
             ローカル state で持っているので、遷移のたび既定へ戻る。畳みを解くだけでよい
           */}
           <AppErrorBoundary
-            label="作業画面"
+            label={BOUNDARY_LABELS.shell}
             resetKeys={[location.key]}
-            hint={`「${RETRY_LABEL}」で戻らない場合は、ウィンドウを閉じて開き直してください。`}
+            fallback={(view) => (
+              <ErrorFallbackBody
+                {...view}
+                hint={`「${RETRY_LABEL}」で戻らない場合は、ウィンドウを閉じて開き直してください。`}
+              />
+            )}
           >
             <Outlet />
           </AppErrorBoundary>

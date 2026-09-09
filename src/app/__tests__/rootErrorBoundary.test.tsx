@@ -42,9 +42,15 @@ vi.mock("../routing/AppRouter", () => ({
 
 const { default: App } = await import("../App");
 
+/** 浮かせた枠を積む器。`index.html` が持っているものを、テストでは自分で立てる */
+const OVERLAY_ROOT_ID = "error-overlay-root";
+
 beforeEach(() => {
   throwing.router = true;
   throwing.updater = false;
+  const overlay = document.createElement("div");
+  overlay.id = OVERLAY_ROOT_ID;
+  document.body.appendChild(overlay);
   // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。
   // 出ること自体は意図どおりなので、出力だけ畳む
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -52,6 +58,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.getElementById(OVERLAY_ROOT_ID)?.remove();
   close.mockClear();
   vi.restoreAllMocks();
 });
@@ -115,8 +122,12 @@ describe("root の境界", () => {
       screen.getByTestId("router"),
       "更新の知らせ1枚の事故で、動いているアプリ全体が最後の砦に差し替わっている",
     ).toBeTruthy();
-    // in-flow の箱を作ると `.app-root`（flex column）の列を1つ食い、本体が縮む
-    expect(container.querySelector(".app-error-fallback--floating")).not.toBeNull();
+    // in-flow の箱を作ると `.app-root`（flex column）の列を1つ食い、本体が縮む。
+    // 器へ逃がしているので、呼び出し元の流れには何も残らない
+    expect(container.querySelector(".error-fallback")).toBeNull();
+    expect(
+      document.getElementById(OVERLAY_ROOT_ID)?.querySelector(".error-fallback"),
+    ).not.toBeNull();
   });
 
   test("本体が落ちても、更新の知らせは残る", () => {

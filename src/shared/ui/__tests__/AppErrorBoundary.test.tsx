@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { AppErrorBoundary, AppErrorFallbackBody } from "../AppErrorBoundary";
+import { AppErrorBoundary, BOUNDARY_LABELS, type ErrorBoundaryView } from "../AppErrorBoundary";
 
 /**
- * 境界から出る手段が「再表示」しか無いと、**押しても画面が1ドットも変わらない**行き止まりになる。
+ * 境界が持つのは「捕まえたか」と「畳みを解く鍵」だけ。**見せ方はここでは見ない**
+ * （`error-fallback/__tests__/errorFallback.test.tsx`）。
  *
+ * 境界から出る手段が「再表示」しか無いと、**押しても画面が1ドットも変わらない**行き止まりになる。
  * `reset` は自分の `error` を消すだけで、落ちた原因は境界の**外**（provider の state、URL）に
  * 残っている。同じ state で描き直せば同じ行で落ちる。逆に、原因が消えても
  * （別の画面へ移った、モーダルを閉じた）境界はそれを知らないので畳んだままになる。
@@ -25,6 +27,20 @@ function Child({ boom }: { boom: boolean }) {
   return <div data-testid="child" />;
 }
 
+/**
+ * 見せ方を持たない `fallback`。**畳んだこと・投げられた値・出口だけを出す。**
+ *
+ * 本文の部品を使うと、本文の文言を変えただけでこのファイルが赤くなる
+ */
+const bare = (view: ErrorBoundaryView) => (
+  <div data-testid="fallback">
+    <span data-testid="caught">{String(view.error)}</span>
+    <button type="button" onClick={view.reset}>
+      畳みを解く
+    </button>
+  </div>
+);
+
 beforeEach(() => {
   // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ畳む
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -35,13 +51,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/**
- * 落ちた原因は、画面に出す以外に利用者へ届く経路が無い。
- *
- * `console.error` は配布版では読めない（`devtools` の feature を入れておらず、
- * フロントの `console` をログファイルへ流す経路も無い）。ここで捨てると、
- * 報告に書けるものが「表示できませんでした」の一文だけになる。
- */
 describe("AppErrorBoundary が捕まえる値", () => {
   // **投げられた値そのものを旗にすると、falsy な例外で境界が素通りする。**
   // 素通りした例外は外の境界も受けないので（React は「処理できなかった」と見なす）、
@@ -57,7 +66,7 @@ describe("AppErrorBoundary が捕まえる値", () => {
       let escaped = false;
       try {
         render(
-          <AppErrorBoundary label="盤">
+          <AppErrorBoundary label={BOUNDARY_LABELS.board} fallback={bare}>
             <Throwing value={value} />
           </AppErrorBoundary>,
         );
@@ -66,52 +75,47 @@ describe("AppErrorBoundary が捕まえる値", () => {
       }
 
       expect(escaped, `${name} が境界を素通りした`).toBe(false);
-      expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
+      expect(screen.getByTestId("fallback")).toBeTruthy();
     });
   }
 });
 
-describe("AppErrorBoundary が出す原因", () => {
-  test("例外の文言を画面に出す", () => {
+describe("AppErrorBoundary が fallback へ渡すもの", () => {
+  test("投げられた値をそのまま渡す", () => {
+    // 境界が値を握ると、画面にも報告にも出せるものが「表示できませんでした」の一文だけになる
     render(
-      <AppErrorBoundary label="盤">
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} fallback={bare}>
         <Throwing value={new Error("駒を置けない升がある")} />
       </AppErrorBoundary>,
     );
 
-    expect(screen.getByText(/駒を置けない升がある/)).toBeTruthy();
+    expect(screen.getByTestId("caught").textContent).toContain("駒を置けない升がある");
   });
 
-  test("文字列が投げられても、そのまま出す", () => {
+  test("名乗りをそのまま渡す", () => {
+    // 名乗りは境界の識別子でもある。渡らないと、fallback 側は
+    // どの範囲が畳まれたかを自分で書き足すことになり、写しが増える
+    let seen = "";
     render(
-      <AppErrorBoundary label="盤">
-        <Throwing value="文字列を投げた" />
+      <AppErrorBoundary
+        label={BOUNDARY_LABELS.analysis}
+        fallback={(view) => {
+          seen = view.label;
+          return null;
+        }}
+      >
+        <Throwing value={new Error("落ちた")} />
       </AppErrorBoundary>,
     );
 
-    expect(
-      screen.getByText(/文字列を投げた/),
-      "`error.message` で読むと undefined が画面に出る",
-    ).toBeTruthy();
-  });
-
-  test("`Error` でも文字列でもない値は出さない", () => {
-    render(
-      <AppErrorBoundary label="盤" hint="棋譜を開き直してください。">
-        <Throwing value={{ code: 1 }} />
-      </AppErrorBoundary>,
-    );
-
-    // `String({})` は `[object Object]`。案内より目立つ位置に意味の無い1行が入る
-    expect(screen.queryByText(/技術的な内容/)).toBeNull();
-    expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
+    expect(seen).toBe(BOUNDARY_LABELS.analysis);
   });
 });
 
 describe("AppErrorBoundary が残す記録", () => {
   test("どの境界が受けたかを添えて `console.error` に出す", () => {
     render(
-      <AppErrorBoundary label="解析">
+      <AppErrorBoundary label={BOUNDARY_LABELS.analysis} fallback={bare}>
         <Throwing value={new Error("読み筋が組めない")} />
       </AppErrorBoundary>,
     );
@@ -123,98 +127,17 @@ describe("AppErrorBoundary が残す記録", () => {
   });
 });
 
-describe("AppErrorBoundary が出す案内", () => {
-  test("既定の fallback にも `hint` が届く", () => {
-    render(
-      <AppErrorBoundary label="盤" hint="棋譜を開き直してください。">
-        <Throwing value={new Error("落ちた")} />
-      </AppErrorBoundary>,
-    );
-
-    // 既定の fallback へ素通ししないと、案内を書けるのは fallback を渡した境界だけになる
-    expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
-  });
-});
-
-describe("AppErrorBoundary が fallback へ渡すもの", () => {
-  test("`hint` と `floatingSlot` は `fallback` にも届く", () => {
-    // 届かないと、境界に書いた案内が黙って捨てられる（型でも lint でも赤くならない）
-    render(
-      <AppErrorBoundary
-        label="盤"
-        hint="棋譜を開き直してください。"
-        floatingSlot={0}
-        fallback={(view) => <AppErrorFallbackBody {...view} />}
-      >
-        <Throwing value={new Error("落ちた")} />
-      </AppErrorBoundary>,
-    );
-
-    expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
-    expect(document.querySelector(".app-error-fallback--floating")).not.toBeNull();
-  });
-});
-
-describe("浮かせて出す枠", () => {
-  test("段の番号を渡すと、その番号が CSS へ出る", () => {
-    // **同じ番号を2箇所に振ると同じ座標で重なり、後から描かれた側が下の1枚を丸ごと覆う。**
-    // 段の間隔と上限は同じトークンを見るので、番号が違えば重ならないことは式で決まる
-    const { container } = render(
-      <AppErrorBoundary label="モーダル" floatingSlot={1}>
-        <Throwing value={new Error("落ちた")} />
-      </AppErrorBoundary>,
-    );
-
-    const box = container.querySelector<HTMLElement>(".app-error-fallback--floating");
-    expect(box).not.toBeNull();
-    expect(box!.style.getPropertyValue("--error-fallback-slot")).toBe("1");
-  });
-
-  test("閉じられる。閉じても子は描き直さない", () => {
-    // `再表示` が効かない失敗では箱は自分から消えない。閉じる手段が無いと
-    // そのセッションのあいだ他の部品を覆い続ける
-    let renders = 0;
-    function Counting(): never {
-      renders += 1;
-      throw new Error("落ちた");
-    }
-
-    const { container } = render(
-      <AppErrorBoundary label="モーダル" floatingSlot={0}>
-        <Counting />
-      </AppErrorBoundary>,
-    );
-    const before = renders;
-
-    fireEvent.click(screen.getByText("閉じる"));
-
-    expect(container.querySelector(".app-error-fallback")).toBeNull();
-    expect(renders, "閉じたときに子を描き直すと、同じ行で落ちて箱が戻る").toBe(before);
-  });
-
-  test("浮かせていない境界には閉じる出口を出さない", () => {
-    // in-flow の器は閉じても隙間が残るだけで、畳んだことが読めなくなる
-    render(
-      <AppErrorBoundary label="盤">
-        <Throwing value={new Error("落ちた")} />
-      </AppErrorBoundary>,
-    );
-
-    expect(screen.queryByText("閉じる")).toBeNull();
-  });
-});
-
 describe("AppErrorBoundary の resetKeys", () => {
   test("鍵が変わったら畳むのをやめる", () => {
     const { rerender } = render(
-      <AppErrorBoundary label="盤" resetKeys={["a"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom />
       </AppErrorBoundary>,
     );
-    expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByTestId("fallback")).toBeTruthy();
 
     rerender(
-      <AppErrorBoundary label="盤" resetKeys={["b"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["b"]} fallback={bare}>
         <Child boom={false} />
       </AppErrorBoundary>,
     );
@@ -223,25 +146,25 @@ describe("AppErrorBoundary の resetKeys", () => {
 
   test("鍵が同じなら、描き直しても畳んだまま", () => {
     const { rerender } = render(
-      <AppErrorBoundary label="盤" resetKeys={["a"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom />
       </AppErrorBoundary>,
     );
 
     rerender(
-      <AppErrorBoundary label="盤" resetKeys={["a"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom={false} />
       </AppErrorBoundary>,
     );
     expect(
-      screen.getByText("盤を表示できませんでした。"),
+      screen.getByTestId("fallback"),
       "鍵が動いていないのに解けると、落ち続けるものを描き直し続けて fallback が出なくなる",
     ).toBeTruthy();
   });
 
   test("落ちている間に鍵が動いても、境界は捕まえ続ける", () => {
     const { rerender } = render(
-      <AppErrorBoundary label="盤" resetKeys={["a"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom />
       </AppErrorBoundary>,
     );
@@ -249,32 +172,32 @@ describe("AppErrorBoundary の resetKeys", () => {
     // **ここが変異を殺す。** 比較の相手を落ちた時点で止めると、毎レンダ「変わった」と判定して
     // 子を描き直し続け、境界は捕まえ直せずにこの rerender で例外が飛び出す
     rerender(
-      <AppErrorBoundary label="盤" resetKeys={["b"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["b"]} fallback={bare}>
         <Child boom />
       </AppErrorBoundary>,
     );
-    expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByTestId("fallback")).toBeTruthy();
 
     // 原因が消えて鍵が動いたので、ここで畳むのをやめる
     rerender(
-      <AppErrorBoundary label="盤" resetKeys={["c"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["c"]} fallback={bare}>
         <Child boom={false} />
       </AppErrorBoundary>,
     );
     expect(screen.getByTestId("child")).toBeTruthy();
   });
 
-  test("`再表示` は原因が残っていれば同じ画面に戻る", () => {
+  test("`reset` は原因が残っていれば同じ画面に戻る", () => {
     render(
-      <AppErrorBoundary label="盤" resetKeys={["a"]}>
+      <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom />
       </AppErrorBoundary>,
     );
 
-    fireEvent.click(screen.getByText("再表示"));
+    fireEvent.click(screen.getByText("畳みを解く"));
 
     expect(
-      screen.getByText("盤を表示できませんでした。"),
+      screen.getByTestId("fallback"),
       "**いまの仕様。** 原因が境界の外にあるので `reset` では消えない。押しても変わらないことを利用者に伝える手段はまだ無い",
     ).toBeTruthy();
   });
