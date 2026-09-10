@@ -40,7 +40,37 @@ export const CROSS_SLICE_INVENTORY: readonly string[] = [
   "entities/position -> entities/kifu",
   "entities/search -> entities/kifu",
   "entities/study-positions -> entities/kifu",
+
+  // 器（ファイル作成の対話）が中身（組む面）を描く。**この向きだけ。**
+  // 逆を作ると `import/no-cycle` が落ちる。組む面は器を知らないので、
+  // 面の切り替えも保存先も器から prop で降りてくる
+  "features/create-file -> features/position-editor",
 ];
+
+/**
+ * 互いを読み合っている組。**増やさないための控え。**
+ *
+ * 往復は `import/no-cycle` が拾わない（**輪になるまで黙っている**）。輪でなくても、
+ * 2スライスが互いを読む形は「どちらが器か」を消してしまう。
+ *
+ * ここに1組だけ残っているのは範囲外のため（→ `docs/IDEAS.md`）。
+ * **足さないこと。** 片方の向きを消すのが直し方で、控えを伸ばすのは直し方ではない。
+ */
+const KNOWN_MUTUAL: readonly string[] = [
+  "entities/app-config -> entities/engine-presets",
+  "entities/engine-presets -> entities/app-config",
+];
+
+/** 互いを読み合っている組のうち、まだ控えに無いもの */
+export function newMutualEdges(edges: ReadonlySet<string>): string[] {
+  return [...edges]
+    .filter((edge) => {
+      const [from, to] = edge.split(" -> ");
+      return edges.has(`${to} -> ${from}`);
+    })
+    .filter((edge) => !KNOWN_MUTUAL.includes(edge))
+    .sort();
+}
 
 /**
  * ソースが名指す `@/` 始まりの指定子。

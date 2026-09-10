@@ -210,3 +210,13 @@ r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じる�
 到達しない側は `canDropKe` が `[1, 2]` / `[8, 9]` の直値、新しい側が
 `illegalUnpromotedRow` × `rowToOppositeEnd` の式。消すか、`inspectPosition` を呼ぶ
 薄皮にするかは、対局側で駒打ちの検査をいつ使い始めるかで決まる。
+
+## `entities/app-config` と `entities/engine-presets` が互いを読んでいる
+
+#113 で同層横断の走査（`src/__tests__/crossSliceImports.test.ts`）を入れたときに出た。
+`import/no-cycle` は**輪になるまで黙っている**ので、往復しているだけでは落ちない。
+輪でなくても、2スライスが互いを読む形は「どちらが器か」を消してしまう。
+
+走査には `KNOWN_MUTUAL` として1組だけ控えてある。**新しく増えたら赤くなる**ので、
+放置しても悪化はしない。直すなら片方の向きを消す（控えを伸ばすのは直し方ではない）。
+どちらを器にするかは、エンジンの設定をどちらが所有するかの判断になる。
