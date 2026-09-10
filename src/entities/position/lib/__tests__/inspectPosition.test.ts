@@ -52,6 +52,30 @@ describe("inspectPosition", () => {
   });
 });
 
+describe("盤が空", () => {
+  test("駒が1枚も無ければ出る", () => {
+    // 空盤の SFEN は形式として正当なので種にできる。玉の無い種なら
+    // 盤の駒を全部駒台へ送れる（`canSendToHand` が弾くのは玉だけ）
+    const state = boardOf([]);
+    expect(kindsOf(state)).toEqual([POSITION_ISSUE.EMPTY_BOARD]);
+    expect(inspectPosition(state).issues[0].message).toBe("盤に駒が1枚もありません");
+  });
+
+  test("枠を付ける升は無い", () => {
+    expect(inspectPosition(boardOf([])).illegalSquares.size).toBe(0);
+  });
+
+  test("駒が1枚でもあれば出ない", () => {
+    expect(kindsOf(boardOf([[5, 5, "OU", Color.Black]]))).toEqual([]);
+  });
+
+  test("駒台にだけ駒があっても出る", () => {
+    const state = boardOf([]);
+    state.hands[Color.Black].FU = 18;
+    expect(kindsOf(state)).toEqual([POSITION_ISSUE.EMPTY_BOARD]);
+  });
+});
+
 describe("二歩", () => {
   test("同じ筋に同じ側の歩が2枚あると出る", () => {
     const state = boardOf([

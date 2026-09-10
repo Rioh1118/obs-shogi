@@ -11,8 +11,8 @@ import { flipColor, isCheckOn, pieceAt, type Square } from "./positionDraft";
  * **止めるためのものではない。** 研究のために規則から外れた局面を組むことはあるし、
  * 詰将棋は玉が1枚しか無い。挙げたものは断りとして見せるだけで、作成は押せるまま。
  *
- * 玉の枚数は挙げない（詰将棋が正当）。盤が空も挙げない
- * （種が空盤にならず、盤から全部消す口も無い）。
+ * **玉の枚数は挙げない。** 詰将棋には攻め方の玉が無く、片側3枚も研究のために
+ * 並べることがある。
  */
 
 export const POSITION_ISSUE = {
@@ -22,6 +22,8 @@ export const POSITION_ISSUE = {
   DEAD_END: "DEAD_END",
   /** 手番でない側の玉に、手番側の利きが通っている */
   CHECK_IGNORED: "CHECK_IGNORED",
+  /** 盤に駒が1枚も無い */
+  EMPTY_BOARD: "EMPTY_BOARD",
 } as const;
 
 export type PositionIssueKind = (typeof POSITION_ISSUE)[keyof typeof POSITION_ISSUE];
@@ -119,6 +121,29 @@ function findDeadEnds(state: JKFState): PositionIssue[] {
   return issues;
 }
 
+/**
+ * 盤が空
+ *
+ * **到達する。** 空盤の SFEN（`9/9/9/9/9/9/9/9/9 b - 1`）は形式として正当なので
+ * 種にでき、玉の無い種を選べば盤の駒を全部駒台へ送れる（`canSendToHand` が
+ * 弾くのは玉だけ）。初期局面の無い棋譜ができるので、断りに出す。
+ */
+function findEmptyBoard(state: JKFState): PositionIssue[] {
+  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
+    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
+      if (pieceAt(state, { x, y })) return [];
+    }
+  }
+  return [
+    {
+      kind: POSITION_ISSUE.EMPTY_BOARD,
+      // 枠を付ける升は無い。盤が丸ごと空なので、示すべき升が選べない
+      message: "盤に駒が1枚もありません",
+      squares: [],
+    },
+  ];
+}
+
 function countKings(state: JKFState, color: Color): number {
   let n = 0;
   for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
@@ -164,7 +189,12 @@ function findCheckIgnored(state: JKFState): PositionIssue[] {
 }
 
 export function inspectPosition(state: JKFState): PositionInspection {
-  const issues = [...findNifu(state), ...findDeadEnds(state), ...findCheckIgnored(state)];
+  const issues = [
+    ...findEmptyBoard(state),
+    ...findNifu(state),
+    ...findDeadEnds(state),
+    ...findCheckIgnored(state),
+  ];
   const illegalSquares = new Set(issues.flatMap((issue) => issue.squares.map(squareKey)));
   return { issues, illegalSquares };
 }
