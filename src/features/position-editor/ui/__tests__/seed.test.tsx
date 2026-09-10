@@ -83,13 +83,17 @@ describe("手合割から", () => {
     expect(handicapButton().textContent).toBe("手合割から…");
   });
 
-  test("同じ手合割を選び直すと、組みかけが載せ直される", () => {
+  test("同じ手合割を選び直すと、確認を通ってから載せ直される", () => {
     render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     fireEvent.click(square(7, 6));
     expect(square(7, 7).querySelector(".piece")).toBeNull();
 
     pickHandicap("平手");
+    // 組みかけなので、押した瞬間には載らない
+    expect(square(7, 7).querySelector(".piece")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
     expect(square(7, 7).querySelector(".piece")).not.toBeNull();
     expect(handicapButton().textContent).toBe("平手");
   });
@@ -134,6 +138,7 @@ describe("いまの棋譜の局面から", () => {
     fireEvent.click(square(5, 5));
     fireEvent.click(square(5, 4)); // 触って組みかけにする
     fireEvent.click(currentKifuButton());
+    fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
 
     expect(square(5, 5).querySelector(".piece")).not.toBeNull();
   });

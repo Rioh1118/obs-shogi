@@ -32,6 +32,13 @@ interface EditorCreateFormProps {
   initialDir?: string;
   onCreated: () => void;
   onCancel: () => void;
+  /**
+   * 送信中かどうかを外へ知らせる
+   *
+   * Esc の段は**作成中を最初に見る**（止められないので無視する）ので、
+   * 段を判定する側がこの旗を要る。
+   */
+  onSubmittingChange: (submitting: boolean) => void;
 }
 
 /**
@@ -51,6 +58,7 @@ function EditorCreateForm({
   initialDir,
   onCreated,
   onCancel,
+  onSubmittingChange,
 }: EditorCreateFormProps) {
   const { createNewFile, fileTree } = useFileTree();
 
@@ -93,6 +101,7 @@ function EditorCreateForm({
 
       setSubmitError(null);
       setIsSubmitting(true);
+      onSubmittingChange(true);
       const result = await createNewFile(selectedDir, {
         fileName: `${fileName.trim()}.${format}`,
         format,
@@ -111,6 +120,7 @@ function EditorCreateForm({
             : { preset: "OTHER", data: stateRef.current },
       });
       setIsSubmitting(false);
+      onSubmittingChange(false);
 
       if (result.success) {
         onCreated();
@@ -133,6 +143,7 @@ function EditorCreateForm({
       isSubmitting,
       createNewFile,
       onCreated,
+      onSubmittingChange,
     ],
   );
 

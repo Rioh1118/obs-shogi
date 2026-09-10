@@ -13,9 +13,11 @@ import PositionEditor, { type EditorFace } from "../PositionEditor";
 export function EditorHarness({
   currentPosition = null,
   studyPositions = [],
+  onCancel,
 }: {
   currentPosition?: JKFState | null;
   studyPositions?: StudyPosition[];
+  onCancel?: () => void;
 }) {
   const [face, setFace] = useState<EditorFace>("board");
 
@@ -25,6 +27,7 @@ export function EditorHarness({
       onFaceChange={setFace}
       currentPosition={currentPosition}
       studyPositions={studyPositions}
+      onCancel={onCancel}
     />
   );
 }
