@@ -458,16 +458,30 @@ function exceedsPieceSupply(state: JKFState): boolean {
 /**
  * いまの局面から `Shogi` を1つ作る
  *
- * **作って捨てるためのもの。** 呼び手が持ち続けると、このファイルの冒頭に書いた
- * 食い違い（`move` が手番を進める、`drop` が throw する）を背負うことになる。
- * `shogi.js` にしか無い判定（`isCheck` / `toSFENString`）を借りるときだけ使う。
+ * **公開しない。** このファイルの唯一の不変条件は「`Shogi` を状態として持たない」で、
+ * `Shogi` を返す口が公開されている限り、それを守っているのはコメントだけになる
+ * （`useState(stateToShogi(...))` を tsc も lint も止めない）。
+ * `shogi.js` にしか無い判定は、下の2つのように**答えだけ**を返す形で出す。
  */
-export function stateToShogi(state: JKFState): Shogi {
+function stateToShogi(state: JKFState): Shogi {
   return new Shogi({ preset: "OTHER", data: normalizeForShogi(state) });
 }
 
 export function stateToSfen(state: JKFState): string {
   return stateToShogi(state).toSFENString();
+}
+
+/**
+ * `color` の玉に王手がかかっているか
+ *
+ * `shogi.js` の `isCheck` を借りる。`getMovesFrom` は手番も編集モードも見ないので、
+ * 組みかけの局面にそのまま当てられる。写すと、飛角香の遮りと桂の跳ね方を
+ * 2箇所で持つことになる。
+ *
+ * **玉が無ければ `false`。** 詰将棋には攻め方の玉が無いので、その形を例外にしない。
+ */
+export function isCheckOn(state: JKFState, color: Color): boolean {
+  return stateToShogi(state).isCheck(color);
 }
 
 /**

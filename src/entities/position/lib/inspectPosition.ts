@@ -3,7 +3,7 @@ import type { JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/shogi";
 import { coordsToShogiNotation } from "./boardUtils";
 import { toKan } from "./toKan";
-import { flipColor, pieceAt, stateToShogi, type Square } from "./positionDraft";
+import { flipColor, isCheckOn, pieceAt, type Square } from "./positionDraft";
 
 /**
  * 組んだ局面のうち、将棋の規則に反しているところを挙げる
@@ -146,7 +146,7 @@ function findCheckIgnored(state: JKFState): PositionIssue[] {
   const passive = flipColor(state.color);
   const king = findKing(state, passive);
   if (!king) return [];
-  if (!stateToShogi(state).isCheck(passive)) return [];
+  if (!isCheckOn(state, passive)) return [];
 
   return [
     {

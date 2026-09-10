@@ -9,6 +9,7 @@ import {
   emptyHand,
   flipColor,
   handCount,
+  isCheckOn,
   isHandKind,
   moveBetweenHands,
   movePieceOnBoard,
@@ -432,6 +433,38 @@ describe("cycleFrom", () => {
         });
       }
     }
+  });
+});
+
+describe("isCheckOn", () => {
+  test("利きが通っていれば true", () => {
+    const state = emptyBoardState();
+    state.board[0][8] = { kind: "OU", color: Color.White }; // 9九 玉
+    state.board[0][0] = { kind: "HI", color: Color.Black }; // 9一 飛
+    expect(isCheckOn(state, Color.White)).toBe(true);
+  });
+
+  test("遮る駒があれば false", () => {
+    const state = emptyBoardState();
+    state.board[0][8] = { kind: "OU", color: Color.White };
+    state.board[0][0] = { kind: "HI", color: Color.Black };
+    state.board[0][4] = { kind: "FU", color: Color.Black };
+    expect(isCheckOn(state, Color.White)).toBe(false);
+  });
+
+  test("玉が無ければ false。詰将棋の形を例外にしない", () => {
+    const state = emptyBoardState();
+    state.board[0][0] = { kind: "HI", color: Color.Black };
+    expect(isCheckOn(state, Color.White)).toBe(false);
+  });
+
+  test("手番を見ない", () => {
+    // 組みかけの局面は手番が定まらないうちに検査したい
+    const state = emptyBoardState();
+    state.board[0][8] = { kind: "OU", color: Color.White };
+    state.board[0][0] = { kind: "HI", color: Color.Black };
+    expect(isCheckOn(state, Color.White)).toBe(true);
+    expect(isCheckOn(setTurn(state, Color.White), Color.White)).toBe(true);
   });
 });
 
