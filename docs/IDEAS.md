@@ -198,3 +198,15 @@ r11 で `types.ts` をこのディレクトリに新設したので、次の書�
 プリセット編集ダイアログの中だけで使われるのに `model/` に在り、
 r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じるならその場に置く」と
 理由付きで名乗っている。どちらでも正当化できるので、散り始めると型を探す人が2箇所を見る。
+
+## `entities/game/lib/moveValidation.ts` に、本番から到達しない駒打ちの規則が5つ残っている
+
+#113 のレビュー（architecture reviewer）。`hasFuInColumn` / `canDropFu` / `canDropKe` /
+`canDropKy` / `isInCheck` は knip の未使用 export 一覧に載っている。二歩と行き所のない駒の
+規則を、`entities/position/lib/inspectPosition.ts` が別の表現（`getIllegalUnpromotedRow`
+と同じ式）で書き直したので、**同じ規則が2通りある**。片方だけ直すと、対局の駒打ちと
+組む面の断りで規則が割れる。
+
+到達しない側は `canDropKe` が `[1, 2]` / `[8, 9]` の直値、新しい側が
+`illegalUnpromotedRow` × `rowToOppositeEnd` の式。消すか、`inspectPosition` を呼ぶ
+薄皮にするかは、対局側で駒打ちの検査をいつ使い始めるかで決まる。
