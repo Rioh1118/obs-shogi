@@ -2,11 +2,7 @@
 
 追跡: #113 ／ main にあるか: **無い**
 
-**この表は、これから書く画面の仕様。** 組む面のスライスはまだ存在せず、
-セルを踏むテストも1本も無い。現在形で書いてあるのは「こう作る」であって
-「こう動いている」ではない。
-
-対象は、ファイル作成の器（`modal=create-file`）の「新規作成」タブに載る**組む面**。
+対象は `src/features/position-editor/`。ファイル作成の器（`modal=create-file`）の「新規作成」タブに載る。
 種から局面を1つ載せ、盤と両駒台のあいだで駒を並べ替えて、その局面を初期局面とする
 **新しい棋譜ファイルを作る**。
 
@@ -18,8 +14,6 @@
 
 画面の説明は [create-file.md](../spec/screens/create-file.md) と
 [position-edit.md](../spec/features/position-edit.md) が持つ。
-**どちらもまだ別の設計を書いている**（`ModalType` を増やす案、`Shogi` を状態として持つ案、
-検査を止めるか通すかが未決）。合わせるのはこの機能の docs のコミット。
 
 ## なぜ表にするか
 
@@ -62,8 +56,9 @@
 器ごと閉じるか元の面へ戻る。どちらも「どこから来たか」を覚える。
 B0 / B1 / B2 / P / I は `face` の値なので互いに排他。
 
-**インポートの面にも作成がある。** 既存の `KifuImportForm` は送信中を `isSaving` で
+**インポートの面にも作成がある。** `KifuImportForm` は送信中を `isSaving` で
 持っているので、W はどちらの面から来たかで違う欄を見る。**同じ状態が2つの綴りを持つ。**
+組む面の側は `EditorCreateForm` が持ち、Esc の段を判定する `PositionEditor` へ旗を上げる。
 
 ## 直交する軸（セルに書かない）
 
@@ -176,10 +171,29 @@ B0 / B1 / B2 / P / I は `face` の値なので互いに排他。
 4. **`Shogi` を状態として持たない。** 組みかけは `JKFState` で持ち、`Shogi` を返す口は
    `positionDraft.ts` の外に無い（SFEN は `stateToSfen`、王手は `isCheckOn` が答えだけ返す）
 
+## 踏んでいるテスト
+
+`src/features/position-editor/ui/__tests__/` が面ごとに分かれている。
+**✓ を表のセルに手で付けない** —— 付けると手で腐る（下の「埋まっていないセル」を見ること）。
+
+| 見ているもの                                       | ファイル                    |
+| -------------------------------------------------- | --------------------------- |
+| B0 / B1 / B2 × X1 / X2（掴んで置く）               | `pickAndPlace.test.tsx`     |
+| 押す前に見せる（沈める・光らせる・予告・ゴースト） | `beforePressing.test.tsx`   |
+| X3（裏返す。升ごとの巡目の引き継ぎ）               | `flipPiece.test.tsx`        |
+| X4（手番）                                         | `turn.test.tsx`             |
+| X5 / X7（種を選ぶ）                                | `seed.test.tsx`             |
+| X6 / X8（課題局面から）                            | `studyPicker.test.tsx`      |
+| X10 / X13（Esc の段と捨てる確認）                  | `escapeAndConfirm.test.tsx` |
+| X11 / X12a〜c（作成と失敗）                        | `createForm.test.tsx`       |
+| 断り（直交軸）                                     | `illegalNotice.test.tsx`    |
+
+判定そのものは `src/entities/position/lib/` と
+`src/features/position-editor/lib/boardMarks.ts` のテストが持つ。
+
 ## 埋まっていないセル
 
-**消さないこと。** 画面がまだ無いので**全セルが未検証**だが、下の4つは
-実装しても経路が決まらない。
+**消さないこと。** 下の4つは実装しても経路が決まらない。
 
 1. **(B0〜W, X14) 組んでいる間にツリーが変わったら。** 保存先の欄そのものが
    ※9 のとおり入口の決定に従属する。root ごと入れ替わる形は

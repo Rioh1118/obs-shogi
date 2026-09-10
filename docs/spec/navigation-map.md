@@ -48,15 +48,15 @@
 
 `ModalType` の7つ:
 
-| 値                    | 画面                     |
-| --------------------- | ------------------------ |
-| `navigation`          | 局面ナビゲーション       |
-| `settings`            | 設定                     |
-| `create-file`         | ファイル作成／インポート |
-| `position-search`     | 局面検索                 |
-| `study-position-save` | 課題局面の登録・編集     |
-| `study-positions`     | 課題局面の一覧           |
-| `sfen-kifu-create`    | 課題局面から棋譜を作成   |
+| 値                    | 画面                               |
+| --------------------- | ---------------------------------- |
+| `navigation`          | 局面ナビゲーション                 |
+| `settings`            | 設定                               |
+| `create-file`         | 棋譜を作る（盤で組む／インポート） |
+| `position-search`     | 局面検索                           |
+| `study-position-save` | 課題局面の登録・編集               |
+| `study-positions`     | 課題局面の一覧                     |
+| `sfen-kifu-create`    | 課題局面から棋譜を作成             |
 
 **`AppModalLayer` の外にもう1枚ある。** 通知の `modal`
 （`shared/ui/notification/NotificationLayer`）はルータの外でマウントされ、
@@ -151,7 +151,7 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | `study-position-save` | 解析ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                                                                       |
 | `position-search`     | 解析ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                                                               |
 | `navigation`          | 解析ペインのコンパス                                                                                                                                |
-| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」                                                                                                              |
+| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」と、ようこそ画面の「棋譜を作る」（そちらは `dir=` を付けない）                                                |
 | `sfen-kifu-create`    | 課題局面の詳細の「棋譜を作成」                                                                                                                      |
 
 ※ `tab` に書ける綴りは `TabType`（`shared/lib/router/useURLParams.ts`）が持ち、
