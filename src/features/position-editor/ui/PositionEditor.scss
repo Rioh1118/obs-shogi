@@ -4,14 +4,19 @@
 // 駒台の幅と、駒台に置く駒の大きさ。
 //
 // **器の内寸から逆算した値。** 器は `min(1100px, 92vw)`（`Modal` の
-// `--workspace.modal--size-xl`）で、内寸はおよそ 106.6rem。
-// 14 × 2（駒台）＋ 43.9（盤）＋ 1.8 × 3（行間）＋ 28（フォーム）＝ 105.3rem。
-// **広げると入らない。** 幅で足りない分は高さで取る。
+// `--workspace.modal--size-xl`）＝ 110rem。そこから
+// カードの枠 0.2rem と `.create-file-modal` の左右の余白 4.8rem を引いて**内寸 105.0rem**。
+// 14 × 2（駒台）＋ 43.9（盤）＋ 1.6 × 3（行間）＋ 28（フォーム）＝ 104.7rem。
+// **余りは 0.3rem しか無い。** どれかを広げると溢れるので、
+// 幅で足りない分は高さで取る。行間を `$space-9` にすると 0.3rem 溢れる。
 //
 // スケールに載らないので `scssScaleRatchet` は見ていない（ADR-0003）。
 // 緑で通ったことを「規約に沿っている」と読まないこと。
 $stand-w: 14rem; // scale-exempt
 $stand-piece: 3.6rem; // scale-exempt
+
+// 掴んでいる駒の薄さ。盤の升と駒台で同じ値を使う
+$held-opacity: 0.3;
 $stand-min-h: 26rem; // scale-exempt
 $side-w: 28rem; // scale-exempt
 $seed-select-w: 18rem; // scale-exempt
@@ -21,7 +26,7 @@ $picker-list-w: 32rem; // scale-exempt
 // 盤を固定にすると切れるので、**高さを先に決めて幅を縦横比から出す**。
 .pos-editor {
   display: flex;
-  gap: index.$space-9;
+  gap: index.$space-8;
   height: 100%;
   min-height: 0;
 }
@@ -86,7 +91,7 @@ $picker-list-w: 32rem; // scale-exempt
   grid-template-columns: $stand-w auto $stand-w;
   // 1段目は手番の1行、2段目が盤と駒台。盤の高さは残りから決まる
   grid-template-rows: auto minmax(0, 1fr);
-  column-gap: index.$space-9;
+  column-gap: index.$space-8;
   row-gap: index.$space-6;
   justify-content: start;
   min-height: 0;
@@ -180,7 +185,7 @@ $picker-list-w: 32rem; // scale-exempt
     background-color: rgba(index.$color-secondary-dark, 0.22);
 
     .piece {
-      opacity: 0.28;
+      opacity: $held-opacity;
     }
   }
 
@@ -242,7 +247,12 @@ $picker-list-w: 32rem; // scale-exempt
 // 縦長に置きたいこの面と寸法が合わない。実線の枠と暗い面で代える。
 .pos-editor__stand {
   width: 100%;
-  height: clamp(#{$stand-min-h}, 78%, 100%);
+  // **下限を親で頭打ちにする。** `clamp()` の第1引数は親と無関係の固定値なので、
+  // `clamp(26rem, 78%, 100%)` と書くと器が低いときに駒台が親をはみ出す。
+  // 先手側は下端に揃えてあるぶん**上へ**出て、種を選ぶ行に重なり、
+  // 重なった場所の押下を奪う（後ろの兄弟が勝つ）。
+  // 中身は `&-rows` が `overflow-y: auto` を持つので、縮んでも駒には届く
+  height: min(max(#{$stand-min-h}, 78%), 100%);
 
   border: 1px solid index.$stroke-strong;
   border-radius: index.$radius-4;
@@ -310,7 +320,7 @@ $picker-list-w: 32rem; // scale-exempt
 
   // 掴んでいる束。盤の升と同じで、駒台からも消さずに薄くする
   &--held .piece {
-    opacity: 0.3;
+    opacity: $held-opacity;
   }
 }
 
