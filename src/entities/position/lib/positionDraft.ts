@@ -293,13 +293,18 @@ export function stateFromSfen(sfen: string): JKFState {
 }
 
 /**
- * いまの局面の SFEN
+ * いまの局面から `Shogi` を1つ作る
  *
- * `Shogi` はここで1つ作って捨てる。組みかけの状態として持つと、
- * この関数の冒頭に書いた食い違いを全部背負うことになる。
+ * **作って捨てるためのもの。** 呼び手が持ち続けると、このファイルの冒頭に書いた
+ * 食い違い（`move` が手番を進める、`drop` が throw する）を背負うことになる。
+ * `shogi.js` にしか無い判定（`isCheck` / `toSFENString`）を借りるときだけ使う。
  */
+export function stateToShogi(state: JKFState): Shogi {
+  return new Shogi({ preset: "OTHER", data: normalizeForShogi(state) });
+}
+
 export function stateToSfen(state: JKFState): string {
-  return new Shogi({ preset: "OTHER", data: normalizeForShogi(state) }).toSFENString();
+  return stateToShogi(state).toSFENString();
 }
 
 /**
