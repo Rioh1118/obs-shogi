@@ -6,15 +6,11 @@ import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDa
 import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { formatDate } from "@/shared/lib/date";
-import type { StudyPosition } from "@/entities/study-positions/model/types";
+import {
+  studyPositionStateLabel,
+  type StudyPosition,
+} from "@/entities/study-positions/model/types";
 import "./PositionDetail.scss";
-
-const STATE_LABELS: Record<string, string> = {
-  inbox: "未整理",
-  active: "研究中",
-  reference: "資料",
-  done: "完了",
-};
 
 interface Props {
   position: StudyPosition | null;
@@ -82,7 +78,7 @@ export default function PositionDetail({
         <h3 className="sp-detail__label">{displayLabel}</h3>
         <div className="sp-detail__metaRow">
           <span className={`sp-detail__state sp-detail__state--${position.state}`}>
-            {STATE_LABELS[position.state] ?? position.state}
+            {studyPositionStateLabel(position.state)}
           </span>
           {position.tags.map((tag) => (
             <span key={tag} className="sp-detail__tag">
