@@ -2,6 +2,7 @@ import { Shogi, type Color, type Kind } from "shogi.js";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFHand, JKFPiece, JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/shogi";
+import { isValidCoords } from "./boardUtils";
 
 /**
  * 組みかけの局面を並べ替える純関数
@@ -50,9 +51,6 @@ const UNPROMOTED: Partial<Record<Kind, Kind>> = Object.fromEntries(
   Object.entries(PROMOTED).map(([raw, promoted]) => [promoted, raw]),
 );
 
-const BOARD_FILES = BOARD_SIZE.WIDTH;
-const BOARD_RANKS = BOARD_SIZE.HEIGHT;
-
 export function promotedKind(kind: Kind): Kind | null {
   return PROMOTED[kind] ?? null;
 }
@@ -70,19 +68,8 @@ export function emptyHand(): JKFHand {
   return { FU: 0, KY: 0, KE: 0, GI: 0, KI: 0, KA: 0, HI: 0 };
 }
 
-function isOnBoard(sq: Square): boolean {
-  return (
-    Number.isInteger(sq.x) &&
-    Number.isInteger(sq.y) &&
-    sq.x >= 1 &&
-    sq.x <= BOARD_FILES &&
-    sq.y >= 1 &&
-    sq.y <= BOARD_RANKS
-  );
-}
-
 function requireOnBoard(sq: Square): void {
-  if (!isOnBoard(sq)) throw new RangeError(`盤の外の升: (${sq.x}, ${sq.y})`);
+  if (!isValidCoords(sq.x, sq.y)) throw new RangeError(`盤の外の升: (${sq.x}, ${sq.y})`);
 }
 
 function cloneState(state: JKFState): JKFState {
@@ -292,9 +279,9 @@ export function setTurn(state: JKFState, color: Color): JKFState {
 
 function stateFromShogi(shogi: Shogi): JKFState {
   const board: JKFPiece[][] = [];
-  for (let x = 1; x <= BOARD_FILES; x++) {
+  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
     const file: JKFPiece[] = [];
-    for (let y = 1; y <= BOARD_RANKS; y++) {
+    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
       const piece = shogi.get(x, y);
       file.push(piece ? { kind: piece.kind, color: piece.color } : {});
     }
@@ -398,7 +385,7 @@ function isWellFormedSfen(sfen: string): boolean {
 
 function isWellFormedBoardField(field: string): boolean {
   const ranks = field.split("/");
-  if (ranks.length !== BOARD_RANKS) return false;
+  if (ranks.length !== BOARD_SIZE.HEIGHT) return false;
 
   for (const rank of ranks) {
     let files = 0;
@@ -415,7 +402,7 @@ function isWellFormedBoardField(field: string): boolean {
       if (!allowed.includes(letter.toLowerCase())) return false;
       files += 1;
     }
-    if (files !== BOARD_FILES) return false;
+    if (files !== BOARD_SIZE.WIDTH) return false;
   }
   return true;
 }
@@ -439,8 +426,8 @@ function isWellFormedHandField(field: string): boolean {
 /** 盤と駒台を合わせて、将棋一式より多い駒があるか */
 function exceedsPieceSupply(state: JKFState): boolean {
   const total = new Map<Kind, number>();
-  for (let x = 1; x <= BOARD_FILES; x++) {
-    for (let y = 1; y <= BOARD_RANKS; y++) {
+  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
+    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
       const piece = pieceAt(state, { x, y });
       if (!piece) continue;
       const raw = unpromotedKind(piece.kind);
@@ -492,9 +479,9 @@ export function isCheckOn(state: JKFState, color: Color): boolean {
  */
 function normalizeForShogi(state: JKFState): JKFState {
   const board: JKFPiece[][] = [];
-  for (let x = 1; x <= BOARD_FILES; x++) {
+  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
     const file: JKFPiece[] = [];
-    for (let y = 1; y <= BOARD_RANKS; y++) {
+    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
       const piece = pieceAt(state, { x, y });
       file.push(piece ? { ...piece } : {});
     }
@@ -518,8 +505,8 @@ function normalizeForShogi(state: JKFState): JKFState {
  */
 export function serializeDraft(state: JKFState): string {
   const squares: string[] = [];
-  for (let x = 1; x <= BOARD_FILES; x++) {
-    for (let y = 1; y <= BOARD_RANKS; y++) {
+  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
+    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
       const piece = pieceAt(state, { x, y });
       squares.push(piece ? `${piece.kind}${piece.color}` : ".");
     }
