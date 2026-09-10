@@ -21,6 +21,7 @@ import {
   stateFromSfen,
   stateToSfen,
   unpromotedKind,
+  type CycleStep,
   type HandKind,
   type Square,
 } from "../positionDraft";
@@ -328,39 +329,39 @@ describe("moveBetweenHands", () => {
 
 describe("cycleFrom", () => {
   test("成れる駒は4回で元に戻る", () => {
-    let step = cycleFrom("FU", Color.Black, 0);
+    let step = cycleFrom("FU", Color.Black);
     expect(step).toEqual({ kind: "TO", color: Color.Black, cyc: 1 });
-    step = cycleFrom(step.kind, step.color, step.cyc);
+    step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "TO", color: Color.White, cyc: 2 });
-    step = cycleFrom(step.kind, step.color, step.cyc);
+    step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "FU", color: Color.White, cyc: 3 });
-    step = cycleFrom(step.kind, step.color, step.cyc);
+    step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "FU", color: Color.Black, cyc: 0 });
   });
 
   test("後手の駒から始めても対称", () => {
-    let step = cycleFrom("HI", Color.White, 0);
+    let step = cycleFrom("HI", Color.White);
     expect(step).toEqual({ kind: "RY", color: Color.White, cyc: 1 });
-    step = cycleFrom(step.kind, step.color, step.cyc);
+    step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "RY", color: Color.Black, cyc: 2 });
-    step = cycleFrom(step.kind, step.color, step.cyc);
+    step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "HI", color: Color.Black, cyc: 3 });
-    step = cycleFrom(step.kind, step.color, step.cyc);
+    step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "HI", color: Color.White, cyc: 0 });
   });
 
   test("玉と金は2回で元に戻る", () => {
     for (const kind of ["OU", "KI"] as const) {
-      const first = cycleFrom(kind, Color.Black, 0);
+      const first = cycleFrom(kind, Color.Black);
       expect(first).toEqual({ kind, color: Color.White, cyc: 1 });
-      const second = cycleFrom(first.kind, first.color, first.cyc);
+      const second = cycleFrom(first.kind, first.color, first);
       expect(second).toEqual({ kind, color: Color.Black, cyc: 0 });
     }
   });
 
   test("巡目が分からない成駒は、もとの持ち主の成として始める", () => {
     // 種に最初から載っている成駒。次に来るのは「相手の成」
-    expect(cycleFrom("TO", Color.Black, undefined)).toEqual({
+    expect(cycleFrom("TO", Color.Black)).toEqual({
       kind: "TO",
       color: Color.White,
       cyc: 2,
@@ -368,18 +369,62 @@ describe("cycleFrom", () => {
   });
 
   test("巡目が分からない不成は、1巡目の頭から始める", () => {
-    expect(cycleFrom("GI", Color.Black, undefined)).toEqual({
+    expect(cycleFrom("GI", Color.Black)).toEqual({
       kind: "NG",
       color: Color.Black,
       cyc: 1,
     });
   });
 
+  test("覚えている駒が升の駒と違えば、巡目を引き継がない", () => {
+    // 歩を2回裏返して（後手と金・巡目2）、その升に別の先手歩を重ねた場合。
+    // 引き継ぐと `{FU, 先手}` が返り、押しても同じ駒がそのまま返る
+    const stale: CycleStep = { kind: "TO", color: Color.White, cyc: 2 };
+    expect(cycleFrom("FU", Color.Black, stale)).toEqual({
+      kind: "TO",
+      color: Color.Black,
+      cyc: 1,
+    });
+  });
+
+  test("色だけ違っても引き継がない", () => {
+    const stale: CycleStep = { kind: "FU", color: Color.White, cyc: 3 };
+    expect(cycleFrom("FU", Color.Black, stale)).toEqual({
+      kind: "TO",
+      color: Color.Black,
+      cyc: 1,
+    });
+  });
+
+  test("覚えている駒が一致していれば引き継ぐ", () => {
+    const step: CycleStep = { kind: "TO", color: Color.Black, cyc: 1 };
+    expect(cycleFrom("TO", Color.Black, step)).toEqual({
+      kind: "TO",
+      color: Color.White,
+      cyc: 2,
+    });
+  });
+
+  test("整数でない巡目は受け付けない", () => {
+    // 畳む式は負値しか畳めない。残ると kind も color も持たない値が返る
+    for (const cyc of [1.5, NaN, Infinity]) {
+      expect(() => cycleFrom("FU", Color.Black, { kind: "FU", color: Color.Black, cyc })).toThrow();
+    }
+  });
+
+  test("負の巡目は畳んで受け付ける", () => {
+    expect(cycleFrom("FU", Color.Black, { kind: "FU", color: Color.Black, cyc: -1 })).toEqual({
+      kind: "FU",
+      color: Color.White,
+      cyc: 0,
+    });
+  });
+
   test("4巡すると必ず出発点に戻る", () => {
     for (const kind of ["FU", "KY", "KE", "GI", "KI", "KA", "HI", "OU"] as const) {
       for (const color of [Color.Black, Color.White]) {
-        let step = { kind, color, cyc: 0 } as ReturnType<typeof cycleFrom>;
-        for (let i = 0; i < 4; i++) step = cycleFrom(step.kind, step.color, step.cyc);
+        let step: CycleStep = { kind, color, cyc: 0 };
+        for (let i = 0; i < 4; i++) step = cycleFrom(step.kind, step.color, step);
         expect({ kind: step.kind, color: step.color, cyc: step.cyc }).toEqual({
           kind,
           color,

@@ -212,7 +212,13 @@ export function moveBetweenHands(
   return next;
 }
 
-interface CycleStep {
+/**
+ * 升に覚えておく巡目
+ *
+ * **駒の姿と対で持つ。** `cyc` だけを覚えると、その升の駒が入れ替わったときに
+ * 前の駒の巡目が残る（下の `cycleFrom` を見ること）。
+ */
+export interface CycleStep {
   kind: Kind;
   color: Color;
   cyc: number;
@@ -226,17 +232,37 @@ interface CycleStep {
  * 成りと持ち主が交互に変わるので、目当ての状態まで何回押すか読めない。
  *
  * **(kind, color) だけでは次が決まらない。** 「後手の不成」の次が「先手の不成」なのか
- * 「後手の成」なのかは、何巡目かを知らないと決まらない。だから `cyc` を引数に取る。
- * `cyc` を渡さないときは、成っている駒なら1巡目（＝もとの持ち主の成）として始める。
+ * 「後手の成」なのかは、何巡目かを知らないと決まらない。だから巡目を引数に取る。
  *
- * `cyc` は画面が升ごとに覚える値で、`JKFState` には入れない。
+ * **`remembered` は「その升で最後に返した値」をそのまま渡す。** 渡された駒の姿が
+ * いま升にある駒（`kind` / `color`）と食い違えば**引き継がない**。この照合が無いと、
+ * 呼ぶ側は駒が動くたびに覚えを消して回ることになり、消す場所が
+ * 「盤の移動・駒台へ送る・駒台から置く・種を載せ直す」に散る。1つ忘れると
+ * こう壊れる —— 歩を2回裏返して（後手と金、巡目2）、別の先手歩をその升に重ねると、
+ * 次の右クリックが `{FU, 先手}` を返して**同じ駒がそのまま返る**。
+ * 例外も出ず、押しても何も起きない形になる。
+ *
+ * 照合してあれば、残った覚えは黙って無視されるだけなので、**消す口が1つも要らない。**
+ *
+ * 巡目は画面が升ごとに覚える値で、`JKFState` には入れない。
  * 出口（`initial.data`）に余計な欄を持ち込まないため。
  */
-export function cycleFrom(kind: Kind, color: Color, cyc?: number): CycleStep {
+export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): CycleStep {
   const raw = unpromotedKind(kind);
   const promoted = promotedKind(raw);
   const period = promoted ? 4 : 2;
-  const current = (((cyc ?? (UNPROMOTED[kind] ? 1 : 0)) % period) + period) % period;
+
+  const carried =
+    remembered && remembered.kind === kind && remembered.color === color
+      ? remembered.cyc
+      : undefined;
+  if (carried !== undefined && !Number.isInteger(carried)) {
+    // 畳む式（`((n % p) + p) % p`）が畳めるのは負値だけで、非整数はそのまま残る。
+    // 残ると `steps[2.5]` が `undefined` になり、kind も color も持たない値が返る
+    throw new RangeError(`巡目が整数でない: ${carried}`);
+  }
+
+  const current = (((carried ?? (UNPROMOTED[kind] ? 1 : 0)) % period) + period) % period;
 
   // いま何巡目かが分かれば、1巡目の持ち主が逆算できる
   const owner: Color = (promoted ? current >= 2 : current === 1) ? flipColor(color) : color;
