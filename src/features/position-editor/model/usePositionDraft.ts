@@ -4,12 +4,15 @@ import type { JKFState } from "@/entities/kifu/model/jkf";
 import {
   canDropOn,
   canSendToHand,
+  cycleOnBoard,
   dropFromHand,
   handCount,
   moveBetweenHands,
   movePieceOnBoard,
   pieceAt,
   sendToHand,
+  squareKey,
+  type CycleStep,
   type HandKind,
   type Square,
 } from "@/entities/position/lib/positionDraft";
@@ -25,6 +28,14 @@ export type Held = { from: "square"; sq: Square } | { from: "hand"; kind: HandKi
 interface DraftState {
   state: JKFState;
   held: Held | null;
+  /**
+   * 升ごとの巡目
+   *
+   * **消す口を持たない。** `cycleFrom` が升の駒と照合して食い違えば引き継がないので、
+   * 駒が動いたあとに残った覚えは黙って無視される。消して回ると、消し忘れた1箇所で
+   * 「右クリックしても何も変わらない」が出る（`cycleFrom` の doc に再現がある）。
+   */
+  cycles: ReadonlyMap<string, CycleStep>;
 }
 
 /**
@@ -39,7 +50,11 @@ interface DraftState {
  * ここへは来ない。来たときに黙って捨てるのは、沈め忘れを隠すことになる。
  */
 export function usePositionDraft(seed: JKFState) {
-  const [draft, setDraft] = useState<DraftState>({ state: seed, held: null });
+  const [draft, setDraft] = useState<DraftState>({
+    state: seed,
+    held: null,
+    cycles: new Map(),
+  });
 
   /** 掴んでいるものを離す。局面は変えない */
   const release = useCallback(() => {
@@ -56,16 +71,16 @@ export function usePositionDraft(seed: JKFState) {
       const { state, held } = prev;
 
       if (held === null) {
-        return pieceAt(state, sq) ? { state, held: { from: "square", sq } } : prev;
+        return pieceAt(state, sq) ? { ...prev, held: { from: "square", sq } } : prev;
       }
 
       if (held.from === "square") {
-        if (held.sq.x === sq.x && held.sq.y === sq.y) return { state, held: null };
-        return { state: movePieceOnBoard(state, held.sq, sq), held: null };
+        if (held.sq.x === sq.x && held.sq.y === sq.y) return { ...prev, held: null };
+        return { ...prev, state: movePieceOnBoard(state, held.sq, sq), held: null };
       }
 
       if (!canDropOn(state, sq)) return prev;
-      return { state: dropFromHand(state, held.kind, held.color, sq), held: null };
+      return { ...prev, state: dropFromHand(state, held.kind, held.color, sq), held: null };
     });
   }, []);
 
@@ -81,24 +96,48 @@ export function usePositionDraft(seed: JKFState) {
 
       if (held === null) {
         if (kind === null || handCount(state, color, kind) === 0) return prev;
-        return { state, held: { from: "hand", kind, color } };
+        return { ...prev, held: { from: "hand", kind, color } };
       }
 
       if (held.from === "square") {
         const piece = pieceAt(state, held.sq);
         if (!piece || !canSendToHand(piece)) return prev;
-        return { state: sendToHand(state, held.sq, color), held: null };
+        return { ...prev, state: sendToHand(state, held.sq, color), held: null };
       }
 
-      if (held.color === color) return { state, held: null };
-      return { state: moveBetweenHands(state, held.kind, held.color, color), held: null };
+      if (held.color === color) return { ...prev, held: null };
+      return { ...prev, state: moveBetweenHands(state, held.kind, held.color, color), held: null };
     });
   }, []);
 
-  /** 種を載せ直す。掴んでいるものは落とす */
-  const loadSeed = useCallback((next: JKFState) => {
-    setDraft({ state: next, held: null });
+  /**
+   * 盤の駒を裏返す
+   *
+   * **掴んでいる駒は離す。** 掴んだまま別の升を裏返せると、次に置いたときに
+   * 何が起きるのかを覚えておく必要が出る。
+   */
+  const flipSquare = useCallback((sq: Square) => {
+    setDraft((prev) => {
+      if (!pieceAt(prev.state, sq)) return prev;
+
+      const key = squareKey(sq);
+      const { state, step } = cycleOnBoard(prev.state, sq, prev.cycles.get(key));
+      return { state, held: null, cycles: new Map(prev.cycles).set(key, step) };
+    });
   }, []);
 
-  return { state: draft.state, held: draft.held, pressSquare, pressStand, release, loadSeed };
+  /** 種を載せ直す。掴んでいるものも覚えていた巡目も落とす */
+  const loadSeed = useCallback((next: JKFState) => {
+    setDraft({ state: next, held: null, cycles: new Map() });
+  }, []);
+
+  return {
+    state: draft.state,
+    held: draft.held,
+    pressSquare,
+    pressStand,
+    flipSquare,
+    release,
+    loadSeed,
+  };
 }

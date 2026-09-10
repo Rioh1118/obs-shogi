@@ -11,6 +11,7 @@ interface EditorBoardProps {
   held: Held | null;
   hovered: Square | null;
   onPressSquare: (sq: Square) => void;
+  onFlipSquare: (sq: Square) => void;
   onHoverSquare: (sq: Square | null) => void;
 }
 
@@ -24,7 +25,14 @@ interface EditorBoardProps {
  * 升の並びは `indexToCoords` が決める（左上が9一）。ここで数え直すと、
  * 対局の盤と筋の向きが逆になっても、どちらも「盤に見える」ので気づけない。
  */
-function EditorBoard({ state, held, hovered, onPressSquare, onHoverSquare }: EditorBoardProps) {
+function EditorBoard({
+  state,
+  held,
+  hovered,
+  onPressSquare,
+  onFlipSquare,
+  onHoverSquare,
+}: EditorBoardProps) {
   const heldFrom = held?.from === "square" ? held.sq : null;
 
   return (
@@ -50,6 +58,13 @@ function EditorBoard({ state, held, hovered, onPressSquare, onHoverSquare }: Edi
               data-x={sq.x}
               data-y={sq.y}
               onClick={() => onPressSquare(sq)}
+              onContextMenu={(e) => {
+                // 盤の上では既定のメニューを出さない。器の中に OS のメニューが
+                // 開くと、その裏で局面が変わったのかどうかが分からなくなる。
+                // 駒が無い升では裏返すものが無いので、止めるだけ
+                e.preventDefault();
+                onFlipSquare(sq);
+              }}
               onMouseEnter={() => onHoverSquare(sq)}
             >
               {piece && <PieceFactory jkfKind={piece.kind} color={piece.color} />}

@@ -3,7 +3,6 @@ import { Color, type Kind } from "shogi.js";
 import {
   POSITION_ISSUE,
   inspectPosition,
-  squareKey,
   type PositionInspection,
   type PositionIssue,
   type PositionIssueKind,
@@ -301,12 +300,5 @@ describe("複数の断り", () => {
       [POSITION_ISSUE.DEAD_END, POSITION_ISSUE.NIFU].sort(),
     );
     expect(illegalSquares).toEqual(new Set(["5,5", "5,1"]));
-  });
-});
-
-describe("squareKey", () => {
-  test("升ごとに違う綴りになる", () => {
-    expect(squareKey({ x: 5, y: 1 })).toBe("5,1");
-    expect(squareKey({ x: 1, y: 5 })).not.toBe(squareKey({ x: 5, y: 1 }));
   });
 });

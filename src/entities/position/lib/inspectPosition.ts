@@ -3,7 +3,7 @@ import type { JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/shogi";
 import { coordsToShogiNotation } from "./boardUtils";
 import { toKan } from "./toKan";
-import { flipColor, isCheckOn, pieceAt, type Square } from "./positionDraft";
+import { flipColor, isCheckOn, pieceAt, squareKey, type Square } from "./positionDraft";
 
 /**
  * 組んだ局面のうち、将棋の規則に反しているところを挙げる
@@ -40,17 +40,6 @@ export interface PositionInspection {
   issues: PositionIssue[];
   /** `squareKey` の集合。升ごとに「枠を付けるか」を引くために持つ */
   illegalSquares: ReadonlySet<string>;
-}
-
-/**
- * 升を `Set` の鍵にする綴り
- *
- * `illegalSquares` の要素はこの綴りで入る。引き当てる側も同じ関数を通すこと ——
- * 座標から鍵を組む式が2箇所にあると、片方だけ書式が変わっても
- * 「枠が付かない」という形でしか出ない。
- */
-export function squareKey(sq: Square): string {
-  return `${sq.x},${sq.y}`;
 }
 
 /**

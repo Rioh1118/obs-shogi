@@ -5,6 +5,8 @@ import {
   canDropOn,
   canSendToHand,
   cycleFrom,
+  cycleOnBoard,
+  squareKey,
   dropFromHand,
   emptyHand,
   flipColor,
@@ -468,6 +470,60 @@ describe("isCheckOn", () => {
     state.board[0][0] = { kind: "HI", color: Color.Black };
     expect(isCheckOn(state, Color.White)).toBe(true);
     expect(isCheckOn(setTurn(state, Color.White), Color.White)).toBe(true);
+  });
+});
+
+describe("cycleOnBoard", () => {
+  test("升の駒が裏返り、巡目が返る", () => {
+    const state = emptyBoardState();
+    state.board[4][4] = { kind: "FU", color: Color.Black };
+
+    const first = cycleOnBoard(state, sq(5, 5));
+    expect(pieceAt(first.state, sq(5, 5))).toEqual({ kind: "TO", color: Color.Black });
+    expect(first.step).toEqual({ kind: "TO", color: Color.Black, cyc: 1 });
+  });
+
+  test("返った巡目を渡し続けると4回で元に戻る", () => {
+    let state = emptyBoardState();
+    state.board[4][4] = { kind: "FU", color: Color.Black };
+
+    let step = undefined as ReturnType<typeof cycleOnBoard>["step"] | undefined;
+    for (let i = 0; i < 4; i++) {
+      const turn = cycleOnBoard(state, sq(5, 5), step);
+      state = turn.state;
+      step = turn.step;
+    }
+    expect(pieceAt(state, sq(5, 5))).toEqual({ kind: "FU", color: Color.Black });
+  });
+
+  test("盤の枚数も駒台も変わらない", () => {
+    // 駒の顔ぶれを変える口ではない。姿だけが変わる
+    const state = emptyBoardState();
+    state.board[4][4] = { kind: "GI", color: Color.White };
+    state.hands[Color.Black].FU = 2;
+
+    const after = cycleOnBoard(state, sq(5, 5)).state;
+    expect(countPieces(after)).toBe(1);
+    expect(totalInHands(after)).toBe(2);
+  });
+
+  test("駒のない升は受け付けない", () => {
+    expect(() => cycleOnBoard(emptyBoardState(), sq(5, 5))).toThrow();
+  });
+
+  test("渡した state を書き換えない", () => {
+    const before = emptyBoardState();
+    before.board[4][4] = { kind: "FU", color: Color.Black };
+    const snapshot = serializeDraft(before);
+    cycleOnBoard(before, sq(5, 5));
+    expect(serializeDraft(before)).toBe(snapshot);
+  });
+});
+
+describe("squareKey", () => {
+  test("升ごとに違う綴りになる", () => {
+    expect(squareKey({ x: 5, y: 1 })).toBe("5,1");
+    expect(squareKey({ x: 1, y: 5 })).not.toBe(squareKey({ x: 5, y: 1 }));
   });
 });
 

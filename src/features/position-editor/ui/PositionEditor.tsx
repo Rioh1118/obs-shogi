@@ -22,7 +22,7 @@ interface PositionEditorProps {
  * 中央に揃えると、どちらの駒台かが位置から読めなくなる。
  */
 function PositionEditor({ seed }: PositionEditorProps) {
-  const { state, held, pressSquare, pressStand } = usePositionDraft(seed);
+  const { state, held, pressSquare, pressStand, flipSquare } = usePositionDraft(seed);
 
   // ホバーは局面ではなく見ている場所。`usePositionDraft` に混ぜると、
   // ポインタを動かすたびに組みかけの判定が走る
@@ -52,6 +52,7 @@ function PositionEditor({ seed }: PositionEditorProps) {
           held={held}
           hovered={hovered}
           onPressSquare={pressSquare}
+          onFlipSquare={flipSquare}
           onHoverSquare={setHovered}
         />
         <div className="pos-editor__stand-slot pos-editor__stand-slot--sente">

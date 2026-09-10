@@ -73,6 +73,16 @@ export interface Square {
   y: number;
 }
 
+/**
+ * 升を `Set` / `Map` の鍵にする綴り
+ *
+ * 座標から鍵を組む式が2箇所にあると、片方だけ書式が変わっても
+ * 「枠が付かない」「巡目を引き継がない」という形でしか出ない。組む口を1つにする。
+ */
+export function squareKey(sq: Square): string {
+  return `${sq.x},${sq.y}`;
+}
+
 /** 成れる駒と、その成った姿 */
 const PROMOTED: Partial<Record<Kind, Kind>> = {
   FU: "TO",
@@ -312,6 +322,30 @@ export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): Cyc
     { kind: raw, color: flipColor(owner) },
   ];
   return { ...steps[nextCyc], cyc: nextCyc };
+}
+
+/**
+ * 盤の駒を裏返して、覚えておく巡目を返す
+ *
+ * **駒の顔ぶれを変えない口。** 盤へ駒を書く `setSquare` は非公開のままにしてある
+ * ——「任意の駒を任意の升へ置く」を出すと、置き場3つで閉じている前提
+ * （盤にも駒台にも無い駒を足せない）が崩れる。ここが変えるのは
+ * 既にその升にいる駒の姿だけ。
+ *
+ * `remembered` の扱いは `cycleFrom` を見ること。
+ */
+export function cycleOnBoard(
+  state: JKFState,
+  sq: Square,
+  remembered?: CycleStep,
+): { state: JKFState; step: CycleStep } {
+  const piece = pieceAt(state, sq);
+  if (!piece) throw new Error(`駒のない升を裏返そうとした: (${sq.x}, ${sq.y})`);
+
+  const step = cycleFrom(piece.kind, piece.color, remembered);
+  const next = cloneState(state);
+  setSquare(next, sq, { kind: step.kind, color: step.color });
+  return { state: next, step };
 }
 
 export function flipColor(color: Color): Color {
