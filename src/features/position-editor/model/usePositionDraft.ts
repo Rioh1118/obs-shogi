@@ -6,11 +6,13 @@ import {
   canSendToHand,
   cycleOnBoard,
   dropFromHand,
+  flipColor,
   handCount,
   moveBetweenHands,
   movePieceOnBoard,
   pieceAt,
   sendToHand,
+  setTurn,
   squareKey,
   type CycleStep,
   type HandKind,
@@ -126,6 +128,18 @@ export function usePositionDraft(seed: JKFState) {
     });
   }, []);
 
+  /**
+   * 手番を入れ替える
+   *
+   * 掴んでいるものは離さない。手番は盤の外の値で、掴んでいる駒の行き先を変えない。
+   */
+  const toggleTurn = useCallback(() => {
+    setDraft((prev) => ({
+      ...prev,
+      state: setTurn(prev.state, flipColor(prev.state.color)),
+    }));
+  }, []);
+
   /** 種を載せ直す。掴んでいるものも覚えていた巡目も落とす */
   const loadSeed = useCallback((next: JKFState) => {
     setDraft({ state: next, held: null, cycles: new Map() });
@@ -137,6 +151,7 @@ export function usePositionDraft(seed: JKFState) {
     pressSquare,
     pressStand,
     flipSquare,
+    toggleTurn,
     release,
     loadSeed,
   };

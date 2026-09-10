@@ -27,13 +27,59 @@ $stand-min-h: 26rem; // scale-exempt
 .pos-editor__position {
   display: grid;
   grid-template-columns: $stand-w auto $stand-w;
+  // 1段目は手番の1行、2段目が盤と駒台。盤の高さは残りから決まる
+  grid-template-rows: auto minmax(0, 1fr);
   column-gap: index.$space-9;
+  row-gap: index.$space-6;
   justify-content: start;
   min-height: 0;
   flex: 1 1 auto;
 }
 
+// **枠も面も持たせない。** 囲うと、盤・駒台と並ぶ4つ目の置き場に見える
+.pos-editor__turn {
+  grid-column: 2;
+  grid-row: 1;
+
+  display: flex;
+  align-items: baseline;
+  gap: index.$space-4;
+
+  // **色を書かない。** この行は面を持たないので、ここで色を宣言すると
+  // `contrastRatchet` の「測れなかった宣言」が増える —— 測れない対は比が下がっても
+  // 緑のまま通る。器のカードの色を継ぎ、段の差は文字の大きさが持つ
+  &-label {
+    font-size: index.$font-hint;
+    flex: 0 0 auto;
+  }
+
+  &-value {
+    font-size: index.$font-lead;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  &-button {
+    font-family: inherit;
+    font-size: index.$font-aux;
+    color: index.$color-text-light-1;
+    background: index.$surface-raised;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-3;
+    padding: index.$space-1 index.$space-3;
+    cursor: pointer;
+
+    // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）。
+    // 明るくすると比が下がり、押す瞬間に最も読みにくくなる
+    &:hover {
+      background: index.$color-primary-black;
+    }
+  }
+}
+
 .pos-editor__board {
+  grid-column: 2;
+  grid-row: 2;
   height: 100%;
   max-height: geo.$board-h;
   aspect-ratio: #{geo.board-aspect()};
@@ -114,13 +160,16 @@ $stand-min-h: 26rem; // scale-exempt
 // **左右で同じ大きさ。上下は対局中の盤と同じ側へ寄せる**
 // （後手＝盤の上端、先手＝盤の下端）。
 .pos-editor__stand-slot {
+  grid-row: 2;
   min-height: 0;
   display: flex;
 
   &--gote {
+    grid-column: 1;
     align-items: flex-start;
   }
   &--sente {
+    grid-column: 3;
     align-items: flex-end;
   }
 }
