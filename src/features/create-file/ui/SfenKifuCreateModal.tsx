@@ -10,7 +10,7 @@ import {
   type FileTreeNode,
   type FsError,
 } from "@/entities/file-tree";
-import type { KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
 import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
@@ -135,13 +135,6 @@ export default function SfenKifuCreateModal() {
     ],
   );
 
-  const formatOptions = [
-    { value: "kif", label: "kif" },
-    { value: "ki2", label: "ki2" },
-    { value: "csa", label: "csa" },
-    { value: "jkf", label: "jkf" },
-  ];
-
   if (!isOpen || !sfen) return null;
 
   return (
@@ -194,9 +187,9 @@ export default function SfenKifuCreateModal() {
             <Select
               label="フォーマット"
               id="sfenFormat"
-              options={formatOptions}
+              options={KIFU_FORMAT_OPTIONS}
               value={format}
-              onChange={(v) => setFormat(v as KifuFormat)}
+              onChange={setFormat}
             />
           </FormField>
 

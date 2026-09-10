@@ -2,21 +2,35 @@ import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import "./Select.scss";
 
-interface Option {
-  value: string;
+interface Option<T extends string> {
+  value: T;
   label: string;
 }
 
-interface SelectProps {
+interface SelectProps<T extends string> {
   label: string;
   id: string;
-  options: readonly Option[];
-  value: string;
-  onChange: (value: string) => void;
+  options: readonly Option<T>[];
+  value: T;
+  onChange: (value: T) => void;
   placeholder?: string;
 }
 
-function Select({ label, id, options, value, onChange, placeholder }: SelectProps) {
+/**
+ * 値の集合を `options` から受け継ぐ。
+ *
+ * `string` で受けると、呼び手は `onChange` で必ず `as` を書くことになる
+ * （`value` の集合が限定されているという不変条件を型が1つも表せない）。
+ * 総称にすると、選択肢に無い綴りを `value` へ渡した時点で tsc が落とす。
+ */
+function Select<T extends string>({
+  label,
+  id,
+  options,
+  value,
+  onChange,
+  placeholder,
+}: SelectProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

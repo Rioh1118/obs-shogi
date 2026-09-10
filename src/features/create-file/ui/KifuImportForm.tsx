@@ -6,7 +6,7 @@ import {
   type FsError,
 } from "@/entities/file-tree";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { type KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import Textarea from "@/shared/ui/Form/Textarea";
@@ -93,13 +93,6 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     }
   };
 
-  const formatOptions = [
-    { value: "kif", label: "kif" },
-    { value: "ki2", label: "ki2" },
-    { value: "csa", label: "csa" },
-    { value: "jkf", label: "jkf" },
-  ];
-
   return (
     <Form handleSubmit={handleSubmit}>
       <FormField>
@@ -146,9 +139,9 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
         <Select
           label="保存形式（拡張子）"
           id="format"
-          options={formatOptions}
+          options={KIFU_FORMAT_OPTIONS}
           value={format}
-          onChange={(v) => setFormat(v as KifuFormat)}
+          onChange={setFormat}
         />
       </FormField>
 

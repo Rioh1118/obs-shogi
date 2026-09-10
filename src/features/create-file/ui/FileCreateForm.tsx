@@ -4,7 +4,7 @@ import {
   HANDICAP_PRESETS,
   type HandicapPreset,
 } from "@/entities/kifu/model/handicap";
-import type { KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
 import {
   FsErrorView,
   isResolvedByConflictDialog,
@@ -64,13 +64,6 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     }
   };
 
-  const formatOptions = [
-    { value: "kif", label: "kif" },
-    { value: "ki2", label: "ki2" },
-    { value: "csa", label: "csa" },
-    { value: "jkf", label: "jkf" },
-  ];
-
   return (
     <Form handleSubmit={handleSubmit}>
       <FormField>
@@ -90,9 +83,9 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
         <Select
           label="フォーマット"
           id="format"
-          options={formatOptions}
+          options={KIFU_FORMAT_OPTIONS}
           value={format}
-          onChange={(value) => setFormat(value as KifuFormat)}
+          onChange={setFormat}
         />
       </FormField>
 
@@ -119,7 +112,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
           id="preset"
           options={HANDICAP_PRESETS}
           value={preset}
-          onChange={(value) => setPreset(value as HandicapPreset)}
+          onChange={setPreset}
         />
       </FormField>
 

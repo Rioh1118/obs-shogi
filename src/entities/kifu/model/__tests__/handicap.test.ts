@@ -1,11 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { Shogi } from "shogi.js";
-import {
-  DEFAULT_HANDICAP,
-  HANDICAP_PRESETS,
-  isHandicapPreset,
-  type HandicapPreset,
-} from "../handicap";
+import presets from "shogi.js/cjs/presets";
+import { DEFAULT_HANDICAP, HANDICAP_PRESETS, type HandicapPreset } from "../handicap";
 
 describe("HANDICAP_PRESETS", () => {
   test("13件ある", () => {
@@ -34,26 +30,24 @@ describe("HANDICAP_PRESETS", () => {
       expect(() => new Shogi({ preset: preset.value })).not.toThrow();
     }
   });
-});
 
-describe("isHandicapPreset", () => {
-  test("一覧にある綴りを通す", () => {
-    expect(isHandicapPreset("HIRATE")).toBe(true);
-    expect(isHandicapPreset("10")).toBe(true);
-  });
+  test("shogi.js が持つ手合割のうち、出していないものを数える", () => {
+    // **一覧に無い綴りが在ること自体は正しい。** 出す／出さないは画面の判断で、
+    // 型はこの一覧から導いているので嘘にはならない。ここで固定するのは
+    // 「知らないうちに増減していないか」だけ。
+    const listed = new Set<string>(HANDICAP_PRESETS.map((p) => p.value));
+    const omitted = presets.filter((p) => !listed.has(p)).sort();
 
-  test("一覧に無い綴りを弾く", () => {
-    // `OTHER` は `InitialPresetString` ではあるが手合割ではない
-    expect(isHandicapPreset("OTHER")).toBe(false);
-    expect(isHandicapPreset("")).toBe(false);
-    expect(isHandicapPreset("HIRATE ")).toBe(false);
+    expect(omitted).toEqual(["7_L", "7_R", "HIKY"]);
   });
 });
 
 describe("型", () => {
-  test("HandicapPreset は OTHER を含まない", () => {
+  test("HandicapPreset は一覧に無い綴りを受け付けない", () => {
     // @ts-expect-error OTHER は手合割ではない
-    const preset: HandicapPreset = "OTHER";
-    expect(preset).toBe("OTHER");
+    const other: HandicapPreset = "OTHER";
+    // @ts-expect-error HIKY は shogi.js には在るが、この一覧に無い
+    const hiky: HandicapPreset = "HIKY";
+    expect([other, hiky]).toEqual(["OTHER", "HIKY"]);
   });
 });
