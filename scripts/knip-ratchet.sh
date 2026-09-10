@@ -21,6 +21,10 @@ set -uo pipefail
 # `npm run deadcode` と同じ範囲（未使用ファイル・未使用 export・未使用の型）の合計。
 # **減らしたらここを下げること。**
 BASELINE=179
+# 179 になったのは、これまで誰も呼んでいなかった `coordsToShogiNotation` を
+# `entities/position/lib/inspectPosition.ts` が読み始めたため。**死んだ export を
+# 消したのではない** —— 読んでいる `inspectPosition.ts` 自身は、いま本番の entry から
+# 到達しない（読み手はテストだけ）。下の「テストからの import も消費に数える」がこれ。
 #
 # **テストからの import も「消費」に数える。** 本番から到達しない barrel の export でも、
 # テストが1本 import すればこの数から消える——**減った理由が「死んだ export を消した」とは
