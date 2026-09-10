@@ -39,7 +39,6 @@ export const CROSS_SLICE_INVENTORY: readonly string[] = [
   "entities/game-session -> entities/engine",
   "entities/position -> entities/kifu",
   "entities/search -> entities/kifu",
-  "entities/study-positions -> entities/kifu",
 
   // 器（ファイル作成の対話）が中身（組む面）を描く。**この向きだけ。**
   // 逆を作ると `import/no-cycle` が落ちる。組む面は器を知らないので、

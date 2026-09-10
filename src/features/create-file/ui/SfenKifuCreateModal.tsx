@@ -11,7 +11,7 @@ import {
   type FsError,
 } from "@/entities/file-tree";
 import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
-import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
+import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 
@@ -39,7 +39,12 @@ export default function SfenKifuCreateModal() {
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
-  const sfenInitial = useMemo(() => (sfen ? sfenToJkfInitial(sfen) : null), [sfen]);
+  // 手合割としては書けない（URL から来た任意の局面なので）ので `OTHER` に固定する。
+  // 読めない綴りなら `null` —— 下の送信がそこで止まる
+  const sfenInitial = useMemo(() => {
+    const data = sfen ? stateFromSfen(sfen) : null;
+    return data ? ({ preset: "OTHER", data } as const) : null;
+  }, [sfen]);
 
   const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
 
