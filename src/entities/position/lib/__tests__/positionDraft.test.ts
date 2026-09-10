@@ -78,21 +78,60 @@ describe("stateFromPreset", () => {
 });
 
 describe("stateFromSfen", () => {
+  /** 読めた前提で使う。読めなければテストをその場で落とす */
+  const read = (sfen: string): JKFState => {
+    const state = stateFromSfen(sfen);
+    if (!state) throw new Error(`読めるはずの SFEN が null になった: ${sfen}`);
+    return state;
+  };
+
   test("平手の SFEN から平手が戻る", () => {
-    expect(serializeDraft(stateFromSfen(HIRATE_SFEN))).toBe(
-      serializeDraft(stateFromPreset("HIRATE")),
-    );
+    expect(serializeDraft(read(HIRATE_SFEN))).toBe(serializeDraft(stateFromPreset("HIRATE")));
   });
 
   test("持ち駒つきの SFEN を読める", () => {
-    const state = stateFromSfen("4k4/9/9/9/9/9/9/9/4K4 w 2G3p 1");
+    const state = read("4k4/9/9/9/9/9/9/9/4K4 w 2G3p 1");
     expect(handCount(state, Color.Black, "KI")).toBe(2);
     expect(handCount(state, Color.White, "FU")).toBe(3);
     expect(state.color).toBe(Color.White);
   });
 
-  test("読めない SFEN は throw する", () => {
-    expect(() => stateFromSfen("これは SFEN ではない")).toThrow();
+  test("成駒を含む SFEN を読める", () => {
+    const state = read("9/9/9/9/4+P4/9/9/9/9 b - 1");
+    expect(pieceAt(state, sq(5, 5))).toEqual({ kind: "TO", color: Color.Black });
+  });
+
+  test("空盤の SFEN は読める（規則に反する配置は断りが受け持つ）", () => {
+    expect(read("9/9/9/9/9/9/9/9/9 b - 1")).not.toBeNull();
+  });
+
+  // **1件の代表例では守れない。** `shogi.js` が明示的に投げるのは手番の欄が
+  // `b` / `w` でないときの1本だけで、段数も筋数も駒の綴りも見ない。
+  // 表にして、throw ではなく `null` で返ることを固定する
+  test.each([
+    ["日本語の文", "これは SFEN ではない"],
+    ["段が9つない", "lnsgkgsnl/9/9 b - 1"],
+    ["段が多い", "9/9/9/9/9/9/9/9/9/9 b - 1"],
+    ["1段の升が9つない", "lnsgkgsnlpp/9/9/9/9/9/9/9/9 b - 1"],
+    ["1段の升が足りない", "8/9/9/9/9/9/9/9/9 b - 1"],
+    ["知らない駒の綴り", "x8/9/9/9/9/9/9/9/9 b - 1"],
+    ["成れない駒に成りの印", "+g8/9/9/9/9/9/9/9/9 b - 1"],
+    ["手番の欄が無い", "9/9/9/9/9/9/9/9/9"],
+    ["持ち駒の欄が無い", "9/9/9/9/9/9/9/9/9 b"],
+    ["手番の綴りが違う", "9/9/9/9/9/9/9/9/9 x - 1"],
+    ["持ち駒に玉", "9/9/9/9/9/9/9/9/9 b K 1"],
+    ["持ち駒の綴りが壊れている", "9/9/9/9/9/9/9/9/9 b Px 1"],
+    ["持ち駒が0枚", "9/9/9/9/9/9/9/9/9 b 0P 1"],
+    ["持ち駒が将棋一式より多い", "9/9/9/9/9/9/9/9/9 b 19P 1"],
+    ["盤と駒台を合わせて多すぎる", "PPPPPPPPP/PPPPPPPPP/9/9/9/9/9/9/9 b 2P 1"],
+  ])("%s は null を返す", (_name, sfen) => {
+    expect(stateFromSfen(sfen)).toBeNull();
+  });
+
+  test("持ち駒を数えきれない大きさでも返ってくる", () => {
+    // shogi.js は枚数を素直に読んでその回数だけ駒を作る。渡す前に止めないと返らない
+    expect(stateFromSfen("9/9/9/9/9/9/9/9/9 b 250000P 1")).toBeNull();
+    expect(stateFromSfen("9/9/9/9/9/9/9/9/9 b 999999999P 1")).toBeNull();
   });
 });
 

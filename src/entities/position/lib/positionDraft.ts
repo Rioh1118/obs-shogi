@@ -16,6 +16,13 @@ import { BOARD_SIZE } from "../model/shogi";
  * 王手の判定に1つ作って捨てる。
  *
  * **どの関数も引数を書き換えない。** 呼び手は返り値を使うこと。
+ *
+ * **不正な引数は throw する。ただし `stateFromSfen` だけは `null` を返す。**
+ * 境目は「その値を誰が作ったか」。画面が作る引数（升・駒台・色）は押す前に沈めてあるので、
+ * 届いた不正は画面側の穴であり、上げてよい。`stateFromSfen` に届くのは保存ファイルの
+ * 中身と利用者が貼った文字列で、**盤に載せられないことは正常な入力の一種**。
+ * throw にすると、React のイベントハンドラから呼んだときに出口が1つも無くなる
+ * （`getDerivedStateFromError` はレンダとライフサイクルしか捕まえない）。
  */
 
 /** 駒台に載る駒。玉と成駒はここに無い（JKF の持ち駒はこの7つしか欄を持たない） */
@@ -285,11 +292,141 @@ export function stateFromPreset(preset: HandicapPreset): JKFState {
   return stateFromShogi(new Shogi({ preset }));
 }
 
-/** SFEN を種にする。読めない SFEN は `shogi.js` が throw する */
-export function stateFromSfen(sfen: string): JKFState {
+/**
+ * SFEN を種にする。読めなければ `null`
+ *
+ * **このファイルで唯一、不正な入力に throw しない口。** 他の関数の引数は画面が作る値で、
+ * 押す前に沈めてあるので、届く不正は画面側の穴として上げてよい。ここへ来るのは
+ * `study_positions.json` の中身（Rust 側に SFEN の検査は無い）と、利用者が貼った
+ * 文字列で、**盤に載せられないことは正常な入力の一種**。
+ *
+ * `shogi.js` に丸投げできない。あちらが投げるのは手番の欄が `b` / `w` でないときの
+ * 1本だけで、段数も筋数も駒の綴りも見ない。
+ *
+ * - `lnsgkgsnl/9/9 b - 1`（3段）→ **throw せず**、残りを空段で埋めた別の局面になる
+ * - `9/…/9 b 250000P 1`（21文字）→ その枚数だけ駒を作る。**返らない**
+ * - `x8/…` → 駒の綴りの表を引けず `TypeError`
+ *
+ * どれも「黙って別の局面が盤に載る」か「操作が無反応になる」に化けるので、
+ * 渡す前に形を見る。
+ */
+export function stateFromSfen(sfen: string): JKFState | null {
+  if (!isWellFormedSfen(sfen)) return null;
+
   const shogi = new Shogi();
-  shogi.initializeFromSFENString(sfen);
-  return stateFromShogi(shogi);
+  try {
+    shogi.initializeFromSFENString(sfen);
+  } catch {
+    return null;
+  }
+
+  const state = stateFromShogi(shogi);
+  return exceedsPieceSupply(state) ? null : state;
+}
+
+/** SFEN の駒1文字。玉は `k`、成駒は `+` を伴う。`+G` / `+K` は無い */
+const SFEN_UNPROMOTED = "plnsgbrk";
+const SFEN_PROMOTABLE = "plnsbr";
+
+/** 駒台に載る駒の SFEN と `Kind` の対応。玉は駒台に載らないので入っていない */
+const SFEN_HAND_KIND: Record<string, HandKind> = {
+  p: "FU",
+  l: "KY",
+  n: "KE",
+  s: "GI",
+  g: "KI",
+  b: "KA",
+  r: "HI",
+};
+
+/**
+ * 将棋一式に何枚あるか
+ *
+ * `shogi.js` の `pieceHistogram` と同じ値だが、あちらは `{[kind: string]: number}` で
+ * 綴りの検査に使えない。ここは `Kind` を鍵にして、増減があれば tsc に見せる。
+ */
+const PIECE_SUPPLY = {
+  FU: 18,
+  KY: 4,
+  KE: 4,
+  GI: 4,
+  KI: 4,
+  KA: 2,
+  HI: 2,
+  OU: 2,
+} as const satisfies Partial<Record<Kind, number>>;
+
+/**
+ * `shogi.js` に渡してよい形か
+ *
+ * **枚数まで見るのは、構築の前に止めるため。** 持ち駒の欄は数字を素直に読んで
+ * その回数だけ駒を作るので、`250000P` の21文字で1フレームが飛び、
+ * `999999999P` なら返ってこない。作らせてから数えるのでは遅い。
+ */
+function isWellFormedSfen(sfen: string): boolean {
+  const [board, turn, hands] = sfen.trim().split(/\s+/);
+  if (board === undefined || hands === undefined) return false;
+  if (turn !== "b" && turn !== "w") return false;
+  return isWellFormedBoardField(board) && isWellFormedHandField(hands);
+}
+
+function isWellFormedBoardField(field: string): boolean {
+  const ranks = field.split("/");
+  if (ranks.length !== BOARD_RANKS) return false;
+
+  for (const rank of ranks) {
+    let files = 0;
+    for (let i = 0; i < rank.length; i++) {
+      const promoted = rank[i] === "+";
+      const letter = promoted ? rank[++i] : rank[i];
+      if (letter === undefined) return false;
+
+      if (!promoted && /[1-9]/.test(letter)) {
+        files += Number(letter);
+        continue;
+      }
+      const allowed = promoted ? SFEN_PROMOTABLE : SFEN_UNPROMOTED;
+      if (!allowed.includes(letter.toLowerCase())) return false;
+      files += 1;
+    }
+    if (files !== BOARD_FILES) return false;
+  }
+  return true;
+}
+
+function isWellFormedHandField(field: string): boolean {
+  if (field === "-") return true;
+
+  const counted: Partial<Record<HandKind, number>> = {};
+  for (const m of field.matchAll(/(\d*)([a-zA-Z])/g)) {
+    const kind = SFEN_HAND_KIND[m[2]!.toLowerCase()];
+    if (!kind) return false;
+    const n = m[1] === "" ? 1 : Number(m[1]);
+    if (n < 1) return false;
+    counted[kind] = (counted[kind] ?? 0) + n;
+    if (counted[kind]! > PIECE_SUPPLY[kind]) return false;
+  }
+  // 拾えなかった文字が残っていれば綴りが壊れている
+  return field.replace(/\d*[a-zA-Z]/g, "") === "";
+}
+
+/** 盤と駒台を合わせて、将棋一式より多い駒があるか */
+function exceedsPieceSupply(state: JKFState): boolean {
+  const total = new Map<Kind, number>();
+  for (let x = 1; x <= BOARD_FILES; x++) {
+    for (let y = 1; y <= BOARD_RANKS; y++) {
+      const piece = pieceAt(state, { x, y });
+      if (!piece) continue;
+      const raw = unpromotedKind(piece.kind);
+      total.set(raw, (total.get(raw) ?? 0) + 1);
+    }
+  }
+  for (const color of [0, 1] as const) {
+    for (const kind of HAND_KINDS) {
+      total.set(kind, (total.get(kind) ?? 0) + handCount(state, color, kind));
+    }
+  }
+  return [...total].some(([kind, n]) => n > (PIECE_SUPPLY[kind as keyof typeof PIECE_SUPPLY] ?? 0));
 }
 
 /**
