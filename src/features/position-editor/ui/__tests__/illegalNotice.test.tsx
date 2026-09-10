@@ -2,7 +2,7 @@
 import { describe, expect, test, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { Color } from "shogi.js";
-import { emptyHand, stateFromPreset } from "@/entities/position/lib/positionDraft";
+import { emptyHand } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import PositionEditor from "../PositionEditor";
 
@@ -14,6 +14,12 @@ import PositionEditor from "../PositionEditor";
  */
 
 afterEach(cleanup);
+
+/** 種を載せてから確かめる。**種を載せる経路そのものを通す**（prop で差し込まない） */
+function renderSeeded(state: JKFState) {
+  render(<PositionEditor currentPosition={state} />);
+  fireEvent.click(screen.getByRole("button", { name: "いまの棋譜の局面" }));
+}
 
 function emptyState(): JKFState {
   return {
@@ -46,31 +52,31 @@ function nifuState(): JKFState {
 
 describe("断り", () => {
   test("平手には出ない", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     expect(notice()).toBeNull();
     expect(illegal()).toHaveLength(0);
   });
 
   test("二歩で出る", () => {
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     expect(screen.getByText("規則に反する配置があります。")).toBeTruthy();
     expect(screen.getByText(/5筋に先手の歩が2枚あります（二歩）/)).toBeTruthy();
   });
 
   test("該当する升に枠が付く", () => {
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     const marked = illegal().map((el) => `${el.dataset.x},${el.dataset.y}`);
     expect(marked.sort()).toEqual(["5,5", "5,7"]);
   });
 
   test("段は danger", () => {
     // 同じ操作を繰り返しても直らず、直し方は配置ごとに違う（ADR-0004 決定1）
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     expect(notice()!.classList.contains("notice--danger")).toBe(true);
   });
 
   test("押して直るボタンを付けない", () => {
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     expect(notice()!.querySelector(".notice__actions")).toBeNull();
   });
 
@@ -78,7 +84,7 @@ describe("断り", () => {
     // 改行が空白に潰れると全部が1文につながり、何件あるのか読めなくなる
     const state = nifuState();
     state.board[3][0] = { kind: "KY", color: Color.Black }; // 4一 香
-    render(<PositionEditor seed={state} />);
+    renderSeeded(state);
 
     const text = notice()!.querySelector(".notice__text")!.textContent!;
     expect(text.split("\n")).toHaveLength(2);
@@ -86,13 +92,13 @@ describe("断り", () => {
 
   test("断りが出ていても盤は触れる", () => {
     // **止めない。通す。** 押せなくすると詰将棋が作れない
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     fireEvent.click(square(5, 5));
     expect(square(5, 5).classList.contains("pos-editor__square--from")).toBe(true);
   });
 
   test("配置を直すと消える", () => {
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     expect(notice()).not.toBeNull();
 
     fireEvent.click(square(5, 5));
@@ -103,7 +109,7 @@ describe("断り", () => {
   });
 
   test("枠は面を塗らない。掴んでいる升の残像と両立する", () => {
-    render(<PositionEditor seed={nifuState()} />);
+    renderSeeded(nifuState());
     fireEvent.click(square(5, 5));
 
     expect(square(5, 5).classList.contains("pos-editor__square--illegal")).toBe(true);
@@ -111,7 +117,7 @@ describe("断り", () => {
   });
 
   test("盤が空でも出る", () => {
-    render(<PositionEditor seed={emptyState()} />);
+    renderSeeded(emptyState());
     expect(screen.getByText(/盤に駒が1枚もありません/)).toBeTruthy();
   });
 });

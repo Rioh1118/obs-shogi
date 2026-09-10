@@ -11,7 +11,15 @@ interface SelectProps<T extends string> {
   label: string;
   id: string;
   options: readonly Option<T>[];
-  value: T;
+  /**
+   * いま選ばれている値。
+   *
+   * **空文字は「まだ選んでいない」。** 選択肢に無い値なので `placeholder` が出る。
+   * 型に混ぜてあるのは、呼び手が `"" as T` と書かずに済ませるため —— そのキャストは
+   * 「選択肢の外の値も渡せる」という嘘を通してしまう。
+   */
+  value: T | "";
+  /** 選択肢の値しか出さないので、空文字は返らない */
   onChange: (value: T) => void;
   placeholder?: string;
 }

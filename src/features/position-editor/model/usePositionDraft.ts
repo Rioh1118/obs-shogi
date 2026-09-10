@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import {
@@ -12,6 +12,7 @@ import {
   movePieceOnBoard,
   pieceAt,
   sendToHand,
+  serializeDraft,
   setTurn,
   squareKey,
   type CycleStep,
@@ -38,6 +39,13 @@ interface DraftState {
    * 「右クリックしても何も変わらない」が出る（`cycleFrom` の doc に再現がある）。
    */
   cycles: ReadonlyMap<string, CycleStep>;
+  /**
+   * 種を載せた時点の局面（`serializeDraft` の値）
+   *
+   * **盤・両駒台・手番だけを見る。** ファイル名や先手名を打っただけで「組みかけ」に
+   * なると、閉じるたびに確認が出て、確認そのものが読まれなくなる。
+   */
+  baseline: string;
 }
 
 /**
@@ -51,12 +59,24 @@ interface DraftState {
  * 駒のある升へ駒台から置く、玉を駒台へ送る）は**押す前に沈める**ので、
  * ここへは来ない。来たときに黙って捨てるのは、沈め忘れを隠すことになる。
  */
-export function usePositionDraft(seed: JKFState) {
-  const [draft, setDraft] = useState<DraftState>({
-    state: seed,
-    held: null,
-    cycles: new Map(),
+export function usePositionDraft(makeSeed: () => JKFState) {
+  // **種を関数で受ける。** 値で受けると、開くたびに種を組み直す呼び手が
+  // レンダーのたびに `Shogi` を1つ作ることになる
+  const [draft, setDraft] = useState<DraftState>(() => {
+    const seed = makeSeed();
+    return { state: seed, held: null, cycles: new Map(), baseline: serializeDraft(seed) };
   });
+
+  /**
+   * 種を載せてから盤・両駒台・手番のどれかを変えたか
+   *
+   * 局面が変わったときだけ数え直す。ポインタを動かすたびに直列化すると、
+   * ホバーのたびに81升をなめることになる
+   */
+  const isDirty = useMemo(
+    () => serializeDraft(draft.state) !== draft.baseline,
+    [draft.state, draft.baseline],
+  );
 
   /** 掴んでいるものを離す。局面は変えない */
   const release = useCallback(() => {
@@ -124,7 +144,7 @@ export function usePositionDraft(seed: JKFState) {
 
       const key = squareKey(sq);
       const { state, step } = cycleOnBoard(prev.state, sq, prev.cycles.get(key));
-      return { state, held: null, cycles: new Map(prev.cycles).set(key, step) };
+      return { ...prev, state, held: null, cycles: new Map(prev.cycles).set(key, step) };
     });
   }, []);
 
@@ -140,9 +160,13 @@ export function usePositionDraft(seed: JKFState) {
     }));
   }, []);
 
-  /** 種を載せ直す。掴んでいるものも覚えていた巡目も落とす */
+  /**
+   * 種を載せ直す。掴んでいるものも覚えていた巡目も落とす
+   *
+   * `baseline` も置き直すので、載せた直後は組みかけでなくなる。
+   */
   const loadSeed = useCallback((next: JKFState) => {
-    setDraft({ state: next, held: null, cycles: new Map() });
+    setDraft({ state: next, held: null, cycles: new Map(), baseline: serializeDraft(next) });
   }, []);
 
   return {
@@ -154,5 +178,6 @@ export function usePositionDraft(seed: JKFState) {
     toggleTurn,
     release,
     loadSeed,
+    isDirty,
   };
 }

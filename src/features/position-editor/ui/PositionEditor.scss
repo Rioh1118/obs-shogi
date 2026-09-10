@@ -14,6 +14,7 @@ $stand-w: 14rem; // scale-exempt
 $stand-piece: 3.6rem; // scale-exempt
 $stand-min-h: 26rem; // scale-exempt
 $side-w: 28rem; // scale-exempt
+$seed-select-w: 18rem; // scale-exempt
 
 // 器は縦に縮められる（`tauri.conf.json` に `minHeight` が無く `resizable: true`）。
 // 盤を固定にすると切れるので、**高さを先に決めて幅を縦横比から出す**。
@@ -22,6 +23,49 @@ $side-w: 28rem; // scale-exempt
   gap: index.$space-9;
   height: 100%;
   min-height: 0;
+}
+
+.pos-editor__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-6;
+}
+
+// 種を選ぶ行。**確定ボタンは置かない**ので、押せるものは選択肢と2つのボタンだけ
+.pos-editor__seed {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: index.$space-3;
+  flex-wrap: wrap;
+
+  &-select {
+    width: $seed-select-w;
+  }
+
+  &-button {
+    font-family: inherit;
+    font-size: index.$font-aux;
+    color: index.$color-text-light-1;
+    background: index.$surface-raised;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-3;
+    padding: index.$space-2 index.$space-4;
+    cursor: pointer;
+
+    // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）
+    &:hover:not(:disabled) {
+      background: index.$color-primary-black;
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
 }
 
 // 右の列。**断りが一番上。** 盤の右隣の上端なので、枠を付けた升との距離が最短になる。

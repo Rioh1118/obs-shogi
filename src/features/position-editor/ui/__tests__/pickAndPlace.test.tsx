@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { Color } from "shogi.js";
-import { emptyHand, stateFromPreset } from "@/entities/position/lib/positionDraft";
+import { emptyHand } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import PositionEditor from "../PositionEditor";
 
@@ -15,6 +15,12 @@ import PositionEditor from "../PositionEditor";
  */
 
 afterEach(cleanup);
+
+/** 種を載せてから確かめる。**種を載せる経路そのものを通す**（prop で差し込まない） */
+function renderSeeded(state: JKFState) {
+  render(<PositionEditor currentPosition={state} />);
+  fireEvent.click(screen.getByRole("button", { name: "いまの棋譜の局面" }));
+}
 
 function emptyState(): JKFState {
   return {
@@ -60,27 +66,27 @@ const isHeld = (el: HTMLElement): boolean =>
 
 describe("盤の駒を掴んで置く", () => {
   test("空升を押しても掴めない", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(5, 5));
     expect(isHeld(square(5, 5))).toBe(false);
   });
 
   test("駒のある升を押すと掴む", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(7, 7));
     expect(isHeld(square(7, 7))).toBe(true);
   });
 
   test("掴んだ駒は盤から消えない", () => {
     // 消すと、どこから持ったのかを見失う。戻す口が無いので致命的
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(7, 7));
     expect(hasPiece(7, 7)).toBe(true);
     expect(totalPieces()).toBe(40);
   });
 
   test("同じ升をもう一度押すと離す", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(7, 7));
     fireEvent.click(square(7, 7));
     expect(isHeld(square(7, 7))).toBe(false);
@@ -88,7 +94,7 @@ describe("盤の駒を掴んで置く", () => {
   });
 
   test("別の空升を押すと動く", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(7, 7));
     fireEvent.click(square(7, 6));
     expect(hasPiece(7, 7)).toBe(false);
@@ -97,7 +103,7 @@ describe("盤の駒を掴んで置く", () => {
   });
 
   test("駒に重ねると、動かした側の駒台へ入る", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(2, 8)); // 先手の飛
     fireEvent.click(square(2, 7)); // 先手の歩に重ねる
     expect(stackCount(Color.Black, "FU")).toBe(1);
@@ -106,7 +112,7 @@ describe("盤の駒を掴んで置く", () => {
   });
 
   test("玉に重ねると入れ替わる。駒台には入らない", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(2, 8)); // 先手の飛
     fireEvent.click(square(5, 1)); // 後手の玉
     expect(totalPieces()).toBe(40);
@@ -118,7 +124,7 @@ describe("盤の駒を掴んで置く", () => {
 
 describe("盤から駒台へ送る", () => {
   test("駒台を押すと送れる", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(7, 7));
     fireEvent.click(stand(Color.Black));
     expect(hasPiece(7, 7)).toBe(false);
@@ -128,7 +134,7 @@ describe("盤から駒台へ送る", () => {
 
   test("相手の駒台へも送れる", () => {
     // 送り先は押した駒台であって、駒の持ち主ではない
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(7, 7));
     fireEvent.click(stand(Color.White));
     expect(stackCount(Color.White, "FU")).toBe(1);
@@ -136,7 +142,7 @@ describe("盤から駒台へ送る", () => {
   });
 
   test("玉は駒台へ送れない。掴んだままにする", () => {
-    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor />);
     fireEvent.click(square(5, 9)); // 先手の玉
     fireEvent.click(stand(Color.Black));
     expect(hasPiece(5, 9)).toBe(true);
@@ -155,13 +161,13 @@ describe("駒台の駒を掴んで置く", () => {
   }
 
   test("駒台の駒を押すと掴む", () => {
-    render(<PositionEditor seed={withHand()} />);
+    renderSeeded(withHand());
     fireEvent.click(stack(Color.Black, "FU"));
     expect(isHeld(stack(Color.Black, "FU"))).toBe(true);
   });
 
   test("空升へ置ける", () => {
-    render(<PositionEditor seed={withHand()} />);
+    renderSeeded(withHand());
     fireEvent.click(stack(Color.Black, "FU"));
     fireEvent.click(square(5, 5));
     expect(hasPiece(5, 5)).toBe(true);
@@ -170,7 +176,7 @@ describe("駒台の駒を掴んで置く", () => {
   });
 
   test("駒のある升へは置けない", () => {
-    render(<PositionEditor seed={withHand()} />);
+    renderSeeded(withHand());
     fireEvent.click(stack(Color.Black, "FU"));
     fireEvent.click(square(5, 9)); // 玉がいる
     expect(stackCount(Color.Black, "FU")).toBe(2);
@@ -178,7 +184,7 @@ describe("駒台の駒を掴んで置く", () => {
   });
 
   test("同じ駒台をもう一度押すと離す", () => {
-    render(<PositionEditor seed={withHand()} />);
+    renderSeeded(withHand());
     fireEvent.click(stack(Color.Black, "FU"));
     fireEvent.click(stand(Color.Black));
     expect(isHeld(stack(Color.Black, "FU"))).toBe(false);
@@ -186,7 +192,7 @@ describe("駒台の駒を掴んで置く", () => {
   });
 
   test("反対の駒台を押すと移る", () => {
-    render(<PositionEditor seed={withHand()} />);
+    renderSeeded(withHand());
     fireEvent.click(stack(Color.Black, "FU"));
     fireEvent.click(stand(Color.White));
     expect(stackCount(Color.Black, "FU")).toBe(1);
@@ -200,7 +206,7 @@ describe("駒台の駒を掴んで置く", () => {
     const state = emptyState();
     state.hands[Color.Black].FU = 1;
     state.hands[Color.White].KI = 1;
-    render(<PositionEditor seed={state} />);
+    renderSeeded(state);
 
     fireEvent.click(stack(Color.Black, "FU"));
     fireEvent.click(stack(Color.White, "KI"));
