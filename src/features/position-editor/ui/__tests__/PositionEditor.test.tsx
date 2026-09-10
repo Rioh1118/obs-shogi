@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { Color } from "shogi.js";
 import { emptyHand, stateFromPreset } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import PositionEditor from "../PositionEditor";
+import { EditorHarness } from "./harness";
 
 /**
  * 組む面の描画。**触れるようにするのはこの後**（掴む・置く・裏返す）。
@@ -18,7 +18,7 @@ afterEach(cleanup);
 
 /** 種を載せてから確かめる。**種を載せる経路そのものを通す**（prop で差し込まない） */
 function renderSeeded(state: JKFState) {
-  render(<PositionEditor currentPosition={state} />);
+  render(<EditorHarness currentPosition={state} />);
   fireEvent.click(screen.getByRole("button", { name: "いまの棋譜の局面" }));
 }
 
@@ -47,7 +47,7 @@ describe("PositionEditor", () => {
   });
 
   test("平手は40枚が盤に載る", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(piecesOnBoard()).toHaveLength(40);
     expect(piecesInStands()).toHaveLength(0);
   });

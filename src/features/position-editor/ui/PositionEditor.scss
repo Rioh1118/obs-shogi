@@ -15,6 +15,7 @@ $stand-piece: 3.6rem; // scale-exempt
 $stand-min-h: 26rem; // scale-exempt
 $side-w: 28rem; // scale-exempt
 $seed-select-w: 18rem; // scale-exempt
+$picker-list-w: 32rem; // scale-exempt
 
 // 器は縦に縮められる（`tauri.conf.json` に `minHeight` が無く `resizable: true`）。
 // 盤を固定にすると切れるので、**高さを先に決めて幅を縦横比から出す**。
@@ -339,5 +340,105 @@ $seed-select-w: 18rem; // scale-exempt
 
   &--placed {
     visibility: visible;
+  }
+}
+
+// 課題局面の面。一覧と盤のプレビューを左右に置く
+.pos-editor__picker {
+  display: flex;
+  gap: index.$space-8;
+  min-height: 0;
+  flex: 1 1 auto;
+  outline: none;
+
+  &-list {
+    width: $picker-list-w;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-4;
+    min-height: 0;
+  }
+
+  &-filters {
+    display: flex;
+    align-items: flex-end;
+    gap: index.$space-3;
+    flex: 0 0 auto;
+  }
+
+  &-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: inherit;
+    font-size: index.$font-body;
+    color: index.$color-text-light-1;
+    background: index.$color-primary-black;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-3;
+    padding: index.$space-2 index.$space-3;
+  }
+
+  &-rows {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-1;
+  }
+
+  &-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: index.$space-3;
+    padding: index.$space-3 index.$space-4;
+    border-radius: index.$radius-3;
+    background: index.$color-primary-black;
+    cursor: pointer;
+
+    // 下見している行。**押した行ではない** —— 押した瞬間に載って盤へ戻るので、
+    // 「選ばれたまま留まる行」はこの面に存在しない
+    &.is-looking {
+      background: index.$surface-raised;
+    }
+
+    // **行の中に入れ子で書く。** 外に出すと、`contrastRatchet` が文字の載る面を
+    // 辿れず「測れなかった宣言」に落ちる
+    .pos-editor__picker-label {
+      color: index.$color-text-light-1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pos-editor__picker-state {
+      flex: 0 0 auto;
+      font-size: index.$font-hint;
+      color: index.$color-text-primary;
+    }
+  }
+
+  // 面を持たないので色を書かない（器のカードの色を継ぐ）
+  &-empty {
+    margin: 0;
+    padding: index.$space-6 index.$space-4;
+    font-size: index.$font-aux;
+  }
+
+  &-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-4;
+  }
+
+  &-foot {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
   }
 }

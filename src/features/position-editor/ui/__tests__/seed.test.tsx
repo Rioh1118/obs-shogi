@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { Color } from "shogi.js";
 import { emptyHand } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import PositionEditor from "../PositionEditor";
+import { EditorHarness } from "./harness";
 
 /**
  * 種を選ぶ（状態遷移表の X5 / X7）。
@@ -45,7 +45,7 @@ const boardPieces = (): number => document.querySelectorAll(".pos-editor__square
 describe("開いた瞬間", () => {
   test("平手が並んでいる", () => {
     // **空盤から始めない。** 駒箱が無いので、空盤に置くと駒を1枚も足せない
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(boardPieces()).toBe(40);
     expect(handicapButton().textContent).toBe("平手");
   });
@@ -53,7 +53,7 @@ describe("開いた瞬間", () => {
 
 describe("手合割から", () => {
   test("選んだ瞬間に載る。確定ボタンは無い", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     pickHandicap("二枚落ち");
 
     expect(boardPieces()).toBe(38);
@@ -61,14 +61,14 @@ describe("手合割から", () => {
   });
 
   test("手番も種のものになる", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     pickHandicap("二枚落ち");
     expect(document.querySelector(".pos-editor__turn-value")!.textContent).toBe("☖後手");
   });
 
   test("盤を触るとプレースホルダに戻る", () => {
     // 値が残っていると、同じ手合割を選び直しても `onChange` が飛ばない
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(handicapButton().textContent).toBe("平手");
 
     fireEvent.click(square(7, 7));
@@ -78,7 +78,7 @@ describe("手合割から", () => {
   });
 
   test("同じ手合割を選び直すと、組みかけが載せ直される", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     fireEvent.click(square(7, 6));
     expect(square(7, 7).querySelector(".piece")).toBeNull();
@@ -92,13 +92,13 @@ describe("手合割から", () => {
 describe("いまの棋譜の局面から", () => {
   test("棋譜が無ければ押せない。理由をその場に残す", () => {
     // **押しても何も起きない形を作らない**
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(currentKifuButton().disabled).toBe(true);
     expect(currentKifuButton().title).toBe("棋譜を開いていません");
   });
 
   test("棋譜があれば押せる", () => {
-    render(<PositionEditor currentPosition={emptyState()} />);
+    render(<EditorHarness currentPosition={emptyState()} />);
     expect(currentKifuButton().disabled).toBe(false);
     expect(currentKifuButton().title).toBe("");
   });
@@ -106,7 +106,7 @@ describe("いまの棋譜の局面から", () => {
   test("押すと載る", () => {
     const state = emptyState();
     state.board[4][4] = { kind: "OU", color: Color.Black };
-    render(<PositionEditor currentPosition={state} />);
+    render(<EditorHarness currentPosition={state} />);
 
     fireEvent.click(currentKifuButton());
     expect(boardPieces()).toBe(1);
@@ -114,7 +114,7 @@ describe("いまの棋譜の局面から", () => {
 
   test("載せた後は手合割がプレースホルダになる", () => {
     // 棋譜の局面はどの手合割でもない
-    render(<PositionEditor currentPosition={emptyState()} />);
+    render(<EditorHarness currentPosition={emptyState()} />);
     fireEvent.click(currentKifuButton());
     expect(handicapButton().textContent).toBe("手合割から…");
   });
@@ -122,7 +122,7 @@ describe("いまの棋譜の局面から", () => {
   test("載せ直すと組みかけでなくなる", () => {
     const state = emptyState();
     state.board[4][4] = { kind: "OU", color: Color.Black };
-    render(<PositionEditor currentPosition={state} />);
+    render(<EditorHarness currentPosition={state} />);
 
     fireEvent.click(currentKifuButton());
     fireEvent.click(square(5, 5));

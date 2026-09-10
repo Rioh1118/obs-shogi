@@ -3,17 +3,32 @@ import { Color } from "shogi.js";
 import { DEFAULT_HANDICAP, type HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { inspectPosition } from "@/entities/position/lib/inspectPosition";
-import { pieceAt, stateFromPreset, type Square } from "@/entities/position/lib/positionDraft";
+import {
+  pieceAt,
+  stateFromPreset,
+  stateFromSfen,
+  type Square,
+} from "@/entities/position/lib/positionDraft";
+import type { StudyPosition } from "@/entities/study-positions/model/types";
 import { usePositionDraft } from "../model/usePositionDraft";
 import EditorBoard from "./EditorBoard";
 import EditorGhost from "./EditorGhost";
 import EditorNotice from "./EditorNotice";
 import EditorSeed from "./EditorSeed";
 import EditorStand from "./EditorStand";
+import EditorStudyPicker from "./EditorStudyPicker";
 import EditorTurn from "./EditorTurn";
 import "./PositionEditor.scss";
 
+/** 組む面のどちらが出ているか。インポートの面は器（`create-file`）が持つ */
+export type EditorFace = "board" | "study";
+
 interface PositionEditorProps {
+  /** いま出ている面。**器が1つの変数で持つ**ので、ここでは受け取るだけ */
+  face: EditorFace;
+  onFaceChange: (face: EditorFace) => void;
+  /** 種にできる課題局面。provider はこの面から読まない */
+  studyPositions?: StudyPosition[];
   /**
    * いま開いている棋譜の局面。開いていなければ `null`
    *
@@ -35,7 +50,12 @@ interface PositionEditorProps {
  * 開いた瞬間は平手。**空盤から始めない** —— 駒箱が無いので、空盤に置くと
  * そこから駒を1枚も足せない。
  */
-function PositionEditor({ currentPosition = null }: PositionEditorProps) {
+function PositionEditor({
+  face,
+  onFaceChange,
+  currentPosition = null,
+  studyPositions = [],
+}: PositionEditorProps) {
   const { state, held, pressSquare, pressStand, flipSquare, toggleTurn, loadSeed, isDirty } =
     usePositionDraft(() => stateFromPreset(DEFAULT_HANDICAP));
 
@@ -58,6 +78,19 @@ function PositionEditor({ currentPosition = null }: PositionEditorProps) {
     [loadSeed],
   );
 
+  const useStudyPosition = useCallback(
+    (position: StudyPosition) => {
+      const state = stateFromSfen(position.sfen);
+      // 読めない SFEN は種にしない。黙って盤へ戻すと、種が変わっていないのに
+      // 別の局面が載ったように見える。面に留めれば、その行が選べないことが画面から読める
+      if (!state) return;
+      loadSeed(state);
+      setHandicap(null);
+      onFaceChange("board");
+    },
+    [loadSeed, onFaceChange],
+  );
+
   const useCurrentKifu = useCallback(() => {
     if (!currentPosition) return;
     loadSeed(currentPosition);
@@ -71,6 +104,20 @@ function PositionEditor({ currentPosition = null }: PositionEditorProps) {
         ? { kind: held.kind, color: held.color }
         : pieceAt(state, held.sq);
 
+  if (face === "study") {
+    return (
+      <div className="pos-editor">
+        <div className="pos-editor__main">
+          <EditorStudyPicker
+            positions={studyPositions}
+            onPick={useStudyPosition}
+            onBack={() => onFaceChange("board")}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="pos-editor">
       <div className="pos-editor__main">
@@ -79,7 +126,7 @@ function PositionEditor({ currentPosition = null }: PositionEditorProps) {
           handicap={isDirty ? null : handicap}
           canUseCurrentKifu={currentPosition !== null}
           onPickHandicap={pickHandicap}
-          onOpenStudyPositions={() => undefined}
+          onOpenStudyPositions={() => onFaceChange("study")}
           onUseCurrentKifu={useCurrentKifu}
         />
 

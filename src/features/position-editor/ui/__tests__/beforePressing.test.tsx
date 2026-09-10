@@ -4,7 +4,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { Color } from "shogi.js";
 import { emptyHand } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import PositionEditor from "../PositionEditor";
+import { EditorHarness } from "./harness";
 
 /**
  * 押す前に見せる（状態遷移表の不変条件2）。
@@ -18,7 +18,7 @@ afterEach(cleanup);
 
 /** 種を載せてから確かめる。**種を載せる経路そのものを通す**（prop で差し込まない） */
 function renderSeeded(state: JKFState) {
-  render(<PositionEditor currentPosition={state} />);
+  render(<EditorHarness currentPosition={state} />);
   fireEvent.click(screen.getByRole("button", { name: "いまの棋譜の局面" }));
 }
 
@@ -57,7 +57,7 @@ const blockedSquares = (): number =>
 
 describe("沈める", () => {
   test("何も掴んでいなければ、空升が沈む", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     // 平手は40枚が盤に載るので、空升は41
     expect(blockedSquares()).toBe(41);
     expect(square(7, 7).classList.contains("pos-editor__square--blocked")).toBe(false);
@@ -65,7 +65,7 @@ describe("沈める", () => {
 
   test("盤の駒を掴むと、沈む升が1つも無くなる", () => {
     // 空升へは動き、駒のある升には重なる。掴んだ升自身は「離す」
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     expect(blockedSquares()).toBe(0);
   });
@@ -82,21 +82,21 @@ describe("沈める", () => {
   });
 
   test("玉を掴むと、両方の駒台が沈む", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(5, 9));
     expect(stand(Color.Black).classList.contains("pos-editor__stand--nodrop")).toBe(true);
     expect(stand(Color.White).classList.contains("pos-editor__stand--nodrop")).toBe(true);
   });
 
   test("空の駒台は、掴んでいなくても沈む", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(stand(Color.Black).classList.contains("pos-editor__stand--nodrop")).toBe(true);
   });
 });
 
 describe("光らせる", () => {
   test("盤の駒を掴んでいる間だけ、駒台が置き場として光る", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(stand(Color.Black).classList.contains("pos-editor__stand--drop")).toBe(false);
 
     fireEvent.click(square(7, 7));
@@ -110,7 +110,7 @@ describe("光らせる", () => {
 
 describe("重ねる予告", () => {
   test("取る先にホバーすると、その升と行き先の駒台が名乗る", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(8, 8)); // 先手の角
     fireEvent.mouseEnter(square(2, 2)); // 後手の角
 
@@ -120,7 +120,7 @@ describe("重ねる予告", () => {
   });
 
   test("玉にホバーすると、入れ替わる2つの升が名乗る", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(8, 8));
     fireEvent.mouseEnter(square(5, 1)); // 後手の玉
 
@@ -130,7 +130,7 @@ describe("重ねる予告", () => {
   });
 
   test("盤から出ると予告が消える", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(8, 8));
     fireEvent.mouseEnter(square(2, 2));
     fireEvent.mouseLeave(document.querySelector(".pos-editor__board")!);
@@ -139,7 +139,7 @@ describe("重ねる予告", () => {
   });
 
   test("掴んでいなければホバーしても出ない", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.mouseEnter(square(2, 2));
     expect(square(2, 2).classList.contains("pos-editor__square--takes")).toBe(false);
   });
@@ -147,12 +147,12 @@ describe("重ねる予告", () => {
 
 describe("ゴースト", () => {
   test("掴んでいない間は出さない", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     expect(ghost()).toBeNull();
   });
 
   test("掴むと出て、離すと消える", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     expect(ghost()).not.toBeNull();
 
@@ -162,7 +162,7 @@ describe("ゴースト", () => {
 
   test("最初の mousemove まで出さない", () => {
     // 掴んだ時点のポインタ位置を知る口が無い。原点に描くと画面の隅で駒が光る
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     expect(ghost()!.classList.contains("pos-editor__ghost--placed")).toBe(false);
 
@@ -171,7 +171,7 @@ describe("ゴースト", () => {
   });
 
   test("ポインタに付いてくる", () => {
-    render(<PositionEditor />);
+    render(<EditorHarness />);
     fireEvent.click(square(7, 7));
 
     fireEvent.mouseMove(window, { clientX: 120, clientY: 80 });
