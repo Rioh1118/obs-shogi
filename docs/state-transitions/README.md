@@ -27,6 +27,7 @@ L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の�
 L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
 L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だけを扱う
 L2    board-orientation.md     盤の向き。盤に載っている棋譜とツリー側のパスのずれが軸
+L2    position-editor.md       初期局面を組む面。L1 の file-tree の「作る」側だけを扱う
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -64,6 +65,7 @@ L2    board-orientation.md     盤の向き。盤に載っている棋譜とツ�
 | [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                                                  |
 | [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                                                        |
 | [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath` と `boardSeq` の組。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸 |
+| [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**画面側のセルはまだ1つも踏まれていない**                |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                                              |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
