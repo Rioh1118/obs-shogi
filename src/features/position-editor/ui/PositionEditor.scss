@@ -343,6 +343,12 @@ $picker-list-w: 32rem; // scale-exempt
   }
 }
 
+// 保存先が無いときの注記。面を持たないので色を書かない（器のカードの色を継ぐ）
+.pos-editor__form-hint {
+  margin: index.$space-2 0 0;
+  font-size: index.$font-hint;
+}
+
 // 課題局面の面。一覧と盤のプレビューを左右に置く
 .pos-editor__picker {
   display: flex;

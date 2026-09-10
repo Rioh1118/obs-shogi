@@ -4,10 +4,10 @@ import { turnText } from "@/shared/lib/turn";
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
+  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
-  type FileTreeNode,
   type FsError,
 } from "@/entities/file-tree";
 import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
@@ -23,23 +23,6 @@ import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 
 import "./SfenKifuCreateModal.scss";
-
-/** ツリーからディレクトリ一覧をフラットに収集する */
-function collectDirs(node: FileTreeNode, rootPath: string): { value: string; label: string }[] {
-  const dirs: { value: string; label: string }[] = [];
-
-  function walk(n: FileTreeNode) {
-    if (!n.isDirectory) return;
-    const label = n.path === rootPath ? "/" : n.path.slice(rootPath.length);
-    dirs.push({ value: n.path, label });
-    for (const child of n.children ?? []) {
-      walk(child);
-    }
-  }
-
-  walk(node);
-  return dirs;
-}
 
 export default function SfenKifuCreateModal() {
   const { params, closeModal } = useURLParams();

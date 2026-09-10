@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, test, afterEach } from "vitest";
+import { describe, expect, test, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { StudyPosition } from "@/entities/study-positions/model/types";
 import { EditorHarness } from "./harness";
@@ -9,6 +9,12 @@ import { EditorHarness } from "./harness";
  *
  * **確定ボタンは無い。行を押した瞬間に載って盤の面へ戻る。**
  */
+
+// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
+vi.mock("@/entities/file-tree/model/useFileTree", () => ({
+  useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
+}));
 
 afterEach(cleanup);
 

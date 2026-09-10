@@ -13,6 +13,7 @@ import type { StudyPosition } from "@/entities/study-positions/model/types";
 import { usePositionDraft } from "../model/usePositionDraft";
 import EditorBoard from "./EditorBoard";
 import EditorGhost from "./EditorGhost";
+import EditorCreateForm from "./EditorCreateForm";
 import EditorNotice from "./EditorNotice";
 import EditorSeed from "./EditorSeed";
 import EditorStand from "./EditorStand";
@@ -27,6 +28,11 @@ interface PositionEditorProps {
   /** いま出ている面。**器が1つの変数で持つ**ので、ここでは受け取るだけ */
   face: EditorFace;
   onFaceChange: (face: EditorFace) => void;
+  /** ツリーから開いたときの保存先。ようこそ画面から開くと来ない */
+  initialDir?: string;
+  /** 作成が通ったとき。器を閉じるのは器の仕事 */
+  onCreated?: () => void;
+  onCancel?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];
   /**
@@ -55,6 +61,9 @@ function PositionEditor({
   onFaceChange,
   currentPosition = null,
   studyPositions = [],
+  initialDir,
+  onCreated = () => undefined,
+  onCancel = () => undefined,
 }: PositionEditorProps) {
   const { state, held, pressSquare, pressStand, flipSquare, toggleTurn, loadSeed, isDirty } =
     usePositionDraft(() => stateFromPreset(DEFAULT_HANDICAP));
@@ -165,6 +174,13 @@ function PositionEditor({
 
       <div className="pos-editor__side">
         <EditorNotice issues={inspection.issues} />
+        <EditorCreateForm
+          state={state}
+          handicap={isDirty ? null : handicap}
+          initialDir={initialDir}
+          onCreated={onCreated}
+          onCancel={onCancel}
+        />
       </div>
 
       {heldPiece && <EditorGhost kind={heldPiece.kind} color={heldPiece.color} />}
