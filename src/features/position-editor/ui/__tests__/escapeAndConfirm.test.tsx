@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-const onCancel = vi.fn();
+const onClose = vi.fn();
 
 const square = (x: number, y: number): HTMLElement => {
   const el = document.querySelector<HTMLElement>(
@@ -114,11 +114,55 @@ describe("Esc の段", () => {
     expect(screen.getByText("組んだ局面は保存されません。")).toBeTruthy();
   });
 
-  test("段5: 組みかけでなければ器へ届かせる", () => {
-    // 畳むものが無いときは何もしない。`Modal` が閉じる
-    render(<EditorHarness />);
-    expect(pressEscape()).toBe(false);
+  test("段5: 組みかけでなければ器が閉じる", () => {
+    // 畳むものが無いときは面が何もせず、器の `Modal` が受けて閉じる
+    onClose.mockClear();
+    render(<EditorHarness onClose={onClose} />);
+    pressEscape();
     expect(confirm()).toBeNull();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("段4 の確認は、器を閉じる前に出る", () => {
+    // **Esc・覆いの押下・「やめる」のどれも同じ門を通る。**
+    // 面の受け口だけで段4 を持つと、焦点が面の外にある経路と覆いの押下が素通りする
+    onClose.mockClear();
+    render(<EditorHarness onClose={onClose} />);
+    makeDirty();
+    pressEscape();
+    expect(confirm()).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("覆いを押しても確認を通る", () => {
+    onClose.mockClear();
+    render(<EditorHarness onClose={onClose} />);
+    makeDirty();
+    fireEvent.click(document.querySelector<HTMLElement>(".modal__overlay")!);
+
+    expect(confirm()).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("「やめる」を押しても確認を通る", () => {
+    onClose.mockClear();
+    render(<EditorHarness onClose={onClose} />);
+    makeDirty();
+    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
+
+    expect(confirm()).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test("作成中は閉じない。覆いを押しても消えない", () => {
+    // 止められない書き込みの途中で器ごと消えると、失敗が出る先が無くなる
+    render(<EditorHarness onClose={onClose} />);
+    fireEvent.change(screen.getByLabelText("ファイル名"), { target: { value: "a" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    onClose.mockClear();
+    fireEvent.click(document.querySelector<HTMLElement>(".modal__overlay")!);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   test("段0: 作成中は無視する", async () => {
@@ -188,12 +232,12 @@ describe("捨てる確認", () => {
   });
 
   test("「捨てる」で保留した操作が走る", () => {
-    render(<EditorHarness onCancel={onCancel} />);
+    render(<EditorHarness onClose={onClose} />);
     makeDirty();
     pressEscape();
 
     fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
-    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   test("種を選び直すときも同じ確認を通る", () => {

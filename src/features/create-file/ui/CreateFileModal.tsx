@@ -1,6 +1,6 @@
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useGame } from "@/entities/game";
 import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
@@ -27,6 +27,20 @@ function CreateFileModal() {
 
   const [face, setFace] = useState<Face>(initialFace);
 
+  /**
+   * 閉じてよいかを中身に問う門
+   *
+   * **閉じる口は3つある**（Esc・覆いの押下・面の中の「やめる」）。`Modal` は
+   * Esc と覆いの両方で `onClose` を呼ぶので、そこへ寄せれば口が1つになる。
+   * 段を面の中だけで持つと、焦点が面の外にある Esc と覆いの押下が素通りして、
+   * **組みかけが確認なしに消える**。
+   */
+  const closeGuard = useRef<(() => boolean) | null>(null);
+  const requestClose = useCallback(() => {
+    if (closeGuard.current?.()) return;
+    closeModal();
+  }, [closeModal]);
+
   const { view } = useGame();
   const { state: studyState } = useStudyPositions();
 
@@ -46,7 +60,7 @@ function CreateFileModal() {
 
   return (
     <Modal
-      onClose={() => closeModal()}
+      onClose={requestClose}
       // 面が変わっても器の名前は動かさない。支援技術には「何が開いているか」を
       // 一貫して読ませる
       label="棋譜を作る"
@@ -92,7 +106,8 @@ function CreateFileModal() {
               studyPositions={studyState.positions}
               initialDir={params.dir || undefined}
               onCreated={() => closeModal()}
-              onCancel={() => closeModal()}
+              closeGuard={closeGuard}
+              onClose={() => closeModal()}
             />
           )}
         </div>

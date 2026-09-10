@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from "react";
 import { Color } from "shogi.js";
 import { DEFAULT_HANDICAP, type HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
@@ -33,7 +33,18 @@ interface PositionEditorProps {
   initialDir?: string;
   /** 作成が通ったとき。器を閉じるのは器の仕事 */
   onCreated?: () => void;
-  onCancel?: () => void;
+  /**
+   * 器を閉じてよいか、器がこの面に問うための門
+   *
+   * **閉じる口は3つある**（Esc・覆いの押下・「やめる」）。段を面の中だけで持つと、
+   * 焦点が面の外にある経路と覆いの押下が素通りして、**組みかけが確認なしに消える**。
+   * 器が1つの口（`Modal` の `onClose`）へ寄せ、そこからここを通す。
+   *
+   * `true` を返したら面が引き取った（確認を出したか、止めた）。
+   */
+  closeGuard?: MutableRefObject<(() => boolean) | null>;
+  /** 確認を通したうえで実際に閉じる */
+  onClose?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];
   /**
@@ -64,7 +75,8 @@ function PositionEditor({
   studyPositions = [],
   initialDir,
   onCreated = () => undefined,
-  onCancel = () => undefined,
+  closeGuard,
+  onClose = () => undefined,
 }: PositionEditorProps) {
   const {
     state,
@@ -110,7 +122,9 @@ function PositionEditor({
   // 局面そのものからは引けない
   const [handicap, setHandicap] = useState<HandicapPreset | null>(DEFAULT_HANDICAP);
 
-  // 局面が変わったときだけ数え直す。ホバーのたびに 81 升を4回なめる必要は無い
+  // 局面が変わったときだけ数え直す。`inspectPosition` は 81 升を7周以上なめる
+  // （空盤・二歩は先後で2周・行き所のない駒・玉の枚数を2周・玉の位置・王手の判定）ので、
+  // ポインタを動かすたびに走らせない
   const inspection = useMemo(() => inspectPosition(state), [state]);
 
   const pickHandicap = useCallback(
@@ -122,6 +136,19 @@ function PositionEditor({
     },
     [confirmIfDirty, loadSeed],
   );
+
+  /**
+   * 課題局面の面へ移る
+   *
+   * **掴んでいる駒は離す。** 掴んだまま移れると `face === "study"` かつ
+   * `held !== null` という、状態の表に無い組み合わせができる。そこで Esc を押すと
+   * 段2（離す）が段3（盤へ戻る）より先に効くのに、**掴んでいること自体が画面に出ていない**
+   * （ゴーストは盤の面でしか描かない）ので、押しても何も起きないように見える。
+   */
+  const openStudyPositions = useCallback(() => {
+    release();
+    onFaceChange("study");
+  }, [release, onFaceChange]);
 
   const useStudyPosition = useCallback(
     (position: StudyPosition) => {
@@ -148,18 +175,46 @@ function PositionEditor({
   }, [confirmIfDirty, currentPosition, loadSeed]);
 
   /**
+   * 器を閉じてよいか
+   *
+   * 段0（作成中は止められないので閉じさせない）と段4（組みかけなら確認）を持つ。
+   * **Esc も覆いの押下も「やめる」も、必ずここを通る。**
+   */
+  const guardClose = useCallback((): boolean => {
+    if (isSubmitting) return true;
+    if (!isDirty) return false;
+    setPending({ subtitle: "閉じると、いま組んでいる局面は消えます。", run: onClose });
+    return true;
+  }, [isSubmitting, isDirty, onClose]);
+
+  useEffect(() => {
+    if (!closeGuard) return;
+    closeGuard.current = guardClose;
+    return () => {
+      closeGuard.current = null;
+    };
+  }, [closeGuard, guardClose]);
+
+  /** 面の中の「やめる」も同じ門を通す */
+  const requestClose = useCallback(() => {
+    if (guardClose()) return;
+    onClose();
+  }, [guardClose, onClose]);
+
+  /**
    * Esc の段
    *
    * **内側から順に畳む。** 段が1つずれると、組んだものが黙って消えるか、
    * 逆に何も組んでいないのに毎回確認が出て、確認そのものが読まれなくなる。
    *
-   * 器を閉じる段（一番外）だけは**何もしない。** `Modal` が `document` で
-   * Escape を拾って閉じる。ここで畳んだ段は `preventDefault()` で降ろす ——
+   * **この受け口が持つのは段0〜段3だけ。** 器を閉じる段（段4・段5）は
+   * `closeGuard` を通って器の `Modal` の `onClose` が受け持つ。
+   * ここで畳んだ段は `preventDefault()` で降ろす ——
    * **`stopPropagation()` は使わない**（`document` まで届かないと
    * `defaultPrevented` の判定に到達せず、畳むものが無いときも無反応になる）。
    *
-   * 受け口を DOM の要素側に置くのは、`document` に足すと `Modal` より後に
-   * 登録されて、こちらが畳む前に器が閉じてしまうため。
+   * 受け口を DOM の要素側に置くのは、**面の器が焦点を持っているあいだだけ畳みたい**ため。
+   * `document` に足すと、面が出ていない器（インポートの面）でも Escape を拾ってしまう。
    *
    * **そのために面の器が焦点を持てる必要がある**（下の `tabIndex={-1}`）。
    * 升も駒台も焦点を持てないので、押したときブラウザは最も近い焦点を持てる祖先へ
@@ -178,11 +233,14 @@ function PositionEditor({
         event.preventDefault();
         return;
       }
-      // 段1: 確認が出ている。確認自身の器が閉じるので、ここへは来ない
-      if (pending !== null) {
-        event.preventDefault();
-        return;
-      }
+      // 段1: 確認が出ている。**降ろさずに通す。**
+      //
+      // React の合成イベントは DOM ではなく React の木を伝うので、確認（`#modal-root` へ
+      // portal している）の中で押した Escape も**ここへ届く**。ここで降ろすと、
+      // 確認自身の器が `document` で受け取るときには既に `defaultPrevented` で、
+      // **Esc では確認が閉じられなくなる**（残る出口はオーバーレイの押下だけ）。
+      // 重なった器のうち最上位だけが閉じる仕組みは `Modal` の `isTop()` が持っている
+      if (pending !== null) return;
       // 段2: 掴んでいる駒を離す
       if (held !== null) {
         event.preventDefault();
@@ -195,15 +253,11 @@ function PositionEditor({
         onFaceChange("board");
         return;
       }
-      // 段4: 組みかけを捨てる確認
-      if (isDirty) {
-        event.preventDefault();
-        setPending({ subtitle: "閉じると、いま組んでいる局面は消えます。", run: onCancel });
-        return;
-      }
-      // 段5: 何もしない。器が閉じる
+      // 段4・段5 はここでは見ない。**器の `Modal` の `onClose` が受け持つ** ——
+      // 閉じる口は Esc だけでなく覆いの押下と「やめる」もあり、そのうち2つは
+      // この受け口を通らない。段を3箇所に写すと、写し忘れた口から組みかけが消える
     },
-    [isSubmitting, pending, held, face, isDirty, release, onFaceChange, onCancel],
+    [isSubmitting, pending, held, face, release, onFaceChange],
   );
 
   const confirmView = pending && (
@@ -254,7 +308,7 @@ function PositionEditor({
           handicap={isDirty ? null : handicap}
           canUseCurrentKifu={currentPosition !== null}
           onPickHandicap={pickHandicap}
-          onOpenStudyPositions={() => onFaceChange("study")}
+          onOpenStudyPositions={openStudyPositions}
           onUseCurrentKifu={useCurrentKifu}
         />
 
@@ -298,7 +352,7 @@ function PositionEditor({
           handicap={isDirty ? null : handicap}
           initialDir={initialDir}
           onCreated={onCreated}
-          onCancel={onCancel}
+          onCancel={requestClose}
           onSubmittingChange={setIsSubmitting}
         />
       </div>
