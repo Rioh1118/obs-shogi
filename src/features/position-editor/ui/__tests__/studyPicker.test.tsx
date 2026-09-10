@@ -90,6 +90,25 @@ describe("行を押す", () => {
     expect(onBoardFace()).toBe(false);
   });
 
+  test("読めない SFEN の行は、押す前に沈む", () => {
+    // **押しても何も起きない行を作らない**（不変条件2）。
+    // `study_positions.json` は Rust 側に SFEN の検査が無いので、読めない綴りが入りうる
+    openPicker([position({ sfen: "これは SFEN ではない" })]);
+    expect(rows()[0]!.getAttribute("aria-disabled")).toBe("true");
+    expect(rows()[0]!.classList.contains("is-broken")).toBe(true);
+    expect(screen.getByText("読めません")).toBeTruthy();
+  });
+
+  test("読めない行を下見しても、盤の絵を待たせ続けない", () => {
+    openPicker([position({ sfen: "これは SFEN ではない" })]);
+    expect(screen.queryByText("局面を読み込み中...")).toBeNull();
+    expect(
+      screen.getByText(
+        "この課題局面は盤に載せられません。保存されている局面の綴りが壊れています。",
+      ),
+    ).toBeTruthy();
+  });
+
   test("持ち駒も一緒に載る", () => {
     openPicker([position({ sfen: TSUME })]);
     fireEvent.click(rows()[0]!);
@@ -106,6 +125,15 @@ describe("下見", () => {
   test("ホバーで下見が移る", () => {
     openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
     fireEvent.mouseEnter(rows()[1]!);
+    expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("面に入った時点で ↑↓ が効く", () => {
+    // 焦点を移さないと、押した「課題局面から」が消えたあと `Modal` が焦点を
+    // タブへ引き戻し、一覧の受け口が合成イベントの経路から外れる。
+    // **焦点のある場所から撃つ** —— 受け口へ直に撃つと、この形は見えない
+    openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
@@ -176,6 +204,22 @@ describe("絞り込み", () => {
 
     fireEvent.change(screen.getByLabelText("課題局面を検索"), { target: { value: "四間" } });
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("絞り込んでも、下見は同じ行に留まる", () => {
+    // **下見は行そのもので覚える。** 位置で覚えると、絞り込みで行が繰り上がったときに
+    // 押してもいない別の局面へ黙って移る
+    openPicker([
+      position({ id: "a", label: "序盤" }),
+      position({ id: "b", label: "中盤の研究" }),
+      position({ id: "c", label: "終盤の研究" }),
+    ]);
+    fireEvent.mouseEnter(rows()[2]!);
+
+    // 先頭が落ちて3件→2件。位置で覚えていると、2番目を指したまま一覧の外に出る
+    fireEvent.change(screen.getByLabelText("課題局面を検索"), { target: { value: "研究" } });
+    expect(rows()).toHaveLength(2);
+    expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
   test("条件に合わなければ、そう書く", () => {

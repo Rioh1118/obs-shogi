@@ -420,6 +420,13 @@ $picker-list-w: 32rem; // scale-exempt
       background: index.$surface-raised;
     }
 
+    // SFEN が読めず、盤に載せられない行。**押す前に沈める** ——
+    // 押しても何も起きない行を作らない
+    &.is-broken {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     // **行の中に入れ子で書く。** 外に出すと、`contrastRatchet` が文字の載る面を
     // 辿れず「測れなかった宣言」に落ちる
     .pos-editor__picker-label {
