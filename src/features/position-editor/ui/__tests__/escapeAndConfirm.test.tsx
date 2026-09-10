@@ -58,9 +58,15 @@ const editor = (): HTMLElement => document.querySelector<HTMLElement>(".pos-edit
 const confirm = (): HTMLElement | null => document.querySelector(".confirm-dialog");
 const onBoardFace = (): boolean => document.querySelector(".pos-editor__board") !== null;
 
-/** Esc を押して、面が畳んだか（＝器へ届かせなかったか）を返す */
-const pressEscape = (): boolean => {
-  const dispatched = fireEvent.keyDown(editor(), { key: "Escape" });
+/**
+ * Esc を押して、面が畳んだか（＝器へ届かせなかったか）を返す
+ *
+ * **升から撃つ。** 受け口は面の器に付いているので、器そのものへ直に撃つと
+ * 「焦点が面の外にあっても畳めた」ように見えてしまう。実際の経路は
+ * 「押した升 → 面の器」の泡立ちなので、そちらを通す。
+ */
+const pressEscape = (from: HTMLElement = square(5, 5)): boolean => {
+  const dispatched = fireEvent.keyDown(from, { key: "Escape" });
   // `fireEvent` は `preventDefault()` されると false を返す
   return !dispatched;
 };
@@ -93,7 +99,10 @@ describe("Esc の段", () => {
     fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
     expect(onBoardFace()).toBe(false);
 
-    expect(pressEscape()).toBe(true);
+    // 盤の面には升が無いので、一覧の中から撃つ
+    expect(pressEscape(document.querySelector<HTMLElement>(".pos-editor__picker-rows")!)).toBe(
+      true,
+    );
     expect(onBoardFace()).toBe(true);
   });
 
@@ -138,8 +147,22 @@ describe("Esc の段", () => {
     render(<EditorHarness />);
     fireEvent.click(square(7, 7));
 
-    fireEvent.keyDown(editor(), { key: "Escape", isComposing: true });
+    fireEvent.keyDown(square(5, 5), { key: "Escape", isComposing: true });
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(true);
+  });
+
+  test("面の器が焦点を持てる", () => {
+    // **持てないと段が1つも通らない。** 升も駒台も焦点を持てないので、押すと
+    // ブラウザは最も近い焦点を持てる祖先へ焦点を移す。面の器が持てなければ
+    // その祖先は `Modal` のカード（面の外）になり、合成イベントの経路から外れる
+    render(<EditorHarness />);
+    expect(editor().tabIndex).toBe(-1);
+  });
+
+  test("課題局面の面でも器が焦点を持てる", () => {
+    render(<EditorHarness studyPositions={[STUDY]} />);
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
+    expect(editor().tabIndex).toBe(-1);
   });
 });
 

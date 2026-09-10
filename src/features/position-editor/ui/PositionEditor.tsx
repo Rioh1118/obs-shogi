@@ -160,6 +160,13 @@ function PositionEditor({
    *
    * 受け口を DOM の要素側に置くのは、`document` に足すと `Modal` より後に
    * 登録されて、こちらが畳む前に器が閉じてしまうため。
+   *
+   * **そのために面の器が焦点を持てる必要がある**（下の `tabIndex={-1}`）。
+   * 升も駒台も焦点を持てないので、押したときブラウザは最も近い焦点を持てる祖先へ
+   * 焦点を移す。面の器が焦点を持てないと、その祖先は `Modal` のカード ——
+   * つまり**この面の外**になり、合成イベントの経路に載らないので受け口が呼ばれない。
+   * 組みかけにできる操作（盤を押す・手番を変える）はどれもこの面の中にあるので、
+   * 器が焦点を持てさえすれば、畳むべきときには必ず経路に載る。
    */
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
@@ -226,7 +233,7 @@ function PositionEditor({
 
   if (face === "study") {
     return (
-      <div className="pos-editor" onKeyDown={handleKeyDown}>
+      <div className="pos-editor" tabIndex={-1} onKeyDown={handleKeyDown}>
         <div className="pos-editor__main">
           <EditorStudyPicker
             positions={studyPositions}
@@ -240,7 +247,7 @@ function PositionEditor({
   }
 
   return (
-    <div className="pos-editor" onKeyDown={handleKeyDown}>
+    <div className="pos-editor" tabIndex={-1} onKeyDown={handleKeyDown}>
       <div className="pos-editor__main">
         <EditorSeed
           // 盤を触ったらプレースホルダに戻す。**同じ手合割を選び直せるようになる**
