@@ -1,11 +1,12 @@
 import { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
+import { usePositionDraft } from "../model/usePositionDraft";
 import EditorBoard from "./EditorBoard";
 import EditorStand from "./EditorStand";
 import "./PositionEditor.scss";
 
 interface PositionEditorProps {
-  state: JKFState;
+  seed: JKFState;
 }
 
 /**
@@ -17,16 +18,18 @@ interface PositionEditorProps {
  * 駒台は**盤の左右**に置き、後手を盤の上端、先手を下端に揃える（対局中の盤と同じ位置）。
  * 中央に揃えると、どちらの駒台かが位置から読めなくなる。
  */
-function PositionEditor({ state }: PositionEditorProps) {
+function PositionEditor({ seed }: PositionEditorProps) {
+  const { state, held, pressSquare, pressStand } = usePositionDraft(seed);
+
   return (
     <div className="pos-editor">
       <div className="pos-editor__position">
         <div className="pos-editor__stand-slot pos-editor__stand-slot--gote">
-          <EditorStand state={state} color={Color.White} />
+          <EditorStand state={state} color={Color.White} held={held} onPressStand={pressStand} />
         </div>
-        <EditorBoard state={state} />
+        <EditorBoard state={state} held={held} onPressSquare={pressSquare} />
         <div className="pos-editor__stand-slot pos-editor__stand-slot--sente">
-          <EditorStand state={state} color={Color.Black} />
+          <EditorStand state={state} color={Color.Black} held={held} onPressStand={pressStand} />
         </div>
       </div>
     </div>

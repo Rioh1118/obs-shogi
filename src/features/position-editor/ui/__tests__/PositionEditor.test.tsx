@@ -36,32 +36,32 @@ const piecesInStands = (): HTMLElement[] => [
 
 describe("PositionEditor", () => {
   test("升は81個", () => {
-    render(<PositionEditor state={emptyState()} />);
+    render(<PositionEditor seed={emptyState()} />);
     expect(squares()).toHaveLength(81);
   });
 
   test("平手は40枚が盤に載る", () => {
-    render(<PositionEditor state={stateFromPreset("HIRATE")} />);
+    render(<PositionEditor seed={stateFromPreset("HIRATE")} />);
     expect(piecesOnBoard()).toHaveLength(40);
     expect(piecesInStands()).toHaveLength(0);
   });
 
   test("駒落ちは落とした分だけ減り、駒台には出ない", () => {
-    render(<PositionEditor state={stateFromPreset("2")} />);
+    render(<PositionEditor seed={stateFromPreset("2")} />);
     expect(piecesOnBoard()).toHaveLength(38);
     expect(piecesInStands()).toHaveLength(0);
   });
 
   test("左上の升が9一", () => {
     // 対局の盤と筋の向きが逆になっても、どちらも「盤に見える」ので目視では気づけない
-    render(<PositionEditor state={emptyState()} />);
+    render(<PositionEditor seed={emptyState()} />);
     const first = squares()[0]!;
     expect(first.dataset.x).toBe("9");
     expect(first.dataset.y).toBe("1");
   });
 
   test("駒台は先後で2つ", () => {
-    render(<PositionEditor state={emptyState()} />);
+    render(<PositionEditor seed={emptyState()} />);
     expect(document.querySelectorAll(".pos-editor__stand")).toHaveLength(2);
     expect(screen.getByText("☗先手の駒台")).toBeTruthy();
     expect(screen.getByText("☖後手の駒台")).toBeTruthy();
@@ -71,7 +71,7 @@ describe("PositionEditor", () => {
     const state = emptyState();
     state.hands[Color.Black].FU = 3;
     state.hands[Color.White].KI = 2;
-    render(<PositionEditor state={state} />);
+    render(<PositionEditor seed={state} />);
 
     expect(piecesInStands()).toHaveLength(5);
   });
@@ -80,7 +80,7 @@ describe("PositionEditor", () => {
     // 数字を添えると、盤の駒と駒台の駒で「1枚がどう見えるか」が変わる
     const state = emptyState();
     state.hands[Color.Black].FU = 18;
-    render(<PositionEditor state={state} />);
+    render(<PositionEditor seed={state} />);
 
     expect(screen.queryByText(/18/)).toBeNull();
     expect(screen.queryByText(/×/)).toBeNull();
@@ -88,7 +88,7 @@ describe("PositionEditor", () => {
 
   test("持ち駒が無い駒台は空のまま描かれる", () => {
     // 駒台そのものは消さない。消すと掴んでいる間に現れて、置き場の位置が動く
-    render(<PositionEditor state={emptyState()} />);
+    render(<PositionEditor seed={emptyState()} />);
     expect(document.querySelectorAll(".pos-editor__stand")).toHaveLength(2);
     expect(piecesInStands()).toHaveLength(0);
   });
@@ -101,7 +101,7 @@ describe("PositionEditor", () => {
     state.hands[Color.Black].FU = 1;
     state.hands[Color.White].FU = 1;
 
-    render(<PositionEditor state={state} />);
+    render(<PositionEditor seed={state} />);
     expect(piecesOnBoard().length + piecesInStands().length).toBe(40);
   });
 });

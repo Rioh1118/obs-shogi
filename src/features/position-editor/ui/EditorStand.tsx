@@ -1,13 +1,16 @@
 import type { CSSProperties } from "react";
 import type { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import { HAND_KINDS, handCount } from "@/entities/position/lib/positionDraft";
+import { HAND_KINDS, handCount, type HandKind } from "@/entities/position/lib/positionDraft";
 import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { turnLabel } from "@/shared/lib/turn";
+import type { Held } from "../model/usePositionDraft";
 
 interface EditorStandProps {
   state: JKFState;
   color: Color;
+  held: Held | null;
+  onPressStand: (color: Color, kind: HandKind | null) => void;
 }
 
 /**
@@ -23,9 +26,11 @@ interface EditorStandProps {
  * 並びは `HAND_KINDS` の順。`serializeDraft` が同じ順で駒台を直列化するので、
  * 画面の並びと「組みかけか」の比較が同じ出典から出る。
  */
-function EditorStand({ state, color }: EditorStandProps) {
+function EditorStand({ state, color, held, onPressStand }: EditorStandProps) {
+  const heldHere = held?.from === "hand" && held.color === color ? held.kind : null;
+
   return (
-    <div className="pos-editor__stand" data-color={color}>
+    <div className="pos-editor__stand" data-color={color} onClick={() => onPressStand(color, null)}>
       <div className="pos-editor__stand-head">{turnLabel(color)}の駒台</div>
       <div className="pos-editor__stand-rows">
         {HAND_KINDS.map((kind) => {
@@ -35,8 +40,15 @@ function EditorStand({ state, color }: EditorStandProps) {
           return (
             <span
               key={kind}
-              className="pos-editor__stack"
+              className={`pos-editor__stack${heldHere === kind ? " pos-editor__stack--held" : ""}`}
+              data-kind={kind}
               style={{ "--stack-count": count } as CSSProperties}
+              onClick={(e) => {
+                // 駒台そのものの受け口へ二重に届かせない。掴んでいない間の意味
+                // （この駒を掴む）と、掴んでいる間の意味（この駒台へ置く）は別
+                e.stopPropagation();
+                onPressStand(color, kind);
+              }}
             >
               {Array.from({ length: count }, (_, i) => (
                 <span

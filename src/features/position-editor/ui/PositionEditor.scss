@@ -60,6 +60,7 @@ $stand-min-h: 26rem; // scale-exempt
 
 .pos-editor__square {
   position: relative;
+  cursor: pointer;
   border-right: geo.$square-line solid #000;
   border-bottom: geo.$square-line solid #000;
 
@@ -68,6 +69,16 @@ $stand-min-h: 26rem; // scale-exempt
   }
   &:nth-child(n + 73) {
     border-bottom: none;
+  }
+
+  // 掴んでいる駒の元の升。**残像を残す。** 盤から消すと、どこから持ったのかを
+  // 見失って、置き先を決める前に元へ戻せなくなる（戻す口が無い）
+  &--from {
+    background-color: rgba(index.$color-secondary-dark, 0.22);
+
+    .piece {
+      opacity: 0.28;
+    }
   }
 }
 
@@ -137,6 +148,12 @@ $stand-min-h: 26rem; // scale-exempt
   position: relative;
   height: $stand-piece;
   flex: 0 0 auto;
+  cursor: pointer;
+
+  // 掴んでいる束。盤の升と同じで、駒台からも消さずに薄くする
+  &--held .piece {
+    opacity: 0.3;
+  }
 }
 
 .pos-editor__stack-piece {
