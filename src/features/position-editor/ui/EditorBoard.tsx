@@ -1,6 +1,6 @@
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { indexToCoords } from "@/entities/position/lib/boardUtils";
-import { pieceAt, type Square } from "@/entities/position/lib/positionDraft";
+import { pieceAt, squareKey, type Square } from "@/entities/position/lib/positionDraft";
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
 import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { squareMark } from "../lib/boardMarks";
@@ -10,6 +10,8 @@ interface EditorBoardProps {
   state: JKFState;
   held: Held | null;
   hovered: Square | null;
+  /** 規則に反する配置に関わる升（`squareKey` の集合） */
+  illegalSquares: ReadonlySet<string>;
   onPressSquare: (sq: Square) => void;
   onFlipSquare: (sq: Square) => void;
   onHoverSquare: (sq: Square | null) => void;
@@ -29,6 +31,7 @@ function EditorBoard({
   state,
   held,
   hovered,
+  illegalSquares,
   onPressSquare,
   onFlipSquare,
   onHoverSquare,
@@ -49,6 +52,7 @@ function EditorBoard({
             mark.blocked && "pos-editor__square--blocked",
             mark.takes && "pos-editor__square--takes",
             mark.swaps && "pos-editor__square--swaps",
+            illegalSquares.has(squareKey(sq)) && "pos-editor__square--illegal",
           ].filter(Boolean);
 
           return (

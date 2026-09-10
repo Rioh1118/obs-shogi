@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
+import { inspectPosition } from "@/entities/position/lib/inspectPosition";
 import { pieceAt, type Square } from "@/entities/position/lib/positionDraft";
 import { usePositionDraft } from "../model/usePositionDraft";
 import EditorBoard from "./EditorBoard";
 import EditorGhost from "./EditorGhost";
+import EditorNotice from "./EditorNotice";
 import EditorStand from "./EditorStand";
 import EditorTurn from "./EditorTurn";
 import "./PositionEditor.scss";
@@ -28,6 +30,9 @@ function PositionEditor({ seed }: PositionEditorProps) {
   // ホバーは局面ではなく見ている場所。`usePositionDraft` に混ぜると、
   // ポインタを動かすたびに組みかけの判定が走る
   const [hovered, setHovered] = useState<Square | null>(null);
+
+  // 局面が変わったときだけ数え直す。ホバーのたびに 81 升を4回なめる必要は無い
+  const inspection = useMemo(() => inspectPosition(state), [state]);
 
   const heldPiece =
     held === null
@@ -54,6 +59,7 @@ function PositionEditor({ seed }: PositionEditorProps) {
           state={state}
           held={held}
           hovered={hovered}
+          illegalSquares={inspection.illegalSquares}
           onPressSquare={pressSquare}
           onFlipSquare={flipSquare}
           onHoverSquare={setHovered}
@@ -67,6 +73,10 @@ function PositionEditor({ seed }: PositionEditorProps) {
             onPressStand={pressStand}
           />
         </div>
+      </div>
+
+      <div className="pos-editor__side">
+        <EditorNotice issues={inspection.issues} />
       </div>
 
       {heldPiece && <EditorGhost kind={heldPiece.kind} color={heldPiece.color} />}

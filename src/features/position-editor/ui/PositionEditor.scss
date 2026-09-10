@@ -13,15 +13,27 @@
 $stand-w: 14rem; // scale-exempt
 $stand-piece: 3.6rem; // scale-exempt
 $stand-min-h: 26rem; // scale-exempt
+$side-w: 28rem; // scale-exempt
 
 // 器は縦に縮められる（`tauri.conf.json` に `minHeight` が無く `resizable: true`）。
 // 盤を固定にすると切れるので、**高さを先に決めて幅を縦横比から出す**。
 .pos-editor {
   display: flex;
-  flex-direction: column;
-  gap: index.$space-6;
+  gap: index.$space-9;
   height: 100%;
   min-height: 0;
+}
+
+// 右の列。**断りが一番上。** 盤の右隣の上端なので、枠を付けた升との距離が最短になる。
+// 高さが変わってもフォームが下がるだけで**盤は動かない**
+.pos-editor__side {
+  width: $side-w;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-6;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .pos-editor__position {
@@ -153,6 +165,13 @@ $stand-min-h: 26rem; // scale-exempt
 
   &--swaps {
     outline: 2px solid index.$color-info;
+    outline-offset: -2px;
+  }
+
+  // 規則に反する配置。**枠線で示し、面を塗らない。**
+  // 塗ると、掴んでいる升の残像も重ねる予告も覆い隠す
+  &--illegal {
+    outline: 2px solid index.$color-danger;
     outline-offset: -2px;
   }
 }
