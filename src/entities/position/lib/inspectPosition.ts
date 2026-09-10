@@ -40,7 +40,13 @@ export interface PositionInspection {
   illegalSquares: ReadonlySet<string>;
 }
 
-/** 升を `Set` の鍵にする綴り。盤の描画側と検査側で同じものを使う */
+/**
+ * 升を `Set` の鍵にする綴り
+ *
+ * `illegalSquares` の要素はこの綴りで入る。引き当てる側も同じ関数を通すこと ——
+ * 座標から鍵を組む式が2箇所にあると、片方だけ書式が変わっても
+ * 「枠が付かない」という形でしか出ない。
+ */
 export function squareKey(sq: Square): string {
   return `${sq.x},${sq.y}`;
 }

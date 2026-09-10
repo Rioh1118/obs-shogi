@@ -166,7 +166,8 @@ describe("movePieceOnBoard", () => {
   });
 
   test("重ねた駒は動かした側の駒台に入る", () => {
-    // shogi.js の `capture` は取られた駒を「反対側」の駒台へ入れる。逆を採る
+    // 先後が違うので `shogi.js` の `capture` と同じ行き先になる。
+    // 食い違う形は次のテスト
     let state = stateFromPreset("HIRATE");
     state = movePieceOnBoard(state, sq(8, 8), sq(2, 2)); // 先手の角が後手の角を取る
     expect(handCount(state, Color.Black, "KA")).toBe(1);
@@ -174,6 +175,8 @@ describe("movePieceOnBoard", () => {
   });
 
   test("自分の駒に自分の駒を重ねても、動かした側の駒台に入る", () => {
+    // **`shogi.js` と食い違う唯一の形。** あちらは取られた駒を `inverse()` してから
+    // 積むので、同じ側の駒を重ねると相手の駒台へ入る
     let state = stateFromPreset("HIRATE");
     state = movePieceOnBoard(state, sq(2, 8), sq(2, 7)); // 先手の飛を先手の歩に重ねる
     expect(handCount(state, Color.Black, "FU")).toBe(1);
