@@ -1,0 +1,148 @@
+@use "@/index.scss" as index;
+@use "@/entities/position/ui/shogiBoardGeometry" as geo;
+
+// 駒台の幅と、駒台に置く駒の大きさ。
+//
+// **器の内寸から逆算した値。** 器は `min(1100px, 92vw)`（`Modal` の
+// `--workspace.modal--size-xl`）で、内寸はおよそ 106.6rem。
+// 14 × 2（駒台）＋ 43.9（盤）＋ 1.8 × 3（行間）＋ 28（フォーム）＝ 105.3rem。
+// **広げると入らない。** 幅で足りない分は高さで取る。
+//
+// スケールに載らないので `scssScaleRatchet` は見ていない（ADR-0003）。
+// 緑で通ったことを「規約に沿っている」と読まないこと。
+$stand-w: 14rem; // scale-exempt
+$stand-piece: 3.6rem; // scale-exempt
+$stand-min-h: 26rem; // scale-exempt
+
+// 器は縦に縮められる（`tauri.conf.json` に `minHeight` が無く `resizable: true`）。
+// 盤を固定にすると切れるので、**高さを先に決めて幅を縦横比から出す**。
+.pos-editor {
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-6;
+  height: 100%;
+  min-height: 0;
+}
+
+.pos-editor__position {
+  display: grid;
+  grid-template-columns: $stand-w auto $stand-w;
+  column-gap: index.$space-9;
+  justify-content: start;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.pos-editor__board {
+  height: 100%;
+  max-height: geo.$board-h;
+  aspect-ratio: #{geo.board-aspect()};
+
+  position: relative;
+  background-image: url("/src/assets/board.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border-radius: index.$radius-1;
+  box-shadow: index.$shadow-panel;
+  user-select: none;
+  justify-self: center;
+}
+
+.pos-editor__grid {
+  position: absolute;
+  inset: #{geo.inset-y-pct()} #{geo.inset-x-pct()};
+
+  border: geo.$position-border solid #000;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+}
+
+.pos-editor__square {
+  position: relative;
+  border-right: geo.$square-line solid #000;
+  border-bottom: geo.$square-line solid #000;
+
+  &:nth-child(9n) {
+    border-right: none;
+  }
+  &:nth-child(n + 73) {
+    border-bottom: none;
+  }
+}
+
+// **左右で同じ大きさ。上下は対局中の盤と同じ側へ寄せる**
+// （後手＝盤の上端、先手＝盤の下端）。
+.pos-editor__stand-slot {
+  min-height: 0;
+  display: flex;
+
+  &--gote {
+    align-items: flex-start;
+  }
+  &--sente {
+    align-items: flex-end;
+  }
+}
+
+// **`hand.png`（木目）は敷かない。** 実物の駒台は 20rem × 22rem のほぼ正方形で、
+// 縦長に置きたいこの面と寸法が合わない。実線の枠と暗い面で代える。
+.pos-editor__stand {
+  width: 100%;
+  height: clamp(#{$stand-min-h}, 78%, 100%);
+
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-4;
+  // **不透明にする。** 半透明の面にすると、載る場所ごとに実効値が変わって
+  // 文字との比が測れなくなる（`contrastRatchet` の「測れなかった宣言」へ落ちる）。
+  // 器のカードは同じ色を 0.95 で敷いているので、駒台はその一段下として沈む
+  background: index.$color-primary-black;
+  padding: index.$space-4;
+
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-3;
+
+  // **見出しをこの中に入れ子で書く。** 外に出すと、`contrastRatchet` が
+  // 文字の載る面を辿れず「測れなかった宣言」に落ちる。測れない対は
+  // 比が下がっても緑のまま通る
+  &-head {
+    font-size: index.$font-hint;
+    color: index.$color-text-primary;
+    flex: 0 0 auto;
+  }
+
+  &-rows {
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-2;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  // 見出しは常に上のまま、駒だけを対局中の盤と同じ側へ寄せる
+  &[data-color="0"] &-rows {
+    margin-top: auto;
+  }
+}
+
+// 重ねて置いた束。枚数は数字で出さず、重なりの厚みで見せる。
+// 幅が足りなくなるので、`--stack-step` は枚数が増えるほど詰める。
+.pos-editor__stack {
+  --stack-step: min(
+    #{$stand-piece} * 0.42,
+    (100% - #{$stand-piece}) / max(1, var(--stack-count) - 1)
+  );
+
+  position: relative;
+  height: $stand-piece;
+  flex: 0 0 auto;
+}
+
+.pos-editor__stack-piece {
+  position: absolute;
+  top: 0;
+  left: calc(var(--stack-index) * var(--stack-step));
+  width: $stand-piece;
+  height: $stand-piece;
+}
