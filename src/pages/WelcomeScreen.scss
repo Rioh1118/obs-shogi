@@ -92,3 +92,11 @@
     transform: translateY(0);
   }
 }
+
+// 押せるものはここだけ。書式の一覧より上に置いて、読む順を
+// 「何ができるか → 何が読めるか」にする
+.welcome-screen__actions {
+  display: flex;
+  justify-content: center;
+  margin-top: index.$space-8;
+}
