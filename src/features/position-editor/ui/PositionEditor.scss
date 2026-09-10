@@ -80,6 +80,35 @@ $stand-min-h: 26rem; // scale-exempt
       opacity: 0.28;
     }
   }
+
+  // 押しても何も起きない升。**押す前に沈める。**
+  // 面を覆う形にするのは、駒の絵まで一緒に沈めるため
+  &--blocked {
+    cursor: not-allowed;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(index.$color-primary-black, 0.5);
+      pointer-events: none;
+    }
+  }
+
+  // 重ねる予告。**枠線で示し、面を塗らない。** 塗ると掴んでいる升の色を覆う。
+  //
+  // 意味色は4つから選ぶ（ADR-0004。発明しない）。ここは段ではなく予告だが、
+  // 「取り消しに2手かかる」を warning、「入れ替わるだけ」を info に当てている。
+  // `outline` を使うのは、内側の枠を影で描くと `box-shadow` の直値が増えるため
+  &--takes {
+    outline: 2px solid index.$color-warning;
+    outline-offset: -2px;
+  }
+
+  &--swaps {
+    outline: 2px solid index.$color-info;
+    outline-offset: -2px;
+  }
 }
 
 // **左右で同じ大きさ。上下は対局中の盤と同じ側へ寄せる**
@@ -135,6 +164,22 @@ $stand-min-h: 26rem; // scale-exempt
   &[data-color="0"] &-rows {
     margin-top: auto;
   }
+
+  // 掴んでいる間だけ、置き場として名乗る
+  &--drop {
+    border-color: index.$color-secondary-dark;
+    background: index.$surface-raised;
+  }
+
+  &--nodrop {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  // 重ねた駒の行き先。升の枠と同じ意味色で対にする
+  &--dest {
+    border-color: index.$color-warning;
+  }
 }
 
 // 重ねて置いた束。枚数は数字で出さず、重なりの厚みで見せる。
@@ -162,4 +207,25 @@ $stand-min-h: 26rem; // scale-exempt
   left: calc(var(--stack-index) * var(--stack-step));
   width: $stand-piece;
   height: $stand-piece;
+}
+
+// 掴んだ駒はカーソルに付いてくる。
+// **位置は `EditorGhost` が ref で直に書く**（state に持つと盤ごと再描画になる）。
+.pos-editor__ghost {
+  position: fixed;
+  z-index: 60;
+  width: $stand-piece;
+  height: $stand-piece;
+  pointer-events: none;
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+  transform: translate(-50%, -50%);
+
+  // 掴んだ時点のポインタ位置を知る口が無いので、最初の `mousemove` まで出さない。
+  // 出すと画面の隅に駒が1つ光る
+  visibility: hidden;
+
+  &--placed {
+    visibility: visible;
+  }
 }

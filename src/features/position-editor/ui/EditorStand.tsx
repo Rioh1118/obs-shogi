@@ -1,15 +1,22 @@
 import type { CSSProperties } from "react";
 import type { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import { HAND_KINDS, handCount, type HandKind } from "@/entities/position/lib/positionDraft";
+import {
+  HAND_KINDS,
+  handCount,
+  type HandKind,
+  type Square,
+} from "@/entities/position/lib/positionDraft";
 import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { turnLabel } from "@/shared/lib/turn";
+import { standMark } from "../lib/boardMarks";
 import type { Held } from "../model/usePositionDraft";
 
 interface EditorStandProps {
   state: JKFState;
   color: Color;
   held: Held | null;
+  hovered: Square | null;
   onPressStand: (color: Color, kind: HandKind | null) => void;
 }
 
@@ -26,11 +33,25 @@ interface EditorStandProps {
  * 並びは `HAND_KINDS` の順。`serializeDraft` が同じ順で駒台を直列化するので、
  * 画面の並びと「組みかけか」の比較が同じ出典から出る。
  */
-function EditorStand({ state, color, held, onPressStand }: EditorStandProps) {
+function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandProps) {
   const heldHere = held?.from === "hand" && held.color === color ? held.kind : null;
+  const mark = standMark(state, held, hovered, color);
+
+  const classes = [
+    "pos-editor__stand",
+    mark.drop && "pos-editor__stand--drop",
+    mark.nodrop && "pos-editor__stand--nodrop",
+    mark.dest && "pos-editor__stand--dest",
+  ].filter(Boolean);
 
   return (
-    <div className="pos-editor__stand" data-color={color} onClick={() => onPressStand(color, null)}>
+    <div
+      className={classes.join(" ")}
+      data-color={color}
+      // 掴んでいないときの駒台は「掴む場所」であって置き場ではない。受け口を
+      // 張ると、余白を押しても何も起きない場所ができる
+      onClick={held === null ? undefined : () => onPressStand(color, null)}
+    >
       <div className="pos-editor__stand-head">{turnLabel(color)}の駒台</div>
       <div className="pos-editor__stand-rows">
         {HAND_KINDS.map((kind) => {
