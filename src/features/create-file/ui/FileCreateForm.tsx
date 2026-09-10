@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { InitialPresetString } from "@/entities/kifu/model/jkf";
+import {
+  DEFAULT_HANDICAP,
+  HANDICAP_PRESETS,
+  type HandicapPreset,
+} from "@/entities/kifu/model/handicap";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import {
   FsErrorView,
@@ -23,7 +27,7 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const [whitePlayer, setWhitePlayer] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [preset, setPreset] = useState<InitialPresetString>("HIRATE");
+  const [preset, setPreset] = useState<HandicapPreset>(DEFAULT_HANDICAP);
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
@@ -65,22 +69,6 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     { value: "ki2", label: "ki2" },
     { value: "csa", label: "csa" },
     { value: "jkf", label: "jkf" },
-  ];
-
-  const presetOptions = [
-    { value: "HIRATE", label: "平手" },
-    { value: "KY", label: "香落ち" },
-    { value: "KY_R", label: "右香落ち" },
-    { value: "KA", label: "角落ち" },
-    { value: "HI", label: "飛車落ち" },
-    { value: "2", label: "二枚落ち" },
-    { value: "3", label: "三枚落ち" },
-    { value: "4", label: "四枚落ち" },
-    { value: "5", label: "五枚落ち" },
-    { value: "5_L", label: "左五枚落ち" },
-    { value: "6", label: "六枚落ち" },
-    { value: "8", label: "八枚落ち" },
-    { value: "10", label: "十枚落ち" },
   ];
 
   return (
@@ -129,9 +117,9 @@ function FileCreateForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
         <Select
           label="手合割"
           id="preset"
-          options={presetOptions}
+          options={HANDICAP_PRESETS}
           value={preset}
-          onChange={(value) => setPreset(value as InitialPresetString)}
+          onChange={(value) => setPreset(value as HandicapPreset)}
         />
       </FormField>
 

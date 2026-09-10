@@ -10,7 +10,7 @@ interface Option {
 interface SelectProps {
   label: string;
   id: string;
-  options: Option[];
+  options: readonly Option[];
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
