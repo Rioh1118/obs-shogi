@@ -13,7 +13,7 @@ import {
   isHandKind,
   moveBetweenHands,
   movePieceOnBoard,
-  moveToHand,
+  sendToHand,
   pieceAt,
   promotedKind,
   serializeDraft,
@@ -144,7 +144,7 @@ describe("stateToSfen", () => {
 
   test("手番と持ち駒が SFEN に乗る", () => {
     let state = stateFromPreset("HIRATE");
-    state = moveToHand(state, sq(7, 7), Color.White);
+    state = sendToHand(state, sq(7, 7), Color.White);
     state = setTurn(state, Color.White);
     expect(stateToSfen(state)).toBe(
       "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PP1PPPPPP/1B5R1/LNSGKGSNL w p 1",
@@ -230,35 +230,35 @@ describe("movePieceOnBoard", () => {
   });
 });
 
-describe("moveToHand", () => {
+describe("sendToHand", () => {
   test("成駒は不成に戻って駒台に入る", () => {
     let state = emptyBoardState();
     state.board[4][4] = { kind: "RY", color: Color.Black };
-    state = moveToHand(state, sq(5, 5), Color.Black);
+    state = sendToHand(state, sq(5, 5), Color.Black);
     expect(handCount(state, Color.Black, "HI")).toBe(1);
     expect(pieceAt(state, sq(5, 5))).toBeNull();
   });
 
   test("相手の駒台へも送れる", () => {
     let state = stateFromPreset("HIRATE");
-    state = moveToHand(state, sq(7, 7), Color.White);
+    state = sendToHand(state, sq(7, 7), Color.White);
     expect(handCount(state, Color.White, "FU")).toBe(1);
     expect(handCount(state, Color.Black, "FU")).toBe(0);
   });
 
   test("玉は受け付けない", () => {
     const state = stateFromPreset("HIRATE");
-    expect(() => moveToHand(state, sq(5, 9), Color.Black)).toThrow();
+    expect(() => sendToHand(state, sq(5, 9), Color.Black)).toThrow();
   });
 
   test("駒のない升は受け付けない", () => {
-    expect(() => moveToHand(stateFromPreset("HIRATE"), sq(5, 5), Color.Black)).toThrow();
+    expect(() => sendToHand(stateFromPreset("HIRATE"), sq(5, 5), Color.Black)).toThrow();
   });
 
   test("渡した state を書き換えない", () => {
     const before = stateFromPreset("HIRATE");
     const snapshot = serializeDraft(before);
-    moveToHand(before, sq(7, 7), Color.Black);
+    sendToHand(before, sq(7, 7), Color.Black);
     expect(serializeDraft(before)).toBe(snapshot);
   });
 });

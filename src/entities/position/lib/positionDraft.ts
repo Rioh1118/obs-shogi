@@ -1,4 +1,5 @@
 import { Shogi, type Color, type Kind } from "shogi.js";
+import type { RawKind } from "shogi.js/cjs/Kind";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFHand, JKFPiece, JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/shogi";
@@ -26,10 +27,34 @@ import { isValidCoords } from "./boardUtils";
  * （`getDerivedStateFromError` はレンダとライフサイクルしか捕まえない）。
  */
 
-/** 駒台に載る駒。玉と成駒はここに無い（JKF の持ち駒はこの7つしか欄を持たない） */
-export const HAND_KINDS = ["FU", "KY", "KE", "GI", "KI", "KA", "HI"] as const;
+/**
+ * 駒台に載る駒。玉と成駒はここに無い
+ *
+ * 集合そのものは `shogi.js` の `RawKind` と同じ（下の `HandKind`）。
+ * **並びはここでしか決まらない** —— `serializeDraft` が駒台をこの順に並べるので、
+ * 順序を変えると「組みかけか」の比較が同じ局面どうしで食い違う。
+ *
+ * 欄の抜けは `emptyHand` が返す `JKFHand` の鍵と突き合わせて固定してある
+ * （`JKFHand` は `Record<RawKind, number>` なので、tsc が全ての鍵を要求する）。
+ */
+export const HAND_KINDS = [
+  "FU",
+  "KY",
+  "KE",
+  "GI",
+  "KI",
+  "KA",
+  "HI",
+] as const satisfies readonly RawKind[];
 
-export type HandKind = (typeof HAND_KINDS)[number];
+/**
+ * 駒台に載る駒の種類
+ *
+ * `shogi.js` の `RawKind` そのもの。根の `shogi.js` はこれを再エクスポートしないので
+ * 深い経路で読む。写して3つ目の綴りを作ると、`JKFHand`（`Record<RawKind, number>`）と
+ * ずれても tsc が黙る。
+ */
+export type HandKind = RawKind;
 
 /** 盤の升。`x` は筋（1〜9）、`y` は段（1〜9）で、どちらも1始まり */
 export interface Square {
@@ -151,14 +176,21 @@ export function movePieceOnBoard(state: JKFState, from: Square, to: Square): JKF
   return next;
 }
 
-/** 盤の駒を駒台へ送る。成りは落とす。玉は受け付けない */
-export function moveToHand(state: JKFState, from: Square, color: Color): JKFState {
+/**
+ * 盤の駒を駒台へ送る。成りは落とす
+ *
+ * `toHand` は**送り先の駒台**であって、動かしている駒の持ち主ではない。
+ * 相手側の駒台へも送れる（並べ替えている人が、どちらの持ち駒にするかを選ぶ）。
+ *
+ * 玉は受け付けない。可否は `canSendToHand` が持つので、押す前に沈められる。
+ */
+export function sendToHand(state: JKFState, from: Square, toHand: Color): JKFState {
   const piece = pieceAt(state, from);
   if (!piece) throw new Error(`駒のない升から送ろうとした: (${from.x}, ${from.y})`);
   if (!canSendToHand(piece)) throw new Error("玉は駒台に載らない");
 
   const next = cloneState(state);
-  pushToHand(next, color, piece.kind);
+  pushToHand(next, toHand, piece.kind);
   setSquare(next, from, {});
   return next;
 }
