@@ -106,6 +106,37 @@ describe("SCSS のトークン名", () => {
     ).toEqual([]);
   });
 
+  /**
+   * **カスタムプロパティの値に Sass の変数を素で書かない。**
+   *
+   * `--x: rgba(index.$c, 0.1)` はコンパイルを通るが、Sass は custom property の値を
+   * **そのままの文字列**として出す。`var(--x)` は無効値になり、その宣言だけが
+   * 黙って落ちる（面が透明に、枠が `0px none` に）。`vite build` も緑、
+   * 上の「トークンが実在するか」も緑 —— **どの門にも掛からない。**
+   *
+   * `#{}` で包めば値として評価される。見るのはそこだけ。
+   */
+  it("カスタムプロパティの値で Sass の変数が補間されている", () => {
+    const RAW = /^\s*--[\w-]+:\s*([^;]*);/gm;
+    const bare = scssFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(RAW)]
+        .map((match) => match[1]!)
+        // `#{...}` の中は評価される。外に残った `index.$` だけを見る
+        .filter((value) => /index\.\$/.test(value.replace(/#\{[^}]*\}/g, "")))
+        .map((value) => `${relative(REPO_ROOT, file)}  ${value.trim()}`),
+    );
+
+    expect(
+      bare,
+      [
+        "カスタムプロパティの値に Sass の変数が素で入っている。",
+        "**`var()` が無効値になり、その宣言だけが黙って落ちる**（コンパイルは通る）。",
+        "`#{}` で包むこと。",
+        ...bare,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
   it("ファイルローカルの変数がトークンと同名にならない", () => {
     const tokens = definedIn(TOKEN_SOURCE);
     const collisions = scssFiles(SRC)

@@ -1,11 +1,17 @@
 @use "@/index" as index;
 
 .position-navigation-modal {
-  --board-pad: clamp(8px, 0.6cqw, 12px);
-  --board-radius: 12px;
-  --board-surface: rgba(index.$color-secondary-light, 0.1);
-  --board-border: rgba(index.$color-primary-light, 0.45);
   &__preview-container {
+    // **部品の根で宣言する。** 器のクラスに載せると、別の器に置いたときだけ
+    // 面も枠も落ちる（`var()` が解決できず無効値になる）。
+    // Sass の変数は `#{}` で補間する —— 包まないと `rgba()` の呼び出しが
+    // **文字列のまま**出力され、`var()` の値としては常に無効になる
+    // （面も枠も落ちる。走査は「トークンが実在するか」しか見ないので緑のまま）
+    --board-pad: clamp(8px, 0.6cqw, 12px);
+    --board-radius: 12px;
+    --board-surface: #{rgba(index.$color-secondary-light, 0.1)};
+    --board-border: #{rgba(index.$color-primary-light, 0.45)};
+
     height: 100%;
     min-height: 0;
 

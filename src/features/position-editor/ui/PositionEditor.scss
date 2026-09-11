@@ -16,7 +16,12 @@ $stand-w: 14rem; // scale-exempt
 $stand-piece: 3.6rem; // scale-exempt
 
 // 掴んでいる駒の薄さ。盤の升と駒台で同じ値を使う
-$held-opacity: 0.3;
+$held-opacity: 0.3; // scale-exempt
+
+// **押しても何も起きないものを沈める薄さ。** 升・駒台・種のボタン・一覧の行・
+// 作成中の面で同じ役なので、1つの名前に寄せる。直値で散らすと、
+// 沈め方を変えるときに必ずどれかが漏れる
+$sunk-opacity: 0.45; // scale-exempt
 $stand-min-h: 26rem; // scale-exempt
 $side-w: 28rem; // scale-exempt
 $seed-select-w: 18rem; // scale-exempt
@@ -49,7 +54,7 @@ $picker-list-w: 32rem; // scale-exempt
   // 作成中。**止まっていることを見せて止める** ——
   // `inert` で受け付けなくするだけだと「押しても何も起きない」に見える
   &.is-busy {
-    opacity: 0.5;
+    opacity: $sunk-opacity;
   }
 }
 
@@ -89,7 +94,7 @@ $picker-list-w: 32rem; // scale-exempt
     }
 
     &:disabled {
-      opacity: 0.45;
+      opacity: $sunk-opacity;
       cursor: not-allowed;
     }
   }
@@ -104,7 +109,31 @@ $picker-list-w: 32rem; // scale-exempt
   flex-direction: column;
   gap: index.$space-6;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
+
+  // **「作成」を巻き取られる側に置かない。** この列は 28rem しか無く、
+  // `Form` の `--horizontal` が2列になるには内寸に 42rem 要るので、
+  // ファイル名と先手名の組は**必ず縦に積まれる**。積まれたぶんフォームは器より高く、
+  // 列ごと巻くと器の主操作がどの高さでも初期表示に現れない。
+  // 欄だけを巻き、ボタンの行は下端に残す。
+  //
+  // 幅で足せないのは、盤の面の必要幅が内寸 105.0rem に対して 104.7rem だから
+  // （このファイル冒頭の式）。**残りは 0.3rem しか無い。**
+  .form {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .form__group--buttons {
+    position: sticky;
+    bottom: 0;
+    // 巻いた欄がボタンの下を通り抜けるので、面を敷いて切る。
+    // 器のカードは同じ色を 0.95 で敷いているので、ここは一段沈む
+    background: index.$color-primary-black;
+    padding-top: index.$space-4;
+    margin-top: index.$space-4;
+  }
 }
 
 .pos-editor__position {
@@ -315,8 +344,8 @@ $picker-list-w: 32rem; // scale-exempt
     background: index.$surface-raised;
   }
 
-  &--nodrop {
-    opacity: 0.4;
+  &--blocked {
+    opacity: $sunk-opacity;
     cursor: not-allowed;
   }
 
@@ -444,7 +473,7 @@ $picker-list-w: 32rem; // scale-exempt
     // SFEN が読めず、盤に載せられない行。**押す前に沈める** ——
     // 押しても何も起きない行を作らない
     &.is-broken {
-      opacity: 0.45;
+      opacity: $sunk-opacity;
       cursor: not-allowed;
     }
 
