@@ -159,6 +159,31 @@ describe("下見", () => {
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
+  test("↑↓ で選んで Enter で載る", () => {
+    // **鍵盤で始めたら鍵盤で終われること。** 下見だけできて決める口が無いと、
+    // 鍵盤だけの利用者は種を1つも選べない
+    openPicker([position({ sfen: HIRATE }), position({ id: "sp2", sfen: TSUME })]);
+    const face = document.activeElement!;
+    fireEvent.keyDown(face, { key: "ArrowDown" });
+    fireEvent.keyDown(face, { key: "Enter" });
+
+    expect(onBoardFace()).toBe(true);
+    expect(boardPieces()).toBe(1);
+  });
+
+  test("読めない行では Enter も効かない", () => {
+    openPicker([position({ sfen: "これは SFEN ではない" })]);
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    expect(onBoardFace()).toBe(false);
+  });
+
+  test("検索欄の ↑↓ は下見を動かさない", () => {
+    // キャレット移動と IME の候補操作を奪わない
+    openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
+    fireEvent.keyDown(screen.getByLabelText("課題局面を検索"), { key: "ArrowDown" });
+    expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
+  });
+
   test("下見しただけでは載らない", () => {
     openPicker([position({ sfen: TSUME })]);
     fireEvent.mouseEnter(rows()[0]!);

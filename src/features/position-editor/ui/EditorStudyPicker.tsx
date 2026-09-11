@@ -91,10 +91,23 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
       tabIndex={-1}
       ref={faceRef}
       onKeyDown={(e) => {
-        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-        e.preventDefault();
-        const next = Math.max(0, Math.min(shown.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)));
-        setLookingId(shown[next]?.id ?? null);
+        // 入力欄ではキャレット移動・IME 候補操作を優先する
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const step = e.key === "ArrowDown" ? 1 : -1;
+          const next = Math.max(0, Math.min(shown.length - 1, at + step));
+          setLookingId(shown[next]?.id ?? null);
+          return;
+        }
+
+        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で下見だけできて決める口が無いと、
+        // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
+        if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
+          e.preventDefault();
+          onPick(looking);
+        }
       }}
     >
       <div className="pos-editor__picker-list">
@@ -115,7 +128,12 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
           />
         </div>
 
-        <div className="pos-editor__picker-rows" role="listbox" aria-label="課題局面">
+        <div
+          className="pos-editor__picker-rows"
+          role="listbox"
+          aria-label="課題局面"
+          aria-activedescendant={looking ? `pos-editor-study-${looking.id}` : undefined}
+        >
           {shown.length === 0 ? (
             <p className="pos-editor__picker-empty">
               {positions.length === 0
@@ -128,6 +146,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
               return (
                 <div
                   key={position.id}
+                  id={`pos-editor-study-${position.id}`}
                   className={[
                     "pos-editor__picker-row",
                     index === at && "is-looking",
