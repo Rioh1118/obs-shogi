@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { SRC, tsFiles } from "./walk";
+import { SRC, scssFiles, tsFiles } from "./walk";
 
 /**
  * **同じ層の別スライスを読む import** を数える検査の本体。
@@ -78,8 +78,9 @@ export function newMutualEdges(edges: ReadonlySet<string>): string[] {
  *
  * - `export ... from` —— 再エクスポート
  * - `import(...)` —— 遅延読み込み
- * - `import "@/..."` —— 束縛を持たない読み込み（SCSS がこの形）。
- *   `from` を持たないので、`from` だけを見る走査は**黙って見逃す**
+ * - `import "@/..."` —— 束縛を持たない読み込み（TS が SCSS を読むときの形）
+ * - `@use "@/..."` / `@forward "@/..."` —— SCSS が SCSS を読む形。
+ *   `import` の綴りを1つも含まないので、TS の形だけを見る走査は**黙って見逃す**
  *
  * 1つでも落とすと、綴りを変えるだけで控えを迂回できる。
  */
@@ -88,6 +89,7 @@ export function aliasSpecifiersIn(source: string): string[] {
   for (const m of source.matchAll(/from\s*"(@\/[^"]+)"/g)) out.push(m[1]!);
   for (const m of source.matchAll(/import\(\s*"(@\/[^"]+)"/g)) out.push(m[1]!);
   for (const m of source.matchAll(/import\s+"(@\/[^"]+)"/g)) out.push(m[1]!);
+  for (const m of source.matchAll(/@(?:use|forward)\s+"(@\/[^"]+)"/g)) out.push(m[1]!);
   return out;
 }
 
@@ -114,6 +116,40 @@ export function crossSliceEdgesIn(source: string, self: string): string[] {
     .map((target) => `${self} -> ${target}`);
 }
 
+/**
+ * SCSS が上の層を読んでいる箇所。
+ *
+ * **lint は SCSS を1本も見ない。** `vite.config.ts` の `no-restricted-imports` は
+ * `.ts` / `.tsx` に限られているので、`entities/` の SCSS が上の層を `@use` しても
+ * 緑のまま通る。レイヤを跨ぐ SCSS の `@use` は現に在る（盤の幾何）ので、
+ * 向きだけを見る門がここに要る。
+ *
+ * 返すのは `読み手のファイル -> 読まれた層/スライス` の並び。空であること。
+ */
+export function upwardScssEdges(): string[] {
+  const out: string[] = [];
+
+  for (const layer of LAYERS) {
+    const layerDir = join(SRC, layer);
+    if (!existsSync(layerDir)) continue;
+    const depth = LAYERS.indexOf(layer);
+
+    for (const file of scssFiles(layerDir, { includeTests: false })) {
+      for (const specifier of aliasSpecifiersIn(readFileSync(file, "utf8"))) {
+        const target = sliceOf(specifier);
+        if (!target) continue;
+        const targetLayer = target.split("/")[0] as (typeof LAYERS)[number];
+        // 一覧は上から下へ並ぶ。添字が小さいほうが上の層
+        if (LAYERS.indexOf(targetLayer) < depth) {
+          out.push(`${file.slice(SRC.length + 1)} -> ${target}`);
+        }
+      }
+    }
+  }
+
+  return out.sort();
+}
+
 type CrossSliceScan = {
   /** 組ごとの import 文の数 */
   edges: Map<string, number>;
@@ -127,6 +163,10 @@ type CrossSliceScan = {
  * **`__tests__` は外す。** テストは別スライスの作りかけを組み立てて食わせるのが仕事で、
  * そこを数えると「実装が増やした辺」と「テストが読んだ辺」が混ざる。
  * `walk.ts` の既定（含める）から外すのはこの理由。
+ *
+ * **`.scss` も歩く。** レイヤを跨ぐ `@use "@/..."` は `no-restricted-imports`
+ * （`.ts` / `.tsx` のみ）に1本も掛かっていないので、SCSS を落とすと
+ * 控えを迂回する経路がそのまま残る。
  */
 export function scanCrossSliceImports(): CrossSliceScan {
   const edges = new Map<string, number>();
@@ -140,7 +180,11 @@ export function scanCrossSliceImports(): CrossSliceScan {
       if (!entry.isDirectory()) continue;
       const self = `${layer}/${entry.name}`;
 
-      for (const file of tsFiles(join(layerDir, entry.name), { includeTests: false })) {
+      const sliceDir = join(layerDir, entry.name);
+      for (const file of [
+        ...tsFiles(sliceDir, { includeTests: false }),
+        ...scssFiles(sliceDir, { includeTests: false }),
+      ]) {
         files++;
         for (const edge of crossSliceEdgesIn(readFileSync(file, "utf8"), self)) {
           edges.set(edge, (edges.get(edge) ?? 0) + 1);

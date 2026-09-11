@@ -6,6 +6,7 @@ import {
   newMutualEdges,
   scanCrossSliceImports,
   sliceOf,
+  upwardScssEdges,
 } from "./crossSliceImports";
 
 /**
@@ -56,6 +57,15 @@ describe("同層横断の import", () => {
     ).toEqual([]);
   });
 
+  test("SCSS が上の層を読んでいない", () => {
+    // `no-restricted-imports` は `.ts` / `.tsx` にしか掛からない。
+    // レイヤを跨ぐ `@use "@/..."` は現に在る（盤の幾何）ので、向きはここで見る
+    expect(
+      upwardScssEdges(),
+      "SCSS が上の層を `@use` している。共有したいトークンは共有できる位置まで下げること",
+    ).toEqual([]);
+  });
+
   test("widgets には1組も無い", () => {
     // 層をまたがない共有は、部品が大きい widgets でいちばん起きやすい
     const { edges } = scanCrossSliceImports();
@@ -84,6 +94,19 @@ describe("newMutualEdges", () => {
 });
 
 describe("aliasSpecifiersIn", () => {
+  test("SCSS の `@use` / `@forward` も拾う", () => {
+    // `import` の綴りを1つも含まないので、TS の形だけを見ると黙って見逃す
+    const source = [
+      `@use "${AT}entities/position/ui/shogiBoardGeometry" as geo;`,
+      `@forward "${AT}shared/ui/tokens";`,
+    ].join("\n");
+
+    expect(aliasSpecifiersIn(source)).toEqual([
+      `${AT}entities/position/ui/shogiBoardGeometry`,
+      `${AT}shared/ui/tokens`,
+    ]);
+  });
+
   test("import / export / 動的 import / 束縛の無い import の4つとも拾う", () => {
     const source = [
       `import { a } from "${AT}entities/kifu/model/jkf";`,
