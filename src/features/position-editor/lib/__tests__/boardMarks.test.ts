@@ -90,7 +90,7 @@ describe("standMark", () => {
   test("何も掴んでいないとき、空の駒台は沈む", () => {
     expect(standMark(hirate, null, null, Color.Black)).toEqual({
       drop: false,
-      nodrop: true,
+      blocked: true,
       dest: false,
     });
   });
@@ -98,7 +98,7 @@ describe("standMark", () => {
   test("駒があれば沈めない。掴む場所として押せる", () => {
     const state = emptyState();
     state.hands[Color.Black].FU = 1;
-    expect(standMark(state, null, null, Color.Black).nodrop).toBe(false);
+    expect(standMark(state, null, null, Color.Black).blocked).toBe(false);
   });
 
   test("盤の駒を掴んでいると、両方の駒台が置き場として光る", () => {
@@ -111,7 +111,7 @@ describe("standMark", () => {
     for (const color of [Color.Black, Color.White]) {
       expect(standMark(hirate, heldKing, null, color)).toEqual({
         drop: false,
-        nodrop: true,
+        blocked: true,
         dest: false,
       });
     }

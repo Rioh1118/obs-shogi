@@ -32,8 +32,13 @@ interface SquareMark {
 interface StandMark {
   /** 掴んでいる駒の置き場として名乗る */
   drop: boolean;
-  /** 置き場にならない。沈める */
-  nodrop: boolean;
+  /**
+   * 押しても何も起きない駒台。**押す前に沈める**
+   *
+   * 升側の `SquareMark.blocked` と同じ概念なので同じ綴りにする ——
+   * `drop` の否定ではない（何も掴まずに駒のある駒台を見ると両方 `false`）。
+   */
+  blocked: boolean;
   /** 重ねたときに駒が飛んでくる先 */
   dest: boolean;
 }
@@ -90,15 +95,15 @@ export function standMark(
   if (held === null) {
     // 掴んでいない駒台は「掴む場所」であって置き場ではない。空なら掴むものも無い
     const empty = HAND_KINDS.every((kind) => handCount(state, color, kind) === 0);
-    return { drop: false, nodrop: empty, dest };
+    return { drop: false, blocked: empty, dest };
   }
 
   if (held.from === "square") {
     const piece = pieceAt(state, held.sq);
     const sendable = piece !== null && canSendToHand(piece);
-    return { drop: sendable, nodrop: !sendable, dest };
+    return { drop: sendable, blocked: !sendable, dest };
   }
 
   // 駒台の駒は、同じ駒台なら離す・反対の駒台なら移す。どちらも何かが起きる
-  return { drop: true, nodrop: false, dest };
+  return { drop: true, blocked: false, dest };
 }

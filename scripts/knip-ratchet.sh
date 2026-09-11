@@ -22,10 +22,7 @@ set -uo pipefail
 # **減らしたらここを下げること。**
 BASELINE=178
 # **テストからの import も「消費」に数える。** 本番から到達しない barrel の export でも、
-# テストが1本 import すればこの数から消える。読み手が本番から到達しない
-# ファイルでも同じ（`boardUtils` の `coordsToShogiNotation` / `isValidCoords` は
-# `inspectPosition.ts` / `positionDraft.ts` が読んでいるが、その2つ自身は
-# `src/main.tsx` から到達しない）——**減った理由が「死んだ export を消した」とは
+# テストが1本 import すればこの数から消える——**減った理由が「死んだ export を消した」とは
 # 限らない。** 下げる前に、減ったぶんが何かを `npx knip --reporter json` で見ること
 # （計測を本番 entry だけに寄せる案は `.claude/knowledge/mechanization-backlog.md`）。
 

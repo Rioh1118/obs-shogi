@@ -316,6 +316,16 @@ function PositionEditor({
 
   const onStudyFace = face === "study";
 
+  /**
+   * いま載っている手合割。組みかけなら `null`
+   *
+   * **1つの式にする。** 受け手は2つあり、意味が違う ——
+   * 種を選ぶ行は「Select に何を出すか」、作成フォームは「`initial` に
+   * `{preset}` と書くか `{preset: "OTHER", data}` と書くか」。片方だけ条件を変えると、
+   * **画面が「平手」と言っているのにできたファイルは盤面データ**（逆なら並べ替えが落ちる）になる
+   */
+  const activeHandicap = isDirty ? null : handicap;
+
   return (
     <div className="pos-editor" tabIndex={-1} hidden={hidden} onKeyDown={handleKeyDown}>
       {/*
@@ -342,8 +352,7 @@ function PositionEditor({
         hidden={onStudyFace}
       >
         <EditorSeed
-          // 盤を触ったらプレースホルダに戻す。**同じ手合割を選び直せるようになる**
-          handicap={isDirty ? null : handicap}
+          handicap={activeHandicap}
           canUseCurrentKifu={currentPosition !== null}
           onPickHandicap={pickHandicap}
           onOpenStudyPositions={openStudyPositions}
@@ -381,13 +390,17 @@ function PositionEditor({
             />
           </div>
         </div>
+
+        {/* **盤の面の中に置く。** 外に置くと、掴んだまま面を移ったときに
+            課題局面の一覧の上へ駒が1つ浮いたまま残る */}
+        {heldPiece && <EditorGhost kind={heldPiece.kind} color={heldPiece.color} />}
       </div>
 
       <div className="pos-editor__side" hidden={onStudyFace}>
         <EditorNotice issues={inspection.issues} />
         <EditorCreateForm
           state={state}
-          handicap={isDirty ? null : handicap}
+          handicap={activeHandicap}
           initialDir={initialDir}
           onCreated={onCreated}
           onCancel={requestClose}
@@ -395,7 +408,6 @@ function PositionEditor({
         />
       </div>
 
-      {heldPiece && <EditorGhost kind={heldPiece.kind} color={heldPiece.color} />}
       {confirmView}
     </div>
   );

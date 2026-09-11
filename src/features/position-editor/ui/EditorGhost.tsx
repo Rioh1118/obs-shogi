@@ -8,16 +8,6 @@ interface EditorGhostProps {
 }
 
 /**
- * 掴んでいる駒をカーソルに付ける
- *
- * **位置を state に持たない。** ポインタが動くたびに再描画すると、盤の81升と
- * 駒台が毎回作り直される。ref を通して `style` を直に書き、React の外で動かす。
- *
- * 最初の `mousemove` が来るまでは出さない。掴んだ時点のポインタ位置を
- * 知る口が無く、原点に一度描くと画面の隅で駒が光る。掴んでいることは
- * 元の升の残像が示しているので、1フレーム遅れても迷子にはならない。
- */
-/**
  * 固定配置の原点を1度だけ測る
  *
  * **`position: fixed` はビューポート基準とは限らない。** `filter` / `backdrop-filter` /
@@ -43,6 +33,16 @@ function originOf(
   return cache.current;
 }
 
+/**
+ * 掴んでいる駒をカーソルに付ける
+ *
+ * **位置を state に持たない。** ポインタが動くたびに再描画すると、盤の81升と
+ * 駒台が毎回作り直される。ref を通して `style` を直に書き、React の外で動かす。
+ *
+ * 最初の `mousemove` が来るまでは出さない。掴んだ時点のポインタ位置を
+ * 知る口が無く、原点に一度描くと画面の隅で駒が光る。掴んでいることは
+ * 元の升の残像が示しているので、1フレーム遅れても迷子にはならない。
+ */
 function EditorGhost({ kind, color }: EditorGhostProps) {
   const ref = useRef<HTMLDivElement>(null);
   const originRef = useRef<{ x: number; y: number } | null>(null);

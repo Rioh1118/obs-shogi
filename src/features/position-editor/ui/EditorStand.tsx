@@ -40,7 +40,7 @@ function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandP
   const classes = [
     "pos-editor__stand",
     mark.drop && "pos-editor__stand--drop",
-    mark.nodrop && "pos-editor__stand--nodrop",
+    mark.blocked && "pos-editor__stand--blocked",
     mark.dest && "pos-editor__stand--dest",
   ].filter(Boolean);
 

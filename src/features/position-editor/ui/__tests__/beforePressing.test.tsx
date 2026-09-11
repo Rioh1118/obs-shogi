@@ -90,13 +90,13 @@ describe("沈める", () => {
   test("玉を掴むと、両方の駒台が沈む", () => {
     render(<EditorHarness />);
     fireEvent.click(square(5, 9));
-    expect(stand(Color.Black).classList.contains("pos-editor__stand--nodrop")).toBe(true);
-    expect(stand(Color.White).classList.contains("pos-editor__stand--nodrop")).toBe(true);
+    expect(stand(Color.Black).classList.contains("pos-editor__stand--blocked")).toBe(true);
+    expect(stand(Color.White).classList.contains("pos-editor__stand--blocked")).toBe(true);
   });
 
   test("空の駒台は、掴んでいなくても沈む", () => {
     render(<EditorHarness />);
-    expect(stand(Color.Black).classList.contains("pos-editor__stand--nodrop")).toBe(true);
+    expect(stand(Color.Black).classList.contains("pos-editor__stand--blocked")).toBe(true);
   });
 });
 

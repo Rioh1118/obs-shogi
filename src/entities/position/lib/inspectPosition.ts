@@ -1,4 +1,5 @@
-import { colorToString, type Color, type Kind } from "shogi.js";
+import type { Color, Kind } from "shogi.js";
+import { turnSide } from "@/shared/lib/turn";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/shogi";
 import { coordsToShogiNotation } from "./boardUtils";
@@ -82,7 +83,7 @@ function findNifu(state: JKFState): PositionIssue[] {
       if (squares.length < 2) continue;
       issues.push({
         kind: POSITION_ISSUE.NIFU,
-        message: `${x}筋に${colorToString(color)}の歩が${squares.length}枚あります（二歩）`,
+        message: `${x}筋に${turnSide(color)}の歩が${squares.length}枚あります（二歩）`,
         squares,
       });
     }
@@ -102,7 +103,7 @@ function findDeadEnds(state: JKFState): PositionIssue[] {
       const square = { x, y };
       issues.push({
         kind: POSITION_ISSUE.DEAD_END,
-        message: `${describe(square)}の${colorToString(piece.color)}の${toKan(piece.kind)}は、そこから動けません`,
+        message: `${describe(square)}の${turnSide(piece.color)}の${toKan(piece.kind)}は、そこから動けません`,
         squares: [square],
       });
     }
@@ -171,7 +172,7 @@ function findCheckIgnored(state: JKFState): PositionIssue[] {
   return [
     {
       kind: POSITION_ISSUE.CHECK_IGNORED,
-      message: `${colorToString(passive)}の玉に王手がかかったまま、${colorToString(state.color)}から指す形になっています`,
+      message: `${turnSide(passive)}の玉に王手がかかったまま、${turnSide(state.color)}から指す形になっています`,
       squares: [king],
     },
   ];
