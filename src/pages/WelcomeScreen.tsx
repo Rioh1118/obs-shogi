@@ -1,10 +1,13 @@
 import Title from "@/shared/ui/Title";
 import Button from "@/shared/ui/Button/Button";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { KIFU_FORMAT_OPTIONS } from "@/entities/kifu/model/kifu";
 import { FolderOpen, FileText } from "lucide-react";
 import "./WelcomeScreen.scss";
 
-const FORMATS = [".kif", ".ki2", ".csa", ".jkf"];
+// **形式の一覧を写さない。** 写すと、形式を1つ足したときに増えるのが
+// 作るフォームだけになり、この面だけが古い顔ぶれを出し続ける
+const FORMATS = KIFU_FORMAT_OPTIONS.map((option) => `.${option.value}`);
 
 /**
  * 棋譜を開いていないときの面

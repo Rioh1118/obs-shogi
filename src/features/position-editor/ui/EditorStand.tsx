@@ -10,7 +10,7 @@ import {
 import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { turnLabel } from "@/shared/lib/turn";
 import { standMark } from "../lib/boardMarks";
-import type { Held } from "../model/usePositionDraft";
+import type { Held } from "../model/types";
 
 interface EditorStandProps {
   state: JKFState;

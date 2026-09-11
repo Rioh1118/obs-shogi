@@ -3,7 +3,7 @@ import { Color } from "shogi.js";
 import { emptyHand, stateFromPreset } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { squareMark, standMark } from "../boardMarks";
-import type { Held } from "@/features/position-editor/model/usePositionDraft";
+import type { Held } from "@/features/position-editor/model/types";
 
 const sq = (x: number, y: number) => ({ x, y });
 

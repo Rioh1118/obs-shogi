@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
+import type { Held } from "./types";
 import {
   canDropOn,
   canSendToHand,
@@ -19,14 +20,6 @@ import {
   type HandKind,
   type Square,
 } from "@/entities/position/lib/positionDraft";
-
-/**
- * 掴んでいるもの
- *
- * **どこから掴んだかを持つ。** 駒の種類だけだと、盤から掴んだ駒を離したときに
- * 元の升へ戻せない（盤の駒は掴んだ時点では盤に残したままにしてある）。
- */
-export type Held = { from: "square"; sq: Square } | { from: "hand"; kind: HandKind; color: Color };
 
 interface DraftState {
   state: JKFState;
@@ -55,9 +48,12 @@ interface DraftState {
  * （置いたら離す、離したら局面は変わらない）。別々に持つと、片方だけ更新する
  * 経路が型に現れず、「掴んだままの駒が盤にも駒台にも無い」状態が作れる。
  *
- * 押せる操作は必ず何かを変える。押しても何も起きない組み合わせ（空升を掴む、
- * 駒のある升へ駒台から置く、玉を駒台へ送る）は**押す前に沈める**ので、
- * ここへは来ない。来たときに黙って捨てるのは、沈め忘れを隠すことになる。
+ * 押しても何も起きない組み合わせ（空升を掴む、駒のある升へ駒台から置く、
+ * 玉を駒台へ送る）は**押す前に沈める**。沈めても押下そのものは届く
+ * （沈めているのは見た目と `cursor` で、`onClick` は外していない）ので、
+ * ここでも同じ条件を見て `prev` を返す。**二重に見えるが役割が違う** ——
+ * 沈めるのは押す前に見せるため、ここは局面を守るため。
+ * 見る側を1つにすると、沈め忘れがそのまま「駒が消える／増える」になる。
  */
 export function usePositionDraft(makeSeed: () => JKFState) {
   // **種を関数で受ける。** 値で受けると、開くたびに種を組み直す呼び手が

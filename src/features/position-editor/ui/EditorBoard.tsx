@@ -4,7 +4,7 @@ import { pieceAt, squareKey, type Square } from "@/entities/position/lib/positio
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
 import PieceFactory from "@/entities/position/ui/PieceFactory";
 import { squareMark } from "../lib/boardMarks";
-import type { Held } from "../model/usePositionDraft";
+import type { Held } from "../model/types";
 
 interface EditorBoardProps {
   state: JKFState;

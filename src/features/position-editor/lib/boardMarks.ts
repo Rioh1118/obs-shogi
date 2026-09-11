@@ -8,7 +8,7 @@ import {
   pieceAt,
   type Square,
 } from "@/entities/position/lib/positionDraft";
-import type { Held } from "../model/usePositionDraft";
+import type { Held } from "../model/types";
 
 /**
  * 押す前に見せるための印

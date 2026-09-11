@@ -87,8 +87,9 @@ function EditorCreateForm({
     setSelectedDir(rootPath);
   }
 
-  // 送信中に局面が変わっても、送ったものを送り直さない。
-  // `state` を依存に持つと、送信の途中で参照が入れ替わる
+  // 送るのは**押した瞬間の局面**。依存に入れると、盤を1手動かすたびに
+  // `handleSubmit` が作り直され、ここから下の欄を1つも触っていないのに
+  // フォーム全体が再レンダーされる
   const stateRef = useRef(state);
   stateRef.current = state;
   const handicapRef = useRef(handicap);

@@ -66,6 +66,8 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       label="棋譜を作る"
       variant="workspace"
       size="xl"
+      // **カードごと巻く。** 組む面は自分の中で高さを配り切るが、
+      // インポートの面は縦に長いフォームで、器が低いと下端の「作成」に届かなくなる
       scroll="card"
     >
       <div className="create-file-modal">
@@ -103,8 +105,8 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
         */}
         <div className="create-file-modal__body">
           {/*
-            **器が xl になったので、中身の幅を絞って中央に置く。**
-            棋譜テキストを貼る欄が 1100px いっぱいに広がると、1行が長すぎて
+            **器は xl（1100px）。中身の幅はそこから絞って中央に置く。**
+            棋譜テキストを貼る欄が幅いっぱいに広がると、1行が長すぎて
             どこまで貼れたのかが読めない
           */}
           <div className="create-file-modal__narrow" hidden={face !== "import"}>

@@ -21,14 +21,11 @@ set -uo pipefail
 # `npm run deadcode` と同じ範囲（未使用ファイル・未使用 export・未使用の型）の合計。
 # **減らしたらここを下げること。**
 BASELINE=178
-# 179 → 178 になったのは、これまで誰も呼んでいなかった `boardUtils` の2つ
-# （`coordsToShogiNotation` / `isValidCoords`）を `entities/position/lib` の中から
-# 読み始めたため。**死んだ export を消したのではない** —— 読んでいる
-# `inspectPosition.ts` / `positionDraft.ts` 自身が、いま本番の entry から到達しない
-# （読み手はテストだけ）。下の「テストからの import も消費に数える」がこれ。
-#
 # **テストからの import も「消費」に数える。** 本番から到達しない barrel の export でも、
-# テストが1本 import すればこの数から消える——**減った理由が「死んだ export を消した」とは
+# テストが1本 import すればこの数から消える。読み手が本番から到達しない
+# ファイルでも同じ（`boardUtils` の `coordsToShogiNotation` / `isValidCoords` は
+# `inspectPosition.ts` / `positionDraft.ts` が読んでいるが、その2つ自身は
+# `src/main.tsx` から到達しない）——**減った理由が「死んだ export を消した」とは
 # 限らない。** 下げる前に、減ったぶんが何かを `npx knip --reporter json` で見ること
 # （計測を本番 entry だけに寄せる案は `.claude/knowledge/mechanization-backlog.md`）。
 
