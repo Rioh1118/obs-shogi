@@ -77,7 +77,23 @@ function Modal({
     const card = cardRef.current;
     if (!card) return;
 
-    const focusables = () => [...card.querySelectorAll<HTMLElement>(FOCUSABLE)];
+    /**
+     * Tab の順に並ぶ、**実際に焦点を取れる**要素
+     *
+     * **隠れているものを落とす。** `querySelectorAll` は `display: none` を除かないので、
+     * 器が面を外さずに `hidden` で隠していると、隠れた面の中のボタンが
+     * 折り返しの端に選ばれる。端が取れない要素だと、そこからの Tab は
+     * ここの分岐に入らず**器の外へ抜ける**。`focus()` も何もしないので、
+     * 引き戻しの先に選ばれた場合は焦点が `<body>` へ落ちる。
+     *
+     * 見るのは `hidden` 属性で、`checkVisibility()` は使わない ——
+     * あちらは実装差が大きく（happy-dom は `[hidden]` に `true` を返す）、
+     * 何を落としたのかがテストから見えなくなる。
+     */
+    const focusables = () =>
+      [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+        (el) => el.closest("[hidden]") === null,
+      );
     const pullBack = () => (focusables()[0] ?? card).focus();
 
     pullBack();
