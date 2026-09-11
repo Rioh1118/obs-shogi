@@ -56,7 +56,10 @@ const square = (x: number, y: number): HTMLElement => {
 
 const editor = (): HTMLElement => document.querySelector<HTMLElement>(".pos-editor")!;
 const confirm = (): HTMLElement | null => document.querySelector(".confirm-dialog");
-const onBoardFace = (): boolean => document.querySelector(".pos-editor__board") !== null;
+// **見えているかで判定する。** 課題局面の面へ移っても盤とフォームは木に残る
+// （外すと打った入力が消える）ので、有無では面を判定できない
+const onBoardFace = (): boolean =>
+  document.querySelector(".pos-editor__main:not([hidden]) .pos-editor__board") !== null;
 
 /**
  * Esc を押して、面が畳んだか（＝器へ届かせなかったか）を返す

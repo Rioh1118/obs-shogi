@@ -29,6 +29,21 @@ interface PositionEditorProps {
   /** いま出ている面。**器が1つの変数で持つ**ので、ここでは受け取るだけ */
   face: EditorFace;
   onFaceChange: (face: EditorFace) => void;
+  /**
+   * 器が別のタブを出しているあいだ
+   *
+   * **外さずに隠す。** 外すと組みかけが確認を1つも通さずに消える
+   * （状態遷移表の I×X9「組んだものは残る」）。掴んだままにもしない ——
+   * 隠れているあいだに掴みが残ると、戻ってきた盤が B1/B2 で始まる。
+   */
+  hidden?: boolean;
+  /**
+   * 作成中かどうかを器へ知らせる
+   *
+   * 器はこのあいだタブを沈める（状態遷移表の W は X9 を受け付けない）。
+   * 沈めないと、送信の途中で面が外れて**失敗が出る場所ごと消える**。
+   */
+  onSubmittingChange?: (submitting: boolean) => void;
   /** ツリーから開いたときの保存先。ようこそ画面から開くと来ない */
   initialDir?: string;
   /** 作成が通ったとき。器を閉じるのは器の仕事 */
@@ -71,12 +86,14 @@ interface PositionEditorProps {
 function PositionEditor({
   face,
   onFaceChange,
+  hidden = false,
   currentPosition = null,
   studyPositions = [],
   initialDir,
   onCreated = () => undefined,
   closeGuard,
   onClose = () => undefined,
+  onSubmittingChange,
 }: PositionEditorProps) {
   const {
     state,
@@ -93,6 +110,18 @@ function PositionEditor({
   // 作成中は Esc の段の**外**にある（止められないので無視する）。
   // 旗をここへ上げるのは、段を判定するのがこの面だから
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const reportSubmitting = useCallback(
+    (submitting: boolean) => {
+      setIsSubmitting(submitting);
+      onSubmittingChange?.(submitting);
+    },
+    [onSubmittingChange],
+  );
+
+  // 隠れているあいだは掴みを持ち越さない（状態遷移表の B1/B2 × X9「掴みを離す」）
+  useEffect(() => {
+    if (hidden) release();
+  }, [hidden, release]);
 
   /**
    * 組みかけを捨てる確認
@@ -285,9 +314,15 @@ function PositionEditor({
         ? { kind: held.kind, color: held.color }
         : pieceAt(state, held.sq);
 
-  if (face === "study") {
-    return (
-      <div className="pos-editor" tabIndex={-1} onKeyDown={handleKeyDown}>
+  const onStudyFace = face === "study";
+
+  return (
+    <div className="pos-editor" tabIndex={-1} hidden={hidden} onKeyDown={handleKeyDown}>
+      {/*
+        課題局面の面は盤と入れ替えるが、**フォームは外さずに隠す。**
+        外すと、ファイル名も先手名もタグも、一覧を覗いて戻っただけで消える
+      */}
+      {onStudyFace && (
         <div className="pos-editor__main">
           <EditorStudyPicker
             positions={studyPositions}
@@ -295,14 +330,17 @@ function PositionEditor({
             onBack={() => onFaceChange("board")}
           />
         </div>
-        {confirmView}
-      </div>
-    );
-  }
-
-  return (
-    <div className="pos-editor" tabIndex={-1} onKeyDown={handleKeyDown}>
-      <div className="pos-editor__main">
+      )}
+      {/*
+        作成中は組む側を止める。**止まっていることを見せて止める** ——
+        受け付けないだけだと「押しても何も起きない」（不変条件2）になる。
+        `inert` は焦点も拾わないので、Tab で沈んだ盤に入り込むこともない
+      */}
+      <div
+        className={`pos-editor__main${isSubmitting ? " is-busy" : ""}`}
+        inert={isSubmitting}
+        hidden={onStudyFace}
+      >
         <EditorSeed
           // 盤を触ったらプレースホルダに戻す。**同じ手合割を選び直せるようになる**
           handicap={isDirty ? null : handicap}
@@ -345,7 +383,7 @@ function PositionEditor({
         </div>
       </div>
 
-      <div className="pos-editor__side">
+      <div className="pos-editor__side" hidden={onStudyFace}>
         <EditorNotice issues={inspection.issues} />
         <EditorCreateForm
           state={state}
@@ -353,7 +391,7 @@ function PositionEditor({
           initialDir={initialDir}
           onCreated={onCreated}
           onCancel={requestClose}
-          onSubmittingChange={setIsSubmitting}
+          onSubmittingChange={reportSubmitting}
         />
       </div>
 

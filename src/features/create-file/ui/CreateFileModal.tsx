@@ -17,15 +17,17 @@ import "./CreateFileModal.scss";
  */
 type Face = EditorFace | "import";
 
-function CreateFileModal() {
-  const { params, closeModal } = useURLParams();
-  const initialFace = useMemo<Face>(
-    () => (params.tab === "import" ? "import" : "board"),
-    [params.tab],
-  );
-  const isOpen = params.modal === "create-file";
-
-  const [face, setFace] = useState<Face>(initialFace);
+/**
+ * 開いているあいだだけ立つ器
+ *
+ * **面も組みかけも、閉じたら消える。** 器そのものを常に木に残したまま
+ * `face` を持つと、閉じたときの面が次に開いたときの面になり、
+ * 「作成」で閉じた直後に開くと課題局面の一覧が出る。
+ */
+function CreateFileFace({ closeModal }: { closeModal: () => void }) {
+  const { params } = useURLParams();
+  const [face, setFace] = useState<Face>(params.tab === "import" ? "import" : "board");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /**
    * 閉じてよいかを中身に問う門
@@ -56,8 +58,6 @@ function CreateFileModal() {
     return sfen ? stateFromSfen(sfen) : null;
   }, [view.player?.shogi]);
 
-  if (!isOpen) return null;
-
   return (
     <Modal
       onClose={requestClose}
@@ -70,11 +70,14 @@ function CreateFileModal() {
     >
       <div className="create-file-modal">
         <div className="create-file-modal__tabs" role="tablist" aria-label="棋譜を作る">
+          {/* **作成中はタブを沈める。** 送信の途中で面が外れると、失敗を出す場所ごと消える */}
           <button
             type="button"
             role="tab"
             aria-selected={face !== "import"}
             className={`create-file-modal__tab ${face !== "import" ? "is-active" : ""}`}
+            disabled={isSubmitting}
+            title={isSubmitting ? "作成中は切り替えられません" : undefined}
             onClick={() => setFace("board")}
           >
             新規作成
@@ -84,36 +87,53 @@ function CreateFileModal() {
             role="tab"
             aria-selected={face === "import"}
             className={`create-file-modal__tab ${face === "import" ? "is-active" : ""}`}
+            disabled={isSubmitting}
+            title={isSubmitting ? "作成中は切り替えられません" : undefined}
             onClick={() => setFace("import")}
           >
             インポート
           </button>
         </div>
 
+        {/*
+          **どちらの面も木に残す。** 片方を外すと、組みかけの局面も貼りかけの棋譜も
+          確認を1つも通さずに消える（状態遷移表の I×X9「組んだものは残る」）。
+          `hidden` は焦点も支援技術の読み上げも外すので、隠れた面の中の欄が
+          Tab の順に紛れ込むこともない
+        */}
         <div className="create-file-modal__body">
-          {face === "import" ? (
-            // **器が xl になったので、中身の幅を絞って中央に置く。**
-            // 棋譜テキストを貼る欄が 1100px いっぱいに広がると、1行が長すぎて
-            // どこまで貼れたのかが読めない
-            <div className="create-file-modal__narrow">
-              <KifuImportForm toggleModal={() => closeModal()} dirPath={params.dir || ""} />
-            </div>
-          ) : (
-            <PositionEditor
-              face={face}
-              onFaceChange={setFace}
-              currentPosition={currentPosition}
-              studyPositions={studyState.positions}
-              initialDir={params.dir || undefined}
-              onCreated={() => closeModal()}
-              closeGuard={closeGuard}
-              onClose={() => closeModal()}
-            />
-          )}
+          {/*
+            **器が xl になったので、中身の幅を絞って中央に置く。**
+            棋譜テキストを貼る欄が 1100px いっぱいに広がると、1行が長すぎて
+            どこまで貼れたのかが読めない
+          */}
+          <div className="create-file-modal__narrow" hidden={face !== "import"}>
+            <KifuImportForm toggleModal={() => closeModal()} dirPath={params.dir || ""} />
+          </div>
+          <PositionEditor
+            // `EditorFace` に "import" は無い。隠れているあいだの値は画面に出ないが、
+            // **戻る先は必ず盤**（同表の I×X9）なので盤を渡す
+            face={face === "import" ? "board" : face}
+            hidden={face === "import"}
+            onFaceChange={setFace}
+            currentPosition={currentPosition}
+            studyPositions={studyState.positions}
+            initialDir={params.dir || undefined}
+            onCreated={() => closeModal()}
+            closeGuard={closeGuard}
+            onClose={() => closeModal()}
+            onSubmittingChange={setIsSubmitting}
+          />
         </div>
       </div>
     </Modal>
   );
+}
+
+function CreateFileModal() {
+  const { params, closeModal } = useURLParams();
+  const isOpen = params.modal === "create-file";
+  return isOpen ? <CreateFileFace closeModal={closeModal} /> : null;
 }
 
 export default CreateFileModal;

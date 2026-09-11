@@ -44,7 +44,10 @@ const rows = (): HTMLElement[] => [
   ...document.querySelectorAll<HTMLElement>(".pos-editor__picker-row"),
 ];
 const boardPieces = (): number => document.querySelectorAll(".pos-editor__square .piece").length;
-const onBoardFace = (): boolean => document.querySelector(".pos-editor__board") !== null;
+// **見えているかで判定する。** 課題局面の面へ移っても盤とフォームは木に残る
+// （外すと打った入力が消える）ので、有無では面を判定できない
+const onBoardFace = (): boolean =>
+  document.querySelector(".pos-editor__main:not([hidden]) .pos-editor__board") !== null;
 
 describe("面の出入り", () => {
   test("「課題局面から」で一覧に入る", () => {

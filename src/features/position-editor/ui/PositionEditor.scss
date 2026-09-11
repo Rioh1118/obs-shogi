@@ -29,6 +29,13 @@ $picker-list-w: 32rem; // scale-exempt
   gap: index.$space-8;
   height: 100%;
   min-height: 0;
+
+  // 隠れているあいだも木には残る（組みかけを消さないため）。
+  // `hidden` は UA の `[hidden] { display: none }` で効くはずだが、
+  // ここで `display` を書いているぶん作者側が勝つので、**書いた側で降ろす**
+  &[hidden] {
+    display: none;
+  }
 }
 
 .pos-editor__main {
@@ -38,6 +45,20 @@ $picker-list-w: 32rem; // scale-exempt
   display: flex;
   flex-direction: column;
   gap: index.$space-6;
+
+  // 作成中。**止まっていることを見せて止める** ——
+  // `inert` で受け付けなくするだけだと「押しても何も起きない」に見える
+  &.is-busy {
+    opacity: 0.5;
+  }
+}
+
+// 課題局面の面に移っているあいだ、盤とフォームは木に残したまま隠れる
+// （外すと打った入力が消える）。`display` を書いた側が UA の
+// `[hidden] { display: none }` に勝つので、**書いた側で降ろす**
+.pos-editor__main[hidden],
+.pos-editor__side[hidden] {
+  display: none;
 }
 
 // 種を選ぶ行。**確定ボタンは置かない**ので、押せるものは選択肢と2つのボタンだけ
