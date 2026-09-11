@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
@@ -20,8 +21,35 @@ function stripKnownExt(name: string) {
   return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");
 }
 
-function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dirPath: string }) {
-  const { importKifuFile } = useFileTree();
+function KifuImportForm({
+  onCreated,
+  onCancel,
+  hidden = false,
+  dirPath,
+  onSubmittingChange,
+}: {
+  /** 取り込めたので器を閉じる。**確認は通さない**（捨てるものが無い） */
+  onCreated: () => void;
+  /**
+   * 利用者が「キャンセル」を押した
+   *
+   * **器の閉じる門を通す。** 直に閉じると、隣のタブで組みかけの局面を持っていても
+   * 確認を1つも通らずに消える（閉じる口は Esc・覆い・両方の面の取り消しで4つある）。
+   */
+  onCancel: () => void;
+  /** 器が別のタブを出しているあいだ。**外さずに隠す**ので、貼りかけの棋譜は残る */
+  hidden?: boolean;
+  /** ツリーから開いたときの保存先。ようこそ画面から開くと来ない */
+  dirPath: string;
+  /**
+   * 取り込み中かどうかを器へ知らせる
+   *
+   * 器はこのあいだタブを沈め、閉じる口も止める。知らせないと、送信の途中で
+   * この面が外れて**失敗を出す場所ごと消える**。
+   */
+  onSubmittingChange?: (submitting: boolean) => void;
+}) {
+  const { importKifuFile, fileTree } = useFileTree();
 
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
@@ -32,18 +60,43 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
   const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  /**
+   * 保存先
+   *
+   * **欄を持つ。** 入口は2つあり、ようこそ画面から開くと `dir=` が来ない。
+   * 空のまま送ると Rust 側が `invalid_path` を返すので、
+   * **保存先を一度も選んでいないのに「その場所は扱えません」と言われる**。
+   */
+  const rootPath = fileTree?.path ?? "";
+  const dirOptions = useMemo(
+    () => (fileTree ? collectDirs(fileTree, rootPath) : []),
+    [fileTree, rootPath],
+  );
+  const [selectedDir, setSelectedDir] = useState(dirPath || rootPath);
+
+  // ツリーの根が入れ替わったら保存先を根へ戻す
+  const [prevRoot, setPrevRoot] = useState(rootPath);
+  if (rootPath !== prevRoot) {
+    setPrevRoot(rootPath);
+    setSelectedDir(rootPath);
+  }
+
   const fullFileName = useMemo(() => {
     const base = stripKnownExt(fileName.trim());
     if (!base) return "";
     return `${base}.${format}`;
   }, [fileName, format]);
 
+  // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
+  // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
+  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす口が他に無い
+  const rawRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    requestAnimationFrame(() => {
-      const el = document.getElementById("rawKifu") as HTMLTextAreaElement | null;
-      el?.focus();
-    });
-  }, []);
+    if (hidden) return;
+    // 次のフレームまで待つ。器の `Modal` は開いた直後に焦点を引き戻すので、
+    // 同じターンで移すと奪われる
+    requestAnimationFrame(() => rawRef.current?.focus());
+  }, [hidden]);
 
   useEffect(() => {
     const text = rawContent.trim();
@@ -69,7 +122,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
     const name = fullFileName;
     const text = rawContent.trim();
 
-    if (!name || !text) return;
+    if (!name || !text || !selectedDir) return;
     if (parseOk !== true) return;
     // 取り込みは書き込みとツリーの読み直しを通る。押しても画面が変わらない間に
     // もう一度押すと、1回目は成功して2回目が already_exists になる
@@ -77,10 +130,11 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
 
     setSubmitError(null);
     setIsSaving(true);
+    onSubmittingChange?.(true);
     try {
-      const result = await importKifuFile(dirPath, name, text);
+      const result = await importKifuFile(selectedDir, name, text);
       if (result.success) {
-        toggleModal();
+        onCreated();
         return;
       }
 
@@ -90,6 +144,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       }
     } finally {
       setIsSaving(false);
+      onSubmittingChange?.(false);
     }
   };
 
@@ -103,6 +158,7 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
         <Textarea
           label="棋譜テキスト"
           id="rawKifu"
+          ref={rawRef}
           placeholder=".kif / .ki2 / .csa / .jkf を貼り付け（Ctrl/⌘+V）"
           value={rawContent}
           onChange={(e) => setRawContent(e.target.value)}
@@ -146,6 +202,21 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
       </FormField>
 
       <FormField>
+        <Select
+          label="保存先"
+          id="import-dir"
+          options={dirOptions}
+          value={selectedDir}
+          onChange={setSelectedDir}
+        />
+        {dirOptions.length === 0 && (
+          <p className="kifu-import__parse kifu-import__parse--idle">
+            保存先がありません。先にワークスペースを開いてください
+          </p>
+        )}
+      </FormField>
+
+      <FormField>
         <div className="kifu-import__saveName">保存名: {fullFileName || "（未入力）"}</div>
       </FormField>
 
@@ -161,11 +232,11 @@ function KifuImportForm({ toggleModal, dirPath }: { toggleModal: () => void; dir
           type="submit"
           tone="primary"
           isLoading={isSaving}
-          disabled={!fullFileName || !rawContent.trim() || parseOk !== true}
+          disabled={!fullFileName || !rawContent.trim() || parseOk !== true || !selectedDir}
         >
           {isSaving ? "作成中..." : "インポートして作成"}
         </Button>
-        <Button type="button" onClick={toggleModal} disabled={isSaving}>
+        <Button type="button" onClick={onCancel} disabled={isSaving}>
           キャンセル
         </Button>
       </ButtonGroup>

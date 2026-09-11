@@ -27,10 +27,11 @@ vi.mock("@/entities/study-positions/model/useStudyPositions", () => ({
 }));
 
 const createNewFile = vi.fn();
+const importKifuFile = vi.fn();
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({
     createNewFile,
-    importKifuFile: vi.fn(),
+    importKifuFile,
     fileTree: { id: "/root", name: "root", path: "/root", isDirectory: true, children: [] },
   }),
 }));
@@ -43,6 +44,8 @@ beforeEach(() => {
   closeModal.mockReset();
   createNewFile.mockReset();
   createNewFile.mockResolvedValue({ success: true });
+  importKifuFile.mockReset();
+  importKifuFile.mockResolvedValue({ success: true });
 });
 afterEach(cleanup);
 
@@ -118,6 +121,61 @@ describe("タブの切り替え（X9）", () => {
   });
 });
 
+/** 解析を通る最小の kif。インポートの送信条件（解析 OK）を満たすために要る */
+const KIF_TEXT = "手数----指手---------消費時間--\n   1 ７六歩(77)   ( 0:00/00:00:00)\n";
+
+/** インポートの面を出して、送信できるところまで埋める */
+function fillImport() {
+  fireEvent.click(tab("インポート"));
+  fireEvent.change(screen.getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+  fireEvent.change(screen.getByLabelText("ファイル名(必須)"), { target: { value: "研究" } });
+}
+
+const importForm = (): HTMLFormElement => {
+  const form = document.querySelector<HTMLFormElement>(".create-file-modal__narrow form");
+  if (!form) throw new Error("インポートのフォームが無い");
+  return form;
+};
+
+describe("インポートの面から閉じる", () => {
+  test("組みかけを持ったまま「キャンセル」を押すと確認が出る", () => {
+    render(<CreateFileModal />);
+    makeDirty();
+    fireEvent.click(tab("インポート"));
+
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    expect(screen.getByText("組んだ局面は保存されません。")).toBeTruthy();
+    expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  test("組みかけが無ければ、そのまま閉じる", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    expect(closeModal).toHaveBeenCalledTimes(1);
+  });
+
+  test("インポートの面へ移ると、貼り付け欄に焦点が入る", async () => {
+    // 焦点は次のフレームで移す。**器の `Modal` が開いた直後に引き戻すので、
+    // 同じターンで移すと奪われる**
+    const frame = () =>
+      act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+
+    render(<CreateFileModal />);
+    await frame();
+    // **隠れているあいだに移してはいけない。** 実ブラウザでは `display: none` への
+    // `focus()` は何も起きず、そのあとタブで出てきても焦点を動かす口が無い
+    expect(document.activeElement?.id).not.toBe("rawKifu");
+
+    fireEvent.click(tab("インポート"));
+    await frame();
+    expect(document.activeElement?.id).toBe("rawKifu");
+  });
+});
+
 describe("作成中（W）", () => {
   test("作成が返るまでタブは押せない", async () => {
     let finish: (result: { success: boolean }) => void = () => undefined;
@@ -145,5 +203,41 @@ describe("作成中（W）", () => {
       finish({ success: true });
     });
     expect((tab("インポート") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  test("インポートの側で送信中も、タブが沈み Esc で閉じない", async () => {
+    // **旗は面ごとに立つ。** 片方しか見ないと、見ていない面で送信中に器が閉じ、
+    // 失敗を出す場所ごと消える
+    let finish: (result: { success: boolean }) => void = () => undefined;
+    importKifuFile.mockReturnValue(
+      new Promise<{ success: boolean }>((resolve) => {
+        finish = resolve;
+      }),
+    );
+
+    render(<CreateFileModal />);
+    fillImport();
+    await act(async () => {
+      fireEvent.submit(importForm());
+    });
+
+    expect((tab("新規作成") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(closeModal).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finish({ success: true });
+    });
+  });
+
+  test("保存先はツリーの根に倒れる（`dir=` が来ない入口がある）", async () => {
+    render(<CreateFileModal />);
+    fillImport();
+    await act(async () => {
+      fireEvent.submit(importForm());
+    });
+
+    expect(importKifuFile).toHaveBeenCalledTimes(1);
+    expect(importKifuFile.mock.calls[0]?.[0]).toBe("/root");
   });
 });

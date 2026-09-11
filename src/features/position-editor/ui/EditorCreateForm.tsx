@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
@@ -79,21 +79,19 @@ function EditorCreateForm({
 
   const [selectedDir, setSelectedDir] = useState(initialDir || rootPath);
 
-  // ツリーの根が入れ替わったら保存先を根へ戻す。**選んでいたフォルダだけが
-  // 消えた場合に写せる形は無い**（状態遷移表の「埋まっていないセル」1）
+  // ツリーの根が入れ替わったら保存先を根へ戻す
   const [prevRoot, setPrevRoot] = useState(rootPath);
   if (rootPath !== prevRoot) {
     setPrevRoot(rootPath);
     setSelectedDir(rootPath);
   }
 
-  // 送るのは**押した瞬間の局面**。依存に入れると、盤を1手動かすたびに
-  // `handleSubmit` が作り直され、ここから下の欄を1つも触っていないのに
-  // フォーム全体が再レンダーされる
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  const handicapRef = useRef(handicap);
-  handicapRef.current = handicap;
+  // **選んでいたフォルダだけが消えたときも根へ戻す。** `Select` は選択肢に無い値を
+  // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
+  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**
+  if (selectedDir && dirOptions.length > 0 && !dirOptions.some((o) => o.value === selectedDir)) {
+    setSelectedDir(rootPath);
+  }
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -116,9 +114,7 @@ function EditorCreateForm({
         // 平手をそのまま作っただけの棋譜から「手合割：平手」が消える。
         // 逆に常に手合割として書くと、並べ替えが黙って落ちる
         initialPosition:
-          handicapRef.current !== null
-            ? { preset: handicapRef.current }
-            : { preset: "OTHER", data: stateRef.current },
+          handicap !== null ? { preset: handicap } : { preset: "OTHER", data: state },
       });
       setIsSubmitting(false);
       onSubmittingChange(false);
@@ -134,6 +130,8 @@ function EditorCreateForm({
       }
     },
     [
+      state,
+      handicap,
       fileName,
       format,
       blackPlayer,

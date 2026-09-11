@@ -27,21 +27,34 @@ type Face = EditorFace | "import";
 function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   const { params } = useURLParams();
   const [face, setFace] = useState<Face>(params.tab === "import" ? "import" : "board");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * 作成中の旗は面ごとに立つ
+   *
+   * **同じ状態が2つの綴りを持つ**（状態遷移表の W）。組む面は
+   * `EditorCreateForm` の `isSubmitting`、インポートの面は `KifuImportForm` の
+   * `isSaving`。器は両方を見る —— 片方しか見ないと、見ていない面で送信中に
+   * タブを押せて、失敗を出す場所ごと消える。
+   */
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const isSubmitting = editorBusy || importBusy;
 
   /**
    * 閉じてよいかを中身に問う門
    *
-   * **閉じる口は3つある**（Esc・覆いの押下・面の中の「やめる」）。`Modal` は
-   * Esc と覆いの両方で `onClose` を呼ぶので、そこへ寄せれば口が1つになる。
+   * **閉じる口は4つある**（Esc・覆いの押下・組む面の「やめる」・インポートの面の
+   * 「キャンセル」）。`Modal` は Esc と覆いの両方で `onClose` を呼ぶので、
+   * そこへ寄せれば口が1つになる。
    * 段を面の中だけで持つと、焦点が面の外にある Esc と覆いの押下が素通りして、
    * **組みかけが確認なしに消える**。
    */
   const closeGuard = useRef<(() => boolean) | null>(null);
   const requestClose = useCallback(() => {
+    // 作成中は止められない（表の W×X10）。**どちらの面から送っていても同じ**
+    if (isSubmitting) return;
     if (closeGuard.current?.()) return;
     closeModal();
-  }, [closeModal]);
+  }, [closeModal, isSubmitting]);
 
   const { view } = useGame();
   const { state: studyState } = useStudyPositions();
@@ -110,7 +123,13 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             どこまで貼れたのかが読めない
           */}
           <div className="create-file-modal__narrow" hidden={face !== "import"}>
-            <KifuImportForm toggleModal={() => closeModal()} dirPath={params.dir || ""} />
+            <KifuImportForm
+              hidden={face !== "import"}
+              onCreated={() => closeModal()}
+              onCancel={requestClose}
+              dirPath={params.dir || ""}
+              onSubmittingChange={setImportBusy}
+            />
           </div>
           <PositionEditor
             // `EditorFace` に "import" は無い。隠れているあいだの値は画面に出ないが、
@@ -124,7 +143,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             onCreated={() => closeModal()}
             closeGuard={closeGuard}
             onClose={() => closeModal()}
-            onSubmittingChange={setIsSubmitting}
+            onSubmittingChange={setEditorBusy}
           />
         </div>
       </div>

@@ -18,7 +18,11 @@ const importKifuFile = vi.fn();
 
 // 差し替えるのは実体の側。barrel は再 export なので、こちらを差し替えれば通る
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
-  useFileTree: () => ({ createNewFile, importKifuFile }),
+  useFileTree: () => ({
+    createNewFile,
+    importKifuFile,
+    fileTree: { id: "/root", name: "root", path: "/root", isDirectory: true, children: [] },
+  }),
 }));
 
 const { default: KifuImportForm } = await import("../KifuImportForm");
@@ -37,12 +41,14 @@ const CONFLICT: FsError = {
 // 解析を通る最小の kif。インポートの送信条件（解析 OK）を満たすために要る
 const KIF_TEXT = "手数----指手---------消費時間--\n   1 ７六歩(77)   ( 0:00/00:00:00)\n";
 
-const toggleModal = vi.fn();
+const onCreated = vi.fn();
+const onCancel = vi.fn();
 
 beforeEach(() => {
   createNewFile.mockReset();
   importKifuFile.mockReset();
-  toggleModal.mockReset();
+  onCreated.mockReset();
+  onCancel.mockReset();
 });
 
 afterEach(() => cleanup());
@@ -67,19 +73,19 @@ describe("KifuImportForm", () => {
 
   test("インポートに失敗したら理由が出る", async () => {
     importKifuFile.mockResolvedValue({ success: false, error: BAD_NAME });
-    render(<KifuImportForm toggleModal={toggleModal} dirPath="/root" />);
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
     fillImport();
     await submitForm();
 
     expect(importKifuFile).toHaveBeenCalledTimes(1);
     expect(screen.getByText("名前に / や \\ は使えません")).toBeTruthy();
-    expect(toggleModal).not.toHaveBeenCalled();
+    expect(onCreated).not.toHaveBeenCalled();
   });
 
   test("衝突は別名を選ぶ対話が引き取るので、フォーム側では出さない", async () => {
     importKifuFile.mockResolvedValue({ success: false, error: CONFLICT });
-    render(<KifuImportForm toggleModal={toggleModal} dirPath="/root" />);
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
     fillImport();
     await submitForm();
