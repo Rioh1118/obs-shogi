@@ -64,7 +64,29 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     void previous.close().catch(() => {});
   }, []);
 
-  const persist = useCallback(async (next: UpdaterState) => {
+  /**
+   * 記憶の現在地。**書くときはこちらを読む。`persisted` を読まない。**
+   *
+   * 確認は最長で `CHECK_TIMEOUT_MS` 走る。その間に設定で「解除」を押せるので、
+   * 確認の入口で読んだ値を書き戻すと**押した解除が取り消される。**
+   * 描画のための `persisted` と、書き込みの土台になるこちらは別物。
+   */
+  const persistedRef = useRef<UpdaterState | null>(null);
+
+  /**
+   * 記憶を書き換える。`patch` に無い欄は現在地のまま残す。
+   *
+   * **欄を全部渡す形にしない。** 渡す側が読んだ時点の値を持ち回ることになり、
+   * 持ち回っている間に別の経路が書いた分を潰す。
+   */
+  const persist = useCallback(async (patch: Partial<UpdaterState>) => {
+    const next: UpdaterState = {
+      skippedVersion: null,
+      lastCheckedMs: null,
+      ...persistedRef.current,
+      ...patch,
+    };
+    persistedRef.current = next;
     setPersisted(next);
     try {
       await saveUpdaterState(next);
@@ -90,21 +112,26 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       if (manual) setManualCheck(null);
       setStatus((s) => (s.phase === "idle" ? { phase: "checking" } : s));
 
-      // 飛ばす版は書かれた直後に読み直さない。`persisted` は `persist` が
-      // 同じ描画で入れ替えているので、ここで見える値が最新
-      const skipped = persisted?.skippedVersion ?? null;
-
       try {
         const update = await check({ timeout: CHECK_TIMEOUT_MS });
 
-        await persist({
-          skippedVersion: skipped,
-          lastCheckedMs: Date.now(),
-        });
+        await persist({ lastCheckedMs: Date.now() });
+
+        // **待っている間に解除されていることがある。** 入口で読むと、
+        // 解除した直後の確認が「まだ飛ばす設定」として黙る
+        const skipped = persistedRef.current?.skippedVersion ?? null;
 
         if (!update) {
           setStatus((s) => (s.phase === "checking" ? { phase: "idle" } : s));
           if (manual) setManualCheck({ kind: "upToDate" });
+          return;
+        }
+
+        // **待っている間に取得が始まっていることがある。** ここで掴み替えると、
+        // 走っている取得の相手を閉じて足元を外す
+        if (inFlightRef.current) {
+          void update.close().catch(() => {});
+          if (manual) setManualCheck({ kind: "found", version: update.version });
           return;
         }
 
@@ -132,7 +159,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
         setIsChecking(false);
       }
     },
-    [closeUpdate, persist, persisted],
+    [closeUpdate, persist],
   );
 
   // 記憶を読んでから確認する。**順序を入れ替えない**——飛ばす版が分かる前に
@@ -148,12 +175,13 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.error("[updater] updater.json を読めなかった", e);
       }
+      persistedRef.current = state;
       setPersisted(state);
     })();
   }, []);
 
-  // `persisted` が入った直後に1回だけ確認する。`runCheck` は `persisted` を
-  // 読むので、依存に入れずに呼ぶと飛ばす版を `null` のまま見る
+  // 記憶が入ってから確認する。**飛ばす版が分かる前に確認を終えると、
+  // 飛ばしたはずの版で告知が出る。**
   const bootRanRef = useRef(false);
   useEffect(() => {
     if (persisted === null || bootRanRef.current) return;
@@ -223,19 +251,13 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     if (status.phase !== "available") return;
     closeUpdate();
     setStatus({ phase: "idle" });
-    await persist({
-      skippedVersion: status.version,
-      lastCheckedMs: persisted?.lastCheckedMs ?? null,
-    });
-  }, [closeUpdate, persist, persisted, status]);
+    await persist({ skippedVersion: status.version });
+  }, [closeUpdate, persist, status]);
 
   const unskip = useCallback(async () => {
-    await persist({
-      skippedVersion: null,
-      lastCheckedMs: persisted?.lastCheckedMs ?? null,
-    });
+    await persist({ skippedVersion: null });
     setManualCheck(null);
-  }, [persist, persisted]);
+  }, [persist]);
 
   const checkNow = useCallback(async () => {
     await runCheck(true);

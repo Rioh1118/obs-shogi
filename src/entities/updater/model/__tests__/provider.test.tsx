@@ -345,6 +345,32 @@ describe("飛ばす／解除", () => {
     await waitFor(() => expect(screen.getByTestId("skipped").textContent).toBe("-"));
   });
 
+  /**
+   * 確認は最長で上限のぶん走る。その間に解除できるので、確認の入口で読んだ値を
+   * 書き戻すと**押した解除が取り消される。**
+   */
+  it("確認の最中に解除しても、確認の完了で飛ばす版が戻らない", async () => {
+    loadUpdaterState.mockResolvedValue({ skippedVersion: "9.9.9", lastCheckedMs: 1 });
+
+    let finishCheck!: () => void;
+    check.mockReturnValue(
+      new Promise((resolve) => {
+        finishCheck = () => resolve(null);
+      }),
+    );
+
+    mount();
+    await waitFor(() => expect(check).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("unskip"));
+    await waitFor(() => expect(screen.getByTestId("skipped").textContent).toBe("-"));
+
+    finishCheck();
+    await waitFor(() => expect(saveUpdaterState).toHaveBeenCalledTimes(2));
+    expect(saveUpdaterState.mock.lastCall![0].skippedVersion).toBeNull();
+    expect(screen.getByTestId("skipped").textContent).toBe("-");
+  });
+
   it("(S2, E11) 閉じても飛ばす版は増えない", async () => {
     check.mockResolvedValue(fakeUpdate("9.9.9", async () => {}));
     mount();
@@ -387,6 +413,39 @@ describe("設定からの確認", () => {
     fireEvent.click(screen.getByTestId("checkNow"));
     await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("foundButSkipped"));
     expect(phase()).toBe("idle");
+  });
+
+  /**
+   * 確認と取得は、確認が先に始まれば重なる（`available` の段では確認しても
+   * カードのボタンが残る）。重なったまま確認が掴み替えると、**走っている取得の
+   * 相手を閉じて足元を外す。**
+   */
+  it("確認の最中に取得が始まったら、確認は掴み替えない", async () => {
+    const first = fakeUpdate("9.9.9", async () => {
+      await new Promise<void>(() => {});
+    });
+    check.mockResolvedValue(first);
+    mount();
+    await settled("available");
+
+    let finishCheck!: (u: unknown) => void;
+    check.mockReturnValue(
+      new Promise((resolve) => {
+        finishCheck = resolve;
+      }),
+    );
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("downloading");
+
+    const second = fakeUpdate("9.9.9", async () => {});
+    finishCheck(second);
+    await waitFor(() => expect(second.close).toHaveBeenCalled());
+    // 取得を始めた相手は閉じられていない
+    expect(first.close).not.toHaveBeenCalled();
+    expect(phase()).toBe("downloading");
   });
 
   it("(E17) 取得の最中は確認しない", async () => {
